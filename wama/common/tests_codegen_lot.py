@@ -405,21 +405,28 @@ class LotBoutEnBoutTest(TestCase):
         self.assertTrue(any('vocabulaire' in str(w) for w in (data.get('warnings') or [])),
                         f"l'écart doit être DIT, pas subi : {data}")
 
-    def test_une_url_sans_ingest_est_signalee(self):
-        """Une app SANS champ source le DIT dans `warnings` — elle n'échoue pas en silence.
+    def test_une_url_de_lot_est_ENREGISTREE_pas_telechargee(self):
+        """Réécrit le 2026-08-31 — la bascule PRÉVUE par la version précédente a eu lieu.
 
-        C'est le cas de cette jumelle (models.py d'avant le correctif WAMA_INGEST du 22/08).
-        Le jour où elle sera régénérée, ce test deviendra rouge : ce sera le signal que la
-        voie URL est devenue exerçable, pas une régression.
+        L'ancien test attestait le refus expliqué « app sans ingest » et sa docstring disait :
+        « le jour où elle sera régénérée, ce test deviendra rouge : ce sera le signal que la
+        voie URL est devenue exerçable, pas une régression ». Les models de la jumelle ont été
+        régénérés le 31/08 (WAMA_INGEST projeté depuis `processing.ingest`) : signal reçu.
+        Nouvel invariant : la ligne-URL CRÉE l'élément, `source_url` ENREGISTRÉE — jamais
+        téléchargée dans la requête (c'est `ensure_local_input` en tête de tâche qui résout).
         """
         fichier = SimpleUploadedFile('lot.txt', b'https://example.org/a.mp4\n',
                                      content_type='text/plain')
         reponse = self.client.post(self.url, {'batch_file': fichier})
         self.assertEqual(reponse.status_code, 200)
         data = reponse.json()
-        self.assertEqual(data.get('count'), 0)
-        self.assertTrue(any('ingest' in str(w) for w in (data.get('warnings') or [])),
-                        f"le refus doit être EXPLIQUÉ, pas muet : {data}")
+        self.assertEqual(data.get('count'), 1, f'la voie URL doit créer : {data}')
+        modele = self._modele_item()
+        if modele is not None:
+            dernier = modele.objects.order_by('-id').first()
+            self.assertEqual(dernier.source_url, 'https://example.org/a.mp4')
+            self.assertFalse(bool(dernier.input_file),
+                             'rien ne doit être téléchargé dans la requête')
 
     def test_un_fichier_sans_reference_est_refuse_proprement(self):
         """Un texte de prose n'est pas un fichier de lot — 400, pas 500 ni création muette."""

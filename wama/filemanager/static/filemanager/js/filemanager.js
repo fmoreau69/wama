@@ -1785,19 +1785,28 @@
                             }));
                         });
                     } else {
-                        // Autres apps : import serveur de TOUS les fichiers, puis UN
-                        // SEUL reload. Les imports créent des orphelins → _auto_wrap_orphans
-                        // les regroupe en un batch au chargement (transcriber/describer/
-                        // enhancer). Un seul fichier → comportement inchangé.
+                        // Autres apps : UNE SEULE requête pour TOUT le dépôt (`paths[]`) — le
+                        // regroupement en LOT se fait CÔTÉ SERVEUR sur les items importés
+                        // ENSEMBLE (consolidation « par arrivée », 2026-08-14). ⚠ L'ancienne
+                        // boucle Promise.all envoyait N requêtes d'un fichier : le serveur ne
+                        // les voyait jamais « ensemble », et son commentaire s'appuyait sur
+                        // l'auto-wrap par ACCUMULATION… supprimé le 14/08 — 2 fichiers déposés
+                        // restaient 2 cards unitaires (constat Fabien 31/08, vrai sur toutes
+                        // les apps). Un seul fichier → même requête, réponse rétro-compatible.
                         const capturedZone = currentDropZone;
-                        Promise.all(dragFiles.map(function (f) {
-                            return importToApp(f.path, app).then(function (r) { return r; }).catch(function () { return null; });
-                        })).then(function (results) {
-                            const ok = results.filter(function (r) { return r && r.imported; });
-                            if (!ok.length) {
+                        fetch(config.apiImportUrl || '/filemanager/api/import/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                            body: JSON.stringify({ paths: dragFiles.map(function (f) { return f.path; }), app: app }),
+                        }).then(function (resp) {
+                            return resp.json().then(function (d) { return { httpOk: resp.ok, data: d }; });
+                        }).then(function (rep) {
+                            const data = rep.data || {};
+                            const ok = (data.results || (data.imported ? [data] : [])).filter(function (r) { return r && r.imported; });
+                            if (!rep.httpOk || !ok.length) {
                                 // JAMAIS d'échec silencieux : dire pourquoi (ex. Access denied).
-                                const failed = results.find(function (r) { return r && r.error; });
-                                showToast("Import vers " + app + " refusé : " + ((failed && failed.error) || 'aucun fichier accepté'), 'danger');
+                                const failed = (data.errors && data.errors[0]) || {};
+                                showToast("Import vers " + app + " refusé : " + (failed.error || data.error || 'aucun fichier accepté'), 'danger');
                                 return;
                             }
                             showToast(`${ok.length} fichier(s) importé(s) vers ${app}`, 'success');

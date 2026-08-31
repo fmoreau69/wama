@@ -475,6 +475,16 @@ def {nom}(request, pk):
         item.chips = chips_by_section(item, {schema_symbole})
     except Exception:
         item.chips = {{}}{aplat}
+    # `gear_data` : le VOLET lit les data-* du bouton ⚙ (pas les data-param-* de la card —
+    # deux lecteurs, deux sources). Sur le modèle RÉEL c'est une @property (glu non
+    # sérialisée) : la brique commune `card_gear` la reconstitue depuis le schéma + les
+    # valeurs de l'instance (aplaties ci-dessus) — volet PARAMÈTRES vide sinon (Fabien 31/08).
+    try:
+        from wama.common.utils.card_gear import gear_data
+        from .params import {schema_symbole} as _sch
+        item.gear_data = gear_data(item, _sch)
+    except Exception:
+        item.gear_data = {{}}
     return item'''
 
     vues['card_html'] = f'''def card_html(request, pk):

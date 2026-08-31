@@ -837,7 +837,7 @@ def check_app_send_to(app: str, url_path: str):
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
-    uid = _test_account_id()
+    uid = _test_account_id(app)
     if not uid:
         raise SkipScenario("id du compte de test illisible — sans lui, aucun dossier à peupler")
 
@@ -1124,7 +1124,7 @@ def check_app_url_import(app: str, url_path: str):
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
-    uid = _test_account_id()
+    uid = _test_account_id(app)
     if not uid:
         raise SkipScenario("id du compte de test illisible — sans lui, aucun témoin à publier")
 
@@ -2184,8 +2184,13 @@ _GABARIT_DE_LOT = """(async () => {
 })()"""
 
 
-def _test_account_id():
+def _test_account_id(app: str | None = None):
     """L'id du compte de test, lu DEPUIS UN THREAD ORDINAIRE.
+
+    ⚠ Doit suivre le MÊME routage de compte que `_test_session_key(app)` : un scénario de
+    JUMELLE navigue avec le compte dev — déposer son témoin sous l'uid du compte STANDARD
+    le rendait invisible dans l'arbre du filemanager (échec `converter_01.send_to`, mesuré
+    31/08 : « le témoin déposé dans users/22/temp n'apparaît pas » — 22 était l'AUTRE compte).
 
     ⚠ `sync_playwright` installe une boucle d'événements dans le thread courant : tout accès
     ORM y lève `SynchronousOnlyOperation`. Mesuré le 2026-08-27 — le montage retombait alors
@@ -2197,8 +2202,16 @@ def _test_account_id():
     def _lire():
         from django.db import connections
         try:
-            from wama.common.services.nightly_tests import get_test_user
-            return getattr(get_test_user(), 'id', None)
+            from wama.common.services.nightly_tests import get_test_dev_user, get_test_user
+            en_jumelle = False
+            if app:
+                try:
+                    from wama.common.app_registry import APP_CATALOG
+                    en_jumelle = bool((APP_CATALOG.get(app) or {}).get('generated_from'))
+                except Exception:
+                    en_jumelle = False
+            u = get_test_dev_user() if en_jumelle else get_test_user()
+            return getattr(u, 'id', None)
         finally:
             connections.close_all()   # connexion propre au thread : à refermer avec lui
 
@@ -2229,7 +2242,7 @@ def _source_resolvable(app: str, combien: int = 2):
     """
     try:
         from wama.common.utils.media_paths import get_app_media_path
-        uid = _test_account_id()
+        uid = _test_account_id(app)
         if not uid:
             return [], []
         dossier = get_app_media_path(app, uid, 'input')
