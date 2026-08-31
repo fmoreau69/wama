@@ -9319,3 +9319,83 @@ maquette v4.
   barre globale réécrite (4, cadences divergentes), détection de type média (5+ sites).
   Graphe transverse : `common/` importe 6 apps médias ; `inline_convert` sert 5 apps ;
   consigné au §S2ter (candidat `requires` inter-apps).
+
+---
+
+## §REPRISE — 2026-08-31, instance « QR D'APPARIEMENT + HTTPS + ABONNEMENT CLAUDE » (CLOSE) — 🔚 POINT D'ENTRÉE
+
+> Périmètre : `common/utils/qr.py`, `gateway/`, `accounts/` (login+profil), `settings.py`,
+> `common/services/{claude_code,assistant_engine}.py`, `tool_api.py`, `views.py`, `home.html`.
+> **Aucun recoupement** avec l'instance TTS/route F4b qui a commité en parallèle (3 commits
+> intercalés, vérifié fichier par fichier).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+**Décommenter `WAMA_PUBLIC_URL` dans `.env`** (l'adresse que le SMARTPHONE joint, VPN monté —
+IP interne si le DNS ne passe pas le tunnel), relancer `start_wama_prod.sh`, puis **`!delier`
+puis `!lier` en DM Discord** → scanner le QR → vérifier que le profil s'ouvre code prérempli.
+C'est la seule maille que le harnais ne couvre pas (rendu Discord réel).
+
+### Ce qui est LIVRÉ
+| Livrable | Où |
+|---|---|
+| Brique commune QR (segno 1.6.6, BSD-3 lue AU TEXTE) — mécanisme `qr` | `common/utils/qr.py` |
+| QR d'appariement joint par le bot ; `Reply.attachments` = pièces sortantes EN MÉMOIRE | `gateway/{services,core}.py`, `adapters/discord_bot.py` |
+| Exposition publique + bascule HTTPS DÉCLARATIVES, tout OFF par défaut | `settings.py`, `.env(.example)` |
+| Abonnement Claude atteignable : geste `!code` (a) **et** fournisseur `claude-abo` (b) | `gateway/core.py`, `assistant_engine.py`, `home.html` |
+| Prédicat de droit à DOMICILE UNIQUE (3 appelants) + garde au passage obligé | `claude_code.subscription_allowed`, `run_assistant_turn` |
+
+### ⚠⚠ Deux défauts PRÉ-EXISTANTS trouvés en chemin (aucun n'était l'objet de la session)
+1. **Le fil `?next=` du login était mort** — les 3 gabarits envoyaient `request.path` (la page de
+   login elle-même) : **aucun lien profond n'était honoré après connexion**, pour tout
+   `@login_required`, pas seulement le QR. Réparé AVEC sa garde anti-redirection ouverte
+   (`url_has_allowed_host_and_scheme`) posée dans le MÊME geste — ouvrir le fil sans elle aurait
+   créé un redirecteur ouvert au moment où le QR met des liens profonds en circulation.
+2. **Un SECOND BARÈME posé par le CONTEXTE de gabarit** (`PROFILES_PERMISSIONS §8.9.2bis`) —
+   `views.home` reposait `is_admin` avec `is_staff`, écrasant le context processor : le menu
+   « Users »/« Models » de `header.html` suivait **une règle sur `/` et une autre partout
+   ailleurs**. C'est la variante que le balayage S2 du 27/08 ne pouvait pas voir, parce qu'il
+   cherchait dans les GARDES et qu'il n'y en avait aucune ici.
+   ⭐ **Corollaire de méthode** : une clé de contexte qui masque celle d'un context processor est
+   un point d'application du contrôle d'accès au même titre qu'un décorateur.
+
+### ⭐ La MESURE qui a renversé une note du 21/08 (`ROADMAP §19.3`)
+Test demandé par Fabien AVANT d'implémenter `--resume`. 3 appels identiques, même dépôt :
+**A frais/froid 0,538 $ · B `--resume` 0,392 $ · C frais/CHAUD 0,033 $** (lecture de 53 143 tokens).
+- La note « ~0,99 $ le message, le contexte est rechargé à chaque invocation » décrit le cas
+  **FROID**, pas le régime courant : **le cache de prompt (TTL 1 h) TRAVERSE les invocations**.
+- **`--resume` est RÉFUTÉ** — l'hypothèse même que le test devait valider : la session reprise
+  bâtit un préfixe DIFFÉRENT, rate le cache partagé et recrée le sien (douze fois un appel frais
+  à cache chaud). **Ne pas l'implémenter en croyant amortir.**
+- Contre-intuitif à retenir : **espacer les questions coûte plus cher que les enchaîner**.
+- ⭐ *Une intuition d'architecture qui ne coûte que 3 appels à vérifier ne se consigne pas sans
+  les avoir passés.* Libellé d'UI, pied de `!code` et 2 docstrings corrigés en conséquence.
+
+### Chantiers ouverts / décisions en attente
+1. 🔴 **BLOQUANT pour activer le QR** — `WAMA_PUBLIC_URL` (valeur = décision Fabien : quelle
+   adresse le smartphone joint). Rien d'autre ne bloque ; sans elle le code texte part seul.
+2. **Validation ÉCRAN ×2** : le parcours QR ci-dessus, **et** le fournisseur `claude-abo` dans
+   le menu (jamais vu à l'écran — code testé, rendu non).
+3. **HTTPS** : tout est câblé et OFF. `WAMA_HTTPS=1` seulement quand le TLS sert réellement
+   (sinon cookie `Secure` → session perdue → login qui boucle) ; HSTS **après** l'avoir éprouvé.
+4. **Auto-déconnexion** (soulevée par Fabien, non tranchée) : session à 7 j, `SESSION_COOKIE_AGE`
+   + `SESSION_SAVE_EVERY_REQUEST` = expiration glissante. Territoire `PROFILES_PERMISSIONS`.
+5. `ask_claude_code` reste **admin/dev seulement** — donc Fabien seul aujourd'hui. Assumé.
+
+### Pendings système
+- **16 commits non poussés** sur `dev` (dont 3 d'une autre instance).
+- Relance nécessaire pour prendre `WAMA_PUBLIC_URL` et le nouveau `gateway/core.py` (bot = prod).
+- Jetable : le script de mesure du coût (3 appels A/B/C) vit dans le scratchpad de session.
+  ⚠ Son nom est volontairement écrit SANS chemin résolvable : `check_docs` compte tout chemin
+  cité comme une référence, et l'écrire ici a ouvert une **2ᵉ cible distincte** — donc franchi
+  le seuil de dérive — au moment même où ce bloc rendait compte du contrôle. *Le piège du §2c
+  du skill, cinquième récidive.* Le RÉSULTAT est consigné (`ROADMAP.md` §19.3), pas le script.
+
+### Contrôles attendus au prochain /reprise — MESURÉS le 2026-08-31
+- `test wama.gateway wama.common.tests_qr wama.common.tests_claude_subscription wama.accounts`
+  → **66 OK, 0 rouge**.
+- `check_docs` → **8 cassées / 0 périmée sur 1275 vérifiées**, et surtout **1 SEULE cible
+  distincte** (le partial d'onglets de résultat jamais créé). Une 2ᵉ cible distincte = vraie
+  dérive. ⚠ Le total de RÉFÉRENCES monte tout seul (1103 le 28/08 → 1275) : ce n'est pas le
+  critère — mesuré APRÈS écriture de ce bloc, qui avait lui-même ouvert une 2ᵉ cible.
+- `doc_facts --check` → tout à jour ; **115 mécanismes déclarés**.
+- `check_templates` → **0 défaut sur 129 gabarits**.
