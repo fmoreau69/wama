@@ -374,7 +374,8 @@ def select_model_id(source: str, requires=None, requested: Optional[str] = None,
     return chosen.model_id
 
 
-def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = False,
+def get_registry_models(source: Optional[str] = None, allowed_ids=None,
+                        downloaded_only: bool = False,
                         requires=None, modality: Optional[str] = None,
                         task: Optional[str] = None, available_inputs=None, consumes=None):
     """
@@ -382,6 +383,15 @@ def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = F
 
     - choices : [(model_id, nom)]  — model_id = model_key sans le préfixe "source:"
     - info    : [{id, name, description, vram, capabilities, downloaded}]
+
+    ⚠ `source=None` (2026-08-31, route F4b) : requête PAR CAPACITÉ SEULE, tous producteurs
+    confondus. C'est le mode qui rend les PASSERELLES gratuites — une surface qui n'est pas
+    une app (vocalisation de l'assistant, nœud studio, appel du converter vers l'enhancer)
+    demande « ce qui sait faire X », pas « ce que l'app Y déclare ». `AIModel.source` est
+    mono-valué : y ancrer les options rebâtit une cloison entre surfaces qui partagent le
+    même parc (l'avatarizer emprunte déjà les moteurs TTS du synthesizer).
+    Dans ce mode, l'`id` rendu est le `model_key` ENTIER : sans préfixe de source, deux
+    producteurs pourraient porter le même suffixe et l'appelant ne saurait plus qui il vise.
 
     `allowed_ids` (optionnel) : restreint aux modèles que le backend sait CHARGER — sécurité,
     on ne propose jamais un modèle non chargeable. Retourne ([], []) si le registre n'a rien
@@ -398,7 +408,13 @@ def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = F
     aucune fonction ne porte de modalité dans son nom.
     """
     from ..models import AIModel
-    qs = AIModel.objects.filter(source=source, is_available=True)
+    qs = AIModel.objects.filter(is_available=True)
+    if source:
+        qs = qs.filter(source=source)
+    else:
+        # Une requête par capacité ne doit jamais rendre un CANDIDAT de prospection : il n'a
+        # pas de poids sur le disque (`is_proposed` = proposé, pas installé).
+        qs = qs.filter(is_proposed=False)
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
     qs = qs.order_by('-vram_gb', 'name')
@@ -416,7 +432,10 @@ def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = F
         models = list(qs)
     choices, info = [], []
     for m in models:
-        mid = m.model_key.split(':', 1)[1] if ':' in m.model_key else m.model_key
+        # Sans source déclarée, la clé ENTIÈRE est l'identité (cf. docstring) ; avec une
+        # source, on garde le suffixe — c'est ce que les selects d'app portent déjà.
+        mid = (m.model_key if not source
+               else (m.model_key.split(':', 1)[1] if ':' in m.model_key else m.model_key))
         if allowed_ids is not None and mid not in allowed_ids:
             continue
         choices.append((mid, m.name))
