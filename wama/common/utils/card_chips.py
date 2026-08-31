@@ -14,7 +14,7 @@ avec, côté vue ou via un helper d'app :
 """
 
 
-def chips_for(instance, params_json, extra=None):
+def chips_for(instance, params_json, extra=None, values=None):
     """Construit la liste des chips d'une card depuis le schéma sérialisé (schema_to_dicts).
 
     Args:
@@ -22,15 +22,21 @@ def chips_for(instance, params_json, extra=None):
         params_json : liste de dicts (PARAMS_JSON de l'app).
         extra       : chips additionnels d'app, déjà formés [{'label','icon','title','variant'}]
                       — ex. « X pages » (reader), « → mp3 » (format cible, variant='target').
+        values      : dict prioritaire sur getattr — pour les valeurs qui vivent dans un
+                      conteneur JSON (``options``/``cross_app_options``) et non en colonnes.
+                      MÊME contrat que ``card_gear.gear_data`` (brique jumelle) ; sans lui,
+                      chipper un champ hors-colonne rendait silencieusement RIEN (getattr →
+                      None → filtré) — mesuré le 2026-08-31 sur le converter réel.
 
     Returns: [{'label','icon','title','variant'}] (variant '' ou 'target').
     """
     chips = []
+    src = values or {}
     for field in params_json or []:
         if not field.get('chip'):
             continue
         name = field.get('name')
-        value = getattr(instance, name, None)
+        value = src[name] if name in src else getattr(instance, name, None)
         if value in (None, '', False):
             continue
         display = value
@@ -70,7 +76,7 @@ def chips_for(instance, params_json, extra=None):
     return chips
 
 
-def chips_by_section(instance, params_json, extra=None):
+def chips_by_section(instance, params_json, extra=None, values=None):
     """Mêmes chips que `chips_for`, mais GROUPÉS par section de card v3 (CARD_DESIGN §11).
 
     Renvoie {'settings': [...], 'output': [...], …} — une clé par section rencontrée.
@@ -78,6 +84,6 @@ def chips_by_section(instance, params_json, extra=None):
     qu'aucune app ne réparte ses chips à la main (métadonnée-driven, philosophie WAMA §3).
     """
     grouped = {}
-    for chip in chips_for(instance, params_json, extra=extra):
+    for chip in chips_for(instance, params_json, extra=extra, values=values):
         grouped.setdefault(chip.get('section') or 'settings', []).append(chip)
     return grouped

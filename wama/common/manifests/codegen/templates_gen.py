@@ -252,6 +252,39 @@ def render_index(manifest: dict) -> tuple:
     }}
 '''
 
+    # ⚙ de la card MÈRE de lot — la brique commune tient le clic (`queue-actions.js`) et
+    # attend un OUVREUR déclaré par l'app (`onBatchSettings`) ; sans émission, le clic
+    # n'aboutissait qu'à un `console.warn` — « la modale du batch ne s'affiche pas »
+    # (constat Fabien 31/08). Même orchestration commune que l'élément, contexte 'batch'
+    # (seuls les params déclarant ce contexte se rendent — préréglage, format). Valeurs
+    # VIDES à l'ouverture : un lot ne stocke pas ses réglages, il les APPLIQUE à ses
+    # éléments (batch_update, RUNNING exclus). `formats` s'y résout par l'UNION des
+    # familles (resolveOptions sans valeurs) — le lot n'expose pas sa nature à ce niveau.
+    route_batch_update = resolve_route('batch_update', noms_routes)
+    a_params_batch = any('batch' in (p.get('contexts') or [])
+                         for p in schema_primaire if isinstance(p, dict))
+    batch_js = ''
+    if route_batch_update and a_params_batch:
+        resolver_batch = ('' if not sources_dyn else '''
+                optionsResolver: function (p) { return resolveOptions(p, {}); },''')
+        batch_js = f'''
+    if (window.WamaQueueActions && window.WamaParams) {{
+        WamaQueueActions.onBatchSettings(function (bid) {{
+            WamaParams.settingsModal({{
+                id: 'Batch' + bid,
+                title: 'Paramètres du lot #' + bid,
+                titleIcon: 'fa-layer-group',
+                schema: {{{{ params_json|safe }}}},
+                context: 'batch',
+                values: {{}},
+                saveUrl: urlFor(U.batch_update, bid),
+                csrf: CSRF,{resolver_batch}
+                onSaved: function () {{ location.reload(); }},
+            }});
+        }});
+    }}
+'''
+
     # Routes d'ÉLÉMENT — par `{% url %}` avec pk 0, JAMAIS par un chemin écrit à la main.
     # ⚠⚠ Défaut mesuré le 2026-08-29 dans ma propre génération de la veille : j'avais écrit
     # `"/" + app + "/" + id + "/start/"`. La substitution du bac à sable renomme les LITTÉRAUX
@@ -260,7 +293,8 @@ def render_index(manifest: dict) -> tuple:
     # original ne mesure plus rien — elle contamine ce qu'elle devait servir de témoin.
     # *Un chemin écrit à la main échappe à toute machinerie de renommage ; `{% url %}` non.*
     routes_dispo = [(nom, cle) for nom, cle in
-                    (('start', 'start'), ('stop', route_stop), ('update', route_update))
+                    (('start', 'start'), ('stop', route_stop), ('update', route_update),
+                     ('batch_update', route_batch_update))
                     if cle and cle in noms_routes]
     routes_js = ''
     if routes_dispo:
@@ -477,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function () {{
             window._import.handleFiles(WamaFolderImport.files(WamaFolderImport.fromInput(fdi.files)));
         }});
     }}
-{url_js}{ref_js}{resolver_fn_js}{insp_js}{params_js}}});
+{url_js}{ref_js}{resolver_fn_js}{insp_js}{params_js}{batch_js}}});
 </script>
 {{% endblock %}}
 '''

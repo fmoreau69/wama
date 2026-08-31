@@ -9134,3 +9134,21 @@ soit posé — le réel l'obtient de sa zone de composition postée au dépôt) 
 du harnais à étendre côté UI (la moitié serveur modifier→enregistrer→relire est désormais
 testée en dur, la modale reste mesurée à l'ouverture seulement) · résidu delete à blanchir ·
 maquette v4.
+
+### Suite du même jour (matin, retours ÉCRAN Fabien — volet ✅ validé, 2 constats neufs)
+1. **« La modale du batch ne s'affiche pas »** — pas un z-index : la brique commune tient le
+   clic du ⚙ de card mère et attend un OUVREUR déclaré (`onBatchSettings`) que le gabarit
+   n'émettait pas (console.warn muet à l'écran). LIVRÉ : `settingsModal` accepte un
+   `context` (défaut 'item' — évolution wama-params.js), le gabarit émet l'ouvreur contexte
+   **'batch'** gaté par la route `batch_update` + des params 'batch'. Mesuré : modale au
+   premier plan, 2 champs, 37 formats (union), zéro erreur console (`smoke_batch_modal.png`).
+2. **« Les réglages de card n'apparaissent pas »** — DEUX causes de fond, corrigées à la
+   SOURCE : ① le schéma converter ne chippait QUE le format (section SORTIE) — `chip=True`
+   posé sur quality/rotation/miroirs/audio/normalisation/cross-app (convention des pilotes ;
+   neutre de rotation passé de "0" à "" pour qu'« Aucune » ne se chippe pas) ; ② la brique
+   `card_chips` lisait par `getattr` SEUL — un chip hors-colonne (options JSON) rendait RIEN
+   en silence : paramètre `values` (même contrat que sa jumelle `gear_data`), consommé par le
+   `_decorate_job` du converter réel (assiette options+cross_app_options). Mesuré : card
+   fraîche jumelle = chip « 85 » ; card fraîche réelle = « 85 » + « jpg ».
+   Corpus manifestes régénéré (converter.json, 108 à jour) ; batterie 11/11 sans skip ;
+   suite complète OK (skipped=4).

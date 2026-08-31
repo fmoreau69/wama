@@ -476,6 +476,16 @@ class VoletParametresGenereTest(SimpleTestCase):
         self.assertIn('return resolveOptions(p, {});', self.src)
         self.assertIn('return resolveOptions(p, v);', self.src)
 
+    def test_le_gear_de_lot_recoit_son_ouvreur(self):
+        # La brique commune tient le clic du ⚙ de card MÈRE et attend un ouvreur déclaré
+        # (`onBatchSettings`) ; sans émission le clic n'aboutissait qu'à un console.warn —
+        # « la modale du batch ne s'affiche pas » (constat Fabien 31/08). Contexte 'batch' :
+        # seuls les params le déclarant se rendent (préréglage qualité, format).
+        self.assertIn('WamaQueueActions.onBatchSettings(function (bid)', self.src)
+        self.assertIn("context: 'batch',", self.src)
+        self.assertIn('urlFor(U.batch_update, bid)', self.src)
+        self.assertIn("batch_update:", self.src, 'la route de lot doit entrer dans U')
+
 
 class CardGearPolymorpheTest(SimpleTestCase):
     """`card_gear.gear_data` accepte objets Param ET dicts (schema_to_dicts / manifeste).
@@ -517,6 +527,25 @@ class CardGearPolymorpheTest(SimpleTestCase):
         from wama.common.utils.card_gear import gear_data
         params = [{'name': 'fps', 'type': 'number', 'contexts': ['item']}]
         self.assertEqual(gear_data(self._Objet(), params), {'fps': ''})
+
+    def test_chips_lisent_le_conteneur_json_via_values_comme_gear_data(self):
+        # Brique JUMELLE de gear_data, même contrat `values` : les réglages d'un converter
+        # vivent dans options/cross_app_options, pas en colonnes — sans `values`, chipper un
+        # champ hors-colonne rendait silencieusement RIEN (getattr → None → filtré ; mesuré
+        # 31/08 sur le converter réel en chippant quality/upscale).
+        from wama.common.utils.card_chips import chips_by_section
+        params = [
+            {'name': 'quality', 'type': 'range', 'chip': True, 'label': 'Qualité'},
+            {'name': 'upscale', 'type': 'select', 'chip': True, 'label': 'Upscaling',
+             'choices': [['', 'Aucun'], ['x2', '×2']]},
+            {'name': 'output_format', 'type': 'select', 'chip': True, 'section': 'output',
+             'label': 'Format'},
+        ]
+        obj = self._Objet()
+        obj.output_format = 'webp'          # colonne : getattr suffit
+        sections = chips_by_section(obj, params, values={'quality': 85, 'upscale': 'x2'})
+        self.assertEqual([c['label'] for c in sections.get('settings') or []], ['85', '×2'])
+        self.assertEqual([c['label'] for c in sections.get('output') or []], ['webp'])
 
 
 class DefautsApplicablesTest(SimpleTestCase):

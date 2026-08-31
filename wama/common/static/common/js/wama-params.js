@@ -536,7 +536,9 @@
   //     id,        // suffixe unique — modale par-item (enhancer) ou nom fixe (modale partagée)
   //     title,     // texte du header (échappé ici)
   //     titleIcon, // classe FA optionnelle (ex. 'fa-gear')
-  //     schema, values,      // → render(host, schema, {context:'item', values})
+  //     schema, values,      // → render(host, schema, {context, values})
+  //     context,   // contexte de rendu du schéma — défaut 'item' ; 'batch' pour la modale
+  //                // de LOT (mêmes briques, seuls les params déclarant 'batch' se rendent)
   //     formClass, formData, // <form> : classe + data-* (délégation existante des apps)
   //     buttons,   // [{label, className, icon?, data?}] — défaut : Annuler + Enregistrer
   //   }) → { modal, host, form }   (remplace la modale existante de même id)
@@ -594,7 +596,7 @@
       form.setAttribute('data-' + k, cfg.formData[k]);
     });
     const host = modal.querySelector('.wama-modal-fields');
-    if (cfg.schema) render(host, cfg.schema, { context: 'item', values: cfg.values || {},
+    if (cfg.schema) render(host, cfg.schema, { context: cfg.context || 'item', values: cfg.values || {},
                                                groups: cfg.groups, optionsResolver: cfg.optionsResolver });
     return { modal: modal, host: host, form: form };
   }
@@ -637,7 +639,7 @@
       const res = renderSettingsModal({
         id: cfg.id, title: cfg.title, titleIcon: cfg.titleIcon,
         schema: cfg.schema || [], groups: cfg.groups || [],
-        values: data || {}, formClass: cfg.formClass,
+        values: data || {}, formClass: cfg.formClass, context: cfg.context,
         optionsResolver: cfg.optionsResolver,
       });
       const modal = res.modal, host = res.host;

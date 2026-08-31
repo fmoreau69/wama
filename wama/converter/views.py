@@ -1005,10 +1005,14 @@ def quick_convert(request):
 
 def _decorate_job(job):
     """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips.
-    Point d'attache UNIQUE : IndexView ET card_html (leçon describer)."""
+    Point d'attache UNIQUE : IndexView ET card_html (leçon describer).
+    `values` : les réglages vivent dans les JSON (options + cross_app_options), pas en
+    colonnes — sans lui, tout chip hors-colonne rendait RIEN (getattr → None → filtré ;
+    mesuré 31/08 en chippant quality/upscale). Même assiette que la property `gear_data`."""
     from wama.common.utils.card_chips import chips_by_section
     from wama.converter.params import PARAMS_JSON
-    job.chips = chips_by_section(job, PARAMS_JSON)
+    job.chips = chips_by_section(job, PARAMS_JSON,
+                                 values={**(job.options or {}), **(job.cross_app_options or {})})
     return job
 
 

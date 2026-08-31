@@ -64,8 +64,12 @@ PARAMS = [
                    ("balanced", "Équilibré"), ("max", "Maximum")]),
 
     # ── Image ───────────────────────────────────────────────────────────────
+    # chip=True sur les réglages LISIBLES d'un coup d'œil (31/08, constat Fabien : la section
+    # RÉGLAGES des cards restait vide — seul le format était chippé, en section SORTIE).
+    # Convention des pilotes (reader/transcriber : moteur, mode, langue, toggles à chip_label) ;
+    # les nombres ambigus (resize, CRF, fps) restent hors chips — un « 23 » nu ne dit rien.
     Param(name="quality", type="range", label="Qualité", icon="fa-gauge",
-          min=1, max=100, step=1, default=85, show_if=IMG, contexts=ITEM,
+          min=1, max=100, step=1, default=85, show_if=IMG, contexts=ITEM, chip=True,
           help="Qualité d'encodage de l'image (1–100)."),
     Param(name="resize_w", type="number", label="Largeur (px)", icon="fa-arrows-left-right",
           min=0, show_if=IMG, contexts=ITEM, help="0 = inchangé."),
@@ -73,12 +77,16 @@ PARAMS = [
           min=0, show_if=IMG, contexts=ITEM, help="0 = inchangé."),
 
     # ── Transformations (image OU vidéo) ──────────────────────────────────────
-    Param(name="rotation", type="select", label="Rotation", icon="fa-rotate", show_if=IMG_VID, contexts=ITEM,
-          choices=[("0", "Aucune"), ("90", "90° horaire"), ("180", "180°"), ("270", "90° anti-horaire")]),
+    # Neutre = "" (et plus "0") : un chip ne se rend que pour une valeur POSÉE — avec "0",
+    # « Aucune » se chippait sur toute card passée par la modale. Les backends tolèrent ""
+    # (`int(options.get('rotation', 0) or 0)`, image_backend:122 / video_backend:167).
+    Param(name="rotation", type="select", label="Rotation", icon="fa-rotate", show_if=IMG_VID,
+          contexts=ITEM, chip=True,
+          choices=[("", "Aucune"), ("90", "90° horaire"), ("180", "180°"), ("270", "90° anti-horaire")]),
     Param(name="flip_h", type="toggle", label="Miroir horizontal", icon="fa-left-right",
-          show_if=IMG_VID, contexts=ITEM),
+          show_if=IMG_VID, contexts=ITEM, chip=True, chip_label="Miroir H"),
     Param(name="flip_v", type="toggle", label="Miroir vertical", icon="fa-up-down",
-          show_if=IMG_VID, contexts=ITEM),
+          show_if=IMG_VID, contexts=ITEM, chip=True, chip_label="Miroir V"),
 
     # ── Vidéo ─────────────────────────────────────────────────────────────────
     Param(name="video_quality", type="number", label="Qualité vidéo (CRF)", icon="fa-film",
@@ -97,18 +105,19 @@ PARAMS = [
           help="Sortie GIF uniquement — hauteur calculée pour garder les proportions."),
 
     # ── Audio ─────────────────────────────────────────────────────────────────
-    Param(name="audio_bitrate", type="select", label="Débit audio", icon="fa-music", show_if=AUD, contexts=ITEM,
+    Param(name="audio_bitrate", type="select", label="Débit audio", icon="fa-music", show_if=AUD,
+          contexts=ITEM, chip=True,
           choices=[("", "Auto"), ("128k", "128 kbps"), ("192k", "192 kbps"),
                    ("256k", "256 kbps"), ("320k", "320 kbps")]),
     Param(name="sample_rate", type="select", label="Fréquence d'échantillonnage", icon="fa-wave-square",
-          show_if=AUD, contexts=ITEM,
+          show_if=AUD, contexts=ITEM, chip=True,
           choices=[("", "Inchangée"), ("22050", "22 050 Hz"), ("44100", "44 100 Hz"),
                    ("48000", "48 000 Hz")]),
     Param(name="channels", type="select", label="Canaux", icon="fa-headphones",
-          show_if=AUD, contexts=ITEM,
+          show_if=AUD, contexts=ITEM, chip=True,
           choices=[("", "Inchangés"), ("1", "Mono"), ("2", "Stéréo")]),
     Param(name="normalize", type="toggle", label="Normaliser le volume", icon="fa-wave-square",
-          show_if=AUD, contexts=ITEM),
+          show_if=AUD, contexts=ITEM, chip=True, chip_label="Normalisation"),
 ]
 
 
@@ -132,13 +141,18 @@ def _cross_app_params():
         show = ({"field": "media_type", "equals": types[0]} if len(types) == 1
                 else {"field": "media_type", "in": types})
         _help = f"Post-traitement IA via l'app {o['app']} — appliqué après la conversion (charge un modèle GPU)."
+        # chip=True (31/08) : un post-traitement IA demandé est l'info la plus utile de la
+        # card. Toggle → chip_label court (le libellé complet, « Débruitage IA (Real-ESRGAN) »,
+        # déborde d'une piste — il reste au title).
         if o['type'] == 'select':
             out.append(Param(name=_oid, type="select", label=o['label'],
                              icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM,
+                             chip=True,
                              choices=[("", "Aucun")] + list(o['choices']), help=_help))
         else:  # checkbox → toggle
             out.append(Param(name=_oid, type="toggle", label=o['label'],
                              icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM,
+                             chip=True, chip_label=o['label'].split(' (')[0],
                              help=_help))
     return out
 
