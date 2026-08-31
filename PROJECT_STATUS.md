@@ -9179,3 +9179,35 @@ maquette v4.
   (global_progress, batch_sync, polling) ; ④ passe de recalage de la ROUTE ; ⑤ entrées
   registre mécanismes + balayage étendu ; ⑥ nettoyage du mort (retrait = 3 surfaces) ;
   ⑦ marche B inchangée.
+
+### ④+⑤ EXÉCUTÉS le jour même (GO Fabien : « remettre la doc et les mécanismes à jour ») + BALAYAGE des 10 apps
+- **Registre mécanismes** : 109 → **114 entrées** — créées : `codegen` (7 gabarits, était
+  HORS carte sans signal possible), `inspector`, `export_formats` (⬇ late-binding),
+  `volet`, `static_versioning` (symbole `static_v` — sans lui, 0 consommateur affiché pour
+  100+ pages) ; annexes `manifests` complétées (envelope/kinds/projection/7 builtin) ;
+  proses recalées (`app_sandbox` +substitute/7 cibles, `card_gear` dicts+racine,
+  `card_chips` values/sections, `queue_front` densités/pile, `queue_entry` 9→« le partial
+  fait foi », `import_front` médiathèque, `new_item_card` 6 modalités, `param_schema`
+  cascade). **Balayage `doc_facts` étendu** à `manifests/` + `templatetags/` (5ᵉ occurrence
+  de la leçon, codée dans le même commit). Carte régénérée : 0 domicile absent, orphelins =
+  les 2 connus, non-rattachés = les 2 connus. « 88 » figé de tests_catalogues neutralisé.
+- **Route recalée** (~15 blocs, chaque affirmation confrontée au code avant écriture) :
+  jalon S2 6/6→**7/7** (juge = `sandbox_apps.json`, tailles de diff plus jamais recopiées) ;
+  stubs 501 réels (extra_routes seules) ; card v3 (plus « générique minimale ») ; interdit
+  rouge `file_accept` LEVÉ avec la leçon (*un interdit périmé ferait défaire une
+  livraison*) ; trous #2 (10/10 re-qualifié), #24 (clos parc aussi), #26 (critère
+  `import_wired` existe) recalés ; #25 précisé (adoption 0/10) ; contrats marche S ②/④/⑦
+  amendés ; §S2bis.12 dépassé par la cascade serveur ; **§S2ter NEUF** (génération des
+  réglages + relevés d'adoption 31/08 + arbitrage `_is_app_owned` non pris + graphe
+  transverse app→app non déclaré).
+- **Balayage 10 apps (3ᵉ passe, mesures fichier:ligne)** — corrige même l'audit :
+  `context:'batch'` **10/10** (la route disait 5/10), `register_batch_sync` **10/10**,
+  MAIS `settingsModal` cycle complet **2/10** (confusion déclencheur/cycle dans toutes les
+  tables antérieures), `WamaImport`+`_app_scripts` **0/10 parc réel**, `_is_app_owned`
+  **1/10** (avatarizer = politique OPPOSÉE voulue → arbitrage de plateforme à prendre).
+  Candidats brique par volume : cycle de modale item (8 réécritures), `_decorate_*`
+  (10 apps/6 noms vs le `_decorer` généré concurrent), bloc `reconcile_orphaned_running`
+  (10 quasi identiques), `model_config.py` (9 squelettes, EXEMPTÉS de check_redundancy),
+  barre globale réécrite (4, cadences divergentes), détection de type média (5+ sites).
+  Graphe transverse : `common/` importe 6 apps médias ; `inline_convert` sert 5 apps ;
+  consigné au §S2ter (candidat `requires` inter-apps).

@@ -157,18 +157,21 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     (`<div class="modal">` + titre + pied), jamais le CONTENU (généré du schéma).
   - le **studio a son PROPRE renderer** `renderNodeParams` (`wama-studio.js:348`) **appauvri** (pas de
     toggle/range/radio/show_if/advanced) — réinvention à supprimer (doit appeler WamaParams).
-- **Adoption réelle** (le vrai déficit) :
+- **Adoption réelle — RE-MESURÉE le 2026-08-31** (balayage exhaustif des 10 apps, fichier:ligne
+  au §S2ter ; la table qui vivait ici datait du 06/08 et disait 3/10 là où le parc est à 10/10) :
 
-  | Surface | Câblée sur | Reste |
+  | Surface | Mesure 31/08 | Le vrai déficit |
   |---|---|---|
-  | modale item (WamaParams) | converter, reader, enhancer (plein) ; transcriber, composer (partiel) ; **anonymizer + imager (générée intégralement, 2026-08-03/06)** | synthesizer, describer, avatarizer |
-  | modale batch (`context:'batch'`) | anonymizer, avatarizer, **imager (2026-08-06)** | 7 apps |
-  | chips métadonnée (`card_chips.py`) | reader, **anonymizer, imager (2026-08-06)** | 7 apps |
-  | `WamaModelCaps` (show_if depuis caps) | **synthesizer seul** | — |
-  | corps de modale commun `_settings_modal.html` | **sans objet depuis 2026-08-06** : la modale est GÉNÉRÉE (`WamaParams.settingsModal`, cycle complet + hooks) — le gabarit HTML prévu par la roadmap d'avril datait d'avant `WamaParams`. Reste à porter aux 8 autres apps | — |
-  | **réglages utilisateur persistés** (`common/utils/user_settings.py`) | avatarizer, converter, describer, synthesizer, transcriber | **imager (modèle maison `UserSettings`, jamais écrit), anonymizer** |
-- **Manifeste** : `params` capté (`app.py:212`) mais ⚠ **un seul `params_attr`** (rate les multi-schémas
-  `IMAGE_+VIDEO_`, `MEDIA_+AUDIO_`) ; ne distingue pas **déclaré vs câblé** (c'est le round-trip qui le révèle).
+  | déclencheur ⚙ commun (`WamaQueueActions.onSettings`) | **10/10** | — |
+  | **cycle complet** de modale item (`WamaParams.settingsModal`) | **2/10** (anonymizer, imager) | 8 apps réécrivent ouvrir→rendre→sauver→fermer à la main. ⚠ Ne pas confondre les deux lignes : c'est la confusion déclencheur/cycle qui a rendu toutes les tables précédentes fausses |
+  | rendu batch `context:'batch'` (WamaParams) | **10/10** | la coquille de modale reste à la main hors anonymizer/imager ; le GÉNÉRATEUR émet désormais l'ouvreur de lot complet (§S2ter) |
+  | chips métadonnée (`card_chips`) | **10/10** (11 décorateurs, 6 noms — §S2ter) | l'assiette `values` (JSON) n'est passée que par converter |
+  | `gear_data` (property modèle) | **10/10** | — |
+  | `WamaModelCaps` (show_if depuis caps) | synthesizer seul | — |
+  | **réglages utilisateur persistés** (`user_settings`) | **8/10** | anonymizer + enhancer persistent en TABLE Django maison (`UserSettings`) — architecture différente, pas un oubli |
+- **Manifeste** : `params` = `{primary, schemas}` **multi-schémas depuis le palier params**
+  (trou #10 clos — « un seul params_attr » écrit ici avait survécu à sa résorption) ; ne
+  distingue pas **déclaré vs câblé** (c'est le round-trip qui le révèle).
 
 ### F3b — Inspecteur, preview & progression  ⟷ `SPEC §F3 (inspector)`
 - **Inspecteur** : `DetailRegistry` + `build_detail` (dict canonique plat ; labels/sections en JS
@@ -561,18 +564,26 @@ outillé avant d'ouvrir cette marche.
      slug URL valides, `/converter-01/`) ; tables Django séparées par construction (préfixe
      app_label) → ZÉRO collision de données avec l'app en place.
   2. **Marqueur déclaratif** : l'entrée APP_CATALOG de la jumelle porte
-     `generated_from='converter'` + l'id du run de génération → jumelles ÉNUMÉRABLES
-     (nettoyage sûr, jamais orphelines) + badge « BAC À SABLE » dans l'UI.
+     `generated_from='converter'` → jumelles ÉNUMÉRABLES (nettoyage sûr, jamais orphelines)
+     + badge « BAC À SABLE » dans l'UI. ⚠ Recalé 31/08 : « + l'id du run de génération »
+     promis ici n'a JAMAIS été écrit (le registre porte label/created/stage/substituted) —
+     contrat amendé plutôt que code ajouté, l'énumérabilité n'en a pas besoin.
   3. **Gating dev-only** (app_access) : invisibles des non-devs.
-  4. **Cycle outillé, jamais manuel** : `manage.py app_sandbox create <app>` / `drop <app_NN>`
-     (drop = migrate zero + retrait INSTALLED_APPS/urls/registres — symétrique et complet).
+  4. **Cycle outillé, jamais manuel** : `manage.py app_sandbox` à QUATRE actions (recalé
+     31/08 — « create/drop » écrit ici ignorait le cœur de S2) : `create <app>` /
+     `drop <app_NN>` (migrate zero + retrait INSTALLED_APPS/urls/registres — symétrique et
+     complet, écho staticfiles compris) / `list` / `substitute <label> <cible>` (7 cibles
+     codegen, cf. jalon S2).
   5. **La jumelle RÉFÉRENCE le monde, elle ne le duplique pas** : même catalogue `AIModel`
      (lecture), mêmes briques common, mêmes workers — on régénère l'APP, pas la plateforme.
   6. **Diff normalisé** : dé-suffixer avant diff (étend le principe du harnais C — juger des
      artefacts NORMALISÉS, jamais du byte à byte) ; Playwright = pages côte à côte.
-  7. **Pilote : `converter_01`** (app la plus simple, 100 % grille, pilote historique de C) ;
-     les facettes encore non-write-back (inspector/models/processing/tool_api) apparaîtront
-     comme manques VISIBLES de la jumelle — c'est le but, pas un préalable.
+  7. **Pilote : `converter_01`** (app la plus simple, 100 % grille, pilote historique de C).
+     ~~les facettes encore non-write-back (inspector/models/processing/tool_api)~~ — recalé
+     31/08 : cette liste décrivait le matin du 18/08 ; `inspector` et `tool_api` sont
+     projetés (A3b/A4), `models` est rendu depuis la facette `data`. Le principe, lui,
+     tient : ce qui n'est pas généré apparaît comme manque VISIBLE de la jumelle — c'est
+     le but, pas un préalable.
   **✅ S1 LIVRÉE (2026-08-18)** — jumelle TÉMOIN opérationnelle : `manage.py app_sandbox
   create converter` → `converter_01` qui REND (page 200, reverse OK, tables `converter_01_*`
   migrées, badge catalogue, grille inchangée à 10 apps). Mécanisme : `common/sandbox.py`
@@ -610,27 +621,35 @@ outillé avant d'ouvrir cette marche.
   code généré (kwargs alphabétiques : le `to=` vient APRÈS related_name → lire l'appel
   COMPLET à parenthèses équilibrées), et la famille de renommage `'src.` (réfs par app_label
   des FK sérialisées).
-  **S2 — JALON FINAL (même journée) : 6/6 substitutions TIENNENT, la jumelle est une app
-  ESSENTIELLEMENT GÉNÉRÉE qui tourne.** ⑤ `views_gen` ÉCRIT (la pièce annoncée au cadrage
+  **S2 — JALON (18/08, RECALÉ à l'audit du 31/08) : 7/7 substitutions TIENNENT** — apps,
+  urls, models, params, tasks, views, templates, toutes `verdict: ok` au registre
+  `wama/sandbox_apps.json` (⚠ c'est LUI le juge, pas ce paragraphe : les diffs copie↔généré
+  y sont datés — ne plus recopier leurs tailles ici, elles bougent à chaque re-substitution
+  et « 6/6 / views 1341 l. / templates 404 l. » écrits à cette place étaient tous trois
+  devenus faux). ⑤ `views_gen` ÉCRIT (la pièce annoncée au cadrage
   A0) : UNE définition par callable du urls généré — idiomes conventionnels paramétrés par
   le manifeste (item + batch/FK DÉRIVÉS de la facette data, tâche processing.tasks,
   fabrique `make_queue_manipulation_views_direct`, briques begin_processing/stop_instance/
-  duplicate_instance/apply_queue_sort_filter/console) + STUBS 501 marqués TROU DE GLU pour
-  le hors-convention (card_html, batch_preview/create, consolidate, extra_routes) — la page
-  boote, la fonctionnalité manque VISIBLEMENT. v1 = forme FK-DIRECTE (converter) ; la forme
-  à modèle de liaison est un trou déclaré. **views tient** (diff glu 1341 l.).
+  duplicate_instance/apply_queue_sort_filter/console). Les STUBS 501 « TROU DE GLU » ont
+  fondu depuis le 22/08 : `card_html`, `batch_preview`/`batch_create`, `consolidate` sont
+  CONVENTIONNELS (trou #22 clos) — **seules les `extra_routes` hors-convention restent
+  bouchées**, la page boote et le manque reste VISIBLE. v1 = forme FK-DIRECTE (converter) ;
+  la forme à modèle de liaison est un trou déclaré.
   ⑥ `templates_gen` v1 ÉCRIT (multi-fichiers — `substitute` étendu, revert multi-fichiers) :
-  index CONVENTIONNEL depuis les briques communes (_global_progress, _new_item_card
-  paramétrée d'identity.input_extensions, _queue_toolbar, boucle _batch_card) + card
-  GÉNÉRIQUE minimale — l'écart visuel avec la vraie card EST la mesure. **templates tient**
-  (diff 404 l.). Restent COPIÉS (glu/marche B) : base.html, card réelle, JS d'app,
+  index CONVENTIONNEL depuis les briques communes (_global_progress, _new_item_card avec
+  `file_accept` RÉTRÉCI aux catégories du port travail, _queue_toolbar, boucle _batch_card)
+  + card v3 COMPLÈTE émise du manifeste (5 sections wcv3, chips, cycle, ⬇ commun,
+  preview unifiée, `data-param-*` pour TOUS les champs du schéma) — « card générique
+  minimale, l'écart visuel est la mesure » a vécu : l'instrument a servi, l'écart est fermé.
+  Restent COPIÉS (glu/marche B) : base.html, JS d'app,
   backends/, utils/. ~~params.py (write-back existant, cible à câbler)~~ → **câblée le
   2026-08-31** : cible `params` de `_SUBSTITUTABLE` (`codegen/params_gen.py`, constructeur
   partagé avec write_back). Motif : la jumelle tournait sur une COPIE d'avant le 18/08 —
   sans le contexte `'panel'`, le rendu du volet filtrait TOUT (0 champ, en silence) alors
   que le manifeste était à jour. *Un fichier que les vues générées consomment se substitue
-  comme elles, sinon la jumelle mesure un schéma périmé.* Prochain geste : Playwright
-  côte à côte /converter/ ↔ /converter_01/ (Fabien) = la lecture VISUELLE des trous.
+  comme elles, sinon la jumelle mesure un schéma périmé.* La lecture VISUELLE côte à côte
+  prévue ici A EU LIEU (Fabien, 29→31/08) : elle a produit S2bis, la card v3, l'inspecteur,
+  la génération des RÉGLAGES (bloc ci-dessous) — batterie jumelle **11/11 sans skip**.
   **ARBITRAGE GLU (question Fabien 18/08 : template générique complétable vs glu par app
   sur règles ?) — HYBRIDE, frontière MESURÉE :** ① PAS de template d'app copié-complété
   (un template copié dérive et devient une 2ᵉ source de vérité, irré-générable sans
@@ -831,13 +850,14 @@ outillé avant d'ouvrir cette marche.
        dont la chaîne complète déclare→dérive→émet sur le composer VIVANT — baseline : 0
        `show_reference` dans le gabarit sur HEAD) ; corpus régénéré (6 manifestes), roundtrip
        10/10 OK, suite 1216 OK.
-       🔴 **L'autre moitié — typer le slot de TRAVAIL (rétrécir `file_accept` par les catégories
-       du port) — est BLOQUÉE par l'homonyme `text` (§S2bis.6bis), et c'est mesurable** : les
-       `.txt/.md/.csv` du describer sont des fichiers de TRAVAIL de catégorie `text` (sens
-       FICHIER de `category_of_path`), qu'un rétrécissement par les types du port travail
-       (`image/video/audio/document` — sans `text`, sens PROMPT) exclurait à tort. Ne pas
-       tenter ce rétrécissement avant l'arbitrage — c'est la première conséquence CHIFFRABLE
-       de l'homonyme sur la génération.
+       ~~🔴 L'autre moitié — typer le slot de TRAVAIL — est BLOQUÉE par l'homonyme `text` ;
+       ne pas tenter ce rétrécissement avant l'arbitrage~~ → **ARBITRAGE TRANCHÉ (30/08,
+       §S2bis.6bis : `text` retiré des natures) ET MOITIÉ LIVRÉE le jour même** :
+       `templates_gen` RÉTRÉCIT `file_accept` aux catégories du port travail (+ formats de
+       lot si `has_batch`), contrôle 2 sens `CardEntreeConformiteTest`. ⚠ L'interdit rouge
+       qui vivait ici a survécu 24 h à sa levée (recalé à l'audit du 31/08) — *un interdit
+       périmé lu au pied de la lettre ferait DÉFAIRE une livraison* ; le lever dans le
+       commit qui livre, jamais après.
      - **(c)** → promu en section propre ci-dessous (`§S2bis.6bis`) : c'est un arbitrage, pas un
        reste de passe.
   7. **Compatibilité avec l'« intake universel »** (chantier d'une autre instance,
@@ -945,13 +965,12 @@ outillé avant d'ouvrir cette marche.
      multipart est posée par le navigateur ; l'écrire à la main casse le parsing Django).
      *Ouvrir un point d'extension ne suffit pas : il faut vérifier que ce qu'une app y mettrait
      PASSE réellement.* Le hook seul rendait le synthesizer portable **sur le papier**.
-     ⏳ **Reste, et c'est une distinction à tenir** : la brique le rend PORTABLE, pas encore
-     RÉGÉNÉRABLE. Un `onQueueStartBody` est du JS écrit DANS l'app — donc une spécificité *codée*,
-     pas *déclarée* (CLAUDE.md §philosophie 4). Pour que le gabarit projette ce comportement, il
-     faut le déclarer : le corps du synthesizer n'est rien d'autre que **les valeurs du schéma de
-     paramètres de l'app**, que `WamaParams` connaît déjà — d'où la piste d'une capacité
-     `start_all_applique_les_reglages` lue par la brique, plutôt qu'un fournisseur par app.
-     À arbitrer avec l'homonyme `text` et les amendements ⓪①③④ (§S2bis.7).
+     ~~⏳ Reste : la brique le rend PORTABLE, pas encore RÉGÉNÉRABLE — piste d'une capacité
+     `start_all_applique_les_reglages`~~ → **diagnostic DÉPASSÉ par une livraison côté
+     SERVEUR (31/08, §S2ter)** : l'upload généré déroule la cascade de réglages du dépôt
+     (défauts applicables du schéma ← user_settings ← POST) — le cas « un dépôt hérite des
+     réglages » est couvert par la DÉCLARATION (le schéma), sans hook JS ni capacité
+     nouvelle. La piste n'a plus d'objet ; ne pas la rouvrir.
      Effet de bord : le commentaire de `post()` affirmait que l'enhancer audio était « le seul cas
      mesuré » portant des réglages — il l'était **au niveau LOT**, périmètre du relevé du 27/08.
      *Un relevé vaut pour le périmètre où il a été fait ; l'écrire comme une propriété des apps le
@@ -1023,9 +1042,11 @@ outillé avant d'ouvrir cette marche.
      leur `download_all` (`reader/views.py:559`, `describer/views.py:737`) construit le ZIP sans
      regarder la query. C'est exactement la famille « vert d'ADOPTION, faux en FONCTIONNEMENT »
      (`WAMA_VERIFICATION §Geste 14`). **Le portage de ces deux-là commence côté VUE.**
-     ⚠ Le GÉNÉRATEUR n'est volontairement pas opté : il passe `download_url` sans `download_ready`,
-     donc `app=` transformerait son lien toujours actif en bouton désactivé. Une app générée
-     `late` devra déclarer les deux.
+     ⚠ Le GÉNÉRATEUR est opté À DEUX NIVEAUX DISTINCTS (recalé à l'audit du 31/08 — « pas
+     opté » écrit ici était devenu faux avec la card v3) : la BARRE de file passe
+     `download_url` sans `app=` ni `download_ready` (lien toujours actif, voulu) ; la CARD
+     générée, elle, appelle `{% download_button %}` avec `ready` dérivé du statut. Une app
+     générée `late` devra déclarer les deux.
 
 ### §S2bis.6bis — ~~🔴 ARBITRAGE OUVERT~~ ✅ TRANCHÉ le 2026-08-30 : l'homonyme `text`
 
@@ -1044,8 +1065,9 @@ outillé avant d'ouvrir cette marche.
 > `.csv/.txt/.srt/.json` → `document`, describer normalisé À LA LECTURE (pas de migration).
 > Bénéfice mesuré au passage : les 3 écarts `.md` du vocabulaire généré ont DISPARU, et le
 > nœud Sortie du studio gagne `document/dataset/3d` (le `3d` manquait, bug latent). La moitié
-> TRAVAIL de (b) — rétrécir `file_accept` par catégories — est DÉBLOQUÉE (le describer n'est
-> plus le contre-exemple). **Smoke navigateur ✅ (même soir, parc RELANCÉ par Fabien)** :
+> TRAVAIL de (b) — rétrécir `file_accept` par catégories — a été DÉBLOQUÉE puis **LIVRÉE le
+> jour même de son déblocage** (`templates_gen`, lecture des catégories du port travail +
+> formats de lot si `has_batch` ; contrôle 2 sens `CardEntreeConformiteTest`). **Smoke navigateur ✅ (même soir, parc RELANCÉ par Fabien)** :
 > catalogue `/common/apps/` conforme (blocs Texte/Documents rendus via `prompt`, 201 badges,
 > couleurs d'identité, 0 erreur console) · barres ⬇ reader/describer servent leurs menus
 > `?format=` réels (5 et 3 formats, bouton describer actif) · `accept` du converter DÉRIVÉ vu
@@ -1198,7 +1220,8 @@ ci-dessous, jugé « trop étroit » car raisonné sur le cas .txt/.md/.csv) :**
   mapping app-spécifique (kwargs de `build_detail`) : rendre `inspector` projetable exige de
   rendre la registration DÉCLARATIVE (detail_registry acceptant une spec-donnée) — bac
   « porter » AVANT gabarit. 3 idiomes preview (wrapper 6/10, `PreviewRegistry.register` bas
-  niveau 3/10, absent imager) ; `register_batch_sync` 9/10 (converter = FK directe).
+  niveau 3/10, absent imager) ; `register_batch_sync` ~~9/10~~ **10/10 depuis le 2026-08-28**
+  (converter adopté avec `direct_fk=True`, `converter/apps.py:24` — re-mesuré 31/08).
 - **tool_api** : registre CENTRAL (`wama/tool_api.py::TOOL_REGISTRY`) — la cible du gabarit est
   une ENTRÉE de registre, pas un fichier par app. Triade conventionnelle stable ; 4 noms
   historiques rattrapés par alias `add_to_*` ; enhancer = triade doublée.
@@ -1442,6 +1465,65 @@ idempotence (triple noop), chirurgie main = 1 ligne (commentaires intacts), roun
 
 ---
 
+### §S2ter — Génération des RÉGLAGES (30-31/08) + relevés d'adoption re-mesurés (31/08)
+
+> Bloc écrit à l'AUDIT du 31/08 : quatre commits de codegen (30-31/08) avaient leur
+> consignation dans `PROJECT_STATUS` mais AUCUNE trace ici — la partie la plus dense de
+> `views_gen`/`templates_gen` était invisible de la route. Détail d'exécution :
+> `PROJECT_STATUS §PALIER 2026-08-31`.
+
+**Ce que le générateur émet désormais pour les RÉGLAGES (constats Fabien 31/08, tout mesuré
+sur la jumelle — batterie 11/11 sans skip) :**
+- **Hôte UNIQUE du volet** `{app}PanelParams` (`d-none`), rendu au CHARGEMENT du même schéma
+  que la modale (context `'panel'`) puis MONTRÉ à la sélection — `panelContainer`
+  d'initFromSchema y applique les valeurs de la card. Deux hôtes du même schéma
+  dupliqueraient les ids `wp-panel-*` : un hôte, deux moments.
+- **Resolver d'options PARTAGÉ** (`resolveOptions`) entre hôte du volet, modale d'élément et
+  modale de lot — deux resolvers émis séparément avaient déjà divergé. `formats` sans
+  `media_type` → UNION des familles (registre commun `wama-params.js`).
+- **Ouvreur de modale de LOT** : `WamaQueueActions.onBatchSettings` → `settingsModal`
+  contexte `'batch'` (la brique accepte `context` depuis le 31/08), gaté par la route
+  `batch_update` ET la présence de params de contexte batch. Valeurs vides à l'ouverture :
+  un lot APPLIQUE ses réglages, il ne les stocke pas.
+- **Cascade de réglages du DÉPÔT** dans l'upload généré : défauts APPLICABLES du schéma
+  (`param_schema.applicable_defaults`, filtre `show_if` au vocabulaire du moteur JS) ←
+  `user_settings` persistés (⚠ `defaults` définit les clés LUES) ← POST non vide,
+  re-persisté. La nature détectée n'est jamais écrasée.
+- **`gear_data` par brique commune** (`card_gear`, accepte objets Param ET dicts — le `{}`
+  muet sur dicts était le ⚙ nu) + **chips générés** (`card_chips`, assiette `values` pour
+  les réglages en JSON) + idiome `params_storage` DÉRIVÉ (colonnes ↔ conteneur `options`,
+  aplati par `_decorer` — la card, le volet et la modale lisent CE que `update` écrit).
+- **Cible `params` substituable** (7ᵉ) : `params.py` généré du manifeste au littéral
+  (`params_gen`, constructeur partagé avec write_back).
+
+**Relevés d'adoption RE-MESURÉS le 31/08 (balayage exhaustif des 10 apps — chiffres à ne
+recopier NULLE PART, re-mesurer)** :
+- `WamaQueueActions.onSettings` (déclencheur) **10/10** · `WamaParams.settingsModal` (cycle
+  complet) **2/10** — anonymizer, imager. ⚠ C'est la confusion déclencheur/cycle qui a
+  rendu fausses TOUTES les tables précédentes de ce doc.
+- `context:'batch'` **10/10** · chips **10/10** (11 décorateurs `_decorate_*`, 6 noms — le
+  codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
+  `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
+  (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
+- **`WamaImport` et `_app_scripts.html` : 0/10 dans le parc réel** — ces deux briques ne
+  vivent que dans le gabarit généré et le banc. Une app générée et une app à la main ne
+  chargent pas leur JS ni n'importent leurs fichiers par le même chemin : toute doc qui
+  décrit la chaîne générée comme « la » voie décrit un parc de zéro app.
+- **`_is_app_owned` (propriété des fichiers) : 1/10** — le converter SEUL protège les
+  fichiers utilisateur seulement référencés ; l'avatarizer fait l'OPPOSÉ (rattachement par
+  référence voulu). ⚠ **Arbitrage de PLATEFORME non pris** : se caler sur la majorité
+  généraliserait la suppression de fichiers utilisateur ; se caler sur le converter sans le
+  dire casserait la galerie avatarizer. À trancher AVANT de dériver la suppression dans le
+  gabarit.
+- **Le graphe transverse app→app n'est déclaré nulle part** : `common/` importe 6 apps
+  médias, `inline_convert` (converter) sert 5 apps, `speakers` (transcriber) sert
+  `document_export`/`llm_utils`, `voice_utils` (synthesizer) sert l'avatarizer et
+  `voice_options`, `UserSettings` (anonymizer) sert la page de profil. **Régénérer une app
+  sans ce graphe rompt ces arêtes en silence** — à déclarer (candidat : `requires`
+  inter-apps au manifeste).
+
+---
+
 ### §10.4 — Marche D (APRÈS B) — CAPACITÉS HÉRITÉES : l'app agrège, le studio est aussi une bibliothèque
 
 > **ACTÉ avec Fabien le 2026-08-12 (5ᵉ session) — chantier NON démarré, séquencé APRÈS la
@@ -1506,7 +1588,7 @@ maillon de l'interop) ; ④ plugins de visualisation → monde DATA (dernier, le
 | # | Trou | Facette | Nature |
 |---|---|---|---|
 | 1 | ✅ **fait (2026-08-11, §10.1)** — describer `input_types` `text`→`document` : le port travail porte `document`, le port prompt fantôme a disparu | F2 | ✅ |
-| 2 | modale **batch** rendue par WamaParams (`context:'batch'`) sur **5/10** — anonymizer, converter, converter_01, enhancer, imager (re-mesuré 2026-08-22). ⚠ L'ancienne ligne (« 3/10 : anonymizer, **avatarizer**, imager ») était fausse sur la LISTE autant que sur le chiffre : avatarizer garde une modale écrite à la main (`jobSettingsModal`, `index.js:478`) et n'a jamais adopté la brique. Reste 5 apps hand-built | F3 | adoption |
+| 2 | ✅ **clos comme trou d'adoption — RE-MESURÉ 2026-08-31 : `context:'batch'` est à 10/10** (avatarizer compris, `index.html:367` — la ligne précédente « 5/10, avatarizer jamais » était périmée par le bas ; 3ᵉ recomptage de cette ligne, toujours faux). Le générateur émet désormais l'ouvreur de lot COMPLET (`onBatchSettings` + `settingsModal context:'batch'`, §S2ter). Le déficit RÉEL a changé de nom : le **cycle complet** `settingsModal` n'est qu'à **2/10** (8 apps gardent leur coquille + save maison) — c'est la ligne « cycle » de la table F3, pas celle-ci | F3 | ✅ re-qualifié |
 | 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) | F3/F8 | réinvention à supprimer |
 | 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10) | F3b | adoption, pas frontend |
 | 5 | `select_model()` : composer, transcriber, imager, **reader** (2026-07-31, `61a666f`). Reclaim VRAM ✅ **unifié** (cf. F4). Ce qui restait n'était PAS un trou : enhancer/avatarizer/synthesizer n'ont **aucune sélection automatique à faire** (l'utilisateur désigne, ou le modèle vit hors process) ; describer = unification différée par CLAUDE.md (Phase 4) ; anonymizer = `select_best_models()` couvre un **jeu de classes avec plusieurs modèles** là où la brique n'en choisit qu'un, et lit déjà le catalogue → sur-ensemble légitime | F4 | ✅ pour l'essentiel |
@@ -1529,9 +1611,9 @@ maillon de l'interop) ; ④ plugins de visualisation → monde DATA (dernier, le
 | 21 | **Couche JS d'APPLICATION non générée** (mesuré 2026-08-22, converter_01) : le gabarit généré n'émet AUCUN bloc `app_scripts`, alors que le socle l'offre (`app_modern_base.html:294`). Le JS de l'app existe dans `static/` mais n'est jamais chargé → aucun écouteur posé, aucune voie d'import n'émet de requête, **zéro erreur console** (rien ne plante quand rien n'est chargé). C'est ce silence qui l'a rendu invisible au banc codegen, qui ne compare que des facettes projetables. Brique livrée : `common/_app_scripts.html` (noyau mesuré sur 10 apps + options). → ✅ **CLOS — confirmé le 2026-08-22** : `templates_gen.py:116-117` émet désormais `{% block app_scripts %}` + l'inclusion de `common/_app_scripts.html`, suivis des seules URL propres à l'app (lot, progression globale). L'avertissement « le générateur ne l'émet toujours pas » est PÉRIMÉ — il décrivait l'état d'avant le portage dans `templates_gen`. | F1/F3 | ✅ |
 | 22 | ~~**`batch_create` encore bouchonné (501)**~~ → ✅ **CLOS le 2026-08-22**. Vue conventionnelle rendue par la fabrique (parse → création → `group_into_batches_by_nature`), zéro brique nouvelle. **Une URL n'y est PAS téléchargée** : la source est enregistrée et `ensure_local_input` la résout en tête de tâche — la requête ne part pas chercher N fichiers distants, et le seul chemin de téléchargement reste celui qui passe par la garde SSRF. Mesuré de bout en bout sur `converter_01` : 2 éléments créés, rattachés à un lot (`wama/common/tests_codegen_lot.py`, 8 tests). **Deux défauts trouvés en le câblant** : ① la 2ᵉ passe d'assemblage (`extra_routes`) ne consultait pas les corps conventionnels — une route déclarée en extra recevait un 501 alors que la fabrique savait la rendre (3ᵉ occurrence du motif « deux chemins, deux apps », après `WAMA_INGEST` et le `pk` de `batch_preview`) ; ② la clé d'ingest est `source`, pas `source_field`. | F1 | codegen |
 | 23 | **`auto_wrap_orphans` sans variante FK-DIRECTE** : la brique commune suppose un modèle de LIAISON ; converter est la seule app à FK directe et réécrit une boucle de 6 lignes, désormais reproduite dans le gabarit généré. Motif écrit à 4 endroits (converter, avatarizer, synthesizer, codegen) → extraction justifiée. Même angle mort pour `build_batches_list`, que 9 apps sur 10 utilisent et qui ne couvre pas la FK directe (prefetch `items__work_attr`). | F1/F5 | brique |
-| 24 | **Contrat de réponse d'`upload` non normalisé** : converter renvoie `job_id`, le gabarit généré `id`, d'autres `pk`. `converter.js` lisait `data.job_id` là où la vue générée renvoyait `id` → identifiant `undefined`, liste vide, pas de rechargement, **aucune card, sans erreur**. `wama-import.js` lit désormais les trois graphies (filet), mais la normalisation des vues reste à faire — l'affichage ne doit pas dépendre d'un nom de clé. **Précisé le 2026-08-22 :** le trou n'est plus côté GÉNÉRATEUR — `views_gen.py` renvoie uniformément `{'id': …}` sur toutes ses vues (upload, start, duplicate, batch_create : l. 159/284/291/335/453). Ce qui reste est le **parc existant** écrit à la main (converter → `job_id`). Le filet reste donc nécessaire tant que les apps ne sont pas régénérées. | F1 | parc, pas codegen |
-| 25 | **8 doubles inclusions de JS** (mesuré 2026-08-22) : `wama-model-help` ×4 (composer, converter, reader, transcriber), `wama-queue` ×2 (composer, describer), `wama-cycle-button` ×1 (composer), `console` ×1 (anonymizer) — tous DÉJÀ chargés globalement par `base.html`/`app_modern_base.html`. Même famille que le bug du player audio muet du 18/08 (deux BroadcastChannel). Disparaissent à l'adoption de `_app_scripts.html`. | F3 | dette |
-| 26 | **Aucun critère ne voit une zone de dépôt que rien n'écoute** : la grille mesure la présence du markup, pas l'existence d'un écouteur. C'est ce qui a laissé converter_01 inerte sans qu'aucune mesure ne baisse. Critère à écrire : une app qui rend `[data-wama-nic]`/dropzone sans charger de voie d'import échoue. **Confirmé OUVERT le 2026-08-22** (aucun critère de ce genre dans `conformity_checker.py`). ⚠ Devenu plus facile à écrire depuis : la card d'entrée commune porte `data-wama-depot` (`cree`\|`attache`), donc le critère peut distinguer « rien n'écoute » (défaut) de « le dépôt joint, le bouton primaire crée » (conception légitime d'avatarizer/imager) — distinction qu'aucune heuristique de DOM ne savait faire, et qui est la raison pour laquelle ce critère n'avait pas été écrit. **⚠ Le PATRON existe désormais (2026-08-23) : `settings_wiring`** mesure exactement cette forme — le markup ET l'écouteur, en exigeant les DEUX (`.settings-btn[data-id]` dans le gabarit + `WamaQueueActions.onSettings` déclaré), et rend `partial` quand un seul des deux est là (« bouton au contrat, mais AUCUN ouvreur déclaré — clic inerte »). Le critère de dépôt se calque dessus. Corollaire appris le même jour : un critère de ce genre est passé **vert 10/10 le jour de son écriture** — il faut donc l'accompagner d'un scénario qui CLIQUE, sinon il atteste une adoption qu'on prendra pour un fonctionnement. | F3 | grille |
+| 24 | **Contrat de réponse d'`upload` non normalisé** : converter renvoie `job_id`, le gabarit généré `id`, d'autres `pk`. `converter.js` lisait `data.job_id` là où la vue générée renvoyait `id` → identifiant `undefined`, liste vide, pas de rechargement, **aucune card, sans erreur**. `wama-import.js` lit désormais les trois graphies (filet), mais la normalisation des vues reste à faire — l'affichage ne doit pas dépendre d'un nom de clé. **Précisé le 2026-08-22 :** le trou n'est plus côté GÉNÉRATEUR — `views_gen.py` renvoie uniformément `{'id': …}` sur toutes ses vues. → ✅ **CLOS côté parc aussi (constaté à l'audit du 2026-08-31)** : `grep "'job_id':" wama/*/views.py` = 0 occurrence — le converter a TRADUIT vers `id` avec la justification écrite (`converter/views.py:261-272`). Le filet à trois graphies de `wama-import.js` n'a plus de cas connu ; il reste comme ceinture, plus comme nécessité. | F1 | ✅ |
+| 25 | **8 doubles inclusions de JS** (mesuré 2026-08-22) : `wama-model-help` ×4 (composer, converter, reader, transcriber), `wama-queue` ×2 (composer, describer), `wama-cycle-button` ×1 (composer), `console` ×1 (anonymizer) — tous DÉJÀ chargés globalement par `base.html`/`app_modern_base.html`. Même famille que le bug du player audio muet du 18/08 (deux BroadcastChannel). Disparaissent à l'adoption de `_app_scripts.html` — ⚠ **adoption à 0/10 dans le parc réel au 31/08** (le partial ne vit que dans le gabarit GÉNÉRÉ) : ce trou ne se refermera pas tout seul, il attend le portage. | F3 | dette |
+| 26 | **Aucun critère ne voit une zone de dépôt que rien n'écoute** : la grille mesure la présence du markup, pas l'existence d'un écouteur. C'est ce qui a laissé converter_01 inerte sans qu'aucune mesure ne baisse. Critère à écrire : une app qui rend `[data-wama-nic]`/dropzone sans charger de voie d'import échoue. ~~Confirmé OUVERT le 2026-08-22~~ → ✅ **LE CRITÈRE EXISTE (constaté à l'audit du 31/08)** : `Criterion('import_wired', 'F2', « Voie d'import CHARGÉE par le gabarit (dépôt non inerte) »)`, `conformity_checker.py` — avec exactement les subtilités réclamées ici (`data-wama-depot`, exemption « aucune card d'entrée »). La ligne « confirmé ouvert » a survécu à l'écriture du critère qu'elle spécifiait — le réécrire aurait fait un doublon pur. Reste vrai le corollaire : ⚠ Devenu plus facile à écrire depuis : la card d'entrée commune porte `data-wama-depot` (`cree`\|`attache`), donc le critère peut distinguer « rien n'écoute » (défaut) de « le dépôt joint, le bouton primaire crée » (conception légitime d'avatarizer/imager) — distinction qu'aucune heuristique de DOM ne savait faire, et qui est la raison pour laquelle ce critère n'avait pas été écrit. **⚠ Le PATRON existe désormais (2026-08-23) : `settings_wiring`** mesure exactement cette forme — le markup ET l'écouteur, en exigeant les DEUX (`.settings-btn[data-id]` dans le gabarit + `WamaQueueActions.onSettings` déclaré), et rend `partial` quand un seul des deux est là (« bouton au contrat, mais AUCUN ouvreur déclaré — clic inerte »). Le critère de dépôt se calque dessus. Corollaire appris le même jour : un critère de ce genre est passé **vert 10/10 le jour de son écriture** — il faut donc l'accompagner d'un scénario qui CLIQUE, sinon il atteste une adoption qu'on prendra pour un fonctionnement. | F3 | grille |
 | 27 | **`compact_preview` (reader) orphelin + 3e copie** : le filtre templatetag n'a plus d'appelant depuis le portage du 22/08 (le commun rend l'extrait), et la MÊME logique existe une troisième fois dans `reader/views.py::_compact_preview`, toujours utilisée pour la charge d'API. Candidat REMOVAL_LEDGER. Idem `imager` : `openImagePreview`/`openVideoPreview` sans appelant depuis le portage du mécanisme n°30. | F3 | dette |
 | 28 | **La boucle codegen exige un REDÉMARRAGE** : `gunicorn_conf.py` n'a ni `reload` ni `preload_app`, donc aucune modification Python (`apps.py`, `views.py`, briques communes) n'est prise sans relance. Trois diagnostics de la session du 22/08 s'y sont heurtés — **un QUATRIÈME le 2026-08-23**, et sous une forme plus traître : `max_requests = 1000` recycle les workers **un par un**, donc la pile se retrouve MIXTE (mesuré : 2 workers sur 4 dataient d'avant la modification). Une route Python ajoutée existait donc pour la moitié des requêtes seulement, et un gabarit qui la référence rendait `NoReverseMatch` → **500 INTERMITTENT**. Coût : un A/B complet contre HEAD pour écarter une fausse régression. ⚠ **Une hypothèse « workers périmés » avait d'abord été REJETÉE à tort sur 6 sondes toutes vertes** — il en fallait 30 pour voir les 2/30 en 404 : sur un parc mixte, un petit échantillon ne décide rien. **Remède mesuré : `kill -HUP <maître>`** — sans `preload_app`, les workers réimportent l'application, le socket n'est pas lâché, et c'est instantané ; inutile de relancer la pile. Les gabarits, eux, se relisent à chaque requête — c'est ce décalage gabarit/Python qui fabrique le symptôme. À écrire dans la recette de génération — et à trancher : `reload = True` en dev ? | — | outillage |
 

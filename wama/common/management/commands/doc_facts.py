@@ -223,10 +223,17 @@ def _fait_mecanismes():
     # balayage. La leçon ne s'apprend donc pas une fois pour toutes — elle se REJOUE à chaque
     # dossier créé. Le geste juste n'est pas « se souvenir d'ajouter », c'est **ajouter la ligne
     # dans le même commit que le premier fichier du dossier**.
+    # `wama/common/manifests/` et `wama/common/templatetags/` ajoutés le 2026-08-31 —
+    # CINQUIÈME occurrence, trouvée par AUDIT et non par dépôt : la chaîne codegen entière
+    # (7 gabarits, le dossier le plus actif du dépôt) était hors carte SANS AUCUN SIGNAL,
+    # au moment même où elle produisait converter_01. La leçon ci-dessus tient : un dossier
+    # hors balayage naît invisible, et l'audit est un filet bien plus lent que le commit.
     dossiers_balayes = ('wama/common/services/', 'wama/common/utils/',
                         'wama/common/backends/',
                         'wama/common/memory/',
                         'wama/common/tts/',
+                        'wama/common/manifests/',
+                        'wama/common/templatetags/',
                         'wama/common/static/common/js/',
                         'wama/model_manager/services/', 'wama/studio/services/')
     # `modules` ne contient que du .py : le front est balayé à part (mêmes exclusions).

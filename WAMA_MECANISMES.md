@@ -162,16 +162,17 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Recherche & lecture web** | Recherche internet + page → texte plafonné (octets ET caractères) pour l'investigation de l'assistant (outils search_web/read_web_page) | `wama/common/utils/web_search.py` | `WAMA_LLM.md` | 4 |
 | **Skills de rôle de l'assistant** | Posture et domaine de l'assistant (science, design, dev) + rappel du contexte de laboratoire, déclarés par domaine — distinct de l'enrichissement | `wama/common/utils/assistant_skills.py` | `ROADMAP.md §19.7` | 5 |
 
-#### Manifestes & registres (6)
+#### Manifestes & registres (7)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
 | **Adoption des mécanismes** | Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jonction registre↔grille : mécanisme adopté par des apps que rien ne vérifie | `wama/common/services/mecanismes_scan.py` | `WAMA_MECANISMES.md` | 1 |
 | **Audit des licences** | Vue dérivée : licences+auteurs des 4 registres, traversée par app. Ne voit PAS le code vendorisé (`static/vendors/`, codeformer) — inventorié à la main dans LICENSING.md §3 | `wama/common/services/license_audit.py` | `LICENSING.md` | 2 |
-| **Bac à sable d'apps (jumelles exécutables)** | Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé (route §10.3 marche S) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques | `wama/common/sandbox.py` | `WAMA_APP_GENERATION_ROUTE.md` | 10 |
+| **Bac à sable d'apps (jumelles exécutables)** | Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (route §10.3 marches S/S2) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + `substitute <label> <cible>` : remplace UN fichier copié par sa version GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, auto-revert sur échec — verdicts journalisés au registre | `wama/common/sandbox.py` | `WAMA_APP_GENERATION_ROUTE.md` | 10 |
 | **Formats de sortie** | Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) | `wama/common/utils/output_formats.py` | — | 5 |
+| **Gabarits de génération d'app (marche S2)** | Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par fichier (apps/urls/models/params/tasks/views/templates), consommées par `app_sandbox substitute` et le write-back ; le hors-convention reste un TROU NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux | `wama/common/manifests/codegen/templates_gen.py` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
 | **Grille de conformité** | Mesure les 8 facettes F1–F8 des apps par analyse du code réel | `wama/common/services/conformity_checker.py` | `WAMA_APP_CONVENTIONS.md` | 4 |
-| **Manifestes** | Extraction/validation/projection des 7 kinds vers les registres | `wama/common/manifests/ingest.py` | `WAMA_MANIFEST_ARCHITECTURE.md` | 25 |
+| **Manifestes** | Extraction/validation/projection des 7 kinds vers les registres | `wama/common/manifests/ingest.py` | `WAMA_MANIFEST_ARCHITECTURE.md` | 45 |
 
 #### File d'attente & lots (11)
 
@@ -180,8 +181,8 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Console utilisateur** | Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`) | `wama/common/utils/console_utils.py` | — | 31 |
 | **Dossier de travail jetable** | Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; reste `enhancer/tasks.py:534`, déjà nettoyé sur les deux chemins, dont le portage est une restructuration d'une fonction GPU de 200 lignes. ⚠⚠ L'audit AUTOMATIQUE des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à « si le dossier est vide » qui ne se déclenchait donc jamais, un nettoyage placé APRÈS l'appel qui sautait sur exception, et un `except ImportError` qui empêchait un repli d'exister. Un relevé par motif oriente ; il ne conclut pas. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés | `wama/common/utils/work_dir.py` | `MEDIA_STORAGE_TIERING.md` | 47 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 16 |
-| **Entrée de file (card seule OU lot)** | Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans 9 gabarits ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les 9 cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives | `wama/common/templates/common/_queue_entry.html` | `CARD_DESIGN.md §11.2` | 196 |
-| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 66 |
+| **Entrée de file (card seule OU lot)** | Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans les gabarits d'app (10 au dernier compte — le partial fait foi) ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives | `wama/common/templates/common/_queue_entry.html` | `CARD_DESIGN.md §11.2` | 196 |
+| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, mode Solitaire (accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE (CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 66 |
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 53 |
 | **Intégrité des médias** | Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe dessus), orphelin, RÉSIDU DE TEST, et RÉFÉRENCÉ MAIS ABSENT — ce dernier étant celui que personne ne voyait : au 2026-08-25, **33 lignes de base pointent vers des fichiers inexistants**, et un téléchargement ou un aperçu y échoue sans rien dire. Signale aussi les fichiers ÉGARÉS hors des emplacements légitimes. ⚠⚠ La méthode exige DEUX signaux indépendants, jamais le nom seul : « orphelin » seul désignait 3447 fichiers sur 3779 (les sorties de workers ne passent pas par un FileField), et le nom seul aurait emporté le dépôt manuel d'une utilisatrice. ⚠ Un kind de manifeste `media` a été ÉCARTÉ : `manifests/` est versionné alors que `media/` porte des données personnelles, et un export serait périmé au moindre dépôt — un contrôle toujours rouge ne protège plus rien | `wama/common/management/commands/check_media_integrity.py` | `MEDIA_STORAGE_TIERING.md` | 1 |
 | **Manipulation directe de la file** | Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider | `wama/common/utils/queue_manipulation.py` | `CARD_DESIGN.md §3bis` | 11 |
@@ -189,28 +190,32 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Notifications de tâche** | notify_job() — fin de traitement, succès comme échec | `wama/common/utils/notifications.py` | `PROFILES_PERMISSIONS.md` | 12 |
 | **Tri/filtrage de la file** | Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE entre apps | `wama/common/utils/queue_view.py` | `CARD_DESIGN.md` | 13 |
 
-#### UI générée (18)
+#### UI générée (22)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
 | **Bouton de cycle** | Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card | `wama/common/static/common/js/wama-cycle-button.js` | — | 24 |
-| **Card v3** | Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés | `wama/common/static/common/js/wama-card-v3.js` | `CARD_DESIGN.md §11` | 5 |
-| **Card « Nouvel élément »** | Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init | `wama/common/static/common/js/wama-new-item-card.js` | `MODES_QUEUE_UX.md` | 29 |
-| **Chips méta des cards** | Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 31 |
+| **Cache-busting statique** | `{% static_v %}` = `{% static %}` + `?v=<mtime>` : le navigateur re-télécharge un fichier statique dès qu'il change, le garde en cache sinon | `wama/common/templatetags/wama_static.py` | — | 27 |
+| **Card v3** | Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés (l'autre moitié vécue de la v3 — densités, pile — vit au front de file : queue_front, qui appelle WamaCardV3.measure) | `wama/common/static/common/js/wama-card-v3.js` | `CARD_DESIGN.md §11` | 5 |
+| **Card « Nouvel élément »** | Card d'entrée dépliable commune — les 6 modalités du partial : dépôt, URL, médiathèque, lot, dossier, live + slot de référence typé (extra_zone) — auto-init | `wama/common/static/common/js/wama-new-item-card.js` | `MODES_QUEUE_UX.md` | 29 |
+| **Chips méta des cards** | Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v3 (chips_by_section) ; `values` pour les réglages vivant en JSON (même assiette que card_gear), `extra` pour les chips d'app déjà formés | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 31 |
 | **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 14 |
+| **Déclaration du volet par la page** | Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajout) ; sans déclaration, l'état d'avant — les apps n'écrivent rien (context processor volet_defaut) | `wama/common/utils/volet.py` | `WAMA_VOLETS.md §8` | 9 |
+| **Formats de téléchargement (⬇ late-binding)** | Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, groupe) + split-button dérivé de la déclaration export_binding — pendant late-binding d'output_formats ; 6ᵉ action de card | `wama/common/utils/export_formats.py` | `WAMA_APP_CONVENTIONS.md §6.3` | 10 |
 | **Import de dossier récursif** | Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html) | `wama/common/static/common/js/wama-folder-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
+| **Inspecteur contextuel (volet droit)** | Trois étages (card / lot / file) : sélection → Infos + preview + actions clonées (cloneActions) + PARAMÈTRES reflétés (initFromSchema : panel read/apply dérivés du schéma, cardSettings via card_gear) ; hydrate aussi les previews de card (hydrateCardPreviews) | `wama/common/static/common/js/wama-inspector.js` | `WAMA_VOLETS.md` | 28 |
 | **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 49 |
 | **Lecteur audio (onde + transport)** | Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards | `wama/common/static/common/js/wama-audio-player.js` | — | 5 |
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 35 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 42 |
-| **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 45 |
+| **Schéma de paramètres** | Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 45 |
 | **Shuttle J/K/L** | État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app fournit apply(speed) — la commande est commune, l'application au lecteur reste locale | `wama/common/static/common/js/wama-shuttle.js` | — | 3 |
 | **Signalement au gestionnaire de fichiers** | Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event | `wama/common/static/common/js/wama-fm-notify.js` | — | 2 |
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 18 |
 | **Sélecteur de médiathèque** | Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta | `wama/common/static/common/js/media-picker.js` | — | 4 |
 | **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 23 |
-| **Voie d'import (front)** | Envoi d'un fichier vers l'endpoint upload de l'app depuis toutes les sources (dépôt, clic, médiathèque), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension) | `wama/common/static/common/js/wama-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
-| **data-* du gear ⚙ des cards** | data-* du bouton ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur : le volet reflète la card sélectionnée) — remplace les attributs écrits à la main par app ; booléens 'true'/'false', tous les params item émis (anti-résidus) | `wama/common/utils/card_gear.py` | — | 13 |
+| **Voie d'import (front)** | Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic — la médiathèque y ARRIVE par la card d'entrée, qui injecte le fichier dans le même input), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension) | `wama/common/static/common/js/wama-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
+| **data-* du gear ⚙ des cards** | data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui lit la RACINE de card PUIS le bouton) — schéma en objets Param OU en dicts (chemin des vues générées) ; booléens 'true'/'false', tous les params item émis (anti-résidus) | `wama/common/utils/card_gear.py` | — | 13 |
 
 #### Données & infrastructure (24)
 
@@ -249,22 +254,25 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 11 |
 
-**Mécanismes déclarés : 109** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 19 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 27**
+**Mécanismes déclarés : 114** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 19 · modules balayés non rattachés : 2 · **de niveau app sans critère de grille : 30**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
 
-<details><summary>⚠ <b>27 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
+<details><summary>⚠ <b>30 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 
 | Mécanisme | Adopté par | Domicile |
 |---|---|---|
 | `data_vue` — View-model d'exploration (WAMA Data) | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama_data/view.py` |
 | `gateway_identity` — Appariement d'identité de canal | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/gateway/services.py` |
+| `inspector` — Inspecteur contextuel (volet droit) | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/static/common/js/wama-inspector.js` |
 | `media_paths` — Chemins média | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/utils/media_paths.py` |
 | `rag_geste` — Ajout au RAG (geste explicite) | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/static/common/js/wama-inspector.js` |
+| `static_versioning` — Cache-busting statique | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/templatetags/wama_static.py` |
 | `work_dir` — Dossier de travail jetable | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/utils/work_dir.py` |
-| `manifests` — Manifestes | **8** app(s) : anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer, transcriber | `wama/common/manifests/ingest.py` |
+| `manifests` — Manifestes | **9** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, synthesizer, transcriber | `wama/common/manifests/ingest.py` |
 | `notifications` — Notifications de tâche | **8** app(s) : anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer, transcriber | `wama/common/utils/notifications.py` |
 | `data_noms` — Noms dérivés (WAMA Data) | **7** app(s) : anonymizer, avatarizer, composer, converter, enhancer, imager, synthesizer | `wama_data/core/naming.py` |
 | `output_naming` — Nom du fichier de sortie | **6** app(s) : avatarizer, composer, converter, enhancer, imager, synthesizer | `wama/common/utils/output_naming.py` |
+| `export_formats` — Formats de téléchargement (⬇ late-binding) | **5** app(s) : anonymizer, describer, imager, reader, transcriber | `wama/common/utils/export_formats.py` |
 | `ffmpeg` — Accès ffmpeg | **5** app(s) : anonymizer, converter, describer, enhancer, transcriber | `wama/common/utils/ffmpeg_utils.py` |
 | `output_formats` — Formats de sortie | **5** app(s) : anonymizer, composer, enhancer, imager, synthesizer | `wama/common/utils/output_formats.py` |
 | `video_utils` — Utilitaires vidéo | **5** app(s) : anonymizer, converter, describer, enhancer, transcriber | `wama/common/utils/video_utils.py` |
@@ -286,12 +294,10 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 </details>
 
-<details><summary>⚠ <b>4 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
+<details><summary>⚠ <b>2 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
 
 
 `wama/common/services/` (1) — `conversation_store.py`
-
-`wama/common/utils/` (2) — `export_formats.py` · `volet.py`
 
 `wama/common/static/common/js/` (1) — `wama-avatar.js`
 

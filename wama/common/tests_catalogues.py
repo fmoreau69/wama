@@ -60,7 +60,9 @@ def _fichier_du_doc(doc: str) -> str:
 
 
 class MecanismesConformiteTest(TestCase):
-    """Contrat des 88 mécanismes — la carte `WAMA_MECANISMES.md` est GÉNÉRÉE d'ici.
+    """Contrat des mécanismes déclarés (le NOMBRE vit dans le registre, jamais ici — « 88 »
+    écrit à cette place était devenu faux à 109) — la carte `WAMA_MECANISMES.md` est
+    GÉNÉRÉE d'ici.
 
     Une entrée fausse ne casse rien à l'exécution : elle produit une ligne de carte qui pointe
     dans le vide, ou un compte de consommateurs mesuré sur le mauvais symbole. Donc rien ne la

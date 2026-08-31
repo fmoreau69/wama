@@ -363,7 +363,35 @@ MECANISMES = (
     Mecanisme('manifests', 'Manifestes',
               "Extraction/validation/projection des 7 kinds vers les registres",
               'wama/common/manifests/ingest.py', 'WAMA_MANIFEST_ARCHITECTURE.md',
-              annexes=('wama/common/services/library_index.py',)),
+              # Annexes complétées le 2026-08-31 (audit) : le dossier `manifests/` entrait au
+              # balayage et ces modules — enveloppe, vocabulaire des kinds, table de projection,
+              # les 7 kinds builtin — sont le CORPS du mécanisme, pas des voisins.
+              annexes=('wama/common/services/library_index.py',
+                       'wama/common/manifests/envelope.py',
+                       'wama/common/manifests/kinds.py',
+                       'wama/common/manifests/projection.py',
+                       'wama/common/manifests/builtin/app.py',
+                       'wama/common/manifests/builtin/dataset.py',
+                       'wama/common/manifests/builtin/function.py',
+                       'wama/common/manifests/builtin/library.py',
+                       'wama/common/manifests/builtin/model.py',
+                       'wama/common/manifests/builtin/pipeline.py',
+                       'wama/common/manifests/builtin/project.py')),
+    # Entrée créée le 2026-08-31 (audit) : la chaîne était HORS carte — 5 gabarits sur 7 sans
+    # domicile ni annexe, dossier hors balayage, donc AUCUN signal possible. 5ᵉ occurrence de
+    # la leçon « un dossier hors balayage naît invisible » (cf. doc_facts.py, dossiers_balayes).
+    Mecanisme('codegen', "Gabarits de génération d'app (marche S2)",
+              "Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par "
+              "fichier (apps/urls/models/params/tasks/views/templates), consommées par "
+              "`app_sandbox substitute` et le write-back ; le hors-convention reste un TROU "
+              "NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux",
+              'wama/common/manifests/codegen/templates_gen.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/manifests/codegen/apps_gen.py',
+                       'wama/common/manifests/codegen/urls_gen.py',
+                       'wama/common/manifests/codegen/models_gen.py',
+                       'wama/common/manifests/codegen/params_gen.py',
+                       'wama/common/manifests/codegen/tasks_gen.py',
+                       'wama/common/manifests/codegen/views_gen.py')),
     Mecanisme('output_formats', 'Formats de sortie',
               "Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter)",
               'wama/common/utils/output_formats.py', ''),
@@ -383,9 +411,12 @@ MECANISMES = (
     # domaine, donc n'apparaît dans AUCUNE sous-table de la carte — invisible, pas fausse.
     # C'était son état jusqu'au 2026-08-22 (seul cas sur 88, trouvé par `tests_catalogues`).
     Mecanisme('app_sandbox', "Bac à sable d'apps (jumelles exécutables)",
-              "Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé "
-              "(route §10.3 marche S) — registre sandbox_apps.json injecté au boot "
-              "(INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques",
+              "Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins "
+              "(route §10.3 marches S/S2) — registre sandbox_apps.json injecté au boot "
+              "(INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + "
+              "`substitute <label> <cible>` : remplace UN fichier copié par sa version "
+              "GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, "
+              "auto-revert sur échec — verdicts journalisés au registre",
               'wama/common/sandbox.py', 'WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/management/commands/app_sandbox.py',)),
 
@@ -412,7 +443,9 @@ MECANISMES = (
               "Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider",
               'wama/common/utils/queue_manipulation.py', 'CARD_DESIGN.md §3bis'),
     Mecanisme('queue_front', "File d'attente (front)",
-              "Comportements communs des files : collapse de batch persisté, focus card, data-wama-*",
+              "Comportements communs des files : collapse de batch persisté, mode Solitaire "
+              "(accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE "
+              "(CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*",
               'wama/common/static/common/js/wama-queue.js', 'CARD_DESIGN.md',
               annexes=('wama/common/static/common/js/queue-actions.js',
                        'wama/common/templates/common/_queue_toolbar.html',
@@ -421,9 +454,10 @@ MECANISMES = (
     Mecanisme('queue_entry', "Entrée de file (card seule OU lot)",
               "Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE "
               "avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À "
-              "L'IDENTIQUE dans 9 gabarits ; il n'a pu être centralisé (2026-08-25) qu'une fois "
+              "L'IDENTIQUE dans les gabarits d'app (10 au dernier compte — le partial fait foi) ; "
+              "il n'a pu être centralisé (2026-08-25) qu'une fois "
               "deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et "
-              "`elem` (les 9 cards filles reçoivent leur élément sous le MÊME nom — avant, 8 "
+              "`elem` (les cards filles reçoivent leur élément sous le MÊME nom — avant, 8 "
               "graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et "
               "`batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout "
               "le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont "
@@ -511,7 +545,9 @@ MECANISMES = (
     # Les briques FRONT d'un mécanisme (js/partials) sont ses ANNEXES : même identité, le
     # comptage voit alors aussi les gabarits qui les référencent (balise <script>, include).
     Mecanisme('param_schema', 'Schéma de paramètres',
-              "Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui",
+              "Source unique des réglages d'app : volet droit, modales (item ET lot, "
+              "`context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, "
+              "filtre show_if au vocabulaire du moteur JS) sont dérivés de lui",
               'wama/common/utils/param_schema.py', 'WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),
@@ -541,14 +577,39 @@ MECANISMES = (
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js')),
     Mecanisme('card_gear', 'data-* du gear ⚙ des cards',
-              "data-* du bouton ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur : "
-              "le volet reflète la card sélectionnée) — remplace les attributs écrits à la main "
-              "par app ; booléens 'true'/'false', tous les params item émis (anti-résidus)",
+              "data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui lit "
+              "la RACINE de card PUIS le bouton) — schéma en objets Param OU en dicts "
+              "(chemin des vues générées) ; booléens 'true'/'false', tous les params item "
+              "émis (anti-résidus)",
               'wama/common/utils/card_gear.py', ''),
     Mecanisme('card_chips', 'Chips méta des cards',
-              "Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app",
+              "Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v3 "
+              "(chips_by_section) ; `values` pour les réglages vivant en JSON (même assiette "
+              "que card_gear), `extra` pour les chips d'app déjà formés",
               'wama/common/utils/card_chips.py', 'CARD_DESIGN.md §10.3',
               annexes=('wama/common/templates/common/_card_chips.html',)),
+    # Entrées créées le 2026-08-31 (audit) — trois briques du périmètre UI sans identité :
+    # l'inspecteur n'existait sur la carte que comme annexe/domicile d'autres entrées, la
+    # 6ᵉ action de card (⬇) n'avait aucune entrée, la déclaration du volet non plus.
+    Mecanisme('inspector', 'Inspecteur contextuel (volet droit)',
+              "Trois étages (card / lot / file) : sélection → Infos + preview + actions "
+              "clonées (cloneActions) + PARAMÈTRES reflétés (initFromSchema : panel "
+              "read/apply dérivés du schéma, cardSettings via card_gear) ; hydrate aussi "
+              "les previews de card (hydrateCardPreviews)",
+              'wama/common/static/common/js/wama-inspector.js', 'WAMA_VOLETS.md',
+              annexes=('wama/common/templates/common/_inspector_actions.html',)),
+    Mecanisme('export_formats', 'Formats de téléchargement (⬇ late-binding)',
+              "Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, "
+              "groupe) + split-button dérivé de la déclaration export_binding — pendant "
+              "late-binding d'output_formats ; 6ᵉ action de card",
+              'wama/common/utils/export_formats.py', 'WAMA_APP_CONVENTIONS.md §6.3',
+              annexes=('wama/common/templates/common/_download_button.html',
+                       'wama/common/templatetags/wama_actions.py')),
+    Mecanisme('volet', 'Déclaration du volet par la page',
+              "Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais "
+              "ajout) ; sans déclaration, l'état d'avant — les apps n'écrivent rien "
+              "(context processor volet_defaut)",
+              'wama/common/utils/volet.py', 'WAMA_VOLETS.md §8'),
     Mecanisme('app_modes', 'Domaines → modes',
               "Schéma déclaratif des onglets-domaine et modes par app — scope la file",
               'wama/common/utils/app_modes.py', 'MODES_QUEUE_UX.md',
@@ -580,11 +641,22 @@ MECANISMES = (
               "du filemanager se rafraîchit sans que chaque app invente son event",
               'wama/common/static/common/js/wama-fm-notify.js', ''),
     Mecanisme('card_system', 'Card v3',
-              "Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés",
+              "Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, "
+              "des libellés (l'autre moitié vécue de la v3 — densités, pile — vit au front "
+              "de file : queue_front, qui appelle WamaCardV3.measure)",
               'wama/common/static/common/js/wama-card-v3.js', 'CARD_DESIGN.md §11',
               annexes=('wama/common/templates/common/_card_state.html',)),
+    Mecanisme('static_versioning', 'Cache-busting statique',
+              "`{% static_v %}` = `{% static %}` + `?v=<mtime>` : le navigateur re-télécharge "
+              "un fichier statique dès qu'il change, le garde en cache sinon",
+              'wama/common/templatetags/wama_static.py', '',
+              # Consommé par la balise de gabarit, jamais par import Python : sans symbole,
+              # le compteur (imports du module) rendait 0 — brique « morte » à 100+ pages.
+              symbole='static_v'),
     Mecanisme('new_item_card', 'Card « Nouvel élément »',
-              "Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init",
+              "Card d'entrée dépliable commune — les 6 modalités du partial : dépôt, URL, "
+              "médiathèque, lot, dossier, live + slot de référence typé (extra_zone) — "
+              "auto-init",
               'wama/common/static/common/js/wama-new-item-card.js', 'MODES_QUEUE_UX.md',
               annexes=('wama/common/templates/common/_new_item_card.html',)),
     # La card d'entrée porte les MODALITÉS ; celle-ci porte le GESTE d'envoi. Elles se
@@ -593,8 +665,9 @@ MECANISMES = (
     # Chaque app réécrivait sa boucle `handleFiles` (converter.js, reader.js…), donc une app
     # GÉNÉRÉE n'en avait aucune et ne pouvait créer aucune card, sans erreur console.
     Mecanisme('import_front', "Voie d'import (front)",
-              "Envoi d'un fichier vers l'endpoint upload de l'app depuis toutes les sources "
-              "(dépôt, clic, médiathèque), délégation du LOT à batch_import, consolidation et "
+              "Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic — la "
+              "médiathèque y ARRIVE par la card d'entrée, qui injecte le fichier dans le "
+              "même input), délégation du LOT à batch_import, consolidation et "
               "rafraîchissement — agnostique du monde (ni MIME ni extension)",
               'wama/common/static/common/js/wama-import.js', 'WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/templates/common/_app_scripts.html',)),
