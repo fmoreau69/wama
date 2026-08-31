@@ -9330,10 +9330,22 @@ maquette v4.
 > intercalés, vérifié fichier par fichier).
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
-**Décommenter `WAMA_PUBLIC_URL` dans `.env`** (l'adresse que le SMARTPHONE joint, VPN monté —
-IP interne si le DNS ne passe pas le tunnel), relancer `start_wama_prod.sh`, puis **`!delier`
-puis `!lier` en DM Discord** → scanner le QR → vérifier que le profil s'ouvre code prérempli.
-C'est la seule maille que le harnais ne couvre pas (rendu Discord réel).
+> ⚠ Session ouverte le 31/08, **close le 2026-09-01** — chercher ce bloc à sa date de TRAVAIL.
+> Les validations écran ci-dessous sont **explicitement REPORTÉES par Fabien** (« je ne peux
+> pas faire les tests pour le moment ») : elles ne sont ni oubliées ni en échec, elles attendent.
+
+**Décommenter `WAMA_PUBLIC_URL` dans `.env`** — la ligne y est déjà, valeur préparée et
+**vérifiée** : `http://137.121.169.135` (IP LAN de l'hôte Windows). Puis relancer
+`start_wama_prod.sh`, **`!delier` puis `!lier`** en DM Discord → scanner → vérifier que le
+profil s'ouvre code prérempli. Seule maille non couverte par le harnais (rendu Discord réel).
+- ✅ **Adresse ÉTABLIE, pas à chercher** (mesuré, `INFRA_WSL_VS_WINDOWS.md` §« Quelle est
+  l'adresse de WAMA ? ») : Apache écoute `0.0.0.0:80` avec **un seul vhost**, donc il sert WAMA
+  pour n'importe quel `Host` ; `http://137.121.169.135/` répond **200**, `/accounts/profile/`
+  répond **302**. ⚠⚠ **Surtout PAS `wama.local`** — entrée du fichier `hosts` de ce poste
+  seulement, qu'un smartphone ne peut pas résoudre.
+- 🔎 **Le test qui tranche AVANT tout** : ouvrir cette adresse dans le navigateur du téléphone,
+  VPN monté. Si la page s'affiche, le QR marchera ; sinon c'est le VPN/routage, pas le QR.
+- ⚠ Si l'IP change (DHCP), les QR déjà émis pointent dans le vide **sans erreur**.
 
 ### Ce qui est LIVRÉ
 | Livrable | Où |
@@ -9421,7 +9433,8 @@ n'aurait été vu par personne :
 ### Contrôles attendus au prochain /reprise — MESURÉS le 2026-08-31
 - `test wama.accounts wama.gateway wama.common.tests_qr wama.common.tests_claude_subscription
   wama.anonymizer` → **71 OK, 0 rouge**.
-- `check_docs` → **8 cassées / 0 périmée sur ~1274 vérifiées**, et surtout **1 SEULE cible
+- `check_docs` → **8 cassées / 0 périmée sur ~1284 vérifiées** (dont du WIP non commité d'une
+  autre instance au moment de la mesure), et surtout **1 SEULE cible
   distincte** (le partial d'onglets de résultat jamais créé). Une 2ᵉ cible distincte = vraie
   dérive. ⚠ Le total de RÉFÉRENCES monte tout seul (1103 le 28/08 → ~1274) et **bouge à chaque
   édition de doc** : ce n'est pas le critère, juste la date de la mesure — prise APRÈS écriture

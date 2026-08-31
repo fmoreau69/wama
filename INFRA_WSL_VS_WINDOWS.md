@@ -247,6 +247,36 @@ identique sans Apache.
 | **Service direct de `/media/`** | `Alias /media/` → `D:/…/media/` : **72,69 Go sur 23 744 requêtes**, soit **44 % des octets servis**, qui ne touchent **jamais** gunicorn. Les rapatrier dans Django saturerait ses 8 slots (4 workers × 2 threads) avec des vidéos |
 | **Port 80** | URL sans `:8000` |
 
+### ⚠ « Quelle est l'ADRESSE de WAMA ? » — mesuré le 2026-08-31 (question de Fabien)
+
+La question s'est posée en posant `WAMA_PUBLIC_URL` (l'adresse que le QR d'appariement encode,
+`ROADMAP §19.1`). Elle n'a rien d'évident, et sa mauvaise réponse est **silencieuse** : le QR
+s'ouvre sur une page injoignable, et l'utilisateur accuse le mécanisme.
+
+**Ce n'est PAS une page dédiée** : c'est la **racine du site**, ce qu'on tape dans un navigateur.
+Le code y ajoute lui-même `/accounts/profile/?link_code=…`. Elle doit être DÉCLARÉE et non
+déduite, parce que le bot répond **hors de toute requête HTTP** (process passerelle, déclenché
+par un message Discord) : il n'existe aucun `request` d'où tirer l'hôte.
+
+| Fait | Mesure |
+|---|---|
+| Apache écoute | `Listen 0.0.0.0:80` — **toutes** les interfaces, port 80 (pas seulement localhost) |
+| Vhosts | **UN SEUL** (`<VirtualHost *:80>`, `ServerName wama.local`) → il sert donc de vhost par DÉFAUT pour **n'importe quel en-tête `Host`**, IP comprise |
+| IP LAN de l'hôte Windows | `137.121.169.135` (interface `Ethernet`, réseau UGE) |
+| Épreuve réelle | `http://137.121.169.135/` → **HTTP 200** (74 435 o) · `…/accounts/profile/` → **HTTP 302** vers login |
+| Django | `ALLOWED_HOSTS = ['*']` → aucun rejet sur l'accès par IP |
+
+- ⚠⚠ **`wama.local` NE MARCHE QUE SUR CE POSTE.** C'est une entrée du fichier `hosts` de la
+  machine, pas un nom DNS : **un smartphone ne peut pas le résoudre**, même sur le VPN. C'est le
+  piège naturel ici — on utilise ce nom tous les jours, donc on le donne sans y penser.
+- ⚠ **L'IP est le point faible du montage** : si elle change (DHCP), **les QR déjà émis pointent
+  dans le vide, sans erreur** — juste une page qui ne s'ouvre pas. Une IP réservée ou un vrai
+  nom DNS est ce qu'il faut pour un usage durable ; l'IP suffit pour éprouver le mécanisme.
+- ✅ **Le test qui tranche avant tout le reste** : ouvrir cette adresse **dans le navigateur du
+  téléphone**, VPN monté. Si la page WAMA s'affiche, le QR fonctionnera ; sinon le problème est
+  le VPN ou le routage, et le QR n'y peut rien. *Vérifier le maillon le plus bas d'abord évite
+  d'attribuer une panne de réseau au mécanisme qui la subit.*
+
 ### Ce qui EST un résidu
 
 `httpd.conf:543-548` charge `mod_wsgi` (Python 3.11 Windows + `WSGIPythonHome` sur `venv/`) alors
