@@ -2677,6 +2677,10 @@
       "kind": "model"
     },
     {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
       "key": "soundfile",
       "kind": "library"
     },

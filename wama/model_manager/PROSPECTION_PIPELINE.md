@@ -986,6 +986,36 @@ l'exécuteur (signalé, décision à prendre) ; l'ingest des manifestes du libra
 encore de commande dédiée (`manifest_export --check`/écriture directe au corpus en
 attendant).
 
+### Suite (après le crash du 31/08 ~11:45) — scout/librarian SANS LLM : la matière est produite À LA MAIN
+
+La passe scout LLM a TUÉ l'hôte au 1ᵉʳ chargement (qwen3.8 17,7 Go sur l'Ollama hôte —
+détail : `INFRA §2026-08-31` ; règle durcie : plus aucune passe LLM hôte depuis une
+session, même sur GO). La matière a donc été produite MÉCANIQUEMENT + à la main (le
+précédent `dataset` : « écrire un manifeste à la main est un instrument de mesure ») :
+
+- **3 manifestes `library` au corpus** : `onnxruntime-gpu` (extraction mécanique,
+  `manifest_export --kind library`) ; **`kokoro-onnx` v0.6.1 (MIT)** et **`chatterbox-tts`
+  v0.1.7 (MIT)** écrits à la main depuis les faits PyPI/GitHub (`source.type: manual`),
+  validés (`ingest.validate`) et PROJETÉS → 2 lignes `Library` créées, `is_allowed=False`
+  préservé (décision humaine). ⚠ Fait décisif porté par `constraints` : **chatterbox-tts
+  épingle `torch==2.6.0`/`torchaudio==2.6.0`/`transformers==5.2.0`** — NON installable tel
+  quel dans venv_linux (torch 2.9.1+cu128, transformers 4.57.6 patchée) sans rétrograder
+  la pile GPU ; voies : `--no-deps` mesuré, pins amont plus laches, ou process dédié.
+  kokoro-onnx, lui, est PROPRE : numpy 2.3.5 ✓, onnxruntime-gpu 1.23.2 ✓,
+  espeakng-loader déjà présent — seul `phonemizer` manque.
+- **`composition` MESURÉE sur disque posée aux 3 manifestes `model`** puis projetée
+  (`write_back_model` → `AIModel.composition`) : Kokoro-ONNX = `onnx/model.onnx`
+  (8 variantes présentes, la pleine précision déclarée) + `voices/*.bin`, runtime
+  `kokoro-onnx` ; Audio8 = `model.safetensors` + `codec.pth`, runtime
+  `transformers-remote-code` (code distant `modeling_arktts.py` — surface de confiance à
+  valider) ; chatterbox = runtime `chatterbox-tts` seul (multi-variantes t3 v2/v3/23lang :
+  le choix de composant reste un ARBITRAGE, non inventé).
+- ⚠ **Discipline apprise en le faisant** : `capabilities` N'ENTRE PAS au corpus à la main —
+  le champ appartient à la DÉCOUVERTE (réécrit à chaque sync) et `write_back_model` ne le
+  projette pas : des capabilities manuscrites seraient signalées périmées puis écrasées au
+  prochain export. Les langues/clonage relevés (Kokoro : 7 langues ; Audio8 : 10 + clonage
+  zero-shot ; chatterbox : clonage) entreront par la déclaration du backend à l'intégration.
+
 **Dry-runs scout validés (même jour, aucun LLM)** sur les 3 dépôts TTS installés —
 squelettes mécaniques complets, et déjà instructifs : `ResembleAI/chatterbox` est un dépôt
 **MULTI-VARIANTES** (t3 en v2/v3/23lang + s3gen en double format .pt/.safetensors — la

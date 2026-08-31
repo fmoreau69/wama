@@ -1,0 +1,49 @@
+{
+  "body": {
+    "constraints": {
+      "pins_incompatibles": "NON INSTALLABLE tel quel dans venv_linux (mesure 2026-08-31, python 3.12) : epingle torch==2.6.0 et torchaudio==2.6.0 (venv : 2.9.1+cu128 — l'install RETROGRADERAIT la pile GPU), transformers==5.2.0 (venv : 4.57.6 patchee — cf. patches/apply_patches.py), diffusers==0.29.0, safetensors==0.5.3, gradio==6.8.0. Voies de sortie : pip --no-deps + satisfaction manuelle mesuree, attendre des pins plus laches, ou process dedie (meme motif que le service TTS).",
+      "notes": "Depot de poids ResembleAI/chatterbox deja installe (12,9 Go, multi-variantes t3 v2/v3/23lang + s3gen double format) — la lib telecharge/charge ses fichiers elle-meme via HF."
+    },
+    "dependencies": [
+      "conformer",
+      "diffusers",
+      "gradio",
+      "librosa",
+      "numpy",
+      "omegaconf",
+      "pykakasi",
+      "pyloudnorm",
+      "resemble-perth",
+      "s3tokenizer",
+      "safetensors",
+      "spacy-pkuseg",
+      "torch",
+      "torchaudio",
+      "transformers"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Resemble AI",
+      "license": "MIT",
+      "repository": "https://github.com/resemble-ai/chatterbox",
+      "summary": "Chatterbox: Open Source TTS and Voice Conversion by Resemble AI",
+      "version": "0.1.7"
+    },
+    "install": {
+      "pip": "chatterbox-tts==0.1.7",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Runtime du TTS Chatterbox (Resemble AI) — clonage zero-shot, controle d'exageration emotionnelle. Ecrit A LA MAIN le 2026-08-31 (librarian sans LLM : passes hote interdites apres le crash du 31/08) depuis les faits PyPI (v0.1.7, MIT). ⚠ Ses pins (torch==2.6.0…) le rendent NON installable tel quel dans venv_linux — voir constraints ; a arbitrer avant toute install.",
+  "key": "chatterbox-tts",
+  "manifest_kind": "library",
+  "name": "chatterbox-tts",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "manual:pypi 2026-08-31 (librarian sans LLM)",
+    "type": "manual"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

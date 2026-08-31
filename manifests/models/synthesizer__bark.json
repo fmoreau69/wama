@@ -31,7 +31,6 @@
     },
     "formats": {
       "can_convert_to": [
-        "onnx",
         "safetensors"
       ],
       "format": "pt",

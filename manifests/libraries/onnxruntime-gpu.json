@@ -1,0 +1,41 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "coloredlogs",
+      "flatbuffers",
+      "numpy",
+      "packaging",
+      "protobuf",
+      "sympy"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "onnxruntime_test"
+      ]
+    },
+    "identity": {
+      "author": "Microsoft Corporation",
+      "license": "MIT License",
+      "repository": "https://onnxruntime.ai",
+      "summary": "ONNX Runtime is a runtime accelerator for Machine Learning models",
+      "version": "1.23.2"
+    },
+    "install": {
+      "pip": "onnxruntime-gpu==1.23.2",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "ONNX Runtime is a runtime accelerator for Machine Learning models",
+  "key": "onnxruntime-gpu",
+  "manifest_kind": "library",
+  "name": "onnxruntime-gpu",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:onnxruntime-gpu==1.23.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

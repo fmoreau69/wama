@@ -1,7 +1,11 @@
 {
   "body": {
     "capabilities": {},
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "chatterbox-tts"
+      }
+    },
     "extra_info": {
       "category": "speech",
       "family": "chatterbox",

@@ -1,7 +1,23 @@
 {
   "body": {
     "capabilities": {},
-    "composition": {},
+    "composition": {
+      "components": [
+        {
+          "format": "safetensors",
+          "pattern": "model.safetensors",
+          "role": "acoustic_model"
+        },
+        {
+          "format": "pth",
+          "pattern": "codec.pth",
+          "role": "codec"
+        }
+      ],
+      "runtime": {
+        "engine": "transformers-remote-code"
+      }
+    },
     "extra_info": {
       "category": "speech",
       "family": "Audio8-TTS-Preview-0.6b",

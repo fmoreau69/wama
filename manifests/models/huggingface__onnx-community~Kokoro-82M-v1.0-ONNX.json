@@ -1,7 +1,23 @@
 {
   "body": {
     "capabilities": {},
-    "composition": {},
+    "composition": {
+      "components": [
+        {
+          "format": "onnx",
+          "pattern": "onnx/model.onnx",
+          "role": "acoustic_model"
+        },
+        {
+          "format": "bin",
+          "pattern": "voices/*.bin",
+          "role": "voices"
+        }
+      ],
+      "runtime": {
+        "engine": "kokoro-onnx"
+      }
+    },
     "extra_info": {
       "category": "speech",
       "family": "Kokoro-82M-v1.0-ONNX",
@@ -11,7 +27,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "bin",
+      "format": "onnx",
       "preferred_format": null
     },
     "identity": {

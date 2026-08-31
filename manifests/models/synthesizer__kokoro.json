@@ -47,7 +47,9 @@
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/kokoro"
     },
     "formats": {
-      "can_convert_to": [],
+      "can_convert_to": [
+        "safetensors"
+      ],
       "format": "pt",
       "preferred_format": "onnx"
     },
