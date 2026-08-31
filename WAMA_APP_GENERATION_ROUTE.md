@@ -623,8 +623,13 @@ outillé avant d'ouvrir cette marche.
   index CONVENTIONNEL depuis les briques communes (_global_progress, _new_item_card
   paramétrée d'identity.input_extensions, _queue_toolbar, boucle _batch_card) + card
   GÉNÉRIQUE minimale — l'écart visuel avec la vraie card EST la mesure. **templates tient**
-  (diff 404 l.). Restent COPIÉS (glu/marche B) : base.html, card réelle, JS d'app, params.py
-  (write-back existant, cible à câbler), backends/, utils/. Prochain geste : Playwright
+  (diff 404 l.). Restent COPIÉS (glu/marche B) : base.html, card réelle, JS d'app,
+  backends/, utils/. ~~params.py (write-back existant, cible à câbler)~~ → **câblée le
+  2026-08-31** : cible `params` de `_SUBSTITUTABLE` (`codegen/params_gen.py`, constructeur
+  partagé avec write_back). Motif : la jumelle tournait sur une COPIE d'avant le 18/08 —
+  sans le contexte `'panel'`, le rendu du volet filtrait TOUT (0 champ, en silence) alors
+  que le manifeste était à jour. *Un fichier que les vues générées consomment se substitue
+  comme elles, sinon la jumelle mesure un schéma périmé.* Prochain geste : Playwright
   côte à côte /converter/ ↔ /converter_01/ (Fabien) = la lecture VISUELLE des trous.
   **ARBITRAGE GLU (question Fabien 18/08 : template générique complétable vs glu par app
   sur règles ?) — HYBRIDE, frontière MESURÉE :** ① PAS de template d'app copié-complété

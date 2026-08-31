@@ -194,6 +194,63 @@ def _nature(nom):
                 f"    \"\"\"TROU DE GLU {mark} — politique d'app non conventionnelle.\"\"\"\n"
                 f"    return JsonResponse({{'error': {stub_msg!r}}}, status=501)")
 
+    # ── Découpage colonnes ↔ conteneur JSON du schéma (idiome params_storage) ──
+    # Calculé AVANT les corps de vues : l'upload (cascade de réglages du dépôt), le
+    # décorateur et update en dépendent tous trois.
+    body = manifest.get('body') or {}
+    _schemas = (body.get('params') or {}).get('schemas') or {}
+    _schema_prim = _schemas.get((body.get('params') or {}).get('primary') or '') or []
+    _noms_schema = [str(p.get('name')) for p in _schema_prim
+                    if isinstance(p, dict) and p.get('name')]
+    _champs_modeles = {m.get('name'): {f.get('name') for f in (m.get('fields') or [])}
+                       for m in ((body.get('data') or {}).get('models') or [])
+                       if isinstance(m, dict)}
+    _champs_item = _champs_modeles.get(item) or set()
+    hors_colonnes = [n for n in _noms_schema
+                     if n not in _champs_item and n not in d['params_fields']]
+    conteneur_options = 'options' if ('options' in _champs_item and hors_colonnes) else None
+    colonnes_schema = [n for n in _noms_schema if n not in hors_colonnes and n != nature_champ]
+
+    # ── Réglages du DÉPÔT — cascade de l'app réelle (converter/views.py::upload) ──
+    # défauts APPLICABLES du schéma (show_if satisfait par la nature détectée — brique
+    # `applicable_defaults`) ← derniers réglages persistés de l'utilisateur (brique
+    # user_settings) ← POST non vide ; le POST re-persiste ses clés comme défauts du
+    # prochain dépôt. C'est ce qui donne ses valeurs à un élément FRAIS : sans cette
+    # cascade, la section RÉGLAGES de la card et le volet restaient VIDES jusqu'au premier
+    # passage par la modale (constat Fabien 31/08 sur la jumelle). La nature détectée n'est
+    # JAMAIS écrasée par la cascade (la détection prime — champ porteur, non sauvegardé).
+    bloc_opts = (f"if _opts:\n            kwargs['{conteneur_options}'] = _opts"
+                 if conteneur_options else
+                 "del _opts  # pas de conteneur JSON déclaré : extras non stockés")
+    up_reglages = '' if not _noms_schema else f'''
+    try:
+        from .params import {schema_symbole} as _sch
+    except Exception:
+        _sch = []
+    if _sch:
+        from wama.common.utils.param_schema import applicable_defaults
+        from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
+        _noms = [n for n in {_noms_schema!r} if n != {nature_champ!r}]
+        _vals = applicable_defaults(_sch, {{{nature_champ!r}: kwargs.get({nature_champ!r}, '')}})
+        _vals.pop({nature_champ!r}, None)
+        # ⚠ `defaults` définit AUSSI l'ensemble des clés LUES (contrat de la brique) — un {{}}
+        # ici ne relirait jamais rien.
+        _vals.update({{k: v for k, v in get_user_app_settings(
+                          user, '{app}', {{n: '' for n in _noms}}).items()
+                      if v not in (None, '')}})
+        _post = {{k: request.POST.get(k) for k in _noms if request.POST.get(k) not in (None, '')}}
+        _vals.update(_post)
+        _opts = {{}}
+        for _k, _v in _vals.items():
+            if _k in {colonnes_schema!r}:
+                kwargs[_k] = _v
+            else:
+                _opts[_k] = _v
+        {bloc_opts}
+        if _post:
+            save_user_app_settings(user, '{app}', _post)
+'''
+
     # ── Corps conventionnels (idiomes MESURÉS, paramétrés) ─────────────────────
     vues = {}
     # ENVELOPPEMENT DES ORPHELINS — convention commune, et non un détail (2026-08-22).
@@ -251,7 +308,7 @@ def upload(request):
         return JsonResponse({{'error': 'Aucun fichier fourni'}}, status=400)
     kwargs = {{'user': user, '{d['input_field']}': f}}
     {f"kwargs['{d['name_field']}'] = f.name" if d['name_field'] else ''}
-    {up_nature}
+    {up_nature}{up_reglages}
     item = {item}.objects.create(**kwargs)
     return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
 
@@ -444,18 +501,8 @@ def {nom}(request, pk):
     # `_decorer` ci-dessous, qui porte les valeurs du conteneur sur l'instance).
     # ⚠ Glu RESTANTE nommée : le sous-split `cross_app_options` du converter réel (upscale/
     # denoise/audio_enhance) n'est pas dérivé — ces clés atterrissent dans `options`.
-    body = manifest.get('body') or {}
-    _schemas = (body.get('params') or {}).get('schemas') or {}
-    _schema_prim = _schemas.get((body.get('params') or {}).get('primary') or '') or []
-    _noms_schema = [str(p.get('name')) for p in _schema_prim
-                    if isinstance(p, dict) and p.get('name')]
-    _champs_modeles = {m.get('name'): {f.get('name') for f in (m.get('fields') or [])}
-                       for m in ((body.get('data') or {}).get('models') or [])
-                       if isinstance(m, dict)}
-    _champs_item = _champs_modeles.get(item) or set()
-    hors_colonnes = [n for n in _noms_schema
-                     if n not in _champs_item and n not in d['params_fields']]
-    conteneur_options = 'options' if ('options' in _champs_item and hors_colonnes) else None
+    # (Le découpage colonnes ↔ conteneur — _noms_schema/hors_colonnes/conteneur_options —
+    # est calculé PLUS HAUT, avant l'upload : la cascade de réglages du dépôt en dépend aussi.)
 
     aplat = '' if not conteneur_options else f'''
     # Valeurs du conteneur JSON portées sur l'instance (transitoire) : la card émet ses

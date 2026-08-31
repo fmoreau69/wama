@@ -101,6 +101,25 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIsNotNone(deco)
         self.assertIn('_opts', deco, "_decorer n'aplatit pas le conteneur sur l'instance")
 
+    def test_le_depot_deroule_la_cascade_de_reglages_de_l_app_reelle(self):
+        """Un élément FRAIS doit naître avec des valeurs — défauts applicables du schéma ←
+        derniers réglages persistés (user_settings) ← POST, POST re-persisté. Sans la cascade,
+        la section RÉGLAGES de la card et le volet restaient vides jusqu'au premier passage
+        par la modale (constat Fabien 31/08 sur la jumelle ; l'app réelle fait ce chemin dans
+        converter/views.py::upload)."""
+        corps = _fonction(self.src, 'upload')
+        self.assertIsNotNone(corps)
+        self.assertIn('applicable_defaults', corps, 'les défauts du schéma ne se posent pas')
+        self.assertIn('get_user_app_settings', corps, 'les réglages persistés ne sont pas relus')
+        self.assertIn('save_user_app_settings', corps, 'le POST ne se re-persiste pas')
+        # ⚠ Contrat de la brique : `defaults` définit l'ensemble des clés LUES — un {} figé
+        # ici ne relirait jamais rien (piège évité à l'écriture, gardé par ce test).
+        self.assertIn('{n: \'\' for n in _noms}', corps)
+        # La nature détectée prime : elle ne traverse JAMAIS la cascade.
+        self.assertIn("if n != 'media_type'", corps)
+        # Les extras rejoignent le conteneur JSON (idiome params_storage, même voie qu'update).
+        self.assertIn("kwargs['options'] = _opts", corps)
+
     def test_sans_conteneur_json_aucun_routage_invente(self):
         # Discriminant : un modèle SANS champ `options` ne doit recevoir aucun bloc _extras —
         # écrire dans un attribut inexistant serait le défaut silencieux type.

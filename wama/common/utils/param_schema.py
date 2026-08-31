@@ -181,6 +181,47 @@ def _pget(p, key, default=None):
     return p.get(key, default) if isinstance(p, dict) else getattr(p, key, default)
 
 
+def _show_if_met(cond, values) -> bool:
+    """Le `show_if` d'un param est-il satisfait par `values` ? MÊME vocabulaire que le moteur
+    JS (wama-params.js::met) : {field, equals:…} | {field, in:[…]} | champ seul → truthy."""
+    if not cond:
+        return True
+    if isinstance(cond, str):
+        cond = {'field': cond}
+    cur = values.get(cond.get('field'))
+    if cond.get('in'):
+        return str(cur) in [str(x) for x in cond['in']]
+    if 'equals' in cond:
+        return str(cur) == str(cond['equals'])
+    return bool(cur) and cur not in ('false', '0')
+
+
+def applicable_defaults(schema, values=None) -> dict:
+    """Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
+    dont `default` est renseigné et dont le `show_if` est satisfait par `values` (typiquement
+    {nature_détectée}).
+
+    Pourquoi le filtre show_if : appliquer TOUS les défauts poserait sur l'élément les champs
+    d'une AUTRE famille de média (gif_fps=12 sur une image) — l'app réelle n'envoie que les
+    champs VISIBLES de sa zone de composition, ce filtre en est l'équivalent serveur.
+    C'est la première couche de la cascade du dépôt (défauts ← user_settings ← POST), celle
+    qui donne ses valeurs à un élément frais — section RÉGLAGES de card vide sinon (constat
+    Fabien 31/08 sur la jumelle converter_01). `schema` : Param ou dicts (accès _pget).
+    """
+    values = dict(values or {})
+    out = {}
+    for p in schema:
+        if 'item' not in (_pget(p, 'contexts') or ()):
+            continue
+        default = _pget(p, 'default')
+        if default is None:
+            continue
+        if not _show_if_met(_pget(p, 'show_if') or None, values):
+            continue
+        out[_pget(p, 'name')] = default
+    return out
+
+
 def coerce_params(schema, data, caps=None):
     """Borne UNIQUE des paramètres numériques = le SCHÉMA (`params.py`). Source de vérité serveur.
 

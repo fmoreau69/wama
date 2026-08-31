@@ -54,6 +54,10 @@ _SUBSTITUTABLE = {
     'apps':   ('apps.py',   'wama.common.manifests.codegen.apps_gen',   'render_apps'),
     'urls':   ('urls.py',   'wama.common.manifests.codegen.urls_gen',   'render_urls'),
     'models': ('models.py', 'wama.common.manifests.codegen.models_gen', 'render_models'),
+    # `params` AVANT views/templates dans l'ordre recommandé : les deux consomment PARAMS_JSON,
+    # et une jumelle qui garde sa COPIE de params.py mesure un schéma périmé (converter_01 :
+    # copie d'avant le 18/08, sans le contexte 'panel' → volet PARAMÈTRES vide, 31/08).
+    'params': ('params.py', 'wama.common.manifests.codegen.params_gen', 'render_params'),
     'tasks':  ('tasks.py',  'wama.common.manifests.codegen.tasks_gen',  'render_tasks'),
     'views':  ('views.py',  'wama.common.manifests.codegen.views_gen',  'render_views'),
     # Multi-fichiers (le gabarit rend un DICT nom→contenu) : écrits sous templates/<label>/.

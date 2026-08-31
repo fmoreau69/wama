@@ -9089,3 +9089,48 @@ A→Z parfaitement fonctionnelle AVANT toute 2ᵉ app) :
 `manifest_export --check` à jour (~108) ; grille : converter/describer/transcriber **100 %**,
 aucun recul ; batterie jumelle : `run_nightly_tests --stage ui --id converter_01.` = **11/11
 sans skip** (le compte dev `wama_nightly_dev` existe en base).
+
+---
+
+## §PALIER — 2026-08-31 (après-midi), instance « VOLET PARAMÈTRES + RÉGLAGES DE CARD » — ✅ LIVRÉ
+
+> Reprise directe du 🔚 point 1 du §REPRISE ci-dessus : Fabien remesure à l'écran que les
+> paramètres « ne s'affichent que dans la modale — inspecteur et section réglages des cards
+> vides ». Reproduit à la sonde Playwright (converter réel SAIN : 19 champs au volet ;
+> jumelle : hôte VIDE, ⚙ nu, chips vides) — **quatre causes, toutes côté génération**, la
+> jumelle jamais corrigée à la main (rituel générateur → substitute → mesure sur parc rechargé).
+
+1. **`params.py` de la jumelle = copie d'AVANT le 18/08** (sans le contexte `'panel'` → le
+   rendu ET le read/apply du volet filtraient TOUT, en silence, manifeste pourtant à jour) →
+   nouvelle cible **`params` d'`app_sandbox substitute`** (`codegen/params_gen.py`,
+   constructeur partagé avec `write_back_app` — la route la nommait « cible à câbler »).
+2. **Gabarit généré : deux hôtes dont un jamais rendu** (`panelContainer` → vide) → convention
+   RÉELLE mesurée : **un seul hôte** `{app}PanelParams` (`d-none`, rendu au chargement context
+   'panel', montré/masqué par sélection/lot/désélection) + resolver d'options PARTAGÉ
+   volet/modale (`resolveOptions`, deux resolvers séparés avaient déjà divergé).
+3. **`card_gear.gear_data` muette sur des dicts** (`getattr` sur les dicts `PARAMS_JSON` de
+   `_decorer` → `{}` SANS LEVER — deux contrats pour deux briques jumelles, `card_chips`
+   consommait déjà les dicts) → accès `_pget` (Param OU dict).
+4. **Item frais sans AUCUNE valeur** → cascade du dépôt de l'app réelle DÉRIVÉE dans l'upload
+   généré : défauts APPLICABLES du schéma (nouvelle brique `param_schema.applicable_defaults`,
+   filtre `show_if` au vocabulaire du moteur JS — gif_fps ne se pose pas sur une image) ←
+   `user_settings` persistés (⚠ contrat de la brique : `defaults` définit les clés LUES — un
+   `{}` ne relit RIEN) ← POST non vide, POST re-persisté. En prime : `formats` sans
+   `media_type` → **UNION des familles** au registre commun (`wama-params.js`, sémantique du
+   panel historique du converter ; staticfiles resynchronisé).
+
+**Mesuré après régénération (params + templates + views substitués, gunicorn HUP)** : volet
+PARAMÈTRES de la jumelle = 19 champs = le réel, valeurs de la card appliquées (85 au slider) ;
+item frais naît avec `options={'quality': 85}` ; chaîne modifier→ENREGISTRER→relire verte
+(update → `output_format` colonne + `flip_h` en JSON → chip `.WEBP` sur card + ⚙ à jour) ;
+batterie jumelle **11/11 sans skip** (deux fois) ; suite complète **1245 OK (skipped=4)** ;
+`doc_facts`/`check_docs` à jour (carte mécanismes régénérée). +12 tests (hôte unique du volet,
+gear polymorphe, défauts applicables, cascade d'upload, cible params substituable).
+
+**Restes (inchangés du 🔚 ci-dessus)** : validation ÉCRAN Fabien (le volet et la card
+d'après-régénération, captures `smoke_converter_01.png` à l'appui) · zone de COMPOSITION
+générée = trou de glu marche B déclaré (le chip SORTIE d'un item FRAIS attend qu'un format
+soit posé — le réel l'obtient de sa zone de composition postée au dépôt) · famille `settings`
+du harnais à étendre côté UI (la moitié serveur modifier→enregistrer→relire est désormais
+testée en dur, la modale reste mesurée à l'ouverture seulement) · résidu delete à blanchir ·
+maquette v4.

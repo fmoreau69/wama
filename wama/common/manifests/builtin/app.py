@@ -1123,29 +1123,13 @@ def _project_params(manifest: dict, *, apply: bool) -> dict:  # wama:redondance-
 
 
 def _write_params_file(path: Path, app_id: str, facet: dict) -> dict:
-    import pprint
+    # Constructeur de texte UNIQUE, partagé avec la cible `params` d'app_sandbox substitute
+    # (codegen/params_gen.py) — import paresseux : params_gen importe _GEN_MARK d'ici.
+    from wama.common.manifests.codegen.params_gen import render_params_source
     if not path.parent.is_dir():
         return {'error': f"paquet {path.parent} absent — la facette processing (squelette "
                          f"d'app) doit passer d'abord", 'changed': []}
-    mark = _GEN_MARK.format(app_id=app_id)
-    lignes = [
-        '"""',
-        f"{mark} — params.py GÉNÉRÉ par write_back_app (facette params).",
-        '',
-        'Couche de DÉMARRAGE : schémas au LITTÉRAL (résultat évalué du manifeste). À raffiner',
-        'vers derive_from_model(...) + sources dynamiques quand la facette processing génèrera',
-        'le modèle Django — les valeurs dérivées redeviendront alors dérivées. Ne pas éditer à',
-        'la main : rejouer write_back après modification du manifeste.',
-        '"""',
-        '',
-    ]
-    for attr in sorted(facet['schemas']):
-        rendu = pprint.pformat(facet['schemas'][attr], width=96, sort_dicts=False).split('\n')
-        lignes.append(f"{attr} = {rendu[0]}")
-        pad = ' ' * (len(attr) + 3)
-        lignes += [pad + l for l in rendu[1:]]
-        lignes.append('')
-    src = '\n'.join(lignes)
+    src = render_params_source(app_id, facet['schemas'])
     compile(src, str(path), 'exec')
     path.write_text(src, encoding='utf-8')
     return {'changed': sorted(facet['schemas']), 'file': str(path)}

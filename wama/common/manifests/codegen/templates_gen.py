@@ -94,6 +94,36 @@ def render_index(manifest: dict) -> tuple:
     champs_params = list(((proc.get('model_spec') or {}).get('item') or {})
                          .get('params_fields') or [])
 
+    # Schéma primaire + sources d'options dynamiques — calculés ICI (avant l'inspecteur) :
+    # le resolver d'options est PARTAGÉ entre le rendu de l'hôte du volet (au chargement,
+    # script inspecteur) et la modale ⚙ (au clic). Deux resolvers émis séparément avaient
+    # déjà divergé une fois (volet sans resolver du tout, 31/08).
+    schemas = (body.get('params') or {}).get('schemas') or {}
+    schema_primaire = schemas.get((body.get('params') or {}).get('primary') or '') or []
+    sources_dyn = sorted({str(p.get('options_source')) for p in schema_primaire
+                          if isinstance(p, dict) and p.get('options_source')})
+    resolver_fn_js = ('' if not sources_dyn else f'''
+    // Sources d'options déclarées au schéma : {', '.join(sources_dyn)}. Résolution par les
+    // DEUX registres communs — jamais un resolver écrit dans l'app (leçon `formats`, 29/08) :
+    //   1. clé à ENDPOINT → renvoyer null : `_bindOptionSources` peuple le select après rendu ;
+    //   2. clé adossée à une donnée de PAGE → `WamaParams.resolvePageOptions` (synchrone) ;
+    //   3. aucune des deux : la clé ne résout nulle part — le DIRE (option nommée + warn).
+    function resolveOptions(p, v) {{
+        var SRC = window.WAMA_OPTION_SOURCES || {{ voices: '/common/api/voices/' }};
+        if (SRC[p.options_source]) return null;
+        var opts = WamaParams.resolvePageOptions(p, v);
+        if (opts) return opts;
+        console.warn('{mark} options_source « ' + p.options_source +
+                     ' » : absente des deux registres communs (endpoints et données de page).');
+        return [{{ value: '', label: '⚠ options « ' + p.options_source + ' » non déclarées' }}];
+    }}
+''')
+    # Rendu de l'hôte du volet AU CHARGEMENT : aucune valeur courante (aucune sélection) —
+    # `resolveOptions(p, {})` : les sources de page sans contexte rendent leur repli (ex.
+    # `formats` sans media_type → UNION des familles, registre commun wama-params.js).
+    resolver_panel = (",\n            optionsResolver: function (p) { return resolveOptions(p, {}); }"
+                      if sources_dyn else '')
+
     insp = body.get('inspector') or {}
     insp_js = ''
     if insp.get('detail_registered') or insp.get('preview_registered'):
@@ -114,6 +144,16 @@ def render_index(manifest: dict) -> tuple:
         WamaCycleButton.autoSync({{ container: q, cardSelector: '.wama-card[data-id]' }});
     }}
 
+    // Hôte PARAMÈTRES du volet : rendu au CHARGEMENT du MÊME schéma que la modale (context
+    // 'panel' — seuls les params déclarant ce contexte y figurent), montré à la SÉLECTION.
+    // Sans ce rendu, l'apply d'initFromSchema n'a AUCUN champ à remplir : c'était la section
+    // PARAMÈTRES vide du volet (constat Fabien 31/08, hôte jamais rendu).
+    var ph = document.getElementById('{app}PanelParams');
+    if (ph && window.WamaParams) {{
+        WamaParams.render(ph, {{{{ params_json|safe }}}}, {{ context: 'panel', values: {{}}{resolver_panel} }});
+    }}
+    function showPanelParams(on) {{ if (ph) ph.classList.toggle('d-none', !on); }}
+
     // Inspecteur contextuel — DÉRIVÉ de la facette `inspector` du manifeste.
     if (q && window.WamaInspector && WamaInspector.initFromSchema) {{
         WamaInspector.initFromSchema({{
@@ -121,20 +161,23 @@ def render_index(manifest: dict) -> tuple:
             cardSelector:  '.wama-card[data-id]',
             batchSelector: '.batch-group',
             schema: {{{{ params_json|safe }}}},
-            panelContainer: document.getElementById('{app}ItemParams'),
+            panelContainer: ph,
             hideOnInspect: ['{app}PanelDefaults'],
             itemLabel:  function (id) {{ return "l'élément #" + id; }},
             batchLabel: function (id) {{ return "le batch #" + id; }},
             renderItemActions: function (host, card) {{
+                showPanelParams(true);
                 WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                     '<i class="fas fa-clone text-info"></i> Actions — élément #' + card.dataset.id);
             }},
             renderBatchActions: function (host, batchId) {{
+                showPanelParams(false);   // lot : réglages via la modale de LOT, pas l'hôte item
                 WamaInspector.cloneActions(
                     host,
                     q.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions'),
                     '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
             }},
+            onDeselect: function () {{ showPanelParams(false); }},
         }});
     }}
 '''
@@ -169,10 +212,8 @@ def render_index(manifest: dict) -> tuple:
     # vide — *un select vide ne dit pas s'il l'est par absence d'options ou par défaut de
     # câblage ; une option qui se nomme le dit.* Y répondre, c'est ajouter la source au registre
     # commun (comme `formats` ici), jamais écrire un resolver dans l'app ou dans ce gabarit.
-    schemas = (body.get('params') or {}).get('schemas') or {}
-    schema_primaire = schemas.get((body.get('params') or {}).get('primary') or '') or []
-    sources_dyn = sorted({str(p.get('options_source')) for p in schema_primaire
-                          if isinstance(p, dict) and p.get('options_source')})
+    # (schemas/sources_dyn/resolveOptions : calculés plus haut, AVANT l'inspecteur — le
+    # resolver est PARTAGÉ entre l'hôte du volet et la modale.)
     # La card porte un `data-param-*` pour CHAQUE champ du schéma (pas seulement les colonnes) :
     # les valeurs hors-colonnes sont aplaties sur l'instance par `_decorer` (idiome
     # params_storage dérivé, views_gen) — c'est ce qui remplit le volet PARAMÈTRES et pré-remplit
@@ -185,22 +226,8 @@ def render_index(manifest: dict) -> tuple:
     if route_update and champs_params:
         lect = '\n'.join(f"                v['{c}'] = card.getAttribute('data-param-{c}') || '';"
                          for c in champs_card)
-        resolver_js = ('' if not sources_dyn else f'''
-                optionsResolver: function (p) {{
-                    // Sources déclarées au schéma de cette app : {', '.join(sources_dyn)}
-                    // 1. Clé à endpoint → ne rien renvoyer : `_bindOptionSources` peuple le
-                    //    select après le rendu (chemin ASYNC existant).
-                    var SRC = window.WAMA_OPTION_SOURCES || {{ voices: '/common/api/voices/' }};
-                    if (SRC[p.options_source]) return null;
-                    // 2. Clé adossée à une donnée de page → registre commun, résolution
-                    //    synchrone, alimentée par les valeurs courantes de l'élément.
-                    var opts = WamaParams.resolvePageOptions(p, v);
-                    if (opts) return opts;
-                    // 3. Aucun des deux registres : la clé ne résout nulle part. Le DIRE.
-                    console.warn('[manifest-gen app:{app}] options_source « ' + p.options_source +
-                                 ' » : absente des deux registres communs (endpoints et données de page).');
-                    return [{{ value: '', label: '⚠ options « ' + p.options_source + ' » non déclarées' }}];
-                }},''')
+        resolver_js = ('' if not sources_dyn else '''
+                optionsResolver: function (p) { return resolveOptions(p, v); },''')
         params_js = f'''
     if (window.WamaQueueActions && window.WamaParams) {{
         WamaQueueActions.onSettings(function (id, btn) {{
@@ -344,24 +371,21 @@ visuel avec l'app en place est LA mesure (Playwright côte à côte).{{% endcomm
 {{% block title %}}{label} — WAMA{{% endblock %}}
 
 {{% block app_right_panel_settings %}}
-{{% comment %}}DEUX zones, convention MESURÉE sur l'app réelle (converter) : la COMPOSITION
-(défauts des prochains dépôts — masquée pendant l'inspection via `hideOnInspect`) et l'hôte
-des params de l'ÉLÉMENT INSPECTÉ (`panelContainer` d'initFromSchema — c'est LUI qui remplit
-la section PARAMÈTRES du volet à la sélection d'une card ; il manquait : volet sans
-paramètres, constat Fabien 31/08).{{% endcomment %}}
+{{% comment %}}Convention MESURÉE sur l'app réelle (converter) : une zone de COMPOSITION
+({app}PanelDefaults — défauts des prochains dépôts, masquée pendant l'inspection via
+`hideOnInspect`) et UN SEUL hôte schéma ({app}PanelParams, d-none), rendu au CHARGEMENT
+du MÊME schéma que la modale (context 'panel', script inspecteur en fin de page) puis
+MONTRÉ à la sélection d'une card — `panelContainer` d'initFromSchema y applique alors les
+valeurs de la card. L'émission précédente (31/08 matin) rendait la zone de composition et
+passait comme panelContainer un SECOND hôte jamais rendu : section PARAMÈTRES vide à la
+sélection (constat Fabien 31/08) — et rendre les deux hôtes du même schéma dupliquerait
+les ids `wp-panel-*`. Un hôte, deux moments : rendu au chargement, montré à la sélection.{{% endcomment %}}
 <div id="{app}PanelDefaults">
-  <div class="wama-params" id="{app}PanelParams"></div>
+{{% comment %}}TROU DE GLU {mark} — zone de composition non générée en v1 : l'app réelle y
+écrit MAIN son formulaire de défauts d'upload (posté avec chaque dépôt). La marche B la
+remplit ; vide, elle reste l'ancre de `hideOnInspect`.{{% endcomment %}}
 </div>
-<div class="wama-params" id="{app}ItemParams"></div>
-<script>
-document.addEventListener('DOMContentLoaded', function () {{
-    var host = document.getElementById('{app}PanelParams');
-    if (host && window.WamaParams) {{
-        try {{ WamaParams.render(host, {{{{ params_json|safe }}}}, {{ context: 'panel' }}); }}
-        catch (e) {{ /* schéma absent → volet vide (trou visible) */ }}
-    }}
-}});
-</script>
+<div class="wama-params d-none" id="{app}PanelParams"></div>
 {{% endblock %}}
 
 {{% block app_right_panel_actions %}}
@@ -453,7 +477,7 @@ document.addEventListener('DOMContentLoaded', function () {{
             window._import.handleFiles(WamaFolderImport.files(WamaFolderImport.fromInput(fdi.files)));
         }});
     }}
-{url_js}{ref_js}{insp_js}{params_js}}});
+{url_js}{ref_js}{resolver_fn_js}{insp_js}{params_js}}});
 </script>
 {{% endblock %}}
 '''

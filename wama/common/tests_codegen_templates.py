@@ -427,3 +427,173 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         inc = self._include_card(src)
         self.assertIn("reference_accept='image/*'", inc, 'le PREMIER port déclaré se rend')
         self.assertIn('port de référence supplémentaire NON rendu : `reference_voice`', src)
+
+
+class VoletParametresGenereTest(SimpleTestCase):
+    """L'hôte PARAMÈTRES du volet : UN SEUL, rendu au chargement, montré à la sélection.
+
+    Défaut mesuré le 2026-08-31 (constat Fabien, capture) : l'émission de la veille passait
+    comme `panelContainer` un second hôte (`ItemParams`) qu'AUCUN rendu ne remplissait — la
+    section PARAMÈTRES restait vide à la sélection pendant que la modale, elle, s'affichait.
+    La convention MESURÉE sur l'app réelle (converter/index.html) est : un hôte `d-none`
+    rendu du même schéma que la modale (context 'panel'), basculé par la sélection."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        src, raison = render_index(_manifeste(SOURCE))
+        cls.src = src if not isinstance(src, dict) else src.get('index.html')
+        cls.raison = raison
+
+    def setUp(self):
+        if not self.src:
+            self.skipTest(f'index non généré : {self.raison}')
+
+    def test_un_seul_hote_rendu_et_pointe_par_panelContainer(self):
+        self.assertNotIn('ItemParams', self.src,
+                         "l'hôte fantôme (jamais rendu) ne doit pas réapparaître")
+        # Le rendu au chargement vise l'hôte, et panelContainer pointe sur LE MÊME nœud (ph).
+        self.assertIn("var ph = document.getElementById('converterPanelParams')", self.src)
+        self.assertIn("WamaParams.render(ph,", self.src)
+        self.assertIn("{ context: 'panel', values: {}", self.src)
+        self.assertIn('panelContainer: ph,', self.src)
+
+    def test_l_hote_nait_masque_et_la_selection_le_bascule(self):
+        # d-none au chargement ; montré à la sélection d'une card, remasqué sur lot et
+        # désélection (même cycle que l'app réelle : showPanelParams).
+        self.assertRegex(self.src, r'class="wama-params d-none" id="converterPanelParams"')
+        self.assertIn('function showPanelParams(on)', self.src)
+        idx_item = self.src.index('renderItemActions')
+        self.assertIn('showPanelParams(true);', self.src[idx_item:idx_item + 300])
+        idx_batch = self.src.index('renderBatchActions')
+        self.assertIn('showPanelParams(false);', self.src[idx_batch:idx_batch + 300])
+        self.assertIn('onDeselect: function () { showPanelParams(false); }', self.src)
+
+    def test_le_resolver_est_PARTAGE_entre_hote_du_volet_et_modale(self):
+        # Deux resolvers émis séparément avaient déjà divergé (volet sans resolver du tout) :
+        # une seule fonction, deux appels — valeurs de la card pour la modale, {} au chargement.
+        self.assertEqual(self.src.count('function resolveOptions(p, v)'), 1)
+        self.assertIn('return resolveOptions(p, {});', self.src)
+        self.assertIn('return resolveOptions(p, v);', self.src)
+
+
+class CardGearPolymorpheTest(SimpleTestCase):
+    """`card_gear.gear_data` accepte objets Param ET dicts (schema_to_dicts / manifeste).
+
+    Défaut mesuré le 2026-08-31 : `_decorer` généré (views_gen) lui passait `PARAMS_JSON`
+    (des dicts) ; `getattr` sur dict rendait None → chaque param sauté au filtre de contexte
+    → `{}` SANS LEVER. Le ⚙ de la jumelle ne portait que `data-id`, le volet n'avait donc
+    aucune valeur à appliquer. La brique sœur `card_chips` consommait déjà les dicts : deux
+    contrats pour deux briques jumelles était le défaut de fond."""
+
+    class _Objet:
+        pass
+
+    def _instance(self):
+        o = self._Objet()
+        o.output_format = 'jpg'
+        o.quality = 85
+        o.flip_h = True
+        return o
+
+    def test_les_dicts_du_manifeste_produisent_les_memes_data_que_les_objets_Param(self):
+        from wama.common.utils.card_gear import gear_data
+        from wama.common.utils.param_schema import Param, schema_to_dicts
+        params = [
+            Param(name='output_format', type='select', contexts=('item', 'panel')),
+            Param(name='quality', type='range', contexts=('item',)),
+            Param(name='flip_h', type='toggle', contexts=('item',)),
+            Param(name='quality_preset', type='select', contexts=('batch',)),  # PAS 'item'
+        ]
+        attendu = {'output-format': 'jpg', 'quality': 85, 'flip-h': 'true'}
+        self.assertEqual(gear_data(self._instance(), params), attendu)
+        self.assertEqual(gear_data(self._instance(), schema_to_dicts(params)), attendu,
+                         'les dicts (PARAMS_JSON, chemin des vues GÉNÉRÉES) doivent produire '
+                         'les mêmes data-* que les objets — le {} silencieux était le défaut')
+
+    def test_un_param_item_sans_valeur_emet_une_chaine_vide(self):
+        # Contrat : TOUS les params 'item' sont émis ('' si absents) — un changement de
+        # sélection ne laisse pas les valeurs de la card précédente dans le volet.
+        from wama.common.utils.card_gear import gear_data
+        params = [{'name': 'fps', 'type': 'number', 'contexts': ['item']}]
+        self.assertEqual(gear_data(self._Objet(), params), {'fps': ''})
+
+
+class DefautsApplicablesTest(SimpleTestCase):
+    """`applicable_defaults` : la couche BASSE de la cascade du dépôt (défauts ← user_settings
+    ← POST). Un élément frais sans elle n'a AUCUNE valeur — section RÉGLAGES de card vide et
+    volet aux champs blancs jusqu'au premier passage par la modale (constat Fabien 31/08)."""
+
+    SCHEMA = [
+        {'name': 'media_type', 'type': 'hidden', 'contexts': ['item']},
+        {'name': 'quality', 'type': 'range', 'default': 85, 'contexts': ['item', 'panel'],
+         'show_if': {'field': 'media_type', 'equals': 'image'}},
+        {'name': 'gif_fps', 'type': 'number', 'default': 12, 'contexts': ['item'],
+         'show_if': {'field': 'media_type', 'equals': 'video'}},
+        {'name': 'rotation', 'type': 'select', 'contexts': ['item'],
+         'show_if': {'field': 'media_type', 'in': ['image', 'video']}},   # sans default
+        {'name': 'quality_preset', 'type': 'select', 'default': 'web', 'contexts': ['batch']},
+    ]
+
+    def test_seuls_les_defauts_de_la_famille_visible_s_appliquent(self):
+        from wama.common.utils.param_schema import applicable_defaults
+        self.assertEqual(applicable_defaults(self.SCHEMA, {'media_type': 'image'}),
+                         {'quality': 85},
+                         "gif_fps (famille vidéo) ne doit PAS se poser sur une image — l'app "
+                         "réelle ne poste que les champs VISIBLES de sa zone de composition")
+        self.assertEqual(applicable_defaults(self.SCHEMA, {'media_type': 'video'}),
+                         {'gif_fps': 12})
+
+    def test_un_contexte_batch_ou_un_default_absent_ne_produisent_rien(self):
+        from wama.common.utils.param_schema import applicable_defaults
+        defauts = applicable_defaults(self.SCHEMA, {'media_type': 'image'})
+        self.assertNotIn('quality_preset', defauts, "contexte 'batch' : pas un réglage d'item")
+        self.assertNotIn('rotation', defauts, 'visible mais sans default : rien à poser')
+
+    def test_le_vocabulaire_show_if_est_celui_du_moteur_js(self):
+        # wama-params.js::met — {field, in|equals} + legacy « nom de champ » = truthy.
+        from wama.common.utils.param_schema import _show_if_met
+        self.assertTrue(_show_if_met({'field': 'x', 'in': ['a', 'b']}, {'x': 'a'}))
+        self.assertFalse(_show_if_met({'field': 'x', 'equals': 'a'}, {'x': 'b'}))
+        self.assertTrue(_show_if_met('flag', {'flag': 'true'}))
+        self.assertFalse(_show_if_met('flag', {'flag': 'false'}))
+        self.assertTrue(_show_if_met(None, {}))
+
+
+class ParamsGenereTest(SimpleTestCase):
+    """Cible `params` d'app_sandbox substitute : params.py suit le MANIFESTE, pas une copie.
+
+    La jumelle mesurée le 31/08 tournait sur une copie de params.py d'AVANT le 18/08 : sans
+    le contexte 'panel', le rendu du volet filtrait tout (0 champ, en silence) alors que le
+    manifeste était à jour. Un fichier que les vues générées consomment doit être
+    substituable comme elles."""
+
+    def test_le_fichier_genere_compile_et_porte_le_schema_du_manifeste(self):
+        from wama.common.manifests.codegen.params_gen import render_params
+        manifest = _manifeste(SOURCE)
+        if not manifest:
+            self.skipTest('manifeste converter absent')
+        src, raison = render_params(manifest)
+        self.assertIsNotNone(src, raison)
+        self.assertIn('[manifest-gen app:converter]', src[:600],
+                      'le fichier doit être MARQUÉ (write_back ne régénère que le marqué)')
+        ns = {}
+        exec(compile(src, '<test>', 'exec'), ns)   # le littéral s'évalue sans le dépôt autour
+        schema = ns.get('PARAMS_JSON') or []
+        self.assertTrue(schema, 'PARAMS_JSON attendu (primary du manifeste converter)')
+        avec_panel = [p['name'] for p in schema if 'panel' in (p.get('contexts') or [])]
+        self.assertIn('output_format', avec_panel,
+                      "le contexte 'panel' du manifeste doit traverser — son absence était "
+                      'le volet vide de converter_01')
+
+    def test_la_cible_params_est_substituable(self):
+        from wama.common.management.commands.app_sandbox import _SUBSTITUTABLE
+        self.assertIn('params', _SUBSTITUTABLE)
+        self.assertEqual(_SUBSTITUTABLE['params'][0], 'params.py')
+
+    def test_write_back_et_substitute_partagent_le_meme_constructeur(self):
+        # Zéro duplication : builtin/app.py (_write_params_file) délègue à render_params_source.
+        import inspect
+        from wama.common.manifests.builtin import app as builtin_app
+        src = inspect.getsource(builtin_app._write_params_file)
+        self.assertIn('render_params_source', src)

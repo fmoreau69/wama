@@ -396,7 +396,22 @@
     // resolver historique du converter (`converter.js`) : « — inchangé — » puis « .PNG ».
     formats: function (values) {
       var table = global.WAMA_OUTPUT_FORMATS || {};
-      var liste = table[(values || {}).media_type] || [];
+      var mt = (values || {}).media_type;
+      var liste = table[mt] || [];
+      if (!mt) {
+        // Sans media_type connu (hôte du volet rendu au CHARGEMENT, avant toute sélection) :
+        // UNION des familles — même choix que le panel historique du converter (le media_type
+        // varie par card inspectée, le select doit pouvoir AFFICHER la valeur de chacune ;
+        // le show_if par media_type fait le tri). Une liste vide ici laissait le select du
+        // volet sans aucun format, donc l'apply de la sélection sans option à montrer.
+        var seen = {};
+        liste = [];
+        Object.keys(table).forEach(function (k) {
+          (table[k] || []).forEach(function (f) {
+            if (!seen[f]) { seen[f] = 1; liste.push(f); }
+          });
+        });
+      }
       return [{ value: '', label: '— inchangé —' }].concat(liste.map(function (f) {
         return { value: f, label: '.' + String(f).toUpperCase() };
       }));

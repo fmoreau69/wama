@@ -26,6 +26,11 @@ Règles :
   'True' de Python) ;
 - la valeur vient de `values` (dict, ex. options JSON) puis de l'attribut de modèle
   HOMONYME (schémas derive_from_model : noms = champs) ; `extra` force/complète ;
+- `params` accepte les objets `Param` ET les dicts (`schema_to_dicts` / manifeste), via
+  l'accesseur commun `_pget`. ⚠ La version à `getattr` seul rendait `{}` SANS LEVER sur
+  des dicts (chaque param sauté au filtre de contexte) : c'est le ⚙ nu de converter_01,
+  donc le volet PARAMÈTRES vide, mesuré le 2026-08-31 — la brique sœur `card_chips`
+  consommait déjà les dicts, deux contrats pour deux briques jumelles était le défaut ;
 - clés émises À TIRETS (`output_format` → `data-output-format`) : le dataset les expose
   en camelCase, lu PAR LES DEUX consommateurs — le cardSettings dérivé (qui teste
   underscore PUIS camel) ET le JS existant des apps (préremplissage de modale :
@@ -45,16 +50,18 @@ def _flat(v):
 
 def gear_data(instance, params, values=None, extra=None) -> dict:
     """dict {nom-a-tirets: valeur aplatie} pour les data-* du bouton ⚙ (voir docstring)."""
+    from wama.common.utils.param_schema import _pget
     out = {}
     src = values or {}
     for p in params:
-        if 'item' not in (getattr(p, 'contexts', None) or ()):
+        if 'item' not in (_pget(p, 'contexts') or ()):
             continue
-        key = p.name.replace('_', '-')
-        if p.name in src:
-            out[key] = _flat(src[p.name])
+        name = _pget(p, 'name')
+        key = name.replace('_', '-')
+        if name in src:
+            out[key] = _flat(src[name])
         else:
-            out[key] = _flat(getattr(instance, p.name, None))
+            out[key] = _flat(getattr(instance, name, None))
     for k, v in (extra or {}).items():
         out[k.replace('_', '-')] = _flat(v)
     return out
