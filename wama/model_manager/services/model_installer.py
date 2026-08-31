@@ -637,8 +637,9 @@ def install_library(key: str, apply: bool = False) -> dict:
       • verrous syntaxiques (`pip_spec_error` : nom PyPI + pin exact) + kill switch ;
       • post-étape : `patches/apply_patches.py` rejoué après toute installation réelle ;
       • version CONSTATÉE après coup (importlib.metadata) — un « pip ok » ne suffit pas ;
-      • ⚠ n'installe QUE dans le venv COURANT : `venv_win` reste un geste manuel (règle
-        « requirements s'installe dans LES DEUX venvs ») — signalé, jamais silencieux.
+      • installe dans le venv COURANT = `venv_linux`, le venv de RÉFÉRENCE (runtime).
+        `venv_win` est historique/temporaire (prod cible full-Linux, décision Fabien
+        2026-08-31) : non traité, signalé dans le plan tant qu'il existe.
     """
     import importlib.metadata as im
     import sys
@@ -665,7 +666,7 @@ def install_library(key: str, apply: bool = False) -> dict:
             'already_satisfied': constat == version_cible,
             'allowed': lib.is_allowed,
             'venv': sys.executable,
-            'venv_win': "NON traité — geste manuel (règle des deux venvs)",
+            'venv_win': "non traité (venv historique/temporaire — prod cible full-Linux)",
             'post_step': "patches/apply_patches.py rejoué après installation réelle"}
 
     if not apply:

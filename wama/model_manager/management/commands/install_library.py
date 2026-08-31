@@ -8,7 +8,7 @@ Installe une librairie du registre `common.models.Library` — la jonction manif
 
 `--allow` EST la décision humaine explicite (pose `is_allowed`, verrou ROADMAP §16.7 que la
 projection ne pose jamais). `--apply` exécute ; sans lui, seul le plan s'affiche.
-⚠ Installe dans le venv COURANT seulement — venv_win reste un geste manuel.
+Installe dans le venv de RÉFÉRENCE (`venv_linux` — venv_win est historique/temporaire).
 """
 import json
 
@@ -51,5 +51,4 @@ class Command(BaseCommand):
                 self.stderr.write(self.style.WARNING(
                     f"⚠ patches non rejoués proprement : {patches}"))
             self.stdout.write(self.style.SUCCESS(
-                f"✓ {o['key']}=={res.get('version')} — venv courant. "
-                "⚠ venv_win : geste manuel restant."))
+                f"✓ {o['key']}=={res.get('version')} — venv_linux (référence)."))

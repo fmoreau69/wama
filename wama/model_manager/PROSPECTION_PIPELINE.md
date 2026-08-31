@@ -965,8 +965,9 @@ pip), pas de rejeu des patches venv, pas de marcheur `requires`→drivers.
 - **`install_library(key, apply=False)`** — le driver LIBRAIRIE : registre → plan
   (visible SANS allowlist — le verrou ne gate que l'exécution) → `is_allowed` obligatoire
   à l'apply → pip → **`patches/apply_patches.py` rejoué** (`_replay_patches`) → version
-  CONSTATÉE (importlib) → `is_installed`/`installed_version` recalés. ⚠ venv COURANT
-  seulement : `venv_win` = geste manuel, SIGNALÉ dans chaque plan, jamais silencieux.
+  CONSTATÉE (importlib) → `is_installed`/`installed_version` recalés. Venv de RÉFÉRENCE =
+  `venv_linux` (arbitrage Fabien 31/08 : venv_win est HISTORIQUE/TEMPORAIRE, prod cible
+  full-Linux — signalé dans chaque plan tant qu'il existe, plus une « règle des deux venvs »).
   Surface : `manage.py install_library <clé> [--allow] [--apply]` (`--allow` EST la
   décision humaine).
 - **`install_requirements(app, apply=False)`** — le MARCHEUR (« application = modèles +

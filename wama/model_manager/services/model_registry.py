@@ -1367,7 +1367,10 @@ class ModelRegistry:
         extensions = {f.suffix.lstrip('.').lower()
                       for rev in snapshots.iterdir() if rev.is_dir()
                       for f in rev.rglob('*') if f.suffix}
-        fmt = next((f for f in ('gguf', 'safetensors', 'pt', 'pth', 'bin', 'onnx')
+        # 'onnx' AVANT 'pt'/'bin' (2026-08-31, doctrine inférence-first) : un dépôt d'export
+        # ONNX embarque souvent des à-côtés .bin (les 40 voix de Kokoro-ONNX) qui faisaient
+        # étiqueter la card « bin » — le format dominant d'un export ONNX est l'ONNX.
+        fmt = next((f for f in ('gguf', 'safetensors', 'onnx', 'pt', 'pth', 'bin')
                     if f in extensions), '')
 
         nom_court = hf_id.split('/')[-1]
