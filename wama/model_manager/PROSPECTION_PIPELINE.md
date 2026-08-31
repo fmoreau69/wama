@@ -872,3 +872,129 @@ NB : Music3 (audio) n'est PAS concerné — sa MiniMax Community License, vérif
 - **Wan3.0 (question Fabien 29/08) : sorti le 24/08, mais poids FERMÉS** — API payante
   Alibaba Cloud seulement ($0.05–0.20/s), « the open Wan line stops at Wan 2.2 ». La
   prospection HF ne peut pas le proposer ; le trending le sortira si des poids paraissent.
+
+## Session du 2026-08-31 : recherche CIBLÉE + purge des faux « Nouveau » + conversion réparée
+
+**Constat Fabien** (revue des cards speech) : ① un modèle prometteur repéré à la main
+(`Audio8/Audio8-TTS-Preview-0.6b` — 0,6B, 11 langues dont FR, clonage zero-shot,
+Apache-2.0, variante ONNX INT4 CPU-only) **ne peut mathématiquement pas sortir** du
+balayage — 20 k dl/mois face au plafond top-3/tâche par téléchargements (chatterbox 1,8 M,
+Kokoro-ONNX 1,7 M) ; ② `Qwen3-ASR-1.7B` s'affichait « Nouveau » alors qu'il est INSTALLÉ
+(`transcriber:qwen3-asr-1.7b`) ; ③ le bouton de conversion ONNX de Kokoro était inactif.
+
+**Livré (tout mesuré sur la base live)** :
+1. **`prospector.seed_hf_search(query)`** — prospection CIBLÉE, pendant UI du `--search`
+   de `prospect_models` (leçon 2026-08-04). Une requête `search=` SANS filtre de tâche
+   (l'utilisateur ne connaît pas le `pipeline_tag` ; il est lu sur chaque résultat et doit
+   figurer dans `HF_TASKS`) ; `_NOISE_MARKERS` non appliqués (une demande NOMMÉE n'est pas
+   un listing subi) ; AUCUNE purge (la recherche AJOUTE). Exposée par
+   `api_prospect_ollama` (corps `{"search": …}`) et par le champ « Rechercher un modèle
+   précis » du volet prospection (`mmProspectSearch`, Entrée ou loupe). ⚠ Aucune trace git
+   d'un champ antérieur (sondes `-S` sur l'historique du gabarit) : le geste n'existait
+   qu'en CLI — c'est une CRÉATION, pas une restauration.
+   Testé réel : `seed_hf_search('Audio8-TTS')` → 5 candidats créés (canonique 0.6b, 0.1b,
+   ONNX INT4/INT8, repack mlx — ce dernier passe car les marqueurs de bruit sont
+   volontairement débrayés ici).
+2. **Purge des candidats DEVENUS installés** (`seed_hf_candidates`) : un candidat dont le
+   `hf_id`/`platform_ref` correspond à une ligne NON proposée est purgé au sweep suivant,
+   **même évalué** — la garde d'évaluation (2026-08-19) protège un travail encore utile,
+   pas une proposition sans objet. Le résidu Qwen3-ASR-1.7B a été purgé à la main dans la
+   foulée (1 ligne).
+3. **Conversion de formats RÉPARÉE — 3 verrous empilés** (le bouton Kokoro n'était que le
+   premier) : ① `can_convert_to` était CÂBLÉ par la découverte synthesizer (`[]` pour
+   kokoro/higgs — bouton jamais rendu ; `['onnx','safetensors']` pour coqui/bark — promesse
+   qui aurait toujours échoué) → recalé à l'HONNÊTE (`['safetensors']` pour les .pt/.pth ;
+   l'ONNX d'un pipeline TTS ne se FABRIQUE pas par la route générique — `input_shape`
+   jamais fourni, multi-composants — il s'INSTALLE : export officiel
+   `onnx-community/Kokoro-82M-v1.0-ONNX` via la prospection) ; ② `api_convert_and_backup`
+   traitait l'ID de catalogue (`synthesizer:kokoro`, envoyé par l'UI) comme un CHEMIN →
+   « Source file not found » systématique pour tout modèle déclaré par app — nouvelle
+   résolution `_resolve_weight_file` (ID → `AIModel.extra_info['path']` → registre ;
+   dossier/snapshot HF → plus gros fichier de poids convertible) ; ③ la chaîne
+   backup-avant-suppression (`_retire_source`, offload vérifié) était SAINE — rien touché.
+4. **Installations via le pipeline existant** (`install_proposed_task` →
+   `install_from_spec` → sync + provenance) : Kokoro-82M-v1.0-ONNX (1,3 Go),
+   ResembleAI/chatterbox (12,9 Go), Audio8-TTS-Preview-0.6b — 87 Go libres vérifiés
+   (garde d'espace de la vue court-circuitée par l'enfilage direct, contrôle fait à la
+   main). ⚠ « téléchargé + catalogué » ≠ « moteur du synthesizer » : l'usage exige un
+   backend (`chatterbox-tts`, `kokoro-onnx`, runtime Audio8) — chantier séparé, cf. la
+   règle du balayage générique (« backend_ref reste vide : catalogué ≠ utilisable »).
+
+### Suite du même jour — 3 installs CONCURRENTES croisent les identités (2 bugs provenance)
+
+Les 3 manifestes `model` ont bien été écrits au corpus par la chaîne
+(`record_after_install` → `set_identity` → `manifest_export`) — mais **avec l'identité de
+Kokoro-ONNX posée sur les trois** (`hf_id`/`author`/`platform_ref` croisés, chatterbox
+étiqueté `apache-2.0` au lieu de `mit`), plus **2 manifestes `proposed__*` orphelins**.
+Deux causes, toutes deux dans `provenance.record_after_install` :
+
+1. **`added_keys` liste ce que LE SYNC vient de créer, pas ce que CETTE installation a
+   installé.** La première install finie (Kokoro-ONNX, 3 min 52) a synchronisé pendant que
+   les deux autres téléchargeaient : son sync a découvert LEURS snapshots partiels
+   (`incomplete: true` figé dans les manifestes), `added_keys` = les 3 lignes, et elle a
+   posé SON identité sur les trois. → **Garde de concordance** : une ligne dont le `hf_id`
+   (posé par la découverte) est étranger à l'identité du spec est écartée.
+2. **Le repli par `platform_ref` attrapait la ligne CANDIDATE encore vivante** (elle n'est
+   supprimée qu'après la provenance, et `write_candidate` pose le même `platform_ref`) →
+   manifeste `proposed__*` exporté, orphelin dès `cand.delete()`. → filtre
+   `is_proposed=False` au repli.
+
+Réparé sur les 3 lignes + corpus ré-exporté (chatterbox `mit`/ResembleAI,
+Audio8 `apache-2.0`/Audio8, vérifié AVANT/APRÈS) ; orphelins retirés. ⚠ La règle
+« author ne s'écrase jamais » (27/08) a une conséquence en réparation : l'author FAUX doit
+être vidé en base AVANT de re-poser l'identité. Leçon générale (sœur de « une garde se pose
+avec ses jumeaux ») : **un pipeline idempotent par ligne ne l'est pas par LOT — ce qu'un
+`full_sync` rapporte n'est pas attribuable à l'appelant qui l'a déclenché.**
+
+### Suite du même jour — la JONCTION manifeste→pip + le MARCHEUR d'app (reste ③ refermé)
+
+**Constat mesuré avant d'écrire** (question Fabien « l'installation de librairies n'était
+pas déjà implémentée ? ») : l'EXÉCUTION existait (`pip_install_packages` derrière
+`spec.pip_dependencies`+`human_validated`, `ensure_backend_deps` pour les
+`REQUIRED_PACKAGES`), le registre `Library` existait (kind pilote, `is_allowed` humain) —
+mais **rien ne les reliait** : zéro consommateur de `Library.pip_spec`/`is_allowed` côté
+exécution, verrous §16.7 non appliqués dans `pip_install_packages` (toute chaîne passait à
+pip), pas de rejeu des patches venv, pas de marcheur `requires`→drivers.
+
+**Livré (`model_installer.py`, tests `tests_library_install.py` — 10 verts)** :
+- **Verrous pip appliqués à TOUS les appelants** : `pip_spec_error` (PyPI par NOM seul,
+  extras tolérés, **pin exact `==`** — URL/`git+`/`file:`/options/contraintes lâches
+  refusées AVANT pip ; les builds locaux type `torch==2.9.1+cu128` passent) + kill switch
+  env `WAMA_PIP_KILL_SWITCH`. ⚠ Conséquence assumée : `ensure_backend_deps` exige
+  désormais des `pip_install_spec()` épinglés.
+- **`install_library(key, apply=False)`** — le driver LIBRAIRIE : registre → plan
+  (visible SANS allowlist — le verrou ne gate que l'exécution) → `is_allowed` obligatoire
+  à l'apply → pip → **`patches/apply_patches.py` rejoué** (`_replay_patches`) → version
+  CONSTATÉE (importlib) → `is_installed`/`installed_version` recalés. ⚠ venv COURANT
+  seulement : `venv_win` = geste manuel, SIGNALÉ dans chaque plan, jamais silencieux.
+  Surface : `manage.py install_library <clé> [--allow] [--apply]` (`--allow` EST la
+  décision humaine).
+- **`install_requirements(app, apply=False)`** — le MARCHEUR (« application = modèles +
+  librairies », cadrage Fabien) : lit les `requires` du manifeste d'app AU CORPUS et
+  dispatche vers les drivers EXISTANTS — `library` → `install_library`, `model` → état
+  catalogue + `install_catalog_task` si spec dérivable (sinon « premier usage », signalé).
+  Le marcheur n'invente rien et n'ajoute aucune garde à lui : celles des drivers valent.
+  Surface : `manage.py install_requires <app> [--apply]`. Dry-run RÉEL vérifié sur
+  synthesizer : 9 librairies (versions constatées, `already_satisfied`), 4 modèles
+  téléchargés.
+
+**Chaîne complète désormais** : librarian/extraction → manifeste `library` → ingest →
+registre `Library` → (`--allow` humain) → `install_requires <app> --apply` → pip verrouillé
++ patches rejoués. Restes CONNUS : venv_win manuel ; `requirements.txt` non tenu par
+l'exécuteur (signalé, décision à prendre) ; l'ingest des manifestes du librarian n'a pas
+encore de commande dédiée (`manifest_export --check`/écriture directe au corpus en
+attendant).
+
+**Dry-runs scout validés (même jour, aucun LLM)** sur les 3 dépôts TTS installés —
+squelettes mécaniques complets, et déjà instructifs : `ResembleAI/chatterbox` est un dépôt
+**MULTI-VARIANTES** (t3 en v2/v3/23lang + s3gen en double format .pt/.safetensors — la
+`composition` devra CHOISIR, même leçon que Music3/audio.cpp) ; `Audio8-TTS-Preview-0.6b`
+a **2 composants nets** (`codec.pth` 1,26 Go + `model.safetensors` 1,12 Go — candidat
+idéal `body.composition`) ; `Kokoro-82M-v1.0-ONNX` embarque **40 voix `.bin`** à côté des
+poids ONNX. Les passes LLM (scout sans `--dry-run` ; librarian, qui n'a PAS de dry-run) se
+lancent sur DÉCISION HUMAINE (historique crash Ollama hôte) — commandes prêtes :
+`python wama-dev-ai/run_scout.py --hf <dépôt>` ×3, puis
+`python wama-dev-ai/run_librarian.py --repo thewh1teagle/kokoro-onnx` /
+`--repo resemble-ai/chatterbox` (+ runtime Audio8 à identifier sur sa card).
+⚠ Après redémarrage des services : `sync_models` recalera les `can_convert_to` des modèles
+synthesizer (registre modifié ce jour) → re-passer `manifest_export --check`.
