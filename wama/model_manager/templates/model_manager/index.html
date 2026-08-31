@@ -771,6 +771,19 @@ qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renom
             </button>
         </span>
     </div>
+    {% comment %} Recherche CIBLÉE (2026-08-31) : un modèle NOMMÉ par l'utilisateur ne peut
+    pas sortir du balayage (plafond top-3/tâche par téléchargements — vécu Audio8-TTS). Ce
+    champ interroge HF par nom et AJOUTE les résultats en candidats, sans purger la liste.
+    {% endcomment %}
+    <div class="input-group input-group-sm mt-2">
+        <input type="text" id="mmProspectSearch" class="form-control"
+               placeholder="Rechercher un modèle précis (ex. Audio8 TTS)…"
+               title="Prospection ciblée HuggingFace : propose les dépôts dont le nom correspond, toutes tâches WAMA confondues — sans purger les candidats existants.">
+        <button type="button" id="mmProspectSearchBtn" class="btn btn-outline-light"
+                title="Lancer la recherche ciblée">
+            <i class="fas fa-magnifying-glass"></i>
+        </button>
+    </div>
     <p id="mmProspectStatus" class="small text-muted mb-0 mt-1">Détecte MAJ + modèles concurrents. Résultats sous le filtre « ✨ Proposés par IA ».</p>
 </div>
 {# mmSystemRow (cleaner + idle models) déplacé ici par JS ; masqué quand une card est sélectionnée. #}
@@ -1590,21 +1603,33 @@ document.addEventListener('DOMContentLoaded', function() {
         if (btnHost) btnHost.innerHTML = '<span class="text-muted small">—</span>';
     }
 
-    async function mmRunProspect() {
+    // `search` non vide = prospection CIBLÉE (champ « Rechercher un modèle ») : le serveur
+    // interroge HF par nom et AJOUTE les candidats — le balayage complet reste le clic nu.
+    async function mmRunProspect(search) {
         const btn = document.getElementById('mmProspectBtn');
+        const sBtn = document.getElementById('mmProspectSearchBtn');
         const status = document.getElementById('mmProspectStatus');
         if (btn) { btn.disabled = true; }
-        if (status) status.textContent = 'Prospection en cours…';
+        if (sBtn) { sBtn.disabled = true; }
+        if (status) status.textContent = search ? `Recherche « ${search} »…` : 'Prospection en cours…';
         try {
             const r = await fetch('{% url "model_manager:api_prospect_ollama" %}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: '{}'
+                body: JSON.stringify(search ? { search: search } : {})
             });
             const data = await r.json();
             if (data.success) {
                 const s = data.summary || {};
-                if (status) status.textContent = `${s.total || 0} candidat(s) — voir le filtre « ✨ Proposés par IA ».`;
+                if (search) {
+                    const sr = s.search || {};
+                    if (status) status.textContent =
+                        `${sr.total || 0} candidat(s) pour « ${search} »`
+                        + (sr.already ? ` (${sr.already} déjà chez nous)` : '')
+                        + ' — voir « ✨ Proposés par IA ».';
+                } else if (status) {
+                    status.textContent = `${s.total || 0} candidat(s) — voir le filtre « ✨ Proposés par IA ».`;
+                }
                 loadModels();
             } else {
                 if (status) status.textContent = 'Échec : ' + (data.error || 'inconnu');
@@ -1613,6 +1638,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (status) status.textContent = 'Erreur : ' + err.message;
         } finally {
             if (btn) btn.disabled = false;
+            if (sBtn) sBtn.disabled = false;
         }
     }
 
@@ -1676,8 +1702,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Pas de gestionnaire de clic sur la croix ici : la brique la lie déjà à
         // deselect(), qui appelle onDeselect. En brancher un second ne couvrait que
         // ce chemin-là et laissait Échap à moitié traité.
+        // Arrow OBLIGATOIRE : en handler direct, l'Event serait pris pour `search`.
         const prospectBtn = document.getElementById('mmProspectBtn');
-        if (prospectBtn) prospectBtn.addEventListener('click', mmRunProspect);
+        if (prospectBtn) prospectBtn.addEventListener('click', () => mmRunProspect());
+        const mmSearchBtn = document.getElementById('mmProspectSearchBtn');
+        const mmSearchInput = document.getElementById('mmProspectSearch');
+        const mmLancerRecherche = () => {
+            const q = ((mmSearchInput && mmSearchInput.value) || '').trim();
+            if (q) mmRunProspect(q);
+        };
+        if (mmSearchBtn) mmSearchBtn.addEventListener('click', mmLancerRecherche);
+        if (mmSearchInput) mmSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); mmLancerRecherche(); }
+        });
         const assessBtn = document.getElementById('mmAssessBtn');
         if (assessBtn) assessBtn.addEventListener('click', mmRunAssess);
     }

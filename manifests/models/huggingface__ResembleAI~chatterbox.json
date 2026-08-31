@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {},
+    "composition": {},
+    "extra_info": {
+      "category": "speech",
+      "family": "chatterbox",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/chatterbox/models--ResembleAI--chatterbox",
+      "size_bytes": 13866212931
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "ResembleAI",
+      "description_short": "Snapshot HF chatterbox — installé, en attente d'intégration",
+      "hf_id": "ResembleAI/chatterbox",
+      "license": "mit",
+      "model_type": "speech",
+      "platform_ref": "huggingface:ResembleAI/chatterbox",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 12.91391712706536,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (speech/chatterbox) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:ResembleAI/chatterbox",
+  "manifest_kind": "model",
+  "name": "chatterbox",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:ResembleAI/chatterbox",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -106,13 +106,26 @@ def convert_pt_to_safetensors(
         if not isinstance(state_dict, dict):
             return False, "Model file does not contain a valid state dict", None
 
-        # Filter out non-tensor values and convert to contiguous tensors
+        # Collecte RÉCURSIVE des tenseurs, clés aplaties en pointé (« bert.xxx ») :
+        # safetensors n'accepte qu'un dict PLAT {str: tensor}, mais un checkpoint
+        # multi-composants range un state_dict PAR SOUS-MODULE (mesuré 2026-08-31 :
+        # kokoro-v1_0.pth = {bert, bert_encoder, predictor, decoder, text_encoder},
+        # cinq OrderedDict imbriqués — l'ancien filtre de premier niveau les jetait
+        # tous et concluait « No tensor data found »). Le rechargement d'un tel
+        # fichier re-scinde par préfixe — même convention que les state_dicts nn.Module.
         clean_state_dict = {}
-        for key, value in state_dict.items():
+
+        def _collecter(prefix, value):
             if isinstance(value, torch.Tensor):
-                clean_state_dict[key] = value.contiguous()
+                clean_state_dict[prefix] = value.contiguous()
+            elif isinstance(value, dict):
+                for k, v in value.items():
+                    _collecter(f"{prefix}.{k}" if prefix else str(k), v)
             else:
-                logger.debug(f"Skipping non-tensor key: {key} (type: {type(value).__name__})")
+                logger.debug(f"Skipping non-tensor key: {prefix} (type: {type(value).__name__})")
+
+        for key, value in state_dict.items():
+            _collecter(str(key), value)
 
         if not clean_state_dict:
             return False, "No tensor data found in model file", None

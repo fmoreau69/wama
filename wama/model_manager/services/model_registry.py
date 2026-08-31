@@ -978,7 +978,12 @@ class ModelRegistry:
                 backend_ref='synthesizer',
                 format=coqui_format,
                 preferred_format=preferred,
-                can_convert_to=['onnx', 'safetensors'],
+                # 'onnx' RETIRÉ (2026-08-31) : la route générique pt→ONNX exige un
+                # `input_shape` que l'UI n'envoie jamais, et un pipeline TTS multi-composants
+                # ne s'exporte pas d'un bloc — le bouton promettait un geste qui échouait
+                # toujours. L'ONNX d'un TTS s'INSTALLE (export officiel), il ne se fabrique
+                # pas ici.
+                can_convert_to=['safetensors'],
                 extra_info={'path': str(coqui_model_path) if coqui_model_path else ''},
                 capabilities=_tts_caps(
                     engine_key='coqui-xtts',   # clonage LU sur CoquiBackend
@@ -1017,7 +1022,8 @@ class ModelRegistry:
                 backend_ref='synthesizer',
                 format=bark_format,
                 preferred_format=preferred,
-                can_convert_to=['onnx', 'safetensors'],
+                # 'onnx' retiré — même raison que coqui ci-dessus (2026-08-31).
+                can_convert_to=['safetensors'],
                 extra_info={'path': str(bark_model_path) if bark_model_path else ''},
                 capabilities=_tts_caps(
                     engine_key='bark',         # clonage LU sur BarkBackend
@@ -1074,7 +1080,11 @@ class ModelRegistry:
                 backend_ref='synthesizer',
                 format='pt',
                 preferred_format=preferred,
-                can_convert_to=[],
+                # ['safetensors'] (2026-08-31) : le .pth du snapshot se convertit (la vue
+                # résout dossier → fichier de poids). L'ONNX, lui, ne se FABRIQUE pas ici :
+                # il s'INSTALLE — onnx-community/Kokoro-82M-v1.0-ONNX via la prospection
+                # (l'export local d'un KPipeline n'est pas un geste générique).
+                can_convert_to=['safetensors'],
                 extra_info={'hf_id': _synth_hf_id('kokoro'), 'path': str(kokoro_dir)},
                 capabilities=_tts_caps(
                     engine_key='kokoro',       # clonage + HORODATAGE lus sur KokoroBackend

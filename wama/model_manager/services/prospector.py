@@ -562,11 +562,30 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             is_proposed=True, source='huggingface', proposal_kind='new',
             model_key__startswith=PROPOSED_PREFIX + 'hf:',
         ).exclude(model_key__in=vus)
+        # Dépôts DÉSORMAIS INSTALLÉS (lignes non proposées, hf_id ou platform_ref) : un
+        # candidat qui les propose encore est un résidu — une card « Nouveau » qui pointe
+        # l'existant.
+        installes_hf = {(x.hf_id or '').lower()
+                        for x in AIModel.objects.filter(is_proposed=False).exclude(hf_id='')}
+        installes_hf |= {ref.partition(':')[2].lower()
+                         for ref in AIModel.objects.filter(
+                             is_proposed=False, platform_ref__startswith='huggingface:')
+                         .values_list('platform_ref', flat=True)}
+        installes_hf.discard('')
         for m in perimetre:
             # Ne purger que le périmètre des tâches qui ont réellement abouti : un candidat
             # d'une tâche en échec réseau reste en place (même règle que prospect_ollama).
             pr = m.extra_info.get('prospect', {})
             if (pr.get('role') or '') not in roles_ok:
+                continue
+            # Candidat dont le dépôt a été INSTALLÉ entre-temps : résolu par l'installation,
+            # on purge MÊME évalué — la garde d'évaluation protège un travail encore utile,
+            # jamais une proposition devenue sans objet (vécu Qwen3-ASR-1.7B, 2026-08-31 :
+            # installé côté transcriber, la card « Nouveau » préservée continuait de
+            # proposer l'existant).
+            if (m.hf_id or '').lower() in installes_hf:
+                m.delete()
+                supprimes += 1
                 continue
             # ⚠ NE JAMAIS PURGER UN CANDIDAT ÉVALUÉ (2026-08-19). Le tri « tendance » de HF
             # bouge en continu : d'un run à l'autre la liste retenue change presque
@@ -585,6 +604,109 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
               'preserved': preserves,      # évalués, sortis de la tendance : conservés
               'total': len(vus), 'tasks_ok': taches_ok}
     logger.info("[prospect_hf_seed] %s", resume)
+    return resume
+
+
+def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
+    """
+    Prospection CIBLÉE : cherche `query` dans les noms de dépôts HF (toutes tâches de
+    `HF_TASKS` confondues) et écrit les résultats en candidats `is_proposed` — le pendant
+    UI du drapeau `--search` de `prospect_models` (leçon 2026-08-04 : un top par
+    téléchargements ne rend jamais les spécialisés ; un modèle NOMMÉ par l'utilisateur ne
+    peut pas non plus y entrer — plafond top-3/tâche, vécu Audio8-TTS le 2026-08-31).
+
+    Différences ASSUMÉES avec le balayage `seed_hf_candidates` :
+      • une seule requête `search=` SANS filtre de tâche — l'utilisateur ne connaît pas le
+        `pipeline_tag` ; la tâche est lue sur chaque résultat et doit figurer dans
+        `HF_TASKS` (un tag hors périmètre n'invente pas de catégorie d'installation) ;
+      • `_NOISE_MARKERS` non appliqués : chercher « kokoro onnx » est un choix EXPLICITE —
+        la garde anti-dérivés protège un listing subi, pas une demande nommée ;
+      • AUCUNE purge : une recherche AJOUTE des candidats, elle ne redessine pas la liste.
+    """
+    from wama.model_manager.models import AIModel
+
+    from .prospect_ollama import PROPOSED_PREFIX, write_candidate
+
+    query = (query or '').strip()
+    if not query:
+        return {'ok': False, 'error': 'requête vide'}
+    try:
+        from huggingface_hub import HfApi
+        models = list(HfApi().list_models(
+            search=query, sort='downloads', limit=limit,
+            expand=['downloads', 'likes', 'pipeline_tag', 'cardData']))
+    except Exception as e:
+        return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+
+    # « Déjà chez nous » — mêmes deux identités que prospect_hf, mais lignes INSTALLÉES
+    # seulement : un candidat déjà proposé doit pouvoir être RAFRAÎCHI par une nouvelle
+    # recherche, pas compté comme possédé par sa propre ligne.
+    have = {(m.hf_id or '').lower()
+            for m in AIModel.objects.filter(is_proposed=False).exclude(hf_id='')}
+    have |= {ref.partition(':')[2].lower()
+             for ref in AIModel.objects.filter(is_proposed=False,
+                                               platform_ref__startswith='huggingface:')
+                                       .values_list('platform_ref', flat=True)}
+    have.discard('')
+
+    crees = maj = deja = ignores = 0
+    retenus: list = []
+    refs_type: dict = {}
+    for m in models:
+        if len(retenus) >= max_retenus:
+            break
+        tache = getattr(m, 'pipeline_tag', None)
+        regle = HF_TASKS.get(tache or '')
+        if regle is None:
+            ignores += 1
+            continue
+        if m.id.lower() in have:
+            deja += 1
+            continue
+        poids = _repo_weight_gb(m.id)   # un appel HTTP — candidats retenus seulement
+        if poids is not None and poids < regle['poids_min_go']:
+            ignores += 1                 # sous le plancher : LoRA/config, pas un modèle
+            continue
+        dl = getattr(m, 'downloads', 0) or 0
+        carte = getattr(m, 'card_data', None)
+        licence = None
+        if carte is not None:
+            try:
+                licence = (carte.to_dict() if hasattr(carte, 'to_dict')
+                           else dict(carte)).get('license')
+            except Exception:
+                licence = None
+        model_type = _TASK_MODEL_TYPE.get(tache, 'diffusion')
+        if model_type not in refs_type:
+            refs_type[model_type] = [
+                (x.name or '').split('—')[0].strip()
+                for x in AIModel.best_installed(model_type)]
+        cand_key = PROPOSED_PREFIX + f"hf:{m.id}"
+        cree = write_candidate(
+            cand_key, nom=m.id.split('/')[-1], model_type=model_type,
+            source='huggingface',
+            description=(f"[{tache}] {dl} téléchargements, "
+                         f"{getattr(m, 'likes', 0) or 0} ♥ — recherche ciblée « {query} »."),
+            kind='new', confidence=None,
+            extra={'kind': 'new', 'role': f"hf:{tache}", 'name': m.id,
+                   'reason': f"recherche ciblée « {query} »",
+                   'concurrence': refs_type[model_type],
+                   'downloads': dl, 'likes': getattr(m, 'likes', 0) or 0,
+                   'metrique': _metrique_declaree(carte),
+                   'license_flag': analyze_license(m.id, str(licence or '')),
+                   'spec': {'kind': 'hf', 'ref': m.id, 'category': regle['category'],
+                            'note': f"recherche ciblée « {query} » ({tache})"}},
+            hf_id=m.id, license=str(licence or '')[:64],
+            platform_ref=f"huggingface:{m.id}",
+            disk_gb=poids or 0.0,
+        )
+        crees += int(cree)
+        maj += int(not cree)
+        retenus.append(m.id)
+
+    resume = {'ok': True, 'query': query, 'created': crees, 'updated': maj,
+              'already': deja, 'skipped': ignores, 'total': len(retenus), 'refs': retenus}
+    logger.info("[seed_hf_search] %s", resume)
     return resume
 
 

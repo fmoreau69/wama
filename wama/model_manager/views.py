@@ -917,6 +917,58 @@ def api_backup_model(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+_CONVERTIBLE_EXTS = ('.pt', '.pth', '.bin', '.ckpt')
+
+
+def _resolve_weight_file(ref: str):
+    """
+    Chemin du FICHIER de poids à convertir, depuis ce que l'UI envoie réellement : un chemin
+    de fichier (rendu inchangé), un chemin de dossier, ou un ID de catalogue
+    (`synthesizer:kokoro`) — résolu via `AIModel.extra_info['path']` puis, à défaut, le
+    registre. Un dossier (snapshot HF compris) descend vers son plus gros fichier
+    convertible. Retourne None si rien de convertible.
+
+    Bug d'origine (2026-08-31) : `api_convert_and_backup` recevait l'ID de catalogue et le
+    traitait comme un chemin — « Source file not found » systématique pour tous les modèles
+    déclarés par app (les boutons Convert ne marchaient QUE pour les modèles découverts par
+    scan disque, dont l'id EST un chemin).
+    """
+    from pathlib import Path
+
+    if not ref:
+        return None
+
+    def _fichier(p: Path):
+        if p.is_file():
+            return str(p) if p.suffix.lower() in _CONVERTIBLE_EXTS else None
+        if p.is_dir():
+            poids = [f for f in p.rglob('*')
+                     if f.is_file() and f.suffix.lower() in _CONVERTIBLE_EXTS]
+            if poids:
+                # Le plus gros fichier = les poids du modèle (les petits .pt d'un snapshot
+                # sont des têtes auxiliaires/config, jamais la cible d'une conversion).
+                return str(max(poids, key=lambda f: f.stat().st_size))
+        return None
+
+    p = Path(ref)
+    if p.exists():
+        return _fichier(p)
+
+    # ID de catalogue : la ligne AIModel porte le chemin posé par la découverte…
+    from .models import AIModel
+    row = AIModel.objects.filter(model_key=ref).first()
+    chemin = ((row.extra_info or {}).get('path') or '') if row else ''
+    if not chemin:
+        # …sinon le registre (découverte fraîche — tolérant au type de retour).
+        res = ModelRegistry().discover_all_models()
+        items = res.values() if hasattr(res, 'values') else res
+        for info in items:
+            if getattr(info, 'id', None) == ref:
+                chemin = ((getattr(info, 'extra_info', None) or {}).get('path') or '')
+                break
+    return _fichier(Path(chemin)) if chemin else None
+
+
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
@@ -936,6 +988,17 @@ def api_convert_and_backup(request):
 
         if not model_path:
             return JsonResponse({'success': False, 'error': 'model_path required'}, status=400)
+
+        # ── RÉSOLUTION (2026-08-31) : l'UI envoie l'ID de catalogue (`model.id`), le
+        # convertisseur veut un FICHIER — voir _resolve_weight_file.
+        resolu = _resolve_weight_file(model_path)
+        if resolu is None:
+            return JsonResponse(
+                {'success': False,
+                 'error': f"Aucun fichier de poids convertible trouvé pour « {model_path} » "
+                          f"(formats source : {', '.join(_CONVERTIBLE_EXTS)})"},
+                status=404)
+        model_path = resolu
 
         # Extract model name from path if not provided
         if not model_name:
@@ -1505,6 +1568,22 @@ def api_prospect_ollama(request):
     badges apparaissent au rechargement des cards. Trou comblé le 2026-08-18."""
     from .services.prospect_ollama import prospect_ollama
     try:
+        try:
+            corps = json.loads(request.body or b'{}') or {}
+        except (json.JSONDecodeError, TypeError):
+            corps = {}
+        recherche = (corps.get('search') or '').strip()
+        if recherche:
+            # ── Prospection CIBLÉE (champ « Rechercher un modèle », 2026-08-31) : une
+            # requête nommée n'a besoin ni du balayage Ollama ni des tops par tâche —
+            # et elle ne purge rien (elle AJOUTE des candidats). Voir seed_hf_search.
+            from .services.prospector import seed_hf_search
+            res = seed_hf_search(recherche)
+            if not res.get('ok'):
+                return JsonResponse({'success': False, 'error': res.get('error')}, status=502)
+            return JsonResponse({'success': True,
+                                 'summary': {'search': res, 'total': res.get('total', 0),
+                                             'assess_enqueued': False}})
         summary = prospect_ollama()
         # ── Balayage HuggingFace (génération, parole, détection, upscaling, musique,
         # OCR — table déclarative HF_TASKS) — même clic, périmètre séparé : une panne HF
