@@ -90,7 +90,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
     {% for batch_info in batches_list %}
 
     {% url 'composer:batch_download' batch_info.obj.id as batch_download_url %}
-    {% include 'common/_queue_entry.html' with card_template='composer/_generation_card.html' card_class='generation-card' download_url=batch_download_url eta_ids=batch_info.eta_ids app='composer' actions_communes=True %}
+    {% include 'common/_queue_entry.html' with card_template='composer/_generation_card.html' card_class='generation-card' download_url=batch_download_url eta_ids=batch_info.eta_ids app='composer' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 
     {% endfor %}
 

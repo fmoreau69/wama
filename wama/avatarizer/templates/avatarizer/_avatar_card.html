@@ -153,7 +153,7 @@ pas la variable de gabarit.
   par WamaInspector.hydrateCardPreviews (unified_preview ?side=output, rendu mime-driven
   commun). Le <video> à la main était hors-route (18/08).{% endcomment %}
   {% url 'common:unified_preview' 'avatarizer' elem.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
   <div id="preview-row-{{ elem.id }}"></div>

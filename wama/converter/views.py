@@ -149,6 +149,8 @@ class IndexView(View):
             key = job.batch_id or f'loose-{job.id}'
             grouped.setdefault(key, []).append(job)
         from wama.common.utils.detail_registry import normalize_status
+        from wama.common.utils.card_chips import common_chips_for_items
+        from wama.converter.params import PARAMS_JSON as _PARAMS_JSON
         batches_list = []
         for items in grouped.values():
             items_sorted = sorted(items, key=lambda j: j.batch_row_index)
@@ -169,6 +171,11 @@ class IndexView(View):
                 'failure_count': statuses.count('FAILURE'),
                 'has_success': 'SUCCESS' in statuses,
                 'eta_ids': ','.join(str(j.id) for j in items_sorted),
+                # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08). Les
+                # réglages du converter vivent en JSON : même assiette que _decorate_job.
+                'common_chips': common_chips_for_items(
+                    items_sorted, _PARAMS_JSON,
+                    values_of=lambda j: {**(j.options or {}), **(j.cross_app_options or {})}),
             })
 
         # Tri + filtrage de la file — brique COMMUNE (toolbar _queue_toolbar), alignée sur

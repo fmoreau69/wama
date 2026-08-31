@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const globalProgressStats = document.getElementById('globalProgressStats');
             const globalStatus = document.getElementById('globalStatus');
 
-            const p = data.global_progress || 0;
+            const p = data.overall_progress || data.global_progress || 0;   // contrat commun (31/08), repli legacy
             if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
             if (globalProgressBar) globalProgressBar.style.width = p + '%';
             if (globalProgressText) globalProgressText.textContent = p ? p + '%' : '';

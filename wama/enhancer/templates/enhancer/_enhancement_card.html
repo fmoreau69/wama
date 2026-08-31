@@ -136,7 +136,7 @@ Contexte : elem (Enhancement, décorée .chips), in_batch (bool).
   une ligne compacte (wcv3--batch-child), un aperçu par enfant la ferait exploser.{% endcomment %}
   {% if elem.output_file and not in_batch %}
   {% url 'common:unified_preview' 'enhancer' elem.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
   <div id="preview-row-{{ elem.id }}"></div>

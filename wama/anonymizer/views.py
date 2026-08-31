@@ -874,6 +874,8 @@ def _queue_context(request, user):
     _auto_wrap_orphans(user)
 
     def _extra(batch, items, medias):
+        from wama.common.utils.card_chips import common_chips_for_items
+        from wama.anonymizer.params import PARAMS_JSON
         success_count = sum(1 for m in medias if m.status == 'SUCCESS')
         for m in medias:
             _decorate_card(m)
@@ -881,6 +883,9 @@ def _queue_context(request, user):
             'success_pct': int(success_count / batch.total * 100) if batch.total else 0,
             # ETA agrégée de la card mère (brique _batch_card.html) — CSV, pas liste
             'eta_ids': ','.join(str(m.id) for m in medias),
+            # Réglages COMMUNS aux filles (slot meta_template, mécanisme du parc — porté
+            # le 31/08 depuis le pilote transcriber, brique commune schéma-driven).
+            'common_chips': common_chips_for_items(medias, PARAMS_JSON),
         }
 
     batches_list = build_batches_list(user, batch_model=BatchAnonymizer,

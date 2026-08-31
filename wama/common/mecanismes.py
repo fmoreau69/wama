@@ -585,9 +585,14 @@ MECANISMES = (
     Mecanisme('card_chips', 'Chips méta des cards',
               "Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v3 "
               "(chips_by_section) ; `values` pour les réglages vivant en JSON (même assiette "
-              "que card_gear), `extra` pour les chips d'app déjà formés",
+              "que card_gear), `extra` pour les chips d'app déjà formés. Porte aussi les "
+              "réglages COMMUNS aux filles pour la card MÈRE (common_chips_for_items + "
+              "partial _batch_meta_chips — slot meta_template, généralisation du pilote "
+              "transcriber, porté aux 10 apps le 31/08) et les propriétés d'ENTRÉE "
+              "(input_props_for, extraite du pilote reader)",
               'wama/common/utils/card_chips.py', 'CARD_DESIGN.md §10.3',
-              annexes=('wama/common/templates/common/_card_chips.html',)),
+              annexes=('wama/common/templates/common/_card_chips.html',
+                       'wama/common/templates/common/_batch_meta_chips.html')),
     # Entrées créées le 2026-08-31 (audit) — trois briques du périmètre UI sans identité :
     # l'inspecteur n'existait sur la carte que comme annexe/domicile d'autres entrées, la
     # 6ᵉ action de card (⬇) n'avait aucune entrée, la déclaration du volet non plus.

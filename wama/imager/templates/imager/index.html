@@ -153,7 +153,7 @@ Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True %}
 
 {% for batch_info in image_batches %}
-    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' actions_communes=True %}
+    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 {% empty %}
     <div class="card bg-dark border-secondary">
         <div class="card-body text-center text-white-50 py-4">
@@ -200,7 +200,7 @@ Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True %}
 
 {% for batch_info in video_batches %}
-    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' actions_communes=True %}
+    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 {% empty %}
     <div class="card bg-dark border-secondary">
         <div class="card-body text-center text-white-50 py-4">

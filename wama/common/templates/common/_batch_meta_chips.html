@@ -1,0 +1,12 @@
+{% comment %}Méta COMMUNES aux filles de la card MÈRE — rendu GÉNÉRIQUE du slot
+`meta_template` de `_batch_card.html` (mécanisme du parc : pilote transcriber
+modèle/langue/diarisation, calcul « valeur si partagée par toutes les filles »).
+Consomme `batch_info.common_chips` (brique `card_chips.common_chips_for_items`,
+sections settings/output) — une app au rendu spécifique garde son propre partial
+(transcriber) ou inclut celui-ci en plus du sien (converter : nature du lot).{% endcomment %}
+{% if batch_info.common_chips.settings or batch_info.common_chips.output %}
+<div class="mt-1">
+  {% include 'common/_card_chips.html' with chips=batch_info.common_chips.settings %}
+  {% include 'common/_card_chips.html' with chips=batch_info.common_chips.output %}
+</div>
+{% endif %}

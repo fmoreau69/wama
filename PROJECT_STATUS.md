@@ -9160,15 +9160,29 @@ maquette v4.
   `_batch_card.html` (transcriber complet, converter partiel, 8 apps sans). La jumelle
   émet désormais `_batch_meta.html` (chips communs schéma-driven via la brique
   card_chips) + le slot. Écart assumé vs pilote : divergence OMISE (pas de « Mixte »).
-- **BACKLOG DE PORTAGE aux apps médias** (améliorations communes validées par l'audit,
-  attend GO) : ① `.wama-card-preview` sur les 9 apps ; ② `meta_template` + méta communes
-  sur les 8 ; ③ `input_props_for` adopté par reader (retrait du local — ⚠ ordre
-  ext·pages·poids à préserver) puis les 9 autres ; ④ `extraFields` + hôte de schéma au
-  converter (remplace `readMainPanelOptions` main, P2) ; ⑤ suppression des 3 resolvers
-  `formats` maison du converter (P1, résorbable grâce à l'union commune) ; ⑥ synthesizer
-  `'global_progress'`→`'overall_progress'` (seule app hors contrat) ; ⑦ proxys `_View`
-  reader/transcriber → `chips_by_section(values=)` ; ⑧ cascade `applicable_defaults`
-  au parc. Divers : `import os` local redondant `converter/views.py:543` ;
+- **BACKLOG DE PORTAGE aux apps médias** — ①②③⑥ **PORTÉS le jour même** (GO « on
+  poursuit ») :
+  ① `.wama-card-preview` + `data-preview-url` posés sur **8 cards** (converter, avatarizer,
+    imager, composer, anonymizer, enhancer ×2, synthesizer — script à assert par fichier) ;
+    **reader et describer EXCLUS à dessein** : gestes de preview PROPRES existants
+    (reader dblclick maison `reader.js:123/:699` — la classe commune ferait DOUBLE-FEU) —
+    convergence via `wama:card-expand` en phase nettoyage ;
+  ② méta communes de card MÈRE : calcul PROMU AU COMMUN (`card_chips.common_chips_for_items`
+    — règle du pilote « valeur si partagée par toutes les filles », divergence OMISE) +
+    partial commun `_batch_meta_chips.html` ; câblés sur **10/10** (8 extras de
+    `build_batches_list` + dict manuel converter avec `values_of` JSON + jumelle
+    CONVERGÉE sur le partial commun — son partial généré du matin est retiré) ; enhancer =
+    schéma PAR FILE (media/audio), imager = schéma PAR DOMAINE du lot ; transcriber garde
+    son partial spécifique (pilote) ;
+  ③ `input_props_for` ADOPTÉ par reader (corps local retiré, pages insérées en position 1 —
+    l'ordre historique ext·pages·poids du pilote préservé, réserve d'audit levée) ;
+  ⑥ synthesizer au contrat commun (`overall_progress`/`done` émis, JS bascule avec repli,
+    clés legacy conservées → retrait en phase nettoyage).
+  **Restent pour la phase NETTOYAGE** : ④ `extraFields` + hôte de schéma au converter
+  (remplace `readMainPanelOptions` main, P2) ; ⑤ suppression des 3 resolvers `formats`
+  maison du converter (P1) ; ⑦ proxys `_View` reader/transcriber → `values=` ; ⑧ cascade
+  `applicable_defaults` au parc ; + reader/describer → `wama:card-expand` ; + clés legacy
+  synthesizer ; + `import os` local redondant `converter/views.py` ;
   `convert_pt_to_safetensors` récursif à nommer au changelog (R8, hors apps médias).
 
 ### Suite du même jour (matin, retours ÉCRAN Fabien — volet ✅ validé, 2 constats neufs)

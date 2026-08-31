@@ -241,8 +241,16 @@ def index(request):
                       item_model=GenerationBatchItem, fk_name='generation',
                       batch_extra=_batch_domain)
 
-    batches_all = build_batches_list(user, batch_model=GenerationBatch,
-                                     work_attr='generation')
+    from wama.common.utils.card_chips import common_chips_for_items
+    from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+    batches_all = build_batches_list(
+        user, batch_model=GenerationBatch, work_attr='generation',
+        # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08) : imager a
+        # DEUX schémas, celui du DOMAINE du lot s'applique (fabrique scopée par onglet).
+        extra=lambda b, items, gens: {
+            'common_chips': common_chips_for_items(
+                gens, VIDEO_PARAMS_JSON if getattr(b, 'domain', '') == 'video'
+                else IMAGE_PARAMS_JSON)})
     for _b in batches_all:                       # chips schéma-driven sur chaque card
         for _it in _b['items']:
             if _it.generation:

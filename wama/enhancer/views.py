@@ -196,7 +196,11 @@ class IndexView(View):
         from wama.common.utils.batch_common import build_batches_list
         from wama.common.utils.queue_view import apply_queue_sort_filter
 
-        def _make_extra(decorate):
+        def _make_extra(decorate, schema):
+            # `schema` par FILE (media vs audio) : les réglages COMMUNS aux filles de la
+            # card mère (slot meta_template, porté le 31/08) se dérivent du bon schéma.
+            from wama.common.utils.card_chips import common_chips_for_items
+
             def _extra(batch, items, works):
                 done = sum(1 for w in works if w.status == 'SUCCESS')
                 for w in works:
@@ -205,15 +209,17 @@ class IndexView(View):
                     'success_pct': int(done / batch.total * 100) if batch.total > 0 else 0,
                     # CSV (contrat _batch_card data-eta-ids) — une LISTE ne matche jamais
                     'eta_ids': ','.join(str(w.id) for w in works),
+                    'common_chips': common_chips_for_items(works, schema),
                 }
             return _extra
 
+        from wama.enhancer.params import AUDIO_PARAMS_JSON, MEDIA_PARAMS_JSON
         batches_list = build_batches_list(
             user, batch_model=BatchEnhancement, work_attr='enhancement',
-            extra=_make_extra(_decorate_media_card))
+            extra=_make_extra(_decorate_media_card, MEDIA_PARAMS_JSON))
         audio_batches_list = build_batches_list(
             user, batch_model=BatchAudioEnhancement, work_attr='audio_enhancement',
-            extra=_make_extra(_decorate_audio_card))
+            extra=_make_extra(_decorate_audio_card, AUDIO_PARAMS_JSON))
 
         # (« batchs d'abord » RETIRÉ le 2026-08-24 : règle abandonnée le 2026-06-29 au profit du
         # tri de la barre commune — `apply_queue_sort_filter` ci-dessous trie TOUJOURS, défaut

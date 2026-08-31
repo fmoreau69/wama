@@ -189,11 +189,15 @@ class IndexView(TemplateView):
         from wama.common.utils.batch_common import build_batches_list
 
         def _extra(batch, items, descs):
+            from wama.common.utils.card_chips import common_chips_for_items
+            from wama.describer.params import PARAMS_JSON
             success_count = sum(1 for d in descs if d.status == 'SUCCESS')
             return {
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
                 # ETA agrégée de la card mère (brique _batch_card.html)
                 'eta_ids': ','.join(str(d.id) for d in descs),
+                # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08).
+                'common_chips': common_chips_for_items(descs, PARAMS_JSON),
             }
 
         batches_list = build_batches_list(user, batch_model=BatchDescription,

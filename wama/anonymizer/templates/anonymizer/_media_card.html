@@ -148,7 +148,7 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
   par WamaInspector.hydrateCardPreviews depuis unified_preview ?side=output (rendu
   mime-driven commun). Le markup <video>/<img> à la main était hors-route (18/08).{% endcomment %}
   {% url 'common:unified_preview' 'anonymizer' elem.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
   <div id="preview-row-{{ elem.id }}"></div>

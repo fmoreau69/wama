@@ -291,17 +291,10 @@ def _reglages_du_depot(user, nature, poste=None):
     # quand TOUTES les filles s'accordent — la jumelle ne passait pas le slot, mère sans
     # réglages (constat Fabien 31/08 : « c'est déjà acté et en place, juste à câbler »).
     ligne_commun = '' if not _noms_schema else f'''
-            _communs = {{}}
-            for _n in {_noms_schema!r}:
-                _vs = {{getattr(j, _n, None) for j in items}}
-                if len(_vs) == 1:
-                    _v = _vs.pop()
-                    if _v not in (None, ''):
-                        _communs[_n] = _v
             try:
-                from wama.common.utils.card_chips import chips_by_section as _cbs
+                from wama.common.utils.card_chips import common_chips_for_items as _ccfi
                 from .params import {schema_symbole} as _sch_m
-                _cc = _cbs(None, _sch_m, values=_communs) if _communs else {{}}
+                _cc = _ccfi(items, _sch_m)   # items déjà _decorer-és : valeurs aplaties
             except Exception:
                 _cc = {{}}'''
     cle_commun = ("'common_chips': _cc," if _noms_schema else "'common_chips': {},")

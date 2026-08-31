@@ -166,7 +166,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
   {% if elem.status == 'SUCCESS' %}
     {% if elem.output_video or elem.output_images %}
     {% url 'common:unified_preview' 'imager' elem.id as pv_out %}
-    <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+    <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
          data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
     {% endif %}
   {% endif %}

@@ -145,6 +145,8 @@ class IndexView(View):
         from wama.common.utils.queue_view import apply_queue_sort_filter
 
         def _extra(batch, items, works):
+            from wama.common.utils.card_chips import common_chips_for_items as _ccfi
+            from wama.synthesizer.params import PARAMS_JSON as _SYN_PARAMS_JSON
             done = sum(1 for w in works if w.status == 'SUCCESS')
             first_s = works[0] if works else None
             return {
@@ -155,6 +157,8 @@ class IndexView(View):
                 'first_voice_preset': first_s.voice_preset if first_s else 'default',
                 'first_speed': first_s.speed if first_s else 1.0,
                 'first_pitch': first_s.pitch if first_s else 1.0,
+                # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08).
+                'common_chips': _ccfi(works, _SYN_PARAMS_JSON),
             }
 
         batches_list = build_batches_list(
@@ -684,6 +688,10 @@ def global_progress(request):
 
     if not syntheses.exists():
         return JsonResponse({
+            # Contrat du composant COMMUN (wama-global-progress.js : total/done/
+            # overall_progress) — le synthesizer était la SEULE app sur 10 hors contrat
+            # (audit 31/08). Clés legacy conservées le temps du nettoyage.
+            'overall_progress': 0, 'done': 0,
             'global_progress': 0,
             'total': 0,
             'completed': 0,
@@ -716,6 +724,9 @@ def global_progress(request):
     global_progress = int(total_progress / total) if total > 0 else 0
 
     return JsonResponse({
+        # Contrat commun d'abord (audit 31/08) ; clés legacy conservées → nettoyage.
+        'overall_progress': global_progress,
+        'done': completed,
         'global_progress': global_progress,
         'total': total,
         'completed': completed,

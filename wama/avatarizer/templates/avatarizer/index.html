@@ -163,7 +163,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
                   bouton de téléchargement de lot le 25/08, sans qu'aucun test le voie.
                 {% endcomment %}
                 {% url 'avatarizer:batch_download' b.obj.id as batch_dl_url %}
-                {% include 'common/_queue_entry.html' with batch_info=b card_template='avatarizer/_avatar_card.html' download_url=batch_dl_url app='avatarizer' actions_communes=True %}
+                {% include 'common/_queue_entry.html' with batch_info=b card_template='avatarizer/_avatar_card.html' download_url=batch_dl_url app='avatarizer' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
                 {% endfor %}{# b in batches_list #}
             {% else %}
             <div id="no-jobs-msg" class="text-center text-muted py-4">

@@ -513,12 +513,30 @@ class VoletParametresGenereTest(SimpleTestCase):
         # passait pas le slot. Ici : chips GÉNÉRÉS du schéma sur les valeurs partagées.
         src, _ = render_index(_manifeste(SOURCE))
         idx = (src or {}).get('index.html') or ''
-        meta = (src or {}).get('_batch_meta.html') or ''
-        self.assertIn("meta_template='converter/_batch_meta.html'", idx,
-                      'le slot méta de la card mère n'"'"'est pas passé au partial commun')
-        self.assertIn('batch_info.common_chips.settings', meta)
-        self.assertIn("common/_card_chips.html", meta,
-                      'les chips de mère doivent passer par la brique commune')
+        # Depuis la promotion au COMMUN (31/08) : le générateur n'émet plus de partial
+        # d'app — il passe le partial commun, comme n'importe quelle app portée.
+        self.assertIn("meta_template='common/_batch_meta_chips.html'", idx,
+                      'le slot méta de la card mère doit viser le partial COMMUN')
+        self.assertNotIn('_batch_meta.html', str(sorted((src or {}).keys())),
+                         'un partial de méta par app généré = duplication du commun')
+
+    def test_la_brique_des_communs_de_mere_applique_la_regle_du_pilote(self):
+        # « Valeur si partagée par toutes les filles, sinon rien » (transcriber) — sur TOUT
+        # champ chip=True du schéma, divergence OMISE, assiette `values_of` pour les JSON.
+        from wama.common.utils.card_chips import common_chips_for_items
+        params = [{'name': 'quality', 'type': 'range', 'chip': True, 'label': 'Qualité'},
+                  {'name': 'output_format', 'type': 'select', 'chip': True,
+                   'section': 'output', 'label': 'Format'}]
+        class _I:
+            def __init__(self, q, f): self.quality, self.output_format = q, f
+        memes = [_I(85, 'webp'), _I(85, 'webp')]
+        divergent = [_I(85, 'webp'), _I(60, 'webp')]
+        cc = common_chips_for_items(memes, params)
+        self.assertEqual([c['label'] for c in cc.get('settings') or []], ['Qualité 85'])
+        self.assertEqual([c['label'] for c in cc.get('output') or []], ['webp'])
+        cc2 = common_chips_for_items(divergent, params)
+        self.assertNotIn('settings', cc2, 'une valeur divergente ne produit AUCUN chip')
+        self.assertEqual(common_chips_for_items([], params), {})
 
     def test_le_gear_de_lot_recoit_son_ouvreur(self):
         # La brique commune tient le clic du ⚙ de card MÈRE et attend un ouvreur déclaré

@@ -502,7 +502,7 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
             dans le DOM : l'inspecteur ne pouvait pas le sélectionner et le nettoyage de lot vidé
             de `queue-actions.js` ne le trouvait pas non plus.{{% endcomment %}}
             <div class="batch-group mb-2" data-batch-id="{{{{ b.obj.id }}}}">
-            {{% include 'common/_batch_card.html' with batch_info=b card_class='job-card' meta_template='{app}/_batch_meta.html' eta_ids=b.eta_ids{lot_bits} %}}
+            {{% include 'common/_batch_card.html' with batch_info=b card_class='job-card' meta_template='common/_batch_meta_chips.html' eta_ids=b.eta_ids{lot_bits} %}}
             {{% comment %}}Convention Solitaire MESURÉE sur l'app réelle : filles REPLIÉES par
             défaut (état persisté par wama-queue.js — pas de `show` codé en dur), conteneur
             indenté `ps-2 pt-1`, cards filles avec `in_batch=True` (classe wcv3--batch-child =
@@ -704,17 +704,8 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
 </div>
 '''
     # Slot « méta communes aux filles » de la card mère — MÉCANISME DU PARC (`meta_template`
-    # de _batch_card.html ; transcriber : modèle/langue/diarisation via l'extra de
-    # build_batches_list). Ici les chips sont GÉNÉRÉS du schéma (mêmes que les filles,
-    # brique card_chips) sur les valeurs que TOUTES les filles partagent (calcul en vue).
-    meta = f'''{{% comment %}}{mark} — _batch_meta.html GÉNÉRÉ. Slot méta communes aux filles
-(_batch_card.html, paramètre meta_template — la jumelle ne le passait pas : card mère sans
-réglages, constat Fabien 31/08 « déjà acté et en place, juste à câbler »).{{% endcomment %}}
-{{% if batch_info.common_chips.settings or batch_info.common_chips.output %}}
-<div class="mt-1">
-  {{% include 'common/_card_chips.html' with chips=batch_info.common_chips.settings %}}
-  {{% include 'common/_card_chips.html' with chips=batch_info.common_chips.output %}}
-</div>
-{{% endif %}}
-'''
-    return {'index.html': src, '_generic_card.html': card, '_batch_meta.html': meta}, None
+    # de _batch_card.html ; pilote transcriber). Depuis la promotion du 31/08, le rendu est
+    # un PARTIAL COMMUN (`common/_batch_meta_chips.html`) et le calcul une BRIQUE
+    # (`card_chips.common_chips_for_items`) : le générateur n'émet plus de partial d'app —
+    # il passe le slot et la vue appelle la brique, comme n'importe quelle app portée.
+    return {'index.html': src, '_generic_card.html': card}, None

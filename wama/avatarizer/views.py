@@ -688,12 +688,17 @@ def _get_batches_list(user):
     """
     _auto_wrap_orphans(user)
     from wama.common.utils.batch_common import build_batches_list
+    from wama.common.utils.card_chips import common_chips_for_items
+    from wama.avatarizer.params import PARAMS_JSON as _AVA_PARAMS_JSON
     batches = build_batches_list(
         user,
         batch_model=BatchAvatarJob,
         work_attr='job',
         order_by='-created_at',
         has_output=lambda job: bool(job.output_video),
+        # Réglages COMMUNS aux filles de la card mère (slot meta_template — porté 31/08).
+        extra=lambda b, items, jobs: {
+            'common_chips': common_chips_for_items(jobs, _AVA_PARAMS_JSON)},
     )
     # (« batchs d'abord » RETIRÉ le 2026-08-26 : règle abandonnée le 2026-06-29 au profit du tri
     # de la barre commune — `apply_queue_sort_filter` (seul appelant, views.py:99) trie TOUJOURS,

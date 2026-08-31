@@ -128,7 +128,7 @@ Contexte : elem (AudioEnhancement, décorée .chips), in_batch (bool).
   La garde `not in_batch` est CONSERVÉE : un enfant de batch n'affiche pas de player.{% endcomment %}
   {% if elem.output_file and not in_batch %}
   {% url 'common:unified_preview' 'audio_enhancer' elem.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
   <div id="preview-row-{{ elem.id }}"></div>

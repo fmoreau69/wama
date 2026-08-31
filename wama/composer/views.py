@@ -83,12 +83,17 @@ def _get_batches_list(user):
     """Agrégats de file pour le template — brique commune (contrat toolbar queue_view.py)."""
     from wama.common.utils.batch_common import build_batches_list
     _auto_wrap_orphans(user)
+    from wama.common.utils.card_chips import common_chips_for_items
+    from wama.composer.params import PARAMS_JSON as _COMPOSER_PARAMS_JSON
     batches = build_batches_list(user, batch_model=ComposerBatch, work_attr='generation',
                                  order_by='-created_at',
                                  has_output=lambda g: bool(g.audio_output),
-                                 # ETA agrégée de la card mère (brique _batch_card.html)
+                                 # ETA agrégée + réglages COMMUNS aux filles de la card
+                                 # mère (slot meta_template — porté le 31/08).
                                  extra=lambda b, items, gens: {
-                                     'eta_ids': ','.join(str(g.id) for g in gens)})
+                                     'eta_ids': ','.join(str(g.id) for g in gens),
+                                     'common_chips': common_chips_for_items(
+                                         gens, _COMPOSER_PARAMS_JSON)})
     # Chips de card GÉNÉRÉS du schéma — même décoration que card_html.
     for b in batches:
         for link in b['items']:

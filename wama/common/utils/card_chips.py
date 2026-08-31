@@ -133,6 +133,43 @@ def input_props_for(instance, file_field='input_file', name=''):
     return props
 
 
+def common_chips_for_items(items, params_json, values_of=None):
+    """Chips des réglages COMMUNS aux filles d'un lot — pour la card MÈRE (slot
+    `meta_template` de `_batch_card.html`).
+
+    Généralisation du pilote transcriber (`views.py::_extra` : « valeur si partagée par
+    toutes les filles, sinon rien ») : au lieu d'une liste d'attributs écrite à la main
+    par app, la règle s'applique à TOUT champ `chip=True` du schéma. Portée au commun le
+    31/08 (audit : mécanisme présent chez 2 apps sur 10, calcul recopiable à l'identique).
+
+    Args:
+        items     : les éléments MÉTIER du lot (déjà décorés/aplatis si les réglages
+                    vivent en JSON — sinon passer `values_of`).
+        values_of : callable(item)->dict optionnel — assiette de valeurs par fille quand
+                    elles vivent dans un conteneur (ex. converter :
+                    `lambda j: {**(j.options or {}), **(j.cross_app_options or {})}`).
+
+    Returns: {'settings': […], 'output': […]} (mêmes sections que `chips_by_section`) —
+    vide si rien n'est partagé. La divergence est OMISE (pas de « Mixte ») : une card
+    mère liste ce qui est posé PARTOUT, le détail vit sur les filles.
+    """
+    items = list(items or [])
+    if not items:
+        return {}
+    noms = [f.get('name') for f in (params_json or []) if f.get('chip') and f.get('name')]
+    communs = {}
+    for n in noms:
+        vals = set()
+        for it in items:
+            src = values_of(it) if values_of else {}
+            vals.add(src[n] if n in src else getattr(it, n, None))
+        if len(vals) == 1:
+            v = vals.pop()
+            if v not in (None, ''):
+                communs[n] = v
+    return chips_by_section(None, params_json, values=communs) if communs else {}
+
+
 def chips_by_section(instance, params_json, extra=None, values=None):
     """Mêmes chips que `chips_for`, mais GROUPÉS par section de card v3 (CARD_DESIGN §11).
 

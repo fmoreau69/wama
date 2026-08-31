@@ -152,7 +152,7 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
   média par app (correction Fabien 18/08 — le markup à la main était hors-route).{% endcomment %}
   {% if job.status == 'SUCCESS' and job.output_file %}
   {% url 'common:unified_preview' 'converter' job.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ job.id }}"
+  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ job.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ job.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ job.id }}"></div>
   {% else %}
   <div id="preview-row-{{ job.id }}"></div>

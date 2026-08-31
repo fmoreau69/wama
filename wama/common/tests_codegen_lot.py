@@ -161,10 +161,12 @@ class CheminDeLotTest(SimpleTestCase):
         # (« valeur si partagée par toutes les filles ») mais dérivée du SCHÉMA, chips par
         # la brique commune — jamais une liste de champs écrite à la main.
         # IndexView est une classe (pas de _fonction) : assertions au texte du module.
-        self.assertIn('_communs', self.src)
-        self.assertIn('if len(_vs) == 1:', self.src)
+        # Depuis la promotion au COMMUN (31/08), le calcul est LA BRIQUE — plus de boucle
+        # inline (l'inline émis le matin même dupliquait la règle du pilote).
+        self.assertIn('common_chips_for_items as _ccfi', self.src)
         self.assertIn("'common_chips': _cc,", self.src)
-        self.assertIn('chips_by_section as _cbs', self.src)
+        self.assertNotIn('if len(_vs) == 1:', self.src,
+                         'la règle du pilote ne se réécrit pas inline — brique commune')
 
     def test_apps_genere_branche_l_invariant_batch_sync_en_fk_directe(self):
         """Trou A4 (audit 31/08) : sans `register_batch_sync(Item, direct_fk=True)`, le lot

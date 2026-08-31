@@ -147,7 +147,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
   serveur pourront être servis sans retoucher la card.{% endcomment %}
   {% if elem.audio_output %}
   {% url 'common:unified_preview' 'composer' elem.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
   <div id="preview-row-{{ elem.id }}"></div>

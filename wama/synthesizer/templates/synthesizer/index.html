@@ -210,7 +210,7 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
             {% for batch_info in batches_list %}
 
             {% url 'synthesizer:batch_download' batch_info.obj.id as batch_dl_url %}
-            {% include 'common/_queue_entry.html' with card_template='synthesizer/_synthesis_card.html' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='synthesizer' actions_communes=True confirm_duplicate="Dupliquer ce lot ? Les fichiers sources seront partages, les resultats effaces." %}
+            {% include 'common/_queue_entry.html' with card_template='synthesizer/_synthesis_card.html' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='synthesizer' actions_communes=True meta_template='common/_batch_meta_chips.html' confirm_duplicate="Dupliquer ce lot ? Les fichiers sources seront partages, les resultats effaces." %}
 
             {% endfor %}
 

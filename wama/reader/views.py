@@ -153,29 +153,16 @@ def _input_props(reading):
 
     Relevées sur le fichier déposé, jamais dérivées des réglages : type, poids, pagination.
     Équivalent reader du « mp3 · 44,1 kHz · stéréo · durée » de la maquette."""
-    import os
-    props = []
-
-    name = reading.filename or ''
-    ext = os.path.splitext(name)[1].lstrip('.').lower()
-    if ext:
-        props.append(ext)
-
+    # ADOPTION de la brique commune (31/08) — extraite d'ICI même (pilote), le corps local
+    # est retiré (dupliquer le pilote et la brique était la dérive garantie). L'axe propre
+    # au reader (pages) s'INSÈRE en position 1 : l'ordre HISTORIQUE de la card est
+    # ext · pages · poids — l'insertion « en tête » aurait changé l'affichage du pilote
+    # (réserve levée à l'audit du 31/08 avant adoption).
+    from wama.common.utils.card_chips import input_props_for
+    props = input_props_for(reading, 'input_file', reading.filename or '')
     pages = getattr(reading, 'page_count', 0) or 0
     if pages:
-        props.append(f"{pages} page" + ('s' if pages > 1 else ''))
-
-    try:
-        size = reading.input_file.size if reading.input_file else 0
-    except (OSError, ValueError):
-        size = 0          # fichier absent du disque (purge, tiering) — la card reste lisible
-    if size >= 1048576:
-        props.append(f"{size / 1048576:.1f} Mo")
-    elif size >= 1024:
-        props.append(f"{size // 1024} Ko")
-    elif size:
-        props.append(f"{size} o")      # sinon un fichier <1 Ko s'affichait « 0 Ko »
-
+        props.insert(1 if props else 0, f"{pages} page" + ('s' if pages > 1 else ''))
     return props
 
 
@@ -243,6 +230,8 @@ class IndexView(View):
         from wama.common.utils.batch_common import build_batches_list
 
         def _extra(batch, items, readings):
+            from wama.common.utils.card_chips import common_chips_for_items as _ccfi
+            from wama.reader.params import PARAMS_JSON as _RD_PARAMS_JSON
             success_count = sum(1 for r in readings if r.status == 'SUCCESS')
             first = readings[0] if readings else None
             for r in readings:
@@ -254,6 +243,9 @@ class IndexView(View):
                 'first_language': first.language if first else '',
                 # ETA agrégée de la card mère (brique _batch_card.html)
                 'eta_ids': ','.join(str(r.id) for r in readings),
+                # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08 ;
+                # readings déjà décorées ci-dessus, attributs à jour).
+                'common_chips': _ccfi(readings, _RD_PARAMS_JSON),
             }
 
         # Réconcilie les tâches RUNNING orphelines (worker mort/crash) — brique COMMUNE,

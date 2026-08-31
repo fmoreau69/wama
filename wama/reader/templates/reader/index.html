@@ -203,7 +203,7 @@ window._batchImport = WamaBatchImport({
     <div id="queueContainer" class="wama-queue-{{ card_layout|default:'list' }}">
         {% for batch_info in batches_list %}
 
-        {% include 'common/_queue_entry.html' with card_template='reader/_item_card.html' card_class='reader-card' download_menu_template='reader/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='reader' actions_communes=True %}
+        {% include 'common/_queue_entry.html' with card_template='reader/_item_card.html' card_class='reader-card' download_menu_template='reader/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='reader' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
 
         {% empty %}
         <div id="emptyState" class="text-center text-secondary py-5">
