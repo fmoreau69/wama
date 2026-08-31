@@ -1,4 +1,4 @@
-import os, logging, socket, mimetypes, sys
+import os, logging, socket, mimetypes, sys, warnings
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -483,9 +483,72 @@ USE_TZ = True
 LOGIN_URL = '/'  # Rediriger vers la page d'accueil au lieu de /accounts/login/
 LOGIN_REDIRECT_URL = '/anonymizer/'  # Après login, aller vers Anonymizer
 
+# ⚠ UNE SAISIE FAUTIVE NE DOIT PAS EMPÊCHER WAMA DE DÉMARRER (durci le 31/08 en
+# revérification). Un `int()` nu tue l'IMPORT des settings : le site ne démarre plus, et la
+# trace ne nomme pas la variable fautive. Or ces valeurs se saisissent à la main dans `.env`,
+# souvent à distance. On dégrade vers le défaut EN LE DISANT, plutôt que de tomber.
+# ⚠ Défini AVANT ses appelants : la 1ʳᵉ version le posait 20 lignes plus bas, ce qui levait
+# un `NameError` à l'import — un défaut qu'aucun test unitaire n'aurait vu (les settings sont
+# déjà chargés quand un test tourne), seulement `manage.py check`.
+def _entier_env(nom: str, defaut: int = 0) -> int:
+    """Entier lu de l'environnement ; valeur invalide → défaut + avertissement."""
+    brut = (os.environ.get(nom, '') or '').strip()
+    if not brut:
+        return defaut
+    try:
+        return int(brut)
+    except ValueError:
+        warnings.warn(f"{nom}={brut!r} n'est pas un entier — valeur ignorée "
+                      f"(défaut {defaut}).", RuntimeWarning)
+        return defaut
+
+
 # Session configuration
-SESSION_COOKIE_AGE = 86400 * 7  # 7 jours (en secondes)
-# SESSION_SAVE_EVERY_REQUEST = True  # Renouveler la session à chaque requête
+#: Durée de vie historique d'une session WAMA quand l'auto-déconnexion est désactivée.
+SESSION_AGE_PAR_DEFAUT = 86400 * 7  # 7 jours (en secondes)
+
+
+def _politique_session_inactivite(minutes: int):
+    """
+    (SESSION_COOKIE_AGE, SESSION_SAVE_EVERY_REQUEST) pour N minutes d'INACTIVITÉ.
+
+    `0` (défaut) rend EXACTEMENT la politique historique — 7 jours, sans renouvellement.
+    C'est ce qui permet de livrer le mécanisme sans changer le comportement : il ne
+    s'active qu'en posant une valeur, et il se désactive en la retirant.
+
+    Au-delà de 0, l'expiration devient **GLISSANTE** et non absolue : `SESSION_COOKIE_AGE`
+    borne l'inactivité, et `SESSION_SAVE_EVERY_REQUEST` repousse l'échéance à chaque
+    requête. C'est la sémantique voulue par « auto-déconnexion » — une session ABANDONNÉE
+    meurt, un utilisateur actif n'est jamais interrompu au milieu d'un travail.
+
+    Fonction plutôt qu'un `if` en ligne pour qu'elle soit TESTABLE : le seul défaut qui
+    compte ici est « la valeur par défaut a changé quelque chose », et il ne se voit pas à
+    la lecture (cf. `accounts/tests_session_policy.py`).
+    """
+    if minutes and minutes > 0:
+        return minutes * 60, True
+    return SESSION_AGE_PAR_DEFAUT, False
+
+
+#: Minutes d'inactivité avant déconnexion automatique. **0 = désactivé** (défaut assumé :
+#: WAMA sert en interne + VPN). Passer à 30/60 suffit à l'activer — rien d'autre à toucher.
+#:
+#: ⚠⚠ DEUX LIMITES À CONNAÎTRE AVANT DE L'ACTIVER, sans quoi on croira qu'elle protège :
+#:  1. **Les POLLERS la neutralisent.** Une page de file laissée ouverte interroge le
+#:     serveur toutes les ~1,2 s dès qu'une card n'est pas en SUCCESS
+#:     (`anonymizer/js/queue.js` et ses jumelles) : ces requêtes comptent comme de
+#:     l'activité, donc la session ne s'éteint JAMAIS sur cet écran. Un poste laissé sur
+#:     une file reste connecté indéfiniment — exactement le cas que l'inactivité visait.
+#:     Le traiter demanderait de distinguer activité HUMAINE et trafic de fond (en-tête
+#:     sur les requêtes de polling + middleware qui ne repousse pas l'échéance) : c'est un
+#:     chantier, pas un réglage. À faire AVANT de compter sur ce mécanisme.
+#:  2. **Coût** : `SESSION_SAVE_EVERY_REQUEST` écrit la session à CHAQUE requête, et le
+#:     backend de session est celui par défaut (base de données) — donc une écriture SQL
+#:     par requête, polling compris. À surveiller si la valeur est activée.
+WAMA_SESSION_IDLE_MINUTES = _entier_env('WAMA_SESSION_IDLE_MINUTES', 0)
+SESSION_COOKIE_AGE, SESSION_SAVE_EVERY_REQUEST = _politique_session_inactivite(
+    WAMA_SESSION_IDLE_MINUTES)
+
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # La session persiste même après fermeture du navigateur
 SESSION_COOKIE_HTTPONLY = True  # Protection contre XSS
 SESSION_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
@@ -499,7 +562,16 @@ SESSION_COOKIE_NAME = 'wama_sessionid'  # Nom personnalisé pour éviter les con
 #     proxy — sans lui Django refuse TOUT POST en 403, login compris, sans rien expliquer.
 WAMA_PUBLIC_URL = (os.environ.get('WAMA_PUBLIC_URL', '') or '').strip().rstrip('/')
 if WAMA_PUBLIC_URL:
-    CSRF_TRUSTED_ORIGINS = [WAMA_PUBLIC_URL]
+    # ⚠ Django EXIGE le schéma dans `CSRF_TRUSTED_ORIGINS` (`ImproperlyConfigured` sinon,
+    # à l'import). Une adresse saisie « wama.exemple.fr » sans `https://` est l'erreur
+    # naturelle : on la refuse ici, en le disant, au lieu de faire tomber le site.
+    if WAMA_PUBLIC_URL.startswith(('http://', 'https://')):
+        CSRF_TRUSTED_ORIGINS = [WAMA_PUBLIC_URL]
+    else:
+        warnings.warn(
+            f"WAMA_PUBLIC_URL={WAMA_PUBLIC_URL!r} n'a pas de schéma (http:// ou https://) : "
+            "CSRF_TRUSTED_ORIGINS non posé, et le QR d'appariement produira une URL "
+            "inutilisable. Corrigez la valeur dans .env.", RuntimeWarning)
 
 # Bascule HTTPS — TOUT est à OFF par défaut, et ce défaut est un choix : WAMA sert
 # aujourd'hui en http (interne + VPN). ⚠ Un réglage « sécurisé » posé AVANT le HTTPS
@@ -519,7 +591,7 @@ if WAMA_HTTPS:
 # ÉPROUVÉ. ⚠ Le navigateur MÉMORISE l'instruction pour toute la durée annoncée : posé sur
 # une instance dont le certificat casse ensuite, il rend WAMA inaccessible et l'utilisateur
 # ne peut PAS passer outre. Commencer petit (300) avant d'envisager un an. 0 = désactivé.
-SECURE_HSTS_SECONDS = int(os.environ.get('WAMA_HSTS_SECONDS', '0') or 0)
+SECURE_HSTS_SECONDS = _entier_env('WAMA_HSTS_SECONDS', 0)
 
 # Fichiers statiques et médias
 STATIC_URL = '/static/'

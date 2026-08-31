@@ -1436,7 +1436,19 @@ def reset_user_settings(request):
         }
         return JsonResponse({"success": True, "settings": settings_data})
     else:
-        return redirect(request.POST.get('next', '/'))
+        # ⚠ `next` vient du CLIENT : validé avant redirection, comme dans `login_view`
+        # (2026-08-31). C'est le JUMEAU que « une garde se pose avec ses jumeaux »
+        # demandait de traiter dans le même geste : les deux seuls consommateurs de `next`
+        # du dépôt sont cette vue et le login, et seul le second était gardé. Peu
+        # atteignable (le test `is_ajax` capture déjà les POST de formulaire courants),
+        # mais une garde ne se pose pas « là où c'est atteignable » — sinon elle se
+        # redécouvre le jour où un appelant change de Content-Type.
+        from django.utils.http import url_has_allowed_host_and_scheme
+        cible = request.POST.get('next', '')
+        if not url_has_allowed_host_and_scheme(cible, allowed_hosts={request.get_host()},
+                                               require_https=request.is_secure()):
+            cible = '/'
+        return redirect(cible)
 
 
 

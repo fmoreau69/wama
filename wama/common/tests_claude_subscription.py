@@ -87,10 +87,11 @@ class LaGardeEstAuPassageObligeTests(TestCase):
 class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
     """
     ⚠ Le défaut que ces tests empêchent de revenir (trouvé le 2026-08-31 en écrivant la
-    ligne d'UI) : `views.home` calcule `is_admin` avec **`is_staff`** — un TROISIÈME
-    vocabulaire de rôle, différent de la garde. Gater l'option dessus faisait diverger
-    l'écran de la garde DANS LES DEUX SENS : un membre du groupe `dev` autorisé par le
-    moteur sans jamais voir l'option, et un compte `is_staff` voyant une option refusée.
+    ligne d'UI, CORRIGÉ depuis) : `views.home` reposait alors `is_admin` avec **`is_staff`**
+    — un TROISIÈME vocabulaire de rôle, différent de la garde. Gater l'option dessus aurait
+    fait diverger l'écran de la garde DANS LES DEUX SENS : un membre du groupe `dev`
+    autorisé par le moteur sans jamais voir l'option, et un compte `is_staff` voyant une
+    option refusée. (La vue ne repose plus la clé ; le context processor la fournit.)
 
     « Deux mesures qui ne répondent pas à la même question ne divergent pas » : ici, elles
     doivent répondre à la MÊME — d'où `abonnement_visible`, calculé par le prédicat unique.

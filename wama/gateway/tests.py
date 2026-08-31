@@ -16,7 +16,6 @@ Aucun réseau, aucun LLM, aucune charge GPU : le moteur d'assistant est remplac�
 double, et aucun adaptateur de canal n'est instancié.
 """
 
-import os
 import tempfile
 from datetime import timedelta
 from unittest.mock import patch
@@ -221,23 +220,27 @@ class QrAppariementTests(TestCase):
         return core.handle_message(core.IncomingMessage(
             channel=CANAL, external_id=EXT_ID, text='!lier'))
 
+    @override_settings(WAMA_PUBLIC_URL='')
     def test_sans_url_publique_le_code_part_seul(self):
-        # Un QR pointant sur localhost échouerait sur le smartphone en accusant le
-        # mécanisme : sans WAMA_PUBLIC_URL, le comportement historique est conservé.
-        with patch.dict(os.environ):
-            os.environ.pop('WAMA_PUBLIC_URL', None)
-            reponse = self._lier()
+        """Un QR pointant sur localhost échouerait sur le smartphone en accusant le
+        mécanisme : sans URL publique, le comportement historique est conservé.
+
+        ⚠ `override_settings`, PAS `os.environ` : la 1ʳᵉ version vidait l'environnement
+        alors que `pairing_url` lisait `settings` en repli — le test était vert par
+        accident et serait devenu ROUGE dès qu'on renseigne la variable pour de bon.
+        Un test doit agir sur la source que le code lit VRAIMENT."""
+        reponse = self._lier()
         self.assertEqual(reponse.attachments, [])
         lien = ChannelLink.objects.get(channel=CANAL, external_id=EXT_ID)
         self.assertIn(lien.code, reponse.text)
 
+    @override_settings(WAMA_PUBLIC_URL='https://wama.exemple.fr')
     def test_avec_url_publique_un_qr_scannable_accompagne_le_code(self):
         import cv2
         import numpy as np
         from django.urls import reverse
 
-        with patch.dict(os.environ, {'WAMA_PUBLIC_URL': 'https://wama.exemple.fr/'}):
-            reponse = self._lier()
+        reponse = self._lier()
         self.assertTrue(reponse.private, "le QR est aussi secret que le code")
         self.assertEqual(len(reponse.attachments), 1)
 
@@ -251,10 +254,10 @@ class QrAppariementTests(TestCase):
             contenu,
             f"https://wama.exemple.fr{reverse('accounts:profile')}?link_code={lien.code}")
 
+    @override_settings(WAMA_PUBLIC_URL='https://wama.exemple.fr')
     def test_le_qr_absent_ne_prive_jamais_du_code(self):
         """Le QR est un confort, jamais le chemin : segno cassé → le code texte part."""
-        with patch.dict(os.environ, {'WAMA_PUBLIC_URL': 'https://wama.exemple.fr'}), \
-             patch('wama.common.utils.qr.qr_png', side_effect=RuntimeError('boum')):
+        with patch('wama.common.utils.qr.qr_png', side_effect=RuntimeError('boum')):
             reponse = self._lier()
         self.assertEqual(reponse.attachments, [])
         lien = ChannelLink.objects.get(channel=CANAL, external_id=EXT_ID)

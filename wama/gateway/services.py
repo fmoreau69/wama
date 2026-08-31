@@ -77,17 +77,21 @@ def pairing_url(code: str) -> str:
     Encoder un lien qui connecterait le scanneur inverserait « le canal propose,
     WAMA dispose » — c'est le détournement type QRLjacking, interdit ici.
 
-    Vide si l'URL publique de l'instance n'est pas déclarée (`WAMA_PUBLIC_URL`,
-    env ou settings — même patron que le jeton du bot) : un QR pointant sur
+    Vide si l'URL publique de l'instance n'est pas déclarée : un QR pointant sur
     localhost échouerait sur le smartphone en accusant le mécanisme, pas la config.
-    """
-    import os
 
+    ⚠ LIT `settings.WAMA_PUBLIC_URL` ET RIEN D'AUTRE — surtout pas `os.environ` en plus.
+    La première version faisait les deux (`environ or settings`), ce qui recréait ici le
+    second domicile que `settings.py` déclare justement vouloir empêcher, et produisait un
+    défaut mesurable : le test « sans URL publique, le code part seul » vidait `os.environ`
+    et passait au vert, alors que `settings` gardait la valeur — il serait devenu ROUGE
+    au moment précis où l'on renseigne la variable, c'est-à-dire au geste suivant prévu.
+    *Une duplication ne se paie pas quand on l'écrit, mais au premier changement d'état.*
+    """
     from django.conf import settings
     from django.urls import reverse
 
-    base = (os.environ.get('WAMA_PUBLIC_URL') or getattr(
-        settings, 'WAMA_PUBLIC_URL', '') or '').strip().rstrip('/')
+    base = (getattr(settings, 'WAMA_PUBLIC_URL', '') or '').strip().rstrip('/')
     if not base:
         return ''
     return f"{base}{reverse('accounts:profile')}?link_code={code}"

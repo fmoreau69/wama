@@ -2472,6 +2472,16 @@ et le lien « S'identifier » de l'accueil (`LOGIN_URL='/'`) perdait le `?next=`
 anti-redirection ouverte (`url_has_allowed_host_and_scheme`, hôte courant seul) posée dans
 le MÊME geste — ouvrir le fil `next` sans elle aurait créé un redirecteur ouvert au moment
 où le QR met des liens profonds en circulation. 4 tests : `accounts/tests_login_next.py`.
+↳ ⚠ **RECTIFIÉ le 31/08 (revue de session)** : il était écrit ici que la trajectoire du QR se
+perdait au lien « S'identifier » de l'accueil. **Faux — mauvaise maille.** Ce lien n'est rendu
+que par `clearChatHistory()` (donc après un clic « Effacer ») ; au chargement, c'est un
+placeholder codé en dur qui s'affiche. La maille porteuse est la **modale de login**, ouverte
+automatiquement par la présence de `?next=`, dont le champ caché faisait partie des 3 corrigés.
+La réparation était juste, l'explication non — *et c'est l'explication qu'on relit.*
+↳ **Jumeau traité le 31/08** : `anonymizer/views.py::reset_user_settings` est le SEUL autre
+consommateur de `next` du dépôt (balayage exhaustif) et n'avait **aucune** garde. Il a reçu la
+même — c'est ce que « une garde se pose avec ses jumeaux » demandait, et qui manquait au geste
+initial.
 
 **⏳ Reste :**
 - **Store de conversation** — le prochain vrai morceau (voir §19.5) : l'historique est
@@ -2685,14 +2695,19 @@ polling. À faire dès que l'appariement d'identité existe.
   - ⚠ **Le CLI est un binaire Windows** (`~/.local/bin/claude.exe`) alors que Django tourne
     dans WSL2. L'interop le lance, mais **seulement avec un environnement propre** — sinon
     l'appel meurt sur `C:/Program: No such file or directory`. Même correctif que ci-dessus.
-  - ⚠⚠ **Coût de base élevé** : « réponds uniquement OK » → `total_cost_usd ≈ 0,99` en 3,3 s,
-    parce que Claude Code charge le **contexte du projet** (CLAUDE.md + arborescence) à chaque
-    invocation. Le coût dépend donc du **dépôt**, pas de la longueur de la question : réserver
-    l'outil aux tâches qui valent ce contexte (audit, cartographie), pas au bavardage.
+  - ~~⚠⚠ **Coût de base élevé** : « réponds uniquement OK » → `total_cost_usd ≈ 0,99`, le
+    contexte du projet étant rechargé à chaque invocation ; le coût dépend du dépôt, pas de la
+    question.~~ **RÉFUTÉ par la mesure du 31/08 — voir le tableau A/B/C plus bas.** Ce chiffre
+    est le cas FROID : le cache de prompt traverse les invocations, et le régime courant est
+    à ~0,03 $. ⚠ Cette puce est restée vraie-en-apparence dix jours et a servi d'argument
+    CONTRE l'ajout d'un fournisseur, six lignes avant qu'on l'ajoute — *barrer un fait réfuté
+    ne suffit pas s'il reste lisible comme un fait ; c'est pour ça qu'il est barré ET renvoyé.*
   - Sécurité : **lecture seule par défaut** (`Read/Grep/Glob`) ; `write=True` sur intention
-    explicite ; garde **écrite dans le corps de la fonction** et non dans le gating d'app (un
-    outil sans app est autorisé à tous) ; les **deux vocabulaires de rôle** sont acceptés
-    (groupes `dev`/`developpeur`, tiers `developpeur`/`admin` — homonymes trompeurs).
+    explicite ; garde **appelée dans le corps de la fonction** et non dans le gating d'app (un
+    outil sans app est autorisé à tous) ; **trois** vocabulaires de rôle coexistent et le
+    prédicat les accepte tous (groupes `dev`/`admin`/`developpeur`, tiers `developpeur`/`admin`,
+    plus `is_staff` — cf. §8.9.2bis de `PROFILES_PERMISSIONS.md`). Domicile unique du prédicat :
+    `claude_code.subscription_allowed`.
 - **Contexte historique — VÉRIFIÉ POSSIBLE le 2026-08-20** (ça ne l'était pas lors du premier examen) :
   depuis juin 2026, l'usage programmatique par le titulaire de l'abonnement est supporté et
   couvert par les CGU, avec un crédit mensuel dédié qui n'entame pas l'usage interactif.
@@ -2709,16 +2724,18 @@ et il n'est écrit NULLE PART dans l'UI** :
 
 | Surface | Chemin réel vers l'abonnement | État |
 |---|---|---|
-| Menu « Provider » de l'assistant (`home.html:750-751`) | **aucun** — 2 entrées : `wama-dev-ai (Local/Ollama)` et `claude (Anthropic API)` | pas de ligne « abonnement » |
+| Menu « Provider » de l'assistant | **aucun À CE MOMENT-LÀ** — 2 entrées : `wama-dev-ai (Local/Ollama)` et `claude (Anthropic API)` | ✅ **corrigé le jour même** : 3ᵉ entrée `claude-abo`, gatée |
 | Assistant web ET Discord | l'outil `ask_claude_code` (`tool_api.py:2457`), appelé par le modèle | ✅ fonctionne, gardé dev/admin |
 | Passerelle Discord | `core.py` appelle `conversation_turn()` **sans provider** → défaut `wama-dev-ai` | c'est le modèle **LOCAL** qui doit décider d'appeler l'outil |
 
 - ⚠ **Ce n'est PAS un oubli de câblage, c'est la doctrine du module** : `claude_code.py`
   énonce en tête qu'il n'est **pas un fournisseur de plus** (ni LiteLLM, ni `llm_chat`) mais
-  un OUTIL qui apporte des capacités que WAMA n'a pas (lecture du dépôt, recherche). En
-  faire une ligne de provider ferait passer **tout** le bavardage par un appel à ~0,99 $
-  d'équivalent-API (le contexte projet est rechargé à CHAQUE invocation, mesuré le 21/08),
-  plancher ~3,3 s, plafond 900 s, et le bug de refresh OAuth au-delà.
+  un OUTIL qui apporte des capacités que WAMA n'a pas (lecture du dépôt, recherche).
+  ⚠ **L'argument de coût qui suivait ici est TOMBÉ** : il disait qu'en faire un provider
+  ferait passer tout le bavardage par un appel à ~0,99 $. La mesure du 31/08 (plus bas) le
+  réfute — c'est ~0,03 $ à cache chaud. Ce qui reste vrai est le plancher de latence
+  (~3,3 s), le plafond de 900 s et le bug de refresh OAuth. **La décision (b) a donc été
+  prise APRÈS que son principal contre-argument soit tombé, pas malgré lui.**
 - 🔴 **Le trou RÉEL était d'ERGONOMIE** : rien dans l'UI ne disait que cet outil existe, et
   en Discord c'est un **petit modèle local** qui devait choisir de l'appeler — jamais mesuré.
 

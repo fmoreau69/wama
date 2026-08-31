@@ -324,9 +324,13 @@ def _claude_code_call(messages: list) -> tuple:
        pour amortir ce coût et **réfuté** : la session reprise construit un préfixe différent
        et rate le cache partagé (0,39 $, soit douze fois un appel frais à cache chaud).
 
-    ⚠ Les outils WAMA ne sont PAS disponibles par ce chemin : Claude Code répond avec SES
-    outils à lui (lecture du dépôt), et rend un texte final. Un « ajoute ce fichier à
-    l'imager » n'aboutira donc pas ici — c'est le fournisseur local ou `claude` qu'il faut.
+    ⚠ DEUX jeux d'outils se superposent sur ce chemin, et c'est à connaître. La boucle
+    agentique de `run_assistant_turn` reste CÂBLÉE pour tous les fournisseurs — le prompt
+    d'outils est injecté et un appel émis serait exécuté. Mais Claude Code a DÉJÀ tourné sa
+    propre boucle (avec SES outils : lecture du dépôt) et rend un texte final ; rien ne
+    garantit qu'il émette en plus le format d'appel attendu par WAMA. Un « ajoute ce fichier
+    à l'imager » est donc à adresser au fournisseur local ou `claude`, non parce que les
+    outils manquent, mais parce que ce chemin-ci n'est pas fait pour eux.
     """
     from wama.common.services.claude_code import ClaudeCodeIndisponible, demander
 
@@ -600,7 +604,11 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
 
     etiquette = f"wama-dev-ai ({llm_model})" if local else f"{provider} ({llm_model or 'défaut'})"
     tool_steps = []
-    total_usage = {'input_tokens': 0, 'output_tokens': 0}
+    # `cost_usd` accumulé aussi : sans lui, l'équivalent-API rendu par le chemin abonnement
+    # était calculé puis JETÉ (mesuré le 31/08 en revérification) — la docstring de
+    # `_claude_code_call` promettait de le remonter, aucune surface ne pouvait l'afficher.
+    # Reste à 0 pour les autres fournisseurs, qui ne rapportent pas de coût.
+    total_usage = {'input_tokens': 0, 'output_tokens': 0, 'cost_usd': 0.0}
     MAX_TOOL_ITERATIONS = 5
 
     for _ in range(MAX_TOOL_ITERATIONS):
@@ -611,6 +619,7 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
         # Accumulate token usage
         total_usage['input_tokens']  += result.get('input_tokens', 0)
         total_usage['output_tokens'] += result.get('output_tokens', 0)
+        total_usage['cost_usd']      += result.get('cost_usd') or 0.0
 
         # Detect tool call in response
         tool_call = _parse_tool_call(text) if user else None

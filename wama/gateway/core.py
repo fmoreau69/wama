@@ -168,19 +168,25 @@ def _handle(msg: IncomingMessage) -> Reply:
     # on ne la réimplémente pas ici — une garde recopiée est une garde qui dérive.
     if commande == '!code':
         question = texte[len('!code'):].strip()
+        # ⚠ `private=True` sur TOUTES les issues de ce geste (aligné sur `!lier`/`!delier`) :
+        # une réponse sur le CODE du dépôt n'a pas à être publiée dans un salon partagé, et
+        # un refus « réservé aux développeurs » annonce publiquement qui n'a pas le droit.
         if not question:
-            return Reply(text="Usage : `!code <votre question sur le dépôt>`\n"
+            return Reply(private=True,
+                         text="Usage : `!code <votre question sur le dépôt>`\n"
                               "_Exemple : `!code où est décidé le nom d'un fichier de sortie ?`_")
         from wama.tool_api import ask_claude_code
         resultat = ask_claude_code(user, question)
         if 'error' in resultat:
-            return Reply(text=f"⛔ {resultat.get('detail') or resultat['error']}")
+            return Reply(private=True,
+                         text=f"⛔ {resultat.get('detail') or resultat['error']}")
         cout = resultat.get('cost_usd')
         # Le coût est AFFICHÉ : ce chemin n'est pas gratuit en crédit mensuel, et un chemin
         # dont on ne voit jamais le prix finit par être pris pour du bavardage.
         pied = (f"\n\n_~{cout:.3f} $ d'équivalent-API imputés à l'abonnement "
                 f"(cache chaud ≈ 0,03 $, froid ≈ 0,5 $)._") if cout else ''
-        return Reply(text=f"{resultat.get('response') or '(réponse vide)'}{pied}")
+        return Reply(private=True,
+                     text=f"{resultat.get('response') or '(réponse vide)'}{pied}")
 
     # ── Pièces jointes → espace WAMA de l'utilisateur ────────────────────────────
     deposes = _store_attachments(user, msg.attachments)

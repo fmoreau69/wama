@@ -133,9 +133,17 @@
             <p class="small mt-2 text-muted">Ex : "Liste mes fichiers temporaires" · "Ajoute biovam.mp4 à l'anonymizer avec SAM3" · "Lance le traitement"</p>
             {% else %}
             {% comment %}LOGIN_URL = '/' : c'est ICI qu'atterrit un @login_required anonyme,
-            avec `?next=<cible>`. Ce lien doit le transmettre à la page de login, sinon le
-            fil casse à cette maille (mesuré le 2026-08-31 : la trajectoire du QR
-            d'appariement se perdait exactement là).{% endcomment %}
+            avec `?next=<cible>`. Ce lien le transmet donc à la page de login, sinon le fil
+            casserait à cette maille.
+            ⚠ RECTIFIÉ le 2026-08-31 (revue de session) : j'avais écrit que « la trajectoire
+            du QR se perdait exactement là ». FAUX — ce bloc n'est rendu que par
+            `clearChatHistory()`, donc après un clic sur « Effacer » ; au CHARGEMENT c'est le
+            placeholder codé en dur plus bas qui s'affiche, sans ce lien. La maille qui porte
+            réellement la trajectoire du QR est la MODALE de login, ouverte automatiquement
+            par la présence de `?next=` (plus haut dans ce fichier), dont le champ caché a été
+            corrigé en même temps. Ce lien-ci reste un chemin réel — mais secondaire.
+            *Réparer la bonne chose pour la mauvaise raison laisse une explication fausse
+            derrière soi, et c'est elle qu'on relira.*{% endcomment %}
             <p class="small mt-2"><a href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">S'identifier</a></p>
             {% endif %}
           </div>`;
@@ -754,9 +762,10 @@
                     Fournisseur ABONNEMENT — visible pour les seuls admins/devs (garde
                     RÉELLE côté serveur : `run_assistant_turn`, passage obligé des 3
                     surfaces ; ce test ne fait que cacher, il ne protège rien).
-                    ⚠ `abonnement_visible` et NON `is_admin` : ce dernier vaut `is_staff`
-                    ici, un TROISIÈME vocabulaire de rôle qui aurait fait diverger l'écran
-                    de la garde dans les deux sens (cf. views.home).
+                    ⚠ `abonnement_visible` et NON `is_admin` : l'abonnement est ouvert plus
+                    LARGEMENT que l'administration (groupes dev/developpeur, tiers de
+                    profil). Utiliser `is_admin` ferait diverger l'écran de la garde dans
+                    les deux sens ; la visibilité vient donc du prédicat de la garde.
                     ⚠ Les DEUX libellés Claude disent leur FACTURATION : c'est tout ce qui
                     les distingue à l'écran, et les confondre coûte soit de l'argent réel,
                     soit du crédit mensuel. Le libellé disait « ~1 $/message » jusqu'à la
