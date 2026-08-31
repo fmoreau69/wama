@@ -255,9 +255,66 @@ def _clean_text_for_tts(text: str) -> str:
     text = re.sub(r'^[ \t]*\|?[ \t:|-]{3,}\|?[ \t]*$', '', text, flags=re.M)  # séparateurs de table
     text = text.replace('|', ' ')                               # cellules de table
     text = re.sub(r'[#*`_>~]', '', text)                        # marqueurs Markdown
+    text = _rendre_audible(text)
     text = re.sub(r'[ \t]{2,}', ' ', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
+
+
+#: Ponctuation qui porte déjà une respiration — ne pas en ajouter une seconde.
+#: ⚠ `)`, `»` et les guillemets en sont VOLONTAIREMENT absents : ils ferment une incise, ils
+#: ne terminent pas une phrase. « …nettoyage vocal) » s'enchaînait donc sur l'item suivant —
+#: le défaut même qu'on corrige. On ponctue APRÈS la fermeture : « …nettoyage vocal). »
+_FIN_PONCTUEE = '.,;:!?…'
+
+
+def _rendre_audible(text: str) -> str:
+    """
+    Traduit la MISE EN FORME VISUELLE en respirations audibles.
+
+    Le nettoyage ci-dessus rendait le texte *prononçable* (plus d'emoji verbalisé, plus de
+    tuyaux de tableau) ; il ne le rendait pas *écoutable*. Une liste à puces reste une
+    succession de fragments SANS ponctuation : le moteur les enchaîne d'un trait et
+    l'auditeur perd le fil (constaté par Fabien le 2026-08-31 sur le descriptif de WAMA lu
+    par Kokoro — cinq sections, quinze items, aucune pause).
+
+    ⚠ Le saut de ligne n'est PAS une pause pour un moteur TTS : ni Kokoro (espeak/misaki) ni
+    XTTS n'en font une — seule la PONCTUATION en produit une. C'est tout le sujet : on ne
+    reformule pas, on rend audible ce que l'œil lisait dans la disposition.
+
+    Quatre gestes, tous réversibles à la lecture :
+      • marqueur de puce en tête de ligne retiré (« - » se prononce « moins ») ;
+      • fin de ligne non ponctuée → point : c'est LA pause qui manquait ;
+      • « / » entre deux mots → « ou » (« audio/vidéo » se dit « audio barre oblique vidéo ») ;
+      • « & » → « et » ;
+      • tiret ISOLÉ en incise (« via Celery - vous recevrez ») → virgule : espeak le prononce
+        « moins » ou l'avale, alors qu'il porte visuellement une respiration. Le tiret COLLÉ
+        d'un mot composé (« arrière-plan ») n'est pas touché — c'est l'espacement qui distingue
+        les deux.
+    Une ligne déjà ponctuée (dont un titre en « : ») est laissée intacte.
+    """
+    text = re.sub(r'(?<=[\w])\s*&\s*(?=[\w])', ' et ', text)
+    # `/` entre deux MOTS seulement : préserve les dates, fractions et chemins résiduels.
+    text = re.sub(r'(?<=[^\W\d_])\s*/\s*(?=[^\W\d_])', ' ou ', text)
+
+    lignes = []
+    for ligne in text.split('\n'):
+        nue = ligne.strip()
+        if not nue:
+            lignes.append('')
+            continue
+        # Puce de tête : tiret, astérisque, point médian, tirets longs.
+        nue = re.sub(r'^[-*•·–—]+\s+', '', nue).strip()
+        # Tiret d'incise → virgule. ⚠ DANS la boucle, et sur [ \t] SEULEMENT : écrit
+        # `\s+` et appliqué au texte entier, il traversait les SAUTS DE LIGNE et fusionnait
+        # toute la liste en une phrase (mesuré au test — la « correction » était pire que
+        # le défaut). Une classe d'espaces qui inclut `\n` n'a rien à faire dans une règle
+        # qui raisonne sur la LIGNE.
+        nue = re.sub(r'(?<=\S)[ \t]+[-–—][ \t]+(?=\S)', ', ', nue)
+        if nue and nue[-1] not in _FIN_PONCTUEE:
+            nue += '.'
+        lignes.append(nue)
+    return '\n'.join(lignes)
 
 
 def _tts_via_service(text: str, voice: str):
