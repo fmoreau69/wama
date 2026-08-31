@@ -864,7 +864,11 @@
     // ── Save current modal settings as a profile ──────────────────────────────
 
     document.getElementById('jobSettingsSaveProfileBtn')?.addEventListener('click', () => {
-        const { output_format, options } = readModalForm();
+        // ⚠ readModalViaSchema, PAS readModalForm : l'ancienne lisait des [data-key] que
+        // WamaParams n'émet pas (0 occurrence) → output_format toujours vide → toast
+        // « Format de sortie requis » systématique. « Sauver comme profil » était MORT à
+        // l'usage depuis le passage à WamaParams (bug confirmé à l'audit du 2026-08-31).
+        const { output_format, options } = readModalViaSchema();
         if (!output_format) {
             WamaApp.toast('Format de sortie requis avant de sauver.', 'warning');
             return;

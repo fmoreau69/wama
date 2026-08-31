@@ -120,6 +120,41 @@ class CheminDeLotTest(SimpleTestCase):
         # Les extras rejoignent le conteneur JSON (idiome params_storage, même voie qu'update).
         self.assertIn("kwargs['options'] = _opts", corps)
 
+    def test_la_suppression_est_gardee_par_la_propriete_du_fichier(self):
+        """Trou A5 (audit 31/08) : `safe_delete_file` inconditionnel pouvait supprimer un
+        fichier UTILISATEUR seulement référencé (envoi Filemanager). La garde dérivée de la
+        politique du converter réel doit envelopper LES TROIS vues de suppression — une
+        garde se pose avec ses jumeaux."""
+        self.assertIn('def _fichier_de_l_app(item, champ):', self.src)
+        self.assertIn("startswith(f'converter/{item.user_id}/')", self.src)
+        for vue in ('delete', 'clear_all', 'batch_delete'):
+            corps = _fonction(self.src, vue)
+            self.assertIsNotNone(corps, f'{vue} absente')
+            self.assertIn('_fichier_de_l_app(item, _champ)', corps,
+                          f'{vue} supprime sans garde de propriété')
+            self.assertNotIn('\n            safe_delete_file' if vue != 'delete' else
+                             '\n        safe_delete_file', corps.replace(
+                                 'if _fichier_de_l_app(item, _champ):\n', ''),)
+
+    def test_global_progress_parle_le_contrat_du_composant_commun(self):
+        """Trou A3 (audit 31/08) : l'émission renvoyait {running, pending, percent} — la
+        brique `wama-global-progress.js` lit total/done/overall_progress → barre MUETTE,
+        « 0 terminé » permanent, zéro erreur console."""
+        corps = _fonction(self.src, 'global_progress')
+        self.assertIsNotNone(corps)
+        for cle in ("'total'", "'done'", "'running'", "'failed'", "'overall_progress'"):
+            self.assertIn(cle, corps, f'{cle} manque au contrat de la barre globale')
+        self.assertNotIn("'percent'", corps, "l'ancien contrat hors-brique est revenu")
+
+    def test_apps_genere_branche_l_invariant_batch_sync_en_fk_directe(self):
+        """Trou A4 (audit 31/08) : sans `register_batch_sync(Item, direct_fk=True)`, le lot
+        vidé de la jumelle survivait en base (l'app réelle l'avait payé le 28/08)."""
+        from wama.common.manifests.codegen.apps_gen import render_apps
+        from wama.common.manifests.ingest import extract
+        src, raison = render_apps(extract('app', SOURCE))
+        self.assertIsNotNone(src, raison)
+        self.assertIn('register_batch_sync(ConversionJob, direct_fk=True)', src)
+
     def test_sans_conteneur_json_aucun_routage_invente(self):
         # Discriminant : un modèle SANS champ `options` ne doit recevoir aucun bloc _extras —
         # écrire dans un attribut inexistant serait le défaut silencieux type.

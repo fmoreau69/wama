@@ -76,6 +76,21 @@ def render_apps(manifest: dict) -> tuple:
             '        except Exception:',
             '            pass',
         ]
+    else:
+        # FK DIRECTE (forme converter) : pas de modèle de liaison, mais l'invariant « un lot
+        # sans membre n'existe pas » vaut aussi — sans ce branchement, le lot vidé de la
+        # jumelle survivait en base (trou A4 de l'audit 31/08 ; l'app réelle l'avait payé le
+        # 28/08 sur clear_all). Détection par la MÊME lecture de facette que views_gen.
+        from .views_gen import _donnees
+        d = _donnees(manifest)
+        if not d.get('_raison') and d.get('batch') and d.get('batch_fk'):
+            lignes += [
+                '        try:',
+                '            from wama.common.utils.batch_sync import register_batch_sync',
+                f'            register_batch_sync({item_model}, direct_fk=True)',
+                '        except Exception:',
+                '            pass',
+            ]
     if preview:
         kwargs = ''.join(f", {k}={v!r}" for k, v in (('file_field', preview.get('file_field')),
                                                      ('user_field', preview.get('user_field')))

@@ -180,6 +180,26 @@ def _nature(nom):
     return cat if cat in _TYPES_ENTREE else ''
 
 ''' if nature_champ else ''
+
+    # ── Garde de PROPRIÉTÉ avant suppression physique (trou A5, audit 31/08) ──
+    # Dérivée de la politique du converter réel (`_is_app_owned`) : on ne supprime un
+    # fichier QUE s'il vit dans l'arbre média de L'APP. Un fichier seulement RÉFÉRENCÉ
+    # (envoi Filemanager, galerie partagée) appartient à l'utilisateur — le supprimer avec
+    # la card détruirait une donnée hors de la juridiction de l'app, et `safe_delete_file`
+    # ne teste que les doubles références EN BASE, pas la propriété. Conservatrice par
+    # construction : elle protège AUSSI la politique inverse (rattachement par référence,
+    # avatarizer) — l'arbitrage de PLATEFORME reste ouvert (ROUTE §S2ter), cette garde n'en
+    # préjuge pas : elle ne fait qu'interdire de détruire hors de chez soi.
+    bloc_garde = f'''
+
+def _fichier_de_l_app(item, champ):
+    """Un fichier n'est supprimable avec sa card QUE s'il vit dans l'arbre de l'app
+    (`{app}/<user_id>/…`) — politique du converter réel, garde muette sinon (le fichier
+    reste, la card part)."""
+    f = getattr(item, champ, None)
+    nom = (getattr(f, 'name', '') or '').replace('\\\\', '/')
+    return nom.startswith(f'{app}/{{item.user_id}}/')
+'''
     up_nature = (f"""_avert = ''
     nature = _nature(f.name)
     if nature:
@@ -566,7 +586,8 @@ def delete(request, pk):
     user = _user(request)
     item = get_object_or_404({item}, pk=pk, user=user)
     for _champ in {champs_fichiers!r}:
-        safe_delete_file(item, _champ)
+        if _fichier_de_l_app(item, _champ):
+            safe_delete_file(item, _champ)
     b = item.{fk}
     item.delete()
     if b is not None and not b.items.exists():
@@ -603,7 +624,8 @@ def clear_all(request):
     n = 0
     for item in {item}.objects.filter(user=user).exclude(status='RUNNING'):
         for _champ in {champs_fichiers!r}:
-            safe_delete_file(item, _champ)
+            if _fichier_de_l_app(item, _champ):
+                safe_delete_file(item, _champ)
         item.delete()
         n += 1
     {batch}.objects.filter(user=user, items__isnull=True).delete()
@@ -620,13 +642,22 @@ def clear_all(request):
     return FileResponse(buf, as_attachment=True, filename='{app}_outputs.zip')'''
                             if d['a_output'] else stub('download_all'))
 
+    # Contrat du COMPOSANT COMMUN (`wama-global-progress.js` lit total/done/overall_progress) —
+    # l'émission précédente renvoyait {running, pending, percent} : la barre globale restait
+    # MUETTE avec « 0 terminé » permanent, zéro erreur console (audit 31/08, trou A3 de la
+    # cartographie). Même assiette que l'app réelle (converter/views.py::global_progress),
+    # sans la lecture de cache par item (le squelette de tâche généré écrit item.progress).
     vues['global_progress'] = f'''def global_progress(request):
     user = _user(request)
-    qs = {item}.objects.filter(user=user)
-    running = list(qs.filter(status='RUNNING').values_list('progress', flat=True))
+    jobs = list({item}.objects.filter(user=user).values('status', 'progress'))
+    total = len(jobs)
+    done = sum(1 for j in jobs if j['status'] == 'SUCCESS')
+    acc = sum(100 if j['status'] == 'SUCCESS' else (j['progress'] or 0) for j in jobs)
     return JsonResponse({{
-        'running': len(running), 'pending': qs.filter(status='PENDING').count(),
-        'percent': int(sum(running) / len(running)) if running else 0,
+        'total': total, 'done': done,
+        'running': sum(1 for j in jobs if j['status'] == 'RUNNING'),
+        'failed': sum(1 for j in jobs if j['status'] == 'FAILURE'),
+        'overall_progress': int(acc / total) if total else 0,
     }})'''
 
     vues['console'] = f'''def console_content(request):
@@ -712,7 +743,8 @@ def batch_delete(request, pk):
     b = get_object_or_404({batch}, pk=pk, user=user)
     for item in {item}.objects.filter({fk}=b, user=user):
         for _champ in {champs_fichiers!r}:
-            safe_delete_file(item, _champ)
+            if _fichier_de_l_app(item, _champ):
+                safe_delete_file(item, _champ)
         item.delete()
     b.delete()
     return JsonResponse({{'deleted': True}})'''
@@ -876,6 +908,6 @@ def _auto_wrap_orphans(user):
             w.save(update_fields=['{fk}', '{row}'])
         except Exception:
             pass
-{bloc_nature}
+{bloc_nature}{bloc_garde}
 '''
     return tete + '\n\n\n'.join(blocs) + '\n', None

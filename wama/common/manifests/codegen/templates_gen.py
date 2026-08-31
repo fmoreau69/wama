@@ -285,6 +285,53 @@ def render_index(manifest: dict) -> tuple:
     }}
 '''
 
+    # ── Polling des cards RUNNING — brique commune `WamaApp.Poller` (audit 31/08 : la
+    # jumelle n'avait AUCUNE boucle, une card RUNNING n'avançait jamais sans recharger la
+    # page). Au changement d'état, la card se remplace par son partial serveur (`card_html`,
+    # source unique du markup — même geste que les apps réelles) ; les hydrateurs communs
+    # (preview, autoSync du bouton de cycle) observent les nœuds ajoutés. Gaté par les DEUX
+    # routes : pas de boucle sur un 404 muet. ⚠ Limite partagée avec le parc : le partial
+    # rendu seul perd `in_batch` (le décalage de fille) jusqu'au prochain rechargement.
+    route_progress = resolve_route('progress', noms_routes)
+    route_card_html = resolve_route('card_html', noms_routes)
+    poll_js = ''
+    if route_progress and route_card_html:
+        poll_js = f'''
+    var qp = document.getElementById('{app}Queue');
+    if (qp && window.WamaApp && WamaApp.Poller) {{
+        var _cardUrl = "{{% url '{app}:{route_card_html}' 0 %}}";
+        var _poller = new WamaApp.Poller({{
+            urlTemplate: "{{% url '{app}:{route_progress}' 0 %}}",
+            interval: 1500,
+            onData: function (id, data) {{
+                var card = qp.querySelector('.wama-card[data-id="' + id + '"]');
+                if (!card) {{ _poller.stop(id); return; }}
+                if (data.status === 'RUNNING') {{
+                    var fill = card.querySelector('.wama-progress-fill');
+                    if (fill) fill.style.width = (data.progress || 0) + '%';
+                    return;
+                }}
+                _poller.stop(id);
+                fetch(_cardUrl.replace('/0/', '/' + id + '/'))
+                    .then(function (r) {{ return r.ok ? r.text() : null; }})
+                    .then(function (html) {{
+                        if (!html) return;
+                        var tpl = document.createElement('template');
+                        tpl.innerHTML = html.trim();
+                        if (tpl.content.firstElementChild) card.replaceWith(tpl.content.firstElementChild);
+                    }});
+            }},
+        }});
+        var _pollRunning = function () {{
+            qp.querySelectorAll('.wama-card[data-status="RUNNING"]').forEach(function (c) {{
+                if (c.dataset.id) _poller.start(c.dataset.id);
+            }});
+        }};
+        _pollRunning();
+        setInterval(_pollRunning, 5000);   // un démarrage lancé ailleurs (volet, lot) entre en boucle
+    }}
+'''
+
     # Routes d'ÉLÉMENT — par `{% url %}` avec pk 0, JAMAIS par un chemin écrit à la main.
     # ⚠⚠ Défaut mesuré le 2026-08-29 dans ma propre génération de la veille : j'avais écrit
     # `"/" + app + "/" + id + "/start/"`. La substitution du bac à sable renomme les LITTÉRAUX
@@ -511,7 +558,7 @@ document.addEventListener('DOMContentLoaded', function () {{
             window._import.handleFiles(WamaFolderImport.files(WamaFolderImport.fromInput(fdi.files)));
         }});
     }}
-{url_js}{ref_js}{resolver_fn_js}{insp_js}{params_js}{batch_js}}});
+{url_js}{ref_js}{resolver_fn_js}{insp_js}{params_js}{batch_js}{poll_js}}});
 </script>
 {{% endblock %}}
 '''
@@ -624,7 +671,12 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
     {{% url 'common:unified_preview' '{app}' item.id as pv_out %}}
     <div class="wcv3-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_out }}}}?side=output" data-player-id="{{{{ item.id }}}}"></div>
     {{% else %}}
-    <div id="preview-row-{{{{ item.id }}}}"></div>
+    {{% comment %}}Preview de la SOURCE en attendant le résultat (demande Fabien 31/08 : « la
+    preview n'apparaît pas dans les cards, uniquement dans le volet droit ») — MÊME hydrateur
+    commun (hydrateCardPreviews), face input. Les cards réelles n'affichent qu'une icône à ce
+    stade : écart voulu jumelle>réel, à porter au parc après validation écran (CARD_DESIGN §11).{{% endcomment %}}
+    {{% url 'common:unified_preview' '{app}' item.id as pv_in %}}
+    <div class="wcv3-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_in }}}}?side=input" data-player-id="{{{{ item.id }}}}"></div>
     {{% endif %}}
   </div>
 </div>

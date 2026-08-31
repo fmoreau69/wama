@@ -9180,6 +9180,28 @@ maquette v4.
   registre mécanismes + balayage étendu ; ⑥ nettoyage du mort (retrait = 3 surfaces) ;
   ⑦ marche B inchangée.
 
+### ①+②+③ EXÉCUTÉS ensuite (GO « tu peux poursuivre ») + PREVIEW dans les cards (demande du jour)
+- **① Origine** : `batch_download` répare (`import os` au module — le ZIP de lot partait
+  TOUJOURS vide, NameError avalé) ; « Sauver comme profil » ranimé (`readModalViaSchema`,
+  l'ancien lecteur visait des `data-key` inexistants). **`wama/converter/tests.py` CRÉÉ**
+  (l'app n'avait aucun test de comportement — l'angle mort exact où les 2 bugs ont vécu).
+- **② Garde de propriété** `_fichier_de_l_app` émise par views_gen sur LES TROIS vues de
+  suppression — conservatrice (jamais détruire hors de l'arbre de l'app), ne préjuge pas de
+  l'arbitrage plateforme (ROUTE §S2ter).
+- **③ Contrats silencieux** : `global_progress` généré au contrat de la brique
+  (total/done/overall_progress) ; `apps_gen` branche `register_batch_sync(Item,
+  direct_fk=True)` (détection par la facette, comme views_gen) ; **polling généré**
+  (`WamaApp.Poller` + remplacement par `card_html`), gaté par `resolve_route` + NOUVEL
+  alias `progress→status` (⚠ le nom canonique en dur rendait `poll: False` EN SILENCE —
+  la table d'alias existe pour ça).
+- **Preview dans les cards** (demande Fabien : « uniquement dans le volet droit ») : la card
+  générée hydrate désormais la SOURCE (`?side=input`, même hydrateur commun) tant que le
+  résultat n'existe pas ; `?side=output` en SUCCESS comme avant. Écart voulu jumelle>réel —
+  à porter au parc après validation écran (les cards réelles n'affichent qu'une icône).
+- Mesuré : 3 substitutions tiennent, 2 previews rendues sur cards en attente, Poller actif,
+  modale de lot OK, zéro erreur console, batterie **11/11 sans skip**, suite **1254 OK
+  (skipped=4)**, +9 tests.
+
 ### ④+⑤ EXÉCUTÉS le jour même (GO Fabien : « remettre la doc et les mécanismes à jour ») + BALAYAGE des 10 apps
 - **Registre mécanismes** : 109 → **114 entrées** — créées : `codegen` (7 gabarits, était
   HORS carte sans signal possible), `inspector`, `export_formats` (⬇ late-binding),

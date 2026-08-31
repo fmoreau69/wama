@@ -69,6 +69,12 @@ ROUTE_TABLE = {
 ROUTE_ALIASES = {
     'stop':   ('cancel',),        # converter : `<pk>/cancel/` → views.cancel
     'update': ('update_job',),    # converter : route `update` → views.update_job
+    # Cadrage A0 : « status n'existe QUE chez converter ; la convention réelle est
+    # progress » — même corps ({id, status, progress, …}), seul le nom change. Sans cet
+    # alias, le polling généré se gâtait silencieusement sur le converter (mesuré 31/08 :
+    # `poll: False`, aucune boucle émise — un gating qui teste le nom canonique en dur
+    # refait exactement le défaut que cette table existe pour absorber).
+    'progress': ('status',),
 }
 
 # Classes de vues COMMUNES admises dans les expressions (import connu du gabarit).

@@ -476,6 +476,32 @@ class VoletParametresGenereTest(SimpleTestCase):
         self.assertIn('return resolveOptions(p, {});', self.src)
         self.assertIn('return resolveOptions(p, v);', self.src)
 
+    def test_les_cards_running_sont_pollees_par_la_brique_commune(self):
+        # Audit 31/08 : la jumelle n'avait AUCUNE boucle — une card RUNNING n'avançait
+        # jamais sans recharger la page. Poller commun + remplacement par le partial
+        # serveur (card_html, source unique du markup), gaté par les DEUX routes.
+        self.assertIn('new WamaApp.Poller({', self.src)
+        # `status` et non `progress` : le converter est le seul du parc à ce nom (cadrage
+        # A0) — le gating passe par resolve_route + l'alias, jamais par le nom canonique
+        # en dur (c'est ce nom en dur qui avait rendu `poll: False` en silence).
+        self.assertIn("urlTemplate: \"{% url 'converter:status' 0 %}\"", self.src)
+        self.assertIn("{% url 'converter:card_html' 0 %}", self.src)
+        self.assertIn("card.replaceWith(tpl.content.firstElementChild)", self.src)
+
+    def test_la_card_non_terminee_montre_la_preview_de_sa_source(self):
+        # Demande Fabien 31/08 (« la preview n'apparaît pas dans les cards, uniquement dans
+        # le volet droit ») : même hydrateur commun, face input, tant que le résultat
+        # n'existe pas ; face output en SUCCESS, comme avant.
+        src, _ = render_index(_manifeste(SOURCE))
+        card = (src or {}).get('_generic_card.html') or ''
+        if not card:
+            self.skipTest('card non générée')
+        self.assertIn('?side=output', card)
+        self.assertIn('?side=input', card,
+                      'la card en attente doit hydrater la preview de sa SOURCE')
+        self.assertNotIn('<div id="preview-row-{{ item.id }}"></div>', card,
+                         'le placeholder MORT (jamais hydraté) ne doit pas revenir')
+
     def test_le_gear_de_lot_recoit_son_ouvreur(self):
         # La brique commune tient le clic du ⚙ de card MÈRE et attend un ouvreur déclaré
         # (`onBatchSettings`) ; sans émission le clic n'aboutissait qu'à un console.warn —
