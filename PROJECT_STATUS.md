@@ -8893,7 +8893,18 @@ parc relancé du 30/08) :
   (la card disparaît de l'écran, l'objet reste) · settings ne mesure que l'OUVERTURE de la
   modale (modifier/enregistrer/relire = famille à étendre). C'est la liste de travail du
   générateur ; chaque fix suit le rituel générateur→régénérer→mesurer ;
-  → **8/11 au 31/08 (nuit)** : `folder_import` ✅ · `batch_actions` ✅ (⧉🗑 de lot exercés) ·
+  → 🎯 **11/11 SANS SKIP au 31/08 — la batterie entière de la jumelle est VERTE d'un seul
+  tenant** (ui · import · duplicate_delete · settings · batch_actions · inspector_actions ·
+  batch_import · clear_all · send_to · url_import · folder_import). Les 4 derniers verrous :
+  url_import = models de jumelle ANTÉRIEURS au correctif WAMA_INGEST du 22/08 (régénération,
+  pas de code — et le test compagnon a basculé comme sa docstring le prévoyait) · send_to =
+  décalage de COMPTE dans l'instrument (témoin déposé sous l'uid standard, session dev) ·
+  volet Paramètres = `gear_data` reconstitué par la brique `card_gear` (le volet lit le ⚙,
+  pas les data-param de card) · batch multi-fichiers en D&D = la boucle N-requêtes du drop
+  s'appuyait sur l'auto-wrap par accumulation SUPPRIMÉ le 14/08 (mécanisme mort, boucle
+  restée — corrigé pour TOUTES les apps : une requête `paths[]`).
+  Historique de la progression :
+  **8/11 au 31/08 (nuit)** : `folder_import` ✅ · `batch_actions` ✅ (⧉🗑 de lot exercés) ·
   `batch_import` ✅ (le gabarit de lot passe par `build_batch_template` avec une ligne
   d'exemple DÉRIVÉE du vocabulaire ; ⚠ leçon re-payée deux fois dans la soirée : une VUE
   régénérée ne se mesure que sur parc RECHARGÉ — les rejeux rouges mesuraient le module
