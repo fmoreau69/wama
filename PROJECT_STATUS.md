@@ -9000,3 +9000,92 @@ pendant la session (PID master 122327) — WAMA relancé par Fabien depuis.
 
 **Artefacts de session** : `compile_templates.py` au scratchpad (jetable — la recette est dans
 le commit et dans ce bloc). Aucun compte ni item semé.
+
+
+## §REPRISE — 2026-08-30→31, instance « PORTAGE CONVERTER : taxonomie + jumelle 11/11 » (CLOSE) — 🔚 POINT D'ENTRÉE
+
+> Session-fleuve (2 jours). TOUT est consigné dans les docs de domaine au fil de l'eau — ce
+> bloc est l'INDEX, pas la prose. Commits locaux sur `dev` : Fabien pousse au fil (vérifier
+> `git rev-list --count origin/dev..dev`, jamais de tête).
+
+### Ce qui est LIVRÉ (chaque ligne = son doc de référence)
+1. **Arbitrages TOUS tranchés par Fabien, consignés à domicile** : `text` retiré des natures
+   (GESTE EXÉCUTÉ, 32 fichiers — `ROUTE §S2bis.6bis`, historique complet) · `msgid` ANGLAIS +
+   traduction APRÈS portage (`ROADMAP §10.A`) · visiteur guidé rights_anonymous
+   (`WAMA_VERIFICATION §3quater` + `PROFILES §1.4`, supersession 22/08 marquée) · realtime =
+   modalité via preview during, modes `realtime` RETIRÉS (`MODES_QUEUE_UX §5bis` clos) ·
+   fichiers Data sans bibliothèque (`WAMA_DATA_WORLD §compat`, G tranché). Reste OUVERT :
+   `data-abo-*`/`data-f-*` seulement.
+2. **Taxonomie** : natures = image/video/audio/document/archive/**dataset**/3d ; saisie =
+   `prompt` (ROLE_TOKENS) ; `dataset` nourri par la SONDE du monde Data
+   (`register_category_extensions` — le monde pousse) ; describer `detected_type` normalisé À
+   LA LECTURE. Suite 1221+ OK, roundtrip 10/10, grille sans recul (3 apps à 100 %).
+3. **S2bis ①bis + (b) COMPLET** : `file_accept` converter DÉRIVÉ + contrôle
+   `CardEntreeConformiteTest` (2 sens, écarts assumés décroissants) ; slots par DOMAINE →
+   port référence → émission `templates_gen` ; moitié TRAVAIL (rétrécissement par port)
+   livrée le jour de son déblocage. ⬇ commun : **3/3 apps late** (reader/describer `?format=`
+   côté vue).
+4. **Card d'entrée** : cartographie EXHAUSTIVE des 12 cards (`CARD_DESIGN §11.8`, 12 charges +
+   8 exigences Fabien + 3 défauts silencieux) · spec v3.5 (`§11.9`) · **proposition v4**
+   (`§11.10` : une ligne par rôle, un seul geste, la détection fait le reste ; 2 temps
+   partout — AUCUNE modalité ne lance). Import médiathèque PAR RÔLE exigé ; l'import de
+   manifeste de process = MODALITÉ de la card.
+5. **Manifeste de PROCESS** (`WAMA_MANIFEST_ARCHITECTURE §8`) : process d'app = pipeline à
+   1 nœud (TRANCHÉ) ; file d'attente exportable/partageable (batch de manifestes) ; fichiers
+   partagés par IDENTIFIANTS médiathèque côté Médias ; file sans fichiers = FILE-MODÈLE.
+6. **Compatibilité monde Data VÉRIFIÉE** (`WAMA_DATA_WORLD §compat`) : AUCUN BLOCAGE ; trous
+   = jalons voulus (recadrage Fabien) ; plan A-G (A fait : modules.py corrigé — briques
+   `view.py`/`values.py` post-D28) ; F16 à trancher avant le 1er gabarit Data.
+7. **JUMELLE converter_01 : 11 scénarios 11/11 SANS SKIP** (partis de 11 skips aveugles).
+   Rituel ACTÉ : on ne corrige JAMAIS la jumelle — générateur → `app_sandbox substitute` →
+   mesure. Livré via générateurs : card v3 complète · volet actions + PARAMÈTRES
+   (`panelContainer` + 2 zones + `hideOnInspect`) · chips sur card (ORDRE : aplatir AVANT
+   chips) · idiome `params_storage` DÉRIVÉ (JSON `options`, glu cross_app nommée) ·
+   `gear_data` par brique `card_gear` (volet lit le ⚙, la modale lit la card — DEUX
+   lecteurs, DEUX sources) · gabarit de lot avec ligne d'exemple · apparence Solitaire
+   (in_batch + replié + ps-2) · folder/actions_communes émis · models RÉGÉNÉRÉS
+   (WAMA_INGEST, url_import) · importeur filemanager + CONSOLIDATION dérivés par
+   `generated_from` (2 listes-à-la-main rattrapées, tests bout-en-bout jumelle) ·
+   compte nocturne DEV dédié (`get_test_dev_user` + routage `_test_session_key(app)` +
+   `_test_account_id(app)` — la matrice de droits garde SON compte).
+8. **Défauts de PARC débusqués par la jumelle et corrigés PARTOUT** : menus rognés
+   (`overflow-x:clip`, 7 apps + garde anti-récidive) · drop filemanager N-requêtes (l'auto-wrap
+   par accumulation qui le justifiait est mort le 14/08 — désormais `paths[]` groupé, toutes
+   apps) · handlers download JS retirés (reader/describer).
+9. **Mécanismes tracés** : entrée NEUVE `filemanager_importers`, `nightly_tests` et
+   `media_taxonomy` amendées ; carte régénérée. Tests : ~30 ajoutés (émissions codegen avec
+   discriminants, card⟷catalogue, params_storage, garde overflow, jumelle bout-en-bout).
+
+### ⚠⚠ Leçons de l'instance (les nouvelles seulement)
+- **Une vue Python régénérée ne se mesure que sur parc RECHARGÉ** — payée DEUX fois dans la
+  même soirée (batch_actions puis batch_import « rouges » qui mesuraient le module chargé).
+- **Une sonde qui porte le littéral du garde qu'elle surveille NEUTRALISE ce garde** : mes
+  boucles `pgrep "gunicorn wama.wsgi"` ont fait croire au script de lancement que gunicorn
+  tournait → la relance de Fabien n'a rien relancé. Motif auto-sûr : `[g]unicorn`.
+- **Deux lecteurs, deux sources** : la modale lit les `data-param-*` de CARD, le volet lit les
+  `data-*` du bouton ⚙ (`gear_data`) — corriger l'un ne remplit pas l'autre.
+- **Un test peut prédire sa propre mort** : `test_une_url_sans_ingest…` disait « ce rouge sera
+  le signal, pas une régression » — c'est arrivé, il a été réécrit sur le nouvel invariant.
+- **L'instrument s'instruit avant d'accuser** : send_to (uid du MAUVAIS compte), résidu delete
+  (comptage du montage ? encore à blanchir).
+- `tail -N` sur sa propre sonde = relire la leçon « lire TOUS les messages ».
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+**Finir le critère de sortie converter_01** (`PROJECT_STATUS`, recadrage 30/08 : app régénérée
+A→Z parfaitement fonctionnelle AVANT toute 2ᵉ app) :
+1. **Validation ÉCRAN de Fabien en attente** : chips sur cards · section PARAMÈTRES du volet à
+   la sélection (panelContainer) · lot replié/décalé — correctifs déployés, non revus ;
+2. blanchir les 2 ⚠ d'instrument : résidu du delete (le comptage inclut-il le montage ?) +
+   famille `settings` étendue (modifier/ENREGISTRER/relire — la modale n'est mesurée qu'à
+   l'ouverture) ;
+3. puis la **maquette v4** (`CARD_DESIGN §11.10.F` : slot-rows + exemples échec/live armé/
+   file-modèle — charger frontend-design) et son émission par le générateur sur la jumelle ;
+4. ensuite seulement : 2ᵉ app en bac à sable (transcriber, forme à modèle de liaison = trou
+   déclaré de views_gen v1) ; en parallèle libre : glu cross_app_options, `?format=` describer
+   (formats déclarés vs moteur — écart consigné), plan compat B-G.
+
+**Contrôles attendus au prochain /reprise** : suite complète = **OK seul critère** (total
+~1230+, il bouge) ; `check_docs` = **1 cible distincte** (partial d'onglets assumé) ;
+`manifest_export --check` à jour (~108) ; grille : converter/describer/transcriber **100 %**,
+aucun recul ; batterie jumelle : `run_nightly_tests --stage ui --id converter_01.` = **11/11
+sans skip** (le compte dev `wama_nightly_dev` existe en base).
