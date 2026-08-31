@@ -284,6 +284,27 @@ def _reglages_du_depot(user, nature, poste=None):
         {ligne_opts}'''
     ligne_opts_bc = (f"kwargs['{conteneur_options}'] = _extras" if conteneur_options
                      else "pass  # pas de conteneur JSON déclaré")
+    # Méta COMMUNES aux filles pour la card MÈRE (slot `meta_template` de _batch_card.html —
+    # mécanisme du PARC : transcriber calcule ses common_* dans l'extra de
+    # build_batches_list, « valeur si partagée par toutes les filles, sinon Mixte »).
+    # Dérivation SCHÉMA-driven ici : mêmes chips que les filles (brique card_chips), retenus
+    # quand TOUTES les filles s'accordent — la jumelle ne passait pas le slot, mère sans
+    # réglages (constat Fabien 31/08 : « c'est déjà acté et en place, juste à câbler »).
+    ligne_commun = '' if not _noms_schema else f'''
+            _communs = {{}}
+            for _n in {_noms_schema!r}:
+                _vs = {{getattr(j, _n, None) for j in items}}
+                if len(_vs) == 1:
+                    _v = _vs.pop()
+                    if _v not in (None, ''):
+                        _communs[_n] = _v
+            try:
+                from wama.common.utils.card_chips import chips_by_section as _cbs
+                from .params import {schema_symbole} as _sch_m
+                _cc = _cbs(None, _sch_m, values=_communs) if _communs else {{}}
+            except Exception:
+                _cc = {{}}'''
+    cle_commun = ("'common_chips': _cc," if _noms_schema else "'common_chips': {},")
     # Défauts de FILE pour le volet (index) — même cascade, sans nature ni POST.
     ligne_defauts = (("_c, _e = _reglages_du_depot(user, '')\n"
                       "        panel_defaults = json.dumps({**_c, **_e})")
@@ -318,8 +339,9 @@ def _reglages_du_depot(user, nature, poste=None):
         batches_list = []
         for items in grouped.values():
             b = items[0].{fk}
-            statuses = [normalize_status(j.status) for j in items]
+            statuses = [normalize_status(j.status) for j in items]{ligne_commun}
             batches_list.append({{
+                {cle_commun}
                 'obj': b, 'items': items,
                 'is_group': bool(b) and (b.total if b else len(items)) > 1,
                 'success_count': statuses.count('SUCCESS'),

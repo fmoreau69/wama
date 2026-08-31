@@ -156,6 +156,16 @@ class CheminDeLotTest(SimpleTestCase):
             self.assertIn(cle, corps, f'{cle} manque au contrat de la barre globale')
         self.assertNotIn("'percent'", corps, "l'ancien contrat hors-brique est revenu")
 
+    def test_l_index_calcule_les_reglages_communs_des_filles_pour_la_mere(self):
+        # Pendant vue du slot meta_template : même règle que le pilote transcriber
+        # (« valeur si partagée par toutes les filles ») mais dérivée du SCHÉMA, chips par
+        # la brique commune — jamais une liste de champs écrite à la main.
+        # IndexView est une classe (pas de _fonction) : assertions au texte du module.
+        self.assertIn('_communs', self.src)
+        self.assertIn('if len(_vs) == 1:', self.src)
+        self.assertIn("'common_chips': _cc,", self.src)
+        self.assertIn('chips_by_section as _cbs', self.src)
+
     def test_apps_genere_branche_l_invariant_batch_sync_en_fk_directe(self):
         """Trou A4 (audit 31/08) : sans `register_batch_sync(Item, direct_fk=True)`, le lot
         vidé de la jumelle survivait en base (l'app réelle l'avait payé le 28/08)."""

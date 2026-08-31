@@ -506,6 +506,20 @@ class VoletParametresGenereTest(SimpleTestCase):
         self.assertNotIn('<div id="preview-row-{{ item.id }}"></div>', card,
                          'le placeholder MORT (jamais hydraté) ne doit pas revenir')
 
+    def test_la_card_mere_affiche_les_reglages_communs_des_filles(self):
+        # Mécanisme DU PARC (« déjà acté et en place, juste à câbler » — Fabien 31/08) :
+        # slot meta_template de _batch_card.html, pilote transcriber (modèle/langue/
+        # diarisation calculés « valeur si partagée par toutes les filles »). La jumelle ne
+        # passait pas le slot. Ici : chips GÉNÉRÉS du schéma sur les valeurs partagées.
+        src, _ = render_index(_manifeste(SOURCE))
+        idx = (src or {}).get('index.html') or ''
+        meta = (src or {}).get('_batch_meta.html') or ''
+        self.assertIn("meta_template='converter/_batch_meta.html'", idx,
+                      'le slot méta de la card mère n'"'"'est pas passé au partial commun')
+        self.assertIn('batch_info.common_chips.settings', meta)
+        self.assertIn("common/_card_chips.html", meta,
+                      'les chips de mère doivent passer par la brique commune')
+
     def test_le_gear_de_lot_recoit_son_ouvreur(self):
         # La brique commune tient le clic du ⚙ de card MÈRE et attend un ouvreur déclaré
         # (`onBatchSettings`) ; sans émission le clic n'aboutissait qu'à un console.warn —
@@ -576,12 +590,21 @@ class CardGearPolymorpheTest(SimpleTestCase):
         obj.flip_h = 'false'                # chaîne du JSON — ne doit produire AUCUN chip
         params.append({'name': 'flip_h', 'type': 'toggle', 'chip': True,
                        'label': 'Miroir horizontal', 'chip_label': 'Miroir H'})
-        sections = chips_by_section(obj, params, values={'quality': 85, 'upscale': 'x2'})
-        # Valeur nue → préfixée de son libellé ; option correspondante → son libellé seul ;
-        # 'false' (chaîne) → rien (constats Fabien 31/08 : « 85 / 0 / false » sur la card).
+        params.append({'name': 'fps', 'type': 'number', 'chip': True,
+                       'label': 'Images/s (FPS)', 'chip_label': 'fps'})
+        params.append({'name': 'engine', 'type': 'select', 'chip': True, 'label': 'Moteur',
+                       'option_groups': [['IA', [['esr', 'Real-ESRGAN']]]]})
+        sections = chips_by_section(
+            obj, params, values={'quality': 85, 'upscale': 'x2', 'fps': 24, 'engine': 'esr'})
+        # Règle issue de l'audit du 31/08 (« résoudre mieux, pas préfixer plus ») :
+        # NOMBRE → libellé préfixé (« Qualité 85 ») ou UNITÉ suffixée (chip_label court
+        # minuscule = unité, idiome imager : « 24 fps », pas « fps 24 ») ; option résolue —
+        # y compris via option_groups, le trou enhancer — → son libellé seul ; select/text
+        # NON résolu → valeur NUE (le préfixe donnait « Format de sortie mp4 » en SORTIE) ;
+        # 'false' (chaîne) → rien.
         self.assertEqual([c['label'] for c in sections.get('settings') or []],
-                         ['Qualité 85', '×2'])
-        self.assertEqual([c['label'] for c in sections.get('output') or []], ['Format webp'])
+                         ['Qualité 85', '×2', '24 fps', 'Real-ESRGAN'])
+        self.assertEqual([c['label'] for c in sections.get('output') or []], ['webp'])
 
 
 class DefautsApplicablesTest(SimpleTestCase):

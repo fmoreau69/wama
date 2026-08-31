@@ -863,12 +863,19 @@
 
     // ── Save current modal settings as a profile ──────────────────────────────
 
+    // UN SEUL lecteur de la modale, même garde que applyCurrentModal (:822) — deux lecteurs
+    // divergents étaient exactement le chemin parallèle P3 de l'audit 31/08. La branche
+    // legacy (readModalForm) ne sert que si WamaParams manque, comme partout ailleurs.
+    function readCurrentModal() {
+        return (window.WamaParams && APP.schema) ? readModalViaSchema() : readModalForm();
+    }
+
     document.getElementById('jobSettingsSaveProfileBtn')?.addEventListener('click', () => {
-        // ⚠ readModalViaSchema, PAS readModalForm : l'ancienne lisait des [data-key] que
+        // ⚠ via le schéma, PAS readModalForm en direct : l'ancienne lisait des [data-key] que
         // WamaParams n'émet pas (0 occurrence) → output_format toujours vide → toast
         // « Format de sortie requis » systématique. « Sauver comme profil » était MORT à
         // l'usage depuis le passage à WamaParams (bug confirmé à l'audit du 2026-08-31).
-        const { output_format, options } = readModalViaSchema();
+        const { output_format, options } = readCurrentModal();
         if (!output_format) {
             WamaApp.toast('Format de sortie requis avant de sauver.', 'warning');
             return;

@@ -61,10 +61,16 @@ class SauverCommeProfilTest(TestCase):
 
     def test_le_bouton_profil_lit_via_le_schema_et_data_key_reste_absent_de_wamaparams(self):
         js = self._js('wama/converter/static/converter/js/converter.js')
+        # Depuis la résorption du chemin parallèle P3 (audit 31/08) : UN routeur unique
+        # `readCurrentModal()` — même garde que applyCurrentModal — que le handler appelle ;
+        # sous la garde, c'est bien la voie schéma qui lit.
         i = js.index('jobSettingsSaveProfileBtn')
-        self.assertIn('readModalViaSchema()', js[i:i + 600],
-                      'le handler « Sauver comme profil » ne lit plus via le schéma')
-        self.assertNotIn('readModalForm()', js[i:i + 600])
+        self.assertIn('readCurrentModal()', js[i:i + 700],
+                      'le handler « Sauver comme profil » ne passe plus par le routeur unique')
+        self.assertNotIn('readModalForm()', js[i:i + 700])
+        r = js.index('function readCurrentModal()')
+        self.assertIn('readModalViaSchema()', js[r:r + 300],
+                      'le routeur ne lit plus via le schéma sous la garde WamaParams')
         params = self._js('wama/common/static/common/js/wama-params.js')
         self.assertNotIn('data-key', params,
                          'WamaParams émet désormais data-key : réexaminer readModalForm '

@@ -9135,6 +9135,42 @@ du harnais à étendre côté UI (la moitié serveur modifier→enregistrer→re
 testée en dur, la modale reste mesurée à l'ouverture seulement) · résidu delete à blanchir ·
 maquette v4.
 
+### REVÉRIFICATION session↔10 apps (demande Fabien : « pas de régression ni de chemin parallèle »)
+> Audit de confrontation exhaustif (4 commits de code, chaque changement classé
+> RÉUTILISATION / AMÉLIORATION / PARALLÈLE / RÉGRESSION avec preuves fichier:ligne).
+- **Verdict global** : toutes les émissions codegen câblent des briques communes
+  préexistantes à consommateurs réels attestés (Poller, user_settings, batch_sync,
+  queue-actions, media-preview, meta_template) — AUCUNE variante inventée ; les 10
+  `@property gear_data` réelles et les 2 consommateurs de `settingsModal` sont intacts.
+- **La SEULE faute de session : C4** (préfixe de libellé des chips) — 5 régressions
+  d'affichage sur le parc (« Format de sortie mp4 » en SORTIE, « s 5 »/« fps 24 » imager,
+  moteur/mots-clés démesurés transcriber, trou `option_groups` enhancer) + R6 (rotation
+  legacy « 0 »). **REPRIS le jour même** (« résoudre mieux, pas préfixer plus ») :
+  `option_groups` aplatis dans la résolution, préfixe/suffixe réservé aux NOMBRES
+  (`unit`/chip_label court minuscule = unité → « 24 fps »), select/text non résolu reste
+  NU, rotation « 0 » normalisée à la lecture chez converter. P3 (2 lecteurs de modale)
+  résorbé en routeur unique `readCurrentModal()` gardé.
+- **Double-clic preview : PAS un chemin parallèle** — `media-preview.js` intouché de la
+  session ; la card générée est câblée sur son contrat existant (`.wama-card-preview` +
+  `data-preview-url`, pilote transcriber, seul du parc à le porter) : la jumelle est EN
+  AVANCE sur 9 apps, pas en écart. Portage = un ajout de classe, CSS et exclusions déjà
+  prêts (`media-preview.css`, `wama-inspector.js:890`).
+- **Card MÈRE : mécanisme du parc localisé et CÂBLÉ** — `build_batches_list(extra=)`
+  (« valeur si partagée par toutes les filles ») + slot `meta_template` de
+  `_batch_card.html` (transcriber complet, converter partiel, 8 apps sans). La jumelle
+  émet désormais `_batch_meta.html` (chips communs schéma-driven via la brique
+  card_chips) + le slot. Écart assumé vs pilote : divergence OMISE (pas de « Mixte »).
+- **BACKLOG DE PORTAGE aux apps médias** (améliorations communes validées par l'audit,
+  attend GO) : ① `.wama-card-preview` sur les 9 apps ; ② `meta_template` + méta communes
+  sur les 8 ; ③ `input_props_for` adopté par reader (retrait du local — ⚠ ordre
+  ext·pages·poids à préserver) puis les 9 autres ; ④ `extraFields` + hôte de schéma au
+  converter (remplace `readMainPanelOptions` main, P2) ; ⑤ suppression des 3 resolvers
+  `formats` maison du converter (P1, résorbable grâce à l'union commune) ; ⑥ synthesizer
+  `'global_progress'`→`'overall_progress'` (seule app hors contrat) ; ⑦ proxys `_View`
+  reader/transcriber → `chips_by_section(values=)` ; ⑧ cascade `applicable_defaults`
+  au parc. Divers : `import os` local redondant `converter/views.py:543` ;
+  `convert_pt_to_safetensors` récursif à nommer au changelog (R8, hors apps médias).
+
 ### Suite du même jour (matin, retours ÉCRAN Fabien — volet ✅ validé, 2 constats neufs)
 1. **« La modale du batch ne s'affiche pas »** — pas un z-index : la brique commune tient le
    clic du ⚙ de card mère et attend un OUVREUR déclaré (`onBatchSettings`) que le gabarit

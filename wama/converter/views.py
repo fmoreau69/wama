@@ -1012,8 +1012,14 @@ def _decorate_job(job):
     mesuré 31/08 en chippant quality/upscale). Même assiette que la property `gear_data`."""
     from wama.common.utils.card_chips import chips_by_section
     from wama.converter.params import PARAMS_JSON
-    job.chips = chips_by_section(job, PARAMS_JSON,
-                                 values={**(job.options or {}), **(job.cross_app_options or {})})
+    valeurs = {**(job.options or {}), **(job.cross_app_options or {})}
+    # Legacy : le neutre de rotation était "0" (option « Aucune ») jusqu'au 31/08 ; les jobs
+    # enregistrés avant portent encore cette valeur, qui ne correspond plus à aucune option
+    # → chip « 0 » sur des cards sans rotation (R6, audit 31/08). Normalisée À LA LECTURE —
+    # pas de migration de données pour un neutre.
+    if str(valeurs.get('rotation', '')) in ('0', ''):
+        valeurs.pop('rotation', None)
+    job.chips = chips_by_section(job, PARAMS_JSON, values=valeurs)
     return job
 
 

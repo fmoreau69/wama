@@ -53,23 +53,40 @@ def chips_for(instance, params_json, extra=None, values=None):
         # chip_label permet un libellé court : « Diarisation » plutôt que « Identifier les
         # locuteurs », qui tiendrait mal dans une piste. Le libellé complet reste au title.
         libelle = field.get('chip_label') or field.get('label') or name
+        display = value
         if value is True:
             # Une case cochée s'affiche par son NOM (le réglage est actif) ; décochée, elle ne
             # produit aucun chip (filtré plus haut) — une card ne liste pas ce qui est inactif.
             display = libelle
         else:
-            # choices Django = [(value, label), …] (schema_to_dicts) ; options = [{value,label}] (fallback).
-            for opt in (list(field.get('choices') or []) + list(field.get('options') or [])):
+            # choices Django = [(value, label), …] (schema_to_dicts) ; options = [{value,label}]
+            # (fallback) ; option_groups = [(groupe, [(v, l), …]), …] — l'enhancer ne déclare
+            # QUE par groupes : les ignorer rendait son format « non résolu » (audit 31/08).
+            _plates = list(field.get('choices') or []) + list(field.get('options') or [])
+            for _g in field.get('option_groups') or []:
+                _plates += list((_g[1] if isinstance(_g, (list, tuple)) else _g.get('options')) or [])
+            for opt in _plates:
                 ov, ol = (opt if isinstance(opt, (list, tuple)) else (opt.get('value'), opt.get('label')))
                 if str(ov) == str(value):
                     display = ol or value
                     break
             else:
-                # Valeur NUE (nombre, texte, select sans option correspondante) : préfixée de
-                # son libellé — « 85 » seul ne dit rien sur une card (constat Fabien 31/08 :
-                # l'inspecteur disait « Qualité 85 », la card disait « 85 »). Une option qui
-                # correspond reste seule : son libellé se suffit (« 90° horaire », « Mono »).
-                display = f"{libelle} {value}"
+                if field.get('type') in ('number', 'range'):
+                    # SEUL cas légitimement préfixé/suffixé : « 85 » nu ne dit rien (constat
+                    # Fabien 31/08 — la card disait « 85 », l'inspecteur « Qualité 85 »).
+                    # `unit` prime (« 120 s ») ; un chip_label COURT en minuscules est une
+                    # déclaration d'UNITÉ (idiome imager : « s », « fps », « steps » —
+                    # l'afficher en préfixe donnait « s 5 », mesuré absurde à l'audit 31/08).
+                    unit = field.get('unit') or ''
+                    cl = field.get('chip_label') or ''
+                    if not unit and cl and len(cl) <= 5 and cl == cl.lower():
+                        unit = cl
+                    display = f"{value} {unit}" if unit else f"{libelle} {value}"
+                # ⚠ Un select/text NON résolu reste NU : le préfixer produisait « Format de
+                # sortie mp4 » sur la SORTIE du converter et « Moteur de transcription
+                # faster-whisper-large-v3 » chez transcriber (régressions R1/R3 de l'audit
+                # 31/08). Le geste juste est de RÉSOUDRE (options_source côté vue), pas de
+                # préfixer — le libellé complet reste au title du chip.
         chips.append({
             'label': str(display),
             'icon': field.get('icon') or '',
