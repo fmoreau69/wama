@@ -1016,6 +1016,33 @@ précédent `dataset` : « écrire un manifeste à la main est un instrument de 
   prochain export. Les langues/clonage relevés (Kokoro : 7 langues ; Audio8 : 10 + clonage
   zero-shot ; chatterbox : clonage) entreront par la déclaration du backend à l'intégration.
 
+### Suite (même jour) — le 1ᵉʳ BACKEND DÉCLARÉ TTS : kokoro-onnx, smoke CPU réel vert
+
+La boucle se referme sur le premier modèle (GO Fabien « on poursuit sur 3 ») :
+1. **`install_library kokoro-onnx --allow --apply` = 1ᵉʳ apply RÉEL de la jonction**
+   manifeste→pip : verrous passés, pip, **patches venv rejoués** (les 6 vérifiés), version
+   constatée, **torch INTACT** (2.9.1+cu128), ligne `Library` recalée. La chaîne construite
+   le matin tient en conditions réelles.
+2. **`KokoroOnnxBackend`** (`synthesizer/backends/`, contrat `TTSBackend`, Django-free) —
+   1ᵉʳ adaptateur du motif « backend déclaré » : composants lus sur `AIModel.composition`
+   (projetée du manifeste, mesurée sur disque), repli disque aux MÊMES motifs pour le
+   service TTS sans Django ; `voices-derived.npz` ASSEMBLÉ depuis les `voices/*.bin`
+   déclarées (510×256 → (510,1,256) — `np.load` attend un npz clé→style ; artefact dérivé
+   dans le dossier FAMILLE, jamais le snapshot, même motif que les alias audio.cpp) ;
+   briques voix/WAV du jumeau .pt réutilisées. Enregistré (`ENGINE_BACKENDS['kokoro-onnx']`).
+3. **Smoke CPU PUR vérifié** (session `CPUExecutionProvider` via `from_session` — aucune
+   VRAM, règle post-crash) : déclaration lue, **54 voix**, synthèse fr réelle **3,14 s**
+   (`ff_siwis`). Piège attrapé : **`np.savez` ajoute `.npz` à tout nom qui n'en finit pas**.
+4. **Restes séquencés** : bascule assistant (`views.py:262` `'kokoro'`→`'kokoro-onnx'`)
+   **APRÈS redémarrage du service TTS** — l'ancien `engine_for_model` en mémoire
+   retomberait sur coqui ; `ONNX_PROVIDER` est honoré par `kokoro_onnx` si l'on veut
+   fixer le provider du service ; la déclaration côté APP synthesizer (select, catalogue
+   `synthesizer:`) = phase 2, avec la GÉNÉRALISATION du mécanisme existant de projection
+   modèles→apps (`AIModel.source` + briques `ui_meta`/`WamaModelCaps`/`WamaParams` —
+   cadrage Fabien : généraliser, ne pas réinventer ; la liste statique `TTS_MODEL_CHOICES`
+   est le chemin parallèle à résorber) — en coordination avec l'instance « volet
+   paramètres » qui tient les views/templates synthesizer.
+
 **Dry-runs scout validés (même jour, aucun LLM)** sur les 3 dépôts TTS installés —
 squelettes mécaniques complets, et déjà instructifs : `ResembleAI/chatterbox` est un dépôt
 **MULTI-VARIANTES** (t3 en v2/v3/23lang + s3gen en double format .pt/.safetensors — la
