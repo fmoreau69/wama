@@ -108,6 +108,14 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
   un nom de fichier collé devant elle. Et **relancer `check_docs` après avoir écrit
   l'avertissement**, pas seulement après la correction — ici il a fallu TROIS passes, la 2ᵉ et
   la 3ᵉ n'ayant corrigé que le texte de la garde elle-même.
+- ⚠⚠ **VARIANTE 2, le 2026-08-31 (5ᵉ récidive) : le piège vient du §3 de ce skill.** Ce n'était
+  ni un chemin cassé décrit, ni un exemple inventé — c'était l'artefact de session que le §3
+  demande explicitement de tracer (un script du scratchpad), écrit par son chemin. Hors du
+  dépôt, il compte comme cible manquante : **2ᵉ cible distincte, seuil franchi, par la ligne
+  même qui rendait compte du contrôle.** La garde est désormais posée AU §3, là où l'instruction
+  se lit — la poser seulement ici ne l'aurait pas atteinte.
+  ⭐ *Un rituel qui déclenche son propre contrôle ne se corrige pas là où le contrôle échoue,
+  mais là où l'instruction fautive est écrite.*
 
 ## 3. Balayage « rien laissé de côté » — chercher, pas se souvenir
 
@@ -135,6 +143,13 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 - Données/artefacts de session à tracer : comptes et items de test semés (compte smoke,
   jobs), scripts utilitaires laissés hors git (scratchpad, logs/), sorties
   PENDING_HUMAN_VALIDATION (wama-dev-ai/outputs). Les CONSIGNER (où, pourquoi, jetable ?).
+  - 🔴 **SANS ÉCRIRE LEUR CHEMIN.** Cette ligne-ci mène droit dans le piège du §2c : un script
+    de scratchpad n'existe pas pour `check_docs`, donc le tracer par son chemin ouvre une
+    **2ᵉ cible distincte** — c'est-à-dire franchit le seuil de dérive, au moment même où l'on
+    rend compte des contrôles. **Vécu le 2026-08-31, 5ᵉ récidive de la famille** et la
+    première où c'est *l'instruction du skill lui-même* qui y conduisait.
+    ✅ Le geste : décrire l'artefact (« le script de mesure du coût, 3 appels A/B/C ») et dire
+    où il vit **en toutes lettres** (« dans le scratchpad de session »), jamais en chemin.
 - `git stash list` vide, pas de worktree oublié (`git worktree list`).
 
 ## 4. Handoff

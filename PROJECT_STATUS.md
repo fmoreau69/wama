@@ -9393,9 +9393,10 @@ Test demandé par Fabien AVANT d'implémenter `--resume`. 3 appels identiques, m
 ### Contrôles attendus au prochain /reprise — MESURÉS le 2026-08-31
 - `test wama.gateway wama.common.tests_qr wama.common.tests_claude_subscription wama.accounts`
   → **66 OK, 0 rouge**.
-- `check_docs` → **8 cassées / 0 périmée sur 1275 vérifiées**, et surtout **1 SEULE cible
+- `check_docs` → **8 cassées / 0 périmée sur ~1274 vérifiées**, et surtout **1 SEULE cible
   distincte** (le partial d'onglets de résultat jamais créé). Une 2ᵉ cible distincte = vraie
-  dérive. ⚠ Le total de RÉFÉRENCES monte tout seul (1103 le 28/08 → 1275) : ce n'est pas le
-  critère — mesuré APRÈS écriture de ce bloc, qui avait lui-même ouvert une 2ᵉ cible.
+  dérive. ⚠ Le total de RÉFÉRENCES monte tout seul (1103 le 28/08 → ~1274) et **bouge à chaque
+  édition de doc** : ce n'est pas le critère, juste la date de la mesure — prise APRÈS écriture
+  de ce bloc, qui avait lui-même ouvert une 2ᵉ cible (corrigée).
 - `doc_facts --check` → tout à jour ; **115 mécanismes déclarés**.
 - `check_templates` → **0 défaut sur 129 gabarits**.

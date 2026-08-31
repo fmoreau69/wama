@@ -106,13 +106,16 @@ recouvrir un échec qui remplace un autre :
 - 🔴 **LE CRITÈRE EST LE NOMBRE DE CIBLES DISTINCTES — attendu = 1.** (Détail et raison plus bas.)
   Comparer les **fichiers cités**, jamais le nombre de références.
 
-- **État MESURÉ au 2026-08-28** : `check_docs` = **8 références cassées / 0 périmée sur 1103**,
+- **État MESURÉ au 2026-08-31** : `check_docs` = **8 références cassées / 0 périmée sur ~1274**,
   pour **1 SEULE cible distincte** — le **partial d'onglets de résultat jamais créé** (cible de
   `REMOVAL_LEDGER` R18 ; duplication vérifiée présente, `transcriber/index.html:307` et
   `describer/index.html:109` portent le même `#resultTabs`).
   ⚠ **Le chemin n'est volontairement pas réécrit ici** — l'écrire ferait de cette ligne une
   référence cassée de plus. C'est exactement ainsi que le compte est passé de 4 à 5 le 24/08 :
   le bloc « Contrôles attendus » l'a recité pour en rendre compte.
+  ⚠ Le total de RÉFÉRENCES enfle mécaniquement (518 → 1103 le 28/08 → **~1274** le 31/08) sans
+  qu'aucune dérive n'existe : chaque §REPRISE ajoute des citations. **Seul le nombre de cibles
+  distinctes est le critère** ; ce total n'est là que pour dater la mesure.
   ⚠⚠ **Ne pas lire « 4 », « 5 » ni « 8 » comme un seuil** — voir le 🔴 ci-dessus. Le 26/08, j'ai lu la
   ligne d'état périmée (« 4 / 518 ») et conclu à tort que le seuil du skill avait dérivé, alors
   que le critère juste était deux lignes plus bas et **tenait**. *Un chiffre périmé posé à côté
