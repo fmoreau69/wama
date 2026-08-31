@@ -33,6 +33,7 @@ requests>=2.32.3
 beautifulsoup4>=4.12
 lxml>=5.0
 safetensors>=0.4.0
+segno>=1.6  # QR codes (pur Python, BSD-3, zéro dépendance) — brique commune common/utils/qr.py : QR d'appariement joint par le bot (ROADMAP §19.1) ; TOTP/Imager à venir
 # torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER.
 # (L'ancienne ligne `torch>=2.8.0+cu128` ne pouvait pas marcher — PyPI n'a aucune roue avec
 #  suffixe local, donc `>=` retombait toujours sur la version CPU. D'où sa mise en commentaire.)

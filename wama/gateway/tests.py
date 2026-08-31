@@ -16,6 +16,7 @@ Aucun réseau, aucun LLM, aucune charge GPU : le moteur d'assistant est remplac�
 double, et aucun adaptateur de canal n'est instancié.
 """
 
+import os
 import tempfile
 from datetime import timedelta
 from unittest.mock import patch
@@ -209,6 +210,55 @@ class CoeurPasserelleTests(TestCase):
                    side_effect=RuntimeError('boum')):
             reponse = core.handle_message(self._msg('coucou'))
         self.assertIn('erreur interne', reponse.text.lower())
+
+
+class QrAppariementTests(TestCase):
+    """Le QR joint au code d'appariement — un confort qui ne change RIEN au modèle
+    « le canal propose, WAMA dispose » : il encode la page de profil code prérempli,
+    jamais un jeton qui connecterait le scanneur."""
+
+    def _lier(self):
+        return core.handle_message(core.IncomingMessage(
+            channel=CANAL, external_id=EXT_ID, text='!lier'))
+
+    def test_sans_url_publique_le_code_part_seul(self):
+        # Un QR pointant sur localhost échouerait sur le smartphone en accusant le
+        # mécanisme : sans WAMA_PUBLIC_URL, le comportement historique est conservé.
+        with patch.dict(os.environ):
+            os.environ.pop('WAMA_PUBLIC_URL', None)
+            reponse = self._lier()
+        self.assertEqual(reponse.attachments, [])
+        lien = ChannelLink.objects.get(channel=CANAL, external_id=EXT_ID)
+        self.assertIn(lien.code, reponse.text)
+
+    def test_avec_url_publique_un_qr_scannable_accompagne_le_code(self):
+        import cv2
+        import numpy as np
+        from django.urls import reverse
+
+        with patch.dict(os.environ, {'WAMA_PUBLIC_URL': 'https://wama.exemple.fr/'}):
+            reponse = self._lier()
+        self.assertTrue(reponse.private, "le QR est aussi secret que le code")
+        self.assertEqual(len(reponse.attachments), 1)
+
+        # Décodé comme le ferait un smartphone : la cible est la page de profil avec le
+        # code prérempli — et rien d'autre (pas de jeton, pas de connexion automatique).
+        lien = ChannelLink.objects.get(channel=CANAL, external_id=EXT_ID)
+        image = cv2.imdecode(np.frombuffer(reponse.attachments[0].content, np.uint8),
+                             cv2.IMREAD_GRAYSCALE)
+        contenu, _, _ = cv2.QRCodeDetector().detectAndDecode(image)
+        self.assertEqual(
+            contenu,
+            f"https://wama.exemple.fr{reverse('accounts:profile')}?link_code={lien.code}")
+
+    def test_le_qr_absent_ne_prive_jamais_du_code(self):
+        """Le QR est un confort, jamais le chemin : segno cassé → le code texte part."""
+        with patch.dict(os.environ, {'WAMA_PUBLIC_URL': 'https://wama.exemple.fr'}), \
+             patch('wama.common.utils.qr.qr_png', side_effect=RuntimeError('boum')):
+            reponse = self._lier()
+        self.assertEqual(reponse.attachments, [])
+        lien = ChannelLink.objects.get(channel=CANAL, external_id=EXT_ID)
+        self.assertIn(lien.code, reponse.text)
 
 
 class TronconnageDiscordTests(TestCase):

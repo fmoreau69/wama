@@ -513,6 +513,18 @@ if (channelLinkBtn) {
     codeInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); relier(); }
     });
+
+    // Arrivée par le QR d'appariement (?link_code=…, joint par le bot) : on PRÉREMPLIT,
+    // on n'envoie JAMAIS automatiquement. Un lien forgé qui lierait le compte au simple
+    // chargement de la page serait exactement le détournement que « le canal propose,
+    // WAMA dispose » interdit : le geste qui scelle reste un clic délibéré dans la
+    // session authentifiée.
+    const linkCode = new URLSearchParams(window.location.search).get('link_code');
+    if (linkCode) {
+        codeInput.value = linkCode.trim().toUpperCase().slice(0, 16);
+        channelLinkBtn.closest('.card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        codeInput.focus();
+    }
 }
 
 document.querySelectorAll('.channel-unlink-btn').forEach((btn) => {

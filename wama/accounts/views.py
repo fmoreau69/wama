@@ -71,8 +71,19 @@ def login_view(request):
             user = form.get_user()
             login(request, user)
             messages.success(request, "Successfully logged in!")
-            next_url = request.POST.get('next') or 'anonymizer:upload'
-            return redirect(next_url)
+            # ⚠ `next` vient du CLIENT : validé avant redirection, sinon la page de login
+            # devient un redirecteur ouvert (un lien forgé `?next=https://evil…` dépose
+            # l'utilisateur ailleurs juste APRÈS qu'il s'est authentifié — le moment où il
+            # fait le plus confiance à l'écran). Garde posée le 2026-08-31, en réparant le
+            # fil `?next=` pour le QR d'appariement : les gabarits envoyaient `request.path`
+            # (la page de login elle-même), aucun lien profond n'était donc honoré.
+            from django.utils.http import url_has_allowed_host_and_scheme
+            next_url = request.POST.get('next') or ''
+            if not url_has_allowed_host_and_scheme(next_url,
+                                                   allowed_hosts={request.get_host()},
+                                                   require_https=request.is_secure()):
+                next_url = ''
+            return redirect(next_url or 'anonymizer:upload')
         else:
             messages.error(request, "Invalid credentials.")
 

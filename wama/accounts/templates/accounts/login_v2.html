@@ -33,7 +33,10 @@
                             <p>Wrong ID or password</p>
                         {% endif %}
                     </div>
-                    <input type="hidden" name="next" value="{% firstof request.path '/' %}"/>
+                    {% comment %}Le `?next=` reçu PRIME (lien profond : @login_required,
+                    QR d'appariement) ; sinon `request.path` = la page de login elle-même,
+                    dont la redirection retombe sur la destination historique.{% endcomment %}
+                    <input type="hidden" name="next" value="{% firstof request.GET.next request.path '/' %}"/>
                 </form>
         </div>
     </div>

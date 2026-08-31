@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from .services import PairingError, account_for, unlink, request_link
+from .services import PairingError, account_for, pairing_url, unlink, request_link
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,8 @@ TEXT_LIMIT = 2000
 
 @dataclass
 class Attachment:
-    """Une pièce jointe entrante, déjà téléchargée par l'adaptateur."""
+    """Une pièce jointe EN MÉMOIRE — entrante (déjà téléchargée par l'adaptateur) ou
+    sortante (à publier par lui, sans jamais passer par le disque)."""
     name: str
     content: bytes
 
@@ -65,6 +66,10 @@ class Reply:
     text: str
     #: Chemins relatifs à MEDIA_ROOT que l'adaptateur doit joindre. Vide la plupart du temps.
     files: list = field(default_factory=list)
+    #: `Attachment` sortants, EN MÉMOIRE (QR d'appariement…) — jamais écrits sur disque :
+    #: un secret temporaire n'a pas à laisser de trace dans MEDIA_ROOT, et `media/` ne
+    #: loge que les entrées/sorties des utilisateurs (doctrine des emplacements).
+    attachments: list = field(default_factory=list)
     #: True quand la réponse ne doit PAS être publiée dans un salon (code d'appariement…).
     private: bool = False
 
@@ -121,12 +126,19 @@ def _handle(msg: IncomingMessage) -> Reply:
         if user is not None:
             return Reply(text=f"✅ Ce compte est déjà relié à **{user.username}**.", private=True)
         lien = request_link(msg.channel, msg.external_id, msg.external_label)
-        return Reply(private=True, text=(
+        texte = (
             f"🔑 Code d'appariement : **{lien.code}**\n"
             "Connectez-vous à WAMA, puis saisissez ce code dans votre profil.\n"
             "_Il expire dans 15 minutes. Ne le communiquez à personne : c'est la session "
             "WAMA qui saisit le code qui obtiendra l'accès à ce compte de discussion._"
-        ))
+        )
+        pieces = _pairing_qr(lien.code)
+        if pieces:
+            texte += (
+                "\n_Ou scannez le QR joint : il ouvre votre page de profil avec le code "
+                "prérempli — la validation reste le bouton « Relier », connecté à WAMA._"
+            )
+        return Reply(private=True, text=texte, attachments=pieces)
 
     if commande == '!delier':
         if user is None:
@@ -172,6 +184,33 @@ def _handle(msg: IncomingMessage) -> Reply:
     # par session, inutilisable hors WAMA (défaut mesuré 2026-08-29, WAMA_LLM §Vérification).
     return Reply(text=resultat.get('response') or '(réponse vide)',
                    files=_produced_files(resultat))
+
+
+def _pairing_qr(code: str) -> list:
+    """
+    QR joint au code d'appariement — même geste, retape en moins.
+
+    Le QR encode l'URL de la page de profil avec le code prérempli (`pairing_url`) : le
+    smartphone qui le scanne arrive sur la page, l'utilisateur SE CONNECTE, et c'est
+    toujours le clic « Relier » de la session authentifiée qui scelle — le QR ne change
+    RIEN au modèle « le canal propose, WAMA dispose ».
+
+    Deux replis, aucun MUET (« ce qui ne plante pas ne se signale pas ») :
+      • URL publique absente → pas de QR, dit en DEBUG (configuration assumée) ;
+      • échec de génération → pas de QR, dit en WARNING (défaut réel à voir).
+    Dans les deux cas le code TEXTE part : le QR est un confort, jamais le chemin.
+    """
+    url = pairing_url(code)
+    if not url:
+        logger.debug("[gateway] WAMA_PUBLIC_URL absent — code d'appariement sans QR")
+        return []
+    try:
+        from wama.common.utils.qr import qr_png
+        return [Attachment(name='wama-appariement.png', content=qr_png(url))]
+    except Exception:
+        logger.warning("[gateway] QR d'appariement non généré — le code seul est envoyé",
+                       exc_info=True)
+        return []
 
 
 #: Clés de résultat d'outil qui désignent une sortie fichier (contrat des triades tool_api).

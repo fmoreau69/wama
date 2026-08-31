@@ -323,6 +323,12 @@ MECANISMES = (
               "canal — la garde que tout adaptateur appelle avant d'agir",
               'wama/gateway/services.py', 'ROADMAP.md §19',
               annexes=('wama/gateway/models.py',)),
+    # Un QR ENCODE, il ne PROUVE rien : celui d'appariement épargne la retape du code,
+    # la preuve reste la session authentifiée (cf. docstring du module).
+    Mecanisme('qr', 'Générateur de QR codes',
+              "Encode un texte/URL en PNG/SVG (segno, déterministe) — QR d'appariement "
+              "de la passerelle aujourd'hui ; enrôlement TOTP et domaine Imager demain",
+              'wama/common/utils/qr.py', 'ROADMAP.md §19'),
     Mecanisme('assistant_engine', "Moteur de l'assistant IA",
               "Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — "
               "la vue web et /api/v1/assistant/chat/ en sont des clients",

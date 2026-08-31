@@ -56,7 +56,10 @@
                         <p>Nom d'utilisateur ou mot de passe incorrect.</p>
                         {% endif %}
                     </div>
-                    <input type="hidden" name="next" value="{{ next }}"/>
+                    {% comment %}`{{ next }}` n'était fourni par AUCUNE vue (toujours vide)
+                    — le `?next=` reçu le remplace ; vide, la vue garde sa destination
+                    historique.{% endcomment %}
+                    <input type="hidden" name="next" value="{% firstof request.GET.next '' %}"/>
                 </form>
             </section>
         </div>

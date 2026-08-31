@@ -15,7 +15,10 @@
                     <div class="form-group">
                         {{ login_form.password }}
                     </div>
-                    <input type="hidden" name="next" value="{{ request.path }}">
+                    {% comment %}Le `?next=` reçu PRIME (on est peut-être sur `/?next=…`
+                    posé par @login_required) ; sinon on reste sur la page courante —
+                    le comportement historique de la modale.{% endcomment %}
+                    <input type="hidden" name="next" value="{% firstof request.GET.next request.path '/' %}">
                 </form>
             </div>
             <div class="modal-footer">

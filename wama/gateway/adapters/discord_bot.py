@@ -32,6 +32,7 @@ développement de la passerelle (ni compte mail, ni E2EE, ni renouvellement annu
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import os
 from pathlib import Path
@@ -170,6 +171,15 @@ async def _publier(message, reponse):
             "contenu ne doit pas être publié ici. Ouvrez vos DM puis réessayez."
         )
         return
+
+    # Pièces SORTANTES en mémoire (QR d'appariement…) : `discord.File` accepte un flux,
+    # rien n'est écrit sur disque — un secret temporaire ne laisse pas de trace.
+    for piece in reponse.attachments:
+        try:
+            await cible.send(file=discord.File(io.BytesIO(piece.content),
+                                               filename=piece.name))
+        except Exception:
+            logger.exception("[gateway/discord] envoi de pièce impossible : %s", piece.name)
 
     for chemin_relatif in reponse.files:
         chemin = Path(settings.MEDIA_ROOT) / chemin_relatif

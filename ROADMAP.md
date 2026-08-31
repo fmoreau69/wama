@@ -2451,6 +2451,28 @@ craignait. Remède : portail développeur → application → **Bot** → *Privi
 ne reçoit rien et **ne dit rien** — aucune erreur nulle part. C'est LA panne silencieuse de ce
 chantier, celle contre laquelle il faut prévenir quiconque déclare un salon privé.
 
+**✅ QR d'appariement — LIVRÉ 2026-08-31.** Le bot joint au code un QR (brique commune
+`common/utils/qr.py`, mécanisme `qr` — segno, BSD-3, licence lue au texte) encodant la page
+de profil avec `?link_code=<code>` ; la page PRÉREMPLIT le champ sans jamais soumettre
+seule. **Zéro changement au modèle de sécurité** : le QR épargne la retape, la preuve reste
+le clic « Relier » de la session authentifiée. Exige `WAMA_PUBLIC_URL` (env, cf.
+`.env.example`) — sans elle, comportement historique (code seul), repli DIT en log ; segno
+cassé → code seul aussi (le QR est un confort, jamais le chemin). Livré avec :
+`Reply.attachments` (pièces sortantes EN MÉMOIRE, jamais écrites dans `media/` — le
+symétrique du `Attachment` entrant), envoi `discord.File(BytesIO)` dans l'adaptateur,
+6 tests (dont scannabilité RÉELLE : PNG décodé par OpenCV, pas « le PNG existe »).
+⚠ Garde à ne jamais lever : le QR n'encode JAMAIS un jeton qui connecterait le scanneur
+(QRLjacking) — `pairing_url()` porte cette doctrine. Validation ÉCRAN restante : un `!lier`
+réel en DM avec `WAMA_PUBLIC_URL` posée (le harnais ne couvre pas le rendu Discord).
+↳ **Trou de trajectoire découvert ET réparé dans la foulée (2026-08-31)** : le champ caché
+`next` des 3 gabarits de login valait `request.path` (la page de login ELLE-MÊME) — **aucun
+lien profond n'était honoré après connexion**, pour tout `@login_required`, pas que le QR ;
+et le lien « S'identifier » de l'accueil (`LOGIN_URL='/'`) perdait le `?next=` reçu. Réparé
+(`firstof request.GET.next …` × 3, lien d'accueil, `login_view`) avec la garde
+anti-redirection ouverte (`url_has_allowed_host_and_scheme`, hôte courant seul) posée dans
+le MÊME geste — ouvrir le fil `next` sans elle aurait créé un redirecteur ouvert au moment
+où le QR met des liens profonds en circulation. 4 tests : `accounts/tests_login_next.py`.
+
 **⏳ Reste :**
 - **Store de conversation** — le prochain vrai morceau (voir §19.5) : l'historique est
   aujourd'hui **en mémoire du process**, perdu au redémarrage.

@@ -132,7 +132,11 @@
             {% if accueil_assistant.identifie %}
             <p class="small mt-2 text-muted">Ex : "Liste mes fichiers temporaires" · "Ajoute biovam.mp4 à l'anonymizer avec SAM3" · "Lance le traitement"</p>
             {% else %}
-            <p class="small mt-2"><a href="{% url 'accounts:login' %}">S'identifier</a></p>
+            {% comment %}LOGIN_URL = '/' : c'est ICI qu'atterrit un @login_required anonyme,
+            avec `?next=<cible>`. Ce lien doit le transmettre à la page de login, sinon le
+            fil casse à cette maille (mesuré le 2026-08-31 : la trajectoire du QR
+            d'appariement se perdait exactement là).{% endcomment %}
+            <p class="small mt-2"><a href="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}">S'identifier</a></p>
             {% endif %}
           </div>`;
       }

@@ -67,6 +67,32 @@ def request_link(channel: str, external_id: str, external_label: str = '') -> Ch
     return lien
 
 
+def pairing_url(code: str) -> str:
+    """
+    URL que le QR d'appariement encode : la page de profil, code prérempli.
+
+    Rien d'autre — surtout PAS un jeton de connexion : la page exige la session
+    authentifiée et le clic « Relier », le QR ne fait qu'épargner la retape du code
+    (l'alphabet anti-ambiguïté de `models.py` existe parce que la retape échoue).
+    Encoder un lien qui connecterait le scanneur inverserait « le canal propose,
+    WAMA dispose » — c'est le détournement type QRLjacking, interdit ici.
+
+    Vide si l'URL publique de l'instance n'est pas déclarée (`WAMA_PUBLIC_URL`,
+    env ou settings — même patron que le jeton du bot) : un QR pointant sur
+    localhost échouerait sur le smartphone en accusant le mécanisme, pas la config.
+    """
+    import os
+
+    from django.conf import settings
+    from django.urls import reverse
+
+    base = (os.environ.get('WAMA_PUBLIC_URL') or getattr(
+        settings, 'WAMA_PUBLIC_URL', '') or '').strip().rstrip('/')
+    if not base:
+        return ''
+    return f"{base}{reverse('accounts:profile')}?link_code={code}"
+
+
 def confirm_link(user, code: str) -> ChannelLink:
     """
     Scelle la liaison au profit de `user` — appelé DEPUIS WAMA, session authentifiée.
