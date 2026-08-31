@@ -29,6 +29,13 @@ def render_params_source(app_id: str, schemas: dict) -> str:
         'le modèle Django — les valeurs dérivées redeviendront alors dérivées. Ne pas éditer à',
         'la main : rejouer write_back (ou app_sandbox substitute params) après modification du',
         'manifeste.',
+        '',
+        "⚠ SÉLECTEUR DE MODÈLE — il se déclare `options_source: 'catalog'` (+ `options_query`",
+        "   nommant le DOMAINE : task / model_type / modality), JAMAIS par une liste `choices`",
+        '   écrite ici. Une liste en dur signifie qu\'un modèle installé n\'apparaîtra jamais à',
+        "   l'utilisateur sans édition de code — c'est ce que mesure le critère de grille",
+        "   `model_options_catalog` (F4). Le domaine BORNE la liste ; les entrées fournies la",
+        '   GRISENT côté client (WamaInputMatch) — lister n\'est pas pouvoir choisir.',
         '"""',
         '',
     ]
@@ -50,4 +57,36 @@ def render_params(manifest: dict):
     app_id = manifest.get('key')
     src = render_params_source(app_id, schemas)
     compile(src, f'<params_gen app:{app_id}>', 'exec')   # jamais un fichier insyntaxique
-    return src, f"{len(schemas)} schéma(s) au littéral ({', '.join(sorted(schemas))})"
+    raison = f"{len(schemas)} schéma(s) au littéral ({', '.join(sorted(schemas))})"
+    en_dur = _selecteurs_de_modele_en_dur(schemas)
+    if en_dur:
+        # SIGNALÉ, pas corrigé : ce générateur rend le manifeste au littéral — il n'invente
+        # rien (c'est sa raison d'être : « un fichier copié dérive de sa source, un fichier
+        # généré la suit »). Injecter ici `options_source` ferait mentir le manifeste sur ce
+        # que l'app fait. Le défaut se corrige DANS le manifeste ; on le dit fort pour que
+        # personne ne génère une app non conforme sans le savoir.
+        raison += (f" — ⚠ sélecteur(s) de modèle à liste EN DUR : {', '.join(en_dur)} ; "
+                   "déclarer `options_source: 'catalog'` au manifeste (critère F4 "
+                   "`model_options_catalog`)")
+    return src, raison
+
+
+#: Noms de paramètre qui désignent un CHOIX DE MODÈLE dans les schémas d'app existants.
+#: Liste d'OBSERVATION (relevée sur les 10 apps), pas une convention imposée : elle sert à
+#: SIGNALER, jamais à décider — un paramètre inconnu d'ici ne déclenche rien.
+_NOMS_SELECTEUR_MODELE = ('model', 'tts_model', 'ai_model', 'engine', 'backend',
+                          'ai_model_audio', 'model_name')
+
+
+def _selecteurs_de_modele_en_dur(schemas: dict) -> list:
+    """Paramètres qui CHOISISSENT un modèle avec une liste écrite à la main."""
+    fautifs = []
+    for attr, schema in (schemas or {}).items():
+        for p in (schema or []):
+            if not isinstance(p, dict) or p.get('name') not in _NOMS_SELECTEUR_MODELE:
+                continue
+            if p.get('options_source') == 'catalog':
+                continue
+            if p.get('choices') or p.get('option_groups'):
+                fautifs.append(f"{attr}.{p['name']}")
+    return fautifs

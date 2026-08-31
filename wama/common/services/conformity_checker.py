@@ -925,6 +925,38 @@ def _model_discovery(f: _AppFiles):
     return True, f"{MODEL_REGISTRY_PY}:{line}"
 
 
+def _model_options_from_catalog(f: _AppFiles):
+    """La liste de modèles PROPOSÉE À L'UTILISATEUR dérive-t-elle du CATALOGUE ?
+
+    Critère né du constat mesuré le 2026-08-31 (route F4b) : **1 app sur 10** dérivait ses
+    options du catalogue, les 9 autres les portaient en dur — donc un modèle installé
+    n'apparaissait nulle part sans édition de code, et RIEN ne le signalait. C'est
+    exactement ce qu'une règle de documentation ne sait pas empêcher : *un critère de
+    grille, lui, rougit tout seul.*
+
+    Deux adoptions VALENT, parce que ce sont les deux chemins légitimes :
+      • déclaratif (cible) — un paramètre déclare `options_source: 'catalog'`, WamaParams
+        va chercher les options (`api/models/options/`) ;
+      • serveur — la vue appelle `get_registry_models` (voie historique de l'imager vidéo).
+
+    ⚠ Ce que ce critère ne dit PAS : que les options soient FILTRÉES. Lister n'est pas
+    pouvoir choisir — le grisage par entrées reste au client (`WamaInputMatch`), sur la
+    liste complète. Un jour où une app filtrerait ses options côté serveur, elle passerait
+    ce critère tout en cassant l'UX : c'est l'invariant, pas ce critère, qui l'interdit.
+    """
+    ev = f.find(PARAMS, r"options_source\s*[:=]\s*['\"]catalog['\"]")
+    if ev:
+        return True, ev
+    ev = f.find(VIEWS + PY, r'get_registry_models')
+    if ev:
+        return 'partial', (f"{ev} — options tirées du catalogue CÔTÉ SERVEUR ; cible = "
+                           "déclaration `options_source: 'catalog'` au schéma")
+    dur = f.find(PARAMS + MODELS + ['utils/model_config.py'],
+                 r"MODEL_CHOICES|_MODELS\s*=\s*\{|choices\s*=\s*\[")
+    return False, (f"liste écrite en dur ({dur}) — un modèle installé n'apparaîtra jamais"
+                   if dur else "aucune source d'options tirée du catalogue")
+
+
 def _backend_contract(f: _AppFiles):
     ev = f.find(PY, r'BaseModelBackend')
     if not ev:
@@ -1210,6 +1242,10 @@ CRITERIA: list[Criterion] = [
               mecanisme='model_capabilities'),
     Criterion('select_model', 'F4', 'Sélection auto confiée à la brique commune (select_model)',
               _f4(_select_model),
+              mecanisme='model_selector'),
+    Criterion('model_options_catalog', 'F4',
+              'Options du select DÉRIVÉES du catalogue (jamais une liste en dur)',
+              _f4(_model_options_from_catalog),
               mecanisme='model_selector'),
     Criterion('vram_unloader', 'F4', 'Reclaim VRAM cross-app (unloader auto, explicite ou réservation)',
               _f4(_vram_unloader),
