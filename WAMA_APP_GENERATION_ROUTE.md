@@ -260,6 +260,84 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **⚠ À réintégrer depuis l'archive** : le détail par backend (ex-`BACKEND_CARTOGRAPHY.md`) n'a pas été
   re-tracé en profondeur ici — pointeur `docs/archive/BACKEND_CARTOGRAPHY.md` en attendant sa fusion en F4.
 
+#### 🔴 F4b — La DERNIÈRE JAMBE manquante : les OPTIONS du select ne viennent pas du catalogue (mesuré 2026-08-31)
+
+> **La route n'est PAS à double sens — et le dire ainsi était une erreur de ma part (recadrage
+> Fabien, 31/08).** Le sens est unique et il est celui écrit ci-dessus : *déclaration d'app
+> (`<APP>_MODELS`) → `_discover_<app>_models()` → catalogue `AIModel` (source unique, enrichi de
+> ce que l'app ignore : licence, VRAM MESURÉE, provenance, `composition`, état d'installation)*.
+> Ce qui manque n'est pas une inversion, c'est **une NON-ADOPTION de la dernière jambe** — la même
+> maladie que « `select_model()` adoptée par 2/10 » tracée trois lignes plus haut, jamais comptée
+> pour les OPTIONS. Le catalogue sert déjà les MÉTA (aide, VRAM, capacités, grisage) ; il ne sert
+> pas encore **l'inventaire proposé à l'utilisateur**.
+
+**Mesure (balayage des 10 apps, `file:line` à l'appui)** — d'où vient la LISTE d'options :
+
+| Source de la liste | Apps |
+|---|---|
+| **Catalogue** (`get_registry_models`) | **imager, domaine VIDÉO seulement** (`imager/views.py:183`) — **1/10** |
+| Constante en dur de l'app | synthesizer (`common/tts/constants.py:25`, 4 entrées) · avatarizer (emprunte la même) · enhancer (`models.py:39`) · composer (`COMPOSER_MODELS`) · reader (`models.py:18`) · imager-image (`diffusers_backend.SUPPORTED_MODELS`) |
+| Classes de backend | transcriber (`backends/manager.py:51`) |
+| **Scan disque** (hors catalogue) | anonymizer (`utils/model_manager.py:317`) |
+| Aucun select | describer, converter (N/A) |
+
+⚠ **`get_registry_models` (`model_selector.py:377`) est la SEULE brique catalogue→options, et elle
+n'a qu'UN consommateur applicatif** (vérifié par grep exhaustif). Elle existe, elle marche, elle
+n'est pas câblée.
+
+**La PREUVE que c'est bien la jambe qui manque, et pas un défaut de conception** : les
+« re-clés par app » de [`INPUT_MODEL_MATCHING.md §5`](INPUT_MODEL_MATCHING.md) — synthesizer
+`ENGINE_CATALOG_KEYS` (xtts_v2↔coqui-xtts), enhancer suffixe `_fp16`, transcriber
+`_backend_for_model_key`, anonymizer double clé `type/fichier`. **Ces tables de traduction
+n'existent QUE parce que les valeurs d'option ne sont pas les clés du catalogue.** Si les options
+venaient du catalogue, il n'y aurait rien à re-clé. Elles sont la cicatrice du raccourci, pas une
+pièce de l'architecture — et elles disparaissent avec lui.
+
+**Le BLOQUANT technique à traiter en premier (sinon le câblage ne montrera rien)** : `model_sync`
+réécrit `capabilities` EN ENTIER depuis la découverte (`model_sync.py:206`). Un modèle installé
+par la prospection et catalogué par le **balayage générique des snapshots HF** naît donc avec
+`capabilities={}` et `backend_ref=''` — invisible d'un filtre par capacité. Vécu le 31/08 :
+Kokoro-ONNX, chatterbox et Audio8 sont au catalogue, licenciés, avec `composition`… et sans une
+seule capacité. **Il faut que le manifeste puisse POSER les capacités d'un modèle qu'aucune app ne
+déclare**, et que le sync les préserve — exactement le partage déjà en vigueur pour
+`composition`/`license` (projetés par le manifeste, préservés par le sync) ; `capabilities` est le
+seul champ resté du côté « découverte seule ».
+
+**Route CIBLE (4 maillons, rien à inventer)** :
+`manifeste model (identity + capabilities + composition.runtime)` → `catalogue AIModel` (la
+découverte gardant les FAITS : présence, format, taille, VRAM mesurée) → `get_registry_models`
+**filtré par CAPACITÉ** (`task`/`modalities`/`inputs`, jamais par `source` — un modèle sert
+plusieurs surfaces : l'avatarizer emprunte le parc TTS, l'assistant vocalise, le studio et le Lab
+consomment) → `params.py` déclare `options_source: "catalog"` → `WamaParams` rend le select
+(mécanisme `OPTION_SOURCES`, `wama-params.js:340`, **déjà déclaratif et déjà extensible**).
+Au lancement, le backend est dispatché par `composition.runtime.engine` — deux précédents qui
+tournent : `AudioCppBackend` (Music3) et `KokoroOnnxBackend` (31/08).
+
+**Ordre de portage** (chaque étape livrable seule) : ① socle sans changement d'UI (capacités au
+manifeste + filtre par capacité + source `catalog`) ; ② **synthesizer** (pilote — ⚠ piège :
+`VoiceSynthesis.tts_model` porte `choices=`, donc *toute liste dans un champ de modèle exige une
+migration* : preuve par l'absurde que la liste ne doit pas y vivre) ; ③ **avatarizer** (valide le
+multi-surface) ; ④ composer + reader (déjà rendus par WamaParams : seule la source change) ;
+⑤ enhancer (7 modèles déclarés **4 fois**) ; ⑥ imager (aligner l'image sur la vidéo, replier les
+8 `SUPPORTED_MODELS` sur `composition.runtime`) ; ⑦ transcriber (pont backend↔catalogue) ;
+⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) ; ⑨ surfaces transverses (assistant,
+studio, Lab — `cam_analyzer` n'a **aucun** usage du catalogue : chantier à part).
+
+**Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
+(entrées⇄modèles, `WamaInputMatch` + `WamaModelCaps`, **8/8 câblées**, adoption SOLDÉE). Elle
+n'est pas menacée — elle est *simplifiée* : mêmes clés partout, plus de traduction.
+
+**Garde-fous pour que ça ne revienne jamais** (la demande de fond de Fabien : *« que n'importe
+quelle nouvelle application fonctionne de la même façon dès sa construction »*) :
+1. un **critère MESURÉ** dans `check_app_conformity` (« la liste de modèles dérive du catalogue »)
+   — une règle de doc dérive, un critère de grille rougit tout seul ;
+2. **`params_gen` émet `options_source: "catalog"`** pour le paramètre modèle → une app générée
+   depuis son manifeste **naît conforme**, sans que personne y pense.
+
+**Corollaire acté (Fabien, 31/08)** : filtrer par capacité fait hériter les PASSERELLES sans
+effort (enhancer appelé depuis converter, TTS dans avatarizer…) — une passerelle demande une
+capacité, elle n'a aucune liste à tenir.
+
 ### F5 — Traitement / cycle de vie  ⟷ `SPEC §F5`
 - **Spine item** : `ProcessingTimeMixin` (`common/models.py:19`) + `BatchMixin` (`:43`). Champs communs de
   fait, mais **noms divergents** (`input_file` vs `audio`) et **`error_message` absent de transcriber**.

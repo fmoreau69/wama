@@ -80,6 +80,14 @@ card commune + select modèle (surfaces). Zéro hardcode par app ; composer = pi
 | Brique **câblée** (grille `input_match_ui`) | ✅ **8/8 applicables** : composer, imager, synthesizer (grisage RÉEL : voix clonée → bark/kokoro grisés + chip ✕), enhancer (2 selects, un par domaine), transcriber, reader, anonymizer (+ converter N/A sans moteur IA) |
 | **describer, avatarizer** | **N/A mesuré** (verdict Fabien 17/08, gate commun `_has_engine_select`) : aucun sélecteur de modèle — describer route AUTO par type de média, avatarizer = MuseTalk fixe. Pas d'hôte → pas de grisage exigible. ⚠ Mise à jour 2026-08-28 : le pipeline texte→TTS→avatar est REVENU dans l'avatarizer (mode DÉRIVÉ des entrées, MODES_QUEUE_UX §2bis) — le N/A tient tant que MuseTalk reste le seul moteur d'ANIMATION ; le « Modèle TTS » de la modale n'est pas un sélecteur de moteur d'app (la voix vient de la brique synthesizer). Si un 2ᵉ moteur d'animation arrive (EchoMimicV3, StableAvatar…), le verdict ROUVRE automatiquement (gate mesuré). |
 
+> ⚠ **2026-08-31 — ces re-clés sont une CICATRICE, pas une pièce d'architecture.** Elles n'existent
+> que parce que les valeurs d'option des selects ne sont PAS les clés du catalogue : les apps
+> peuplent leur liste depuis une constante en dur (mesuré : **1 app sur 10** dérive ses options du
+> catalogue). Quand la dernière jambe sera câblée — options tirées du catalogue, filtrées par
+> CAPACITÉ — il n'y aura plus rien à re-clé et cette table disparaîtra. Le mécanisme d'appariement
+> lui-même (bidirectionnel, 8/8) n'est pas concerné : il est *simplifié*, pas remis en cause.
+> Route, mesure et ordre de portage : `WAMA_APP_GENERATION_ROUTE.md §F4b`.
+
 Re-clés par app (l'accesseur PRIME, jamais de déduction) : synthesizer `ENGINE_CATALOG_KEYS`
 (xtts_v2↔coqui-xtts), enhancer suffixe `_fp16` (stems ONNX), transcriber
 `_backend_for_model_key` (qwen3-asr-* → qwen_asr), anonymizer valeurs d'option `type/fichier`
