@@ -9441,3 +9441,74 @@ n'aurait été vu par personne :
   de ce bloc, qui avait lui-même ouvert une 2ᵉ cible (corrigée).
 - `doc_facts --check` → tout à jour ; **115 mécanismes déclarés**.
 - `check_templates` → **0 défaut sur 129 gabarits**.
+
+## §REPRISE — 2026-08-31 → 09-01, instance « MODÈLES : socle F4b + TTS » — ✅ CLOSE
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : `WAMA_APP_GENERATION_ROUTE.md §F4b` — il porte la
+mesure, la route cible en 4 maillons, l'ordre de portage en 9 étapes et les arbitrages
+ouverts. Le socle est LIVRÉ ; la session suivante commence l'**étape ② : le portage,
+synthesizer en pilote**.
+
+**Livré** — ① socle F4b : (a) capacités posables par le manifeste et non effaçables par une
+découverte muette · (b) requête ET tirage PAR CAPACITÉ sans nommer d'app · (c) source
+`catalog` de WamaParams (endpoint + `options_query`) · (d) critère de grille
+`model_options_catalog` + générateur qui avertit ; ② TTS : correctif PROXY (l'instantané
+était cassé depuis toujours), kokoro-onnx installé par la chaîne + backend DÉCLARÉ,
+résidence déclarée, préchargement 87,9 s → 3,3 s, lecture audible des listes ; ③ le 3ᵉ
+indicateur (performance tierce) gagne son déclencheur d'écran ; ④ nommage anglais de l'API
+de sélection et de la taxonomie de tâches.
+
+**Chantiers ouverts, dans l'ordre** :
+1. **Étape ② portage** — synthesizer d'abord (⚠ piège : `tts_model` porte `choices=`, donc
+   toute liste dans un champ de modèle exige une migration), puis avatarizer (valide le
+   multi-surface), composer/reader (déjà rendus par WamaParams), enhancer (7 modèles
+   déclarés 4 fois), imager, transcriber, anonymizer (scan disque, le plus délicat), enfin
+   les surfaces transverses (assistant, studio, Lab).
+2. **Scout enrichi** — il doit RÉUTILISER les briques de découverte de la prospection sur un
+   seul modèle (licence au texte, variantes quantisées, poids, concurrence, appariement
+   benchmark) ; les faits restent mécaniques, le LLM ne juge que ce qui ne se mesure pas.
+3. **Retrait de `_get_kokoro`** — la moitié jamais faite du fix ROADMAP ; BLOQUÉ tant que la
+   vocalisation n'est pas validée à l'écran (on ne retire pas un filet avant d'avoir vérifié
+   le sol).
+
+**🔴 ARBITRAGES BLOQUANTS (la session suivante ne peut pas trancher seule)** :
+- **défaut constaté** (bark saturé, vibevoice au ralenti) : champ dédié + grisage AVEC RAISON
+  + toujours testable par l'admin, plutôt que `is_available` détourné (Fabien : « ça ressemble
+  à un pansement ») ;
+- **intention latence ↔ qualité** : généraliser le curseur `precision_level` de l'anonymizer
+  SANS emporter ses couplages propres (au-delà de 50 il change le CHEMIN DE FLOUTAGE) ;
+- **quand durcir** la règle en validation bloquante — aujourd'hui les 10 manifestes d'app
+  seraient invalides ; on durcit APRÈS le portage.
+
+**Pendings système** : redémarrer la stack (Celery doit enregistrer la nouvelle tâche
+`model_manager.sync_benchmarks` ; gunicorn pour les nouvelles URLs) · lancer **« Mesurer la
+performance »** (réseau seul, clé présente — corrige le tirage TTS qui retombe sur la VRAM
+faute d'indice) · tester la **vocalisation** · **12 commits non poussés**.
+
+**⚠ DÉFAUT DÉCOUVERT À LA CLÔTURE, non corrigé** : régénérer le corpus pour une library
+DEVENUE installée ÉCRASE ce qui a été curé — `kokoro-onnx` perd sa licence (MIT, vérifiée à
+l'API GitHub) et ses `constraints` documentées, car `importlib.metadata` ne les porte pas.
+**Le corpus RÉGRESSE au moment où le paquet s'installe.** Même famille que « 6 auteurs curés
+écrasés par un backfill » (provenance, 27/08) : la règle « ne jamais écraser un fait curé par
+une absence » vaut pour le kind `library` aussi, et elle n'y est pas.
+
+**Contrôles attendus au prochain /reprise (tous MESURÉS cette session)** : tests du périmètre
+**212 OK** (cible DÉRIVÉE DU DIFF : model_manager, synthesizer, common tests / catalogues /
+codegen_lot / manifest_axes / registries / capabilities_languages) · corpus **113 manifestes,
+à jour** après régénération · `check_docs` **8 références cassées sur 1284**, cible distincte
+inchangée · grille : nouveau critère `model_options_catalog` = **8 ROUGE / 1 PARTIEL / 1 N/A**
+· `check_model_taxonomy` vert (22 tâches projetées sur 4 plateformes).
+
+**⚠⚠ Leçon de méthode de la clôture elle-même** : ma première suite de tests citait un module
+**inventé par déduction** (la convention `tests_*.py` plus un gros sous-système suffisent à
+fabriquer un nom crédible). Django compte un module introuvable comme un `ERROR` DANS LE
+TOTAL : « 65 tests, 1 erreur » se lit exactement comme un test rouge. Pire — en dérivant la
+cible du diff, j'ai découvert que **4 modules couvrant mon code n'étaient pas dans ma liste**.
+*La cible d'une suite de tests se dérive du DIFF, jamais de la mémoire de ce qu'on croit avoir
+modifié.*
+
+**⚠ Piège d'outillage, 3ᵉ occurrence dans la même session** : des accents graves dans un
+message ou un bloc passé à `bash -lc` sont interprétés comme des SUBSTITUTIONS DE COMMANDE —
+les mots disparaissent, y compris à l'intérieur d'un heredoc entre quotes (le shell externe
+les mange avant que le heredoc existe). *Le contenu ne passe jamais par la ligne de commande :
+on l'écrit dans un fichier, puis on le concatène.*
