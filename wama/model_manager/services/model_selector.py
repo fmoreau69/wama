@@ -418,8 +418,13 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         qs = qs.filter(is_proposed=False)
         # ⚠ ANCRAGE PAR CATÉGORIE (recadrage Fabien, 2026-08-31) — la pièce que j'avais
         # ratée. `model_type` est la TAXONOMIE du catalogue : renseignée sur **101/101**
-        # modèles (mesuré), y compris ceux du balayage générique, qui la déduisent de leur
-        # dossier. Sans elle, la requête ne s'appuyait que sur `capabilities.task` — or
+        # modèles (mesuré), y compris ceux qu'aucune app ne déclare. Elle ne se DEVINE pas :
+        # elle vient de la SOURCE elle-même — `pipeline_tag` du dépôt HF ou capacité déclarée
+        # au registre Ollama — traduite par `_TASK_MODEL_TYPE` ; c'est cette même réponse qui
+        # décide ensuite du dossier d'installation, que le balayage générique relit. Le
+        # dossier est donc le dernier maillon d'une chaîne qui commence chez l'éditeur, pas
+        # une déduction de rangement. Sans elle, la requête ne s'appuyait que sur
+        # `capabilities.task` — or
         # `matches_inputs` est PERMISSIF par choix (un modèle qui ne déclare rien n'est
         # jamais exclu) : `LocateAnything-3B` (`model_type='vision'`, `capabilities={}`)
         # remontait donc dans une demande `text-to-speech`.
