@@ -338,6 +338,35 @@ quelle nouvelle application fonctionne de la même façon dès sa construction �
 effort (enhancer appelé depuis converter, TTS dans avatarizer…) — une passerelle demande une
 capacité, elle n'a aucune liste à tenir.
 
+##### Avancement du socle (étape ①) et 2 découvertes qui changent la suite
+
+- ✅ **(a) capacités posables par le manifeste, non effaçables par une découverte muette**
+  (`model_sync` : un `{}` ne remplace plus un fait ; `write_back_model` : projection SOUS
+  CONDITION, seulement si `backend_ref` vide ET capacités vides). Prouvé sur base live.
+- ✅ **(b) requête par CAPACITÉ, tous producteurs** — `get_registry_models(source=None)`.
+  Constat : la fonction était **déjà** un filtre de capacité complet (`task`, `modality`,
+  `available_inputs`, `consumes`, `requires`) ; seul son ancrage `source` manquait d'ouverture.
+- ⏳ (c) source `catalog` dans `OPTION_SOURCES` · ⏳ (d) garde-fous (critère de grille + `params_gen`).
+
+**⚠ Découverte 1 — `matches_inputs` est PERMISSIF par choix documenté** :
+`if task and caps.get('task') and caps.get('task') != task` → **un modèle qui ne DÉCLARE rien
+n'est jamais exclu**. Sain pour SÉLECTIONNER (ne pas écarter l'inconnu), faux pour PEUPLER un
+select : mesuré, une requête `text-to-speech` a fait remonter `LocateAnything-3B` (vision).
+→ Arbitrage proposé (Fabien) : permissif pour la **sélection**, **strict** pour les **options**.
+Conséquence vertueuse : *un modèle sans capacités déclarées n'apparaît nulle part* — la
+déclaration devient obligatoire au lieu d'optionnelle, ce qui est l'objectif même du chantier.
+
+**⚠⚠ Découverte 2 (leçon de MÉTHODE, vécue le jour même)** : ma première preuve du point (a)
+était verte… et **falsifiée 67 secondes plus tard**. Le beat `model-manager-reconcile` a
+re-effacé les capacités à 19:45:54 en tournant avec **l'ancien `model_sync` chargé en mémoire**
+(workers de 15:39, correctif écrit après). Le piège était déjà consigné (« un contrôle vert
+juste après un correctif de catalogue ne prouve rien ») — et il a quand même mordu.
+**Le test qui tranche n'est pas de lancer le sync dans son shell, c'est de l'ENFILER dans le
+WORKER** (`sync_models_task.delay()` + `.get()`) : c'est SON code qui écrase périodiquement.
+Refait après le redémarrage de 21:43 → 100 modèles synchronisés **par le worker**, capacités
+**préservées**. *Vérifier un correctif de données dans le process qui ne l'a pas chargé mesure
+le passé.*
+
 ### F5 — Traitement / cycle de vie  ⟷ `SPEC §F5`
 - **Spine item** : `ProcessingTimeMixin` (`common/models.py:19`) + `BatchMixin` (`:43`). Champs communs de
   fait, mais **noms divergents** (`input_file` vs `audio`) et **`error_message` absent de transcriber**.
