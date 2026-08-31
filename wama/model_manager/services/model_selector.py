@@ -142,7 +142,7 @@ def _best_by_vram(models, budget_gb: Optional[float], domaine=None):
 
 
 def select_model(
-    source: str,
+    source: Optional[str] = None,
     *,
     model_type: Optional[str] = None,
     requires: Optional[List[str]] = None,
@@ -194,7 +194,22 @@ def select_model(
     """
     from ..models import AIModel
 
-    qs = AIModel.objects.filter(source=source, is_available=True)
+    # `source=None` (2026-08-31) : sélection PAR CAPACITÉ, tous producteurs confondus —
+    # symétrique de `get_registry_models`. C'est le mode des surfaces qui ne sont pas des
+    # apps (vocalisation de l'assistant, nœud studio, passerelle converter→enhancer) : elles
+    # demandent « ce qui sait faire X », pas « ce que l'app Y déclare ».
+    # ⚠ `model_type` devient alors OBLIGATOIRE : sans app pour borner le lot, c'est la
+    # CATÉGORIE qui empêche de charger un modèle de vision pour parler. On lève plutôt que
+    # de deviner — cette fonction va faire CHARGER le modèle choisi.
+    if not source and not model_type:
+        raise ValueError(
+            "select_model : préciser `source` (une app) ou `model_type` (une catégorie). "
+            "Une sélection sans borne piocherait dans tout le catalogue.")
+    qs = AIModel.objects.filter(is_available=True)
+    if source:
+        qs = qs.filter(source=source)
+    else:
+        qs = qs.filter(is_proposed=False)   # un candidat de prospection n'a pas de poids
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
     if model_type:
@@ -326,7 +341,8 @@ def full_gpu_budget_gb(headroom_gb: float = 4.0) -> Optional[float]:
     return max(0.0, free - headroom_gb) if free else None
 
 
-def select_model_id(source: str, requires=None, requested: Optional[str] = None,
+def select_model_id(source: Optional[str] = None, requires=None,
+                    requested: Optional[str] = None,
                     fallback: Optional[str] = None, avoid_offload: bool = True,
                     modality: Optional[str] = None, task: Optional[str] = None,
                     available_inputs=None, consumes=None, **kwargs) -> Optional[str]:
@@ -349,12 +365,29 @@ def select_model_id(source: str, requires=None, requested: Optional[str] = None,
         # Le filtrage canonique (modalité / tâche / entrées disponibles) passe par la même
         # brique de listage que l'UI : une seule route, un seul vocabulaire.
         cand = kwargs.pop('candidates', None)
+        # `source=None` : tirage PAR CAPACITÉ, sans nommer d'app (assistant, studio,
+        # passerelles). On borne alors par la CATÉGORIE, dérivée de la tâche — mesuré le
+        # 2026-08-31 : `model_type='speech'` SEUL rend `vibevoice-asr` (reconnaissance) ou
+        # `deepfilternet` (débruitage) pour une demande de SYNTHÈSE, car la catégorie
+        # `speech` les contient tous. Catégorie ET tâche : l'une sans l'autre se trompe,
+        # dans les deux sens (les capacités seules laissaient passer un modèle de vision).
+        if not source:
+            mt = kwargs.get('model_type')
+            if not mt and task:
+                from .prospector import _TASK_MODEL_TYPE
+                mt = _TASK_MODEL_TYPE.get(task)
+            if mt:
+                kwargs['model_type'] = mt
         if modality or task or consumes or available_inputs is not None:
             ids = [d['id'] for d in get_registry_models(
                 source, modality=modality, task=task,
-                available_inputs=available_inputs, consumes=consumes)[1]]
+                available_inputs=available_inputs, consumes=consumes,
+                model_type=kwargs.get('model_type'))[1]]
             cand = [i for i in cand if i in ids] if cand else ids
-            cand = [f'{source}:{i}' for i in cand]
+            # Sans source, `get_registry_models` rend déjà des clés ENTIÈRES : ne pas
+            # préfixer (on fabriquerait « None:kokoro »).
+            if source:
+                cand = [f'{source}:{i}' for i in cand]
         chosen = select_model(
             source=source,
             requires=requires,
