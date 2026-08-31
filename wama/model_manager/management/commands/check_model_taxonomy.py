@@ -79,20 +79,20 @@ class Command(BaseCommand):
         quand c'est None. Un oubli passerait pour << pas d'equivalent >> alors que c'est
         << pas encore regarde >>, et la nuance decide si on cherche ailleurs ou pas.
         """
-        from wama.model_manager.models import TACHE_VERS_TAGS_PLATEFORMES, PLATEFORMES_DE_REFERENCE
+        from wama.model_manager.models import TASK_TO_PLATFORM_TAGS, REFERENCE_PLATFORMS
 
         manquantes = sorted(t for t in declares_task
-                            if t not in {k.value for k in TACHE_VERS_TAGS_PLATEFORMES})
+                            if t not in {k.value for k in TASK_TO_PLATFORM_TAGS})
         if manquantes:
             self.stdout.write(self.style.ERROR(
                 f"✗ taches sans projection declaree : {', '.join(manquantes)}"))
             raise SystemExit(1)
 
         self.stdout.write(self.style.SUCCESS(
-            f"✓ projection : les {len(TACHE_VERS_TAGS_PLATEFORMES)} taches declarent leur "
-            f"correspondance sur {', '.join(PLATEFORMES_DE_REFERENCE)}"))
+            f"✓ projection : les {len(TASK_TO_PLATFORM_TAGS)} taches declarent leur "
+            f"correspondance sur {', '.join(REFERENCE_PLATFORMS)}"))
 
-        propres = [t.value for t, tags in TACHE_VERS_TAGS_PLATEFORMES.items() if not any(tags)]
+        propres = [t.value for t, tags in TASK_TO_PLATFORM_TAGS.items() if not any(tags)]
         if propres:
             self.stdout.write(
                 f"    propres a WAMA (aucun equivalent nulle part) : {', '.join(sorted(propres))}")
@@ -101,7 +101,7 @@ class Command(BaseCommand):
         # est plus fin. On l'affiche pour que ce soit un choix visible, pas un accident.
         from collections import defaultdict
         regroupe = defaultdict(list)
-        for t, tags in TACHE_VERS_TAGS_PLATEFORMES.items():
+        for t, tags in TASK_TO_PLATFORM_TAGS.items():
             if tags[0]:
                 regroupe[tags[0]].append(t.value)
         for tag, nos in sorted(regroupe.items()):

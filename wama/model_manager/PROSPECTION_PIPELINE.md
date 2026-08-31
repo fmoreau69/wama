@@ -176,7 +176,7 @@ Sondés le 2026-08-05. **Aucun ne couvre le champ, et ils ne décrivent même pa
 `tools` et `thinking` (Ollama) n'ont **aucun équivalent** ailleurs, et ce sont eux qui disent si un
 modèle peut servir l'assistant. Le recoupement fait apparaître **quatre axes distincts** — artefact,
 tâche, capacités, modalités E/S — que `ModelType` écrasait en un seul champ. D'où `ModelTask`,
-`ModelAbility`, `TACHE_VERS_TAGS_PLATEFORMES` (projection **à sens unique, plusieurs-vers-un**) et le
+`ModelAbility`, `TASK_TO_PLATFORM_TAGS` (projection **à sens unique, plusieurs-vers-un**) et le
 contrôle `check_model_taxonomy`. Voir `WAMA_MANIFEST_SPEC.md §7.1 bis`.
 
 ### Accès Roboflow (question tranchée)

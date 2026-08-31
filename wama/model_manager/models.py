@@ -114,7 +114,7 @@ class ModelTask(models.TextChoices):
 # Pour anonymiser c'est l'INSTANCE qui compte — un masque par visage, pas un masque << visage >>.
 # Distinction a introduire le jour ou un modele semantique entrera au catalogue ; aucun aujourd'hui,
 # donc on ne scinde pas a vide (releve le 2026-08-05, docs.roboflow.com/models/supported-models).
-TACHE_VERS_TAGS_PLATEFORMES = {
+TASK_TO_PLATFORM_TAGS = {
     #                              huggingface                     ultralytics  ollama        roboflow
     ModelTask.DETECT:             ('object-detection',             'detect',    None,        'Object Detection'),
     ModelTask.SEGMENT:            ('image-segmentation',           'segment',   None,        'Instance Segmentation'),
@@ -139,29 +139,29 @@ TACHE_VERS_TAGS_PLATEFORMES = {
     ModelTask.TEXT_TO_AUDIO:      (None,                           None,        None,        None),
     ModelTask.LIP_SYNC:           (None,                           None,        None,        None),
 }
-PLATEFORMES_DE_REFERENCE = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
+REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
 
 
-def tag_plateforme(tache: str, plateforme: str = 'huggingface'):
-    """Tag de `tache` (vocabulaire NÔTRE) chez une plateforme, ou None s'il n'y en a pas.
+def platform_tag(task: str, platform: str = 'huggingface'):
+    """Tag de `task` (vocabulaire NÔTRE) chez une plateforme, ou None s'il n'y en a pas.
 
-    Lecture DIRECTE de `TACHE_VERS_TAGS_PLATEFORMES`. `None` n'est pas un trou à combler :
+    Lecture DIRECTE de `TASK_TO_PLATFORM_TAGS`. `None` n'est pas un trou à combler :
     `obb`, `lip-sync` et `text-to-music` n'ont volontairement aucun équivalent HF.
     """
     try:
-        i = PLATEFORMES_DE_REFERENCE.index(plateforme)
+        i = REFERENCE_PLATFORMS.index(platform)
     except ValueError:
         return None
-    for t, tags in TACHE_VERS_TAGS_PLATEFORMES.items():
-        if t.value == tache:
+    for t, tags in TASK_TO_PLATFORM_TAGS.items():
+        if t.value == task:
             return tags[i]
     return None
 
 
-def tache_canonique(tache: str):
+def canonical_task(task: str):
     """Traduit une tâche EXPRIMÉE DANS LE VOCABULAIRE D'UNE PLATEFORME vers le nôtre.
 
-    Rend la valeur `ModelTask` correspondante, ou `tache` inchangée si elle est déjà des
+    Rend la valeur `ModelTask` correspondante, ou `task` inchangée si elle est déjà des
     nôtres (ou inconnue — on ne devine pas). Lecture INVERSE de la table ci-dessus, donc
     aucune seconde table à tenir : ajouter une plateforme reste une colonne, pas un
     dictionnaire de plus.
@@ -175,15 +175,15 @@ def tache_canonique(tache: str):
     débruiteur, en silence. *Deux vocabulaires pour un même fait ne divergent pas bruyamment :
     ils se rejoignent sur un repli qui a l'air de marcher.*
     """
-    if not tache:
-        return tache
-    connues = {t.value for t in ModelTask}
-    if tache in connues:
-        return tache
-    for t, tags in TACHE_VERS_TAGS_PLATEFORMES.items():
-        if tache in [x for x in tags if x]:
+    if not task:
+        return task
+    known = {t.value for t in ModelTask}
+    if task in known:
+        return task
+    for t, tags in TASK_TO_PLATFORM_TAGS.items():
+        if task in [x for x in tags if x]:
             return t.value
-    return tache
+    return task
 
 # Taches portees par des plateformes et ABSENTES de chez nous. Pas un oubli : rien ne les
 # consomme aujourd'hui. Notees pour que la prochaine question << ou est la profondeur ? >> trouve
