@@ -66,7 +66,14 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
         'options': options or {},
     }
     try:
+        # ⚠ `proxies` OBLIGATOIRE : `.env` pose `HTTP_PROXY` (proxy UGE) sans `NO_PROXY`, et
+        # `settings.load_dotenv()` l'injecte dans os.environ → sans neutralisation, `requests`
+        # envoie CET APPEL LOCAL au proxy, qui répond une page d'erreur HTML. Vécu le
+        # 2026-08-31 (cf. `http_proxy.local_proxies`) : le service tournait, la vocalisation
+        # basculait quand même sur son repli en-process (~90 s + VRAM dans le worker web).
+        from wama.common.utils.http_proxy import local_proxies
         resp = requests.post(f"{url}/tts", json=payload,
+                             proxies=local_proxies(),
                              timeout=(5, read_timeout))  # (connexion, lecture)
         resp.raise_for_status()
     except requests.ConnectionError:

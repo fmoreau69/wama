@@ -85,8 +85,14 @@ def ollama_proxies() -> dict:
     n'est donc pas remplacée par `http_proxy`, ce qui neutralise le proxy pour cet appel — sans
     toucher aux variables d'environnement du process (les autres appels sortants continuent de
     passer par le proxy, cf. `http_proxy.outbound_proxies`).
+
+    Corps DÉPORTÉ dans la brique commune le 2026-08-31 (`http_proxy.local_proxies`) : le geste
+    valait pour tout service LOCAL, pas pour le seul Ollama — le service TTS (:8001) l'a payé
+    d'un repli en-process de 90 s le jour où `.env` a gagné `HTTP_PROXY`. Nom conservé : les
+    appelants Ollama ne changent pas.
     """
-    return {'http': None, 'https': None}
+    from wama.common.utils.http_proxy import local_proxies
+    return local_proxies()
 
 
 def ollama_kwargs(**extra) -> dict:
