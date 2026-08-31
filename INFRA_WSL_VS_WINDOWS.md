@@ -541,6 +541,40 @@ partir d'ici.** ⚠ L'instance WSL courante a démarré à 12:28, AVANT l'instal
 remède OBLIGATOIRE : `wsl --shutdown` puis relance de la stack, sans quoi TOUTE tâche
 CUDA côté WAMA échoue.
 
+### 2026-08-31 ~11:45:09-19 — crash n° suivant : le TUEUR REPRODUCTIBLE frappe SOUS GO HUMAIN,
+### et le pilote 616.56 n'y a rien changé
+
+**Contexte** : passe scout LLM (`run_scout.py`, session Claude, lancée 11:44 sur GO explicite
+de Fabien — plan approuvé, exécution SÉQUENTIELLE, un seul chargement) →
+`select_model_for_role('dev')` = **qwen3.8:latest (dense 27B, 17,7 Go)** chargé sur l'Ollama
+HÔTE. **Mort au 1ᵉʳ chargement**, avant toute réponse (zéro sortie scout écrite).
+
+**Chronologie (hwlog ; reboot si vite que le trou ne fait que 77 s)** :
+
+| instant | GPU W | clock | VRAM | quoi |
+|---|---|---|---|---|
+| 11:44:43 | 35,7 | 405 | 579 Mo | repos (WSL relancé, VRAM basse) |
+| 11:44:54 | 31,5 | 465 | **16 776 Mo** | chargement qwen3.8 (+16,2 Go en 1 échantillon) |
+| 11:45:09 | 30,1 | 210 | **18 734 Mo** | dernier échantillon |
+| 11:46:26 | 28,3 | 210 | 138 Mo | 1ʳᵉ ligne post-reboot (watchdog reparti) |
+
+**Ce que ce crash établit** : ① le pilote **616.56 (posé 28/08 12:40) ne protège PAS** du
+chargement 17-19 Go — 1ᵉʳ crash de la nouvelle série, même signature que les 18-20/08 ;
+② **la gouvernance humaine ne change pas la physique** : GO explicite + séquentiel + un seul
+modèle = mort quand même — la variable n'est pas QUI lance ni COMMENT, c'est LA RAMPE VRAM
+(~16 Go/10 s) ; ③ NON instrumenté côté rails — HWiNFO mort depuis le 28/08 11:09 (7ᵉ
+occurrence du piège « aucun autostart »).
+
+**Séquelles relevées** : swap.vhdx orphelin **8,04 Go** (mtime 30/08 16:24 = CRÉATION de la
+session tuée — la date d'un orphelin est celle du boot, pas du crash) ; 1 card zombie
+`cam_analyzer.AnalysisPass id=54` RUNNING ; scout : zéro sortie.
+
+**Règle DURCIE (leçon n+1)** : plus AUCUNE passe LLM sur l'Ollama hôte lancée depuis une
+session Claude, **même sur GO explicite** — le GO autorise, il ne protège pas. La matière des
+rôles (scout/librarian) se produit MÉCANIQUEMENT (dry-run + rédaction manuelle
+PENDING_HUMAN_VALIDATION) ; si une passe LLM doit tourner, c'est Fabien qui la lance,
+machine sous les yeux, HWiNFO journalisant.
+
 ### Ce qui reste ouvert
 
 - **Quel composant lâche** — inconnu. La charge est le **déclencheur**, pas le fautif : alimentation,
