@@ -1043,6 +1043,48 @@ La boucle se referme sur le premier modèle (GO Fabien « on poursuit sur 3 ») 
    est le chemin parallèle à résorber) — en coordination avec l'instance « volet
    paramètres » qui tient les views/templates synthesizer.
 
+### Le 3ᵉ indicateur gagne son DÉCLENCHEUR — il n'en avait aucun (2026-08-31)
+
+Constat de Fabien : « je n'ai jamais pu compléter une recherche benchmark, le PC crashe ».
+**Mesure : ce n'était pas la recherche benchmark.** L'écran n'avait QU'UN bouton — « Évaluer
+la confiance » — qui déclenche le **jury LLM**, lequel charge un modèle sur l'Ollama hôte,
+le déclencheur de crash connu. La **performance tierce**, elle, n'avait ni tâche, ni endpoint,
+ni bouton : `sync_benchmarks` n'existait qu'en ligne de commande et le gabarit se contentait
+d'AFFICHER le badge `bench`. Ce n'était donc pas une séparation de boutons, c'est une
+**création**.
+
+Les **trois indicateurs** sont distincts et aucun n'avait été perdu (doute levé) :
+`confidence` (jury multi-agents — confiance dans SA recommandation) · `update_complexity`
+(effort d'intégration) · `benchmark_index`/`quality_index` (performance TIERCE). Le jury
+CONSOMME le benchmark dans son prompt, il ne le remplace pas.
+
+Livré : `sync_benchmarks_task` (file `default` — **réseau SEUL** : Artificial Analysis + Arena,
+aucun GPU), endpoints `api/benchmarks/{sync,progress}/`, bouton **« Mesurer la performance »**
+avec des infobulles qui NOMMENT les indicateurs (1/3 et 3/3). `SourceIndisponible` rendu en
+SUCCESS+skipped (même sémantique que le code retour 3 de la commande).
+**Leçon** : *un libellé qui recouvre deux mécanismes finit par en faire accuser un pour
+l'autre* — le badge était distingué à l'affichage depuis le 19/08, c'est le DÉCLENCHEUR qui
+manquait, et son absence a fait porter le crash du jury sur le dos des benchmarks.
+⚠ Effet attendu sur le tirage : le parc TTS n'ayant aucun indice, `_rank_key` retombe sur
+`vram_gb` (« le plus gros qui tient » : `bark` 4 Go plutôt que `kokoro` 0,5 Go). Alimenter
+l'étage benchmark corrige cela **sans risque de crash**.
+
+### 🔚 Trou identifié — le SCOUT ne fait pas toute la chaîne de découverte (Fabien, 2026-08-31)
+
+« À l'écriture du manifeste, le LLM doit aller tirer les infos depuis la source et faire
+l'analyse benchmark — idéalement toute la chaîne que la prospection applique, mais sur
+l'unique modèle. » **D'accord, avec une précision de doctrine** : tirer depuis la source et
+apparier les benchmarks sont des gestes **MÉCANIQUES**, jamais délégués au LLM (`run_scout`
+le dit déjà : « squelette mécanique d'abord, les faits ne passent pas par le LLM »). Le LLM
+doit **recevoir** le benchmark comme entrée de jugement, sinon il l'invente.
+Aujourd'hui le scout ne relève qu'identité / licence / tailles / inventaire. Il lui manque,
+et ces briques EXISTENT côté prospection : `analyze_license` (texte de la licence, clauses
+territoriales) · `quantized_variants` + `install_options` (variantes et poids) ·
+`_repo_weight_gb` · le référentiel `concurrence` (`AIModel.best_installed`) · l'appariement
+`sync_benchmarks` (qui inclut déjà les lignes `proposed:`). → **Le scout doit RÉUTILISER ces
+briques**, pas en réimplémenter une part : un manifeste doit porter les mêmes faits qu'un
+candidat prospecté.
+
 **Dry-runs scout validés (même jour, aucun LLM)** sur les 3 dépôts TTS installés —
 squelettes mécaniques complets, et déjà instructifs : `ResembleAI/chatterbox` est un dépôt
 **MULTI-VARIANTES** (t3 en v2/v3/23lang + s3gen en double format .pt/.safetensors — la

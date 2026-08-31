@@ -472,6 +472,27 @@ un **service d'inférence dédié persistant**, JAMAIS dans un thread du process
 Django au lieu d'appeler le microservice TTS déjà chaud). → **router la vocalisation vers le
 microservice TTS + retirer le thread/`_get_kokoro`**. Élimine la course env ET garde l'instantané.
 
+> ⚠⚠ **CORRECTION 2026-08-31 — ce fix était à MOITIÉ fait, et c'est la moitié manquante qui a
+> masqué la panne pendant des mois.** Étape 1 (router vers le service) : ✅ faite le 28/08
+> (client commun `common/tts/service_client.py`). Étape 2 (**retirer `_get_kokoro`**) :
+> ❌ **jamais faite** — le repli en-process est resté. Or `.env` pose `HTTP_PROXY` sans
+> `NO_PROXY` et `settings.load_dotenv()` l'injecte : `requests` proxifiait donc l'appel à
+> `localhost:8001`, le proxy UGE répondait sa **page d'erreur HTML**, et CHAQUE vocalisation
+> repartait en silence dans le chemin que cette ligne voulait supprimer — ~90 s d'attente et
+> une charge GPU dans un worker gunicorn. Constat de Fabien : « je n'ai jamais eu de lecture
+> instantanée ». **Prouvé** : même appel, `HTTP 503` + page proxy sans neutralisation,
+> `HTTP 200` + JSON du service avec `http_proxy.local_proxies()` (brique généralisée depuis
+> `ollama_proxies`, qui portait seule ce geste).
+> **Leçon** : *un repli qui remplace silencieusement le chemin réparé cache l'échec de la
+> réparation* — le ticket paraissait clos, il ne l'a jamais été en pratique. Le retrait de
+> `_get_kokoro` reste à faire, APRÈS validation écran que le chemin normal tient (on ne retire
+> pas un filet avant d'avoir vérifié le sol).
+> ⚠ La ligne ci-dessus « le microservice tient déjà Kokoro/**XTTS**/Bark préchargés » explique
+> le souvenir d'un « XTTS qui prend la relève » : le préchargement réel est `TTS_PRELOAD`
+> (kokoro seul → **kokoro-onnx** depuis le 31/08, chargement mesuré **3,3 s** contre **87,9 s**
+> pour le `.pt` — et le démarrage ATTEND ce préchargement). L'autre cause possible était un
+> `engine_for_model()` qui renvoyait `'coqui'` pour TOUT nom inconnu : **corrigé**, il lève.
+
 **Orchestration (`model_manager`)** : registre des modèles **épinglés/keep-warm** + budget
 VRAM + **éviction LRU** des modèles à la demande (s'appuie sur memory_manager/cleaner existants).
 **Reclaim VRAM inter-app** : ✅ brique livrée 2026-07-24 (`memory_manager.ensure_free_vram(needed_gb)`

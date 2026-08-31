@@ -404,7 +404,43 @@ d'affichage de `WamaInputMatch`/`WamaModelCaps`, côté client, sur la liste com
 - ✅ **(b) requête par CAPACITÉ, tous producteurs** — `get_registry_models(source=None)`.
   Constat : la fonction était **déjà** un filtre de capacité complet (`task`, `modality`,
   `available_inputs`, `consumes`, `requires`) ; seul son ancrage `source` manquait d'ouverture.
-- ⏳ (c) source `catalog` dans `OPTION_SOURCES` · ⏳ (d) garde-fous (critère de grille + `params_gen`).
+- ✅ **(c) les options se tirent du CATALOGUE** — `api/models/options/` (par DOMAINE :
+  task / model_type / modality / source ; refus 400 sans domaine) + clé `catalog` dans
+  `OPTION_SOURCES` et **`options_query`** au schéma : une clé ne portant qu'une URL fixe ne
+  pouvait pas savoir DE QUOI elle parle. La querystring entre dans la clé de cache (deux
+  domaines sur une page ne se servent pas mutuellement leur liste). `staticfiles/`
+  resynchronisé ; JS attesté au navigateur (`new Function` sur le fichier SERVI — aucun
+  `node` dans l'environnement, c'est la seule attestation possible).
+- ✅ **(d) les deux garde-fous** — critère de grille `model_options_catalog` (F4, 3 états :
+  vert = `options_source: 'catalog'` · partiel = `get_registry_models` côté serveur ·
+  rouge = liste en dur, avec `file:ligne`) ET `params_gen` qui **signale** (sans corriger —
+  il rend le manifeste AU LITTÉRAL, l'injection ferait mentir le manifeste ; la détection
+  s'appuie sur une liste de noms OBSERVÉE, elle ne devine pas).
+
+**PHOTO DE DÉPART DU PORTAGE, MESURÉE le 2026-08-31** (et elle corrobore le balayage manuel
+par un chemin indépendant) : **8 ROUGE** — anonymizer `models.py:43` · avatarizer
+`models.py:12` · composer `model_config.py:38` · describer `model_config.py:44` · enhancer
+`params.py:65` · reader `model_config.py:30` · synthesizer `models.py:11` · transcriber
+`params.py:39` — **1 PARTIEL** (imager) · **1 N/A** (converter). Rejouable :
+`manage.py check_app_conformity`.
+
+**⚠ ALIAS DE VOCABULAIRE (arbitrage Fabien : « on modifie avec la taxonomie HFHub ou on gère
+un alias ? »)** → **alias, et il existait déjà**. S'aligner sur HF effacerait des distinctions
+voulues (`text-to-music` ≠ `text-to-audio`) et des tâches sans équivalent (`obb`, `lip-sync`).
+`TASK_TO_PLATFORM_TAGS` se lit donc dans les DEUX SENS — `platform_tag()` (notre tâche → le
+tag) et `canonical_task()` (un tag → notre tâche) — sans seconde table : ajouter une
+plateforme reste une COLONNE. Mesuré : une requête `automatic-speech-recognition` rendait
+**14 options polluées** (bark, kokoro, un débruiteur) faute de correspondance ; **5 vrais ASR**
+après. *Deux vocabulaires pour un même fait ne divergent pas bruyamment : ils se rejoignent
+sur un repli qui a l'air de marcher.*
+
+**⚠ Ce qui reste AVANT le portage (étape ②)** : ① les VALEURS d'option devront être
+réconciliées avec ce que chaque app dispatche — c'est `composition.runtime.engine` qui
+répond ; ② durcir la règle en validation BLOQUANTE casserait aujourd'hui les 10 manifestes
+(tous encore en dur) : on durcit APRÈS le portage — décision de séquencement, pas un oubli ;
+③ l'INTENTION (latence ↔ qualité) manque au contrat commun — le curseur `precision_level` de
+l'anonymizer en est le prototype, mais il pilote AUSSI des couplages propres à l'app
+(chemin de floutage au-delà de 50) qui ne doivent PAS monter au commun.
 
 **⚠ Découverte 1 — `matches_inputs` est PERMISSIF par choix documenté** :
 `if task and caps.get('task') and caps.get('task') != task` → **un modèle qui ne DÉCLARE rien
