@@ -9152,3 +9152,30 @@ maquette v4.
    fraîche jumelle = chip « 85 » ; card fraîche réelle = « 85 » + « jpg ».
    Corpus manifestes régénéré (converter.json, 108 à jour) ; batterie 11/11 sans skip ;
    suite complète OK (skipped=4).
+
+### AUDIT du même jour (demande Fabien) : route appliquée vs tracée + mécanismes + carto jumelle
+> Trois passes de lecture indépendantes, points décisifs contre-vérifiés. Rapport complet
+> remis à Fabien (artefact « La jumelle au banc ») — AUCUNE modification appliquée par l'audit.
+- **Route** : le code a DÉPASSÉ le doc (~25 affirmations périmées « par le haut ») — compteur
+  « 6/6 » vs **7/7** au registre `sandbox_apps.json` ; liste des stubs 501 fausse à 4/5 ;
+  ⚠⚠ un **interdit rouge périmé** (« ne pas rétrécir `file_accept` ») que le code a levé ;
+  trou #26 déclaré ouvert alors que le critère `import_wired` EXISTE ; toute la génération
+  des RÉGLAGES (30-31/08) n'est tracée nulle part dans la route.
+- **Mécanismes** : 0 pointeur cassé, MAIS la chaîne codegen entière est HORS carte (5
+  générateurs/7 ni domicile ni annexe) et `wama/common/manifests/` échappe au balayage de
+  `doc_facts` → rien ne peut le signaler ; brique ⬇ `export_formats` sans entrée ;
+  `wama-inspector.js` sans identité propre ; prose `app_sandbox` d'avant S2.
+- **Carto converter↔converter_01** : jumelle structurellement juste (34 routes = l'origine,
+  modèle/schéma complets), trous = A1 tâche stub (marche B, déclaré) ; ⚠ **A5 pas de
+  `_is_app_owned` → supprimer une card peut supprimer un fichier UTILISATEUR** ; A3
+  `global_progress` hors contrat (barre muette) ; A4 `register_batch_sync` absent ; A2
+  5×501 (quick_convert du Filemanager mort) ; pas de polling. Côté ORIGINE, 2 bugs
+  CONFIRMÉS : `batch_download` sans `import os` (NameError avalé → **ZIP de lot toujours
+  vide**, `converter/views.py:526`) et `readModalForm` sur des `data-key` inexistants
+  (**« Sauver comme profil » mort**, `converter.js:867`) ; ~350 l. de converter.js
+  redondantes avec les briques ; candidat brique : `auto_wrap_orphans` FK-directe (4 sites).
+- **Ordre d'action proposé** (attend GO Fabien) : ① les 2 correctifs 1-ligne origine ;
+  ② garde `_is_app_owned` dérivée dans views_gen ; ③ contrats silencieux jumelle
+  (global_progress, batch_sync, polling) ; ④ passe de recalage de la ROUTE ; ⑤ entrées
+  registre mécanismes + balayage étendu ; ⑥ nettoyage du mort (retrait = 3 surfaces) ;
+  ⑦ marche B inchangée.
