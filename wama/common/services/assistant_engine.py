@@ -317,11 +317,12 @@ def _claude_code_call(messages: list) -> tuple:
        précédent : `demander()` fait un `subprocess.run`, jamais un `--resume`. L'historique
        est donc replié dans le prompt ici — sinon l'assistant serait amnésique d'un message
        à l'autre alors que la surface affiche un fil continu.
-    2. **Le contexte du dépôt est rechargé À CHAQUE appel** (CLAUDE.md + arborescence), d'où
-       le plancher mesuré à ~0,99 $ d'équivalent-API le 21/08 — même pour « bonjour ». En
-       session interactive (terminal), ce chargement est amorti sur toute la session ; ici
-       il est payé par MESSAGE. Sur abonnement ce n'est pas une facture, mais ça consomme
-       le crédit mensuel bien plus vite. C'est la raison d'être de la garde admin.
+    2. **Le coût dépend du CACHE, pas du nombre d'appels** (mesuré le 31/08, cf.
+       `claude_code.py`) : le cache de prompt (TTL 1 h) traverse les invocations, donc un
+       appel à cache chaud coûte ~0,03 $ contre ~0,54 $ à froid. Ce qui coûte est le premier
+       appel après une heure de silence — pas le fait d'enchaîner. ⚠ `--resume` a été testé
+       pour amortir ce coût et **réfuté** : la session reprise construit un préfixe différent
+       et rate le cache partagé (0,39 $, soit douze fois un appel frais à cache chaud).
 
     ⚠ Les outils WAMA ne sont PAS disponibles par ce chemin : Claude Code répond avec SES
     outils à lui (lecture du dépôt), et rend un texte final. Un « ajoute ce fichier à

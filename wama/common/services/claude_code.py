@@ -28,17 +28,34 @@ l'environnement résout donc le piège de facturation ET cette panne — c'est l
 (~10-15 min). D'où des invocations COURTES et bornées par un délai, jamais une session
 longue.
 
-⚠⚠ COÛT DE BASE ÉLEVÉ, MESURÉ (2026-08-21). Premier appel réel : la tâche « réponds
-uniquement par le mot OK » a rendu `total_cost_usd ≈ 0,99` en 3,3 s. Ce n'est pas une
-anomalie — Claude Code charge le CONTEXTE DU PROJET à chaque invocation (le `CLAUDE.md` de
-WAMA est volumineux, plus l'arborescence). Conséquences pratiques :
-  • le coût dépend surtout du DÉPÔT, pas de la longueur de la question — une question
-    triviale coûte presque autant qu'une vraie ;
-  • cet outil se justifie pour des tâches qui VALENT ce contexte (audit, cartographie,
-    « pourquoi X casse »), pas pour du bavardage : pour ça, l'assistant local suffit ;
-  • `total_cost_usd` est l'équivalent API rapporté par le CLI ; sur abonnement, la dépense
-    est imputée au crédit mensuel inclus, pas facturée à la requête. Il reste le bon
-    indicateur RELATIF pour comparer deux tâches, et il est remonté à l'appelant pour ça.
+⚠⚠ CE QUI GOUVERNE LE COÛT : LE CACHE, PAS LA REPRISE DE SESSION — MESURÉ le 2026-08-31.
+
+La note précédente (21/08) affirmait « ~0,99 $ par invocation, le contexte est rechargé à
+chaque fois » et en tirait qu'une question triviale coûte presque autant qu'une vraie.
+**C'est le cas FROID, pas le cas courant.** Trois appels identiques (« réponds uniquement
+par le mot OK »), même dépôt, à la suite :
+
+    A. appel frais, cache FROID   0,538 $   (création du cache)
+    B. appel `--resume A`         0,392 $   (RE-création : 38 457 tokens ephemeral_1h)
+    C. appel frais, cache CHAUD   0,033 $   (LECTURE de 53 143 tokens) ← 6 % de A
+
+Trois conséquences, dont deux contre-intuitives :
+  • **le cache de prompt (TTL 1 h) traverse les invocations** : deux appels rapprochés
+    partagent le préfixe, et le second coûte ~6 % du premier. Le coût réel d'un usage
+    conversationnel est donc de l'ordre de 0,03 $, pas de 0,99 $ ;
+  • **`--resume` est le MAUVAIS levier** — testé précisément pour ça, et réfuté : la
+    session reprise construit un préfixe DIFFÉRENT (elle inclut le tour précédent), donc
+    elle rate le cache partagé et recrée le sien. Elle coûte 73 % d'un appel froid, soit
+    **douze fois** un appel frais à cache chaud. Ne pas l'implémenter en croyant amortir ;
+  • ce qui coûte, c'est le PREMIER appel après une heure de silence. Espacer les questions
+    est plus cher que les enchaîner — l'inverse de l'intuition.
+
+`total_cost_usd` est l'équivalent API rapporté par le CLI ; sur abonnement la dépense est
+imputée au crédit mensuel inclus, pas facturée à la requête. Il reste le bon indicateur
+RELATIF, et il est remonté à l'appelant pour ça.
+
+⚠ La garde admin (`subscription_allowed`) reste justifiée — mais par l'ACCÈS AU DÉPÔT et le
+crédit partagé, pas par un « 1 $ le message » qui n'est vrai qu'à froid.
 """
 from __future__ import annotations
 

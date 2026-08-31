@@ -2740,11 +2740,36 @@ entier sur l'abonnement là où il y en a un.
   1. **facturation** : si `ANTHROPIC_API_KEY` fuit dans l'environnement du sous-processus,
      Claude Code la PRÉFÈRE → **facture réelle** au lieu de l'abonnement. C'est ce que garde
      `_environnement()` ;
-  2. **consommation** : `claude -p` est SANS ÉTAT — `demander()` fait un `subprocess.run`,
-     jamais un `--resume`. Le contexte du dépôt est donc rechargé **à chaque message**
-     (~0,99 $ d'équivalent-API), là où une session de terminal l'amortit sur toute la
-     session. Aucune facture, mais le crédit mensuel part beaucoup plus vite.
-  Le premier transforme « gratuit » en « payant » ; le seul second justifie la garde admin.
+  2. **consommation** : `claude -p` est SANS ÉTAT — `demander()` fait un `subprocess.run`.
+     Le premier transforme « gratuit » en « payant » ; le second ne parle que de crédit.
+
+**📏 MESURE du 2026-08-31 — le levier n'est pas celui qu'on croyait, et `--resume` est
+RÉFUTÉ** (test demandé par Fabien, 3 appels identiques sur le même dépôt) :
+
+| Appel | Coût | Cache |
+|---|---|---|
+| A — frais, cache **froid** | **0,538 $** | création |
+| B — **`--resume A`** | **0,392 $** | *re*-création (38 457 tokens `ephemeral_1h`) |
+| C — frais, cache **chaud** | **0,033 $** | **lecture** de 53 143 tokens ← 6 % de A |
+
+- ⚠⚠ **Ce que la note du 21/08 disait est FAUX en régime courant.** Elle affirmait « le
+  contexte est rechargé à chaque invocation, ~0,99 $ le message » et en tirait qu'une
+  question triviale coûte presque autant qu'une vraie. **Le cache de prompt (TTL 1 h)
+  traverse les invocations** : deux appels rapprochés partagent le préfixe. Le coût réel
+  d'un usage conversationnel est de l'ordre de **0,03 $**, pas de 1 $.
+- ⚠⚠ **`--resume` coûte PLUS qu'un appel frais à cache chaud** — douze fois plus. La session
+  reprise construit un préfixe DIFFÉRENT (elle inclut le tour précédent), rate le cache
+  partagé et recrée le sien. **Ne pas l'implémenter en croyant amortir** : c'était
+  l'hypothèse de départ, et la mesure l'a renversée. *Une intuition d'architecture qui ne
+  coûte que 3 appels à vérifier ne se consigne pas sans les avoir passés.*
+- Ce qui coûte est le **premier appel après une heure de silence** : espacer les questions
+  est plus cher que les enchaîner — l'inverse de l'intuition, et l'inverse de ce qu'un
+  utilisateur prudent ferait spontanément.
+- **Conséquences appliquées** : libellé d'UI corrigé (« ~1 $/message » → « coût variable »
+  — annoncer le pire cas comme cas courant dissuadait d'un chemin peu coûteux), pied de
+  réponse `!code` enrichi des deux ordres de grandeur, docstrings de `claude_code.py` et
+  `_claude_code_call` réécrites. **La garde admin reste**, mais justifiée par l'ACCÈS AU
+  DÉPÔT et le crédit partagé — pas par un coût par message qui n'est vrai qu'à froid.
 - ⚠ **Trois vocabulaires de rôle, pas deux** (trouvé en écrivant la ligne d'UI) : aux groupes
   `dev`/`admin`/`developpeur` et aux tiers de profil s'ajoute **`is_staff`**, que `views.home`
   utilisait pour son `is_admin`. Gater l'option dessus faisait diverger l'écran de la garde

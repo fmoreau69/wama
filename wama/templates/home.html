@@ -759,12 +759,13 @@
                     de la garde dans les deux sens (cf. views.home).
                     ⚠ Les DEUX libellés Claude disent leur FACTURATION : c'est tout ce qui
                     les distingue à l'écran, et les confondre coûte soit de l'argent réel,
-                    soit du crédit mensuel. Le « ~1 $/message » n'est pas décoratif —
-                    le contexte du dépôt est rechargé à CHAQUE message (mesuré 21/08),
-                    contrairement au terminal où il est amorti sur la session.
+                    soit du crédit mensuel. Le libellé disait « ~1 $/message » jusqu'à la
+                    MESURE du 31/08, qui l'a corrigé : le cache de prompt traverse les
+                    invocations (~0,03 $ à chaud, ~0,54 $ à froid). Annoncer le pire cas
+                    comme le cas courant dissuadait d'un chemin en réalité peu coûteux.
                   {% endcomment %}
                   {% if abonnement_visible %}
-                  <option value="claude-abo">Claude Code (abonnement — ~1 $/message, outils dépôt)</option>
+                  <option value="claude-abo">Claude Code (abonnement — accès dépôt, coût variable)</option>
                   {% endif %}
                 </select>
               </div>

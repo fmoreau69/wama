@@ -178,7 +178,8 @@ def _handle(msg: IncomingMessage) -> Reply:
         cout = resultat.get('cost_usd')
         # Le coût est AFFICHÉ : ce chemin n'est pas gratuit en crédit mensuel, et un chemin
         # dont on ne voit jamais le prix finit par être pris pour du bavardage.
-        pied = f"\n\n_~{cout:.2f} $ d'équivalent-API imputés à l'abonnement._" if cout else ''
+        pied = (f"\n\n_~{cout:.3f} $ d'équivalent-API imputés à l'abonnement "
+                f"(cache chaud ≈ 0,03 $, froid ≈ 0,5 $)._") if cout else ''
         return Reply(text=f"{resultat.get('response') or '(réponse vide)'}{pied}")
 
     # ── Pièces jointes → espace WAMA de l'utilisateur ────────────────────────────
