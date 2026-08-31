@@ -228,11 +228,11 @@ _CHAMPS_PROJETES = [
     ('composition', lambda m, b: b.get('composition') or {}),
 ]
 
-#: Champ projeté SOUS CONDITION — cf. `_capacites_projetables`.
-_CHAMP_CAPACITES = ('capabilities', lambda m, b: b.get('capabilities') or {})
+#: Champ projeté SOUS CONDITION — cf. `_capabilities_projectable`.
+_CAPABILITIES_FIELD = ('capabilities', lambda m, b: b.get('capabilities') or {})
 
 
-def _capacites_projetables(cible) -> bool:
+def _capabilities_projectable(target) -> bool:
     """Le manifeste a-t-il autorité pour poser `capabilities` sur CETTE ligne ?
 
     OUI seulement si personne d'autre ne les produit : un modèle **orphelin de déclaration**,
@@ -248,9 +248,9 @@ def _capacites_projetables(cible) -> bool:
     peut JAMAIS acquérir de capacités — donc jamais apparaître dans une app filtrée par capacité.
     Le sync ne les efface plus (`model_sync` : un `{}` de découverte ne remplace plus un fait).
     """
-    if getattr(cible, 'backend_ref', ''):
+    if getattr(target, 'backend_ref', ''):
         return False                     # une app le sert : la découverte parle pour lui
-    return not (getattr(cible, 'capabilities', None) or {})
+    return not (getattr(target, 'capabilities', None) or {})
 
 
 def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
@@ -284,14 +284,14 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
 
     # Capacités : projetées UNIQUEMENT sur un modèle orphelin de déclaration (cf. la fonction).
     champs = list(_CHAMPS_PROJETES)
-    if _capacites_projetables(cible) and (body.get('capabilities') or {}):
-        champs.append(_CHAMP_CAPACITES)
-        voulu[_CHAMP_CAPACITES[0]] = _CHAMP_CAPACITES[1](manifest, body)
+    if _capabilities_projectable(cible) and (body.get('capabilities') or {}):
+        champs.append(_CAPABILITIES_FIELD)
+        voulu[_CAPABILITIES_FIELD[0]] = _CAPABILITIES_FIELD[1](manifest, body)
 
     actuel = {champ: getattr(cible, champ) for champ, _ in champs}
     deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}
     preserves = ['is_downloaded', 'is_loaded', 'local_path', 'vram_gb']
-    if not any(c == _CHAMP_CAPACITES[0] for c, _ in champs):
+    if not any(c == _CAPABILITIES_FIELD[0] for c, _ in champs):
         preserves.append('capabilities')
 
     if not apply:
