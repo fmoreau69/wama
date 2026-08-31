@@ -85,6 +85,8 @@ class KokoroOnnxBackend(TTSBackend):
                    "onnxruntime ; phonémisation espeak-ng, 40 voix embarquées.")
 
     supports_cloning = False
+    #: Même rôle TEMPS RÉEL que le jumeau .pt (vocalisation assistant, preview) → chaud.
+    keep_resident = True
     #: kokoro_onnx expose des timings, non câblés ici — on ne promet rien d'invérifié.
     supports_timestamps = False
     fallback_languages = sorted(ESPEAK_FALLBACK)

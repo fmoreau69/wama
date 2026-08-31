@@ -254,9 +254,16 @@ fi
 # ------------------------------------------------------
 # TTS SERVICE (FastAPI) — précharge Kokoro seul
 # ------------------------------------------------------
-# TTS_PRELOAD=kokoro : 82M, quasi instantané, il sert le TEMPS RÉEL (vocalisation
-# AI-Assistant, preview Synthesizer) → 1re vocalisation chaude sans allonger le
-# démarrage. XTTS v2 (plusieurs Go) reste chargé à la 1re demande explicite.
+# TTS_PRELOAD=kokoro-onnx (2026-08-31) : MÊMES poids Kokoro, servis par onnxruntime.
+# Il sert le TEMPS RÉEL (vocalisation AI-Assistant, preview Synthesizer) → 1re
+# vocalisation chaude. XTTS v2 (plusieurs Go) reste chargé à la 1re demande explicite.
+# ⚠ MESURE qui motive la bascule — le démarrage ATTEND ce préchargement (boucle sur
+# /health ci-dessous) : le `.pt` a mis **87,9 s** le 2026-08-31 (journal du service :
+# 15:39:49,918 → 15:41:17,844), alors que le commentaire d'origine ici et dans
+# tts_service.py affirmait « quasi instantané, sans allonger le démarrage » — jamais
+# mesuré. Chargement ONNX mesuré : **3,3 s** (session + voix, imports compris).
+# Revenir au .pt = `export TTS_PRELOAD=kokoro` (et WAMA_ASSISTANT_TTS_ENGINE=kokoro
+# pour la vocalisation de l'assistant, cf. common/tts/constants.py).
 # Auparavant TTS_SKIP_PRELOAD=1 : le drapeau, documenté « useful in development »,
 # faisait un return AVANT tout préchargement → Kokoro n'était JAMAIS chaud en prod,
 # et le warm écrit dans tts_service.py était du code mort.
@@ -275,7 +282,7 @@ if ! pgrep -f "uvicorn tts_service" > /dev/null; then
         export TTS_PRELOAD=none
         echo "  (--fast : aucun préchargement TTS, les modèles se chargeront à la demande)"
     else
-        export TTS_PRELOAD=kokoro
+        export TTS_PRELOAD=kokoro-onnx
     fi
     export HIGGS_DISABLE_CUDA_GRAPHS=1
     nohup python -m uvicorn tts_service:app \

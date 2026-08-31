@@ -107,6 +107,18 @@ class TTSBackend(BaseModelBackend):
     #: `SYNTHESIZER_MODELS[*]['engine']` et de `_switch_model` historique.
     engine: str = ""
 
+    #: Le moteur sert le TEMPS RÉEL (vocalisation assistant, preview) → le service TTS
+    #: le garde chaud : il n'est jamais déchargé à une bascule de moteur, et un
+    #: `TTS_PRELOAD` qui le nomme le charge SANS en faire le « moteur courant ».
+    #: DÉCLARÉ ici depuis le 2026-08-31 : la politique vivait dans `tts_service.py`
+    #: sous la forme d'un `if _current_engine == "kokoro"` — un littéral que le moteur
+    #: concerné ne pouvait ni déclarer ni hériter. Conséquence mesurée : `kokoro-onnx`,
+    #: qui sert exactement le même rôle temps réel, aurait été déchargé à chaque
+    #: bascule. Même geste que `composition` : *la politique se déclare, le service
+    #: l'exécute*. `unload()` décharge toujours RÉELLEMENT — c'est le service qui
+    #: choisit de ne pas l'appeler.
+    keep_resident: bool = False
+
     def __init__(self):
         self._current_model: Optional[str] = None   # suffixe CATALOGUE (clé gouverneur)
         self.loaded_model: Optional[str] = None     # nom UI ('coqui-xtts'…) — /health

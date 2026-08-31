@@ -114,16 +114,39 @@ def _governor_heartbeat():
             logger.debug("[TTS] rafraîchissement gouverneur ignoré", exc_info=True)
 
 
+def _keep_resident(engine: str) -> bool:
+    """Le moteur DÉCLARE-t-il servir le temps réel (→ jamais déchargé aux bascules) ?
+
+    La politique était écrite ici en littéral (`_current_engine == "kokoro"`) : un
+    second moteur temps réel — `kokoro-onnx`, mêmes poids servis par onnxruntime —
+    aurait été déchargé à chaque bascule sans que rien ne le signale. Elle est
+    désormais DÉCLARÉE par le backend (`TTSBackend.keep_resident`) et seulement LUE
+    ici. Même geste que `composition` : la politique se déclare, le service l'exécute.
+    """
+    be = _manager.get_backend(engine) if engine else None
+    return bool(getattr(be, "keep_resident", False))
+
+
+def _resident_engines() -> list:
+    """Moteurs déclarés résidents ET effectivement chargés (pour /health)."""
+    vivants = []
+    for cle in ENGINE_BACKENDS:
+        be = _manager.get_backend(cle)
+        if be is not None and getattr(be, "keep_resident", False) and be.is_loaded:
+            vivants.append(cle)
+    return vivants
+
+
 def _unload_current():
     """Unload whatever model is currently loaded and free GPU memory."""
     global _current_engine, _current_model_name
 
-    if _current_engine == "kokoro":
-        # Kokoro est minuscule (~82M) et sert le TEMPS RÉEL (vocalisation AI-Assistant) :
-        # on le GARDE résident pour éviter le rechargement (thrash) à chaque bascule
-        # synthesizer↔assistant → vocalisation instantanée. POLITIQUE du service :
-        # KokoroBackend.unload() décharge réellement, on ne l'appelle simplement pas.
-        logger.info("Kokoro reste résident (warm) — pas de déchargement")
+    if _keep_resident(_current_engine):
+        # Moteur temps réel (Kokoro .pt/.onnx : ~82M) : on le GARDE résident pour
+        # éviter le rechargement (thrash) à chaque bascule synthesizer↔assistant →
+        # vocalisation instantanée. POLITIQUE du service : le backend `unload()`
+        # décharge réellement, on ne l'appelle simplement pas.
+        logger.info(f"{_current_engine} reste résident (warm) — pas de déchargement")
     elif _current_engine is not None:
         be = _manager.get_backend(_current_engine)
         if be is not None and be.is_loaded:
@@ -251,6 +274,11 @@ def health():
         # ce champ, /health affichait loaded_model=null alors que Kokoro était chaud —
         # impossible de vérifier le préchargement depuis l'extérieur.
         "kokoro_resident": kokoro.resident_langs() if kokoro else [],
+        # Généralisation (2026-08-31) : `kokoro_resident` ne parlait que du moteur .pt
+        # et de SES langues ; depuis que la résidence est DÉCLARÉE, plusieurs moteurs
+        # peuvent être chauds (kokoro, kokoro-onnx…). Champ conservé pour ne rien
+        # casser, complété par la vue générale.
+        "resident_engines": _resident_engines(),
         "gpu_memory_gb": round(gpu_mem, 2),
     }
 
@@ -349,9 +377,14 @@ async def startup():
 
     # ── Préchargement SÉLECTIF ────────────────────────────────────────────────
     # TTS_PRELOAD = liste d'engines séparés par des virgules (défaut : "kokoro").
-    #   kokoro  → 82M, quasi instantané. C'est lui qui sert le TEMPS RÉEL
-    #             (vocalisation AI-Assistant, preview Synthesizer) : le précharger
-    #             rend la 1re vocalisation chaude pour un coût de démarrage nul.
+    #   kokoro-onnx → MÊMES poids que kokoro, servis par onnxruntime. **Chargement
+    #             MESURÉ à 3,3 s** (session ONNX + voix, imports compris) : c'est lui
+    #             qu'on précharge depuis le 2026-08-31 (doctrine inférence-first).
+    #   kokoro  → 82M .pt. ⚠ « quasi instantané / coût de démarrage nul » était FAUX,
+    #             et personne ne l'avait mesuré : le journal du service du 2026-08-31
+    #             donne **87,9 s** entre « préchargement en tâche de fond → kokoro »
+    #             (15:39:49,918) et « Kokoro (FR) préchargé et résident » (15:41:17,844)
+    #             — un coût que `start_wama_prod.sh` ATTEND (il boucle sur /health).
     #   xtts_v2 → plusieurs Go et des dizaines de secondes : VOLONTAIREMENT hors du
     #             chemin de démarrage, il se charge à la 1re demande explicite.
     #   vide / "none" → aucun préchargement.
@@ -380,11 +413,11 @@ async def startup():
         global _service_ready
         for name in preload:
             try:
-                if name == "kokoro":
-                    # Pipeline FR. Kokoro reste résident (cf. _unload_current) et ne
-                    # devient PAS _current_engine : il coexiste avec le moteur courant.
-                    _backend("kokoro").load()
-                    logger.info("Kokoro (FR) préchargé et résident")
+                if _keep_resident(name):
+                    # Moteur temps réel : il reste résident (cf. _unload_current) et ne
+                    # devient PAS _current_engine — il coexiste avec le moteur courant.
+                    _backend(name).load()
+                    logger.info(f"{name} préchargé et résident")
                 else:
                     _switch_model(name)
                     logger.info(f"{name} préchargé")

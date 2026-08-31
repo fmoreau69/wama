@@ -9,6 +9,21 @@ Source unique des constantes TTS partagées entre :
 Pour ajouter un modèle, une langue ou un preset, modifiez uniquement ce fichier.
 """
 
+import os
+
+# ---------------------------------------------------------------------------
+# Moteur de vocalisation de l'AI-Assistant
+# ---------------------------------------------------------------------------
+#: Moteur TTS demandé au service pour la VOCALISATION DE L'ASSISTANT (temps réel).
+#: `kokoro-onnx` depuis le 2026-08-31 (doctrine inférence-first : mêmes poids Kokoro,
+#: servis par onnxruntime — chargement mesuré 3,3 s contre 87,9 s pour le .pt).
+#: Le nom vivait en LITTÉRAL dans `wama/views.py` ; il est déclaré ici, avec un
+#: interrupteur d'environnement pour revenir au `.pt` sans toucher au code :
+#:     WAMA_ASSISTANT_TTS_ENGINE=kokoro
+#: ⚠ Le repli EN-PROCESS de `wama/views.py` (service indisponible) reste le `.pt` —
+#: c'est un chemin de secours qui ne dépend d'aucun service.
+ASSISTANT_TTS_ENGINE = os.environ.get('WAMA_ASSISTANT_TTS_ENGINE', 'kokoro-onnx')
+
 # ---------------------------------------------------------------------------
 # Modèles TTS
 # ---------------------------------------------------------------------------

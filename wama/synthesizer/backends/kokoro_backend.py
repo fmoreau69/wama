@@ -28,6 +28,10 @@ class KokoroBackend(TTSBackend):
     description = "Kokoro 82M — TTS léger FR/EN/ES/IT/PT/JA/ZH, temps réel."
 
     supports_cloning = False   # voix FIXES par langue (aligné sur le catalogue)
+    #: Sert le temps réel (vocalisation assistant) → gardé chaud par le service TTS.
+    #: C'était la règle `if _current_engine == "kokoro"` de `tts_service`, DÉCLARÉE
+    #: depuis le 2026-08-31 (cf. `TTSBackend.keep_resident`) : comportement inchangé.
+    keep_resident = True
     #: Kokoro calcule les timestamps mot PENDANT la synthèse — `KPipeline.join_timestamps()`
     #: les dérive de `pred_dur`, la durée prédite par le modèle qui a GÉNÉRÉ l'audio : ils sont
     #: donc exacts par construction, pas estimés après coup. WAMA les jetait faute de les

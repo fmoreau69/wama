@@ -249,6 +249,7 @@ def _tts_via_service(text: str, voice: str):
     """
     try:
         import base64
+        from wama.common.tts.constants import ASSISTANT_TTS_ENGINE
         from wama.common.tts.service_client import tts_via_service
         from wama.common.tts.voices import langue_de_voix
 
@@ -259,7 +260,11 @@ def _tts_via_service(text: str, voice: str):
 
         # Client COMMUN du service (2026-08-28) ; ici TOUTE indisponibilité — 503
         # « loading » compris — vaut repli en-process, d'où le except large.
-        wav = tts_via_service(text, 'kokoro', language=language,
+        # Moteur DÉCLARÉ (constants.ASSISTANT_TTS_ENGINE — 'kokoro-onnx' par défaut
+        # depuis le 2026-08-31, bascule par WAMA_ASSISTANT_TTS_ENGINE), plus un
+        # littéral ici. Les NOMS DE VOIX sont identiques entre les deux moteurs
+        # (mêmes voix Kokoro), donc le calcul voix→langue ci-dessus vaut pour les deux.
+        wav = tts_via_service(text, ASSISTANT_TTS_ENGINE, language=language,
                               voice_preset=voice_preset, read_timeout=30, raw=True)
         return base64.b64encode(wav).decode('utf-8')
     except Exception as e:
