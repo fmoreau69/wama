@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -529,13 +531,40 @@ def install_from_spec(spec: dict) -> dict:
     return res
 
 
+#: Verrous d'installation pip (ROADMAP §16.7, transposés d'Hermes — câblés le 2026-08-31,
+#: ils n'étaient jusque-là que doctrine) : PyPI par NOM seul (extras tolérés), PIN EXACT
+#: `==` obligatoire — URL, `git+`, `file:`, options (`--index-url`, `-e`), chemins et
+#: contraintes lâches (`>=`) sont refusés AVANT de toucher pip. L'allowlist par librairie
+#: est `Library.is_allowed` (décision humaine, jamais posée par une projection) ; le kill
+#: switch coupe tout sans redéploiement.
+_PIP_SPEC_RE = re.compile(
+    r'^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?'   # nom de distribution (PEP 508)
+    r'(\[[A-Za-z0-9._,-]+\])?'                      # extras optionnels
+    r'==[A-Za-z0-9.!+]+$'                           # pin exact (PEP 440)
+)
+PIP_KILL_SWITCH_ENV = 'WAMA_PIP_KILL_SWITCH'
+
+
+def pip_spec_error(spec: str):
+    """Motif de refus d'un spécificateur pip, ou None s'il passe les verrous syntaxiques."""
+    s = (spec or '').strip()
+    if not s:
+        return "spécificateur vide"
+    if not _PIP_SPEC_RE.match(s):
+        return (f"spécificateur refusé : {s!r} — forme exigée « nom==version » "
+                "(PyPI par nom seul, pin exact ; pas d'URL, git+, option ni contrainte lâche)")
+    return None
+
+
 def pip_install_packages(packages, timeout: int = 1800) -> dict:
     """
     Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un
     nouveau modèle exige de nouvelles libs (jonction avec le contrat BaseModelBackend).
 
     ⚠️ Installer des paquets arbitraires est une surface de risque → à déclencher sur VALIDATION
-    HUMAINE uniquement, jamais en auto. Retourne {ok, installed, error}.
+    HUMAINE uniquement, jamais en auto — et depuis le 2026-08-31 les verrous syntaxiques
+    (`pip_spec_error` : pin exact, PyPI par nom) + kill switch s'appliquent à TOUS les
+    appelants, y compris `ensure_backend_deps`. Retourne {ok, installed, error}.
     """
     import subprocess
     import sys
@@ -543,6 +572,12 @@ def pip_install_packages(packages, timeout: int = 1800) -> dict:
     pkgs = [p for p in (packages or []) if p]
     if not pkgs:
         return {'ok': True, 'installed': []}
+    if os.environ.get(PIP_KILL_SWITCH_ENV):
+        return {'ok': False, 'installed': [],
+                'error': f"installations pip désactivées ({PIP_KILL_SWITCH_ENV} posé)"}
+    refus = [e for e in (pip_spec_error(p) for p in pkgs) if e]
+    if refus:
+        return {'ok': False, 'installed': [], 'error': ' ; '.join(refus)}
     try:
         proc = subprocess.run(
             [sys.executable, '-m', 'pip', 'install', *pkgs],
@@ -567,3 +602,160 @@ def ensure_backend_deps(backend_cls, timeout: int = 1800) -> dict:
     res = pip_install_packages(backend_cls.pip_install_spec(), timeout=timeout)
     res['already'] = False
     return res
+
+
+def _replay_patches() -> dict:
+    """
+    Rejoue `patches/apply_patches.py` — post-étape OBLIGATOIRE après tout pip install
+    (contrat `WAMA_MANIFEST_ARCHITECTURE §7`) : pip écrase les patches venv en silence,
+    et un patch perdu ne se signale pas (règle « ce qui ne plante pas ne se signale pas »).
+    """
+    import subprocess
+    import sys
+
+    script = Path(__file__).resolve().parents[3] / 'patches' / 'apply_patches.py'
+    if not script.exists():
+        return {'ok': False, 'error': f"script introuvable : {script}"}
+    try:
+        proc = subprocess.run([sys.executable, str(script)], capture_output=True,
+                              text=True, timeout=600, cwd=str(script.parents[1]))
+        return {'ok': proc.returncode == 0,
+                'tail': (proc.stdout or proc.stderr or '').strip()[-500:]}
+    except Exception as e:
+        return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+
+
+def install_library(key: str, apply: bool = False) -> dict:
+    """
+    Installe UNE librairie depuis son registre (`common.models.Library`) — la JONCTION
+    manifeste→pip qui manquait (2026-08-31) : le kind `library` projetait le registre
+    (`write_back_library`), mais rien ne reliait `pip_spec`/`is_allowed` aux exécuteurs.
+
+    Contrat (WAMA_MANIFEST_ARCHITECTURE §7 + ROADMAP §16.7) :
+      • `apply=False` (défaut) = PLAN sans aucun effet ;
+      • `is_allowed` (décision humaine, jamais posée par une projection) obligatoire ;
+      • verrous syntaxiques (`pip_spec_error` : nom PyPI + pin exact) + kill switch ;
+      • post-étape : `patches/apply_patches.py` rejoué après toute installation réelle ;
+      • version CONSTATÉE après coup (importlib.metadata) — un « pip ok » ne suffit pas ;
+      • ⚠ n'installe QUE dans le venv COURANT : `venv_win` reste un geste manuel (règle
+        « requirements s'installe dans LES DEUX venvs ») — signalé, jamais silencieux.
+    """
+    import importlib.metadata as im
+    import sys
+
+    from wama.common.models import Library
+
+    lib = Library.objects.filter(key=key).first()
+    if lib is None:
+        return {'ok': False, 'library': key,
+                'error': "librairie absente du registre — ingérer son manifeste d'abord "
+                         "(write_back_library)"}
+    spec = (lib.pip_spec or '').strip()
+    err = pip_spec_error(spec)
+    if err:
+        return {'ok': False, 'library': key, 'error': err}
+
+    nom_dist, _, version_cible = spec.partition('==')
+    nom_dist = nom_dist.split('[', 1)[0]
+    try:
+        constat = im.version(nom_dist)
+    except im.PackageNotFoundError:
+        constat = None
+    plan = {'library': key, 'spec': spec, 'installed_version': constat,
+            'already_satisfied': constat == version_cible,
+            'allowed': lib.is_allowed,
+            'venv': sys.executable,
+            'venv_win': "NON traité — geste manuel (règle des deux venvs)",
+            'post_step': "patches/apply_patches.py rejoué après installation réelle"}
+
+    if not apply:
+        # Le PLAN est visible sans allowlist — le verrou ne gate que l'EXÉCUTION.
+        return {'ok': True, 'plan': plan, 'would_install': constat != version_cible}
+
+    if not lib.is_allowed:
+        return {'ok': False, 'library': key, 'plan': plan,
+                'error': "is_allowed=False — l'installation exige une décision humaine "
+                         "explicite (allowlist, ROADMAP §16.7) : manage.py install_library "
+                         f"{key} --allow --apply"}
+
+    patches = None
+    if constat != version_cible:
+        res = pip_install_packages([spec])
+        if not res.get('ok'):
+            return {'ok': False, 'library': key, 'error': res.get('error'), 'plan': plan}
+        patches = _replay_patches()
+        try:
+            constat = im.version(nom_dist)
+        except im.PackageNotFoundError:
+            constat = None
+        if constat != version_cible:
+            return {'ok': False, 'library': key, 'plan': plan, 'patches': patches,
+                    'error': f"pip a répondu ok mais la version constatée est {constat!r} "
+                             f"(attendu {version_cible!r})"}
+
+    lib.is_installed = True
+    lib.installed_version = version_cible
+    lib.save(update_fields=['is_installed', 'installed_version'])
+    return {'ok': True, 'library': key, 'installed': patches is not None,
+            'version': version_cible, 'patches': patches, 'plan': plan}
+
+
+def install_requirements(app_key: str, apply: bool = False) -> dict:
+    """
+    Le MARCHEUR d'app (« application = modèles + librairies », reste ③ de la route
+    PROSPECTION_PIPELINE — câblé le 2026-08-31) : lit les `requires` du manifeste d'app AU
+    CORPUS (`manifests/apps/<app>.json` — la déclaration validée, qui porte les jambes
+    `library` semées) et DISPATCHE chaque référence vers son driver EXISTANT :
+
+      • kind=library → `install_library` (plan/apply — allowlist `is_allowed` par lib) ;
+      • kind=model   → état du catalogue + `install_catalog_task` (Celery) si un spec est
+        dérivable (`spec_for_catalog_row`) ; sans spec dérivable, le modèle reste au
+        « téléchargement au premier usage » — signalé, jamais silencieux.
+
+    Le marcheur n'invente RIEN : il n'installe que ce que les drivers savent installer,
+    sous leurs propres gardes. `apply=False` (défaut) = plan complet sans effet.
+    """
+    from wama.model_manager.models import AIModel
+
+    chemin = Path(__file__).resolve().parents[3] / 'manifests' / 'apps' / f'{app_key}.json'
+    if not chemin.exists():
+        return {'ok': False, 'app': app_key,
+                'error': f"manifeste d'app absent du corpus : {chemin.name} "
+                         "(manifest_export --kind app d'abord)"}
+    try:
+        manifeste = json.loads(chemin.read_text(encoding='utf-8'))
+    except Exception as e:
+        return {'ok': False, 'app': app_key, 'error': f"manifeste illisible : {e}"}
+
+    libraries, models, autres = [], [], []
+    for ref in (manifeste.get('requires') or []):
+        kind, key = ref.get('kind'), ref.get('key')
+        if kind == 'library':
+            libraries.append({'key': key, **install_library(key, apply=apply)})
+        elif kind == 'model':
+            row = AIModel.objects.filter(model_key=key, is_proposed=False).first()
+            if row is None:
+                models.append({'key': key, 'state': 'ABSENT du catalogue — sync_models ?'})
+            elif row.is_downloaded:
+                models.append({'key': key, 'state': 'téléchargé'})
+            else:
+                spec = spec_for_catalog_row(row)
+                if spec is None:
+                    models.append({'key': key,
+                                   'state': "non téléchargé — pas de spec dérivable "
+                                            "(téléchargement au premier usage)"})
+                elif not apply:
+                    models.append({'key': key, 'state': 'non téléchargé',
+                                   'would_install': spec.get('ref')})
+                else:
+                    from ..tasks import install_catalog_task
+                    started = install_catalog_task.delay(key)
+                    models.append({'key': key, 'state': 'installation enfilée (Celery)',
+                                   'task_id': started.id})
+        else:
+            autres.append(ref)   # function/dataset… : hors périmètre du marcheur, signalés
+
+    ok = all(r.get('ok', True) for r in libraries)
+    return {'ok': ok, 'app': app_key, 'apply': apply,
+            'libraries': libraries, 'models': models,
+            **({'ignored': autres} if autres else {})}
