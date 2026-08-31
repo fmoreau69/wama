@@ -78,6 +78,8 @@ HELP_TEXT = (
     "**WAMA** — ce que je sais faire ici :\n"
     "• `!lier` — relier ce compte de discussion à votre compte WAMA (obligatoire)\n"
     "• `!delier` — supprimer la liaison\n"
+    "• `!code <question>` — déléguer une question SUR LE DÉPÔT à Claude Code "
+    "(développeurs/admins ; consomme l'abonnement)\n"
     "• `!aide` — ce message\n"
     "Sinon, écrivez simplement ce que vous voulez faire : « transcris le fichier que je "
     "viens d'envoyer », « où en est ma transcription ? ». Les pièces jointes sont déposées "
@@ -155,6 +157,29 @@ def _handle(msg: IncomingMessage) -> Reply:
             "👋 Je ne sais pas encore qui vous êtes dans WAMA.\n"
             "Envoyez `!lier` pour obtenir un code d'appariement."
         ))
+
+    # ── Délégation au dépôt via Claude Code — geste EXPLICITE ────────────────────
+    # ⚠ POURQUOI UN GESTE, et pas « le modèle décidera » : en Discord le tour part sur le
+    # fournisseur LOCAL (défaut `wama-dev-ai` de `conversation_turn`), donc ce serait à un
+    # PETIT modèle de décider d'appeler `ask_claude_code` — jamais mesuré, et structurellement
+    # fragile. Le geste rend le chemin déterministe et VISIBLE (il est dans `!aide`) : c'était
+    # le trou réel du chantier §19.3, qui était d'ergonomie et non de câblage.
+    # La GARDE reste celle de l'outil (`subscription_allowed`, domicile unique) : on l'APPELLE,
+    # on ne la réimplémente pas ici — une garde recopiée est une garde qui dérive.
+    if commande == '!code':
+        question = texte[len('!code'):].strip()
+        if not question:
+            return Reply(text="Usage : `!code <votre question sur le dépôt>`\n"
+                              "_Exemple : `!code où est décidé le nom d'un fichier de sortie ?`_")
+        from wama.tool_api import ask_claude_code
+        resultat = ask_claude_code(user, question)
+        if 'error' in resultat:
+            return Reply(text=f"⛔ {resultat.get('detail') or resultat['error']}")
+        cout = resultat.get('cost_usd')
+        # Le coût est AFFICHÉ : ce chemin n'est pas gratuit en crédit mensuel, et un chemin
+        # dont on ne voit jamais le prix finit par être pris pour du bavardage.
+        pied = f"\n\n_~{cout:.2f} $ d'équivalent-API imputés à l'abonnement._" if cout else ''
+        return Reply(text=f"{resultat.get('response') or '(réponse vide)'}{pied}")
 
     # ── Pièces jointes → espace WAMA de l'utilisateur ────────────────────────────
     deposes = _store_attachments(user, msg.attachments)

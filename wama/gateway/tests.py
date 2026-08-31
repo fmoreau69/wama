@@ -261,6 +261,62 @@ class QrAppariementTests(TestCase):
         self.assertIn(lien.code, reponse.text)
 
 
+class GesteCodeTests(TestCase):
+    """`!code` — le geste EXPLICITE de délégation au dépôt (correctif d'ergonomie §19.3).
+
+    Il existe parce que le tour Discord part sur le fournisseur LOCAL : sans geste, ce
+    serait à un PETIT modèle de décider d'appeler `ask_claude_code`. Le geste rend le
+    chemin déterministe ET visible (`!aide` le liste)."""
+
+    def setUp(self):
+        self.fabien = User.objects.create(username='fabien', is_superuser=True)
+        self.alice = User.objects.create(username='alice')
+
+    def _lier(self, user):
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(user, lien.code)
+
+    def _envoyer(self, texte):
+        return core.handle_message(core.IncomingMessage(
+            channel=CANAL, external_id=EXT_ID, text=texte))
+
+    def test_le_geste_est_annonce_dans_l_aide(self):
+        # Le trou du chantier était d'ERGONOMIE : un chemin que rien n'annonce n'existe pas.
+        self.assertIn('!code', core.handle_message(core.IncomingMessage(
+            channel=CANAL, external_id=EXT_ID, text='!aide')).text)
+
+    def test_un_utilisateur_ordinaire_est_refuse_sans_atteindre_le_cli(self):
+        self._lier(self.alice)
+        with patch('wama.common.services.claude_code.demander') as cli:
+            reponse = self._envoyer('!code audite tout le dépôt')
+        cli.assert_not_called()
+        self.assertIn('⛔', reponse.text)
+
+    def test_un_admin_obtient_la_reponse_et_VOIT_le_cout(self):
+        self._lier(self.fabien)
+        with patch('wama.common.services.claude_code.demander',
+                   return_value={'success': True, 'texte': 'la réponse',
+                                 'cout_usd': 0.99, 'duree_ms': 3300}):
+            reponse = self._envoyer('!code où vit le nommage de sortie ?')
+        self.assertIn('la réponse', reponse.text)
+        # Un chemin dont on ne voit jamais le prix finit par être pris pour du bavardage.
+        self.assertIn('0.99', reponse.text)
+
+    def test_sans_question_le_geste_explique_son_usage(self):
+        self._lier(self.fabien)
+        with patch('wama.common.services.claude_code.demander') as cli:
+            reponse = self._envoyer('!code')
+        cli.assert_not_called()
+        self.assertIn('Usage', reponse.text)
+
+    def test_le_geste_n_est_pas_offert_a_un_inconnu(self):
+        """L'appariement reste la première garde : un inconnu ne franchit rien."""
+        with patch('wama.common.services.claude_code.demander') as cli:
+            reponse = self._envoyer('!code audite le dépôt')
+        cli.assert_not_called()
+        self.assertIn('!lier', reponse.text)
+
+
 class TronconnageDiscordTests(TestCase):
     """La limite de 2000 caractères de Discord est une limite DURE : la dépasser = 400."""
 

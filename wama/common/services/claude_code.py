@@ -76,6 +76,35 @@ class ClaudeCodeIndisponible(RuntimeError):
     """Le CLI est absent ou inexploitable — message destiné à l'utilisateur."""
 
 
+def subscription_allowed(user) -> bool:
+    """
+    Qui a le droit de consommer l'abonnement du titulaire — DOMICILE UNIQUE de la règle.
+
+    Extraite du corps de `tool_api.ask_claude_code` le 2026-08-31, quand un DEUXIÈME
+    appelant est apparu (le fournisseur « abonnement » de l'assistant, puis le geste
+    `!code` de la passerelle). Trois copies de ce prédicat auraient dérivé : c'est
+    exactement le cas que la règle « zéro duplication » vise, et une garde de sécurité
+    qui dérive s'ouvre du côté qu'on a oublié de mettre à jour.
+
+    ⚠ DEUX VOCABULAIRES DE RÔLE COEXISTENT dans WAMA (mesuré le 2026-08-21) : les GROUPES
+    Django (`dev`, `admin` — ce que lit `is_dev()`) et les TIERS de profil (`developpeur`,
+    `admin` — ce que lit `permissions.BYPASS_TIERS`). Et un groupe `developpeur` existe
+    AUSSI en base, homonyme du tier mais invisible pour `is_dev()`. S'en remettre à un seul
+    vocabulaire produirait un refus incompréhensible pour un compte légitimement
+    développeur. On accepte donc les deux — et ce commentaire vit ici, pas en trois copies.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+
+    from wama.accounts.views import is_admin, is_dev
+
+    return bool(
+        is_dev(user) or is_admin(user)
+        or user.groups.filter(name='developpeur').exists()
+        or getattr(getattr(user, 'profile', None), 'tier', '') in ('developpeur', 'admin')
+    )
+
+
 def chemin_cli() -> str:
     """Chemin du CLI Claude Code, ou lève une erreur explicite."""
     force = os.environ.get('WAMA_CLAUDE_CLI') or getattr(settings, 'WAMA_CLAUDE_CLI', '')

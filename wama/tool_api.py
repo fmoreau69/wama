@@ -2472,22 +2472,14 @@ def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300) ->
     # ⚠ GARDE EXPLICITE, ET NON PAS le gating d'app. Un outil sans app (`None` dans
     # TOOL_APP_OVERRIDE) est AUTORISÉ À TOUS par `tool_accessible` — ce qui serait ici une
     # faille béante : cet outil exécute un agent avec accès au dépôt et consomme
-    # l'abonnement du titulaire. La restriction est donc écrite dans le corps, là où
+    # l'abonnement du titulaire. La restriction est donc appelée dans le corps, là où
     # aucune évolution du registre ne peut la contourner par mégarde.
-    # ⚠ DEUX VOCABULAIRES DE RÔLE COEXISTENT dans WAMA (mesuré le 2026-08-21) : les GROUPES
-    # Django (`dev`, `admin` — ce que lit `is_dev()`) et les TIERS de profil
-    # (`developpeur`, `admin` — ce que lit `permissions.BYPASS_TIERS`). Et un groupe
-    # `developpeur` existe AUSSI en base, homonyme du tier mais invisible pour `is_dev()`.
-    # S'en remettre à un seul vocabulaire produirait un refus incompréhensible pour un
-    # compte légitimement développeur. On accepte donc les deux.
-    from wama.accounts.views import is_admin, is_dev
+    # Le PRÉDICAT lui-même vit dans `claude_code.subscription_allowed` (domicile unique) :
+    # il a trois appelants depuis le 31/08 (cet outil, le fournisseur « abonnement » de
+    # l'assistant, le geste `!code` de la passerelle) et trois copies auraient dérivé.
+    from wama.common.services.claude_code import subscription_allowed
 
-    autorise = (
-        is_dev(user) or is_admin(user)
-        or user.groups.filter(name='developpeur').exists()
-        or getattr(getattr(user, 'profile', None), 'tier', '') in ('developpeur', 'admin')
-    )
-    if not autorise:
+    if not subscription_allowed(user):
         return {"error": "forbidden",
                 "detail": "Outil réservé aux développeurs et administrateurs."}
 

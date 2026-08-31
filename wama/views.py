@@ -92,8 +92,17 @@ def home(request):
     # `assistant_skills.greeting()` pour le pourquoi du déclaratif plutôt que du généré.
     from wama.common.utils.assistant_skills import greeting
     from wama.common.utils.volet import volet
+    # ⚠ VARIABLE DÉDIÉE, et surtout PAS `is_admin` — qui vaut ici `is_staff`, un TROISIÈME
+    # vocabulaire de rôle (les deux autres : groupes `dev`/`admin`/`developpeur`, tiers de
+    # profil). Gater le fournisseur « abonnement » sur `is_staff` aurait fait diverger l'UI
+    # de la garde serveur dans LES DEUX SENS : un membre du groupe `dev` autorisé par le
+    # moteur mais sans l'option à l'écran, et un compte `is_staff` voyant une option que le
+    # serveur lui refuse. La visibilité se calcule donc avec le MÊME prédicat que la garde
+    # (`claude_code.subscription_allowed`, domicile unique) — c'est un test qui le verrouille.
+    from wama.common.services.claude_code import subscription_allowed
     context = {
         'is_admin': is_admin,
+        'abonnement_visible': subscription_allowed(request.user),
         'accueil_assistant': greeting(request.user),
         # Résolution catalogue à chaque rendu : 5 requêtes DB, uniquement pour l'admin
         # qui voit la surface chat.

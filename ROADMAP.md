@@ -2719,13 +2719,40 @@ et il n'est écrit NULLE PART dans l'UI** :
   faire une ligne de provider ferait passer **tout** le bavardage par un appel à ~0,99 $
   d'équivalent-API (le contexte projet est rechargé à CHAQUE invocation, mesuré le 21/08),
   plancher ~3,3 s, plafond 900 s, et le bug de refresh OAuth au-delà.
-- 🔴 **Le trou RÉEL est ailleurs, et il est d'ERGONOMIE** : rien dans l'UI ne dit que cet
-  outil existe, et en Discord c'est un **petit modèle local** qui doit choisir de l'appeler —
-  ce qui n'a jamais été mesuré. Deux correctifs possibles, **décision Fabien** : (a) rendre
-  l'outil découvrable (mention dans le skill `assistant-dev`, ou geste explicite type
-  `!code <question>` dans la passerelle) ; (b) ajouter le provider malgré le coût, en
-  l'assumant comme surface de DEV et non de chat. **(a) recommandé** — il respecte la
-  doctrine et ne met pas 0,99 $ d'équivalent-API sur un « bonjour ».
+- 🔴 **Le trou RÉEL était d'ERGONOMIE** : rien dans l'UI ne disait que cet outil existe, et
+  en Discord c'est un **petit modèle local** qui devait choisir de l'appeler — jamais mesuré.
+
+**✅ (a) ET (b) LIVRÉS le 2026-08-31** (arbitrage Fabien : « pourquoi pas a et b, tant que
+ce n'est visible que pour admin »). Les deux, parce qu'ils ne servent pas le même geste —
+(a) rend le chemin DÉTERMINISTE là où il n'y a pas de menu, (b) donne le confort d'un fil
+entier sur l'abonnement là où il y en a un.
+
+| Livrable | Où |
+|---|---|
+| (a) geste `!code <question>` en Discord, annoncé dans `!aide` | `gateway/core.py` |
+| (b) fournisseur `claude-abo`, visible admins/devs seulement | `home.html` + `assistant_engine` |
+| Prédicat d'autorisation à DOMICILE UNIQUE (3 appelants) | `claude_code.subscription_allowed` |
+| Garde au PASSAGE OBLIGÉ des 3 surfaces | `run_assistant_turn` (403) |
+| 15 tests (dont l'invariant écran↔garde sur 5 profils) | `common/tests_claude_subscription.py`, `gateway/tests.py` |
+
+- ⚠⚠ **Deux avertissements distincts, longtemps confondus** (question de Fabien, tranchée le
+  31/08) — ils ne parlent PAS de la même chose :
+  1. **facturation** : si `ANTHROPIC_API_KEY` fuit dans l'environnement du sous-processus,
+     Claude Code la PRÉFÈRE → **facture réelle** au lieu de l'abonnement. C'est ce que garde
+     `_environnement()` ;
+  2. **consommation** : `claude -p` est SANS ÉTAT — `demander()` fait un `subprocess.run`,
+     jamais un `--resume`. Le contexte du dépôt est donc rechargé **à chaque message**
+     (~0,99 $ d'équivalent-API), là où une session de terminal l'amortit sur toute la
+     session. Aucune facture, mais le crédit mensuel part beaucoup plus vite.
+  Le premier transforme « gratuit » en « payant » ; le seul second justifie la garde admin.
+- ⚠ **Trois vocabulaires de rôle, pas deux** (trouvé en écrivant la ligne d'UI) : aux groupes
+  `dev`/`admin`/`developpeur` et aux tiers de profil s'ajoute **`is_staff`**, que `views.home`
+  utilisait pour son `is_admin`. Gater l'option dessus faisait diverger l'écran de la garde
+  **dans les deux sens**. D'où `abonnement_visible`, calculé par le prédicat unique — et un
+  test qui verrouille l'invariant sur 5 profils au lieu de le confier à la vigilance.
+- ⚠ **`claude-abo` n'a PAS les outils WAMA** : Claude Code répond avec les SIENS (lecture du
+  dépôt) et rend un texte final. « Ajoute ce fichier à l'imager » n'aboutira pas par ce
+  chemin — c'est le fournisseur local ou `claude` qu'il faut. Consigné dans le module.
 - ✅ `.env` complété le 31/08 : `CLAUDE_CODE_OAUTH_TOKEN` et `WAMA_CLAUDE_CLI` y figuraient
   dans `.env.example` mais **pas** dans le `.env` réel (constat de Fabien) — les deux lignes
   y sont désormais, commentées, avec le rappel du piège `ANTHROPIC_API_KEY`.

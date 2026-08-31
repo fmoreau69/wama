@@ -114,6 +114,14 @@ _LOCAL_PROVIDERS = ('wama-dev-ai', 'ollama')
 #: Nom de fournisseur côté surface chat → nom attendu par `llm_chat()`/LiteLLM.
 _PROVIDER_ALIAS = {'claude': 'anthropic'}
 
+#: Fournisseurs servis par l'ABONNEMENT du titulaire (CLI Claude Code headless), et non
+#: par une API facturée. Réservés aux administrateurs/développeurs — la garde est posée
+#: dans `run_assistant_turn`, passage obligé des trois surfaces.
+#: ⚠ NE PAS confondre avec `claude` (= API Anthropic, FACTURÉE au token). Les deux parlent
+#: au même modèle par deux canaux de facturation opposés ; c'est la confusion que la
+#: session du 31/08 a dû lever, et le libellé d'UI doit la lever aussi.
+_SUBSCRIPTION_PROVIDERS = ('claude-abo',)
+
 
 def resolve_chat_model(key: str) -> str:
     """Rôle de chat ('dev', 'fast'…) → tag Ollama résolu par le catalogue (source unique) ;
@@ -299,6 +307,56 @@ def _ollama_call(messages: list, ollama_model: str) -> tuple:
         return None, {'error': f'Ollama error: {e}', 'status': 500}
 
 
+def _claude_code_call(messages: list) -> tuple:
+    """
+    Un tour SUR L'ABONNEMENT, via le CLI Claude Code headless.
+
+    ⚠⚠ CE QU'IL FAUT SAVOIR AVANT DE S'EN SERVIR — deux propriétés qui ne se voient pas :
+
+    1. **`claude -p` est SANS ÉTAT.** Chaque appel est un process NEUF, sans mémoire du
+       précédent : `demander()` fait un `subprocess.run`, jamais un `--resume`. L'historique
+       est donc replié dans le prompt ici — sinon l'assistant serait amnésique d'un message
+       à l'autre alors que la surface affiche un fil continu.
+    2. **Le contexte du dépôt est rechargé À CHAQUE appel** (CLAUDE.md + arborescence), d'où
+       le plancher mesuré à ~0,99 $ d'équivalent-API le 21/08 — même pour « bonjour ». En
+       session interactive (terminal), ce chargement est amorti sur toute la session ; ici
+       il est payé par MESSAGE. Sur abonnement ce n'est pas une facture, mais ça consomme
+       le crédit mensuel bien plus vite. C'est la raison d'être de la garde admin.
+
+    ⚠ Les outils WAMA ne sont PAS disponibles par ce chemin : Claude Code répond avec SES
+    outils à lui (lecture du dépôt), et rend un texte final. Un « ajoute ce fichier à
+    l'imager » n'aboutira donc pas ici — c'est le fournisseur local ou `claude` qu'il faut.
+    """
+    from wama.common.services.claude_code import ClaudeCodeIndisponible, demander
+
+    morceaux = []
+    for tour in messages or []:
+        contenu = (tour.get('content') or '').strip()
+        if not contenu:
+            continue
+        role = tour.get('role')
+        if role == 'system':
+            morceaux.append(contenu)
+        elif role == 'assistant':
+            morceaux.append(f"[Assistant] {contenu}")
+        else:
+            morceaux.append(f"[Utilisateur] {contenu}")
+
+    try:
+        resultat = demander('\n\n'.join(morceaux))
+    except ClaudeCodeIndisponible as e:
+        return None, {'error': str(e), 'status': 503}
+
+    if not resultat.get('success'):
+        return None, {'error': resultat.get('error', 'échec inconnu'), 'status': 502}
+
+    # `cost_usd` est un ÉQUIVALENT-API rapporté par le CLI, PAS un débit : sur abonnement la
+    # dépense s'impute au crédit inclus. Remonté quand même — c'est le bon indicateur
+    # RELATIF pour comparer deux tâches, et le seul signal que ce chemin n'est pas gratuit.
+    return resultat.get('texte', ''), {'input_tokens': 0, 'output_tokens': 0,
+                                       'cost_usd': resultat.get('cout_usd')}
+
+
 def _llm_call(messages: list, llm_model: str | None, provider: str) -> tuple:
     """
     Un tour de LLM, quel que soit le fournisseur.
@@ -314,6 +372,9 @@ def _llm_call(messages: list, llm_model: str | None, provider: str) -> tuple:
     """
     if provider in _LOCAL_PROVIDERS:
         return _ollama_call(messages, llm_model)
+
+    if provider in _SUBSCRIPTION_PROVIDERS:
+        return _claude_code_call(messages)
 
     from wama.common.utils.llm_utils import llm_chat
     text, err = llm_chat(
@@ -448,6 +509,18 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     from wama.tool_api import execute_tool, build_tools_list
 
     provider = provider or 'wama-dev-ai'
+
+    # ⚠ GARDE DE L'ABONNEMENT — posée ICI, et pas dans la vue de chat. `run_assistant_turn`
+    # est le passage OBLIGÉ des TROIS surfaces (web `views.ai_chat`, `/api/v1/assistant/`,
+    # passerelle Discord) : dans une vue, elle aurait laissé les deux autres ouvertes. Et la
+    # surface la plus exposée est justement celle qui n'a pas de menu — un client peut poster
+    # `provider` librement, l'UI ne garde rien.
+    if provider in _SUBSCRIPTION_PROVIDERS:
+        from wama.common.services.claude_code import subscription_allowed
+        if not subscription_allowed(user):
+            return {'error': "Le fournisseur « abonnement » est réservé aux administrateurs "
+                             "et développeurs.", 'status': 403}
+
     local = provider in _LOCAL_PROVIDERS
 
     # Résolution du modèle : rôle→tag par le catalogue en local ; en cloud, un rôle de chat
