@@ -9377,9 +9377,37 @@ Test demandé par Fabien AVANT d'implémenter `--resume`. 3 appels identiques, m
    le menu (jamais vu à l'écran — code testé, rendu non).
 3. **HTTPS** : tout est câblé et OFF. `WAMA_HTTPS=1` seulement quand le TLS sert réellement
    (sinon cookie `Secure` → session perdue → login qui boucle) ; HSTS **après** l'avoir éprouvé.
-4. **Auto-déconnexion** (soulevée par Fabien, non tranchée) : session à 7 j, `SESSION_COOKIE_AGE`
-   + `SESSION_SAVE_EVERY_REQUEST` = expiration glissante. Territoire `PROFILES_PERMISSIONS`.
+4. ✅ **Auto-déconnexion — LIVRÉE mais DÉSACTIVÉE** (arbitrage Fabien : « l'implémenter et la
+   laisser à 0 »). `WAMA_SESSION_IDLE_MINUTES=0` → politique historique EXACTE (7 j) ; poser
+   30 ou 60 suffit à l'activer, expiration **glissante**. 5 tests, dont la contre-épreuve que
+   le défaut ne change rien sur l'instance réelle.
+   ⚠⚠ **Deux limites à lire AVANT d'y compter** (consignées dans `settings.py`) : les
+   **POLLERS** des pages de file comptent comme de l'activité — un écran de file laissé ouvert
+   ne se déconnectera **jamais** ; et `SESSION_SAVE_EVERY_REQUEST` = une écriture SQL par
+   requête. Les traiter est un **chantier**, pas un réglage.
 5. `ask_claude_code` reste **admin/dev seulement** — donc Fabien seul aujourd'hui. Assumé.
+
+### 🔎 Revue INDÉPENDANTE de la session (demandée par Fabien) — 9 défauts corrigés
+Une revue en agent séparé, sur les 7 commits de la session. Ce qu'elle a rattrapé et qui
+n'aurait été vu par personne :
+- 🔴 **un test vert PAR ACCIDENT, qui serait devenu ROUGE au geste d'entrée ci-dessus** :
+  il vidait `os.environ` alors que le code retombait sur `settings`. Cause racine = une
+  **duplication** (double lecture env+settings) que le commentaire de `settings.py` disait
+  justement vouloir empêcher. ⭐ *Une duplication ne se paie pas quand on l'écrit, mais au
+  premier changement d'état.*
+- 🔴 **le JUMEAU de la garde `next`** : `anonymizer/views.py::reset_user_settings`, seul autre
+  consommateur de `next` du dépôt, n'avait **aucune** validation. Posée.
+- **4 commentaires devenus FAUX** — dont trois disant « `is_admin` vaut `is_staff` ici » après
+  que le correctif du jour ait supprimé ce fait. ⭐ *Un correctif qui ne recale pas les
+  commentaires écrits une heure plus tôt laisse deux vérités dans la même fonction.*
+- `cost_usd` du chemin abonnement était **calculé puis jeté** alors que la docstring promettait
+  de le remonter → accumulé.
+- `ROADMAP §19.3` portait encore, **vivante**, la puce « ~0,99 $ » que son propre tableau
+  réfute 60 lignes plus bas — et elle servait d'argument CONTRE le fournisseur ajouté 6 lignes
+  après. ⭐ *Corriger une mesure ne suffit pas : il faut chasser ses réemplois.*
+- ⚠ **une explication fausse pour une réparation juste** : la trajectoire du QR ne se perdait
+  pas au lien « S'identifier » (rendu seulement après « Effacer ») mais à la **modale** ouverte
+  par `?next=`. ⭐ *C'est l'explication qu'on relit, pas le correctif.*
 
 ### Pendings système
 - **16 commits non poussés** sur `dev` (dont 3 d'une autre instance).
@@ -9391,8 +9419,8 @@ Test demandé par Fabien AVANT d'implémenter `--resume`. 3 appels identiques, m
   du skill, cinquième récidive.* Le RÉSULTAT est consigné (`ROADMAP.md` §19.3), pas le script.
 
 ### Contrôles attendus au prochain /reprise — MESURÉS le 2026-08-31
-- `test wama.gateway wama.common.tests_qr wama.common.tests_claude_subscription wama.accounts`
-  → **66 OK, 0 rouge**.
+- `test wama.accounts wama.gateway wama.common.tests_qr wama.common.tests_claude_subscription
+  wama.anonymizer` → **71 OK, 0 rouge**.
 - `check_docs` → **8 cassées / 0 périmée sur ~1274 vérifiées**, et surtout **1 SEULE cible
   distincte** (le partial d'onglets de résultat jamais créé). Une 2ᵉ cible distincte = vraie
   dérive. ⚠ Le total de RÉFÉRENCES monte tout seul (1103 le 28/08 → ~1274) et **bouge à chaque
