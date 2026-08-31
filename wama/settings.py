@@ -491,6 +491,36 @@ SESSION_COOKIE_HTTPONLY = True  # Protection contre XSS
 SESSION_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
 SESSION_COOKIE_NAME = 'wama_sessionid'  # Nom personnalisé pour éviter les conflits
 
+# ── Exposition publique & HTTPS (DÉCLARATIF — valeurs dans .env) ────────────────
+# UNE seule déclaration de « où WAMA est joignable depuis l'extérieur ». Elle sert deux
+# consommateurs qui, déclarés séparément, divergeraient au premier changement d'adresse :
+#   • le QR d'appariement de la passerelle (`gateway/services.py::pairing_url`) ;
+#   • `CSRF_TRUSTED_ORIGINS`, OBLIGATOIRE dès qu'on sert en HTTPS derrière un reverse
+#     proxy — sans lui Django refuse TOUT POST en 403, login compris, sans rien expliquer.
+WAMA_PUBLIC_URL = (os.environ.get('WAMA_PUBLIC_URL', '') or '').strip().rstrip('/')
+if WAMA_PUBLIC_URL:
+    CSRF_TRUSTED_ORIGINS = [WAMA_PUBLIC_URL]
+
+# Bascule HTTPS — TOUT est à OFF par défaut, et ce défaut est un choix : WAMA sert
+# aujourd'hui en http (interne + VPN). ⚠ Un réglage « sécurisé » posé AVANT le HTTPS
+# casse silencieusement la connexion — un cookie `Secure` n'est jamais renvoyé sur une
+# page http, donc la session n'existe plus et le login boucle sans message d'erreur.
+WAMA_HTTPS = os.environ.get('WAMA_HTTPS', '') == '1'
+if WAMA_HTTPS:
+    # Apache/nginx termine le TLS et parle http à Django : sans cet en-tête, Django se
+    # croit en clair, `request.is_secure()` reste faux, et la garde `next` du login
+    # (accounts/views.py) raisonnerait sur le mauvais schéma.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# HSTS — DÉLIBÉRÉMENT séparé de la bascule ci-dessus : à n'activer qu'une fois le HTTPS
+# ÉPROUVÉ. ⚠ Le navigateur MÉMORISE l'instruction pour toute la durée annoncée : posé sur
+# une instance dont le certificat casse ensuite, il rend WAMA inaccessible et l'utilisateur
+# ne peut PAS passer outre. Commencer petit (300) avant d'envisager un an. 0 = désactivé.
+SECURE_HSTS_SECONDS = int(os.environ.get('WAMA_HSTS_SECONDS', '0') or 0)
+
 # Fichiers statiques et médias
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'

@@ -2703,6 +2703,33 @@ polling. À faire dès que l'appariement d'identité existe.
   ⚠ Bug connu : le refresh du token OAuth échoue en non-interactif (~10-15 min) → découper en
   invocations courtes plutôt qu'une session longue.
 
+**📏 Vérification du 2026-08-31 (question de Fabien : « le chantier est-il bouclé ? »).**
+Mesuré dans le code, pas déduit — **l'abonnement est atteignable, mais par UN SEUL chemin,
+et il n'est écrit NULLE PART dans l'UI** :
+
+| Surface | Chemin réel vers l'abonnement | État |
+|---|---|---|
+| Menu « Provider » de l'assistant (`home.html:750-751`) | **aucun** — 2 entrées : `wama-dev-ai (Local/Ollama)` et `claude (Anthropic API)` | pas de ligne « abonnement » |
+| Assistant web ET Discord | l'outil `ask_claude_code` (`tool_api.py:2457`), appelé par le modèle | ✅ fonctionne, gardé dev/admin |
+| Passerelle Discord | `core.py` appelle `conversation_turn()` **sans provider** → défaut `wama-dev-ai` | c'est le modèle **LOCAL** qui doit décider d'appeler l'outil |
+
+- ⚠ **Ce n'est PAS un oubli de câblage, c'est la doctrine du module** : `claude_code.py`
+  énonce en tête qu'il n'est **pas un fournisseur de plus** (ni LiteLLM, ni `llm_chat`) mais
+  un OUTIL qui apporte des capacités que WAMA n'a pas (lecture du dépôt, recherche). En
+  faire une ligne de provider ferait passer **tout** le bavardage par un appel à ~0,99 $
+  d'équivalent-API (le contexte projet est rechargé à CHAQUE invocation, mesuré le 21/08),
+  plancher ~3,3 s, plafond 900 s, et le bug de refresh OAuth au-delà.
+- 🔴 **Le trou RÉEL est ailleurs, et il est d'ERGONOMIE** : rien dans l'UI ne dit que cet
+  outil existe, et en Discord c'est un **petit modèle local** qui doit choisir de l'appeler —
+  ce qui n'a jamais été mesuré. Deux correctifs possibles, **décision Fabien** : (a) rendre
+  l'outil découvrable (mention dans le skill `assistant-dev`, ou geste explicite type
+  `!code <question>` dans la passerelle) ; (b) ajouter le provider malgré le coût, en
+  l'assumant comme surface de DEV et non de chat. **(a) recommandé** — il respecte la
+  doctrine et ne met pas 0,99 $ d'équivalent-API sur un « bonjour ».
+- ✅ `.env` complété le 31/08 : `CLAUDE_CODE_OAUTH_TOKEN` et `WAMA_CLAUDE_CLI` y figuraient
+  dans `.env.example` mais **pas** dans le `.env` réel (constat de Fabien) — les deux lignes
+  y sont désormais, commentées, avec le rappel du piège `ANTHROPIC_API_KEY`.
+
 ### 19.4 Ce qui reste à trancher avant de coder 19.1
 
 1. **Où tourne la passerelle** : process séparé (`supervisor`/`systemd`) ou commande de
