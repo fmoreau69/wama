@@ -395,6 +395,57 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
         </table>
     </div>
 
+    {% comment %}2ᵉ grille — FONCTIONNELLE (WAMA_VERIFICATION §2, câblée le 2026-09-01).
+    La grille au-dessus atteste une ADOPTION (le code contient la brique) ; celle-ci atteste
+    un FONCTIONNEMENT (le geste exécuté a produit l'effet — scénarios nocturnes Playwright).
+    Agrégat par SCÉNARIO (dernier verdict de chacun), jamais « le dernier run » : un run est
+    souvent partiel. Le détail ne liste que les échecs/skips — les verts se lisent au compteur.{% endcomment %}
+    <div class="d-flex align-items-center justify-content-between mb-3 mt-4 flex-wrap gap-2">
+        <h2 class="h5 text-white mb-0"><i class="fas fa-vial-circle-check me-2 text-secondary"></i>Grille fonctionnelle</h2>
+        <small class="text-white-50">le geste exécuté, pas la brique adoptée — dernier verdict de chaque scénario nocturne</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-dark table-sm table-hover summary-table align-middle">
+            <thead>
+                <tr>
+                    <th>Application</th>
+                    <th class="text-center" title="scénarios au vert (dernier verdict)">✓ OK</th>
+                    <th class="text-center" title="scénarios en échec (dernier verdict)">✗ Échecs</th>
+                    <th class="text-center" title="dépendance absente au moment du run — ni vert ni rouge">⏭ Skips</th>
+                    <th class="text-center" title="scénarios enregistrés jamais exécutés">∅ Jamais</th>
+                    <th class="text-center">Dernière mesure</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for app, g in grille_fonctionnelle.items %}
+                <tr>
+                    <td>{{ app }}</td>
+                    <td class="text-center"><span class="check-ok">{{ g.ok }}</span></td>
+                    <td class="text-center">{% if g.ko %}<span class="badge bg-danger mini-badge">{{ g.ko }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
+                    <td class="text-center">{% if g.skip %}<span class="badge bg-warning text-dark mini-badge">{{ g.skip }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
+                    <td class="text-center">{% if g.never %}<span class="badge bg-secondary mini-badge">{{ g.never }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
+                    <td class="text-center"><small class="text-white-50">{{ g.last_at|default:"—" }}</small></td>
+                </tr>
+                {% if g.ko or g.skip or g.never %}
+                <tr><td colspan="6" class="pt-0 border-0">
+                    <details class="small text-white-50 ms-3">
+                        <summary style="cursor:pointer">détail des non-verts</summary>
+                        <ul class="mb-1 mt-1">
+                        {% for sc in g.scenarios %}{% if not sc.ok or sc.skipped or sc.never_run %}
+                            <li><code>{{ sc.id }}</code> —
+                                {% if sc.never_run %}jamais exécuté{% elif sc.skipped %}skip{% else %}<span class="check-fail">échec</span>{% endif %}
+                                {% if sc.detail %} · {{ sc.detail|truncatechars:140 }}{% endif %}
+                                {% if sc.at %} <span class="text-white-50">({{ sc.at }})</span>{% endif %}</li>
+                        {% endif %}{% endfor %}
+                        </ul>
+                    </details>
+                </td></tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
 </div>
 
 {{ apps_list|json_script:"apps-data" }}

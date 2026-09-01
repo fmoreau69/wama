@@ -369,10 +369,24 @@ def apps_catalog_view(request):
             if lien['abonnable'] and lien['autorisee'] and lien['gate'] not in autorisees:
                 autorisees.append(lien['gate'])
 
+    # ── 2ᵉ grille : la FONCTIONNELLE (WAMA_VERIFICATION §2, décidée le 22/08, câblée le
+    # 01/09). L'adoption ci-dessus dit « le code contient la brique » ; celle-ci dit « le
+    # geste exécuté a produit l'effet » — dernier verdict de CHAQUE scénario nocturne,
+    # jamais « le dernier run » (un run est souvent partiel). Les scénarios enregistrés
+    # jamais exécutés y figurent : ne montrer que ce qui a tourné surestimerait la couverture.
+    try:
+        from .nightly_scenarios import register_scenarios
+        register_scenarios()
+        from .services.nightly_tests import functional_grid
+        grille_fonctionnelle = functional_grid()
+    except Exception:
+        grille_fonctionnelle = {}   # la grille d'adoption reste servie même si celle-ci casse
+
     return render(request, 'common/apps.html',
                   {'apps_list': apps_list, 'apps_grouped': apps_grouped,
                    'conformity_measured_at': measured_at,
                    'facettes_apps': facettes,
+                   'grille_fonctionnelle': grille_fonctionnelle,
                    'abo': _resume_abo(request.user, 'app', autorisees),
                    'abo_ids': autorisees})
 

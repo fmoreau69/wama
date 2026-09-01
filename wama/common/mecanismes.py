@@ -275,7 +275,9 @@ MECANISMES = (
               "Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` "
               "MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — "
               "et le nom de balise avaleuse écrit dans un commentaire. Un scan de 5 s contre des "
-              "diagnostics qui ont coûté des sessions",
+              "diagnostics qui ont coûté des sessions. Depuis le 01/09, signale AUSSI tout "
+              "`{% load %}` vers une bibliothèque de balises absente (garde posée le jour où un "
+              "retrait de templatetag a laissé son load — page reader en TemplateSyntaxError)",
               'wama/common/management/commands/check_templates.py', 'CLAUDE.md',
               annexes=('wama/common/tests_check_templates.py',),
               symbole='check_templates'),
@@ -333,7 +335,24 @@ MECANISMES = (
               "Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — "
               "la vue web et /api/v1/assistant/chat/ en sont des clients",
               'wama/common/services/assistant_engine.py', '',
+              # wama-avatar.js = le RENDU de l'assistant vocal (avatar 3D navigateur,
+              # three.js/TalkingHead, greffé sur WamaApp.Speech — zéro VRAM serveur) : brique
+              # FRONT du même mécanisme, donc annexe et pas entrée séparée.
+              annexes=('wama/common/static/common/js/wama-avatar.js',),
               symbole='run_assistant_turn'),
+    Mecanisme('conversation_store', "Historique de conversation (serveur)",
+              "L'historique de l'assistant côté SERVEUR — remplace le localStorage web et le "
+              "dict en mémoire de la passerelle (perdus au changement de navigateur / au "
+              "redémarrage). COUCHE AU-DESSUS du moteur, jamais une dépendance : "
+              "run_assistant_turn continue d'accepter un history explicite (moteur sans état, "
+              "testable sans base). Consommé par la vue web ET la passerelle de canaux "
+              "(gateway/core, discord_bot) — cf. ROADMAP §19.5",
+              'wama/common/services/conversation_store.py', 'ROADMAP.md §19.5',
+              annexes=('wama/common/tests_conversation.py',),
+              # `symbole` : ses clients l'importent par `from wama.common.services import
+              # conversation_store` — le compteur d'imports ne voit pas cette graphie (même
+              # faux positif que le middleware, cf. plus haut).
+              symbole='conversation_store'),
     Mecanisme('source_ingest', 'Ingest de source',
               "Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST",
               'wama/common/utils/source_ingest.py', 'WAMA_APP_GENERATION_ROUTE.md',
@@ -553,7 +572,12 @@ MECANISMES = (
     Mecanisme('param_schema', 'Schéma de paramètres',
               "Source unique des réglages d'app : volet droit, modales (item ET lot, "
               "`context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, "
-              "filtre show_if au vocabulaire du moteur JS) sont dérivés de lui",
+              "filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le "
+              "01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : "
+              "défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP "
+              "§23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les "
+              "défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a "
+              "remplacé resolve_options du converter + les défauts en dur des backends",
               'wama/common/utils/param_schema.py', 'WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),
