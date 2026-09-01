@@ -8,9 +8,9 @@
  *
  * Usage :
  *   WamaModelCaps.init({
- *     source: 'synthesizer',
+ *     task: 'text-to-speech',       // domaine par CAPACITÉ (préféré) — ou source: '<app>'
  *     modelSelectId: 'tts_model',
- *     resolveKey: (v) => 'synthesizer:' + ({xtts_v2:'coqui-xtts', higgs_audio:'higgs-audio'}[v] || v),
+ *     // resolveKey inutile quand les valeurs du select SONT les clés catalogue (cf. F4b ②)
  *     filters: [
  *       // masque les options de clonage si le modèle ne clone pas
  *       { selectId: 'voice_preset',
@@ -22,7 +22,14 @@
  *     ],
  *   });
  *
- * capabilities proviennent de api/models/db/?source=<source> (champ `capabilities`).
+ * capabilities proviennent de api/models/db/ (champ `capabilities`), interrogé par `task`
+ * (domaine par CAPACITÉ, route F4b) ou à défaut par `source` (voie historique, par app).
+ *
+ * ⚠ `task` DOIT border le même domaine que les options du select. Quand le select est peuplé
+ * par `options_source: 'catalog'` + `options_query: {task}`, interroger ici par `source`
+ * laisse sans capacités tout modèle d'une autre source — et le filtrage voix/langues
+ * s'ABSENTE alors en silence (`caps = null` → dégradation douce). *Deux requêtes qui ne
+ * bornent pas le même domaine produisent un filtre qui a l'air de marcher.*
  *
  * Extensions déclaratives (2026-08-17, adoption ×3 — zéro cas d'app ici) :
  *   meta:     {cléRésolue: capsDict} — capacités injectées CÔTÉ SERVEUR (vue), fusionnées
@@ -120,7 +127,10 @@
     render();  // 1er passage sur la meta serveur (sans attendre le réseau)
 
     // Charge les capacités du catalogue puis applique le filtrage initial.
-    const url = base + '?source=' + encodeURIComponent(cfg.source);
+    // Domaine : par TÂCHE (capacité) si déclarée, sinon par SOURCE (voie historique).
+    const url = base + (cfg.task
+      ? '?task=' + encodeURIComponent(cfg.task)
+      : '?source=' + encodeURIComponent(cfg.source));
     fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {

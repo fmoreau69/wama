@@ -379,9 +379,15 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
     // passer depuis la vue. Dégradation douce si le catalogue est indisponible.
     if (window.WamaModelCaps) {
         WamaModelCaps.init({
-            source: 'synthesizer',   // domaine des moteurs TTS ; l'avatarizer les LIT, ne les possède pas
+            // Domaine par CAPACITÉ (route F4b ②, 2026-09-01), identique au synthesizer et au
+            // peuplement du select : c'est le MÊME parc, et l'avatarizer n'en possède aucun
+            // moteur — raison de plus pour ne pas l'ancrer sur une app.
+            task: 'text-to-speech',
             modelSelectId: 'settingsTtsModel',
-            resolveKey: function (v) { return 'synthesizer:' + v; },  // identité, mesurée 7/7 le 28/08
+            // ⚠ `resolveKey` RETIRÉ — jumeau exact du défaut du synthesizer : il préfixait une
+            // valeur qui porte déjà sa source, d'où `synthesizer:synthesizer:kokoro`, `caps`
+            // nul, et un filtrage voix/langues MUET. *Une garde se pose avec ses jumeaux ;
+            // celle-ci se RETIRE avec les siens.*
             filters: [
                 { selectId: 'settingsVoicePreset',
                   hideOption: function (caps, opt) {

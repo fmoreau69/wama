@@ -1099,12 +1099,26 @@ def api_models_db(request):
     model_type = request.GET.get('type')
     downloaded_only = request.GET.get('downloaded') == 'true'
     format_filter = request.GET.get('format')
+    # `task` (2026-09-01, route F4b ②) : borne le domaine par CAPACITÉ, comme le select.
+    # Sans lui, `WamaModelCaps` ne pouvait interroger que par `source` — donc ne connaissait
+    # les capacités que des modèles d'UNE app, alors que les options viennent désormais d'une
+    # requête par capacité (7 moteurs TTS, 3 d'une autre source). Résultat : `caps = null`
+    # pour ces 3, et le filtrage voix/langues **s'absentait sans rien dire** (dégradation
+    # douce). Les deux requêtes doivent border le MÊME domaine, sinon l'une filtre sur une
+    # liste que l'autre ne connaît pas.
+    task = request.GET.get('task')
 
     # Inclure les candidats de prospection (is_proposed) bien qu'ils ne soient
     # pas "available" — ils s'affichent comme cards sous le filtre « Proposés par IA ».
     from django.db.models import Q
     queryset = AIModel.objects.filter(Q(is_available=True) | Q(is_proposed=True))
 
+    if task:
+        # On réutilise la MÊME résolution de domaine que l'endpoint d'options, plutôt que de
+        # réécrire un filtre par capacités : deux domaines calculés séparément divergent.
+        from .services import get_registry_models
+        _choices, _info = get_registry_models(None, task=task)
+        queryset = queryset.filter(model_key__in=[c[0] for c in _choices])
     if source:
         queryset = queryset.filter(source=source)
     if model_type:
