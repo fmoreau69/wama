@@ -81,6 +81,8 @@
        chargeur générique paramétré ici serait une surface de requête arbitraire côté serveur.</p>
   </div>
 
+  {% include 'common/_filter_bar.html' with facettes=facettes_sources cible='.xs-card' mode='client' placeholder='Filtrer (nom, usage, adresse…)' %}
+
   <div class="xs-grid">
     {% for l in lignes %}
     <div class="xs-card" data-f-portee="{% if l.locale %}locale{% else %}sortante{% endif %}">
