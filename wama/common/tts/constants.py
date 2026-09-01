@@ -168,14 +168,26 @@ LANGUAGE_NAMES_EN = {  # wama:redondance-ok — noms anglais par code langue (in
 
 VOICE_REFS_SUBDIR = "synthesizer/voice_references"
 
-_LJ_BASE = "https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs"
+def _lj_base() -> str:
+    """Échantillons LJSpeech publiés en clair dans le dépôt coqui-ai-TTS.
+
+    DOMICILE UNIQUE de ce chemin depuis le 2026-09-01 : il était recopié à l'identique dans
+    `synthesizer/utils/voice_utils.py` et `synthesizer/workers.py`. L'HÔTE vient du registre
+    commun des sources externes ; le chemin de dépôt, lui, appartient au domaine TTS.
+    """
+    from wama.common.external_sources import base_url
+    return base_url('github') + '/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs'
+
+
+#: Valeur figée à l'import (les tables ci-dessous sont des constantes de module).
+LJ_BASE = _lj_base()
 
 PRESET_DOWNLOAD_MAPPING = {  # wama:redondance-ok — URLs de téléchargement par preset (info nouvelle)
-    "default":  ("default.wav",  f"{_LJ_BASE}/LJ001-0001.wav"),
-    "male_1":   ("male_1.wav",   f"{_LJ_BASE}/LJ001-0015.wav"),
-    "male_2":   ("male_2.wav",   f"{_LJ_BASE}/LJ001-0020.wav"),
-    "female_1": ("female_1.wav", f"{_LJ_BASE}/LJ001-0010.wav"),
-    "female_2": ("female_2.wav", f"{_LJ_BASE}/LJ001-0025.wav"),
+    "default":  ("default.wav",  f"{LJ_BASE}/LJ001-0001.wav"),
+    "male_1":   ("male_1.wav",   f"{LJ_BASE}/LJ001-0015.wav"),
+    "male_2":   ("male_2.wav",   f"{LJ_BASE}/LJ001-0020.wav"),
+    "female_1": ("female_1.wav", f"{LJ_BASE}/LJ001-0010.wav"),
+    "female_2": ("female_2.wav", f"{LJ_BASE}/LJ001-0025.wav"),
 }
 
 # ---------------------------------------------------------------------------

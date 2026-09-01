@@ -24,8 +24,10 @@ _MODEL_NAMES = ['glm-ocr:0.9b', 'glm-ocr']
 
 
 def _get_ollama_host() -> str:
-    from django.conf import settings
-    return getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+    # Brique commune : porte la réécriture WSL2 → passerelle Windows, que la lecture brute du
+    # réglage n'a jamais faite (Ollama tourne sur l'hôte ; `127.0.0.1` y désigne la VM Linux).
+    from wama.common.utils.ollama_host import ollama_base
+    return ollama_base()
 
 
 def _find_glm_ocr_model() -> Optional[str]:

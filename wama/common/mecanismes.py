@@ -700,6 +700,19 @@ MECANISMES = (
     )),
 
     *_domaine('Données & infrastructure', (
+    Mecanisme('external_sources', 'Sources externes',
+              "Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la "
+              "surcharge, variable portant la clé d'API, attribution exigée par la licence, et "
+              "surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est "
+              "DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une "
+              "plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa "
+              "forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le "
+              "consommateur. ⚠ Ne couvre pas les connecteurs `media_library`, dont la clé est "
+              "une donnée PAR UTILISATEUR en base — les y rapatrier uniformiserait ce qui "
+              "n'est pas pareil",
+              'wama/common/external_sources.py', 'PROJECT_STATUS.md',
+              annexes=('wama/common/utils/http_proxy.py',
+                       'wama/common/utils/ollama_host.py')),
     Mecanisme('units_display', "Unités d'affichage",
               "Moteur UNIQUE de conversion d'unités pour la PRÉSENTATION (pint) : la donnée "
               "reste dans SON unité (`WamaVariables.unit`, `ParamSpec.unit`), la préférence "
@@ -926,12 +939,14 @@ ASSUMES_LOCAUX = {
     'wama/common/utils/disk_utils.py': "plomberie disque (1 consommateur common)",
     'wama/common/utils/format_policy.py': "politique de formats de POIDS de modèle — chaîne modèles",
     'wama/common/utils/html_render.py': "rendu HTML→PDF, consommé par le converter seul",
-    'wama/common/utils/http_proxy.py': "plomberie proxy UGE (common + model_manager)",
+    # `http_proxy.py` et `ollama_host.py` ont QUITTÉ cette liste le 2026-09-01 : ils sont
+    # devenus les annexes du mécanisme `external_sources`. Ils n'étaient pas mal classés — le
+    # mécanisme qui les rassemble n'existait pas encore, et une plomberie sans mécanisme
+    # au-dessus n'a effectivement rien de transversal à déclarer.
     'wama/common/utils/lang_routing.py': "routage de langue — sera absorbé par le Translator (ROADMAP §10)",
     'wama/common/utils/log_rotation.py': "décalage des journaux au démarrage (politique : on décale, on ne vide pas)",
     'wama/common/utils/mime_utils.py': "détection MIME — helper fin (filemanager/studio)",
     'wama/common/utils/model_locations.py': "chemins de modèles — plomberie model_manager",
-    'wama/common/utils/ollama_host.py': "résolution OLLAMA_HOST (hôte Windows depuis WSL2) — plomberie infra",
     'wama/common/utils/onnx_utils.py': "inspection de poids ONNX — plomberie chaîne modèles",
     'wama/common/utils/safetensors_utils.py': "inspection de poids safetensors — plomberie chaîne modèles",
     'wama/common/utils/translator.py': "brique deep-translator — sera absorbée par le Translator (ROADMAP §10)",

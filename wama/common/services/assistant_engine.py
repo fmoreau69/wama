@@ -291,7 +291,9 @@ def _ollama_call(messages: list, ollama_model: str) -> tuple:
         return text, usage
 
     except httpx.ConnectError:
-        host_cfg = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434')
+        # Le RÉGLAGE (sans la réécriture WSL2) — c'est lui que l'utilisateur peut corriger.
+        from wama.common.external_sources import base_url
+        host_cfg = base_url('ollama')
         return None, {
             'error': (
                 f'Ollama inaccessible à {ollama_url}. '

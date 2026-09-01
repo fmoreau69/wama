@@ -1,0 +1,228 @@
+"""external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
+
+Ajouter une plateforme = **une entrée ici**. Avant le 2026-09-01, chaque source vivait dans le
+fichier qui la consommait ; personne ne pouvait répondre à « à quoi WAMA se connecte-t-il ? »
+autrement qu'en fouillant le dépôt. Idée de Fabien (01/09), étapes 1 et 2 de trois.
+
+⚠ CE QUI SE DÉCLARE ICI : l'identité, l'adresse de base, le réglage qui la surcharge, la
+variable portant la clé d'API, la PORTÉE (service local ou Internet — donc le traitement du
+proxy), l'attribution quand une licence l'oblige.
+
+⚠ CE QUI NE SE DÉCLARE PAS : le CLIENT. Chaque plateforme a sa forme — Artificial Analysis rend
+du JSON authentifié, l'Arena un parquet HuggingFace, Ollama du HTML scrapé. Un « chargeur
+générique paramétré depuis l'écran » serait à la fois fragile et une surface de requête
+arbitraire côté serveur. Le parseur reste chez le consommateur ; seule son ADRESSE vient d'ici.
+C'est la ligne écrite dans `benchmark_sync.SOURCES` (registre SŒUR, cf. plus bas) — elle vaut ici.
+
+── Ce que la mesure du 2026-09-01 a trouvé, et qui motive la brique ────────────────────────
+
+Le handoff annonçait « 9 sources dans 7 fichiers ». Le relevé exhaustif en donne **une
+vingtaine**, et surtout le défaut n'était pas seulement la dispersion, c'était la DUPLICATION :
+
+  • `http://127.0.0.1:11434` écrit **10 fois**, dont 8 sous la forme
+    `getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434')` — or `settings.py` pose
+    TOUJOURS cet attribut : ces 8 replis sont MORTS. Un repli qui ne se déclenche jamais est
+    une fausse sécurité, et le jour où il se déclencherait il divergerait du réglage.
+  • `_LJ_BASE` (échantillons ljspeech) recopié **3 fois** à l'identique.
+  • `TTS_SERVICE_URL` et `WAMA_UI_SMOKE_BASE` : défaut redéclaré chez chaque appelant.
+
+── PÉRIMÈTRE : les sources configurées par le SERVEUR ───────────────────────────────────────
+
+Ce registre couvre les sources dont la configuration appartient à l'installation (variable
+d'environnement, réglage Django). Il NE couvre PAS les connecteurs de `media_library`
+(wikimedia, pixabay, pexels, openverse, jamendo, freesound) : leur clé est une donnée **par
+utilisateur, stockée en base** (`MediaProvider` + `MediaProviderConfig`), avec sa propre UI de
+saisie et son propre contrat de provider (`media_library/providers/base.py`).
+
+⚠ Les y rapatrier aurait été **uniformiser ce qui n'est pas pareil** — une perte d'information
+déguisée en centralisation. Une clé de serveur et une clé d'utilisateur ne se sondent pas, ne
+se posent pas et ne se révoquent pas de la même façon.
+
+── Registres VOISINS, volontairement distincts ──────────────────────────────────────────────
+
+  • `benchmark_sync.SOURCES` déclare comment LIRE un banc (priorité, échelle, méta). Il parle
+    de mesure, pas de connectivité — il devient CONSOMMATEUR d'ici pour ses adresses.
+  • `http_proxy` reste la plomberie du proxy ; `proxies_for()` ci-dessous ne fait que choisir
+    entre ses deux gestes d'après la portée déclarée, au lieu de laisser chaque appelant deviner.
+  • `ollama_host.ollama_base()` reste le résolveur SPÉCIALISÉ d'Ollama : il porte en plus la
+    réécriture WSL2 → passerelle Windows, que rien de générique ne saurait faire.
+"""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+
+#: Portées. `LOCAL` = service tournant sur la machine (ou l'hôte) : le proxy doit être
+#: NEUTRALISÉ, sans quoi il répond sa page d'erreur HTML à la place du service (incident
+#: mesuré le 2026-08-31 sur le TTS : 90 s de repli en-process et de la VRAM prise côté web,
+#: alors que le service répondait parfaitement). `OUTBOUND` = Internet, à travers le proxy UGE.
+LOCAL = 'local'
+OUTBOUND = 'outbound'
+
+
+@dataclass(frozen=True)
+class ExternalSource:
+    """Une source externe : ce qu'elle est et comment on l'adresse — jamais comment on la lit."""
+
+    key: str
+    #: Nom lisible — sert aux écrans et aux attributions.
+    label: str
+    #: Adresse de base par DÉFAUT. Surchargée par `setting` puis `env` (cf. `base_url`).
+    base: str
+    #: Une ligne : à quoi elle sert dans WAMA.
+    usage: str
+    #: `LOCAL` ou `OUTBOUND` — décide du traitement du proxy, jamais laissé à l'appelant.
+    scope: str = OUTBOUND
+    #: Réglage Django qui surcharge `base` (prioritaire sur `env`).
+    setting: str = ''
+    #: Variable d'environnement qui surcharge `base` quand aucun réglage Django ne la porte.
+    env: str = ''
+    #: Variable d'environnement portant la clé d'API. '' = source anonyme.
+    api_key_env: str = ''
+    #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
+    attribution: str = ''
+    #: Document portant l'intention, quand elle est écrite quelque part.
+    doc: str = ''
+
+
+#: ⚠ ORDRE : par famille, pour la lecture. Aucun code ne dépend de l'ordre.
+SOURCES: tuple[ExternalSource, ...] = (
+    # ── Services LOCAUX ─────────────────────────────────────────────────────────────────
+    ExternalSource(
+        'ollama', 'Ollama (hôte)', 'http://127.0.0.1:11434',
+        "Moteur LLM local — assistant, describer, reader, prospection de modèles",
+        scope=LOCAL, setting='OLLAMA_HOST', env='OLLAMA_HOST',
+        doc='INFRA_WSL_VS_WINDOWS.md'),
+    ExternalSource(
+        'tts_service', 'Service TTS WAMA', 'http://localhost:8001',
+        "Vocalisation hors du process web (évite de charger un modèle dans gunicorn)",
+        scope=LOCAL, setting='TTS_SERVICE_URL', env='TTS_SERVICE_URL'),
+    ExternalSource(
+        'wama_self', 'WAMA (cette instance)', 'http://127.0.0.1:8000',
+        "WAMA s'interroge lui-même : smoke navigateur, matrice de droits",
+        scope=LOCAL, env='WAMA_UI_SMOKE_BASE'),
+
+    # ── Catalogues de modèles ───────────────────────────────────────────────────────────
+    ExternalSource(
+        'ollama_site', 'ollama.com', 'https://ollama.com',
+        "Pages publiques du catalogue Ollama — prospection (HTML scrapé)"),
+    ExternalSource(
+        'ollama_registry', "Registre d'images Ollama", 'https://registry.ollama.ai',
+        "Manifestes et digests des tags Ollama — désambiguïse une variante par son ARTEFACT"),
+    ExternalSource(
+        'huggingface', 'HuggingFace Hub', 'https://huggingface.co',
+        "Poids, datasets et fiches de modèles — source principale du parc"),
+    ExternalSource(
+        'roboflow', 'Roboflow Universe', 'https://universe.roboflow.com',
+        "Fiches de modèles de vision (référence de plateforme, pas de téléchargement)"),
+
+    # ── Bancs de performance (cf. `benchmark_sync`) ──────────────────────────────────────
+    ExternalSource(
+        'artificial_analysis', 'Artificial Analysis', 'https://artificialanalysis.ai/api/v2',
+        "Indices de performance tiers par modalité — API JSON authentifiée",
+        api_key_env='ARTIFICIAL_ANALYSIS_API_KEY',
+        attribution='Artificial Analysis',
+        doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
+    ExternalSource(
+        'arena', 'LMArena (leaderboard-dataset)', 'https://huggingface.co',
+        "Scores Elo par préférence humaine — parquet publié sur le Hub",
+        attribution='Arena (leaderboard-dataset, CC-BY-4.0)',
+        doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
+
+    # ── Outillage et poids ──────────────────────────────────────────────────────────────
+    ExternalSource(
+        'github', 'GitHub', 'https://github.com',
+        "Poids et échantillons publiés en releases (ultralytics, coqui…)"),
+    ExternalSource(
+        'github_api', 'API GitHub', 'https://api.github.com',
+        "Liste des releases — résolution de la version d'un poids"),
+    ExternalSource(
+        'pytorch_download', 'download.pytorch.org', 'https://download.pytorch.org',
+        "Roues PyTorch/CUDA — installation de dépendances de modèles"),
+    ExternalSource(
+        'osv', 'OSV (Open Source Vulnerabilities)', 'https://api.osv.dev/v1',
+        "Audit de vulnérabilités des dépendances (contrôle nocturne)",
+        doc='PROJECT_STATUS.md'),
+    ExternalSource(
+        'duckduckgo', 'DuckDuckGo (HTML)', 'https://html.duckduckgo.com/html/',
+        "Recherche web de l'assistant — point d'entrée sans clé"),
+)
+
+#: Le dataset Arena, nommé une fois (ce n'est pas une URL : un identifiant de dataset du Hub).
+ARENA_DATASET = 'lmarena-ai/leaderboard-dataset'
+
+
+def by_key() -> dict[str, ExternalSource]:
+    return {s.key: s for s in SOURCES}
+
+
+_BY_KEY = by_key()
+
+
+def get(key: str) -> ExternalSource:
+    """La source déclarée. `KeyError` explicite : une clé inconnue est un défaut de code."""
+    try:
+        return _BY_KEY[key]
+    except KeyError:
+        raise KeyError(
+            f"source externe inconnue : {key!r}. Déclarées : {', '.join(sorted(_BY_KEY))}"
+        ) from None
+
+
+def base_url(key: str) -> str:
+    """Adresse EFFECTIVE : réglage Django, puis variable d'environnement, puis défaut déclaré.
+
+    Sans barre finale — les appelants concatènent leur chemin.
+
+    ⚠ Le défaut déclaré ne vit QU'ICI. C'est tout l'objet de la brique : un `getattr(settings,
+    'OLLAMA_HOST', 'http://127.0.0.1:11434')` recopié chez huit appelants promet un repli qui
+    ne se déclenche jamais, et qui divergerait le jour où il se déclencherait.
+    """
+    src = get(key)
+    val = ''
+    if src.setting:
+        try:
+            from django.conf import settings
+            val = getattr(settings, src.setting, '') or ''
+        except Exception:
+            val = ''
+    if not val and src.env:
+        val = os.environ.get(src.env, '') or ''
+    return (val or src.base).rstrip('/')
+
+
+def proxies_for(key: str):
+    """`proxies` à passer à `requests`, choisis d'après la PORTÉE déclarée.
+
+    L'appelant n'a plus à savoir si sa source est locale : c'est une propriété de la source.
+    Neutralise le proxy pour un service local, l'emprunte pour une source Internet.
+    """
+    from wama.common.utils.http_proxy import local_proxies, outbound_proxies
+    return local_proxies() if get(key).scope == LOCAL else outbound_proxies()
+
+
+def api_key(key: str) -> str:
+    """Clé d'API lue dans l'environnement, ou '' — jamais une exception : une source sans clé
+    se SKIPPE avec un motif, elle ne fait pas tomber l'appelant."""
+    src = get(key)
+    return os.environ.get(src.api_key_env, '') if src.api_key_env else ''
+
+
+def is_configured(key: str) -> bool:
+    """La source est-elle utilisable en l'état ? (clé posée si elle en exige une)
+
+    ⚠ Ne dit RIEN de sa joignabilité — sonder appartient à l'étape 3 (page en nature `mesure`).
+    Une source anonyme est toujours « configurée » ; cela ne veut pas dire qu'elle répond.
+    """
+    src = get(key)
+    return bool(api_key(key)) if src.api_key_env else True
+
+
+def attributions() -> tuple[str, ...]:
+    """Attributions exigées par les licences des sources qui en portent une.
+
+    DÉRIVÉE du registre, jamais écrite en dur : une source ajoutée se cite d'elle-même. L'Arena
+    est sous CC-BY-4.0 — l'attribution est une obligation, pas une politesse, et une chaîne
+    figée quelque part est une chaîne qu'on oubliera de mettre à jour.
+    """
+    return tuple(s.attribution for s in SOURCES if s.attribution)

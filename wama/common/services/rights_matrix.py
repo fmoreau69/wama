@@ -52,7 +52,10 @@ from typing import Optional
 
 from django.conf import settings
 
-BASE_URL = os.environ.get('WAMA_UI_SMOKE_BASE', 'http://127.0.0.1:8000')
+#: Même source déclarée que `ui_smoke` (`wama_self`) — le défaut ne vit plus dans les deux.
+from wama.common.external_sources import base_url as _base_url
+
+BASE_URL = _base_url('wama_self')
 TIMEOUT_S = 15
 
 # ── Les profils mesurés ─────────────────────────────────────────────────────

@@ -32,7 +32,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DEFAUT = 'http://127.0.0.1:11434'
+#: Adresse et réglage viennent du registre commun des sources externes (2026-09-01) : le défaut
+#: ne vit plus qu'à un endroit. Ce module garde ce que le registre ne saurait faire — la
+#: réécriture WSL2 → passerelle Windows ci-dessous.
 _LOCAL = ('127.0.0.1', 'localhost')
 
 
@@ -60,12 +62,8 @@ def ollama_base() -> str:
     réglage pointe encore sur la boucle locale. Sans réécriture possible, retourne le réglage
     tel quel (échouer visiblement vaut mieux qu'inventer une adresse).
     """
-    try:
-        from django.conf import settings
-        base = getattr(settings, 'OLLAMA_HOST', _DEFAUT) or _DEFAUT
-    except Exception:
-        base = _DEFAUT
-    base = base.rstrip('/')
+    from wama.common.external_sources import base_url
+    base = base_url('ollama')
 
     if any(h in base for h in _LOCAL) and _sous_wsl():
         gw = _passerelle()

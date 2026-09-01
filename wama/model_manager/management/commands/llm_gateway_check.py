@@ -57,7 +57,10 @@ class Command(BaseCommand):
 
         # 2) Construction de l'appel de validation.
         if provider == 'ollama':
-            base = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434')
+            # Une commande de gestion tourne HORS de `start_wama_prod.sh` : c'est exactement le
+            # contexte où la lecture brute du réglage laisse `127.0.0.1` (= la VM, pas l'hôte).
+            from wama.common.utils.ollama_host import ollama_base
+            base = ollama_base()
             litellm_model = f"ollama/{model}"
             kwargs = {'model': litellm_model, 'api_base': base}
             self.stdout.write(f"\nTest passerelle → {litellm_model}  (LOCAL {base}) …")

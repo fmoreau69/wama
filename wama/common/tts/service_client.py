@@ -29,13 +29,16 @@ class TTSServiceLoadingError(Exception):
 
 
 def service_url() -> str:
-    """URL du service TTS : settings Django si disponibles, sinon env, sinon défaut."""
-    try:
-        from django.conf import settings
-        return getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
-    except Exception:
-        import os
-        return os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')
+    """URL du service TTS : settings Django si disponibles, sinon env, sinon défaut.
+
+    Cette cascade EST celle du registre commun des sources externes (2026-09-01) : elle y est
+    écrite une fois, avec le défaut déclaré au même endroit que la portée `LOCAL` — celle qui
+    dit que le proxy doit être neutralisé pour ce service. C'est cette portée, restée implicite
+    jusqu'au 2026-08-31, qui avait coûté un repli en-process de 90 s le jour où `.env` a gagné
+    `HTTP_PROXY` : le proxy répondait sa page d'erreur HTML à la place de l'audio.
+    """
+    from wama.common.external_sources import base_url
+    return base_url('tts_service')
 
 
 def tts_via_service(text, model, *, language='fr', voice_preset='default',
@@ -78,9 +81,12 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
         # envoie CET APPEL LOCAL au proxy, qui répond une page d'erreur HTML. Vécu le
         # 2026-08-31 (cf. `http_proxy.local_proxies`) : le service tournait, la vocalisation
         # basculait quand même sur son repli en-process (~90 s + VRAM dans le worker web).
-        from wama.common.utils.http_proxy import local_proxies
+        # DÉRIVÉ de la portée déclarée (`tts_service` est `LOCAL`), plus choisi à la main : la
+        # prochaine source locale héritera de la neutralisation sans que personne ait à se
+        # souvenir de cet incident.
+        from wama.common.external_sources import proxies_for
         resp = requests.post(f"{url}/tts", json=payload,
-                             proxies=local_proxies(),
+                             proxies=proxies_for('tts_service'),
                              timeout=(5, read_timeout))  # (connexion, lecture)
         resp.raise_for_status()
     except requests.ConnectionError:

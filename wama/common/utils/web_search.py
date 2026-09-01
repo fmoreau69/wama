@@ -33,8 +33,12 @@ _UA = {
                   '(KHTML, like Gecko) Chrome/122 Safari/537.36',
     'Accept-Language': 'fr-FR,fr;q=0.9,en-US,en;q=0.8',
 }
-#: Hôte FIXE du moteur — s'il change un jour, il change ICI, pas chez un appelant.
-_DDG_HTML = 'https://html.duckduckgo.com/html/'
+#: Hôte du moteur — déclaré au registre commun des sources externes depuis le 2026-09-01
+#: (l'intention « il change à UN endroit » est la même, portée un cran plus haut : elle vaut
+#: pour toutes les sources, et permet d'INVENTORIER à quoi WAMA se connecte).
+def _ddg_html() -> str:
+    from wama.common.external_sources import base_url
+    return base_url('duckduckgo') + '/'
 
 
 def _decode_ddg_href(href: str) -> str:
@@ -66,7 +70,7 @@ def search_web(query: str, max_results: int = 5) -> list:
         return []
     max_results = max(1, min(int(max_results), 10))
 
-    resp = requests.post(_DDG_HTML, data={'q': query}, headers=_UA, timeout=15)
+    resp = requests.post(_ddg_html(), data={'q': query}, headers=_UA, timeout=15)
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, 'lxml')
