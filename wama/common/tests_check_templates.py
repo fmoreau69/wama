@@ -47,6 +47,21 @@ class ScannerTests(SimpleTestCase):
         self.assertEqual([x['genre'] for x in d], ['multi-ligne'])
         self.assertEqual(d[0]['ligne'], 1)
 
+    def test_un_load_vers_une_bibliotheque_absente_est_signale(self):
+        # Défaut VÉCU le 2026-09-01 : `reader_tags.py` retiré (filtre réellement mort), son
+        # `{% load %}` laissé → page reader en TemplateSyntaxError. Ni ce contrôle (qui ne
+        # lisait que les commentaires) ni la suite (aucun test ne rendait ce partial) ne
+        # pouvaient le voir. ⚠ Et la bibliothèque fautive est AU MILIEU d'une liste : c'est
+        # ce qui avait fait passer mon grep, écrit sur la graphie `load reader_tags`.
+        d = self._defauts(page='{% load i18n bibliotheque_disparue wama_actions %}<div>x</div>')
+        self.assertEqual([x['genre'] for x in d], ['load-introuvable'])
+        self.assertIn('bibliotheque_disparue', d[0]['extrait'])
+
+    def test_un_load_de_bibliotheques_existantes_ne_declenche_rien(self):
+        # Contre-épreuve : les 129 gabarits du dépôt en chargent à longueur de fichier.
+        self.assertEqual(
+            self._defauts(page='{% load i18n static wama_actions wama_static %}<div>x</div>'), [])
+
     def test_un_commentaire_sur_une_seule_ligne_ne_declenche_rien(self):
         # La contre-épreuve la plus importante : le dépôt en compte des centaines de légitimes.
         self.assertEqual(self._defauts(page=f"<div>{OUVRE} court {FERME}</div>"), [])

@@ -36,6 +36,7 @@ le rendu. Elle attrape UNE famille de fautes, celle qui a récidivé sept fois.
 """
 import json
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from django.conf import settings
@@ -55,6 +56,9 @@ OUVERTURE_SEULE = re.compile(r'\{#(?!.*#\})', re.MULTILINE)
 #: Noms de balises dont la présence dans un commentaire a déjà cassé une page. Volontairement
 #: COURTE : elle liste les balises qui avalent du contenu quand elles restent ouvertes, pas
 #: toutes les balises HTML — une liste exhaustive ferait rougir tous les commentaires de doc.
+#: `{% load a b c %}` — plusieurs bibliothèques par balise (c'est ce qui a masqué le défaut
+#: du 2026-09-01 à un grep écrit sur une seule graphie).
+CHARGEMENT = re.compile(r'\{%\s*load\s+([^%]+?)\s*%\}')
 BALISES_AVALEUSES = ('template', 'script', 'style', 'textarea', 'iframe', 'noscript')
 BALISE = re.compile(r'<\s*/?\s*(' + '|'.join(BALISES_AVALEUSES) + r')\b', re.IGNORECASE)
 
@@ -100,7 +104,32 @@ def scanner(base=None):
             defauts.append({'fichier': rel, 'ligne': texte[:m.start()].count('\n') + 1,
                             'genre': 'jamais-refermé',
                             'extrait': texte[m.start():m.start() + 60].split('\n')[0]})
+        # `{% load X %}` vers une bibliothèque de balises ABSENTE — ajouté le 2026-09-01,
+        # le jour où ça m'est arrivé : en retirant `reader_tags.py` (filtre réellement mort)
+        # j'ai laissé son `{% load %}`, et la page reader est tombée en TemplateSyntaxError.
+        # Le contrôle ne voyait que les commentaires ; il ne pouvait pas l'attraper, et la
+        # suite non plus (aucun test ne rendait ce partial). ⚠ Le grep qui m'avait « rassuré »
+        # cherchait la graphie `load reader_tags` quand le gabarit écrit
+        # `{% load i18n reader_tags wama_actions %}` — *un retrait se vérifie sur le SYMBOLE,
+        # jamais sur une graphie d'usage* ; et un templatetag a une 3ᵉ surface, le `{% load %}`.
+        for m in CHARGEMENT.finditer(texte):
+            ligne = texte[:m.start()].count('\n') + 1
+            for nom in m.group(1).split():
+                if nom in ('from',) or nom in _bibliotheques():
+                    continue
+                defauts.append({'fichier': rel, 'ligne': ligne, 'genre': 'load-introuvable',
+                                'extrait': f"{{% load … {nom} … %}} — bibliothèque absente"})
     return defauts
+
+
+@lru_cache(maxsize=1)
+def _bibliotheques() -> frozenset:
+    """Noms de bibliothèques de balises RÉELLEMENT chargeables (Django + apps installées)."""
+    from django.template.backends.django import get_installed_libraries
+    noms = set(get_installed_libraries())
+    for moteur in settings.TEMPLATES:
+        noms.update((moteur.get('OPTIONS') or {}).get('libraries', {}))
+    return frozenset(noms)
 
 
 class Command(BaseCommand):

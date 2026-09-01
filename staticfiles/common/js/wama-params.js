@@ -31,9 +31,18 @@
     return ctx === 'panel' ? ('data-param="' + esc(name) + '"') : ('name="' + esc(name) + '"');
   }
 
+  // ⚠ CHAÎNE de résolution (contrat depuis le 2026-09-01) : le resolver rend `null` pour dire
+  // « cette clé n'est pas de ma famille » — on CONTINUE alors vers option_groups/choices au
+  // lieu de rendre un select vide. Sans ce maillon, poser un resolver PAR DÉFAUT (registre
+  // commun, cf. `render`) viderait `transcriber.backend` et les `voice_preset` du synthesizer
+  // et de l'avatarizer : trois selects qui portent `options_source` ET des choices de repli
+  // (mesuré avant le geste). Un `|| []` avalait cette distinction.
   function optionsFor(p, resolver) {
     if (p.options_source && typeof resolver === 'function') {
-      try { return resolver(p) || []; } catch (e) { return []; }
+      try {
+        const r = resolver(p);
+        if (r) return r;
+      } catch (e) { /* resolver fautif : on retombe sur le statique, jamais d'exception */ }
     }
     return (p.choices || []).map(function (c) { return { value: c[0], label: c[1] }; });
   }
@@ -290,7 +299,15 @@
     opts = opts || {};
     const ctx = opts.context || 'panel';
     const values = opts.values || {};
-    const resolver = opts.optionsResolver;
+    // Resolver PAR DÉFAUT = le registre commun des sources de PAGE (2026-09-01). Avant, une
+    // app devait passer sa propre fonction pour que `options_source` résolve quoi que ce soit
+    // — d'où les TROIS resolvers `formats` recopiés dans le converter (modale d'item, modale
+    // de lot, volet), tous adossés à la même table que `PAGE_OPTION_SOURCES`. Le moteur sait
+    // désormais résoudre seul ce que le SCHÉMA déclare ; une app ne passe un resolver que
+    // pour une source qui lui est PROPRE. `resolvePageOptions` rend null hors de sa famille,
+    // et `optionsFor`/`selectInnerHtml` continuent alors la chaîne (option_groups, choices).
+    const resolver = opts.optionsResolver
+      || function (p) { return resolvePageOptions(p, values); };
 
     const params = (schema || []).filter(function (p) {
       return !p.contexts || p.contexts.indexOf(ctx) !== -1;
@@ -331,6 +348,23 @@
     _bindConditional(container);
     _bindModelHelp(container, schema, ctx);
     _bindOptionSources(container, schema, ctx);
+    _avertirSourcesNonResolues(container, params, ctx);
+  }
+
+  // Garde « clé qui ne résout nulle part » — PORTÉE AU COMMUN le 2026-09-01. Elle n'existait
+  // que dans le resolver ÉMIS par le générateur d'apps ; les 10 apps écrites à la main n'en
+  // avaient aucune, et un select vide n'y disait pas s'il l'était par absence d'options ou
+  // par défaut de câblage. On ne signale QUE le cas insoluble : ni resolver, ni registre de
+  // page, ni statique, ni endpoint async (ceux-là se peuplent après ce point).
+  function _avertirSourcesNonResolues(container, params, ctx) {
+    params.forEach(function (p) {
+      if (!p.options_source || OPTION_SOURCES[p.options_source]) return;
+      const sel = container.querySelector('[data-param="' + p.name + '"], [name="' + p.name + '"]');
+      if (!sel || sel.tagName !== 'SELECT' || sel.options.length) return;
+      console.warn('[WamaParams] options_source « ' + p.options_source + ' » (' + p.name +
+                   ', contexte ' + ctx + ') : aucune source ne la résout — la déclarer au ' +
+                   'registre commun PAGE_OPTION_SOURCES, ou fournir un optionsResolver.');
+    });
   }
 
   // Sources d'options ASYNC centralisées (manifeste) : options_source → endpoint renvoyant {groups}.
