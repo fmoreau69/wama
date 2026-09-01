@@ -55,9 +55,16 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
     import requests
 
     url = service_url()
+    # Moteur DÉCLARÉ du modèle, résolu au catalogue et PASSÉ au service (route F4b ②,
+    # 2026-09-01) : le service n'a pas Django et ne peut pas aller le chercher. Sans lui, un
+    # modèle installé par la prospection est proposable mais pas exécutable — son nom ne dit
+    # pas son moteur. `None` pour les moteurs historiques : le routage par le nom suffit.
+    from wama.common.tts.ui_meta import tts_engine_declared
+
     payload = {
         'text': text,
         'model': model,
+        'engine': tts_engine_declared(model),
         'language': language,
         'voice_preset': voice_preset,
         'speaker_wav': speaker_wav,

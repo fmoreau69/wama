@@ -75,12 +75,31 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
     )
 
     # Options de synthèse
+    # ⚠ PAS de `choices=` (route F4b, étape ②, 2026-09-01) — et c'est le POINT du portage.
+    # Une liste dans un champ de modèle est une liste que seule une MIGRATION peut changer :
+    # tant qu'elle vivait ici, installer un moteur ne suffisait pas à le rendre choisissable,
+    # il fallait éditer le code et migrer la base. C'est la preuve par l'absurde que
+    # l'inventaire n'appartient pas au modèle — il appartient au catalogue, et le schéma
+    # (`params.py`, `options_source="catalog"`) va l'y chercher.
+    # La valeur stockée est la CLÉ CATALOGUE ENTIÈRE (`synthesizer:kokoro`) depuis la
+    # migration 0019 : sans le préfixe de source, deux producteurs pourraient porter le même
+    # suffixe et l'appelant ne saurait plus qui il vise.
     tts_model = models.CharField(
-        max_length=50,
-        choices=TTS_MODEL_CHOICES,
-        default='coqui-xtts',
-        help_text="Modèle TTS à utiliser"
+        max_length=128,
+        default='synthesizer:coqui-xtts',
+        help_text="Clé catalogue du moteur TTS (AIModel.model_key)"
     )
+
+    def get_tts_model_display(self) -> str:
+        """Libellé du moteur — DÉFINI À LA MAIN depuis le retrait de `choices=` (2026-09-01).
+
+        Django synthétisait `get_FOO_display()` pour tout champ à `choices` : retirer la liste
+        du modèle a donc supprimé la méthode, et ses 4 appelants sont tombés en `500` (attrapé
+        par les tests, pas à l'écran). On la redéfinit plutôt que de réécrire les appelants —
+        le nom reste l'idiome Django attendu, y compris dans un gabarit.
+        """
+        from wama.common.tts.ui_meta import tts_engine_label
+        return tts_engine_label(self.tts_model)
 
     language = models.CharField(
         max_length=10,

@@ -65,9 +65,17 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
 
     # Pipeline : inputs TTS
     text_content = models.TextField(blank=True, help_text="Texte à synthétiser (mode Pipeline)")
+    # Clé catalogue du moteur TTS — cf. `VoiceSynthesis.tts_model` (route F4b, 2026-09-01).
+    # L'avatarizer EMPRUNTE le parc TTS sans en posséder aucun moteur : c'est précisément
+    # pourquoi la requête d'options se fait par CAPACITÉ et non par `AIModel.source`.
     tts_model = models.CharField(
-        max_length=50, choices=TTS_MODEL_CHOICES, default='coqui-xtts',
+        max_length=128, default='synthesizer:coqui-xtts',
     )
+
+    def get_tts_model_display(self) -> str:
+        """Libellé du moteur — cf. `VoiceSynthesis.get_tts_model_display` pour le pourquoi."""
+        from wama.common.tts.ui_meta import tts_engine_label
+        return tts_engine_label(self.tts_model)
     language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='fr')
     voice_preset = models.CharField(max_length=50, choices=VOICE_PRESET_CHOICES, default='default')
 

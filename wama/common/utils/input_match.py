@@ -18,9 +18,10 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, Optional
 
 
-def input_match_meta(source: str,
+def input_match_meta(source: Optional[str] = None,
                      key: Optional[Callable[[str], str]] = None,
-                     extra_caps: tuple = ()) -> Dict[str, Dict[str, Any]]:
+                     extra_caps: tuple = (),
+                     task: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
     """{model_id: {label, inputs_required, inputs_optional}} depuis le CATALOGUE — fail-safe {}.
 
     `source` = valeur d'`AIModel.source` (le lien app↔modèles, cf. feedback_find_accessor).
@@ -30,12 +31,28 @@ def input_match_meta(source: str,
     `extra_caps` = clés de capacités supplémentaires à joindre à chaque entrée (ex. `('task',)`
     pour le post-traitement auto-* du composer) — à retirer du payload avant sérialisation
     si elles ne servent qu'au serveur.
+
+    `task` (2026-09-01, route F4b) : borne le domaine par CAPACITÉ au lieu d'`AIModel.source`,
+    et les clés rendues sont alors les clés catalogue ENTIÈRES — donc identiques aux valeurs
+    d'option servies par `api/models/options/?task=…`. À employer dès qu'un select est peuplé
+    par `options_source="catalog"` : ancrer la meta sur `source` pendant que les options
+    viennent d'une requête par capacité produirait un appariement MUET sur tout modèle d'une
+    autre source (mesuré : 3 des 7 moteurs TTS). Les deux modes doivent nommer les mêmes
+    choses, sinon `WamaInputMatch` n'apparie rien et ne le dit pas.
     """
     strip = key or (lambda mk: mk.split(':', 1)[-1])
+    if task:
+        strip = key or (lambda mk: mk)      # les options portent la clé entière
     try:
         from wama.model_manager.models import AIModel
         meta: Dict[str, Dict[str, Any]] = {}
-        for m in AIModel.objects.filter(source=source, is_proposed=False):
+        if task:
+            from wama.model_manager.services import get_registry_models
+            _choices, _info = get_registry_models(None, task=task)
+            cibles = AIModel.objects.filter(model_key__in=[c[0] for c in _choices])
+        else:
+            cibles = AIModel.objects.filter(source=source, is_proposed=False)
+        for m in cibles:
             caps = m.capabilities or {}
             entry: Dict[str, Any] = {
                 'label': m.name or strip(m.model_key),

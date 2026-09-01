@@ -236,8 +236,21 @@ class SourcesDOptionsTest(SimpleTestCase):
         # rattachée à un registre commun, ou inscrite ici comme trou assumé. Sans ce test, une
         # clé non résolue ne se voit qu'à l'écran, sur un select vide.
         from django.apps import apps as django_apps
-        connues = set(SOURCES_NON_RESOLUES) | {'voices'}     # 'voices' = endpoint commun
+        connues = set(SOURCES_NON_RESOLUES)
         params = _lire(_JS + 'wama-params.js')
+
+        # Les DEUX familles de registres communs, lues telles qu'elles s'écrivent :
+        #   • ASYNC  `OPTION_SOURCES`      — `voices: '/common/api/voices/'` (une URL) ;
+        #   • SYNCHRO `PAGE_OPTION_SOURCES` — `formats: function (values) {…}`.
+        # ⚠ Ce test ne connaissait que la seconde, et rattrapait la première par un littéral
+        # `{'voices'}` inscrit parmi les clés « connues ». Il donnait donc le bon résultat pour
+        # la mauvaise raison : au 2ᵉ endpoint (`catalog`, route F4b) il a accusé une clé
+        # parfaitement résolue. *Une exception écrite en dur masque la règle qu'elle imite* —
+        # on lit maintenant le registre, et le cas particulier disparaît.
+        asynchrones = set(re.findall(r"^\s*(\w+):\s*'[^']+',", params, re.M))
+        synchrones = set(re.findall(r'^\s*(\w+):\s*function', params, re.M))
+        resolues = asynchrones | synchrones
+
         vues = set()
         for cfg in django_apps.get_app_configs():
             module = f'{cfg.name}.params'
@@ -251,9 +264,10 @@ class SourcesDOptionsTest(SimpleTestCase):
                     if cle:
                         vues.add(cle)
         for cle in sorted(vues - connues):
-            self.assertIn(f'{cle}: function', params,
+            self.assertIn(cle, resolues,
                           f"options_source « {cle} » ne résout par aucun registre commun — "
-                          f'la déclarer dans PAGE_OPTION_SOURCES, ou l\'assumer explicitement')
+                          f"la déclarer dans OPTION_SOURCES (endpoint) ou PAGE_OPTION_SOURCES "
+                          f"(donnée de page), ou l'assumer explicitement")
 
 
 class EmissionsDuGabaritTest(SimpleTestCase):

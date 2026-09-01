@@ -110,6 +110,15 @@ class ModelInfo:
     preferred_format: str = ""  # Recommended format per policy
     can_convert_to: List[str] = field(default_factory=list)  # Available conversions
     capabilities: Dict = field(default_factory=dict)  # cloning/languages/classes/task… (cf. AIModel.capabilities)
+    #: Anatomie déclarée du modèle — `{components, runtime}` (cf. `AIModel.composition`).
+    #: La découverte ne la produisait pas : `composition` n'arrivait au catalogue QUE par le
+    #: manifeste, si bien que les 4 moteurs TTS déclarés par une app (bark, kokoro, coqui-xtts,
+    #: higgs-audio) sortaient avec `composition={}` — donc SANS `runtime.engine` — alors que les
+    #: 3 modèles orphelins installés par la prospection en portaient un (mesuré 2026-09-01).
+    #: Le dispatch cible (`composition.runtime.engine`) était ainsi à deux vitesses.
+    #: ⚠ Ce champ ne REDÉCLARE rien : `_discover_synthesizer_models` le remplit depuis
+    #: `SYNTHESIZER_MODELS[*]['engine']`, la déclaration d'app qui existe depuis toujours.
+    composition: Dict = field(default_factory=dict)
 
 
 class ModelRegistry:
@@ -938,6 +947,22 @@ class ModelRegistry:
                     caps.setdefault('inputs_optional', ['reference_voice'])
                 return caps
 
+            def _tts_runtime(engine_key):
+                """`composition.runtime` d'un moteur TTS — le MOTEUR qui sait l'exécuter.
+
+                Lu sur `SYNTHESIZER_MODELS[*]['engine']`, la déclaration d'app qui porte déjà
+                cette information (`coqui`, `bark`, `higgs`, `kokoro`) et que `ENGINE_BACKENDS`
+                consomme pour instancier la classe. On ne la RECOPIE pas : un 5ᵉ lieu de
+                déclaration serait précisément la maladie que la route F4b soigne.
+
+                Motif (2026-09-01) : les 3 modèles TTS installés par la prospection portaient un
+                `runtime.engine` (venu de leur manifeste) là où les 4 déclarés par l'app n'en
+                avaient aucun — le dispatch par `runtime.engine` ne pouvait donc pas être la
+                règle générale. Il l'est à partir d'ici.
+                """
+                moteur = (_SYNTH_MODELS.get(engine_key) or {}).get('engine')
+                return {'runtime': {'engine': moteur}} if moteur else {}
+
             # Get preferred format for speech models
             preferred = self._get_preferred_format(ModelType.SPEECH)
 
@@ -989,6 +1014,7 @@ class ModelRegistry:
                     engine_key='coqui-xtts',   # clonage LU sur CoquiBackend
                     languages=_synth_languages('coqui-xtts'),
                 ),
+                composition=_tts_runtime('coqui-xtts'),
             )
 
             # Check for Bark TTS
@@ -1029,6 +1055,7 @@ class ModelRegistry:
                     engine_key='bark',         # clonage LU sur BarkBackend
                     languages=_synth_languages('bark'),
                 ),
+                composition=_tts_runtime('bark'),
             )
 
             # Check for Higgs Audio v2
@@ -1058,6 +1085,7 @@ class ModelRegistry:
                     engine_key='higgs-audio',  # clonage LU sur HiggsAudioBackend
                     languages=_synth_languages('higgs-audio'),
                 ),
+                composition=_tts_runtime('higgs-audio'),
             )
 
             # Check for Kokoro 82M
@@ -1090,6 +1118,7 @@ class ModelRegistry:
                     engine_key='kokoro',       # clonage + HORODATAGE lus sur KokoroBackend
                     languages=_synth_languages('kokoro'),
                 ),
+                composition=_tts_runtime('kokoro'),
             )
 
             logger.info(

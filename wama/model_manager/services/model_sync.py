@@ -237,6 +237,16 @@ class ModelSyncService:
         _caps = normalize_capabilities(getattr(model_info, 'capabilities', None) or {})
         if _caps:
             defaults['capabilities'] = _caps
+        # `composition` : MÊME RÈGLE, et pour la même raison (2026-09-01). La découverte sait
+        # désormais dire le moteur d'exécution d'un modèle déclaré par une app
+        # (`SYNTHESIZER_MODELS[*]['engine']` → `runtime.engine`), mais elle n'en sait toujours
+        # rien pour les modèles orphelins : ceux-là tiennent leur `composition` de leur MANIFESTE
+        # (anatomie des composants, moteur), et un `{}` de découverte ne doit pas l'effacer.
+        # C'est exactement la règle « ne jamais écraser un fait curé par une absence » que la
+        # clôture du 31/08 signalait comme MANQUANTE pour le kind `library` — elle vaut ici aussi.
+        _compo = getattr(model_info, 'composition', None) or {}
+        if _compo:
+            defaults['composition'] = _compo
 
         # Add local_path if available in extra_info
         if model_info.extra_info and 'path' in model_info.extra_info:

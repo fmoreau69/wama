@@ -30,8 +30,8 @@ ENGINE_BACKENDS = {
 _MODELE_VERS_MOTEUR = {'higgs-audio': 'higgs'}
 
 
-def engine_for_model(model_name: str) -> str:
-    """Nom de moteur pour un modèle UI.
+def engine_for_model(model_name: str, engine: str | None = None) -> str:
+    """Nom de moteur pour un modèle UI — ou pour une CLÉ DE CATALOGUE.
 
     ⚠ Le repli historique était `return 'coqui'` pour TOUT nom inconnu — donc un nom mal
     orthographié, hérité, ou d'un moteur pas encore enregistré faisait **charger XTTS v2
@@ -39,20 +39,67 @@ def engine_for_model(model_name: str) -> str:
     C'est un candidat sérieux au « XTTS qui prend la relève » observé sans explication
     (Fabien, 2026-08-31) : rien dans les journaux ne distingue ce cas d'un choix délibéré.
     Un routage qui se trompe doit le DIRE — on lève, l'appelant a déjà son repli.
+
+    `engine` (2026-09-01, route F4b) : le moteur DÉCLARÉ du modèle, tel que le porte
+    `composition.runtime.engine` au catalogue. C'est la voie GÉNÉRALE — celle qui permet
+    d'exécuter un modèle qu'aucune app ne déclare (installé par la prospection), dont le nom
+    ne ressemble à aucun moteur : `onnx-community/Kokoro-82M-v1.0-ONNX` → `kokoro-onnx`.
+    Cette couche est **Django-free** (le service TTS n'initialise pas Django) : elle ne peut
+    pas lire le catalogue elle-même, l'appelant Django résout et PASSE la réponse.
+    Un `engine` inconnu n'est jamais avalé en silence — même règle que ci-dessus.
+
+    Tolérance d'ESPACE DE CLÉS : les valeurs stockées ont porté le suffixe nu (`kokoro`) avant
+    de porter la clé entière (`synthesizer:kokoro`). Les deux se résolvent, définitivement —
+    une ligne écrite avant la migration du 2026-09-01, ou un appel d'une surface pas encore
+    portée, ne doit pas échouer sur une question de préfixe.
     """
-    if model_name in COQUI_MODEL_MAPPING:
-        return 'coqui'
-    if model_name in _MODELE_VERS_MOTEUR:
-        return _MODELE_VERS_MOTEUR[model_name]
-    if model_name in ENGINE_BACKENDS:
-        return model_name          # le nom de modèle EST le nom de moteur (bark, kokoro…)
+    if engine:
+        if engine in ENGINE_BACKENDS:
+            return engine
+        raise ValueError(
+            f"Moteur TTS déclaré {engine!r} (modèle {model_name!r}) sans backend enregistré — "
+            f"moteurs disponibles : {sorted(ENGINE_BACKENDS)}. Un modèle catalogué dont le "
+            f"moteur n'est pas intégré se propose mais ne s'exécute pas encore.")
+
+    for nom in _candidats(model_name):
+        if nom in COQUI_MODEL_MAPPING:
+            return 'coqui'
+        if nom in _MODELE_VERS_MOTEUR:
+            return _MODELE_VERS_MOTEUR[nom]
+        if nom in ENGINE_BACKENDS:
+            return nom             # le nom de modèle EST le nom de moteur (bark, kokoro…)
     raise ValueError(
         f"Moteur TTS inconnu pour le modèle {model_name!r} — moteurs enregistrés : "
         f"{sorted(ENGINE_BACKENDS)} ; modèles Coqui : {sorted(COQUI_MODEL_MAPPING)}")
 
 
+def local_model_name(model_name: str) -> str:
+    """Nom du modèle tel que le BACKEND le comprend — la clé catalogue sans sa source.
+
+    Les backends n'ont jamais connu que le nom nu (`coqui-xtts`, `kokoro`) : `CoquiBackend`
+    l'utilise pour indexer `COQUI_MODEL_MAPPING`, et une clé entière y tomberait dans le
+    repli `.get(model, model)` — donc `TTS('synthesizer:coqui-xtts')`, un identifiant que
+    Coqui ne connaît pas. La traduction se fait ICI, au seuil du service, plutôt que dans
+    chaque backend : c'est le même geste que `engine_for_model`, et il n'a pas à être
+    réappris cinq fois.
+    """
+    return model_name.split(':', 1)[1] if ':' in (model_name or '') else model_name
+
+
+def _candidats(model_name: str):
+    """Le nom tel quel, puis son suffixe sans le préfixe `source:` de la clé catalogue.
+
+    L'ordre compte : on essaie TOUJOURS la valeur entière d'abord. Un moteur qui porterait
+    un `:` dans son propre nom resterait ainsi résoluble, et le découpage ne devient une
+    hypothèse que lorsque la valeur entière n'a rien donné.
+    """
+    yield model_name
+    if ':' in (model_name or ''):
+        yield model_name.split(':', 1)[1]
+
+
 __all__ = [
     'BarkBackend', 'CoquiBackend', 'HiggsAudioBackend', 'KokoroBackend',
     'KokoroOnnxBackend', 'TTSBackend', 'ENGINE_BACKENDS', 'CATALOG_KEYS',
-    'engine_for_model',
+    'engine_for_model', 'local_model_name',
 ]

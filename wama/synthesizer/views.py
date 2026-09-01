@@ -202,12 +202,18 @@ class IndexView(View):
                 except Exception as exc:
                     logger.warning(f"[Synthesizer] Impossible de lancer le téléchargement des voix : {exc}")
 
+        from wama.common.tts.ui_meta import tts_engine_choices
+
         context = {
             'batches_list': batches_list,
             'queue_count': queue_count,
             'voice_presets': voice_presets,
             'custom_voices': custom_voices,
-            'tts_models': VoiceSynthesis.TTS_MODEL_CHOICES,
+            # Inventaire des moteurs = le CATALOGUE, plus la liste en dur (route F4b, ②).
+            # Ce pré-rendu serveur et le peuplement JS (`options_source="catalog"`) parlent
+            # le MÊME vocabulaire de clés — c'est ce qui évite que `sel.value = cur` ne
+            # retrouve rien et fasse retomber le select sur sa première option en silence.
+            'tts_models': tts_engine_choices(),
             'languages': VoiceSynthesis.LANGUAGE_CHOICES,
             'voice_presets_choices': VoiceSynthesis.VOICE_PRESET_CHOICES,
             'voice_refs_groups': voice_refs_groups,

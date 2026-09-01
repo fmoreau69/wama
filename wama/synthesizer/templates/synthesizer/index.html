@@ -22,7 +22,8 @@
     </label>
     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="tts_model" name="tts_model">
         {% for value, label in tts_models %}
-        <option value="{{ value }}" {% if value == 'coqui-xtts' %}selected{% endif %}>{{ label }}</option>
+        {# Clés catalogue entières depuis la route F4b ② (2026-09-01) — cf. tts_engine_choices() #}
+        <option value="{{ value }}" {% if value == 'synthesizer:coqui-xtts' %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
     {# Descriptif modèle (courte + ⓘ longue) lu du CATALOGUE (vue) via WamaModelHelp — cf. transcriber #}
@@ -568,7 +569,8 @@ document.addEventListener('DOMContentLoaded', function () {
             WamaParams.render(host, window.SYNTH_PARAMS_SCHEMA, {
                 context: 'batch',
                 values: {
-                    tts_model: fd.ttsModel || 'coqui-xtts', language: fd.language || 'fr',
+                    // Clé catalogue entière (route F4b ②) — même vocabulaire que le select.
+                    tts_model: fd.ttsModel || 'synthesizer:coqui-xtts', language: fd.language || 'fr',
                     voice_preset: fd.voicePreset || 'default',
                     speed: fd.speed || '1.0', pitch: fd.pitch || '1.0',
                 },
