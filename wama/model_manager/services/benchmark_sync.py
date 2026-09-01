@@ -104,6 +104,13 @@ ALIAS: dict[str, str] = {
 }
 
 
+#: Mots qui nomment un TIRAGE d'un modèle, pas le modèle — écartés de la famille (cf.
+#: `_avec_prefixe`). Liste volontairement COURTE : chaque entrée doit être un mot qui ne
+#: distingue jamais deux modèles différents. `lite`, `mini` ou `turbo` n'y sont PAS — ceux-là
+#: désignent bien des modèles distincts (« DeepSeek Coder V2 Lite » ≠ « DeepSeek-Coder-V2 »).
+MOTS_DE_CONDITIONNEMENT = {'base', 'instruct', 'chat', 'it'}
+
+
 class SourceIndisponible(Exception):
     """Réseau/clé/format absents — la source est SKIPPÉE, jamais un score partiel inventé."""
 
@@ -123,13 +130,20 @@ def _avec_prefixe(mot: str, segments: list, i: int) -> str:
     Concaténation SANS tiret pour que les graphies des deux sources convergent :
     `hunyuan-image-2.1` (local) et `HunyuanImage 2.1` (AA) donnent tous deux « hunyuanimage »
     — cet appariement-là, correct, devait être PRÉSERVÉ.
+
+    ⚠ Les mots de CONDITIONNEMENT sont écartés (2026-09-01) : `stable-diffusion-xl-base-1.0`
+    (notre `hf_id`) donnait « stablediffusionxlbase » là où AA dit « stablediffusionxl » —
+    un seul mot d'écart faisait rater un appariement juste. `base`, `instruct`, `chat` ne
+    nomment pas un MODÈLE, ils nomment un tirage de ce modèle ; la famille ne doit pas en
+    dépendre. Écarté seulement s'il RESTE un mot : « base » seul reste « base ».
     """
     prefixe = []
     j = i - 1
     while j >= 0 and re.fullmatch(r'[a-z]{2,}', segments[j]):
         prefixe.insert(0, segments[j])
         j -= 1
-    return ''.join(prefixe) + mot
+    mots = [x for x in prefixe + [mot] if x not in MOTS_DE_CONDITIONNEMENT]
+    return ''.join(mots or [mot])
 
 
 def _words(texte: str) -> set:
@@ -225,26 +239,46 @@ def _identity(texte: str):
     return fam, ver, taille
 
 
-def _compatibles(a, b, taille_requise=False):
+def _compatibles(a, b, taille_requise=False, nom_local='', nom_tiers=''):
     """
     Identités appariables : même famille+version ; tailles égales si les DEUX existent.
 
-    `taille_requise` (catégorie LLM) : la taille doit exister DES DEUX CÔTÉS — 1er dry-run
-    19/08 : sans elle, `qwen3.5:4b` prenait l'Elo de `qwen3.5-max-preview` et
-    `qwen3.8:27b` celui de `qwen3.8-max` (variantes API frontière SANS taille publiée,
-    qui ne sont jamais nos poids locaux). Les modalités média gardent la taille optionnelle
-    (les modèles image/vidéo n'en publient pas).
+    `taille_requise` (catégorie LLM) — trois cas, et c'est la SYMÉTRIE qui tranche :
+
+    • tailles ASYMÉTRIQUES (l'un la publie, l'autre non) → refus. C'est le cas d'origine
+      (1er dry-run 19/08) : `qwen3.5:4b` prenait l'Elo de `qwen3.5-max-preview` et
+      `qwen3.8:27b` celui de `qwen3.8-max` — des variantes API frontière sans taille
+      publiée, qui ne sont jamais nos poids locaux.
+    • tailles ABSENTES DES DEUX CÔTÉS → ce sont les QUALIFICATIFS qui décident. L'ancienne
+      règle refusait en bloc et tuait des appariements EXACTS (« Mistral Medium 3.5 »,
+      « Nemotron 3.5 Lightning », « DeepSeek-Coder-V2 » portent LITTÉRALEMENT notre nom).
+      Mais l'accepter en bloc est pire — mesuré le 2026-09-01 : `qwen3-embedding:latest`
+      captait alors l'indice de « Qwen3 Max ». *Une garde binaire sur une question qui ne
+      l'est pas se trompe dans les deux sens.* `_identity` jette les qualificatifs
+      (famille+version+taille seulement) ; c'est pourtant « embedding » vs « max » qui
+      distingue ces deux modèles. On exige donc qu'aucun mot ÉTRANGER ne vienne du tiers.
+    • tailles présentes des deux côtés → elles doivent être égales (inchangé).
+
+    Les modalités média gardent la taille optionnelle (les modèles image/vidéo n'en publient
+    pas) : `taille_requise` est faux pour elles, rien de ce qui précède ne s'y applique.
     """
     if a is None or b is None or a[0] != b[0] or a[1] != b[1]:
         return False
-    if taille_requise and (a[2] is None or b[2] is None):
-        return False
+    if taille_requise:
+        if (a[2] is None) != (b[2] is None):
+            return False
+        if a[2] is None:
+            # `latest` n'est pas un qualificatif de modèle, c'est un pointeur de tag Ollama.
+            if _words(nom_tiers) - _words(nom_local) - {'latest'}:
+                return False
     return a[2] is None or b[2] is None or a[2] == b[2]
 
 
-def _apparier(ident_local, entrees, taille_requise=False):
+def _apparier(ident_local, entrees, taille_requise=False, nom_local=''):
     """Candidats compatibles, les tailles EXACTES d'abord (jamais un score moyen)."""
-    c = [e for e in entrees if _compatibles(ident_local, e['identite'], taille_requise)]
+    c = [e for e in entrees
+         if _compatibles(ident_local, e['identite'], taille_requise,
+                         nom_local, e.get('nom') or '')]
     exacts = [e for e in c if ident_local and e['identite'][2] == ident_local[2]]
     return exacts or c
 
@@ -477,9 +511,10 @@ def _banc_pour_categorie(m, cat, alias, sources):
     else:
         idents = _local_identities(m)
         stricte = (cat == 'llm')  # cf. _compatibles : jamais une variante frontière sans taille
+        nom_local = m.name or m.model_key
         for ident in idents:
-            cands_aa = _apparier(ident, sources.get('aa', {}).get(cat, []), stricte)
-            cands_ar = _apparier(ident, sources.get('arena', {}).get(cat, []), stricte)
+            cands_aa = _apparier(ident, sources.get('aa', {}).get(cat, []), stricte, nom_local)
+            cands_ar = _apparier(ident, sources.get('arena', {}).get(cat, []), stricte, nom_local)
             if cands_aa or cands_ar:
                 break
     if not cands_aa and not cands_ar:

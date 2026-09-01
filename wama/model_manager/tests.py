@@ -669,6 +669,69 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
         self.assertIsNone(m.benchmark_index)
 
 
+class AppariementSansTailleTest(TestCase):
+    """
+    Quand NI le tiers NI nous ne publions de taille, ce sont les QUALIFICATIFS qui tranchent.
+
+    Une garde binaire sur une question qui ne l'est pas se trompe dans les deux sens :
+    refuser en bloc tuait « Mistral Medium 3.5 » (notre nom, à la lettre) ; accepter en bloc
+    donnait à `qwen3-embedding:latest` l'indice de « Qwen3 Max » (mesuré le 2026-09-01).
+    """
+
+    def _compat(self, a, b, nom_local, nom_tiers):
+        from .services.benchmark_sync import _compatibles
+        return _compatibles(a, b, True, nom_local, nom_tiers)
+
+    def test_un_nom_tiers_sans_mot_etranger_est_apparie(self):
+        self.assertTrue(self._compat(('mistralmedium', (3, 5), None),
+                                     ('mistralmedium', (3, 5), None),
+                                     'mistral-medium-3.5:latest', 'Mistral Medium 3.5'))
+
+    def test_un_qualificatif_etranger_cote_tiers_refuse_l_appariement(self):
+        """LE faux appariement à ne jamais laisser passer : un modèle d'embedding n'est pas
+        la variante frontière `Max`, et `_identity` ne voit pas la différence."""
+        self.assertFalse(self._compat(('qwen', (3,), None), ('qwen', (3,), None),
+                                      'qwen3-embedding:latest', 'Qwen3 Max'))
+
+    def test_une_taille_d_un_seul_cote_refuse_toujours(self):
+        """Le cas d'origine de la garde : un poids local de 4B face à une variante API sans
+        taille publiée (`qwen3.5-max-preview`)."""
+        self.assertFalse(self._compat(('qwen', (3, 5), 4.0), ('qwen', (3, 5), None),
+                                      'qwen3.5:4b', 'Qwen3.5 Max Preview'))
+        self.assertFalse(self._compat(('qwen', (3,), None), ('qwen', (3,), 80.0),
+                                      'qwen3-coder:latest', 'Qwen3 Next 80B A3B Instruct'))
+
+    def test_latest_n_est_pas_un_qualificatif(self):
+        """`latest` est un pointeur de tag Ollama : sa présence de notre côté ne doit rien
+        rendre incompatible, et son absence côté tiers ne doit rien refuser."""
+        self.assertTrue(self._compat(('nemotron', (3, 5), None), ('nemotron', (3, 5), None),
+                                     'nemotron-3.5-lightning:latest', 'Nemotron 3.5 Lightning'))
+
+    def test_les_modalites_media_gardent_la_taille_optionnelle(self):
+        from .services.benchmark_sync import _compatibles
+        self.assertTrue(_compatibles(('hunyuanimage', (2, 1), None),
+                                     ('hunyuanimage', (2, 1), None), False))
+
+
+class FamilleSansConditionnementTest(TestCase):
+    """`base`/`instruct`/`chat` nomment un TIRAGE, pas un modèle — hors de la famille."""
+
+    def test_le_mot_base_du_hf_id_ne_change_plus_la_famille(self):
+        from .services.benchmark_sync import _identity
+        # Notre `hf_id` dit `...-xl-base-1.0`, AA dit « Stable Diffusion XL 1.0 » : un seul
+        # mot d'écart faisait rater un appariement juste (882 sur aa_elo_text_to_image).
+        self.assertEqual(_identity('stable-diffusion-xl-base-1.0'),
+                         _identity('Stable Diffusion XL 1.0'))
+
+    def test_les_familles_deja_correctes_ne_bougent_pas(self):
+        """Contre-épreuve : la concaténation existait pour SÉPARER `qwenimage` de `gptimage`
+        (faux appariement mesuré le 19/08). Elle doit continuer."""
+        from .services.benchmark_sync import _identity
+        self.assertEqual(_identity('hunyuan-image-2.1'), ('hunyuanimage', (2, 1), None))
+        self.assertNotEqual(_identity('qwen-image-2'), _identity('GPT Image 2'))
+        self.assertEqual(_identity('stable-diffusion-v1-5'), ('stablediffusion', (1, 5), None))
+
+
 class BancsMultiMetiersTest(_SourcesFactices, TestCase):
     """
     Un modèle exerçant PLUSIEURS métiers doit être mesuré sur chacun de ses bancs.
