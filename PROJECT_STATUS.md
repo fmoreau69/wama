@@ -9148,7 +9148,16 @@ défauts complétés PAR LA CASCADE, pas en base · migrations versionnées à l
    ❌ `rights_anonymous` = instrument en retard sur la décision « visiteur guidé » (30-31/08) :
    le scénario doit re-cibler les ACTIONS, pas les index (`WAMA_VERIFICATION §7`).
 
-**Restes** : re-cibler `rights_anonymous` sur les ACTIONS (décision visiteur-guidé) ·
+10. **`rights_anonymous` RE-CIBLÉ (02/09)** sur le contrat de la décision — POST anonyme à
+   VIDE sur `upload`, jeton CSRF réel, ceinture ORM. ⚠ Une V2 au GET a été RÉFUTÉE à sa
+   première contre-vérification (`@require_POST` devant la garde → 405 non discriminant).
+   Verdict V3 : 7 apps agissables par un visiteur ET **le converter — l'app d'essai — est
+   la SEULE à refuser** (`@login_required` sur `upload`, `views.py:216`) : la politique est
+   inversée dans les deux sens. Rouge ASSUMÉ jusqu'au chantier avatar/accueil ; l'anomalie
+   converter se corrige AVEC ce chantier (pas d'ouverture de surface précipitée).
+
+**Restes** : garde serveur « visiteur guidé » + retrait du `@login_required` de
+converter.upload (chantier avatar/accueil, après portage) ·
 garde de l'API model_manager (3 accès non dûs — avec l'instance model_manager) ·
 arbitrage §23.2ter (défauts stockés par la cascade générée) avant marche B ·
 retrait final R44 (`*_legacy`) après quelques jours d'usage · enhancer 4 hors-colonnes +
@@ -9824,3 +9833,104 @@ espace de clés, filtrage voix, gardes du model_manager, statuts, trajectoire du
 vivent dans le scratchpad de session — jetables, chaque mesure est consignée dans son
 message de commit. La capture du smoke navigateur vit dans le dossier de captures habituel
 (`logs/ui_smoke/`).
+
+---
+
+## §REPRISE — 2026-09-01 → 09-02, instance « SOURCES EXTERNES + REGISTRES NAVIGABLES + UNIFORMISATION » — ✅ CLOSE
+
+> Périmètre : `common/external_sources.py` (+tests), `common/utils/{ollama_host,web_search,llm_utils}.py`,
+> `common/tts/{constants,service_client}.py`, `common/services/{assistant_engine,rights_matrix,ui_smoke}.py`,
+> `common/registries_builtin.py`, `common/urls.py`, `model_manager/urls.py` + services
+> (`benchmark_sync`, `ollama_registry`), backends reader/describer/synthesizer (adoption
+> `ollama_base`), gabarits des pages catalogues + `header.html` + `base.html`, brique CSS
+> `wama-catalog`. **Sessions parallèles toute la soirée** (converter/statuts, grilles 2 et 3,
+> chips voix) — partition tenue, diffs relus avant chaque commit.
+
+### Livré (7 commits + alignement main)
+
+1. **Registre des sources externes** (`common/external_sources.py`) — étapes 1+2+3 le même
+   jour : 14 sources déclarées (adresse, réglage, clé, attribution, PORTÉE d'où le proxy est
+   DÉRIVÉ), ~20 sites migrés dont **8 replis `OLLAMA_HOST` MORTS** (settings pose toujours
+   l'attribut) qui privaient en plus leurs appelants de la réécriture WSL2→passerelle de
+   `ollama_base()` — la brique était complète depuis le 02/08, c'est l'ADOPTION qui manquait.
+   Gardien anti-récidive par AST (un grep compterait les commentaires), pré-filtré 87 s→31 s.
+2. **8ᵉ registre `sources_externes`** (nature `mesure`, Celery, staff) + sa page : la
+   DÉCLARATION dérive du code, la SONDE est le dernier rapport écrit, daté. Première sonde
+   réelle : **14/14 joignables, 0 clé absente**, Ollama 9 ms via la passerelle, proxy UGE
+   passant partout.
+3. **Les registres deviennent NAVIGABLES** : `url_name` était déclaré et vérifié résolvable…
+   et jamais RENDU — bouton « Ouvrir » par card, entrée « Sources » au menu.
+4. **Norme d'URLs** (arbitrage Fabien) : `<pluriel anglais>_catalog`, chemins alignés,
+   anciens chemins français en 301 permanent, API `api/registres/` volontairement intacte.
+   Garde `NormeUrlsTest` (suffixe imposé, exemptions NOMMÉES, redirections testées).
+5. **Squelette de page catalogue = brique commune** (`wama-catalog.css`) : recopié à
+   l'identique sous SIX préfixes ; 6 pages portées, la barre de filtrage n'avait PAS dérivé
+   (8/9 brique commune + 2 mécanismes propres documentés). `apps`/`rag` assumées hors
+   squelette (layouts propres).
+6. **Menu profil en 2 sections** (« Mon espace » / « WAMA »), ordre alphabétique, couleurs
+   REMPLIES pas retirées (1ʳᵉ passe monochrome corrigée par Fabien : l'inachevé venait du
+   mélange, la réponse est de compléter).
+7. **En-tête de page catalogue = partial commun** (titre + bouton hérité, icône = celle du
+   menu — fin des emojis orphelins) ; le portage a révélé que la page Sources n'avait AUCUN
+   titre. Garde étendue : barre commune partout + en-tête hors exemptions nommées.
+
+`main` aligné sur `dev` par fast-forward pur (250 commits, 0 commit propre sur main), sans
+checkout (l'arbre portait le WIP d'une autre instance). **Validation écran Fabien : FAITE.**
+
+### ⚠ Leçons
+
+- ⚠⚠ **Un repli recopié chez N appelants est un repli MORT qui divergera** : les 8
+  `getattr(settings, 'OLLAMA_HOST', <littéral>)` ne se déclenchaient jamais — et
+  masquaient l'inadoption du résolveur WSL2. Le défaut d'une source ne vit qu'à UN endroit.
+- ⚠⚠ **Un gardien anti-duplication se choisit son instrument** : par AST, jamais par grep —
+  les adresses sont légitimement citées en commentaire (url_guard les documente comme
+  exemples à refuser). Un gardien qui compte faux se fait désarmer.
+- ⚠⚠ **Les contrôles mécaniques mesurent l'ARBRE PARTAGÉ** : avec une instance active, un
+  `/reprise` rend des chiffres qui n'appartiennent à personne (SystemCheckError du composer
+  = son WIP à mi-course, 9 manifestes « périmés » = sa régénération non commitée). Attribuer
+  avant de conclure — et sa base de test aussi se partage (EOFError « Type yes » = SON run
+  en cours ; attendre, jamais `--noinput`).
+- ⚠ **Une généralisation RÉVÈLE des trous** : le portage de l'en-tête a trouvé une page sans
+  titre ; la barre déclarée-jamais-rendue n'est apparue qu'au balayage. Le vérificateur
+  d'uniformité est désormais un TEST (chaque page de registre : barre + en-tête), pas une
+  passe manuelle.
+- ⚠ **L'icône d'une page est celle de son entrée de menu** — un régime, pas deux (emojis
+  écartés parce qu'aucun menu ne les reprenait).
+
+### Décisions tranchées (Fabien, 01-02/09)
+
+- Norme URLs : noms + chemins anglais pluriel, redirections permanentes — **pages seules**,
+  les endpoints `api/registres/…` ne bougent pas (internes, câblés dans le JS commun).
+- Menu : 2 sections user/wama, alphabétique, toutes icônes colorées.
+- Sonde : « joignable » = le serveur RÉPOND (tout statut HTTP) ; jamais de client par l'UI.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Rien ne bloque.** Le chantier registres est CLOS de bout en bout : 8 registres déclarés,
+pages navigables et uniformisées (brique CSS + partial d'en-tête + gardes), norme d'URLs
+posée et testée, menu restructuré, `main` = `dev` poussés. Au choix :
+1. la **promesse embeddings** (2 modèles `nomic-embed`/`qwen3-embedding` encore classés
+   `llm` — remède écrit dans le §REPRISE « bancs » du 01/09, jamais implémenté, 3ᵉ report) ;
+2. reprendre la file des chantiers (ROADMAP) ou le portage schéma-driven.
+
+**Pendings** :
+- le **hero** des pages catalogues, dernier candidat de généralisation nommé — à prendre si
+  un 9ᵉ registre arrive, pas avant ;
+- **10 manifestes d'apps + anonymizer:sam3 modifiés NON COMMITÉS** (régénération de l'autre
+  instance ; sam3 = l'arbitrage YO-YO Windows/WSL2 du handoff « bancs ») — à son périmètre ;
+- la référence de ligne du handoff du 01/09 vers le gabarit converter raccourci (l'unique
+  « périmée » du check_docs) — au périmètre converter, disparaîtra à son doc-sync.
+
+**Contrôles attendus au prochain /reprise (tous MESURÉS cette session)** :
+- suite complète **1369 tests, OK (skipped=4)** ; périmètre common+model_manager 586 OK ;
+- `check_docs` : **1 SEULE cible distincte** (l'attendue, inchangée) sur 8 références
+  cassées + **1 périmée** (ci-dessus) sur ~1292 vérifiées ;
+- `doc_facts` : à jour (bloc mécanismes resynchronisé et commité) ;
+- `manifest_export` : **corpus à jour (113)** — mais le commit des manifestes manque (autre
+  instance, cf. pendings) ;
+- grille de conformité : non re-mesurée en fin de session (dernière mesure : 01/09 soir).
+
+**Artefacts de session** : le script de la première sonde réelle et celui d'attente de la
+base de test partagée vivent dans le scratchpad de session — jetables, leurs mesures sont
+dans les messages de commit. Le rapport de sonde vit dans le dossier des journaux, gitignoré
+comme tout état runtime.
