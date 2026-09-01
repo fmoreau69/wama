@@ -9,7 +9,10 @@
       "modalities": [
         "video"
       ],
-      "task": "image-to-video"
+      "task": "image-to-video",
+      "tasks": [
+        "image-to-video"
+      ]
     },
     "composition": {},
     "extra_info": {},
