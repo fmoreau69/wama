@@ -43,13 +43,26 @@ JOB_RUNNING = 'RUNNING'
 JOB_SUCCESS = 'SUCCESS'
 JOB_FAILURE = 'FAILURE'
 
+#: Son tour EST venu, mais la VRAM libre ne suffit pas — l'item attend que des ressources se
+#: libèrent (décision Fabien, 2026-09-01). État DISTINCT de `PENDING` : « ton tour n'est pas
+#: venu » et « ça ne rentre pas » appellent des gestes différents de la part de l'utilisateur —
+#: le second se règle en baissant l'exigence de qualité, le premier en patientant.
+#: ⚠ Et distinct de `RUNNING`, qui doit continuer de vouloir dire « ça tourne » : une card
+#: annonçant « En cours » à 0 % pendant vingt minutes remplacerait un mensonge par un autre.
+JOB_AWAITING_RESOURCES = 'AWAITING_RESOURCES'
+
 #: Le couple (valeur, libellé) tel que les 13 apps le déclaraient. À passer en `choices=`.
 JOB_STATUS_CHOICES = [
     (JOB_PENDING, 'En attente'),
+    (JOB_AWAITING_RESOURCES, 'En attente de ressources'),
     (JOB_RUNNING, 'En cours'),
     (JOB_SUCCESS, 'Terminé'),
     (JOB_FAILURE, 'Échec'),
 ]
+
+#: États où l'item attend sans tourner — ni fini, ni en cours. Les compteurs de file et les
+#: garde-fous doivent les traiter ensemble : `AWAITING_RESOURCES` n'est PAS un échec.
+JOB_STATUS_EN_ATTENTE = frozenset({JOB_PENDING, JOB_AWAITING_RESOURCES})
 
 #: États où l'item n'est plus en mouvement — utile aux compteurs de file et aux garde-fous.
 JOB_STATUS_FINAUX = frozenset({JOB_SUCCESS, JOB_FAILURE})

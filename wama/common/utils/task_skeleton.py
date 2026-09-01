@@ -115,7 +115,75 @@ def _item_label(item, item_id: int) -> str:
     return f"#{item_id}"
 
 
+#: Combien de fois on re-programme un item faute de VRAM avant de renoncer EN LE DISANT.
+#: Borné à dessein : une attente non bornée est un blocage silencieux, pas de la patience.
+#: 40 essais × 45 s ≈ 30 min — au-delà, ce n'est plus un pic d'occupation, c'est une charge
+#: durable, et l'utilisateur doit pouvoir décider (baisser l'exigence, ou relancer plus tard).
+DIFFEREMENTS_MAX = 40
+DIFFEREMENT_DELAI_S = 45
+
+
+def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
+                            error_field):
+    """Re-programme l'item au lieu d'ATTENDRE dans le worker. Rend True si on a différé.
+
+    ⚠ Pourquoi pas `wait_for_free_vram()` ici : elle DORT dans la tâche, donc elle immobilise
+    un worker Celery. Pour un hoquet de 180 s c'est acceptable (son seul appelant de
+    production est le mode dépannage GPU du composer, qui reste inchangé) ; pour « la tâche
+    se lancera quand les ressources seront disponibles », c'est une famine de workers :
+    N items en attente = N workers bloqués, et la file GPU s'arrête — y compris pour les
+    tâches légères qui, elles, passeraient.
+
+    On rend donc le worker : statut `AWAITING_RESOURCES`, message explicite, nouvelle
+    livraison dans `DIFFEREMENT_DELAI_S`. Trois bénéfices d'un coup — le worker reste libre,
+    l'attente devient VISIBLE sur la card, et elle devient annulable (l'utilisateur peut
+    baisser l'exigence de qualité et relancer immédiatement).
+
+    ⚠ Un `retry` Celery publie un NOUVEAU message : il ne porte donc pas le drapeau
+    `redelivered`, et la garde anti-boucle-de-crash (`refuse_crash_redelivery`) ne s'en émeut
+    pas. Vérifié avant d'écrire ceci — c'est exactement le genre d'interaction qui se paie
+    trois semaines plus tard.
+    """
+    from wama.common.models import JOB_AWAITING_RESOURCES
+    from wama.common.services.resource_governor import effective_free_gb
+
+    try:
+        libre = effective_free_gb()
+    except Exception:
+        return False                      # sonde indisponible → on tente, comme avant
+    if libre >= besoin_gb:
+        return False
+
+    essais = int(getattr(getattr(task, 'request', None), 'retries', 0) or 0)
+    if essais >= DIFFEREMENTS_MAX:
+        # On renonce EN LE DISANT — jamais un échec muet, jamais un repli silencieux vers un
+        # modèle plus léger : ce serait décider à la place de l'utilisateur ce qu'il a
+        # justement demandé de ne pas faire en choisissant la qualité.
+        attendu = round(DIFFEREMENTS_MAX * DIFFEREMENT_DELAI_S / 60)
+        msg = (f"Ressources GPU insuffisantes depuis ~{attendu} min "
+               f"({libre:.1f} Go libres, {besoin_gb:.1f} Go requis) — "
+               f"réduire l'exigence de qualité pour lancer maintenant, ou relancer plus tard.")
+        champs = {'status': 'FAILURE'}
+        if _has_field(model, error_field):
+            champs[error_field] = msg
+        model.objects.filter(pk=item_id).update(**champs)
+        ctx.console(f"✗ {msg}", level='error')
+        _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg)
+        return True
+
+    msg = (f"En attente de ressources : {libre:.1f} Go libres, {besoin_gb:.1f} Go requis "
+           f"(nouvelle tentative dans {DIFFEREMENT_DELAI_S} s)")
+    champs = {'status': JOB_AWAITING_RESOURCES}
+    if _has_field(model, error_field):
+        champs[error_field] = ''          # ce n'est pas une erreur : on n'en laisse pas la trace
+    model.objects.filter(pk=item_id).update(**champs)
+    ctx.console(msg, level='info')
+    logger.info("[%s] item #%s différé — %s", app_id, item_id, msg)
+    raise task.retry(countdown=DIFFEREMENT_DELAI_S, max_retries=DIFFEREMENTS_MAX)
+
+
 def run_item_task(task, *, app_id: str, model, item_id: int, process,
+                  vram_needed=None,
                   error_field: str = 'error_message', ingest_derive=None,
                   notify_label: str = None, progress_fn=None):
     """Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
@@ -143,6 +211,23 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         _signal(item, app_id, 'relance', None, {})
 
     ctx = TaskContext(app_id, model, item, progress_fn=progress_fn)
+
+    # ── Ressources AVANT de se déclarer en cours (2026-09-01) ────────────────────────────
+    # Placé ICI, avant `ctx.progress(0)` qui bascule l'item en RUNNING : un item différé ne
+    # doit jamais avoir été « en cours ». `vram_needed` est OPTIONNEL — une app qui ne le
+    # déclare pas garde exactement le comportement d'avant (aucune des 10 ne bouge tant
+    # qu'elle ne l'a pas déclaré).
+    if vram_needed is not None:
+        try:
+            besoin = vram_needed(item) if callable(vram_needed) else float(vram_needed)
+        except Exception as exc:
+            logger.warning("[%s] besoin VRAM illisible (%s) — on tente sans différer",
+                           app_id, exc)
+            besoin = None
+        if besoin and _differer_faute_de_vram(task, ctx, item, model, item_id, app_id,
+                                              float(besoin), error_field):
+            return
+
     ctx.progress(0)
 
     try:

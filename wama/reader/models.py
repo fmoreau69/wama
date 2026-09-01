@@ -1,5 +1,6 @@
 from django.db import models
-from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
+from wama.common.models import (ProcessingTimeMixin, ScopedVisibility, ScopedManager,
+                                JOB_STATUS_CHOICES, JOB_PENDING)
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input
 
@@ -9,11 +10,13 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
     objects = ScopedManager()
 
 
-    class Status(models.TextChoices):
-        PENDING = 'PENDING', 'En attente'
-        RUNNING = 'RUNNING', 'En cours'
-        SUCCESS = 'SUCCESS', 'Terminé'
-        FAILURE = 'FAILURE', 'Échec'
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    #: ⚠ Le reader déclarait les mêmes valeurs sous une AUTRE FORME (`models.TextChoices`).
+    #: Elle avait échappé au portage des 12 autres, qui cherchait `STATUS_CHOICES = [...]` :
+    #: une même information sous deux formes se retrouve à un seul endroit sur deux, et c'est
+    #: celui qu'on oublie qui dérive. Un seul usage externe existait (`default=`), d'où un
+    #: portage sans risque.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
 
     class Backend(models.TextChoices):
         AUTO    = 'auto',    'Auto (meilleur disponible)'
@@ -53,7 +56,9 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
 
     # Processing state
     task_id       = models.CharField(max_length=255, blank=True, default='')
-    status        = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    # max_length 16 -> 24 : `AWAITING_RESOURCES` fait 18 caracteres (Django l'a refuse net,
+    # fields.E009 -- le framework a attrape ce que j'aurais pu manquer).
+    status        = models.CharField(max_length=24, choices=STATUS_CHOICES, default=JOB_PENDING)
     progress      = models.IntegerField(default=0)
     page_count    = models.IntegerField(default=0, help_text='Nombre de pages (PDF)')
 
