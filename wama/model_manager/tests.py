@@ -713,6 +713,65 @@ class AppariementSansTailleTest(TestCase):
                                      ('hunyuanimage', (2, 1), None), False))
 
 
+class RangCentileTest(TestCase):
+    """
+    Le rang est la seule lecture comparable D'UN BANC A L'AUTRE — et il n'est qu'un rang.
+
+    Réponse à la demande « ramener toute valeur entre 0 et 100 » : un min-max ne serait pas
+    reproductible (les bornes bougent avec la population) et fabriquerait une équivalence
+    entre un Intelligence Index et un Elo que personne n'a mesurée. Un rang énonce la
+    position de chacun parmi SES pairs, ce qui est mesuré.
+    """
+
+    def _pop(self, *valeurs):
+        return [{'valeur': v} for v in valeurs]
+
+    def test_le_rang_est_le_pourcentage_de_la_population_en_dessous(self):
+        from .services.benchmark_sync import rang_centile
+        pop = self._pop(10, 20, 30, 40)
+        self.assertEqual(rang_centile(30, pop, lambda e: e['valeur']), 50.0)
+        self.assertEqual(rang_centile(10, pop, lambda e: e['valeur']), 0.0)
+
+    def test_deux_echelles_incommensurables_donnent_des_rangs_comparables(self):
+        """LE point : 42,9 (Intelligence Index) et 919 (Elo TTS) ne se comparent pas ;
+        leurs rangs dans leurs bancs respectifs, si."""
+        from .services.benchmark_sync import rang_centile
+        llm = rang_centile(42.9, self._pop(1, 5, 12, 20, 30, 42.9), lambda e: e['valeur'])
+        tts = rang_centile(919, self._pop(919, 1200, 1300), lambda e: e['valeur'])
+        self.assertGreater(llm, tts)
+
+    def test_une_population_vide_ou_une_valeur_absente_rend_None(self):
+        """Null plutôt que plausible : pas de rang inventé sur une population inconnue."""
+        from .services.benchmark_sync import rang_centile
+        self.assertIsNone(rang_centile(30, [], lambda e: e['valeur']))
+        self.assertIsNone(rang_centile(None, self._pop(1, 2), lambda e: e['valeur']))
+
+    def test_le_rang_n_ecrase_jamais_la_valeur_mesuree(self):
+        """Le centile s'AJOUTE : `benchmark_index` reste la mesure, avec son échelle."""
+        from .services import benchmark_sync as bs
+
+        def aa():
+            return {'text-to-image': [
+                {'nom': 'Widget 2', 'slug': 'widget-2', 'identite': ('widget', (2,), None),
+                 'valeur': 900.0, 'echelle': 'aa_elo_text_to_image'},
+                {'nom': 'Autre 1', 'slug': 'autre-1', 'identite': ('autre', (1,), None),
+                 'valeur': 100.0, 'echelle': 'aa_elo_text_to_image'}]}, {}
+
+        def arena():
+            raise bs.SourceIndisponible('non sollicitée')
+
+        m = AIModel.objects.create(
+            model_key='imager:widget-2', name='Widget 2', model_type='diffusion',
+            source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
+        with patch.multiple(bs, charger_aa=aa, charger_arena=arena):
+            bs.synchroniser(dry_run=False)
+        m.refresh_from_db()
+        self.assertEqual(m.benchmark_index, 900.0)
+        self.assertEqual(m.benchmark_meta['echelle'], 'aa_elo_text_to_image')
+        self.assertEqual(m.benchmark_meta['rang_centile'], 50.0)
+        self.assertEqual(m.benchmark_meta['population'], 2)
+
+
 class FamilleSansConditionnementTest(TestCase):
     """`base`/`instruct`/`chat` nomment un TIRAGE, pas un modèle — hors de la famille."""
 
