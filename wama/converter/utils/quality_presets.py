@@ -39,15 +39,25 @@ PRESET_LABELS = {
 }
 
 
-def resolve_options(media_type: str, preset: str, base_options: dict | None = None) -> dict:
-    """Return a new options dict = preset defaults overlaid by explicit base_options.
+def preset_values(media_type: str, preset: str) -> dict:
+    """Valeurs du préréglage choisi, ou {} — l'app est la SEULE à connaître sa table.
 
-    Explicit options always win over preset defaults. Unknown preset/media_type
-    yields base_options unchanged.
+    C'est tout ce que le converter doit fournir à la cascade commune
+    (`param_schema.effective_settings` : défauts du schéma ← preset ← réglages posés).
+    Auparavant, `resolve_options` faisait lui-même la fusion — mais sans les défauts du
+    schéma, qui vivaient une 3ᵉ fois en dur dans les backends (ROADMAP §23.2bis).
+    """
+    return dict(_PRESETS.get(media_type, {}).get((preset or '').lower(), {}))
+
+
+def resolve_options(media_type: str, preset: str, base_options: dict | None = None) -> dict:
+    """~~Fusion preset ← options~~ — CONSERVÉE pour `inline_convert` et `tool_api`, qui
+    convertissent SANS élément de file (donc sans schéma d'item à cascader).
+
+    ⚠ Ne pas l'utiliser pour un job de la file : la cascade complète est
+    `param_schema.effective_settings` (elle ajoute les défauts du schéma SOUS le preset).
     """
     base_options = dict(base_options or {})
-    preset = (preset or '').lower()
-    defaults = _PRESETS.get(media_type, {}).get(preset, {})
-    merged = dict(defaults)
+    merged = preset_values(media_type, preset)
     merged.update(base_options)  # explicit values override preset defaults
     return merged

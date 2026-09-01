@@ -42,6 +42,55 @@ class BatchDownloadTest(TestCase):
         self.assertTrue(zf.namelist()[0].endswith('.jpg'))
 
 
+class PreregagesQualiteTest(TestCase):
+    """Les 3 préréglages doivent AGIR — et ce test existe parce qu'ils ont failli mourir.
+
+    En préparant l'uniformisation « un réglage = une colonne avec son défaut » (2026-09-01),
+    j'allais poser `default=85` sur `quality`. Tous les jobs seraient alors devenus
+    explicites, et `web`/`balanced`/`max` n'auraient plus rien arbitré — **sans erreur ni
+    message**. Ce test tient l'invariant par le COMPORTEMENT : un preset agit sur ce qui
+    n'est pas réglé, et se tait sur ce qui l'est.
+    """
+
+    def test_un_preset_agit_sur_ce_qui_n_est_pas_regle(self):
+        from wama.common.utils.param_schema import effective_settings
+        from wama.converter.params import PARAMS_JSON
+        from wama.converter.utils.quality_presets import preset_values
+
+        for preset, attendu in (('web', 80), ('balanced', 90), ('max', 98)):
+            eff = effective_settings(PARAMS_JSON, posees={},
+                                     preset=preset_values('image', preset),
+                                     contexte={'media_type': 'image'})
+            self.assertEqual(eff['quality'], attendu,
+                             f"le préréglage « {preset} » n'agit plus sur la qualité")
+
+    def test_un_reglage_pose_par_l_utilisateur_gagne_sur_le_preset(self):
+        from wama.common.utils.param_schema import effective_settings
+        from wama.converter.params import PARAMS_JSON
+        from wama.converter.utils.quality_presets import preset_values
+
+        eff = effective_settings(PARAMS_JSON, posees={'quality': 42},
+                                 preset=preset_values('image', 'max'),
+                                 contexte={'media_type': 'image'})
+        self.assertEqual(eff['quality'], 42, "l'utilisateur doit avoir le dernier mot")
+
+    def test_les_defauts_du_schema_ne_bloquent_pas_le_preset(self):
+        # L'invariant EXACT que la migration en colonnes aurait cassé : le schéma déclare
+        # quality=85, et pourtant le preset « web » (80) doit gagner — parce que 85 est un
+        # DÉFAUT, pas un choix. Si un jour ce test tombe, c'est qu'un défaut a été stocké
+        # comme s'il était posé.
+        from wama.common.utils.param_schema import effective_settings
+        from wama.converter.params import PARAMS_JSON
+        from wama.converter.utils.quality_presets import preset_values
+
+        defaut_schema = next(p['default'] for p in PARAMS_JSON if p['name'] == 'quality')
+        self.assertEqual(defaut_schema, 85)
+        eff = effective_settings(PARAMS_JSON, posees={},
+                                 preset=preset_values('image', 'web'),
+                                 contexte={'media_type': 'image'})
+        self.assertEqual(eff['quality'], 80)
+
+
 class SauverCommeProfilTest(TestCase):
     """Le lecteur de la modale « Sauver comme profil » doit lire ce que WamaParams ÉMET.
 

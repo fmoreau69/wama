@@ -82,9 +82,21 @@ def _convert(job, ctx):
     else:
         output_path = final_output_path
 
-    # Apply quality preset (explicit options always win over preset defaults).
-    from .utils.quality_presets import resolve_options
-    eff_opts = resolve_options(job.media_type, job.quality_preset, job.options)
+    # Valeurs EFFECTIVES — brique COMMUNE (2026-09-01) : **défauts du schéma ← preset ←
+    # réglages POSÉS**. Elle remplace l'ancien `resolve_options` (qui ne connaissait que
+    # preset ← posé) ; les défauts du schéma entrent enfin dans la cascade, SOUS le preset,
+    # donc sans jamais l'empêcher d'agir (ROADMAP §23.2bis).
+    # ⚠ Ce qui rend cette cascade correcte est que `job.options` ne contient QUE l'explicite.
+    # Y stocker des défauts les rendrait indiscernables d'un choix, et le preset ne pourrait
+    # plus rien arbitrer — c'est la raison pour laquelle le converter ne le fait pas.
+    from wama.common.utils.param_schema import effective_settings
+    from .params import PARAMS_JSON
+    from .utils.quality_presets import preset_values
+    eff_opts = effective_settings(
+        PARAMS_JSON,
+        posees=job.options,
+        preset=preset_values(job.media_type, job.quality_preset),
+        contexte={'media_type': job.media_type})
 
     # Aperçu « PENDANT » (brique commune, 2026-08-13) : hors in-place, ffmpeg écrit la sortie
     # progressivement sous MEDIA — l'URL partielle est lisible PENDANT la conversion pour les
