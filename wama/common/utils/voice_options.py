@@ -70,3 +70,29 @@ def get_voice_groups(user) -> list[dict]:
     # 4. Bark presets.
     groups.append({"group": "Bark (presets)", "options": list(BARK_PRESETS)})
     return groups
+
+
+def voice_display_options(user) -> list[tuple[str, str]]:
+    """[(valeur, libellé)] de TOUT ce qu'une donnée de voix peut porter — pour AFFICHER.
+
+    Distinct de `get_voice_groups` (l'inventaire PROPOSÉ au select) et plus large que lui :
+    les valeurs héritées `cv_<id>` (ancien modèle `CustomVoice`, remplacé par les UserAsset
+    `ua_<id>`) ne sont plus offertes pour un nouveau travail, mais des lignes RÉELLES les
+    portent encore — et une card doit dire « Voix Fab », pas `cv_1` (constat Fabien,
+    card 65, 2026-09-01). Même partage que R43 : *on cesse de proposer une option morte,
+    on ne rend pas illisible la donnée qui la porte.*
+
+    Import du modèle synthesizer PARESSEUX et tolérant — même précédent que
+    `scan_voice_refs` plus haut : ce module centralise la connaissance des voix, il est le
+    seul du substrat autorisé à la chercher là où elle vit.
+    """
+    plates: list[tuple[str, str]] = []
+    for g in get_voice_groups(user):
+        plates += [(str(v), l) for v, l in (g.get("options") or [])]
+    try:
+        from wama.synthesizer.models import CustomVoice
+        plates += [(f"cv_{c.pk}", c.name)
+                   for c in CustomVoice.objects.filter(user=user)]
+    except Exception:
+        pass
+    return plates
