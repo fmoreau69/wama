@@ -1216,7 +1216,27 @@ def api_model_options(request):
         d = par_id.get(mid) or {}
         libelle = nom if d.get('downloaded', True) else f"{nom} (à télécharger)"
         options.append([mid, libelle])
-    return JsonResponse({'success': True, 'groups': [{'options': options}]})
+
+    reponse = {'success': True, 'groups': [{'options': options}]}
+    # « auto » en 1ʳᵉ option + PRÉVISION du modèle retenu (brique commune auto_model,
+    # décision Fabien 2026-09-01). OPT-IN par le schéma (`options_auto`) : seule une app
+    # dont le lancement résout « auto » le demande — l'ajouter d'office enverrait une
+    # valeur brute au dispatch des apps pas encore branchées. La prévision emprunte le
+    # MÊME chemin que le tirage réel (VRAM libre du moment) ; elle est une photo, le
+    # lancement réévalue.
+    if request.GET.get('auto') in ('1', 'true'):
+        from wama.common.utils.auto_model import AUTO, AUTO_LABEL, predict_model_choice
+        options.insert(0, [AUTO, AUTO_LABEL])
+        try:
+            preview = predict_model_choice(
+                {'task': task, 'model_type': model_type,
+                 'modality': modality, 'source': source})
+        except Exception as e:                      # la prévision ne casse jamais la liste
+            logger.debug("api_model_options: prévision indisponible (%s)", e)
+            preview = None
+        if preview:
+            reponse['auto_preview'] = preview
+    return JsonResponse(reponse)
 
 
 @login_required

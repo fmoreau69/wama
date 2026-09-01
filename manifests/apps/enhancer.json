@@ -420,7 +420,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('PENDING', 'En attente'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
+                  "expr": "[('PENDING', 'En attente'), ('AWAITING_RESOURCES', 'En attente de ressources'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
                   "imports": []
                 },
                 "default": {
@@ -851,7 +851,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('PENDING', 'En attente'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
+                  "expr": "[('PENDING', 'En attente'), ('AWAITING_RESOURCES', 'En attente de ressources'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
                   "imports": []
                 },
                 "default": {
@@ -1640,6 +1640,7 @@
             "min_label": "",
             "name": "engine",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1691,6 +1692,7 @@
             "min_label": "",
             "name": "mode",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1732,6 +1734,7 @@
             "min_label": "",
             "name": "strength",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1786,6 +1789,7 @@
             "min_label": "",
             "name": "quality",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1858,6 +1862,7 @@
             "min_label": "",
             "name": "output_format",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1907,6 +1912,7 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2012,6 +2018,7 @@
             "min_label": "",
             "name": "ai_model",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2050,6 +2057,7 @@
             "min_label": "",
             "name": "denoise",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2088,6 +2096,7 @@
             "min_label": "",
             "name": "blend_factor",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2214,6 +2223,7 @@
                 ]
               ]
             ],
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -2265,6 +2275,7 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],

@@ -40,6 +40,9 @@ PARAMS = derive_from_model(
             # liste complète — lister n'est pas pouvoir choisir (INPUT_MODEL_MATCHING §2).
             options_source="catalog",
             options_query={"task": "text-to-speech"},
+            # « auto » en 1ʳᵉ option + prévision sous le select (brique commune
+            # auto_model, 2026-09-02) — le lancement résout dans workers.py.
+            options_auto=True,
         ),
         "language": dict(
             type="select", label="Langue", icon="fa-language", chip=True,

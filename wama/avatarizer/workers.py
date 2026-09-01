@@ -122,6 +122,18 @@ def generate_avatar(self, job_id: int):
         # ------------------------------------------------------------------
         if job.mode == 'pipeline':
             _set_progress(job, 10)
+            # Choix AUTOMATIQUE du moteur TTS (brique commune `auto_model`, 2026-09-02) :
+            # résolu AU LANCEMENT, sur le domaine que le schéma déclare pour les options
+            # (`params.py` — le parc TTS par capacité, l'avatarizer n'en possède aucun).
+            from wama.common.utils.auto_model import is_auto, resolve_model_choice
+            if is_auto(job.tts_model):
+                job.tts_model = resolve_model_choice(
+                    job.tts_model, app_id='avatarizer',
+                    fallback=AvatarJob._meta.get_field('tts_model').get_default())
+                job.save(update_fields=['tts_model'])
+                _console(job.user_id,
+                         f"Choix automatique du moteur TTS → {job.get_tts_model_display()} "
+                         f"(capacités + VRAM libre au lancement)", 'info')
             _console(job.user_id, "Synthèse audio via service TTS…", 'info')
             tmp_audio_path = _call_tts_service(job)
             # L'audio généré est un ARTEFACT du job (l'entrée de l'étage animation), pas un

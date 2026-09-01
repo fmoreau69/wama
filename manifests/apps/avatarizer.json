@@ -194,7 +194,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('PENDING', 'En attente'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
+                  "expr": "[('PENDING', 'En attente'), ('AWAITING_RESOURCES', 'En attente de ressources'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
                   "imports": []
                 },
                 "default": {
@@ -299,7 +299,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('default', 'Voix par défaut'), ('male_1', 'Voix masculine 1'), ('male_2', 'Voix masculine 2'), ('female_1', 'Voix féminine 1'), ('female_2', 'Voix féminine 2'), ('custom', 'Voix personnalisée (clonage)'), ('bark_v2_en_0', 'Bark EN Speaker 0'), ('bark_v2_en_1', 'Bark EN Speaker 1'), ('bark_v2_en_2', 'Bark EN Speaker 2'), ('bark_v2_en_3', 'Bark EN Speaker 3'), ('bark_v2_en_4', 'Bark EN Speaker 4'), ('bark_v2_en_5', 'Bark EN Speaker 5'), ('bark_v2_fr_0', 'Bark FR Speaker 0'), ('bark_v2_fr_1', 'Bark FR Speaker 1'), ('bark_v2_es_0', 'Bark ES Speaker 0'), ('bark_v2_de_0', 'Bark DE Speaker 0')]",
+                  "expr": "[('default', 'Voix par défaut'), ('male_1', 'Voix masculine 1'), ('male_2', 'Voix masculine 2'), ('female_1', 'Voix féminine 1'), ('female_2', 'Voix féminine 2'), ('bark_v2_en_0', 'Bark EN Speaker 0'), ('bark_v2_en_1', 'Bark EN Speaker 1'), ('bark_v2_en_2', 'Bark EN Speaker 2'), ('bark_v2_en_3', 'Bark EN Speaker 3'), ('bark_v2_en_4', 'Bark EN Speaker 4'), ('bark_v2_en_5', 'Bark EN Speaker 5'), ('bark_v2_fr_0', 'Bark FR Speaker 0'), ('bark_v2_fr_1', 'Bark FR Speaker 1'), ('bark_v2_es_0', 'Bark ES Speaker 0'), ('bark_v2_de_0', 'Bark DE Speaker 0')]",
                   "imports": []
                 },
                 "default": {
@@ -848,6 +848,7 @@
             "min_label": "",
             "name": "text_content",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -884,6 +885,7 @@
             "min_label": "",
             "name": "tts_model",
             "option_groups": null,
+            "options_auto": true,
             "options_query": {
               "task": "text-to-speech"
             },
@@ -983,6 +985,7 @@
             "min_label": "",
             "name": "language",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1017,10 +1020,6 @@
               [
                 "female_2",
                 "Voix féminine 2"
-              ],
-              [
-                "custom",
-                "Voix personnalisée (clonage)"
               ],
               [
                 "bark_v2_en_0",
@@ -1084,6 +1083,7 @@
             "min_label": "",
             "name": "voice_preset",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": "voices",
             "pills": [],
@@ -1123,6 +1123,7 @@
             "min_label": "",
             "name": "use_enhancer",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1162,6 +1163,7 @@
             "min_label": "",
             "name": "bbox_shift",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1388,7 +1390,7 @@
             "text_content": "textarea — La relance régénère la voix depuis ce texte.",
             "tts_model": "select — Modèle TTS (défaut : 'synthesizer:coqui-xtts')",
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. (défaut : False)",
-            "voice_preset": "select — Voix (choix : default | male_1 | male_2 | female_1 | female_2 | custom | bark_v2_en_0 | bark_v2_en_1 …) (défaut : 'default')"
+            "voice_preset": "select — Voix (choix : default | male_1 | male_2 | female_1 | female_2 | bark_v2_en_0 | bark_v2_en_1 | bark_v2_en_2 …) (défaut : 'default')"
           },
           "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars lip-sync animés par IA (MuseTalk + CodeFormer)) et renvoie son item_id."
         },

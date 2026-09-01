@@ -41,6 +41,9 @@ PARAMS = derive_from_model(
                              show_if="text_content", help_source="synthesizer",
                              options_source="catalog",
                              options_query={"task": "text-to-speech"},
+                             # « auto » + prévision (brique commune auto_model, 2026-09-02)
+                             # — le lancement résout dans workers.py.
+                             options_auto=True,
                              dom_id={"item": "settingsTtsModel"}, contexts=("item",)),
         "language":     dict(type="select", label="Langue", icon="fa-language",
                              show_if="text_content",
