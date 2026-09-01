@@ -18,10 +18,7 @@
 
 {% block content %}
 <div class="wama-cat-wrap">
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-    <h2 class="mb-0">📚 Catalogue des librairies</h2>
-    {% refresh_button "librairies" %}
-  </div>
+  {% include 'common/_catalog_header.html' with titre='Catalogue des librairies' icone='fa-book' registre='librairies' %}
   <p class="text-secondary small mb-3">
     Registre <code>Library</code> — alimenté par la <b>projection des manifestes</b>
     (<code>write_back_library</code>), jamais édité à la main. L'installation mesurée ici est

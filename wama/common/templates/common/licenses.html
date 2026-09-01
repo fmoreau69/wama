@@ -52,10 +52,7 @@
 
 {% block content %}
 <div class="wama-cat-wrap">
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-    <h2 class="mb-0">⚖️ Catalogue des licences</h2>
-    {% refresh_button "licences" %}
-  </div>
+  {% include 'common/_catalog_header.html' with titre='Catalogue des licences' icone='fa-scale-balanced' registre='licences' %}
   <p class="text-secondary small mb-3">
     Vue <b>transversale et dérivée</b> : elle agrège les modèles, les librairies et les médias,
     et suit la composition déclarée par les <code>requires</code> des manifestes d'app.
