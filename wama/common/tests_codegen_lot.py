@@ -175,6 +175,17 @@ class CheminDeLotTest(SimpleTestCase):
                          'les DEUX branches de batch_create (URL, fichier) doivent dérouler '
                          'la cascade — les filles de lot naissaient sans valeurs')
 
+    def test_la_cascade_COERCE_selon_le_schema_avant_de_poser(self):
+        # Défaut VÉCU le 2026-09-01, révélé par le passage du converter en colonnes : le POST
+        # et les user_settings re-persistés portent des CHAÎNES ('false', '72'). Un JSON les
+        # acceptait ; un BooleanField refuse 'false' (ValidationError) — et batch_create
+        # avalait l'erreur en warning : 2 POST « acceptés », 0 élément créé. Aucun test unit
+        # ne le voyait (leurs POST étaient déjà typés) ; seule la batterie NAVIGATEUR l'a vu.
+        fn = _fonction(self.src, '_reglages_du_depot')
+        self.assertIn('coerce_schema_values', fn,
+                      'la cascade doit coercer selon le schéma avant de poser sur des '
+                      'colonnes typées')
+
     def test_la_suppression_est_gardee_par_la_propriete_du_fichier(self):
         """Trou A5 (audit 31/08) : `safe_delete_file` inconditionnel pouvait supprimer un
         fichier UTILISATEUR seulement référencé (envoi Filemanager). La garde dérivée de la

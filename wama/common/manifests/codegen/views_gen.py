@@ -257,7 +257,7 @@ def _reglages_du_depot(user, nature, poste=None):
         from .params import {schema_symbole} as _sch
     except Exception:
         return {{}}, {{}}
-    from wama.common.utils.param_schema import applicable_defaults
+    from wama.common.utils.param_schema import applicable_defaults, coerce_schema_values
     from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
     noms = [n for n in {_noms_schema!r} if n != {nature_champ!r}]
     vals = applicable_defaults(_sch, {{{nature_champ!r}: nature}})
@@ -270,6 +270,12 @@ def _reglages_du_depot(user, nature, poste=None):
     envoye = ({{k: poste.get(k) for k in noms if poste.get(k) not in (None, '')}}
               if poste is not None else {{}})
     vals.update(envoye)
+    # ⚠ COERCER selon le schéma AVANT de poser (défaut VÉCU, 2026-09-01) : le POST et les
+    # user_settings re-persistés portent des CHAÎNES ('false', '72'). Tant que la
+    # destination était un JSON, elles passaient ; sur des colonnes TYPÉES, un
+    # BooleanField refuse 'false' (ValidationError) — et batch_create avalait l'erreur en
+    # warning : 2 POST « acceptés », 0 élément créé, vu à la batterie navigateur seulement.
+    vals = coerce_schema_values(_sch, vals)
     cols, extras = {{}}, {{}}
     for k, v in vals.items():
         (cols if k in {colonnes_schema!r} else extras)[k] = v
