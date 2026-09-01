@@ -32,13 +32,13 @@ lire « vert » là où l'utilisateur voit un écran mort.
 
 ## 2. TROIS grilles, trois prétentions — à ne jamais confondre
 
-| | **Grille d'ADOPTION** (existante) | **Grille FONCTIONNELLE** (à bâtir) | **Grille des DROITS** (28/08) |
+| | **Grille d'ADOPTION** (existante) | **Grille FONCTIONNELLE** (rendue le 01/09) | **Grille des DROITS** (28/08) |
 |---|---|---|---|
 | Question | « cette app utilise-t-elle la brique commune ? » | « ce geste utilisateur produit-il l'effet attendu ? » | « ce qui est OCTROYÉ est-il ce qui est APPLIQUÉ ? » |
 | Instrument | `check_app_conformity` — analyse statique du code | scénarios nocturnes — Playwright, clics réels | `rights_matrix` — décision calculée **vs** requêtes HTTP réelles |
 | Coût | secondes, aucun service requis | minutes, exige serveur + base (+ parfois GPU) | ~20 s, exige serveur + base, **aucun navigateur** |
 | Source | `common/services/conformity_checker.py` | `common/services/nightly_tests.py` + `ui_smoke.py` | `common/services/rights_matrix.py` |
-| Sortie | `logs/conformity_report.json` → `/apps/` | `logs/nightly_tests/nightly_*.json` → **à câbler** | idem nocturne |
+| Sortie | `logs/conformity_report.json` → `/apps/` | `logs/nightly_tests/nightly_*.json` → **`/apps/` aussi (01/09, `functional_grid`)** | idem nocturne |
 | Prouve | l'homogénéité | le fonctionnement | l'**application** de la politique |
 | Ne prouve PAS | que ça marche | que le code est homogène | que la politique soit la bonne |
 
@@ -1004,7 +1004,7 @@ pas de sens. Le scan signale un manque de couverture, il ne dicte pas la répons
 | Phase | Contenu | GPU | État |
 |---|---|---|---|
 | **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 ENTIER (28/08, `inspector_actions` — sélection *et* désélection, 20/20)**, **geste 5 fait (28/08)**, geste 14 aux TROIS QUARTS (fichier de lot 27/08, « Envoyer vers » et URL 28/08) ; **reste la 2ᵉ moitié du geste 2 et la voie d'import récursive** (+ 7 côté Fabien, GPU) |
-| **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ⏳ |
+| **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ✅ **LIVRÉE le 2026-09-01** — `nightly_tests.functional_grid()` : dernier verdict de CHAQUE scénario (jamais « le dernier run », souvent partiel), scénarios jamais exécutés VISIBLES (`∅ jamais` — ne montrer que ce qui a tourné surestimerait la couverture), rendue sous la grille d'adoption sur `/common/apps/` avec le détail des non-verts (motif + date). Vérifiée au navigateur (2 grilles distinctes, 0 erreur console) |
 | **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ⏳ |
 | **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | ⏳ |
 | **5** | Voie d'import restante (geste 14) : le **récursif** — URL livrée le 28/08 (`<app>.url_import`), « Envoyer vers » le 28/08 (`<app>.send_to`), fichier de lot le 27/08 | non | 🔄 **3 sur 4** |

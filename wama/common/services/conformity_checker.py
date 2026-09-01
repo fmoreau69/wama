@@ -1262,8 +1262,14 @@ CRITERIA: list[Criterion] = [
               mecanisme='batch'),
     Criterion('processing_time', 'F5', 'ProcessingTimeMixin (temps réel persisté)',
               lambda f: _present(f, MODELS, r'ProcessingTimeMixin')),
+    #: ⚠ DEUX graphies acceptées depuis le 2026-09-01 : les statuts ont pris un DOMICILE
+    #: UNIQUE (`common/models.py::JOB_STATUS_CHOICES`, commit 515da622) et les apps
+    #: l'IMPORTENT au lieu d'écrire 'SUCCESS' en dur. Ne chercher que la graphie en dur
+    #: mettait les 10 apps au ROUGE le jour même de la centralisation — 3ᵉ occurrence du
+    #: précédent `btn_order`/`batch_card_common` (le critère doit SUIVRE ce qu'il mesure
+    #: quand ça se centralise, sinon il punit l'adoption).
     Criterion('status_vocab', 'F5', 'Vocabulaire de statuts SUCCESS/FAILURE en base',
-              lambda f: _present(f, MODELS, r"'SUCCESS'")),
+              lambda f: _present(f, MODELS, r"'SUCCESS'|JOB_STATUS_CHOICES")),
     Criterion('cycle_button', 'F5', 'Bouton de cycle commun (_cycle_button)',
               lambda f: _present(f, TEMPLATES, r"common/_cycle_button\.html"),
               mecanisme='cycle_button'),

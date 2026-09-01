@@ -302,6 +302,59 @@ def write_report(report: dict) -> Path:
     return path
 
 
+def functional_grid() -> dict:
+    """La grille FONCTIONNELLE (2ᵉ grille de `WAMA_VERIFICATION §2`, décidée le 22/08 et
+    restée « à câbler » jusqu'au 01/09) : le DERNIER verdict de CHAQUE scénario, agrégé sur
+    tous les rapports `nightly_*.json`, groupé par app.
+
+    Par-SCÉNARIO et jamais par-run : un run est souvent PARTIEL (`--id`, `--app`, `--stage`),
+    donc « le dernier fichier » n'est pas l'état du parc — il écraserait 60 verdicts par les
+    2 qu'il vient de rejouer. Et les scénarios ENREGISTRÉS jamais exécutés apparaissent
+    (`never_run`) : une grille qui ne montre que ce qui a tourné SURESTIME la couverture —
+    c'est l'écart adoption/fonctionnement qui a motivé cette grille qui se rejouerait,
+    au niveau au-dessus.
+
+    Retour : {app: {scenarios: [{id, description, ok, skipped, never_run, stage_reached,
+    detail, at}], ok/ko/skip/never: compteurs, last_at}} — apps triées, scénarios dans
+    l'ordre du REGISTRE (celui des `register()` au ready des apps).
+    """
+    out_dir = Path(settings.BASE_DIR) / "logs" / "nightly_tests"
+    derniers: dict = {}          # scenario_id -> (horodatage ISO du run, résultat)
+    for chemin in sorted(out_dir.glob("nightly_*.json")):
+        try:
+            rapport = json.loads(chemin.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue             # un rapport illisible ne doit pas éteindre la grille
+        quand = rapport.get("generated_at") or chemin.stem.replace("nightly_", "")
+        for res in rapport.get("results") or []:
+            sid = res.get("scenario_id")
+            if not sid:
+                continue
+            if sid not in derniers or str(quand) >= str(derniers[sid][0]):
+                derniers[sid] = (quand, res)
+
+    grille: dict = {}
+    for sc in REGISTRY:
+        if not sc.enabled:
+            continue
+        app = grille.setdefault(sc.app, {"scenarios": [], "ok": 0, "ko": 0,
+                                         "skip": 0, "never": 0, "last_at": ""})
+        quand, res = derniers.get(sc.id, ("", None))
+        ligne = {"id": sc.id, "description": sc.description, "at": str(quand)[:16]}
+        if res is None:
+            ligne.update(ok=False, skipped=False, never_run=True,
+                         stage_reached="", detail="jamais exécuté")
+            app["never"] += 1
+        else:
+            ligne.update(ok=bool(res.get("ok")), skipped=bool(res.get("skipped")),
+                         never_run=False, stage_reached=res.get("stage_reached") or "",
+                         detail=res.get("detail") or res.get("error") or "")
+            app["skip" if ligne["skipped"] else ("ok" if ligne["ok"] else "ko")] += 1
+            app["last_at"] = max(app["last_at"], ligne["at"])
+        app["scenarios"].append(ligne)
+    return dict(sorted(grille.items()))
+
+
 # ── Scénarios d'exemple (SMOKE 'wired' — imports sûrs, zéro effet de bord) ────
 # À COMPLÉTER : ajouter par app des scénarios 'model_loaded' (charger le backend puis
 # décharger) et 'output' (chaîne complète sur une fixture, assertion sur le résultat,

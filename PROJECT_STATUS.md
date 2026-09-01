@@ -9092,6 +9092,61 @@ sans skip** (le compte dev `wama_nightly_dev` existe en base).
 
 ---
 
+## §PALIER — 2026-09-01 (soir), instance « VOLET PARAMÈTRES » (suite) : PORTAGE CONVERTER + 2ᵉ GRILLE — ✅ LIVRÉ
+
+> Suite directe du §PALIER 31/08 ci-dessous, sur GO Fabien successifs. Artefact de suivi :
+> https://claude.ai/code/artifact/116dacca-e144-43fc-b014-870218b190c5 (les 2 URLs
+> antérieures = v1 périmée du 31/08, à supprimer — le service refusait la republication).
+
+**Livré, chaque pièce MESURÉE (commits `ad85aeb3` → `8788e3be` + grille/mécanismes) :**
+1. **Réparation reader** (casse VUE PAR FABIEN — mon retrait de `reader_tags` avait laissé
+   son `{% load %}`) + **garde pérenne** : `check_templates` signale tout `{% load %}` vers
+   une bibliothèque absente, contre-éprouvée sur le défaut exact. *Un retrait se vérifie sur
+   le SYMBOLE, jamais sur une graphie d'usage ; un templatetag a TROIS surfaces.*
+2. **Convergence P1** : `WamaParams` résout seul au registre commun (les 3 resolvers maison
+   du converter + celui du générateur RETIRÉS) ; chaînage null→continue OBLIGATOIRE (3 params
+   du parc à options_source AVEC choices de repli). Volet 37 options / modale item 9.
+3. **LA cascade** (`param_schema.effective_settings`, formulation Fabien) : défauts (schéma)
+   ← preset ← réglages POSÉS. Remplace 3 couches (resolve_options, défauts en dur des
+   backends, applicable_defaults seule). Contre-épreuve 7 cas : ZÉRO conflit. ⚠ `ROADMAP
+   §23.2bis` = le RETOURNEMENT (le converter était le seul CONFORME : il ne stocke que
+   l'explicite — c'est ce qui rend un preset possible) ; §23.2ter = conflit à trancher
+   avant marche B (la cascade GÉNÉRÉE stocke les défauts → preset inopérant sur ces jobs).
+4. **Converter en COLONNES** (17, nullables, SANS défaut en base — commit `e42a2f71`) :
+   migration Rename+recopie ÉCRITE À LA MAIN (⚠ makemigrations proposait Remove+Add = PERTE
+   des réglages ; 13 jobs recopiés, 0 perdu, 4 témoins identiques). ⚠ migration 0010 NON
+   versionnée (gitignore) — décision Fabien : versionnement des migrations À LA MISE EN PROD
+   (base neuve) ; copie de sûreté au scratchpad. `poser_reglages()` = écriture UNIQUE.
+5. **Zone de composition = le SCHÉMA** (commit `30312119`, R43) : les 136 l. de formulaire
+   manuscrit retirées, hôte unique à 3 moments, affordances gardées (type/profil/reset).
+   ⚠ La batterie jumelle a RÉVÉLÉ un défaut masqué : la cascade générée posait des CHAÎNES
+   (`'false'`) sur colonnes typées — 2 POST « acceptés », 0 créé, invisible aux tests unit,
+   vu par le SEUL navigateur → coercition au générateur + test. Jumelle **11/11**.
+6. **Registre mécanismes 117** (conversation_store déclaré + wama-avatar.js annexé +
+   effective_settings/garde-load consignés dans leurs entrées ; 0 module non rattaché,
+   reste `qc` sans consommateur = brique en avance d'adoption, signalement légitime).
+7. **Grille de conformité** : critère `status_vocab` corrigé (il punissait la
+   centralisation des statuts de l'instance AWAITING_RESOURCES — 3ᵉ occurrence du précédent
+   `btn_order`) → **converter 100 % (67/67), 1ʳᵉ app au plein score** ; parc 96-100 %.
+8. **⭐ 2ᵉ GRILLE LIVRÉE — la FONCTIONNELLE** (`WAMA_VERIFICATION §6` phase 2, décidée le
+   22/08, restée ⏳) : `nightly_tests.functional_grid()` = dernier verdict de CHAQUE
+   scénario (jamais « le dernier run », souvent partiel), scénarios jamais exécutés
+   VISIBLES ; rendue sous la grille d'adoption sur `/common/apps/` avec détail des
+   non-verts (motif + date). Vérifiée au navigateur. Elle montre déjà : 3 KO `common`
+   (consistency), model_manager 11 skips, parc mesuré au 29/08.
+
+**Décisions Fabien consignées** : profils = à GÉNÉRALISER (ROADMAP §22, UI = ligne d'en-tête
+de section RÉGLAGES) · bascule rendu/source retenue (§21, avec l'app Editor, après portage) ·
+défauts complétés PAR LA CASCADE, pas en base · migrations versionnées à la mise en prod.
+
+**Restes** : arbitrage §23.2ter (défauts stockés par la cascade générée) avant marche B ·
+retrait final R44 (`*_legacy`) après quelques jours d'usage · enhancer 4 hors-colonnes +
+enhancer/anonymizer sans user_settings commun (AVEC la généralisation des profils, pas
+avant) · les 3 KO `common.consistency.*` de la grille fonctionnelle datent du 01/09 00:38
+(probablement transitoires mi-chantier — re-mesurer une nuit calme) · maquette v4 · marche B.
+
+---
+
 ## §PALIER — 2026-08-31 (après-midi), instance « VOLET PARAMÈTRES + RÉGLAGES DE CARD » — ✅ LIVRÉ
 
 > Reprise directe du 🔚 point 1 du §REPRISE ci-dessus : Fabien remesure à l'écran que les
