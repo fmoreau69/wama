@@ -39,7 +39,14 @@ from pathlib import Path
 
 from django.conf import settings
 
-BASE_URL = os.environ.get('WAMA_UI_SMOKE_BASE', 'http://127.0.0.1:8000')
+#: Adresse à laquelle WAMA s'interroge lui-même — déclarée au registre commun des sources
+#: externes (`wama_self`), qui la partage avec `rights_matrix`.
+def _base_url() -> str:
+    from wama.common.external_sources import base_url
+    return base_url('wama_self')
+
+
+BASE_URL = _base_url()
 SHOTS_DIR = Path(settings.BASE_DIR) / 'logs' / 'ui_smoke'
 REF_DIR = SHOTS_DIR / 'reference'
 CUR_DIR = SHOTS_DIR / 'current'

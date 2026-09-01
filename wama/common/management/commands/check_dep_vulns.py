@@ -33,7 +33,11 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-OSV_API = "https://api.osv.dev/v1/querybatch"
+def _osv_api() -> str:
+    """Point d'entrée OSV — adresse déclarée au registre commun des sources externes."""
+    from wama.common.external_sources import base_url
+    return base_url('osv') + '/querybatch'
+
 LOT = 500          # taille max de lot côté API : 1000 ; marge
 TIMEOUT_S = 60
 
@@ -65,7 +69,7 @@ def interroger_osv(paquets: list[tuple[str, str]]) -> dict[str, list[str]]:
             {"package": {"name": nom, "ecosystem": "PyPI"}, "version": version}
             for nom, version in lot
         ]}
-        rep = requests.post(OSV_API, json=corps, timeout=TIMEOUT_S)
+        rep = requests.post(_osv_api(), json=corps, timeout=TIMEOUT_S)
         rep.raise_for_status()
         for (nom, version), res in zip(lot, rep.json().get("results", [])):
             ids = sorted(v["id"] for v in (res or {}).get("vulns", []))

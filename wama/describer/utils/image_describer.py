@@ -33,8 +33,8 @@ def _get_available_ollama_models() -> set:
         return _ollama_available_models
     try:
         import httpx
-        from django.conf import settings
-        host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+        from wama.common.utils.ollama_host import ollama_base
+        host = ollama_base()
         with httpx.Client(timeout=10.0, trust_env=False) as client:
             resp = client.get(f"{host}/api/tags")
         if resp.status_code == 200:
@@ -56,8 +56,8 @@ def _describe_with_ollama_vision(model: str, image_path: str, prompt: str) -> Op
     try:
         import base64
         import httpx
-        from django.conf import settings
-        host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+        from wama.common.utils.ollama_host import ollama_base
+        host = ollama_base()
 
         with open(image_path, 'rb') as fh:
             b64_image = base64.b64encode(fh.read()).decode('utf-8')

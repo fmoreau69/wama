@@ -55,8 +55,8 @@ class OlmOCRBackend(BaseModelBackend):
         # 1. Unload Ollama models (keep_alive=0)
         try:
             import httpx
-            from django.conf import settings
-            host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+            from wama.common.utils.ollama_host import ollama_base
+            host = ollama_base()
             r = httpx.get(f'{host}/api/ps', timeout=3.0, trust_env=False)
             if r.status_code == 200:
                 for m in r.json().get('models', []):

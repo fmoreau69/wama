@@ -28,8 +28,13 @@ from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
-BASE_SITE = 'https://ollama.com'
-BASE_REGISTRY = 'https://registry.ollama.ai'
+#: Adresses déclarées au registre commun des sources externes (2026-09-01) — deux plateformes
+#: DISTINCTES : le site publie les pages du catalogue (HTML), le registre d'images sert les
+#: manifestes et les digests. Le parseur de chacune reste ici : seule l'adresse vient de là-bas.
+from wama.common.external_sources import base_url as _base_url
+
+BASE_SITE = _base_url('ollama_site')
+BASE_REGISTRY = _base_url('ollama_registry')
 
 #: Capacités exposées par le filtre `?c=` du site.
 CAPACITES = ('vision', 'embedding', 'tools', 'thinking')

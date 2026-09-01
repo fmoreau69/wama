@@ -330,7 +330,8 @@ def llm_chat(
 
     # Ollama routé via LiteLLM (cas rare : provider='ollama' explicite) → api_base local par défaut.
     if prefix == 'ollama' and not api_base:
-        api_base = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434')
+        from wama.common.utils.ollama_host import ollama_base
+        api_base = ollama_base()
 
     kwargs: dict = {
         'model':      litellm_model,

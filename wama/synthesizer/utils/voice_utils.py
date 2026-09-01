@@ -266,8 +266,12 @@ def resolve_voice_preset(preset_value: str) -> Optional[str]:
 # Catalogue de téléchargement automatique
 # ---------------------------------------------------------------------------
 
-_LJ_BASE   = "https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs"
-_XTTS_BASE = "https://huggingface.co/coqui/XTTS-v2/resolve/main/samples"
+# Domicile UNIQUE de ces deux bases : la brique commune TTS et le registre de sources. Elles
+# étaient recopiées ici et dans `workers.py` (2026-09-01).
+from wama.common.tts.constants import LJ_BASE as _LJ_BASE
+from wama.common.external_sources import base_url as _base_url
+
+_XTTS_BASE = _base_url('huggingface') + '/coqui/XTTS-v2/resolve/main/samples'
 
 # Clé  = chemin relatif SANS .wav dans voice_references/
 # Valeur = liste de (url, description) essayées dans l'ordre ; la première qui

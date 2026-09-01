@@ -43,9 +43,14 @@ from .ollama_registry import decompose, _milliards
 
 logger = logging.getLogger(__name__)
 
-AA_BASE = 'https://artificialanalysis.ai/api/v2'
-AA_KEY_ENV = 'ARTIFICIAL_ANALYSIS_API_KEY'
-ARENA_DATASET = 'lmarena-ai/leaderboard-dataset'
+#: Adresses et clé déclarées au registre COMMUN des sources externes (2026-09-01). `SOURCES`
+#: plus bas reste le registre des BANCS — il dit comment LIRE une valeur (priorité, échelle,
+#: méta) ; il ne dit plus où joindre la plateforme. Deux registres, deux questions.
+from wama.common.external_sources import ARENA_DATASET, get as _source  # noqa: F401
+from wama.common.external_sources import base_url as _base_url
+
+AA_BASE = _base_url('artificial_analysis')
+AA_KEY_ENV = _source('artificial_analysis').api_key_env
 
 #: Catégorie → (endpoint AA, extracteur de score AA, échelle AA, sous-ensemble Arena).
 #: DÉCLARATIF : ajouter une modalité = une ligne. Un endpoint AA absent/403 (tier) ou un

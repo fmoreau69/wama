@@ -70,7 +70,7 @@ def _get_default_speaker_wav(voice_preset: str) -> str:
     default_file = refs_dir / 'default.wav'
 
     if not default_file.exists():
-        _LJ_BASE = 'https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs'
+        from wama.common.tts.constants import LJ_BASE as _LJ_BASE
         try:
             logger.info("Downloading fallback voice sample (LJSpeech)...")
             urllib.request.urlretrieve(f'{_LJ_BASE}/LJ001-0001.wav', str(default_file))
