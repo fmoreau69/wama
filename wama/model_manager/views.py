@@ -1680,6 +1680,22 @@ def api_prospect_ollama(request):
                 summary['assess_enqueued'] = False
         else:
             summary['assess_enqueued'] = False
+        # La mesure de PERFORMANCE, elle, s'enchaîne (2026-09-01, décision Fabien). Le
+        # découpage en boutons distincts avait été fait pour isoler ce qui fait TOMBER L'HÔTE ;
+        # le critère n'est donc pas « une passe = un bouton », c'est le RISQUE. Or celle-ci est
+        # purement réseau (Artificial Analysis + Arena), sans le moindre octet de VRAM — rien
+        # à voir avec le jury LLM ci-dessus, qui charge un modèle sur l'Ollama hôte.
+        # C'est aussi le moment UTILE : la prospection vient de créer des lignes `proposed:`
+        # sans banc, et la raison d'être de ce signal est d'éclairer un candidat AVANT son
+        # installation. Le bouton dédié reste, pour rejouer la passe seule.
+        try:
+            from .tasks import sync_benchmarks_task
+            sync_benchmarks_task.delay()
+            summary['benchmarks_enqueued'] = True
+        except Exception:
+            # Broker indisponible : la prospection reste valable, la performance attendra.
+            logger.warning("sync_benchmarks_task non enfilée", exc_info=True)
+            summary['benchmarks_enqueued'] = False
         return JsonResponse({'success': True, 'summary': summary})
     except Exception as e:
         logger.exception("api_prospect_ollama failed")
