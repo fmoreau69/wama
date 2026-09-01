@@ -1643,11 +1643,13 @@ def convert_file(
             # l'écraser, même s'il est déclaré au schéma pour l'UI.
             **{k: v for k, v in schema_model_kwargs('converter', params).items()
                if k != 'media_type'},
-            # Réglages transitoires (resize/rotation/fps/bitrate…) : rangés dans `options`,
-            # liste tirée du SCHÉMA. ⚠ `converter/views.py:229` en garde une copie en dur
-            # (14 clés) — à faire adopter quand cette app redeviendra modifiable.
-            options=schema_extra_params('converter', params) or {},
         )
+        # Réglages (resize/rotation/fps/bitrate…) : un réglage = une COLONNE depuis le
+        # 2026-09-01 — écrits par le point d'entrée unique du modèle, qui coerce selon le
+        # type déclaré au schéma. (Avant : un blob `options=` passé à `create()`.)
+        _champs = job.poser_reglages(schema_extra_params('converter', params) or {})
+        if _champs:
+            job.save(update_fields=_champs)
         task = convert_media_task.delay(job.id)
         job.task_id = task.id
         job.save(update_fields=['task_id'])
