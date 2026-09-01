@@ -14,6 +14,38 @@ avec, côté vue ou via un helper d'app :
 """
 
 
+#: Mémo des inventaires de catalogue par DOMAINE (`options_query`), partagé entre appels.
+#: Une file rend `chips_for` une fois PAR CARD : un cache local à l'appel donnait 20 requêtes
+#: pour 20 cards (mesuré). TTL court — ce sont des libellés, pas une décision : au pire un
+#: modèle fraîchement installé porte sa clé technique pendant quelques secondes.
+_CATALOGUE_MEMO: dict = {}
+_CATALOGUE_TTL = 30.0
+
+
+def _inventaire_catalogue(options_query: dict) -> list:
+    """[(clé, libellé)] du domaine déclaré — mémoïsé, jamais fatal.
+
+    La brique ne connaît aucune app : elle passe au catalogue EXACTEMENT ce que le schéma
+    déclare (`options_query`), et rien d'autre.
+    """
+    import time
+
+    cle = tuple(sorted((options_query or {}).items()))
+    entree = _CATALOGUE_MEMO.get(cle)
+    if entree and (time.monotonic() - entree[0]) < _CATALOGUE_TTL:
+        return entree[1]
+    try:
+        from wama.model_manager.services import get_registry_models
+        choix, _ = get_registry_models(None, **(options_query or {}))
+        valeur = list(choix)
+    except Exception:
+        # Catalogue indisponible : valeur NUE plutôt qu'un libellé inventé. Une clé technique
+        # est laide ; un faux libellé est pire. Non mémoïsé — l'indisponibilité est transitoire.
+        return []
+    _CATALOGUE_MEMO[cle] = (time.monotonic(), valeur)
+    return valeur
+
+
 def chips_for(instance, params_json, extra=None, values=None):
     """Construit la liste des chips d'une card depuis le schéma sérialisé (schema_to_dicts).
 
@@ -65,6 +97,17 @@ def chips_for(instance, params_json, extra=None, values=None):
             _plates = list(field.get('choices') or []) + list(field.get('options') or [])
             for _g in field.get('option_groups') or []:
                 _plates += list((_g[1] if isinstance(_g, (list, tuple)) else _g.get('options')) or [])
+            # Options tirées du CATALOGUE (`options_source: 'catalog'`, route F4b) : le schéma
+            # ne porte plus AUCUNE plaque — c'est tout l'intérêt du portage. Sans résolution
+            # ici, le chip retombait sur la valeur NUE et la card affichait la clé technique
+            # `synthesizer:coqui-xtts` au lieu de « Coqui XTTS v2 » (constat Fabien, cards
+            # 307/309/310). C'est exactement le geste que le commentaire ci-dessous prescrit
+            # depuis l'audit du 31/08 : RÉSOUDRE, jamais préfixer.
+            # Générique par construction : on n'interroge que ce que le SCHÉMA déclare
+            # (`options_query`), la brique ne connaît ni le TTS ni aucune app. Le résultat est
+            # mémoïsé par domaine — une file de 50 cards ne fait pas 50 requêtes.
+            if not _plates and field.get('options_source') == 'catalog':
+                _plates += _inventaire_catalogue(field.get('options_query') or {})
             for opt in _plates:
                 ov, ol = (opt if isinstance(opt, (list, tuple)) else (opt.get('value'), opt.get('label')))
                 if str(ov) == str(value):
