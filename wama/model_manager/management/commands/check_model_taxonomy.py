@@ -79,7 +79,26 @@ class Command(BaseCommand):
         quand c'est None. Un oubli passerait pour << pas d'equivalent >> alors que c'est
         << pas encore regarde >>, et la nuance decide si on cherche ailleurs ou pas.
         """
-        from wama.model_manager.models import TASK_TO_PLATFORM_TAGS, REFERENCE_PLATFORMS
+        from wama.model_manager.models import (
+            REFERENCE_PLATFORMS, TASK_TO_MODEL_TYPE, TASK_TO_PLATFORM_TAGS, ModelTask,
+        )
+
+        # ── ANCRAGE DE CATEGORIE : toute tache doit dire a quelle famille elle appartient ──
+        # Sans lui, une requete par capacite perd sa borne de categorie et ne repose plus que
+        # sur le filtre de tache — permissif par choix, donc un modele sans capacites
+        # declarees passe (c'est par la que LocateAnything avait fui dans une requete TTS).
+        # Le trou etait REEL sur les 4 taches qui n'ont aucun equivalent de plateforme
+        # (lip-sync, text-to-music, text-to-audio, obb) : la derivation passait par le tag
+        # HuggingFace, qui ne peut pas repondre pour ce qu'il ne nomme pas. Ce garde-fou
+        # existe pour qu'une tache AJOUTEE demain ne retombe pas dans le trou en silence.
+        sans_categorie = sorted(t.value for t in ModelTask if t not in TASK_TO_MODEL_TYPE)
+        if sans_categorie:
+            self.stdout.write(self.style.ERROR(
+                f"✗ taches sans categorie declaree (TASK_TO_MODEL_TYPE) : "
+                f"{', '.join(sans_categorie)}"))
+            raise SystemExit(1)
+        self.stdout.write(self.style.SUCCESS(
+            f"✓ ancrage : les {len(TASK_TO_MODEL_TYPE)} taches declarent leur categorie"))
 
         manquantes = sorted(t for t in declares_task
                             if t not in {k.value for k in TASK_TO_PLATFORM_TAGS})

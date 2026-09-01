@@ -478,9 +478,12 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
             # on n'en invente pas une seconde. Elle est indexée sur les tags HF : on y
             # entre donc par la PROJECTION de notre tâche (`TASK_TO_PLATFORM_TAGS`),
             # jamais par notre valeur brute — sinon `transcription` n'y trouve rien.
-            from ..models import platform_tag
-            from .prospector import _TASK_MODEL_TYPE
-            mt = _TASK_MODEL_TYPE.get(platform_tag(task) or task)
+            # Table DIRECTE (notre tâche → notre catégorie). L'aller-retour par le tag
+            # HuggingFace ne pouvait pas répondre pour les 4 tâches qui n'en ont pas
+            # (`lip-sync`, `text-to-music`, `text-to-audio`, `obb`) : elles perdaient leur
+            # ancrage de catégorie, donc la garde contre un modèle d'une autre famille.
+            from ..models import model_type_for_task
+            mt = model_type_for_task(task)
         if mt:
             qs = qs.filter(model_type=mt)
     if downloaded_only:
