@@ -1,0 +1,62 @@
+/*
+ * WAMA — SQUELETTE des pages CATALOGUE (pages registres).
+ *
+ * Extrait le 2026-09-01 (demande Fabien) : six pages portaient ces règles À L'IDENTIQUE sous
+ * six préfixes (rg-, sk-, xs-, li-, lc-, fc-) — la duplication exacte que la règle de
+ * centralisation interdit au CSS comme au Python. Chargée globalement dans base.html, à côté
+ * de wama-filter-bar.css (même geste : l'apparence du model_manager promue référence commune).
+ *
+ * CE QUI VIT ICI : la structure — bandeau de stats, encart d'intention (hero), grille de
+ * cards, base de badge, textes secondaires, actions de card et bouton « Ouvrir ».
+ * CE QUI RESTE PAR PAGE : la sémantique — les COULEURS de variantes de badge (nature de
+ * registre, état de librairie…), les éléments propres (fc-io, lc-meta monospace…).
+ *
+ * Deltas assumés à l'extraction (les six copies divergeaient sur trois détails) :
+ *   - largeur mini des cards : 300–360px selon la page → variable `--cat-card-min`
+ *     (défaut 330px), qu'une page surcharge si sa densité le demande ;
+ *   - interligne de card 6px vs 8px → 8px partout ;
+ *   - titres h3 (1rem) vs h4 (.95rem) → .95rem, sélecteur commun h3/h4.
+ */
+
+.wama-cat-wrap { padding: 16px 20px; }
+
+.wama-cat-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.wama-cat-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+                 border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
+.wama-cat-stat b { color: #ffb300; }
+
+.wama-cat-hero { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+                 border-left: 3px solid #ffb300; border-radius: 10px; padding: 12px 16px;
+                 margin-bottom: 16px; }
+.wama-cat-hero h3 { font-size: 1rem; margin: 0 0 4px; }
+.wama-cat-hero p { margin: 0 0 6px; font-size: .82rem; color: #c3ccd6; line-height: 1.45; }
+.wama-cat-hero p:last-child { margin-bottom: 0; }
+
+.wama-cat-grid { display: grid; gap: 12px;
+                 grid-template-columns: repeat(auto-fill, minmax(var(--cat-card-min, 330px), 1fr)); }
+.wama-cat-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+                 border-radius: 10px; padding: 12px 14px;
+                 display: flex; flex-direction: column; gap: 8px; }
+.wama-cat-card > h3, .wama-cat-card > h4 { font-size: .95rem; margin: 0; display: flex;
+                                           align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.wama-cat-badge { font-size: .62rem; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: .03em; padding: 2px 7px; border-radius: 5px;
+                  white-space: nowrap; }
+
+.wama-cat-desc { font-size: .8rem; color: #b0bac4; line-height: 1.4; }
+.wama-cat-meta { font-size: .74rem; color: #8fa3b3; }
+.wama-cat-meta code { color: #c8d6e5; }
+
+.wama-cat-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.wama-cat-chip { font-size: .68rem; padding: 1px 7px; border-radius: 10px;
+                 background: rgba(255,255,255,.06); color: #9fb0bd; }
+
+.wama-cat-empty { color: #8fa3b3; padding: 30px; text-align: center; }
+
+.wama-cat-actions { display: flex; align-items: center; gap: 8px; margin-top: auto;
+                    padding-top: 6px; }
+.wama-cat-open { font-size: .78rem; color: #90caf9; text-decoration: none;
+                 border: 1px solid rgba(144,202,249,.35); border-radius: 6px;
+                 padding: 3px 10px; white-space: nowrap; }
+.wama-cat-open:hover { color: #bbdefb; border-color: rgba(144,202,249,.7); }
