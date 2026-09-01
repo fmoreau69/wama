@@ -13,7 +13,7 @@ Le GRAPHE est un JSON auto-porteur (nodes + links), sérialisé par wama-studio.
 from django.contrib.auth import get_user_model
 from django.db import models
 
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, JOB_STATUS_CHOICES
 
 User = get_user_model()
 
@@ -38,12 +38,8 @@ class StudioPipeline(models.Model):
 
 class StudioRun(ProcessingTimeMixin, models.Model):
     """Une exécution de pipeline (graphe figé au lancement + états par nœud)."""
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Terminé'),
-        ('FAILURE', 'Erreur'),
-    ]
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='studio_runs')
     pipeline = models.ForeignKey(StudioPipeline, on_delete=models.SET_NULL,
                                  null=True, blank=True, related_name='runs')

@@ -4,7 +4,7 @@ AI-powered content description and summarization
 """
 
 from django.db import models
-from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
@@ -26,13 +26,8 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
         'name_field': 'filename', 'size_field': 'file_size',
     }
 
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Termine'),
-        ('FAILURE', 'Echec'),
-    ]
-
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     CONTENT_TYPE_CHOICES = [
         ('image', 'Image'),
         ('video', 'Video'),

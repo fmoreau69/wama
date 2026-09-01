@@ -5,7 +5,7 @@ Gère la synthèse vocale (Text-to-Speech)
 
 from django.db import models
 from django.contrib.auth import get_user_model
-from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output, UploadToUserPath
 from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
@@ -22,13 +22,8 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
     Modèle représentant une tâche de synthèse vocale.
     """
 
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Terminé'),
-        ('FAILURE', 'Échec'),
-    ]
-
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     # Choix TTS partagés — source : wama.common.tts.constants
     TTS_MODEL_CHOICES    = TTS_MODEL_CHOICES
     LANGUAGE_CHOICES     = LANGUAGE_CHOICES
