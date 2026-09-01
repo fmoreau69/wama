@@ -504,6 +504,54 @@ def _tag_reel(nom: str):
         return ''
 
 
+# ── Registre des sources ─────────────────────────────────────────────────────────────────
+
+def _meta_aa(retenu, candidats):
+    d = {'aa_nom': retenu['nom'], 'aa_slug': retenu['slug'],
+         'aa_variantes': [(e['nom'], e['valeur']) for e in candidats]}
+    if retenu.get('sous_indices'):
+        d['sous_indices'] = retenu['sous_indices']
+    return d
+
+
+def _meta_arena(retenu, candidats):
+    return {'arena_nom': retenu['nom'], 'arena_elo': retenu['elo'],
+            'arena_votes': retenu['votes']}
+
+
+#: LES SOURCES, DÉCLARÉES. Ajouter une plateforme = une entrée ici, plus un chargeur qui rend
+#: `{catégorie: [entrées]}`. Avant le 2026-09-01 il fallait toucher CINQ endroits : les deux
+#: chargeurs nommés, le couple codé en dur de `synchroniser`, la priorité « AA d'abord, Arena
+#: en repli » écrite dans le corps de `_banc_pour_categorie`, les clés de meta préfixées par
+#: source, et une confrontation qui supposait EXACTEMENT deux sources. Une table de modalités
+#: déclarative (`CATEGORIES`) au-dessus d'un jeu de sources câblé : c'était déclaratif sur
+#: l'axe qui bouge le moins.
+#:
+#: ⚠ Ce qui se DÉCLARE ici : l'identité, la priorité, comment lire une valeur, comment nommer
+#: l'échelle, quelles clés de meta écrire. Ce qui ne se déclare PAS : le chargeur — chaque
+#: plateforme a sa forme (AA rend du JSON authentifié, Arena un parquet HuggingFace, Ollama
+#: du HTML). Un « chargeur générique paramétré » serait à la fois fragile et une surface de
+#: requête arbitraire côté serveur.
+#:
+#: `priorite` : le plus BAS porte `benchmark_index` quand il apparie ; les suivants n'ajoutent
+#: que leur meta. Les valeurs ne se mélangent jamais — échelles incommensurables.
+SOURCES = (
+    {'cle': 'aa', 'label': 'Artificial Analysis', 'priorite': 1,
+     'nom_source': 'artificial-analysis', 'chargeur': lambda: charger_aa(),
+     'valeur': lambda e: e.get('valeur'),
+     'echelle': lambda e, cat: e.get('echelle'),
+     'meta': _meta_aa},
+    {'cle': 'arena', 'label': 'Arena (leaderboard-dataset, CC-BY-4.0)', 'priorite': 2,
+     'nom_source': 'arena', 'chargeur': lambda: charger_arena(),
+     'valeur': lambda e: e.get('elo'),
+     'echelle': lambda e, cat: f'arena_elo_{CATEGORIES[cat]["arena"]}',
+     'meta': _meta_arena},
+)
+
+#: Ordre de consultation — figé une fois, pas retrié à chaque modèle.
+SOURCES_PAR_PRIORITE = tuple(sorted(SOURCES, key=lambda s: s['priorite']))
+
+
 # ── Synchronisation ──────────────────────────────────────────────────────────────────────
 
 def rang_centile(valeur, population, cle):
@@ -544,53 +592,45 @@ def _banc_pour_categorie(m, cat, alias, sources):
     inchangée. `idents` remonte pour que l'appelant distingue « absent des leaderboards » de
     « identité illisible ».
     """
+    nom_local = m.name or m.model_key
     idents = []
-    cands_aa, cands_ar = [], []
+    cands = {}
     if alias:       # confirmation humaine : égalité de slug, aucune heuristique
-        cands_aa = _apparier_alias(alias, sources.get('aa', {}).get(cat, []))
-        cands_ar = _apparier_alias(alias, sources.get('arena', {}).get(cat, []))
+        cands = {s['cle']: _apparier_alias(alias, sources.get(s['cle'], {}).get(cat, []))
+                 for s in SOURCES_PAR_PRIORITE}
     else:
         idents = _local_identities(m)
         stricte = (cat == 'llm')  # cf. _compatibles : jamais une variante frontière sans taille
-        nom_local = m.name or m.model_key
         for ident in idents:
-            cands_aa = _apparier(ident, sources.get('aa', {}).get(cat, []), stricte, nom_local)
-            cands_ar = _apparier(ident, sources.get('arena', {}).get(cat, []), stricte, nom_local)
-            if cands_aa or cands_ar:
+            cands = {s['cle']: _apparier(ident, sources.get(s['cle'], {}).get(cat, []),
+                                         stricte, nom_local)
+                     for s in SOURCES_PAR_PRIORITE}
+            if any(cands.values()):
                 break
-    if not cands_aa and not cands_ar:
+    if not any(cands.values()):
         return None, idents
 
     banc = {'categorie': cat}
     valeur = echelle = None
-    if cands_aa:
+    porteuse = None
+    for s in SOURCES_PAR_PRIORITE:
+        candidats = cands.get(s['cle']) or []
+        if not candidats:
+            continue
         # La variante qui CORRESPOND, pas la mieux notée (cf. `_choose_variant`).
-        retenu = _choose_variant(m.name or m.model_key, cands_aa, lambda e: e['valeur'])
-        valeur, echelle = retenu['valeur'], retenu['echelle']
-        banc.update({'source': 'artificial-analysis', 'aa_nom': retenu['nom'],
-                     'aa_slug': retenu['slug'],
-                     'aa_variantes': [(e['nom'], e['valeur']) for e in cands_aa]})
-        if retenu.get('sous_indices'):
-            banc['sous_indices'] = retenu['sous_indices']
-    if cands_ar:
-        best = _choose_variant(m.name or m.model_key, cands_ar, lambda e: e['elo'])
-        banc.update({'arena_nom': best['nom'], 'arena_elo': best['elo'],
-                     'arena_votes': best['votes']})
-        if valeur is None:      # AA absent : l'Elo Arena PORTE l'index, échelle nommée
-            valeur, echelle = best['elo'], f'arena_elo_{CATEGORIES[cat]["arena"]}'
-            banc['source'] = 'arena'
+        retenu = _choose_variant(nom_local, candidats, s['valeur'])
+        banc.update(s['meta'](retenu, candidats))
+        if valeur is None:      # la PREMIÈRE source appariée porte l'index ; les autres non
+            valeur, echelle = s['valeur'](retenu), s['echelle'](retenu, cat)
+            banc['source'] = s['nom_source']
+            porteuse = s
     banc['valeur'], banc['echelle'] = valeur, echelle
-    # Rang dans la population du banc QUI PORTE la valeur — jamais dans l'autre : un centile
+    # Rang dans la population du banc QUI PORTE la valeur — jamais dans un autre : un centile
     # se lit sur une seule population, sinon il redevient la comparaison inter-échelles qu'il
     # est censé remplacer.
-    if banc.get('source') == 'arena':
-        banc['rang_centile'] = rang_centile(valeur, sources.get('arena', {}).get(cat, []),
-                                            lambda e: e.get('elo'))
-        banc['population'] = len(sources.get('arena', {}).get(cat, []))
-    else:
-        banc['rang_centile'] = rang_centile(valeur, sources.get('aa', {}).get(cat, []),
-                                            lambda e: e.get('valeur'))
-        banc['population'] = len(sources.get('aa', {}).get(cat, []))
+    population = sources.get(porteuse['cle'], {}).get(cat, []) if porteuse else []
+    banc['rang_centile'] = rang_centile(valeur, population, porteuse['valeur']) if porteuse else None
+    banc['population'] = len(population)
     return banc, idents
 
 
@@ -605,11 +645,11 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
     from wama.model_manager.models import AIModel
 
     sources, indispo, motifs_cat = {}, {}, {}
-    for nom, chargeur in (('aa', charger_aa), ('arena', charger_arena)):
+    for s in SOURCES_PAR_PRIORITE:
         try:
-            sources[nom], motifs_cat[nom] = chargeur()
+            sources[s['cle']], motifs_cat[s['cle']] = s['chargeur']()
         except SourceIndisponible as e:
-            indispo[nom] = str(e)
+            indispo[s['cle']] = str(e)
     if not sources:
         raise SourceIndisponible(' ; '.join(f'{k}: {v}' for k, v in indispo.items()))
 
@@ -660,7 +700,10 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
         porteur = bancs[0]
         meta = {'synced_at': timezone.now().isoformat(),
                 **({'alias_declare': alias} if alias else {}),
-                'attribution': 'Artificial Analysis (Data API) / Arena leaderboard-dataset CC-BY-4.0',
+                # Attribution DÉRIVÉE du registre : une source ajoutée s'y cite d'elle-même,
+                # au lieu d'être oubliée dans une chaîne figée (l'Arena est sous CC-BY-4.0,
+                # l'attribution est une OBLIGATION de licence, pas une politesse).
+                'attribution': ' / '.join(s['label'] for s in SOURCES_PAR_PRIORITE),
                 'quant_locale': 'score tiers = borne haute (mesuré fp8/16, local souvent Q4)'}
         # Clés À PLAT du banc porteur : la forme d'avant le 2026-09-01, à l'identique. Les
         # consommateurs (`to_dict`, cards, `_rank_key`) ne voient aucune différence.
@@ -683,10 +726,13 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
     # portent le même appariement — le 1er dry-run imprimait chaque inversion jusqu'à 4×).
     vues = set()
     for (cat, _), lot in par_echelle.items():
-        # Seuls les modèles dont l'index vient d'AA participent (un index-repli Arena
-        # comparerait deux échelles — la confrontation exige deux mesures INDÉPENDANTES).
+        # Seuls les modèles dont l'index vient de la source PRIORITAIRE participent : un index
+        # porté par une source de repli comparerait deux échelles, alors que la confrontation
+        # exige deux mesures INDÉPENDANTES du même modèle. Lu depuis le registre plutôt
+        # qu'écrit « != 'arena' », qui supposait qu'il n'existe jamais que deux sources.
+        _primaire = SOURCES_PAR_PRIORITE[0]['nom_source']
         doubles = [(m, v, e) for m, v, e, src in lot
-                   if v is not None and e is not None and src != 'arena']
+                   if v is not None and e is not None and src == _primaire]
         for i in range(len(doubles)):
             for j in range(i + 1, len(doubles)):
                 (m1, a1, e1), (m2, a2, e2) = doubles[i], doubles[j]

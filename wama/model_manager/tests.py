@@ -713,6 +713,71 @@ class AppariementSansTailleTest(TestCase):
                                      ('hunyuanimage', (2, 1), None), False))
 
 
+class RegistreDesSourcesTest(TestCase):
+    """
+    Ajouter une plateforme de banc doit couter UNE ENTREE, pas cinq endroits touches.
+
+    Ce test EST le contrat d'evolutivite : il declare une troisieme source fictive et verifie
+    qu'elle traverse toute la chaine — chargement, appariement, index, echelle nommee, meta,
+    rang — sans qu'aucune ligne du moteur ne la connaisse.
+    """
+
+    def _source_fictive(self, priorite):
+        return {'cle': 'panel', 'label': 'Panel Fictif', 'priorite': priorite,
+                'nom_source': 'panel', 'valeur': lambda e: e.get('note'),
+                'echelle': lambda e, cat: 'panel_note_' + cat,
+                'meta': lambda retenu, cands: {'panel_nom': retenu['nom']},
+                'chargeur': lambda: ({'text-to-image': [
+                    {'nom': 'Widget 2', 'slug': 'widget-2', 'note': 7.5,
+                     'identite': ('widget', (2,), None)},
+                    {'nom': 'Autre 1', 'slug': 'autre-1', 'note': 1.0,
+                     'identite': ('autre', (1,), None)}]}, {})}
+
+    def _modele(self):
+        return AIModel.objects.create(
+            model_key='imager:widget-2', name='Widget 2', model_type='diffusion',
+            source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
+
+    def test_une_source_ajoutee_traverse_toute_la_chaine(self):
+        from .services import benchmark_sync as bs
+        m = self._modele()
+        panel = self._source_fictive(priorite=3)
+        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (panel,)):
+            bs.synchroniser(dry_run=False)
+        m.refresh_from_db()
+        self.assertEqual(m.benchmark_index, 7.5)
+        self.assertEqual(m.benchmark_meta['echelle'], 'panel_note_text-to-image')
+        self.assertEqual(m.benchmark_meta['source'], 'panel')
+        self.assertEqual(m.benchmark_meta['panel_nom'], 'Widget 2')
+        # Le rang se calcule sur la population de CETTE source, pas d'une autre.
+        self.assertEqual(m.benchmark_meta['rang_centile'], 50.0)
+        self.assertEqual(m.benchmark_meta['population'], 2)
+        # L'attribution est DERIVEE du registre : une source ajoutee s'y cite d'elle-meme.
+        self.assertIn('Panel Fictif', m.benchmark_meta['attribution'])
+
+    def test_c_est_la_PRIORITE_qui_decide_laquelle_porte_l_index(self):
+        """Les valeurs ne se melangent jamais : la source prioritaire porte l'index, les
+        autres n'ajoutent que leur meta. Une source de repli ne doit pas ecraser une mesure
+        d'une autre echelle."""
+        from .services import benchmark_sync as bs
+        m = self._modele()
+
+        def aa():
+            return {'text-to-image': [
+                {'nom': 'Widget 2', 'slug': 'widget-2', 'identite': ('widget', (2,), None),
+                 'valeur': 900.0, 'echelle': 'aa_elo_text_to_image'}]}, {}
+
+        principale = dict(bs.SOURCES_PAR_PRIORITE[0], chargeur=aa)
+        panel = self._source_fictive(priorite=9)     # moins prioritaire
+        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (principale, panel)):
+            bs.synchroniser(dry_run=False)
+        m.refresh_from_db()
+        self.assertEqual(m.benchmark_index, 900.0)                     # la prioritaire
+        self.assertEqual(m.benchmark_meta['echelle'], 'aa_elo_text_to_image')
+        self.assertEqual(m.benchmark_meta['panel_nom'], 'Widget 2')    # l'autre a ecrit sa meta
+        self.assertNotEqual(m.benchmark_index, 7.5)
+
+
 class RangCentileTest(TestCase):
     """
     Le rang est la seule lecture comparable D'UN BANC A L'AUTRE — et il n'est qu'un rang.
