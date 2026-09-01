@@ -633,6 +633,37 @@ rôles (scout/librarian) se produit MÉCANIQUEMENT (dry-run + rédaction manuell
 PENDING_HUMAN_VALIDATION) ; si une passe LLM doit tourner, c'est Fabien qui la lance,
 machine sous les yeux, HWiNFO journalisant.
 
+### 2026-09-01 ~21:21:38 — crash pendant une SUITE DE TESTS : la rampe la mieux corrélée
+### de la série (rails ↔ journaux WSL à la seconde près), rails PROPRES (4ᵉ mort couverte)
+
+HWiNFO tournait (relancé après le 31/08) : **4ᵉ mort couverte par rails, 4ᵉ fois rien** —
++12V à 12,192 V rigoureusement stable, températures en BAISSE (57,3 → 55,4 °C, limite 84),
+29,9 W au dernier échantillon. Archivé `rails_20260901_2121_crash.csv` (101 Mo).
+
+**Chronologie (rails 2 s ↔ `wama.log.1`, corrélée à la seconde)** :
+
+| instant | VRAM | quoi (journaux) |
+|---|---|---|
+| 19:34→21:18 | 4,8-6,7 Go | ~2 h de plateau, GPU au repos, 210 MHz |
+| 21:21:03-15 | — | **suite de tests en cours** (`model_selector` sans modèles = base de test vide ; users 72/73 éphémères ; messages du mécanisme AWAITING_RESOURCES du jour avec ses valeurs de test 1,0/24,0 Go) |
+| 21:21:24-36 | rampe | **`memory.index` indexe 6 fragments** (reader/doc/adhoc) — dernière ligne WSL à 21:21:36,4 |
+| 21:21:25 | **13 010 Mo** | +7,1 Go depuis 21:18 |
+| 21:21:37,96 | **15 792 Mo** | dernier échantillon rails = mort |
+
+**Déclencheur : une exécution `manage.py test` d'une AUTRE instance** (piste de Fabien,
+confirmée aux journaux — c'est aussi elle qui avait laissé la base de test orpheline vue à
+20:0x). La rampe (+9,9 Go en ~19 s) démarre PENDANT les tests d'indexation mémoire — des
+EMBEDDINGS, donc un chargement de modèle probable sur l'Ollama HÔTE. ⚠ Corrélation à la
+seconde, pas preuve d'imputation : rien ne journalise ce qu'Ollama a chargé (l'aveugle
+habituel), et bge-m3 seul n'explique pas 10 Go.
+
+**Ce que ce point ajoute à la série** : ① même profil que 28/08 11:09 et 30/08 03:03 (rampe
+puis mort à basse puissance, charge déjà retombée, l'ALLOCATION restant) ; ② la règle durcie
+du 31/08 visait les passes LLM **délibérées** — une suite de tests qui indexe pour de vrai
+est une passe LLM **par accident** : le trou est le même, la porte est différente ;
+③ séquelles quasi nulles (0 card zombie, 0 dump — vérifié), le swap orphelin de 8,04 Go
+purgé datait du 31/08.
+
 ### Ce qui reste ouvert
 
 - **Quel composant lâche** — inconnu. La charge est le **déclencheur**, pas le fautif : alimentation,
