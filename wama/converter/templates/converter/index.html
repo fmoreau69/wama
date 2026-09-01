@@ -76,119 +76,32 @@ l'inspection d'une card (hideOnInspect) au profit du host schéma en fin de bloc
     <small class="text-muted">Charge format + options pour les prochains uploads.</small>
 </div>
 
-<!-- Format de sortie -->
-<div class="mb-2">
-    <label class="form-label small fw-bold text-light mb-1">
-        <i class="fas fa-file-export"></i> Format de sortie
-    </label>
-    <select id="converterOutputFormat" class="form-select form-select-sm" disabled>
-        <option value="">— choisissez un fichier —</option>
-    </select>
-</div>
+{% comment %}Les CHAMPS de composition (format, qualité, resize, rotation, miroirs,
+panneaux vidéo/audio) ont été RETIRÉS le 2026-09-01 : ils redisaient à la main ce que
+`params.py` déclare déjà, et c'est cette double source qui avait produit la divergence du
+neutre de rotation (schéma `""`, page `"0"`). Ils sont désormais RENDUS du schéma dans
+l'hôte unique `#converterPanelParams` ci-dessous — le `media_type` détecté y pilote les
+`show_if`, exactement comme dans la modale. Restent ici les trois affordances qui ne sont
+PAS des paramètres : le type détecté, le profil, et la remise à zéro.{% endcomment %}
+</div>{# /converterUploadDefaults — composition (masquée pendant l'inspection) #}
 
-<hr class="border-secondary my-2">
+{% comment %}Hôte UNIQUE du schéma, à TROIS moments (motif validé sur la jumelle) : hors
+sélection il porte les DÉFAUTS des prochains dépôts (postés avec chaque fichier) ; à la
+sélection d'une card, ses valeurs ; à la désélection, les défauts reviennent. Toujours
+visible — c'est lui la zone de réglages.{% endcomment %}
+<div class="wama-params" id="converterPanelParams"></div>
 
-<!-- Options avancées (image) -->
-<div id="imageOptions" style="display:none;">
-    <div class="mb-2">
-        <label class="form-label small fw-bold text-light mb-1">
-            <i class="fas fa-sliders-h"></i> Qualité (JPG/WebP/AVIF)
-            <span id="qualityDisplay" class="text-muted ms-1">85</span>
-        </label>
-        <input type="range" id="imageQuality" class="form-range" min="1" max="100" value="85"
-               oninput="document.getElementById('qualityDisplay').textContent=this.value">
-    </div>
-    <div class="row g-1 mb-2">
-        <div class="col-6">
-            <label class="form-label small text-muted mb-1">Largeur (px)</label>
-            <input type="number" id="resizeW" class="form-control form-control-sm" placeholder="0 = auto" min="0">
-        </div>
-        <div class="col-6">
-            <label class="form-label small text-muted mb-1">Hauteur (px)</label>
-            <input type="number" id="resizeH" class="form-control form-control-sm" placeholder="0 = auto" min="0">
-        </div>
-    </div>
-</div>
-
-<!-- Options avancées (vidéo) -->
-<div id="videoOptions" style="display:none;">
-    <div class="mb-2">
-        <label class="form-label small fw-bold text-light mb-1">
-            <i class="fas fa-film"></i> Qualité vidéo (CRF 0–51)
-        </label>
-        <input type="number" id="videoCRF" class="form-control form-control-sm"
-               placeholder="23 (défaut)" min="0" max="51">
-    </div>
-    <div class="mb-2">
-        <label class="form-label small fw-bold text-light mb-1">
-            <i class="fas fa-tachometer-alt"></i> FPS <span class="text-muted">(vide = conserver)</span>
-        </label>
-        <input type="number" id="videoFPS" class="form-control form-control-sm"
-               placeholder="25, 30, 60…" min="1" max="120">
-    </div>
-</div>
-
-<!-- Transformations (rotation + miroir) — visible pour image & vidéo -->
-<div id="transformsOptions" style="display:none;">
-    <div class="mb-2">
-        <label class="form-label small fw-bold text-light mb-1">
-            <i class="fas fa-redo"></i> Rotation
-        </label>
-        <select id="rotation" class="form-select form-select-sm">
-            <option value="0" selected>Aucune</option>
-            <option value="90">90° gauche</option>
-            <option value="180">180° (inversé)</option>
-            <option value="270">90° droite</option>
-        </select>
-    </div>
-    <div class="row g-1 mb-2">
-        <div class="col-6">
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="flipH">
-                <label class="form-check-label small" for="flipH">↔ Miroir H</label>
-            </div>
-        </div>
-        <div class="col-6">
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="flipV">
-                <label class="form-check-label small" for="flipV">↕ Miroir V</label>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Options avancées (audio) -->
-<div id="audioOptions" style="display:none;">
-    <div class="mb-2">
-        <label class="form-label small fw-bold text-light mb-1">
-            <i class="fas fa-headphones"></i> Débit audio
-        </label>
-        <select id="audioBitrate" class="form-select form-select-sm">
-            <option value="">Auto</option>
-            <option value="128k">128 kbps</option>
-            <option value="192k" selected>192 kbps</option>
-            <option value="256k">256 kbps</option>
-            <option value="320k">320 kbps (MP3 max)</option>
-        </select>
-    </div>
-    <div class="form-check mb-2">
-        <input class="form-check-input" type="checkbox" id="audioNormalize">
-        <label class="form-check-label small" for="audioNormalize">
-            Normalisation loudness (EBU R128)
-        </label>
-    </div>
-</div>
+<div id="converterUploadActions">
 
 <hr class="border-secondary my-2">
 <button class="btn btn-outline-secondary btn-sm w-100" id="converterResetOptions">
     <i class="fas fa-undo"></i> Réinitialiser
 </button>
-</div>{# /converterUploadDefaults #}
+</div>{# /converterUploadActions #}
 
 {% comment %}Réglages de l'ÉLÉMENT inspecté — MÊMES params que la modale ⚙ (WamaParams
 context=panel, rendu dans le script inspecteur ci-dessous), valeurs appliquées depuis les
 data-* du gear (initFromSchema). Pattern describer (demande Fabien 18/08).{% endcomment %}
-<div id="converterPanelParams" class="d-none"></div>
 {% endblock %}
 
 {# ── Right panel : actions ───────────────────────────────────────────────── #}
@@ -367,14 +280,21 @@ document.addEventListener('DOMContentLoaded', function () {
         par media_type fait le tri). Même table, même sortie, un seul endroit.{% endcomment %}
         WamaParams.render(ph, CONVERTER_APP.schema, { context: 'panel', values: {} });
     }
-    function showPanelParams(on) { if (ph) ph.classList.toggle('d-none', !on); }
+    // L'hôte n'est plus MASQUÉ hors sélection (2026-09-01) : il EST la zone de réglages —
+    // défauts des prochains dépôts hors sélection, valeurs de la card à la sélection, et
+    // retour aux défauts à la désélection. `window.CONVERTER_DEFAUTS` est la mémoire de ces
+    // défauts, alimentée par le JS d'app (readMainPanelOptions/reset).
+    function showPanelParams(on) {
+        if (!ph || on || !window.WamaParams) return;
+        WamaParams.apply(ph, window.CONVERTER_DEFAUTS || {});
+    }
     WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector: '.job-card',
         batchSelector: '.batch-group',
         schema: (window.CONVERTER_APP && CONVERTER_APP.schema) || [],
         panelContainer: ph,
-        hideOnInspect: ['converterUploadDefaults'],
+        hideOnInspect: ['converterUploadDefaults', 'converterUploadActions'],
         itemLabel: function (id) { return "l'élément #" + id; },
         batchLabel: function (id) { return "le batch #" + id; },
         renderItemActions: function (host, card) {

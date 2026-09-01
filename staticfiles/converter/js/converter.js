@@ -27,7 +27,6 @@
     // ── DOM refs ─────────────────────────────────────────────────────────────
     const dropZone       = document.getElementById('converterDropZone');
     const fileInput      = document.getElementById('converterFileInput');
-    const outputFmtSel   = document.getElementById('converterOutputFormat');
     const mediaTypeBadge = document.getElementById('converterMediaTypeBadge');
     const queue          = document.getElementById('converterQueue');
     // État vide : ADOPTE la brique commune `WamaApp.emptyState` (2026-08-23). Le `const`
@@ -43,10 +42,6 @@
     });
 
     // Options panels
-    const imageOpts      = document.getElementById('imageOptions');
-    const videoOpts      = document.getElementById('videoOptions');
-    const audioOpts      = document.getElementById('audioOptions');
-    const transformsOpts = document.getElementById('transformsOptions');
 
     // Global action buttons
     const startAllBtn = document.getElementById('converterStartAllBtn');
@@ -101,102 +96,77 @@
                 `<i class="fas fa-${icons[type] || 'file'}"></i> ${formatLabel(type)}</span>`;
         }
 
-        // Format dropdown
-        outputFmtSel.innerHTML = '';
-        if (!type) {
-            outputFmtSel.disabled = true;
-            outputFmtSel.innerHTML = '<option value="">— choisissez un fichier —</option>';
-        } else {
-            outputFmtSel.disabled = false;
-            FORMATS[type].output.forEach(fmt => {
-                const opt = document.createElement('option');
-                opt.value = fmt;
-                opt.textContent = '.' + fmt.toUpperCase();
-                outputFmtSel.appendChild(opt);
-            });
-        }
-
-        // Options panels
-        imageOpts.style.display = type === 'image' ? '' : 'none';
-        videoOpts.style.display = type === 'video' ? '' : 'none';
-        audioOpts.style.display = type === 'audio' ? '' : 'none';
-        if (transformsOpts) {
-            transformsOpts.style.display = (type === 'image' || type === 'video') ? '' : 'none';
-        }
+        // Le TYPE détecté pilote le schéma : le champ caché `media_type` commande les
+        // `show_if` (quels réglages sont visibles) ET le registre d'options `formats` (quels
+        // formats de sortie sont proposés). Une seule déclaration fait les deux — plus de
+        // dropdown peuplé à la main ni de panneaux montrés/cachés.
+        applyOptionsToMainPanel(type, {});
 
         // Filter profile dropdown to current media type
         renderProfileDropdown(type);
     }
 
+    // ── Zone de composition = le SCHÉMA (portage 2026-09-01) ────────────────────
+    // Les champs de réglage écrits à la main ont disparu du gabarit : ils redisaient ce que
+    // `params.py` déclare déjà, et cette double source avait produit la divergence du neutre
+    // de rotation. Tout passe par l'hôte unique `#converterPanelParams`, rendu du schéma.
+    function panelHost() { return document.getElementById('converterPanelParams'); }
+
+    /** Réglages POSÉS dans le volet — hors `media_type` (piloté par la détection) et
+     *  `output_format` (posté à part). Vides ignorés : « non réglé » doit rester
+     *  distinguable, c'est ce qui laisse le préréglage agir (ROADMAP §23.2bis). */
     function readMainPanelOptions() {
+        const host = panelHost();
+        if (!host || !window.WamaParams) return {};
+        const lus = WamaParams.read(host);
         const opts = {};
-        if (currentMediaType === 'image') {
-            opts.quality  = parseInt(document.getElementById('imageQuality').value) || 85;
-            const rw = parseInt(document.getElementById('resizeW').value) || 0;
-            const rh = parseInt(document.getElementById('resizeH').value) || 0;
-            if (rw) opts.resize_w = rw;
-            if (rh) opts.resize_h = rh;
-        } else if (currentMediaType === 'video') {
-            const crf = document.getElementById('videoCRF').value;
-            if (crf) opts.video_quality = parseInt(crf);
-            const fps = document.getElementById('videoFPS').value;
-            if (fps) opts.fps = parseFloat(fps);
-        } else if (currentMediaType === 'audio') {
-            const br = document.getElementById('audioBitrate').value;
-            if (br) opts.audio_bitrate = br;
-            if (document.getElementById('audioNormalize').checked) opts.normalize = true;
-        }
-        // Transforms (visible for image and video)
-        if (currentMediaType === 'image' || currentMediaType === 'video') {
-            const rot = parseInt(document.getElementById('rotation')?.value || '0', 10);
-            if (rot) opts.rotation = rot;
-            if (document.getElementById('flipH')?.checked) opts.flip_h = true;
-            if (document.getElementById('flipV')?.checked) opts.flip_v = true;
-        }
+        Object.keys(lus).forEach(function (k) {
+            if (k === 'media_type' || k === 'output_format') return;
+            const v = lus[k];
+            if (v === '' || v == null || v === false) return;
+            opts[k] = v;
+        });
         return opts;
     }
 
-    function applyOptionsToMainPanel(mediaType, opts) {
-        opts = opts || {};
-        if (mediaType === 'image') {
-            const q = document.getElementById('imageQuality');
-            if (q) {
-                q.value = opts.quality != null ? opts.quality : 85;
-                const disp = document.getElementById('qualityDisplay');
-                if (disp) disp.textContent = q.value;
-            }
-            const rw = document.getElementById('resizeW'); if (rw) rw.value = opts.resize_w || '';
-            const rh = document.getElementById('resizeH'); if (rh) rh.value = opts.resize_h || '';
-        } else if (mediaType === 'video') {
-            const crf = document.getElementById('videoCRF');
-            if (crf) crf.value = opts.video_quality != null ? opts.video_quality : '';
-            const fps = document.getElementById('videoFPS');
-            if (fps) fps.value = opts.fps != null ? opts.fps : '';
-        } else if (mediaType === 'audio') {
-            const br = document.getElementById('audioBitrate');
-            if (br) br.value = opts.audio_bitrate || '192k';
-            const norm = document.getElementById('audioNormalize');
-            if (norm) norm.checked = !!opts.normalize;
-        }
-        // Transforms (image + video)
-        if (mediaType === 'image' || mediaType === 'video') {
-            const rot = document.getElementById('rotation');
-            if (rot) rot.value = String(opts.rotation || 0);
-            const fh = document.getElementById('flipH');
-            if (fh) fh.checked = !!opts.flip_h;
-            const fv = document.getElementById('flipV');
-            if (fv) fv.checked = !!opts.flip_v;
-        }
+    /** Format de sortie choisi dans le volet ('' si aucun). */
+    function panelOutputFormat() {
+        const host = panelHost();
+        return (host && window.WamaParams) ? (WamaParams.read(host).output_format || '') : '';
     }
 
-    // ── Upload ────────────────────────────────────────────────────────────────
+    /** Applique des valeurs au volet (profil chargé, type détecté) — le `media_type` est
+     *  posé AVEC, car c'est lui qui commande les `show_if` et la liste des formats. */
+    function applyOptionsToMainPanel(mediaType, opts) {
+        const host = panelHost();
+        if (!host || !window.WamaParams || !window.CONVERTER_APP) return;
+        const mt = mediaType || currentMediaType || '';
+        // RE-RENDRE, et pas seulement appliquer : c'est le RENDU qui résout les options
+        // dynamiques. Un `apply` seul changerait `media_type` sans re-borner la liste des
+        // formats — elle resterait l'union de toutes les familles (mesuré : 37 formats
+        // proposés pour une image, au lieu de ses 8).
+        WamaParams.render(host, CONVERTER_APP.schema, {
+            context: 'panel',
+            values: Object.assign({ media_type: mt }, opts || {}),
+        });
+        // Fidélité au comportement d'avant : un type détecté propose d'emblée un format (le
+        // dropdown d'origine sélectionnait le premier de la liste). Sans cela, déposer
+        // exigerait un clic de plus — et le repli serveur (« dernier format utilisé pour ce
+        // type ») ne serait jamais atteint, puisque l'envoi est refusé côté client.
+        const sel = host.querySelector('[data-param="output_format"], #wp-panel-output_format');
+        if (sel && !sel.value) {
+            const premier = Array.from(sel.options).find(function (o) { return o.value; });
+            if (premier) sel.value = premier.value;
+        }
+        window.CONVERTER_DEFAUTS = readMainPanelOptions();
+    }
 
     // Upload UN fichier → retourne son job_id (ou null). PAS de reload ici :
     // le reload se fait une fois après la consolidation (handleFiles).
     async function uploadFile(file) {
         const mediaType = detectMediaType(file.name);
         if (!mediaType) { WamaApp.toast(`Format non supporté : ${file.name}`, 'warning'); return null; }
-        const outputFmt = outputFmtSel.value;
+        const outputFmt = panelOutputFormat();
         if (!outputFmt) {
             WamaApp.toast('Choisissez un format de sortie avant d\'envoyer un fichier.', 'error');
             return null;
@@ -790,11 +760,12 @@
         if (profile.media_type !== currentMediaType) {
             setMediaType(profile.media_type);
         }
-        const fmtOptions = Array.from(outputFmtSel.options).map(o => o.value);
-        if (fmtOptions.includes(profile.output_format)) {
-            outputFmtSel.value = profile.output_format;
-        }
-        applyOptionsToMainPanel(profile.media_type, profile.options);
+        // Le format fait partie des valeurs appliquées au schéma : le select est peuplé
+        // par le registre commun selon `media_type`, donc l'affectation suit le même chemin
+        // que les autres réglages (plus de dropdown manipulé à la main).
+        applyOptionsToMainPanel(profile.media_type,
+                                Object.assign({ output_format: profile.output_format },
+                                              profile.options || {}));
     });
 
     profileDeleteBtn?.addEventListener('click', async () => {
@@ -816,17 +787,14 @@
 
     const resetBtn = document.getElementById('converterResetOptions');
     if (resetBtn) resetBtn.addEventListener('click', () => {
-        const q = document.getElementById('imageQuality');
-        if (q) { q.value = 85; document.getElementById('qualityDisplay').textContent = '85'; }
-        const rw = document.getElementById('resizeW'); if (rw) rw.value = '';
-        const rh = document.getElementById('resizeH'); if (rh) rh.value = '';
-        const crf = document.getElementById('videoCRF'); if (crf) crf.value = '';
-        const fps = document.getElementById('videoFPS'); if (fps) fps.value = '';
-        const br = document.getElementById('audioBitrate'); if (br) br.value = '192k';
-        const norm = document.getElementById('audioNormalize'); if (norm) norm.checked = false;
-        const rot = document.getElementById('rotation'); if (rot) rot.value = '0';
-        const fh = document.getElementById('flipH'); if (fh) fh.checked = false;
-        const fv = document.getElementById('flipV'); if (fv) fv.checked = false;
+        // Un reset = RE-RENDRE l'hôte depuis le schéma : ses défauts d'affichage reviennent,
+        // et rien n'est recopié à la main (c'est la copie manuelle qui dérivait).
+        const host = panelHost();
+        if (host && window.WamaParams && window.CONVERTER_APP) {
+            WamaParams.render(host, CONVERTER_APP.schema,
+                              { context: 'panel', values: { media_type: currentMediaType || '' } });
+            window.CONVERTER_DEFAUTS = readMainPanelOptions();
+        }
         if (profileSelect) {
             profileSelect.value = '';
             if (profileDeleteBtn) profileDeleteBtn.disabled = true;
