@@ -136,9 +136,44 @@ PATH_APP_MAP = [
 ]
 
 
+# ── Services du SUBSTRAT logés sous le préfixe d'une app ────────────────────────────────
+#
+# Une app peut héberger des routes qui ne LUI appartiennent pas : le catalogue de modèles est
+# monté sous `/model-manager/`, mais l'UI de SIX apps en dépend (descriptif sous le select,
+# filtrage voix/langues, options tirées du catalogue — briques communes `wama-model-help.js`,
+# `wama-model-caps.js`, `wama-params.js`). Les gater comme des pages du model_manager rendait
+# ces mécanismes MUETS pour tout utilisateur n'ayant pas droit à cette app — c'est-à-dire pour
+# tout le monde sauf les admins.
+#
+# ⚠ Mesuré le 2026-09-01 avant d'écrire cette exemption, et c'est ce qui la rend SÛRE : sur les
+# **53 routes API** du model_manager, **zéro route mutante ne tient par la seule garde d'app** —
+# installation, suppression, prospection, sauvegarde, nettoyage GPU portent TOUTES leur propre
+# `is_admin_or_dev`. Exempter le préfixe API ne change donc l'accès effectif que des deux seules
+# routes en « login seul », qui sont précisément les deux lectures du catalogue.
+#
+# 🔴 Le critère n'est PAS « c'est une API » — ce serait ouvrir les API des autres apps, dont la
+# garde d'app est la seule protection. Le critère est : *cette route sert-elle l'UI d'AUTRES
+# apps ?* Une entrée ici se justifie par ce test, et par l'audit des gardes propres ci-dessus.
+#
+# Décision de Fabien (2026-09-01) : « seul l'accès au TEMPLATE doit être restreint, pas le
+# fonctionnement du model manager ». Un cadrillage complet des permissions reste à faire — la
+# construction est là, les règles ne sont pas abouties.
+ROUTES_SUBSTRAT = (
+    'model-manager/api',
+)
+
+
 def app_id_for_path(path):
-    """app_id gardé correspondant à un chemin de requête, ou None."""
+    """app_id gardé correspondant à un chemin de requête, ou None.
+
+    `None` signifie « ce chemin n'est pas gardé par l'accès à une app » — ce qui vaut pour un
+    chemin hors app comme pour un service du substrat logé sous le préfixe d'une app
+    (cf. `ROUTES_SUBSTRAT`).
+    """
     p = path.strip('/')
+    for prefix in ROUTES_SUBSTRAT:
+        if p == prefix or p.startswith(prefix + '/'):
+            return None
     for prefix, app_id in PATH_APP_MAP:
         if p == prefix or p.startswith(prefix + '/'):
             return app_id
