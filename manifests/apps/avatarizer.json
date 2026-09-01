@@ -264,16 +264,12 @@
               "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
-                "choices": {
-                  "expr": "[('coqui-xtts', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('higgs-audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
-                  "imports": []
-                },
                 "default": {
-                  "expr": "'coqui-xtts'",
+                  "expr": "'synthesizer:coqui-xtts'",
                   "imports": []
                 },
                 "max_length": {
-                  "expr": "50",
+                  "expr": "128",
                   "imports": []
                 }
               },
@@ -852,6 +848,7 @@
             "min_label": "",
             "name": "text_content",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -865,28 +862,11 @@
             "advanced": false,
             "chip": true,
             "chip_label": "",
-            "choices": [
-              [
-                "coqui-xtts",
-                "XTTS v2 (Clonage vocal, 16 langues)"
-              ],
-              [
-                "bark",
-                "Bark (Naturel, Expressif, Effets sonores, 14 langues)"
-              ],
-              [
-                "kokoro",
-                "Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)"
-              ],
-              [
-                "higgs-audio",
-                "Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)"
-              ]
-            ],
+            "choices": null,
             "contexts": [
               "item"
             ],
-            "default": "coqui-xtts",
+            "default": "synthesizer:coqui-xtts",
             "dom_id": {
               "item": "settingsTtsModel"
             },
@@ -904,7 +884,10 @@
             "min_label": "",
             "name": "tts_model",
             "option_groups": null,
-            "options_source": null,
+            "options_query": {
+              "task": "text-to-speech"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
@@ -1000,6 +983,7 @@
             "min_label": "",
             "name": "language",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1100,6 +1084,7 @@
             "min_label": "",
             "name": "voice_preset",
             "option_groups": null,
+            "options_query": null,
             "options_source": "voices",
             "pills": [],
             "radio_name": "",
@@ -1138,6 +1123,7 @@
             "min_label": "",
             "name": "use_enhancer",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1176,6 +1162,7 @@
             "min_label": "",
             "name": "bbox_shift",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1399,7 +1386,7 @@
             "mode": "str (défaut : 'pipeline')",
             "quality_mode": "str (défaut : 'fast')",
             "text_content": "textarea — La relance régénère la voix depuis ce texte.",
-            "tts_model": "select — Modèle TTS (choix : coqui-xtts | bark | kokoro | higgs-audio) (défaut : 'coqui-xtts')",
+            "tts_model": "select — Modèle TTS (défaut : 'synthesizer:coqui-xtts')",
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. (défaut : False)",
             "voice_preset": "select — Voix (choix : default | male_1 | male_2 | female_1 | female_2 | custom | bark_v2_en_0 | bark_v2_en_1 …) (défaut : 'default')"
           },

@@ -24,7 +24,11 @@
       "supports_cloning": true,
       "task": "text-to-speech"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "higgs"
+      }
+    },
     "extra_info": {
       "hf_id": "bosonai/higgs-audio-v2-generation-3B-base",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/higgs"
