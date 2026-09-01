@@ -962,11 +962,16 @@ document.addEventListener('DOMContentLoaded', function() {
             ? '\nAutres métiers mesurés : ' + bancs.slice(1)
                 .map(b => `${b.categorie} ${b.valeur} (${b.echelle})`).join(', ')
             : '';
+        const rang = meta.rang_centile != null
+            ? `\nRang : ${meta.rang_centile}e centile sur ${meta.population || '?'} modèles `
+              + `du banc. C'est la seule lecture comparable D'UN BANC A L'AUTRE — un rang, `
+              + `pas une note, et calculé sur une population qui contient des modeles fermés.`
+            : '';
         const titre = `Performance MESURÉE par un banc tiers (Artificial Analysis / Arena), `
             + `distincte de la confiance de prospection.\nÉchelle : ${echelle} — une valeur `
             + `n'est comparable qu'à une valeur de la MÊME échelle (un Intelligence Index `
             + `~0-70 et un Elo ~1000-1500 ne se classent pas ensemble, et deux Elo de bancs `
-            + `différents non plus).${autres}`;
+            + `différents non plus).${rang}${autres}`;
         return `<span class="badge bg-info-subtle text-info border border-info ${extraClass || ''}"`
             + ` title="${titre.replace(/"/g, '&quot;')}">bench ${model.benchmark_index}`
             + `<span class="opacity-75 ms-1" style="font-size:.85em">${echelle}</span></span>`;
@@ -1403,6 +1408,17 @@ document.addEventListener('DOMContentLoaded', function() {
             { k: 'Échelle', get: function (m) {
                 const meta = m.benchmark_meta || {};
                 return meta.echelle || meta.categorie || '';
+            } },
+            {% comment %} Le rang est la SEULE lecture comparable entre bancs : les valeurs,
+            elles, ne le sont pas (Intelligence Index ~0-70 vs Elo ~1000-1500). Il est
+            ORDINAL — 90e et 80e centile ne disent pas « 10 % meilleur » — et calculé sur la
+            population du banc, qui contient des modèles fermés qu'on ne peut pas exécuter.
+            D'où la mention explicite de l'effectif. {% endcomment %}
+            { k: 'Rang dans son banc', get: function (m) {
+                const meta = m.benchmark_meta || {};
+                if (meta.rang_centile == null) return '';
+                return meta.rang_centile + 'e centile sur ' + (meta.population || '?')
+                    + ' modèles du banc (rang, pas une note)';
             } },
             {% comment %} Un modèle peut exercer PLUSIEURS métiers et être mesuré sur plusieurs
             bancs (ltx-video : T2V et I2V, tous deux chez AA). L'index porté par la card est

@@ -101,6 +101,18 @@ ALIAS: dict[str, str] = {
     # déclare `thinking` → variante Reasoning.
     'ollama:gemma4:e4b': 'gemma-4-e4b',
     'proposed:ollama:gemma4:e4b': 'gemma-4-e4b',
+    # 2026-09-01 : `deepseek-coder-v2:latest` est le 16B — donc le **Lite**, pas le 236B.
+    # Ce n'est pas une supposition, c'est le registre Ollama qui le dit : le manifeste de
+    # `latest` et celui de `16b` portent le MÊME digest
+    # (63fb193b3a9b4322a18e8c6b250ca2e70a5ff531e962dbf95ba089b2566f2fa5, 8,29 Go), quand
+    # `236b` en a un autre (123,78 Go). Même artefact, donc même modèle.
+    # Sans cette ligne, l'appariement va sur « DeepSeek-Coder-V2 » (4,7 = le 236B) : la règle
+    # des qualificatifs écarte « DeepSeek Coder V2 Lite Instruct » parce que « lite » est
+    # étranger à NOTRE nom — et elle a raison de le faire, c'est notre nom qui est muet.
+    # Aucune règle ne peut deviner qu'un tag sans qualificatif désigne la petite variante :
+    # c'est exactement ce que ce dictionnaire existe pour porter.
+    'ollama:deepseek-coder-v2:latest': 'deepseek-coder-v2-lite',
+    'proposed:ollama:deepseek-coder-v2:latest': 'deepseek-coder-v2-lite',
 }
 
 
@@ -494,6 +506,35 @@ def _tag_reel(nom: str):
 
 # ── Synchronisation ──────────────────────────────────────────────────────────────────────
 
+def rang_centile(valeur, population, cle):
+    """
+    Position de `valeur` dans la population de SON banc, en centiles (0-100), ou None.
+
+    POURQUOI (demande de Fabien, 2026-09-01 : « ramener toute valeur entre 0 et 100 pour
+    pouvoir comparer »). Le besoin est réel — sans lui, deux modèles mesurés par des bancs
+    différents ne se classent pas. Mais un min-max vers 0-100 serait la pire réponse :
+      • il n'est pas REPRODUCTIBLE — les bornes viennent de la population du leaderboard,
+        donc l'arrivée d'un modèle au sommet ferait baisser le score d'un modèle qui n'a
+        pas bougé. Une valeur de qualité qui change sans que le modèle change n'en est pas une ;
+      • il FABRIQUERAIT l'équivalence que ce module refuse depuis toujours : un Intelligence
+        Index est une moyenne de taux de réussite, un Elo une probabilité de préférence
+        humaine. Les ramener au même intervalle les rend comparables à l'œil sans qu'aucune
+        expérience ne les relie.
+    Un rang, lui, n'invente rien : il énonce la position de chacun parmi SES pairs, ce qui
+    est mesuré. Il s'AJOUTE — `benchmark_index` et son `echelle` restent la donnée ;
+    le centile est une lecture.
+
+    ⚠ Deux réserves, à dire partout où il s'affiche :
+      • il est ORDINAL — 90ᵉ et 80ᵉ centile ne veulent pas dire « 10 % meilleur » ;
+      • il dépend de la POPULATION du banc, qui contient des modèles fermés que nous ne
+        pouvons pas faire tourner : être médian chez AA n'est pas être médian chez soi.
+    """
+    valeurs = [v for v in (cle(e) for e in population) if v is not None]
+    if valeur is None or not valeurs:
+        return None
+    return round(100.0 * sum(1 for v in valeurs if v < valeur) / len(valeurs), 1)
+
+
 def _banc_pour_categorie(m, cat, alias, sources):
     """
     Mesure d'UNE catégorie pour un modèle → `(banc, idents)`, `banc` à None si non apparié.
@@ -539,6 +580,17 @@ def _banc_pour_categorie(m, cat, alias, sources):
             valeur, echelle = best['elo'], f'arena_elo_{CATEGORIES[cat]["arena"]}'
             banc['source'] = 'arena'
     banc['valeur'], banc['echelle'] = valeur, echelle
+    # Rang dans la population du banc QUI PORTE la valeur — jamais dans l'autre : un centile
+    # se lit sur une seule population, sinon il redevient la comparaison inter-échelles qu'il
+    # est censé remplacer.
+    if banc.get('source') == 'arena':
+        banc['rang_centile'] = rang_centile(valeur, sources.get('arena', {}).get(cat, []),
+                                            lambda e: e.get('elo'))
+        banc['population'] = len(sources.get('arena', {}).get(cat, []))
+    else:
+        banc['rang_centile'] = rang_centile(valeur, sources.get('aa', {}).get(cat, []),
+                                            lambda e: e.get('valeur'))
+        banc['population'] = len(sources.get('aa', {}).get(cat, []))
     return banc, idents
 
 
