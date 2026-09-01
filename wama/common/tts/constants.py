@@ -76,7 +76,15 @@ VOICE_PRESET_CHOICES = [
     ('male_2',         'Voix masculine 2'),
     ('female_1',       'Voix féminine 1'),
     ('female_2',       'Voix féminine 2'),
-    ('custom',         'Voix personnalisée (clonage)'),
+    # ⚠ `('custom', 'Voix personnalisée (clonage)')` RETIRÉ le 2026-09-01 (REMOVAL_LEDGER R43).
+    # Sentinelle héritée d'AVANT les voix réelles (`ua_<id>` UserAsset, `cv_<id>` CustomVoice) :
+    # elle ne désignait aucun fichier — `resolve_voice_preset('custom')` rendait `None`, donc le
+    # moteur parlait avec sa voix par DÉFAUT pendant que la card annonçait « Voix personnalisée
+    # (clonage) ». Mesuré avant retrait : 3 travaux sur 3 l'employaient, **aucun** avec voix de
+    # référence — l'option était donc fausse dans 100 % de ses usages. Une vraie voix clonée se
+    # choisit par son entrée (`ua_1` = « Voix Fab »), jamais par cette chaîne.
+    # *Une option qui promet un comportement et rend le comportement par défaut est pire qu'une
+    # option absente : l'utilisateur croit avoir choisi.*
     # Bark — presets par langue
     ('bark_v2_en_0',   'Bark EN Speaker 0'),
     ('bark_v2_en_1',   'Bark EN Speaker 1'),
