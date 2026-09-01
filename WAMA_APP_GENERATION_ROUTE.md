@@ -323,6 +323,43 @@ multi-surface) ; ④ composer + reader (déjà rendus par WamaParams : seule la 
 ⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) ; ⑨ surfaces transverses (assistant,
 studio, Lab — `cam_analyzer` n'a **aucun** usage du catalogue : chantier à part).
 
+##### ✅ Étapes ② et ③ LIVRÉES le 2026-09-01 (`fb9ecfd9`, `c8d35ee9`)
+
+**Mesure d'entrée** : catalogue **7** moteurs TTS, app **4**. Les 3 invisibles étaient installés
+et licenciés — dont **Kokoro-ONNX**, posé la veille par la chaîne (3,3 s de chargement contre
+87,9 s pour le `.pt`) et inchoisissable. **Après** : 7 servis, `model_options_catalog` **VERT**
+sur synthesizer (77/78) ET avatarizer (77/78) ; grille **6 ROUGE / 1 PARTIEL / 2 VERT / 1 N/A**.
+
+- **Espace de clés unifié** : la valeur stockée est la clé catalogue ENTIÈRE
+  (`synthesizer:kokoro`) — **103 lignes réelles migrées** (98 `VoiceSynthesis` + 5 `AvatarJob`,
+  migrations `synthesizer/0019` et `avatarizer/0012`, transformation PURE). `engine_for_model`
+  reste tolérant au suffixe nu, définitivement. Les tables de re-clé perdent leur raison d'être.
+- **Dispatch par `composition.runtime.engine` désormais UNIFORME** — il ne l'était pas : les 3
+  modèles orphelins en portaient un, les 4 déclarés par une app n'en avaient **aucun**. La
+  découverte sait le dire, en lisant `SYNTHESIZER_MODELS[*]['engine']` (aucun 5ᵉ lieu de
+  déclaration) ; `model_sync` n'écrase plus `composition` par une absence — **la règle « ne
+  jamais écraser un fait curé par une absence » que la clôture du 31/08 signalait manquante**.
+  Le service TTS n'ayant pas Django, le moteur déclaré lui est **passé** (champ `engine` du
+  contrat HTTP).
+
+⚠ **Deux demi-jambes du socle trouvées EN PORTANT** — le socle du 31/08 les avait laissées
+ouvertes sans que rien ne rougisse : (1) **`Param.options_query` n'existait pas** — le lecteur
+(`_optionQuery`) et l'endpoint étaient livrés, mais **aucun schéma ne pouvait l'émettre** ;
+(2) `ui_meta._engines()` se disait « ce que le select propose RÉELLEMENT » en dérivant d'une
+liste en dur — 4 moteurs là où l'utilisateur en voit 7, privant les 3 nouveaux de descriptif et
+d'appariement, **en silence**. *Une jambe livrée aux deux bouts et absente au milieu se voit
+seulement quand on s'en sert.*
+
+⚠⚠ **Retirer `choices=` n'est pas un geste local** : le champ perd aussi `get_FOO_display()`
+(4 appelants en 500, attrapés par les tests) **et** toute option pour un select rendu par
+`WamaParams` depuis `derive_from_model` — l'avatarizer, que je croyais hors périmètre, se
+serait ouvert sur une **liste déserte**. *Un select vide ne lève pas.* Suivre TOUS les lecteurs
+du champ, pas seulement l'app qu'on porte.
+
+**Reste ouvert** : 2 des 7 moteurs (`chatterbox-tts`, `transformers-remote-code`) n'ont
+**aucun backend** — ils sont proposés et le refus au lancement est explicite. Leur grisage
+relève de l'arbitrage « défaut constaté », toujours en attente d'un arbitrage.
+
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
 (entrées⇄modèles, `WamaInputMatch` + `WamaModelCaps`, **8/8 câblées**, adoption SOLDÉE). Elle
 n'est pas menacée — elle est *simplifiée* : mêmes clés partout, plus de traduction.
