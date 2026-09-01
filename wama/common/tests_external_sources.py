@@ -8,12 +8,15 @@ dont la docstring signalait elle-même « ~11 autres points d'appel » qui l'ign
 from __future__ import annotations
 
 import ast
+import json
 import os
 from pathlib import Path
 from unittest import mock
 
 from django.conf import settings
-from django.test import SimpleTestCase, override_settings
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 
 from wama.common import external_sources as es
 
@@ -107,6 +110,98 @@ class CleApiTest(SimpleTestCase):
         attributions = es.attributions()
         self.assertTrue(any('CC-BY-4.0' in a for a in attributions))
         self.assertEqual(len(attributions), len([s for s in es.SOURCES if s.attribution]))
+
+
+def _sonde_factice(key, timeout=None):
+    """Une sonde qui ne touche JAMAIS le réseau — les tests éprouvent la mécanique, pas l'ADSL."""
+    return {'key': key, 'url': f'http://factice/{key}', 'configured': True,
+            'reachable': key != 'duckduckgo', 'status': 200 if key != 'duckduckgo' else None,
+            'latency_ms': 3, 'error': '' if key != 'duckduckgo' else 'ConnectTimeout: factice'}
+
+
+class SondeTest(SimpleTestCase):
+    """La sonde du registre `sources_externes` — mécanique seulement, réseau mocké."""
+
+    def test_le_rapport_compte_juste_et_disjoint(self):
+        with mock.patch.object(es, 'probe', side_effect=_sonde_factice):
+            rapport = es.probe_all()
+        c = rapport['counts']
+        self.assertEqual(c['total'], len(es.SOURCES))
+        self.assertEqual(c['reachable'] + c['unreachable'], c['total'])
+        self.assertEqual(c['unreachable'], 1)          # la seule factice injoignable
+
+    def test_le_rapport_ecrit_se_relit_a_l_identique(self):
+        chemin = Path(settings.BASE_DIR) / 'media_tests_ignore'  # jamais utilisé : patché
+        with mock.patch.object(es, 'probe', side_effect=_sonde_factice), \
+             mock.patch.object(es, 'report_path') as rp:
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                rp.return_value = Path(tmp) / 'rapport.json'
+                ecrit = es.probe_all(write=True)
+                self.assertEqual(es.last_report(), json.loads(
+                    rp.return_value.read_text(encoding='utf-8')))
+                self.assertEqual(es.last_report()['counts'], ecrit['counts'])
+        self.assertFalse(chemin.exists())
+
+    def test_sans_rapport_ecrit_la_page_ne_sonde_pas(self):
+        with mock.patch.object(es, 'report_path') as rp:
+            rp.return_value = Path('nulle/part/rapport.json')
+            self.assertIsNone(es.last_report())
+
+    def test_la_sonde_ollama_passe_par_le_resolveur_wsl2(self):
+        # Sonder `127.0.0.1` depuis WSL2 accuserait de panne un service qui tourne sur l'hôte.
+        with mock.patch('wama.common.utils.ollama_host.ollama_base',
+                        return_value='http://passerelle:11434') as rb:
+            self.assertEqual(es._probe_url('ollama'), 'http://passerelle:11434')
+            rb.assert_called_once()
+
+    def test_une_reponse_http_meme_en_erreur_prouve_la_joignabilite(self):
+        # Un 403 (tier d'API) ou un 404 (pas de page racine) prouvent que le serveur répond.
+        reponse = mock.Mock(status_code=403)
+        with mock.patch('requests.get', return_value=reponse):
+            r = es.probe('artificial_analysis')
+        self.assertTrue(r['reachable'])
+        self.assertEqual(r['status'], 403)
+        reponse.close.assert_called_once()
+
+
+class RegistreSondeTest(TestCase):
+    """Le registre catalogué `sources_externes` : déclaration, rafraîchisseur, page."""
+
+    def test_declare_en_nature_mesure_et_execute_en_celery(self):
+        from wama.common.registries import CELERY, MEASURE, execution_of, get
+        r = get('sources_externes')
+        self.assertEqual(r.nature, MEASURE)
+        self.assertEqual(execution_of(r), CELERY)
+        self.assertEqual(r.permission, 'staff', "la sonde émet des requêtes sortantes")
+
+    def test_le_rafraichisseur_sonde_et_rend_le_compte(self):
+        from wama.common.registries import refresh
+        with mock.patch.object(es, 'probe', side_effect=_sonde_factice), \
+             mock.patch.object(es, 'report_path') as rp:
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                rp.return_value = Path(tmp) / 'rapport.json'
+                res = refresh('sources_externes')
+        self.assertTrue(res.ok)
+        self.assertEqual(res.total, len(es.SOURCES))
+        self.assertIn('injoignable', ' '.join(res.messages))
+
+    def test_la_page_se_rend_et_distingue_declaration_et_sonde(self):
+        user = get_user_model().objects.create_user('sources_page_test', password='x')
+        self.client.force_login(user)
+        with mock.patch.object(es, 'last_report', return_value=None):
+            r = self.client.get(reverse('common:external_sources_catalog'))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.context['lignes']), len(es.SOURCES))
+        # Sans rapport écrit, la page le DIT — elle ne sonde jamais elle-même.
+        self.assertContains(r, 'jamais sond')
+
+    def test_le_registre_designe_bien_cette_page(self):
+        from wama.common.registries import overview
+        entree = next(r for r in overview() if r['key'] == 'sources_externes')
+        self.assertEqual(entree['url_name'], 'common:external_sources_catalog')
+        self.assertTrue(reverse(entree['url_name']))
 
 
 class AucuneRecidiveTest(SimpleTestCase):

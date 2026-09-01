@@ -14,6 +14,11 @@ générique paramétré depuis l'écran » serait à la fois fragile et une surf
 arbitraire côté serveur. Le parseur reste chez le consommateur ; seule son ADRESSE vient d'ici.
 C'est la ligne écrite dans `benchmark_sync.SOURCES` (registre SŒUR, cf. plus bas) — elle vaut ici.
 
+L'étape 3 (le registre catalogué `sources_externes`, nature `mesure`) vit en bas de ce module :
+`probe_all()` SONDE chaque source — clé posée ? service joignable ? — et écrit son rapport dans
+`logs/external_sources_report.json`. La valeur de la page est dans la sonde : un inventaire pur
+n'aurait aucun bouton, la doctrine des registres le refuse.
+
 ── Ce que la mesure du 2026-09-01 a trouvé, et qui motive la brique ────────────────────────
 
 Le handoff annonçait « 9 sources dans 7 fichiers ». Le relevé exhaustif en donne **une
@@ -226,3 +231,91 @@ def attributions() -> tuple[str, ...]:
     figée quelque part est une chaîne qu'on oubliera de mettre à jour.
     """
     return tuple(s.attribution for s in SOURCES if s.attribution)
+
+
+# ── La SONDE (étape 3) — ce que le bouton « Actualiser » de la page mesure ──────────────────
+
+#: Court à dessein : la sonde répond « joignable ? », pas « performant ? ». Un service local qui
+#: met 5 s à répondre est déjà une information — la latence est relevée à part.
+PROBE_TIMEOUT_S = 5.0
+
+
+def _probe_url(key: str) -> str:
+    """Adresse EFFECTIVEMENT sondée. Pour Ollama, le résolveur spécialisé : sonder `127.0.0.1`
+    depuis WSL2 dirait « injoignable » d'un service qui tourne — le mensonge exact que la
+    réécriture vers la passerelle Windows existe pour empêcher."""
+    if key == 'ollama':
+        from wama.common.utils.ollama_host import ollama_base
+        return ollama_base()
+    return base_url(key)
+
+
+def probe(key: str, timeout: float = PROBE_TIMEOUT_S) -> dict:
+    """Sonde UNE source : clé posée ? adresse joignable ? en combien de temps ?
+
+    « Joignable » = le serveur a RÉPONDU en HTTP, quel que soit le statut : un 403 (tier d'API),
+    un 404 (pas de page à la racine) ou un 405 prouvent autant la joignabilité qu'un 200 — seul
+    un échec de connexion ou un délai expiré dit le contraire. Exiger `200` ferait accuser de
+    panne des sources en parfaite santé dont la racine n'est simplement pas une page.
+
+    ⚠ La sonde ne suit PAS les redirections et ne lit PAS le corps (`stream=True`, fermé
+    aussitôt) : elle prouve la connectivité, elle ne télécharge rien.
+    """
+    import time as _time
+
+    import requests
+
+    out = {'key': key, 'url': _probe_url(key), 'configured': is_configured(key),
+           'reachable': None, 'status': None, 'latency_ms': None, 'error': ''}
+    t0 = _time.monotonic()
+    try:
+        r = requests.get(out['url'], timeout=timeout, proxies=proxies_for(key),
+                         stream=True, allow_redirects=False)
+        out['reachable'] = True
+        out['status'] = r.status_code
+        r.close()
+    except requests.RequestException as e:
+        out['reachable'] = False
+        out['error'] = f"{type(e).__name__}: {str(e)[:160]}"
+    out['latency_ms'] = round((_time.monotonic() - t0) * 1000)
+    return out
+
+
+def report_path():
+    from django.conf import settings
+    from pathlib import Path
+    return Path(settings.BASE_DIR) / 'logs' / 'external_sources_report.json'
+
+
+def probe_all(write: bool = False) -> dict:
+    """Sonde TOUTES les sources déclarées, et écrit le rapport si demandé.
+
+    Tourne en Celery (nature `mesure` du registre `sources_externes`) : quatorze requêtes
+    réseau, même courtes, n'ont rien à faire dans un worker web.
+    """
+    import datetime
+    import json
+
+    results = [probe(s.key) for s in SOURCES]
+    counts = {
+        'total': len(results),
+        'reachable': sum(1 for r in results if r['reachable']),
+        'unreachable': sum(1 for r in results if r['reachable'] is False),
+        'unconfigured': sum(1 for r in results if not r['configured']),
+    }
+    rapport = {'generated_at': datetime.datetime.now().isoformat(timespec='seconds'),
+               'counts': counts, 'results': results}
+    if write:
+        p = report_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(rapport, ensure_ascii=False, indent=2), encoding='utf-8')
+    return rapport
+
+
+def last_report() -> dict | None:
+    """Le dernier rapport ÉCRIT, ou None — la page l'affiche sans jamais sonder elle-même."""
+    import json
+    try:
+        return json.loads(report_path().read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None

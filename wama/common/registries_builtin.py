@@ -216,6 +216,46 @@ register(Registry(
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
+# SOURCES EXTERNES — la sonde est la valeur de la page (8ᵉ registre, 2026-09-01)
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def _refresh_external_sources() -> RefreshResult:
+    """Sonde chaque source déclarée (clé posée ? joignable ?) et écrit le rapport.
+
+    Nature `mesure`, PAS `derive` : la déclaration est bien dérivable à chaque requête, mais la
+    valeur de la page est la SONDE — quatorze requêtes réseau qui n'ont rien à faire dans un
+    rendu de page ni dans un worker web. D'où Celery, comme la grille de conformité.
+    """
+    from .external_sources import probe_all
+    rapport = probe_all(write=True)
+    c = rapport['counts']
+    morceaux = [f"{c['reachable']} joignable(s)"]
+    if c['unreachable']:
+        morceaux.append(f"{c['unreachable']} injoignable(s)")
+    if c['unconfigured']:
+        morceaux.append(f"{c['unconfigured']} sans clé")
+    return RefreshResult(ok=True, updated=c['total'], total=c['total'],
+                    messages=(' · '.join(morceaux),))
+
+
+def _count_external_sources() -> int:
+    from .external_sources import SOURCES
+    return len(SOURCES)
+
+
+register(Registry(
+    key='sources_externes', label='Sources externes', nature=MEASURE,
+    source="Registre déclaratif `common/external_sources.py` + sonde réseau (clé, joignabilité)",
+    refresh=_refresh_external_sources, count=_count_external_sources,
+    url_name='common:external_sources_catalog',
+    doc='WAMA_MECANISMES.md',
+    description="Sonde chaque source déclarée : clé d'API posée ? adresse joignable (proxy UGE "
+                "compris) ? La déclaration, elle, ne s'actualise pas — elle vit en code. "
+                "Réservé au staff : la sonde émet des requêtes sortantes et écrit un rapport.",
+))
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
 # Les DÉRIVÉS — rien à actualiser, et c'est une PROPRIÉTÉ, pas un manque
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
