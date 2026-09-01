@@ -446,6 +446,39 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
         </table>
     </div>
 
+    {% comment %}3ᵉ grille — les DROITS (WAMA_VERIFICATION §3ter, branchée le 2026-09-01).
+    Orthogonale aux deux autres : un geste peut marcher parfaitement pour quelqu'un qui
+    n'aurait pas dû l'atteindre, et ni l'adoption ni la fonctionnelle ne le verraient.
+    Deux scénarios (comptes de profil × surfaces gardées ; le visiteur), verdict + détail
+    complet — le détail EST la mesure (couples, apps discriminantes, désaccords nommés).{% endcomment %}
+    {% if grille_droits %}
+    <div class="d-flex align-items-center justify-content-between mb-3 mt-4 flex-wrap gap-2">
+        <h2 class="h5 text-white mb-0"><i class="fas fa-user-shield me-2 text-secondary"></i>Grille des droits</h2>
+        <small class="text-white-50">ce qui est octroyé est-il ce qui est appliqué — décision calculée vs requêtes réelles</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-dark table-sm summary-table align-middle">
+            <thead>
+                <tr><th style="width:14rem">Scénario</th><th class="text-center" style="width:6rem">Verdict</th><th>Dernière mesure — le détail est la mesure</th></tr>
+            </thead>
+            <tbody>
+                {% for sc in grille_droits %}
+                <tr>
+                    <td><code>{{ sc.id }}</code></td>
+                    <td class="text-center">
+                        {% if sc.never_run %}<span class="badge bg-secondary mini-badge">jamais</span>
+                        {% elif sc.skipped %}<span class="badge bg-warning text-dark mini-badge">skip</span>
+                        {% elif sc.ok %}<span class="badge bg-success mini-badge">accord</span>
+                        {% else %}<span class="badge bg-danger mini-badge">désaccord</span>{% endif %}
+                    </td>
+                    <td class="small text-white-50">{{ sc.detail }}{% if sc.at %} <span class="text-secondary">({{ sc.at }})</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
 </div>
 
 {{ apps_list|json_script:"apps-data" }}

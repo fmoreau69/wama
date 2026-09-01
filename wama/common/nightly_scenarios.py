@@ -459,3 +459,11 @@ def register_scenarios():
     register(id='common.tool_api.garde_fous', app='common', stage='wired',
              description='Chemins négatifs de la porte : gating, bornes de choix, garde MEDIA_ROOT (rollback)',
              run=_run_tool_api_garde_fous, timeout_s=120)
+    # ── La 3ᵉ grille : les DROITS (WAMA_VERIFICATION §3ter) ──────────────────────────────
+    # ⚠ Branchée le 2026-09-01 : l'instrument était COMPLET dans rights_matrix.py — les deux
+    # runners ET leur registreur `register_rights_scenarios()` — mais aucun appelant ne le
+    # nommait : la 3ᵉ grille était débranchée depuis sa livraison. Le motif « brique sans
+    # consommateur », sur une garde de SÉCURITÉ. (Ma première correction avait réécrit deux
+    # register() À LA MAIN ici — le registreur du DOMICILE existait, c'est lui qu'on appelle.)
+    from wama.common.services.rights_matrix import register_rights_scenarios
+    register_rights_scenarios()

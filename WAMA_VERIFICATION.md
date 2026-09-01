@@ -38,7 +38,7 @@ lire « vert » là où l'utilisateur voit un écran mort.
 | Instrument | `check_app_conformity` — analyse statique du code | scénarios nocturnes — Playwright, clics réels | `rights_matrix` — décision calculée **vs** requêtes HTTP réelles |
 | Coût | secondes, aucun service requis | minutes, exige serveur + base (+ parfois GPU) | ~20 s, exige serveur + base, **aucun navigateur** |
 | Source | `common/services/conformity_checker.py` | `common/services/nightly_tests.py` + `ui_smoke.py` | `common/services/rights_matrix.py` |
-| Sortie | `logs/conformity_report.json` → `/apps/` | `logs/nightly_tests/nightly_*.json` → **`/apps/` aussi (01/09, `functional_grid`)** | idem nocturne |
+| Sortie | `logs/conformity_report.json` → `/apps/` | `logs/nightly_tests/nightly_*.json` → **`/apps/` aussi (01/09, `functional_grid`)** | idem nocturne → **section propre sur `/apps/` (01/09)** |
 | Prouve | l'homogénéité | le fonctionnement | l'**application** de la politique |
 | Ne prouve PAS | que ça marche | que le code est homogène | que la politique soit la bonne |
 
@@ -1021,3 +1021,26 @@ pas de sens. Le scan signale un manque de couverture, il ne dicte pas la répons
   un critère de grille pour un défaut que la grille ne peut pas voir (§1).
 - `PROJECT_STATUS.md §Tests fonctionnels nocturnes` — le runner, le registre, la sérialisation
   VRAM-aware.
+
+
+---
+
+## 7. La grille des DROITS : BRANCHÉE le 2026-09-01 — et son premier verdict
+
+L'instrument était **complet et débranché** : `rights_matrix.py` contenait les deux runners
+ET leur registreur `register_rights_scenarios()` — qu'aucun appelant ne nommait. La 3ᵉ
+grille n'avait donc jamais tourné (0 trace dans les `nightly_*.json`). Le motif « brique
+sans consommateur », sur une garde de SÉCURITÉ. Branchée par UNE ligne
+(`nightly_scenarios.register_scenarios()` appelle le registreur du domicile) ; rendue sur
+`/common/apps/` en **section propre** (orthogonale — pas fondue dans la fonctionnelle, les
+scénarios `common.rights_*` en sont extraits pour ne pas compter deux fois).
+
+**Premier verdict (2026-09-01), deux DÉSACCORDS — c'est la grille qui paie :**
+
+| Scénario | Verdict | Nature |
+|---|---|---|
+| `common.rights_matrix` | ❌ **3 ACCÈS NON DÛS** : `/model-manager/api/models/db/` répond 200 aux profils commun/communication/recherche que `accessible()` refuse | **défaut RÉEL de garde** sur une surface d'API — périmètre model_manager (cf. `PROFILES §8.9.3`, arbitrage en cours). Bonus de la mesure : 14/16 apps discriminantes, branche JSON de `_deny` non exercée |
+| `common.rights_anonymous` | ❌ 12 index d'apps rendus en 200 au visiteur sans session | **instrument en retard sur la DÉCISION** : « visiteur guidé » tranché le 30-31/08 — les index se VOIENT, ce sont les ACTIONS qui se gardent. Le scénario doit être re-ciblé sur les actions (POST start/upload/delete anonymes → refus attendu) ; en l'état son rouge mesure la politique d'avant la décision |
+
+⚠ Ne pas « corriger » le rouge `anonymous` en ouvrant `accessible()` à l'anonyme ni en
+vérouillant les index : la décision est le visiteur GUIDÉ, c'est le SCÉNARIO qui se recale.

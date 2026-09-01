@@ -374,11 +374,25 @@ def apps_catalog_view(request):
     # geste exécuté a produit l'effet » — dernier verdict de CHAQUE scénario nocturne,
     # jamais « le dernier run » (un run est souvent partiel). Les scénarios enregistrés
     # jamais exécutés y figurent : ne montrer que ce qui a tourné surestimerait la couverture.
+    grille_droits = []
     try:
         from .nightly_scenarios import register_scenarios
         register_scenarios()
         from .services.nightly_tests import functional_grid
         grille_fonctionnelle = functional_grid()
+        # ── 3ᵉ grille : les DROITS (WAMA_VERIFICATION §3ter — branchée le 01/09). Orthogonale
+        # aux deux autres, PAS un sous-cas : un geste peut marcher parfaitement pour quelqu'un
+        # qui n'aurait pas dû l'atteindre. Les scénarios common.rights_* sont donc EXTRAITS de
+        # la grille fonctionnelle (les compter deux fois brouillerait les deux lectures) et
+        # rendus dans leur propre section, verdict et détail complets.
+        commun = grille_fonctionnelle.get('common')
+        if commun:
+            grille_droits = [s for s in commun['scenarios'] if s['id'].startswith('common.rights')]
+            for s in grille_droits:
+                commun['scenarios'].remove(s)
+                cle = 'never' if s['never_run'] else ('skip' if s['skipped']
+                                                     else ('ok' if s['ok'] else 'ko'))
+                commun[cle] -= 1
     except Exception:
         grille_fonctionnelle = {}   # la grille d'adoption reste servie même si celle-ci casse
 
@@ -387,6 +401,7 @@ def apps_catalog_view(request):
                    'conformity_measured_at': measured_at,
                    'facettes_apps': facettes,
                    'grille_fonctionnelle': grille_fonctionnelle,
+                   'grille_droits': grille_droits,
                    'abo': _resume_abo(request.user, 'app', autorisees),
                    'abo_ids': autorisees})
 
