@@ -67,6 +67,57 @@ class PointDApplicationTests(TestCase):
             "(app_id → url montée, app_id résolu) : "
             f"{muettes}. Ajouter le préfixe à PATH_APP_MAP.")
 
+    def test_la_PAGE_du_model_manager_reste_gardee_malgre_l_exemption_de_ses_api(self):
+        """L'exemption du substrat ne doit JAMAIS déborder sur les pages.
+
+        `ROUTES_SUBSTRAT` ouvre `/model-manager/api/…` pour que l'UI des autres apps puisse
+        lire le catalogue. La PAGE, elle, reste la surface de l'app — c'est exactement la
+        frontière posée par Fabien (« seul l'accès au template doit être restreint »). Une
+        exemption qui grignoterait la page rendrait la politique du model_manager décorative,
+        sans que rien ne le signale.
+        """
+        self.assertEqual(app_id_for_path('/model-manager/'), 'model_manager')
+        self.assertEqual(app_id_for_path('/model-manager/libraries/'), 'model_manager')
+        self.assertEqual(app_id_for_path('/model-manager/functions/'), 'model_manager')
+        # Les deux lectures dont dépend l'UI des autres apps : plus gardées par l'app.
+        self.assertIsNone(app_id_for_path('/model-manager/api/models/db/'))
+        self.assertIsNone(app_id_for_path('/model-manager/api/models/options/'))
+
+    def test_aucune_route_API_qui_MUTE_ne_tient_par_la_seule_garde_d_app(self):
+        """La condition de SÛRETÉ de `ROUTES_SUBSTRAT`, vérifiée mécaniquement.
+
+        Exempter un préfixe API de la garde d'app n'est sûr QUE si chaque route mutante
+        derrière lui porte sa propre garde (défense en profondeur). Mesuré à la main le
+        2026-09-01 : 53 routes, 0 défaut. Ce test empêche qu'une route ajoutée demain,
+        protégée par le seul gating d'app, se retrouve ouverte SANS QUE PERSONNE NE LE VOIE —
+        c'est-à-dire la panne muette que l'exemption pourrait introduire à retard.
+        """
+        import inspect
+
+        from wama.model_manager import urls as mm_urls, views as mm_views
+
+        source = inspect.getsource(mm_views)
+        nues = []
+        for p in mm_urls.urlpatterns:
+            motif = str(p.pattern)
+            if not motif.startswith('api/'):
+                continue
+            nom_vue = getattr(p.callback, '__name__', '')
+            idx = source.find(f"def {nom_vue}(")
+            if idx <= 0:
+                continue
+            entete = source[max(0, idx - 400):idx]
+            mute = 'require_POST' in entete
+            garde = ('is_admin_or_dev' in entete or 'user_passes_test' in entete
+                     or 'staff_member_required' in entete)
+            if mute and not garde:
+                nues.append(motif)
+        self.assertEqual(
+            nues, [],
+            "route(s) API MUTANTES sans garde propre, alors que `ROUTES_SUBSTRAT` exempte "
+            f"leur préfixe de la garde d'app : {nues}. Leur poser un `is_admin_or_dev`, "
+            "ou retirer l'exemption.")
+
     def test_toute_surface_gardee_a_bien_une_url_reversible(self):
         # Garde d'instrument : si un `url_name` cassait, le test précédent passerait en
         # n'examinant plus rien.
