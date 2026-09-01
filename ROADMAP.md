@@ -2902,9 +2902,11 @@ card (constat Fabien, card 43, image PNG passée à SAM3) :
 **Ce n'est pas un choix, c'est un effet de bord** : le compactage a été écrit pour la card, la
 modale n'a jamais eu de rendu. Les deux ont chacune leur logique (extrait lisible / résultat
 exact et téléchargeable) — ce qui déroute, c'est que **rien ne dit à l'utilisateur qu'il
-regarde une source markdown**. Trois issues possibles, à trancher avec l'app Editor plutôt
-qu'en isolé : (a) laisser brut (c'est le résultat), (b) RENDRE le markdown, (c) **bascule
-« rendu / source »** — la seule qui n'enlève rien, et le comportement naturel d'un éditeur.
+regarde une source markdown**. Trois issues étaient possibles : (a) laisser brut, (b) RENDRE
+le markdown, (c) bascule « rendu / source ». ✅ **(c) RETENUE par Fabien le 2026-09-01** — la
+seule qui n'enlève rien (le brut reste accessible, donc téléchargeable et vérifiable), et le
+comportement naturel d'un éditeur. Elle se livre AVEC l'éditeur, pas avant : c'est déjà la
+moitié de sa surface.
 ⚠ Ne PAS traiter ça comme « une spécificité reader à retirer » : le compactage est déjà
 COMMUN, seul le rendu de la modale manque au parc entier.
 
@@ -2943,3 +2945,118 @@ assistée du Transcriber (pilote livré : `wama/transcriber/TRANSCRIBER_CORRECTI
 **APRÈS le portage du monde Médias.** D'ici là : ne rien changer au rendu de la modale
 (décision Fabien du 2026-09-01), et ne pas « corriger » l'écart card/modale en isolé — il se
 tranche avec la bascule rendu/source de l'éditeur.
+
+
+---
+
+## 22. **Profils de réglages** — généraliser le mécanisme du converter à toutes les apps
+
+> Décision Fabien du 2026-09-01, en réponse à la question « faut-il retirer la colonne
+> `ConversionJob.profile` ? ». **Non : c'est l'inverse.** Le profil n'est pas un résidu,
+> c'est une fonctionnalité à ÉTENDRE — « un utilisateur enregistre un profil de réglage
+> pour le réappliquer ailleurs ».
+
+### 22.1 L'existant (mesuré le 2026-09-01)
+
+Le **converter est la seule app** à avoir des profils nommés : modèle `ConversionProfile`
+(nom, description, `media_type`, `output_format`, `options`), 3 routes
+(`profile_list`/`profile_save`/`profile_delete`) et l'UI dans son volet. Les 9 autres apps
+n'ont rien d'équivalent — un utilisateur qui a trouvé ses bons réglages ne peut pas les
+nommer ni les rejouer.
+
+⚠ Deux limites de l'implémentation actuelle, à ne pas reproduire en généralisant :
+- la colonne `ConversionJob.profile` (FK) n'est **jamais écrite ni lue** — un job ne se
+  souvient pas du profil qui l'a produit. À **câbler** en même temps (une ligne au dépôt),
+  pas à supprimer ;
+- le profil s'applique **côté client** (le JS remplit les champs du volet), donc il n'existe
+  aucune trace serveur de « ce job vient du profil X ».
+
+### 22.2 Ce que la généralisation exige
+
+1. **Un modèle COMMUN** (`common/`), pas un `<App>Profile` par app : un profil = `{app,
+   user, nom, description, valeurs}` où `valeurs` est validé par le SCHÉMA de l'app
+   (`params.py`) — même source que la modale, le volet et les défauts. Une app n'écrit rien.
+2. **Les gestes** (enregistrer / appliquer / supprimer / renommer) sont les mêmes partout →
+   briques communes + endpoints conventionnels, comme la famille `batch_*`.
+3. **Portée** : un profil doit pouvoir être rejoué sur une AUTRE app quand les params se
+   recouvrent (le format de sortie, la qualité…) — à trancher : profil par app (simple) ou
+   profil transverse filtré par le schéma cible (plus riche, plus ambigu).
+4. Le job garde une **trace** du profil appliqué (la colonne existante, enfin câblée).
+
+### 22.3 🔴 Le vrai obstacle : l'UI/UX, pas la technique (point Fabien)
+
+*« On empile des champs, il faudra trouver une façon de présenter ça sans surcharger l'UI. »*
+Ajouter un sélecteur de profil + enregistrer/supprimer sur 10 apps, dans une modale et un
+volet qui portent déjà 5 à 19 champs, sature l'écran.
+
+**Piste déjà posée, à réutiliser** : les **sections `entrée / réglages / sortie`** actées
+pour les paramètres (modale ET inspecteur), miroir des sections d'INFOS de la card v3
+(`CARD_DESIGN §11`). Le profil devient alors une **ligne d'en-tête de la section RÉGLAGES**
+(« Profil : ⟨aucun⟩ ▾ · 💾 »), pas un bloc de plus : il qualifie la section qu'il pilote.
+À dessiner avec la maquette v4 (`CARD_DESIGN §11.10`), pas à improviser app par app.
+
+### 22.4 Séquencement
+
+APRÈS le portage du monde Médias (le mécanisme se déclare au schéma — donc après que les 10
+apps aient un schéma homogène et des réglages en colonnes, cf. §22.2 point 1).
+
+
+---
+
+## 23. 🔴 Réglages en COLONNES : oui — défauts en BASE : **pas partout** (mesuré 2026-09-01)
+
+> Découvert en préparant l'uniformisation demandée par Fabien (« il faut donc le faire dans
+> les modèles Django ? »). **La réponse est OUI pour les colonnes, NON pour les défauts** —
+> et l'ignorer tuerait une fonctionnalité en silence.
+
+### 23.1 L'état RÉEL du parc (params de contexte `item`)
+
+| | params | en colonnes | dont `default=` | hors colonne |
+|---|---|---|---|---|
+| **converter** | 19 | 2 | **0** | **17** |
+| **enhancer** | 9 | 5 | 5 | **4** |
+| les 8 autres | 4 à 18 | toutes | quasi toutes | 0 |
+
+8 apps sur 10 sont donc **déjà** au standard « un réglage = une colonne, avec son défaut » —
+Django pose les valeurs à la création, sans aucune cascade. Les seuls déviants sont le
+**converter** (17) et l'**enhancer** (4). *(La mesure « 4 apps » d'abord annoncée comptait
+les JSONField ; or ceux de transcriber/anonymizer/imager portent des RÉSULTATS — segments,
+classes floutées, images générées — pas des réglages. Compter le conteneur ne dit rien de
+ce qu'on y range.)*
+
+### 23.2 ⚠ Pourquoi le converter ne doit PAS recevoir de défauts en base
+
+Le converter a une couche que les autres n'ont pas : les **préréglages de qualité**
+(`utils/quality_presets.py`) — `web`/`balanced`/`max` posent `quality` 80/90/98 (image),
+`video_quality` 23/20/16, `audio_bitrate` 160k/224k/320k. Et l'arbitrage est :
+
+```python
+merged = dict(defaults_du_preset)
+merged.update(base_options)      # ← une option EXPLICITE écrase le preset
+```
+
+Donc le preset ne s'applique **que sur ce que l'utilisateur n'a pas réglé**. Poser
+`default=85` sur une colonne `quality` rendrait TOUS les jobs explicites → **les trois
+préréglages cesseraient d'agir, sans erreur ni message**. Même effet pour `video_quality`
+et `audio_bitrate`.
+
+**La forme juste** : colonnes **NULLABLES** (`NULL` = « non réglé, le preset décide »), et
+les défauts restent au **SCHÉMA** — ils y servent l'AFFICHAGE (ce que la modale propose),
+pas la donnée. *Une couche qui arbitre a besoin de distinguer « absent » de « posé » ; un
+default en base détruit cette distinction.*
+
+**Corollaire pour la cascade générée** (`param_schema.applicable_defaults`, livrée le
+31/08) : elle pose les défauts du schéma sur l'élément naissant. C'est juste pour une app
+SANS couche d'arbitrage ; **la porter au converter tuerait ses presets de la même façon**.
+À conditionner explicitement le jour du portage.
+
+### 23.3 Ce qui reste à trancher
+
+- **converter** : 17 réglages → colonnes NULLABLES + migration des valeurs de `options`
+  (properties `options`/`cross_app_options` reconstruites depuis les colonnes, pour que les
+  ~8 lecteurs actuels — `resolve_options`, backends, `cross_app`, `gear_data`, chips —
+  continuent sans modification) ; **enhancer** : ses 4, même forme.
+- **enhancer + anonymizer** : seules apps sans `user_settings` commun (table `UserSettings`
+  maison) — à porter ou à assumer comme variante déclarée.
+- Validation par **régénération de `converter_01`** (la facette `data` porte alors les
+  colonnes, le modèle généré les a).
