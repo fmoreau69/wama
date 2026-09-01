@@ -25,6 +25,21 @@ PARAMS = derive_from_model(
             # Descriptif court + VRAM du catalogue — branchable depuis l'ALIGNEMENT 18/08
             # (valeurs du select = clés catalogue ; xtts_v2→coqui-xtts etc., rows migrées).
             help_source="synthesizer",
+            # ── Route F4b, étape ② (2026-09-01) — le synthesizer est le PILOTE ────────────
+            # Les options ne sont plus une liste écrite dans l'app : elles viennent du
+            # CATALOGUE. Mesuré avant de câbler : le catalogue portait 7 moteurs TTS quand
+            # l'app en proposait 4 — Kokoro-ONNX, installé la veille par la chaîne et 26×
+            # plus rapide à charger que le .pt, était INCHOISISSABLE.
+            #
+            # `options_query` borne le DOMAINE, et rien d'autre. Pas de `source` : un moteur
+            # TTS sert plusieurs surfaces (l'avatarizer emprunte ce parc, l'assistant
+            # vocalise) — ancrer sur `AIModel.source` rebâtirait une cloison entre surfaces
+            # qui partagent le même parc, et c'est précisément ce que le socle a écarté.
+            # ⚠ Ce qui n'a PAS le droit d'y figurer : les entrées fournies et les capacités
+            # requises. Celles-là GRISENT côté client (WamaInputMatch/WamaModelCaps) sur la
+            # liste complète — lister n'est pas pouvoir choisir (INPUT_MODEL_MATCHING §2).
+            options_source="catalog",
+            options_query={"task": "text-to-speech"},
         ),
         "language": dict(
             type="select", label="Langue", icon="fa-language", chip=True,

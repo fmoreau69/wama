@@ -29,7 +29,7 @@ from wama.common.utils.batch_common import group_into_batches_by_nature
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
-from wama.common.tts.ui_meta import tts_input_match_meta
+from wama.common.tts.ui_meta import tts_engine_choices, tts_input_match_meta
 from wama.common.utils.scoping import visible_or_404
 from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
 
@@ -113,7 +113,10 @@ class IndexView(View):
             'q_filter': q_filter,
             'batches_list': batches_list,
             'gallery_images': gallery,
-            'tts_models': AvatarJob.TTS_MODEL_CHOICES,
+            # Même inventaire que le synthesizer, et pour cause : c'est le MÊME parc, requis
+            # par capacité et non par app (route F4b, 2026-09-01). L'avatarizer n'a jamais
+            # possédé de moteur TTS — il les empruntait déjà via une constante partagée.
+            'tts_models': tts_engine_choices(),
             'languages': AvatarJob.LANGUAGE_CHOICES,
             'custom_voices': custom_voices,
             'media_url': settings.MEDIA_URL,

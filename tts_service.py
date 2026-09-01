@@ -70,7 +70,7 @@ app = FastAPI(title="WAMA TTS Service", version="1.0")
 # Backends sous contrat (singletons par moteur) + moteur COURANT
 # ---------------------------------------------------------------------------
 from wama.common.backends.manager import BackendManager
-from wama.synthesizer.backends import ENGINE_BACKENDS, engine_for_model
+from wama.synthesizer.backends import ENGINE_BACKENDS, engine_for_model, local_model_name
 
 # Registre + singletons keep_loaded : BRIQUE COMMUNE (pas de dict maison).
 _manager = BackendManager('tts')
@@ -161,7 +161,7 @@ def _unload_current():
         logger.info("GPU cache cleared")
 
 
-def _switch_model(model_name: str):
+def _switch_model(model_name: str, engine_declare: str | None = None):
     """Switch to the requested model, unloading the current one first."""
     global _current_engine, _current_model_name
 
@@ -171,8 +171,13 @@ def _switch_model(model_name: str):
 
     _unload_current()
 
-    engine = engine_for_model(model_name)
-    _backend(engine).load(model_name)
+    engine = engine_for_model(model_name, engine_declare)
+    # Le backend reçoit le nom LOCAL (sans le préfixe de source) : depuis la route F4b ②
+    # (2026-09-01) l'app envoie la clé catalogue entière (`synthesizer:coqui-xtts`), que
+    # `COQUI_MODEL_MAPPING` ne connaît pas — elle serait tombée dans le repli et Coqui aurait
+    # reçu un identifiant inexistant. On conserve la clé ENTIÈRE dans `_current_model_name`
+    # (c'est l'identité rapportée par /status et comparée à la demande suivante).
+    _backend(engine).load(local_model_name(model_name))
     _current_engine = engine
     _current_model_name = model_name
 
@@ -238,17 +243,26 @@ def _get_speaker_wav(voice_preset: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 class TTSRequest(BaseModel):
     text: str
-    model: str = "xtts_v2"
+    # ⚠ Le défaut était `"xtts_v2"`, un identifiant MORT depuis le renommage du 2026-08-18
+    # (xtts_v2 → coqui-xtts) : une requête sans `model` demandait un moteur inexistant.
+    model: str = "synthesizer:coqui-xtts"
     language: str = "fr"
     voice_preset: str = "default"
     speaker_wav: Optional[str] = None
     multi_speaker: bool = False
     scene_description: str = ""
     options: dict = {}
+    #: Moteur DÉCLARÉ du modèle (`composition.runtime.engine` au catalogue), résolu côté
+    #: Django et passé ici. C'est ce qui permet d'exécuter un modèle qu'aucune app ne déclare :
+    #: son nom (`onnx-community/Kokoro-82M-v1.0-ONNX`) ne ressemble à aucun moteur, seul le
+    #: catalogue sait que son moteur est `kokoro-onnx`. Ce service n'a pas Django — il ne peut
+    #: pas aller le chercher lui-même. Absent → routage par le nom, comme avant.
+    engine: Optional[str] = None
 
 
 class LoadModelRequest(BaseModel):
     model: str
+    engine: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +313,7 @@ def tts_endpoint(req: TTSRequest):
 
     try:
         # Switch model if needed
-        _switch_model(req.model)
+        _switch_model(req.model, req.engine)
 
         # Résolution preset → fichier de référence (Bark n'en consomme pas ;
         # son mapping preset → locuteur est dans son backend).
@@ -308,7 +322,9 @@ def tts_endpoint(req: TTSRequest):
         # Contrat d'appel uniforme : chaque backend consomme ce qui le concerne.
         wav_path = _backend(_current_engine).synthesize(
             text=req.text,
-            model=req.model,
+            # Nom LOCAL, comme au chargement — `CoquiBackend.process` réindexe
+            # `COQUI_MODEL_MAPPING` avec cette valeur.
+            model=local_model_name(req.model),
             language=req.language,
             voice_preset=req.voice_preset,
             speaker_wav=speaker_wav,
@@ -338,7 +354,7 @@ def tts_endpoint(req: TTSRequest):
 def load_model_endpoint(req: LoadModelRequest):
     """Pre-load a model (for warming up)."""
     try:
-        _switch_model(req.model)
+        _switch_model(req.model, req.engine)
         return {
             "status": "loaded",
             "model": _current_model_name,

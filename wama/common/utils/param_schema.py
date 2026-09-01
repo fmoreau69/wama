@@ -48,6 +48,22 @@ class Param:
     max_label: str = ""                         #   — priment sur min/max bruts à l'affichage (P2-bis)
     contexts: Tuple[str, ...] = ALL_CONTEXTS
     options_source: Optional[str] = None        # clé d'options dynamiques (ex. "backends")
+    options_query: Optional[dict] = None        # DOMAINE d'une source d'options qui en demande un :
+                                                # {"task": "text-to-speech"} → querystring de l'endpoint.
+                                                # Requis par `options_source="catalog"` : une clé ne porte
+                                                # qu'une URL fixe, elle ne saurait pas DE QUOI parler.
+                                                # ⚠ Ce champ MANQUAIT (ajouté 2026-09-01) : le socle F4b du
+                                                # 31/08 a livré le LECTEUR (`_optionQuery`, wama-params.js)
+                                                # et l'endpoint qui le sert, mais aucun schéma ne pouvait
+                                                # l'émettre — `to_dict()` ne l'aurait jamais porté. Une
+                                                # jambe livrée aux deux bouts et absente au milieu.
+                                                # ⚠⚠ N'y mettre QUE ce qui borne le domaine (task /
+                                                # model_type / modality / source). Jamais les entrées
+                                                # fournies ni les capacités requises : celles-là GRISENT
+                                                # côté client sur la liste complète (INPUT_MODEL_MATCHING
+                                                # §2). Restreindre ici ferait une EXCLUSION serveur d'un
+                                                # grisage expliqué — l'utilisateur perdrait « ce modèle
+                                                # existe mais votre entrée l'écarte ».
     show_if: Any = None                         # visibilité conditionnelle. string = nom d'un champ
                                                 # (visible si « truthy » : toggle coché / valeur non vide).
                                                 # dict = condition par VALEUR : {"field": "media_type",
