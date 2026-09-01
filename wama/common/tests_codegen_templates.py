@@ -221,15 +221,34 @@ class SourcesDOptionsTest(SimpleTestCase):
         self.assertIn('WAMA_OUTPUT_FORMATS', params)
         self.assertIn('resolvePageOptions: resolvePageOptions', params)
 
-    def test_le_resolver_genere_interroge_les_DEUX_registres_avant_de_se_plaindre(self):
+    def test_le_MOTEUR_resout_seul_et_aucune_app_generee_ne_reecrit_de_resolver(self):
+        # Convergence P1 (2026-09-01) : la résolution a QUITTÉ les apps pour le moteur.
+        # `render` installe un resolver par défaut adossé au registre commun ; le gabarit
+        # d'app n'en émet donc plus AUCUN — en émettre un recréerait, dans chaque app
+        # générée, le chemin parallèle que le converter portait TROIS fois.
+        params = _lire(_JS + 'wama-params.js')
+        self.assertIn('|| function (p) { return resolvePageOptions(p, values); }', params,
+                      'le moteur n’installe plus de resolver par défaut : les selects à '
+                      'options_source redeviendraient vides sans resolver d’app')
         manifest = _manifeste(SOURCE)
         src, raison = render_index(manifest) if manifest else (None, 'manifeste absent')
         if isinstance(src, dict):
             src = src.get('index.html')
         if not src:
             self.skipTest(f'index non généré : {raison}')
-        self.assertIn('WamaParams.resolvePageOptions(p, v)', src,
-                      'le resolver généré ignore le registre des données de page')
+        self.assertNotIn('optionsResolver', src,
+                         'le gabarit réécrit un resolver que le moteur porte désormais')
+
+    def test_une_cle_qui_ne_resout_nulle_part_le_DIT_au_lieu_de_rendre_un_select_vide(self):
+        # La garde vivait dans le resolver ÉMIS (donc pour la seule app générée) ; portée au
+        # moteur le 2026-09-01, elle couvre les 10 apps écrites à la main. Un select vide ne
+        # dit pas s'il l'est par absence d'options ou par défaut de câblage — le warn le dit.
+        params = _lire(_JS + 'wama-params.js')
+        self.assertIn('_avertirSourcesNonResolues', params)
+        self.assertIn("aucune source ne la résout", params)
+        # …et jamais pour une clé à ENDPOINT async (elle se peuple après le rendu).
+        i = params.index('function _avertirSourcesNonResolues')
+        self.assertIn('OPTION_SOURCES[p.options_source]', params[i:i + 400])
 
     def test_toute_cle_declaree_par_une_app_resout_quelque_part_ou_est_ASSUMEE(self):
         # Garde de COUVERTURE : une nouvelle clé apparue dans un schéma d'app doit être
@@ -487,12 +506,13 @@ class VoletParametresGenereTest(SimpleTestCase):
         self.assertIn('showPanelParams(false);', self.src[idx_batch:idx_batch + 300])
         self.assertIn('onDeselect: function () { showPanelParams(false); }', self.src)
 
-    def test_le_resolver_est_PARTAGE_entre_hote_du_volet_et_modale(self):
-        # Deux resolvers émis séparément avaient déjà divergé (volet sans resolver du tout) :
-        # une seule fonction, deux appels — valeurs de la card pour la modale, {} au chargement.
-        self.assertEqual(self.src.count('function resolveOptions(p, v)'), 1)
-        self.assertIn('return resolveOptions(p, {});', self.src)
-        self.assertIn('return resolveOptions(p, v);', self.src)
+    def test_les_valeurs_courantes_traversent_jusqu_au_moteur(self):
+        # Ce qui reste à vérifier après la convergence P1 : le gabarit ne résout plus les
+        # options lui-même, mais il doit PASSER ce dont le registre commun a besoin — les
+        # valeurs. Volet : les défauts de file ; modale d'item : les valeurs de la card.
+        # (Sans elles, `formats` ne saurait pas borner la liste à la nature de l'élément.)
+        self.assertIn("{ context: 'panel', values: PANEL_DEFAULTS }", self.src)
+        self.assertIn('values: v,', self.src)
 
     def test_les_cards_running_sont_pollees_par_la_brique_commune(self):
         # Audit 31/08 : la jumelle n'avait AUCUNE boucle — une card RUNNING n'avançait

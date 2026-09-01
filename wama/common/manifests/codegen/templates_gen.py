@@ -94,35 +94,14 @@ def render_index(manifest: dict) -> tuple:
     champs_params = list(((proc.get('model_spec') or {}).get('item') or {})
                          .get('params_fields') or [])
 
-    # Schéma primaire + sources d'options dynamiques — calculés ICI (avant l'inspecteur) :
-    # le resolver d'options est PARTAGÉ entre le rendu de l'hôte du volet (au chargement,
-    # script inspecteur) et la modale ⚙ (au clic). Deux resolvers émis séparément avaient
-    # déjà divergé une fois (volet sans resolver du tout, 31/08).
+    # Schéma primaire de l'app (le reste du gabarit en dérive : champs de card, chips…).
+    # ⚠ AUCUN resolver d'options n'est plus émis (convergence P1, 2026-09-01) : le MOTEUR
+    # (`WamaParams.render`) interroge seul le registre commun des sources de page et porte la
+    # garde « clé qui ne résout nulle part ». Émettre un resolver ici recréerait dans chaque
+    # app générée le chemin parallèle qu'on vient de retirer au converter (il l'avait TROIS
+    # fois). Une app ne passe un resolver que pour une source qui lui est PROPRE.
     schemas = (body.get('params') or {}).get('schemas') or {}
     schema_primaire = schemas.get((body.get('params') or {}).get('primary') or '') or []
-    sources_dyn = sorted({str(p.get('options_source')) for p in schema_primaire
-                          if isinstance(p, dict) and p.get('options_source')})
-    resolver_fn_js = ('' if not sources_dyn else f'''
-    // Sources d'options déclarées au schéma : {', '.join(sources_dyn)}. Résolution par les
-    // DEUX registres communs — jamais un resolver écrit dans l'app (leçon `formats`, 29/08) :
-    //   1. clé à ENDPOINT → renvoyer null : `_bindOptionSources` peuple le select après rendu ;
-    //   2. clé adossée à une donnée de PAGE → `WamaParams.resolvePageOptions` (synchrone) ;
-    //   3. aucune des deux : la clé ne résout nulle part — le DIRE (option nommée + warn).
-    function resolveOptions(p, v) {{
-        var SRC = window.WAMA_OPTION_SOURCES || {{ voices: '/common/api/voices/' }};
-        if (SRC[p.options_source]) return null;
-        var opts = WamaParams.resolvePageOptions(p, v);
-        if (opts) return opts;
-        console.warn('{mark} options_source « ' + p.options_source +
-                     ' » : absente des deux registres communs (endpoints et données de page).');
-        return [{{ value: '', label: '⚠ options « ' + p.options_source + ' » non déclarées' }}];
-    }}
-''')
-    # Rendu de l'hôte du volet AU CHARGEMENT : aucune valeur courante (aucune sélection) —
-    # `resolveOptions(p, {})` : les sources de page sans contexte rendent leur repli (ex.
-    # `formats` sans media_type → UNION des familles, registre commun wama-params.js).
-    resolver_panel = (",\n            optionsResolver: function (p) { return resolveOptions(p, {}); }"
-                      if sources_dyn else '')
 
     insp = body.get('inspector') or {}
     insp_js = ''
@@ -151,7 +130,7 @@ def render_index(manifest: dict) -> tuple:
     var ph = document.getElementById('{app}PanelParams');
     var PANEL_DEFAULTS = {{{{ panel_defaults|default:'{{}}'|safe }}}};
     if (ph && window.WamaParams) {{
-        WamaParams.render(ph, {{{{ params_json|safe }}}}, {{ context: 'panel', values: PANEL_DEFAULTS{resolver_panel} }});
+        WamaParams.render(ph, {{{{ params_json|safe }}}}, {{ context: 'panel', values: PANEL_DEFAULTS }});
     }}
     // Hors sélection : l'hôte montre les DÉFAUTS des prochains dépôts (mêmes valeurs que la
     // cascade serveur du dépôt) ; la sélection y applique la card, la désélection ré-applique
@@ -216,8 +195,8 @@ def render_index(manifest: dict) -> tuple:
     # vide — *un select vide ne dit pas s'il l'est par absence d'options ou par défaut de
     # câblage ; une option qui se nomme le dit.* Y répondre, c'est ajouter la source au registre
     # commun (comme `formats` ici), jamais écrire un resolver dans l'app ou dans ce gabarit.
-    # (schemas/sources_dyn/resolveOptions : calculés plus haut, AVANT l'inspecteur — le
-    # resolver est PARTAGÉ entre l'hôte du volet et la modale.)
+    # (schéma primaire : calculé plus haut. Les options dynamiques sont résolues par le
+    # MOTEUR depuis le registre commun — le gabarit n'en émet aucune fonction.)
     # La card porte un `data-param-*` pour CHAQUE champ du schéma (pas seulement les colonnes) :
     # les valeurs hors-colonnes sont aplaties sur l'instance par `_decorer` (idiome
     # params_storage dérivé, views_gen) — c'est ce qui remplit le volet PARAMÈTRES et pré-remplit
@@ -230,8 +209,6 @@ def render_index(manifest: dict) -> tuple:
     if route_update and champs_params:
         lect = '\n'.join(f"                v['{c}'] = card.getAttribute('data-param-{c}') || '';"
                          for c in champs_card)
-        resolver_js = ('' if not sources_dyn else '''
-                optionsResolver: function (p) { return resolveOptions(p, v); },''')
         params_js = f'''
     if (window.WamaQueueActions && window.WamaParams) {{
         WamaQueueActions.onSettings(function (id, btn) {{
@@ -249,7 +226,7 @@ def render_index(manifest: dict) -> tuple:
                 schema: {{{{ params_json|safe }}}},
                 values: v,
                 saveUrl: urlFor(U.update, id),
-                csrf: CSRF,{resolver_js}
+                csrf: CSRF,
                 onSaved: function () {{ location.reload(); }},
             }});
         }});
@@ -263,14 +240,12 @@ def render_index(manifest: dict) -> tuple:
     # (seuls les params déclarant ce contexte se rendent — préréglage, format). Valeurs
     # VIDES à l'ouverture : un lot ne stocke pas ses réglages, il les APPLIQUE à ses
     # éléments (batch_update, RUNNING exclus). `formats` s'y résout par l'UNION des
-    # familles (resolveOptions sans valeurs) — le lot n'expose pas sa nature à ce niveau.
+    # familles (le registre commun, sans media_type) — un lot n'expose pas sa nature ici.
     route_batch_update = resolve_route('batch_update', noms_routes)
     a_params_batch = any('batch' in (p.get('contexts') or [])
                          for p in schema_primaire if isinstance(p, dict))
     batch_js = ''
     if route_batch_update and a_params_batch:
-        resolver_batch = ('' if not sources_dyn else '''
-                optionsResolver: function (p) { return resolveOptions(p, {}); },''')
         batch_js = f'''
     if (window.WamaQueueActions && window.WamaParams) {{
         WamaQueueActions.onBatchSettings(function (bid) {{
@@ -282,7 +257,7 @@ def render_index(manifest: dict) -> tuple:
                 context: 'batch',
                 values: {{}},
                 saveUrl: urlFor(U.batch_update, bid),
-                csrf: CSRF,{resolver_batch}
+                csrf: CSRF,
                 onSaved: function () {{ location.reload(); }},
             }});
         }});
@@ -576,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function () {{
             window._import.handleFiles(WamaFolderImport.files(WamaFolderImport.fromInput(fdi.files)));
         }});
     }}
-{url_js}{ref_js}{resolver_fn_js}{insp_js}{params_js}{batch_js}{poll_js}}});
+{url_js}{ref_js}{insp_js}{params_js}{batch_js}{poll_js}}});
 </script>
 {{% endblock %}}
 '''

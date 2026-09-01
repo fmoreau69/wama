@@ -449,19 +449,16 @@
         _currentBatchId = batchId;
         const errEl = document.getElementById('batchSettingsError');
         if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-        // Champs générés du SCHÉMA (context:'batch') — re-rendus à chaque ouverture :
-        // les options de format dépendent de la NATURE du lot (optionsResolver).
+        // Champs générés du SCHÉMA (context:'batch') — re-rendus à chaque ouverture : les
+        // options de format dépendent de la NATURE du lot, passée par `values`. Le resolver
+        // maison a été RETIRÉ le 2026-09-01 (convergence P1) : `WamaParams` interroge seul le
+        // registre commun `PAGE_OPTION_SOURCES.formats`, adossé à la MÊME table
+        // (`CONVERTER_OUTPUT_FORMATS`, projection de `SUPPORTED_CONVERSIONS`).
         const host = document.getElementById('converterBatchParams');
         if (host && window.WamaParams && APP.schema) {
             WamaParams.render(host, APP.schema, {
                 context: 'batch',
-                values: {},
-                optionsResolver: function (p) {
-                    if (p.options_source !== 'formats') return null;
-                    const formats = (FORMATS[mediaType] || {}).output || [];
-                    return [{ value: '', label: '— inchangé —' }].concat(
-                        formats.map(function (f) { return { value: f, label: '.' + f.toUpperCase() }; }));
-                },
+                values: { media_type: mediaType || '' },
             });
         }
         new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
@@ -621,15 +618,11 @@
                         p.help_fallback = fb;
                     });
                 }
+                // `values` porte déjà media_type : le registre commun borne les formats à la
+                // nature de l'élément. Resolver maison RETIRÉ le 2026-09-01 (convergence P1).
                 WamaParams.render(body, APP.schema, {
                     context: 'item',
                     values: values,
-                    optionsResolver: function (p) {
-                        if (p.options_source !== 'formats') return null;
-                        return ((FORMATS[data.media_type] || {}).output || []).map(function (f) {
-                            return { value: f, label: '.' + f.toUpperCase() };
-                        });
-                    },
                 });
             } else {
                 // Jamais un blanc MUET : cet état signifie que wama-params.js a échoué au chargement.

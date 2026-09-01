@@ -361,21 +361,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // La zone de composition (défauts d'upload) est masquée pendant l'inspection (hideOnInspect).
     var ph = document.getElementById('converterPanelParams');
     if (ph && window.WamaParams && window.CONVERTER_APP) {
-        WamaParams.render(ph, CONVERTER_APP.schema, {
-            context: 'panel', values: {},
-            optionsResolver: function (p) {
-                if (p.options_source !== 'formats') return null;
-                // UNION des familles : le media_type varie par card inspectée, le select doit
-                // pouvoir AFFICHER la valeur de chacune (le show_if par media_type fait le tri).
-                var seen = {}, out = [];
-                Object.keys(CONVERTER_APP.supportedFormats || {}).forEach(function (mt) {
-                    ((CONVERTER_APP.supportedFormats[mt] || {}).output || []).forEach(function (f) {
-                        if (!seen[f]) { seen[f] = 1; out.push({ value: f, label: '.' + f.toUpperCase() }); }
-                    });
-                });
-                return out;
-            },
-        });
+        {% comment %}Resolver maison RETIRÉ le 2026-09-01 (convergence P1) : sans media_type
+        dans `values`, le registre commun rend lui-même l'UNION des familles — le select du
+        volet doit pouvoir AFFICHER la valeur de n'importe quelle card inspectée (le show_if
+        par media_type fait le tri). Même table, même sortie, un seul endroit.{% endcomment %}
+        WamaParams.render(ph, CONVERTER_APP.schema, { context: 'panel', values: {} });
     }
     function showPanelParams(on) { if (ph) ph.classList.toggle('d-none', !on); }
     WamaInspector.initFromSchema({

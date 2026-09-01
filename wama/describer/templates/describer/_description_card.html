@@ -145,8 +145,12 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
   garde, une card PENDING afficherait son image source à la place de son blueprint.{% endcomment %}
   {% if elem.result_text %}
   {% url 'common:unified_preview' 'describer' elem.id as pv_out %}
-  <div class="wcv3-preview result-preview" title="Description générée"
+  {% comment %}`wama-card-preview` = le GESTE commun (media-preview.js : double-clic →
+  overlay). Posé le 2026-09-01 avec les 8 autres apps : describer n'a AUCUN double-clic
+  propre (seul `.result-preview` sert au polling), donc pas de double-feu.{% endcomment %}
+  <div class="wcv3-preview result-preview wama-card-preview" title="Description générée"
        data-card-preview="{{ pv_out }}?side=output"
+       data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
        data-preview-mode="excerpt" data-preview-max-chars="400"></div>
   {% else %}
   <div class="wcv3-preview wcv3-preview--blueprint result-preview">
