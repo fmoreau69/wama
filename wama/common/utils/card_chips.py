@@ -22,6 +22,30 @@ _CATALOGUE_MEMO: dict = {}
 _CATALOGUE_TTL = 30.0
 
 
+def _inventaire_voix(user) -> list:
+    """[(valeur, libellé)] des voix AFFICHABLES pour cet utilisateur — mémoïsé par user.
+
+    2ᵉ source dynamique résolue par les chips après `catalog` (constat Fabien, card 65 :
+    le chip affichait `cv_1` là où l'utilisateur devait lire « Voix Fab »). Les plaques du
+    schéma ne portent que les presets STATIQUES du champ — les voix par utilisateur
+    (`ua_<id>`) et l'héritage (`cv_<id>`) n'y sont jamais. La connaissance vit dans
+    `voice_options` (le module qui centralise les voix) ; ici on ne fait que mémoïser.
+    """
+    import time
+
+    cle = ('voices', getattr(user, 'pk', None))
+    entree = _CATALOGUE_MEMO.get(cle)
+    if entree and (time.monotonic() - entree[0]) < _CATALOGUE_TTL:
+        return entree[1]
+    try:
+        from wama.common.utils.voice_options import voice_display_options
+        valeur = voice_display_options(user)
+    except Exception:
+        return []                      # même repli que `catalog` : valeur nue, jamais inventée
+    _CATALOGUE_MEMO[cle] = (time.monotonic(), valeur)
+    return valeur
+
+
 def _inventaire_catalogue(options_query: dict) -> list:
     """[(clé, libellé)] du domaine déclaré — mémoïsé, jamais fatal.
 
@@ -108,6 +132,14 @@ def chips_for(instance, params_json, extra=None, values=None):
             # mémoïsé par domaine — une file de 50 cards ne fait pas 50 requêtes.
             if not _plates and field.get('options_source') == 'catalog':
                 _plates += _inventaire_catalogue(field.get('options_query') or {})
+            # Voix par utilisateur (`options_source: 'voices'`) : les valeurs `ua_`/`cv_` ne
+            # sont dans AUCUNE plaque statique — sans cette résolution le chip affichait
+            # l'identifiant brut. Joint APRÈS les plaques du champ (un preset statique garde
+            # son libellé d'origine) et sans condition `not _plates` : le champ voix PORTE
+            # des plaques statiques, elles sont juste incomplètes. Coût : une résolution par
+            # utilisateur et par 30 s (mémo), quelle que soit la taille de la file.
+            if field.get('options_source') == 'voices':
+                _plates += _inventaire_voix(getattr(instance, 'user', None))
             for opt in _plates:
                 ov, ol = (opt if isinstance(opt, (list, tuple)) else (opt.get('value'), opt.get('label')))
                 if str(ov) == str(value):
