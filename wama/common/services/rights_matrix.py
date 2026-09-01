@@ -415,43 +415,144 @@ def _est_api(cell: Cellule, surfaces) -> bool:
 
 # ── Scénario 2 : le visiteur anonyme ────────────────────────────────────────
 
+def _jeton_csrf():
+    """(valeur du cookie csrftoken, ou None) — obtenu comme un navigateur : un GET sur une
+    page publique qui pose le cookie. Sans lui, tout POST anonyme mourrait en 403 CSRF —
+    c'est-à-dire AVANT les gardes qu'on veut mesurer : l'instrument rendrait un « refus »
+    qui ne prouverait rien sur les droits."""
+    req = urllib.request.Request(f"{BASE_URL.rstrip('/')}/converter/", method='GET')
+    try:
+        with _OPENER.open(req, timeout=TIMEOUT_S) as r:
+            en_tetes = r.headers.get_all('Set-Cookie') or []
+    except urllib.error.HTTPError as e:
+        en_tetes = e.headers.get_all('Set-Cookie') or []
+    except Exception:
+        return None
+    for c in en_tetes:
+        if c.startswith('csrftoken='):
+            return c.split(';', 1)[0].split('=', 1)[1]
+    return None
+
+
+def _poster_vide(url_path: str, csrftoken):
+    """(code, forme) d'un POST SANS CORPS ni session — la sonde mutante qui ne mute pas :
+    une vue d'upload ATTEINTE répond « aucun fichier » (400), une vue GARDÉE redirige/403
+    avant de lire quoi que ce soit. Aucune donnée n'est fournie, rien ne peut être créé."""
+    req = urllib.request.Request(f"{BASE_URL.rstrip('/')}{url_path}", data=b'', method='POST')
+    req.add_header('Accept', 'application/json')
+    req.add_header('X-Requested-With', 'XMLHttpRequest')
+    if csrftoken:
+        req.add_header('Cookie', f'csrftoken={csrftoken}')
+        req.add_header('X-CSRFToken', csrftoken)
+    try:
+        with _OPENER.open(req, timeout=TIMEOUT_S) as r:
+            return r.status, 'ok'
+    except urllib.error.HTTPError as e:
+        if e.code in (301, 302, 303, 307, 308):
+            return e.code, f"redirection→{e.headers.get('Location', '?')}"
+        return e.code, f'http-{e.code}'
+    except Exception as e:
+        return None, f'{type(e).__name__}: {str(e)[:120]}'
+
+
 def run_rights_anonymous(ctx):
-    """Le VISITEUR, mesuré à part — autre couche, autre point d'application.
+    """Le VISITEUR, mesuré sur les ACTIONS — recalé le 2026-09-02 sur la décision de Fabien.
 
-    `AppAccessMiddleware` ne confronte à `accessible()` que les requêtes AUTHENTIFIÉES ; sa
-    docstring renvoie l'anonyme au `login_required` des vues. Ce scénario mesure donc si ce
-    renvoi tient réellement, vue par vue — c'est une hypothèse d'architecture, pas un fait, et
-    rien ne la vérifiait.
+    ⚠ HISTORIQUE, pour ne pas dé-recaler : la V1 mesurait les INDEX et les trouvait
+    « ouverts » — mais c'est la POLITIQUE (« visiteur GUIDÉ », tranché le 30/08 : les pages
+    se VOIENT, ce sont les GESTES qui se gardent — `WAMA_VERIFICATION §3`,
+    `PROFILES_PERMISSIONS §1.4`). Une V2 au GET sur les routes `@require_POST` a été
+    RÉFUTÉE à sa première contre-vérification : `@require_POST` est posé DEVANT la garde
+    d'accès, donc son 405 répond à tout GET — gardé ou pas, il ne discrimine rien.
+
+    MESURE (V3) — le CONTRAT de la décision, tel quel : un **POST anonyme à VIDE** sur la
+    route mutante universelle (`upload`), muni d'un jeton CSRF réel (sinon le 403 CSRF
+    tombe AVANT les gardes et le refus ne prouve rien). Aucune donnée fournie → rien ne
+    peut être créé ; une ceinture ORM le VÉRIFIE (aucun compteur d'objets ne doit bouger).
+      · 302 → login / 403 : l'action est GARDÉE ;
+      · toute autre réponse (400 « aucun fichier », 200…) : la vue a été ATTEINTE — un
+        visiteur muni d'un vrai fichier AGIRAIT.
+    Attendu de la décision : refusé PARTOUT **sauf le converter** (app d'essai sans GPU) —
+    l'exception est mesurée dans les DEUX sens : un converter gardé serait aussi un écart.
+    ⚠ La garde serveur s'exécute avec le chantier avatar/accueil (APRÈS portage) : ce
+    scénario code le contrat CIBLE et reste rouge d'ici là — rouge ASSUMÉ, documenté
+    (`PROJECT_STATUS` : « l'échec attendu tant que la garde n'est pas construite »).
     """
-    from django.contrib.auth.models import AnonymousUser
-    from wama.accounts.permissions import accessible
+    from django.urls import NoReverseMatch, reverse
+    from wama.accounts.permissions import all_gated_apps
     from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.preview_registry import PreviewRegistry
 
-    surfaces, _ = gated_surfaces()
-    visiteur = AnonymousUser()
-    cellules = []
-    for s in surfaces:
-        c = Cellule(profil='anonyme', app_id=s.app_id, url=s.url,
-                    attendu=accessible(visiteur, 'app', s.app_id))
-        code, forme, _ = _observer(s.url, None, s.json)
-        cellules.append(_lire_verdict(c, code, forme, s))
+    complets = _namespaces_complets()
+    cibles = []
+    for app_id in sorted(all_gated_apps()):
+        try:
+            cibles.append((app_id, reverse(f'{complets.get(app_id, app_id)}:upload')))
+        except NoReverseMatch:
+            continue              # pas de route upload (model_manager, studio…) : hors contrat
+    if not cibles:
+        raise SkipScenario("aucune route d'upload résolue — instrument aveugle")
 
-    decidables = [c for c in cellules if c.decidable]
-    if not decidables:
-        raise SkipScenario('aucune cellule décidable — serveur injoignable ? '
-                           f'({cellules[0].note if cellules else "?"})')
+    jeton = _jeton_csrf()
+    if jeton is None:
+        raise SkipScenario('impossible d’obtenir un jeton CSRF — serveur injoignable ?')
 
-    ouvertes = [c for c in decidables if c.observe and not c.attendu]
-    fermees = [c for c in decidables if not c.observe]
-    base = (f"{len(decidables)} surfaces gardées vues par un visiteur SANS session : "
-            f"{len(fermees)} fermées, {len(ouvertes)} ouvertes")
-    if ouvertes:
-        return False, (
-            f"❌ {base}. La décision refuse ces surfaces à l'anonyme, le serveur les rend en 200 : "
-            + ', '.join(c.url for c in ouvertes[:14])
-            + ". Le middleware ne garde que les requêtes authentifiées et compte sur le "
-              "`login_required` des vues — il n'y est pas.")
-    return True, base + ' — aucune surface gardée ne s’ouvre à un visiteur'
+    # Ceinture d'instrument : un POST à vide ne doit RIEN créer. Compter avant/après —
+    # si un objet naissait quand même, le supprimer et le DIRE (jamais en silence).
+    def _compte(app_id):
+        try:
+            m = PreviewRegistry.get_model(app_id)
+            return m, set(m.objects.values_list('id', flat=True))
+        except Exception:
+            return None, set()
+    avant = {app_id: _compte(app_id) for app_id, _ in cibles}
+
+    atteintes, refusees, injoignables = [], [], []
+    for app_id, url in cibles:
+        code, forme = _poster_vide(url, jeton)
+        if code is None:
+            injoignables.append(f'{app_id} ({forme})')
+        elif code in (301, 302, 303, 307, 308) or code == 403:
+            refusees.append(app_id)
+        else:
+            atteintes.append(f'{app_id} ({code})')
+
+    fuites = []
+    for app_id, (modele, ids) in avant.items():
+        if modele is None:
+            continue
+        nouveaux = set(modele.objects.values_list('id', flat=True)) - ids
+        if nouveaux:
+            modele.objects.filter(id__in=nouveaux).delete()
+            fuites.append(f'{app_id}: {len(nouveaux)} objet(s) créé(s) par la sonde À VIDE — supprimés')
+
+    if injoignables and not atteintes and not refusees:
+        raise SkipScenario('serveur injoignable — ' + '; '.join(injoignables[:3]))
+
+    # Le CONTRAT dans les deux sens : hors converter tout doit refuser, et le converter
+    # (app d'essai de la décision) doit rester atteignable.
+    apps_atteintes = {a.split(' ')[0] for a in atteintes}
+    ecarts = sorted(apps_atteintes - {'converter'})
+    converter_garde = 'converter' in refusees
+    base = (f"{len(cibles)} routes d'upload sondées par POST anonyme À VIDE (jeton CSRF réel, "
+            f"aucune donnée → aucune mutation possible) : {len(refusees)} refus")
+    if fuites:
+        base += ' ; ⚠ CEINTURE : ' + '; '.join(fuites)
+    if injoignables:
+        base += f" ; {len(injoignables)} injoignables"
+
+    if ecarts or converter_garde:
+        morceaux = []
+        if ecarts:
+            morceaux.append(f"{len(ecarts)} apps où un visiteur POURRAIT AGIR (contrat : "
+                            "refus partout sauf converter) : " + ', '.join(
+                                a for a in atteintes if a.split(' ')[0] != 'converter')[:400])
+        if converter_garde:
+            morceaux.append("le CONVERTER refuse le visiteur — l'app d'essai de la décision "
+                            "n'est plus une exception")
+        return False, f"❌ {base} — " + ' | '.join(morceaux) + \
+            " (garde serveur planifiée avec le chantier avatar/accueil — rouge attendu d'ici là)"
+    return True, base + " — contrat « visiteur guidé » TENU : refus partout, converter seul ouvert"
 
 
 # ── Enregistrement ──────────────────────────────────────────────────────────
@@ -464,5 +565,6 @@ def register_rights_scenarios() -> None:
                          "sur 4 comptes de droits variés × toutes les apps gardées",
              run=run_rights_matrix)
     register(id='common.rights_anonymous', app='common', stage='ui', timeout_s=180,
-             description="Droits — un visiteur sans session n'entre dans aucune surface gardée",
+             description="Droits — un visiteur sans session ne peut AGIR nulle part (les pages "
+                         "se voient — politique « visiteur guidé » —, les gestes se gardent)",
              run=run_rights_anonymous)
