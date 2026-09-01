@@ -9139,7 +9139,18 @@ sans skip** (le compte dev `wama_nightly_dev` existe en base).
 de section RÉGLAGES) · bascule rendu/source retenue (§21, avec l'app Editor, après portage) ·
 défauts complétés PAR LA CASCADE, pas en base · migrations versionnées à la mise en prod.
 
-**Restes** : arbitrage §23.2ter (défauts stockés par la cascade générée) avant marche B ·
+**Ajout (soir, 2ᵉ passe — GO Fabien « la grille des droits si c'est rapide ») :**
+9. **⭐ 3ᵉ GRILLE BRANCHÉE — les DROITS** : l'instrument était COMPLET dans
+   `rights_matrix.py` (runners + registreur) mais AUCUN appelant ne le nommait — jamais
+   tourné depuis sa livraison. Branché (1 ligne), section propre sur `/apps/`, vérifié au
+   navigateur. **Premier verdict : 2 DÉSACCORDS** — ❌ 3 ACCÈS NON DÛS réels sur
+   `/model-manager/api/models/db/` (à remonter, périmètre model_manager/PROFILES §8.9.3) ;
+   ❌ `rights_anonymous` = instrument en retard sur la décision « visiteur guidé » (30-31/08) :
+   le scénario doit re-cibler les ACTIONS, pas les index (`WAMA_VERIFICATION §7`).
+
+**Restes** : re-cibler `rights_anonymous` sur les ACTIONS (décision visiteur-guidé) ·
+garde de l'API model_manager (3 accès non dûs — avec l'instance model_manager) ·
+arbitrage §23.2ter (défauts stockés par la cascade générée) avant marche B ·
 retrait final R44 (`*_legacy`) après quelques jours d'usage · enhancer 4 hors-colonnes +
 enhancer/anonymizer sans user_settings commun (AVEC la généralisation des profils, pas
 avant) · les 3 KO `common.consistency.*` de la grille fonctionnelle datent du 01/09 00:38
@@ -9801,6 +9812,12 @@ gabarit converter déplacée par le refactoring de l'autre instance — à son p
 - migrations : TOUTES appliquées côté WSL2 (0018-0021 synthesizer, 0011-0013 avatarizer,
   7 alter-status, 2 élargissements max_length 16→24) — gitignorées comme toujours ;
 - `AWAITING_RESOURCES` en base : **0 ligne** attendu (aucune app ne déclare `vram_needed`).
+
+**SUITE (même session, après clôture)** — constat Fabien card 65 : le chip voix affichait
+`cv_1` au lieu de « Voix Fab ». Deux trous : les chips ne résolvaient pas la source `voices`
+(même `ua_1` serait sorti brut) et l'héritage `cv_` est absent de `get_voice_groups`.
+Réglé (`voice_display_options` : l'AFFICHABLE ⊃ le PROPOSÉ — partage R43 : on cesse de
+proposer une option morte, on ne rend pas illisible la donnée qui la porte). Suite 1366 OK.
 
 **Artefacts de session** : une dizaine de scripts de mesure/vérification (catalogue TTS,
 espace de clés, filtrage voix, gardes du model_manager, statuts, trajectoire du crash)
