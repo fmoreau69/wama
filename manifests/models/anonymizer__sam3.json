@@ -14,14 +14,14 @@
     },
     "composition": {},
     "extra_info": {
-      "error": null,
-      "hf_authenticated": true,
-      "installed": true,
+      "error": "SAM3 not installed: No module named 'triton'",
+      "hf_authenticated": false,
+      "installed": false,
       "models_cached": true,
-      "models_dir": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/sam/models--facebook--sam3",
+      "models_dir": "D:\\WAMA\\web-app-for-media-automation\\AI-models\\models\\vision\\sam\\models--facebook--sam3",
       "models_dir_exists": true,
-      "ready": true,
-      "version": "0.1.2"
+      "ready": false,
+      "version": null
     },
     "formats": {
       "can_convert_to": [

@@ -266,20 +266,16 @@
               "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
-                "choices": {
-                  "expr": "[('coqui-xtts', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('higgs-audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
-                  "imports": []
-                },
                 "default": {
-                  "expr": "'coqui-xtts'",
+                  "expr": "'synthesizer:coqui-xtts'",
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'Modèle TTS à utiliser'",
+                  "expr": "'Clé catalogue du moteur TTS (AIModel.model_key)'",
                   "imports": []
                 },
                 "max_length": {
-                  "expr": "50",
+                  "expr": "128",
                   "imports": []
                 }
               },
@@ -1147,37 +1143,20 @@
             "advanced": false,
             "chip": true,
             "chip_label": "",
-            "choices": [
-              [
-                "coqui-xtts",
-                "XTTS v2 (Clonage vocal, 16 langues)"
-              ],
-              [
-                "bark",
-                "Bark (Naturel, Expressif, Effets sonores, 14 langues)"
-              ],
-              [
-                "kokoro",
-                "Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)"
-              ],
-              [
-                "higgs-audio",
-                "Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)"
-              ]
-            ],
+            "choices": null,
             "contexts": [
               "item",
               "batch",
               "panel"
             ],
-            "default": "coqui-xtts",
+            "default": "synthesizer:coqui-xtts",
             "dom_id": {
               "batch": "batchSettingsTtsModel",
               "item": "settingsTtsModel",
               "panel": "tts_model"
             },
             "group": "",
-            "help": "Modèle TTS à utiliser",
+            "help": "Clé catalogue du moteur TTS (AIModel.model_key)",
             "help_fallback": null,
             "help_html": "",
             "help_source": "synthesizer",
@@ -1190,7 +1169,10 @@
             "min_label": "",
             "name": "tts_model",
             "option_groups": null,
-            "options_source": null,
+            "options_query": {
+              "task": "text-to-speech"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
@@ -1290,6 +1272,7 @@
             "min_label": "",
             "name": "language",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1394,6 +1377,7 @@
             "min_label": "",
             "name": "voice_preset",
             "option_groups": null,
+            "options_query": null,
             "options_source": "voices",
             "pills": [],
             "radio_name": "",
@@ -1433,6 +1417,7 @@
             "min_label": "",
             "name": "speed",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1472,6 +1457,7 @@
             "min_label": "",
             "name": "pitch",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1542,6 +1528,7 @@
             "min_label": "",
             "name": "output_format",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1592,6 +1579,7 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_query": null,
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -1898,7 +1886,7 @@
             "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
             "text": "str (requis)",
-            "tts_model": "select — Modèle TTS à utiliser (choix : coqui-xtts | bark | kokoro | higgs-audio) (défaut : 'coqui-xtts')",
+            "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",
             "voice_preset": "select — Preset de voix (choix : default | male_1 | male_2 | female_1 | female_2 | custom | bark_v2_en_0 | bark_v2_en_1 …) (défaut : 'default')"
           },
           "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…)) et renvoie son item_id."
