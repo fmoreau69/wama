@@ -2,7 +2,8 @@
 
 Ajouter une plateforme = **une entrée ici**. Avant le 2026-09-01, chaque source vivait dans le
 fichier qui la consommait ; personne ne pouvait répondre à « à quoi WAMA se connecte-t-il ? »
-autrement qu'en fouillant le dépôt. Idée de Fabien (01/09), étapes 1 et 2 de trois.
+autrement qu'en fouillant le dépôt. Idée de Fabien (01/09), les trois étapes livrées le jour même
+(déclaration commune, migration des consommateurs, registre catalogué + page).
 
 ⚠ CE QUI SE DÉCLARE ICI : l'identité, l'adresse de base, le réglage qui la surcharge, la
 variable portant la clé d'API, la PORTÉE (service local ou Internet — donc le traitement du
