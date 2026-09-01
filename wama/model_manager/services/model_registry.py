@@ -388,11 +388,23 @@ class ModelRegistry:
                 # bien qu'aucun filtrage par capacité n'était possible en aval.
                 _img_type = (config.get('type') or '').lower()
                 _is_video = _img_type == 'video'
-                # Vocabulaire du manifeste : 't2i' | 't2v' | 'i2v' | 't2v+i2v' | 'edit' | 'i2i'
-                # ('i2i' = image de référence acceptée pour une sortie image — SD img2img ;
-                # 'edit' = modèle DÉDIÉ à l'édition, la tâche canonique devient image-to-image).
+                # Clé `tasks` (ex-`mode`, renommée le 2026-09-01) : 't2i' | 't2v' | 'i2v' |
+                # 't2v+i2v' | 'edit' | 'i2i'. Le mot « mode » est RÉSERVÉ au switch d'UI
+                # (`app_modes.py` — anonymizer yolo/sam3), doctrine `MODES_QUEUE_UX §2bis` :
+                # « NE PAS CONFONDRE MODE D'UI ET WORKFLOW DE BACKEND — txt2img/img2vid sont
+                # des décisions de moteur prises d'après les entrées, pas des switches. »
+                #
+                # ⚠ DEUX PRÉCISIONS que le nom ne dit pas, et qu'il faut donc écrire ici :
+                #  • la valeur est le RACCOURCI d'app (une chaîne « t2v+i2v »), pas la liste
+                #    canonique — celle-ci est `capabilities['tasks']`, produite plus bas. Même
+                #    mot, deux formes, de part et d'autre de cette traduction ;
+                #  • 'i2i' n'est PAS un métier : c'est une image de référence acceptée pour une
+                #    sortie image (SD img2img). Il ne devient jamais une tâche canonique (un
+                #    `t2i+i2i` reste texte→image) mais il décide des ENTRÉES plus bas. C'est
+                #    pour lui que cette clé ne peut pas être une simple liste de tâches.
+                # ('edit' = modèle DÉDIÉ à l'édition, la tâche canonique devient image-to-image.)
                 # Quelques entrées historiques écrivent encore les libellés longs.
-                _mode = (config.get('mode') or '').lower()
+                _mode = (config.get('tasks') or '').lower()
                 for _long, _short in (('text-to-image', 't2i'), ('text-to-video', 't2v'),
                                       ('image-to-video', 'i2v'), ('image-to-image', 'edit')):
                     _mode = _mode.replace(_long, _short)
