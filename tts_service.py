@@ -189,7 +189,11 @@ def _get_speaker_wav(voice_preset: str) -> Optional[str]:
     """Resolve a voice preset name to a WAV file path."""
     import urllib.request
 
-    if not voice_preset or voice_preset in ('custom',) or voice_preset.startswith(('bark_v2_', 'cv_')):
+    # `'custom'` retiré du vocabulaire le 2026-09-01 (REMOVAL_LEDGER R43) — il ne désignait
+    # aucun fichier et faisait parler le moteur avec sa voix par défaut sous une étiquette de
+    # clonage. Les presets réellement sans fichier À CE NIVEAU restent listés : Bark résout ses
+    # locuteurs dans son propre backend, et `cv_` est résolu en amont par le worker Django.
+    if not voice_preset or voice_preset.startswith(('bark_v2_', 'cv_')):
         return None
 
     DEFAULT_VOICES_DIR.mkdir(parents=True, exist_ok=True)

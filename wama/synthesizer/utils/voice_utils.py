@@ -218,7 +218,15 @@ def resolve_voice_preset(preset_value: str) -> Optional[str]:
     - Héritage plat   : 'default', 'male_1', 'female_2', etc.
     - Fallback final  : voice_references/default.wav ou default_voices/default.wav
     """
-    if not preset_value or preset_value in ('custom', 'bark_v2_en_0'):
+    # `'custom'` a QUITTÉ cette garde le 2026-09-01 (REMOVAL_LEDGER R43) : l'option n'existe
+    # plus au vocabulaire et les 3 lignes qui la portaient sont migrées vers `default`. Le
+    # citer ici entretiendrait une valeur morte.
+    # ⚠ Ce que ça change pour une valeur inconnue qui y échapperait : le repli final rend
+    # `default.wav`, PAS `None` (mesuré — mon premier commentaire disait l'inverse). C'est le
+    # bon sens ici : XTTS v2 EXIGE un `speaker_wav`, et lui en donner un est plus sûr que de
+    # lui en refuser un. Le comportement audio est de toute façon celui qu'avaient déjà les
+    # 3 lignes migrées — c'est bien pourquoi elles deviennent `default`.
+    if not preset_value or preset_value == 'bark_v2_en_0':
         return None
     if preset_value.startswith('bark_v2_') or preset_value.startswith('cv_'):
         return None
