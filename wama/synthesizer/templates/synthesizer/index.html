@@ -482,12 +482,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (window.WamaModelCaps) {
         WamaModelCaps.init({
-            source: 'synthesizer',
+            // Domaine par CAPACITÉ (route F4b ②, 2026-09-01) — le MÊME que celui qui peuple
+            // le select (`options_query: {task: 'text-to-speech'}`). Interroger par
+            // `source: 'synthesizer'` ne ramenait que 4 moteurs sur 7 : les 3 installés par
+            // la prospection restaient SANS capacités, donc sans filtrage voix/langues.
+            task: 'text-to-speech',
             modelSelectId: 'tts_model',
-            resolveKey: function (v) {
-                // Identité depuis l'alignement 18/08 (valeurs du select = clés catalogue).
-                return 'synthesizer:' + v;
-            },
+            // ⚠ PAS de `resolveKey` : la valeur du select EST la clé catalogue. Celui qui
+            // vivait ici (`'synthesizer:' + v`) fabriquait `synthesizer:synthesizer:kokoro`
+            // dès que les options sont passées aux clés entières — `caps` retombait à null
+            // et le filtrage DISPARAISSAIT SANS ERREUR : voix de clonage offertes pour un
+            // moteur qui ne clone pas, langues non restreintes. *Un filtre qui s'absente ne
+            // lève pas ; il rend seulement l'UI trop permissive.*
             filters: [
                 { selectId: 'voice_preset',
                   hideOption: function (caps, opt) {
