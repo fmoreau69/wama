@@ -31,8 +31,16 @@ PARAMS = derive_from_model(
                              show_if="text_content",   # auto-porté : vide (standalone) = masqué
                              dom_id={"item": "settingsTextContent"}, contexts=("item",),
                              help="La relance régénère la voix depuis ce texte."),
+        # Options tirées du CATALOGUE (route F4b ②, 2026-09-01) — OBLIGATOIRE ici, pas
+        # optionnel : `AvatarJob.tts_model` a perdu son `choices=` dans le même geste, donc
+        # `derive_from_model` ne peut plus fournir la moindre option. Sans cette déclaration
+        # le select de la modale serait VIDE — et un select vide ne lève pas, il ne propose
+        # rien. La requête est la même que celle du synthesizer, par CAPACITÉ : c'est le
+        # même parc, et l'avatarizer n'en possède aucun moteur.
         "tts_model":    dict(type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
                              show_if="text_content", help_source="synthesizer",
+                             options_source="catalog",
+                             options_query={"task": "text-to-speech"},
                              dom_id={"item": "settingsTtsModel"}, contexts=("item",)),
         "language":     dict(type="select", label="Langue", icon="fa-language",
                              show_if="text_content",
