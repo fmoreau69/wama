@@ -83,6 +83,14 @@ def _check_hf_model_downloaded(cache_dir: Path, hf_id: str) -> bool:
 from ..models import ModelType, ModelSource  # noqa: F401,E402
 
 
+#: Mode d'app (raccourci imager) -> NOTRE tache canonique. `i2i` n'y figure pas VOLONTAIREMENT :
+#: accepter une image de reference (SD img2img) n'est pas le metier d'un modele d'EDITION, et la
+#: table ci-dessous decide de metiers. C'est deja le jugement du code qui calcule `_task` — un
+#: `t2i+i2i` reste texte->image.
+MODE_VERS_TACHE = {'t2i': 'text-to-image', 't2v': 'text-to-video',
+                   'i2v': 'image-to-video', 'edit': 'image-to-image'}
+
+
 # (idem ModelType : la source vient de models.py, plus de copie ici.)
 
 
@@ -427,6 +435,16 @@ class ModelRegistry:
                     capabilities={
                         'modalities': ['video'] if _is_video else ['image'],
                         'task': _task,
+                        # TOUS les metiers declares, le principal d'abord. `_tasks` porte
+                        # deja l'ensemble ('t2v+i2v' pour LTX) et il etait ECRASE ici en une
+                        # tache unique : les autres metiers disparaissaient sans un mot, et
+                        # `sync_benchmarks` ne cherchait LTX que dans le leaderboard
+                        # texte->video alors qu'AA le classe aussi en image->video
+                        # (releve le 2026-09-01). `task` reste le metier principal — rien
+                        # de ce qui le lit ne change.
+                        'tasks': [_task] + sorted(
+                            {MODE_VERS_TACHE[t] for t in _tasks if t in MODE_VERS_TACHE}
+                            - {_task}),
                         # Entrées consommées, en ids d'INPUT_TYPES — c'est ce qui permet
                         # l'appariement entrée↔modèle (`matches_inputs`) SANS drapeau ad hoc :
                         # un modèle image→vidéo EXIGE une image de travail, un modèle
