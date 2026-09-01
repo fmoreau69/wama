@@ -612,11 +612,21 @@ class AIModel(models.Model):
         2026-08-19) : on classe par `benchmark_index` (mesure tierce) SI TOUT le lot en a
         un, sinon par `quality_index` (a priori) pour tout le monde. Mélanger les deux
         comparerait des échelles incommensurables — le piège déjà corrigé le 2026-08-12.
+
+        ⚠⚠ Cette phrase était FAUSSE jusqu'au 2026-09-01 : le test n'exigeait que « tout le
+        lot est mesuré » et ne regardait JAMAIS l'échelle, alors que le lot `diffusion` porte
+        déjà `aa_elo_text_to_image` ET `arena_elo_text_to_image`. Rien ne s'était vu parce
+        qu'un seul modèle non mesuré suffisait à basculer sur le repli — *un défaut masqué par
+        une couverture incomplète*. Le test a maintenant UN domicile, `benchmarks_comparable`.
+        Reste su et non corrigé : `model_type` ('diffusion') est plus grossier que la
+        catégorie de banc — un texte→image et un texte→vidéo restent dans le même lot.
         """
         from django.db.models import F
+
+        from .services.benchmark_sync import benchmarks_comparable
         lot = list(cls.objects.filter(model_type=model_type, is_downloaded=True,
                                       is_proposed=False))
-        if lot and all(m.benchmark_index is not None for m in lot):
+        if benchmarks_comparable(lot):
             lot.sort(key=lambda m: m.benchmark_index, reverse=True)
             return lot[:limit]
         return list(

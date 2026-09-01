@@ -948,6 +948,30 @@ document.addEventListener('DOMContentLoaded', function() {
         return model === filter || model.includes(filter);
     }
 
+    {% comment %} Badge de benchmark — UN seul rendu pour les deux cards (installée et
+    proposée), qui le dupliquaient. L'ÉCHELLE se dit avec la valeur : l'infobulle promettait
+    « comparable entre modèles de même catégorie », ce que le catalogue dément déjà —
+    qwen-image-2 (1125,76 sur arena_elo_text_to_image) et hunyuan-image-2.1 (1077 sur
+    aa_elo_text_to_image) sont de la MÊME catégorie et sur deux échelles. Corrigé 01/09. {% endcomment %}
+    function benchBadge(model, extraClass) {
+        if (model.benchmark_index == null) return '';
+        const meta = model.benchmark_meta || {};
+        const echelle = meta.echelle || meta.categorie || 'échelle non nommée';
+        const bancs = Array.isArray(meta.bancs) ? meta.bancs : [];
+        const autres = bancs.length > 1
+            ? '\nAutres métiers mesurés : ' + bancs.slice(1)
+                .map(b => `${b.categorie} ${b.valeur} (${b.echelle})`).join(', ')
+            : '';
+        const titre = `Performance MESURÉE par un banc tiers (Artificial Analysis / Arena), `
+            + `distincte de la confiance de prospection.\nÉchelle : ${echelle} — une valeur `
+            + `n'est comparable qu'à une valeur de la MÊME échelle (un Intelligence Index `
+            + `~0-70 et un Elo ~1000-1500 ne se classent pas ensemble, et deux Elo de bancs `
+            + `différents non plus).${autres}`;
+        return `<span class="badge bg-info-subtle text-info border border-info ${extraClass || ''}"`
+            + ` title="${titre.replace(/"/g, '&quot;')}">bench ${model.benchmark_index}`
+            + `<span class="opacity-75 ms-1" style="font-size:.85em">${echelle}</span></span>`;
+    }
+
     function renderModels(models) {
         allModels = models;
         document.getElementById('total-count').textContent = models.length;
@@ -1003,7 +1027,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <!-- Candidat proposé : confiance + complexité + remplacement + actions -->
                     <div class="model-meta mb-2">
                         ${model.confidence != null ? `<span class="badge bg-success-subtle text-success border border-success me-1" title="Taux de confiance de la recommandation">${Math.round(model.confidence * 100)}% confiance</span>` : ''}
-                        ${model.benchmark_index != null ? `<span class="badge bg-info-subtle text-info border border-info me-1" title="Benchmark tiers confronté (sync_benchmarks — étage 2 de l'échelle qualité)">bench ${model.benchmark_index}</span>` : ''}
+                        ${benchBadge(model, 'me-1')}
                         ${model.update_complexity ? `<span class="badge bg-dark border border-secondary text-light" title="Complexité estimée d'installation / MAJ">${({simple: 'simple', moderate: 'modérée', complex: 'complexe'})[model.update_complexity] || model.update_complexity}</span>` : ''}
                     </div>
                     ${(() => {
@@ -1054,7 +1078,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="model-meta">
                             ${model.vram_gb ? `<span class="me-2" title="VRAM required"><i class="fas fa-microchip text-success"></i> ${model.vram_gb}GB</span>` : ''}
                             ${model.ram_gb ? `<span class="me-2" title="RAM required"><i class="fas fa-memory text-info"></i> ${model.ram_gb}GB</span>` : ''}
-                            ${model.benchmark_index != null ? `<span class="badge bg-info-subtle text-info border border-info" title="Performance MESURÉE par un banc tiers (Artificial Analysis / Arena) — distincte de la confiance de prospection. Comparable uniquement entre modèles de même catégorie.">bench ${model.benchmark_index}</span>` : ''}
+                            ${benchBadge(model)}
                         </div>
                         ${model.is_loaded ?
                             `<button class="btn btn-sm btn-outline-warning btn-unload" data-model="${model.id}" title="Unload from memory">
@@ -1380,6 +1404,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 const meta = m.benchmark_meta || {};
                 return meta.echelle || meta.categorie || '';
             } },
+            {% comment %} Un modèle peut exercer PLUSIEURS métiers et être mesuré sur plusieurs
+            bancs (ltx-video : T2V et I2V, tous deux chez AA). L'index porté par la card est
+            celui du métier principal ; les autres se lisent ici, chacun avec SON échelle —
+            jamais agrégés, la moyenne de deux échelles n'existe pas. {% endcomment %}
+            { k: 'Autres bancs', get: function (m) {
+                const bancs = (m.benchmark_meta || {}).bancs || [];
+                return bancs.length > 1
+                    ? bancs.slice(1).map(function (b) {
+                        return b.categorie + ' ' + b.valeur + ' (' + b.echelle + ')';
+                      }).join(' · ')
+                    : '';
+            } },
             { k: 'Indice a priori', get: function (m) {
                 return m.quality_index != null ? m.quality_index : '';
             } },
@@ -1691,6 +1727,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             ? `Aucune source joignable (${p.raison || 'clé ARTIFICIAL_ANALYSIS_API_KEY ou réseau'}).`
                             : `Performance : ${p.apparies || 0} modèle(s) apparié(s), `
                               + `${p.non_apparies || 0} sans banc`
+                              + (p.sans_identite ? `, ${p.sans_identite} sans identité lisible` : '')
+                              + (p.sans_categorie ? `, ${p.sans_categorie} hors catégorie` : '')
                               + (p.inversions ? ` — ${p.inversions} désaccord(s) AA/Elo à examiner` : '')
                               + '.';
                         loadModels(); return;

@@ -192,7 +192,12 @@ def _installed_reference(model_type: str) -> str:
     from wama.model_manager.models import AIModel
     lignes = []
     for m in AIModel.best_installed(model_type, limit=5):
+        # L'ÉCHELLE se dit avec la valeur : « 1125,76 » et « 42,9 » ne se comparent pas, et
+        # un LLM à qui l'on tend deux nombres nus les compare (2026-09-01).
+        echelle = (m.benchmark_meta or {}).get('echelle')
         bench = (f", benchmark tiers {m.benchmark_index}"
+                 + (f" sur l'échelle {echelle} — incomparable à une autre échelle"
+                    if echelle else "")
                  if m.benchmark_index is not None else "")
         lignes.append(f"  - {m.name} (indice a priori {m.quality_index}{bench}, "
                       f"VRAM {m.vram_gb} Go)")

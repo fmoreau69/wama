@@ -46,6 +46,11 @@ class Command(BaseCommand):
         if r['non_apparies']:
             self.stdout.write(f"Non appariés (benchmark_index reste NULL) : "
                               f"{', '.join(r['non_apparies'])}")
+        if r['sans_identite']:
+            # Ces lignes ne tombaient dans AUCUN compteur avant le 2026-09-01 : le total
+            # affiché était inférieur au catalogue examiné, sans que rien ne le signale.
+            self.stdout.write(f"Sans identité lisible (jamais appariables en l'état) : "
+                              f"{', '.join(r['sans_identite'])}")
         if r['inversions']:
             self.stdout.write(self.style.WARNING(
                 "⚠ CONFRONTATION — ordres AA et Elo en désaccord (à examiner, pas arbitré) :"))

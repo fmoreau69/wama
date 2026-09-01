@@ -569,3 +569,206 @@ class ChoixDeVarianteTest(TestCase):
         cand = self._candidat()
         self.assertIsNone(spec_for_choice(cand, 'Pirate/Autre-GGUF', None))
         self.assertIsNone(spec_for_choice(cand, 'Repack/Grand-GGUF', 'inexistant.gguf'))
+
+
+class _SourcesFactices:
+    """Sources de benchmark simulées — partagées par les classes de test ci-dessous."""
+
+    def _sources(self, par_categorie):
+        """Sources factices : AUCUN accès réseau, donc le lot d'entrées est connu.
+
+        `par_categorie` = {catégorie de banc: [entrées]} — plusieurs catégories, parce qu'un
+        modèle à plusieurs métiers doit être cherché dans plusieurs leaderboards.
+        """
+        from .services import benchmark_sync as bs
+
+        def aa():
+            return dict(par_categorie), {}
+
+        def arena():
+            raise bs.SourceIndisponible('arena non sollicitée par ce test')
+
+        return patch.multiple(bs, charger_aa=aa, charger_arena=arena)
+
+    def _entree(self, nom, identite, valeur=42.0, echelle='aa_elo_text_to_image'):
+        return {'nom': nom, 'slug': nom.lower().replace(' ', '-'), 'identite': identite,
+                'valeur': valeur, 'echelle': echelle}
+
+
+class ComptageDesBancsTest(_SourcesFactices, TestCase):
+    """
+    Le rapport de `sync_benchmarks` doit RENDRE COMPTE de chaque ligne examinée.
+
+    Mesuré le 2026-09-01 sur le catalogue réel : le rapport annonçait « 10 appariés,
+    17 sans banc » pour 159 lignes — 15 d'entre elles ne tombaient dans aucun compteur.
+    *Un modèle qui disparaît du compte se lit « il n'y en a pas » alors qu'il dit
+    « je n'ai pas su le nommer ».*
+    """
+
+    def test_un_alias_sans_candidat_ne_fait_pas_tomber_la_passe(self):
+        """
+        `idents` n'était affecté que dans la branche SANS alias : il fuyait d'une itération à
+        l'autre, et un modèle à ALIAS placé EN PREMIER faisait tomber la passe entière en
+        `NameError`. Ce modèle est ici le seul du catalogue, donc nécessairement le premier.
+        """
+        from .services import benchmark_sync as bs
+        AIModel.objects.create(
+            model_key='imager:fantome', name='Fantome', model_type='diffusion',
+            source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
+        with self._sources({'text-to-image': [self._entree('Autre Chose', ('autre', (1,), None))]}), \
+                patch.dict(bs.ALIAS, {'imager:fantome': 'slug-qui-n-existe-plus'}, clear=True):
+            r = bs.synchroniser(dry_run=True)
+        # Un ALIAS est une confirmation HUMAINE : démentie par la source, elle se voit parmi
+        # les non-appariés — jamais rangée comme une identité manquante.
+        self.assertEqual(r['non_apparies'], ['imager:fantome [text-to-image]'])
+        self.assertEqual(r['sans_identite'], [])
+
+    def test_une_identite_illisible_est_comptee_et_distinguee_du_sans_banc(self):
+        from .services import benchmark_sync as bs
+        AIModel.objects.create(
+            model_key='synthesizer:kokoro', name='Kokoro 82M', model_type='speech',
+            source='synthesizer', is_downloaded=True,
+            capabilities={'task': 'text-to-image'})   # catégorie OK, identité illisible
+        with self._sources({'text-to-image': []}):
+            r = bs.synchroniser(dry_run=True)
+        self.assertEqual(r['sans_identite'], ['synthesizer:kokoro [text-to-image]'])
+        self.assertEqual(r['non_apparies'], [])
+
+    def test_les_quatre_issues_couvrent_tout_le_catalogue_examine(self):
+        """Somme des issues == lignes examinées. C'est CE contrôle qui manquait : sans lui,
+        une cinquième issue ajoutée demain se perdrait de la même façon, en silence."""
+        from .services import benchmark_sync as bs
+        commun = dict(source='imager', is_downloaded=True, model_type='diffusion')
+        AIModel.objects.create(model_key='imager:widget-2', name='Widget 2',
+                               capabilities={'task': 'text-to-image'}, **commun)   # apparié
+        AIModel.objects.create(model_key='imager:gadget-9', name='Gadget 9',
+                               capabilities={'task': 'text-to-image'}, **commun)   # sans banc
+        AIModel.objects.create(model_key='imager:kokoro', name='Kokoro',
+                               capabilities={'task': 'text-to-image'}, **commun)   # sans identité
+        AIModel.objects.create(model_key='imager:yolo', name='Yolo 11',
+                               capabilities={'task': 'detect'}, **commun)          # hors catégorie
+        with self._sources({'text-to-image': [self._entree('Widget 2', ('widget', (2,), None))]}):
+            r = bs.synchroniser(dry_run=True)
+        self.assertEqual(len(r['apparies']), 1)
+        self.assertEqual(len(r['non_apparies']), 1)
+        self.assertEqual(len(r['sans_identite']), 1)
+        self.assertEqual(r['sans_categorie'], 1)
+        total = (len(r['apparies']) + len(r['non_apparies'])
+                 + len(r['sans_identite']) + r['sans_categorie'])
+        self.assertEqual(total, AIModel.objects.count())
+
+    def test_le_dry_run_n_ecrit_jamais_l_indice(self):
+        """Garde-fou du mode dry-run : le rapport se lit sans toucher au catalogue."""
+        from .services import benchmark_sync as bs
+        m = AIModel.objects.create(
+            model_key='imager:widget-2', name='Widget 2', model_type='diffusion',
+            source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
+        with self._sources({'text-to-image': [self._entree('Widget 2', ('widget', (2,), None))]}):
+            bs.synchroniser(dry_run=True)
+        m.refresh_from_db()
+        self.assertIsNone(m.benchmark_index)
+
+
+class BancsMultiMetiersTest(_SourcesFactices, TestCase):
+    """
+    Un modèle exerçant PLUSIEURS métiers doit être mesuré sur chacun de ses bancs.
+
+    Cas réel du catalogue : `ltx-video-13b-0.9.8-distilled` déclare `task='text-to-video'`
+    et fait aussi de l'image→vidéo (son libellé le dit, AA le classe dans les DEUX
+    leaderboards). L'ancienne boucle prenait une catégorie et laissait tomber les autres
+    en silence.
+    """
+
+    def _ltx(self, tasks):
+        return AIModel.objects.create(
+            model_key='imager:ltx-video-13b', name='LTX Video v0.9.8 13B',
+            model_type='diffusion', source='imager', is_downloaded=True,
+            capabilities={'tasks': tasks})
+
+    def test_un_seul_metier_donne_exactement_le_comportement_d_avant(self):
+        """La non-régression qui compte : les modèles mono-métier ne bougent PAS."""
+        from .services import benchmark_sync as bs
+        m = self._ltx(['text-to-video'])
+        with self._sources({'text-to-video': [
+                self._entree('LTX Video v0.9.8 13B', ('ltxvideo', (0, 9, 8), 13.0), valeur=900.0,
+                             echelle='aa_elo_text_to_video')]}):
+            bs.synchroniser(dry_run=False)
+        m.refresh_from_db()
+        self.assertEqual(m.benchmark_index, 900.0)
+        self.assertEqual(m.benchmark_meta['echelle'], 'aa_elo_text_to_video')
+        self.assertEqual(m.benchmark_meta['categorie'], 'text-to-video')
+        self.assertEqual(len(m.benchmark_meta['bancs']), 1)
+
+    def test_deux_metiers_donnent_deux_bancs_l_index_restant_sur_le_principal(self):
+        from .services import benchmark_sync as bs
+        m = self._ltx(['text-to-video', 'image-to-video'])
+        with self._sources({
+                'text-to-video': [self._entree('LTX Video v0.9.8 13B', ('ltxvideo', (0, 9, 8), 13.0),
+                                               valeur=900.0, echelle='aa_elo_text_to_video')],
+                'image-to-video': [self._entree('LTX Video v0.9.8 13B', ('ltxvideo', (0, 9, 8), 13.0),
+                                                valeur=1180.0, echelle='aa_elo_image_to_video')]}):
+            bs.synchroniser(dry_run=False)
+        m.refresh_from_db()
+        bancs = m.benchmark_meta['bancs']
+        self.assertEqual([b['categorie'] for b in bancs], ['text-to-video', 'image-to-video'])
+        self.assertEqual([b['valeur'] for b in bancs], [900.0, 1180.0])
+        # L'index porté reste celui du métier PRINCIPAL — le second banc, mieux noté, ne
+        # doit pas s'y substituer : 1180 et 900 ne sont pas sur la même échelle.
+        self.assertEqual(m.benchmark_index, 900.0)
+        self.assertEqual(m.benchmark_meta['echelle'], 'aa_elo_text_to_video')
+
+    def test_un_metier_ecrit_dans_le_vocabulaire_d_une_plateforme_est_traduit(self):
+        """`canonical_task` est le résolveur EXISTANT : une tâche en vocabulaire HF ne doit
+        pas rester sans catégorie (leçon du 31/08 — deux vocabulaires se rejoignent sur un
+        repli qui a l'air de marcher)."""
+        from .services import benchmark_sync as bs
+        self.assertEqual(bs._categories_locales(self._ltx(['text-to-video'])), ['text-to-video'])
+        m = AIModel.objects.create(
+            model_key='transcriber:whisper', name='Whisper', model_type='speech',
+            source='transcriber', is_downloaded=True,
+            capabilities={'task': 'automatic-speech-recognition'})
+        # L'ASR n'a aucun banc tiers : la traduction doit aboutir à « hors catégorie », pas
+        # à un repli hasardeux.
+        self.assertEqual(bs._categories_locales(m), [])
+
+
+class EchellesComparablesTest(_SourcesFactices, TestCase):
+    """
+    `benchmarks_comparable` — le domicile UNIQUE de la règle des échelles.
+
+    Mesuré le 2026-09-01 : le lot `diffusion` du catalogue porte déjà deux échelles
+    (`aa_elo_text_to_image` 1077 et `arena_elo_text_to_image` 1125,76). `best_installed`
+    les aurait classées ensemble ; seul un modèle NON mesuré, qui faisait basculer tout le
+    lot sur le repli `quality_index`, empêchait le défaut de se voir.
+    """
+
+    def _modele(self, cle, index=None, echelle=None, quality=1.0):
+        return AIModel.objects.create(
+            model_key=cle, name=cle, model_type='diffusion', source='imager',
+            is_downloaded=True, is_proposed=False, quality_index=quality,
+            benchmark_index=index, benchmark_meta={'echelle': echelle} if echelle else {})
+
+    def test_deux_echelles_dans_le_lot_ne_sont_pas_comparables(self):
+        from .services.benchmark_sync import benchmarks_comparable
+        lot = [self._modele('a', 1077.0, 'aa_elo_text_to_image'),
+               self._modele('b', 1125.76, 'arena_elo_text_to_image')]
+        self.assertFalse(benchmarks_comparable(lot))
+
+    def test_une_echelle_unique_et_tout_le_lot_mesure_est_comparable(self):
+        from .services.benchmark_sync import benchmarks_comparable
+        lot = [self._modele('a', 1077.0, 'aa_elo_text_to_image'),
+               self._modele('b', 1038.0, 'aa_elo_text_to_image')]
+        self.assertTrue(benchmarks_comparable(lot))
+
+    def test_un_seul_modele_non_mesure_suffit_a_refuser_le_lot(self):
+        from .services.benchmark_sync import benchmarks_comparable
+        lot = [self._modele('a', 1077.0, 'aa_elo_text_to_image'), self._modele('b')]
+        self.assertFalse(benchmarks_comparable(lot))
+
+    def test_best_installed_retombe_sur_l_a_priori_quand_les_echelles_different(self):
+        """LE défaut corrigé : `best_installed` annonçait la règle de `_rank_key` et n'en
+        appliquait que la moitié. Le classement doit suivre `quality_index`, pas les Elo."""
+        self._modele('faible-elo', 1077.0, 'aa_elo_text_to_image', quality=9.0)
+        self._modele('fort-elo', 1125.76, 'arena_elo_text_to_image', quality=1.0)
+        top = AIModel.best_installed('diffusion', limit=2)
+        self.assertEqual(top[0].model_key, 'faible-elo')

@@ -351,23 +351,76 @@ def charger_arena():
     return par_cat, motifs
 
 
+# ── Comparabilité (règle des échelles) ───────────────────────────────────────────────────
+
+def benchmarks_comparable(pool) -> bool:
+    """
+    Vrai si les `benchmark_index` du lot peuvent être ORDONNÉS entre eux.
+
+    Deux conditions, indissociables : tout le lot est mesuré, ET une seule `echelle`. Un
+    Intelligence Index (~0-70) et un Elo (~1000-1500) ne se classent pas ensemble, et deux
+    Elo non plus s'ils viennent de bancs différents — on ne normalise JAMAIS.
+
+    ⚠ POURQUOI CETTE FONCTION EXISTE (2026-09-01, question de Fabien sur les échelles). Le
+    test vivait en double : `model_selector._rank_key` l'appliquait en entier, `best_installed`
+    n'en gardait que la MOITIÉ (tout le lot mesuré, échelle jamais regardée) tout en annonçant
+    « MÊME RÈGLE D'ÉTAGE QUE LA SÉLECTION » dans son commentaire. Le lot `diffusion` porte
+    pourtant DÉJÀ deux échelles (`aa_elo_text_to_image` 1077 pour hunyuan, `arena_elo_text_to_image`
+    1125,76 pour qwen-image-2) : le classement ne s'est pas trompé jusqu'ici seulement parce
+    qu'un modèle non mesuré faisait basculer tout le lot sur le repli `quality_index`.
+    *Un piège masqué par une couverture incomplète se déclenche quand la couverture s'améliore*
+    — c'est-à-dire exactement là où mène ce chantier. Un seul domicile, donc.
+    """
+    lot = list(pool)
+    if not lot:
+        return False
+    echelles = {(getattr(m, 'benchmark_meta', None) or {}).get('echelle') for m in lot}
+    return (len(echelles) == 1 and None not in echelles
+            and all(getattr(m, 'benchmark_index', None) is not None for m in lot))
+
+
 # ── Catégorie d'un modèle du catalogue ───────────────────────────────────────────────────
 
-def _categorie_locale(m):
-    """Catégorie de benchmark d'une ligne AIModel, depuis sa TÂCHE déclarée (sinon LLM Ollama)."""
+def _categories_locales(m):
+    """
+    Catégories de banc d'une ligne AIModel, la PRINCIPALE d'abord. Liste vide = hors banc.
+
+    Plusieurs, parce qu'un modèle peut exercer plusieurs MÉTIERS : `ltx-video` fait T2V *et*
+    I2V (son libellé le dit, et AA le classe dans les deux leaderboards), un modèle « omni »
+    en fera davantage. Rendre une seule catégorie faisait tomber les autres EN SILENCE.
+
+    Les métiers secondaires se DÉCLARENT dans `capabilities['tasks']` — jamais devinés depuis
+    le libellé : c'est la trappe qui a donné l'identité `('max', (768,))` à la LoRA logo, lue
+    dans « max 768 px ». Tant que rien ne déclare `tasks`, cette fonction rend exactement une
+    catégorie et le comportement est celui d'avant (mesuré : les 10 appariés sont inchangés).
+
+    ⚠ Les capacités d'ENTRÉE ne sont pas des métiers : `ModelAbility.VISION` (« lecture
+    d'images ») ne met pas un VLM dans le banc texte→image. Les 6 leaderboards sont tous en
+    GÉNÉRATION — d'où la dérivation par la tâche seule.
+    """
+    from ..models import canonical_task
+
     caps = m.capabilities or {}
-    tache = (caps.get('task') or '').strip().lower()
-    if tache in TACHE_VERS_CATEGORIE:
-        return TACHE_VERS_CATEGORIE[tache]
+    # `canonical_task` traduit le vocabulaire d'une plateforme vers le nôtre : une tâche
+    # écrite en HF (`automatic-speech-recognition`) ne trouvait AUCUNE catégorie et
+    # retombait en silence sur le repli LLM ou sur rien (leçon du 31/08).
+    brutes = caps.get('tasks') or ([caps['task']] if caps.get('task') else [])
+    out = []
+    for t in brutes:
+        cat = TACHE_VERS_CATEGORIE.get(canonical_task((t or '').strip().lower()))
+        if cat and cat not in out:
+            out.append(cat)
+    if out:
+        return out
     if m.model_key.startswith(('ollama:', 'proposed:ollama:')):
         # Un modèle d'EMBEDDING n'est pas un LLM de chat : quand les capacités existent
         # (découverte passée), `completion` fait foi — 1er dry-run 19/08 : bge-m3 prenait
         # un Intelligence Index. Lignes `proposed:` sans caps : tolérées (leurs faux
         # appariements meurent par la taille requise en catégorie llm).
         if caps and not caps.get('completion'):
-            return None
-        return 'llm'
-    return None
+            return []
+        return ['llm']
+    return []
 
 
 def _local_identities(m):
@@ -407,6 +460,53 @@ def _tag_reel(nom: str):
 
 # ── Synchronisation ──────────────────────────────────────────────────────────────────────
 
+def _banc_pour_categorie(m, cat, alias, sources):
+    """
+    Mesure d'UNE catégorie pour un modèle → `(banc, idents)`, `banc` à None si non apparié.
+
+    Extrait tel quel du corps de `synchroniser` le 2026-09-01 pour qu'il puisse être appelé
+    UNE FOIS PAR MÉTIER (cf. `_categories_locales`) : la logique d'appariement, elle, est
+    inchangée. `idents` remonte pour que l'appelant distingue « absent des leaderboards » de
+    « identité illisible ».
+    """
+    idents = []
+    cands_aa, cands_ar = [], []
+    if alias:       # confirmation humaine : égalité de slug, aucune heuristique
+        cands_aa = _apparier_alias(alias, sources.get('aa', {}).get(cat, []))
+        cands_ar = _apparier_alias(alias, sources.get('arena', {}).get(cat, []))
+    else:
+        idents = _local_identities(m)
+        stricte = (cat == 'llm')  # cf. _compatibles : jamais une variante frontière sans taille
+        for ident in idents:
+            cands_aa = _apparier(ident, sources.get('aa', {}).get(cat, []), stricte)
+            cands_ar = _apparier(ident, sources.get('arena', {}).get(cat, []), stricte)
+            if cands_aa or cands_ar:
+                break
+    if not cands_aa and not cands_ar:
+        return None, idents
+
+    banc = {'categorie': cat}
+    valeur = echelle = None
+    if cands_aa:
+        # La variante qui CORRESPOND, pas la mieux notée (cf. `_choose_variant`).
+        retenu = _choose_variant(m.name or m.model_key, cands_aa, lambda e: e['valeur'])
+        valeur, echelle = retenu['valeur'], retenu['echelle']
+        banc.update({'source': 'artificial-analysis', 'aa_nom': retenu['nom'],
+                     'aa_slug': retenu['slug'],
+                     'aa_variantes': [(e['nom'], e['valeur']) for e in cands_aa]})
+        if retenu.get('sous_indices'):
+            banc['sous_indices'] = retenu['sous_indices']
+    if cands_ar:
+        best = _choose_variant(m.name or m.model_key, cands_ar, lambda e: e['elo'])
+        banc.update({'arena_nom': best['nom'], 'arena_elo': best['elo'],
+                     'arena_votes': best['votes']})
+        if valeur is None:      # AA absent : l'Elo Arena PORTE l'index, échelle nommée
+            valeur, echelle = best['elo'], f'arena_elo_{CATEGORIES[cat]["arena"]}'
+            banc['source'] = 'arena'
+    banc['valeur'], banc['echelle'] = valeur, echelle
+    return banc, idents
+
+
 def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
     """
     Apparie le catalogue (téléchargés + candidats de prospection `proposed:`) aux deux
@@ -426,67 +526,68 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
     if not sources:
         raise SourceIndisponible(' ; '.join(f'{k}: {v}' for k, v in indispo.items()))
 
+    # Les quatre issues sont EXHAUSTIVES et disjointes : leur somme vaut le nombre de lignes
+    # examinées. Ce n'était pas le cas avant le 2026-09-01 — `sans_identite` n'existait pas et
+    # ses lignes ne tombaient dans aucun compteur (mesuré : 15 modèles, dont kokoro, bark,
+    # chatterbox et cogvideox, invisibles au rapport comme à l'UI). Un modèle qui disparaît du
+    # compte se lit « il n'y en a pas » alors qu'il dit « je n'ai pas su le nommer ».
     rapport = {'sources': {k: {c: len(v) for c, v in cats.items()} for k, cats in sources.items()},
                'motifs': motifs_cat, 'indisponibles': indispo,
-               'apparies': [], 'non_apparies': [], 'sans_categorie': 0, 'inversions': []}
+               'apparies': [], 'non_apparies': [], 'sans_identite': [],
+               'sans_categorie': 0, 'inversions': []}
 
     qs = AIModel.objects.filter(Q(is_downloaded=True) | Q(is_proposed=True)) \
         if inclure_proposes else AIModel.objects.filter(is_downloaded=True)
     par_echelle = {}    # échelle → [(model, valeur, elo)] pour la confrontation
 
     for m in qs:
-        cat = _categorie_locale(m)
-        if cat is None:
+        cats = _categories_locales(m)
+        if not cats:
             rapport['sans_categorie'] += 1
             continue
         alias = ALIAS.get(m.model_key)
-        cands_aa, cands_ar = [], []
-        if alias:       # confirmation humaine : égalité de slug, aucune heuristique
-            cands_aa = _apparier_alias(alias, sources.get('aa', {}).get(cat, []))
-            cands_ar = _apparier_alias(alias, sources.get('arena', {}).get(cat, []))
-        else:
-            idents = _local_identities(m)
-            stricte = (cat == 'llm')  # cf. _compatibles : jamais une variante frontière sans taille
-            for ident in idents:
-                cands_aa = _apparier(ident, sources.get('aa', {}).get(cat, []), stricte)
-                cands_ar = _apparier(ident, sources.get('arena', {}).get(cat, []), stricte)
-                if cands_aa or cands_ar:
-                    break
-        if not cands_aa and not cands_ar:
-            if idents:      # identifiable mais absent des leaderboards : tracé, pas un échec
-                rapport['non_apparies'].append(f'{m.model_key} [{cat}]')
+        bancs, idents = [], []
+        for cat in cats:
+            banc, ids = _banc_pour_categorie(m, cat, alias, sources)
+            idents = idents or ids
+            if banc:
+                bancs.append(banc)
+        if not bancs:
+            if alias or idents:
+                # Identifiable mais absent des leaderboards : tracé, pas un échec. Un ALIAS qui
+                # ne trouve rien se range ICI et jamais dans `sans_identite` : c'est une
+                # confirmation humaine démentie par la source (entrée retirée, slug changé),
+                # donc un DÉFAUT à voir, pas une identité manquante.
+                rapport['non_apparies'].append(f'{m.model_key} [{cats[0]}]')
+            else:
+                # Aucune identité famille+version lisible : la question du banc ne s'est même
+                # pas posée. Distinct d'un « sans banc » — le remède n'est pas un ALIAS mais
+                # une identité (nom, `hf_id` ou `platform_ref` exploitable).
+                rapport['sans_identite'].append(f'{m.model_key} [{cats[0]}]')
             continue
 
-        meta = {'synced_at': timezone.now().isoformat(), 'categorie': cat,
+        # Le banc PORTEUR est le premier apparié, donc celui du métier principal quand il l'est.
+        # Si le métier principal n'a pas de banc et qu'un secondaire en a un, c'est ce dernier
+        # qui porte l'index : `categorie` et `echelle` le nomment, donc rien n'est masqué —
+        # une valeur mesurée et nommée vaut mieux qu'un NULL.
+        porteur = bancs[0]
+        meta = {'synced_at': timezone.now().isoformat(),
                 **({'alias_declare': alias} if alias else {}),
                 'attribution': 'Artificial Analysis (Data API) / Arena leaderboard-dataset CC-BY-4.0',
                 'quant_locale': 'score tiers = borne haute (mesuré fp8/16, local souvent Q4)'}
-        valeur = echelle = None
-        if cands_aa:
-            # La variante qui CORRESPOND, pas la mieux notée (cf. `_choose_variant`).
-            retenu = _choose_variant(m.name or m.model_key, cands_aa,
-                                       lambda e: e['valeur'])
-            valeur, echelle = retenu['valeur'], retenu['echelle']
-            meta.update({'source': 'artificial-analysis', 'aa_nom': retenu['nom'],
-                         'aa_slug': retenu['slug'],
-                         'aa_variantes': [(e['nom'], e['valeur']) for e in cands_aa]})
-            if retenu.get('sous_indices'):
-                meta['sous_indices'] = retenu['sous_indices']
-        arena_elo = None
-        if cands_ar:
-            best = _choose_variant(m.name or m.model_key, cands_ar, lambda e: e['elo'])
-            arena_elo = best['elo']
-            meta.update({'arena_nom': best['nom'], 'arena_elo': best['elo'],
-                         'arena_votes': best['votes']})
-            if valeur is None:      # AA absent : l'Elo Arena PORTE l'index, échelle nommée
-                valeur, echelle = best['elo'], f'arena_elo_{CATEGORIES[cat]["arena"]}'
-                meta['source'] = 'arena'
-        meta['echelle'] = echelle
-        rapport['apparies'].append((m.model_key, cat, valeur, echelle, arena_elo))
-        par_echelle.setdefault((cat, 'confront'), []).append(
-            (m, valeur, arena_elo, meta.get('source')))
+        # Clés À PLAT du banc porteur : la forme d'avant le 2026-09-01, à l'identique. Les
+        # consommateurs (`to_dict`, cards, `_rank_key`) ne voient aucune différence.
+        meta.update({k: v for k, v in porteur.items() if k != 'valeur'})
+        # AJOUT : un banc par métier, chacun avec SON échelle nommée. Toujours présent, même
+        # à un seul élément — un consommateur lit `bancs` sans avoir à tester sa présence.
+        meta['bancs'] = bancs
+        rapport['apparies'].append((m.model_key, porteur['categorie'], porteur['valeur'],
+                                    porteur['echelle'], porteur.get('arena_elo')))
+        for b in bancs:
+            par_echelle.setdefault((b['categorie'], 'confront'), []).append(
+                (m, b['valeur'], b.get('arena_elo'), b.get('source')))
         if not dry_run:
-            m.benchmark_index = valeur
+            m.benchmark_index = porteur['valeur']
             m.benchmark_meta = meta
             m.save(update_fields=['benchmark_index', 'benchmark_meta'])
 
