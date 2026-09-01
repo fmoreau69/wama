@@ -3097,6 +3097,22 @@ comportement actuel est juste tant qu'aucun preset ne s'y applique. ⚠ Ne PAS l
 l'occasion d'un autre chantier : déplacer un défaut de la base au schéma change ce que les
 tâches lisent, et se valide app par app.
 
+### 23.2ter ⚠ Conflit RÉVÉLÉ par le portage (2026-09-01, à trancher avec Fabien)
+
+La cascade GÉNÉRÉE du dépôt (`_reglages_du_depot`) **stocke** les défauts applicables du
+schéma sur l'élément naissant — c'est ce que Fabien a demandé le 31/08 (« les chips de la
+section RÉGLAGES ne doivent pas être vides »). Or le §23.2bis établit que **stocker un
+défaut le rend indiscernable d'un choix** : sur un job ainsi créé (`quality=85` posé en
+base), le préréglage de qualité ne pourra plus agir. Les deux exigences sont légitimes et
+se contredisent sur UN point : *où* vivent les défauts affichés.
+
+La sortie propre existe déjà : les chips et le volet peuvent afficher les valeurs
+EFFECTIVES (`effective_settings` — défauts ← preset ← posé) sans les stocker. C'est un
+changement du générateur (affichage calculé au lieu de valeurs posées à la création), pas
+une ligne. **En attendant : le bac à sable stocke les défauts (sans conséquence — sa tâche
+est un stub, aucun preset n'y agit), l'app réelle ne les stocke pas.** À trancher avant la
+marche B (le jour où la tâche générée convertit vraiment).
+
 ### 23.3 Ce qui reste à trancher
 
 - **converter** : 17 réglages → colonnes NULLABLES + migration des valeurs de `options`
