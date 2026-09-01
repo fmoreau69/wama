@@ -64,6 +64,12 @@ class Param:
                                                 # §2). Restreindre ici ferait une EXCLUSION serveur d'un
                                                 # grisage expliqué — l'utilisateur perdrait « ce modèle
                                                 # existe mais votre entrée l'écarte ».
+    options_auto: bool = False                  # select `catalog` : servir « auto » en 1ʳᵉ option
+                                                # (+ PRÉVISION du modèle retenu sous le select).
+                                                # OPT-IN par app : ne le déclarer QUE si le chemin de
+                                                # lancement résout « auto » (brique commune
+                                                # `common/utils/auto_model.py`) — sinon la valeur
+                                                # stockée arriverait brute au dispatch.
     show_if: Any = None                         # visibilité conditionnelle. string = nom d'un champ
                                                 # (visible si « truthy » : toggle coché / valeur non vide).
                                                 # dict = condition par VALEUR : {"field": "media_type",

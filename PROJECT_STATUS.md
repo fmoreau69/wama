@@ -9934,3 +9934,37 @@ posée et testée, menu restructuré, `main` = `dev` poussés. Au choix :
 base de test partagée vivent dans le scratchpad de session — jetables, leurs mesures sont
 dans les messages de commit. Le rapport de sonde vit dans le dossier des journaux, gitignoré
 comme tout état runtime.
+
+
+## §PALIER — 2026-09-02, instance « BRIQUE D'AUTO-SÉLECTION » — ✅ LIVRÉ
+
+> Point d'entrée du handoff 01/09 honoré : la brique commune d'auto-sélection (conception
+> validée Fabien), avec ses trois décisions — « auto » en 1ʳᵉ option servie par le
+> catalogue, PRÉVISION du modèle retenu sous le select, réévaluation au lancement DITE
+> dans la console de l'item. Détail : `WAMA_APP_GENERATION_ROUTE §F4b « brique
+> d'auto-sélection »` (le doc de référence du domaine — ce bloc n'en recopie pas la prose).
+
+**L'idée qui porte tout** : le domaine du TIRAGE est CELUI que le schéma déclare déjà pour
+ses OPTIONS (`options_query` du param `options_source='catalog'`) — un seul lieu, ce que le
+select propose et ce que « auto » tire ne peuvent pas diverger. Une app portée au catalogue
+(route F4b) a l'auto-sélection gratuite.
+
+**Livré** : brique `wama/common/utils/auto_model.py` (mécanisme `auto_model` au registre) ·
+`Param.options_auto` (OPT-IN : ne se déclare que si le lancement résout) · endpoint options
+`auto=1` + `auto_preview` (même chemin que le tirage réel) · prévision rendue par
+`wama-params.js` (« Prévu : … — réévalué au lancement », staticfiles resynchronisé, fichier
+SERVI attesté au navigateur par `new Function`) · adoption : synthesizer + avatarizer
+(schéma + résolution au lancement dans workers), imager + composer (jumelles RECÂBLÉES sur
+la brique — il n'en reste que la spécificité déclarée mode→domaine).
+
+**Contrôles (tous MESURÉS cette session)** : périmètre 113 tests OK · `wama.common` 525 OK ·
+suite complète du /reprise 1368 OK (skipped=4) · roundtrip 10 apps OK · corpus manifestes
+à jour (113 — régénéré : `options_auto` entre au littéral de chaque schéma, d'où les 10
+manifestes d'app dans le commit) · `doc_facts` à jour · `check_docs` inchangé (1 cible).
+
+**Reste (assumé, non commencé)** : l'INTENTION rapide↔qualité (curseur 3 politiques +
+coloration, validé Fabien, `ROUTE §F4b §tirage automatique`) · la comparaison
+prévision↔choix réel (la prévision n'est pas stockée ; le lancement dit le choix, pas
+l'écart) · smoke navigateur CONNECTÉ de la modale (option « auto » + prévision visibles) ·
+`sync_benchmarks` pour donner un indice au parc TTS (sans lui le tirage TTS reste
+« le plus gros qui tient »).

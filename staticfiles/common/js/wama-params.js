@@ -407,12 +407,16 @@
       // distincts sur la même page (ex. un select TTS et un select ASR) ne doivent pas se
       // servir mutuellement leur liste.
       url += _optionQuery(p);
+      // `options_auto` (schéma, route F4b) : « auto » en 1ʳᵉ option + PRÉVISION du modèle
+      // retenu. Hors de `options_query` À DESSEIN : c'est un drapeau d'UI, pas une borne de
+      // domaine — les consommateurs serveur du domaine (chips de card…) ne doivent pas le voir.
+      if (p.options_auto) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'auto=1';
       var sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
       var sel = document.getElementById(sid);
       if (!sel) return;
-      var fill = function (groups) {
+      var fill = function (d) {
         var cur = sel.value;
-        sel.innerHTML = (groups || []).map(function (g) {
+        sel.innerHTML = (d.groups || []).map(function (g) {
           var opts = (g.options || []).map(function (o) {
             var v = Array.isArray(o) ? o[0] : (o.value !== undefined ? o.value : o[0]);
             var l = Array.isArray(o) ? o[1] : (o.label !== undefined ? o.label : o[1]);
@@ -421,14 +425,37 @@
           return g.group ? ('<optgroup label="' + esc(g.group) + '">' + opts + '</optgroup>') : opts;
         }).join('');
         if (cur) sel.value = cur;
+        _bindAutoPreview(sel, d.auto_preview);
         sel.dispatchEvent(new Event('change', { bubbles: true }));   // re-déclenche WamaModelCaps/conditionnel
       };
       if (_optionSourceCache[url]) { fill(_optionSourceCache[url]); return; }
       fetch(url, { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
-        .then(function (d) { _optionSourceCache[url] = d.groups || []; fill(_optionSourceCache[url]); })
+        .then(function (d) { _optionSourceCache[url] = d || {}; fill(_optionSourceCache[url]); })
         .catch(function () {});
     });
+  }
+
+  // ── Prévision du choix « auto » (route F4b, décision Fabien 2026-09-01) ─────────────────
+  // Sous le select, quand la valeur est « auto » : le modèle qui SERAIT retenu maintenant.
+  // La prévision vient de l'endpoint (même chemin que le tirage réel — VRAM libre, résidence) ;
+  // c'est une photo au rendu, le lancement réévalue — et le dit dans la console de l'item.
+  function _bindAutoPreview(sel, preview) {
+    var note = sel.parentNode ? sel.parentNode.querySelector('.wp-auto-preview') : null;
+    if (!preview || !preview.name) { if (note) note.hidden = true; return; }
+    if (!note) {
+      note = document.createElement('div');
+      note.className = 'wp-auto-preview form-text text-muted small';
+      sel.insertAdjacentElement('afterend', note);
+    }
+    var vram = preview.vram_gb ? ' (' + preview.vram_gb + ' Go)' : '';
+    note.textContent = 'Prévu : ' + preview.name + vram + ' — réévalué au lancement';
+    var refresh = function () { note.hidden = (sel.value !== 'auto'); };
+    if (!sel._wpAutoPreviewBound) {
+      sel._wpAutoPreviewBound = true;
+      sel.addEventListener('change', refresh);
+    }
+    refresh();
   }
 
   // ── Sources d'options adossées à une DONNÉE DE PAGE (résolution SYNCHRONE) ──────────────

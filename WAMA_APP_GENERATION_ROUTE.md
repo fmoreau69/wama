@@ -421,6 +421,28 @@ et il alimente l'étage qui manque au tirage automatique (voir ci-dessous).
   (« rendu saturé, écarté le … ») : sans elle, l'exclusion est muette et personne ne saura
   pourquoi dans six mois — à ajouter avec le portage.
 
+##### ✅ La brique d'auto-sélection est LIVRÉE (2026-09-02) — le mécanisme, pas encore l'intention
+
+`wama/common/utils/auto_model.py` (mécanisme `auto_model`) généralise les deux jumelles
+`composer/utils/auto_model.py` + `imager/utils/auto_model.py` (structurellement identiques,
+constat du handoff 01/09) — toutes deux recâblées dessus, il n'en reste que leur spécificité
+légitime déclarée (correspondance mode→domaine imager, musique/ambiance composer).
+
+- **Un domaine, deux usages** : le tirage « auto » lit le MÊME `options_query` que les
+  options du select (`catalog_domain()` — zéro second lieu de vérité). Une app portée au
+  catalogue a l'auto-sélection GRATUITE.
+- **« auto » en 1ʳᵉ option + PRÉVISION sous le select** (décisions Fabien, 01/09) :
+  `options_auto=True` au schéma (OPT-IN — ne le déclarer que si le lancement résout) →
+  l'endpoint sert l'option et `auto_preview` (même chemin que le tirage réel), le JS
+  affiche « Prévu : … — réévalué au lancement » quand la valeur est `auto`.
+- **Réévaluation au lancement, DITE** : synthesizer (`workers.py`) et avatarizer
+  (`workers.py`, mode pipeline) résolvent au lancement et consignent le choix dans la
+  console de l'item. Adopteurs : synthesizer + avatarizer (via schéma), imager + composer
+  (via leurs jumelles recâblées).
+- **Ce qui n'est PAS dedans** : l'INTENTION rapide↔qualité (curseur 3 politiques, validé
+  Fabien, non écrit — voir ci-dessus) et la comparaison prévision↔choix réel (la prévision
+  n'est pas stockée ; le message de lancement dit le choix, pas l'écart).
+
 ##### ⚠ INVARIANT À NE PAS CASSER : lister ≠ pouvoir choisir
 
 Rappel de Fabien (31/08), et c'est la règle d'`INPUT_MODEL_MATCHING §2` : le select **affiche

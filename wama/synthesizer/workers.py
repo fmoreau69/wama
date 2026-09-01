@@ -223,6 +223,21 @@ def synthesize_voice(self, synthesis_id: int):
         _console(synthesis.user_id, f"Texte extrait: {synthesis.word_count} mots")
         _set_progress(synthesis, 20)
 
+        # Choix AUTOMATIQUE du moteur (brique commune `auto_model`, 2026-09-02) : résolu
+        # AU LANCEMENT — la VRAM libre du moment fait foi, jamais l'état à la création
+        # (un batch résout chaque élément avec l'état GPU de son tour). Le domaine du
+        # tirage est CELUI que le schéma déclare pour les options (`params.py`) ; la
+        # prévision affichée sous le select était une photo, on dit ici le choix réel.
+        from wama.common.utils.auto_model import is_auto, resolve_model_choice
+        if is_auto(synthesis.tts_model):
+            synthesis.tts_model = resolve_model_choice(
+                synthesis.tts_model, app_id='synthesizer',
+                fallback=VoiceSynthesis._meta.get_field('tts_model').get_default())
+            synthesis.save(update_fields=['tts_model'])
+            _console(synthesis.user_id,
+                     f"Choix automatique du moteur → {synthesis.get_tts_model_display()} "
+                     f"(capacités + VRAM libre au lancement)")
+
         # Étape 2: Génération audio via le service TTS
         _console(synthesis.user_id, f"Envoi au service TTS (modèle: {synthesis.tts_model})...")
         _set_progress(synthesis, 30)

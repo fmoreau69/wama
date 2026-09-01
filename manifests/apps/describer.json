@@ -469,7 +469,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('PENDING', 'En attente'), ('RUNNING', 'En cours'), ('SUCCESS', 'Termine'), ('FAILURE', 'Echec')]",
+                  "expr": "[('PENDING', 'En attente'), ('AWAITING_RESOURCES', 'En attente de ressources'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
                   "imports": []
                 },
                 "default": {
@@ -910,6 +910,7 @@
             "min_label": "",
             "name": "output_style",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -963,6 +964,7 @@
             "min_label": "",
             "name": "output_language",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1003,6 +1005,7 @@
             "min_label": "",
             "name": "max_length",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1043,6 +1046,7 @@
             "min_label": "",
             "name": "generate_summary",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1083,6 +1087,7 @@
             "min_label": "",
             "name": "verify_coherence",
             "option_groups": null,
+            "options_auto": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
