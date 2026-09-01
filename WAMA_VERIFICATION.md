@@ -1040,7 +1040,16 @@ scénarios `common.rights_*` en sont extraits pour ne pas compter deux fois).
 | Scénario | Verdict | Nature |
 |---|---|---|
 | `common.rights_matrix` | ❌ **3 ACCÈS NON DÛS** : `/model-manager/api/models/db/` répond 200 aux profils commun/communication/recherche que `accessible()` refuse | **défaut RÉEL de garde** sur une surface d'API — périmètre model_manager (cf. `PROFILES §8.9.3`, arbitrage en cours). Bonus de la mesure : 14/16 apps discriminantes, branche JSON de `_deny` non exercée |
-| `common.rights_anonymous` | ❌ 12 index d'apps rendus en 200 au visiteur sans session | **instrument en retard sur la DÉCISION** : « visiteur guidé » tranché le 30-31/08 — les index se VOIENT, ce sont les ACTIONS qui se gardent. Le scénario doit être re-ciblé sur les actions (POST start/upload/delete anonymes → refus attendu) ; en l'état son rouge mesure la politique d'avant la décision |
+| `common.rights_anonymous` | ❌ (V3, re-ciblé le 02/09) **7 apps où un visiteur POURRAIT AGIR** + **le converter — l'app d'essai de la décision — est la SEULE à refuser** (`@login_required` sur son upload, `views.py:216`) : la politique « refus partout sauf converter » est inversée DANS LES DEUX SENS | rouge ASSUMÉ tant que la garde serveur n'est pas construite (chantier avatar/accueil, après portage) — mais l'anomalie converter est un fait à part, même famille que « converter_01 ouvert en anonyme, fermé connecté » (30/08) |
 
 ⚠ Ne pas « corriger » le rouge `anonymous` en ouvrant `accessible()` à l'anonyme ni en
 vérouillant les index : la décision est le visiteur GUIDÉ, c'est le SCÉNARIO qui se recale.
+
+
+### §7bis. Le re-ciblage de `rights_anonymous` — trois versions en une journée, et pourquoi
+
+| V | Mesure | Sort |
+|---|---|---|
+| V1 (d'origine) | GET anonyme sur les INDEX | rouge sur la POLITIQUE même (« visiteur guidé » : les pages se voient) — accusait la décision |
+| V2 (02/09, matin) | GET anonyme sur les routes `@require_POST` (405 = « vue atteinte ») | **RÉFUTÉE à sa première contre-vérification** : `@require_POST` est posé DEVANT la garde d'accès — son 405 répond à tout GET, gardé ou pas. *Un verdict d'instrument se contre-vérifie sur UNE vue réelle avant d'accuser 34.* |
+| V3 (02/09, retenue) | **POST anonyme À VIDE** sur `upload`, jeton CSRF réel (sans lui le 403 CSRF tombe AVANT les gardes et ne prouve rien), ceinture ORM (aucun objet ne doit naître — vérifié, supprimé et DIT sinon) | verdict au contrat de la décision, dans les DEUX sens (le converter gardé est aussi un écart) |
