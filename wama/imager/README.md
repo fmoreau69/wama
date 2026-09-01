@@ -55,5 +55,5 @@ Celery requis (`celery -A wama worker`). Endpoints principaux : `create/`, `star
 ## Licences
 
 Chaque modèle porte sa licence dans le catalogue (`AIModel.license`) ; la vue mesurée est
-`/common/licences/`, la politique dans `LICENSING.md`. Ne pas supposer « commercial OK » par
+`/common/licenses/`, la politique dans `LICENSING.md`. Ne pas supposer « commercial OK » par
 défaut (plusieurs modèles vidéo sont NC ou communautaires).

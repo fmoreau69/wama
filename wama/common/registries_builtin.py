@@ -167,7 +167,7 @@ register(Registry(
     key='fonctions', label='Fonctions de traitement', nature=REDECLARATION,
     source="`apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…",
     refresh=_refresh_functions, count=_count_functions,
-    url_name='model_manager:function_catalog', manifest_kind='function',
+    url_name='model_manager:functions_catalog', manifest_kind='function',
     doc='WAMA_DATA_FUNCTION_CARDS.md',
     description="Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les "
                 "fonctions ajoutées pendant que le serveur tourne, sans redémarrage.",
@@ -247,7 +247,7 @@ register(Registry(
     key='sources_externes', label='Sources externes', nature=MEASURE,
     source="Registre déclaratif `common/external_sources.py` + sonde réseau (clé, joignabilité)",
     refresh=_refresh_external_sources, count=_count_external_sources,
-    url_name='common:external_sources_catalog',
+    url_name='common:sources_catalog',
     doc='WAMA_MECANISMES.md',
     description="Sonde chaque source déclarée : clé d'API posée ? adresse joignable (proxy UGE "
                 "compris) ? La déclaration, elle, ne s'actualise pas — elle vit en code. "
@@ -268,7 +268,7 @@ register(Registry(
     key='librairies', label='Librairies externes', nature=DERIVED,
     source="Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`",
     count=_count_libraries,
-    url_name='model_manager:library_catalog', manifest_kind='library',
+    url_name='model_manager:libraries_catalog', manifest_kind='library',
     doc='LICENSING.md',
     description="La page mesure l'installation réelle à CHAQUE affichage et compare au déclaré : "
                 "l'écart affiché ne peut pas être périmé. Le registre lui-même s'alimente par la "

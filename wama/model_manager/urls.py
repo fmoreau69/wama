@@ -93,6 +93,8 @@ urlpatterns = [
     path('api/benchmarks/progress/', views.api_sync_benchmarks_progress,
          name='api_sync_benchmarks_progress'),
     path('api/model/uninstall/', views.api_model_uninstall, name='api_model_uninstall'),
-    path('functions/', views.function_catalog, name='function_catalog'),
-    path('libraries/', views.library_catalog, name='library_catalog'),
+    # ⚠ Noms au PLURIEL, alignés sur leurs chemins — norme des pages registres (Fabien,
+    # 01/09) : `<pluriel-anglais>_catalog`. Les vues gardent leur nom (module ≠ URL).
+    path('functions/', views.function_catalog, name='functions_catalog'),
+    path('libraries/', views.library_catalog, name='libraries_catalog'),
 ]

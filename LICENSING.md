@@ -1,7 +1,7 @@
 # LICENSING.md — Licence de WAMA, licences traversées, dépôt officiel
 
 > **Document de référence unique** du domaine « licences & dépôt » (règle : un domaine = un
-> fichier). La vue **mesurée** et vivante reste la page `/common/licences/`
+> fichier). La vue **mesurée** et vivante reste la page `/common/licenses/`
 > (`wama/common/services/license_audit.py`) — ce document consigne la POLITIQUE, les décisions
 > et la procédure de dépôt ; il ne duplique pas l'inventaire vivant.
 
@@ -48,7 +48,7 @@ l'AGPL-3.0 posée ici est la seule option cohérente avec les composants liés.
 ## 2. Ce que la licence du code ne couvre PAS : les modèles et médias
 
 Un résultat produit par WAMA traverse les licences de ses modèles — c'est la question à poser
-**avant de publier un résultat**, et la page `/common/licences/` y répond par app (calcul
+**avant de publier un résultat**, et la page `/common/licenses/` y répond par app (calcul
 depuis les `requires` des manifestes). État au 2026-08-21 :
 
 | Contrainte | Éléments | Conséquence |
@@ -66,7 +66,7 @@ sont catalogués dans `license_audit.py::_CATALOGUE` avec leur famille — y com
 
 ## 3. Code tiers VENDORISÉ (hors registres — inventorié le 2026-08-21)
 
-L'audit `/common/licences/` ne voit que les registres (modèles, librairies Python, médias).
+L'audit `/common/licenses/` ne voit que les registres (modèles, librairies Python, médias).
 Le code **copié dans le repo** a été inventorié à part :
 
 - **Front vendorisé** (`wama/static/vendors/`) : Bootstrap, three.js (+ fflate, meshoptimizer),

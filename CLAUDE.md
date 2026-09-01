@@ -309,7 +309,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | Stockage média & tiering | `MEDIA_STORAGE_TIERING.md` |
 | Format des fichiers batch | `BATCH_FORMAT.md` |
 | Retraits / dette soldée (registre) | `REMOVAL_LEDGER.md` |
-| **Licences & dépôt officiel** (licence du dépôt, politique, code vendorisé, dépôt APP/HAL/marque) | `LICENSING.md` — la vue MESURÉE reste `/common/licences/` (`license_audit.py`) |
+| **Licences & dépôt officiel** (licence du dépôt, politique, code vendorisé, dépôt APP/HAL/marque) | `LICENSING.md` — la vue MESURÉE reste `/common/licenses/` (`license_audit.py`) |
 | Briques communes — carte d'entrée du dossier | `wama/common/README.md` |
 
 > ⚠ Cette table n'est **PAS** générée — contrairement à celle de `WAMA_MECANISMES.md`. Elle dérive
