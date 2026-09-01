@@ -2881,3 +2881,65 @@ RÉFUTÉ** (test demandé par Fabien, 3 appels identiques sur le même dépôt) 
 6. **Angle mort à combler un jour** : l'audit ne voit que les 4 registres — le **code
    vendorisé** (`static/vendors/`, `avatarizer/codeformer/` = **NTU S-Lab NON COMMERCIAL**)
    a dû être inventorié à la main. Le rattacher au registre `Library` le rendrait mesuré.
+
+---
+
+## 21. App **Editor** — mise en forme assistée des sorties TEXTE (vision Fabien, 2026-09-01)
+
+> **Consigné le jour où la question s'est posée, à faire APRÈS le portage du monde Médias.**
+> Ne rien modifier d'ici là : la modale de texte du reader reste en l'état (cf. §21.1).
+
+### 21.1 Le constat qui l'a déclenchée (mesuré, 2026-09-01)
+
+Reader produit du **markdown** (c'est un de ses formats de sortie déclarés). Sur une même
+card (constat Fabien, card 43, image PNG passée à SAM3) :
+
+| surface | ce qui s'affiche | pourquoi |
+|---|---|---|
+| **card** | `SAM3 frame 5500 : 8 mask(s) stopline: 0.555 …` | l'extrait passe par le **compactage markdown COMMUN** (`wama-inspector.js::_compacteTexte` : retire `#`, `**`, `-`) — écrit pour tenir dans une piste de card |
+| **modale texte intégral** | `# SAM3 frame 5500…` / `- **stop_line**: 0.555` | `showTextModal` → `showPreviewModal({text_content})` → **`pre.textContent = …`** (`media-preview.js:448`) : le texte EXACT, dans un `<pre>`, sans rendu |
+
+**Ce n'est pas un choix, c'est un effet de bord** : le compactage a été écrit pour la card, la
+modale n'a jamais eu de rendu. Les deux ont chacune leur logique (extrait lisible / résultat
+exact et téléchargeable) — ce qui déroute, c'est que **rien ne dit à l'utilisateur qu'il
+regarde une source markdown**. Trois issues possibles, à trancher avec l'app Editor plutôt
+qu'en isolé : (a) laisser brut (c'est le résultat), (b) RENDRE le markdown, (c) **bascule
+« rendu / source »** — la seule qui n'enlève rien, et le comportement naturel d'un éditeur.
+⚠ Ne PAS traiter ça comme « une spécificité reader à retirer » : le compactage est déjà
+COMMUN, seul le rendu de la modale manque au parc entier.
+
+### 21.2 La vision
+
+**Un bouton ÉDITER sur toute app qui produit du TEXTE**, dans l'esprit de la correction
+assistée du Transcriber (pilote livré : `wama/transcriber/TRANSCRIBER_CORRECTION.md`,
+`ROADMAP §… Transcriber`) — mais pour la MISE EN FORME, pas la correction de contenu :
+
+- l'utilisateur met en forme son texte **dans WAMA**, puis télécharge le résultat **mis en
+  forme**, au lieu de récupérer un brut à retravailler ailleurs ;
+- **optionnel** : le brut reste toujours disponible, personne n'est obligé de passer par là ;
+- **éditeur ASSISTÉ par IA**, avec des **profils de mise en forme automatique** (rapport,
+  compte-rendu, transcription verbatim, notes…) — le pendant « forme » des profils de
+  fidélité déjà actés pour la transcription (`project_transcription_fidelity_profiles`) ;
+- candidat naturel à devenir une **app Editor** du monde Médias (entrée = un texte produit
+  par une autre app ou déposé ; sortie = un document mis en forme), donc consommatrice des
+  mêmes briques : card d'entrée, file, volet, manifeste — et productrice pour le Converter
+  (md → pdf/docx, chaîne déjà en place).
+
+### 21.3 Pistes à ÉVALUER (aucune retenue — vérifier avant de choisir)
+
+Éditeurs riches open-source déjà répandus : **TipTap** (sur ProseMirror), **Novel**
+(WYSIWYG à complétion IA), **BlockNote**, **Milkdown**, **Toast UI Editor**, **Editor.js**.
+
+⚠ **Trois filtres AVANT toute adoption** — ils ont déjà disqualifié des briques ailleurs :
+1. **licence** compatible avec le dépôt (`LICENSING.md` : WAMA est **AGPL-3.0**) — et à
+   inscrire au registre `Library`, comme toute dépendance ;
+2. **hors-ligne** : assets servis en LOCAL, jamais par CDN (règle du dépôt, cf.
+   `reference_offline_assets_local`) ;
+3. **l'IA passe par la couche LLM commune** (`WAMA_LLM.md`) — pas d'appel direct à un
+   service tiers depuis l'éditeur, et pas de second routage de modèle.
+
+### 21.4 Séquencement
+
+**APRÈS le portage du monde Médias.** D'ici là : ne rien changer au rendu de la modale
+(décision Fabien du 2026-09-01), et ne pas « corriger » l'écart card/modale en isolé — il se
+tranche avec la bascule rendu/source de l'éditeur.
