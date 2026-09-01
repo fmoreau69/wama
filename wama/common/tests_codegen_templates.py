@@ -690,6 +690,40 @@ class DefautsApplicablesTest(SimpleTestCase):
         self.assertNotIn('quality_preset', defauts, "contexte 'batch' : pas un réglage d'item")
         self.assertNotIn('rotation', defauts, 'visible mais sans default : rien à poser')
 
+    def test_la_cascade_complete_defauts_preset_posees(self):
+        # LA cascade (ROADMAP §23.2bis) : défauts du schéma ← preset ← réglages POSÉS.
+        from wama.common.utils.param_schema import effective_settings
+        # (a) rien de posé, pas de preset → le défaut du schéma s'applique
+        self.assertEqual(effective_settings(self.SCHEMA, contexte={'media_type': 'image'}),
+                         {'quality': 85})
+        # (b) un preset ÉCRASE le défaut — c'est tout l'objet d'un préréglage
+        self.assertEqual(
+            effective_settings(self.SCHEMA, preset={'quality': 80},
+                               contexte={'media_type': 'image'}),
+            {'quality': 80})
+        # (c) un réglage POSÉ écrase le preset — l'utilisateur a le dernier mot
+        self.assertEqual(
+            effective_settings(self.SCHEMA, posees={'quality': 95}, preset={'quality': 80},
+                               contexte={'media_type': 'image'}),
+            {'quality': 95})
+        # (d) le show_if tient : le preset d'une AUTRE famille n'entre pas
+        eff = effective_settings(self.SCHEMA, preset={'gif_fps': 24},
+                                 contexte={'media_type': 'image'})
+        self.assertEqual(eff, {'quality': 85, 'gif_fps': 24},
+                         'un preset explicite passe (il est fourni par l’app pour CE média)')
+
+    def test_une_valeur_vide_ne_compte_pas_comme_posee_mais_zero_et_False_si(self):
+        # ⚠ C'est CE point qui rend un preset possible : « non réglé » doit être
+        # distinguable. `''`/None = silence ; `0` et `False` sont des CHOIX (« 0 = inchangé »,
+        # un interrupteur décoché) — même convention que la vue d'upload du converter.
+        from wama.common.utils.param_schema import effective_settings
+        self.assertEqual(
+            effective_settings(self.SCHEMA, posees={'quality': ''}, preset={'quality': 80},
+                               contexte={'media_type': 'image'})['quality'], 80)
+        self.assertEqual(
+            effective_settings(self.SCHEMA, posees={'quality': 0}, preset={'quality': 80},
+                               contexte={'media_type': 'image'})['quality'], 0)
+
     def test_le_vocabulaire_show_if_est_celui_du_moteur_js(self):
         # wama-params.js::met — {field, in|equals} + legacy « nom de champ » = truthy.
         from wama.common.utils.param_schema import _show_if_met

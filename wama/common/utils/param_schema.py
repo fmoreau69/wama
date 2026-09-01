@@ -238,6 +238,45 @@ def applicable_defaults(schema, values=None) -> dict:
     return out
 
 
+#: Une valeur est POSÉE si elle n'est ni absente ni vide. `False` et `0` COMPTENT — un
+#: interrupteur décoché et un « 0 = inchangé » sont des choix, pas des silences (même
+#: convention que la vue d'upload du converter depuis toujours).
+def _posee(v) -> bool:
+    return v not in (None, '')
+
+
+def effective_settings(schema, posees=None, preset=None, contexte=None) -> dict:
+    """Valeurs EFFECTIVES d'un élément — **défauts (schéma) ← preset ← réglages POSÉS**.
+
+    LA cascade, écrite une fois (formulation de Fabien, 2026-09-01 ; cf. `ROADMAP §23.2bis`).
+    Elle remplace trois couches qui faisaient le même travail chacune dans son coin :
+    `converter/utils/quality_presets.resolve_options` (preset ← posé, sans les défauts), les
+    défauts en dur des backends (`options.get('gif_fps', 12)`) et `applicable_defaults` seule.
+
+    ⚠ Ce qui rend un preset POSSIBLE : la base ne doit porter que ce que l'utilisateur a POSÉ
+    (vide = « non réglé, le preset décide »). Un défaut stocké en base est indiscernable d'un
+    choix délibéré — et un preset ne pourrait alors plus rien arbitrer. C'est la raison pour
+    laquelle les presets du converter fonctionnent (son JSON ne contient que l'explicite) et
+    pour laquelle les 8 autres apps devront passer par là AVANT d'avoir des profils (§23.2bis).
+
+    Args:
+        schema   : `Param` ou dicts (`schema_to_dicts`).
+        posees   : ce que l'utilisateur a réglé — vide/absent = non réglé.
+        preset   : valeurs du préréglage choisi (l'app le résout : elle seule connaît sa table).
+        contexte : valeurs qui pilotent les `show_if` (ex. `{'media_type': 'image'}`) ; les
+                   valeurs posées s'y ajoutent, comme dans le moteur JS.
+
+    Returns: {nom: valeur} — les seules clés applicables à ce contexte.
+    """
+    posees = {k: v for k, v in (posees or {}).items() if _posee(v)}
+    ctx = dict(contexte or {})
+    ctx.update(posees)
+    out = applicable_defaults(schema, ctx)
+    out.update({k: v for k, v in (preset or {}).items() if _posee(v)})
+    out.update(posees)
+    return out
+
+
 def coerce_params(schema, data, caps=None):
     """Borne UNIQUE des paramètres numériques = le SCHÉMA (`params.py`). Source de vérité serveur.
 

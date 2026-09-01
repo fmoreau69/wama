@@ -106,7 +106,14 @@ def render_tasks(manifest: dict) -> tuple:
             f'    """TROU DE GLU {mark} — corps de backend à générer (marche B).',
             '',
             '    Contrat (task_skeleton) : ctx.progress/ctx.console ; retour {fields, eta,',
-            '    label} ; une exception = FAILURE ; nettoyage d\'échec ici."""',
+            '    label} ; une exception = FAILURE ; nettoyage d\'échec ici.',
+            '',
+            '    ⚠ Les VALEURS de réglage se lisent par la brique commune (2026-09-01) :',
+            '        from wama.common.utils.param_schema import effective_settings',
+            '        opts = effective_settings(PARAMS_JSON, posees=…, preset=…, contexte=…)',
+            '    — défauts du schéma ← preset ← réglages POSÉS. Ne PAS relire un défaut en dur',
+            '    dans le corps (`opts.get(\'x\', 12)`) : c\'est la 3ᵉ copie du même défaut, et',
+            '    c\'est exactement ce que cette brique vient de résorber (ROADMAP §23.2bis)."""',
             f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
         ]
     lignes.append('')
