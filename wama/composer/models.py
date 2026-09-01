@@ -1,5 +1,5 @@
 from django.db import models
-from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
 from django.contrib.auth.models import User
 
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
@@ -16,13 +16,8 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
         ('music', 'Musique'),
         ('sfx', 'Bruitage / SFX'),
     ]
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Succès'),
-        ('FAILURE', 'Échec'),
-    ]
-
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='composer_generations')
 
     # What to generate

@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input
-from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility
+from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 
 
 class Transcript(ProcessingTimeMixin, ScopedVisibility):
@@ -38,12 +38,8 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # Processing state
     task_id = models.CharField(max_length=255, blank=True, default='')
     # Statut canonique WAMA (contrat F5) — vocabulaire déclaré, plus un commentaire
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Terminé'),
-        ('FAILURE', 'Erreur'),
-    ]
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='PENDING')
     error_message = models.TextField(blank=True, default='')  # persisté au FAILURE (worker)
     progress = models.IntegerField(default=0)

@@ -17,6 +17,44 @@ from django.db import models
 from pgvector.django import VectorField
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Vocabulaire de STATUT des files d'items — domicile UNIQUE
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Les 13 modèles de file du monde MÉDIAS déclaraient chacun leur `STATUS_CHOICES`. Mesuré le
+# 2026-09-01 avant de centraliser : les 13 disaient **exactement la même chose** — il n'y avait
+# donc rien à réparer, seulement 13 copies à remplacer par une source. (Le critère de grille
+# `status_vocab` est ce qui a tenu cette unanimité ; il atteste l'adoption, il ne signale pas
+# une dérive — je l'avais lu à l'envers.)
+#
+# ⚠ Ce vocabulaire est celui d'une FILE D'ITEMS, pas celui de tout ce qui a un `status` :
+#   • `model_manager.ModelSyncLog` (`started/completed/failed`) est un JOURNAL, pas une file ;
+#   • le monde LAB (`cam_analyzer`, `face_analyzer`) a son propre cycle de vie, avec `draft`,
+#     `paused`, `stale` — des états qui n'ont aucun sens pour un traitement de média.
+# Les rapatrier ici écraserait des différences LÉGITIMES : une centralisation qui uniformise ce
+# qui n'est pas pareil est une perte d'information, pas un gain.
+#
+# Valeurs INCHANGÉES (ce sont celles en base sur ~300 lignes réelles) : centraliser ne
+# renomme rien et n'exige aucune migration de données.
+
+#: États d'un item de file. `PENDING` = son tour n'est pas venu ; `RUNNING` = ça tourne.
+JOB_PENDING = 'PENDING'
+JOB_RUNNING = 'RUNNING'
+JOB_SUCCESS = 'SUCCESS'
+JOB_FAILURE = 'FAILURE'
+
+#: Le couple (valeur, libellé) tel que les 13 apps le déclaraient. À passer en `choices=`.
+JOB_STATUS_CHOICES = [
+    (JOB_PENDING, 'En attente'),
+    (JOB_RUNNING, 'En cours'),
+    (JOB_SUCCESS, 'Terminé'),
+    (JOB_FAILURE, 'Échec'),
+]
+
+#: États où l'item n'est plus en mouvement — utile aux compteurs de file et aux garde-fous.
+JOB_STATUS_FINAUX = frozenset({JOB_SUCCESS, JOB_FAILURE})
+
+
 class ProcessingTimeMixin(models.Model):
     """Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
     ETA via record_run) ; on la PERSISTE ici pour qu'elle reste affichée après rechargement

@@ -7,6 +7,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
 from wama.common.models import (
+    JOB_STATUS_CHOICES,
     BatchMixin, ProcessingTimeMixin, PromptScoped, ScopedManager, ScopedVisibility,
 )
 from wama.common.utils.media_paths import UploadToUserPath
@@ -174,13 +175,8 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
 
     objects = ScopedManager()
 
-    STATUS_CHOICES = [
-        ('PENDING', 'Pending'),
-        ('RUNNING', 'Running'),
-        ('SUCCESS', 'Success'),
-        ('FAILURE', 'Failure'),
-    ]
-
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     GENERATION_MODE_CHOICES = [
         ('txt2img', 'Text to Image'),
         ('file2img', 'File to Image (batch)'),

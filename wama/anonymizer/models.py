@@ -7,7 +7,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from wama.settings import BASE_DIR, AI_MODELS_DIR
-from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager, JOB_STATUS_CHOICES
 from wama.common.utils.media_paths import upload_to_user_input
 import os
 
@@ -46,12 +46,8 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
     # Statut canonique WAMA (audit 2026-07-11) — remplace le booléen `processed` (hors norme
     # la plus profonde de la grille). `processed` survit en PROPERTY dérivée pour les lecteurs
     # (templates/JS) ; les écritures et les filtres SQL passent par `status`.
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Terminé'),
-        ('FAILURE', 'Erreur'),
-    ]
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     task_id = models.CharField(max_length=255, blank=True, default='')
     error_message = models.TextField(blank=True, default='')

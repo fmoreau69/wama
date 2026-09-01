@@ -7,7 +7,7 @@ Pipeline : MuseTalk (lip sync) + CodeFormer (amélioration faciale optionnelle)
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
-from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility
+from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 from wama.common.utils.media_paths import UploadToUserPath
 from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
 from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
@@ -24,13 +24,8 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
         'mode': 'audio',
     }
 
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Terminé'),
-        ('FAILURE', 'Échec'),
-    ]
-
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     MODE_CHOICES = [
         ('pipeline', 'Pipeline (texte → TTS → avatar)'),
         ('standalone', 'Standalone (audio uploadé)'),

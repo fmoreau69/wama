@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility
+from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 from wama.common.utils.media_paths import UploadToUserPath, upload_to_user_input
 
 
@@ -29,13 +29,8 @@ class Enhancement(ProcessingTimeMixin, ScopedVisibility):
         ('video', 'Video'),
     ]
 
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Terminé'),
-        ('FAILURE', 'Échec'),
-    ]
-
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     AI_MODEL_CHOICES = [
         ('RealESR_Gx4', 'RealESR-General x4 (Rapide)'),
         ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'),
@@ -155,13 +150,8 @@ class AudioEnhancement(ProcessingTimeMixin, ScopedVisibility):
         ('denoise', 'Débruitage seul (Rapide)'),
         ('enhance', 'Amélioration seule (Qualité)'),
     ]
-    STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('RUNNING', 'En cours'),
-        ('SUCCESS', 'Terminé'),
-        ('FAILURE', 'Échec'),
-    ]
-
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='audio_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
 

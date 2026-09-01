@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility
+from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 from wama.common.utils.media_paths import UploadToUserPath
 
 
@@ -60,13 +60,8 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
 
     objects = ScopedManager()
 
-    STATUS_CHOICES = [
-        ('PENDING',  'En attente'),
-        ('RUNNING',  'En cours'),
-        ('SUCCESS',  'Terminé'),
-        ('FAILURE',  'Erreur'),
-    ]
-
+    #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
+    STATUS_CHOICES = JOB_STATUS_CHOICES
     # Ingest URL déclaratif — consommé par la brique commune
     # common/utils/source_ingest.ensure_local_input() au démarrage de la tâche.
     WAMA_INGEST = {
