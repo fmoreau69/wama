@@ -51,3 +51,78 @@ class AttenteVramMesureeTest(TestCase):
             ok, libre = wait_for_free_vram(13.0, timeout_s=60.0, poll_s=0.0)
         self.assertTrue(ok)
         self.assertEqual(libre, 18.0)
+
+
+class DiffermentFauteDeVramTest(TestCase):
+    """Re-programmer plutôt qu'ATTENDRE dans le worker (décision Fabien, 2026-09-01).
+
+    `wait_for_free_vram()` DORT dans la tâche : elle immobilise un worker Celery. Acceptable
+    pour un hoquet de 180 s (son seul appelant de production est le mode dépannage GPU du
+    composer), inacceptable pour « la tâche se lancera quand les ressources seront
+    disponibles » — N items en attente y feraient N workers bloqués, et la file GPU
+    s'arrêterait, y compris pour les tâches légères qui passeraient.
+    """
+
+    def setUp(self):
+        from wama.synthesizer.models import VoiceSynthesis
+        from django.contrib.auth import get_user_model
+        u = get_user_model().objects.create_user('diff_test', password='x')
+        self.item = VoiceSynthesis.objects.create(user=u, text_content='bonjour')
+        self.model = VoiceSynthesis
+
+    def _ctx(self):
+        from wama.common.utils.task_skeleton import TaskContext
+        return TaskContext('synthesizer', self.model, self.item)
+
+    def _task(self, essais=0):
+        class _Retry(Exception):
+            pass
+
+        class _T:
+            class request:
+                retries = essais
+            @staticmethod
+            def retry(**kw):
+                return _Retry(f"retry {kw}")
+        return _T, _Retry
+
+    def test_ressources_suffisantes_on_ne_differe_PAS(self):
+        from wama.common.utils.task_skeleton import _differer_faute_de_vram
+        T, _ = self._task()
+        with mock.patch('wama.common.services.resource_governor.effective_free_gb',
+                        return_value=20.0):
+            differe = _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
+                                              self.item.pk, 'synthesizer', 4.0,
+                                              'error_message')
+        self.assertFalse(differe, "4 Go requis, 20 Go libres : rien ne justifie de différer")
+
+    def test_ressources_insuffisantes_l_item_ATTEND_et_le_worker_est_rendu(self):
+        from wama.common.utils.task_skeleton import _differer_faute_de_vram
+        T, Retry = self._task()
+        with mock.patch('wama.common.services.resource_governor.effective_free_gb',
+                        return_value=1.0):
+            with self.assertRaises(Retry):
+                _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
+                                        self.item.pk, 'synthesizer', 24.0, 'error_message')
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, 'AWAITING_RESOURCES')
+        # ⚠ Ce n'est PAS une erreur : on ne laisse pas de trace d'échec sur une attente.
+        self.assertEqual(self.item.error_message, '')
+
+    def test_au_bout_du_compte_on_RENONCE_EN_LE_DISANT(self):
+        """Une attente non bornée est un blocage silencieux, pas de la patience."""
+        from wama.common.utils.task_skeleton import (
+            _differer_faute_de_vram, DIFFEREMENTS_MAX)
+        T, _ = self._task(essais=DIFFEREMENTS_MAX)
+        with mock.patch('wama.common.services.resource_governor.effective_free_gb',
+                        return_value=1.0):
+            differe = _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
+                                              self.item.pk, 'synthesizer', 24.0,
+                                              'error_message')
+        self.assertTrue(differe)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, 'FAILURE')
+        # Le message DIT la sortie possible — jamais un échec nu, jamais un repli silencieux
+        # vers un modèle plus léger (ce serait décider à la place de l'utilisateur).
+        self.assertIn('24.0 Go requis', self.item.error_message)
+        self.assertIn('qualité', self.item.error_message)

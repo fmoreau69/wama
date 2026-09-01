@@ -54,7 +54,8 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
     output_quality = models.CharField(max_length=20, default='balanced')
 
     # Processing state
-    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='PENDING')
+    # max_length 16 -> 24 : `AWAITING_RESOURCES` fait 18 caracteres (refus Django E009).
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default='PENDING')
     progress = models.IntegerField(default=0)
     task_id = models.CharField(max_length=64, blank=True, null=True)
     error_message = models.TextField(blank=True, null=True)
