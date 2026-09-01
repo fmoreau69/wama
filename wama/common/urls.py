@@ -60,6 +60,11 @@ urlpatterns = [
     # dit surtout QUI consomme quoi — un skill que rien ne résout est un fichier inerte.
     path('skills/', views.skills_catalog_view, name='skills_catalog'),
 
+    # Sources externes : la PAGE du registre `sources_externes` (8ᵉ registre, 2026-09-01).
+    # La déclaration dérive du code ; la sonde (clé, joignabilité) est le rapport écrit par
+    # le bouton hérité — en Celery, jamais dans le rendu.
+    path('sources/', views.external_sources_view, name='external_sources_catalog'),
+
     # Journal transversal de l'utilisateur (WAMA_MEMORY.md §9bis) — dérive de detail_registry,
     # aucune ligne dans les apps.
     path('journal/', views.journal_view, name='journal'),

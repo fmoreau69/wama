@@ -487,6 +487,47 @@ def licenses_catalog_view(request):
                    'volet': VOLET_AUCUN})
 
 
+def external_sources_view(request):
+    """
+    Page du registre `sources_externes` — à quoi WAMA se connecte, et est-ce que ça répond.
+
+    Deux couches, deux fraîcheurs, et la page les DISTINGUE au lieu de les fondre :
+    - la DÉCLARATION (identité, adresse, portée, attribution) dérive du code à chaque
+      affichage — elle ne peut pas être périmée ;
+    - la SONDE (clé posée ? joignable ? latence ?) est le dernier rapport ÉCRIT, daté à
+      l'écran. La page ne sonde jamais elle-même : quatorze requêtes réseau dans un rendu
+      de page seraient le défaut des 31 s des anciens boutons, en pire (réseau externe).
+    """
+    from .external_sources import SOURCES, LOCAL, api_key, base_url, last_report
+
+    rapport = last_report()
+    sondes = {r['key']: r for r in (rapport or {}).get('results', [])}
+    lignes = []
+    for s in SOURCES:
+        lignes.append({
+            'key': s.key, 'label': s.label, 'usage': s.usage, 'doc': s.doc,
+            'locale': s.scope == LOCAL, 'url': base_url(s.key),
+            'setting': s.setting, 'env': s.env,
+            'api_key_env': s.api_key_env,
+            'cle_posee': bool(api_key(s.key)) if s.api_key_env else None,
+            'attribution': s.attribution,
+            'sonde': sondes.get(s.key),
+        })
+
+    facettes = [{'cle': 'portee', 'label': 'Portée', 'tous': 'Toutes les portées',
+                 'options': {'locale': 'Service local', 'sortante': 'Internet (proxy UGE)'}}]
+
+    return render(request, 'common/external_sources.html', {
+        'lignes': lignes,
+        'rapport_date': (rapport or {}).get('generated_at', ''),
+        'compteurs': (rapport or {}).get('counts', {}),
+        'nb_locales': sum(1 for l in lignes if l['locale']),
+        'nb_a_cle': sum(1 for l in lignes if l['api_key_env']),
+        'facettes_sources': facettes,
+        'volet': VOLET_AUCUN,
+    })
+
+
 def skills_catalog_view(request):
     """
     Catalogue des SKILLS de prompt — la page qui manquait au registre `skills`.

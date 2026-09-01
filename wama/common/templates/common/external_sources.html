@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_catalog %}
+{% block title %}Sources externes — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Page du registre `sources_externes` (8ᵉ registre). DEUX couches que la page distingue :
+  la DÉCLARATION (dérivée du code, jamais périmée) et la SONDE (dernier rapport écrit, daté).
+  Même charte que les catalogues existants (licences / registres / skills) : bandeau de stats,
+  encart d'intention, puis cartes. Le bouton vient de la brique commune {% templatetag openblock %} refresh_button {% templatetag closeblock %}.
+{% endcomment %}
+
+{% block extra_css %}
+<style>
+  .xs-wrap { padding: 16px 20px; }
+  .xs-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .xs-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+             border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
+  .xs-stat b { color: #ffb300; }
+
+  .xs-hero { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-left: 3px solid #ffb300; border-radius: 10px; padding: 12px 16px;
+             margin-bottom: 16px; }
+  .xs-hero h3 { font-size: 1rem; margin: 0 0 4px; }
+  .xs-hero p { margin: 0 0 6px; font-size: .82rem; color: #c3ccd6; line-height: 1.45; }
+  .xs-hero p:last-child { margin-bottom: 0; }
+
+  .xs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
+  .xs-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .xs-card h4 { font-size: .95rem; margin: 0; display: flex; align-items: center;
+                gap: 8px; flex-wrap: wrap; }
+  .xs-usage { font-size: .8rem; color: #c3ccd6; line-height: 1.4; }
+  .xs-url { font-size: .76rem; color: #90caf9; word-break: break-all; }
+  .xs-meta { font-size: .74rem; color: #90a4ae; }
+  .xs-meta code { color: #c8d6e5; }
+
+  .xs-badge { font-size: .62rem; font-weight: 700; text-transform: uppercase;
+              letter-spacing: .03em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+  .xs-locale   { background: #1b5e20; color: #c8e6c9; }
+  .xs-sortante { background: #0d47a1; color: #bbdefb; }
+  .xs-cle-ok   { background: #33691e; color: #dcedc8; }
+  .xs-cle-ko   { background: #b71c1c; color: #ffcdd2; }
+
+  .xs-sonde { margin-top: auto; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.07);
+              font-size: .76rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .xs-ok  { color: #a5d6a7; }
+  .xs-ko  { color: #ef9a9a; }
+  .xs-muet { color: #90a4ae; }
+  .xs-err { font-size: .72rem; color: #ffcc80; word-break: break-all; }
+  .xs-attrib { font-size: .72rem; color: #ce93d8; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="xs-wrap">
+
+  <div class="xs-stats">
+    <span class="xs-stat"><b>{{ lignes|length }}</b> sources déclarées</span>
+    <span class="xs-stat"><b>{{ nb_locales }}</b> services locaux</span>
+    <span class="xs-stat"><b>{{ nb_a_cle }}</b> à clé d'API</span>
+    {% if rapport_date %}
+      <span class="xs-stat">sonde du <b>{{ rapport_date }}</b> —
+        {{ compteurs.reachable }} joignable(s)
+        {% if compteurs.unreachable %} · <b>{{ compteurs.unreachable }}</b> injoignable(s){% endif %}
+      </span>
+    {% else %}
+      <span class="xs-stat xs-muet">jamais sondées — lancer une actualisation</span>
+    {% endif %}
+  </div>
+
+  <div class="xs-hero">
+    <h3>À quoi WAMA se connecte — et est-ce que ça répond</h3>
+    <p>La <b>déclaration</b> (identité, adresse, portée, attribution de licence) vient du code
+       (<code>common/external_sources.py</code>) et ne peut pas être périmée. La <b>sonde</b>
+       (clé posée&nbsp;? adresse joignable&nbsp;? en combien de temps&nbsp;?) est le dernier
+       rapport écrit — datée ci-dessus, relancée par le bouton.</p>
+    <p>⚠ Déclarer une source n'ajoute <b>jamais</b> un client par l'écran : chaque plateforme a
+       sa forme (JSON authentifié, parquet, HTML), le parseur vit chez son consommateur. Un
+       chargeur générique paramétré ici serait une surface de requête arbitraire côté serveur.</p>
+  </div>
+
+  <div class="xs-grid">
+    {% for l in lignes %}
+    <div class="xs-card" data-f-portee="{% if l.locale %}locale{% else %}sortante{% endif %}">
+      <h4>{{ l.label }}
+        {% if l.locale %}<span class="xs-badge xs-locale">local</span>
+        {% else %}<span class="xs-badge xs-sortante">sortante</span>{% endif %}
+        {% if l.api_key_env %}
+          {% if l.cle_posee %}<span class="xs-badge xs-cle-ok">clé posée</span>
+          {% else %}<span class="xs-badge xs-cle-ko">clé absente</span>{% endif %}
+        {% endif %}
+      </h4>
+      <div class="xs-usage">{{ l.usage }}</div>
+      <div class="xs-url">{{ l.url }}</div>
+      <div class="xs-meta">
+        {% if l.setting %}réglage <code>{{ l.setting }}</code>{% endif %}
+        {% if l.env %}{% if l.setting %} · {% endif %}env <code>{{ l.env }}</code>{% endif %}
+        {% if l.api_key_env %}{% if l.setting or l.env %} · {% endif %}clé <code>{{ l.api_key_env }}</code>{% endif %}
+      </div>
+      {% if l.attribution %}<div class="xs-attrib">Attribution : {{ l.attribution }}</div>{% endif %}
+      <div class="xs-sonde">
+        {% if l.sonde %}
+          {% if l.sonde.reachable %}
+            <span class="xs-ok">● joignable (HTTP {{ l.sonde.status }}, {{ l.sonde.latency_ms }} ms)</span>
+          {% else %}
+            <span class="xs-ko">● injoignable</span>
+            <span class="xs-err">{{ l.sonde.error }}</span>
+          {% endif %}
+        {% else %}
+          <span class="xs-muet">jamais sondée</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-3">{% refresh_button 'sources_externes' %}</div>
+</div>
+{% endblock %}
