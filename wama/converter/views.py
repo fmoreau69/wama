@@ -34,7 +34,7 @@ from .models import ConversionJob, ConversionProfile, ConversionBatch
 from .utils.format_router import detect_media_type, get_output_formats, SUPPORTED_CONVERSIONS
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.queue_duplication import safe_delete_file, duplicate_instance
-from ..common.utils.param_schema import schema_extra_params
+from ..common.utils.param_schema import schema_extra_params, schema_model_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -252,8 +252,13 @@ def upload(request):
     # L'ancienne version castait `'1'` en booléen True pour TOUTES les clés : `channels=1`
     # (mono) partait en `-ac True` vers ffmpeg. Le schéma sait que `channels` est un select,
     # `flip_h` un toggle et `resize_w` un nombre borné.
-    options = {k: v for k, v in schema_extra_params('converter', request.POST).items()
-               if v not in (None, '')}
+    # ⚠ `schema_model_kwargs` ET `schema_extra_params` (2026-09-01) : depuis que les réglages
+    # sont des COLONNES, ils sortent du second (qui ne rend QUE le hors-colonne) et entrent
+    # dans le premier. Prendre les deux rend le geste indifférent à cette frontière — c'est
+    # elle qui vient de bouger, et elle rebougera au portage des autres apps.
+    options = {k: v for k, v in {**schema_model_kwargs('converter', request.POST),
+                                 **schema_extra_params('converter', request.POST)}.items()
+               if v not in (None, '') and k != 'media_type'}
 
     job = ConversionJob.objects.create(
         user=user,
@@ -261,9 +266,16 @@ def upload(request):
         input_filename=file_obj.name,
         media_type=media_type,
         output_format=output_fmt,
-        options=options,
         status='PENDING',
     )
+    # Un réglage = une COLONNE (2026-09-01) : les valeurs postées par la zone de composition
+    # s'écrivent par le point d'entrée unique du modèle, qui coerce selon le type du champ.
+    # ⚠ On ne pose QUE ce que l'utilisateur a envoyé : une colonne laissée vide veut dire
+    # « non réglé », et c'est ce qui permet au préréglage de qualité d'agir (§23.2bis).
+    if options:
+        champs = job.poser_reglages(options)
+        if champs:
+            job.save(update_fields=champs)
 
     # Re-persiste le choix comme défaut du prochain dépôt de ce type de média.
     save_user_app_settings(user, 'converter', {f'last_format_{media_type}': output_fmt})
@@ -410,23 +422,21 @@ def update_job(request, pk):
         job.output_format = output_fmt
 
     # Options can come as a JSON blob (preferred) or as individual POST keys.
+    champs_touches = []
     options_json = request.POST.get('options_json')
     if options_json:
         try:
             new_opts = _json.loads(options_json)
             if not isinstance(new_opts, dict):
                 raise ValueError("options_json must be an object")
-            # Split : les ids du catalogue cross-app (format_router = source unique) vont
-            # dans le champ DÉDIÉ cross_app_options — pas de surcharge du JSON moteur.
-            from .utils.format_router import cross_app_option_ids
-            _xa_ids = cross_app_option_ids()
-            job.cross_app_options = {k: new_opts.pop(k) for k in list(new_opts)
-                                     if k in _xa_ids}
-            job.options = new_opts
+            # Un réglage = une COLONNE depuis le 2026-09-01 : plus de split à faire ici (le
+            # modèle sait à quelle famille appartient chaque nom), et plus de JSON à écrire.
+            # `poser_reglages` coerce selon le type du champ et rend les champs touchés.
+            champs_touches = job.poser_reglages(new_opts)
         except (ValueError, _json.JSONDecodeError) as exc:
             return JsonResponse({'error': f"options_json invalide : {exc}"}, status=400)
 
-    job.save(update_fields=['output_format', 'options', 'cross_app_options'])
+    job.save(update_fields=['output_format'] + champs_touches)
     return JsonResponse({'success': True, 'output_format': job.output_format, 'options': job.options})
 
 

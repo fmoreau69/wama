@@ -80,10 +80,103 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     output_file   = models.FileField(upload_to=UploadToUserPath('converter', 'output'),
                                      null=True, blank=True)
     output_format = models.CharField(max_length=20, blank=True)  # 'mp4', 'webp', …
-    options       = models.JSONField(default=dict)               # resize, quality, fps, …
 
-    # Cross-app options (applied after main conversion)
-    cross_app_options = models.JSONField(default=dict)  # e.g. {"upscale": "x2", "audio_enhance": true}
+    # ── RÉGLAGES : une colonne par param du schéma (uniformisation 2026-09-01) ──────────
+    # Les 9 autres apps déclarent leurs réglages en colonnes ; le converter les rangeait
+    # dans deux JSON. Le portage aligne la forme SANS changer la sémantique, et c'est cette
+    # sémantique qui commande la déclaration :
+    #
+    #   ⚠ AUCUN `default=` significatif ici — VIDE veut dire « non réglé, le préréglage
+    #   décide ». Les défauts vivent au SCHÉMA (`params.py`), où ils servent l'affichage ET
+    #   la valeur effective via `param_schema.effective_settings` (défauts ← preset ←
+    #   réglages posés). Poser `default=85` sur `quality` rendrait TOUS les jobs explicites
+    #   et les trois préréglages n'arbitreraient plus rien, en silence (ROADMAP §23.2bis).
+    #   *Une couche qui arbitre a besoin de distinguer « absent » de « posé ».*
+    #
+    # Les toggles font exception au `null` : `False` == non coché == absent du JSON d'avant
+    # — les deux se confondent sans conséquence (aucun préréglage ne pose un miroir).
+    quality        = models.IntegerField(null=True, blank=True)   # image, 1-100
+    resize_w       = models.IntegerField(null=True, blank=True)   # image, 0 = inchangé
+    resize_h       = models.IntegerField(null=True, blank=True)
+    rotation       = models.CharField(max_length=8, blank=True, default='')   # '', 90, 180, 270
+    flip_h         = models.BooleanField(default=False)
+    flip_v         = models.BooleanField(default=False)
+    video_quality  = models.IntegerField(null=True, blank=True)   # CRF 0-51
+    fps            = models.IntegerField(null=True, blank=True)
+    gif_fps        = models.IntegerField(null=True, blank=True)
+    gif_width      = models.IntegerField(null=True, blank=True)
+    audio_bitrate  = models.CharField(max_length=16, blank=True, default='')
+    sample_rate    = models.CharField(max_length=16, blank=True, default='')
+    channels       = models.CharField(max_length=4, blank=True, default='')
+    normalize      = models.BooleanField(default=False)
+    # Post-traitement cross-app (enhancer inline) — appliqué APRÈS la conversion.
+    upscale        = models.CharField(max_length=8, blank=True, default='')
+    denoise        = models.BooleanField(default=False)
+    audio_enhance  = models.BooleanField(default=False)
+
+    #: Réglages du schéma rangés dans le JSON (avant le 2026-09-01) — CONSERVÉ le temps que
+    #: la migration de données soit validée en production, puis retirable (REMOVAL_LEDGER).
+    #: Ne plus LIRE ni ÉCRIRE : les propriétés `options`/`cross_app_options` ci-dessous sont
+    #: la source, et elles viennent des colonnes.
+    options_legacy = models.JSONField(default=dict, blank=True)
+    cross_app_options_legacy = models.JSONField(default=dict, blank=True)
+
+    #: Noms des colonnes de réglage, par destination — l'ordre suit `params.py`.
+    CHAMPS_OPTIONS = ('quality', 'resize_w', 'resize_h', 'rotation', 'flip_h', 'flip_v',
+                      'video_quality', 'fps', 'gif_fps', 'gif_width', 'audio_bitrate',
+                      'sample_rate', 'channels', 'normalize')
+    CHAMPS_CROSS_APP = ('upscale', 'denoise', 'audio_enhance')
+
+    def _reglages(self, champs) -> dict:
+        """{nom: valeur} des seuls réglages POSÉS — reproduit à l'identique ce que les JSON
+        contenaient : ni `None`, ni `''`, ni un interrupteur décoché (absent d'avant)."""
+        out = {}
+        for nom in champs:
+            v = getattr(self, nom, None)
+            if v is None or v == '' or v is False:
+                continue
+            out[nom] = v
+        return out
+
+    @property
+    def options(self) -> dict:
+        """Réglages posés — MÊME contrat que l'ancien JSONField, reconstruit des colonnes.
+        Garder ce nom est ce qui permet aux ~8 lecteurs (tâche, backends, cross_app, chips,
+        gear, status) de continuer sans une ligne de changement."""
+        return self._reglages(self.CHAMPS_OPTIONS)
+
+    @property
+    def cross_app_options(self) -> dict:
+        return self._reglages(self.CHAMPS_CROSS_APP)
+
+    def poser_reglages(self, valeurs: dict) -> list:
+        """Écrit des réglages sur les colonnes ; renvoie les champs TOUCHÉS (pour
+        `update_fields`). Une clé absente de `valeurs` n'est pas touchée ; une valeur vide
+        REMET la colonne à « non réglé » (c'est ainsi qu'on retire un réglage).
+
+        Point d'entrée UNIQUE de l'écriture — les propriétés `options`/`cross_app_options`
+        sont en lecture seule, par construction : deux façons d'écrire un même réglage, c'est
+        la divergence assurée (le converter en a fait l'expérience avec ses deux JSON).
+        """
+        connus = set(self.CHAMPS_OPTIONS) | set(self.CHAMPS_CROSS_APP)
+        touches = []
+        for nom, v in (valeurs or {}).items():
+            if nom not in connus:
+                continue              # clé hors schéma : ignorée (jamais d'attribut inventé)
+            champ = self._meta.get_field(nom)
+            interne = champ.get_internal_type()
+            if interne == 'BooleanField':
+                v = v in (True, 'true', 'True', 1, '1')
+            elif interne == 'IntegerField':
+                try:
+                    v = int(float(v)) if v not in (None, '') else None
+                except (TypeError, ValueError):
+                    continue          # illisible : on ne pose rien plutôt qu'une valeur fausse
+            else:
+                v = '' if v is None else str(v)
+            setattr(self, nom, v)
+            touches.append(nom)
+        return touches
 
     profile       = models.ForeignKey(ConversionProfile, null=True, blank=True,
                                       on_delete=models.SET_NULL, related_name='jobs')

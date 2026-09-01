@@ -85,6 +85,36 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIn('build_batch_template', corps, 'le gabarit doit passer par la brique')
         self.assertIn('example.com/exemple', corps, 'aucune ligne d\'exemple émise')
 
+    def _src_avec_hors_colonnes(self):
+        """Vues générées pour une app dont un réglage n'EST PAS une colonne.
+
+        ⚠ Le converter servait de témoin jusqu'au 2026-09-01 — il ne peut plus : ses 17
+        réglages sont passés EN COLONNES ce jour-là, donc il n'a plus de hors-colonne et le
+        gabarit n'a (justement) plus d'idiome à émettre pour lui. Le mécanisme, lui, reste
+        nécessaire (l'enhancer a 4 hors-colonnes, et une app générée de zéro peut en avoir) :
+        on le mesure donc sur un manifeste FABRIQUÉ, indépendant de l'état d'une app réelle.
+        """
+        from copy import deepcopy
+        from wama.common.manifests.ingest import extract
+        from wama.common.manifests.codegen.views_gen import render_views
+        manifest = deepcopy(extract('app', SOURCE))
+        body = manifest.get('body') or {}
+        # Le générateur lit les colonnes à DEUX endroits (facette `data` ET
+        # `processing.model_spec.item.params_fields`) et cherche un conteneur nommé
+        # `options` : pour fabriquer un « modèle à hors-colonne », il faut donc retirer le
+        # param des deux listes ET rendre le conteneur présent (le converter l'a renommé
+        # `options_legacy` en passant aux colonnes).
+        for m in (body.get('data') or {}).get('models') or []:
+            if isinstance(m, dict) and m.get('name') == 'ConversionJob':
+                champs = [f for f in (m.get('fields') or []) if f.get('name') != 'quality']
+                champs.append({'name': 'options', 'type': 'JSONField'})
+                m['fields'] = champs
+        spec = ((body.get('processing') or {}).get('model_spec') or {}).get('item') or {}
+        spec['params_fields'] = [n for n in (spec.get('params_fields') or []) if n != 'quality']
+        src, raison = render_views(manifest)
+        self.assertIsNotNone(src, f'génération impossible : {raison}')
+        return src
+
     def test_les_champs_hors_colonnes_s_ecrivent_dans_le_conteneur_options(self):
         """Idiome `params_storage` DÉRIVÉ (constats Fabien 31/08 : modale complète mais seuls
         les champs-colonnes s'enregistraient ; volet PARAMÈTRES vide).
@@ -93,13 +123,22 @@ class CheminDeLotTest(SimpleTestCase):
         le JSONField `options` ; `_decorer` aplatit ces valeurs sur l'instance (data-param-*,
         volet, pré-remplissage de modale).
         """
-        corps = _fonction(self.src, 'update')
+        src = self._src_avec_hors_colonnes()
+        corps = _fonction(src, 'update')
         self.assertIsNotNone(corps)
         self.assertIn('_extras', corps, 'update ne route pas les champs hors-colonnes')
-        self.assertIn("'quality'", corps, 'un champ hors-colonne attendu manque à la liste')
-        deco = _fonction(self.src, '_decorer')
+        self.assertIn("'quality'", corps, 'le champ retiré des colonnes doit être routé')
+        deco = _fonction(src, '_decorer')
         self.assertIsNotNone(deco)
         self.assertIn('_opts', deco, "_decorer n'aplatit pas le conteneur sur l'instance")
+
+    def test_une_app_SANS_hors_colonne_n_emet_aucun_idiome_de_conteneur(self):
+        # Le pendant, et la preuve que la bascule du converter a bien eu lieu : quand tous
+        # les réglages sont des colonnes (son cas depuis le 2026-09-01), il n'y a plus rien
+        # à router — émettre l'idiome quand même écrirait dans un conteneur pour rien.
+        corps = _fonction(self.src, 'update') or ''
+        self.assertNotIn('_extras', corps,
+                         'le converter n’a plus de réglage hors colonne : aucun routage à émettre')
 
     def test_le_depot_deroule_la_cascade_de_reglages_de_l_app_reelle(self):
         """Un élément FRAIS doit naître avec des valeurs — défauts applicables du schéma ←
@@ -123,8 +162,14 @@ class CheminDeLotTest(SimpleTestCase):
         corps = _fonction(self.src, 'upload')
         self.assertIn('_reglages_du_depot(user, kwargs.get(\'media_type\', \'\'), request.POST)',
                       corps, "upload ne déroule pas la cascade")
-        self.assertIn("kwargs['options'] = _extras", corps,
-                      'les extras ne rejoignent pas le conteneur JSON')
+        # Les valeurs issues de la cascade atterrissent sur l'ITEM — en colonnes quand le
+        # modèle en a (cas du converter depuis le 2026-09-01), dans le conteneur JSON sinon.
+        # C'est la MÊME cascade : seule sa destination suit la forme du modèle.
+        self.assertIn('kwargs.update(_cols)', corps,
+                      'les valeurs cascadées ne rejoignent pas les colonnes de l’item')
+        src_extras = self._src_avec_hors_colonnes()
+        self.assertIn("kwargs['options'] = _extras", _fonction(src_extras, 'upload'),
+                      'sur un modèle à hors-colonne, les extras doivent rejoindre le conteneur')
         bc = _fonction(self.src, 'batch_create')
         self.assertEqual(bc.count("_reglages_du_depot(user, kwargs.get('media_type', ''))"), 2,
                          'les DEUX branches de batch_create (URL, fichier) doivent dérouler '
