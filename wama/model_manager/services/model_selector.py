@@ -408,7 +408,21 @@ def select_model_id(source: Optional[str] = None, requires=None,
         return fallback
     logger.info("[Select] %s %s → %s (%s Go)",
                 source, requires or '', chosen.model_id, chosen.vram_gb)
-    return chosen.model_id
+    # Le RETOUR suit le même espace de clés que la REQUÊTE — la règle que
+    # `get_registry_models` applique déjà, et qui manquait ici (mesuré 2026-09-01).
+    #
+    # `source` nommé  → id NU (`bark`) : l'appelant connaît la source, il l'a nommée, et ses
+    #                   valeurs stockées sont historiquement nues (imager, composer).
+    # `source=None`   → clé ENTIÈRE (`synthesizer:bark`) : la requête a traversé TOUS les
+    #                   producteurs, donc le suffixe seul ne désigne plus personne. Deux
+    #                   producteurs peuvent porter le même — c'est exactement la raison pour
+    #                   laquelle `get_registry_models` rend la clé entière dans ce mode.
+    #
+    # ⚠ Sans cette symétrie, un tirage AUTOMATIQUE par capacité rendait `'bark'` là où l'app
+    # stocke et sait router `'synthesizer:bark'` : option introuvable dans le select, chip
+    # affichant la clé brute, capacités non résolues. Le tirage aurait « marché » en rendant
+    # une valeur que plus rien en aval ne reconnaît.
+    return chosen.model_id if source else chosen.model_key
 
 
 def get_registry_models(source: Optional[str] = None, allowed_ids=None,

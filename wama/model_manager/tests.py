@@ -959,3 +959,47 @@ class EchellesComparablesTest(_SourcesFactices, TestCase):
         self._modele('fort-elo', 1125.76, 'arena_elo_text_to_image', quality=1.0)
         top = AIModel.best_installed('diffusion', limit=2)
         self.assertEqual(top[0].model_key, 'faible-elo')
+
+
+class EspaceDeClesDuTirageTest(TestCase):
+    """Le RETOUR de `select_model_id` suit l'espace de clés de la REQUÊTE.
+
+    Défaut mesuré le 2026-09-01 en préparant le tirage AUTOMATIQUE : interrogé par CAPACITÉ
+    (`source=None`, le mode qui rend les passerelles gratuites), `select_model_id` rendait un
+    id NU — `'bark'` — alors que les candidats, eux, sont des clés entières et que l'app
+    stocke et route `'synthesizer:bark'` depuis le portage F4b.
+
+    Le tirage aurait donc « marché » en rendant une valeur que plus rien en aval ne reconnaît :
+    option introuvable dans le select, chip affichant la clé brute, capacités non résolues.
+    C'est la règle que `get_registry_models` applique déjà dans ce mode, et qui manquait ici.
+    """
+
+    def _modele(self, cle, task, vram=1.0):
+        return AIModel.objects.create(
+            model_key=cle, name=cle.split(':')[-1], source=cle.split(':')[0],
+            model_type='speech', vram_gb=vram, is_available=True, is_downloaded=True,
+            is_proposed=False, capabilities={'task': task, 'modalities': ['audio'],
+                                             'inputs_required': ['prompt']})
+
+    def test_par_capacite_la_cle_rendue_est_ENTIERE(self):
+        from .services import select_model_id
+        self._modele('synthesizer:moteur-a', 'text-to-speech', vram=4.0)
+        cle = select_model_id(None, task='text-to-speech')
+        self.assertEqual(
+            cle, 'synthesizer:moteur-a',
+            "tirage par capacité : sans préfixe de source, deux producteurs pourraient "
+            "porter le même suffixe et l'appelant ne saurait plus qui il vise")
+
+    def test_par_source_la_cle_rendue_reste_NUE(self):
+        """La voie historique ne bouge pas — imager et composer stockent des ids nus."""
+        from .services import select_model_id
+        self._modele('synthesizer:moteur-b', 'text-to-speech', vram=4.0)
+        self.assertEqual(select_model_id('synthesizer', task='text-to-speech'), 'moteur-b')
+
+    def test_un_choix_EXPLICITE_traverse_intact(self):
+        """`requested` est respecté tel quel — dans l'espace de clés que l'appelant emploie."""
+        from .services import select_model_id
+        self._modele('synthesizer:moteur-c', 'text-to-speech')
+        self.assertEqual(
+            select_model_id(None, task='text-to-speech', requested='synthesizer:moteur-c'),
+            'synthesizer:moteur-c')
