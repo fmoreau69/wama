@@ -9667,3 +9667,88 @@ Cinq scripts de diagnostic (diagnostic des non-appariés, sondes de règle d'app
 inventaire des échelles, fiche de validation des alias, settings jetables de clôture) vivent
 **dans le scratchpad de session** — jetables, aucun n'est requis pour rejouer le travail : tout
 ce qu'ils ont mesuré est consigné ci-dessus ou dans les messages de commit.
+
+
+## §REPRISE — 2026-09-01, instance « PORTAGE F4b ②③ + STATUTS COMMUNS + AWAITING_RESOURCES » — ✅ CLOSE
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : construire la **brique commune d'auto-sélection**
+(conception VALIDÉE par Fabien, non écrite — voir « annoncé puis non fait » ci-dessous) :
+`auto` en 1ʳᵉ option servie par le catalogue, résolveur commun généralisant
+`composer/utils/auto_model.py` + `imager/utils/auto_model.py` (structurellement identiques),
+**affichage du modèle retenu en PRÉVISION** sous le select (décision Fabien), réévaluation au
+lancement avec message si les ressources ont changé. Prérequis TOUS livrés cette session.
+
+**Livré** (13 commits, `999dd373` → `eeeaa24c`) :
+1. **Portage F4b ② + ③** — synthesizer ET avatarizer tirent leurs options du catalogue par
+   CAPACITÉ (7 moteurs servis dont Kokoro-ONNX, 4 avant) ; espace de clés unifié (clé
+   catalogue entière, 103 lignes réelles migrées, résolveur tolérant) ; dispatch
+   `composition.runtime.engine` UNIFORME (la découverte le produit, le sync ne l'écrase
+   plus) ; `Param.options_query` créé (la demi-jambe que le socle du 31/08 avait laissée) ;
+   grille `model_options_catalog` VERTE sur les deux (77/78 chacun).
+2. **3 régressions de mon propre portage attrapées et corrigées** — select avatarizer qui
+   serait devenu VIDE (un select vide ne lève pas) ; filtrage voix/langues MUET (resolveKey
+   jumeau dans 2 gabarits → `synthesizer:synthesizer:kokoro`) ; chip de card affichant la
+   clé technique (constat Fabien, cards 307/309/310).
+3. **Défaut PRÉEXISTANT trouvé par le smoke** : les API catalogue étaient 403 pour tout
+   non-admin — le filtrage voix/langues n'a JAMAIS marché pour un utilisateur ordinaire.
+   `ROUTES_SUBSTRAT` (règle Fabien : « seul l'accès au TEMPLATE est restreint ») + 2 tests
+   de non-dérive. Sûreté MESURÉE avant : 53 routes API, 0 mutante sans garde propre.
+4. **Prérequis du tirage auto** : `select_model_id(None, task=…)` rend la clé ENTIÈRE
+   (il rendait un id nu que plus rien en aval ne reconnaissait) — voie par source inchangée.
+5. **R43** : option de voix `custom` retirée (promettait le clonage, rendait la voix par
+   défaut — fausse dans 100 % de ses usages, 3/3 sans référence) ; 3 lignes migrées vers
+   `default` (= le comportement réellement eu lieu).
+6. **Statuts de file au COMMUN** (`JOB_STATUS_CHOICES`, 13 modèles + reader en
+   `TextChoices` qui avait échappé au balayage) — les VALEURS étaient unanimes, les
+   LIBELLÉS divergeaient en 5 variantes (imager affichait de l'ANGLAIS) ; Lab et journaux
+   exclus À DESSEIN.
+7. **`AWAITING_RESOURCES`** (décision Fabien : ni un sous-état de RUNNING ni un PENDING) +
+   re-programmation au lieu de l'attente bloquante (`_differer_faute_de_vram` : 40×45 s
+   puis renonce EN LE DISANT ; `vram_needed` OPTIONNEL — aucune app ne le déclare encore,
+   comportement inchangé partout).
+8. **Crash 21:21 consigné** (`INFRA_WSL_VS_WINDOWS §2026-09-01`) : la rampe la mieux
+   corrélée de la série (rails ↔ journaux à la seconde) — suite de tests d'une autre
+   instance, rampe +9,9 Go en ~19 s pendant l'indexation mémoire, rails PROPRES (4ᵉ fois).
+   Swap orphelin 8,04 Go purgé, rails archivé.
+
+**⚠ ANNONCÉ PUIS NON FAIT (préempté par statuts + crash)** :
+- la **brique d'auto-sélection** elle-même (= le point d'entrée ci-dessus) ;
+- le **curseur rapide↔qualité** (3 politiques nommées : Rapide / Équilibré / Précis —
+  conception discutée avec Fabien, extension par capacités additionnelles pour le cas
+  anonymizer) et sa **coloration vert/orange/rouge** sur le slider + card ORANGE en
+  `AWAITING_RESOURCES` (les deux validés par Fabien, rien d'écrit) ;
+- le raccord curseur ↔ cascade `effective_settings()` (l'autre instance) : à CONCEVOIR —
+  le curseur pourrait n'être qu'un preset de la cascade.
+
+**🔴 ARBITRAGES BLOQUANTS** :
+- **divergence d'AUTORITÉ manifeste↔découverte** : pour un modèle déclaré par une app, la
+  découverte fait autorité sur `capabilities`/`composition.runtime` (partage
+  `_capabilities_projectable`) — mais la route §F4b écrit le sens inverse. Les deux ne
+  peuvent pas rester écrits (signalé dans le message de `84dd08a1`).
+- **2 moteurs TTS proposés sans backend** (`chatterbox-tts`, `transformers-remote-code`) :
+  refus explicite au lancement ; leur grisage = l'arbitrage « défaut constaté » du 31/08,
+  toujours ouvert.
+
+**Pendings système** : HWiNFO À RELANCER (l'archive est faite, la voie est libre — sans lui
+le prochain crash est aveugle) · push (2+ commits non poussés au moment de la clôture) ·
+la stack relancée à 21:41 SERT mon travail ; les commits converter postérieurs (autre
+instance) demanderont leur relance · « on revient plus tard » (Fabien) : le crash et la
+proposition d'embedder FACTICE dans les tests d'indexation mémoire (retirerait une porte
+de crash) · 1 référence périmée nouvelle au check_docs (PROJECT_STATUS §8846, ligne de
+gabarit converter déplacée par le refactoring de l'autre instance — à son périmètre).
+
+**Contrôles attendus au prochain /reprise (tous MESURÉS cette session)** :
+- suite complète **1357 tests, OK (skipped=4)** — le total a grossi toute la journée
+  (1299 au matin), ne pas en faire un critère ;
+- `check_docs` : **1 SEULE cible distincte** (inchangée) + **1 périmée** (la ligne de
+  gabarit converter ci-dessus — elle disparaîtra avec le doc-sync du chantier converter) ;
+- grille : `model_options_catalog` **6❌ / 1🔶 / 2✅ / 1 N/A** (synthesizer + avatarizer verts) ;
+- migrations : TOUTES appliquées côté WSL2 (0018-0021 synthesizer, 0011-0013 avatarizer,
+  7 alter-status, 2 élargissements max_length 16→24) — gitignorées comme toujours ;
+- `AWAITING_RESOURCES` en base : **0 ligne** attendu (aucune app ne déclare `vram_needed`).
+
+**Artefacts de session** : une dizaine de scripts de mesure/vérification (catalogue TTS,
+espace de clés, filtrage voix, gardes du model_manager, statuts, trajectoire du crash)
+vivent dans le scratchpad de session — jetables, chaque mesure est consignée dans son
+message de commit. La capture du smoke navigateur vit dans le dossier de captures habituel
+(`logs/ui_smoke/`).
