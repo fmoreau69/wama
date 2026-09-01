@@ -309,6 +309,7 @@ def sync_benchmarks_task(self):
 
     resume = {'ok': True, 'apparies': len(r['apparies']),
               'non_apparies': len(r['non_apparies']),
+              'sans_identite': len(r['sans_identite']),
               'inversions': len(r['inversions']),
               'indisponibles': sorted(r['indisponibles']),
               'sans_categorie': r['sans_categorie']}

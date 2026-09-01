@@ -102,11 +102,11 @@ def _rank_key(pool, domain=None):
         _sub_index(m) is not None for m in pool)
 
     # Un benchmark n'est comparable qu'à MÊME ÉCHELLE (Intelligence Index ~0-70 vs Elo
-    # ~1000-1500 : incommensurables — on ne normalise jamais, cf. benchmark_sync). Le lot
-    # doit donc être 100 % benchmarké ET homogène en échelle (`benchmark_meta['echelle']`).
-    echelles = {(getattr(m, 'benchmark_meta', None) or {}).get('echelle') for m in pool}
-    tous_benchmarkes = (bool(pool) and len(echelles) == 1 and None not in echelles
-                        and all(getattr(m, 'benchmark_index', None) is not None for m in pool))
+    # ~1000-1500 : incommensurables — on ne normalise jamais). La règle avait ici sa
+    # meilleure implémentation, mais elle vivait EN DOUBLE : `AIModel.best_installed` en
+    # appliquait la moitié. Domicile unique désormais chez le module qui écrit `echelle`.
+    from .benchmark_sync import benchmarks_comparable
+    tous_benchmarkes = benchmarks_comparable(pool)
     tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
 
     def sort_key(m):
