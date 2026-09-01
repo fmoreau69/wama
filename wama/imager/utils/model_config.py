@@ -92,7 +92,7 @@ HUNYUAN_MODELS = {
         'model_id': 'hunyuan-image-2.1',
         'hf_id': 'hunyuanvideo-community/HunyuanImage-2.1-Diffusers',
         'type': 'image',
-        'mode': 't2i',
+        'tasks': 't2i',
         'vram_gb': 16,
         'description': 'HunyuanImage 2.1 — qualité max, text rendering, 1K-4K',
         'description_long': "HunyuanImage 2.1 (Tencent) : génération d'images haut de gamme, "
@@ -112,7 +112,7 @@ COGVIDEOX_MODELS = {
         'model_id': 'cogvideox-5b-i2v',
         'hf_id': 'THUDM/CogVideoX-5b-I2V',
         'type': 'video',
-        'mode': 'i2v',
+        'tasks': 'i2v',
         'vram_gb': 21,
         'disk_gb': 12,
         'fps': 24,
@@ -133,7 +133,7 @@ LTX_MODELS = {
         'model_id': 'ltx-video-13b-0.9.8-distilled',
         'hf_id': 'Lightricks/LTX-Video-0.9.8-13B-distilled',
         'type': 'video',
-        'mode': 't2v+i2v',
+        'tasks': 't2v+i2v',
         'vram_gb': 14,
         'disk_gb': 18,
         'fps': 24,
@@ -148,7 +148,7 @@ LTX_MODELS = {
         'model_id': 'ltx-video-13b-0.9.8-distilled-fp8',
         'hf_id': 'Lightricks/LTX-Video-0.9.8-13B-distilled',
         'type': 'video',
-        'mode': 't2v+i2v',
+        'tasks': 't2v+i2v',
         'vram_gb': 8,
         'disk_gb': 18,
         'fps': 24,
@@ -167,7 +167,7 @@ MOCHI_MODELS = {
         'model_id': 'mochi-1-preview',
         'hf_id': 'genmo/mochi-1-preview',
         'type': 'video',
-        'mode': 't2v',
+        'tasks': 't2v',
         'vram_gb': 22,
         'disk_gb': 18,
         'fps': 30,
@@ -188,7 +188,7 @@ STABLE_DIFFUSION_MODELS = {
         'pipeline': 'sd',
         # t2i + image de référence OPTIONNELLE (StableDiffusionImg2ImgPipeline,
         # diffusers_backend._generate_img2img) — nourrit l'appariement entrée↔modèle.
-        'mode': 't2i+i2i',
+        'tasks': 't2i+i2i',
         'vram_gb': 4,
         'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
         'description_long': "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la "
@@ -201,7 +201,7 @@ STABLE_DIFFUSION_MODELS = {
         'type': 'image',
         'pipeline': 'sdxl',
         # t2i + image de référence OPTIONNELLE (StableDiffusionXLImg2ImgPipeline).
-        'mode': 't2i+i2i',
+        'tasks': 't2i+i2i',
         'vram_gb': 10,
         'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
         'description_long': "Stable Diffusion XL (Stability AI) : génération native en 1024 px, "
@@ -228,7 +228,7 @@ QWEN_IMAGE_MODELS = {
         'model_id': 'qwen-image-2',
         'hf_id': 'Qwen/Qwen-Image-2512',
         'type': 'image',
-        'mode': 't2i',
+        'tasks': 't2i',
         'pipeline': 'qwen_image',
         # 38 Go MESURÉS le 29/07/2026 (annoncé 16 jusque-là). Un MMDiT de 20B en bf16 pèse
         # ~40 Go de poids : 16 était structurellement impossible. Conséquence de l'écart : le
@@ -252,7 +252,7 @@ QWEN_IMAGE_MODELS = {
         'model_id': 'qwen-image-edit',
         'hf_id': 'Qwen/Qwen-Image-Edit-2511',
         'type': 'image',
-        'mode': 'edit',
+        'tasks': 'edit',
         'pipeline': 'qwen_image',
         # ⚠️ NON MESURÉ — borne prudente. Qwen-Image-Edit partage la dorsale MMDiT 20B de
         # Qwen-Image : les 12 Go déclarés ici à l'origine étaient impossibles. En attendant une
@@ -281,7 +281,7 @@ FLUX2_KLEIN_MODELS = {
         'model_id': 'flux2-klein-4b',
         'hf_id': 'black-forest-labs/FLUX.2-klein-4B',
         'type': 'image',
-        'mode': 't2i',
+        'tasks': 't2i',
         'pipeline': 'flux2_klein',
         'vram_gb': 13,
         'disk_gb': 16,
@@ -352,7 +352,7 @@ FLUX_MODELS = {
         'hf_id': 'black-forest-labs/FLUX.1-dev',
         'base_model': 'black-forest-labs/FLUX.1-dev',
         'type': 'image',
-        'mode': 'text-to-image',
+        'tasks': 'text-to-image',
         'pipeline': 'flux',
         'model_type': 'base',
         # 12B en bf16 ≈ 24 Go de poids + encodeur T5. 16 sous-estimait la dorsale.
