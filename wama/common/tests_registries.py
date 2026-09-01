@@ -510,6 +510,28 @@ class NormeUrlsTest(TestCase):
                     f"url_name='{r.url_name}' — la norme est `<pluriel anglais>_catalog`, "
                     f"ou une exemption NOMMÉE dans HORS_NORME")
 
+    def test_chaque_page_de_registre_rend_la_barre_de_filtrage_commune(self):
+        """L'uniformité des pages registres se MESURE (demande Fabien, 01/09).
+
+        La barre commune (`.wama-filter-bar`, apparence model_manager promue référence le
+        20/08) est le marqueur : même quand une page garde son MÉCANISME propre (fonctions,
+        model_manager — filtrage d'un tableau JS re-rendu, documenté dans leurs gabarits),
+        l'APPARENCE reste la commune. Une page de registre sans elle est une dérive.
+        """
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        compte = get_user_model().objects.create_superuser(
+            'uniformite_registres_test', 'uniformite@test.local', 'x')
+        self.client.force_login(compte)
+        from .registries import REGISTRIES
+        for r in REGISTRIES.values():
+            if not r.url_name:
+                continue
+            with self.subTest(registre=r.key):
+                rep = self.client.get(reverse(r.url_name))
+                self.assertEqual(rep.status_code, 200)
+                self.assertContains(rep, 'wama-filter-bar')
+
     def test_les_anciens_chemins_francais_redirigent_en_permanent(self):
         # Le renommage ne casse aucun favori ni aucune citation des §REPRISE historiques.
         from django.contrib.auth import get_user_model

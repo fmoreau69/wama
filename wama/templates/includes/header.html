@@ -68,36 +68,59 @@
                         <i class="fas fa-user me-1"></i>
                         <span>{{ user.first_name|default:user.username }} {{ user.last_name }}</span>
                     </a>
+                    {% comment %}
+                      DEUX SECTIONS, nommées (Fabien, 01/09) : « Mon espace » = ce qui appartient
+                      à l'UTILISATEUR (son profil, son journal, son RAG, les consignes et
+                      traitements qu'il mobilise — et la gestion des comptes pour l'admin) ;
+                      « WAMA » = ce que la PLATEFORME est (ses apps, ses briques, ses obligations,
+                      la carte des registres). Un menu plat de 10+ entrées ne se lisait plus.
+
+                      ORDRE ALPHABÉTIQUE dans chaque section, et TOUTES les icônes colorées
+                      (arbitrages Fabien, 01/09 — le mélange coloré/blanc donnait « une
+                      impression d'inachevé » : on a REMPLI les manquantes, pas retiré).
+                    {% endcomment %}
                     <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="userDropdown">
+                        <li><h6 class="dropdown-header">Mon espace</h6></li>
                         <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:profile' %}">
-                                <i class="fas fa-user-edit me-2"></i> Profil
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:functions_catalog' %}">
+                                <i class="fas fa-project-diagram me-2 text-info"></i> Fonctions
                             </a>
                         </li>
-                        {% comment %}Journal transversal — tout ce que l'utilisateur a lancé,
-                        toutes apps confondues (WAMA_MEMORY.md §9bis).{% endcomment %}
+                        {% comment %}Journal = ce que l'utilisateur a FAIT ; RAG = ce qu'il a
+                        CONFIÉ à l'IA (consentement vérifiable, WAMA_MEMORY §7ter).{% endcomment %}
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'common:journal' %}">
                                 <i class="fas fa-clock-rotate-left me-2 text-info"></i> Mon journal
                             </a>
                         </li>
-                        {% comment %}« Mon RAG » juste sous « Mon journal » : les deux pages
-                        transversales personnelles. Le journal dit ce que l'utilisateur a FAIT,
-                        celle-ci ce qu'il a CONFIÉ à l'IA — voir d'un coup l'étendue de ce
-                        partage est ce qui rend le consentement vérifiable (WAMA_MEMORY §7ter).{% endcomment %}
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'common:rag' %}">
                                 <i class="fas fa-book-open-reader me-2 text-success"></i> Mon RAG
                             </a>
                         </li>
                         <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:apps_catalog' %}">
-                                <i class="fas fa-cubes me-2 text-primary"></i> Apps
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:profile' %}">
+                                <i class="fas fa-user-edit me-2 text-primary"></i> Profil
                             </a>
                         </li>
                         <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:functions_catalog' %}">
-                                <i class="fas fa-project-diagram me-2 text-info"></i> Fonctions
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:skills_catalog' %}">
+                                <i class="fas fa-wand-magic-sparkles me-2 text-info"></i> Skills
+                            </a>
+                        </li>
+                        {% if is_admin %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:user-management' %}">
+                                <i class="fas fa-users-cog me-2 text-warning"></i> Users
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">WAMA</h6></li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:apps_catalog' %}">
+                                <i class="fas fa-cubes me-2 text-primary"></i> Apps
                             </a>
                         </li>
                         <li>
@@ -106,58 +129,29 @@
                             </a>
                         </li>
                         <li>
-                            {% comment %}
-                              Skills : les consignes envoyées aux LLM. Placée après Fonctions et
-                              Librairies parce qu'elle relève du même geste — voir de quoi WAMA
-                              est fait. La page dit surtout QUI consomme quel skill : un fichier
-                              que rien ne résout est inerte, et silencieux.
-                            {% endcomment %}
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:skills_catalog' %}">
-                                <i class="fas fa-wand-magic-sparkles me-2 text-info"></i> Skills
-                            </a>
-                        </li>
-                        <li>
-                            {% comment %}
-                              Licences : vue TRANSVERSALE, pas un catalogue de plus — elle recoupe
-                              modèles + librairies + médias + la traversée déclarée par app.
-                            {% endcomment %}
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'common:licenses_catalog' %}">
                                 <i class="fas fa-scale-balanced me-2 text-success"></i> Licences
                             </a>
                         </li>
+                        {% if is_admin %}
                         <li>
-                            {% comment %}
-                              Sources externes : à quoi WAMA se connecte (déclaration) et
-                              est-ce que ça répond (sonde datée). Placée avec Licences : les
-                              deux disent ce que WAMA doit au dehors.
-                            {% endcomment %}
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:sources_catalog' %}">
-                                <i class="fas fa-satellite-dish me-2 text-danger"></i> Sources
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:index' %}">
+                                <i class="fas fa-microchip me-2 text-info"></i> Models
                             </a>
                         </li>
+                        {% endif %}
+                        {% comment %}Registres = la CARTE des catalogues, désormais navigable
+                        (chaque card y porte « Ouvrir ») — c'est le hub de cette section.{% endcomment %}
                         <li>
-                            {% comment %}
-                              Registres : la CARTE des catalogues — ce qui se tient à jour et
-                              comment. Elle dérive du registre des registres, donc elle ne peut
-                              pas diverger de lui ; y placer un lien évite d'avoir à lire
-                              CELERY_BEAT_SCHEDULE pour savoir ce qui se rafraîchit seul.
-                            {% endcomment %}
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'common:registries' %}">
                                 <i class="fas fa-layer-group me-2 text-warning"></i> Registres
                             </a>
                         </li>
-                        {% if is_admin %}
                         <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:user-management' %}">
-                                <i class="fas fa-users-cog me-2"></i> Users
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:sources_catalog' %}">
+                                <i class="fas fa-satellite-dish me-2 text-danger"></i> Sources
                             </a>
                         </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:index' %}">
-                                <i class="fas fa-microchip me-2"></i> Models
-                            </a>
-                        </li>
-                        {% endif %}
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:logout' %}">

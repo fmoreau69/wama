@@ -14,34 +14,16 @@
 
 {% block extra_css %}
 <style>
-  .li-wrap { padding: 16px 20px; }
-  .li-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-  .li-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
-             border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
-  .li-stat b { color: #ffb300; }
-  .li-stat.alert { border-color: rgba(244,67,54,.45); }
-  .li-stat.alert b { color: #ff8a80; }
-
-  .li-hero { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
-             border-left: 3px solid #ffb300; border-radius: 10px; padding: 12px 16px;
-             margin-bottom: 16px; }
-  .li-hero h3 { font-size: 1rem; margin: 0 0 4px; }
-  .li-hero p { margin: 0; font-size: .82rem; color: #b0bac4; }
+  /* Squelette = brique COMMUNE `wama-catalog.css` (2026-09-01) — restent les spécificités. */
+  .wama-cat-stat.alert { border-color: rgba(244,67,54,.45); }
+  .wama-cat-stat.alert b { color: #ff8a80; }
 
   .li-section { margin-top: 22px; }
   .li-section h3 { font-size: 1rem; margin-bottom: 4px; }
   .li-section > p { font-size: .8rem; color: #8fa3b3; margin-bottom: 10px; }
 
-  .li-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
-  .li-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
-             border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
-  .li-card h4 { font-size: .95rem; margin: 0; display: flex; align-items: center;
-                gap: 8px; flex-wrap: wrap; }
-  .li-desc { font-size: .78rem; color: #b0bac4; line-height: 1.35; }
   .li-meta { font-size: .72rem; color: #8fa3b3; font-family: monospace; }
 
-  .li-badge { font-size: .62rem; font-weight: 700; text-transform: uppercase;
-              letter-spacing: .03em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
   .li-r0 { background: #1b5e20; color: #c8facc; }   /* permissive     */
   .li-r1 { background: #33691e; color: #dcedc8; }   /* copyleft faible*/
   .li-r2 { background: #6d4c00; color: #ffe0a3; }   /* copyleft fort  */
@@ -69,7 +51,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="li-wrap">
+<div class="wama-cat-wrap">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
     <h2 class="mb-0">⚖️ Catalogue des licences</h2>
     {% refresh_button "licences" %}
@@ -82,10 +64,10 @@
   </p>
 
   {% if audit.pire %}
-  <div class="li-hero">
+  <div class="wama-cat-hero">
     <h3>
       Clause la plus contraignante embarquée :
-      <span class="li-badge li-r{{ audit.pire.rang }}">{{ audit.pire.famille }}</span>
+      <span class="wama-cat-badge li-r{{ audit.pire.rang }}">{{ audit.pire.famille }}</span>
       <code>{{ audit.pire.id }}</code>
     </h3>
     <p>
@@ -96,20 +78,20 @@
   </div>
   {% endif %}
 
-  <div class="li-stats">
-    <div class="li-stat"><b>{{ audit.stats.total }}</b> éléments sous licence</div>
-    <div class="li-stat"><b>{{ audit.stats.connues }}</b> licences établies</div>
-    <div class="li-stat {% if audit.stats.inconnues %}alert{% endif %}">
+  <div class="wama-cat-stats">
+    <div class="wama-cat-stat"><b>{{ audit.stats.total }}</b> éléments sous licence</div>
+    <div class="wama-cat-stat"><b>{{ audit.stats.connues }}</b> licences établies</div>
+    <div class="wama-cat-stat {% if audit.stats.inconnues %}alert{% endif %}">
       <b>{{ audit.stats.inconnues }}</b> inconnues</div>
-    <div class="li-stat {% if audit.stats.non_commercial %}alert{% endif %}">
+    <div class="wama-cat-stat {% if audit.stats.non_commercial %}alert{% endif %}">
       <b>{{ audit.stats.non_commercial }}</b> non commerciales</div>
-    <div class="li-stat"><b>{{ audit.stats.a_qualifier }}</b> à qualifier</div>
-    <div class="li-stat {% if audit.stats.attribution_sans_auteur %}alert{% endif %}">
+    <div class="wama-cat-stat"><b>{{ audit.stats.a_qualifier }}</b> à qualifier</div>
+    <div class="wama-cat-stat {% if audit.stats.attribution_sans_auteur %}alert{% endif %}">
       <b>{{ audit.stats.attribution_sans_auteur }}</b> à citer sans auteur connu</div>
   </div>
 
   {% if audit.stats.attribution_sans_auteur %}
-  <div class="li-hero" style="border-left-color:#ff8a80;">
+  <div class="wama-cat-hero" style="border-left-color:#ff8a80;">
     <h3>⚠ {{ audit.stats.attribution_sans_auteur }} élément(s) exigent une attribution sans auteur renseigné</h3>
     <p>
       Une licence à attribution impose de citer l'auteur : sans le nom, l'obligation ne peut pas
@@ -124,14 +106,14 @@
     <h3>Répartition par licence</h3>
     <p>De la plus contraignante à la plus permissive.</p>
     {% if audit.repartition %}
-    <div class="li-grid">
+    <div class="wama-cat-grid" style="--cat-card-min: 300px;">
       {% for e in audit.repartition %}
-      <div class="li-card">
+      <div class="wama-cat-card">
         <h4>
           <code>{{ e.id }}</code>
-          <span class="li-badge li-r{{ e.q.rang }}">{{ e.q.famille }}</span>
+          <span class="wama-cat-badge li-r{{ e.q.rang }}">{{ e.q.famille }}</span>
         </h4>
-        <div class="li-desc">{{ e.q.explication }}</div>
+        <div class="wama-cat-desc">{{ e.q.explication }}</div>
         <div class="li-meta">
           {{ e.n }} élément(s)
           {% for registre, n in e.registres.items %} · {{ registre }}&nbsp;{{ n }}{% endfor %}
@@ -163,13 +145,13 @@
           <tr>
             <td><b>{{ a.app }}</b></td>
             <td>
-              {% if a.pire %}<span class="li-badge li-r{{ a.pire.rang }}">{{ a.pire.famille }}</span>
+              {% if a.pire %}<span class="wama-cat-badge li-r{{ a.pire.rang }}">{{ a.pire.famille }}</span>
                 <code>{{ a.pire.id|default:'—' }}</code>
               {% else %}<span class="li-muted">aucun composant</span>{% endif %}
             </td>
             <td>
               {% for e in a.licences %}
-                <span class="li-badge li-r{{ e.q.rang }}">{{ e.id }}</span>&nbsp;×{{ e.n }}
+                <span class="wama-cat-badge li-r{{ e.q.rang }}">{{ e.id }}</span>&nbsp;×{{ e.n }}
               {% empty %}<span class="li-muted">—</span>{% endfor %}
             </td>
             <td class="li-meta">
@@ -207,8 +189,8 @@
             <td><b>{{ l.nom }}</b>{% if l.detail %} <span class="li-muted">{{ l.detail }}</span>{% endif %}</td>
             <td class="li-meta">{{ l.registre }}</td>
             <td>
-              {% if l.q.id %}<span class="li-badge li-r{{ l.q.rang }}">{{ l.q.id }}</span>
-              {% else %}<span class="li-badge li-r5">inconnue</span>{% endif %}
+              {% if l.q.id %}<span class="wama-cat-badge li-r{{ l.q.rang }}">{{ l.q.id }}</span>
+              {% else %}<span class="wama-cat-badge li-r5">inconnue</span>{% endif %}
             </td>
             <td>{% if l.auteur %}{{ l.auteur }}
                 {% elif l.q.attribution and l.q.id %}<span class="li-muted">à renseigner</span>
