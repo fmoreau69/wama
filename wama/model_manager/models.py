@@ -142,6 +142,58 @@ TASK_TO_PLATFORM_TAGS = {
 REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
 
 
+# NOTRE tâche → NOTRE catégorie. Table DIRECTE, et c'est le point : la dérivation passait
+# jusqu'ici par le tag HuggingFace (`platform_tag` puis la table de la prospection), ce qui
+# marchait tant que la tâche AVAIT un équivalent. Or `lip-sync`, `text-to-music`,
+# `text-to-audio` et `obb` n'en ont AUCUN (colonne huggingface à None, par décision) : pour
+# eux l'ancrage par catégorie ne s'activait pas, et il ne restait que le filtre par tâche —
+# avec sa permissivité (un modèle sans capacités déclarées passe). C'est par là que
+# `LocateAnything` avait fui dans une requête TTS. Relevé le 2026-09-01 en répondant à la
+# question de Fabien sur l'avatarizer : `lip-sync` est exactement dans ce cas.
+#
+# Un aller-retour par une taxonomie ÉTRANGÈRE ne peut pas répondre pour ce qu'elle ne nomme
+# pas. On déclare donc le lien chez nous, et `check_model_taxonomy` vérifie qu'AUCUNE tâche
+# n'en manque — sans quoi une tâche ajoutée demain retomberait dans le même trou en silence.
+TASK_TO_MODEL_TYPE = {
+    ModelTask.DETECT:             ModelType.VISION,
+    ModelTask.SEGMENT:            ModelType.VISION,
+    ModelTask.CLASSIFY:           ModelType.VISION,
+    ModelTask.OBB:                ModelType.VISION,
+    ModelTask.POSE:               ModelType.VISION,
+    ModelTask.DEPTH_ESTIMATION:   ModelType.VISION,
+    ModelTask.OCR:                ModelType.OCR,
+    ModelTask.TRANSCRIPTION:      ModelType.SPEECH,
+    ModelTask.TEXT_TO_SPEECH:     ModelType.SPEECH,
+    ModelTask.AUDIO_ENHANCE:      ModelType.SPEECH,
+    ModelTask.UPSCALE:            ModelType.UPSCALING,
+    ModelTask.DENOISE:            ModelType.UPSCALING,
+    ModelTask.TEXT_GENERATION:    ModelType.LLM,
+    ModelTask.FEATURE_EXTRACTION: ModelType.EMBEDDING,
+    ModelTask.CAPTIONING:         ModelType.VLM,
+    ModelTask.TEXT_TO_IMAGE:      ModelType.DIFFUSION,
+    ModelTask.IMAGE_TO_IMAGE:     ModelType.DIFFUSION,
+    ModelTask.TEXT_TO_VIDEO:      ModelType.DIFFUSION,
+    ModelTask.IMAGE_TO_VIDEO:     ModelType.DIFFUSION,
+    ModelTask.TEXT_TO_MUSIC:      ModelType.MUSIC,
+    ModelTask.TEXT_TO_AUDIO:      ModelType.MUSIC,
+    ModelTask.LIP_SYNC:           ModelType.LIPSYNC,
+}
+
+
+def model_type_for_task(task: str):
+    """Catégorie d'une tâche (vocabulaire NÔTRE ou celui d'une plateforme), ou None.
+
+    Accepte les deux vocabulaires : un tag de plateforme est d'abord ramené au nôtre par
+    `canonical_task`. None = tâche inconnue — on ne devine pas, l'appelant reste libre de
+    passer `model_type` explicitement.
+    """
+    t = canonical_task(task)
+    for tache, categorie in TASK_TO_MODEL_TYPE.items():
+        if tache.value == t:
+            return categorie.value
+    return None
+
+
 def platform_tag(task: str, platform: str = 'huggingface'):
     """Tag de `task` (vocabulaire NÔTRE) chez une plateforme, ou None s'il n'y en a pas.
 
