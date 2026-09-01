@@ -488,6 +488,42 @@ class CouvertureTest(TestCase):
             self.assertTrue(d['generique'])
 
 
+class NormeUrlsTest(TestCase):
+    """Norme des URLs de pages registres (Fabien, 2026-09-01) : nom `<pluriel anglais>_catalog`
+    aligné sur son chemin. Sans garde, la dérive mesurée ce jour reviendrait au prochain
+    registre : 2 noms au singulier sous des chemins au pluriel, 2 chemins français sur 9, un
+    nom (`external_sources_catalog`) désaligné de son chemin (`sources/`).
+    """
+
+    #: Pages de registre qui ne sont PAS des catalogues — exemptions NOMMÉES, jamais tacites :
+    #: l'index du model_manager est la page d'accueil d'une app, `rag` une page personnelle.
+    HORS_NORME = {'model_manager:index', 'common:rag'}
+
+    def test_tout_nom_de_page_catalogue_finit_en_catalog(self):
+        from .registries import REGISTRIES
+        for r in REGISTRIES.values():
+            if not r.url_name or r.url_name in self.HORS_NORME:
+                continue
+            with self.subTest(registre=r.key):
+                self.assertTrue(
+                    r.url_name.endswith('_catalog'),
+                    f"url_name='{r.url_name}' — la norme est `<pluriel anglais>_catalog`, "
+                    f"ou une exemption NOMMÉE dans HORS_NORME")
+
+    def test_les_anciens_chemins_francais_redirigent_en_permanent(self):
+        # Le renommage ne casse aucun favori ni aucune citation des §REPRISE historiques.
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        compte = get_user_model().objects.create_user('norme_urls_test', password='x')
+        self.client.force_login(compte)
+        for ancien, nom in (('/common/registres/', 'common:registries'),
+                            ('/common/licences/', 'common:licenses_catalog')):
+            with self.subTest(chemin=ancien):
+                r = self.client.get(ancien)
+                self.assertEqual(r.status_code, 301)
+                self.assertEqual(r['Location'], reverse(nom))
+
+
 class ResumeTest(TestCase):
 
     def test_aucun_changement_est_DIT(self):

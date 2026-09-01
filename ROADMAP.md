@@ -2840,7 +2840,7 @@ RÉFUTÉ** (test demandé par Fabien, 3 appels identiques sur le même dépôt) 
 > **Doc de référence du domaine : [`LICENSING.md`](LICENSING.md)** (politique, licences
 > traversées, code vendorisé, procédure de dépôt, §7 = décisions en attente). Cette section
 > ne porte que **l'état du chantier** — ne pas y recopier la politique, elle divergerait.
-> La vue **mesurée** reste la page `/common/licences/` (`common/services/license_audit.py`).
+> La vue **mesurée** reste la page `/common/licenses/` (`common/services/license_audit.py`).
 
 **Ce qui est LIVRÉ (2026-08-21).**
 - Inventaire **complété** : 65 → **102 licences établies sur 119**, **0 « à qualifier »**

@@ -351,7 +351,7 @@ personne utilisant WAMA **à distance via le réseau** a droit d'en obtenir le c
 
 Les modèles d'IA et composants embarqués conservent **leurs** licences propres, dont
 certaines sont non commerciales ou territorialement restreintes — inventaire vivant sur
-`/common/licences/`, politique et procédure de dépôt dans [LICENSING.md](LICENSING.md).
+`/common/licenses/`, politique et procédure de dépôt dans [LICENSING.md](LICENSING.md).
 
 ---
 

@@ -49,6 +49,9 @@
   .rg-total    { background: rgba(255,179,0,.15); color: #ffb300; }
 
   .rg-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 6px; }
+  .rg-open { font-size: .78rem; color: #90caf9; text-decoration: none; border: 1px solid
+             rgba(144,202,249,.35); border-radius: 6px; padding: 3px 10px; white-space: nowrap; }
+  .rg-open:hover { color: #bbdefb; border-color: rgba(144,202,249,.7); }
   .rg-etat { font-size: .74rem; color: #8fa3b3; flex: 1; }
   .rg-etat.ok { color: #81c784; }
   .rg-etat.ko { color: #ff8a80; }
@@ -128,7 +131,19 @@
         rechargement. Une page qui recopierait ce bouton serait la dérive que le registre des
         registres a précisément arrêtée — il y en avait déjà deux, aux réponses différentes.
       {% endcomment %}
-      <div class="rg-actions">{% refresh_button r.key %}</div>
+      {% comment %}
+        L'ACCÈS à la page du registre, pas seulement son actualisation — constat Fabien
+        (01/09) : la carte listait les catalogues sans mener à aucun. `url_name` était déjà
+        déclaré et vérifié résolvable (ConformiteTest) ; il n'était simplement jamais rendu.
+      {% endcomment %}
+      <div class="rg-actions">
+        {% if r.url_name %}
+        <a class="rg-open" href="{% url r.url_name %}">
+          <i class="fas fa-arrow-up-right-from-square me-1"></i>Ouvrir
+        </a>
+        {% endif %}
+        {% refresh_button r.key %}
+      </div>
     </div>
     {% empty %}
     <p class="text-white-50">Aucun registre déclaré.</p>

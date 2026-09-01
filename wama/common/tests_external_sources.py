@@ -191,7 +191,7 @@ class RegistreSondeTest(TestCase):
         user = get_user_model().objects.create_user('sources_page_test', password='x')
         self.client.force_login(user)
         with mock.patch.object(es, 'last_report', return_value=None):
-            r = self.client.get(reverse('common:external_sources_catalog'))
+            r = self.client.get(reverse('common:sources_catalog'))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.context['lignes']), len(es.SOURCES))
         # Sans rapport écrit, la page le DIT — elle ne sonde jamais elle-même.
@@ -200,7 +200,7 @@ class RegistreSondeTest(TestCase):
     def test_le_registre_designe_bien_cette_page(self):
         from wama.common.registries import overview
         entree = next(r for r in overview() if r['key'] == 'sources_externes')
-        self.assertEqual(entree['url_name'], 'common:external_sources_catalog')
+        self.assertEqual(entree['url_name'], 'common:sources_catalog')
         self.assertTrue(reverse(entree['url_name']))
 
 

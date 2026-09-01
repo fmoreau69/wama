@@ -5,6 +5,8 @@ Shared URL patterns for common functionality across apps.
 """
 
 from django.urls import path
+from django.views.generic import RedirectView
+
 from .utils import preview_utils
 from .utils import detail_registry
 from . import views
@@ -34,9 +36,15 @@ urlpatterns = [
     path('api/apps/', views.api_apps, name='api_apps'),
     path('apps/', views.apps_catalog_view, name='apps_catalog'),
     # Actualisation UNIVERSELLE des catalogues : une route pour tous les registres.
-    # La PAGE de supervision (`registres/`) dérive du même `overview()` que l'API : ce que
-    # l'endpoint annonçait servir existe enfin.
-    path('registres/', views.registres_view, name='registres'),
+    # La PAGE de supervision dérive du même `overview()` que l'API : ce que l'endpoint
+    # annonçait servir existe enfin.
+    # ⚠ Norme des pages registres (Fabien, 01/09) : chemins et noms en ANGLAIS pluriel,
+    # alignés — `registres/` et `licences/` étaient les deux seuls chemins français sur 9.
+    # L'ancien chemin REDIRIGE en permanent : aucun favori ni doc historique ne casse.
+    # Les endpoints `api/registres/…` restent volontairement tels quels (internes, cohérents
+    # entre eux, câblés dans wama-catalog-refresh.js — périmètre tranché : pages seules).
+    path('registries/', views.registres_view, name='registries'),
+    path('registres/', RedirectView.as_view(pattern_name='common:registries', permanent=True)),
     path('api/registres/', views.registres_etat, name='registres_etat'),
     path('api/registres/<str:cle>/refresh/', views.registre_refresh, name='registre_refresh'),
     path('api/registres/tache/<str:task_id>/', views.registre_tache, name='registre_tache'),
@@ -47,7 +55,8 @@ urlpatterns = [
     # Licences : vue TRANSVERSALE (modèles + librairies + médias + traversée par app).
     # Domiciliée dans `common` et non `model_manager` : elle recoupe quatre registres,
     # aucun ne la contient.
-    path('licences/', views.licenses_catalog_view, name='licenses_catalog'),
+    path('licenses/', views.licenses_catalog_view, name='licenses_catalog'),
+    path('licences/', RedirectView.as_view(pattern_name='common:licenses_catalog', permanent=True)),
 
     # ABONNEMENT aux éléments de catalogue — la couche PRÉFÉRENCE (PROFILES_PERMISSIONS §8).
     # UNE route pour toutes les natures (`kind` dans le corps) : c'est ce qui fera hériter les
@@ -63,7 +72,7 @@ urlpatterns = [
     # Sources externes : la PAGE du registre `sources_externes` (8ᵉ registre, 2026-09-01).
     # La déclaration dérive du code ; la sonde (clé, joignabilité) est le rapport écrit par
     # le bouton hérité — en Celery, jamais dans le rendu.
-    path('sources/', views.external_sources_view, name='external_sources_catalog'),
+    path('sources/', views.external_sources_view, name='sources_catalog'),
 
     # Journal transversal de l'utilisateur (WAMA_MEMORY.md §9bis) — dérive de detail_registry,
     # aucune ligne dans les apps.

@@ -131,12 +131,12 @@ class PagesDeclarantesTest(TestCase):
 
     #: (libellé, nom d'URL) — les URLs sont RÉSOLUES, jamais écrites en dur.
     PAGES = [
-        ('registres', 'common:registres'),
+        ('registres', 'common:registries'),
         ('licences', 'common:licenses_catalog'),
         ('mon RAG', 'common:rag'),
         ('médiathèque', 'media_library:index'),
-        ('catalogue de fonctions', 'model_manager:function_catalog'),
-        ('catalogue de librairies', 'model_manager:library_catalog'),
+        ('catalogue de fonctions', 'model_manager:functions_catalog'),
+        ('catalogue de librairies', 'model_manager:libraries_catalog'),
         ('profil', 'accounts:profile'),
         ('gestion des utilisateurs', 'accounts:user-management'),
         ("matrice d'accès", 'accounts:app-access-matrix'),
