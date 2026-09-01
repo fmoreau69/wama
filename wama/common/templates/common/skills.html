@@ -48,7 +48,10 @@
 {% block content %}
 <div class="wama-cat-wrap">
 
-  <h2 class="text-light mb-1"><i class="fas fa-wand-magic-sparkles me-2"></i>Skills</h2>
+  {% comment %}Le bouton du registre `skills` (REDECLARATION : « actualiser » vide le cache de
+  lecture, un `.md` modifié à chaud est repris sans redémarrage) vivait en PIED de page —
+  remonté dans l'en-tête commun, comme partout.{% endcomment %}
+  {% include 'common/_catalog_header.html' with titre='Skills' icone='fa-wand-magic-sparkles' registre='skills' %}
 
   <div class="wama-cat-hero">
     <h3>Les consignes données aux modèles de langage</h3>
@@ -135,11 +138,5 @@
     {% endfor %}
   </div>
 
-  {% comment %}
-    Le bouton vient de la BRIQUE COMMUNE — jamais réécrit. Le registre `skills` est de nature
-    REDECLARATION : « actualiser » vide le cache de lecture, un `.md` modifié à chaud est repris
-    sans redémarrage. C'est un geste utile ici, contrairement à une page purement dérivée.
-  {% endcomment %}
-  <div class="mt-3">{% refresh_button 'skills' %}</div>
 </div>
 {% endblock %}

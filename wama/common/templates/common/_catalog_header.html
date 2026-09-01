@@ -1,0 +1,21 @@
+{% comment %}
+WAMA Common — EN-TÊTE de page catalogue : titre + bouton d'actualisation hérité.
+
+Extrait le 2026-09-01 (suite de l'uniformisation des pages registres) : la ligne
+« titre + refresh » existait en DEUX variantes (d-flex avec bouton / h2 seul, bouton en pied
+de page) et l'icône du titre en deux régimes (emoji / Font Awesome). Un partial, un régime.
+
+Variables :
+  titre    — texte du titre.
+  icone    — classe Font Awesome (avec son préfixe `fa-`), la MÊME que l'entrée de menu de
+             la page : une page se reconnaît à la même icône partout — c'est ce qui a tranché
+             contre les emojis (📚 ⚖️ ⚙️) qu'aucun menu ne reprenait.
+  registre — clé du registre pour le bouton hérité (`refresh_button` décide seul du rendu
+             selon la nature et la permission). ABSENTE = pas de bouton global — cas de la
+             page des registres, qui porte un bouton PAR card.
+{% endcomment %}
+{% load wama_catalog %}
+<div class="wama-cat-header d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+  <h2 class="mb-0 text-light">{% if icone %}<i class="fas {{ icone }} me-2"></i>{% endif %}{{ titre }}</h2>
+  {% if registre %}{% refresh_button registre %}{% endif %}
+</div>

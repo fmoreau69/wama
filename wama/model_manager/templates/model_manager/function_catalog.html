@@ -24,10 +24,7 @@
 
 {% block content %}
 <div class="wama-cat-wrap">
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-    <h2 class="mb-0">⚙️ Catalogue des fonctions</h2>
-    {% refresh_button "fonctions" %}
-  </div>
+  {% include 'common/_catalog_header.html' with titre='Catalogue des fonctions' icone='fa-project-diagram' registre='fonctions' %}
   <p class="text-secondary small mb-3">Tous les traitements WAMA déclarés par leurs capacités
      (entrées/sorties typées). <b>Pures</b> = chaînables ; <b>app</b> = couplées à une app (cataloguées).</p>
 
