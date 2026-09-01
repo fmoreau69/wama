@@ -8,7 +8,10 @@
       "modalities": [
         "image"
       ],
-      "task": "text-to-image"
+      "task": "text-to-image",
+      "tasks": [
+        "text-to-image"
+      ]
     },
     "composition": {},
     "extra_info": {},

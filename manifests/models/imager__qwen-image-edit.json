@@ -9,7 +9,10 @@
       "modalities": [
         "image"
       ],
-      "task": "image-to-image"
+      "task": "image-to-image",
+      "tasks": [
+        "image-to-image"
+      ]
     },
     "composition": {},
     "extra_info": {},

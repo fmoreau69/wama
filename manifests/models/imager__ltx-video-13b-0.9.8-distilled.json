@@ -10,7 +10,11 @@
       "modalities": [
         "video"
       ],
-      "task": "text-to-video"
+      "task": "text-to-video",
+      "tasks": [
+        "text-to-video",
+        "image-to-video"
+      ]
     },
     "composition": {},
     "extra_info": {},
