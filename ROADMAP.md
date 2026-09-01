@@ -3050,6 +3050,53 @@ default en base détruit cette distinction.*
 SANS couche d'arbitrage ; **la porter au converter tuerait ses presets de la même façon**.
 À conditionner explicitement le jour du portage.
 
+### 23.2bis ⚠ RETOURNEMENT (question de Fabien, 2026-09-01) — le converter est le seul CONFORME
+
+> *« Disons qu'on ait des paramètres par défaut, l'utilisateur applique un preset, les
+> paramètres sont surchargés par le preset. Ça ne règle pas le problème ? »*
+
+**La cascade proposée est la bonne** — et c'est la formulation juste du besoin :
+
+```
+défauts (schéma)  <  preset choisi  <  réglages EXPLICITES de l'utilisateur
+```
+
+Mais elle exige une chose que le §23.2 n'avait pas nommée : **savoir ce qui est explicite**.
+Un preset ne peut agir que sur ce que l'utilisateur n'a PAS réglé — encore faut-il pouvoir
+les distinguer. Mesure du 2026-09-01, défauts en colonne des 8 apps « conformes » :
+
+| app | défauts neutres (0/''/False) | défauts **significatifs** | exemples |
+|---|---|---|---|
+| anonymizer | 1 | **15** | `blur_ratio=25`, `detection_threshold=0.25` |
+| imager | 2 | **10** | `guidance_scale=7.5`, `num_images=1` |
+| synthesizer | 0 | **7** | `language='fr'`, `pitch=1.0` |
+| composer | 0 | **4** | `duration=10.0`, `model='musicgen-small'` |
+| reader · describer · transcriber · avatarizer | 1-4 | **3** chacune | `max_length=500`, `output_format=TXT` |
+
+**Conséquence, contre-intuitive et importante** : dans ces 8 apps, la valeur en base (500,
+7.5, `'fr'`) est **indiscernable** d'un choix délibéré de l'utilisateur. Le jour où on leur
+généralise les profils/presets (§22), **leur preset ne pourra agir sur AUCUN de ces champs**
+— exactement le défaut que le §23.2 décrivait pour le converter… sauf que le converter, lui,
+ne stocke QUE l'explicite (son JSON `options` ne contient rien d'autre). **C'est pour cette
+raison que ses presets fonctionnent, et il est donc le seul déjà conforme au besoin.**
+
+**La forme cible n'est donc pas une exception du converter, c'est le STANDARD** :
+- la **base** ne porte que ce que l'utilisateur a POSÉ (vide/NULL = « rien posé ») ;
+- les **défauts** vivent au **schéma** (une seule déclaration, qui sert l'affichage ET la
+  valeur effective) ;
+- le **preset** s'insère entre les deux, et peut enfin agir.
+
+**Brique commune à écrire** — `effective_settings(item, schema, preset=None)` : défauts du
+schéma ← preset ← valeurs posées. Elle remplace trois couches qui font aujourd'hui le même
+travail chacune dans son coin : `converter/utils/quality_presets.resolve_options`, les
+défauts en dur des backends (`options.get('gif_fps', 12)`) et `param_schema.applicable_defaults`.
+
+**Séquencement** : le converter d'abord (portage en cours — colonnes nullables, défauts au
+schéma) ; les 8 autres **avec** la généralisation des profils (§22), pas avant — leur
+comportement actuel est juste tant qu'aucun preset ne s'y applique. ⚠ Ne PAS le faire à
+l'occasion d'un autre chantier : déplacer un défaut de la base au schéma change ce que les
+tâches lisent, et se valide app par app.
+
 ### 23.3 Ce qui reste à trancher
 
 - **converter** : 17 réglages → colonnes NULLABLES + migration des valeurs de `options`
