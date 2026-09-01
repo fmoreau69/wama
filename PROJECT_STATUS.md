@@ -9512,3 +9512,158 @@ message ou un bloc passé à `bash -lc` sont interprétés comme des SUBSTITUTIO
 les mots disparaissent, y compris à l'intérieur d'un heredoc entre quotes (le shell externe
 les mange avant que le heredoc existe). *Le contenu ne passe jamais par la ligne de commande :
 on l'écrit dans un fichier, puis on le concatène.*
+
+
+---
+
+## §REPRISE — 2026-09-01, instance « MESURE DE PERFORMANCE DES MODÈLES (bancs tiers) » — ✅ CLOSE
+
+> Périmètre : `model_manager/services/{benchmark_sync,model_selector,model_registry,prospect_agents}.py`,
+> `model_manager/{models,tasks,views,tests}.py`, `model_manager/templates/…/index.html`,
+> `imager/utils/model_config.py`, `imager/backends/ltx_video_backend.py`, 12 manifestes `model`
+> de l'imager. **Aucun recoupement** avec l'instance « tirage des modèles depuis les apps »
+> (elle tenait `model_selector.py` en fin de session, `reader`, `avatarizer`, `synthesizer`,
+> `common/tts` — vérifié fichier par fichier, diff relu avant chaque commit).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Rien ne bloque.** Le chantier « bancs tiers » est cohérent et testé de bout en bout. Deux
+gestes d'écran attendent Fabien, et deux arbitrages attendent une réponse (voir plus bas).
+
+Le prochain incrément naturel, déjà cadré et approuvé dans son principe : le **registre des
+sources externes de WAMA** (idée de Fabien, 01/09), en trois étapes dont la deuxième a de la
+valeur seule.
+
+1. une déclaration commune des sources externes dans `common/` ;
+2. **les 9 sources existantes y migrent leur constante** — supprime la dispersion même sans
+   page : `ollama.com` + `registry.ollama.ai`, HuggingFace Hub, `artificialanalysis.ai/api/v2`,
+   le dataset Arena, `api.osv.dev`, `html.duckduckgo.com`, `github.com` (raw),
+   `huggingface.co/resolve`, `127.0.0.1:11434` — réparties dans **sept fichiers**, sans
+   inventaire ;
+3. le **8ᵉ registre** + sa page, en nature `mesure` (pas `derive`) : la valeur est dans la
+   SONDE — clé posée ? quota épuisé ? proxy UGE passant ? Une page d'inventaire pur n'aurait
+   aucun bouton, la doctrine des registres le refuse.
+
+⚠ **La ligne à ne pas franchir, écrite dans le code du registre local livré aujourd'hui** :
+déclarer une source ≠ ajouter un CLIENT par l'UI. AA rend du JSON authentifié, l'Arena un
+parquet HuggingFace, Ollama du HTML scrapé — le PARSEUR ne se déclare pas. Un chargeur
+générique paramétré depuis l'écran serait fragile ET une surface de requête arbitraire côté
+serveur.
+
+### Ce qui a été livré (7 commits)
+
+| commit | objet |
+|---|---|
+| `e24e8e73` | comptage exhaustif du rapport (4ᵉ issue `sans_identite`) + `idents` fuyant + règle des échelles à domicile unique |
+| `c6592ecb` | appariement par les QUALIFICATIFS quand aucune taille n'est publiée — 10 → 15 appariés, **zéro alias ajouté** |
+| `e0a64b13` | rang centile + `deepseek-coder-v2` désambigué par le DIGEST Ollama |
+| `ff049aee` | la découverte ne perd plus les métiers SECONDAIRES (`capabilities['tasks']`) |
+| `0060105d` | la mesure de performance s'enchaîne à la prospection (réseau seul, aucun GPU) |
+| `4347021f` | registre de SOURCES déclaratif — ajouter une plateforme coûte une entrée |
+| `af71150b` + `e689be9f` | `model_config['mode']` → `'tasks'` + resync des 12 manifestes imager |
+
+**Chiffre d'entrée → de sortie** : le bouton « Performance » rendait *10 appariés, 17 sans
+banc* pour **159 lignes examinées** — 15 modèles ne tombaient dans AUCUN compteur. Il rend
+désormais **15 / 12 / 15 / 117 = 159**, exhaustif et disjoint, avec un test qui l'atteste.
+
+### ⚠ Les leçons de la session
+
+- ⚠⚠ **Une garde binaire sur une question qui ne l'est pas se trompe DANS LES DEUX SENS.**
+  `taille_requise` refusait en bloc quand aucun côté ne publiait de taille : elle tuait des
+  appariements EXACTS (« Mistral Medium 3.5 » porte littéralement notre nom). Accepter en bloc
+  — la règle « symétrique », essayée puis **RÉFUTÉE par la mesure** — donnait à
+  `qwen3-embedding` l'indice de « Qwen3 Max ». Le discriminant était ailleurs : `_identity`
+  jette les QUALIFICATIFS, or c'est « embedding » vs « max » qui sépare ces modèles.
+- ⚠⚠ **Une preuve de correctif catalogue se fait DANS le worker — 2ᵉ récidive.** Ma
+  déclaration `tasks` a été écrite par un `full_sync` CLI, puis **effacée 90 min plus tard**
+  par le beat (`model-manager-reconcile` à 15:13:42) rejouant l'ancien code chargé en mémoire
+  depuis 13:34. `hunyuan` l'avait à ma 1ʳᵉ vérification, plus à la 2ᵉ. **Résolu** : après le
+  redémarrage de 18:06, la clé tient. *Un worker sans autoreload est un second dépôt de code.*
+- ⚠⚠ **Un défaut masqué par une couverture incomplète se déclenche quand la couverture
+  s'améliore.** `best_installed` annonçait « MÊME RÈGLE QUE LA SÉLECTION » et n'en appliquait
+  que la moitié (lot mesuré, échelle jamais regardée). Le lot `diffusion` porte DÉJÀ deux
+  échelles ; seul un modèle non mesuré, qui faisait basculer sur le repli `quality_index`,
+  empêchait le classement d'être faux. C'est-à-dire que le piège se serait armé exactement là
+  où ce chantier mène.
+- ⚠ **Un min-max vers 0-100 aurait été la pire réponse** à « comparer les bancs entre eux » :
+  bornes dépendantes de la population (une valeur qui change sans que le modèle change),
+  équivalence fabriquée entre une moyenne de taux de réussite et une probabilité de préférence
+  humaine, et un nombre sur 100 se lit comme une note. Le RANG énonce la position parmi SES
+  pairs — ce qui est mesuré. Il n'entre dans AUCUN tri : `_rank_key` et `best_installed`
+  l'ignorent.
+- ⚠ **La déclaration multi-métiers existait déjà et était ÉCRASÉE.** `model_config` déclarait
+  `'mode': 't2v+i2v'` depuis toujours et la découverte en calculait l'ENSEMBLE avant de le
+  réduire à une tâche unique trois lignes plus bas. Aucune déclaration nouvelle n'a été
+  écrite : on a cessé de jeter celle qui existait.
+- ⚠ **Le mot « mode » portait CINQ sens** dans le dépôt (déclaration de modèle, switch d'UI,
+  mode d'ingestion, paramètre utilisateur d'enhancer, mode de requête). Seul le premier a été
+  renommé — un `sed` aveugle sur un mot NU les aurait confondus.
+
+### 🔚 CE QUI ATTEND FABIEN
+
+1. **Validation écran** — le badge `bench` porte maintenant son échelle ET son rang centile ;
+   le rang n'a jamais encore été affiché (la dernière passe réelle est antérieure au centile).
+   Relancer la passe « Performance » puis regarder une card et le volet de détail
+   (lignes « Échelle », « Rang dans son banc », « Autres bancs »).
+2. **Arbitrage — le corpus fait du YO-YO selon l'OS d'export.** `anonymizer:sam3` diffère
+   entre un export Windows et un export WSL2 : `installed` false↔true, `error`
+   « No module named triton » ↔ null, et `models_dir` bascule d'un chemin `D:\` à un chemin
+   `/mnt/d/`. Un fait vrai dans un environnement et faux dans l'autre, figé dans un corpus
+   VERSIONNÉ. Ce n'est pas un périmé à rattraper, c'est une décision : ces champs
+   appartiennent-ils au manifeste ?
+3. **Arbitrage — `tasks` porte deux FORMES.** `model_config['tasks']` est le raccourci d'app
+   (chaîne « t2v+i2v »), `capabilities['tasks']` la liste canonique. Le mot est validé, la
+   divergence de forme est documentée dans le code ; elle reste à trancher si elle gêne.
+   ⚠ Convertir les valeurs au vocabulaire canonique serait une **régression** : `i2i` n'est pas
+   un métier (image de référence acceptée) mais il décide des ENTRÉES.
+
+### Décisions ouvertes / restes assumés
+
+- **PROMESSE NON TENUE, nommée** : les 2 modèles d'embedding (`nomic-embed-text-v2-moe`,
+  `qwen3-embedding`) restent classés `llm` et polluent le compte des « sans banc ». Le remède
+  est écrit et mesuré — ancrer `_categories_locales` sur `model_type`, qui porte déjà
+  `'embedding'` — mais **il n'a jamais été implémenté**. Proposé en début de session, jamais
+  fait. ⚠ Les 3 `vlm` doivent RESTER éligibles : AA classe « MiniCPM-V 4.6 » dans son
+  leaderboard LLM.
+- `best_installed` regroupe par `model_type` (`diffusion`), **plus grossier que la catégorie de
+  banc** : un texte→image et un texte→vidéo restent dans le même lot. Le prédicat d'échelle
+  les sépare en pratique, le bucket reste faux.
+- `ALIAS` ne porte **qu'une chaîne pour les deux sources**, or AA et Arena n'écrivent pas
+  pareil (`mistral-medium-3-5` vs `mistral-medium-3.5`) : un alias ne peut viser qu'une source.
+  Troisième champ mono-valué de la session, avec `platform_ref` et `benchmark_index`.
+- **Provenance des tags `:latest`** (idée de Fabien, non faite) : enregistrer vers quel
+  artefact un `:latest` pointait à une date donnée (tag résolu + digest) rendrait DÉTECTABLE
+  un tag qui bouge en silence. Ce n'est pas de l'appariement, c'est de la provenance ;
+  `platform_ref` en est le domicile naturel.
+  ⚠ **Ne PAS résoudre la taille des `:latest` proposés pour l'appariement** — simulé : cela
+  CASSERAIT les 3 appariements gagnés (notre taille connue face à une taille absente chez AA →
+  asymétrie → refus). Et AA **ne publie aucune taille de modèle** (champs vérifiés :
+  `evaluations`, `id`, `median_*`, `model_creator`, `name`, `pricing`, `release_date`, `slug`).
+- **Non fait, assumé** : pas de vérification sur HEAD en worktree pour le renommage (3 fichiers,
+  sans déplacement ni migration), pas de smoke navigateur (aucune surface JS ni gabarit touchée
+  hors la modale de détail).
+- **Non régénérés délibérément** : `manifests/apps/avatarizer.json` et `synthesizer.json` (la
+  voix `custom` sort des choix — chantier TTS de l'autre instance) et `anonymizer:sam3` (le
+  yo-yo d'environnement ci-dessus). `manifest_export --check` rendra donc **3 périmés** tant que
+  ces deux points ne sont pas traités — ce n'est pas une dérive de cette session.
+
+### Contrôles attendus au prochain /reprise (chiffres MESURÉS le 2026-09-01)
+
+- `manage.py test wama.imager wama.model_manager` → **71 tests, exit 0** (base de test dédiée,
+  cf. le geste anti-collision du skill de clôture).
+- `manage.py sync_benchmarks --dry-run` → **15 appariés · 12 sans banc · 15 sans identité ·
+  117 hors catégorie**, somme = **159 lignes examinées**. La somme DOIT rester égale au total :
+  c'est le contrôle d'exhaustivité.
+- `check_docs` → **8 références cassées sur 1289 vérifiées**, **1 seule cible distincte**
+  (le partial d'onglets de résultat jamais créé) — inchangé, aucune dérive.
+- `manifest_export --check` → **3 périmés attendus** (les deux manifestes d'app du chantier TTS
+  et le modèle sam3), 0 invalide. Tout autre périmé est une vraie dérive.
+- `manage.py check` propre, `check_templates` **0 défaut sur 129 gabarits**,
+  `check_model_taxonomy` vert (22 tâches).
+
+### Artefacts de session
+
+Cinq scripts de diagnostic (diagnostic des non-appariés, sondes de règle d'appariement,
+inventaire des échelles, fiche de validation des alias, settings jetables de clôture) vivent
+**dans le scratchpad de session** — jetables, aucun n'est requis pour rejouer le travail : tout
+ce qu'ils ont mesuré est consigné ci-dessus ou dans les messages de commit.
