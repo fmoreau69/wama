@@ -33,11 +33,12 @@ Usage :
         </select>
         <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
                 onchange="location.search='?sort={{ q_sort }}&filter='+this.value" title="Filtrer par statut">
-            <option value="all"     {% if q_filter == 'all' %}selected{% endif %}>Tous les statuts</option>
-            <option value="draft"   {% if q_filter == 'draft' %}selected{% endif %}>Brouillon</option>
-            <option value="running" {% if q_filter == 'running' %}selected{% endif %}>En cours</option>
-            <option value="success" {% if q_filter == 'success' %}selected{% endif %}>Terminé</option>
-            <option value="failure" {% if q_filter == 'failure' %}selected{% endif %}>Échec</option>
+            <option value="all"      {% if q_filter == 'all' %}selected{% endif %}>Tous les statuts</option>
+            <option value="draft"    {% if q_filter == 'draft' %}selected{% endif %}>Brouillon</option>
+            <option value="awaiting" {% if q_filter == 'awaiting' %}selected{% endif %}>En attente de ressources</option>
+            <option value="running"  {% if q_filter == 'running' %}selected{% endif %}>En cours</option>
+            <option value="success"  {% if q_filter == 'success' %}selected{% endif %}>Terminé</option>
+            <option value="failure"  {% if q_filter == 'failure' %}selected{% endif %}>Échec</option>
         </select>
         <!-- Toggle d'affichage : Ligne ↔ Mosaïque (géométrie ; persisté sur le profil). -->
         <div class="btn-group btn-group-sm" role="group" aria-label="Disposition">

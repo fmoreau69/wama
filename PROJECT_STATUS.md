@@ -10311,3 +10311,32 @@ session (72468→99134 à 18:23, comme 9387→72468 à 15:58) sans geste de cett
 `kill -HUP <pid noté>` échoue alors sur pid disparu. Cause non élucidée (relance externe ?
 crash silencieux du master ?) — vérifier l'ÂGE du master avant tout reload, et comparer
 l'âge des workers au mtime des sources avant de conclure quoi que ce soit d'un symptôme.
+
+
+## §PALIER — 2026-09-02 (nuit), « QUICK WINS 4/7/8 » — ✅ LIVRÉ (demande Fabien)
+
+1. **VRAM estimée depuis les poids** (`model_registry._snapshot_to_model`) : les snapshots
+   du balayage générique naissaient `vram_gb=0` = « inconnu », donc PIRE coût au score du
+   curseur — jamais tirés en « rapide ». Estimation = taille des blobs × 1,2, plancher 0,1
+   (l'arrondi à 0.0 recréerait l'« inconnu »), marquée `vram_estimated`, absente si snapshot
+   incomplet. Propagée au catalogue PAR LE WORKER (workers relancés d'abord — leçon du
+   31/08 : le battement `model-manager-reconcile` aurait effacé une écriture shell) :
+   Audio8 3,1 · Kokoro-ONNX 1,7 · chatterbox 16,6.
+   ⚠ **CONSÉQUENCE À ARBITRER (le pending « grisage » devient pressant)** : à curseur 50,
+   la prévision nomme désormais **chatterbox (16,6 Go)** — moteur SANS backend, refus
+   explicite au lancement. Le tirage AUTO peut donc élire un moteur inlançable ; le
+   grisage « défaut constaté » (pending du 31/08) doit aussi dire si l'auto l'EXCLUT.
+2. **Toggle Higgs réparé** (`index.js`) : comparaison au nom nu → suffixe toléré
+   (`/(^|:)higgs-audio$/`, même règle qu'`engine_for_model`) — les options Higgs avaient
+   silencieusement disparu depuis le passage aux clés entières (01/09).
+3. **Filtre de file « En attente de ressources »** : `awaiting_count` au commun
+   (`batch_common`), cas `awaiting` dans `queue_view._matches` (`.get()` tolérant), option
+   dans `_queue_toolbar` — l'état qui appelle un geste n'est plus noyé dans « Brouillon ».
+
+**Mystère du §PALIER précédent LEVÉ (Fabien)** : les remplacements du master gunicorn
+(15:58, 18:23) étaient ses relances de stack — pas d'anomalie ; la leçon opérationnelle
+(âge des workers vs mtime) reste valable.
+
+**Contrôles** : suite complète OK (skipped=4) · smoke navigateur : Higgs visible sur clé
+entière, option de filtre servie, prévisions 5→Kokoro 0,5 / 95→Higgs 24 (et 50→chatterbox,
+cf. ⚠) · +3 tests (estimation + incomplet sans VRAM + maillons du filtre).
