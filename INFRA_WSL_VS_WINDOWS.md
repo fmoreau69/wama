@@ -215,6 +215,28 @@ sans mot de passe : une connexion depuis l'IP Windows est refusée. Deux issues,
 **En attendant : tout dispatch Celery se fait depuis WSL2** (`wsl.exe -e bash -lc '… venv_linux/bin/python …'`),
 jamais depuis venv_win — et un « succès » de `.delay()` côté Windows ne prouve rien.
 
+**Corollaires vécus le soir même (relancement de WAMA par Fabien pendant une installation) :**
+- une dispatch faite AVANT la coupure de Redis SURVIT dans la file et part dès qu'un worker
+  revient — FastWan a été installé deux fois en parallèle parce que ma vérification lisait
+  `llen` APRÈS consommation. *La question « quelque chose tourne-t-il ? » se pose à
+  `celery inspect active`, jamais à la longueur de la file.*
+- le worker `default` n'est pas revenu au relancement : le garde `pgrep -f "celery.*default@"`
+  de `start_wama_prod.sh` a cru voir un processus (résidu du worker SIGTERMé en pleine tâche,
+  non prouvé). Symptôme : `inspect ping` rend 2 nœuds (`gpu`, `studio`), pas de
+  `celery-default.log` recréé, la file `default` s'allonge. Relancé avec la commande exacte du
+  script (même pool, mêmes files, mêmes exports). ⚠ Le garde mériterait un test de VIE
+  (`inspect ping` ciblé) plutôt qu'un `pgrep` — non fait.
+
+## ⚠ Clichés VSS de D: — au PLAFOND, donc bornés (mesuré par Fabien en console élevée, 2026-09-02)
+
+`vssadmin list shadowstorage /for=D:` : **9,52 Go utilisés / 10,0 Go maximum** (1 % du volume).
+Le stockage de clichés de D: est plein à son plafond du 28/08 : il ne peut plus grossir, il
+RECYCLE. L'espace de D: qui « bouge sans nouveau modèle » n'est donc pas une fuite VSS côté D: —
+c'est le swap vivant de WSL sur C: (8 Go configurés, regrossit après chaque coupure) et les
+téléchargements du jour. Rien à purger ici sans décision ; le scan `/crash-residus` du même soir
+n'a trouvé ni swap orphelin ni dump. D: à **21,7 Go libres (4 %)** — le NVMe 4 To commandé est la
+réponse, pas un nettoyage.
+
 ## RAM hôte & plafond WSL2 (`.wslconfig`) — MAJ 2026-07-29
 
 **Hôte : 64 Go** (2× Samsung `M378A4G43AB2-CWE` 32 Go, détectées **3200 MT/s**, une par canal
