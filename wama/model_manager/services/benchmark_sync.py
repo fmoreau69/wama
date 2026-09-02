@@ -50,6 +50,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from pathlib import Path
 
 from .ollama_registry import decompose, _milliards
 
@@ -58,8 +59,9 @@ logger = logging.getLogger(__name__)
 #: Adresses et clé déclarées au registre COMMUN des sources externes (2026-09-01). `SOURCES`
 #: plus bas reste le registre des BANCS — il dit comment LIRE une valeur (priorité, échelle,
 #: méta) ; il ne dit plus où joindre la plateforme. Deux registres, deux questions.
-from wama.common.external_sources import (ARENA_DATASET, OPEN_ASR_DATASETS,  # noqa: F401
-                                          get as _source)
+from wama.common.external_sources import (ARENA_DATASET, MTEB_RESULTS_REPO,  # noqa: F401
+                                          OPEN_ASR_DATASETS, base_url as _base_url_of,
+                                          get as _source, proxies_for as _proxies_for)
 from wama.common.external_sources import base_url as _base_url
 
 AA_BASE = _base_url('artificial_analysis')
@@ -119,6 +121,22 @@ CATEGORIES = {
     # les deux porte les deux bancs (`bancs`), l'index vient du principal apparié.
     'speech-to-text-fr': {'open_asr': 'multilingual_fr', 'open_asr_valeur': None},
     'speech-to-text': {'open_asr': 'english_short', 'open_asr_valeur': 'avg'},
+    # ── 2026-09-02 : les EMBEDDINGS — MTEB, résultats bruts ─────────────────────────────
+    # Le jeu est DÉCLARÉ ici, et c'est le point : sans le paquet `mteb` (lourd, non
+    # installé) on ne reproduit pas la moyenne officielle « MTEB(Multilingual) » ; on
+    # déclare donc un jeu NOMMÉ, celui qui répond à la question du labo — retrouver du
+    # FRANÇAIS (le RAG indexe des entretiens en français). ⚠ Première version (5 tâches du
+    # sous-ensemble « MTEB français » : Alloprof/BSARD/Syntec/Mintaka/XPQA) RÉFUTÉE PAR LA
+    # MESURE le 02/09 : nos modèles ne les ont pas (bge-m3 2/5, Qwen3-Embedding et nomic v2
+    # 0/5 — seuls les contributeurs anciens les ont exécutées). Le jeu retenu = les tâches
+    # MULTILINGUES que nos modèles partagent et qui portent un SOUS-ENSEMBLE français :
+    # (tâche, split, hf_subset). Un modèle sans les quatre n'est pas noté, jamais moyenné
+    # sur moins. Échelle `mteb_fr_retrieval` (moyenne des main_score ×100 — nDCG@10 pour
+    # la recherche, MAP pour le reranking : une moyenne DÉCLARÉE, pas la leur).
+    'embedding': {'mteb': (('BelebeleRetrieval', 'test', 'fra_Latn-fra_Latn'),
+                           ('MIRACLRetrievalHardNegatives', 'dev', 'fr'),
+                           ('StatcanDialogueDatasetRetrieval', 'test', 'french'),
+                           ('AlloprofReranking', 'test', 'default'))},
 }
 
 #: Tâche canonique du catalogue (`capabilities.task` / `ModelTask`) → catégorie(s) de
@@ -137,6 +155,7 @@ TACHE_VERS_CATEGORIE = {
     'captioning': 'vision',
     'ocr': 'document',
     'transcription': ('speech-to-text-fr', 'speech-to-text'),
+    'feature-extraction': 'embedding',
 }
 
 #: Équivalences CONFIRMÉES À LA MAIN : model_key local → slug/nom EXACT chez le tiers.
@@ -162,6 +181,10 @@ ALIAS: dict[str, str] = {
     # c'est exactement ce que ce dictionnaire existe pour porter.
     'ollama:deepseek-coder-v2:latest': 'deepseek-coder-v2-lite',
     'proposed:ollama:deepseek-coder-v2:latest': 'deepseek-coder-v2-lite',
+    # 2026-09-02 : le tag Ollama `bge-m3` EST `BAAI/bge-m3` (la bibliothèque Ollama le
+    # cite comme origine). `_identity` rejette « m3 » (famille d'une lettre — garde du
+    # 19/08 contre les parasites), donc sans alias le modèle du RAG n'aurait jamais de banc.
+    'ollama:bge-m3:latest': 'BAAI/bge-m3',
 }
 
 
@@ -525,6 +548,190 @@ def charger_open_asr():
     return par_cat, motifs
 
 
+def _mteb_marqueurs():
+    """Fragments de nom des modèles d'EMBEDDING du catalogue (installés ou proposés) — ce
+    pour quoi on paie un appel d'API GitHub quand `paths.json` ne les connaît pas."""
+    from ..models import AIModel
+    out = set()
+    for m in AIModel.objects.filter(model_type='embedding'):
+        for brut in (m.hf_id or '', m.name or '', m.model_key.rsplit(':', 1)[0].rsplit(':', 1)[-1]):
+            frag = brut.rsplit('/', 1)[-1].split(':')[0].strip().lower()
+            if len(frag) >= 5:
+                out.add(frag)
+    return out
+
+
+def _mteb_index(marqueurs=()):
+    """
+    {'<owner>__<model>': '<révision>'} — l'INDEX des résultats.
+
+    Deux couches, parce que `paths.json` du dépôt est PÉRIMÉ (333 modèles sur 685 le
+    02/09, sans Qwen3-Embedding) et que l'API GitHub anonyme est bornée à 60 appels/h :
+      1. `paths.json` (un fichier brut) donne la révision de 333 modèles — la POPULATION ;
+      2. l'API (arbre du dossier `results/`, 1 appel) liste les 685 dossiers ; seuls ceux
+         qui manquent à `paths.json` ET portent un marqueur de NOTRE catalogue valent un
+         appel de plus (leur révision) — une dizaine, jamais 352.
+    Un modèle que ni l'une ni l'autre ne nomme n'est pas noté : null plutôt que plausible.
+    """
+    import requests
+    taches = {t[0] for t in CATEGORIES['embedding']['mteb']}
+    raw = _base_url_of('mteb')
+    r = requests.get(f'{raw}/{MTEB_RESULTS_REPO}/main/paths.json',
+                     proxies=_proxies_for('mteb'), timeout=90)
+    r.raise_for_status()
+    # ⚠ Un modèle peut avoir PLUSIEURS dossiers de révision, et une tâche donnée vit dans
+    # l'un d'eux seulement (mesuré : `AlloprofRetrieval` de bge-m3 n'est PAS sous la révision
+    # de son premier chemin → 404). L'index garde donc le CHEMIN EXACT par (modèle, tâche).
+    index = {}
+    for dossier, chemins in r.json().items():
+        for p in chemins or ():
+            seg = p.split('/')
+            if len(seg) >= 4 and seg[0] == 'results' and seg[-1].endswith('.json'):
+                t = seg[-1][:-5]
+                if t in taches:
+                    index.setdefault(dossier, {})[t] = p
+    marq = {str(x).lower() for x in marqueurs if x}
+    if not marq:
+        return index
+    api = _base_url_of('github_api')
+    proxies = _proxies_for('github_api')
+    entetes = {'Accept': 'application/vnd.github+json'}
+    tok = os.environ.get('GITHUB_TOKEN', '').strip()
+    if tok:
+        entetes['Authorization'] = f'Bearer {tok}'
+
+    def arbre(sha_ou_ref):
+        rr = requests.get(f'{api}/repos/{MTEB_RESULTS_REPO}/git/trees/{sha_ou_ref}',
+                          headers=entetes, proxies=proxies, timeout=60)
+        rr.raise_for_status()
+        return rr.json().get('tree', [])
+
+    try:
+        racine = {e['path']: e['sha'] for e in arbre('main')}
+        dossiers = {e['path']: e['sha'] for e in arbre(racine['results']) if e['type'] == 'tree'}
+        for dossier, sha in dossiers.items():
+            if dossier in index or not any(f in dossier.lower() for f in marq):
+                continue
+            # Arbre RÉCURSIF du dossier du modèle (1 appel) : toutes ses révisions, tous
+            # ses fichiers — on ne garde que les tâches du jeu, chemin exact.
+            for e in arbre(f'{sha}?recursive=1'):
+                if e['type'] != 'blob' or not e['path'].endswith('.json'):
+                    continue
+                t = e['path'].rsplit('/', 1)[-1][:-5]
+                if t in taches:
+                    index.setdefault(dossier, {})[t] = f"results/{dossier}/{e['path']}"
+    except Exception as e:
+        # L'API (quota, réseau) ne fait pas tomber la population de `paths.json`.
+        logger.warning("[mteb] index API GitHub incomplet : %s", e)
+    return index
+
+
+def _mteb_cache_path():
+    from django.conf import settings
+    p = Path(settings.BASE_DIR) / 'logs' / 'benchmarks' / 'mteb_scores.json'
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def charger_mteb():
+    """
+    {'embedding': [{'nom','slug','score','identite','taches','revision'}]} depuis le dépôt
+    des résultats MTEB — jeu de tâches DÉCLARÉ dans `CATEGORIES['embedding']['mteb']`.
+
+    Un score = moyenne des `main_score` (nDCG@10, 0-1) des tâches du jeu, ×100. Un modèle
+    qui n'a pas TOUTES les tâches est ignoré — jamais une moyenne sur moins. Les scores
+    sont IMMUABLES par (modèle, révision, tâche) : cache disque `logs/benchmarks/`, donc la
+    première passe coûte ~5 fichiers × population (143 le 02/09), les suivantes zéro.
+
+    Identité : `owner__model` → dernier segment (`Qwen3-Embedding-0.6B` → (qwen,(3,),0.6)).
+    `bge-m3` n'en a pas (famille d'une lettre) → `ALIAS` par égalité de slug `BAAI/bge-m3`.
+    """
+    import json
+    import requests
+
+    spec = CATEGORIES['embedding']
+    jeu = tuple(spec['mteb'])                   # (tâche, split, hf_subset)
+    try:
+        index = _mteb_index(_mteb_marqueurs())
+    except Exception as e:
+        raise SourceIndisponible(f'MTEB : index indisponible ({type(e).__name__}: {e})')
+
+    cache_p = _mteb_cache_path()
+    try:
+        cache = json.loads(cache_p.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        cache = {}
+    raw = _base_url_of('mteb')
+    proxies = _proxies_for('mteb')
+
+    def lire(cle, split_voulu, subset_voulu):
+        """main_score du sous-ensemble voulu, None si ABSENT (404 / subset manquant —
+        cacheable), ou lève si l'échec est PASSAGER (réseau, 5xx, JSON tronqué) — jamais
+        mis en cache : un `None` de proxy se lisait « absent » et le restait (mesuré :
+        SyntecRetrieval → 200 à la relecture)."""
+        url = f'{raw}/{MTEB_RESULTS_REPO}/main/{cle}'
+        derniere = None
+        for _ in range(2):
+            try:
+                r = requests.get(url, proxies=proxies, timeout=60)
+                if r.status_code == 404:
+                    return None
+                r.raise_for_status()
+                # json stdlib : simplejson (via requests) refuse les `NaN` que mteb écrit.
+                sc = (json.loads(r.text).get('scores') or {})
+                split = sc.get(split_voulu) or []
+                for s in split:
+                    if str(s.get('hf_subset', 'default')) == subset_voulu:
+                        return float(s['main_score'])
+                return None
+            except Exception as e:      # passager : on retente une fois, puis on lève
+                derniere = e
+        raise derniere
+
+    out, motifs = [], {}
+    manques = passagers = 0
+    for dossier, chemins in sorted(index.items()):
+        if any(t not in chemins for t, _, _ in jeu):
+            manques += 1
+            continue
+        scores, rev, transitoire = {}, '', False
+        for t, split, subset in jeu:
+            cle = f'{chemins[t]}#{split}#{subset}'    # chemin exact = clé de cache immuable
+            rev = chemins[t].split('/')[2] if chemins[t].count('/') >= 3 else rev
+            if cle in cache:
+                v = cache[cle]
+            else:
+                try:
+                    v = lire(chemins[t], split, subset)
+                except Exception:
+                    transitoire = True
+                    break
+                cache[cle] = v
+            if v is None:
+                break
+            scores[t] = v
+        if transitoire:
+            passagers += 1
+            continue
+        if len(scores) < len(jeu):
+            manques += 1
+            continue
+        nom = dossier.replace('__', '/', 1)
+        ident = _identity(nom.rsplit('/', 1)[-1])
+        out.append({'nom': nom, 'slug': nom, 'identite': ident, 'revision': rev,
+                    'score': round(100.0 * sum(scores.values()) / len(scores), 2),
+                    'taches': {t: round(100.0 * v, 2) for t, v in scores.items()}})
+    try:
+        cache_p.write_text(json.dumps(cache, indent=0, sort_keys=True), encoding='utf-8')
+    except OSError:
+        pass
+    if passagers:
+        motifs['embedding'] = f'{passagers} modèle(s) non lus cette passe (réseau) — relancer'
+    if not out:
+        raise SourceIndisponible('MTEB : ' + (motifs.get('embedding') or 'aucun modèle avec le jeu complet'))
+    return {'embedding': out}, motifs
+
+
 # ── Comparabilité (règle des échelles) ───────────────────────────────────────────────────
 
 def benchmarks_comparable(pool) -> bool:
@@ -621,6 +828,9 @@ def _categories_locales(m):
             # Un VLM a pour banc PRINCIPAL l'arène `vision` (image + prompt) ; le banc
             # texte reste un métier secondaire (AA y classe MiniCPM-V).
             return ['vision', 'llm']
+        if m.model_type == ModelType.EMBEDDING:
+            # Proposé sans capacités : la prospection a posé le type, MTEB est son banc.
+            return ['embedding']
         if m.model_type != ModelType.LLM:
             return []
         # Même règle `vision` que ci-dessus, pour un LLM sans tâche déclarée.
@@ -692,6 +902,11 @@ def _meta_arena(retenu, candidats):
             'arena_votes': retenu['votes']}
 
 
+def _meta_mteb(retenu, candidats):
+    return {'mteb_nom': retenu['nom'], 'mteb_score': retenu['score'],
+            'mteb_taches': retenu.get('taches') or {}, 'mteb_revision': retenu.get('revision', '')}
+
+
 def _meta_open_asr(retenu, candidats):
     d = {'open_asr_nom': retenu['nom'], 'open_asr_wer': retenu['wer'],
          'open_asr_jeux': retenu.get('jeux') or {}}
@@ -736,6 +951,11 @@ SOURCES = (
      'valeur': lambda e: e.get('wer'), 'sens': 'bas',
      'echelle': lambda e, cat: f'open_asr_wer_{CATEGORIES[cat]["open_asr"]}',
      'meta': _meta_open_asr},
+    {'cle': 'mteb', 'label': 'MTEB results (embeddings-benchmark/results, CC0-1.0)', 'priorite': 4,
+     'nom_source': 'mteb', 'chargeur': lambda: charger_mteb(),
+     'valeur': lambda e: e.get('score'),
+     'echelle': lambda e, cat: 'mteb_fr_retrieval',
+     'meta': _meta_mteb},
 )
 
 #: Ordre de consultation — figé une fois, pas retrié à chaque modèle.

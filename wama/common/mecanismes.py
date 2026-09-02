@@ -187,7 +187,7 @@ MECANISMES = (
               "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.)",
               'wama/model_manager/services/model_quality.py', ''),
     Mecanisme('benchmark_sync', 'Benchmark tiers confronté',
-              "Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') appariés au catalogue, prospection incluse",
+              "Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') + MTEB (embeddings, jeu FRANÇAIS déclaré) appariés au catalogue, prospection incluse",
               'wama/model_manager/services/benchmark_sync.py', 'PROJECT_STATUS.md §REPRISE 2026-08-18',
               annexes=('wama/model_manager/management/commands/sync_benchmarks.py',)),
     Mecanisme('bench', 'Banc de comparaison',

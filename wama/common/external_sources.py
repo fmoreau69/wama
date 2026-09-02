@@ -166,6 +166,17 @@ SOURCES: tuple[ExternalSource, ...] = (
         kind='banc', attribution='Open ASR Leaderboard (Hugging Face, hf-audio)',
         doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
 
+    # 2026-09-02 : 4ᵉ banc — les EMBEDDINGS (le RAG tourne sur bge-m3 sans aucune mesure
+    # tierce). Résultats bruts du dépôt `embeddings-benchmark/results` (CC0-1.0) : un JSON par
+    # modèle et par tâche, lu sur raw.githubusercontent.com ; l'INDEX des dossiers passe par
+    # l'API GitHub (`github_api`, déjà déclarée) parce que `paths.json` du dépôt est périmé
+    # (333 modèles sur 685 le 02/09, sans Qwen3-Embedding). Pas de clé : quota anonyme.
+    ExternalSource(
+        'mteb', 'MTEB — résultats bruts (embeddings-benchmark)', 'https://raw.githubusercontent.com',
+        "nDCG@10 par tâche de recherche (jeu FRANÇAIS déclaré) — JSON CC0 lus sur GitHub",
+        kind='banc', attribution='MTEB results (embeddings-benchmark/results, CC0-1.0)',
+        doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
+
     # ── Outillage et poids ──────────────────────────────────────────────────────────────
     ExternalSource(
         'github', 'GitHub', 'https://github.com',
@@ -196,6 +207,9 @@ OPEN_ASR_DATASETS = {
     'english_short': ('hf-audio/open-asr-leaderboard-results', 'english_short_latest.csv'),
     'multilingual_fr': ('hf-audio/multilingual_evals', 'multilingual_fr.csv'),
 }
+
+#: Le dépôt GitHub des résultats MTEB, nommé une fois (identifiant `owner/repo`, pas une URL).
+MTEB_RESULTS_REPO = 'embeddings-benchmark/results'
 
 
 def by_key() -> dict[str, ExternalSource]:

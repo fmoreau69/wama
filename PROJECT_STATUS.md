@@ -10184,12 +10184,23 @@ un, NeMo en premier (deux modèles derrière, le meilleur banc FR).
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE (instance bancs / prospection / installations, 02/09)
 
-**Non fait, annoncé, à faire en premier** : **MTEB et Open VLM** comme 3ᵉ et 4ᵉ sources
-`benchmark_sync` (le relevé du matin porte les faits : MTEB = dépôt CC0 de JSON par modèle et
-par tâche, moyenne à recalculer, catégorie `embedding` → bge-m3 vs qwen3-embedding pour le RAG ;
-Open VLM = JSON chargé par URL dans `meta_data.py` du Space OpenCompass, scores objectifs par
-benchmark, catégorie `vision` en confrontation de l'arène). Même patron que `open_asr` :
-entrée `SOURCES` + chargeur + `external_sources` + catégorie ; `_SourcesFactices` à compléter.
+~~**Non fait, annoncé, à faire en premier** : **MTEB et Open VLM**~~ → **FAIT le 02/09 au soir**
+(`PROSPECTION_PIPELINE §Suite (soir, après relance)`) : **MTEB branché** comme 4ᵉ source
+(catégorie `embedding`, jeu FRANÇAIS déclaré en (tâche, split, hf_subset) après RÉFUTATION du
+premier jeu par la mesure — aucun de nos modèles n'avait les tâches « MTEB français » ;
+population **116**, 430 s la première passe puis cache disque) ; **Open VLM ÉCARTÉ** (l'URL du
+Space rend une page HTML derrière un certificat expiré ; `OpenVLMRecords` = prédictions brutes
+figées en avril 2025 — pas de flux). Mesuré, échelle `mteb_fr_retrieval` : Qwen3-Embedding-4B
+**70,0 (1ᵉʳ/116)**, embeddinggemma-300m 69,6 (2ᵉ), Qwen3-Embedding-0.6B 64,1 (9ᵉ),
+nomic-embed-text-v2-moe 62,3 (13ᵉ), **bge-m3 61,5 (16ᵉ)** — le modèle du RAG, apparié par
+ALIAS. *Un jeu de tâches se choisit sur ce que le CATALOGUE a, pas sur ce que le banc propose.*
+🔚 Décision Fabien qui en découle : **le RAG gagnerait à passer de bge-m3 à Qwen3-Embedding
+(0.6B ou 4B)** — mais changer d'embedding force une RÉINDEXATION (`store.py`), à programmer.
+Dry-run après : **34 appariés · 23 sans banc · 33 sans identité · 73 hors catégorie** (163 lignes ;
++3 appariés = bge-m3, nomic v2, qwen3-embedding). ⚠ Limite visible : `proposed:ollama:qwen3-embedding:latest`
+(tag sans taille) prend la variante **8B** par similarité de chaîne, pas par sa taille réelle —
+le registre Ollama (digest, comme `deepseek-coder-v2`) tranchera quand il sera consulté pour
+les `proposed:` aussi. Tests : +2 (chargeur avec cache et échec passager, alias bge-m3).
 
 **⚠⚠ Deux crashs hôte pendant cette session (20:21:47 et ~20:58:40), MÊME déclencheur à la
 seconde** — le triage VLM du smoke `converter.ui` (fin d'une passe `converter_01.*` lancée à la
