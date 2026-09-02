@@ -36,25 +36,43 @@ AUTO = 'auto'
 #: Fabien, handoff 2026-09-01). Un seul domicile — l'endpoint et les tests le citent.
 AUTO_LABEL = 'Automatique — choisi au lancement'
 
-#: Curseur d'INTENTION rapide↔qualité (décision Fabien 01/09) — trois politiques NOMMÉES.
-#: La valeur stockée/postée est la politique en toutes lettres, jamais un index de slider
-#: (frontière des DONNÉES). Le vocabulaire vit chez le sélecteur (`MODEL_INTENTS`) ; les
-#: libellés et le tricolore vivent dans le renderer commun `type='intent'` (wama-params.js).
-INTENT_DEFAULT = 'balanced'
+#: Curseur de QUALITÉ — échelle CONTINUE 0-100 (décision Fabien 02/09 : « l'intention
+#: n'est pas un branchement, c'est un poids dans le score » — les 3 politiques discrètes
+#: de la 1ʳᵉ implémentation ne savaient désigner que 3 candidats sur N). Le barème, les
+#: positions nommées (Rapide/Équilibré/Qualité) et le seuil d'offload vivent chez le
+#: sélecteur (`QUALITY_PRESETS`, `QUALITY_OFFLOAD_THRESHOLD`) ; les libellés rendus et le
+#: tricolore vivent dans le renderer commun `type='intent'` (wama-params.js) et le partial
+#: `common/_intent_slider.html` — MÊME contrat de classes, un seul listener délégué.
+#: La MÊME forme utilisateur partout ; chaque usage DÉCLINE la valeur selon ses capacités
+#: (ici : choix de modèle ; converter : presets de lot ↔ slider unitaire ; anonymizer :
+#: sa règle locale de floutage) — la couche d'adaptation reste locale et déclarée.
+INTENT_DEFAULT = 50
+
+
+def read_quality_intent(value) -> int:
+    """Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
+
+    Le helper des VUES adoptantes (synthesizer, avatarizer, demain converter…) — sans lui
+    chaque app réécrivait le même try/int/clamp, et un POST malformé faisait un 500.
+    """
+    try:
+        return max(0, min(100, int(float(value))))
+    except (TypeError, ValueError):
+        return INTENT_DEFAULT
 
 
 def intent_param(**overrides) -> dict:
-    """Surcouche STANDARD du curseur d'intention pour un schéma d'app (`derive_from_model`).
+    """Surcouche STANDARD du curseur de qualité pour un schéma d'app (`derive_from_model`).
 
-    L'app déclare le champ modèle (`model_intent`, CharField défaut 'balanced' — SANS
-    `choices=`, leçon du 01/09 : toute liste dans un champ de modèle exige une migration)
-    et passe `intent_param(dom_id=…, show_if=…)` en override. Le rendu, la liaison et le
-    tricolore sont le renderer commun — rien à écrire par app.
+    L'app déclare le champ modèle (`quality_intent`, IntegerField défaut 50) et passe
+    `intent_param(dom_id=…, show_if=…)` en override. Le rendu, la liaison, le tricolore
+    et les graduations de presets sont le renderer commun — rien à écrire par app.
     """
     base = dict(
-        type='intent', label='Rapide ↔ Précis', icon='fa-gauge-high',
-        help="Guide le choix automatique : Rapide privilégie un modèle léger, "
-             "Précis le meilleur modèle même s'il faut attendre des ressources.",
+        type='intent', label='Rapide ↔ Qualité', icon='fa-gauge-high',
+        default=INTENT_DEFAULT, min=0, max=100, step=1,
+        help="Guide le choix automatique : à gauche un modèle léger et rapide, à droite "
+             "le meilleur modèle même s'il faut attendre des ressources.",
     )
     base.update(overrides)
     return base

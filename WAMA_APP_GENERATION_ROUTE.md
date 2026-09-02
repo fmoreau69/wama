@@ -408,8 +408,9 @@ et il alimente l'étage qui manque au tirage automatique (voir ci-dessous).
   « le plus gros qui tient » : mesuré, une demande TTS nue rend `bark` (4 Go) et non `kokoro`
   (0,5 Go). Pour une PREVIEW RAPIDE c'est l'inverse du besoin. **Remède immédiat et sans
   risque : `sync_benchmarks`.**
-- ~~**L'INTENTION manque au contrat commun**~~ → **✅ LIVRÉE le 2026-09-02** (curseur 3
-  politiques, `select_model(intent=…)` — détail au §brique d'auto-sélection ci-dessus).
+- ~~**L'INTENTION manque au contrat commun**~~ → **✅ LIVRÉE le 2026-09-02** (curseur de
+  qualité CONTINU 0-100, `select_model(quality_intent=…)` — détail au §brique
+  d'auto-sélection ci-dessus).
   Le prototype `precision_level` 0-100 de l'anonymizer (`params.py:107`) reste app-local :
   il pilote AUSSI des couplages propres à l'app (chemin de floutage au-delà de 50) qui ne
   doivent pas monter au commun — son ralliement au curseur commun = chantier séparé.
@@ -438,23 +439,44 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   (`workers.py`, mode pipeline) résolvent au lancement et consignent le choix dans la
   console de l'item. Adopteurs : synthesizer + avatarizer (via schéma), imager + composer
   (via leurs jumelles recâblées).
-- **✅ L'INTENTION est entrée au contrat commun (2026-09-02, 2ᵉ palier)** : curseur
-  rapide↔qualité à 3 politiques NOMMÉES (`fast`/`balanced`/`precise` — la valeur stockée
-  est la politique, jamais l'index du slider), arbitré par `select_model(intent=…)`
-  (`_best_by_vram` : fast = le plus léger qui tient, qualité en départage ; balanced =
-  historique ; precise = la qualité prime, budget ET résidence ignorés — l'offload ou
-  l'attente `AWAITING_RESOURCES` est le prix assumé). UI : renderer commun
-  `type='intent'` (wama-params.js, tricolore vert/orange/rouge validé Fabien) + partial
-  `common/_intent_slider.html` pour les volets maison (MÊME contrat de classes, liaison
-  DÉLÉGUÉE au document) ; visible seulement quand le select est sur « auto » ; la
-  PRÉVISION suit le curseur en direct (l'intention entre dans l'URL de l'endpoint, donc
-  dans la clé de cache). Mesuré au smoke : fast→Audio8 (0,6b), balanced→Bark (4 Go),
-  precise→Higgs (24 Go). Adopteurs : synthesizer (volet+modales+batch+4 chemins de
-  création) et avatarizer (modale item) — champ `model_intent` (défaut balanced, sans
-  `choices=`). Le `precision_level` de l'anonymizer reste app-local (ses couplages ne
-  montent pas au commun, cf. §tirage automatique) — son ralliement = chantier séparé.
+- **✅ L'INTENTION est entrée au contrat commun (2026-09-02) — en ÉCHELLE CONTINUE 0-100**
+  (recadrage Fabien le jour même : *« l'intention n'est pas un branchement, c'est un poids
+  dans le score »* — la 1ʳᵉ implémentation à 3 politiques discrètes ne savait désigner que
+  3 candidats sur N ; remplacée dans la journée, migration de données pure `fast→15 /
+  balanced→50 / precise→85`). Arbitrage : `select_model(quality_intent=0-100)` →
+  `score = w·qualité + (1−w)·légèreté` (valeurs min-max du LOT, échelle des signaux au
+  domicile unique `_quality_scalars` — partagée avec `_rank_key`) ; au-delà de
+  `QUALITY_OFFLOAD_THRESHOLD` (80), budget ET résidence s'effacent — l'offload ou
+  l'attente `AWAITING_RESOURCES` est le prix assumé. **Deux gardes mesurées** : une VRAM
+  inconnue (None/0) vaut le PIRE coût (Audio8 vram=0 battait Kokoro 0,5 sur « rapide »
+  par accident) ; à score égal, la qualité départage (sans quoi le score est PLAT à w=0,5
+  quand le lot n'a que le proxy VRAM). Les positions NOMMÉES `QUALITY_PRESETS`
+  (**Rapide 15 / Équilibré 50 / Qualité 85** — trio canonique acté, « Précis » écarté
+  comme trop étroit ; le converter garde sa nuance en sous-libellé « Rapide (web) »)
+  servent de graduations au slider et de presets aux LOTS/filemanager — même forme
+  utilisateur partout, chaque usage DÉCLINE la valeur selon ses capacités (couche
+  d'adaptation locale déclarée : modèles ici, encodage au converter, floutage anonymizer).
+  UI : renderer commun `type='intent'` + partial `common/_intent_slider.html` (même
+  contrat, liaison déléguée), tricolore par zone, visible seulement sur « auto »,
+  PRÉVISION qui suit le curseur en direct. Adopteurs : synthesizer (toutes surfaces) et
+  avatarizer (modale item) — champ `quality_intent` (IntegerField défaut 50) ; lecture
+  POST par la brique (`read_quality_intent`, bornée, ne lève jamais). Ralliement
+  converter/anonymizer = suite du portage (le commun est prêt).
+- **La DONNÉE de qualité reste le maillon faible — et son plan est acté (Fabien, 02/09)** :
+  tant que le parc d'une tâche n'a ni benchmark ni indice, le score pondère le proxy VRAM
+  (= « le plus gros ≈ le meilleur », faux pour l'usage réel : XTTS/Kokoro, les plus
+  utilisés, ne gagnent jamais). `sync_benchmarks` ne couvrira jamais tout le parc (bancs
+  tiers = LLM/ASR/vision surtout). La source qui manque est la **MESURE INTERNE** — le
+  sommet de l'échelle des signaux, aujourd'hui vide : **qualification nocturne
+  COMPARATIVE** — le même job lancé sur TOUS les modèles capables de la tâche
+  (`bench` + files nocturnes), sorties confrontées entre elles (contrôle **VLM** pour le
+  visuel, métriques objectives quand elles existent), verdicts réingérés en indice par
+  tâche. Prérequis : un hôte qui ne crashe plus la nuit (HWiNFO + chantier crashs) ;
+  beaucoup d'usages avant que le critère soit solide — c'est une boucle d'accumulation,
+  pas un one-shot. À câbler avec `WAMA_APPRENTISSAGE §A2-A4` (WAMA déclare/déclenche/
+  réingère) et le mécanisme `bench` existant.
 - **Ce qui n'est PAS dedans** : la comparaison prévision↔choix réel (la prévision
-  n'est pas stockée ; le message de lancement dit le choix ET la politique, pas l'écart).
+  n'est pas stockée ; le message de lancement dit le choix ET le curseur, pas l'écart).
 - ⚠ **Demi-jambe trouvée EN VALIDANT à l'écran (constat Fabien : « je ne vois pas le
   modèle prévu »)** : `_bindOptionSources` ne vivait que dans `WamaParams.render` — donc
   les MODALES. Le select du VOLET, rendu SERVEUR (`tts_engine_choices()`), n'y passait

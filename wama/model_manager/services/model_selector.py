@@ -88,89 +88,140 @@ def _rank_key(pool, domain=None):
     NULL partout → étage inerte) ; ensuite, les lots 100 % appariés (LLM Ollama) passent
     sur la mesure tierce.
     """
-    # Étage 2bis — SOUS-INDICE DE DOMAINE (2026-08-19) : « le meilleur » n'est pas le même
-    # selon ce qu'on demande. Artificial Analysis publie des indices par domaine (coding,
-    # math) dans la même réponse : `qwen3.8` = 52,0 en général mais 68,1 en coding, quand
-    # `gemma4:e4b` tombe à 9,4 — un rôle codegen doit trier là-dessus, pas sur l'indice
-    # général. Même règle de lot que partout : TOUT le lot doit porter ce domaine, sinon on
-    # redescend d'un étage (un domaine absent = inconnu, jamais « mauvais »).
-    def _sub_index(m):
-        # `'sous_indices'` = clé de DONNÉES (écrite par `sync_benchmarks`) : inchangée.
-        return ((getattr(m, 'benchmark_meta', None) or {}).get('sous_indices') or {}).get(domain)
-
-    domain_usable = bool(domain) and bool(pool) and all(
-        _sub_index(m) is not None for m in pool)
-
-    # Un benchmark n'est comparable qu'à MÊME ÉCHELLE (Intelligence Index ~0-70 vs Elo
-    # ~1000-1500 : incommensurables — on ne normalise jamais). La règle avait ici sa
-    # meilleure implémentation, mais elle vivait EN DOUBLE : `AIModel.best_installed` en
-    # appliquait la moitié. Domicile unique désormais chez le module qui écrit `echelle`.
-    from .benchmark_sync import benchmarks_comparable, valeur_ordonnable
-    tous_benchmarkes = benchmarks_comparable(pool)
-    tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
+    # L'ÉCHELLE DES SIGNAUX vit désormais dans `_quality_scalars` (02/09) — un seul
+    # domicile pour le TRI (ici) et le SCORE pondéré du curseur (`_best_by_vram`) :
+    # sous-indice de domaine (2026-08-19 : qwen3.8 = 52,0 en général, 68,1 en coding —
+    # un rôle codegen trie là-dessus) si TOUT le lot le porte, sinon benchmark tiers
+    # COMPARABLE (jamais `benchmark_index` nu : un WER se trie à l'envers d'un Elo, seul
+    # le module qui écrit l'échelle connaît son sens), sinon a priori, sinon VRAM.
+    scalars, _ = _quality_scalars(pool, domain)
 
     def sort_key(m):
-        if domain_usable:
-            q = _sub_index(m)
-        elif tous_benchmarkes:
-            # Jamais `benchmark_index` NU : un WER (Open ASR, 2026-09-02) se trie à
-            # l'envers d'un Elo, et seul le module qui écrit l'échelle connaît son sens.
-            q = valeur_ordonnable(m)
-        elif tous_qualifies:
-            q = m.quality_index
-        else:
-            q = m.vram_gb or 0
-        return (m.is_loaded, q)
+        return (m.is_loaded, scalars[id(m)])
     return sort_key
 
 
-#: Politiques d'INTENTION du tirage (curseur rapide↔qualité, décision Fabien 01/09).
-#: Vocabulaire UNIQUE — l'UI (`type='intent'` de WamaParams), la brique commune
-#: `auto_model` et ce sélecteur parlent ces trois valeurs, jamais un index de slider.
-INTENT_FAST = 'fast'
-INTENT_BALANCED = 'balanced'
-INTENT_PRECISE = 'precise'
-MODEL_INTENTS = (INTENT_FAST, INTENT_BALANCED, INTENT_PRECISE)
+#: Curseur de QUALITÉ — échelle CONTINUE 0-100 (décision Fabien 02/09, remplaçant les
+#: 3 politiques discrètes du même matin : « l'intention ne devrait pas être un
+#: branchement, elle devrait être un POIDS dans le score » — 3 crans ne savaient
+#: désigner que 3 candidats sur N). La valeur voyage TELLE QUELLE (0-100) de l'UI au
+#: score ; les presets sont des POSITIONS NOMMÉES sur l'échelle, pas des stratégies.
+QUALITY_DEFAULT = 50
+#: (clé, libellé, position) — trio canonique Rapide/Équilibré/Qualité (« Précis » était
+#: trop étroit face à une conversion ou une synthèse ; le converter garde sa nuance en
+#: sous-libellé local « Rapide (web) »). Partagé par le slider (graduations), les barres
+#: de presets de LOT et le filemanager — un seul domicile.
+QUALITY_PRESETS = (
+    ('fast', 'Rapide', 15),
+    ('balanced', 'Équilibré', 50),
+    ('quality', 'Qualité', 85),
+)
+#: Au-delà de ce cran, la qualité prime au point d'ASSUMER le coût : le budget VRAM
+#: cesse de borner (offload ou attente AWAITING_RESOURCES) et la préférence au modèle
+#: RÉSIDENT s'efface (un petit modèle déjà chargé ne vole plus le tirage).
+QUALITY_OFFLOAD_THRESHOLD = 80
+
+#: Tolérance : les 3 politiques de la 1ʳᵉ implémentation (stockées quelques heures) et
+#: les clés de presets résolvent vers leur position — rien de reçu ne casse un lancement.
+_NAMED_QUALITY = {'fast': 15, 'balanced': 50, 'precise': 85, 'quality': 85}
 
 
-def _best_by_vram(models, budget_gb: Optional[float], domain=None,
-                  intent: str = INTENT_BALANCED):
+def _quality_weight(value) -> float:
+    """0-100 (nombre, chaîne, ou position nommée) → poids [0,1]. Inconnu = équilibré."""
+    if isinstance(value, str):
+        named = _NAMED_QUALITY.get(value.strip().lower())
+        if named is not None:
+            value = named
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        v = QUALITY_DEFAULT
+    return max(0.0, min(100.0, v)) / 100.0
+
+
+def _quality_scalars(pool, domain=None):
+    """Valeur de QUALITÉ scalaire par modèle — l'ÉCHELLE DES SIGNAUX, en un seul domicile.
+
+    Même règle de lot que partout (a priori < benchmark tiers < mesure interne, jamais
+    deux échelles mélangées) : sous-indice de domaine si TOUT le lot le porte, sinon
+    benchmark comparable, sinon a priori, sinon la VRAM en PROXY assumé. `_rank_key`
+    (le tri) et le score pondéré (le curseur) lisent tous deux ce barème.
+
+    Retour : ({id(m): valeur}, proxy_vram) — le drapeau dit si la « qualité » n'est que
+    la taille (utile aux appelants pour doser leur confiance).
     """
-    Parmi `models`, choisir le meilleur compromis QUALITÉ/VRAM :
-      - déjà chargé prioritaire (évite un déchargement/rechargement) ;
-      - sinon le plus QUALITATIF qui TIENT dans le budget ;
-      - si rien ne tient, le plus léger (meilleure chance de charger).
+    def _sub_index(m):
+        return ((getattr(m, 'benchmark_meta', None) or {}).get('sous_indices') or {}).get(domain)
 
-    ⚠ Le nom `_best_by_vram` est conservé (appelé ailleurs) mais il ne dit plus la vérité : le
-    classement ne se fait plus par taille. Le critère précédent — « le plus gros qui tient » —
-    assimilait volume et qualité, ce qu'un MoE dément frontalement : `qwen3.6:35b` active 8
-    experts sur 256, donc la qualité d'un 36B pour le coût de calcul d'un 3B. La VRAM reste une
-    CONTRAINTE (le budget ci-dessous), elle n'est plus le critère de choix.
+    from .benchmark_sync import benchmarks_comparable, valeur_ordonnable
+    domain_usable = bool(domain) and bool(pool) and all(
+        _sub_index(m) is not None for m in pool)
+    tous_benchmarkes = benchmarks_comparable(pool)
+    tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
 
-    `intent` (2026-09-02) — l'INTENTION déclarée module l'arbitrage, jamais le lot :
-      - 'fast'     : le plus LÉGER qui tient (proxy vitesse : chargement + inférence) ;
-                     à VRAM égale, la qualité départage — c'est la « preview rapide ».
-      - 'balanced' : comportement historique (le plus qualitatif qui tient) — défaut.
-      - 'precise'  : la qualité PRIME, budget ignoré — l'offload (ou l'attente
-                     AWAITING_RESOURCES) est le prix ASSUMÉ de la précision.
-    Une valeur inconnue vaut 'balanced' : le tirage ne casse jamais un lancement.
+    if domain_usable:
+        return {id(m): _sub_index(m) for m in pool}, False
+    if tous_benchmarkes:
+        return {id(m): valeur_ordonnable(m) for m in pool}, False
+    if tous_qualifies:
+        return {id(m): m.quality_index for m in pool}, False
+    return {id(m): (m.vram_gb or 0) for m in pool}, True
+
+
+def _minmax(valeurs: dict) -> dict:
+    """Normalisation min-max d'un dict {clé: nombre} vers [0,1] (lot constant → 0.5)."""
+    if not valeurs:
+        return {}
+    lo, hi = min(valeurs.values()), max(valeurs.values())
+    if hi == lo:
+        return {k: 0.5 for k in valeurs}
+    return {k: (v - lo) / (hi - lo) for k, v in valeurs.items()}
+
+
+def _best_by_vram(models, budget_gb: Optional[float], domain=None, quality_intent=None):
     """
-    if intent == INTENT_PRECISE:
-        return max(models, key=_rank_key(models, domain))
-    # La clé se calcule sur le lot RÉELLEMENT en compétition (cf. `_rank_key`) : le lot
-    # complet si aucun budget, sinon les seuls candidats qui tiennent.
-    if budget_gb is None:
+    Parmi `models`, le meilleur compromis QUALITÉ/COÛT au poids du CURSEUR (0-100) :
+
+        score = w·qualité + (1−w)·légèreté        (w = curseur/100, valeurs min-max du lot)
+
+    - curseur bas → la légèreté domine (chargement + inférence rapides — la « preview ») ;
+    - curseur haut (≥ QUALITY_OFFLOAD_THRESHOLD) → le budget cesse de borner : l'offload
+      ou l'attente AWAITING_RESOURCES est le prix ASSUMÉ de la qualité ;
+    - entre les deux, CHAQUE cran déplace réellement l'arbitrage — sur N candidats
+      admissibles, tous sont atteignables (c'était l'objection de Fabien aux 3 politiques).
+
+    ⚠ Le nom `_best_by_vram` est conservé mais il ne dit plus la vérité depuis longtemps :
+    « le plus gros qui tient » assimilait volume et qualité, ce qu'un MoE dément
+    frontalement (`qwen3.6:35b` : la qualité d'un 36B au coût de calcul d'un 3B). La VRAM
+    reste une CONTRAINTE (budget) et un COÛT (le terme légèreté), plus un critère seule.
+
+    Deux gardes MESURÉES (02/09) :
+    - une VRAM inconnue (None/0) n'est pas « gratuite » : coût = PIRE du lot — Audio8
+      (vram_gb=0, jamais mesurée) battait Kokoro (0,5 mesuré) sur « rapide » par accident ;
+    - à score égal, la QUALITÉ départage (epsilon) — indispensable quand le lot n'a que le
+      proxy VRAM : qualité et coût sont alors le MÊME axe, le score serait plat à w=0,5 ;
+      l'epsilon y rétablit le comportement historique (« le plus qualitatif qui tient »).
+    """
+    w = _quality_weight(quality_intent)
+    depasse_budget = (w * 100.0) >= QUALITY_OFFLOAD_THRESHOLD
+    if budget_gb is None or depasse_budget:
         pool = models
     else:
         fit = [m for m in models if (m.vram_gb or 0) <= budget_gb]
         if not fit:
             return min(models, key=lambda m: (m.vram_gb or 0))
         pool = fit
-    if intent == INTENT_FAST:
-        lightest = min((m.vram_gb or 0) for m in pool)
-        light_pool = [m for m in pool if (m.vram_gb or 0) == lightest]
-        return max(light_pool, key=_rank_key(light_pool, domain))
-    return max(pool, key=_rank_key(pool, domain))
+
+    q = _minmax(_quality_scalars(pool, domain)[0])
+    # Coût = VRAM MESURÉE, normalisée sur les seuls modèles qui en ont une ; inconnue → 1.0.
+    mesures = {id(m): m.vram_gb for m in pool if m.vram_gb}
+    c = _minmax(mesures)
+
+    def score(m):
+        cout = c.get(id(m), 1.0)
+        return w * q[id(m)] + (1.0 - w) * (1.0 - cout) + 1e-6 * q[id(m)]
+
+    return max(pool, key=score)
 
 
 def select_model(
@@ -188,7 +239,7 @@ def select_model(
     availability_probe=None,
     benchmark_domain: Optional[str] = None,
     specialization: Optional[str] = None,
-    intent: str = INTENT_BALANCED,
+    quality_intent=None,
 ):
     """
     Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
@@ -221,17 +272,15 @@ def select_model(
                          52,0 en général mais 68,1 en coding.
         specialization:  spécialité EXIGÉE ('translation'…). Sans elle, les modèles
                          spécialisés sont ÉCARTÉS du lot (cf. `_specialization_ok`).
-        intent:          politique du curseur rapide↔qualité ('fast'/'balanced'/'precise',
-                         cf. `_best_by_vram`). 'precise' ignore aussi la préférence au
-                         modèle RÉSIDENT : un petit modèle déjà chargé ne doit pas voler
-                         le tirage à un meilleur modèle froid quand la précision prime.
+        quality_intent:  curseur de qualité 0-100 (cf. `_best_by_vram` — poids dans le
+                         score, jamais un branchement). ≥ QUALITY_OFFLOAD_THRESHOLD :
+                         budget et préférence au RÉSIDENT s'effacent (un petit modèle
+                         déjà chargé ne vole pas le tirage quand la qualité prime).
+                         Positions nommées tolérées ('fast'/'balanced'/'quality').
 
     Returns:
         AIModel | None.
     """
-    if intent not in MODEL_INTENTS:
-        logger.debug("[model_selector] intent inconnu %r → 'balanced'", intent)
-        intent = INTENT_BALANCED
     from ..models import AIModel
 
     # `source=None` (2026-08-31) : sélection PAR CAPACITÉ, tous producteurs confondus —
@@ -297,13 +346,14 @@ def select_model(
             logger.debug(f"[model_selector] résidence indisponible : {e}")
 
     def _pick(pool):
-        # keep_loaded prioritaire, puis meilleur compromis VRAM — SAUF en 'precise' :
-        # la résidence est un raccourci de COÛT, et la précision paie ce coût.
-        if prefer_loaded and intent != INTENT_PRECISE:
+        # keep_loaded prioritaire, puis meilleur compromis — SAUF au-delà du seuil de
+        # qualité : la résidence est un raccourci de COÛT, et la qualité paie ce coût.
+        _w = _quality_weight(quality_intent)
+        if prefer_loaded and (_w * 100.0) < QUALITY_OFFLOAD_THRESHOLD:
             loaded = [m for m in pool if m.is_loaded or m.model_key in residents]
             if loaded:
-                return _best_by_vram(loaded, budget, benchmark_domain, intent)
-        return _best_by_vram(pool, budget, benchmark_domain, intent)
+                return _best_by_vram(loaded, budget, benchmark_domain, quality_intent)
+        return _best_by_vram(pool, budget, benchmark_domain, quality_intent)
 
     # Priorité explicite : le 1er palier ayant des candidats l'emporte (domine la VRAM).
     if priority:

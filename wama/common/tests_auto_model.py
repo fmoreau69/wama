@@ -107,8 +107,8 @@ class EndpointOptionsAutoTest(TestCase):
         self.assertNotIn('auto_preview', d)
 
 
-class IntentionTest(TestCase):
-    """Le curseur rapide↔qualité traverse toute la chaîne : brique, endpoint, schémas, UI."""
+class CurseurDeQualiteTest(TestCase):
+    """Le curseur 0-100 traverse toute la chaîne : brique, endpoint, schémas, UI."""
 
     URL = '/model-manager/api/models/options/'
 
@@ -116,51 +116,59 @@ class IntentionTest(TestCase):
         self.leger = _tts('synthesizer:tts-leger', 'TTS léger', 0.5)
         self.lourd = _tts('synthesizer:tts-lourd', 'TTS lourd', 4.0)
 
-    def test_l_intention_traverse_la_brique_jusqu_au_selecteur(self):
-        """'fast' rend le léger, 'precise' le meilleur — quel que soit l'état VRAM réel de
-        la machine (c'est précisément ce que ces deux politiques garantissent)."""
+    def test_le_curseur_traverse_la_brique_jusqu_au_selecteur(self):
+        """0 rend le léger, 100 le meilleur — quel que soit l'état VRAM réel de la
+        machine (à 100 le budget cesse de borner, à 0 le léger tient toujours)."""
         self.assertEqual(
-            resolve_model_choice('auto', app_id='synthesizer', intent='fast',
+            resolve_model_choice('auto', app_id='synthesizer', quality_intent=0,
                                  fallback='repli'),
             'synthesizer:tts-leger')
         self.assertEqual(
-            resolve_model_choice('auto', app_id='synthesizer', intent='precise',
+            resolve_model_choice('auto', app_id='synthesizer', quality_intent=100,
                                  fallback='repli'),
             'synthesizer:tts-lourd')
 
-    def test_l_endpoint_previsionne_selon_l_intention(self):
+    def test_l_endpoint_previsionne_selon_le_curseur(self):
         user = get_user_model().objects.create_user(username='intent_test', password='x')
         client = Client()
         client.force_login(user)
         rapide = client.get(self.URL, {'task': 'text-to-speech', 'auto': '1',
-                                       'intent': 'fast'}).json()
-        precis = client.get(self.URL, {'task': 'text-to-speech', 'auto': '1',
-                                       'intent': 'precise'}).json()
+                                       'quality_intent': '0'}).json()
+        qualite = client.get(self.URL, {'task': 'text-to-speech', 'auto': '1',
+                                        'quality_intent': '100'}).json()
         self.assertEqual(rapide.get('auto_preview', {}).get('name'), 'TTS léger')
-        self.assertEqual(precis.get('auto_preview', {}).get('name'), 'TTS lourd')
+        self.assertEqual(qualite.get('auto_preview', {}).get('name'), 'TTS lourd')
 
     def test_les_deux_adopteurs_declarent_le_curseur_conditionne_a_auto(self):
         from wama.common.utils.param_schema import schema_for_app
         for app in ('synthesizer', 'avatarizer'):
             champ = next((f for f in schema_for_app(app)
-                          if f.get('name') == 'model_intent'), None)
-            self.assertIsNotNone(champ, f"{app} : model_intent absent du schéma")
+                          if f.get('name') == 'quality_intent'), None)
+            self.assertIsNotNone(champ, f"{app} : quality_intent absent du schéma")
             self.assertEqual(champ.get('type'), 'intent')
+            self.assertEqual(champ.get('default'), 50)
             self.assertEqual(champ.get('show_if'),
                              {'field': 'tts_model', 'equals': 'auto'},
                              f"{app} : le curseur doit n'apparaître que sur « auto »")
 
+    def test_la_lecture_d_un_post_est_bornee_et_ne_leve_jamais(self):
+        from wama.common.utils.auto_model import read_quality_intent
+        self.assertEqual(read_quality_intent('85'), 85)
+        self.assertEqual(read_quality_intent(140), 100)
+        self.assertEqual(read_quality_intent(-3), 0)
+        self.assertEqual(read_quality_intent('n_importe_quoi'), 50)
+        self.assertEqual(read_quality_intent(None), 50)
+
     def test_le_partial_serveur_et_le_renderer_js_partagent_le_contrat(self):
         """Le volet maison (partial Django) et les modales (renderer JS) rendent le MÊME
-        markup — la liaison déléguée de wama-params.js ne connaît que ces classes."""
+        markup — la liaison déléguée de wama-params.js ne connaît que ces classes, et
+        l'échelle est la même (0-100, graduations Rapide/Équilibré/Qualité)."""
         from pathlib import Path
         from django.conf import settings
         base = Path(settings.BASE_DIR)
         partial = (base / 'wama/common/templates/common/_intent_slider.html').read_text(encoding='utf-8')
         js = (base / 'wama/common/static/common/js/wama-params.js').read_text(encoding='utf-8')
-        for marqueur in ('wama-intent', 'wama-intent-slider', 'wama-intent-val'):
+        for marqueur in ('wama-intent', 'wama-intent-slider', 'wama-intent-val',
+                         'max="100"', 'Rapide', 'Équilibré', 'Qualité'):
             self.assertIn(marqueur, partial)
             self.assertIn(marqueur, js)
-        for politique in ('fast', 'balanced', 'precise'):
-            self.assertIn(politique, partial)
-            self.assertIn(politique, js)
