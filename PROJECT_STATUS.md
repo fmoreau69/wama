@@ -9143,8 +9143,10 @@ commun — c'est LA nouveauté vs converter (backends sans modèle).
 3. Restes B jumelle : étalement du preset au clic côté GÉNÉRÉ · endpoints 501
    (quick_convert, profils) · la substitution ne resynchronise PAS les copies backends/
    (fait à la main le 02/09 — à outiller ou consigner au rituel).
-4. Card v4 (maquette) — puis profils généralisés (§22) + reset des autres apps + design
-   redimensionnement (§23.4).
+4. Card v4 — la proposition COMPLÈTE existe (`CARD_DESIGN §11.10`, maquette §11.10.F :
+   slot-rows, une ligne par rôle, exemples échec/live) : le chantier est de la LIVRER, pas
+   de la concevoir — puis profils généralisés (§22) + reset des autres apps + design
+   redimensionnement (§23.4, avec la v4).
 5. Voie déclarative durable de `backend_ref` (posé EN BASE pour table-transformer — une
    réinstallation le perdrait ; le manifeste modèle ne porte pas ce champ).
 6. readMainPanelOptions lit aussi les champs MASQUÉS (un profil image embarque des clés
