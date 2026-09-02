@@ -90,6 +90,20 @@ def render_tasks(manifest: dict) -> tuple:
         f'from .models import {item_model}',
         '',
     ]
+    # ── Marche B1 (2026-09-02) : le corps se COMPOSE quand le manifeste route ─────────────
+    # `processing.backend_routes` (déclaré `backends/__init__.ROUTES` de l'app source) donne
+    # nature → chemin du callable au CONTRAT COMMUN. Le corps généré n'écrit RIEN à la main :
+    # résolution du backend par la nature de l'item, valeurs effectives par la brique commune
+    # (modèle événementiel §23.2quater : la tâche lit les COLONNES), sortie à la convention
+    # {app}/{user}/output/. Sans routes déclarées, le stub NotImplementedError demeure
+    # (marche B non applicable à cette app — un trou marqué vaut mieux qu'une invention).
+    routes = (proc.get('backend_routes') or {})
+    schema_symbole = ((manifest.get('body') or {}).get('params') or {}).get('primary') or ''
+    spec_item = ((proc.get('model_spec') or {}).get('item') or {})
+    params_fields = list(spec_item.get('params_fields') or [])
+    nature_champ = 'media_type' if 'media_type' in params_fields else ''
+    compose = bool(routes and schema_symbole and nature_champ)
+
     for t in taches:
         fn = t['function']
         name_kw = f", name='{t['task_name']}'" if t.get('task_name') else ''
@@ -102,19 +116,66 @@ def render_tasks(manifest: dict) -> tuple:
             f"                  process=_process_{fn}, notify_label='{label}')",
             '',
             '',
-            f'def _process_{fn}(item, ctx):',
-            f'    """TROU DE GLU {mark} — corps de backend à générer (marche B).',
-            '',
-            '    Contrat (task_skeleton) : ctx.progress/ctx.console ; retour {fields, eta,',
-            '    label} ; une exception = FAILURE ; nettoyage d\'échec ici.',
-            '',
-            '    ⚠ Les VALEURS de réglage se lisent par la brique commune (2026-09-01) :',
-            '        from wama.common.utils.param_schema import effective_settings',
-            '        opts = effective_settings(PARAMS_JSON, posees=…, preset=…, contexte=…)',
-            '    — défauts du schéma ← preset ← réglages POSÉS. Ne PAS relire un défaut en dur',
-            '    dans le corps (`opts.get(\'x\', 12)`) : c\'est la 3ᵉ copie du même défaut, et',
-            '    c\'est exactement ce que cette brique vient de résorber (ROADMAP §23.2bis)."""',
-            f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
         ]
+        if compose:
+            lignes += [
+                f'def _process_{fn}(item, ctx):',
+                f'    """CORPS COMPOSÉ {mark} — marche B1 : routage nature→backend du MANIFESTE',
+                '    (processing.backend_routes ← backends/__init__.ROUTES), appel au CONTRAT',
+                '    COMMUN des backends. Import RELATIF AU PAQUET : la jumelle résout SES',
+                '    copies de backends/ sans citer aucun nom d\'app. La tâche lit les COLONNES',
+                '    (modèle événementiel §23.2quater) — le preset s\'écrit au clic, pas ici."""',
+                '    from importlib import import_module',
+                '    from pathlib import Path as _P',
+                '    from django.conf import settings as _s',
+                '    from wama.common.utils.param_schema import effective_settings',
+                f'    from .params import {schema_symbole} as _SCH',
+                '',
+                f'    routes = {routes!r}',
+                f"    nature = (getattr(item, '{nature_champ}', '') or '').strip()",
+                '    chemin = routes.get(nature)',
+                '    if not chemin:',
+                '        raise ValueError(f"nature {{nature!r}} sans backend déclaré "',
+                '                         "(processing.backend_routes du manifeste)")',
+                "    fmt = (getattr(item, 'output_format', '') or '').strip().lower()",
+                '    if not fmt:',
+                '        raise ValueError("format de sortie manquant — régler la card avant de lancer")',
+                '    mod, fonc = chemin.rsplit(\'.\', 1)',
+                "    backend = getattr(import_module('.' + mod, __package__), fonc)",
+                '',
+                '    posees = {}',
+                f'    for _n in {params_fields!r}:',
+                '        _v = getattr(item, _n, None)',
+                "        if _v not in (None, '', False):",
+                '            posees[_n] = _v',
+                f"    opts = effective_settings(_SCH, posees=posees, contexte={{'{nature_champ}': nature}})",
+                '',
+                f"    rel_dir = f\"{app_id}/{{item.user_id}}/output/\"",
+                '    out_dir = _P(_s.MEDIA_ROOT) / rel_dir',
+                '    out_dir.mkdir(parents=True, exist_ok=True)',
+                '    nom = f"{_P(item.input_filename).stem}_{item.id}.{fmt}"',
+                '',
+                f'    ctx.console(f"Conversion : {{item.input_filename}} → .{{fmt}} ({{fonc}})")',
+                '    backend(item.input_file.path, str(out_dir / nom), fmt,',
+                '            options=opts, progress_callback=ctx.progress)',
+                "    return {'fields': {'output_file': rel_dir + nom},",
+                '            \'label\': f".{fmt}"}',
+            ]
+        else:
+            lignes += [
+                f'def _process_{fn}(item, ctx):',
+                f'    """TROU DE GLU {mark} — corps de backend à générer (marche B).',
+                '',
+                '    Contrat (task_skeleton) : ctx.progress/ctx.console ; retour {fields, eta,',
+                '    label} ; une exception = FAILURE ; nettoyage d\'échec ici.',
+                '',
+                '    ⚠ Les VALEURS de réglage se lisent par la brique commune (2026-09-01) :',
+                '        from wama.common.utils.param_schema import effective_settings',
+                '        opts = effective_settings(PARAMS_JSON, posees=…, preset=…, contexte=…)',
+                '    — défauts du schéma ← preset ← réglages POSÉS. Ne PAS relire un défaut en dur',
+                '    dans le corps (`opts.get(\'x\', 12)`) : c\'est la 3ᵉ copie du même défaut, et',
+                '    c\'est exactement ce que cette brique vient de résorber (ROADMAP §23.2bis)."""',
+                f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
+            ]
     lignes.append('')
     return '\n'.join(lignes), None

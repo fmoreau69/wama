@@ -2087,6 +2087,13 @@
     },
     "processing": {
       "anti_race": true,
+      "backend_routes": {
+        "archive": "backends.archive_backend.convert_archive",
+        "audio": "backends.audio_backend.convert_audio",
+        "document": "backends.document_backend.convert_document",
+        "image": "backends.image_backend.convert_image",
+        "video": "backends.video_backend.convert_video"
+      },
       "endpoints": [
         "about",
         "api_presets",

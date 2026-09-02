@@ -175,6 +175,40 @@ class CheminDeLotTest(SimpleTestCase):
                          'les DEUX branches de batch_create (URL, fichier) doivent dérouler '
                          'la cascade — les filles de lot naissaient sans valeurs')
 
+    def test_B1_le_corps_des_taches_est_COMPOSE_quand_le_manifeste_route(self):
+        """Marche B1 (02/09) : `processing.backend_routes` (← backends/__init__.ROUTES)
+        remplace le stub NotImplementedError par un corps COMPOSÉ — résolution du backend
+        par la nature, appel au CONTRAT COMMUN, import RELATIF AU PAQUET (la jumelle
+        résout SES copies sans citer un nom d'app). Mesuré en réel le jour même : le corps
+        composé s'exécute jusque DANS le backend (une fixture PNG corrompue a été
+        diagnostiquée par PIL — c'est le backend qui parlait, pas le stub)."""
+        import ast
+        from wama.common.manifests.ingest import extract
+        from wama.common.manifests.codegen.tasks_gen import render_tasks
+        src, raison = render_tasks(extract('app', 'converter'))
+        self.assertIsNotNone(src, f'génération impossible : {raison}')
+        ast.parse(src)
+        self.assertIn('CORPS COMPOSÉ', src)
+        self.assertNotIn('NotImplementedError', src,
+                         'le converter route : le stub doit avoir cédé la place')
+        self.assertIn("import_module('.' + mod, __package__)", src,
+                      'import relatif au paquet — la jumelle doit résoudre SES copies')
+        self.assertIn('backends.image_backend.convert_image', src)
+        self.assertIn('effective_settings', src, 'la tâche lit les colonnes (§23.2quater)')
+
+    def test_B1_sans_routes_declarees_le_stub_demeure(self):
+        # Une app sans backends/__init__.ROUTES garde son trou MARQUÉ — un trou vaut
+        # mieux qu'une invention (le composeur ne s'applique qu'au déclaré).
+        from copy import deepcopy
+        from wama.common.manifests.ingest import extract
+        from wama.common.manifests.codegen.tasks_gen import render_tasks
+        m = deepcopy(extract('app', 'converter'))
+        (m['body'].get('processing') or {}).pop('backend_routes', None)
+        src, raison = render_tasks(m)
+        self.assertIsNotNone(src, f'génération impossible : {raison}')
+        self.assertIn('NotImplementedError', src)
+        self.assertNotIn('CORPS COMPOSÉ', src)
+
     def test_la_cascade_COERCE_selon_le_schema_avant_de_poser(self):
         # Défaut VÉCU le 2026-09-01, révélé par le passage du converter en colonnes : le POST
         # et les user_settings re-persistés portent des CHAÎNES ('false', '72'). Un JSON les
