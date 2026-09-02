@@ -1141,3 +1141,64 @@ aux trous du catalogue : 159 lignes examinées, **117 hors catégorie**, dominé
 
 Dry-run après : **17 appariés · 11 sans banc · 16 sans identité · 115 hors catégorie** (somme
 159 inchangée). Populations : arena vision=125, document=33 ; open_asr EN=29, FR=17.
+
+### Suite (même jour) — lecture de la prospection relancée par Fabien : 3 défauts de l'INSTRUMENT
+
+Question : « résidus de proposés déjà installés ? les plus intéressants à installer ? H3 dit
+UE EXCLUE mais pas H3-Turbo — manque ou permission ? ». Relevé sur 65 proposés / 95 installés.
+
+1. **Aucun doublon strict** (le `already` du seeding fait son travail). Les retours de
+   Realistic Vision et du merge H3 par le tri tendance ne sont PAS des résidus — règle de
+   Fabien : *le retrait vaut pour un modèle INSTALLÉ, jamais pour un proposé* (la liste
+   « Supprimés » de `CLAUDE.md` date du nettoyage disque du 2026-03-05, `0b1ac4e9` : des
+   modèles déclarés dans `imager/model_config`, pas des propositions).
+2. **Licence à double étage NON héritée** — le manque. `lightx2v/Minimax-h3-Turbo` se tagge
+   `apache-2.0` : SPDX permissif → la garde rendait None, pendant que la card du modèle de
+   base disait « UE EXCLUE ». Or sa carte DÉCLARE `base_model: MiniMaxAI/MiniMax-H3`, et un
+   « Model Derivative » reste soumis à l'accord amont. `analyze_license(hf_id, licence,
+   base_model)` hérite désormais du verdict territorial de la base, en le disant
+   (`herite_de`, libellé « (modèle de base) »). Mesuré : H3-Turbo, FastH3, le merge ET
+   `10Eros-Max` (qui ne disait rien) passent en `exclusion_ue` hérité. ⚠ Fait nouveau
+   (FAQ MiniMax) : l'exclusion est présentée comme « pas encore », avec un **formulaire de
+   demande de licence** pour les organisations UE/UK/US/Corée — examen au cas par cas, aucune
+   exception recherche écrite. Hors licence obtenue, H3 et ses dérivés restent inutilisables.
+3. **Taxonomie figée par tag de pipeline** — le « vrai souci ». `_TASK_MODEL_TYPE` rangeait
+   `image-to-image` en `upscaling` et `image-to-text` en `ocr` : six modèles d'ÉDITION
+   (Qwen-Image-Edit, FLUX.2-dev, Kontext…) s'affichaient en upscalers, BLIP-base en OCR, et
+   **aucune ligne proposée ne portait de `capabilities.task`** — donc aucun banc possible
+   (`check_model_taxonomy` le disait : « 66 modèles sans task »). `hf_task_to_wama(pipeline,
+   tags)` : les TAGS de la carte départagent (`image-editing`, `super-resolution`,
+   `image-captioning` — des données déclarées, jamais le nom), la tâche s'écrit sur la ligne
+   au seeding, la catégorie du spec suit. Rattrapage des lignes existantes par script
+   (proposés seulement, 45 lignes réécrites — le Hub répond 429 en rafale : 1 carte / 1,5 s).
+   **Effet mesuré au dry-run des bancs** : appariés **17 → 31**, hors catégorie **115 → 79**
+   (23 sans banc, 27 sans identité, 160 lignes examinées) — une douzaine de candidats ont désormais un score tiers AVANT
+   installation : LTX-2/2.3/2.5 (AA i2v 1153-1187), Wan2.2 A14B/5B (AA t2v 1106/949),
+   FLUX.1-schnell (AA 1000), FLUX.2-dev / klein-9B / Kontext (édition, Arena 1224 / AA 1015),
+   Qwen-Image-Edit-2511-Lightning (Arena edit 1235), Qwen3-TTS (AA 924), whisper-turbo
+   (WER FR 6,73). ⚠ Limite connue et visible : deux variantes de taille d'une même famille
+   média prennent le même Elo quand le tiers n'en publie pas (Wan 5B/A14B, Qwen3-TTS
+   0.6B/1.7B) — les modalités média n'exigent pas la taille, par décision.
+   `check_model_taxonomy` : l'avertissement « 66 modèles sans task » a disparu.
+   Deux correctifs de `benchmark_sync` sortis de cette mesure : **la version après un POINT**
+   (`FLUX.1-schnell` n'avait aucune identité, `flux-1-dev` si — un tiret contre un point) et
+   la garde **add-on** (`ADD_ONS` : lora / adapter / controlnet → hors catégorie par nature),
+   parce que la LoRA logo, devenue lisible, prenait l'Elo de FLUX.1 (1083). ⚠ Cette garde lit
+   les IDENTIFIANTS (clé, `hf_id`), pas `name` : à la première passe, SD 1.5 et SDXL sortaient
+   du banc parce que leur libellé descriptif cite « LoRA ». *Un filtre sur un texte libre
+   attrape ce que le texte raconte, pas ce que la ligne est.*
+4. Au passage : **`glm-ocr:0.9b` n'existe plus sur le registre Ollama** (404 mesuré ; restent
+   `latest` 2,2 Go et `q8_0` 1,6 Go). Le reader le déclarait comme `ollama_id` → un pull
+   échouait. Corrigé en `glm-ocr:latest`. Le modèle n'est PAS tiré sur l'hôte aujourd'hui
+   (7 tags Ollama, aucun glm-ocr) : réinstallation = `ollama pull glm-ocr`.
+
+**Faits pour les recommandations** (vérifiés HF / bancs) : ACE-Step 1.5 (MIT, 10 Go) prend
+un **audio de référence** (colonne « Refer audio » ✅ sur toutes les variantes DiT ; modes
+cover, repaint, vocal→BGM ; 50+ langues ; <4 Go VRAM annoncés). Qwen3-TTS 1.7B (Apache,
+4,5 Go, FR). FLUX.1-schnell (Apache, distillé 4 pas). FastWan2.2-TI2V-5B (Apache, distillé
+3 pas). Banc FR : canary-1b-v2 4,79 % / parakeet-tdt-0.6b-v3 5,38 % (CC-BY, runtime NeMo)
+devant qwen3-asr 5,68 % et whisper-large-v3 6,24 % ; whisper-turbo 6,73 % ; VibeVoice-ASR
+14,04 % pour 16 Go — candidat au retrait. PP-DocLayoutV3 + table-transformer : rien
+d'équivalent en place (docTR = boîtes de mots ; olmOCR/GLM = VLM qui restituent un markdown
+sans coordonnées) → COMPLÉMENT (régions et structure de tableau à coordonnées), pas un
+remplacement.
