@@ -214,4 +214,23 @@ def record_after_install(spec: dict, cles_apparues) -> dict:
                         "concurrente probable) : %s", len(ecartees), ecartees)
             cibles = [c for c in cibles if c not in ecartees]
 
-    return {'identite': identite, 'modeles': [set_identity(c, identite) for c in cibles]}
+    poses = [set_identity(c, identite) for c in cibles]
+
+    # La TÂCHE du candidat (2026-09-02). Le balayage générique d'un snapshot HF catalogue un
+    # modèle sans savoir ce qu'il FAIT : `table-transformer-detection` est arrivé installé
+    # avec `task=None` alors que son candidat portait `detect` — donc hors de toute sélection
+    # par tâche et de tout banc, exactement le défaut que la taxonomie du seeding venait de
+    # corriger côté proposés. Le spec la porte (`spec.task`), on la pose ici, sans jamais
+    # écraser une tâche déjà établie par la découverte (un `{}` ne dit rien, une valeur si).
+    tache = (spec.get('task') or '').strip()
+    if tache:
+        for c in cibles:
+            m = AIModel.objects.filter(model_key=c).first()
+            if m is None:
+                continue
+            caps = dict(m.capabilities or {})
+            if not caps.get('task'):
+                caps['task'] = tache
+                m.capabilities = caps
+                m.save(update_fields=['capabilities'])
+    return {'identite': identite, 'modeles': poses, **({'tache': tache} if tache else {})}

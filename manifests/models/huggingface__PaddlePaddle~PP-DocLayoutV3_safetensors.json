@@ -1,0 +1,56 @@
+{
+  "body": {
+    "capabilities": {
+      "task": "detect"
+    },
+    "composition": {},
+    "extra_info": {
+      "category": "vision",
+      "family": "PP-DocLayoutV3_safetensors",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/PP-DocLayoutV3_safetensors/models--PaddlePaddle--PP-DocLayoutV3_safetensors",
+      "size_bytes": 133289651
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "PaddlePaddle",
+      "description_short": "Snapshot HF PP-DocLayoutV3_safetensors — installé, en attente d'intégration",
+      "hf_id": "PaddlePaddle/PP-DocLayoutV3_safetensors",
+      "license": "apache-2.0",
+      "model_type": "vision",
+      "platform_ref": "huggingface:PaddlePaddle/PP-DocLayoutV3_safetensors",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.12413566093891859,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (vision/PP-DocLayoutV3_safetensors) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:PaddlePaddle/PP-DocLayoutV3_safetensors",
+  "manifest_kind": "model",
+  "name": "PP-DocLayoutV3_safetensors",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:PaddlePaddle/PP-DocLayoutV3_safetensors",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

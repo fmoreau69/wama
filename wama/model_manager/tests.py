@@ -652,6 +652,47 @@ class LicenceHeriteeTest(TestCase):
         self.assertNotIn('herite_de', v)
 
 
+class TacheHeriteeALInstallationTest(TestCase):
+    """
+    2026-09-02, première installation par le mécanisme : `table-transformer-detection` est
+    arrivé au catalogue SANS tâche alors que son candidat portait `detect` — le balayage
+    générique d'un snapshot HF ne sait pas ce qu'un modèle fait. Le spec porte la tâche, la
+    provenance la pose ; une tâche déjà établie par la découverte n'est jamais écrasée.
+    """
+
+    def test_la_tache_du_spec_est_posee_sur_la_ligne_installee(self):
+        from .services import provenance as pv
+        vierge = AIModel.objects.create(
+            model_key='huggingface:Org/Detecteur', name='Detecteur', model_type='vision',
+            source='huggingface', is_downloaded=True, hf_id='Org/Detecteur', capabilities={})
+        etabli = AIModel.objects.create(
+            model_key='huggingface:Org/Segmenteur', name='Segmenteur', model_type='vision',
+            source='huggingface', is_downloaded=True, hf_id='Org/Segmenteur',
+            capabilities={'task': 'segment'})
+        spec = {'kind': 'hf', 'ref': 'Org/Detecteur', 'category': 'vision', 'task': 'detect'}
+        # Ni réseau (identité HF) ni corpus (manifeste) : seule la pose de la tâche est testée.
+        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Detecteur',
+                                                                 'platform_ref': 'huggingface:Org/Detecteur'}), \
+                patch.object(pv, 'set_identity', return_value={'applique': True}):
+            r = pv.record_after_install(spec, ['huggingface:Org/Detecteur'])
+            # Un spec SANS tâche (ancien candidat, ou install par l'assistant) ne touche à rien.
+            r2 = pv.record_after_install({k: v for k, v in spec.items() if k != 'task'},
+                                         ['huggingface:Org/Detecteur'])
+        vierge.refresh_from_db()
+        etabli.refresh_from_db()
+        self.assertEqual(vierge.capabilities.get('task'), 'detect')
+        self.assertEqual(r.get('tache'), 'detect')
+        self.assertNotIn('tache', r2)
+        # La garde de concordance écarte une ligne d'un AUTRE hf_id ; et une tâche établie
+        # ne s'écrase pas même quand la ligne est ciblée.
+        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Segmenteur'}), \
+                patch.object(pv, 'set_identity', return_value={'applique': True}):
+            pv.record_after_install({'kind': 'hf', 'ref': 'Org/Segmenteur', 'task': 'detect'},
+                                    ['huggingface:Org/Segmenteur'])
+        etabli.refresh_from_db()
+        self.assertEqual(etabli.capabilities.get('task'), 'segment')
+
+
 class _SourcesFactices:
     """Sources de benchmark simulées — partagées par les classes de test ci-dessous."""
 

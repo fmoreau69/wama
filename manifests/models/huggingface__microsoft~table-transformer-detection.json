@@ -1,0 +1,56 @@
+{
+  "body": {
+    "capabilities": {
+      "task": "detect"
+    },
+    "composition": {},
+    "extra_info": {
+      "category": "vision",
+      "family": "table-transformer-detection",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/table-transformer-detection/models--microsoft--table-transformer-detection",
+      "size_bytes": 230714874
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "microsoft",
+      "description_short": "Snapshot HF table-transformer-detection — installé, en attente d'intégration",
+      "hf_id": "microsoft/table-transformer-detection",
+      "license": "mit",
+      "model_type": "vision",
+      "platform_ref": "huggingface:microsoft/table-transformer-detection",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.21486997045576572,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (vision/table-transformer-detection) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:microsoft/table-transformer-detection",
+  "manifest_kind": "model",
+  "name": "table-transformer-detection",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:microsoft/table-transformer-detection",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

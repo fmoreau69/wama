@@ -10081,5 +10081,26 @@ banc) — lire les identifiants ; ⚠ un tag de registre meurt en silence (`glm-
 **Reste** : les 26 lignes `proposed:ollama:*` n'ont toujours pas de `task` (la prospection
 Ollama, autre chemin) · Realistic Vision, le merge H3 et MAGI-2 (0 dl) reviennent par le tri
 tendance : NON un résidu (règle Fabien : le retrait vaut pour l'installé, pas pour le
-proposé) · glm-ocr à re-tirer (`ollama pull glm-ocr`) — décision Fabien, pas faite ·
-recommandations d'installation : réponse en session, à trancher par Fabien.
+proposé) · recommandations d'installation : réponse en session, à trancher par Fabien.
+
+### Suite (même instance, fin d'après-midi) — 5 installations PAR LE MÉCANISME ✅ + DEUX REDIS ⚠⚠
+
+Détail : `PROSPECTION_PIPELINE.md §2026-09-02 « 5 installations »` et `INFRA_WSL_VS_WINDOWS
+§Deux Redis`. **Installés et catalogués (5/5)** par `install_proposed_task`, un à la fois :
+table-transformer detection + structure (0,2 Go, MIT), PP-DocLayoutV3 (0,1 Go, Apache),
+glm-ocr:latest (2,2 Go, `reader:glm-ocr` disponible), ACE-Step 1.5 (9,4 Go, MIT). Aucun n'a
+été chargé (jamais de GPU par l'instance) : premier usage réel = Fabien.
+
+**⚠⚠ Leçon majeure — DEUX REDIS.** Un `redis-server.exe` Windows écoute sur 127.0.0.1:6379 ;
+broker, résultats et cache n'ont pas le résolveur de la base. Depuis Windows, un `.delay()`
+« réussit » dans un Redis que personne ne lit (inventaire : 1026 messages `default`, 131 `gpu`,
+27 `celery`, une réservation VRAM). ⚠ J'ai purgé la file `default` en la comptant dans la
+même commande — geste fautif (regarder, PUIS décider), messages indélivrables. 🔚 **Décision
+Fabien** : libérer 6379 côté Windows (même remède que Postgres/5432, zéro code) ou
+`protected-mode no` + résolveur. D'ici là, tout dispatch Celery depuis WSL2.
+
+**Corrigé** : la ligne installée hérite la `task` du candidat (`spec.task` + provenance),
+test ajouté (85 OK). **Rattrapé à la main** : tâche des 4 lignes du jour (worker à l'ancien
+code), manifestes régénérés. **Noté, pas traité** : deux formats de poids tirés quand le
+dépôt en publie deux ; `ollama:glm-ocr:latest` typé `llm`+vision (règle de découverte) là
+où la prospection disait `vlm`.

@@ -1,0 +1,56 @@
+{
+  "body": {
+    "capabilities": {
+      "task": "text-to-audio"
+    },
+    "composition": {},
+    "extra_info": {
+      "category": "music",
+      "family": "Ace-Step1.5",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/Ace-Step1.5/models--ACE-Step--Ace-Step1.5",
+      "size_bytes": 10087651939
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "ACE-Step",
+      "description_short": "Snapshot HF Ace-Step1.5 — installé, en attente d'intégration",
+      "hf_id": "ACE-Step/Ace-Step1.5",
+      "license": "mit",
+      "model_type": "music",
+      "platform_ref": "huggingface:ACE-Step/Ace-Step1.5",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 9.394857975654304,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (music/Ace-Step1.5) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:ACE-Step/Ace-Step1.5",
+  "manifest_kind": "model",
+  "name": "Ace-Step1.5",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:ACE-Step/Ace-Step1.5",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
