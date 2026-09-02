@@ -10290,6 +10290,54 @@ Dry-run après : **34 appariés · 23 sans banc · 33 sans identité · 73 hors 
 le registre Ollama (digest, comme `deepseek-coder-v2`) tranchera quand il sera consulté pour
 les `proposed:` aussi. Tests : +2 (chargeur avec cache et échec passager, alias bge-m3).
 
+### CLÔTURE (instance bancs / prospection / installations, 02/09 ~22:30) — ✅ CLOSE
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : la marche **B2** des backends se joue dans l'autre
+instance ; quand elle a produit sa logique, **vérifier les informations de l'ENSEMBLE des modèles
+installés** (62 lignes hors YOLO : tâche, licence, VRAM déclarée vs mesurée, backend présent) pour
+lister les TROUS — la liste connu/inconnu de la §Revérification est le point de départ. Avant
+cela, rien de ce périmètre ne bloque.
+
+**File des chantiers ouverts (ordre)** : ① test réel `/api/embed` de `qwen3-embedding:4b` par
+Fabien, puis bascule du RAG (`embed.py` + réindexation `store.py`) ; ② backends CONNUS via le
+patron « backend déclaré » (FastWan, table-transformer — B2 n°1 déjà livré par l'autre instance —,
+Qwen3-TTS, chatterbox, Audio8) puis INCONNUS (NeMo → canary/parakeet, ACE-Step, PP-DocLayoutV3,
+LocateAnything) ; ③ décisions infra : port 6379 côté Windows, jeton HF en READ, FLUX.1-schnell +
+Qwen-Image-Edit-2511 après le NVMe ; ④ garde `pgrep` du worker `default` → test de vie
+(`start_wama_prod.sh`, à la main de Fabien) ; ⑤ `ollama:glm-ocr:latest` typé `llm` (décision).
+
+**Pendings SYSTÈME** : **push** = 2 commits en avance sur `origin/dev` (les autres poussés par
+l'autre instance) · le worker `default` tourne relancé PAR CETTE INSTANCE hors du script (mêmes
+options et exports ; le prochain `start_wama_prod.sh` le verra par son garde) · Redis WINDOWS :
+file `default` PURGÉE par moi (1026 messages indélivrables), files `gpu` (131) et `celery` (27)
++ réservation VRAM laissées telles quelles · base de test partagée : une collision mesurée ce
+soir (143 erreurs identiques, 1117 tests), résolue en relançant seul · HWiNFO relancé par Fabien
+après les deux crashs · triage VLM du smoke : garde posée par l'autre instance (`27898e4b`).
+
+**Artefacts de session** (jetables, dans le scratchpad de session — jamais en chemin) : les
+sondes des flux (forme des CSV Open ASR, parquets Arena, index MTEB), les pilotes d'installation
+par la tâche Celery (lot 1, lot 2, qwen3-embedding), le rattrapage taxonomie des 45 proposés,
+le smoke Playwright de la page Sources, les lectures de rails/hwlog/événements des crashs, le
+script d'attente de base de test. Dans `logs/` (ignoré) : la capture du smoke Sources, le
+cache MTEB `benchmarks/`, l'archive `rails_20260902_2021_crash.csv`.
+
+**Registre numéroté** : `REMOVAL_LEDGER` porte **deux R43** (converter 01/09 et voix `custom`
+01/09 — deux instances, pas les miennes ; mon R45 est unique). À renuméroter par leurs auteurs
+avec table de renvoi (règle du 26/08), non fait ici.
+
+**Skills** : deux gestes RÉPÉTÉS cette session sans skill — « installer un candidat par le
+mécanisme depuis WSL2 avec suivi » (n=3 : lot 1, lot 2, qwen3-embedding) et « brancher une
+source de banc » (n=2 : Open ASR, MTEB — même patron `SOURCES` + chargeur + `external_sources` +
+catégorie + fabrique de tests). **`/skill-forge` NON déroulé** (clôture tardive) — pending nommé,
+à promouvoir à la prochaine occurrence.
+
+**Contrôles attendus au prochain /reprise (tous MESURÉS à cette clôture)** : suite complète
+**1437 tests, `OK (skipped=5)`** (run seul sur la base) · `manifest_export --check` **corpus à
+jour (121)** · `check_docs` **8 cassées / 0 périmée sur 1311**, **1 cible distincte** (inchangée)
+· `doc_facts` à jour · dry-run bancs **35 appariés · 23 sans banc · 33 sans identité · 73 hors
+catégorie** (164 lignes) · `check_model_taxonomy` : 1 modèle sans tâche (LocateAnything-3B) ·
+roundtrip et grille NON relancés (aucun registre d'app touché par cette instance).
+
 **⚠⚠ Deux crashs hôte pendant cette session (20:21:47 et ~20:58:40), MÊME déclencheur à la
 seconde** — le triage VLM du smoke `converter.ui` (fin d'une passe `converter_01.*` lancée à la
 main, deux fois) fait charger `qwen3.5:4b` par Ollama : +7 Go de VRAM à 31 W, mort pendant la
