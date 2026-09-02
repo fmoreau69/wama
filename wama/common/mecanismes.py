@@ -411,11 +411,15 @@ MECANISMES = (
     # Entrée créée le 2026-08-31 (audit) : la chaîne était HORS carte — 5 gabarits sur 7 sans
     # domicile ni annexe, dossier hors balayage, donc AUCUN signal possible. 5ᵉ occurrence de
     # la leçon « un dossier hors balayage naît invisible » (cf. doc_facts.py, dossiers_balayes).
-    Mecanisme('codegen', "Gabarits de génération d'app (marche S2)",
+    Mecanisme('codegen', "Gabarits de génération d'app (marches S2 + B1)",
               "Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par "
               "fichier (apps/urls/models/params/tasks/views/templates), consommées par "
               "`app_sandbox substitute` et le write-back ; le hors-convention reste un TROU "
-              "NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux",
+              "NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux. "
+              "Depuis le 02/09 (marche B1 CLOSE), le corps des TÂCHES se COMPOSE aussi : "
+              "`backends/__init__.ROUTES` de l'app (nature → callable au contrat commun) "
+              "monte au manifeste (processing.backend_routes) et tasks_gen émet l'appel — "
+              "import relatif au paquet, la jumelle a CONVERTI (SUCCESS mesuré)",
               'wama/common/manifests/codegen/templates_gen.py', 'WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/manifests/codegen/apps_gen.py',
                        'wama/common/manifests/codegen/urls_gen.py',

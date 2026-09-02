@@ -143,6 +143,16 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 - Données/artefacts de session à tracer : comptes et items de test semés (compte smoke,
   jobs), scripts utilitaires laissés hors git (scratchpad, logs/), sorties
   PENDING_HUMAN_VALIDATION (wama-dev-ai/outputs). Les CONSIGNER (où, pourquoi, jetable ?).
+- **L'ARTEFACT de suivi de session** (page claude.ai publiée) : s'il en existe un, il doit
+  refléter l'état de FIN de session — ou son état est déclaré au handoff (« périmé depuis
+  X »). ⚠ Vécu 02/09 : deux URLs périmées d'un même document ont coexisté avec la vivante ;
+  seule la clôture qui les NOMME permet à l'utilisateur de les supprimer.
+- **Les EFFETS DE BORD d'infra de la session** — ce que TA session a fait au terrain partagé
+  et qui survit à ta fermeture : worker recyclé (dans quel état ?), flag d'environnement posé
+  ou relu (`WAMA_GPU_SAFE_MODE`…), messages laissés dans une queue, base/compte de test
+  modifiés. Chacun : remis en état, ou DÉCLARÉ au handoff §pendings système. ⚠ Vécu 02/09 :
+  deux recyclages du worker default ont produit des zombies et laissé 2 messages en file —
+  sans déclaration, la session suivante aurait cherché un bug de code.
   - 🔴 **SANS ÉCRIRE LEUR CHEMIN.** Cette ligne-ci mène droit dans le piège du §2c : un script
     de scratchpad n'existe pas pour `check_docs`, donc le tracer par son chemin ouvre une
     **2ᵉ cible distincte** — c'est-à-dire franchit le seuil de dérive, au moment même où l'on
@@ -191,6 +201,24 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 - Message final : ce qui ATTEND l'utilisateur (restart ? push ? décision ?), le point
   d'entrée de la prochaine session, et la liste des pendings — RIEN d'autre à retenir de
   tête. Ne JAMAIS écrire « tout est consigné » sans avoir déroulé le §3.
+- 🔴 **LA TABLE DE COCHE — la preuve que la séquence est EXHAUSTIVE** (ajoutée le 02/09,
+  demande Fabien : « parfois la clôture ne suffit pas à faire la séquence de façon
+  exhaustive »). Le message final PORTE une ligne par section de ce skill :
+
+  | § | fait ? | preuve (une donnée, pas « oui ») |
+  |---|---|---|
+  | 0 périmètre | ✓/✗ | ce que `git status` disait, à qui étaient les fichiers |
+  | 1 palier | ✓/✗ | derniers commits (shas) |
+  | 2a tests | ✓/✗ | le chiffre MESURÉ + les noms des rouges s'il y en a |
+  | 2b/2c contrôles | ✓/–/N-A | chiffres (corpus N, cibles distinctes N) OU « aucun registre n'a bougé » |
+  | 3 balayage | ✓/✗ | nb de ⚠ balayés → réglés/pendings ; artefacts+effets de bord déclarés |
+  | 4 handoff | ✓/✗ | l'ancre du bloc écrit |
+  | 5 mémoire | ✓/✗ | fichiers touchés + taille de MEMORY.md |
+  | skill | ✓/– | une étape n'a pas tenu ? corrigée ICI (pas consignée ailleurs) |
+
+  **Une case sans preuve n'est pas cochée** — elle se fait maintenant, ou elle passe en
+  pendings NOMMÉE. C'est cette table qui rend le « rien laissé de côté » vérifiable par
+  l'utilisateur au lieu d'être affirmé.
 - **Dire aussi ce qu'on a laissé de côté, nommément.** Une clôture qui n'énonce que le livré
   laisse croire que le reste est fait. Ce qui a été *annoncé puis non fait* passe en tête de
   cette liste, avant les décisions ouvertes.

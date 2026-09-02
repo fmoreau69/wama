@@ -793,6 +793,17 @@ sur la même liste.
 
 ### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params` ✅ (2026-08-11) + `inspector` ✅ (A3) + `tool_api` ✅ (A4) ; `processing` = projection PARTIELLE assumée (urls comparable ; tasks A2b et models A5 en CREATE-ONLY — les corps/champs restants = marche B)
 
+> ✅ **MARCHE B1 CLOSE (2026-09-02 soir)** — le corps des tâches se COMPOSE depuis le
+> manifeste : `backends/__init__.ROUTES` de l'app (nature → callable au CONTRAT COMMUN des
+> backends, normalisé le même jour sur les 5 du converter) monte au manifeste
+> (`processing.backend_routes`, ingest `builtin/app.py`) ; `tasks_gen` remplace le stub
+> `NotImplementedError` par le corps composé (résolution par la nature, valeurs effectives
+> des COLONNES — modèle événementiel `ROADMAP §23.2quater` —, import RELATIF AU PAQUET :
+> la jumelle résout ses copies sans citer un nom d'app). **Mesuré : la jumelle a converti
+> un PNG réel en JPEG lisible (SUCCESS).** Une app sans `ROUTES` garde son trou marqué.
+> Restes B : l'étalement du preset au clic côté généré ; `quick_convert`/profils (endpoints
+> 501 de la jumelle) ; B2 (backends de modèles connus — 1er livré : Table Transformer).
+
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
 `{primary, schemas}` (forme liste historique acceptée à l'ingest). Projecteur : un `params.py`
