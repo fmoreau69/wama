@@ -49,13 +49,22 @@ alignement reader/composer/transcriber/describer, 2026-07-10 — bug remonté : 
 l'inspection d'une card (hideOnInspect) au profit du host schéma en fin de bloc.{% endcomment %}
 <div id="converterUploadDefaults">
 
-<!-- Type de média détecté (mis à jour par JS) -->
+<!-- Type de média : détecté au dépôt, PILOTABLE à la main (02/09 — sans fichier, aucun
+     type n'était posable : composer un profil « à froid » était impossible, et le volet
+     ne montrait que les champs communs. Le select EST la source ; la détection le remplit. -->
 <div class="mb-2">
-    <label class="form-label small fw-bold text-light mb-1">
-        <i class="fas fa-photo-film"></i> Type détecté
+    <label class="form-label small fw-bold text-light mb-1" for="converterComposeType">
+        <i class="fas fa-photo-film"></i> Type de média
     </label>
-    <div id="converterMediaTypeBadge" class="text-muted small fst-italic">
-        — aucun fichier sélectionné —
+    <div class="d-flex align-items-center gap-2">
+        <select id="converterComposeType" class="form-select form-select-sm" style="max-width:11rem">
+            <option value="">— au prochain dépôt —</option>
+            <option value="image">Image</option>
+            <option value="video">Vidéo</option>
+            <option value="audio">Audio</option>
+            <option value="document">Document</option>
+        </select>
+        <div id="converterMediaTypeBadge" class="text-muted small fst-italic"></div>
     </div>
 </div>
 
@@ -68,6 +77,13 @@ l'inspection d'une card (hideOnInspect) au profit du host schéma en fin de bloc
         <select id="converterProfileSelect" class="form-select form-select-sm">
             <option value="">— aucun profil —</option>
         </select>
+        {% comment %}💾 : la SAUVEGARDE rejoint enfin le CHOIX (constat Fabien 02/09 : « Sauver
+        comme profil » n'existait que dans la modale d'un item — l'utilisateur qui compose au
+        volet ne le rencontrait jamais). Lit le volet courant, ouvre la modale de nommage.{% endcomment %}
+        <button type="button" class="btn btn-outline-info btn-sm" id="converterProfileSaveBtn"
+                title="Enregistrer les réglages courants comme profil">
+            <i class="fas fa-bookmark"></i>
+        </button>
         <button type="button" class="btn btn-outline-danger btn-sm" id="converterProfileDeleteBtn"
                 title="Supprimer ce profil" disabled>
             <i class="fas fa-trash"></i>
@@ -131,7 +147,7 @@ Actions de l'inspecteur ne s'affichait jamais pour converter (aucune erreur cons
                 <!-- Populated by JS -->
             </div>
             {# Pied de modale COMMUN (MODAL_ACTIONS_AUDIT §3) — ids conservés pour converter.js #}
-            {% include 'common/_settings_modal_footer.html' with save_id='jobSettingsApplyBtn' save_start_id='jobSettingsStartBtn' save_start_label='Appliquer & (Re)lancer' left_html='<button type="button" class="btn btn-sm btn-outline-info" id="jobSettingsSaveProfileBtn"><i class="fas fa-bookmark"></i> Sauver comme profil…</button>' %}
+            {% include 'common/_settings_modal_footer.html' with save_id='jobSettingsApplyBtn' save_start_id='jobSettingsStartBtn' save_start_label='Appliquer & (Re)lancer' left_html='<button type="button" class="btn btn-sm btn-outline-secondary" id="jobSettingsResetBtn" title="Remet le formulaire aux défauts — Enregistrer écrit"><i class="fas fa-undo"></i> Par défaut</button> <button type="button" class="btn btn-sm btn-outline-info" id="jobSettingsSaveProfileBtn"><i class="fas fa-bookmark"></i> Sauver comme profil…</button>' %}
         </div>
     </div>
 </div>
@@ -188,7 +204,8 @@ Actions de l'inspecteur ne s'affichait jamais pour converter (aucune erreur cons
                 <div id="batchSettingsError" class="text-danger small mt-2" style="display:none;"></div>
             </div>
             {# Pied de modale COMMUN — ids conservés pour converter.js #}
-            {% include 'common/_settings_modal_footer.html' with save_id='batchSettingsApplyBtn' save_start_id='batchSettingsApplyStartBtn' save_start_label='Appliquer & démarrer' %}
+            {# ↺ modèle événementiel (02/09) : remplit le formulaire des défauts, Appliquer écrase les filles #}
+            {% include 'common/_settings_modal_footer.html' with save_id='batchSettingsApplyBtn' save_start_id='batchSettingsApplyStartBtn' save_start_label='Appliquer & démarrer' left_html='<button type="button" class="btn btn-sm btn-outline-secondary" id="batchSettingsResetBtn" title="Remet le formulaire aux défauts — Appliquer écrit sur toutes les cards filles"><i class="fas fa-undo"></i> Par défaut</button>' %}
         </div>
     </div>
 </div>

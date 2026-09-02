@@ -82,20 +82,19 @@ def _convert(job, ctx):
     else:
         output_path = final_output_path
 
-    # Valeurs EFFECTIVES — brique COMMUNE (2026-09-01) : **défauts du schéma ← preset ←
-    # réglages POSÉS**. Elle remplace l'ancien `resolve_options` (qui ne connaissait que
-    # preset ← posé) ; les défauts du schéma entrent enfin dans la cascade, SOUS le preset,
-    # donc sans jamais l'empêcher d'agir (ROADMAP §23.2bis).
-    # ⚠ Ce qui rend cette cascade correcte est que `job.options` ne contient QUE l'explicite.
-    # Y stocker des défauts les rendrait indiscernables d'un choix, et le preset ne pourrait
-    # plus rien arbitrer — c'est la raison pour laquelle le converter ne le fait pas.
+    # ── MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : la tâche lit LES
+    # COLONNES, point. Le preset n'est PLUS un facteur au lancement — c'est un GESTE
+    # D'ÉCRITURE (choisir « web » écrit 80 dans la colonne au clic, `views.update_job` /
+    # `batch_update` / `quick_convert` étalent `preset_values` à ce moment-là) ; la colonne
+    # `quality_preset` n'est qu'une TRACE. Les défauts du schéma restent ici en REPLI SEUL
+    # (jobs d'avant la bascule, ou nés incomplets) : ils ne peuvent plus rien écraser
+    # puisque tout geste écrit. L'ancienne cascade au lancement (défauts ← preset ← posé,
+    # 01/09) est REMPLACÉE — ses tests ont été recalés le même jour.
     from wama.common.utils.param_schema import effective_settings
     from .params import PARAMS_JSON
-    from .utils.quality_presets import preset_values
     eff_opts = effective_settings(
         PARAMS_JSON,
         posees=job.options,
-        preset=preset_values(job.media_type, job.quality_preset),
         contexte={'media_type': job.media_type})
 
     # Aperçu « PENDANT » (brique commune, 2026-08-13) : hors in-place, ffmpeg écrit la sortie

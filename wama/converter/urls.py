@@ -43,6 +43,7 @@ urlpatterns = [
     path('batch/<int:pk>/duplicate/',   views.batch_duplicate,      name='batch_duplicate'),
     path('batch/<int:pk>/download/',    views.batch_download,       name='batch_download'),
     # Profiles
+    path('api/presets/',                views.api_presets,          name='api_presets'),
     path('profiles/',                   views.profile_list,         name='profile_list'),
     path('profiles/save/',              views.profile_save,         name='profile_save'),
     path('profiles/<int:pk>/delete/',   views.profile_delete,       name='profile_delete'),

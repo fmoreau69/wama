@@ -43,52 +43,81 @@ class BatchDownloadTest(TestCase):
 
 
 class PreregagesQualiteTest(TestCase):
-    """Les 3 préréglages doivent AGIR — et ce test existe parce qu'ils ont failli mourir.
+    """Les préréglages au MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09 — ROADMAP §23.2quater) :
+    un preset est un GESTE D'ÉCRITURE (le profil GÉNÉRAL commun à tous), plus un facteur
+    au lancement. Choisir « web » ÉCRIT ses valeurs dans les colonnes au clic — l'utilisateur
+    voit l'effet réel, le retouche, l'enregistre en profil s'il veut. Le dernier geste gagne.
 
-    En préparant l'uniformisation « un réglage = une colonne avec son défaut » (2026-09-01),
-    j'allais poser `default=85` sur `quality`. Tous les jobs seraient alors devenus
-    explicites, et `web`/`balanced`/`max` n'auraient plus rien arbitré — **sans erreur ni
-    message**. Ce test tient l'invariant par le COMPORTEMENT : un preset agit sur ce qui
-    n'est pas réglé, et se tait sur ce qui l'est.
+    ⚠ HISTORIQUE : la V1 de ces tests (01/09) verrouillait l'INVERSE — « le preset agit au
+    lancement sur le non-posé » (cascade effective_settings). Le modèle événementiel du
+    02/09 la remplace : ne pas « réparer » un rouge d'ici en réintroduisant le preset dans
+    la tâche — la tâche lit les COLONNES, et c'est le contrat.
     """
 
-    def test_un_preset_agit_sur_ce_qui_n_est_pas_regle(self):
+    def _job(self, **kw):
+        from django.contrib.auth.models import User
+        u, _ = User.objects.get_or_create(username='t_presets')
+        base = dict(user=u, input_filename='x.png', media_type='image',
+                    output_format='jpg', status='PENDING')
+        base.update(kw)
+        from wama.converter.models import ConversionJob
+        return ConversionJob.objects.create(**base)
+
+    def test_choisir_un_preset_ECRIT_ses_valeurs_dans_les_colonnes(self):
+        from django.test import Client
+        import json as _j
+        j = self._job()
+        c = Client()
+        c.force_login(j.user)
+        r = c.post(f'/converter/{j.id}/update/',
+                   {'options_json': _j.dumps({'quality_preset': 'web'})})
+        self.assertEqual(r.status_code, 200, r.content)
+        j.refresh_from_db()
+        self.assertEqual(j.quality, 80, 'le preset « web » doit ÉCRIRE quality=80 au clic')
+        self.assertEqual(j.quality_preset, 'web', 'la trace du dernier preset applique')
+
+    def test_un_reglage_du_MEME_envoi_prime_sur_le_preset(self):
+        # Le geste fin prime : « web » (80) + quality=95 dans le même POST → 95.
+        from django.test import Client
+        import json as _j
+        j = self._job()
+        c = Client()
+        c.force_login(j.user)
+        r = c.post(f'/converter/{j.id}/update/',
+                   {'options_json': _j.dumps({'quality_preset': 'web', 'quality': 95})})
+        self.assertEqual(r.status_code, 200, r.content)
+        j.refresh_from_db()
+        self.assertEqual(j.quality, 95)
+
+    def test_la_tache_lit_les_colonnes_le_preset_n_arbitre_plus_au_lancement(self):
+        # Un job à quality POSÉE 72 et trace quality_preset='max' (98) : la valeur effective
+        # au lancement est 72 — la trace n'écrase rien, elle n'est qu'une trace.
         from wama.common.utils.param_schema import effective_settings
         from wama.converter.params import PARAMS_JSON
-        from wama.converter.utils.quality_presets import preset_values
-
-        for preset, attendu in (('web', 80), ('balanced', 90), ('max', 98)):
-            eff = effective_settings(PARAMS_JSON, posees={},
-                                     preset=preset_values('image', preset),
-                                     contexte={'media_type': 'image'})
-            self.assertEqual(eff['quality'], attendu,
-                             f"le préréglage « {preset} » n'agit plus sur la qualité")
-
-    def test_un_reglage_pose_par_l_utilisateur_gagne_sur_le_preset(self):
-        from wama.common.utils.param_schema import effective_settings
-        from wama.converter.params import PARAMS_JSON
-        from wama.converter.utils.quality_presets import preset_values
-
-        eff = effective_settings(PARAMS_JSON, posees={'quality': 42},
-                                 preset=preset_values('image', 'max'),
+        j = self._job(quality=72, quality_preset='max')
+        eff = effective_settings(PARAMS_JSON, posees=j.options,
                                  contexte={'media_type': 'image'})
-        self.assertEqual(eff['quality'], 42, "l'utilisateur doit avoir le dernier mot")
+        self.assertEqual(eff['quality'], 72)
 
-    def test_les_defauts_du_schema_ne_bloquent_pas_le_preset(self):
-        # L'invariant EXACT que la migration en colonnes aurait cassé : le schéma déclare
-        # quality=85, et pourtant le preset « web » (80) doit gagner — parce que 85 est un
-        # DÉFAUT, pas un choix. Si un jour ce test tombe, c'est qu'un défaut a été stocké
-        # comme s'il était posé.
-        from wama.common.utils.param_schema import effective_settings
-        from wama.converter.params import PARAMS_JSON
-        from wama.converter.utils.quality_presets import preset_values
-
-        defaut_schema = next(p['default'] for p in PARAMS_JSON if p['name'] == 'quality')
-        self.assertEqual(defaut_schema, 85)
-        eff = effective_settings(PARAMS_JSON, posees={},
-                                 preset=preset_values('image', 'web'),
-                                 contexte={'media_type': 'image'})
-        self.assertEqual(eff['quality'], 80)
+    def test_l_element_nait_COMPLET_les_defauts_sont_ecrits_a_la_creation(self):
+        # Modèle événementiel : la création écrit les défauts applicables (chips pleines
+        # dès la naissance — demande du 31/08, enfin réconciliée avec les presets).
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import Client
+        PNG = bytes.fromhex(
+            '89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de'
+            '0000000c49444154789c63f8cfc00000000300015f0f18e20000000049454e44ae426082')
+        from django.contrib.auth.models import User
+        u, _ = User.objects.get_or_create(username='t_presets')
+        c = Client()
+        c.force_login(u)
+        r = c.post('/converter/upload/',
+                   {'file': SimpleUploadedFile('n.png', PNG, 'image/png'),
+                    'output_format': 'jpg'})
+        self.assertEqual(r.status_code, 200, r.content)
+        from wama.converter.models import ConversionJob
+        j = ConversionJob.objects.get(pk=r.json()['id'])
+        self.assertEqual(j.quality, 85, "le défaut du schéma doit être ÉCRIT à la création")
 
 
 class SauverCommeProfilTest(TestCase):

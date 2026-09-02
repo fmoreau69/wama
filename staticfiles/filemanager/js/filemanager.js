@@ -447,6 +447,31 @@
         });
 
         fnameEl.textContent = filename || filePath;
+
+        // L'EFFET RÉEL du preset, affiché sous le select (question Fabien 02/09 : « faut-il
+        // afficher les paramètres correspondants ? ») — la table vient de converter:api_presets
+        // (SERVIE, jamais recopiée : une copie divergerait), rendue pour le type détecté du
+        // fichier. La modale reste rapide ; l'app est le lieu du réglage fin.
+        const effectEl = document.getElementById('converterQuickPresetEffect');
+        const _LIBELLES = { quality: 'qualité', video_quality: 'CRF', audio_bitrate: 'débit',
+                            preset: 'encodage' };
+        function renderPresetEffect() {
+            if (!effectEl || !window.__converterPresets) return;
+            const vals = (window.__converterPresets[mediaType] || {})[presetSel.value] || {};
+            const morceaux = Object.entries(vals)
+                .map(([k, v]) => (_LIBELLES[k] || k) + ' ' + v);
+            effectEl.textContent = morceaux.length
+                ? '→ ' + morceaux.join(' · ')
+                : (mediaType === 'document' ? '→ sans effet pour un document' : '');
+        }
+        if (effectEl && presetSel) {
+            if (window.__converterPresets) renderPresetEffect();
+            else fetch('/converter/api/presets/')
+                .then(r => r.ok ? r.json() : null)
+                .then(d => { if (d) { window.__converterPresets = d.presets; renderPresetEffect(); } })
+                .catch(() => {});
+            presetSel.onchange = renderPresetEffect;   // remplace (pas d'accumulation entre ouvertures)
+        }
         errEl.style.display = 'none';
         errEl.textContent   = '';
         if (progWrap) progWrap.style.display = 'none';

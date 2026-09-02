@@ -168,6 +168,11 @@
                     <option value="balanced" selected>Équilibré</option>
                     <option value="max">Maximum</option>
                 </select>
+                {% comment %}L'effet RÉEL du preset (question Fabien 02/09 : « faut-il afficher
+                les paramètres correspondants ? ») — rempli par le JS depuis converter:api_presets
+                (la table SERVIE, jamais recopiée), selon le type détecté du fichier. La modale
+                reste rapide : l'app est le lieu du réglage fin.{% endcomment %}
+                <small class="text-info d-block mt-1" id="converterQuickPresetEffect"></small>
                 <small class="text-muted d-block mt-1">Le fichier converti sera créé à côté de l'original.</small>
                 <!-- Progress (shown during conversion) -->
                 <div id="converterQuickProgressWrap" class="mt-3" style="display:none;">

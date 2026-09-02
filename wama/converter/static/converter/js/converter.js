@@ -85,9 +85,12 @@
 
     function setMediaType(type) {
         currentMediaType = type;
-        // Badge
+        // Le SELECT est la source visible (pilotable à la main depuis le 02/09 — composer un
+        // profil « à froid » exigeait un fichier) ; la détection le remplit, le badge confirme.
+        const composeSel = document.getElementById('converterComposeType');
+        if (composeSel && composeSel.value !== (type || '')) composeSel.value = type || '';
         if (!type) {
-            mediaTypeBadge.innerHTML = '<span class="text-muted fst-italic">— aucun fichier sélectionné —</span>';
+            mediaTypeBadge.innerHTML = '';
         } else {
             const colours = { image: 'success', video: 'primary', audio: 'warning', document: 'info' };
             const icons   = { image: 'image', video: 'film', audio: 'music', document: 'file-alt' };
@@ -706,6 +709,38 @@
         modal.show();
     });
 
+    // 💾 du VOLET (02/09, constat Fabien : « Sauver comme profil » n'existait que dans la
+    // modale d'un item — l'utilisateur qui COMPOSE au volet ne le rencontrait jamais). Même
+    // modale de nommage, même endpoint : seul le LECTEUR change (le volet courant).
+    document.getElementById('converterProfileSaveBtn')?.addEventListener('click', () => {
+        const fmt = panelOutputFormat();
+        if (!currentMediaType || !fmt) {
+            WamaApp.toast('Déposez un fichier (ou choisissez un type et un format) avant '
+                          + "d'enregistrer un profil.", 'warning');
+            return;
+        }
+        document.getElementById('saveProfileModal').dataset.pendingPayload = JSON.stringify({
+            media_type: currentMediaType,
+            output_format: fmt,
+            options: readMainPanelOptions(),
+        });
+        document.getElementById('saveProfileName').value = '';
+        document.getElementById('saveProfileDesc').value = '';
+        new bootstrap.Modal(document.getElementById('saveProfileModal')).show();
+    });
+
+    // « ↺ Par défaut » (brique commune applyDefaults — modèle événementiel 02/09) :
+    // remplit le FORMULAIRE des défauts du schéma ; c'est Enregistrer/Appliquer qui écrit
+    // (l'utilisateur VOIT l'effet réel avant d'écraser — l'item, OU toutes les filles du lot).
+    document.getElementById('jobSettingsResetBtn')?.addEventListener('click', () => {
+        const body = document.getElementById('jobSettingsBody');
+        if (body && window.WamaParams) WamaParams.applyDefaults(body, APP.schema, 'item');
+    });
+    document.getElementById('batchSettingsResetBtn')?.addEventListener('click', () => {
+        const host = document.getElementById('converterBatchParams');
+        if (host && window.WamaParams) WamaParams.applyDefaults(host, APP.schema, 'batch');
+    });
+
     document.getElementById('saveProfileConfirmBtn')?.addEventListener('click', async () => {
         const name = (document.getElementById('saveProfileName').value || '').trim();
         const desc = (document.getElementById('saveProfileDesc').value || '').trim();
@@ -800,6 +835,11 @@
     });
 
     // ── Reset options ─────────────────────────────────────────────────────────
+
+    // Type posé À LA MAIN (02/09) : composer un profil ou des défauts « à froid », sans fichier.
+    document.getElementById('converterComposeType')?.addEventListener('change', function () {
+        setMediaType(this.value || null);
+    });
 
     const resetBtn = document.getElementById('converterResetOptions');
     if (resetBtn) resetBtn.addEventListener('click', () => {
