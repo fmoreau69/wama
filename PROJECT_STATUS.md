@@ -9974,6 +9974,74 @@ manifestes d'app dans le commit) · `doc_facts` à jour · `check_docs` inchang�
 **Reste (assumé, non commencé)** : l'INTENTION rapide↔qualité (curseur 3 politiques +
 coloration, validé Fabien, `ROUTE §F4b §tirage automatique`) · la comparaison
 prévision↔choix réel (la prévision n'est pas stockée ; le lancement dit le choix, pas
-l'écart) · smoke navigateur CONNECTÉ de la modale (option « auto » + prévision visibles) ·
-`sync_benchmarks` pour donner un indice au parc TTS (sans lui le tirage TTS reste
-« le plus gros qui tient »).
+l'écart) · `sync_benchmarks` pour donner un indice au parc TTS (sans lui le tirage TTS reste
+« le plus gros qui tient » — la prévision mesurée au smoke dit d'ailleurs Bark 4 Go là où
+Kokoro 0,5 Go servirait mieux une preview).
+
+**SUITE (même session) — le smoke connecté a payé** : constat Fabien « je ne vois pas le
+modèle prévu » → demi-jambe : les sources d'options ne s'appliquaient qu'aux MODALES
+(`WamaParams.render`), jamais au VOLET rendu serveur. Réglé au commun
+(`initFromSchema` lie les sources `catalog` du volet — détail et leçon :
+`WAMA_APP_GENERATION_ROUTE §F4b §brique d'auto-sélection`). Validé À L'ÉCRAN
+(capture `logs/ui_smoke/synthesizer_auto_preview.png` : « auto » 1ʳᵉ option, note
+« Prévu : Bark TTS (4 Go) — réévalué au lancement », 0 erreur JS). Gunicorn rechargé
+(HUP, workers 11:41) et workers Celery gpu+default RELANCÉS (files vérifiées vides
+avant) : la stack sert le code du palier.
+
+
+## §PALIER — 2026-09-02, instance « BANCS : ARENA VISION/DOCUMENT + OPEN ASR + PAGE SOURCES » — ✅ LIVRÉ
+
+> Périmètre : `model_manager/services/benchmark_sync.py` (+`model_selector.py`, `models.py`
+> `best_installed`, tests), `common/external_sources.py` (+tests, vue, gabarit, CSS catalogue),
+> `common/mecanismes.py`, `PROSPECTION_PIPELINE.md`. Détail et relevé des plateformes :
+> `PROSPECTION_PIPELINE.md §Session du 2026-09-02` (le doc de référence — ce bloc n'en
+> recopie pas la prose). Instance parallèle active (route F4b, `wama-inspector.js` /
+> `wama-params.js` modifiés non commités) : partition tenue, ses fichiers non touchés.
+
+**Question de Fabien** : « d'autres plateformes pour compléter nos bancs ? » → relevé
+VÉRIFIÉ à la source (flux machine ? licence ?), puis « on attaque 1 et 2 » + deux défauts de la
+page Sources (filtre par portée seule, volet droit vide).
+
+**Livré** : (1) Arena `vision` + `document` lus par le chargeur existant, métiers dérivés
+(VLM → vision principal ; LLM à capacité `vision` → vision secondaire) ; (2) 3ᵉ source
+**Open ASR Leaderboard** — transcription, français PRINCIPAL / anglais secondaire, première
+échelle où plus bas = mieux ; (3) page Sources : facette **Type** (famille d'usage `KINDS`,
+badge sur la carte) + **inspecteur au clic** (`WamaInspector` + `WamaDetails`, même câblage
+que `/apps/`, volet `medias=False`), classe commune `.wama-cat-active` dans `wama-catalog.css`.
+
+**⚠ Leçons**
+- ⚠⚠ **Une règle écrite `cat == 'llm'` ne suit pas une catégorie qui en a la même nature** :
+  la première lecture de l'arène `vision` a apparié `gemma4:12b` à `gemma-4-31b` — la taille
+  stricte n'existait que pour le banc texte. Déclarée par catégorie (`taille_stricte`) depuis.
+- ⚠⚠ **Un nombre ne se trie pas sans son SENS** : un WER trié comme un Elo met le pire en
+  tête. Le sens voyage avec la valeur (`benchmark_meta['sens']`), et `valeur_ordonnable` est
+  le SEUL point de lecture pour un tri (`_rank_key`, `best_installed`).
+- ⚠ **Une règle placée dans le repli ne touche pas ceux qui ont une tâche** : la dérivation
+  `vision` écrite d'abord dans le repli « sans tâche » ne touchait AUCUN des 4 LLM installés
+  (tous portent `task` ET `vision`) — vu à la sonde, pas au test.
+- ⚠ **Une source ajoutée au registre va au RÉSEAU depuis la suite** si la fabrique de tests ne
+  la patche pas — `_SourcesFactices` patche désormais les trois, avec l'avertissement écrit.
+- ⚠ **La fiche `WamaDetails` a SA feuille (`wai-*`), non globale** : le premier smoke rendait
+  libellés et valeurs collés. Vu à la capture, pas au test client — *un test de gabarit
+  atteste une présence, jamais un rendu.*
+- ⚠ Le smoke a tourné sur un **serveur JETABLE** (`runserver :8765` WSL2, `--noreload`,
+  `WAMA_GPU_SAFE_MODE`), tué après — le serveur de Fabien n'a pas été touché.
+
+**Mesures (toutes cette session)** : dry-run **17 appariés · 11 sans banc · 16 sans identité ·
+115 hors catégorie** (somme 159 ✓ ; avant : 15/10/12/122) — nouveaux : `whisper` 6,24 % WER FR,
+`qwen3-asr-1.7b` 5,68 % FR, `qwen3.8` Elo vision 1279 (2ᵉ banc). Populations : vision 125,
+document 33, ASR EN 29 / FR 17. Sonde des sources : **15/15 joignables**. Tests :
+`wama.model_manager` **78 OK** (+6), `tests_external_sources` + `tests_registries` **77 OK**
+(+3) ; suite complète **1389 tests, 1 échec** — le mien : `check_templates` refusait un
+commentaire `{# #}` sur deux lignes dans le gabarit Sources (la garde de
+`reference_django_multiline_comment` a fait exactement son travail), corrigé en bloc
+`{% comment %}`, périmètre relancé **44 OK**. `check_docs` 8 cassées / 0 périmée (1 cible, inchangée),
+`doc_facts` régénéré (mécanismes + conformité). Smoke navigateur Playwright : facette Type →
+3 bancs visibles, clic → fiche remplie, désélection → invite, **0 erreur JS**, capture
+`logs/ui_smoke/sources_inspector_2026-09-02.png`.
+
+**Reste (assumé)** : MTEB (embeddings, CC0, moyenne à recalculer) et Open VLM (JSON par URL)
+= candidats suivants, non commencés · `document` n'apparie rien aujourd'hui (nos OCR n'y sont
+pas — déclaré pour que la ligne dise « sans banc » plutôt que « hors catégorie ») ·
+`vibevoice-asr` et `whisper-base` sans identité (nom sans version) · `_local_identities`
+absorbe le préfixe `ollama` dans une identité parasite (`ollamaminicpm`) — inoffensif, noté.

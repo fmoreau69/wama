@@ -588,7 +588,12 @@ class _SourcesFactices:
         def arena():
             raise bs.SourceIndisponible('arena non sollicitée par ce test')
 
-        return patch.multiple(bs, charger_aa=aa, charger_arena=arena)
+        def open_asr():
+            raise bs.SourceIndisponible('open asr non sollicité par ce test')
+
+        # ⚠ TOUTE source du registre se patche ici : une source ajoutée à `SOURCES` sans
+        # ligne ici irait au RÉSEAU depuis la suite (c'est ce que le 3ᵉ banc a failli faire).
+        return patch.multiple(bs, charger_aa=aa, charger_arena=arena, charger_open_asr=open_asr)
 
     def _entree(self, nom, identite, valeur=42.0, echelle='aa_elo_text_to_image'):
         return {'nom': nom, 'slug': nom.lower().replace(' ', '-'), 'identite': identite,
@@ -914,9 +919,12 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
             model_key='transcriber:whisper', name='Whisper', model_type='speech',
             source='transcriber', is_downloaded=True,
             capabilities={'task': 'automatic-speech-recognition'})
-        # L'ASR n'a aucun banc tiers : la traduction doit aboutir à « hors catégorie », pas
-        # à un repli hasardeux.
-        self.assertEqual(bs._categories_locales(m), [])
+        # Jusqu'au 02/09 l'ASR n'avait aucun banc tiers et ce test attendait `[]` — la
+        # TRADUCTION est ce qu'il protège : le vocabulaire HF doit aboutir au même banc
+        # que le nôtre (`transcription`), jamais à un repli hasardeux.
+        self.assertEqual(bs._categories_locales(m), ['speech-to-text-fr', 'speech-to-text'])
+        m.capabilities = {'task': 'transcription'}
+        self.assertEqual(bs._categories_locales(m), ['speech-to-text-fr', 'speech-to-text'])
 
     def test_un_embedding_propose_sans_capacites_ne_tombe_pas_dans_le_banc_llm(self):
         """Promesse du 01/09 : le `model_type` (posé par la prospection) fait foi quand la
@@ -931,7 +939,9 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
                 source='ollama', is_proposed=True, capabilities={})
 
         self.assertEqual(bs._categories_locales(_propose('qwen3-embedding', 'embedding')), [])
-        self.assertEqual(bs._categories_locales(_propose('minicpm-v4.6', 'vlm')), ['llm'])
+        # Un VLM reste éligible au banc texte — et depuis l'après-midi du 02/09 l'arène
+        # `vision` est son banc PRINCIPAL (cf. `TroisiemeBancEtSensTest`).
+        self.assertEqual(bs._categories_locales(_propose('minicpm-v4.6', 'vlm')), ['vision', 'llm'])
         self.assertEqual(bs._categories_locales(_propose('qwen3-coder', 'llm')), ['llm'])
         # Et l'INSTALLÉ, dont la découverte a écrit les capacités : `completion` fait foi
         # avant le type — le comportement du 19/08 (bge-m3) est inchangé.
@@ -1025,3 +1035,181 @@ class EspaceDeClesDuTirageTest(TestCase):
         self.assertEqual(
             select_model_id(None, task='text-to-speech', requested='synthesizer:moteur-c'),
             'synthesizer:moteur-c')
+
+
+class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
+    """
+    2026-09-02 — deux extensions du banc tiers et ce qu'elles ont RÉVÉLÉ.
+
+    (1) Les sous-ensembles Arena `vision` / `document` : téléchargeables par le même chargeur,
+        jamais demandés. Première lecture réelle : `gemma4:12b` prenait l'Elo de
+        `gemma-4-31b` — la règle de taille stricte n'existait que pour `llm`, écrite en dur.
+    (2) L'Open ASR Leaderboard, premier banc HORS génération et première échelle où PLUS BAS
+        EST MIEUX (WER). Un consommateur qui trie `benchmark_index` décroissant mettrait le
+        pire transcripteur en tête : le SENS voyage désormais avec la valeur.
+    """
+
+    def _panel(self, cats, sens=None, priorite=3):
+        """Source fictive rendant `cats` = {catégorie: [entrées {'nom','identite','note'}]}."""
+        d = {'cle': 'panel', 'label': 'Panel Fictif', 'priorite': priorite,
+             'nom_source': 'panel', 'valeur': lambda e: e.get('note'),
+             'echelle': lambda e, cat: 'panel_note_' + cat,
+             'meta': lambda retenu, cands: {'panel_nom': retenu['nom']},
+             'chargeur': lambda: (dict(cats), {})}
+        if sens:
+            d['sens'] = sens
+        return d
+
+    # ── (1) métiers dérivés et taille stricte ───────────────────────────────────────────
+
+    def test_les_metiers_derives_des_nouvelles_categories(self):
+        from .services import benchmark_sync as bs
+        llm_vision = AIModel.objects.create(
+            model_key='ollama:gemma4:12b', name='gemma4:12b', model_type='llm', source='ollama',
+            is_downloaded=True,
+            capabilities={'task': 'text-generation', 'completion': True, 'vision': True})
+        vlm = AIModel.objects.create(
+            model_key='proposed:ollama:minicpm-v4.6:latest', name='minicpm-v4.6:latest',
+            model_type='vlm', source='ollama', is_proposed=True, capabilities={})
+        asr = AIModel.objects.create(
+            model_key='transcriber:whisper', name='Whisper Large-v3', model_type='speech',
+            source='transcriber', is_downloaded=True, capabilities={'task': 'transcription'})
+        # LLM à capacité vision : le banc texte reste PRINCIPAL, `vision` s'ajoute.
+        self.assertEqual(bs._categories_locales(llm_vision), ['llm', 'vision'])
+        # VLM : l'arène `vision` est son métier principal, le texte secondaire.
+        self.assertEqual(bs._categories_locales(vlm), ['vision', 'llm'])
+        # Transcription : le FRANÇAIS d'abord (ce que le transcriber fait ici), l'anglais après.
+        self.assertEqual(bs._categories_locales(asr), ['speech-to-text-fr', 'speech-to-text'])
+
+    def test_l_arene_vision_exige_la_taille_comme_le_banc_llm(self):
+        """`gemma4:12b` a DEUX identités locales : (gemma,(4,),12) par le tag, (gemma,(4,),None)
+        par le nom. Sans taille stricte, la seconde apparie `gemma-4-31b` — mesuré le 02/09."""
+        from .services import benchmark_sync as bs
+        m = AIModel.objects.create(
+            model_key='ollama:gemma4:12b', name='Gemma 4', model_type='llm', source='ollama',
+            is_downloaded=True,
+            capabilities={'task': 'text-generation', 'completion': True, 'vision': True})
+        panel = self._panel({'vision': [
+            {'nom': 'gemma-4-31b', 'identite': ('gemma', (4,), 31.0), 'note': 1276.0}]})
+        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (panel,)), \
+                patch.object(bs, '_tag_reel', return_value=''):
+            r = bs.synchroniser(dry_run=False)
+        m.refresh_from_db()
+        self.assertIsNone(m.benchmark_index, "12B ne doit pas hériter de l'Elo du 31B")
+        self.assertIn('ollama:gemma4:12b [llm]', r['non_apparies'])
+        # Et la bonne taille, elle, apparie — la règle refuse l'asymétrie, pas la catégorie.
+        panel_ok = self._panel({'vision': [
+            {'nom': 'gemma-4-12b', 'identite': ('gemma', (4,), 12.0), 'note': 1200.0}]})
+        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (panel_ok,)), \
+                patch.object(bs, '_tag_reel', return_value=''):
+            bs.synchroniser(dry_run=False)
+        m.refresh_from_db()
+        self.assertEqual(m.benchmark_index, 1200.0)
+        self.assertEqual(m.benchmark_meta['categorie'], 'vision')
+
+    def test_charger_aa_ne_requete_pas_les_categories_sans_endpoint(self):
+        """`vision`, `document` et l'ASR n'ont pas d'endpoint AA : ni requête, ni motif."""
+        from .services import benchmark_sync as bs
+        urls = []
+
+        def faux_http(url, headers=None, timeout=45):
+            urls.append(url)
+            return {'data': []}
+        with patch.object(bs, '_http_json', side_effect=faux_http), \
+                patch.dict('os.environ', {bs.AA_KEY_ENV: 'cle-factice'}):
+            with self.assertRaises(bs.SourceIndisponible):   # réponses vides → indisponible
+                bs.charger_aa()
+        attendues = sum(1 for spec in bs.CATEGORIES.values() if spec.get('aa'))
+        self.assertEqual(len(urls), attendues)
+        self.assertFalse(any('None' in u for u in urls))
+
+    # ── (2) le sens de l'échelle ────────────────────────────────────────────────────────
+
+    def test_un_taux_d_erreur_se_lit_a_l_envers(self):
+        from .services.benchmark_sync import _choose_variant, rang_centile, valeur_ordonnable
+        pop = [{'v': x} for x in (2.0, 4.0, 6.0, 8.0)]
+        # 5 % de WER bat les 6 et 8 : 50ᵉ centile — pas 25ᵉ comme pour un score.
+        self.assertEqual(rang_centile(5.0, pop, lambda e: e['v'], sens='bas'), 50.0)
+        self.assertEqual(rang_centile(5.0, pop, lambda e: e['v']), 50.0)
+        self.assertEqual(rang_centile(2.0, pop, lambda e: e['v'], sens='bas'), 75.0)
+        # Dernier recours de `_choose_variant` : la valeur la PIRE — la plus haute en WER.
+        cands = [{'nom': 'x a', 'v': 3.0}, {'nom': 'x b', 'v': 9.0}]
+        self.assertEqual(_choose_variant('x', cands, lambda e: e['v'], sens='bas')['v'], 9.0)
+        self.assertEqual(_choose_variant('x', cands, lambda e: e['v'])['v'], 3.0)
+        # `valeur_ordonnable` : plus grand = meilleur, quel que soit le sens.
+        m_wer = AIModel(model_key='a', benchmark_index=5.0, benchmark_meta={'sens': 'bas'})
+        m_elo = AIModel(model_key='b', benchmark_index=5.0, benchmark_meta={'sens': 'haut'})
+        m_nu = AIModel(model_key='c', benchmark_index=5.0, benchmark_meta={})
+        self.assertEqual(valeur_ordonnable(m_wer), -5.0)
+        self.assertEqual(valeur_ordonnable(m_elo), 5.0)
+        self.assertEqual(valeur_ordonnable(m_nu), 5.0)
+        self.assertIsNone(valeur_ordonnable(AIModel(model_key='d')))
+
+    def test_un_banc_a_sens_bas_traverse_la_chaine_et_ordonne_a_l_endroit(self):
+        from .services import benchmark_sync as bs
+        bon = AIModel.objects.create(
+            model_key='transcriber:bon-2', name='Bon 2', model_type='speech',
+            source='transcriber', is_downloaded=True, capabilities={'task': 'transcription'})
+        moyen = AIModel.objects.create(
+            model_key='transcriber:moyen-2', name='Moyen 2', model_type='speech',
+            source='transcriber', is_downloaded=True, capabilities={'task': 'transcription'})
+        panel = self._panel({'speech-to-text-fr': [
+            {'nom': 'org/bon-2', 'identite': ('bon', (2,), None), 'note': 4.0},
+            {'nom': 'org/moyen-2', 'identite': ('moyen', (2,), None), 'note': 8.0},
+            {'nom': 'org/pire-2', 'identite': ('pire', (2,), None), 'note': 20.0}]}, sens='bas')
+        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (panel,)):
+            bs.synchroniser(dry_run=False)
+        bon.refresh_from_db()
+        moyen.refresh_from_db()
+        self.assertEqual(bon.benchmark_index, 4.0)
+        self.assertEqual(bon.benchmark_meta['sens'], 'bas')
+        self.assertEqual(bon.benchmark_meta['echelle'], 'panel_note_speech-to-text-fr')
+        # Centile INVERSÉ : 4 % de WER bat 8 et 20 → 66,7ᵉ ; 8 ne bat que 20 → 33,3ᵉ.
+        self.assertEqual(bon.benchmark_meta['rang_centile'], 66.7)
+        self.assertEqual(moyen.benchmark_meta['rang_centile'], 33.3)
+        # Et le classement des installés met le WER le plus BAS en tête.
+        self.assertEqual([m.model_key for m in AIModel.best_installed('speech')],
+                         ['transcriber:bon-2', 'transcriber:moyen-2'])
+
+    def test_charger_open_asr_lit_la_forme_reelle_des_csv(self):
+        """Forme sondée le 02/09 : l'anglais publie `avg`, le français NON (moyenne calculée
+        des `* WER`) ; `RTFx=-1` = non mesuré ; une entrée sans identité est sautée."""
+        import tempfile
+        from pathlib import Path
+        from .services import benchmark_sync as bs
+        with tempfile.TemporaryDirectory() as tmp:
+            en = Path(tmp) / 'en.csv'
+            en.write_text(
+                'model,avg,RTFx,License,Size (B),LS Clean WER,AMI WER\n'
+                'openai/whisper-large-v3,5.78,120.5,apache-2.0,1.55,1.56,14.86\n'
+                'nvidia/parakeet-tdt-0.6b-v2,6.05,3000,cc-by-4.0,0.6,1.9,13.0\n'
+                'Qwen/Qwen3-ASR-1.7B-hf,4.311,,apache-2.0,2.1,1.26,\n', encoding='utf-8')
+            fr = Path(tmp) / 'fr.csv'
+            fr.write_text(
+                'model,RTFx,FLEURS WER,MCV WER,MLS WER\n'
+                'openai/whisper-large-v3,-1.0,4.84,9.97,3.9\n'
+                'Qwen/Qwen3-ASR-1.7B-hf,-1.0,4.06,7.84,\n', encoding='utf-8')
+            chemins = {'english_short_latest.csv': str(en), 'multilingual_fr.csv': str(fr)}
+            with patch.object(bs, 'OPEN_ASR_DATASETS', {
+                    'english_short': ('depot/en', 'english_short_latest.csv'),
+                    'multilingual_fr': ('depot/fr', 'multilingual_fr.csv')}), \
+                    patch('huggingface_hub.hf_hub_download',
+                          side_effect=lambda repo, fn, repo_type: chemins[fn]):
+                par_cat, motifs = bs.charger_open_asr()
+        self.assertEqual(motifs, {})
+        en_entrees = {e['nom']: e for e in par_cat['speech-to-text']}
+        fr_entrees = {e['nom']: e for e in par_cat['speech-to-text-fr']}
+        # parakeet : version APRÈS la taille → pas d'identité lisible → sauté (null > plausible)
+        self.assertEqual(set(en_entrees), {'openai/whisper-large-v3', 'Qwen/Qwen3-ASR-1.7B-hf'})
+        w = en_entrees['openai/whisper-large-v3']
+        self.assertEqual(w['wer'], 5.78)                       # colonne `avg` telle quelle
+        self.assertEqual(w['identite'], ('whisperlarge', (3,), None))
+        self.assertEqual(w['rtfx'], 120.5)
+        self.assertEqual(w['licence'], 'apache-2.0')
+        self.assertEqual(w['jeux'], {'LS Clean': 1.56, 'AMI': 14.86})
+        q = fr_entrees['Qwen/Qwen3-ASR-1.7B-hf']
+        self.assertEqual(q['identite'], ('qwen', (3,), 1.7))
+        self.assertEqual(q['wer'], round((4.06 + 7.84) / 2, 3))   # MLS absent → moyenne des 2
+        self.assertIsNone(q['rtfx'])                                # -1 = non mesuré
+        self.assertEqual(fr_entrees['openai/whisper-large-v3']['wer'],
+                         round((4.84 + 9.97 + 3.9) / 3, 3))

@@ -32,6 +32,23 @@ class RegistreTest(SimpleTestCase):
             with self.subTest(source=s.key):
                 self.assertIn(s.scope, (es.LOCAL, es.OUTBOUND))
 
+    def test_chaque_source_declare_un_type_connu(self):
+        """La facette « Type » de la page se dérive de `kind` : un type hors de `KINDS`
+        n'aurait ni libellé ni option de filtre (remarque de Fabien, 2026-09-02 : la page ne
+        filtrait que par portée)."""
+        for s in es.SOURCES:
+            with self.subTest(source=s.key):
+                self.assertIn(s.kind, es.KINDS)
+
+    def test_les_bancs_de_performance_sont_ceux_de_benchmark_sync(self):
+        """Les deux registres (adresses ici, lecture chez `benchmark_sync`) doivent nommer
+        les MÊMES plateformes : un banc lu sans être déclaré ici n'aurait ni sonde ni
+        attribution ; un banc déclaré sans lecteur serait une carte qui ment."""
+        from wama.model_manager.services.benchmark_sync import SOURCES as BANCS
+        declares = {s.key for s in es.SOURCES if s.kind == 'banc'}
+        lus = {{'aa': 'artificial_analysis', 'arena': 'arena'}.get(b['cle'], b['cle']) for b in BANCS}
+        self.assertEqual(declares, lus)
+
     def test_chaque_source_declare_une_adresse_et_un_usage(self):
         for s in es.SOURCES:
             with self.subTest(source=s.key):
@@ -196,6 +213,27 @@ class RegistreSondeTest(TestCase):
         self.assertEqual(len(r.context['lignes']), len(es.SOURCES))
         # Sans rapport écrit, la page le DIT — elle ne sonde jamais elle-même.
         self.assertContains(r, 'jamais sond')
+
+    def test_la_page_filtre_par_type_et_inspecte_au_clic(self):
+        """2026-09-02 (Fabien) : « je ne peux filtrer que par local/externe, et le volet
+        droit ne se remplit pas ». La facette `type` doit exister avec les types PRÉSENTS,
+        chaque carte porter `data-id` + `data-f-type`, et le volet droit être ACTIF avec
+        ses hôtes d'inspecteur — le JS commun ne peut rien remplir sans eux."""
+        user = get_user_model().objects.create_user('sources_insp_test', password='x')
+        self.client.force_login(user)
+        with mock.patch.object(es, 'last_report', return_value=None):
+            r = self.client.get(reverse('common:sources_catalog'))
+        facettes = {f['cle']: f for f in r.context['facettes_sources']}
+        self.assertIn('type', facettes)
+        self.assertEqual(set(facettes['type']['options']), {s.kind for s in es.SOURCES})
+        self.assertTrue(r.context['volet']['actif'])
+        self.assertFalse(r.context['volet']['medias'])
+        for s in es.SOURCES:
+            self.assertContains(r, f'data-id="{s.key}"')
+            self.assertContains(r, f'data-f-type="{s.kind}"')
+        for hote in ('id="inspectorBanner"', 'id="inspectorActions"',
+                     'id="inspectorActionButtons"', 'id="sources-data"'):
+            self.assertContains(r, hote)
 
     def test_le_registre_designe_bien_cette_page(self):
         from wama.common.registries import overview

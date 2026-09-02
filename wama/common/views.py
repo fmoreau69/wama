@@ -527,7 +527,8 @@ def external_sources_view(request):
       l'écran. La page ne sonde jamais elle-même : quatorze requêtes réseau dans un rendu
       de page seraient le défaut des 31 s des anciens boutons, en pire (réseau externe).
     """
-    from .external_sources import SOURCES, LOCAL, api_key, base_url, last_report
+    from .external_sources import KINDS, SOURCES, LOCAL, api_key, base_url, last_report
+    from .utils.volet import volet
 
     rapport = last_report()
     sondes = {r['key']: r for r in (rapport or {}).get('results', [])}
@@ -535,6 +536,7 @@ def external_sources_view(request):
     for s in SOURCES:
         lignes.append({
             'key': s.key, 'label': s.label, 'usage': s.usage, 'doc': s.doc,
+            'kind': s.kind, 'kind_label': KINDS.get(s.kind, s.kind),
             'locale': s.scope == LOCAL, 'url': base_url(s.key),
             'setting': s.setting, 'env': s.env,
             'api_key_env': s.api_key_env,
@@ -543,8 +545,16 @@ def external_sources_view(request):
             'sonde': sondes.get(s.key),
         })
 
-    facettes = [{'cle': 'portee', 'label': 'Portée', 'tous': 'Toutes les portées',
-                 'options': {'locale': 'Service local', 'sortante': 'Internet (proxy UGE)'}}]
+    # Facette « Type » (2026-09-02, remarque de Fabien : « je ne peux filtrer que par
+    # local/externe ») : options DÉRIVÉES des types réellement présents, dans l'ordre de
+    # `KINDS` — une option sans carte derrière serait un filtre qui vide la page.
+    presents = {l['kind'] for l in lignes}
+    facettes = [
+        {'cle': 'type', 'label': 'Type', 'tous': 'Tous les types',
+         'options': {k: v for k, v in KINDS.items() if k in presents}},
+        {'cle': 'portee', 'label': 'Portée', 'tous': 'Toutes les portées',
+         'options': {'locale': 'Service local', 'sortante': 'Internet (proxy UGE)'}},
+    ]
 
     return render(request, 'common/external_sources.html', {
         'lignes': lignes,
@@ -553,7 +563,10 @@ def external_sources_view(request):
         'nb_locales': sum(1 for l in lignes if l['locale']),
         'nb_a_cle': sum(1 for l in lignes if l['api_key_env']),
         'facettes_sources': facettes,
-        'volet': VOLET_AUCUN,
+        # Inspecteur au clic sur une carte (volet droit : Paramètres = fiche, Actions =
+        # boutons) — même câblage que `/apps/` (`WamaInspector` + `WamaDetails`). Pas de
+        # section Médias : une source n'a rien à prévisualiser.
+        'volet': volet(medias=False),
     })
 
 

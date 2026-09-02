@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 {% load wama_catalog %}
 {% block title %}Sources externes — WAMA{% endblock %}
 {% block console_app_name %}common{% endblock %}
@@ -12,10 +13,15 @@
 {% endcomment %}
 
 {% block extra_css %}
+{% comment %}Fiche de l'inspecteur = brique `WamaDetails` (classes `wai-*`) : sa feuille n'est
+PAS globale (comme sur /apps/ et le journal). Sans elle, libellés et valeurs se collent — vu au
+smoke.{% endcomment %}
+<link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
   /* Squelette = brique COMMUNE `wama-catalog.css` (2026-09-01) — restent les spécificités. */
   .xs-url { font-size: .76rem; color: #90caf9; word-break: break-all; }
 
+  .xs-type     { background: #4a148c; color: #e1bee7; }
   .xs-locale   { background: #1b5e20; color: #c8e6c9; }
   .xs-sortante { background: #0d47a1; color: #bbdefb; }
   .xs-cle-ok   { background: #33691e; color: #dcedc8; }
@@ -65,10 +71,16 @@
 
   {% include 'common/_filter_bar.html' with facettes=facettes_sources cible='.wama-cat-card' mode='client' placeholder='Filtrer (nom, usage, adresse…)' %}
 
-  <div class="wama-cat-grid" style="--cat-card-min: 360px;">
+  {% comment %}`data-id` = clé du registre : c'est ce que `WamaInspector` lit au clic ;
+  `data-f-type` = facette « Type » (famille d'usage, `KINDS`), `data-f-portee` = facette
+  « Portée ». Le type s'affiche aussi en badge : une facette invisible sur la carte
+  n'explique pas ce qu'elle filtre.{% endcomment %}
+  <div class="wama-cat-grid" id="sourcesGrid" style="--cat-card-min: 360px;">
     {% for l in lignes %}
-    <div class="wama-cat-card" data-f-portee="{% if l.locale %}locale{% else %}sortante{% endif %}">
+    <div class="wama-cat-card" data-id="{{ l.key }}" data-f-type="{{ l.kind }}"
+         data-f-portee="{% if l.locale %}locale{% else %}sortante{% endif %}">
       <h4>{{ l.label }}
+        <span class="wama-cat-badge xs-type">{{ l.kind_label }}</span>
         {% if l.locale %}<span class="wama-cat-badge xs-locale">local</span>
         {% else %}<span class="wama-cat-badge xs-sortante">sortante</span>{% endif %}
         {% if l.api_key_env %}
@@ -101,4 +113,101 @@
   </div>
 
 </div>
+{{ lignes|json_script:"sources-data" }}
+{% endblock %}
+
+{# ── Inspecteur dans le volet droit global (#wama-right-panel) — même câblage que /apps/ ── #}
+{% block right_panel_settings_title %}Inspecteur de la source{% endblock %}
+{% block right_panel_settings %}
+{% include 'common/_inspector_banner.html' with sans_cadre=1 sans_prefixe=1 icone='fas fa-satellite-dish text-info' bouton_icone='fas fa-times' bouton_titre="Fermer l'inspecteur" %}
+<div id="inspectorActions">
+    <p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de source pour l'inspecter.</p>
+</div>
+{% endblock %}
+
+{% block right_panel_actions_title %}Actions{% endblock %}
+{% block right_panel_actions %}
+<div id="inspectorActionButtons" class="d-flex flex-wrap gap-2">
+    <span class="text-muted small">—</span>
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+{# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const dataEl = document.getElementById('sources-data');
+    const grid = document.getElementById('sourcesGrid');
+    if (!dataEl || !grid || !window.WamaInspector || !window.WamaDetails) return;
+
+    // L'invite est CAPTURÉE depuis le DOM, jamais recopiée en JS (leçon model_manager, 19/08).
+    const host = document.getElementById('inspectorActions');
+    const HINT = host ? host.innerHTML : '';
+
+    const byId = {};
+    (JSON.parse(dataEl.textContent) || []).forEach(function (l) { byId[l.key] = l; });
+
+    // Fiche = les MÊMES données que la carte, rendues par la brique déclarative — la source
+    // de vérité reste `external_sources.py` (déclaration) + le dernier rapport (sonde).
+    const SOURCE_DETAIL_SCHEMA = [
+        { badges: function (s) {
+            const b = ['<span class="badge bg-secondary">' + s.kind_label + '</span>',
+                       s.locale ? '<span class="badge bg-success">service local</span>'
+                                : '<span class="badge bg-primary">Internet (proxy UGE)</span>'];
+            if (s.api_key_env) b.push(s.cle_posee ? '<span class="badge bg-success">clé posée</span>'
+                                                   : '<span class="badge bg-danger">clé absente</span>');
+            return b;
+        } },
+        { description: 'usage' },
+        { section: 'Adresse', rows: [
+            { k: 'Adresse effective', field: 'url', code: true },
+            { k: 'Réglage Django', field: 'setting', code: true },
+            { k: "Variable d'environnement", field: 'env', code: true },
+            { k: "Clé d'API (variable)", field: 'api_key_env', code: true },
+        ] },
+        { section: 'Sonde (dernier rapport)', rows: [
+            { k: 'État', get: function (s) {
+                if (!s.sonde) return 'jamais sondée';
+                return s.sonde.reachable ? 'joignable' : 'injoignable'; } },
+            { k: 'Statut HTTP', get: function (s) { return s.sonde && s.sonde.status != null ? String(s.sonde.status) : ''; } },
+            { k: 'Latence', get: function (s) { return s.sonde && s.sonde.latency_ms != null ? s.sonde.latency_ms + ' ms' : ''; } },
+            { k: 'Erreur', get: function (s) { return s.sonde ? (s.sonde.error || '') : ''; } },
+        ] },
+        { section: 'Licence & documentation', rows: [
+            { k: 'Attribution exigée', field: 'attribution' },
+            { k: 'Document', field: 'doc', code: true },
+        ] },
+    ];
+    const SOURCE_ACTIONS_SCHEMA = [
+        { label: "Ouvrir l'adresse", icon: 'fas fa-external-link-alt', cls: 'btn btn-sm btn-outline-info',
+          when: function (s) { return !!s.url; },
+          onClick: function (s) { window.open(s.url, '_blank', 'noopener'); } },
+    ];
+
+    WamaInspector.init({
+        queueContainer: grid,
+        cardSelector: '.wama-cat-card',
+        highlightClass: 'wama-cat-active',
+        itemLabel: function (id) { const s = byId[id]; return s ? s.label : id; },
+        renderItemActions: function (h, card) {
+            const s = byId[card.dataset.id];
+            const btnHost = document.getElementById('inspectorActionButtons');
+            if (!s) { h.innerHTML = '<p class="text-muted">Source inconnue.</p>'; if (btnHost) btnHost.innerHTML = ''; return; }
+            h.innerHTML = WamaDetails.renderSections(s, SOURCE_DETAIL_SCHEMA);
+            if (btnHost) {
+                const r = WamaDetails.renderActions(s, SOURCE_ACTIONS_SCHEMA);
+                btnHost.innerHTML = r.html;
+                r.wire(btnHost);
+            }
+        },
+    });
+
+    const ds = document.getElementById('inspectorDeselect');
+    if (ds) ds.addEventListener('click', function () {
+        if (host) host.innerHTML = HINT;
+        const b = document.getElementById('inspectorActionButtons'); if (b) b.innerHTML = '<span class="text-muted small">—</span>';
+    });
+});
+</script>
 {% endblock %}

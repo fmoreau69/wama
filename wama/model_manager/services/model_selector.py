@@ -105,7 +105,7 @@ def _rank_key(pool, domain=None):
     # ~1000-1500 : incommensurables — on ne normalise jamais). La règle avait ici sa
     # meilleure implémentation, mais elle vivait EN DOUBLE : `AIModel.best_installed` en
     # appliquait la moitié. Domicile unique désormais chez le module qui écrit `echelle`.
-    from .benchmark_sync import benchmarks_comparable
+    from .benchmark_sync import benchmarks_comparable, valeur_ordonnable
     tous_benchmarkes = benchmarks_comparable(pool)
     tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
 
@@ -113,7 +113,9 @@ def _rank_key(pool, domain=None):
         if domain_usable:
             q = _sub_index(m)
         elif tous_benchmarkes:
-            q = m.benchmark_index
+            # Jamais `benchmark_index` NU : un WER (Open ASR, 2026-09-02) se trie à
+            # l'envers d'un Elo, et seul le module qui écrit l'échelle connaît son sens.
+            q = valeur_ordonnable(m)
         elif tous_qualifies:
             q = m.quality_index
         else:
