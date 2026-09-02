@@ -33,26 +33,31 @@ PROPOSED_PREFIX = "proposed:"
 # Déclaratif : élargir la prospection = ajouter une entrée, pas du code. `capacite` utilise le
 # filtre `?c=` du site (vision/embedding/tools/thinking) ; `requetes` complète par recherche
 # libre là où aucun filtre ne correspond (traduction, code).
+#: `task` (2026-09-02) : la TÂCHE canonique écrite sur le candidat — sans elle, 26 lignes
+#: `proposed:ollama:*` n'avaient aucun banc ni aucune sélection par tâche (`check_model_taxonomy`
+#: les comptait « sans task ») là où les candidats HF en portaient une depuis le matin.
 ROLES = {
     'llm': {
         'libelle': 'LLM généraliste (describer, assistant)',
-        'capacite': 'tools', 'requetes': (), 'model_type': 'llm',
+        'capacite': 'tools', 'requetes': (), 'model_type': 'llm', 'task': 'text-generation',
     },
     'vlm': {
         'libelle': 'Vision / VLM (describer image, reader OCR)',
-        'capacite': 'vision', 'requetes': (), 'model_type': 'vlm',
+        'capacite': 'vision', 'requetes': (), 'model_type': 'vlm', 'task': 'captioning',
     },
     'embedding': {
         'libelle': 'Embedding (RAG)',
         'capacite': 'embedding', 'requetes': (), 'model_type': 'embedding',
+        'task': 'feature-extraction',
     },
     'coder': {
         'libelle': 'Code (wama-dev-ai)',
-        'capacite': '', 'requetes': ('coder',), 'model_type': 'llm',
+        'capacite': '', 'requetes': ('coder',), 'model_type': 'llm', 'task': 'text-generation',
     },
     'translation': {
         'libelle': 'Traduction (translator)',
         'capacite': '', 'requetes': ('translate',), 'model_type': 'llm',
+        'task': 'text-generation',
     },
 }
 
@@ -210,6 +215,9 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
             conf = _confidence_from_age(age)
         cree = write_candidate(cand_key, nom=cible or src.name, model_type=src.model_type,
                                description=desc, kind='update', confidence=conf,
+                               # Un successeur exerce le MÊME métier que l'installé qu'il vise.
+                               capabilities={'task': (src.capabilities or {}).get('task')}
+                               if (src.capabilities or {}).get('task') else {},
                                extra={'kind': 'update', 'origin_key': origine,
                                       'reason': r.get('reason', ''), 'age_days': age,
                                       'cible': cible,
@@ -260,7 +268,8 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                         kind='new', confidence=None,
                         extra={'kind': 'new', 'role': nom_role, 'name': ref,
                                'reason': f"rôle {nom_role} — non installé",
-                               'concurrence': _refs_type[role['model_type']]})
+                               'concurrence': _refs_type[role['model_type']]},
+                        capabilities={'task': role['task']})
                     crees += int(cree)
                     maj += int(not cree)
 

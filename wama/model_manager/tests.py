@@ -627,6 +627,48 @@ class TaxonomieDeProspectionTest(TestCase):
                     self.assertIn(t, connues)
 
 
+class RestesTechniquesDuSoirTest(TestCase):
+    """Trois restes du 02/09, chacun mesuré avant d'être corrigé."""
+
+    def test_un_suffixe_date_ne_fait_pas_un_nouveau_modele(self):
+        """`Qwen-Image-Edit-2509` proposé alors que l'imager déclare `-2511` : même famille."""
+        from .services.prospector import _sans_suffixe_date
+        self.assertEqual(_sans_suffixe_date('Qwen/Qwen-Image-Edit-2511'), 'qwen/qwen-image-edit')
+        self.assertEqual(_sans_suffixe_date('Qwen/Qwen-Image-Edit-2509'),
+                         _sans_suffixe_date('Qwen/Qwen-Image-Edit-2511'))
+        # pas une date : taille, résolution, année seule, mois impossible
+        for intact in ('Qwen/Qwen3-Embedding-8B', 'org/model-1024', 'org/model-2026', 'org/model-2513'):
+            self.assertEqual(_sans_suffixe_date(intact), intact.lower())
+
+    def test_seul_le_jumeau_bin_d_un_safetensors_est_ecarte(self):
+        """table-transformer et Qwen3-TTS tirés en double ; les voix `.pt` de Kokoro restent."""
+        from .services import model_installer as mi
+        fichiers = ['config.json', 'model.safetensors', 'pytorch_model.bin',      # jumeaux
+                    'voices/af_bella.pt',                                          # pas de jumeau → gardé
+                    'transformer/diffusion_pytorch_model.safetensors',
+                    'transformer/diffusion_pytorch_model.bin',                     # jumeaux
+                    'unet/model-00001-of-00002.safetensors', 'unet/model-00002-of-00002.safetensors',
+                    'unet/pytorch_model-00001-of-00002.bin', 'unet/pytorch_model-00002-of-00002.bin',
+                    'kokoro-v1_0.pth']                                             # seul → gardé
+        with patch('huggingface_hub.HfApi') as api:
+            api.return_value.list_repo_files.return_value = fichiers
+            self.assertEqual(mi.doublons_de_format('org/x'),
+                             ['pytorch_model.bin', 'transformer/diffusion_pytorch_model.bin',
+                              'unet/pytorch_model-00001-of-00002.bin',
+                              'unet/pytorch_model-00002-of-00002.bin'])
+            api.return_value.list_repo_files.side_effect = RuntimeError('hors ligne')
+            self.assertEqual(mi.doublons_de_format('org/x'), [])      # best-effort : rien filtré
+
+    def test_un_candidat_ollama_porte_sa_tache(self):
+        """26 propositions Ollama sans `task` : chaque RÔLE déclare désormais la sienne."""
+        from .models import ModelTask
+        from .services.prospect_ollama import ROLES
+        connues = {t.value for t in ModelTask}
+        for nom, role in ROLES.items():
+            with self.subTest(role=nom):
+                self.assertIn(role.get('task'), connues)
+
+
 class LicenceHeriteeTest(TestCase):
     """
     2026-09-02 (Fabien : « H3 dit UE EXCLUE, pas H3-Turbo — manque ou permission ? »). Un

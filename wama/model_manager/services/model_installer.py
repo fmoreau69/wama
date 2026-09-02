@@ -133,10 +133,47 @@ def pull_hf_model(hf_id: str, category: str, family: str | None = None,
     os.makedirs(target, exist_ok=True)
     try:
         from huggingface_hub import snapshot_download
-        path = snapshot_download(repo_id=hf_id, cache_dir=target, allow_patterns=allow_patterns)
-        return {'ok': True, 'path': path, 'target': target}
+        ignore = None if allow_patterns else doublons_de_format(hf_id)
+        path = snapshot_download(repo_id=hf_id, cache_dir=target, allow_patterns=allow_patterns,
+                                 ignore_patterns=ignore or None)
+        return {'ok': True, 'path': path, 'target': target,
+                **({'ignores': ignore} if ignore else {})}
     except Exception as e:
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+
+
+def doublons_de_format(hf_id: str) -> list:
+    """
+    Fichiers de poids à NE PAS tirer parce que leur jumeau `.safetensors` existe — même
+    tenseurs, second format (mesuré le 02/09 : table-transformer et Qwen3-TTS tirés en double,
+    `pytorch_model.bin` + `model.safetensors`, 115 Mo ×2 puis 4,2 Go ×2).
+
+    Volontairement ÉTROIT : seul un `.bin` / `.pt` / `.pth` / `.ckpt` dont le NOM DE BASE a un
+    jumeau `.safetensors` dans le même dossier est écarté. Un `.pt` sans jumeau (les voix de
+    Kokoro, un checkpoint YOLO) est GARDÉ — exclure `*.pt` en bloc casserait ces dépôts.
+    Best-effort : si le listing échoue, on ne filtre rien (le doublon coûte du disque, pas
+    l'installation). Retourne des motifs `ignore_patterns` exacts (chemins dans le dépôt).
+    """
+    try:
+        from huggingface_hub import HfApi
+        fichiers = HfApi().list_repo_files(hf_id)
+    except Exception:
+        return []
+    ensemble = set(fichiers)
+    sans_ext = lambda p: p.rsplit('.', 1)[0]
+    safes = {sans_ext(f) for f in fichiers if f.endswith('.safetensors')}
+    # Les shards diffusers/transformers : `model-00001-of-00003.safetensors` ↔ `pytorch_model-00001-of-00003.bin`
+    safes |= {sans_ext(f).replace('model-', 'pytorch_model-', 1) for f in fichiers
+              if f.endswith('.safetensors') and '/model-' in '/' + f}
+    doublons = []
+    for f in fichiers:
+        if not f.endswith(('.bin', '.pt', '.pth', '.ckpt')):
+            continue
+        base = sans_ext(f)
+        jumeau = base in safes or base.replace('pytorch_model', 'model', 1) in safes
+        if jumeau and f in ensemble:
+            doublons.append(f)
+    return sorted(doublons)
 
 
 # Suffixe de nom de poids → sous-dossier de tâche YOLO (AI-models/models/vision/yolo/<task>/).

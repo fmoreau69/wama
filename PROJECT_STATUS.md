@@ -10216,11 +10216,17 @@ même trou.*
 dans `.env`, révoquer l'ancien) ; (3) FLUX.1-schnell (34 Go) et Qwen-Image-Edit-2511 (58 Go)
 après le NVMe.
 
-**Restes techniques** : 26 `proposed:ollama:*` sans `task` (chemin prospection Ollama) · garde
-`pgrep` du worker `default` dans `start_wama_prod.sh` → test de vie · dédoublonnage aveugle aux
-VERSIONS datées (Qwen-Image-Edit-2509 proposé, 2511 déclaré) · deux formats de poids tirés par
-dépôt (`allow_patterns` seulement via `composition`) · `ollama:glm-ocr:latest` typé `llm`+vision
-là où la prospection dit `vlm` · bloc LEGACY de `settings.py` (`AI-models/anonymizer/…`) → ledger ·
+**Restes techniques — SOLDÉS le 02/09 au soir (4 sur 6)** : ✅ `task` sur les propositions
+Ollama (chaque RÔLE de `prospect_ollama.ROLES` déclare la sienne ; 19 lignes existantes
+rattrapées ; `check_model_taxonomy` ne signale plus que `LocateAnything-3B`, chantier à part) ·
+✅ dédoublonnage insensible aux suffixes DATÉS (`_sans_suffixe_date` : `-AAMM`, mois plausible
+seulement — Qwen-Image-Edit-2509 n'est plus « nouveau » quand l'imager déclare 2511) · ✅ un seul
+format de poids par dépôt (`doublons_de_format` : seul un `.bin`/`.pt`/`.pth`/`.ckpt` dont le
+JUMEAU `.safetensors` existe est écarté ; les voix `.pt` de Kokoro restent ; best-effort) ·
+✅ bloc LEGACY de `settings.py` inscrit au ledger (**R45**, candidat, pas retiré).
+**Restent** : garde `pgrep` du worker `default` dans `start_wama_prod.sh` → test de vie (script
+de Fabien, à sa main) · `ollama:glm-ocr:latest` typé `llm`+vision là où la prospection dit
+`vlm` (retyper les LLM à capacité vision changerait la sélection de l'assistant — décision) ·
 VibeVoice-ASR conservé pour comparaison interne (décision Fabien) · Qwen3-ASR jamais lancé
 avec succès (crash hôte, alimentation suspectée — matériel commandé).
 
