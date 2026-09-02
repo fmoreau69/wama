@@ -1421,6 +1421,16 @@ class ModelRegistry:
         incomplets = any(blobs.glob('*.incomplete')) if blobs.is_dir() else False
         taille = sum(f.stat().st_size for f in blobs.iterdir() if f.is_file()) \
             if blobs.is_dir() else 0
+        # VRAM ESTIMÉE depuis les poids sur disque (quick win acté Fabien, 02/09). Sans
+        # elle, `vram_gb=0` valait « inconnu » et le score du curseur de qualité traitait
+        # ces modèles au PIRE coût (garde du même jour) : Audio8/Kokoro-ONNX/chatterbox,
+        # installés et corrects, ne gagnaient jamais « rapide ». Les poids fp16/onnx sont
+        # un PLANCHER de VRAM ; +20 % d'activations = l'ordre de grandeur honnête. C'est
+        # une ESTIMATION dérivée d'un fait MESURÉ (la taille des blobs), marquée
+        # `vram_estimated` — une vraie mesure (banc) la remplacera. Plancher 0,1 :
+        # arrondir un petit modèle à 0.0 recréerait exactement l'« inconnu » pénalisé.
+        vram_estimee = max(0.1, round(taille / 1e9 * 1.2, 1)) \
+            if (taille and not incomplets) else 0
 
         # Format dominant, lu sur les fichiers du snapshot (liens symboliques compris).
         extensions = {f.suffix.lstrip('.').lower()
@@ -1445,12 +1455,14 @@ class ModelRegistry:
             hf_id=hf_id,
             is_downloaded=not incomplets,
             format=fmt,
+            vram_gb=vram_estimee,
             extra_info={
                 'path': str(snap),
                 'size_bytes': taille,
                 'hf_snapshot': True,
                 'category': mtype.value,
                 'family': fam_dir.name,
+                **({'vram_estimated': True} if vram_estimee else {}),
                 **({'incomplete': True} if incomplets else {}),
             },
         )

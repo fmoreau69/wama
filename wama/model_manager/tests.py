@@ -200,6 +200,23 @@ class SnapshotsInstallesTest(TestCase):
         m = modeles['huggingface:Org/Foo']
         self.assertFalse(m.is_downloaded)
         self.assertTrue(m.extra_info.get('incomplete'))
+        self.assertEqual(m.vram_gb, 0, "un snapshot incomplet n'estime pas de VRAM "
+                                       "(ses poids partiels ne disent rien)")
+
+    def test_la_vram_est_estimee_depuis_les_poids_et_dite_estimation(self):
+        """Le défaut mesuré du 02/09 : vram_gb=0 valait « inconnu » et le curseur de
+        qualité traitait ces modèles au PIRE coût — jamais tirés en « rapide ». Les poids
+        sur disque (fait MESURÉ) donnent un plancher, marqué `vram_estimated` (une vraie
+        mesure de banc le remplacera). Plancher 0,1 : l'arrondi à 0.0 d'un petit modèle
+        recréerait exactement l'« inconnu » pénalisé."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            racine = Path(tmp)
+            _faux_snapshot(racine, 'music', 'Bar', 'Org', 'Bar')   # blobs = 2 Ko
+            modeles = self._balayer(racine)
+        m = modeles['huggingface:Org/Bar']
+        self.assertEqual(m.vram_gb, 0.1)
+        self.assertTrue(m.extra_info.get('vram_estimated'))
 
     def test_une_famille_declaree_dans_MODEL_PATHS_appartient_a_son_app(self):
         """Le critère famille reste nécessaire même depuis que transcriber/synthesizer/

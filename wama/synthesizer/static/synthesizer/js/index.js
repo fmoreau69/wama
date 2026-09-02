@@ -67,7 +67,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const higgsOptions = document.getElementById('higgsOptions');
         const languageGroup = document.getElementById('languageGroup');
         const voicePresetGroup = document.getElementById('voicePresetGroup');
-        const isHiggs = modelValue === 'higgs-audio';
+        // Suffixe TOLÉRÉ (même règle qu'engine_for_model côté serveur) : les valeurs du
+        // select sont des clés catalogue ENTIÈRES depuis le 01/09 (`synthesizer:higgs-audio`)
+        // — la comparaison au nom nu ne matchait plus jamais, les options Higgs avaient
+        // silencieusement disparu (défaut latent relevé le 02/09).
+        const isHiggs = /(^|:)higgs-audio$/.test(modelValue || '');
 
         if (higgsOptions) higgsOptions.style.display = isHiggs ? 'block' : 'none';
         // Higgs handles language internally, hide language/voice preset selectors

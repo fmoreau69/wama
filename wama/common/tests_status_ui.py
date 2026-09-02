@@ -71,6 +71,16 @@ class CardsStatutAwaitingTest(SimpleTestCase):
         self.assertIn('[data-s="AWAITING_RESOURCES"]',
                       _lire('wama/common/static/common/css/wama-inspector.css'))
 
+    def test_l_etat_awaiting_est_filtrable_dans_la_file(self):
+        """Quick win du 02/09 : « En attente de ressources » appelle un GESTE (baisser le
+        curseur de qualité, ou attendre) — noyé dans « Brouillon », il était introuvable.
+        Les trois maillons doivent le connaître : le compteur commun, le filtre, l'option."""
+        self.assertIn("statuses.count('AWAITING_RESOURCES')",
+                      _lire('wama/common/utils/batch_common.py'))
+        self.assertIn("'awaiting'", _lire('wama/common/utils/queue_view.py'))
+        self.assertIn('value="awaiting"',
+                      _lire('wama/common/templates/common/_queue_toolbar.html'))
+
     def test_staticfiles_sert_les_memes_fichiers(self):
         """`staticfiles/` est le dossier SERVI : un correctif non resynchronisé est
         invisible au navigateur (règle CLAUDE.md « resynchroniser dans le même geste »)."""

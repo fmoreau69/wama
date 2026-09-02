@@ -40,6 +40,12 @@ def apply_queue_sort_filter(request, batches_list, *, name_of):
             return b['failure_count'] > 0
         if f == 'success':
             return b['success_count'] > 0
+        # AWAITING_RESOURCES (02/09) : filtrable À PART — cet état appelle un geste
+        # (baisser le curseur de qualité, ou attendre), le noyer dans « Brouillon »
+        # le rendait introuvable. `.get()` : un batch construit hors de la brique
+        # commune (compteur absent) ne fait pas tomber la file.
+        if f == 'awaiting':
+            return b.get('awaiting_count', 0) > 0
         if f == 'draft':
             return (b['success_count'] + b['running_count'] + b['failure_count']) < b['obj'].total
         return True  # 'all'

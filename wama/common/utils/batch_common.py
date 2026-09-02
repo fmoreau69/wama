@@ -215,7 +215,7 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
 
     Returns:
         [{'obj', 'items', 'success_count', 'running_count', 'failure_count',
-          'has_success' [, **extra(batch, items, works)]}, …]
+          'awaiting_count', 'has_success' [, **extra(batch, items, works)]}, …]
 
     Args:
         work_attr  : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).
@@ -274,6 +274,11 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
             'success_count': statuses.count('SUCCESS'),
             'running_count': statuses.count('RUNNING'),
             'failure_count': statuses.count('FAILURE'),
+            # AWAITING_RESOURCES (02/09) : compté À PART de l'attente ordinaire — le filtre
+            # de file « En attente de ressources » repose dessus, et le ranger dans le
+            # brouillon rendrait l'état invisible (c'est un état qui appelle un GESTE :
+            # baisser le curseur de qualité, ou attendre — cf. common/models.py).
+            'awaiting_count': statuses.count('AWAITING_RESOURCES'),
         }
         if has_output is not None:
             row['has_success'] = any(s == 'SUCCESS' and has_output(w)
