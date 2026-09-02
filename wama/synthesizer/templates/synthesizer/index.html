@@ -30,6 +30,18 @@
     <small id="ttsModelHelp" class="text-muted d-block mt-1"></small>
     {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) : causalité + réversibilité #}
     <small id="inputMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
+    {% comment %}Curseur d'INTENTION rapide↔qualité (décision Fabien 01/09) : module le
+       tirage « auto » — visible seulement quand le select est sur « auto » (toggle dans
+       index.js, même mécanique que higgsOptions). Markup = partial COMMUN, liaison
+       déléguée (wama-params.js) ; le changement rafraîchit la PRÉVISION sous le select.
+       ⚠ {% templatetag opencomment %} multiligne = TEXTE RENDU, pas un commentaire —
+       attrapé au smoke (le pavé s'affichait dans le volet).{% endcomment %}
+    <div id="intentSliderGroup" class="mt-2" hidden>
+        <label class="form-label small fw-bold text-light mb-0">
+            <i class="fas fa-gauge-high"></i> Rapide ↔ Précis
+        </label>
+        {% include 'common/_intent_slider.html' with dom_id='model_intent' name='model_intent' value='balanced' %}
+    </div>
 </div>
 
 <!-- Higgs Audio options (hidden by default, shown when higgs_audio selected) -->
@@ -429,7 +441,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var cfg = window.WAMA_CONFIG || {};
     var U = cfg.urls || {}, csrf = cfg.csrfToken || '';
     // Params per-item (incl. format/qualité = early-binding : réglés avant génération, sauvegardés).
-    var keys = ['tts_model', 'language', 'voice_preset', 'speed', 'pitch', 'output_format', 'output_quality'];
+    var keys = ['tts_model', 'model_intent', 'language', 'voice_preset', 'speed', 'pitch', 'output_format', 'output_quality'];
     function saveItemReq(id) {
         var fd = new FormData();
         keys.forEach(function (k) { var el = ph.querySelector('[name="' + k + '"]'); if (el) fd.append(k, el.value); });
@@ -577,6 +589,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 values: {
                     // Clé catalogue entière (route F4b ②) — même vocabulaire que le select.
                     tts_model: fd.ttsModel || 'synthesizer:coqui-xtts', language: fd.language || 'fr',
+                    model_intent: fd.modelIntent || 'balanced',
                     voice_preset: fd.voicePreset || 'default',
                     speed: fd.speed || '1.0', pitch: fd.pitch || '1.0',
                 },

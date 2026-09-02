@@ -10104,3 +10104,61 @@ test ajouté (85 OK). **Rattrapé à la main** : tâche des 4 lignes du jour (wo
 code), manifestes régénérés. **Noté, pas traité** : deux formats de poids tirés quand le
 dépôt en publie deux ; `ollama:glm-ocr:latest` typé `llm`+vision (règle de découverte) là
 où la prospection disait `vlm`.
+
+
+## §PALIER — 2026-09-02, instance « CARD ORANGE + CURSEUR D'INTENTION » — ✅ LIVRÉ (2 paliers)
+
+> Les deux chantiers validés par Fabien le 01/09 et laissés « rien d'écrit ». Détail dans les
+> docs de référence (`WAMA_APP_GENERATION_ROUTE §F4b §brique d'auto-sélection` pour le curseur ;
+> ce bloc ne recopie pas leur prose). Commits : card orange = `028a1aae` ; curseur = ce commit.
+
+**Palier 1 — card ORANGE `AWAITING_RESOURCES`** (`028a1aae`, validé À L'ÉCRAN — item de test
+créé/supprimé, capture `logs/ui_smoke/synthesizer_awaiting_card.png`) : classe `awaiting` sur
+les 11 gabarits de card + point d'état orange à pulsation lente + libellés CENTRALISÉS
+(`get_status_display` remplace la chaîne en dur ×10 — tout état inconnu s'affichait BRUT).
+Deux dettes soldées, MESURÉES au smoke : le bord d'état tricolore ne GAGNAIT JAMAIS contre le
+`border-secondary !important` de Bootstrap (4px gris au getComputedStyle) — domicile unique
+`.wama-card.*` avec !important, qui couvre aussi reader/converter, jusqu'ici sans état.
+Garde : `wama/common/tests_status_ui.py` (5 tests sur les sources, dont l'ÉGALITÉ
+staticfiles/=source — le geste de resynchro devient un invariant testé).
+
+**Palier 2 — curseur d'INTENTION rapide↔qualité** : 3 politiques nommées (`fast`/`balanced`/
+`precise` — la valeur stockée est la politique, jamais l'index du slider), arbitrées par
+`select_model(intent=…)` ; `precise` ignore budget ET résidence (l'offload ou l'attente
+`AWAITING_RESOURCES` est le prix assumé — les deux paliers du jour se répondent). UI : renderer
+commun `type='intent'` + partial `common/_intent_slider.html` (même contrat, liaison DÉLÉGUÉE),
+tricolore vert/orange/rouge, visible seulement sur « auto », PRÉVISION qui suit le curseur en
+direct. Adopteurs : synthesizer (volet + modales item/batch + 4 chemins de création) et
+avatarizer (modale item) — champ `model_intent`, migrations 0023/0015 appliquées (WSL2).
+Mesuré au smoke (`logs/ui_smoke/synthesizer_intent_slider.png`) : fast→Audio8 0,6b ·
+balanced→Bark 4 Go · precise→Higgs 24 Go, zéro erreur JS.
+
+**3 leçons du smoke (aucune n'était visible dans le code)** :
+1. **Un commentaire `{# … #}` MULTILIGNE n'est pas un commentaire Django** — c'est du TEXTE
+   RENDU. Deux pavés se sont affichés dans le volet ; `{% comment %}` partout.
+2. **Un HUP ne sert que si les workers renaissent APRÈS le dernier mtime** — des workers de
+   15:58 servaient un import de 16:03 périmé avec des GABARITS frais (l'import est figé au
+   fork, le template se lit au premier rendu) : symptômes incohérents entre deux requêtes.
+   Comparer l'âge des workers au mtime des sources avant de conclure à un bug.
+3. Les thèmes d'app posent la couleur des `small` en `!important` → le tricolore inline ne
+   gagnait jamais (`setProperty(…, 'important')`).
+
+**Contrôles (MESURÉS)** : suite complète **1410 tests OK (skipped=4)** · `check_templates`
+0/132 · corpus manifestes régénéré et à jour (117 — synthesizer/avatarizer portent le schéma
+du curseur) · `doc_facts` à jour · JS servis attestés (`new Function`).
+
+**Restes assumés** : la comparaison prévision↔choix réel (non stockée ; le lancement dit choix
+ET politique) · le ralliement du `precision_level` anonymizer au curseur commun (ses couplages
+restent app-locaux) · `sync_benchmarks` à lancer (le tirage TTS trie encore par VRAM) · option
+de filtre de file « En attente de ressources » (l'état se range avec Brouillon) · smoke
+avatarizer (couvert par le renderer partagé + tests, pas vu à l'écran) · défaut latent HORS
+périmètre relevé en passant : `index.js toggleHiggsOptions` compare à `'higgs-audio'` nu alors
+que les valeurs sont des clés entières depuis le 01/09 — les options Higgs ne doivent plus
+jamais s'afficher (à vérifier/réparer, périmètre synthesizer).
+
+**⚠ Résidus d'une autre session dans l'arbre** (non commités, non touchés) :
+`wama/converter/{params.py,views.py,static/converter/js/converter.js}` +
+`staticfiles/converter/js/converter.js` + `manifests/apps/converter.json` (ce dernier régénéré
+par MON export depuis LEUR code non commité — le committer sans leur code mentirait sur HEAD).
+La session pair `b3` se dit busy depuis 18 h ; si elle est morte, ces fichiers attendent un
+commit ou un abandon EXPLICITE.

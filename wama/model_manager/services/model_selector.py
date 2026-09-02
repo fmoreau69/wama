@@ -124,7 +124,17 @@ def _rank_key(pool, domain=None):
     return sort_key
 
 
-def _best_by_vram(models, budget_gb: Optional[float], domain=None):
+#: Politiques d'INTENTION du tirage (curseur rapide↔qualité, décision Fabien 01/09).
+#: Vocabulaire UNIQUE — l'UI (`type='intent'` de WamaParams), la brique commune
+#: `auto_model` et ce sélecteur parlent ces trois valeurs, jamais un index de slider.
+INTENT_FAST = 'fast'
+INTENT_BALANCED = 'balanced'
+INTENT_PRECISE = 'precise'
+MODEL_INTENTS = (INTENT_FAST, INTENT_BALANCED, INTENT_PRECISE)
+
+
+def _best_by_vram(models, budget_gb: Optional[float], domain=None,
+                  intent: str = INTENT_BALANCED):
     """
     Parmi `models`, choisir le meilleur compromis QUALITÉ/VRAM :
       - déjà chargé prioritaire (évite un déchargement/rechargement) ;
@@ -136,15 +146,31 @@ def _best_by_vram(models, budget_gb: Optional[float], domain=None):
     assimilait volume et qualité, ce qu'un MoE dément frontalement : `qwen3.6:35b` active 8
     experts sur 256, donc la qualité d'un 36B pour le coût de calcul d'un 3B. La VRAM reste une
     CONTRAINTE (le budget ci-dessous), elle n'est plus le critère de choix.
+
+    `intent` (2026-09-02) — l'INTENTION déclarée module l'arbitrage, jamais le lot :
+      - 'fast'     : le plus LÉGER qui tient (proxy vitesse : chargement + inférence) ;
+                     à VRAM égale, la qualité départage — c'est la « preview rapide ».
+      - 'balanced' : comportement historique (le plus qualitatif qui tient) — défaut.
+      - 'precise'  : la qualité PRIME, budget ignoré — l'offload (ou l'attente
+                     AWAITING_RESOURCES) est le prix ASSUMÉ de la précision.
+    Une valeur inconnue vaut 'balanced' : le tirage ne casse jamais un lancement.
     """
+    if intent == INTENT_PRECISE:
+        return max(models, key=_rank_key(models, domain))
     # La clé se calcule sur le lot RÉELLEMENT en compétition (cf. `_rank_key`) : le lot
     # complet si aucun budget, sinon les seuls candidats qui tiennent.
     if budget_gb is None:
-        return max(models, key=_rank_key(models, domain))
-    fit = [m for m in models if (m.vram_gb or 0) <= budget_gb]
-    if fit:
-        return max(fit, key=_rank_key(fit, domain))
-    return min(models, key=lambda m: (m.vram_gb or 0))
+        pool = models
+    else:
+        fit = [m for m in models if (m.vram_gb or 0) <= budget_gb]
+        if not fit:
+            return min(models, key=lambda m: (m.vram_gb or 0))
+        pool = fit
+    if intent == INTENT_FAST:
+        lightest = min((m.vram_gb or 0) for m in pool)
+        light_pool = [m for m in pool if (m.vram_gb or 0) == lightest]
+        return max(light_pool, key=_rank_key(light_pool, domain))
+    return max(pool, key=_rank_key(pool, domain))
 
 
 def select_model(
@@ -162,6 +188,7 @@ def select_model(
     availability_probe=None,
     benchmark_domain: Optional[str] = None,
     specialization: Optional[str] = None,
+    intent: str = INTENT_BALANCED,
 ):
     """
     Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
@@ -194,10 +221,17 @@ def select_model(
                          52,0 en général mais 68,1 en coding.
         specialization:  spécialité EXIGÉE ('translation'…). Sans elle, les modèles
                          spécialisés sont ÉCARTÉS du lot (cf. `_specialization_ok`).
+        intent:          politique du curseur rapide↔qualité ('fast'/'balanced'/'precise',
+                         cf. `_best_by_vram`). 'precise' ignore aussi la préférence au
+                         modèle RÉSIDENT : un petit modèle déjà chargé ne doit pas voler
+                         le tirage à un meilleur modèle froid quand la précision prime.
 
     Returns:
         AIModel | None.
     """
+    if intent not in MODEL_INTENTS:
+        logger.debug("[model_selector] intent inconnu %r → 'balanced'", intent)
+        intent = INTENT_BALANCED
     from ..models import AIModel
 
     # `source=None` (2026-08-31) : sélection PAR CAPACITÉ, tous producteurs confondus —
@@ -263,12 +297,13 @@ def select_model(
             logger.debug(f"[model_selector] résidence indisponible : {e}")
 
     def _pick(pool):
-        # keep_loaded prioritaire, puis meilleur compromis VRAM.
-        if prefer_loaded:
+        # keep_loaded prioritaire, puis meilleur compromis VRAM — SAUF en 'precise' :
+        # la résidence est un raccourci de COÛT, et la précision paie ce coût.
+        if prefer_loaded and intent != INTENT_PRECISE:
             loaded = [m for m in pool if m.is_loaded or m.model_key in residents]
             if loaded:
-                return _best_by_vram(loaded, budget, benchmark_domain)
-        return _best_by_vram(pool, budget, benchmark_domain)
+                return _best_by_vram(loaded, budget, benchmark_domain, intent)
+        return _best_by_vram(pool, budget, benchmark_domain, intent)
 
     # Priorité explicite : le 1er palier ayant des candidats l'emporte (domine la VRAM).
     if priority:

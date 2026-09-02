@@ -7,6 +7,7 @@ panel = id du champ (ou name du groupe radio). voice_preset hérite des voix cen
 (options_source='voices' — utile si on rend la modale en WamaParams plus tard ; le compose garde ses
 optgroups server-rendered pour l'instant). cardSettings (côté JS) lit les data-* du bouton ⚙ de la card.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from wama.avatarizer.models import AvatarJob
 
@@ -24,7 +25,7 @@ PARAMS = derive_from_model(
     # Le couple de modes rapide/qualité est MORT (2026-08-03, décision route F2 enfin
     # appliquée à l'UI) : la « qualité » n'a jamais été qu'un alias du toggle CodeFormer —
     # le backend ne lit QUE use_enhancer. quality_mode survit en champ DÉRIVÉ (ETA/data).
-    include=["text_content", "tts_model", "language", "voice_preset",
+    include=["text_content", "tts_model", "model_intent", "language", "voice_preset",
              "use_enhancer", "bbox_shift"],
     overrides={
         "text_content": dict(type="textarea", label="Texte à dire", icon="fa-quote-left",
@@ -45,6 +46,12 @@ PARAMS = derive_from_model(
                              # — le lancement résout dans workers.py.
                              options_auto=True,
                              dom_id={"item": "settingsTtsModel"}, contexts=("item",)),
+        # Curseur d'intention du tirage « auto » — mêmes conditions de visibilité que le
+        # select qu'il module (job porteur de texte ET modèle « auto »).
+        "model_intent": intent_param(
+            dom_id={"item": "settingsModelIntent"}, contexts=("item",),
+            show_if={"field": "tts_model", "equals": "auto"},
+        ),
         "language":     dict(type="select", label="Langue", icon="fa-language",
                              show_if="text_content",
                              dom_id={"item": "settingsLanguage"}, contexts=("item",)),

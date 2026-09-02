@@ -227,6 +227,70 @@
       '</div>';
   });
 
+  // ── Curseur d'INTENTION rapide↔qualité (décision Fabien 01/09, brique auto_model) ────────
+  // Trois politiques NOMMÉES — la valeur lue/postée est la politique ('fast'/'balanced'/
+  // 'precise'), JAMAIS l'index du slider (frontière des DONNÉES : le stocké reste lisible).
+  // Tricolore : vert=rapide (léger) · orange=équilibré · rouge=précis — précis assume
+  // l'offload ou l'attente de ressources, d'où le même orange/rouge que les états de card.
+  // Le partial serveur `common/_intent_slider.html` (volets maison) rend ce MÊME markup :
+  // la liaison ci-dessous est DÉLÉGUÉE au document, elle couvre les deux origines.
+  var INTENT_STOPS = [
+    { value: 'fast', label: 'Rapide', color: '#28a745' },
+    { value: 'balanced', label: 'Équilibré', color: '#fd7e14' },
+    { value: 'precise', label: 'Précis', color: '#dc3545' },
+  ];
+  function intentStopIndex(value) {
+    for (var i = 0; i < INTENT_STOPS.length; i++) {
+      if (INTENT_STOPS[i].value === String(value)) return i;
+    }
+    return 1;   // inconnu → équilibré, comme le sélecteur côté serveur
+  }
+  registerRenderer('intent', function (p, api) {
+    var idx = intentStopIndex(api.value);
+    var s = INTENT_STOPS[idx];
+    return '<div class="wama-intent">' +
+      '<input type="hidden" id="' + api.id + '" ' + api.idAttr + ' value="' + esc(s.value) + '">' +
+      '<div class="d-flex align-items-center gap-2">' +
+      '<input type="range" class="form-range wama-intent-slider" min="0" max="2" step="1"' +
+      ' value="' + idx + '" style="accent-color:' + s.color + '"' +
+      ' aria-label="' + esc(p.label || 'Rapide ou précis') + '">' +
+      // `!important` : les thèmes d'app posent la couleur des small en !important — mesuré
+      // au smoke (libellé rendu gris) ; sans lui le tricolore ne gagne jamais.
+      '<span class="wama-intent-val small fw-bold" style="color:' + s.color + ' !important">' +
+      esc(s.label) + '</span></div>' +
+      '<div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">' +
+      '<span>Rapide</span><span>Précis</span></div></div>';
+  });
+  document.addEventListener('input', function (e) {
+    var slider = e.target;
+    if (!slider.classList || !slider.classList.contains('wama-intent-slider')) return;
+    var wrap = slider.closest('.wama-intent');
+    if (!wrap) return;
+    var s = INTENT_STOPS[parseInt(slider.value, 10)] || INTENT_STOPS[1];
+    slider.style.accentColor = s.color;
+    var lab = wrap.querySelector('.wama-intent-val');
+    if (lab) { lab.textContent = s.label; lab.style.setProperty('color', s.color, 'important'); }
+    var hidden = wrap.querySelector('input[type="hidden"]');
+    if (hidden && hidden.value !== s.value) {
+      hidden.value = s.value;
+      hidden.dispatchEvent(new Event('change', { bubbles: true }));  // show_if + prévision
+    }
+  });
+  // Resynchronise la SURFACE d'un curseur depuis la valeur du hidden (après apply()).
+  function _syncIntentSliders(container) {
+    (container || document).querySelectorAll('.wama-intent').forEach(function (wrap) {
+      var hidden = wrap.querySelector('input[type="hidden"]');
+      var slider = wrap.querySelector('.wama-intent-slider');
+      if (!hidden || !slider) return;
+      var idx = intentStopIndex(hidden.value);
+      var s = INTENT_STOPS[idx];
+      slider.value = String(idx);
+      slider.style.accentColor = s.color;
+      var lab = wrap.querySelector('.wama-intent-val');
+      if (lab) { lab.textContent = s.label; lab.style.setProperty('color', s.color, 'important'); }
+    });
+  }
+
   // Repli : type absent du registry → champ texte (comportement historique du `else` final).
   registerRenderer('text', function (p, api) {
     return '<input type="text" class="form-control form-control-sm" id="' + api.id + '" ' +
@@ -416,6 +480,22 @@
       // retenu. Hors de `options_query` À DESSEIN : c'est un drapeau d'UI, pas une borne de
       // domaine — les consommateurs serveur du domaine (chips de card…) ne doivent pas le voir.
       if (p.options_auto) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'auto=1';
+      // Curseur d'INTENTION du même contexte : la prévision arbitre comme le tirage
+      // arbitrera. L'intention entre dans l'URL — donc dans la clé de cache — et son
+      // changement RAFRAÎCHIT la prévision (sans re-remplir le select : seule la note bouge).
+      var intentEl = null;
+      if (p.options_auto) {
+        var pi = (schema || []).filter(function (x) { return x.type === 'intent'; })[0];
+        if (pi && (!pi.contexts || pi.contexts.indexOf(ctx) !== -1)) {
+          intentEl = document.getElementById(perCtx(pi.dom_id, ctx) || ('wp-' + ctx + '-' + pi.name));
+        }
+      }
+      var baseUrl = url;   // figé AVANT l'ajout d'intention (la fermeture ci-dessous en dépend)
+      var urlWithIntent = function () {
+        return baseUrl + (intentEl && intentEl.value
+          ? '&intent=' + encodeURIComponent(intentEl.value) : '');
+      };
+      url = urlWithIntent();
       var sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
       var sel = document.getElementById(sid);
       if (!sel) return;
@@ -433,6 +513,20 @@
         _bindAutoPreview(sel, d.auto_preview);
         sel.dispatchEvent(new Event('change', { bubbles: true }));   // re-déclenche WamaModelCaps/conditionnel
       };
+      // Changement d'intention → seule la PRÉVISION se rafraîchit (les options du domaine
+      // ne dépendent pas de l'intention — re-remplir le select perdrait la sélection).
+      if (intentEl && !intentEl._wpIntentPreviewBound) {
+        intentEl._wpIntentPreviewBound = true;
+        intentEl.addEventListener('change', function () {
+          var u = urlWithIntent();
+          var use = function (d) { _bindAutoPreview(sel, (d || {}).auto_preview); };
+          if (_optionSourceCache[u]) { use(_optionSourceCache[u]); return; }
+          fetch(u, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { _optionSourceCache[u] = d || {}; use(_optionSourceCache[u]); })
+            .catch(function () {});
+        });
+      }
       if (_optionSourceCache[url]) { fill(_optionSourceCache[url]); return; }
       fetch(url, { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
@@ -617,6 +711,7 @@
       const span = r.querySelector('.wama-range-val');
       if (inp && span) span.textContent = inp.value;
     });
+    _syncIntentSliders(container);   // curseur d'intention : hidden → position + tricolore
     _bindConditional(container);
   }
 

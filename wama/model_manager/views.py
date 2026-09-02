@@ -1227,10 +1227,14 @@ def api_model_options(request):
     if request.GET.get('auto') in ('1', 'true'):
         from wama.common.utils.auto_model import AUTO, AUTO_LABEL, predict_model_choice
         options.insert(0, [AUTO, AUTO_LABEL])
+        # `intent` (curseur rapide↔qualité) : la prévision arbitre comme le tirage réel
+        # arbitrera — une valeur inconnue est repliée sur 'balanced' par le sélecteur.
+        intent = request.GET.get('intent') or None
         try:
             preview = predict_model_choice(
                 {'task': task, 'model_type': model_type,
-                 'modality': modality, 'source': source})
+                 'modality': modality, 'source': source,
+                 **({'intent': intent} if intent else {})})
         except Exception as e:                      # la prévision ne casse jamais la liste
             logger.debug("api_model_options: prévision indisponible (%s)", e)
             preview = None

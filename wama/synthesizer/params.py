@@ -11,13 +11,14 @@ contextuel via `WamaInspector.initFromSchema` qui lit/écrit ces champs (file �
 `dom_id` par contexte = ponts vers les IDs existants de chaque surface (panel=compose, item=settings*,
 batch=batchSettings*) → JS de voix/clone/submit inchangé. Gabarit : reader/describer params.py.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.synthesizer.models import VoiceSynthesis
 
 PARAMS = derive_from_model(
     VoiceSynthesis,
-    include=["tts_model", "language", "voice_preset", "speed", "pitch"],
+    include=["tts_model", "model_intent", "language", "voice_preset", "speed", "pitch"],
     overrides={
         "tts_model": dict(
             type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
@@ -43,6 +44,14 @@ PARAMS = derive_from_model(
             # « auto » en 1ʳᵉ option + prévision sous le select (brique commune
             # auto_model, 2026-09-02) — le lancement résout dans workers.py.
             options_auto=True,
+        ),
+        # Curseur d'intention rapide↔qualité — visible SEULEMENT quand le modèle est
+        # « auto » (il module ce tirage-là et rien d'autre). Rendu/tricolore : renderer
+        # commun `type='intent'` ; volet maison : partial `common/_intent_slider.html`.
+        "model_intent": intent_param(
+            dom_id={"panel": "model_intent", "item": "settingsModelIntent",
+                    "batch": "batchSettingsModelIntent"},
+            show_if={"field": "tts_model", "equals": "auto"},
         ),
         "language": dict(
             type="select", label="Langue", icon="fa-language", chip=True,

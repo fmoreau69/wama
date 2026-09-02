@@ -9,6 +9,7 @@ from .model_selector import (
     describe_model,
     get_free_vram_gb,
     get_registry_models,
+    MODEL_INTENTS,
 )
 from .memory_manager import MemoryManager, MemoryStrategy, MODEL_SIZE_PRESETS
 from .format_converter import FormatConverter, ConversionResult, ConversionSuggestion

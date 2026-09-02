@@ -408,12 +408,11 @@ et il alimente l'étage qui manque au tirage automatique (voir ci-dessous).
   « le plus gros qui tient » : mesuré, une demande TTS nue rend `bark` (4 Go) et non `kokoro`
   (0,5 Go). Pour une PREVIEW RAPIDE c'est l'inverse du besoin. **Remède immédiat et sans
   risque : `sync_benchmarks`.**
-- **L'INTENTION manque au contrat commun** — et elle existe déjà dans UNE app : le curseur
-  `precision_level` 0-100 de l'anonymizer (`params.py:107`, « Quick → Balanced → Precise »),
-  aujourd'hui traduit en TAILLE de modèle par une règle propre à l'app
-  (`get_model_size_from_precision`). **À généraliser** : l'intention se déclare, `select_model`
-  l'arbitre — c'est ce qui donne la « preview rapide puis rendu de qualité » demandée par
-  Fabien, sans mécanisme dédié.
+- ~~**L'INTENTION manque au contrat commun**~~ → **✅ LIVRÉE le 2026-09-02** (curseur 3
+  politiques, `select_model(intent=…)` — détail au §brique d'auto-sélection ci-dessus).
+  Le prototype `precision_level` 0-100 de l'anonymizer (`params.py:107`) reste app-local :
+  il pilote AUSSI des couplages propres à l'app (chemin de floutage au-delà de 50) qui ne
+  doivent pas monter au commun — son ralliement au curseur commun = chantier séparé.
 - **Modèles réputés DÉFAILLANTS** (bark saturé, vibevoice-asr « voix au ralenti » — constats
   de Fabien) : le levier EXISTE et il est déjà documenté comme tel — `is_available=False` est
   une **décision humaine** que la découverte n'a pas autorité pour écraser (`model_sync`).
@@ -439,9 +438,23 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   (`workers.py`, mode pipeline) résolvent au lancement et consignent le choix dans la
   console de l'item. Adopteurs : synthesizer + avatarizer (via schéma), imager + composer
   (via leurs jumelles recâblées).
-- **Ce qui n'est PAS dedans** : l'INTENTION rapide↔qualité (curseur 3 politiques, validé
-  Fabien, non écrit — voir ci-dessus) et la comparaison prévision↔choix réel (la prévision
-  n'est pas stockée ; le message de lancement dit le choix, pas l'écart).
+- **✅ L'INTENTION est entrée au contrat commun (2026-09-02, 2ᵉ palier)** : curseur
+  rapide↔qualité à 3 politiques NOMMÉES (`fast`/`balanced`/`precise` — la valeur stockée
+  est la politique, jamais l'index du slider), arbitré par `select_model(intent=…)`
+  (`_best_by_vram` : fast = le plus léger qui tient, qualité en départage ; balanced =
+  historique ; precise = la qualité prime, budget ET résidence ignorés — l'offload ou
+  l'attente `AWAITING_RESOURCES` est le prix assumé). UI : renderer commun
+  `type='intent'` (wama-params.js, tricolore vert/orange/rouge validé Fabien) + partial
+  `common/_intent_slider.html` pour les volets maison (MÊME contrat de classes, liaison
+  DÉLÉGUÉE au document) ; visible seulement quand le select est sur « auto » ; la
+  PRÉVISION suit le curseur en direct (l'intention entre dans l'URL de l'endpoint, donc
+  dans la clé de cache). Mesuré au smoke : fast→Audio8 (0,6b), balanced→Bark (4 Go),
+  precise→Higgs (24 Go). Adopteurs : synthesizer (volet+modales+batch+4 chemins de
+  création) et avatarizer (modale item) — champ `model_intent` (défaut balanced, sans
+  `choices=`). Le `precision_level` de l'anonymizer reste app-local (ses couplages ne
+  montent pas au commun, cf. §tirage automatique) — son ralliement = chantier séparé.
+- **Ce qui n'est PAS dedans** : la comparaison prévision↔choix réel (la prévision
+  n'est pas stockée ; le message de lancement dit le choix ET la politique, pas l'écart).
 - ⚠ **Demi-jambe trouvée EN VALIDANT à l'écran (constat Fabien : « je ne vois pas le
   modèle prévu »)** : `_bindOptionSources` ne vivait que dans `WamaParams.render` — donc
   les MODALES. Le select du VOLET, rendu SERVEUR (`tts_engine_choices()`), n'y passait
@@ -621,7 +634,7 @@ le passé.*
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
 - Outils au registre (`TOOL_REGISTRY`) : **56**
 - Outils décrits (`tool_descriptions()`, dérivé) : **56/56**
-- Arguments documentés (types/choix/bornes/défauts) : **207**
+- Arguments documentés (types/choix/bornes/défauts) : **209**
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
   `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points

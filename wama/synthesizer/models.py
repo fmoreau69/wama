@@ -85,6 +85,15 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
         help_text="Clé catalogue du moteur TTS (AIModel.model_key)"
     )
 
+    # Curseur d'INTENTION rapide↔qualité (décision Fabien 01/09) : module l'arbitrage du
+    # tirage « auto » (brique commune auto_model → select_model). SANS `choices=` — leçon
+    # du 01/09 : toute liste dans un champ de modèle exige une migration à chaque évolution ;
+    # le vocabulaire vit chez le sélecteur (MODEL_INTENTS) et le renderer commun.
+    model_intent = models.CharField(
+        max_length=16, default='balanced',
+        help_text="Politique du choix automatique : fast | balanced | precise",
+    )
+
     def get_tts_model_display(self) -> str:
         """Libellé du moteur — DÉFINI À LA MAIN depuis le retrait de `choices=` (2026-09-01).
 
