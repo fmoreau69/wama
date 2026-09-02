@@ -41,7 +41,8 @@
       "family": "Kokoro-82M-v1.0-ONNX",
       "hf_snapshot": true,
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/Kokoro-82M-v1.0-ONNX/models--onnx-community--Kokoro-82M-v1.0-ONNX",
-      "size_bytes": 1447378967
+      "size_bytes": 1447378967,
+      "vram_estimated": true
     },
     "formats": {
       "can_convert_to": [],
@@ -70,7 +71,7 @@
     "resources": {
       "disk_gb": 1.3479767059907317,
       "ram_gb": 0.0,
-      "vram_gb": 0.0
+      "vram_gb": 1.7
     }
   },
   "description": "Snapshot HuggingFace installé (speech/Kokoro-82M-v1.0-ONNX) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",

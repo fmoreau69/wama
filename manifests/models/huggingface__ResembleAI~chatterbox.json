@@ -23,7 +23,8 @@
       "family": "chatterbox",
       "hf_snapshot": true,
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/chatterbox/models--ResembleAI--chatterbox",
-      "size_bytes": 13866212931
+      "size_bytes": 13866212931,
+      "vram_estimated": true
     },
     "formats": {
       "can_convert_to": [],
@@ -52,7 +53,7 @@
     "resources": {
       "disk_gb": 12.91391712706536,
       "ram_gb": 0.0,
-      "vram_gb": 0.0
+      "vram_gb": 16.6
     }
   },
   "description": "Snapshot HuggingFace installé (speech/chatterbox) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",

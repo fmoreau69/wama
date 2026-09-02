@@ -314,6 +314,23 @@ def select_model(
     models = [m for m in models if _supports(m, requires, classes)
               and _specialization_ok(m, specialization)]
 
+    # Grisage AUTOMATIQUE (décision Fabien 02/09, solde le pending du 31/08) : un modèle
+    # POSITIVEMENT sans backend (moteur déclaré qu'aucun inventaire ne sert) sort de la
+    # SÉLECTION — un tirage inlançable est toujours faux (vécu : chatterbox prévu à
+    # curseur 50, refus garanti au lancement). Verdict permissif et RELU à chaque appel :
+    # le backend qui apparaît ré-autorise tout seul. Le SELECT, lui, continue d'afficher
+    # ces modèles — grisés avec la raison (get_registry_models) — jamais d'exclusion de
+    # liste (INPUT_MODEL_MATCHING §2).
+    try:
+        from wama.common.backends.manager import backend_missing
+        exclus = [m for m in models if backend_missing(m)]
+        if exclus:
+            logger.info("[model_selector] exclus du tirage (sans backend) : %s",
+                        [m.model_key for m in exclus])
+            models = [m for m in models if m not in exclus]
+    except Exception as e:
+        logger.debug(f"[model_selector] inventaire de backends indisponible : {e}")
+
     # Disponibilité runtime (au-delà du catalogue) : ex. l'import Python du backend.
     if availability_probe:
         def _probe(m):
@@ -611,6 +628,14 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         if allowed_ids is not None and mid not in allowed_ids:
             continue
         choices.append((mid, m.name))
+        # `backend_missing` : raison si le modèle est POSITIVEMENT inlançable (grisage
+        # automatique 02/09) — le select l'AFFICHE grisé avec la raison, la sélection
+        # l'exclut ; '' sinon. Relu à chaque appel (ré-autorisation automatique).
+        try:
+            from wama.common.backends.manager import backend_missing
+            sans_backend = backend_missing(m) or ''
+        except Exception:
+            sans_backend = ''
         info.append({
             'id': mid,
             'name': m.name,
@@ -618,6 +643,7 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
             'vram': f"{int(m.vram_gb)}GB" if m.vram_gb else '',
             'capabilities': m.capabilities or {},
             'downloaded': m.is_downloaded,
+            'backend_missing': sans_backend,
         })
     return choices, info
 

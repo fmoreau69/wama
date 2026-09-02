@@ -90,10 +90,16 @@
         if (!opt.value) return;
         const acc = acceptsOf(opt.value);
         const bad = prov.filter((i) => !acc.has(i));
-        opt.disabled = bad.length > 0;
-        opt.title = bad.length
+        // Le VERDICT SERVEUR (data-backend-missing, grisage automatique 02/09) PRIME et
+        // se RESPECTE : cette passe réécrivait disabled/title à chaque change et effaçait
+        // le grisage « backend absent » posé par le fill (mesuré au smoke). Deux sources
+        // de grisage composent : la sienne est réversible (✕), celle du serveur ne se
+        // lève que quand le backend existe — le verdict est relu à chaque service.
+        const serveur = opt.dataset.backendMissing || '';
+        opt.disabled = !!serveur || bad.length > 0;
+        opt.title = serveur || (bad.length
           ? 'Incompatible avec : ' + bad.map(label).join(', ') + ' — retirez la pièce (✕) pour réactiver'
-          : '';
+          : '');
         bad.forEach((i) => { causes[i] = (causes[i] || 0) + 1; });
       });
       // Groupes entièrement désactivés : grisés (pas cachés).

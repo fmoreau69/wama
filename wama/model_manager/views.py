@@ -1210,12 +1210,21 @@ def api_model_options(request):
 
     # `downloaded` accompagne le libellé : un modèle catalogué mais pas encore tiré reste
     # PROPOSÉ (découvrabilité — décision du 27/08 sur musicgen-melody), il est seulement dit.
+    # `backend_missing` (grisage automatique, 02/09) : un modèle POSITIVEMENT inlançable
+    # reste AFFICHÉ — grisé, avec la raison en title — jamais retiré de la liste (lister
+    # n'est pas pouvoir choisir). Le verdict étant relu à chaque service, un backend qui
+    # apparaît ré-autorise l'option sans aucun geste.
     par_id = {d['id']: d for d in info}
     options = []
     for mid, nom in choices:
         d = par_id.get(mid) or {}
         libelle = nom if d.get('downloaded', True) else f"{nom} (à télécharger)"
-        options.append([mid, libelle])
+        raison = d.get('backend_missing') or ''
+        if raison:
+            options.append({'value': mid, 'label': f"{libelle} — backend absent",
+                            'disabled': True, 'title': raison})
+        else:
+            options.append([mid, libelle])
 
     reponse = {'success': True, 'groups': [{'options': options}]}
     # « auto » en 1ʳᵉ option + PRÉVISION du modèle retenu (brique commune auto_model,

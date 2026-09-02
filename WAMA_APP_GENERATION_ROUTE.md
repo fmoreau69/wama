@@ -356,9 +356,21 @@ seulement quand on s'en sert.*
 serait ouvert sur une **liste déserte**. *Un select vide ne lève pas.* Suivre TOUS les lecteurs
 du champ, pas seulement l'app qu'on porte.
 
-**Reste ouvert** : 2 des 7 moteurs (`chatterbox-tts`, `transformers-remote-code`) n'ont
-**aucun backend** — ils sont proposés et le refus au lancement est explicite. Leur grisage
-relève de l'arbitrage « défaut constaté », toujours en attente d'un arbitrage.
+~~**Reste ouvert** : 2 des 7 moteurs (`chatterbox-tts`, `transformers-remote-code`) n'ont
+**aucun backend** — leur grisage relève de l'arbitrage « défaut constaté ».~~
+✅ **TRANCHÉ le 02/09 (Fabien) : pas de grisage à la main — un SYSTÈME qui VÉRIFIE.**
+Inventaires de moteurs enregistrés par les producteurs (`common/backends/manager.py` :
+`register_engine_inventory` — synthesizer y met `ENGINE_BACKENDS`, la table du dispatch
+réel ; composer `audio-cpp`), verdict `backend_missing()` PERMISSIF (seul le POSITIVEMENT
+inlançable — moteur déclaré qu'aucun inventaire ne sert — est condamné) et RELU à chaque
+appel : **un backend ajouté ré-autorise tout seul**, rien à dégriser. Deux consommateurs :
+`select_model` EXCLUT du tirage (un choix inlançable est toujours faux — vécu : chatterbox
+prévu à curseur 50) ; le select AFFICHE grisé avec la raison (lister n'est pas pouvoir
+choisir). ⚠ Composition des DEUX grisages mesurée au smoke : `wama-input-match` réécrivait
+disabled/title à chaque change et effaçait le verdict serveur — marqueur
+`data-backend-missing` émis par le fill, respecté par l'appariement. ⚠ Limite ASSUMÉE de
+la permissivité : un modèle SANS moteur déclaré (Qwen3-TTS fraîchement tiré) n'a pas de
+verdict — déclarer son `composition.runtime.engine` (manifeste) le fait entrer au système.
 
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
 (entrées⇄modèles, `WamaInputMatch` + `WamaModelCaps`, **8/8 câblées**, adoption SOLDÉE). Elle

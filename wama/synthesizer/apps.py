@@ -9,6 +9,21 @@ class SynthesizerConfig(AppConfig):
         # Import Celery tasks to ensure they are discovered
         import wama.synthesizer.workers
 
+        # Inventaire des moteurs TTS exécutables (grisage automatique, 02/09) : la MÊME
+        # table que le dispatch réel (`ENGINE_BACKENDS`) — un backend ajouté là-bas
+        # ré-autorise son moteur partout, sans autre geste. Import PARESSEUX : l'inventaire
+        # n'est lu qu'à la demande (les backends restent légers à importer, torch vit dans
+        # leurs load(), mais la règle « rien de lourd dans ready() » vaut d'être tenue).
+        try:
+            from wama.common.backends.manager import register_engine_inventory
+
+            def _tts_engines():
+                from wama.synthesizer.backends import ENGINE_BACKENDS
+                return ENGINE_BACKENDS.keys()
+            register_engine_inventory(_tts_engines)
+        except Exception:
+            pass
+
         # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
         try:
             from wama.common.utils.batch_sync import register_batch_sync

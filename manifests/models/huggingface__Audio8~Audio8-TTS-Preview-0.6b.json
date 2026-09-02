@@ -47,7 +47,8 @@
       "family": "Audio8-TTS-Preview-0.6b",
       "hf_snapshot": true,
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/Audio8-TTS-Preview-0.6b/models--Audio8--Audio8-TTS-Preview-0.6b",
-      "size_bytes": 2565537696
+      "size_bytes": 2565537696,
+      "vram_estimated": true
     },
     "formats": {
       "can_convert_to": [],
@@ -76,7 +77,7 @@
     "resources": {
       "disk_gb": 2.389343172311783,
       "ram_gb": 0.0,
-      "vram_gb": 0.0
+      "vram_gb": 3.1
     }
   },
   "description": "Snapshot HuggingFace installé (speech/Audio8-TTS-Preview-0.6b) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",

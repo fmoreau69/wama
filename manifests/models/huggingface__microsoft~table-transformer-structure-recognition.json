@@ -9,7 +9,8 @@
       "family": "table-transformer-structure-recognition",
       "hf_snapshot": true,
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/table-transformer-structure-recognition/models--microsoft--table-transformer-structure-recognition",
-      "size_bytes": 230948633
+      "size_bytes": 230948633,
+      "vram_estimated": true
     },
     "formats": {
       "can_convert_to": [],
@@ -38,7 +39,7 @@
     "resources": {
       "disk_gb": 0.21508767548948526,
       "ram_gb": 0.0,
-      "vram_gb": 0.0
+      "vram_gb": 0.3
     }
   },
   "description": "Snapshot HuggingFace installé (vision/table-transformer-structure-recognition) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
