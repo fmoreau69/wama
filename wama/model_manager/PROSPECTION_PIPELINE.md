@@ -1192,6 +1192,40 @@ UE EXCLUE mais pas H3-Turbo — manque ou permission ? ». Relevé sur 65 propos
    échouait. Corrigé en `glm-ocr:latest`. Le modèle n'est PAS tiré sur l'hôte aujourd'hui
    (7 tags Ollama, aucun glm-ocr) : réinstallation = `ollama pull glm-ocr`.
 
+### Suite (même jour) — 5 installations PAR LE MÉCANISME, et ce que l'épreuve a révélé
+
+Demande de Fabien : glm-ocr, PP-DocLayoutV3, table-transformer ×2, ACE-Step 1.5 — « on teste
+les mécanismes d'abord, on vérifie ensuite, on corrige ». Chemin = celui du bouton
+« Installer » : `install_proposed_task` → `install_candidate` → `install_from_spec` (HF vers
+`AI-models/models/<catégorie>/<famille>/`, Ollama via `/api/pull`) → sync + provenance →
+retrait du candidat. **Un modèle à la fois** (le 31/08, trois installs concurrentes avaient
+croisé les identités). Résultat : **5/5 installés et catalogués** — table-transformer ×2 (15 s
+chacun, 0,21 Go), PP-DocLayoutV3 (12 s, 0,12 Go), glm-ocr:latest (51 s, 2,2 Go, `reader:glm-ocr`
+passe téléchargé/disponible), ACE-Step 1.5 (132 s, 9,4 Go, MIT). Manifestes `huggingface__*`
+écrits par la provenance, corpus régénéré.
+
+Trois choses vues en chemin :
+1. ⚠⚠ **Deux Redis sur `127.0.0.1:6379`** — dispatchée depuis un shell Django Windows, la
+   première tâche est partie dans un `redis-server.exe` Windows que les workers WSL2 ne
+   lisent pas, sans erreur (600 s d'attente pour rien). Broker/cache n'ont pas le résolveur
+   de la base. Détail, inventaire du Redis fantôme et voie de sortie : `INFRA_WSL_VS_WINDOWS
+   §Deux Redis`. **Tout dispatch se fait depuis WSL2.**
+2. **La ligne installée arrivait SANS tâche** (`table-transformer-detection` : `task=None`,
+   candidat `detect`) — le balayage générique d'un snapshot HF ne sait pas ce qu'un modèle
+   fait. Le spec porte désormais `task`, `record_after_install` la pose (jamais par-dessus une
+   tâche établie). Les 4 lignes du jour rattrapées à la main (le worker tournait avec
+   l'ancien code — *un worker sans autoreload est un second dépôt de code*, 3ᵉ fois).
+3. Les deux formats de poids sont tirés quand le dépôt en publie deux (`pytorch_model.bin` +
+   `model.safetensors`, 115 Mo ×2 pour table-transformer) : `allow_patterns` n'est dérivé
+   que d'une `composition` déclarée. Assumé pour des dépôts de 0,2 Go ; à déclarer pour les gros.
+   Et la ligne Ollama `ollama:glm-ocr:latest` est typée `llm` à capacité `vision` (règle de
+   découverte : seul `embedding` est distingué) quand la prospection l'avait proposée en
+   `vlm` — incohérence préexistante, notée, pas traitée.
+
+**Aucun de ces modèles n'a été CHARGÉ** (règle : jamais de charge GPU par l'instance) : la
+vérification est celle du catalogue, du disque et du corpus. Le premier usage réel (reader
+avec glm-ocr, composer avec ACE-Step — qui n'a pas encore de backend) revient à Fabien.
+
 **Faits pour les recommandations** (vérifiés HF / bancs) : ACE-Step 1.5 (MIT, 10 Go) prend
 un **audio de référence** (colonne « Refer audio » ✅ sur toutes les variantes DiT ; modes
 cover, repaint, vocal→BGM ; 50+ langues ; <4 Go VRAM annoncés). Qwen3-TTS 1.7B (Apache,

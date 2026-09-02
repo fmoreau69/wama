@@ -622,8 +622,10 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
                        # Hérité du `base_model` déclaré quand le dérivé se dit permissif.
                        'license_flag': analyze_license(hf_id, str(c.get('license') or ''),
                                                        c.get('base_model')),
+                       # `task` dans le spec : la ligne INSTALLÉE en hérite (provenance) —
+                       # la découverte générique d'un snapshot HF ne sait pas la dire.
                        'spec': {'kind': 'hf', 'ref': hf_id, 'category': model_type,
-                                'note': f"prospection HF {tache}"}},
+                                'task': tache_w, 'note': f"prospection HF {tache}"}},
                 hf_id=hf_id, license=str(c.get('license') or '')[:64],
                 platform_ref=f"huggingface:{hf_id}",
                 disk_gb=poids or 0.0,     # 0.0 = inconnu → la garde d'espace refusera (forçable)
@@ -777,7 +779,7 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
                    'metrique': _metrique_declaree(carte),
                    'license_flag': analyze_license(m.id, str(licence or ''), base_model),
                    'spec': {'kind': 'hf', 'ref': m.id, 'category': model_type,
-                            'note': f"recherche ciblée « {query} » ({tache})"}},
+                            'task': tache_w, 'note': f"recherche ciblée « {query} » ({tache})"}},
             hf_id=m.id, license=str(licence or '')[:64],
             platform_ref=f"huggingface:{m.id}",
             disk_gb=poids or 0.0,

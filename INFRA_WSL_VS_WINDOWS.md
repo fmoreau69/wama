@@ -177,6 +177,38 @@ besoin : « Remove server » ne supprime que l'enregistrement pgAdmin, jamais la
 Configuration dans `%APPDATA%\pgAdmin\pgadmin4.db` (SQLite, table `server`), lisible avec le Python
 embarqué de pgAdmin — le seul interpréteur Python côté Windows sur cette machine.
 
+## ⚠⚠ Deux Redis sur `127.0.0.1:6379` — le piège Postgres, non traité pour Celery ni le cache (2026-09-02)
+
+**Mesuré** en installant un modèle par la tâche Celery `install_proposed` depuis un shell Django
+**Windows** : la tâche n'a jamais atteint les workers (rien dans `celery-default.log`, cache de
+progression vide), sans la moindre erreur. Cause : un **`redis-server.exe` Windows** (PID 4524,
+service) écoute sur `127.0.0.1:6379` et `[::1]:6379`. `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`
+et `CACHES['default']` valent tous `redis://127.0.0.1:6379` **sans résolveur** — contrairement à la
+base (`_resolve_db_host`). Depuis Windows, tout ce qui touche Celery ou le cache parle donc à un
+Redis que **personne ne consomme** : dispatch de tâches, progression, réservations VRAM du
+gouverneur, propagation de version des registres.
+
+**Ce que ce Redis fantôme contenait** (inventaire du 02/09) : file `default` **1026 messages**,
+`gpu:6` **131**, `celery` **27**, une réservation `wama:vram:reservations` (`memory-embed#ollama:
+bge-m3:latest`) et 15 clés de cache. Autant de dispatches faits depuis des processus Windows
+(commandes de gestion, suites de tests, sondes) qui « réussissaient » sans jamais s'exécuter.
+⚠ J'ai purgé la file `default` après l'avoir COMPTÉE dans la même commande — c'était une erreur
+de geste (regarder, puis décider), même si ces messages étaient indélivrables. Le reste n'a pas
+été touché.
+
+**Pourquoi un résolveur ne suffit pas.** Le Redis WSL2 écoute sur `*` mais en `protected-mode yes`
+sans mot de passe : une connexion depuis l'IP Windows est refusée. Deux issues, à trancher (Fabien) :
+1. **la même que Postgres (§ Ports disjoints)** : déplacer le Redis Windows sur un autre port (ou
+   arrêter le service s'il ne sert à rien). Le port 6379 libéré côté Windows, `wslrelay` prend
+   `127.0.0.1:6379` au `bind()` de redis WSL2 — et l'adresse écrite dans `settings.py` devient
+   juste des deux côtés, **sans code**. C'est la voie recommandée : elle supprime l'ambiguïté à
+   la racine au lieu de la contourner ;
+2. sinon, `protected-mode no` (ou `requirepass`) sur le Redis WSL2 + un `_resolve_redis_host()`
+   calqué sur la base.
+
+**En attendant : tout dispatch Celery se fait depuis WSL2** (`wsl.exe -e bash -lc '… venv_linux/bin/python …'`),
+jamais depuis venv_win — et un « succès » de `.delay()` côté Windows ne prouve rien.
+
 ## RAM hôte & plafond WSL2 (`.wslconfig`) — MAJ 2026-07-29
 
 **Hôte : 64 Go** (2× Samsung `M378A4G43AB2-CWE` 32 Go, détectées **3200 MT/s**, une par canal

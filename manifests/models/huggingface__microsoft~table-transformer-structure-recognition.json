@@ -1,0 +1,56 @@
+{
+  "body": {
+    "capabilities": {
+      "task": "detect"
+    },
+    "composition": {},
+    "extra_info": {
+      "category": "vision",
+      "family": "table-transformer-structure-recognition",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/table-transformer-structure-recognition/models--microsoft--table-transformer-structure-recognition",
+      "size_bytes": 230948633
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "microsoft",
+      "description_short": "Snapshot HF table-transformer-structure-recognition — installé, en attente d'intégration",
+      "hf_id": "microsoft/table-transformer-structure-recognition",
+      "license": "mit",
+      "model_type": "vision",
+      "platform_ref": "huggingface:microsoft/table-transformer-structure-recognition",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.21508767548948526,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (vision/table-transformer-structure-recognition) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:microsoft/table-transformer-structure-recognition",
+  "manifest_kind": "model",
+  "name": "table-transformer-structure-recognition",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:microsoft/table-transformer-structure-recognition",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
