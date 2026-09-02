@@ -97,6 +97,16 @@ class Surface:
     app_id: str
     url: str
     json: bool = False
+    #: Surface de CATALOGUE TRANSVERSAL : son contrat est « authentifié suffit », PAS le droit
+    #: de l'app qui l'héberge. Posé le 2026-09-02 pour `/model-manager/api/models/db/` : la vue
+    #: porte `@login_required` DÉLIBÉRÉMENT (sept pages d'apps consomment ce catalogue pour
+    #: leurs selects de modèles — la garder par le droit du model_manager viderait leurs selects
+    #: pour des profils légitimes). Sans ce champ, la matrice lui prêtait l'attendu de l'app
+    #: hôte et rapportait « 3 ACCÈS NON DÛS » — un rouge qui accusait la VUE d'un défaut de
+    #: l'ATTENDU (la leçon récurrente de l'instrument). ⚠ Une colonne à attendu commun ne
+    #: DISCRIMINE pas : elle rejoint les « non discriminantes » nommées du verdict, et c'est
+    #: dit — jamais retiré de la mesure en silence.
+    attendu_commun: bool = False
 
 
 @dataclass
@@ -213,7 +223,10 @@ def gated_surfaces():
         api = reverse('model_manager:api_models_db')
     except _NRM:
         api = '/model-manager/api/models/db/'
-    surfaces.append(Surface(app_id='model_manager', url=api, json=True))
+    # `attendu_commun` : cette API est un CATALOGUE consommé par sept pages d'apps — son
+    # contrat est « authentifié suffit » (@login_required délibéré), pas le droit du
+    # model_manager (cf. Surface.attendu_commun).
+    surfaces.append(Surface(app_id='model_manager', url=api, json=True, attendu_commun=True))
     return surfaces, sans_url
 
 
@@ -331,8 +344,11 @@ def run_rights_matrix(ctx):
             cle = _forger_session(p['user'])
             cles.append(cle)
             for s in surfaces:
+                # L'attendu d'une surface de catalogue transversal est SON contrat
+                # (« authentifié suffit ») — jamais le droit de l'app hôte (Surface.attendu_commun).
                 c = Cellule(profil=p['cle'], app_id=s.app_id, url=s.url,
-                            attendu=accessible(p['user'], 'app', s.app_id))
+                            attendu=(True if s.attendu_commun
+                                     else accessible(p['user'], 'app', s.app_id)))
                 code, forme, _ = _observer(s.url, cle, s.json)
                 cellules.append(_lire_verdict(c, code, forme, s))
     finally:

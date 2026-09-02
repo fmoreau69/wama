@@ -9158,8 +9158,16 @@ défauts complétés PAR LA CASCADE, pas en base · migrations versionnées à l
    inversée dans les deux sens. Rouge ASSUMÉ jusqu'au chantier avatar/accueil ; l'anomalie
    converter se corrige AVEC ce chantier (pas d'ouverture de surface précipitée).
 
+11. **`rights_matrix` au VERT (02/09)** — le « 3 accès non dûs » accusait l'ATTENDU, pas la
+   vue : `api_models_db` a son `@login_required` délibéré (7 pages d'apps consomment ce
+   catalogue). `Surface.attendu_commun` déclare le contrat propre de la surface ; accord
+   complet mesuré (68 couples). + libellé « — par défaut — » sur `quality_preset` (décision
+   Fabien : « inchangé » = garder la source, « auto » = résolu au lancement, « par défaut »
+   = les défauts s'appliquent — trois mots, trois sens, gardés distincts).
+
 **Restes** : garde serveur « visiteur guidé » + retrait du `@login_required` de
-converter.upload (chantier avatar/accueil, après portage) ·
+converter.upload (chantier avatar/accueil, après portage) · branche JSON de `_deny` plus
+exercée par la matrice (à réarmer sur une future API à refus attendu) ·
 garde de l'API model_manager (3 accès non dûs — avec l'instance model_manager) ·
 arbitrage §23.2ter (défauts stockés par la cascade générée) avant marche B ·
 retrait final R44 (`*_legacy`) après quelques jours d'usage · enhancer 4 hors-colonnes +
