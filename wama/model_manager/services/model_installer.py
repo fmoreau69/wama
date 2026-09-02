@@ -86,15 +86,24 @@ def delete_ollama_model(name: str, timeout: int = 60) -> dict:
 
 
 # ModelType (catalogue) → catégorie de dossier (model_locations.model_dir).
+# ⚠ COQUILLE corrigée le 2026-09-02 (audit des emplacements, question de Fabien) : cette
+# table envoyait `vision` vers `detect/` et `upscaling` vers `enhance/` — deux dossiers qui
+# n'existent PAS (`AI-models/models/` a `vision/` et `upscaling/`, comme `model_locations`
+# le prescrit depuis la règle « catégorie = valeur ModelType »). Seul `manage.py pull_model`
+# sans `--category` y passait ; le chemin de la prospection (`install_from_spec`) portait la
+# catégorie du spec et tombait juste. La table est désormais l'IDENTITÉ, et les anciens mots
+# `detect`/`enhance` restent tolérés en entrée (`model_locations._CATEGORY_ALIASES`).
 _TYPE_CATEGORY = {
     'diffusion': 'diffusion',
     'speech':    'speech',
     'vlm':       'vlm',
-    'vision':    'detect',
-    'upscaling': 'enhance',
+    'vision':    'vision',
+    'upscaling': 'upscaling',
     'ocr':       'ocr',
     'music':     'music',
     'llm':       'llm',
+    'embedding': 'embedding',
+    'lipsync':   'lipsync',
 }
 
 

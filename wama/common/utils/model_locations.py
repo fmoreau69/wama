@@ -20,6 +20,10 @@ _CATEGORY_ALIASES = {
     'vision-language': 'vlm',
     'vision_language': 'vlm',
     'reader': 'ocr',          # 'reader' était un nom d'app, pas une catégorie
+    # 2026-09-02 : `pull_model --category detect|enhance` (aide et table de l'installeur)
+    # visait des dossiers inexistants — ce sont des TÂCHES, pas des catégories.
+    'detect': 'vision',
+    'enhance': 'upscaling',
 }
 
 
