@@ -13,7 +13,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
   .duplicate-btn[data-duplicate-url] ;
   .delete-btn[data-delete-url] ; .wama-eta ; .wama-progress-fill.
 {% endcomment %}
-<div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+<div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% endif %}"
      data-id="{{ elem.id }}"
      data-status="{{ elem.status }}"
      data-domain="{{ domain }}"
@@ -80,7 +80,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
       <div class="wcv3-state">
         <span class="wcv3-state-line">
           <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
-          <span>{% if elem.status == 'PENDING' %}En attente{% elif elem.status == 'RUNNING' %}En cours{% elif elem.status == 'SUCCESS' %}Terminé{% elif elem.status == 'FAILURE' %}Échec{% else %}{{ elem.status }}{% endif %}</span>
+          <span>{{ elem.get_status_display }}</span>
         </span>
         {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
         {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.duration_display %}{% endif %}

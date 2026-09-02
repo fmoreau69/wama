@@ -8,7 +8,7 @@ Rendue : (1) au chargement (index.html, cards autonomes ET filles de batch) ;
 La copie batch historique avait dérivé (pas de data-status, ni badge temps réel,
 ni badges brouillon/corrigé) — l'unification lui redonne tout.
 {% endcomment %}
-            <div class="synthesis-card wama-card {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+            <div class="synthesis-card wama-card {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% endif %}"
                  data-id="{{ elem.id }}" data-status="{{ elem.status }}"
                  {% comment %}L'URL d'aperçu est portée par la CARD, pas seulement par le bouton de
                  nom de fichier : la brique commune en DÉRIVE l'URL de détail (`fillDetail`,
@@ -102,7 +102,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     
                         {% comment %}Badge, %, ETA et durée vivent dans la section ÉTAT — pas en bas
                         de card. Seule la BARRE traverse toute la largeur (voir wcv3-bar-cell).{% endcomment %}
-                        {% include 'common/_card_progress.html' with status=elem.status progress=elem.progress elapsed=elem.processing_display no_bar=True %}
+                        {% include 'common/_card_progress.html' with status=elem.status label=elem.get_status_display progress=elem.progress elapsed=elem.processing_display no_bar=True %}
                         {% if elem.status == 'FAILURE' and elem.error_message %}
                         <small class="text-danger d-block mt-1 text-truncate" title="{{ elem.error_message }}">{{ elem.error_message|truncatechars:120 }}</small>
                         {% endif %}

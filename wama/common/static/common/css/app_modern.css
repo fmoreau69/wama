@@ -393,16 +393,42 @@ textarea {
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
-.synthesis-card.processing {
-    border-left: 4px solid #ffc107;
+/* ── Bord GAUCHE tricolore des cards de file (CARD_DESIGN : ambre=en cours · vert=fini ·
+   rouge=échec · orange=attente de ressources) — domicile UNIQUE, sur `.wama-card` que
+   TOUTES les cards portent (les règles `.synthesis-card.*` qui vivaient ici laissaient
+   reader-card/job-card sans état).
+   ⚠ `!important` OBLIGATOIRE, et mesuré (smoke du 2026-09-02) : ces cards portent aussi
+   `border-secondary` (Bootstrap), dont la couleur est `!important` — sans lui, le bord
+   d'état restait GRIS (4px gris mesuré au getComputedStyle : la largeur passait, la
+   couleur jamais). Les règles legacy sans !important ne gagnaient donc JAMAIS sur ces
+   cards. Composer garde en plus son bord COMPLET animé (identité d'app, index.css). */
+.wama-card.processing {
+    border-left: 4px solid #ffc107 !important;
 }
 
-.synthesis-card.success {
-    border-left: 4px solid #28a745;
+.wama-card.success {
+    border-left: 4px solid #28a745 !important;
 }
 
-.synthesis-card.error {
-    border-left: 4px solid #dc3545;
+.wama-card.error {
+    border-left: 4px solid #dc3545 !important;
+}
+
+/* AWAITING_RESOURCES (2026-09-02, décision Fabien 01/09) : card ORANGE — l'item attend
+   que des ressources se libèrent. #fd7e14 (orange plein), distinct de l'ambre RUNNING. */
+.wama-card.awaiting {
+    border-left: 4px solid #fd7e14 !important;
+}
+
+/* Badge du même état (partial _card_progress + STATUS_BADGE de wama-app-base.js). */
+.bg-awaiting {
+    background-color: #fd7e14;
+    color: #fff;
+}
+
+/* Texte du même état (partial _card_state — pendant du text-warning de RUNNING). */
+.text-awaiting {
+    color: #fd7e14;
 }
 
 /*  === TABLES === */
