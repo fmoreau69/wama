@@ -67,34 +67,19 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
         </button>
     </div>
 
-    <!-- Precision Level -->
+    <!-- Precision Level — curseur COMMUN (route F4b, rallié 2026-09-02) -->
     <div class="mb-2">
-        <div class="d-flex align-items-center gap-2">
-            <input class="form-range setting-button" type="range"
-                   name="precision_level"
-                   id="user_setting_precision_level"
-                   value="{% if gs_values.precision_level %}{{ gs_values.precision_level }}{% else %}50{% endif %}"
-                   {% comment %}step=5 CONSERVÉ et le SCHÉMA aligné dessus (2026-08-19) : le
-                   moteur ne distingue que 5 paliers (model_selector.py:559 → n/s/m/l/x aux
-                   seuils 20/40/60/80, + seuil binaire 50 pour la segmentation). Un pas de 1
-                   afficherait 101 positions pour 5 résultats. Le volet et la modale déclarent
-                   désormais le MÊME pas — la valeur d'une card n'est plus quantifiée
-                   différemment selon la surface.{% endcomment %}
-                   min="0" max="100" step="5"
-                   style="flex: 1;"
-                   oninput="this.nextElementSibling.textContent = this.value">
-            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.precision_level|default:"50" }}</output>
-            <span class="small text-light">Précision</span>
-        </div>
-        <div class="text-center">
-            <small class="text-info" id="precision_label_rp">
-                {% if gs_values.precision_level <= 20 %}Quick
-                {% elif gs_values.precision_level <= 40 %}Balanced Quick
-                {% elif gs_values.precision_level <= 60 %}Balanced
-                {% elif gs_values.precision_level <= 80 %}Balanced Precise
-                {% else %}Max Precision{% endif %}
-            </small>
-        </div>
+        <label class="form-label small fw-bold text-light mb-0">
+            <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
+        </label>
+        {% comment %}Partial commun : zones Rapide/Équilibré/Qualité tricolores (les libellés
+        anglais Quick/Balanced/… de l'ancienne étiquette disparaissent — uniformisation actée
+        par Fabien le 02/09). step=5 CONSERVÉ (2026-08-19) : le moteur ne distingue que 5
+        paliers (n/s/m/l/x aux seuils 20/40/60/80, + seuil binaire 50 pour la segmentation).
+        `extra_class='setting-button'` = l'auto-persistance des réglages du volet (update.js).
+        La DÉCLINAISON de la valeur reste locale (get_model_size_from_precision) — c'est la
+        couche d'adaptation prévue par la conception.{% endcomment %}
+        {% include 'common/_intent_slider.html' with dom_id='user_setting_precision_level' name='precision_level' value=gs_values.precision_level|default:50 step=5 extra_class='setting-button' %}
     </div>
 
     <!-- Model Selection -->

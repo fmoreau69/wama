@@ -475,6 +475,23 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   beaucoup d'usages avant que le critère soit solide — c'est une boucle d'accumulation,
   pas un one-shot. À câbler avec `WAMA_APPRENTISSAGE §A2-A4` (WAMA déclare/déclenche/
   réingère) et le mécanisme `bench` existant.
+- **✅ Anonymizer RALLIÉ (02/09, même journée)** : `precision_level` passe au renderer
+  commun `type='intent'` (volet = partial commun avec `step=5` — les 5 paliers moteur
+  restent la vérité du curseur — et `extra_class='setting-button'` pour l'auto-persistance) ;
+  les libellés anglais locaux (Quick/Balanced Quick/…) disparaissent au profit des zones
+  canoniques. La DÉCLINAISON reste locale et intacte (`get_model_size_from_precision`
+  n/s/m/l/x + seuil binaire 50 de segmentation) — c'est la couche d'adaptation voulue.
+  Le champ garde son nom `precision_level` (frontière des DONNÉES : tasks et
+  model_selector d'app le lisent).
+- **⏳ Converter : PRÊT À CÂBLER — tout le commun est en place, il ne reste que SES
+  fichiers** (occupés par une autre session au 02/09 — ne pas se télescoper). Le geste,
+  quand le champ sera libre : ① presets de LOT/filemanager `Web (léger)/Équilibré/Maximum`
+  → les positions `QUALITY_PRESETS` (15/50/85), relibellés « Rapide (web) / Équilibré /
+  Qualité » (arbitrage Fabien : trio canonique, nuance locale en sous-libellé) ;
+  ② le slider UNITAIRE 1-100 des cards → `intent_param(...)` au schéma (type='intent' —
+  zones/tricolore/graduations gratuits), lecture POST par `read_quality_intent` ;
+  ③ la DÉCLINAISON reste chez lui (valeur → réglages d'encodage par format) — même
+  motif que l'anonymizer. Aucun mécanisme à créer : c'est une substitution de surface.
 - **Ce qui n'est PAS dedans** : la comparaison prévision↔choix réel (la prévision
   n'est pas stockée ; le message de lancement dit le choix ET le curseur, pas l'écart).
 - ⚠ **Demi-jambe trouvée EN VALIDANT à l'écran (constat Fabien : « je ne vois pas le

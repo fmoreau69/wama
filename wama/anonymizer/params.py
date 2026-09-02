@@ -20,6 +20,7 @@ Exceptions app-spécifiques VOLONTAIREMENT hors schéma (widgets bespoke) :
 La modale ⚙ est SECTIONNÉE par `GROUPS` (ParamGroup) pour matcher les sections du volet droit —
 voir le commentaire au-dessus de GROUPS.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import get_output_formats, get_output_qualities
 from wama.common.utils.param_schema import (
     ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts,
@@ -104,10 +105,15 @@ PARAMS = derive_from_model(
         # Le volet déclarait 5 et le schéma 1 : la valeur d'une card était quantifiée
         # différemment selon la surface. À terme, 5 positions nommées (10/30/50/70/90 =
         # un palier par taille de modèle) diraient la vérité — décision UX à prendre.
-        "precision_level": dict(
-            type="range", label="Niveau de précision", icon="fa-gauge-high",
-            dom_id={"panel": "user_setting_precision_level"}, min=0, max=100, step=5,
-            help="0=Rapide · 50=Équilibré · 100=Précis (lent). 5 paliers effectifs (n/s/m/l/x).",
+        # RALLIÉ au curseur commun (2026-09-02, route F4b) : même FORME utilisateur partout
+        # (type='intent' — zones Rapide/Équilibré/Qualité, tricolore), la DÉCLINAISON reste
+        # locale et inchangée (`get_model_size_from_precision` → n/s/m/l/x aux seuils
+        # 20/40/60/80, seuil binaire 50 pour la segmentation) — c'est la couche d'adaptation
+        # voulue par la conception. `step=5` CONSERVÉ : 5 paliers réels, un pas de 1
+        # afficherait 101 positions pour 5 résultats (leçon du 2026-08-19).
+        "precision_level": intent_param(
+            dom_id={"panel": "user_setting_precision_level"}, step=5,
+            help="5 paliers effectifs (n/s/m/l/x) ; au-delà de 50, segmentation fine.",
             chip=True, group="yolo",
         ),
         "detection_threshold": dict(

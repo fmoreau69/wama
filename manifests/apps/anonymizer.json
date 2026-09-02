@@ -1778,13 +1778,13 @@
               "panel": "user_setting_precision_level"
             },
             "group": "yolo",
-            "help": "0=Rapide · 50=Équilibré · 100=Précis (lent). 5 paliers effectifs (n/s/m/l/x).",
+            "help": "5 paliers effectifs (n/s/m/l/x) ; au-delà de 50, segmentation fine.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
             "icon": "fa-gauge-high",
             "inline": false,
-            "label": "Niveau de précision",
+            "label": "Rapide ↔ Qualité",
             "max": 100,
             "max_label": "",
             "min": 0,
@@ -1799,7 +1799,7 @@
             "section": "settings",
             "show_if": null,
             "step": 5,
-            "type": "range",
+            "type": "intent",
             "unit": ""
           },
           {
@@ -2762,7 +2762,7 @@
             "model_to_use": "select — Modèle de détection YOLO (vide = auto selon la précision).",
             "output_format": "select — Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline. (défaut : 'original')",
             "output_quality": "select — Qualité de sortie (choix : web | balanced | max) (défaut : 'balanced')",
-            "precision_level": "range — 0=Rapide · 50=Équilibré · 100=Précis (lent). 5 paliers effectifs (n/s/m/l/x). [0–100] (défaut : 50)",
+            "precision_level": "intent — 5 paliers effectifs (n/s/m/l/x) ; au-delà de 50, segmentation fine. [0–100] (défaut : 50)",
             "progressive_blur": "range — Flou progressif [0–100] (défaut : 25)",
             "roi_enlargement": "range — Agrandissement de la zone [1.0–2.0] (défaut : 1.05)",
             "rounded_edges": "number — Bords arrondis [0–50] (défaut : 5)",

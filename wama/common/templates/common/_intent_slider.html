@@ -12,13 +12,18 @@ Le !important du libellé répond aux thèmes d'app qui posent la couleur des sm
 !important (mesuré au smoke — sans lui le tricolore ne gagne jamais).
 
 Variables :
-  dom_id — id du slider (celui que le schéma déclare en dom_id panel)
-  name   — attribut name (les volets maison lisent par [name=…])
-  value  — entier 0-100 (défaut recommandé : 50)
+  dom_id      — id du slider (celui que le schéma déclare en dom_id panel)
+  name        — attribut name (les volets maison lisent par [name=…])
+  value       — entier 0-100 (défaut recommandé : 50)
+  step        — (optionnel, défaut 1) pas du curseur — un moteur à paliers DISCRETS le
+                déclare pour dire la vérité (anonymizer : 5 paliers réels → step 5)
+  extra_class — (optionnel) classes supplémentaires du slider (ex. `setting-button`,
+                l'auto-persistance des réglages du volet anonymizer)
 {% endcomment %}
 <div class="wama-intent">
   <div class="d-flex align-items-center gap-2">
-    <input type="range" class="form-range wama-intent-slider" min="0" max="100" step="1"
+    <input type="range" class="form-range wama-intent-slider {{ extra_class|default:'' }}"
+           min="0" max="100" step="{{ step|default:1 }}"
            id="{{ dom_id }}" name="{{ name }}" value="{{ value|default:50 }}"
            style="accent-color:{% if value < 34 %}#28a745{% elif value < 67 %}#fd7e14{% else %}#dc3545{% endif %}"
            aria-label="Rapide ou qualité">

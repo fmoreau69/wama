@@ -256,9 +256,12 @@
     if (isNaN(v)) v = 50;
     v = Math.max(0, Math.min(100, v));
     var z = intentZone(v);
+    // L'échelle est 0-100 PAR CONTRAT (les zones en dépendent) ; seul le PAS se déclare —
+    // un moteur à paliers discrets (anonymizer : 5 réels) dit ainsi la vérité du curseur.
+    var step = parseInt(p.step, 10) || 1;
     return '<div class="wama-intent">' +
       '<div class="d-flex align-items-center gap-2">' +
-      '<input type="range" class="form-range wama-intent-slider" min="0" max="100" step="1"' +
+      '<input type="range" class="form-range wama-intent-slider" min="0" max="100" step="' + step + '"' +
       ' id="' + api.id + '" ' + api.idAttr + ' value="' + v + '"' +
       ' style="accent-color:' + z.color + '"' +
       ' aria-label="' + esc(p.label || 'Rapide ou qualité') + '">' +

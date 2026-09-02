@@ -10200,3 +10200,37 @@ faible`, à câbler avec `WAMA_APPRENTISSAGE §A2-A4` et le mécanisme `bench`.
 100→lourd — la réponse mécanique à l'objection) · corpus manifestes à jour (2 réécrits) ·
 smoke : 50→Kokoro · 5→Kokoro (vert) · 95→Higgs (rouge), 0 erreur JS
 (`logs/ui_smoke/synthesizer_intent_slider.png`).
+
+
+## §PALIER — 2026-09-02 (soir), « RALLIEMENT ANONYMIZER + CONVERTER PRÊT À CÂBLER » — ✅ LIVRÉ
+
+> Question Fabien : « qu'est-ce qui empêche de préparer le ralliement converter/anonymizer ? »
+> Réponse : rien pour l'anonymizer (périmètre LIBRE — fait), et pour le converter tout ce qui
+> ne touche pas ses 5 fichiers occupés (fait aussi : le commun est complet, le geste restant
+> est consigné pas à pas — `ROUTE §F4b §Converter : PRÊT À CÂBLER`).
+
+**Anonymizer RALLIÉ** : `precision_level` passe au curseur commun `type='intent'` — même
+forme partout (zones Rapide/Équilibré/Qualité tricolores), déclinaison locale INTACTE
+(`get_model_size_from_precision` n/s/m/l/x + seuil 50 de segmentation), champ conservé
+(frontière des données). Trois spécificités PRÉSERVÉES en le faisant : `step=5` (5 paliers
+moteur réels, leçon du 19/08 — le renderer et le partial honorent désormais un pas déclaré),
+`setting-button` (auto-persistance du volet — le partial prend `extra_class`), et le
+dispatch programmatique de right_panel.js passé en `bubbles:true` (la liaison DÉLÉGUÉE au
+document ne voyait pas un input non bullant). Les 5 libellés anglais locaux
+(Quick/Balanced…) disparaissent — l'uniformisation demandée. Validé À L'ÉCRAN
+(`logs/ui_smoke/anonymizer_intent_slider.png` : 50·Équilibré → 90·Qualité rouge, 0 erreur JS).
+
+**Contrôles** : suite complète OK (skipped=4) · check_templates 0/132 · corpus manifestes à
+jour (anonymizer réécrit) · +1 test de garde (`test_l_anonymizer_est_rallie…` : type intent
+ET pas=5).
+
+**Consigné au passage (signalement de l'autre session, assumé sans agir)** : sur le chemin
+converter→enhancer, `upscale_image_file` ouvre/ferme sa session ONNX à CHAQUE appel et le
+lot converter = une tâche Celery par item — « un lot = un chargement » non tenu là. Coût
+modéré (ONNX fp16) ; à traiter avec le ralliement converter (même palier, mêmes fichiers).
+
+**Note d'infra (2ᵉ occurrence)** : le master gunicorn a encore été REMPLACÉ en cours de
+session (72468→99134 à 18:23, comme 9387→72468 à 15:58) sans geste de cette instance — un
+`kill -HUP <pid noté>` échoue alors sur pid disparu. Cause non élucidée (relance externe ?
+crash silencieux du master ?) — vérifier l'ÂGE du master avant tout reload, et comparer
+l'âge des workers au mtime des sources avant de conclure quoi que ce soit d'un symptôme.
