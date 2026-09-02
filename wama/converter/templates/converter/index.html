@@ -68,11 +68,14 @@ l'inspection d'une card (hideOnInspect) au profit du host schéma en fin de bloc
     </div>
 </div>
 
-<!-- Profil de conversion -->
+{% comment %}SECTION Profil DÉDIÉE (constat Fabien 02/09 : « le profil est inclus dans
+les paramètres — une section pour ne pas mélanger les 2 : l'utilisateur sélectionne un
+profil dans SA section, les paramètres apparaissent dans la section paramètres »).{% endcomment %}
+<hr class="border-secondary my-2">
 <div class="mb-2" id="converterProfileBlock">
-    <label class="form-label small fw-bold text-light mb-1">
-        <i class="fas fa-bookmark"></i> Profil de conversion
-    </label>
+    <div class="small fw-bold text-info text-uppercase mb-1" style="letter-spacing:.04em">
+        <i class="fas fa-bookmark"></i> Profil
+    </div>
     <div class="input-group input-group-sm">
         <select id="converterProfileSelect" class="form-select form-select-sm">
             <option value="">— aucun profil —</option>
@@ -99,6 +102,10 @@ neutre de rotation (schéma `""`, page `"0"`). Ils sont désormais RENDUS du sch
 l'hôte unique `#converterPanelParams` ci-dessous — le `media_type` détecté y pilote les
 `show_if`, exactement comme dans la modale. Restent ici les trois affordances qui ne sont
 PAS des paramètres : le type détecté, le profil, et la remise à zéro.{% endcomment %}
+<hr class="border-secondary my-2">
+<div class="small fw-bold text-info text-uppercase mb-1" style="letter-spacing:.04em">
+    <i class="fas fa-sliders"></i> Paramètres
+</div>
 </div>{# /converterUploadDefaults — composition (masquée pendant l'inspection) #}
 
 {% comment %}Hôte UNIQUE du schéma, à TROIS moments (motif validé sur la jumelle) : hors
@@ -189,7 +196,10 @@ Actions de l'inspecteur ne s'affichait jamais pour converter (aucune erreur cons
 
 <!-- Modal réglages batch (format + qualité communs) -->
 <div class="modal fade" id="batchSettingsModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
+    {% comment %}modal-lg depuis le 02/09 (constat Fabien : « extrêmement fine, paramètres
+    tassés, texte à la ligne à chaque mot ») — la coquille modal-sm datait des 2 selects
+    d'origine ; la modale porte maintenant les réglages de la nature en 2 colonnes.{% endcomment %}
+    <div class="modal-dialog modal-lg">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title"><i class="fas fa-layer-group" style="color:#20c997;"></i>
