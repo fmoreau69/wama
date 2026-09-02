@@ -197,24 +197,32 @@ def render_index(manifest: dict) -> tuple:
     # commun (comme `formats` ici), jamais écrire un resolver dans l'app ou dans ce gabarit.
     # (schéma primaire : calculé plus haut. Les options dynamiques sont résolues par le
     # MOTEUR depuis le registre commun — le gabarit n'en émet aucune fonction.)
-    # La card porte un `data-param-*` pour CHAQUE champ du schéma (pas seulement les colonnes) :
-    # les valeurs hors-colonnes sont aplaties sur l'instance par `_decorer` (idiome
-    # params_storage dérivé, views_gen) — c'est ce qui remplit le volet PARAMÈTRES et pré-remplit
-    # la modale avec les MÊMES valeurs que celles que `update` écrit (constats Fabien 31/08).
+    # La card porte un data-* pour CHAQUE champ du schéma (pas seulement les colonnes) : les
+    # valeurs hors-colonnes sont aplaties sur l'instance par `_decorer` (idiome params_storage
+    # dérivé, views_gen) — c'est ce qui remplit le volet PARAMÈTRES et pré-remplit la modale
+    # avec les MÊMES valeurs que celles que `update` écrit (constats Fabien 31/08).
+    # ⚠ GRAPHIE = LE CONTRAT DU PARC (`card_gear`, 01/09) : `data-<champ-à-tirets>` →
+    # `dataset.<camelCase>`, ce que le lecteur commun (`WamaInspector.gearValues`, cardSettings
+    # par défaut d'initFromSchema) lit. L'ancien idiome `data-param-<champ>` était un
+    # VOCABULAIRE PRIVÉ du générateur : son propre ouvreur de modale le relisait, mais le
+    # cardSettings dérivé (volet) et `sharedGearValues` (modale de lot) cherchaient la graphie
+    # du contrat et ne trouvaient RIEN — deux moitiés d'une paire qui ne se parlaient plus
+    # (constaté le 02/09 : intersection des filles toujours vide).
     noms_schema = [str(p.get('name')) for p in schema_primaire
                    if isinstance(p, dict) and p.get('name')]
     champs_card = list(dict.fromkeys([*champs_params, *noms_schema]))
 
     params_js = ''
     if route_update and champs_params:
-        lect = '\n'.join(f"                v['{c}'] = card.getAttribute('data-param-{c}') || '';"
-                         for c in champs_card)
+        lect = '\n'.join(
+            f"                v['{c}'] = card.getAttribute('data-{c.replace('_', '-')}') || '';"
+            for c in champs_card)
         params_js = f'''
     if (window.WamaQueueActions && window.WamaParams) {{
         WamaQueueActions.onSettings(function (id, btn) {{
             var card = btn.closest('.wama-card[data-id]');
-            // Valeurs courantes lues sur la CARD (`data-param-*`) : pas de route de lecture
-            // conventionnelle à inventer, et la card les porte déjà pour l'inspecteur.
+            // Valeurs courantes lues sur la CARD (graphie du contrat card_gear, à tirets) :
+            // pas de route de lecture à inventer, la card les porte déjà pour l'inspecteur.
             var v = {{}};
             if (card) {{
 {lect}
@@ -237,10 +245,15 @@ def render_index(manifest: dict) -> tuple:
     # attend un OUVREUR déclaré par l'app (`onBatchSettings`) ; sans émission, le clic
     # n'aboutissait qu'à un `console.warn` — « la modale du batch ne s'affiche pas »
     # (constat Fabien 31/08). Même orchestration commune que l'élément, contexte 'batch'
-    # (seuls les params déclarant ce contexte se rendent — préréglage, format). Valeurs
-    # VIDES à l'ouverture : un lot ne stocke pas ses réglages, il les APPLIQUE à ses
-    # éléments (batch_update, RUNNING exclus). `formats` s'y résout par l'UNION des
-    # familles (le registre commun, sans media_type) — un lot n'expose pas sa nature ici.
+    # (seuls les params déclarant ce contexte se rendent — préréglage, format).
+    # Valeurs à l'ouverture = les PARTAGÉES des filles (2026-09-02, constat Fabien : la
+    # modale s'ouvrait toujours sur « — inchangé — », comme si les réglages sauvés étaient
+    # perdus — or un lot ne stocke rien, il APPLIQUE à ses éléments : le pré-remplissage
+    # juste est la sémantique de la carte MÈRE — valeur si partagée par toutes les filles,
+    # lue du MÊME lecteur de gear que la modale d'item, `WamaInspector.sharedGearValues`).
+    # « inchangé » ne reste affiché que là où les filles DIVERGENT réellement.
+    # `formats` s'y résout par l'UNION des familles (le registre commun, sans media_type)
+    # — un lot n'expose pas sa nature ici.
     route_batch_update = resolve_route('batch_update', noms_routes)
     a_params_batch = any('batch' in (p.get('contexts') or [])
                          for p in schema_primaire if isinstance(p, dict))
@@ -249,13 +262,17 @@ def render_index(manifest: dict) -> tuple:
         batch_js = f'''
     if (window.WamaQueueActions && window.WamaParams) {{
         WamaQueueActions.onBatchSettings(function (bid) {{
+            var groupe = document.querySelector('.batch-group[data-batch-id="' + bid + '"]');
+            var partagees = (groupe && window.WamaInspector && WamaInspector.sharedGearValues)
+                ? WamaInspector.sharedGearValues(groupe, ({{{{ params_json|safe }}}}).map(function (p) {{ return p.name; }}))
+                : {{}};
             WamaParams.settingsModal({{
                 id: 'Batch' + bid,
                 title: 'Paramètres du lot #' + bid,
                 titleIcon: 'fa-layer-group',
                 schema: {{{{ params_json|safe }}}},
                 context: 'batch',
-                values: {{}},
+                values: partagees,
                 saveUrl: urlFor(U.batch_update, bid),
                 csrf: CSRF,
                 onSaved: function () {{ location.reload(); }},
@@ -560,11 +577,15 @@ document.addEventListener('DOMContentLoaded', function () {{
     # module : le commentaire qui vivait ici annonçait « actions conventionnelles inertes »
     # alors que la card n'en rendait AUCUNE. Un trou décrit comme comblé est un trou qu'on
     # cesse de chercher.
-    # Valeurs courantes des `params_fields` PORTÉES par la card (`data-param-<champ>`) : la
-    # modale les lit sans route de lecture supplémentaire. C'est le même choix que
-    # `data-status` pour `autoSync` — la card est auto-suffisante (formalisme CARD_DESIGN).
-    attrs_params = ''.join(f''' data-param-{c}="{{{{ item.{c}|default:'' }}}}"'''
-                           for c in champs_card)
+    # Valeurs courantes des `params_fields` PORTÉES par la card, en graphie DU CONTRAT
+    # (`card_gear` : `data-<champ-à-tirets>` → `dataset.<camelCase>`) : la modale, le volet
+    # (cardSettings dérivé) et la modale de LOT (`sharedGearValues`) les lisent sans route de
+    # lecture supplémentaire. C'est le même choix que `data-status` pour `autoSync` — la card
+    # est auto-suffisante (CARD_DESIGN). ⚠ Ne pas revenir à un préfixe (`data-param-*`) : ce
+    # vocabulaire privé rendait la card ILLISIBLE aux lecteurs communs (02/09).
+    attrs_params = ''.join(
+        f''' data-{c.replace('_', '-')}="{{{{ item.{c}|default:'' }}}}"'''
+        for c in champs_card)
 
     # Routes de card LUES au manifeste (jamais supposées — leçon `stop` vs `cancel`).
     route_download = resolve_route('download', noms_routes)
