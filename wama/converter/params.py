@@ -84,10 +84,17 @@ PARAMS = [
     Param(name="quality", type="range", label="Qualité", icon="fa-gauge",
           min=1, max=100, step=1, default=85, show_if=IMG, contexts=ITEM, chip=True,
           help="Qualité d'encodage de l'image (1–100)."),
+    # ⚠ Le « verrou de proportion » EXISTE déjà, implicitement (image_backend:44) : une seule
+    # dimension posée → l'autre suit le RATIO de la source. Le help le dit désormais — il
+    # affichait « 0 = inchangé », vrai seulement quand les DEUX sont vides. La refonte de
+    # présentation (mode %/px, slider relatif, renvoi aux unités du profil) est consignée
+    # ROADMAP §23.4 (question Fabien 02/09) — à dessiner avec la card v4, pas champ par champ.
     Param(name="resize_w", type="number", label="Largeur (px)", icon="fa-arrows-left-right",
-          min=0, show_if=IMG, contexts=ITEM_BATCH, help="0 = inchangé."),
+          min=0, show_if=IMG, contexts=ITEM_BATCH,
+          help="Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé."),
     Param(name="resize_h", type="number", label="Hauteur (px)", icon="fa-arrows-up-down",
-          min=0, show_if=IMG, contexts=ITEM_BATCH, help="0 = inchangé."),
+          min=0, show_if=IMG, contexts=ITEM_BATCH,
+          help="Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé."),
 
     # ── Transformations (image OU vidéo) ──────────────────────────────────────
     # Neutre = "" (et plus "0") : un chip ne se rend que pour une valeur POSÉE — avec "0",
