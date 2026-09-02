@@ -65,6 +65,20 @@ from dataclasses import dataclass
 LOCAL = 'local'
 OUTBOUND = 'outbound'
 
+#: TYPES de source — ce à quoi elle SERT. Jusqu'au 2026-09-02 cette famille n'existait que
+#: dans les commentaires de séparation de `SOURCES` (« Services locaux », « Bancs de
+#: performance »…) : la page ne pouvait donc filtrer que par PORTÉE (locale/sortante), un axe
+#: technique qui ne dit rien de l'usage. Une famille lisible uniquement dans le code est une
+#: facette perdue pour l'écran. Clé = valeur de `data-f-type` ; libellé = option du select.
+KINDS = {
+    'service':   'Service local',
+    'catalogue': 'Catalogue de modèles',
+    'banc':      'Banc de performance',
+    'poids':     'Outillage et poids',
+    'audit':     'Audit de sécurité',
+    'recherche': 'Recherche web',
+}
+
 
 @dataclass(frozen=True)
 class ExternalSource:
@@ -77,6 +91,8 @@ class ExternalSource:
     base: str
     #: Une ligne : à quoi elle sert dans WAMA.
     usage: str
+    #: Clé de `KINDS` — la famille d'USAGE (facette « Type » de la page).
+    kind: str = 'poids'
     #: `LOCAL` ou `OUTBOUND` — décide du traitement du proxy, jamais laissé à l'appelant.
     scope: str = OUTBOUND
     #: Réglage Django qui surcharge `base` (prioritaire sur `env`).
@@ -97,65 +113,86 @@ SOURCES: tuple[ExternalSource, ...] = (
     ExternalSource(
         'ollama', 'Ollama (hôte)', 'http://127.0.0.1:11434',
         "Moteur LLM local — assistant, describer, reader, prospection de modèles",
-        scope=LOCAL, setting='OLLAMA_HOST', env='OLLAMA_HOST',
+        kind='service', scope=LOCAL, setting='OLLAMA_HOST', env='OLLAMA_HOST',
         doc='INFRA_WSL_VS_WINDOWS.md'),
     ExternalSource(
         'tts_service', 'Service TTS WAMA', 'http://localhost:8001',
         "Vocalisation hors du process web (évite de charger un modèle dans gunicorn)",
-        scope=LOCAL, setting='TTS_SERVICE_URL', env='TTS_SERVICE_URL'),
+        kind='service', scope=LOCAL, setting='TTS_SERVICE_URL', env='TTS_SERVICE_URL'),
     ExternalSource(
         'wama_self', 'WAMA (cette instance)', 'http://127.0.0.1:8000',
         "WAMA s'interroge lui-même : smoke navigateur, matrice de droits",
-        scope=LOCAL, env='WAMA_UI_SMOKE_BASE'),
+        kind='service', scope=LOCAL, env='WAMA_UI_SMOKE_BASE'),
 
     # ── Catalogues de modèles ───────────────────────────────────────────────────────────
     ExternalSource(
         'ollama_site', 'ollama.com', 'https://ollama.com',
-        "Pages publiques du catalogue Ollama — prospection (HTML scrapé)"),
+        "Pages publiques du catalogue Ollama — prospection (HTML scrapé)", kind='catalogue'),
     ExternalSource(
         'ollama_registry', "Registre d'images Ollama", 'https://registry.ollama.ai',
-        "Manifestes et digests des tags Ollama — désambiguïse une variante par son ARTEFACT"),
+        "Manifestes et digests des tags Ollama — désambiguïse une variante par son ARTEFACT",
+        kind='catalogue'),
     ExternalSource(
         'huggingface', 'HuggingFace Hub', 'https://huggingface.co',
-        "Poids, datasets et fiches de modèles — source principale du parc"),
+        "Poids, datasets et fiches de modèles — source principale du parc", kind='catalogue'),
     ExternalSource(
         'roboflow', 'Roboflow Universe', 'https://universe.roboflow.com',
-        "Fiches de modèles de vision (référence de plateforme, pas de téléchargement)"),
+        "Fiches de modèles de vision (référence de plateforme, pas de téléchargement)",
+        kind='catalogue'),
 
     # ── Bancs de performance (cf. `benchmark_sync`) ──────────────────────────────────────
     ExternalSource(
         'artificial_analysis', 'Artificial Analysis', 'https://artificialanalysis.ai/api/v2',
         "Indices de performance tiers par modalité — API JSON authentifiée",
-        api_key_env='ARTIFICIAL_ANALYSIS_API_KEY',
+        kind='banc', api_key_env='ARTIFICIAL_ANALYSIS_API_KEY',
         attribution='Artificial Analysis',
         doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
     ExternalSource(
         'arena', 'LMArena (leaderboard-dataset)', 'https://huggingface.co',
         "Scores Elo par préférence humaine — parquet publié sur le Hub",
-        attribution='Arena (leaderboard-dataset, CC-BY-4.0)',
+        kind='banc', attribution='Arena (leaderboard-dataset, CC-BY-4.0)',
+        doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
+    # 2026-09-02 : 3ᵉ banc, le premier hors génération — la TRANSCRIPTION (WER, plus bas =
+    # mieux). Choisi parce que ses résultats sont des CSV publics sur le Hub, avec un fichier
+    # PAR LANGUE (dont le français — le seul banc tiers qui mesure ce que le transcriber fait
+    # ici). ⚠ La licence des CSV de résultats n'est pas énoncée par le dépôt (les corpus
+    # sous-jacents vont de CC0 à CC-BY-NC-ND) : on cite la source, on ne redistribue rien.
+    ExternalSource(
+        'open_asr', 'Open ASR Leaderboard (Hugging Face)', 'https://huggingface.co',
+        "WER par modèle de transcription (anglais + français) — CSV publiés sur le Hub",
+        kind='banc', attribution='Open ASR Leaderboard (Hugging Face, hf-audio)',
         doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
 
     # ── Outillage et poids ──────────────────────────────────────────────────────────────
     ExternalSource(
         'github', 'GitHub', 'https://github.com',
-        "Poids et échantillons publiés en releases (ultralytics, coqui…)"),
+        "Poids et échantillons publiés en releases (ultralytics, coqui…)", kind='poids'),
     ExternalSource(
         'github_api', 'API GitHub', 'https://api.github.com',
-        "Liste des releases — résolution de la version d'un poids"),
+        "Liste des releases — résolution de la version d'un poids", kind='poids'),
     ExternalSource(
         'pytorch_download', 'download.pytorch.org', 'https://download.pytorch.org',
-        "Roues PyTorch/CUDA — installation de dépendances de modèles"),
+        "Roues PyTorch/CUDA — installation de dépendances de modèles", kind='poids'),
     ExternalSource(
         'osv', 'OSV (Open Source Vulnerabilities)', 'https://api.osv.dev/v1',
         "Audit de vulnérabilités des dépendances (contrôle nocturne)",
-        doc='PROJECT_STATUS.md'),
+        kind='audit', doc='PROJECT_STATUS.md'),
     ExternalSource(
         'duckduckgo', 'DuckDuckGo (HTML)', 'https://html.duckduckgo.com/html/',
-        "Recherche web de l'assistant — point d'entrée sans clé"),
+        "Recherche web de l'assistant — point d'entrée sans clé", kind='recherche'),
 )
 
 #: Le dataset Arena, nommé une fois (ce n'est pas une URL : un identifiant de dataset du Hub).
 ARENA_DATASET = 'lmarena-ai/leaderboard-dataset'
+
+#: Les datasets de RÉSULTATS de l'Open ASR Leaderboard, nommés une fois — même nature que
+#: `ARENA_DATASET`. Le Space lit ces CSV par `snapshot_download` (vérifié dans son `init.py`
+#: le 2026-09-02) ; les noms de fichier sont ceux qu'il consomme. Clé = jeu (celle que
+#: `benchmark_sync.CATEGORIES` cite), valeur = (dépôt, fichier).
+OPEN_ASR_DATASETS = {
+    'english_short': ('hf-audio/open-asr-leaderboard-results', 'english_short_latest.csv'),
+    'multilingual_fr': ('hf-audio/multilingual_evals', 'multilingual_fr.csv'),
+}
 
 
 def by_key() -> dict[str, ExternalSource]:
@@ -291,8 +328,8 @@ def report_path():
 def probe_all(write: bool = False) -> dict:
     """Sonde TOUTES les sources déclarées, et écrit le rapport si demandé.
 
-    Tourne en Celery (nature `mesure` du registre `sources_externes`) : quatorze requêtes
-    réseau, même courtes, n'ont rien à faire dans un worker web.
+    Tourne en Celery (nature `mesure` du registre `sources_externes`) : une quinzaine de
+    requêtes réseau, même courtes, n'ont rien à faire dans un worker web.
     """
     import datetime
     import json

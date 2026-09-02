@@ -17,11 +17,23 @@ DEUX SOURCES GRATUITES, CONFRONTÉES :
   • Arena (ex-LMArena) — dataset HF officiel `lmarena-ai/leaderboard-dataset`
     (**CC-BY-4.0** : gratuit, attribution tracée en meta), parquet `latest` par modalité.
     Valeur retenue quand AA manque ; sinon CONFRONTATION (inversion d'ordre = signalée).
+    Depuis le 2026-09-02, ses sous-ensembles `vision` (VLM) et `document` sont lus aussi :
+    ils étaient téléchargeables par le MÊME chargeur et personne ne les demandait.
+
+UNE TROISIÈME, HORS GÉNÉRATION (2026-09-02) :
+  • Open ASR Leaderboard (Hugging Face, `hf-audio`) — CSV de résultats publiés sur le Hub,
+    un fichier par langue. WER moyen : **plus bas = mieux** (`sens='bas'` dans la
+    déclaration de source — cf. `SOURCES`). Le français est le banc PRINCIPAL du transcriber
+    (c'est ce qu'il transcrit ici), l'anglais le secondaire. Aucun autre banc tiers lisible
+    par machine ne couvre l'ASR (relevé du 02/09 : AA n'expose pas cette modalité en API).
 
 RÈGLE DES ÉCHELLES (héritée de `_rank_key`, étendue) : Intelligence Index (~0-70) et Elo
 (~1000-1500) sont INCOMMENSURABLES — `benchmark_meta['echelle']` nomme l'échelle de chaque
 valeur, et le tri ne compare que des lots à échelle UNIQUE. On ne normalise jamais (une
-normalisation inventerait une équivalence que personne n'a mesurée).
+normalisation inventerait une équivalence que personne n'a mesurée). Une échelle porte
+aussi son SENS (`benchmark_meta['sens']`, 'haut' par défaut, 'bas' pour un taux d'erreur) :
+ordonner un lot de WER par valeur décroissante mettrait le pire en tête — `valeur_ordonnable`
+est le seul point où un consommateur doit lire une valeur pour TRIER.
 
 GARDE-FOUS :
   • Null plutôt que plausible : non apparié → NULL. Appariement CONSERVATEUR (famille+version
@@ -46,19 +58,28 @@ logger = logging.getLogger(__name__)
 #: Adresses et clé déclarées au registre COMMUN des sources externes (2026-09-01). `SOURCES`
 #: plus bas reste le registre des BANCS — il dit comment LIRE une valeur (priorité, échelle,
 #: méta) ; il ne dit plus où joindre la plateforme. Deux registres, deux questions.
-from wama.common.external_sources import ARENA_DATASET, get as _source  # noqa: F401
+from wama.common.external_sources import (ARENA_DATASET, OPEN_ASR_DATASETS,  # noqa: F401
+                                          get as _source)
 from wama.common.external_sources import base_url as _base_url
 
 AA_BASE = _base_url('artificial_analysis')
 AA_KEY_ENV = _source('artificial_analysis').api_key_env
 
-#: Catégorie → (endpoint AA, extracteur de score AA, échelle AA, sous-ensemble Arena).
-#: DÉCLARATIF : ajouter une modalité = une ligne. Un endpoint AA absent/403 (tier) ou un
-#: parquet manquant SKIPPE la (source, catégorie) avec motif — jamais un rouge global.
+#: Catégorie → (endpoint AA, extracteur de score AA, échelle AA, sous-ensemble Arena, jeu
+#: Open ASR). DÉCLARATIF : ajouter une modalité = une ligne ; une source qui ne couvre pas
+#: la catégorie n'y déclare rien (clé absente ou None) et son chargeur la SAUTE. Un endpoint
+#: AA absent/403 (tier) ou un parquet manquant SKIPPE la (source, catégorie) avec motif —
+#: jamais un rouge global.
 CATEGORIES = {
+    # `taille_stricte` : la taille (milliards de paramètres) est EXIGÉE symétrique — cf.
+    # `_compatibles`. Vrai pour les bancs de la famille LLM, où les entrées tierces publient
+    # leur taille : sans elle, une identité locale SANS taille (dérivée du nom) apparie la
+    # première variante venue. Mesuré le 02/09 à la première lecture de l'arène `vision` :
+    # `gemma4:12b` prenait l'Elo de `gemma-4-31b`. Faux pour les modalités média (les
+    # modèles image/vidéo ne publient pas de taille) et l'ASR (`whisper-large-v3` non plus).
     'llm': {
         'aa': 'data/llms/models', 'aa_champ': 'artificial_analysis_intelligence_index',
-        'aa_echelle': 'aa_intelligence_index', 'arena': 'text',
+        'aa_echelle': 'aa_intelligence_index', 'arena': 'text', 'taille_stricte': True,
     },
     'text-to-image': {
         'aa': 'data/media/text-to-image', 'aa_champ': 'elo',
@@ -80,11 +101,31 @@ CATEGORIES = {
         'aa': 'data/media/image-to-video', 'aa_champ': 'elo',
         'aa_echelle': 'aa_elo_image_to_video', 'arena': 'image_to_video',
     },
+    # ── 2026-09-02 : les sous-ensembles Arena que le chargeur savait déjà lire ──────────
+    # `vision` = arène multimodale (image + prompt) : le banc des VLM — et des LLM à
+    # capacité `vision` (gemma4, qwen3.8 : Arena y classe `qwen3.8-27b`, `gemma-4-31b`).
+    # AA n'a pas d'endpoint équivalent (son leaderboard LLM absorbe MiniCPM-V).
+    'vision': {'arena': 'vision', 'taille_stricte': True},
+    # `document` = arène de lecture de documents. Le seul banc tiers lisible par machine
+    # qui touche à l'OCR ; ses entrées sont des LLM frontière — nos moteurs OCR (docTR,
+    # olmOCR…) n'y figurent pas AUJOURD'HUI. La catégorie est déclarée pour que la ligne
+    # sorte de « hors catégorie » et dise « sans banc » : c'est une information, pas un
+    # score. Null plutôt que plausible.
+    'document': {'arena': 'document', 'taille_stricte': True},
+    # ── 2026-09-02 : la transcription, première catégorie HORS génération ───────────────
+    # Deux bancs pour un métier : le FRANÇAIS d'abord (macro-moyenne des WER FLEURS / MCV /
+    # MLS du fichier par langue — c'est ce que le transcriber fait ici), l'anglais ensuite
+    # (colonne `avg` du leaderboard principal, population plus large). Un modèle mesuré sur
+    # les deux porte les deux bancs (`bancs`), l'index vient du principal apparié.
+    'speech-to-text-fr': {'open_asr': 'multilingual_fr', 'open_asr_valeur': None},
+    'speech-to-text': {'open_asr': 'english_short', 'open_asr_valeur': 'avg'},
 }
 
-#: Tâche canonique du catalogue (`capabilities.task` / `ModelTask`) → catégorie de benchmark.
-#: Indexé sur la TÂCHE, jamais sur l'app (règle des bancs). Tâche absente → 'llm' si le
-#: modèle est un LLM Ollama, sinon PAS de catégorie (donc pas d'appariement).
+#: Tâche canonique du catalogue (`capabilities.task` / `ModelTask`) → catégorie(s) de
+#: benchmark. Indexé sur la TÂCHE, jamais sur l'app (règle des bancs). Tâche absente → 'llm'
+#: si le modèle est un LLM Ollama, sinon PAS de catégorie (donc pas d'appariement).
+#: Une valeur peut être un TUPLE quand une même tâche a plusieurs bancs (transcription :
+#: français puis anglais) — l'ordre est celui des métiers, le premier apparié porte l'index.
 TACHE_VERS_CATEGORIE = {
     'text-generation': 'llm',
     'text-to-image': 'text-to-image',
@@ -93,6 +134,9 @@ TACHE_VERS_CATEGORIE = {
     'text-to-speech': 'text-to-speech',
     'text-to-video': 'text-to-video',
     'image-to-video': 'image-to-video',
+    'captioning': 'vision',
+    'ocr': 'document',
+    'transcription': ('speech-to-text-fr', 'speech-to-text'),
 }
 
 #: Équivalences CONFIRMÉES À LA MAIN : model_key local → slug/nom EXACT chez le tiers.
@@ -175,7 +219,7 @@ def _words(texte: str) -> set:
     return {j for j in re.split(r'[^a-z]+', (texte or '').lower()) if len(j) >= 2}
 
 
-def _choose_variant(nom_local: str, candidats: list, cle):
+def _choose_variant(nom_local: str, candidats: list, cle, sens: str = 'haut'):
     """
     LA variante qui correspond au modèle local parmi des candidats déjà compatibles.
 
@@ -190,20 +234,22 @@ def _choose_variant(nom_local: str, candidats: list, cle):
 
     Départage : (1) mots COMMUNS avec le nom local (« coder » ↔ « Coder ») ; (2) à égalité,
     moins de mots ÉTRANGERS (« Omni », « Kontext » absents du nom local) ; (3) similarité de
-    chaîne ; (4) en dernier recours la valeur la PLUS BASSE — conservateur, cohérent avec la
-    règle « null plutôt que plausible » du module.
+    chaîne ; (4) en dernier recours la valeur la PIRE — conservateur, cohérent avec la
+    règle « null plutôt que plausible » du module. « Pire » dépend du SENS de l'échelle :
+    la plus basse pour un score, la plus HAUTE pour un taux d'erreur (`sens='bas'`).
     """
     from difflib import SequenceMatcher
     if len(candidats) == 1:
         return candidats[0]
     plat = re.sub(r'[^a-z0-9]+', ' ', (nom_local or '').lower())
     mots_local = _words(nom_local)
+    signe = 1.0 if sens == 'bas' else -1.0
 
     def rang(e):
         nom = re.sub(r'[^a-z0-9]+', ' ', (e.get('nom') or '').lower())
         mots = _words(e.get('nom'))
         return (len(mots_local & mots), -len(mots - mots_local),
-                SequenceMatcher(None, plat, nom).ratio(), -float(cle(e) or 0))
+                SequenceMatcher(None, plat, nom).ratio(), signe * float(cle(e) or 0))
 
     return max(candidats, key=rang)
 
@@ -325,6 +371,8 @@ def charger_aa():
             f"clé absente ({AA_KEY_ENV} dans .env — gratuite : artificialanalysis.ai/data-api)")
     par_cat, motifs = {}, {}
     for cat, spec in CATEGORIES.items():
+        if not spec.get('aa'):
+            continue        # AA ne couvre pas cette catégorie : ni requête, ni motif
         try:
             data = _http_json(f"{AA_BASE}/{spec['aa']}", headers={'x-api-key': cle})
         except Exception as e:
@@ -402,6 +450,72 @@ def charger_arena():
     return par_cat, motifs
 
 
+def charger_open_asr():
+    """
+    {'categorie': [{'nom','slug','wer','identite','rtfx','licence','taille_b','jeux'}]}
+    depuis les CSV de résultats de l'Open ASR Leaderboard (Hub, `OPEN_ASR_DATASETS`).
+
+    Forme RÉELLE des fichiers (sondée le 2026-09-02, pas supposée) :
+      • `english_short_latest.csv` : `model`, `avg` (WER moyen), `RTFx`, `License`,
+        `Size (B)`, puis un couple `<jeu> WER` / `<jeu> RTFx` par corpus ;
+      • `multilingual_fr.csv` : `model`, `RTFx`, `FLEURS WER`, `MCV WER`, `MLS WER` — PAS de
+        moyenne publiée : on la calcule (macro-moyenne des colonnes `* WER` présentes) et on
+        garde chaque jeu en meta pour que la valeur reste RETRAÇABLE.
+    `open_asr_valeur` (CATEGORIES) nomme la colonne de valeur ; None = moyenne calculée.
+
+    Identité : le dernier segment de `org/modele` (comme le `slug` AA). `Qwen3-ASR-1.7B-hf`
+    → ('qwen', (3,), 1.7) — le suffixe `-hf` est un mot ÉTRANGER que `_choose_variant`
+    pénalise, pas une identité différente. `parakeet-tdt-0.6b-v2` n'a pas d'identité lisible
+    (version après la taille) : sauté, comme toute entrée sans identité — null plutôt que
+    plausible.
+    """
+    try:
+        from huggingface_hub import hf_hub_download
+        import pandas as pd
+    except ImportError as e:
+        raise SourceIndisponible(f'outillage absent ({e})')
+    par_cat, motifs = {}, {}
+    for cat, spec in CATEGORIES.items():
+        jeu = spec.get('open_asr')
+        if not jeu:
+            continue
+        depot, fichier = OPEN_ASR_DATASETS[jeu]
+        try:
+            df = pd.read_csv(hf_hub_download(depot, fichier, repo_type='dataset'))
+        except Exception as e:
+            motifs[cat] = f'CSV {jeu} indisponible : {e}'
+            continue
+        col_modele = 'model' if 'model' in df.columns else 'model_id'
+        col_valeur = spec.get('open_asr_valeur')
+        cols_wer = [c for c in df.columns if c.endswith(' WER')]
+        out = []
+        for _, r in df.iterrows():
+            nom = str(r.get(col_modele) or '').strip()
+            if col_valeur:
+                v = r.get(col_valeur)
+            else:
+                vals = [float(r[c]) for c in cols_wer if pd.notna(r.get(c))]
+                v = sum(vals) / len(vals) if vals else None
+            ident = _identity(nom.rsplit('/', 1)[-1])
+            if nom == '' or v is None or pd.isna(v) or ident is None:
+                continue
+            jeux = {c[:-len(' WER')]: float(r[c]) for c in cols_wer if pd.notna(r.get(c))}
+            taille = r.get('Size (B)')
+            rtfx = r.get('RTFx')
+            out.append({'nom': nom, 'slug': nom, 'wer': round(float(v), 3), 'identite': ident,
+                        'rtfx': float(rtfx) if pd.notna(rtfx) and float(rtfx) > 0 else None,
+                        'licence': str(r['License']) if 'License' in df.columns and pd.notna(r.get('License')) else '',
+                        'taille_b': float(taille) if pd.notna(taille) else None,
+                        'jeux': jeux})
+        if out:
+            par_cat[cat] = out
+        else:
+            motifs[cat] = f'{jeu} : aucune entrée identifiable'
+    if not par_cat:
+        raise SourceIndisponible('Open ASR : ' + ' ; '.join(f'{c}: {m}' for c, m in motifs.items()))
+    return par_cat, motifs
+
+
 # ── Comparabilité (règle des échelles) ───────────────────────────────────────────────────
 
 def benchmarks_comparable(pool) -> bool:
@@ -458,12 +572,22 @@ def _categories_locales(m):
     brutes = caps.get('tasks') or ([caps['task']] if caps.get('task') else [])
     out = []
     for t in brutes:
-        cat = TACHE_VERS_CATEGORIE.get(canonical_task((t or '').strip().lower()))
-        if cat and cat not in out:
-            out.append(cat)
+        cats = TACHE_VERS_CATEGORIE.get(canonical_task((t or '').strip().lower()))
+        for cat in (cats if isinstance(cats, tuple) else (cats,)):
+            if cat and cat not in out:
+                out.append(cat)
+    ollama = m.model_key.startswith(('ollama:', 'proposed:ollama:'))
     if out:
+        # Un LLM Ollama à capacité `vision` (découverte : gemma4, qwen3.8) exerce AUSSI le
+        # métier de l'arène `vision`, en SECONDAIRE de sa tâche déclarée. Ce n'est pas la
+        # trappe « capacité d'entrée ≠ métier » du docstring (celle-là vise un VLM poussé
+        # vers texte→IMAGE) : ici le banc mesure exactement la lecture d'images annoncée.
+        # Mesuré le 02/09 : les 4 LLM installés portent `task` ET `vision`, donc cette
+        # branche — la règle écrite d'abord dans le repli plus bas ne les touchait jamais.
+        if ollama and caps.get('vision') and 'llm' in out and 'vision' not in out:
+            out.append('vision')
         return out
-    if m.model_key.startswith(('ollama:', 'proposed:ollama:')):
+    if ollama:
         # Un modèle d'EMBEDDING n'est pas un LLM de chat : quand les capacités existent
         # (découverte passée), `completion` fait foi — 1er dry-run 19/08 : bge-m3 prenait
         # un Intelligence Index. Les lignes `proposed:` n'ont PAS de caps (la découverte
@@ -474,10 +598,29 @@ def _categories_locales(m):
         # classe MiniCPM-V dans son leaderboard LLM.
         if caps and not caps.get('completion'):
             return []
-        if m.model_type not in (ModelType.LLM, ModelType.VLM):
+        if m.model_type == ModelType.VLM:
+            # Un VLM a pour banc PRINCIPAL l'arène `vision` (image + prompt) ; le banc
+            # texte reste un métier secondaire (AA y classe MiniCPM-V).
+            return ['vision', 'llm']
+        if m.model_type != ModelType.LLM:
             return []
-        return ['llm']
+        # Même règle `vision` que ci-dessus, pour un LLM sans tâche déclarée.
+        return ['llm', 'vision'] if caps.get('vision') else ['llm']
     return []
+
+
+def valeur_ordonnable(m):
+    """
+    La valeur d'un `benchmark_index` telle qu'on peut la TRIER (plus grand = meilleur), ou
+    None. Seul point de lecture pour un tri : un WER (`sens='bas'`) trié décroissant mettrait
+    le pire modèle en tête. Les consommateurs (`_rank_key`, `best_installed`) passent par ici
+    au lieu de lire `benchmark_index` — un nombre dont ils ne connaissent pas le sens.
+    """
+    v = getattr(m, 'benchmark_index', None)
+    if v is None:
+        return None
+    sens = (getattr(m, 'benchmark_meta', None) or {}).get('sens', 'haut')
+    return -v if sens == 'bas' else v
 
 
 def _local_identities(m):
@@ -530,6 +673,15 @@ def _meta_arena(retenu, candidats):
             'arena_votes': retenu['votes']}
 
 
+def _meta_open_asr(retenu, candidats):
+    d = {'open_asr_nom': retenu['nom'], 'open_asr_wer': retenu['wer'],
+         'open_asr_jeux': retenu.get('jeux') or {}}
+    for k in ('rtfx', 'licence', 'taille_b'):
+        if retenu.get(k) not in (None, ''):
+            d[f'open_asr_{k}'] = retenu[k]
+    return d
+
+
 #: LES SOURCES, DÉCLARÉES. Ajouter une plateforme = une entrée ici, plus un chargeur qui rend
 #: `{catégorie: [entrées]}`. Avant le 2026-09-01 il fallait toucher CINQ endroits : les deux
 #: chargeurs nommés, le couple codé en dur de `synchroniser`, la priorité « AA d'abord, Arena
@@ -546,6 +698,9 @@ def _meta_arena(retenu, candidats):
 #:
 #: `priorite` : le plus BAS porte `benchmark_index` quand il apparie ; les suivants n'ajoutent
 #: que leur meta. Les valeurs ne se mélangent jamais — échelles incommensurables.
+#: `sens` (défaut 'haut') : 'bas' quand une valeur plus PETITE est meilleure (taux d'erreur).
+#: Écrit dans le banc (`benchmark_meta['sens']`) et lu par `rang_centile`, `_choose_variant`
+#: et `valeur_ordonnable` — nulle part ailleurs un consommateur n'a à connaître le sens.
 SOURCES = (
     {'cle': 'aa', 'label': 'Artificial Analysis', 'priorite': 1,
      'nom_source': 'artificial-analysis', 'chargeur': lambda: charger_aa(),
@@ -557,6 +712,11 @@ SOURCES = (
      'valeur': lambda e: e.get('elo'),
      'echelle': lambda e, cat: f'arena_elo_{CATEGORIES[cat]["arena"]}',
      'meta': _meta_arena},
+    {'cle': 'open_asr', 'label': 'Open ASR Leaderboard (Hugging Face, hf-audio)', 'priorite': 3,
+     'nom_source': 'open-asr', 'chargeur': lambda: charger_open_asr(),
+     'valeur': lambda e: e.get('wer'), 'sens': 'bas',
+     'echelle': lambda e, cat: f'open_asr_wer_{CATEGORIES[cat]["open_asr"]}',
+     'meta': _meta_open_asr},
 )
 
 #: Ordre de consultation — figé une fois, pas retrié à chaque modèle.
@@ -565,9 +725,11 @@ SOURCES_PAR_PRIORITE = tuple(sorted(SOURCES, key=lambda s: s['priorite']))
 
 # ── Synchronisation ──────────────────────────────────────────────────────────────────────
 
-def rang_centile(valeur, population, cle):
+def rang_centile(valeur, population, cle, sens: str = 'haut'):
     """
     Position de `valeur` dans la population de SON banc, en centiles (0-100), ou None.
+    `sens='bas'` (taux d'erreur) : le centile compte les valeurs PLUS GRANDES — 90ᵉ centile
+    reste « meilleur que 90 % du banc », quelle que soit l'échelle.
 
     POURQUOI (demande de Fabien, 2026-09-01 : « ramener toute valeur entre 0 et 100 pour
     pouvoir comparer »). Le besoin est réel — sans lui, deux modèles mesurés par des bancs
@@ -591,7 +753,9 @@ def rang_centile(valeur, population, cle):
     valeurs = [v for v in (cle(e) for e in population) if v is not None]
     if valeur is None or not valeurs:
         return None
-    return round(100.0 * sum(1 for v in valeurs if v < valeur) / len(valeurs), 1)
+    battus = (sum(1 for v in valeurs if v > valeur) if sens == 'bas'
+              else sum(1 for v in valeurs if v < valeur))
+    return round(100.0 * battus / len(valeurs), 1)
 
 
 def _banc_pour_categorie(m, cat, alias, sources):
@@ -611,7 +775,10 @@ def _banc_pour_categorie(m, cat, alias, sources):
                  for s in SOURCES_PAR_PRIORITE}
     else:
         idents = _local_identities(m)
-        stricte = (cat == 'llm')  # cf. _compatibles : jamais une variante frontière sans taille
+        # cf. `_compatibles` : jamais une variante frontière sans taille. DÉCLARÉ par la
+        # catégorie (`taille_stricte`), plus écrit `cat == 'llm'` : l'arène `vision` est
+        # peuplée des mêmes LLM et exige la même règle (faux appariement mesuré le 02/09).
+        stricte = bool(CATEGORIES.get(cat, {}).get('taille_stricte'))
         for ident in idents:
             cands = {s['cle']: _apparier(ident, sources.get(s['cle'], {}).get(cat, []),
                                          stricte, nom_local)
@@ -629,18 +796,22 @@ def _banc_pour_categorie(m, cat, alias, sources):
         if not candidats:
             continue
         # La variante qui CORRESPOND, pas la mieux notée (cf. `_choose_variant`).
-        retenu = _choose_variant(nom_local, candidats, s['valeur'])
+        retenu = _choose_variant(nom_local, candidats, s['valeur'], s.get('sens', 'haut'))
         banc.update(s['meta'](retenu, candidats))
         if valeur is None:      # la PREMIÈRE source appariée porte l'index ; les autres non
             valeur, echelle = s['valeur'](retenu), s['echelle'](retenu, cat)
             banc['source'] = s['nom_source']
             porteuse = s
     banc['valeur'], banc['echelle'] = valeur, echelle
+    # Le SENS de l'échelle voyage avec la valeur : sans lui, un consommateur trierait un WER
+    # comme un Elo. Toujours écrit, même 'haut' — un lecteur ne teste pas sa présence.
+    banc['sens'] = porteuse.get('sens', 'haut') if porteuse else 'haut'
     # Rang dans la population du banc QUI PORTE la valeur — jamais dans un autre : un centile
     # se lit sur une seule population, sinon il redevient la comparaison inter-échelles qu'il
     # est censé remplacer.
     population = sources.get(porteuse['cle'], {}).get(cat, []) if porteuse else []
-    banc['rang_centile'] = rang_centile(valeur, population, porteuse['valeur']) if porteuse else None
+    banc['rang_centile'] = (rang_centile(valeur, population, porteuse['valeur'], banc['sens'])
+                            if porteuse else None)
     banc['population'] = len(population)
     return banc, idents
 

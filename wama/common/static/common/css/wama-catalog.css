@@ -34,6 +34,12 @@
 
 .wama-cat-grid { display: grid; gap: 12px;
                  grid-template-columns: repeat(auto-fill, minmax(var(--cat-card-min, 330px), 1fr)); }
+/* Carte SÉLECTIONNÉE (inspecteur au clic, 2026-09-02) : `highlightClass` passée à
+   `WamaInspector.init` par les pages catalogue qui inspectent. Même liseré cyan que
+   `.inspector-selected` des files, adapté au fond des cartes de catalogue. */
+.wama-cat-card.wama-cat-active { border-color: #4dd0e1; box-shadow: 0 0 0 1px #4dd0e1 inset;
+                                 background: rgba(77,208,225,.06); }
+.wama-cat-card[data-id] { cursor: pointer; }
 .wama-cat-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
                  border-radius: 10px; padding: 12px 14px;
                  display: flex; flex-direction: column; gap: 8px; }

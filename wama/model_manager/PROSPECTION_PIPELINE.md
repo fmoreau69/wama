@@ -1098,3 +1098,46 @@ lancent sur DÉCISION HUMAINE (historique crash Ollama hôte) — commandes prê
 `--repo resemble-ai/chatterbox` (+ runtime Audio8 à identifier sur sa card).
 ⚠ Après redémarrage des services : `sync_models` recalera les `can_convert_to` des modèles
 synthesizer (registre modifié ce jour) → re-passer `manifest_export --check`.
+
+## Session du 2026-09-02 : le banc tiers s'étend — Arena `vision`/`document` + Open ASR (1ᵉʳ banc hors génération)
+
+**Point de départ (question de Fabien : « d'autres plateformes pour compléter nos bancs ? »)** —
+relevé des plateformes VÉRIFIÉ à la source (flux lisible par machine ? licence ?), confronté
+aux trous du catalogue : 159 lignes examinées, **117 hors catégorie**, dominées par la vision
+(48 detect/segment/pose), la parole (24) et l'upscaling (13). Verdicts :
+- **AA ne donnera rien de plus** : son API de données publique n'expose que les 6 endpoints déjà
+  consommés (pas d'ASR, pas de musique — ces arènes existent sur le site, pas dans l'API).
+- **Arena** exposait `vision`, `document`, `video_edit` (22 configs, CC-BY-4.0) par le MÊME
+  parquet que le chargeur lisait déjà — personne ne les demandait.
+- **Open ASR Leaderboard** (HF `hf-audio`) : CSV publics, un fichier PAR LANGUE (français
+  compris) — le seul banc tiers qui mesure ce que le transcriber fait ici.
+- **Écartés, avec la raison** : détection/segmentation = plus AUCUN flux neutre (Papers with
+  Code mort en juillet 2025, relance HF en reconstruction, Roboflow = éditeur de RF-DETR) → seul
+  le 3ᵉ étage (mesure interne) reste ; OCR = OmniDocBench n'est qu'une table README, dataset
+  non commercial ; upscaling/lipsync/musique = rapports de challenge ou arènes sans export ;
+  MTEB (CC0, JSON brut, moyenne à recalculer) et Open VLM (JSON par URL) = candidats SUIVANTS ;
+  OpenRouter = popularité, pas qualité (place : prospection).
+
+**Livré** :
+1. `CATEGORIES` gagne `vision` (arène multimodale) et `document` (lecture de documents) — Arena
+   seul, `taille_stricte`. Métiers dérivés : VLM → `['vision', 'llm']` ; LLM Ollama à capacité
+   `vision` → `vision` en SECONDAIRE de sa tâche. ⚠ **Faux appariement mesuré à la première
+   lecture** : `gemma4:12b` prenait l'Elo de `gemma-4-31b` — la règle de taille stricte n'existait
+   que pour `llm`, écrite `cat == 'llm'`. Elle est désormais DÉCLARÉE par catégorie.
+   Résultat réel : `qwen3.8` (tag réel 27b) porte un 2ᵉ banc `arena_elo_vision` 1279 (79ᵉ
+   centile / 125) ; gemma4:12b et les MiniCPM proposés restent « sans banc » (pas de 12B ni de
+   v4.x dans l'arène) — null plutôt que plausible.
+2. **3ᵉ source `open_asr`** (`charger_open_asr`, forme des CSV SONDÉE : `avg` publié en anglais,
+   moyenne des `* WER` calculée en français). Deux catégories pour une tâche
+   (`TACHE_VERS_CATEGORIE` accepte un tuple) : `speech-to-text-fr` PRINCIPAL, `speech-to-text`
+   secondaire. Résultat réel : `whisper` 6,24 % WER FR (population 17) / 5,78 % EN (29) ;
+   `qwen3-asr-1.7b` 5,68 % FR / 4,31 % EN. `vibevoice-asr` et `whisper-base` : sans identité.
+3. **Le SENS de l'échelle** (`sens='bas'` déclaré par la source, écrit dans le banc) : lu par
+   `rang_centile`, `_choose_variant` (dernier recours = la valeur la PIRE) et
+   `valeur_ordonnable` — le SEUL point de lecture pour un tri, adopté par `_rank_key` et
+   `best_installed`. *Un WER trié comme un Elo aurait mis le pire transcripteur en tête.*
+4. Registre des sources externes : `open_asr` déclaré (kind `banc`), et un test qui exige que
+   les bancs DÉCLARÉS (adresses) et les bancs LUS (`benchmark_sync.SOURCES`) soient les mêmes.
+
+Dry-run après : **17 appariés · 11 sans banc · 16 sans identité · 115 hors catégorie** (somme
+159 inchangée). Populations : arena vision=125, document=33 ; open_asr EN=29, FR=17.
