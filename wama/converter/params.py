@@ -137,9 +137,16 @@ PARAMS = [
 # ── Post-traitement cross-app (enhancer inline, wiring 18/08) ────────────────────────────
 # DÉRIVÉ du catalogue CROSS_APP_OPTIONS (format_router = source unique — ajouter une option
 # là-bas suffit, le schéma suit). Un id présent pour plusieurs media_types donne UN Param
-# avec show_if in=[...]. contexts=ITEM v1 (post-traitement GPU : pas d'application batch en
-# masse). Valeurs stockées dans ConversionJob.cross_app_options (split dans views.update_job),
-# appliquées par utils/cross_app.py après la conversion.
+# avec show_if in=[...]. Valeurs stockées dans ConversionJob.cross_app_options (split dans
+# views.update_job), appliquées par utils/cross_app.py après la conversion.
+# contexts=ITEM_BATCH depuis le 02/09 (décision Fabien) : la garde v1 « pas de GPU en
+# masse » est LEVÉE — l'intention est « un lot = un seul chargement de modèle ».
+# ⚠ FAIT MESURÉ à la levée : ce chemin inline précis recharge encore sa session ONNX PAR
+# ITEM (upscale_image_file crée et ferme un AIUpscaler à chaque appel, ai_upscaler.py:391 ;
+# et le converter lance UNE tâche Celery par item — pas de boucle de lot qui tiendrait la
+# session). Coût modéré (ONNX fp16, pas un LLM), mais l'alignement réel sur l'intention
+# (cache de session gouverné, ou tâche de lot) se traite AVEC le chantier slider/enhancer
+# de l'instance parallèle — leur périmètre, consigné pour ne pas se télescoper.
 from .utils.format_router import CROSS_APP_OPTIONS
 
 def _cross_app_params():
@@ -159,12 +166,12 @@ def _cross_app_params():
         # déborde d'une piste — il reste au title).
         if o['type'] == 'select':
             out.append(Param(name=_oid, type="select", label=o['label'],
-                             icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM,
+                             icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM_BATCH,
                              chip=True,
                              choices=[("", "Aucun")] + list(o['choices']), help=_help))
         else:  # checkbox → toggle
             out.append(Param(name=_oid, type="toggle", label=o['label'],
-                             icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM,
+                             icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM_BATCH,
                              chip=True, chip_label=o['label'].split(' (')[0],
                              help=_help))
     return out

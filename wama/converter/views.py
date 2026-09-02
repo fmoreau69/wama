@@ -786,8 +786,11 @@ def batch_update(request, pk):
     batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
     out_fmt = (request.POST.get('output_format') or '').strip().lower()
     preset  = (request.POST.get('output_quality') or request.POST.get('quality_preset') or '').strip().lower()
+    # CHAMPS_CROSS_APP inclus depuis le 02/09 (décision Fabien : garde « pas de GPU en
+    # masse » levée — l'intention de lot est « un seul chargement de modèle »).
+    _connus = set(ConversionJob.CHAMPS_OPTIONS) | set(ConversionJob.CHAMPS_CROSS_APP)
     reglages = {k: v for k, v in request.POST.items()
-                if k in ConversionJob.CHAMPS_OPTIONS and v not in (None, '')}
+                if k in _connus and v not in (None, '')}
 
     if out_fmt and out_fmt not in get_output_formats(batch.media_type):
         return JsonResponse({'error': f"Format invalide pour {batch.media_type} : {out_fmt}"}, status=400)
