@@ -313,7 +313,7 @@ class EmissionsDuGabaritTest(SimpleTestCase):
                          'wcv3-sec--output', 'wcv3-sec--state', 'wcv3-sec--actions',
                          'wcv3-bar', '_cycle_button.html', '_card_chips.html',
                          'duplicate-btn', 'delete-btn', 'settings-btn',
-                         'unified_preview', 'data-param-'):
+                         'unified_preview', 'data-output-format'):
             self.assertIn(marqueur, self.card, f'card générée sans {marqueur}')
 
     def test_l_import_de_dossier_est_offert(self):
@@ -345,11 +345,18 @@ class EmissionsDuGabaritTest(SimpleTestCase):
 
     def test_les_data_param_couvrent_tout_le_schema(self):
         # Constat Fabien 31/08 : la modale enregistrait 3 champs sur 20 et le volet était
-        # vide — la card doit porter un data-param-* pour CHAQUE champ du schéma (les valeurs
+        # vide — la card doit porter un data-* pour CHAQUE champ du schéma (les valeurs
         # hors-colonnes sont aplaties par _decorer, idiome params_storage dérivé).
-        self.assertIn('data-param-quality', self.card,
-                      'un champ hors-colonne du schéma doit avoir son data-param')
-        self.assertIn('data-param-output_format', self.card)
+        # ⚠ Graphie = LE CONTRAT du parc depuis le 02/09 (`card_gear` : champ à TIRETS →
+        # dataset.camelCase). L'ancien `data-param-<champ>` était un vocabulaire PRIVÉ du
+        # générateur : son propre ouvreur le relisait, mais le cardSettings dérivé (volet)
+        # et sharedGearValues (modale de lot) cherchaient la graphie du contrat et ne
+        # trouvaient RIEN — deux moitiés d'une paire qui ne se parlaient plus.
+        self.assertIn('data-quality', self.card,
+                      'un champ du schéma doit avoir son data-* en graphie du contrat')
+        self.assertIn('data-output-format', self.card)
+        self.assertNotIn('data-param-', self.card,
+                         'le vocabulaire privé data-param-* ne doit pas revenir')
 
 
 class SlotDeReferenceGenereTest(SimpleTestCase):
