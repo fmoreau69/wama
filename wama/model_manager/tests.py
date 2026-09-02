@@ -659,6 +659,27 @@ class RestesTechniquesDuSoirTest(TestCase):
             api.return_value.list_repo_files.side_effect = RuntimeError('hors ligne')
             self.assertEqual(mi.doublons_de_format('org/x'), [])      # best-effort : rien filtré
 
+    def test_le_pull_hf_transmet_les_doublons_en_ignore_patterns_sauf_si_le_spec_restreint(self):
+        """`pull_hf_model` passe les jumeaux à `snapshot_download(ignore_patterns=…)` ; un spec
+        qui restreint déjà (`allow_patterns`, ex. `.nemo` seul) ne déclenche pas le listing."""
+        from .services import model_installer as mi
+        vus = {}
+
+        def faux_snapshot(repo_id, cache_dir, allow_patterns=None, ignore_patterns=None):
+            vus.update(allow=allow_patterns, ignore=ignore_patterns)
+            return '/faux/chemin'
+        with patch('huggingface_hub.snapshot_download', side_effect=faux_snapshot), \
+                patch.object(mi, 'doublons_de_format', return_value=['pytorch_model.bin']) as dd:
+            r = mi.pull_hf_model('org/x', 'vision', family='x')
+            self.assertTrue(r['ok'])
+            self.assertEqual(vus['ignore'], ['pytorch_model.bin'])
+            self.assertEqual(r['ignores'], ['pytorch_model.bin'])
+            dd.reset_mock()
+            mi.pull_hf_model('org/x', 'speech', family='x', allow_patterns=['*.nemo'])
+            dd.assert_not_called()
+            self.assertIsNone(vus['ignore'])
+            self.assertEqual(vus['allow'], ['*.nemo'])
+
     def test_un_candidat_ollama_porte_sa_tache(self):
         """26 propositions Ollama sans `task` : chaque RÔLE déclare désormais la sienne."""
         from .models import ModelTask
@@ -1506,6 +1527,49 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
         self.assertIsNone(noms['BAAI/bge-m3']['identite'])              # d'où l'ALIAS
         self.assertIn('1 modèle(s) non lus', motifs['embedding'])
         self.assertEqual(par_cat2['embedding'], par_cat['embedding'])
+
+    def test_l_index_garde_le_chemin_exact_par_tache_et_ne_paie_l_api_que_pour_nos_modeles(self):
+        """`paths.json` : une tâche peut vivre sous une AUTRE révision que les autres (bge-m3 :
+        Alloprof → 404 sous la 1ʳᵉ) ; l'API GitHub (quota 60/h) n'est appelée que pour les
+        dossiers absents de `paths.json` ET portant un marqueur du catalogue."""
+        import json as _json
+        from unittest.mock import Mock
+        from .services import benchmark_sync as bs
+        jeu = [t for t, _, _ in bs.CATEGORIES['embedding']['mteb']]
+        paths = {'BAAI__bge-m3': [f'results/BAAI__bge-m3/revA/{jeu[0]}.json',
+                                  f'results/BAAI__bge-m3/revB/{jeu[1]}.json',        # autre révision
+                                  'results/BAAI__bge-m3/revA/AutreTache.json'],
+                 'Org__ancien': [f'results/Org__ancien/r/{t}.json' for t in jeu]}
+        appels = []
+
+        def faux_get(url, **kw):
+            appels.append(url)
+            if url.endswith('/paths.json'):
+                return Mock(status_code=200, raise_for_status=lambda: None, json=lambda: paths)
+            if url.endswith('/git/trees/main'):
+                return Mock(status_code=200, raise_for_status=lambda: None,
+                            json=lambda: {'tree': [{'path': 'results', 'sha': 'S', 'type': 'tree'}]})
+            if url.endswith('/git/trees/S'):
+                return Mock(status_code=200, raise_for_status=lambda: None, json=lambda: {'tree': [
+                    {'path': 'Qwen__Qwen3-Embedding-4B', 'sha': 'Q', 'type': 'tree'},
+                    {'path': 'Autre__sans-rapport', 'sha': 'X', 'type': 'tree'},
+                    {'path': 'BAAI__bge-m3', 'sha': 'B', 'type': 'tree'}]})
+            if url.endswith('/git/trees/Q?recursive=1'):
+                return Mock(status_code=200, raise_for_status=lambda: None, json=lambda: {'tree': [
+                    {'path': f'rev9/{t}.json', 'type': 'blob'} for t in jeu] + [{'path': 'rev9/model_meta.json', 'type': 'blob'}]})
+            raise AssertionError('appel imprévu : ' + url)
+
+        with patch('requests.get', side_effect=faux_get):
+            index = bs._mteb_index({'qwen3-embedding'})
+        self.assertEqual(index['BAAI__bge-m3'][jeu[0]], f'results/BAAI__bge-m3/revA/{jeu[0]}.json')
+        self.assertEqual(index['BAAI__bge-m3'][jeu[1]], f'results/BAAI__bge-m3/revB/{jeu[1]}.json')
+        self.assertNotIn(jeu[2], index['BAAI__bge-m3'])                       # incomplet, pas inventé
+        self.assertEqual(set(index['Qwen__Qwen3-Embedding-4B']), set(jeu))
+        self.assertEqual(index['Qwen__Qwen3-Embedding-4B'][jeu[0]],
+                         f'results/Qwen__Qwen3-Embedding-4B/rev9/{jeu[0]}.json')
+        self.assertNotIn('Autre__sans-rapport', index)                       # pas de marqueur → 0 appel
+        # 1 paths.json + 2 arbres (main, results) + 1 arbre récursif pour LE modèle marqué
+        self.assertEqual(len(appels), 4)
 
     def test_bge_m3_du_rag_prend_son_banc_par_alias_et_les_embeddings_proposes_ont_une_categorie(self):
         from .services import benchmark_sync as bs

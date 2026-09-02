@@ -1262,6 +1262,13 @@ famille d'une lettre « m3 », le modèle du RAG n'aurait jamais eu de banc. Les
 (type `embedding`, sans capacités) ont désormais la catégorie `embedding` — le matin ils n'en avaient
 aucune, avant ils tombaient dans `llm`.
 
+**Décision Fabien : `qwen3-embedding:4b` (installé par le mécanisme, 51 s), PAS le 8B** — sur le
+jeu français le 4B est 1ᵉʳ (70,0) et le 8B 3ᵉ (69,4 : meilleur en recherche pure Belebele/MIRACL,
+nettement moins bon sur le dialogue Statcan), écart sous le pouvoir de séparation du rang, pour
+le double de disque et de VRAM. ⚠ Contrôle de FONCTIONNEMENT (un `/api/embed`) laissé à Fabien :
+charger 4B côté hôte est le déclencheur des crashs du soir. Bascule du RAG = `embed.py`
+(`EMBEDDING_MODEL`, empreinte VRAM remesurée, `OWNER`) + réindexation par `store.py`.
+
 **Faits pour les recommandations** (vérifiés HF / bancs) : ACE-Step 1.5 (MIT, 10 Go) prend
 un **audio de référence** (colonne « Refer audio » ✅ sur toutes les variantes DiT ; modes
 cover, repaint, vocal→BGM ; 50+ langues ; <4 Go VRAM annoncés). Qwen3-TTS 1.7B (Apache,
