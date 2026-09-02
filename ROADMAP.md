@@ -3173,6 +3173,14 @@ l'enhancer (mêmes gestes). À traiter avec la maquette v4.
 - **Étages 1-2 : GO.** ① glu générée (fait) ; ② composition DÉCLARÉE des backends
   EXISTANTS (converter d'abord — manifeste : routage nature→backend, le générateur émet
   la composition) + familles à GABARIT pour les modèles connus.
+  ✅ **B1 CLOS le 02/09 au soir, MESURÉ** : `backends/__init__.ROUTES` (contrat commun
+  normalisé sur les 5 backends) → manifeste (`processing.backend_routes`) → corps composé
+  par `tasks_gen` (import RELATIF AU PAQUET — la jumelle résout SES copies) → **la jumelle
+  a CONVERTI un PNG réel en JPEG lisible (SUCCESS, `converter_01/…/output/`)**. Le critère
+  de sortie de la chaîne de génération est atteint.
+  ✅ **B2 entamé le même soir** : backend Table Transformer (reader) — 1er des « CONNUS »
+  de la liste installs, testé SUR LES POIDS RÉELS (6/6) ; restes au commit `046af1be`
+  (câblage `extract_tables`, FastWan, TTS).
 - **⚠ Fonctions data ≠ backends (précision de Fabien, retenue)** : le `function_catalog`
   est le catalogue des fonctions DATA (mondes Data/Lab — le floutage peut y être une
   fonction data). Un backend d'app média N'EST PAS une entrée de ce catalogue — la voie

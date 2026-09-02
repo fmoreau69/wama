@@ -9094,6 +9094,83 @@ sans skip** (le compte dev `wama_nightly_dev` existe en base).
 
 ---
 
+## §REPRISE — 2026-09-02, instance « CONVERTER ÉVÉNEMENTIEL + MARCHES B1/B2 » — ✅ CLOSE
+
+> Suite du §PALIER 01/09 ci-dessous (même instance, même fil). Journée à DEUX crashs hôte
+> (déclencheur diagnostiqué par l'instance bancs : triage VLM du smoke — garde posée ici).
+> Artefact de suivi : le suivi « La jumelle au banc » (URL du 02/09, les 2 anciennes sont
+> périmées — suppression côté Fabien).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE (annoncé par Fabien)
+**Terminer ce handoff puis PORTER UNE 2ᵉ APP À MODÈLE IA** (candidate naturelle : describer
+ou synthesizer — la chaîne est prouvée de bout en bout sur le converter, B1 CLOS : la
+jumelle CONVERTIT). Le rituel : `/port-app` + la route §10.3 (marche B1 documentée) ;
+pour une app à modèle IA, le corps composé devra appeler `select_model`/backends au contrat
+commun — c'est LA nouveauté vs converter (backends sans modèle).
+
+### Livré ce 02/09 (chaque pièce MESURÉE — commits 0f499be1 → 046af1be)
+1. **Constats écran Fabien** : infos de file au chargement (course de poller, fix commun) ;
+   modale de LOT pré-remplie des valeurs PARTAGÉES des filles (sémantique de la carte mère,
+   lecteur de gear UNIQUE `WamaInspector.gearValues/sharedGearValues`) ; graphie des data de
+   card UNIFIÉE au contrat (`data-<champ-à-tirets>` — le vocabulaire privé `data-param-*` du
+   générateur rendait la card illisible aux lecteurs communs).
+2. **Réglages de la NATURE en modale de lot** (le regroupement par nature : vérifié commun
+   et fonctionnel — dépôt mixte → un batch par nature) + cross-app GPU au lot (garde levée,
+   décision Fabien ; fait mesuré consigné : la session ONNX se recharge encore PAR item).
+3. **⚠ GARDE GPU sur le triage VLM du smoke** (27898e4b) — le chemin qui a crashé l'hôte
+   2× le 02/09 consulte enfin `WAMA_GPU_SAFE_MODE` (flag déjà à 1 dans .env → effectif).
+   RÈGLE PERSONNELLE : plus aucune batterie UI sans garde active.
+4. **MODÈLE ÉVÉNEMENTIEL des réglages** (arbitrage Fabien, `ROADMAP §23.2quater` qui
+   REMPLACE §23.2bis/ter) : le dernier geste écrit, les gestes globaux écrasent —
+   naissance COMPLÈTE (défauts écrits), preset = geste d'écriture au CLIC (profil GÉNÉRAL
+   commun ; un profil = utilisateur), la TÂCHE lit les COLONNES ; « ↺ Par défaut » commun
+   (`WamaParams.applyDefaults`) dans les modales item+lot ; 💾 profil au VOLET (sections
+   dédiées Profil/Paramètres) ; type de média POSABLE À LA MAIN (composition à froid) ;
+   effet réel du preset dans la modale rapide Filemanager (`converter:api_presets`).
+5. **2 COLONNES converter** (ParamGroup commun, 6 groupes — l'imager était le seul
+   déclarant) + modale lot en modal-lg + libellés (« — par défaut — » ; help resize dit le
+   verrou de proportion implicite).
+6. **⭐ MARCHE B1 CLOSE** : contrat commun des 5 backends + `ROUTES` déclaré → manifeste →
+   corps composé (import relatif au paquet) → **la jumelle a CONVERTI (SUCCESS, JPEG
+   lisible)**. Critère de sortie de la chaîne ATTEINT.
+7. **B2 n°1** : backend Table Transformer (reader) — enrichisseur (PAS un moteur OCR, tenu
+   par un test), poids du CATALOGUE, testé SUR LES POIDS RÉELS (6/6 venv_linux).
+
+### File des chantiers OUVERTS (ordre)
+1. Câblage `extract_tables` du reader (backend prêt — option au schéma + croisement docTR).
+2. B2 suite : FastWan (déclaration wan_video ; TEST GPU = Fabien) · TTS Qwen3/chatterbox/
+   Audio8 (runtimes pip ×2 venvs — session dédiée).
+3. Restes B jumelle : étalement du preset au clic côté GÉNÉRÉ · endpoints 501
+   (quick_convert, profils) · la substitution ne resynchronise PAS les copies backends/
+   (fait à la main le 02/09 — à outiller ou consigner au rituel).
+4. Card v4 (maquette) — puis profils généralisés (§22) + reset des autres apps + design
+   redimensionnement (§23.4).
+5. Voie déclarative durable de `backend_ref` (posé EN BASE pour table-transformer — une
+   réinstallation le perdrait ; le manifeste modèle ne porte pas ce champ).
+6. readMainPanelOptions lit aussi les champs MASQUÉS (un profil image embarque des clés
+   vidéo inertes — filtrer par visibilité).
+7. Grille des droits : garde « visiteur guidé » + `@login_required` inversé de
+   converter.upload (chantier avatar/accueil) · branche JSON `_deny` à réarmer · 3 KO
+   `common.consistency` à re-mesurer une nuit calme.
+
+### Pendings SYSTÈME
+- Aucun restart en attente (workers 3/3 pong, queues vides, gunicorn rechargé).
+- 11+ commits locaux non poussés (`dev` ahead) — push quand Fabien veut.
+- 2 anciennes URLs d'artefact à supprimer (galerie claude.ai/code/artifacts).
+
+### Contrôles attendus au prochain /reprise (MESURÉS ce 02/09 soir)
+- Suite complète : voir le chiffre du bloc de clôture (mesuré en fin de session même).
+- `check_docs` : **1 cible distincte** (le partial d'onglets assumé), 8 références.
+- `manifest_export --check` : corpus **121** à jour.
+- Grille d'adoption : converter **100 %** (1ʳᵉ app au plein score), parc 96-100 %.
+- Batterie jumelle : 11/11 — ⚠ NE LA RELANCER qu'avec `WAMA_GPU_SAFE_MODE=1` (garde
+  triage posée, mais la règle demeure).
+- Mécanismes : **117**, 0 domicile absent, 0 module non rattaché (reste `qc` sans
+  consommateur — brique en avance d'adoption, assumé).
+
+
+---
+
 ## §PALIER — 2026-09-01 (soir), instance « VOLET PARAMÈTRES » (suite) : PORTAGE CONVERTER + 2ᵉ GRILLE — ✅ LIVRÉ
 
 > Suite directe du §PALIER 31/08 ci-dessous, sur GO Fabien successifs. Artefact de suivi :
@@ -10243,8 +10320,12 @@ avec succès (crash hôte, alimentation suspectée — matériel commandé).
 **corpus à jour (121)** ; dry-run bancs **31 / 23 / 27 / 79** sur 160 (le compte de la page
 après relance Fabien : 31 / 23 / 28 / 79 — une ligne installée de plus) ; `check_docs` 8 cassées
 / 0 périmée (1 cible) ; `wama.model_manager` 85 OK, `tests_external_sources` OK ; **suite
-complète 1416 tests, `OK (skipped=4)`** — relancée en toute fin de soirée sur l'arbre des
-commits `67a378c7`…`ef0808ab` (docs + prospector + provenance + reader + settings + installeur).
+complète 1437 tests, `OK (skipped=5)`** — dernier état, après MTEB + restes techniques
+(commits jusqu'à `2406a649`). ⚠ Le run précédent avait rendu **143 erreurs** (`relation
+model_manager_aimodel does not exist`, transaction avortée) sur 8 modules et **1117 tests
+seulement** : une COLLISION de base de test partagée avec l'autre instance, pas une régression
+— la même signature partout et un compte de tests tronqué en sont les marques. *Avant de lire un
+rouge de la suite, compter les tests et lire UNE erreur : 143 fois la même n'en est qu'une.*
 
 
 ## §PALIER — 2026-09-02, instance « CARD ORANGE + CURSEUR D'INTENTION » — ✅ LIVRÉ (2 paliers)
