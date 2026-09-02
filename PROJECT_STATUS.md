@@ -10162,3 +10162,41 @@ jamais s'afficher (à vérifier/réparer, périmètre synthesizer).
 par MON export depuis LEUR code non commité — le committer sans leur code mentirait sur HEAD).
 La session pair `b3` se dit busy depuis 18 h ; si elle est morte, ces fichiers attendent un
 commit ou un abandon EXPLICITE.
+
+
+## §PALIER — 2026-09-02 (suite), instance « CURSEUR CONTINU 0-100 » — ✅ LIVRÉ (recadrage Fabien le jour même)
+
+> Constat Fabien sur le palier du matin : « l'intention n'est pas un branchement, c'est un
+> poids dans le score — 3 crans ne désignent que 3 candidats sur N ; et Kokoro/XTTS, mes
+> modèles les plus utilisés, ne sortent jamais ». Les deux critiques étaient JUSTES ; les
+> 3 politiques ont vécu quelques heures (migrations 0023/0015 → 0024/0016, transformation
+> pure fast→15/balanced→50/precise→85). Détail : `ROUTE §F4b §brique d'auto-sélection`.
+
+**Livré** : `select_model(quality_intent=0-100)` — `score = w·qualité + (1−w)·légèreté`
+(min-max du lot, échelle des signaux au domicile UNIQUE `_quality_scalars`, partagée avec
+`_rank_key`) ; seuil 80 = budget ET résidence s'effacent (offload/AWAITING_RESOURCES
+assumés). **Deux gardes mesurées** : VRAM inconnue = PIRE coût (Audio8 vram=0 battait
+Kokoro 0,5 sur « rapide ») ; à score égal la qualité départage. Trio canonique acté
+**Rapide 15 / Équilibré 50 / Qualité 85** (`QUALITY_PRESETS` — « Précis » écarté,
+converter en sous-libellé « Rapide (web) »). Champ `quality_intent` (int, défaut 50),
+helper commun `read_quality_intent` (borné, ne lève jamais), slider 0-100 continu
+(renderer + partial, graduations, tricolore par zone), prévision qui suit chaque cran.
+
+**Comportement ÉMERGENT assumé (mesuré au smoke)** : à 50 sur le parc TTS réel, le tirage
+prévoit **Kokoro** (léger ET mesuré) là où « le plus gros qui tient » donnait Bark — la
+normalisation du coût sur les seules VRAM MESURÉES casse la symétrie du proxy. Plus près
+de l'usage réel de Fabien ; disparaîtra de lui-même quand le lot portera de vrais indices
+(XTTS vient de recevoir son 1er Elo Arena TTS : 919 — seul du lot, donc pas encore
+comparable).
+
+**Consigné (demande Fabien)** : le plan de la MESURE INTERNE — qualification nocturne
+COMPARATIVE (même job sur tous les modèles capables, confrontation des sorties, VLM pour
+le visuel, réingestion en indice par tâche ; prérequis : hôte stable la nuit ; boucle
+d'ACCUMULATION, pas un one-shot) — `ROUTE §F4b §la donnée de qualité reste le maillon
+faible`, à câbler avec `WAMA_APPRENTISSAGE §A2-A4` et le mécanisme `bench`.
+
+**Contrôles (MESURÉS)** : suite complète **1413 OK (skipped=4)** · périmètre 47 OK (dont
+`test_chaque_cran_peut_deplacer_l_arbitrage_sur_un_lot_de_trois` : 0→léger, 55→moyen,
+100→lourd — la réponse mécanique à l'objection) · corpus manifestes à jour (2 réécrits) ·
+smoke : 50→Kokoro · 5→Kokoro (vert) · 95→Higgs (rouge), 0 erreur JS
+(`logs/ui_smoke/synthesizer_intent_slider.png`).

@@ -18,7 +18,7 @@ from wama.synthesizer.models import VoiceSynthesis
 
 PARAMS = derive_from_model(
     VoiceSynthesis,
-    include=["tts_model", "model_intent", "language", "voice_preset", "speed", "pitch"],
+    include=["tts_model", "quality_intent", "language", "voice_preset", "speed", "pitch"],
     overrides={
         "tts_model": dict(
             type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
@@ -45,12 +45,13 @@ PARAMS = derive_from_model(
             # auto_model, 2026-09-02) — le lancement résout dans workers.py.
             options_auto=True,
         ),
-        # Curseur d'intention rapide↔qualité — visible SEULEMENT quand le modèle est
-        # « auto » (il module ce tirage-là et rien d'autre). Rendu/tricolore : renderer
-        # commun `type='intent'` ; volet maison : partial `common/_intent_slider.html`.
-        "model_intent": intent_param(
-            dom_id={"panel": "model_intent", "item": "settingsModelIntent",
-                    "batch": "batchSettingsModelIntent"},
+        # Curseur de QUALITÉ (échelle continue 0-100) — visible SEULEMENT quand le modèle
+        # est « auto » (il pèse sur ce tirage-là et rien d'autre). Rendu/tricolore/
+        # graduations : renderer commun `type='intent'` ; volet maison : partial
+        # `common/_intent_slider.html`.
+        "quality_intent": intent_param(
+            dom_id={"panel": "quality_intent", "item": "settingsQualityIntent",
+                    "batch": "batchSettingsQualityIntent"},
             show_if={"field": "tts_model", "equals": "auto"},
         ),
         "language": dict(

@@ -38,9 +38,9 @@
        attrapé au smoke (le pavé s'affichait dans le volet).{% endcomment %}
     <div id="intentSliderGroup" class="mt-2" hidden>
         <label class="form-label small fw-bold text-light mb-0">
-            <i class="fas fa-gauge-high"></i> Rapide ↔ Précis
+            <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
         </label>
-        {% include 'common/_intent_slider.html' with dom_id='model_intent' name='model_intent' value='balanced' %}
+        {% include 'common/_intent_slider.html' with dom_id='quality_intent' name='quality_intent' value=50 %}
     </div>
 </div>
 
@@ -441,7 +441,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var cfg = window.WAMA_CONFIG || {};
     var U = cfg.urls || {}, csrf = cfg.csrfToken || '';
     // Params per-item (incl. format/qualité = early-binding : réglés avant génération, sauvegardés).
-    var keys = ['tts_model', 'model_intent', 'language', 'voice_preset', 'speed', 'pitch', 'output_format', 'output_quality'];
+    var keys = ['tts_model', 'quality_intent', 'language', 'voice_preset', 'speed', 'pitch', 'output_format', 'output_quality'];
     function saveItemReq(id) {
         var fd = new FormData();
         keys.forEach(function (k) { var el = ph.querySelector('[name="' + k + '"]'); if (el) fd.append(k, el.value); });
@@ -589,7 +589,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 values: {
                     // Clé catalogue entière (route F4b ②) — même vocabulaire que le select.
                     tts_model: fd.ttsModel || 'synthesizer:coqui-xtts', language: fd.language || 'fr',
-                    model_intent: fd.modelIntent || 'balanced',
+                    quality_intent: fd.qualityIntent || '50',
                     voice_preset: fd.voicePreset || 'default',
                     speed: fd.speed || '1.0', pitch: fd.pitch || '1.0',
                 },

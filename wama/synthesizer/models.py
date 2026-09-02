@@ -85,13 +85,15 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
         help_text="Clé catalogue du moteur TTS (AIModel.model_key)"
     )
 
-    # Curseur d'INTENTION rapide↔qualité (décision Fabien 01/09) : module l'arbitrage du
-    # tirage « auto » (brique commune auto_model → select_model). SANS `choices=` — leçon
-    # du 01/09 : toute liste dans un champ de modèle exige une migration à chaque évolution ;
-    # le vocabulaire vit chez le sélecteur (MODEL_INTENTS) et le renderer commun.
-    model_intent = models.CharField(
-        max_length=16, default='balanced',
-        help_text="Politique du choix automatique : fast | balanced | precise",
+    # Curseur de QUALITÉ (échelle CONTINUE 0-100, décision Fabien 02/09) : POIDS de
+    # l'arbitrage du tirage « auto » (brique commune auto_model → select_model), jamais un
+    # branchement — les 3 politiques discrètes de la 1ʳᵉ implémentation (migration 0023,
+    # remplacée par 0024 le jour même) ne désignaient que 3 candidats sur N. Les positions
+    # nommées (Rapide 15 / Équilibré 50 / Qualité 85) vivent chez le sélecteur
+    # (QUALITY_PRESETS) ; au-delà du seuil, l'offload/l'attente de ressources est assumé.
+    quality_intent = models.IntegerField(
+        default=50,
+        help_text="Curseur rapide↔qualité du choix automatique (0-100)",
     )
 
     def get_tts_model_display(self) -> str:

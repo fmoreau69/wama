@@ -177,8 +177,8 @@ MECANISMES = (
     Mecanisme('auto_model', 'Auto-sélection (« auto » au select)',
               "Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le "
               "domaine que le schéma déclare pour ses options (options_query), prévision "
-              "affichée sous le select (options_auto) + curseur d'INTENTION rapide↔qualité "
-              "(intent_param, arbitré par select_model)",
+              "affichée sous le select (options_auto) + curseur de QUALITÉ continu 0-100 "
+              "(intent_param, poids dans le score de select_model)",
               'wama/common/utils/auto_model.py', 'WAMA_APP_GENERATION_ROUTE.md'),
     Mecanisme('model_coverage', 'Couverture multi-modèles',
               "Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation)",

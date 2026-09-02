@@ -67,11 +67,11 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
         max_length=128, default='synthesizer:coqui-xtts',
     )
 
-    # Curseur d'INTENTION du tirage « auto » — cf. `VoiceSynthesis.model_intent` (même
-    # vocabulaire, même absence délibérée de `choices=`).
-    model_intent = models.CharField(
-        max_length=16, default='balanced',
-        help_text="Politique du choix automatique : fast | balanced | precise",
+    # Curseur de QUALITÉ du tirage « auto » — cf. `VoiceSynthesis.quality_intent` (même
+    # échelle continue 0-100, mêmes positions nommées chez le sélecteur).
+    quality_intent = models.IntegerField(
+        default=50,
+        help_text="Curseur rapide↔qualité du choix automatique (0-100)",
     )
 
     def get_tts_model_display(self) -> str:

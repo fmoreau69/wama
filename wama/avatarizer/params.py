@@ -25,7 +25,7 @@ PARAMS = derive_from_model(
     # Le couple de modes rapide/qualité est MORT (2026-08-03, décision route F2 enfin
     # appliquée à l'UI) : la « qualité » n'a jamais été qu'un alias du toggle CodeFormer —
     # le backend ne lit QUE use_enhancer. quality_mode survit en champ DÉRIVÉ (ETA/data).
-    include=["text_content", "tts_model", "model_intent", "language", "voice_preset",
+    include=["text_content", "tts_model", "quality_intent", "language", "voice_preset",
              "use_enhancer", "bbox_shift"],
     overrides={
         "text_content": dict(type="textarea", label="Texte à dire", icon="fa-quote-left",
@@ -46,10 +46,10 @@ PARAMS = derive_from_model(
                              # — le lancement résout dans workers.py.
                              options_auto=True,
                              dom_id={"item": "settingsTtsModel"}, contexts=("item",)),
-        # Curseur d'intention du tirage « auto » — mêmes conditions de visibilité que le
-        # select qu'il module (job porteur de texte ET modèle « auto »).
-        "model_intent": intent_param(
-            dom_id={"item": "settingsModelIntent"}, contexts=("item",),
+        # Curseur de qualité du tirage « auto » — mêmes conditions de visibilité que le
+        # select sur lequel il pèse (job porteur de texte ET modèle « auto »).
+        "quality_intent": intent_param(
+            dom_id={"item": "settingsQualityIntent"}, contexts=("item",),
             show_if={"field": "tts_model", "equals": "auto"},
         ),
         "language":     dict(type="select", label="Langue", icon="fa-language",

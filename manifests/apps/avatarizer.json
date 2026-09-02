@@ -277,22 +277,18 @@
             },
             {
               "args": [],
-              "class": "django.db.models.CharField",
+              "class": "django.db.models.IntegerField",
               "kwargs": {
                 "default": {
-                  "expr": "'balanced'",
+                  "expr": "50",
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'Politique du choix automatique : fast | balanced | precise'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "16",
+                  "expr": "'Curseur rapide↔qualité du choix automatique (0-100)'",
                   "imports": []
                 }
               },
-              "name": "model_intent"
+              "name": "quality_intent"
             },
             {
               "args": [],
@@ -925,23 +921,23 @@
             "contexts": [
               "item"
             ],
-            "default": "balanced",
+            "default": 50,
             "dom_id": {
-              "item": "settingsModelIntent"
+              "item": "settingsQualityIntent"
             },
             "group": "",
-            "help": "Guide le choix automatique : Rapide privilégie un modèle léger, Précis le meilleur modèle même s'il faut attendre des ressources.",
+            "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
             "icon": "fa-gauge-high",
             "inline": false,
-            "label": "Rapide ↔ Précis",
-            "max": null,
+            "label": "Rapide ↔ Qualité",
+            "max": 100,
             "max_label": "",
-            "min": null,
+            "min": 0,
             "min_label": "",
-            "name": "model_intent",
+            "name": "quality_intent",
             "option_groups": null,
             "options_auto": false,
             "options_query": null,
@@ -953,7 +949,7 @@
               "equals": "auto",
               "field": "tts_model"
             },
-            "step": null,
+            "step": 1,
             "type": "intent",
             "unit": ""
           },
@@ -1388,7 +1384,7 @@
           "params_fields": [
             "text_content",
             "tts_model",
-            "model_intent",
+            "quality_intent",
             "language",
             "voice_preset",
             "use_enhancer",

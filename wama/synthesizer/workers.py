@@ -228,16 +228,16 @@ def synthesize_voice(self, synthesis_id: int):
         # (un batch résout chaque élément avec l'état GPU de son tour). Le domaine du
         # tirage est CELUI que le schéma déclare pour les options (`params.py`) ; la
         # prévision affichée sous le select était une photo, on dit ici le choix réel.
-        from wama.common.utils.auto_model import is_auto, resolve_model_choice
+        from wama.common.utils.auto_model import is_auto, read_quality_intent, resolve_model_choice
         if is_auto(synthesis.tts_model):
-            intent = getattr(synthesis, 'model_intent', '') or 'balanced'
+            quality = read_quality_intent(getattr(synthesis, 'quality_intent', None))
             synthesis.tts_model = resolve_model_choice(
-                synthesis.tts_model, app_id='synthesizer', intent=intent,
+                synthesis.tts_model, app_id='synthesizer', quality_intent=quality,
                 fallback=VoiceSynthesis._meta.get_field('tts_model').get_default())
             synthesis.save(update_fields=['tts_model'])
             _console(synthesis.user_id,
                      f"Choix automatique du moteur → {synthesis.get_tts_model_display()} "
-                     f"(capacités + VRAM libre au lancement, politique « {intent} »)")
+                     f"(capacités + VRAM libre au lancement, curseur qualité {quality}/100)")
 
         # Étape 2: Génération audio via le service TTS
         _console(synthesis.user_id, f"Envoi au service TTS (modèle: {synthesis.tts_model})...")

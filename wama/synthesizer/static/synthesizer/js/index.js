@@ -220,8 +220,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData();
 
         formData.append('tts_model', document.getElementById('settingsTtsModel').value);
-        var _mi = document.getElementById('settingsModelIntent');
-        if (_mi) formData.append('model_intent', _mi.value);
+        var _qi = document.getElementById('settingsQualityIntent');
+        if (_qi) formData.append('quality_intent', _qi.value);
         formData.append('language', document.getElementById('settingsLanguage').value);
         formData.append('voice_preset', document.getElementById('settingsVoicePreset').value);
         formData.append('speed', document.getElementById('settingsSpeed').value);
@@ -339,7 +339,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 context: 'item',
                 values: {
                     tts_model: d.ttsModel, language: d.language,
-                    model_intent: d.modelIntent || 'balanced',
+                    quality_intent: d.qualityIntent || '50',
                     voice_preset: d.voicePreset,
                     speed: d.speed || '1.0', pitch: d.pitch || '1.0',
                     output_format: d.outputFormat || '', output_quality: d.outputQuality || '',
@@ -366,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Récupérer les options du formulaire
                 const formData = new FormData();
                 formData.append('tts_model', document.getElementById('tts_model').value);
-                formData.append('model_intent', (document.getElementById('model_intent') || { value: 'balanced' }).value);
+                formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
                 formData.append('language', document.getElementById('language').value);
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('text_content', textContent);
                 formData.append('title', title);
                 formData.append('tts_model', document.getElementById('tts_model').value);
-                formData.append('model_intent', (document.getElementById('model_intent') || { value: 'balanced' }).value);
+                formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
                 formData.append('language', document.getElementById('language').value);
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
@@ -677,7 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const formData = new FormData();
                 formData.append('text_content', textContent);
                 formData.append('tts_model', document.getElementById('tts_model').value);
-                formData.append('model_intent', (document.getElementById('model_intent') || { value: 'balanced' }).value);
+                formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
                 formData.append('language', document.getElementById('language').value);
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
@@ -916,7 +916,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formDataBuilder: function (fd) {
             const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
             fd.append('tts_model', v('tts_model', 'coqui-xtts'));
-            fd.append('model_intent', v('model_intent', 'balanced'));
+            fd.append('quality_intent', v('quality_intent', '50'));
             fd.append('language', v('language', 'fr'));
             fd.append('voice_preset', v('voice_preset', 'default'));
             fd.append('speed', v('speed', '1.0'));
@@ -952,7 +952,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fd.append('server_path', result.server_path || '');
         const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
         fd.append('tts_model', v('tts_model', 'coqui-xtts'));
-        fd.append('model_intent', v('model_intent', 'balanced'));
+        fd.append('quality_intent', v('quality_intent', '50'));
         fd.append('language', v('language', 'fr'));
         fd.append('voice_preset', v('voice_preset', 'default'));
         fd.append('speed', v('speed', '1.0'));
@@ -970,7 +970,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('tts_model', document.getElementById('tts_model').value);
-                formData.append('model_intent', (document.getElementById('model_intent') || { value: 'balanced' }).value);
+                formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
         formData.append('language', document.getElementById('language').value);
         formData.append('voice_preset', document.getElementById('voice_preset').value);
         formData.append('speed', document.getElementById('speed').value);
