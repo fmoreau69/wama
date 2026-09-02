@@ -8843,8 +8843,10 @@ lit** : `app_registry.py:536` → `manifests/builtin/app.py:212` (`IDENTITY_FIEL
 `converter_01/index.html:31`**. L'import explorateur marche PARCE QUE c'est déclaré.
 
 ⚠⚠ **Et la mesure retourne le constat : c'est le littéral MANUEL qui est en défaut.**
-`converter/templates/converter/index.html:447` s'arrête à `.tex,.latex` — **14 extensions
-manquent** (`.zip .tar .gz .tgz .bz2 .tbz2 .xz .txz .7z .rar` + `.fb2 .mobi .azw3 .azw` ;
+`converter/templates/converter/index.html:362` (à l'époque `:447` — le littéral a depuis été
+REMPLACÉ par `current_app_spec.input_extensions`, commit `9d473dbb`, et le gabarit raccourci)
+s'arrêtait à `.tex,.latex` — **14 extensions
+manquaient** (`.zip .tar .gz .tgz .bz2 .tbz2 .xz .txz .7z .rar` + `.fb2 .mobi .azw3 .azw` ;
 recompte MÉCANIQUE du 30/08 : **15**, `.qt` avait échappé à ce relevé manuel), alors
 que `input_types` déclare `'archive'` et que `converter/utils/format_router.py:44-49` les
 convertit. **Le sélecteur du converter RÉEL grise des fichiers que l'app sait traiter ; celui de
@@ -9694,12 +9696,16 @@ désormais **15 / 12 / 15 / 117 = 159**, exhaustif et disjoint, avec un test qui
 
 ### Décisions ouvertes / restes assumés
 
-- **PROMESSE NON TENUE, nommée** : les 2 modèles d'embedding (`nomic-embed-text-v2-moe`,
-  `qwen3-embedding`) restent classés `llm` et polluent le compte des « sans banc ». Le remède
-  est écrit et mesuré — ancrer `_categories_locales` sur `model_type`, qui porte déjà
-  `'embedding'` — mais **il n'a jamais été implémenté**. Proposé en début de session, jamais
-  fait. ⚠ Les 3 `vlm` doivent RESTER éligibles : AA classe « MiniCPM-V 4.6 » dans son
-  leaderboard LLM.
+- ~~**PROMESSE NON TENUE, nommée**~~ → **SOLDÉE le 2026-09-02** (après 3 reports) : les modèles
+  d'embedding (`nomic-embed-text-v2-moe`, `qwen3-embedding` — et 3 autres `proposed:` que le
+  compte du 01/09 n'avait pas nommés : `embeddinggemma`, `mxbai-embed-large`, `nomic-embed-text`)
+  étaient classés `llm` et polluaient « sans banc » ET « sans identité ». Remède tel qu'écrit :
+  `_categories_locales` ancrée sur `model_type` (le repli `['llm']` des lignes Ollama sans
+  capacités ne s'applique plus qu'aux types `llm`/`vlm`). Mesuré : **5 lignes** sortent du banc
+  llm (non appariés 12→10, sans identité 15→12, hors catégorie 117→122, somme toujours 159) ;
+  les 3 `vlm` RESTENT éligibles (AA classe « MiniCPM-V 4.6 » dans son leaderboard LLM) ; le
+  chemin par capacités (`completion`, bge-m3 installé) est inchangé. Test :
+  `test_un_embedding_propose_sans_capacites_ne_tombe_pas_dans_le_banc_llm`.
 - `best_installed` regroupe par `model_type` (`diffusion`), **plus grossier que la catégorie de
   banc** : un texte→image et un texte→vidéo restent dans le même lot. Le prédicat d'échelle
   les sépare en pratique, le bucket reste faux.
@@ -9728,7 +9734,8 @@ désormais **15 / 12 / 15 / 117 = 159**, exhaustif et disjoint, avec un test qui
   cf. le geste anti-collision du skill de clôture).
 - `manage.py sync_benchmarks --dry-run` → **15 appariés · 12 sans banc · 15 sans identité ·
   117 hors catégorie**, somme = **159 lignes examinées**. La somme DOIT rester égale au total :
-  c'est le contrôle d'exhaustivité.
+  c'est le contrôle d'exhaustivité. ⚠ **Depuis le 02/09** (embeddings sortis du banc llm) :
+  **15 · 10 · 12 · 122**, somme inchangée = 159.
 - `check_docs` → **8 références cassées sur 1289 vérifiées**, **1 seule cible distincte**
   (le partial d'onglets de résultat jamais créé) — inchangé, aucune dérive.
 - `manifest_export --check` → **3 périmés attendus** (les deux manifestes d'app du chantier TTS
@@ -9909,17 +9916,19 @@ checkout (l'arbre portait le WIP d'une autre instance). **Validation écran Fabi
 **Rien ne bloque.** Le chantier registres est CLOS de bout en bout : 8 registres déclarés,
 pages navigables et uniformisées (brique CSS + partial d'en-tête + gardes), norme d'URLs
 posée et testée, menu restructuré, `main` = `dev` poussés. Au choix :
-1. la **promesse embeddings** (2 modèles `nomic-embed`/`qwen3-embedding` encore classés
-   `llm` — remède écrit dans le §REPRISE « bancs » du 01/09, jamais implémenté, 3ᵉ report) ;
+1. ~~la **promesse embeddings**~~ **SOLDÉE le 02/09** (cf. §REPRISE « bancs » du 01/09,
+   § Décisions ouvertes) ;
 2. reprendre la file des chantiers (ROADMAP) ou le portage schéma-driven.
 
-**Pendings** :
+**Pendings** (relus au /reprise du 02/09 — 3 sur 4 SOLDÉS, le 4ᵉ conditionnel) :
 - le **hero** des pages catalogues, dernier candidat de généralisation nommé — à prendre si
-  un 9ᵉ registre arrive, pas avant ;
-- **10 manifestes d'apps + anonymizer:sam3 modifiés NON COMMITÉS** (régénération de l'autre
-  instance ; sam3 = l'arbitrage YO-YO Windows/WSL2 du handoff « bancs ») — à son périmètre ;
-- la référence de ligne du handoff du 01/09 vers le gabarit converter raccourci (l'unique
-  « périmée » du check_docs) — au périmètre converter, disparaîtra à son doc-sync.
+  un 9ᵉ registre arrive, pas avant (toujours 8 registres : rien à faire) ;
+- ~~**10 manifestes d'apps + anonymizer:sam3 modifiés NON COMMITÉS**~~ → **COMMITÉS** dans
+  `901e86b9` (palier auto-sélection : `options_auto` entrait au littéral des schémas, d'où
+  leur régénération — sam3 y est aussi) ; arbre propre, corpus à jour (113) ;
+- ~~la référence de ligne du handoff du 01/09 vers le gabarit converter raccourci~~ →
+  **CORRIGÉE le 02/09** (`:447` → `:362`, le littéral ayant été remplacé par
+  `current_app_spec.input_extensions` en `9d473dbb`) ; `check_docs` = **0 périmée**.
 
 **Contrôles attendus au prochain /reprise (tous MESURÉS cette session)** :
 - suite complète **1369 tests, OK (skipped=4)** ; périmètre common+model_manager 586 OK ;
