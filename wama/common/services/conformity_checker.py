@@ -1019,7 +1019,11 @@ def _select_model(f: _AppFiles):
     (sonde VRAM maison, seuils écrits en dur) au lieu de la brique — c'est là que les
     deux mécanismes divergent en silence.
     """
-    adopted = f.find(PY, r'\bselect_model(_id)?\b')
+    # `resolve_model_choice` = la brique commune d'AUTO-SÉLECTION (auto_model, 02/09) qui
+    # DÉLÈGUE à select_model_id — l'adopter, c'est adopter la brique. Ce critère et elle
+    # sont nés le même jour dans deux instances : sans cette ligne, l'adoptant le plus
+    # conforme (résolution au lancement, domaine du schéma) sortait ROUGE.
+    adopted = f.find(PY, r'\b(select_model(_id)?|resolve_model_choice)\b')
     if adopted:
         return True, adopted
 
