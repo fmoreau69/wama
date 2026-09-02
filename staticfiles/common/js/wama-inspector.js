@@ -939,6 +939,13 @@
     document.addEventListener('media:processed', function () {
       if (itemId == null && batchId == null) { try { showQueueInfo(); } catch (e) {} }
     });
+    // Première arrivée des compteurs (wama-global-progress) : au chargement, l'appel
+    // ci-dessus court AVANT le premier poll — WamaQueueStats est indéfini et le résumé
+    // « File · N éléments » restait invisible jusqu'à la première désélection (constat
+    // Fabien 02/09, converter_01 — mais la course existe sur toutes les pages à file).
+    document.addEventListener('wama:queue-stats', function () {
+      if (itemId == null && batchId == null) { try { showQueueInfo(); } catch (e) {} }
+    });
 
     api = {
       selectItem: selectItem,
@@ -1033,30 +1040,7 @@
       },
     };
 
-    const cardSettings = cfg.cardSettings || function (card) {
-      const out = {};
-      // Les data-* de params peuvent être sur la RACINE de card OU sur le bouton ⚙ (cas le plus courant :
-      // Describer/Synthesizer/… rendent les data-output-format/… sur le bouton settings).
-      // UNE seule graphie depuis le 2026-08-23 : `.settings-btn`, contrat de la brique
-      // queue-actions.js, porté par les 10 apps. Cette ligne portait auparavant l'UNION des
-      // graphies d'apps (`.btn-settings-job`, `.job-settings-btn`…) — une liste de noms d'apps
-      // écrite dans le substrat, c'est-à-dire la facture que la divergence envoyait au commun.
-      // `[data-action="settings"]` est GARDÉ : enhancer et reader le portent en plus de la
-      // classe, et il dit l'INTENTION indépendamment du nommage.
-      const btn = card.querySelector('.settings-btn, [data-action="settings"]');
-      const datasets = btn ? [card.dataset, btn.dataset] : [card.dataset];
-      names.forEach(function (n) {
-        const camel = n.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
-        let v;
-        datasets.forEach(function (ds) {
-          if (v !== undefined) return;
-          if (ds[n] !== undefined) v = ds[n];
-          else if (ds[camel] !== undefined) v = ds[camel];
-        });
-        if (v !== undefined) out[n] = v;
-      });
-      return out;
-    };
+    const cardSettings = cfg.cardSettings || function (card) { return gearValues(card, names); };
 
     // Sources d'options du VOLET (route F4b, 2026-09-02) : un select de volet rendu SERVEUR
     // reçoit lui aussi ses options du catalogue (+ « auto » et sa prévision si le schéma
@@ -1124,8 +1108,58 @@
     } catch (e) { /* très vieux navigateur : hydratation au chargement seulement */ }
   });
 
+  // ── Lecture des réglages d'une card depuis ses data-* — LE lecteur unique ──────────────
+  // Extrait de la closure d'initFromSchema le 2026-09-02, parce qu'un second consommateur est
+  // né (la modale de LOT pré-remplie) : deux lecteurs auraient re-divergé, c'est le motif
+  // « deux lecteurs, deux sources » que la session du 30/08 a déjà payé (modale vs volet).
+  // Les data-* peuvent être sur la RACINE de card OU sur le bouton ⚙ (cas le plus courant).
+  // UNE seule graphie depuis le 2026-08-23 : `.settings-btn` (contrat queue-actions, porté par
+  // les 10 apps) ; `[data-action="settings"]` GARDÉ — enhancer et reader le portent en plus,
+  // et il dit l'INTENTION indépendamment du nommage.
+  function gearValues(card, names) {
+    const out = {};
+    const btn = card.querySelector('.settings-btn, [data-action="settings"]');
+    const datasets = btn ? [card.dataset, btn.dataset] : [card.dataset];
+    (names || []).forEach(function (n) {
+      const camel = n.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
+      let v;
+      datasets.forEach(function (ds) {
+        if (v !== undefined) return;
+        if (ds[n] !== undefined) v = ds[n];
+        else if (ds[camel] !== undefined) v = ds[camel];
+      });
+      if (v !== undefined) out[n] = v;
+    });
+    return out;
+  }
+
+  // Valeurs PARTAGÉES par toutes les filles d'un lot — la sémantique de la carte MÈRE
+  // (« valeur si partagée par toutes »), appliquée à la modale de LOT (2026-09-02, constat
+  // Fabien : la modale s'ouvrait toujours sur « — inchangé — », comme si rien n'était
+  // enregistré — or un lot n'a PAS d'état propre, ses réglages vivent sur les filles ; le
+  // pré-remplissage juste est donc l'intersection, et « inchangé » ne reste que là où les
+  // filles DIVERGENT réellement).
+  function sharedGearValues(groupEl, names) {
+    // ⚠ Sélecteur STRICT (racines de card, mère exclue) : un `[data-id]` nu attrapait aussi
+    // les BOUTONS d'action des filles — leur gearValues rend {}, et {} en intersection
+    // annule TOUT (mesuré le 02/09 : modale de lot toujours vide malgré des filles unanimes).
+    const cards = groupEl
+      ? groupEl.querySelectorAll('.wama-card[data-id]:not(.is-batch), .job-card[data-id]:not(.is-batch)')
+      : [];
+    let commun = null;
+    cards.forEach(function (card) {
+      const v = gearValues(card, names);
+      if (commun === null) { commun = v; return; }
+      Object.keys(commun).forEach(function (k) {
+        if (String(commun[k]) !== String(v[k])) delete commun[k];
+      });
+    });
+    return commun || {};
+  }
+
   global.WamaInspector = { init: init, initFromSchema: initFromSchema, cloneActions: cloneActions,
                            cloneBatchActions: cloneBatchActions,
                            renderInlinePreview: renderInlinePreview,
+                           gearValues: gearValues, sharedGearValues: sharedGearValues,
                            hydrateCardPreviews: hydrateCardPreviews };
 })(window);

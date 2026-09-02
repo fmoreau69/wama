@@ -73,7 +73,17 @@
                     if (pct) pct.textContent = total ? p + '%' : '';
 
                     // Source UNIQUE des compteurs de file (l'inspecteur les LIT, ne recompte pas).
+                    // ⚠ L'événement fait partie du contrat (2026-09-02) : au chargement,
+                    // l'inspecteur rend son résumé « File · N éléments » AVANT le premier
+                    // poll — WamaQueueStats est alors indéfini et la section restait cachée
+                    // jusqu'à la première désélection (constat Fabien sur converter_01, vrai
+                    // sur les 10 apps : même course, même code). Le poller ANNONCE donc ses
+                    // stats ; l'inspecteur ré-affiche si rien n'est sélectionné.
+                    var premiereFois = !window.WamaQueueStats;
                     window.WamaQueueStats = { total: total, done: done, running: running, failed: failed };
+                    if (premiereFois) {
+                        document.dispatchEvent(new CustomEvent('wama:queue-stats'));
+                    }
 
                     if (window.WamaEta) {
                         var etaEl = document.getElementById(etaId);

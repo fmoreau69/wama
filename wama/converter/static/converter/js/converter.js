@@ -426,9 +426,18 @@
         // (`CONVERTER_OUTPUT_FORMATS`, projection de `SUPPORTED_CONVERSIONS`).
         const host = document.getElementById('converterBatchParams');
         if (host && window.WamaParams && APP.schema) {
+            // Pré-remplissage = les valeurs PARTAGÉES des filles (2026-09-02, constat
+            // Fabien : la modale s'ouvrait toujours sur « — inchangé — », comme si les
+            // réglages sauvés étaient perdus — or un lot ne stocke rien, il APPLIQUE :
+            // le juste est la sémantique de la carte mère, « valeur si partagée par
+            // toutes les filles », lue du MÊME lecteur de gear que la modale d'item).
+            // « inchangé » ne reste que là où les filles DIVERGENT réellement.
+            const groupe = document.querySelector('.batch-group[data-batch-id="' + batchId + '"]');
+            const partagees = (groupe && window.WamaInspector && WamaInspector.sharedGearValues)
+                ? WamaInspector.sharedGearValues(groupe, APP.schema.map(p => p.name)) : {};
             WamaParams.render(host, APP.schema, {
                 context: 'batch',
-                values: { media_type: mediaType || '' },
+                values: Object.assign(partagees, { media_type: mediaType || '' }),
             });
         }
         new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
