@@ -449,7 +449,7 @@ def _categories_locales(m):
     d'images ») ne met pas un VLM dans le banc texte→image. Les 6 leaderboards sont tous en
     GÉNÉRATION — d'où la dérivation par la tâche seule.
     """
-    from ..models import canonical_task
+    from ..models import ModelType, canonical_task
 
     caps = m.capabilities or {}
     # `canonical_task` traduit le vocabulaire d'une plateforme vers le nôtre : une tâche
@@ -466,9 +466,15 @@ def _categories_locales(m):
     if m.model_key.startswith(('ollama:', 'proposed:ollama:')):
         # Un modèle d'EMBEDDING n'est pas un LLM de chat : quand les capacités existent
         # (découverte passée), `completion` fait foi — 1er dry-run 19/08 : bge-m3 prenait
-        # un Intelligence Index. Lignes `proposed:` sans caps : tolérées (leurs faux
-        # appariements meurent par la taille requise en catégorie llm).
+        # un Intelligence Index. Les lignes `proposed:` n'ont PAS de caps (la découverte
+        # n'est pas passée) — mais elles ont un `model_type`, posé par la prospection
+        # (`prospect_ollama` écrit `'embedding'`), et c'est LUI qui fait foi : 5 embeddings
+        # proposés tombaient en catégorie llm et polluaient « sans banc » / « sans identité »
+        # (mesuré le 02/09, promesse du 01/09 tenue ici). Les `vlm` RESTENT éligibles : AA
+        # classe MiniCPM-V dans son leaderboard LLM.
         if caps and not caps.get('completion'):
+            return []
+        if m.model_type not in (ModelType.LLM, ModelType.VLM):
             return []
         return ['llm']
     return []

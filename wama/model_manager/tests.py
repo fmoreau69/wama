@@ -918,6 +918,28 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
         # à un repli hasardeux.
         self.assertEqual(bs._categories_locales(m), [])
 
+    def test_un_embedding_propose_sans_capacites_ne_tombe_pas_dans_le_banc_llm(self):
+        """Promesse du 01/09 : le `model_type` (posé par la prospection) fait foi quand la
+        découverte n'a pas encore écrit de capacités. Les `vlm` restent éligibles (AA classe
+        MiniCPM-V dans son leaderboard LLM) ; un `llm` proposé sans caps aussi (ses faux
+        appariements meurent par la taille requise)."""
+        from .services import benchmark_sync as bs
+
+        def _propose(nom, model_type):
+            return AIModel.objects.create(
+                model_key=f'proposed:ollama:{nom}:latest', name=nom, model_type=model_type,
+                source='ollama', is_proposed=True, capabilities={})
+
+        self.assertEqual(bs._categories_locales(_propose('qwen3-embedding', 'embedding')), [])
+        self.assertEqual(bs._categories_locales(_propose('minicpm-v4.6', 'vlm')), ['llm'])
+        self.assertEqual(bs._categories_locales(_propose('qwen3-coder', 'llm')), ['llm'])
+        # Et l'INSTALLÉ, dont la découverte a écrit les capacités : `completion` fait foi
+        # avant le type — le comportement du 19/08 (bge-m3) est inchangé.
+        m = AIModel.objects.create(
+            model_key='ollama:bge-m3:latest', name='bge-m3', model_type='embedding',
+            source='ollama', is_downloaded=True, capabilities={'completion': False})
+        self.assertEqual(bs._categories_locales(m), [])
+
 
 class EchellesComparablesTest(_SourcesFactices, TestCase):
     """
