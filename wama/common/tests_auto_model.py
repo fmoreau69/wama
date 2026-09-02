@@ -151,6 +151,17 @@ class CurseurDeQualiteTest(TestCase):
                              {'field': 'tts_model', 'equals': 'auto'},
                              f"{app} : le curseur doit n'apparaître que sur « auto »")
 
+    def test_l_anonymizer_est_rallie_au_curseur_commun_avec_son_pas_reel(self):
+        """Même FORME utilisateur (type='intent'), déclinaison locale conservée : le champ
+        reste `precision_level` (frontière des données — tasks/model_selector le lisent) et
+        le pas reste 5 (5 paliers moteur réels, leçon du 2026-08-19)."""
+        from wama.common.utils.param_schema import schema_for_app
+        champ = next((f for f in schema_for_app('anonymizer')
+                      if f.get('name') == 'precision_level'), None)
+        self.assertIsNotNone(champ, "anonymizer : precision_level absent du schéma")
+        self.assertEqual(champ.get('type'), 'intent')
+        self.assertEqual(champ.get('step'), 5)
+
     def test_la_lecture_d_un_post_est_bornee_et_ne_leve_jamais(self):
         from wama.common.utils.auto_model import read_quality_intent
         self.assertEqual(read_quality_intent('85'), 85)

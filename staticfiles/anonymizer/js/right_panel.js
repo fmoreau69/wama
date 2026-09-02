@@ -211,38 +211,11 @@
     }
 
     // ========================================
-    // Precision Label Handler
+    // Precision Label — RETIRÉ (rallié au curseur COMMUN, 2026-09-02)
     // ========================================
-
-    function initPrecisionLabel() {
-        const slider = document.getElementById('user_setting_precision_level');
-        const label = document.getElementById('precision_label_rp');
-
-        if (!slider || !label) return;
-
-        function updatePrecisionLabel() {
-            const value = parseInt(slider.value);
-            if (value <= 20) {
-                label.textContent = 'Quick';
-                label.className = 'text-success';
-            } else if (value <= 40) {
-                label.textContent = 'Balanced Quick';
-                label.className = 'text-info';
-            } else if (value <= 60) {
-                label.textContent = 'Balanced';
-                label.className = 'text-primary';
-            } else if (value <= 80) {
-                label.textContent = 'Balanced Precise';
-                label.className = 'text-warning';
-            } else {
-                label.textContent = 'Max Precision';
-                label.className = 'text-danger';
-            }
-        }
-
-        slider.addEventListener('input', updatePrecisionLabel);
-        updatePrecisionLabel(); // Initial update
-    }
+    // L'étiquette Quick/Balanced/… (anglais, 5 libellés locaux) est remplacée par les
+    // zones du partial commun _intent_slider.html (Rapide/Équilibré/Qualité tricolores),
+    // mises à jour par la liaison DÉLÉGUÉE de wama-params.js — plus rien à faire ici.
 
     // ========================================
     // Classes Selection Modal Handler
@@ -445,12 +418,13 @@
             }
         }
 
-        // Update precision slider
+        // Update precision slider — l'événement DOIT buller : la surface du curseur commun
+        // (zone + couleur) est tenue par la liaison DÉLÉGUÉE au document (wama-params.js),
+        // un input non bullant la laissait figée sur mise à jour programmatique.
         updateSlider('user_setting_precision_level', settings.precision_level);
-        // Also update precision label
         const precisionSlider = document.getElementById('user_setting_precision_level');
         if (precisionSlider) {
-            precisionSlider.dispatchEvent(new Event('input'));
+            precisionSlider.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
         // Update blur_ratio slider
@@ -553,7 +527,6 @@
         initDetectionModeToggle();
         initSam3Prompt();
         initSam3Examples();
-        initPrecisionLabel();
         initClassesModal();
         initHfTokenConfig();
         initResetGlobalSettings();
