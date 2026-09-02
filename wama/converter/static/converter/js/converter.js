@@ -148,6 +148,7 @@
         WamaParams.render(host, CONVERTER_APP.schema, {
             context: 'panel',
             values: Object.assign({ media_type: mt }, opts || {}),
+            groups: CONVERTER_APP.groups,
         });
         // Fidélité au comportement d'avant : un type détecté propose d'emblée un format (le
         // dropdown d'origine sélectionnait le premier de la liste). Sans cela, déposer
@@ -438,6 +439,7 @@
             WamaParams.render(host, APP.schema, {
                 context: 'batch',
                 values: Object.assign(partagees, { media_type: mediaType || '' }),
+                groups: APP.groups,
             });
         }
         new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
@@ -606,6 +608,7 @@
                 WamaParams.render(body, APP.schema, {
                     context: 'item',
                     values: values,
+                    groups: APP.groups,
                 });
             } else {
                 // Jamais un blanc MUET : cet état signifie que wama-params.js a échoué au chargement.
@@ -805,7 +808,8 @@
         const host = panelHost();
         if (host && window.WamaParams && window.CONVERTER_APP) {
             WamaParams.render(host, CONVERTER_APP.schema,
-                              { context: 'panel', values: { media_type: currentMediaType || '' } });
+                              { context: 'panel', values: { media_type: currentMediaType || '' },
+                                groups: CONVERTER_APP.groups });
             window.CONVERTER_DEFAUTS = readMainPanelOptions();
         }
         if (profileSelect) {

@@ -12,7 +12,7 @@ résolu côté JS depuis `FORMATS[media_type].output`).
 Rendu par `WamaParams.render(body, PARAMS_JSON, {context:'item', values, optionsResolver})` dans
 converter.js (remplace l'ancien buildModalFormHTML/readModalForm). Lu par `WamaParams.read(body)`.
 """
-from wama.common.utils.param_schema import Param, schema_to_dicts
+from wama.common.utils.param_schema import Param, ParamGroup, groups_to_dicts, schema_to_dicts
 
 # ── Descriptif moteur (brique wama-model-help via WamaParams : chip + help_fallback) ──
 # Construit depuis SUPPORTED_CONVERSIONS — source unique des formats (format_router).
@@ -46,6 +46,20 @@ IMG_VID = {"field": "media_type", "in": ["image", "video"]}
 ITEM = ("item", "panel")
 ITEM_BATCH = ("item", "batch", "panel")   # + modale de BATCH (application en masse)
 
+# ── Groupes d'affichage (2 COLONNES — mécanisme COMMUN `ParamGroup(columns=2)` +
+# `.wama-param-group-cols-2`, repli 1 colonne <500px ; l'imager était la seule app à le
+# déclarer, adopté ici sur GO Fabien 02/09 : réduit la hauteur de la modale ET du volet).
+# Le show_if de GROUPE masque le TITRE avec sa famille — les champs gardent le leur.
+GROUPS = [
+    ParamGroup("sortie", "Sortie", icon="fa-file-export", columns=2),
+    ParamGroup("image", "Image", icon="fa-image", columns=2, show_if=IMG),
+    ParamGroup("transform", "Transformations", icon="fa-rotate", columns=2, show_if=IMG_VID),
+    ParamGroup("video", "Vidéo", icon="fa-film", columns=2, show_if=VID),
+    ParamGroup("audio", "Audio", icon="fa-music", columns=2, show_if=AUD),
+    ParamGroup("posttraitement", "Post-traitement IA", icon="fa-wand-magic-sparkles", columns=2,
+               show_if={"field": "media_type", "in": ["image", "video", "audio"]}),
+]
+
 PARAMS = [
     # Porteur (invisible) : pilote les show_if + le resolver de formats. Non sauvegardé (type fixe du job).
     # Porteur AUSSI en modale de LOT (02/09, demande Fabien) : le regroupement par nature
@@ -54,14 +68,14 @@ PARAMS = [
     # modale de lot, exactement comme en modale d'item.
     Param(name="media_type", type="hidden", contexts=ITEM_BATCH),
 
-    Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
+    Param(name="output_format", group="sortie", type="select", label="Format de sortie", icon="fa-file-export",
           options_source="formats", contexts=ITEM_BATCH,
           chip=True, section="output", help_fallback=_FORMAT_HELP),
 
     # Préréglage de qualité GLOBAL (ffmpeg/pillow) — consommé par batch_update
     # (quality_preset) ; déclaré au schéma depuis le port batch (03/08) : un champ
     # consommé mais non déclaré y était invisible (leçon converter).
-    Param(name="quality_preset", type="select", label="Qualité (préréglage)", icon="fa-gem",
+    Param(name="quality_preset", group="sortie", type="select", label="Qualité (préréglage)", icon="fa-gem",
           chip=True,
           contexts=("batch",),
           # « — par défaut — » et non « — inchangé — » (Fabien, 02/09) : le vide de CE champ
@@ -81,7 +95,7 @@ PARAMS = [
     # RÉGLAGES des cards restait vide — seul le format était chippé, en section SORTIE).
     # Convention des pilotes (reader/transcriber : moteur, mode, langue, toggles à chip_label) ;
     # les nombres ambigus (resize, CRF, fps) restent hors chips — un « 23 » nu ne dit rien.
-    Param(name="quality", type="range", label="Qualité", icon="fa-gauge",
+    Param(name="quality", group="image", type="range", label="Qualité", icon="fa-gauge",
           min=1, max=100, step=1, default=85, show_if=IMG, contexts=ITEM, chip=True,
           help="Qualité d'encodage de l'image (1–100)."),
     # ⚠ Le « verrou de proportion » EXISTE déjà, implicitement (image_backend:44) : une seule
@@ -89,10 +103,10 @@ PARAMS = [
     # affichait « 0 = inchangé », vrai seulement quand les DEUX sont vides. La refonte de
     # présentation (mode %/px, slider relatif, renvoi aux unités du profil) est consignée
     # ROADMAP §23.4 (question Fabien 02/09) — à dessiner avec la card v4, pas champ par champ.
-    Param(name="resize_w", type="number", label="Largeur (px)", icon="fa-arrows-left-right",
+    Param(name="resize_w", group="image", type="number", label="Largeur (px)", icon="fa-arrows-left-right",
           min=0, show_if=IMG, contexts=ITEM_BATCH,
           help="Vide = suit la hauteur (proportions gardées) ; les deux vides = inchangé."),
-    Param(name="resize_h", type="number", label="Hauteur (px)", icon="fa-arrows-up-down",
+    Param(name="resize_h", group="image", type="number", label="Hauteur (px)", icon="fa-arrows-up-down",
           min=0, show_if=IMG, contexts=ITEM_BATCH,
           help="Vide = suit la largeur (proportions gardées) ; les deux vides = inchangé."),
 
@@ -100,43 +114,43 @@ PARAMS = [
     # Neutre = "" (et plus "0") : un chip ne se rend que pour une valeur POSÉE — avec "0",
     # « Aucune » se chippait sur toute card passée par la modale. Les backends tolèrent ""
     # (`int(options.get('rotation', 0) or 0)`, image_backend:122 / video_backend:167).
-    Param(name="rotation", type="select", label="Rotation", icon="fa-rotate", show_if=IMG_VID,
+    Param(name="rotation", group="transform", type="select", label="Rotation", icon="fa-rotate", show_if=IMG_VID,
           contexts=ITEM_BATCH, chip=True,
           choices=[("", "Aucune"), ("90", "90° horaire"), ("180", "180°"), ("270", "90° anti-horaire")]),
-    Param(name="flip_h", type="toggle", label="Miroir horizontal", icon="fa-left-right",
+    Param(name="flip_h", group="transform", type="toggle", label="Miroir horizontal", icon="fa-left-right",
           show_if=IMG_VID, contexts=ITEM_BATCH, chip=True, chip_label="Miroir H"),
-    Param(name="flip_v", type="toggle", label="Miroir vertical", icon="fa-up-down",
+    Param(name="flip_v", group="transform", type="toggle", label="Miroir vertical", icon="fa-up-down",
           show_if=IMG_VID, contexts=ITEM_BATCH, chip=True, chip_label="Miroir V"),
 
     # ── Vidéo ─────────────────────────────────────────────────────────────────
-    Param(name="video_quality", type="number", label="Qualité vidéo (CRF)", icon="fa-film",
+    Param(name="video_quality", group="video", type="number", label="Qualité vidéo (CRF)", icon="fa-film",
           min=0, max=51, show_if=VID, contexts=ITEM_BATCH,
           help="0 = sans perte, 23 = défaut, 51 = pire qualité."),
-    Param(name="fps", type="number", label="Images/s (FPS)", icon="fa-video",
+    Param(name="fps", group="video", type="number", label="Images/s (FPS)", icon="fa-video",
           min=1, max=120, show_if=VID, contexts=ITEM_BATCH, help="Vide = inchangé."),
     # Sortie GIF uniquement (video_backend._to_gif). Déclarés ici parce que le SCHÉMA est la
     # source : ils étaient consommés par le backend et acceptés par la vue, mais invisibles de
     # l'UI comme de l'API — la vue en gardait une liste en dur.
-    Param(name="gif_fps", type="number", label="FPS du GIF", icon="fa-images",
+    Param(name="gif_fps", group="video", type="number", label="FPS du GIF", icon="fa-images",
           min=1, max=50, default=12, show_if=VID, contexts=ITEM_BATCH,
           help="Sortie GIF uniquement."),
-    Param(name="gif_width", type="number", label="Largeur du GIF (px)", icon="fa-arrows-left-right",
+    Param(name="gif_width", group="video", type="number", label="Largeur du GIF (px)", icon="fa-arrows-left-right",
           min=64, max=1920, default=480, show_if=VID, contexts=ITEM_BATCH,
           help="Sortie GIF uniquement — hauteur calculée pour garder les proportions."),
 
     # ── Audio ─────────────────────────────────────────────────────────────────
-    Param(name="audio_bitrate", type="select", label="Débit audio", icon="fa-music", show_if=AUD,
+    Param(name="audio_bitrate", group="audio", type="select", label="Débit audio", icon="fa-music", show_if=AUD,
           contexts=ITEM_BATCH, chip=True,
           choices=[("", "Auto"), ("128k", "128 kbps"), ("192k", "192 kbps"),
                    ("256k", "256 kbps"), ("320k", "320 kbps")]),
-    Param(name="sample_rate", type="select", label="Fréquence d'échantillonnage", icon="fa-wave-square",
+    Param(name="sample_rate", group="audio", type="select", label="Fréquence d'échantillonnage", icon="fa-wave-square",
           show_if=AUD, contexts=ITEM_BATCH, chip=True,
           choices=[("", "Inchangée"), ("22050", "22 050 Hz"), ("44100", "44 100 Hz"),
                    ("48000", "48 000 Hz")]),
-    Param(name="channels", type="select", label="Canaux", icon="fa-headphones",
+    Param(name="channels", group="audio", type="select", label="Canaux", icon="fa-headphones",
           show_if=AUD, contexts=ITEM_BATCH, chip=True,
           choices=[("", "Inchangés"), ("1", "Mono"), ("2", "Stéréo")]),
-    Param(name="normalize", type="toggle", label="Normaliser le volume", icon="fa-wave-square",
+    Param(name="normalize", group="audio", type="toggle", label="Normaliser le volume", icon="fa-wave-square",
           show_if=AUD, contexts=ITEM_BATCH, chip=True, chip_label="Normalisation"),
 ]
 
@@ -174,11 +188,13 @@ def _cross_app_params():
         if o['type'] == 'select':
             out.append(Param(name=_oid, type="select", label=o['label'],
                              icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM_BATCH,
+                             group="posttraitement",
                              chip=True,
                              choices=[("", "Aucun")] + list(o['choices']), help=_help))
         else:  # checkbox → toggle
             out.append(Param(name=_oid, type="toggle", label=o['label'],
                              icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM_BATCH,
+                             group="posttraitement",
                              chip=True, chip_label=o['label'].split(' (')[0],
                              help=_help))
     return out
@@ -186,3 +202,4 @@ def _cross_app_params():
 PARAMS += _cross_app_params()
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
+GROUPS_JSON = groups_to_dicts(GROUPS)
