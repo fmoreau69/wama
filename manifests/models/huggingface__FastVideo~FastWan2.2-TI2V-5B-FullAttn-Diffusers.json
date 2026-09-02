@@ -1,0 +1,56 @@
+{
+  "body": {
+    "capabilities": {
+      "task": "text-to-video"
+    },
+    "composition": {},
+    "extra_info": {
+      "category": "diffusion",
+      "family": "FastWan2.2-TI2V-5B-FullAttn-Diffusers",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/FastWan2.2-TI2V-5B-FullAttn-Diffusers/models--FastVideo--FastWan2.2-TI2V-5B-FullAttn-Diffusers",
+      "size_bytes": 24203360678
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Snapshot HF FastWan2.2-TI2V-5B-FullAttn-Diffusers — installé, en attente d'intégration",
+      "hf_id": "FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
+      "license": "apache-2.0",
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 22.541136180981994,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (diffusion/FastWan2.2-TI2V-5B-FullAttn-Diffusers) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
+  "manifest_kind": "model",
+  "name": "FastWan2.2-TI2V-5B-FullAttn-Diffusers",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
