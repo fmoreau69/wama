@@ -724,6 +724,43 @@ est une passe LLM **par accident** : le trou est le même, la porte est différe
 ③ séquelles quasi nulles (0 card zombie, 0 dump — vérifié), le swap orphelin de 8,04 Go
 purgé datait du 31/08.
 
+### 2026-09-02 20:21:47 et ~20:58:40 — DEUX crashs à 37 min, MÊME déclencheur à la seconde :
+### le triage VLM du smoke `converter.ui` charge `qwen3.5:4b` — rails PROPRES (5ᵉ et 6ᵉ morts)
+
+Reboots `Kernel-Power 41` à **20:22:46** et **20:59:34** (`lastboot 20:59:31`). `rails.csv`
+(2 s) s'arrête à **20:21:47** — archivé `rails_20260902_2021_crash.csv` (40 336 échantillons,
+`analyze_rails` : **5 rails dans la tolérance, aucune coupure, dérive nulle**) ; HWiNFO n'ayant
+pas été relancé entre les deux, le second n'a que le `hwlog` (10 s, watchdog).
+
+**Chronologie croisée (wama.log × Ollama `server-*.log` × hwlog), identique aux deux crashs :**
+
+| | crash 1 | crash 2 |
+|---|---|---|
+| `[nightly] ▶ converter.ui` (fin d'une passe `converter_01.*` lancée à la main) | 20:21:08 | 20:58:15 |
+| `model_selector ollama → qwen3.5:4b (vram 3,4, budget 16)` | 20:21:13 | 20:58:22 |
+| Ollama hôte : `starting llama-server` blob `81fb60c7…` = **qwen3.5:4b** | 20:21:14 | 20:58:23 |
+| hwlog : VRAM **4,5 → 10,4 → 11,4 Go** à ~31 W / 210-555 MHz (staging, pas de pic) | 20:21:13-45 | 20:58:16-37 (4,4 → 7,6 → 11,3) |
+| Ollama : `loaded runners count=1` | 20:21:39 | 20:58:29 |
+| dernier échantillon vivant | 20:21:47 (rails) | 20:58:37 (hwlog) |
+
+Aucune requête utilisateur dans Apache aux deux fenêtres ; le worker GPU est VIDE (journal de
+434 octets) : le chargement vient d'**Ollama sur l'hôte Windows**, appelé par `_vlm_triage`
+(`ui_smoke.py`, `describe_image_ollama` avec `keep_alive='120s'`) parce que la capture de
+`/converter/` a bougé de plus de 2 % (page en chantier). Un modèle « de 3,4 Go » monte à **+7 Go
+de VRAM** (contexte image + KV) et la machine meurt PENDANT la montée, à 31 W — la signature du
+28/08 (« mort au staging, pas au pic »), sur la carte la moins chargée de la journée.
+
+**Ce que ça établit** : ③ ᵉ porte du même trou — après les passes LLM délibérées (26/08) et la
+suite de tests qui indexe (01/09), **le smoke navigateur qui triage par VLM**. Le déclencheur
+reste « une montée VRAM Ollama depuis l'hôte », la puissance n'y est pour rien (31 W).
+**Reproductible : 2/2 le même soir, à 37 min d'écart.** Et `WAMA_GPU_SAFE_MODE` ne protège pas
+ce chemin : `_vlm_triage` ne consulte pas `gpu_safe_mode()`.
+
+**À faire (non fait ce soir — décision, pas urgence de code)** : ① `_vlm_triage` court-circuité
+sous `gpu_safe_mode()` et par un drapeau `--no-vlm` du stage UI (le triage est une AIDE de
+lecture, pas une mesure) ; ② ne plus lancer la famille `converter*.ui` tant que la page bouge
+(chaque diff > 2 % rappelle le VLM) ; ③ relancer HWiNFO → `rails.csv` (fait par Fabien).
+
 ### Ce qui reste ouvert
 
 - **Quel composant lâche** — inconnu. La charge est le **déclencheur**, pas le fautif : alimentation,
