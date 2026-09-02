@@ -488,6 +488,19 @@ def _processing(cat: dict, app_id: str) -> dict:
             out['item_model'] = entree['model'].__name__
     except Exception:
         pass
+    # ── ROUTAGE nature → backend (marche B1, 2026-09-02) : la déclaration `ROUTES` de
+    # `wama/<app>/backends/__init__.py` monte au manifeste — c'est elle que `tasks_gen`
+    # COMPOSE (le corps `_process_*` généré appelle le backend au CONTRAT COMMUN au lieu
+    # d'un stub NotImplementedError). Chemins relatifs au paquet de l'app (『backends.…』) :
+    # la jumelle qui copie `backends/` résout vers SES copies. Absente = pas de routage
+    # déclaré → le stub demeure (marche B non applicable à cette app).
+    try:
+        from importlib import import_module
+        _routes = getattr(import_module(f'wama.{app_id}.backends'), 'ROUTES', None)
+        if isinstance(_routes, dict) and _routes:
+            out['backend_routes'] = dict(_routes)
+    except Exception:
+        pass
     # Modèle de liaison batch branché (A3b) — lu du registre de mesure batch_sync.SYNCED ;
     # consommé par le gabarit apps_gen (converter, FK directe, n'en a pas : clé absente).
     try:
