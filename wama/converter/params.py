@@ -60,7 +60,11 @@ PARAMS = [
     Param(name="quality_preset", type="select", label="Qualité (préréglage)", icon="fa-gem",
           chip=True,
           contexts=("batch",),
-          choices=[("", "— inchangé —"), ("web", "Web (léger)"),
+          # « — par défaut — » et non « — inchangé — » (Fabien, 02/09) : le vide de CE champ
+          # signifie « aucun préréglage → les défauts du schéma s'appliquent », pas « garder
+          # tel quel ». « inchangé » reste juste pour output_format (garder le format SOURCE) ;
+          # « auto » est réservé au tirage résolu au lancement (options_auto, brique du 02/09).
+          choices=[("", "— par défaut —"), ("web", "Web (léger)"),
                    ("balanced", "Équilibré"), ("max", "Maximum")]),
 
     # ── Image ───────────────────────────────────────────────────────────────
