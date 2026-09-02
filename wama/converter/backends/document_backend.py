@@ -114,7 +114,9 @@ def _pdf_to_docx(input_path: str, output_path: str) -> None:
 
 
 def convert_document(input_path: str, output_path: str, output_format: str,
-                     options: dict = None) -> None:
+                     options: dict = None, progress_callback=None) -> None:
+    # `progress_callback` accepté et ignoré (pandoc ne rapporte pas de progression) —
+    # contrat COMMUN des backends (B1, 02/09), cf. image_backend.
     """
     Convert a document via pandoc (with PDF-input special handling).
 

@@ -31,7 +31,12 @@ _SUPPORTS_ANIMATION = {'gif', 'webp'}
 
 
 def convert_image(input_path: str, output_path: str, output_format: str,
-                  quality: int = 85, options: dict = None) -> None:
+                  quality: int = 85, options: dict = None,
+                  progress_callback=None) -> None:
+    # `progress_callback` accepté et ignoré (conversion image quasi instantanée) : c'est le
+    # CONTRAT COMMUN des backends (B1, 02/09) — un composeur généré appelle les cinq de la
+    # même façon. `quality` reste un kwarg à part pour les appelants historiques, mais le
+    # contrat le sert via `options['quality']` (lu ci-dessous s'il y est).
     """
     Convert an image file to another format using Pillow.
 
@@ -54,6 +59,11 @@ def convert_image(input_path: str, output_path: str, output_format: str,
     if pil_fmt is None:
         raise ValueError(f"Format de sortie non supporté : {output_format}")
 
+    if options.get('quality') is not None:
+        try:
+            quality = int(options['quality'])   # contrat commun : la qualité voyage dans options
+        except (TypeError, ValueError):
+            pass
     resize_w  = int(options.get('resize_w', 0) or 0)
     resize_h  = int(options.get('resize_h', 0) or 0)
 
