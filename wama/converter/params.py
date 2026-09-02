@@ -48,7 +48,11 @@ ITEM_BATCH = ("item", "batch", "panel")   # + modale de BATCH (application en ma
 
 PARAMS = [
     # Porteur (invisible) : pilote les show_if + le resolver de formats. Non sauvegardé (type fixe du job).
-    Param(name="media_type", type="hidden", contexts=ITEM),
+    # Porteur AUSSI en modale de LOT (02/09, demande Fabien) : le regroupement par nature
+    # (brique commune group_into_batches_by_nature, vérifié en dépôt mixte → un batch par
+    # nature) garantit un lot HOMOGÈNE — sa nature peut donc piloter les show_if de la
+    # modale de lot, exactement comme en modale d'item.
+    Param(name="media_type", type="hidden", contexts=ITEM_BATCH),
 
     Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
           options_source="formats", contexts=ITEM_BATCH,
@@ -68,6 +72,11 @@ PARAMS = [
                    ("balanced", "Équilibré"), ("max", "Maximum")]),
 
     # ── Image ───────────────────────────────────────────────────────────────
+    # Réglages de la NATURE en modale de LOT aussi (ITEM_BATCH, 02/09, demande Fabien) : le
+    # lot étant homogène par nature, ses réglages auxiliaires s'appliquent en masse. Seuls
+    # restent à l'ITEM : `quality` (range à défaut VISIBLE — en masse il s'écraserait sur
+    # les filles sans intention ; le préréglage de qualité couvre le besoin de masse) et les
+    # cross-app GPU (garde v1, cf. _cross_app_params). Un save de lot ne poste que le POSÉ.
     # chip=True sur les réglages LISIBLES d'un coup d'œil (31/08, constat Fabien : la section
     # RÉGLAGES des cards restait vide — seul le format était chippé, en section SORTIE).
     # Convention des pilotes (reader/transcriber : moteur, mode, langue, toggles à chip_label) ;
@@ -76,52 +85,52 @@ PARAMS = [
           min=1, max=100, step=1, default=85, show_if=IMG, contexts=ITEM, chip=True,
           help="Qualité d'encodage de l'image (1–100)."),
     Param(name="resize_w", type="number", label="Largeur (px)", icon="fa-arrows-left-right",
-          min=0, show_if=IMG, contexts=ITEM, help="0 = inchangé."),
+          min=0, show_if=IMG, contexts=ITEM_BATCH, help="0 = inchangé."),
     Param(name="resize_h", type="number", label="Hauteur (px)", icon="fa-arrows-up-down",
-          min=0, show_if=IMG, contexts=ITEM, help="0 = inchangé."),
+          min=0, show_if=IMG, contexts=ITEM_BATCH, help="0 = inchangé."),
 
     # ── Transformations (image OU vidéo) ──────────────────────────────────────
     # Neutre = "" (et plus "0") : un chip ne se rend que pour une valeur POSÉE — avec "0",
     # « Aucune » se chippait sur toute card passée par la modale. Les backends tolèrent ""
     # (`int(options.get('rotation', 0) or 0)`, image_backend:122 / video_backend:167).
     Param(name="rotation", type="select", label="Rotation", icon="fa-rotate", show_if=IMG_VID,
-          contexts=ITEM, chip=True,
+          contexts=ITEM_BATCH, chip=True,
           choices=[("", "Aucune"), ("90", "90° horaire"), ("180", "180°"), ("270", "90° anti-horaire")]),
     Param(name="flip_h", type="toggle", label="Miroir horizontal", icon="fa-left-right",
-          show_if=IMG_VID, contexts=ITEM, chip=True, chip_label="Miroir H"),
+          show_if=IMG_VID, contexts=ITEM_BATCH, chip=True, chip_label="Miroir H"),
     Param(name="flip_v", type="toggle", label="Miroir vertical", icon="fa-up-down",
-          show_if=IMG_VID, contexts=ITEM, chip=True, chip_label="Miroir V"),
+          show_if=IMG_VID, contexts=ITEM_BATCH, chip=True, chip_label="Miroir V"),
 
     # ── Vidéo ─────────────────────────────────────────────────────────────────
     Param(name="video_quality", type="number", label="Qualité vidéo (CRF)", icon="fa-film",
-          min=0, max=51, show_if=VID, contexts=ITEM,
+          min=0, max=51, show_if=VID, contexts=ITEM_BATCH,
           help="0 = sans perte, 23 = défaut, 51 = pire qualité."),
     Param(name="fps", type="number", label="Images/s (FPS)", icon="fa-video",
-          min=1, max=120, show_if=VID, contexts=ITEM, help="Vide = inchangé."),
+          min=1, max=120, show_if=VID, contexts=ITEM_BATCH, help="Vide = inchangé."),
     # Sortie GIF uniquement (video_backend._to_gif). Déclarés ici parce que le SCHÉMA est la
     # source : ils étaient consommés par le backend et acceptés par la vue, mais invisibles de
     # l'UI comme de l'API — la vue en gardait une liste en dur.
     Param(name="gif_fps", type="number", label="FPS du GIF", icon="fa-images",
-          min=1, max=50, default=12, show_if=VID, contexts=ITEM,
+          min=1, max=50, default=12, show_if=VID, contexts=ITEM_BATCH,
           help="Sortie GIF uniquement."),
     Param(name="gif_width", type="number", label="Largeur du GIF (px)", icon="fa-arrows-left-right",
-          min=64, max=1920, default=480, show_if=VID, contexts=ITEM,
+          min=64, max=1920, default=480, show_if=VID, contexts=ITEM_BATCH,
           help="Sortie GIF uniquement — hauteur calculée pour garder les proportions."),
 
     # ── Audio ─────────────────────────────────────────────────────────────────
     Param(name="audio_bitrate", type="select", label="Débit audio", icon="fa-music", show_if=AUD,
-          contexts=ITEM, chip=True,
+          contexts=ITEM_BATCH, chip=True,
           choices=[("", "Auto"), ("128k", "128 kbps"), ("192k", "192 kbps"),
                    ("256k", "256 kbps"), ("320k", "320 kbps")]),
     Param(name="sample_rate", type="select", label="Fréquence d'échantillonnage", icon="fa-wave-square",
-          show_if=AUD, contexts=ITEM, chip=True,
+          show_if=AUD, contexts=ITEM_BATCH, chip=True,
           choices=[("", "Inchangée"), ("22050", "22 050 Hz"), ("44100", "44 100 Hz"),
                    ("48000", "48 000 Hz")]),
     Param(name="channels", type="select", label="Canaux", icon="fa-headphones",
-          show_if=AUD, contexts=ITEM, chip=True,
+          show_if=AUD, contexts=ITEM_BATCH, chip=True,
           choices=[("", "Inchangés"), ("1", "Mono"), ("2", "Stéréo")]),
     Param(name="normalize", type="toggle", label="Normaliser le volume", icon="fa-wave-square",
-          show_if=AUD, contexts=ITEM, chip=True, chip_label="Normalisation"),
+          show_if=AUD, contexts=ITEM_BATCH, chip=True, chip_label="Normalisation"),
 ]
 
 

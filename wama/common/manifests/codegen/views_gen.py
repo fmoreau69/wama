@@ -750,11 +750,27 @@ def batch_start(request, pk):
 {p}    touches.append('{conteneur_options}')''')
         return '\n'.join(lignes)
 
-    lect_donnees = '''    try:
+    lect_donnees = f'''    try:
         donnees = json.loads(request.body) if request.body else dict(request.POST)
     except Exception:
         donnees = dict(request.POST)
-    donnees = {k: (v[0] if isinstance(v, list) else v) for k, v in donnees.items()}'''
+    donnees = {{k: (v[0] if isinstance(v, list) else v) for k, v in donnees.items()}}
+    # ⚠ COERCER selon le schéma AVANT tout setattr (défaut VÉCU le 02/09, 2ᵉ site du même
+    # piège que la cascade du dépôt) : le FormData d'une modale poste TOUTES ses valeurs,
+    # VIDES comprises — appliquer '' sur une colonne Integer plante au save (int('') →
+    # 500)... et SEULEMENT depuis un vrai navigateur : le client de test Django poste en
+    # urlencoded, le défaut lui est invisible (même angle mort que _ids_de_la_requete).
+    # `coerce_schema_values` type ('640'→640, 'true'→True) et FAIT DISPARAÎTRE les vides —
+    # la sémantique voulue : un champ vide veut dire « ne pas toucher », jamais « effacer ».
+    try:
+        from .params import {schema_symbole} as _sch
+        from wama.common.utils.param_schema import coerce_schema_values
+        donnees = {{**{{k: v for k, v in donnees.items()}},
+                   **coerce_schema_values(_sch, donnees)}}
+        donnees = {{k: v for k, v in donnees.items()
+                   if not (v == '' and k in {_noms_schema!r})}}
+    except Exception:
+        pass  # schéma indisponible : les données brutes restent (comportement d'avant)'''
 
     # ÉDITION D'UN ÉLÉMENT — l'idiome existait déjà, un cran plus haut (`batch_update`) : mêmes
     # `params_fields`, même lecture de corps, même garde RUNNING. Seul le niveau changeait, et

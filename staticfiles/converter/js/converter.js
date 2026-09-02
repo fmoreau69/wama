@@ -446,12 +446,16 @@
     async function applyBatchSettings(thenStart) {
         const vals = window.WamaParams
             ? WamaParams.read(document.getElementById('converterBatchParams')) : {};
-        const fmt  = vals.output_format || '';
-        const qual = vals.quality_preset || '';
         const errEl = document.getElementById('batchSettingsError');
+        // TOUT le formulaire du lot part au serveur — plus la paire figée format/qualité
+        // (02/09, demande Fabien : le lot est homogène par nature, ses réglages auxiliaires
+        // s'appliquent en masse). Seul le POSÉ est envoyé : un champ vide/décoché veut dire
+        // « ne pas toucher les filles », jamais « effacer » — c'est la sémantique du lot.
         const fd = new FormData();
-        fd.append('output_format', fmt);
-        fd.append('output_quality', qual);
+        Object.entries(vals).forEach(([k, v]) => {
+            if (v === '' || v == null || v === false) return;
+            fd.append(k, v);
+        });
         try {
             const resp = await csrfPost(urlFor(APP.urls.batchUpdate, _currentBatchId), fd);
             const data = await resp.json();
