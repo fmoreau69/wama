@@ -1058,6 +1058,18 @@
       return out;
     };
 
+    // Sources d'options du VOLET (route F4b, 2026-09-02) : un select de volet rendu SERVEUR
+    // reçoit lui aussi ses options du catalogue (+ « auto » et sa prévision si le schéma
+    // déclare options_auto). Seule la source `catalog` est liée ici : les voix du volet
+    // restent rendues serveur (optgroups clonés par le JS d'app — « NON remplacés »).
+    // Sans cet appel, seules les modales (rendues par WamaParams.render) passaient par les
+    // sources d'options — mesuré sur /synthesizer/ : le select du volet gardait sa liste
+    // serveur pendant que la modale servait « auto ».
+    if (WP && WP.bindOptionSources) {
+      WP.bindOptionSources(ph || document, schema, 'panel',
+        function (p) { return p.options_source === 'catalog'; });
+    }
+
     return init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings }));
   }
 

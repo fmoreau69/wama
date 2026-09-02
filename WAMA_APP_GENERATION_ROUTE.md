@@ -442,6 +442,16 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
 - **Ce qui n'est PAS dedans** : l'INTENTION rapide↔qualité (curseur 3 politiques, validé
   Fabien, non écrit — voir ci-dessus) et la comparaison prévision↔choix réel (la prévision
   n'est pas stockée ; le message de lancement dit le choix, pas l'écart).
+- ⚠ **Demi-jambe trouvée EN VALIDANT à l'écran (constat Fabien : « je ne vois pas le
+  modèle prévu »)** : `_bindOptionSources` ne vivait que dans `WamaParams.render` — donc
+  les MODALES. Le select du VOLET, rendu SERVEUR (`tts_engine_choices()`), n'y passait
+  jamais : la page émettait bien la requête `auto=1` (pour la modale), l'endpoint
+  répondait juste, et le volet restait sur sa liste serveur. Même famille que les deux
+  demi-jambes du 01/09 : *une jambe livrée aux deux bouts et absente au milieu ne se voit
+  qu'en s'en servant* — et un smoke qui lit le DOM final tranche là où l'inspection du
+  code ne voyait rien. Réglé au COMMUN : `WamaInspector.initFromSchema` lie les sources
+  `catalog` du volet (`WamaParams.bindOptionSources` exposé, prédicat — les voix du volet
+  restent rendues serveur, leurs optgroups clonés ne se remplacent pas).
 
 ##### ⚠ INVARIANT À NE PAS CASSER : lister ≠ pouvoir choisir
 

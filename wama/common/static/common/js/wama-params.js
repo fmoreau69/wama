@@ -397,8 +397,13 @@
     return parts.length ? ('?' + parts.join('&')) : '';
   }
 
-  function _bindOptionSources(container, schema, ctx) {
+  // `only` (optionnel) : prédicat de filtrage — permet à un appelant EXTERNE (volet via
+  // WamaInspector.initFromSchema) de ne lier que certaines sources. Le volet ne lie que
+  // `catalog` : les voix y restent rendues SERVEUR (optgroups clonés par le JS d'app —
+  // « NON remplacés », cf. schéma synthesizer), les remplacer casserait ce clonage.
+  function _bindOptionSources(container, schema, ctx, only) {
     (schema || []).forEach(function (p) {
+      if (only && !only(p)) return;
       if (!typeSupports(p.type, 'optionSources') || !p.options_source) return;
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
       var url = OPTION_SOURCES[p.options_source];
@@ -793,5 +798,10 @@
                         // exposé pour qu'un optionsResolver (d'app ou GÉNÉRÉ) délègue au registre
                         // commun au lieu de réécrire la même résolution.
                         resolvePageOptions: resolvePageOptions,
+                        // Exposé pour le VOLET (WamaInspector.initFromSchema) : un select de
+                        // volet rendu serveur reçoit lui aussi ses options du catalogue
+                        // (+ « auto » et sa prévision) — sans ça, seules les modales,
+                        // rendues par render(), passaient par les sources d'options.
+                        bindOptionSources: _bindOptionSources,
                         rendererTypes: function () { return Object.keys(RENDERERS); } };
 })(window);
