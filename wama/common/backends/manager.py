@@ -21,6 +21,55 @@ from .base import BaseModelBackend
 logger = logging.getLogger(__name__)
 
 
+# ── Inventaire des MOTEURS d'exécution — grisage AUTOMATIQUE (décision Fabien 02/09) ────
+#
+# Le pending « griser les moteurs sans backend » (31/08) est tranché : PAS de grisage à la
+# main — un système qui VÉRIFIE. Chaque producteur enregistre l'inventaire des moteurs
+# qu'il sait exécuter (`apps.py:ready()` — le registre ne connaît JAMAIS ses producteurs,
+# règle CLAUDE.md) ; `backend_missing()` rend un verdict à la demande. Comme l'inventaire
+# est RELU à chaque appel, un backend qui apparaît RÉ-AUTORISE tout seul — rien à dégriser.
+#
+# Verdict PERMISSIF par construction (même doctrine que `matches_inputs`) : on ne condamne
+# que le POSITIVEMENT inlançable — un moteur déclaré qu'aucun inventaire ne sert. Un modèle
+# sans moteur déclaré, ou porteur d'un `backend_ref` d'app, n'a pas de verdict : l'exclure
+# sur une absence d'information viderait des lots entiers (imager/composer déclaratifs).
+#
+# Consommateurs : `select_model` (un tirage AUTO inlançable est toujours faux → exclu) et
+# `get_registry_models` (le select AFFICHE, grisé AVEC la raison — lister n'est pas
+# pouvoir choisir, jamais d'exclusion de liste : INPUT_MODEL_MATCHING §2).
+_ENGINE_INVENTORIES: List = []
+
+
+def register_engine_inventory(fn) -> None:
+    """Enregistre un inventaire : callable () -> itérable de noms de moteurs exécutables."""
+    _ENGINE_INVENTORIES.append(fn)
+
+
+def known_engines() -> set:
+    """Union des inventaires enregistrés — relue à CHAQUE appel (ré-autorisation auto)."""
+    moteurs = set()
+    for fn in _ENGINE_INVENTORIES:
+        try:
+            moteurs.update(fn())
+        except Exception as e:   # un inventaire cassé ne condamne pas les autres
+            logger.debug("[engines] inventaire %r illisible : %s", fn, e)
+    return moteurs
+
+
+def backend_missing(model) -> Optional[str]:
+    """Raison si `model` est POSITIVEMENT sans backend, sinon None.
+
+    `model` : AIModel (ou tout porteur de `composition`/`backend_ref`).
+    """
+    if getattr(model, 'backend_ref', ''):
+        return None                          # l'app qui déclare un backend l'assume
+    composition = getattr(model, 'composition', None) or {}
+    engine = (composition.get('runtime') or {}).get('engine') or ''
+    if not engine or engine in known_engines():
+        return None
+    return f"moteur « {engine} » sans backend installé"
+
+
 class BackendManager:
     """Registre + cycle de vie de backends `BaseModelBackend` (singletons keep_loaded)."""
 

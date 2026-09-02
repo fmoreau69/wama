@@ -14,11 +14,12 @@ from wama.common.utils.auto_model import (
 from wama.model_manager.models import AIModel
 
 
-def _tts(model_key, name, vram_gb):
+def _tts(model_key, name, vram_gb, engine=None):
     return AIModel.objects.create(
         model_key=model_key, name=name, model_type='speech', source='synthesizer',
         vram_gb=vram_gb, is_available=True, is_downloaded=True,
         capabilities={'task': 'text-to-speech', 'modalities': ['audio']},
+        composition={'runtime': {'engine': engine}} if engine else {},
     )
 
 
@@ -169,6 +170,78 @@ class CurseurDeQualiteTest(TestCase):
         self.assertEqual(read_quality_intent(-3), 0)
         self.assertEqual(read_quality_intent('n_importe_quoi'), 50)
         self.assertEqual(read_quality_intent(None), 50)
+
+    def test_le_grisage_est_un_verdict_verifie_pas_une_liste(self):
+        """Décision Fabien 02/09 (solde le pending « grisage » du 31/08) : pas de grisage à
+        la main — un SYSTÈME qui vérifie. Un moteur déclaré qu'aucun inventaire ne sert est
+        POSITIVEMENT inlançable ; tout le reste est permissif (pas de moteur = pas de
+        verdict, backend_ref d'app = l'app assume)."""
+        from types import SimpleNamespace
+        from wama.common.backends.manager import backend_missing, known_engines
+        # Les inventaires des producteurs sont enregistrés par apps.ready().
+        self.assertTrue({'bark', 'coqui', 'higgs', 'kokoro', 'kokoro-onnx',
+                         'audio-cpp'} <= known_engines())
+        fantome = SimpleNamespace(backend_ref='', composition={'runtime': {'engine': 'moteur-fantome'}})
+        self.assertIn('moteur-fantome', backend_missing(fantome))
+        self.assertIsNone(backend_missing(
+            SimpleNamespace(backend_ref='', composition={'runtime': {'engine': 'kokoro'}})))
+        self.assertIsNone(backend_missing(SimpleNamespace(backend_ref='', composition={})))
+        self.assertIsNone(backend_missing(
+            SimpleNamespace(backend_ref='une.classe.Backend', composition={'runtime': {'engine': 'moteur-fantome'}})))
+
+    def test_le_tirage_auto_exclut_l_inlancable_et_le_backend_qui_apparait_reautorise(self):
+        """Le vécu du jour : chatterbox (sans backend) prévu à curseur 50 — refus garanti
+        au lancement. Le tirage EXCLUT le positivement inlançable, même meilleur au score ;
+        et l'inventaire étant relu à chaque appel, un backend qui apparaît ré-autorise
+        SANS AUCUN GESTE — c'est le contrat demandé par Fabien."""
+        from wama.common.backends import manager as backends_manager
+        from wama.model_manager.services import select_model
+        _tts('synthesizer:tts-fantome', 'TTS fantôme', 8.0, engine='moteur-fantome')
+
+        def _tirer():
+            chosen = select_model(source='synthesizer', prefer_loaded=False,
+                                  vram_budget_gb=10, quality_intent=100)
+            return chosen.model_key if chosen else None
+
+        self.assertEqual(_tirer(), 'synthesizer:tts-lourd',
+                         "le fantôme (8 Go, meilleur au proxy) devait être exclu du tirage")
+        inventaire = lambda: {'moteur-fantome'}  # noqa: E731 — le « backend » apparaît
+        backends_manager.register_engine_inventory(inventaire)
+        try:
+            self.assertEqual(_tirer(), 'synthesizer:tts-fantome',
+                             "le backend apparu devait ré-autoriser le moteur tout seul")
+        finally:
+            backends_manager._ENGINE_INVENTORIES.remove(inventaire)
+
+    def test_l_endpoint_grise_avec_la_raison_sans_retirer_de_la_liste(self):
+        """Lister n'est pas pouvoir choisir (INPUT_MODEL_MATCHING §2) : l'option reste
+        AFFICHÉE — grisée, raison en title — jamais retirée."""
+        _tts('synthesizer:tts-fantome', 'TTS fantôme', 8.0, engine='moteur-fantome')
+        user = get_user_model().objects.create_user(username='grisage_test', password='x')
+        client = Client()
+        client.force_login(user)
+        d = client.get(self.URL, {'task': 'text-to-speech', 'auto': '1'}).json()
+        options = [o for g in d['groups'] for o in g['options']]
+        fantome = next((o for o in options if not isinstance(o, list)
+                        and o.get('value') == 'synthesizer:tts-fantome'), None)
+        self.assertIsNotNone(fantome, "l'option inlançable doit RESTER dans la liste")
+        self.assertTrue(fantome.get('disabled'))
+        self.assertIn('moteur-fantome', fantome.get('title', ''))
+        self.assertIn('backend absent', fantome.get('label', ''))
+        valeurs = [o[0] if isinstance(o, list) else o.get('value') for o in options]
+        self.assertIn('synthesizer:tts-leger', valeurs)
+
+    def test_le_grisage_serveur_survit_a_la_passe_d_appariement_client(self):
+        """Mesuré au smoke du 02/09 : `wama-input-match` réécrit disabled/title à chaque
+        change et EFFAÇAIT le grisage « backend absent ». Les deux sources composent via
+        le marqueur `data-backend-missing` — le fill l'émet, l'appariement le respecte."""
+        from pathlib import Path
+        from django.conf import settings
+        base = Path(settings.BASE_DIR)
+        params_js = (base / 'wama/common/static/common/js/wama-params.js').read_text(encoding='utf-8')
+        match_js = (base / 'wama/common/static/common/js/wama-input-match.js').read_text(encoding='utf-8')
+        self.assertIn('data-backend-missing', params_js)
+        self.assertIn('backendMissing', match_js)
 
     def test_le_partial_serveur_et_le_renderer_js_partagent_le_contrat(self):
         """Le volet maison (partial Django) et les modales (renderer JS) rendent le MÊME

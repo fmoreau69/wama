@@ -512,7 +512,17 @@
           var opts = (g.options || []).map(function (o) {
             var v = Array.isArray(o) ? o[0] : (o.value !== undefined ? o.value : o[0]);
             var l = Array.isArray(o) ? o[1] : (o.label !== undefined ? o.label : o[1]);
-            return '<option value="' + esc(v) + '">' + esc(l) + '</option>';
+            // Grisage AUTOMATIQUE serveur (backend absent, 02/09) : l'option reste
+            // AFFICHÉE, non sélectionnable, la raison en title — et se ré-autorise
+            // toute seule au prochain service (le verdict est relu côté serveur).
+            // `data-backend-missing` : le VERDICT SERVEUR, que le grisage CLIENT
+            // (wama-input-match, qui réécrit disabled/title à chaque change) doit
+            // RESPECTER — sans ce marqueur il l'effaçait (mesuré au smoke du 02/09).
+            var dis = (!Array.isArray(o) && o.disabled) ? ' disabled' : '';
+            var tit = (!Array.isArray(o) && o.title) ? ' title="' + esc(o.title) + '"' : '';
+            var dbm = (!Array.isArray(o) && o.disabled && o.title)
+              ? ' data-backend-missing="' + esc(o.title) + '"' : '';
+            return '<option value="' + esc(v) + '"' + dis + tit + dbm + '>' + esc(l) + '</option>';
           }).join('');
           return g.group ? ('<optgroup label="' + esc(g.group) + '">' + opts + '</optgroup>') : opts;
         }).join('');
@@ -890,7 +900,27 @@
       .catch(function () { toast('Impossible de charger les paramètres', 'error'); });
   }
 
+  // ── « ↺ Par défaut » : remet le FORMULAIRE aux défauts du schéma — la moitié CLIENTE
+  // du modèle ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater : reset/preset/profil sont
+  // des GESTES qui écrasent, le dernier geste gagne). Délibérément SANS réseau : le reset
+  // remplit le formulaire, l'utilisateur VOIT l'effet réel avant d'Enregistrer (qui écrit).
+  // Champs sans default : remis au NEUTRE de leur type ('' / décoché) — un reset partiel
+  // qui laisserait les autres champs en l'état ne serait pas « tout remettre à plat ».
+  function applyDefaults(host, schema, context) {
+    const ctx = context || 'item';
+    const vals = {};
+    (schema || []).forEach(function (p) {
+      if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
+      if (p.type === 'hidden') return;              // les porteurs (media_type) ne se resettent pas
+      vals[p.name] = (p.default !== undefined && p.default !== null) ? p.default
+                   : (p.type === 'toggle' ? false : '');
+    });
+    apply(host, vals);
+    return vals;
+  }
+
   global.WamaParams = { render: render, read: read, apply: apply,
+                        applyDefaults: applyDefaults,
                         renderSettingsModal: renderSettingsModal,
                         settingsModal: settingsModal,
                         // Extension du vocabulaire de composants SANS toucher au moteur :

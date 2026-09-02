@@ -10369,3 +10369,47 @@ l'âge des workers au mtime des sources avant de conclure quoi que ce soit d'un 
 **Contrôles** : suite complète OK (skipped=4) · smoke navigateur : Higgs visible sur clé
 entière, option de filtre servie, prévisions 5→Kokoro 0,5 / 95→Higgs 24 (et 50→chatterbox,
 cf. ⚠) · +3 tests (estimation + incomplet sans VRAM + maillons du filtre).
+
+
+## §PALIER — 2026-09-02 (fin de soirée), « BACKENDS VÉRIFIÉS : le grisage devient un SYSTÈME » — ✅ LIVRÉ
+
+> Décision Fabien (solde le pending « grisage » du 31/08) : « on va s'occuper des backends,
+> pas la peine de griser — SAUF si un système automatique vérifie, grise quand le backend
+> n'existe pas, ré-autorise quand il existe ». Fait. Détail : `ROUTE §F4b` (bloc TRANCHÉ).
+
+**Le mécanisme** (`common/backends/manager.py`) : inventaires de moteurs enregistrés par
+les PRODUCTEURS (`apps.ready()` — le registre ne connaît jamais ses producteurs) :
+synthesizer y branche `ENGINE_BACKENDS` (la table du dispatch réel — un backend ajouté
+là-bas ré-autorise partout, zéro geste), composer `audio-cpp`. Verdict `backend_missing()`
+PERMISSIF : seul le POSITIVEMENT inlançable (moteur déclaré qu'aucun inventaire ne sert)
+est condamné ; pas de moteur déclaré = pas de verdict ; `backend_ref` d'app = l'app assume.
+RELU à chaque appel → ré-autorisation automatique.
+
+**Deux consommateurs** : `select_model` EXCLUT du tirage (le vécu du jour : chatterbox
+prévu à curseur 50, refus garanti au lancement) ; le select AFFICHE grisé avec la raison
+(« lister n'est pas pouvoir choisir » — jamais d'exclusion de liste).
+
+**Leçon du smoke (le rouge utile)** : `wama-input-match` réécrivait `disabled`/`title` à
+chaque change et EFFAÇAIT le grisage serveur — deux sources de grisage doivent COMPOSER :
+marqueur `data-backend-missing` émis par le fill, respecté par la passe d'appariement.
+*Un grisage écrasé ne lève pas : sans le smoke qui lit le DOM final, le mécanisme aurait
+été « livré » et invisible.*
+
+**Limite ASSUMÉE de la permissivité** : Qwen3-TTS (tiré ce soir) sort à curseur 50 sans
+backend NI verdict — il ne déclare aucun moteur. Déclarer son `composition.runtime.engine`
+(manifeste) le fait entrer au système ; c'est le geste qui accompagne chaque backend à
+venir (« on va s'occuper des backends »).
+
+**Contrôles** : suite complète OK (skipped=4 ; un premier run avait 1 rouge — course avec
+l'édition CONCURRENTE de wama-params.js par l'instance converter pendant la lecture du
+test d'égalité staticfiles, disparu au rerun, fichiers identiques vérifiés) · smoke :
+chatterbox + Audio8 grisés avec leur raison, prévisions 5→Kokoro / 50→Qwen3 / 95→Higgs ·
++4 tests (verdict, exclusion+ré-autorisation, endpoint, composition des grisages).
+
+**⚠ Ce commit embarque, ATTRIBUÉ, l'`applyDefaults` de l'instance converter** (« ↺ Par
+défaut », ROADMAP §23.2quater) : elle a co-édité `wama-params.js` (fichier partagé) et
+clôturé sans le committer — le laisser hors HEAD aurait cassé la cohérence du fichier.
+Ses consommateurs (gabarits converter) restent dans SON périmètre non commité.
+
+**Les 12 manifestes de modèles** du commit = régénération mécanique après l'estimation
+VRAM (`0d0709e9`) — `vram_gb` estimé + `vram_estimated` entrent au corpus.

@@ -9,7 +9,8 @@
       "family": "FastWan2.2-TI2V-5B-FullAttn-Diffusers",
       "hf_snapshot": true,
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/FastWan2.2-TI2V-5B-FullAttn-Diffusers/models--FastVideo--FastWan2.2-TI2V-5B-FullAttn-Diffusers",
-      "size_bytes": 24203360678
+      "size_bytes": 24203360678,
+      "vram_estimated": true
     },
     "formats": {
       "can_convert_to": [],
@@ -38,7 +39,7 @@
     "resources": {
       "disk_gb": 22.541136180981994,
       "ram_gb": 0.0,
-      "vram_gb": 0.0
+      "vram_gb": 29.0
     }
   },
   "description": "Snapshot HuggingFace installé (diffusion/FastWan2.2-TI2V-5B-FullAttn-Diffusers) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",

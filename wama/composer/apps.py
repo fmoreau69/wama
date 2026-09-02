@@ -12,6 +12,15 @@ class ComposerConfig(AppConfig):
         except Exception:
             pass
 
+        # Inventaire des moteurs exécutables par le composer (grisage automatique, 02/09) :
+        # `audio-cpp` = AudioCppBackend (backends/audiocpp_backend.py), le moteur que
+        # `composition.runtime.engine` de MiniMax-Music3 déclare au catalogue.
+        try:
+            from wama.common.backends.manager import register_engine_inventory
+            register_engine_inventory(lambda: {'audio-cpp'})
+        except Exception:
+            pass
+
         # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
         try:
             from wama.common.utils.batch_sync import register_batch_sync
