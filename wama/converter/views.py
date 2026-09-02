@@ -197,6 +197,7 @@ class IndexView(View):
             for media_type, spec in SUPPORTED_CONVERSIONS.items()
         }
 
+        from wama.converter.params import GROUPS_JSON as CONVERTER_GROUPS_JSON
         from wama.converter.params import PARAMS_JSON as CONVERTER_PARAMS_JSON
         from wama.converter.params import _ENGINE_BY_TYPE as _ENGINE_HELP_BY_TYPE
         # Contexte NETTOYÉ le 31/08 (audit B6/B7, REMOVAL_LEDGER) : 'jobs', 'profiles' et
@@ -207,6 +208,7 @@ class IndexView(View):
             'batches_list':         batches_list,
             'supported_formats_json': json.dumps(formats_for_js),
             'params_json':          json.dumps(CONVERTER_PARAMS_JSON),  # schéma modale per-job (WamaParams)
+            'groups_json':          json.dumps(CONVERTER_GROUPS_JSON),  # groupes 2 colonnes (mécanisme imager, commun)
             'engine_help_json':     json.dumps(_ENGINE_HELP_BY_TYPE),   # descriptif moteur par TYPE (modale)
             'q_sort':               q_sort,
             'q_filter':             q_filter,

@@ -226,6 +226,7 @@ window.CONVERTER_APP = {
     },
     supportedFormats: {{ supported_formats_json|safe }},
     schema: {{ params_json|safe }},   {# schéma modale per-job (WamaParams) #}
+    groups: {{ groups_json|safe }},   {# groupes 2 colonnes (mécanisme commun, adopté de l'imager 02/09) #}
     engineHelp: {{ engine_help_json|safe }},   {# descriptif moteur par TYPE du job #}
 };
 window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
@@ -278,7 +279,8 @@ document.addEventListener('DOMContentLoaded', function () {
         dans `values`, le registre commun rend lui-même l'UNION des familles — le select du
         volet doit pouvoir AFFICHER la valeur de n'importe quelle card inspectée (le show_if
         par media_type fait le tri). Même table, même sortie, un seul endroit.{% endcomment %}
-        WamaParams.render(ph, CONVERTER_APP.schema, { context: 'panel', values: {} });
+        WamaParams.render(ph, CONVERTER_APP.schema,
+                          { context: 'panel', values: {}, groups: CONVERTER_APP.groups });
     }
     // L'hôte n'est plus MASQUÉ hors sélection (2026-09-01) : il EST la zone de réglages —
     // défauts des prochains dépôts hors sélection, valeurs de la card à la sélection, et
