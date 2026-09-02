@@ -1936,6 +1936,7 @@
             ],
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1975,6 +1976,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -2014,6 +2016,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
