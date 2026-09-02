@@ -210,7 +210,18 @@ def _diff_ratio(current: Path, reference: Path):
 
 
 def _vlm_triage(png_path: Path, app: str):
-    """Description en français de ce que MONTRE la capture. Jamais un verdict."""
+    """Description en français de ce que MONTRE la capture. Jamais un verdict.
+
+    ⚠ GARDE GPU OBLIGATOIRE (2026-09-02) : ce triage a CRASHÉ L'HÔTE deux fois le jour
+    même (20:21 et 20:58 — montée VRAM du VLM Ollama pendant que d'autres charges GPU
+    tournaient ; 2/2 fatal, diagnostiqué par l'instance bancs). Il partait vers Ollama
+    SANS consulter `WAMA_GPU_SAFE_MODE` — la parade existait, ce chemin l'ignorait.
+    Le triage n'est qu'un ENRICHISSEMENT de detail (la couche 1 seule décide du succès) :
+    le sauter en mode dépannage ne coûte aucun verdict.
+    """
+    from wama.common.services.resource_governor import gpu_safe_mode
+    if gpu_safe_mode():
+        return "triage VLM sauté (WAMA_GPU_SAFE_MODE actif — charge GPU interdite)"
     from wama.model_manager.services.vision_probe import describe_image_ollama
 
     res = describe_image_ollama(
