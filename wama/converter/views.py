@@ -774,18 +774,27 @@ def batch_start(request, pk):
 @login_required
 @require_POST
 def batch_update(request, pk):
-    """Applique format/qualité communs à tous les jobs non-RUNNING d'un batch."""
+    """Applique les réglages POSTÉS à tous les jobs non-RUNNING d'un batch.
+
+    Le lot est HOMOGÈNE par nature (group_into_batches_by_nature) : ses réglages auxiliaires
+    (resize, rotation, miroirs, débit…) s'appliquent donc en masse, plus seulement la paire
+    format/préréglage (02/09, demande Fabien). Seul le POSTÉ est appliqué — un champ absent
+    veut dire « ne pas toucher les filles », jamais « effacer » ; l'écriture passe par le
+    point d'entrée UNIQUE du modèle (`poser_reglages`, coercition par type de colonne).
+    """
     from .models import ConversionBatch
     batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
     out_fmt = (request.POST.get('output_format') or '').strip().lower()
     preset  = (request.POST.get('output_quality') or request.POST.get('quality_preset') or '').strip().lower()
+    reglages = {k: v for k, v in request.POST.items()
+                if k in ConversionJob.CHAMPS_OPTIONS and v not in (None, '')}
 
     if out_fmt and out_fmt not in get_output_formats(batch.media_type):
         return JsonResponse({'error': f"Format invalide pour {batch.media_type} : {out_fmt}"}, status=400)
 
     updated = 0
     for job in batch.items.exclude(status='RUNNING'):
-        fields = []
+        fields = job.poser_reglages(reglages)
         if out_fmt:
             job.output_format = out_fmt; fields.append('output_format')
         if preset:

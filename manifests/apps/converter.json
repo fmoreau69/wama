@@ -1124,6 +1124,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1325,6 +1326,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1364,6 +1366,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1420,6 +1423,7 @@
             ],
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1462,6 +1466,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1504,6 +1509,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1546,6 +1552,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1585,6 +1592,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1624,6 +1632,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": 12,
@@ -1663,6 +1672,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": 480,
@@ -1723,6 +1733,7 @@
             ],
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1779,6 +1790,7 @@
             ],
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1831,6 +1843,7 @@
             ],
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
@@ -1870,6 +1883,7 @@
             "choices": null,
             "contexts": [
               "item",
+              "batch",
               "panel"
             ],
             "default": null,
