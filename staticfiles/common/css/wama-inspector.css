@@ -153,6 +153,11 @@
 }
 .wama-status-dot[data-s="SUCCESS"], .wama-status-dot[data-s="DONE"] { background: #198754; }
 .wama-status-dot[data-s="FAILURE"], .wama-status-dot[data-s="ERROR"] { background: #dc3545; }
+/* Attente de ressources : orange plein, pulsation LENTE (vivant mais bloqué — RUNNING pulse
+   à 1.2s, la différence de rythme se lit avant la nuance de couleur). */
+.wama-status-dot[data-s="AWAITING_RESOURCES"] {
+  background: #fd7e14; animation: wamaDotPulse 2.4s ease-in-out infinite;
+}
 @keyframes wamaDotPulse { 50% { opacity: .35; } }
 
 /* ── Preview entrée/sortie + slider comparatif (2026-07-12, STUDIO_VISION) ── */

@@ -212,10 +212,12 @@
   // Alignées sur le tricolore CARD_DESIGN : gris=brouillon · orange=en cours · vert=fini · rouge=échec.
   const STATUS_BADGE = {
     DRAFT: 'bg-secondary', PENDING: 'bg-secondary', RUNNING: 'bg-warning text-dark',
+    AWAITING_RESOURCES: 'bg-awaiting',
     SUCCESS: 'bg-success', FAILURE: 'bg-danger',
   };
   const STATUS_LABEL = {
     DRAFT: 'Brouillon', PENDING: 'En attente', RUNNING: 'En cours',
+    AWAITING_RESOURCES: 'En attente de ressources',
     SUCCESS: 'Terminé', FAILURE: 'Échec',
   };
 
