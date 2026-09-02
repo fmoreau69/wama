@@ -118,6 +118,14 @@ def _metrique_declaree(card_data):
     return None
 
 
+def _sans_suffixe_date(hf_id: str) -> str:
+    """`qwen/qwen-image-edit-2511` → `qwen/qwen-image-edit` : le suffixe `-AAMM` (4 chiffres,
+    mois plausible) que Qwen, Kimi… accolent à leurs versions. Un nombre qui n'est pas un
+    mois (`-1024`, `-7000`) ou une taille (`-8b`) reste en place."""
+    import re
+    return re.sub(r'-(2[3-9])(0[1-9]|1[0-2])$', '', (hf_id or '').lower())
+
+
 def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_downloads: int = 0,
                 search: str | None = None, sort: str = 'downloads'):
     """
@@ -145,6 +153,11 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
              for ref in AIModel.objects.filter(platform_ref__startswith='huggingface:')
                                        .values_list('platform_ref', flat=True)}
     have.discard('')
+    # 2026-09-02 : un dépôt qui ne diffère d'un déclaré que par un SUFFIXE DATÉ est la même
+    # famille — `Qwen/Qwen-Image-Edit-2509` proposé alors que l'imager déclare `…-2511`
+    # (mesuré : la proposition d'une VERSION ANTÉRIEURE passait le dédoublonnage). On compare
+    # aussi les identifiants sans leur date (`-AAMM`) : `have_famille`.
+    have_famille = {_sans_suffixe_date(h) for h in have}
 
     api = HfApi()
     # huggingface_hub 1.x : filtrage par tâche = `pipeline_tag` (pas `task`), librairie via `filter`.
@@ -194,7 +207,8 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
             'tags': [str(x) for x in (getattr(m, 'tags', None) or [])],
             'base_model': base_model,
             'last_modified': lm.isoformat() if hasattr(lm, 'isoformat') else (lm or None),
-            'have': m.id.lower() in have,
+            'have': (m.id.lower() in have
+                     or _sans_suffixe_date(m.id.lower()) in have_famille),
             'metrique': _metrique_declaree(carte),
             'license': licence,
             'url': f"https://huggingface.co/{m.id}",
