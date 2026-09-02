@@ -267,6 +267,17 @@
     .backup-status.unavailable {
         color: #dc3545;
     }
+    /* Badge de benchmark : BORNÉ à la card (Fabien, 02/09 : « bench 1069.516569087065
+       arena_elo_text_to_image » débordait). Le détail complet vit à l'inspecteur ; le badge
+       ne doit qu'annoncer, tronqué par « … » au-delà de sa largeur. */
+    .bench-badge {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+    }
 </style>
 {% endblock %}
 
@@ -953,6 +964,14 @@ document.addEventListener('DOMContentLoaded', function() {
     « comparable entre modèles de même catégorie », ce que le catalogue dément déjà —
     qwen-image-2 (1125,76 sur arena_elo_text_to_image) et hunyuan-image-2.1 (1077 sur
     aa_elo_text_to_image) sont de la MÊME catégorie et sur deux échelles. Corrigé 01/09. {% endcomment %}
+    // Une valeur de banc s'AFFICHE à une décimale (Fabien, 02/09) : un Elo Arena arrive
+    // avec 12 décimales (1069.516569087065) qui ne portent aucune information de rang ; la
+    // donnée brute reste dans `benchmark_index`, seul l'affichage arrondit.
+    function benchVal(v) {
+        const n = Number(v);
+        return Number.isFinite(n) ? n.toFixed(1) : String(v);
+    }
+
     function benchBadge(model, extraClass) {
         if (model.benchmark_index == null) return '';
         const meta = model.benchmark_meta || {};
@@ -960,7 +979,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const bancs = Array.isArray(meta.bancs) ? meta.bancs : [];
         const autres = bancs.length > 1
             ? '\nAutres métiers mesurés : ' + bancs.slice(1)
-                .map(b => `${b.categorie} ${b.valeur} (${b.echelle})`).join(', ')
+                .map(b => `${b.categorie} ${benchVal(b.valeur)} (${b.echelle})`).join(', ')
             : '';
         const rang = meta.rang_centile != null
             ? `\nRang : ${meta.rang_centile}e centile sur ${meta.population || '?'} modèles `
@@ -972,8 +991,8 @@ document.addEventListener('DOMContentLoaded', function() {
             + `n'est comparable qu'à une valeur de la MÊME échelle (un Intelligence Index `
             + `~0-70 et un Elo ~1000-1500 ne se classent pas ensemble, et deux Elo de bancs `
             + `différents non plus).${rang}${autres}`;
-        return `<span class="badge bg-info-subtle text-info border border-info ${extraClass || ''}"`
-            + ` title="${titre.replace(/"/g, '&quot;')}">bench ${model.benchmark_index}`
+        return `<span class="badge bench-badge bg-info-subtle text-info border border-info ${extraClass || ''}"`
+            + ` title="${titre.replace(/"/g, '&quot;')}">bench ${benchVal(model.benchmark_index)}`
             + `<span class="opacity-75 ms-1" style="font-size:.85em">${echelle}</span></span>`;
     }
 
@@ -1396,14 +1415,15 @@ document.addEventListener('DOMContentLoaded', function() {
             { k: 'Benchmark tiers', get: function (m) {
                 if (m.benchmark_index == null) return '';
                 const meta = m.benchmark_meta || {};
-                return m.benchmark_index + (meta.source ? ' — ' + meta.source : '');
+                return benchVal(m.benchmark_index) + (meta.source ? ' — ' + meta.source : '')
+                    + (meta.sens === 'bas' ? ' (plus bas = mieux)' : '');
             } },
             {% comment %} Le NOM TIERS apparié est affiché exprès : c'est le seul moyen pour
             un humain de repérer un mauvais appariement (l'appariement est automatique et
             conservateur, mais pas infaillible). {% endcomment %}
             { k: 'Apparié à', get: function (m) {
                 const meta = m.benchmark_meta || {};
-                return meta.aa_nom || meta.arena_nom || '';
+                return meta.aa_nom || meta.arena_nom || meta.open_asr_nom || '';
             } },
             { k: 'Échelle', get: function (m) {
                 const meta = m.benchmark_meta || {};
@@ -1428,7 +1448,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const bancs = (m.benchmark_meta || {}).bancs || [];
                 return bancs.length > 1
                     ? bancs.slice(1).map(function (b) {
-                        return b.categorie + ' ' + b.valeur + ' (' + b.echelle + ')';
+                        return b.categorie + ' ' + benchVal(b.valeur) + ' (' + b.echelle + ')';
                       }).join(' · ')
                     : '';
             } },
