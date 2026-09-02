@@ -1226,6 +1226,42 @@ Trois choses vues en chemin :
 vérification est celle du catalogue, du disque et du corpus. Le premier usage réel (reader
 avec glm-ocr, composer avec ACE-Step — qui n'a pas encore de backend) revient à Fabien.
 
+### Suite (soir, après relance) — 4ᵉ banc MTEB branché, Open VLM ÉCARTÉ (flux mort)
+
+**Open VLM Leaderboard — écarté, avec la preuve.** L'URL que le Space lit
+(`opencompass.openxlab.space/assets/OpenVLM.json`, dans son `meta_data.py`) rend une page HTML
+derrière un **certificat expiré** ; en http, 404. Le dataset `VLMEval/OpenVLMRecords` (Apache) n'est
+que les prédictions BRUTES par échantillon (13 246 fichiers xlsx/json, figés en avril 2025), pas une
+table. *Une source dont le seul flux est une page web n'est pas une source.* L'arène `vision`
+d'Arena reste le banc des VLM ; Open VLM reviendra si son JSON réapparaît.
+
+**MTEB — branché sans le paquet `mteb`** (`charger_mteb`, source `mteb`, catégorie `embedding`,
+tâche `feature-extraction`). Trois décisions qui font sa forme :
+1. **Le jeu est DÉCLARÉ** (`CATEGORIES['embedding']['mteb']`), et **la première version a été
+   RÉFUTÉE PAR LA MESURE** : les 5 tâches du sous-ensemble « MTEB français » (Alloprof, BSARD,
+   Syntec, Mintaka, XPQA) donnaient une population de 143… dont AUCUN de nos modèles (bge-m3 2/5,
+   Qwen3-Embedding et nomic v2 0/5 — seuls les contributeurs anciens les ont exécutées). Le jeu
+   retenu = les tâches MULTILINGUES que nos modèles partagent et qui portent un SOUS-ENSEMBLE
+   français, déclarées en (tâche, split, hf_subset) : Belebele `fra_Latn-fra_Latn`, MIRACL
+   hard-negatives `fr`, Statcan `french`, AlloprofReranking `default`. Échelle NOMMÉE
+   `mteb_fr_retrieval` = moyenne des `main_score` ×100 (nDCG@10 / MAP — une moyenne à NOUS,
+   pas la leur). Un modèle sans les quatre n'est pas noté, jamais moyenné sur moins.
+   *Un jeu de tâches se choisit sur ce que le CATALOGUE a, pas sur ce que le banc propose.*
+2. **`paths.json` est périmé** (333 modèles sur 685, sans Qwen3-Embedding) : il donne la POPULATION,
+   l'API GitHub (quota anonyme 60/h) ne sert qu'à résoudre les modèles de NOTRE catalogue qu'il
+   ignore (marqueurs tirés du catalogue, arbre récursif par modèle, ~10 appels). ⚠ **Chemin EXACT
+   par (modèle, tâche)** : une tâche peut vivre sous une autre révision que les autres (Alloprof de
+   bge-m3 → 404 sous la révision de son premier chemin).
+3. **Cache disque** `logs/benchmarks/mteb_scores.json` : un score est immuable par (chemin, split,
+   subset). ⚠ **Un échec PASSAGER ne se met jamais en cache** — la première passe cachait `None`
+   sur une coupure de proxy et le lisait ensuite « absent » (Syntec : 200 à la relecture) ; un
+   modèle non lu est sauté CETTE passe et compté dans les motifs (« relancer »). JSON lu par la
+   stdlib : `mteb` écrit des `NaN` que simplejson (requests) refuse.
+`bge-m3` s'apparie par **ALIAS** (`ollama:bge-m3:latest` → `BAAI/bge-m3`) : `_identity` rejette la
+famille d'une lettre « m3 », le modèle du RAG n'aurait jamais eu de banc. Les embeddings PROPOSÉS
+(type `embedding`, sans capacités) ont désormais la catégorie `embedding` — le matin ils n'en avaient
+aucune, avant ils tombaient dans `llm`.
+
 **Faits pour les recommandations** (vérifiés HF / bancs) : ACE-Step 1.5 (MIT, 10 Go) prend
 un **audio de référence** (colonne « Refer audio » ✅ sur toutes les variantes DiT ; modes
 cover, repaint, vocal→BGM ; 50+ langues ; <4 Go VRAM annoncés). Qwen3-TTS 1.7B (Apache,

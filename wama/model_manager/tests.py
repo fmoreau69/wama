@@ -730,9 +730,13 @@ class _SourcesFactices:
         def open_asr():
             raise bs.SourceIndisponible('open asr non sollicité par ce test')
 
+        def mteb():
+            raise bs.SourceIndisponible('mteb non sollicité par ce test')
+
         # ⚠ TOUTE source du registre se patche ici : une source ajoutée à `SOURCES` sans
         # ligne ici irait au RÉSEAU depuis la suite (c'est ce que le 3ᵉ banc a failli faire).
-        return patch.multiple(bs, charger_aa=aa, charger_arena=arena, charger_open_asr=open_asr)
+        return patch.multiple(bs, charger_aa=aa, charger_arena=arena, charger_open_asr=open_asr,
+                              charger_mteb=mteb)
 
     def _entree(self, nom, identite, valeur=42.0, echelle='aa_elo_text_to_image'):
         return {'nom': nom, 'slug': nom.lower().replace(' ', '-'), 'identite': identite,
@@ -1103,7 +1107,9 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
                 model_key=f'proposed:ollama:{nom}:latest', name=nom, model_type=model_type,
                 source='ollama', is_proposed=True, capabilities={})
 
-        self.assertEqual(bs._categories_locales(_propose('qwen3-embedding', 'embedding')), [])
+        # Le matin du 02/09 un embedding proposé n'avait AUCUN banc (`[]`) ; le soir MTEB lui
+        # en donne un — mais toujours pas le banc llm, ce que ce test protège.
+        self.assertEqual(bs._categories_locales(_propose('qwen3-embedding', 'embedding')), ['embedding'])
         # Un VLM reste éligible au banc texte — et depuis l'après-midi du 02/09 l'arène
         # `vision` est son banc PRINCIPAL (cf. `TroisiemeBancEtSensTest`).
         self.assertEqual(bs._categories_locales(_propose('minicpm-v4.6', 'vlm')), ['vision', 'llm'])
@@ -1378,3 +1384,109 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         self.assertIsNone(q['rtfx'])                                # -1 = non mesuré
         self.assertEqual(fr_entrees['openai/whisper-large-v3']['wer'],
                          round((4.84 + 9.97 + 3.9) / 3, 3))
+
+
+class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
+    """
+    2026-09-02 — MTEB, le banc des EMBEDDINGS (le RAG tourne sur bge-m3 sans mesure tierce).
+    Sans le paquet `mteb`, on ne reproduit pas la moyenne officielle : le jeu de tâches est
+    DÉCLARÉ (5 tâches de recherche en FRANÇAIS), un modèle sans les cinq n'est pas noté, et
+    `paths.json` (périmé) donne la population tandis que l'API GitHub ne sert que pour les
+    modèles de NOTRE catalogue qui en manquent. `bge-m3` s'apparie par ALIAS (famille
+    « m3 » rejetée par `_identity`).
+    """
+
+    def _faux_index(self, marqueurs=()):
+        # Chemin EXACT par (modèle, tâche) — une tâche peut vivre sous une autre révision
+        # que les autres (mesuré sur bge-m3 : `AlloprofRetrieval` → 404 sous la 1ʳᵉ révision).
+        from .services.benchmark_sync import CATEGORIES
+        taches = [t for t, _, _ in CATEGORIES['embedding']['mteb']]
+        def chemins(dossier, rev, sauf=()):
+            return {t: f'results/{dossier}/{rev}/{t}.json' for t in taches if t not in sauf}
+        return {'BAAI__bge-m3': chemins('BAAI__bge-m3', 'rev1'),
+                'Qwen__Qwen3-Embedding-0.6B': chemins('Qwen__Qwen3-Embedding-0.6B', 'rev2'),
+                'intfloat__multilingual-e5-small': chemins('intfloat__multilingual-e5-small', 'rev3'),
+                # une tâche absente de l'index → jamais moyenné sur trois
+                'Org__incomplet-1': chemins('Org__incomplet-1', 'rev4', sauf=('AlloprofReranking',)),
+                # une tâche présente dans l'index mais 404 au téléchargement → idem
+                'Org__incomplet-2': chemins('Org__incomplet-2', 'rev5'),
+                # le sous-ensemble français ABSENT du fichier → idem
+                'Org__sans-fr-3': chemins('Org__sans-fr-3', 'rev6'),
+                # échec PASSAGER (réseau) → sauté CETTE passe, jamais mis en cache
+                'Org__reseau-4': chemins('Org__reseau-4', 'rev7')}
+
+    def _faux_get(self, url, **kw):
+        import json as _json
+        import re
+        from unittest.mock import Mock
+        from .services.benchmark_sync import CATEGORIES
+        m = re.search(r'/results/([^/]+)/[^/]+/([^/]+)\.json$', url)
+        dossier, tache = m.group(1), m.group(2)
+        if dossier == 'Org__incomplet-2' and tache == 'BelebeleRetrieval':
+            return Mock(status_code=404)
+        if dossier == 'Org__reseau-4':
+            raise ConnectionError('proxy: reset')
+        base = {'BAAI__bge-m3': 0.60, 'Qwen__Qwen3-Embedding-0.6B': 0.70,
+                'intfloat__multilingual-e5-small': 0.50, 'Org__incomplet-1': 0.90,
+                'Org__incomplet-2': 0.95, 'Org__sans-fr-3': 0.99}[dossier]
+        split, subset = next((s, sub) for t, s, sub in CATEGORIES['embedding']['mteb'] if t == tache)
+        subsets = [{'hf_subset': 'eng', 'main_score': 0.11}]
+        if dossier != 'Org__sans-fr-3':
+            subsets.append({'hf_subset': subset, 'main_score': base})
+        # `NaN` dans le fichier (mteb en écrit) : le json stdlib le lit, simplejson non
+        texte = _json.dumps({'scores': {split: subsets, 'autre': []}}).replace('0.11', 'NaN')
+        return Mock(status_code=200, raise_for_status=lambda: None, text=texte)
+
+    def test_charger_mteb_moyenne_le_jeu_declare_et_ignore_un_modele_incomplet(self):
+        import tempfile
+        from pathlib import Path
+        from .services import benchmark_sync as bs
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(bs, '_mteb_index', side_effect=self._faux_index), \
+                patch.object(bs, '_mteb_marqueurs', return_value=set()), \
+                patch.object(bs, '_mteb_cache_path', return_value=Path(tmp) / 'c.json'), \
+                patch('requests.get', side_effect=self._faux_get):
+            par_cat, motifs = bs.charger_mteb()
+            # 2ᵉ passe : les modèles LUS viennent du cache — aucune requête pour eux ; seul
+            # `reseau-4` (échec passager, jamais mis en cache) est retenté.
+            def relecture(url, **kw):
+                if 'Org__reseau-4' not in url:
+                    raise AssertionError('réseau interdit pour un modèle déjà lu : ' + url)
+                return self._faux_get(url)
+            with patch('requests.get', side_effect=relecture):
+                par_cat2, _ = bs.charger_mteb()
+        noms = {e['nom']: e for e in par_cat['embedding']}
+        self.assertEqual(set(noms), {'BAAI/bge-m3', 'Qwen/Qwen3-Embedding-0.6B',
+                                     'intfloat/multilingual-e5-small'})
+        self.assertEqual(noms['BAAI/bge-m3']['score'], 60.0)
+        self.assertEqual(len(noms['BAAI/bge-m3']['taches']), 4)
+        self.assertEqual(noms['Qwen/Qwen3-Embedding-0.6B']['identite'], ('qwen', (3,), 0.6))
+        self.assertIsNone(noms['BAAI/bge-m3']['identite'])              # d'où l'ALIAS
+        self.assertIn('1 modèle(s) non lus', motifs['embedding'])
+        self.assertEqual(par_cat2['embedding'], par_cat['embedding'])
+
+    def test_bge_m3_du_rag_prend_son_banc_par_alias_et_les_embeddings_proposes_ont_une_categorie(self):
+        from .services import benchmark_sync as bs
+        bge = AIModel.objects.create(
+            model_key='ollama:bge-m3:latest', name='bge-m3:latest', model_type='embedding',
+            source='ollama', is_downloaded=True,
+            capabilities={'task': 'feature-extraction', 'embedding': True, 'completion': False})
+        propose = AIModel.objects.create(
+            model_key='proposed:ollama:qwen3-embedding:latest', name='qwen3-embedding:latest',
+            model_type='embedding', source='ollama', is_proposed=True, capabilities={})
+        self.assertEqual(bs._categories_locales(bge), ['embedding'])
+        self.assertEqual(bs._categories_locales(propose), ['embedding'])
+        mteb = next(s for s in bs.SOURCES if s['cle'] == 'mteb')
+        entrees = [{'nom': 'BAAI/bge-m3', 'slug': 'BAAI/bge-m3', 'identite': None, 'score': 61.2,
+                    'taches': {}, 'revision': 'r'},
+                   {'nom': 'intfloat/multilingual-e5-small', 'slug': 'intfloat/multilingual-e5-small',
+                    'identite': ('multilinguale', (5,), None), 'score': 50.0, 'taches': {}, 'revision': 'r'}]
+        src = dict(mteb, chargeur=lambda: ({'embedding': entrees}, {}))
+        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (src,)):
+            r = bs.synchroniser(dry_run=False)
+        bge.refresh_from_db()
+        self.assertEqual(bge.benchmark_index, 61.2)
+        self.assertEqual(bge.benchmark_meta['echelle'], 'mteb_fr_retrieval')
+        self.assertEqual(bge.benchmark_meta['alias_declare'], 'BAAI/bge-m3')
+        self.assertEqual(bge.benchmark_meta['rang_centile'], 50.0)
+        self.assertIn('proposed:ollama:qwen3-embedding:latest [embedding]', r['non_apparies'])
