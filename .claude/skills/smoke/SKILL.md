@@ -108,3 +108,17 @@ le RENDU RÉEL, pas la structure du code.
   de brique globale (`MediaPicker`) sur 2 apps dès la 1re exécution (relevé du 19/08), sur des
   pages utilisées tous
   les jours. `node --check` ne voit que la syntaxe, jamais une erreur au chargement.
+
+
+## Fixtures de sonde — le NOM est le filet (leçon du 2026-09-02)
+
+- 🔴 **Toute fixture déposée par une sonde passe par `_fichier_temoin()`** (ui_smoke — le
+  préfixe `wama_temoin_` est ce qui rend le fichier balayable par `sweep_test_witnesses`).
+  Un nom écrit à la main y ÉCHAPPE : mesuré en clôture du 02/09, une douzaine de fixtures
+  nommées à la main s'étaient accumulées dans le média du compte de test — invisibles du
+  balayeur, nettoyées à la main. *Un `delete()` ORM sur le job de sonde ne supprime pas
+  ses fichiers : seul le nom-témoin garantit le rattrapage.*
+- ⚠ Trou PRÉEXISTANT constaté au même endroit : des fichiers `temoin_*` (sans le préfixe
+  `wama_temoin_`) d'anciens harnais échappent aussi au motif — déclaré, pas nettoyé (pas
+  les miens) ; le jour où on élargit le motif, vérifier sur échantillon qu'aucun fichier
+  utilisateur ne matche (même prudence que la note du §3quater de WAMA_VERIFICATION).
