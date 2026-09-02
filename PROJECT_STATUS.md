@@ -10182,6 +10182,35 @@ Ollama), cogvideox-5b-i2v **21**, qwen3.8 17, hunyuan-image 16, audiogen 16, vib
 Qwen3-TTS/chatterbox/Audio8 = patron kokoro-onnx + `PIP_PACKAGES`), puis les INCONNUS un par
 un, NeMo en premier (deux modèles derrière, le meilleur banc FR).
 
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE (instance bancs / prospection / installations, 02/09)
+
+**Non fait, annoncé, à faire en premier** : **MTEB et Open VLM** comme 3ᵉ et 4ᵉ sources
+`benchmark_sync` (le relevé du matin porte les faits : MTEB = dépôt CC0 de JSON par modèle et
+par tâche, moyenne à recalculer, catégorie `embedding` → bge-m3 vs qwen3-embedding pour le RAG ;
+Open VLM = JSON chargé par URL dans `meta_data.py` du Space OpenCompass, scores objectifs par
+benchmark, catégorie `vision` en confrontation de l'arène). Même patron que `open_asr` :
+entrée `SOURCES` + chargeur + `external_sources` + catégorie ; `_SourcesFactices` à compléter.
+
+**Décisions Fabien en attente** : (1) libérer le port 6379 côté Windows (deux Redis) ;
+(2) restreindre le jeton HF à READ (nouveau jeton sur huggingface.co → remplacer `HF_TOKEN`
+dans `.env`, révoquer l'ancien) ; (3) FLUX.1-schnell (34 Go) et Qwen-Image-Edit-2511 (58 Go)
+après le NVMe.
+
+**Restes techniques** : 26 `proposed:ollama:*` sans `task` (chemin prospection Ollama) · garde
+`pgrep` du worker `default` dans `start_wama_prod.sh` → test de vie · dédoublonnage aveugle aux
+VERSIONS datées (Qwen-Image-Edit-2509 proposé, 2511 déclaré) · deux formats de poids tirés par
+dépôt (`allow_patterns` seulement via `composition`) · `ollama:glm-ocr:latest` typé `llm`+vision
+là où la prospection dit `vlm` · bloc LEGACY de `settings.py` (`AI-models/anonymizer/…`) → ledger ·
+VibeVoice-ASR conservé pour comparaison interne (décision Fabien) · Qwen3-ASR jamais lancé
+avec succès (crash hôte, alimentation suspectée — matériel commandé).
+
+**Contrôles attendus au prochain /reprise (MESURÉS ce soir)** : `manifest_export --check` →
+**corpus à jour (121)** ; dry-run bancs **31 / 23 / 27 / 79** sur 160 (le compte de la page
+après relance Fabien : 31 / 23 / 28 / 79 — une ligne installée de plus) ; `check_docs` 8 cassées
+/ 0 périmée (1 cible) ; `wama.model_manager` 85 OK, `tests_external_sources` OK ; suite complète
+non relancée après les commits de la soirée (`67a378c7`…`16868d89`, docs + prospector +
+provenance + reader + settings + installeur).
+
 
 ## §PALIER — 2026-09-02, instance « CARD ORANGE + CURSEUR D'INTENTION » — ✅ LIVRÉ (2 paliers)
 
