@@ -10331,6 +10331,24 @@ source de banc » (n=2 : Open ASR, MTEB — même patron `SOURCES` + chargeur + 
 catégorie + fabrique de tests). **`/skill-forge` NON déroulé** (clôture tardive) — pending nommé,
 à promouvoir à la prochaine occurrence.
 
+**Complément de clôture (balayage de TOUTE la session, question Fabien « rien oublié ? ») —
+quatre trous trouvés et comblés ici** :
+- ⚠⚠ **Les workers tournent le code d'AVANT MTEB** : le relancement de WAMA (~21:00) précède les
+  commits `c65df898` (MTEB), `36b2bfff` (tâche Ollama, dédoublonnage daté, un seul format de
+  poids) et `2406a649`. Conséquence mesurée : **0 banc MTEB écrit en base** — seuls mes dry-runs
+  l'ont vu. → **Relancer WAMA, puis « Mesurer la performance » depuis la page** pour que
+  bge-m3 / qwen3-embedding:4b portent leur banc ; sans le redémarrage, une prospection depuis
+  la page rejouera l'ancien code (pas de `task` sur les nouveaux candidats Ollama).
+- Résidu : `proposed:ollama:qwen3-embedding:latest` subsiste alors que `qwen3-embedding:4b` est
+  installé — la purge ciblée du seeding l'enlèvera à la prochaine passe (famille installée
+  exclue des « nouveaux ») ; rien à faire à la main.
+- Le correctif du badge « bench » des cards (`0cdeb8dd` : tronqué par « … », valeur à une
+  décimale, « plus bas = mieux » à l'inspecteur) n'était consigné que dans son commit.
+- Décision restante non listée : **whisper-large-v3-turbo** (MIT, 1,5 Go, 6,73 % WER FR — moins
+  bon que large-v3 mais 1,7× plus rapide) comme remplaçant de `whisper-base` du DESCRIBER,
+  pas du transcriber. Et PP-DocLayoutV3 + table-transformer sont aussi des briques pour WAMA
+  Data (tableaux de rapports scannés → type `table`), pas seulement pour le reader.
+
 **Contrôles attendus au prochain /reprise (tous MESURÉS à cette clôture)** : suite complète
 **1437 tests, `OK (skipped=5)`** (run seul sur la base) · `manifest_export --check` **corpus à
 jour (121)** · `check_docs` **8 cassées / 0 périmée sur 1311**, **1 cible distincte** (inchangée)
