@@ -285,6 +285,25 @@
               "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
+                "default": {
+                  "expr": "'balanced'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Politique du choix automatique : fast | balanced | precise'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "16",
+                  "imports": []
+                }
+              },
+              "name": "model_intent"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
                 "choices": {
                   "expr": "[('fr', 'Français'), ('en', 'English'), ('es', 'Español'), ('de', 'Deutsch'), ('it', 'Italiano'), ('pt', 'Português'), ('pl', 'Polski'), ('tr', 'Türkçe'), ('ru', 'Русский'), ('nl', 'Nederlands'), ('cs', 'Čeština'), ('ar', 'العربية'), ('zh-cn', '中文'), ('ja', '日本語'), ('ko', '한국어')]",
                   "imports": []
@@ -1184,6 +1203,50 @@
           },
           {
             "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "balanced",
+            "dom_id": {
+              "batch": "batchSettingsModelIntent",
+              "item": "settingsModelIntent",
+              "panel": "model_intent"
+            },
+            "group": "",
+            "help": "Guide le choix automatique : Rapide privilégie un modèle léger, Précis le meilleur modèle même s'il faut attendre des ressources.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-high",
+            "inline": false,
+            "label": "Rapide ↔ Précis",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "model_intent",
+            "option_groups": null,
+            "options_auto": false,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "tts_model"
+            },
+            "step": null,
+            "type": "intent",
+            "unit": ""
+          },
+          {
+            "advanced": false,
             "chip": true,
             "chip_label": "",
             "choices": [
@@ -1834,6 +1897,7 @@
           ],
           "params_fields": [
             "tts_model",
+            "model_intent",
             "language",
             "voice_preset",
             "speed",
@@ -1884,6 +1948,7 @@
           "args": {
             "emotion_intensity": "float (défaut : 1.0)",
             "language": "select — Langue de synthèse (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
+            "model_intent": "intent — Guide le choix automatique : Rapide privilégie un modèle léger, Précis le meilleur modèle même s'il faut attendre des ressources. (défaut : 'balanced')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus)",
             "output_quality": "select — Qualité (choix : web | balanced | max)",
             "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",

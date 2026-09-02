@@ -67,6 +67,13 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
         max_length=128, default='synthesizer:coqui-xtts',
     )
 
+    # Curseur d'INTENTION du tirage « auto » — cf. `VoiceSynthesis.model_intent` (même
+    # vocabulaire, même absence délibérée de `choices=`).
+    model_intent = models.CharField(
+        max_length=16, default='balanced',
+        help_text="Politique du choix automatique : fast | balanced | precise",
+    )
+
     def get_tts_model_display(self) -> str:
         """Libellé du moteur — cf. `VoiceSynthesis.get_tts_model_display` pour le pourquoi."""
         from wama.common.tts.ui_meta import tts_engine_label

@@ -294,6 +294,7 @@ def upload(request):
             # Output format (Phase 3) — 'original' = WAV natif, sinon conversion inline
             output_format = request.POST.get('output_format', 'original')
             output_quality = request.POST.get('output_quality', 'balanced')
+            model_intent = request.POST.get('model_intent', 'balanced')
         except (ValueError, TypeError) as e:
             return JsonResponse({
                 'error': f'Paramètres invalides: {str(e)}'
@@ -320,6 +321,7 @@ def upload(request):
             scene_description=scene_description,
             output_format=output_format,
             output_quality=output_quality,
+            model_intent=model_intent,
         )
 
         # Extraire le texte et mettre à jour les métadonnées
@@ -452,6 +454,7 @@ def upload_text(request):
             # Output format (Phase 3)
             output_format = request.POST.get('output_format', 'original')
             output_quality = request.POST.get('output_quality', 'balanced')
+            model_intent = request.POST.get('model_intent', 'balanced')
         except (ValueError, TypeError) as e:
             return JsonResponse({
                 'error': f'Paramètres invalides: {str(e)}'
@@ -478,6 +481,7 @@ def upload_text(request):
             scene_description=scene_description,
             output_format=output_format,
             output_quality=output_quality,
+            model_intent=model_intent,
         )
 
         # Mettre à jour les métadonnées
@@ -1108,6 +1112,8 @@ def update_options(request, pk: int):
     # Mettre à jour les champs
     if 'tts_model' in request.POST:
         synthesis.tts_model = request.POST['tts_model']
+    if 'model_intent' in request.POST:
+        synthesis.model_intent = request.POST['model_intent']
     if 'language' in request.POST:
         synthesis.language = request.POST['language']
     if 'voice_preset' in request.POST:
@@ -1173,6 +1179,7 @@ def import_individual_from_path(request):
         speed=float(request.POST.get('speed', 1.0)),
         pitch=float(request.POST.get('pitch', 1.0)),
         emotion_intensity=1.0,
+        model_intent=request.POST.get('model_intent', 'balanced'),
     )
     synthesis.text_file.name = server_path
     synthesis.save()
@@ -1286,6 +1293,7 @@ def batch_create(request):
 
     # Global synthesis settings from the right panel
     tts_model = request.POST.get('tts_model', 'coqui-xtts')
+    model_intent = request.POST.get('model_intent', 'balanced')
     language = request.POST.get('language', 'fr')
     default_voice = request.POST.get('voice_preset', 'default')
     try:
@@ -1360,6 +1368,7 @@ def batch_create(request):
             text_file=text_file_content,
             text_content=task['text'],
             tts_model=tts_model,
+            model_intent=model_intent,
             language=language,
             voice_preset=task['voice'],
             speed=task['speed'],
@@ -1570,6 +1579,7 @@ def batch_update_settings(request, pk: int):
 
     data = _json.loads(request.body)
     tts_model = data.get('tts_model', '').strip()
+    model_intent = data.get('model_intent', '').strip()
     language = data.get('language', '').strip()
     voice_preset = data.get('voice_preset', '').strip()
     try:
@@ -1588,6 +1598,9 @@ def batch_update_settings(request, pk: int):
         if tts_model:
             s.tts_model = tts_model
             update_fields.append('tts_model')
+        if model_intent:
+            s.model_intent = model_intent
+            update_fields.append('model_intent')
         if language:
             s.language = language
             update_fields.append('language')

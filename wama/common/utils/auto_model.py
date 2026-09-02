@@ -36,6 +36,29 @@ AUTO = 'auto'
 #: Fabien, handoff 2026-09-01). Un seul domicile — l'endpoint et les tests le citent.
 AUTO_LABEL = 'Automatique — choisi au lancement'
 
+#: Curseur d'INTENTION rapide↔qualité (décision Fabien 01/09) — trois politiques NOMMÉES.
+#: La valeur stockée/postée est la politique en toutes lettres, jamais un index de slider
+#: (frontière des DONNÉES). Le vocabulaire vit chez le sélecteur (`MODEL_INTENTS`) ; les
+#: libellés et le tricolore vivent dans le renderer commun `type='intent'` (wama-params.js).
+INTENT_DEFAULT = 'balanced'
+
+
+def intent_param(**overrides) -> dict:
+    """Surcouche STANDARD du curseur d'intention pour un schéma d'app (`derive_from_model`).
+
+    L'app déclare le champ modèle (`model_intent`, CharField défaut 'balanced' — SANS
+    `choices=`, leçon du 01/09 : toute liste dans un champ de modèle exige une migration)
+    et passe `intent_param(dom_id=…, show_if=…)` en override. Le rendu, la liaison et le
+    tricolore sont le renderer commun — rien à écrire par app.
+    """
+    base = dict(
+        type='intent', label='Rapide ↔ Précis', icon='fa-gauge-high',
+        help="Guide le choix automatique : Rapide privilégie un modèle léger, "
+             "Précis le meilleur modèle même s'il faut attendre des ressources.",
+    )
+    base.update(overrides)
+    return base
+
 
 def is_auto(value) -> bool:
     """Cette valeur demande-t-elle le tirage automatique ? (vide compris)."""

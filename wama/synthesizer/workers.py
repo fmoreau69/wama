@@ -230,13 +230,14 @@ def synthesize_voice(self, synthesis_id: int):
         # prévision affichée sous le select était une photo, on dit ici le choix réel.
         from wama.common.utils.auto_model import is_auto, resolve_model_choice
         if is_auto(synthesis.tts_model):
+            intent = getattr(synthesis, 'model_intent', '') or 'balanced'
             synthesis.tts_model = resolve_model_choice(
-                synthesis.tts_model, app_id='synthesizer',
+                synthesis.tts_model, app_id='synthesizer', intent=intent,
                 fallback=VoiceSynthesis._meta.get_field('tts_model').get_default())
             synthesis.save(update_fields=['tts_model'])
             _console(synthesis.user_id,
                      f"Choix automatique du moteur → {synthesis.get_tts_model_display()} "
-                     f"(capacités + VRAM libre au lancement)")
+                     f"(capacités + VRAM libre au lancement, politique « {intent} »)")
 
         # Étape 2: Génération audio via le service TTS
         _console(synthesis.user_id, f"Envoi au service TTS (modèle: {synthesis.tts_model})...")

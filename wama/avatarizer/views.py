@@ -176,6 +176,7 @@ def create(request):
                 status=400)
         job.text_content = text_content
         job.tts_model = request.POST.get('tts_model', prefs['tts_model'])
+        job.model_intent = request.POST.get('model_intent', 'balanced')
         job.language = request.POST.get('language', prefs['language'])
         job.voice_preset = request.POST.get('voice_preset', prefs['voice_preset'])
 
@@ -373,6 +374,9 @@ def update_options(request, pk):
         tts_model = request.POST.get('tts_model')
         if tts_model:
             job.tts_model = tts_model
+        model_intent = request.POST.get('model_intent')
+        if model_intent:
+            job.model_intent = model_intent
         language = request.POST.get('language')
         if language:
             job.language = language
@@ -389,8 +393,8 @@ def update_options(request, pk):
     except (ValueError, TypeError):
         pass
 
-    job.save(update_fields=['text_content', 'tts_model', 'language', 'voice_preset',
-                            'quality_mode', 'use_enhancer', 'bbox_shift'])
+    job.save(update_fields=['text_content', 'tts_model', 'model_intent', 'language',
+                            'voice_preset', 'quality_mode', 'use_enhancer', 'bbox_shift'])
     return JsonResponse({'status': 'updated'})
 
 

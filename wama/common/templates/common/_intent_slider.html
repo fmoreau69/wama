@@ -1,0 +1,33 @@
+{% comment %}
+WAMA — Curseur d'INTENTION rapide↔qualité pour un VOLET rendu serveur (champs maison).
+
+CONTRAT PARTAGÉ avec le renderer `type='intent'` de wama-params.js : mêmes classes
+(.wama-intent, .wama-intent-slider, .wama-intent-val), même valeur portée par le hidden
+('fast' | 'balanced' | 'precise' — la POLITIQUE en toutes lettres, jamais l'index du
+slider). La liaison JS est DÉLÉGUÉE au document (wama-params.js) : ce markup est vivant
+sans une ligne de JS d'app. Modifier l'un = modifier l'autre — le test de garde
+tests_auto_model vérifie que les deux portent les mêmes classes.
+
+Variables :
+  dom_id — id du hidden (celui que le schéma déclare en dom_id panel)
+  name   — attribut name du hidden (les volets maison lisent par [name=…])
+  value  — 'fast' | 'balanced' | 'precise' (toute autre valeur = équilibré)
+{% endcomment %}
+<div class="wama-intent">
+  <input type="hidden" id="{{ dom_id }}" name="{{ name }}" value="{% if value == 'fast' %}fast{% elif value == 'precise' %}precise{% else %}balanced{% endif %}">
+  <div class="d-flex align-items-center gap-2">
+    <input type="range" class="form-range wama-intent-slider" min="0" max="2" step="1"
+           value="{% if value == 'fast' %}0{% elif value == 'precise' %}2{% else %}1{% endif %}"
+           style="accent-color:{% if value == 'fast' %}#28a745{% elif value == 'precise' %}#dc3545{% else %}#fd7e14{% endif %}"
+           aria-label="Rapide ou précis">
+    {% comment %}!important : les thèmes d'app posent la couleur des small en !important
+       (mesuré au smoke — libellé rendu gris) ; sans lui le tricolore ne gagne jamais.
+       ⚠ Commentaire {% templatetag opencomment %} multiligne = TEXTE RENDU.{% endcomment %}
+    <span class="wama-intent-val small fw-bold"
+          style="color:{% if value == 'fast' %}#28a745{% elif value == 'precise' %}#dc3545{% else %}#fd7e14{% endif %} !important">
+      {% if value == 'fast' %}Rapide{% elif value == 'precise' %}Précis{% else %}Équilibré{% endif %}</span>
+  </div>
+  <div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">
+    <span>Rapide</span><span>Précis</span>
+  </div>
+</div>

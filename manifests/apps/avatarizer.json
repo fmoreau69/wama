@@ -279,6 +279,25 @@
               "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
+                "default": {
+                  "expr": "'balanced'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Politique du choix automatique : fast | balanced | precise'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "16",
+                  "imports": []
+                }
+              },
+              "name": "model_intent"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
                 "choices": {
                   "expr": "[('fr', 'Français'), ('en', 'English'), ('es', 'Español'), ('de', 'Deutsch'), ('it', 'Italiano'), ('pt', 'Português'), ('pl', 'Polski'), ('tr', 'Türkçe'), ('ru', 'Русский'), ('nl', 'Nederlands'), ('cs', 'Čeština'), ('ar', 'العربية'), ('zh-cn', '中文'), ('ja', '日本語'), ('ko', '한국어')]",
                   "imports": []
@@ -902,6 +921,46 @@
             "advanced": false,
             "chip": false,
             "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": "balanced",
+            "dom_id": {
+              "item": "settingsModelIntent"
+            },
+            "group": "",
+            "help": "Guide le choix automatique : Rapide privilégie un modèle léger, Précis le meilleur modèle même s'il faut attendre des ressources.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-gauge-high",
+            "inline": false,
+            "label": "Rapide ↔ Précis",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "model_intent",
+            "option_groups": null,
+            "options_auto": false,
+            "options_query": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "auto",
+              "field": "tts_model"
+            },
+            "step": null,
+            "type": "intent",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
             "choices": [
               [
                 "fr",
@@ -1329,6 +1388,7 @@
           "params_fields": [
             "text_content",
             "tts_model",
+            "model_intent",
             "language",
             "voice_preset",
             "use_enhancer",
