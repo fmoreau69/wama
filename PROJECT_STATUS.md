@@ -10105,6 +10105,48 @@ code), manifestes régénérés. **Noté, pas traité** : deux formats de poids 
 dépôt en publie deux ; `ollama:glm-ocr:latest` typé `llm`+vision (règle de découverte) là
 où la prospection disait `vlm`.
 
+### Suite (soirée) — lot 2 installé (4/4), jeton HF domicilié, dossiers audités, worker `default` perdu au relancement
+
+**Lot 2 (GO Fabien, tailles données avant)** : Qwen3-TTS 1.7B (4,2 Go, 60 s), FastWan2.2-TI2V-5B
+(23 Go, 236 s), parakeet-tdt-0.6b-v3 (2,4 Go, `.nemo` seul), canary-1b-v2 (6,0 Go, `.nemo`
+seul) — les deux NeMo entrés comme CANDIDATS par le writer unique avec un spec restreint
+(`allow_patterns`), puis le même chemin Celery. **D: à 22 Go libres (97 %)** : FLUX.1-schnell
+(34 Go utiles) et Qwen-Image-Edit-2511 (57,7 Go) attendent le NVMe 4 To commandé.
+
+**Ce qui s'est passé en route, à lire** :
+- Le relancement de WAMA par Fabien a tué le Redis WSL2 pendant la dispatch de FastWan
+  (script de suivi mort) ; au redémarrage, **le worker `default` n'est pas revenu** (le
+  garde `pgrep -f "celery.*default@"` de `start_wama_prod.sh` a cru voir un processus —
+  résidu du worker SIGTERMé à 18:19, non prouvé). Redémarré par l'instance avec la commande
+  EXACTE du script (pool prefork, `default,celery`, autoscale 4,1, même journal, mêmes exports).
+- ⚠⚠ **FastWan a été installé DEUX fois en parallèle** : la dispatch d'avant le crash était
+  restée dans la file Redis et est partie dès le retour du worker (18:39:18) ; ma vérification
+  « file vide, aucune install en cours » lisait `llen` APRÈS consommation et un `tail -8` qui
+  ne remontait pas jusqu'à elle. Le second dispatch (18:40:56) a doublé. Sans dégât mesuré
+  (même `cache_dir`, verrous HF, 23 Go une fois) — mais c'est la course du 31/08 rejouée, et
+  parakeet, installé pendant la fin du doublon, est arrivé **sans tâche ni licence** (garde
+  de concordance de la provenance, probable). *Un `llen` à 0 ne dit pas « rien ne tourne » :
+  il dit « tout a été pris ». La question se pose à `inspect active`, jamais à la file.*
+  Rattrapage à la main (task, licence, platform_ref) + manifestes régénérés.
+- **Jeton HF** : commit `c2e2efb1` (`.env HF_TOKEN` = domicile, fichier historique promu,
+  source `huggingface` déclare sa clé — page Sources : « clé posée »). `.env` reçoit la ligne
+  vide ; Fabien y copie la valeur du fichier `AI-models/cache/huggingface/token` puis le supprime.
+- **Emplacements audités** : le réel suit `model_locations` (catégorie = ModelType) et
+  l'installeur de la prospection tombe juste. UNE coquille : `pull_model` sans `--category`
+  visait `detect/` et `enhance/` (inexistants) — table = identité, alias tolérés. Le bloc
+  LEGACY de settings (`AI-models/anonymizer/…`) ne correspond à aucun dossier : repli de
+  l'anonymizer seul, à inscrire au ledger.
+
+**VRAM déclarée des installés ≥ 16 Go (RTX 4090 = 24 Go)** — DÉCLARÉE, aucune mesure d'usage
+en base (`last_used_at` vide partout, pas de pic relevé) : qwen-image-2 **38** (backend :
+`device_map` puis repli offload CPU — jouable, lent), flux-1-dev / LoRA logo **24** (stratégie
+bf16+offload ou 8-bit/4-bit selon bitsandbytes — jouable), higgs-audio **24** déclaré /
+**16 recommandé** par son backend, qwen3.6:35b **23** (GGUF, KV cache en sus → débord CPU
+Ollama), cogvideox-5b-i2v **21**, qwen3.8 17, hunyuan-image 16, audiogen 16, vibevoice-asr 16.
+**Rien ne dit que ça TIENT** : seul un pic mesuré à l'usage le dira — et les crashs hôte
+(rampe VRAM, `INFRA §crashs`) sont exactement là. Qwen3-ASR : jamais lancé avec succès
+(Fabien), même famille de cause suspectée.
+
 
 ## §PALIER — 2026-09-02, instance « CARD ORANGE + CURSEUR D'INTENTION » — ✅ LIVRÉ (2 paliers)
 
