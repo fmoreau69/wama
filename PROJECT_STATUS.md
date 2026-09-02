@@ -10045,3 +10045,33 @@ commentaire `{# #}` sur deux lignes dans le gabarit Sources (la garde de
 pas — déclaré pour que la ligne dise « sans banc » plutôt que « hors catégorie ») ·
 `vibevoice-asr` et `whisper-base` sans identité (nom sans version) · `_local_identities`
 absorbe le préfixe `ollama` dans une identité parasite (`ollamaminicpm`) — inoffensif, noté.
+
+### Suite (même instance, après-midi) — lecture de la prospection relancée : 3 défauts de l'INSTRUMENT corrigés
+
+Détail et faits : `PROSPECTION_PIPELINE.md §2026-09-02 « Suite »` (le doc de référence).
+Livré : **licence HÉRITÉE du `base_model`** (H3-Turbo, FastH3, le merge et 10Eros-Max
+disent désormais « UE EXCLUE (modèle de base) » — c'était un manque, pas une permission ;
+fait nouveau : MiniMax a un formulaire de licence pour les organisations UE) · **taxonomie
+par les TAGS de la carte** + `capabilities.task` écrite sur les lignes proposées
+(`hf_task_to_wama`) · **`glm-ocr:0.9b` mort sur le registre** → `latest` · **version après
+un POINT** lisible (`FLUX.1-schnell`) · garde **`ADD_ONS`** (LoRA ≠ modèle). Rattrapage des
+45 lignes proposées par script (proposés seulement).
+
+**Mesures** : dry-run **31 appariés · 23 sans banc · 27 sans identité · 79 hors catégorie**
+(somme 160 ; le matin : 17 / 11 / 16 / 115 sur 159 — une ligne proposée de plus depuis la
+relance de Fabien) · `check_model_taxonomy` : plus de « 66 sans task » · tests
+`wama.model_manager` **84 OK** (+6), `wama.reader` 4 OK.
+
+**⚠ Leçons** : ⚠⚠ **un tag SPDX permissif sur un dérivé ne dit rien de l'accord amont** —
+la carte déclare son `base_model`, c'est lui qu'il faut lire ; ⚠⚠ **un tag de pipeline plus
+grossier que la taxonomie se tranche par les TAGS déclarés, jamais par le nom** ; ⚠ **un
+filtre sur `name` attrape ce que le texte raconte** (SD 1.5 « compatible LoRA » sortait du
+banc) — lire les identifiants ; ⚠ un tag de registre meurt en silence (`glm-ocr:0.9b`) — un
+`pull` sur un tag disparu ne se voit qu'en le tentant ; ⚠ le Hub répond **429** au-delà de
+~40 cartes en rafale — lisser, ne jamais forcer.
+
+**Reste** : les 26 lignes `proposed:ollama:*` n'ont toujours pas de `task` (la prospection
+Ollama, autre chemin) · Realistic Vision, le merge H3 et MAGI-2 (0 dl) reviennent par le tri
+tendance : NON un résidu (règle Fabien : le retrait vaut pour l'installé, pas pour le
+proposé) · glm-ocr à re-tirer (`ollama pull glm-ocr`) — décision Fabien, pas faite ·
+recommandations d'installation : réponse en session, à trancher par Fabien.

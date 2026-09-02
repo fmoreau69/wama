@@ -571,6 +571,87 @@ class ChoixDeVarianteTest(TestCase):
         self.assertIsNone(spec_for_choice(cand, 'Repack/Grand-GGUF', 'inexistant.gguf'))
 
 
+class TaxonomieDeProspectionTest(TestCase):
+    """
+    2026-09-02 (Fabien : « un vrai souci ») — le prospecteur figeait `image-to-image` en
+    `upscaling` et `image-to-text` en `ocr` : six modèles d'ÉDITION s'affichaient en
+    upscalers, BLIP-base en OCR, et AUCUNE ligne proposée ne portait de tâche — donc aucun
+    banc. Les TAGS de la carte départagent ; la tâche s'écrit sur la ligne.
+    """
+
+    def test_les_tags_de_la_carte_departagent_les_tags_hf_ambigus(self):
+        from .services.prospector import hf_task_to_wama
+        # Édition : le cas mesuré (FLUX.2-dev taggé `image-editing`, Qwen-Image-Edit sans tag fin)
+        self.assertEqual(hf_task_to_wama('image-to-image', ['diffusers', 'image-editing']),
+                         ('image-to-image', 'diffusion'))
+        self.assertEqual(hf_task_to_wama('image-to-image', []), ('image-to-image', 'diffusion'))
+        # Agrandissement et débruitage : tags déclarés, jamais le nom
+        self.assertEqual(hf_task_to_wama('image-to-image', ['super-resolution']), ('upscale', 'upscaling'))
+        self.assertEqual(hf_task_to_wama('image-to-image', ['image-denoising']), ('denoise', 'upscaling'))
+        # Légendage vs OCR
+        self.assertEqual(hf_task_to_wama('image-to-text', ['blip', 'image-captioning']), ('captioning', 'vlm'))
+        self.assertEqual(hf_task_to_wama('image-to-text', ['PaddleOCR', 'OCR']), ('ocr', 'ocr'))
+        # Sans ambiguïté : traduction directe vers NOTRE vocabulaire
+        self.assertEqual(hf_task_to_wama('automatic-speech-recognition', []), ('transcription', 'speech'))
+        self.assertEqual(hf_task_to_wama('image-text-to-video', []), ('image-to-video', 'diffusion'))
+        # Inconnu : pas de tâche inventée, catégorie par défaut
+        self.assertEqual(hf_task_to_wama('tabular-classification', [])[0], None)
+
+    def test_la_tache_ecrite_est_une_tache_du_catalogue(self):
+        """Toute tâche rendue doit être une valeur `ModelTask` : sinon `check_model_taxonomy`
+        la refuserait et `_categories_locales` ne la trouverait dans aucun banc."""
+        from .models import ModelTask
+        from .services.prospector import HF_TASKS, hf_task_to_wama
+        connues = {t.value for t in ModelTask}
+        for tache in HF_TASKS:
+            for tags in ([], ['image-editing'], ['super-resolution'], ['image-captioning']):
+                t, mt = hf_task_to_wama(tache, tags)
+                with self.subTest(tache=tache, tags=tags):
+                    self.assertIn(t, connues)
+
+
+class LicenceHeriteeTest(TestCase):
+    """
+    2026-09-02 (Fabien : « H3 dit UE EXCLUE, pas H3-Turbo — manque ou permission ? »). Un
+    manque : le dérivé se tagge `apache-2.0` (SPDX permissif → la garde rend None) alors que
+    sa carte déclare `base_model: MiniMaxAI/MiniMax-H3`, dont la licence exclut l'UE. Un
+    « Model Derivative » reste soumis à l'accord amont : le verdict s'HÉRITE, en le disant.
+    """
+
+    def _texte(self, hf_id, lid):
+        if hf_id == 'MiniMaxAI/MiniMax-H3':
+            return {'verdict': 'exclusion_ue', 'label': 'UE EXCLUE par la licence',
+                    'detail': '« excluded territories means the european union… »'}
+        if hf_id == 'Org/Flou':
+            return {'verdict': 'a_verifier', 'label': 'licence à vérifier', 'detail': 'sans LICENSE'}
+        return None
+
+    def test_un_derive_permissif_herite_du_verdict_territorial_de_sa_base(self):
+        from .services import prospector as p
+        with patch.object(p, '_analyze_license_text', side_effect=self._texte):
+            v = p.analyze_license('lightx2v/Minimax-h3-Turbo', 'apache-2.0', ['MiniMaxAI/MiniMax-H3'])
+        self.assertEqual(v['verdict'], 'exclusion_ue')
+        self.assertEqual(v['herite_de'], 'MiniMaxAI/MiniMax-H3')
+        self.assertIn('modèle de base', v['label'])
+        self.assertIn('Model Derivative', v['detail'])
+        # `base_model` en chaîne (cartes FastVideo) : même résultat
+        with patch.object(p, '_analyze_license_text', side_effect=self._texte):
+            v2 = p.analyze_license('FastVideo/FastH3', 'apache-2.0', 'MiniMaxAI/MiniMax-H3')
+        self.assertEqual(v2['verdict'], 'exclusion_ue')
+
+    def test_sans_base_declaree_ou_avec_une_base_saine_rien_ne_change(self):
+        from .services import prospector as p
+        with patch.object(p, '_analyze_license_text', side_effect=self._texte):
+            self.assertIsNone(p.analyze_license('Qwen/Qwen3-TTS', 'apache-2.0', None))
+            self.assertIsNone(p.analyze_license('Distil/Whisper', 'mit', ['openai/whisper-large-v3']))
+            # Une base seulement « à vérifier » n'est pas héritée : rien de territorial n'est établi
+            self.assertIsNone(p.analyze_license('Org/Derive', 'apache-2.0', ['Org/Flou']))
+            # Un verdict territorial PROPRE prime sur l'héritage
+            v = p.analyze_license('MiniMaxAI/MiniMax-H3', 'other', ['MiniMaxAI/MiniMax-H3'])
+        self.assertEqual(v['verdict'], 'exclusion_ue')
+        self.assertNotIn('herite_de', v)
+
+
 class _SourcesFactices:
     """Sources de benchmark simulées — partagées par les classes de test ci-dessous."""
 
@@ -859,6 +940,32 @@ class FamilleSansConditionnementTest(TestCase):
         self.assertEqual(_identity('hunyuan-image-2.1'), ('hunyuanimage', (2, 1), None))
         self.assertNotEqual(_identity('qwen-image-2'), _identity('GPT Image 2'))
         self.assertEqual(_identity('stable-diffusion-v1-5'), ('stablediffusion', (1, 5), None))
+
+    def test_la_version_apres_un_point_se_lit_comme_apres_un_tiret(self):
+        """« FLUX.1-schnell » (nom HF) et « flux-1-dev » (notre clé) sont la même famille :
+        5 candidats FLUX étaient « sans identité » le 02/09 — le point n'était pas lu."""
+        from .services.benchmark_sync import _identity
+        self.assertEqual(_identity('FLUX.1-schnell'), ('flux', (1,), None))
+        self.assertEqual(_identity('FLUX.2-klein-9B'), ('flux', (2,), 9.0))
+        self.assertEqual(_identity('FLUX.1-schnell')[:2], _identity('flux-1-dev')[:2])
+        # chiffre.chiffre reste une version composée, pas un séparateur
+        self.assertEqual(_identity('qwen3.6:35b'), ('qwen', (3, 6), 35.0))
+        self.assertEqual(_identity('stable-diffusion-v1.5'), ('stablediffusion', (1, 5), None))
+
+    def test_un_add_on_n_a_jamais_de_banc(self):
+        """Une LoRA porte le nom de son modèle de base : rendue lisible, elle en prenait
+        l'Elo (flux-lora-logo-design → 1083, mesuré le 02/09). Hors catégorie, par nature."""
+        from .services.benchmark_sync import _categories_locales
+        lora = AIModel.objects.create(
+            model_key='imager:flux-lora-logo-design', name='FLUX LoRA Logo', model_type='diffusion',
+            source='imager', is_downloaded=True, hf_id='Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
+            capabilities={'task': 'text-to-image'})
+        self.assertEqual(_categories_locales(lora), [])
+        plein = AIModel.objects.create(
+            model_key='imager:flux-1-dev', name='FLUX.1 dev', model_type='diffusion',
+            source='imager', is_downloaded=True, hf_id='black-forest-labs/FLUX.1-dev',
+            capabilities={'task': 'text-to-image'})
+        self.assertEqual(_categories_locales(plein), ['text-to-image'])
 
 
 class BancsMultiMetiersTest(_SourcesFactices, TestCase):

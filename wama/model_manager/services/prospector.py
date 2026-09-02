@@ -26,21 +26,64 @@ APP_TASKS = {
     'enhancer':     'image-to-image',
 }
 
-# Tâche HF → ModelType valide (cf. models.ModelType).
+# Tâche HF → ModelType valide (cf. models.ModelType) — le DÉFAUT par tag de pipeline.
+# ⚠ Deux tags HF sont plus GROSSIERS que notre taxonomie et ne se tranchent pas ici :
+# `image-to-image` couvre l'ÉDITION (Qwen-Image-Edit, FLUX Kontext), l'agrandissement et
+# le débruitage ; `image-to-text` couvre l'OCR et le LÉGENDAGE (BLIP). Jusqu'au 2026-09-02
+# cette table les figeait en `upscaling` / `ocr` : six modèles d'édition s'affichaient en
+# upscalers et BLIP-base en OCR — et aucune ligne proposée ne portait de TÂCHE, donc aucun
+# banc n'était possible. Ce sont les TAGS de la carte qui départagent (`hf_task_to_wama`).
 _TASK_MODEL_TYPE = {
     'text-to-image':                 'diffusion',
     'text-to-video':                 'diffusion',
     'image-to-video':                'diffusion',
     'image-text-to-video':           'diffusion',
     'text-to-audio-video':           'diffusion',
-    'image-to-image':                'upscaling',
+    'image-to-image':                'diffusion',     # édition par défaut ; upscale/denoise par tags
     'automatic-speech-recognition':  'speech',
     'text-to-speech':                'speech',
     'text-to-audio':                 'music',
     'image-text-to-text':            'vlm',
-    'image-to-text':                 'ocr',
+    'image-to-text':                 'ocr',           # OCR par défaut ; captioning par tags
     'object-detection':              'vision',
 }
+
+#: Tag de pipeline HF → NOTRE tâche (`ModelTask`) quand le tag est sans ambiguïté.
+_HF_TAG_TASK = {
+    'text-to-image': 'text-to-image', 'text-to-video': 'text-to-video',
+    'image-to-video': 'image-to-video', 'image-text-to-video': 'image-to-video',
+    'text-to-audio-video': 'text-to-video',
+    'automatic-speech-recognition': 'transcription', 'text-to-speech': 'text-to-speech',
+    'text-to-audio': 'text-to-audio',       # HF ne distingue pas musique / ambiance
+    'image-text-to-text': 'captioning', 'object-detection': 'detect',
+}
+
+
+def hf_task_to_wama(pipeline_tag: str, tags=()):
+    """
+    (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
+    carte. Les tags sont des DONNÉES déclarées par l'auteur — pas une devinette sur le nom,
+    qui est la trappe interdite ailleurs (identité de la LoRA logo lue dans « max 768 px »).
+
+    Mesuré le 2026-09-02 sur les proposés du jour : `image-to-image` → FLUX.2-dev et
+    FLUX.2-klein taggés `image-editing`, Qwen-Image-Edit/Kontext sans tag fin mais pipelines
+    d'édition ; aucun des six n'était un upscaler. `image-to-text` → BLIP-base taggé
+    `image-captioning`, manga-ocr et PP-OCRv5 sans ce tag → OCR. Un tag absent retombe sur
+    le défaut de `_TASK_MODEL_TYPE`, jamais sur une supposition.
+    """
+    t = (pipeline_tag or '').strip().lower()
+    bag = {str(x).lower() for x in (tags or [])}
+    if t == 'image-to-image':
+        if any(k in bag for k in ('super-resolution', 'upscaling', 'upscale', 'image-restoration')):
+            return 'upscale', 'upscaling'
+        if any('denois' in k for k in bag):
+            return 'denoise', 'upscaling'
+        return 'image-to-image', 'diffusion'
+    if t == 'image-to-text':
+        if 'image-captioning' in bag:
+            return 'captioning', 'vlm'
+        return 'ocr', 'ocr'
+    return _HF_TAG_TASK.get(t), _TASK_MODEL_TYPE.get(t, 'diffusion')
 
 
 def _metrique_declaree(card_data):
@@ -133,10 +176,14 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
             continue
         lm = getattr(m, 'last_modified', None)
         carte = getattr(m, 'card_data', None)
-        licence = None
+        licence, base_model = None, None
         if carte is not None:
             try:
-                licence = (carte.to_dict() if hasattr(carte, 'to_dict') else dict(carte)).get('license')
+                cd = carte.to_dict() if hasattr(carte, 'to_dict') else dict(carte)
+                licence = cd.get('license')
+                # Le modèle de BASE déclaré par la carte : c'est lui qui porte la licence
+                # d'un dérivé (cf. `analyze_license`). Chaîne ou liste selon les cartes.
+                base_model = cd.get('base_model')
             except Exception:
                 licence = None
         candidates.append({
@@ -144,6 +191,8 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
             'downloads': dl,
             'likes': getattr(m, 'likes', 0) or 0,
             'pipeline_tag': getattr(m, 'pipeline_tag', None) or task,
+            'tags': [str(x) for x in (getattr(m, 'tags', None) or [])],
+            'base_model': base_model,
             'last_modified': lm.isoformat() if hasattr(lm, 'isoformat') else (lm or None),
             'have': m.id.lower() in have,
             'metrique': _metrique_declaree(carte),
@@ -281,7 +330,7 @@ _SAFE_LICENSES = {'apache-2.0', 'mit', 'bsd-2-clause', 'bsd-3-clause', 'cc0-1.0'
                    'cc-by-4.0', 'openrail', 'openrail++', 'bigscience-openrail-m'}
 
 
-def analyze_license(hf_id: str, license_id: str = ''):
+def analyze_license(hf_id: str, license_id: str = '', base_model=None, _profondeur: int = 0):
     """
     Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
     JAMAIS pour éliminer (décision Fabien 2026-08-29 : le choix reste à l'utilisateur).
@@ -292,14 +341,39 @@ def analyze_license(hf_id: str, license_id: str = ''):
     le texte du fichier LICENSE est lu (endpoint `raw` — AUCUN passage par le cache HF,
     zéro résidu disque) et scanné pour les clauses territoriales.
 
+    ⚠ LICENCE À DOUBLE ÉTAGE (2026-09-02, question de Fabien sur H3-Turbo). Un dérivé
+    (distillation, fine-tune, merge) reste un « Model Derivative » soumis à l'accord du
+    modèle AMONT : le tag `apache-2.0` que `lightx2v/Minimax-h3-Turbo` s'est donné ne lève
+    rien. Or ce tag est SPDX permissif, donc la garde rendait None et la card se taisait —
+    pendant que la card du modèle de base affichait « UE EXCLUE ». La carte du dérivé
+    DÉCLARE son `base_model` : on hérite donc du verdict du modèle de base, en le DISANT
+    (`herite_de`). Un dérivé sans `base_model` déclaré reste hors de portée — un tag ne
+    dit pas ce que son auteur a omis.
+
     Retour : None | {'verdict': 'exclusion_ue'|'restriction_territoriale'|'a_verifier',
-    'label': str, 'detail': str}. Mémoïsé par process (lru_cache) — le tri tendance
-    renouvelle la liste à chaque clic, le texte d'une licence ne change pas.
+    'label': str, 'detail': str, ['herite_de': str]}. Mémoïsé par process (lru_cache) — le
+    tri tendance renouvelle la liste à chaque clic, le texte d'une licence ne change pas.
     """
     lid = (license_id or '').strip().lower()
-    if lid in _SAFE_LICENSES:
-        return None
-    return _analyze_license_text(hf_id, lid)
+    propre = None if lid in _SAFE_LICENSES else _analyze_license_text(hf_id, lid)
+    if propre and propre['verdict'] != 'a_verifier':
+        return propre          # un verdict territorial PROPRE prime sur l'héritage
+    bases = base_model if isinstance(base_model, (list, tuple)) else ([base_model] if base_model else [])
+    if _profondeur < 2:        # un dérivé de dérivé remonte d'un cran, pas à l'infini
+        for base in bases:
+            base = str(base or '').strip()
+            if not base or base.lower() == (hf_id or '').lower():
+                continue
+            # La licence du modèle de base n'est pas connue ici : son texte est lu.
+            v = analyze_license(base, '', None, _profondeur + 1)
+            if v and v['verdict'] != 'a_verifier':
+                return {'verdict': v['verdict'],
+                        'label': f"{v['label']} (modèle de base)",
+                        'detail': f"hérité de {base} — un dérivé reste un « Model Derivative » "
+                                  f"soumis à l'accord amont, quel que soit son propre tag "
+                                  f"({lid or '?'}). {v['detail']}",
+                        'herite_de': base}
+    return propre
 
 
 @lru_cache(maxsize=256)
@@ -509,12 +583,6 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
         if not ok_tache:
             continue
         taches_ok.append(tache)
-        model_type = _TASK_MODEL_TYPE.get(tache, 'diffusion')
-        if model_type not in refs_type:
-            # Identité courte : `name` du catalogue porte parfois un descriptif après « — ».
-            refs_type[model_type] = [
-                (m.name or '').split('—')[0].strip()
-                for m in AIModel.best_installed(model_type)]
         retenus = 0
         for c in candidats:
             if retenus >= regle['max']:
@@ -530,6 +598,14 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
                 continue    # sous le plancher de la tâche : LoRA/config, pas un modèle
             vus.add(cand_key)
             retenus += 1
+            # Tâche et catégorie PAR CANDIDAT (tags de la carte), plus par tâche balayée :
+            # un balayage `image-to-image` rend surtout des modèles d'ÉDITION.
+            tache_w, model_type = hf_task_to_wama(c.get('pipeline_tag') or tache, c.get('tags'))
+            if model_type not in refs_type:
+                # Identité courte : `name` du catalogue porte parfois un descriptif après « — ».
+                refs_type[model_type] = [
+                    (m.name or '').split('—')[0].strip()
+                    for m in AIModel.best_installed(model_type)]
             cree = write_candidate(
                 cand_key, nom=hf_id.split('/')[-1], model_type=model_type,
                 source='huggingface',
@@ -543,12 +619,17 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
                        'metrique': c.get('metrique'),
                        # Verdict de licence AFFICHÉ, jamais éliminatoire (Fabien 29/08) —
                        # None pour un SPDX permissif ; mémoïsé, licences non standard seules.
-                       'license_flag': analyze_license(hf_id, str(c.get('license') or '')),
-                       'spec': {'kind': 'hf', 'ref': hf_id, 'category': regle['category'],
+                       # Hérité du `base_model` déclaré quand le dérivé se dit permissif.
+                       'license_flag': analyze_license(hf_id, str(c.get('license') or ''),
+                                                       c.get('base_model')),
+                       'spec': {'kind': 'hf', 'ref': hf_id, 'category': model_type,
                                 'note': f"prospection HF {tache}"}},
                 hf_id=hf_id, license=str(c.get('license') or '')[:64],
                 platform_ref=f"huggingface:{hf_id}",
                 disk_gb=poids or 0.0,     # 0.0 = inconnu → la garde d'espace refusera (forçable)
+                # La TÂCHE écrite sur la ligne : c'est elle qui donne un banc à un candidat
+                # (`benchmark_sync._categories_locales`) — sans elle, « hors catégorie ».
+                capabilities={'task': tache_w} if tache_w else {},
             )
             crees += int(cree)
             maj += int(not cree)
@@ -669,14 +750,15 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
             continue
         dl = getattr(m, 'downloads', 0) or 0
         carte = getattr(m, 'card_data', None)
-        licence = None
+        licence, base_model = None, None
         if carte is not None:
             try:
-                licence = (carte.to_dict() if hasattr(carte, 'to_dict')
-                           else dict(carte)).get('license')
+                cd = carte.to_dict() if hasattr(carte, 'to_dict') else dict(carte)
+                licence, base_model = cd.get('license'), cd.get('base_model')
             except Exception:
                 licence = None
-        model_type = _TASK_MODEL_TYPE.get(tache, 'diffusion')
+        tache_w, model_type = hf_task_to_wama(getattr(m, 'pipeline_tag', None) or tache,
+                                              getattr(m, 'tags', None) or ())
         if model_type not in refs_type:
             refs_type[model_type] = [
                 (x.name or '').split('—')[0].strip()
@@ -693,12 +775,13 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
                    'concurrence': refs_type[model_type],
                    'downloads': dl, 'likes': getattr(m, 'likes', 0) or 0,
                    'metrique': _metrique_declaree(carte),
-                   'license_flag': analyze_license(m.id, str(licence or '')),
-                   'spec': {'kind': 'hf', 'ref': m.id, 'category': regle['category'],
+                   'license_flag': analyze_license(m.id, str(licence or ''), base_model),
+                   'spec': {'kind': 'hf', 'ref': m.id, 'category': model_type,
                             'note': f"recherche ciblée « {query} » ({tache})"}},
             hf_id=m.id, license=str(licence or '')[:64],
             platform_ref=f"huggingface:{m.id}",
             disk_gb=poids or 0.0,
+            capabilities={'task': tache_w} if tache_w else {},
         )
         crees += int(cree)
         maj += int(not cree)

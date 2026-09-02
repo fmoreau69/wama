@@ -47,8 +47,11 @@ READER_MODELS = {
     # Servi par Ollama : aucune VRAM réservée côté worker Django.
     'glm-ocr': {
         'model_id':    'glm-ocr',
-        'hf_model_id': '',   # servi par Ollama (`glm-ocr:0.9b`), pas de cache HF local
-        'ollama_id':   'glm-ocr:0.9b',
+        # ⚠ Le tag `glm-ocr:0.9b` N'EXISTE PLUS sur le registre Ollama (404 mesuré le
+        # 2026-09-02 ; restent `latest` 2,2 Go et `q8_0` 1,6 Go). Un `ollama pull` sur
+        # l'ancien tag échouait en silence — le modèle n'était plus installable d'ici.
+        'hf_model_id': '',   # servi par Ollama (`glm-ocr:latest`), pas de cache HF local
+        'ollama_id':   'glm-ocr:latest',
         'type':        'ocr-vlm',
         'vram_gb':     2.2,
         'description': 'GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants',

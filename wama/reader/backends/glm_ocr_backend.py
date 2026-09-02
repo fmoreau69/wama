@@ -20,7 +20,9 @@ from typing import Callable, Optional
 logger = logging.getLogger(__name__)
 
 # Ollama model name (first matching name wins)
-_MODEL_NAMES = ['glm-ocr:0.9b', 'glm-ocr']
+# `glm-ocr:0.9b` a disparu du registre Ollama (2026-09-02) : `latest` (bf16, 2,2 Go) et
+# `q8_0` (1,6 Go) sont les tags vivants ; le préfixe nu attrape n'importe lequel des deux.
+_MODEL_NAMES = ['glm-ocr:latest', 'glm-ocr:q8_0', 'glm-ocr']
 
 
 def _get_ollama_host() -> str:

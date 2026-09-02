@@ -171,6 +171,9 @@ ALIAS: dict[str, str] = {
 #: désignent bien des modèles distincts (« DeepSeek Coder V2 Lite » ≠ « DeepSeek-Coder-V2 »).
 MOTS_DE_CONDITIONNEMENT = {'base', 'instruct', 'chat', 'it'}
 
+#: Marqueurs d'ADD-ON non autonome dans un identifiant : jamais un banc (cf. `_categories_locales`).
+ADD_ONS = ('lora', 'adapter', 'controlnet')
+
 
 class SourceIndisponible(Exception):
     """Réseau/clé/format absents — la source est SKIPPÉE, jamais un score partiel inventé."""
@@ -264,6 +267,12 @@ def _identity(texte: str):
     OPTIONNELLE (les modèles média n'en publient pas). Sans famille+version : None.
     """
     plat = re.sub(r'[\s_]+', '-', (texte or '').strip().lower())
+    # « FLUX.1-schnell » / « FLUX.2-dev » : la version suit la famille après un POINT. Ni
+    # `decompose('flux.1')` ni la forme éclatée ne la lisaient → aucune identité pour toute
+    # la famille FLUX sous son nom HF (mesuré le 02/09 : 5 candidats « sans identité »
+    # alors que `flux-1-dev`, écrit avec un tiret, s'appariait). Le point entre une LETTRE
+    # et un CHIFFRE devient un tiret ; `qwen3.6` ou `v1.5` (chiffre.chiffre) sont intacts.
+    plat = re.sub(r'(?<=[a-z])\.(?=\d)', '-', plat)
     segments = [s for s in re.split(r'[:/-]', plat) if s]
     fam = ver = taille = None
     i = 0
@@ -564,6 +573,16 @@ def _categories_locales(m):
     GÉNÉRATION — d'où la dérivation par la tâche seule.
     """
     from ..models import ModelType, canonical_task
+
+    # Un ADD-ON (LoRA, adaptateur, ControlNet) n'est pas un modèle : aucun leaderboard ne
+    # le mesure, et son nom porte celui du modèle de base — `FLUX.1-dev-LoRA-Logo-Design`
+    # prenait l'Elo de FLUX.1 dès que la forme « FLUX.1 » est devenue lisible (02/09).
+    # Hors catégorie, par nature — la même famille que `_NOISE_MARKERS` de la prospection.
+    # ⚠ Lu sur les IDENTIFIANTS (clé, `hf_id`), jamais sur `name` : le libellé descriptif de
+    # SD 1.5 et de SDXL cite « LoRA » et les deux sortaient du banc (mesuré à la 1ʳᵉ passe).
+    identifiants = ' '.join((m.model_key or '', getattr(m, 'hf_id', '') or '')).lower()
+    if any(marqueur in identifiants for marqueur in ADD_ONS):
+        return []
 
     caps = m.capabilities or {}
     # `canonical_task` traduit le vocabulaire d'une plateforme vers le nôtre : une tâche
