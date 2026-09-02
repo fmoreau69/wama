@@ -10191,7 +10191,16 @@ Open VLM = JSON chargé par URL dans `meta_data.py` du Space OpenCompass, scores
 benchmark, catégorie `vision` en confrontation de l'arène). Même patron que `open_asr` :
 entrée `SOURCES` + chargeur + `external_sources` + catégorie ; `_SourcesFactices` à compléter.
 
-**Décisions Fabien en attente** : (1) libérer le port 6379 côté Windows (deux Redis) ;
+**⚠⚠ Deux crashs hôte pendant cette session (20:21:47 et ~20:58:40), MÊME déclencheur à la
+seconde** — le triage VLM du smoke `converter.ui` (fin d'une passe `converter_01.*` lancée à la
+main, deux fois) fait charger `qwen3.5:4b` par Ollama : +7 Go de VRAM à 31 W, mort pendant la
+montée. Rails propres (5ᵉ et 6ᵉ morts couvertes). Détail et chronologie croisée :
+`INFRA_WSL_VS_WINDOWS §2026-09-02 20:21:47`. 🔚 **Fabien** : `_vlm_triage` à désarmer sous
+`gpu_safe_mode()` + drapeau `--no-vlm` du stage UI ; ne pas relancer `converter*.ui` tant que
+la page bouge. *Un smoke qui « triage » est une passe LLM par accident — troisième porte du
+même trou.*
+
+**Décisions Fabien en attente** : (0) désarmer le triage VLM du smoke (ci-dessus) ; (1) libérer le port 6379 côté Windows (deux Redis) ;
 (2) restreindre le jeton HF à READ (nouveau jeton sur huggingface.co → remplacer `HF_TOKEN`
 dans `.env`, révoquer l'ancien) ; (3) FLUX.1-schnell (34 Go) et Qwen-Image-Edit-2511 (58 Go)
 après le NVMe.
