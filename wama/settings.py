@@ -166,11 +166,28 @@ os.environ.setdefault('HF_HOME', str(HF_DEFAULT_CACHE))
 os.environ.setdefault('HF_HUB_CACHE', str(HF_DEFAULT_CACHE))
 os.environ.setdefault('HUGGINGFACE_HUB_CACHE', str(HF_DEFAULT_CACHE))
 
-# HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1).
-# Generate at https://huggingface.co/settings/tokens (read access).
-# You must also accept the model terms at https://huggingface.co/pyannote/speaker-diarization-3.1
-# If set to None, falls back to HF_TOKEN env var or ~/.cache/huggingface/token (huggingface-cli login).
-HUGGINGFACE_TOKEN = os.environ.get('HF_TOKEN', None)
+# HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1,
+# FLUX.1-schnell…). Generate at https://huggingface.co/settings/tokens (read access), and
+# accept each gated model's terms on its page.
+#
+# UN SEUL DOMICILE, `.env` (`HF_TOKEN`), lu par `load_dotenv()` ci-dessus. Jusqu'au 2026-09-02 le
+# jeton ne vivait QUE dans `<HF_HOME>/token` (écrit par `huggingface-cli login` — HF_HOME étant
+# redirigé vers AI-models/cache/huggingface, le fichier y dormait sans que personne ne sache
+# où) : huggingface_hub le lisait, mais rien d'autre (registre des sources, sonde, workers
+# lancés avec un autre HF_HOME). Règle : `.env` d'abord ; à défaut, le fichier historique est
+# PROMU en variable d'environnement, pour que TOUS les consommateurs voient la même chose —
+# et que la page « Sources externes » dise juste (« clé posée » / « clé absente »).
+# huggingface_hub lit `HF_TOKEN` en priorité sur le fichier : promouvoir ne change rien pour
+# lui, ça aligne les autres. Le fichier reste toléré, pas recommandé : le déplacer dans `.env`.
+if not os.environ.get('HF_TOKEN'):
+    _hf_token_file = Path(os.environ['HF_HOME']) / 'token'
+    try:
+        _hf_token_value = _hf_token_file.read_text(encoding='utf-8').strip()
+    except OSError:
+        _hf_token_value = ''
+    if _hf_token_value:
+        os.environ['HF_TOKEN'] = _hf_token_value
+HUGGINGFACE_TOKEN = os.environ.get('HF_TOKEN') or None
 
 # Anonymizer media paths
 MEDIA_INPUT_URL = '/media/anonymizer/input'

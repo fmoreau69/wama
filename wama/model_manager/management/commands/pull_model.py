@@ -19,7 +19,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('name', help="Nom Ollama (ex: bge-m3) ou repo HF (ex: org/repo).")
-        parser.add_argument('--category', help="HF : categorie de dossier (diffusion/speech/vlm/detect/enhance/ocr/music/llm).")
+        parser.add_argument('--category', help="HF : categorie de dossier = valeur ModelType (diffusion/speech/vlm/vision/upscaling/ocr/music/llm/embedding/lipsync).")
         parser.add_argument('--family', help="HF : sous-dossier famille (defaut = nom du repo).")
         parser.add_argument('--dry-run', action='store_true', help="HF : ne pas telecharger, montrer le dossier cible.")
         parser.add_argument('--no-sync', action='store_true', help="Ne pas re-synchroniser le catalogue apres.")
@@ -42,7 +42,8 @@ class Command(BaseCommand):
                     category = _TYPE_CATEGORY.get(m.model_type)
             if not category:
                 raise CommandError(
-                    "Modele HF : preciser --category (diffusion/speech/vlm/detect/enhance/ocr/music/llm).")
+                    "Modele HF : preciser --category (valeur ModelType : diffusion/speech/vlm/"
+                    "vision/upscaling/ocr/music/llm/embedding/lipsync).")
             tag = ' (dry-run)' if options['dry_run'] else ''
             self.stdout.write(f"Telechargement HF : {name} → categorie '{category}'{tag} …")
             res = pull_hf_model(name, category, family=options.get('family'),

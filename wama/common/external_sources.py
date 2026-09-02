@@ -132,9 +132,12 @@ SOURCES: tuple[ExternalSource, ...] = (
         'ollama_registry', "Registre d'images Ollama", 'https://registry.ollama.ai',
         "Manifestes et digests des tags Ollama — désambiguïse une variante par son ARTEFACT",
         kind='catalogue'),
+    # `api_key_env` posé le 2026-09-02 : le jeton vivait dans un fichier que personne ne
+    # localisait ; `settings.py` le promeut en `HF_TOKEN`, la page peut donc le DIRE.
     ExternalSource(
         'huggingface', 'HuggingFace Hub', 'https://huggingface.co',
-        "Poids, datasets et fiches de modèles — source principale du parc", kind='catalogue'),
+        "Poids, datasets et fiches de modèles — source principale du parc ; jeton = dépôts "
+        "gated + quota d'API relevé", kind='catalogue', api_key_env='HF_TOKEN'),
     ExternalSource(
         'roboflow', 'Roboflow Universe', 'https://universe.roboflow.com',
         "Fiches de modèles de vision (référence de plateforme, pas de téléchargement)",

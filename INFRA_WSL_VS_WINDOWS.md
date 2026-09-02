@@ -103,6 +103,12 @@ wsl.exe -e bash -lc "PGPASSWORD=*** psql -h 127.0.0.1 -U wama_user -d wama_db -t
     `DJANGO_SECRET_KEY_FALLBACKS` (aucune session invalidée) ; journal `logs/secret_rotation.log`.
   - Reste optionnel : hostname interne `vrlescot` + IP gateway WSL `172.29.240.1` encore en clair
     dans quelques docs/scripts (divulgation d'infra mineure, non critique).
+- **Jeton Hugging Face — UN domicile, `HF_TOKEN` dans `.env` (2026-09-02).** Il ne vivait que
+  dans `AI-models/cache/huggingface/token` (écrit par `huggingface-cli login`, `HF_HOME` étant
+  redirigé là) — Fabien lui-même ne savait plus où. `settings.py` lit `.env` d'abord et, à
+  défaut, PROMEUT le fichier en variable d'environnement : tous les consommateurs (hub, workers,
+  registre des sources → page « Sources externes » : « clé posée ») voient la même chose. Le
+  fichier reste toléré ; la cible est de le déplacer dans `.env` puis de le supprimer.
 
 ## ⚠ Une seule base fait foi (2026-07-30)
 
