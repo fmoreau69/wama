@@ -10207,9 +10207,9 @@ avec succès (crash hôte, alimentation suspectée — matériel commandé).
 **Contrôles attendus au prochain /reprise (MESURÉS ce soir)** : `manifest_export --check` →
 **corpus à jour (121)** ; dry-run bancs **31 / 23 / 27 / 79** sur 160 (le compte de la page
 après relance Fabien : 31 / 23 / 28 / 79 — une ligne installée de plus) ; `check_docs` 8 cassées
-/ 0 périmée (1 cible) ; `wama.model_manager` 85 OK, `tests_external_sources` OK ; suite complète
-non relancée après les commits de la soirée (`67a378c7`…`16868d89`, docs + prospector +
-provenance + reader + settings + installeur).
+/ 0 périmée (1 cible) ; `wama.model_manager` 85 OK, `tests_external_sources` OK ; **suite
+complète 1416 tests, `OK (skipped=4)`** — relancée en toute fin de soirée sur l'arbre des
+commits `67a378c7`…`ef0808ab` (docs + prospector + provenance + reader + settings + installeur).
 
 
 ## §PALIER — 2026-09-02, instance « CARD ORANGE + CURSEUR D'INTENTION » — ✅ LIVRÉ (2 paliers)
