@@ -10196,6 +10196,15 @@ nomic-embed-text-v2-moe 62,3 (13ᵉ), **bge-m3 61,5 (16ᵉ)** — le modèle du 
 ALIAS. *Un jeu de tâches se choisit sur ce que le CATALOGUE a, pas sur ce que le banc propose.*
 🔚 Décision Fabien qui en découle : **le RAG gagnerait à passer de bge-m3 à Qwen3-Embedding
 (0.6B ou 4B)** — mais changer d'embedding force une RÉINDEXATION (`store.py`), à programmer.
+**GO Fabien → `qwen3-embedding:4b` INSTALLÉ par le mécanisme** (tag Ollama 2,5 Go — `latest`
+est le 8B, 4,7 Go ; candidat écrit par le writer unique, tâche Celery, 51 s, catalogué
+`ollama:qwen3-embedding:4b`). ⚠ **Contrôle de FONCTIONNEMENT NON fait par l'instance** : un
+appel d'embedding charge 4B dans la VRAM de l'hôte — le geste qui a tué la machine deux fois
+ce soir. À faire par Fabien, HWiNFO journalisant :
+`curl -s http://127.0.0.1:11434/api/embed -d '{"model":"qwen3-embedding:4b","input":"Bonjour, ceci est un test."}'`
+(attendu : un vecteur de 2560 flottants). Basculement du RAG = `common/memory/embed.py`
+(`EMBEDDING_MODEL`, empreinte VRAM à REMESURER, `OWNER`) + réindexation (`store.py` réembarque
+déjà toute ligne dont `embedding_model` ≠ le courant) — après ce test, pas avant.
 Dry-run après : **34 appariés · 23 sans banc · 33 sans identité · 73 hors catégorie** (163 lignes ;
 +3 appariés = bge-m3, nomic v2, qwen3-embedding). ⚠ Limite visible : `proposed:ollama:qwen3-embedding:latest`
 (tag sans taille) prend la variante **8B** par similarité de chaîne, pas par sa taille réelle —
