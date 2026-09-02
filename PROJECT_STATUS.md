@@ -10147,6 +10147,41 @@ Ollama), cogvideox-5b-i2v **21**, qwen3.8 17, hunyuan-image 16, audiogen 16, vib
 (rampe VRAM, `INFRA §crashs`) sont exactement là. Qwen3-ASR : jamais lancé avec succès
 (Fabien), même famille de cause suspectée.
 
+### Revérification (fin de soirée) — jeton, résidus, et LA LISTE des backends manquants (connu / inconnu)
+
+- **Jeton** : `HF_TOKEN` posé dans `.env` par Fabien, identique au fichier historique
+  (empreintes égales), `whoami` OK (jeton en ÉCRITURE — plus que le « read » nécessaire, à
+  restreindre un jour). **Fichier `AI-models/cache/huggingface/token` SUPPRIMÉ**, Hub toujours
+  authentifié depuis `.env` seul.
+- **Résidus de crash** (`/crash-residus`, scan read-only) : aucun swap orphelin (le vivant, 8 Go,
+  verrouillé), aucun dump, journaux hwlog 0,56 Go (on décale). C: 78,5 Go libres, **D: 21,7 Go
+  (4 %)**. Les clichés VSS de D: (plafond 10 Go) exigent une console élevée : rien à supprimer
+  d'ici. *L'espace qui bouge sans nouveau modèle = swap vivant qui regrossit + VSS, pas des
+  résidus.*
+- **Installés** : 61 lignes hors YOLO (+47 YOLO), tous les chemins des installés du jour
+  présents sur disque, catalogués avec tâche et licence, manifestes au corpus (121).
+
+**Backends — ce qui manque, par modèle installé** (runtimes SONDÉS dans venv_linux) :
+
+| modèle installé | app | backend | runtime | verdict |
+|---|---|---|---|---|
+| FastWan2.2-TI2V-5B | imager | `wan_video_backend` (WanPipeline, TI2V-5B déjà déclaré) | diffusers 0.37 ✓ | **CONNU** — déclarer le dépôt + pas réduits (distillé 3 pas) |
+| table-transformer ×2 | reader / data | aucun | `transformers.models.table_transformer` ✓ | **CONNU** — architecture native transformers (DETR) |
+| depthpro | cam_analyzer | `depth_estimator.py` ✓ | `depth_pro` ✓ | déjà branché |
+| Kokoro-82M-ONNX | synthesizer | `kokoro_onnx_backend` ✓ (backend DÉCLARÉ, 31/08) | kokoro_onnx ✓ | déjà branché |
+| Qwen3-TTS 1.7B | synthesizer | aucun (`ENGINE_BACKENDS` : coqui/bark/higgs/kokoro/kokoro-onnx) | `qwen_tts` ABSENT | **CONNU** en mécanisme (backend déclaré, patron kokoro-onnx), runtime pip à ajouter |
+| chatterbox, Audio8-TTS | synthesizer | aucun — choisissables au select depuis le 01/09, sans moteur derrière | `chatterbox` ABSENT / Audio8 = ? | **CONNU** en mécanisme, runtimes à déclarer |
+| glm-ocr | reader | `glm_ocr_backend` ✓ (Ollama) | Ollama ✓ | déjà branché |
+| PP-DocLayoutV3 | reader / data | aucun | `transformers.models.pp_doclayout_v3` ABSENT (4.57.6) | **INCONNU** — architecture non portée dans notre transformers ; PaddleOCR absent |
+| canary-1b-v2, parakeet-tdt-0.6b-v3 | transcriber | aucun (`manager.py` : whisper/qwen_asr/vibevoice) | `nemo` ABSENT | **INCONNU** — runtime NeMo (lourd, deps CUDA propres) |
+| ACE-Step 1.5 | composer | aucun (`audiocraft` / `audiocpp`) | `acestep` ABSENT | **INCONNU** — runtime propre (DiT + LM Qwen3 + VAE) |
+| LocateAnything-3B | anonymizer/detector | aucun | — | **INCONNU** — chantier détection open-vocab (mémoire) |
+
+**Ordre proposé** : les CONNUS par le mécanisme « backend déclaré » de l'instance portage
+(FastWan = une entrée de plus dans wan_video ; table-transformer = transformers natif ;
+Qwen3-TTS/chatterbox/Audio8 = patron kokoro-onnx + `PIP_PACKAGES`), puis les INCONNUS un par
+un, NeMo en premier (deux modèles derrière, le meilleur banc FR).
+
 
 ## §PALIER — 2026-09-02, instance « CARD ORANGE + CURSEUR D'INTENTION » — ✅ LIVRÉ (2 paliers)
 
