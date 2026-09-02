@@ -3113,6 +3113,38 @@ une ligne. **En attendant : le bac à sable stocke les défauts (sans conséquen
 est un stub, aucun preset n'y agit), l'app réelle ne les stocke pas.** À trancher avant la
 marche B (le jour où la tâche générée convertit vraiment).
 
+### 23.2quater ✅ TRANCHÉ (Fabien, 02/09) — le MODÈLE ÉVÉNEMENTIEL remplace la cascade au lancement
+
+> Ce paragraphe REMPLACE la doctrine des §23.2bis/ter : le « retournement » du 01/09 (ne
+> stocker que l'explicite pour que le preset puisse arbitrer au lancement) est CADUC — non
+> parce qu'il était faux, mais parce que le modèle qui le rendait nécessaire a changé.
+
+**Le modèle : le dernier geste écrit ; les gestes globaux écrasent.**
+- **Création** → l'élément naît COMPLET : les défauts applicables du schéma sont ÉCRITS en
+  base (chips pleines dès la naissance — la demande du 31/08 et les presets enfin réconciliés) ;
+- **Preset** = un profil GÉNÉRAL commun à tous (un profil = propre à l'utilisateur) : le
+  choisir ÉCRIT ses valeurs dans les colonnes AU CLIC — l'utilisateur VOIT l'effet réel,
+  le retouche à la volée, l'enregistre en profil s'il veut. La colonne `quality_preset`
+  n'est plus qu'une TRACE ; **la tâche lit les colonnes, point** ;
+- **Reset « ↺ Par défaut »** (brique commune `WamaParams.applyDefaults`) : remplit le
+  FORMULAIRE des défauts — c'est Enregistrer/Appliquer qui écrit (l'utilisateur voit avant
+  d'écraser) ; il remet TOUT à plat, réglages individuels compris ;
+- **Lot** : mêmes règles sur les filles — un geste global du lot écrase toutes les filles,
+  un réglage fait sur une fille individuelle survit jusqu'au prochain geste global.
+
+**Livré le 02/09 (converter, mesuré au navigateur)** : naissance complète · preset au clic
+(update/batch_update/quick_convert étalent `preset_values`) · `api_presets` (la table
+SERVIE — l'effet réel du preset s'affiche dans la modale rapide du Filemanager, décision
+Fabien : montrer l'effet sans devenir un formulaire) · 💾 « enregistrer comme profil » au
+VOLET (il n'existait que dans la modale d'item) · type de média POSABLE À LA MAIN au volet
+(composer un profil « à froid » exigeait un fichier) · « ↺ Par défaut » dans les modales
+item ET lot · tests des presets recalés au nouveau modèle.
+
+**Restes** : readMainPanelOptions lit aussi les champs MASQUÉS (un profil image embarque
+gif_fps/gif_width inertes — mineur, à filtrer par visibilité) · l'étalement du preset au
+clic côté GÉNÉRÉ s'émet avec la marche B · le reset des AUTRES apps (synthesizer a le sien,
+maison, volet seul) converge sur la brique avec la généralisation des profils (§22).
+
 ### 23.3 Ce qui reste à trancher
 
 - **converter** : 17 réglages → colonnes NULLABLES + migration des valeurs de `options`

@@ -25,7 +25,7 @@ from wama.accounts.permissions import app_access
 from django.views import View
 from django.http import JsonResponse, FileResponse, Http404
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from django.utils.encoding import smart_str
 from django.core.cache import cache
 from django.db import transaction
@@ -270,14 +270,19 @@ def upload(request):
         output_format=output_fmt,
         status='PENDING',
     )
-    # Un réglage = une COLONNE (2026-09-01) : les valeurs postées par la zone de composition
-    # s'écrivent par le point d'entrée unique du modèle, qui coerce selon le type du champ.
-    # ⚠ On ne pose QUE ce que l'utilisateur a envoyé : une colonne laissée vide veut dire
-    # « non réglé », et c'est ce qui permet au préréglage de qualité d'agir (§23.2bis).
-    if options:
-        champs = job.poser_reglages(options)
-        if champs:
-            job.save(update_fields=champs)
+    # MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : l'élément naît COMPLET —
+    # les défauts applicables du schéma sont ÉCRITS en base à la création, le POST de la
+    # zone de composition par-dessus (le geste de l'utilisateur prime). Les chips d'une card
+    # fraîche sont donc pleines (demande du 31/08) ET le preset reste opérant : il n'arbitre
+    # plus au lancement, il ÉCRIT au clic (§23.2quater — l'ancienne règle « ne stocker que
+    # l'explicite » du §23.2bis est REMPLACÉE par ce modèle).
+    from wama.common.utils.param_schema import applicable_defaults
+    from wama.converter.params import PARAMS_JSON as _SCH
+    naissance = applicable_defaults(_SCH, {'media_type': media_type})
+    naissance.update(options or {})
+    champs = job.poser_reglages(naissance)
+    if champs:
+        job.save(update_fields=champs)
 
     # Re-persiste le choix comme défaut du prochain dépôt de ce type de média.
     save_user_app_settings(user, 'converter', {f'last_format_{media_type}': output_fmt})
@@ -431,15 +436,44 @@ def update_job(request, pk):
             new_opts = _json.loads(options_json)
             if not isinstance(new_opts, dict):
                 raise ValueError("options_json must be an object")
+            # ── MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09) : le preset est un GESTE D'ÉCRITURE ──
+            # Un preset = un profil GÉNÉRAL commun à tous (un profil = propre à
+            # l'utilisateur) : choisir « web » ÉCRIT ses valeurs dans les colonnes, séance
+            # tenante — l'utilisateur VOIT l'effet réel, peut le retoucher, puis l'enregistrer
+            # en profil. La colonne `quality_preset` devient une TRACE (dernier preset
+            # appliqué), plus un facteur au lancement. Ordre du POST : les valeurs du preset
+            # d'abord, les réglages individuels du même envoi par-dessus (le geste fin prime).
+            preset = (new_opts.get('quality_preset') or '').strip().lower()
+            if preset:
+                from .utils.quality_presets import preset_values
+                job.quality_preset = preset
+                champs_touches.append('quality_preset')
+                etale = preset_values(job.media_type, preset)
+                etale.update({k: v for k, v in new_opts.items() if k in etale})
+                new_opts = {**etale, **{k: v for k, v in new_opts.items()
+                                        if k != 'quality_preset'}}
             # Un réglage = une COLONNE depuis le 2026-09-01 : plus de split à faire ici (le
             # modèle sait à quelle famille appartient chaque nom), et plus de JSON à écrire.
             # `poser_reglages` coerce selon le type du champ et rend les champs touchés.
-            champs_touches = job.poser_reglages(new_opts)
+            champs_touches += job.poser_reglages(new_opts)
         except (ValueError, _json.JSONDecodeError) as exc:
             return JsonResponse({'error': f"options_json invalide : {exc}"}, status=400)
 
     job.save(update_fields=['output_format'] + champs_touches)
     return JsonResponse({'success': True, 'output_format': job.output_format, 'options': job.options})
+
+
+@require_GET
+def api_presets(request):
+    """La table des préréglages, SERVIE au client — jamais recopiée (une copie divergerait).
+
+    Consommateur : la modale de conversion rapide du Filemanager (question Fabien 02/09 :
+    « faut-il afficher les paramètres correspondants au preset ? ») — elle affiche sous le
+    select l'effet RÉEL du preset choisi pour le type du fichier, sans devenir un
+    formulaire : la rapidité est sa raison d'être, l'app reste le lieu du réglage fin.
+    """
+    from .utils.quality_presets import _PRESETS
+    return JsonResponse({'presets': _PRESETS})
 
 
 @login_required
@@ -793,6 +827,11 @@ def batch_update(request, pk):
     _connus = set(ConversionJob.CHAMPS_OPTIONS) | set(ConversionJob.CHAMPS_CROSS_APP)
     reglages = {k: v for k, v in request.POST.items()
                 if k in _connus and v not in (None, '')}
+    # MODÈLE ÉVÉNEMENTIEL (02/09) : un preset choisi au LOT s'écrit sur les filles —
+    # ses valeurs d'abord, les réglages individuels du même envoi par-dessus.
+    if preset:
+        from .utils.quality_presets import preset_values
+        reglages = {**preset_values(batch.media_type, preset), **reglages}
 
     if out_fmt and out_fmt not in get_output_formats(batch.media_type):
         return JsonResponse({'error': f"Format invalide pour {batch.media_type} : {out_fmt}"}, status=400)
@@ -1026,6 +1065,13 @@ def quick_convert(request):
         quality_preset=preset,
         status='RUNNING',
     )
+    # MODÈLE ÉVÉNEMENTIEL (02/09) : la tâche lit les COLONNES — le preset du menu
+    # contextuel Filemanager s'ÉTALE donc à la création (sinon il serait une trace inerte).
+    if preset:
+        from .utils.quality_presets import preset_values
+        champs = job.poser_reglages(preset_values(media_type, preset))
+        if champs:
+            job.save(update_fields=champs)
     task = convert_media_task.delay(job.id)
     job.task_id = task.id
     job.save(update_fields=['task_id'])
