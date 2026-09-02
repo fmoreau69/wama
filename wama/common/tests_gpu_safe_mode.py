@@ -27,6 +27,20 @@ class InterrupteurPipelineTest(TestCase):
         self.assertIsNone(pipeline_keep_alive())
 
 
+class TriageVlmDuSmokeTest(TestCase):
+    """Le triage VLM d'ui_smoke CONSULTE la garde — posé le 02/09, jour où ce chemin a
+    CRASHÉ L'HÔTE deux fois (20:21, 20:58 — montée VRAM du VLM pendant d'autres charges ;
+    2/2 fatal). La parade WAMA_GPU_SAFE_MODE existait, ce chemin l'ignorait."""
+
+    def test_en_mode_depannage_le_triage_est_saute_et_le_DIT(self):
+        from django.test import override_settings
+        from wama.common.services.ui_smoke import _vlm_triage
+        with override_settings(WAMA_GPU_SAFE_MODE=True):
+            res = _vlm_triage(None, 'converter')
+        self.assertIn('sauté', res)
+        self.assertIn('WAMA_GPU_SAFE_MODE', res, 'un saut de garde se dit avec sa cause')
+
+
 class AttenteVramMesureeTest(TestCase):
 
     def test_une_vram_suffisante_ne_fait_pas_attendre(self):
