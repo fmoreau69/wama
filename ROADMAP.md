@@ -3123,3 +3123,29 @@ marche B (le jour où la tâche générée convertit vraiment).
   maison) — à porter ou à assumer comme variante déclarée.
 - Validation par **régénération de `converter_01`** (la facette `data` porte alors les
   colonnes, le modèle généré les a).
+
+
+### 23.4 Présentation du REDIMENSIONNEMENT (question Fabien, 02/09) — à dessiner avec la card v4
+
+État réel : deux champs px, et le **verrou de proportion existe déjà implicitement**
+(`image_backend:44` — une seule dimension posée → l'autre suit le ratio ; le help le dit
+depuis le 02/09, il affichait un « 0 = inchangé » trompeur). Pistes de Fabien, à trancher
+en une passe de design (PAS champ par champ) : mode **relatif/absolu** (un % se prête au
+SLIDER, des px non — 1 à 8000 px au curseur est imprécis) ; **unités** → renvoi au réglage
+du profil utilisateur plutôt que dupliquer ici ; verrou de proportion à EXPLICITER (une
+icône 🔗 entre les deux champs qui dit le comportement déjà réel). Concerne aussi
+l'enhancer (mêmes gestes). À traiter avec la maquette v4.
+
+### 23.5 Marche B — cadrage ACTÉ (Fabien, 02/09)
+
+- **Étages 1-2 : GO.** ① glu générée (fait) ; ② composition DÉCLARÉE des backends
+  EXISTANTS (converter d'abord — manifeste : routage nature→backend, le générateur émet
+  la composition) + familles à GABARIT pour les modèles connus.
+- **⚠ Fonctions data ≠ backends (précision de Fabien, retenue)** : le `function_catalog`
+  est le catalogue des fonctions DATA (mondes Data/Lab — le floutage peut y être une
+  fonction data). Un backend d'app média N'EST PAS une entrée de ce catalogue — la voie
+  « backend = fonction du catalogue » un temps envisagée est ÉCARTÉE pour le monde Médias.
+  La jonction avec les nouveaux backends (3ᵉ instance) reste le CONTRAT backend commun.
+- **Étage 3 (code vraiment nouveau, wama-dev-ai assisté) : EN ATTENTE** — terminer ce qui
+  est connu et en place avant de se lancer sur du neuf.
+- Préalable à B1 : l'arbitrage **§23.2ter** (défauts affichés vs stockés).
