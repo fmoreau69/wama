@@ -116,7 +116,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
-| **Auto-sélection (« auto » au select)** | Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domaine que le schéma déclare pour ses options (options_query), prévision affichée sous le select (options_auto) + curseur de QUALITÉ continu 0-100 (intent_param, poids dans le score de select_model) | `wama/common/utils/auto_model.py` | `WAMA_APP_GENERATION_ROUTE.md` | 12 |
+| **Auto-sélection (« auto » au select)** | Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domaine que le schéma déclare pour ses options (options_query), prévision affichée sous le select (options_auto) + curseur de QUALITÉ continu 0-100 (intent_param, poids dans le score de select_model) | `wama/common/utils/auto_model.py` | `WAMA_APP_GENERATION_ROUTE.md` | 13 |
 | **Banc de comparaison** | Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation) | `wama/model_manager/services/bench.py` | — | 1 |
 | **Benchmark tiers confronté** | Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') appariés au catalogue, prospection incluse | `wama/model_manager/services/benchmark_sync.py` | `PROJECT_STATUS.md §REPRISE 2026-08-18` | 5 |
 | **Cache HF scopé** | Bascule TEMPORAIRE du cache HuggingFace par backend — anti-fuite d'artefacts inter-apps | `wama/common/utils/hf_cache.py` | — | 2 |
@@ -175,7 +175,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Formats de sortie** | Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) | `wama/common/utils/output_formats.py` | — | 5 |
 | **Gabarits de génération d'app (marche S2)** | Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par fichier (apps/urls/models/params/tasks/views/templates), consommées par `app_sandbox substitute` et le write-back ; le hors-convention reste un TROU NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux | `wama/common/manifests/codegen/templates_gen.py` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
 | **Grille de conformité** | Mesure les 8 facettes F1–F8 des apps par analyse du code réel | `wama/common/services/conformity_checker.py` | `WAMA_APP_CONVENTIONS.md` | 4 |
-| **Manifestes** | Extraction/validation/projection des 7 kinds vers les registres | `wama/common/manifests/ingest.py` | `WAMA_MANIFEST_ARCHITECTURE.md` | 53 |
+| **Manifestes** | Extraction/validation/projection des 7 kinds vers les registres | `wama/common/manifests/ingest.py` | `WAMA_MANIFEST_ARCHITECTURE.md` | 54 |
 
 #### File d'attente & lots (11)
 
@@ -211,7 +211,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Lecteur audio (onde + transport)** | Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards | `wama/common/static/common/js/wama-audio-player.js` | — | 5 |
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 41 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 46 |
-| **Schéma de paramètres** | Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 53 |
+| **Schéma de paramètres** | Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 54 |
 | **Shuttle J/K/L** | État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app fournit apply(speed) — la commande est commune, l'application au lecteur reste locale | `wama/common/static/common/js/wama-shuttle.js` | — | 3 |
 | **Signalement au gestionnaire de fichiers** | Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event | `wama/common/static/common/js/wama-fm-notify.js` | — | 2 |
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 19 |
@@ -276,12 +276,12 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `notifications` — Notifications de tâche | **8** app(s) : anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer, transcriber | `wama/common/utils/notifications.py` |
 | `data_noms` — Noms dérivés (WAMA Data) | **7** app(s) : anonymizer, avatarizer, composer, converter, enhancer, imager, synthesizer | `wama_data/core/naming.py` |
 | `output_naming` — Nom du fichier de sortie | **6** app(s) : avatarizer, composer, converter, enhancer, imager, synthesizer | `wama/common/utils/output_naming.py` |
+| `auto_model` — Auto-sélection (« auto » au select) | **5** app(s) : anonymizer, avatarizer, composer, imager, synthesizer | `wama/common/utils/auto_model.py` |
 | `export_formats` — Formats de téléchargement (⬇ late-binding) | **5** app(s) : anonymizer, describer, imager, reader, transcriber | `wama/common/utils/export_formats.py` |
 | `ffmpeg` — Accès ffmpeg | **5** app(s) : anonymizer, converter, describer, enhancer, transcriber | `wama/common/utils/ffmpeg_utils.py` |
 | `output_formats` — Formats de sortie | **5** app(s) : anonymizer, composer, enhancer, imager, synthesizer | `wama/common/utils/output_formats.py` |
 | `video_utils` — Utilitaires vidéo | **5** app(s) : anonymizer, converter, describer, enhancer, transcriber | `wama/common/utils/video_utils.py` |
 | `audio_decode` — Décodage audio robuste | **4** app(s) : converter, enhancer, synthesizer, transcriber | `wama/common/utils/audio_decode.py` |
-| `auto_model` — Auto-sélection (« auto » au select) | **4** app(s) : avatarizer, composer, imager, synthesizer | `wama/common/utils/auto_model.py` |
 | `app_access` — Accès aux éléments (apps aujourd'hui) | **3** app(s) : avatarizer, synthesizer, transcriber | `wama/accounts/permissions.py` |
 | `document_export` — Export document | **3** app(s) : describer, reader, transcriber | `wama/common/utils/document_export.py` |
 | `external_sources` — Sources externes | **3** app(s) : describer, reader, synthesizer | `wama/common/external_sources.py` |
