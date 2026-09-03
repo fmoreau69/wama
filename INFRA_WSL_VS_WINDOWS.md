@@ -779,8 +779,24 @@ lecture, pas une mesure) ; ② ne plus lancer la famille `converter*.ui` tant qu
 | **14:30:11,776** | rails | **71,2 W / 58,9 W / 2595 MHz — DERNIÈRE MESURE** |
 
 **⚠⚠ La mort survient AVANT tout chargement de modèle** : 3,5 s après l'init CUDA du 2ᵉ process,
-alors que le premier chargement avait pris **108 s**. Ce n'est pas la charge qui tue, c'est la
-**transition** — 210 → 2595 MHz en un échantillon.
+alors que le premier chargement avait pris **108 s**.
+
+> 🔴 **RECTIFICATION, même jour.** J'avais conclu ici « ce n'est pas la charge qui tue, c'est la
+> **transition** ». **C'est FAUX, et le dossier le démentait déjà** (rappel de Fabien : « on a
+> déjà essayé de brider la puissance, ça n'a rien changé »).
+>
+> - **Le bridage a été fait** : cap 320 W (27/07 — mais tâche NON élevée, `nvidia-smi -pl` exige
+>   l'élévation, **code retour 4 à chaque boot** ; le discriminant n'a rien discriminé pendant un
+>   mois, corrigé le 31/07), puis **cap 150 W** — et le **7ᵉ crash du 07/08 s'est produit avec
+>   `gpu_limit_w=150.00` ACTIF**. Cap retiré le 10/08.
+> - **Surtout : deux morts au moins sont survenues HORLOGE AU PLANCHER** — 28/08 11:09
+>   (« ~28 W, horloge 210 MHz », 40 s APRÈS le pic d'allocation) et 28/08 12:19 **au repos**
+>   (24 W / 210 MHz). *« Les DEUX régimes tuent le MÊME JOUR. »*
+>
+> Donc **borner l'horloge — plafond OU plancher — n'aurait évité ni l'une ni l'autre**. La
+> coïncidence rampe/mort de ce 03/09 reste un FAIT ; en faire un MÉCANISME est réfuté par la
+> série. *Un motif remarquable ne vaut que s'il ne s'est jamais produit sans conséquence — et
+> l'inverse vaut aussi : une mort sans le motif suffit à casser le mécanisme.*
 
 **Ce que les rails ÉCARTENT** (7ᵉ jeu propre) : thermique — **49-51 °C** à la mort, max de la
 session **59,8 °C** à 9h37 sans incident ; saturation VRAM — pic de session **38,8 %** ;
