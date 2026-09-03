@@ -94,15 +94,27 @@ def render_tasks(manifest: dict) -> tuple:
     # `processing.backend_routes` (déclaré `backends/__init__.ROUTES` de l'app source) donne
     # nature → chemin du callable au CONTRAT COMMUN. Le corps généré n'écrit RIEN à la main :
     # résolution du backend par la nature de l'item, valeurs effectives par la brique commune
-    # (modèle événementiel §23.2quater : la tâche lit les COLONNES), sortie à la convention
-    # {app}/{user}/output/. Sans routes déclarées, le stub NotImplementedError demeure
-    # (marche B non applicable à cette app — un trou marqué vaut mieux qu'une invention).
+    # (modèle événementiel §23.2quater : la tâche lit les COLONNES). Sans routes déclarées,
+    # le stub NotImplementedError demeure (marche B non applicable à cette app — un trou
+    # marqué vaut mieux qu'une invention).
+    #
+    # DEUX SAVEURS depuis le 2026-09-03 (2ᵉ app routée : describer), déclarées par
+    # `processing.backend_result` (← `backends/__init__.RESULT` de l'app source) :
+    #   'file' (défaut — pilote converter) : le backend ÉCRIT output_path, la tâche range le
+    #        chemin dans output_file, sortie à la convention {app}/{user}/output/ ;
+    #   'text' (describer) : le backend REND le texte, la tâche le persiste dans la colonne
+    #        `field` déclarée, et publie l'aperçu PARTIEL (during_preview) au fil de l'eau.
     routes = (proc.get('backend_routes') or {})
     schema_symbole = ((manifest.get('body') or {}).get('params') or {}).get('primary') or ''
     spec_item = ((proc.get('model_spec') or {}).get('item') or {})
     params_fields = list(spec_item.get('params_fields') or [])
-    nature_champ = 'media_type' if 'media_type' in params_fields else ''
-    compose = bool(routes and schema_symbole and nature_champ)
+    result_decl = proc.get('backend_result') or {'kind': 'file'}
+    result_kind = result_decl.get('kind') or 'file'
+    result_field = result_decl.get('field') or ''
+    nature_champ = (proc.get('backend_nature_field')
+                    or ('media_type' if 'media_type' in params_fields else ''))
+    compose = bool(routes and schema_symbole and nature_champ
+                   and (result_kind == 'file' or result_field))
 
     for t in taches:
         fn = t['function']
@@ -117,7 +129,44 @@ def render_tasks(manifest: dict) -> tuple:
             '',
             '',
         ]
-        if compose:
+        if compose and result_kind == 'text':
+            lignes += [
+                f'def _process_{fn}(item, ctx):',
+                f'    """CORPS COMPOSÉ {mark} — marche B1, saveur TEXTE : routage nature→backend',
+                '    du MANIFESTE (processing.backend_routes ← backends/__init__.ROUTES), appel au',
+                '    CONTRAT COMMUN « texte » — le backend REND le texte, la tâche le persiste',
+                '    dans la colonne déclarée (processing.backend_result). Import RELATIF AU',
+                '    PAQUET : la jumelle résout SES copies de backends/ sans citer aucun nom',
+                '    d\'app. La tâche lit les COLONNES (modèle événementiel §23.2quater)."""',
+                '    from importlib import import_module',
+                '    from wama.common.utils.param_schema import effective_settings',
+                '    from wama.common.utils.preview_utils import publish_partial_text',
+                f'    from .params import {schema_symbole} as _SCH',
+                '',
+                f'    routes = {routes!r}',
+                f"    nature = (getattr(item, '{nature_champ}', '') or '').strip()",
+                '    chemin = routes.get(nature)',
+                '    if not chemin:',
+                '        raise ValueError(f"nature {nature!r} sans backend déclaré "',
+                '                         "(processing.backend_routes du manifeste)")',
+                '    mod, fonc = chemin.rsplit(\'.\', 1)',
+                "    backend = getattr(import_module('.' + mod, __package__), fonc)",
+                '',
+                '    posees = {}',
+                f'    for _n in {params_fields!r}:',
+                '        _v = getattr(item, _n, None)',
+                "        if _v not in (None, '', False):",
+                '            posees[_n] = _v',
+                f"    opts = effective_settings(_SCH, posees=posees, contexte={{'{nature_champ}': nature}})",
+                '',
+                f'    ctx.console(f"Traitement ({{fonc}}) : {{nature}}")',
+                '    texte = backend(item.input_file.path, options=opts,',
+                '                    progress_callback=ctx.progress,',
+                f"                    partial_callback=lambda t: publish_partial_text('{app_id}', item.pk, t),",
+                '                    console=ctx.console)',
+                f"    return {{'fields': {{'{result_field}': texte}}}}",
+            ]
+        elif compose:
             lignes += [
                 f'def _process_{fn}(item, ctx):',
                 f'    """CORPS COMPOSÉ {mark} — marche B1 : routage nature→backend du MANIFESTE',
@@ -135,7 +184,7 @@ def render_tasks(manifest: dict) -> tuple:
                 f"    nature = (getattr(item, '{nature_champ}', '') or '').strip()",
                 '    chemin = routes.get(nature)',
                 '    if not chemin:',
-                '        raise ValueError(f"nature {{nature!r}} sans backend déclaré "',
+                '        raise ValueError(f"nature {nature!r} sans backend déclaré "',
                 '                         "(processing.backend_routes du manifeste)")',
                 "    fmt = (getattr(item, 'output_format', '') or '').strip().lower()",
                 '    if not fmt:',

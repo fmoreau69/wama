@@ -943,7 +943,16 @@ def _model_options_from_catalog(f: _AppFiles):
     pouvoir choisir — le grisage par entrées reste au client (`WamaInputMatch`), sur la
     liste complète. Un jour où une app filtrerait ses options côté serveur, elle passerait
     ce critère tout en cassant l'UX : c'est l'invariant, pas ce critère, qui l'interdit.
+
+    Gate « composant sans hôte → N/A » (2026-09-03, 4ᵉ occurrence du verdict Fabien du
+    14/08 — model_help, input_match_ui, model_caps_ui l'avaient, pas lui) : une app SANS
+    sélecteur de moteur ne propose aucune liste — la mesure accusait alors la déclaration
+    OBLIGATOIRE `<APP>_MODELS` de model_config (checklist CLAUDE.md) comme « liste en
+    dur » : le describer (cascade interne, zéro select) sortait ROUGE pour un composant
+    qu'il n'a pas.
     """
+    if not _has_engine_select(f):
+        return None, None
     ev = f.find(PARAMS, r"options_source\s*[:=]\s*['\"]catalog['\"]")
     if ev:
         return True, ev
