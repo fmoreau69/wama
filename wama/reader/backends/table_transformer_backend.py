@@ -80,14 +80,25 @@ class TableTransformerBackend(BaseModelBackend):
         return self._detector is not None
 
     def load(self, model: Optional[str] = None) -> bool:
-        import os
         cache_det = _cache_dir_for(HF_DETECTION)
         cache_str = _cache_dir_for(HF_STRUCTURE)
         if not cache_det or not cache_str:
             raise RuntimeError('poids table-transformer absents du disque '
                                '(catalogue local_path vide et convention vide)')
-        # Règle CLAUDE.md « path d'abord, env ensuite, import après ».
-        os.environ['HF_HUB_CACHE'] = cache_det
+        # ⚠ PAS de `os.environ['HF_HUB_CACHE'] = cache_det` ici — retiré le 2026-09-03,
+        # premier pas du ROADMAP §5b. `HF_HOME`/`HF_HUB_CACHE` sont posés UNE FOIS au
+        # démarrage (`settings.py:165`, vers le cache partagé) et `cache_dir=` suffit à
+        # ranger les DEUX modèles principaux dans leur dossier de catégorie.
+        #
+        # Ce que la mutation cassait, MESURÉ ici même : Table Transformer est un DETR dont
+        # la config déclare un backbone timm. Celui-ci se résout par le hub, donc par
+        # `HF_HUB_CACHE` — et non par le `cache_dir=` passé au modèle principal. Avec la
+        # mutation, `models--timm--resnet18.a1_in1k` atterrissait DANS le dossier de
+        # table-transformer (constaté sur disque, aux deux endroits), d'où une ligne de
+        # catalogue fantôme pour une simple SOUS-DÉPENDANCE. La var d'env est globale au
+        # processus : elle emporte les dépendances avec le modèle.
+        # Même famille que le « dump de modèles dans speech/kokoro » (`wama/views.py:223`)
+        # et que la commande `dedup_models` (« séquelle de la course HF_HUB_CACHE »).
         from transformers import AutoImageProcessor, TableTransformerForObjectDetection
         self._processor = AutoImageProcessor.from_pretrained(
             HF_DETECTION, cache_dir=cache_det, local_files_only=True)

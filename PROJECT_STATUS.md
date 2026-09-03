@@ -10830,3 +10830,83 @@ pointant là. Ordre : poser `HF_HOME` (§5b) → nettoyer → purger la ligne de
 CONTRADICTION, et une PERMISSIVITÉ VOULUE pour un trou.* Le réflexe manquant est le même à
 chaque fois : **chercher le mécanisme qui réconcilie AVANT de conclure à l'incohérence** — le
 garde de cohérence, la docstring d'autorité, le ROADMAP qui a déjà tranché.
+
+
+## §PALIER — 2026-09-03 (après-midi), « ROUTAGE HF (§5b, 1ᵉʳ pas) + LE TROU DU TIRAGE À QUALITÉ MAXIMALE » — ✅ LIVRÉ
+
+> Demandes de Fabien : corriger le routage `HF_HOME` du `ROADMAP §5b`, revérifier
+> `fits_full_gpu`, et répondre à « le tirage tient-il compte du fait qu'on peut LIBÉRER toute
+> la VRAM pour une tâche qui le nécessite ? ». **Tout ce qui suit est mesuré au code.**
+
+### ① Routage HF — le socle existait, la dette est ailleurs
+
+**`HF_HOME` est DÉJÀ posé une fois au démarrage** (`settings.py:165-167`, en `setdefault` vers
+`AI-models/cache/huggingface`) — et rien ne le neutralise : **aucun export HF dans `.env` ni
+dans `start_wama_prod.sh`** (vérifié). Le reste du §5b, c'est donc uniquement **retirer les
+mutations per-modèle** : **38 lignes** mesurées (inventaire **AST**, bacs à sable exclus).
+
+**1ᵉʳ pas livré — `reader/backends/table_transformer_backend.py`** : mutation retirée,
+`cache_dir=` conservé. Test **sur poids réels 6/6 `OK` AVANT (71 s) et APRÈS (66 s)**.
+Reste **37**.
+
+**⚠⚠ Le mécanisme est PROUVÉ DANS LES DEUX SENS** (sonde non destructive, process jetable) :
+- `models--microsoft--table-transformer-detection` est **ABSENT** du cache partagé et le test
+  passe ⇒ le **modèle principal** se résout par **`cache_dir=`** ;
+- `HF_HUB_CACHE` pointé sur un dossier **VIDE**, `cache_dir=` inchangé ⇒ **`LocalEntryNotFoundError`**
+  ⇒ le **backbone timm** se résout par **`HF_HUB_CACHE`**, pas par `cache_dir=`.
+
+*C'est exactement la distinction du §5b : modèle principal catégorisé, sous-dépendance au cache
+partagé.* Depuis le retrait, le backbone vient du cache partagé ; la copie dans
+`vision/table-transformer-detection/` est **orpheline** (→ ledger **R47**).
+
+**Le défaut a déjà trois traces dans le dépôt**, toutes antérieures : `wama/views.py:223`
+(« dump de modèles dans speech/kokoro, `HF_HUB_CACHE` global muté en concurrence »),
+`start_wama_prod.sh:271` (`--workers 1` du service TTS déclaré **STRUCTURANT** à cause de cette
+course) et `dedup_models.py:3` (commande écrite comme « séquelle de la course »).
+
+**Garde livré** — `wama/common/tests_hf_cache_routing.py` : compte les mutations **par AST**
+(un grep compterait les mentions en commentaire, nombreuses), budget **37**, **ne peut que
+descendre**, + un test qui vérifie que le socle pose bien les 3 variables. ⚠ Il **trie**, il ne
+conclut pas : « pas de `cache_dir=` dans la fonction » ne veut pas dire « non retirable » —
+chaque site se lit. Triage : **12 lignes** avec `cache_dir=` dans la même fonction, **25** sans.
+
+### ② Le trou du tirage à QUALITÉ MAXIMALE — la chaîne ne prévoit pas de libérer
+
+La question de Fabien porte juste, et la chaîne est pire que supposée :
+
+1. **Au-delà du seuil de qualité, le budget est IGNORÉ** (`_best_by_vram:206-207` :
+   `depasse_budget` ⇒ `pool = models`) — le modèle le plus gourmand est donc bien tiré.
+2. **La mise en attente n'appelle AUCUNE libération** : `_differer_faute_de_vram` lit
+   `effective_free_gb()` puis `retry` 45 s × 40 → `FAILURE`. Rien n'y décharge quoi que ce soit.
+3. **La libération proactive n'existe QU'À UN ENDROIT** : `memory_manager.py:645` (chemin
+   diffusers FULL_GPU par composant). Les deux autres usages sont **réactifs** —
+   `reessayer_apres_liberation` après une OOM CUDA (seul appelant `anonymizer/core/anonymize.py:196`)
+   — ou **attendent sans libérer** (`wait_for_free_vram`, seul appelant
+   `composer/backends/audiocpp_backend.py:232`).
+4. **Et ce reclaim ne peut PAS atteindre le service TTS** : `_VRAM_UNLOADERS` est un dict **de
+   module** (in-process). Le service TTS est un process uvicorn séparé exposant `/health`,
+   `/tts`, `/load-model` — **aucun endpoint de déchargement** — et sa politique le garde
+   volontairement résident (`_keep_resident`). Seul **Ollama** a une voie inter-process
+   (`keep_alive: 0` en HTTP, `unload_model`).
+5. **⚠⚠ ET LE MÉCANISME D'ATTENTE NE SE DÉCLENCHE JAMAIS AUJOURD'HUI** : `AWAITING_RESOURCES`
+   n'est posé qu'en **un seul point** (`task_skeleton.py:176`), sous `if vram_needed is not None`
+   — et **aucun des 6 appelants** de `run_item_task` (converter, converter_01, describer,
+   describer_01 ×2, reader) ne passe `vram_needed`. Le test qui couvre ce statut appelle
+   `_differer_faute_de_vram` **directement**, pas via la chaîne. De plus **imager et composer —
+   les gros consommateurs de VRAM — n'ont pas encore adopté `run_item_task`**.
+
+*Conclusion : le statut, sa couleur de card, son filtre et son compteur existent et sont testés ;
+la chaîne qui les alimente n'est pas branchée, et quand elle le sera, elle attendra une VRAM que
+rien ne libère.* **Rien n'est corrigé ici** — c'est une décision de conception (faut-il décharger
+le service TTS pour une tâche vidéo, et le recharger après ?), pas une réparation mécanique.
+
+### ③ `fits_full_gpu` — le résidu désigne un manque réel (ledger R46)
+
+Aucun consommateur (vérifié sur tout le dépôt). Introduite par `d564771f` (29/07), dont le
+message dit ce qui a été retenu **à sa place dans le même commit** : « "pas d'offload" se traduit
+par un BUDGET (VRAM libre − marge) passé à `select_model` ».
+**⚠ Mais elle compare à la VRAM TOTALE** — « le meilleur modèle qui tiendrait **si on déchargeait
+tout** », exactement l'intention que Fabien lui prête — là où le budget compare à la VRAM
+**LIBRE**. Le seul autre raisonnement sur la totale est `get_memory_strategy:542`, qui décide une
+stratégie d'**offload** pour un modèle **déjà choisi**. **Retirer la fonction sans consigner ce
+manque effacerait la seule trace du mécanisme absent** → R46 en candidat, PAS retiré.
