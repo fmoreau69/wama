@@ -179,8 +179,11 @@ class CurseurDeQualiteTest(TestCase):
         from types import SimpleNamespace
         from wama.common.backends.manager import backend_missing, known_engines
         # Les inventaires des producteurs sont enregistrés par apps.ready().
+        # `transformers-remote-code` : servi depuis le B2 n°2 (Audio8Backend, 03/09) —
+        # le moteur d'Audio8 s'est RÉ-AUTORISÉ tout seul en entrant dans ENGINE_BACKENDS,
+        # exactement le contrat du système.
         self.assertTrue({'bark', 'coqui', 'higgs', 'kokoro', 'kokoro-onnx',
-                         'audio-cpp'} <= known_engines())
+                         'transformers-remote-code', 'audio-cpp'} <= known_engines())
         fantome = SimpleNamespace(backend_ref='', composition={'runtime': {'engine': 'moteur-fantome'}})
         self.assertIn('moteur-fantome', backend_missing(fantome))
         self.assertIsNone(backend_missing(
