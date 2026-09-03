@@ -342,6 +342,13 @@ class BaseModelBackend(ABC):
     # Paquets pip à installer si un import manque (souvent = REQUIRED_PACKAGES, mais le nom pip
     # peut différer du nom d'import : ex. import 'cv2' ↔ pip 'opencv-python'). Override au besoin.
     PIP_PACKAGES: Optional[List[str]] = None
+    #: Installer les paquets SANS leurs dépendances (`pip install --no-deps`, 2026-09-03).
+    #: À déclarer quand un pin AMONT trop serré rétrograderait une dépendance PARTAGÉE du
+    #: venv — cas mesuré : `qwen-tts==0.1.1` épingle `transformers==4.57.3` alors que WAMA
+    #: tourne en 4.57.6 et que le paquet s'importe parfaitement sans rétrogradation.
+    #: ⚠ Le prix est un DEVOIR : en `--no-deps`, pip ne comble plus les oublis — `PIP_PACKAGES`
+    #: doit lister EXHAUSTIVEMENT ce qui manque au venv (à VÉRIFIER par un import réel).
+    PIP_NO_DEPS: bool = False
     recommended_vram_gb: Optional[float] = None
     description: str = ""
 

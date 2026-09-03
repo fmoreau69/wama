@@ -22,10 +22,16 @@ Pilote BORNÉ (mêmes leçons que librarian) :
   5. écrit dans `outputs/` avec PENDING_HUMAN_VALIDATION — n'ingère JAMAIS en base.
      La projection reste le geste explicite `ingest.write_back(apply=True)`.
 
-⚠ GARDE GPU (même famille que le triage VLM du smoke, `ui_smoke._vlm_triage`) : l'appel
-Ollama charge un modèle dans la VRAM de l'hôte — le geste qui a tué la machine deux fois
-le 2026-09-02. Le rôle consulte `WAMA_GPU_SAFE_MODE` et REFUSE de partir quand il est
-actif ; `--force` reste possible pour un GO explicite. *Une garde se pose avec ses jumeaux.*
+⚠ GARDE GPU — le rôle COOPÈRE avec le mode dépannage, il ne s'y dérobe pas (recadrage
+Fabien, 2026-09-03) : `WAMA_GPU_SAFE_MODE` est un interrupteur de CONDITIONS (« réduire la
+SUPERPOSITION de charges »), pas une interdiction de charger. Sa parade est outillée par le
+gouverneur, et c'est elle qu'on emploie : `wait_for_free_vram()` avant l'appel (on ne
+s'empile pas sur une charge en cours — l'attente laisse les résidences expirer) et
+`pipeline_keep_alive()` → `keep_alive='0'` (le modèle est déchargé SITÔT la réponse rendue,
+au lieu de ~5 min de résidence). Refuser en bloc, comme le faisait la 1ʳᵉ version de ce
+pilote, aurait rendu le rôle inutilisable pendant tout le mode dépannage — l'excès inverse
+du triage VLM qui, lui, ignorait la parade et a crashé l'hôte deux fois le 02/09.
+`--force` saute l'ATTENTE (jamais le keep_alive) pour un GO explicite.
 
 Usage (depuis la racine du repo, venv_linux) :
     python wama-dev-ai/run_model_manifest.py --catalog huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
@@ -175,29 +181,44 @@ def main():
     g.add_argument('--hf', help='Dépôt HuggingFace org/nom (non installé)')
     ap.add_argument('--model', default=None, help='Modèle Ollama (défaut : rôle dev)')
     ap.add_argument('--force', action='store_true',
-                    help='Passer outre WAMA_GPU_SAFE_MODE (GO explicite)')
+                    help="Sauter l'ATTENTE de VRAM libre (GO explicite ; le keep_alive reste)")
+    ap.add_argument('--attente-max', type=float, default=300.0,
+                    help='Délai max d\'attente de VRAM libre, en secondes (défaut 300)')
     args = ap.parse_args()
-
-    # Garde GPU — cf. docstring (l'appel Ollama charge un modèle sur l'hôte).
-    from wama.common.services.resource_governor import gpu_safe_mode
-    if gpu_safe_mode() and not args.force:
-        raise SystemExit(
-            "[model] REFUS : WAMA_GPU_SAFE_MODE est actif — un appel Ollama charge un "
-            "modèle dans la VRAM de l'hôte (le geste qui a crashé la machine le 02/09). "
-            "Relancer avec --force sur GO explicite, ou lever le mode dépannage.")
 
     provenance, matiere = (sources_catalog(args.catalog) if args.catalog
                            else sources_hf(args.hf))
     matiere = matiere[:MAX_SOURCE_CHARS]
 
-    model = args.model or select_model_for_role('dev')[1].ollama_id
+    cfg = select_model_for_role('dev')[1]
+    model = args.model or cfg.ollama_id
     print(f'[model] modèle : {model} | provenance : {provenance}')
+
+    # ── Coopération avec le mode dépannage GPU (cf. docstring) ──────────────────
+    from wama.common.services.resource_governor import (
+        effective_free_gb, gpu_safe_mode, pipeline_keep_alive, wait_for_free_vram)
+    keep_alive = pipeline_keep_alive()
+    besoin = float(getattr(cfg, 'ram_required_gb', 8.0) or 8.0)
+    if gpu_safe_mode() and not args.force:
+        ok, libre = wait_for_free_vram(besoin, timeout_s=args.attente_max,
+                                       console=lambda m: print(f'[model] {m}'))
+        if not ok:
+            # Refus DIT, jamais un défaut silencieux (contrat de wait_for_free_vram).
+            raise SystemExit(
+                f"[model] REFUS : {libre:.1f} Go libres < {besoin:.1f} Go requis pour "
+                f"{model} après {args.attente_max:.0f}s d'attente (mode dépannage GPU). "
+                "Réessayer plus tard, ou --force sur GO explicite.")
+        print(f'[model] VRAM libre {libre:.1f} Go ≥ {besoin:.1f} Go requis — '
+              f"appel avec keep_alive={keep_alive!r} (déchargement immédiat)")
+    else:
+        print(f'[model] VRAM libre {effective_free_gb():.1f} Go | '
+              f'keep_alive={keep_alive!r}')
 
     user_msg = (f'EXEMPLES de manifestes `model` valides :\n{exemples()}\n\n'
                 f'VOCABULAIRES AUTORISÉS (choisir dedans, ne rien inventer) :\n{vocabulaires()}\n\n'
                 f'SOURCES du modèle à traduire :\n{matiere}\n\n'
                 f'Produis le manifeste `model` de ce modèle (JSON seul).')
-    reponse = call_ollama(model, PROMPT, user_msg)
+    reponse = call_ollama(model, PROMPT, user_msg, keep_alive=keep_alive)
     manifest = extract_json(reponse)
 
     from wama.common.manifests.ingest import validate

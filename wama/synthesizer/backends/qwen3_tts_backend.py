@@ -81,10 +81,20 @@ class Qwen3TTSBackend(TTSBackend):
     keep_resident = False
     supports_timestamps = False
 
-    #: Nom d'IMPORT ≠ nom pip ; PIN EXACT — forme exigée par `pip_install_packages`
-    #: (l'installation reste un geste humain : ensure_backend_deps sur GO).
-    REQUIRED_PACKAGES = ['qwen_tts']
-    PIP_PACKAGES = ['qwen-tts==0.1.1']
+    #: Noms d'IMPORT ≠ noms pip ; PINS EXACTS (forme exigée par `pip_install_packages`).
+    #: L'installation reste un geste humain (`ensure_backend_deps` sur GO).
+    REQUIRED_PACKAGES = ['qwen_tts', 'sox']
+    PIP_PACKAGES = ['qwen-tts==0.1.1', 'sox==1.5.0']
+    #: ⚠ SANS ses dépendances — et c'est MESURÉ, pas supposé (2026-09-03, recadrage Fabien
+    #: « ça peut potentiellement passer sans rétrograder ; transformers est utilisé par
+    #: ailleurs donc ça casserait potentiellement autre chose ») : le pin amont
+    #: `transformers==4.57.3` est TROP SERRÉ. Vérifié par import RÉEL hors venv (paquet
+    #: déballé, mis en tête de sys.path) — les 18 symboles `transformers` qu'il importe
+    #: existent tous en 4.57.6, et `from qwen_tts import Qwen3TTSModel` aboutit avec notre
+    #: transformers ET notre accelerate 1.6.0 (le pin demandait 1.12). Le seul manque réel
+    #: était `sox`, désormais déclaré. Honorer le pin aurait rétrogradé transformers pour
+    #: tout le dépôt — au prix d'un écart de PATCH.
+    PIP_NO_DEPS = True
 
     recommended_vram_gb = 4.2       # ~poids bf16 du 1.7B + codec (à REMESURER au 1er run)
 

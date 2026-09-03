@@ -602,7 +602,7 @@ def pip_spec_error(spec: str):
     return None
 
 
-def pip_install_packages(packages, timeout: int = 1800) -> dict:
+def pip_install_packages(packages, timeout: int = 1800, no_deps: bool = False) -> dict:
     """
     Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un
     nouveau modèle exige de nouvelles libs (jonction avec le contrat BaseModelBackend).
@@ -625,8 +625,16 @@ def pip_install_packages(packages, timeout: int = 1800) -> dict:
     if refus:
         return {'ok': False, 'installed': [], 'error': ' ; '.join(refus)}
     try:
+        # `--no-deps` (2026-09-03) : un pin AMONT trop serré ne doit pas rétrograder une
+        # dépendance PARTAGÉE du venv. Cas d'école mesuré — `qwen-tts==0.1.1` épingle
+        # `transformers==4.57.3` quand WAMA tourne en 4.57.6 (et 10 autres modèles avec) :
+        # honorer ce pin casserait potentiellement ailleurs pour un écart de patch, alors
+        # que le paquet s'importe et tourne SANS rétrogradation (vérifié par import réel,
+        # hors venv). Le prix est explicite : en `--no-deps`, le backend déclare ses
+        # paquets EXHAUSTIVEMENT (`PIP_PACKAGES`), pip ne comble plus les oublis.
+        options = ['--no-deps'] if no_deps else []
         proc = subprocess.run(
-            [sys.executable, '-m', 'pip', 'install', *pkgs],
+            [sys.executable, '-m', 'pip', 'install', *options, *pkgs],
             capture_output=True, text=True, timeout=timeout,
         )
         if proc.returncode == 0:
@@ -645,7 +653,8 @@ def ensure_backend_deps(backend_cls, timeout: int = 1800) -> dict:
     missing = backend_cls.missing_packages()
     if not missing:
         return {'ok': True, 'installed': [], 'already': True}
-    res = pip_install_packages(backend_cls.pip_install_spec(), timeout=timeout)
+    res = pip_install_packages(backend_cls.pip_install_spec(), timeout=timeout,
+                               no_deps=bool(getattr(backend_cls, 'PIP_NO_DEPS', False)))
     res['already'] = False
     return res
 
