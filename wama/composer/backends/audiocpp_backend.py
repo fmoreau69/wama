@@ -121,6 +121,8 @@ class AudioCppBackend(BaseModelBackend):
     les composants) → même profil que AudioCraftBackend : load() réchauffe, unload() no-op.
     """
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'audio-cpp'
     REQUIRED_PACKAGES: list = []
     recommended_vram_gb = 13.0
     description = "audio.cpp — modèles audio multi-composants GGUF (MiniMax-Music3…)."

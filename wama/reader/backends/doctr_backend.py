@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 class DocTRBackend(BaseModelBackend):
     """OCR docTR — SANS état persistant (le prédicteur se charge par appel dans run())."""
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'doctr'
     REQUIRED_PACKAGES = ['doctr']
     recommended_vram_gb = 2.0
     description = "docTR — OCR de documents (détection + reconnaissance)."

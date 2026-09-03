@@ -352,6 +352,22 @@ class BaseModelBackend(ABC):
     recommended_vram_gb: Optional[float] = None
     description: str = ""
 
+    #: MOTEUR piloté par ce backend — la librairie qui exécute réellement le modèle
+    #: (`faster-whisper`, `diffusers`, `coqui`, `audio-cpp`…), déclarée le 2026-09-03
+    #: (recadrage Fabien : *le backend n'EST PAS le moteur, il l'APPELLE*).
+    #:
+    #: C'est la MOITIÉ BACKEND du lien modèle↔moteur : le modèle déclare le moteur qu'il
+    #: exige (`AIModel.composition['runtime']['engine']`), le backend déclare celui qu'il
+    #: sait piloter, et `known_engines()` en dérive l'inventaire des exécutables — plus
+    #: aucune liste tenue à la main. Vocabulaire PARTAGÉ avec les manifestes de modèle :
+    #: une valeur nouvelle ici doit être celle qu'un modèle écrirait, sinon le lien ne se
+    #: refermera jamais.
+    #:
+    #: Vide = backend qui n'expose pas de moteur nommé (base métier abstraite, adaptateur
+    #: interne). Ce n'est pas un défaut : ce qui compte est qu'aucun moteur EXIGÉ par un
+    #: modèle ne reste sans exécutant — c'est ce que la page Backends signale.
+    ENGINE: str = ""
+
     # ── Capacités déclarées par le moteur (vocabulaire commun) ───────────────
     # Vocabulaire figé par `common/utils/model_capabilities.py` (source unique) — qui annonce
     # depuis 2026-07-01 que le préfixe `supports_` est « ALIGNÉ sur les flags backend », alors

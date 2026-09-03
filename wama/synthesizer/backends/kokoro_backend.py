@@ -24,6 +24,8 @@ REPO_ID = 'hexgrad/Kokoro-82M'
 
 
 class KokoroBackend(TTSBackend):
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'kokoro'
     engine = "kokoro"
     description = "Kokoro 82M — TTS léger FR/EN/ES/IT/PT/JA/ZH, temps réel."
 

@@ -62,6 +62,8 @@ class DiffusersBackend(ImageGenerationBackend):
     # Dépendances DÉCLARATIVES (contrat commun). bitsandbytes n'y est PAS : import
     # conditionnel du seul chemin FLUX quantifié — le déclarer invaliderait tout le
     # backend (SD/SDXL/Hunyuan) sur une machine sans lui.
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'diffusers'
     REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "diffusers"
     display_name = "Diffusers (Hugging Face)"

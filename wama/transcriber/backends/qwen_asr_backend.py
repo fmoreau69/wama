@@ -35,6 +35,8 @@ class QwenASRBackend(SpeechToTextBackend):
     Diarization is handled externally by pyannote_diarizer (same as Whisper).
     """
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'transformers'
     name = "qwen_asr"
     display_name = "Qwen3-ASR (Alibaba)"
     description = "Qwen3-ASR — multilingue (52 langues), context biasing des mots-clés (expérimental). Diarisation via pyannote."

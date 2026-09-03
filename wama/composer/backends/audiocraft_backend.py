@@ -30,6 +30,8 @@ class AudioCraftBackend(BaseModelBackend):
     SANS état persistant (chargement par appel) → load() réchauffe, unload() no-op.
     """
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'audiocraft'
     REQUIRED_PACKAGES = ['audiocraft']
     recommended_vram_gb = 8.0
     description = "AudioCraft — MusicGen (musique) + AudioGen (bruitages)."

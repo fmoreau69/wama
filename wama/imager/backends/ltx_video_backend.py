@@ -83,6 +83,8 @@ class LTXVideoBackend(ImageGenerationBackend):
     # Dépendances DÉCLARATIVES (contrat commun). torchao/accelerate n'y sont PAS :
     # imports conditionnels du seul chemin fp8 quantifié (même règle que bitsandbytes
     # côté DiffusersBackend).
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'diffusers'
     REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "ltx_video"
     display_name = "LTX-Video"

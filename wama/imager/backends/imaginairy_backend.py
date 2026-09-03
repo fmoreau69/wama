@@ -26,6 +26,8 @@ class ImaginAiryBackend(ImageGenerationBackend):
     """
 
     # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'imaginairy'
     REQUIRED_PACKAGES = ['torch', 'imaginairy']
     name = "imaginairy"
     display_name = "imaginAIry (Legacy)"

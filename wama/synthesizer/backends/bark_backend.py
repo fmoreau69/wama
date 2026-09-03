@@ -28,6 +28,8 @@ def bark_speaker_for(voice_preset: str, language: str) -> str:
 
 
 class BarkBackend(TTSBackend):
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'bark'
     engine = "bark"
     description = "Bark (Suno) — TTS expressif (rires, hésitations, bruitages)."
 
