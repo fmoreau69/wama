@@ -59,10 +59,15 @@ class HiggsAudioBackend(TTSBackend):
         if self._engine is not None:
             return True
 
-        # ── CRITIQUE : cache HF isolé AVANT tout import HF (règle CLAUDE.md) ──
+        # 3ᵉ VOIE (ROADMAP §5b, 2026-09-04) : `HiggsAudioServeEngine` n'accepte pas de
+        # `cache_dir=`, mais il accepte un CHEMIN (`model_name_or_path`). On télécharge donc
+        # nous-mêmes DANS le dossier de famille — sans toucher l'environnement — et on lui
+        # donne le chemin. L'ancienne mutation routait le modèle ET emportait ses
+        # sous-dépendances (tokenizers, backbones) dans `speech/higgs/`.
+        from wama.common.utils.hf_weights import poids_locaux
         cache_dir = speech_dir('higgs')
-        os.environ['HF_HUB_CACHE'] = str(cache_dir)
-        os.environ['HUGGINGFACE_HUB_CACHE'] = str(cache_dir)
+        modele_local = poids_locaux(MODEL_PATH, cache_dir)
+        tokenizer_local = poids_locaux(TOKENIZER_PATH, cache_dir)
 
         self._patch_transformers()
 
@@ -70,8 +75,8 @@ class HiggsAudioBackend(TTSBackend):
 
         logger.info(f"[Higgs] chargement de l'engine : {MODEL_PATH}")
         self._engine = HiggsAudioServeEngine(
-            model_name_or_path=MODEL_PATH,
-            audio_tokenizer_name_or_path=TOKENIZER_PATH,
+            model_name_or_path=modele_local,
+            audio_tokenizer_name_or_path=tokenizer_local,
             device="cuda",
         )
         self.loaded_model = "higgs-audio"
