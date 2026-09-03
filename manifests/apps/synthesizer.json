@@ -2001,6 +2001,10 @@
       "kind": "library"
     },
     {
+      "key": "qwen-tts",
+      "kind": "library"
+    },
+    {
       "key": "soundfile",
       "kind": "library"
     },

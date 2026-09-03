@@ -1,0 +1,44 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "accelerate",
+      "einops",
+      "gradio",
+      "librosa",
+      "onnxruntime",
+      "soundfile",
+      "sox",
+      "torchaudio",
+      "transformers"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "qwen-tts-demo"
+      ]
+    },
+    "identity": {
+      "author": "Alibaba Qwen Team",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/Qwen/Qwen3-TTS",
+      "summary": "Qwen-TTS python package",
+      "version": "0.1.1"
+    },
+    "install": {
+      "pip": "qwen-tts==0.1.1",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Qwen-TTS python package",
+  "key": "qwen-tts",
+  "manifest_kind": "library",
+  "name": "qwen-tts",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:qwen-tts==0.1.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
