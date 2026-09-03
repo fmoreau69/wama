@@ -86,13 +86,11 @@ def clear_model_cache():
 def load(device: str = 'cuda'):
     """Charge Depth Pro (keep_loaded) et retourne (processor, model, device_effectif).
 
-    Pattern obligatoire (CLAUDE.md §Ajout d'un nouveau modèle AI) : HF_HUB_CACHE posé AVANT tout
-    import HF, cache_dir passé à `from_pretrained`.
+    Pattern obligatoire (CLAUDE.md §Ajout d'un nouveau modèle AI, corrigé le 2026-09-03) :
+    `cache_dir=` passé à `from_pretrained`, et **jamais** de mutation d'environnement — elle
+    emporterait les sous-dépendances du modèle hors du cache partagé (ROADMAP §5b).
     """
-    import os
     cache = str(DEPTH_MODEL_DIR)
-    os.environ['HF_HUB_CACHE'] = cache
-    os.environ['HUGGINGFACE_HUB_CACHE'] = cache        # AVANT tout import HF
 
     import torch
     if device == 'cuda' and not torch.cuda.is_available():

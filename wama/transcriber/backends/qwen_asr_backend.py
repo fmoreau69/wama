@@ -185,12 +185,10 @@ class QwenASRBackend(SpeechToTextBackend):
             self._device, self._dtype = self._get_device_and_dtype()
             cache_dir = self._get_cache_dir()
 
-            # ── CRITICAL: set HF_HUB_CACHE BEFORE importing transformers ──────
-            # This ensures ALL sub-downloads (tokenizer, config, weights) go to
-            # the correct model-specific directory, not the global HF cache.
-            if cache_dir:
-                os.environ['HF_HUB_CACHE'] = cache_dir
-                os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+            # Env NON muté (ROADMAP §5b, 2026-09-04) : `cache_dir` est déjà passé aux deux
+            # `from_pretrained` (proc_kwargs / model_kwargs ci-dessous), ce qui route le
+            # modèle PRINCIPAL. La mutation emportait en plus ses SOUS-DÉPENDANCES hors du
+            # cache partagé — c'est le défaut, pas la fonctionnalité.
 
             from transformers import AutoProcessor
 

@@ -75,9 +75,11 @@ class PyannoteDiarizerBackend(BaseModelBackend):
 
         import torch
 
-        # ── CRITICAL: set HF_HUB_CACHE BEFORE importing pyannote/huggingface_hub ──
-        # This routes all sub-downloads (weights, configs) to speech/diarization/
-        # instead of the global AI-models/cache/huggingface/ fallback.
+        # Dossier du modèle — passé en `cache_dir=` à `Pipeline.from_pretrained`
+        # (signature vérifiée le 2026-09-04 : la lib l'accepte). L'ancienne mutation
+        # d'environnement est RETIRÉE (ROADMAP §5b) : elle routait le pipeline, mais
+        # emportait aussi ses sous-dépendances dans `speech/diarization/`.
+        _cache = None
         try:
             from pathlib import Path
 
@@ -88,8 +90,6 @@ class PyannoteDiarizerBackend(BaseModelBackend):
             )
             Path(_dia_dir).mkdir(parents=True, exist_ok=True)
             _cache = str(_dia_dir)
-            os.environ['HF_HUB_CACHE'] = _cache
-            os.environ['HUGGINGFACE_HUB_CACHE'] = _cache
             logger.info(f"[pyannote] Cache → {_cache}")
         except Exception:
             pass
@@ -109,6 +109,7 @@ class PyannoteDiarizerBackend(BaseModelBackend):
         pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
             token=token,
+            **({'cache_dir': _cache} if _cache else {}),
         )
 
         if torch.cuda.is_available():

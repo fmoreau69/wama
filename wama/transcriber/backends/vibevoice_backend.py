@@ -145,10 +145,8 @@ class VibeVoiceBackend(SpeechToTextBackend):
             except Exception:
                 pass
 
-            # ── CRITICAL: set HF_HUB_CACHE BEFORE importing vibevoice/transformers ─
-            if cache_dir:
-                os.environ['HF_HUB_CACHE'] = cache_dir
-                os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+            # Env NON muté (ROADMAP §5b, 2026-09-04) : `cache_dir` est passé aux
+            # `from_pretrained` (proc_kwargs / model_kwargs ci-dessous).
 
             from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
             from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
