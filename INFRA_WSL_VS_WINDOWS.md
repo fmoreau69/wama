@@ -761,6 +761,51 @@ sous `gpu_safe_mode()` et par un drapeau `--no-vlm` du stage UI (le triage est u
 lecture, pas une mesure) ; ② ne plus lancer la famille `converter*.ui` tant que la page bouge
 (chaque diff > 2 % rappelle le VLM) ; ③ relancer HWiNFO → `rails.csv` (fait par Fabien).
 
+### 2026-09-03 ~14:30:11 — 7ᵉ mort : la rampe TUE SANS OLLAMA, et la parade avait donné son FEU VERT
+
+**Ce crash déplace le facteur commun.** Les six précédents laissaient croire à « montée VRAM
+**Ollama** ». Celui-ci n'implique **aucun Ollama** : c'est un backend WAMA en torch/CUDA local.
+
+**Chronologie croisée journaux ↔ rails (à la seconde)** :
+
+| horodatage | source | fait |
+|---|---|---|
+| 14:27:06,405 | `wama.log` | `ResourceGovernor` **pid=41487** plafonne l'allocateur CUDA (1ᵉʳ process) |
+| 14:28:55,849 | `wama.log` | **`[Qwen3-TTS] chargé`** — `cuda:0`, `torch.bfloat16`, **4,2 Go en 108 s** depuis `/mnt/d` |
+| 14:28:59 | rails | rampe : 210 → **2595 MHz**, **12VHPWR 72,1 W** (max de la session), VRAM 36,5 → **38,8 %** — **SURVÉCUE** |
+| ~14:29:11 | rails | relâchement : VRAM 38,8 → 23,3 → **20,0 %** (modèle déchargé) |
+| 14:30:08,236 | `wama.log` | `ResourceGovernor` **pid=41847** — **NOUVEAU process** CUDA (2ᵉ passe). *Dernière ligne du journal.* |
+| 14:30:09,778 | rails | rampe : 210 → **2595 MHz**, 12VHPWR 22,0 → **41,8 W** |
+| **14:30:11,776** | rails | **71,2 W / 58,9 W / 2595 MHz — DERNIÈRE MESURE** |
+
+**⚠⚠ La mort survient AVANT tout chargement de modèle** : 3,5 s après l'init CUDA du 2ᵉ process,
+alors que le premier chargement avait pris **108 s**. Ce n'est pas la charge qui tue, c'est la
+**transition** — 210 → 2595 MHz en un échantillon.
+
+**Ce que les rails ÉCARTENT** (7ᵉ jeu propre) : thermique — **49-51 °C** à la mort, max de la
+session **59,8 °C** à 9h37 sans incident ; saturation VRAM — pic de session **38,8 %** ;
+plafond de puissance — elle meurt à **71 W sur une carte qui en encaisse plus de 400**, et le
+pic de la session (80,9 W à 9h38) n'avait rien cassé.
+
+**⚠⚠⚠ ET LA PARADE AVAIT DONNÉ SON FEU VERT.** Le test consultait `wait_for_free_vram` avec
+`WAMA_GPU_SAFE_MODE` **actif**, et a été autorisé (constat de l'instance qui l'a lancé). C'est
+cohérent et c'est le point dur : **`wait_for_free_vram` mesure la VRAM LIBRE — il protège de la
+SUPERPOSITION, pas de la rampe d'une charge UNIQUE.** Si le facteur commun est la montée
+elle-même, **aucune garde actuelle ne la couvre** : il n'existe rien qui limite la *pente*
+(fréquence/puissance), seulement le *niveau* d'occupation.
+
+*Corollaire pour la mémoire de projet : écrire « facteur commun = montée VRAM **Ollama** » était
+trop étroit. Le facteur commun mesuré est la **rampe d'initialisation CUDA**, quel que soit le
+fournisseur — Ollama en était le déclencheur le plus fréquent, pas la condition.*
+
+**État après reboot (constaté 18:24)** : WSL2 relancé à ~14:56 (uptime 3 h 28), Postgres
+`accepting connections`, 10 processus gunicorn/celery debout, **0 card RUNNING zombie**
+(19 modèles à statut examinés, 0 ignoré — comptage refait sans `except` silencieux, le premier
+aurait rendu 0 sur du vide si la base avait été à terre). Aucun dump (coupure franche, comme
+toute la série). `/crash-residus` passé : **17,24 Go** de `swap.vhdx` orphelins libérés,
+C: 95,7 → **112,9 Go** (gain intégralement visible, contrairement au 29/08 où VSS retenait).
+⚠ **D: reste à 19,5 Go (3,6 %)** — les swaps vivent sur C:, ce nettoyage ne l'aide pas.
+
 ### Ce qui reste ouvert
 
 - **Quel composant lâche** — inconnu. La charge est le **déclencheur**, pas le fautif : alimentation,
