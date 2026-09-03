@@ -20,6 +20,17 @@
       /* Simple mode: hide sidebar + right panel site-wide */
       body.wama-simple #filemanager-sidebar { display: none !important; }
       body.wama-simple #wama-right-panel    { display: none !important; }
+
+      /* Menu « Applications » : DÉFILE au lieu de déborder (constat Fabien 2026-09-03 —
+         « s'il devient trop long, il n'y a pas de slider et les éléments risquent d'être
+         masqués »). Borné à la hauteur de la fenêtre moins le bandeau ; le sous-menu du bac
+         à sable reste replié par défaut, donc le cas nominal ne défile même pas. */
+      .wama-apps-menu { max-height: calc(100vh - 70px); overflow-y: auto; overscroll-behavior: contain; }
+      .wama-apps-menu::-webkit-scrollbar { width: 8px; }
+      .wama-apps-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 4px; }
+      /* Chevron du sous-menu : suit l'état d'ouverture (aucune ligne de JS). */
+      .wama-apps-menu [data-bs-toggle="collapse"][aria-expanded="true"] .fa-chevron-down { transform: rotate(180deg); }
+      .wama-apps-menu [data-bs-toggle="collapse"] .fa-chevron-down { transition: transform .15s ease; }
     </style>
     <link href="{% static_v 'common/css/app_modern.css' %}" rel="stylesheet">
     <link href="{% static_v 'common/css/media-preview.css' %}" rel="stylesheet">
