@@ -31,10 +31,13 @@ python wama-dev-ai/run_scout.py …         # prospection de modèles (fiches ca
 python wama-dev-ai/run_integrator.py …    # propositions d'intégration
 ```
 
-⚠ `run_model_manifest.py` consulte **`WAMA_GPU_SAFE_MODE`** et refuse de partir quand il est
-actif (`--force` pour un GO explicite) : son appel Ollama charge un modèle dans la VRAM de
-l'hôte — le geste qui a crashé la machine deux fois le 2026-09-02. Même garde que
-`ui_smoke._vlm_triage` ; tout rôle qui appellera Ollama devra la porter aussi.
+⚠ `run_model_manifest.py` **coopère** avec `WAMA_GPU_SAFE_MODE` au lieu de s'y dérober : le
+mode dépannage réduit la SUPERPOSITION de charges, il n'interdit pas de charger. Le rôle
+emploie donc ses deux parades — `wait_for_free_vram()` avant l'appel (pas d'empilement) et
+`keep_alive='0'` (déchargement sitôt la réponse rendue). `--force` saute l'attente, jamais le
+keep_alive. Tout rôle qui appellera Ollama devrait faire de même (`call_ollama(...,
+keep_alive=pipeline_keep_alive())`) — un refus en bloc rendrait l'agent inutilisable pendant
+tout le mode dépannage, et l'ignorer a crashé l'hôte deux fois le 2026-09-02.
 
 ## Les rôles (le cœur actuel de l'outil)
 

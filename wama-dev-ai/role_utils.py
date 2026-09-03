@@ -43,7 +43,10 @@ def fetch(url, user_agent='wama-dev-ai'):
         return r.read().decode('utf-8', 'replace')
 
 
-def call_ollama(model, system, user_msg, num_ctx=16384):
+def call_ollama(model, system, user_msg, num_ctx=16384, keep_alive=None):
+    """Appel Ollama one-shot. `keep_alive='0'` décharge le modèle SITÔT la réponse rendue
+    (au lieu des ~5 min de résidence par défaut) — c'est la parade du mode dépannage GPU,
+    à passer depuis `resource_governor.pipeline_keep_alive()`. None = défaut Ollama."""
     payload = {
         'model': model,
         'messages': [{'role': 'system', 'content': system},
@@ -51,6 +54,8 @@ def call_ollama(model, system, user_msg, num_ctx=16384):
         'stream': False,
         'options': {'temperature': 0.1, 'num_ctx': num_ctx},
     }
+    if keep_alive is not None:
+        payload['keep_alive'] = keep_alive
     req = urllib.request.Request(
         f'{ollama_host()}/api/chat', data=json.dumps(payload).encode('utf-8'),
         headers={'Content-Type': 'application/json'})
