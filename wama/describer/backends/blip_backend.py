@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class BlipBackend(BaseModelBackend):
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'transformers'
     REQUIRED_PACKAGES = ['transformers', 'torch', 'PIL']
     PIP_PACKAGES = ['transformers', 'torch', 'pillow']   # import `PIL` ↔ pip `pillow`
     recommended_vram_gb = 1.8

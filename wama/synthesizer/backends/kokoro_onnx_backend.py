@@ -80,6 +80,8 @@ def _snapshot_dir() -> Path | None:
 
 
 class KokoroOnnxBackend(TTSBackend):
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'kokoro-onnx'
     engine = "kokoro-onnx"
     description = ("Kokoro 82M (export ONNX officiel) — mêmes poids que Kokoro, servis par "
                    "onnxruntime ; phonémisation espeak-ng, 40 voix embarquées.")

@@ -97,10 +97,9 @@
         {% if e.natures %}{% if e.packages or e.vram_gb %} · {% endif %}nature
           <code>{{ a.nature_effective }}</code>{% if not a.nature_declaree %} <span class="bk-lien-app">(défaut)</span>{% endif %}{% endif %}
       </div>
-      {% if e.engines %}
-        <div class="bk-sig">moteur{{ e.engines|pluralize }} appelé{{ e.engines|pluralize }} :
-          <code>{{ e.engines|join:", " }}</code>
-          {% for m in e.engines_absents %}<span class="bk-manque">({{ m }} non installé)</span>{% endfor %}
+      {% if e.moteur %}
+        <div class="bk-sig">moteur appelé : <code>{{ e.moteur }}</code>
+          {% if not e.moteur_installe %}<span class="bk-manque">(paquets absents de ce venv)</span>{% endif %}
         </div>
       {% endif %}
       {% if e.models %}

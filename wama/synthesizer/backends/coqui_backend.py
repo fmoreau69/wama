@@ -23,6 +23,8 @@ _VRAM_GB = {'coqui-xtts': 2.5}
 
 
 class CoquiBackend(TTSBackend):
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'coqui'
     engine = "coqui"
     description = "Coqui TTS — XTTS v2 (clonage multilingue) et moteurs EN légers."
 

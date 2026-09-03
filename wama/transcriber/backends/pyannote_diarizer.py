@@ -44,6 +44,8 @@ class PyannoteDiarizerBackend(BaseModelBackend):
     « pyannote » au choix de moteur et à `get_backend('auto')`.
     """
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'pyannote'
     name = "pyannote"
     display_name = "pyannote speaker-diarization-3.1"
     description = "Diarisation des locuteurs en post-traitement des segments ASR (Whisper, Qwen3-ASR)."

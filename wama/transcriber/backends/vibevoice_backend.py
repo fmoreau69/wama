@@ -39,6 +39,8 @@ class VibeVoiceBackend(SpeechToTextBackend):
     pyannote post-processing is therefore NOT applied.
     """
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'vibevoice'
     name = "vibevoice"
     display_name = "VibeVoice ASR (Microsoft)"
     description = "VibeVoice-ASR — multi-locuteurs, précis, un seul passage. Diarisation + timestamps natifs."

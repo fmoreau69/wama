@@ -55,6 +55,8 @@ def _cache_dir_for(hf_id: str) -> Optional[str]:
 class TableTransformerBackend(BaseModelBackend):
     """Détection + structure de tableaux — enrichisseur, pas moteur OCR (cf. module)."""
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'transformers'
     REQUIRED_PACKAGES = ['transformers', 'torch']
     recommended_vram_gb = 0.6          # 2 DETR ~110M ; tournés CPU (voir load)
     description = ("Table Transformer (Microsoft, DETR) — détecte les tableaux d'une page "

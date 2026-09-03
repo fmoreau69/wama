@@ -26,6 +26,8 @@ class WhisperBackend(SpeechToTextBackend):
     Diarization is handled externally by pyannote_diarizer (see workers.py).
     """
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'faster-whisper'
     name = "whisper"
     display_name = "Whisper (faster-whisper)"
     description = "large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote."

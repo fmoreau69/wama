@@ -29,8 +29,9 @@ fichier ; les jumelles de bac à sable sont marquées, jamais confondues avec le
 """
 from __future__ import annotations
 
-import inspect
+import ast
 import logging
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -62,6 +63,10 @@ class BackendEntry:
     description: str = ''
     #: Modèles du catalogue servis par ce backend (clés AIModel).
     models: List[str] = field(default_factory=list)
+    #: MOTEUR déclaré par le backend lui-même (`ENGINE`) — la librairie qu'il pilote.
+    moteur: str = ''
+    #: Ses paquets requis sont-ils présents dans CE venv ? (`find_spec`, sans import)
+    moteur_installe: bool = True
     #: MOTEURS (librairies d'exécution) que ce backend appelle — DÉRIVÉS des modèles servis
     #: (`composition.runtime.engine`). ⚠ Backend ≠ moteur (recadrage Fabien 2026-09-03) : le
     #: backend est l'adaptateur WAMA (contrat load/unload/process), le moteur est la
@@ -101,6 +106,9 @@ class AppBackends:
     manque: str = ''
     #: Sous-modules du paquet qu'on n'a pas pu lire (dépendance absente) — DIT, jamais avalé.
     illisibles: List[str] = field(default_factory=list)
+    #: Classes de backend RÉSOLUES (nom, cls) — sert la dérivation d'inventaire de moteurs ;
+    #: la page, elle, n'affiche que les champs déclaratifs des entrées.
+
     #: Modèles rattachés à l'APP (lien non déclaré) et moteurs qu'ils nomment. ⚠ Ils vivent
     #: ICI et non sur chaque backend : l'attribution par app ÉTALAIT les modèles sur toutes
     #: les entrées (BarkBackend annoncé appelant coqui/higgs/kokoro — mesuré le 03/09). Une
@@ -109,44 +117,150 @@ class AppBackends:
     engines_app: List[str] = field(default_factory=list)
 
 
-def _classe_backends(paquet) -> tuple:
-    """(classes, illisibles) — sous-classes de `BaseModelBackend` de TOUT le paquet.
-
-    ⚠ Balayer le seul `__init__` ne suffit pas (mesuré à l'écriture, 03/09) : 4 apps sur 9
-    n'y ré-exportent pas leurs classes — elles seraient sorties du vivier en silence, et un
-    inventaire qui rate des entrées est pire qu'aucun inventaire. On parcourt donc les
-    SOUS-MODULES, en ne gardant que les classes qui y sont DÉFINIES (`__module__`), sinon un
-    import partagé compterait deux fois.
-
-    Un sous-module illisible (dépendance absente) est REMONTÉ, jamais avalé : c'est
-    précisément l'information qu'un vivier doit donner.
-    """
-    import pkgutil
-    from importlib import import_module
-
+def _declarations_du_init(chemin) -> dict:
+    """Déclarations LITTÉRALES du `backends/__init__.py` (ROUTES/RESULT/NATURE_FIELD),
+    lues sans import — même raison que `_classe_backends` : lire ne doit rien exécuter."""
+    out = {}
     try:
-        from wama.common.backends.base import BaseModelBackend
-    except Exception:
-        return [], []
+        arbre = ast.parse(chemin.read_text(encoding='utf-8'))
+    except (OSError, SyntaxError):
+        return out
+    for n in arbre.body:
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            nom = n.targets[0].id
+            if nom in ('ROUTES', 'RESULT', 'NATURE_FIELD'):
+                out[nom] = _litteral(n.value)
+    return out
 
-    modules = [paquet]
-    illisibles = []
-    for info in pkgutil.iter_modules(getattr(paquet, '__path__', []) or []):
+
+_CONTRAT_CACHE: Optional[tuple] = None
+
+
+def _abstraites_du_contrat_commun() -> tuple:
+    """Méthodes `@abstractmethod` de `BaseModelBackend`, lues par AST (source unique)."""
+    global _CONTRAT_CACHE
+    if _CONTRAT_CACHE is None:
+        noms = set()
         try:
-            modules.append(import_module(f'{paquet.__name__}.{info.name}'))
-        except Exception as e:
-            illisibles.append(f'{info.name} ({type(e).__name__})')
+            base = Path(__file__).resolve().parents[1] / 'backends' / 'base.py'
+            for n in ast.walk(ast.parse(base.read_text(encoding='utf-8'))):
+                if isinstance(n, ast.ClassDef) and n.name == 'BaseModelBackend':
+                    for s in n.body:
+                        if (isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef))
+                                and any(getattr(d, 'id', getattr(d, 'attr', '')) == 'abstractmethod'
+                                        for d in s.decorator_list)):
+                            noms.add(s.name)
+        except (OSError, SyntaxError) as e:
+            logger.warning('[backends] contrat commun illisible : %s', e)
+        _CONTRAT_CACHE = tuple(sorted(noms))
+    return _CONTRAT_CACHE
 
-    trouvees, vues = [], set()
-    for mod in modules:
-        for nom, obj in vars(mod).items():
-            if (inspect.isclass(obj) and issubclass(obj, BaseModelBackend)
-                    and obj is not BaseModelBackend
-                    and obj.__module__.startswith(paquet.__name__)
-                    and (obj.__module__, nom) not in vues):
-                vues.add((obj.__module__, nom))
-                trouvees.append((nom, obj))
-    return trouvees, illisibles
+
+def _paquets_presents(paquets) -> bool:
+    """Les paquets requis sont-ils importables ? — `find_spec`, donc SANS import réel.
+
+    ⚠ Ne PAS appeler `known_engines()` d'ici : `inventory()` alimente l'inventaire des
+    moteurs, donc le consulter ici crée un CYCLE. Mesuré le 03/09 en l'écrivant :
+    47 s d'empilement récursif avant qu'une exception ne l'arrête, contre 0,2 s sans.
+    *Un producteur ne consulte jamais le registre qu'il alimente.*
+    """
+    from importlib.util import find_spec
+    for nom in (paquets or []):
+        try:
+            if find_spec(nom.split('.')[0]) is None:
+                return False
+        except (ImportError, ValueError):
+            return False
+    return True
+
+
+def _litteral(noeud):
+    """Valeur d'une affectation de classe si elle est LITTÉRALE, sinon None."""
+    try:
+        return ast.literal_eval(noeud)
+    except (ValueError, SyntaxError):
+        return None
+
+
+def _classe_backends(paquet_dir, prefixe: str) -> tuple:
+    """(classes, illisibles) — backends du paquet, lus par AST : AUCUN IMPORT.
+
+    ⚠ POURQUOI STATIQUE (mesuré le 2026-09-03, après une 1ʳᵉ version qui importait) :
+      • la page coûtait **9,07 s au premier affichage** par worker (import de tout le socle
+        modèles — diffusers, torch…), 0,10 s ensuite : un registre qui fait payer le socle
+        à son premier visiteur n'est pas un registre, c'est un chargement ;
+      • surtout, IMPORTER a des EFFETS : deux backends imager ont muté `HF_HUB_CACHE` au
+        niveau module (règle CLAUDE.md). Le chantier HF est en cours de re-correction — une
+        page de lecture ne doit dépendre d'aucun état de ce chantier. *Lire une déclaration
+        ne doit jamais exécuter le code qui la porte.*
+
+    Classification SANS import : fermeture transitive des bases (`BaseModelBackend` →
+    bases métier → backends concrets). ABSTRAITE = il reste une méthode abstraite NON
+    implémentée, en remontant la chaîne — ⚠ pas seulement « déclare un `@abstractmethod` » :
+    mesuré le 03/09, `DetectionBackend` et `TTSBackend` sont abstraites parce qu'elles
+    n'implémentent pas le contrat commun, sans rien déclarer elles-mêmes. La 1ʳᵉ règle les
+    laissait passer pour des backends exécutables — un inventaire qui annonce un moteur
+    inexécutable est aussi faux qu'un inventaire qui en rate un.
+    """
+    abstraites_du_contrat = _abstraites_du_contrat_commun()
+    fichiers = sorted(paquet_dir.glob('*.py')) if paquet_dir.is_dir() else []
+    classes_par_nom, illisibles = {}, []
+    for f in fichiers:
+        try:
+            arbre = ast.parse(f.read_text(encoding='utf-8'))
+        except (OSError, SyntaxError) as e:
+            illisibles.append(f'{f.stem} ({type(e).__name__})')
+            continue
+        for n in arbre.body:
+            if not isinstance(n, ast.ClassDef):
+                continue
+            bases = {b.id if isinstance(b, ast.Name) else getattr(b, 'attr', '')
+                     for b in n.bases}
+            attrs, propres_abstraites, definies = {}, set(), set()
+            for s in n.body:
+                if isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
+                    attrs[s.targets[0].id] = _litteral(s.value)
+                elif isinstance(s, ast.AnnAssign) and isinstance(s.target, ast.Name) and s.value is not None:
+                    attrs[s.target.id] = _litteral(s.value)
+                elif isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if any(getattr(d, 'id', getattr(d, 'attr', '')) == 'abstractmethod'
+                           for d in s.decorator_list):
+                        propres_abstraites.add(s.name)
+                    else:
+                        definies.add(s.name)
+                elif isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
+                    definies.add(s.targets[0].id)     # alias de méthode (load_model = load)
+            classes_par_nom[n.name] = {
+                'nom': n.name, 'bases': bases, 'module': f'{prefixe}.{f.stem}',
+                'fichier': f.stem, 'attrs': attrs,
+                'propres_abstraites': propres_abstraites, 'definies': definies}
+
+    # Fermeture transitive depuis le contrat commun (les bases métier sont dans le paquet).
+    backends, bougé = {'BaseModelBackend'}, True
+    while bougé:
+        bougé = False
+        for nom, info in classes_par_nom.items():
+            if nom not in backends and (info['bases'] & backends):
+                backends.add(nom)
+                bougé = True
+
+    def _reste_abstrait(nom, vus=None):
+        """Méthodes abstraites NON implémentées, en remontant la chaîne d'héritage."""
+        vus = vus or set()
+        if nom in vus:
+            return set()
+        vus.add(nom)
+        info = classes_par_nom.get(nom)
+        if info is None:                      # base hors paquet = le contrat commun
+            return set(abstraites_du_contrat) if nom == 'BaseModelBackend' else set()
+        heritees = set()
+        for b in info['bases']:
+            heritees |= _reste_abstrait(b, vus)
+        return (heritees | info['propres_abstraites']) - info['definies']
+
+    trouvees = [(nom, info) for nom, info in classes_par_nom.items()
+                if nom in backends and not _reste_abstrait(nom)]
+    return sorted(trouvees), illisibles
 
 
 def _modeles_par_app() -> dict:
@@ -174,26 +288,18 @@ def _modeles_par_app() -> dict:
 
 def inventory() -> List[AppBackends]:
     """Le vivier, DÉRIVÉ à l'appel. Une app = une entrée ; jamais de nom d'app en dur ici."""
-    from importlib import import_module
-
     from django.apps import apps as django_apps
 
     modeles = _modeles_par_app()
-    # Moteurs réellement exécutables ici (inventaires déclarés) — sert à dire d'un moteur
-    # DÉCLARÉ par un modèle qu'il n'est pas installé, au lieu de le laisser croire prêt.
-    try:
-        from wama.common.backends.manager import known_engines
-        executables = set(known_engines())
-    except Exception:
-        executables = set()
     resultat: List[AppBackends] = []
 
     for config in django_apps.get_app_configs():
         app = config.label
-        try:
-            paquet = import_module(f'{config.name}.backends')
-        except Exception:
+        paquet_dir = Path(config.path) / 'backends'
+        if not (paquet_dir / '__init__.py').is_file():
             continue                      # pas de paquet backends : ce n'est pas un défaut
+        # ROUTES/RESULT/NATURE_FIELD : lus au LITTÉRAL du `__init__.py`, sans import.
+        decl = _declarations_du_init(paquet_dir / '__init__.py')
 
         marque = ''
         try:
@@ -202,10 +308,10 @@ def inventory() -> List[AppBackends]:
         except Exception:
             pass
 
-        routes = dict(getattr(paquet, 'ROUTES', {}) or {})
-        result = getattr(paquet, 'RESULT', None) or {}
+        routes = dict(decl.get('ROUTES') or {})
+        result = decl.get('RESULT') or {}
         saveur = (result.get('kind') if isinstance(result, dict) else '') or 'file'
-        nature_field = getattr(paquet, 'NATURE_FIELD', '') or ''
+        nature_field = decl.get('NATURE_FIELD') or ''
 
         # Modèles servis. ⚠ FAIT MESURÉ le 2026-09-03 : `AIModel.backend_ref` porte
         # aujourd'hui un nom d'APP (`sam3` → 'anonymizer'), pas un nom de backend — son sens
@@ -240,27 +346,36 @@ def inventory() -> List[AppBackends]:
             entries.append(BackendEntry(
                 app=app, name=nom, path=chemin, natures=sorted(natures), saveur=saveur,
                 kind='route', models=servis_r, engines=mot_r,
-                engines_absents=[m for m in mot_r if m not in executables],
+                engines_absents=[],
                 lien='backend_ref' if servis_r else ''))
 
         #: ② Les CLASSES au contrat commun (modèles chargés, VRAM comptée).
-        classes, illisibles = _classe_backends(paquet)
-        for nom, cls in classes:
+        classes, illisibles = _classe_backends(paquet_dir, f'{config.name}.backends')
+        for nom, info in classes:
             servis = sorted(par_ref.get(nom, []))
             entries.append(BackendEntry(
                 app=app, name=nom,
-                path=f'{cls.__module__.split(".", 2)[-1]}.{nom}',
+                path=f"backends.{info['fichier']}.{nom}",
                 natures=[], saveur=saveur, kind='classe',
-                packages=list(getattr(cls, 'REQUIRED_PACKAGES', []) or []),
-                vram_gb=getattr(cls, 'recommended_vram_gb', None),
-                description=(getattr(cls, 'description', '') or '').strip(),
+                packages=list(info['attrs'].get('REQUIRED_PACKAGES') or []),
+                vram_gb=info['attrs'].get('recommended_vram_gb'),
+                description=(info['attrs'].get('description') or '').strip(),
+                moteur=(info['attrs'].get('ENGINE') or '').strip(),
+                moteur_installe=_paquets_presents(info['attrs'].get('REQUIRED_PACKAGES')),
                 models=servis,
                 engines=sorted({moteur_de[c] for c in servis if c in moteur_de}),
-                engines_absents=sorted({moteur_de[c] for c in servis
-                                        if c in moteur_de and moteur_de[c] not in executables}),
+                engines_absents=[],
                 lien='backend_ref' if servis else ''))
 
-        if not entries and not illisibles:
+        if not entries and not illisibles and not routes:
+            # ⚠ Une app à paquet `backends/` mais SANS backend exécutable reste inventoriée
+            # (anonymizer, mesuré le 03/09 : sa seule classe est une base métier abstraite).
+            # La faire disparaître dirait « pas de paquet » là où il faut dire « aucun
+            # backend exécutable » — un vide non expliqué se lit comme un oubli.
+            resultat.append(AppBackends(app=app, generated_from=marque, routes={},
+                                        manque="aucun backend EXÉCUTABLE (bases métier "
+                                               "abstraites seules) — et pas de ROUTES : le "
+                                               "corps de tâche généré reste un trou marqué"))
             continue
 
         # Ce qui manque pour COMPOSER (dit ici parce que c'est la seule page qui voit les
@@ -294,11 +409,6 @@ def summary() -> dict:
     # ⚠ Un modèle servi par plusieurs entrées d'une même app (rattachement de NIVEAU APP)
     # ne compte qu'UNE fois : un total qui additionne les cartes annoncerait plus de modèles
     # liés que le catalogue n'en a — *un chiffre qui gonfle tout seul ne mesure plus rien*.
-    try:
-        from wama.common.backends.manager import known_engines
-        executables = set(known_engines())
-    except Exception:
-        executables = set()
     lies = ({(e.app, m) for e in entrees for m in e.models}
             | {(a.app, m) for a in reels for m in a.models_app})
     declares = {(e.app, m) for e in entrees if e.lien == 'backend_ref' for m in e.models}
@@ -318,8 +428,42 @@ def summary() -> dict:
         'moteurs': sorted({m for e in entrees for m in e.engines}
                           | {m for a in reels for m in a.engines_app}),
         'moteurs_absents': sorted({m for e in entrees for m in e.engines_absents}),
-        'moteurs_executables': sorted(executables),
+        'moteurs_executables': sorted({e.moteur for a in reels for e in a.entries
+                                       if e.moteur and e.moteur_installe}),
     }
+
+
+_ENGINES_CACHE: Optional[dict] = None
+
+
+def engines_declares() -> dict:
+    """{moteur: classe de backend} DÉRIVÉ des déclarations `ENGINE` des backends.
+
+    C'est l'autre moitié du lien modèle↔moteur (2026-09-03) : le modèle déclare le moteur
+    qu'il EXIGE (`composition.runtime.engine`), le backend déclare celui qu'il SAIT piloter,
+    et l'inventaire des exécutables se DÉRIVE — plus de liste tenue à la main (avant ce
+    jour : 2 apps sur 9 en enregistraient une, donc `known_engines()` était structurellement
+    incomplet et un modèle pouvait être grisé faute d'inventaire, pas faute de moteur).
+
+    Rendu au format MAPPING attendu par `register_engine_inventory` (il seul permet de
+    remonter au contrat du backend : PIP_PACKAGES, missing_packages).
+
+    ⚠ Appelé PARESSEUSEMENT (jamais au démarrage) et mis en cache : le balayage importe les
+    sous-modules de backends. Mesuré le 03/09 : 0,13 s et — depuis le correctif HF cache de
+    l'instance parallèle — AUCUNE mutation de `HF_HUB_CACHE` (c'était le risque : deux
+    backends imager mutaient l'environnement au niveau module).
+    """
+    global _ENGINES_CACHE
+    if _ENGINES_CACHE is None:
+        carte = {}
+        for a in inventory():
+            if a.generated_from:
+                continue                    # une jumelle n'ajoute aucun moteur au parc
+            for e in a.entries:
+                if e.moteur:
+                    carte.setdefault(e.moteur, sorted(e.packages))
+        _ENGINES_CACHE = carte
+    return dict(_ENGINES_CACHE)
 
 
 def count() -> int:

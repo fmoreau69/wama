@@ -152,6 +152,8 @@ def _codeformer_dans(video_path: str, travail: Path):
 class CodeFormerBackend(BaseModelBackend):
     """Contrat commun autour du sous-processus CodeFormer (inference_codeformer.py vendore)."""
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'codeformer'
     REQUIRED_PACKAGES = ['basicsr', 'facexlib', 'realesrgan']
     recommended_vram_gb = CODEFORMER_VRAM_GB
     description = "CodeFormer — restauration/nettete du visage apres MuseTalk (use_enhancer)."

@@ -116,7 +116,12 @@ class DerivationDuVivierTest(TestCase):
 
 
 class BalayageDesSousModulesTest(SimpleTestCase):
-    """Le défaut n°1, tenu sur un paquet FABRIQUÉ (jamais l'arbre courant)."""
+    """Le balayage, tenu sur un paquet FABRIQUÉ (jamais l'arbre courant).
+
+    ⚠ Depuis le 2026-09-03 la lecture est STATIQUE (AST) : le paquet témoin n'est plus
+    importé du tout — c'est le but (lire une déclaration ne doit rien exécuter), et c'est
+    ce qui a fait passer la page de 9,07 s à 0,16 s au premier affichage.
+    """
 
     def _paquet(self, racine, submodules: dict):
         p = Path(racine) / 'paquet_temoin'
@@ -124,21 +129,10 @@ class BalayageDesSousModulesTest(SimpleTestCase):
         (p / '__init__.py').write_text('', encoding='utf-8')   # rien de ré-exporté : le cas
         for nom, code in submodules.items():
             (p / f'{nom}.py').write_text(textwrap.dedent(code), encoding='utf-8')
-        sys.path.insert(0, racine)
-        self.addCleanup(sys.path.remove, racine)
+        return p
 
-        # ⚠ Purge des modules À LA FIN, pas d'une liste figée MAINTENANT : ma 1ʳᵉ version
-        # collectait les modules AVANT l'import (donc aucun) — le paquet du test précédent
-        # restait dans `sys.modules`, `import_module` rendait un module dont le `__path__`
-        # pointait sur un temporaire SUPPRIMÉ, et le balayage trouvait 0 classe.
-        def _purger():
-            for mod in [m for m in list(sys.modules) if m.startswith('paquet_temoin')]:
-                sys.modules.pop(mod, None)
-        _purger()
-        self.addCleanup(_purger)
-        from importlib import import_module
-        return import_module('paquet_temoin')
-
+    #: Un backend CONCRET doit implémenter le contrat — sinon il est abstrait par héritage
+    #: (défaut mesuré le 03/09 : `DetectionBackend`/`TTSBackend` passaient pour exécutables).
     CLASSE = """
         from wama.common.backends.base import BaseModelBackend
 
@@ -146,20 +140,62 @@ class BalayageDesSousModulesTest(SimpleTestCase):
             REQUIRED_PACKAGES = ['torch']
             recommended_vram_gb = 2.5
             description = "moteur témoin"
+            ENGINE = 'moteur-temoin'
+
+            @property
+            def is_loaded(self): return False
+            def load(self, model=None): return True
+            def unload(self): return None
+            def process(self, **kw): return None
+    """
+
+    ABSTRAITE = """
+        from wama.common.backends.base import BaseModelBackend
+
+        class BaseMetier(BaseModelBackend):
+            \"\"\"Base métier : n'implémente PAS le contrat -> jamais un backend exécutable.\"\"\"
+            description = "base metier"
     """
 
     def test_une_classe_d_un_SOUS_MODULE_non_re_exporte_est_trouvee(self):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'moteur': self.CLASSE})
-            classes, illisibles = bi._classe_backends(paquet)
+            classes, illisibles = bi._classe_backends(paquet, 'paquet_temoin')
         self.assertEqual([n for n, _ in classes], ['MoteurTemoin'])
         self.assertEqual(illisibles, [])
+
+    def test_le_MOTEUR_declare_est_lu_avec_les_paquets_requis(self):
+        with TemporaryDirectory() as d:
+            paquet = self._paquet(d, {'moteur': self.CLASSE})
+            classes, _ = bi._classe_backends(paquet, 'paquet_temoin')
+        _, info = classes[0]
+        self.assertEqual(info['attrs'].get('ENGINE'), 'moteur-temoin')
+        self.assertEqual(info['attrs'].get('REQUIRED_PACKAGES'), ['torch'])
+
+    def test_une_base_METIER_qui_n_implemente_pas_le_contrat_est_ECARTEE(self):
+        with TemporaryDirectory() as d:
+            paquet = self._paquet(d, {'base': self.ABSTRAITE, 'moteur': self.CLASSE})
+            classes, _ = bi._classe_backends(paquet, 'paquet_temoin')
+        self.assertEqual([n for n, _ in classes], ['MoteurTemoin'],
+                         'une base abstraite par HÉRITAGE ne doit pas passer pour exécutable')
+
+    def test_un_module_dont_la_LIB_manque_reste_LISIBLE(self):
+        """Gain direct du statique : un backend dont la librairie n'est pas installée
+        s'inventorie quand même (c'est `moteur_installe` qui dit qu'il ne tournera pas).
+        En lecture par IMPORT il disparaissait purement et simplement."""
+        with TemporaryDirectory() as d:
+            paquet = self._paquet(d, {'moteur': self.CLASSE.replace(
+                "['torch']", "['bibliotheque_absente_xyz']")})
+            classes, illisibles = bi._classe_backends(paquet, 'paquet_temoin')
+        self.assertEqual([n for n, _ in classes], ['MoteurTemoin'])
+        self.assertEqual(illisibles, [])
+        self.assertFalse(bi._paquets_presents(['bibliotheque_absente_xyz']))
 
     def test_un_sous_module_ILLISIBLE_est_rapporte_jamais_avale(self):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'moteur': self.CLASSE,
-                                      'casse': 'import bibliotheque_absente_xyz\n'})
-            classes, illisibles = bi._classe_backends(paquet)
+                                      'casse': 'class Casse(:\n'})   # INSYNTAXIQUE
+            classes, illisibles = bi._classe_backends(paquet, 'paquet_temoin')
         self.assertEqual([n for n, _ in classes], ['MoteurTemoin'],
                          'un module cassé ne doit pas emporter les autres')
         self.assertEqual(len(illisibles), 1)
@@ -169,7 +205,7 @@ class BalayageDesSousModulesTest(SimpleTestCase):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'moteur': self.CLASSE,
                                       'reexport': 'from .moteur import MoteurTemoin\n'})
-            classes, _ = bi._classe_backends(paquet)
+            classes, _ = bi._classe_backends(paquet, 'paquet_temoin')
         self.assertEqual(len(classes), 1, 'compté par sa DÉFINITION, pas par ses imports')
 
 

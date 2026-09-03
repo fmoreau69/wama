@@ -143,6 +143,8 @@ def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift:
 class MuseTalkBackend(BaseModelBackend):
     """Contrat commun autour du sous-processus MuseTalk (scripts.inference du depot vendore)."""
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'musetalk'
     REQUIRED_PACKAGES = ['mmcv', 'mmpose', 'mmengine']
     recommended_vram_gb = MUSETALK_VRAM_GB
     description = "MuseTalk — lip-sync d'un avatar sur un audio (sous-processus GPU)."

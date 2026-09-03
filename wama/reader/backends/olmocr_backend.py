@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 class OlmOCRBackend(BaseModelBackend):
 
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'transformers'
     REQUIRED_PACKAGES = ['transformers', 'torch']
     recommended_vram_gb = 8.0
     description = "olmOCR (Qwen2-VL) — OCR de documents."

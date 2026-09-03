@@ -73,6 +73,8 @@ def _snapshot_dir() -> Path | None:
 
 
 class Qwen3TTSBackend(TTSBackend):
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'qwen3-tts'
     engine = "qwen3-tts"
     description = ("Qwen3-TTS 12Hz 1.7B CustomVoice — 9 locuteurs nommés, 10 langues dont "
                    "le français, runtime local officiel qwen-tts.")

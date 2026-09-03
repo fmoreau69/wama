@@ -31,6 +31,8 @@ MAX_REF_DURATION_S = 6.0
 
 
 class HiggsAudioBackend(TTSBackend):
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'higgs'
     engine = "higgs"
     description = "Higgs Audio v2 — multi-locuteurs, clonage, conditionnement de scène."
 

@@ -69,6 +69,8 @@ def _snapshot_dir() -> Path | None:
 
 
 class Audio8Backend(TTSBackend):
+    #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
+    ENGINE = 'transformers-remote-code'
     engine = "transformers-remote-code"
     description = ("Audio8 TTS Preview 0.6B — multilingue (11 langues dont le français), "
                    "codec 44,1 kHz embarqué, code de modèle fourni par le dépôt "
