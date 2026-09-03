@@ -112,12 +112,24 @@ class VisibiliteDesJumellesDeBacASableTests(TestCase):
         UserProfile.objects.get_or_create(user=u)   # tier par défaut : utilisateur
         return u
 
+    def _politique_jumelle_posee(self):
+        """Politique dev-only de la jumelle POSÉE PAR LE TEST (patch.dict) — le registre
+        sandbox_apps.json est GITIGNORÉ : sur un arbre frais (worktree HEAD, clone),
+        `inject_sandbox_access` n'a rien semé et la politique par défaut est OUVERTE.
+        Mesuré le 2026-09-03 : la V1 de ces tests lisait l'arbre COURANT et échouait sur
+        HEAD — un test qui dépend d'un fichier gitignoré mesure l'arbre, pas la logique."""
+        from unittest.mock import patch
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS
+        return patch.dict(DEFAULT_APP_ACCESS, {
+            'converter_01': {'roles': ['ingenierie'], 'min_tier': 'developpeur'}})
+
     def test_le_createur_accede_a_sa_jumelle_meme_sans_tier_dev(self):
         from unittest.mock import patch
         createur = self._utilisateur('temoin_createur')
         autre = self._utilisateur('temoin_autre')
         self.assertEqual(user_tier(createur), 'utilisateur')
-        with patch('wama.common.sandbox.twin_owner',
+        with self._politique_jumelle_posee(), \
+             patch('wama.common.sandbox.twin_owner',
                    side_effect=lambda label: 'temoin_createur' if label == 'converter_01' else ''):
             self.assertTrue(accessible(createur, 'app', 'converter_01'),
                             'le créateur doit voir SA jumelle, quel que soit son tier')
@@ -125,10 +137,10 @@ class VisibiliteDesJumellesDeBacASableTests(TestCase):
                              "un autre utilisateur standard ne voit pas la jumelle d'autrui")
 
     def test_une_jumelle_sans_proprietaire_reste_reservee_aux_dev_admin(self):
-        # Le registre réel (converter_01, créée en CLI) n'a pas de created_by : le
-        # comportement historique dev-only doit tenir tel quel.
+        # Une jumelle SANS created_by (CLI) : le gating dev-only seul décide.
         standard = self._utilisateur('temoin_standard')
-        self.assertFalse(accessible(standard, 'app', 'converter_01'))
+        with self._politique_jumelle_posee():
+            self.assertFalse(accessible(standard, 'app', 'converter_01'))
 
     def test_le_menu_range_les_jumelles_dans_un_groupe_dedie_en_queue(self):
         from django.test import RequestFactory
