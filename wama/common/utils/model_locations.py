@@ -52,3 +52,46 @@ def model_dir(category: str, family: str = None) -> Path:
     """
     base = models_root() / canonical_category(category)
     return base / family if family else base
+
+
+# =============================================================================
+# COMPOSANTS DÉCLARÉS D'UNE FAMILLE — lus par `manage.py check_model_layout`
+# =============================================================================
+# POURQUOI CETTE TABLE EXISTE. Un dossier de famille ne doit contenir QUE le(s) snapshot(s)
+# du modèle qu'il nomme. Tout autre `models--org--nom` qu'on y trouve est, par défaut, un
+# dépôt ACCIDENTEL — la signature du défaut `HF_HUB_CACHE` (cf. `CLAUDE.md §AJOUT D'UN
+# NOUVEAU MODÈLE AI` et `ROADMAP §5b`) : la variable étant globale au processus, elle emporte
+# les sous-dépendances dans le dossier du modèle principal.
+#
+# Mais certains modèles sont RÉELLEMENT faits de plusieurs dépôts HF (un pipeline pyannote,
+# un tokenizer publié à part). Cette différence-là ne se DEVINE pas : elle se DÉCLARE. Sans
+# déclaration, le contrôle crierait au loup sur des assemblages légitimes — et un contrôle
+# qui crie au loup finit par être ignoré, donc par ne plus rien protéger.
+#
+# ⚠ AJOUTER UNE ENTRÉE ICI EST UNE DÉCISION, pas une formalité : on affirme que ce dépôt
+# APPARTIENT à ce modèle. Si la réponse est « non, c'est une dépendance partagée » (t5, bert,
+# un backbone timm), alors sa place est le CACHE PARTAGÉ et il ne faut PAS l'inscrire ici —
+# il faut retirer la mutation d'environnement du backend qui l'a déposé là.
+#
+# Clé : `"<catégorie>/<famille>"`. Valeur : préfixes de snapshots attendus EN PLUS de ceux
+# qui portent le nom de la famille.
+COMPOSANTS_DECLARES = {
+    # Pipeline pyannote : le diariseur charge segmentation + embedding + la pipeline elle-même,
+    # trois dépôts du MÊME éditeur qui n'ont de sens qu'ensemble (déplacés là volontairement
+    # depuis `speech/kokoro`, cf. ROADMAP §5b « 4 pyannote déplacés … là où le diariseur les
+    # attend »).
+    'speech/diarization': [
+        'models--pyannote--segmentation-3.0',
+        'models--pyannote--wespeaker-voxceleb-resnet34-LM',
+    ],
+    # Higgs Audio v2 : le générateur, son tokenizer audio et le HuBERT dont il dépend sont
+    # publiés séparément par bosonai mais forment un seul moteur.
+    'speech/higgs': [
+        'models--bosonai--hubert_base',
+    ],
+}
+
+
+def composants_declares(categorie: str, famille: str) -> list:
+    """Snapshots légitimement attendus dans ce dossier, en plus de ceux de la famille."""
+    return list(COMPOSANTS_DECLARES.get(f"{canonical_category(categorie)}/{famille}", []))
