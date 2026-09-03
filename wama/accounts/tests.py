@@ -97,3 +97,53 @@ class DeuxAxesDuModeleDAccesTests(TestCase):
         avec_roles = {a for a in APP_CATALOG if accessible(u, 'app', a)}
         self.assertLess(len(sans_roles), len(avec_roles),
                         "les rôles doivent élargir l'accès une fois le tier perdu")
+
+
+class VisibiliteDesJumellesDeBacASableTests(TestCase):
+    """Visibilité des jumelles (demande Fabien 2026-09-03) : créateur + dev + admin.
+
+    La dérogation créateur vit dans `_app_accessible` AVANT le min_tier (qui bloquerait un
+    créateur non-dev) ; le menu regroupe les jumelles visibles dans un groupe dédié en queue
+    (« Bac à sable ») au lieu de les mêler aux catégories.
+    """
+
+    def _utilisateur(self, nom):
+        u = User.objects.create_user(nom, password='x')
+        UserProfile.objects.get_or_create(user=u)   # tier par défaut : utilisateur
+        return u
+
+    def test_le_createur_accede_a_sa_jumelle_meme_sans_tier_dev(self):
+        from unittest.mock import patch
+        createur = self._utilisateur('temoin_createur')
+        autre = self._utilisateur('temoin_autre')
+        self.assertEqual(user_tier(createur), 'utilisateur')
+        with patch('wama.common.sandbox.twin_owner',
+                   side_effect=lambda label: 'temoin_createur' if label == 'converter_01' else ''):
+            self.assertTrue(accessible(createur, 'app', 'converter_01'),
+                            'le créateur doit voir SA jumelle, quel que soit son tier')
+            self.assertFalse(accessible(autre, 'app', 'converter_01'),
+                             "un autre utilisateur standard ne voit pas la jumelle d'autrui")
+
+    def test_une_jumelle_sans_proprietaire_reste_reservee_aux_dev_admin(self):
+        # Le registre réel (converter_01, créée en CLI) n'a pas de created_by : le
+        # comportement historique dev-only doit tenir tel quel.
+        standard = self._utilisateur('temoin_standard')
+        self.assertFalse(accessible(standard, 'app', 'converter_01'))
+
+    def test_le_menu_range_les_jumelles_dans_un_groupe_dedie_en_queue(self):
+        from django.test import RequestFactory
+        from wama.accounts.context_processors import user_role
+        from wama.common.services.nightly_tests import get_test_dev_user
+        req = RequestFactory().get('/')
+        req.user = get_test_dev_user()
+        groupes = user_role(req)['nav_apps_grouped']
+        ids = [g['id'] for g in groupes]
+        if 'sandbox' not in ids:
+            self.skipTest('aucune jumelle enregistrée sur cet arbre (registre gitignoré)')
+        self.assertEqual(ids[-1], 'sandbox', 'le groupe Bac à sable ferme le menu')
+        for g in groupes:
+            if g['id'] == 'sandbox':
+                continue
+            for a in g['apps']:
+                self.assertNotIn('BAC À SABLE', a['label'],
+                                 'aucune jumelle ne doit rester dans les catégories normales')

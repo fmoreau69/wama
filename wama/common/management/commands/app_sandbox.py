@@ -187,6 +187,10 @@ class Command(BaseCommand):
         parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (drop/substitute)')
         parser.add_argument('cible', nargs='?',
                             help=f"substitute : {sorted(_SUBSTITUTABLE)} — fichier à passer en GÉNÉRÉ")
+        parser.add_argument('--proprietaire', default='',
+                            help="create : username du CRÉATEUR de la jumelle (visibilité "
+                                 "« créateur + dev + admin », demande Fabien 03/09) ; "
+                                 "vide = jumelle d'opérateur, dev/admin seuls")
 
     def handle(self, *args, **opts):
         action = opts['action']
@@ -207,14 +211,14 @@ class Command(BaseCommand):
             raise CommandError(f"app_sandbox {action} exige un nom d'app.")
 
         if action == 'create':
-            self._create(app)
+            self._create(app, owner=opts.get('proprietaire') or '')
         elif action == 'substitute':
             self._substitute(app, opts.get('cible'))
         else:
             self._drop(app)
 
     # ── create ───────────────────────────────────────────────────────────────
-    def _create(self, src: str):
+    def _create(self, src: str, owner: str = ''):
         from wama.common.app_registry import APP_CATALOG
         if src not in APP_CATALOG:
             raise CommandError(f"App inconnue au catalogue : {src}")
@@ -231,6 +235,7 @@ class Command(BaseCommand):
         entries = load_registry()
         entries.append({'label': label, 'generated_from': src,
                         'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+                        'created_by': owner,
                         'stage': 'S1-temoin'})
         save_registry(entries)
 

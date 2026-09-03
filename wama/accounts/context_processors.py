@@ -84,17 +84,28 @@ def user_role(request):
         from django.urls import reverse as _reverse
         from wama.common.app_registry import get_apps_by_category
         nav_apps_grouped = []
+        _sandbox_entries = []
         for _cid, _meta, _apps in get_apps_by_category():
             _entries = []
             for _name, _spec in _apps:
                 if _name not in accessible_apps or _name in apps_masquees:
                     continue
                 try:
-                    _entries.append({'name': _name, 'label': _spec['label'], 'icon': _spec['icon'],
-                                     'color': _spec.get('color', ''), 'url': _reverse(_spec['url_name']),
-                                     'description': _spec.get('description', '')})
+                    _entry = {'name': _name, 'label': _spec['label'], 'icon': _spec['icon'],
+                              'color': _spec.get('color', ''), 'url': _reverse(_spec['url_name']),
+                              'description': _spec.get('description', '')}
                 except Exception:
                     continue
+                # Jumelles de bac à sable → groupe DÉDIÉ en queue de menu (demande Fabien
+                # 03/09 : à un bac à sable par app portée, les catégories deviendraient
+                # illisibles). Libellé = source + identifiant (le badge « ⚠ BAC À SABLE »
+                # du catalogue serait redondant sous cet en-tête de groupe).
+                if _spec.get('sandbox'):
+                    _base = _spec['label'].replace(' ⚠ BAC À SABLE', '').strip()
+                    _entry['label'] = f"{_base} ({_name})"
+                    _sandbox_entries.append(_entry)
+                    continue
+                _entries.append(_entry)
             _links = []
             for _link in _meta.get('extra_links', []):
                 if _link.get('nav_hide'):
@@ -119,6 +130,10 @@ def user_role(request):
                     continue
             if _entries or _links:
                 nav_apps_grouped.append({'id': _cid, 'meta': _meta, 'apps': _entries, 'links': _links})
+        if _sandbox_entries:
+            nav_apps_grouped.append({'id': 'sandbox',
+                                     'meta': {'label': 'Bac à sable', 'icon': '🧪'},
+                                     'apps': _sandbox_entries, 'links': []})
     except Exception:
         nav_apps_grouped = []
 

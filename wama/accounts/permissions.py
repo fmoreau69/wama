@@ -273,8 +273,20 @@ def accessible(user, kind, element_id):
 def _app_accessible(user, app_id):
     """
     Décision pour la famille `app` :
-      min_tier → bypass dev/admin → anonymous(public) → app commune → intersection rôles.
+      créateur de jumelle → min_tier → bypass dev/admin → anonymous(public) → app commune
+      → intersection rôles.
     """
+    # Jumelle de bac à sable : son CRÉATEUR y accède quel que soit son tier (décision Fabien
+    # 2026-09-03 — chacun voit SES jumelles, pas celles des autres ; dev/admin voient tout
+    # par la voie tier normale). Dérogation AVANT min_tier : c'est lui qui bloquerait un
+    # créateur non-dev. Une jumelle sans `created_by` (CLI) reste dev/admin-only.
+    try:
+        from wama.common.sandbox import twin_owner
+        _owner = twin_owner(app_id)
+        if _owner and getattr(user, 'username', '') == _owner:
+            return True
+    except Exception:
+        pass
     pol = _policy_for(app_id)
     tier = user_tier(user)
     if pol['min_tier'] and tier_rank(tier) < tier_rank(pol['min_tier']):
