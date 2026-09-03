@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_static %}
+{% load wama_catalog %}
+{% block title %}Backends — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Page du registre `backends` (12ᵉ) — le VIVIER des moteurs, DÉRIVÉ à chaque affichage des
+  déclarations `wama/<app>/backends/` recoupées au catalogue AIModel. Charte commune des
+  catalogues (bandeau de stats, encart d'intention, cartes filtrables) ; aucune donnée
+  stockée, donc aucun bouton d'actualisation — `refresh_button` le décide seul de la nature.
+{% endcomment %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
+<style>
+  /* Squelette = brique COMMUNE `wama-catalog.css` — restent les spécificités. */
+  .bk-app      { background: #0d47a1; color: #bbdefb; }
+  .bk-route    { background: #1b5e20; color: #c8e6c9; }
+  .bk-classe   { background: #4a148c; color: #e1bee7; }
+  .bk-jumelle  { background: #37474f; color: #cfd8dc; }
+  .bk-sig      { font-size: .78rem; color: #90caf9; }
+  .bk-path     { font-size: .74rem; color: #b0bec5; word-break: break-all; }
+  .bk-modeles  { font-size: .76rem; color: #ffe082; }
+  .bk-lien-app { color: #90a4ae; font-style: italic; }
+  .bk-manque   { font-size: .74rem; color: #ffcc80; }
+  .bk-illisible{ font-size: .74rem; color: #ef9a9a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wama-cat-wrap">
+
+  {% include 'common/_catalog_header.html' with titre='Backends (moteurs)' icone='fa-gears' registre='backends' %}
+
+  <div class="wama-cat-stats">
+    <span class="wama-cat-stat"><b>{{ inv.backends_count }}</b> backends</span>
+    <span class="wama-cat-stat"><b>{{ inv.apps_count }}</b> apps</span>
+    <span class="wama-cat-stat"><b>{{ inv.routes_count }}</b> natures routées</span>
+    <span class="wama-cat-stat"><b>{{ inv.modeles_lies }}</b> modèles rattachés
+      {% if inv.modeles_lien_declare %}(dont <b>{{ inv.modeles_lien_declare }}</b> en lien déclaré)
+      {% else %}<span class="bk-lien-app">— aucun lien FIN déclaré</span>{% endif %}</span>
+    {% if inv.sans_routage %}
+      <span class="wama-cat-stat bk-manque"><b>{{ inv.sans_routage|length }}</b> app(s) sans ROUTES</span>
+    {% endif %}
+  </div>
+
+  <div class="wama-cat-hero">
+    <h3>Ce que WAMA sait exécuter — et par quel chemin on y arrive</h3>
+    <p>Un <b>backend</b> est un moteur : il transforme une entrée en résultat. La page dérive du
+       code à chaque affichage (<code>wama/&lt;app&gt;/backends/</code>) — elle ne peut pas être
+       périmée, et un backend ajouté y apparaît sans qu'on déclare quoi que ce soit ici.</p>
+    <p>Deux familles&nbsp;: les <b>routés</b> (<code>ROUTES</code> : une nature d'entrée mène à un
+       callable au contrat commun — c'est ce que la chaîne de génération COMPOSE en corps de
+       tâche) et les <b>classes</b> au contrat <code>BaseModelBackend</code> (chargement, VRAM
+       comptée, paquets requis déclarés). La <b>saveur</b> dit ce que le backend produit&nbsp;:
+       un <i>fichier</i> qu'il écrit, ou du <i>texte</i> qu'il rend.</p>
+    <p>Le lien <b>modèle ↔ backend</b> est affiché avec sa provenance. ⚠ Fait mesuré le
+       03/09&nbsp;: <code>AIModel.backend_ref</code> porte aujourd'hui un nom d'<b>app</b>
+       («&nbsp;cette app assume le moteur&nbsp;»), pas un nom de backend — le rattachement est
+       donc <span class="bk-lien-app">déduit de l'app</span> et la page le dit. Rendre ce lien
+       fin (déclaré au manifeste modèle) est un chantier ouvert&nbsp;: le compteur ci-dessus
+       en est la mesure, il montera quand le lien existera.</p>
+  </div>
+
+  {% include 'common/_filter_bar.html' with facettes=facettes_backends cible='.wama-cat-card' mode='client' placeholder='Filtrer (app, moteur, nature, modèle…)' %}
+
+  {% comment %}`data-id` = identifiant du backend (app:nom) lu par WamaInspector au clic ;
+  `data-f-app`, `data-f-saveur`, `data-f-famille` = les trois facettes déclarées par la vue.
+  Chaque facette est AUSSI visible en badge : une facette qu'on ne voit pas sur la carte
+  n'explique pas ce qu'elle filtre (leçon des pages registres).{% endcomment %}
+  <div class="wama-cat-grid" id="backendsGrid" style="--cat-card-min: 340px;">
+    {% for a in inv.apps %}{% for e in a.entries %}
+    <div class="wama-cat-card" data-id="{{ e.app }}:{{ e.name }}"
+         data-f-app="{{ e.app }}" data-f-saveur="{{ e.saveur }}" data-f-famille="{{ e.kind }}">
+      <h4>{{ e.name }}
+        <span class="wama-cat-badge bk-app">{{ e.app }}</span>
+        <span class="wama-cat-badge {% if e.kind == 'route' %}bk-route{% else %}bk-classe{% endif %}">{{ e.kind }}</span>
+        {% if a.generated_from %}<span class="wama-cat-badge bk-jumelle">bac à sable</span>{% endif %}
+      </h4>
+      {% if e.description %}<div class="wama-cat-desc">{{ e.description }}</div>{% endif %}
+      <div class="bk-sig">{{ e.signature }}</div>
+      <div class="bk-path"><code>{{ e.path }}</code></div>
+      <div class="wama-cat-meta">
+        {% if e.packages %}paquets <code>{{ e.packages|join:", " }}</code>{% endif %}
+        {% if e.vram_gb %}{% if e.packages %} · {% endif %}VRAM {{ e.vram_gb }} Go{% endif %}
+        {% if e.natures %}{% if e.packages or e.vram_gb %} · {% endif %}nature
+          <code>{{ a.nature_effective }}</code>{% if not a.nature_declaree %} <span class="bk-lien-app">(défaut)</span>{% endif %}{% endif %}
+      </div>
+      {% if e.models %}
+        <div class="bk-modeles">modèles : {{ e.models|join:", " }}
+          {% if e.lien == 'app' %}<span class="bk-lien-app">(déduit de l'app)</span>{% endif %}
+        </div>
+      {% endif %}
+      {% if a.manque %}<div class="bk-manque">⚠ {{ a.manque }}</div>{% endif %}
+      {% if a.illisibles %}<div class="bk-illisible">module(s) illisible(s) : {{ a.illisibles|join:", " }}</div>{% endif %}
+    </div>
+    {% endfor %}{% endfor %}
+  </div>
+</div>
+{% endblock %}

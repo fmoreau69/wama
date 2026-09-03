@@ -295,3 +295,23 @@ register(Registry(
     description="Liste ce que CE compte a ajouté, lu en base à chaque affichage. L'entrée au RAG "
                 "est un geste explicite : rien ne s'y ajoute par balayage, donc rien à réconcilier.",
 ))
+
+
+def _count_backends() -> int:
+    from .services.backend_inventory import count
+    return count()
+
+
+register(Registry(
+    key='backends', label='Backends (moteurs)', nature=DERIVED,
+    source="Déclarations des paquets `wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + "
+           "classes BaseModelBackend) recoupées au catalogue `AIModel` (source, backend_ref)",
+    count=_count_backends,
+    url_name='common:backends_catalog', permission='auth',
+    doc='WAMA_APP_GENERATION_ROUTE.md',
+    description="Le VIVIER des moteurs : ce que chaque app sait exécuter, la nature d'entrée qui "
+                "y mène, la SAVEUR de sortie (fichier/texte), les paquets requis, la VRAM et les "
+                "modèles servis. Deux usages : la vision d'ensemble, et le voisinage dont le LLM "
+                "de la marche B a besoin pour s'inspirer du backend le plus approchant. Dérivé à "
+                "chaque affichage — un backend ajouté y apparaît sans qu'on déclare rien ici.",
+))

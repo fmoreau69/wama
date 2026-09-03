@@ -419,7 +419,14 @@ MECANISMES = (
               "Depuis le 02/09 (marche B1 CLOSE), le corps des TÂCHES se COMPOSE aussi : "
               "`backends/__init__.ROUTES` de l'app (nature → callable au contrat commun) "
               "monte au manifeste (processing.backend_routes) et tasks_gen émet l'appel — "
-              "import relatif au paquet, la jumelle a CONVERTI (SUCCESS mesuré)",
+              "import relatif au paquet, la jumelle a CONVERTI (SUCCESS mesuré). "
+              "DEUX SAVEURS depuis le 03/09 (2ᵉ app routée, describer) : `RESULT` déclare "
+              "ce que les backends produisent — 'file' (le backend écrit output_path) ou "
+              "'text' (il REND le texte, la tâche le persiste dans la colonne déclarée et "
+              "publie l'aperçu partiel) ; `NATURE_FIELD` nomme la colonne de nature. "
+              "⚠ Un fichier substitué doit exposer TOUT ce que les fichiers COPIÉS lui "
+              "importent : params_gen émet l'alias `<X> = <X>_JSON` (le models copié importe "
+              "la graphie courte — ImportError au rendu de CHAQUE card sinon)",
               'wama/common/manifests/codegen/templates_gen.py', 'WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/manifests/codegen/apps_gen.py',
                        'wama/common/manifests/codegen/urls_gen.py',
@@ -427,6 +434,22 @@ MECANISMES = (
                        'wama/common/manifests/codegen/params_gen.py',
                        'wama/common/manifests/codegen/tasks_gen.py',
                        'wama/common/manifests/codegen/views_gen.py')),
+    Mecanisme('backend_inventory', 'Vivier des backends (registre DÉRIVÉ)',
+              "Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations "
+              "`wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + classes BaseModelBackend "
+              "trouvées jusque dans les SOUS-MODULES) recoupées au catalogue AIModel. Deux "
+              "usages : la vision d'ensemble (12ᵉ registre, page /common/backends/) et le "
+              "VOISINAGE que le LLM de la marche B trie pour s'inspirer du backend le plus "
+              "approchant (signature « natures → saveur », paquets, VRAM, modèles servis). "
+              "Ne stocke RIEN et n'a pas de rafraîchisseur — une page qui DÉRIVE ne peut pas "
+              "diverger de ses sources. Ne cite aucune app : il parcourt les apps installées "
+              "(le registre ne connaît jamais ses producteurs). "
+              "⚠ Fait MESURÉ le 03/09 : `AIModel.backend_ref` porte un nom d'APP, pas de "
+              "backend — le rattachement est donc « déduit de l'app » et la page le DIT ; le "
+              "compteur « lien fin déclaré » (0) est la mesure du chantier restant",
+              'wama/common/services/backend_inventory.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/templates/common/backends.html',
+                       'wama/common/tests_backend_inventory.py')),
     Mecanisme('output_formats', 'Formats de sortie',
               "Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter)",
               'wama/common/utils/output_formats.py', ''),
@@ -451,9 +474,19 @@ MECANISMES = (
               "(INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + "
               "`substitute <label> <cible>` : remplace UN fichier copié par sa version "
               "GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, "
-              "auto-revert sur échec — verdicts journalisés au registre",
+              "auto-revert sur échec — verdicts journalisés au registre ; `revert <label> "
+              "<cible>` ramène une cible au témoin à la demande. "
+              "TROIS JUGES depuis le 03/09, chacun né d'un défaut qui RENDAIT (page 200) "
+              "sans FONCTIONNER : ① cohérence de paquet par AST (tout `from .x import Y` "
+              "intra-paquet, imports PARESSEUX compris, doit résoudre) ; ② couple "
+              "views↔templates (substituer les templates seuls = boutons morts) ; ③ smoke "
+              "« file HABITÉE » (témoin créé→page rendue→supprimé : une file vide ne rend "
+              "AUCUNE card, donc ne teste rien du rendu de card). "
+              "Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée "
+              "(11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11",
               'wama/common/sandbox.py', 'WAMA_APP_GENERATION_ROUTE.md',
-              annexes=('wama/common/management/commands/app_sandbox.py',)),
+              annexes=('wama/common/management/commands/app_sandbox.py',
+                       'wama/common/tests_sandbox_coherence.py')),
 
     )),
 
