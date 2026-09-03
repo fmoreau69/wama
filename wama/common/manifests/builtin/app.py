@@ -496,9 +496,21 @@ def _processing(cat: dict, app_id: str) -> dict:
     # déclaré → le stub demeure (marche B non applicable à cette app).
     try:
         from importlib import import_module
-        _routes = getattr(import_module(f'wama.{app_id}.backends'), 'ROUTES', None)
+        _bk = import_module(f'wama.{app_id}.backends')
+        _routes = getattr(_bk, 'ROUTES', None)
         if isinstance(_routes, dict) and _routes:
             out['backend_routes'] = dict(_routes)
+            # SAVEUR du contrat (marche B1 describer, 2026-09-03) : `RESULT` déclare ce que
+            # les backends PRODUISENT — {'kind': 'file'} (pilote converter, défaut si
+            # absent : le backend écrit output_path) ou {'kind': 'text', 'field': …} (le
+            # backend REND le texte, la tâche le persiste dans la colonne). `NATURE_FIELD`
+            # nomme la colonne portant la nature d'entrée (défaut historique 'media_type').
+            _result = getattr(_bk, 'RESULT', None)
+            if isinstance(_result, dict) and _result.get('kind'):
+                out['backend_result'] = dict(_result)
+            _nature = getattr(_bk, 'NATURE_FIELD', None)
+            if isinstance(_nature, str) and _nature:
+                out['backend_nature_field'] = _nature
     except Exception:
         pass
     # Modèle de liaison batch branché (A3b) — lu du registre de mesure batch_sync.SYNCED ;

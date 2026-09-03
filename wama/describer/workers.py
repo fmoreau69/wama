@@ -1,239 +1,149 @@
 """
-WAMA Describer - Celery Workers
-Async tasks for content description and summarization
+WAMA Describer — Celery Workers
+
+Tâche principale : describe_content (nom de module HISTORIQUE `workers.py` conservé —
+le nom de tâche Celery `wama.describer.workers.describe_content` est un jumeau par
+CHAÎNE : routes, revokes et messages en vol le portent).
+
+Squelette (gardes, progress, chrono, statuts, ETA, console, notifications) = brique
+COMMUNE `common/utils/task_skeleton.run_item_task` (marche A2, route §10.3 — portage
+2026-09-03). Ce fichier ne porte plus que la GLU du describer : détection/normalisation
+de la nature d'entrée, routage nature → backend (contrat commun « texte », déclaré dans
+`backends/__init__.ROUTES`), puis enrichissements OPTIONNELS demandés par l'utilisateur
+(résumé LLM, vérification de cohérence).
 """
 
-import os
 import logging
-from pathlib import Path
-from celery import shared_task
-from django.core.cache import cache
-from django.db import close_old_connections
-from django.conf import settings
 
-from wama.common.utils.console_utils import push_console_line
+from celery import shared_task
+
+from .models import Description
 
 logger = logging.getLogger(__name__)
 
 
-def _set_progress(description, value: int, force: bool = False) -> None:
-    """Update progress in cache and database."""
-    cache_key = f"describer_progress_{description.id}"
-    cache.set(cache_key, value, timeout=3600)
-
-    if force or value % 10 == 0:  # Update DB every 10%
-        from .models import Description
-        Description.objects.filter(pk=description.id).update(progress=value)
+@shared_task(bind=True)
+def describe_content(self, description_id: int):
+    from wama.common.utils.task_skeleton import run_item_task
+    run_item_task(self, app_id='describer', model=Description, item_id=description_id,
+                  process=_describe, ingest_derive=_derive_detected_type,
+                  notify_label='Describer')
 
 
-def _set_partial(description, text: str) -> None:
-    """Texte partiel de description — BRIQUE COMMUNE (2026-08-13) : une seule clé,
-    lue par l'endpoint de progression ET par le volet `?side=during` (during_preview)."""
+def _derive_detected_type(inst, path, fname):
+    """Hook `derive` de l'ingest URL (WAMA_INGEST) : renseigne detected_type au téléchargement."""
+    ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
+    from .views import detect_type_from_extension
+    inst.detected_type = detect_type_from_extension(ext)
+    return ['detected_type']
+
+
+def _describe(item, ctx):
+    """GLU describer (contrat task_skeleton) : nature normalisée, options effectives lues
+    des COLONNES (modèle événementiel §23.2quater), backend au contrat commun « texte »,
+    enrichissements optionnels. Une exception = FAILURE (le squelette gère statut/console/
+    notification)."""
+    from importlib import import_module
+
+    from wama.common.utils.param_schema import effective_settings
     from wama.common.utils.preview_utils import publish_partial_text
-    publish_partial_text('describer', description.id, text)
+    from .backends import NATURE_FIELD, ROUTES
+    from .params import PARAMS_JSON
 
+    ctx.progress(5)
 
-def _console(user_id: int, message: str, level: str = None) -> None:
-    """Add message to console output."""
+    input_path = item.input_file.path
+
+    # Nature d'entrée — valeurs HISTORIQUES ('text'/'pdf' en base d'avant le 2026-08-30)
+    # normalisées À LA LECTURE, jamais par migration (elles sont gitignorées).
+    from .utils.content_analyzer import normalize_detected_type
+    nature = normalize_detected_type(getattr(item, NATURE_FIELD, '') or item.content_type)
+    if nature == 'auto':
+        from .utils.content_analyzer import detect_content_type
+        nature = detect_content_type(input_path)
+        item.detected_type = nature
+        item.save(update_fields=['detected_type'])
+
+    ctx.console(f"Content type: {nature}")
+    ctx.progress(10)
+
+    chemin = ROUTES.get(nature)
+    if not chemin:
+        raise ValueError(f"Type de contenu non supporté : {nature}")
+
+    # Valeurs EFFECTIVES : défauts du schéma ← colonnes POSÉES (la tâche lit les colonnes).
+    posees = {p['name']: getattr(item, p['name'])
+              for p in PARAMS_JSON if hasattr(item, p.get('name', ''))}
+    opts = effective_settings(PARAMS_JSON, posees=posees)
+
+    # Backend au contrat commun « texte » — résolution par la nature, import RELATIF AU
+    # PAQUET (même geste que le corps composé de la jumelle : backends/ se copie tel quel).
+    mod, fonc = chemin.rsplit('.', 1)
+    backend = getattr(import_module('.' + mod, __package__), fonc)
+
+    result = backend(
+        input_path,
+        options=opts,
+        progress_callback=ctx.progress,
+        partial_callback=lambda t: publish_partial_text('describer', item.id, t),
+        console=ctx.console,
+    )
+
+    ctx.progress(90)
+    ctx.console("Sauvegarde du résultat…")
+    fields = {'result_text': result}
+
+    # ── Enrichissements OPTIONNELS (toggles utilisateur — usages Ollama DEMANDÉS, hors
+    # garde WAMA_GPU_SAFE_MODE qui ne couvre que la cascade vision AUTOMATIQUE) ──────────
+    output_style = opts.get('output_style') or 'detailed'
+    output_language = opts.get('output_language') or 'fr'
+
+    # Résumé LLM (skip si format compte-rendu — il EST déjà le résumé)
+    if opts.get('generate_summary') and result and output_style != 'meeting':
+        try:
+            ctx.console("Génération du résumé LLM (Ollama)…")
+            from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
+            _sum_model = get_describer_model(nature, output_style)
+            ctx.console(f"Modèle résumé : {_sum_model}")
+            summary_data = generate_structured_summary(
+                result,
+                content_hint=nature,
+                language=output_language,
+                model=_sum_model,
+            )
+            fields['summary'] = summary_data['summary']
+            ctx.console("Résumé LLM généré ✓")
+        except Exception as llm_err:
+            ctx.console(f"Avertissement: résumé LLM échoué ({llm_err})")
+
+    # Vérification de cohérence (toujours le modèle lourd — analyse soignée)
+    if opts.get('verify_coherence') and result:
+        try:
+            ctx.console("Vérification de cohérence (Ollama)…")
+            from wama.common.utils.llm_utils import verify_text_coherence, get_describer_model
+            _coh_model = get_describer_model(nature, 'scientific')  # heavy tier
+            ctx.console(f"Modèle cohérence : {_coh_model}")
+            coherence = verify_text_coherence(
+                result,
+                content_hint=nature,
+                language=output_language,
+                model=_coh_model,
+            )
+            fields['coherence_score'] = coherence['score']
+            fields['coherence_notes'] = '\n'.join(coherence['notes'])
+            fields['coherence_suggestion'] = coherence['suggestion']
+            ctx.console(f"Cohérence vérifiée — score: {coherence['score']}/100 ✓")
+        except Exception as coh_err:
+            ctx.console(f"Avertissement: vérification cohérence échouée ({coh_err})")
+
+    # Seeding ETA : clé par type de contenu (driver de coût dominant), unité selon le média.
+    eta = None
     try:
-        if level is None:
-            msg_lower = message.lower()
-            if any(w in msg_lower for w in ['error', 'failed', '\u2717', 'erreur']):
-                level = 'error'
-            elif any(w in msg_lower for w in ['warning', 'attention']):
-                level = 'warning'
-            elif any(w in msg_lower for w in ['[debug]', '[parallel']):
-                level = 'debug'
-            else:
-                level = 'info'
-        push_console_line(user_id, message, level=level, app='describer')
+        from .eta import eta_size_unit
+        _size, _unit = eta_size_unit(nature, item)
+        eta = (f'describer:{nature}', _size, _unit)
     except Exception:
         pass
 
-
-def _download_from_source_url(description, console):
-    """Ingestion média (page web -> texte / média -> download) via le mécanisme
-    commun déclaratif ensure_local_input (spec WAMA_INGEST du modèle Description).
-    Seule part spécifique describer restante : la dérivation de detected_type.
-    """
-    from wama.common.utils.source_ingest import ensure_local_input
-
-    def _derive(inst, path, fname):
-        ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-        from .views import detect_type_from_extension
-        inst.detected_type = detect_type_from_extension(ext)
-        return ['detected_type']
-
-    ensure_local_input(
-        description,
-        console=lambda m: console(description.user_id, m),
-        derive=_derive,
-    )
-
-
-
-
-@shared_task(bind=True)
-def describe_content(self, description_id: int):
-    """Main description task."""
-    close_old_connections()
-
-    from .models import Description
-
-    try:
-        description = Description.objects.get(pk=description_id)
-    except Description.DoesNotExist:
-        logger.error(f"Description {description_id} not found")
-        return {'ok': False, 'error': 'Description not found'}
-
-    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
-    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    if refuse_crash_redelivery(self, description, error_field='error_message'):
-        logger.warning(f"[describer] Description #{description_id}: reprise après crash refusée — relancer manuellement.")
-        return {'ok': False, 'error': 'crash_redelivery'}
-
-    user_id = description.user_id
-    _console(user_id, f"Starting description for: {description.filename}")
-
-    import time as _time
-    _t0 = _time.time()  # chrono pour le seeding ETA (apprentissage des durées réelles)
-
-    try:
-        _set_progress(description, 5, force=True)
-
-        # If created from batch import (source_url set, no local file yet), download now
-        if description.source_url and not description.input_file:
-            _console(user_id, f"Import batch — téléchargement de l'URL…")
-            _download_from_source_url(description, _console)
-            description.refresh_from_db()
-
-        # Get file path
-        file_path = description.input_file.path
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"File not found: {file_path}")
-
-        # Detect content type if auto — valeurs HISTORIQUES ('text'/'pdf' en base d'avant le
-        # 2026-08-30) normalisées À LA LECTURE, jamais par migration (elles sont gitignorées).
-        from .utils.content_analyzer import normalize_detected_type
-        content_type = normalize_detected_type(description.detected_type or description.content_type)
-        if content_type == 'auto':
-            from .utils.content_analyzer import detect_content_type
-            content_type = detect_content_type(file_path)
-            description.detected_type = content_type
-            description.save(update_fields=['detected_type'])
-
-        _console(user_id, f"Content type: {content_type}")
-        _set_progress(description, 10)
-
-        # Process based on content type
-        if content_type == 'image':
-            from .utils.image_describer import describe_image
-            result = describe_image(description, _set_progress, _set_partial, _console)
-
-        elif content_type == 'video':
-            from .utils.video_describer import describe_video
-            result = describe_video(description, _set_progress, _set_partial, _console)
-
-        elif content_type == 'audio':
-            from .utils.audio_describer import describe_audio
-            result = describe_audio(description, _set_progress, _set_partial, _console)
-
-        elif content_type in ('document', 'text', 'pdf'):  # 'text'/'pdf' = lecture tolérante (base historique)
-            from .utils.text_describer import describe_text
-            result = describe_text(description, _set_progress, _set_partial, _console)
-
-        else:
-            raise ValueError(f"Unsupported content type: {content_type}")
-
-        # Save result
-        _set_progress(description, 90)
-        _console(user_id, "Sauvegarde du résultat…")
-
-        description.result_text = result
-        description.status = 'SUCCESS'
-        description.save()
-
-        # Optional LLM summary via Ollama (skip if meeting format — already IS the summary)
-        if description.generate_summary and result and description.output_style != 'meeting':
-            try:
-                _console(user_id, "Génération du résumé LLM (Ollama)…")
-                from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
-                _sum_model = get_describer_model(content_type, description.output_style)
-                _console(user_id, f"Modèle résumé : {_sum_model}")
-                summary_data = generate_structured_summary(
-                    result,
-                    content_hint=content_type,
-                    language=description.output_language or 'fr',
-                    model=_sum_model,
-                )
-                description.summary = summary_data['summary']
-                description.save(update_fields=['summary'])
-                _console(user_id, "Résumé LLM généré ✓")
-            except Exception as llm_err:
-                _console(user_id, f"Avertissement: résumé LLM échoué ({llm_err})")
-
-        # Optional coherence verification via Ollama (always uses heavy model — careful analysis)
-        if description.verify_coherence and result:
-            try:
-                _console(user_id, "Vérification de cohérence (Ollama)…")
-                from wama.common.utils.llm_utils import verify_text_coherence, get_describer_model
-                _coh_model = get_describer_model(content_type, 'scientific')  # heavy tier
-                _console(user_id, f"Modèle cohérence : {_coh_model}")
-                coherence = verify_text_coherence(
-                    result,
-                    content_hint=content_type,
-                    language=description.output_language or 'fr',
-                    model=_coh_model,
-                )
-                description.coherence_score = coherence['score']
-                description.coherence_notes = '\n'.join(coherence['notes'])
-                description.coherence_suggestion = coherence['suggestion']
-                description.save(update_fields=['coherence_score', 'coherence_notes', 'coherence_suggestion'])
-                _console(user_id, f"Cohérence vérifiée — score: {coherence['score']}/100 ✓")
-            except Exception as coh_err:
-                _console(user_id, f"Avertissement: vérification cohérence échouée ({coh_err})")
-
-        # Persiste le temps réel (déjà mesuré pour l'ETA) — total incluant résumé/cohérence.
-        description.processing_seconds = _time.time() - _t0
-        description.save(update_fields=['processing_seconds'])
-
-        _set_progress(description, 100, force=True)
-        _console(user_id, f"Description terminée: {description.filename}")
-
-        # ── Seeding ETA : enregistre la durée réelle pour affiner l'estimation ──
-        # Clé par type de contenu (driver de coût dominant) ; unité selon le média.
-        try:
-            from wama.model_manager.services.eta_estimator import record_run
-            from .eta import eta_size_unit
-            _size, _unit = eta_size_unit(content_type, description)
-            record_run(f'describer:{content_type}', size=_size, unit=_unit,
-                       process_seconds=description.processing_seconds, load_seconds=None)
-        except Exception:
-            pass
-
-        try:
-            from wama.common.utils.notifications import notify_job
-            notify_job(getattr(description, 'user', None), 'Describer',
-                       getattr(description, 'filename', '') or f"description #{description.id}", True)
-        except Exception:
-            pass
-
-        return {'ok': True, 'id': description.id}
-
-    except Exception as e:
-        logger.exception(f"Error describing {description.filename}: {e}")
-        _console(user_id, f"Error: {str(e)}")
-
-        description.status = 'FAILURE'
-        description.error_message = str(e)
-        description.save()
-        _set_progress(description, 0, force=True)
-        try:
-            from wama.common.utils.notifications import notify_job
-            notify_job(getattr(description, 'user', None), 'Describer',
-                       getattr(description, 'filename', '') or f"description #{description.id}", False, detail=str(e))
-        except Exception:
-            pass
-
-        return {'ok': False, 'error': str(e)}
+    return {'fields': fields, 'eta': eta,
+            'label': item.filename or f"description #{item.id}"}

@@ -89,7 +89,7 @@ def comprehend_files(paths, *, language: str = 'en', console=None, timeout: int 
 def _describe_image(path: str, language: str, timeout: int) -> str:
     from wama.model_manager.services.vision_probe import describe_image_ollama
     try:
-        from wama.describer.utils.image_describer import _best_ollama_vision_model
+        from wama.describer.backends.image_backend import _best_ollama_vision_model
         model = _best_ollama_vision_model()
     except Exception:
         model = None

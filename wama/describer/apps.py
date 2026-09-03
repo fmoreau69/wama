@@ -33,18 +33,19 @@ class DescriberConfig(AppConfig):
             properties_field='properties'
         )
 
-        # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
-        from wama.common.utils.detail_registry import register_app_detail, build_detail
-
-        def _describer_detail(item):
-            extra = {
-                'Format de sortie': item.output_style or None,
-                'Langue de sortie': item.output_language or None,
-                'Longueur max': item.max_length or None,
-            }
-            return build_detail(item, source_file=item.input_file,
-                                source_type=(item.detected_type or item.content_type),
-                                engine=None, result_file=item.result_file,
-                                result_text=item.result_text or None, extra=extra)
-
-        register_app_detail('describer', Description, _describer_detail)
+        # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — SPEC déclarative
+        # (A3a, migrée 2026-09-03) : la facette inspector devient projetable. `source_type`
+        # lit `detected_type` seul (posé à l'upload ET par la tâche — l'ancien repli
+        # `content_type` ne couvrait que des lignes d'avant la détection à l'upload).
+        from wama.common.utils.detail_registry import register_app_detail_spec
+        register_app_detail_spec('describer', Description, {
+            'source_file': 'input_file',
+            'source_type': 'detected_type',
+            'result_file': 'result_file',
+            'result_text': 'result_text',
+            'extra': [
+                {'label': 'Format de sortie', 'field': 'output_style', 'display': True},
+                {'label': 'Langue de sortie', 'field': 'output_language', 'display': True},
+                {'label': 'Longueur max', 'field': 'max_length'},
+            ],
+        })

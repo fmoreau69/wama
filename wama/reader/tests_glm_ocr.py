@@ -56,7 +56,7 @@ class DossierDeTravailGlmOcrTests(SimpleTestCase):
         """Même défaut, autre app : `extract_frames` créait son dossier sans le nettoyer, et
         l'appelant retirait les FICHIERS mais jamais le DOSSIER — un `describer_frames_*`
         vide restait dans le temporaire à chaque vidéo décrite."""
-        from wama.describer.utils.video_describer import extract_frames
+        from wama.describer.backends.video_backend import extract_frames
 
         avant = {p for p in Path(tempfile.gettempdir()).glob('describer_frames_*') if p.is_dir()}
         with tempfile.TemporaryDirectory() as fourni:

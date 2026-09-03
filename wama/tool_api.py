@@ -1221,100 +1221,9 @@ def add_to_describer(
     }
 
 
-def start_describer(user, description_id: int = None) -> dict:
-    """
-    Launch Celery description task(s).
-
-    Args:
-        user:           Django User instance
-        description_id: Specific job to start (None = all PENDING jobs)
-
-    Returns:
-        {"task_id": str, "status": "started", ...}
-    """
-    from wama.describer.models import Description
-    from wama.describer.workers import describe_content
-    from django.core.cache import cache
-
-    if description_id is not None:
-        try:
-            description = Description.objects.get(pk=description_id, user=user)
-        except Description.DoesNotExist:
-            return {'error': f'Description #{description_id} introuvable ou non autorisée.'}
-
-        if description.status == 'RUNNING':
-            return {'error': f'Description #{description_id} est déjà en cours.'}
-
-        description.status = 'RUNNING'
-        description.progress = 0
-        description.error_message = ''
-        description.result_text = ''
-        description.save(update_fields=['status', 'progress', 'error_message', 'result_text'])
-        cache.delete(f'describer_progress_{description_id}')
-        from wama.common.utils.preview_utils import clear_partial
-        clear_partial('describer', description_id)
-
-        task = describe_content.delay(description.id)
-        description.task_id = task.id
-        description.save(update_fields=['task_id'])
-
-        return {'task_id': task.id, 'status': 'started', 'description_id': description_id}
-
-    else:
-        pending = Description.objects.filter(user=user, status='PENDING')
-        if not pending.exists():
-            return {'error': 'Aucune description en attente.'}
-
-        started = []
-        for desc in pending:
-            cache.delete(f'describer_progress_{desc.id}')
-            desc.status = 'RUNNING'
-            desc.progress = 0
-            desc.result_text = ''
-            desc.save(update_fields=['status', 'progress', 'result_text'])
-            task = describe_content.delay(desc.id)
-            desc.task_id = task.id
-            desc.save(update_fields=['task_id'])
-            started.append(desc.id)
-
-        return {'status': 'started', 'description_id': None, 'count': len(started), 'ids': started}
-
-
-def get_describer_status(user) -> dict:
-    """
-    Return status of the user's recent description jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "filename", "detected_type", "output_format", "status",
-                   "progress", "result_preview"}]}
-    """
-    from wama.describer.models import Description
-    from django.core.cache import cache
-
-    jobs_qs = Description.objects.filter(user=user).order_by('-id')[:10]
-    jobs = []
-    for desc in jobs_qs:
-        cached = cache.get(f'describer_progress_{desc.id}')
-        progress = cached if cached is not None else desc.progress
-        from wama.common.utils.preview_utils import get_partial_text
-        partial = get_partial_text('describer', desc.id)
-        result_preview = None
-        if desc.result_text:
-            result_preview = (desc.result_text[:300] + '…') if len(desc.result_text) > 300 else desc.result_text
-        elif partial:
-            result_preview = (partial[:300] + '…') if len(partial) > 300 else partial
-
-        jobs.append({
-            'id': desc.id,
-            'filename': desc.filename or desc.input_filename,
-            'detected_type': desc.detected_type,
-            'output_style': desc.output_style,
-            'output_language': desc.output_language,
-            'status': desc.status,
-            'progress': progress,
-            'result_preview': result_preview,
-        })
-    return {'jobs': jobs}
+# `start_describer` / `get_describer_status` : construits depuis TRIAD_SPECS['describer']
+# (migrés le 2026-09-03 — les deux richesses de la triade main, purge cache/partiel au
+# démarrage et repli d'aperçu sur le texte PARTIEL, sont montées dans la BRIQUE _triad_fns).
 
 
 # ===========================================================================
@@ -2561,8 +2470,6 @@ TOOL_REGISTRY = {
     'start_composer': start_composer,
     'get_composer_status':    get_composer_status,
     'add_to_describer':       add_to_describer,
-    'start_describer':        start_describer,
-    'get_describer_status':   get_describer_status,
     'add_to_transcriber':     add_to_transcriber,
     'start_transcriber':      start_transcriber,
     'get_transcriber_status': get_transcriber_status,
@@ -2656,6 +2563,25 @@ TRIAD_SPECS = {
             'error_message': {'attr': 'error_message', 'or_none': True},
         },
     },
+    'describer': {
+        'model': 'wama.describer.models.Description',
+        'task': 'wama.describer.workers.describe_content',
+        'id_kwarg': 'description_id',
+        'reset': {'result_text': '', 'error_message': ''},
+        'empty_msg': 'Aucune description en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'filename': 'input_filename',      # propriété : nom du fichier → filename → N/A
+            'detected_type': 'detected_type',
+            'output_style': 'output_style',
+            'output_language': 'output_language',
+            'status': 'status',
+            'progress': 'progress',
+            'result_preview': {'attr': 'result_text', 'preview': 300, 'partial_fallback': True},
+            'error_message': {'attr': 'error_message', 'or_none': True},
+        },
+    },
     'reader': {
         'model': 'wama.reader.models.ReadingItem',
         'task': 'wama.reader.tasks.read_document_task',
@@ -2695,6 +2621,19 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
         task = import_string(spec['task'])
         label = model.__name__
 
+        def _purge_traces(pk):
+            # Purge conventionnelle au (re)démarrage — cache de progression + texte partiel
+            # (best-effort) : sans elle, une relance affichait la progression et l'aperçu du
+            # run PRÉCÉDENT jusqu'à la première écriture de la tâche. Extraite de la triade
+            # main du describer à sa migration en spec (2026-09-03).
+            from django.core.cache import cache
+            cache.delete(f'{app_id}_progress_{pk}')
+            try:
+                from wama.common.utils.preview_utils import clear_partial
+                clear_partial(app_id, pk)
+            except Exception:
+                pass
+
         if item_id is not None:
             try:
                 item = model.objects.get(pk=item_id, user=user)
@@ -2707,6 +2646,7 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
             for champ, valeur in (spec.get('reset') or {}).items():
                 setattr(item, champ, valeur)
             item.save()
+            _purge_traces(item.pk)
             t = task.delay(item.id)
             item.task_id = t.id
             item.save(update_fields=['task_id'])
@@ -2718,6 +2658,7 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
             return {'error': spec.get('empty_msg', 'Aucun élément en attente.')}
         started = []
         for item in pending:
+            _purge_traces(item.pk)
             t = task.delay(item.id)
             item.task_id = t.id
             item.status = 'RUNNING'
@@ -2751,6 +2692,14 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
                     v = getattr(item, champ['attr'], None)
                     if champ.get('preview'):
                         n = champ['preview']
+                        if not v and champ.get('partial_fallback'):
+                            # Aperçu du texte PARTIEL pendant le run (during_preview) —
+                            # extrait de la triade main du describer à sa migration (2026-09-03).
+                            try:
+                                from wama.common.utils.preview_utils import get_partial_text
+                                v = get_partial_text(app_id, item.pk)
+                            except Exception:
+                                v = None
                         row[cle] = ((v[:n] + '…') if len(v) > n else v) if v else None
                     elif champ.get('or_none'):
                         row[cle] = v or None

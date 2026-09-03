@@ -823,6 +823,28 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "extra": [
+          {
+            "display": true,
+            "field": "output_style",
+            "label": "Format de sortie"
+          },
+          {
+            "display": true,
+            "field": "output_language",
+            "label": "Langue de sortie"
+          },
+          {
+            "field": "max_length",
+            "label": "Longueur max"
+          }
+        ],
+        "result_file": "result_file",
+        "result_text": "result_text",
+        "source_file": "input_file",
+        "source_type": "detected_type"
+      },
       "preview": {
         "file_field": "input_file",
         "user_field": "user"
@@ -1128,6 +1150,17 @@
     },
     "processing": {
       "anti_race": true,
+      "backend_nature_field": "detected_type",
+      "backend_result": {
+        "field": "result_text",
+        "kind": "text"
+      },
+      "backend_routes": {
+        "audio": "backends.audio_backend.describe_audio",
+        "document": "backends.text_backend.describe_text",
+        "image": "backends.image_backend.describe_image",
+        "video": "backends.video_backend.describe_video"
+      },
       "batch_link_model": "BatchDescriptionItem",
       "endpoints": [
         "about",
@@ -1309,7 +1342,36 @@
         }
       },
       "start": "start_describer",
-      "status": "get_describer_status"
+      "status": "get_describer_status",
+      "triad_spec": {
+        "empty_msg": "Aucune description en attente.",
+        "id_kwarg": "description_id",
+        "model": "wama.describer.models.Description",
+        "reset": {
+          "error_message": "",
+          "result_text": ""
+        },
+        "status_fields": {
+          "detected_type": "detected_type",
+          "error_message": {
+            "attr": "error_message",
+            "or_none": true
+          },
+          "filename": "input_filename",
+          "id": "id",
+          "output_language": "output_language",
+          "output_style": "output_style",
+          "progress": "progress",
+          "result_preview": {
+            "attr": "result_text",
+            "partial_fallback": true,
+            "preview": 300
+          },
+          "status": "status"
+        },
+        "status_order": "-id",
+        "task": "wama.describer.workers.describe_content"
+      }
     }
   },
   "description": "Description automatique d'images, vidéos, fichiers audio et documents par LLM.",
