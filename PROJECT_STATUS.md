@@ -10749,3 +10749,62 @@ l'autre refuserait — famille exacte du crash du 29/07 que cette docstring raco
 qualifier.* « 16 hors verdict » est un fait ; « 16 modèles ne sont signalés nulle part » était
 une interprétation — et elle transformait une garde volontairement permissive en panne.
 Contrôles après rectification : 7 tests OK.
+
+
+### 🔴 RECTIFICATION n°2 — investigation en profondeur (Fabien : « on ne suppose pas, on investigue »)
+
+> Quatre questions de Fabien sur la rectification n°1. **Trois de mes affirmations étaient encore
+> fausses.** Détail : `PROSPECTION_PIPELINE §Session du 2026-09-03`.
+
+**① `MODEL_SIZE_PRESETS` : NI résidu NI doublon — j'ai affirmé les deux, les deux sont faux.**
+C'est un registre de VRAM d'exécution **MESURÉE** de pipelines diffusers, indexé par **FAMILLE**,
+avec la provenance en commentaire (Qwen-Image 38 Go mesurés au journal du 29/07 ; CogVideoX
+« 20.34 GiB allocated » relevé dans `logs/celery-gpu.log.3`). **Activement consommé** :
+`imager/backends/*` → `apply_strategy_for_model(model_type='mochi')` → FULL_GPU vs offload.
+Il répond à une AUTRE question qu'`AIModel.vram_gb`, et l'architecture le DIT
+(`imager/utils/model_config.py:396-414`) : manifeste imager = **par id**, « C'EST ICI QUE LE
+CHIFFRE FAIT FOI » ; presets = **par famille**, « heuristique de repli… ne peut PAS écraser le
+manifeste ». **Un garde existait déjà** (`_check_vram_consistency`, seuil >4 Go) — mesuré :
+`VRAM_DRIFT == {}`. Mon « désaccord réel » (ltx-video 14 vs 18) vaut **exactement 4,0**, donc
+non signalé PAR CONSTRUCTION, et il est CORRECT : 18 = la 13B pleine, 14 = la distillée.
+**Seul vrai résidu** : `fits_full_gpu()` — aucun consommateur (ma 1ʳᵉ rédaction le citait comme
+« le consommateur » de la table). ⚠⚠ *Deux chiffres qui DIFFÈRENT ne se CONTREDISENT pas :
+chercher le GARDE avant de crier au doublon.*
+
+**② VRAM : le recadrage de Fabien est la bonne formulation** — « ce n'est pas une boucle, c'est
+de l'INFORMATION sur la consommation ; l'estimation depuis les poids est le comportement voulu
+en l'absence de mesure ; idéalement on constate au chargement et on consigne à la place de
+`vram_estimated` ». **Réponse : ce n'est PAS fait.** La mesure existe (`base.py::_wrap_load`)
+mais ne va qu'au gouverneur (Redis à TTL) ; aucun chemin ne réécrit `AIModel.vram_gb` ni
+n'efface `vram_estimated` (vérifié sur les 275 occurrences de `vram_gb`). ⚠ `model_sync.py:185`
+réécrirait `vram_gb` depuis la découverte à chaque synchro → passer par une clé « collante »
+d'`extra_info` (mécanisme existant, `model_sync.py:276`). **Geste à faire, désormais SPÉCIFIÉ.**
+
+**③ Vocalisation : elle EST en place, et ma formule masquait le vrai constat.** Chaîne tracée :
+`views.kokoro_tts` → `_tts_via_service` → `service_client.tts_via_service(text,
+ASSISTANT_TTS_ENGINE)` — constante DÉCLARÉE (`common/tts/constants.py:25`, `kokoro-onnx`,
+commutable par env). **Elle ne consulte pas le registre.** Or le mode `source=None` a été ajouté
+le 31/08 en désignant « vocalisation de l'assistant » comme sa PREMIÈRE cible
+(`model_selector.py:286-289`) : **le portage n'a pas suivi** — l'hypothèse de Fabien était juste.
+⚠ Mais pas un oubli à rattraper mécaniquement : le service TTS tient **UN modèle CHAUD** (3,3 s
+ONNX vs 87,9 s le `.pt`) ; un tirage par requête détruirait la latence qu'il existe pour garantir.
+Ce qui peut venir du registre = **le choix du moteur à garder chaud**, pas un tirage par appel.
+
+**④ `resnet18` : ERREUR DE ROUTAGE, cause identifiée — la convention de Fabien est déjà écrite.**
+`ROADMAP §5b` (design validé 2026-06-17, ⏳) distingue mot pour mot les modèles principaux
+(`cache_dir=`) des **sous-dépendances transitoires** (« t5, bert, tokenizers tirées en interne
+par un pipeline ») qui vont au cache partagé. Le fichier est **aux DEUX endroits** (cache HF =
+légitime, + `models/vision/table-transformer-detection/`). **L'installeur est HORS de cause**
+(`pull_hf_model` : `snapshot_download(cache_dir=…)` « SANS muter `HF_HUB_CACHE` global »).
+Coupable = le **chargement** : `table_transformer_backend.py:90` fait
+`os.environ['HF_HUB_CACHE'] = cache_det` ; le backbone timm du DETR se résout par le hub et
+atterrit donc dans le dossier du modèle principal. Le backend applique **à la lettre** la règle
+`CLAUDE.md`, qui se déclare elle-même TRANSITOIRE (cible : `cache_dir=` seul + `HF_HOME` posé
+UNE fois). → **nouvelle occurrence d'un défaut connu, conçu, non corrigé.**
+⚠ **Ne PAS supprimer le dossier** : chargement en `local_files_only=True` avec `HF_HUB_CACHE`
+pointant là. Ordre : poser `HF_HOME` (§5b) → nettoyer → purger la ligne de catalogue.
+
+**Leçon de ces deux rectifications** : *j'ai trois fois pris une DIFFÉRENCE pour une
+CONTRADICTION, et une PERMISSIVITÉ VOULUE pour un trou.* Le réflexe manquant est le même à
+chaque fois : **chercher le mécanisme qui réconcilie AVANT de conclure à l'incohérence** — le
+garde de cohérence, la docstring d'autorité, le ROADMAP qui a déjà tranché.

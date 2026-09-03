@@ -1352,11 +1352,30 @@ chargement — le verdict permissif ne l'exclut pas.
 **MAIS ce chemin n'a aucun appelant en production.** `select_model` exige `source` **ou**
 `model_type` (`model_selector.py:293`) ; or les deux seuls appels qui passent `model_type`
 passent AUSSI une source — `assistant_engine.py:226` et `llm_utils.py:150` disent tous deux
-`select_model('ollama', model_type='llm', …)`. Le mode « ce qui sait faire X » sans source
-(prévu pour la vocalisation de l'assistant, le nœud studio, la passerelle converter→enhancer)
-**n'est câblé nulle part aujourd'hui**. → **risque LATENT, pas actif** ; il se réveillera au
-premier de ces trois usages. *Le noter maintenant coûte une ligne ; le découvrir ce jour-là
-coûtera un tirage qui échoue au chargement.*
+`select_model('ollama', model_type='llm', …)`. → **risque LATENT, pas actif.**
+
+> 🔴 **PRÉCISION du 2026-09-03** (Fabien : « la vocalisation est en place. C'est un trou dans
+> l'appel du modèle ? »). Ma formule « n'est câblé nulle part » était vraie des APPELANTS mais
+> laissait croire que les surfaces n'existaient pas. **Elles existent et fonctionnent.**
+>
+> Chaîne tracée : `views.kokoro_tts` → `views._tts_via_service` →
+> `common/tts/service_client.tts_via_service(text, ASSISTANT_TTS_ENGINE, …)` — où
+> `ASSISTANT_TTS_ENGINE` (`common/tts/constants.py:25`) est une **constante déclarée**
+> (`kokoro-onnx`, commutable par `WAMA_ASSISTANT_TTS_ENGINE`), avec repli en-process si le
+> service est indisponible.
+>
+> **Donc : la vocalisation NE CONSULTE PAS le registre** — elle nomme son moteur. Or le mode
+> `source=None` a été ajouté le **2026-08-31** en désignant « vocalisation de l'assistant »
+> comme sa PREMIÈRE surface cible (`model_selector.py:286-289`) : le câblage n'a pas suivi.
+> **C'est un portage non fait, pas une absence de surface** — exactement l'hypothèse de
+> Fabien (« une mise à jour du fonctionnement qui n'a pas été portée partout »).
+>
+> ⚠ **Ce n'est pas un oubli à rattraper mécaniquement.** Le service TTS tient **UN modèle
+> CHAUD** — c'est sa raison d'être (chargement ONNX mesuré 3,3 s contre 87,9 s pour le `.pt`).
+> Un tirage par requête provoquerait des bascules de modèle et détruirait précisément la
+> latence que ce service existe pour garantir. Ce qui pourrait légitimement venir du registre,
+> c'est **le choix du moteur à garder chaud** (une fois, au démarrage du service), pas une
+> sélection par appel. **Arbitrage Fabien, non tranché ici.**
 
 ### Le seul constat sans réserve : `table-transformer` n'est relié à rien
 
@@ -1368,35 +1387,54 @@ modèle au backend qu'on vient de lui écrire.
 
 Reste un cas d'une autre nature, `timm/resnet18` — ci-dessous.
 
-### ⚠⚠ DEUX sources pour le chiffre de VRAM — trouvé en répondant à « a-t-on recréé des chemins parallèles ? »
+### 🔴 `MODEL_SIZE_PRESETS` n'est NI un résidu NI un doublon — je m'étais trompé deux fois
 
-Question de Fabien à la relecture. La commande livrée ici n'en crée aucun (elle LIT, et
-appelle `backend_missing`, la brique existante). Mais la question a mis au jour un doublon
-**préexistant**, et de la famille la plus coûteuse :
+> **RECTIFICATION n°2 du 2026-09-03** (Fabien : « c'est important, je pense que c'est un
+> résidu. Il faut investiguer en profondeur… on ne suppose pas »). L'investigation **réfute
+> mon propre constat précédent**, qui annonçait « deux sources du même chiffre » et « 1
+> désaccord réel ». Les deux affirmations étaient fausses.
 
-- **`memory_manager.MODEL_SIZE_PRESETS`** — 34 entrées **écrites à la main**, dont la
-  docstring dit « 🔴 **SOURCE UNIQUE de ce chiffre. Ne pas le recopier dans un backend, un
-  `model_config` ou un catalogue** » — parce que c'est exactement ce qui a produit le **crash
-  du 29/07/2026** (la mesure corrigée ici, deux copies périmées ailleurs, et c'est une copie
-  qui décidait du FULL_GPU). Consommée par `fits_full_gpu()`.
-- **`AIModel.vram_gb`** — l'estimation de la découverte. Consommée par `select_model`
-  (budget + classement). *C'est précisément « la copie au catalogue » que la docstring
-  interdit.*
+**Ce que la table EST**, lu au code (`memory_manager.py:64-143`, fichier créé le 2026-01-29) :
+un registre de **VRAM d'exécution MESURÉE** de pipelines diffusers, indexé par **FAMILLE**
+(`'flux'`, `'mochi'`, `'cogvideox'`…), avec la provenance de chaque valeur en commentaire —
+Qwen-Image 38 Go *mesurés au journal worker le 29/07*, CogVideoX « 20.34 GiB allocated by
+PyTorch » relevé dans `logs/celery-gpu.log.3`. **Ce ne sont pas des valeurs supposées.**
 
-**Confrontation MESURÉE des deux sur les 60 installés** :
+**Elle est ACTIVEMENT consommée** — chemin porteur, pas dormant :
+`imager/backends/*.py` → `MemoryManager.apply_strategy_for_model(model_type='mochi')` →
+`get_strategy_for_model` → `MODEL_SIZE_PRESETS` → choix FULL_GPU / MODEL_OFFLOAD /
+SEQUENTIAL. C'est la décision d'**offload**, pas la sélection de modèle.
 
-| | n |
-|---|---|
-| couverts par un preset | **8 / 60** |
-| — d'accord | 6 |
-| — **en désaccord** | **2** |
-| sans preset (`fits_full_gpu` rend `None`) | **52** |
+**Ce n'est donc pas un doublon d'`AIModel.vram_gb`** — les deux répondent à des questions
+différentes, et l'architecture le DIT explicitement
+(`imager/utils/model_config.py:396-414`) :
 
-Le désaccord qui compte : **`imager:ltx-video-13b-0.9.8-distilled` → catalogue 14 Go,
-preset 18 Go** (écart 4 Go, la valeur du catalogue étant la plus optimiste — donc celle qui
-ferait tenter un FULL_GPU que l'autre refuserait). `describer:blip` diffère de 0,2 Go
-(négligeable). **Non tranché ici** : lequel des deux a raison se mesure au chargement, et le
-recouvrement est trop faible (8/60) pour qu'une fusion se décide sur ce seul relevé.
+| | rôle | granularité | autorité |
+|---|---|---|---|
+| `imager/utils/model_config.py` (manifeste, ingéré au catalogue par `_discover_imager_models`) | budget de sélection/UI | **par id de modèle** | 🔴 « **C'EST ICI QUE LE CHIFFRE FAIT FOI** » |
+| `MODEL_SIZE_PRESETS` | stratégie d'offload au chargement | **par famille** | « heuristique de repli… ne peut donc PAS écraser le manifeste » |
+
+**Et un garde de cohérence existe déjà** — `_check_vram_consistency()` compare les deux à
+chaque import et journalise l'écart (seuil `> 4.0` Go, parce qu'une variante s'écarte
+légitimement de sa famille). **Mesuré ce jour : `VRAM_DRIFT == {}`** — il ne signale rien.
+
+**Mon « désaccord réel » n'en était pas un** : `ltx-video-13b-0.9.8-distilled` → manifeste 14,
+preset 18. L'écart vaut **exactement 4,0** ; le seuil est `> 4.0` → non signalé, *par
+construction*. Et c'est correct : le preset 18 décrit la **13B pleine**, le manifeste 14
+décrit la **distillée** — le manifeste est plus précis, exactement comme documenté. La
+variante fp8 tombe d'ailleurs pile (8 vs 8,0), grâce à la clé `'distilled-fp8'` ajoutée pour
+ça. *J'avais confondu « les deux chiffres diffèrent » avec « ils se contredisent ».*
+
+**Le SEUL résidu trouvé, et il est minuscule** : `fits_full_gpu()`
+(`memory_manager.py:163`) n'a **aucun consommateur** — vérifié sur tout le dépôt, seule sa
+définition existe. `preset_vram_gb()`, lui, n'est appelé que par le garde de cohérence.
+*Ironie : ma première rédaction citait `fits_full_gpu` comme « le consommateur » de la table.
+Il ne consomme rien.*
+
+**Ce qui reste ouvert, et qui est une vraie question de conception** (pas un défaut) : la
+décision d'offload passe par une clé de FAMILLE écrite dans le code plutôt que par le
+catalogue. Rien n'oblige à ce qu'elle y reste — mais la converger suppose que le backend
+sache retrouver sa ligne de catalogue au moment du chargement. **Arbitrage, non tranché ici.**
 
 ### Un modèle de la liste n'en est pas un : `timm/resnet18` est une DÉPENDANCE
 
@@ -1406,12 +1444,46 @@ résidu, contrairement à ce que j'avais d'abord écrit. Son `extra_info` le dit
 `family = table-transformer-detection`. C'est le **backbone** que le snapshot de
 table-transformer tire avec lui — et la découverte le catalogue comme un modèle AUTONOME.
 
-Il n'a donc ni tâche ni licence **parce qu'il n'est pas un modèle offert à l'utilisateur** :
-lui en poser une serait masquer le vrai défaut. La question ouverte est en amont — *la
-découverte doit-elle reconnaître un snapshot imbriqué comme composant de sa famille plutôt
-que comme une ligne de catalogue ?* Elle vaut aussi pour les 2 « sans tâche » que signale
-`check_model_taxonomy` : l'un des deux est ce composant. **Non tranché ici** (le geste touche
-`model_registry`, hors périmètre de session).
+Il n'a donc ni tâche ni licence **parce qu'il n'est pas un modèle offert à l'utilisateur**.
+
+#### La CAUSE, identifiée (rappel de convention par Fabien : « un modèle va dans la partie modèles, le backbone reste dans le cache HFHub »)
+
+La convention énoncée est la bonne, et **elle est déjà écrite** — `ROADMAP §5b` (« Fix durable
+systémique », design validé le 2026-06-17, toujours ⏳) distingue mot pour mot les **modèles
+principaux** (catégorisés via `cache_dir=`) des **sous-dépendances transitoires** (« t5, bert,
+tokenizers tirées en interne par un pipeline, PAS dans le catalogue, partagées ») qui doivent
+aller dans le cache partagé. `resnet18` est exactement une sous-dépendance transitoire.
+
+**Réponse à « y a-t-il une raison légitime ? » : NON — c'est une erreur de routage**, et elle
+est mesurable : le fichier existe **AUX DEUX endroits**
+(`AI-models/cache/huggingface/models--timm--resnet18.a1_in1k`, la place légitime, **et**
+`AI-models/models/vision/table-transformer-detection/models--timm--resnet18.a1_in1k`).
+
+**L'installeur n'est PAS en cause** : `model_installer.pull_hf_model` utilise
+`snapshot_download(cache_dir=…)` « **SANS muter `HF_HUB_CACHE` global** » (sa docstring le dit,
+et la dispersion est la raison invoquée) — et il ne tire qu'un dépôt.
+
+Le coupable est le **chargement** : `reader/backends/table_transformer_backend.py:90` fait
+`os.environ['HF_HUB_CACHE'] = cache_det` avant l'import transformers. Table Transformer est un
+DETR dont la config déclare un **backbone timm** ; celui-ci se résout par le hub, donc atterrit
+dans `HF_HUB_CACHE` — c'est-à-dire dans le dossier du modèle principal. *La mutation d'env est
+globale au processus : la dépendance suit le modèle dans son dossier.*
+
+Ce n'est pas une faute du backend : il applique **à la lettre** la règle transitoire de
+`CLAUDE.md` (« path d'abord, env vars ensuite, import après »), dont la règle elle-même dit
+qu'elle est TRANSITOIRE et que la cible est `cache_dir=` seul + `HF_HOME` posé **une fois au
+démarrage**. `resnet18` est donc **une nouvelle occurrence d'un défaut connu, conçu et non
+corrigé**, pas une découverte isolée.
+
+⚠ **Ne PAS supprimer le dossier pour « nettoyer »** : le backend charge avec
+`local_files_only=True` et `HF_HUB_CACHE` pointant là — le retirer sans corriger le routage
+peut casser le chargement. L'ordre est : poser `HF_HOME` au démarrage et retirer la mutation
+per-modèle (ROADMAP §5b), *puis* nettoyer, *puis* purger la ligne de catalogue.
+
+**La ligne de catalogue est un SYMPTÔME, pas la maladie** : la découverte balaie
+`AI-models/models/` et y trouve un snapshot ; elle a raison de le voir. Si le backbone était
+resté au cache, aucune ligne n'aurait été créée — c'est bien le routage qu'il faut corriger,
+pas la découverte. (C'est l'un des 2 « sans tâche » de `check_model_taxonomy`.)
 
 ### « Déclarée vs mesurée » : DEUX boucles, dont une seule est ouverte
 
@@ -1425,11 +1497,26 @@ que comme une ligne de catalogue ?* Elle vaut aussi pour les 2 « sans tâche »
 > | **réservation (runtime)** | ✅ **FERMÉE** | `_wrap_load` mesure → `reserve_vram` → registre Redis → `get_free_vram_gb` borne le tirage → libération au déchargement |
 > | **persistance au catalogue** | ouverte | la mesure n'est jamais réécrite dans `AIModel.vram_gb` |
 >
-> Et l'ouverture de la seconde **n'est pas établie comme un défaut** : le champ s'appelle
-> « Estimated VRAM in GB » (`models.py:336`) et sert de **budget de planification** au
-> classement de `select_model` — rôle plausiblement distinct de la mesure d'admission, qui
-> vit au gouverneur. *La refermer est une décision de conception, pas une réparation* ; je
-> l'avais présentée comme un correctif à faire.
+> **RECADRAGE Fabien (2ᵉ passe) — et il tranche la question que je laissais ouverte** :
+> « La persistance au catalogue n'est pas une boucle VRAM, c'est de l'**information sur la
+> consommation VRAM**. Si l'info ne peut être tirée, une estimation se fait à partir de la
+> taille des poids, sinon ça bloque le fonctionnement. **Idéalement, au chargement, on
+> devrait constater la VRAM réelle et la consigner à la place de `vram_estimated`.** »
+>
+> C'est la bonne formulation, et elle rend ma présentation (« boucle ouverte ») doublement
+> fausse : ce n'est pas une boucle, et l'estimation depuis les poids n'est pas un pis-aller
+> subi mais **le comportement voulu en l'absence de mesure** (sans elle, `vram_gb=0` valait
+> « inconnu » et le curseur de qualité traitait ces modèles au pire coût — cf.
+> `model_selector.py:200`).
+>
+> **Réponse à « ce n'est pas le cas ? » : non, ce n'est pas fait.** La mesure au chargement
+> EXISTE (`base.py::_wrap_load` → `_measured_vram_gb`) mais elle ne va qu'au gouverneur
+> (`reserve_vram`, ligne Redis à TTL) ; **aucun chemin ne la réécrit dans `AIModel.vram_gb`
+> ni n'efface `extra_info['vram_estimated']`** — vérifié sur les 275 occurrences de
+> `vram_gb` du dépôt. ⚠ Et `model_sync.py:185` réécrirait `vram_gb` depuis la découverte à
+> chaque synchro : la consignation devra donc soit passer par une clé « collante »
+> d'`extra_info` (le mécanisme existe déjà, `model_sync.py:276`), soit être réappliquée
+> après sync. **Le geste reste à faire ; il est désormais SPÉCIFIÉ.**
 
 Ce qui reste factuel :
 
