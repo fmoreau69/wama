@@ -67,6 +67,32 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
 - Périmètre : UNE app à la fois, finir à 100 % plutôt que porter partout avec des trous
   (recadrage Fabien 2026-07-02).
 
+## 0bis. Porter une app à BACKENDS : la marche B1 (2ᵉ app routée, 2026-09-03)
+
+> Un portage moderne ne s'arrête pas aux briques d'UI : il rend l'app **composable** — c'est
+> ce que mesurent les 4 critères de grille de la chaîne (`backend_routes`, `task_skeleton`,
+> `detail_spec`, `triad_specs`, ajoutés le 03/09 ; ils disent app par app ce qui manque).
+
+1. **Extraire les moteurs en `backends/`** (ORM-free : la jumelle copie le paquet et
+   l'exécute tel quel) — `describer` a servi de modèle : ses modules `utils/*_describer.py`
+   ont été TRADUITS puis SUPPRIMÉS, jamais doublés.
+2. **Déclarer le routage** dans `backends/__init__.py` — chemins en **CHAÎNES** (la jumelle
+   résout vers SES copies) :
+   `ROUTES = {'<nature>': 'backends.<module>.<fonction>'}` ;
+   `RESULT = {'kind': 'file'}` (le backend écrit `output_path`) **ou**
+   `{'kind': 'text', 'field': '<colonne>'}` (il REND le texte) ;
+   `NATURE_FIELD = '<colonne de nature>'` (défaut `media_type`).
+3. **`tasks.py` = 5 lignes + glu** (`run_item_task`) ; le générateur COMPOSE le même corps
+   pour la jumelle. La tâche lit **les COLONNES** (`effective_settings`, modèle événementiel
+   `ROADMAP §23.2quater`) — jamais un défaut relu en dur dans le corps.
+4. **Garde GPU sur tout usage AUTOMATIQUE** d'un modèle (cascade Ollama, triage) :
+   `WAMA_GPU_SAFE_MODE` consulté, saut ANNONCÉ en console. Les usages DEMANDÉS par
+   l'utilisateur (toggles) restent hors garde. *Une garde se pose avec ses jumeaux.*
+5. **Régénérer la jumelle et la MESURER** : `app_sandbox substitute` dans l'ordre
+   params→apps→urls→models→tasks→views→templates (les 2 derniers en COUPLE), puis
+   `run_nightly_tests --id <label>.` — **le gate est 11/11, un SKIP n'est pas un succès**
+   (son motif nomme la cause côté app). Contrats et gardes : `ROUTE §S 🔒`.
+
 ## 1. Ordre de port éprouvé (recette des 5 premiers)
 1. Tri/filtre + toolbar : `common/utils/queue_view.py` + `_queue_toolbar.html`.
 2. Card d'entrée `_new_item_card` en tête (ordre canonique : card → progression → toolbar → file) ;
