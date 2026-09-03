@@ -969,6 +969,91 @@ def _backend_contract(f: _AppFiles):
     return True, ev
 
 
+# ── Chaîne de GÉNÉRATION (marche B, route §10.3) — l'app est-elle COMPOSABLE ? ───────────
+#
+# Quatre déclarations rendent une app régénérable par la chaîne codegen ; jusqu'au
+# 2026-09-03 la grille n'en mesurait AUCUNE (constat Fabien — les deux seuls adoptants,
+# converter et reader, sont précisément les deux apps passées par la chaîne). La doctrine
+# reste « la grille mesure le DÉCLARÉ, le roundtrip le PROJETABLE » : ces critères mesurent
+# les déclarations CÔTÉ APP qui rendent les facettes processing/inspector/tool_api
+# projetables — jamais le verdict du roundtrip lui-même.
+
+def _backend_routes(f: _AppFiles):
+    """`backends/__init__.ROUTES` : nature → callable au contrat commun (marche B1, 02/09).
+
+    LA déclaration que `tasks_gen` compose en corps de tâche — une app sans ROUTES garde
+    son stub `NotImplementedError`. Applicable à TOUTES les apps : chaque app traite des
+    items ; la question n'est pas « a-t-elle des modèles IA ? » (ça, c'est F4/_f4) mais
+    « son moteur est-il ROUTABLE par nature d'entrée ? ». Le contrat exige des chemins en
+    CHAÎNES (la jumelle résout vers SES copies de paquet) : un ROUTES d'objets importés
+    est un demi-contrat → 'partial'.
+    """
+    ev = f.find_code(['backends/__init__.py'], r'(?m)^ROUTES\s*[:=]')
+    if ev:
+        text = _sans_commentaires(f.text(['backends/__init__.py']), '.py')
+        m = re.search(r'(?m)^ROUTES\s*[:=][^{]*\{(.*?)\}', text, re.S)
+        # cible non-chaîne = « ': identifiant » (une clé-chaîne suivie d'un objet importé)
+        if m and re.search(r"""['"]\s*:\s*[A-Za-z_]""", m.group(1)):
+            return 'partial', f"{ev} — cibles en OBJETS importés, pas en chaînes (la jumelle ne peut pas résoudre ses copies)"
+        return True, ev
+    if f.glob('backends/*.py'):
+        return False, "paquet backends/ présent mais sans ROUTES — tasks_gen laisse le stub NotImplementedError"
+    return False, "aucun paquet backends/ — moteur enfoui dans tasks/utils, incomposable par nature"
+
+
+def _task_skeleton(f: _AppFiles):
+    """La tâche d'ITEM passe-t-elle par la brique `run_item_task` (marche A2a) ?
+
+    Gardes, progress, chrono, statuts, ETA, console, notifications d'un seul mouvement —
+    l'app ne fournit que sa glu `process(item, ctx)`. Une tâche hand-rolled réécrit tout
+    cela (chaque pièce est mesurée ailleurs : crash_redelivery_guard, eta_seeded…), mais
+    `tasks_gen` ne sait COMPOSER que la forme squelette : sans elle, la facette processing
+    reste CREATE-ONLY. Les tâches d'ENRICHISSEMENT (analyze/enrich — ni statut ni progress)
+    sont hors contrat par décision (skill /port-app §1.5) : le critère ne regarde que la
+    présence du squelette quelque part dans les tâches, jamais leur exhaustivité.
+    """
+    ev = f.find_code(TASKS, r'run_item_task')
+    if ev:
+        return True, ev
+    return False, "tâche d'item hand-rolled — gardes/progress/ETA réécrits (brique task_skeleton)"
+
+
+def _detail_spec(f: _AppFiles):
+    """Registration du détail en SPEC-DONNÉE (`register_app_detail_spec`, marche A3a).
+
+    `inspector_adapters` mesure QUE le volet est câblé ; celui-ci mesure la FORME : une
+    spec-donnée se projette au manifeste (facette inspector régénérable), un adapter code
+    ne se projette pas. L'adapter code reste LÉGITIME pour une logique irréductible — en
+    COMPLÉMENT de la spec, pas à sa place → 'partial' quand il est seul.
+    """
+    ev = f.find_code(APPS_PY, r'register_app_detail_spec')
+    if ev:
+        return True, ev
+    if f.find_code(APPS_PY, r'register_app_detail\b'):
+        return 'partial', "détail en adapter CODE seul — non projetable au manifeste (A3a : register_app_detail_spec)"
+    return False, "aucune registration de détail dans apps.py"
+
+
+def _triad_specs(f: _AppFiles):
+    """La triade tool_api est-elle CONSTRUITE de la déclaration (`TRIAD_SPECS`, marche A4) ?
+
+    `tool_api` (F1) mesure l'EXPOSITION au registre runtime ; celui-ci mesure la FORME.
+    Une entrée TRIAD_SPECS est régénérable ; une triade code main reste légitime quand elle
+    porte une VRAIE logique (routage, purge — ex. transcriber) : 'partial' et jamais un
+    rouge, parce que le distinguo conventionnelle/logique ne se mesure pas mécaniquement
+    (un rouge inviterait à démonter une logique irréductible pour verdir un chiffre).
+    """
+    try:
+        from wama.tool_api import TOOL_REGISTRY, TRIAD_SPECS
+    except Exception as e:
+        return None, f'import tool_api impossible : {e!r}'
+    if f.app in TRIAD_SPECS:
+        return True, f"tool_api.py TRIAD_SPECS['{f.app}'] (triade construite à l'import)"
+    if f'start_{f.app}' in TOOL_REGISTRY or f'get_{f.app}_status' in TOOL_REGISTRY:
+        return 'partial', "triade code main — conventionnelle ? → la porter à TRIAD_SPECS ; à vraie logique ? écart assumé"
+    return False, 'aucune triade exposée (voir critère tool_api)'
+
+
 # ── F6 — prompts & contrat tool_api ──────────────────────────────────────────────
 
 def _prompt_skill(f: _AppFiles):
@@ -1228,6 +1313,9 @@ CRITERIA: list[Criterion] = [
     Criterion('during_preview', 'F3', 'Aperçu « PENDANT » (émission backend + consommation front)',
               _during_preview,
               mecanisme='preview'),
+    Criterion('detail_spec', 'F3', 'Détail du volet en SPEC-donnée (register_app_detail_spec, A3a)',
+              _detail_spec,
+              mecanisme='detail_registry'),
     # ── F4 modèles ──
     Criterion('eta_seeded', 'F4', 'ETA seedée auto-apprenante (record_run + estimate)', _eta_seeded,
               mecanisme='eta'),
@@ -1258,6 +1346,14 @@ CRITERIA: list[Criterion] = [
               _f4(lambda f: _present(f, PY, r'HF_HUB_CACHE')),
               mecanisme='hf_cache'),
     # ── F5 cycle de vie ──
+    # ⚠ backend_routes et task_skeleton ne sont PAS enveloppés _f4 : la composition du corps
+    # de tâche vaut pour toute app (le converter — sans modèle IA — est le pilote des deux).
+    Criterion('backend_routes', 'F5', 'Routage nature → backend déclaré (backends/__init__.ROUTES, B1)',
+              _backend_routes,
+              mecanisme='codegen'),
+    Criterion('task_skeleton', 'F5', "Tâche d'item par la brique commune (run_item_task, A2a)",
+              _task_skeleton,
+              mecanisme='task_skeleton'),
     Criterion('anti_race', 'F5', 'Verrou anti-race sur TOUTES les vues de démarrage', _anti_race),
     Criterion('reconcile_orphans', 'F5', 'Réconciliation RUNNING orphelins (IndexView)',
               lambda f: _present(f, VIEWS, r'reconcile_orphaned_running')),
@@ -1374,6 +1470,9 @@ CRITERIA: list[Criterion] = [
     Criterion('prompt_enrich_ui', 'F6', 'Champ prompt à deux états (wama-prompt-enrich)',
               _f6_prompt(lambda f: _present(f, TEMPLATES + JS, r'wama-prompt-enrich|WamaPromptEnrich')),
               mecanisme='prompt_pipeline'),
+    Criterion('triad_specs', 'F6', 'Triade construite de la déclaration (TRIAD_SPECS, A4)',
+              _triad_specs,
+              mecanisme='tool_api'),
     Criterion('tool_api_item_id', 'F6', "Contrat de retour add_to_<app> → 'item_id'", _tool_api_item_id,
               mecanisme='tool_api'),
     # ── F7 permissions & scope données ──

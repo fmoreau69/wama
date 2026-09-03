@@ -258,10 +258,10 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 12 |
 
-**Mécanismes déclarés : 118** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 17 · modules balayés non rattachés : 0 · **de niveau app sans critère de grille : 32**
+**Mécanismes déclarés : 118** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 17 · modules balayés non rattachés : 0 · **de niveau app sans critère de grille : 31**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `qc` (wama/common/utils/qc.py)
 
-<details><summary>⚠ <b>32 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
+<details><summary>⚠ <b>31 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 
 | Mécanisme | Adopté par | Domicile |
 |---|---|---|
@@ -291,7 +291,6 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `media_probe` — Sonde média | **2** app(s) : converter, transcriber | `wama/common/utils/media_probe.py` |
 | `nightly_tests` — Tests nocturnes | **2** app(s) : enhancer, transcriber | `wama/common/services/nightly_tests.py` |
 | `resource_governor` — Gouverneur de ressources | **2** app(s) : avatarizer, composer | `wama/common/services/resource_governor.py` |
-| `task_skeleton` — Squelette de tâche | **2** app(s) : converter, reader | `wama/common/utils/task_skeleton.py` |
 | `tts_service_client` — Client du service TTS | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/service_client.py` |
 | `tts_vocabulaire` — Vocabulaire TTS partagé | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/constants.py` |
 | `model_coverage` — Couverture multi-modèles | **1** app(s) : anonymizer | `wama/common/services/model_coverage.py` |
