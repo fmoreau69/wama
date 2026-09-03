@@ -135,3 +135,37 @@ class ImporteurDeriveTests(TestCase):
             set(JumelleBatch.objects.filter(user=dev).values_list('id', flat=True)))
         self.assertEqual(SourceBatch.objects.filter(user=dev).count(), 0,
                          'la consolidation ne doit JAMAIS écrire dans la source')
+
+
+class ToutImporteurEstDerivableTests(TestCase):
+    """INVARIANT (2026-09-03, constat Fabien : « je ne peux pas importer depuis filemanager…
+    c'est un problème récurrent sur les nouvelles applications auto-générées »).
+
+    `importer_for()` ne sait dériver l'importeur d'une jumelle que si l'importeur de la SOURCE
+    accepte `app_label`. Pendant trois mois, un SEUL l'acceptait (converter, paramétré le
+    30/08 pour son propre bac à sable) : chaque nouvelle jumelle redécouvrait le trou, une app
+    à la fois — describer le 03/09 en était la 2ᵉ occurrence.
+
+    Ce test est la garde POSÉE AVEC SES JUMEAUX : il ne vérifie pas les 10 importeurs d'un
+    jour, il vérifie que le PROCHAIN sera écrit dérivable. Un importeur ajouté sans le
+    paramètre échoue ici, avant qu'une jumelle ne le découvre à l'écran.
+    """
+
+    def test_chaque_importeur_accepte_app_label(self):
+        import inspect
+        sans = sorted(app for app, fn in IMPORTERS.items()
+                      if 'app_label' not in inspect.signature(fn).parameters)
+        self.assertEqual(sans, [], "ces importeurs ne peuvent pas servir une jumelle : "
+                                   "ajouter `app_label='<app>'` à leur signature et l'employer "
+                                   "pour le modèle ET le dossier d'entrée")
+
+    def test_chaque_importeur_derive_donc_reellement_pour_une_jumelle(self):
+        # La signature ne suffit pas : c'est `importer_for` qui doit rendre un callable.
+        from wama.common.app_registry import APP_CATALOG
+        for app in IMPORTERS:
+            with patch('wama.common.app_registry.APP_CATALOG',
+                       {**APP_CATALOG, 'jumelle_99': {'label': 'J', 'generated_from': app,
+                                                      'input_extensions': ('.txt',)}}):
+                fn = importer_for('jumelle_99')
+            self.assertIsNotNone(fn, f"la jumelle d'une app {app} doit dériver son importeur")
+            self.assertEqual(fn.keywords.get('app_label'), 'jumelle_99')
