@@ -10706,3 +10706,46 @@ légitime. *Un gate rouge en permanence se relit comme la normale.* C'est une CA
   instrument ET sujet en mouvement, il ne vaut rien avant son commit.
 - **Suite complète NON lancée** : `manage.py test` de l'autre instance tournait (PID 23620,
   09:07:29). *C'est exactement la collision de base de test partagée du 02/09 — attendre.*
+
+
+### 🔴 RECTIFICATION du §PALIER ci-dessus — même jour, recadrage Fabien
+
+> Trois questions de Fabien à la relecture (« la boucle VRAM n'est pas déjà refermée ? », « as-tu
+> regardé assez en profondeur ? », « normalement le grisage est effectif de bout en bout »).
+> **Les trois portaient juste : le palier ci-dessus affirme plus que ce que la mesure soutient.**
+> Détail vérifié : `PROSPECTION_PIPELINE §Session du 2026-09-03` (blocs 🔴 RECTIFICATION).
+
+1. **« ANGLE MORT du grisage » — FAUX, et le mot est retiré du code** (axe renommé
+   `backend_hors_verdict`). **Le grisage EST effectif de bout en bout**, chaîne vérifiée maillon
+   par maillon : `backend_missing()` → `get_registry_models` (`model_selector.py:636`) →
+   `data-backend-missing` (`wama-params.js:524`) → respect du marqueur
+   (`wama-input-match.js:93`) → exclusion du tirage (`:326`). Les 16 se décomposent, **aucun
+   n'est cassé** : **10** lignes `huggingface:*` non rattachées à une app (absentes de tout
+   select, filtré par `source` en `:573`) + **6** routées par le gestionnaire de backends propre
+   à leur app (composer/reader). *Je n'avais pas décomposé avant de conclure.*
+2. **Le risque de la permissivité EXISTE mais est LATENT** — reproduit :
+   `select_model(model_type='speech', vram_budget_gb=8.0)` tire `canary-1b-v2` (aucun backend,
+   NeMo absent) → échouerait au chargement. **Mais aucun appelant n'utilise ce mode** :
+   `select_model` exige `source` OU `model_type` (`:293`), et les deux seuls appels passant
+   `model_type` passent AUSSI une source (`assistant_engine.py:226`, `llm_utils.py:150`). Se
+   réveillera au premier usage « ce qui sait faire X » sans source.
+3. **« Boucle VRAM ouverte » — il y en a DEUX, et celle qui compte est FERMÉE.** Réservation
+   runtime (`_wrap_load` → `reserve_vram` → Redis → `get_free_vram_gb` → libération) : **elle
+   marche**. Seule la persistance au catalogue ne l'est pas — et **ce n'est pas établi comme un
+   défaut** (`vram_gb` = « Estimated VRAM in GB », budget de planification ≠ mesure d'admission).
+   *Décision de conception, pas réparation.*
+
+**⚠⚠ Trouvé EN VÉRIFIANT (le vrai chemin parallèle, PRÉEXISTANT — je n'en ai créé aucun)** :
+`memory_manager.MODEL_SIZE_PRESETS` (34 entrées à la main) porte « 🔴 SOURCE UNIQUE de ce
+chiffre, ne pas le recopier dans un catalogue » — or `AIModel.vram_gb` EST cette copie.
+Recouvrement **8/60**, **1 désaccord réel** : `imager:ltx-video-13b-0.9.8-distilled` catalogue
+**14 Go** vs preset **18 Go** (le catalogue est le plus optimiste → tenterait un FULL_GPU que
+l'autre refuserait — famille exacte du crash du 29/07 que cette docstring raconte). Non tranché.
+
+**Le seul constat du palier qui tient sans réserve** : `table-transformer` ×2 porte
+`backend_ref=''` et `composition={}` alors que son backend est livré et testé (B2 n°1).
+
+**Leçon de la séquence** : *un rapport qui COMPTE une population doit la DÉCOMPOSER avant de la
+qualifier.* « 16 hors verdict » est un fait ; « 16 modèles ne sont signalés nulle part » était
+une interprétation — et elle transformait une garde volontairement permissive en panne.
+Contrôles après rectification : 7 tests OK.
