@@ -152,13 +152,45 @@ class RoutageCacheHFTest(unittest.TestCase):
 
     def test_le_socle_pose_bien_les_caches_au_demarrage(self):
         """Retirer une mutation per-modèle n'est sûr que si le socle existe. On vérifie le
-        FAIT (les variables sont posées au chargement des settings), pas la ligne de code."""
+        FAIT (les variables sont posées au chargement des settings), pas la ligne de code.
+
+        ⚠⚠ DANS UN SOUS-PROCESSUS NEUF, et c'est le défaut lui-même qui l'impose. Première
+        version : `os.environ.get(...)` lu dans le process de test. Elle passait en isolé et
+        ÉCHOUAIT dans la suite complète (mesuré le 2026-09-03) — parce qu'un test antérieur
+        avait fait tourner un `load()` de backend, dont la mutation per-modèle a réécrit la
+        variable POUR TOUT LE PROCESS. *La démonstration la plus directe qu'on puisse avoir
+        du problème que ce module recense : il a cassé son propre contrôle.*
+
+        Un test du DÉMARRAGE doit donc démarrer. On retire les variables de l'environnement
+        de l'enfant — comme le shell réel, qui n'en exporte aucune (ni `.env`, ni
+        `start_wama_prod.sh` : vérifié) — pour que le `setdefault` de `settings.py` soit bien
+        ce qui les pose.
+        """
+        import json
         import os
-        from django.conf import settings
-        attendu = str(settings.MODEL_PATHS['cache']['huggingface'])
-        for var in ('HF_HOME', 'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE'):
+        import subprocess
+        import sys
+
+        code = (
+            "import json, os, django\n"
+            "django.setup()\n"
+            "from django.conf import settings\n"
+            "print(json.dumps({\n"
+            "    'attendu': str(settings.MODEL_PATHS['cache']['huggingface']),\n"
+            "    'env': {v: os.environ.get(v) for v in "
+            "('HF_HOME', 'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE')},\n"
+            "}))\n"
+        )
+        env = {k: v for k, v in os.environ.items() if k not in VARS_HF}
+        env['DJANGO_SETTINGS_MODULE'] = 'wama.settings'
+        essai = subprocess.run([sys.executable, '-c', code], cwd=str(_racine()),
+                               env=env, capture_output=True, text=True, timeout=300)
+        self.assertEqual(essai.returncode, 0,
+                         f"le sous-processus n'a pas démarré :\n{essai.stderr[-2000:]}")
+        vu = json.loads(essai.stdout.strip().splitlines()[-1])
+        for var, valeur in vu['env'].items():
             self.assertEqual(
-                os.environ.get(var), attendu,
-                f"{var} n'est pas posée sur le cache partagé : sans ce socle, retirer une "
-                f"mutation per-modèle enverrait les poids dans le cache par défaut de HF "
-                f"(hors AI-models/).")
+                valeur, vu['attendu'],
+                f"{var} n'est pas posée sur le cache partagé au démarrage : sans ce socle, "
+                f"retirer une mutation per-modèle enverrait les sous-dépendances dans le "
+                f"cache par défaut de HuggingFace (hors AI-models/).")

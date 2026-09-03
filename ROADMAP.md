@@ -377,6 +377,27 @@ les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprim
 > `wama/views.py:223` (dump de modèles dans speech/kokoro), `start_wama_prod.sh:271`
 > (`--workers 1` du service TTS déclaré STRUCTURANT à cause de cette course), et la commande
 > `dedup_models` née comme « séquelle de la course `os.environ['HF_HUB_CACHE']` ».
+>
+> **🔴 CAUSE RACINE RETIRÉE le 2026-09-03 (soir) — elle était DOCUMENTAIRE.** `CLAUDE.md`
+> **prescrivait** la mutation comme « pattern obligatoire » tout en se déclarant transitoire :
+> tout nouveau modèle réintroduisait donc le défaut **en étant conforme**. Le pattern est
+> désormais `cache_dir=` seul, muter l'environnement est explicitement INTERDIT, et la ligne
+> « laisser un modèle se télécharger dans le cache partagé = interdit » a été retirée — elle
+> était FAUSSE pour les sous-dépendances, et c'est cette confusion qui justifiait la mutation.
+>
+> **DÉTECTEUR livré** : `manage.py check_model_layout` — « aucun snapshot ÉTRANGER dans un
+> dossier de famille ». Il regarde le DISQUE, donc **sans GPU ni test par backend** : décisif,
+> puisque **aucun des 18 backends porteurs d'une mutation n'a de test de chargement sur poids
+> réels** (mesuré). C'est lui qui rend le portage prouvable — retirer, lancer l'app, rebalayer.
+> Mesure à la livraison : **8 étrangers → 5** (restent `t5-base`/`t5-large` dans
+> musicgen/audiogen, `Qwen2.5-1.5B` dans vibevoice, `resnet18` dans table-transformer) ; les
+> composants légitimes sont DÉCLARÉS dans `common/utils/model_locations.COMPOSANTS_DECLARES`.
+> Il révèle aussi **22 verrous `.locks` orphelins** — dont **11 dans `speech/kokoro`** — qui
+> datent les contaminations passées : *on a nettoyé, la cause est restée, ça a repollué.*
+>
+> **Reste, dans l'ordre** : ① la brique commune côté CHARGEMENT (11 résolveurs maison
+> coexistent, `model_dir()` ne sert que l'installeur) ; ② les 37 mutations ; ③ le ménage des
+> 5 étrangers, APRÈS le portage de leur backend.
 
 **Chemins dérivés de la CATÉGORIE** (⏳) : `models/{category}/{family}/` où `category` =
 `ModelType` (source unique, model_manager). Helper unique `model_dir(category, family)` →

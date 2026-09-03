@@ -9154,8 +9154,27 @@ n'est pas un critère) ; `check_docs` : toujours 1 cible distincte.
 - Gunicorn HUP ×2 (reload ~40 s — un 000 pendant le boot des workers n'est pas une panne ;
   le port 80 d'Apache n'est pas joignable depuis WSL, sonder 8000). Celery : rien à
   recharger (imports paresseux additifs seulement).
-- 🔚 Proposé à Fabien : **registre des BACKENDS** (dérivé, page au registre des registres,
-  lien modèle↔backend via `backend_ref` rendu déclaratif) — design remis, attend GO.
+### ⭐ 12ᵉ REGISTRE — LE VIVIER DES BACKENDS (GO Fabien « oui dérivé bien sûr », 03/09)
+> Deux besoins, une source : la vision d'ensemble, et le VOISINAGE que le LLM de la marche B
+> trie pour s'inspirer du backend le plus approchant.
+- **`common/services/backend_inventory.py`** (nature `DERIVED` — ne stocke rien, aucun
+  rafraîchisseur) : lit `wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + classes
+  `BaseModelBackend`) et recoupe `AIModel`. **Ne cite aucune app** (parcourt les apps
+  installées). Page `/common/backends/` à la charte commune des catalogues, 3 facettes
+  DÉRIVÉES du contenu. **Mesuré : 9 apps, 41 backends, 9 natures routées, 80 modèles
+  rattachés, dérivation en 0,13 s.**
+- **2 défauts de MA dérivation, trouvés par la mesure et devenus des tests** : balayer le
+  seul `__init__` ratait **4 apps sur 9** (classes en sous-modules) ; `AIModel` n'a pas de
+  champ `key` (c'est `model_key`) → l'exception avalée annonçait « 0 modèle lié ».
+  *Un inventaire qui rate des entrées est pire qu'aucun inventaire ; vérifier un nom de
+  champ, ne jamais le deviner.* Un sous-module illisible est désormais RAPPORTÉ à l'écran.
+- ⚠ **Fait mesuré à consigner** : `AIModel.backend_ref` porte un **nom d'app**, pas de
+  backend (`sam3` → `anonymizer`). Le rattachement est donc « déduit de l'app », la page le
+  dit, et le compteur **« lien fin déclaré » = 0** EST la mesure du chantier `backend_ref`
+  déclaratif au manifeste modèle (ouvert depuis table-transformer, posé en base le 02/09).
+- Tests : `tests_backend_inventory.py` (12 — invariants du vivier, balayage des sous-modules
+  sur paquet FABRIQUÉ, provenance du lien, page) ; les invariants génériques de registre
+  (url, source, `count`) sont hérités de `tests_registries.py` — l'uniformité paie.
 
 ---
 
@@ -10910,3 +10929,94 @@ tout** », exactement l'intention que Fabien lui prête — là où le budget co
 **LIBRE**. Le seul autre raisonnement sur la totale est `get_memory_strategy:542`, qui décide une
 stratégie d'**offload** pour un modèle **déjà choisi**. **Retirer la fonction sans consigner ce
 manque effacerait la seule trace du mécanisme absent** → R46 en candidat, PAS retiré.
+
+
+## §PALIER — 2026-09-03 (soir), « HF_HUB_CACHE : la RÈGLE qui prescrivait le défaut + le DÉTECTEUR » — ✅ LIVRÉ
+
+> Décision Fabien après recadrage (« on a déjà fait tout un tas de passes de correction sur le
+> sujet mais sans centraliser le fonctionnement — que proposes-tu pour régler ça définitivement
+> sans que ça pollue à nouveau le registre ? ») : **règle + détecteur d'abord**, le portage des
+> sites et la brique de chargement ensuite.
+
+### ⚠⚠ Pourquoi les passes précédentes n'ont pas tenu — c'est MESURÉ, pas supposé
+
+Elles nettoyaient le **symptôme** sans retirer la **cause** ni poser de **détecteur**. Les
+verrous `.locks` orphelins datent les contaminations passées, **22 traces** dont **11 dans
+`speech/kokoro`** (Qwen3-ASR, olmOCR, audiogen, musicgen ×2, pyannote ×4, t5-base, t5-large) —
+exactement le « dump de modèles dans speech/kokoro » que `wama/views.py:223` raconte. *On a
+nettoyé, la cause est restée, ça a repollué.*
+
+### ① La cause racine était DOCUMENTAIRE — `CLAUDE.md` prescrivait le défaut
+
+Sa règle « AJOUT D'UN NOUVEAU MODÈLE AI » §3 imposait `os.environ['HF_HUB_CACHE'] = cache_dir`
+comme **pattern obligatoire**, avec un « ❌ INTERDIT : importer transformers AVANT de setter
+`HF_HUB_CACHE` » — tout en se déclarant transitoire deux lignes plus bas. **Tout nouveau modèle
+réintroduisait donc le défaut EN ÉTANT CONFORME**, et le garde de mutations aurait signalé du
+code correct. Corrigé : le pattern est désormais `cache_dir=` **seul**, avec l'interdiction
+explicite de muter l'environnement et la preuve mesurée en regard.
+
+⚠ Retiré aussi de la liste des INTERDITS : « laisser un modèle se télécharger dans
+`AI-models/cache/huggingface/` ». **C'était faux pour les SOUS-DÉPENDANCES** — et cette
+confusion est précisément ce qui justifiait la mutation. La distinction du §5b est maintenant
+écrite : modèle principal catégorisé (`cache_dir=`), dépendances partagées au cache partagé.
+
+### ② Le détecteur — il remplace le harnais qui n'existe pas
+
+`manage.py check_model_layout` (+ `--json`, `--strict`, `--locks`) : **aucun snapshot ÉTRANGER
+dans un dossier de famille**. Il regarde le DISQUE, donc **sans GPU et sans test par backend** —
+ce qui est décisif, car **aucun des 18 backends qui mutent l'environnement n'a de test de
+chargement sur poids réels** (les 4 nommés dans des tests n'y vérifient que des attributs
+déclarés, `tests_capabilities_languages.py`). C'est lui qui rendra le portage des 37 sites
+prouvable : retirer → lancer l'app → rebalayer.
+
+**Mesure à la livraison : 8 étrangers → 5** après déclaration des composants légitimes.
+Les 5 restants sont de vraies dépendances partagées : `t5-large` (audiogen), `t5-base` +
+`t5-large` (musicgen), `Qwen2.5-1.5B` (vibevoice), `resnet18` (table-transformer).
+
+**Les composants légitimes se DÉCLARENT** (`common/utils/model_locations.COMPOSANTS_DECLARES`),
+ils ne se devinent jamais : pipeline pyannote (`segmentation-3.0`, `wespeaker-…`) et
+`bosonai--hubert_base` de Higgs. *Un contrôle qui crie au loup finit par être ignoré, donc par
+ne plus rien protéger* — d'où la déclaration, qui force à DIRE ce qui appartient à quoi.
+
+**PAS de gate par défaut** (`--strict` pour la CI) : les 5 étrangers sont un état HÉRITÉ, et
+supprimer une copie peut casser un chargement tant que le backend qui l'a déposée n'est pas
+porté. 7 tests (`tests_model_layout.py`), arbres FABRIQUÉS — jamais contre `AI-models/` réel,
+dont le contenu change à chaque installation.
+
+### Ce qui reste (non fait, dans l'ordre)
+1. **Brique commune côté CHARGEMENT** — `model_locations.model_dir()` sert l'INSTALLEUR seul ;
+   côté chargement, **11 résolveurs maison** coexistent (`_cache_dir_for`, `_get_ltx_cache_dir`,
+   `_setup_hf_cache` ×2, `_set_cache_env`, `setup_hf_cache_for_model`…). Un nouveau backend doit
+   avoir UN appel et AUCUNE décision d'environnement.
+2. **Portage des 37 mutations** (18 backends) — 2 lignes par site, la preuve étant le vrai
+   travail ; le détecteur la fournit sans suite GPU.
+3. **Ménage** : R47 (resnet18) et les 4 autres étrangers — APRÈS le portage de leur backend.
+4. **Skill de guidage** — doctrine `skill-forge` : n=1 = candidat. Le geste n'a été fait
+   qu'UNE fois (table-transformer) ; à forger au 2ᵉ ou 3ᵉ site, quand le patron est éprouvé.
+
+### ⭐ Le contrôle a cassé sur son propre sujet — et c'est la meilleure preuve du défaut
+
+`test_le_socle_pose_bien_les_caches_au_demarrage` **passait en isolé et ÉCHOUAIT dans la
+suite complète**. Le message dit tout :
+
+```
+AssertionError: '…AI-models\models\diffusion\wan' != '…AI-models\cache\huggingface'
+```
+
+Un autre test avait fait charger le backend Wan, dont la mutation a réécrit `HF_HUB_CACHE`
+**pour tout le process**. *Le module qui recense le défaut s'est fait casser par le défaut.*
+
+**⚠⚠ Et c'est pire que « au chargement » : DEUX backends mutent DÈS L'IMPORT.**
+`wan_video_backend.py:41` (`_WAN_MODELS_DIR = _setup_hf_cache()`) et
+`hunyuan_video_backend.py:38` — au niveau module, avant tout usage. Hunyuan pose même
+`HF_HOME`. **Importer le module suffit à rediriger le cache HF de tout le process**, et le
+DERNIER importé gagne : c'est littéralement la « course » que `start_wama_prod.sh:271`
+invoque pour justifier son `--workers 1`.
+
+→ **Ces 2 sites sont la PRIORITÉ du portage** (`ROADMAP §5b`) : ils polluent sans qu'aucun
+modèle ne soit chargé.
+
+**Correctif du test** : il interroge désormais un **SOUS-PROCESSUS NEUF** (variables HF
+retirées de son environnement, comme le shell réel qui n'en exporte aucune). *Un test du
+DÉMARRAGE doit démarrer* — le lire dans un process déjà pollué ne mesurait que l'ordre des
+tests.

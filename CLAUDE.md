@@ -432,22 +432,51 @@ Path(MON_MODELE_DIR).mkdir(parents=True, exist_ok=True)
 #### 3. Backend `wama/<app>/backends/<nom>_backend.py` — Pattern obligatoire
 ```python
 def load(self, ...):
-    import os
     cache_dir = str(MON_MODELE_DIR)  # récupérer depuis model_config
-
-    # ── CRITIQUE : TOUJOURS avant tout import HF ──────────────────────
-    os.environ['HF_HUB_CACHE'] = cache_dir
-    os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
-    # ──────────────────────────────────────────────────────────────────
 
     from transformers import AutoModel  # ou diffusers, etc.
 
     model = AutoModel.from_pretrained(
         model_id,
-        cache_dir=cache_dir,   # TOUJOURS passer cache_dir
+        cache_dir=cache_dir,   # TOUJOURS passer cache_dir — c'est la SEULE chose à faire
         ...
     )
 ```
+
+> 🔴 **NE JAMAIS MUTER `HF_HUB_CACHE` / `HUGGINGFACE_HUB_CACHE` / `HF_HOME` DANS UN BACKEND.**
+> Ces variables sont posées **UNE FOIS au démarrage** (`settings.py`, vers le cache PARTAGÉ) —
+> il n'y a rien à faire de plus, et surtout rien à écraser.
+>
+> **Cette règle imposait le contraire jusqu'au 2026-09-03, et c'est elle qui produisait le
+> défaut.** `os.environ[...] = ...` est **global au processus** : il n'oriente pas seulement
+> le modèle demandé, il emporte **tout ce que la lib télécharge ensuite** — les
+> sous-dépendances comprises — dans le dossier de CE modèle.
+>
+> **Mesuré des deux côtés** (2026-09-03, `table-transformer`) : le modèle PRINCIPAL se résout
+> par `cache_dir=`, la **sous-dépendance** (backbone timm) se résout par `HF_HUB_CACHE`. D'où
+> `models--timm--resnet18` déposé dans le dossier de table-transformer, et une ligne de
+> catalogue fantôme pour un simple backbone.
+>
+> **Dégâts constatés sur le disque** : **5** snapshots étrangers encore présents (`t5-large`
+> dans audiogen, `t5-base` + `t5-large` dans musicgen, `Qwen2.5-1.5B` dans vibevoice,
+> `resnet18` dans table-transformer — 8 au relevé brut, moins les 3 composants légitimes une
+> fois DÉCLARÉS : pipeline pyannote et `hubert_base`) et des verrous orphelins
+> qui datent les contaminations passées — **11 rien que dans `speech/kokoro`** (Qwen3-ASR,
+> olmOCR, musicgen, pyannote ×4, t5 ×2). C'est ce que racontent déjà `wama/views.py:223`, le
+> `--workers 1` **structurant** de `start_wama_prod.sh:271`, et la commande `dedup_models`,
+> née comme « séquelle de la course `os.environ['HF_HUB_CACHE']` ».
+>
+> **⚠⚠ Deux backends mutent DÈS L'IMPORT** — `wan_video_backend.py:41` et
+> `hunyuan_video_backend.py:38`, au niveau module : **importer le fichier suffit** à rediriger
+> le cache de tout le process, et le dernier importé gagne. C'est la « course » qui justifie le
+> `--workers 1` du service TTS. *Preuve vécue le 03/09 : le test qui vérifie le socle passait
+> en isolé et échouait dans la suite, `HF_HUB_CACHE` pointant sur `diffusion/wan`.*
+>
+> **Contrôles qui tiennent cette règle** (elle ne repose plus sur la mémoire de personne) :
+> `wama/common/tests_hf_cache_routing.py` (budget de mutations, **ne peut que descendre**) et
+> `manage.py check_model_layout` (aucun snapshot ÉTRANGER dans un dossier de famille).
+>
+> Le portage des sites restants suit le `ROADMAP §5b`.
 
 #### 4. `wama/<app>/utils/model_config.py` — Ajouter le modèle
 ```python
@@ -468,18 +497,25 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 ---
 
 ### ❌ Ce qui est INTERDIT :
-- Laisser un modèle se télécharger dans `AI-models/cache/huggingface/` par défaut
-- Importer `transformers`/`diffusers`/`huggingface_hub` AVANT de setter `HF_HUB_CACHE`
-- Oublier de passer `cache_dir` à `from_pretrained()`
+- **Muter `HF_HUB_CACHE` / `HUGGINGFACE_HUB_CACHE` / `HF_HOME` dans un backend** (cf. ci-dessus)
+- Oublier de passer `cache_dir` à `from_pretrained()` — c'est ce qui range le modèle PRINCIPAL
 - Ne pas ajouter le path dans `settings.py MODEL_PATHS`
 - Créer un modèle sans l'enregistrer dans `model_registry.py`
 
+> ⚠ « Laisser un modèle se télécharger dans `AI-models/cache/huggingface/` » figurait ici comme
+> INTERDIT. **Retiré le 2026-09-03 : c'était faux pour les SOUS-DÉPENDANCES**, et cette
+> confusion est ce qui justifiait la mutation d'environnement. La distinction est celle du
+> `ROADMAP §5b` : le **modèle principal** est catégorisé (`cache_dir=`), ses **sous-dépendances
+> partagées** (t5, bert, tokenizers, backbones timm…) vont au **cache partagé** — c'est leur
+> place, pas une dérive.
+
 ### ✅ Règle mnémotechnique :
-> **"Path d'abord, env vars ensuite, import après"**
-> settings.py → model_config.py → `os.environ['HF_HUB_CACHE']` → `from transformers import ...`
+> **« Le modèle par `cache_dir=`, ses dépendances par le cache partagé — et rien dans l'env. »**
+> `settings.py` (une fois, au démarrage) → `model_config.py` → `from_pretrained(cache_dir=…)`
 >
-> ⚠ Règle TRANSITOIRE : la cible (ROADMAP §5b) est `cache_dir=` seul + `HF_HOME` posé UNE fois au
-> démarrage — ne pas ajouter de NOUVEAU mutateur d'env par modèle au-delà du pattern ci-dessus.
+> *L'ancienne formule « path d'abord, env vars ensuite, import après » est ABANDONNÉE : c'est
+> elle qui prescrivait la mutation. Elle se disait déjà transitoire — elle a surtout survécu à
+> plusieurs passes de nettoyage, parce qu'on nettoyait le symptôme sans retirer la consigne.*
 
 ---
 
