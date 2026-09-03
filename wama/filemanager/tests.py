@@ -17,7 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.filemanager.views import IMPORTERS, importer_for, receivable_apps
 
@@ -137,7 +137,7 @@ class ImporteurDeriveTests(TestCase):
                          'la consolidation ne doit JAMAIS écrire dans la source')
 
 
-class ToutImporteurEstDerivableTests(TestCase):
+class ToutImporteurEstDerivableTests(SimpleTestCase):
     """INVARIANT (2026-09-03, constat Fabien : « je ne peux pas importer depuis filemanager…
     c'est un problème récurrent sur les nouvelles applications auto-générées »).
 
