@@ -51,9 +51,10 @@ class BlipBackend(BaseModelBackend):
         model_name = model_info['model_id']
         cache_dir = str(model_info['local_dir'])
 
-        # ── CRITIQUE : cache HF isolé AVANT l'import transformers (règle CLAUDE.md) ──
-        os.environ['HF_HUB_CACHE'] = cache_dir
-        os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+        # Env NON muté (ROADMAP §5b, 2026-09-04) : `BlipProcessor.from_pretrained` et
+        # `BlipForConditionalGeneration.from_pretrained` portent `cache_dir=` (ci-dessous).
+        # ⚠ La règle CLAUDE.md qui PRESCRIVAIT cette mutation a été corrigée le 03/09 : elle
+        # emportait les sous-dépendances (tokenizers, backbones) dans le dossier du modèle.
 
         from transformers import BlipForConditionalGeneration, BlipProcessor
 

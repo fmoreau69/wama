@@ -145,6 +145,36 @@ recouvrir un échec qui remplace un autre :
 - `manifest_export --check` doit dire « corpus à jour ». Sinon un registre a bougé sans que le
   corpus soit régénéré (`python manage.py manifest_export`).
 
+### 3a bis. 🔴 LE DOCUMENT DE DOMAINE DU CHANTIER — avant de toucher au code
+
+> **Ajouté le 2026-09-03 après un cas vécu coûteux.** Une session a passé une journée sur le
+> cache HuggingFace en *proposant* un mécanisme, puis en découvrant qu'il existait, puis en
+> corrigeant trois de ses propres affirmations — sans jamais ouvrir `ROADMAP §5b`, qui portait
+> le **design validé depuis le 2026-06-17**, l'état MESURÉ, le garde et le détecteur. Elle
+> avait pourtant fait ce rituel correctement : **le rituel ne le demandait pas.**
+>
+> Les 6 contrôles ci-dessus disent l'état de la PLATEFORME ; ils ne disent rien de ce qui est
+> **déjà décidé** sur le sujet du jour. Une décision écrite qu'on ne lit pas se re-prend — plus
+> mal, et en tournant en rond.
+
+1. **Nommer le domaine du chantier**, puis ouvrir SON document de référence — la table
+   « Fichiers de référence par domaine » de `CLAUDE.md` est l'index (`/port-app` porte la même
+   discipline pour les facettes d'app). Exemples de correspondance :
+
+   | chantier | à lire AVANT |
+   |---|---|
+   | cache HF, emplacement/catégories des modèles | **`ROADMAP §5b`** (+ la règle « nouveau modèle » de `CLAUDE.md`) |
+   | modèles, capacités, tirage, entrées acceptées | `INPUT_MODEL_MATCHING.md` + `WAMA_APP_GENERATION_ROUTE §F4b` |
+   | génération d'app, jumelle, gabarits | `WAMA_APP_GENERATION_ROUTE.md` (dont **§S 🔒**) |
+   | manifestes | `WAMA_MANIFEST_SPEC.md` + `..._ARCHITECTURE.md` |
+   | prompts, assistant, RAG | `WAMA_LLM.md` · mémoire : `WAMA_MEMORY.md` |
+   | registres/catalogues | `common/registries.py` + `PROJECT_STATUS §registres` |
+
+2. **Chercher la décision AVANT la solution** : `grep -n "décid\|acté\|validé" <doc>` — si le
+   design est déjà tranché, le travail est de l'EXÉCUTER, pas de le reconcevoir.
+3. **Chercher la brique avant d'en proposer une** (`ls wama/common/utils`, `grep` du verbe) :
+   proposer puis découvrir qu'elle existe coûte un tour complet à chaque fois.
+
 ### 3b. Confrontation ciblée
 - Les statuts des `.md` SURESTIMENT souvent l'avancement : vérifier par Grep/Read les 2-3 affirmations dont dépend le travail du jour.
 - Vérifier les migrations : `wsl.exe -e bash -lc 'cd /mnt/d/WAMA/web-app-for-media-automation && venv_linux/bin/python manage.py migrate --check'` (base WSL2 = la vraie ; la base Windows est une copie dev — si on touche aux modèles, appliquer DES DEUX côtés).

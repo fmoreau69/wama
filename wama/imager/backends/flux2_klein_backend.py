@@ -110,8 +110,8 @@ class Flux2KleinBackend(ImageGenerationBackend):
 
         # ── CRITIQUE : env vars avant tout import HF ─────────────────────────
         cache_dir = _get_flux2_klein_cache_dir()
-        os.environ['HF_HUB_CACHE'] = cache_dir
-        os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+        # Env NON muté (ROADMAP §5b) : le modèle est routé par `cache_dir=` (l. ~142) ;
+        # muter emporterait ses sous-dépendances hors du cache partagé.
         # ─────────────────────────────────────────────────────────────────────
 
         import torch

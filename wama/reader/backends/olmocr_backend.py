@@ -103,10 +103,9 @@ class OlmOCRBackend(BaseModelBackend):
         cache_dir = str(OLMOCR_DIR)
         hf_id = READER_MODELS['olmocr']['hf_model_id']
 
-        # ── CRITIQUE : setter HF_HUB_CACHE AVANT tout import HuggingFace ──────
-        os.environ['HF_HUB_CACHE'] = cache_dir
-        os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
-        # ──────────────────────────────────────────────────────────────────────
+        # Env NON muté (ROADMAP §5b, 2026-09-04) : les deux `from_pretrained` ci-dessous
+        # portent `cache_dir=`, qui route le modèle PRINCIPAL. La mutation n'ajoutait rien
+        # pour lui et emportait ses sous-dépendances hors du cache partagé.
 
         self._free_vram_before_load()
 

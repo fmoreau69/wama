@@ -437,11 +437,10 @@ class DiffusersBackend(ImageGenerationBackend):
 
     def _apply_flux_lora(self, pipe, lora_repo: str, lora_scale: float):
         """Load LoRA weights onto a FLUX pipeline (works with both bfloat16 and quantized)."""
-        import os as _os
+        # Env NON muté (ROADMAP §5b, 2026-09-04) : `load_lora_weights(..., cache_dir=)`
+        # route déjà le LoRA. La mutation n'ajoutait rien pour lui et emportait les
+        # sous-dépendances du pipeline dans le dossier du LoRA.
         lora_cache = _LOGO_CACHE_DIR or _FLUX_CACHE_DIR
-        if lora_cache:
-            _os.environ['HF_HUB_CACHE'] = lora_cache
-            _os.environ['HUGGINGFACE_HUB_CACHE'] = lora_cache
         pipe.load_lora_weights(lora_repo, adapter_name="lora_adapter", cache_dir=lora_cache)
         pipe.set_adapters(["lora_adapter"], adapter_weights=[lora_scale])
         logger.info(f"[Diffusers] LoRA loaded with scale {lora_scale}")

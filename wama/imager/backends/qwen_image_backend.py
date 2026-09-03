@@ -48,10 +48,10 @@ def _get_cache_dir() -> str:
         return str(d)
 
 
-def _set_cache_env(cache_dir: str) -> None:
-    """Set HF cache env vars before any HuggingFace library import."""
-    os.environ['HF_HUB_CACHE'] = cache_dir
-    os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+# `_set_cache_env` RETIRÉE le 2026-09-04 (ROADMAP §5b) : elle mutait l'environnement du
+# PROCESSUS pour router un modèle que `from_pretrained(cache_dir=…)` route déjà (l. ~231/252).
+# Son seul effet net était d'emporter les SOUS-DÉPENDANCES (t5, tokenizers, backbones) dans
+# `diffusion/qwen-image/` au lieu du cache partagé — le mécanisme exact du défaut.
 
 
 # ---------------------------------------------------------------------------
@@ -179,9 +179,6 @@ class QwenImageBackend(ImageGenerationBackend):
 
         try:
             import torch
-
-            # ── CRITICAL: set HF_HUB_CACHE BEFORE importing diffusers ────
-            _set_cache_env(self._cache_dir)
 
             import diffusers
 
