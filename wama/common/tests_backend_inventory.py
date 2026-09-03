@@ -93,10 +93,26 @@ class DerivationDuVivierTest(TestCase):
 
     def test_un_modele_rattache_a_plusieurs_entrees_ne_compte_qu_une_fois(self):
         s = bi.summary()
-        couples = {(e.app, m) for a in self.inv if not a.generated_from
-                   for e in a.entries for m in e.models}
+        couples = ({(e.app, m) for a in self.inv if not a.generated_from
+                    for e in a.entries for m in e.models}
+                   | {(a.app, m) for a in self.inv if not a.generated_from
+                      for m in a.models_app})
         self.assertEqual(s['modeles_lies'], len(couples))
         self.assertLessEqual(s['modeles_lien_declare'], s['modeles_lies'])
+
+    def test_un_rattachement_de_NIVEAU_APP_n_est_pas_etale_sur_chaque_backend(self):
+        """Défaut mesuré le 03/09 (recadrage Fabien « backend ≠ moteur ») : attribuer les
+        modèles de l'app à CHAQUE entrée annonçait BarkBackend appelant coqui/higgs/kokoro.
+        Une page qui étale une attribution inconnue ment plus qu'elle n'informe."""
+        for a in self.inv:
+            for e in a.entries:
+                if e.models:
+                    self.assertEqual(e.lien, 'backend_ref',
+                                     f'{e.app}:{e.name} : un backend ne porte que le lien DÉCLARÉ')
+                for moteur in e.engines:
+                    modeles_du_moteur = {m for m in e.models}
+                    self.assertTrue(modeles_du_moteur,
+                                    'un moteur affiché doit venir de modèles DÉCLARÉS')
 
 
 class BalayageDesSousModulesTest(SimpleTestCase):

@@ -8,11 +8,35 @@
                     <i class="fas fa-th me-2"></i>
                     <span>Applications</span>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="appsDropdown">
+                <ul class="dropdown-menu dropdown-menu-dark wama-apps-menu" aria-labelledby="appsDropdown">
                     {# Menu GÉNÉRÉ du catalogue (APP_CATEGORIES + APP_CATALOG, cf. app_registry) — #}
                     {# groupé par catégorie, filtré par accessible_apps. Plus d'app codée à la main #}
                     {# ici : ajouter une app = l'ajouter au catalogue (décision 2026-07-05). #}
                     {% for group in nav_apps_grouped %}
+                    {% if group.submenu %}
+                    {% comment %}SOUS-MENU (bac à sable, 03/09 — demande Fabien) : à une jumelle par
+                    app portée, un groupe à plat doublerait la hauteur du menu. Repli natif Bootstrap
+                    (pas de dépendance) : le clic bascule le `.collapse` qui porte les entrées.{% endcomment %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center justify-content-between"
+                           data-bs-toggle="collapse" href="#navSousMenu{{ group.id }}" role="button"
+                           aria-expanded="false" aria-controls="navSousMenu{{ group.id }}">
+                            <span>{{ group.meta.icon }} {{ group.meta.label }}
+                                <span class="badge bg-secondary ms-1">{{ group.apps|length }}</span></span>
+                            <i class="fas fa-chevron-down small ms-2"></i>
+                        </a>
+                        <div class="collapse" id="navSousMenu{{ group.id }}">
+                            <ul class="list-unstyled mb-0 ps-3">
+                                {% for a in group.apps %}<li>
+                                    <a class="dropdown-item d-flex align-items-center {% if a.name in request.path %}active{% endif %}" href="{{ a.url }}">
+                                        <i class="{{ a.icon }} me-2"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
+                                    </a>
+                                </li>{% endfor %}
+                            </ul>
+                        </div>
+                    </li>
+                    {% else %}
                     {% if not forloop.first %}<li><hr class="dropdown-divider"></li>{% endif %}
                     <li class="dropdown-header small">{{ group.meta.icon }} {{ group.meta.label }}</li>
                     {% for a in group.apps %}<li>
@@ -25,6 +49,7 @@
                             <i class="fas {{ l.icon }} me-2"{% if l.color %} style="color:{{ l.color }};"{% endif %}></i> {{ l.label }}
                         </a>
                     </li>{% endfor %}
+                    {% endif %}
                     {% endfor %}
                     {% comment %}
                       ABONNEMENT (PROFILES_PERMISSIONS §8.4) : le menu montre « mes applications ».
@@ -140,6 +165,14 @@
                             </a>
                         </li>
                         {% endif %}
+                        {% comment %}Backends (12ᵉ registre, 03/09) : la page existait et n'était
+                        atteignable que par la carte des registres — constat Fabien. Même rang que
+                        les autres catalogues de cette section.{% endcomment %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:backends_catalog' %}">
+                                <i class="fas fa-gears me-2 text-info"></i> Backends
+                            </a>
+                        </li>
                         {% comment %}Registres = la CARTE des catalogues, désormais navigable
                         (chaque card y porte « Ouvrir ») — c'est le hub de cette section.{% endcomment %}
                         <li>

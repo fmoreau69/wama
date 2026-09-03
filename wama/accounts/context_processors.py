@@ -28,6 +28,22 @@ def user_role(request):
         except Exception:
             pass
 
+    def _jumelle_visible(u, label):
+        """Une jumelle de bac à sable n'entre au catalogue JS que si CE compte y a droit.
+
+        Constat Fabien (2026-09-03) : « le bac à sable a des permissions utilisateur (admin +
+        utilisateur propriétaire) » — or `window.WAMA_APP_CATALOG` listait TOUTES les jumelles
+        pour tout le monde (mesuré : `describer_01` visible d'un compte standard). Les pages
+        restaient gardées, mais l'EXISTENCE fuitait, ce que la décision interdit.
+        On repasse par le point de décision UNIQUE (`accessible`) — jamais une seconde
+        politique ici. Indéterminé (erreur) → on masque : un bac à sable est privé par défaut.
+        """
+        try:
+            from wama.accounts.permissions import accessible
+            return bool(u and u.is_authenticated and accessible(u, 'app', label))
+        except Exception:
+            return False
+
     # App catalog JSON — injected into base.html for FileManager JS
     # Computed once per request; small enough that caching isn't necessary
     try:
@@ -47,6 +63,7 @@ def user_role(request):
                 'color':          spec.get('color', ''),
             }
             for name, spec in APP_CATALOG.items()
+            if not spec.get('sandbox') or _jumelle_visible(user, name)
         }
         app_catalog_json = _json.dumps(_catalog_for_js)
     except Exception:
@@ -131,7 +148,10 @@ def user_role(request):
             if _entries or _links:
                 nav_apps_grouped.append({'id': _cid, 'meta': _meta, 'apps': _entries, 'links': _links})
         if _sandbox_entries:
-            nav_apps_grouped.append({'id': 'sandbox',
+            # `submenu` : rendu REPLIÉ par le gabarit (demande Fabien 03/09) — à une jumelle
+            # par app portée, un groupe à plat doublerait la hauteur du menu. Le drapeau est
+            # porté par la DONNÉE : le gabarit ne connaît aucun nom de groupe en dur.
+            nav_apps_grouped.append({'id': 'sandbox', 'submenu': True,
                                      'meta': {'label': 'Bac à sable', 'icon': '🧪'},
                                      'apps': _sandbox_entries, 'links': []})
     except Exception:

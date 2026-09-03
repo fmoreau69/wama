@@ -62,6 +62,13 @@ class BackendEntry:
     description: str = ''
     #: Modèles du catalogue servis par ce backend (clés AIModel).
     models: List[str] = field(default_factory=list)
+    #: MOTEURS (librairies d'exécution) que ce backend appelle — DÉRIVÉS des modèles servis
+    #: (`composition.runtime.engine`). ⚠ Backend ≠ moteur (recadrage Fabien 2026-09-03) : le
+    #: backend est l'adaptateur WAMA (contrat load/unload/process), le moteur est la
+    #: librairie qui exécute réellement le modèle (faster-whisper, coqui, audio-cpp…).
+    engines: List[str] = field(default_factory=list)
+    #: Moteurs déclarés mais ABSENTS de l'inventaire d'exécutables (`known_engines`).
+    engines_absents: List[str] = field(default_factory=list)
     #: Comment le lien modèle↔backend a été établi : 'backend_ref' (déclaré) ou 'app' (déduit
     #: du fait que le modèle appartient à l'app). La PROVENANCE du lien se dit — un lien
     #: déduit n'a pas la valeur d'un lien déclaré.
@@ -94,6 +101,12 @@ class AppBackends:
     manque: str = ''
     #: Sous-modules du paquet qu'on n'a pas pu lire (dépendance absente) — DIT, jamais avalé.
     illisibles: List[str] = field(default_factory=list)
+    #: Modèles rattachés à l'APP (lien non déclaré) et moteurs qu'ils nomment. ⚠ Ils vivent
+    #: ICI et non sur chaque backend : l'attribution par app ÉTALAIT les modèles sur toutes
+    #: les entrées (BarkBackend annoncé appelant coqui/higgs/kokoro — mesuré le 03/09). Une
+    #: page qui étale une attribution inconnue ment plus qu'elle n'informe.
+    models_app: List[str] = field(default_factory=list)
+    engines_app: List[str] = field(default_factory=list)
 
 
 def _classe_backends(paquet) -> tuple:
@@ -149,9 +162,11 @@ def _modeles_par_app() -> dict:
         # ⚠ Le champ d'identité est `model_key`, PAS `key` — écrit de mémoire à la première
         # version, l'exception était avalée et la page annonçait « 0 modèle lié » sans rien
         # dire. *Vérifier un nom de champ, ne jamais le deviner.*
-        for m in AIModel.objects.all().only('model_key', 'source', 'backend_ref'):
+        for m in AIModel.objects.all().only('model_key', 'source', 'backend_ref',
+                                            'composition'):
+            moteur = ((m.composition or {}).get('runtime') or {}).get('engine') or ''
             out.setdefault(m.source or '', []).append(
-                (m.model_key, getattr(m, 'backend_ref', '') or ''))
+                (m.model_key, getattr(m, 'backend_ref', '') or '', moteur))
     except Exception as e:      # hors Django/base absente : l'inventaire reste utile sans
         logger.warning('[backends] catalogue illisible : %s', e)
     return out
@@ -164,6 +179,13 @@ def inventory() -> List[AppBackends]:
     from django.apps import apps as django_apps
 
     modeles = _modeles_par_app()
+    # Moteurs réellement exécutables ici (inventaires déclarés) — sert à dire d'un moteur
+    # DÉCLARÉ par un modèle qu'il n'est pas installé, au lieu de le laisser croire prêt.
+    try:
+        from wama.common.backends.manager import known_engines
+        executables = set(known_engines())
+    except Exception:
+        executables = set()
     resultat: List[AppBackends] = []
 
     for config in django_apps.get_app_configs():
@@ -196,7 +218,10 @@ def inventory() -> List[AppBackends]:
         noms_connus = set()
         for chemin in routes.values():
             noms_connus.add(chemin.rsplit('.', 1)[-1])
-        for cle, ref in modeles.get(app, []):
+        moteur_de = {}
+        for cle, ref, moteur in modeles.get(app, []):
+            if moteur:
+                moteur_de[cle] = moteur
             if ref and ref != app:
                 par_ref.setdefault(ref, []).append(cle)
             else:
@@ -210,10 +235,13 @@ def inventory() -> List[AppBackends]:
             chemins.setdefault(chemin, []).append(nature)
         for chemin, natures in chemins.items():
             nom = chemin.rsplit('.', 1)[-1]
+            servis_r = sorted(par_ref.get(nom, []))
+            mot_r = sorted({moteur_de[c] for c in servis_r if c in moteur_de})
             entries.append(BackendEntry(
                 app=app, name=nom, path=chemin, natures=sorted(natures), saveur=saveur,
-                kind='route', models=sorted(par_ref.get(nom, [])),
-                lien='backend_ref' if par_ref.get(nom) else ''))
+                kind='route', models=servis_r, engines=mot_r,
+                engines_absents=[m for m in mot_r if m not in executables],
+                lien='backend_ref' if servis_r else ''))
 
         #: ② Les CLASSES au contrat commun (modèles chargés, VRAM comptée).
         classes, illisibles = _classe_backends(paquet)
@@ -226,8 +254,11 @@ def inventory() -> List[AppBackends]:
                 packages=list(getattr(cls, 'REQUIRED_PACKAGES', []) or []),
                 vram_gb=getattr(cls, 'recommended_vram_gb', None),
                 description=(getattr(cls, 'description', '') or '').strip(),
-                models=servis or sorted(niveau_app),
-                lien='backend_ref' if servis else ('app' if niveau_app else '')))
+                models=servis,
+                engines=sorted({moteur_de[c] for c in servis if c in moteur_de}),
+                engines_absents=sorted({moteur_de[c] for c in servis
+                                        if c in moteur_de and moteur_de[c] not in executables}),
+                lien='backend_ref' if servis else ''))
 
         if not entries and not illisibles:
             continue
@@ -247,7 +278,9 @@ def inventory() -> List[AppBackends]:
             nature_field=nature_field,
             nature_effective=nature_field or 'media_type',
             nature_declaree=bool(nature_field),
-            entries=entries, manque=manque, illisibles=illisibles))
+            entries=entries, manque=manque, illisibles=illisibles,
+            models_app=sorted(niveau_app),
+            engines_app=sorted({moteur_de[c] for c in niveau_app if c in moteur_de})))
 
     return sorted(resultat, key=lambda a: (bool(a.generated_from), a.app))
 
@@ -261,7 +294,13 @@ def summary() -> dict:
     # ⚠ Un modèle servi par plusieurs entrées d'une même app (rattachement de NIVEAU APP)
     # ne compte qu'UNE fois : un total qui additionne les cartes annoncerait plus de modèles
     # liés que le catalogue n'en a — *un chiffre qui gonfle tout seul ne mesure plus rien*.
-    lies = {(e.app, m) for e in entrees for m in e.models}
+    try:
+        from wama.common.backends.manager import known_engines
+        executables = set(known_engines())
+    except Exception:
+        executables = set()
+    lies = ({(e.app, m) for e in entrees for m in e.models}
+            | {(a.app, m) for a in reels for m in a.models_app})
     declares = {(e.app, m) for e in entrees if e.lien == 'backend_ref' for m in e.models}
     return {
         'apps': apps,
@@ -274,6 +313,12 @@ def summary() -> dict:
         #: Part du lien FIN (backend_ref nommant un backend) — 0 aujourd'hui : `backend_ref`
         #: porte un nom d'app. Le chiffre EST le chantier, la page ne le cache pas.
         'modeles_lien_declare': len(declares),
+        #: MOTEURS distincts appelés par les backends (≠ nombre de backends : plusieurs
+        #: backends peuvent appeler le même moteur, et un backend peut n'en déclarer aucun).
+        'moteurs': sorted({m for e in entrees for m in e.engines}
+                          | {m for a in reels for m in a.engines_app}),
+        'moteurs_absents': sorted({m for e in entrees for m in e.engines_absents}),
+        'moteurs_executables': sorted(executables),
     }
 
 

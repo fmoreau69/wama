@@ -159,3 +159,22 @@ class VisibiliteDesJumellesDeBacASableTests(TestCase):
             for a in g['apps']:
                 self.assertNotIn('BAC À SABLE', a['label'],
                                  'aucune jumelle ne doit rester dans les catégories normales')
+
+
+    def test_le_catalogue_JS_ne_revele_pas_les_jumelles_a_qui_n_y_a_pas_droit(self):
+        """Constat Fabien 2026-09-03 : « le bac à sable a des permissions utilisateur (admin +
+        utilisateur propriétaire) ». `window.WAMA_APP_CATALOG` listait pourtant TOUTES les
+        jumelles pour tout le monde : les pages restaient gardées, mais l'EXISTENCE fuitait.
+        La garde repasse par `accessible()` — jamais une seconde politique."""
+        from django.test import RequestFactory
+        from wama.accounts.context_processors import user_role
+        from wama.common.app_registry import APP_CATALOG
+        jumelles = [n for n, s in APP_CATALOG.items() if s.get('sandbox')]
+        if not jumelles:
+            self.skipTest('aucune jumelle enregistrée sur cet arbre (registre gitignoré)')
+        req = RequestFactory().get('/')
+        req.user = self._utilisateur('temoin_catalogue_js')
+        catalogue = user_role(req)['app_catalog_json']
+        for label in jumelles:
+            self.assertNotIn(label, catalogue,
+                             f"{label} ne doit pas être exposé au JS d'un compte sans droit")
