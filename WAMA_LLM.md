@@ -428,11 +428,21 @@ bibliothèque des méthodes et métiers d'app.
 | plafond octets / allowlist MIME | ✅ dans `web_search` (2 Mo / 12 k chars) ; ❌ toujours RIEN dans l'ingest | `url_ingest`/`video_utils` |
 
 **Incohérence relevée à résorber au passage** : DEUX routes de résolution vision coexistent —
-`describer/utils/image_describer.py` (liste en dur `gemma4:12b/e4b`) court-circuite le tier
+`describer/backends/image_backend.py` (liste en dur `gemma4:12b/e4b`) court-circuite le tier
 `image` de `llm_utils` (dont le TODO `vision_probe` pour peupler la capacité `vision` est écrit
 dans `llm_utils.py` lui-même) ; et `reference_comprehension` importe une fonction privée du
 describer (inversion de dépendance). Fixer = faire passer le describer par
 `modele_par_tier(exige=['completion','vision'])` + peupler `vision` au catalogue.
+
+> ⚠ **Chemin RECTIFIÉ le 2026-09-03** (le fichier a bougé de l'ancien module « image_describer »
+> de `utils/` vers `backends/image_backend.py` — marche B1 du describer, `5b3f82f6` ; l'ancien
+> chemin n'est délibérément PAS réécrit en toutes lettres ici : le citer en ferait une référence
+> cassée de plus, piège documenté au skill `/reprise`). **L'incohérence n'est pas
+> résorbée, elle a DÉMÉNAGÉ** — vérifié au code ce jour : la liste en dur vit désormais en
+> `backends/image_backend.py:16`, et `common/utils/reference_comprehension.py:92` importe
+> toujours `_best_ollama_vision_model`, la fonction privée. *Un renommage ne casse rien, il
+> rend FAUX* : sans cette rectification, `check_docs` accusait une 2ᵉ cible distincte et le
+> constat lui-même serait passé pour périmé alors qu'il tient.
 Également : `beautifulsoup4`/`lxml` utilisés mais déclarés dans AUCUN requirements.
 
 **Ordre de construction** : ① `web_search.py` + outils `tool_api` — ✅ **LIVRÉ 29/08**
