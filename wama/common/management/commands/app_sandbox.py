@@ -172,6 +172,72 @@ def _copy_package(src: str, dst: str) -> list:
     return written
 
 
+def _imports_intra_paquet_non_resolus(label: str) -> list:
+    """Juge GÉNÉRIQUE de cohérence du paquet jumeau (2026-09-03, demande Fabien : « qu'une
+    nouvelle génération ne redécouvre pas les mêmes problèmes »).
+
+    La CLASSE du défaut `PARAMS` (params généré n'exposant plus un symbole que le models
+    COPIÉ importait — ImportError au rendu de chaque card, invisible du smoke à file vide) :
+    un fichier substitué doit continuer d'exposer TOUT ce que les fichiers copiés lui
+    importent. Vérifié par AST sur tout le paquet, y compris les imports PARESSEUX dans les
+    fonctions/properties (c'est là que vivait le défaut — un simple import de module ne
+    l'aurait jamais levé). Rend la liste des `from .x import Y` sans `Y` chez la cible.
+    """
+    import ast
+    base = WAMA_DIR / label
+    prefixe = f'wama.{label}'
+
+    exposes = {}
+    arbres = {}
+    for p in base.rglob('*.py'):
+        if 'migrations' in p.parts:
+            continue
+        try:
+            arbre = ast.parse(p.read_text(encoding='utf-8'))
+        except SyntaxError:
+            continue    # un fichier insyntaxique est le problème d'un AUTRE juge (compile)
+        arbres[p] = arbre
+        mod = '.'.join(p.relative_to(base).with_suffix('').parts)
+        noms = set()
+        for n in arbre.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                noms.add(n.name)
+            elif isinstance(n, ast.Assign):
+                noms.update(t.id for t in n.targets if isinstance(t, ast.Name))
+            elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
+                noms.add(n.target.id)
+            elif isinstance(n, (ast.Import, ast.ImportFrom)):
+                noms.update((a.asname or a.name.split('.')[0]) for a in n.names)
+        exposes[mod] = noms
+
+    manquants = []
+    for p, arbre in arbres.items():
+        for n in ast.walk(arbre):
+            if not isinstance(n, ast.ImportFrom):
+                continue
+            if n.level:                                   # from .params / from ..utils
+                pkg = list(p.relative_to(base).parent.parts)
+                pkg = pkg[:len(pkg) - (n.level - 1)] if n.level > 1 else pkg
+                if len(pkg) < 0:
+                    continue
+                mod = '.'.join(pkg + (n.module.split('.') if n.module else []))
+            elif n.module and n.module.startswith(prefixe + '.'):
+                mod = n.module[len(prefixe) + 1:]
+            elif n.module == prefixe:
+                mod = '__init__'
+            else:
+                continue                                  # import EXTERNE au paquet
+            cle = mod if mod in exposes else f'{mod}.__init__'
+            if cle not in exposes:
+                continue                                  # module absent → vu par check/compile
+            for a in n.names:
+                if a.name != '*' and a.name not in exposes[cle]:
+                    manquants.append(
+                        f"{p.relative_to(base).as_posix()} : "
+                        f"from {'.' * n.level}{n.module or ''} import {a.name} — absent de {cle}")
+    return manquants
+
+
 def _manage(args: list) -> subprocess.CompletedProcess:
     """manage.py en SOUS-PROCESS FRAIS : le boot relit sandbox_apps.json — le process
     courant, lui, ne connaît pas (encore/plus) la jumelle (même principe que app_regen_check)."""
@@ -325,8 +391,15 @@ class Command(BaseCommand):
         if temoin is None:                     # aucun fichier préexistant (tout est neuf)
             target, text = ecrits[0][0], ecrits[0][0].read_text(encoding='utf-8')
 
-        # 3. RE-MESURE : check + (models → makemigrations) + smoke page en sous-process frais.
+        # 3. RE-MESURE : cohérence de paquet + check + (models → makemigrations) + smoke page.
         verdict, details = 'ok', []
+        # Juge GÉNÉRIQUE avant tout sous-process : chaque symbole intra-paquet importé par
+        # les fichiers copiés doit exister chez sa cible (classe du défaut PARAMS, 03/09).
+        _non_resolus = _imports_intra_paquet_non_resolus(label)
+        if _non_resolus:
+            verdict = 'revert'
+            details.append('symboles intra-paquet NON RÉSOLUS : '
+                           + ' ; '.join(_non_resolus[:4]))
         r = _manage(['check'])
         if r.returncode != 0:
             verdict = 'revert'
