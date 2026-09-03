@@ -804,6 +804,21 @@ sur la même liste.
 > Restes B : l'étalement du preset au clic côté généré ; `quick_convert`/profils (endpoints
 > 501 de la jumelle) ; B2 (backends de modèles connus — 1er livré : Table Transformer).
 >
+> ✅ **VIVIER DES BACKENDS — registre DÉRIVÉ (2026-09-03, demande Fabien)** — le LLM de la
+> marche B doit « piocher dans le vivier pour s'inspirer du plus approchant » : c'est
+> `common/services/backend_inventory.py` (12ᵉ registre, page `/common/backends/`, nature
+> `DERIVED` — rien de stocké, rien à actualiser). Il LIT `wama/<app>/backends/`
+> (ROUTES/RESULT/NATURE_FIELD + classes `BaseModelBackend`, **balayées jusque dans les
+> sous-modules** — s'en tenir à l'`__init__` ratait 4 apps sur 9) et recoupe le catalogue
+> `AIModel`. Chaque entrée porte la **signature de voisinage** « natures → saveur » + paquets,
+> VRAM, modèles servis : c'est la clé de tri du « plus approchant ». **Mesuré : 9 apps,
+> 41 backends, 9 natures routées.**
+> ⚠ **Le lien modèle↔backend est aujourd'hui DÉDUIT, pas déclaré** : `AIModel.backend_ref`
+> porte un nom d'**app** (`sam3` → `anonymizer`), pas de backend — la page l'affiche comme
+> « déduit de l'app » et compte **0 lien fin déclaré**. Rendre `backend_ref` déclaratif au
+> manifeste modèle (chantier déjà ouvert depuis table-transformer, posé EN BASE le 02/09)
+> fera monter ce compteur : *le chiffre est la mesure du chantier, pas un habillage*.
+>
 > ✅ **B1 ÉTENDUE À UNE 2ᵉ APP — describer, 1ʳᵉ À MODÈLES IA (2026-09-03)** — le contrat
 > gagne une SAVEUR déclarée par `backends/__init__.RESULT` (→ `processing.backend_result`) :
 > `'file'` (défaut, pilote converter — le backend écrit `output_path`) / `'text'`
@@ -947,6 +962,31 @@ outillé avant d'ouvrir cette marche.
      projetés (A3b/A4), `models` est rendu depuis la facette `data`. Le principe, lui,
      tient : ce qui n'est pas généré apparaît comme manque VISIBLE de la jumelle — c'est
      le but, pas un préalable.
+  > ### 🔒 S — CE QU'UNE GÉNÉRATION NE DOIT PLUS REDÉCOUVRIR (posé le 2026-09-03)
+  > *Demande Fabien, mot pour mot : « il faut qu'on fasse les choses proprement pour qu'une
+  > nouvelle génération ne redécouvre pas les mêmes problèmes et éviter que l'on tourne en
+  > rond ».* Chaque ligne ci-dessous est un défaut RENCONTRÉ, transformé en **garde
+  > exécutable** — la liste est le contrat d'acceptation d'une jumelle, pas un pense-bête.
+  >
+  > | Défaut vécu (app, date) | Forme | Garde POSÉE (exécutable) |
+  > |---|---|---|
+  > | Import filemanager KO (converter_01 30/08, describer_01 03/09) | dérivation impossible : l'importeur SOURCE n'accepte pas `app_label` | **10/10 importeurs paramétrés** + invariant `ToutImporteurEstDerivableTests` (le PROCHAIN importeur doit l'être) |
+  > | Consolidation en lot ratée (converter_01 31/08) | 2ᵉ liste écrite à la main (`target_app == 'converter'`) | dispatch résolu par `generated_from` |
+  > | Volet PARAMÈTRES vide (converter_01 31/08) | `params.py` COPIÉ, périmé | cible `params` substituable + **ordre : params AVANT views/templates** |
+  > | Boutons de card morts (describer_01 03/09) | templates GÉNÉRÉS × views COPIÉES | **couple views↔templates** : `substitute templates` refuse sans `views:ok` |
+  > | File vide sur page 200 (describer_01 03/09) | symbole disparu du généré (`PARAMS`), importé PARESSEUSEMENT par le copié | alias `<X> = <X>_JSON` émis + **juge de cohérence de paquet (AST)** + smoke **« file HABITÉE »** |
+  > | Cascade `'false'` sur colonne typée (converter_01 31/08) | coercition absente au générateur | coercition + test |
+  > | Batterie 0/11 « échecs » (03/09) | **l'INSTRUMENT** : Playwright sans navigateurs | contre-vérifier l'outil avant d'accuser l'app (`playwright install`) |
+  >
+  > **Ordre de substitution recommandé** : `params` → `apps` → `urls` → `models` → `tasks` →
+  > `views` → `templates` (les deux derniers en COUPLE ; une app dont `views_gen` refuse — file
+  > à modèle de LIAISON — garde SES templates copiés, c'est cohérent et déclaré).
+  > **Gate d'acceptation** : la batterie UI auto-dérivée `run_nightly_tests --id <label>.`
+  > (11 scénarios) — `converter_01` 11/11, `describer_01` 11/11. Un scénario qui SKIPPE n'est
+  > pas un scénario qui passe : lire le motif, il nomme la cause côté app.
+  > **Tests de ces gardes** : `wama/common/tests_sandbox_coherence.py` (14) +
+  > `wama/filemanager/tests.py` (invariant importeurs).
+
   **✅ S1 LIVRÉE (2026-08-18)** — jumelle TÉMOIN opérationnelle : `manage.py app_sandbox
   create converter` → `converter_01` qui REND (page 200, reverse OK, tables `converter_01_*`
   migrées, badge catalogue, grille inchangée à 10 apps). Mécanisme : `common/sandbox.py`
