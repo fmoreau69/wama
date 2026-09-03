@@ -11,18 +11,25 @@ from wama.common.tts.constants import COQUI_MODEL_MAPPING
 
 from .bark_backend import BarkBackend
 from .base import CATALOG_KEYS, TTSBackend
+from .audio8_backend import Audio8Backend
 from .coqui_backend import CoquiBackend
 from .higgs_backend import HiggsAudioBackend
 from .kokoro_backend import KokoroBackend
 from .kokoro_onnx_backend import KokoroOnnxBackend
 
 #: Moteur → classe de backend (vocabulaire `SYNTHESIZER_MODELS[*]['engine']`).
+#: Cette table est AUSSI l'inventaire du grisage automatique (apps.ready → un moteur
+#: ajouté ici se RÉ-AUTORISE partout : select dégrisé, tirage auto rouvert — 02/09).
 ENGINE_BACKENDS = {
     'coqui': CoquiBackend,
     'bark': BarkBackend,
     'higgs': HiggsAudioBackend,
     'kokoro': KokoroBackend,
     'kokoro-onnx': KokoroOnnxBackend,
+    # 1er consommateur du moteur générique « code de modèle fourni par le dépôt » —
+    # Audio8 par défaut ; un 2ᵉ modèle remote-code fera passer le backend au `model`
+    # transmis par le contrat d'appel (généralisation au 2ᵉ, jamais avant).
+    'transformers-remote-code': Audio8Backend,
 }
 
 
