@@ -11024,10 +11024,20 @@ tests.
 
 ## §CLÔTURE — 2026-09-03, instance « CURSEUR QUALITÉ → BACKENDS B2 » — ✅ CLOSE (crash hôte)
 
-**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : les **3 TROUS de la chaîne d'intégration** relevés
-par l'audit ci-dessous (§Cohérence des 3 routes) — dans l'ordre : ① le lien **modèle →
-librairie** ne se DÉCLARE nulle part ; ② l'assistant n'a **aucun verbe** pour intégrer ;
-③ vérifier la suite `model_manager` (non relançable ce jour, Postgres à terre).
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ⚠ RÉÉCRIT en fin de session : les 3 trous de l'audit
+étaient le point d'entrée, **2 ont été soldés le jour même** (`63fd41ed`) et le 3ᵉ est vérifié
+(suite complète 1487 OK). *Un point d'entrée qui survit à sa résolution envoie la session
+suivante refaire du fait.* Ce qui reste, dans l'ordre :
+① **semer `qwen-tts` au corpus** (rôle `librarian`) — c'est le geste qui fera apparaître le
+`requires` de Qwen3-TTS, et donc la démonstration bout-en-bout de la route modèle→librairie ;
+② **la route app depuis un dépôt GitHub** : produire un manifeste d'app À PARTIR d'un dépôt
+reste le seul maillon non automatisé (`plan_app_integration` le DIT au lieu de le simuler) ;
+③ **B2 restants** — FastWan (CONNU), puis les INCONNUS (NeMo → canary/parakeet, ACE-Step,
+PP-DocLayoutV3, LocateAnything) ; ④ **premier essai réel du rôle `model`** (jamais exécuté :
+mécanique éprouvée, appel Ollama non) — au calme, après le chantier crash.
+🔴 **Prérequis machine à tout ce qui charge un modèle** : la rampe d'init CUDA tue l'hôte et
+**aucune garde ne borne la PENTE** (`wait_for_free_vram` mesure un NIVEAU) — chantier à part,
+instance voisine.
 
 ### Livré aujourd'hui (11 commits, `901e86b9` → `3557e663`)
 
