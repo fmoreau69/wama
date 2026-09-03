@@ -162,8 +162,7 @@ class LTXVideoBackend(ImageGenerationBackend):
 
         try:
             # ── CRITIQUE : env vars AVANT tout import HF ──────────────────
-            os.environ['HF_HUB_CACHE'] = self._cache_dir
-            os.environ['HUGGINGFACE_HUB_CACHE'] = self._cache_dir
+            # Env NON muté (ROADMAP §5b) : `cache_dir=` route le modèle (l. ~197).
             # ──────────────────────────────────────────────────────────────
 
             import torch
