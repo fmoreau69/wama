@@ -9094,6 +9094,49 @@ sans skip** (le compte dev `wama_nightly_dev` existe en base).
 
 ---
 
+## §PALIER — 2026-09-03, instance « B1 DESCRIBER + GRILLE DE LA CHAÎNE + BAC À SABLE » — ✅ LIVRÉ
+
+> Reprise du 🔚 du 02/09 (« porter une 2ᵉ app à modèle IA ») + 2 demandes Fabien en session :
+> la grille doit mesurer la chaîne de génération (« il y a encore des trous ») ; menu
+> « Bac à sable » + visibilité par créateur. Commits `62a501b9` ← 7 commits.
+
+1. **⭐ GRILLE : la chaîne de génération MESURÉE** — 4 critères (`backend_routes` F5,
+   `task_skeleton` F5, `detail_spec` F3, `triad_specs` F6) : **87 critères**, la carte de la
+   dette marche B est la grille elle-même (converter 100 seul adopteur complet, reader 96,
+   parc 93-96 avant portage). + gate « composant sans hôte → N/A » étendu à
+   `model_options_catalog` (4ᵉ occurrence verdict 14/08 — il punissait la déclaration
+   obligatoire `DESCRIBER_MODELS` d'une app SANS select).
+2. **⭐ B1 DESCRIBER (2ᵉ app routée, 1ʳᵉ à MODÈLES IA)** — saveur TEXTE déclarée
+   (`RESULT`/`NATURE_FIELD` → manifeste → `tasks_gen` 2 saveurs) ; source TRADUITE
+   (4 describers utils/ → backends/ ORM-free au contrat texte, workers = squelette+glu,
+   triade → TRIAD_SPECS avec ses 2 richesses MONTÉES DANS LA BRIQUE, detail en SPEC,
+   garde `WAMA_GPU_SAFE_MODE` sur la cascade Ollama AUTOMATIQUE — jumelle de 27898e4b).
+   **DESCRIBER 100 % (78/78), 2ᵉ plein score.** Route §10.3 recalée.
+3. **⭐ PREUVE : `describer_01` (5/7 substitués, `--proprietaire fmoreau69`) a DÉCRIT une
+   photo réelle par le corps COMPOSÉ** (BLIP poids réels, CPU forcé, garde GPU active
+   contre-vérifiée, SUCCESS, témoin nettoyé). 2 trous NOMMÉS : `views` (file à modèle de
+   LIAISON — gabarit v1 = FK directe seule) ; `models:revert` (champs de résultat).
+4. **Menu « Bac à sable »** (groupe dédié en queue, dérivé du marqueur `sandbox`) +
+   **visibilité par CRÉATEUR** (`created_by` au registre, `--proprietaire`, dérogation
+   avant min_tier dans `_app_accessible` ; sans propriétaire = dev/admin, historique).
+5. ⚠⚠ **La vérif-sur-HEAD a payé 2× dans l'heure** : `git commit <chemin>` ne stage pas
+   l'UNTRACKED (4 backends hors commit → HEAD cassé au runtime, arbre 1440 OK) ; mes tests
+   jumelle lisaient un fichier GITIGNORÉ (verts disque, rouges HEAD) → ils POSENT leur
+   politique. Worktree : tests « poids réels » infaisables (squelette AI-models suivi) —
+   contre-éprouvés sur l'arbre principal (6/6).
+
+**Pendings** : restart gunicorn+workers REQUIS (runtime describer + tool_api + jumelle —
+signalé, pas fait : instance synthesizer en parallèle) · describer_01 invisible du menu
+jusqu'au restart · saveur texte non exercée par la batterie UI jumelle (à jouer après
+restart, garde active) · `views_gen` forme liaison + `models_gen` champs de résultat =
+prochains trous B · doc_facts/carte à re-régénérer si critères bougent encore.
+
+**Contrôles attendus au prochain /reprise** : grille **87 critères**, converter ET
+describer **100 %** ; corpus **121** ; roundtrip 10/10 OK ; suite ≈1440 `OK` (le total
+n'est pas un critère) ; `check_docs` : toujours 1 cible distincte.
+
+---
+
 ## §REPRISE — 2026-09-02, instance « CONVERTER ÉVÉNEMENTIEL + MARCHES B1/B2 » — ✅ CLOSE
 
 > Suite du §PALIER 01/09 ci-dessous (même instance, même fil). Journée à DEUX crashs hôte

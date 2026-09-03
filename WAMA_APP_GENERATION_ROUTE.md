@@ -803,6 +803,24 @@ sur la même liste.
 > un PNG réel en JPEG lisible (SUCCESS).** Une app sans `ROUTES` garde son trou marqué.
 > Restes B : l'étalement du preset au clic côté généré ; `quick_convert`/profils (endpoints
 > 501 de la jumelle) ; B2 (backends de modèles connus — 1er livré : Table Transformer).
+>
+> ✅ **B1 ÉTENDUE À UNE 2ᵉ APP — describer, 1ʳᵉ À MODÈLES IA (2026-09-03)** — le contrat
+> gagne une SAVEUR déclarée par `backends/__init__.RESULT` (→ `processing.backend_result`) :
+> `'file'` (défaut, pilote converter — le backend écrit `output_path`) / `'text'`
+> (describer — le backend REND le texte : `callable(input_path, options, progress_callback,
+> partial_callback, console) -> str`, la tâche le persiste dans la colonne `field` déclarée
+> et publie l'aperçu PARTIEL). `NATURE_FIELD` (→ `processing.backend_nature_field`) nomme la
+> colonne de nature (describer : `detected_type` ; défaut `media_type`). Portage source =
+> TRADUIRE et REMPLACER : les 4 describers d'`utils/` sont devenus `backends/` ORM-free (la
+> jumelle copie le paquet et l'exécute tel quel), `workers.py` = 5 lignes + glu
+> (`run_item_task`), garde `WAMA_GPU_SAFE_MODE` sur la cascade Ollama AUTOMATIQUE.
+> **Mesuré : `describer_01` (5/7 substitués) a DÉCRIT une photo réelle par le corps COMPOSÉ
+> (BLIP poids réels, CPU forcé, SUCCESS + result_text).** Deux trous NOMMÉS par la jumelle :
+> `views` — le gabarit v1 ne rend que la file à FK DIRECTE (converter), le describer a un
+> batch à modèle de LIAISON → refus propre, la jumelle garde sa copie ; `models` — verdict
+> `revert` (champs de RÉSULTAT hors spine : summary/coherence_*, trou marche B connu).
+> La GRILLE mesure désormais la chaîne côté app (4 critères 03/09 : `backend_routes`,
+> `task_skeleton`, `detail_spec`, `triad_specs`) — describer **100 %**, 2ᵉ plein score.
 
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
