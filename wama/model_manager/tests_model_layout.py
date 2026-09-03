@@ -50,16 +50,45 @@ class LayoutTest(TestCase):
     def test_un_composant_DECLARE_n_est_pas_un_etranger(self):
         """Un modèle réellement fait de plusieurs dépôts (pipeline pyannote) ne doit pas
         déclencher le contrôle — sinon il crie au loup, et un contrôle qui crie au loup
-        finit par être ignoré, donc par ne plus rien protéger."""
+        finit par être ignoré, donc par ne plus rien protéger.
+
+        ⚠ Recalé le 2026-09-04 : la déclaration ne vit plus dans une table du SUBSTRAT mais
+        dans le manifeste du modèle (`composition.components[*].repo`). Le test pose donc la
+        déclaration au lieu de s'appuyer sur des noms écrits en dur — c'est la DÉCLARATION
+        qu'on vérifie, pas l'endroit où quelqu'un l'a recopiée."""
+        from unittest.mock import patch
         with tempfile.TemporaryDirectory() as tmp:
             _arbre(tmp, 'speech', 'diarization', [
                 'models--pyannote--speaker-diarization-3.1',
                 'models--pyannote--segmentation-3.0',
             ])
-            resultats = _analyse(tmp)
+            with patch('wama.common.utils.model_locations.composants_declares',
+                       return_value=['models--pyannote--segmentation-3.0']):
+                resultats = _analyse(tmp)
         self.assertEqual(len(resultats), 1)
         self.assertEqual(resultats[0][3], [],
-                         "segmentation-3.0 est DÉCLARÉ composant de speech/diarization")
+                         "un composant DÉCLARÉ ne doit pas être compté étranger")
+
+    def test_la_declaration_est_DERIVEE_du_catalogue_jamais_ecrite_dans_le_substrat(self):
+        """La source de la déclaration : `AIModel.composition['components'][*]['repo']`.
+
+        Sans déclaration, la fonction rend une liste VIDE — donc le détecteur SIGNALE au lieu
+        de masquer (« mieux vaut des cas à qualifier qu'une table inventée qui en masque »).
+        """
+        from wama.common.utils import model_locations as ml
+        from wama.model_manager.models import AIModel
+
+        self.assertEqual(ml.composants_declares('speech', 'diarization'), [],
+                         'rien de déclaré → rien de masqué')
+        AIModel.objects.create(
+            model_key='temoin:diariseur', name='Témoin diariseur', source='transcriber',
+            local_path='/x/AI-models/models/speech/diarization/models--temoin--diariseur',
+            composition={'components': [{'role': 'segmentation',
+                                         'repo': 'pyannote/segmentation-3.0'}]})
+        self.assertEqual(ml.composants_declares('speech', 'diarization'),
+                         ['models--pyannote--segmentation-3.0'])
+        self.assertEqual(ml.composants_declares('speech', 'higgs'), [],
+                         'la déclaration ne vaut que pour le dossier du modèle qui la porte')
 
     def test_un_composant_NON_declare_du_meme_editeur_reste_etranger(self):
         """Contre-épreuve du test précédent : c'est la DÉCLARATION qui absout, pas le nom de

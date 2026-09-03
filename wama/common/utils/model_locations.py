@@ -12,7 +12,10 @@ NB : calcul PARESSEUX depuis `settings.AI_MODELS_DIR` (pas d'import au niveau se
 évite l'import circulaire ; settings.py définit MODEL_PATHS en direct).
 """
 
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 from django.conf import settings
 
 # Alias historiques tolérés en entrée → catégorie canonique (le temps de la migration).
@@ -57,41 +60,50 @@ def model_dir(category: str, family: str = None) -> Path:
 # =============================================================================
 # COMPOSANTS DÉCLARÉS D'UNE FAMILLE — lus par `manage.py check_model_layout`
 # =============================================================================
-# POURQUOI CETTE TABLE EXISTE. Un dossier de famille ne doit contenir QUE le(s) snapshot(s)
-# du modèle qu'il nomme. Tout autre `models--org--nom` qu'on y trouve est, par défaut, un
-# dépôt ACCIDENTEL — la signature du défaut `HF_HUB_CACHE` (cf. `CLAUDE.md §AJOUT D'UN
-# NOUVEAU MODÈLE AI` et `ROADMAP §5b`) : la variable étant globale au processus, elle emporte
-# les sous-dépendances dans le dossier du modèle principal.
+# POURQUOI CE POINT EXISTE. Un dossier de famille ne doit contenir QUE le(s) snapshot(s) du
+# modele qu'il nomme. Tout autre `models--org--nom` qu'on y trouve est, par defaut, un depot
+# ACCIDENTEL — la signature du defaut `HF_HUB_CACHE` (`ROADMAP §5b`) : la variable etant
+# globale au processus, elle emporte les sous-dependances dans le dossier du modele principal.
 #
-# Mais certains modèles sont RÉELLEMENT faits de plusieurs dépôts HF (un pipeline pyannote,
-# un tokenizer publié à part). Cette différence-là ne se DEVINE pas : elle se DÉCLARE. Sans
-# déclaration, le contrôle crierait au loup sur des assemblages légitimes — et un contrôle
-# qui crie au loup finit par être ignoré, donc par ne plus rien protéger.
+# Mais certains modeles sont REELLEMENT faits de plusieurs depots HF (un pipeline pyannote,
+# un tokenizer publie a part). Cette difference-la ne se DEVINE pas : elle se DECLARE.
 #
-# ⚠ AJOUTER UNE ENTRÉE ICI EST UNE DÉCISION, pas une formalité : on affirme que ce dépôt
-# APPARTIENT à ce modèle. Si la réponse est « non, c'est une dépendance partagée » (t5, bert,
-# un backbone timm), alors sa place est le CACHE PARTAGÉ et il ne faut PAS l'inscrire ici —
-# il faut retirer la mutation d'environnement du backend qui l'a déposé là.
+# ⚠⚠ LA TABLE EN DUR QUI VIVAIT ICI EST RETIREE (2026-09-04, demande de Fabien — l'auteur
+# lui-meme avait signale l'entorse). Elle nommait 3 depots dans le SUBSTRAT. Le raisonnement
+# etait juste, le LIEU etait faux : un modele porte son anatomie dans SON manifeste
+# (`composition.components`, projete sur `AIModel.composition`) — c'est la qu'un composant se
+# declare, avec sa cle `repo`. Une declaration ecrite dans `common/` est invisible du modele
+# qu'elle decrit et oblige a editer le substrat pour ajouter un modele : les symptomes memes
+# d'un nom en dur.
 #
-# Clé : `"<catégorie>/<famille>"`. Valeur : préfixes de snapshots attendus EN PLUS de ceux
-# qui portent le nom de la famille.
-COMPOSANTS_DECLARES = {
-    # Pipeline pyannote : le diariseur charge segmentation + embedding + la pipeline elle-même,
-    # trois dépôts du MÊME éditeur qui n'ont de sens qu'ensemble (déplacés là volontairement
-    # depuis `speech/kokoro`, cf. ROADMAP §5b « 4 pyannote déplacés … là où le diariseur les
-    # attend »).
-    'speech/diarization': [
-        'models--pyannote--segmentation-3.0',
-        'models--pyannote--wespeaker-voxceleb-resnet34-LM',
-    ],
-    # Higgs Audio v2 : le générateur, son tokenizer audio et le HuBERT dont il dépend sont
-    # publiés séparément par bosonai mais forment un seul moteur.
-    'speech/higgs': [
-        'models--bosonai--hubert_base',
-    ],
-}
+# ⚠ DECLARER RESTE UNE DECISION : on affirme que ce depot APPARTIENT au modele. Si la reponse
+# est « non, c'est une dependance partagee » (t5, bert, un backbone timm), sa place est le
+# CACHE PARTAGE — ne rien declarer, et retirer la mutation du backend qui l'a depose la.
 
 
 def composants_declares(categorie: str, famille: str) -> list:
-    """Snapshots légitimement attendus dans ce dossier, en plus de ceux de la famille."""
-    return list(COMPOSANTS_DECLARES.get(f"{canonical_category(categorie)}/{famille}", []))
+    """Snapshots légitimement attendus dans ce dossier — DÉRIVÉS du catalogue.
+
+    Lit `AIModel.composition['components'][*]['repo']` des modèles qui vivent dans ce
+    dossier : le modèle déclare son anatomie, le contrôle en dérive. Rien de déclaré →
+    liste vide, donc le détecteur SIGNALE au lieu de masquer (« mieux vaut des cas à
+    qualifier qu'une table inventée qui en masque »).
+
+    Hors Django / base absente : liste vide — un contrôle de disposition doit rester
+    utilisable sans base, quitte à être plus bavard.
+    """
+    cible = f"{canonical_category(categorie)}/{famille}".strip('/')
+    prefixes = []
+    try:
+        from wama.model_manager.models import AIModel
+        for m in AIModel.objects.exclude(composition={}).only('local_path', 'composition'):
+            lieu = Path(m.local_path or '.').as_posix()
+            if cible and cible not in lieu:
+                continue
+            for c in ((m.composition or {}).get('components') or []):
+                repo = (c or {}).get('repo')
+                if repo:
+                    prefixes.append('models--' + str(repo).replace('/', '--'))
+    except Exception as e:
+        logger.debug('[model_locations] composants non dérivables : %s', e)
+    return prefixes
