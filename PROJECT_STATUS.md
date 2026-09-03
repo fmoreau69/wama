@@ -11094,3 +11094,32 @@ le facteur commun est la montée elle-même, aucune parade actuelle ne le couvre
   éprouvée (sources, vocabulaires servis, exemples, garde), son appel Ollama ne l'est pas.
   Premier essai à faire au calme — sur Qwen3-TTS, il devrait rattraper le
   `composition.components` que mon manifeste manuel a manqué (`speech_tokenizer`, 682 Mo).
+
+### Suite de clôture — les 2 TROUS de la matrice sont COMBLÉS (`63fd41ed`)
+
+Stack revenue (Fabien l'a relancée) → vérification possible, les deux trous de l'audit
+ci-dessus sont réglés le jour même.
+
+- **TROU 1 — `modèle → librairie` se DÉCLARE** : `extract_model` émet
+  `requires:[{kind:'library'}]` sous la MÊME règle cumulative que la jambe `library` d'une
+  app (le backend qui sert le moteur exige la distribution ET elle est SEMÉE au corpus).
+  Prérequis livré au passage : le registre des moteurs expose ses CLASSES
+  (`engine_backends()`) et **la politique « exécutable » remonte au COMMUN**
+  (`known_engines` applique `missing_packages` là-bas) — un producteur qui filtrait
+  lui-même recopiait une politique commune ET privait le commun de la carte moteur→backend.
+  Mesuré sur le corpus : Kokoro-ONNX→`kokoro-onnx`, coqui-xtts→`soundfile`, Audio8→`torch`,
+  kokoro→`soundfile` ; **zéro référence pendante**, 121 manifestes à jour.
+- **TROU 2 — l'assistant sait PLANIFIER les 3 routes** : `plan_library_integration`,
+  `plan_model_integration`, `plan_app_integration` au `TOOL_REGISTRY` (donc au prompt).
+  ⚠ Ce sont des **planificateurs** : état + prochain GESTE HUMAIN, aucune installation,
+  aucune ingestion (SPEC §2.1 ; doctrine wama-dev-ai). La chaîne se décrit elle-même —
+  mesuré : `qwen-tts` est INSTALLÉE mais NON SEMÉE, et l'outil nomme le geste exact
+  (`run_librarian --dist qwen-tts`), semis qui fera apparaître le `requires` de Qwen3-TTS.
+- ⚠ **Reste de la route app** : produire un manifeste d'app À PARTIR d'un dépôt GitHub
+  n'est pas automatisé — `plan_app_integration` le DIT au lieu de le simuler (pour une app
+  connue, il résout son `requires` et signale les pendantes).
+
+**Contrôles finaux** : suite complète **1487 tests OK (skipped=5)** · corpus **121 à jour** ·
++2 tests de garde. **Le crash est élucidé par l'instance voisine** : rampe d'init CUDA
+(mort 3,5 s après l'init, avant tout chargement) — `wait_for_free_vram` mesure la VRAM
+LIBRE, donc **aucune garde ne borne la PENTE** ; c'est un chantier à part.
