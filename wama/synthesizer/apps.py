@@ -19,7 +19,12 @@ class SynthesizerConfig(AppConfig):
 
             def _tts_engines():
                 from wama.synthesizer.backends import ENGINE_BACKENDS
-                return ENGINE_BACKENDS.keys()
+                # EXÉCUTABLES, pas seulement enregistrés (raffinement 03/09, né du cas
+                # Qwen3-TTS) : un backend écrit dont le runtime pip n'est pas encore
+                # installé (`missing_packages()`) reste GRISÉ — et l'installation du
+                # runtime (validation humaine, ensure_backend_deps) dé-grise toute
+                # seule, comme un pip uninstall re-griserait. Le verdict suit le venv.
+                return {k for k, c in ENGINE_BACKENDS.items() if not c.missing_packages()}
             register_engine_inventory(_tts_engines)
         except Exception:
             pass
