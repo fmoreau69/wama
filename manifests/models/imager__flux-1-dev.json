@@ -50,6 +50,7 @@
   "manifest_kind": "model",
   "name": "FLUX.1-dev — adhérence au prompt de référence",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:flux-1-dev",

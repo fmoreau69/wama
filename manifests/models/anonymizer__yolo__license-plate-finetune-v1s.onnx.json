@@ -59,6 +59,7 @@
   "manifest_kind": "model",
   "name": "license-plate-finetune-v1s.onnx",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:license-plate-finetune-v1s.onnx",

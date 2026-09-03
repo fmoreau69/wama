@@ -49,6 +49,7 @@
   "manifest_kind": "model",
   "name": "docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:reader:doctr",

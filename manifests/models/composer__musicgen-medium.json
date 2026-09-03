@@ -54,6 +54,7 @@
   "manifest_kind": "model",
   "name": "MusicGen Medium — meilleure qualité, 1.5B params",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:composer:musicgen-medium",

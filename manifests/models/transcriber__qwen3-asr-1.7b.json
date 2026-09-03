@@ -55,6 +55,7 @@
   "manifest_kind": "model",
   "name": "Qwen3-ASR-1.7B",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:transcriber:qwen3-asr-1.7b",

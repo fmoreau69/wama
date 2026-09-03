@@ -47,6 +47,7 @@
   "manifest_kind": "model",
   "name": "table-transformer-detection",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:microsoft/table-transformer-detection",

@@ -57,6 +57,7 @@
   "manifest_kind": "model",
   "name": "MusicGen Melody — conditionné par mélodie de référence",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:composer:musicgen-melody",

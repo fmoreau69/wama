@@ -66,6 +66,7 @@
   "manifest_kind": "model",
   "name": "yolo11l_face_plate_signs.pt",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:yolo11l_face_plate_signs.pt",

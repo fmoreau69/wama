@@ -220,6 +220,7 @@
   "manifest_kind": "model",
   "name": "yolov8n.pt",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:yolov8n.pt",

@@ -2060,6 +2060,7 @@
   "manifest_kind": "model",
   "name": "yolo11m-cls.pt",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:yolo11m-cls.pt",

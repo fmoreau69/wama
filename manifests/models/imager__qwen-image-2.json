@@ -50,6 +50,7 @@
   "manifest_kind": "model",
   "name": "Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:qwen-image-2",

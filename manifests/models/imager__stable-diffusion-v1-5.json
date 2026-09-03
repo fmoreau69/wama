@@ -52,6 +52,7 @@
   "manifest_kind": "model",
   "name": "Stable Diffusion 1.5 — classique (compatibilité LoRA)",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:stable-diffusion-v1-5",

@@ -51,6 +51,7 @@
   "manifest_kind": "model",
   "name": "Qwen Image Edit — édition multi-image, 14 images, 2K",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:qwen-image-edit",

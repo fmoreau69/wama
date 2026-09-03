@@ -70,6 +70,7 @@
   "manifest_kind": "model",
   "name": "Bark TTS",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:synthesizer:bark",

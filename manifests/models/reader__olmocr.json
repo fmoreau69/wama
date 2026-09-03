@@ -49,6 +49,7 @@
   "manifest_kind": "model",
   "name": "olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:reader:olmocr",

@@ -54,6 +54,7 @@
   "manifest_kind": "model",
   "name": "MusicGen Small — génération rapide, 300M params",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:composer:musicgen-small",

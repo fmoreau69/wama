@@ -77,6 +77,12 @@
   "manifest_kind": "model",
   "name": "Coqui XTTS v2",
   "projects": [],
+  "requires": [
+    {
+      "key": "soundfile",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:synthesizer:coqui-xtts",

@@ -49,6 +49,7 @@
   "manifest_kind": "model",
   "name": "GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:reader:glm-ocr",

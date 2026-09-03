@@ -54,6 +54,7 @@
   "manifest_kind": "model",
   "name": "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:composer:audiogen-medium",

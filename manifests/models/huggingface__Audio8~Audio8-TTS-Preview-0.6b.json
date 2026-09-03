@@ -85,6 +85,16 @@
   "manifest_kind": "model",
   "name": "Audio8-TTS-Preview-0.6b",
   "projects": [],
+  "requires": [
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:Audio8/Audio8-TTS-Preview-0.6b",

@@ -64,6 +64,7 @@
   "manifest_kind": "model",
   "name": "yolov8n_face_plate_1080p.pt",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:yolov8n_face_plate_1080p.pt",

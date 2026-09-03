@@ -55,6 +55,7 @@
   "manifest_kind": "model",
   "name": "Whisper Large-v3",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:transcriber:whisper",

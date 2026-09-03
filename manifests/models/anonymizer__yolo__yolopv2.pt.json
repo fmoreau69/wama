@@ -57,6 +57,7 @@
   "manifest_kind": "model",
   "name": "yolopv2.pt",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:yolopv2.pt",

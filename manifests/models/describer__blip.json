@@ -46,6 +46,7 @@
   "manifest_kind": "model",
   "name": "Salesforce/blip-image-captioning-large",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:describer:blip",

@@ -2251,6 +2251,162 @@ def get_ai_model(user, model_key: str) -> dict:
     }
 
 
+# ── Intégration : les 3 routes, en PLAN (jamais en exécution) ────────────────────────
+#
+# Trou #2 de l'audit d'intégration (2026-09-03, demande Fabien) : un utilisateur peut
+# demander à l'assistant d'intégrer une LIBRAIRIE pip, un MODÈLE, ou un PROJET GitHub
+# (= app : UI + modèles + librairies). Les trois routes existaient de bout en bout… mais
+# uniquement en CLI/code : `tool_api` n'exposait que des verbes de LECTURE sur les modèles.
+#
+# ⚠ Ces trois outils S'ARRÊTENT AU PLAN — ils disent l'ÉTAT et le PROCHAIN GESTE HUMAIN,
+# ils n'installent, n'ingèrent et n'écrivent RIEN. C'est la propriété de sûreté du corpus
+# de manifestes (SPEC §2.1 : le write-back est un geste explicite) et la doctrine
+# wama-dev-ai (« l'agent propose, l'humain valide »). Un outil d'assistant qui installerait
+# une distribution pip ou projetterait un manifeste sur une phrase en langage naturel
+# serait exactement ce que ces deux règles interdisent.
+
+def _etat_librairie(dist: str) -> dict:
+    """État d'une distribution pip pour les trois routes (semée / installée / au registre)."""
+    import importlib.metadata as im
+
+    from wama.common.services.library_index import _normalise, semees
+    norme = _normalise(dist)
+    try:
+        version = im.version(dist)
+    except Exception:
+        version = None
+    # `Library` vit dans common/models.py (registre NÉ de la projection du manifeste
+    # `library`, ROADMAP §16.7) — pas dans model_manager, où l'on serait tenté de le chercher.
+    from wama.common.models import Library
+    au_registre = Library.objects.filter(key=dist).exists()
+    return {'dist': dist, 'seeded_in_corpus': norme in semees(),
+            'installed_version': version, 'in_registry': au_registre}
+
+
+def plan_library_integration(user, dist: str) -> dict:
+    """
+    PLAN for integrating a Python library (pip distribution) — read-only, executes nothing.
+
+    Args:
+        dist: distribution name as published on PyPI (e.g. 'kokoro-onnx').
+
+    Returns:
+        {"dist", "state": {seeded_in_corpus, installed_version, in_registry},
+         "next_step", "human_gesture"} — `human_gesture` is the exact command to run.
+    """
+    etat = _etat_librairie(dist)
+    if not etat['seeded_in_corpus']:
+        etape = ("la librairie n'est pas SEMÉE au corpus : produire son manifeste "
+                 "`library` (rôle wama-dev-ai `librarian`), le relire, puis le projeter")
+        geste = f"python wama-dev-ai/run_librarian.py --dist {dist}   # puis write_back(apply=True)"
+    elif not etat['installed_version']:
+        etape = "manifeste semé, distribution non installée dans le venv"
+        geste = f"manage.py install_library {dist} --allow --apply"
+    else:
+        etape = "rien à faire : semée au corpus et installée"
+        geste = None
+    return {'dist': dist, 'state': etat, 'next_step': etape, 'human_gesture': geste}
+
+
+def plan_model_integration(user, model: str) -> dict:
+    """
+    PLAN for integrating an AI model — read-only, executes nothing.
+
+    Reports where the model stands on the route (catalogued → weights → declared engine →
+    served backend → runtime libraries) and what the next human gesture is.
+
+    Args:
+        model: catalogue key ('huggingface:org/name', 'synthesizer:kokoro') or HF id.
+    """
+    from wama.common.backends.manager import backend_missing, engine_backends
+    from wama.model_manager.models import AIModel
+
+    row = (AIModel.objects.filter(model_key=model).first()
+           or AIModel.objects.filter(hf_id=model).first())
+    if row is None:
+        return {'model': model, 'state': {'catalogued': False},
+                'next_step': "modèle inconnu du catalogue : un modèle se DÉCOUVRE (des poids "
+                             "sur le disque), il ne se crée pas depuis un manifeste",
+                'human_gesture': "prospection (scout/integrator) puis installation, "
+                                 "puis manage.py sync_models"}
+    moteur = ((row.composition or {}).get('runtime') or {}).get('engine')
+    sans_backend = backend_missing(row)
+    libs = []
+    try:
+        from wama.common.manifests.builtin.model import extract_model
+        for ref in (extract_model(row.model_key) or {}).get('requires') or []:
+            if ref.get('kind') == 'library':
+                libs.append(_etat_librairie(ref['key']))
+    except Exception:
+        pass
+    etat = {'catalogued': True, 'key': row.model_key, 'downloaded': row.is_downloaded,
+            'engine': moteur, 'engine_registered': bool(moteur and moteur in engine_backends()),
+            'backend_missing': sans_backend, 'requires_libraries': libs}
+
+    if not row.is_downloaded:
+        etape, geste = ("poids absents du disque", f"installation depuis le catalogue ({row.model_key})")
+    elif not moteur:
+        etape = ("aucun moteur DÉCLARÉ : le modèle ne peut pas être routé vers un backend, "
+                 "et le grisage automatique n'a pas de verdict à rendre")
+        geste = (f"python wama-dev-ai/run_model_manifest.py --catalog {row.model_key}"
+                 "   # puis relire, puis write_back(apply=True)")
+    elif sans_backend:
+        etape = f"{sans_backend} : le modèle est proposé GRISÉ et refusé au lancement"
+        geste = (f"écrire le backend du moteur « {moteur} » sur le contrat commun "
+                 "(BaseModelBackend) et l'enregistrer dans la table de son app — le "
+                 "grisage se lèvera SEUL")
+    elif any(not lg['installed_version'] for lg in libs):
+        manquantes = [lg['dist'] for lg in libs if not lg['installed_version']]
+        etape = f"runtime absent : {', '.join(manquantes)}"
+        geste = "ensure_backend_deps(<classe du backend>)   # validation humaine"
+    else:
+        etape, geste = ("rien à faire : catalogué, poids présents, moteur servi", None)
+    return {'model': row.model_key, 'state': etat, 'next_step': etape, 'human_gesture': geste}
+
+
+def plan_app_integration(user, target: str) -> dict:
+    """
+    PLAN for integrating a GitHub project as a WAMA app (UI + models + libraries).
+
+    Two cases:
+      - `target` is an EXISTING app id ('converter'…): resolves its manifest `requires`
+        and reports which models/libraries are missing or dangling;
+      - `target` looks like a repo ('owner/name'): reports the route and what is NOT
+        automated yet (producing an app manifest FROM a repository).
+    """
+    from wama.common.manifests.ingest import resolve_requires
+    from wama.common.manifests.builtin.app import extract_app
+
+    if '/' in target:
+        return {
+            'target': target, 'state': {'known_app': False},
+            'next_step': ("une app se compose de TROIS briques déclarées — UI (facettes du "
+                          "manifeste `app`), MODÈLES et LIBRAIRIES (son `requires`). La "
+                          "production d'un manifeste d'app À PARTIR d'un dépôt n'est pas "
+                          "automatisée : c'est le trou restant de la chaîne"),
+            'human_gesture': ("intégrer d'abord les briques une par une "
+                              "(plan_library_integration / plan_model_integration), puis "
+                              "déclarer l'app au manifeste — le codegen fait le reste"),
+        }
+    manifeste = extract_app(target)
+    if manifeste is None:
+        return {'target': target, 'state': {'known_app': False},
+                'next_step': f"'{target}' n'est ni un dépôt 'owner/name' ni une app connue",
+                'human_gesture': None}
+    resolus, pendantes = resolve_requires(manifeste)
+    besoins = manifeste.get('requires') or []
+    return {
+        'target': target,
+        'state': {'known_app': True, 'requires': besoins,
+                  'resolved': len(resolus), 'dangling': pendantes},
+        'next_step': (f"{len(pendantes)} référence(s) PENDANTE(S) — le manifeste est invalide "
+                      "tant qu'elles ne résolvent pas" if pendantes
+                      else f"composition complète : {len(resolus)} référence(s) résolue(s)"),
+        'human_gesture': ("semer les manifestes manquants (plan_library_integration / "
+                          "plan_model_integration)" if pendantes else None),
+    }
+
+
 def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
                   include_memory: bool = True, niveaux: list = None) -> dict:
     """
@@ -2423,6 +2579,13 @@ TOOL_REGISTRY = {
     # model_manager — LECTURE SEULE (trou #18 : « lister modèles/capacités, utile à l'assistant »)
     'list_ai_models': list_ai_models,
     'get_ai_model':   get_ai_model,
+    # Les 3 ROUTES D'INTÉGRATION en PLAN (2026-09-03, trou #2 de l'audit) — librairie pip,
+    # modèle, projet GitHub→app. LECTURE SEULE : elles disent l'ÉTAT et le PROCHAIN GESTE
+    # HUMAIN, elles n'installent ni n'ingèrent rien (SPEC §2.1 : le write-back est un geste
+    # explicite ; doctrine wama-dev-ai : l'agent propose, l'humain valide).
+    'plan_library_integration': plan_library_integration,
+    'plan_model_integration':   plan_model_integration,
+    'plan_app_integration':     plan_app_integration,
     # Claude Code sur l'ABONNEMENT du titulaire (ROADMAP §19.3) — surface DÉVELOPPEUR.
     # ⚠ Sa garde n'est PAS le gating d'app (un outil sans app est autorisé à tous) : elle
     # est écrite DANS la fonction, cf. son corps.

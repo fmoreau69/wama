@@ -47,6 +47,7 @@
   "manifest_kind": "model",
   "name": "Ace-Step1.5",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:ACE-Step/Ace-Step1.5",

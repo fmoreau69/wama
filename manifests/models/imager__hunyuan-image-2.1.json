@@ -50,6 +50,7 @@
   "manifest_kind": "model",
   "name": "HunyuanImage 2.1 — qualité max, text rendering, 1K-4K",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:hunyuan-image-2.1",

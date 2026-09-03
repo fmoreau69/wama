@@ -202,8 +202,47 @@ def extract_model(key: str) -> Optional[dict]:
         'visibility': 'public',
         'projects': [],
         'source': {'type': 'extract', 'ref': f'AIModel:{m.model_key}'},
+        # Composition (SPEC §7.3) : la LIBRAIRIE que le moteur de ce modèle exige — la
+        # jambe qui manquait à la matrice d'intégration (audit du 2026-09-03 : `app→modèle`
+        # et `app→librairie` étaient déclarés, `modèle→librairie` vivait UNIQUEMENT dans le
+        # `PIP_PACKAGES` du backend, c'est-à-dire dans du code Python).
+        'requires': _requires_librairies(body),
         'body': body,
     }
+
+
+def _requires_librairies(body: dict) -> list:
+    """Librairies à citer dans le `requires` d'un manifeste de modèle.
+
+    RÈGLE — la MÊME que la jambe `library` d'une app (`library_index.librairies_de`), et
+    pour la même raison : deux conditions CUMULATIVES.
+      1. le BACKEND qui sert le moteur déclaré du modèle exige la distribution
+         (fait déclaré au contrat commun : `PIP_PACKAGES`/`REQUIRED_PACKAGES`) ;
+      2. la distribution est SEMÉE au corpus `manifests/libraries/` (décision humaine).
+
+    La 2ᵉ n'est pas cosmétique : `ingest.valider()` traite une référence `requires`
+    pendante comme une ERREUR — citer une lib non semée invaliderait le manifeste du
+    modèle, donc l'app qui le requiert. Best-effort : jamais bloquant (un inventaire
+    indisponible ne doit pas empêcher d'extraire un manifeste).
+    """
+    engine = ((body.get('composition') or {}).get('runtime') or {}).get('engine')
+    if not engine:
+        return []
+    try:
+        from wama.common.backends.manager import engine_backends
+        from wama.common.services.library_index import SOCLE_PLATEFORME, _normalise, semees
+        cls = engine_backends().get(engine)
+        if cls is None:
+            return []
+        # Nom de DISTRIBUTION seul : `pip_install_spec` rend des pins exacts
+        # (« qwen-tts==0.1.1 ») ; une référence `requires` désigne la lib, pas sa version.
+        dists = {s.partition('==')[0].strip() for s in (cls.pip_install_spec() or [])}
+        sem = semees()
+        return [{'kind': 'library', 'key': d} for d in sorted(dists)
+                if _normalise(d) in sem and _normalise(d) not in SOCLE_PLATEFORME]
+    except Exception:
+        logger.debug("[manifest:model] inventaire des librairies indisponible", exc_info=True)
+        return []
 
 
 # Champs DECLARATIFS d'un modele — les seuls qu'un manifeste ait autorite a poser.

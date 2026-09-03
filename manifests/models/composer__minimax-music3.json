@@ -86,6 +86,7 @@
   "manifest_kind": "model",
   "name": "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:composer:minimax-music3",

@@ -51,6 +51,7 @@
   "manifest_kind": "model",
   "name": "CogVideoX 5B — Image-to-Video, 24 fps",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:cogvideox-5b-i2v",

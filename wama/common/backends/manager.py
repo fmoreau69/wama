@@ -41,17 +41,52 @@ _ENGINE_INVENTORIES: List = []
 
 
 def register_engine_inventory(fn) -> None:
-    """Enregistre un inventaire : callable () -> itérable de noms de moteurs exécutables."""
+    """Enregistre un inventaire de moteurs. Le callable rend soit un MAPPING
+    {moteur: classe de backend} — forme préférée, elle seule permet de remonter au
+    contrat du backend (`PIP_PACKAGES`, `missing_packages`) —, soit un simple itérable
+    de noms (forme tolérée : aucune classe, le moteur est réputé exécutable)."""
     _ENGINE_INVENTORIES.append(fn)
 
 
+def engine_backends() -> dict:
+    """{moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
+
+    Rend les moteurs ENREGISTRÉS (installés ou non) : c'est la question « qui sait
+    exécuter ce moteur ? », distincte de « peut-il tourner maintenant ? »
+    (`known_engines`). C'est cette carte qui permet à un manifeste de MODÈLE de
+    remonter à la LIBRAIRIE que son moteur exige (`requires`, 2026-09-03).
+    """
+    carte = {}
+    for fn in _ENGINE_INVENTORIES:
+        try:
+            res = fn()
+            if isinstance(res, dict):
+                carte.update(res)
+        except Exception as e:   # un inventaire cassé ne condamne pas les autres
+            logger.debug("[engines] inventaire %r illisible : %s", fn, e)
+    return carte
+
+
 def known_engines() -> set:
-    """Union des inventaires enregistrés — relue à CHAQUE appel (ré-autorisation auto)."""
+    """Moteurs réellement EXÉCUTABLES — relus à CHAQUE appel (ré-autorisation auto).
+
+    ⚠ La politique « exécutable » (backend enregistré ET runtime importable) vit ICI
+    depuis le 2026-09-03, plus chez chaque producteur : elle y était recopiée, donc
+    vouée à diverger — et un producteur qui filtrait lui-même privait le commun de la
+    carte des classes (cf. `engine_backends`). Un inventaire sans classe reste réputé
+    exécutable : on ne condamne pas ce qu'on ne sait pas mesurer (même permissivité
+    que `backend_missing`).
+    """
     moteurs = set()
     for fn in _ENGINE_INVENTORIES:
         try:
-            moteurs.update(fn())
-        except Exception as e:   # un inventaire cassé ne condamne pas les autres
+            res = fn()
+            if isinstance(res, dict):
+                moteurs.update(k for k, c in res.items()
+                               if not getattr(c, 'missing_packages', lambda: [])())
+            else:
+                moteurs.update(res)
+        except Exception as e:
             logger.debug("[engines] inventaire %r illisible : %s", fn, e)
     return moteurs
 
