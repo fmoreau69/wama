@@ -349,6 +349,35 @@ les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprim
   NB : `cache_dir=` est déjà passé dans la plupart des backends ; reste à retirer la mutation
   per-modèle de `HF_HUB_CACHE` et poser `HF_HOME` au démarrage.
 
+> **🔄 ÉTAT MESURÉ le 2026-09-03 — le socle EXISTE, la dette est ailleurs.**
+> `HF_HOME`/`HF_HUB_CACHE`/`HUGGINGFACE_HUB_CACHE` sont **déjà posés une fois au démarrage**
+> (`wama/settings.py:165-167`, en `setdefault` vers `AI-models/cache/huggingface`) et **rien
+> ne les neutralise** — aucun export HF dans `.env` ni dans `start_wama_prod.sh` (vérifié).
+> Le reste du chantier est donc uniquement le RETRAIT des mutations per-modèle :
+> **38 lignes mesurées** (inventaire par AST, bacs à sable exclus), **37 après le 1ᵉʳ pas**.
+>
+> **⚠⚠ Le partage principal/sous-dépendance est PROUVÉ, pas supposé** (sonde non destructive
+> sur `table-transformer`, process jetable) : le modèle PRINCIPAL se résout par `cache_dir=`
+> (il est absent du cache partagé et le chargement passe), le **backbone timm** se résout par
+> `HF_HUB_CACHE` (chargement en `LocalEntryNotFoundError` quand on pointe la variable sur un
+> dossier vide, `cache_dir=` inchangé). *La var d'env emporte les sous-dépendances dans le
+> dossier du modèle principal — c'est le mécanisme exact du défaut.*
+>
+> **1ᵉʳ pas livré** : `reader/backends/table_transformer_backend.py` — mutation retirée,
+> test sur poids réels **6/6 `OK` avant ET après**. Résidu créé par l'ancien routage :
+> `REMOVAL_LEDGER R47`.
+>
+> **Garde livré** : `wama/common/tests_hf_cache_routing.py` — compte les mutations **par AST**
+> (un grep compterait les mentions en commentaire), budget **37**, **ne peut que descendre**,
+> et vérifie que le socle pose bien les 3 variables. ⚠ Il TRIE, il ne conclut pas : « pas de
+> `cache_dir=` dans la fonction » ≠ « non retirable » — chaque site se lit (triage : 12 lignes
+> avec `cache_dir=` dans la même fonction, 25 sans).
+>
+> *Trois traces antérieures du même défaut, à citer si quelqu'un doute de l'enjeu* :
+> `wama/views.py:223` (dump de modèles dans speech/kokoro), `start_wama_prod.sh:271`
+> (`--workers 1` du service TTS déclaré STRUCTURANT à cause de cette course), et la commande
+> `dedup_models` née comme « séquelle de la course `os.environ['HF_HUB_CACHE']` ».
+
 **Chemins dérivés de la CATÉGORIE** (⏳) : `models/{category}/{family}/` où `category` =
 `ModelType` (source unique, model_manager). Helper unique `model_dir(category, family)` →
 `MODEL_PATHS` + `model_config` + découverte + `cache_dir=` en sortent.
