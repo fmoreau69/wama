@@ -13,6 +13,7 @@ from .bark_backend import BarkBackend
 from .base import CATALOG_KEYS, TTSBackend
 from .audio8_backend import Audio8Backend
 from .coqui_backend import CoquiBackend
+from .qwen3_tts_backend import Qwen3TTSBackend
 from .higgs_backend import HiggsAudioBackend
 from .kokoro_backend import KokoroBackend
 from .kokoro_onnx_backend import KokoroOnnxBackend
@@ -30,6 +31,12 @@ ENGINE_BACKENDS = {
     # Audio8 par défaut ; un 2ᵉ modèle remote-code fera passer le backend au `model`
     # transmis par le contrat d'appel (généralisation au 2ᵉ, jamais avant).
     'transformers-remote-code': Audio8Backend,
+    # Backend ÉCRIT, runtime PAS ENCORE installé (qwen-tts==0.1.1 épingle
+    # transformers 4.57.3 — venv partagé : installation sur GO humain,
+    # ensure_backend_deps). L'inventaire du grisage ne sert que les moteurs
+    # EXÉCUTABLES : celui-ci reste grisé jusqu'à l'installation, puis se
+    # dé-grise tout seul.
+    'qwen3-tts': Qwen3TTSBackend,
 }
 
 

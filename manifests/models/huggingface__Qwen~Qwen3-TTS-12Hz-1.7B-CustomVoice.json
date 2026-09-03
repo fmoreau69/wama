@@ -3,7 +3,11 @@
     "capabilities": {
       "task": "text-to-speech"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "qwen3-tts"
+      }
+    },
     "extra_info": {
       "category": "speech",
       "family": "Qwen3-TTS-12Hz-1.7B-CustomVoice",

@@ -178,12 +178,19 @@ class CurseurDeQualiteTest(TestCase):
         verdict, backend_ref d'app = l'app assume)."""
         from types import SimpleNamespace
         from wama.common.backends.manager import backend_missing, known_engines
-        # Les inventaires des producteurs sont enregistrés par apps.ready().
-        # `transformers-remote-code` : servi depuis le B2 n°2 (Audio8Backend, 03/09) —
-        # le moteur d'Audio8 s'est RÉ-AUTORISÉ tout seul en entrant dans ENGINE_BACKENDS,
-        # exactement le contrat du système.
-        self.assertTrue({'bark', 'coqui', 'higgs', 'kokoro', 'kokoro-onnx',
-                         'transformers-remote-code', 'audio-cpp'} <= known_engines())
+        from wama.synthesizer.backends import ENGINE_BACKENDS
+        # ⚠ L'inventaire n'annonce que les moteurs EXÉCUTABLES (raffinement 03/09 :
+        # backend enregistré ET runtime importable) — il est donc DÉPENDANT DU VENV par
+        # conception, et un roster figé ici casserait dans le venv qui n'a pas tel
+        # runtime (vécu : kokoro_onnx absent de venv_win). On teste le MÉCANISME :
+        connus = known_engines()
+        # (a) rien d'inventé : tout moteur annoncé est enregistré quelque part ;
+        self.assertTrue(connus <= set(ENGINE_BACKENDS) | {'audio-cpp'})
+        # (b) le point DÉTERMINISTE des deux venvs : qwen3-tts est ENREGISTRÉ
+        #     (backend écrit, B2 n°3) mais son runtime pip n'est installé nulle part
+        #     tant que Fabien n'a pas donné le GO — il ne doit JAMAIS être annoncé.
+        self.assertIn('qwen3-tts', ENGINE_BACKENDS)
+        self.assertNotIn('qwen3-tts', connus)
         fantome = SimpleNamespace(backend_ref='', composition={'runtime': {'engine': 'moteur-fantome'}})
         self.assertIn('moteur-fantome', backend_missing(fantome))
         self.assertIsNone(backend_missing(
