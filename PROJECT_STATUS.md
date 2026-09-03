@@ -9132,8 +9132,30 @@ restart, garde active) · `views_gen` forme liaison + `models_gen` champs de ré
 prochains trous B · doc_facts/carte à re-régénérer si critères bougent encore.
 
 **Contrôles attendus au prochain /reprise** : grille **87 critères**, converter ET
-describer **100 %** ; corpus **121** ; roundtrip 10/10 OK ; suite ≈1440 `OK` (le total
+describer **100 %** ; corpus **121** ; roundtrip 10/10 OK ; suite ≈1447 `OK` (le total
 n'est pas un critère) ; `check_docs` : toujours 1 cible distincte.
+
+### Addendum (même jour, après restart Fabien) — constats écran jumelle FERMÉS AU GÉNÉRATEUR
+> Fabien : « import filemanager KO (récurrent sur les apps générées), aucun bouton de
+> card, pas de preview/réglages ». **Batterie describer_01 : 11/11 SANS SKIP** après 3
+> causes racines fermées (commit dédié) :
+1. **Importeurs filemanager 10/10 paramétrés `app_label`** (seul converter l'était —
+   toute jumelle future dérive le sien) + `detected_type` posé à l'import describer
+   (clé de routage B1).
+2. **Couple views↔templates** : `substitute templates` REFUSE désormais sans views:ok
+   (paire incohérente = page 200, boutons morts) ; action **`app_sandbox revert`**
+   ajoutée ; templates describer_01 revenus au témoin.
+3. **Alias compat `PARAMS = PARAMS_JSON`** émis par params_gen (le models COPIÉ importait
+   `PARAMS` → ImportError au rendu de CHAQUE card, file « vide » sur page 200) + le juge
+   de substitution gagne le smoke « **file HABITÉE** » (témoin créé→rendu→supprimé — un
+   smoke à file vide ne rend aucune card, l'angle mort exact).
+- ⚠ Playwright venv_win : paquet mis à jour SANS navigateurs (1ʳᵉ batterie 0/11 pour ça)
+  → `playwright install chromium` refait ; l'instrument se contre-vérifie d'abord.
+- Gunicorn HUP ×2 (reload ~40 s — un 000 pendant le boot des workers n'est pas une panne ;
+  le port 80 d'Apache n'est pas joignable depuis WSL, sonder 8000). Celery : rien à
+  recharger (imports paresseux additifs seulement).
+- 🔚 Proposé à Fabien : **registre des BACKENDS** (dérivé, page au registre des registres,
+  lien modèle↔backend via `backend_ref` rendu déclaratif) — design remis, attend GO.
 
 ---
 
