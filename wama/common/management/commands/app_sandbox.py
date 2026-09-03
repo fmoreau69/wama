@@ -183,7 +183,7 @@ class Command(BaseCommand):
     help = "Bac à sable d'apps : create <app> / drop <app_NN> / list (route §10.3 marche S)"
 
     def add_arguments(self, parser):
-        parser.add_argument('action', choices=['create', 'drop', 'list', 'substitute'])
+        parser.add_argument('action', choices=['create', 'drop', 'list', 'substitute', 'revert'])
         parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (drop/substitute)')
         parser.add_argument('cible', nargs='?',
                             help=f"substitute : {sorted(_SUBSTITUTABLE)} — fichier à passer en GÉNÉRÉ")
@@ -214,6 +214,8 @@ class Command(BaseCommand):
             self._create(app, owner=opts.get('proprietaire') or '')
         elif action == 'substitute':
             self._substitute(app, opts.get('cible'))
+        elif action == 'revert':
+            self._revert(app, opts.get('cible'))
         else:
             self._drop(app)
 
@@ -271,6 +273,20 @@ class Command(BaseCommand):
         if not entry:
             raise CommandError(f'{label} absent du registre.')
         src = entry['generated_from']
+
+        # ⚠ COUPLE views↔templates (mesuré par Fabien sur describer_01, 2026-09-03) : l'index
+        # GÉNÉRÉ inclut la card générique et attend le contexte des vues GÉNÉRÉES ; des vues
+        # COPIÉES rendent l'autre partial au refresh et un autre contexte → page qui s'affiche,
+        # boutons de card MORTS. Le smoke de l'étape 3 (HTTP 200) ne voit rien : la paire
+        # incohérente REND. On refuse donc templates sans views:ok — l'inverse (views générées,
+        # templates copiés) est refusé par l'ORDRE recommandé et le même argument.
+        if cible == 'templates':
+            v = ((entry.get('substituted') or {}).get('views') or {}).get('verdict')
+            if v != 'ok':
+                raise CommandError(
+                    "templates et views se substituent en COUPLE : substituer `views` d'abord "
+                    f"(état actuel : {v or 'jamais substitué'}). Une app dont views_gen refuse "
+                    "(ex. file à modèle de liaison) garde SES templates copiés — cohérents.")
 
         # 1. GÉNÉRATION depuis le manifeste LIVE de la source (l'app d'origine n'est que LUE).
         from wama.common.manifests.ingest import extract
@@ -337,6 +353,32 @@ class Command(BaseCommand):
             if smoke.returncode != 0:
                 verdict = 'revert'
                 details.append(f"smoke /{label}/ KO ({(smoke.stdout or smoke.stderr).strip()[:120]})")
+        # ── Smoke « file HABITÉE » (mesuré le 2026-09-03, describer_01/params) : une page à
+        # file VIDE ne rend AUCUNE card — un symbole de schéma disparu (`PARAMS`) ne levait
+        # qu'au rendu d'une card réelle : 200 au juge, ImportError chez l'utilisateur. On
+        # crée donc un témoin minimal, on rend la page, on le supprime. Témoin incréable
+        # (contraintes NOT NULL propres à l'app) → NON MESURÉ, dit tel quel — jamais bloquant
+        # sur l'incréabilité, toujours bloquant sur un rendu qui lève.
+        item_model = ((manifest.get('body') or {}).get('processing') or {}).get('item_model')
+        if verdict == 'ok' and item_model:
+            habite = subprocess.run(
+                [sys.executable, '-c',
+                 "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
+                 "django.setup();from django.apps import apps;from django.test import Client;"
+                 "from wama.common.services.nightly_tests import get_test_dev_user;"
+                 f"M=apps.get_model('{label}','{item_model}');u=get_test_dev_user();\n"
+                 "try:\n    it=M.objects.create(user=u)\n"
+                 "except Exception as e:\n    print('temoin increable:',e);raise SystemExit(2)\n"
+                 "try:\n    c=Client();c.force_login(u);r=c.get('" + f'/{label}/' + "',follow=True)\n"
+                 "    print(r.status_code)\nfinally:\n    it.delete()\n"
+                 "raise SystemExit(0 if r.status_code==200 else 1)"],
+                capture_output=True, text=True, cwd=str(BASE_DIR))
+            if habite.returncode == 1:
+                verdict = 'revert'
+                details.append('smoke file HABITÉE KO — le rendu de card lève '
+                               f"({(habite.stdout or habite.stderr).strip()[:160]})")
+            elif habite.returncode == 2:
+                details.append('file habitée NON MESURÉE (témoin incréable — contraintes app)')
 
         # 4. Diff compact copie↔généré (le DÉTECTEUR : chaque écart est un fait).
         if temoin.exists():
@@ -378,6 +420,58 @@ class Command(BaseCommand):
                           if any(v.get('verdict') == 'ok'
                                  for v in entry['substituted'].values()) else entry['stage'])
         save_registry(entries)
+
+    # ── revert (retour MANUEL au témoin) ─────────────────────────────────────
+    def _revert(self, label: str, cible: str):
+        """Ramène UNE cible substituée à sa copie témoin (`.temoin`) — le geste qu'aucun
+        outil n'offrait quand la substitution avait « tenu » au smoke mais cassait à
+        l'usage (describer_01, 2026-09-03 : templates générés × views copiées — page 200,
+        boutons morts). Fichier GÉNÉRÉ sans témoin (neuf, marqué manifest-gen) → retiré."""
+        if cible not in _SUBSTITUTABLE:
+            raise CommandError(f'Cible inconnue : {cible} (attendu {sorted(_SUBSTITUTABLE)}).')
+        entries = load_registry()
+        entry = next((e for e in entries if e['label'] == label), None)
+        if not entry:
+            raise CommandError(f'{label} absent du registre.')
+
+        fname = _SUBSTITUTABLE[cible][0]
+        if cible == 'templates':
+            candidats = sorted((WAMA_DIR / label / 'templates' / label).glob('*.html'))
+        else:
+            candidats = [WAMA_DIR / label / fname]
+        restaures, retires = [], []
+        for p in candidats:
+            if not p.is_file():
+                continue
+            t = p.with_name(p.name + '.temoin')
+            if t.exists():
+                shutil.copy2(t, p)
+                restaures.append(p.name)
+            elif 'manifest-gen' in p.read_text(encoding='utf-8', errors='replace')[:600]:
+                p.unlink()
+                retires.append(p.name)
+        if not restaures and not retires:
+            raise CommandError(f'{cible} : aucun témoin ni fichier généré — rien à ramener.')
+
+        # Smoke : la jumelle revenue doit RENDRE (même juge que la substitution).
+        smoke = subprocess.run(
+            [sys.executable, '-c',
+             "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
+             "django.setup();from django.test import Client;"
+             f"r=Client().get('/{label}/',follow=True);print(r.status_code);"
+             "raise SystemExit(0 if r.status_code==200 else 1)"],
+            capture_output=True, text=True, cwd=str(BASE_DIR))
+        etat = 'OK' if smoke.returncode == 0 else f'KO ({(smoke.stdout or smoke.stderr).strip()[:80]})'
+
+        entry.setdefault('substituted', {})[cible] = {
+            'verdict': 'reverted-manuel',
+            'details': [f'restaurés : {restaures}', f'retirés : {retires}', f'smoke {etat}'],
+            'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
+        save_registry(entries)
+        style = self.style.SUCCESS if smoke.returncode == 0 else self.style.ERROR
+        self.stdout.write(style(
+            f'{cible} REVENU au témoin — restaurés {restaures}, retirés {retires}, '
+            f'smoke /{label}/ {etat}. ⚠ Recharger gunicorn pour servir la copie.'))
 
     # ── drop ─────────────────────────────────────────────────────────────────
     def _drop(self, label: str):

@@ -45,6 +45,18 @@ def render_params_source(app_id: str, schemas: dict) -> str:
         pad = ' ' * (len(attr) + 3)
         lignes += [pad + l for l in rendu[1:]]
         lignes.append('')
+    # ── Alias de COMPATIBILITÉ des symboles publics (mesuré le 2026-09-03, describer_01) ──
+    # Un params.py MAIN expose deux symboles : `<X>` (liste de Param) ET `<X>_JSON`
+    # (schema_to_dicts). Le généré ne rend que la forme _JSON du manifeste — or les
+    # consommateurs COPIÉS de la jumelle importent l'autre (`models.gear_data` : `from
+    # .params import PARAMS`) : ImportError AU RENDU DE CHAQUE CARD, file « vide » sur une
+    # page 200 (le smoke du juge mesurait une file VIDE). Les briques (card_gear,
+    # card_chips, effective_settings) acceptent Param OU dict (`_pget`, 31/08) : l'alias
+    # dict est un consommable légitime, pas un mensonge de type.
+    for attr in sorted(schemas):
+        if attr.endswith('_JSON'):
+            lignes.append(f"{attr[:-5]} = {attr}  # alias compat (les briques acceptent les dicts)")
+    lignes.append('')
     return '\n'.join(lignes)
 
 
