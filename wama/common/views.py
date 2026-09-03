@@ -570,6 +570,47 @@ def external_sources_view(request):
     })
 
 
+def backends_catalog_view(request):
+    """
+    Page du registre `backends` (12ᵉ) — le VIVIER des moteurs, DÉRIVÉ (demande Fabien 03/09).
+
+    Deux besoins, une seule source : la vision d'ensemble depuis WAMA, et le VOISINAGE dont
+    le LLM de la marche B a besoin pour « s'inspirer du plus approchant » (nature routée →
+    saveur de sortie, paquets, VRAM, modèles servis). Rien n'est stocké : la page lit les
+    déclarations `wama/<app>/backends/` et le catalogue `AIModel` à chaque affichage — même
+    argument que les licences, *une page qui DÉRIVE ne peut pas diverger de ses sources*.
+
+    Les facettes sont DÉRIVÉES du contenu réel (une option sans carte derrière serait un
+    filtre qui vide la page — leçon des sources externes), sauf leurs libellés.
+    """
+    from .services.backend_inventory import SAVEURS, summary
+    from .utils.volet import volet
+
+    inv = summary()
+    apps_presentes = {e.app for a in inv['apps'] for e in a.entries}
+    familles = {e.kind for a in inv['apps'] for e in a.entries}
+    saveurs = {e.saveur for a in inv['apps'] for e in a.entries}
+
+    facettes = [
+        {'cle': 'app', 'label': 'Application', 'tous': 'Toutes les apps',
+         'options': {a: a for a in sorted(apps_presentes)}},
+        {'cle': 'saveur', 'label': 'Sortie', 'tous': 'Toutes les sorties',
+         'options': {k: v for k, v in SAVEURS.items() if k in saveurs}},
+        {'cle': 'famille', 'label': 'Famille', 'tous': 'Toutes les familles',
+         'options': {k: v for k, v in (('route', 'Routé (ROUTES)'),
+                                       ('classe', 'Classe (BaseModelBackend)'))
+                     if k in familles}},
+    ]
+
+    return render(request, 'common/backends.html', {
+        'inv': inv,
+        'facettes_backends': facettes,
+        # Inspecteur au clic (comme /apps/ et les sources externes) ; pas de section Médias :
+        # un backend n'a rien à prévisualiser.
+        'volet': volet(medias=False),
+    })
+
+
 def skills_catalog_view(request):
     """
     Catalogue des SKILLS de prompt — la page qui manquait au registre `skills`.

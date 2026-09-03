@@ -68,6 +68,7 @@ urlpatterns = [
     # de la carte sans `url_name`). Elle DÉRIVE des fichiers + PROMPT_TARGETS + DOMAINES, et
     # dit surtout QUI consomme quoi — un skill que rien ne résout est un fichier inerte.
     path('skills/', views.skills_catalog_view, name='skills_catalog'),
+    path('backends/', views.backends_catalog_view, name='backends_catalog'),
 
     # Sources externes : la PAGE du registre `sources_externes` (8ᵉ registre, 2026-09-01).
     # La déclaration dérive du code ; la sonde (clé, joignabilité) est le rapport écrit par
