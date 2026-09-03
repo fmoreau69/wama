@@ -26,9 +26,15 @@ python wama-dev-ai/run.py -t "…"          # tâche unique
 python wama-dev-ai/run_audit.py …         # rôle audit (read-only)
 python wama-dev-ai/run_codegen.py …       # rôle codegen (code proposé, jamais appliqué)
 python wama-dev-ai/run_librarian.py …     # manifestes de librairies
+python wama-dev-ai/run_model_manifest.py … # manifestes de MODÈLES (identité, capacités, moteur)
 python wama-dev-ai/run_scout.py …         # prospection de modèles (fiches candidates)
 python wama-dev-ai/run_integrator.py …    # propositions d'intégration
 ```
+
+⚠ `run_model_manifest.py` consulte **`WAMA_GPU_SAFE_MODE`** et refuse de partir quand il est
+actif (`--force` pour un GO explicite) : son appel Ollama charge un modèle dans la VRAM de
+l'hôte — le geste qui a crashé la machine deux fois le 2026-09-02. Même garde que
+`ui_smoke._vlm_triage` ; tout rôle qui appellera Ollama devra la porter aussi.
 
 ## Les rôles (le cœur actuel de l'outil)
 
