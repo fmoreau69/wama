@@ -42,10 +42,16 @@ class ImporteurDeriveTests(TestCase):
         self.assertIs(fn.func, IMPORTERS['converter'])
 
     def test_une_source_non_parametrable_ne_derive_rien(self):
-        # import_to_transcriber n'a pas de paramètre app_label : dériver quand même ferait
-        # écrire l'import DANS LA SOURCE — le refus nommé (menu absent) est le seul honnête.
-        with patch('wama.common.app_registry.APP_CATALOG',
-                   _catalogue_avec_jumelle('transcriber')):
+        # Dériver d'une source sans `app_label` ferait écrire l'import DANS LA SOURCE — le
+        # refus nommé (menu absent) est le seul honnête. ⚠ Recalé 2026-09-03 : plus AUCUNE
+        # source réelle n'est non-paramétrable (10/10 — transcriber, l'ancien exemplaire de
+        # ce test, a été paramétré) ; la propriété se tient sur un importeur FACTICE et
+        # protège les importeurs FUTURS écrits sans le paramètre.
+        def importeur_fige(source_path, user):
+            raise AssertionError('ne doit jamais être appelé')
+        with patch.dict(IMPORTERS, {'sourcefigee': importeur_fige}), \
+             patch('wama.common.app_registry.APP_CATALOG',
+                   _catalogue_avec_jumelle('sourcefigee')):
             self.assertIsNone(importer_for('jumelle_99'))
 
     def test_une_app_inconnue_ne_resout_pas(self):

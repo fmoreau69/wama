@@ -1367,14 +1367,27 @@ def api_import_to_app(request):
         })
 
 
-def import_to_describer(source_path, user):
-    """Import a file to Describer app."""
-    from wama.describer.models import Description
+def import_to_describer(source_path, user, app_label='describer'):
+    """Import a file to Describer app.
+
+    `app_label` : re-cible l'importeur sur une JUMELLE de bac à sable (`describer_01`) —
+    même contrat que `import_to_converter` (c'est ce paramètre que `importer_for()` détecte
+    pour dériver l'importeur d'une jumelle ; mesuré par Fabien le 2026-09-03 : sans lui,
+    « Envoyer vers describer_01 » n'existait pas — 3ᵉ occurrence du même trou).
+    `detected_type` est posé À L'IMPORT (comme à l'upload) : c'est la clé de routage
+    nature→backend (marche B1) — sans elle, le corps composé de la jumelle n'a rien à router.
+    """
+    from django.apps import apps as django_apps
+    from wama.describer.views import detect_type_from_extension
     from wama.common.utils.media_paths import copy_into_app_input
 
-    dest_path, relative_path = copy_into_app_input(source_path, 'describer', user.id, 'input')
+    Description = django_apps.get_model(app_label, 'Description')
 
-    description = Description.objects.create(user=user)
+    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
+
+    ext = dest_path.suffix.lstrip('.').lower()
+    description = Description.objects.create(
+        user=user, detected_type=detect_type_from_extension(ext))
     description.input_file.name = relative_path
     description.filename = dest_path.name
     description.file_size = dest_path.stat().st_size
@@ -1382,15 +1395,20 @@ def import_to_describer(source_path, user):
 
     return {
         'imported': True,
-        'app': 'describer',
+        'app': app_label,
         'id': description.id,
         'filename': dest_path.name,
         'path': relative_path,
     }
 
 
-def import_to_enhancer(source_path, user):
-    """Import a file to Enhancer app (image, video, or audio)."""
+def import_to_enhancer(source_path, user, app_label='enhancer'):
+    """Import a file to Enhancer app (image, video, or audio).
+
+    `app_label` re-cible une JUMELLE de bac à sable (contrat `importer_for()`) — les 10
+    importeurs sont paramétrés le 2026-09-03 : chaque nouvelle jumelle dérive le sien,
+    plus jamais un cas à la fois (converter 30/08, describer 03/09 = 2 occurrences)."""
+    from django.apps import apps as django_apps
     from wama.common.utils.media_paths import copy_into_app_input
 
     image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
@@ -1401,9 +1419,9 @@ def import_to_enhancer(source_path, user):
 
     if ext in audio_extensions:
         # ── Audio ─────────────────────────────────────────────────────────────
-        from wama.enhancer.models import AudioEnhancement
+        AudioEnhancement = django_apps.get_model(app_label, 'AudioEnhancement')
 
-        dest_path, relative_path = copy_into_app_input(source_path, 'enhancer', user.id, 'input/audio')
+        dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input/audio')
 
         duration = 0.0
         file_size = dest_path.stat().st_size
@@ -1419,7 +1437,7 @@ def import_to_enhancer(source_path, user):
         ae.input_file.name = relative_path
         ae.save()
         return {
-            'imported': True, 'app': 'enhancer', 'media_type': 'audio',
+            'imported': True, 'app': app_label, 'media_type': 'audio',
             'id': ae.id, 'filename': dest_path.name,
             'duration': duration, 'status': ae.status, 'progress': ae.progress,
             'path': relative_path,
@@ -1427,11 +1445,11 @@ def import_to_enhancer(source_path, user):
 
     elif ext in image_extensions or ext in video_extensions:
         # ── Image / Video ─────────────────────────────────────────────────────
-        from wama.enhancer.models import Enhancement
         from wama.common.utils.video_utils import get_media_info
 
+        Enhancement = django_apps.get_model(app_label, 'Enhancement')
         media_type = 'image' if ext in image_extensions else 'video'
-        dest_path, relative_path = copy_into_app_input(source_path, 'enhancer', user.id, 'input/media')
+        dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input/media')
 
         media_info = get_media_info(str(dest_path))
         enhancement = Enhancement.objects.create(
@@ -1442,7 +1460,7 @@ def import_to_enhancer(source_path, user):
         enhancement.input_file.name = relative_path
         enhancement.save()
         return {
-            'imported': True, 'app': 'enhancer', 'media_type': media_type,
+            'imported': True, 'app': app_label, 'media_type': media_type,
             'id': enhancement.id, 'filename': dest_path.name,
             'path': relative_path,
             'width': media_info['width'], 'height': media_info['height'],
@@ -1452,16 +1470,19 @@ def import_to_enhancer(source_path, user):
         raise ValueError(f"Unsupported file format: {ext}")
 
 
-def import_to_imager(source_path, user):
+def import_to_imager(source_path, user, app_label='imager'):
     """
     Import a file to Imager app.
     Supports:
     - Text files (.txt, .json, .yaml, .yml) -> batch prompts
     - Image files -> reference images for img2img/style/describe modes
+
+    `app_label` re-cible une JUMELLE de bac à sable (contrat `importer_for()`).
     """
-    from wama.imager.models import ImageGeneration
+    from django.apps import apps as django_apps
     from wama.common.utils.media_paths import copy_into_app_input
 
+    ImageGeneration = django_apps.get_model(app_label, 'ImageGeneration')
     ext = source_path.suffix.lower()
 
     # Determine file type and destination subfolder (user-specific paths)
@@ -1476,7 +1497,7 @@ def import_to_imager(source_path, user):
     else:
         raise ValueError(f"Format not supported for Imager: {ext}")
 
-    dest_path, relative_path = copy_into_app_input(source_path, 'imager', user.id, subfolder)
+    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, subfolder)
 
     if file_type == 'prompt_file':
         # For prompt files, we just save the file reference
@@ -1502,7 +1523,7 @@ def import_to_imager(source_path, user):
 
     return {
         'imported': True,
-        'app': 'imager',
+        'app': app_label,
         'id': generation.id,
         'type': file_type,
         'mode': generation_mode,
@@ -1511,14 +1532,15 @@ def import_to_imager(source_path, user):
     }
 
 
-def import_to_anonymizer(source_path, user):
-    """Import a file to Anonymizer app."""
-    from wama.anonymizer.models import Media
+def import_to_anonymizer(source_path, user, app_label='anonymizer'):
+    """Import a file to Anonymizer app. `app_label` re-cible une jumelle (importer_for)."""
+    from django.apps import apps as django_apps
     from wama.anonymizer.views import add_media_to_db
     from wama.common.utils.media_paths import copy_into_app_input
     import mimetypes
 
-    dest_path, relative_path = copy_into_app_input(source_path, 'anonymizer', user.id, 'input')
+    Media = django_apps.get_model(app_label, 'Media')
+    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
 
     # Get file extension and determine media type
     file_ext = dest_path.suffix.lower()
@@ -1547,21 +1569,22 @@ def import_to_anonymizer(source_path, user):
 
     return {
         'imported': True,
-        'app': 'anonymizer',
+        'app': app_label,
         'id': media.id,
         'filename': dest_path.name,
         'path': relative_path,
     }
 
 
-def import_to_synthesizer(source_path, user):
-    """Import a text file to Synthesizer app."""
-    from wama.synthesizer.models import VoiceSynthesis
+def import_to_synthesizer(source_path, user, app_label='synthesizer'):
+    """Import a text file to Synthesizer app. `app_label` re-cible une jumelle (importer_for)."""
+    from django.apps import apps as django_apps
     from wama.common.utils.media_paths import copy_into_app_input
 
+    VoiceSynthesis = django_apps.get_model(app_label, 'VoiceSynthesis')
     allowed_exts = {'.txt', '.pdf', '.docx', '.csv', '.md'}
     dest_path, relative_path = copy_into_app_input(
-        source_path, 'synthesizer', user.id, 'input', allowed_exts=allowed_exts)
+        source_path, app_label, user.id, 'input', allowed_exts=allowed_exts)
 
     # Batch detection — try to parse as a pipe-separated batch file first
     try:
@@ -1571,7 +1594,7 @@ def import_to_synthesizer(source_path, user):
             return {
                 'imported': True,
                 'is_batch': True,
-                'app': 'synthesizer',
+                'app': app_label,
                 'filename': dest_path.name,
                 'server_path': relative_path,
                 'tasks': tasks,
@@ -1608,21 +1631,22 @@ def import_to_synthesizer(source_path, user):
 
     return {
         'imported': True,
-        'app': 'synthesizer',
+        'app': app_label,
         'filename': dest_path.name,
         'path': relative_path,
         'synthesis_id': synthesis.id,
     }
 
 
-def import_to_reader(source_path, user):
-    """Import a document/image file to Reader (OCR) app."""
-    from wama.reader.models import ReadingItem
+def import_to_reader(source_path, user, app_label='reader'):
+    """Import a document/image file to Reader (OCR) app. `app_label` re-cible une jumelle."""
+    from django.apps import apps as django_apps
     from wama.common.utils.media_paths import copy_into_app_input
 
+    ReadingItem = django_apps.get_model(app_label, 'ReadingItem')
     reader_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
     dest_path, relative_path = copy_into_app_input(
-        source_path, 'reader', user.id, 'input', allowed_exts=reader_extensions)
+        source_path, app_label, user.id, 'input', allowed_exts=reader_extensions)
 
     item = ReadingItem(user=user, original_filename=dest_path.name, status='PENDING')
     item.input_file.name = relative_path
@@ -1686,12 +1710,13 @@ def import_to_converter(source_path, user, app_label='converter'):
     }
 
 
-def import_to_transcriber(source_path, user):
-    """Import a file to Transcriber app."""
-    from wama.transcriber.models import Transcript
+def import_to_transcriber(source_path, user, app_label='transcriber'):
+    """Import a file to Transcriber app. `app_label` re-cible une jumelle (importer_for)."""
+    from django.apps import apps as django_apps
     from wama.common.utils.media_paths import copy_into_app_input
 
-    dest_path, relative_path = copy_into_app_input(source_path, 'transcriber', user.id, 'input')
+    Transcript = django_apps.get_model(app_label, 'Transcript')
+    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
 
     # status='DRAFT' → l'élément arrive en zone de staging (« À valider »), pas
     # directement en file (cohérent avec l'upload / l'URL). Cf. conventions §8.X.
@@ -1701,7 +1726,7 @@ def import_to_transcriber(source_path, user):
 
     return {
         'imported': True,
-        'app': 'transcriber',
+        'app': app_label,
         'id': transcript.id,
         'filename': dest_path.name,
         'path': relative_path,
@@ -1709,12 +1734,13 @@ def import_to_transcriber(source_path, user):
     }
 
 
-def import_to_face_analyzer(source_path, user):
-    """Import a video file to Face Analyzer app."""
-    from wama_lab.face_analyzer.models import AnalysisSession
+def import_to_face_analyzer(source_path, user, app_label='face_analyzer'):
+    """Import a video file to Face Analyzer app. `app_label` re-cible une jumelle."""
+    from django.apps import apps as django_apps
     from wama.common.utils.media_paths import copy_into_app_input
 
-    dest_path, relative_path = copy_into_app_input(source_path, 'face_analyzer', user.id, 'input')
+    AnalysisSession = django_apps.get_model(app_label, 'AnalysisSession')
+    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
 
     session = AnalysisSession.objects.create(
         user=user,
@@ -1726,22 +1752,23 @@ def import_to_face_analyzer(source_path, user):
 
     return {
         'imported': True,
-        'app': 'face_analyzer',
+        'app': app_label,
         'id': str(session.id),
         'filename': dest_path.name,
         'path': relative_path,
     }
 
 
-def import_to_cam_analyzer(source_path, user):
-    """Import a video file to Cam Analyzer app (copies to input folder)."""
+def import_to_cam_analyzer(source_path, user, app_label='cam_analyzer'):
+    """Import a video file to Cam Analyzer app (copies to input folder).
+    `app_label` re-cible une jumelle (importer_for) — pas de ligne ORM ici, la copie suffit."""
     from wama.common.utils.media_paths import copy_into_app_input
 
-    dest_path, relative_path = copy_into_app_input(source_path, 'cam_analyzer', user.id, 'input')
+    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
 
     return {
         'imported': True,
-        'app': 'cam_analyzer',
+        'app': app_label,
         'filename': dest_path.name,
         'path': relative_path,
     }
