@@ -656,6 +656,14 @@ def ensure_backend_deps(backend_cls, timeout: int = 1800) -> dict:
     res = pip_install_packages(backend_cls.pip_install_spec(), timeout=timeout,
                                no_deps=bool(getattr(backend_cls, 'PIP_NO_DEPS', False)))
     res['already'] = False
+    # ⚠ REJEU DES PATCHES — post-étape OBLIGATOIRE de TOUT pip install (contrat
+    # `WAMA_MANIFEST_ARCHITECTURE §7` + règle CLAUDE.md « patches de compatibilité venv »).
+    # Il manquait ICI (trouvé le 2026-09-03 en vérifiant la route « modèle → tire une
+    # librairie ») : le chemin LIBRAIRIE le rejouait, le chemin BACKEND non — or c'est le
+    # même venv et les mêmes patches (Higgs/transformers, df/torchaudio, xformers…), qu'un
+    # pip écrase EN SILENCE. Une garde se pose avec ses jumeaux.
+    if res.get('ok') and res.get('installed'):
+        res['patches'] = _replay_patches()
     return res
 
 
