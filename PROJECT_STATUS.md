@@ -10597,3 +10597,69 @@ Ses consommateurs (gabarits converter) restent dans SON périmètre non commité
 
 **Les 12 manifestes de modèles** du commit = régénération mécanique après l'estimation
 VRAM (`0d0709e9`) — `vram_gb` estimé + `vram_estimated` entrent au corpus.
+
+
+## §PALIER — 2026-09-03 (matin), instance « AUDIT DES MODÈLES INSTALLÉS » — ✅ LIVRÉ
+
+> Exécution du 🔚 point d'entrée laissé par l'instance bancs le 02/09 : « vérifier les
+> informations de l'ENSEMBLE des modèles installés pour lister les TROUS ». Détail complet :
+> `wama/model_manager/PROSPECTION_PIPELINE.md §Session du 2026-09-03`.
+> ⚠ Périmètre choisi DISJOINT : l'instance parallèle tenait describer/backends/codegen.
+
+**Le trou de la chaîne** : le pipeline prospection → installation → app avait un contrôle par
+étape (`verify_models` = existence, `check_model_taxonomy` = vocabulaire,
+`check_model_declarations` = liens) sauf la dernière — **l'usage**. Un modèle peut être sur le
+disque, catalogué, de taxonomie juste, et rester inutilisable. Livré : `check_model_completeness`
+(+ `--json`, `--yolo`) et 7 tests (`tests_completeness.py`).
+
+**Mesuré sur les 60 installés hors YOLO** (venv_linux) : 3 sans licence · 5 sans VRAM · 13 VRAM
+estimée · **2 backend ROUGE** (Qwen3-TTS, chatterbox — états LÉGITIMES) · **16 ANGLE MORT**.
+
+**⚠⚠ Trois constats, tous vérifiés (aucun déduit)** :
+1. **L'angle mort du grisage n'avait jamais été compté** : `backend_missing()` est permissif
+   (pas de moteur déclaré = pas de verdict), donc 16 modèles installés ne sont signalés NULLE
+   PART. Le cas qui le prouve : **`table-transformer` ×2 porte `backend_ref=''` et
+   `composition={}`** alors que son backend venait d'être livré et TESTÉ (B2 n°1, `046af1be`).
+   Le chantier ⑤ annonçait « `backend_ref` posé EN BASE — une réinstallation le perdrait » :
+   **il n'y est déjà plus.** La voie déclarative n'est pas un confort.
+2. **« VRAM déclarée vs mesurée » ne peut pas se comparer — boucle OUVERTE.** La mesure existe
+   (`base.py::_wrap_load` la calcule à chaque `load()` réussi) mais part au gouverneur
+   (`reserve_vram` → ligne Redis à TTL) et **rien ne la rend au catalogue**. Donc
+   `vram_estimated` ne se lève JAMAIS tout seul.
+3. **`timm/resnet18` n'est pas un modèle** : `extra_info.family = table-transformer-detection`
+   — c'est le BACKBONE que le snapshot tire avec lui, catalogué comme ligne autonome. Sans
+   tâche ni licence **parce qu'il n'en est pas un**. (C'est l'un des 2 « sans tâche » de
+   `check_model_taxonomy`, dont l'attendu du 02/09 n'en annonçait qu'un.)
+
+**⚠⚠ Le verdict de backend est VENV-DÉPENDANT** (leçon de session) : depuis le raffinement
+`missing_packages()` (`02001d2d`), `known_engines()` ne rend que les moteurs dont le runtime pip
+est dans le venv COURANT. Même appel, même catalogue, même seconde : `kokoro-onnx` MANQUANT
+depuis venv_win, PRÉSENT depuis venv_linux. **venv_linux fait foi** ; le rapport nomme son venv.
+*J'ai conclu à un défaut réel avant de contre-vérifier l'instrument.*
+
+**Décision de conception protégée par un test** : ce contrôle **NE GARDE RIEN** (exit 0). Aucun
+de ses constats n'est interdit — un backend écrit dont le runtime attend un GO humain est
+légitime. *Un gate rouge en permanence se relit comme la normale.* C'est une CARTE DE DETTE.
+
+**NON fait, délibérément (hors périmètre d'audit, et 2 croisent le chantier B2)** : déclarer
+`composition.runtime.engine` pour table-transformer · refermer la boucle VRAM
+(`base.py` + `resource_governor`) · trancher le cas du backbone dans `model_registry`.
+
+**Contrôles** : `wama.model_manager` + `wama.common` = **654 tests, `OK`** · `check_docs`
+9 cassées / 0 périmée sur 1310, **inchangé** (ma consignation n'en ajoute aucune).
+
+### Contrôles du /reprise de ce matin (MESURÉS, avant mes changements)
+- `manifest_export --check` : **corpus à jour (121)** ✅ · `manifest_roundtrip --all` : 10 apps,
+  **fidélité OK partout** ✅ · `migrate --check` : rien en attente ✅
+- `check_docs` : **9 cassées / 0 périmée / 1310** — **2 cibles distinctes** au lieu de 1. La 2ᵉ
+  (`WAMA_LLM.md:431 → describer/utils/image_describer.py`) vient du refactor NON COMMITÉ de
+  l'instance parallèle, qui supprime ce fichier. **À elle de mettre à jour la ligne** — le
+  passage décrit précisément l'incohérence que son refactor résout.
+- `doc_facts --check` : **1 bloc PÉRIMÉ (`mecanismes`)** — périmé AVANT mes changements
+  (mesuré 09:05), attribuable à l'apparition de `describer/backends/`. **Non régénéré** :
+  écraser un doc partagé pendant son chantier.
+- `check_app_conformity` : 87 critères, converter 100 %, **describer 100 %** — ⚠ ce chiffre
+  mesure l'ARBRE NON COMMITÉ avec un `conformity_checker.py` lui-même en cours d'édition :
+  instrument ET sujet en mouvement, il ne vaut rien avant son commit.
+- **Suite complète NON lancée** : `manage.py test` de l'autre instance tournait (PID 23620,
+  09:07:29). *C'est exactement la collision de base de test partagée du 02/09 — attendre.*
