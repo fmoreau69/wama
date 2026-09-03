@@ -1279,3 +1279,124 @@ devant qwen3-asr 5,68 % et whisper-large-v3 6,24 % ; whisper-turbo 6,73 % ; Vibe
 d'équivalent en place (docTR = boîtes de mots ; olmOCR/GLM = VLM qui restituent un markdown
 sans coordonnées) → COMPLÉMENT (régions et structure de tableau à coordonnées), pas un
 remplacement.
+
+
+## Session du 2026-09-03 : la COMPLÉTUDE des installés — la dernière étape n'avait pas de contrôle
+
+**Point de départ** — le 🔚 point d'entrée laissé par l'instance bancs le 02/09 : « vérifier
+les informations de l'ENSEMBLE des modèles installés (tâche, licence, VRAM déclarée vs
+mesurée, backend présent) pour lister les TROUS ». Le pipeline **prospection → installation
+→ app** avait un contrôle par étape, sauf la dernière :
+
+| étape | contrôle | ce qu'il atteste |
+|---|---|---|
+| installation | `verify_models` | catalogue ↔ disque — l'**existence** |
+| catalogage | `check_model_taxonomy` | types/sources/tâches déclarés — le **vocabulaire** |
+| renvois | `check_model_declarations` | tags écrits en dur ↔ catalogue — les **liens** |
+| **usage** | **`check_model_completeness` (livré ici)** | **le modèle est-il UTILISABLE ?** |
+
+*Un modèle peut être sur le disque, catalogué, de taxonomie juste — et rester inutilisable
+faute de licence connue, de VRAM crédible ou de backend. Rien ne le disait.*
+
+**Mesure sur les 60 installés hors YOLO** (venv_linux, le runtime qui fait foi) :
+
+> ⚠ **60, pas 62.** Le handoff annonçait « 62 lignes » à un endroit et « 61 » à l'autre — il
+> était déjà incohérent avec lui-même. Périmètre revérifié : **170 au catalogue, 107
+> `is_downloaded`, dont 0 `is_proposed`, dont 47 YOLO → 60.** Aucun installé n'échappe au
+> rapport ; les chiffres du handoff étaient des relevés à la main, dont c'est exactement le
+> défaut (`/reprise` : *un chiffre vit à UN endroit*).
+
+| axe | n | lecture |
+|---|---|---|
+| sans licence | 3 | `timm/resnet18`, `ollama:glm-ocr`, `ollama:qwen3-embedding:4b`. ⚠ **pas une propriété d'Ollama** : 7 des 9 lignes Ollama portent la leur (mit, apache-2.0, gemma-terms) — ces deux-là sont des cas isolés, à renseigner à la main |
+| VRAM absente | 5 | 4 enhancer + `reader:doctr` — échappent à la sélection VRAM-aware |
+| VRAM **estimée** | 13 | plancher depuis les poids, en attente d'un banc |
+| backend **rouge** | 2 | Qwen3-TTS et chatterbox — moteur DÉCLARÉ, runtime pip absent : **état légitime**, le grisage fait son travail |
+| backend **ANGLE MORT** | 16 | ni moteur ni `backend_ref` → **aucun verdict possible** |
+
+### ⚠⚠ Le constat principal : l'angle mort du grisage (16 des 60)
+
+`backend_missing()` est **permissif par construction** — un modèle sans moteur déclaré ne
+reçoit aucun verdict, et c'est voulu (l'exclure sur une absence d'information viderait des
+lots entiers). La conséquence n'avait jamais été comptée : **16 modèles installés ne sont
+signalés nulle part**, ni grisés, ni rouges, ni verts.
+
+Le cas qui le prouve : **`table-transformer` ×2 porte `backend_ref = ''` et
+`composition = {}`** alors que son backend venait d'être livré et testé sur les poids réels
+(B2 n°1, `046af1be`). Le chantier ⑤ du handoff annonçait « `backend_ref` posé EN BASE pour
+table-transformer — une réinstallation le perdrait » : **il n'y est déjà plus.** La voie
+déclarative durable n'est donc pas un confort, c'est ce qui manque pour que le système voie
+ce qu'on lui a ajouté.
+
+Les 15 autres se lisent en trois familles : les **INCONNUS** du tableau du 02/09 (ACE-Step,
+PP-DocLayoutV3, canary, parakeet, LocateAnything — backend à écrire, attendu), les **apps
+déclaratives** (composer ×3, reader ×3, depthpro — servies par du code d'app sans passer par
+l'inventaire) et un cas d'une autre nature, `timm/resnet18` — ci-dessous.
+
+### Un modèle de la liste n'en est pas un : `timm/resnet18` est une DÉPENDANCE
+
+Il sort dans trois axes à la fois (sans tâche, sans licence, angle mort) et ce n'était pas un
+résidu, contrairement à ce que j'avais d'abord écrit. Son `extra_info` le dit :
+`path = AI-models/models/vision/**table-transformer-detection**/models--timm--resnet18.a1_in1k`,
+`family = table-transformer-detection`. C'est le **backbone** que le snapshot de
+table-transformer tire avec lui — et la découverte le catalogue comme un modèle AUTONOME.
+
+Il n'a donc ni tâche ni licence **parce qu'il n'est pas un modèle offert à l'utilisateur** :
+lui en poser une serait masquer le vrai défaut. La question ouverte est en amont — *la
+découverte doit-elle reconnaître un snapshot imbriqué comme composant de sa famille plutôt
+que comme une ligne de catalogue ?* Elle vaut aussi pour les 2 « sans tâche » que signale
+`check_model_taxonomy` : l'un des deux est ce composant. **Non tranché ici** (le geste touche
+`model_registry`, hors périmètre de session).
+
+### ⚠⚠ « Déclarée vs mesurée » : les deux ne se rencontrent JAMAIS
+
+L'axe demandé supposait qu'on puisse comparer une VRAM déclarée à une VRAM mesurée. **On ne
+peut pas — et la raison est une boucle ouverte, pas une mesure manquante.**
+
+La mesure EXISTE : `common/backends/base.py::_wrap_load` encadre chaque `load()` réussi et
+calcule l'empreinte réelle (`_measured_vram_gb`). Mais elle part **au gouverneur de
+ressources** — `reserve_vram(owner, gb)`, une ligne Redis **à TTL**, transitoire par
+construction — et **rien ne la rend au catalogue** : aucun chemin n'écrit `AIModel.vram_gb`
+depuis une mesure (les seules affectations trouvées sont des paramètres de smoke et la
+`total_memory` de la carte, qui est la capacité du GPU, pas l'empreinte d'un modèle).
+
+Conséquence : **`vram_estimated=True` ne se lève jamais tout seul.** Les 13 lignes estimées le
+resteront, quel que soit le nombre de fois où ces modèles ont tourné. *L'information est
+produite à chaque chargement puis jetée.* Refermer la boucle (le gouverneur rend l'empreinte
+au catalogue, qui efface le marqueur) est le geste qui rendrait l'axe mesurable — **non fait
+ici**, il touche `base.py` et `resource_governor`, hors périmètre de session.
+
+### ⚠⚠ Le verdict de backend est VENV-DÉPENDANT (mesuré, pas déduit)
+
+Depuis le raffinement `missing_packages()` de l'inventaire (`02001d2d`, « l'inventaire
+n'annonce que l'EXÉCUTABLE »), `known_engines()` ne rend que les moteurs dont le runtime pip
+est présent **dans le venv courant**. Le même appel, sur le même catalogue, à la même
+seconde, a rendu :
+
+- depuis **venv_win** : `kokoro-onnx` MANQUANT → Kokoro-ONNX faussement rouge (3 rouges) ;
+- depuis **venv_linux** : `kokoro-onnx` PRÉSENT → Kokoro-ONNX vert (2 rouges).
+
+**venv_linux fait foi** (les workers y tournent). Le rapport nomme donc son venv en en-tête :
+*un rapport de grisage sans son venv ne veut rien dire.* Même famille que
+`manifest_export --check`, dont le corpus est extrait par `importlib.metadata`.
+
+### Ce que le contrôle ne fait PAS, délibérément
+
+- **Il ne re-contrôle pas la TÂCHE** : `check_model_taxonomy` en est propriétaire (il la
+  confronte à l'énumération déclarée). Le rapport la rappelle en une ligne et renvoie —
+  deux contrôles de la même chose finissent par se contredire.
+- **Il ne garde rien (exit 0 toujours).** Aucun de ses constats n'est interdit : un backend
+  écrit dont le runtime attend un GO humain est légitime, une VRAM estimée est un plancher
+  honnête. *Un gate rouge en permanence se relit comme la normale* — le défaut que
+  `/reprise` documente sur son attendu de suite de tests. C'est une CARTE DE DETTE.
+- **Il replie les ~47 lignes YOLO** (même forme, déclarées en famille) : les déplier noierait
+  les trous réels. `--yolo` les montre.
+
+**Effet de bord utile** : `vram_estimated` était ÉCRIT par la découverte (`model_registry`)
+et **relu par personne** — le marqueur « une vraie mesure la remplacera » ne désignait aucune
+liste. Il en a une.
+
+**Livré** : `check_model_completeness` (+ `--json`, `--yolo`) et 7 tests
+(`tests_completeness.py`) — dont un qui protège la décision « ce contrôle ne garde rien » et
+un qui sépare *rouge* (on sait qu'il manque un backend) d'*angle mort* (on ne sait rien) :
+les fondre en un seul compte ferait disparaître le second, le plus coûteux.
