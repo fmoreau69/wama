@@ -16,29 +16,28 @@ from typing import Optional, Callable, List
 
 from django.conf import settings
 
-# IMPORTANT: Set HF_HUB_CACHE BEFORE importing diffusers/transformers
-# This ensures models are downloaded to the correct location
-def _setup_hf_cache():
-    """Set up Hugging Face cache directory before any HF imports."""
+# 🔴 NE MUTE PLUS L'ENVIRONNEMENT (2026-09-03, `ROADMAP §5b`). Cette fonction posait
+# `HF_HUB_CACHE` sur le dossier Wan, **au niveau module** : importer ce fichier suffisait à
+# rediriger le cache HF de TOUT le processus, et le dernier module importé gagnait. C'est la
+# « course » qui justifie le `--workers 1` du service TTS (`start_wama_prod.sh:271`), et c'est
+# ce qui a fait échouer le test de socle dans la suite du 03/09 (`HF_HUB_CACHE` → `diffusion/wan`).
+#
+# Elle ne fait plus que RÉSOUDRE le dossier — le rangement du modèle principal est assuré par
+# `cache_dir=`, passé aux 3 `from_pretrained` de ce fichier (VAE, T2V, I2V : vérifiés un par un).
+# Le socle `HF_HOME`/`HF_HUB_CACHE` est posé UNE FOIS au démarrage (`settings.py:165-167`).
+def _resoudre_dossier_wan():
+    """Dossier des poids Wan. NE TOUCHE PAS à l'environnement — voir le bloc ci-dessus."""
     try:
-        from wama.imager.utils.model_config import setup_hf_cache_for_model
         from django.conf import settings as _s
         wan_dir = _s.AI_MODELS_DIR / "models" / "diffusion" / "wan"
-        wan_dir.mkdir(parents=True, exist_ok=True)
-        setup_hf_cache_for_model(str(wan_dir))
-        return str(wan_dir)
     except Exception:
-        # Fallback to legacy path
-        base_dir = Path(settings.BASE_DIR)
-        models_dir = base_dir / "AI-models" / "models" / "diffusion" / "wan"
-        models_dir.mkdir(parents=True, exist_ok=True)
-        models_dir_str = str(models_dir)
-        os.environ['HF_HUB_CACHE'] = models_dir_str
-        os.environ['HUGGINGFACE_HUB_CACHE'] = models_dir_str
-        return models_dir_str
+        # Repli : `settings` indisponible (script hors Django).
+        wan_dir = Path(settings.BASE_DIR) / "AI-models" / "models" / "diffusion" / "wan"
+    wan_dir.mkdir(parents=True, exist_ok=True)
+    return str(wan_dir)
 
-# Call this at module load time (before any HF imports)
-_WAN_MODELS_DIR = _setup_hf_cache()
+
+_WAN_MODELS_DIR = _resoudre_dossier_wan()
 
 from .base import ImageGenerationBackend, GenerationParams, GenerationResult
 

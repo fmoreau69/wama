@@ -502,60 +502,56 @@ def get_model_defaults(model_id: str) -> dict:
 # ENVIRONMENT SETUP HELPERS
 # =============================================================================
 
-def setup_hf_cache_for_model(cache_dir: str) -> None:
-    """
-    Set HuggingFace cache environment variables for a specific model directory.
-
-    Call this BEFORE any import of transformers / diffusers / huggingface_hub
-    to ensure ALL downloads (weights, tokenizer, configs) go to the right place.
-
-    Args:
-        cache_dir: Absolute path string to the model's dedicated directory.
-    """
-    os.environ['HF_HUB_CACHE'] = cache_dir
-    os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
-
+# 🔴 `setup_hf_cache_for_model(cache_dir)` SUPPRIMÉE le 2026-09-03 (`ROADMAP §5b`).
+# Son corps entier était :
+#     os.environ['HF_HUB_CACHE'] = cache_dir
+#     os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+# — c'était LE goulot du défaut : les six helpers ci-dessous y convergeaient, et deux backends
+# (`wan_video_backend`, `hunyuan_video_backend`) l'appelaient AU NIVEAU MODULE. Importer l'un
+# de ces fichiers suffisait donc à rediriger le cache HF de TOUT le processus, le dernier
+# importé gagnant — la « course » qui justifie le `--workers 1` du service TTS
+# (`start_wama_prod.sh:271`). Mesuré le 03/09 : le test de socle passait en isolé et échouait
+# dans la suite, `HF_HUB_CACHE` pointant sur `diffusion/wan`.
+#
+# Il n'y avait rien à remplacer : `HF_HOME`/`HF_HUB_CACHE` sont posés UNE FOIS au démarrage
+# (`settings.py:165-167`) vers le cache PARTAGÉ, et les 4 `from_pretrained` des deux backends
+# passent déjà `cache_dir=` — vérifié un par un avant le retrait. Le modèle principal reste
+# donc catégorisé ; ses sous-dépendances vont au cache partagé, qui est leur place.
+#
+# ⚠ Les helpers ne font plus que RENDRE un chemin. Leur nom `setup_…` ment désormais : dette
+# de nommage assumée ici (un renommage traverse leurs appelants → geste `/renommage-api`),
+# consignée au `REMOVAL_LEDGER`.
+# ⚠ Seul `..._hunyuan` a un appelant. Les CINQ autres n'en ont AUCUN (vérifié sur tout le
+# dépôt) : leurs backends respectifs mutent l'environnement eux-mêmes, chacun dans son coin.
 
 def setup_hf_cache_for_hunyuan() -> str:
-    """Setup HuggingFace cache for Hunyuan models. Returns the cache dir."""
-    cache_dir = str(HUNYUAN_DIR)
-    setup_hf_cache_for_model(cache_dir)
-    return cache_dir
+    """Dossier de cache des modèles Hunyuan. Ne touche PLUS à l'environnement."""
+    return str(HUNYUAN_DIR)
 
 
 def setup_hf_cache_for_cogvideox() -> str:
-    """Setup HuggingFace cache for CogVideoX models. Returns the cache dir."""
-    cache_dir = str(COGVIDEOX_DIR)
-    setup_hf_cache_for_model(cache_dir)
-    return cache_dir
+    """Dossier de cache des modèles CogVideoX. Ne touche PLUS à l'environnement."""
+    return str(COGVIDEOX_DIR)
 
 
 def setup_hf_cache_for_ltx() -> str:
-    """Setup HuggingFace cache for LTX models. Returns the cache dir."""
-    cache_dir = str(LTX_DIR)
-    setup_hf_cache_for_model(cache_dir)
-    return cache_dir
+    """Dossier de cache des modèles LTX. Ne touche PLUS à l'environnement."""
+    return str(LTX_DIR)
 
 
 def setup_hf_cache_for_mochi() -> str:
-    """Setup HuggingFace cache for Mochi models. Returns the cache dir."""
-    cache_dir = str(MOCHI_DIR)
-    setup_hf_cache_for_model(cache_dir)
-    return cache_dir
+    """Dossier de cache des modèles Mochi. Ne touche PLUS à l'environnement."""
+    return str(MOCHI_DIR)
 
 
 def setup_hf_cache_for_qwen_image() -> str:
-    """Setup HuggingFace cache for Qwen Image models. Returns the cache dir."""
-    cache_dir = str(QWEN_IMAGE_DIR)
-    setup_hf_cache_for_model(cache_dir)
-    return cache_dir
+    """Dossier de cache des modèles Qwen Image. Ne touche PLUS à l'environnement."""
+    return str(QWEN_IMAGE_DIR)
 
 
 def setup_hf_cache_for_flux2_klein() -> str:
-    """Setup HuggingFace cache for FLUX.2 Klein models. Returns the cache dir."""
-    cache_dir = str(FLUX2_KLEIN_DIR)
-    setup_hf_cache_for_model(cache_dir)
-    return cache_dir
+    """Dossier de cache des modèles FLUX.2 Klein. Ne touche PLUS à l'environnement."""
+    return str(FLUX2_KLEIN_DIR)
 
 
 # =============================================================================

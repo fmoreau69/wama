@@ -16,26 +16,21 @@ from typing import Optional, Callable, List
 
 from django.conf import settings
 
-# IMPORTANT: Set HF_HUB_CACHE BEFORE importing diffusers/transformers
-def _setup_hf_cache():
-    """Set up Hugging Face cache directory before any HF imports."""
-    try:
-        from wama.imager.utils.model_config import setup_hf_cache_for_hunyuan
-        return setup_hf_cache_for_hunyuan()
-    except ImportError:
-        # Fallback to legacy path
-        base_dir = Path(settings.BASE_DIR)
-        models_dir = base_dir / "AI-models" / "imager" / "hunyuan"
-        models_dir.mkdir(parents=True, exist_ok=True)
-        models_dir_str = str(models_dir)
+# 🔴 NE MUTE PLUS L'ENVIRONNEMENT (2026-09-03, `ROADMAP §5b`) — même défaut que
+# `wan_video_backend` : posé **au niveau module**, il redirigeait le cache HF de TOUT le
+# processus au simple import, le dernier importé gagnant. Ce repli-ci était le pire des deux :
+# il posait aussi `HF_HOME`, et visait `AI-models/imager/hunyuan` — un chemin LEGACY qui
+# n'existe pas sur le disque (`REMOVAL_LEDGER R45` : `AI-models/` = `cache`, `models`, `sources`).
+#
+# Le rangement du modèle principal est assuré par `cache_dir=`, passé au `from_pretrained` de
+# ce fichier (vérifié). Le socle est posé une fois au démarrage (`settings.py:165-167`).
+def _resoudre_dossier_hunyuan():
+    """Dossier des poids Hunyuan. NE TOUCHE PAS à l'environnement — voir le bloc ci-dessus."""
+    from wama.imager.utils.model_config import setup_hf_cache_for_hunyuan
+    return setup_hf_cache_for_hunyuan()
 
-        os.environ['HF_HUB_CACHE'] = models_dir_str
-        os.environ['HF_HOME'] = models_dir_str
-        os.environ['HUGGINGFACE_HUB_CACHE'] = models_dir_str
 
-        return models_dir_str
-
-_HUNYUAN_MODELS_DIR = _setup_hf_cache()
+_HUNYUAN_MODELS_DIR = _resoudre_dossier_hunyuan()
 
 from .base import ImageGenerationBackend, GenerationParams, GenerationResult
 
