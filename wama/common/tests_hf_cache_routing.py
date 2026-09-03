@@ -42,10 +42,20 @@ from pathlib import Path
 #: Variables dont la mutation per-modèle est le défaut visé.
 VARS_HF = {'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE', 'HF_HOME'}
 
-#: Sites de mutation MESURÉS le 2026-09-03 après le retrait du 1er (table_transformer).
+#: Sites de mutation MESURÉS le 2026-09-03, après les retraits de `table_transformer` (1er),
+#: puis du goulot `model_config.setup_hf_cache_for_model` et des replis de `wan_video_backend`
+#: et `hunyuan_video_backend` (les DEUX qui mutaient dès l'import).
 #: NE JAMAIS RELEVER CE NOMBRE. Le faire descendre = porter un backend au §5b ; le voir
 #: monter = une nouvelle mutation a été introduite, et c'est ce que ce test refuse.
-BUDGET_MUTATIONS = 37
+BUDGET_MUTATIONS = 30
+
+#: Modules dont l'IMPORT SEUL redirigeait le cache HF de tout le processus — le pire cas,
+#: puisqu'il pollue sans qu'aucun modèle ne soit chargé et que le dernier importé gagne.
+#: Aucun n'importe `torch` au niveau module (vérifié) : la sonde ne touche donc pas au GPU.
+MODULES_SANS_EFFET_DE_BORD = (
+    'wama.imager.backends.wan_video_backend',
+    'wama.imager.backends.hunyuan_video_backend',
+)
 
 #: Bacs à sable : copies GÉNÉRÉES d'une app source. Une mutation y est le reflet de la
 #: source, pas une décision — la compter deux fois ferait bouger le budget à chaque
@@ -149,6 +159,54 @@ class RoutageCacheHFTest(unittest.TestCase):
             len(sites), BUDGET_MUTATIONS,
             f"La dette est descendue à {len(sites)} : mettre BUDGET_MUTATIONS à cette "
             f"valeur dans le MÊME commit que le portage.")
+
+    def test_importer_un_backend_ne_redirige_PAS_le_cache_du_processus(self):
+        """LE défaut à sa source. `wan_video_backend` et `hunyuan_video_backend` posaient
+        `HF_HUB_CACHE` **au niveau module** : importer le fichier suffisait à rediriger le
+        cache HF de tout le processus, et le DERNIER importé gagnait. C'est la « course » que
+        `start_wama_prod.sh:271` invoque pour justifier son `--workers 1`, et c'est ce qui a
+        fait échouer `test_le_socle_…` dans la suite du 03/09 (`HF_HUB_CACHE` → `diffusion/wan`).
+
+        On importe les DEUX dans le MÊME sous-processus, l'un après l'autre : si l'un mutait
+        encore, il gagnerait — c'est précisément la course qu'on veut voir échouer.
+
+        ⚠ Aucun de ces modules n'importe `torch` au niveau module (vérifié) : ce test ne
+        touche pas au GPU. Il est donc jouable même quand toute charge GPU est proscrite —
+        ce qui est le cas sur cet hôte (série de crashs, `INFRA_WSL_VS_WINDOWS`).
+        """
+        import json
+        import os
+        import subprocess
+        import sys
+
+        imports = '\n'.join(f"import {m}" for m in MODULES_SANS_EFFET_DE_BORD)
+        code = (
+            "import json, os, django\n"
+            "django.setup()\n"
+            "from django.conf import settings\n"
+            "avant = {v: os.environ.get(v) for v in "
+            "('HF_HOME', 'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE')}\n"
+            f"{imports}\n"
+            "apres = {v: os.environ.get(v) for v in "
+            "('HF_HOME', 'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE')}\n"
+            "print(json.dumps({'avant': avant, 'apres': apres,\n"
+            "    'attendu': str(settings.MODEL_PATHS['cache']['huggingface'])}))\n"
+        )
+        env = {k: v for k, v in os.environ.items() if k not in VARS_HF}
+        env['DJANGO_SETTINGS_MODULE'] = 'wama.settings'
+        essai = subprocess.run([sys.executable, '-c', code], cwd=str(_racine()),
+                               env=env, capture_output=True, text=True, timeout=300)
+        self.assertEqual(essai.returncode, 0,
+                         f"l'import des backends a échoué :\n{essai.stderr[-2000:]}")
+        vu = json.loads(essai.stdout.strip().splitlines()[-1])
+        self.assertEqual(
+            vu['apres'], vu['avant'],
+            f"un de ces modules a MUTÉ l'environnement à l'import "
+            f"({', '.join(MODULES_SANS_EFFET_DE_BORD)}) : avant={vu['avant']} "
+            f"après={vu['apres']}. La var d'env est GLOBALE au processus — elle emporte les "
+            f"sous-dépendances de TOUS les modèles suivants dans ce dossier.")
+        self.assertEqual(vu['apres']['HF_HUB_CACHE'], vu['attendu'],
+                         "après import, le cache doit rester le cache PARTAGÉ du socle.")
 
     def test_le_socle_pose_bien_les_caches_au_demarrage(self):
         """Retirer une mutation per-modèle n'est sûr que si le socle existe. On vérifie le
