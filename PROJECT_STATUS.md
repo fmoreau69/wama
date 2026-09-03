@@ -11020,3 +11020,77 @@ modèle ne soit chargé.
 retirées de son environnement, comme le shell réel qui n'en exporte aucune). *Un test du
 DÉMARRAGE doit démarrer* — le lire dans un process déjà pollué ne mesurait que l'ordre des
 tests.
+
+
+## §CLÔTURE — 2026-09-03, instance « CURSEUR QUALITÉ → BACKENDS B2 » — ✅ CLOSE (crash hôte)
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : les **3 TROUS de la chaîne d'intégration** relevés
+par l'audit ci-dessous (§Cohérence des 3 routes) — dans l'ordre : ① le lien **modèle →
+librairie** ne se DÉCLARE nulle part ; ② l'assistant n'a **aucun verbe** pour intégrer ;
+③ vérifier la suite `model_manager` (non relançable ce jour, Postgres à terre).
+
+### Livré aujourd'hui (11 commits, `901e86b9` → `3557e663`)
+
+Brique d'auto-sélection · card orange `AWAITING_RESOURCES` · **curseur de qualité CONTINU
+0-100** (recadrage Fabien : un POIDS dans le score, pas 3 branchements) · ralliement
+anonymizer · 3 quick wins (VRAM estimée, toggle Higgs, filtre « attente de ressources ») ·
+**grisage automatique des moteurs sans backend** · **B2 n°2 Audio8** (testé sur poids réels)
+· **B2 n°3 Qwen3-TTS** (écrit, runtime installé, testé sur poids réels) · **rôle `model` de
+wama-dev-ai** (le chaînon qui manquait) · `PIP_NO_DEPS` + rejeu des patches au chemin backend.
+
+### ⚠ CRASH HÔTE — mon test est le SUSPECT N°1 (pour l'instance qui diagnostique)
+
+Le crash suit IMMÉDIATEMENT le test Qwen3-TTS sur poids réels : chargement **4,2 Go sur le
+GPU, 108 s** depuis `/mnt/d` (drvfs), puis génération. WSL2 a redémarré (uptime 18 min au
+constat), Postgres et gunicorn à terre — **rien relancé** (main de Fabien). C'est la 3ᵉ fois
+que la série de crashs suit une MONTÉE VRAM ; ici ce n'était pas Ollama mais un backend
+WAMA. **Décision Fabien : plus aucun test à charge GPU tant que ça ne tient pas.**
+⚠ Le test avait pourtant CONSULTÉ le gouverneur (`wait_for_free_vram`, safe mode actif) et
+obtenu son feu vert : *la garde protège de la SUPERPOSITION, pas d'une charge unique* — si
+le facteur commun est la montée elle-même, aucune parade actuelle ne le couvre.
+
+### Cohérence des 3 routes d'intégration (audit demandé par Fabien, lecture de code)
+
+| route | chaîne | verdict |
+|---|---|---|
+| **librairie pip** | rôle `librarian` → manifeste `library` → `write_back` (CRÉE la ligne) → `install_library --allow --apply` → pip **+ rejeu des patches** | ✅ complète |
+| **modèle** | prospection/`scout` → install des poids → `sync_models` (la découverte CRÉE) → **rôle `model`** (nouveau) → `write_back` projette `composition`/`capabilities` → backend sur contrat commun → `ENGINE_BACKENDS` → **le grisage se lève seul** | ✅ complète depuis ce jour |
+| **projet GitHub → app** | manifeste `app` (`requires: [{model}, {library}]`, mesuré : AST pour les libs, `catalog_keys` pour les modèles) → 7 générateurs de codegen → jumelle de bac à sable → `substitute` | ✅ complète |
+
+**Et leur COMPLÉMENTARITÉ — la matrice des liens déclarés** :
+`app → modèle` ✅ · `app → librairie` ✅ · **`modèle → librairie` ❌** · **assistant → * ❌**
+
+- 🔴 **TROU 1 — le lien `modèle → librairie` ne se déclare nulle part.** `resolve_requires()`
+  est kind-agnostique et l'enveloppe accepte `requires` sur TOUT kind, mais `extract_model`
+  n'en émet aucun : la dépendance d'un modèle à son runtime vit UNIQUEMENT dans le code du
+  backend (`PIP_PACKAGES`). Cas vécu aujourd'hui : Qwen3-TTS ↔ `qwen-tts` — le manifeste du
+  modèle ne dit pas qu'il lui faut cette lib. **Geste proposé** (≈15 lignes, calqué sur la
+  jambe `library` de l'app) : `extract_model` émet `requires: [{kind:'library', key:…}]`
+  dérivé des `PIP_PACKAGES` du backend qui sert son moteur, sous la MÊME règle cumulative
+  que l'app (déclaré par le backend ET semé au corpus — sinon `valider()` rendrait pendantes
+  les références et invaliderait les manifestes d'un coup).
+- 🔴 **TROU 2 — l'assistant ne peut RIEN intégrer.** `wama/tool_api.py` n'expose que des
+  verbes de LECTURE sur les modèles (`list_ai_models`, `get_ai_model`) : aucun outil
+  « intégrer une librairie / un modèle / un projet GitHub ». Les 3 routes ne sont donc
+  atteignables qu'en CLI ou en code — alors que la demande de Fabien les décrit comme des
+  gestes d'UTILISATEUR adressés à l'assistant. **Geste proposé** : 3 verbes minces sur
+  `tool_api`, chacun s'arrêtant à la PROPOSITION (`PENDING_HUMAN_VALIDATION` / plan dry-run),
+  jamais à l'application — la sûreté du corpus reste le geste humain explicite.
+- ⚠ **TROU 3 (mineur, déjà réparé)** : le rejeu des patches manquait au chemin backend —
+  corrigé ce jour (`3557e663`), mais sa suite de tests n'a pas pu être relancée.
+
+### Pendings
+
+- **push** (12+ commits d'avance) · **suite `model_manager` à relancer** après le dernier
+  commit (Postgres à terre) · **stack à relancer** (WSL2 redémarré : Postgres, gunicorn,
+  workers, service TTS) — main de Fabien.
+- **Service TTS** : il tient l'ancienne table de moteurs ; Audio8 et Qwen3-TTS ne seront
+  synthétisables EN LIGNE qu'après sa relance.
+- **chatterbox** : laissé de côté (décision Fabien) — ses pins exigeraient torch 2.6 +
+  transformers 5.2 ; un isolat serait la seule voie propre.
+- **B2 restants** : FastWan (CONNU, une entrée de plus dans `wan_video`), puis les INCONNUS
+  (NeMo → canary/parakeet, ACE-Step, PP-DocLayoutV3, LocateAnything).
+- **rôle `model` jamais exécuté** (wama-dev-ai écarté après le crash) : sa mécanique est
+  éprouvée (sources, vocabulaires servis, exemples, garde), son appel Ollama ne l'est pas.
+  Premier essai à faire au calme — sur Qwen3-TTS, il devrait rattraper le
+  `composition.components` que mon manifeste manuel a manqué (`speech_tokenizer`, 682 Mo).
