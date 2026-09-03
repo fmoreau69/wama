@@ -4,14 +4,24 @@ Ce contrôle est né du 🔚 point d'entrée du 02/09 (« vérifier les informat
 des modèles installés »). Ce qu'il faut protéger tient en deux points, tous deux appris à
 la mesure du 03/09 :
 
-  1. **l'ANGLE MORT du grisage** — `backend_missing()` est PERMISSIF par construction :
-     un modèle sans moteur déclaré ne reçoit aucun verdict. C'est voulu (l'exclure sur une
-     absence d'information viderait des lots entiers), mais ça veut dire qu'un modèle
-     installé sans backend peut n'être signalé NULLE PART. Mesuré ce jour : 16 des 60
-     installés hors YOLO, dont table-transformer — dont le backend VENAIT d'être livré et
-     testé (B2 n°1) sans qu'aucune ligne du catalogue ne l'annonce ;
+  1. **la SÉPARATION des deux situations de backend.** `backend_missing()` est PERMISSIF par
+     construction : pas de moteur déclaré ⇒ pas de verdict (décision écrite dans
+     `manager.py:32-35`). Le rapport distingue donc « on SAIT qu'il manque un backend »
+     (`backend_rouge`, actionnable — c'est Qwen3-TTS) de « le modèle est hors du périmètre
+     du verdict » (`backend_hors_verdict`). Les fondre en un seul compte ferait disparaître
+     la nuance qui décide s'il y a quelque chose à faire ;
   2. **le contrôle NE GARDE RIEN** — un backend écrit dont le runtime attend un GO humain
      est un état légitime. Un gate rouge en permanence se relit comme la normale.
+
+⚠⚠ `backend_hors_verdict` NE VEUT PAS DIRE « cassé » — rectification du 03/09 même (recadrage
+Fabien : « normalement le grisage est effectif de bout en bout ». Il l'EST : `backend_missing`
+→ `get_registry_models` → `data-backend-missing` → grisage client → exclusion du tirage,
+chaîne vérifiée maillon par maillon). Décomposition MESURÉE des 16 du jour : **10** sont des
+lignes `huggingface:*` non rattachées à une app, donc absentes de tout select (filtré par
+`source`) ; **6** sont routées par le gestionnaire de backends propre à leur app
+(composer/reader, antérieur à l'inventaire commun) et fonctionnent. **Aucune n'est cassée.**
+Le seul constat sans réserve est table-transformer, dont le backend EXISTE (B2 n°1) sans
+qu'aucune ligne ne le déclare.
 """
 
 from io import StringIO
@@ -41,33 +51,37 @@ def _rapport(**kwargs):
 
 class CompletenessTest(TestCase):
 
-    def test_un_modele_sans_moteur_ni_backend_ref_entre_a_l_angle_mort(self):
-        """LE trou que rien ne montrait : `backend_missing()` rend None (pas de verdict,
-        par permissivité voulue) — donc ni le select ni le tirage ne le signalent. Sans ce
-        rapport, un modèle installé sans backend est invisible."""
+    def test_un_modele_sans_moteur_ni_backend_ref_sort_du_perimetre_du_verdict(self):
+        """`backend_missing()` rend None (pas de verdict, par permissivité VOULUE) : ni le
+        select ni le tirage n'ont rien à dire de ce modèle. Ce n'est pas un défaut du
+        grisage — c'est son périmètre. Le rapport est le seul endroit où cette population
+        se COMPTE, ce qui permet de la décomposer (non rattachée à une app / routée par
+        l'app elle-même) plutôt que de la découvrir au cas par cas."""
         _installe('test:sans-moteur', composition={})
         axes = _rapport()['axes']
-        self.assertIn('test:sans-moteur', axes['backend_angle_mort'])
+        self.assertIn('test:sans-moteur', axes['backend_hors_verdict'])
         self.assertNotIn('test:sans-moteur', axes['backend_rouge'])
 
-    def test_un_backend_ref_pose_sort_le_modele_de_l_angle_mort(self):
+    def test_un_backend_ref_pose_sort_le_modele_du_hors_verdict(self):
         """`backend_ref` = « l'app assume son moteur » (doctrine de `backend_missing`).
         Le rapport doit suivre la MÊME règle que le grisage, sinon il accuserait des
         modèles que le système considère servis."""
         _installe('test:avec-backend-ref', backend_ref='ollama', composition={})
         axes = _rapport()['axes']
-        self.assertNotIn('test:avec-backend-ref', axes['backend_angle_mort'])
+        self.assertNotIn('test:avec-backend-ref', axes['backend_hors_verdict'])
         self.assertNotIn('test:avec-backend-ref', axes['backend_rouge'])
 
-    def test_un_moteur_declare_sans_inventaire_est_rouge_pas_angle_mort(self):
-        """Deux situations à ne JAMAIS confondre : « on sait qu'il manque un backend »
-        (rouge, actionnable — c'est Qwen3-TTS) et « on ne sait rien » (angle mort). Les
-        fondre dans un seul compte ferait disparaître la seconde, la plus coûteuse."""
+    def test_un_moteur_declare_sans_inventaire_est_rouge_pas_hors_verdict(self):
+        """Deux situations à ne JAMAIS confondre : « on SAIT qu'il manque un backend »
+        (rouge — actionnable, c'est Qwen3-TTS, et le tirage l'exclut) et « le modèle est
+        hors du périmètre du verdict » (garde permissive — rien à faire dans la plupart
+        des cas). Les fondre en un seul compte ferait lire la seconde comme la première,
+        c'est-à-dire annoncer des pannes là où il n'y en a pas."""
         _installe('test:moteur-inconnu',
                   composition={'runtime': {'engine': 'moteur-qui-nexiste-pas'}})
         axes = _rapport()['axes']
         self.assertIn('test:moteur-inconnu', axes['backend_rouge'])
-        self.assertNotIn('test:moteur-inconnu', axes['backend_angle_mort'])
+        self.assertNotIn('test:moteur-inconnu', axes['backend_hors_verdict'])
 
     def test_licence_et_vram_manquantes_sont_relevees(self):
         """Une licence inconnue bloque toute décision de diffusion (LICENSING.md) et une
@@ -106,5 +120,5 @@ class CompletenessTest(TestCase):
         _installe('test:yolo11n-seg', composition={})
         replies = _rapport()['yolo_replies']
         self.assertGreaterEqual(replies, 1)
-        self.assertNotIn('test:yolo11n-seg', _rapport()['axes']['backend_angle_mort'])
-        self.assertIn('test:yolo11n-seg', _rapport(yolo=True)['axes']['backend_angle_mort'])
+        self.assertNotIn('test:yolo11n-seg', _rapport()['axes']['backend_hors_verdict'])
+        self.assertIn('test:yolo11n-seg', _rapport(yolo=True)['axes']['backend_hors_verdict'])

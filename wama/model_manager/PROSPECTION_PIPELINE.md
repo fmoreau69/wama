@@ -1314,24 +1314,89 @@ faute de licence connue, de VRAM crédible ou de backend. Rien ne le disait.*
 | backend **rouge** | 2 | Qwen3-TTS et chatterbox — moteur DÉCLARÉ, runtime pip absent : **état légitime**, le grisage fait son travail |
 | backend **ANGLE MORT** | 16 | ni moteur ni `backend_ref` → **aucun verdict possible** |
 
-### ⚠⚠ Le constat principal : l'angle mort du grisage (16 des 60)
+### La colonne `backend_angle_mort` : ce qu'elle dit, et ce qu'elle NE dit PAS
 
-`backend_missing()` est **permissif par construction** — un modèle sans moteur déclaré ne
-reçoit aucun verdict, et c'est voulu (l'exclure sur une absence d'information viderait des
-lots entiers). La conséquence n'avait jamais été comptée : **16 modèles installés ne sont
-signalés nulle part**, ni grisés, ni rouges, ni verts.
+> 🔴 **RECTIFICATION le 2026-09-03 même (recadrage Fabien : « normalement le grisage est
+> effectif de bout en bout »). Il l'EST.** La première rédaction de cette section affirmait
+> que « 16 modèles installés ne sont signalés nulle part » : **c'est faux**, et le mot
+> « angle mort » laissait entendre un trou dans la chaîne de grisage. Vérification maillon
+> par maillon — `backend_missing()` → `get_registry_models` (`model_selector.py:636`) →
+> `data-backend-missing` (`wama-params.js:524`) → respect du marqueur serveur
+> (`wama-input-match.js:93`) → exclusion du tirage (`model_selector.py:326`) : **la chaîne
+> est complète.** Ce qui reste vrai est beaucoup plus étroit, ci-dessous.
 
-Le cas qui le prouve : **`table-transformer` ×2 porte `backend_ref = ''` et
-`composition = {}`** alors que son backend venait d'être livré et testé sur les poids réels
-(B2 n°1, `046af1be`). Le chantier ⑤ du handoff annonçait « `backend_ref` posé EN BASE pour
-table-transformer — une réinstallation le perdrait » : **il n'y est déjà plus.** La voie
-déclarative durable n'est donc pas un confort, c'est ce qui manque pour que le système voie
-ce qu'on lui a ajouté.
+`backend_missing()` est **permissif par construction** : pas de moteur déclaré ⇒ pas de
+verdict (décision écrite en toutes lettres dans `manager.py:32-35` — exclure sur une absence
+d'information viderait des lots entiers). La colonne compte donc les modèles **hors du
+périmètre du verdict**, ce qui n'est pas la même chose que des modèles cassés.
 
-Les 15 autres se lisent en trois familles : les **INCONNUS** du tableau du 02/09 (ACE-Step,
-PP-DocLayoutV3, canary, parakeet, LocateAnything — backend à écrire, attendu), les **apps
-déclaratives** (composer ×3, reader ×3, depthpro — servies par du code d'app sans passer par
-l'inventaire) et un cas d'une autre nature, `timm/resnet18` — ci-dessous.
+**Décomposition MESURÉE des 16 — aucun n'est cassé :**
+
+| famille | n | statut réel |
+|---|---|---|
+| lignes `huggingface:*` non rattachées à une app | 10 | `get_registry_models` filtre par `source` (`model_selector.py:573`) → **elles n'apparaissent dans aucun select d'app**. Poids installés pas encore attachés = ce que la table du 02/09 liste déjà comme « backend à écrire ». |
+| `composer` ×3, `reader` ×3 | 6 | **fonctionnent** — leurs apps les routent par leur propre gestionnaire de backends (audiocraft, backends du reader), antérieur à l'inventaire commun. Rien ne manque, donc rien à griser. |
+
+### Le risque RÉEL de la permissivité — reproduit, puis BORNÉ
+
+La permissivité a bien une conséquence, et elle se reproduit :
+
+```
+select_model(model_type='speech', vram_budget_gb=8.0)
+  -> huggingface:nvidia/canary-1b-v2   backend_ref='' engine='' verdict=None
+```
+
+Un modèle **sans aucun backend** (runtime NeMo absent) gagne le tirage et échouerait au
+chargement — le verdict permissif ne l'exclut pas.
+
+**MAIS ce chemin n'a aucun appelant en production.** `select_model` exige `source` **ou**
+`model_type` (`model_selector.py:293`) ; or les deux seuls appels qui passent `model_type`
+passent AUSSI une source — `assistant_engine.py:226` et `llm_utils.py:150` disent tous deux
+`select_model('ollama', model_type='llm', …)`. Le mode « ce qui sait faire X » sans source
+(prévu pour la vocalisation de l'assistant, le nœud studio, la passerelle converter→enhancer)
+**n'est câblé nulle part aujourd'hui**. → **risque LATENT, pas actif** ; il se réveillera au
+premier de ces trois usages. *Le noter maintenant coûte une ligne ; le découvrir ce jour-là
+coûtera un tirage qui échoue au chargement.*
+
+### Le seul constat sans réserve : `table-transformer` n'est relié à rien
+
+**`table-transformer` ×2 porte `backend_ref = ''` et `composition = {}`** alors que son
+backend est écrit et testé sur les poids réels (B2 n°1, `046af1be`). Le chantier ⑤ du handoff
+annonçait « `backend_ref` posé EN BASE — une réinstallation le perdrait » : **il n'y est
+déjà plus.** La voie déclarative durable n'est pas un confort, c'est ce qui relierait le
+modèle au backend qu'on vient de lui écrire.
+
+Reste un cas d'une autre nature, `timm/resnet18` — ci-dessous.
+
+### ⚠⚠ DEUX sources pour le chiffre de VRAM — trouvé en répondant à « a-t-on recréé des chemins parallèles ? »
+
+Question de Fabien à la relecture. La commande livrée ici n'en crée aucun (elle LIT, et
+appelle `backend_missing`, la brique existante). Mais la question a mis au jour un doublon
+**préexistant**, et de la famille la plus coûteuse :
+
+- **`memory_manager.MODEL_SIZE_PRESETS`** — 34 entrées **écrites à la main**, dont la
+  docstring dit « 🔴 **SOURCE UNIQUE de ce chiffre. Ne pas le recopier dans un backend, un
+  `model_config` ou un catalogue** » — parce que c'est exactement ce qui a produit le **crash
+  du 29/07/2026** (la mesure corrigée ici, deux copies périmées ailleurs, et c'est une copie
+  qui décidait du FULL_GPU). Consommée par `fits_full_gpu()`.
+- **`AIModel.vram_gb`** — l'estimation de la découverte. Consommée par `select_model`
+  (budget + classement). *C'est précisément « la copie au catalogue » que la docstring
+  interdit.*
+
+**Confrontation MESURÉE des deux sur les 60 installés** :
+
+| | n |
+|---|---|
+| couverts par un preset | **8 / 60** |
+| — d'accord | 6 |
+| — **en désaccord** | **2** |
+| sans preset (`fits_full_gpu` rend `None`) | **52** |
+
+Le désaccord qui compte : **`imager:ltx-video-13b-0.9.8-distilled` → catalogue 14 Go,
+preset 18 Go** (écart 4 Go, la valeur du catalogue étant la plus optimiste — donc celle qui
+ferait tenter un FULL_GPU que l'autre refuserait). `describer:blip` diffère de 0,2 Go
+(négligeable). **Non tranché ici** : lequel des deux a raison se mesure au chargement, et le
+recouvrement est trop faible (8/60) pour qu'une fusion se décide sur ce seul relevé.
 
 ### Un modèle de la liste n'en est pas un : `timm/resnet18` est une DÉPENDANCE
 
@@ -1348,10 +1413,25 @@ que comme une ligne de catalogue ?* Elle vaut aussi pour les 2 « sans tâche »
 `check_model_taxonomy` : l'un des deux est ce composant. **Non tranché ici** (le geste touche
 `model_registry`, hors périmètre de session).
 
-### ⚠⚠ « Déclarée vs mesurée » : les deux ne se rencontrent JAMAIS
+### « Déclarée vs mesurée » : DEUX boucles, dont une seule est ouverte
 
-L'axe demandé supposait qu'on puisse comparer une VRAM déclarée à une VRAM mesurée. **On ne
-peut pas — et la raison est une boucle ouverte, pas une mesure manquante.**
+> 🔴 **RECTIFICATION le 2026-09-03 même (question Fabien : « la boucle VRAM n'est pas déjà
+> refermée ? »). SI — celle qui compte l'est.** Ma première rédaction parlait d'« une boucle
+> ouverte » sans dire laquelle, ce qui laissait croire à un défaut du gouverneur. Il y a deux
+> boucles distinctes :
+>
+> | boucle | état | chemin |
+> |---|---|---|
+> | **réservation (runtime)** | ✅ **FERMÉE** | `_wrap_load` mesure → `reserve_vram` → registre Redis → `get_free_vram_gb` borne le tirage → libération au déchargement |
+> | **persistance au catalogue** | ouverte | la mesure n'est jamais réécrite dans `AIModel.vram_gb` |
+>
+> Et l'ouverture de la seconde **n'est pas établie comme un défaut** : le champ s'appelle
+> « Estimated VRAM in GB » (`models.py:336`) et sert de **budget de planification** au
+> classement de `select_model` — rôle plausiblement distinct de la mesure d'admission, qui
+> vit au gouverneur. *La refermer est une décision de conception, pas une réparation* ; je
+> l'avais présentée comme un correctif à faire.
+
+Ce qui reste factuel :
 
 La mesure EXISTE : `common/backends/base.py::_wrap_load` encadre chaque `load()` réussi et
 calcule l'empreinte réelle (`_measured_vram_gb`). Mais elle part **au gouverneur de

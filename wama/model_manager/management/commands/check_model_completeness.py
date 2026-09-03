@@ -76,7 +76,7 @@ class Command(BaseCommand):
         }
 
         sans_licence, vram_absente, vram_estimee = [], [], []
-        backend_rouge, backend_angle_mort = [], []
+        backend_rouge, backend_hors_verdict = [], []
         sans_tache = []
 
         for m in lignes:
@@ -92,7 +92,7 @@ class Command(BaseCommand):
             engine = ((m.composition or {}).get('runtime') or {}).get('engine') or ''
             if m.backend_ref or (engine and not backend_missing(m)):
                 continue
-            (backend_rouge if engine else backend_angle_mort).append(m)
+            (backend_rouge if engine else backend_hors_verdict).append(m)
 
         axes = (
             ('sans_licence', sans_licence,
@@ -103,9 +103,11 @@ class Command(BaseCommand):
              "VRAM ESTIMÉE des poids, jamais mesurée — plancher en attente d'un banc"),
             ('backend_rouge', backend_rouge,
              "moteur DÉCLARÉ qu'aucun inventaire ne sert → grisé, exclu du tirage auto"),
-            ('backend_angle_mort', backend_angle_mort,
-             "ni moteur déclaré ni backend_ref → AUCUN verdict possible : le grisage "
-             "automatique ne voit pas ces modèles"),
+            ('backend_hors_verdict', backend_hors_verdict,
+             "ni moteur déclaré ni backend_ref → HORS du périmètre du verdict (garde "
+             "permissive, voulue). ⚠ N'ÉQUIVAUT PAS À « cassé » : ces modèles sont soit "
+             "non rattachés à une app (absents des selects, filtrés par `source`), soit "
+             "routés par le gestionnaire de backends propre à leur app"),
         )
         for cle, items, _ in axes:
             rapport['axes'][cle] = [m.model_key for m in items]
@@ -129,7 +131,7 @@ class Command(BaseCommand):
             if not items:
                 self.stdout.write(self.style.SUCCESS(f"\n✓ {cle} : aucun"))
                 continue
-            style = self.style.ERROR if cle == 'backend_angle_mort' else self.style.WARNING
+            style = self.style.ERROR if cle == 'backend_hors_verdict' else self.style.WARNING
             self.stdout.write(style(f"\n⚠ {cle} : {len(items)}"))
             self.stdout.write(f"    {pourquoi}")
             for m in items:
