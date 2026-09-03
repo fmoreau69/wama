@@ -29,12 +29,24 @@ LABEL_RE = re.compile(r'^(?P<base>[a-z_]+)_(?P<num>\d{2})$')
 
 
 def load_registry() -> list:
-    """Liste des jumelles [{label, generated_from, created}] — [] si registre absent/illisible."""
+    """Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
+    absent/illisible. `created_by` (2026-09-03, demande Fabien) = username du CRÉATEUR :
+    porte la visibilité « créateur + dev + admin » ; absent/vide = jumelle d'opérateur CLI
+    (visible des seuls dev/admin, comportement historique)."""
     try:
         data = json.loads(REGISTRY_PATH.read_text(encoding='utf-8'))
         return data if isinstance(data, list) else []
     except Exception:
         return []
+
+
+def twin_owner(label: str) -> str:
+    """Username du créateur d'une jumelle ('' si CLI/inconnu) — consommé par la dérogation
+    d'accès (`accounts.permissions._app_accessible`)."""
+    for e in load_registry():
+        if e.get('label') == label:
+            return e.get('created_by') or ''
+    return ''
 
 
 def save_registry(entries: list) -> None:
