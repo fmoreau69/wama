@@ -51,6 +51,7 @@
   "manifest_kind": "model",
   "name": "FLUX Logo Design LoRA — logos pro, open-source, max 768 px",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:flux-lora-logo-design",

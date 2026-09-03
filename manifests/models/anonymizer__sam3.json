@@ -60,6 +60,7 @@
   "manifest_kind": "model",
   "name": "SAM3 (Segment Anything)",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:sam3",

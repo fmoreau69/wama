@@ -18,13 +18,14 @@ class SynthesizerConfig(AppConfig):
             from wama.common.backends.manager import register_engine_inventory
 
             def _tts_engines():
+                # La table ENTIÈRE, CLASSES comprises : le commun en tire les DEUX
+                # lectures — les moteurs EXÉCUTABLES (`known_engines`, qui applique
+                # `missing_packages` là-bas) et la carte moteur→backend
+                # (`engine_backends`), dont un manifeste de MODÈLE a besoin pour
+                # déclarer la LIBRAIRIE que son moteur exige. Filtrer ICI privait le
+                # commun de cette carte, et recopiait une politique commune (03/09).
                 from wama.synthesizer.backends import ENGINE_BACKENDS
-                # EXÉCUTABLES, pas seulement enregistrés (raffinement 03/09, né du cas
-                # Qwen3-TTS) : un backend écrit dont le runtime pip n'est pas encore
-                # installé (`missing_packages()`) reste GRISÉ — et l'installation du
-                # runtime (validation humaine, ensure_backend_deps) dé-grise toute
-                # seule, comme un pip uninstall re-griserait. Le verdict suit le venv.
-                return {k for k, c in ENGINE_BACKENDS.items() if not c.missing_packages()}
+                return dict(ENGINE_BACKENDS)
             register_engine_inventory(_tts_engines)
         except Exception:
             pass

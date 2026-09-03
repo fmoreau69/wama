@@ -52,6 +52,7 @@
   "manifest_kind": "model",
   "name": "MuseTalk v1.5",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:avatarizer:musetalk-v1.5",

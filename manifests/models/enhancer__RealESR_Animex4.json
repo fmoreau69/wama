@@ -51,6 +51,7 @@
   "manifest_kind": "model",
   "name": "RealESR_Animex4",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:enhancer:RealESR_Animex4",

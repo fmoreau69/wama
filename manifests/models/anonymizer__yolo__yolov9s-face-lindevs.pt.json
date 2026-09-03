@@ -62,6 +62,7 @@
   "manifest_kind": "model",
   "name": "yolov9s-face-lindevs.pt",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:yolov9s-face-lindevs.pt",

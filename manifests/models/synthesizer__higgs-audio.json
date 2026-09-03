@@ -68,6 +68,7 @@
   "manifest_kind": "model",
   "name": "Higgs Audio v2",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:synthesizer:higgs-audio",

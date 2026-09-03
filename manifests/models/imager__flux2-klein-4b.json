@@ -50,6 +50,7 @@
   "manifest_kind": "model",
   "name": "FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:flux2-klein-4b",

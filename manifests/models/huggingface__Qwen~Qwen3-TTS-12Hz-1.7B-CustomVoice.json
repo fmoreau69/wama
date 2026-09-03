@@ -51,6 +51,7 @@
   "manifest_kind": "model",
   "name": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",

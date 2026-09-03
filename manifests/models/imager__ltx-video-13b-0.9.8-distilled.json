@@ -53,6 +53,7 @@
   "manifest_kind": "model",
   "name": "LTX-Video 13B Distilled — rapide, T2V + I2V",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:ltx-video-13b-0.9.8-distilled",

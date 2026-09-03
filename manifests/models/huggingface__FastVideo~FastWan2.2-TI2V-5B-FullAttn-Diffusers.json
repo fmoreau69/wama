@@ -47,6 +47,7 @@
   "manifest_kind": "model",
   "name": "FastWan2.2-TI2V-5B-FullAttn-Diffusers",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",

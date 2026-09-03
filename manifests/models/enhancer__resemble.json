@@ -51,6 +51,7 @@
   "manifest_kind": "model",
   "name": "Resemble Enhance",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:enhancer:resemble",

@@ -61,6 +61,7 @@
   "manifest_kind": "model",
   "name": "chatterbox",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:ResembleAI/chatterbox",

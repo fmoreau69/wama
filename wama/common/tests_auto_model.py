@@ -241,6 +241,50 @@ class CurseurDeQualiteTest(TestCase):
         valeurs = [o[0] if isinstance(o, list) else o.get('value') for o in options]
         self.assertIn('synthesizer:tts-leger', valeurs)
 
+    def test_un_modele_DECLARE_la_librairie_que_son_moteur_exige(self):
+        """Trou 1 de l'audit d'intégration (03/09) : `app→modèle` et `app→librairie`
+        étaient déclarés, `modèle→librairie` vivait UNIQUEMENT dans le PIP_PACKAGES du
+        backend — donc dans du code Python, invisible de la couche manifeste.
+
+        Règle CUMULATIVE, la même que la jambe `library` d'une app : le backend qui sert
+        le moteur exige la distribution ET elle est SEMÉE au corpus. La 2ᵉ condition n'est
+        pas cosmétique — `valider()` traite une référence pendante comme une ERREUR."""
+        from wama.common.manifests.builtin.model import _requires_librairies
+
+        # (a) moteur servi + lib semée → la référence est émise…
+        corps = {'composition': {'runtime': {'engine': 'kokoro-onnx'}}}
+        self.assertEqual(_requires_librairies(corps),
+                         [{'kind': 'library', 'key': 'kokoro-onnx'}])
+        # (b) …et elle RÉSOUT (aucune pendante — sinon le manifeste serait invalide).
+        from wama.common.manifests.builtin.model import extract_model
+        from wama.common.manifests.ingest import resolve_requires, validate
+        man = extract_model('huggingface:onnx-community/Kokoro-82M-v1.0-ONNX')
+        if man:                      # le modèle peut ne pas être catalogué sur ce poste
+            self.assertEqual(list(validate(man) or []), [])
+            _, pendantes = resolve_requires(man)
+            self.assertEqual(pendantes, [], "une référence pendante invalide le manifeste")
+        # (c) moteur SANS backend : on ne sait pas ce qu'il exige → on n'invente rien.
+        self.assertEqual(
+            _requires_librairies({'composition': {'runtime': {'engine': 'moteur-fantome'}}}), [])
+        # (d) aucun moteur déclaré → rien (cas général du modèle mono-fichier).
+        self.assertEqual(_requires_librairies({'composition': {}}), [])
+
+    def test_l_inventaire_expose_les_CLASSES_et_le_commun_filtre_l_executable(self):
+        """La politique « exécutable » vit au COMMUN (03/09) : un producteur qui filtrait
+        lui-même privait `engine_backends()` de la carte moteur→backend — celle dont la
+        jambe `requires` ci-dessus a besoin pour remonter au PIP_PACKAGES."""
+        from wama.common.backends.manager import engine_backends, known_engines
+        from wama.synthesizer.backends import ENGINE_BACKENDS
+        carte = engine_backends()
+        # Tous les moteurs TTS ENREGISTRÉS sont dans la carte, installés ou non…
+        self.assertTrue(set(ENGINE_BACKENDS) <= set(carte))
+        # …et `known_engines` n'en retient que les EXÉCUTABLES.
+        self.assertTrue(known_engines() <= set(carte) | {'audio-cpp'})
+        for moteur, cls in carte.items():
+            if cls.missing_packages():
+                self.assertNotIn(moteur, known_engines(),
+                                 f"{moteur} : runtime absent, il ne doit pas être annoncé")
+
     def test_le_grisage_serveur_survit_a_la_passe_d_appariement_client(self):
         """Mesuré au smoke du 02/09 : `wama-input-match` réécrit disabled/title à chaque
         change et EFFAÇAIT le grisage « backend absent ». Les deux sources composent via

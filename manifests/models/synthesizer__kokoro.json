@@ -87,6 +87,12 @@
   "manifest_kind": "model",
   "name": "Kokoro 82M",
   "projects": [],
+  "requires": [
+    {
+      "key": "soundfile",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:synthesizer:kokoro",
