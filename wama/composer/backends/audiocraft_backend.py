@@ -97,8 +97,16 @@ class AudioCraftBackend(BaseModelBackend):
         model_type = config['type']
 
         # ── CLAUDE.md: env vars BEFORE any audiocraft import ──────────────
-        os.environ['HF_HUB_CACHE'] = cache_dir
-        os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+        # ROADMAP §5b (2026-09-04) — audiocraft n'accepte pas `cache_dir=` sur
+        # `MusicGen.get_pretrained`, MAIS il expose SA PROPRE variable : `loaders.py:36`
+        # (`get_audiocraft_cache_dir`) la lit, et `_get_state_dict` la passe à
+        # `hf_hub_download(cache_dir=…)`. On route donc audiocraft par SA variable au lieu
+        # des variables HF GLOBALES.
+        # ⚠ La différence n'est pas cosmétique : `HF_HUB_CACHE` est lue par TOUT consommateur
+        # du hub dans le processus — elle emportait les sous-dépendances (t5-base, t5-large :
+        # les résidus encore visibles dans `music/musicgen` et `music/audiogen`). Celle-ci
+        # n'oriente qu'audiocraft.
+        os.environ['AUDIOCRAFT_CACHE_DIR'] = cache_dir
 
         # ── torch 2.9.x / xformers 0.0.35 compat ─────────────────────────
         # GroupName was removed from torch.distributed.distributed_c10d in

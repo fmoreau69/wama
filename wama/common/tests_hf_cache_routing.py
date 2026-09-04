@@ -49,7 +49,7 @@ VARS_HF = {'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE', 'HF_HOME'}
 #: et `hunyuan_video_backend` (les DEUX qui mutaient dès l'import).
 #: NE JAMAIS RELEVER CE NOMBRE. Le faire descendre = porter un backend au §5b ; le voir
 #: monter = une nouvelle mutation a été introduite, et c'est ce que ce test refuse.
-BUDGET_MUTATIONS = 2
+BUDGET_MUTATIONS = 0
 
 #: Modules dont l'IMPORT SEUL redirigeait le cache HF de tout le processus — le pire cas,
 #: puisqu'il pollue sans qu'aucun modèle ne soit chargé et que le dernier importé gagne.
