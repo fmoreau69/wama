@@ -4,6 +4,18 @@
       "task": "text-to-speech"
     },
     "composition": {
+      "components": [
+        {
+          "format": "safetensors",
+          "pattern": "model.safetensors",
+          "role": "acoustic_model"
+        },
+        {
+          "format": "safetensors",
+          "pattern": "speech_tokenizer/*",
+          "role": "speech_tokenizer"
+        }
+      ],
       "runtime": {
         "engine": "qwen3-tts"
       }
