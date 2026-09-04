@@ -90,6 +90,78 @@ Améliorer la **génération de musique dans le Composer** pour la **personnalis
 Suno ou équivalents), afin qu'elle alimente la chaîne audio avec des ressources de qualité et
 contrôlables.
 
+### 2bis. Chaîne FILM — le **Movie Director** (idée Fabien, 2026-09-04)
+
+> Discussion consignée telle qu'exposée, **confrontée au pipeline réel**. Rien n'est décidé ici :
+> ce qui suit dit ce que le fonctionnement actuel PERMET, ce qu'il REFUSE, et les manques nommés.
+
+**Le générateur de films, en deux étapes.**
+
+*Étape 1 — les documents.* Une app **Movie Director** tient synopsis → scénario → **découpage** →
+**storyboard**, et séquence les plans (court-métrage). Pour chaque plan elle a besoin d'images
+d'**entrée et de sortie de plan** : elle envoie donc un **batch de prompts** à l'**Imager**, dont la
+sortie **revient** au Movie Director pour être insérée dans les documents. Une fois la boucle
+terminée, le Movie Director livre **l'ensemble des documents**.
+
+*Étape 2 — les plans.* Ces documents entrent dans un **second Movie Director**, sur une autre
+modalité d'entrée. Celui-ci émet **prompts + fichiers de référence** vers un **Imager vidéo**, qui
+produit les plans. Par-dessus, une **couche de contrôle** doit tenir la constance du **style, des
+décors et des personnages** d'un plan à l'autre.
+
+#### Ce que le pipeline actuel permet DÉJÀ (mesuré le 2026-09-04)
+
+- **Les entrées multiples existent, et elles sont métadonnée-driven.** `studio_node_ports()` dérive
+  trois familles de ports d'entrée : `work` (média, multi), `prompt`, et **`reference`**
+  (`reference_image`, `reference_voice`, déclarés sur un mode ou sur le domaine). C'est exactement
+  la forme « prompts + fichiers de référence » de l'étape 2 — **rien à inventer**.
+- **La composition app↔app est le fonctionnement normal du studio** : un nœud = une app, les liens
+  portent `to_port`. Le Movie Director n'est donc pas un cas spécial, c'est une app de plus.
+
+#### Ce que le pipeline REFUSE aujourd'hui — et pourquoi ce n'est pas bloquant
+
+- **Le graphe est ACYCLIQUE, par construction** : `studio/tasks.py` calcule un ordre topologique et
+  **lève** `ValueError('Le graphe contient un cycle')`. La « boucle de rétroaction » Imager →
+  Movie Director ne peut donc pas être une arête de retour.
+- **Mais ce n'en est pas une.** Fabien a lui-même **déroulé** la boucle pour l'étape 2 (« un
+  SECOND Movie Director »). Le même geste vaut à l'intérieur de l'étape 1 : *Director-découpage →
+  Imager → Director-assemblage*. Trois nœuds, aucun cycle, et chaque nœud garde une responsabilité
+  lisible. **La rétroaction est un déroulement, pas une exception au moteur** — c'est d'ailleurs la
+  seule forme qui reste ré-exécutable et traçable plan par plan.
+
+#### Les manques RÉELS (nommés, non résolus)
+
+1. **Une sortie unique par nœud.** `studio_node_ports()` rend `{'inputs': [...], 'output': {…}}` —
+   **singulier**. Le Movie Director en veut deux (les documents enrichis d'images, puis le jeu
+   complet). C'est le seul manque **structurel** de la chaîne, et il est générique : d'autres apps
+   voudront séparer « produit intermédiaire » et « livrable ». À traiter comme les ports d'entrée
+   l'ont été — **dérivés des métadonnées**, jamais déclarés à la main par app.
+2. **La couche de constance (style / décors / personnages).** Ce n'est **pas** une fonction de
+   l'Imager ni du pipeline : c'est un **artefact partagé** — une « bible » (chartes de style, fiches
+   personnages, images de référence, seeds) que **chaque** nœud générateur consomme par son port
+   `reference`. Le port existe ; ce qui manque est l'artefact et sa propagation. Piste naturelle :
+   un manifeste (`project` ou `dataset`) plutôt qu'une table d'app — il doit survivre au film et
+   se réutiliser. Les modèles récents à édition guidée (qwen-image-edit et sa famille) sont les
+   consommateurs attendus de cette bible, pas son substitut.
+3. **L'Avatarizer n'est pas au bon endroit dans la chaîne — et pas au bon niveau de maturité.**
+   Il n'est ni une étape globale ni un concurrent de l'Imager vidéo : il opère **par plan**, en
+   AVAL, sur les plans marqués « personnage parlant », en consommant (a) la fiche personnage de la
+   bible et (b) l'audio du **Synthesizer**. Aujourd'hui il fait du **lipsync** (MuseTalk) sur une
+   vidéo existante : c'est de la synchronisation labiale, pas de l'animation de personnage
+   contrôlée. Le manque est donc **dans l'app**, pas dans le câblage — et il est le plus lourd des
+   trois. ⚠ Voir aussi les **licences Hunyuan qui excluent l'UE** pour toute une famille de modèles
+   d'avatars parlants.
+4. **Les apps qui n'existent pas** : Movie Director (×1, instancié deux fois dans le graphe — pas
+   deux apps), et le nœud de **montage** déjà tracé au §1 (chaîne vidéo) qui reste le débouché
+   naturel des plans produits.
+
+#### Ce que cette chaîne confirme du modèle WAMA
+
+Le studio n'a besoin d'**aucune notion de « film »** : le Movie Director est une app comme les
+autres, ses documents sont des médias, sa bible est un artefact déclaré, et le séquencement est un
+graphe. **La seule évolution du moteur qu'elle réclame est la sortie multiple** — le reste est du
+développement d'apps. C'est le meilleur signe que le découpage app/studio tient : une ambition
+aussi grosse qu'un générateur de films n'ajoute qu'un port.
+
 ### 3. Chaîne OBJETS 3D — de la photo au prop de simulation (idée Fabien 2026-08-18)
 **Cas d'usage** : image contenant un/des véhicules → **segmentation** (future app **detector**,
 YOLO/SAM3 — périmètre = ROADMAP §17bis) → **reconstruction 2D→3D** (modèle mono-image → mesh
