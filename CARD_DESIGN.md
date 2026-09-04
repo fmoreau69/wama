@@ -993,8 +993,8 @@ prometteuse » ; les cards de FILE restent v1/v2/v3 — v4 ne nomme que la card 
 5. **Densités** : la card d'entrée suit v1/v2/v3 comme les autres (sections nommées) ; en
    Compact les slot-rows se condensent en chips sur une ligne.
 
-⏳ Prochain geste : l'itération de MAQUETTE (F ci-dessus) rend cette proposition jugeable à
-l'œil — c'est elle qui vaut validation, pas ce texte.
+⏳ ~~Prochain geste : l'itération de MAQUETTE (F ci-dessus)~~ — **FAITE le 2026-09-04**,
+`docs/card_designs/card_v4_maquette.html` ; ce qu'elle ajoute au texte ci-dessus est en §11.11.
 
 #### Défauts SILENCIEUX relevés par le balayage (à corriger indépendamment de la v3.5)
 
@@ -1007,3 +1007,78 @@ l'œil — c'est elle qui vaut validation, pas ce texte.
    décoratives.
 3. La barre batch commune est mono-instance par construction (ids fixes) — le clone audio de
    l'enhancer en découle ; une v3.5 par rôle devra la paramétrer par instance.
+
+### 11.11 CARD D'ENTRÉE v4 — la ZONE DE PREVIEW (proposition Fabien du 2026-09-04, maquettée)
+
+> Le trou que §11.10 laissait, relevé par Fabien : *« la card_v4 a son gabarit, mais pas de zone
+> de preview »*. Toutes les cards de FILE en ont une ; la card d'entrée n'en avait aucune. Sa
+> proposition : cette zone existe, et **les boutons de modalité y basculent leur champ d'import**
+> au lieu de s'étaler. **Maquette : `docs/card_designs/card_v4_maquette.html`** (autonome, aucun
+> CDN — c'est elle qui vaut validation, pas ce texte).
+
+**A. La zone de preview de la card d'entrée est une 4ᵉ FACE, pas un composant neuf.**
+`wama/common/utils/preview_utils.py:298-312` sert déjà trois faces — `input` / `during` /
+`output`. La card d'entrée est simplement l'état où aucune des trois n'a de contenu. La nommer
+**`compose`** et lui donner ses pixels ferme le cycle : **compose → input → during → output, une
+seule zone, quatre temps**, la même grammaire que les cards de file. Corollaire : la question
+« où va le live ? » n'en est plus une — l'exigence 6 (§11.8) est servie sans surface dédiée, le
+live ne change pas de zone, il change de face.
+
+**B. La zone se subdivise par PORT, pas par MODALITÉ** — c'est le seul point où la proposition
+initiale a été infléchie, et il repose sur une mesure, pas sur un goût :
+
+| axe | ce qu'il répond | combien (mesuré 2026-09-04) | où il vit |
+|---|---|---|---|
+| **PORT** (rôle) | ce que le fichier **est** dans le traitement | **1 à 3** par app, dont 0-1 non-fichier | une **sous-division** de la zone |
+| **MODALITÉ** (geste) | **par où** il arrive | **4 à 7** par app | une **icône** qui bascule le contenu du slot |
+
+Ports déclarés (`studio_node_ports()`) : anonymizer · converter · describer · enhancer · reader ·
+transcriber = **1** (travail) · avatarizer = **2** (travail + prompt) · synthesizer et composer =
+**2** (prompt + référence) · imager = **3** (travail + prompt + référence). **Jamais plus de
+2 ports FICHIER** — donc 1 ou 2 sous-divisions, contre 4 à 7 colonnes de ~120 px si on avait
+subdivisé par modalité (l'URL est un champ de saisie, la médiathèque une grille : ni l'un ni
+l'autre n'y tient).
+
+🔴 **Ce qui distingue un port d'une modalité, et la preuve** — un port a un **rôle fixe** ; une
+modalité **traverse les rôles**. Mesuré dans les 12 inclusions actuelles : le même champ URL
+alimente le **fichier de travail** chez le transcriber (`url_label='ou depuis une URL'`) et la
+**référence** chez l'imager (`'ou image de référence par URL'`) et le composer (`'ou mélodie
+depuis une URL'`). Un port ne peut pas changer de rôle selon l'app — donc **l'URL est une
+modalité**. Idem pour le **lot** : ni port ni modalité, mais une **nature** du fichier déposé sur
+le port travail, reconnue après coup par la détection structurelle (§11.10-2).
+⚠ Et la **référence EST un port** (`reference_melody`, `reference_image`, group `reference`) —
+pas une modalité : c'est ce qui donne 2 sous-divisions à composer, imager et synthesizer.
+
+**C. Hauteur CONSTANTE, contenu qui s'y adapte** (accepté par Fabien le 04/09). Le slot fait la
+même hauteur quelle que soit la modalité active ; ce qui déborde **défile à l'intérieur**
+(médiathèque, liste de fichiers, aperçu de lot, texte live). **Mesuré sur la maquette : 96 px
+pour les 5 modalités du transcriber, sans exception.** La card ne saute jamais. Le **prompt reste
+le seul élément autorisé à grandir** (§11.9 C) — il est au-dessus de la zone, pas dedans.
+
+**D. Le dépôt n'est pas une modalité à choisir** — c'est le comportement par défaut de la
+sous-division, qui **est** la dropzone. Objectif premier de Fabien atteint sans étaler les
+modalités : *« l'utilisateur n'a pas besoin de cliquer sur la modalité pour un simple import »*.
+Les icônes ne servent qu'aux autres gestes.
+
+**E. Preview ou liste — la règle qui tranche.** La preview d'un *média* n'a de sens qu'à **un
+seul fichier** (miniature / onde / extrait, + `↻` qui **remplace** — exigence 7, jusqu'ici
+impossible). À **N fichiers**, la sous-division rend une **liste de chips retirables** qui défile
+— même cadre, même hauteur. Et le **lot** trouve enfin un domicile **par card** : la détection
+ouvre son aperçu *dans la zone* (N lignes reconnues, M refusées) au lieu du bandeau
+`batch_detect_bar.html`, dont le défaut n°3 ci-dessus rappelle qu'il est mono-instance par ids
+fixes.
+
+**F. Ce que la maquette montre en plus** — les 3 états que §11.10.F réclamait et qui n'existaient
+nulle part : card en **ÉCHEC** (la zone n'annonce plus la sortie, elle **explique** la cause —
+§11.4-6), card **LIVE armée** (deux temps : 🎙 arme, ▶ démarre), **card-MODÈLE aux slots vides**
+(file importée sans fichiers, `WAMA_MANIFEST_ARCHITECTURE §8`) ; plus les 2 géométries (§4 : côte
+à côte en ligne, empilés en mosaïque) et les 3 densités (§11.6 : en v2 la zone se replie en chips,
+le clic déplie — mécanisme **déjà écrit**, `wama-new-item-card.js:55-59`).
+
+**G. Reste à trancher avant tout code** :
+1. la hauteur de 96 px est un choix de maquette — à confronter à l'écran sur une vraie file ;
+2. le **manifeste de process** remplit la card *entière*, pas un slot : il lui faut une place
+   propre (bandeau au-dessus des slots ?) ;
+3. les **4 `extra_zone_template`** (galerie d'avatars, sélecteur de modèle imager, réglages
+   rapides synthesizer, aperçu de voix) doivent trouver leur case déclarative (§11.9 D) — sinon
+   ces 4 apps ne seront pas portables vers la v4.
