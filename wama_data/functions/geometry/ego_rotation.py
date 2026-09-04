@@ -1,10 +1,19 @@
 """Rotation propre de la caméra estimée depuis le FLUX de points image (ego-motion visuel).
 
-But : donner à la chaîne une mesure de rotation **indépendante du GPS**. Aujourd'hui le cap de
-la navette ne vient que d'une seule source (trace GPS lissée Kalman/RTS), donc rien ne peut
-la contredire — un cap faux se propage à la projection sol, aux `world_en` et aux indicateurs
-sans qu'aucun chiffre ne le signale. Deux sources permettent un désaccord, c'est-à-dire une
-métrique A/B au sens de la règle du projet.
+But : donner à la chaîne une mesure de rotation **indépendante du GPS**. Le cap ne vient
+aujourd'hui que d'une source, donc rien ne peut le contredire — et il se propage à la
+projection sol, aux `world_en` et aux indicateurs sans qu'aucun chiffre ne le signale.
+
+Ce n'est pas une amélioration spéculative : `CAM_ANALYZER_CHAINE_TRAITEMENT.md §[2]` désigne
+ce cap comme **LA source d'erreur angulaire dominante** de la chaîne, et la chiffre —
+« bearing entre fixes consécutifs → bruité à faible vitesse (±10-25°) », avec un effet de
+bras de levier « 8 m × 15° ≈ 2 m d'arc sur les objets ». La complémentarité est structurelle :
+le cap GPS se dégrade quand la navette ralentit, la mesure visuelle devient au contraire plus
+sûre (recouvrement plus grand, moins de flou de bougé). Chacune est bonne là où l'autre faiblit.
+
+⚠ Corollaire à ne pas perdre : sous 0,30 m de déplacement le cap GPS n'est pas bruité, il est
+**TENU au dernier connu** (`ego_pose.py`). Voir `yaw_disagreement` — comparer contre une
+constante fabriquerait un désaccord au lieu d'en mesurer un.
 
 **Ce module n'est PAS un SLAM et ne cherche pas à l'être.** Il n'estime ni position, ni
 échelle, ni carte : seulement les deux angles de rotation entre deux images. C'est le
@@ -165,17 +174,37 @@ def estimate_ego_rotation(matches, focal_px, principal_point=None, *, dt_s=None)
     return out
 
 
-def yaw_disagreement(visual_yaw_rate_dps, gps_yaw_rate_dps):
-    """Écart entre le lacet VU et le lacet déduit du GPS, en °/s — la métrique A/B.
+def yaw_disagreement(visual_yaw_rate_dps, reference_yaw_rate_dps, *,
+                     reference_held=False):
+    """Écart entre le lacet VU et le lacet de RÉFÉRENCE, en °/s — la métrique A/B.
 
-    Sépare volontairement le calcul de la mesure : c'est ce chiffre qui dit si le cap GPS
-    lissé est fiable sur un tronçon, et non un jugement porté sur une superposition d'images.
-    Un désaccord qui enfle en canyon urbain est le symptôme attendu (multitrajet) ; un
-    désaccord constant signe plutôt une erreur d'étalonnage ou de convention de signe.
+    Sépare volontairement le calcul de la mesure : c'est ce chiffre qui dit si le cap de
+    référence est fiable sur un tronçon, et non un jugement porté sur une superposition
+    d'images. Un désaccord qui enfle en canyon urbain est le symptôme attendu (multitrajet) ;
+    un désaccord constant signe plutôt une erreur d'étalonnage ou de convention de signe.
+
+    ⚠ **`reference_held` n'est pas une option de confort — sans lui la métrique MENT.**
+    Le cap dérivé du GPS n'est pas seulement bruité à basse vitesse : sous 0,30 m de
+    déplacement il est **TENU au dernier connu** (`ego_pose.annotate_gps_heading_speed`,
+    « aucun gyroscope »). Ce n'est alors plus une mesure mais une CONSTANTE, dont la dérivée
+    vaut 0 par construction. Comparer le lacet vu à cette constante rend un désaccord
+    exactement égal au lacet vu — c'est-à-dire un artefact du gel, présenté comme une erreur
+    de cap. À l'arrêt et en manœuvre lente, c'est-à-dire **précisément là où la vision est la
+    plus fiable et le GPS le moins**, la métrique serait donc maximalement fausse.
+
+    C'est le même piège que le gap G7 sur le placement (`CHAINE §[4]` : un A/B qui mélange
+    homographie et repli pinhole silencieux compare deux choses qui ne sont pas comparables).
+    On rend `None` plutôt qu'un chiffre : une absence se voit, un faux chiffre non.
+
+    Note : un cap issu de l'API navette (`EgoPose.source == 'shuttle_api'`) reste fiable à
+    l'arrêt — pour lui `reference_held` vaut False même immobile. D'où un paramètre porté par
+    l'APPELANT, qui seul connaît la source, plutôt qu'un seuil de vitesse deviné ici.
     """
-    if visual_yaw_rate_dps is None or gps_yaw_rate_dps is None:
+    if visual_yaw_rate_dps is None or reference_yaw_rate_dps is None:
         return None
-    return abs(visual_yaw_rate_dps - gps_yaw_rate_dps)
+    if reference_held:
+        return None
+    return abs(visual_yaw_rate_dps - reference_yaw_rate_dps)
 
 
 def ego_rotation(matches: 'TypedFrame', *, focal_px=None, principal_point=None,

@@ -149,13 +149,30 @@ class VitesseEtDesaccordTest(unittest.TestCase):
         r = estimate_ego_rotation(_applique(_grille(), yaw_deg=1.0), FX, (CX, CY))
         self.assertNotIn('yaw_rate_dps', r)
 
-    def test_le_desaccord_avec_le_GPS_est_une_valeur_ABSOLUE_en_dps(self):
+    def test_le_desaccord_avec_la_reference_est_une_valeur_ABSOLUE_en_dps(self):
         self.assertAlmostEqual(yaw_disagreement(10.0, 7.5), 2.5, places=6)
         self.assertAlmostEqual(yaw_disagreement(-10.0, 7.5), 17.5, places=6)
 
     def test_une_source_manquante_ne_fabrique_pas_un_desaccord_nul(self):
         self.assertIsNone(yaw_disagreement(None, 7.5))
         self.assertIsNone(yaw_disagreement(10.0, None))
+
+    def test_un_cap_de_reference_GELE_ne_produit_AUCUN_desaccord(self):
+        """LE garde d'honnêteté (piège G7 transposé au cap).
+
+        Sous 0,30 m de déplacement, `ego_pose` TIENT le cap au dernier connu : sa dérivée
+        vaut 0 par construction. Sans ce garde, une navette qui tourne à l'arrêt rendrait
+        un désaccord égal au lacet vu — un artefact du gel présenté comme une erreur de cap,
+        et maximal là où la vision est justement la plus fiable."""
+        self.assertIsNone(yaw_disagreement(12.0, 0.0, reference_held=True))
+        # Sans le gel, la même paire est une mesure parfaitement légitime.
+        self.assertAlmostEqual(yaw_disagreement(12.0, 0.0), 12.0, places=6)
+
+    def test_une_reference_FIABLE_a_l_arret_reste_comparable(self):
+        """Le cap de l'API navette vaut à l'arrêt : le garde porte sur la SOURCE, pas sur
+        la vitesse — d'où un drapeau passé par l'appelant, pas un seuil deviné ici."""
+        self.assertAlmostEqual(yaw_disagreement(12.0, 11.0, reference_held=False), 1.0,
+                               places=6)
 
 
 class ContratPurTest(unittest.TestCase):
