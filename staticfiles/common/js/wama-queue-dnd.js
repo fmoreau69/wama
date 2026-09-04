@@ -29,6 +29,11 @@
  * `reference_offline_assets_local`), donc adopter la lib, c'était aussi ouvrir ce chantier-là.
  * Le drag natif HTML5 fait exactement les quatre gestes, sans dépendance.
  *
+ * ══ CLAVIER ═════════════════════════════════════════════════════════════════════════════
+ *
+ *   Ctrl/Cmd + A   tout sélectionner (dans UNE file — cf. `fileActive`)
+ *   Échap          relâcher la sélection
+ *
  * ══ CE QUE LA BRIQUE NE FAIT PAS ════════════════════════════════════════════════════════
  *
  * Le drag est souris-centré (§3bis « vigilance ») : ni tactile, ni clavier. Les mêmes
@@ -556,9 +561,55 @@
         if (m) toast(m, 'success');
     }
 
+    // ══ Ctrl+A — TOUT SÉLECTIONNER ═══════════════════════════════════════════════════════
+    //
+    // Posé UNE fois sur le document, pas une fois par file : plusieurs apps en affichent deux
+    // (enhancer média+audio, imager image+vidéo), et un écouteur par file aurait sélectionné
+    // dans les DEUX d'un coup — dont celle de l'onglet caché, invisible à l'utilisateur.
+    //
+    // ⚠ On lit `ev.key`, JAMAIS `ev.code`. Sur un clavier AZERTY — celui de ce labo — le A
+    // est physiquement à la place du Q QWERTY : `ev.code` y vaut `KeyQ`. `ev.key` rend le
+    // caractère RÉELLEMENT produit par la disposition, donc 'a' partout.
+
+    /** La file à laquelle un raccourci s'applique. */
+    function fileActive() {
+        const files = Array.prototype.slice.call(document.querySelectorAll('[data-wama-dnd]'));
+        if (!files.length) return null;
+        // 1. Celle qui porte déjà une sélection — on poursuit là où l'utilisateur travaille.
+        const avecSel = files.find(function (q) { return q.querySelector('.' + SEL); });
+        if (avecSel) return avecSel;
+        // 2. Sinon la file VISIBLE. Même règle que les flèches de `wama-queue.js` : sur une
+        //    page à onglets, une seule file est à l'écran, et c'est celle-là qui répond.
+        const visibles = files.filter(function (q) { return q.offsetParent !== null; });
+        return visibles[0] || files[0];
+    }
+
+    function initToutSelectionner() {
+        document.addEventListener('keydown', function (ev) {
+            if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
+            if ((ev.key || '').toLowerCase() !== 'a') return;
+            // Ne JAMAIS voler le Ctrl+A d'une saisie : dans un champ, il veut dire « tout le
+            // texte », et c'est ce que l'utilisateur attend jusque dans une file.
+            const t = ev.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            const q = fileActive();
+            if (!q) return;
+            const toutes = cards(q);
+            // File vide : on ne préempte RIEN. Avaler le raccourci pour ne rien sélectionner
+            // priverait de la sélection de page sans aucune contrepartie.
+            if (!toutes.length) return;
+            ev.preventDefault();
+            poser(q, toutes, 'remplacer');
+            // Ancre en TÊTE : un Maj+clic qui suit réduit alors la sélection du haut jusqu'à
+            // la card cliquée — le geste attendu après un « tout sélectionner ».
+            etat(q).ancre = toutes[0];
+        });
+    }
+
     // ── Init ─────────────────────────────────────────────────────────────────────────────
     function init() {
         document.querySelectorAll('[data-wama-dnd]').forEach(monter);
+        initToutSelectionner();
         messageReporte();
     }
 
