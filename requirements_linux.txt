@@ -39,3 +39,23 @@ yt-dlp
 pypandoc==1.13
 weasyprint==69.0  # HTML → PDF fidèle (CSS + SVG inline) sans LaTeX/rsvg-convert (converter)
 playwright==1.61.0  # HTML → PDF via Chromium headless (CSS moderne + JS + responsive) ; route préférée, fallback weasyprint. Provisioning navigateur : voir start_wama_prod.sh (playwright install chromium)
+
+# ──────────────────────────────────────────────────────────────────────────────────────────
+# WAMA Lab — face_analyzer (FER / DeepFace / MediaPipe + TensorFlow)
+#
+# ⚠ DÉLIBÉRÉMENT PAS INCLUS PAR `-r`, et c'est une MESURE, pas une prudence de principe.
+# Ces paquets sont installés dans venv_linux et l'app y tourne (import réel vérifié le
+# 2026-09-04 : fer 25.10.3, deepface 0.0.96, mediapipe 0.10.31, tensorflow 2.21.0).
+# Mais `pip install --dry-run -r wama_lab/face_analyzer/requirements/linux.txt` annonce :
+#     Would install facenet-pytorch-2.5.3 nvidia-nccl-cu12-2.27.5 tensorflow-2.20.0
+# soit DEUX RÉTROGRADAGES de paquets PARTAGÉS — tensorflow 2.21.0 → 2.20.0 (forcé par le pin
+# `tf-keras` du fichier de l'app) et surtout nvidia-nccl-cu12 2.30.4 → 2.27.5, qui est une
+# dépendance de TORCH. Câbler l'include « pour bien faire » aurait donc abîmé le venv central
+# au premier `pip install -r` — exactement le risque que la doctrine des venvs décrit.
+# (`facenet-pytorch` n'est pas installé aujourd'hui et deepface s'importe quand même : c'est
+# une dépendance d'extra, pas un besoin réel.)
+#
+# Le fichier de l'app reste la déclaration de référence ; l'installer demande une passe
+# d'harmonisation de ses pins d'abord. À poser : `manage.py check_venv_compat`.
+#     pip install -r wama_lab/face_analyzer/requirements/linux.txt   # ⚠ pas avant harmonisation
+# ──────────────────────────────────────────────────────────────────────────────────────────
