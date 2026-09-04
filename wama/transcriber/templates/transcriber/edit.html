@@ -307,5 +307,8 @@
 
 {% block extra_js %}
 <script src="{% static_v 'common/js/wama-audio-player.js' %}"></script>
+{% comment %}Historique annuler/rétablir — brique COMMUNE. AVANT edit.js : `WamaHistory.create()`
+est appelé au corps de l'IIFE, donc à l'évaluation du script, pas à un événement.{% endcomment %}
+<script src="{% static_v 'common/js/wama-history.js' %}"></script>
 <script src="{% static_v 'transcriber/js/edit.js' %}"></script>
 {% endblock %}

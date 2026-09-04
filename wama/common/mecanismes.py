@@ -529,6 +529,21 @@ MECANISMES = (
               annexes=('wama/common/static/common/css/wama-queue-dnd.css',
                        'wama/common/templatetags/wama_actions.py',
                        'wama/common/tests_queue_dnd.py')),
+    Mecanisme('history', 'Historique annuler / rétablir',
+              "Deux piles + plafond + état des boutons + raccourcis Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y. "
+              "PORTABLE parce que la machinerie ne touche JAMAIS le modèle : elle ne le connaît "
+              "que par `snapshot()` et `restore(state)`, que l'appelant fournit. La coalescence "
+              "des rafales de frappe (`burstWindow`) est une OPTION, pas un acquis — elle n'a "
+              "aucun sens sur un éditeur non textuel, où chaque mutation est déjà atomique. "
+              "⚠⚠ La FILE D'ATTENTE ne peut PAS l'utiliser : ses gestes sont commis côté serveur "
+              "à l'instant du dépôt, il n'y a pas de modèle client à photographier — son "
+              "« annuler » est un REJEU D'OPÉRATION INVERSE, même mot, mécanisme différent. Les "
+              "réunir ici donnerait une API qui MENT sur ce qu'elle garantit. "
+              "Extrait du transcriber (seule implémentation du dépôt) pour un 2ᵉ consommateur "
+              "identifié : le studio, qui a déjà `serializeGraph`/`restoreDraft` et 9 points de "
+              "mutation, mais n'en garde qu'UN cran (brouillon localStorage)",
+              'wama/common/static/common/js/wama-history.js', 'CARD_DESIGN.md',
+              annexes=('wama/transcriber/static/transcriber/js/edit.js',)),
     Mecanisme('queue_order', 'Ordre MANUEL de la file',
               "Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin."
               "queue_index`, 13 modèles de batch) + 6ᵉ tri « Manuel » — le SEUL tri qui LIT une "

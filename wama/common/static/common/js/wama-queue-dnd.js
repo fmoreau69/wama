@@ -47,9 +47,9 @@
     // ── Utilitaires ──────────────────────────────────────────────────────────────────────
     function csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
 
-    function post(url, champs) {
+    function post(url, fields) {
         const fd = new FormData();
-        Object.keys(champs || {}).forEach(function (k) { fd.append(k, champs[k]); });
+        Object.keys(fields || {}).forEach(function (k) { fd.append(k, fields[k]); });
         return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: fd })
             .then(function (r) {
                 if (r.status === 204) return { success: true };
@@ -59,7 +59,7 @@
 
     // Une URL de la forme `/app/move-to-batch/0/` — le 0 est le gabarit de pk, convention déjà
     // utilisée par les `APP.urls` des 12 apps (`{% url 'app:start' 0 %}`).
-    function withPk(gabarit, pk) { return gabarit.replace(/\/0\/?$/, '/' + pk + '/'); }
+    function withPk(urlTemplate, pk) { return urlTemplate.replace(/\/0\/?$/, '/' + pk + '/'); }
 
     function toast(msg, type) {
         if (window.WamaApp && WamaApp.toast) { WamaApp.toast(msg, type || 'info'); return; }
@@ -134,21 +134,21 @@
 
     const SEL = 'wama-dnd-selected';
 
-    function etat(queue) {
-        if (!queue._wamaDnd) queue._wamaDnd = { ancre: null };
+    function stateOf(queue) {
+        if (!queue._wamaDnd) queue._wamaDnd = { anchor: null };
         return queue._wamaDnd;
     }
 
-    function selection(queue) {
+    function selectedCards(queue) {
         return cards(queue).filter(function (c) { return c.classList.contains(SEL); });
     }
 
     function selectedIds(queue) {
-        return selection(queue).map(function (c) { return c.dataset.id; });
+        return selectedCards(queue).map(function (c) { return c.dataset.id; });
     }
 
-    function annoncer(queue) {
-        const sel = selection(queue);
+    function announce(queue) {
+        const sel = selectedCards(queue);
         // L'inspecteur (et qui voudra) écoute : la brique dit CE QUI EST SÉLECTIONNÉ, elle ne
         // dicte pas ce qu'on en affiche.
         queue.dispatchEvent(new CustomEvent('wama:selection-change', {
@@ -157,46 +157,46 @@
         }));
     }
 
-    function poser(queue, cartes, mode) {
+    function setSelection(queue, cardEls, mode) {
         if (mode === 'remplacer') {
             cards(queue).forEach(function (c) { c.classList.remove(SEL); });
         }
-        cartes.forEach(function (c) { c.classList.add(SEL); });
-        annoncer(queue);
+        cardEls.forEach(function (c) { c.classList.add(SEL); });
+        announce(queue);
     }
 
-    function viderSelection(queue) {
+    function clearSelection(queue) {
         cards(queue).forEach(function (c) { c.classList.remove(SEL); });
-        etat(queue).ancre = null;
-        annoncer(queue);
+        stateOf(queue).anchor = null;
+        announce(queue);
     }
 
-    function clicSelection(queue, card, ev) {
-        const st = etat(queue);
-        if (ev.shiftKey && st.ancre) {
+    function handleSelectionClick(queue, card, ev) {
+        const st = stateOf(queue);
+        if (ev.shiftKey && st.anchor) {
             // MAJ = toute la plage entre l'ancre et la cible, dans l'ORDRE VISIBLE.
             // ⚠ `cards()` traverse les lots repliés : la plage inclut leurs filles, ce qui est
             // le comportement voulu (elles font partie de la file, cf. la même décision dans
             // `wama-queue.js::_pileFor` — filtrer sur la visibilité avait rendu les cards d'un
             // lot replié injoignables).
-            const liste = cards(queue);
-            const a = liste.indexOf(st.ancre), b = liste.indexOf(card);
+            const list = cards(queue);
+            const a = list.indexOf(st.anchor), b = list.indexOf(card);
             if (a >= 0 && b >= 0) {
-                const plage = liste.slice(Math.min(a, b), Math.max(a, b) + 1);
-                poser(queue, plage, ev.ctrlKey || ev.metaKey ? 'ajouter' : 'remplacer');
+                const range = list.slice(Math.min(a, b), Math.max(a, b) + 1);
+                setSelection(queue, range, ev.ctrlKey || ev.metaKey ? 'ajouter' : 'remplacer');
                 return true;
             }
         }
         if (ev.ctrlKey || ev.metaKey) {
             card.classList.toggle(SEL);
-            st.ancre = card;
-            annoncer(queue);
+            st.anchor = card;
+            announce(queue);
             return true;
         }
         // Clic simple : sélection unique. On laisse l'événement suivre son cours — c'est lui
         // qui remplit l'inspecteur, et le lui retirer casserait le geste central de WAMA.
-        poser(queue, [card], 'remplacer');
-        st.ancre = card;
+        setSelection(queue, [card], 'remplacer');
+        st.anchor = card;
         return false;
     }
 
@@ -207,7 +207,7 @@
     // l'appartenance). Un seul indicateur pour les deux rendrait le geste indevinable —
     // l'utilisateur ne saurait pas, au moment de lâcher, ce qui va se passer.
 
-    function marqueur() {
+    function marker() {
         let m = document.getElementById('wamaDndMarker');
         if (!m) {
             m = document.createElement('div');
@@ -217,7 +217,7 @@
         return m;
     }
 
-    function nettoyerRetours() {
+    function clearFeedback() {
         const m = document.getElementById('wamaDndMarker');
         if (m && m.parentNode) m.parentNode.removeChild(m);
         document.querySelectorAll('.wama-dnd-over').forEach(function (el) {
@@ -238,37 +238,37 @@
     // vaut « sur ». Un demi/demi (le réflexe) ne laisserait AUCUNE zone au geste de fusion, qui
     // est pourtant le plus demandé des quatre.
 
-    function cibleSous(queue, x, y) {
+    function targetUnder(queue, x, y) {
         const el = document.elementFromPoint(x, y);
         if (!el || !queue.contains(el)) {
             // Hors de toute card mais dans la file : on ordonne, en fin de file.
             return { type: 'entre', parent: queue, avant: null, niveau: 'queue' };
         }
-        const carte = el.closest('.wama-card[data-id], .wama-card.is-batch');
-        if (!carte) {
+        const cardEl = el.closest('.wama-card[data-id], .wama-card.is-batch');
+        if (!cardEl) {
             const grp = el.closest('.batch-group');
             if (grp) return { type: 'sur', card: grp.querySelector('.wama-card.is-batch') || grp };
             return { type: 'entre', parent: queue, avant: null, niveau: 'queue' };
         }
-        const r = carte.getBoundingClientRect();
-        const tiers = r.height / 3;
-        if (y > r.top + tiers && y < r.bottom - tiers) return { type: 'sur', card: carte };
+        const r = cardEl.getBoundingClientRect();
+        const third = r.height / 3;
+        if (y > r.top + third && y < r.bottom - third) return { type: 'sur', card: cardEl };
 
-        const avantCarte = y <= r.top + tiers;
+        const beforeCard = y <= r.top + third;
         // Fille de lot → on ordonne DANS le lot. Sinon → on ordonne la file.
-        const collapse = carte.closest('.collapse[data-wama-batch-key]');
-        if (collapse && !carte.classList.contains('is-batch')) {
+        const collapse = cardEl.closest('.collapse[data-wama-batch-key]');
+        if (collapse && !cardEl.classList.contains('is-batch')) {
             return { type: 'entre', parent: collapse, niveau: 'batch',
-                     avant: avantCarte ? carte : carte.nextElementSibling };
+                     avant: beforeCard ? cardEl : cardEl.nextElementSibling };
         }
-        const entree = entryOf(carte) || carte;
+        const entryEl = entryOf(cardEl) || cardEl;
         return { type: 'entre', parent: queue, niveau: 'queue',
-                 avant: avantCarte ? entree : entree.nextElementSibling };
+                 avant: beforeCard ? entryEl : entryEl.nextElementSibling };
     }
 
     // ══ MONTAGE D'UNE FILE ═══════════════════════════════════════════════════════════════
 
-    function monter(queue) {
+    function mount(queue) {
         if (queue._wamaDndMonte) return;
         queue._wamaDndMonte = true;
 
@@ -288,7 +288,7 @@
             if (ev.target.closest('button, a, input, select, textarea, label, [data-bs-toggle]')) return;
             const card = ev.target.closest('.wama-card[data-id]');
             if (!card || card.classList.contains('is-batch')) return;
-            if (clicSelection(queue, card, ev)) {
+            if (handleSelectionClick(queue, card, ev)) {
                 // Étendue : on garde l'événement pour nous (l'inspecteur ne doit pas
                 // retomber sur une sélection unique derrière notre dos).
                 ev.preventDefault();
@@ -299,22 +299,22 @@
         // Échap : on relâche. Même touche que la désélection de l'inspecteur — un seul geste
         // d'abandon, puisqu'il n'y a qu'une sélection.
         document.addEventListener('keydown', function (ev) {
-            if (ev.key === 'Escape' && selection(queue).length) viderSelection(queue);
+            if (ev.key === 'Escape' && selectedCards(queue).length) clearSelection(queue);
         });
 
         // ── Drag ─────────────────────────────────────────────────────────────────────────
         // `draggable` est posé par le JS et non par les gabarits : c'est une CAPACITÉ de la
         // brique, pas une propriété des cards. Les 12 gabarits n'ont ainsi rien à déclarer, et
         // une file sans `data-wama-dnd` reste inerte.
-        function armer() {
+        function arm() {
             cards(queue).forEach(function (c) { c.draggable = true; });
-            const meres = queue.querySelectorAll('.wama-card.is-batch');
-            Array.prototype.forEach.call(meres, function (m) { m.draggable = false; });
+            const headerCards = queue.querySelectorAll('.wama-card.is-batch');
+            Array.prototype.forEach.call(headerCards, function (m) { m.draggable = false; });
         }
-        armer();
-        new MutationObserver(armer).observe(queue, { childList: true, subtree: true });
+        arm();
+        new MutationObserver(arm).observe(queue, { childList: true, subtree: true });
 
-        let porte = [];      // cards en cours de déplacement
+        let carried = [];      // cards en cours de déplacement
 
         queue.addEventListener('dragstart', function (ev) {
             const card = ev.target.closest('.wama-card[data-id]');
@@ -322,46 +322,46 @@
             // Glisser une card HORS sélection déplace CETTE card et repart d'une sélection
             // propre : c'est ce que fait tout gestionnaire de fichiers, et l'inverse
             // (emporter une sélection invisible qu'on croyait oubliée) surprend toujours.
-            if (!card.classList.contains(SEL)) poser(queue, [card], 'remplacer');
-            porte = selection(queue);
+            if (!card.classList.contains(SEL)) setSelection(queue, [card], 'remplacer');
+            carried = selectedCards(queue);
             queue.classList.add('wama-dnd-active');
             try {
                 ev.dataTransfer.effectAllowed = 'move';
                 // Un payload est OBLIGATOIRE sous Firefox, sinon aucun `drop` n'est émis.
-                ev.dataTransfer.setData('text/plain', porte.map(function (c) { return c.dataset.id; }).join(','));
+                ev.dataTransfer.setData('text/plain', carried.map(function (c) { return c.dataset.id; }).join(','));
             } catch (e) { /* certains navigateurs verrouillent dataTransfer */ }
         });
 
         queue.addEventListener('dragend', function () {
             queue.classList.remove('wama-dnd-active');
-            nettoyerRetours();
-            porte = [];
+            clearFeedback();
+            carried = [];
         });
 
         queue.addEventListener('dragover', function (ev) {
-            if (!porte.length) return;
+            if (!carried.length) return;
             ev.preventDefault();
             ev.dataTransfer.dropEffect = 'move';
-            nettoyerRetours();
+            clearFeedback();
 
-            const cible = cibleSous(queue, ev.clientX, ev.clientY);
-            if (cible.type === 'sur') {
+            const target = targetUnder(queue, ev.clientX, ev.clientY);
+            if (target.type === 'sur') {
                 // Déposer sur une card qu'on porte soi-même ne veut rien dire.
-                if (porte.indexOf(cible.card) >= 0) return;
+                if (carried.indexOf(target.card) >= 0) return;
                 // ⚠ On ne touche PAS à `title` pour dire le refus : la card en a déjà un
                 // (« Double-cliquez pour voir le résultat »…) et l'écraser le perdrait
                 // définitivement — un retour visuel transitoire ne doit rien détruire de
                 // permanent. La classe suffit à l'écran, le motif exact arrive au toast.
-                cible.card.classList.add(refusDe(cible, urls) ? 'wama-dnd-refuse' : 'wama-dnd-over');
+                target.card.classList.add(refusalFor(target, urls) ? 'wama-dnd-refuse' : 'wama-dnd-over');
                 return;
             }
-            const m = marqueur();
-            m.classList.toggle('is-in-batch', cible.niveau === 'batch');
-            cible.parent.insertBefore(m, cible.avant);
+            const m = marker();
+            m.classList.toggle('is-in-batch', target.niveau === 'batch');
+            target.parent.insertBefore(m, target.avant);
         });
 
         queue.addEventListener('drop', function (ev) {
-            if (!porte.length) return;
+            if (!carried.length) return;
             ev.preventDefault();
             // ⚠ NETTOYER AVANT DE VISER. `cibleSous` interroge `elementFromPoint`, et le
             // marqueur d'insertion du dernier `dragover` est encore SOUS le curseur : le
@@ -369,13 +369,13 @@
             // dans la branche « hors de toute card » — un dépôt sur une card se serait
             // comporté comme un dépôt en fin de file. Défaut invisible au relevé du code,
             // évident dès qu'on lâche la souris.
-            nettoyerRetours();
-            const cible = cibleSous(queue, ev.clientX, ev.clientY);
-            const bougees = porte.slice();
+            clearFeedback();
+            const target = targetUnder(queue, ev.clientX, ev.clientY);
+            const movedCards = carried.slice();
             queue.classList.remove('wama-dnd-active');
-            porte = [];
-            if (cible.type === 'sur' && bougees.indexOf(cible.card) >= 0) return;
-            executer(queue, urls, cible, bougees);
+            carried = [];
+            if (target.type === 'sur' && movedCards.indexOf(target.card) >= 0) return;
+            run(queue, urls, target, movedCards);
         });
     }
 
@@ -387,10 +387,10 @@
      * que le jumelage `nature_of`/`group_key` vient d'éviter. Le refus arrive donc en 409 et
      * se dit au toast : un aller-retour, mais UNE seule règle.
      */
-    function refusDe(cible, urls) {
-        const surMere = cible.card.classList.contains('is-batch');
-        const dansLot = !!cible.card.closest('.batch-group');
-        if (surMere || dansLot) return urls.move ? '' : "Déplacement dans un lot indisponible ici";
+    function refusalFor(target, urls) {
+        const onBatchHeader = target.card.classList.contains('is-batch');
+        const inBatch = !!target.card.closest('.batch-group');
+        if (onBatchHeader || inBatch) return urls.move ? '' : "Déplacement dans un lot indisponible ici";
         return urls.merge ? '' : "Formation de lot indisponible ici";
     }
 
@@ -402,119 +402,119 @@
     // faux — ou un 404 sur le lot que le premier vient d'effacer. Le coût (N allers-retours
     // pour N cards) est celui d'un geste rare et délibéré, pas d'une boucle de polling.
 
-    function executer(queue, urls, cible, portees) {
-        if (!portees.length) return;
-        const ids = portees.map(function (c) { return c.dataset.id; });
+    function run(queue, urls, target, carriedCards) {
+        if (!carriedCards.length) return;
+        const ids = carriedCards.map(function (c) { return c.dataset.id; });
 
         // ── APPARTENANCE : déposer SUR une card ──────────────────────────────────────────
-        if (cible.type === 'sur') {
-            const groupe = cible.card.closest('.batch-group');
-            if (groupe) {
+        if (target.type === 'sur') {
+            const group = target.card.closest('.batch-group');
+            if (group) {
                 // → ENTRER dans un lot existant (mère ou fille : c'est le même lot).
-                if (!urls.move) return echec("Déplacement dans un lot indisponible ici");
-                const bid = groupe.dataset.batchId;
-                if (!bid) return echec("Lot cible introuvable");
-                return enChaine(ids, function (id) {
+                if (!urls.move) return fail("Déplacement dans un lot indisponible ici");
+                const bid = group.dataset.batchId;
+                if (!bid) return fail("Lot cible introuvable");
+                return chain(ids, function (id) {
                     return post(withPk(urls.move, id), { batch_id: bid });
-                }).then(function (refus) {
-                    if (refus) return echec(refus);
-                    succes(ids.length + " élément(s) ajouté(s) au lot");
+                }).then(function (refusal) {
+                    if (refusal) return fail(refusal);
+                    succeed(ids.length + " élément(s) ajouté(s) au lot");
                 });
             }
             // → FORMER un NOUVEAU lot : la card cible + les cards portées, dans l'ordre où
             // l'utilisateur les voit (cible d'abord), pas dans l'ordre où il les a cliquées.
-            if (!urls.merge) return echec("Formation de lot indisponible ici");
-            const cibleId = cible.card.dataset.id;
-            const tous = [cibleId].concat(ids.filter(function (i) { return i !== cibleId; }));
-            if (tous.length < 2) return;
+            if (!urls.merge) return fail("Formation de lot indisponible ici");
+            const targetId = target.card.dataset.id;
+            const allIds = [targetId].concat(ids.filter(function (i) { return i !== targetId; }));
+            if (allIds.length < 2) return;
             // ⚠ Champs RÉPÉTÉS, jamais CSV : `_ids_de_la_requete` lit `ids[]`/`ids` en liste ou
             // un corps JSON — un CSV lui donnerait UN id non numérique, donc zéro élément et un
             // `{"consolidated": false}` parfaitement SILENCIEUX.
             const fd = new FormData();
-            tous.forEach(function (i) { fd.append('ids', i); });
+            allIds.forEach(function (i) { fd.append('ids', i); });
             return fetch(urls.merge, {
                 method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: fd,
             }).then(function (r) { return r.json().catch(function () { return {}; }); })
               .then(function (d) {
-                  if (d && d.consolidated) return succes("Lot formé (" + tous.length + " éléments)");
-                  echec(d && d.reason ? d.reason
+                  if (d && d.consolidated) return succeed("Lot formé (" + allIds.length + " éléments)");
+                  fail(d && d.reason ? d.reason
                                       : "ces éléments ne peuvent pas former un lot ensemble");
               });
         }
 
         // ── ORDRE : déposer ENTRE deux cards ─────────────────────────────────────────────
-        if (cible.niveau === 'batch') {
+        if (target.niveau === 'batch') {
             // Réordonner DANS un lot — en y faisant ENTRER au passage ce qui vient d'ailleurs.
-            const collapse = cible.parent;
-            const groupe = collapse.closest('.batch-group');
-            const bid = groupe && groupe.dataset.batchId;
+            const collapse = target.parent;
+            const group = collapse.closest('.batch-group');
+            const bid = group && group.dataset.batchId;
             if (!bid) return;
-            const etrangers = portees.filter(function (c) { return groupOf(c) !== groupe; });
-            const entrer = (etrangers.length && urls.move)
-                ? enChaine(etrangers.map(function (c) { return c.dataset.id; }), function (id) {
+            const outsiders = carriedCards.filter(function (c) { return groupOf(c) !== group; });
+            const enterBatch = (outsiders.length && urls.move)
+                ? chain(outsiders.map(function (c) { return c.dataset.id; }), function (id) {
                       return post(withPk(urls.move, id), { batch_id: bid });
                   })
                 : Promise.resolve(null);
-            return entrer.then(function (refus) {
-                if (refus) return echec(refus);
+            return enterBatch.then(function (refusal) {
+                if (refusal) return fail(refusal);
                 // Une entrée dans le lot CHANGE les totaux et la card mère : seul le serveur
                 // sait les recomposer. Un simple réordonnancement, lui, se voit à l'écran.
-                if (etrangers.length) return succes(etrangers.length + " élément(s) ajouté(s) au lot");
-                appliquerDom(cible, portees);
+                if (outsiders.length) return succeed(outsiders.length + " élément(s) ajouté(s) au lot");
+                applyToDom(target, carriedCards);
                 if (!urls.reorder) return;
-                const ordre = Array.prototype.slice
+                const order = Array.prototype.slice
                     .call(collapse.querySelectorAll('.wama-card[data-id]'))
                     .map(function (c) { return c.dataset.id; });
-                return post(urls.reorder, { batch_id: bid, order: ordre.join(',') })
-                    .then(function (d) { if (d && d.reordered === false) echec("ordre refusé"); });
+                return post(urls.reorder, { batch_id: bid, order: order.join(',') })
+                    .then(function (d) { if (d && d.reordered === false) fail("ordre refusé"); });
             });
         }
 
         // Niveau FILE. Ce qui sort d'un lot en sort VRAIMENT (remove_from_batch).
-        const aSortir = portees.filter(groupOf);
-        if (aSortir.length) {
-            if (!urls.remove) return echec("Sortie de lot indisponible ici");
-            return enChaine(aSortir.map(function (c) { return c.dataset.id; }), function (id) {
+        const toDetach = carriedCards.filter(groupOf);
+        if (toDetach.length) {
+            if (!urls.remove) return fail("Sortie de lot indisponible ici");
+            return chain(toDetach.map(function (c) { return c.dataset.id; }), function (id) {
                 return post(withPk(urls.remove, id), {});
-            }).then(function (refus) {
-                if (refus) return echec(refus);
+            }).then(function (refusal) {
+                if (refusal) return fail(refusal);
                 // Sortir RECOMPOSE la file côté serveur : le lot d'origine peut disparaître,
                 // un batch-of-1 naît, la card mère change de compte. Aucun réarrangement DOM
                 // ne rend cet état fidèlement — on recharge, comme `queue-actions.js` le fait
                 // sur `batch_changed`.
-                succes(aSortir.length + " élément(s) sorti(s) du lot");
+                succeed(toDetach.length + " élément(s) sorti(s) du lot");
             });
         }
 
         // Pur réordonnancement de la file : l'écran est déjà juste, on ne recharge PAS.
-        appliquerDom(cible, portees);
+        applyToDom(target, carriedCards);
         if (!urls.reorderQueue) return;
-        const ordre = entries(queue).map(batchIdOf).filter(Boolean);
-        if (!ordre.length) return;
-        return post(urls.reorderQueue, { order: ordre.join(',') })
+        const order = entries(queue).map(batchIdOf).filter(Boolean);
+        if (!order.length) return;
+        return post(urls.reorderQueue, { order: order.join(',') })
             .then(function (d) {
                 if (!d || d.reordered === false) return;
-                basculerTriManuel();
+                switchToManualSort();
             });
     }
 
     /** Applique le déplacement au DOM (UI optimiste — §3bis : « ne pas écraser un drag en cours »). */
-    function appliquerDom(cible, portees) {
+    function applyToDom(target, carriedCards) {
         // Une card unitaire se déplace AVEC son enrobage d'entrée, sinon on la sortirait de
         // ce qui porte son id de lot — et l'ordre envoyé au serveur perdrait cette entrée.
-        portees.forEach(function (c) {
-            const noeud = (cible.niveau === 'queue' && c.parentElement
+        carriedCards.forEach(function (c) {
+            const node = (target.niveau === 'queue' && c.parentElement
                            && c.parentElement.classList.contains('wama-queue-entry'))
                 ? c.parentElement : c;
-            cible.parent.insertBefore(noeud, cible.avant);
+            target.parent.insertBefore(node, target.avant);
         });
     }
 
     /** Enchaîne des POST, s'arrête au premier refus, rend le motif (ou null). */
-    function enChaine(ids, fn) {
+    function chain(ids, fn) {
         return ids.reduce(function (p, id) {
-            return p.then(function (refus) {
-                if (refus) return refus;
+            return p.then(function (refusal) {
+                if (refusal) return refusal;
                 return fn(id).then(function (d) {
                     if (d && (d.moved === false || d.unwrapped === false
                               || d.consolidated === false)) {
@@ -526,10 +526,10 @@
         }, Promise.resolve(null));
     }
 
-    function echec(motif) { toast("Déplacement impossible — " + motif, 'error'); }
+    function fail(reason) { toast("Déplacement impossible — " + reason, 'error'); }
 
     /** Succès qui CHANGE la composition des lots → le serveur seul sait rendre le nouvel état. */
-    function succes(message) {
+    function succeed(message) {
         try { sessionStorage.setItem('wama_dnd_message', message); } catch (e) {}
         location.reload();
     }
@@ -546,7 +546,7 @@
      * et le serveur sont d'accord, et recharger effacerait le réarrangement qu'on vient de
      * montrer.
      */
-    function basculerTriManuel() {
+    function switchToManualSort() {
         const sel = document.querySelector('.wama-queue-toolbar select[onchange*="sort="]');
         if (!sel || sel.value === 'manual' || !sel.querySelector('option[value="manual"]')) return;
         sel.value = 'manual';
@@ -554,7 +554,7 @@
     }
 
     // ── Message reporté après rechargement ───────────────────────────────────────────────
-    function messageReporte() {
+    function deferredMessage() {
         let m = null;
         try { m = sessionStorage.getItem('wama_dnd_message'); sessionStorage.removeItem('wama_dnd_message'); }
         catch (e) { return; }
@@ -572,19 +572,19 @@
     // caractère RÉELLEMENT produit par la disposition, donc 'a' partout.
 
     /** La file à laquelle un raccourci s'applique. */
-    function fileActive() {
-        const files = Array.prototype.slice.call(document.querySelectorAll('[data-wama-dnd]'));
-        if (!files.length) return null;
+    function activeQueue() {
+        const queues = Array.prototype.slice.call(document.querySelectorAll('[data-wama-dnd]'));
+        if (!queues.length) return null;
         // 1. Celle qui porte déjà une sélection — on poursuit là où l'utilisateur travaille.
-        const avecSel = files.find(function (q) { return q.querySelector('.' + SEL); });
-        if (avecSel) return avecSel;
+        const withSelection = queues.find(function (q) { return q.querySelector('.' + SEL); });
+        if (withSelection) return withSelection;
         // 2. Sinon la file VISIBLE. Même règle que les flèches de `wama-queue.js` : sur une
         //    page à onglets, une seule file est à l'écran, et c'est celle-là qui répond.
-        const visibles = files.filter(function (q) { return q.offsetParent !== null; });
-        return visibles[0] || files[0];
+        const visibleQueues = queues.filter(function (q) { return q.offsetParent !== null; });
+        return visibleQueues[0] || queues[0];
     }
 
-    function initToutSelectionner() {
+    function initSelectAll() {
         document.addEventListener('keydown', function (ev) {
             if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
             if ((ev.key || '').toLowerCase() !== 'a') return;
@@ -592,30 +592,30 @@
             // texte », et c'est ce que l'utilisateur attend jusque dans une file.
             const t = ev.target;
             if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-            const q = fileActive();
+            const q = activeQueue();
             if (!q) return;
-            const toutes = cards(q);
+            const everyCard = cards(q);
             // File vide : on ne préempte RIEN. Avaler le raccourci pour ne rien sélectionner
             // priverait de la sélection de page sans aucune contrepartie.
-            if (!toutes.length) return;
+            if (!everyCard.length) return;
             ev.preventDefault();
-            poser(q, toutes, 'remplacer');
+            setSelection(q, everyCard, 'remplacer');
             // Ancre en TÊTE : un Maj+clic qui suit réduit alors la sélection du haut jusqu'à
             // la card cliquée — le geste attendu après un « tout sélectionner ».
-            etat(q).ancre = toutes[0];
+            stateOf(q).anchor = everyCard[0];
         });
     }
 
     // ── Init ─────────────────────────────────────────────────────────────────────────────
     function init() {
-        document.querySelectorAll('[data-wama-dnd]').forEach(monter);
-        initToutSelectionner();
-        messageReporte();
+        document.querySelectorAll('[data-wama-dnd]').forEach(mount);
+        initSelectAll();
+        deferredMessage();
     }
 
     window.WamaQueueDnd = {
-        selection: function (queue) { return selectedIds(queue || document.querySelector('[data-wama-dnd]')); },
-        clear: function (queue) { viderSelection(queue || document.querySelector('[data-wama-dnd]')); },
+        selectedCards: function (queue) { return selectedIds(queue || document.querySelector('[data-wama-dnd]')); },
+        clear: function (queue) { clearSelection(queue || document.querySelector('[data-wama-dnd]')); },
     };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

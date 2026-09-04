@@ -395,7 +395,7 @@
     }
   });
   segContainer.addEventListener('focusout', function (e) {
-    _burstActive = false;  // quitter un champ ferme la rafale → la frappe suivante = nouvelle entrée undo
+    _hist.endBurst();      // quitter un champ ferme la rafale → la frappe suivante = nouvelle entrée undo
     if (e.target.classList && e.target.classList.contains('seg-text')) {
       setTimeout(function () { if (!inEdit()) selectSeg(selIndex); }, 0);  // sortie d'édition → re-surligne
     }
@@ -422,46 +422,36 @@
     } catch (_) {}
   }
   function refresh() { render(); renderOverlays(); markDirty(); }
-  /* ── Historique undo / redo (état complet des segments) ────────────── */
-  // Couvre TOUTES les modifs : texte, locuteur, scission, fusion, compactage,
-  // load-latest. Les frappes sont coalescées en « rafales » (1 entrée par burst).
-  let undoStack = [];
-  let redoStack = [];
-  let _burstActive = false;   // une rafale de frappe est en cours (déjà snapshotée)
-  let _burstTimer = null;
-  const MAX_HISTORY = 100;
-  function snapshot() { return JSON.parse(JSON.stringify(segments)); }
-  function pushHistory() {
-    undoStack.push(snapshot());
-    if (undoStack.length > MAX_HISTORY) undoStack.shift();
-    redoStack.length = 0;
-    _burstActive = false;     // une nouvelle action structurelle ferme la rafale
-    updateUndoButtons();
-  }
-  // Fige l'état AVANT une rafale de frappe (beforeinput → DOM/segments encore intacts).
-  function beginTextBurst() {
-    if (!_burstActive) { pushHistory(); _burstActive = true; }
-    clearTimeout(_burstTimer);
-    _burstTimer = setTimeout(function () { _burstActive = false; }, 900);  // fin après 0,9 s
-  }
-  function restoreState(state) {
-    segments.length = 0; Array.prototype.push.apply(segments, state);
-    render(); renderOverlays(); markDirty(); updateUndoButtons();
-  }
-  function undo() {
-    if (!undoStack.length) return;
-    redoStack.push(snapshot());
-    restoreState(undoStack.pop());
-  }
-  function redo() {
-    if (!redoStack.length) return;
-    undoStack.push(snapshot());
-    restoreState(redoStack.pop());
-  }
-  function updateUndoButtons() {
-    document.querySelectorAll('.t-undo').forEach(function (b) { b.disabled = !undoStack.length; });
-    document.querySelectorAll('.t-redo').forEach(function (b) { b.disabled = !redoStack.length; });
-  }
+  /* ── Historique undo / redo — BRIQUE COMMUNE (common/js/wama-history.js) ────────────── */
+  // Couvre TOUTES les modifs : texte, locuteur, scission, fusion, compactage, load-latest.
+  // Les frappes restent coalescées en « rafales » (1 entrée par burst) : c'est une OPTION de
+  // la brique (`burstWindow`), pas un acquis — un éditeur non textuel la met à 0.
+  //
+  // ⚠ EXTRAIT le 2026-09-04, sans changer un seul comportement. La machinerie (deux piles,
+  // plafond, état des boutons, raccourcis Ctrl+Z/Maj+Z/Y) ne connaissait le modèle QUE par
+  // `snapshot()` et `restoreState()` — c'est précisément ce qui la rendait portable, et c'est
+  // tout ce qui reste ici. Le second consommateur visé est le studio, qui possède déjà les
+  // trois pièces (`serializeGraph`, `restoreDraft`, 9 points de mutation) et n'en garde qu'un
+  // cran.
+  const _hist = WamaHistory.create({
+    snapshot: function () { return JSON.parse(JSON.stringify(segments)); },
+    restore: function (state) {
+      segments.length = 0; Array.prototype.push.apply(segments, state);
+      render(); renderOverlays(); markDirty();
+    },
+    max: 100,
+    undoSelector: '.t-undo', redoSelector: '.t-redo',
+    shortcuts: true,
+    burstWindow: 900,
+  });
+  // Noms d'origine CONSERVÉS comme façade : les ~9 sites d'appel (splitAt, mergeAt, compact,
+  // load-latest, changement de locuteur…) n'ont pas à savoir d'où vient l'historique. Porter
+  // une brique, c'est déplacer un mécanisme — pas en profiter pour toucher ses appelants.
+  function pushHistory() { _hist.push(); }
+  function beginTextBurst() { _hist.beginBurst(); }
+  function undo() { _hist.undo(); }
+  function redo() { _hist.redo(); }
+  function updateUndoButtons() { _hist.syncButtons(); }
 
   function splitAt(i, off) {                          // Ctrl+Entrée
     pushHistory();
@@ -516,8 +506,9 @@
   }
   // Boutons d'action présents en double (toolbar haut + volet droit) → bind sur tous via classe.
   document.querySelectorAll('.t-compact').forEach(function (b) { b.addEventListener('click', compact); });
-  document.querySelectorAll('.t-undo').forEach(function (b) { b.addEventListener('click', undo); });
-  document.querySelectorAll('.t-redo').forEach(function (b) { b.addEventListener('click', redo); });
+  // .t-undo / .t-redo : plus de bind ici — `WamaHistory` delegue sur le document (il couvre
+  // les DEUX barres, haut et volet droit, sans reattacher). Garder ces lignes annulerait
+  // DEUX crans par clic : le double-fire que `queue-actions.js` documente en tete de fichier.
 
   // Verrou « suivre la lecture » : la liste suit le playhead même en édition (Alt+L / bouton).
   const followLockBtn = document.getElementById('followLockBtn');
@@ -700,8 +691,8 @@
       const k = e.key.toLowerCase();
       // restoreState() reconstruit le DOM (le champ édité disparaît) → on ferme la rafale
       // en cours pour que la frappe d'après recrée une entrée d'historique propre.
-      if (k === 'z') { _burstActive = false; e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
-      if (k === 'y') { _burstActive = false; e.preventDefault(); redo(); return; }
+      // Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y : tenus par `WamaHistory` (shortcuts: true), qui ferme
+      // lui-meme la rafale avant de restaurer. Les rejouer ici annulerait deux crans.
     }
 
     // Alt+L : (dé)verrouille le suivi de lecture (les deux modes).
