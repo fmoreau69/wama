@@ -66,7 +66,12 @@ class BackendEntry:
     #: MOTEUR déclaré par le backend lui-même (`ENGINE`) — la librairie qu'il pilote.
     moteur: str = ''
     #: Ses paquets requis sont-ils présents dans CE venv ? (`find_spec`, sans import)
+    #: ⚠ Toujours vrai pour un backend ISOLÉ : la question ne se pose pas ici (cf. `isolation`).
     moteur_installe: bool = True
+    #: ENVIRONNEMENT d'exécution déclaré par le backend (`ISOLATION`) — vide = venv principal.
+    #: `venv:<chemin>` ou `service:<url>`. C'est la MOITIÉ MANQUANTE du verdict de grisage :
+    #: sans elle, « paquet absent » et « backend qui vit ailleurs » se confondent.
+    isolation: str = ''
     #: MOTEURS (librairies d'exécution) que ce backend appelle — DÉRIVÉS des modèles servis
     #: (`composition.runtime.engine`). ⚠ Backend ≠ moteur (recadrage Fabien 2026-09-03) : le
     #: backend est l'adaptateur WAMA (contrat load/unload/process), le moteur est la
@@ -156,14 +161,20 @@ def _abstraites_du_contrat_commun() -> tuple:
     return _CONTRAT_CACHE
 
 
-def _paquets_presents(paquets) -> bool:
+def _paquets_presents(paquets, isolation: str = '') -> bool:
     """Les paquets requis sont-ils importables ? — `find_spec`, donc SANS import réel.
 
     ⚠ Ne PAS appeler `known_engines()` d'ici : `inventory()` alimente l'inventaire des
     moteurs, donc le consulter ici crée un CYCLE. Mesuré le 03/09 en l'écrivant :
     47 s d'empilement récursif avant qu'une exception ne l'arrête, contre 0,2 s sans.
     *Un producteur ne consulte jamais le registre qu'il alimente.*
+
+    ⚠ Un backend ISOLÉ n'est pas mesurable d'ici (ses paquets vivent dans un autre venv,
+    ou derrière un service) : on ne le condamne pas sur une absence qui est ATTENDUE —
+    même permissivité que `backend_missing`, et même raison que dans le contrat commun.
     """
+    if isolation:
+        return True
     from importlib.util import find_spec
     for nom in (paquets or []):
         try:
@@ -258,9 +269,28 @@ def _classe_backends(paquet_dir, prefixe: str) -> tuple:
             heritees |= _reste_abstrait(b, vus)
         return (heritees | info['propres_abstraites']) - info['definies']
 
-    trouvees = [(nom, info) for nom, info in classes_par_nom.items()
+    def _attrs_herites(nom, vus=None) -> dict:
+        """Attributs déclaratifs vus par la classe — les SIENS priment, le reste remonte.
+
+        C'est ce que fait Python : une sous-classe qui ne redéclare pas `ISOLATION` hérite
+        celle de sa base. Le lire à plat ratait donc toute famille qui déclare une fois sur
+        sa base métier — précisément la façon dont un paquet isolé s'écrira (une base
+        `venv:…`, N moteurs concrets en dessous). Idem pour `ENGINE`/`REQUIRED_PACKAGES`.
+        """
+        vus = vus or set()
+        if nom in vus or nom not in classes_par_nom:
+            return {}
+        vus.add(nom)
+        hérités = {}
+        for b in classes_par_nom[nom]['bases']:
+            hérités.update(_attrs_herites(b, vus))
+        hérités.update({k: v for k, v in classes_par_nom[nom]['attrs'].items() if v is not None})
+        return hérités
+
+    trouvees = [(nom, dict(info, attrs=_attrs_herites(nom)))
+                for nom, info in classes_par_nom.items()
                 if nom in backends and not _reste_abstrait(nom)]
-    return sorted(trouvees), illisibles
+    return sorted(trouvees, key=lambda t: t[0]), illisibles
 
 
 def _modeles_par_app() -> dict:
@@ -353,6 +383,7 @@ def inventory() -> List[AppBackends]:
         classes, illisibles = _classe_backends(paquet_dir, f'{config.name}.backends')
         for nom, info in classes:
             servis = sorted(par_ref.get(nom, []))
+            isolation = (info['attrs'].get('ISOLATION') or '').strip()
             entries.append(BackendEntry(
                 app=app, name=nom,
                 path=f"backends.{info['fichier']}.{nom}",
@@ -361,7 +392,9 @@ def inventory() -> List[AppBackends]:
                 vram_gb=info['attrs'].get('recommended_vram_gb'),
                 description=(info['attrs'].get('description') or '').strip(),
                 moteur=(info['attrs'].get('ENGINE') or '').strip(),
-                moteur_installe=_paquets_presents(info['attrs'].get('REQUIRED_PACKAGES')),
+                isolation=isolation,
+                moteur_installe=_paquets_presents(
+                    info['attrs'].get('REQUIRED_PACKAGES'), isolation),
                 models=servis,
                 engines=sorted({moteur_de[c] for c in servis if c in moteur_de}),
                 engines_absents=[],
@@ -430,6 +463,16 @@ def summary() -> dict:
         'moteurs_absents': sorted({m for e in entrees for m in e.engines_absents}),
         'moteurs_executables': sorted({e.moteur for a in reels for e in a.entries
                                        if e.moteur and e.moteur_installe}),
+        #: Backends qui tournent HORS du venv principal, par environnement déclaré
+        #: (`ISOLATION`). Le défaut VOULU est zéro : un venv unique, l'isolement étant
+        #: l'exception déclarée. Ce compteur EST la garde — s'il enfle, on a multiplié les
+        #: venvs sans le décider (chaque processus isolé est un détenteur de VRAM que le
+        #: gouverneur de ressources ne voit pas).
+        'isolations': {env: sorted(n for n, e in
+                                   ((f'{a.app}:{e.name}', e) for a in reels for e in a.entries)
+                                   if e.isolation == env)
+                       for env in sorted({e.isolation for a in reels for e in a.entries
+                                          if e.isolation})},
     }
 
 
@@ -443,12 +486,16 @@ class _MoteurDeclare:
     de bord d'import que ce chantier vient de fermer.
     """
 
-    __slots__ = ('moteur', 'paquets')
+    __slots__ = ('moteur', 'paquets', 'isolation')
 
-    def __init__(self, moteur: str, paquets):
+    def __init__(self, moteur: str, paquets, isolation: str = ''):
         self.moteur, self.paquets = moteur, list(paquets or [])
+        self.isolation = isolation
 
     def missing_packages(self):
+        """Même règle que le contrat commun : un backend ISOLÉ n'a rien à installer ICI."""
+        if self.isolation:
+            return []
         return [p for p in self.paquets if not _paquets_presents([p])]
 
     def __repr__(self):
@@ -483,7 +530,8 @@ def engines_declares() -> dict:
                 continue                    # une jumelle n'ajoute aucun moteur au parc
             for e in a.entries:
                 if e.moteur:
-                    carte.setdefault(e.moteur, _MoteurDeclare(e.moteur, e.packages))
+                    carte.setdefault(e.moteur,
+                                     _MoteurDeclare(e.moteur, e.packages, e.isolation))
         _ENGINES_CACHE = carte
     return dict(_ENGINES_CACHE)
 

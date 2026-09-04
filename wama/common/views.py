@@ -590,6 +590,11 @@ def backends_catalog_view(request):
     apps_presentes = {e.app for a in inv['apps'] for e in a.entries}
     familles = {e.kind for a in inv['apps'] for e in a.entries}
     saveurs = {e.saveur for a in inv['apps'] for e in a.entries}
+    # ENVIRONNEMENTS présents (`ISOLATION`) — la facette n'apparaît QUE s'il y a autre chose
+    # que le venv principal : proposer « Tous les environnements » sur un parc à un seul
+    # environnement serait un filtre décoratif (même règle que les autres facettes).
+    environnements = {e.isolation or 'venv principal'
+                      for a in inv['apps'] for e in a.entries}
 
     facettes = [
         {'cle': 'app', 'label': 'Application', 'tous': 'Toutes les apps',
@@ -601,6 +606,10 @@ def backends_catalog_view(request):
                                        ('classe', 'Classe (BaseModelBackend)'))
                      if k in familles}},
     ]
+    if len(environnements) > 1:
+        facettes.append({'cle': 'environnement', 'label': 'Environnement',
+                         'tous': 'Tous les environnements',
+                         'options': {e: e for e in sorted(environnements)}})
 
     return render(request, 'common/backends.html', {
         'inv': inv,

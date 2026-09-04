@@ -305,13 +305,17 @@ def _count_backends() -> int:
 register(Registry(
     key='backends', label='Backends (moteurs)', nature=DERIVED,
     source="Déclarations des paquets `wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + "
-           "classes BaseModelBackend) recoupées au catalogue `AIModel` (source, backend_ref)",
+           "classes BaseModelBackend : ENGINE, ISOLATION, REQUIRED_PACKAGES, VRAM) recoupées "
+           "au catalogue `AIModel` (source, backend_ref, composition.runtime.engine)",
     count=_count_backends,
     url_name='common:backends_catalog', permission='auth',
     doc='WAMA_APP_GENERATION_ROUTE.md',
     description="Le VIVIER des moteurs : ce que chaque app sait exécuter, la nature d'entrée qui "
                 "y mène, la SAVEUR de sortie (fichier/texte), les paquets requis, la VRAM et les "
-                "modèles servis. Deux usages : la vision d'ensemble, et le voisinage dont le LLM "
+                "modèles servis. Dit aussi l'ENVIRONNEMENT d'exécution : le défaut est un venv "
+                "unique, et un backend qui tourne ailleurs le déclare (`ISOLATION`) — sans quoi "
+                "le verdict de disponibilité confondrait « paquet absent » et « backend qui vit "
+                "ailleurs ». Deux usages : la vision d'ensemble, et le voisinage dont le LLM "
                 "de la marche B a besoin pour s'inspirer du backend le plus approchant. Dérivé à "
                 "chaque affichage — un backend ajouté y apparaît sans qu'on déclare rien ici.",
 ))

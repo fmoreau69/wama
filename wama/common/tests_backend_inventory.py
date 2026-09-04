@@ -262,3 +262,159 @@ class ToutBackendDeclareSonMoteurTest(TestCase):
         orphelins = sorted(m for m in modeles if m not in backends)
         self.assertEqual(orphelins, [],
                          'moteur EXIGÉ par un modèle que plus aucun backend ne déclare piloter')
+
+
+class EnvironnementDExecutionTest(SimpleTestCase):
+    """`ISOLATION` (2026-09-04) — la MOITIÉ MANQUANTE du verdict de disponibilité.
+
+    Sans elle, « paquet absent du venv » et « backend qui vit ailleurs » se confondent, et un
+    backend parfaitement fonctionnel est grisé à vie. Mesuré en petit le 03/09 (codeformer se
+    grisait sur un paquet qu'il n'utilise pas) ; en grand, `wama_lab/face_analyzer` a son PROPRE
+    venv — ses paquets ne seront JAMAIS dans venv_linux.
+    """
+
+    ISOLE = """
+        from wama.common.backends.base import BaseModelBackend
+
+        class MoteurLointain(BaseModelBackend):
+            REQUIRED_PACKAGES = ['paquet_qui_n_existe_nulle_part']
+            ENGINE = 'moteur-lointain'
+            ISOLATION = 'venv:wama_lab/face_analyzer/venv_linux'
+
+            @property
+            def is_loaded(self): return False
+            def load(self, model=None): return True
+            def unload(self): return None
+            def process(self, **kw): return None
+    """
+
+    #: Une FAMILLE isolée déclare son environnement UNE fois, sur sa base métier — c'est ainsi
+    #: qu'un paquet isolé s'écrira réellement. Une lecture à plat raterait les concrets.
+    FAMILLE = """
+        from wama.common.backends.base import BaseModelBackend
+
+        class BaseLointaine(BaseModelBackend):
+            ISOLATION = 'venv:wama_lab/face_analyzer/venv_linux'
+            REQUIRED_PACKAGES = ['paquet_qui_n_existe_nulle_part']
+
+        class EmotionsBackend(BaseLointaine):
+            ENGINE = 'emotions'
+
+            @property
+            def is_loaded(self): return False
+            def load(self, model=None): return True
+            def unload(self): return None
+            def process(self, **kw): return None
+    """
+
+    def _paquet(self, racine, submodules):
+        p = Path(racine) / 'paquet_isole'
+        p.mkdir()
+        (p / '__init__.py').write_text('', encoding='utf-8')
+        for nom, code in submodules.items():
+            (p / f'{nom}.py').write_text(textwrap.dedent(code), encoding='utf-8')
+        return p
+
+    def test_l_ISOLATION_declaree_est_LUE(self):
+        with TemporaryDirectory() as d:
+            classes, _ = bi._classe_backends(self._paquet(d, {'m': self.ISOLE}), 'paquet_isole')
+        _, info = classes[0]
+        self.assertEqual(info['attrs'].get('ISOLATION'),
+                         'venv:wama_lab/face_analyzer/venv_linux')
+
+    def test_un_backend_ISOLE_n_est_pas_grise_sur_un_paquet_absent_D_ICI(self):
+        """Le cœur de la règle : `find_spec` de CE processus ne dit rien d'un autre venv."""
+        self.assertFalse(bi._paquets_presents(['paquet_qui_n_existe_nulle_part']))
+        self.assertTrue(bi._paquets_presents(['paquet_qui_n_existe_nulle_part'],
+                                             'venv:wama_lab/face_analyzer/venv_linux'))
+
+    def test_un_backend_NON_isole_reste_grise_sur_un_paquet_absent(self):
+        """Contre-épreuve : la permissivité ne vaut QUE pour l'isolement déclaré — sinon on
+        aurait échangé un verdict faux contre un verdict qui ne dit plus rien."""
+        self.assertFalse(bi._paquets_presents(['paquet_qui_n_existe_nulle_part'], ''))
+
+    def test_l_ISOLATION_d_une_base_metier_est_HERITEE_par_les_concrets(self):
+        with TemporaryDirectory() as d:
+            classes, _ = bi._classe_backends(self._paquet(d, {'m': self.FAMILLE}), 'paquet_isole')
+        concrets = dict(classes)
+        self.assertIn('EmotionsBackend', concrets, 'le concret doit être trouvé')
+        self.assertEqual(concrets['EmotionsBackend']['attrs'].get('ISOLATION'),
+                         'venv:wama_lab/face_analyzer/venv_linux',
+                         'un concret qui ne redéclare pas ISOLATION hérite celle de sa base '
+                         '(ce que fait Python) — sinon toute famille isolée serait grisée')
+
+    def test_un_concret_garde_SON_moteur_malgre_l_heritage(self):
+        """L'héritage COMPLÈTE, il n'écrase pas : sinon deux moteurs d'une même famille
+        deviendraient indiscernables."""
+        with TemporaryDirectory() as d:
+            classes, _ = bi._classe_backends(self._paquet(d, {'m': self.FAMILLE}), 'paquet_isole')
+        self.assertEqual(dict(classes)['EmotionsBackend']['attrs'].get('ENGINE'), 'emotions')
+
+    def test_un_moteur_ISOLE_reste_EXECUTABLE_pour_known_engines(self):
+        """`_MoteurDeclare` porte la même règle que le contrat commun — sinon le lien
+        modèle↔moteur donnerait un verdict faux dès le premier backend porté."""
+        lointain = bi._MoteurDeclare('moteur-lointain', ['paquet_qui_n_existe_nulle_part'],
+                                     'venv:wama_lab/face_analyzer/venv_linux')
+        local = bi._MoteurDeclare('moteur-local', ['paquet_qui_n_existe_nulle_part'])
+        self.assertEqual(lointain.missing_packages(), [])
+        self.assertEqual(local.missing_packages(), ['paquet_qui_n_existe_nulle_part'])
+
+
+class IsolementResteUneExceptionTest(TestCase):
+    """GARDE de doctrine : le défaut est UN venv, l'isolement se DÉCLARE au cas par cas.
+
+    Ce test ne réclame pas zéro isolement pour toujours — il réclame qu'aucun n'apparaisse
+    SANS décision. Le coût n'est pas le disque (~10 Go de torch+CUDA par venv) mais la VRAM :
+    chaque processus isolé est un détenteur que le gouverneur de ressources ne voit pas, et
+    les crashs hôte du 02/09 sont déjà des montées VRAM concurrentes.
+
+    ⚠ Si tu ajoutes un backend isolé LÉGITIME, inscris-le ici avec sa raison — c'est le geste
+    qui transforme une dérive en décision.
+    """
+
+    #: {environnement: raison} — vide aujourd'hui : tous les backends vivent dans le venv principal.
+    ISOLEMENTS_ASSUMES = {}
+
+    def test_aucun_environnement_isole_n_apparait_sans_decision(self):
+        declares = set(bi.summary()['isolations'])
+        surprise = sorted(declares - set(self.ISOLEMENTS_ASSUMES))
+        self.assertEqual(surprise, [],
+                         "environnement(s) isolé(s) non assumé(s) : soit le backend rejoint le "
+                         "venv principal, soit on inscrit la raison dans ISOLEMENTS_ASSUMES")
+
+
+class ContratCommunIsolationTest(SimpleTestCase):
+    """Le 3ᵉ site de la règle — le CONTRAT lui-même (`BaseModelBackend.missing_packages`).
+
+    La règle vit à trois endroits (contrat, `_paquets_presents`, `_MoteurDeclare`) parce que
+    trois chemins posent la même question. Les trois sont tenus ici : *une garde se pose avec
+    ses JUMEAUX*, sinon le premier chemin oublié ramène le verdict faux.
+    """
+
+    def _backend(self, isolation=''):
+        from wama.common.backends.base import BaseModelBackend
+
+        class Temoin(BaseModelBackend):
+            REQUIRED_PACKAGES = ['paquet_qui_n_existe_nulle_part']
+            ISOLATION = isolation
+
+            @property
+            def is_loaded(self): return False
+            def load(self, model=None): return True
+            def unload(self): return None
+            def process(self, **kw): return None
+
+        return Temoin
+
+    def test_un_backend_ISOLE_n_a_rien_a_installer_ICI(self):
+        self.assertEqual(self._backend('venv:ailleurs').missing_packages(), [])
+
+    def test_sans_isolation_le_paquet_absent_est_toujours_signale(self):
+        self.assertEqual(self._backend().missing_packages(),
+                         ['paquet_qui_n_existe_nulle_part'])
+
+    def test_le_defaut_du_contrat_est_le_venv_PRINCIPAL(self):
+        """Un backend qui ne dit rien n'est PAS isolé : le silence ne doit jamais valoir
+        dispense de vérification."""
+        from wama.common.backends.base import BaseModelBackend
+        self.assertEqual(BaseModelBackend.ISOLATION, '')
