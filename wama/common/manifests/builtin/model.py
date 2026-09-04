@@ -14,9 +14,12 @@ d'enveloppe namespacée, cf. envelope._is_key).
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from ..kinds import ManifestKind, register_kind
+
+logger = logging.getLogger(__name__)
 
 
 def _model_types() -> set:
