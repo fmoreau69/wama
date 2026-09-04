@@ -83,7 +83,7 @@ parlent la même langue. Proposition de départ (extensible) :
 | `column` | une colonne isolée (applicable colonne-à-colonne) | `value` |
 | `scalar` | valeur unique / indicateur agrégé | `value` |
 | `sections` | intervalles routiers/temporels typés | `start, end[, type, id]` |
-| `road_map` | polylignes routières (référentiel) | `geometry(WKT), id[, type]` |
+| `road_map` | polylignes routières (référentiel) | `geometry, id[, type]` — `geometry` = liste de **(lat, lon)** ; le WKT n'est qu'un format d'ENTRÉE du lecteur CSV, jamais la forme qui circule |
 | `detections` | objets détectés par frame (spécifique cam) | `frame, bbox, class, track_id…` |
 
 **Sous-typage / compatibilité** : `geo_track ⊂ timeseries ⊂ table` (une géo-trace EST une timeseries
@@ -170,20 +170,52 @@ Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
   déclarées, `impl` = chemin d'implémentation) mais **pas encore chaînable** ; à porter vers `pure` au cas
   par cas via un adaptateur de ports quand on veut la mettre dans une chaîne.
 
-**Inventaire déclaré à ce jour** (19 fonctions, vérifié au démarrage) :
-- **Pures (5)** : `gps_map_match`, `brake_detection`, `generate_sections`, `operator_annotations`,
-  `placement_spread` (geometry — indicateur A/B d'étalement RMS, b779395).
-- **App-bound cam_analyzer (14)**, déclarées dans `wama_lab/cam_analyzer/function_specs.py`
-  (clés **namespacées** `cam_analyzer.<key>`), enregistrées
-  via `apps.py::ready` : `yolo_detect`, `yolopv2_lanes`, `sam3_markings`, `distance`, `global_tracking`,
-  `artifact_filter`, `ground_calib`, `learned_branches`, `world_markings`, `ortho_recalage`,
-  `lane_events`, `temporal_segments`, `conflicts`, `prediction`.
+**Inventaire — SOURCE VIVANTE, pas de liste figée ici.** `FUNCTION_CATALOG` après `load_all()`,
+ou la page `/model-manager/functions/`. **Mesuré le 2026-09-04 : 55 fonctions.**
+
+> ⚠ Ce chiffre date la mesure, il n'est **pas un critère**. La liste nominative qui vivait ici
+> annonçait « 19 fonctions » — elle datait du 2026-07-22 et n'a jamais suivi les ajouts
+> (profondeur, géo, marquages monde…), soit un tiers du catalogue réel. Même maladie que les
+> compteurs de conformité recopiés : **un chiffre ne vit qu'à UN endroit**. Recompter avec
+> `load_all()` plutôt que relire cette ligne.
 
 **Checklist à l'ajout d'un traitement (toute app)** :
 1. Écrire un `FunctionSpec` (key, name, description, category, tags, inputs/outputs typés, params).
 2. `binding='pure'` si possible (impl dans `wama_data/`), sinon `'app'` + `impl` + `app`.
 3. `register(spec)` (import chargé via l'`apps.py::ready` de l'app) → il apparaît au catalogue.
 4. Types d'E/S pris dans la taxonomie `data_types` ; étendre la taxonomie AVANT d'inventer un type.
+
+## 7quater. RÉFÉRENTIELS GÉO — qui alimente le port `road_map`, et pourquoi trois (2026-09-04)
+
+> Règle du domaine (posée 2026-07-28) : **ce qu'un référentiel public publie en VECTEUR ne se
+> détecte pas visuellement.** Elle valait pour les bâtiments IGN ; elle vaut aussi pour la
+> sémantique de carrefour, que l'IGN ne publie pas et OSM si.
+
+| source | fonction | ce qu'elle apporte, et elle SEULE |
+|---|---|---|
+| tracé de projet (CSV WKT, export MyMaps) | `driving.gps_map_match.load_road_map_csv` | le découpage en sections **voulu par l'étude** — fourni avec le projet, jamais dérivable d'une base |
+| **BD TOPO** (WFS IGN) | `geo.ign_road_map` | la GÉOMÉTRIE autoritative : tronçons au décimètre, largeur de chaussée, sens. France seule |
+| **OpenStreetMap** (Overpass) | `geo.osm_road_map` + `geo.osm_control_nodes` | la **SÉMANTIQUE** : `stop`, `give_way`, `traffic_signals`, `crossing`, `maxspeed`, `lanes` — et la couverture **hors de France** |
+
+Les trois ne se remplacent pas : elles répondent à des questions différentes. Le port `road_map`
+est leur dénominateur commun ; `osm_control_nodes` sort en `table` parce que ce sont des POINTS,
+type que la taxonomie ne nomme pas encore (écart signalé, pas masqué).
+
+**⚠ Les conventions d'axes des deux référentiels sont OPPOSÉES et silencieuses.** Le WFS IGN
+attend son bbox en `lon,lat` et rend ses géométries en `(lon, lat)` ; Overpass attend
+`(sud, ouest, nord, est)` et rend `lat`/`lon` NOMMÉS. `ign_road_map` inverse donc, `osm_road_map`
+n'inverse pas — et ajouter une inversion « par symétrie » serait le bug. Aucune de ces erreurs
+ne lève d'exception : elles déplacent le référentiel de ~1 000 km et le map-matching rend
+simplement `section_id=None` partout. C'est ce que testent
+`tests_ign_vector.InversionDesAxesTest` et `tests_osm_vector.AxesOverpassTest`, en vérifiant le
+RÉSULTAT du chaînage et non la forme des données.
+
+**Leçon de manifeste (corrigée le 2026-09-04).** `ign_roads` et `road_branches` déclaraient tous
+deux produire `road_map` alors qu'ils rendent `coords` en (lon, lat) dans une liste de dicts —
+`can_connect` répondait donc **oui** à un chaînage que rien ne pouvait honorer. Ils sont repassés
+en `table`, et seules les fonctions qui servent réellement la forme du port le déclarent.
+**Un manifeste qui promet un port qu'il ne sert pas est pire qu'un port absent** : il fait
+construire une chaîne qui échoue en silence.
 
 ## 7ter. BORNAGE fonction / librairie / plugin (arbitrage Fabien, 2026-08-19)
 
