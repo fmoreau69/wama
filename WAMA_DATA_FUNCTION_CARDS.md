@@ -184,6 +184,23 @@ ou la page `/model-manager/functions/`. **Mesuré le 2026-09-04 : 55 fonctions.*
 2. `binding='pure'` si possible (impl dans `wama_data/`), sinon `'app'` + `impl` + `app`.
 3. `register(spec)` (import chargé via l'`apps.py::ready` de l'app) → il apparaît au catalogue.
 4. Types d'E/S pris dans la taxonomie `data_types` ; étendre la taxonomie AVANT d'inventer un type.
+5. **Une fonction `pure` qui déclare un port d'ENTRÉE s'écrit en DEUX ÉTAGES** — patron
+   `geometry/placement_metrics.py`, repris par `geometry/ego_rotation.py` :
+   - un **noyau** sur structures Python ordinaires (listes, tuples, dicts) — testable et
+     utilisable hors serveur, sans pandas ni Django ;
+   - un **wrapper** `f(entrée: TypedFrame, *, params…) -> TypedFrame`, et **c'est LUI que `fn=`
+     désigne**. La valeur d'indicateur va dans la table, le diagnostic dans `meta`.
+
+   > ⚠ **Pourquoi c'est une règle et pas un style.** `wama_data/view.py::apply()` appelle
+   > `spec.fn(entrée_typée, **params)` et range le retour comme un `TypedFrame`. Un `fn` qui
+   > pointe le noyau (tuples → dict) casse donc à l'EXÉCUTION, alors que `can_connect` répond
+   > oui et que le catalogue l'affiche comme chaînable. Le défaut a été introduit le 2026-09-04
+   > et rattrapé le jour même — mais **rien ne le voyait** : ni `manage.py check`, ni la suite.
+   > D'où le contrôle `tests_catalogues.py::FunctionCatalogConformiteTest` (4ᵉ registre
+   > déclaratif, il n'en avait aucun), qui vérifie aussi que **les clés de `ParamSpec` sont
+   > acceptées en mots-clés par la signature** — il a trouvé du premier coup 3 spécifications
+   > (`coding_replay`/`coding_events`/`coding_segments`) déclarant `protocol` pour un paramètre
+   > nommé `protocole` : `TypeError` garanti à l'exécution, invisible jusque-là.
 
 ## 7quater. RÉFÉRENTIELS GÉO — qui alimente le port `road_map`, et pourquoi trois (2026-09-04)
 

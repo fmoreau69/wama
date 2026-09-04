@@ -542,3 +542,113 @@ class CardEntreeConformiteTest(TestCase):
                     "extensions déclarées mais grisées par la card (le défaut du converter) — "
                     "ou écart assumé PÉRIMÉ : si l'app s'est alignée, retirer son entrée "
                     "de _ecarts_assumes()")
+
+
+class FunctionCatalogConformiteTest(TestCase):
+    """Le 4ᵉ registre déclaratif — `FUNCTION_CATALOG` — n'avait **aucun test** (mesuré le
+    2026-09-04, 55 entrées). Même angle mort que les trois autres avant ce fichier.
+
+    Ce qui l'a révélé : une fonction livrée ce jour-là déclarait un port d'entrée typé,
+    donc s'annonçait chaînable, alors que son `fn` prenait des tuples et rendait un `dict`.
+    `can_connect` disait oui ; `view.apply()`, qui appelle `spec.fn(entrée_typée, **params)`
+    et range un `TypedFrame`, aurait cassé à l'exécution. **Rien ne le voyait** — ni
+    `manage.py check`, ni la suite, ni le catalogue lui-même.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from wama.common.catalog.function_catalog import load_all, FUNCTION_CATALOG, Binding
+        load_all()
+        cls.catalogue = FUNCTION_CATALOG
+        cls.Binding = Binding
+
+    #: Fonctions pures dont le `fn` n'annonce pas le contrat `TypedFrame → TypedFrame`.
+    #: Dette ANTÉRIEURE au contrôle, nommée pour que le budget ne puisse que DESCENDRE :
+    #: une 4ᵉ entrée fait tomber le test. Ne jamais ajouter une clé ici pour faire passer
+    #: du code neuf — c'est exactement le geste que ce contrôle existe pour empêcher.
+    CONTRAT_ASSUME = {'depth_contact_distance', 'depth_ground_plane', 'trajectory_offset'}
+
+    def test_le_registre_est_peuple(self):
+        """Le piège du vert sur du vide (cf. en-tête) : sans ça, tout ce qui suit ment."""
+        self.assertGreaterEqual(len(self.catalogue), 40)
+
+    def test_la_cle_du_dict_et_la_cle_declaree_coincident(self):
+        for cle, spec in self.catalogue.items():
+            with self.subTest(fonction=cle):
+                self.assertEqual(cle, spec.key)
+
+    def test_tout_port_porte_un_type_DE_LA_TAXONOMIE(self):
+        """Étendre la taxonomie AVANT d'inventer un type (checklist §7bis)."""
+        from wama.common.catalog.data_types import DataType
+        # `DataType` est une classe de CONSTANTES, pas un `Enum` : elle ne s'itère pas.
+        connus = {v for k, v in vars(DataType).items()
+                  if not k.startswith('_') and isinstance(v, str)}
+        self.assertIn('table', connus, "relevé des types vide → le contrôle serait muet")
+        for cle, spec in self.catalogue.items():
+            for sens, ports in (('entrée', spec.inputs), ('sortie', spec.outputs)):
+                for p in ports:
+                    valeur = getattr(p.data_type, 'value', p.data_type)
+                    with self.subTest(fonction=cle, sens=sens, port=p.key):
+                        self.assertIn(valeur, connus)
+
+    def test_une_fonction_APP_declare_son_implementation_et_son_app(self):
+        """`binding='app'` n'a pas de `fn` : `impl` est le SEUL moyen de la retrouver."""
+        for cle, spec in self.catalogue.items():
+            if spec.binding != self.Binding.APP:
+                continue
+            with self.subTest(fonction=cle):
+                self.assertTrue(spec.impl, "app-bound sans `impl` : introuvable")
+                self.assertTrue(spec.app, "app-bound sans `app` : propriétaire inconnu")
+
+    def test_une_fonction_PURE_a_bien_un_fn_appelable(self):
+        for cle, spec in self.catalogue.items():
+            if spec.binding == self.Binding.APP:
+                continue
+            with self.subTest(fonction=cle):
+                self.assertTrue(callable(spec.fn),
+                                "pure sans `fn` : ni chaînable, ni retrouvable")
+
+    def test_une_fonction_PURE_CHAINABLE_annonce_le_contrat_TypedFrame(self):
+        """⚠ Contrôle par ANNOTATION — c'est un PROXY, pas une preuve d'exécution.
+
+        Il n'atteste pas que `fn` rende vraiment un `TypedFrame` ; il atteste que l'auteur
+        a écrit le contrat, ce qui suffit à faire échouer le cas réel qui a motivé ce test
+        (un noyau branché en `fn` à la place de son wrapper). La vérification forte serait
+        d'appeler chaque `fn` sur une donnée valide — hors de portée d'un contrôle générique,
+        chaque fonction ayant ses champs requis. **26/30 conformes à l'écriture.**
+        """
+        manquants = set()
+        for cle, spec in self.catalogue.items():
+            if spec.binding == self.Binding.APP or not spec.inputs or not callable(spec.fn):
+                continue
+            sig = inspect.signature(spec.fn)
+            params = list(sig.parameters.values())
+            entree_ok = bool(params) and 'TypedFrame' in str(params[0].annotation)
+            retour_ok = 'TypedFrame' in str(sig.return_annotation)
+            if not (entree_ok and retour_ok):
+                manquants.add(cle)
+
+        self.assertEqual(
+            manquants, self.CONTRAT_ASSUME,
+            "une fonction PURE déclare un port d'entrée sans annoncer `TypedFrame → "
+            "TypedFrame` — `view.apply()` lui passera un TypedFrame et rangera son retour. "
+            "Corriger la fonction (noyau + wrapper, patron `placement_metrics`), pas la liste.")
+
+    def test_les_params_declares_sont_acceptes_en_MOTS_CLES_par_le_fn(self):
+        """`view.apply()` fait `spec.fn(entrée, **params)` : un ParamSpec que la signature
+        n'accepte pas est un `TypeError` à l'exécution, invisible au catalogue."""
+        for cle, spec in self.catalogue.items():
+            if spec.binding == self.Binding.APP or not callable(spec.fn):
+                continue
+            sig = inspect.signature(spec.fn)
+            if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+                continue  # **kwargs : accepte tout par construction
+            acceptes = {n for n, p in sig.parameters.items()
+                        if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                      inspect.Parameter.KEYWORD_ONLY)}
+            for ps in spec.params:
+                with self.subTest(fonction=cle, param=ps.key):
+                    self.assertIn(ps.key, acceptes,
+                                  f"`{ps.key}` est déclaré au manifeste mais absent de la "
+                                  f"signature de {spec.fn.__name__}")

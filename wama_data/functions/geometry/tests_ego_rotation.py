@@ -158,5 +158,63 @@ class VitesseEtDesaccordTest(unittest.TestCase):
         self.assertIsNone(yaw_disagreement(10.0, None))
 
 
+class ContratPurTest(unittest.TestCase):
+    """Le wrapper est ce que le CATALOGUE appelle — `view.apply()` lui passe un TypedFrame et
+    range son retour. Brancher le noyau en `fn` (tuples → dict) casserait à l'exécution alors
+    que le manifeste s'annonce chaînable : c'est le défaut que ces tests verrouillent."""
+
+    def _frame(self, matches):
+        import pandas as pd
+        from wama.common.catalog.data_types import DataType, TypedFrame
+        return TypedFrame(pd.DataFrame(
+            [{'x0': a, 'y0': b, 'x1': c, 'y1': d} for (a, b, c, d) in matches]),
+            DataType.TABLE)
+
+    def test_TypedFrame_en_entree_TypedFrame_en_sortie(self):
+        from wama.common.catalog.data_types import DataType, TypedFrame
+        from .ego_rotation import ego_rotation
+
+        out = ego_rotation(self._frame(_applique(_grille(), yaw_deg=2.0)),
+                           focal_px=FX, principal_point=(CX, CY))
+        self.assertIsInstance(out, TypedFrame)
+        self.assertEqual(out.data_type, DataType.SCALAR)
+        self.assertEqual(out.df.iloc[0]['metric'], 'ego_yaw_deg')
+        self.assertAlmostEqual(out.df.iloc[0]['value'], 2.0, places=4)
+
+    def test_le_diagnostic_va_dans_meta_pas_dans_la_table(self):
+        from .ego_rotation import ego_rotation
+        out = ego_rotation(self._frame(_applique(_grille(), yaw_deg=2.0)),
+                           focal_px=FX, principal_point=(CX, CY))
+        for key in ('pitch_deg', 'expansion', 'n_inliers', 'residual_px'):
+            self.assertIn(key, out.meta)
+        self.assertTrue(out.meta['usable'])
+
+    def test_une_mesure_INEXPLOITABLE_le_dit_au_lieu_de_rendre_un_chiffre(self):
+        """Un résidu élevé ne doit pas se lire comme une mesure valide."""
+        import random
+        from .ego_rotation import ego_rotation
+        rng = random.Random(7)
+        bruit = [(x0, y0, x1 + rng.uniform(-15, 15), y1 + rng.uniform(-15, 15))
+                 for (x0, y0, x1, y1) in _applique(_grille(), yaw_deg=2.0)]
+        self.assertFalse(ego_rotation(self._frame(bruit), focal_px=FX,
+                                      principal_point=(CX, CY)).meta['usable'])
+
+    def test_entree_vide_rend_un_TypedFrame_pas_une_exception(self):
+        from wama.common.catalog.data_types import TypedFrame
+        from .ego_rotation import ego_rotation
+        out = ego_rotation(self._frame([]), focal_px=FX)
+        self.assertIsInstance(out, TypedFrame)
+        self.assertIsNone(out.df.iloc[0]['value'])
+        self.assertFalse(out.meta['usable'])
+
+    def test_le_catalogue_pointe_le_WRAPPER_et_non_le_noyau(self):
+        from wama.common.catalog.function_catalog import get, load_all
+        load_all()
+        spec = get('ego_rotation')
+        self.assertIsNotNone(spec)
+        self.assertEqual(spec.fn.__name__, 'ego_rotation',
+                         "fn doit être le wrapper TypedFrame, pas estimate_ego_rotation")
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

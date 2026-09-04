@@ -178,6 +178,33 @@ def yaw_disagreement(visual_yaw_rate_dps, gps_yaw_rate_dps):
     return abs(visual_yaw_rate_dps - gps_yaw_rate_dps)
 
 
+def ego_rotation(matches: 'TypedFrame', *, focal_px=None, principal_point=None,
+                 dt_s=None) -> 'TypedFrame':
+    """Wrapper FunctionSpec : lit un `TypedFrame` de correspondances, rend un `TypedFrame`.
+
+    Deux étages, comme `placement_metrics` : `estimate_ego_rotation` est le NOYAU, utilisable
+    hors serveur sur des tuples ; ce wrapper est ce que le catalogue appelle. C'est lui qui
+    honore le contrat `pure` — `apply()` (`wama_data/view.py`) invoque `spec.fn(entrée_typée,
+    **params)` et range un `TypedFrame` : un `fn` qui prendrait des tuples et rendrait un dict
+    casserait à l'exécution, alors même que son manifeste s'annonce chaînable.
+
+    Sortie SCALAR = le lacet (l'indicateur qu'on compare au GPS) ; tangage, expansion, nombre
+    d'inliers et résidu vont dans `meta` — diagnostic, pas mesure. `meta['usable']` reprend le
+    verdict du résidu : au-delà de 2 px le modèle ne décrit plus la scène.
+    """
+    import pandas as pd
+    from wama.common.catalog.data_types import TypedFrame as _TF, DataType as _DT
+
+    df = matches.df if hasattr(matches, 'df') else matches
+    paires = [(r['x0'], r['y0'], r['x1'], r['y1']) for _, r in df.iterrows()]
+    res = estimate_ego_rotation(paires, focal_px, principal_point, dt_s=dt_s)
+    if res is None:
+        return _TF(pd.DataFrame([{'metric': 'ego_yaw_deg', 'value': None}]), _DT.SCALAR,
+                   meta={'usable': False, 'reason': 'trop peu de points ou focale absente'})
+    out = pd.DataFrame([{'metric': 'ego_yaw_deg', 'value': res['yaw_deg']}])
+    return _TF(out, _DT.SCALAR, meta={**res, 'usable': res['residual_px'] <= 2.0})
+
+
 # ── Manifeste ─────────────────────────────────────────────────────────────────────────
 from wama.common.catalog.function_catalog import (  # noqa: E402
     FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
@@ -197,8 +224,9 @@ SPEC = register(FunctionSpec(
                      required_fields=['x0', 'y0', 'x1', 'y1'],
                      description='Correspondances de points du DÉCOR entre deux images.')],
     outputs=[PortSpec('ego_rotation', DataType.SCALAR,
-                      produced_fields=['yaw_deg', 'pitch_deg', 'expansion',
-                                       'n_inliers', 'residual_px'])],
+                      produced_fields=['metric', 'value'],
+                      description="Lacet caméra (°, positif à droite) ; tangage, expansion, "
+                                  "inliers et résidu dans meta.")],
     params=[
         ParamSpec('focal_px', 'float', None, 1.0, 10000.0, unit='px',
                   description='Focale en pixels (fx, ou fx=fy).'),
@@ -206,5 +234,5 @@ SPEC = register(FunctionSpec(
                   description='Intervalle entre les deux images, pour obtenir des °/s.'),
     ],
     cost={'cpu_bound': True},
-    fn=estimate_ego_rotation,
+    fn=ego_rotation,
 ))
