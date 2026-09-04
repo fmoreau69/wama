@@ -134,6 +134,53 @@ def fetch_roads(lat: float, lon: float, radius_m: float = 300.0):
     return out
 
 
+def road_map_frame(lat: float, lon: float, radius_m: float = 300.0):
+    """Tronçons IGN → `TypedFrame` ROAD_MAP directement consommable par `gps_map_match`.
+
+    Jusqu'ici le port `road_map` n'avait qu'une seule voie d'alimentation :
+    `driving.gps_map_match.load_road_map_csv`, qui lit un export MyMaps produit à la main.
+    `fetch_roads` publiait pourtant le MÊME port dans son manifeste — mais rien ne pouvait
+    les chaîner, à cause de trois écarts dont **un silencieux** :
+
+      1. nom de champ — `coords` ici, `geometry` attendu ;
+      2. **ORDRE DES COORDONNÉES** — le WFS rend (lon, lat), `map_match` attend (lat, lon).
+         Une inversion ne lève AUCUNE erreur : elle déplace le référentiel de ~1 000 km et
+         le map-matching rend simplement `section_id=None` partout. C'est le pendant exact
+         du piège de bbox documenté en tête de module ;
+      3. conteneur — liste de dicts contre `TypedFrame` typé.
+
+    Cette fonction n'en REMPLACE aucune : `load_road_map_csv` reste la voie des référentiels
+    tiers (tracés de sections fournis avec un projet), celle-ci ajoute le référentiel
+    national autoritatif pour les zones qui n'en ont pas.
+
+    `id` porte le nom de voie BD TOPO quand il existe — deux tronçons d'une même rue
+    partagent alors leur section, ce qu'attend le map-matching — et un identifiant
+    synthétique sinon (une voie sans nom reste une section à part entière).
+    """
+    import pandas as pd
+    # Import local : les manifestes en bas de module n'amènent que `DataType`, et cette
+    # fonction est la seule ici à produire un TypedFrame.
+    from wama.common.catalog.data_types import TypedFrame
+
+    rows = []
+    for i, r in enumerate(fetch_roads(lat, lon, radius_m)):
+        # (lon, lat) → (lat, lon) : L'INVERSION EST ICI, et nulle part ailleurs.
+        geometry = [(pt[1], pt[0]) for pt in r["coords"]]
+        if len(geometry) < 2:
+            continue
+        rows.append({
+            "id": r.get("nom") or f"ign_troncon_{i}",
+            "type": r.get("nature"),
+            "geometry": geometry,
+            "nom": r.get("nom"),
+            "sens": r.get("sens"),
+            "largeur_m": r.get("largeur"),
+        })
+    return TypedFrame(pd.DataFrame(rows, columns=[
+        "id", "type", "geometry", "nom", "sens", "largeur_m"]), DataType.ROAD_MAP,
+        meta={"source": f"ign:{LAYER_ROADS}", "center": (lat, lon), "radius_m": radius_m})
+
+
 def sky_mask(lat: float, lon: float, buildings, n_azimuth: int = 72,
              receiver_alt: float = None, receiver_height_m: float = 1.5):
     """Masque d'élévation par azimut : jusqu'à quelle hauteur le ciel est bouché.
@@ -306,19 +353,47 @@ SPEC_BUILDINGS = register(FunctionSpec(
 SPEC_ROADS = register(FunctionSpec(
     key='ign_roads',
     name='Réseau routier IGN (BD TOPO)',
-    description="Tronçons de route (axes) avec nature, sens de circulation et largeur de "
-                "chaussée, depuis le WFS IGN. Référentiel de map-matching.",
+    description="Tronçons de route BRUTS du WFS IGN (géométries en lon/lat, liste de dicts). "
+                "Sortie de bas niveau : pour chaîner dans un map-matching, prendre "
+                "`ign_road_map`, qui met ces mêmes données à la forme du port `road_map`.",
     category=FunctionCategory.TRANSFORM,
     tags=['geo', 'ign', 'reference', 'network', 'france'],
     inputs=[],
-    outputs=[PortSpec('road_map', DataType.ROAD_MAP,
-                      produced_fields=['coords', 'nature', 'name', 'sens', 'largeur'],
+    # ⚠ TABLE, et surtout PAS `road_map` : cette fonction rend `coords` en (lon, lat) dans
+    # une liste de dicts, là où le port exige `geometry` en (lat, lon) dans un TypedFrame.
+    # Déclarer `road_map` ici — ce qui a été le cas jusqu'au 2026-09-04 — annonçait un
+    # chaînage que rien ne pouvait honorer : `can_connect` disait oui, l'exécution rendait
+    # `section_id=None` sur toute la trace, SANS erreur. Un manifeste qui promet un port
+    # qu'il ne sert pas est pire qu'un port absent.
+    outputs=[PortSpec('roads', DataType.TABLE,
+                      produced_fields=['coords', 'nature', 'nom', 'sens', 'largeur'],
                       cardinality='many',
-                      description='Polylignes routières lon/lat + attributs.')],
+                      description='Tronçons bruts : coords en (lon, lat) + attributs.')],
     params=_LOC_PARAMS,
     cost={'network': True},
     projects=['ENA'],
     fn=fetch_roads,
+))
+
+SPEC_ROAD_MAP = register(FunctionSpec(
+    key='ign_road_map',
+    name='Référentiel de map-matching IGN',
+    description="Réseau routier BD TOPO mis à la FORME du port `road_map` : géométries en "
+                "(lat, lon) et TypedFrame typé, donc chaînable tel quel dans "
+                "`driving.gps_map_match`. Seconde voie d'alimentation du port — le "
+                "référentiel national autoritatif, à côté des tracés de sections fournis "
+                "par un projet (`load_road_map_csv`), qu'elle ne remplace pas.",
+    category=FunctionCategory.TRANSFORM,
+    tags=['geo', 'ign', 'reference', 'network', 'france', 'map-matching'],
+    inputs=[],
+    outputs=[PortSpec('road_map', DataType.ROAD_MAP,
+                      produced_fields=['id', 'geometry', 'type', 'nom', 'sens', 'largeur_m'],
+                      cardinality='many',
+                      description='Polylignes (lat, lon) + attributs, prêtes pour le map-matching.')],
+    params=_LOC_PARAMS,
+    cost={'network': True},
+    projects=['ENA'],
+    fn=road_map_frame,
 ))
 
 SPEC_BRANCHES = register(FunctionSpec(
@@ -331,7 +406,10 @@ SPEC_BRANCHES = register(FunctionSpec(
     category=FunctionCategory.ENRICHER,
     tags=['geo', 'ign', 'reference', 'network', 'france'],
     inputs=[],
-    outputs=[PortSpec('branches', DataType.ROAD_MAP,
+    # TABLE et non `road_map`, pour la même raison qu'`ign_roads` : `coords` en (lon, lat)
+    # dans une liste de dicts. Une branche d'intersection n'est de toute façon pas un
+    # référentiel de map-matching — c'est un résultat d'analyse locale.
+    outputs=[PortSpec('branches', DataType.TABLE,
                       produced_fields=['coords', 'bearing_deg', 'delta_deg', 'is_crossing',
                                        'dist_m', 'largeur', 'nature', 'name'],
                       cardinality='many')],
