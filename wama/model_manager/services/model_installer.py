@@ -422,8 +422,14 @@ def uninstall_model(model_key: str) -> dict:
 
         if not freed_gb:
             try:
+                # ⚠ `not f.is_symlink()` — sans lui, l'espace annoncé est le DOUBLE du
+                # réel (2026-09-04) : dans un cache HF, chaque poids existe une fois dans
+                # `blobs/` et une fois comme LIEN dans `snapshots/`, et `rglob` + `is_file()`
+                # suit les liens. Trouvé en commettant l'erreur moi-même sur le nettoyage des
+                # résidus : j'ai annoncé 6 Go récupérés là où le disque en rendait 2,9.
+                # (`model_registry` ne l'a jamais eue : elle ne somme que `blobs/`.)
                 freed_gb = sum(f.stat().st_size for f in cible.rglob('*')
-                               if f.is_file()) / (1024 ** 3)
+                               if f.is_file() and not f.is_symlink()) / (1024 ** 3)
             except OSError:
                 freed_gb = 0.0
         shutil.rmtree(cible)

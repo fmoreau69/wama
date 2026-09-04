@@ -145,3 +145,44 @@ class LayoutTest(TestCase):
                 traces = verrous_orphelins()
         self.assertEqual([(c, f, n) for c, f, n in traces],
                          [('speech', 'kokoro', ['models--t5-large'])])
+
+
+class ArithmetiqueDUnCacheHFTest(TestCase):
+    """Mesurer la taille d'un dossier de cache HF — le piège des LIENS.
+
+    Dans un cache HF, chaque poids existe DEUX fois : une fois réellement dans `blobs/`, une
+    fois comme lien symbolique dans `snapshots/`. Un `rglob('*') + is_file()` suit les liens
+    et compte donc tout en double. Mesuré le 2026-09-04 en commettant l'erreur : le nettoyage
+    des résidus annonçait 6 Go récupérés là où le disque en rendait 2,9.
+    """
+
+    def _cache(self, racine, octets=1024):
+        """Un dossier HF minimal : un blob réel + son lien dans le snapshot."""
+        import os
+        base = Path(racine) / 'models--org--modele'
+        (base / 'blobs').mkdir(parents=True)
+        (base / 'snapshots' / 'abc').mkdir(parents=True)
+        blob = base / 'blobs' / 'deadbeef'
+        blob.write_bytes(b'x' * octets)
+        try:
+            os.symlink('../../blobs/deadbeef', base / 'snapshots' / 'abc' / 'model.bin')
+        except (OSError, NotImplementedError):
+            self.skipTest('liens symboliques non autorisés sur cette plateforme')
+        return base, octets
+
+    def test_le_calcul_de_l_installeur_ne_compte_PAS_le_lien(self):
+        from wama.model_manager.services import model_installer as mi
+        import inspect
+        source = inspect.getsource(mi)
+        self.assertIn('not f.is_symlink()', source,
+                      "l'espace libéré doit exclure les liens, sinon il annonce le double")
+
+    def test_un_rglob_naif_compte_bien_en_DOUBLE(self):
+        """Contre-épreuve : la garde n'est pas décorative, l'erreur est réelle."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base, octets = self._cache(tmp)
+            naif = sum(f.stat().st_size for f in base.rglob('*') if f.is_file())
+            juste = sum(f.stat().st_size for f in base.rglob('*')
+                        if f.is_file() and not f.is_symlink())
+        self.assertEqual(juste, octets)
+        self.assertEqual(naif, 2 * octets, 'le lien double bien la mesure')
