@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 import threading
 
 import numpy as np
@@ -98,12 +99,22 @@ class KokoroBackend(TTSBackend):
         if lang_code not in self._pipelines:
             with self._lock:
                 if lang_code not in self._pipelines:
-                    # ── CRITIQUE : cache HF isolé AVANT l'import kokoro/huggingface_hub ──
-                    cache_dir = speech_dir('kokoro')
-                    os.environ['HF_HUB_CACHE'] = str(cache_dir)
-                    os.environ['HUGGINGFACE_HUB_CACHE'] = str(cache_dir)
-                    from kokoro import KPipeline
-                    self._pipelines[lang_code] = KPipeline(lang_code=lang_code, repo_id=REPO_ID)
+                    # 3ᵉ VOIE (ROADMAP §5b) : kokoro n'accepte pas de `cache_dir=`, mais
+                    # `KModel` accepte des CHEMINS (`config=`, `model=`) — vérifié dans sa
+                    # source : il ne télécharge que `if not config` / `if not model`. On range
+                    # donc les poids nous-mêmes dans `speech/kokoro` et on les lui donne,
+                    # SANS toucher l'environnement (l'ancienne mutation emportait avec elle
+                    # les sous-dépendances de tout ce qui se chargeait ensuite).
+                    from kokoro import KModel, KPipeline
+                    from wama.common.utils.hf_weights import poids_locaux
+                    racine = poids_locaux(REPO_ID, speech_dir('kokoro'))
+                    modele = KModel(
+                        repo_id=REPO_ID,
+                        config=str(Path(racine) / 'config.json'),
+                        model=str(Path(racine) / KModel.MODEL_NAMES[REPO_ID]),
+                    )
+                    self._pipelines[lang_code] = KPipeline(
+                        lang_code=lang_code, repo_id=REPO_ID, model=modele)
         return self._pipelines[lang_code]
 
     def process(self, text: str = "", language: str = "fr",

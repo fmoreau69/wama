@@ -231,3 +231,34 @@ class PageDuVivierTest(TestCase):
         for f in facettes:
             self.assertTrue(set(f['options']) <= presents[f['cle']],
                             f"facette {f['cle']} : une option sans carte viderait la page")
+
+
+class ToutBackendDeclareSonMoteurTest(TestCase):
+    """INVARIANT (2026-09-04) : un backend CONCRET déclare le moteur qu'il pilote.
+
+    C'est la moitié BACKEND du lien modèle↔moteur (`composition.runtime.engine` côté modèle,
+    `ENGINE` côté backend). Sans elle, `known_engines()` ne peut pas dériver l'inventaire des
+    exécutables et un modèle peut être grisé faute d'inventaire, pas faute de moteur.
+
+    Comme l'invariant des importeurs de fichiers, ce test ne vérifie pas les backends d'un
+    jour : il vérifie que le PROCHAIN sera écrit déclaré.
+    """
+
+    def test_chaque_backend_concret_declare_ENGINE(self):
+        sans = sorted(f'{a.app}:{e.name}' for a in bi.inventory() if not a.generated_from
+                      for e in a.entries if e.kind == 'classe' and not e.moteur)
+        self.assertEqual(sans, [], "ces backends ne disent pas quelle librairie ils pilotent : "
+                                   "ajouter `ENGINE = '<moteur>'` (contrat BaseModelBackend)")
+
+    def test_le_vocabulaire_des_moteurs_est_PARTAGE_avec_les_modeles(self):
+        """Un moteur déclaré par un backend doit pouvoir être celui qu'un modèle EXIGE :
+        même graphie, sinon le lien ne se referme jamais. On vérifie l'intersection réelle —
+        pas l'égalité : tous les moteurs installés n'ont pas encore un modèle qui les nomme."""
+        from wama.model_manager.models import AIModel
+        backends = {e.moteur for a in bi.inventory() for e in a.entries if e.moteur}
+        modeles = {(m.composition or {}).get('runtime', {}).get('engine')
+                   for m in AIModel.objects.exclude(composition={})}
+        modeles.discard(None)
+        orphelins = sorted(m for m in modeles if m not in backends)
+        self.assertEqual(orphelins, [],
+                         'moteur EXIGÉ par un modèle que plus aucun backend ne déclare piloter')

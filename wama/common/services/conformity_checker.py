@@ -966,6 +966,43 @@ def _model_options_from_catalog(f: _AppFiles):
                    if dur else "aucune source d'options tirée du catalogue")
 
 
+def _hf_cache_routing(f: _AppFiles):
+    """Le modèle est-il routé vers SON dossier sans détourner l'environnement ?
+
+    ⚠ CE CRITÈRE MESURAIT L'INVERSE JUSQU'AU 2026-09-04 : il exigeait la présence de
+    `HF_HUB_CACHE` (« posé avant import »), c'est-à-dire précisément la mutation que
+    `ROADMAP §5b` interdit — elle est globale au processus et emporte les SOUS-DÉPENDANCES
+    dans le dossier du modèle. Le jour où les mutations ont commencé à être retirées, la
+    grille a donc puni la correction : describer est passé de 100 % à 98 %, transcriber a
+    perdu un point. *Un critère doit SUIVRE la règle qu'il mesure quand elle change* —
+    4ᵉ occurrence du précédent `btn_order` / `status_vocab` / `batch_card_common`.
+
+    La règle mesurée est celle de §5b, une et indivisible : **le modèle est routé
+    explicitement vers son dossier, l'environnement n'est JAMAIS touché**. Deux idiomes
+    valent, et le choix est imposé par la lib : `cache_dir=` quand elle l'accepte, sinon
+    `poids_locaux()` (téléchargement dans le dossier + chargement par chemin).
+    """
+    mute = f.find_code(PY, r"os\.environ\[['\"](HF_HUB_CACHE|HUGGINGFACE_HUB_CACHE|HF_HOME)['\"]\]\s*=")
+    if mute:
+        return False, (f"mutation d'environnement en {mute} — INTERDITE (ROADMAP §5b) : "
+                       "globale au processus, elle emporte les sous-dépendances dans le "
+                       "dossier du modèle")
+    route = f.find_code(PY, r'cache_dir\s*=|poids_locaux\(')
+    if route:
+        return True, route
+    # 3ᵉ idiome LÉGITIME : l'app lance un SOUS-PROCESSUS et lui donne son propre
+    # environnement (`env['HF_HUB_CACHE'] = …` sur un dict passé à subprocess). Ce n'est pas
+    # une mutation : l'enfant est isolé, le parent intact. Mesuré sur avatarizer/musetalk —
+    # sans cette branche, le critère punissait la bonne pratique (et le garde AST, lui,
+    # l'excluait déjà correctement en exigeant `os.environ`).
+    enfant = f.find_code(PY, r"env\[['\"](HF_HUB_CACHE|HUGGINGFACE_HUB_CACHE)['\"]\]\s*=")
+    if enfant:
+        return True, f"{enfant} — environnement d'un SOUS-PROCESSUS (parent intact)"
+    return 'partial', ("aucun routage explicite trouvé (ni `cache_dir=`, ni `poids_locaux()`, "
+                       "ni environnement de sous-processus) — le modèle atterrira dans le "
+                       "cache partagé : pas un défaut en soi, mais pas une déclaration")
+
+
 def _backend_contract(f: _AppFiles):
     ev = f.find(PY, r'BaseModelBackend')
     if not ev:
@@ -1351,8 +1388,9 @@ CRITERIA: list[Criterion] = [
     Criterion('vram_unloader', 'F4', 'Reclaim VRAM cross-app (unloader auto, explicite ou réservation)',
               _f4(_vram_unloader),
               mecanisme='memory_manager'),
-    Criterion('hf_cache_isolation', 'F4', 'Cache HF isolé (HF_HUB_CACHE posé avant import)',
-              _f4(lambda f: _present(f, PY, r'HF_HUB_CACHE')),
+    Criterion('hf_cache_isolation', 'F4',
+              'Modèle routé EXPLICITEMENT (cache_dir= / poids_locaux), env jamais muté',
+              _f4(_hf_cache_routing),
               mecanisme='hf_cache'),
     # ── F5 cycle de vie ──
     # ⚠ backend_routes et task_skeleton ne sont PAS enveloppés _f4 : la composition du corps

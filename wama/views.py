@@ -207,15 +207,25 @@ def _get_kokoro(lang_code: str):
                 kokoro_dir = str(settings.MODEL_PATHS.get('speech', {}).get(
                     'kokoro', settings.AI_MODELS_DIR / 'models' / 'speech' / 'kokoro'))
                 os.makedirs(kokoro_dir, exist_ok=True)
-                # Bascule SCOPÉE du cache HF (kokoro n'accepte pas de cache_dir=) —
-                # brique commune, restaure env ET constantes huggingface_hub (le
-                # save/restore local ne couvrait pas les constantes : dans un process
-                # où le hub est déjà importé, l'env seul ne suffit pas).
-                from wama.common.utils.hf_cache import hf_cache_scope
-                with hf_cache_scope(kokoro_dir):
-                    from kokoro import KPipeline
-                    _kokoro_pipelines[lang_code] = KPipeline(
-                        lang_code=lang_code, repo_id='hexgrad/Kokoro-82M')
+                # 3ᵉ VOIE (ROADMAP §5b, 2026-09-04) — REMPLACE la bascule scopée du cache.
+                # `KModel` accepte des CHEMINS : on range les poids dans `speech/kokoro` et
+                # on les lui passe. Différence décisive avec le scope : celui-ci restaurait
+                # l'environnement mais JAMAIS les fichiers — il laissait donc les
+                # sous-dépendances tirées pendant le chargement dans le dossier kokoro
+                # (c'est l'origine documentée du dump de modèles étrangers ici même).
+                from pathlib import Path as _P
+
+                from kokoro import KModel, KPipeline
+                from wama.common.utils.hf_weights import poids_locaux
+                _repo = 'hexgrad/Kokoro-82M'
+                _racine = poids_locaux(_repo, kokoro_dir)
+                _modele = KModel(
+                    repo_id=_repo,
+                    config=str(_P(_racine) / 'config.json'),
+                    model=str(_P(_racine) / KModel.MODEL_NAMES[_repo]),
+                )
+                _kokoro_pipelines[lang_code] = KPipeline(
+                    lang_code=lang_code, repo_id=_repo, model=_modele)
     return _kokoro_pipelines[lang_code]
 
 

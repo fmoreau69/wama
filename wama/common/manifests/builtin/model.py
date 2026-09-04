@@ -106,16 +106,36 @@ def _validate_composition(compo) -> list[str]:
                 if not isinstance(c, dict):
                     errs.append(f"composition.components[{i}] doit être un dict")
                     continue
-                role, pattern = c.get('role'), c.get('pattern')
+                role, pattern, repo = c.get('role'), c.get('pattern'), c.get('repo')
                 if not role or not isinstance(role, str):
                     errs.append(f"composition.components[{i}] : 'role' requis (chaîne)")
                 elif role in roles:
                     errs.append(f"composition.components : role '{role}' dupliqué")
                 else:
                     roles.add(role)
-                if not pattern or not isinstance(pattern, str):
-                    errs.append(f"composition.components[{role or i}] : 'pattern' requis "
-                                "(motif de fichier, style allow_patterns)")
+                # DEUX façons de nommer un morceau, et il en faut EXACTEMENT une (2026-09-04) :
+                #   `pattern` — un motif de FICHIER dans le dépôt du modèle (cas d'origine :
+                #               MiniMax-Music3, 5 GGUF dans un seul dépôt) ;
+                #   `repo`    — un dépôt HF FRÈRE, publié à part mais sans existence propre
+                #               pour l'usage (pyannote : la « recette » diarization-3.1 ne
+                #               contient qu'un config.yaml, ses poids SONT segmentation-3.0 et
+                #               wespeaker-…-LM, qu'elle nomme elle-même).
+                # Le schéma n'admettait que `pattern` : déclarer la diarisation était donc
+                # impossible, et c'est ce qui poussait à écrire les noms en dur dans le
+                # substrat. Un formalisme qui ne sait pas dire un cas réel se fait contourner.
+                if not pattern and not repo:
+                    errs.append(f"composition.components[{role or i}] : 'pattern' (motif de "
+                                "fichier dans le dépôt du modèle) ou 'repo' (dépôt HF frère) "
+                                "requis — l'un des deux nomme le morceau")
+                elif pattern and repo:
+                    errs.append(f"composition.components[{role or i}] : 'pattern' ET 'repo' "
+                                "déclarés — un morceau est dans le dépôt OU dans un autre, "
+                                "pas les deux")
+                elif pattern and not isinstance(pattern, str):
+                    errs.append(f"composition.components[{role or i}] : 'pattern' doit être une chaîne")
+                elif repo and (not isinstance(repo, str) or '/' not in repo):
+                    errs.append(f"composition.components[{role or i}] : 'repo' doit être un "
+                                "identifiant de dépôt « org/nom »")
                 fmt = c.get('format')
                 if fmt is not None and not isinstance(fmt, str):
                     errs.append(f"composition.components[{role or i}] : 'format' doit être une chaîne")
