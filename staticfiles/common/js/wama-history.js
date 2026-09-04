@@ -15,13 +15,30 @@
  * le plafond, l'état des boutons, les raccourcis) est agnostique. C'est ce qui permet à un
  * éditeur de texte et à un éditeur de graphe de partager exactement le même code.
  *
+ * ══ DEUX FAÇONS DE MARQUER UN CRAN — ET C'EST L'ADOPTION QUI L'A RÉVÉLÉ ═════════════════
+ *
+ *   `push()`    AVANT la mutation  — le transcriber marque en tête de chaque opération.
+ *   `commit()`  APRÈS la mutation  — le studio fait tout passer par UN entonnoir
+ *                                    (`persistDraft()`, en fin de ses 9 opérations).
+ *   `silence(fn)`                  — chargement programmatique : ne rien enregistrer.
+ *
+ * ⚠ La v1 de cette brique n'offrait que `push()`. C'était suffisant pour le consommateur dont
+ * elle sortait, et insuffisant pour le suivant : imposer `push()` au studio aurait voulu dire
+ * disperser 9 marquages dans du code qui en a déjà UN, chacun étant une occasion de se tromper
+ * d'ordre. *Une brique n'est validée que par son SECOND consommateur — c'est lui qui révèle ce
+ * que la première extraction avait pris pour universel.*
+ *
  * ══ CE QUI N'EST PAS UNIVERSEL, ET RESTE DONC UNE OPTION ════════════════════════════════
  *
  * La COALESCENCE DES RAFALES (`burstWindow`) : sans elle, une saisie au clavier produirait un
- * cran d'annulation par caractère. Elle n'a aucun sens sur un graphe, où chaque mutation est
- * déjà atomique — d'où `burstWindow: 0` pour la désactiver. *Porter cette option comme un
- * acquis est exactement le genre de détail qui fait qu'une brique « marche » chez son premier
- * consommateur et surprend le second.*
+ * cran d'annulation par caractère.
+ *
+ * ⚠ J'avais écrit ici qu'elle « n'a aucun sens sur un graphe, où chaque mutation est déjà
+ * atomique ». **C'est faux, et l'adoption l'a montré** : c'est vrai des mutations STRUCTURELLES
+ * (ajouter un nœud, tirer un lien, déplacer) et faux des CHAMPS DE PARAMÈTRES d'un nœud, qui
+ * sont du texte comme ailleurs. Un même éditeur a les deux natures — d'où un choix par APPEL
+ * (`commit({burst: true})`) et non par consommateur. *Une généralisation tirée d'un seul cas
+ * décrit ce cas, pas la règle.*
  *
  * ══ CE QUE CETTE BRIQUE NE COUVRE PAS — ET IL FAUT LE DIRE ══════════════════════════════
  *
@@ -79,6 +96,31 @@
         var burstActive = false;
         var burstTimer = null;
 
+        // ── Mode ENTONNOIR (`commit`) : l'état connu AVANT la dernière mutation ───────────
+        //
+        // Il existe DEUX façons de marquer un cran, parce que les consommateurs marquent à
+        // deux endroits différents — et ce n'est pas un détail de style :
+        //
+        //   `push()`    AVANT la mutation. Le transcriber appelle `pushHistory()` en tête de
+        //               chaque opération (splitAt, mergeAt, compact…).
+        //   `commit()`  APRÈS la mutation. Le studio fait tout passer par UN entonnoir
+        //               (`persistDraft()`, appelé en fin de ses 9 opérations) — un `push()`
+        //               y photographierait l'état DÉJÀ modifié, et « annuler » ne ferait
+        //               rien de visible.
+        //
+        // Imposer `push()` au studio aurait voulu dire disperser 9 marquages dans du code
+        // qui en a déjà UN, chacun étant une occasion de se tromper d'ordre. On garde donc
+        // son entonnoir et on retient l'état précédent ici.
+        var previous = snapshot();
+
+        // ⚠⚠ RÉ-ENTRANCE — la raison pour laquelle `commit` doit vivre DANS la brique.
+        // Restaurer, c'est muter : chez le studio, `loadGraph()` appelle `clearCanvas()`,
+        // qui appelle `removeNode`/`removeLink`… qui appellent `persistDraft()`. Sans ce
+        // drapeau, une annulation empilerait un cran par nœud détruit — et l'historique se
+        // remplirait de son propre travail. Tout consommateur à entonnoir a ce problème :
+        // c'est pourquoi la garde n'est pas laissée à sa charge.
+        var restoring = false;
+
         function syncButtons() {
             document.querySelectorAll(undoSelector).forEach(function (b) {
                 b.disabled = !undoStack.length;
@@ -88,9 +130,9 @@
             });
         }
 
-        /** Empile l'état COURANT — à appeler AVANT la mutation (cf. l'en-tête). */
-        function push() {
-            undoStack.push(snapshot());
+        /** Empile un état donné. Cœur commun de `push()` et `commit()`. */
+        function stack(state) {
+            undoStack.push(state);
             // Le plafond protège la mémoire : un snapshot est une copie profonde du modèle, et
             // une session d'édition longue en produit des centaines.
             if (undoStack.length > max) undoStack.shift();
@@ -98,8 +140,58 @@
             // attendu de tout éditeur, et le conserver donnerait un redo qui rejoue un futur
             // qui n'existe plus.
             redoStack.length = 0;
-            burstActive = false;     // une action structurelle ferme la rafale de frappe
             syncButtons();
+        }
+
+        /** Empile l'état COURANT — à appeler AVANT la mutation (cf. l'en-tête). */
+        function push() {
+            if (restoring) return;
+            var state = snapshot();
+            stack(state);
+            previous = state;        // rien n'a encore muté : courant == état d'avant
+            burstActive = false;     // une action structurelle ferme la rafale de frappe
+        }
+
+        /**
+         * Marque un cran APRÈS la mutation — mode entonnoir (cf. `previous` plus haut).
+         *
+         * `opts.burst` coalesce : à utiliser depuis un champ de saisie, où l'entonnoir se
+         * déclenche à CHAQUE caractère. Sans lui, taper « bonjour » dans le paramètre d'un
+         * nœud coûterait sept crans d'annulation.
+         *
+         * ⚠ Ce qui corrige au passage une phrase trop absolue que j'avais écrite : « la
+         * coalescence n'a aucun sens sur un graphe, où chaque mutation est atomique ». C'est
+         * vrai des mutations STRUCTURELLES (ajouter un nœud, tirer un lien, déplacer) et FAUX
+         * des champs de paramètres, qui sont du texte comme ailleurs. Un éditeur de graphe a
+         * les deux natures — c'est l'APPELANT qui sait laquelle il déclenche, pas la brique.
+         */
+        function commit(opts) {
+            if (restoring) return;
+            opts = opts || {};
+            if (opts.burst && burstWindow) {
+                if (!burstActive) { stack(previous); burstActive = true; }
+                clearTimeout(burstTimer);
+                burstTimer = setTimeout(function () { burstActive = false; }, burstWindow);
+            } else {
+                stack(previous);
+                burstActive = false;
+            }
+            previous = snapshot();
+        }
+
+        /**
+         * Exécute `fn` SANS rien enregistrer — chargement programmatique (restauration d'un
+         * brouillon, ouverture d'un document). L'état d'après devient la nouvelle référence.
+         *
+         * Se compose pour rendre UN cran d'un geste qui mute en cascade :
+         *     history.commit();                  // l'état d'avant
+         *     history.silence(clearCanvas);      // les N suppressions ne comptent pas
+         */
+        function silence(fn) {
+            var before = restoring;
+            restoring = true;
+            try { fn(); } finally { restoring = before; }
+            previous = snapshot();
         }
 
         /**
@@ -117,8 +209,13 @@
         /** Ferme la rafale : la frappe suivante recréera une entrée d'historique propre. */
         function endBurst() { burstActive = false; }
 
+        // Restaurer, c'est muter : on lève `restoring` pour que l'entonnoir d'un consommateur
+        // ne se remplisse pas de son propre travail (cf. le bloc RÉ-ENTRANCE plus haut), et on
+        // recale `previous` — sinon le `commit()` suivant empilerait un état périmé.
         function apply(state) {
-            restore(state);
+            restoring = true;
+            try { restore(state); } finally { restoring = false; }
+            previous = snapshot();
             syncButtons();
         }
 
@@ -136,10 +233,12 @@
             return true;
         }
 
+        /** Vide l'historique — nouveau document, pas nouvel état. */
         function reset() {
             undoStack.length = 0;
             redoStack.length = 0;
             burstActive = false;
+            previous = snapshot();
             syncButtons();
         }
 
@@ -179,7 +278,8 @@
         syncButtons();
 
         return {
-            push: push, undo: undo, redo: redo,
+            push: push, commit: commit, silence: silence,
+            undo: undo, redo: redo,
             beginBurst: beginBurst, endBurst: endBurst,
             reset: reset, syncButtons: syncButtons,
             canUndo: function () { return undoStack.length > 0; },
@@ -192,7 +292,8 @@
      *  ne tombe pas sur `undefined` et que la page continue de fonctionner sans annulation. */
     function inert() {
         var noop = function () {};
-        return { push: noop, undo: function () { return false; }, redo: function () { return false; },
+        return { push: noop, commit: noop, silence: function (fn) { fn(); },
+                 undo: function () { return false; }, redo: function () { return false; },
                  beginBurst: noop, endBurst: noop, reset: noop, syncButtons: noop,
                  canUndo: function () { return false; }, canRedo: function () { return false; },
                  depth: function () { return { undo: 0, redo: 0 }; } };

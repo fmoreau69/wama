@@ -397,7 +397,8 @@
             }
             input.value = node.params[p.name] != null ? node.params[p.name] : (p['default'] || '');
             if (input.value && !node.params[p.name]) node.params[p.name] = input.value;
-            input.addEventListener('input', function () { node.params[p.name] = input.value; persistDraft(); });
+            // `true` = saisie : la rafale coalesce, sinon « bonjour » coûterait 7 crans.
+            input.addEventListener('input', function () { node.params[p.name] = input.value; persistDraft(true); });
             input.addEventListener('change', function () { node.params[p.name] = input.value; persistDraft(); });
             field.appendChild(input);
             wrap.appendChild(field);
@@ -443,11 +444,31 @@
         updateLinks();
     }
 
+    // ── Historique annuler / rétablir — brique COMMUNE (common/js/wama-history.js) ──────
+    //
+    // Le studio avait DÉJÀ les trois pièces d'un historique et n'en gardait qu'un cran :
+    // `serializeGraph()` (photographier), `loadGraph()` (restaurer) et un ENTONNOIR unique
+    // (`persistDraft()`, appelé en fin des 9 opérations mutantes). Il n'y avait donc rien à
+    // inventer — seulement à empiler ce qui était déjà écrasé à chaque fois.
+    //
+    // `commit()` et non `push()` : l'entonnoir marque APRÈS la mutation (cf. l'en-tête de la
+    // brique). C'est ce qui évite de disperser 9 marquages dans ce fichier.
+    var history = global.WamaHistory ? global.WamaHistory.create({
+        snapshot: serializeGraph,
+        restore: loadGraph,
+        undoSelector: '.studio-undo', redoSelector: '.studio-redo',
+        shortcuts: true,
+        burstWindow: 900,   // les champs de PARAMÈTRES sont du texte : une frappe ≠ un cran
+    }) : null;
+
     // ── Brouillon PERSISTANT (localStorage) : le travail en cours survit à la
     //    navigation entre apps, jusqu'à sauvegarde en pipeline ou « Vider le canvas ».
     var DRAFT_KEY = 'wama_studio_draft';
 
-    function persistDraft() {
+    function persistDraft(fromTyping) {
+        // Un cran d'historique par mutation — la brique ignore l'appel pendant une
+        // restauration (loadGraph → clearCanvas → removeNode → ici : ré-entrance).
+        if (history) history.commit({ burst: !!fromTyping });
         try {
             var nameEl = document.getElementById('studioPipelineName');
             localStorage.setItem(DRAFT_KEY, JSON.stringify({
@@ -465,7 +486,11 @@
             if (!raw) return;
             var d = JSON.parse(raw);
             if (d && d.graph && d.graph.nodes && d.graph.nodes.length) {
-                loadGraph(d.graph);
+                // Chargement programmatique : on arrive sur la page, il n'y a rien à annuler
+                // AVANT. Sans `silence`, la restauration remplirait l'historique de son
+                // propre travail (un cran par noeud construit).
+                if (history) history.silence(function () { loadGraph(d.graph); });
+                else loadGraph(d.graph);
                 var nameEl = document.getElementById('studioPipelineName');
                 if (nameEl && d.name) nameEl.value = d.name;
             }
@@ -536,7 +561,10 @@
         var sel = document.getElementById('studioLoadSelect');
         if (!sel || !sel.value) return;
         api('/studio/api/pipelines/' + sel.value + '/').then(function (d) {
-            loadGraph(d.graph);
+            // Ouvrir un pipeline, c'est changer de DOCUMENT : on ne doit pas pouvoir
+            // « annuler » jusqu'au graphe precedent, qui n'a plus rien a voir.
+            if (history) { history.silence(function () { loadGraph(d.graph); }); history.reset(); }
+            else loadGraph(d.graph);
             var nameEl = document.getElementById('studioPipelineName');
             if (nameEl) nameEl.value = d.name;
             toast('Pipeline « ' + d.name + ' » chargé.', 'success');
@@ -700,7 +728,14 @@
 
         var clear = document.getElementById('studioClear');
         if (clear) clear.addEventListener('click', function () {
-            nodes.slice().forEach(function (n) { removeNode(n.id); });
+            // UN cran pour le geste entier : `commit()` enregistre l'etat d'avant, `silence()`
+            // empeche les N suppressions d'en ajouter un chacune. Vider reste donc annulable.
+            if (history) {
+                history.commit();
+                history.silence(function () { nodes.slice().forEach(function (n) { removeNode(n.id); }); });
+            } else {
+                nodes.slice().forEach(function (n) { removeNode(n.id); });
+            }
             clearDraft();   // geste explicite : on repart de zéro
         });
 

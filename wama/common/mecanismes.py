@@ -539,11 +539,17 @@ MECANISMES = (
               "à l'instant du dépôt, il n'y a pas de modèle client à photographier — son "
               "« annuler » est un REJEU D'OPÉRATION INVERSE, même mot, mécanisme différent. Les "
               "réunir ici donnerait une API qui MENT sur ce qu'elle garantit. "
-              "Extrait du transcriber (seule implémentation du dépôt) pour un 2ᵉ consommateur "
-              "identifié : le studio, qui a déjà `serializeGraph`/`restoreDraft` et 9 points de "
-              "mutation, mais n'en garde qu'UN cran (brouillon localStorage)",
+              "DEUX consommateurs, et deux façons de marquer un cran — c'est l'ADOPTION qui l'a "
+              "révélé : `push()` AVANT la mutation (transcriber, qui marque en tête de chaque "
+              "opération) et `commit()` APRÈS (studio, dont les 9 opérations passent par UN "
+              "entonnoir, `persistDraft`). La v1 n'offrait que `push()` : suffisant pour le "
+              "consommateur dont elle sortait, insuffisant pour le suivant. `silence(fn)` couvre "
+              "le chargement programmatique, et la garde de RÉ-ENTRANCE vit dans la brique — "
+              "restaurer c'est muter (`loadGraph`→`clearCanvas`→`removeNode`→l'entonnoir), donc "
+              "tout consommateur à entonnoir remplirait son historique de son propre travail",
               'wama/common/static/common/js/wama-history.js', 'CARD_DESIGN.md',
-              annexes=('wama/transcriber/static/transcriber/js/edit.js',)),
+              annexes=('wama/transcriber/static/transcriber/js/edit.js',
+                       'wama/studio/static/studio/js/wama-studio.js')),
     Mecanisme('queue_order', 'Ordre MANUEL de la file',
               "Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin."
               "queue_index`, 13 modèles de batch) + 6ᵉ tri « Manuel » — le SEUL tri qui LIT une "
