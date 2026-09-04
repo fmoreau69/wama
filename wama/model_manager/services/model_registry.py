@@ -789,11 +789,15 @@ class ModelRegistry:
             from wama.transcriber.backends.whisper_backend import WhisperBackend
             from wama.transcriber.backends.vibevoice_backend import VibeVoiceBackend
             from wama.transcriber.backends.qwen_asr_backend import QwenASRBackend
+            from wama.transcriber.backends.pyannote_diarizer import PyannoteDiarizerBackend
 
             preferred = self._get_preferred_format(ModelType.SPEECH)
             whisper_dir = Path(WHISPER_DIR)
             vibevoice_dir = Path(VIBEVOICE_DIR)
             qwen_asr_dir = Path(QWEN_ASR_DIR)
+            from django.conf import settings as _s
+            diarization_dir = Path(_s.MODEL_PATHS.get('speech', {}).get(
+                'diarization', _s.AI_MODELS_DIR / 'models' / 'speech' / 'diarization'))
 
             for model_id, config in TRANSCRIBER_MODELS.items():
                 hf_id = config.get('hf_model_id', '')
@@ -807,6 +811,8 @@ class ModelRegistry:
                     _cls = VibeVoiceBackend
                 elif model_id.startswith('qwen3-asr-'):
                     _cls = QwenASRBackend
+                elif model_id == 'pyannote-diarization':
+                    _cls = PyannoteDiarizerBackend
                 else:
                     _cls = WhisperBackend
                 description_short = config.get('description') or _cls.description
@@ -825,6 +831,15 @@ class ModelRegistry:
                     name = hf_id.split('/')[-1]   # "Qwen3-ASR-0.6B" / "Qwen3-ASR-1.7B"
                     fmt = 'safetensors'
                     extra = {'hf_id': hf_id, 'path': str(qwen_asr_dir)}
+
+                elif model_id == 'pyannote-diarization':
+                    # La RECETTE (config.yaml, 0 octet de poids) ; ses poids sont ses
+                    # COMPONENTS déclarés. On CONSTATE sa présence par le helper commun,
+                    # comme les autres — jamais en devinant un nom de dossier (§5b).
+                    is_downloaded = _check_hf_model_downloaded(diarization_dir, hf_id)
+                    name = "pyannote 3.1 (diarisation)"
+                    fmt = 'pytorch'
+                    extra = {'hf_id': hf_id, 'path': str(diarization_dir)}
 
                 else:
                     # Whisper : plusieurs formats possibles sur disque. On CONSTATE le
@@ -877,6 +892,11 @@ class ModelRegistry:
                         'supports_diarization': _cls.supports_diarization,
                         'task': 'transcription', 'modalities': ['audio'],
                         'inputs_required': ['work_audio']}
+                if model_id == 'pyannote-diarization':
+                    # Sa TÂCHE n'est pas la transcription : il dit QUI parle et QUAND, il ne
+                    # produit aucun texte. Le déclarer 'transcription' le ferait remonter dans
+                    # les sélecteurs d'ASR — un modèle qui ment sur sa tâche est pire qu'absent.
+                    caps.update({'task': 'diarization', 'supports_diarization': True})
 
                 self._models[f"transcriber:{model_id}"] = ModelInfo(
                     id=f"transcriber:{model_id}",
@@ -894,6 +914,10 @@ class ModelRegistry:
                     can_convert_to=[],
                     extra_info=extra,
                     capabilities=caps,
+                    # Anatomie DÉCLARÉE par l'app (composants + moteur) — c'est elle que
+                    # `check_model_layout` consomme pour ne pas compter les dépôts de poids
+                    # comme étrangers, et le manifeste de modèle pour son `requires`.
+                    composition=config.get('composition', {}) or {},
                 )
                 logger.debug(f"[ModelRegistry] Transcriber {model_id}: downloaded={is_downloaded}")
 

@@ -102,11 +102,49 @@ QWEN_ASR_MODELS = {
     },
 }
 
+
+# Diarisation — pyannote. DÉCLARÉE le 2026-09-04 (décision Fabien) : le modèle tournait
+# depuis toujours (32 Mo sur le disque, chargé par `PyannoteDiarizerBackend`) sans exister au
+# CATALOGUE — or « le catalogue est la source de vérité ; s'il ment, il trompe l'utilisateur »
+# (ROADMAP §5b). Il était donc invisible de la page de gestion, des comptes d'occupation
+# disque, de la licence et de la provenance.
+#
+# ⚠ CE QU'ON CATALOGUE EST LA RECETTE, pas ses poids. Le dépôt `speaker-diarization-3.1` ne
+# contient qu'un `config.yaml` (0 octet de poids) qui NOMME ses deux composants ; les poids
+# réels sont `segmentation-3.0` (5,7 Mo) et `wespeaker-voxceleb-resnet34-LM` (26 Mo). C'est
+# ce que le CODE charge, et ce que l'utilisateur obtient (« diarisation ») — il ne choisit
+# jamais entre deux modèles de segmentation. Les cataloguer séparément donnerait deux entrées
+# que personne ne sélectionne, et aucune ne s'appellerait « diarisation ».
+#
+# `composition.components` porte donc les deux dépôts — MÊME champ que MiniMax-Music3 pour ses
+# 5 GGUF : « plusieurs dépôts qui n'ont de sens qu'ensemble = UN modèle ». C'est cette
+# déclaration que `check_model_layout` consomme pour ne plus les compter comme étrangers
+# (jamais une table de noms écrite dans le substrat, cf. `common/utils/model_locations.py`).
+DIARIZATION_MODELS = {
+    'pyannote-diarization': {
+        'model_id': 'pyannote/speaker-diarization-3.1',
+        'hf_model_id': 'pyannote/speaker-diarization-3.1',
+        'type': 'diarization',
+        'size_gb': 0.032,
+        'description': "pyannote 3.1 — diarisation (qui parle, et quand)",
+        'composition': {
+            'components': [
+                {'role': 'segmentation', 'repo': 'pyannote/segmentation-3.0',
+                 'note': "segmente la parole et les CHEVAUCHEMENTS sur des fenêtres courtes"},
+                {'role': 'embedding', 'repo': 'pyannote/wespeaker-voxceleb-resnet34-LM',
+                 'note': "empreinte vocale : regroupe les segments d'un même locuteur"},
+            ],
+            'runtime': {'engine': 'pyannote'},
+        },
+    },
+}
+
 # Combined models dictionary
 TRANSCRIBER_MODELS = {
     **TRANSCRIBER_MODELS,
     **VIBEVOICE_MODELS,
     **QWEN_ASR_MODELS,
+    **DIARIZATION_MODELS,
 }
 
 # Default model
