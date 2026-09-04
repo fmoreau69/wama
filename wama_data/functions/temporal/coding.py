@@ -68,7 +68,7 @@ def _gestes(frame: TypedFrame, code_column: str) -> list:
     return gestures
 
 
-def coding_replay(gestures: TypedFrame, protocole=None, coder: str = '', media: str = '',
+def coding_replay(gestures: TypedFrame, protocol=None, coder: str = '', media: str = '',
                    code_column: str = 'value',
                    session_end: float = None) -> TypedFrame:
     """Rejoue une liste de gestes contre un protocole → segments.
@@ -78,14 +78,14 @@ def coding_replay(gestures: TypedFrame, protocole=None, coder: str = '', media: 
     est identique. C'est ce qui rend un codage assisté vérifiable ligne à ligne contre un codage
     humain, avec `codage_accord`.
     """
-    proto = _protocole(protocole)
+    proto = _protocole(protocol)
     media = media or (gestures.meta or {}).get('media') or (gestures.meta or {}).get('source') or ''
     segs, _ev = replay(proto, media, _gestes(gestures, code_column), coder=coder,
                         session_end=session_end)
     return _segments(segs, meta=gestures.meta)
 
 
-def coding_events(gestures: TypedFrame, protocole=None, coder: str = '', media: str = '',
+def coding_events(gestures: TypedFrame, protocol=None, coder: str = '', media: str = '',
                       code_column: str = 'value') -> TypedFrame:
     """Même exécution, sortie ÉVÉNEMENTS : les comportements ponctuels du protocole.
 
@@ -93,7 +93,7 @@ def coding_events(gestures: TypedFrame, protocole=None, coder: str = '', media: 
     même cadre ferait perdre la distinction que le protocole vient précisément d'établir.
     """
     import pandas as pd
-    proto = _protocole(protocole)
+    proto = _protocole(protocol)
     media = media or (gestures.meta or {}).get('media') or (gestures.meta or {}).get('source') or ''
     _segs, ev = replay(proto, media, _gestes(gestures, code_column), coder=coder)
     rows = [dict(e, time=e['start']) for e in ev]

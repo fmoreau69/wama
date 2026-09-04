@@ -294,7 +294,7 @@ class AdaptateurDePortsTest(unittest.TestCase):
         out = self.coding_replay(
             self._frame([{'time': 0.0, 'value': 'AUTO'},
                          {'time': 5.0, 'value': 'FREINAGE', 'gravite': 'fort'}]),
-            protocole=self.proto, session_end=10.0)
+            protocol=self.proto, session_end=10.0)
         self.assertEqual(len(out.df), 1, "AUTO ne doit pas etre refuse a cause d'un NaN")
 
     def test_un_modificateur_REELLEMENT_hors_protocole_reste_refuse(self):
@@ -302,11 +302,11 @@ class AdaptateurDePortsTest(unittest.TestCase):
         with self.assertRaises(CodingRefused):
             self.coding_replay(
                 self._frame([{'time': 0.0, 'value': 'AUTO', 'meteo': 'pluie'}]),
-                protocole=self.proto)
+                protocol=self.proto)
 
     def test_la_fin_inconnue_survit_a_l_aller_retour_pandas(self):
         out = self.coding_replay(self._frame([{'time': 0.0, 'value': 'AUTO'}]),
-                                  protocole=self.proto)
+                                  protocol=self.proto)
         self.assertIsNone(out.df.iloc[0]['end'],
                           "un etat ouvert doit rester None, jamais devenir NaN")
 
