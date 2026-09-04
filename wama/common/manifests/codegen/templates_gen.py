@@ -481,7 +481,16 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
     {{% include 'common/_global_progress.html' %}}
 
     {{% url '{app}:batch_template' as batch_tpl_url %}}
-    {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' folder_input_id='{app}FolderInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits} %}}
+    {{% comment %}}Card d'entrée **v4** (CARD_DESIGN §11.11) — une slot-row par PORT déclaré,
+    les modalités basculent le contenu à hauteur constante. Le générateur en est le SEUL
+    consommateur : les 10 apps en place gardent l'inclusion littérale de la brique v3 dans
+    leur propre index.html, donc seules les JUMELLES héritent — c'est exactement le rôle du
+    bac à sable (route §10.3 marche S). `app_id` est ce qui remplace les littéraux de
+    modalité : le gabarit les DÉRIVE des ports.
+    ⚠ Les paramètres v3 conservés ici ne sont PAS morts : `file_accept` et les `reference_*`
+    restent lus par la brique v3 (les 10 apps) et `reference_input_id`/`_zone_id`/`_chip_id`
+    par la v4 elle-même, qui les honore pour préserver le câblage d'attache des apps.{{% endcomment %}}
+    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' folder_input_id='{app}FolderInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits} %}}
     <hr class="border-secondary">
 
 {urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}

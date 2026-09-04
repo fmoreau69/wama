@@ -49,6 +49,21 @@ def twin_owner(label: str) -> str:
     return ''
 
 
+def twin_source(label: str) -> str:
+    """App SOURCE d'une jumelle ('' si ce label n'en est pas une).
+
+    Permet aux registres INDEXÉS PAR NOM D'APP de servir une jumelle sans qu'elle y soit
+    déclarée — une jumelle témoin EST le même code, donc les mêmes déclarations.
+    `inject_sandbox_catalog` fait déjà ce clonage pour `APP_CATALOG` ; tout autre registre
+    du même genre doit passer par ici plutôt que de rester muet.
+    1er consommateur : `common/utils/app_modes.get_app_modes` (2026-09-04).
+    """
+    for e in load_registry():
+        if e.get('label') == label:
+            return e.get('generated_from') or ''
+    return ''
+
+
 def save_registry(entries: list) -> None:
     REGISTRY_PATH.write_text(
         json.dumps(entries, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')

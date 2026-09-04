@@ -1,0 +1,211 @@
+{% comment %}
+WAMA — Card « Nouvel élément » v4 : la card d'entrée AVEC SA ZONE DE PREVIEW.
+Spec : CARD_DESIGN.md §11.11 · maquette : docs/card_designs/card_v4_maquette.html
+
+CE QUI CHANGE PAR RAPPORT À `_new_item_card.html` (v3) — et rien d'autre :
+  v3 : les modalités sont des ZONES juxtaposées (dropzone + colonne URL + bouton médiathèque
+       + barre batch + bloc live + slot référence), toutes visibles, toutes écrites à la main
+       par l'app via une douzaine de littéraux (`show_url`, `show_media_library`, …).
+  v4 : une SLOT-ROW par PORT déclaré (tag `input_slots`, source unique `studio_node_ports`),
+       et les modalités BASCULENT le contenu d'un slot à HAUTEUR CONSTANTE. Le dépôt reste
+       le défaut : importer un fichier ne demande AUCUN clic d'icône.
+
+⚠ COMPATIBILITÉ — le port `travail` porte les ids passés par l'appelant (`drop_zone_id`,
+`file_input_id`, `folder_input_id`) : c'est ce qui laisse le JS d'app existant (WamaImport,
+batch-detect, WamaInputMatch) fonctionner sans une ligne de changement. Les ports de
+RÉFÉRENCE, eux, reçoivent des ids DÉRIVÉS (`<cardId>-<port>-input`) câblés par la brique
+`wama-input-slots.js` — il n'y avait de toute façon qu'un seul slot référence en v3, donc
+aucun id d'app à préserver au-delà du premier.
+
+Variables — les mêmes que la v3 (la card d'entrée reste paramétrable pareil), plus :
+  app_id       — (REQUIS) nom de l'app : c'est LUI qui donne les ports. Sans lui, aucun slot.
+  show_live    — (option) ajoute la modalité 🎙 sur le port de travail. Reste un littéral tant
+                 que le drapeau déclaratif n'existe pas — « jamais un lecteur qui invente sa
+                 clé » (cf. la docstring du tag `input_slots`).
+Les variables v3 devenues INUTILES ici (elles sont DÉRIVÉES du port) : `file_accept`,
+`show_url`, `show_media_library`, `media_library_type`, `show_reference`, `reference_accept`,
+`reference_label`. Les passer est sans effet — elles ne sont plus lues.
+{% endcomment %}
+{% load wama_actions wama_static %}
+{% if collapsible %}<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>{% endif %}
+<script src="{% static_v 'common/js/wama-input-slots.js' %}"></script>
+<link rel="stylesheet" href="{% static_v 'common/css/wama-input-slots.css' %}">
+{% input_slots app_id show_live as slots %}
+<div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"
+     data-wama-depot="{% if depot_cree is False %}attache{% else %}cree{% endif %}"
+     {% if collapsible %}data-wama-nic{% if show_prompt %} data-nic-primary="{{ prompt_input_id }}"{% endif %}{% endif %}>
+    <div class="card-body py-2">
+
+        <div class="d-flex align-items-center gap-2 mb-2 small text-white-50"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
+            <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
+            <span class="text-muted">{% if show_prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% endif %}</span>
+            {% if collapsible %}<i class="fas fa-chevron-down ms-auto wama-nic-chevron"></i>{% endif %}
+        </div>
+
+        {% if show_prompt %}
+        {% comment %}Le PROMPT est un port lui aussi (`group='prompt'`) — mais NON-FICHIER : il
+        reste au-dessus de la zone de preview, et c'est le SEUL élément autorisé à grandir
+        (§11.9 C : autosize + max-height). Le tag `input_slots` l'exclut donc des slots.{% endcomment %}
+        <div class="mb-2"{% if prompt_zone_id %} id="{{ prompt_zone_id }}"{% endif %}>
+            <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
+                      id="{{ prompt_input_id|default:'promptInput' }}" rows="{{ prompt_rows|default:2 }}"
+                      placeholder="{{ prompt_placeholder|default:'Décrivez ce que vous voulez générer…' }}"></textarea>
+            {% if prompt_hint %}<small class="text-muted">{{ prompt_hint }}</small>{% endif %}
+            {% if prompt_counter_id %}<small class="text-muted d-block"><span id="{{ prompt_counter_id }}">0</span> mots</small>{% endif %}
+        </div>
+        {% endif %}
+
+        {% if collapsible %}<div class="collapse{% if deployed %} show{% endif %}" id="{{ card_id|default:'newItemCard' }}Body">{% endif %}
+
+        {% comment %}ZONE DE PREVIEW — 4ᵉ face `compose` (§11.11 A). Une sous-division par port ;
+        `data-ports` porte leur nombre, c'est lui qui décide la géométrie en CSS.{% endcomment %}
+        <div class="wama-input-preview" data-ports="{{ slots|length }}">
+        {% for s in slots %}
+            {% comment %}Le port de TRAVAIL hérite des ids de l'appelant (compatibilité JS
+            d'app) ; les autres reçoivent des ids dérivés du couple card+port.{% endcomment %}
+            {% if s.group == 'travail' %}
+                {% with sid=drop_zone_id fid=file_input_id %}
+                <div class="wama-input-slot{% if s.required %} is-required{% endif %}"
+                     data-wama-slot data-slot-port="{{ s.id }}" data-slot-group="{{ s.group }}"
+                     data-slot-accept="{{ s.accept }}" data-slot-library="{{ s.library_type }}"
+                     data-slot-input="{{ fid }}">
+                    <div class="wama-slot-head">
+                        <span class="wama-slot-title">{{ s.label }}{% if s.required %} — requis{% endif %}</span>
+                        <span class="wama-slot-mods">
+                        {% for m in s.modalities %}
+                            <span class="wama-mod{% if forloop.first %} is-active{% endif %}" data-slot-mod="{{ m }}"
+                                  role="button" title="{{ m }}">{% if m == 'drop' %}📄{% elif m == 'library' %}📚{% elif m == 'url' %}🔗{% elif m == 'folder' %}🗂{% elif m == 'live' %}🎙{% endif %}</span>
+                        {% endfor %}
+                        </span>
+                    </div>
+                    <div class="wama-slot-body">
+                        <div class="wama-pane wama-pane-drop is-active" data-slot-pane="drop">
+                            <div class="drop-zone wama-slot-dz" id="{{ sid }}">
+                                <span class="wama-dz-icon"><i class="fas fa-cloud-upload-alt text-primary"></i></span>
+                                <span>Glissez ou cliquez pour importer</span>
+                                <small>{{ formats_label }}</small>
+                                <input type="file" id="{{ fid }}" multiple accept="{{ s.accept }}" style="display:none">
+                            </div>
+                        </div>
+                        <div class="wama-pane wama-pane-url" data-slot-pane="url">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-dark border-secondary text-info px-2"><i class="fas fa-link"></i></span>
+                                <input type="text" class="form-control bg-dark text-white border-secondary"
+                                       id="{{ url_input_id }}" placeholder="{{ url_placeholder|default:'https://…' }}">
+                                {% if url_submit_id %}<button class="btn btn-danger" type="button" id="{{ url_submit_id }}" title="Importer depuis l'URL"><i class="fas fa-download"></i></button>{% endif %}
+                            </div>
+                            {% if url_hint %}<small class="text-muted">{{ url_hint }}</small>{% endif %}
+                        </div>
+                        <div class="wama-pane wama-pane-library" data-slot-pane="library">
+                            <button type="button" class="btn btn-sm btn-outline-info py-0" data-slot-library-btn>
+                                <i class="fas fa-photo-film"></i> Choisir dans la médiathèque
+                            </button>
+                            <small class="text-muted">filtrée par ce rôle : {{ s.library_type }}</small>
+                        </div>
+                        {% if s.multi %}
+                        <div class="wama-pane wama-pane-folder" data-slot-pane="folder">
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+                                    onclick="document.getElementById('{{ folder_input_id }}').click()">
+                                <i class="fas fa-folder-open"></i> Importer un dossier
+                            </button>
+                            <small class="text-muted">parcours récursif — seuls les fichiers acceptés sont retenus</small>
+                            <input type="file" id="{{ folder_input_id }}" webkitdirectory multiple style="display:none">
+                        </div>
+                        {% endif %}
+                        {% if show_live %}
+                        <div class="wama-pane wama-pane-folder" data-slot-pane="live">
+                            <button id="{{ live_btn_id }}" class="btn btn-warning btn-sm py-0" type="button">
+                                <i class="{{ live_icon|default:'fas fa-microphone' }}"></i> {{ live_label|default:'Speak' }}
+                            </button>
+                            <small class="text-muted" id="{{ live_hint_id|default:'liveHint' }}">{{ live_hint|default:'Le clic ARME ; ▶ démarre.' }}</small>
+                        </div>
+                        {% endif %}
+                        {% comment %}Face `input` : dès qu'un fichier est là, sa preview REMPLACE la
+                        dropzone ; à plusieurs, c'est la liste qui la remplace (§11.11 E). Les deux
+                        panes sont remplies par `wama-input-slots.js`, jamais par l'app.{% endcomment %}
+                        <div class="wama-pane wama-pane-files" data-slot-pane="files">
+                            <div class="wama-slot-files" data-slot-filelist></div>
+                            <div class="wama-slot-meta" data-slot-filemeta></div>
+                        </div>
+                    </div>
+                </div>
+                {% endwith %}
+            {% else %}
+                {% comment %}Port de RÉFÉRENCE — ids dérivés. `reference_input_id` de la v3 est
+                honoré s'il est passé (le premier port de référence garde l'id de l'app, ce qui
+                préserve le câblage d'attache existant de composer et imager).{% endcomment %}
+                <div class="wama-input-slot"
+                     data-wama-slot data-slot-port="{{ s.id }}" data-slot-group="{{ s.group }}"
+                     data-slot-accept="{{ s.accept }}" data-slot-library="{{ s.library_type }}"
+                     data-slot-input="{% if reference_input_id %}{{ reference_input_id }}{% else %}{{ card_id|default:'newItemCard' }}-{{ s.id }}-input{% endif %}"
+                     id="{{ reference_zone_id|default:s.id }}">
+                    <div class="wama-slot-head">
+                        <span class="wama-slot-title">{{ s.label }}</span>
+                        <span class="wama-slot-mods">
+                        {% for m in s.modalities %}
+                            <span class="wama-mod{% if forloop.first %} is-active{% endif %}" data-slot-mod="{{ m }}"
+                                  role="button" title="{{ m }}">{% if m == 'drop' %}📄{% elif m == 'library' %}📚{% elif m == 'url' %}🔗{% elif m == 'folder' %}🗂{% endif %}</span>
+                        {% endfor %}
+                        </span>
+                    </div>
+                    <div class="wama-slot-body">
+                        <div class="wama-pane wama-pane-drop is-active" data-slot-pane="drop">
+                            <div class="drop-zone wama-slot-dz">
+                                <span class="wama-dz-icon"><i class="fas fa-paperclip text-info"></i></span>
+                                <span>Glissez ou cliquez</span>
+                                <small>{{ s.accept }}</small>
+                                <input type="file" accept="{{ s.accept }}" style="display:none"
+                                       id="{% if reference_input_id %}{{ reference_input_id }}{% else %}{{ card_id|default:'newItemCard' }}-{{ s.id }}-input{% endif %}">
+                            </div>
+                        </div>
+                        <div class="wama-pane wama-pane-url" data-slot-pane="url">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-dark border-secondary text-info px-2"><i class="fas fa-link"></i></span>
+                                <input type="text" class="form-control bg-dark text-white border-secondary"
+                                       placeholder="https://…" data-slot-url>
+                            </div>
+                            <small class="text-muted">téléchargée au lancement — un fichier joint prime</small>
+                        </div>
+                        <div class="wama-pane wama-pane-library" data-slot-pane="library">
+                            <button type="button" class="btn btn-sm btn-outline-info py-0" data-slot-library-btn>
+                                <i class="fas fa-photo-film"></i> Choisir dans la médiathèque
+                            </button>
+                            <small class="text-muted">filtrée par ce rôle : {{ s.library_type }}</small>
+                        </div>
+                        <div class="wama-pane wama-pane-files" data-slot-pane="files">
+                            <div class="wama-slot-files" data-slot-filelist></div>
+                            <div class="wama-slot-meta" data-slot-filemeta></div>
+                        </div>
+                    </div>
+                    {% comment %}Ligne d'état de l'appariement — remplie par WamaInputMatch, qui
+                    attend cet id. Hors du slot pour ne pas manger sa hauteur constante.{% endcomment %}
+                    <small id="{{ match_status_id|default:'inputMatchStatus' }}" class="text-info d-none"></small>
+                    <span id="{{ reference_chip_id|default:'referenceChip' }}" class="d-none"></span>
+                </div>
+            {% endif %}
+        {% empty %}
+            {% comment %}Aucun port déclaré : on le DIT, plutôt que de rendre une card muette.
+            Un slot manquant est un défaut de déclaration, pas un cas normal.{% endcomment %}
+            <div class="wama-input-slot">
+                <div class="wama-slot-head"><span class="wama-slot-title">Aucun port d'entrée déclaré</span></div>
+                <div class="wama-slot-body"><div class="wama-pane is-active">
+                    <small class="text-muted">L'app « {{ app_id }} » ne déclare aucun port : rien à alimenter.</small>
+                </div></div>
+            </div>
+        {% endfor %}
+        </div>
+
+        {% if show_batch_bar %}{% include 'common/batch_detect_bar.html' %}{% endif %}
+        {% if extra_zone_template %}{% include extra_zone_template %}{% endif %}
+
+        {% if collapsible %}</div>{% endif %}
+
+        {% if primary_btn_id %}
+        <div class="d-grid mt-2">
+            <button class="btn btn-success btn-sm" id="{{ primary_btn_id }}">
+                <i class="fas {{ primary_btn_icon|default:'fa-play' }} me-1"></i> {{ primary_btn_label|default:'Lancer' }}
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
