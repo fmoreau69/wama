@@ -200,11 +200,20 @@ def studio_node_ports(app_id):
 
     # Ports de référence déclarés dans le schéma modes (si l'app y figure) — portés par un
     # MODE, ou par le DOMAINE lui-même quand il n'a pas de switch (`inputs` de domaine).
+    # ⚠ Par l'ACCESSEUR, jamais par le dict (2026-09-04) : `get_app_modes` porte le repli
+    # jumelle. En lisant `APP_MODES` en direct, ce site rendait pour `composer_01` 1 port au
+    # lieu de 2 — le port `reference_melody` évaporé, donc une jumelle qui ne peut pas tester
+    # ce que sa source déclare. Les 3 AUTRES lecteurs directs du dict sont JUSTES et le
+    # restent : `manifests/builtin/app.py` (la facette EST l'entrée littérale — une jumelle
+    # ne doit pas exporter des modes qu'elle ne déclare pas), `app_regen_check` (compare le
+    # littéral écrit au généré) et `conformity_checker` (mesure la DÉCLARATION ; les jumelles
+    # sont hors grille). La frontière : un COMPORTEMENT dérivé suit la source, une
+    # DÉCLARATION lue reste littérale.
     try:
-        from wama.common.utils.app_modes import APP_MODES, INPUT_TYPES
+        from wama.common.utils.app_modes import INPUT_TYPES, get_app_modes
     except Exception:
-        APP_MODES, INPUT_TYPES = {}, {}
-    schema = APP_MODES.get(app_id) or {}
+        INPUT_TYPES, get_app_modes = {}, lambda _a: {}
+    schema = get_app_modes(app_id) or {}
     seen = set()
     for dom in schema.get('domains', []):
         for porteur in (dom, *dom.get('modes', [])):

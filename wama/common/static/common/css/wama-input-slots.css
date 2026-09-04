@@ -1,0 +1,155 @@
+/*
+ * WAMA — ZONE DE PREVIEW de la card d'entrée (card v4, CARD_DESIGN §11.11).
+ *
+ * Une SOUS-DIVISION par PORT déclaré ; les MODALITÉS basculent le contenu d'un slot sans
+ * jamais changer sa hauteur. C'est cet invariant de hauteur qui rend la bascule utilisable :
+ * une card qui saute à chaque icône cliquée est pire que des boutons à plat.
+ *
+ * Palette : celle des cards réelles (app_modern.css / wama-inspector.css) — aucune couleur
+ * inventée ici, seulement des références.
+ */
+
+.wama-input-preview {
+    display: grid;
+    gap: 1px;
+    background: rgba(255, 255, 255, .08);   /* la gouttière EST le filet de séparation */
+    border-top: 1px solid rgba(255, 255, 255, .08);
+    margin: .5rem -.75rem 0;                /* pleine largeur dans le .card-body py-2 */
+}
+
+.wama-input-preview[data-ports="1"] { grid-template-columns: 1fr; }
+.wama-input-preview[data-ports="2"] { grid-template-columns: 1fr 1fr; }
+.wama-input-preview[data-ports="3"] { grid-template-columns: repeat(3, 1fr); }
+
+/* Mosaïque : les slots s'empilent sur la HAUTEUR (CARD_DESIGN §4 — même card, deux
+   géométries). Le conteneur de file porte déjà `wama-queue-mosaic`. */
+.wama-queue-mosaic .wama-input-preview { grid-template-columns: 1fr !important; }
+
+/* ── Le slot : hauteur CONSTANTE, quoi qu'il contienne ────────────────────────────── */
+.wama-input-slot {
+    background: #191c1f;
+    height: 96px;
+    box-sizing: border-box;
+    padding: .4rem .6rem .35rem;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.wama-slot-head {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    margin-bottom: .25rem;
+    flex-shrink: 0;
+}
+
+.wama-slot-title {
+    font-size: .63rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Teintes d'appariement — POSÉES PAR `wama-input-match.js`, jamais en dur par l'app. */
+.wama-input-slot.is-required .wama-slot-title { color: #ffc107; }
+.wama-input-slot.is-suggested .wama-slot-title { color: #0dcaf0; }
+
+.wama-slot-mods { margin-left: auto; display: flex; gap: .1rem; flex-shrink: 0; }
+
+.wama-mod {
+    font-size: .82rem;
+    line-height: 1;
+    padding: .16rem .3rem;
+    border-radius: 4px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, .08);
+    color: #adb5bd;
+    cursor: pointer;
+    user-select: none;
+}
+.wama-mod:hover { color: #e9ecef; background: rgba(255, 255, 255, .07); }
+.wama-mod.is-active {
+    color: #0dcaf0;
+    border-color: rgba(13, 202, 240, .45);
+    background: rgba(13, 202, 240, .12);
+}
+
+/* ── Le corps : les panes s'y superposent, une seule visible ──────────────────────── */
+.wama-slot-body { flex: 1; min-height: 0; position: relative; }
+
+.wama-pane { position: absolute; inset: 0; display: none; }
+.wama-pane.is-active { display: flex; }
+
+/* Modalité DÉPÔT — le slot EST la dropzone : importer ne demande AUCUN clic d'icône. */
+.wama-pane-drop { width: 100%; }
+.wama-slot-dz {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px dashed rgba(255, 255, 255, .22);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .15rem;
+    padding: .2rem;
+    color: #6c757d;
+    font-size: .72rem;
+    text-align: center;
+    cursor: pointer;
+}
+.wama-slot-dz:hover,
+.wama-slot-dz.is-hot {
+    border-color: #0dcaf0;
+    color: #adb5bd;
+    background: rgba(13, 202, 240, .06);
+}
+.wama-input-slot.is-required .wama-slot-dz { border-color: rgba(255, 193, 7, .5); }
+.wama-slot-dz .wama-dz-icon { font-size: 1rem; opacity: .8; }
+.wama-slot-dz small { font-size: .63rem; opacity: .8; }
+
+/* Modalité URL */
+.wama-pane-url { flex-direction: column; justify-content: center; gap: .25rem; }
+
+/* Modalité MÉDIATHÈQUE / DOSSIER — boutons centrés, la grille vit dans le MediaPicker. */
+.wama-pane-library,
+.wama-pane-folder { flex-direction: column; align-items: center; justify-content: center; gap: .3rem; }
+
+/* LISTE des fichiers attachés — ce que la zone rend dès qu'il y en a PLUSIEURS.
+   La preview d'un média n'a de sens qu'à UN fichier (CARD_DESIGN §11.11 E). */
+.wama-pane-files { flex-direction: column; gap: .2rem; }
+.wama-slot-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .22rem;
+    overflow-y: auto;
+    flex: 1;
+    align-content: flex-start;
+    padding-right: .2rem;
+}
+.wama-slot-meta { font-size: .62rem; color: #6c757d; flex-shrink: 0; }
+
+/* Un seul fichier : sa preview prend la place de la dropzone (face `input`). */
+.wama-pane-media { align-items: center; gap: .55rem; }
+.wama-media-thumb {
+    width: 62px; height: 44px; border-radius: 4px; background: #2a2f34;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; color: #6c757d; flex-shrink: 0;
+}
+.wama-media-info { font-size: .68rem; color: #adb5bd; min-width: 0; }
+.wama-media-info strong {
+    display: block; color: #e9ecef; font-size: .72rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Tout ce qui peut déborder défile DANS le slot — jamais en poussant la card. */
+.wama-slot-files::-webkit-scrollbar { width: 6px; }
+.wama-slot-files::-webkit-scrollbar-thumb { background: #495057; border-radius: 3px; }
+
+/* Densité v2 « Compact » : la zone se replie (§11.6 — la v2 RETIRE l'aperçu).
+   Le clic sur la card la déplie, mécanisme déjà porté par wama-new-item-card.js. */
+[data-card-design="v2"] .wama-input-preview { display: none; }

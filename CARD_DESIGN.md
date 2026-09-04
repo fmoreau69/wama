@@ -1075,6 +1075,38 @@ nulle part : card en **ÉCHEC** (la zone n'annonce plus la sortie, elle **expliq
 à côte en ligne, empilés en mosaïque) et les 3 densités (§11.6 : en v2 la zone se replie en chips,
 le clic déplie — mécanisme **déjà écrit**, `wama-new-item-card.js:55-59`).
 
+#### ✅ LIVRÉ le 2026-09-04 — la brique, et sur le bac à sable SEUL
+
+| pièce | fichier |
+|---|---|
+| gabarit v4 | `wama/common/templates/common/_new_item_card_v4.html` |
+| bascule de modalité | `wama/common/static/common/js/wama-input-slots.js` (`WamaInputSlots`) |
+| hauteur constante + géométries | `wama/common/static/common/css/wama-input-slots.css` |
+| slots dérivés des ports | tag `input_slots` — `wama/common/templatetags/wama_actions.py` |
+| adoption | `wama/common/manifests/codegen/templates_gen.py` (émission des jumelles) |
+
+🔴 **L'isolement est MESURÉ, pas supposé** : `templates_gen` est le seul consommateur de la
+v4 ; les 10 apps en place gardent leur inclusion **littérale** de `_new_item_card.html` dans
+leur propre `index.html`. Smoke du 04/09 : `/converter_01/` rend **1 slot, 4 modalités**,
+`/converter` rend **0 slot** (inchangée), et la grille de conformité du converter **reste à
+100 %**. Contrôle central : **hauteur du slot = 96 px pour les 4 modalités**, zéro erreur JS.
+
+**Deux défauts que le bac à sable a révélés en chemin** (c'est son rôle) :
+1. **`APP_MODES` est indexé par nom d'app** → une jumelle perdait SILENCIEUSEMENT les
+   `inputs[]` de sa source (`composer_01` : 1 port au lieu de 2, `reference_melody` évaporé).
+   Corrigé par `sandbox.twin_source()` + repli dans `get_app_modes()`, et `app_registry`
+   lit désormais l'ACCESSEUR au lieu du dict. Les 3 autres lecteurs directs restent directs
+   — la frontière est écrite dans le code : *un comportement dérivé suit la source, une
+   déclaration lue reste littérale*.
+2. 🔴 **`wama/imager/models.py:201` — `ForeignKey(User)` SANS `related_name`** : c'est la
+   seule FK utilisateur du parc qui n'en a pas, et elle **interdit toute jumelle d'imager**
+   (`fields.E304`, clash de `User.imagegeneration_set`) — donc l'app aux **3 ports**, la
+   seule à pouvoir tester deux slots FICHIER côte à côte, est la seule intestable.
+   ⚠ `manage.py check` tombe en erreur tant que la jumelle existe : `app_sandbox create
+   imager` casse le boot. Coût de la correction mesuré : **0 consommateur** de
+   `imagegeneration_set` dans tout le dépôt, donc 1 ligne + 1 migration sans SQL réel.
+   **Décision de Fabien** — non appliqué de ma propre initiative (modèle d'app en place).
+
 **G. Reste à trancher avant tout code** :
 1. la hauteur de 96 px est un choix de maquette — à confronter à l'écran sur une vraie file ;
 2. le **manifeste de process** remplit la card *entière*, pas un slot : il lui faut une place

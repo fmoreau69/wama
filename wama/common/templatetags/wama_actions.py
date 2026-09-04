@@ -126,3 +126,59 @@ def domain_route_prefix(app, domain=None):
     from wama.common.utils.app_modes import route_prefix
     p = route_prefix(app, domain)
     return f'{p}_' if p else ''
+
+
+@register.simple_tag
+def input_slots(app, live=False):
+    """Les SLOT-ROWS de la card d'entrée v4 — une par PORT déclaré, avec ses modalités.
+
+    Le gabarit ne reçoit plus des littéraux par app (`show_url`, `show_media_library`,
+    `reference_accept`…) mais la LISTE de ce que l'app déclare : `studio_node_ports(app)`
+    en est la seule source. Ajouter un port à une app lui donne son slot, sans toucher au
+    gabarit — c'est la règle « métadonnée-driven » appliquée à la zone de preview
+    (`CARD_DESIGN §11.11 B`).
+
+    Ce que le tag DÉRIVE, et pourquoi chaque dérivation est légitime :
+      - `accept`  : des `types` du port (jamais de l'app) — c'est ce qui donne enfin à la
+                    médiathèque un filtre PAR RÔLE (exigence 5 du §11.8, aujourd'hui globale
+                    à la card et donc parfois fausse) ;
+      - `folder`  : seulement si le port est `multi` — importer un dossier dans un slot qui
+                    n'accepte qu'un fichier n'a aucun sens ;
+      - `url`     : sur tout port FICHIER (l'ingest distant est commun, `ensure_local_input`) ;
+      - `live`    : passé par l'appelant, pas dérivé. Le drapeau DÉCLARATIF qui remplacera le
+                    littéral `show_live` s'ajoutera avec sa déclaration — « jamais une
+                    déclaration sans consommateur » vaut aussi dans l'autre sens : pas de
+                    lecteur qui invente sa clé.
+
+    Le port `prompt` est EXCLU : ce n'est pas un slot de la zone de preview, c'est la cellule
+    primaire au-dessus (§11.9 C — le seul élément autorisé à grandir).
+    """
+    from wama.common.app_registry import studio_node_ports
+
+    ports = (studio_node_ports(app) or {}).get('inputs') or []
+    mimes = {'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*'}
+    slots = []
+    for port in ports:
+        if port.get('group') == 'prompt':
+            continue
+        types = port.get('types') or []
+        accept = ','.join(mimes[t] for t in types if t in mimes) or '*/*'
+        travail = port.get('group') == 'travail'
+        mods = ['drop', 'library', 'url']
+        if port.get('multi'):
+            mods.append('folder')
+        if travail and live:
+            mods.append('live')
+        slots.append({
+            'id': port.get('id'),
+            'label': port.get('label') or port.get('id'),
+            'group': port.get('group'),
+            'accept': accept,
+            # `media_library_type` n'accepte qu'UNE valeur : un port multi-nature (converter)
+            # ouvre la médiathèque non filtrée plutôt que sur une nature arbitraire.
+            'library_type': types[0] if len(types) == 1 else 'all',
+            'multi': bool(port.get('multi')),
+            'required': travail,
+            'modalities': mods,
+        })
+    return slots

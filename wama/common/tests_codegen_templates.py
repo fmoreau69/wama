@@ -379,8 +379,13 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         return src
 
     def _include_card(self, src):
+        # ⚠ Cibler la BALISE D'INCLUSION, pas une mention du nom (2026-09-04) : la brique a
+        # une v4 (`_new_item_card_v4.html`, CARD_DESIGN §11.11) et un commentaire de gabarit
+        # qui la cite passait AVANT la vraie ligne — le test mesurait alors une phrase de
+        # prose. Le préfixe `{% include 'common/_new_item_card` couvre les deux versions et
+        # ne peut matcher qu'une inclusion.
         for ligne in src.splitlines():
-            if '_new_item_card.html' in ligne:
+            if "{% include 'common/_new_item_card" in ligne:
                 return ligne
         self.fail('le gabarit ne rend plus la card d\'entrée commune')
 

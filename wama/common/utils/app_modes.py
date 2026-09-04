@@ -268,8 +268,23 @@ APP_MODES = {
 
 # ── Accesseurs ───────────────────────────────────────────────────────────────
 def get_app_modes(app: str) -> dict:
-    """Schéma {domains:[…]} d'une app, ou {} si non déclaré."""
-    return APP_MODES.get(app, {})
+    """Schéma {domains:[…]} d'une app, ou {} si non déclaré.
+
+    ⚠ Repli JUMELLE (2026-09-04) — `APP_MODES` est indexé par NOM D'APP, donc une jumelle
+    `<app>_NN` n'y figure jamais et perdait SILENCIEUSEMENT les `inputs[]` de sa source.
+    Mesuré à la création de `composer_01` : 1 port rendu au lieu de 2, le port
+    `reference_melody` évaporé — donc une jumelle incapable de tester ce que sa source
+    déclare. `inject_sandbox_catalog` clone déjà `APP_CATALOG` pour exactement cette
+    raison ; ce repli est son équivalent ici (cf. `sandbox.twin_source`).
+
+    ⚠ Le silence était le vrai défaut : rien ne distinguait « cette app n'a pas de domaine »
+    (converter, legitimement) de « cette jumelle a perdu les siens ».
+    """
+    if app in APP_MODES:
+        return APP_MODES[app]
+    from wama.common.sandbox import twin_source   # module PUR (json/pathlib) — aucun cycle
+    src = twin_source(app)
+    return APP_MODES.get(src, {}) if src else {}
 
 
 def get_domains(app: str) -> list:
