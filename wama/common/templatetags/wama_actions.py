@@ -55,6 +55,63 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
 
 
 @register.simple_tag
+def queue_dnd_attrs(app, domain=None):
+    """Attributs de MANIPULATION DIRECTE à poser sur le conteneur de file (CARD_DESIGN §3bis).
+
+    Usage, sur le `<div class="wama-queue-…">` de l'app :
+        <div id="…" class="wama-queue-{{ card_layout }}" {% queue_dnd_attrs 'reader' %}>
+    ou, pour une file scopée par domaine :
+        <div … {% queue_dnd_attrs 'enhancer' 'audio' %}>
+
+    POURQUOI DES ATTRIBUTS ET PAS `APP.urls`. Les 12 apps exposent déjà leurs URLs au JS, mais
+    chacune sous SON global (`READER_APP`, `IMAGER_APP`…) : une brique commune ne peut pas les
+    lire sans connaître un nom d'app par app — exactement la « liste de graphies d'apps écrite
+    dans le substrat » que `queue-actions.js` documente comme le symptôme d'une brique manquante.
+    Le DOM, lui, est déjà le véhicule commun des URLs d'action (`data-batch-<action>-url`) : on
+    suit ce contrat plutôt que d'en inventer un second.
+
+    UNE ROUTE ABSENTE N'ÉMET PAS SON ATTRIBUT — `{% url %}` en mode `as` ne lève pas. La brique
+    JS désactive alors le geste correspondant, au lieu de POSTer dans le vide. Même contrat de
+    non-collision que les boutons de lot : ce qui n'est pas déclaré n'existe pas.
+
+    `data-wama-dnd` marque la file comme manipulable : c'est LUI que la brique cherche, jamais
+    une classe de conteneur. Une file qui n'en veut pas (page de démo, file en lecture seule)
+    n'a rien à désactiver.
+    """
+    from django.urls import NoReverseMatch, reverse
+    from django.utils.html import format_html_join
+    from wama.common.utils.app_modes import route_prefix
+
+    p = route_prefix(app, domain) if domain else ''
+    pfx = f'{p}_' if p else ''
+
+    def _url(nom, avec_pk=False):
+        try:
+            return reverse(f'{app}:{pfx}{nom}', args=[0] if avec_pk else None)
+        except NoReverseMatch:
+            return None
+
+    paires = [
+        ('data-dnd-reorder-url',      _url('reorder')),
+        ('data-dnd-reorder-queue-url', _url('reorder_queue')),
+        ('data-dnd-move-url',         _url('move_to_batch', avec_pk=True)),
+        ('data-dnd-remove-url',       _url('remove_from_batch', avec_pk=True)),
+        # ⚠ `merge`, PAS `consolidate` — deux opérations distinctes (cf. le bloc du même nom
+        # dans `queue_manipulation.py`). `consolidate` est l'import : cinq apps le redéfinissent
+        # en version PAR NATURE, qui RANGE en plusieurs lots au lieu de refuser. Router le geste
+        # de fusion dessus rendait « succès » après n'avoir rien fait de visible.
+        ('data-dnd-merge-url',        _url('merge')),
+    ]
+    presents = [(k, v) for k, v in paires if v]
+    if not presents:
+        return ''
+    presents.insert(0, ('data-wama-dnd', app))
+    if domain:
+        presents.append(('data-dnd-domain', domain))
+    return format_html_join(' ', '{}="{}"', presents)
+
+
+@register.simple_tag
 def domain_route_prefix(app, domain=None):
     """Préfixe des routes de ce domaine, LU dans la déclaration (`app_modes.route_prefix`).
 

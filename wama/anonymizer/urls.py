@@ -74,6 +74,12 @@ urlpatterns = [
     path('batch/preview/', views.batch_preview, name='batch_preview'),
     path('batch/create/', views.batch_create, name='batch_create'),
     path('batch/consolidate/', views.consolidate, name='consolidate'),
+    # Manipulation directe de la file (fabrique commune) — adoptée le 2026-09-04 avec l'UI drag&drop.
+    path('reorder/', views.reorder, name='reorder'),
+    path('reorder-queue/', views.reorder_queue, name='reorder_queue'),
+    path('merge/', views.merge, name='merge'),
+    path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
+    path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
     path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),

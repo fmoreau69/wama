@@ -1,4 +1,5 @@
 {% extends 'synthesizer/base.html' %}
+{% load wama_actions %}
 {% load static %}
 {% load wama_static %}
 
@@ -219,7 +220,8 @@ le prompt reste visible replié ; titre/voix/vitesse/aperçu dans la zone étend
 startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endcomment %}
         {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True %}
 
-        <div id="synthesisQueue" class="wama-queue-{{ card_layout|default:'list' }}">
+        <div id="synthesisQueue" class="wama-queue-{{ card_layout|default:'list' }}"
+         {% queue_dnd_attrs 'synthesizer' %}>
             {% for batch_info in batches_list %}
 
             {% url 'synthesizer:batch_download' batch_info.obj.id as batch_dl_url %}

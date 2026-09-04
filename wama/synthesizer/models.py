@@ -372,10 +372,10 @@ class CustomVoice(models.Model):
         return f"{self.name} ({self.user.username})"
 
 
-from wama.common.models import BatchMixin
+from wama.common.models import QueueOrderMixin, BatchMixin
 
 
-class BatchSynthesis(BatchMixin, ScopedVisibility):
+class BatchSynthesis(BatchMixin, QueueOrderMixin, ScopedVisibility):
     # ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs.
     objects = ScopedManager()
 

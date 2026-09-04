@@ -828,6 +828,105 @@
       if (db) db.addEventListener('click', deselect);
     }
 
+    // ══ SÉLECTION MULTIPLE (Ctrl / Maj) ═══════════════════════════════════════════════════
+    //
+    // UNE SEULE sélection dans WAMA (arbitrage Fabien, 2026-09-04) : celle du drag&drop EST
+    // celle de l'inspecteur. Le clic simple garde donc exactement son comportement d'avant
+    // (1 card → détail) ; Ctrl/Maj l'étendent, et le volet bascule ici.
+    //
+    // ⚠ L'inspecteur ne DÉCIDE pas de la sélection, il la SUIT : `wama-queue-dnd.js` émet
+    // `wama:selection-change`, ici on ne fait que rendre. Deux briques qui décideraient
+    // chacune de « ce qui est sélectionné » finiraient par ne pas être d'accord — et c'est
+    // l'écran qui trancherait, au hasard de l'ordre des écouteurs.
+    //
+    // Ce qu'on affiche est délibérément MAIGRE : combien, et les deux gestes de composition
+    // (former un lot / sortir du lot). Pas de réglages — appliquer des réglages à N éléments
+    // hétérogènes est une autre question (héritage batch→item, conventions §9.9), et la
+    // trancher au passage aurait été la trancher mal.
+    function showMultiInfo(cards) {
+      setMediaSection(false);
+      if (!infoHost) return;
+      itemId = null; batchId = null;
+      clearHighlight();
+      // ⚠ Le volet RÉGLAGES doit lâcher les valeurs du dernier élément inspecté. Sans ça il
+      // continue d'afficher « Paramètres de l'élément » avec le moteur, les mots-clés et les
+      // interrupteurs d'UNE card pendant que N sont sélectionnées — un volet qui ment sur ce
+      // qu'il édite, et dont un Enregistrer aurait écrit on ne sait où. Vu à la capture du
+      // smoke, pas au code.
+      if (defaults && panel.apply) panel.apply(defaults);
+      var n = cards.length;
+      var dansLot = cards.filter(function (c) { return !!c.closest('.batch-group'); }).length;
+      var q = cards[0] && cards[0].closest('[data-wama-dnd]');
+      var d = q ? q.dataset : {};
+      var actions = '';
+      // Un bouton n'apparaît que si la route existe ET que le geste a un sens ici : proposer
+      // « sortir du lot » quand rien n'est dans un lot est un bouton mort de plus.
+      if (d.dndMergeUrl && n > 1) {
+        actions += '<button type="button" class="btn btn-sm btn-outline-info wama-multi-group">'
+                 + '<i class="fas fa-layer-group"></i> Former un lot</button>';
+      }
+      if (d.dndRemoveUrl && dansLot) {
+        actions += '<button type="button" class="btn btn-sm btn-outline-secondary wama-multi-ungroup">'
+                 + '<i class="fas fa-object-ungroup"></i> Sortir du lot (' + dansLot + ')</button>';
+      }
+      infoHost.innerHTML =
+        '<div class="d-flex align-items-center gap-2 mb-2">'
+        + '<strong class="text-light"><i class="fas fa-check-double text-info"></i> '
+        + n + ' éléments sélectionnés</strong>'
+        + '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect"'
+        + ' title="Fermer la sélection"><i class="fas fa-xmark"></i></button></div>'
+        + (actions ? '<div class="d-flex flex-wrap gap-1">' + actions + '</div>' : '')
+        + '<div class="small text-white-50 mt-2">Glissez la sélection sur une card pour former '
+        + 'un lot, ou entre deux cards pour la déplacer.</div>';
+      if (infoSection) infoSection.style.display = '';
+      var banner = $(ids.banner); if (banner) banner.style.display = 'none';
+      var db = infoHost.querySelector('.wama-info-deselect');
+      if (db) db.addEventListener('click', function () {
+        if (global.WamaQueueDnd) WamaQueueDnd.clear(q);
+        deselect();
+      });
+      var g = infoHost.querySelector('.wama-multi-group');
+      if (g) g.addEventListener('click', function () { _multiGrouper(cards, d); });
+      var u = infoHost.querySelector('.wama-multi-ungroup');
+      if (u) u.addEventListener('click', function () { _multiSortir(cards, d); });
+      toggleSections(true);
+      // ⚠ …puis on REND son titre neutre au volet Réglages. `toggleSections(true)` pose le
+      // libellé d'inspection (« Paramètres de l'ÉLÉMENT »), juste pour un item ou un lot,
+      // faux pour une sélection multiple : les valeurs affichées sont les défauts, plus
+      // celles d'aucune card en particulier. Titre et contenu doivent dire la même chose —
+      // c'est un titre qui ment qui rend un volet dangereux, pas un volet vide.
+      if (cfg.settingsTitleSelector) {
+        var t = document.querySelector(cfg.settingsTitleSelector);
+        if (t && t.dataset.orig) t.innerHTML = t.dataset.orig;
+      }
+    }
+
+    function _csrf() { var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
+
+    function _multiGrouper(cards, d) {
+      var fd = new FormData();
+      cards.forEach(function (c) { fd.append('ids', c.dataset.id); });
+      fetch(d.dndMergeUrl, { method: 'POST', headers: { 'X-CSRFToken': _csrf() }, body: fd })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (res) {
+          if (res && res.consolidated) { location.reload(); return; }
+          var msg = res && res.reason ? res.reason : 'ces éléments ne peuvent pas former un lot';
+          if (global.WamaApp && WamaApp.toast) WamaApp.toast('Lot impossible — ' + msg, 'error');
+          else alert('Lot impossible — ' + msg);
+        });
+    }
+
+    function _multiSortir(cards, d) {
+      // Séquentiel : chaque sortie recalcule le lot d'origine (et peut le supprimer).
+      var aSortir = cards.filter(function (c) { return !!c.closest('.batch-group'); });
+      aSortir.reduce(function (p, c) {
+        return p.then(function () {
+          return fetch(d.dndRemoveUrl.replace(/\/0\/?$/, '/' + c.dataset.id + '/'),
+                       { method: 'POST', headers: { 'X-CSRFToken': _csrf() } });
+        });
+      }, Promise.resolve()).then(function () { location.reload(); });
+    }
+
     function selectItem(id) {
       const card = qc.querySelector(CARD_SEL + '[data-id="' + id + '"]');
       if (!card) return;
@@ -892,6 +991,15 @@
       if (card && card.dataset.id) { selectItem(card.dataset.id); return; }
       const batch = e.target.closest(BATCH_SEL);
       if (batch && batch.dataset[BATCH_ATTR]) selectBatch(batch.dataset[BATCH_ATTR]);
+    });
+
+    // La sélection multiple est ANNONCÉE par `wama-queue-dnd.js`, jamais décidée ici.
+    // 0 ou 1 élément → on laisse le chemin d'avant faire son travail (`deselect`/`selectItem`
+    // ont déjà été appelés par le clic) ; ≥ 2 → le volet passe en vue de sélection.
+    qc.addEventListener('wama:selection-change', function (e) {
+      const sel = (e.detail && e.detail.cards) || [];
+      if (sel.length >= 2) showMultiInfo(sel);
+      else if (!sel.length && !itemId && !batchId) deselect();
     });
     const db = $(ids.deselect);
     if (db) db.addEventListener('click', deselect);

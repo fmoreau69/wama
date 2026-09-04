@@ -102,10 +102,10 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
         return ''
 
 
-from wama.common.models import BatchMixin
+from wama.common.models import QueueOrderMixin, BatchMixin
 
 
-class BatchReadingItem(BatchMixin, ScopedVisibility):
+class BatchReadingItem(BatchMixin, QueueOrderMixin, ScopedVisibility):
     # ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs.
     objects = ScopedManager()
 

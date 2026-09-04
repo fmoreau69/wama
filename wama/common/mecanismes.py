@@ -508,8 +508,37 @@ MECANISMES = (
               "Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE entre apps",
               'wama/common/utils/queue_view.py', 'CARD_DESIGN.md'),
     Mecanisme('queue_manipulation', 'Manipulation directe de la file',
-              "Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider",
+              "Endpoints génériques : sortir une card d'un batch, réordonner DANS un lot, "
+              "ordonner la FILE (`reorder_queue`, 2026-09-04), déplacer, FUSIONNER (`merge`) et "
+              "consolider. ⚠ `merge` ≠ `consolidate` : le premier fusionne en UN lot et REFUSE "
+              "si les natures ne cohabitent pas (geste du drag&drop, on a visé une card) ; le "
+              "second RANGE par nature en N lots (chemin d'import) et 5 apps le redéfinissent. "
+              "La compatibilité n'est pas redéclarée : `group_key` reçoit la MÊME fonction que "
+              "le `nature_of` de l'import (vérifié par AST, tests_queue_dnd)",
               'wama/common/utils/queue_manipulation.py', 'CARD_DESIGN.md §3bis'),
+    Mecanisme('queue_dnd', 'Glisser-déposer et sélection multiple de la file',
+              "Les QUATRE gestes de manipulation directe, hérités par les 12 apps sans qu'aucune "
+              "n'écrive une ligne : déposer SUR une card change l'APPARTENANCE (entrer dans un "
+              "lot / en former un), déposer ENTRE deux cards change l'ORDRE (file ou lot) ; "
+              "sélection multiple clic/Ctrl/Maj, qui EST celle de l'inspecteur (une seule "
+              "sélection dans WAMA — la brique ANNONCE `wama:selection-change`, l'inspecteur "
+              "REND). Auto-monté sur `[data-wama-dnd]`, posé par le templatetag "
+              "`queue_dnd_attrs` : une app qui ne le pose pas garde une file strictement inerte. "
+              "SortableJS écarté (multi-sélection + fusion sur une card + règle « pas de CDN »)",
+              'wama/common/static/common/js/wama-queue-dnd.js', 'CARD_DESIGN.md §3bis',
+              annexes=('wama/common/static/common/css/wama-queue-dnd.css',
+                       'wama/common/templatetags/wama_actions.py',
+                       'wama/common/tests_queue_dnd.py')),
+    Mecanisme('queue_order', 'Ordre MANUEL de la file',
+              "Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin."
+              "queue_index`, 13 modèles de batch) + 6ᵉ tri « Manuel » — le SEUL tri qui LIT une "
+              "colonne au lieu de la calculer. `queue_index == 0` = jamais ordonné à la main, et "
+              "passe EN TÊTE par récence : une file jamais manipulée s'affiche comme en tri "
+              "`recent`, et un import arrivé après un classement manuel apparaît en haut au lieu "
+              "de se noyer dans un ordre qu'il n'a pas connu. `reorder_queue` écrit 1..N",
+              'wama/common/models.py', 'CARD_DESIGN.md §3bis',
+              annexes=('wama/common/utils/queue_view.py',
+                       'wama/common/templates/common/_queue_toolbar.html')),
     Mecanisme('queue_front', "File d'attente (front)",
               "Comportements communs des files : collapse de batch persisté, mode Solitaire "
               "(accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE "

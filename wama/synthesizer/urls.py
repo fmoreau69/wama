@@ -20,6 +20,8 @@ urlpatterns = [
     path('consolidate/', views.consolidate, name='consolidate'),
     # Manipulation directe de la file (fabrique commune, variante liaison)
     path('reorder/', views.reorder, name='reorder'),
+    path('reorder-queue/', views.reorder_queue, name='reorder_queue'),
+    path('merge/', views.merge, name='merge'),
     path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
     path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     path('upload-text/', views.upload_text, name='upload_text'),

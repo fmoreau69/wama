@@ -261,10 +261,10 @@ def create_user_profile(sender, instance, created, **kwargs):
         UserSettings.objects.get_or_create(user=instance)
 
 
-from wama.common.models import BatchMixin
+from wama.common.models import QueueOrderMixin, BatchMixin
 
 
-class BatchAnonymizer(BatchMixin, ScopedVisibility):
+class BatchAnonymizer(BatchMixin, QueueOrderMixin, ScopedVisibility):
     """Groupe de médias créé depuis un fichier batch (liste d'URLs/chemins).
 
     ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs

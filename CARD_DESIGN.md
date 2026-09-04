@@ -145,9 +145,84 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 > sur une autre → forme un batch ; la sortir → redevient autonome. Briques **déjà existantes** → surtout
 > de l'UI + des endpoints fins.
 
-- **Réordonner** (drag) : **SortableJS** ; persiste `row_index` (champ déjà présent sur les items de batch).
-- **Glisser DANS un batch** = `consolidate_into_batch` ; **glisser HORS** = `_unwrap` (ops existantes).
-  Endpoints fins : `reorder`, `move_to_batch`, `remove_from_batch`.
+> ✅ **LIVRÉ le 2026-09-04** — brique commune `wama/common/static/common/js/wama-queue-dnd.js`,
+> montée globalement par `base.html`, auto-active sur toute file portant `{% queue_dnd_attrs %}`.
+> **Les 12 apps en héritent sans écrire une ligne.** Ce qui suit décrit l'état RÉEL.
+
+### Les quatre gestes, et la règle qui les sépare
+
+> **Déposer SUR une card change l'APPARTENANCE ; déposer ENTRE deux cards change l'ORDRE.**
+> Tout le reste (multi-sélection, lot d'origine, niveau) n'est que du contexte. C'est ce qui
+> permet d'offrir quatre opérations sans un seul mode, bouton ou modificateur à retenir.
+> Le seuil est le **tiers médian** de la card pour « sur », les tiers haut/bas pour « entre » —
+> un demi/demi ne laisserait aucune zone au geste de fusion, le plus demandé des quatre.
+
+| geste | endpoint | retour visuel |
+|---|---|---|
+| card(s) → **sur** une card de lot | `move_to_batch` | cadre cyan autour de la card |
+| card(s) → **sur** une card unitaire | **`merge`** | cadre cyan |
+| fille(s) → **entre** deux entrées de file | `remove_from_batch` | barre d'insertion pleine largeur |
+| card(s) → **entre** deux cards | `reorder_queue` (file) / `reorder` (dans un lot) | barre, en retrait dans un lot |
+
+- **Sélection multiple** : clic simple (inchangé — 1 card + inspecteur), **Ctrl** = ajout/retrait,
+  **Maj** = plage dans l'ordre visible (lots repliés traversés). **UNE seule sélection dans WAMA**
+  (arbitrage Fabien, 04/09) : c'est celle de l'inspecteur, qui bascule en « N éléments
+  sélectionnés » avec les actions de groupe. La brique **annonce** (`wama:selection-change`),
+  l'inspecteur **rend** — deux briques qui décideraient chacune finiraient par diverger.
+
+### 🔴 `merge` ≠ `consolidate` — deux opérations, deux noms
+
+> Le piège de ce chantier, trouvé par une remarque de Fabien puis mesuré par un test le jour même.
+
+- `consolidate` = **l'import** : « range ces éléments déposés ensemble ». **Cinq apps le
+  redéfinissent** en version PAR NATURE (`group_into_batches_by_nature`) → 3 images + 2 vidéos
+  donnent **deux lots**. C'est le bon comportement quand on vient de déposer un dossier mélangé.
+- `merge` = **le drag&drop** : « fusionne ces éléments en UN lot ». On a visé une card précise ;
+  si les natures ne cohabitent pas, la réponse est un **refus** (409 + motif au toast).
+- Router le geste sur `consolidate` semblait gratuit — même signature, même effet apparent. Le
+  résultat réel dans ces cinq apps : déposer une vidéo sur une image répondait
+  `{"consolidated": true}` après avoir créé deux lots-de-1, **c'est-à-dire rien de visible, avec
+  un accusé de succès**. `merge` vient donc de la fabrique commune et **aucune app ne le
+  redéfinit** — c'est ce qui le garde strict partout. (Les cinq `consolidate` locaux ne
+  partagent même pas leur contrat d'entrée : le converter lit `job_ids`.)
+
+### La compatibilité de fusion est celle de l'IMPORT — une déclaration, deux consommateurs
+
+- La question « ces deux cards peuvent-elles fusionner ? » avait **déjà** sa réponse :
+  `group_into_batches_by_nature(nature_of=…)`, qui décide à l'import de ce qui va ensemble
+  (converter, anonymizer, describer, enhancer, avatarizer). La MÊME fonction est passée en
+  `group_key=` à la fabrique de manipulation — jamais une seconde règle.
+- Cela force à la **nommer** : une lambda inline ne se partage pas, et c'est sous cette forme
+  qu'elle vivait dans 3 apps. Vérifié par **AST** (jamais grep) :
+  `wama/common/tests_queue_dnd.py::JumelageNatureGroupKeyTest`. Le codegen émet la même paire,
+  donc une app générée naît avec la garde.
+
+### Ce qui n'existait pas et qu'il a fallu créer
+
+- **`QueueOrderMixin.queue_index`** (13 modèles de batch, migration additive par app). `reorder`
+  ne persistait que `row_index` **DANS** un lot ; au niveau supérieur, `apply_queue_sort_filter`
+  n'offrait que cinq tris **calculés** — aucun ordre manuel n'existait. D'où un **6ᵉ tri
+  « ✋ Manuel »**, sélectionné tout seul au premier glisser. `queue_index == 0` = « jamais
+  ordonné » et passe **en tête par récence** : un import arrivé après un classement manuel
+  apparaît en haut, au lieu de se noyer dans un ordre qu'il n'a pas connu.
+- **`data-entry-batch-id`** sur la card unitaire (`_queue_entry.html`) : une entrée de file est
+  un BATCH même quand elle s'affiche en card simple, mais le gabarit la rendait **sans** son
+  enveloppe `.batch-group[data-batch-id]` — l'id du lot n'existait nulle part au DOM et le
+  drag&drop aurait sauté toutes les entrées unitaires, en silence.
+- **L'anonymizer** était la dernière app hors fabrique (11/12 avaient les routes) : adoptée.
+
+### ⚠ SortableJS est ÉCARTÉ (révision du 2026-09-04)
+
+La ligne d'origine prescrivait SortableJS. Elle date d'**avant** deux exigences qui la périment :
+la **multi-sélection** (le plugin MultiDrag ne compose pas avec des listes imbriquées — et nos
+lots en sont) et le **dépôt sur une card pour fusionner** (SortableJS modélise le déplacement
+entre listes, pas la fusion sur un élément : il aurait fallu l'écrire par-dessus de toute façon).
+S'ajoute la règle « pas de CDN » — aucun asset tiers n'est vendorisé dans le dépôt, donc adopter
+la lib ouvrait ce chantier-là aussi. Le drag natif HTML5 fait les quatre gestes, sans dépendance.
+
+- **Réordonner** (drag) : persiste `row_index` dans un lot, `queue_index` au niveau de la file.
+- **Glisser DANS un batch** = `move_to_batch` ; **glisser HORS** = `remove_from_batch`.
+  Endpoints fins : `reorder`, `reorder_queue`, `merge`, `move_to_batch`, `remove_from_batch`.
 - **Filtrer / trier** : barre d'outils de file (statut / date / nom / type / durée), préférence persistée.
 - **Pourquoi c'est IMPORTANT (pas optionnel)** : laisse l'utilisateur **corriger une erreur d'import**
   sans repartir de zéro (sortir une card d'un batch, la déplacer) et **isoler un élément** pour le
@@ -161,8 +236,17 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   - *Clavier / tactile* : le drag est souris-centré → **menu contextuel** + commandes clavier
     (« déplacer vers batch X ») en lien avec la nav clavier (§1quater).
   - *Persistance / concurrence* : ordre + appartenance en DB, **UI optimiste**, ne pas écraser un drag en
-    cours quand le polling re-render.
-- **Brique commune** (pas par app) : init SortableJS + endpoints + barre filtre/tri dans `common/`.
+    cours quand le polling re-render. ✅ Tenu : un **pur réordonnancement ne recharge pas** (l'écran
+    est déjà juste) ; tout ce qui **change la composition** d'un lot recharge, parce que le serveur
+    seul sait recomposer totaux, card mère et disparition d'un lot vidé.
+  - *Séquentiel, jamais parallèle* : les endpoints se marchent dessus (`move_to_batch` recalcule le
+    total et peut SUPPRIMER un lot qui se vide). Deux POST concurrents sur le même lot donnent un
+    total faux, ou un 404 sur le lot que le premier vient d'effacer. Le coût — N allers-retours pour
+    N cards — est celui d'un geste rare et délibéré.
+- **Brique commune** (pas par app) : `wama-queue-dnd.js` + `wama-queue-dnd.css` + le templatetag
+  `{% queue_dnd_attrs app [domain] %}` (les URLs passent par le **DOM**, comme les
+  `data-batch-<action>-url` — pas par les `APP.urls`, qui portent un nom de global différent par
+  app et forceraient le substrat à connaître 12 noms d'apps).
 
 ## 4. Disposition : mode d'affichage pile ↔ mosaïque (toggle, comme les apps média)
 

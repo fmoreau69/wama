@@ -1,4 +1,5 @@
 {% extends 'enhancer/base.html' %}
+{% load wama_actions %}
 {% load static %}
 {% load wama_static %}
 
@@ -197,7 +198,8 @@
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-list"></i> File d'attente — Images &amp; Vidéos</h4>
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='enhancer-process-btn' clear_id='enhancer-clear-btn' download_id='enhancer-download-all-btn' show_download=True %}
-        <div id="enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
+        <div id="enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}"
+         {% queue_dnd_attrs 'enhancer' 'image_video' %}>
             {% for batch_info in batches_list %}
 
             {% include 'common/_queue_entry.html' with card_template='enhancer/_enhancement_card.html' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='enhancer' domain='image_video' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
@@ -234,7 +236,8 @@
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-headphones"></i> File d'attente — Audio</h4>
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='audio-process-btn' clear_id='audio-clear-btn' download_id='audio-download-all-btn' show_download=True %}
-        <div id="audio-enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
+        <div id="audio-enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}"
+         {% queue_dnd_attrs 'enhancer' 'audio' %}>
             {% for batch_info in audio_batches_list %}
 
             {% include 'common/_queue_entry.html' with card_template='enhancer/_audio_card.html' collapse_prefix='audioBatchItems' eta_ids=batch_info.eta_ids show_settings=False download_url=audio_batch_dl_url app='enhancer' batch_key='enhancer_audio' domain='audio' actions_communes=True meta_template='common/_batch_meta_chips.html' %}

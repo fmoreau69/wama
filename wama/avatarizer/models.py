@@ -7,7 +7,7 @@ Pipeline : MuseTalk (lip sync) + CodeFormer (amélioration faciale optionnelle)
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
-from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
+from wama.common.models import QueueOrderMixin, BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 from wama.common.utils.media_paths import UploadToUserPath
 from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
 from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
@@ -158,7 +158,7 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
         return "N/A"
 
 
-class BatchAvatarJob(BatchMixin, ScopedVisibility):
+class BatchAvatarJob(BatchMixin, QueueOrderMixin, ScopedVisibility):
     """Conteneur d'un lot de jobs d'avatar (import par fichier batch)."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_avatar_jobs')

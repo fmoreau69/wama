@@ -1434,6 +1434,8 @@ _qm = make_queue_manipulation_views(
 )
 remove_from_batch = _qm['remove_from_batch']
 reorder = _qm['reorder']
+reorder_queue = _qm['reorder_queue']
+merge = _qm['merge']
 move_to_batch = _qm['move_to_batch']
 consolidate = _qm['consolidate']
 

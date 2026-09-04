@@ -108,10 +108,10 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
         return f"~{s // 60}min{s % 60:02d}s" if s % 60 else f"~{s // 60}min"
 
 
-from wama.common.models import BatchMixin
+from wama.common.models import QueueOrderMixin, BatchMixin
 
 
-class ComposerBatch(BatchMixin, ScopedVisibility):
+class ComposerBatch(BatchMixin, QueueOrderMixin, ScopedVisibility):
     # ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs.
     objects = ScopedManager()
 

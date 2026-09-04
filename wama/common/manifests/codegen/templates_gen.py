@@ -440,7 +440,7 @@ def render_index(manifest: dict) -> tuple:
 
     src = f'''{{% extends '{app}/base.html' %}}
 {{% load static %}}
-{{% load wama_static %}}
+{{% load wama_static wama_actions %}}
 {{% comment %}}{mark} — index.html GÉNÉRÉ (gabarit templates_gen v1, marche S2).
 Squelette CONVENTIONNEL (briques communes) ; les TROUS DE GLU sont marqués — l'écart
 visuel avec l'app en place est LA mesure (Playwright côte à côte).{{% endcomment %}}
@@ -486,7 +486,8 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
 
 {urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}
 
-    <div id="{app}Queue" class="wama-queue-{{{{ card_layout|default:'list' }}}}">
+    <div id="{app}Queue" class="wama-queue-{{{{ card_layout|default:'list' }}}}"
+         {{% queue_dnd_attrs '{app}' %}}>
         {{% for b in batches_list %}}
             {{% if b.is_group %}}
             {{% comment %}}Wrapper `.batch-group` : `_batch_card.html:32` le déclare À LA CHARGE

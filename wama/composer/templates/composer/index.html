@@ -1,4 +1,5 @@
 {% extends 'composer/base.html' %}
+{% load wama_actions %}
 {% load static %}
 {% load wama_static %}
 
@@ -85,7 +86,8 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 {# Barre d'outils COMMUNE : actions globales à gauche · tri + filtre + disposition à droite. #}
 {% url 'composer:download_all' as download_all_url %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True download_url=download_all_url %}
-<div id="composerQueue" class="wama-queue-{{ card_layout|default:'list' }}">
+<div id="composerQueue" class="wama-queue-{{ card_layout|default:'list' }}"
+         {% queue_dnd_attrs 'composer' %}>
 
     {% for batch_info in batches_list %}
 

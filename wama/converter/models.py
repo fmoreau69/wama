@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
+from wama.common.models import QueueOrderMixin, BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 from wama.common.utils.media_paths import UploadToUserPath
 
 
@@ -21,7 +21,7 @@ class ConversionProfile(models.Model):
         return f"{self.name} ({self.output_format})"
 
 
-class ConversionBatch(BatchMixin, ScopedVisibility):
+class ConversionBatch(BatchMixin, QueueOrderMixin, ScopedVisibility):
     """Groupe de conversions partageant la même nature (image/vidéo/audio/…).
 
     Créé soit par import multi-fichiers (1 batch par nature), soit par fichier

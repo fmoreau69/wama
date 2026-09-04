@@ -33,12 +33,21 @@ def _wrap_enhancement_in_batch(enhancement):
     return batch
 
 
+def _enhancement_nature(e):
+    """Nature d'une amélioration (image / vidéo) — ce qui peut cohabiter dans un lot.
+
+    DEUX consommateurs, une seule déclaration : le regroupement à l'import
+    (`group_into_batches_by_nature`) et la fusion par drag&drop (`group_key` de la fabrique
+    de manipulation). Écrite en lambda jusqu'au 2026-09-04, donc impartageable."""
+    return e.media_type or 'image'
+
+
 def _group_enhancements_into_batches(user, enhancements, unwrap_singletons=None):
     """Crée UN batch PAR NATURE (image/vidéo) — règle commune group_into_batches_by_nature."""
     from wama.common.utils.batch_common import group_into_batches_by_nature
     group_into_batches_by_nature(
         enhancements,
-        nature_of=lambda e: e.media_type or 'image',
+        nature_of=_enhancement_nature,
         create_batch=lambda nature, total: BatchEnhancement.objects.create(user=user, total=total),
         link_item=lambda batch, e, idx: BatchEnhancementItem.objects.create(
             batch=batch, enhancement=e, row_index=idx),
@@ -1817,9 +1826,12 @@ from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 _qm_media = make_queue_manipulation_views(
     work_model=Enhancement, batch_model=BatchEnhancement,
     item_model=BatchEnhancementItem, fk_name='enhancement', get_user=_req_user,
+    group_key=_enhancement_nature,      # jumeau du `nature_of` de l'import
 )
 remove_from_batch = _qm_media['remove_from_batch']
 reorder           = _qm_media['reorder']
+reorder_queue     = _qm_media['reorder_queue']
+merge             = _qm_media['merge']
 move_to_batch     = _qm_media['move_to_batch']
 
 _qm_audio = make_queue_manipulation_views(
@@ -1828,4 +1840,6 @@ _qm_audio = make_queue_manipulation_views(
 )
 audio_remove_from_batch = _qm_audio['remove_from_batch']
 audio_reorder           = _qm_audio['reorder']
+audio_reorder_queue     = _qm_audio['reorder_queue']
+audio_merge             = _qm_audio['merge']
 audio_move_to_batch     = _qm_audio['move_to_batch']

@@ -847,6 +847,21 @@
           "fields": [
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "queue_index"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -1716,11 +1731,13 @@
         "index",
         "list_custom_voices",
         "list_presets",
+        "merge",
         "move_to_batch",
         "preview",
         "progress",
         "remove_from_batch",
         "reorder",
+        "reorder_queue",
         "start",
         "start_all",
         "stop",

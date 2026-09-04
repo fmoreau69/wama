@@ -809,12 +809,20 @@ def start_all(request):
     return ProcessView().post(request)
 
 
+def _anonymizer_nature(m):
+    """Nature d'un média (image / vidéo / audio) — ce qui peut cohabiter dans un lot.
+
+    DEUX consommateurs, une seule déclaration : le regroupement à l'import
+    (`group_into_batches_by_nature`) et la fusion par drag&drop (`group_key`)."""
+    return m.media_type or 'video'
+
+
 def _group_medias_into_batches(user, medias, unwrap_singletons=None):
     """Crée UN batch PAR NATURE (image/vidéo/audio) — règle commune."""
     from wama.common.utils.batch_common import group_into_batches_by_nature
     group_into_batches_by_nature(
         medias,
-        nature_of=lambda m: m.media_type or 'video',
+        nature_of=_anonymizer_nature,
         create_batch=lambda nature, total: BatchAnonymizer.objects.create(user=user, total=total),
         link_item=lambda batch, m, idx: BatchAnonymizerItem.objects.create(
             batch=batch, media=m, row_index=idx),
@@ -908,6 +916,32 @@ def _queue_context(request, user):
         # Groupes de la modale (sections calquées sur le volet droit). Voir params.py GROUPS.
         'groups_json': _json.dumps(GROUPS_JSON),
     }
+
+
+# ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ─────────────
+#
+# L'anonymizer était la DERNIÈRE app hors fabrique (relevé du 2026-09-04 : 11 apps sur 12 avaient
+# les routes, elle n'avait qu'un `consolidate`). Rien ne s'y opposait — elle a bien l'architecture
+# batch unifiée (BatchAnonymizer + BatchAnonymizerItem + FK `media`) que la fabrique demande ;
+# personne n'était simplement venu la brancher, faute d'UI qui l'exige.
+#
+# Son `consolidate` local est CONSERVÉ (la fabrique le permet explicitement) : il regroupe PAR
+# NATURE, ce que le consolidate commun ne sait pas faire — même partage que describer et converter.
+# `group_key` porte cette même règle jusqu'au geste de drag&drop : sans elle, glisser une vidéo
+# dans un lot d'images produisait un lot mixte qu'aucun import n'aurait pu créer.
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views as _make_qm
+
+_qm = _make_qm(
+    work_model=Media, batch_model=BatchAnonymizer, item_model=BatchAnonymizerItem,
+    fk_name='media',
+    get_user=lambda r: r.user if r.user.is_authenticated else get_or_create_anonymous_user(),
+    group_key=_anonymizer_nature,      # jumeau du `nature_of` de l'import
+)
+remove_from_batch = _qm['remove_from_batch']
+reorder           = _qm['reorder']
+reorder_queue     = _qm['reorder_queue']
+merge             = _qm['merge']
+move_to_batch     = _qm['move_to_batch']
 
 
 def consolidate(request):

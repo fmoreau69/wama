@@ -11133,3 +11133,114 @@ ci-dessus sont réglés le jour même.
 +2 tests de garde. **Le crash est élucidé par l'instance voisine** : rampe d'init CUDA
 (mort 3,5 s après l'init, avant tout chargement) — `wait_for_free_vram` mesure la VRAM
 LIBRE, donc **aucune garde ne borne la PENTE** ; c'est un chantier à part.
+
+---
+
+## §PALIER — 2026-09-04, « MANIPULATION DIRECTE DE LA FILE : le drag&drop devient une BRIQUE » — ✅ LIVRÉ
+
+**Demande de Fabien** : réorganiser les cards en glisser-déposer avec multi-sélection Ctrl/Maj,
+les faire entrer dans un batch existant, en former un nouveau, et les en sortir — « de façon
+universelle, commune et centralisée (adopté automatiquement par toutes les applications) ».
+
+### ⚠⚠ « Reste l'UI SortableJS » était FAUX — et c'est la leçon du palier
+
+`ROADMAP` annonçait ce chantier « ⏳ UI seule » depuis le 2026-06-29, sur la foi d'un backend
+« COMPLET + validé ». Le backend l'était **pour les quatre gestes de 2026-06-29**. Il manquait :
+
+| ce qui manquait | pourquoi personne ne l'avait vu |
+|---|---|
+| l'**ordre de niveau supérieur** — `reorder` ne persiste que `row_index` **DANS** un lot ; `apply_queue_sort_filter` n'offrait que 5 tris **calculés** | la roadmap parlait d'« appartenance batch » ; l'ordre de la file est un autre geste, et personne ne l'avait demandé |
+| la **colonne** qui le porte (`QueueOrderMixin.queue_index`, 13 modèles, 13 migrations) | — |
+| `merge` — la fusion STRICTE, distincte de `consolidate` | voir ci-dessous, c'est le vrai piège |
+| l'**exposition des URLs** au DOM | les 12 apps exposent leurs URLs sous un global différent (`READER_APP`, `IMAGER_APP`…) : illisible depuis le commun |
+| l'**id de lot des cards unitaires** | `_queue_entry.html` rend la card SANS son `.batch-group` : l'id n'existait **nulle part** au DOM |
+| l'**anonymizer**, dernière app hors fabrique (11/12 l'avaient) | rien ne s'y opposait — personne n'était venu la brancher, faute d'UI qui l'exige |
+
+> **Un backend complet pour le geste A ne dit rien du geste B.** Et une route sans appelant ne
+> prouve rien sur sa solidité : la construire, c'est la mettre à l'épreuve pour la première fois.
+
+### 🔴 `merge` ≠ `consolidate` — trouvé par une remarque de Fabien, mesuré le jour même
+
+Fabien : « il faut bien contrôler que les 2 cards sont compatibles pour fusionner en batch. On a
+déjà un système qui le fait à l'import, il faut le réutiliser. » Deux défauts en découlent :
+
+1. **La compatibilité ne se redéclare pas.** `group_into_batches_by_nature(nature_of=…)` décide
+   déjà, dans **5 apps**, de ce qui peut aller ensemble. La MÊME fonction est désormais passée en
+   `group_key=` à la fabrique de manipulation — jamais une seconde règle. Cela force à la
+   **nommer** : une lambda inline ne se partage pas, et c'est sous cette forme qu'elle vivait
+   dans 3 apps. Vérifié par **AST** (jamais grep) : `tests_queue_dnd::JumelageNatureGroupKeyTest`.
+2. **Et router le drag&drop sur `consolidate` était un défaut SILENCIEUX.** Ces 5 apps le
+   redéfinissent en version PAR NATURE, qui **range** en N lots au lieu de refuser : déposer une
+   vidéo sur une image répondait `{"consolidated": true}` après avoir créé deux lots-de-1 —
+   c'est-à-dire **rien de visible, avec un accusé de succès**. D'où deux noms : `consolidate`
+   reste l'import (lenient, redéfinissable), **`merge`** est le geste du drag (strict, 409 +
+   motif, **jamais redéfini par une app**). Les 5 consolidate locaux ne partagent même pas leur
+   contrat d'entrée — le converter lit `job_ids`.
+
+### Livré
+
+- **`wama/common/static/common/js/wama-queue-dnd.js`** (+ `.css`) — 4 gestes, sélection
+  clic/Ctrl/Maj, montée globale par `base.html`, auto-active sur `[data-wama-dnd]`.
+  **Règle unique : déposer SUR une card change l'APPARTENANCE, ENTRE deux cards change
+  l'ORDRE** (seuil au tiers médian). Aucune app n'écrit une ligne.
+- **`{% queue_dnd_attrs app [domain] %}`** (`wama_actions`) — les URLs passent par le **DOM**,
+  comme les `data-batch-<action>-url`. Une route absente n'émet pas son attribut → geste
+  désactivé, jamais de POST dans le vide.
+- **UNE seule sélection** (arbitrage Fabien) : c'est celle de l'inspecteur, qui bascule en
+  « N éléments sélectionnés » + actions de groupe. La brique **annonce**
+  (`wama:selection-change`), l'inspecteur **rend**.
+- **6ᵉ tri « ✋ Manuel »**, sélectionné tout seul au premier glisser. `queue_index == 0` =
+  « jamais ordonné » et passe **en tête par récence** → un import arrivé après un classement
+  manuel apparaît en haut, au lieu de se noyer dans un ordre qu'il n'a pas connu.
+- **Codegen porté** (`urls_gen`, `views_gen`, `templates_gen`) : une app générée naît avec les
+  6 routes, la nature partagée et une file **active**.
+- **SortableJS écarté** — décision de `CARD_DESIGN §3bis` **révisée** (multi-sélection + fusion
+  sur une card + règle « pas de CDN ») ; motifs consignés dans le §3bis.
+
+### Deux défauts que j'ai introduits, et ce qui les a attrapés
+
+- **Collision de variable dans le codegen** : ma `bloc_nature` a **écrasé** celle qui portait
+  `_TYPES_ENTREE` + `def _nature` → l'app générée perdait son vocabulaire d'entrée tout en
+  gardant les appels `_nature(...)`. Trois tests de `tests_codegen_lot` l'ont dit tout de
+  suite ; **au diff, ça n'avait l'air que d'un ajout**.
+- **`elementFromPoint` au `drop`** : le marqueur d'insertion du dernier `dragover` était encore
+  sous le curseur → un dépôt SUR une card se comportait comme un dépôt en fin de file.
+  Invisible au relevé du code, évident dès qu'on lâche la souris.
+- ⚠ **Et une sonde m'a menti avant d'accuser le code** : le tiers médian ne produisait pas le
+  cadre de fusion… parce que mes cards de test étaient à y=1219 dans un viewport de 720, donc
+  `elementFromPoint` rendait `null`. *Contre-vérifier l'instrument AVANT de conclure* — 3ᵉ
+  occurrence consignée de cette leçon.
+
+### Contrôles
+
+**Suite complète 1519 tests `OK` (skipped=5)** (+14 de ce palier) · `check_docs` **8 cassées /
+1 seule cible distincte** (l'attendu, aucune dérive) · `doc_facts --check` à jour ·
+corpus **10 manifestes réécrits, 113 inchangés** · `check_app_conformity` :
+**`queue_manipulation` = True sur 10/10** (anonymizer et converter passés au vert — le
+commentaire du converter disait « la fabrique exige une architecture que ConversionBatch n'a
+pas », vrai à l'écriture et **faux depuis** que la variante FK-directe a été écrite POUR lui ;
+*un commentaire qui survit à la solution qu'il appelait fait renoncer le suivant*).
+
+**Smoke navigateur** (le seul verdict qui vaut pour du JS — aucun vérificateur n'est installé) :
+brique montée, CSS chargée, 5 URLs au DOM, 0 erreur console ; sélection clic/Ctrl/Maj conforme ;
+tiers médian → cadre de fusion, tiers haut/bas → barre d'insertion bien placée ; nettoyage au
+`dragend`. Exercé sur un DOM **injecté en mémoire** (les files réelles étaient quasi vides et
+l'utilisateur est réel — aucune écriture en base). ⚠ La page était servie par **gunicorn**
+(démarré la veille, sans rechargement auto) : recharge gracieuse `kill -HUP` après accord de
+Fabien, sinon le smoke aurait attesté l'ANCIEN code.
+
+**Corrigé au smoke, pas au code** : le volet annonçait encore « Paramètres de l'ÉLÉMENT » avec
+les valeurs d'UNE card pendant que N étaient sélectionnées — un volet qui ment sur ce qu'il
+édite, et dont un Enregistrer aurait écrit on ne sait où.
+
+### 🔚 Pendings
+
+- **Le drag reste souris-centré** (ni tactile, ni clavier) — `CARD_DESIGN §3bis` le pose en
+  vigilance. Les mêmes opérations sont atteignables par les actions de groupe de l'inspecteur,
+  qui lisent la même sélection : **c'est là que le clavier les trouvera**, pas dans un second
+  chemin de drag.
+- **Réglages sur sélection multiple** : délibérément ABSENTS du volet. Appliquer des réglages à
+  N éléments hétérogènes est une autre question (héritage batch→item, conventions §9.9) —
+  la trancher au passage aurait été la trancher mal.
+- **Jumelles `_01` non régénérées** : elles héritent du geste à leur prochain `app_sandbox`.
+  L'invariant tient sur le GÉNÉRATEUR (`CodegenJumelleTest`), pas sur leur code figé.

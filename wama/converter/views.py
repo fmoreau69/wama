@@ -79,6 +79,16 @@ def _auto_wrap_orphans(user):
             pass
 
 
+def _converter_nature(job):
+    """Nature d'un job de conversion — ce qui peut cohabiter dans un lot.
+
+    DEUX consommateurs, une seule déclaration : le regroupement à l'import
+    (`group_into_batches_by_nature`) et la fusion par drag&drop (`group_key` de la fabrique
+    de manipulation de file). Le lot PORTE cette nature (`ConversionBatch.media_type`) et son
+    format de sortie en découle — un lot mixte enverrait tout au mauvais format."""
+    return job.media_type
+
+
 def consolidate_jobs_into_batches(job_ids, user, app_label='converter'):
     """Regroupe des jobs par NATURE → un ConversionBatch par nature.
 
@@ -95,6 +105,8 @@ def consolidate_jobs_into_batches(job_ids, user, app_label='converter'):
     from wama.common.utils.batch_common import group_into_batches_by_nature
 
     Job = django_apps.get_model(app_label, 'ConversionJob')
+    # (la nature est déclarée UNE fois, `_converter_nature` — voir plus bas son second
+    #  consommateur, `group_key` de la fabrique de manipulation de file)
     ConversionBatch = django_apps.get_model(app_label, 'ConversionBatch')
 
     jobs = list(Job.objects.filter(id__in=job_ids, user=user, ephemeral=False))
@@ -107,7 +119,7 @@ def consolidate_jobs_into_batches(job_ids, user, app_label='converter'):
     # Règle commune : un ConversionBatch PAR NATURE (la nature est stockée sur le batch).
     return group_into_batches_by_nature(
         jobs,
-        nature_of=lambda j: j.media_type,
+        nature_of=_converter_nature,
         create_batch=lambda nature, total: ConversionBatch.objects.create(
             user=user, media_type=nature, total=total),
         link_item=_link,
@@ -1150,7 +1162,14 @@ _qm = make_queue_manipulation_views_direct(
     batch_model=ConversionBatch,
     get_user=lambda r: r.user if r.user.is_authenticated else get_or_create_anonymous_user(),
     batch_extra=lambda job: {'media_type': job.media_type},
+    # Un lot de conversion = UNE nature (le lot porte `media_type`, et le format de sortie en
+    # découle). `batch_extra` la posait à la création ; `group_key` la DÉFEND ensuite — sans
+    # lui, glisser une vidéo dans un lot d'images passait, et tout le lot repartait au mauvais
+    # format. MÊME fonction que le `nature_of` de l'import, pas une seconde règle.
+    group_key=_converter_nature,
 )
 remove_from_batch = _qm['remove_from_batch']
 reorder           = _qm['reorder']
+reorder_queue     = _qm['reorder_queue']
+merge             = _qm['merge']
 move_to_batch     = _qm['move_to_batch']

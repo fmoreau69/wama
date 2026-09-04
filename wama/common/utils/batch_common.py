@@ -95,6 +95,20 @@ def group_into_batches_by_nature(items,
         unwrap_singletons(item_ids)  -> (optionnel) supprime les batch-of-1 préalables
 
     Returns: liste des batchs créés (un par nature, dans l'ordre d'apparition).
+
+    ⚠⚠ `nature_of` A UN JUMEAU, ET IL EST OBLIGATOIRE (2026-09-04, remarque de Fabien pendant
+    le chantier drag&drop). Cette fonction décide de ce qui peut cohabiter dans un lot **à
+    l'import**. Le drag&drop pose exactement la même question **après coup** — « ces deux cards
+    peuvent-elles fusionner ? » — et la réponse doit venir de la MÊME déclaration, sinon les
+    deux chemins divergent : l'import refuserait de mélanger image et vidéo pendant que le
+    glisser-déposer le permettrait, dans la même app, le même jour.
+
+    Donc : toute app qui passe `nature_of` ICI passe la MÊME fonction en `group_key=` à
+    `make_queue_manipulation_views[_direct]`. Ce n'est pas une recommandation — c'est vérifié
+    par `wama/common/tests_queue_dnd.py::…nature_a_son_jumeau_group_key`, précisément pour que
+    la règle ne repose pas sur la mémoire du prochain (leçon « une garde se pose avec ses
+    JUMEAUX »). Nommer la fonction plutôt que l'écrire en lambda est ce qui rend le partage
+    possible ET lisible.
     """
     items = list(items)
     if not items:

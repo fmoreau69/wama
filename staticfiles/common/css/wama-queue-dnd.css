@@ -1,0 +1,76 @@
+/* wama-queue-dnd.css — manipulation DIRECTE de la file (CARD_DESIGN §3bis).
+ *
+ * Trois états, et ils doivent rester DISTINGUABLES AU PREMIER COUP D'ŒIL, parce que c'est
+ * l'affordance qui rend le geste devinable : au moment de lâcher, l'utilisateur doit savoir
+ * lequel des quatre gestes va se produire.
+ *
+ *   .wama-dnd-selected  — la card fait partie de la sélection (elle partira au drag)
+ *   .wama-dnd-marker    — barre d'INSERTION entre deux éléments → on change l'ORDRE
+ *   .wama-dnd-over      — cadre AUTOUR d'une card              → on change l'APPARTENANCE
+ *   .wama-dnd-refuse    — même position, geste impossible
+ *
+ * Couleurs : le cyan `#0dcaf0` est déjà celui de la FAMILLE DE LOT dans tout WAMA
+ * (CARD_DESIGN §11.2, liseré des lots, badge « Batch »). Le réutiliser pour « ça va former ou
+ * rejoindre un lot » n'est pas un choix esthétique : c'est la même chose qui se dit avec le
+ * même signe. Le refus emprunte le rouge des actions destructives, pour la même raison.
+ */
+
+/* ── Sélection ────────────────────────────────────────────────────────────────────────── */
+.wama-dnd-selected {
+    outline: 2px solid rgba(13, 202, 240, .85);
+    outline-offset: -2px;
+    background-image: linear-gradient(rgba(13, 202, 240, .10), rgba(13, 202, 240, .10));
+}
+
+/* La card sous le curseur pendant un drag : on l'allège pour que la barre d'insertion et le
+   cadre de fusion restent les éléments les plus lisibles de l'écran. */
+.wama-dnd-active .wama-card { transition: opacity .12s ease; }
+.wama-dnd-active .wama-dnd-selected { opacity: .45; }
+
+/* Le grain « saisissable » n'apparaît qu'au survol : un curseur `grab` permanent sur toute la
+   file prétendrait que TOUT y est déplaçable, boutons compris. */
+[data-wama-dnd] .wama-card[draggable="true"]:hover { cursor: grab; }
+[data-wama-dnd] .wama-card[draggable="true"]:active { cursor: grabbing; }
+
+/* ── Barre d'insertion : on change l'ORDRE ────────────────────────────────────────────── */
+.wama-dnd-marker {
+    height: 0;
+    border-top: 3px solid #0dcaf0;
+    border-radius: 3px;
+    box-shadow: 0 0 8px rgba(13, 202, 240, .7);
+    margin: 2px 0;
+    pointer-events: none;   /* sinon elle se met sous le curseur et devient sa propre cible */
+}
+/* Dans un lot, la barre est en retrait — elle dit « ici, DANS ce lot », pas « ici, dans la
+   file ». Deux gestes différents ne doivent pas produire le même dessin. */
+.wama-dnd-marker.is-in-batch {
+    margin-left: 1.5rem;
+    border-top-color: #67e8f9;
+}
+
+/* ── Cadre de fusion : on change l'APPARTENANCE ───────────────────────────────────────── */
+.wama-dnd-over {
+    outline: 3px dashed #0dcaf0 !important;
+    outline-offset: 2px;
+    background-image: linear-gradient(rgba(13, 202, 240, .18), rgba(13, 202, 240, .18));
+}
+.wama-dnd-refuse {
+    outline: 3px dashed #dc3545 !important;
+    outline-offset: 2px;
+    background-image: linear-gradient(rgba(220, 53, 69, .18), rgba(220, 53, 69, .18));
+    cursor: no-drop;
+}
+
+/* En mosaïque, la barre d'insertion est HORIZONTALE dans une grille : elle doit occuper la
+   hauteur d'une tuile, sinon elle disparaît entre deux colonnes. */
+.wama-queue-grid .wama-dnd-marker {
+    height: auto;
+    align-self: stretch;
+    border-top: none;
+    border-left: 3px solid #0dcaf0;
+    margin: 0 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wama-dnd-active .wama-card { transition: none; }
+}

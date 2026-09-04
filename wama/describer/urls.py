@@ -19,6 +19,8 @@ urlpatterns = [
     path('consolidate/', views.consolidate, name='consolidate'),
     # Manipulation directe (brique commune queue_manipulation, 2026-07-06)
     path('reorder/', views.reorder, name='reorder'),
+    path('reorder-queue/', views.reorder_queue, name='reorder_queue'),
+    path('merge/', views.merge, name='merge'),
     path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
     path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     path('start/<int:pk>/', views.start, name='start'),
