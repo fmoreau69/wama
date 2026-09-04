@@ -1099,6 +1099,7 @@
     },
     "models": {
       "catalog_keys": [
+        "transcriber:pyannote-diarization",
         "transcriber:qwen3-asr-0.6b",
         "transcriber:qwen3-asr-1.7b",
         "transcriber:vibevoice-asr",
@@ -1745,6 +1746,10 @@
   "name": "Transcriber",
   "projects": [],
   "requires": [
+    {
+      "key": "transcriber:pyannote-diarization",
+      "kind": "model"
+    },
     {
       "key": "transcriber:qwen3-asr-0.6b",
       "kind": "model"
