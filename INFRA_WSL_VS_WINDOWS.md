@@ -870,11 +870,27 @@ layout positif). C'est déjà ce que fait `missing_packages()` via `find_spec`.
 
 | patron | exemple mesuré | isolement |
 |---|---|---|
-| subprocess + **venv dédié** | `wama_lab/face_analyzer` (`app.py` : *« Executed via subprocess from WAMA core »*) | venv_win 2,7 Go ; son venv_linux (16 Mo) est une souche vide |
 | subprocess + **env dédié**, venv commun | musetalk / codeformer (avatarizer) | variables d'environnement du fils |
 | **micro-service HTTP** | service TTS, `--workers 1` **structurant** | processus + port |
 
 Il n'y a donc **pas de système multi-venv à bâtir** — il y avait une **déclaration** à poser.
+
+> ⚠⚠ **CORRECTION du 2026-09-04 — j'ai d'abord écrit ici que `wama_lab/face_analyzer` tournait
+> dans son propre venv, et c'est FAUX.** Vérifié : `wama_lab.face_analyzer` est dans
+> `INSTALLED_APPS` (`settings.py:385`) et ses tâches sont routées vers la file `gpu`
+> (`settings.py:658`) — il tourne donc **dans le processus Django/Celery principal, en
+> venv_linux, comme toute autre app**. Ce qui m'a trompé : son `app.py` (janvier, Flask +
+> argparse) porte la mention *« Executed via subprocess from WAMA core »* — mais **aucun code
+> du dépôt ne le lance** (grep exhaustif : zéro appel). C'est un vestige de l'époque où
+> face_analyzer était une application autonome, avant son intégration.
+>
+> **Conséquence : ses deux venvs sont des RELIQUATS** — `venv_win` (2,7 Go, 211 paquets dont
+> Flask et TensorFlow) et `venv_linux` (16 Mo, souche vide). Aucun fichier du dépôt ne les
+> référence. *Une mention dans un en-tête de fichier n'est pas une mesure : elle dit ce qui
+> était vrai le jour où on l'a écrite.*
+>
+> Il reste donc **ZÉRO** patron « venv dédié » réellement en service : les deux patrons du
+> tableau ci-dessus sont les seuls, et ils partagent le venv principal.
 
 ### Ce qui manquait : `ISOLATION` sur le contrat backend
 

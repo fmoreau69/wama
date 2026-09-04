@@ -47,22 +47,22 @@ class DerivationDuVivierTest(TestCase):
         routees = [a for a in self.inv if a.routes]
         self.assertTrue(routees, 'au moins une app routée (marche B1) doit exister')
         for a in routees:
-            self.assertIn(a.saveur, bi.SAVEURS, f'{a.app} : saveur hors vocabulaire')
+            self.assertIn(a.flavor, bi.FLAVORS, f'{a.app} : saveur hors vocabulaire')
             natures_vues = {n for e in a.entries for n in e.natures}
             self.assertEqual(natures_vues, set(a.routes),
                              f'{a.app} : toute nature routée doit mener à une entrée')
             # La colonne de nature EFFECTIVE ne peut pas être vide : le corps composé la lit.
             # (Ma 1ʳᵉ version confondait les CLÉS de ROUTES — des natures — avec le NOM de la
             # colonne : elle a fait sortir converter, qui hérite du défaut `media_type`.)
-            self.assertTrue(a.nature_effective, f'{a.app} : colonne de nature effective vide')
-            if not a.nature_declaree:
-                self.assertEqual(a.nature_effective, 'media_type',
+            self.assertTrue(a.effective_nature, f'{a.app} : colonne de nature effective vide')
+            if not a.declared_nature:
+                self.assertEqual(a.effective_nature, 'media_type',
                                  'le seul défaut admis est celui du pilote')
 
     def test_une_app_SANS_routes_le_dit_au_lieu_de_paraitre_complete(self):
         for a in self.inv:
             if not a.routes:
-                self.assertIn('ROUTES', a.manque,
+                self.assertIn('ROUTES', a.missing,
                               f"{a.app} : l'absence de routage doit être NOMMÉE (trou marche B)")
 
     def test_chaque_entree_porte_une_signature_de_voisinage(self):
@@ -77,7 +77,7 @@ class DerivationDuVivierTest(TestCase):
         s = bi.summary()
         jumelles = [a for a in self.inv if a.generated_from]
         for j in jumelles:
-            self.assertNotIn(j.app, s['sans_routage'])
+            self.assertNotIn(j.app, s['without_routes'])
             self.assertIn(j.generated_from, self.par_app,
                           'une jumelle nomme une source réellement inventoriée')
         entrees_reelles = sum(len(a.entries) for a in self.inv if not a.generated_from)
@@ -88,7 +88,7 @@ class DerivationDuVivierTest(TestCase):
         for a in self.inv:
             for e in a.entries:
                 if e.models:
-                    self.assertIn(e.lien, ('backend_ref', 'app'),
+                    self.assertIn(e.link, ('backend_ref', 'app'),
                                   'un rattachement sans provenance déclarée est illisible')
 
     def test_un_modele_rattache_a_plusieurs_entrees_ne_compte_qu_une_fois(self):
@@ -97,8 +97,8 @@ class DerivationDuVivierTest(TestCase):
                     for e in a.entries for m in e.models}
                    | {(a.app, m) for a in self.inv if not a.generated_from
                       for m in a.models_app})
-        self.assertEqual(s['modeles_lies'], len(couples))
-        self.assertLessEqual(s['modeles_lien_declare'], s['modeles_lies'])
+        self.assertEqual(s['linked_models'], len(couples))
+        self.assertLessEqual(s['declared_link_models'], s['linked_models'])
 
     def test_un_rattachement_de_NIVEAU_APP_n_est_pas_etale_sur_chaque_backend(self):
         """Défaut mesuré le 03/09 (recadrage Fabien « backend ≠ moteur ») : attribuer les
@@ -107,9 +107,9 @@ class DerivationDuVivierTest(TestCase):
         for a in self.inv:
             for e in a.entries:
                 if e.models:
-                    self.assertEqual(e.lien, 'backend_ref',
+                    self.assertEqual(e.link, 'backend_ref',
                                      f'{e.app}:{e.name} : un backend ne porte que le lien DÉCLARÉ')
-                for moteur in e.engines:
+                for engine in e.engines:
                     modeles_du_moteur = {m for m in e.models}
                     self.assertTrue(modeles_du_moteur,
                                     'un moteur affiché doit venir de modèles DÉCLARÉS')
@@ -160,14 +160,14 @@ class BalayageDesSousModulesTest(SimpleTestCase):
     def test_une_classe_d_un_SOUS_MODULE_non_re_exporte_est_trouvee(self):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'moteur': self.CLASSE})
-            classes, illisibles = bi._classe_backends(paquet, 'paquet_temoin')
+            classes, unreadable = bi._class_backends(paquet, 'paquet_temoin')
         self.assertEqual([n for n, _ in classes], ['MoteurTemoin'])
-        self.assertEqual(illisibles, [])
+        self.assertEqual(unreadable, [])
 
     def test_le_MOTEUR_declare_est_lu_avec_les_paquets_requis(self):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'moteur': self.CLASSE})
-            classes, _ = bi._classe_backends(paquet, 'paquet_temoin')
+            classes, _ = bi._class_backends(paquet, 'paquet_temoin')
         _, info = classes[0]
         self.assertEqual(info['attrs'].get('ENGINE'), 'moteur-temoin')
         self.assertEqual(info['attrs'].get('REQUIRED_PACKAGES'), ['torch'])
@@ -175,7 +175,7 @@ class BalayageDesSousModulesTest(SimpleTestCase):
     def test_une_base_METIER_qui_n_implemente_pas_le_contrat_est_ECARTEE(self):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'base': self.ABSTRAITE, 'moteur': self.CLASSE})
-            classes, _ = bi._classe_backends(paquet, 'paquet_temoin')
+            classes, _ = bi._class_backends(paquet, 'paquet_temoin')
         self.assertEqual([n for n, _ in classes], ['MoteurTemoin'],
                          'une base abstraite par HÉRITAGE ne doit pas passer pour exécutable')
 
@@ -186,26 +186,26 @@ class BalayageDesSousModulesTest(SimpleTestCase):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'moteur': self.CLASSE.replace(
                 "['torch']", "['bibliotheque_absente_xyz']")})
-            classes, illisibles = bi._classe_backends(paquet, 'paquet_temoin')
+            classes, unreadable = bi._class_backends(paquet, 'paquet_temoin')
         self.assertEqual([n for n, _ in classes], ['MoteurTemoin'])
-        self.assertEqual(illisibles, [])
-        self.assertFalse(bi._paquets_presents(['bibliotheque_absente_xyz']))
+        self.assertEqual(unreadable, [])
+        self.assertFalse(bi._packages_present(['bibliotheque_absente_xyz']))
 
     def test_un_sous_module_ILLISIBLE_est_rapporte_jamais_avale(self):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'moteur': self.CLASSE,
                                       'casse': 'class Casse(:\n'})   # INSYNTAXIQUE
-            classes, illisibles = bi._classe_backends(paquet, 'paquet_temoin')
+            classes, unreadable = bi._class_backends(paquet, 'paquet_temoin')
         self.assertEqual([n for n, _ in classes], ['MoteurTemoin'],
                          'un module cassé ne doit pas emporter les autres')
-        self.assertEqual(len(illisibles), 1)
-        self.assertIn('casse', illisibles[0])
+        self.assertEqual(len(unreadable), 1)
+        self.assertIn('casse', unreadable[0])
 
     def test_une_classe_IMPORTEE_d_ailleurs_n_est_pas_comptee_deux_fois(self):
         with TemporaryDirectory() as d:
             paquet = self._paquet(d, {'moteur': self.CLASSE,
                                       'reexport': 'from .moteur import MoteurTemoin\n'})
-            classes, _ = bi._classe_backends(paquet, 'paquet_temoin')
+            classes, _ = bi._class_backends(paquet, 'paquet_temoin')
         self.assertEqual(len(classes), 1, 'compté par sa DÉFINITION, pas par ses imports')
 
 
@@ -226,7 +226,7 @@ class PageDuVivierTest(TestCase):
         self.client.force_login(get_test_user())
         facettes = self.client.get('/common/backends/').context['facettes_backends']
         presents = {'app': {e.app for a in bi.inventory() for e in a.entries},
-                    'saveur': {e.saveur for a in bi.inventory() for e in a.entries},
+                    'saveur': {e.flavor for a in bi.inventory() for e in a.entries},
                     'famille': {e.kind for a in bi.inventory() for e in a.entries}}
         for f in facettes:
             self.assertTrue(set(f['options']) <= presents[f['cle']],
@@ -246,7 +246,7 @@ class ToutBackendDeclareSonMoteurTest(TestCase):
 
     def test_chaque_backend_concret_declare_ENGINE(self):
         sans = sorted(f'{a.app}:{e.name}' for a in bi.inventory() if not a.generated_from
-                      for e in a.entries if e.kind == 'classe' and not e.moteur)
+                      for e in a.entries if e.kind == 'classe' and not e.engine)
         self.assertEqual(sans, [], "ces backends ne disent pas quelle librairie ils pilotent : "
                                    "ajouter `ENGINE = '<moteur>'` (contrat BaseModelBackend)")
 
@@ -255,7 +255,7 @@ class ToutBackendDeclareSonMoteurTest(TestCase):
         même graphie, sinon le lien ne se referme jamais. On vérifie l'intersection réelle —
         pas l'égalité : tous les moteurs installés n'ont pas encore un modèle qui les nomme."""
         from wama.model_manager.models import AIModel
-        backends = {e.moteur for a in bi.inventory() for e in a.entries if e.moteur}
+        backends = {e.engine for a in bi.inventory() for e in a.entries if e.engine}
         modeles = {(m.composition or {}).get('runtime', {}).get('engine')
                    for m in AIModel.objects.exclude(composition={})}
         modeles.discard(None)
@@ -269,8 +269,8 @@ class EnvironnementDExecutionTest(SimpleTestCase):
 
     Sans elle, « paquet absent du venv » et « backend qui vit ailleurs » se confondent, et un
     backend parfaitement fonctionnel est grisé à vie. Mesuré en petit le 03/09 (codeformer se
-    grisait sur un paquet qu'il n'utilise pas) ; en grand, `wama_lab/face_analyzer` a son PROPRE
-    venv — ses paquets ne seront JAMAIS dans venv_linux.
+    grisait sur un paquet qu'il n'utilise pas). Aucun backend n'est isolé aujourd'hui : ce test
+    tient la règle AVANT son premier client, pas après.
     """
 
     ISOLE = """
@@ -279,7 +279,7 @@ class EnvironnementDExecutionTest(SimpleTestCase):
         class MoteurLointain(BaseModelBackend):
             REQUIRED_PACKAGES = ['paquet_qui_n_existe_nulle_part']
             ENGINE = 'moteur-lointain'
-            ISOLATION = 'venv:wama_lab/face_analyzer/venv_linux'
+            ISOLATION = 'venv:venvs/exemple_isole'
 
             @property
             def is_loaded(self): return False
@@ -294,7 +294,7 @@ class EnvironnementDExecutionTest(SimpleTestCase):
         from wama.common.backends.base import BaseModelBackend
 
         class BaseLointaine(BaseModelBackend):
-            ISOLATION = 'venv:wama_lab/face_analyzer/venv_linux'
+            ISOLATION = 'venv:venvs/exemple_isole'
             REQUIRED_PACKAGES = ['paquet_qui_n_existe_nulle_part']
 
         class EmotionsBackend(BaseLointaine):
@@ -317,29 +317,29 @@ class EnvironnementDExecutionTest(SimpleTestCase):
 
     def test_l_ISOLATION_declaree_est_LUE(self):
         with TemporaryDirectory() as d:
-            classes, _ = bi._classe_backends(self._paquet(d, {'m': self.ISOLE}), 'paquet_isole')
+            classes, _ = bi._class_backends(self._paquet(d, {'m': self.ISOLE}), 'paquet_isole')
         _, info = classes[0]
         self.assertEqual(info['attrs'].get('ISOLATION'),
-                         'venv:wama_lab/face_analyzer/venv_linux')
+                         'venv:venvs/exemple_isole')
 
     def test_un_backend_ISOLE_n_est_pas_grise_sur_un_paquet_absent_D_ICI(self):
         """Le cœur de la règle : `find_spec` de CE processus ne dit rien d'un autre venv."""
-        self.assertFalse(bi._paquets_presents(['paquet_qui_n_existe_nulle_part']))
-        self.assertTrue(bi._paquets_presents(['paquet_qui_n_existe_nulle_part'],
-                                             'venv:wama_lab/face_analyzer/venv_linux'))
+        self.assertFalse(bi._packages_present(['paquet_qui_n_existe_nulle_part']))
+        self.assertTrue(bi._packages_present(['paquet_qui_n_existe_nulle_part'],
+                                             'venv:venvs/exemple_isole'))
 
     def test_un_backend_NON_isole_reste_grise_sur_un_paquet_absent(self):
         """Contre-épreuve : la permissivité ne vaut QUE pour l'isolement déclaré — sinon on
         aurait échangé un verdict faux contre un verdict qui ne dit plus rien."""
-        self.assertFalse(bi._paquets_presents(['paquet_qui_n_existe_nulle_part'], ''))
+        self.assertFalse(bi._packages_present(['paquet_qui_n_existe_nulle_part'], ''))
 
     def test_l_ISOLATION_d_une_base_metier_est_HERITEE_par_les_concrets(self):
         with TemporaryDirectory() as d:
-            classes, _ = bi._classe_backends(self._paquet(d, {'m': self.FAMILLE}), 'paquet_isole')
+            classes, _ = bi._class_backends(self._paquet(d, {'m': self.FAMILLE}), 'paquet_isole')
         concrets = dict(classes)
         self.assertIn('EmotionsBackend', concrets, 'le concret doit être trouvé')
         self.assertEqual(concrets['EmotionsBackend']['attrs'].get('ISOLATION'),
-                         'venv:wama_lab/face_analyzer/venv_linux',
+                         'venv:venvs/exemple_isole',
                          'un concret qui ne redéclare pas ISOLATION hérite celle de sa base '
                          '(ce que fait Python) — sinon toute famille isolée serait grisée')
 
@@ -347,15 +347,15 @@ class EnvironnementDExecutionTest(SimpleTestCase):
         """L'héritage COMPLÈTE, il n'écrase pas : sinon deux moteurs d'une même famille
         deviendraient indiscernables."""
         with TemporaryDirectory() as d:
-            classes, _ = bi._classe_backends(self._paquet(d, {'m': self.FAMILLE}), 'paquet_isole')
+            classes, _ = bi._class_backends(self._paquet(d, {'m': self.FAMILLE}), 'paquet_isole')
         self.assertEqual(dict(classes)['EmotionsBackend']['attrs'].get('ENGINE'), 'emotions')
 
     def test_un_moteur_ISOLE_reste_EXECUTABLE_pour_known_engines(self):
         """`_MoteurDeclare` porte la même règle que le contrat commun — sinon le lien
         modèle↔moteur donnerait un verdict faux dès le premier backend porté."""
-        lointain = bi._MoteurDeclare('moteur-lointain', ['paquet_qui_n_existe_nulle_part'],
-                                     'venv:wama_lab/face_analyzer/venv_linux')
-        local = bi._MoteurDeclare('moteur-local', ['paquet_qui_n_existe_nulle_part'])
+        lointain = bi._DeclaredEngine('moteur-lointain', ['paquet_qui_n_existe_nulle_part'],
+                                     'venv:venvs/exemple_isole')
+        local = bi._DeclaredEngine('moteur-local', ['paquet_qui_n_existe_nulle_part'])
         self.assertEqual(lointain.missing_packages(), [])
         self.assertEqual(local.missing_packages(), ['paquet_qui_n_existe_nulle_part'])
 

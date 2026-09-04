@@ -192,8 +192,8 @@ class CurseurDeQualiteTest(TestCase):
         # installé » — verdict FAUX, masqué seulement par `backend_ref`. L'inventaire est
         # désormais DÉRIVÉ des déclarations ; l'assertion suit la source, pas l'inverse.
         from wama.common.services.backend_inventory import inventory
-        declares = {e.moteur for a in inventory() if not a.generated_from
-                    for e in a.entries if e.moteur}
+        declares = {e.engine for a in inventory() if not a.generated_from
+                    for e in a.entries if e.engine}
         self.assertTrue(connus <= declares | set(ENGINE_BACKENDS) | {'audio-cpp'},
                         f"moteurs annoncés sans déclaration : {sorted(connus - declares - set(ENGINE_BACKENDS) - {'audio-cpp'})}")
         # (b) le point DÉTERMINISTE des deux venvs : qwen3-tts est ENREGISTRÉ
