@@ -139,10 +139,13 @@ class ResembleEnhanceBackend(BaseModelBackend):
 
     def __init__(self):
         self._cache_dir = _get_resemble_cache()
-        # Set HF cache BEFORE any resemble_enhance import
-        cache_str = str(self._cache_dir)
-        os.environ['HF_HUB_CACHE'] = cache_str
-        os.environ['HUGGINGFACE_HUB_CACHE'] = cache_str
+        # ⚠ MUTATION RETIRÉE le 2026-09-04 (ROADMAP §5b) — elle ne routait RIEN : mesuré,
+        # `resemble_enhance` télécharge son modèle par `git clone` DANS SON PROPRE PAQUET
+        # (`site-packages/resemble_enhance/model_repo`, cf. `enhancer/download.py`), et ne
+        # consulte jamais le cache HF. Son seul effet réel était donc de détourner les
+        # téléchargements HF des AUTRES libs vers le dossier resemble, pour toute la durée du
+        # processus. Un cas à part dans ce chantier : une mutation sans bénéfice, même
+        # apparent — le `cache_dir` reste utile au voisin DeepFilterNet (l. ~317).
         self._warm = False
 
     @classmethod

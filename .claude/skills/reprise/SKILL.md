@@ -166,7 +166,7 @@ recouvrir un échec qui remplace un autre :
    | cache HF, emplacement/catégories des modèles | **`ROADMAP §5b`** (+ la règle « nouveau modèle » de `CLAUDE.md`) |
    | modèles, capacités, tirage, entrées acceptées | `INPUT_MODEL_MATCHING.md` + `WAMA_APP_GENERATION_ROUTE §F4b` |
    | génération d'app, jumelle, gabarits | `WAMA_APP_GENERATION_ROUTE.md` (dont **§S 🔒**) |
-   | manifestes | `WAMA_MANIFEST_SPEC.md` + `..._ARCHITECTURE.md` |
+   | manifestes | `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` |
    | prompts, assistant, RAG | `WAMA_LLM.md` · mémoire : `WAMA_MEMORY.md` |
    | registres/catalogues | `common/registries.py` + `PROJECT_STATUS §registres` |
 

@@ -183,3 +183,49 @@ class CorpusSansFluxTemporel(SimpleTestCase):
         body = _corpus(signals=[{'id': 'v', 'data_type': 'inexistant'}])
         errs = validate_dataset_body(body)
         self.assertTrue(any('hors taxonomie' in e for e in errs), errs)
+
+
+class AnatomieDUnModeleCompose(SimpleTestCase):
+    """`composition.components` — les MORCEAUX dont un modèle est fait (kind `model`).
+
+    Le schéma n'admettait qu'un `pattern` (motif de fichier dans le dépôt du modèle : les
+    5 GGUF de MiniMax-Music3). Élargi le 2026-09-04 à `repo` (dépôt HF FRÈRE) parce qu'un cas
+    réel ne pouvait pas s'écrire : la « recette » `pyannote/speaker-diarization-3.1` ne
+    contient qu'un `config.yaml` — ses poids SONT `segmentation-3.0` et `wespeaker-…-LM`,
+    qu'elle nomme elle-même. *Un formalisme qui ne sait pas dire un cas réel se fait
+    contourner* — ici par une table de noms écrite dans le substrat, retirée le même jour.
+    """
+
+    def _valider(self, compo):
+        from wama.common.manifests.builtin.model import _validate_composition
+        return _validate_composition(compo)
+
+    def test_un_morceau_dans_le_depot_se_dit_par_pattern(self):
+        self.assertEqual(self._valider({'components': [
+            {'role': 'language_model', 'pattern': '*-language_model-Q8_0.gguf'}]}), [])
+
+    def test_un_depot_FRERE_se_dit_par_repo(self):
+        self.assertEqual(self._valider({'components': [
+            {'role': 'segmentation', 'repo': 'pyannote/segmentation-3.0'}]}), [])
+
+    def test_un_morceau_sans_pattern_NI_repo_est_refuse(self):
+        errs = self._valider({'components': [{'role': 'orphelin'}]})
+        self.assertTrue(errs)
+        self.assertIn('repo', errs[0])
+
+    def test_pattern_ET_repo_ensemble_sont_refuses(self):
+        """Un morceau est dans le dépôt OU dans un autre — déclarer les deux ne veut rien
+        dire, et laisserait le consommateur choisir à la place de l'auteur."""
+        errs = self._valider({'components': [
+            {'role': 'flou', 'pattern': '*.gguf', 'repo': 'org/nom'}]})
+        self.assertTrue(errs)
+
+    def test_un_repo_doit_ressembler_a_un_identifiant_de_depot(self):
+        errs = self._valider({'components': [{'role': 'x', 'repo': 'sans-organisation'}]})
+        self.assertTrue(errs)
+        self.assertIn('org/nom', errs[0])
+
+    def test_les_roles_restent_uniques(self):
+        errs = self._valider({'components': [
+            {'role': 'meme', 'repo': 'a/b'}, {'role': 'meme', 'repo': 'c/d'}]})
+        self.assertTrue(any('dupliqué' in e for e in errs))

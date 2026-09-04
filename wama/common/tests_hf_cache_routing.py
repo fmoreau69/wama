@@ -36,6 +36,8 @@ CONSTRUCTION (on ne détecte que `os.environ[...] = ...`), et c'est voulu — c'
 import ast
 import re
 import unittest
+
+from django.test import SimpleTestCase
 from functools import lru_cache
 from pathlib import Path
 
@@ -47,7 +49,7 @@ VARS_HF = {'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE', 'HF_HOME'}
 #: et `hunyuan_video_backend` (les DEUX qui mutaient dès l'import).
 #: NE JAMAIS RELEVER CE NOMBRE. Le faire descendre = porter un backend au §5b ; le voir
 #: monter = une nouvelle mutation a été introduite, et c'est ce que ce test refuse.
-BUDGET_MUTATIONS = 8
+BUDGET_MUTATIONS = 2
 
 #: Modules dont l'IMPORT SEUL redirigeait le cache HF de tout le processus — le pire cas,
 #: puisqu'il pollue sans qu'aucun modèle ne soit chargé et que le dernier importé gagne.
@@ -252,3 +254,48 @@ class RoutageCacheHFTest(unittest.TestCase):
                 f"{var} n'est pas posée sur le cache partagé au démarrage : sans ce socle, "
                 f"retirer une mutation per-modèle enverrait les sous-dépendances dans le "
                 f"cache par défaut de HuggingFace (hors AI-models/).")
+
+
+class TroisiemeVoieTest(SimpleTestCase):
+    """La brique qui range les poids quand la lib n'accepte pas `cache_dir=`.
+
+    Née le 2026-09-04 : les libs sans `cache_dir=` (kokoro, higgs, le worker du PoC)
+    n'avaient d'autre routage que la mutation d'environnement — celle-là même qui emporte les
+    sous-dépendances. `poids_locaux` télécharge DANS le dossier de famille et rend un chemin.
+    """
+
+    def test_elle_ne_touche_JAMAIS_l_environnement(self):
+        """Le point entier de la brique. Si elle mutait, elle ne vaudrait pas mieux que ce
+        qu'elle remplace."""
+        import os
+        from unittest.mock import patch
+
+        from wama.common.utils.hf_weights import poids_locaux
+        avant = {k: os.environ.get(k) for k in VARS_HF}
+        with patch('huggingface_hub.snapshot_download', return_value='/chemin/simule') as faux:
+            poids_locaux('org/modele', '/dossier/famille')
+        self.assertEqual({k: os.environ.get(k) for k in VARS_HF}, avant)
+        self.assertEqual(faux.call_args.kwargs.get('cache_dir'), '/dossier/famille',
+                         'le dossier de famille passe par cache_dir=, jamais par l’env')
+
+    def test_elle_tente_le_HORS_LIGNE_avant_le_reseau(self):
+        """Sans ça, un modèle DÉJÀ présent ferait un aller-retour HTTP à chaque chargement —
+        et un incident réseau ferait échouer un chargement qui n'avait besoin de rien."""
+        from unittest.mock import patch
+
+        from wama.common.utils.hf_weights import poids_locaux
+        with patch('huggingface_hub.snapshot_download') as faux:
+            faux.side_effect = [ '/local' ]
+            poids_locaux('org/modele', '/dossier')
+        self.assertTrue(faux.call_args_list[0].kwargs.get('local_files_only'),
+                        'le premier essai doit être purement local')
+
+    def test_le_reseau_prend_le_relais_si_les_poids_manquent(self):
+        from unittest.mock import patch
+
+        from wama.common.utils.hf_weights import poids_locaux
+        with patch('huggingface_hub.snapshot_download') as faux:
+            faux.side_effect = [OSError('absent'), '/telecharge']
+            chemin = poids_locaux('org/modele', '/dossier')
+        self.assertEqual(chemin, '/telecharge')
+        self.assertEqual(len(faux.call_args_list), 2)

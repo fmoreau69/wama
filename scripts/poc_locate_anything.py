@@ -19,10 +19,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WEIGHTS_DIR = REPO_ROOT / "AI-models" / "models" / "vision" / "locate-anything"
 
-# ── CRITIQUE : env HF AVANT tout import transformers (règle CLAUDE.md ajout modèle) ──
+# Poids rangés dans leur dossier SANS toucher l'environnement (ROADMAP §5b, 2026-09-04) :
+# le worker charge par `from_pretrained(model_path)`, donc on lui donne un CHEMIN local.
+# L'ancienne mutation d'env (prescrite par une règle CLAUDE.md depuis corrigée) emportait les
+# sous-dépendances de tout ce que le process chargeait ensuite.
 WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
-os.environ["HF_HUB_CACHE"] = str(WEIGHTS_DIR)
-os.environ["HUGGINGFACE_HUB_CACHE"] = str(WEIGHTS_DIR)
 
 MODEL_ID = "nvidia/LocateAnything-3B"
 
@@ -53,7 +54,8 @@ def main() -> int:
     from locate_anything_worker import LocateAnythingWorker
 
     t0 = time.perf_counter()
-    worker = LocateAnythingWorker(MODEL_ID, device=args.device)
+    from wama.common.utils.hf_weights import poids_locaux
+    worker = LocateAnythingWorker(poids_locaux(MODEL_ID, WEIGHTS_DIR), device=args.device)
     t_load = time.perf_counter() - t0
     print(f"Chargement ({args.device}) : {t_load:.1f}s", flush=True)
 
