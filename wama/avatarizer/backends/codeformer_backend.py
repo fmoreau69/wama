@@ -154,7 +154,14 @@ class CodeFormerBackend(BaseModelBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'codeformer'
-    REQUIRED_PACKAGES = ['basicsr', 'facexlib', 'realesrgan']
+    # ⚠ `realesrgan` RETIRÉ le 2026-09-04 (constat Fabien « codeformer est installé ») :
+    # ce n'est pas un paquet pip requis ici. Le code vendorisé importe `RealESRGANer` depuis
+    # **basicsr** (`basicsr.utils.realesrgan_utils`), et l'upscaler d'arrière-plan est de
+    # toute façon OPTIONNEL (`--bg_upsampler` vaut 'None' par défaut). Sur-déclarer un
+    # paquet, c'est se griser soi-même : le backend était annoncé « moteur non installé »
+    # alors qu'il fonctionne — un faux négatif du même genre que les critères de grille
+    # recalés ce jour.
+    REQUIRED_PACKAGES = ['basicsr', 'facexlib']
     recommended_vram_gb = CODEFORMER_VRAM_GB
     description = "CodeFormer — restauration/nettete du visage apres MuseTalk (use_enhancer)."
     _warm = False

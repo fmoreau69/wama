@@ -184,8 +184,18 @@ class CurseurDeQualiteTest(TestCase):
         # conception, et un roster figé ici casserait dans le venv qui n'a pas tel
         # runtime (vécu : kokoro_onnx absent de venv_win). On teste le MÉCANISME :
         connus = known_engines()
-        # (a) rien d'inventé : tout moteur annoncé est enregistré quelque part ;
-        self.assertTrue(connus <= set(ENGINE_BACKENDS) | {'audio-cpp'})
+        # (a) rien d'inventé : tout moteur annoncé est DÉCLARÉ quelque part.
+        # ⚠ La SOURCE s'est élargie le 2026-09-04 : jusque-là seuls 2 inventaires étaient
+        # enregistrés à la main (synthesizer, composer), alors que 18 moteurs sont déclarés
+        # par les backends via `BaseModelBackend.ENGINE`. Conséquence MESURÉE de cette
+        # étroitesse : un modèle exigeant `pyannote` était jugé « moteur sans backend
+        # installé » — verdict FAUX, masqué seulement par `backend_ref`. L'inventaire est
+        # désormais DÉRIVÉ des déclarations ; l'assertion suit la source, pas l'inverse.
+        from wama.common.services.backend_inventory import inventory
+        declares = {e.moteur for a in inventory() if not a.generated_from
+                    for e in a.entries if e.moteur}
+        self.assertTrue(connus <= declares | set(ENGINE_BACKENDS) | {'audio-cpp'},
+                        f"moteurs annoncés sans déclaration : {sorted(connus - declares - set(ENGINE_BACKENDS) - {'audio-cpp'})}")
         # (b) le point DÉTERMINISTE des deux venvs : qwen3-tts est ENREGISTRÉ
         #     (backend écrit, B2 n°3) mais son runtime pip n'est installé nulle part
         #     tant que Fabien n'a pas donné le GO — il ne doit JAMAIS être annoncé.

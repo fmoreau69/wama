@@ -433,6 +433,28 @@ def summary() -> dict:
     }
 
 
+class _MoteurDeclare:
+    """Ce qu'un inventaire de moteurs doit exposer, sans importer le backend.
+
+    `register_engine_inventory` accepte un mapping {moteur: porteur} et `known_engines()`
+    ne retient que les porteurs dont `missing_packages()` est vide. On rend donc un objet
+    minimal qui répond à ce contrat en STATIQUE (`find_spec` sur les paquets déclarés) :
+    importer la classe coûterait le socle modèles entier et rouvrirait la porte aux effets
+    de bord d'import que ce chantier vient de fermer.
+    """
+
+    __slots__ = ('moteur', 'paquets')
+
+    def __init__(self, moteur: str, paquets):
+        self.moteur, self.paquets = moteur, list(paquets or [])
+
+    def missing_packages(self):
+        return [p for p in self.paquets if not _paquets_presents([p])]
+
+    def __repr__(self):
+        return f'<moteur {self.moteur}>'
+
+
 _ENGINES_CACHE: Optional[dict] = None
 
 
@@ -461,7 +483,7 @@ def engines_declares() -> dict:
                 continue                    # une jumelle n'ajoute aucun moteur au parc
             for e in a.entries:
                 if e.moteur:
-                    carte.setdefault(e.moteur, sorted(e.packages))
+                    carte.setdefault(e.moteur, _MoteurDeclare(e.moteur, e.packages))
         _ENGINES_CACHE = carte
     return dict(_ENGINES_CACHE)
 
