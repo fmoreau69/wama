@@ -24,6 +24,19 @@
         </select>
         <button id="studioRunBtn" class="btn btn-sm btn-success" title="Exécuter le pipeline"><i class="fas fa-play me-1"></i>Exécuter</button>
         <span id="studioRunStatus" class="small ms-2 text-white-50"></span>
+        {% comment %}Annuler / Rétablir — brique COMMUNE `wama-history.js` (partagée avec la page
+        de correction du transcriber). `disabled` À L'ÉCRITURE : c'est l'historique qui les
+        active, et un bouton actif sur une pile vide promet une action qui ne viendra pas.
+        Classes `.studio-undo`/`.studio-redo` : la brique délègue sur le document, il n'y a
+        aucun câblage JS à écrire ici.{% endcomment %}
+        <div class="btn-group btn-group-sm ms-1">
+            <button class="studio-undo btn btn-sm btn-outline-light" title="Annuler (Ctrl+Z)" disabled>
+                <i class="fas fa-rotate-left"></i>
+            </button>
+            <button class="studio-redo btn btn-sm btn-outline-light" title="Rétablir (Ctrl+Maj+Z)" disabled>
+                <i class="fas fa-rotate-right"></i>
+            </button>
+        </div>
         <button id="studioClear" class="btn btn-sm btn-outline-light" title="Vider le canvas"><i class="fas fa-eraser"></i></button>
     </div>
 </div>
@@ -58,5 +71,8 @@ nœud.{% endcomment %}
 
 {% block extra_js %}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
+{% comment %}Historique annuler/rétablir — brique COMMUNE. AVANT wama-studio.js :
+`WamaHistory.create()` y est appelé au corps de l'IIFE, donc à l'évaluation du script.{% endcomment %}
+<script src="{% static_v 'common/js/wama-history.js' %}"></script>
 <script src="{% static_v 'studio/js/wama-studio.js' %}"></script>
 {% endblock %}
