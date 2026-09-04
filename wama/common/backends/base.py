@@ -368,6 +368,31 @@ class BaseModelBackend(ABC):
     #: modèle ne reste sans exécutant — c'est ce que la page Backends signale.
     ENGINE: str = ""
 
+    #: ENVIRONNEMENT d'exécution du backend — vide = le venv principal (cas général et
+    #: DÉFAUT VOULU : un venv unique, cf. `INFRA_WSL_VS_WINDOWS.md §venvs isolés`).
+    #:
+    #: Déclarée le 2026-09-04 parce que sans elle le GRISAGE MENT : `missing_packages()`
+    #: interroge `find_spec` dans CE processus, verdict qui ne dit rien d'un backend qui
+    #: tourne ailleurs. Défaut mesuré en petit le 03/09 (codeformer se grisait sur un
+    #: paquet qu'il n'utilise pas) ; en grand, `wama_lab/face_analyzer` a son PROPRE venv
+    #: — ses paquets ne seront JAMAIS dans venv_linux, donc tout backend qu'on y porterait
+    #: serait gris à vie et le lien modèle↔moteur donnerait un verdict faux.
+    #:
+    #: Deux schémas, calqués sur les patrons DÉJÀ en production (rien de nouveau à bâtir,
+    #: l'unité d'isolement est le PROCESSUS — le venv n'en est qu'une déclinaison) :
+    #:   ``venv:<chemin relatif au dépôt>``  sous-processus dans un venv dédié
+    #:                                       (ex. ``venv:wama_lab/face_analyzer/venv_linux``)
+    #:   ``service:<url>``                   micro-service déjà lancé (ex. le TTS, ``--workers 1``)
+    #:
+    #: ⚠ Ce n'est PAS un permis d'en créer : l'isolement se DÉCLARE au cas par cas, jamais
+    #: ne se génère automatiquement. Le coût n'est pas le disque (~10 Go de torch+CUDA par
+    #: venv) mais la VRAM — chaque processus isolé est un détenteur que le gouverneur de
+    #: ressources ne voit pas. Le critère d'admission est `manage.py check_venv_compat`
+    #: (simulation `pip install --dry-run`), jamais `pip check` : ce dernier compte
+    #: **46 conflits** sur le venv_linux qui fait tourner toute la production (mesuré le
+    #: 2026-09-04 — des pins figés d'amont, pas des incompatibilités).
+    ISOLATION: str = ""
+
     # ── Capacités déclarées par le moteur (vocabulaire commun) ───────────────
     # Vocabulaire figé par `common/utils/model_capabilities.py` (source unique) — qui annonce
     # depuis 2026-07-01 que le préfixe `supports_` est « ALIGNÉ sur les flags backend », alors
@@ -400,7 +425,16 @@ class BaseModelBackend(ABC):
     # ── Disponibilité / dépendances (hook prospection) ───────────────────────
     @classmethod
     def missing_packages(cls) -> List[str]:
-        """Modules requis dont l'import est introuvable (sans les importer réellement)."""
+        """Modules requis dont l'import est introuvable ICI (sans les importer réellement).
+
+        ⚠ La question posée est « que faut-il installer DANS CE VENV ? ». Pour un backend
+        ISOLÉ la réponse est *rien* — ses paquets vivent dans son propre environnement, et
+        `find_spec` d'ici n'en dirait rien. Répondre la liste des absents reviendrait à le
+        griser à vie (cf. `ISOLATION`). Savoir si l'environnement DISTANT est prêt est une
+        autre question, qui demande une preuve POSITIVE : `check_venv_compat`.
+        """
+        if cls.ISOLATION:
+            return []
         missing = []
         for mod in cls.REQUIRED_PACKAGES:
             try:

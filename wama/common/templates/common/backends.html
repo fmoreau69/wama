@@ -20,6 +20,7 @@
   .bk-route    { background: #1b5e20; color: #c8e6c9; }
   .bk-classe   { background: #4a148c; color: #e1bee7; }
   .bk-jumelle  { background: #37474f; color: #cfd8dc; }
+  .bk-isole    { background: #4a3b5c; color: #e1bee7; }
   .bk-sig      { font-size: .78rem; color: #90caf9; }
   .bk-path     { font-size: .74rem; color: #b0bec5; word-break: break-all; }
   .bk-modeles  { font-size: .76rem; color: #ffe082; }
@@ -48,6 +49,9 @@
     {% if inv.sans_routage %}
       <span class="wama-cat-stat bk-manque"><b>{{ inv.sans_routage|length }}</b> app(s) sans ROUTES</span>
     {% endif %}
+    {% if inv.isolations %}
+      <span class="wama-cat-stat"><b>{{ inv.isolations|length }}</b> environnement(s) isolé(s)</span>
+    {% endif %}
   </div>
 
   <div class="wama-cat-hero">
@@ -71,6 +75,19 @@
        donc <span class="bk-lien-app">déduit de l'app</span> et la page le dit. Rendre ce lien
        fin (déclaré au manifeste modèle) est un chantier ouvert&nbsp;: le compteur ci-dessus
        en est la mesure, il montera quand le lien existera.</p>
+    <p><b>Environnement d'exécution</b> — le défaut est un <b>venv unique</b>, et c'est un choix
+       {% if inv.isolations %}(actuellement {{ inv.isolations|length }} exception(s) déclarée(s), badgée(s) sur les cartes)
+       {% else %}(aujourd'hui&nbsp;: <b>aucune exception</b>, tous les backends y vivent){% endif %}.
+       Un backend qui tourne ailleurs le <b>déclare</b> (<code>ISOLATION</code>&nbsp;:
+       <code>venv:&lt;chemin&gt;</code> ou <code>service:&lt;url&gt;</code>) — sans quoi le verdict
+       de disponibilité MENTIRAIT&nbsp;: «&nbsp;paquet absent&nbsp;» et «&nbsp;backend qui vit
+       ailleurs&nbsp;» se confondraient, et un backend parfaitement fonctionnel serait grisé à vie.
+       L'isolement ne se génère jamais tout seul&nbsp;: son coût n'est pas le disque mais la
+       <b>VRAM</b>, chaque processus isolé étant un détenteur que le gouverneur de ressources ne
+       voit pas. Le critère d'admission est <code>check_venv_compat</code> (simulation
+       <code>pip install --dry-run</code>), jamais <code>pip check</code> — ce dernier compte
+       <b>46 conflits</b> sur le venv qui fait tourner toute la production (mesuré le 04/09&nbsp;:
+       des pins figés d'amont, pas des incompatibilités).</p>
   </div>
 
   {% include 'common/_filter_bar.html' with facettes=facettes_backends cible='.wama-cat-card' mode='client' placeholder='Filtrer (app, moteur, nature, modèle…)' %}
@@ -82,10 +99,12 @@
   <div class="wama-cat-grid" id="backendsGrid" style="--cat-card-min: 340px;">
     {% for a in inv.apps %}{% for e in a.entries %}
     <div class="wama-cat-card" data-id="{{ e.app }}:{{ e.name }}"
-         data-f-app="{{ e.app }}" data-f-saveur="{{ e.saveur }}" data-f-famille="{{ e.kind }}">
+         data-f-app="{{ e.app }}" data-f-saveur="{{ e.saveur }}" data-f-famille="{{ e.kind }}"
+         data-f-environnement="{% if e.isolation %}{{ e.isolation }}{% else %}venv principal{% endif %}">
       <h4>{{ e.name }}
         <span class="wama-cat-badge bk-app">{{ e.app }}</span>
         <span class="wama-cat-badge {% if e.kind == 'route' %}bk-route{% else %}bk-classe{% endif %}">{{ e.kind }}</span>
+        {% if e.isolation %}<span class="wama-cat-badge bk-isole">{{ e.isolation }}</span>{% endif %}
         {% if a.generated_from %}<span class="wama-cat-badge bk-jumelle">bac à sable</span>{% endif %}
       </h4>
       {% if e.description %}<div class="wama-cat-desc">{{ e.description }}</div>{% endif %}
@@ -99,7 +118,8 @@
       </div>
       {% if e.moteur %}
         <div class="bk-sig">moteur appelé : <code>{{ e.moteur }}</code>
-          {% if not e.moteur_installe %}<span class="bk-manque">(paquets absents de ce venv)</span>{% endif %}
+          {% if e.isolation %}<span class="bk-lien-app">(hors venv principal — non mesurable d'ici)</span>
+          {% elif not e.moteur_installe %}<span class="bk-manque">(paquets absents de ce venv)</span>{% endif %}
         </div>
       {% endif %}
       {% if e.models %}

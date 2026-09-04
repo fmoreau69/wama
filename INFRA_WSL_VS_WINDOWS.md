@@ -846,6 +846,83 @@ et `logs/celery-gpu.log.1` (les journaux sont **décalés au démarrage**, le pr
 (heure de la coupure, pas du Kernel-Power 41). Vérifier que le fichier GROSSIT — HWiNFO peut tourner
 sans journaliser. Seule la licence Pro (~25-30 €, paramètre `-l`) rendrait la sonde persistante.
 
+## ⚠⚠ Venvs isolés — le défaut est UN venv, et `pip check` ne peut PAS servir de critère (2026-09-04)
+
+> Question de Fabien : *« si un modèle n'est pas compatible avec le venv principal, faut-il
+> générer automatiquement un venv dédié ? Mais je ne veux pas multiplier les venv… si on
+> s'appuie sur [pip] check, on ne trouverait pas de solution pour le venv_linux central et on
+> l'éclaterait. Est-ce un problème ? »* — **oui, et la mesure le confirme.**
+
+### Le critère `pip check` est RÉFUTÉ
+
+`./venv_linux/bin/pip check` rapporte **46 conflits** sur le venv qui fait tourner toute la
+production et 1531 tests verts. Nature des conflits : des **pins figés d'amont**, pas des
+incompatibilités. `resemble-enhance` épingle `torch==2.1.1` et 14 autres paquets aux versions
+de 2023 alors qu'on tourne en `torch 2.9.1+cu128` — et **ça marche**. `xformers 0.0.35` exige
+`torch>=2.10`, pas encore publié. Un automatisme adossé à ce critère créerait un venv par
+paquet mal épinglé : il éclaterait le venv central **pour rien**.
+
+Le bon critère est **positif** — *est-ce que ça s'importe, est-ce que le smoke passe ?* — la
+doctrine constante du dépôt (preuve POSITIVE de mort pour les tâches zombies, détecteur de
+layout positif). C'est déjà ce que fait `missing_packages()` via `find_spec`.
+
+### L'unité d'isolement n'est pas le venv, c'est le PROCESSUS — et les patrons EXISTENT
+
+| patron | exemple mesuré | isolement |
+|---|---|---|
+| subprocess + **venv dédié** | `wama_lab/face_analyzer` (`app.py` : *« Executed via subprocess from WAMA core »*) | venv_win 2,7 Go ; son venv_linux (16 Mo) est une souche vide |
+| subprocess + **env dédié**, venv commun | musetalk / codeformer (avatarizer) | variables d'environnement du fils |
+| **micro-service HTTP** | service TTS, `--workers 1` **structurant** | processus + port |
+
+Il n'y a donc **pas de système multi-venv à bâtir** — il y avait une **déclaration** à poser.
+
+### Ce qui manquait : `ISOLATION` sur le contrat backend
+
+Sans elle le **grisage MENT** : `missing_packages()` interroge `find_spec` dans *ce* processus,
+verdict qui ne dit rien d'un backend qui tourne ailleurs. Défaut vécu en petit le 03/09
+(codeformer grisé sur un paquet qu'il n'utilise pas) ; en grand, les paquets de face_analyzer
+ne seront **jamais** dans venv_linux — tout backend qu'on y porterait serait gris à vie.
+
+```python
+class EmotionsBackend(BaseModelBackend):
+    ISOLATION = 'venv:wama_lab/face_analyzer/venv_linux'   # ou 'service:<url>'
+```
+
+La règle vit à **trois** endroits, tenus par des tests jumeaux : le contrat
+(`BaseModelBackend.missing_packages`), le registre (`_paquets_presents`) et le porteur de
+moteur (`_MoteurDeclare`). Elle est **héritée** : une famille déclare son environnement une
+fois sur sa base métier, les concrets en héritent (ce que fait Python — le lire à plat ratait
+précisément la façon dont un paquet isolé s'écrit).
+
+### La doctrine, et pourquoi elle penche vers UN venv
+
+Le coût d'un venv de plus n'est **pas le disque** (~10 Go de torch+CUDA — désagréable, payable)
+mais la **VRAM** : chaque processus isolé est un détenteur que le gouverneur de ressources **ne
+voit pas**, alors que la chaîne ne libère déjà jamais et que les crashs hôte sont des montées
+VRAM concurrentes. C'est ça, la vraie « barrière au multi-tâche ».
+
+**Procédure d'admission**, automatisable et **non destructive** — `pip install --dry-run`
+(lecture seule, incapable de casser le venv central) répond à la seule question qui compte :
+*est-ce que ça rétrograderait un paquet PARTAGÉ ?*
+
+1. **aucun rétrogradage** → venv central (cas par défaut) ;
+2. **rétrogradage dû à un pin sur-strict** (le cas `resemble-enhance`) → `PIP_NO_DEPS` +
+   `PIP_PACKAGES` exhaustif + **import réel vérifié** ;
+3. **incompatibilité ABI réelle** (torch/CUDA divergents) → processus isolé selon un des trois
+   patrons ci-dessus, **déclaré** sur le backend.
+
+L'isolement ne se **génère** jamais tout seul. Garde en place : `IsolementResteUneExceptionTest`
+échoue sur tout environnement isolé qui apparaît **sans être inscrit** avec sa raison — le geste
+qui transforme une dérive en décision. Compteur visible sur `/backends/` (aujourd'hui : **0**).
+
+### ⚠ Effet de bord des poids relocalisés : les symlinks sont LINUX
+
+`AI-models/models/lipsync/{musetalk,codeformer}` sont atteints depuis le dépôt par des symlinks
+**absolus créés sous WSL** (`/mnt/d/...`). Windows ne les traverse pas : tout parcours depuis
+venv_win lève `OSError [WinError 1920]`. MuseTalk vit ainsi depuis février sans casse (la
+production est en WSL2), mais une commande qui `rglob` le dépôt depuis Windows butera dessus.
+
+
 ## Voir aussi
 - `C:\Apache24\conf\httpd.conf` (vhost `wama.local`) — sauvegarde `httpd.conf.bak-20260824`.
 - `start_wama_dev.sh`, `start_wama_prod.sh`, `gunicorn_conf.py`, `.env` / `.env.example`.
