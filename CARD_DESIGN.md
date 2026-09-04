@@ -165,7 +165,12 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 | card(s) → **entre** deux cards | `reorder_queue` (file) / `reorder` (dans un lot) | barre, en retrait dans un lot |
 
 - **Sélection multiple** : clic simple (inchangé — 1 card + inspecteur), **Ctrl** = ajout/retrait,
-  **Maj** = plage dans l'ordre visible (lots repliés traversés). **UNE seule sélection dans WAMA**
+  **Maj** = plage dans l'ordre visible (lots repliés traversés), **Ctrl+A** = tout sélectionner,
+  **Échap** = relâcher. ⚠ Ctrl+A est posé UNE fois sur le document et choisit UNE file (celle qui
+  porte déjà une sélection, sinon la file VISIBLE) : un écouteur par file aurait sélectionné aussi
+  dans l'onglet caché des apps à deux files. Il ne préempte rien dans un champ de saisie ni sur une
+  file vide. *Lire `ev.key`, jamais `ev.code` : en AZERTY le A produit `code = KeyQ`.*
+  **UNE seule sélection dans WAMA**
   (arbitrage Fabien, 04/09) : c'est celle de l'inspecteur, qui bascule en « N éléments
   sélectionnés » avec les actions de groupe. La brique **annonce** (`wama:selection-change`),
   l'inspecteur **rend** — deux briques qui décideraient chacune finiraient par diverger.
