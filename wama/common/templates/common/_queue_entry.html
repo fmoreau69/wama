@@ -41,10 +41,28 @@ POSITION dans la file, que l'app n'a pas à répéter. `card_label` est posé sy
 les cards qui ne l'affichent pas l'ignorent, celles qui l'affichent (composer, synthesizer) le
 trouvent sans que l'appelant ait à le passer.
 {% endcomment %}
+{% comment %}⚠ `data-entry-batch-id` sur la card UNITAIRE (2026-09-04, manipulation directe).
+
+Une entrée de file est un BATCH — y compris quand elle s'affiche en card simple (batch-of-1).
+Mais dans ce cas le gabarit rend la card SEULE, sans son enveloppe `.batch-group[data-batch-id]` :
+l'id du lot n'existait donc nulle part au DOM, et `reorder_queue` — qui ordonne des BATCHS —
+n'avait aucun moyen de nommer les entrées unitaires. Le drag&drop les aurait silencieusement
+sautées, produisant un ordre où seuls les lots comptent.
+
+Un attribut de PONT, pas un doublon de `data-id` : `data-id` désigne l'ÉLÉMENT (la
+transcription, le job…), celui-ci désigne son ENTRÉE de file. Les deux niveaux coexistent
+partout ailleurs (`remove_from_batch` prend un pk d'élément, `reorder_queue` des ids de lot) —
+c'est le DOM qui n'en portait qu'un.
+
+Il est posé sur un enrobage et non sur la card : les 12 cards d'app sont des gabarits d'app,
+et poser un attribut commun dessus aurait voulu dire 12 modifications à retenir à chaque
+nouvelle app. `display:contents` laisse la card se disposer EXACTEMENT comme avant dans la
+grille/liste de la file — l'enrobage n'existe que pour porter la donnée.{% endcomment %}
 {% if batch_info.obj.is_unitary %}
   {% for item in batch_info.items %}{% if item.elem %}
     {% with elem=item.elem card_label=item.output_filename in_batch=False %}
-      {% include card_template %}
+      <div class="wama-queue-entry" style="display:contents"
+           data-entry-batch-id="{{ batch_info.obj.id }}">{% include card_template %}</div>
     {% endwith %}
   {% endif %}{% endfor %}
 {% else %}

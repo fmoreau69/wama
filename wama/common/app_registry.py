@@ -617,9 +617,12 @@ APP_CATALOG = {
             processing_time=True,      # ProcessingTimeMixin + _processing_time.html (_job_card.html:85)
             status_vocab=True,         # migré SUCCESS/FAILURE (migration 0005, 2026-07-11 — pattern reader.0008)
             toast=True,                # 21 alert() → WamaApp.toast (2026-07-11)
-            # queue_manipulation=False : consolidate artisanal (urls.py:22) — la fabrique commune
-            # exige l'architecture batch unifiée (liaison + BatchMixin) que ConversionBatch n'a pas ;
-            # batch léger = choix documenté (note d'intention CONV §15), à trancher AVANT d'adopter.
+            # ⚠ Ce champ portait `False` avec un commentaire disant que la fabrique commune
+            # « exige l'architecture batch unifiée que ConversionBatch n'a pas ». C'était vrai à
+            # l'écriture et FAUX depuis : la variante FK-DIRECTE de la fabrique a été écrite POUR
+            # ce cas, et le converter la consomme (views.py:1148). Le commentaire, lui, a survécu
+            # à la solution qu'il appelait — et il aurait fait renoncer le suivant.
+            queue_manipulation=True,   # make_queue_manipulation_views_direct (views.py:1148)
             # Non déclaré dans APP_MODES malgré 4 domaines (audit 2026-07-10).
         ),
     },

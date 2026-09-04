@@ -1,4 +1,5 @@
 {% extends 'converter/base.html' %}
+{% load wama_actions %}
 {% load static %}
 {% load wama_static %}
 
@@ -394,7 +395,8 @@ document.addEventListener('DOMContentLoaded', function () {
     alignement reader/composer/transcriber/describer (2026-07-10, absente jusqu'ici).{% endcomment %}
     {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='converterStartAllBtn' clear_id='converterClearAllBtn' download_id='converterDownloadAllBtn' show_download=True %}
 
-    <div id="converterQueue" class="wama-queue-{{ card_layout|default:'list' }}">
+    <div id="converterQueue" class="wama-queue-{{ card_layout|default:'list' }}"
+         {% queue_dnd_attrs 'converter' %}>
         {% for b in batches_list %}
         {% if b.is_group %}
         {# ── Groupe batch (multi-fichiers même nature) — card mère COMMUNE (_batch_card.html) #}

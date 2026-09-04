@@ -990,6 +990,21 @@
           "fields": [
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "queue_index"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -1226,6 +1241,21 @@
         },
         {
           "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "queue_index"
+            },
             {
               "args": [],
               "class": "django.db.models.CharField",
@@ -2336,10 +2366,12 @@
         "audio_download_all",
         "audio_duplicate",
         "audio_global_progress",
+        "audio_merge",
         "audio_move_to_batch",
         "audio_progress",
         "audio_remove_from_batch",
         "audio_reorder",
+        "audio_reorder_queue",
         "audio_start",
         "audio_start_all",
         "audio_stop",
@@ -2366,10 +2398,12 @@
         "global_progress",
         "help",
         "index",
+        "merge",
         "move_to_batch",
         "progress",
         "remove_from_batch",
         "reorder",
+        "reorder_queue",
         "start",
         "start_all",
         "stop",
@@ -2511,6 +2545,16 @@
           "name": "audio_reorder",
           "pattern": "audio/reorder/",
           "view": "views.audio_reorder"
+        },
+        {
+          "name": "audio_reorder_queue",
+          "pattern": "audio/reorder-queue/",
+          "view": "views.audio_reorder_queue"
+        },
+        {
+          "name": "audio_merge",
+          "pattern": "audio/merge/",
+          "view": "views.audio_merge"
         },
         {
           "name": "audio_move_to_batch",

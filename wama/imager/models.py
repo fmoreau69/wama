@@ -8,7 +8,8 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
 from wama.common.models import (
     JOB_STATUS_CHOICES,
-    BatchMixin, ProcessingTimeMixin, PromptScoped, ScopedManager, ScopedVisibility,
+    BatchMixin, ProcessingTimeMixin, PromptScoped, QueueOrderMixin, ScopedManager,
+    ScopedVisibility,
 )
 from wama.common.utils.media_paths import UploadToUserPath
 
@@ -426,7 +427,7 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
 # catalogue (openjourney-v4) et les vieux défauts 512×512 — rien à migrer. Migration 0016.
 
 
-class GenerationBatch(BatchMixin, ScopedVisibility):
+class GenerationBatch(BatchMixin, QueueOrderMixin, ScopedVisibility):
     """Groupe de générations — unité de FILE et de PARTAGE (contrat commun `build_batches_list`).
 
     Remplace le self-FK `ImageGeneration.parent_generation`, qui portait la même intention sans

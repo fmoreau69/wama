@@ -470,6 +470,21 @@
           "fields": [
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "queue_index"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -1045,10 +1060,12 @@
         "global_progress",
         "help",
         "index",
+        "merge",
         "move_to_batch",
         "progress",
         "remove_from_batch",
         "reorder",
+        "reorder_queue",
         "save_settings",
         "start",
         "start_all",
@@ -1126,6 +1143,11 @@
           "name": "batch_status",
           "pattern": "batch/<int:pk>/status/",
           "view": "views.batch_status"
+        },
+        {
+          "name": "consolidate",
+          "pattern": "consolidate/",
+          "view": "views.merge"
         }
       ],
       "ingest": {

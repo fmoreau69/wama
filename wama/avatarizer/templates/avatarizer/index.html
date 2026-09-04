@@ -1,4 +1,5 @@
 {% extends 'common/app_modern_base.html' %}
+{% load wama_actions %}
 {% load static %}
 {% load wama_static %}
 
@@ -145,7 +146,8 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
         {% endcomment %}
         {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True %}
 
-        <div id="jobs-container" class="wama-queue-{{ card_layout|default:'list' }}">
+        <div id="jobs-container" class="wama-queue-{{ card_layout|default:'list' }}"
+         {% queue_dnd_attrs 'avatarizer' %}>
             {% if batches_list %}
                 {% for b in batches_list %}
                 {% comment %}

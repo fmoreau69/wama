@@ -393,6 +393,21 @@
           "fields": [
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "queue_index"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -1043,10 +1058,12 @@
         "help",
         "import_batch",
         "index",
+        "merge",
         "move_to_batch",
         "progress",
         "remove_from_batch",
         "reorder",
+        "reorder_queue",
         "start",
         "start_all",
         "stop",
@@ -1102,6 +1119,11 @@
           "name": "duplicate",
           "pattern": "duplicate/<int:pk>/",
           "view": "views.duplicate"
+        },
+        {
+          "name": "consolidate",
+          "pattern": "consolidate/",
+          "view": "views.merge"
         },
         {
           "name": "start_all",

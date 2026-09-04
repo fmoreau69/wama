@@ -216,10 +216,10 @@ class TranscriptSegment(models.Model):
         return f"{index}\n{start} --> {end}\n{speaker_prefix}{self.text}\n\n"
 
 
-from wama.common.models import BatchMixin
+from wama.common.models import QueueOrderMixin, BatchMixin
 
 
-class BatchTranscript(BatchMixin, ScopedVisibility):
+class BatchTranscript(BatchMixin, QueueOrderMixin, ScopedVisibility):
     """Groupe de transcriptions créé depuis un fichier batch.
 
     **Unité de partage de la file** — lecture seule pour le destinataire.

@@ -92,6 +92,35 @@ class ProcessingTimeMixin(models.Model):
         return (f"{m} min {sec:02d} s" if m else f"{sec} s")
 
 
+class QueueOrderMixin(models.Model):
+    """Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).
+
+    L'entrée de file est le BATCH (unitaire = batch-of-1), donc l'ordre se porte ici et non
+    sur l'objet métier : c'est la seule granularité où « déplacer une card au-dessus d'un lot »
+    a un sens.
+
+    ⚠ Ce champ MANQUAIT, et son absence rendait le drag&drop de niveau supérieur impossible à
+    persister : `apply_queue_sort_filter` n'offrait que cinq tris CALCULÉS (récent / ancien /
+    nom / lots d'abord / cards d'abord). Le backend de manipulation de lot, lui, était complet
+    depuis le 2026-06-29 — d'où la roadmap qui annonçait « UI seule » alors qu'il manquait aussi
+    une colonne. *Un backend complet pour le geste A ne dit rien du geste B.*
+
+    SÉMANTIQUE DU 0 (et pourquoi ce n'est pas « premier »). `0` = **jamais ordonné à la main** ;
+    le tri manuel place ces entrées EN TÊTE, par récence — c'est-à-dire exactement le tri
+    `recent`, qui est le défaut. Un `reorder_queue` écrit `1..N` sur toutes les entrées qu'il
+    voit. Conséquence VOULUE : un import qui arrive après un classement manuel apparaît en haut,
+    au lieu de se noyer à une position arbitraire au milieu d'un ordre qu'il n'a pas connu.
+
+    Modèle ABSTRAIT → une migration additive par app concrète (même forme que
+    `ProcessingTimeMixin`). `db_index` parce que le tri manuel lit cette colonne à chaque
+    affichage de file."""
+
+    queue_index = models.IntegerField(default=0, db_index=True)
+
+    class Meta:
+        abstract = True
+
+
 class BatchMixin:
     """Sémantique + cycle de fichiers communs aux modèles Batch (tout est batch ; unitaire = card unique)."""
 

@@ -1,4 +1,5 @@
 {% extends 'imager/base.html' %}
+{% load wama_actions %}
 {% load static %}
 {% load wama_static %}
 
@@ -147,7 +148,8 @@ des entrées + du modèle (appariement wama-input-match, capacités catalogue). 
         {% comment %}`wama-queue-{{ card_layout }}` : bascule Ligne/Mosaïque commune. La valeur
         vient du context processor global (accounts) et persiste sur UserProfile ; le toggle est
         dans _queue_toolbar, le câblage dans wama-queue.js. Rien à écrire par app.{% endcomment %}
-        <div id="generationsQueue" class="wama-queue-{{ card_layout|default:'list' }}">
+        <div id="generationsQueue" class="wama-queue-{{ card_layout|default:'list' }}"
+         {% queue_dnd_attrs 'imager' 'image' %}>
 {% comment %} Toolbar commune : tri/filtre (session) + Tout lancer / Tout effacer /
 Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True %}
@@ -194,7 +196,8 @@ Tout telecharger. {% endcomment %}
             <span class="badge bg-success" id="videoQueueCountInner">{{ video_generations|length }}</span>
         </h4>
 
-        <div id="videoGenerationsQueue" class="wama-queue-{{ card_layout|default:'list' }}">
+        <div id="videoGenerationsQueue" class="wama-queue-{{ card_layout|default:'list' }}"
+         {% queue_dnd_attrs 'imager' 'video' %}>
 {% comment %} Toolbar commune : tri/filtre (session) + Tout lancer / Tout effacer /
 Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True %}

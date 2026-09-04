@@ -195,10 +195,10 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
         return icons.get(self.detected_type or self.content_type, 'fa-file')
 
 
-from wama.common.models import BatchMixin
+from wama.common.models import QueueOrderMixin, BatchMixin
 
 
-class BatchDescription(BatchMixin, ScopedVisibility):
+class BatchDescription(BatchMixin, QueueOrderMixin, ScopedVisibility):
     # ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs.
     objects = ScopedManager()
 

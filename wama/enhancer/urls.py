@@ -28,6 +28,8 @@ urlpatterns = [
     path('help/', AppHelpView.as_view(), name='help'),
     # Manipulation directe de la file (fabrique commune, variante liaison)
     path('reorder/', views.reorder, name='reorder'),
+    path('reorder-queue/', views.reorder_queue, name='reorder_queue'),
+    path('merge/', views.merge, name='merge'),
     path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
     path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     # Batch enhancement (image/video)
@@ -56,6 +58,8 @@ urlpatterns = [
     path('audio/global_progress/', views.audio_global_progress, name='audio_global_progress'),
     path('audio/card/<int:pk>/html/', views.audio_card_html, name='audio_card_html'),
     path('audio/reorder/', views.audio_reorder, name='audio_reorder'),
+    path('audio/reorder-queue/', views.audio_reorder_queue, name='audio_reorder_queue'),
+    path('audio/merge/', views.audio_merge, name='audio_merge'),
     path('audio/move-to-batch/<int:pk>/', views.audio_move_to_batch, name='audio_move_to_batch'),
     path('audio/remove-from-batch/<int:pk>/', views.audio_remove_from_batch, name='audio_remove_from_batch'),
     # Audio batch

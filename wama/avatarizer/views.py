@@ -902,11 +902,14 @@ def batch_create(request):
 _qm = make_queue_manipulation_views(
     work_model=AvatarJob, batch_model=BatchAvatarJob,
     item_model=BatchAvatarJobItem, fk_name='job',
+    group_key=_avatar_nature,           # jumeau du `nature_of` de l'import
     get_user=_get_user,
 )
 
 consolidate = _qm['consolidate']
 reorder = _qm['reorder']
+reorder_queue = _qm['reorder_queue']
+merge = _qm['merge']
 move_to_batch = _qm['move_to_batch']
 remove_from_batch = _qm['remove_from_batch']
 

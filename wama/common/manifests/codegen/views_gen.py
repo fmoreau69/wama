@@ -426,6 +426,22 @@ def batch_preview(request):
                     avertissements.append(_dest.name + ' : nature hors vocabulaire')"""
                          if nature_champ else "pass")
     bc_nature = (f"str(getattr(o, '{nature_champ}', '') or '')" if nature_champ else "''")
+    # ⚠ ÉMISE COMME FONCTION NOMMÉE, plus comme lambda inline (2026-09-04). Ce n'est pas du
+    # style : elle a DEUX consommateurs — le groupement à l'import (`nature_of`) et la fusion
+    # par glisser-déposer (`group_key` de la fabrique de manipulation). Une lambda inline ne
+    # se partage pas, donc la jumelle générée serait née avec la règle appliquée d'un seul
+    # côté : import refusant de mélanger les natures, drag&drop les mélangeant.
+    # ⚠ NOM DISTINCT de `bloc_nature` (ligne ~161), qui porte `_TYPES_ENTREE` + `def _nature`.
+    # Ma première graphie réutilisait ce nom et l'ÉCRASAIT : l'app générée perdait son
+    # vocabulaire d'entrée et sa détection de nature, tout en gardant les appels `_nature(...)`
+    # — donc un NameError à la première utilisation. Trois tests de `tests_codegen_lot` l'ont
+    # dit tout de suite ; à l'œil, le diff n'avait l'air que d'un ajout.
+    bloc_nature_de_lot = f'''def _nature_de_lot(o):
+    """Nature de l'élément — ce qui peut cohabiter dans un lot.
+
+    UNE déclaration, DEUX consommateurs : `group_into_batches_by_nature` (import groupé) et
+    `group_key` de la fabrique de manipulation de file (fusion par drag&drop)."""
+    return {bc_nature}'''
     bc_nature_kw = (f", **{{'{nature_champ}': nature}}" if nature_champ else "")
     vues['batch_create'] = f'''@require_POST
 def batch_create(request):
@@ -498,7 +514,7 @@ def batch_create(request):
 
     lots = group_into_batches_by_nature(
         crees,
-        nature_of=lambda o: {bc_nature},
+        nature_of=_nature_de_lot,
         create_batch=lambda nature, total: {batch}.objects.create(
             user=user, total=total{bc_nature_kw}),
         link_item=_lier,
@@ -877,8 +893,15 @@ _qm = make_queue_manipulation_views_direct(
     batch_fk='{fk}', row_field='{row}',
     get_user=_user,{f"""
     batch_extra=lambda w: {{'{d['batch_extra']}': w.{d['batch_extra']}}},""" if d['batch_extra'] else ''}
+    # JUMEAU du `nature_of` de l'import : la meme regle decide de ce qui peut cohabiter dans
+    # un lot, qu'on y arrive par import groupe ou par glisser-deposer.
+    group_key=_nature_de_lot,
 )
 reorder           = _qm['reorder']
+reorder_queue     = _qm['reorder_queue']
+# `merge` = fusion STRICTE (geste du drag&drop) — distincte de `consolidate`, qui range
+# par nature a l'import. Voir le bloc « DEUX OPERATIONS, DEUX NOMS » de queue_manipulation.
+merge             = _qm['merge']
 move_to_batch     = _qm['move_to_batch']
 remove_from_batch = _qm['remove_from_batch']
 # `consolidate` était BOUCHONNÉ en 501 alors que la fabrique ci-dessus le rend depuis
@@ -897,7 +920,8 @@ consolidate       = _qm['consolidate']'''
     # `card_html` a quitté cet ensemble le 2026-08-29 : il a un corps conventionnel
     # (cf. plus haut). L'ensemble reste — d'autres routes à `pk` s'y ajouteront.
     stubs_pk = set()
-    couverts_fabrique = {'reorder', 'move_to_batch', 'remove_from_batch', 'consolidate'}
+    couverts_fabrique = {'reorder', 'reorder_queue', 'merge', 'move_to_batch',
+                         'remove_from_batch', 'consolidate'}
     ignores = {'about', 'help'}     # servis par common.views dans le urls généré
     blocs, deja = [], set()
     for ep in d['endpoints']:
@@ -928,6 +952,9 @@ consolidate       = _qm['consolidate']'''
                                                            'profile_list', 'profile_save')
                          else stub(nom))
     blocs.insert(0, decorateur)
+    # La nature AVANT la fabrique : c'est elle qui la consomme (`group_key`), et le module
+    # généré est lu de haut en bas — `_nature_de_lot` doit exister au moment de l'appel.
+    blocs.append(bloc_nature_de_lot)
     blocs.append(fabrique)
 
     tete = f'''"""

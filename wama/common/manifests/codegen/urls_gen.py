@@ -45,6 +45,8 @@ ROUTE_TABLE = {
     'about':             ('about/',                        'AppAboutView.as_view()'),
     'help':              ('help/',                         'AppHelpView.as_view()'),
     'reorder':           ('reorder/',                      'views.reorder'),
+    'reorder_queue':     ('reorder-queue/',                'views.reorder_queue'),
+    'merge':             ('merge/',                        'views.merge'),
     'move_to_batch':     ('move-to-batch/<int:pk>/',       'views.move_to_batch'),
     'remove_from_batch': ('remove-from-batch/<int:pk>/',   'views.remove_from_batch'),
     'consolidate':       ('consolidate/',                  'views.consolidate'),

@@ -38,6 +38,8 @@
     <link href="{% static_v 'common/css/wama-inspector.css' %}" rel="stylesheet">
     <link href="{% static_v 'common/css/wama-params.css' %}" rel="stylesheet">
     <link href="{% static_v 'common/css/wama-card-v3.css' %}" rel="stylesheet">
+    {# Manipulation directe de la file : sélection multiple + états de dépôt (wama-queue-dnd.js) #}
+    <link href="{% static_v 'common/css/wama-queue-dnd.css' %}" rel="stylesheet">
     {# Barre de filtrage commune (apparence model manager) — voir _filter_bar.html #}
     <link href="{% static_v 'common/css/wama-filter-bar.css' %}" rel="stylesheet">
     {# Squelette commun des pages CATALOGUE (stats/hero/grille/cards) — voir wama-catalog.css #}
@@ -366,6 +368,14 @@
     Chargée AVANT les scripts d'app — `WamaQueueActions.onSettings()` doit exister quand l'app
     déclare son ouvreur de modale.{% endcomment %}
     <script src="{% static_v 'common/js/queue-actions.js' %}"></script>
+    {% comment %}Manipulation DIRECTE de la file (CARD_DESIGN §3bis) : sélection multiple
+    (clic / Ctrl / Maj) + glisser-déposer pour entrer dans un lot, en former un, en sortir,
+    ou ordonner la file. Global comme `queue-actions.js` et pour la même raison — c'est un
+    geste de FILE, pas une option d'app. Auto-monté sur `[data-wama-dnd]`, donc STRICTEMENT
+    inerte partout où le gabarit n'a pas posé `{% templatetag openblock %} queue_dnd_attrs {% templatetag closeblock %}`.
+    Chargé APRÈS queue-actions : sur un même clic, les actions de bouton priment sur la
+    sélection.{% endcomment %}
+    <script src="{% static_v 'common/js/wama-queue-dnd.js' %}"></script>
 
     {% block javascript %}
       <script src="{% static_v 'vendors/bootstrap-wysiwyg/js/bootstrap-wysiwyg.min.js' %}"></script>

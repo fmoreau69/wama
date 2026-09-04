@@ -30,6 +30,8 @@ urlpatterns = [
     path('batch/consolidate/', views.consolidate, name='consolidate'),
     # Manipulation directe de file (fabrique commune)
     path('reorder/', views.reorder, name='reorder'),
+    path('reorder-queue/', views.reorder_queue, name='reorder_queue'),
+    path('merge/', views.merge, name='merge'),
     path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
     path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     # Card serveur unique + console + pages

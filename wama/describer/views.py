@@ -155,10 +155,13 @@ from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 _qm = make_queue_manipulation_views(
     work_model=Description, batch_model=BatchDescription,
     item_model=BatchDescriptionItem, fk_name='description',
+    group_key=_describer_nature,        # jumeau du `nature_of` de l'import
     get_user=get_user,
 )
 remove_from_batch = _qm['remove_from_batch']
 reorder = _qm['reorder']
+reorder_queue = _qm['reorder_queue']
+merge = _qm['merge']
 move_to_batch = _qm['move_to_batch']
 
 

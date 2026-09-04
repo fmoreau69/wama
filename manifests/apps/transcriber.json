@@ -821,6 +821,21 @@
           "fields": [
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "queue_index"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
@@ -1480,10 +1495,12 @@
         "global_progress",
         "help",
         "index",
+        "merge",
         "move_to_batch",
         "progress",
         "remove_from_batch",
         "reorder",
+        "reorder_queue",
         "save_correction",
         "save_meta",
         "save_realtime",
@@ -1500,6 +1517,11 @@
         "waveform_peaks"
       ],
       "extra_routes": [
+        {
+          "name": "consolidate",
+          "pattern": "consolidate/",
+          "view": "views.merge"
+        },
         {
           "name": "upload_youtube",
           "pattern": "upload_youtube/",

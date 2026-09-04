@@ -243,10 +243,10 @@ class UserSettings(models.Model):
         return f"Settings for {self.user.username}"
 
 
-from wama.common.models import BatchMixin
+from wama.common.models import QueueOrderMixin, BatchMixin
 
 
-class BatchEnhancement(BatchMixin, ScopedVisibility):
+class BatchEnhancement(BatchMixin, QueueOrderMixin, ScopedVisibility):
     """Groupe d'améliorations créé depuis un fichier batch.
 
     **Unité de partage de la file** (cf. `batch_common.build_batches_list`) : une card isolée
@@ -286,7 +286,7 @@ class BatchEnhancementItem(models.Model):
         ordering = ['row_index']
 
 
-class BatchAudioEnhancement(BatchMixin, ScopedVisibility):
+class BatchAudioEnhancement(BatchMixin, QueueOrderMixin, ScopedVisibility):
     """Groupe d'améliorations audio créé depuis un fichier batch ou upload multiple.
 
     Même règle de partage que `BatchEnhancement`.

@@ -48,6 +48,8 @@ urlpatterns = [
     # Manipulation directe de la file (fabrique commune) — mêmes noms que les 8 autres apps.
     path('queue/<int:pk>/remove-from-batch/', views.remove_from_batch, name='remove_from_batch'),
     path('queue/reorder/', views.reorder, name='reorder'),
+    path('queue/reorder-queue/', views.reorder_queue, name='reorder_queue'),
+    path('queue/merge/', views.merge, name='merge'),
     path('queue/<int:pk>/move-to-batch/', views.move_to_batch, name='move_to_batch'),
     path('queue/consolidate/', views.consolidate, name='consolidate'),
 
