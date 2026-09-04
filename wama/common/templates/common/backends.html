@@ -39,15 +39,15 @@
     <span class="wama-cat-stat"><b>{{ inv.backends_count }}</b> backends</span>
     <span class="wama-cat-stat"><b>{{ inv.apps_count }}</b> apps</span>
     <span class="wama-cat-stat"><b>{{ inv.routes_count }}</b> natures routées</span>
-    <span class="wama-cat-stat"><b>{{ inv.modeles_lies }}</b> modèles rattachés
-      {% if inv.modeles_lien_declare %}(dont <b>{{ inv.modeles_lien_declare }}</b> en lien déclaré)
+    <span class="wama-cat-stat"><b>{{ inv.linked_models }}</b> modèles rattachés
+      {% if inv.declared_link_models %}(dont <b>{{ inv.declared_link_models }}</b> en lien déclaré)
       {% else %}<span class="bk-lien-app">— aucun lien FIN déclaré</span>{% endif %}</span>
-    <span class="wama-cat-stat"><b>{{ inv.moteurs|length }}</b> moteurs appelés</span>
-    {% if inv.moteurs_absents %}
-      <span class="wama-cat-stat bk-manque"><b>{{ inv.moteurs_absents|length }}</b> moteur(s) déclaré(s) NON installé(s)</span>
+    <span class="wama-cat-stat"><b>{{ inv.engines|length }}</b> moteurs appelés</span>
+    {% if inv.missing_engines %}
+      <span class="wama-cat-stat bk-manque"><b>{{ inv.missing_engines|length }}</b> moteur(s) déclaré(s) NON installé(s)</span>
     {% endif %}
-    {% if inv.sans_routage %}
-      <span class="wama-cat-stat bk-manque"><b>{{ inv.sans_routage|length }}</b> app(s) sans ROUTES</span>
+    {% if inv.without_routes %}
+      <span class="wama-cat-stat bk-manque"><b>{{ inv.without_routes|length }}</b> app(s) sans ROUTES</span>
     {% endif %}
     {% if inv.isolations %}
       <span class="wama-cat-stat"><b>{{ inv.isolations|length }}</b> environnement(s) isolé(s)</span>
@@ -90,16 +90,16 @@
        des pins figés d'amont, pas des incompatibilités).</p>
   </div>
 
-  {% include 'common/_filter_bar.html' with facettes=facettes_backends cible='.wama-cat-card' mode='client' placeholder='Filtrer (app, moteur, nature, modèle…)' %}
+  {% include 'common/_filter_bar.html' with facettes=facettes_backends cible='.wama-cat-card' mode='client' placeholder='Filtrer (app, engine, nature, modèle…)' %}
 
   {% comment %}`data-id` = identifiant du backend (app:nom) lu par WamaInspector au clic ;
-  `data-f-app`, `data-f-saveur`, `data-f-famille` = les trois facettes déclarées par la vue.
+  `data-f-app`, `data-f-flavor`, `data-f-famille` = les trois facettes déclarées par la vue.
   Chaque facette est AUSSI visible en badge : une facette qu'on ne voit pas sur la carte
   n'explique pas ce qu'elle filtre (leçon des pages registres).{% endcomment %}
   <div class="wama-cat-grid" id="backendsGrid" style="--cat-card-min: 340px;">
     {% for a in inv.apps %}{% for e in a.entries %}
     <div class="wama-cat-card" data-id="{{ e.app }}:{{ e.name }}"
-         data-f-app="{{ e.app }}" data-f-saveur="{{ e.saveur }}" data-f-famille="{{ e.kind }}"
+         data-f-app="{{ e.app }}" data-f-flavor="{{ e.flavor }}" data-f-famille="{{ e.kind }}"
          data-f-environnement="{% if e.isolation %}{{ e.isolation }}{% else %}venv principal{% endif %}">
       <h4>{{ e.name }}
         <span class="wama-cat-badge bk-app">{{ e.app }}</span>
@@ -114,12 +114,12 @@
         {% if e.packages %}paquets <code>{{ e.packages|join:", " }}</code>{% endif %}
         {% if e.vram_gb %}{% if e.packages %} · {% endif %}VRAM {{ e.vram_gb }} Go{% endif %}
         {% if e.natures %}{% if e.packages or e.vram_gb %} · {% endif %}nature
-          <code>{{ a.nature_effective }}</code>{% if not a.nature_declaree %} <span class="bk-lien-app">(défaut)</span>{% endif %}{% endif %}
+          <code>{{ a.effective_nature }}</code>{% if not a.declared_nature %} <span class="bk-lien-app">(défaut)</span>{% endif %}{% endif %}
       </div>
-      {% if e.moteur %}
-        <div class="bk-sig">moteur appelé : <code>{{ e.moteur }}</code>
+      {% if e.engine %}
+        <div class="bk-sig">moteur appelé : <code>{{ e.engine }}</code>
           {% if e.isolation %}<span class="bk-lien-app">(hors venv principal — non mesurable d'ici)</span>
-          {% elif not e.moteur_installe %}<span class="bk-manque">(paquets absents de ce venv)</span>{% endif %}
+          {% elif not e.engine_installed %}<span class="bk-manque">(paquets absents de ce venv)</span>{% endif %}
         </div>
       {% endif %}
       {% if e.models %}
@@ -129,11 +129,11 @@
         {% comment %}Rattachement de NIVEAU APP : on dit le nombre, on n'ÉTALE pas la liste
         sur chaque backend — l'attribution fine n'existe pas encore (backend_ref = app).{% endcomment %}
         <div class="bk-modeles bk-lien-app">{{ a.models_app|length }} modèle(s) de l'app,
-          rattachement non déclaré{% if a.engines_app %} · moteurs de l'app :
-          <code>{{ a.engines_app|join:", " }}</code>{% endif %}</div>
+          rattachement non déclaré{% if a.app_engines %} · moteurs de l'app :
+          <code>{{ a.app_engines|join:", " }}</code>{% endif %}</div>
       {% endif %}
-      {% if a.manque %}<div class="bk-manque">⚠ {{ a.manque }}</div>{% endif %}
-      {% if a.illisibles %}<div class="bk-illisible">module(s) illisible(s) : {{ a.illisibles|join:", " }}</div>{% endif %}
+      {% if a.missing %}<div class="bk-manque">⚠ {{ a.missing }}</div>{% endif %}
+      {% if a.unreadable %}<div class="bk-illisible">module(s) illisible(s) : {{ a.unreadable|join:", " }}</div>{% endif %}
     </div>
     {% endfor %}{% endfor %}
   </div>

@@ -365,9 +365,9 @@ def apps_catalog_view(request):
     # tout/rien touchait, et les 5 surfaces à extra_links n'étaient masquables par rien.
     autorisees = [a['name'] for a in apps_list if a['autorisee']]
     for groupe in apps_grouped:
-        for lien in groupe['links']:
-            if lien['abonnable'] and lien['autorisee'] and lien['gate'] not in autorisees:
-                autorisees.append(lien['gate'])
+        for link in groupe['links']:
+            if link['abonnable'] and link['autorisee'] and link['gate'] not in autorisees:
+                autorisees.append(link['gate'])
 
     # ── 2ᵉ grille : la FONCTIONNELLE (WAMA_VERIFICATION §2, décidée le 22/08, câblée le
     # 01/09). L'adoption ci-dessus dit « le code contient la brique » ; celle-ci dit « le
@@ -583,13 +583,13 @@ def backends_catalog_view(request):
     Les facettes sont DÉRIVÉES du contenu réel (une option sans carte derrière serait un
     filtre qui vide la page — leçon des sources externes), sauf leurs libellés.
     """
-    from .services.backend_inventory import SAVEURS, summary
+    from .services.backend_inventory import FLAVORS, summary
     from .utils.volet import volet
 
     inv = summary()
     apps_presentes = {e.app for a in inv['apps'] for e in a.entries}
     familles = {e.kind for a in inv['apps'] for e in a.entries}
-    saveurs = {e.saveur for a in inv['apps'] for e in a.entries}
+    saveurs = {e.flavor for a in inv['apps'] for e in a.entries}
     # ENVIRONNEMENTS présents (`ISOLATION`) — la facette n'apparaît QUE s'il y a autre chose
     # que le venv principal : proposer « Tous les environnements » sur un parc à un seul
     # environnement serait un filtre décoratif (même règle que les autres facettes).
@@ -600,7 +600,7 @@ def backends_catalog_view(request):
         {'cle': 'app', 'label': 'Application', 'tous': 'Toutes les apps',
          'options': {a: a for a in sorted(apps_presentes)}},
         {'cle': 'saveur', 'label': 'Sortie', 'tous': 'Toutes les sorties',
-         'options': {k: v for k, v in SAVEURS.items() if k in saveurs}},
+         'options': {k: v for k, v in FLAVORS.items() if k in saveurs}},
         {'cle': 'famille', 'label': 'Famille', 'tous': 'Toutes les familles',
          'options': {k: v for k, v in (('route', 'Routé (ROUTES)'),
                                        ('classe', 'Classe (BaseModelBackend)'))

@@ -373,15 +373,18 @@ class BaseModelBackend(ABC):
     #:
     #: Déclarée le 2026-09-04 parce que sans elle le GRISAGE MENT : `missing_packages()`
     #: interroge `find_spec` dans CE processus, verdict qui ne dit rien d'un backend qui
-    #: tourne ailleurs. Défaut mesuré en petit le 03/09 (codeformer se grisait sur un
-    #: paquet qu'il n'utilise pas) ; en grand, `wama_lab/face_analyzer` a son PROPRE venv
-    #: — ses paquets ne seront JAMAIS dans venv_linux, donc tout backend qu'on y porterait
-    #: serait gris à vie et le lien modèle↔moteur donnerait un verdict faux.
+    #: tourne ailleurs. Défaut mesuré le 03/09 : codeformer se grisait sur un paquet qu'il
+    #: n'utilise pas. Le jour où un backend vivra pour de bon dans un autre environnement,
+    #: `find_spec` d'ici le condamnerait à vie sans cette déclaration.
+    #:
+    #: ⚠ Aucun backend n'est isolé AUJOURD'HUI (vérifié le 04/09) : les venvs de
+    #: `wama_lab/face_analyzer` sont des reliquats de son époque autonome — l'app est en
+    #: `INSTALLED_APPS` et tourne dans le processus principal comme toutes les autres.
     #:
     #: Deux schémas, calqués sur les patrons DÉJÀ en production (rien de nouveau à bâtir,
     #: l'unité d'isolement est le PROCESSUS — le venv n'en est qu'une déclinaison) :
     #:   ``venv:<chemin relatif au dépôt>``  sous-processus dans un venv dédié
-    #:                                       (ex. ``venv:wama_lab/face_analyzer/venv_linux``)
+    #:                                       (ex. ``venv:venvs/mon_moteur``)
     #:   ``service:<url>``                   micro-service déjà lancé (ex. le TTS, ``--workers 1``)
     #:
     #: ⚠ Ce n'est PAS un permis d'en créer : l'isolement se DÉCLARE au cas par cas, jamais

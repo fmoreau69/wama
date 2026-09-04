@@ -17,8 +17,8 @@ class CommonConfig(AppConfig):
         # registre qu'il alimente (cycle mesuré à 47 s le 03/09).
         try:
             from wama.common.backends.manager import register_engine_inventory
-            from wama.common.services.backend_inventory import engines_declares
-            register_engine_inventory(engines_declares)
+            from wama.common.services.backend_inventory import declared_engines
+            register_engine_inventory(declared_engines)
         except Exception:
             pass
 
