@@ -6,6 +6,22 @@ class CommonConfig(AppConfig):
     name = 'wama.common'
 
     def ready(self):
+        # INVENTAIRE DES MOTEURS, dérivé des déclarations `ENGINE` des backends (2026-09-04).
+        # ⚠ Pourquoi c'est nécessaire, mesuré : `known_engines()` n'agrégeait que les 2
+        # inventaires enregistrés à la main (composer, synthesizer) alors que 18 moteurs sont
+        # déclarés. Un modèle exigeant `pyannote` était donc jugé « moteur sans backend
+        # installé » — verdict FAUX, masqué aujourd'hui par `backend_ref`. Brancher l'inventaire
+        # dérivé est donc le PRÉALABLE au retrait de `backend_ref` (ROADMAP §5b).
+        # Enregistrement PARESSEUX : le balayage (statique, ~0,15 s) n'a lieu qu'au premier
+        # appel, et il ne consulte JAMAIS `known_engines()` — un producteur ne lit pas le
+        # registre qu'il alimente (cycle mesuré à 47 s le 03/09).
+        try:
+            from wama.common.backends.manager import register_engine_inventory
+            from wama.common.services.backend_inventory import engines_declares
+            register_engine_inventory(engines_declares)
+        except Exception:
+            pass
+
         # Journal APPLICATIF global `logs/wama.log` — comble le trou mesuré le 2026-08-18 :
         # `settings.LOGGING` n'existe que dans la branche LDAP (django_auth_ldap→console),
         # donc les loggers `wama.*` n'avaient AUCUN handler et le `logger.exception` de
