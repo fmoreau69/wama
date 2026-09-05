@@ -186,3 +186,117 @@ Ce qu'il faut est un **audit MESURÉ**, dans la famille de `check_docs` / `licen
   email (défaut OFF, SMTP à configurer). Champs sur `UserProfile`, UI page profil.
 - **Priorité : basse** (disque pas saturé). À implémenter quand la place locale devient contraignante,
   en réutilisant `offload_file`/le montage WSL. Lié au chantier `remote_backup` modèles.
+
+---
+
+## 8. VOIES D'IMPORT — la matrice fonctionnelle MESURÉE (2026-09-05)
+
+> Demandée par Fabien : *« 5 à 6 fonctionnements parallèles à confronter/questionner […] faire
+> la cartographie complète de tout ça et la consigner »*. Ce document est LE domicile du sujet
+> (décision 05/09 : un domaine = un fichier ; la table de `CLAUDE.md` est mise à jour en
+> conséquence — il couvrait déjà « ce que `media/` a le droit de contenir » et l'audit
+> d'intégrité, les voies d'import en sont la suite naturelle). `BATCH_FORMAT.md` reste la
+> spec du FORMAT de lot, `WAMA_VERIFICATION.md §3` le catalogue des GESTES exécutables.
+>
+> Tout ce qui suit a été **lu dans le code le 05/09** (5 balayages parallèles, ancres
+> vérifiées une à une sur les affirmations qui changent une décision). Aucune ligne n'est une
+> intention. Quand un point n'a pas été exécuté en navigateur, c'est dit.
+
+### 8.1 Les 6 cas de Fabien — verdict par cas
+
+| # | cas | ce que Fabien supposait | ce que le code FAIT | ancres |
+|---|---|---|---|---|
+| **1** | explorateur Windows → app | copie dans `app/input` | ✅ **COPIE** — `UploadToUserPath` ; collision → suffixe uuid8 (`_c5e24b5d`) | `common/utils/media_paths.py:160-188`, `:77-98` |
+| **2** | médiathèque → app | *« les fichiers restent dans la médiathèque, pas d'import dans app/input, tu confirmes ? »* | ❌ **FAUX pour le geste courant** : le bouton « Médiathèque » d'une card fait `fetch(file_url)` → `blob` → `new File` → **re-upload** = COPIE autonome dans `app/input`, **sans aucun lien** avec l'asset. Double transfert, double stockage. Sur 5 consommateurs de `MediaPicker`, **1 seul** (Studio) lit le 2ᵉ argument `asset` — et subit quand même le téléchargement du blob, fait AVANT `onSelect`. ✅ **VRAI pour 2 voies serveur** : nœud Studio `media_import` (`asset_path`) et voix `ua_<id>` du synthesizer, lus EN PLACE | `common/static/common/js/media-picker.js:177-192` ; `_new_item_card.html:119` ; `studio/tasks.py:57-68` ; `synthesizer/utils/voice_utils.py:188-196` |
+| **3** | dossier utilisateur (filemanager) → app | temp + copie dans `app/input` | ✅ **COPIE** (`shutil.copy2`) — l'original reste dans `users/<u>/temp/` **pour toujours** : `users/*/temp` n'est dans **aucune rétention** ; vidage manuel seul | `media_paths.py:117-157` (`copy_into_app_input`) ; `common/services/retention.py:24-31` |
+| **4** | dossier connecté (montage) → app | copie dans `app/input` | ✅ **référence tant qu'on REGARDE, copie dès qu'on IMPORTE** — arbre/aperçu/service lus en place sur le montage ; « Envoyer vers » copie. La card ne garde **aucune trace** du montage d'origine. `check_media_integrity` ne voit pas les montages | `filemanager/views.py:304-335`, `:338-394`, `:2362-2389`, `:1263-1283` |
+| **5** | lot avec chemin d'entrée et de sortie | *« importés dans app/input, ou traités depuis l'origine et exportés dans la destination ? »* | **Entrée : TROIS régimes** (8.3). **Sortie : `-o` n'est JAMAIS une destination** — nulle part ; nom seulement (composer, synthesizer), **perdu** sur imager, avatarizer et les 6 apps média. `BATCH_FORMAT.md:23-29` le dit ; les règles `:56-79` (résolution vers un `MountedFolder`) sont **de la doc pure, zéro code** | `BATCH_FORMAT.md:23-29` ; `imager/utils/prompt_parser.py:250-303` (filtre qui perd `-o`) |
+| **6** | prompt → fichier d'entrée (« uniformisation faite ») | le prompt devient un fichier d'entrée | ❌ **n'existe pas** : le prompt est un CHAMP (`TextField`) partout sauf synthesizer (DOCX matérialisé parce que son modèle exige un `FileField`). Le commun déclare l'inverse : `intake.py:56` *« le port de PROMPT n'est pas un port de FICHIER »*. Ce qui a été uniformisé le 30/08 : le **vocabulaire** (`text`→`prompt`, `document`) et la **preview** (face Entrée = texte inline, `preview_utils.py:112-128`) — *vu de la card* le prompt est l'entrée, physiquement il ne va jamais dans `input/`. Live transcriber : audio → `input/`, texte → champ | `synthesizer/views.py:379-473` ; `composer/models.py:25` ; `imager/models.py:221` ; `transcriber/views.py:696-735` |
+
+### 8.2 La matrice VOIE × APP — ce que chaque geste produit sur le disque
+
+Légende : **C** = copie dans `media/<app>/<u>/input/` · **R** = référence (le fichier reste où il est) · **·** = geste non offert · **⚠** = comportement divergent
+
+| voie \ app | anonymizer | converter | describer | enhancer | reader | transcriber | avatarizer | composer | synthesizer | imager |
+|---|---|---|---|---|---|---|---|---|---|---|
+| clic / drop explorateur | C ⚠¹ | C | C | C | C | C | C (attache) | C (lot seul) | C | C (attache) |
+| drop de DOSSIER | C | C | C | C | C | C | · | · | C | · |
+| médiathèque (bouton card) | C | C | C | C | C | C | C | C | C | C |
+| URL | C au lancement | **C à la création** ⚠ | C au lancement | C au lancement | · | C au lancement | C au lancement | C au lancement | · | C au lancement |
+| « Envoyer vers » filemanager | C | C | C | C | C | C | **·** (pas d'importeur) | **·** (pas d'importeur) | C | C |
+| drag jstree → card | C | C | C | C | C | C | ⚠² re-download | C | C | **⚠² rien** (aucun listener) |
+| montage → app | C | C | C | C | C | C | · | · | C | C |
+| lot : `-i` chemin local | ⚠³ accepté, meurt au lancement | C (sous MEDIA_ROOT) | ⚠³ | ⚠³ | ⚠³ | ⚠³ | **R** (`audio_input.name = relpath`) | · | · | · |
+| lot : `-i` URL | C au lancement | C à la création | C au lancement | C au lancement | C au lancement | C au lancement | · | · | · | · |
+| lot : `-o` | perdu | perdu | perdu | perdu | perdu | perdu | perdu | nom | nom du .txt | **perdu** |
+| lot : `-r` référence | · | · | · | · | · | · | requis (galerie) | ⚠ parsé, fichier NON rattaché | ⚠ produit, jamais lu | ⚠ produit, filtré |
+| N fichiers d'un coup | 1 lot/nature | 1 lot/nature | 1 lot | 1 lot | 1 lot (serveur) | **⚠⁴ N cards isolées** | · | · | 1 lot | · |
+| « conversion rapide » | · | **R + sortie à côté** ⚠⁵ | · | · | · | · | · | · | · | · |
+| `server_path` (fichier déjà sur le serveur) | · | · | · | · | · | · | · | · | **R** ⚠⁶ + 🔴 traversée | · |
+
+Notes numérotées :
+1. **anonymizer** écrit le fichier lui-même (`views.py:212-229`) et fabrique la chaîne de chemin à la main (`:163`) au lieu du `upload_to` ; sa branche « `.txt` = liste de chemins serveur » (`:77-111`) lit des chemins **sans garde MEDIA_ROOT** — le gabarit généré, lui, garde (`views_gen.py:491-494`).
+2. **Trois canaux de drag concurrents** : `WamaImport` ignore un drag jstree (pas de `dataTransfer.files`) ; `filemanager.js:1784` rattrape et POSTe `paths[]` ; mais imager/avatarizer/cam_analyzer reçoivent l'événement `filemanager:filedrop` — avatarizer et cam_analyzer **re-téléchargent le blob depuis `/media/` puis ré-uploadent** (donc échec sur un fichier de montage, non servi sous `/media/`), et **imager n'a aucun listener** : le drag ne fait rien, en silence (déjà `CARD_DESIGN §11.10` défaut 1).
+3. **Régime paresseux** (anonymizer, describer, enhancer, reader, transcriber) : la ligne est stockée en `source_url` et résolue **au lancement** par `ensure_local_input`, qui ne sait que TÉLÉCHARGER — `url_guard.py:77-79` refuse tout schéma hors http/https. `C:\medias\a.mp4` passe la création (`batch_parsers.py:241-246`, « adressable ») et **échoue à l'exécution**.
+4. **transcriber** : `index.js:127-133` boucle les uploads puis `location.reload()` — **aucune consolidation** ; son commentaire `:123-125` (« consolide en UN batch ») est **faux**. Résultat : N lots-de-1 par `auto_wrap_orphans`.
+5. **converter « conversion rapide »** (`converter/views.py:1068-1079`) : `input_file = str(rel_path)` (n'importe où sous MEDIA_ROOT, typiquement `users/<u>/temp/`), sortie écrite **à côté de la source**, ligne éphémère. Assumé et documenté (`:1012-1019`) — c'est un **2ᵉ modèle disque** dans le parc, et un montage y est refusé (400, `:1051-1055`).
+6. **synthesizer `import_individual_from_path`** (`synthesizer/views.py:1185`) : `text_file.name = server_path` — la card **POINTE** sur le fichier du temp utilisateur. Vider son temp casse la synthèse. **C'est déjà le modèle « pointeur » — sans la vérification qui va avec.**
+
+### 8.3 Les régimes de résolution d'une ENTRÉE distante (lot ou URL)
+
+| régime | apps | à la création | au lancement |
+|---|---|---|---|
+| **A — paresseux** | anonymizer · describer · enhancer · reader · transcriber | `source_url` stocké, FileField vide | `ensure_local_input` → tempdir → `target.save()` → `input/` |
+| **B — impatient** | converter | téléchargement/copie **immédiate** dans `input/` | rien |
+| **B′ — hybride (codegen)** | toute app générée | URL → paresseux ; chemin local → copie immédiate | `ensure_local_input` pour l'URL |
+| **C — référence** | avatarizer (`-i`) · synthesizer (`server_path`) · converter (rapide) | le chemin est **assigné tel quel** | rien |
+
+`ensure_local_input` = `common/utils/source_ingest.py:59-118`, piloté par `WAMA_INGEST` du modèle, idempotent, appelé en tête de tâche (`task_skeleton.py:234-235` + 5 workers).
+
+### 8.4 Déduplication — il n'y en a AUCUNE, et ce qui en tient lieu
+
+| ce qui existe | ce que c'est vraiment | ancre |
+|---|---|---|
+| suffixe uuid8 (`UploadToUserPath`) et `_1`, `_2` (`copy_into_app_input`) | **anti-collision de NOM** — deux dépôts du même fichier = **deux copies** | `media_paths.py:77-98`, `:148-156` |
+| `unique_together (user, name, asset_type)` → 409 | dédup par **NOM SAISI**, médiathèque seule ; les sinks Studio la contournent en renommant `« base (2) »` | `media_library/models.py:106` ; `studio/tasks.py:78-81` |
+| `safe_delete_file` compte les autres lignes | **comptage de références À LA SUPPRESSION**, même modèle + même champ seulement — ne voit ni un autre modèle (`UserFile`), ni un autre champ, ni les suppressions du filemanager (`api_delete`, `api_move`) qui **fabriquent les « référencés mais ABSENTS »** | `queue_duplication.py:49-67` ; `filemanager/views.py:707-712`, `:918` |
+| duplication de card | **le fichier est PARTAGÉ, jamais copié** (« Files are NEVER copied on duplication ») | `queue_duplication.py:20`, `:89-115` |
+| `hashlib` dans le dépôt | 10 usages, **aucun sur un média d'entrée** (mémoire, RAG, caches, mtime jstree, config, poids de modèles) | balayage 05/09 |
+
+**Conséquence mesurée** : une même vidéo passée par le temp puis importée dans 3 apps existe en **4 exemplaires durables** (temp jamais purgé + 3 inputs, dont 5 apps hors rétention).
+
+### 8.5 Pointeurs — ce que le modèle de données permet, et l'état de l'index existant
+
+- **Aucun modèle d'app ne porte un chemin externe** : toutes les entrées sont des `FileField` sous `MEDIA_ROOT`. Les seuls `local_path` du dépôt sont `MountedFolder` (un montage) et `AIModel` (un modèle).
+- `source_url` **n'est pas un pointeur persistant** : c'est un état transitoire consommé par l'ingest.
+- **Un index de pointeurs EXISTE déjà et DÉRIVE déjà** : `filemanager.UserFile` indexe `users/<u>/temp/` en base. Audit live du 05/09 : **609 fichiers · 330 référencés · 29 référencés mais ABSENTS · 30 « pointeurs seuls »** — dont **20 lignes `UserFile.file`** vers des fichiers supprimés du disque sans que la ligne ne suive. C'est précisément le mode de défaillance d'une gestion par pointeur sans vérification.
+- **Aucune vérification « déplacé/supprimé → proposer le retrait »** n'existe : ni pour un montage injoignable (nœud d'erreur dans l'arbre, ligne conservée, aucune tâche périodique), ni pour un fichier sous `media/` supprimé par le filemanager (aucun contrôle des cards qui le référencent). Le seul instrument est `check_media_integrity`, **a posteriori**, et **aveugle aux montages**.
+
+### 8.6 🔴 Défauts trouvés en chemin — à régler indépendamment de toute décision
+
+| # | défaut | gravité | ancre |
+|---|---|---|---|
+| D1 | **Traversée de chemin** : `Path(MEDIA_ROOT) / server_path` sans `resolve()` ni confinement — un `../../…` lit n'importe quel fichier du serveur et injecte son texte dans une card | 🔴 **sécurité** | `synthesizer/views.py:1169`, `:1313` |
+| D2 | confinement MEDIA_ROOT par **préfixe de chaîne** (`startswith`) après `resolve()` — un dossier frère `media_backup/` passerait ; `Path.is_relative_to` est la garde juste | ⚠ sécurité | `converter/views.py:752-753` ; `views_gen.py:491-492` ; `avatarizer/views.py:873-874` |
+| D3 | anonymizer lit des chemins serveur arbitraires depuis un `.txt` **sans garde** | ⚠ sécurité | `anonymizer/views.py:77-111` |
+| D4 | transcriber : dépôt multiple ≠ lot, commentaire faux | fonctionnel | `transcriber/js/index.js:118-134` |
+| D5 | imager : drag jstree sans listener (silence) | fonctionnel | `filemanager.js:1805-1811` |
+| D6 | régime A : chemin local accepté à la création, mort au lancement, **sans message à la création** | fonctionnel | `batch_parsers.py:241-246` × `url_guard.py:77-79` |
+| D7 | `-r` inopérant depuis un lot sur composer/synthesizer/imager, alors que `BATCH_FORMAT.md:197-209` l'annonce « opt » | doc ≠ code | `composer/views.py:395-401` ; `synthesizer/views.py:1367-1377` ; `prompt_parser.py:250-303` |
+| D8 | upload filemanager **avec arborescence** ÉCRASE (aucun `get_unique_filename` sur cette branche) | fonctionnel | `filemanager/views.py:616-618` |
+| D9 | `users/*/temp` et 5 apps **hors rétention** | volume | `retention.py:24-31` |
+| D10 | `MediaPicker` télécharge le blob AVANT `onSelect`, même pour le consommateur qui ne veut qu'un chemin | perf | `media-picker.js:177-192` |
+
+### 8.7 Les DEUX questions de Fabien — éléments pour trancher (positions Claude, à valider)
+
+**« Est-ce qu'un fichier d'entrée doit TOUJOURS aller dans `app/input` ? »**
+Aujourd'hui : presque toujours, avec **3 exceptions vivantes** (converter rapide, synthesizer `server_path`, avatarizer `-i`) et **2 par référence d'asset** (Studio, voix `ua_`). Ce que la copie ACHÈTE, mesuré dans le code : (a) l'indépendance — supprimer/déplacer l'original ne casse pas la card, c'est ce qui rend les 29 pointeurs morts *rares* et non systémiques ; (b) un périmètre de droits simple — `<app>/<user>/` est le scoping ; (c) la sauvegarde et la rétention n'ont qu'UN arbre à connaître ; (d) le traitement lit du NVMe local, jamais un SMB (`§Verdict performance`). Ce qu'elle COÛTE : le volume (×4 mesuré), l'absence de lien asset ↔ card, et une médiathèque qui ne sert à rien de plus qu'un dossier.
+
+**« Peut-on généraliser : le fichier reste à sa place, le filemanager gère des pointeurs avec vérification + proposition de retrait ? »**
+Position : **pas comme remplacement de la copie — comme sa COMPLÉMENTAIRE, et le code dit déjà où passe la frontière.**
+- Ce qui plaide POUR : le modèle pointeur existe déjà trois fois et *fonctionne* quand la source est stable (galerie, voix `ua_`, Studio) ; le volume ×4 est réel ; la médiathèque et le filemanager sont aujourd'hui des **culs-de-sac** (rien ne remonte de l'app vers eux, rien ne les relie à une card).
+- Ce qui plaide CONTRE la généralisation : le seul index de pointeurs existant (`UserFile`) **dérive déjà** (20 lignes mortes) ; un pointeur vers un **montage** = traitement GPU qui lit du SMB (le verdict performance de ce doc), une coupure réseau en pleine tâche, et une source que l'utilisateur peut déplacer *pendant* le traitement ; le scoping des droits n'est plus donné par le chemin ; la sauvegarde ne sait pas suivre un pointeur ; et **surtout** : les cards en cours de traitement, le temps réel, la duplication (fichier partagé) supposent tous une entrée qui ne bouge pas.
+- La frontière que le code trace déjà : **la SOURCE de vérité (médiathèque, montage, temp) reste où elle est et se RÉFÉRENCE ; l'ENTRÉE D'UNE CARD est une copie de travail, jetable par la rétention.** Ce qui manque n'est pas d'abolir la copie, c'est **le LIEN** : un champ de provenance sur la card (`source_kind` + `source_ref` : asset id / `mounts/<id>/…` / `users/<u>/temp/…`) — qui permettrait la dédup par provenance (même source → même copie), le retour app → médiathèque sans re-copie, la réparation d'un pointeur mort depuis sa source, et la « proposition de retrait » que Fabien demande, adossée à `check_media_integrity` étendu aux montages.
+- Le vrai gisement de volume n'est pas la copie de travail : c'est **le temp jamais purgé et les 5 apps hors rétention** (D9) — soldable sans changer le modèle.
+
+**Ce qui doit être TESTÉ avant d'aller plus loin** (demande Fabien : *« compléter les tests pour ne pas laisser passer des trous »*) — la matrice 8.2 EST la liste des cases : chaque case C/R doit avoir son scénario dans `WAMA_VERIFICATION §3` (geste 1 et geste 14 couvrent déjà clic/drop, dossier, URL, « Envoyer vers », lot ; **manquent** : médiathèque → card, drag jstree → card, montage → app, N fichiers = 1 lot, `-o`/`-r` de lot, `server_path`, conversion rapide, et le geste inverse app → médiathèque).
