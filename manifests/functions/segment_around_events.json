@@ -1,0 +1,95 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Ancres temporelles.",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "segment_around_events",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Segments produits — l'origine du mode est tracée sur chaque ligne.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "name",
+          "origin"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Décalage du DÉBUT par rapport à l'ancre (négatif = avant).",
+        "key": "offset_start",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 15.0,
+        "description": "Décalage de la FIN par rapport à l'ancre.",
+        "key": "offset_end",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "Préfixe de nommage des segments.",
+        "key": "name",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Fenêtre [ancre+o₁, ancre+o₂] autour de chaque événement. Les DEUX offsets sont indépendants : une fenêtre peut commencer après l'ancre (« de +15 s à +45 s »), ce qu'une simple durée ne permet pas d'exprimer.",
+  "key": "segment_around_events",
+  "manifest_kind": "function",
+  "name": "Segments autour d'événements",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:segment_around_events",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

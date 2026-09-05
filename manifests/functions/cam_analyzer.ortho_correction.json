@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "cam_analyzer.tasks:compute_ortho_correction_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "recalage",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "de_m",
+          "dn_m"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.ortho_correction",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "",
+        "key": "ortho_correction",
+        "optional": false,
+        "produced_fields": [
+          "anchors",
+          "camera_bias",
+          "sky_mask_deg",
+          "report"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "gnss"
+    ],
+    "visibility": "public"
+  },
+  "description": "APPLIQUE le recalage mesuré à la trajectoire, derrière la bascule ⚑ ortho_correction. La médiane globale est tenue pour un biais de PROJECTION caméra et n'est PAS appliquée ; seul l'écart LOCAL par intersection corrige le GPS, interpolé entre repères et atténué là où le ciel est dégagé (masquage satellite BD TOPO). Séparée de la mesure : recalibrer le seuil ne doit pas relancer la segmentation SAM3 des tuiles ortho.",
+  "key": "cam_analyzer.ortho_correction",
+  "manifest_kind": "function",
+  "name": "Correction de trajectoire (ortho)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.ortho_correction",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

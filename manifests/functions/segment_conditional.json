@@ -1,0 +1,132 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "detector",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "segment_conditional",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Segments produits — l'origine du mode est tracée sur chaque ligne.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "name",
+          "origin"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "value",
+        "description": "Colonne testée.",
+        "key": "column",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": [
+          ">=",
+          ">",
+          "<=",
+          "<",
+          "==",
+          "!="
+        ],
+        "default": ">=",
+        "description": "Comparaison — déclarée, donc sérialisable dans un manifeste.",
+        "key": "operator",
+        "max": null,
+        "min": null,
+        "type": "enum",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "",
+        "key": "threshold",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Durée minimale d'une plage retenue.",
+        "key": "min_duration",
+        "max": null,
+        "min": 0.0,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Interruption recollée au lieu de couper la plage.",
+        "key": "gap_tolerance",
+        "max": null,
+        "min": 0.0,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "",
+        "key": "name",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Plages où un signal satisfait (colonne, opérateur, seuil), avec HYSTÉRÉSIS. Sans durée minimale ni trou toléré, un seuil sur un signal réel produit des centaines de micro-segments dus au bruit.",
+  "key": "segment_conditional",
+  "manifest_kind": "function",
+  "name": "Segments par condition",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:segment_conditional",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

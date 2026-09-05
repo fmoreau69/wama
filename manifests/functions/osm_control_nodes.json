@@ -1,0 +1,86 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "network": true
+    },
+    "impl": "",
+    "inputs": [],
+    "key": "osm_control_nodes",
+    "outputs": [
+      {
+        "cardinality": "many",
+        "data_type": "table",
+        "description": "Points de contrôle géolocalisés et leur nature.",
+        "key": "control_nodes",
+        "optional": false,
+        "produced_fields": [
+          "osm_id",
+          "lat",
+          "lon",
+          "control"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": null,
+        "description": "Latitude WGS84.",
+        "key": "lat",
+        "max": 90.0,
+        "min": -90.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "Longitude WGS84.",
+        "key": "lon",
+        "max": 180.0,
+        "min": -180.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": 300.0,
+        "description": "Rayon autour du point.",
+        "key": "radius_m",
+        "max": 2000.0,
+        "min": 10.0,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geo",
+      "osm",
+      "reference",
+      "intersection",
+      "ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Règles de circulation aux carrefours, depuis OpenStreetMap. Seule source vectorielle de la SÉMANTIQUE d'intersection : la BD TOPO donne la géométrie des tronçons mais pas la priorité qui s'y applique. Sert de vérité terrain aux branches apprises du trafic et aux marquages détectés.",
+  "key": "osm_control_nodes",
+  "manifest_kind": "function",
+  "name": "Nœuds de contrôle OSM (stop, cédez-le-passage, feux, passages piétons)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:osm_control_nodes",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

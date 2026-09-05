@@ -635,6 +635,22 @@ class FunctionCatalogConformiteTest(TestCase):
             "TypedFrame` — `view.apply()` lui passera un TypedFrame et rangera son retour. "
             "Corriger la fonction (noyau + wrapper, patron `placement_metrics`), pas la liste.")
 
+    def test_toute_fonction_du_catalogue_s_extrait_en_manifeste_VALIDE(self):
+        """La chaîne registre → manifeste (demande Fabien 2026-09-05 : « voir si toute la
+        chaîne tient »). Le kind `function` existait sans jamais être exporté ; ce test atteste
+        que CHAQUE entrée du catalogue s'extrait ET passe la validation du kind — sans quoi
+        `manifest_export --kind function` refuserait de l'écrire et le corpus la tairait."""
+        from wama.common.manifests.ingest import extract, validate
+        for cle, spec in self.catalogue.items():
+            with self.subTest(fonction=cle):
+                m = extract('function', cle)
+                self.assertIsNotNone(m, "extraction impossible")
+                self.assertEqual(m.get('manifest_kind'), 'function')
+                self.assertEqual(m.get('key'), cle)
+                self.assertEqual((m.get('body') or {}).get('binding'), spec.binding)
+                self.assertEqual(list(validate(m) or []), [],
+                                 "manifeste invalide → refusé à l'export")
+
     def test_les_params_declares_sont_acceptes_en_MOTS_CLES_par_le_fn(self):
         """`view.apply()` fait `spec.fn(entrée, **params)` : un ParamSpec que la signature
         n'accepte pas est un `TypeError` à l'exécution, invisible au catalogue."""

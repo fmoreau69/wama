@@ -1,0 +1,91 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "network": true
+    },
+    "impl": "",
+    "inputs": [],
+    "key": "ign_buildings",
+    "outputs": [
+      {
+        "cardinality": "many",
+        "data_type": "table",
+        "description": "Emprises (anneaux lon/lat) et attributs de hauteur.",
+        "key": "buildings",
+        "optional": false,
+        "produced_fields": [
+          "rings",
+          "hauteur",
+          "alt_sol",
+          "alt_toit",
+          "etages"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": null,
+        "description": "Latitude WGS84.",
+        "key": "lat",
+        "max": 90.0,
+        "min": -90.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "Longitude WGS84.",
+        "key": "lon",
+        "max": 180.0,
+        "min": -180.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": 300.0,
+        "description": "Rayon autour du point. 300 m : un immeuble de 25 m y masque encore ~5° d'élévation, plage des satellites bas.",
+        "key": "radius_m",
+        "max": 2000.0,
+        "min": 10.0,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "ign",
+      "reference",
+      "network",
+      "france"
+    ],
+    "visibility": "public"
+  },
+  "description": "Emprises de bâtiments avec hauteur, altitudes sol/toit et nombre d'étages, depuis le WFS IGN. Autoritatif : à préférer systématiquement à une détection visuelle de bâtiments.",
+  "key": "ign_buildings",
+  "manifest_kind": "function",
+  "name": "Bâtiments IGN (BD TOPO)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:ign_buildings",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

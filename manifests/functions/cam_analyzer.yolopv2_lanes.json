@@ -1,0 +1,64 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "detector",
+    "cost": {
+      "vram_gb": 3
+    },
+    "impl": "cam_analyzer.tasks:process_session_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "cam_analyzer.yolopv2_lanes",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "lanes",
+        "optional": false,
+        "produced_fields": [
+          "drivable",
+          "lane"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Segmentation zone roulable + lignes de voie.",
+  "key": "cam_analyzer.yolopv2_lanes",
+  "manifest_kind": "function",
+  "name": "Zone roulable + voies (YOLOPv2)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.yolopv2_lanes",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

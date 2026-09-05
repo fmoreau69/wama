@@ -1,0 +1,102 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "detector",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "signal",
+        "description": "Accélération longitudinale (m/s², décélération < 0).",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time",
+          "value"
+        ]
+      }
+    ],
+    "key": "brake_detection",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [
+          "time",
+          "duration",
+          "type",
+          "level",
+          "peak_decel"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": -1.5,
+        "description": "Seuil de déclenchement (décélération sous laquelle on regarde).",
+        "key": "trigger",
+        "max": 0.0,
+        "min": -10.0,
+        "type": "float",
+        "unit": "m/s²"
+      },
+      {
+        "choices": null,
+        "default": 0.3,
+        "description": "Durée minimale d'une plage de freinage.",
+        "key": "min_dur_s",
+        "max": 5.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 3,
+        "description": "Lissage du signal accéléro (points).",
+        "key": "smooth_pts",
+        "max": 15,
+        "min": 1,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "timeseries",
+      "requires-accel",
+      "needs-calibration"
+    ],
+    "visibility": "public"
+  },
+  "description": "Détecte les freinages brusques depuis l'accéléromètre longitudinal, gradués en 3 niveaux de sévérité (modéré→urgence). Seuils à recalibrer.",
+  "key": "brake_detection",
+  "manifest_kind": "function",
+  "name": "Freinage brusque",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:brake_detection",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

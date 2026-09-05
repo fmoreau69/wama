@@ -229,6 +229,15 @@ simplement `section_id=None` partout. C'est ce que testent
 `tests_ign_vector.InversionDesAxesTest` et `tests_osm_vector.AxesOverpassTest`, en vérifiant le
 RÉSULTAT du chaînage et non la forme des données.
 
+**Les fonctions s'exportent en manifestes (2026-09-05).** Le kind `function` (`wama/common/
+manifests/builtin/function.py`) enveloppe le `to_dict()` d'une `FunctionSpec` ; il existait sans
+jamais être exporté. `manage.py manifest_export --kind function` écrit TOUT le `FUNCTION_CATALOG`
+dans `manifests/functions/` (fonctions système, `pure` + `app` — les `UserFunction` restent des
+données en base). Le test `tests_catalogues.FunctionCatalogConformiteTest
+.test_toute_fonction_du_catalogue_s_extrait_en_manifeste_VALIDE` atteste la moitié registre →
+manifeste pour chaque entrée ; le retour manifeste → registre n'existe que pour `binding=user`
+(les fonctions système vivent dans le code : leur write-back serait du code-gen, refusé).
+
 **Leçon de manifeste (corrigée le 2026-09-04).** `ign_roads` et `road_branches` déclaraient tous
 deux produire `road_map` alors qu'ils rendent `coords` en (lon, lat) dans une liste de dicts —
 `can_connect` répondait donc **oui** à un chaînage que rien ne pouvait honorer. Ils sont repassés

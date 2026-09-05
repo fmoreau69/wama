@@ -1,0 +1,79 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "indicator",
+    "cost": {},
+    "impl": "cam_analyzer.utils.homography_estimator:store_ground_calib",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "bbox",
+          "global_track_id",
+          "distance_m"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.ground_calib",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "ground_calib",
+        "optional": false,
+        "produced_fields": [
+          "pitch_deg",
+          "height_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "geo",
+      "needs-calibration"
+    ],
+    "visibility": "public"
+  },
+  "description": "Estime le pitch/hauteur caméra en minimisant l'étalement monde des stationnés (auto-calibration par ego-motion).",
+  "key": "cam_analyzer.ground_calib",
+  "manifest_kind": "function",
+  "name": "Calibration sol auto (pitch)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.ground_calib",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

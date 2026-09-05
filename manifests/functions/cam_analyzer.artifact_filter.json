@@ -1,0 +1,75 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "cam_analyzer.utils.artifact_filter:detect_static_artifacts",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "bbox",
+          "track_id"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.artifact_filter",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [
+          "artifact"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision"
+    ],
+    "visibility": "public"
+  },
+  "description": "Reflets de vitrage : bbox fixe pendant que la navette avance (cinématique) OU bbox géante + confiance basse (fantôme géant).",
+  "key": "cam_analyzer.artifact_filter",
+  "manifest_kind": "function",
+  "name": "Filtre reflets/artefacts",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.artifact_filter",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -1,0 +1,91 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "network": true
+    },
+    "impl": "",
+    "inputs": [],
+    "key": "ign_roads",
+    "outputs": [
+      {
+        "cardinality": "many",
+        "data_type": "table",
+        "description": "Tronçons bruts : coords en (lon, lat) + attributs.",
+        "key": "roads",
+        "optional": false,
+        "produced_fields": [
+          "coords",
+          "nature",
+          "nom",
+          "sens",
+          "largeur"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": null,
+        "description": "Latitude WGS84.",
+        "key": "lat",
+        "max": 90.0,
+        "min": -90.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "Longitude WGS84.",
+        "key": "lon",
+        "max": 180.0,
+        "min": -180.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": 300.0,
+        "description": "Rayon autour du point. 300 m : un immeuble de 25 m y masque encore ~5° d'élévation, plage des satellites bas.",
+        "key": "radius_m",
+        "max": 2000.0,
+        "min": 10.0,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "ign",
+      "reference",
+      "network",
+      "france"
+    ],
+    "visibility": "public"
+  },
+  "description": "Tronçons de route BRUTS du WFS IGN (géométries en lon/lat, liste de dicts). Sortie de bas niveau : pour chaîner dans un map-matching, prendre `ign_road_map`, qui met ces mêmes données à la forme du port `road_map`.",
+  "key": "ign_roads",
+  "manifest_kind": "function",
+  "name": "Réseau routier IGN (BD TOPO)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:ign_roads",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

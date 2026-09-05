@@ -1,0 +1,119 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "join",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Événements de DÉPART (ex. apparitions de piétons).",
+        "key": "starts",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Événements de FIN (ex. détections oculométriques).",
+        "key": "ends",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "event_pairing",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Une situation par départ — `matched` dit si la fin existe ; méta `pairing` = le compte rendu de consistance.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "name",
+          "origin",
+          "matched"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "",
+        "description": "Colonne d'IDENTITÉ partagée par les deux tables (ex. `name` — les pieton_2…) → appariement EXACT par clé, consistance = différence d'ensembles. DÉCLARÉ, jamais deviné : un repli silencieux apparierait différemment deux fichiers du même batch. Vide = appariement temporel borné.",
+        "key": "by_key",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": true,
+        "description": "(temporel) La fin candidate doit précéder le start suivant — la scène se réinitialise à l'apparition suivante.",
+        "key": "next_start_bound",
+        "max": null,
+        "min": null,
+        "type": "bool",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "(temporel) Délai maximal d'appariement (au-delà : non détecté). Vide = sans limite autre que le start suivant.",
+        "key": "max_delay",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "",
+        "key": "name",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation",
+      "appariement",
+      "consistance"
+    ],
+    "visibility": "public"
+  },
+  "description": "Apparie chaque événement de départ (apparition d'un piéton) avec AU PLUS UNE fin (sa détection), bornée par le start suivant et un délai optionnel — la durée produite est le TEMPS DE DÉTECTION. ⚠ Diffère de la jonction : une fin est CONSOMMÉE (un piéton non détecté ne vole pas la détection du suivant), et le défaut de consistance est RENDU au lieu d'être filtré à la main — lignes `matched=False` pour les départs sans fin (filtrables par conditions), fins orphelines dans les méta `pairing`. Les indicateurs s'ajoutent ensuite par « Indicateurs par segment » (freinage, volant…).",
+  "key": "event_pairing",
+  "manifest_kind": "function",
+  "name": "Situations par appariement 1-à-1 de deux flux d'événements",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:event_pairing",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

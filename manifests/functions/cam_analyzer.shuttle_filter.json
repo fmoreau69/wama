@@ -1,0 +1,72 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "cam_analyzer.utils.ego_pose:compute_shuttle_filter",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.shuttle_filter",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [
+          "lat_f",
+          "lon_f",
+          "heading_f",
+          "speed_f_kmh",
+          "heading_f_held"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "gnss",
+      "ego-motion",
+      "ab-metric"
+    ],
+    "visibility": "public"
+  },
+  "description": "Lisse position et cap de la NAVETTE (brique pure driving.ego_track_filter), stocke la trace filtrée ; la bascule ⚑ shuttle_filter choisit à la lecture entre brut et filtré, au point d'ingestion unique (serveur + affichage). Rapport A/B : déplacement RMS, écart de cap médian, part de cap tenu.",
+  "key": "cam_analyzer.shuttle_filter",
+  "manifest_kind": "function",
+  "name": "Filtre de trajectoire navette (Kalman+RTS)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.shuttle_filter",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

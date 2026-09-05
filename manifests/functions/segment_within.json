@@ -1,0 +1,89 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Contexte auquel on restreint.",
+        "key": "reference",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end"
+        ]
+      }
+    ],
+    "key": "segment_within",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Segments produits — l'origine du mode est tracée sur chaque ligne.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "name",
+          "origin"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": true,
+        "description": "Bornes strictement intérieures (défaut) ou égalité admise.",
+        "key": "strict",
+        "max": null,
+        "min": null,
+        "type": "bool",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation",
+      "ensembliste"
+    ],
+    "visibility": "public"
+  },
+  "description": "Ne garde que les segments inclus dans l'un des segments de référence. Opération ENSEMBLISTE et non un mode de segmentation : elle sert aussi à l'export, où l'on restreint un tableau à un contexte d'analyse.",
+  "key": "segment_within",
+  "manifest_kind": "function",
+  "name": "Restreindre des segments à un contexte",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:segment_within",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

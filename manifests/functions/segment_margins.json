@@ -1,0 +1,86 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end"
+        ]
+      }
+    ],
+    "key": "segment_margins",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Segments produits — l'origine du mode est tracée sur chaque ligne.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "name",
+          "origin"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Marge ajoutée AVANT chaque segment (start − avant).",
+        "key": "before",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Marge ajoutée APRÈS chaque segment (end + apres).",
+        "key": "after",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "s"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Décale les deux bornes de chaque segment : start − avant, end + apres. C'est le mode « Simple » appliqué à une SITUATION (marges inf/sup), qu'`around` ne couvre pas — une situation a deux bornes, pas une ancre. Négatif = rétrécir ; un segment qui s'inverse est ÉCARTÉ ; une fin ouverte le reste. L'origine d'avant la marge survit dans `source`.",
+  "key": "segment_margins",
+  "manifest_kind": "function",
+  "name": "Marges autour de segments existants",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:segment_margins",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

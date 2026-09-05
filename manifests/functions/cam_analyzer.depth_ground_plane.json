@@ -1,0 +1,91 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "cam_analyzer.utils.homography_estimator:store_ground_calib",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "depth_map",
+        "description": "Cartes de profondeur stockées (DepthFrame).",
+        "key": "depth",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Masque roulable (road_mask) par caméra.",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "polygon"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.depth_ground_plane",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "ground_calib",
+        "optional": false,
+        "produced_fields": [
+          "pitch_deg",
+          "height_m",
+          "source"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "geo",
+      "depth",
+      "monocular",
+      "needs-calibration"
+    ],
+    "visibility": "public"
+  },
+  "description": "ÉTAGE 2 (CALCUL, CPU) : relit les cartes stockées (DepthFrame, par depth_analysis), déprojette la zone roulable → RANSAC (brique pure geometry.depth_ground_plane) → plan de sol. Sous ⚑ depth_estimation, PERSISTE ground_calib avec source='depth' au lieu de la recherche homographique ; l'A/B se lit sur placement_spread. AUCUNE ré-inférence GPU. Signe du pitch validé (test CPU) ; gain à confirmer au 1er run GPU.",
+  "key": "cam_analyzer.depth_ground_plane",
+  "manifest_kind": "function",
+  "name": "Plan de sol par profondeur (usage 4)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.depth_ground_plane",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -1,0 +1,89 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Correspondances de points du DÉCOR entre deux images.",
+        "key": "matches",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "x0",
+          "y0",
+          "x1",
+          "y1"
+        ]
+      }
+    ],
+    "key": "ego_rotation",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "Lacet caméra (°, positif à droite) ; tangage, expansion, inliers et résidu dans meta.",
+        "key": "ego_rotation",
+        "optional": false,
+        "produced_fields": [
+          "metric",
+          "value"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": null,
+        "description": "Focale en pixels (fx, ou fx=fy).",
+        "key": "focal_px",
+        "max": 10000.0,
+        "min": 1.0,
+        "type": "float",
+        "unit": "px"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "Intervalle entre les deux images, pour obtenir des °/s.",
+        "key": "dt_s",
+        "max": 10.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "s"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "vision",
+      "geometry",
+      "ego-motion",
+      "ab-metric",
+      "no-ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Estime le lacet et le tangage de la caméra entre deux images à partir de correspondances de points du décor, en séparant la rotation (décalage uniforme) de la translation avant (expansion radiale). Source de cap INDÉPENDANTE du GPS : c'est le désaccord entre les deux qui se mesure. N'est pas un SLAM — ni position, ni échelle, ni carte.",
+  "key": "ego_rotation",
+  "manifest_kind": "function",
+  "name": "Rotation propre par flux de points",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:ego_rotation",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

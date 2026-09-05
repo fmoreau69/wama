@@ -1,0 +1,69 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "indicator",
+    "cost": {},
+    "impl": "cam_analyzer.utils.multicam_tracker:annotate_global_tracks",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "world_en",
+          "global_track_id"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.placement_spread",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "placement_spread",
+        "optional": false,
+        "produced_fields": [
+          "rms_median_m",
+          "rms_mean_m",
+          "rms_p90_m",
+          "n_tracks"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "placement-quality",
+      "ab-metric",
+      "no-ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Métrique A/B OBJECTIVE : dispersion RMS monde des véhicules stationnés autour de leur barycentre (0 = idéal, plus bas = meilleur). Calculée en fin de tracking 360° via la brique commune WAMA Data `geometry.placement_spread` (pure), sans vérité terrain. Sert à trancher la bascule ⚑ auto_ground_calib ON/OFF sur un chiffre plutôt qu'« à l'œil ».",
+  "key": "cam_analyzer.placement_spread",
+  "manifest_kind": "function",
+  "name": "Cohérence de placement (étalement stationnés)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.placement_spread",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

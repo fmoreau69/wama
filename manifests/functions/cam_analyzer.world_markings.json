@@ -1,0 +1,77 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "aggregate",
+    "cost": {},
+    "impl": "cam_analyzer.utils.marking_world:aggregate_markings",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "polygon",
+          "label"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "cam_analyzer.world_markings",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "",
+        "key": "markings",
+        "optional": false,
+        "produced_fields": [
+          "a",
+          "b",
+          "label",
+          "bearing_deg"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "geo",
+      "per-section"
+    ],
+    "visibility": "public"
+  },
+  "description": "stop_line/crossing projetés au sol et agrégés multi-passages (bornes d'intersection).",
+  "key": "cam_analyzer.world_markings",
+  "manifest_kind": "function",
+  "name": "Marquages SAM3 en monde",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.world_markings",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

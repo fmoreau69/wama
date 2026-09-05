@@ -1,0 +1,107 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "depth_map",
+        "description": "Carte de profondeur métrique HxW (mètres).",
+        "key": "depth",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Objets dont on mesure la distance au contact-sol.",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "bbox"
+        ]
+      }
+    ],
+    "key": "depth_contact_distance",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [
+          "depth_distance_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": "px",
+        "default": 3,
+        "description": "",
+        "key": "half",
+        "max": 32,
+        "min": 0,
+        "type": "int",
+        "unit": "Demi-taille du patch médian."
+      },
+      {
+        "choices": "m",
+        "default": 0.3,
+        "description": "",
+        "key": "d_min",
+        "max": 10.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "Profondeur plausible min."
+      },
+      {
+        "choices": "m",
+        "default": 120.0,
+        "description": "",
+        "key": "d_max",
+        "max": 300.0,
+        "min": 5.0,
+        "type": "float",
+        "unit": "Profondeur plausible max."
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geometry",
+      "depth",
+      "monocular",
+      "distance"
+    ],
+    "visibility": "public"
+  },
+  "description": "Profondeur métrique au point de contact-sol d'une bbox (médiane d'un patch au centre du bord bas) : 3ᵉ source de distance indépendante du pinhole et de l'homographie. Brique PURE réutilisable par tout cross-check de distance.",
+  "key": "depth_contact_distance",
+  "manifest_kind": "function",
+  "name": "Distance au contact-sol (profondeur)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:depth_contact_distance",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -1,0 +1,81 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "cam_analyzer.tasks:_run_global_tracking",
+    "inputs": [
+      {
+        "cardinality": "many",
+        "data_type": "detections",
+        "description": "Détections des 4 caméras.",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "bbox",
+          "track_id",
+          "distance_m"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.global_tracking",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [
+          "global_track_id",
+          "world_en",
+          "stable_class",
+          "artifact"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "geo",
+      "per-vehicle"
+    ],
+    "visibility": "public"
+  },
+  "description": "Hand-off d'identité inter-caméras (gids), classes stables, stationnés+ancres, fantômes, lissage Kalman → world_en. Enchaîne branches et marquages monde.",
+  "key": "cam_analyzer.global_tracking",
+  "manifest_kind": "function",
+  "name": "Tracking 360°",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.global_tracking",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -1,0 +1,70 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "Flux échantillonné à enrichir. La colonne mesurée est choisie par le paramètre `colonne`.",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "calc_derivative",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "Le signal, augmenté de la colonne « <colonne>_derivee ».",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "value",
+        "description": "Colonne du signal sur laquelle porte le calcul.",
+        "key": "column",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "calcul"
+    ],
+    "visibility": "public"
+  },
+  "description": "Taux de variation instantané (unité/seconde), par différence centrée à l'intérieur et décentrée aux bords. Rend « absent » là où le calcul n'a pas de sens — voisin manquant, ou deux échantillons au même instant : un signal à cadence irrégulière en contient, et les taire produirait des infinis qui contaminent toute statistique en aval.",
+  "key": "calc_derivative",
+  "manifest_kind": "function",
+  "name": "Dérivée temporelle",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:calc_derivative",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

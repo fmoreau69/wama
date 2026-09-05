@@ -1,0 +1,112 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Trace GPS (heading optionnel pour le sens).",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "lat",
+          "lon"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "road_map",
+        "description": "Polylignes routières de référence (WKT).",
+        "key": "road_map",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "geometry"
+        ]
+      }
+    ],
+    "key": "gps_map_match",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [
+          "section_id",
+          "direction",
+          "matched_bearing",
+          "match_dist_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 20.0,
+        "description": "Distance max de matching à un segment.",
+        "key": "max_dist_m",
+        "max": 100.0,
+        "min": 1.0,
+        "type": "float",
+        "unit": "m"
+      },
+      {
+        "choices": null,
+        "default": 60.0,
+        "description": "Écart de cap sous lequel le sens = +1 (même sens).",
+        "key": "angle_same_deg",
+        "max": 180.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": 120.0,
+        "description": "Écart de cap au-dessus duquel le sens = −1 (sens inverse).",
+        "key": "angle_opp_deg",
+        "max": 180.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "°"
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "timeseries",
+      "requires-road-map"
+    ],
+    "visibility": "public"
+  },
+  "description": "Recale la trace GPS sur l'axe routier (plus-proche-segment) et attribue section, sens de circulation (±1) et cap de référence propre.",
+  "key": "gps_map_match",
+  "manifest_kind": "function",
+  "name": "Map-matching GPS",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:gps_map_match",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

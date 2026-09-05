@@ -1,0 +1,71 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "cam_analyzer.utils.depth_estimator:depth_distance_report",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "bbox",
+          "distance_m",
+          "depth_distance_m"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.depth_distance_report",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "depth_report",
+        "optional": false,
+        "produced_fields": [
+          "disagree_pinhole_m",
+          "disagree_homography_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "geo",
+      "depth",
+      "monocular",
+      "ab-metric"
+    ],
+    "visibility": "public"
+  },
+  "description": "ÉTAGE 2 (CALCUL, CPU) : LECTURE PURE des depth_distance_m déjà stockés par depth_analysis. MESURE-ET-RAPPORT (ne bascule AUCUNE source) : 3ᵉ source de distance indépendante (désaccord ↔pinhole / ↔homographie = usage 3 ; confirmation des reflets = usage 1). Chaque usage écrit sa ligne A/B console ; résumé dans results_summary['depth_report']. AUCUNE ré-inférence GPU.",
+  "key": "cam_analyzer.depth_distance_report",
+  "manifest_kind": "function",
+  "name": "Cross-check distance & reflets par profondeur (usages 3+1)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.depth_distance_report",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

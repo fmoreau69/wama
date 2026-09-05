@@ -1,0 +1,90 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "network": true
+    },
+    "impl": "",
+    "inputs": [],
+    "key": "osm_road_map",
+    "outputs": [
+      {
+        "cardinality": "many",
+        "data_type": "road_map",
+        "description": "Polylignes (lat, lon) + attributs de circulation.",
+        "key": "road_map",
+        "optional": false,
+        "produced_fields": [
+          "id",
+          "geometry",
+          "type",
+          "nom",
+          "sens",
+          "lanes",
+          "maxspeed"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": null,
+        "description": "Latitude WGS84.",
+        "key": "lat",
+        "max": 90.0,
+        "min": -90.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "Longitude WGS84.",
+        "key": "lon",
+        "max": 180.0,
+        "min": -180.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": 300.0,
+        "description": "Rayon autour du point.",
+        "key": "radius_m",
+        "max": 2000.0,
+        "min": 10.0,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geo",
+      "osm",
+      "reference",
+      "network",
+      "map-matching",
+      "worldwide"
+    ],
+    "visibility": "public"
+  },
+  "description": "Réseau carrossable OSM à la forme du port `road_map`, avec sens unique, nombre de voies et vitesse limite. Troisième voie d'alimentation du port, après le CSV de projet et la BD TOPO : la seule qui couvre l'étranger.",
+  "key": "osm_road_map",
+  "manifest_kind": "function",
+  "name": "Référentiel de map-matching OSM (mondial)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:osm_road_map",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

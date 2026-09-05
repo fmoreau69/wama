@@ -1,0 +1,100 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Taps opérateur bruts (time, annotation_type, tag).",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time",
+          "tag"
+        ]
+      }
+    ],
+    "key": "operator_annotations",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [
+          "clean_tag",
+          "gestion",
+          "valid",
+          "near_tags"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 10.0,
+        "description": "Fenêtre de recherche de l'issue gérée / des tags voisins.",
+        "key": "gestion_window_s",
+        "max": 60.0,
+        "min": 1.0,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 10.0,
+        "description": "Fenêtre pour l'annulation (taguage_supprimé).",
+        "key": "cancel_window_s",
+        "max": 60.0,
+        "min": 1.0,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 3,
+        "description": "Nombre max de tags de contexte voisins collectés.",
+        "key": "near_max",
+        "max": 10,
+        "min": 1,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "events",
+      "annotations"
+    ],
+    "visibility": "public"
+  },
+  "description": "Consolide et enrichit les taps de l'opérateur : tag canonique, issue gérée (bien/mal), validité (annulation), tags de contexte voisins.",
+  "key": "operator_annotations",
+  "manifest_kind": "function",
+  "name": "Annotations opérateur",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:operator_annotations",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -1,0 +1,90 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Trace map-matchée (sortie de gps_map_match).",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time",
+          "section_id"
+        ]
+      }
+    ],
+    "key": "generate_sections",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "",
+        "key": "sections",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "section_id",
+          "direction"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 0.3,
+        "description": "Garde temporelle rognée à chaque frontière de section.",
+        "key": "guard_s",
+        "max": 2.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 2,
+        "description": "Longueur minimale (points) d'une section (anti-rebond).",
+        "key": "min_run",
+        "max": 20,
+        "min": 1,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "per-section"
+    ],
+    "visibility": "public"
+  },
+  "description": "Segmente la trace en sections routières propres depuis le map-matching (anti-rebond, hors-parcours ignoré, gardes aux frontières).",
+  "key": "generate_sections",
+  "manifest_kind": "function",
+  "name": "Découpage en sections",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:generate_sections",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

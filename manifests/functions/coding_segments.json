@@ -1,0 +1,125 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Gestes de codage : un instant + un code du protocole. Produits par un humain à l'interface OU par un modèle de vision — le port ne fait pas la différence, et c'est le but.",
+        "key": "gestures",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "coding_segments",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "États codés — origine, codeur et protocole tracés sur chaque ligne.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "name",
+          "origin",
+          "value",
+          "label",
+          "subject",
+          "nature",
+          "open",
+          "coder",
+          "protocol",
+          "media"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "",
+        "description": "Protocole (éthogramme) : chemin JSON ou dictionnaire. Déclare CE QUI EST CODABLE — comportements, nature ponctuel/état, groupes d'exclusion mutuelle, sujets, modificateurs typés. C'est lui qui pilote l'interface ET contraint l'exécution.",
+        "key": "protocol",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "Qui code : « fabien », « qwen3-vl », « detector:locate-anything ». Seul champ distinguant un codage humain d'un codage automatique.",
+        "key": "coder",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "Média codé. Obligatoire (repris des métadonnées du flux si absent) : sans support, les bornes produites ne sont plus vérifiables par personne.",
+        "key": "media",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "value",
+        "description": "Colonne portant le code du comportement.",
+        "key": "code_column",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "Ferme d'office les états restés ouverts, en TRAÇANT la fermeture.",
+        "key": "session_end",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "s"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation",
+      "codage",
+      "annotation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Rejoue des gestes de codage contre un protocole et produit les états observés. Un comportement se bascule (ouvrir/fermer), l'exclusion mutuelle ferme le concurrent, et un état non refermé reste OUVERT plutôt que d'être perdu ou refermé d'office. Une fermeture de fin de session est tracée séparément : une durée refermée par la fin de l'enregistrement n'est pas une durée observée.",
+  "key": "coding_segments",
+  "manifest_kind": "function",
+  "name": "Codage → segments",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:coding_segments",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

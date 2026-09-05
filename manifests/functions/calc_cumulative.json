@@ -1,0 +1,70 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "Flux échantillonné à enrichir. La colonne mesurée est choisie par le paramètre `colonne`.",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "calc_cumulative",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "Le signal, augmenté de la colonne « <colonne>_cumul ».",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "value",
+        "description": "Colonne du signal sur laquelle porte le calcul.",
+        "key": "column",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "calcul"
+    ],
+    "visibility": "public"
+  },
+  "description": "Aire sous le signal (unité × seconde) par la méthode des trapèzes. Un intervalle dont une borne manque n'apporte rien et le cumul se maintient : interpoler par-dessus le trou inventerait de l'aire sans que la sortie le signale.",
+  "key": "calc_cumulative",
+  "manifest_kind": "function",
+  "name": "Intégrale cumulée",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:calc_cumulative",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

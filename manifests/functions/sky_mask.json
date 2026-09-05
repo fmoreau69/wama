@@ -1,0 +1,102 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "network": true
+    },
+    "impl": "",
+    "inputs": [],
+    "key": "sky_mask",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Masque par azimut + résumé (0 = horizon dégagé).",
+        "key": "sky_mask",
+        "optional": false,
+        "produced_fields": [
+          "mask",
+          "available",
+          "mean_deg",
+          "max_deg",
+          "max_azimuth_deg",
+          "blocked_ratio"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": null,
+        "description": "Latitude WGS84.",
+        "key": "lat",
+        "max": 90.0,
+        "min": -90.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "Longitude WGS84.",
+        "key": "lon",
+        "max": 180.0,
+        "min": -180.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": 300.0,
+        "description": "Rayon autour du point. 300 m : un immeuble de 25 m y masque encore ~5° d'élévation, plage des satellites bas.",
+        "key": "radius_m",
+        "max": 2000.0,
+        "min": 10.0,
+        "type": "float",
+        "unit": "m"
+      },
+      {
+        "choices": null,
+        "default": 72,
+        "description": "Nombre de secteurs d'azimut (72 = pas de 5°).",
+        "key": "n_azimuth",
+        "max": 360,
+        "min": 8,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "gnss",
+      "ign",
+      "network",
+      "france"
+    ],
+    "visibility": "public"
+  },
+  "description": "Élévation bouchée par les bâtiments, par azimut. Explique un biais GPS latéral (multitrajet en canyon urbain) au lieu de le constater : sert à pondérer une correction de trajectoire. `available=False` = référentiel injoignable — à ne PAS confondre avec un ciel dégagé.",
+  "key": "sky_mask",
+  "manifest_kind": "function",
+  "name": "Masquage satellite (canyon urbain)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:sky_mask",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

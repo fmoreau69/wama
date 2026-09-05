@@ -1,0 +1,76 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "detector",
+    "cost": {
+      "vram_gb": 8
+    },
+    "impl": "cam_analyzer.tasks:analyze_sam3_only_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "cam_analyzer.sam3_markings",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "markings",
+        "optional": false,
+        "produced_fields": [
+          "label",
+          "polygon",
+          "bbox"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": "img/s",
+        "default": 2.0,
+        "description": "",
+        "key": "sam3_fps",
+        "max": 12.0,
+        "min": 0.5,
+        "type": "float",
+        "unit": "Cadence de segmentation."
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Marquages au sol (passages piétons, lignes d'arrêt) segmentés par SAM3.",
+  "key": "cam_analyzer.sam3_markings",
+  "manifest_kind": "function",
+  "name": "Marquages SAM3",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.sam3_markings",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

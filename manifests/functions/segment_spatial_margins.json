@@ -1,0 +1,115 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Trace géolocalisée qui porte la distance parcourue.",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time",
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "segment_spatial_margins",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Segments aux bornes décalées — origine tracée, `source` garde l'origine d'avant la marge.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Marge AVANT chaque segment, en mètres parcourus.",
+        "key": "before_m",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "m"
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Marge APRÈS chaque segment, en mètres parcourus.",
+        "key": "after_m",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "m"
+      },
+      {
+        "choices": null,
+        "default": "lat",
+        "description": "",
+        "key": "champ_lat",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "lon",
+        "description": "",
+        "key": "champ_lon",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geo",
+      "spatial",
+      "segmentation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Décale les bornes d'une DISTANCE PARCOURUE (« 50 m avant l'entrée de zone »), convertie en instants par l'abscisse curviligne de la trace. Les bornes rendues sont des échantillons EXISTANTS (aucune valeur inventée) : la marge rendue vaut AU MOINS la marge demandée, et s'arrête où la donnée s'arrête. Un trou GPS ne fabrique pas de distance ; une fin ouverte reste ouverte ; un segment qui s'inverse est écarté.",
+  "key": "segment_spatial_margins",
+  "manifest_kind": "function",
+  "name": "Marges spatiales autour de segments (mètres le long de la trace)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:segment_spatial_margins",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}
