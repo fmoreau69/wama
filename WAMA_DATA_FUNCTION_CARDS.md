@@ -161,7 +161,9 @@ sous `wama_data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. R
 > pas des FunctionSpec — actuellement `io/rtmaps_rec.py` (`parse_rec`), `geometry/shapes.py`
 > (`rect_intersect_sat`, `point_traj_to_shape`), `kinematics/extrapolation.py`
 > (`extrapolate_speed_accel`, `extrapolate_kalman`), `kinematics/collision.py`
-> (`collision_detection`).
+> (`collision_detection`), `kinematics/rts_smoother.py` (`kalman_rts_cv` — domicile unique du
+> lisseur Kalman+RTS depuis le 2026-09-05 ; `cam_analyzer/utils/trajectory_smoother.py` lui
+> délègue, et `driving.ego_track_filter` l'emploie pour la pose du véhicule porteur).
 
 Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 - **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour

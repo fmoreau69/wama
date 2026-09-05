@@ -173,3 +173,71 @@ class EgoPose:
             return self.track[-1]
         before, after = self.track[i - 1], self.track[i]
         return before if (ts - before['ts']) <= (after['ts'] - ts) else after
+
+
+# ── Filtre de trajectoire navette (⚑ shuttle_filter, 2026-09-05) ─────────────────────
+# Patron « calculer, stocker, basculer sans recalculer » : le filtre est un CALCUL (CPU,
+# rejouable) qui écrit `results_summary['shuttle_filter']` ; la bascule ne fait que choisir,
+# à la lecture, entre la trace brute et la trace filtrée — côté serveur via
+# `effective_gps_track`, côté JS via `_applyShuttleFilter` au même point d'ingestion unique.
+
+def compute_shuttle_filter(session):
+    """Filtre `session.gps_track` (brique pure `driving.ego_trajectory_filter`) et PERSISTE
+    le résultat dans `results_summary['shuttle_filter'] = {'track': [...], 'report': {...}}`.
+
+    `track` ne porte que les champs filtrés + `ts` (la trace brute reste `gps_track`, seule
+    source de vérité) ; `report` = l'A/B chiffré (déplacement RMS brut→filtré, écart de cap
+    médian, part de cap tenu). Retourne le rapport.
+    """
+    from wama_data.functions.driving.ego_trajectory_filter import filter_gps_points
+    gt = session.gps_track or []
+    enriched, report = filter_gps_points(gt)
+    track = [{'ts': p.get('ts'), 'lat_f': p['lat_f'], 'lon_f': p['lon_f'],
+              'heading_f': p.get('heading_f'), 'speed_f_kmh': p.get('speed_f_kmh'),
+              'heading_f_held': bool(p.get('heading_f_held'))}
+             for p in enriched if p.get('lat_f') is not None]
+    rs = session.results_summary or {}
+    rs['shuttle_filter'] = {'track': track, 'report': report}
+    session.results_summary = rs
+    session.save(update_fields=['results_summary'])
+    return report
+
+
+def effective_gps_track(session):
+    """Trace navette EFFECTIVE pour le POSITIONNEMENT — point d'accès UNIQUE côté serveur.
+
+    ⚑ `shuttle_filter` ON et calcul présent → trace dont `lat`/`lon`/`heading` sont les valeurs
+    FILTRÉES (les brutes restent en `*_raw`, et `heading_held` dit si le cap est tenu — ce
+    qu'un consommateur comme `yaw_disagreement` doit savoir). Sinon → `gps_track` tel quel.
+    La bascule est relue à CHAQUE appel : OFF ⇒ brut même si un calcul traîne en base, sinon
+    l'A/B mentirait (même règle que `_applyOrthoCorrection`).
+
+    Consommateurs = ceux qui POSITIONNENT (tracker, prédiction, calibration sol, marquages,
+    branches, artefacts). Les fenêtres d'intersection et la couverture restent sur le brut :
+    elles délimitent l'ANALYSE, pas une position — les filtrer invaliderait la couverture.
+    """
+    gt = session.gps_track or []
+    try:
+        from .features import enabled
+        if not enabled(session, 'shuttle_filter'):
+            return gt
+    except Exception:
+        return gt
+    rows = ((session.results_summary or {}).get('shuttle_filter') or {}).get('track') or []
+    if not rows:
+        return gt
+    by_ts = {round(float(r['ts']), 4): r for r in rows if r.get('ts') is not None}
+    out = []
+    for p in gt:
+        f = by_ts.get(round(float(p['ts']), 4)) if p.get('ts') is not None else None
+        if not f or f.get('lat_f') is None:
+            out.append(p)
+            continue
+        q = dict(p)
+        q['lat_raw'], q['lon_raw'], q['heading_raw'] = p.get('lat'), p.get('lon'), p.get('heading')
+        q['lat'], q['lon'] = f['lat_f'], f['lon_f']
+        if f.get('heading_f') is not None:
+            q['heading'] = f['heading_f']
+        q['heading_held'] = bool(f.get('heading_f_held'))
+        out.append(q)
+    return out

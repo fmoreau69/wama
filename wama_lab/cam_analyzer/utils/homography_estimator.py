@@ -115,7 +115,8 @@ def estimate_camera(session, position='front', with_k1=False, seed=None):
     with_k1=True reste dispo pour le diagnostic."""
     from .prediction_adapter import (camera_geometry, make_local_frame,
                                      shuttle_trajectory, antenna_offset, CAMERA_FOV_V)
-    gt = session.gps_track or []
+    from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : l'ancre ego-motion de 2a
+    gt = effective_gps_track(session)
     if len(gt) < 2:
         return None
     to_local = make_local_frame(gt)

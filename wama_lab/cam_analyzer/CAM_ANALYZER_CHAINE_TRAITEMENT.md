@@ -75,6 +75,11 @@ de chaque caméra** (front 384×248, left 408×244, rear 408×248, right 384×24
   `profile.use_imu` n'a aucun consommateur. **Aucun filtre (Kalman ou autre) ne s'applique à la
   navette** : position = GPS brut interpolé linéairement, cap = bearing entre fixes. Le Kalman+RTS
   de `trajectory_smoother` ne sert que les OBJETS mobiles (§[7]). Détail : §INVENTAIRE D.1.
+  → **Comblé le même jour derrière ⚑ `shuttle_filter` (OFF)** : `ego_pose.effective_gps_track`
+  est désormais le point d'accès UNIQUE de la pose pour tout ce qui POSITIONNE (tracker,
+  prédiction, calib 2a, marquages, branches, artefacts) ; fenêtres et couverture restent sur le
+  brut (elles délimitent l'analyse). Le lisseur a rejoint `wama_data.kinematics.rts_smoother`,
+  `trajectory_smoother` délègue (non-régression sur empreinte).
 
 ## [3] Distances & vitesses — `distance_speed.py`
 
@@ -302,6 +307,7 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 | `world_markings` | ON | compute | stop_line/crossing projetés+agrégés en monde (bornes d'intersection) |
 | `learned_branches` | ON | compute | voies croisantes apprises des trajectoires du trafic |
 | `ortho_correction` | OFF | compute | étape 2b APPLIQUÉE (fonction `cam_analyzer.ortho_correction`) : biais caméra (médiane globale) écarté, correction GPS locale par intersection, interpolée et atténuée selon le masquage satellite BD TOPO |
+| `shuttle_filter` | OFF | compute | **pose NAVETTE filtrée** (Kalman vitesse-constante + RTS, brique pure `driving.ego_track_filter`) : position lissée, cap dérivé de la vitesse lissée et tenu sous 1 m/s. Calcul stocké (`results_summary.shuttle_filter`), bascule relue au point d'ingestion UNIQUE serveur (`ego_pose.effective_gps_track`) et JS (`_applyShuttleFilter`). Premier ⚑ qui touche la pose navette (2026-09-05). A/B console : déplacement RMS, écart de cap médian, part tenue |
 | `track_speed_unified` | OFF | compute | (chantier) vitesse/distance monde uniques par track |
 
 ## Calibration sol — plan complet (angle par le mouvement + échelle par les marquages)
@@ -609,8 +615,9 @@ OFF → `results_summary.ortho_correction` = ancres, appliquées **côté JS seu
 3. **Caméra → véhicule** : `cam_to_vehicle(yaw, mount)` — yaw de montage (défauts ±75°/0/180, surcharge
    `config.camera_yaw`), bras de levier (⚑ `mount_lever_arm`).
 4. **Véhicule → monde** : `ego_to_world(pose navette)` — pose = `_shuttle_pose_at` : **interpolation
-   linéaire** entre fixes GPS bruts (cap : interpolation **circulaire**), après levier d'antenne
-   (⚑ `antenna_lever`). **Aucun filtre sur la navette** (§D.1).
+   linéaire** entre fixes (cap : interpolation **circulaire**), après levier d'antenne
+   (⚑ `antenna_lever`). Fixes = `effective_gps_track` : **bruts par défaut**, filtrés Kalman+RTS
+   si ⚑ `shuttle_filter` ON (calculé en tête de `_run_global_tracking`, §D.1).
 5. **Association** plus-proche-voisin en monde : gate `3,5 m + 1,5 m/s·Δt`, trou max **2,5 s**,
    **verrou de chaîne** (un `track_id` caméra apparié garde son gid 4 s), vitesse de track EMA α=0,3,
    rejet > 15 m/s, dégradée : ratio < 0,7 et jamais de création.
@@ -684,7 +691,7 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 12 | interpolation **circulaire** du cap entre fixes | cap ego (calcul) | `shuttle_traj` | `_shuttle_pose_at` | — | CÂBLÉ | wrap 359→1° corrigé |
 | 13 | interpolation **linéaire** de la position entre fixes (~2,7 s) | position ego | GPS brut | `_shuttle_pose_at`, JS | — | CÂBLÉ | aucune |
 | 14 | synchro GPS↔vidéo `scale/offset` | temps | `.rec` | `extract_rtmaps_task` + réglage manuel | manuel | CÂBLÉ | aucune |
-| 15 | **filtre de Kalman sur la navette** | position/vitesse ego | — | **nulle part** | — | **INEXISTANT** | — |
+| 15 | **filtre de Kalman + RTS sur la navette**, cap dérivé de la vitesse lissée (tenu < 1 m/s) | position/vitesse/cap ego | `gps_track` | `driving.ego_trajectory_filter` (pur) → `ego_pose.compute_shuttle_filter` → `effective_gps_track` (serveur, 6 consommateurs) + `_applyShuttleFilter` (JS) | ⚑ `shuttle_filter` **OFF** | **LIVRÉ 2026-09-05** (était INEXISTANT le matin même) ; pas d'accéléro en commande (axes non mesurés) | rapport : déplacement RMS, écart de cap médian, part tenue ; puis `placement_spread` OFF/ON |
 | 16 | **fusion accéléromètre + GPS** | position/vitesse ego | `session.imu_track` (stocké) | **nulle part** — `EgoPose.accel` assigné jamais relu ; `profile.use_imu` (défaut True) **0 consommateur** | — | **DÉCLARÉ-MORT** depuis 2026-07-09 | — |
 | **Position au sol (l'ANGLE)** ||||||||
 | 17 | homographie sol par **DLT sur passage piéton SAM3** (« ancienne voie ») | distance/latéral (`ground_xy`, `dist_*_m`) | polygone `crossing` + dimensions FR | `calibration.homography_from_quad` ← `tasks._calibrate_from_crossing_polygons` → `camera.ground_homography` ; appliqué par `GroundProjector.distances_for_bbox` dans l'analyse | `profile.geometry_enabled` (défaut **False**, **forcé True par la calibration SAM3**) | **CONDITIONNÉ** — prouvée biaisée (#546, #537), mais **toujours productible et consommée** (§D.2) | RMS de reprojection du quad seulement |

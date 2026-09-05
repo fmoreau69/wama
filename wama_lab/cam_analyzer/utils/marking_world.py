@@ -70,7 +70,8 @@ def aggregate_markings(session, min_obs=3, max_pts=6000):
                                      antenna_offset, camera_geometry,
                                      ego_to_world, _shuttle_pose_at)
 
-    gt = session.gps_track or []
+    from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
+    gt = effective_gps_track(session)
     wins = session.intersection_windows or []
     if len(gt) < 2 or not wins:
         return {}

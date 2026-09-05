@@ -312,7 +312,8 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
     from collections import defaultdict
     from django.apps import apps
     DF = apps.get_model('cam_analyzer', 'DetectionFrame')
-    gt = session.gps_track or []
+    from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
+    gt = effective_gps_track(session)
     if len(gt) < 5:
         return 0
     to_local = make_local_frame(gt)

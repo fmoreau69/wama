@@ -7,3 +7,4 @@ from . import brake_detection      # noqa: F401
 from . import sections             # noqa: F401
 from . import operator_annotations  # noqa: F401
 from . import trajectory_offset    # noqa: F401
+from . import ego_trajectory_filter  # noqa: F401

@@ -95,6 +95,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let orthoMarkings = {};        // passages piétons segmentés sur l'ortho IGN (recalage 2b)
     let orthoRecalage = null;      // offset de recalage mesuré (global + par fenêtre)
     let orthoCorrection = null;    // ancres de correction GPS (étape 2b appliquée, ⚑ ortho_correction)
+    let shuttleFilter = null;      // trace navette FILTRÉE (Kalman+RTS serveur, ⚑ shuttle_filter)
     const camFovUsed = {};    // FOV V utilisé à l'annotation (config.fov_v_used, sinon legacy)
     // Bascules ⚑ Modes (miroir de utils/features.py) : comparer AVEC/SANS chaque
     // amélioration. Surchargées par le catalogue serveur au chargement de session.
@@ -490,6 +491,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 orthoMarkings = (data.results_summary && data.results_summary.ortho_markings) || {};
                 orthoRecalage = (data.results_summary && data.results_summary.ortho_recalage) || null;
                 orthoCorrection = (data.results_summary && data.results_summary.ortho_correction) || null;
+                shuttleFilter = (data.results_summary && data.results_summary.shuttle_filter) || null;
                 stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
                 sessionAnalyzedRanges = (data.config && data.config.analyzed_ranges) || {};
             } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; sessionAnalyzedRanges = {}; }
@@ -1017,6 +1019,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     orthoMarkings = (d.results_summary && d.results_summary.ortho_markings) || {};
                     orthoRecalage = (d.results_summary && d.results_summary.ortho_recalage) || null;
                     orthoCorrection = (d.results_summary && d.results_summary.ortho_correction) || null;
+                    shuttleFilter = (d.results_summary && d.results_summary.shuttle_filter) || null;
                     stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
                     sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
                 } catch (e) { /* prochaine sélection de session fera foi */ }
@@ -2666,6 +2669,32 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { /* noop */ }
     }
 
+    // ⚑ shuttle_filter — remplace lat/lon/heading BRUTS de la trace par les valeurs FILTRÉES
+    // (Kalman+RTS calculé côté serveur par `compute_shuttle_filter`, servi dans
+    // `results_summary.shuttle_filter.track`), appariées par timestamp. Gardé par la bascule :
+    // OFF ⇒ trace brute même si un calcul traîne en base — sinon l'A/B mentirait. Appliqué
+    // AVANT la correction ortho (qui décale une trace, quelle qu'elle soit), au MÊME point
+    // d'ingestion unique : trace, pose ego, projections et repli ③ en héritent sans autre code.
+    // Miroir exact de `ego_pose.effective_gps_track` (serveur) : toute divergence rendrait un
+    // affichage qui ne montre pas ce que le tracking a calculé.
+    function _applyShuttleFilter(track) {
+        const on = camFeat && camFeat['shuttle_filter'];
+        const rows = shuttleFilter && shuttleFilter.track;
+        if (!on || !rows || !rows.length) return track;
+        const byTs = new Map();
+        rows.forEach(r => { if (r.ts != null && r.lat_f != null) byTs.set(Math.round(r.ts * 1e4), r); });
+        return track.map(p => {
+            const f = (p.ts == null) ? null : byTs.get(Math.round(p.ts * 1e4));
+            if (!f) return p;
+            return Object.assign({}, p, {
+                lat: f.lat_f, lon: f.lon_f,
+                heading: (f.heading_f != null) ? f.heading_f : p.heading,
+                heading_held: !!f.heading_f_held,
+                lat_raw: p.lat, lon_raw: p.lon, heading_raw: p.heading,
+            });
+        });
+    }
+
     // ⚑ ortho_correction — offset (est, nord) au temps ts, interpolé entre ancres et pondéré
     // par la fiabilité (nombre d'appariements). Port fidèle de `offset_at()`
     // (wama_data/functions/driving/trajectory_offset.py) : PAS d'extrapolation hors bornes,
@@ -2719,8 +2748,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Point d'ingestion UNIQUE de la trace : corriger ici propage à tout l'aval
         // (trace, pose ego, projections caméra) sans toucher aux consommateurs.
-        cachedGpsTrack = _applyOrthoCorrection(
-            Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : []);
+        // Ordre : filtre navette (⚑ shuttle_filter) PUIS correction ortho (⚑ ortho_correction).
+        cachedGpsTrack = _applyOrthoCorrection(_applyShuttleFilter(
+            Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : []));
 
         // Clear previous layers
         if (miniMapPolyline) { miniMap.removeLayer(miniMapPolyline); miniMapPolyline = null; }
