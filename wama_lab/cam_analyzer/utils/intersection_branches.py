@@ -35,8 +35,9 @@ def learn_branches(session, radius_m=25.0, min_angle_deg=35.0, min_span_m=14.0,
     """Apprend les branches croisantes de chaque intersection depuis les world_en."""
     from ..models import DetectionFrame
     from .prediction_adapter import make_local_frame, shuttle_trajectory, antenna_offset
+    from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
 
-    gt = session.gps_track or []
+    gt = effective_gps_track(session)
     if len(gt) < 2:
         return {}
     to_local = make_local_frame(gt)

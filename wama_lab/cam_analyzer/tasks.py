@@ -2372,6 +2372,26 @@ def _run_global_tracking(session):
         try:
             from .utils.features import effective as _feff0
             _ff0 = _feff0(session)
+            # ⚑ shuttle_filter (2026-09-05) : filtrer la trace NAVETTE AVANT tout — c'est le
+            # levier le plus en amont : la calib sol, le tracker, les ancres et TTC/PET lisent
+            # tous la pose via `effective_gps_track`. CALCUL stocké (rejouable), la bascule ne
+            # fait que choisir à la lecture. Ligne A/B en console : le chiffre qui tranche.
+            if _ff0.get('shuttle_filter', False):
+                try:
+                    from .utils.ego_pose import compute_shuttle_filter
+                    _sfr = compute_shuttle_filter(session)
+                    if _sfr.get('filtered'):
+                        _console(session.user_id,
+                                 f"Filtre navette (⚑ shuttle_filter, Kalman+RTS) : déplacement RMS "
+                                 f"brut→filtré {_sfr['displacement_rms_m']} m, écart de cap médian "
+                                 f"{_sfr['heading_delta_median_deg']}°, cap tenu "
+                                 f"{(_sfr['heading_held_ratio'] or 0) * 100:.0f} % — appliqué au "
+                                 f"positionnement de ce run.")
+                    else:
+                        _console(session.user_id,
+                                 f"Filtre navette : non appliqué ({_sfr.get('reason', 'inconnu')}).")
+                except Exception:
+                    logger.warning('compute_shuttle_filter failed (non-blocking)', exc_info=True)
             # ⚑ auto_ground_calib OU ⚑ depth_estimation déclenchent la calib sol : la première par
             # recherche homographique, la seconde par profondeur monoculaire (Depth Pro). SOURCE
             # voulue : profondeur > homographie > aucune (pinhole).

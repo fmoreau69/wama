@@ -171,6 +171,17 @@ _spec('ortho_correction', 'Correction de trajectoire (ortho)',
       outputs=[PortSpec('ortho_correction', DT.TABLE,
                         produced_fields=['anchors', 'camera_bias', 'sky_mask_deg', 'report'])])
 
+_spec('shuttle_filter', 'Filtre de trajectoire navette (Kalman+RTS)',
+      "Lisse position et cap de la NAVETTE (brique pure driving.ego_track_filter), stocke la "
+      "trace filtrée ; la bascule ⚑ shuttle_filter choisit à la lecture entre brut et filtré, "
+      "au point d'ingestion unique (serveur + affichage). Rapport A/B : déplacement RMS, écart "
+      "de cap médian, part de cap tenu.",
+      FC.ENRICHER, 'cam_analyzer.utils.ego_pose:compute_shuttle_filter', ['geo', 'gnss', 'ego-motion', 'ab-metric'],
+      inputs=[PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
+      outputs=[PortSpec('track', DT.GEO_TRACK,
+                        produced_fields=['lat_f', 'lon_f', 'heading_f', 'speed_f_kmh', 'heading_f_held'])],
+      cost={'cpu_bound': True})
+
 # ── Évènements / indicateurs métier ───────────────────────────────────────────
 _spec('lane_events', 'Évènements de voie', "Franchissements/attributions de voie par objet.",
       FC.DETECTOR, 'cam_analyzer.tasks:compute_lane_events_task', ['vision'],

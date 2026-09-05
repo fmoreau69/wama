@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 def _shuttle_positions(session):
     """[(t_vidéo, e, n)] depuis la piste GPS (conversion temps GPS → vidéo)."""
-    gt = session.gps_track or []
+    from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
+    gt = effective_gps_track(session)
     if len(gt) < 2:
         return []
     from .prediction_adapter import make_local_frame

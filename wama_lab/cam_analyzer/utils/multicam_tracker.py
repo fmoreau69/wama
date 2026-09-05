@@ -105,7 +105,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     ANALYSÉES, associées en repère monde. Retourne le nombre de tracks globaux créés.
     """
     DF = apps.get_model('cam_analyzer', 'DetectionFrame')
-    gt = session.gps_track or []
+    from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
+    gt = effective_gps_track(session)
     if len(gt) < 5:
         return 0
     to_local = make_local_frame(gt)

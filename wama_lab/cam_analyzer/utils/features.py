@@ -54,6 +54,15 @@ FEATURES = [
             "interpolé entre intersections et atténué là où le ciel est dégagé (hauteurs "
             "BD TOPO). OFF = trajectoire brute, l'offset restant mesuré et rapporté.",
             default=False, scope='compute'),
+    Feature('shuttle_filter', 'Filtre de trajectoire navette (Kalman+RTS)',
+            "Position et cap de la NAVETTE lissés par Kalman vitesse-constante + lisseur RTS "
+            "(sans retard de phase) ; cap dérivé de la vitesse lissée, tenu à l'arrêt. Appliqué "
+            "au point d'ingestion UNIQUE de la trace, côté serveur ET affichage : tout le "
+            "positionnement (tracking 360°, ancres, TTC/PET, calibration sol) en hérite. OFF = "
+            "GPS brut, cap = bearing entre fixes (±10-25° à basse vitesse — la source d'erreur "
+            "angulaire dominante, §[2]). Premier levier qui touche la pose navette (inventaire "
+            "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul.",
+            default=False, scope='compute'),
     Feature('world_markings', 'Marquages SAM3 en monde',
             "Les stop_line/passages piétons segmentés par SAM3 sont projetés au sol et "
             "agrégés multi-passages : bornes réelles d'intersection sur la mini-map, et "
