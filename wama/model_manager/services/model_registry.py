@@ -186,6 +186,7 @@ class ModelRegistry:
         self._discover_composer_models()
         self._discover_reader_models()
         self._discover_depth_models()
+        self._discover_face_analyzer_models()
 
         # EN DERNIER, après toutes les découvertes d'app : le balayage générique ne
         # couvre que ce qu'AUCUNE app ne déclare (dédup par hf_id) — l'entrée déclarée
@@ -734,6 +735,67 @@ class ModelRegistry:
 
         except ImportError as e:
             logger.debug(f"Could not import Anonymizer models: {e}")
+
+    def _discover_face_analyzer_models(self):
+        """Poids DeepFace du Face Analyzer (WAMA Lab) — des fichiers `.h5`, pas des snapshots HF.
+
+        ⚠ Ils étaient INVISIBLES du catalogue jusqu'au 2026-09-05 : 1,1 Go dormaient dans
+        `$HOME/.deepface`, hors d'`AI-models`. Ni le balayage HF générique ni
+        `check_model_layout` ne pouvaient les voir — DeepFace ne passe pas par HuggingFace, il
+        télécharge depuis les GitHub Releases de `serengil/deepface_models` (source `github` du
+        registre des sources externes, famille « poids »). `hf_id` reste donc **vide** : une
+        provenance non établie sur HF vaut mieux qu'une inférence.
+
+        ⚠ MODÈLE ≠ LIBRAIRIE. `deepface`, `fer` et `mediapipe` sont des LIBRAIRIES (registre
+        `Library`, semées par `manifest_export --kind library`). Seuls les POIDS sont ici. FER
+        et MediaPipe embarquent les leurs dans leur roue pip : ils n'ont AUCUNE entrée au
+        catalogue, et c'est volontaire — cataloguer un poids qu'on ne peut ni installer ni
+        supprimer séparément inventerait un objet que personne ne peut manipuler.
+
+        Scan FILESYSTEM, comme `_discover_depth_models` : la découverte n'importe qu'une
+        DÉCLARATION de l'app (son `model_config`), jamais son runtime.
+        """
+        try:
+            from wama_lab.face_analyzer.utils.model_config import (
+                DEEPFACE_RELEASES, FACE_ANALYZER_MODELS, chemin_local,
+            )
+        except Exception as e:
+            logger.debug(f"Could not import face_analyzer model_config: {e}")
+            return
+
+        for model_id, config in FACE_ANALYZER_MODELS.items():
+            try:
+                chemin = chemin_local(model_id)
+                telecharge = chemin.exists()
+                taille = chemin.stat().st_size if telecharge else 0
+                self._models[f'face_analyzer:{model_id}'] = ModelInfo(
+                    id=f'face_analyzer:{model_id}',
+                    name=model_id,
+                    model_type=ModelType.VISION,
+                    source=ModelSource.WAMA_FACE_ANALYZER,
+                    description=config['description'],
+                    vram_gb=config.get('vram_gb'),
+                    is_downloaded=telecharge,
+                    backend_ref='face_analyzer',
+                    format='h5',
+                    preferred_format='h5',
+                    extra_info={'path': str(chemin), 'size_bytes': taille,
+                                'model_id': model_id,
+                                # Un poids OPTIONNEL absent n'est pas une app cassée : `age` et
+                                # `gender` (1 Go) ne se chargent que si « Âge & Genre » est
+                                # activé. Sans ce drapeau, l'UI lirait « modèle manquant ».
+                                'optional': bool(config.get('optional'))},
+                    capabilities={'task': 'face-analysis', 'modalities': ['image', 'video'],
+                                  'inputs_required': ['work_file']},
+                    # Anatomie DÉCLARÉE (même champ que les autres apps) : le moteur — l'autre
+                    # moitié du lien étant `ENGINE` côté backend — et la PROVENANCE des poids
+                    # en identifiant de dépôt, jamais en URL construite.
+                    composition={'runtime': {'engine': config['engine']},
+                                 'components': [{'repo': DEEPFACE_RELEASES,
+                                                 'role': config['fichier']}]},
+                )
+            except Exception as e:
+                self.discovery_errors.append(f'face_analyzer:{model_id}: {e}')
 
     def _discover_depth_models(self):
         """Modèles de profondeur monoculaire (task=depth-estimation) déposés par `pull_model`

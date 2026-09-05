@@ -53,6 +53,11 @@ MODEL_PATHS = {
         # cam_analyzer §[E]. Choix Depth Pro (vs DA3) : natif transformers + intrinsèque estimé,
         # ce que le re-calage du plan de sol consomme directement (2026-08-05).
         'depth': AI_MODELS_DIR / "models" / "vision" / "depth-pro",
+        # DeepFace (face_analyzer) — poids `.h5` téléchargés depuis les GitHub Releases de
+        # `serengil/deepface_models` (la lib n'expose AUCUN chemin HuggingFace, vérifié le
+        # 2026-09-05). La lib ajoute elle-même `.deepface/weights` sous ce dossier : c'est sa
+        # convention, on la subit plutôt que de patcher — `DEEPFACE_HOME` pointe donc ICI.
+        'deepface': AI_MODELS_DIR / "models" / "vision" / "deepface",
     },
     # Upscaling/Enhancement models (ONNX)
     'upscaling': {
@@ -174,7 +179,7 @@ os.environ.setdefault('HUGGINGFACE_HUB_CACHE', str(HF_DEFAULT_CACHE))
 # `DEEPFACE_HOME` est l'aiguillage prévu PAR la librairie — même idiome qu'`AUDIOCRAFT_CACHE_DIR` :
 # une variable propre à UNE lib, posée au démarrage, n'a aucun des effets de bord de `HF_HUB_CACHE`
 # (qui, lui, emporte tout ce que la lib télécharge ensuite — cf. la règle du CLAUDE.md).
-os.environ.setdefault('DEEPFACE_HOME', str(AI_MODELS_DIR / "models" / "vision" / "deepface"))
+os.environ.setdefault('DEEPFACE_HOME', str(MODEL_PATHS['vision']['deepface']))
 
 # HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1,
 # FLUX.1-schnell…). Generate at https://huggingface.co/settings/tokens (read access), and

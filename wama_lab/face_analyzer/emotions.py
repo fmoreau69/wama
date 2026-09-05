@@ -314,8 +314,7 @@ class EmotionRecognizer:
                     logger.info("Falling back to FER backend. Install with: pip install deepface tf-keras")
                     # Fallback to FER
                     self.backend = 'fer'
-                    from fer import FER
-                    self._detector = FER(mtcnn=False)
+                    self._detector = _import_fer()(mtcnn=False)
                     results = self._detector.detect_emotions(frame)
                     if results and len(results) > 0:
                         return {'emotions': results[0]['emotions']}

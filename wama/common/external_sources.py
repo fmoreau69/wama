@@ -180,7 +180,9 @@ SOURCES: tuple[ExternalSource, ...] = (
     # ── Outillage et poids ──────────────────────────────────────────────────────────────
     ExternalSource(
         'github', 'GitHub', 'https://github.com',
-        "Poids et échantillons publiés en releases (ultralytics, coqui…)", kind='poids'),
+        "Poids et échantillons publiés en releases (ultralytics, coqui, "
+        "serengil/deepface_models…) — TOUT poids qui n'est pas sur HuggingFace passe par ici",
+        kind='poids'),
     ExternalSource(
         'github_api', 'API GitHub', 'https://api.github.com',
         "Liste des releases — résolution de la version d'un poids", kind='poids'),
