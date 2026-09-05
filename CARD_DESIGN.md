@@ -1121,19 +1121,27 @@ de modalité s'empilent) et le repli en v2 (§11.6, mécanisme **déjà écrit**
 | imager (image) | work + prompt + ref_image | ✓ | ✓ | ✓ | · | ✓ | ✓ | ✓ |
 | imager (vidéo) | *les mêmes* | ✓ | ✓ | ✓ | · | ✓ | · | ✓ |
 
-🔴 **Quatre écarts — chacun est un trou réel, pas une nuance :**
-1. **Aucune app ne déclare de port pour le LOT**, alors que **14 inclusions sur 16** l'activent.
-   Le lot n'est pas un port (c'est une *nature* de fichier reconnue après coup, §11.10-2) —
-   mais il n'a **aucun domicile déclaré** : il vit dans un littéral de gabarit.
-2. **Le composer n'a pas de port `travail`** et a pourtant une dropzone (`composerBatchDrop`) :
-   elle alimente le **lot**. Sa zone de dépôt est aujourd'hui **sans rôle déclaré** — ce qui
-   contredit l'exigence 1 du §11.8 (« rôles très explicites »).
-3. **enhancer et imager ont DEUX inclusions pour UN seul jeu de ports** : la déclaration ignore
-   qu'ils ont deux domaines. Et les deux cards **diffèrent réellement** — imager-vidéo n'a pas
-   de lot, enhancer-audio n'a ni URL ni lot. Une v4 générée des ports rendrait donc deux cards
-   identiques là où l'app en veut deux différentes.
+**Lecture de la matrice — RECTIFIÉE par Fabien le 05/09.** J'y avais lu « quatre écarts » ;
+trois n'en étaient pas. La règle qui les dissout, et qu'il faut garder :
+
+> 🔴 **Le LOT n'a PAS de port, et n'en aura jamais : c'est le GESTE qui le crée.** L'utilisateur
+> dépose un ou plusieurs fichiers sur le port `travail` ; **plusieurs fichiers d'un coup = un
+> lot**, un fichier de lot reconnu = un lot. C'est la reconnaissance du geste, automatique, qui
+> instancie le lot (§11.10-2, mécanisme `batch-import.js` existant). Chercher un « domicile
+> déclaré » au lot revenait à vouloir déclarer un effet.
+
+1. ~~Aucun port pour le lot~~ → **normal**, cf. la règle ci-dessus. La colonne « lot » de la
+   matrice mesure un littéral de gabarit (`show_batch_bar`), pas une déclaration manquante.
+2. ~~Le composer sans port `travail`~~ → **normal** : le composer exige `prompt` + `référence`
+   (mélodie), et sa dropzone sert les **fichiers de lot** — c'est-à-dire des lignes de
+   prompts. Le rôle est explicite : c'est le port `prompt`, alimenté par lot.
+3. ~~enhancer/imager à deux inclusions pour un jeu de ports~~ → **trou de PORTAGE**, pas de
+   déclaration : ces deux apps ne sont pas terminées d'être portées (`PROJECT_STATUS` §portage).
+   Le lot y est inclus dans la dropzone comme partout ; les différences entre leurs deux cards
+   (pas de lot en vidéo, ni URL ni lot en audio) sont des restes de gabarits manuels, pas des
+   intentions. **Normal tant que le portage n'est pas fini.**
 4. **Le `live` est un littéral** (`show_live`), or la v4 en fait un **port** : il lui faut sa
-   déclaration (cf. D).
+   déclaration (cf. D). → **le seul vrai écart** de la matrice.
 
 #### ✅ LIVRÉ le 2026-09-04 — la brique, et sur le bac à sable SEUL
 

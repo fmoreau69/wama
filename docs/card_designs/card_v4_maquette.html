@@ -533,17 +533,17 @@
   </table>
 
   <div class="note warn">
-    <b>Quatre écarts que la matrice révèle</b> — chacun est un vrai trou, pas une nuance :<br>
-    ① <b>Aucune app ne déclare de port pour le LOT</b>, alors que 14 inclusions sur 16
-    l'activent. Le lot n'est pas un port (c'est une <i>nature</i> de fichier reconnue après
-    coup), mais il n'a <b>aucun domicile déclaré</b> — il vit dans un littéral de gabarit.<br>
-    ② <b>Le composer n'a pas de port <code>travail</code></b> et a pourtant une dropzone :
-    elle alimente le <b>lot</b>. Sa zone de dépôt est aujourd'hui <b>sans rôle déclaré</b>.<br>
-    ③ <b>enhancer et imager ont deux inclusions pour un seul jeu de ports</b> : la déclaration
-    ignore qu'ils ont deux domaines (image/audio, image/vidéo). Les deux cards diffèrent
-    pourtant — imager-vidéo n'a pas de lot, enhancer-audio n'a ni URL ni lot.<br>
-    ④ <b>Le <code>live</code> reste un littéral</b> (<code>show_live</code>, transcriber seul) :
-    en v4 il devient un <b>port</b>, il lui faut donc sa déclaration.
+    <b>Ce que la matrice dit — lecture rectifiée par Fabien (05/09)</b><br>
+    <b>Le LOT n'a pas de port, et n'en aura jamais : c'est le geste qui le crée.</b> Plusieurs
+    fichiers déposés d'un coup = un lot ; un fichier de lot reconnu = un lot. La colonne « lot »
+    mesure un littéral de gabarit, pas une déclaration manquante.<br>
+    Le composer sans port <code>travail</code> est <b>normal</b> : il exige prompt + référence,
+    et sa dropzone sert les fichiers de lot — des lignes de prompts. Les deux inclusions
+    d'enhancer et d'imager sont des <b>trous de portage</b>, normaux tant que ces apps ne sont
+    pas finies d'être portées.<br>
+    <b>Le seul vrai écart</b> : le <code>live</code> reste un littéral (<code>show_live</code>,
+    transcriber seul) — en v4 il devient un <b>port</b>, il lui faut sa déclaration. <b>Acté
+    par Fabien le 05/09.</b>
   </div>
 
   <div class="note">
