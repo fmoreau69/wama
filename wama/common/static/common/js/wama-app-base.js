@@ -375,6 +375,55 @@
     if (btn && global.bootstrap && bootstrap.Tab) bootstrap.Tab.getOrCreateInstance(btn).show();
   });
 
+  // ── Fichiers SERVEUR → File(s) du formulaire ──────────────────────────────────
+  // Le geste commun de MediaPicker, du drag depuis l'explorateur et de tout canal à venir :
+  // matérialiser un chemin serveur (temp utilisateur, MONTAGE) en `File`, puis le poser dans
+  // l'`<input type=file>` de la card et déclencher son `change` — c'est l'app qui fait le
+  // reste, par le handler qu'elle a déjà.
+  //
+  // GLOBAL PAR NÉCESSITÉ (2026-09-05, MEDIA_STORAGE_TIERING §8.6 D5) : l'explorateur est un
+  // volet de base.html présent sur TOUTES les pages, donc son consommateur doit l'être aussi.
+  // Une 1ʳᵉ version vivait dans wama-import.js — que seules les apps GÉNÉRÉES chargent
+  // (`_app_scripts.html`, mesuré : 0 des 10 apps en place) — donc introuvable là où le drag
+  // a lieu. Avant cette brique : un 3ᵉ canal d'événement (`filemanager:filedrop`) que chaque
+  // app devait écouter, imager ne l'écoutait pas (drag muet), avatarizer re-téléchargeait
+  // depuis /media/ (donc jamais un fichier de montage, servi ailleurs).
+  function filesFromServerPaths(entries) {
+    const mediaUrl = global.MEDIA_URL || '/media/';
+    function urlOf(path) {
+      const m = /^mounts\/(\d+)\/(.*)$/.exec(path || '');
+      if (m) return '/filemanager/api/mounts/' + m[1] + '/serve/' + encodeURI(m[2]);
+      return mediaUrl + encodeURI(path || '');
+    }
+    return Promise.all((entries || []).map(function (e) {
+      return fetch(urlOf(e.path)).then(function (resp) {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ' — ' + (e.name || e.path));
+        return resp.blob();
+      }).then(function (blob) {
+        const name = e.name || String(e.path || '').split('/').pop() || 'fichier';
+        return new File([blob], name, { type: blob.type || e.mime || '' });
+      }).catch(function (err) {
+        toast('Lecture impossible : ' + err.message, 'error');
+        return null;
+      });
+    })).then(function (files) { return files.filter(Boolean); });
+  }
+
+  /** Pose des File dans un input et déclenche son `change`. Un input sans `multiple` ne
+   *  reçoit que le premier. Rend false si le navigateur n'a pas DataTransfer. */
+  function injectFiles(input, files) {
+    if (!input || !files || !files.length) return false;
+    try {
+      const dt = new DataTransfer();
+      (input.multiple ? files : files.slice(0, 1)).forEach(function (f) { dt.items.add(f); });
+      input.files = dt.files;
+    } catch (e) {
+      return false;
+    }
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
   global.WamaApp = {
     escapeHtml: escapeHtml,
     getUrl: getUrl,
@@ -384,6 +433,8 @@
     Poller: Poller,
     emptyState: emptyState,
     toast: toast,
+    filesFromServerPaths: filesFromServerPaths,
+    injectFiles: injectFiles,
     initUrlImport: initUrlImport,
     pauseDomMedia: pauseDomMedia,
     claimAudioChannel: claimAudioChannel,

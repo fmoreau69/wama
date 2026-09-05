@@ -169,3 +169,40 @@ class ToutImporteurEstDerivableTests(SimpleTestCase):
                 fn = importer_for('jumelle_99')
             self.assertIsNotNone(fn, f"la jumelle d'une app {app} doit dériver son importeur")
             self.assertEqual(fn.keywords.get('app_label'), 'jumelle_99')
+
+
+class DepotAvecArborescenceTests(TestCase):
+    """D8 (2026-09-05, `MEDIA_STORAGE_TIERING §8.6`) : le dépôt AVEC arborescence ne doit plus
+    ÉCRASER un homonyme. C'était la seule voie du parc à le faire — le dépôt simple,
+    `copy_into_app_input` et `UploadToUserPath` renomment tous à la collision.
+    Le TEST_RUNNER commun sert un MEDIA_ROOT jetable : rien n'est écrit dans `media/`.
+    """
+
+    def setUp(self):
+        from django.test import Client
+        User = get_user_model()
+        self.user = User.objects.create_user(username='depot_arbo', password='x')
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def _deposer(self, contenu: bytes):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        import json as _json
+        return self.client.post(reverse('filemanager:api_upload'), {
+            'files': SimpleUploadedFile('notes.txt', contenu, content_type='text/plain'),
+            'paths': _json.dumps(['dossier/notes.txt']),
+        })
+
+    def test_deux_depots_du_meme_chemin_donnent_deux_fichiers_distincts(self):
+        from django.conf import settings
+        r1 = self._deposer(b'premier')
+        r2 = self._deposer(b'second')
+        self.assertEqual((r1.status_code, r2.status_code), (200, 200), (r1.content, r2.content))
+        p1 = r1.json()['uploaded'][0]['path']
+        p2 = r2.json()['uploaded'][0]['path']
+        self.assertNotEqual(p1, p2, 'le second dépôt a écrasé le premier')
+        self.assertEqual((Path(settings.MEDIA_ROOT) / p1).read_bytes(), b'premier',
+                         'le contenu du premier dépôt doit survivre au second')
+        self.assertTrue(p2.startswith(f'users/{self.user.id}/temp/dossier/'),
+                        'le renommage doit rester DANS le sous-dossier demandé')
