@@ -198,7 +198,16 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
         ('720p', '720p (1280x720) 16:9'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # `related_name` EXPLICITE (2026-09-05) — la seule FK utilisateur du parc qui n'en avait
+    # pas. Sans lui, l'accesseur inverse par défaut est `User.imagegeneration_set`, dérivé du
+    # seul nom de MODÈLE : une app-jumelle du bac à sable (`imager_01`, même modèle, autre
+    # app_label) revendiquait donc le MÊME accesseur → `fields.E304` et `manage.py check` en
+    # erreur, c'est-à-dire un boot Django cassé par la simple existence de la jumelle. Imager
+    # étant l'app aux 3 ports, c'était la seule intestable en bac à sable, et précisément la
+    # seule à pouvoir démontrer deux slots FICHIER côte à côte (CARD_DESIGN §11.11).
+    # Zéro consommateur de `imagegeneration_set` dans le dépôt (grep exhaustif) : le
+    # renommage n'a aucun appelant à suivre, et la migration ne touche pas le schéma SQL.
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='image_generations')
 
     # Generation mode
     generation_mode = models.CharField(

@@ -262,7 +262,22 @@ class TroisiemeVoieTest(SimpleTestCase):
     Née le 2026-09-04 : les libs sans `cache_dir=` (kokoro, higgs, le worker du PoC)
     n'avaient d'autre routage que la mutation d'environnement — celle-là même qui emporte les
     sous-dépendances. `poids_locaux` télécharge DANS le dossier de famille et rend un chemin.
+
+    ⚠ **Le dossier de famille est un DOSSIER JETABLE, jamais un littéral** (corrigé 2026-09-05).
+    Ces trois tests passaient `'/dossier'` en dur, et `poids_locaux` en fait un
+    `mkdir(parents=True)` — donc ils étaient VERTS SOUS WINDOWS EN CRÉANT `D:\dossier\famille`
+    sur le disque réel (mesuré : le dossier y était), et ROUGES SOUS LINUX où `/dossier` est
+    la racine système (`PermissionError`). Ils n'ont jamais pu passer sous WSL2 depuis leur
+    création (`6595ba6e`) : le chantier les avait validés depuis venv_win seul.
+    Même famille que le `MEDIA_ROOT` réel soldé le 25/08 — **un test qui écrit hors de son
+    dossier jetable ment sur au moins une plateforme.**
     """
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory(prefix='wama_hfw_')
+        self.famille = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
 
     def test_elle_ne_touche_JAMAIS_l_environnement(self):
         """Le point entier de la brique. Si elle mutait, elle ne vaudrait pas mieux que ce
@@ -273,9 +288,9 @@ class TroisiemeVoieTest(SimpleTestCase):
         from wama.common.utils.hf_weights import poids_locaux
         avant = {k: os.environ.get(k) for k in VARS_HF}
         with patch('huggingface_hub.snapshot_download', return_value='/chemin/simule') as faux:
-            poids_locaux('org/modele', '/dossier/famille')
+            poids_locaux('org/modele', self.famille)
         self.assertEqual({k: os.environ.get(k) for k in VARS_HF}, avant)
-        self.assertEqual(faux.call_args.kwargs.get('cache_dir'), '/dossier/famille',
+        self.assertEqual(faux.call_args.kwargs.get('cache_dir'), self.famille,
                          'le dossier de famille passe par cache_dir=, jamais par l’env')
 
     def test_elle_tente_le_HORS_LIGNE_avant_le_reseau(self):
@@ -285,8 +300,8 @@ class TroisiemeVoieTest(SimpleTestCase):
 
         from wama.common.utils.hf_weights import poids_locaux
         with patch('huggingface_hub.snapshot_download') as faux:
-            faux.side_effect = [ '/local' ]
-            poids_locaux('org/modele', '/dossier')
+            faux.side_effect = ['/local']
+            poids_locaux('org/modele', self.famille)
         self.assertTrue(faux.call_args_list[0].kwargs.get('local_files_only'),
                         'le premier essai doit être purement local')
 
@@ -296,6 +311,6 @@ class TroisiemeVoieTest(SimpleTestCase):
         from wama.common.utils.hf_weights import poids_locaux
         with patch('huggingface_hub.snapshot_download') as faux:
             faux.side_effect = [OSError('absent'), '/telecharge']
-            chemin = poids_locaux('org/modele', '/dossier')
+            chemin = poids_locaux('org/modele', self.famille)
         self.assertEqual(chemin, '/telecharge')
         self.assertEqual(len(faux.call_args_list), 2)
