@@ -274,18 +274,19 @@ Notes numérotées :
 
 ### 8.6 🔴 Défauts trouvés en chemin — à régler indépendamment de toute décision
 
-| # | défaut | gravité | ancre |
-|---|---|---|---|
-| D1 | **Traversée de chemin** : `Path(MEDIA_ROOT) / server_path` sans `resolve()` ni confinement — un `../../…` lit n'importe quel fichier du serveur et injecte son texte dans une card | 🔴 **sécurité** | `synthesizer/views.py:1169`, `:1313` |
-| D2 | confinement MEDIA_ROOT par **préfixe de chaîne** (`startswith`) après `resolve()` — un dossier frère `media_backup/` passerait ; `Path.is_relative_to` est la garde juste | ⚠ sécurité | `converter/views.py:752-753` ; `views_gen.py:491-492` ; `avatarizer/views.py:873-874` |
-| D3 | anonymizer lit des chemins serveur arbitraires depuis un `.txt` **sans garde** | ⚠ sécurité | `anonymizer/views.py:77-111` |
-| D4 | transcriber : dépôt multiple ≠ lot, commentaire faux | fonctionnel | `transcriber/js/index.js:118-134` |
-| D5 | imager : drag jstree sans listener (silence) | fonctionnel | `filemanager.js:1805-1811` |
-| D6 | régime A : chemin local accepté à la création, mort au lancement, **sans message à la création** | fonctionnel | `batch_parsers.py:241-246` × `url_guard.py:77-79` |
-| D7 | `-r` inopérant depuis un lot sur composer/synthesizer/imager, alors que `BATCH_FORMAT.md:197-209` l'annonce « opt » | doc ≠ code | `composer/views.py:395-401` ; `synthesizer/views.py:1367-1377` ; `prompt_parser.py:250-303` |
-| D8 | upload filemanager **avec arborescence** ÉCRASE (aucun `get_unique_filename` sur cette branche) | fonctionnel | `filemanager/views.py:616-618` |
-| D9 | `users/*/temp` et 5 apps **hors rétention** | volume | `retention.py:24-31` |
-| D10 | `MediaPicker` télécharge le blob AVANT `onSelect`, même pour le consommateur qui ne veut qu'un chemin | perf | `media-picker.js:177-192` |
+| # | défaut | gravité | état | ancre |
+|---|---|---|---|---|
+| D1 | **Traversée de chemin** : `Path(MEDIA_ROOT) / server_path` sans `resolve()` ni confinement — un `../../…` lit n'importe quel fichier du serveur et injecte son texte dans une card | 🔴 **sécurité** | ✅ **05/09** — brique `media_paths.resolve_under_media_root` ; vue → 403, test de vue | `synthesizer/views.py` (`import_individual_from_path`, `batch_create`) |
+| D2 | confinement MEDIA_ROOT par **préfixe de chaîne** (`startswith`) après `resolve()` — un dossier frère `media_backup/` passerait ; `Path.is_relative_to` est la garde juste | ⚠ sécurité | ✅ **05/09** — **17 sites** rabattus sur la brique (pas 3 : grep exhaustif — 9 dans `tool_api.py`, où une garde commune existait et que 8 fonctions n'appelaient pas) ; **gardien** `tests_media_paths` refuse toute réapparition | `wama/common/tests_media_paths.py` |
+| D3 | anonymizer lit des chemins serveur arbitraires depuis un `.txt` **sans garde** | ⚠ sécurité | ✅ **05/09** — même brique ; un chemin hors `MEDIA_ROOT` tombe dans `failed[]` | `anonymizer/views.py` (cas 1) |
+| D4 | transcriber : dépôt multiple ≠ lot, commentaire faux | fonctionnel | ✅ **05/09** — l'URL de consolidation existait, il manquait l'appel ; mesuré : 2 fichiers → 1 lot de 2 | `transcriber/js/index.js` (`handleFiles`) |
+| D5 | imager : drag jstree sans listener (silence) | fonctionnel | ✅ **05/09** — le canal se **déclare par la card** (`data-wama-depot`), plus par nom d'app : « attache » → `WamaApp.filesFromServerPaths` + `injectFiles` (média OU montage) dans l'input de la zone ; hors card commune → l'événement ; « crée » → import serveur. Sonde : l'image du temp atteint le slot référence de l'imager | `wama-app-base.js` ; `filemanager.js` (`dnd_stop.vakata`) |
+| D6 | régime A : chemin local accepté à la création, mort au lancement, **sans message à la création** | fonctionnel | ⏳ | `batch_parsers.py:241-246` × `url_guard.py:77-79` |
+| D7 | `-r` inopérant depuis un lot sur composer/synthesizer/imager, alors que `BATCH_FORMAT.md:197-209` l'annonce « opt » | doc ≠ code | ⏳ décision (implémenter ou retirer de la doc) | `composer/views.py:395-401` ; `synthesizer/views.py:1367-1377` ; `prompt_parser.py:250-303` |
+| D8 | upload filemanager **avec arborescence** ÉCRASE (aucun `get_unique_filename` sur cette branche) | fonctionnel | ✅ **05/09** — dé-collision dans le sous-dossier demandé ; test : deux dépôts → deux fichiers | `filemanager/views.py` (`api_upload`) |
+| D9 | `users/*/temp` et 5 apps **hors rétention** | volume | ⏳ décision (durée du temp) | `retention.py:24-31` |
+| D10 | `MediaPicker` télécharge le blob AVANT `onSelect`, même pour le consommateur qui ne veut qu'un chemin | perf | ⏳ (se règle avec la provenance, palier 3) | `media-picker.js:177-192` |
+| **D11** | **`WamaImport` n'est chargé par AUCUNE des 10 apps en place** — `_app_scripts.html` n'est inclus que par les gabarits GÉNÉRÉS (mesuré 05/09 sur imager, avatarizer, converter : `typeof WamaImport === 'undefined'`). La « voie d'import commune » est donc, aujourd'hui, la voie des seules jumelles ; chaque app en place garde son `handleFiles` | portage | ⏳ — c'est le portage F2 (route), pas un correctif ; **tout helper que l'explorateur (global) doit atteindre va dans `wama-app-base.js`, jamais dans `wama-import.js`** | `common/_app_scripts.html:47` |
 
 ### 8.7 Les DEUX questions de Fabien — éléments pour trancher (positions Claude, à valider)
 
