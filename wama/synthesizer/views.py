@@ -1166,8 +1166,15 @@ def import_individual_from_path(request):
     if not server_path:
         return JsonResponse({'error': 'server_path requis'}, status=400)
 
-    abs_path = Path(django_settings.MEDIA_ROOT) / server_path
-    if not abs_path.exists():
+    # 🔴 Confinement (05/09) : ce site faisait `Path(MEDIA_ROOT) / server_path` sans `resolve()`
+    # ni contrôle — un `../../…` lisait n'importe quel fichier du serveur et injectait son
+    # texte dans une card. LA garde commune, jamais un contrôle réécrit ici.
+    from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+    try:
+        abs_path, server_path = resolve_under_media_root(server_path)
+    except OutsideMediaRoot:
+        return JsonResponse({'error': 'Chemin non autorisé'}, status=403)
+    except FileNotFoundError:
         return JsonResponse({'error': 'Fichier introuvable'}, status=404)
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -1310,8 +1317,13 @@ def batch_create(request):
     try:
         if server_path:
             # File already on server (e.g. imported from FileManager) — parse directly
-            abs_path = Path(django_settings.MEDIA_ROOT) / server_path
-            if not abs_path.exists():
+            # Même garde de confinement qu'`import_individual_from_path` (05/09, jumeau).
+            from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+            try:
+                abs_path, server_path = resolve_under_media_root(server_path)
+            except OutsideMediaRoot:
+                return JsonResponse({'error': 'Chemin non autorisé'}, status=403)
+            except FileNotFoundError:
                 return JsonResponse({'error': 'Fichier introuvable sur le serveur'}, status=404)
             ext = abs_path.suffix[1:].lower()
             if ext not in ('txt', 'pdf', 'docx', 'csv', 'md'):

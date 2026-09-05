@@ -90,14 +90,15 @@ class IndexView(View):
                         if is_url(path):
                             video_path = upload_media_from_url(path, str(user_input_dir))
                         else:
-                            if not os.path.isfile(path):
-                                raise FileNotFoundError("Local path not found or inaccessible")
-                            filename = os.path.basename(path)
-                            unique_filename = get_unique_filename(str(user_input_dir), filename)
-                            dest_path = os.path.join(str(user_input_dir), unique_filename)
-                            with open(path, 'rb') as src, open(dest_path, 'wb') as dst:
-                                dst.write(src.read())
-                            video_path = dest_path
+                            # Confinement (05/09) : ce site lisait N'IMPORTE QUEL chemin serveur
+                            # cité dans un .txt — le seul du parc sans garde, alors que le
+                            # gabarit généré et le converter confinent à MEDIA_ROOT. Même règle
+                            # partout : un chemin de lot se résout SOUS MEDIA_ROOT, ou est
+                            # refusé (`MEDIA_STORAGE_TIERING §8.6` D3).
+                            from wama.common.utils.media_paths import copy_into_app_input, resolve_under_media_root
+                            abs_src, _ = resolve_under_media_root(path)   # OutsideMediaRoot / FileNotFoundError → failed[]
+                            dest, _rel = copy_into_app_input(abs_src, 'anonymizer', user.id, 'input')
+                            video_path = str(dest)
                         # Crée Media en DB
                         media = process_media(
                             video_path, user,
