@@ -28,8 +28,16 @@ python manage.py manifest_export --check    # corpus de manifestes périmé ? (�
 python manage.py manifest_roundtrip --all   # régénération : facettes projetables, fidélité
 python manage.py check_app_conformity       # grille 82 critères déclarés (mesuré 26/08)
 python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la carte WAMA_MECANISMES)
-python manage.py test                       # SUITE COMPLÈTE (~4 min) — ajoutée le 2026-08-25
+python manage.py test                       # SUITE COMPLÈTE (~15 min) — ajoutée le 2026-08-25
 ```
+
+> 🔴 **La suite se lance DEPUIS WSL2 (`venv_linux`) — c'est le runtime réel** (ajouté le
+> 2026-09-05). Mesuré ce jour : **4 tests étaient verts depuis venv_win et n'avaient JAMAIS pu
+> passer sous Linux** depuis leur création (littéral `'/dossier'` = `D:\dossier` créé sur le
+> disque réel sous Windows, racine système interdite sous Linux ; et un roster de moteurs figé
+> sur l'état d'installation d'un venv). Ils étaient rapportés comme « périmètre terminé ».
+> **Un vert sur une seule plateforme n'atteste que cette plateforme.** Un chantier qui touche
+> aux fichiers ou aux runtimes se valide des DEUX côtés avant d'être dit clos.
 
 #### ⚠ Pourquoi la suite de tests est entrée dans ce rituel (2026-08-25)
 

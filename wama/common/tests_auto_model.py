@@ -177,7 +177,7 @@ class CurseurDeQualiteTest(TestCase):
         POSITIVEMENT inlançable ; tout le reste est permissif (pas de moteur = pas de
         verdict, backend_ref d'app = l'app assume)."""
         from types import SimpleNamespace
-        from wama.common.backends.manager import backend_missing, known_engines
+        from wama.common.backends.manager import backend_missing, engine_backends, known_engines
         from wama.synthesizer.backends import ENGINE_BACKENDS
         # ⚠ L'inventaire n'annonce que les moteurs EXÉCUTABLES (raffinement 03/09 :
         # backend enregistré ET runtime importable) — il est donc DÉPENDANT DU VENV par
@@ -196,11 +196,25 @@ class CurseurDeQualiteTest(TestCase):
                     for e in a.entries if e.engine}
         self.assertTrue(connus <= declares | set(ENGINE_BACKENDS) | {'audio-cpp'},
                         f"moteurs annoncés sans déclaration : {sorted(connus - declares - set(ENGINE_BACKENDS) - {'audio-cpp'})}")
-        # (b) le point DÉTERMINISTE des deux venvs : qwen3-tts est ENREGISTRÉ
-        #     (backend écrit, B2 n°3) mais son runtime pip n'est installé nulle part
-        #     tant que Fabien n'a pas donné le GO — il ne doit JAMAIS être annoncé.
-        self.assertIn('qwen3-tts', ENGINE_BACKENDS)
-        self.assertNotIn('qwen3-tts', connus)
+        # (b) la POLITIQUE « exécutable », testée sur le mécanisme et non sur un roster.
+        # ⚠ Cette assertion figeait `assertNotIn('qwen3-tts', connus)` au motif que « son
+        # runtime pip n'est installé nulle part tant que Fabien n'a pas donné le GO ». Elle
+        # contredisait la docstring écrite JUSTE AU-DESSUS (« un roster figé ici casserait
+        # dans le venv qui n'a pas tel runtime — on teste le MÉCANISME ») : un état
+        # d'INSTALLATION est par nature volatil. `qwen-tts 0.1.1` a été installé dans
+        # venv_linux le 2026-09-03 à 14:25, et le test est devenu rouge sans qu'une ligne de
+        # code applicative ne bouge — il mesurait le contenu d'un venv, pas une règle.
+        # La règle, elle, est vraie dans TOUS les venvs et ne périme pas : un moteur annoncé
+        # est un moteur dont il ne manque AUCUN paquet.
+        self.assertIn('qwen3-tts', ENGINE_BACKENDS,
+                      'le backend qwen3-tts reste ENREGISTRÉ (déclaration, pas installation)')
+        for moteur, cls in engine_backends().items():
+            manquants = getattr(cls, 'missing_packages', lambda: [])()
+            if manquants:
+                self.assertNotIn(
+                    moteur, connus,
+                    f"{moteur} a des paquets manquants ({manquants}) : l'inventaire ne doit "
+                    f"pas l'annoncer — c'est toute la politique « exécutable »")
         fantome = SimpleNamespace(backend_ref='', composition={'runtime': {'engine': 'moteur-fantome'}})
         self.assertIn('moteur-fantome', backend_missing(fantome))
         self.assertIsNone(backend_missing(
