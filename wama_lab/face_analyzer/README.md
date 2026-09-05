@@ -8,6 +8,20 @@ données du laboratoire.
 **Django** (`views.py`, `tasks.py`, `pipeline.py::FaceAnalysisPipeline`) — le `app.py` à la racine
 n'est qu'un stub d'arguments, ne pas s'en servir.
 
+## État vérifié le 2026-09-05
+
+| Point | État | Mesure |
+|---|---|---|
+| Venv | **venv principal** (`venv_linux`) | import réel de `pipeline`, `emotions`, `tasks` + tâche Celery `process_video_task` |
+| Backend **FER** (défaut) | ✅ réparé ce jour | il était **CASSÉ** : `fer` 25.10.3 a retiré `FER` de sa racine (classe déplacée dans `fer.fer`) et `requirements/linux.txt` demandait `fer>=22.5.0`, sans borne haute — la montée s'est faite seule |
+| Backend **DeepFace** | ✅ fonctionnel | détection réelle sur image de synthèse, hors ligne |
+| Poids DeepFace | ✅ rangés dans `AI-models` | **1,1 Go** déplacés de `$HOME/.deepface` vers `AI-models/models/vision/deepface` via `DEEPFACE_HOME` (posé dans `settings.py`) |
+| Poids FER / MediaPipe | embarqués dans les paquets pip | 2,3 Mo (`fer`), `.tflite` internes (`mediapipe`) — rien à ranger |
+| Gardes | `tests.py` (7) | aucune ne charge de modèle ; elles tiennent les **jonctions** |
+
+⚠ **Aucun test ne couvrait cette app** avant ce jour : elle a pourri en silence pendant des mois.
+Le défaut FER n'était visible qu'en la lançant — d'où les gardes ajoutées.
+
 ## Ce que l'app analyse
 
 | Module | Fichier | Sorties |

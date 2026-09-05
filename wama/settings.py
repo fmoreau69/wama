@@ -166,6 +166,16 @@ os.environ.setdefault('HF_HOME', str(HF_DEFAULT_CACHE))
 os.environ.setdefault('HF_HUB_CACHE', str(HF_DEFAULT_CACHE))
 os.environ.setdefault('HUGGINGFACE_HUB_CACHE', str(HF_DEFAULT_CACHE))
 
+# DeepFace (face_analyzer) — MÊME SOCLE, MÊME RÈGLE : posé UNE FOIS ici, jamais muté ailleurs.
+# DeepFace ne passe pas par HuggingFace : il télécharge ses poids `.h5` en direct et les range
+# sous `<DEEPFACE_HOME>/.deepface/weights`. Sans cette ligne, `get_deepface_home()` retombe sur
+# `~` — mesuré le 2026-09-05 : **1,1 Go dans `$HOME/.deepface`** (age 514 Mo + gender 512 Mo +
+# expression 5,7 Mo), hors d'`AI-models`, hors catalogue, invisible de toute page WAMA.
+# `DEEPFACE_HOME` est l'aiguillage prévu PAR la librairie — même idiome qu'`AUDIOCRAFT_CACHE_DIR` :
+# une variable propre à UNE lib, posée au démarrage, n'a aucun des effets de bord de `HF_HUB_CACHE`
+# (qui, lui, emporte tout ce que la lib télécharge ensuite — cf. la règle du CLAUDE.md).
+os.environ.setdefault('DEEPFACE_HOME', str(AI_MODELS_DIR / "models" / "vision" / "deepface"))
+
 # HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1,
 # FLUX.1-schnell…). Generate at https://huggingface.co/settings/tokens (read access), and
 # accept each gated model's terms on its page.

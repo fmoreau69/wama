@@ -97,6 +97,35 @@ class EmotionResult:
         }
 
 
+def _import_fer():
+    """Rend la classe `FER`, quelle que soit la disposition du paquet.
+
+    ⚠ DÉFAUT MESURÉ le 2026-09-05 : le backend FER — qui est le backend PAR DÉFAUT de cette
+    app — levait `ImportError: cannot import name 'FER' from 'fer'`. Cause : `fer` 25.10.3
+    n'expose plus que `log`/`logging` à sa racine ; la classe a migré dans le sous-module
+    `fer.fer`. Le paquet est le même projet (justinshenk/fer), c'est sa surface publique qui
+    a changé — et `requirements/linux.txt` demandait `fer>=22.5.0`, borne haute absente, donc
+    la montée en 25.x s'est faite toute seule.
+
+    On essaie les DEUX dispositions plutôt que d'épingler : rien à rétrograder, et l'app
+    marche avec l'ancienne comme avec la nouvelle. *Un pin fige une version ; suivre les deux
+    dispositions suit le paquet.*
+    """
+    try:
+        from fer import FER            # disposition ≤ 24.x
+        return FER
+    except ImportError as racine:
+        try:
+            from fer.fer import FER    # disposition ≥ 25.x
+            return FER
+        except ImportError as feuille:
+            # Les DEUX dispositions ont échoué : l'erreur utile est la SECONDE (la première
+            # est attendue en 25.x), mais on garde la chaîne pour ne pas perdre le contexte.
+            raise ImportError(
+                f"`fer` présent mais inutilisable — racine: {racine} / sous-module: {feuille}"
+            ) from feuille
+
+
 class EmotionRecognizer:
     """
     Facial emotion recognition.
@@ -158,8 +187,7 @@ class EmotionRecognizer:
 
         try:
             if self.backend == 'fer':
-                from fer import FER
-                self._detector = FER(mtcnn=False)  # Use OpenCV for speed
+                self._detector = _import_fer()(mtcnn=False)  # OpenCV : plus rapide
                 logger.info("FER emotion detector initialized (emotions only)")
             elif self.backend == 'deepface':
                 # DeepFace is used directly without pre-initialization
@@ -171,8 +199,7 @@ class EmotionRecognizer:
                 logger.info(f"DeepFace initialized (actions: {actions}, detector: {self.deepface_detector})")
             else:
                 logger.warning(f"Unknown backend: {self.backend}, using FER")
-                from fer import FER
-                self._detector = FER(mtcnn=False)
+                self._detector = _import_fer()(mtcnn=False)
                 self.backend = 'fer'
 
             self._initialized = True
