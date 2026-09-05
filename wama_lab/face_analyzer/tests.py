@@ -10,6 +10,7 @@ chemin d'import et le rangement des poids. Le fonctionnement réel se prouve par
 (cf. README §Vérification), pas par la suite unitaire.
 """
 import os
+import re
 import unittest
 from importlib.util import find_spec
 from pathlib import Path
@@ -41,6 +42,27 @@ class BackendEmotionsImportableTest(SimpleTestCase):
             # — venv_linux fait foi, c'est là que la garde a du sens (et là qu'elle a servi).
             self.skipTest(f"`fer` inutilisable dans CE venv : {e}")
         self.assertEqual(classe.__name__, 'FER')
+
+    def test_aucun_import_direct_de_FER_ne_contourne_le_resolveur(self):
+        """TOUS les points d'import doivent passer par `_import_fer` — pas seulement le premier.
+
+        ⚠ Défaut vécu dans la foulée du correctif : j'avais réparé deux occurrences sur TROIS.
+        La troisième (le repli FER quand DeepFace échoue) serait restée morte, et précisément
+        sur le chemin de secours — celui qu'on emprunte quand ça va déjà mal.
+        *Une garde se pose avec ses JUMEAUX : tous les points d'appel, au moment où la leçon
+        s'apprend.*
+        """
+        source = (Path(settings.BASE_DIR) / 'wama_lab' / 'face_analyzer' / 'emotions.py'
+                  ).read_text(encoding='utf-8')
+        # Les deux lignes du résolveur lui-même sont les seules légitimes.
+        lignes = [l.strip() for l in source.splitlines()
+                  if 'import FER' in l and 'fer.fer' not in l]
+        hors_resolveur = [l for l in lignes if not l.startswith('from fer import FER')]
+        dans_resolveur = source.count('from fer import FER')
+        self.assertEqual(hors_resolveur, [], 'import FER inattendu')
+        self.assertEqual(dans_resolveur, 1,
+                         "`from fer import FER` ne doit apparaître QUE dans `_import_fer` — "
+                         "tout autre point d'import contourne la résolution des deux dispositions")
 
     @unittest.skipUnless(_FER_PRESENT, "paquet `fer` absent de ce venv")
     def test_le_backend_par_defaut_est_bien_celui_qui_est_couvert(self):
@@ -121,7 +143,13 @@ class AppDansLeVenvPrincipalTest(SimpleTestCase):
                 texte = f.read_text(encoding='utf-8')
             except (OSError, UnicodeDecodeError):
                 continue
-            if 'venv_win' in texte or 'venv_linux' in texte:
+            # ⚠ Motif AFFINÉ le 05/09 : la 1ʳᵉ version cherchait les mots `venv_win`/`venv_linux`
+            # et accusait un fichier qui les MENTIONNAIT en commentaire (« semé depuis
+            # venv_linux »). Ce qu'on interdit est une DÉPENDANCE au venv LOCAL de l'app, pas
+            # le mot. On cherche donc le chemin : `face_analyzer/venv…`, ou un `venv…` collé à
+            # un séparateur de chemin. *Une garde qui accuse une phrase mesure le vocabulaire,
+            # pas le code.*
+            if re.search(r'face_analyzer[/\\]venv|[\'"][^\'"]*[/\\]venv_(win|linux)', texte):
                 coupables.append(str(f.relative_to(racine)))
         self.assertEqual(coupables, [],
                          "le code de l'app référence un venv local : elle doit tourner dans "

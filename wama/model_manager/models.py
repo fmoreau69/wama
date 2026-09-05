@@ -283,6 +283,11 @@ class ModelSource(models.TextChoices):
     # (choices/admin). Converter n'a PAS de modèles IA (ffmpeg/pandoc) → pas de source dédiée.
     WAMA_COMPOSER = 'composer', 'WAMA Composer'
     WAMA_READER = 'reader', 'WAMA Reader'
+    # Monde LAB (2026-09-05). La liste ci-dessus ne couvrait que le monde Médias : une app du
+    # Lab n'avait donc AUCUNE valeur pour dire d'où viennent ses modèles. Conséquence mesurée :
+    # 1,1 Go de poids DeepFace hors catalogue. Le champ `source` porte le nom d'app, pas le
+    # monde — c'est la même clé que `APP_CATALOG`, il ne faut pas la préfixer.
+    WAMA_FACE_ANALYZER = 'face_analyzer', 'WAMA Lab — Face Analyzer'
     OLLAMA = 'ollama', 'Ollama'
     HUGGINGFACE = 'huggingface', 'HuggingFace'
     CUSTOM = 'custom', 'Custom'

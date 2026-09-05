@@ -1,0 +1,35 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "absl-py",
+      "flatbuffers",
+      "numpy",
+      "sounddevice"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "The MediaPipe Authors",
+      "license": "Apache 2.0",
+      "repository": "https://github.com/google/mediapipe",
+      "summary": "MediaPipe is the simplest way for researchers and developers to build world-class ML solutions and applications for mobile, edge, cloud and the web.",
+      "version": "0.10.31"
+    },
+    "install": {
+      "pip": "mediapipe==0.10.31",
+      "requires_python": null
+    }
+  },
+  "description": "MediaPipe is the simplest way for researchers and developers to build world-class ML solutions and applications for mobile, edge, cloud and the web.",
+  "key": "mediapipe",
+  "manifest_kind": "library",
+  "name": "mediapipe",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:mediapipe==0.10.31",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

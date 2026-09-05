@@ -1,0 +1,51 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "Flask",
+      "Pillow",
+      "fire",
+      "flask-cors",
+      "gdown",
+      "gunicorn",
+      "keras",
+      "lightphe",
+      "mtcnn",
+      "numpy",
+      "opencv-python",
+      "pandas",
+      "requests",
+      "retina-face",
+      "tensorflow",
+      "tqdm"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "deepface"
+      ]
+    },
+    "identity": {
+      "author": "Sefik Ilkin Serengil",
+      "license": "MIT",
+      "repository": "https://github.com/serengil/deepface",
+      "summary": "A Lightweight Face Recognition and Facial Attribute Analysis Framework (Age, Gender, Emotion, Race) for Python",
+      "version": "0.0.96"
+    },
+    "install": {
+      "pip": "deepface==0.0.96",
+      "requires_python": ">=3.7"
+    }
+  },
+  "description": "A Lightweight Face Recognition and Facial Attribute Analysis Framework (Age, Gender, Emotion, Race) for Python",
+  "key": "deepface",
+  "manifest_kind": "library",
+  "name": "deepface",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:deepface==0.0.96",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

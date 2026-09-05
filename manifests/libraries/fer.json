@@ -1,0 +1,41 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "Pillow",
+      "facenet-pytorch",
+      "ffmpeg-python",
+      "matplotlib",
+      "moviepy",
+      "opencv-contrib-python",
+      "pandas",
+      "requests",
+      "tensorflow",
+      "tqdm"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Justin Shenk",
+      "license": "MIT",
+      "repository": "https://github.com/justinshenk/fer",
+      "summary": "Facial expression recognition from images",
+      "version": "25.10.3"
+    },
+    "install": {
+      "pip": "fer==25.10.3",
+      "requires_python": ">= 3.8"
+    }
+  },
+  "description": "Facial expression recognition from images",
+  "key": "fer",
+  "manifest_kind": "library",
+  "name": "fer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:fer==25.10.3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
