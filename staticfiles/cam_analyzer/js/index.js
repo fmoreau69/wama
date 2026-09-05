@@ -3216,7 +3216,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     let dm = det.distance_m * (_geo.distScale || 1);
                     const _dk = det.global_track_id != null ? 'g' + det.global_track_id
                               : (det.track_id != null ? camPos + ':' + det.track_id : null);
-                    if (_dk) {
+                    // ⚑ display_ema (live, défaut ON = historique) : OFF ⇒ distance brute par
+                    // frame — jitter visible, mais AUCUN retard de phase. C'est le test D.3
+                    // (§INVENTAIRE) : si les garés en repli ③ cessent de « suivre la navette »
+                    // quand l'EMA est coupée, la cause est ce lissage, pas la pose.
+                    if (_dk && camFeat.display_ema !== false) {
                         const _pv = topDownDist.get(_dk);
                         dm = _pv != null ? _pv * 0.7 + dm * 0.3 : dm;
                         topDownDist.set(_dk, dm);
@@ -3235,7 +3239,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     // l'essai homographie).
                     const _fx = iw / (2 * Math.tan((_geo.fovH || 60) * Math.PI / 360));
                     let gx = dm * (bcx - iw / 2) / _fx;
-                    if (_dk) {
+                    if (_dk && camFeat.display_ema !== false) {   // ⚑ display_ema (cf. ci-dessus)
                         const _pl = topDownLat.get(_dk);
                         gx = _pl != null ? _pl * 0.7 + gx * 0.3 : gx;
                         topDownLat.set(_dk, gx);

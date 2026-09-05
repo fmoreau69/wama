@@ -48,6 +48,15 @@ def _projector_for(camera, geo):
     from .ground_projection import GroundProjector
     w, h = camera.width or 384, camera.height or 288
     cal = getattr(camera, 'ground_homography', None)
+    # ⚑ sam3_homography (défaut ON = historique) : OFF ⇒ paramétrique même si une homographie
+    # DLT existe. Elle était consommée ici SANS condition (§INVENTAIRE D.2) alors qu'elle est
+    # prouvée biaisée (#546/#537) — un levier doit pouvoir se comparer.
+    try:
+        from .features import enabled as _feat_on
+        if cal and not _feat_on(camera.session, 'sam3_homography'):
+            cal = None
+    except Exception:
+        pass
     calibrated = bool(cal)
     if not cal:
         from .calibration import intrinsics_from_fov

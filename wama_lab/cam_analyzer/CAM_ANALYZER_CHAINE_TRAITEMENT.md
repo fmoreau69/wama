@@ -307,6 +307,8 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 | `world_markings` | ON | compute | stop_line/crossing projetés+agrégés en monde (bornes d'intersection) |
 | `learned_branches` | ON | compute | voies croisantes apprises des trajectoires du trafic |
 | `ortho_correction` | OFF | compute | étape 2b APPLIQUÉE (fonction `cam_analyzer.ortho_correction`) : biais caméra (médiane globale) écarté, correction GPS locale par intersection, interpolée et atténuée selon le masquage satellite BD TOPO |
+| `sam3_homography` | ON | compute | la voie **DLT sur passage piéton** (`camera.ground_homography`) devient COMMUTABLE là où elle est consommée (analyse, `marking_world`, `lane_estimator`) — elle s'appliquait sans bascule (§INVENTAIRE D.2). ON = historique |
+| `display_ema` | ON | live | l'**EMA α=0,3** de distance/latéral en repli d'affichage ③ (`index.js`) devient COMMUTABLE — hypothèse D.3 (retard de phase = garés qui « suivent la navette ») testable en direct, sans recalcul. ON = historique |
 | `shuttle_filter` | OFF | compute | **pose NAVETTE filtrée** (Kalman vitesse-constante + RTS, brique pure `driving.ego_track_filter`) : position lissée, cap dérivé de la vitesse lissée et tenu sous 1 m/s. Calcul stocké (`results_summary.shuttle_filter`), bascule relue au point d'ingestion UNIQUE serveur (`ego_pose.effective_gps_track`) et JS (`_applyShuttleFilter`). Premier ⚑ qui touche la pose navette (2026-09-05). A/B console : déplacement RMS, écart de cap médian, part tenue |
 | `track_speed_unified` | OFF | compute | (chantier) vitesse/distance monde uniques par track |
 
@@ -610,8 +612,11 @@ OFF → `results_summary.ortho_correction` = ancres, appliquées **côté JS seu
 2. **Position ego par détection** : si ⚑ `auto_ground_calib` ou ⚑ `depth_estimation` ON **et** calib
    présente → `ground_ego` (projection du bas de bbox, valide **1 < Y < 40 m**, sinon `None`) ; **sinon
    `pinhole_ego`** (rejette bbox coupée `x1 ≤ 8 ∨ x2 ≥ iw−8`). ⚠ Le repli `ground_ego→pinhole` est
-   **silencieux** — aucun champ ne dit quelle source a servi (gap **G7**). Bbox coupée : mesure
-   **dégradée** (`relaxed`) autorisée UNIQUEMENT pour prolonger une chaîne existante.
+   **silencieux** jusqu'au 2026-09-05 (gap **G7**) ; depuis, chaque détection porte
+   **`placement_source`** ∈ {`ground:homographie`, `ground:depth`, `pinhole`, `pinhole_relaxed`} et
+   les compteurs sortent en console + `results_summary.placement_sources` — un placement mixte se
+   COMPTE. Bbox coupée : mesure **dégradée** (`relaxed`) autorisée UNIQUEMENT pour prolonger une
+   chaîne existante.
 3. **Caméra → véhicule** : `cam_to_vehicle(yaw, mount)` — yaw de montage (défauts ±75°/0/180, surcharge
    `config.camera_yaw`), bras de levier (⚑ `mount_lever_arm`).
 4. **Véhicule → monde** : `ego_to_world(pose navette)` — pose = `_shuttle_pose_at` : **interpolation
@@ -694,7 +699,7 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 15 | **filtre de Kalman + RTS sur la navette**, cap dérivé de la vitesse lissée (tenu < 1 m/s) | position/vitesse/cap ego | `gps_track` | `driving.ego_trajectory_filter` (pur) → `ego_pose.compute_shuttle_filter` → `effective_gps_track` (serveur, 6 consommateurs) + `_applyShuttleFilter` (JS) | ⚑ `shuttle_filter` **OFF** | **LIVRÉ 2026-09-05** (était INEXISTANT le matin même) ; pas d'accéléro en commande (axes non mesurés) | rapport : déplacement RMS, écart de cap médian, part tenue ; puis `placement_spread` OFF/ON |
 | 16 | **fusion accéléromètre + GPS** | position/vitesse ego | `session.imu_track` (stocké) | **nulle part** — `EgoPose.accel` assigné jamais relu ; `profile.use_imu` (défaut True) **0 consommateur** | — | **DÉCLARÉ-MORT** depuis 2026-07-09 | — |
 | **Position au sol (l'ANGLE)** ||||||||
-| 17 | homographie sol par **DLT sur passage piéton SAM3** (« ancienne voie ») | distance/latéral (`ground_xy`, `dist_*_m`) | polygone `crossing` + dimensions FR | `calibration.homography_from_quad` ← `tasks._calibrate_from_crossing_polygons` → `camera.ground_homography` ; appliqué par `GroundProjector.distances_for_bbox` dans l'analyse | `profile.geometry_enabled` (défaut **False**, **forcé True par la calibration SAM3**) | **CONDITIONNÉ** — prouvée biaisée (#546, #537), mais **toujours productible et consommée** (§D.2) | RMS de reprojection du quad seulement |
+| 17 | homographie sol par **DLT sur passage piéton SAM3** (« ancienne voie ») | distance/latéral (`ground_xy`, `dist_*_m`) | polygone `crossing` + dimensions FR | `calibration.homography_from_quad` ← `tasks._calibrate_from_crossing_polygons` → `camera.ground_homography` ; appliqué par `GroundProjector.distances_for_bbox` dans l'analyse | ⚑ `sam3_homography` **ON** (depuis 2026-09-05) ∧ `profile.geometry_enabled` (défaut False, forcé True par la calibration SAM3 — désormais annoncé en console) | **COMMUTABLE** — prouvée biaisée (#546, #537), ON = historique ; OFF coupe les 3 consommateurs sans toucher au profil (§D.2) | RMS de reprojection du quad seulement |
 | 18 | pitch/hauteur auto par **étalement des stationnés** (2a) | angle → position | stationnés d'un run précédent + `distance_m` + ego GPS (ancre) | `homography_estimator.estimate_camera/store_ground_calib` → `ground_projector_for` → `ground_ego` | ⚑ `auto_ground_calib` **OFF** | ⚑ OFF ; garde-fous : ≥ 6 objets, étalement ≤ 2,5 m ; **repli pinhole silencieux (G7)** | `placement_spread` ; désaccord 14,55 → 3,05 m (caméra avant) |
 | 19 | plan de sol par **profondeur monoculaire** (Depth Pro, RANSAC) | angle → position | `DepthFrame` + `road_mask` | `depth_estimator.estimate_ground_plane_ph` → `store_ground_calib(seed)` | ⚑ `depth_estimation` **OFF** | **JAMAIS EXÉCUTÉ** | `placement_spread` (même scoring que 18) |
 | 20 | **cross-check** distance profondeur ↔ pinhole ↔ homographie | (contrôle) | `depth_distance_m` | `depth_estimator.depth_distance_report` | ⚑ `depth_estimation` | MESURE SEULE, JAMAIS EXÉCUTÉ | désaccord médian (m) |
@@ -715,8 +720,8 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 34 | **Kalman + RTS** (σa 2,5 / σm 1,5, vitesse constante) | position des **mobiles** | `track_hist` | `trajectory_smoother.smooth_track` → `world_en` | — | CÂBLÉ — **exclut les stationnés, position seule** | aucune |
 | 35 | classe stable (vote pondéré) | gabarit | `class_name`×`confidence` | idem | — | CÂBLÉ | aucune |
 | **Affichage (JS, repli ③ et cap)** ||||||||
-| 36 | **EMA distance α=0,3** en repli ③ | distance affichée | `distance_m` | `index.js:3191` | — | CÂBLÉ (JS) | aucune — ⚠ **retard de phase**, hypothèse §D.3 |
-| 37 | EMA latéral α=0,3 en repli ③ | latéral affiché | `bcx` | `index.js:3210` | — | CÂBLÉ (JS) | aucune |
+| 36 | **EMA distance α=0,3** en repli ③ | distance affichée | `distance_m` | `index.js` (bloc `topDownDist`) | ⚑ `display_ema` **ON** (depuis 2026-09-05, live) | COMMUTABLE — ⚠ **retard de phase**, hypothèse §D.3 testable en direct | à l'œil + `placement_spread` inchangé (affichage seul) |
+| 37 | EMA latéral α=0,3 en repli ③ | latéral affiché | `bcx` | `index.js` (bloc `topDownLat`) | ⚑ `display_ema` ON | COMMUTABLE | idem |
 | 38 | zone fiable `0 < Y ≤ 60 ∧ |X| ≤ 25` (repli ③ seul) | faux positifs lointains | position ego | `index.js:3218` | — | CÂBLÉ (JS) | aucune |
 | 39 | cap objet = direction de trace, EMA 0,25, MAJ si déplacement > 0,8 m, **figé** si stationné | cap des mobiles | trail lat/lon | `index.js:3292-3310` | — | CÂBLÉ (JS) | aucune |
 | 40 | cap **ratio de bbox** fondu avec la trace, poids `(2−v)/2` | cap des lents | bbox + cap navette | `index.js:3325-3390` | ⚑ `heading_ratio` ON | CÂBLÉ (JS) | aucune ; limite : écrête ~68° |
@@ -767,7 +772,11 @@ est absent (l. 3215). Les consommateurs effectifs sont : l'analyse (écrit `grou
 exploités par le seul export), **`marking_world`** (position des MARQUAGES sur la carte) et
 **`lane_estimator`** (largeur de voie). Impact réel mais ÉTROIT : marquages et gabarit, pas les
 véhicules.* Le switch que l'utilisateur connaît, ⚑ `auto_ground_calib`, porte sur 2a et est câblé
-de bout en bout — pas sur cette voie, qui n'a AUCUN ⚑ (gouvernée par `profile.geometry_enabled`).
+de bout en bout — pas sur cette voie, qui n'avait AUCUN ⚑ (gouvernée par `profile.geometry_enabled`).
+→ **Comblé le même jour : ⚑ `sam3_homography` (ON = historique)** gate les 3 consommateurs
+(analyse, `marking_world`, `lane_estimator`) sans toucher au profil ; le forçage de
+`geometry_enabled` par la calibration SAM3 reste (le retirer changerait le comportement) mais
+il est désormais **annoncé en console**.
 
 **D.3 — Les garés qui « suivent la navette puis se décrochent » (constat Fabien 2026-09-05) —
 HYPOTHÈSE, à mesurer.** En repli ③ (frames postérieures au dernier calcul, OU véhicule non
@@ -778,7 +787,9 @@ devant → il **avance avec la navette**, plus lentement ; quand elle ralentit o
 rattrape → il **se stabilise**. Phénoménologie identique au constat ; l'état **mixte** (certains
 fixes, d'autres qui dérivent) = hiérarchie ① ancre / ② `world_en` / ③ repli. **Test objectif, sans
 GPU** : relever les gids qui dérivent, vérifier s'ils ont une ancre ou un `world_en`. Tous en ③ ⇒
-confirmé. *Le Kalman+RTS a été écrit « sans retard de phase » précisément pour remplacer ça — mais
+confirmé. **Depuis le 2026-09-05 le test se fait aussi EN DIRECT** : ⚑ `display_ema` (live) coupe
+l'EMA sans recalcul — si la dérive cesse (au prix du jitter), la cause est le lissage d'affichage ;
+si elle persiste, elle vient de la pose ou du placement (→ ⚑ `shuttle_filter`, `placement_source`). *Le Kalman+RTS a été écrit « sans retard de phase » précisément pour remplacer ça — mais
 il ne s'applique qu'après calcul, et jamais aux stationnés.*
 
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)

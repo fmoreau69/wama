@@ -147,6 +147,15 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # est produite en amont par store_ground_calib ; la SOURCE (homographie/profondeur) est
     # transparente ici — le tracker consomme le même champ. Vide si les deux bascules sont OFF
     # → placement pinhole inchangé.
+    # SOURCE DE PLACEMENT par détection (gap G7 rendu VISIBLE, 2026-09-05) : le repli
+    # `ground_ego → pinhole` était silencieux, donc un A/B ⚑ ON/OFF comparait du pinhole à un
+    # MÉLANGE sol+pinhole sans le dire. Chaque détection reçoit `placement_source` ∈
+    # {'ground:homographie', 'ground:depth', 'pinhole', 'pinhole_relaxed'} et les compteurs
+    # remontent au rapport — un placement mixte se COMPTE au lieu de se supposer.
+    _gc_src = {p: ((v or {}).get('source') or 'homographie')
+               for p, v in (((session.config or {}).get('ground_calib')) or {}).items()
+               if isinstance(v, dict)}
+    _src_counts = defaultdict(int)
     _gproj = {}
     if _feat.get('auto_ground_calib', False) or _feat.get('depth_estimation', False):
         for pos in _geo:
@@ -201,13 +210,18 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     continue               # exclu de l'association (pas un objet du monde)
                 _g = _geo[pos]
                 ego = None
+                _psrc = None
                 if _gproj.get(pos) is not None:
                     # ⚑ auto_ground_calib : projection SOL du bas de bbox (angle estimé)
                     # avec fallback pinhole si hors de portée utile — jamais de trou.
                     ego = ground_ego(_gproj[pos], d.get('bbox'))
+                    if ego is not None:
+                        _psrc = 'ground:' + _gc_src.get(pos, 'homographie')
                 if ego is None:
                     ego = pinhole_ego(d, iw, ih, fov_v_deg,
                                       fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
+                    if ego is not None:
+                        _psrc = 'pinhole'
                 relaxed = False
                 if ego is None:
                     # Mesure DÉGRADÉE (bbox coupée au bord) : autorisée UNIQUEMENT pour
@@ -228,6 +242,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     fx = iw / (2.0 * math.tan(math.radians(_g['fov_h']) / 2.0))
                     ego = (dm * ((bb[0] + bb[2]) / 2.0 - iw / 2.0) / fx, dm)
                     relaxed = True
+                    _psrc = 'pinhole_relaxed'
+                d['placement_source'] = _psrc
+                _src_counts[_psrc] += 1
                 xv, yv = _cam_to_vehicle(ego[0], ego[1], _g['yaw'])
                 xv, yv = xv + _g['mount'][0], yv + _g['mount'][1]
                 e, n = ego_to_world(se, sn, sh, xv, yv)
@@ -610,4 +627,5 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
 
     return {'tracks': next_id - 1, 'stationary_gids': stationary_gids,
             'stationary_anchors': stationary_anchors,
-            'placement_spread': placement_spread}
+            'placement_spread': placement_spread,
+            'placement_sources': dict(_src_counts)}

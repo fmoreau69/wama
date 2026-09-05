@@ -1279,7 +1279,11 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             _ground_projector = None
             try:
                 _profile = session.profile
-                if _profile and getattr(_profile, 'geometry_enabled', False):
+                from .utils.features import enabled as _feat_on
+                # ⚑ sam3_homography (défaut ON = historique) : la voie DLT est COMMUTABLE
+                # depuis 2026-09-05 — elle était appliquée sans bascule (§INVENTAIRE D.2).
+                if (_profile and getattr(_profile, 'geometry_enabled', False)
+                        and _feat_on(session, 'sam3_homography')):
                     from .utils.ground_projection import GroundProjector
                     _cal = getattr(camera, 'ground_homography', None)
                     if _cal and camera.width and camera.height:
@@ -2272,6 +2276,10 @@ def _calibrate_from_crossing_polygons(session, camera, polygons, user_id,
     if not profile.geometry_enabled:
         profile.geometry_enabled = True
         profile.save(update_fields=['geometry_enabled'])
+        # Effet de bord sur le PROFIL (partagé entre sessions) : dit explicitement, et
+        # désactivable par ⚑ sam3_homography sans toucher au profil (2026-09-05).
+        _console(user_id, f"  ↳ profil « {profile.name} » : geometry_enabled forcé à True "
+                          f"(homographie DLT consommée à l'analyse) — ⚑ sam3_homography la coupe.")
     _console(user_id, f"Calibration [{camera.position}] depuis passage piéton "
                       f"(aire {int(best_area)} px², RMS {best['rms_error_m']} m, {source})")
     return best
@@ -2425,6 +2433,9 @@ def _run_global_tracking(session):
         # Ancres monde des stationnés (lat/lon, médiane du track) : l'affichage dessine
         # les garés à position FIXE au lieu de la reconstruction par frame (jitter).
         rs['stationary_anchors'] = _gt.get('stationary_anchors', {})
+        # Compteurs de SOURCE de placement (G7 rendu visible) : un A/B ne vaut que si l'on
+        # sait quelle part des détections est réellement passée par la projection sol.
+        rs['placement_sources'] = _gt.get('placement_sources') or {}
         # Métrique A/B objective de cohérence de placement (étalement monde des
         # stationnés autour de leur barycentre — 0 = idéal). Persistée pour trancher
         # la bascule ⚑ auto_ground_calib ON/OFF sur un CHIFFRE, pas « à l'œil ».
@@ -2455,6 +2466,13 @@ def _run_global_tracking(session):
         _console(session.user_id,
                  f"Tracking multi-caméra : {_gt['tracks']} tracks globaux (hand-off), "
                  f"{len(stat)} véhicules stationnés détectés.")
+        _srcs = _gt.get('placement_sources') or {}
+        if _srcs:
+            _tot = sum(_srcs.values()) or 1
+            _console(session.user_id,
+                     "Source de placement : " + ", ".join(
+                         f"{k} {v} ({100.0 * v / _tot:.0f} %)" for k, v in sorted(_srcs.items()))
+                     + " — un A/B ⚑ ne compare deux configs que si ces parts sont connues (G7).")
         # Métrique A/B chiffrée en console : étalement monde des stationnés (cohérence de
         # placement). À relever en faisant varier la SOURCE du plan de sol (pinhole →
         # ⚑ auto_ground_calib → ⚑ depth_estimation) pour décider sur un chiffre — plus bas =
