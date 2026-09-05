@@ -5,62 +5,61 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WAMA — Card d'entrée v4 (maquette)</title>
 <!--
-  MAQUETTE de la CARD D'ENTRÉE v4 — écrite le 2026-09-04 (itération Fabien × Claude).
-  Réclamée par CARD_DESIGN.md §11.10.F : « l'itération de MAQUETTE rend cette proposition
-  jugeable à l'œil — c'est elle qui vaut validation, pas ce texte ».
+  MAQUETTE de la CARD D'ENTRÉE v4 — 2026-09-05, itération Fabien × Claude.
+  DÉRIVÉE de `card_v3.5_maquette.html` : mêmes tokens, mêmes classes (.card3 .sect .eyebrow
+  .chip .mtab .preview .dropmini), même grille à pistes fixes. La v4 n'est PAS une refonte —
+  c'est la v3.5 PLUS la zone de preview sur la card d'entrée.
 
-  Ce qu'elle ajoute à la v4 texte (§11.10) : la ZONE DE PREVIEW, absente de la spec alors
-  que toutes les cards de FILE en ont une. Proposition de Fabien (04/09), retenue.
+  ⚠ Une 1ʳᵉ version de cette maquette (04/09) partait d'une page neuve et SUPPRIMAIT les
+  mini-onglets : double erreur. Fabien avait écrit « en plus des boutons de modalités », et
+  la `.preview` EXISTAIT DÉJÀ en v3.5 (ligne 112 : pleine largeur, variante `.recap`, trois
+  faces récap/process/résultat). Seule la card d'entrée ne l'avait pas. C'est cela qu'on
+  répare, rien d'autre.
 
-  Aucune dépendance externe (règle « assets front en LOCAL ») ; palette = celle du code
-  réel (app_modern.css, wama-inspector.css). Icônes = caractères, pas FontAwesome.
-  Document de référence du domaine : CARD_DESIGN.md.
+  Document de référence du domaine : CARD_DESIGN.md §11.11.
 -->
 <style>
+  /* ══ Tokens : COPIÉS de card_v3.5_maquette.html — aucune couleur inventée ══ */
   :root {
     --bg: #1a1d20; --card: #212529; --card-edge: #495057; --batch-bg: #1e2124;
     --ink: #e9ecef; --ink-2: #adb5bd; --ink-3: #6c757d;
     --hair: rgba(255,255,255,.08);
     --info: #0dcaf0; --warn: #ffc107; --ok: #28a745; --ko: #dc3545;
     --ghost: #8b949e; --ghost-edge: rgba(255,255,255,.22);
-    --prev-bg: #191c1f;                 /* zone de preview : légèrement en retrait */
-    --prev-h: 96px;                     /* HAUTEUR CONSTANTE — la règle du §11.9-3 */
   }
   html { color-scheme: dark; }
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-         padding: 2.2rem 1rem 5rem; }
-  .wrap { max-width: 1180px; margin: 0 auto; }
-  h1 { font-size: 1.2rem; font-weight: 600; margin: 0 0 .3rem; }
-  .sub { color: var(--ink-2); font-size: .85rem; max-width: 76ch; margin: 0 0 1.4rem; }
-  .sub code, .annot code { background: rgba(255,255,255,.07); padding: 0 .25rem;
+         padding: 2.2rem 1rem 4rem; }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  h1 { font-size: 1.15rem; font-weight: 600; margin: 0 0 .25rem; }
+  .sub { color: var(--ink-2); font-size: .85rem; max-width: 76ch; margin: 0 0 1.2rem; }
+  .sub code, .annot code, .note code { background: rgba(255,255,255,.07); padding: 0 .25rem;
     border-radius: 3px; font-size: .95em; }
-  .annot { color: var(--ink-3); font-size: .74rem; margin: .45rem 0 0; max-width: 96ch; }
+  .annot { color: var(--ink-3); font-size: .74rem; margin: .35rem 0 0; max-width: 98ch; }
   .annot b { color: var(--ink-2); font-weight: 600; }
-  .annot .warn { color: var(--warn); }
   .demo-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em;
-    color: var(--ink-3); margin: 2.4rem 0 .6rem; display: flex; align-items: center; gap: .6rem; }
+    color: var(--ink-3); margin: 2rem 0 .5rem; display: flex; align-items: center; gap: .6rem; }
   .demo-label::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
-  .demo-label .note { text-transform: none; letter-spacing: 0; font-size: .72rem;
-    color: var(--ink-3); }
+  .demo-label .note { text-transform: none; letter-spacing: 0; font-size: .72rem; }
 
-  /* ══════════ CARD (ossature v3 : 5 sections en pistes fixes) ══════════ */
-  .card4 {
-    background: var(--card); border: 1px solid var(--card-edge); border-radius: 8px;
-    border-left: 4px solid var(--card-edge); margin-bottom: .6rem; overflow: hidden;
-  }
-  .card4.draft   { border-left-color: var(--info); }
-  .card4.armed   { border-left-color: var(--warn); }
-  .card4.error   { border-left-color: var(--ko); }
-  .card4.success { border-left-color: var(--ok); }
-  .card4.model   { border-left-color: var(--ghost); border-style: dashed;
-                   border-left-style: solid; }
-
-  .rowsects {
+  /* ══ CARD — grille à pistes fixes partagées (v3.5, inchangée) ══ */
+  .card3 {
     display: grid; align-items: center;
-    grid-template-columns: minmax(0,1.35fr) minmax(0,1.1fr) minmax(0,.95fr) 130px 178px;
-    padding: .45rem .75rem .5rem;
+    grid-template-columns: 232px minmax(0,1fr) minmax(0,1.15fr) 118px 198px;
+    background: var(--card); border: 1px solid var(--card-edge); border-radius: 8px;
+    padding: .45rem .75rem .5rem; margin-bottom: .55rem;
+    border-left-width: 4px; position: relative;
   }
+  .card3.pending    { border-left-color: var(--card-edge); }
+  .card3.fresh      { border-left-color: var(--info); }
+  .card3.processing { border-left-color: var(--warn); }
+  .card3.success    { border-left-color: var(--ok); }
+  .card3.error      { border-left-color: var(--ko); }
+  .card3.draft      { border-left: 4px dashed var(--info); border-style: solid;
+                      border-left-style: dashed; }
+  .card3.model      { border-left-color: var(--ghost); }
+
   .sect { display: flex; flex-direction: column; gap: .14rem; justify-content: center;
           padding: 0 .8rem; border-left: 1px solid var(--hair); min-width: 0; align-self: stretch; }
   .sect:first-child { padding-left: 0; border-left: none; }
@@ -69,253 +68,185 @@
   .sect-body { display: flex; align-items: center; gap: .4rem; min-height: 22px; flex-wrap: wrap; }
   .sect-body.stack { flex-direction: column; align-items: flex-start; gap: .05rem; }
 
+  .fname { font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden;
+           text-overflow: ellipsis; max-width: 210px; display: block; }
+  .fname .fa { color: var(--info); margin-right: .35rem; font-style: normal; }
+  .fprops, .subid { font-size: .65rem; color: var(--ink-3); white-space: nowrap;
+                    overflow: hidden; text-overflow: ellipsis; }
+  .fprops { color: var(--ink-2); }
+
   .chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .68rem;
           color: var(--ink-2); background: rgba(255,255,255,.06); border: 1px solid transparent;
           border-radius: 999px; padding: .08rem .5rem; white-space: nowrap; }
-  .chip .ic { font-size: .62rem; opacity: .8; }
+  .chip .ic { font-size: .62rem; opacity: .75; font-style: normal; }
   .chip.ghost { background: transparent; border: 1px dashed var(--ghost-edge); color: var(--ghost); }
-  .chip.solid { border-color: rgba(40,167,69,.45); color: #b6e3c8; background: rgba(40,167,69,.12); }
   .chip.file  { border-color: rgba(13,202,240,.4); color: #a9e6f5; background: rgba(13,202,240,.1); }
-  .chip .x { cursor: pointer; opacity: .6; margin-left: .1rem; }
+  .chip .x { cursor: pointer; opacity: .6; margin-left: .15rem; }
   .chip .x:hover { opacity: 1; color: var(--ko); }
 
-  .state-lbl { font-size: .72rem; color: var(--ink-2); }
-  .state-lbl.miss { color: var(--warn); }
-  .state-lbl.ready { color: var(--ok); }
-  .state-lbl.ko { color: var(--ko); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex-shrink: 0; }
-  .armed .dot { background: var(--warn); box-shadow: 0 0 6px var(--warn); animation: pulse 1.4s infinite; }
+  .processing .dot { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .success .dot { background: var(--ok); }
   .error .dot { background: var(--ko); }
-  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .armed .dot { background: var(--warn); animation: pulse 1.3s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+  .state-lbl { font-size: .72rem; color: var(--ink-2); white-space: nowrap; }
+  .state-lbl.miss { color: var(--warn); }
+  .state-lbl.ready { color: #5dd879; }
+  .state-lbl.ko { color: var(--ko); }
 
-  .acts { display: flex; gap: .3rem; justify-content: flex-end; }
-  .b { font: inherit; font-size: .72rem; padding: .16rem .55rem; border-radius: 5px;
-       border: 1px solid var(--card-edge); background: transparent; color: var(--ink-2);
-       cursor: pointer; white-space: nowrap; }
-  .b:hover { border-color: var(--info); color: var(--ink); }
-  .b.primary { background: rgba(40,167,69,.16); border-color: rgba(40,167,69,.5); color: #b6e3c8; }
-  .b.primary[disabled] { background: transparent; border-color: var(--card-edge);
-    color: var(--ink-3); cursor: not-allowed; }
-  .b.stop { background: rgba(220,53,69,.16); border-color: rgba(220,53,69,.5); color: #f5b7bd; }
+  .acts { display: flex; gap: .28rem; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+  .b { width: 27px; height: 25px; display: inline-flex; align-items: center; justify-content: center;
+       background: transparent; border: 1px solid; border-radius: .3rem; font-size: .72rem;
+       cursor: pointer; flex-shrink: 0; }
+  .b.gear { border-color: var(--ink-3); color: var(--ink-2); }
+  .b.cycle { border-color: var(--ok); color: #5dd879; }
+  .b.cycle[disabled] { border-color: var(--card-edge); color: var(--ink-3); cursor: default; }
+  .b.dl { border-color: var(--info); color: var(--info); }
+  .b.primary { width: auto; padding: 0 .7rem; gap: .35rem; font-size: .78rem; }
+  .b:not([disabled]):hover { background: rgba(255,255,255,.07); }
 
-  /* ══════════ PROMPT — port NON-FICHIER, seul autorisé à grandir (§11.9 C) ══════════ */
-  .promptzone { padding: .5rem .75rem 0; }
-  .promptzone textarea {
-    width: 100%; box-sizing: border-box; resize: vertical; min-height: 38px; max-height: 150px;
-    background: #16191c; color: var(--ink); border: 1px solid var(--card-edge);
-    border-radius: 6px; padding: .35rem .5rem; font: inherit; font-size: .8rem;
-  }
-  .promptzone textarea:focus { outline: none; border-color: var(--info); }
-  .promptrow { display: flex; align-items: flex-start; gap: .4rem; }
-  .sparkle { flex-shrink: 0; }
+  /* ══ La PREVIEW de la v3.5 — inchangée, pleine largeur sous les sections ══ */
+  .preview { grid-column: 1 / -1; margin-top: .45rem; padding: .45rem .6rem; border-radius: .3rem;
+             background: rgba(0,0,0,.45); font-size: .78rem; color: var(--ink-2); cursor: pointer; }
+  .preview.recap { background: rgba(13,202,240,.05); border: 1px dashed rgba(13,202,240,.18);
+                   color: var(--ghost); }
 
-  /* ══════════ ZONE DE PREVIEW — LE CŒUR DE LA v4 ══════════ */
-  .preview {
-    background: var(--prev-bg); border-top: 1px solid var(--hair);
-    display: grid; gap: 1px; background-color: var(--hair);
-  }
-  .preview.ports-1 { grid-template-columns: 1fr; }
-  .preview.ports-2 { grid-template-columns: 1fr 1fr; }
-
-  /* Une SOUS-DIVISION = un PORT déclaré. Hauteur CONSTANTE, contenu qui s'y adapte. */
-  .slot {
-    background: var(--prev-bg); height: var(--prev-h); box-sizing: border-box;
-    padding: .4rem .6rem .35rem; display: flex; flex-direction: column;
-    min-width: 0; position: relative;
-  }
-  .slot-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .25rem;
-               flex-shrink: 0; }
-  .slot-title { font-size: .63rem; text-transform: uppercase; letter-spacing: .07em;
-                color: var(--ink-3); white-space: nowrap; }
-  .slot.required .slot-title { color: var(--warn); }
-  .slot.suggested .slot-title { color: var(--info); }
-  .slot-mods { margin-left: auto; display: flex; gap: .1rem; }
-  .mod {
-    font-size: .82rem; line-height: 1; padding: .16rem .28rem; border-radius: 4px;
-    background: transparent; border: 1px solid var(--hair); color: var(--ink-2);
-    cursor: pointer; user-select: none;
-  }
-  .mod:hover { color: var(--ink); background: rgba(255,255,255,.07); }
-  .mod.on { color: var(--info); border-color: rgba(13,202,240,.45);
-            background: rgba(13,202,240,.12); }
-
-  /* Corps du slot = ce que la modalité active y met. Toujours la MÊME hauteur. */
-  .slot-body { flex: 1; min-height: 0; position: relative; }
-  .pane { position: absolute; inset: 0; display: none; }
+  /* ══ CE QUE LA v4 AJOUTE — la preview de la card d'ENTRÉE ══
+     Même boîte, même place, même fond que la .preview de la v3.5. Elle n'est pas cliquable
+     pour changer de face : elle EST la surface d'alimentation, à hauteur CONSTANTE. */
+  .preview.compose { cursor: default; padding: 0; overflow: hidden;
+                     height: 92px; display: flex; flex-direction: column; }
+  .pane-host { flex: 1; min-height: 0; position: relative; }
+  .pane { position: absolute; inset: 0; display: none; padding: .5rem .6rem;
+          box-sizing: border-box; }
   .pane.on { display: flex; }
 
-  /* — modalité DÉPÔT (défaut) : le slot EST la dropzone, zéro clic pour importer — */
-  .dz { width: 100%; border: 1px dashed var(--ghost-edge); border-radius: 6px;
-        align-items: center; justify-content: center; gap: .45rem; flex-direction: column;
-        color: var(--ink-3); font-size: .72rem; cursor: pointer; text-align: center;
-        box-sizing: border-box; padding: .2rem; }
-  .dz:hover, .dz.hot { border-color: var(--info); color: var(--ink-2);
-                       background: rgba(13,202,240,.06); }
-  .slot.required .dz { border-color: rgba(255,193,7,.5); }
-  .dz .big { font-size: 1.05rem; opacity: .8; }
-  .dz small { font-size: .63rem; color: var(--ink-3); opacity: .8; }
+  /* Le CHOIX DE PORT — les .mtab de la v3.5, promus au rôle de PORT (décision 05/09).
+     Ils restent dans la cellule Entrée : c'est le premier geste, et il est chronologique
+     (travail → référence). Les modalités, elles, vivent dans la preview. */
+  .modal-tabs { display: flex; gap: .15rem; margin-bottom: .25rem; flex-wrap: wrap; }
+  .mtab { font-size: .68rem; padding: .1rem .45rem; border-radius: .3rem; cursor: pointer;
+          color: var(--ink-3); border: 1px solid transparent; white-space: nowrap; }
+  .mtab:hover { color: var(--ink-2); background: rgba(255,255,255,.05); }
+  .mtab.on { color: var(--info); border-color: rgba(13,202,240,.4); background: rgba(13,202,240,.08); }
+  .mtab.req.on { color: var(--warn); border-color: rgba(255,193,7,.45); background: rgba(255,193,7,.08); }
+  .mtab .k { opacity: .55; font-size: .62rem; margin-left: .25rem; }
 
-  /* — modalité URL — */
-  .pane.url { flex-direction: column; justify-content: center; gap: .25rem; }
-  .pane.url input { width: 100%; box-sizing: border-box; background: #16191c;
-    color: var(--ink); border: 1px solid var(--card-edge); border-radius: 5px;
-    padding: .3rem .45rem; font: inherit; font-size: .74rem; }
-  .pane.url input:focus { outline: none; border-color: var(--info); }
-  .pane.url .hint { font-size: .62rem; color: var(--ink-3); }
+  /* Le CHOIX DE MODALITÉ — toutes affichées d'un coup, dans la preview (demande Fabien) */
+  .mods { display: flex; gap: .4rem; width: 100%; align-items: stretch; }
+  .mod {
+    flex: 1; min-width: 0; border: 1px dashed var(--ghost-edge); border-radius: .35rem;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .1rem; cursor: pointer; color: var(--ink-2); font-size: .7rem; text-align: center;
+    padding: .2rem; background: rgba(255,255,255,.015);
+  }
+  .mod:hover { border-color: var(--info); color: var(--ink); background: rgba(13,202,240,.06); }
+  .mod .g { font-size: 1.05rem; font-style: normal; line-height: 1.1; }
+  .mod small { font-size: .6rem; color: var(--ink-3); }
+  /* La modalité d'IMPORT est la plus large : c'est le geste par défaut, et elle couvre
+     fichiers ET dossiers (décision Fabien 05/09 — un seul geste utilisateur). */
+  .mod.import { flex: 2.2; border-style: dashed; }
+  .mod.import:hover, .mod.import.hot { background: rgba(13,202,240,.08); }
 
-  /* — modalité MÉDIATHÈQUE : grille SCROLLABLE à hauteur constante — */
-  .pane.lib { flex-direction: column; }
-  .libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px,1fr));
-    gap: .25rem; overflow-y: auto; flex: 1; padding-right: .2rem; }
-  .libgrid::-webkit-scrollbar { width: 6px; }
-  .libgrid::-webkit-scrollbar-thumb { background: var(--card-edge); border-radius: 3px; }
-  .thumb { aspect-ratio: 1; border-radius: 4px; background: #2a2f34; border: 1px solid transparent;
-    display: flex; align-items: center; justify-content: center; font-size: .9rem;
-    color: var(--ink-3); cursor: pointer; }
-  .thumb:hover { border-color: var(--info); }
+  /* Vue d'IMPORT — ce sur quoi la preview bascule une fois la modalité choisie */
+  .impview { flex-direction: column; gap: .25rem; width: 100%; }
+  .impview .head { display: flex; align-items: center; gap: .4rem; font-size: .68rem;
+                   color: var(--ink-3); flex-shrink: 0; }
+  .impview .back { cursor: pointer; color: var(--info); }
+  .impview .body { flex: 1; min-height: 0; overflow-y: auto; display: flex;
+                   flex-wrap: wrap; gap: .22rem; align-content: flex-start; }
+  .impview .body::-webkit-scrollbar { width: 6px; }
+  .impview .body::-webkit-scrollbar-thumb { background: var(--card-edge); border-radius: 3px; }
+  .impview input[type=text] { width: 100%; box-sizing: border-box; background: #16191c;
+    color: var(--ink); border: 1px solid var(--card-edge); border-radius: 4px;
+    padding: .25rem .45rem; font: inherit; font-size: .74rem; }
+  .libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px,1fr));
+             gap: .22rem; width: 100%; }
+  .thumb { aspect-ratio: 1; border-radius: 3px; background: #2a2f34; display: flex;
+           align-items: center; justify-content: center; font-size: .8rem; color: var(--ink-3);
+           cursor: pointer; }
+  .thumb:hover { outline: 1px solid var(--info); }
+  .media { display: flex; align-items: center; gap: .5rem; width: 100%; }
+  .mthumb { width: 54px; height: 38px; border-radius: 3px; background: #2a2f34; display: flex;
+            align-items: center; justify-content: center; font-size: 1rem; color: var(--ink-3);
+            flex-shrink: 0; }
+  .rec { display: flex; align-items: center; gap: .35rem; font-size: .7rem; color: var(--warn); }
+  .rec .bulb { width: 7px; height: 7px; border-radius: 50%; background: var(--ko);
+               animation: pulse 1.1s infinite; }
 
-  /* — modalité DOSSIER — */
-  .pane.folder { flex-direction: column; justify-content: center; gap: .2rem;
-                 font-size: .72rem; color: var(--ink-2); }
+  /* ══ Mosaïque (v3.5) — la preview suit, les modalités s'empilent ══ */
+  .queue.mosaic { display: grid; grid-template-columns: repeat(auto-fill, minmax(262px,1fr)); gap: .6rem; }
+  .queue.mosaic .card3 { grid-template-columns: 1fr; align-items: start; margin-bottom: 0; row-gap: .35rem; }
+  .queue.mosaic .sect { border-left: none; padding: 0; }
+  .queue.mosaic .acts { justify-content: flex-start; }
+  .queue.mosaic .card3.draft { border-style: dashed; }
+  .queue.mosaic .preview.compose { height: 150px; }
+  .queue.mosaic .mods { flex-direction: column; }
+  .queue.mosaic .mod { flex-direction: row; justify-content: flex-start; gap: .4rem; padding: .2rem .4rem; }
+  .queue.mosaic .mod small { display: none; }
 
-  /* — LISTE de fichiers attachés (multi-fichiers) : chips + scroll, hauteur constante — */
-  .pane.files { flex-direction: column; gap: .2rem; }
-  .filelist { display: flex; flex-wrap: wrap; gap: .22rem; overflow-y: auto; flex: 1;
-              align-content: flex-start; padding-right: .2rem; }
-  .filelist::-webkit-scrollbar { width: 6px; }
-  .filelist::-webkit-scrollbar-thumb { background: var(--card-edge); border-radius: 3px; }
-  .filemeta { font-size: .62rem; color: var(--ink-3); flex-shrink: 0; }
-
-  /* — face INPUT : la preview du média (1 seul fichier) — */
-  .pane.media { align-items: center; gap: .55rem; }
-  .mediathumb { width: 62px; height: 44px; border-radius: 4px; background: #2a2f34;
-    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
-    color: var(--ink-3); flex-shrink: 0; }
-  .wave { flex: 1; height: 30px; display: flex; align-items: center; gap: 2px; overflow: hidden; }
-  .wave i { display: block; width: 3px; background: var(--info); opacity: .55; border-radius: 2px; }
-  .mediainfo { font-size: .68rem; color: var(--ink-2); min-width: 0; }
-  .mediainfo b { display: block; color: var(--ink); font-weight: 600; font-size: .72rem;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  /* — face DURING : le live écrit ici (exigence 6, §11.8) — */
-  .pane.during { flex-direction: column; gap: .2rem; }
-  .rec { display: flex; align-items: center; gap: .4rem; font-size: .7rem; color: var(--warn);
-         flex-shrink: 0; }
-  .rec .bulb { width: 8px; height: 8px; border-radius: 50%; background: var(--ko);
-    animation: pulse 1.1s infinite; }
-  .livetext { flex: 1; overflow-y: auto; font-size: .72rem; color: var(--ink-2);
-    line-height: 1.35; padding-right: .2rem; }
-  .livetext::-webkit-scrollbar { width: 6px; }
-  .livetext::-webkit-scrollbar-thumb { background: var(--card-edge); border-radius: 3px; }
-  .livetext .cursor { display: inline-block; width: 6px; background: var(--warn);
-    animation: pulse .9s infinite; }
-
-  /* — face OUTPUT — */
-  .pane.output { align-items: center; gap: .55rem; }
-
-  /* — aperçu de LOT (détection structurelle) — */
-  .pane.batch { flex-direction: column; gap: .18rem; }
-  .batchhead { font-size: .68rem; color: var(--info); flex-shrink: 0; }
-  .batchlines { flex: 1; overflow-y: auto; font-size: .66rem; color: var(--ink-2);
-    font-variant-numeric: tabular-nums; padding-right: .2rem; }
-  .batchlines::-webkit-scrollbar { width: 6px; }
-  .batchlines::-webkit-scrollbar-thumb { background: var(--card-edge); border-radius: 3px; }
-  .batchlines .ko { color: var(--ko); }
-
-  /* — slot VIDE d'une card-modèle — */
-  .slot.empty .dz { border-style: dashed; border-color: var(--ghost-edge); opacity: .75; }
-
-  /* ══════════ MOSAÏQUE — même card, autre géométrie (§4) ══════════ */
-  .mosaic { display: grid; grid-template-columns: repeat(auto-fill, minmax(268px,1fr)); gap: .6rem; }
-  .mosaic .rowsects { grid-template-columns: 1fr; gap: .1rem; }
-  .mosaic .sect { border-left: none; border-top: 1px solid var(--hair); padding: .2rem 0 0; }
-  .mosaic .sect:first-child { border-top: none; padding-top: 0; }
-  .mosaic .acts { justify-content: flex-start; }
-  .mosaic .preview.ports-2 { grid-template-columns: 1fr; }  /* empilées sur la HAUTEUR */
-  .mosaic .slot { height: 84px; }
-
-  /* ══════════ DENSITÉS (§11.6) ══════════ */
-  .d-v2 .rowsects { padding: .3rem .7rem; grid-template-columns: minmax(0,1fr) 150px; }
-  .d-v2 .sect.hide-v2 { display: none; }
-  .d-v2 .eyebrow { display: none; }
-  .d-v2 .preview { display: none; }              /* v2 RETIRE l'aperçu — cf. §11.6 */
-  .d-v2 .compactrow { display: flex; }
-  .compactrow { display: none; align-items: center; gap: .3rem; flex-wrap: wrap; }
-
-  .legend { display: flex; gap: 1.2rem; flex-wrap: wrap; margin: .5rem 0 0;
-            font-size: .7rem; color: var(--ink-3); }
-  .legend span b { color: var(--ink-2); }
-  .toolbar { display: flex; gap: .4rem; align-items: center; margin: .2rem 0 1rem; flex-wrap: wrap; }
-  .toolbar button { font: inherit; font-size: .74rem; padding: .2rem .6rem; border-radius: 5px;
-    border: 1px solid var(--card-edge); background: transparent; color: var(--ink-2); cursor: pointer; }
-  .toolbar button[aria-pressed="true"] { border-color: var(--info); color: var(--info);
-    background: rgba(13,202,240,.1); }
-  .note-box { border-left: 3px solid var(--info); background: rgba(13,202,240,.06);
+  .toggle-bar { display: flex; gap: .5rem; align-items: center; margin: .3rem 0 1rem; flex-wrap: wrap; }
+  .toggle-bar button { background: var(--card); border: 1px solid var(--card-edge); color: var(--ink-2);
+      border-radius: .35rem; padding: .3rem .8rem; font-size: .78rem; cursor: pointer; }
+  .toggle-bar button[aria-pressed="true"] { border-color: var(--info); color: var(--info); }
+  .note { border-left: 3px solid var(--info); background: rgba(13,202,240,.06);
     padding: .6rem .8rem; border-radius: 0 6px 6px 0; font-size: .76rem; color: var(--ink-2);
-    margin: .8rem 0 0; max-width: 96ch; }
-  .note-box b { color: var(--ink); }
-  .note-box.warnbox { border-left-color: var(--warn); background: rgba(255,193,7,.06); }
-  table.axes { border-collapse: collapse; font-size: .74rem; margin: .6rem 0 0; }
-  table.axes th, table.axes td { border: 1px solid var(--hair); padding: .3rem .6rem; text-align: left; }
-  table.axes th { color: var(--ink-3); font-weight: 600; font-size: .68rem;
+    margin: .8rem 0 0; max-width: 98ch; }
+  .note b { color: var(--ink); }
+  .note.warn { border-left-color: var(--warn); background: rgba(255,193,7,.06); }
+  table.m { border-collapse: collapse; font-size: .72rem; margin: .6rem 0 0; width: 100%; }
+  table.m th, table.m td { border: 1px solid var(--hair); padding: .25rem .5rem; text-align: left; }
+  table.m th { color: var(--ink-3); font-weight: 600; font-size: .64rem;
     text-transform: uppercase; letter-spacing: .06em; }
-  table.axes td b { color: var(--ink); }
+  table.m td b { color: var(--ink); }
+  table.m .no { color: var(--ink-3); opacity: .5; }
+  table.m .yes { color: #5dd879; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <h1>Card d'entrée v4 — la zone de preview</h1>
+  <h1>Card d'entrée v4 — la v3.5, plus sa zone de preview</h1>
   <p class="sub">
-    Ce que la v4 texte (<code>CARD_DESIGN §11.10</code>) ne dessinait pas : la card d'entrée
-    n'avait <b>pas de zone de preview</b>, alors que toutes les cards de file en ont une.
-    Proposition de Fabien (04/09) : cette zone existe, elle est subdivisée, et les boutons
-    de modalité <b>y basculent leur champ d'import</b> au lieu de s'étaler.
-    Ici on la subdivise <b>par PORT</b> (le rôle déclaré), pas par modalité — 1 à 2 ports
-    fichier par app contre 4 à 7 modalités.
+    La <code>.preview</code> existe depuis la v3.5 (pleine largeur, variante <code>.recap</code>,
+    trois faces récap → process → résultat). <b>Seule la card d'entrée ne l'avait pas.</b>
+    La v4 la lui donne, et y loge les modalités d'entrée — <b>en plus</b> des onglets, pas à
+    leur place. Deuxième changement : les onglets ne désignent plus des modalités mais des
+    <b>PORTS</b>, parce que le geste premier est chronologique (travail → référence) et que
+    <b>la modalité utile n'est pas la même selon le port</b>.
   </p>
 
-  <table class="axes">
-    <tr><th>Axe</th><th>Ce qu'il répond</th><th>Combien</th><th>Où il vit</th></tr>
-    <tr>
-      <td><b>PORT</b> (rôle)</td>
-      <td>ce que le fichier <b>est</b> dans le traitement</td>
-      <td><b>1 à 3</b> par app<br><small>dont 0-1 non-fichier (prompt)</small></td>
-      <td>une <b>sous-division</b> de la zone de preview</td>
-    </tr>
-    <tr>
-      <td><b>MODALITÉ</b> (geste)</td>
-      <td><b>par où</b> il arrive</td>
-      <td><b>4 à 7</b> par app</td>
-      <td>une <b>icône</b> qui bascule le contenu du slot</td>
-    </tr>
-  </table>
-  <p class="annot">
-    <b>Mesure du 2026-09-04</b> — ports déclarés (<code>studio_node_ports()</code>) :
-    anonymizer · converter · describer · enhancer · reader · transcriber = <b>1</b> (travail) ·
-    avatarizer = <b>2</b> (travail + prompt) · synthesizer et composer = <b>2</b>
-    (prompt + référence) · imager = <b>3</b> (travail + prompt + référence).
-    <b class="warn">Jamais plus de 2 ports FICHIER.</b>
-  </p>
-
-  <div class="note-box">
-    <b>Pourquoi l'URL n'est pas un port</b> — le même geste alimente des rôles différents selon
-    l'app, ce qu'un port ne peut pas faire : chez le transcriber
-    (<code>url_label='ou depuis une URL'</code>) l'URL remplit le <b>fichier de travail</b> ;
-    chez l'imager (<code>'ou image de référence par URL'</code>) et le composer
-    (<code>'ou mélodie depuis une URL'</code>) elle remplit la <b>référence</b>. Un port a un
-    rôle fixe ; une modalité traverse les rôles. Idem pour le <b>lot</b> : ce n'est pas un port
-    mais une <b>nature</b> du fichier déposé sur le port travail, reconnue après coup par la
-    détection structurelle (<code>§11.10-2</code>).
+  <div class="note">
+    <b>Les trois décisions de cette itération (Fabien, 05/09)</b><br>
+    ① <b>Les onglets = les PORTS</b> (travail · référence · en direct). Cliquer un port affiche
+    <b>toutes ses modalités d'un coup</b> dans la preview — plus rien à deviner.<br>
+    ② <b>Choisir une modalité bascule la preview</b> sur la vue d'import correspondante, à
+    hauteur constante.<br>
+    ③ <b>Import = un seul geste</b> : fichier(s) ET dossier(s), dépôt ET clic. La distinction
+    <code>drop</code>/<code>folder</code> était une contrainte technique interne
+    (<code>&lt;input&gt;</code> ne sait pas offrir les deux) transformée à tort en choix
+    d'interface. <code>WamaFolderImport.collect()</code> traverse déjà les dossiers déposés.
   </div>
 
-  <!-- ════════════════════════════════════════════════════════════════ -->
-  <div class="demo-label">1 · Un seul port fichier <span class="note">— transcriber (le cas de 6 apps sur 10)</span></div>
+  <div class="toggle-bar">
+    <button id="btnList" aria-pressed="true" onclick="setLayout(false)">☰ File (ligne)</button>
+    <button id="btnMosaic" aria-pressed="false" onclick="setLayout(true)">▦ Mosaïque</button>
+    <span class="annot" style="margin:0">— la card d'entrée suit la géométrie de la file (§4).</span>
+  </div>
 
-  <div class="card4 draft" id="c1">
-    <div class="rowsects">
+  <div class="demo-label">1 · Card d'entrée — 1 port <span class="note-x"></span>
+    <span class="note">transcriber · le cas de 6 apps sur 10</span></div>
+
+  <div class="queue" id="queue">
+
+    <div class="card3 draft" data-card>
       <div class="sect">
-        <span class="eyebrow">Entrée</span>
+        <span class="eyebrow">Entrée · port</span>
+        <div class="modal-tabs">
+          <span class="mtab req on" data-port="work">🎞 Travail<span class="k">requis</span></span>
+          <span class="mtab" data-port="live">🎙 En direct</span>
+        </div>
         <div class="sect-body"><span class="chip ghost">aucun fichier</span></div>
       </div>
       <div class="sect">
@@ -334,63 +265,182 @@
       </div>
       <div class="sect">
         <span class="eyebrow">État</span>
-        <div class="sect-body">
-          <span class="dot"></span>
-          <span class="state-lbl miss">il manque : le fichier</span>
-        </div>
+        <div class="sect-body"><span class="dot"></span>
+          <span class="state-lbl miss">il manque : le fichier</span></div>
       </div>
       <div class="sect">
         <span class="eyebrow">&nbsp;</span>
         <div class="acts">
-          <button class="b">⚙</button>
-          <button class="b primary" disabled>▶ Transcrire</button>
+          <button class="b gear" title="Paramètres par défaut">⚙</button>
+          <button class="b cycle" disabled title="Entrée requise manquante">▶</button>
+        </div>
+      </div>
+
+      <div class="preview compose recap">
+        <div class="pane-host">
+          <!-- PORT « travail » : ses modalités, toutes visibles -->
+          <div class="pane on" data-pane="work">
+            <div class="mods">
+              <div class="mod import" data-mod="import">
+                <i class="g">⬆</i><span>Importer</span>
+                <small>déposez ou cliquez — fichiers <b>et</b> dossiers, un lot est reconnu seul</small>
+              </div>
+              <div class="mod" data-mod="library"><i class="g">📚</i><span>Médiathèque</span>
+                <small>filtrée audio/vidéo</small></div>
+              <div class="mod" data-mod="url"><i class="g">🔗</i><span>URL</span>
+                <small>YouTube, lien direct</small></div>
+            </div>
+          </div>
+          <!-- PORT « live » : une seule modalité, et elle ARME (elle ne lance pas) -->
+          <div class="pane" data-pane="live">
+            <div class="mods">
+              <div class="mod" data-mod="arm" style="flex:1">
+                <i class="g">🎙</i><span>Armer l'enregistrement</span>
+                <small>le clic arme ; ▶ démarre — deux temps, sans exception</small>
+              </div>
+            </div>
+          </div>
+          <!-- Vues d'IMPORT (bascule ②) -->
+          <div class="pane" data-pane="v-import">
+            <div class="impview">
+              <div class="head"><span class="back" data-back>‹ modalités</span> · Importer</div>
+              <div class="body">
+                <span class="chip file">interview_maire.mp3 <span class="x">✕</span></span>
+                <span class="chip file">conseil_02.wav <span class="x">✕</span></span>
+                <span class="chip file">terrain_A.mp4 <span class="x">✕</span></span>
+                <span class="chip file">terrain_B.mp4 <span class="x">✕</span></span>
+                <span class="chip file">atelier.flac <span class="x">✕</span></span>
+                <span class="chip file">reunion_06.m4a <span class="x">✕</span></span>
+                <span class="chip file">navette.mkv <span class="x">✕</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="pane" data-pane="v-library">
+            <div class="impview">
+              <div class="head"><span class="back" data-back>‹ modalités</span> · Médiathèque — audio/vidéo</div>
+              <div class="body"><div class="libgrid">
+                <div class="thumb">🎵</div><div class="thumb">🎵</div><div class="thumb">🎬</div>
+                <div class="thumb">🎵</div><div class="thumb">🎬</div><div class="thumb">🎵</div>
+                <div class="thumb">🎵</div><div class="thumb">🎬</div><div class="thumb">🎵</div>
+                <div class="thumb">🎵</div><div class="thumb">🎬</div><div class="thumb">🎵</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="pane" data-pane="v-url">
+            <div class="impview">
+              <div class="head"><span class="back" data-back>‹ modalités</span> · Depuis une URL</div>
+              <div class="body" style="flex-direction:column; gap:.25rem;">
+                <input type="text" placeholder="https://youtube.com/watch?v=…  ou lien direct">
+                <small style="font-size:.62rem; color:var(--ink-3)">YouTube/Vimeo, lien direct
+                  audio/vidéo, ou chemin accessible au serveur.</small>
+              </div>
+            </div>
+          </div>
+          <div class="pane" data-pane="v-arm">
+            <div class="impview">
+              <div class="head"><span class="back" data-back>‹ modalités</span> · En direct</div>
+              <div class="body" style="flex-direction:column; gap:.25rem;">
+                <div class="rec"><span class="bulb"></span> Armé — rien n'est encore capturé</div>
+                <small style="font-size:.66rem; color:var(--ink-3)">Réglez (ou gardez les défauts),
+                  puis <b>▶</b> démarre l'enregistrement et la transcription. Le texte partiel
+                  s'écrira <b>ici même</b> — face <code>during</code>, exigence 6 du §11.8.</small>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ZONE DE PREVIEW — 1 port -->
-    <div class="preview ports-1">
-      <div class="slot required" data-slot="s1">
-        <div class="slot-head">
-          <span class="slot-title">🎞 Fichier de travail — requis</span>
-          <span class="slot-mods">
-            <span class="mod on" data-pane="drop" title="Déposer / parcourir">📄</span>
-            <span class="mod" data-pane="lib"    title="Médiathèque (filtrée audio/vidéo)">📚</span>
-            <span class="mod" data-pane="url"    title="Depuis une URL">🔗</span>
-            <span class="mod" data-pane="folder" title="Importer un dossier">🗂</span>
-            <span class="mod" data-pane="during" title="En direct (Speak)">🎙</span>
-          </span>
+  </div>
+
+  <p class="annot">
+    <b>Cliquez un onglet de port</b>, puis une modalité — puis « ‹ modalités » pour revenir.
+    La preview garde <b>92 px</b> quoi qu'il arrive ; ce qui déborde défile. Le port
+    <b>Travail</b> est ambre parce qu'il est requis et vide (teinte de
+    <code>wama-input-match.js</code>) ; <b>▶ reste inactif</b> tant qu'il l'est.
+  </p>
+
+  <div class="demo-label">2 · Deux ports fichier + prompt
+    <span class="note">imager — le maximum du parc, et le cas qui justifie l'inversion</span></div>
+
+  <div class="card3 draft" data-card>
+    <div class="sect">
+      <span class="eyebrow">Entrée · port</span>
+      <div class="modal-tabs">
+        <span class="mtab on" data-port="work">🎞 Travail</span>
+        <span class="mtab" data-port="ref">📎 Référence</span>
+      </div>
+      <div class="sect-body"><span class="chip file">portrait.png <span class="x">✕</span></span></div>
+    </div>
+    <div class="sect">
+      <span class="eyebrow">Prompt</span>
+      <div class="sect-body stack">
+        <span class="fname" style="font-weight:400; color:var(--ink-2); font-size:.74rem;">
+          « un portrait en clair-obscur, style Rembrandt… »</span>
+        <span class="fprops">✨ traduit et enrichi · 14 mots</span>
+      </div>
+    </div>
+    <div class="sect">
+      <span class="eyebrow">Réglages</span>
+      <div class="sect-body">
+        <span class="chip"><span class="ic">🧠</span>qwen-image-edit</span>
+        <span class="chip"><span class="ic">↺</span>24 pas</span>
+      </div>
+    </div>
+    <div class="sect">
+      <span class="eyebrow">État</span>
+      <div class="sect-body"><span class="dot"></span><span class="state-lbl ready">prêt</span></div>
+    </div>
+    <div class="sect">
+      <span class="eyebrow">&nbsp;</span>
+      <div class="acts"><button class="b gear">⚙</button><button class="b cycle">▶</button></div>
+    </div>
+
+    <div class="preview compose recap">
+      <div class="pane-host">
+        <div class="pane on" data-pane="work">
+          <div class="mods">
+            <div class="mod import" data-mod="import"><i class="g">⬆</i><span>Importer</span>
+              <small>image, ou fichier de prompts (.txt/.csv) — le lot est reconnu seul</small></div>
+            <div class="mod" data-mod="library"><i class="g">📚</i><span>Médiathèque</span>
+              <small>filtrée image</small></div>
+            <div class="mod" data-mod="url"><i class="g">🔗</i><span>URL</span><small>image distante</small></div>
+          </div>
         </div>
-        <div class="slot-body">
-          <div class="pane drop on">
-            <div class="dz"><span class="big">⬆</span>
-              <span>Glissez ou cliquez pour importer</span>
-              <small>MP3, WAV, FLAC, MP4, MKV… — un fichier de lot est reconnu tout seul</small>
-            </div>
+        <div class="pane" data-pane="ref">
+          <div class="mods">
+            <div class="mod" data-mod="library" style="flex:1.4"><i class="g">📚</i><span>Médiathèque</span>
+              <small>filtrée image — l'usage le plus courant pour une référence</small></div>
+            <div class="mod" data-mod="url" style="flex:1.4"><i class="g">🔗</i><span>URL</span>
+              <small>téléchargée au lancement</small></div>
+            <div class="mod import" style="flex:1" data-mod="import"><i class="g">⬆</i><span>Importer</span>
+              <small>depuis le poste</small></div>
           </div>
-          <div class="pane url">
-            <input type="text" placeholder="https://youtube.com/watch?v=…  ou lien direct">
-            <span class="hint">YouTube/Vimeo, lien direct audio/vidéo, ou chemin serveur.</span>
+        </div>
+        <div class="pane" data-pane="v-import">
+          <div class="impview"><div class="head"><span class="back" data-back>‹ modalités</span> · Importer</div>
+            <div class="body"><div class="media">
+              <div class="mthumb">🖼</div>
+              <div><b style="font-size:.74rem">portrait.png</b>
+                <div class="fprops">1024×1536 · PNG · 1,8 Mio</div></div>
+              <button class="b gear" style="margin-left:auto" title="Remplacer">↻</button>
+            </div></div>
           </div>
-          <div class="pane lib">
-            <div class="libgrid">
-              <div class="thumb">🎵</div><div class="thumb">🎵</div><div class="thumb">🎬</div>
-              <div class="thumb">🎵</div><div class="thumb">🎬</div><div class="thumb">🎵</div>
-              <div class="thumb">🎵</div><div class="thumb">🎬</div><div class="thumb">🎵</div>
-              <div class="thumb">🎵</div><div class="thumb">🎬</div><div class="thumb">🎵</div>
-            </div>
+        </div>
+        <div class="pane" data-pane="v-library">
+          <div class="impview"><div class="head"><span class="back" data-back>‹ modalités</span> · Médiathèque — image</div>
+            <div class="body"><div class="libgrid">
+              <div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">🖼</div>
+              <div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">🖼</div>
+              <div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">🖼</div>
+            </div></div>
           </div>
-          <div class="pane folder">
-            <div class="dz"><span class="big">🗂</span>
-              <span>Déposez un dossier — parcours récursif</span>
-              <small>seuls les fichiers acceptés par ce port sont retenus</small>
-            </div>
-          </div>
-          <div class="pane during">
-            <div class="rec"><span class="bulb"></span> Armé — réglez puis ▶ pour démarrer l'enregistrement</div>
-            <div class="livetext" style="color:var(--ink-3)">
-              La transcription partielle s'écrira ici, dans cette même zone
-              (face <code>during</code> — exigence 6 du §11.8).
+        </div>
+        <div class="pane" data-pane="v-url">
+          <div class="impview"><div class="head"><span class="back" data-back>‹ modalités</span> · Depuis une URL</div>
+            <div class="body" style="flex-direction:column">
+              <input type="text" placeholder="https://…/image.jpg">
+              <small style="font-size:.62rem;color:var(--ink-3)">Téléchargée au lancement ; un fichier joint prime.</small>
             </div>
           </div>
         </div>
@@ -399,515 +449,151 @@
   </div>
 
   <p class="annot">
-    <b>Cliquez les icônes</b> 📄 📚 🔗 🗂 🎙 — le champ bascule <b>dans la zone</b>, à
-    <b>hauteur constante</b> (96 px) ; ce qui déborde défile (médiathèque). La card ne saute
-    jamais. <b>Pour un simple import, aucune icône à cliquer</b> : le slot <i>est</i> la
-    dropzone. Le liseré ambre du titre = port requis (brique <code>wama-input-match.js</code>).
+    <b>L'argument de l'inversion, visible ici</b> : sur le port <b>Travail</b> la modalité
+    naturelle est le dépôt (elle est la plus large) ; sur le port <b>Référence</b> c'est la
+    médiathèque ou l'URL. Une rangée unique de modalités aurait imposé le même ordre aux deux.
+    Le port d'abord, les modalités ensuite — et l'enchaînement travail → référence a du sens.
   </p>
 
-  <!-- ════════════════════════════════════════════════════════════════ -->
-  <div class="demo-label">2 · Deux ports fichier + prompt <span class="note">— imager (le maximum du parc)</span></div>
+  <div class="demo-label">3 · Les états que §11.10.F réclamait
+    <span class="note">échec · card-modèle aux ports vides</span></div>
 
-  <div class="card4 draft">
-    <div class="promptzone">
-      <div class="promptrow">
-        <textarea rows="1" placeholder="Décrivez ce que vous voulez générer… (le ✨ traduit et enrichit)"></textarea>
-        <button class="b sparkle" title="Traduire et enrichir">✨</button>
-      </div>
+  <div class="card3 error">
+    <div class="sect"><span class="eyebrow">Entrée</span>
+      <div class="sect-body stack"><span class="fname"><span class="fa">🎬</span>terrain_A.mp4</span>
+        <span class="fprops">mp4 · 1920×1080 · 12 min</span></div></div>
+    <div class="sect"><span class="eyebrow">Réglages</span>
+      <div class="sect-body"><span class="chip"><span class="ic">⚙</span>whisper large-v3</span></div></div>
+    <div class="sect"><span class="eyebrow">Sortie</span>
+      <div class="sect-body"><span class="chip ghost" style="opacity:.35">—</span></div></div>
+    <div class="sect"><span class="eyebrow">État</span>
+      <div class="sect-body"><span class="dot"></span><span class="state-lbl ko">Échec à 38 %</span></div></div>
+    <div class="sect"><span class="eyebrow">&nbsp;</span>
+      <div class="acts"><button class="b gear">⚙</button><button class="b cycle">↻</button></div></div>
+    <div class="preview">
+      <b style="color:var(--ko)">CUDA out of memory</b> — 22,4 Gio demandés, 19,1 Gio libres.
+      <span style="color:var(--ink-3)">whisper large-v3 demande 10 Go et un autre traitement
+      occupait la carte. Relancer seul, ou passer à <b>medium</b> (⚙).</span>
     </div>
-    <div class="rowsects">
-      <div class="sect">
-        <span class="eyebrow">Entrée</span>
-        <div class="sect-body"><span class="chip file">portrait.png <span class="x">✕</span></span></div>
+  </div>
+  <p class="annot"><b>En échec, la preview cesse d'annoncer la sortie</b> (§11.4-6) : elle
+    EXPLIQUE. C'est le domicile qui manquait au message d'erreur.</p>
+
+  <div class="card3 model">
+    <div class="sect">
+      <span class="eyebrow">Entrée · port</span>
+      <div class="modal-tabs">
+        <span class="mtab req on" data-port="work">🎞 Travail<span class="k">vide</span></span>
+        <span class="mtab" data-port="ref">📎 Référence<span class="k">vide</span></span>
       </div>
-      <div class="sect">
-        <span class="eyebrow">Réglages</span>
-        <div class="sect-body">
-          <span class="chip"><span class="ic">🧠</span>qwen-image-edit</span>
-          <span class="chip"><span class="ic">↺</span>24 pas</span>
+      <div class="sect-body"><span class="chip ghost">2 ports à fournir</span></div>
+    </div>
+    <div class="sect"><span class="eyebrow">Réglages</span>
+      <div class="sect-body"><span class="chip">hérités du manifeste</span></div></div>
+    <div class="sect"><span class="eyebrow">Sortie</span>
+      <div class="sect-body"><span class="chip ghost">1024×1024 PNG</span></div></div>
+    <div class="sect"><span class="eyebrow">État</span>
+      <div class="sect-body"><span class="dot"></span>
+        <span class="state-lbl miss">modèle — entrées manquantes</span></div></div>
+    <div class="sect"><span class="eyebrow">&nbsp;</span>
+      <div class="acts"><button class="b gear">⚙</button><button class="b cycle" disabled>▶</button></div></div>
+    <div class="preview compose recap">
+      <div class="pane-host"><div class="pane on">
+        <div class="mods">
+          <div class="mod import" data-mod="import"><i class="g">⬆</i><span>Importer</span>
+            <small>le port attend son fichier</small></div>
+          <div class="mod" data-mod="library"><i class="g">📚</i><span>Médiathèque</span><small>&nbsp;</small></div>
+          <div class="mod" data-mod="url"><i class="g">🔗</i><span>URL</span><small>&nbsp;</small></div>
         </div>
-      </div>
-      <div class="sect">
-        <span class="eyebrow">Sortie</span>
-        <div class="sect-body"><span class="chip ghost">1024×1024 PNG</span><span class="chip ghost">~40 s</span></div>
-      </div>
-      <div class="sect">
-        <span class="eyebrow">État</span>
-        <div class="sect-body"><span class="dot"></span><span class="state-lbl ready">prêt</span></div>
-      </div>
-      <div class="sect">
-        <span class="eyebrow">&nbsp;</span>
-        <div class="acts"><button class="b">⚙</button><button class="b primary">▶ Générer</button></div>
-      </div>
-    </div>
-
-    <div class="preview ports-2">
-      <div class="slot" data-slot="s2a">
-        <div class="slot-head">
-          <span class="slot-title">🎞 Fichier de travail</span>
-          <span class="slot-mods">
-            <span class="mod on" data-pane="drop">📄</span>
-            <span class="mod" data-pane="lib">📚</span>
-            <span class="mod" data-pane="url">🔗</span>
-          </span>
-        </div>
-        <div class="slot-body">
-          <div class="pane drop on">
-            <div class="dz"><span class="big">⬆</span><span>Glissez un fichier de prompts (.txt / .csv)</span></div>
-          </div>
-          <div class="pane url"><input type="text" placeholder="https://…"></div>
-          <div class="pane lib"><div class="libgrid">
-            <div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">🖼</div>
-            <div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">🖼</div>
-          </div></div>
-        </div>
-      </div>
-
-      <div class="slot suggested" data-slot="s2b">
-        <div class="slot-head">
-          <span class="slot-title">📎 Image de référence — suggérée</span>
-          <span class="slot-mods">
-            <span class="mod on" data-pane="media">📄</span>
-            <span class="mod" data-pane="lib">📚</span>
-            <span class="mod" data-pane="url">🔗</span>
-          </span>
-        </div>
-        <div class="slot-body">
-          <!-- face INPUT : un fichier attaché → sa preview prend la place de la dropzone -->
-          <div class="pane media on">
-            <div class="mediathumb">🖼</div>
-            <div class="mediainfo">
-              <b>portrait.png</b>
-              1024×1536 · PNG · 1,8 Mio
-            </div>
-            <button class="b" style="margin-left:auto" title="Remplacer">↻</button>
-          </div>
-          <div class="pane url"><input type="text" placeholder="https://…/image.jpg"></div>
-          <div class="pane lib"><div class="libgrid">
-            <div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">🖼</div>
-            <div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">🖼</div>
-          </div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <p class="annot">
-    Le <b>prompt est un port lui aussi</b> (<code>group='prompt'</code>) — mais non-fichier :
-    il reste au-dessus et c'est <b>le seul élément autorisé à grandir</b> (<code>§11.9 C</code>,
-    autosize + max-height). Le slot référence montre la <b>face <code>input</code></b> : dès
-    qu'un fichier est attaché, sa preview remplace la dropzone, et <b>↻ le remplace</b> —
-    exigence 7 du §11.8, jusqu'ici impossible.
-  </p>
-
-  <!-- ════════════════════════════════════════════════════════════════ -->
-  <div class="demo-label">3 · Multi-fichiers et lot <span class="note">— la zone rend une LISTE, pas une preview</span></div>
-
-  <div class="card4 draft">
-    <div class="rowsects">
-      <div class="sect">
-        <span class="eyebrow">Entrée</span>
-        <div class="sect-body"><span class="chip file">7 fichiers</span></div>
-      </div>
-      <div class="sect">
-        <span class="eyebrow">Réglages</span>
-        <div class="sect-body"><span class="chip"><span class="ic">⚙</span>défauts de la file</span></div>
-      </div>
-      <div class="sect">
-        <span class="eyebrow">Sortie</span>
-        <div class="sect-body"><span class="chip ghost">7 éléments</span></div>
-      </div>
-      <div class="sect">
-        <span class="eyebrow">État</span>
-        <div class="sect-body"><span class="dot"></span><span class="state-lbl ready">prêt — 7 à créer</span></div>
-      </div>
-      <div class="sect">
-        <span class="eyebrow">&nbsp;</span>
-        <div class="acts"><button class="b">⚙</button><button class="b primary">▶ Tout lancer</button></div>
-      </div>
-    </div>
-    <div class="preview ports-1">
-      <div class="slot" data-slot="s3">
-        <div class="slot-head">
-          <span class="slot-title">🎞 Fichier de travail — 7 attachés</span>
-          <span class="slot-mods">
-            <span class="mod on" data-pane="files">📄</span>
-            <span class="mod" data-pane="batch" title="Aperçu du lot détecté">📋</span>
-            <span class="mod" data-pane="lib">📚</span>
-          </span>
-        </div>
-        <div class="slot-body">
-          <div class="pane files on">
-            <div class="filelist">
-              <span class="chip file">interview_maire.mp3 <span class="x">✕</span></span>
-              <span class="chip file">conseil_02.wav <span class="x">✕</span></span>
-              <span class="chip file">terrain_A.mp4 <span class="x">✕</span></span>
-              <span class="chip file">terrain_B.mp4 <span class="x">✕</span></span>
-              <span class="chip file">atelier_usagers.flac <span class="x">✕</span></span>
-              <span class="chip file">reunion_06.m4a <span class="x">✕</span></span>
-              <span class="chip file">navette_test.mkv <span class="x">✕</span></span>
-            </div>
-            <div class="filemeta">7 fichiers · 412 Mio · 2 h 07 au total</div>
-          </div>
-          <div class="pane batch">
-            <div class="batchhead">📋 Fichier de lot reconnu — 12 lignes, 1 refusée</div>
-            <div class="batchlines">
-              1 · interview_maire.mp3 → .docx · whisper large-v3<br>
-              2 · conseil_02.wav → .docx · whisper large-v3<br>
-              3 · terrain_A.mp4 → .srt · whisper medium<br>
-              <span class="ko">4 · (vide) — ligne refusée : aucune source</span><br>
-              5 · atelier_usagers.flac → .docx · whisper large-v3<br>
-              6 · reunion_06.m4a → .docx · whisper large-v3<br>
-              7 · navette_test.mkv → .srt · whisper medium
-            </div>
-          </div>
-          <div class="pane lib"><div class="libgrid">
-            <div class="thumb">🎵</div><div class="thumb">🎵</div><div class="thumb">🎬</div>
-            <div class="thumb">🎵</div><div class="thumb">🎬</div><div class="thumb">🎵</div>
-          </div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="note-box">
-    <b>La règle qui tranche « preview ou liste »</b> : la preview d'un <i>média</i> n'a de sens
-    qu'à <b>un seul fichier</b>. À N fichiers, la sous-division rend une <b>liste de chips
-    retirables</b> qui défile — même hauteur, même cadre. Et le <b>lot</b> n'a besoin d'aucun
-    bouton pour entrer : on le dépose comme les autres, la détection structurelle le reconnaît
-    et ouvre son aperçu <b>ici</b> (📋), au lieu du bandeau séparé
-    <code>batch_detect_bar.html</code> — dont on sait qu'il est mono-instance par ids fixes
-    (<code>§11.10</code> défaut 3). La zone de preview lui donne enfin un domicile
-    <b>par card</b>.
-  </div>
-
-  <!-- ════════════════════════════════════════════════════════════════ -->
-  <div class="demo-label">4 · Les quatre faces d'une même zone
-    <span class="note">— compose → input → during → output</span></div>
-
-  <p class="annot" style="margin-bottom:.7rem">
-    <code>preview_utils.py:298-312</code> sert déjà trois faces (<code>input</code> /
-    <code>during</code> / <code>output</code>). La card d'entrée est l'état où aucune n'a de
-    contenu : la nommer <b><code>compose</code></b> et lui donner ses pixels ferme le cycle.
-    <b>Une seule zone, quatre temps</b> — c'est ce qui rend la card d'entrée uniforme avec les
-    cards de file.
-  </p>
-
-  <div class="card4 draft">
-    <div class="rowsects"><div class="sect"><span class="eyebrow">Face 1 · compose</span>
-      <div class="sect-body"><span class="state-lbl">rien encore — la zone offre les modalités</span></div></div></div>
-    <div class="preview ports-1"><div class="slot required">
-      <div class="slot-head"><span class="slot-title">🎞 Fichier de travail — requis</span>
-        <span class="slot-mods"><span class="mod on">📄</span><span class="mod">📚</span><span class="mod">🔗</span><span class="mod">🗂</span><span class="mod">🎙</span></span></div>
-      <div class="slot-body"><div class="pane drop on"><div class="dz"><span class="big">⬆</span>
-        <span>Glissez ou cliquez pour importer</span></div></div></div>
-    </div></div>
-  </div>
-
-  <div class="card4">
-    <div class="rowsects"><div class="sect"><span class="eyebrow">Face 2 · input</span>
-      <div class="sect-body"><span class="state-lbl">le fichier est là — la card montre ce qu'elle va traiter</span></div></div></div>
-    <div class="preview ports-1"><div class="slot">
-      <div class="slot-head"><span class="slot-title">🎞 Fichier de travail</span>
-        <span class="slot-mods"><span class="mod on">📄</span><span class="mod">📚</span><span class="mod">🔗</span></span></div>
-      <div class="slot-body"><div class="pane media on">
-        <div class="mediathumb">🎵</div>
-        <div class="wave" id="w1"></div>
-        <div class="mediainfo"><b>interview_maire.mp3</b>44,1 kHz · stéréo · 24 min</div>
-        <button class="b" title="Remplacer">↻</button>
-      </div></div>
-    </div></div>
-  </div>
-
-  <div class="card4 armed">
-    <div class="rowsects"><div class="sect"><span class="eyebrow">Face 3 · during</span>
-      <div class="sect-body"><span class="state-lbl">le live écrit ici — pas de surface dédiée (exigence 6)</span></div></div></div>
-    <div class="preview ports-1"><div class="slot">
-      <div class="slot-head"><span class="slot-title">🎙 En direct</span>
-        <span class="slot-mods"><span class="mod">📄</span><span class="mod on">🎙</span></span></div>
-      <div class="slot-body"><div class="pane during on">
-        <div class="rec"><span class="bulb"></span> Enregistrement — 00:47</div>
-        <div class="livetext">…et donc la question de la desserte du plateau reste posée,
-          notamment aux heures creuses où la navette<span class="cursor">&nbsp;</span></div>
-      </div></div>
-    </div></div>
-  </div>
-
-  <div class="card4 success">
-    <div class="rowsects"><div class="sect"><span class="eyebrow">Face 4 · output</span>
-      <div class="sect-body"><span class="state-lbl">le résultat — exactement la card de file d'aujourd'hui</span></div></div></div>
-    <div class="preview ports-1"><div class="slot">
-      <div class="slot-head"><span class="slot-title">📄 Résultat</span>
-        <span class="slot-mods"><span class="mod">◀ entrée</span><span class="mod on">sortie ▶</span></span></div>
-      <div class="slot-body"><div class="pane output on">
-        <div class="mediathumb">📄</div>
-        <div class="mediainfo"><b>interview_maire.docx</b>
-          Transcription 4 812 mots · 3 locuteurs · résumé 210 mots</div>
-        <button class="b" style="margin-left:auto">⬇</button>
-      </div></div>
-    </div></div>
-  </div>
-
-  <!-- ════════════════════════════════════════════════════════════════ -->
-  <div class="demo-label">5 · Les trois états que §11.10.F réclamait
-    <span class="note">— échec · live armé · card-modèle aux slots vides</span></div>
-
-  <div class="card4 error">
-    <div class="rowsects">
-      <div class="sect"><span class="eyebrow">Entrée</span>
-        <div class="sect-body"><span class="chip file">terrain_A.mp4</span></div></div>
-      <div class="sect"><span class="eyebrow">Réglages</span>
-        <div class="sect-body"><span class="chip"><span class="ic">⚙</span>whisper large-v3</span></div></div>
-      <div class="sect"><span class="eyebrow">Sortie</span>
-        <div class="sect-body"><span class="chip ghost" style="opacity:.4">—</span></div></div>
-      <div class="sect"><span class="eyebrow">État</span>
-        <div class="sect-body"><span class="dot"></span><span class="state-lbl ko">Échec à 38 %</span></div></div>
-      <div class="sect"><span class="eyebrow">&nbsp;</span>
-        <div class="acts"><button class="b">⚙</button><button class="b">↻ Relancer</button></div></div>
-    </div>
-    <div class="preview ports-1"><div class="slot">
-      <div class="slot-head"><span class="slot-title">⚠ Cause de l'échec</span>
-        <span class="slot-mods"><span class="mod">📄 entrée</span><span class="mod on">⚠ erreur</span></span></div>
-      <div class="slot-body"><div class="pane during on">
-        <div class="rec" style="color:var(--ko)">CUDA out of memory — 22,4 Gio demandés, 19,1 Gio libres</div>
-        <div class="livetext">Piste : le modèle <b>whisper large-v3</b> demande 10 Go et un autre
-          traitement occupait la carte. Relancer seul, ou basculer sur <b>medium</b> (⚙).</div>
-      </div></div>
-    </div>
-    <p class="annot" style="padding:0 .75rem .5rem">
-      <b>En échec, la zone ne promet plus la sortie</b> (<code>§11.4-6</code>) : elle
-      <b>explique</b>. C'est le domicile qui manquait au message d'erreur.</p>
-  </div>
-
-  <div class="card4 armed">
-    <div class="rowsects">
-      <div class="sect"><span class="eyebrow">Entrée</span>
-        <div class="sect-body"><span class="chip"><span class="ic">🎙</span>micro système</span></div></div>
-      <div class="sect"><span class="eyebrow">Réglages</span>
-        <div class="sect-body"><span class="chip"><span class="ic">⚙</span>whisper large-v3</span>
-          <span class="chip"><span class="ic">🌐</span>fr</span></div></div>
-      <div class="sect"><span class="eyebrow">Sortie</span>
-        <div class="sect-body"><span class="chip ghost">.docx horodaté</span></div></div>
-      <div class="sect"><span class="eyebrow">État</span>
-        <div class="sect-body"><span class="dot"></span><span class="state-lbl" style="color:var(--warn)">armé — réglez puis lancez</span></div></div>
-      <div class="sect"><span class="eyebrow">&nbsp;</span>
-        <div class="acts"><button class="b">⚙</button><button class="b primary">▶ Démarrer</button></div></div>
-    </div>
-    <div class="preview ports-1"><div class="slot">
-      <div class="slot-head"><span class="slot-title">🎙 En direct — armé</span>
-        <span class="slot-mods"><span class="mod">📄</span><span class="mod on">🎙</span></span></div>
-      <div class="slot-body"><div class="pane during on">
-        <div class="rec"><span class="bulb"></span> Prêt à enregistrer — rien n'est encore capturé</div>
-        <div class="livetext" style="color:var(--ink-3)">Effectuez vos réglages (ou gardez les
-          défauts), puis <b>▶</b> démarre l'enregistrement et la transcription.</div>
-      </div></div>
-    </div>
-    <p class="annot" style="padding:0 .75rem .5rem">
-      <b>Deux temps, sans exception</b> (<code>§11.9 A</code>) : le clic sur 🎙 <b>arme</b>,
-      ▶ <b>démarre</b>. Aucune modalité ne lance jamais rien toute seule.</p>
-  </div>
-
-  <div class="card4 model">
-    <div class="rowsects">
-      <div class="sect"><span class="eyebrow">Entrée</span>
-        <div class="sect-body"><span class="chip ghost">2 slots vides</span></div></div>
-      <div class="sect"><span class="eyebrow">Réglages</span>
-        <div class="sect-body"><span class="chip solid">hérités du manifeste</span></div></div>
-      <div class="sect"><span class="eyebrow">Sortie</span>
-        <div class="sect-body"><span class="chip ghost">1024×1024 PNG</span></div></div>
-      <div class="sect"><span class="eyebrow">État</span>
-        <div class="sect-body"><span class="dot"></span><span class="state-lbl miss">modèle — il manque les entrées</span></div></div>
-      <div class="sect"><span class="eyebrow">&nbsp;</span>
-        <div class="acts"><button class="b">⚙</button><button class="b primary" disabled>▶ Générer</button></div></div>
-    </div>
-    <div class="preview ports-2">
-      <div class="slot empty required">
-        <div class="slot-head"><span class="slot-title">🎞 Travail — à fournir</span>
-          <span class="slot-mods"><span class="mod on">📄</span><span class="mod">📚</span><span class="mod">🔗</span></span></div>
-        <div class="slot-body"><div class="pane drop on"><div class="dz">
-          <span class="big">⬆</span><span>slot en attente</span></div></div></div>
-      </div>
-      <div class="slot empty">
-        <div class="slot-head"><span class="slot-title">📎 Référence — à fournir</span>
-          <span class="slot-mods"><span class="mod on">📄</span><span class="mod">📚</span><span class="mod">🔗</span></span></div>
-        <div class="slot-body"><div class="pane drop on"><div class="dz">
-          <span class="big">⬆</span><span>slot en attente</span></div></div></div>
-      </div>
-    </div>
-    <p class="annot" style="padding:0 .75rem .5rem">
-      <b>Card-MODÈLE</b> (file importée sans fichiers, <code>MANIFEST_ARCHITECTURE §8</code>) :
-      les réglages sont là, les entrées non. <b>Ce sont les mêmes slot-rows</b> — l'utilisateur
-      n'apprend qu'un seul objet (<code>§11.10-4</code>).</p>
-  </div>
-
-  <!-- ════════════════════════════════════════════════════════════════ -->
-  <div class="demo-label">6 · Deux géométries <span class="note">— la même card (§4)</span></div>
-
-  <div class="toolbar">
-    <button id="bStack"  aria-pressed="true"  onclick="setLayout(false)">☰ Ligne</button>
-    <button id="bMosaic" aria-pressed="false" onclick="setLayout(true)">▦ Mosaïque</button>
-    <span class="annot" style="margin:0">— en ligne les slots sont côte à côte sur la largeur ;
-      en mosaïque ils s'empilent sur la hauteur.</span>
-  </div>
-
-  <div id="geo">
-    <div class="card4 draft">
-      <div class="promptzone"><div class="promptrow">
-        <textarea rows="1" placeholder="Décrivez ce que vous voulez générer…"></textarea>
-        <button class="b sparkle">✨</button></div></div>
-      <div class="rowsects">
-        <div class="sect"><span class="eyebrow">Entrée</span>
-          <div class="sect-body"><span class="chip file">portrait.png</span></div></div>
-        <div class="sect"><span class="eyebrow">Réglages</span>
-          <div class="sect-body"><span class="chip"><span class="ic">🧠</span>qwen-image-edit</span></div></div>
-        <div class="sect"><span class="eyebrow">Sortie</span>
-          <div class="sect-body"><span class="chip ghost">1024² PNG</span></div></div>
-        <div class="sect"><span class="eyebrow">État</span>
-          <div class="sect-body"><span class="dot"></span><span class="state-lbl ready">prêt</span></div></div>
-        <div class="sect"><span class="eyebrow">&nbsp;</span>
-          <div class="acts"><button class="b">⚙</button><button class="b primary">▶</button></div></div>
-      </div>
-      <div class="preview ports-2">
-        <div class="slot"><div class="slot-head"><span class="slot-title">🎞 Travail</span>
-          <span class="slot-mods"><span class="mod on">📄</span><span class="mod">📚</span><span class="mod">🔗</span></span></div>
-          <div class="slot-body"><div class="pane drop on"><div class="dz">
-            <span class="big">⬆</span><span>Glissez ou cliquez</span></div></div></div></div>
-        <div class="slot suggested"><div class="slot-head"><span class="slot-title">📎 Référence</span>
-          <span class="slot-mods"><span class="mod on">📄</span><span class="mod">📚</span><span class="mod">🔗</span></span></div>
-          <div class="slot-body"><div class="pane media on">
-            <div class="mediathumb">🖼</div>
-            <div class="mediainfo"><b>portrait.png</b>1024×1536 · PNG</div></div></div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ════════════════════════════════════════════════════════════════ -->
-  <div class="demo-label">7 · Les trois densités <span class="note">— la card d'entrée les suit comme les autres (§11.6)</span></div>
-
-  <div class="toolbar">
-    <button id="dv1" aria-pressed="false" onclick="setDensity('v1')">v1 Détaillé</button>
-    <button id="dv2" aria-pressed="false" onclick="setDensity('v2')">v2 Compact</button>
-    <button id="dv3" aria-pressed="true"  onclick="setDensity('v3')">v3 Affiné</button>
-    <span class="annot" style="margin:0">— en <b>v2</b> la zone de preview se replie en chips
-      sur une ligne ; un <b>clic sur la card</b> la déplie (mécanisme déjà écrit :
-      <code>wama-new-item-card.js:55-59</code>).</span>
-  </div>
-
-  <div id="dens">
-    <div class="card4 draft" onclick="if(document.getElementById('dens').classList.contains('d-v2')) setDensity('v3')">
-      <div class="rowsects">
-        <div class="sect"><span class="eyebrow">Entrée</span>
-          <div class="sect-body">
-            <span class="chip ghost">aucun fichier</span>
-            <span class="compactrow">
-              <span class="chip ghost">🎞 travail ⬆</span>
-              <span class="chip">📚</span><span class="chip">🔗</span><span class="chip">🗂</span><span class="chip">🎙</span>
-            </span>
-          </div></div>
-        <div class="sect hide-v2"><span class="eyebrow">Réglages</span>
-          <div class="sect-body"><span class="chip"><span class="ic">⚙</span>whisper large-v3</span>
-            <span class="chip"><span class="ic">🌐</span>auto</span></div></div>
-        <div class="sect hide-v2"><span class="eyebrow">Sortie</span>
-          <div class="sect-body"><span class="chip ghost">.docx</span></div></div>
-        <div class="sect hide-v2"><span class="eyebrow">État</span>
-          <div class="sect-body"><span class="dot"></span><span class="state-lbl miss">il manque : le fichier</span></div></div>
-        <div class="sect"><span class="eyebrow">&nbsp;</span>
-          <div class="acts"><button class="b">⚙</button><button class="b primary" disabled>▶</button></div></div>
-      </div>
-      <div class="preview ports-1"><div class="slot required">
-        <div class="slot-head"><span class="slot-title">🎞 Fichier de travail — requis</span>
-          <span class="slot-mods"><span class="mod on">📄</span><span class="mod">📚</span>
-            <span class="mod">🔗</span><span class="mod">🗂</span><span class="mod">🎙</span></span></div>
-        <div class="slot-body"><div class="pane drop on"><div class="dz">
-          <span class="big">⬆</span><span>Glissez ou cliquez pour importer</span>
-          <small>MP3, WAV, FLAC, MP4, MKV…</small></div></div></div>
       </div></div>
     </div>
   </div>
+  <p class="annot"><b>Card-MODÈLE</b> (file importée sans fichiers,
+    <code>WAMA_MANIFEST_ARCHITECTURE §8</code>) : réglages présents, ports vides. <b>Ce sont les
+    mêmes onglets et la même preview</b> — l'utilisateur n'apprend qu'un objet (§11.10-4).</p>
 
-  <!-- ════════════════════════════════════════════════════════════════ -->
-  <div class="demo-label">Ce que cette maquette engage</div>
+  <div class="demo-label">4 · La matrice PORT × MODALITÉ
+    <span class="note">mesurée le 2026-09-05 — déclaration vs gabarit réel</span></div>
 
-  <div class="note-box">
-    <b>1. La zone de preview de la card d'entrée est une 4ᵉ face</b>, pas un composant neuf :
-    <code>compose</code> rejoint <code>input</code> / <code>during</code> / <code>output</code>
-    de <code>preview_utils.py</code>. Une seule zone, quatre temps, la même que les cards de file.<br>
-    <b>2. Elle se subdivise par PORT</b> — 1 ou 2 sous-divisions fichier, générées des ports
-    déclarés (<code>studio_node_ports()</code>), jamais écrites par app.<br>
-    <b>3. Les modalités basculent le contenu du slot</b>, à hauteur constante. Le dépôt reste
-    le défaut : <b>importer un fichier ne demande aucun clic de modalité</b>.<br>
-    <b>4. Le D&D par rôle gagne sa cible visuelle</b> — <code>_ports_for_category()</code> est
-    déjà écrit et sans consommateur UI ; il en a un ici (menu « Envoyer vers ‹app› › ‹port› »).
+  <table class="m">
+    <tr><th>App</th><th>Ports déclarés</th><th>Import</th><th>Média&shy;thèque</th><th>URL</th>
+        <th>Live</th><th>Prompt</th><th>Lot</th><th>Extra</th></tr>
+    <tr><td><b>anonymizer</b></td><td>work</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="no">·</td><td class="yes">✓</td><td class="no">·</td></tr>
+    <tr><td><b>converter</b></td><td>work</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="no">·</td><td class="yes">✓</td><td class="no">·</td></tr>
+    <tr><td><b>describer</b></td><td>work</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="no">·</td><td class="yes">✓</td><td class="no">·</td></tr>
+    <tr><td><b>reader</b></td><td>work</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="no">·</td><td class="no">·</td><td class="yes">✓</td><td class="no">·</td></tr>
+    <tr><td><b>transcriber</b></td><td>work</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="yes">✓</td><td class="no">·</td></tr>
+    <tr><td><b>enhancer</b> (image)</td><td>work</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="no">·</td><td class="yes">✓</td><td class="no">·</td></tr>
+    <tr><td><b>enhancer</b> (audio)</td><td><i>le même</i></td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="no">·</td><td class="no">·</td><td class="no">·</td><td class="yes">✓</td></tr>
+    <tr><td><b>avatarizer</b></td><td>work + prompt</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td><b>composer</b></td><td>prompt + ref_melody</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td></tr>
+    <tr><td><b>synthesizer</b></td><td>prompt + ref_voice</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="no">·</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td><b>imager</b> (image)</td><td>work + prompt + ref_image</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td><b>imager</b> (vidéo)</td><td><i>les mêmes</i></td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">·</td><td class="yes">✓</td><td class="no">·</td><td class="yes">✓</td></tr>
+  </table>
+
+  <div class="note warn">
+    <b>Quatre écarts que la matrice révèle</b> — chacun est un vrai trou, pas une nuance :<br>
+    ① <b>Aucune app ne déclare de port pour le LOT</b>, alors que 14 inclusions sur 16
+    l'activent. Le lot n'est pas un port (c'est une <i>nature</i> de fichier reconnue après
+    coup), mais il n'a <b>aucun domicile déclaré</b> — il vit dans un littéral de gabarit.<br>
+    ② <b>Le composer n'a pas de port <code>travail</code></b> et a pourtant une dropzone :
+    elle alimente le <b>lot</b>. Sa zone de dépôt est aujourd'hui <b>sans rôle déclaré</b>.<br>
+    ③ <b>enhancer et imager ont deux inclusions pour un seul jeu de ports</b> : la déclaration
+    ignore qu'ils ont deux domaines (image/audio, image/vidéo). Les deux cards diffèrent
+    pourtant — imager-vidéo n'a pas de lot, enhancer-audio n'a ni URL ni lot.<br>
+    ④ <b>Le <code>live</code> reste un littéral</b> (<code>show_live</code>, transcriber seul) :
+    en v4 il devient un <b>port</b>, il lui faut donc sa déclaration.
   </div>
 
-  <div class="note-box warnbox">
-    <b>Ce qui reste à trancher</b> —
-    (a) la hauteur de <code>96 px</code> est un choix de maquette : à confronter à l'écran sur
-    une vraie file ;
-    (b) le <b>manifeste de process</b> remplit la card <i>entière</i>, pas un slot : il lui faut
-    une place propre (bandeau au-dessus des slots ?) ;
-    (c) les <b>4 <code>extra_zone_template</code></b> (galerie d'avatars, sélecteur de modèle
-    imager, réglages rapides synthesizer, aperçu de voix) doivent trouver leur case déclarative
-    — <code>§11.9 D</code> ; sinon ces 4 apps ne pourront pas être portées.
-  </div>
-
-  <div class="legend">
-    <span><b>◗ ambre</b> port requis manquant</span>
-    <span><b>◗ cyan</b> port suggéré</span>
-    <span><b>◗ vert</b> terminé</span>
-    <span><b>◗ rouge</b> échec</span>
-    <span><b>◗ tirets</b> card-modèle</span>
+  <div class="note">
+    <b>Ce que la v4 change dans le code, et ce qu'elle ne change pas</b><br>
+    ✔ change : les onglets deviennent des ports (générés) · la preview de la card d'entrée
+    existe · les modalités y sont montrées puis basculées · <code>drop</code>+<code>folder</code>
+    fusionnent en <b>Import</b>.<br>
+    ✘ ne change pas : la grille à 5 sections, les liserés, les densités, la barre, la
+    <code>.preview</code> des cards de file, l'ordre des boutons d'action. <b>La v4 est un
+    ajout à la v3.5, pas une refonte.</b>
   </div>
 
 </div>
 
 <script>
-  // Bascule de modalité : le champ change DANS le slot, la hauteur ne bouge pas.
-  document.querySelectorAll('.slot').forEach(function (slot) {
-    var mods = slot.querySelectorAll('.mod[data-pane]');
-    mods.forEach(function (m) {
-      m.addEventListener('click', function () {
-        mods.forEach(function (x) { x.classList.remove('on'); });
-        m.classList.add('on');
-        var want = m.dataset.pane;
-        slot.querySelectorAll('.pane').forEach(function (p) {
-          p.classList.toggle('on', p.classList.contains(want));
-        });
+  // ① onglet de PORT → montre les modalités de ce port
+  document.querySelectorAll('.card3').forEach(function (card) {
+    var host = card.querySelector('.pane-host');
+    if (!host) return;
+
+    function show(name) {
+      host.querySelectorAll('.pane').forEach(function (p) {
+        p.classList.toggle('on', p.dataset.pane === name);
+      });
+    }
+    card.querySelectorAll('.mtab[data-port]').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        card.querySelectorAll('.mtab').forEach(function (t) { t.classList.remove('on'); });
+        tab.classList.add('on');
+        show(tab.dataset.port);
+      });
+    });
+    // ② modalité → bascule la preview sur la vue d'import
+    host.querySelectorAll('.mod[data-mod]').forEach(function (m) {
+      m.addEventListener('click', function () { show('v-' + m.dataset.mod); });
+    });
+    // retour aux modalités = l'onglet de port actif
+    host.querySelectorAll('[data-back]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var actif = card.querySelector('.mtab.on');
+        show(actif ? actif.dataset.port : 'work');
       });
     });
   });
 
-  // Survol de drag : la dropzone s'allume (mécanisme réel du gabarit commun).
-  document.querySelectorAll('.dz').forEach(function (dz) {
-    dz.addEventListener('mouseenter', function () { dz.classList.add('hot'); });
-    dz.addEventListener('mouseleave', function () { dz.classList.remove('hot'); });
-  });
-
   function setLayout(mosaic) {
-    document.getElementById('geo').classList.toggle('mosaic', mosaic);
-    document.getElementById('bStack').setAttribute('aria-pressed', String(!mosaic));
-    document.getElementById('bMosaic').setAttribute('aria-pressed', String(mosaic));
+    document.getElementById('queue').classList.toggle('mosaic', mosaic);
+    document.getElementById('btnList').setAttribute('aria-pressed', String(!mosaic));
+    document.getElementById('btnMosaic').setAttribute('aria-pressed', String(mosaic));
   }
-
-  function setDensity(d) {
-    var box = document.getElementById('dens');
-    box.classList.remove('d-v1', 'd-v2', 'd-v3');
-    box.classList.add('d-' + d);
-    ['v1', 'v2', 'v3'].forEach(function (x) {
-      document.getElementById('d' + x).setAttribute('aria-pressed', String(x === d));
-    });
-  }
-
-  // Forme d'onde décorative de la face `input`.
-  (function () {
-    var w = document.getElementById('w1');
-    if (!w) return;
-    for (var i = 0; i < 44; i++) {
-      var b = document.createElement('i');
-      b.style.height = (5 + Math.abs(Math.sin(i / 3.1)) * 22).toFixed(0) + 'px';
-      w.appendChild(b);
-    }
-  })();
 </script>
 </body>
 </html>

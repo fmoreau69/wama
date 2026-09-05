@@ -1024,20 +1024,45 @@ seule zone, quatre temps**, la même grammaire que les cards de file. Corollaire
 « où va le live ? » n'en est plus une — l'exigence 6 (§11.8) est servie sans surface dédiée, le
 live ne change pas de zone, il change de face.
 
-**B. La zone se subdivise par PORT, pas par MODALITÉ** — c'est le seul point où la proposition
-initiale a été infléchie, et il repose sur une mesure, pas sur un goût :
+**A bis. 🔴 LA v4 EST LA v3.5 PLUS CETTE ZONE — pas une refonte** (rectification Fabien, 05/09).
+La `.preview` **existe déjà** en v3.5 (`docs/card_designs/card_v3.5_maquette.html:112`) : pleine
+largeur (`grid-column: 1 / -1`), variante `.recap`, trois faces « récap dès l'ajout → process
+pendant → résultat après ». **Seule la card d'entrée ne l'avait pas.** La v4 la lui donne, et
+n'invente rien d'autre : grille à 5 sections, liserés, densités, barre, ordre des boutons —
+tout est conservé.
+⚠ **Une 1ʳᵉ maquette (04/09) est partie d'une page neuve et a SUPPRIMÉ les mini-onglets.**
+Double erreur : Fabien avait écrit « **en plus** des boutons de modalités » dès son premier
+message, et la zone existait déjà. *Une v4 se DÉRIVE de la v3.5 ; on ne redessine pas ce qui
+est déjà dessiné.*
 
-| axe | ce qu'il répond | combien (mesuré 2026-09-04) | où il vit |
-|---|---|---|---|
-| **PORT** (rôle) | ce que le fichier **est** dans le traitement | **1 à 3** par app, dont 0-1 non-fichier | une **sous-division** de la zone |
-| **MODALITÉ** (geste) | **par où** il arrive | **4 à 7** par app | une **icône** qui bascule le contenu du slot |
+**B. Les ONGLETS deviennent des PORTS, et la preview montre les MODALITÉS** (décision Fabien,
+05/09 — la formulation retenue, après deux essais inférieurs) :
 
-Ports déclarés (`studio_node_ports()`) : anonymizer · converter · describer · enhancer · reader ·
-transcriber = **1** (travail) · avatarizer = **2** (travail + prompt) · synthesizer et composer =
-**2** (prompt + référence) · imager = **3** (travail + prompt + référence). **Jamais plus de
-2 ports FICHIER** — donc 1 ou 2 sous-divisions, contre 4 à 7 colonnes de ~120 px si on avait
-subdivisé par modalité (l'URL est un champ de saisie, la médiathèque une grille : ni l'un ni
-l'autre n'y tient).
+| geste | ce qu'il choisit | où il vit |
+|---|---|---|
+| **1ᵉʳ — l'onglet** | le **PORT** : travail · référence · en direct | les `.mtab` de la v3.5, cellule Entrée |
+| **2ᵉ — la tuile** | la **MODALITÉ** : Importer · Médiathèque · URL | **toutes visibles d'un coup** dans la preview |
+| **3ᵉ — la vue** | le contenu bascule sur l'import choisi | la même preview, hauteur constante |
+
+🔴 **Pourquoi le PORT d'abord — l'argument qui tranche** : *la modalité utile n'est pas la même
+selon le port*. Sur `travail` la modalité naturelle est le dépôt ; sur `référence`, c'est la
+médiathèque ou l'URL. Une rangée unique de modalités imposerait le même ordre aux deux. Et
+l'enchaînement **travail → référence est chronologique**, alors qu'un axe modalité ne l'est
+pas. La maquette rend les deux ordres visibles côte à côte.
+
+⚠ Ports déclarés (`studio_node_ports()`) : anonymizer · converter · describer · enhancer ·
+reader · transcriber = **1** · avatarizer, synthesizer, composer = **2** · imager = **3**.
+**Jamais plus de 2 ports FICHIER** — donc jamais plus de 3 onglets.
+
+**B bis. IMPORT = UN SEUL GESTE — `drop` et `folder` fusionnent** (décision Fabien, 05/09).
+Qu'il s'agisse d'un fichier, de plusieurs, d'un dossier ou de plusieurs, **le geste utilisateur
+est le même** : déposer (explorateur Windows ou filemanager), ou cliquer et choisir. La
+distinction n'a jamais été qu'une **contrainte technique interne** — un `<input type="file">`
+natif ne sait pas offrir « fichiers OU dossiers » dans le même sélecteur, il en faut deux — et
+elle avait été transformée à tort en choix d'INTERFACE. Côté dépôt il n'y a même pas de
+contrainte : `WamaFolderImport.collect()` (`wama-folder-import.js:59-73`) traverse **déjà** un
+drop mêlant fichiers et dossiers, récursivement. Une seule tuile **Importer** ; les deux inputs
+restent cachés derrière elle.
 
 🔴 **Ce qui distingue un port d'une modalité, et la preuve** — un port a un **rôle fixe** ; une
 modalité **traverse les rôles**. Mesuré dans les 12 inclusions actuelles : le même champ URL
@@ -1047,18 +1072,20 @@ depuis une URL'`). Un port ne peut pas changer de rôle selon l'app — donc **l
 modalité**. Idem pour le **lot** : ni port ni modalité, mais une **nature** du fichier déposé sur
 le port travail, reconnue après coup par la détection structurelle (§11.10-2).
 ⚠ Et la **référence EST un port** (`reference_melody`, `reference_image`, group `reference`) —
-pas une modalité : c'est ce qui donne 2 sous-divisions à composer, imager et synthesizer.
+pas une modalité : c'est ce qui donne son 2ᵉ onglet à composer, imager et synthesizer.
 
-**C. Hauteur CONSTANTE, contenu qui s'y adapte** (accepté par Fabien le 04/09). Le slot fait la
-même hauteur quelle que soit la modalité active ; ce qui déborde **défile à l'intérieur**
-(médiathèque, liste de fichiers, aperçu de lot, texte live). **Mesuré sur la maquette : 96 px
-pour les 5 modalités du transcriber, sans exception.** La card ne saute jamais. Le **prompt reste
-le seul élément autorisé à grandir** (§11.9 C) — il est au-dessus de la zone, pas dedans.
+**C. Hauteur CONSTANTE, contenu qui s'y adapte** (accepté par Fabien le 04/09). La preview
+garde la même hauteur quels que soient le port et la modalité ; ce qui déborde **défile à
+l'intérieur** (médiathèque, liste de fichiers, aperçu de lot, texte live). **Mesuré sur la
+maquette : 94 px pour les 4 vues, sans exception.** La card ne saute jamais. Le **prompt reste
+le seul élément autorisé à grandir** (§11.9 C) — il est dans les sections, pas dans la preview.
 
-**D. Le dépôt n'est pas une modalité à choisir** — c'est le comportement par défaut de la
-sous-division, qui **est** la dropzone. Objectif premier de Fabien atteint sans étaler les
-modalités : *« l'utilisateur n'a pas besoin de cliquer sur la modalité pour un simple import »*.
-Les icônes ne servent qu'aux autres gestes.
+**D. Le LIVE est un PORT, pas une modalité** (décision Fabien, 05/09). « En direct » n'est pas
+une façon de fournir le fichier de travail — c'est une **source alternative** à ce fichier. Il
+prend donc sa place parmi les onglets, et sa modalité unique **ARME** (le clic arme, ▶ démarre :
+la règle des deux temps du §11.9 A, sans exception). ⚠ Il lui faut sa **déclaration** : il est
+encore le littéral `show_live` (transcriber seul). Le lecteur existe désormais — la condition
+« jamais une déclaration sans consommateur » est levée.
 
 **E. Preview ou liste — la règle qui tranche.** La preview d'un *média* n'a de sens qu'à **un
 seul fichier** (miniature / onde / extrait, + `↻` qui **remplace** — exigence 7, jusqu'ici
@@ -1068,12 +1095,45 @@ ouvre son aperçu *dans la zone* (N lignes reconnues, M refusées) au lieu du ba
 `batch_detect_bar.html`, dont le défaut n°3 ci-dessus rappelle qu'il est mono-instance par ids
 fixes.
 
-**F. Ce que la maquette montre en plus** — les 3 états que §11.10.F réclamait et qui n'existaient
-nulle part : card en **ÉCHEC** (la zone n'annonce plus la sortie, elle **explique** la cause —
-§11.4-6), card **LIVE armée** (deux temps : 🎙 arme, ▶ démarre), **card-MODÈLE aux slots vides**
-(file importée sans fichiers, `WAMA_MANIFEST_ARCHITECTURE §8`) ; plus les 2 géométries (§4 : côte
-à côte en ligne, empilés en mosaïque) et les 3 densités (§11.6 : en v2 la zone se replie en chips,
-le clic déplie — mécanisme **déjà écrit**, `wama-new-item-card.js:55-59`).
+**F. Ce que la maquette montre en plus** — les états que §11.10.F réclamait et qui n'existaient
+nulle part : card en **ÉCHEC** (la preview n'annonce plus la sortie, elle **explique** la cause —
+§11.4-6), port **LIVE armé** (deux temps), **card-MODÈLE aux ports vides** (file importée sans
+fichiers, `WAMA_MANIFEST_ARCHITECTURE §8`) ; plus les 2 géométries (§4 — en mosaïque les tuiles
+de modalité s'empilent) et le repli en v2 (§11.6, mécanisme **déjà écrit**,
+`wama-new-item-card.js:55-59`).
+
+#### G. MATRICE PORT × MODALITÉ — mesurée le 2026-09-05
+
+> Demandée par Fabien (« pour être sûr, il faudrait faire la cartographie complète »). Croise
+> ce que l'app **DÉCLARE** (`studio_node_ports`) et ce que son gabarit **ACTIVE** (les
+> littéraux `show_*` des 16 inclusions réelles). C'est l'ÉCART entre les deux qui instruit.
+
+| app | ports déclarés | import | médiath. | url | live | prompt | lot | extra |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| anonymizer · converter · describer | work | ✓ | ✓ | ✓ | · | · | ✓ | · |
+| reader | work | ✓ | ✓ | · | · | · | ✓ | · |
+| transcriber | work | ✓ | ✓ | ✓ | **✓** | · | ✓ | · |
+| enhancer (image) | work | ✓ | ✓ | ✓ | · | · | ✓ | · |
+| enhancer (audio) | *le même* | ✓ | ✓ | · | · | · | · | ✓ |
+| avatarizer | work + prompt | ✓ | ✓ | ✓ | · | ✓ | ✓ | ✓ |
+| composer | prompt + ref_melody | ✓ | ✓ | ✓ | · | ✓ | ✓ | · |
+| synthesizer | prompt + ref_voice | ✓ | ✓ | · | · | ✓ | ✓ | ✓ |
+| imager (image) | work + prompt + ref_image | ✓ | ✓ | ✓ | · | ✓ | ✓ | ✓ |
+| imager (vidéo) | *les mêmes* | ✓ | ✓ | ✓ | · | ✓ | · | ✓ |
+
+🔴 **Quatre écarts — chacun est un trou réel, pas une nuance :**
+1. **Aucune app ne déclare de port pour le LOT**, alors que **14 inclusions sur 16** l'activent.
+   Le lot n'est pas un port (c'est une *nature* de fichier reconnue après coup, §11.10-2) —
+   mais il n'a **aucun domicile déclaré** : il vit dans un littéral de gabarit.
+2. **Le composer n'a pas de port `travail`** et a pourtant une dropzone (`composerBatchDrop`) :
+   elle alimente le **lot**. Sa zone de dépôt est aujourd'hui **sans rôle déclaré** — ce qui
+   contredit l'exigence 1 du §11.8 (« rôles très explicites »).
+3. **enhancer et imager ont DEUX inclusions pour UN seul jeu de ports** : la déclaration ignore
+   qu'ils ont deux domaines. Et les deux cards **diffèrent réellement** — imager-vidéo n'a pas
+   de lot, enhancer-audio n'a ni URL ni lot. Une v4 générée des ports rendrait donc deux cards
+   identiques là où l'app en veut deux différentes.
+4. **Le `live` est un littéral** (`show_live`), or la v4 en fait un **port** : il lui faut sa
+   déclaration (cf. D).
 
 #### ✅ LIVRÉ le 2026-09-04 — la brique, et sur le bac à sable SEUL
 
@@ -1090,6 +1150,12 @@ v4 ; les 10 apps en place gardent leur inclusion **littérale** de `_new_item_ca
 leur propre `index.html`. Smoke du 04/09 : `/converter_01/` rend **1 slot, 4 modalités**,
 `/converter` rend **0 slot** (inchangée), et la grille de conformité du converter **reste à
 100 %**. Contrôle central : **hauteur du slot = 96 px pour les 4 modalités**, zéro erreur JS.
+
+⚠ **Cette brique implémente le modèle du 04/09, pas celui de B/B bis/D ci-dessus** (les
+onglets de port, les modalités toutes visibles, la fusion import). Elle est **à reprendre**
+avant toute adoption plus large — ce qu'elle a déjà prouvé, et qui reste vrai, c'est
+l'ISOLEMENT : on peut faire évoluer la card d'entrée sur les seules jumelles sans toucher aux
+10 apps.
 
 **Deux défauts que le bac à sable a révélés en chemin** (c'est son rôle) :
 1. **`APP_MODES` est indexé par nom d'app** → une jumelle perdait SILENCIEUSEMENT les
