@@ -748,9 +748,10 @@ def batch_create(request):
                 dpath = dest_dir / fname
                 rel = f'converter/{user.id}/input/{fname}'
             else:
-                cand = Path(src)
-                abs_src = (cand if cand.is_absolute() else (media_root / src)).resolve()
-                if not str(abs_src).startswith(str(media_root)) or not abs_src.exists():
+                from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+                try:
+                    abs_src, _ = resolve_under_media_root(src)
+                except (OutsideMediaRoot, FileNotFoundError):
                     warnings.append(f'Introuvable : {src}')
                     continue
                 dpath, rel = copy_into_app_input(abs_src, 'converter', user.id, 'input')

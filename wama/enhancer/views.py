@@ -1117,9 +1117,10 @@ def audio_upload(request):
         pass
 
     if file_path:
-        src = (_Path(_settings.MEDIA_ROOT) / file_path).resolve()
-        media_root = _Path(_settings.MEDIA_ROOT).resolve()
-        if not str(src).startswith(str(media_root)) or not src.exists():
+        from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+        try:
+            src, _ = resolve_under_media_root(file_path)
+        except (OutsideMediaRoot, FileNotFoundError):
             return JsonResponse({'error': 'Fichier introuvable ou accès refusé'}, status=400)
         if src.suffix.lower() not in _audio_extensions():
             return JsonResponse({'error': f'Format audio non supporté : {src.suffix}'}, status=400)

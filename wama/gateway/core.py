@@ -274,8 +274,12 @@ def _produced_files(resultat) -> list:
         rel = valeur[len(media_url):].split('?')[0]
         if not rel or rel in vus:
             return
-        chemin = (media_root / rel).resolve()
-        if not str(chemin).startswith(str(media_root)) or not chemin.is_file():
+        from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+        try:
+            chemin, _ = resolve_under_media_root(rel, must_exist=False)
+        except OutsideMediaRoot:
+            return
+        if not chemin.is_file():
             return
         if chemin.stat().st_size > _MAX_OUTPUT_BYTES:
             return

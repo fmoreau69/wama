@@ -450,7 +450,7 @@ def batch_create(request):
     from django.conf import settings as _settings
     from wama.common.utils.batch_common import group_into_batches_by_nature
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
-    from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.media_paths import OutsideMediaRoot, copy_into_app_input, resolve_under_media_root
 
     user = _user(request)
     try:
@@ -487,9 +487,9 @@ def batch_create(request):
                 obj = {item}.objects.create(**kwargs)
                 {bc_nom_url}
             else:
-                cand = _Path(src)
-                absolu = (cand if cand.is_absolute() else (racine / src)).resolve()
-                if not str(absolu).startswith(str(racine)) or not absolu.exists():
+                try:
+                    absolu, _rel_src = resolve_under_media_root(src)
+                except (OutsideMediaRoot, FileNotFoundError):
                     avertissements.append('Introuvable : ' + src)
                     continue
                 _dest, rel = copy_into_app_input(absolu, '{app}', user.id, 'input')

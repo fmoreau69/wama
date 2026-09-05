@@ -452,3 +452,31 @@ class PerformanceTest(TestCase):
 
 # Pour exécuter les tests:
 # python manage.py test synthesizer
+
+class ConfinementServerPathTest(TestCase):
+    """🔴 Traversée de chemin refusée (2026-09-05, `MEDIA_STORAGE_TIERING §8.6` D1).
+
+    `import_individual_from_path` faisait `Path(MEDIA_ROOT) / server_path` sans `resolve()`
+    ni contrôle : un `../../…` lisait n'importe quel fichier du serveur et injectait son
+    texte dans une card. La vue passe désormais par la brique commune de confinement —
+    ce test franchit le portier (rôle `communication`) et exige le REFUS, jamais un 404
+    qui laisserait croire que le chemin a simplement été cherché.
+    """
+
+    def setUp(self):
+        self.user = _utilisateur_autorise('confinement')
+        self.client = Client()
+        self.client.login(username='confinement', password='testpass123')
+
+    def test_un_server_path_qui_remonte_hors_de_media_est_refuse_403(self):
+        # Un fichier qui EXISTE hors de MEDIA_ROOT : sans la garde, la vue le lirait.
+        rep = self.client.post(reverse('synthesizer:import_individual_from_path'),
+                               {'server_path': '../manage.py'})
+        self.assertEqual(rep.status_code, 403, rep.content[:200])
+        self.assertFalse(VoiceSynthesis.objects.filter(user=self.user).exists(),
+                         'aucune card ne doit naître d\'un chemin refusé')
+
+    def test_le_meme_refus_vaut_pour_le_lot_depuis_server_path(self):
+        rep = self.client.post(reverse('synthesizer:batch_create'),
+                               {'server_path': '../manage.py'})
+        self.assertEqual(rep.status_code, 403, rep.content[:200])

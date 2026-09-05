@@ -36,6 +36,39 @@ def get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str =
     return Path(settings.MEDIA_ROOT) / app_name / str(user_id) / subfolder
 
 
+class OutsideMediaRoot(ValueError):
+    """Le chemin demandé sort de MEDIA_ROOT (traversée `..`, dossier frère, absolu étranger)."""
+
+
+def resolve_under_media_root(candidate, *, must_exist: bool = True):
+    """Résout un chemin — absolu, ou RELATIF à MEDIA_ROOT — et GARANTIT qu'il y reste.
+
+    Rend ``(abs_path, rel_posix)`` ; lève `OutsideMediaRoot` sinon, `FileNotFoundError` si
+    ``must_exist`` et que le fichier manque.
+
+    LA garde de confinement du dépôt (2026-09-05, `MEDIA_STORAGE_TIERING §8.6` D1-D3) —
+    posée UNE fois, adoptée par tous les sites qui reçoivent un chemin de l'utilisateur
+    (`server_path` d'un import filemanager, `-i` d'un fichier de lot, liste de chemins).
+    Avant elle, six sites la réécrivaient chacun à sa façon et **deux étaient faux** :
+      - `synthesizer/views.py` faisait ``Path(MEDIA_ROOT) / server_path`` sans `resolve()`
+        ni contrôle — un ``../../…`` lisait n'importe quel fichier du serveur (🔴) ;
+      - converter, avatarizer et le gabarit généré contrôlaient par
+        ``str(abs).startswith(str(root))`` — un dossier FRÈRE (``media_backup/``) passait.
+    Le contrôle juste est une FRONTIÈRE DE CHEMIN (`relative_to`), après résolution des
+    liens et des ``..`` — c'est ce que `converter.quick_convert` faisait déjà seul.
+    """
+    root = Path(settings.MEDIA_ROOT).resolve()
+    cand = Path(str(candidate))
+    abs_path = (cand if cand.is_absolute() else root / cand).resolve()
+    try:
+        rel = abs_path.relative_to(root)
+    except ValueError:
+        raise OutsideMediaRoot(f"Chemin hors de MEDIA_ROOT : {candidate}")
+    if must_exist and not abs_path.exists():
+        raise FileNotFoundError(f"Fichier introuvable : {candidate}")
+    return abs_path, rel.as_posix()
+
+
 def get_app_media_url(app_name: str, user_id: Union[int, str], subfolder: str = 'input') -> str:
     """
     Get the URL path for an app's user-specific media folder.

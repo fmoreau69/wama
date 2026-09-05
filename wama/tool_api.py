@@ -149,12 +149,9 @@ def add_to_anonymizer(
             return {'error': f'SAM3 prompt invalide : {err}'}
 
     # Resolve source path
-    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    if not str(src).startswith(str(media_root)):
-        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-    if not src.exists():
-        return {'error': f'Fichier introuvable : {file_path}'}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
     if src.suffix.lower() not in _MEDIA_EXTS:
         return {'error': f'Format non supporté : {src.suffix}'}
 
@@ -538,12 +535,9 @@ def add_to_enhancer(
     blend_factor = max(0.0, min(1.0, float(blend_factor)))
 
     # Resolve and validate source file
-    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    if not str(src).startswith(str(media_root)):
-        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-    if not src.exists():
-        return {'error': f'Fichier introuvable : {file_path}'}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
 
     ext = src.suffix.lower()
     if ext in _IMAGE_EXTS:
@@ -715,12 +709,9 @@ def add_to_audio_enhancer(
     denoising_strength = max(0.0, min(1.0, float(denoising_strength)))
     quality = max(32, min(128, int(quality)))
 
-    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    if not str(src).startswith(str(media_root)):
-        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-    if not src.exists():
-        return {'error': f'Fichier introuvable : {file_path}'}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
     if src.suffix.lower() not in _AUDIO_ENHANCER_EXTS:
         return {'error': f'Format audio non supporté : {src.suffix}. Formats acceptés : {", ".join(sorted(_AUDIO_ENHANCER_EXTS))}'}
 
@@ -1176,12 +1167,9 @@ def add_to_describer(
         return {'error': f"Style invalide : '{output_style}'. "
                          f"Disponibles : {', '.join(sorted(valid_styles))}"}
 
-    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    if not str(src).startswith(str(media_root)):
-        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-    if not src.exists():
-        return {'error': f'Fichier introuvable : {file_path}'}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
 
     ext = src.suffix.lower()
     if ext not in _DESCRIBER_EXTS:
@@ -1257,12 +1245,9 @@ def add_to_transcriber(
     Returns:
         {"transcript_id": int, "filename": str, "duration_display": str, "status": "pending"}
     """
-    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    if not str(src).startswith(str(media_root)):
-        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-    if not src.exists():
-        return {'error': f'Fichier introuvable : {file_path}'}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
 
     ext = src.suffix.lower()
     if ext not in _TRANSCRIBER_EXTS:
@@ -1430,12 +1415,9 @@ def add_to_reader(
         {"item_id": int, "filename": str, "page_count": int, "status": "PENDING"}
     """
     from pathlib import Path
-    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    if not str(src).startswith(str(media_root)):
-        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-    if not src.exists():
-        return {'error': f'Fichier introuvable : {file_path}'}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
 
     ext = src.suffix.lower()
     if ext not in _READER_EXTS:
@@ -1517,12 +1499,10 @@ def convert_file(
     from wama.converter.utils.format_router import detect_media_type, get_output_formats
     from wama.converter.utils.quality_presets import PRESET_CHOICES, DEFAULT_PRESET
 
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    src = (media_root / file_path).resolve()
-    if not str(src).startswith(str(media_root)):
-        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-    if not src.exists():
-        return {'error': f'Fichier introuvable : {file_path}'}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
+    rel_path = src.relative_to(Path(settings.MEDIA_ROOT).resolve())
 
     media_type = detect_media_type(src.name)
     if media_type is None:
@@ -1538,7 +1518,6 @@ def convert_file(
     if preset not in PRESET_CHOICES:
         preset = DEFAULT_PRESET
 
-    rel_path = src.relative_to(media_root)
     try:
         job = ConversionJob.objects.create(
             user=user,
@@ -1677,12 +1656,19 @@ def get_media_asset_url(user, asset_id: int) -> dict:
 # ===========================================================================
 
 def _resolve_user_path(user, file_path: str):
-    """Garde commune des outils fichier : chemin MEDIA_ROOT-relatif, existant, sans traversée."""
-    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    if not str(src).startswith(str(media_root)):
+    """Garde commune des outils fichier : chemin MEDIA_ROOT-relatif, existant, sans traversée.
+
+    Délègue à LA brique de confinement (`media_paths.resolve_under_media_root`, 05/09).
+    ⚠ Cette garde existait depuis longtemps et **huit sites du même fichier ne l'appelaient
+    pas** — chacun recopiait son `startswith(str(media_root))`, contrôle par PRÉFIXE DE
+    CHAÎNE qu'un dossier frère (`media_backup/`) traverse. Tous y passent désormais.
+    """
+    from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+    try:
+        src, _rel = resolve_under_media_root(file_path)
+    except OutsideMediaRoot:
         return None, {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-    if not src.exists():
+    except FileNotFoundError:
         return None, {'error': f'Fichier introuvable : {file_path}'}
     return src, None
 
@@ -1923,11 +1909,9 @@ def add_to_avatarizer(
         job.language = language or 'fr'
         job.voice_preset = voice_preset or 'default'
     else:  # standalone (audio_path fourni — c'est lui qui a dérivé le mode)
-        src = (Path(settings.MEDIA_ROOT) / audio_path).resolve()
-        if not str(src).startswith(str(Path(settings.MEDIA_ROOT).resolve())):
-            return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
-        if not src.exists():
-            return {'error': f'Audio introuvable : {audio_path}'}
+        src, err = _resolve_user_path(user, audio_path)
+        if err:
+            return err
         if src.suffix.lower() not in ('.wav', '.mp3', '.ogg', '.flac'):
             return {'error': f'Format audio non supporté : {src.suffix}. Attendu : wav, mp3, ogg, flac.'}
         with open(str(src), 'rb') as f:
@@ -1943,11 +1927,9 @@ def add_to_avatarizer(
     else:
         if not avatar_image_path:
             return {'error': "Fournissez une image avatar (avatar_image_path)."}
-        asrc = (Path(settings.MEDIA_ROOT) / avatar_image_path).resolve()
-        if not str(asrc).startswith(str(Path(settings.MEDIA_ROOT).resolve())):
-            return {'error': 'Accès refusé : chemin avatar hors de MEDIA_ROOT.'}
-        if not asrc.exists():
-            return {'error': f'Image avatar introuvable : {avatar_image_path}'}
+        asrc, err = _resolve_user_path(user, avatar_image_path)
+        if err:
+            return err
         if asrc.suffix.lower() not in ('.jpg', '.jpeg', '.png', '.webp'):
             return {'error': f'Format image non supporté : {asrc.suffix}. Attendu : jpg, jpeg, png, webp.'}
         with open(str(asrc), 'rb') as f:

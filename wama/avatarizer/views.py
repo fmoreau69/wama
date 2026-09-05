@@ -594,11 +594,12 @@ def extract_text(request):
 
         if media_path:
             # Fichier déjà sur le serveur (depuis filemanager)
-            target = (Path(settings.MEDIA_ROOT) / media_path).resolve()
-            media_root = Path(settings.MEDIA_ROOT).resolve()
-            if not str(target).startswith(str(media_root)):
+            from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+            try:
+                target, _ = resolve_under_media_root(media_path)
+            except OutsideMediaRoot:
                 return JsonResponse({'error': 'Chemin non autorisé.'}, status=403)
-            if not target.exists():
+            except FileNotFoundError:
                 return JsonResponse({'error': 'Fichier introuvable.'}, status=404)
             ext = target.suffix.lstrip('.').lower()
             if ext not in ALLOWED_EXTS:
@@ -869,11 +870,11 @@ def batch_create(request):
         )
         # Standalone : rattacher l'audio s'il résout sous MEDIA_ROOT (partage, pas de copie)
         if row['mode'] == 'standalone' and row['audio_path']:
+            from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
             try:
-                target = (media_root / row['audio_path']).resolve()
-                if str(target).startswith(str(media_root)) and target.exists():
-                    job.audio_input.name = os.path.relpath(str(target), str(media_root)).replace('\\', '/')
-            except Exception:
+                _target, rel = resolve_under_media_root(row['audio_path'])
+                job.audio_input.name = rel
+            except (OutsideMediaRoot, FileNotFoundError):
                 pass
         job.save()
         return job
