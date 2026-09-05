@@ -157,7 +157,20 @@
           dz.addEventListener('drop', function (e) {
             e.preventDefault();
             dz.classList.remove('dragover');
-            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+            if (!e.dataTransfer) return;
+            // IMPORT = UN SEUL GESTE (décision Fabien 05/09, CARD_DESIGN §11.11 B bis) :
+            // fichier(s) ET dossier(s), dépôt ET clic. La brique GLOBALE WamaFolderImport
+            // traverse un drop mêlant les deux (récursif) et rend une liste plate ; sans
+            // elle, repli sur `dataTransfer.files`. ⚠ Jusqu'au 05/09 cette brique ne lisait
+            // que `files` : un DOSSIER déposé sur une app générée n'était pas traversé —
+            // alors que 9 apps en place le faisaient chacune dans leur handler. Câbler le
+            // parc sur la brique sans ce maillon aurait RÉGRESSÉ le drop de dossier.
+            if (global.WamaFolderImport && global.WamaFolderImport.collect) {
+              global.WamaFolderImport.collect(e.dataTransfer).then(function (liste) {
+                var files = global.WamaFolderImport.files(liste);
+                if (files.length) handleFiles(files);
+              });
+            } else if (e.dataTransfer.files && e.dataTransfer.files.length) {
               handleFiles(e.dataTransfer.files);
             }
           });
@@ -171,6 +184,23 @@
             handleFiles(this.files);
             this.value = '';           // re-déposer le MÊME fichier doit re-déclencher
           }
+        });
+      }
+
+      // Sélecteur de DOSSIER (`<input webkitdirectory>`, `folder_input_id` de la card) :
+      // l'autre moitié du même geste, par le clic. Déclaré par l'app (`folderInputId`) —
+      // ce câblage vivait dans le gabarit GÉNÉRÉ, hors brique, donc absent de toute app
+      // qui adopterait la brique sans passer par le générateur.
+      var fdi = el(cfg.folderInputId);
+      if (fdi && fdi.dataset.wamaImportBound !== '1') {
+        fdi.dataset.wamaImportBound = '1';
+        fdi.addEventListener('change', function () {
+          if (!this.files || !this.files.length) return;
+          var files = global.WamaFolderImport
+            ? global.WamaFolderImport.files(global.WamaFolderImport.fromInput(this.files))
+            : Array.prototype.slice.call(this.files);
+          if (files.length) handleFiles(files);
+          this.value = '';
         });
       }
     }

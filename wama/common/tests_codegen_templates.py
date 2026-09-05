@@ -319,7 +319,10 @@ class EmissionsDuGabaritTest(SimpleTestCase):
     def test_l_import_de_dossier_est_offert(self):
         # Skip mesuré 30/08 : « folder_input_id non déclaré sur la card d'entrée commune ».
         self.assertIn("folder_input_id=", self.src)
-        self.assertIn('WamaFolderImport', self.src, 'affordance sans câblage = input mort')
+        # Le CÂBLAGE de l'input dossier est porté par la brique depuis le 05/09 : le gabarit
+        # le DÉCLARE (`folderInputId`) au lieu d'écrire lui-même l'écouteur WamaFolderImport
+        # — un câblage écrit dans le gabarit généré n'existait pour aucune app hors générateur.
+        self.assertIn("folderInputId:", self.src, 'affordance sans câblage = input mort')
 
     def test_le_volet_actions_de_l_inspecteur_est_emis(self):
         # Skip mesuré 30/08 : « pas de volet #inspectorActions sur cette page ».
