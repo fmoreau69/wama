@@ -63,6 +63,23 @@ FEATURES = [
             "angulaire dominante, §[2]). Premier levier qui touche la pose navette (inventaire "
             "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul.",
             default=False, scope='compute'),
+    Feature('sam3_homography', 'Homographie sol par passage piéton (DLT)',
+            "Utilise l'homographie calibrée sur un passage piéton (SAM3 ou clics, "
+            "`camera.ground_homography`) là où elle est consommée : distances géométriques à "
+            "l'analyse, projection des MARQUAGES en monde, largeur de voie auto. Voie PROUVÉE "
+            "BIAISÉE sur les données réelles (#546 inversion de signe, #537 profondeur non "
+            "monotone) mais restée active sans bascule jusqu'au 2026-09-05 (§INVENTAIRE D.2). "
+            "OFF = projection paramétrique (FOV réels, hauteur 2,4 m, pitch 0) pour les marquages, "
+            "aucune distance géométrique à l'analyse. Défaut ON = comportement historique.",
+            default=True, scope='compute'),
+    Feature('display_ema', "Lissage EMA d'affichage (repli par frame)",
+            "En repli ③ (détection sans ancre ni world_en : frames postérieures au dernier calcul, "
+            "ou véhicule non qualifié stationné), la distance et le latéral affichés sont lissés "
+            "par EMA α=0,3. Une EMA échange du jitter contre un RETARD DE PHASE : hypothèse "
+            "§INVENTAIRE D.3 pour les garés qui « suivent la navette puis se décrochent ». OFF = "
+            "position brute par frame (jitter visible, aucun retard) — bascule LIVE : le test D.3 "
+            "se fait à l'œil ET au chiffre sans recalcul. Défaut ON = comportement historique.",
+            default=True, scope='live'),
     Feature('world_markings', 'Marquages SAM3 en monde',
             "Les stop_line/passages piétons segmentés par SAM3 sont projetés au sol et "
             "agrégés multi-passages : bornes réelles d'intersection sur la mini-map, et "

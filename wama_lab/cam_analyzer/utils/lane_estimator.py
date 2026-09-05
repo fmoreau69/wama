@@ -38,6 +38,14 @@ def estimate_lane_width(camera, y_band=(6.0, 14.0), min_samples=20, max_frames=6
     homo = getattr(camera, "ground_homography", None)
     if not homo or "homography" not in homo:
         return None
+    # ⚑ sam3_homography (défaut ON = historique) : la largeur auto dérive de la voie DLT ;
+    # OFF ⇒ pas d'estimation (le défaut 3,5 m / le slider reprennent la main).
+    try:
+        from .features import enabled as _feat_on
+        if not _feat_on(camera.session, 'sam3_homography'):
+            return None
+    except Exception:
+        pass
     H = np.array(homo["homography"], dtype=float)
 
     def proj(px, py):
