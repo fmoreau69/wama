@@ -184,5 +184,9 @@
     return { handleFiles: handleFiles, ingestText: ingestText, brancher: brancher };
   }
 
+  // ⚠ Les helpers « chemin serveur → File → input » (drag depuis l'explorateur, montages)
+  // vivent dans wama-app-base.js (`WamaApp.filesFromServerPaths` / `injectFiles`) : ce
+  // fichier-ci n'est chargé que par les apps GÉNÉRÉES, l'explorateur est sur toutes les pages.
+
   global.WamaImport = WamaImport;
 })(window);

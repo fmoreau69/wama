@@ -160,28 +160,11 @@
         audioInput.addEventListener('change', () => handleAudioFile(audioInput.files[0]));
     }
 
-    // Import depuis le Filemanager (drag-and-drop depuis le panneau latéral)
-    if (audioDropzone) {
-        audioDropzone.addEventListener('filemanager:filedrop', async (e) => {
-            const { path, name, mime } = e.detail;
-            const ext = (name || '').split('.').pop().toLowerCase();
-            const allowedExts = ['wav', 'mp3', 'ogg', 'flac'];
-            if (!allowedExts.includes(ext)) {
-                WamaApp.toast(`Format non supporté : .${ext}\nL'avatarizer accepte uniquement : ${allowedExts.join(', ')}`, 'error');
-                return;
-            }
-            try {
-                const mediaUrl = (window.MEDIA_URL || cfg.mediaUrl || '/media/') + path;
-                const resp = await fetch(mediaUrl);
-                if (!resp.ok) throw new Error(`Fichier introuvable sur le serveur (HTTP ${resp.status})`);
-                const blob = await resp.blob();
-                const file = new File([blob], name || 'audio', { type: blob.type || mime || 'audio/mpeg' });
-                handleAudioFile(file);
-            } catch (err) {
-                WamaApp.toast('Erreur lors du chargement du fichier depuis le Filemanager : ' + err.message, 'error');
-            }
-        });
-    }
+    // Import depuis le Filemanager (drag depuis le panneau latéral) : plus rien à écouter
+    // ici (2026-09-05). La card est « attache » (`depot_cree=False`) — le filemanager
+    // matérialise le fichier et l'INJECTE dans `audio_input`, dont le `change` ci-dessus
+    // appelle déjà `handleAudioFile`. Le re-téléchargement qui vivait ici (et échouait sur un
+    // fichier de MONTAGE, non servi sous /media/) est devenu `WamaImport.fromServerPaths`.
     if (btnRemoveAudio) {
         btnRemoveAudio.addEventListener('click', () => {
             audioFile = null;

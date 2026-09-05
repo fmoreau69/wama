@@ -608,8 +608,13 @@ def api_upload(request):
                         # Track created folders
                         folders_created.add(str(Path(safe_path).parent))
 
-                    # Save file with its original folder structure
-                    dest_path = f'users/{user.id}/temp/{safe_path}'
+                    # Save file with its original folder structure — nom DÉ-COLLISIONNÉ
+                    # (2026-09-05, MEDIA_STORAGE_TIERING §8.6 D8) : cette branche ÉCRASAIT
+                    # un fichier homonyme déjà présent, seule voie du parc à le faire ; le
+                    # dépôt simple, `copy_into_app_input` et `UploadToUserPath` renomment tous.
+                    from wama.common.utils.media_paths import get_unique_filename
+                    nom_unique = get_unique_filename(dest_dir, Path(safe_path).name)
+                    dest_path = f'users/{user.id}/temp/{(Path(safe_path).parent / nom_unique).as_posix()}'
                     full_dest = Path(settings.MEDIA_ROOT) / dest_path
 
                     # Write file content

@@ -1801,8 +1801,28 @@
                     : (dragData.path ? [{ path: dragData.path, name: dragData.name, mime: dragData.mime }] : []);
 
                 if (app && dragFiles.length) {
-                    // These apps handle the blob fetch themselves via filemanager:filedrop custom event.
-                    if (app === 'imager' || app === 'avatarizer' || app === 'cam_analyzer') {
+                    // Le canal se DÉCLARE, il ne se devine plus par nom d'app (2026-09-05,
+                    // MEDIA_STORAGE_TIERING §8.6 D5). Trois cas, dans l'ordre :
+                    //   1. card commune « attache » (`data-wama-depot="attache"` : imager,
+                    //      avatarizer) → le fichier rejoint le FORMULAIRE : File matérialisé
+                    //      puis injecté dans l'input de la zone — le chemin de MediaPicker ;
+                    //   2. zone HORS card commune (WAMA Lab) → l'événement `filemanager:filedrop`,
+                    //      que son propriétaire écoute ;
+                    //   3. card commune « crée » → import SERVEUR par chemin (aucun aller-retour).
+                    // ⚠ L'ancienne liste `imager || avatarizer || cam_analyzer` envoyait imager
+                    // sur un événement qu'AUCUN JS d'imager n'écoutait : drag muet, sans un mot.
+                    const carteCommune = currentDropZone.closest('[data-wama-depot]');
+                    const attache = carteCommune && carteCommune.dataset.wamaDepot === 'attache';
+                    const cible = attache && (currentDropZone.querySelector('input[type="file"]')
+                                              || carteCommune.querySelector('input[type="file"]'));
+                    if (attache && cible && window.WamaApp && WamaApp.filesFromServerPaths) {
+                        WamaApp.filesFromServerPaths(dragFiles).then(function (files) {
+                            if (!files.length) return;   // déjà signalé par la brique
+                            if (WamaApp.injectFiles(cible, files)) {
+                                showToast(files.length + ' fichier(s) joint(s) à la card', 'success');
+                            }
+                        });
+                    } else if (!carteCommune) {
                         dragFiles.forEach(function (f) {
                             currentDropZone.dispatchEvent(new CustomEvent('filemanager:filedrop', {
                                 detail: { path: f.path, name: f.name, mime: f.mime },

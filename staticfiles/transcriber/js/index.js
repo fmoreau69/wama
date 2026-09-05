@@ -120,17 +120,31 @@ document.addEventListener('DOMContentLoaded', function () {
     if (fileList.length === 1 && window._batchImport) {
       if (await window._batchImport.detectAndHandle(fileList[0])) return;
     }
-    // Upload tous les fichiers puis consolide en UN batch si plusieurs (le
-    // serveur défait les batch-of-1 créés à l'upload). Couvre drag&drop,
+    // Upload séquentiel puis consolidation en UN lot si plusieurs — couvre drag&drop,
     // explorateur Windows et sélecteur de fichiers.
-    let any = false;
+    // ⚠ Jusqu'au 2026-09-05 ce commentaire disait « puis consolide en UN batch » et RIEN ne
+    // le faisait : la boucle uploadait puis rechargeait, et N fichiers déposés d'un coup
+    // donnaient N cards isolées, chacune enveloppée en lot-de-1 par `auto_wrap_orphans` —
+    // seule app du parc dans ce cas (MEDIA_STORAGE_TIERING §8.6 D4). L'URL existait déjà
+    // dans TRANSCRIBER_APP.consolidateUrl ; il manquait l'appel.
+    const ids = [];
     for (const file of fileList) {
       const id = await uploadFile(file);
-      if (id) any = true;
+      if (id) ids.push(id);
+    }
+    if (!ids.length) return;
+    if (ids.length > 1 && config.consolidateUrl) {
+      try {
+        await fetch(config.consolidateUrl, {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
+          body: JSON.stringify({ ids }),
+        });
+      } catch (e) { /* à défaut : cards unitaires, enveloppées en lots-de-1 par le serveur */ }
     }
     // Les fichiers importés deviennent des cards BROUILLON (DRAFT) dans la file : on recharge
-    // pour le rendu serveur (enveloppe en batch via _auto_wrap_orphans). Staging supprimé (2026-06-29).
-    if (any) location.reload();
+    // pour le rendu serveur. Staging supprimé (2026-06-29).
+    location.reload();
   }
 
   // Staging (« à valider ») SUPPRIMÉ 2026-06-29 : les DRAFT sont des cards BROUILLON directement
