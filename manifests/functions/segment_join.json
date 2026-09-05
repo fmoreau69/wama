@@ -1,0 +1,146 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "join",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Flux fournissant les DÉBUTS.",
+        "key": "starts",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Flux fournissant les FINS.",
+        "key": "ends",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "segment_join",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Segments produits — l'origine du mode est tracée sur chaque ligne.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "name",
+          "origin"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Décalage du DÉBUT après appariement (« le début du bloc moins 2 s »). Appliqué APRÈS : décaler avant changerait l'appariement.",
+        "key": "offset_start",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Décalage de la FIN après appariement (« la pause suivante plus 5 s »).",
+        "key": "offset_end",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": 0,
+        "description": "Occurrences de DÉBUT sautées avant d'apparier — le curseur « Table 1 » de l'écran d'origine.",
+        "key": "skip_starts",
+        "max": null,
+        "min": 0,
+        "type": "int",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": 0,
+        "description": "Occurrences de FIN sautées avant d'apparier — le curseur « Table 2 » de l'écran d'origine.",
+        "key": "skip_ends",
+        "max": null,
+        "min": 0,
+        "type": "int",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": true,
+        "description": "Un segment par début (défaut) ; décoché : un seul, celui des curseurs — la case « Répéter sur les prochains segments ».",
+        "key": "repeat",
+        "max": null,
+        "min": null,
+        "type": "bool",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "",
+        "key": "name",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": false,
+        "description": "Écarter le dernier segment s'il reste ouvert (défaut : le garder).",
+        "key": "drop_last_open",
+        "max": null,
+        "min": null,
+        "type": "bool",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Début pris dans un flux d'événements, fin dans un autre. L'appariement se fait par le TEMPS (première fin postérieure au début) et non par index : deux flux indépendants n'ont pas le même nombre d'occurrences. Un début sans fin donne un segment OUVERT plutôt qu'un segment perdu.",
+  "key": "segment_join",
+  "manifest_kind": "function",
+  "name": "Segments par jonction de deux flux",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:segment_join",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

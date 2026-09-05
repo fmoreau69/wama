@@ -1,0 +1,87 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "detector",
+    "cost": {
+      "vram_gb": 8
+    },
+    "impl": "cam_analyzer.tasks:compute_depth_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Frames caméra (RTMaps).",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Détections (bbox → profondeur de contact).",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "bbox"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.depth_analysis",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "depth_map",
+        "description": "Carte métrique par frame (DepthFrame, sur disque).",
+        "key": "depth",
+        "optional": false,
+        "produced_fields": [
+          "focal_px"
+        ],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [
+          "depth_distance_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "gpu",
+      "depth",
+      "monocular"
+    ],
+    "visibility": "public"
+  },
+  "description": "ÉTAGE 1 de la chaîne profondeur : passe `depth` du volet (session-wide, 4 caméras). Infère la profondeur métrique (Apple Depth Pro) sur des frames échantillonnées et STOCKE la donnée brute ré-utilisable — carte par frame (disque float16 → DepthFrame) + profondeur de contact par détection (champ additif depth_distance_m). SEUL point d'inférence GPU ; les CALCULS (depth_ground_plane, depth_distance_report) la relisent SANS ré-inférer.",
+  "key": "cam_analyzer.depth_analysis",
+  "manifest_kind": "function",
+  "name": "Analyse de profondeur (Depth Pro)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.depth_analysis",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

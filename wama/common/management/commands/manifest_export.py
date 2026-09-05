@@ -11,7 +11,18 @@ commande REFUSE de l'écrire.
                                                     #  + modèles cités par les requires → manifests/models/
   python manage.py manifest_export transcriber      # une seule app
   python manage.py manifest_export --kind library faster-whisper   # SEMER une library au corpus
+  python manage.py manifest_export --kind function                 # TOUT le FUNCTION_CATALOG → manifests/functions/
   python manage.py manifest_export --check          # n'écrit rien ; sort en erreur si périmé
+  python manage.py manifest_export --check --kind function         # idem, fonctions seules
+
+Fonctions (2026-09-05, demande Fabien « voir si toute la chaîne manifeste → registre →
+utilisation tient ») : le kind `function` existait (extract/validate/write-back borné à
+`binding=user`) mais n'était JAMAIS exporté — le corpus n'avait que apps/libraries/models.
+Exportées par ÉNUMÉRATION du `FUNCTION_CATALOG` (fonctions SYSTÈME, `pure` + `app`) ; les
+`UserFunction` (binding `user`, données en base, scopées) ne sont pas un corpus d'exemples et
+ne s'exportent qu'à la clé explicite. Sans clé : `--kind function` n'exporte QUE les fonctions
+— c'est le seul mode qui ne touche pas aux libraries, donc le seul sûr depuis venv_win (cf. ⚠
+ENVIRONNEMENT ci-dessous) ; l'export complet (sans `--kind`) les inclut désormais aussi.
 
 Libraries (SPEC §7.4-3) : le semis est EXPLICITE (`--kind library <clé>`) — aucun critère de
 sélection inventé ; sans clé, la commande rafraîchit/contrôle ce qui a déjà été semé.
@@ -39,7 +50,21 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 
 DOSSIERS = {'app': 'manifests/apps', 'library': 'manifests/libraries',
-            'model': 'manifests/models'}
+            'model': 'manifests/models', 'function': 'manifests/functions'}
+
+
+def _function_keys() -> list:
+    """Clés des fonctions SYSTÈME du catalogue code (pure + app), triées.
+
+    `load_all()` parcourt les apps installées et importe leur module déclarant — c'est la
+    même énumération que `/model-manager/functions/` : ce que la page montre, le corpus l'a.
+    """
+    from wama.common.catalog.function_catalog import load_all, FUNCTION_CATALOG
+    try:
+        load_all()
+    except Exception:
+        pass
+    return sorted(FUNCTION_CATALOG)
 
 
 def _nom_fichier(cle: str) -> str:
@@ -90,6 +115,10 @@ class Command(BaseCommand):
 
         if o['cle']:
             cibles = [(o['kind'], o['cle'])]
+        elif o['kind'] == 'function':
+            # Fonctions SEULES : le seul mode sans clé qui ne touche pas aux libraries
+            # (venv-dépendantes) — utilisable depuis n'importe quel venv.
+            cibles = [('function', k) for k in _function_keys()]
         else:
             # Jumelles bac à sable EXCLUES : le corpus décrit les apps RÉELLES — une jumelle
             # est jetable et se COMPARE à sa source (route §10.3 marche S, fuite mesurée
@@ -106,6 +135,8 @@ class Command(BaseCommand):
             semes = {_cle_du_stem(f.stem)
                      for f in (base / DOSSIERS['model']).glob('*.json')}
             cibles += [('model', k) for k in sorted(cites | semes)]
+            # Fonctions : ÉNUMÉRÉES depuis le catalogue code (pas de semis, pas de dérivation).
+            cibles += [('function', k) for k in _function_keys()]
 
         w, s, e, warn = self.stdout.write, self.style.SUCCESS, self.style.ERROR, self.style.WARNING
         ecrits, perimes, refuses, inchanges = [], [], [], []

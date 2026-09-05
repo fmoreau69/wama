@@ -1,0 +1,67 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "detector",
+    "cost": {
+      "vram_gb": 4
+    },
+    "impl": "cam_analyzer.tasks:process_session_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Frames caméra (RTMaps).",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "cam_analyzer.yolo_detect",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [
+          "frame",
+          "bbox",
+          "class_name",
+          "confidence",
+          "track_id"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Détection/segmentation d'objets par frame (ultralytics).",
+  "key": "cam_analyzer.yolo_detect",
+  "manifest_kind": "function",
+  "name": "Détection YOLO",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.yolo_detect",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

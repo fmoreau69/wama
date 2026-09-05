@@ -1,0 +1,118 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "depth_map",
+        "description": "Carte de profondeur métrique HxW (mètres) + focale (px).",
+        "key": "depth",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "depth_map",
+        "description": "Masque booléen HxW de la zone roulable (sinon tout le raster).",
+        "key": "drivable",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "depth_ground_plane",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "ground_plane",
+        "optional": false,
+        "produced_fields": [
+          "pitch_deg",
+          "height_m",
+          "n_inliers",
+          "rms_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": "m",
+        "default": 1.5,
+        "description": "",
+        "key": "z_min",
+        "max": 20.0,
+        "min": 0.1,
+        "type": "float",
+        "unit": "Profondeur min retenue (route utile)."
+      },
+      {
+        "choices": "m",
+        "default": 60.0,
+        "description": "",
+        "key": "z_max",
+        "max": 200.0,
+        "min": 5.0,
+        "type": "float",
+        "unit": "Profondeur max retenue."
+      },
+      {
+        "choices": "m",
+        "default": 0.1,
+        "description": "",
+        "key": "ransac_thresh",
+        "max": 1.0,
+        "min": 0.01,
+        "type": "float",
+        "unit": "Seuil inlier au plan."
+      },
+      {
+        "choices": "",
+        "default": 100,
+        "description": "",
+        "key": "min_inliers",
+        "max": 100000,
+        "min": 3,
+        "type": "int",
+        "unit": "Inliers minimum pour valider le plan."
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geometry",
+      "depth",
+      "monocular",
+      "needs-calibration"
+    ],
+    "visibility": "public"
+  },
+  "description": "Estime le pitch/hauteur caméra en ajustant (RANSAC) un plan sur le nuage de points déprojeté depuis une carte de profondeur métrique restreinte à la zone roulable. Brique PURE : la géométrie ne connaît ni le rig ni la session ; les garde-fous physiques et le repli homographie restent à l'appelant.",
+  "key": "depth_ground_plane",
+  "manifest_kind": "function",
+  "name": "Plan de sol par profondeur",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:depth_ground_plane",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

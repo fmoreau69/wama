@@ -1,0 +1,113 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Trace géolocalisée.",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time",
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "distance_to_point",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "La trace, augmentée de `distance_<nom>` en mètres.",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "",
+        "description": "Nom du point de référence — la colonne produite s'en dérive (`distance_carrefour_nord`).",
+        "key": "name",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Latitude du point (degrés).",
+        "key": "lat",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": 0.0,
+        "description": "Longitude du point (degrés).",
+        "key": "lon",
+        "max": null,
+        "min": null,
+        "type": "float",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "lat",
+        "description": "",
+        "key": "champ_lat",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "lon",
+        "description": "",
+        "key": "champ_lon",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geo",
+      "spatial",
+      "segmentation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Adjoint à une trace la distance (mètres, haversine) de chaque position à un point géographique — carrefour, arrêt, borne. C'est la brique qui rend la segmentation SPATIALE exprimable : une fois la distance en colonne, « Segments par chaîne de conditions » la traite comme n'importe quel seuil, hystérésis comprise, ET peut la combiner à un prédicat temporel. Une position absente rend une distance absente, jamais une distance calculée sur zéro.",
+  "key": "distance_to_point",
+  "manifest_kind": "function",
+  "name": "Distance à un point de référence",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:distance_to_point",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

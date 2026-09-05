@@ -1,0 +1,106 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Gestes de codage : un instant + un code du protocole. Produits par un humain à l'interface OU par un modèle de vision — le port ne fait pas la différence, et c'est le but.",
+        "key": "gestures",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "coding_events",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Comportements ponctuels codés.",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [
+          "time",
+          "value",
+          "label",
+          "origin"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "",
+        "description": "Protocole (éthogramme) : chemin JSON ou dictionnaire. Déclare CE QUI EST CODABLE — comportements, nature ponctuel/état, groupes d'exclusion mutuelle, sujets, modificateurs typés. C'est lui qui pilote l'interface ET contraint l'exécution.",
+        "key": "protocol",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "Qui code : « fabien », « qwen3-vl », « detector:locate-anything ». Seul champ distinguant un codage humain d'un codage automatique.",
+        "key": "coder",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "Média codé. Obligatoire (repris des métadonnées du flux si absent) : sans support, les bornes produites ne sont plus vérifiables par personne.",
+        "key": "media",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "value",
+        "description": "",
+        "key": "code_column",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "codage",
+      "annotation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Même exécution que `codage_segments`, sortie ÉVÉNEMENTS : les comportements déclarés PONCTUELS dans le protocole, qui n'ont pas de durée. Séparé parce qu'un port a un seul type — et que confondre un instant et un état ferait perdre la distinction que le protocole vient d'établir.",
+  "key": "coding_events",
+  "manifest_kind": "function",
+  "name": "Codage → événements ponctuels",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:coding_events",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

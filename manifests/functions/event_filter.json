@@ -1,0 +1,82 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Occurrences à trier — leurs colonnes portent les conditions.",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "event_filter",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Les occurrences retenues, colonnes inchangées.",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "",
+        "description": "Liste JSON de conditions — [{\"key\": \"C1\", \"field\": \"vitesse\", \"operator\": \">=\", \"value\": 30}]. La SORTE de la colonne (numérique / texte / booléen) est LUE dans la donnée, jamais déclarée : un opérateur qui ne lui convient pas est refusé à la déclaration. Opérateurs numériques : <, <=, >, >=, ==, !=, empty, not_empty. Opérateurs texte : ==, !=, contains, not_contains, startswith, not_startswith, endswith, not_endswith, empty, not_empty.",
+        "key": "conditions",
+        "max": null,
+        "min": null,
+        "type": "json",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "Assemblage logique en forme préfixe — ET(C1, C2), NON(C1), OU(C1, ET(C2, C3)). ET et OU acceptent 2 arguments ou plus ; XOR en prend exactement 2 ; NON, un seul. Facultatif s'il n'y a qu'une condition. Le texte est une SAISIE : il est converti en arbre et c'est l'arbre qui est conservé, si bien que deux saisies équivalentes se comparent.",
+        "key": "connectors",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "conditionnel",
+      "ensembliste",
+      "evenement"
+    ],
+    "visibility": "public"
+  },
+  "description": "Ne garde que les OCCURRENCES satisfaisant la chaîne de conditions — la bascule [Data|Event] de l'écran d'origine (« les occurrences dont le commentaire contient FIN »). Même chaîne, mêmes opérateurs que « Segments par chaîne de conditions » : un filtre n'est pas un mode, c'est le même masque appliqué à des lignes qui existent déjà. Couvre en DÉCLARATIF l'essentiel du filtrage manuel de l'outil d'origine (§11.9 ④).",
+  "key": "event_filter",
+  "manifest_kind": "function",
+  "name": "Filtrer des événements par conditions",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:event_filter",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

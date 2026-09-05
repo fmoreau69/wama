@@ -1,0 +1,123 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "Flux échantillonné à enrichir. La colonne mesurée est choisie par le paramètre `colonne`.",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "calc_rolling",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "Le signal, augmenté de la colonne « <colonne>_<statistique> ».",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 5.0,
+        "description": "Largeur de la fenêtre, en secondes.",
+        "key": "window_s",
+        "max": null,
+        "min": 0.0,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": [
+          "count",
+          "delta",
+          "first",
+          "last",
+          "max",
+          "mean",
+          "median",
+          "min",
+          "range",
+          "stddev",
+          "sum"
+        ],
+        "default": "mean",
+        "description": "Statistique appliquée dans la fenêtre.",
+        "key": "statistic",
+        "max": null,
+        "min": null,
+        "type": "enum",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "value",
+        "description": "Colonne du signal sur laquelle porte le calcul.",
+        "key": "column",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": true,
+        "description": "Fenêtre centrée (analyse) plutôt que causale (temps réel).",
+        "key": "centered",
+        "max": null,
+        "min": null,
+        "type": "bool",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": 1,
+        "description": "Minimum d'échantillons présents, sinon la sortie vaut « absent » — évite une valeur calculée sur un seul point au milieu d'un trou.",
+        "key": "min_points",
+        "max": null,
+        "min": 1,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "calcul",
+      "lissage"
+    ],
+    "visibility": "public"
+  },
+  "description": "Statistique calculée sur une fenêtre glissante déclarée EN SECONDES — jamais en nombre d'échantillons : WAMA Data aligne des flux à cadences incommensurables, et « 50 points » n'y désigne pas la même durée d'un flux à l'autre. La fenêtre centrée lisse sans déphaser ; la fenêtre causale ne lit pas l'avenir, et c'est la seule licite si le résultat doit déclencher quelque chose.",
+  "key": "calc_rolling",
+  "manifest_kind": "function",
+  "name": "Moyenne (ou autre statistique) glissante",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:calc_rolling",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

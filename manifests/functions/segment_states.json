@@ -1,0 +1,98 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "segment_states",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "name",
+          "origin",
+          "value",
+          "samples"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "value",
+        "description": "",
+        "key": "column",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "Valeurs à ne pas segmenter, séparées par des virgules (ex. « -1 » pour « aucun état »).",
+        "key": "ignore",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "",
+        "description": "",
+        "key": "name",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation",
+      "categoriel"
+    ],
+    "visibility": "public"
+  },
+  "description": "Découpe un signal catégoriel en plages de valeur constante. C'est la conversion entre les deux représentations d'un segment : implicite (une colonne échantillonnée) et explicite (des bornes) — sans elle, un état déclaré dans un signal reste inexploitable comme segment.",
+  "key": "segment_states",
+  "manifest_kind": "function",
+  "name": "Segments d'état (plages de valeur constante)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:segment_states",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

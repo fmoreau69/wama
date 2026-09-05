@@ -1,0 +1,100 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Trace GPS du véhicule porteur (heading optionnel, sert au rapport).",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "ego_track_filter",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Même trace, enrichie ; rapport A/B dans meta.ego_filter.",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [
+          "lat_f",
+          "lon_f",
+          "speed_f_kmh",
+          "heading_f",
+          "heading_f_held"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 0.8,
+        "description": "Accélération de processus (agilité du véhicule).",
+        "key": "sigma_a",
+        "max": 10.0,
+        "min": 0.05,
+        "type": "float",
+        "unit": "m/s²"
+      },
+      {
+        "choices": null,
+        "default": 2.0,
+        "description": "Bruit de mesure GPS (≈ HDOP × précision nominale).",
+        "key": "sigma_m",
+        "max": 20.0,
+        "min": 0.1,
+        "type": "float",
+        "unit": "m"
+      },
+      {
+        "choices": null,
+        "default": 1.0,
+        "description": "Sous cette vitesse lissée, le cap est tenu.",
+        "key": "heading_min_speed_mps",
+        "max": 5.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "m/s"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geo",
+      "timeseries",
+      "ego-motion",
+      "gnss",
+      "ab-metric"
+    ],
+    "visibility": "public"
+  },
+  "description": "Lisse la position et la vitesse du véhicule porteur par Kalman vitesse-constante + lisseur RTS (sans retard de phase), et dérive le cap de la vitesse lissée — tenu sous un seuil de vitesse. Colonnes ajoutées, brutes conservées : l'A/B se lit ligne à ligne. Premier levier de correction qui touche la pose ego, dont toute détection hérite.",
+  "key": "ego_track_filter",
+  "manifest_kind": "function",
+  "name": "Filtre de trajectoire ego (Kalman + RTS)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:ego_track_filter",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

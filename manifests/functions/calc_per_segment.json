@@ -1,0 +1,97 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "aggregate",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Segments sur lesquels agréger (Segmenter, codage, transcription…).",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "Flux mesuré, échantillonné.",
+        "key": "signal",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      }
+    ],
+    "key": "calc_per_segment",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Les segments reçus, augmentés d'une colonne « <colonne>_<statistique> » par statistique demandée.",
+        "key": "segments",
+        "optional": false,
+        "produced_fields": [
+          "n",
+          "duration",
+          "truncated"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": "mean",
+        "description": "Statistiques à calculer, séparées par des virgules (disponibles : count, delta, first, last, max, mean, median, min, range, stddev, sum).",
+        "key": "statistics",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "value",
+        "description": "Colonne du signal sur laquelle porte le calcul.",
+        "key": "column",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "calcul",
+      "indicateurs"
+    ],
+    "visibility": "public"
+  },
+  "description": "Agrège un signal sur chaque segment et adjoint les indicateurs à celui-ci — une ligne par segment. Trois champs de service accompagnent toujours le résultat : `n` (échantillons présents), `duree` et `tronque`. Sans eux un indicateur absent serait indéchiffrable — aucune mesure dans la fenêtre, ou fenêtre jamais refermée ? Un segment OUVERT n'a d'ailleurs pas de durée observée (`duree` vaut « absent ») : une durée refermée par la fin de l'enregistrement n'est pas une durée mesurée, et les confondre fausse toute statistique de durée.",
+  "key": "calc_per_segment",
+  "manifest_kind": "function",
+  "name": "Indicateurs par segment",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:calc_per_segment",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

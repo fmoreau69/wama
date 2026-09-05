@@ -1,0 +1,76 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Détections placées en monde, avec identité de track et position.",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "global_track_id",
+          "world_en"
+        ]
+      }
+    ],
+    "key": "placement_spread",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "RMS médian d'étalement (m) ; détail par track dans meta.",
+        "key": "rms",
+        "optional": false,
+        "produced_fields": [
+          "metric",
+          "value"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 3,
+        "description": "Observations minimales pour qu'un track soit compté.",
+        "key": "min_obs",
+        "max": 100,
+        "min": 1,
+        "type": "int",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "geometry",
+      "placement-quality",
+      "ab-metric",
+      "no-ground-truth"
+    ],
+    "visibility": "public"
+  },
+  "description": "Mesure la cohérence d'un placement monde : dispersion RMS des positions des objets immobiles autour de leur barycentre (0 = idéal). Métrique A/B objective, sans vérité terrain — plus bas = meilleur.",
+  "key": "placement_spread",
+  "manifest_kind": "function",
+  "name": "Étalement des stationnés",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:placement_spread",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

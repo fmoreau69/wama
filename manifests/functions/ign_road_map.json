@@ -1,0 +1,93 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "network": true
+    },
+    "impl": "",
+    "inputs": [],
+    "key": "ign_road_map",
+    "outputs": [
+      {
+        "cardinality": "many",
+        "data_type": "road_map",
+        "description": "Polylignes (lat, lon) + attributs, prêtes pour le map-matching.",
+        "key": "road_map",
+        "optional": false,
+        "produced_fields": [
+          "id",
+          "geometry",
+          "type",
+          "nom",
+          "sens",
+          "largeur_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": null,
+        "description": "Latitude WGS84.",
+        "key": "lat",
+        "max": 90.0,
+        "min": -90.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "description": "Longitude WGS84.",
+        "key": "lon",
+        "max": 180.0,
+        "min": -180.0,
+        "type": "float",
+        "unit": "°"
+      },
+      {
+        "choices": null,
+        "default": 300.0,
+        "description": "Rayon autour du point. 300 m : un immeuble de 25 m y masque encore ~5° d'élévation, plage des satellites bas.",
+        "key": "radius_m",
+        "max": 2000.0,
+        "min": 10.0,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "ign",
+      "reference",
+      "network",
+      "france",
+      "map-matching"
+    ],
+    "visibility": "public"
+  },
+  "description": "Réseau routier BD TOPO mis à la FORME du port `road_map` : géométries en (lat, lon) et TypedFrame typé, donc chaînable tel quel dans `driving.gps_map_match`. Seconde voie d'alimentation du port — le référentiel national autoritatif, à côté des tracés de sections fournis par un projet (`load_road_map_csv`), qu'elle ne remplace pas.",
+  "key": "ign_road_map",
+  "manifest_kind": "function",
+  "name": "Référentiel de map-matching IGN",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:ign_road_map",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -1,0 +1,65 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {},
+    "impl": "cam_analyzer.tasks:compute_indicators_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "world_en",
+          "global_track_id"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.prediction",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [
+          "prediction_ttc",
+          "prediction_pet"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "per-vehicle"
+    ],
+    "visibility": "public"
+  },
+  "description": "TTC/PET par prédiction de trajectoire (ré-annotation des détections, sans re-détection).",
+  "key": "cam_analyzer.prediction",
+  "manifest_kind": "function",
+  "name": "Indicateurs prédiction (TTC/PET)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.prediction",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

@@ -1,0 +1,91 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "indicator",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Codage de référence (typiquement humain).",
+        "key": "reference",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end",
+          "value"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Codage à comparer (typiquement automatique).",
+        "key": "compare",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end",
+          "value"
+        ]
+      }
+    ],
+    "key": "coding_agreement",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne : appariés, propres à chaque source, décalage moyen.",
+        "key": "mesure",
+        "optional": false,
+        "produced_fields": [
+          "matched",
+          "only_a",
+          "only_b",
+          "mean_offset"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 1.0,
+        "description": "Écart maximal entre deux débuts pour les considérer appariés.",
+        "key": "tolerance",
+        "max": null,
+        "min": 0.0,
+        "type": "float",
+        "unit": "s"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "codage",
+      "qualité"
+    ],
+    "visibility": "public"
+  },
+  "description": "Apparie deux codages du même média par code, sujet et proximité des débuts, dans une tolérance. Répond à la question posée quand on valide un codage assisté : « ce que la machine a proposé correspond-il à ce que l'humain a codé ». Les indicateurs d'accord plus fins relèvent du module de calcul.",
+  "key": "coding_agreement",
+  "manifest_kind": "function",
+  "name": "Accord entre deux codages",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:coding_agreement",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

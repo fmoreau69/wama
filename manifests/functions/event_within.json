@@ -1,0 +1,84 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "time"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "Contexte auquel on restreint.",
+        "key": "reference",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end"
+        ]
+      }
+    ],
+    "key": "event_within",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Les événements retenus, colonnes inchangées.",
+        "key": "events",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": true,
+        "description": "Bornes strictement intérieures (défaut) ou égalité admise.",
+        "key": "strict",
+        "max": null,
+        "min": null,
+        "type": "bool",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "temporel",
+      "segmentation",
+      "ensembliste",
+      "evenement"
+    ],
+    "visibility": "public"
+  },
+  "description": "Ne garde que les événements dont l'instant tombe dans l'un des segments de référence — la restriction « Situation : … » appliquée à une sortie ÉVÉNEMENTS. Opération ensembliste, comme « Restreindre des segments à un contexte » ; une fin OUVERTE de la référence contient tout instant postérieur à son début.",
+  "key": "event_within",
+  "manifest_kind": "function",
+  "name": "Restreindre des événements à un contexte",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:event_within",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

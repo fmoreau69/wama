@@ -1,0 +1,76 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "indicator",
+    "cost": {},
+    "impl": "cam_analyzer.tasks:compute_ortho_recalage_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "",
+        "key": "markings",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "a",
+          "b",
+          "label"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "road_map",
+        "description": "",
+        "key": "road_map",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "cam_analyzer.ortho_recalage",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "recalage",
+        "optional": false,
+        "produced_fields": [
+          "de_m",
+          "dn_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "geo",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Segmente les passages piétons sur l'orthophoto IGN et mesure le décalage avec les crossings caméra (offset de recalage GPS/projection).",
+  "key": "cam_analyzer.ortho_recalage",
+  "manifest_kind": "function",
+  "name": "Recalage absolu ortho",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.ortho_recalage",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

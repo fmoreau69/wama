@@ -1,0 +1,97 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "Trace à corriger.",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "ts",
+          "lat",
+          "lon"
+        ]
+      },
+      {
+        "cardinality": "many",
+        "data_type": "table",
+        "description": "Offsets ancrés (sortie de `build_anchors`).",
+        "key": "anchors",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "ts",
+          "de_m",
+          "dn_m"
+        ]
+      }
+    ],
+    "key": "trajectory_offset",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [
+          "lat",
+          "lon",
+          "lat_raw",
+          "lon_raw",
+          "corr_de_m",
+          "corr_dn_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 12.0,
+        "description": "Élévation moyenne bouchée au-delà de laquelle la correction locale s'applique à 100 % (rétraction en ciel dégagé). Valeur PROVISOIRE, à réétalonner sur données réelles.",
+        "key": "full_trust_mask_deg",
+        "max": 45.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "°"
+      }
+    ],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "gnss",
+      "timeseries"
+    ],
+    "visibility": "public"
+  },
+  "description": "Applique à une trace lat/lon des offsets mesurés en quelques repères : interpolation entre ancres pondérée par la fiabilité, sans extrapolation hors bornes. Conserve l'original (`lat_raw`/`lon_raw`) et trace la correction appliquée par point.",
+  "key": "trajectory_offset",
+  "manifest_kind": "function",
+  "name": "Correction de trajectoire par offsets ancrés",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:trajectory_offset",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}
