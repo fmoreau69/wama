@@ -1,13 +1,56 @@
-# Face Analyzer Windows Dependencies
-# ==========================
+# Face Analyzer — dépendances Linux (venv PRINCIPAL, cf. README §Installation)
+# ============================================================================
+#
+# ⚠ L'en-tête disait « Windows Dependencies » : copié-collé de windows.txt, jamais corrigé.
+#
+# ⚠⚠ CE FICHIER NE S'INSTALLE PAS TEL QUEL SUR LE VENV PRINCIPAL — et ce n'est PAS un défaut
+# qu'on peut corriger en ajustant des bornes. Mesuré le 2026-09-05, ligne par ligne, par
+# simulation (`pip install --dry-run`, lecture seule) :
+#
+#     mediapipe / deepface / tf-keras / base.txt  →  rien à installer, tout est satisfait
+#     fer                                          →  torch 2.9.1 → 2.2.2, numpy 2.3.5 → 1.26.4
+#                                                     + toute une pile CUDA 12.1
+#
+# CHAÎNE EXACTE : `fer` → `facenet-pytorch` → `torchvision`. Or notre torch/torchvision viennent
+# de `download.pytorch.org` en versions LOCALES (`0.24.1+cu128`), absentes de PyPI. Dès qu'un
+# paquet oblige pip à re-résoudre `torchvision`, le résolveur ne voit que PyPI, retombe sur
+# `torchvision 0.17.2` — qui épingle `torch==2.2.2` — et le rétrogradage cascade.
+#
+# ⇒ `fer` s'installe avec `--no-deps` (ses dépendances réelles sont TOUTES déjà présentes :
+#    vérifié par import réel, les deux backends émotions détectent). C'est exactement la
+#    discipline `PIP_NO_DEPS` que WAMA déclare depuis le 2026-09-03 pour ce cas précis.
+#
+#        pip install --no-deps 'fer>=25.10.3'
+#        pip install -r wama_lab/face_analyzer/requirements/linux.txt   # le reste
+#
+# C'est pourquoi `requirements_linux.txt` de la racine NOMME ce fichier sans l'inclure : un `-r`
+# le rendrait installable d'un geste, et ce geste casserait le venv. Le portage de l'app
+# formalisera ça en `PIP_NO_DEPS = True` sur son futur backend.
+#
+# Les bornes BASSES sont alignées sur ce qui est installé ET prouvé par smoke réel, pas sur des
+# versions supposées. Une borne basse trop ancienne n'est pas neutre : c'est elle qui a laissé
+# `fer` monter de 22.x à 25.x et CASSER l'app en silence (la classe `FER` a quitté la racine du
+# paquet pour `fer.fer`).
 
 -r base.txt
 
-# Face detection and tracking
-mediapipe>=0.10.0
+# Détection de visage
+mediapipe>=0.10.31
 
-# Emotion recognition
-fer>=22.5.0  # Facial Expression Recognition (lightweight)
-deepface>=0.0.79  # Advanced facial analysis (emotions, age, gender)
-tf-keras  # Required for DeepFace with TensorFlow 2.20+
-# Note: Both use TensorFlow, which will be installed as dependency
+# Reconnaissance d'émotions — DEUX backends au choix dans l'interface.
+# ⚠ `fer` est COMMENTÉ ici À DESSEIN : le laisser actif rendrait ce fichier destructeur (cf.
+#    ci-dessus). Il s'installe séparément, en `--no-deps`. Sa borne basse est notée pour mémoire :
+#    en deçà de 25.10.3 la classe `FER` vit à la racine du paquet, au-delà dans `fer.fer` — le
+#    code suit LES DEUX (`emotions._import_fer`), mais la disposition courante se déclare.
+# fer>=25.10.3         # ← via `pip install --no-deps 'fer>=25.10.3'`
+deepface>=0.0.96       # complet : émotions + âge/genre (âge & genre = 1 Go de poids OPTIONNELS)
+
+# ⚠ NE PAS retirer la borne : `tf-keras` sert l'API Keras 2 dont DeepFace a besoin sous
+#   TensorFlow ≥ 2.16, et sa version DICTE celle de TensorFlow. Non bornée, la résolution
+#   retenait `tf-keras 2.20.1` qui exige `tensorflow<2.21` et rétrogradait TF 2.21.0 → 2.20.0.
+#   Corrigé à la source le 2026-09-05 : `tf-keras 2.21.0` exige `tensorflow>=2.21,<2.22`, donc
+#   la contrainte se satisfait sans rien rétrograder — le conflit a disparu de `pip check`.
+tf-keras>=2.21
+
+# Note : TensorFlow n'est PAS déclaré ici — il arrive comme dépendance de tf-keras/deepface, et
+# l'épingler créerait un second domicile pour la même contrainte.

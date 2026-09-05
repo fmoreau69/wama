@@ -15,6 +15,12 @@ opencv_python
 pillow
 psutil
 bitsandbytes
+# ⚠ DIVERGENCE CONNUE, non corrigée (mesurée le 2026-09-05) : `pip install -r` sur ce fichier
+# annonce `Would install nvidia-nccl-cu12-2.27.5`, un RÉTROGRADAGE depuis la 2.30.4 installée.
+# Chaîne : bitsandbytes → torch<3,>=2.2 → torch 2.9.1+cu128 épingle `nvidia-nccl-cu12==2.27.5`.
+# C'est pip qui veut SATISFAIRE le pin de torch : nous avons une nccl PLUS RÉCENTE que celle
+# qu'il déclare. Ne pas « corriger » à l'aveugle — rétrograder une brique CUDA d'un venv qui
+# tourne se paierait au premier chargement de modèle, alors que rien n'échoue aujourd'hui.
 setuptools<81  # pkg_resources retiré en setuptools 81+ ; requis par mmengine/mmpose (MuseTalk) — 2026-07-16
 resampy>=0.4.3
 python_ldap
@@ -43,19 +49,21 @@ playwright==1.61.0  # HTML → PDF via Chromium headless (CSS moderne + JS + res
 # ──────────────────────────────────────────────────────────────────────────────────────────
 # WAMA Lab — face_analyzer (FER / DeepFace / MediaPipe + TensorFlow)
 #
-# ⚠ DÉLIBÉRÉMENT PAS INCLUS PAR `-r`, et c'est une MESURE, pas une prudence de principe.
-# Ces paquets sont installés dans venv_linux et l'app y tourne (import réel vérifié le
-# 2026-09-04 : fer 25.10.3, deepface 0.0.96, mediapipe 0.10.31, tensorflow 2.21.0).
-# Mais `pip install --dry-run -r wama_lab/face_analyzer/requirements/linux.txt` annonce :
-#     Would install facenet-pytorch-2.5.3 nvidia-nccl-cu12-2.27.5 tensorflow-2.20.0
-# soit DEUX RÉTROGRADAGES de paquets PARTAGÉS — tensorflow 2.21.0 → 2.20.0 (forcé par le pin
-# `tf-keras` du fichier de l'app) et surtout nvidia-nccl-cu12 2.30.4 → 2.27.5, qui est une
-# dépendance de TORCH. Câbler l'include « pour bien faire » aurait donc abîmé le venv central
-# au premier `pip install -r` — exactement le risque que la doctrine des venvs décrit.
-# (`facenet-pytorch` n'est pas installé aujourd'hui et deepface s'importe quand même : c'est
-# une dépendance d'extra, pas un besoin réel.)
+# ⚠ DÉLIBÉRÉMENT PAS INCLUS PAR `-r`, et c'est une MESURE. Le fichier de l'app
+# (`wama_lab/face_analyzer/requirements/linux.txt`) est aujourd'hui INOFFENSIF sauf sur UNE
+# ligne — `fer`, qui doit s'installer en `--no-deps`. Chaîne mesurée le 2026-09-05 :
+# `fer` → `facenet-pytorch` → `torchvision`. Nos torch/torchvision viennent de
+# `download.pytorch.org` en versions LOCALES (`+cu128`), absentes de PyPI : dès qu'un paquet
+# oblige pip à re-résoudre `torchvision`, le résolveur retombe sur `0.17.2`, qui épingle
+# `torch==2.2.2` — et rétrograde torch 2.9.1, numpy 2.3.5 et toute la pile CUDA.
 #
-# Le fichier de l'app reste la déclaration de référence ; l'installer demande une passe
-# d'harmonisation de ses pins d'abord. À poser : `manage.py check_venv_compat`.
-#     pip install -r wama_lab/face_analyzer/requirements/linux.txt   # ⚠ pas avant harmonisation
+# Installation de l'app (deux gestes, l'ordre compte) :
+#     pip install --no-deps 'fer>=25.10.3'
+#     pip install -r wama_lab/face_analyzer/requirements/linux.txt
+#
+# Un `-r` ici rendrait l'app installable d'un seul geste — et ce geste casserait le venv.
+# Le portage de l'app formalisera la contrainte en `PIP_NO_DEPS = True` sur son futur backend.
+#
+# (Corrigé à la source ce jour : `tf-keras` non borné retenait la 2.20.1, qui exige
+#  `tensorflow<2.21` et rétrogradait TF. `tf-keras>=2.21` lève le conflit sans rien toucher.)
 # ──────────────────────────────────────────────────────────────────────────────────────────
