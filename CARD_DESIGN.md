@@ -1165,6 +1165,16 @@ avant toute adoption plus large — ce qu'elle a déjà prouvé, et qui reste vr
 l'ISOLEMENT : on peut faire évoluer la card d'entrée sur les seules jumelles sans toucher aux
 10 apps.
 
+🔴 **DÉBRANCHÉE du générateur le 2026-09-05** : `templates_gen` inclut de nouveau la card v3
+commune. Raison mesurée : trois gestes nocturnes tombaient sur la jumelle avec la v4 —
+`url_import` (champ URL dans un pane inactif, `Page.fill` en timeout), `folder_import` (pas de
+lien `#<id>Btn`, input `display:none` inatteignable), `batch_import` (pas de
+`#batchTemplateLink`). **Une card d'entrée qui ne passe pas les gestes de la v3 ne peut pas la
+remplacer, même en bac à sable** — la jumelle cesserait de mesurer la chaîne réelle. Les
+fichiers (`_new_item_card_v4.html`, `wama-input-slots.js`, `wama-input-slots.css`, tag `input_slots`) restent
+sur le disque, sans consommateur, en-tête marqué, en attendant la v4 refaite selon B/B bis/D ;
+elle se rebranchera quand elle passera les mêmes scénarios que la v3.
+
 **Deux défauts que le bac à sable a révélés en chemin** (c'est son rôle) :
 1. **`APP_MODES` est indexé par nom d'app** → une jumelle perdait SILENCIEUSEMENT les
    `inputs[]` de sa source (`composer_01` : 1 port au lieu de 2, `reference_melody` évaporé).

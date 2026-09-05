@@ -1925,6 +1925,70 @@ recopier NULLE PART, re-mesurer)** :
   sans ce graphe rompt ces arêtes en silence** — à déclarer (candidat : `requires`
   inter-apps au manifeste).
 
+### Portage F2 — `WamaImport` dans les 10 apps : INVENTAIRE MESURÉ avant de câbler (2026-09-05)
+
+> Question de Fabien : *« revérifier en profondeur cette affirmation qu'aucune app n'est
+> câblée dessus à part les jumelles ; ça voudrait dire que la grille n'en tient pas
+> compte ? »*. Les deux, vérifiées :
+> - **`WamaImport(` n'est instancié que par `templates_gen.py:553`** (grep exhaustif hors
+>   staticfiles) ; `_app_scripts.html` (qui charge `wama-import.js`) n'est inclus que par le
+>   gabarit généré ; sur `/imager/`, `/avatarizer/`, `/converter/` : `typeof WamaImport ===
+>   'undefined'` (mesuré au navigateur). **0/10, confirmé.**
+> - **La grille ne mesure PAS l'adoption de `WamaImport`.** Le critère `import_wired` (F2)
+>   accepte comme « voie chargée » le JS PROPRE de l'app (`static(_v) '<app>/js/'`,
+>   `conformity_checker.py:845-846`) — il est vert **10/10** avec, pour preuve, chaque fois
+>   `<app>/templates/<app>/base.html:NNN` et jamais `wama-import.js`. Il mesure « un dépôt
+>   non inerte », ce qui est sa prétention ; il ne dit rien de la brique. Un critère
+>   d'ADOPTION (`wama_import`) serait à écrire — avec sa nuance « attache » (3 apps ne postent
+>   jamais fichier par fichier, cf. ci-dessous).
+
+**Et la brique elle-même n'était PAS ce qu'on a décidé** : jusqu'au 05/09 sa zone de dépôt ne
+lisait que `dataTransfer.files` — **un DOSSIER déposé n'était pas traversé** (aucun
+`WamaFolderImport.collect`, grep = 0), alors que 8 apps en place le font chacune dans leur
+handler, et que le câblage de l'`<input webkitdirectory>` vivait dans le gabarit GÉNÉRÉ, hors
+brique. Câbler le parc dessus tel quel aurait **régressé le drop de dossier de 8 apps**.
+Corrigé le 05/09 (`wama-import.js` : `collect` sur le drop, `folderInputId` déclaré) ;
+mesuré : `converter_01.folder_import` ✓ par la brique seule.
+
+**Inventaire par app** (balayage exhaustif des JS d'import, ancres vérifiées sur reader et
+anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas faire :
+
+| app | champ POST / réponse | consolidation | lot | après import | ce qui BLOQUE le câblage naïf | verdict |
+|---|---|---|---|---|---|---|
+| **transcriber** | `file` / `id` | JSON `ids` | si 1 fichier | reload | `_appendPanelParams` → `extraFields` | ✅ câblable (le plus proche du gabarit) |
+| **converter** | `file` / `id` | FormData **`job_ids`** | oui (instance `_converterBatchImport`) | reload ×1 | **refus AVANT envoi** (extension, format de sortie obligatoire, `converter.js:171-177`) | ⚠ `consolidateField:'job_ids'` + un hook `beforeFile` |
+| **describer** | `file` / `id` | JSON `ids` | si 1 | **1 → insertion DOM, N → reload** | drop FileManager propre (`:71-77`) | ⚠ `afterImport` doit reproduire la bifurcation |
+| **enhancer** (image) | `file` / `id` | JSON `ids` | **par fichier** dans la boucle | `appendRow` ; reload si N | politique de lot ≠ brique (« si 1 seul ») | ⚠ option `batchScope` |
+| **enhancer** (audio) | `file` / `id` | JSON `ids` | **détection MAISON** (`AUDIO_BATCH_EXTS`, `batch_file`, `#audioBatchDetectBar`) | `appendAudioRow` | filtre d'extension bloquant + lot hors `WamaBatchImport` ; **2 voies sur la même page** | ❌ sans évolution |
+| **synthesizer** | `file` / `id` | JSON `ids` | par fichier, instance **locale** | reload | voies FileManager (`server_path`, `confirm()`) | ⚠ exposer `_batchImport` |
+| **reader** | **`files` × N en UNE requête** / `{created:[…], multi}` (`views.py:291,351`) | **aucune** (le serveur groupe) | si 1 | `multi` → reload, sinon `upsertCard` | la brique = 1 POST par fichier et un id **scalaire** | ❌ **multi-upload + réponse liste** |
+| **anonymizer** | `file` (jQuery-file-upload) / **`added[]`** (`views.py:112`) | JSON, **débouncée**, URL en dur | oui | reload | modale de progression `#modal-progress`, réponse liste | ❌ **réponse liste + hooks de progression** — câblage naïf = page **inerte et muette** (`identifiant()` rend `null` → `ids` vide → sortie silencieuse, `wama-import.js:113`) |
+| **imager** | **aucun upload** — `routeFile` (`.txt/.csv` → lot, image → slot référence, sinon toast) | — | oui | reload après Générer | dépôt = **ATTACHE** au formulaire | ❌ **mode `attach`** |
+| **avatarizer** | **aucun upload** — `handleAudioFile` (whitelist MIME, aperçu) | — (route existe, jamais appelée) | oui | insertion DOM | dépôt = **ATTACHE** | ❌ **mode `attach`** |
+| **composer** | **aucun upload, aucun handler** : la zone n'est câblée que par `WamaBatchImport.hookDropZone` | — | oui (hook) | — | 🔴 **un fichier NON-lot déposé est AVALÉ SANS TRACE** (`batch-import.js:256` : « let the app deal with it » — personne) | ⚠ **gain net** dès qu'une vue `upload` existe |
+
+**Ce que la brique doit GAGNER avant de couvrir le parc** (par ordre de rendement) :
+1. **réponse LISTE** (`{ids}` / `created[]` / `added[]`) — sans elle anonymizer et reader
+   sont hors d'atteinte, et le mode de panne est le plus silencieux qui soit ;
+2. **`multiple: true`** — N fichiers en UNE requête, champ répété (reader) ;
+3. **`beforeFile(file) → false`** qui ANNULE — 4 apps refusent un fichier avant l'envoi
+   (`extraFields` ne peut pas annuler) ;
+4. ✅ **drop de DOSSIER + `folderInputId`** — fait le 05/09 ;
+5. **mode `attach`** — le fichier va dans un `<input>` cible, pas vers `uploadUrl` (imager,
+   avatarizer, mélodie du composer) : 3 apps sur 10 ne postent jamais fichier par fichier.
+   ⚠ C'est le même mouvement que `WamaApp.injectFiles` (drag depuis l'explorateur) — une seule
+   mécanique, deux entrées ;
+6. **`batchScope: 'single' | 'each'`** — la brique impose « si 1 fichier », enhancer et
+   synthesizer testent chaque fichier ;
+7. **`afterImport(ids, payload)`** — 5 apps insèrent dans le DOM au lieu de recharger.
+
+**Ordre de câblage proposé** (du sûr au risqué) : transcriber → converter → describer →
+synthesizer → enhancer-image → composer (vue `upload` à créer, gain net) → reader (2 et 1) →
+anonymizer (1 + progression) → enhancer-audio (lot maison) → imager / avatarizer (5).
+Chaque câblage se prouve par les gestes nocturnes `<app>.import` · `batch_import` · `url_import`
+· `folder_import` · `send_to` — ⚠ après `kill -HUP` du maître gunicorn (§28), sinon le parc
+mixte de workers rend un verdict au hasard.
+
 ---
 
 ### §10.4 — Marche D (APRÈS B) — CAPACITÉS HÉRITÉES : l'app agrège, le studio est aussi une bibliothèque
@@ -2018,7 +2082,7 @@ maillon de l'interop) ; ④ plugins de visualisation → monde DATA (dernier, le
 | 25 | **8 doubles inclusions de JS** (mesuré 2026-08-22) : `wama-model-help` ×4 (composer, converter, reader, transcriber), `wama-queue` ×2 (composer, describer), `wama-cycle-button` ×1 (composer), `console` ×1 (anonymizer) — tous DÉJÀ chargés globalement par `base.html`/`app_modern_base.html`. Même famille que le bug du player audio muet du 18/08 (deux BroadcastChannel). Disparaissent à l'adoption de `_app_scripts.html` — ⚠ **adoption à 0/10 dans le parc réel au 31/08** (le partial ne vit que dans le gabarit GÉNÉRÉ) : ce trou ne se refermera pas tout seul, il attend le portage. | F3 | dette |
 | 26 | **Aucun critère ne voit une zone de dépôt que rien n'écoute** : la grille mesure la présence du markup, pas l'existence d'un écouteur. C'est ce qui a laissé converter_01 inerte sans qu'aucune mesure ne baisse. Critère à écrire : une app qui rend `[data-wama-nic]`/dropzone sans charger de voie d'import échoue. ~~Confirmé OUVERT le 2026-08-22~~ → ✅ **LE CRITÈRE EXISTE (constaté à l'audit du 31/08)** : `Criterion('import_wired', 'F2', « Voie d'import CHARGÉE par le gabarit (dépôt non inerte) »)`, `conformity_checker.py` — avec exactement les subtilités réclamées ici (`data-wama-depot`, exemption « aucune card d'entrée »). La ligne « confirmé ouvert » a survécu à l'écriture du critère qu'elle spécifiait — le réécrire aurait fait un doublon pur. Reste vrai le corollaire : ⚠ Devenu plus facile à écrire depuis : la card d'entrée commune porte `data-wama-depot` (`cree`\|`attache`), donc le critère peut distinguer « rien n'écoute » (défaut) de « le dépôt joint, le bouton primaire crée » (conception légitime d'avatarizer/imager) — distinction qu'aucune heuristique de DOM ne savait faire, et qui est la raison pour laquelle ce critère n'avait pas été écrit. **⚠ Le PATRON existe désormais (2026-08-23) : `settings_wiring`** mesure exactement cette forme — le markup ET l'écouteur, en exigeant les DEUX (`.settings-btn[data-id]` dans le gabarit + `WamaQueueActions.onSettings` déclaré), et rend `partial` quand un seul des deux est là (« bouton au contrat, mais AUCUN ouvreur déclaré — clic inerte »). Le critère de dépôt se calque dessus. Corollaire appris le même jour : un critère de ce genre est passé **vert 10/10 le jour de son écriture** — il faut donc l'accompagner d'un scénario qui CLIQUE, sinon il atteste une adoption qu'on prendra pour un fonctionnement. | F3 | grille |
 | 27 | **`compact_preview` (reader) orphelin + 3e copie** : le filtre templatetag n'a plus d'appelant depuis le portage du 22/08 (le commun rend l'extrait), et la MÊME logique existe une troisième fois dans `reader/views.py::_compact_preview`, toujours utilisée pour la charge d'API. Candidat REMOVAL_LEDGER. Idem `imager` : `openImagePreview`/`openVideoPreview` sans appelant depuis le portage du mécanisme n°30. | F3 | dette |
-| 28 | **La boucle codegen exige un REDÉMARRAGE** : `gunicorn_conf.py` n'a ni `reload` ni `preload_app`, donc aucune modification Python (`apps.py`, `views.py`, briques communes) n'est prise sans relance. Trois diagnostics de la session du 22/08 s'y sont heurtés — **un QUATRIÈME le 2026-08-23**, et sous une forme plus traître : `max_requests = 1000` recycle les workers **un par un**, donc la pile se retrouve MIXTE (mesuré : 2 workers sur 4 dataient d'avant la modification). Une route Python ajoutée existait donc pour la moitié des requêtes seulement, et un gabarit qui la référence rendait `NoReverseMatch` → **500 INTERMITTENT**. Coût : un A/B complet contre HEAD pour écarter une fausse régression. ⚠ **Une hypothèse « workers périmés » avait d'abord été REJETÉE à tort sur 6 sondes toutes vertes** — il en fallait 30 pour voir les 2/30 en 404 : sur un parc mixte, un petit échantillon ne décide rien. **Remède mesuré : `kill -HUP <maître>`** — sans `preload_app`, les workers réimportent l'application, le socket n'est pas lâché, et c'est instantané ; inutile de relancer la pile. Les gabarits, eux, se relisent à chaque requête — c'est ce décalage gabarit/Python qui fabrique le symptôme. À écrire dans la recette de génération — et à trancher : `reload = True` en dev ? | — | outillage |
+| 28 | **La boucle codegen exige un REDÉMARRAGE** : `gunicorn_conf.py` n'a ni `reload` ni `preload_app`, donc aucune modification Python (`apps.py`, `views.py`, briques communes) n'est prise sans relance. Trois diagnostics de la session du 22/08 s'y sont heurtés — **un QUATRIÈME le 2026-08-23**, et sous une forme plus traître : `max_requests = 1000` recycle les workers **un par un**, donc la pile se retrouve MIXTE (mesuré : 2 workers sur 4 dataient d'avant la modification). Une route Python ajoutée existait donc pour la moitié des requêtes seulement, et un gabarit qui la référence rendait `NoReverseMatch` → **500 INTERMITTENT**. Coût : un A/B complet contre HEAD pour écarter une fausse régression. ⚠ **Une hypothèse « workers périmés » avait d'abord été REJETÉE à tort sur 6 sondes toutes vertes** — il en fallait 30 pour voir les 2/30 en 404 : sur un parc mixte, un petit échantillon ne décide rien. **Remède mesuré : `kill -HUP <maître>`** — sans `preload_app`, les workers réimportent l'application, le socket n'est pas lâché, et c'est instantané ; inutile de relancer la pile. ~~Les gabarits, eux, se relisent à chaque requête~~ ⚠ **FAUX, mesuré le 2026-09-05** : en production Django met le **loader de gabarits en cache PAR WORKER** (`DEBUG=False`, `APP_DIRS=True` → `cached.Loader` implicite). Après `app_sandbox substitute converter_01 templates`, **5 requêtes sur 6** servaient le gabarit régénéré et **1 sur 6** l'ancien — 4 workers d'âges 37 782 s / 26 344 s / 3 667 s / 311 s. Trois gestes nocturnes (`url_import`, `folder_import`, `batch_import`) tombaient sur la jumelle **au hasard du worker touché**, avec des symptômes qui accusaient le gabarit précédent — j'ai d'abord cherché la cause dans le code. **Un gabarit régénéré exige le même `kill -HUP <maître>` qu'une modification Python.** Après HUP : 6/6 à jour, 4/4 gestes verts. À écrire dans la recette de génération — et à trancher : `reload = True` en dev ? | — | outillage |
 
 ---
 
