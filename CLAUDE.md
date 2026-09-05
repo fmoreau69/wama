@@ -306,7 +306,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | Profils, permissions, notifications, rétention | `PROFILES_PERMISSIONS.md` |
 | Infra WSL2 ↔ Windows | `INFRA_WSL_VS_WINDOWS.md` |
 | Appariement entrée ↔ modèle | `INPUT_MODEL_MATCHING.md` |
-| Stockage média & tiering | `MEDIA_STORAGE_TIERING.md` |
+| **Médias : stockage, tiering, ce que `media/` contient, intégrité, et VOIES D'IMPORT** (matrice voie × app, copie vs pointeur, dédup) | `MEDIA_STORAGE_TIERING.md` — §8 depuis le 2026-09-05 (le titre du fichier est historique ; le domaine s'est élargi au cycle de vie des fichiers d'entrée). `BATCH_FORMAT.md` = le FORMAT de lot seul ; `WAMA_VERIFICATION §3` = les GESTES exécutables |
 | Format des fichiers batch | `BATCH_FORMAT.md` |
 | Retraits / dette soldée (registre) | `REMOVAL_LEDGER.md` |
 | **Licences & dépôt officiel** (licence du dépôt, politique, code vendorisé, dépôt APP/HAL/marque) | `LICENSING.md` — la vue MESURÉE reste `/common/licenses/` (`license_audit.py`) |
