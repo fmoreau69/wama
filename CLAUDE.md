@@ -501,6 +501,18 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 - Oublier de passer `cache_dir` à `from_pretrained()` — c'est ce qui range le modèle PRINCIPAL
 - Ne pas ajouter le path dans `settings.py MODEL_PATHS`
 - Créer un modèle sans l'enregistrer dans `model_registry.py`
+- **Laisser une librairie tierce déposer ses poids dans le `$HOME` de l'utilisateur.**
+  ⚠ Toutes les libs ne passent pas par HuggingFace, et **aucune garde HF ne les voit**. Mesuré
+  le 2026-09-05 : **1,1 Go de poids DeepFace dormaient dans `$HOME/.deepface`** (age 514 Mo,
+  gender 512 Mo, expression 5,7 Mo) — hors d'`AI-models`, hors catalogue, invisibles de toute
+  page WAMA, et jamais comptés dans le disque des modèles.
+  **Le réflexe** : quand une lib télécharge des poids, chercher **sa** variable d'aiguillage
+  (`DEEPFACE_HOME`, `AUDIOCRAFT_CACHE_DIR`, `TORCH_HOME`…) et la poser **UNE FOIS dans
+  `settings.py`** — jamais dans un backend, exactement comme le socle HF. Une variable propre à
+  UNE lib n'a pas les effets de bord de `HF_HUB_CACHE` (qui, lui, emporte tout ce que le
+  processus télécharge ensuite) : c'est le 4ᵉ idiome d'aiguillage légitime, à côté de
+  `cache_dir=`, de `poids_locaux()` et de l'environnement d'un sous-processus.
+  Tenu par `wama_lab/face_analyzer/tests.py::PoidsDeepFaceRangesTest`.
 
 > ⚠ « Laisser un modèle se télécharger dans `AI-models/cache/huggingface/` » figurait ici comme
 > INTERDIT. **Retiré le 2026-09-03 : c'était faux pour les SOUS-DÉPENDANCES**, et cette

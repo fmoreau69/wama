@@ -931,6 +931,33 @@ L'isolement ne se **génère** jamais tout seul. Garde en place : `IsolementRest
 échoue sur tout environnement isolé qui apparaît **sans être inscrit** avec sa raison — le geste
 qui transforme une dérive en décision. Compteur visible sur `/backends/` (aujourd'hui : **0**).
 
+### Vérification approfondie de face_analyzer (2026-09-05, demandée par Fabien)
+
+Le doute était légitime : *« je croyais que les librairies FER n'étaient pas compatibles avec le
+venv actuel, c'est pour ça que j'avais créé ces venvs »*. Vérifié point par point.
+
+- **La bascule a bien eu lieu**, et elle n'a demandé **aucun patch** : rien dans
+  `patches/apply_patches.py`, aucun correctif de compatibilité dans l'historique. Les paquets
+  ont simplement été installés dans venv_linux, où ils coexistent (fer, deepface, mediapipe,
+  tensorflow 2.21, retina-face, cv2 — **import réel** vérifié, pas `find_spec`).
+- **L'intention multi-venv est tracée** : commit `d75c1b0a` *« Preparing multi-venv
+  management »*. Le chantier a été commencé, jamais mené.
+- **`venv_linux/` de l'app n'a JAMAIS servi** : 0 paquet, et une arborescence `Scripts/Lib`
+  — c'est un venv créé **sous Windows** puis nommé « linux ». `venv_win/` (2,7 Go), lui, a bien
+  servi : c'était l'environnement de l'époque autonome (Flask), que plus rien ne référence.
+- **Mais l'app était à moitié MORTE** : son backend **par défaut** levait `ImportError: cannot
+  import name 'FER' from 'fer'`. `fer` 25.10.3 a déplacé la classe dans `fer.fer`, et la
+  déclaration `fer>=22.5.0` n'avait **pas de borne haute** : la montée s'est faite toute seule.
+  Corrigé en suivant les **deux dispositions** plutôt qu'en épinglant (rien à rétrograder).
+- **1,1 Go de poids DeepFace vivaient dans `$HOME/.deepface`** — hors `AI-models`, hors
+  catalogue. Rangés via `DEEPFACE_HOME` posé dans `settings.py`, résolution hors ligne vérifiée,
+  aucune recréation dans le HOME.
+
+**La leçon dépasse cette app** : elle tournait dans le venv commun *et* elle était cassée. Un
+venv partagé ne casse pas une app — **l'absence de test la laisse pourrir en silence**. C'est
+l'argument le plus fort du dossier « un seul venv » : ce n'est pas l'isolement qui protège, c'est
+la couverture. face_analyzer n'avait **aucun** test avant le 05/09.
+
 ### ⚠ Effet de bord des poids relocalisés : les symlinks sont LINUX
 
 `AI-models/models/lipsync/{musetalk,codeformer}` sont atteints depuis le dépôt par des symlinks
