@@ -99,9 +99,9 @@ de chaque caméra** (front 384×248, left 408×244, rear 408×248, right 384×24
   : 23,5 m pinhole vs 6,8 m homographie). ⚠ **CONDITIONNÉE, pas débranchée** (corrigé 2026-09-05) :
   l'analyse l'applique dès que `profile.geometry_enabled ∧ camera.ground_homography`
   (`tasks.py:1274-1292`, `1383-1392`) — et la calibration SAM3 (`_calibrate_from_crossing_polygons`)
-  **force `geometry_enabled=True`**. `marking_world` l'utilise **sans condition** si elle existe,
-  `lane_estimator` en dépend. Le JS ignore `ground_xy` ; le tracker et les marquages monde, non.
-  Détail : §INVENTAIRE D.2.
+  **force `geometry_enabled=True`**. Consommateurs effectifs : `marking_world` (marquages sur la
+  carte, **sans condition** si elle existe) et `lane_estimator` (largeur de voie) — **pas le
+  tracker** (qui lit 2a et le pinhole), ni le JS pour les véhicules. Détail : §INVENTAIRE D.2.
 - **Voie retenue (`homography_estimator.py`, étape 2a)** — l'angle (pitch/hauteur) est estimé par
   **étalement monde des stationnés** (auto-calibration, gain ×5 mesuré, cf. § Calibration sol) et
   stocké dans `session.config['ground_calib']`. Le tracker 360° l'applique via `ground_ego`
@@ -739,6 +739,11 @@ lit**. `EgoPose.__init__` l'assigne à `self.accel`, aucune méthode ne s'en ser
 n'a **jamais** été appliqué à la navette : un seul appelant, sur les objets mobiles, position seule.
 La navette roule sur GPS brut interpolé linéairement. *Conséquence : avant tout re-câblage, savoir
 que c'est un TROU et pas une régression — rien n'a été retiré.*
+**Asymétrie à connaître** : le seul lissage du cap navette (moyenne circulaire ±2 fixes) vit dans le
+JS, donc ne sert que le repli d'affichage ③ ; tout ce que le SERVEUR calcule (`world_en`, ancres,
+TTC/PET, calibration 2a) hérite du cap brut à ±10-25°. Le chemin le mieux corrigé est le chemin de
+secours. ⚠ Aucun ⚑ ne porte sur la pose navette (vérifié `features.py` : 14 bascules, zéro sur le
+GPS) — c'est le premier trou à combler, derrière un ⚑ `shuttle_filter`.
 
 **D.2 — « Ancienne voie (homographie SAM3) débranchée »** (`§[4]`) : **CONDITIONNÉE, pas débranchée.**
 `process_session_task` l'applique dès que `profile.geometry_enabled ∧ camera.ground_homography`
@@ -747,8 +752,15 @@ que c'est un TROU et pas une régression — rien n'a été retiré.*
 `analyze_sam3_only_task` l'appelle avec `calibrate`. `marking_world._projector_for` l'utilise
 **sans condition** dès que `ground_homography` existe (`calibrated:true`), et `lane_estimator` en
 dépend. Une session qui a lancé « Calib. SAM3 » remet donc en service une voie **prouvée biaisée**
-(#546 inversion de signe, #537 profondeur non monotone). *Conséquence : le JS ignore `ground_xy`
-(commentaire l. 3195) mais le tracker, les marquages monde et la largeur de voie ne l'ignorent pas.*
+(#546 inversion de signe, #537 profondeur non monotone).
+*Périmètre RÉEL de l'impact (corrigé 2026-09-05 — la 1ʳᵉ rédaction disait « le tracker ne
+l'ignore pas », c'était FAUX) : `multicam_tracker` lit `config.ground_calib` (2a) et `pinhole_ego`,
+jamais `camera.ground_homography` ni `ground_xy` ; le JS ne lit `ground_xy` que si `distance_m`
+est absent (l. 3215). Les consommateurs effectifs sont : l'analyse (écrit `ground_xy`/`dist_*_m`,
+exploités par le seul export), **`marking_world`** (position des MARQUAGES sur la carte) et
+**`lane_estimator`** (largeur de voie). Impact réel mais ÉTROIT : marquages et gabarit, pas les
+véhicules.* Le switch que l'utilisateur connaît, ⚑ `auto_ground_calib`, porte sur 2a et est câblé
+de bout en bout — pas sur cette voie, qui n'a AUCUN ⚑ (gouvernée par `profile.geometry_enabled`).
 
 **D.3 — Les garés qui « suivent la navette puis se décrochent » (constat Fabien 2026-09-05) —
 HYPOTHÈSE, à mesurer.** En repli ③ (frames postérieures au dernier calcul, OU véhicule non
