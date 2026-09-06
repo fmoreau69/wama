@@ -98,7 +98,19 @@ le RENDU RÉEL, pas la structure du code.
 - **Le cookie de session s'appelle `settings.SESSION_COOKIE_NAME`** (`wama_sessionid`) —
   jamais `sessionid` en dur : une sonde ad hoc qui le code en dur navigue en ANONYME et
   mesure des droits en croyant mesurer la page (vécu 30/08 ; la brique `ui_smoke` le lit
-  déjà de settings, s'en inspirer). Et un marqueur DOM peut être ABSENT à l'état vide
+  déjà de settings, s'en inspirer).
+  ⚠ **Par le MCP navigateur, `document.cookie` NE PEUT PAS le poser** (2026-09-06) : le
+  serveur en a déjà déposé un, `HttpOnly`, que JS n'a pas le droit d'écraser — l'écriture
+  échoue en SILENCE et on reste anonyme. Passer par le contexte Playwright :
+  `browser_run_code_unsafe` → `page.context().addCookies([{name, value, domain:'localhost',
+  path:'/', httpOnly:true}])`, puis naviguer. La clé se forge hors navigateur, exactement
+  comme `ui_smoke._test_session_key` : `get_test_user()` (déclaratif, rôles
+  `communication` + `recherche`) puis `SessionStore` avec `_auth_user_id` /
+  `_auth_user_backend` / `_auth_user_hash`.
+  *Vécu le 2026-09-06 : faute de cette voie, j'ai conclu « /studio/ inatteignable, smoke
+  impossible » — alors que le compte, ses rôles ET le mécanisme existaient déjà, et que ce
+  paragraphe nommait déjà le compte et le cookie. Un blocage d'outillage se vérifie contre
+  le dépôt AVANT d'être annoncé comme une limite.* Et un marqueur DOM peut être ABSENT à l'état vide
   légitime (`#ragListe` sans document) ou injecté par JS conditionnel — vérifier la
   CONDITION du gabarit avant de conclure, la capture lue tranche.
 - **Le compte smoke doit porter les Groups `user` + `role:*`** sinon @app_access répond 302 vers

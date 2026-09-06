@@ -11244,3 +11244,52 @@ les valeurs d'UNE card pendant que N étaient sélectionnées — un volet qui m
   la trancher au passage aurait été la trancher mal.
 - **Jumelles `_01` non régénérées** : elles héritent du geste à leur prochain `app_sandbox`.
   L'invariant tient sur le GÉNÉRATEUR (`CodegenJumelleTest`), pas sur leur code figé.
+
+---
+
+## §PALIER — 2026-09-06, « SMOKE CONNECTÉ : le studio ATTESTÉ, et le blocage n'en était pas un » — ✅ LIVRÉ
+
+**Pending soldé** : l'adoption de `WamaHistory` par le studio (04/09) était livrée mais **non
+attestée** — j'avais annoncé « /studio/ exige une authentification, la session Playwright n'en a
+pas ». Question de Fabien : *« on a créé une grille de rôles/permissions complète et réutilisé ça
+pour les tests nocturnes. Donc en principe, il doit bien y avoir un rôle permettant de tester le
+studio. »*
+
+### ⚠⚠ La leçon : un blocage d'outillage se vérifie CONTRE LE DÉPÔT avant d'être annoncé
+
+Tout existait déjà, et depuis longtemps :
+
+| ce que j'ai déclaré manquant | ce que le dépôt avait |
+|---|---|
+| un compte utilisable | `nightly_tests.get_test_user()` — déclaratif, rôles `communication` + `recherche` |
+| un droit sur le studio | `permissions.py:70` — `'studio': {'roles': ['communication', 'ingenierie']}` → `communication` suffit |
+| un moyen d'authentifier un navigateur | `ui_smoke._test_session_key()` — forge une `SessionStore` et injecte le cookie |
+| la connaissance du geste | **le skill `/smoke` lui-même**, qui nomme le compte (§0) ET le cookie `wama_sessionid` (§4) |
+
+**Le skill le disait déjà et je ne l'avais pas lu.** Ce n'était donc pas une limite de
+l'environnement mais une lecture non faite — exactement le défaut que `/reprise §3a bis` vise
+(« chercher la décision AVANT la solution »), transposé à l'outillage.
+
+**Le seul vrai manque, ajouté au skill** : par le MCP navigateur, `document.cookie` **ne peut pas**
+poser la session — le serveur en a déjà déposé une `HttpOnly`, que JS n'a pas le droit d'écraser,
+et l'écriture échoue **en silence** (on reste anonyme en croyant être connecté). Il faut
+`page.context().addCookies([...])` via `browser_run_code_unsafe`.
+
+### Ce que le smoke connecté a attesté (page RÉELLE, `/studio/`, compte `wama_nightly_test`)
+
+- brique chargée, 0 erreur console, les 2 boutons présents et **désactivés à l'ouverture** ;
+- 3 nœuds ajoutés → `undo` s'active ; annuler ×2 → 1 nœud ; rétablir → 2 nœuds ;
+- **Ctrl+Z / Ctrl+Maj+Z** opérants ;
+- **« Vider le canvas » compte pour UN cran et redevient annulable** : 2 nœuds effacés, un
+  `undo` les rend — c'est le couple `commit()` + `silence()` qui le permet, et c'est la
+  garde de RÉ-ENTRANCE qui empêche les N suppressions d'empiler N crans.
+
+Aucune écriture en base : aucun pipeline enregistré, le brouillon `localStorage` vit dans le
+navigateur Playwright et a été purgé en fin de passe.
+
+### 🔚 Ce qui reste
+
+- **La sonde reste AD HOC.** Le skill le dit : « une sonde de plus dans `logs/ui_smoke/` est
+  presque toujours la mauvaise réponse — la faire entrer dans `ui_smoke.py` la rend rejouable et
+  nocturne ». Un scénario `studio.history` (ajouter, annuler, rétablir, vider+annuler) n'existe
+  pas encore : tant qu'il n'est pas écrit, cette attestation vaut pour AUJOURD'HUI et rien de plus.
