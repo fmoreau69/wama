@@ -164,7 +164,7 @@
     // ici (2026-09-05). La card est « attache » (`depot_cree=False`) — le filemanager
     // matérialise le fichier et l'INJECTE dans `audio_input`, dont le `change` ci-dessus
     // appelle déjà `handleAudioFile`. Le re-téléchargement qui vivait ici (et échouait sur un
-    // fichier de MONTAGE, non servi sous /media/) est devenu `WamaImport.fromServerPaths`.
+    // fichier de MONTAGE, non servi sous /media/) est devenu `WamaApp.filesFromServerPaths`.
     if (btnRemoveAudio) {
         btnRemoveAudio.addEventListener('click', () => {
             audioFile = null;

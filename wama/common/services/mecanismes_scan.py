@@ -109,10 +109,21 @@ def consommateurs(mecanisme, sources: dict[str, str]) -> list[str]:
     tous ses importateurs, quelle que soit la raison de leur import.
     """
     siens = {mecanisme.domicile, *mecanisme.annexes}
+    par_symbole = set()
     if mecanisme.symbole:
         motif = re.compile(rf'\b{re.escape(mecanisme.symbole)}\b')
-        return sorted({rel for rel, src in sources.items()
-                       if rel not in siens and motif.search(src)})
+        par_symbole = {rel for rel, src in sources.items()
+                       if rel not in siens and motif.search(src)}
+        # Module PYTHON partagé : le symbole REMPLACE l'import du module (la raison d'être
+        # du champ — `ScopedVisibility` dans `common/models.py`, 2026-08-13).
+        if mecanisme.domicile.endswith('.py'):
+            return sorted(par_symbole)
+        # Brique FRONT (2026-09-06) : le symbole S'AJOUTE au nom. Une brique chargée par
+        # `base.html` s'adopte par son GLOBAL (`WamaFolderImport.collect` — jamais par son
+        # fichier, que seul base.html cite : 2 consommateurs comptés pour 9 apps), mais aussi
+        # par l'inclusion d'une ANNEXE (`_filter_bar.html`, `_queue_toolbar.html`). Mesuré en
+        # posant les symboles : le remplacement faisait tomber la barre de filtrage de 14 à 2
+        # et la file de 81 à 2 — vrai d'un côté, faux de l'autre. Les deux sont des adoptions.
     motifs = []
     for chemin in siens:
         if chemin.endswith('.py'):
@@ -125,8 +136,8 @@ def consommateurs(mecanisme, sources: dict[str, str]) -> list[str]:
             # Brique front (.js/.html) : consommée par la référence de son NOM de fichier
             # (balise <script src=…>, {% include %}, {% static %}).
             motifs.append(re.compile(re.escape(chemin.rsplit('/', 1)[-1])))
-    return sorted({rel for rel, src in sources.items()
-                   if rel not in siens and any(m.search(src) for m in motifs)})
+    return sorted(par_symbole | {rel for rel, src in sources.items()
+                                 if rel not in siens and any(m.search(src) for m in motifs)})
 
 
 @lru_cache(maxsize=1)

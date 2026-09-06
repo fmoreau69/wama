@@ -250,7 +250,8 @@ MECANISMES = (
     Mecanisme('filter_bar', 'Barre de filtrage',
               "Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server)",
               'wama/common/static/common/js/wama-filter-bar.js', 'CARD_DESIGN.md',
-              annexes=('wama/common/templates/common/_filter_bar.html',)),
+              annexes=('wama/common/templates/common/_filter_bar.html',),
+              symbole='WamaFilterBar'),      # global de base.html : compté par son symbole
     Mecanisme('journal', "Journal transversal de l'utilisateur",
               "Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app",
               'wama/common/services/journal.py', 'WAMA_MEMORY.md §9bis'),
@@ -526,6 +527,7 @@ MECANISMES = (
               "`queue_dnd_attrs` : une app qui ne le pose pas garde une file strictement inerte. "
               "SortableJS écarté (multi-sélection + fusion sur une card + règle « pas de CDN »)",
               'wama/common/static/common/js/wama-queue-dnd.js', 'CARD_DESIGN.md §3bis',
+              symbole='WamaQueueDnd',        # global de base.html : compté par son symbole
               annexes=('wama/common/static/common/css/wama-queue-dnd.css',
                        'wama/common/templatetags/wama_actions.py',
                        'wama/common/tests_queue_dnd.py')),
@@ -565,6 +567,7 @@ MECANISMES = (
               "(accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE "
               "(CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*",
               'wama/common/static/common/js/wama-queue.js', 'CARD_DESIGN.md',
+              symbole='WamaQueue',           # global de base.html : compté par son symbole
               annexes=('wama/common/static/common/js/queue-actions.js',
                        'wama/common/templates/common/_queue_toolbar.html',
                        'wama/common/templates/common/_queue_actions.html',
@@ -725,7 +728,8 @@ MECANISMES = (
               "read/apply dérivés du schéma, cardSettings via card_gear) ; hydrate aussi "
               "les previews de card (hydrateCardPreviews)",
               'wama/common/static/common/js/wama-inspector.js', 'WAMA_VOLETS.md',
-              annexes=('wama/common/templates/common/_inspector_actions.html',)),
+              annexes=('wama/common/templates/common/_inspector_actions.html',),
+              symbole='WamaInspector'),      # global de base.html : compté par son symbole
     Mecanisme('export_formats', 'Formats de téléchargement (⬇ late-binding)',
               "Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, "
               "groupe) + split-button dérivé de la déclaration export_binding — pendant "
@@ -744,7 +748,8 @@ MECANISMES = (
               annexes=('wama/common/static/common/js/wama-modes.js',)),
     Mecanisme('app_base_js', 'Socle JS des apps',
               "Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides",
-              'wama/common/static/common/js/wama-app-base.js', 'WAMA_APP_GENERATION_ROUTE.md'),
+              'wama/common/static/common/js/wama-app-base.js', 'WAMA_APP_GENERATION_ROUTE.md',
+              symbole='WamaApp'),            # global de base.html : compté par son symbole
     # ── Briques d'INTERFACE communes (⚠ PAS des plugins — voir « rendu résolu » ci-dessus) ──
     # Déclarées le 2026-08-19 : elles vivaient dans `common/` sans être au registre — invisibles
     # de la carte, donc de la jonction avec la grille (le balayage ne regardait pas
@@ -755,7 +760,8 @@ MECANISMES = (
     Mecanisme('audio_player', 'Lecteur audio (onde + transport)',
               "Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité "
               "inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards",
-              'wama/common/static/common/js/wama-audio-player.js', ''),
+              'wama/common/static/common/js/wama-audio-player.js', '',
+              symbole='WamaAudioPlayer'),    # global de base.html : compté par son symbole
     Mecanisme('shuttle', 'Shuttle J/K/L',
               "État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app "
               "fournit apply(speed) — la commande est commune, l'application au lecteur reste locale",
@@ -763,17 +769,20 @@ MECANISMES = (
     Mecanisme('media_picker', 'Sélecteur de médiathèque',
               "Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue "
               "à l'appelant sous forme de File + méta",
-              'wama/common/static/common/js/media-picker.js', ''),
+              'wama/common/static/common/js/media-picker.js', '',
+              symbole='MediaPicker'),        # global de base.html : compté par son symbole
     Mecanisme('fm_notify', 'Signalement au gestionnaire de fichiers',
               "Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence "
               "du filemanager se rafraîchit sans que chaque app invente son event",
-              'wama/common/static/common/js/wama-fm-notify.js', ''),
+              'wama/common/static/common/js/wama-fm-notify.js', '',
+              symbole='WamaFM'),             # global de base.html : compté par son symbole
     Mecanisme('card_system', 'Card v3',
               "Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, "
               "des libellés (l'autre moitié vécue de la v3 — densités, pile — vit au front "
               "de file : queue_front, qui appelle WamaCardV3.measure)",
               'wama/common/static/common/js/wama-card-v3.js', 'CARD_DESIGN.md §11',
-              annexes=('wama/common/templates/common/_card_state.html',)),
+              annexes=('wama/common/templates/common/_card_state.html',),
+              symbole='WamaCardV3'),         # global de base.html : compté par son symbole
     Mecanisme('static_versioning', 'Cache-busting statique',
               "`{% static_v %}` = `{% static %}` + `?v=<mtime>` : le navigateur re-télécharge "
               "un fichier statique dès qu'il change, le garde en cache sinon",
@@ -798,11 +807,18 @@ MECANISMES = (
               "même input), délégation du LOT à batch_import, consolidation et "
               "rafraîchissement — agnostique du monde (ni MIME ni extension)",
               'wama/common/static/common/js/wama-import.js', 'WAMA_APP_GENERATION_ROUTE.md',
-              annexes=('wama/common/templates/common/_app_scripts.html',)),
+              annexes=('wama/common/templates/common/_app_scripts.html',),
+              # ⚠ SYMBOLE, pas nom de fichier (2026-09-06) : une brique chargée GLOBALEMENT
+              # n'est jamais citée par son fichier dans les apps, seulement par son global —
+              # sans `symbole`, `folder_import` comptait 2 consommateurs pour 9 apps qui
+              # appellent `WamaFolderImport.collect`. C'est la « maille trop grossière » de
+              # `WAMA_VERIFICATION §5`, avec sa cause. Vaut pour toute brique de `base.html`.
+              symbole='WamaImport'),
     Mecanisme('cycle_button', 'Bouton de cycle',
               "Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card",
               'wama/common/static/common/js/wama-cycle-button.js', '',
-              annexes=('wama/common/templates/common/_cycle_button.html',)),
+              annexes=('wama/common/templates/common/_cycle_button.html',),
+              symbole='WamaCycleButton'),    # global de base.html : compté par son symbole
     Mecanisme('progress_ui', 'Progression & ETA (front)',
               "Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale",
               'wama/common/static/common/js/wama-eta.js', 'PROJECT_STATUS.md §10',
@@ -812,7 +828,8 @@ MECANISMES = (
                        'wama/common/templates/common/_processing_time.html')),
     Mecanisme('folder_import', 'Import de dossier récursif',
               "Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html)",
-              'wama/common/static/common/js/wama-folder-import.js', 'WAMA_APP_GENERATION_ROUTE.md'),
+              'wama/common/static/common/js/wama-folder-import.js', 'WAMA_APP_GENERATION_ROUTE.md',
+              symbole='WamaFolderImport'),   # global de base.html : compté par son symbole
 
     )),
 
