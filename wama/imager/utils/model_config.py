@@ -188,6 +188,19 @@ MOCHI_MODELS = {
 STABLE_DIFFUSION_MODELS = {
     'stable-diffusion-v1-5': {
         'model_id': 'stable-diffusion-v1-5',
+        # Le CHEMIN RÉEL, et non « un des deux » (question Fabien, 2026-09-06). Deux backends
+        # déclarent servir ce modèle — `DiffusersBackend` (moteur `diffusers`) et
+        # `ImaginAiryBackend` (moteur `imaginairy`) — mais ils ne sont pas à égalité :
+        # `BackendManager.BACKEND_PRIORITY = ['diffusers', 'imaginairy']` et « first available
+        # will be used ». Les deux sont installés, donc diffusers gagne À L'EXÉCUTION.
+        # ImaginAiry est un REPLI hérité, et un repli n'est pas un second moteur : c'est une
+        # décision de l'app au lancement, pas une propriété du modèle.
+        #
+        # ⚠ Sur ses 4 modèles déclarés, imaginairy n'en sert plus qu'UN au catalogue :
+        # `openjourney-v4`, `dreamlike-art-2` et `stable-diffusion-2-1` ont été retirés comme
+        # obsolètes (cf. CLAUDE.md §Supprimés). Sa liste `SUPPORTED_MODELS` est donc périmée
+        # aux trois quarts — signalé, pas corrigé : retirer un backend est une décision.
+        'engine': 'diffusers',
         'hf_id': 'stable-diffusion-v1-5/stable-diffusion-v1-5',
         'type': 'image',
         'pipeline': 'sd',

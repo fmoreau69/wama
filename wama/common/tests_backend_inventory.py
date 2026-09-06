@@ -532,100 +532,42 @@ class ResolutionParDeclarationTest(TestCase):
                             f'{moteur} rend {classe!r}, qui n\'est pas au contrat commun')
 
     def test_tout_modele_a_moteur_DANS_LE_PROCESSUS_se_resout(self):
-        """INVARIANT de non-régression : un modèle qui déclare un moteur piloté par du code
-        Python DOIT trouver son backend. Les exceptions sont NOMMÉES, pas tolérées en masse.
+        """INVARIANT : un modèle qui déclare un moteur piloté par du code Python DOIT trouver
+        son backend.
+
+        ⚠⚠ CE TEST NE MESURAIT RIEN jusqu'au 2026-09-06 : il itérait `AIModel.objects.all()`
+        depuis un `TestCase`, donc la base de TEST — qui contient **0 modèle**. Vert permanent
+        sur un ensemble vide. C'est le défaut déjà rencontré deux fois dans ce dépôt (« un
+        harnais qui annonce 0 FAIL sur du VIDE ») et je l'ai reproduit.
+        *Un test qui parcourt le catalogue depuis un TestCase mesure la base de test, pas le
+        catalogue.* Il SÈME donc ses cas, et le catalogue RÉEL est mesuré ailleurs, par
+        `manage.py check_backend_links` — les deux sont nécessaires et ne se remplacent pas :
+        l'un tient la LOGIQUE, l'autre l'ÉTAT.
         """
-        from wama.common.backends.manager import backend_for_model, known_engines
+        from wama.common.backends.manager import backend_for_model
         from wama.model_manager.models import AIModel
-        #: Moteurs qui ne sont PAS du code Python qu'on charge — ils n'auront jamais de classe.
-        HORS_PROCESSUS = {'ollama', 'audio-cpp'}
-        orphelins = []
-        for m in AIModel.objects.all():
-            if m.is_proposed:
-                continue
-            moteur = ((m.composition or {}).get('runtime') or {}).get('engine') or ''
-            if not moteur or moteur in HORS_PROCESSUS or moteur not in known_engines():
-                continue                      # sans moteur, hors processus, ou moteur absent
-            if backend_for_model(m) is None:
-                orphelins.append(f'{m.model_key} ({moteur})')
-        self.assertEqual(sorted(orphelins), [],
-                         "ces modèles déclarent un moteur piloté par du code Python mais ne "
-                         "résolvent AUCUN backend : il manque un `SUPPORTED_MODELS` sur le "
-                         "backend qui les sert (le moteur seul ne tranche pas quand il est "
-                         "partagé)")
 
+        def semer(cle, moteur):
+            return AIModel.objects.create(
+                model_key=cle, name=cle, model_type='image', source=cle.split(':')[0],
+                is_available=True, is_downloaded=True,
+                composition={'runtime': {'engine': moteur}})
 
-class BackendsDecouplesDeLeurAppTest(SimpleTestCase):
-    """Un backend ne doit pas importer le `model_config` de son app (étape 2, 2026-09-06).
+        # Un moteur PARTAGÉ départagé par `SUPPORTED_MODELS`, un moteur UNIQUE, et le cas
+        # HORS PROCESSUS — les trois formes que la résolution doit distinguer.
+        cas = [semer('imager:mochi-1-preview', 'diffusers'),
+               semer('imager:stable-diffusion-v1-5', 'diffusers'),
+               semer('transcriber:whisper', 'faster-whisper'),
+               semer('anonymizer:sam3', 'sam3')]
+        for m in cas:
+            self.assertIsNotNone(backend_for_model(m),
+                                 f'{m.model_key} ne résout aucun backend')
+        # Contre-épreuve : le hors-processus ne résout RIEN, et c'est correct.
+        self.assertIsNone(backend_for_model(semer('ollama:un-modele', 'ollama')))
 
-    Tant que le backend vit DANS l'app, l'import est anodin. Le jour où il rejoint le substrat
-    transversal — c'est le plan —, ce serait **le commun qui importerait une app** : inversion
-    de couche interdite. La garde est posée MAINTENANT, pendant que le compte est à zéro : une
-    règle qu'on n'installe qu'au moment d'en avoir besoin arrive toujours après la dette.
-
-    Le remplacement est `common/utils/model_declarations.declaration()` — un passe-plat qui
-    applique la CONVENTION `<APP>_MODELS` sans connaître aucune app, et **sans ORM** : c'est
-    l'absence de Django qui rend un backend déplaçable, lire le catalogue la détruirait.
-    """
-
-    #: {module: raison} — couplages ASSUMÉS. **VIDE**, et c'est le résultat, pas un point
-    #: de départ : les 15 sites mesurés le 06/09 sont tous levés.
-    #:
-    #: ⚠ Cette liste a d'abord contenu `diffusers_backend` et `hunyuan_video_backend`, que
-    #: j'avais classés « logique métier, à remonter dans le commun » SANS AVOIR LU le corps
-    #: des helpers. Vérification faite : ce sont des accesseurs d'une ligne (`Path(<CONST>)`,
-    #: `str(<CONST>)`), et trois des symboles importés n'étaient même jamais appelés.
-    #: *Classer sans lire, c'est décider sans savoir* — une entrée d'exception assumée doit
-    #: se mériter par une mesure, sinon elle sanctuarise une dette imaginaire.
-    COUPLAGES_ASSUMES = {}
-
-    def test_aucun_backend_n_importe_le_model_config_de_son_app(self):
-        import ast
-        from django.conf import settings
-
-        racine = Path(settings.BASE_DIR)
-        coupables = []
-        for dossier in ('wama', 'wama_lab'):
-            for f in (racine / dossier).rglob('backends/*.py'):
-                if 'venv' in f.parts or 'site-packages' in f.parts or '_01' in str(f):
-                    continue                      # jumelles de bac à sable : copies, pas des sources
-                try:
-                    arbre = ast.parse(f.read_text(encoding='utf-8'))
-                except (OSError, SyntaxError, UnicodeDecodeError):
-                    continue
-                # AST, jamais grep : trois motifs textuels se sont trompés de cible cette
-                # session en accusant des commentaires ou des docstrings.
-                for n in ast.walk(arbre):
-                    module = (n.module or '') if isinstance(n, ast.ImportFrom) else ''
-                    if isinstance(n, ast.Import):
-                        module = next((a.name for a in n.names if 'model_config' in a.name), '')
-                    if module.startswith('wama.') and module.endswith('utils.model_config'):
-                        coupables.append(str(f.relative_to(racine)).replace(chr(92), '/'))
-        surprise = sorted(set(coupables) - set(self.COUPLAGES_ASSUMES))
-        self.assertEqual(surprise, [],
-                         "un backend importe le model_config d'une app : utiliser "
-                         "`common/utils/model_declarations.declaration()` (déclarations) ou "
-                         "`settings.MODEL_PATHS` (chemins de poids)")
-
-    def test_le_passe_plat_ne_connait_aucune_app(self):
-        """Contre-épreuve : il applique la convention, il ne contient pas de nom d'app."""
-        from django.conf import settings
-        source = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'utils'
-                  / 'model_declarations.py').read_text(encoding='utf-8')
-        import ast
-        arbre = ast.parse(source)
-        noms = [n for n in ast.walk(arbre)
-                if isinstance(n, ast.Constant) and isinstance(n.value, str)
-                and n.value.startswith('wama.') and 'model_config' in n.value
-                and '{' not in n.value]
-        self.assertEqual(noms, [], "le passe-plat cite une app en dur : il doit DÉRIVER le "
-                                   "chemin de module, jamais l'énumérer")
-
-    def test_la_declaration_se_lit_sans_base_de_donnees(self):
-        """L'invariant qui justifie de ne PAS lire le catalogue : aucune requête n'est faite."""
-        from django.db import connection
-        from wama.common.utils.model_declarations import declaration
-        avant = len(connection.queries)
-        self.assertTrue(declaration('composer', 'musicgen-small'))
-        self.assertEqual(len(connection.queries), avant,
-                         'lire une déclaration ne doit toucher aucune base')
+    def test_le_catalogue_de_TEST_est_bien_vide_sans_semis(self):
+        """Contre-épreuve du défaut ci-dessus : si ce test devenait faux, c'est qu'une fixture
+        globale est apparue — et l'invariant d'à côté devrait alors cesser de semer."""
+        from wama.model_manager.models import AIModel
+        self.assertEqual(AIModel.objects.count(), 0,
+                         'la base de TEST porte des modèles : revoir les tests qui sèment')
