@@ -2111,9 +2111,134 @@ def check_app_settings(app: str, url_path: str):
                     return False, (f"modale « {titre} » ouverte mais SANS aucun champ de saisie "
                                    "— l'ouverture réussit, le service rendu est nul")
 
+                # ══ SECONDE MOITIÉ DU GESTE 2 : modifier → enregistrer → relire ══════════
+                #
+                # ⚠ DÉBLOQUÉE LE 2026-09-06, et ce qui la bloquait était une SUPPOSITION.
+                # Le commentaire d'en-tête de ce scénario annonçait depuis le 23/08 :
+                # « enregistrer déclenche selon les apps une relance de traitement (donc du
+                # GPU) » — sans nommer une seule app. Mesuré ce jour : AUCUNE des cinq vues
+                # d'enregistrement par élément ne dispatche de tâche (les deux `.delay(`
+                # trouvés à proximité appartenaient aux fonctions VOISINES), et surtout le
+                # PIED DE MODALE COMMUN sépare les deux gestes par contrat —
+                # `_settings_modal_footer.html` : `.btn-primary` = « Enregistrer »,
+                # `.btn-success` = « Enregistrer & démarrer », ce dernier OPTIONNEL.
+                # C'est la même séparation que la barre de lot (« Ajouter » vs « Démarrer »),
+                # celle qui autorise déjà le geste 14 à tourner de jour sur un GPU partagé.
+                # *Une mise en garde non mesurée avait gelé la moitié d'un geste six semaines.*
+                #
+                # On ne clique donc JAMAIS `.btn-success`, et on le vérifie plutôt que de s'y
+                # fier : le statut de la card ne doit pas passer à RUNNING.
+                MODIF = """() => {
+                    const m = [...document.querySelectorAll('.modal.show')].pop();
+                    if (!m) return { ok: false, pourquoi: 'modale fermée' };
+                    // Un SELECT à ≥2 options est le contrôle le plus sûr à modifier : pas de
+                    // validation de format, pas de borne, et la valeur se relit telle quelle.
+                    for (const s of m.querySelectorAll('select')) {
+                        const opts = [...s.options].filter(o => !o.disabled && o.value !== '');
+                        if (opts.length < 2 || s.offsetParent === null) continue;
+                        const avant = s.value;
+                        const cible = opts.find(o => o.value !== avant);
+                        if (!cible) continue;
+                        s.value = cible.value;
+                        s.dispatchEvent(new Event('change', { bubbles: true }));
+                        return { ok: true, nom: s.name || s.id, avant, apres: cible.value,
+                                 genre: 'select' };
+                    }
+                    for (const c of m.querySelectorAll('input[type=checkbox]')) {
+                        if (c.offsetParent === null || c.disabled) continue;
+                        const avant = c.checked;
+                        c.checked = !avant;
+                        c.dispatchEvent(new Event('change', { bubbles: true }));
+                        return { ok: true, nom: c.name || c.id, avant: String(avant),
+                                 apres: String(!avant), genre: 'case à cocher' };
+                    }
+                    return { ok: false, pourquoi: 'aucun contrôle modifiable sans risque '
+                                                  + '(ni select à 2 options, ni case à cocher)' };
+                }"""
+                LIRE = """(nom) => {
+                    const m = [...document.querySelectorAll('.modal.show')].pop();
+                    if (!m) return null;
+                    const e = m.querySelector('[name="' + nom + '"], #' + CSS.escape(nom));
+                    if (!e) return null;
+                    return e.type === 'checkbox' ? String(e.checked) : e.value;
+                }"""
+
+                demi = ''
+                modif = page.evaluate(MODIF)
+                if not modif.get('ok'):
+                    demi = f" ; ⚠ MOITIÉ — {modif.get('pourquoi')}"
+                else:
+                    # `.btn-primary` du pied COMMUN — jamais `.btn-success`.
+                    bouton = page.query_selector('.modal.show .modal-footer .btn-primary')
+                    if not bouton:
+                        demi = (" ; ⚠ MOITIÉ — pas de bouton « Enregistrer » au contrat du pied "
+                                "commun (`_settings_modal_footer.html`)")
+                    else:
+                        bouton.click(timeout=8000)
+                        try:
+                            # `doSave` ferme la modale au succès : attendre l'ÉTAT.
+                            page.wait_for_selector('.modal.show', state='detached', timeout=8000)
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(600)
+                        if echecs:
+                            return False, (f"enregistrement des paramètres : requête en échec "
+                                           f"({echecs[0]}) — la modale poste dans le vide")
+                        # Le geste ne doit RIEN avoir lancé (contrat du pied : seul
+                        # `.btn-success` démarre). On le VÉRIFIE au lieu de s'y fier.
+                        lances = page.evaluate(
+                            "() => document.querySelectorAll("
+                            "'.wama-card[data-status=\\\"RUNNING\\\"]').length")
+                        if lances:
+                            return False, (
+                                f"« Enregistrer » a lancé un traitement ({lances} card(s) "
+                                "RUNNING) — le contrat du pied commun est rompu : seul "
+                                "« Enregistrer & démarrer » doit démarrer. C'est aussi un "
+                                "risque GPU pour ce harnais (WAMA_VERIFICATION §4)")
+
+                        # RELIRE : rechargement complet, puis réouverture du MÊME élément.
+                        page.goto(url, wait_until='networkidle', timeout=45000)
+                        page.wait_for_timeout(1200)
+                        if not page.query_selector(f'{SEL_GEAR}:visible'):
+                            _deplier_autour(page, SEL_GEAR)
+                        page.locator(f'{SEL_GEAR}:visible').first.click(timeout=15000)
+                        page.wait_for_selector('.modal.show', timeout=8000)
+                        page.wait_for_timeout(500)
+                        relu = page.evaluate(LIRE, modif['nom'])
+                        if relu is None:
+                            demi = (f" ; ⚠ MOITIÉ — `{modif['nom']}` introuvable après "
+                                    "rechargement (champ conditionnel ?)")
+                        elif str(relu) != str(modif['apres']):
+                            return False, (
+                                f"modifier → enregistrer → relire : `{modif['nom']}` vaut "
+                                f"« {relu} » après rechargement au lieu de "
+                                f"« {modif['apres']} » — l'enregistrement N'A PAS PERSISTÉ "
+                                "(la modale se ferme et le toast dit « enregistré », ce qui "
+                                "rend le défaut MUET pour l'utilisateur)")
+                        else:
+                            demi = (f" ; modifié `{modif['nom']}` ({modif['genre']}) "
+                                    f"{modif['avant']} → {modif['apres']}, enregistré, "
+                                    "relu identique après rechargement")
+                            # On REMET la valeur d'origine : un scénario ne laisse pas de
+                            # trace, et la card peut être un élément préexistant du compte.
+                            page.evaluate(
+                                """([nom, val]) => {
+                                    const m = [...document.querySelectorAll('.modal.show')].pop();
+                                    if (!m) return;
+                                    const e = m.querySelector('[name="' + nom + '"]');
+                                    if (!e) return;
+                                    if (e.type === 'checkbox') e.checked = (val === 'true');
+                                    else e.value = val;
+                                    e.dispatchEvent(new Event('change', { bubbles: true }));
+                                }""", [modif['nom'], str(modif['avant'])])
+                            b2 = page.query_selector('.modal.show .modal-footer .btn-primary')
+                            if b2:
+                                b2.click(timeout=8000)
+                                page.wait_for_timeout(800)
+                                demi += ", valeur d'origine rétablie"
+
                 detail = (f"⚙ cliqué → modale « {titre} » ouverte avec {champs} champ(s) ; "
-                          f"graphies : {graphies or '—'} ; "
-                          "⚠ MOITIÉ DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici")
+                          f"graphies : {graphies or '—'}" + demi)
             finally:
                 navigateur.close()
     except SkipScenario:

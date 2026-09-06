@@ -60,7 +60,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | # | Geste utilisateur | Scénario aujourd'hui | Traitement requis |
 |---|---|---|---|
 | 1 | Déposer un fichier → une card apparaît | ✅ `<app>.import` | non |
-| 2 | Ouvrir les paramètres d'un item, modifier, enregistrer, relire | ⚠️ **MOITIÉ** — `<app>.settings` (23/08) prouve l'OUVERTURE ; modifier/enregistrer/relire reste dû | non |
+| 2 | Ouvrir les paramètres d'un item, modifier, enregistrer, relire | ✅ **ENTIER** (06/09) — `<app>.settings` ouvre, MODIFIE un contrôle réel (select ou case à cocher), enregistre par le `.btn-primary` du pied commun, RECHARGE la page, rouvre et RELIT : **9 OK / 0 échec / 8 skips** (files vides). Champs réellement éprouvés : `output_format`, `output_style`, `backend`, `tts_model`, `ai_model`, `model_to_use`. La valeur d'origine est rétablie — un scénario ne laisse pas de trace | non |
 | 3 | Dupliquer un **élément** (`.duplicate-btn`) | ✅ `<app>.duplicate_delete` | non |
 | 3b | Dupliquer un **lot** (`.batch-duplicate-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
 | 4 | Supprimer un **élément** (`.delete-btn`) | ✅ `<app>.duplicate_delete` | non |
@@ -116,6 +116,12 @@ d'avant était flatteuse par omission. `<app>.queue_dnd` ferme le 15 et la moiti
 
 **Au 2026-09-06 (suite) : 11 gestes sur 19** — `common.history.studio` ferme le 17.
 
+**Au 2026-09-06 (fin) : 12 gestes sur 19** — le geste 2 devient ENTIER (modifier → enregistrer →
+recharger → relire → rétablir), et ce qui le bloquait était **une mise en garde non mesurée**,
+pas une contrainte : voir l'encadré ⚠⚠ ci-dessous. Les gestes restants sont **8-13** (traitement
+réel) et le câblage transcriber du 17 — c'est-à-dire, à une exception près, exactement le lot que
+le GPU commande.
+
 > ⚠ **UN scénario, pas dix-sept — et c'est la réponse à une question de Fabien du même jour :**
 > *« les tests sont créés individuellement pour chaque application ou déclinés automatiquement
 > sur un mécanisme global ? l'uniformisation peut servir à ne pas dupliquer les tests. »*
@@ -157,11 +163,23 @@ d'avant était flatteuse par omission. `<app>.queue_dnd` ferme le 15 et la moiti
 > Les ajouter ici gonflerait un chiffre qui ne mesure qu'une chose — combien de gestes du
 > catalogue sont exécutables. Un chiffre vit à UN endroit et ne mesure qu'UNE prétention.
 
-> ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
-> DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
-> enregistrer déclenche selon les apps une **relance de traitement**, donc du GPU — ce qui range
-> la seconde moitié avec les gestes 8-13, à traiter sur le converter en CPU (§4). Un scénario qui
-> promet plus qu'il ne mesure est pire qu'absent : il éteint la question.
+> ⚠⚠ **CE PARAGRAPHE DISAIT LE CONTRAIRE, ET C'ÉTAIT UNE SUPPOSITION — corrigé le 2026-09-06.**
+> Il annonçait depuis le 23/08 : « enregistrer déclenche **selon les apps** une relance de
+> traitement, donc du GPU — ce qui range la seconde moitié avec les gestes 8-13 ». **Aucune app
+> n'était nommée**, et la mise en garde a gelé la moitié d'un geste pendant six semaines.
+>
+> Mesuré : ① **aucune** des cinq vues d'enregistrement par élément ne dispatche de tâche (les
+> deux `.delay(` repérés à proximité appartenaient aux fonctions VOISINES — `reader.analyze`,
+> et le corps suivant chez l'anonymizer) ; ② surtout, le **pied de modale COMMUN sépare les deux
+> gestes par contrat** — `_settings_modal_footer.html` rend `.btn-primary` « Enregistrer » et
+> `.btn-success` « Enregistrer & démarrer », ce dernier OPTIONNEL. C'est **la même séparation que
+> la barre de lot** (« Ajouter » vs « Démarrer »), celle qui autorise déjà le geste 14 à tourner
+> de jour sur un GPU partagé.
+>
+> Le scénario ne clique donc jamais `.btn-success` — et il **le vérifie au lieu de s'y fier** :
+> si une card passe à `RUNNING` après « Enregistrer », c'est un échec qui nomme la rupture du
+> contrat. *Une prudence non mesurée coûte autant qu'une imprudence : elle éteint la question
+> qu'elle prétend poser.*
 
 > ⚠ **Élément et lot sont DEUX gestes, pas un** (précision de Fabien, 22/08 — la première version
 > de cette table les confondait). Ils n'ont pas la même difficulté, et c'est ce qui les rend
