@@ -1,3 +1,17 @@
+"""Floutage d'image — primitives par IMAGE, remontées dans le commun le 2026-09-07.
+
+⚠ POURQUOI ICI ET PAS AU REGISTRE DES FONCTIONS (question de Fabien) : la taxonomie de types
+n'a AUCUN type image — ses 11 supertypes sont analytiques (`detections`, `depth_map`,
+`timeseries`, `scalar`…), et les 58 fonctions du registre sont des étapes de PIPELINE sur des
+artefacts. Ces primitives-ci travaillent par FRAME, à l'intérieur d'une boucle de décodage,
+des milliers de fois par vidéo : ce n'est pas un nœud, c'est une brique de nœud.
+*L'opération « anonymiser une vidéo » serait, elle, une fonction légitime — grain grossier,
+vidéo → vidéo, déclarable en `binding='app'` comme les 20 fonctions app-bound existantes.*
+
+Elles vivaient dans `wama/anonymizer/core/`, ce qui attachait deux backends à leur app et
+bloquait leur passage au substrat transversal. Aucune dépendance Django, aucune dépendance
+d'app : `cv2`, `numpy`, et la géométrie de `bounds`.
+"""
 import cv2
 import numpy as np
 from .bounds import Bounds

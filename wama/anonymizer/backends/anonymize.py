@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 
-from ..core.blur_utils import blur_detection, blur_segmentation, normalize_blur_ratio
+from wama.common.utils.blur_utils import blur_detection, blur_segmentation, normalize_blur_ratio
 from wama.common.utils.video_utils import copy_audio_to_video
 from ultralytics import YOLO, settings
 from ultralytics.utils import MACOS, WINDOWS
