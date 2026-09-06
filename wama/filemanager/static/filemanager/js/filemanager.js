@@ -1802,15 +1802,20 @@
 
                 if (app && dragFiles.length) {
                     // Le canal se DÉCLARE, il ne se devine plus par nom d'app (2026-09-05,
-                    // MEDIA_STORAGE_TIERING §8.6 D5). Trois cas, dans l'ordre :
+                    // MEDIA_STORAGE_TIERING §8.6 D5). Deux cas :
                     //   1. card commune « attache » (`data-wama-depot="attache"` : imager,
                     //      avatarizer) → le fichier rejoint le FORMULAIRE : File matérialisé
                     //      puis injecté dans l'input de la zone — le chemin de MediaPicker ;
-                    //   2. zone HORS card commune (WAMA Lab) → l'événement `filemanager:filedrop`,
-                    //      que son propriétaire écoute ;
-                    //   3. card commune « crée » → import SERVEUR par chemin (aucun aller-retour).
+                    //   2. tout le reste (card « crée », zone de WAMA Lab telle que
+                    //      face_analyzer) → import SERVEUR par chemin, aucun aller-retour.
                     // ⚠ L'ancienne liste `imager || avatarizer || cam_analyzer` envoyait imager
                     // sur un événement qu'AUCUN JS d'imager n'écoutait : drag muet, sans un mot.
+                    // ⚠ L'événement `filemanager:filedrop` n'a PLUS de consommateur vivant
+                    // (2026-09-06) : avatarizer est passé au cas 1, et les zones de cam_analyzer
+                    // sont des `.camera-drop-zone` que `findDropZoneAt('.drop-zone')` ne trouve
+                    // jamais — son écouteur était déjà mort. Une 1ʳᵉ version de cette branche
+                    // envoyait l'événement à toute zone hors card commune : face_analyzer, qui
+                    // vivait de l'import serveur, devenait muette. Retirée.
                     const carteCommune = currentDropZone.closest('[data-wama-depot]');
                     const attache = carteCommune && carteCommune.dataset.wamaDepot === 'attache';
                     const cible = attache && (currentDropZone.querySelector('input[type="file"]')
@@ -1821,13 +1826,6 @@
                             if (WamaApp.injectFiles(cible, files)) {
                                 showToast(files.length + ' fichier(s) joint(s) à la card', 'success');
                             }
-                        });
-                    } else if (!carteCommune) {
-                        dragFiles.forEach(function (f) {
-                            currentDropZone.dispatchEvent(new CustomEvent('filemanager:filedrop', {
-                                detail: { path: f.path, name: f.name, mime: f.mime },
-                                bubbles: false,
-                            }));
                         });
                     } else {
                         // Autres apps : UNE SEULE requête pour TOUT le dépôt (`paths[]`) — le
