@@ -123,6 +123,62 @@ def known_engines() -> set:
     return moteurs
 
 
+# ── RÉSOLUTION PAR DÉCLARATION (2026-09-06, étape 1 du plan Fabien) ──────────────────────
+#
+# Une app ne doit plus jamais importer un backend PAR SON CHEMIN. Elle demande « le backend
+# qui pilote ce moteur », ou mieux « le backend qui sait exécuter ce modèle », et le registre
+# résout. C'est ce qui rend l'EMPLACEMENT PHYSIQUE indifférent — préalable au déplacement des
+# backends vers le substrat transversal : tant qu'on importe par chemin, tout déplacement
+# casse des imports ; une fois qu'on résout par déclaration, le déplacement ne casse rien.
+#
+# Deux dépendances inter-apps existent déjà et sont exactement la pathologie visée :
+#   • `common/utils/whisper_utils` importe `transcriber.backends.manager` ;
+#   • `wama_lab/cam_analyzer` importe `anonymizer.backends.sam3_processor` — une app du monde
+#     LAB qui dépend d'une app du monde MÉDIAS.
+#
+# ⚠ La résolution IMPORTE réellement le module du backend : c'est une exécution, pas une
+# lecture. Elle est donc CIBLÉE (un module) et TARDIVE (à la demande) — jamais un balayage.
+# Le registre, lui, reste statique. *Lire une déclaration ne doit rien exécuter ; exécuter
+# est une décision de l'appelant.*
+
+
+def backend_for_engine(engine: str, model_id: str = ''):
+    """Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
+
+    None a plusieurs causes, qui ne se valent pas — `known_engines()` et `engine_backends()`
+    les distinguent : moteur inconnu ; moteur HORS PROCESSUS déclaré par un inventaire à la
+    main (`audio-cpp`, `ollama` — ils ne sont pas du code Python qu'on charge) ; plusieurs
+    backends candidats sans `SUPPORTED_MODELS` pour trancher ; module illisible.
+    """
+    from wama.common.services.backend_inventory import resolve_backend
+    classe = resolve_backend(engine, model_id)
+    # ⚠ GARDE : `engine_backends()` peut rendre un PORTEUR qui n'est pas un backend — le
+    # porteur du démon Ollama en est un. Une première version rendait cet objet, qui n'a ni
+    # `load` ni `process` : l'appelant aurait cru tenir un backend. On ne rend QUE le contrat.
+    if classe is not None and isinstance(classe, type) and issubclass(classe, BaseModelBackend):
+        return classe
+    return None
+
+
+def backend_for_model(model):
+    """Classe de backend qui sait exécuter `model`, ou None.
+
+    C'est le point d'entrée que les apps doivent employer : elles connaissent leur MODÈLE
+    (catalogue), pas le module qui l'exécute. Le chemin passe par la déclaration
+    `composition.runtime.engine` — la moitié modèle du lien — et rejoint la moitié backend
+    (`BaseModelBackend.ENGINE`), départagée par `SUPPORTED_MODELS` quand le moteur est partagé.
+
+    ⚠ Ne consulte PAS `backend_ref` : il porte un nom d'app, donc une appartenance, jamais
+    une exécutabilité (cf. `backend_missing`, dont le court-circuit a été retiré le 05/09).
+    """
+    composition = getattr(model, 'composition', None) or {}
+    engine = (composition.get('runtime') or {}).get('engine') or ''
+    # `model_key` vaut `<source>:<model_id>` — et parfois `<source>:<famille>:<id>` (yolo).
+    # C'est le DERNIER segment qui porte l'identifiant qu'un `SUPPORTED_MODELS` déclarerait.
+    cle = getattr(model, 'model_key', '') or ''
+    return backend_for_engine(engine, cle.rsplit(':', 1)[-1] if cle else '')
+
+
 def backend_missing(model) -> Optional[str]:
     """Raison si `model` est POSITIVEMENT sans backend, sinon None.
 

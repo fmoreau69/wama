@@ -68,6 +68,17 @@ class BackendEntry:
     #: Ses paquets requis sont-ils présents dans CE venv ? (`find_spec`, sans import)
     #: ⚠ Toujours vrai pour un backend ISOLÉ : la question ne se pose pas ici (cf. `isolation`).
     engine_installed: bool = True
+    #: Modèles que le backend déclare servir (clés de son `SUPPORTED_MODELS`). C'est le lien
+    #: FIN, celui qui manquait : le MOTEUR ne suffit pas comme clé de résolution — `diffusers`
+    #: est piloté par 8 backends de l'imager, `transformers` par 4 backends de 4 apps
+    #: différentes (mesuré le 06/09). Sans cette liste, résoudre par moteur rendrait le
+    #: PREMIER backend venu — un modèle Mochi se serait vu servir par CogVideoX.
+    supported_models: List[str] = field(default_factory=list)
+    #: Module ABSOLU où la classe est définie (`wama.transcriber.backends.whisper_backend`).
+    #: Le balayage le connaît depuis toujours ; il ne sortait pas. C'est LUI qui permet la
+    #: résolution PARESSEUSE d'un backend par son moteur — sans lui, un appelant devrait
+    #: connaître le chemin d'import, c'est-à-dire exactement ce qu'on veut supprimer.
+    module: str = ''
     #: ENVIRONNEMENT d'exécution déclaré par le backend (`ISOLATION`) — vide = venv principal.
     #: `venv:<chemin>` ou `service:<url>`. C'est la MOITIÉ MANQUANTE du verdict de grisage :
     #: sans elle, « paquet absent » et « backend qui vit ailleurs » se confondent.
@@ -222,6 +233,17 @@ def _class_backends(paquet_dir, prefixe: str) -> tuple:
         except (OSError, SyntaxError) as e:
             unreadable.append(f'{f.stem} ({type(e).__name__})')
             continue
+        # ⚠ Au niveau MODULE : c'est là que les backends imager posent `SUPPORTED_MODELS`
+        # (vérifié sur les 8). Le lire dans le corps de classe seul le raterait entièrement.
+        # On l'attribue à toute classe du fichier : un fichier de backend en déclare une, et
+        # une déclaration de module vaut pour son module.
+        supported = []
+        for n in arbre.body:
+            if isinstance(n, ast.Assign) and len(n.targets) == 1                     and getattr(n.targets[0], 'id', '') == 'SUPPORTED_MODELS':
+                valeur = _literal_value(n.value)
+                if isinstance(valeur, dict):
+                    supported = [str(k) for k in valeur]
+
         for n in arbre.body:
             if not isinstance(n, ast.ClassDef):
                 continue
@@ -243,7 +265,7 @@ def _class_backends(paquet_dir, prefixe: str) -> tuple:
                     definies.add(s.targets[0].id)     # alias de méthode (load_model = load)
             classes_par_nom[n.name] = {
                 'nom': n.name, 'bases': bases, 'module': f'{prefixe}.{f.stem}',
-                'fichier': f.stem, 'attrs': attrs,
+                'fichier': f.stem, 'attrs': attrs, 'supported': supported,
                 'propres_abstraites': propres_abstraites, 'definies': definies}
 
     # Fermeture transitive depuis le contrat commun (les bases métier sont dans le paquet).
@@ -387,6 +409,13 @@ def inventory() -> List[AppBackends]:
             entries.append(BackendEntry(
                 app=app, name=nom,
                 path=f"backends.{info['fichier']}.{nom}",
+                module=info.get('module', ''),
+                # ⚠ DEUX emplacements, mesurés : les backends vidéo de l'imager posent
+                # `SUPPORTED_MODELS` au niveau MODULE, le `DiffusersBackend` générique
+                # dans le CORPS DE CLASSE. Ne lire que l'un des deux ratait 4 modèles —
+                # j'avais généralisé après avoir ouvert deux fichiers.
+                supported_models=sorted(set(info.get('supported') or [])
+                                        | set(info['attrs'].get('SUPPORTED_MODELS') or [])),
                 natures=[], flavor=flavor, kind='classe',
                 packages=list(info['attrs'].get('REQUIRED_PACKAGES') or []),
                 vram_gb=info['attrs'].get('recommended_vram_gb'),
@@ -486,11 +515,30 @@ class _DeclaredEngine:
     de bord d'import que ce chantier vient de fermer.
     """
 
-    __slots__ = ('engine', 'packages', 'isolation')
+    __slots__ = ('engine', 'packages', 'isolation', 'module', 'classe')
 
-    def __init__(self, engine: str, packages, isolation: str = ''):
+    def __init__(self, engine: str, packages, isolation: str = '',
+                 module: str = '', classe: str = ''):
         self.engine, self.packages = engine, list(packages or [])
         self.isolation = isolation
+        #: Coordonnées d'import de la classe RÉELLE — jamais suivies au balayage.
+        self.module, self.classe = module, classe
+
+    def resolve(self):
+        """Importe et rend la CLASSE réelle du backend. Import CIBLÉ et TARDIF.
+
+        C'est le seul endroit du registre qui importe du code d'app, et il ne le fait qu'à la
+        demande, pour UN module — jamais pour balayer. La distinction est celle qui a fait
+        passer la page des backends de 9,07 s à 0,16 s : *lire une déclaration ne doit rien
+        exécuter ; exécuter est une décision de l'appelant.*
+
+        Rend None si les coordonnées manquent (moteur déclaré par un inventaire à la main,
+        comme `audio-cpp` ou `ollama` : ils n'ont pas de classe, et n'en auront pas).
+        """
+        if not self.module or not self.classe:
+            return None
+        import importlib
+        return getattr(importlib.import_module(self.module), self.classe, None)
 
     def missing_packages(self):
         """Même règle que le contrat commun : un backend ISOLÉ n'a rien à installer ICI."""
@@ -531,7 +579,8 @@ def declared_engines() -> dict:
             for e in a.entries:
                 if e.engine:
                     carte.setdefault(e.engine,
-                                     _DeclaredEngine(e.engine, e.packages, e.isolation))
+                                     _DeclaredEngine(e.engine, e.packages, e.isolation,
+                                                     module=e.module, classe=e.name))
         _ENGINES_CACHE = carte
     return dict(_ENGINES_CACHE)
 
@@ -539,3 +588,54 @@ def declared_engines() -> dict:
 def count() -> int:
     """Total de backends du vivier (apps réelles) — pour le registre des registres."""
     return summary()['backends_count']
+
+def resolve_backend(engine: str, model_id: str = ''):
+    """Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
+
+    ⚠ LE MOTEUR NE SUFFIT PAS COMME CLÉ, et c'est le défaut qu'une première version de cette
+    résolution avait : `diffusers` est piloté par 8 backends de l'imager, `transformers` par 4
+    backends de 4 apps. Prendre « le premier qui déclare ce moteur » servait un modèle Mochi
+    par CogVideoX — silencieusement.
+
+    Ordre de décision, du plus DÉCLARÉ au plus déduit :
+      1. un seul backend déclare ce moteur → c'est lui, sans ambiguïté ;
+      2. plusieurs, et l'un déclare `model_id` dans son `SUPPORTED_MODELS` → c'est lui ;
+      3. plusieurs, aucun ne le déclare → **None**. On ne devine pas : rendre un backend au
+         hasard est pire que ne rien rendre, parce que l'erreur serait silencieuse.
+    """
+    if not engine:
+        return None
+    candidats = [e for a in inventory() if not a.generated_from
+                 for e in a.entries if e.engine == engine]
+    if not candidats:
+        return None
+    if len(candidats) == 1:
+        return _resoudre_classe(candidats[0])
+    exacts = [e for e in candidats if model_id and model_id in e.supported_models]
+    if len(exacts) == 1:
+        return _resoudre_classe(exacts[0])
+    if len(exacts) > 1:
+        # ⚠ Cas MESURÉ sur l'imager : `DiffusersBackend` LISTE des modèles qu'il ROUTE vers un
+        # backend spécialisé — son propre code le dit (« Routed to flux2_klein_backend at
+        # generation time — listed here »). Le générique et le spécialisé déclarent donc le
+        # même modèle, et les deux ont raison : l'un est la porte, l'autre l'exécutant.
+        # Règle : LE PLUS SPÉCIFIQUE gagne (celui qui déclare le moins de modèles), parce que
+        # c'est lui qui exécute. Heuristique ASSUMÉE, et bornée : à égalité on rend None
+        # plutôt que de tirer au sort — une erreur silencieuse coûte plus qu'un refus.
+        exacts.sort(key=lambda e: len(e.supported_models))
+        if len(exacts[0].supported_models) < len(exacts[1].supported_models):
+            return _resoudre_classe(exacts[0])
+    logger.debug("[engines] %s : %d backends, %s indécidable", engine, len(candidats), model_id)
+    return None
+
+
+def _resoudre_classe(entree):
+    """Import CIBLÉ et TARDIF de la classe d'une entrée. Une levée ne condamne pas l'appelant."""
+    if not entree.module or not entree.name:
+        return None
+    import importlib
+    try:
+        return getattr(importlib.import_module(entree.module), entree.name, None)
+    except Exception as e:
+        logger.debug("[engines] %s.%s irrésoluble : %s", entree.module, entree.name, e)
+        return None

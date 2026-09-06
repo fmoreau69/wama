@@ -21,6 +21,14 @@ class OlmOCRBackend(BaseModelBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'transformers'
+
+    #: Modèles du catalogue que CE backend sert — le lien FIN, déclaré le 2026-09-06.
+    #: `ENGINE` ne suffit pas comme clé : `transformers` est piloté par 4 backends de 4 apps
+    #: différentes, donc résoudre par moteur seul serait indécidable. Cette liste tranche.
+    #: Les clés sont les `model_id` du catalogue (segment après `<source>:`), vocabulaire
+    #: PARTAGÉ avec `SUPPORTED_MODELS` des backends imager — une graphie différente rouvrirait
+    #: le trou qu'on ferme.
+    SUPPORTED_MODELS = {'olmocr': {}}
     REQUIRED_PACKAGES = ['transformers', 'torch']
     recommended_vram_gb = 8.0
     description = "olmOCR (Qwen2-VL) — OCR de documents."

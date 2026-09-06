@@ -472,3 +472,84 @@ class BackendRefNAbsoutPlusTest(SimpleTestCase):
         self.assertEqual(usages, [],
                          "`backend_ref` est redevenu ACTIF dans backend_missing — il atteste "
                          "une appartenance, pas une exécutabilité")
+
+
+class ResolutionParDeclarationTest(TestCase):
+    """Un backend se trouve par sa DÉCLARATION, jamais par son chemin d'import (2026-09-06).
+
+    C'est l'étape qui rend l'emplacement physique des backends INDIFFÉRENT — préalable à leur
+    déplacement vers le substrat transversal. Tant qu'on importe par chemin, tout déplacement
+    casse des imports ; une fois qu'on résout par déclaration, il ne casse plus rien.
+    """
+
+    def test_le_MOTEUR_seul_ne_suffit_pas_quand_il_est_PARTAGE(self):
+        """LE défaut que ce test existe pour empêcher, et qui a bien eu lieu.
+
+        Une 1ʳᵉ version résolvait par moteur seul et rendait « le premier qui le déclare ».
+        Or `diffusers` est piloté par 8 backends de l'imager : un modèle Mochi se voyait servir
+        par CogVideoX — silencieusement. Le lien FIN (`SUPPORTED_MODELS`) tranche.
+        """
+        from types import SimpleNamespace
+        from wama.common.backends.manager import backend_for_model
+        for cle, attendu in (('imager:mochi-1-preview', 'MochiBackend'),
+                             ('imager:cogvideox-5b-i2v', 'CogVideoXBackend'),
+                             ('imager:qwen-image-2', 'QwenImageBackend')):
+            modele = SimpleNamespace(model_key=cle,
+                                     composition={'runtime': {'engine': 'diffusers'}})
+            classe = backend_for_model(modele)
+            self.assertIsNotNone(classe, f'{cle} : aucun backend résolu')
+            self.assertEqual(classe.__name__, attendu,
+                             f"{cle} servi par le mauvais backend — c'est le défaut mesuré "
+                             f"le 06/09, une erreur SILENCIEUSE")
+
+    def test_l_ambiguite_rend_NONE_jamais_un_tirage(self):
+        """À égalité de spécificité, on refuse. *Une erreur silencieuse coûte plus qu'un refus.*"""
+        from types import SimpleNamespace
+        from wama.common.backends.manager import backend_for_model
+        inconnu = SimpleNamespace(model_key='imager:modele-que-personne-ne-declare',
+                                  composition={'runtime': {'engine': 'diffusers'}})
+        self.assertIsNone(backend_for_model(inconnu))
+
+    def test_un_porteur_HORS_PROCESSUS_n_est_jamais_rendu_comme_backend(self):
+        """`ollama` est un DÉMON : son porteur est une classe, mais pas un `BaseModelBackend`.
+
+        Une 1ʳᵉ version le rendait — l'appelant aurait cru tenir un backend et cherché un
+        `load()` qui n'existe pas. On ne rend QUE le contrat.
+        """
+        from wama.common.backends.manager import backend_for_engine
+        self.assertIsNone(backend_for_engine('ollama'))
+        self.assertIsNone(backend_for_engine('moteur-qui-n-existe-pas'))
+        self.assertIsNone(backend_for_engine(''))
+
+    def test_ce_qui_est_resolu_EST_un_backend_au_contrat(self):
+        from wama.common.backends.base import BaseModelBackend
+        from wama.common.backends.manager import backend_for_engine, known_engines
+        for moteur in sorted(known_engines()):
+            classe = backend_for_engine(moteur)
+            if classe is None:
+                continue                      # hors processus, ou moteur partagé sans model_id
+            self.assertTrue(issubclass(classe, BaseModelBackend),
+                            f'{moteur} rend {classe!r}, qui n\'est pas au contrat commun')
+
+    def test_tout_modele_a_moteur_DANS_LE_PROCESSUS_se_resout(self):
+        """INVARIANT de non-régression : un modèle qui déclare un moteur piloté par du code
+        Python DOIT trouver son backend. Les exceptions sont NOMMÉES, pas tolérées en masse.
+        """
+        from wama.common.backends.manager import backend_for_model, known_engines
+        from wama.model_manager.models import AIModel
+        #: Moteurs qui ne sont PAS du code Python qu'on charge — ils n'auront jamais de classe.
+        HORS_PROCESSUS = {'ollama', 'audio-cpp'}
+        orphelins = []
+        for m in AIModel.objects.all():
+            if m.is_proposed:
+                continue
+            moteur = ((m.composition or {}).get('runtime') or {}).get('engine') or ''
+            if not moteur or moteur in HORS_PROCESSUS or moteur not in known_engines():
+                continue                      # sans moteur, hors processus, ou moteur absent
+            if backend_for_model(m) is None:
+                orphelins.append(f'{m.model_key} ({moteur})')
+        self.assertEqual(sorted(orphelins), [],
+                         "ces modèles déclarent un moteur piloté par du code Python mais ne "
+                         "résolvent AUCUN backend : il manque un `SUPPORTED_MODELS` sur le "
+                         "backend qui les sert (le moteur seul ne tranche pas quand il est "
+                         "partagé)")

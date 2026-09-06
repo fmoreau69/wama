@@ -37,6 +37,14 @@ class QwenASRBackend(SpeechToTextBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'transformers'
+
+    #: Modèles du catalogue que CE backend sert — le lien FIN, déclaré le 2026-09-06.
+    #: `ENGINE` ne suffit pas comme clé : `transformers` est piloté par 4 backends de 4 apps
+    #: différentes, donc résoudre par moteur seul serait indécidable. Cette liste tranche.
+    #: Les clés sont les `model_id` du catalogue (segment après `<source>:`), vocabulaire
+    #: PARTAGÉ avec `SUPPORTED_MODELS` des backends imager — une graphie différente rouvrirait
+    #: le trou qu'on ferme.
+    SUPPORTED_MODELS = {'qwen3-asr-0.6b': {}, 'qwen3-asr-1.7b': {}}
     name = "qwen_asr"
     display_name = "Qwen3-ASR (Alibaba)"
     description = "Qwen3-ASR — multilingue (52 langues), context biasing des mots-clés (expérimental). Diarisation via pyannote."
