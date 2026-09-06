@@ -389,6 +389,7 @@ try:
                                                register_folder_import_scenarios,
                                                register_import_scenarios,
                                                register_inspector_actions_scenarios,
+                                               register_history_scenarios,
                                                register_queue_dnd_scenarios,
                                                register_send_to_scenarios,
                                                register_settings_scenarios,
@@ -436,6 +437,12 @@ try:
     # re-mesuré à la main, faute de ce scénario. Aucun POST : on lit la DÉCISION de dépôt,
     # jamais le dépôt.
     register_queue_dnd_scenarios()
+    # 2026-09-06 — geste 17 : ANNULER / RÉTABLIR. `wama-history.js` a deux consommateurs
+    # (correction transcriber, canvas studio) et n'avait AUCUN scénario. Un seul est jouable
+    # sans écrire : la page de correction auto-enregistre (`markDirty` → save 800 ms), le
+    # studio ne persiste qu'en localStorage. Le scénario mesure les DEUX moitiés — le câblage
+    # du consommateur ET la sémantique de la brique — parce qu'aucune ne se déduit de l'autre.
+    register_history_scenarios()
     # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
     # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
     # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais

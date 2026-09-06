@@ -3951,3 +3951,216 @@ def register_queue_dnd_scenarios():
             run=(lambda p=path, a=label: (lambda ctx: check_app_queue_dnd(a, p)))(),
             timeout_s=180, vram_gb=0.0,
         )
+
+
+# ── Geste 17 : ANNULER / RÉTABLIR (brique commune `wama-history.js`) ───────────────────────
+
+
+def check_history_studio(url_path: str = '/studio/'):
+    """Le geste ENTIER d'annulation, sur le consommateur qui l'exerce sans rien écrire.
+
+    POURQUOI LE STUDIO ET PAS LE TRANSCRIBER. Les deux consomment `wama-history.js`, mais la
+    page de correction AUTO-ENREGISTRE (`markDirty` → `save('draft')` après 800 ms) : y jouer
+    une annulation écrirait en base sur une transcription réelle. Le studio, lui, ne persiste
+    qu'en `localStorage` tant qu'aucun pipeline n'est sauvegardé — le geste complet y est donc
+    jouable **sans une seule écriture serveur**. C'est le même arbitrage que le geste 14, qui
+    passe par la voie de lot parce qu'elle sépare « Ajouter » de « Démarrer ».
+
+    CE QUI EST MESURÉ — les deux moitiés, et elles ne se déduisent pas l'une de l'autre :
+      1. le CÂBLAGE du consommateur : ajouter des nœuds active le bouton, annuler les retire,
+         rétablir les rend, Ctrl+Z fait de même ; et « Vider le canvas » compte pour UN cran
+         donc redevient annulable (c'est le couple `commit()` + `silence()`, et la garde de
+         ré-entrance qui empêche les N suppressions d'empiler N crans) ;
+      2. la SÉMANTIQUE de la brique elle-même, exercée sur un modèle JETABLE créé dans la page
+         (plafond, abandon de la branche « rétablir », `silence` qui n'enregistre rien, et le
+         recalage de la référence après lui). Aucun effet sur le canvas.
+
+    ⚠ La moitié 1 sans la moitié 2 laisserait passer une brique juste mal câblée ; la moitié 2
+    sans la 1 laisserait passer un câblage absent — `fillActions`-style, le défaut MUET que ce
+    harnais existe pour attraper.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _test_session_key('studio')
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible pour ouvrir une session")
+
+    with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            erreurs_js = []
+            page.on('pageerror', lambda e: erreurs_js.append(str(e)[:160]))
+
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            mauvaise_page = _exiger_la_page(page, resp, url)
+            if mauvaise_page:
+                return mauvaise_page
+            page.wait_for_timeout(1500)
+
+            socle = page.evaluate(
+                """() => ({
+                    brique: typeof window.WamaHistory,
+                    undo: document.querySelectorAll('.studio-undo').length,
+                    redo: document.querySelectorAll('.studio-redo').length,
+                    desactives: Array.from(document.querySelectorAll('.studio-undo,.studio-redo'))
+                                     .every(b => b.disabled),
+                    palette: document.querySelectorAll('.studio-pal-item').length,
+                })""")
+
+            if socle.get('brique') != 'object':
+                return False, ("`wama-history.js` n'est pas monté sur le studio "
+                               f"(window.WamaHistory = {socle.get('brique')}) — l'annulation "
+                               "est morte"
+                               + (f" ; {' | '.join(erreurs_js)}" if erreurs_js else ""))
+            if not socle.get('undo') or not socle.get('redo'):
+                return False, (f"boutons absents : {socle.get('undo')} undo / "
+                               f"{socle.get('redo')} redo — le geste n'a pas de surface")
+            if not socle.get('desactives'):
+                return False, ("les boutons d'annulation sont ACTIFS à l'ouverture, sur une "
+                               "pile vide — ils promettent une action qui ne viendra pas")
+            if not socle.get('palette'):
+                raise SkipScenario("palette d'apps vide (catalogue indisponible) — rien à "
+                                   "ajouter au canvas, le geste n'est pas jouable")
+
+            constats = []
+
+            # ── 1. Le câblage : ajouter, annuler, rétablir ────────────────────────────
+            def etat():
+                return page.evaluate(
+                    """() => ({
+                        noeuds: document.querySelectorAll('.studio-node').length,
+                        undo: !document.querySelector('.studio-undo').disabled,
+                        redo: !document.querySelector('.studio-redo').disabled,
+                    })""")
+
+            items = page.query_selector_all('.studio-pal-item')
+            for i in range(min(3, len(items))):
+                items[i].click(timeout=4000)
+                page.wait_for_timeout(300)
+            apres_ajouts = etat()
+            if apres_ajouts['noeuds'] < 2:
+                raise SkipScenario(f"{apres_ajouts['noeuds']} nœud(s) ajouté(s) — il en faut 2 "
+                                   "pour mesurer une annulation (palette inopérante ?)")
+            if not apres_ajouts['undo']:
+                return False, (f"{apres_ajouts['noeuds']} nœuds ajoutés mais le bouton Annuler "
+                               "reste DÉSACTIVÉ — l'entonnoir `persistDraft` n'appelle pas "
+                               "`history.commit()`, donc rien n'est enregistré")
+            constats.append(f"{apres_ajouts['noeuds']} nœuds → Annuler actif")
+
+            page.click('.studio-undo', timeout=4000)
+            page.wait_for_timeout(400)
+            apres_undo = etat()
+            if apres_undo['noeuds'] != apres_ajouts['noeuds'] - 1:
+                return False, (f"annuler : {apres_undo['noeuds']} nœuds au lieu de "
+                               f"{apres_ajouts['noeuds'] - 1} — un cran d'annulation ne "
+                               "correspond pas à une mutation (entonnoir mal placé ?)")
+            if not apres_undo['redo']:
+                return False, "annuler n'active pas Rétablir — la branche redo est perdue"
+            constats.append(f"annuler → {apres_undo['noeuds']} nœuds, Rétablir actif")
+
+            page.click('.studio-redo', timeout=4000)
+            page.wait_for_timeout(400)
+            if etat()['noeuds'] != apres_ajouts['noeuds']:
+                return False, "rétablir ne rend pas le nœud annulé"
+            constats.append("rétablir → état restauré")
+
+            # ── 2. Ctrl+Z / Ctrl+Maj+Z ────────────────────────────────────────────────
+            page.keyboard.press('Control+z')
+            page.wait_for_timeout(400)
+            if etat()['noeuds'] != apres_ajouts['noeuds'] - 1:
+                return False, "Ctrl+Z n'annule pas (raccourci non branché, `shortcuts: false` ?)"
+            page.keyboard.press('Control+Shift+z')
+            page.wait_for_timeout(400)
+            if etat()['noeuds'] != apres_ajouts['noeuds']:
+                return False, "Ctrl+Maj+Z ne rétablit pas"
+            constats.append("Ctrl+Z / Ctrl+Maj+Z opérants")
+
+            # ── 3. « Vider le canvas » = UN cran, donc ANNULABLE ──────────────────────
+            avant_vidage = etat()['noeuds']
+            page.click('#studioClear', timeout=4000)
+            page.wait_for_timeout(500)
+            if etat()['noeuds'] != 0:
+                return False, "« Vider le canvas » ne vide pas"
+            page.click('.studio-undo', timeout=4000)
+            page.wait_for_timeout(500)
+            rendu = etat()['noeuds']
+            if rendu != avant_vidage:
+                return False, (
+                    f"annuler après « Vider le canvas » rend {rendu} nœud(s) au lieu de "
+                    f"{avant_vidage} — le vidage n'a pas compté pour UN cran. Soit `silence()` "
+                    "ne couvre pas les suppressions (chacune empile son cran), soit `commit()` "
+                    "n'a pas enregistré l'état d'avant")
+            constats.append(f"vider ({avant_vidage} nœuds) → annuler → {rendu} rendus, en UN cran")
+
+            # ── 4. La SÉMANTIQUE de la brique, sur un modèle jetable ──────────────────
+            # Aucun effet sur le canvas : on crée notre propre historique. C'est ce qui
+            # distingue « le studio est bien câblé » de « la brique est juste ».
+            semantique = page.evaluate(
+                """() => {
+                    let modele = { v: 0 };
+                    const h = window.WamaHistory.create({
+                        snapshot: () => JSON.parse(JSON.stringify(modele)),
+                        restore: (s) => { modele = s; },
+                        undoSelector: '.zz-none', redoSelector: '.zz-none',
+                        shortcuts: false, burstWindow: 0, max: 3,
+                    });
+                    const r = {};
+                    for (let i = 1; i <= 5; i++) { h.push(); modele = { v: i }; }
+                    r.plafond = h.depth().undo;                       // attendu 3 (max)
+                    h.undo(); r.redoOuvert = h.canRedo();             // attendu true
+                    h.push(); r.redoFerme = h.canRedo();              // attendu false
+                    const avant = h.depth().undo;
+                    h.silence(() => { modele = { v: 99 }; });
+                    r.silenceSansCran = h.depth().undo === avant;     // attendu true
+                    modele = { v: 100 }; h.commit(); h.undo();
+                    r.referenceApresSilence = modele.v;               // attendu 99
+                    return r;
+                }""")
+            attendus = {'plafond': 3, 'redoOuvert': True, 'redoFerme': False,
+                        'silenceSansCran': True, 'referenceApresSilence': 99}
+            ecarts = [f"{k}={semantique.get(k)} (attendu {v})"
+                      for k, v in attendus.items() if semantique.get(k) != v]
+            if ecarts:
+                return False, ("le câblage du studio est bon mais la BRIQUE dérive : "
+                               + " ; ".join(ecarts))
+            constats.append("brique : plafond, abandon du redo, `silence`, référence recalée")
+
+            # On repart d'un canvas propre — le brouillon vit en localStorage du contexte,
+            # jeté avec lui, mais un scénario ne laisse pas d'état derrière lui par principe.
+            page.evaluate("() => { try { localStorage.removeItem('wama_studio_draft'); } "
+                          "catch (e) {} }")
+
+            if erreurs_js:
+                return False, f"geste mesuré mais JS en erreur : {' | '.join(erreurs_js)}"
+        finally:
+            navigateur.close()
+
+    return True, ("annuler/rétablir — " + " ; ".join(constats)
+                  + " ; aucune écriture serveur (le studio ne persiste qu'en localStorage "
+                    "tant qu'aucun pipeline n'est sauvegardé)")
+
+
+def register_history_scenarios():
+    """Enregistre le geste 17 — un seul scénario, sur le consommateur JOUABLE sans écrire.
+
+    ⚠ PAS de déclinaison par app, et c'est voulu : `wama-history.js` n'a que DEUX
+    consommateurs (page de correction du transcriber, canvas du studio), pas une surface
+    par app. Le décliner sur `discoverable_apps()` produirait 15 skips permanents — le bruit
+    exact que ce harnais évite ailleurs en ne déclarant que ce qui existe.
+    """
+    from wama.common.services.nightly_tests import register
+
+    register(
+        id="common.history.studio", app="common", stage="ui",
+        description=("Annuler/rétablir (geste 17) : câblage du studio (ajouter, annuler, "
+                     "rétablir, Ctrl+Z, vider en UN cran) ET sémantique de la brique commune "
+                     "sur un modèle jetable — sans une seule écriture serveur"),
+        run=lambda ctx: check_history_studio(),
+        timeout_s=180, vram_gb=0.0,
+    )

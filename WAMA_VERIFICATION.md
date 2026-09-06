@@ -76,7 +76,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
 | 15 | **Sélection multiple** d'une file (clic / Ctrl / Maj / Ctrl+A / Échap) | ✅ `<app>.queue_dnd` (06/09) — **12 OK / 4 skips / 1 échec**, l'échec étant RÉEL (jumelle périmée) | non |
 | 16 | **Glisser-déposer** : entrer dans un lot · en former un · en sortir · ordonner | ⚠️ **MOITIÉ** — `<app>.queue_dnd` mesure la **décision** de dépôt (le seuil : tiers médian = appartenance, tiers haut/bas = ordre) et le nettoyage du retour visuel. Le **dépôt lui-même** n'est pas joué au navigateur (il recomposerait des lots sur le compte de test) ; sa moitié SERVEUR est tenue par `wama.common.tests_queue_dnd` (14 tests, dont le refus de fusion entre natures exercé en base) | non |
-| 17 | **Annuler / rétablir** (page de correction transcriber, canvas studio) | ❌ — la brique `wama-history.js` a DEUX consommateurs et aucun scénario ; attestée à la main le 06/09 seulement | **oui** |
+| 17 | **Annuler / rétablir** (page de correction transcriber, canvas studio) | ✅ `common.history.studio` (06/09) — les DEUX moitiés : le CÂBLAGE du consommateur (ajouter, annuler, rétablir, Ctrl+Z, « vider » en UN cran donc annulable) **et** la SÉMANTIQUE de la brique sur un modèle jetable (plafond, abandon de la branche redo, `silence`, référence recalée). ⚠ Un seul consommateur est jouable : la page de correction AUTO-ENREGISTRE (`markDirty` → save 800 ms), y annuler écrirait sur une transcription réelle ; le studio ne persiste qu'en `localStorage`. Le câblage transcriber reste donc dû | non |
 | 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ✅ **ENTIER** (28/08) — `<app>.batch_import` (27/08) le **fichier de lot** ; `<app>.send_to` **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 qui NOMMENT une dette : pas d'importeur) ; `<app>.url_import` l'**URL** (**2 OK / 12 skips** — la garde SSRF rend « témoin local » et « l'app télécharge » exclusifs par construction) ; `<app>.folder_import` le **DOSSIER récursif** (**7 OK / 7 skips** — traversée sur le code de production + vrai dossier imbriqué, la BASE comptant les éléments) | non |
 
 **Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
@@ -111,8 +111,26 @@ variante la plus VIDE. Détail au geste 14 (« URL »), encadré « second défa
 **Au 2026-09-06 : 10 gestes sur 19** — et le dénominateur a changé, ce qui est le point. Trois
 gestes sont ENTRÉS au catalogue (15 sélection multiple, 16 glisser-déposer, 17 annuler/rétablir) :
 ils ont été livrés les 04-06/09 et **le catalogue ne les connaissait pas**, donc la couverture
-d'avant était flatteuse par omission. `<app>.queue_dnd` ferme le 15 et la moitié du 16 ; le 17
-reste dû. *Un catalogue qui ne suit pas les livraisons mesure un produit qui n'existe plus.*
+d'avant était flatteuse par omission. `<app>.queue_dnd` ferme le 15 et la moitié du 16.
+*Un catalogue qui ne suit pas les livraisons mesure un produit qui n'existe plus.*
+
+**Au 2026-09-06 (suite) : 11 gestes sur 19** — `common.history.studio` ferme le 17.
+
+> ⚠ **UN scénario, pas dix-sept — et c'est la réponse à une question de Fabien du même jour :**
+> *« les tests sont créés individuellement pour chaque application ou déclinés automatiquement
+> sur un mécanisme global ? l'uniformisation peut servir à ne pas dupliquer les tests. »*
+> Mesuré : **12 boucles d'enregistrement `for label, path in discoverable_apps()`, ZÉRO branche
+> `app == '…'` dans tout `ui_smoke.py`**, et 2 seuls noms d'app écrits en dur (deux scénarios
+> `common.*` transverses qui prennent une page représentative). Une fonction de contrôle par
+> GESTE, déclinée sur les apps découvertes **des URLs** — aucune liste à tenir. Preuve
+> involontaire : `composer_01` et `imager_01`, créées par une autre instance, ont hérité des 17
+> `queue_dnd` sans qu'une ligne soit écrite pour elles.
+>
+> Le geste 17 est l'exception qui confirme la règle : `wama-history.js` n'a que DEUX
+> consommateurs, pas une surface par app. Le décliner produirait **15 skips permanents** — le
+> bruit exact que le harnais évite ailleurs. *On décline sur ce qui EST uniforme, on nomme ce
+> qui ne l'est pas ; les spécificités se découvrent à l'exécution (`SkipScenario` motivé), elles
+> ne s'encodent pas par app dans le substrat.*
 
 > ⚠⚠ **CE SCÉNARIO A TROUVÉ UN VRAI DÉFAUT LE JOUR DE SON ÉCRITURE — dans une brique livrée
 > deux jours plus tôt et « vérifiée à la main ».** La sélection ne survivait pas au **polling** :
