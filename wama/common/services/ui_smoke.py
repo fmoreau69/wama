@@ -3605,3 +3605,349 @@ def register_volet_scenarios():
         run=(lambda p=chemin: (lambda ctx: check_volet_instances('transcriber', p)))(),
         timeout_s=120, vram_gb=0.0,
     )
+
+
+# ── Gestes 17-20 : MANIPULATION DIRECTE de la file (sélection multiple + glisser-déposer) ──
+
+
+class _ClicPerdu(Exception):
+    """La card visée n'existe plus au moment du clic — le rendu serveur l'a remplacée.
+
+    ⚠ EXISTE parce que l'échec était SILENCIEUX : la première version rendait `False` sans
+    que l'appelant le lise, donc le clic n'avait pas lieu et le scénario accusait la brique
+    (« 0 sélectionnée ») pour un défaut d'INSTRUMENT. Un instrument qui rate doit le DIRE.
+    """
+
+    def __init__(self, ident):
+        super().__init__(f"la card #{ident} a disparu du DOM avant le clic "
+                         "(rendu serveur / polling) — instrument, pas défaut d'app")
+
+
+def check_app_queue_dnd(app: str, url_path: str):
+    """SÉLECTION MULTIPLE et SEUILS DE DÉPÔT — les gestes livrés le 2026-09-04, sans filet.
+
+    POURQUOI CE SCÉNARIO. `wama-queue-dnd.js` est monté GLOBALEMENT (base.html) sur les 13
+    files du parc, et **rien** ne le vérifiait : ni la grille d'adoption (elle mesure qu'un
+    fichier est inclus, pas qu'il agit), ni les tests Django (`tests_queue_dnd` couvre les
+    ENDPOINTS, pas le navigateur). Or c'est du JS, et *un renommage JS ne casse que dans le
+    navigateur* — la passe du 2026-09-04 a dû le re-mesurer à la main après un renommage de
+    226 occurrences. Ce scénario est ce qui rend ce contrôle rejouable et nocturne.
+
+    ⚠ PORTÉE — AUCUN POST, AUCUNE ÉCRITURE. On mesure la DÉCISION de dépôt (quel geste aurait
+    lieu si on lâchait), jamais le dépôt lui-même : un vrai `drop` recomposerait des lots sur
+    le compte de test. La moitié SERVEUR (`merge`/`move_to_batch`/`remove_from_batch`/
+    `reorder_queue`, dont le refus de fusion entre natures) est couverte par
+    `wama.common.tests_queue_dnd` — 14 tests, dont le refus exercé en base. Deux moitiés, deux
+    harnais, et chacun dit laquelle il tient.
+
+    CE QUI EST MESURÉ ICI (tout est invisible d'un contrôle statique) :
+      * la brique est MONTÉE et la file DÉCLARE ses URLs (`{% queue_dnd_attrs %}` posé) ;
+      * clic simple = 1 card ; Ctrl = ajout ; Maj = plage ; Ctrl+A = tout ; Échap = rien ;
+      * le SEUIL : tiers médian d'une card → cadre de fusion ; tiers haut/bas → barre
+        d'insertion. C'est la règle qui sépare « changer l'appartenance » de « changer
+        l'ordre », donc le cœur de l'interaction ;
+      * le nettoyage au `dragend` — un marqueur oublié reste à l'écran et fausse le geste
+        suivant.
+
+    ⚠ INSTRUMENT — les cards doivent être DANS LE VIEWPORT. `targetUnder()` interroge
+    `elementFromPoint`, qui rend `null` hors écran : une card à y=1219 dans une fenêtre de 720
+    fait conclure « le seuil ne marche pas » alors que tout va bien. Défaut vécu le 2026-09-04,
+    d'où le `scroll_into_view_if_needed` avant chaque mesure de seuil. *Contre-vérifier
+    l'instrument avant d'accuser le code.*
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _test_session_key(app)
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible pour ouvrir une session")
+
+    # Cartes sélectionnables de la file, dans l'ordre visible. On DÉPLIE les lots : leurs
+    # filles vivent dans un `.collapse` replié (taille nulle), et la brique les traverse
+    # justement — les laisser repliées mesurerait une file plus courte qu'elle n'est.
+    PREPARER = """() => {
+        const q = document.querySelector('[data-wama-dnd]');
+        if (!q) return { absent: true };
+        q.querySelectorAll('.batch-group .collapse').forEach(c => c.classList.add('show'));
+        const cards = Array.from(q.querySelectorAll('.wama-card[data-id]')).filter(c =>
+            !c.classList.contains('is-batch') &&
+            !c.classList.contains('wama-new-item-card') &&
+            !c.classList.contains('wama-new-card'));
+        return {
+            absent: false,
+            brique: typeof window.WamaQueueDnd,
+            urls: Object.keys(q.dataset).filter(k => k.startsWith('dnd')).sort(),
+            cards: cards.length,
+            draggables: cards.filter(c => c.draggable).length,
+            // ⚠ On rend les IDS, pas un marqueur posé sur le noeud. Quatre apps POLLENT leur
+            // file et remplacent la card entiere : un `data-wama-nightly-*` disparait au tour
+            // suivant, `query_selector` ne trouve plus rien et le clic n'a JAMAIS lieu --
+            // silencieusement. `data-id` est re-rendu a l'identique par le serveur, donc c'est
+            // la seule prise stable. (Meme piege que la selection elle-meme, cf. `stateOf`.)
+            ids: cards.map(c => c.dataset.id),
+        };
+    }"""
+
+    SELECTION = "() => Array.from(document.querySelectorAll('.wama-dnd-selected')).length"
+
+    # Clic de sélection AVEC modificateurs. On passe par un vrai `click` Playwright quand
+    # c'est possible (le geste réel), sinon par un événement synthétique — même contrat que
+    # `_clic_de_selection` du geste 6.
+    def _clic(page, ident, **mods):
+        """Clique la card `data-id=ident`. Rend le MODE employé, ou lève si rien n'est atteint."""
+        sel = f'[data-wama-dnd] .wama-card[data-id="{ident}"]:not(.is-batch)'
+        cible = page.query_selector(sel)
+        if cible:
+            try:
+                cible.scroll_into_view_if_needed(timeout=3000)
+                touches = [k for k, v in (('Control', mods.get('ctrl')),
+                                          ('Shift', mods.get('shift'))) if v]
+                cible.click(timeout=4000, modifiers=touches or None, position={'x': 6, 'y': 6})
+                return 'clic réel'
+            except Exception:
+                pass
+        # Repli : la card peut être hors écran, masquée par un onglet, ou avoir été REMPLACÉE
+        # entre la lecture et le clic (polling). On re-résout au dernier moment, dans la page.
+        atteint = page.evaluate(
+            """([id, ctrl, shift]) => {
+                const el = document.querySelector(
+                    '[data-wama-dnd] .wama-card[data-id="' + id + '"]:not(.is-batch)');
+                if (!el) return false;
+                el.dispatchEvent(new MouseEvent('click',
+                    { bubbles: true, cancelable: true, ctrlKey: ctrl, shiftKey: shift }));
+                return true;
+            }""", [str(ident), bool(mods.get('ctrl')), bool(mods.get('shift'))])
+        if not atteint:
+            raise _ClicPerdu(ident)
+        return 'événement synthétique'
+
+    # ⚠ LE MONTAGE N'EST PAS FACULTATIF. Premier passage sans lui : **16 skips sur 17**, tous
+    # « 0 card en file » — un scénario qui ne mesure rien, c'est-à-dire un faux filet. La file
+    # du compte de test est vide par construction (il ne travaille pas), et une sélection
+    # MULTIPLE demande au moins deux cards. On monte donc un lot quand la file est trop courte,
+    # exactement comme `inspector_actions`, et la garde retire en sortie CE QUE CE PASSAGE A
+    # CRÉÉ (différence d'ids) — jamais un objet préexistant.
+    with _garde_de_montage(app, 'queue_dnd') as _nettoyes:
+      with sync_playwright() as p:
+          navigateur = p.chromium.launch()
+          try:
+              contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+              contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                     'domain': '127.0.0.1', 'path': '/'}])
+              page = contexte.new_page()
+              erreurs_js = []
+              page.on('pageerror', lambda e: erreurs_js.append(str(e)[:160]))
+
+              resp = page.goto(url, wait_until='networkidle', timeout=45000)
+              mauvaise_page = _exiger_la_page(page, resp, url)
+              if mauvaise_page:
+                  return mauvaise_page
+              page.wait_for_timeout(1200)
+
+              etat = page.evaluate(PREPARER)
+              # Trop peu de cards : on en monte, puis on relit la file telle que le SERVEUR la
+              # rend (jamais l'état laissé par le script d'import).
+              monte, raison_montage = False, None
+              if not etat.get('absent') and etat.get('cards', 0) < 2:
+                  try:
+                      _monter_un_lot(page, app)
+                      page.goto(url, wait_until='networkidle', timeout=45000)
+                      page.wait_for_timeout(1500)
+                      etat = page.evaluate(PREPARER)
+                      monte = True
+                  except SkipScenario as _exc:
+                      raison_montage = str(_exc)
+              if etat.get('absent'):
+                  raise SkipScenario("aucune file `[data-wama-dnd]` sur cette page — "
+                                     "`{% queue_dnd_attrs %}` non posé (app non portée)")
+              if etat.get('brique') != 'object':
+                  return False, ("`wama-queue-dnd.js` n'est PAS monté (window.WamaQueueDnd "
+                                 f"= {etat.get('brique')}) alors que la file le DÉCLARE — "
+                                 "toute la manipulation directe est morte sur cette page"
+                                 + (f" ; {' | '.join(erreurs_js)}" if erreurs_js else ""))
+
+              manquantes = {'dndReorderUrl', 'dndReorderQueueUrl', 'dndMoveUrl',
+                            'dndRemoveUrl', 'dndMergeUrl'} - set(etat.get('urls') or [])
+              if manquantes:
+                  return False, ("la file ne déclare pas toutes ses routes de manipulation : "
+                                 f"{', '.join(sorted(manquantes))} absente(s) — le geste "
+                                 "correspondant est désactivé en silence")
+
+              n = etat.get('cards', 0)
+              ids = etat.get('ids') or []
+              if n < 2:
+                  raise SkipScenario(
+                      f"{n} card(s) en file après montage — il en faut 2 pour mesurer une "
+                      "sélection multiple"
+                      + (f" ; montage impossible : {raison_montage}" if raison_montage else ""))
+              if etat.get('draggables', 0) != n:
+                  return False, (f"{etat['draggables']}/{n} cards sont `draggable` — la brique "
+                                 "n'a pas armé toute la file (observateur de mutations ?)")
+
+              constats = []
+
+              # ── 1. Sélection : clic simple, Ctrl, Maj, Ctrl+A, Échap ──────────────────
+              _clic(page, ids[0])
+              page.wait_for_timeout(250)
+              if page.evaluate(SELECTION) != 1:
+                  # ⚠ UN ÉCHEC DOIT NOMMER SA CAUSE. « 0 sélectionnée » tout seul oblige à
+                  # re-mesurer à la main — exactement ce que le nocturne existe pour éviter.
+                  # Et la cause la plus probable n'est PAS le code : c'est l'instrument. Un clic
+                  # atterrit au POINT demandé, pas sur l'élément marqué ; s'il y trouve un
+                  # descendant que la délégation ignore (bouton, lien, champ, `[data-bs-toggle]`),
+                  # le geste part et rien ne se passe. Six défauts de cette famille ont déjà
+                  # cette forme — d'où un diagnostic qui tranche instrument vs code.
+                  diag = page.evaluate(
+                      """(id) => {
+                          const el = document.querySelector(
+                              '[data-wama-dnd] .wama-card[data-id="' + id + '"]:not(.is-batch)');
+                          if (!el) return { absente: true };
+                          const b = el.getBoundingClientRect();
+                          const sous = document.elementFromPoint(b.left + 6, b.top + 6);
+                          const IGNORE = 'button, a, input, select, textarea, label, [data-bs-toggle]';
+                          const nom = (e) => e ? (e.tagName + '.' +
+                              String(e.className || '').split(' ').filter(Boolean)[0]) : 'NULL';
+                          return {
+                              sousLePoint: nom(sous),
+                              ignore: !!(sous && sous.closest(IGNORE)),
+                              memeCard: !!(sous && sous.closest('.wama-card') === el),
+                              dansUneFile: !!el.closest('[data-wama-dnd]'),
+                              visible: b.width > 4 && b.height > 4,
+                              dansViewport: b.top >= 0 && b.bottom <= window.innerHeight,
+                              taille: Math.round(b.width) + 'x' + Math.round(b.height),
+                          };
+                      }""", str(ids[0]))
+                  return False, (
+                      "clic simple : la card ne devient pas l'unique sélection "
+                      f"({page.evaluate(SELECTION)} sélectionnée(s)) — diagnostic : "
+                      f"sous le point = {diag.get('sousLePoint')}, "
+                      f"ignoré par la délégation = {diag.get('ignore')}, "
+                      f"même card = {diag.get('memeCard')}, "
+                      f"dans une file = {diag.get('dansUneFile')}, "
+                      f"visible = {diag.get('visible')}, viewport = {diag.get('dansViewport')}, "
+                      f"{diag.get('taille')} px"
+                      + (f" ; {' | '.join(erreurs_js)}" if erreurs_js else ""))
+              constats.append("clic simple → 1")
+
+              _clic(page, ids[-1], ctrl=True)
+              page.wait_for_timeout(250)
+              apres_ctrl = page.evaluate(SELECTION)
+              if apres_ctrl != 2:
+                  return False, (f"Ctrl+clic : {apres_ctrl} sélectionnée(s) au lieu de 2 — "
+                                 "l'ajout à la sélection ne fonctionne pas")
+              constats.append("Ctrl+clic → 2")
+
+              if n >= 3:
+                  _clic(page, ids[1], shift=True)
+                  page.wait_for_timeout(250)
+                  plage = page.evaluate(SELECTION)
+                  if plage < 2:
+                      return False, (f"Maj+clic : {plage} sélectionnée(s) — la plage depuis "
+                                     "l'ancre ne fonctionne pas")
+                  constats.append(f"Maj+clic → plage de {plage}")
+
+              page.keyboard.press('Control+a')
+              page.wait_for_timeout(250)
+              tout = page.evaluate(SELECTION)
+              if tout != n:
+                  return False, (f"Ctrl+A : {tout}/{n} sélectionnées — le raccourci « tout "
+                                 "sélectionner » ne couvre pas la file")
+              constats.append(f"Ctrl+A → {tout}/{n}")
+
+              page.keyboard.press('Escape')
+              page.wait_for_timeout(250)
+              if page.evaluate(SELECTION) != 0:
+                  return False, "Échap ne relâche pas la sélection (sélection FANTÔME)"
+              constats.append("Échap → 0")
+
+              # ── 2. Le SEUIL de dépôt : tiers médian vs tiers haut/bas ─────────────────
+              # C'est la règle qui sépare les quatre gestes. On simule un drag depuis la
+              # première card vers la dernière, et on lit le RETOUR VISUEL — jamais on ne lâche.
+              _derniere = page.query_selector(
+                  f'[data-wama-dnd] .wama-card[data-id="{ids[-1]}"]:not(.is-batch)')
+              if _derniere:
+                  _derniere.scroll_into_view_if_needed(timeout=3000)
+              page.wait_for_timeout(200)
+              seuils = page.evaluate(
+                  """(paire) => {
+                      const q = document.querySelector('[data-wama-dnd]');
+                      const par = (id) => document.querySelector(
+                          '[data-wama-dnd] .wama-card[data-id="' + id + '"]:not(.is-batch)');
+                      const src = par(paire[0]);
+                      const dst = par(paire[1]);
+                      if (!src || !dst) return { ok: false, pourquoi: 'cibles introuvables' };
+                      const dt = () => { try { return new DataTransfer(); } catch (e) { return null; } };
+                      const env = (el, type, x, y) => el.dispatchEvent(new DragEvent(type, {
+                          bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt() }));
+                      src.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                      env(src, 'dragstart', 0, 0);
+                      const b = dst.getBoundingClientRect();
+                      if (b.top < 0 || b.bottom > window.innerHeight) {
+                          env(src, 'dragend', 0, 0);
+                          return { ok: false, pourquoi: 'cible hors viewport (elementFromPoint rendrait null)' };
+                      }
+                      const x = b.left + b.width / 2;
+                      env(q, 'dragover', x, b.top + b.height / 2);
+                      const median = { cadre: dst.classList.contains('wama-dnd-over'),
+                                       barre: !!document.getElementById('wamaDndMarker') };
+                      env(q, 'dragover', x, b.top + 3);
+                      const haut = { cadre: dst.classList.contains('wama-dnd-over'),
+                                     barre: !!document.getElementById('wamaDndMarker') };
+                      env(src, 'dragend', 0, 0);
+                      const apres = { barre: !!document.getElementById('wamaDndMarker'),
+                                      residus: document.querySelectorAll('.wama-dnd-over,.wama-dnd-refuse').length };
+                      return { ok: true, median, haut, apres };
+                  }""", [ids[0], ids[-1]])
+
+              if not seuils.get('ok'):
+                  constats.append(f"seuils NON MESURÉS ({seuils.get('pourquoi')})")
+              else:
+                  med, haut, apres = seuils['median'], seuils['haut'], seuils['apres']
+                  if not med['cadre'] or med['barre']:
+                      return False, ("SEUIL DE DÉPÔT rompu : au tiers MÉDIAN d'une card on doit "
+                                     f"voir le cadre de fusion et aucune barre (cadre={med['cadre']}, "
+                                     "barre={0}) — déposer SUR une card ne changerait plus "
+                                     "l'appartenance".format(med['barre']))
+                  if haut['cadre'] or not haut['barre']:
+                      return False, ("SEUIL DE DÉPÔT rompu : au tiers HAUT on doit voir la barre "
+                                     f"d'insertion et aucun cadre (cadre={haut['cadre']}, "
+                                     f"barre={haut['barre']}) — déposer ENTRE deux cards ne "
+                                     "changerait plus l'ordre")
+                  if apres['barre'] or apres['residus']:
+                      return False, (f"le `dragend` ne nettoie pas : barre={apres['barre']}, "
+                                     f"{apres['residus']} card(s) encore marquée(s) — le retour "
+                                     "visuel ment sur le geste suivant")
+                  constats.append("seuils : médian → fusion, haut → ordre, dragend → nettoyé")
+
+              if erreurs_js:
+                  return False, f"gestes mesurés mais JS en erreur : {' | '.join(erreurs_js)}"
+          except _ClicPerdu as exc:
+              # L'instrument n'a pas atteint sa cible : ce n'est PAS un défaut de l'app, et le
+              # dire autrement ferait accuser la brique à sa place — c'est exactement ce qui
+              # s'est produit le 2026-09-06, avant que `_clic` cesse d'échouer en silence.
+              raise SkipScenario(str(exc))
+          finally:
+              navigateur.close()
+
+    detail = (f"{n} cards — " + " ; ".join(constats)
+              + (" (lot monté pour l'occasion)" if monte else "")
+              + " ; aucun POST : la moitié serveur est tenue par `tests_queue_dnd`")
+    if _nettoyes:
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de montage nettoyé(s)"
+    return True, detail
+
+
+def register_queue_dnd_scenarios():
+    """Enregistre un scénario `<app>.queue_dnd` par app disposant d'un index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.queue_dnd", app=label, stage="ui",
+            description=(f"File {label} : sélection multiple (clic/Ctrl/Maj/Ctrl+A/Échap) et "
+                         f"SEUILS de dépôt du glisser-déposer — la moitié navigateur du geste, "
+                         f"invisible de tout contrôle statique"),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_queue_dnd(a, p)))(),
+            timeout_s=180, vram_gb=0.0,
+        )

@@ -74,6 +74,9 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 11 | Aperçu du résultat (clic → visionneuse) | ❌ | **oui** |
 | 12 | Télécharger le résultat | ❌ — ⚠ le MARKUP est prouvé (critère `download_wiring` 12/12 + pages 200), le TRANSFERT non : le compte de test ne possède aucun élément traité, donc `download/<pk>/` lui répond 404 — **le scoping qui fonctionne**, pas une panne | **oui** |
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
+| 15 | **Sélection multiple** d'une file (clic / Ctrl / Maj / Ctrl+A / Échap) | ✅ `<app>.queue_dnd` (06/09) — **12 OK / 4 skips / 1 échec**, l'échec étant RÉEL (jumelle périmée) | non |
+| 16 | **Glisser-déposer** : entrer dans un lot · en former un · en sortir · ordonner | ⚠️ **MOITIÉ** — `<app>.queue_dnd` mesure la **décision** de dépôt (le seuil : tiers médian = appartenance, tiers haut/bas = ordre) et le nettoyage du retour visuel. Le **dépôt lui-même** n'est pas joué au navigateur (il recomposerait des lots sur le compte de test) ; sa moitié SERVEUR est tenue par `wama.common.tests_queue_dnd` (14 tests, dont le refus de fusion entre natures exercé en base) | non |
+| 17 | **Annuler / rétablir** (page de correction transcriber, canvas studio) | ❌ — la brique `wama-history.js` a DEUX consommateurs et aucun scénario ; attestée à la main le 06/09 seulement | **oui** |
 | 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ✅ **ENTIER** (28/08) — `<app>.batch_import` (27/08) le **fichier de lot** ; `<app>.send_to` **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 qui NOMMENT une dette : pas d'importeur) ; `<app>.url_import` l'**URL** (**2 OK / 12 skips** — la garde SSRF rend « témoin local » et « l'app télécharge » exclusifs par construction) ; `<app>.folder_import` le **DOSSIER récursif** (**7 OK / 7 skips** — traversée sur le code de production + vrai dossier imbriqué, la BASE comptant les éléments) | non |
 
 **Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
@@ -104,6 +107,32 @@ du harnais** — le contrôle `status != 200` ne voyait pas les redirections, et
 l'écrivant qu'a été trouvé le **second défaut d'instrument le plus large** : `<app>.ui`, le plus
 ANCIEN scénario du harnais, naviguait **en visiteur ANONYME** — donc mesurait de chaque app sa
 variante la plus VIDE. Détail au geste 14 (« URL »), encadré « second défaut ».
+
+**Au 2026-09-06 : 10 gestes sur 19** — et le dénominateur a changé, ce qui est le point. Trois
+gestes sont ENTRÉS au catalogue (15 sélection multiple, 16 glisser-déposer, 17 annuler/rétablir) :
+ils ont été livrés les 04-06/09 et **le catalogue ne les connaissait pas**, donc la couverture
+d'avant était flatteuse par omission. `<app>.queue_dnd` ferme le 15 et la moitié du 16 ; le 17
+reste dû. *Un catalogue qui ne suit pas les livraisons mesure un produit qui n'existe plus.*
+
+> ⚠⚠ **CE SCÉNARIO A TROUVÉ UN VRAI DÉFAUT LE JOUR DE SON ÉCRITURE — dans une brique livrée
+> deux jours plus tôt et « vérifiée à la main ».** La sélection ne survivait pas au **polling** :
+> quatre apps (transcriber, enhancer, imager, reader) remplacent le nœud entier d'une card à
+> chaque tour, et la classe `wama-dnd-selected` partait avec lui. La sélection s'évanouissait
+> seule, en une seconde, **sans la moindre erreur console** — invisible sur une file au repos,
+> systématique dès qu'un traitement tourne, c'est-à-dire exactement quand on manipule sa file.
+> Le smoke manuel du 04/09 ne pouvait pas le voir : il portait sur des cards FICTIVES injectées,
+> que rien ne pollait. Corrigé en faisant du jeu d'IDs la source de vérité et de la classe sa
+> projection (`stateOf`/`reproject`) — ce que `wama-queue.js::_pileFor` avait déjà dû faire pour
+> le focus de pile, sans que je le transpose. **C'est l'argument entier de ce document** : une
+> vérification manuelle atteste un écran, un scénario atteste un COMPORTEMENT.
+>
+> ⚠ Et il a fallu DEUX corrections d'instrument avant d'y arriver, toutes deux du même défaut :
+> ① le scénario marquait ses cibles par un attribut posé sur le nœud — effacé par le même
+> polling, donc le clic n'avait jamais lieu et **`_clic` rendait `False` que personne ne lisait**
+> (l'app était accusée d'un « 0 sélectionnée » que l'instrument avait produit) ; ② faute de
+> montage, le premier passage rendait **16 skips sur 17**, un filet qui ne mesure rien. On vise
+> désormais par `data-id`, seule prise que le rendu serveur reconstitue à l'identique, et un
+> clic perdu est un SKIP nommé, jamais un échec attribué à l'app.
 
 > ⚠ **Ce compteur ne bouge PAS avec les scénarios de DROITS** (28/08, `common.rights_matrix` et
 > `common.rights_anonymous`, §3ter). Les droits ne sont pas un 17ᵉ geste : ils traversent les 16.

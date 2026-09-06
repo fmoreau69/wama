@@ -134,9 +134,43 @@
 
     const SEL = 'wama-dnd-selected';
 
+    // ⚠⚠ LA SÉLECTION EST UN JEU D'IDs, PAS UN JEU DE CLASSES — défaut RÉEL trouvé par le
+    // scénario nocturne `<app>.queue_dnd` le 2026-09-06, deux jours après la livraison.
+    //
+    // Quatre apps pollent leur file (`WamaApp.Poller` : transcriber, enhancer, imager, reader)
+    // et REMPLACENT le nœud entier d'une card à chaque tour. La classe partait avec le nœud :
+    // la sélection s'évanouissait toute seule, en une seconde, **sans la moindre erreur**.
+    // Invisible à l'œil sur une file au repos ; systématique dès qu'un traitement tourne —
+    // c'est-à-dire exactement quand on manipule sa file.
+    //
+    // `wama-queue.js::_pileFor` avait DÉJÀ rencontré ce piège pour le focus de pile et le
+    // résout par identifiant (`focusKey`) ; je ne l'avais pas transposé. *Un mécanisme qui pose
+    // une classe sur une card doit survivre au rendu serveur, sinon il ne survit pas à l'usage.*
+    //
+    // Le jeu d'ids fait donc foi, la classe n'en est que la projection — réappliquée par
+    // l'observateur de mutations (voir `arm()`).
     function stateOf(queue) {
-        if (!queue._wamaDnd) queue._wamaDnd = { anchor: null };
+        if (!queue._wamaDnd) queue._wamaDnd = { anchor: null, ids: new Set() };
         return queue._wamaDnd;
+    }
+
+    /** Reprojette le jeu d'ids sur le DOM courant. Idempotent. */
+    function reproject(queue) {
+        const st = stateOf(queue);
+        if (!st.ids.size) return;
+        let vues = 0;
+        cards(queue).forEach(function (c) {
+            const veut = st.ids.has(c.dataset.id);
+            if (veut) vues++;
+            c.classList.toggle(SEL, veut);
+        });
+        // Une card sélectionnée peut avoir DISPARU (supprimée ailleurs, lot recomposé) : on
+        // oublie ce qui n'existe plus, sinon la sélection ressusciterait au retour d'un id
+        // recyclé — et le compte annoncé mentirait entre-temps.
+        if (vues !== st.ids.size) {
+            const vivants = new Set(cards(queue).map(function (c) { return c.dataset.id; }));
+            st.ids.forEach(function (id) { if (!vivants.has(id)) st.ids.delete(id); });
+        }
     }
 
     function selectedCards(queue) {
@@ -158,16 +192,20 @@
     }
 
     function setSelection(queue, cardEls, mode) {
+        const st = stateOf(queue);
         if (mode === 'remplacer') {
             cards(queue).forEach(function (c) { c.classList.remove(SEL); });
+            st.ids.clear();
         }
-        cardEls.forEach(function (c) { c.classList.add(SEL); });
+        cardEls.forEach(function (c) { c.classList.add(SEL); st.ids.add(c.dataset.id); });
         announce(queue);
     }
 
     function clearSelection(queue) {
+        const st = stateOf(queue);
         cards(queue).forEach(function (c) { c.classList.remove(SEL); });
-        stateOf(queue).anchor = null;
+        st.ids.clear();
+        st.anchor = null;
         announce(queue);
     }
 
@@ -188,7 +226,8 @@
             }
         }
         if (ev.ctrlKey || ev.metaKey) {
-            card.classList.toggle(SEL);
+            const actif = card.classList.toggle(SEL);
+            if (actif) st.ids.add(card.dataset.id); else st.ids.delete(card.dataset.id);
             st.anchor = card;
             announce(queue);
             return true;
@@ -310,6 +349,9 @@
             cards(queue).forEach(function (c) { c.draggable = true; });
             const headerCards = queue.querySelectorAll('.wama-card.is-batch');
             Array.prototype.forEach.call(headerCards, function (m) { m.draggable = false; });
+            // Le rendu serveur remplace des nœuds ENTIERS : ré-armer ne suffit pas, il faut
+            // aussi remettre la sélection, qui est partie avec l'ancien nœud. Voir `stateOf`.
+            reproject(queue);
         }
         arm();
         new MutationObserver(arm).observe(queue, { childList: true, subtree: true });

@@ -389,6 +389,7 @@ try:
                                                register_folder_import_scenarios,
                                                register_import_scenarios,
                                                register_inspector_actions_scenarios,
+                                               register_queue_dnd_scenarios,
                                                register_send_to_scenarios,
                                                register_settings_scenarios,
                                                register_ui_scenarios,
@@ -427,6 +428,14 @@ try:
     # un lot multi-éléments, que le scénario MONTE quand il manque, sous une garde qui retire
     # en sortie ce qu'il a créé et rien d'autre (différence d'ids) — jamais un objet existant.
     register_inspector_actions_scenarios()
+    # 2026-09-06 — MANIPULATION DIRECTE (sélection multiple + seuils de dépôt), la moitié
+    # NAVIGATEUR des gestes livrés le 04/09. `wama-queue-dnd.js` est monté globalement sur les
+    # 13 files et rien ne le vérifiait : la grille d'adoption mesure qu'un fichier est inclus,
+    # pas qu'il AGIT, et `tests_queue_dnd` couvre les endpoints, pas le navigateur. Or un
+    # renommage JS ne casse que dans le navigateur — celui du 04/09 (226 occurrences) a dû être
+    # re-mesuré à la main, faute de ce scénario. Aucun POST : on lit la DÉCISION de dépôt,
+    # jamais le dépôt.
+    register_queue_dnd_scenarios()
     # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
     # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
     # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais
