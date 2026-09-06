@@ -25,7 +25,11 @@ logger = logging.getLogger(__name__)
 def _get_mochi_cache_dir() -> str:
     """Get cache directory for Mochi models."""
     try:
-        from wama.imager.utils.model_config import MODEL_PATHS
+        # Étape 2 : ce dossier vient de `settings.MODEL_PATHS` — le model_config de
+        # l'app ne faisait que le dériver. Le lire à la source supprime un import
+        # d'app sans changer la valeur.
+        from django.conf import settings
+        MODEL_PATHS = settings.MODEL_PATHS
         cache_dir = MODEL_PATHS.get('diffusion', {}).get('mochi')
         if cache_dir:
             return str(cache_dir)

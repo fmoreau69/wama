@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 def _get_ltx_cache_dir() -> str:
     """Get cache directory for LTX-Video models."""
     try:
-        from wama.imager.utils.model_config import LTX_DIR
+        # Étape 2 : ce dossier vient de `settings.MODEL_PATHS` — le model_config de
+        # l'app ne faisait que le dériver. Le lire à la source supprime un import
+        # d'app sans changer la valeur.
+        from django.conf import settings
+        LTX_DIR = settings.MODEL_PATHS.get('diffusion', {}).get('ltx')
         return str(LTX_DIR)
     except ImportError:
         pass

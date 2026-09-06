@@ -53,9 +53,11 @@ class BlipBackend(BaseModelBackend):
         import os
         import torch
         from wama.model_manager.services.memory_manager import MemoryManager, MemoryStrategy
-        from wama.describer.utils.model_config import get_model_info
+        # Passe-plat COMMUN (étape 2) — préserve la signature ORM-free de ce backend :
+        # il lit une DÉCLARATION, jamais le catalogue (qui exigerait Django).
+        from wama.common.utils.model_declarations import declaration
 
-        model_info = get_model_info('blip')
+        model_info = declaration('describer', 'blip') or {}
         model_name = model_info['model_id']
         cache_dir = str(model_info['local_dir'])
 

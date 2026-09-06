@@ -37,7 +37,11 @@ logger = logging.getLogger(__name__)
 
 def _get_cache_dir() -> str:
     try:
-        from wama.imager.utils.model_config import QWEN_IMAGE_DIR
+        # Étape 2 : ce dossier vient de `settings.MODEL_PATHS` — le model_config de
+        # l'app ne faisait que le dériver. Le lire à la source supprime un import
+        # d'app sans changer la valeur.
+        from django.conf import settings
+        QWEN_IMAGE_DIR = settings.MODEL_PATHS.get('diffusion', {}).get('qwen_image')
         d = Path(QWEN_IMAGE_DIR)
         d.mkdir(parents=True, exist_ok=True)
         return str(d)
@@ -202,8 +206,11 @@ class QwenImageBackend(ImageGenerationBackend):
             # pas été reportée : le backend croyait donc que Qwen-Image tenait sur une 4090 et
             # tentait FULL_GPU (`device_map="auto"`), ce qui déborde en RAM hôte sous WSL2.
             # Ne pas réintroduire de copie locale.
-            from ..utils.model_config import IMAGER_MODELS
-            model_size_gb = float(IMAGER_MODELS.get(model_name, {}).get('vram_gb') or 38.0)
+            # Étape 2 : passe-plat COMMUN — la VRAM est une DÉCLARATION du modèle,
+            # lue par convention et sans ORM (cf. `model_declarations`).
+            from wama.common.utils.model_declarations import declaration
+            model_size_gb = float(
+                (declaration('imager', model_name) or {}).get('vram_gb') or 38.0)
 
             gpu_info = MemoryManager.get_gpu_memory_info()
             free_gb = gpu_info['free_gb'] if gpu_info else 0

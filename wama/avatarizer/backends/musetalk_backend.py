@@ -19,12 +19,41 @@ import yaml
 
 from wama.common.backends.base import BaseModelBackend
 from wama.common.services.resource_governor import vram_reservation
-from wama.avatarizer.utils.model_config import (
-    MUSETALK_DIR,
-    MUSETALK_HF_CACHE,
-    MUSETALK_MODELS_DIR,
-    MUSETALK_VRAM_GB,
-)
+
+# ── Étape 2 (2026-09-06) : plus d'import du `model_config` de l'app ──────────────────────
+# Ces valeurs venaient de `wama.avatarizer.utils.model_config`, ce qui interdisait au backend
+# de rejoindre le substrat transversal (le commun ne peut pas importer une app). Elles sont
+# maintenant lues à leur SOURCE, et chacune n'a que la portée qu'elle mérite :
+#
+#   • le dossier de POIDS vient de `settings.MODEL_PATHS` — déjà commun, l'app ne faisait
+#     que le ré-exporter ;
+#   • la VRAM et la liste des sous-dossiers sont des DÉCLARATIONS : elles descendent sur la
+#     classe, à côté d'`ENGINE` (la VRAM y avait déjà sa place, `recommended_vram_gb`) ;
+#   • ⚠ le dossier de CODE VENDORISÉ reste app-local, et c'est irréductible : MuseTalk et
+#     CodeFormer sont vendorisés SOUS `wama/avatarizer/`, et le backend en a besoin pour le
+#     `PYTHONPATH` du sous-processus. Il est donc DÉCLARÉ (une chaîne, résolue tardivement)
+#     plutôt qu'importé — le jour où le code vendorisé déménage, une seule ligne change.
+#     *Le blocage d'avatarizer n'était pas `model_config`, c'était l'emplacement du vendor.*
+from pathlib import Path as _Path
+
+from django.conf import settings
+
+#: Paquet portant le code vendorisé — DÉCLARÉ, jamais importé pour ses symboles.
+VENDOR_PACKAGE = 'wama.avatarizer'
+
+
+def _vendor_dir(nom: str):
+    """Chemin du code vendorisé `nom` sous le paquet déclaré. Résolution TARDIVE."""
+    import importlib.util
+    spec = importlib.util.find_spec(VENDOR_PACKAGE)
+    racine = _Path(spec.origin).parent if spec and spec.origin else _Path('.')
+    return racine / nom
+
+MUSETALK_MODELS_DIR = _Path(settings.MODEL_PATHS.get('lipsync', {}).get(
+    'musetalk', settings.AI_MODELS_DIR / 'models' / 'lipsync' / 'musetalk'))
+MUSETALK_HF_CACHE = MUSETALK_MODELS_DIR / 'hf_cache'
+MUSETALK_VRAM_GB = 8.0
+MUSETALK_DIR = _vendor_dir('musetalk')
 
 logger = logging.getLogger(__name__)
 

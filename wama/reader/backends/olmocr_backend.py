@@ -106,10 +106,15 @@ class OlmOCRBackend(BaseModelBackend):
 
     def load(self, model: Optional[str] = None) -> bool:
         import os
-        from wama.reader.utils.model_config import OLMOCR_DIR, READER_MODELS
+        # Étape 2 (2026-09-06) : plus d'import du model_config de l'app. Les deux besoins
+        # sont de NATURE différente et se lisent à des sources différentes — un chemin de
+        # poids vient de `settings`, une déclaration vient du passe-plat commun.
+        from django.conf import settings
 
-        cache_dir = str(OLMOCR_DIR)
-        hf_id = READER_MODELS['olmocr']['hf_model_id']
+        from wama.common.utils.model_declarations import declaration
+
+        cache_dir = str(settings.MODEL_PATHS.get('ocr', {}).get('olmocr', ''))
+        hf_id = (declaration('reader', 'olmocr') or {}).get('hf_model_id')
 
         # Env NON muté (ROADMAP §5b, 2026-09-04) : les deux `from_pretrained` ci-dessous
         # portent `cache_dir=`, qui route le modèle PRINCIPAL. La mutation n'ajoutait rien

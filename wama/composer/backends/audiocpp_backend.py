@@ -176,9 +176,12 @@ class AudioCppBackend(BaseModelBackend):
         on_audio: Optional[Callable] = None,
     ) -> str:
         from wama.common.services.resource_governor import vram_reservation
-        from wama.composer.utils.model_config import COMPOSER_MODELS
+        # Passe-plat COMMUN : le backend lit la déclaration sans importer l'app.
+        # Le jour où il rejoint le substrat, cette ligne ne change pas — c'est
+        # tout l'objet de l'étape 2.
+        from wama.common.utils.model_declarations import declaration
 
-        config = COMPOSER_MODELS.get(model_id)
+        config = declaration('composer', model_id)
         if config is None:
             raise ValueError(f"Modèle inconnu : {model_id}")
         # La composition d'abord : c'est l'erreur la plus actionnable (déclarer le manifeste),

@@ -26,7 +26,11 @@ logger = logging.getLogger(__name__)
 def _get_cogvideox_cache_dir() -> str:
     """Get cache directory for CogVideoX models."""
     try:
-        from wama.imager.utils.model_config import MODEL_PATHS
+        # `MODEL_PATHS` vient de `settings`, pas de l'app : le model_config de l'imager
+        # ne faisait que le RE-EXPORTER. Le lire à la source supprime un import d'app
+        # sans rien changer à la valeur (étape 2).
+        from django.conf import settings
+        MODEL_PATHS = settings.MODEL_PATHS
         cache_dir = MODEL_PATHS.get('diffusion', {}).get('cogvideox')
         if cache_dir:
             return str(cache_dir)

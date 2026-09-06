@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 def _get_flux2_klein_cache_dir() -> str:
     """Get cache directory for FLUX.2 Klein models."""
     try:
-        from wama.imager.utils.model_config import FLUX2_KLEIN_DIR
+        # Étape 2 : ce dossier vient de `settings.MODEL_PATHS` — le model_config de
+        # l'app ne faisait que le dériver. Le lire à la source supprime un import
+        # d'app sans changer la valeur.
+        from django.conf import settings
+        FLUX2_KLEIN_DIR = settings.MODEL_PATHS.get('diffusion', {}).get('flux2_klein')
         return str(FLUX2_KLEIN_DIR)
     except ImportError:
         pass

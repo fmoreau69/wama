@@ -65,7 +65,11 @@ class DocTRBackend(BaseModelBackend):
         callback n'est émis qu'UNE fois, après assemblage : l'aperçu « pendant » montre le
         texte brut pendant la mise en forme LLM (l'étape longue vit dans la TÂCHE, à 98 %).
         """
-        from wama.reader.utils.model_config import DOCTR_DIR
+        # Étape 2 : ce dossier vient de `settings.MODEL_PATHS` — le model_config de
+        # l'app ne faisait que le dériver. Le lire à la source supprime un import
+        # d'app sans changer la valeur.
+        from django.conf import settings
+        DOCTR_DIR = settings.MODEL_PATHS.get('ocr', {}).get('doctr')
 
         # Redirect docTR model cache to our managed directory
         os.environ['DOCTR_CACHE_DIR'] = str(DOCTR_DIR)
