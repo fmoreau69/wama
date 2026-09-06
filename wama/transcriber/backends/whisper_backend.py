@@ -93,8 +93,13 @@ class WhisperBackend(SpeechToTextBackend):
     def _get_download_root(self) -> Optional[str]:
         """Return the centralized Whisper model cache, or None."""
         try:
-            from ..utils.model_config import get_whisper_download_root
-            return str(get_whisper_download_root())
+            # Étape 2 (complétée le 06/09) : dossier lu à sa SOURCE. Ces constantes dérivaient
+            # déjà de `settings.MODEL_PATHS` ; l'import d'app n'ajoutait qu'une indirection —
+            # et il était RELATIF, donc invisible à la 1ʳᵉ version de la garde, qui ne
+            # cherchait que les imports ABSOLUS. *Une garde ne couvre que la forme qu'elle
+            # sait lire.*
+            from django.conf import settings
+            return str(settings.MODEL_PATHS.get('speech', {}).get('whisper') or '')
         except Exception:
             return None
 

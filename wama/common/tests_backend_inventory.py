@@ -571,3 +571,88 @@ class ResolutionParDeclarationTest(TestCase):
         from wama.model_manager.models import AIModel
         self.assertEqual(AIModel.objects.count(), 0,
                          'la base de TEST porte des modèles : revoir les tests qui sèment')
+
+
+class BackendsDecouplesDeLeurAppTest(SimpleTestCase):
+    """Un backend ne doit pas importer le `model_config` de son app (étape 2, 2026-09-06).
+
+    Tant que le backend vit DANS l'app, l'import est anodin. Le jour où il rejoint le substrat
+    transversal — c'est le plan —, ce serait **le commun qui importerait une app** : inversion
+    de couche interdite. La garde est posée MAINTENANT, pendant que le compte est à zéro : une
+    règle qu'on n'installe qu'au moment d'en avoir besoin arrive toujours après la dette.
+
+    Le remplacement est `common/utils/model_declarations.declaration()` — un passe-plat qui
+    applique la CONVENTION `<APP>_MODELS` sans connaître aucune app, et **sans ORM** : c'est
+    l'absence de Django qui rend un backend déplaçable, lire le catalogue la détruirait.
+    """
+
+    #: {module: raison} — couplages ASSUMÉS. **VIDE**, et c'est le résultat, pas un point
+    #: de départ : les 15 sites mesurés le 06/09 sont tous levés.
+    #:
+    #: ⚠ Cette liste a d'abord contenu `diffusers_backend` et `hunyuan_video_backend`, que
+    #: j'avais classés « logique métier, à remonter dans le commun » SANS AVOIR LU le corps
+    #: des helpers. Vérification faite : ce sont des accesseurs d'une ligne (`Path(<CONST>)`,
+    #: `str(<CONST>)`), et trois des symboles importés n'étaient même jamais appelés.
+    #: *Classer sans lire, c'est décider sans savoir* — une entrée d'exception assumée doit
+    #: se mériter par une mesure, sinon elle sanctuarise une dette imaginaire.
+    COUPLAGES_ASSUMES = {}
+
+    def test_aucun_backend_n_importe_le_model_config_de_son_app(self):
+        import ast
+        from django.conf import settings
+
+        racine = Path(settings.BASE_DIR)
+        coupables = []
+        for dossier in ('wama', 'wama_lab'):
+            for f in (racine / dossier).rglob('backends/*.py'):
+                if 'venv' in f.parts or 'site-packages' in f.parts or '_01' in str(f):
+                    continue                      # jumelles de bac à sable : copies, pas des sources
+                try:
+                    arbre = ast.parse(f.read_text(encoding='utf-8'))
+                except (OSError, SyntaxError, UnicodeDecodeError):
+                    continue
+                # AST, jamais grep : trois motifs textuels se sont trompés de cible cette
+                # session en accusant des commentaires ou des docstrings.
+                for n in ast.walk(arbre):
+                    module = ''
+                    if isinstance(n, ast.ImportFrom):
+                        module = n.module or ''
+                        # ⚠ TROU MESURÉ le 06/09 : la 1ʳᵉ version ne lisait que les imports
+                        # ABSOLUS et laissait passer TROIS backends du transcriber qui
+                        # écrivaient `from ..utils.model_config import …`. Un relatif de
+                        # niveau ≥ 2 SORT du paquet `backends/` — c'est le couplage traqué.
+                        # *Une garde ne couvre que la forme qu'elle sait lire.*
+                        if (n.level or 0) >= 2:
+                            module = 'wama.<relatif>.' + module
+                    elif isinstance(n, ast.Import):
+                        module = next((a.name for a in n.names if 'model_config' in a.name), '')
+                    if module.startswith('wama.') and module.endswith('utils.model_config'):
+                        coupables.append(str(f.relative_to(racine)).replace(chr(92), '/'))
+        surprise = sorted(set(coupables) - set(self.COUPLAGES_ASSUMES))
+        self.assertEqual(surprise, [],
+                         "un backend importe le model_config d'une app : utiliser "
+                         "`common/utils/model_declarations.declaration()` (déclarations) ou "
+                         "`settings.MODEL_PATHS` (chemins de poids)")
+
+    def test_le_passe_plat_ne_connait_aucune_app(self):
+        """Contre-épreuve : il applique la convention, il ne contient pas de nom d'app."""
+        from django.conf import settings
+        source = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'utils'
+                  / 'model_declarations.py').read_text(encoding='utf-8')
+        import ast
+        arbre = ast.parse(source)
+        noms = [n for n in ast.walk(arbre)
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                and n.value.startswith('wama.') and 'model_config' in n.value
+                and '{' not in n.value]
+        self.assertEqual(noms, [], "le passe-plat cite une app en dur : il doit DÉRIVER le "
+                                   "chemin de module, jamais l'énumérer")
+
+    def test_la_declaration_se_lit_sans_base_de_donnees(self):
+        """L'invariant qui justifie de ne PAS lire le catalogue : aucune requête n'est faite."""
+        from django.db import connection
+        from wama.common.utils.model_declarations import declaration
+        avant = len(connection.queries)
+        self.assertTrue(declaration('composer', 'musicgen-small'))
+        self.assertEqual(len(connection.queries), avant,
+                         'lire une déclaration ne doit toucher aucune base')

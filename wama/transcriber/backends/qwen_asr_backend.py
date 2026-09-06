@@ -105,8 +105,13 @@ class QwenASRBackend(SpeechToTextBackend):
     def _get_cache_dir(self) -> Optional[str]:
         """Return centralized model cache directory, or None."""
         try:
-            from ..utils.model_config import QWEN_ASR_DIR
-            return str(QWEN_ASR_DIR)
+            # Étape 2 (complétée le 06/09) : dossier lu à sa SOURCE. Ces constantes dérivaient
+            # déjà de `settings.MODEL_PATHS` ; l'import d'app n'ajoutait qu'une indirection —
+            # et il était RELATIF, donc invisible à la 1ʳᵉ version de la garde, qui ne
+            # cherchait que les imports ABSOLUS. *Une garde ne couvre que la forme qu'elle
+            # sait lire.*
+            from django.conf import settings
+            return str(settings.MODEL_PATHS.get('speech', {}).get('qwen_asr') or '')
         except Exception:
             return None
 

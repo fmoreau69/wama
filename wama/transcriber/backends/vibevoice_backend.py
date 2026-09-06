@@ -139,8 +139,13 @@ class VibeVoiceBackend(SpeechToTextBackend):
             # Centralised cache
             cache_dir = None
             try:
-                from ..utils.model_config import VIBEVOICE_DIR
-                cache_dir = str(VIBEVOICE_DIR)
+                # Étape 2 (complétée le 06/09) : dossier lu à sa SOURCE. Ces constantes dérivaient
+                # déjà de `settings.MODEL_PATHS` ; l'import d'app n'ajoutait qu'une indirection —
+                # et il était RELATIF, donc invisible à la 1ʳᵉ version de la garde, qui ne
+                # cherchait que les imports ABSOLUS. *Une garde ne couvre que la forme qu'elle
+                # sait lire.*
+                from django.conf import settings
+                cache_dir = str(settings.MODEL_PATHS.get('speech', {}).get('vibevoice') or '')
                 logger.info(f"[VibeVoice] Cache: {cache_dir}")
             except Exception:
                 pass
