@@ -140,6 +140,12 @@ class SAM3Processor(DetectionBackend):
     # ── Contrat commun (BaseModelBackend) ────────────────────────────────────
     # Repli d'empreinte si la mesure autour du chargement n'est pas concluante.
     # 3 Go = ce que le catalogue AIModel déclare pour SAM3 (model_registry).
+    #: Moteur piloté (contrat commun). ⚠ Déclaré le 2026-09-06 : cette classe vit HORS
+    #: du paquet `backends/`, donc le registre ne la voit pas et l'invariant « tout
+    #: backend concret déclare ENGINE » ne pouvait pas la rattraper — angle mort mesuré
+    #: ce jour. La déclaration est posée MAINTENANT pour que le déplacement à venir
+    #: n'ait plus qu'à déplacer.
+    ENGINE = 'sam3'
     REQUIRED_PACKAGES = ['sam3']
     recommended_vram_gb = 3
 

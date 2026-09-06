@@ -60,7 +60,19 @@ DESCRIBER_MODELS = {
 
     # Audio transcription
     'whisper': {
+        # ⚠ DIVERGENCE DÉCLARATION ↔ CODE, mesurée le 2026-09-06 et NON corrigée ici (elle
+        # touche le catalogue et la taille annoncée, pas le moteur) : cette entrée annonce
+        # `openai/whisper-base` via « la lib whisper, pas HF », alors que le Describer passe
+        # par la brique COMMUNE `common/utils/whisper_utils.transcribe_audio`, qui délègue au
+        # backend du Transcriber (`transcriber.backends.manager.get_backend`) — donc
+        # **faster-whisper, large-v3**. C'est cette ligne qui m'a fait écrire que ce modèle
+        # « n'avait aucun backend » : j'ai lu une déclaration au lieu de tracer le chaînage.
+        # Le `size_gb: 0.3` et les `variants` décrivent eux aussi whisper-base, pas large-v3.
         'model_id': 'openai/whisper-base',
+        # Le moteur RÉEL, lu dans `WhisperBackend.ENGINE` au bout de la chaîne d'appels.
+        # Describer et Transcriber partagent le BACKEND et diffèrent par le MODÈLE : c'est
+        # exactement ce que le lien modèle↔moteur doit savoir exprimer.
+        'engine': 'faster-whisper',
         'type': 'speech-to-text',
         'task': 'automatic-speech-recognition',
         'local_dir': WHISPER_DIR,

@@ -133,6 +133,12 @@ class ResembleEnhanceBackend(BaseModelBackend):
     `load()` ne fait que réchauffer (vérifier l'import) ; `unload()` est un no-op honnête.
     """
 
+    #: Moteur piloté (contrat commun). ⚠ Déclaré le 2026-09-06 : cette classe vit HORS
+    #: du paquet `backends/`, donc le registre ne la voit pas et l'invariant « tout
+    #: backend concret déclare ENGINE » ne pouvait pas la rattraper — angle mort mesuré
+    #: ce jour. La déclaration est posée MAINTENANT pour que le déplacement à venir
+    #: n'ait plus qu'à déplacer.
+    ENGINE = 'resemble-enhance'
     REQUIRED_PACKAGES = ['resemble_enhance']
     recommended_vram_gb = 6.0
     description = "Resemble Enhance — débruitage + extension de bande (diffusion), MIT."
@@ -277,6 +283,12 @@ class DeepFilterNetBackend(BaseModelBackend):
     Garde le modèle en mémoire (keep_loaded) ; singleton via get_deepfilternet_backend().
     """
 
+    #: Moteur piloté (contrat commun). ⚠ Déclaré le 2026-09-06 : cette classe vit HORS
+    #: du paquet `backends/`, donc le registre ne la voit pas et l'invariant « tout
+    #: backend concret déclare ENGINE » ne pouvait pas la rattraper — angle mort mesuré
+    #: ce jour. La déclaration est posée MAINTENANT pour que le déplacement à venir
+    #: n'ait plus qu'à déplacer.
+    ENGINE = 'deepfilternet'
     REQUIRED_PACKAGES = ['df']
     recommended_vram_gb = 1.0
     description = "DeepFilterNet 3 — débruitage temps réel (discriminatif), MIT."

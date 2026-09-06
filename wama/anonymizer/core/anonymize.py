@@ -85,6 +85,12 @@ class Anonymize(DetectionBackend):
     # ── Contrat commun (BaseModelBackend) ────────────────────────────────────
     # Dépendances et empreinte VRAM déclaratives : c'est ce que le gouverneur réserve si la
     # mesure autour du chargement n'est pas concluante. YOLOv8n ≈ 0,5 Go, yolov8m ≈ 2 Go.
+    #: Moteur piloté (contrat commun). ⚠ Déclaré le 2026-09-06 : cette classe vit HORS
+    #: du paquet `backends/`, donc le registre ne la voit pas et l'invariant « tout
+    #: backend concret déclare ENGINE » ne pouvait pas la rattraper — angle mort mesuré
+    #: ce jour. La déclaration est posée MAINTENANT pour que le déplacement à venir
+    #: n'ait plus qu'à déplacer.
+    ENGINE = 'ultralytics'
     REQUIRED_PACKAGES = ['ultralytics']
     recommended_vram_gb = 2
 
