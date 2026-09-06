@@ -453,6 +453,23 @@ def _image_temoin(ext: str) -> bytes:
         return _png_1x1()
 
 
+#: Ids des cards d'ÉLÉMENT de la page — expression JS PARTAGÉE.
+#:
+#: ⚠ Elle vivait recopiée à QUATRE endroits (relevé du 2026-09-07, sur remarque de Fabien :
+#: « tu réutilises bien ce qui existe déjà ? tu ne réinventes pas de chemin parallèle ? »).
+#: Deux copies venaient d'être ajoutées le jour même, et elles DIVERGEAIENT déjà des deux
+#: autres par un `:not(.is-batch)`. Un instrument qui décrit le DOM à quatre voix finit par
+#: mesurer quatre choses — c'est la même maladie que la duplication de code applicatif, et
+#: elle est plus grave ici : ce qui diverge, c'est la définition de ce qu'on observe.
+#:
+#: `:not(.is-batch)` est CONSERVÉ pour tout le monde : une card mère de lot n'est pas un
+#: élément, et l'inclure fausserait tout comptage d'items. Elle ne porte pas `data-id`
+#: aujourd'hui (`_batch_card.html`), donc le filtre est défensif — mais il énonce l'intention,
+#: et c'est ce qui empêchera la prochaine divergence.
+IDS_CARDS_JS = ("[...document.querySelectorAll('.wama-card[data-id]:not(.is-batch)')]"
+                ".map(c => c.dataset.id)")
+
+
 def _fichier_temoin(extensions: str) -> Path:
     """Un fichier minuscule d'une extension que l'app ACCEPTE (déduite de sa zone de dépôt)."""
     import tempfile
@@ -1802,7 +1819,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     # Identifiants des cards présentes — la seule source qui permette de distinguer le doublon
     # d'un élément préexistant SANS lire l'ORM (interdit pendant `sync_playwright`).
-    IDS = "[...document.querySelectorAll('.wama-card[data-id]')].map(c => c.dataset.id)"
+    IDS = IDS_CARDS_JS
 
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
@@ -2025,7 +2042,7 @@ def check_app_settings(app: str, url_path: str):
 
     _nettoyes = []
     url = f"{BASE_URL.rstrip('/')}{url_path}"
-    IDS = "[...document.querySelectorAll('.wama-card[data-id]')].map(c => c.dataset.id)"
+    IDS = IDS_CARDS_JS
 
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
@@ -4439,7 +4456,7 @@ def check_app_processing(app: str, url_path: str):
                 return mauvaise_page
             page.wait_for_timeout(1200)
 
-            IDS = "[...document.querySelectorAll('.wama-card[data-id]:not(.is-batch)')].map(c => c.dataset.id)"
+            IDS = IDS_CARDS_JS
             avant = set(page.evaluate(IDS))
 
             # Un élément NEUF, à nous : on ne démarre JAMAIS un élément préexistant du compte
@@ -4669,13 +4686,25 @@ def check_app_batch_processing(app: str, url_path: str):
         raise SkipScenario("aucun compte de test disponible pour ouvrir une session")
 
     # État agrégé du lot, lu sur la card mère (contrat `_batch_card.html`).
-    LOT = """() => {
-        const m = document.querySelector('.wama-card.is-batch');
+    #
+    # ⚠⚠ ON VISE LE LOT DE *NOS* IDS, jamais « le premier de la page ». La v1 lisait
+    # `document.querySelector('.wama-card.is-batch')` : elle mesurait donc n'importe quel lot
+    # préexistant du compte. Mesuré le 2026-09-07 — le verdict annonçait « 2 éléments en ÉCHEC,
+    # la chaîne de production est cassée » pendant que le journal du worker écrivait « Image
+    # convertie ✓ Terminé » pour les deux. *Un scénario qui accuse l'app d'un défaut qui est le
+    # sien fait chercher au mauvais endroit* — c'est le pire service qu'un harnais puisse rendre.
+    LOT = """(ids) => {
+        // On remonte de NOS cards vers leur groupe de lot ; la card mère en est la première.
+        let groupe = null;
+        for (const id of ids) {
+            const c = document.querySelector('.wama-card[data-id="' + id + '"]');
+            if (c && c.closest('.batch-group')) { groupe = c.closest('.batch-group'); break; }
+        }
+        if (!groupe) return null;
+        const m = groupe.querySelector('.wama-card.is-batch');
         if (!m) return null;
-        const groupe = m.closest('.batch-group') || m.parentElement;
         const barre = m.querySelector('.wama-progress-fill');
-        const zip = groupe ? groupe.querySelector(
-            'a[href*="download"]') : null;
+        const zip = groupe.querySelector('a[href*="download"]');
         return {
             total: parseInt(m.dataset.batchTotal || '0', 10),
             succes: parseInt(m.dataset.batchSuccess || '0', 10),
@@ -4716,6 +4745,8 @@ def check_app_batch_processing(app: str, url_path: str):
             if not champ:
                 raise SkipScenario("aucun champ d'import au contrat de la card commune — "
                                    "impossible de monter un lot")
+            IDS = IDS_CARDS_JS
+            avant_ids = set(page.evaluate(IDS))
             temoins = [_fichier_temoin(champ.get_attribute('accept') or '') for _ in range(2)]
             try:
                 champ.set_input_files([str(x) for x in temoins])
@@ -4728,8 +4759,15 @@ def check_app_batch_processing(app: str, url_path: str):
                         pass
             page.goto(url, wait_until='networkidle', timeout=45000)
             page.wait_for_timeout(1500)
+            # Les ids que CE passage a créés — la seule prise qui distingue notre lot des lots
+            # préexistants du compte (cf. le bloc ⚠⚠ de `LOT`).
+            ids_lot = [i for i in page.evaluate(IDS) if i not in avant_ids]
+            if len(ids_lot) < 2:
+                raise SkipScenario(
+                    f"{len(ids_lot)} élément(s) créé(s) par un dépôt de 2 fichiers — cette app "
+                    "n'accepte pas le multi-dépôt, il n'y a pas de lot à démarrer")
 
-            lot = page.evaluate(LOT)
+            lot = page.evaluate(LOT, ids_lot)
             if not lot or lot['total'] < 2:
                 raise SkipScenario(
                     "aucune card mère de lot multi-éléments après montage — cette app ne "
@@ -4763,7 +4801,7 @@ def check_app_batch_processing(app: str, url_path: str):
             while time.time() < arret:
                 page.wait_for_timeout(1500)
                 try:
-                    e = page.evaluate(LOT)
+                    e = page.evaluate(LOT, ids_lot)
                 except Exception:
                     # Un rechargement peut survenir en cours de sondage (suite d'action de
                     # lot) : on laisse la page revenir plutôt que de conclure.
@@ -4847,15 +4885,22 @@ def register_batch_processing_scenarios():
                             else " — CPU (tâches routées hors GPU)")),
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_processing(a, p)))(),
             timeout_s=360, vram_gb=vram,
-            # ⚠⚠ DÉSACTIVÉ À LA LIVRAISON — défaut d'INSTRUMENT connu, pas d'app.
-            # `LOT` lit `document.querySelector('.wama-card.is-batch')`, c'est-à-dire le
-            # PREMIER lot de la page — pas celui que le scénario vient de monter. Mesuré le
-            # 2026-09-07 : le verdict annonçait « 2 éléments en ÉCHEC, la chaîne de production
-            # est cassée » alors que le journal du worker disait « Image convertie ✓ Terminé »
-            # pour les deux. Un scénario qui accuse l'app d'un défaut qui est le sien est PIRE
-            # qu'un scénario absent : il fait chercher au mauvais endroit.
-            # Ce qui reste à faire : retenir les ids créés au dépôt et viser LEUR lot
-            # (`.batch-group` qui les contient), comme `<app>.processing` vise `data-id`.
-            # Le corps du scénario est écrit et relu ; seule l'identification du lot manque.
+            # ⚠ ENCORE DÉSACTIVÉ — mais plus pour la même raison, et la distinction compte.
+            #
+            # SOLDÉ (2026-09-07) : le défaut d'instrument qui le désactivait la veille. `LOT`
+            # visait `document.querySelector('.wama-card.is-batch')`, donc le PREMIER lot de la
+            # page ; il remonte désormais depuis les IDS que le dépôt vient de créer. C'était
+            # bien mon défaut, et il est corrigé.
+            #
+            # RESTE : sur le converter, le lot de 2 finit en 2 ÉCHECS sans qu'AUCUNE erreur
+            # neuve n'apparaisse au journal du worker — alors que le même fichier témoin passe
+            # en unitaire (`converter.processing` est vert, téléchargement compris). Non
+            # élucidé. Et il ne peut pas l'être maintenant de façon fiable : une autre instance
+            # réécrit `common/utils/video_utils.py` et la chaîne d'import du converter a cassé
+            # puis guéri pendant cette mesure même — tout verdict pris ici porterait autant sur
+            # son chantier que sur le mien.
+            #
+            # Un scénario rouge sur une cause non élucidée ne se livre pas : il apprend à
+            # ignorer le rouge. Écrit, ciblé juste, désactivé — il attend une mesure au calme.
             enabled=False,
         )
