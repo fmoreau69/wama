@@ -589,3 +589,84 @@ def convert_video_to_web_compatible(input_path: str, output_path: Optional[str] 
     except Exception as e:
         logger.error(f"Video conversion error: {e}")
         return input_path
+
+
+def copy_audio_to_video(input_video_path, temp_video_path, output_path) -> bool:
+    """Recolle la piste audio d'une vidéo SOURCE sur une vidéo TRAITÉE (sans audio).
+
+    Remontée d'`anonymizer/core/ffmpeg_utils.py` le 2026-09-07. Elle y côtoyait TROIS
+    fonctions qui DUPLIQUAIENT le commun — `is_wsl`, `get_ffmpeg_path`,
+    `adapt_path_for_ffmpeg` — dont deux implémentations divergentes du même geste. Seule
+    celle-ci était unique, et son domicile naturel est ici : `extract_audio_from_video()`,
+    son inverse, vit dans ce fichier depuis toujours.
+
+    Elle utilise désormais le RÉSOLVEUR CENTRAL du binaire (`get_ffmpeg_exe`, qui SONDE les
+    candidats et honore l'échappatoire `FFMPEG_BINARY`) au lieu de la copie locale, qui se
+    contentait d'un `shutil.which`. C'est le mécanisme documenté, et il est plus sûr sous WSL2.
+
+    ⚠ Ré-encode en H.264 CRF 18 (visuellement sans perte) : ce n'est pas un simple remux, et
+    c'est voulu — la vidéo traitée sort d'OpenCV, dont le codec de sortie n'est pas diffusable.
+
+    Args:
+        input_video_path: vidéo d'origine, celle qui porte l'audio.
+        temp_video_path:  vidéo traitée, sans audio.
+        output_path:      destination finale (forcée en `.mp4`).
+
+    Returns:
+        True si le fichier final existe. Lève sinon — un échec silencieux rendrait une vidéo
+        muette sans que personne ne le sache.
+    """
+    import os
+    import shutil
+    import subprocess as sp
+
+    from .ffmpeg_utils import adapt_path_for_ffmpeg, get_ffmpeg_exe
+
+    ffmpeg_exe = get_ffmpeg_exe()
+    if not ffmpeg_exe:
+        raise RuntimeError("ffmpeg introuvable — fusion audio impossible")
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    if not os.path.isfile(temp_video_path):
+        raise FileNotFoundError(f"vidéo traitée absente : {temp_video_path}")
+    if not os.path.isfile(input_video_path):
+        raise FileNotFoundError(f"vidéo source absente : {input_video_path}")
+
+    if not output_path.endswith('.mp4'):
+        output_path = os.path.splitext(output_path)[0] + '.mp4'
+    intermediaire = output_path.replace('.mp4', '_with_audio.mp4')
+
+    commande = [
+        ffmpeg_exe, '-y',
+        '-i', adapt_path_for_ffmpeg(temp_video_path, ffmpeg_exe),   # vidéo traitée, muette
+        '-i', adapt_path_for_ffmpeg(input_video_path, ffmpeg_exe),  # source, pour l'audio
+        '-map', '0:v',
+        '-map', '1:a?',                      # `?` : une source SANS audio ne fait pas échouer
+        '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac', '-b:a', '192k',
+        '-shortest',
+        adapt_path_for_ffmpeg(intermediaire, ffmpeg_exe),
+    ]
+    logger.info('[copy_audio_to_video] %s + audio de %s → %s',
+                temp_video_path, input_video_path, output_path)
+    resultat = sp.run(commande, capture_output=True, text=True)
+    if resultat.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg a échoué ({resultat.returncode}) :\n{resultat.stderr}")
+    if not os.path.exists(intermediaire):
+        raise FileNotFoundError(f"ffmpeg n'a produit aucun fichier : {intermediaire}")
+
+    shutil.move(intermediaire, output_path)
+    if not os.path.exists(output_path):
+        raise FileNotFoundError(f"fichier final absent après déplacement : {output_path}")
+
+    # La vidéo traitée intermédiaire (.avi d'OpenCV) n'a plus d'utilité une fois recollée.
+    if temp_video_path.endswith('.avi') and os.path.exists(temp_video_path):
+        try:
+            os.remove(temp_video_path)
+        except OSError as e:
+            logger.warning('[copy_audio_to_video] temporaire non supprimé : %s', e)
+
+    logger.info('[copy_audio_to_video] ✓ %s (%.1f Mo)',
+                output_path, os.path.getsize(output_path) / (1024 * 1024))
+    return True

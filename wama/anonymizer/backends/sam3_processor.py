@@ -19,7 +19,7 @@ from pathlib import Path
 from PIL import Image
 
 from ..core.blur_utils import blur_segmentation, normalize_blur_ratio
-from ..core.ffmpeg_utils import copy_audio_to_video
+from wama.common.utils.video_utils import copy_audio_to_video
 
 from .base import DetectionBackend
 from wama.common.utils.video_utils import is_image
