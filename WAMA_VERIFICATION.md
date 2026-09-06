@@ -68,11 +68,11 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 5 | Tout effacer | ✅ `<app>.clear_all` (28/08) — **10 OK / 4 skips**, borné au compte de TEST ; mesure l'écran juste après le clic **et** le serveur après rechargement, **plus la base** (le lot vidé ne rend aucune card) | non |
 | 6 | Sélectionner une card → l'inspecteur se remplit | ✅ **ENTIER** — `<app>.inspector_actions` (28/08) : remplissage du volet Actions **et** refermeture par le ✕, sur les deux portées (card **et** card mère de lot), **20 chemins / 20** sur 10 apps | non |
 | 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | **oui sauf imager** — mesuré 27/08 : composer expédie la tâche DANS sa vue de création (`composer/views.py:235`) et avatarizer enchaîne `createJob()` puis `startJob()` (`avatarizer/js/index.js:253-254`) |
-| 8 | Démarrer un item → RUNNING → SUCCESS | ❌ | **oui** |
-| 9 | Arrêter / relancer (bouton de cycle) | ❌ | **oui** |
-| 10 | Progression : % et ETA visibles et qui avancent | ❌ | **oui** |
+| 8 | Démarrer un item → RUNNING → SUCCESS | ✅ **JOUÉ** sur le converter · **ÉCRIT et ÉCARTÉ** sur les 16 autres — `<app>.processing` (06/09), étage `output`. C'est le premier scénario du harnais à atteindre le RÉSULTAT sur une app de file | non |
+| 9 | Arrêter / relancer (bouton de cycle) | ✅ même scénario — le bouton passe à ⏹ pendant le traitement puis à ↻ après succès (contrat `_cycle_button.html`) | non |
+| 10 | Progression : % et ETA visibles et qui avancent | ⚠️ **MOITIÉ** — la barre est LUE à chaque tour, mais une conversion témoin dure 0,2 s : une seule valeur (100 %) est échantillonnée. Le scénario le DIT (« ⚠ progression figée à 100% ») au lieu de compter un vert. Mesurer l'avancement demande une entrée assez longue — à traiter avec le geste 13 | **oui** |
 | 11 | Aperçu du résultat (clic → visionneuse) | ❌ | **oui** |
-| 12 | Télécharger le résultat | ❌ — ⚠ le MARKUP est prouvé (critère `download_wiring` 12/12 + pages 200), le TRANSFERT non : le compte de test ne possède aucun élément traité, donc `download/<pk>/` lui répond 404 — **le scoping qui fonctionne**, pas une panne | **oui** |
+| 12 | Télécharger le résultat | ✅ même scénario — le TRANSFERT est mesuré : 200 + **octets non nuls** (un 200 rendant 0 octet est un faux succès). Ce qui bloquait était exact et est levé : le compte de test possède désormais un élément qu'il a lui-même traité | non |
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
 | 15 | **Sélection multiple** d'une file (clic / Ctrl / Maj / Ctrl+A / Échap) | ✅ `<app>.queue_dnd` (06/09) — **12 OK / 4 skips / 1 échec**, l'échec étant RÉEL (jumelle périmée) | non |
 | 16 | **Glisser-déposer** : entrer dans un lot · en former un · en sortir · ordonner | ⚠️ **MOITIÉ** — `<app>.queue_dnd` mesure la **décision** de dépôt (le seuil : tiers médian = appartenance, tiers haut/bas = ordre) et le nettoyage du retour visuel. Le **dépôt lui-même** n'est pas joué au navigateur (il recomposerait des lots sur le compte de test) ; sa moitié SERVEUR est tenue par `wama.common.tests_queue_dnd` (14 tests, dont le refus de fusion entre natures exercé en base) | non |
@@ -121,6 +121,33 @@ recharger → relire → rétablir), et ce qui le bloquait était **une mise en 
 pas une contrainte : voir l'encadré ⚠⚠ ci-dessous. Les gestes restants sont **8-13** (traitement
 réel) et le câblage transcriber du 17 — c'est-à-dire, à une exception près, exactement le lot que
 le GPU commande.
+
+**Au 2026-09-06 (soir) : 15,5 gestes sur 19** — `<app>.processing` ferme les gestes **8, 9 et
+12** et la moitié du **10**. Le harnais atteint pour la première fois l'étage `output` sur une
+app de file : déposer → démarrer → RUNNING → SUCCESS → télécharger un fichier non vide.
+
+> 🔴 **CE VERT NE COUVRE QU'UNE APP, ET IL FAUT LE LIRE AINSI.** Le scénario est ÉCRIT et
+> ENREGISTRÉ pour les 17 apps, mais **joué sur le seul converter** : sa VRAM est dérivée du
+> ROUTAGE CELERY (`wama.converter.tasks.*` → file `default`, tout le reste → `gpu`), donc le
+> mode sans GPU écarte les 16 autres. C'est la doctrine du §4.0 — *un scénario écrit et non joué
+> attend ; un scénario qu'on n'écrit pas n'existera jamais.* Compter ces gestes « couverts
+> partout » serait exactement le faux vert que ce document traque.
+>
+> ⚠ Le geste 10 reste à MOITIÉ pour une raison d'échantillonnage, pas de câblage : une
+> conversion témoin dure 0,2 s, une seule valeur de progression (100 %) est donc observée. Le
+> scénario l'écrit dans son verdict plutôt que de compter un vert.
+
+> ⚠⚠ **ET IL A TROUVÉ, EN UNE EXÉCUTION, UN DÉFAUT DU HARNAIS LUI-MÊME : le fichier témoin
+> n'était pas décodable.** `_fichier_temoin` écrivait un PNG 1×1 recopié en hexadécimal —
+> 71 octets, `OSError: broken data stream when reading image file`. Il servait de témoin à TOUT
+> le nocturne depuis l'origine. Personne ne l'avait vu parce qu'**aucun scénario ne DÉCODAIT le
+> fichier** : import, réglages, dupliquer/supprimer, « Envoyer vers » se contentent qu'il soit
+> ACCEPTÉ — c'est-à-dire que son extension passe. Le premier scénario à demander un vrai
+> traitement l'a fait tomber immédiatement. *Un témoin qu'on ne consomme jamais ne prouve rien
+> sur lui-même, et il finit par être le défaut qu'on cherche ailleurs.* Remplacé par un PNG
+> **calculé** (zlib + CRC, vérifiable) et, pour `.jpg`/`.webp`, par une vraie image du format
+> annoncé : l'ancien écrivait des octets PNG sous un nom `.jpg`, toléré tant qu'on n'ouvre pas
+> le fichier, indéfendable dans un harnais dont le rôle est de dire la vérité.
 
 > ⚠ **UN scénario, pas dix-sept — et c'est la réponse à une question de Fabien du même jour :**
 > *« les tests sont créés individuellement pour chaque application ou déclinés automatiquement

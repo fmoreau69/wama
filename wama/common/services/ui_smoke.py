@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -399,6 +400,59 @@ def _wav_silence(secondes: float = 0.2, taux: int = 8000) -> bytes:
             + b'data' + struct.pack('<I', len(donnees)) + donnees)
 
 
+def _png_1x1() -> bytes:
+    """Un PNG 1×1 valide, CALCULÉ (aucune dépendance).
+
+    ⚠⚠ REMPLACE UN BLOC HEXADÉCIMAL EN DUR QUI N'ÉTAIT PAS DÉCODABLE — 71 octets, `OSError:
+    broken data stream when reading image file`. Trouvé le 2026-09-06, et il servait de témoin
+    à TOUT le harnais depuis l'origine.
+
+    Pourquoi personne ne l'avait vu : aucun scénario ne DÉCODAIT le fichier. Import, réglages,
+    dupliquer/supprimer, « Envoyer vers » — tous se contentent que le fichier soit ACCEPTÉ,
+    c'est-à-dire que son extension passe. Le premier scénario à demander un vrai traitement
+    (`<app>.processing`) l'a fait tomber en une exécution. *Un témoin qu'on ne consomme jamais
+    ne prouve rien sur lui-même — et il finit par être le défaut qu'on cherche ailleurs.*
+
+    Calculé plutôt que recopié : un blob hexadécimal ne se relit pas, ne se vérifie pas, et
+    c'est exactement ainsi qu'un octet manquant survit des mois.
+    """
+    import struct
+    import zlib
+
+    def _bloc(typ: bytes, donnees: bytes) -> bytes:
+        corps = typ + donnees
+        return (struct.pack('>I', len(donnees)) + corps
+                + struct.pack('>I', zlib.crc32(corps) & 0xffffffff))
+
+    entete = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)      # 1×1, 8 bits, RVB
+    pixel = b'\x00\xff\xff\xff'                                 # filtre 0 + blanc
+    return (b'\x89PNG\r\n\x1a\n' + _bloc(b'IHDR', entete)
+            + _bloc(b'IDAT', zlib.compress(pixel)) + _bloc(b'IEND', b''))
+
+
+def _image_temoin(ext: str) -> bytes:
+    """Une image VALIDE dans le format que l'extension annonce.
+
+    ⚠ L'ancien helper écrivait des octets PNG sous un nom `.jpg` ou `.webp`. Toléré tant qu'on
+    ne fait qu'accepter le fichier (Pillow renifle le contenu), mais malhonnête dès qu'une
+    chaîne le traite vraiment — et indéfendable dans un harnais dont le rôle est justement de
+    dire la vérité. Pillow est une dépendance dure du converter : on s'en sert pour écrire le
+    vrai format, avec repli sur le PNG calculé si l'import échoue.
+    """
+    if ext == '.png':
+        return _png_1x1()
+    try:
+        import io as _io
+
+        from PIL import Image
+        formats = {'.jpg': 'JPEG', '.jpeg': 'JPEG', '.webp': 'WEBP'}
+        tampon = _io.BytesIO()
+        Image.new('RGB', (8, 8), (255, 255, 255)).save(tampon, format=formats[ext])
+        return tampon.getvalue()
+    except Exception:
+        return _png_1x1()
+
+
 def _fichier_temoin(extensions: str) -> Path:
     """Un fichier minuscule d'une extension que l'app ACCEPTE (déduite de sa zone de dépôt)."""
     import tempfile
@@ -409,12 +463,8 @@ def _fichier_temoin(extensions: str) -> Path:
     FAMILLES = {'image/*': '.png', 'audio/*': '.wav', 'video/*': '.mp4'}
     ext = next((FAMILLES[b] for b in bruts if b in FAMILLES),
                next((b.lstrip('*') for b in bruts if b.startswith('.')), '.txt'))
-    # PNG 1×1 : la seule donnée binaire qu'on peut écrire sans dépendance.
-    png = bytes.fromhex('89504e470d0a1a0a0000000d494844520000000100000001080600000'
-                        '01f15c4890000000a49444154789c6360000002000100' '05fe02fea7'
-                        'dc9a730000000049454e44ae426082'.replace(' ', ''))
     if ext in ('.png', '.jpg', '.jpeg', '.webp'):
-        contenu = png
+        contenu = _image_temoin(ext)
     elif ext in ('.wav',):
         contenu = _wav_silence()
     else:
@@ -4289,3 +4339,230 @@ def register_history_scenarios():
         run=lambda ctx: check_history_studio(),
         timeout_s=180, vram_gb=0.0,
     )
+
+
+# ── Gestes 8, 9, 10, 12 : DÉMARRER → PROGRESSER → RÉUSSIR → TÉLÉCHARGER ────────────────────
+
+
+def _vram_declaree(app: str) -> float:
+    """L'app mobilise-t-elle le GPU ? Lu au ROUTAGE CELERY — jamais une liste d'apps en dur.
+
+    `settings.CELERY_TASK_ROUTES` envoie `wama.converter.tasks.*` sur la file `default` et
+    **toutes les autres apps de traitement** sur `gpu`. C'est la déclaration la plus directe de
+    ce qu'on cherche : non pas « cette app a des modèles », mais « son traitement occupe le
+    worker GPU ». Le catalogue (`AIModel.source`) dit la même chose de son côté — le converter
+    n'y a aucun modèle, les onze autres en déclarent : deux déclarations indépendantes qui
+    concordent, ce qui est la meilleure garantie qu'on ne choisit rien ici.
+
+    ⚠ POURQUOI PAS LE CATALOGUE, qui donnait pourtant le montant exact (3 Go, 38 Go…) : il
+    demande une requête, et l'enregistrement des scénarios a lieu à l'IMPORT du module —
+    Django lève alors `RuntimeWarning: Accessing the database during app initialization`.
+    Une garde de sécurité ne doit pas dépendre de l'état de la base au moment où elle se pose.
+
+    ⚠⚠ `inf` ET NON UN MONTANT INVENTÉ. On ne connaît pas ici la VRAM réelle, et un chiffre
+    plausible (« 8 Go ») donnerait à `--max-vram` une granularité MENSONGÈRE : un plafond à 10
+    admettrait l'imager, qui en demande 38. `inf` dit la vérité — montant inconnu, donc aucun
+    plafond fini ne l'admet — et c'est la doctrine déjà écrite du dépôt : *une VRAM inconnue
+    n'est jamais gratuite*. `--with-gpu` les libère tous ; affiner viendra du catalogue le jour
+    où le GPU rouvrira, et ce sera un geste conscient.
+    """
+    routes = getattr(settings, 'CELERY_TASK_ROUTES', None) or {}
+    for motif, conf in routes.items():
+        if motif.startswith(f'wama.{app}.') and (conf or {}).get('queue') == 'gpu':
+            return float('inf')
+    return 0.0
+
+
+def check_app_processing(app: str, url_path: str):
+    """Un élément déposé se DÉMARRE, PROGRESSE, RÉUSSIT, et son résultat se TÉLÉCHARGE.
+
+    Les gestes 8, 9, 10 et 12 du catalogue d'un coup — ils ne se séparent pas : on ne peut pas
+    mesurer une progression sans avoir démarré, ni un téléchargement sans avoir réussi. C'est
+    la première fois que le harnais va jusqu'au RÉSULTAT sur une app de file.
+
+    ⚠ CE SCÉNARIO EXÉCUTE UN VRAI TRAITEMENT. Sa VRAM est donc DÉCLARÉE (`_vram_declaree`,
+    lue au catalogue) et le mode par défaut du runner l'ÉCARTE partout où l'app mobilise un
+    modèle. Seul le converter (aucun modèle au catalogue, tâches routées sur la file `default`)
+    le joue chaque nuit — c'est l'issue n°1 que `WAMA_VERIFICATION §4` prévoit depuis le 22/08,
+    et le patron de toute la famille « avec traitement ».
+
+    ⚠⚠ Le POST de démarrage part du NAVIGATEUR, donc de gunicorn (WSL2) : il atteint le bon
+    Redis. Un `.delay()` lancé depuis `venv_win` irait sur l'AUTRE Redis du poste et la tâche
+    ne serait jamais consommée (piège mesuré le 02/09) — raison de plus pour que ce scénario
+    clique au lieu d'appeler.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _test_session_key(app)
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible pour ouvrir une session")
+
+    CARTE = """(id) => {
+        const c = document.querySelector('.wama-card[data-id="' + id + '"]:not(.is-batch)');
+        if (!c) return null;
+        const barre = c.querySelector('.wama-progress-fill, .progress-bar');
+        return {
+            statut: c.dataset.status || '',
+            largeur: barre ? (barre.style.width || '') : '',
+            action: (c.querySelector('.wama-cycle-btn') || {}).dataset
+                    ? c.querySelector('.wama-cycle-btn').dataset.cycleAction : '',
+            telechargement: (() => {
+                const a = c.querySelector('a[href*="/download/"], a[download]');
+                return a ? a.getAttribute('href') : '';
+            })(),
+        };
+    }"""
+
+    with _garde_de_montage(app, 'processing') as _nettoyes:
+      with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            erreurs_js = []
+            page.on('pageerror', lambda e: erreurs_js.append(str(e)[:160]))
+
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            mauvaise_page = _exiger_la_page(page, resp, url)
+            if mauvaise_page:
+                return mauvaise_page
+            page.wait_for_timeout(1200)
+
+            IDS = "[...document.querySelectorAll('.wama-card[data-id]:not(.is-batch)')].map(c => c.dataset.id)"
+            avant = set(page.evaluate(IDS))
+
+            # Un élément NEUF, à nous : on ne démarre JAMAIS un élément préexistant du compte
+            # (ce serait consommer des ressources sur le travail de quelqu'un d'autre).
+            exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
+            champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+            if not champ:
+                raise SkipScenario("aucun champ d'import au contrat de la card commune — "
+                                   "impossible de créer un élément à démarrer")
+            temoin = _fichier_temoin(champ.get_attribute('accept') or '')
+            try:
+                champ.set_input_files(str(temoin))
+                page.wait_for_timeout(5000)
+            finally:
+                try:
+                    temoin.unlink()
+                except OSError:
+                    pass
+            neufs = [i for i in page.evaluate(IDS) if i not in avant]
+            if not neufs:
+                raise SkipScenario("le dépôt n'a créé aucun élément "
+                                   "(cause à chercher dans `<app>.import`)")
+            ident = neufs[0]
+
+            etat = page.evaluate(CARTE, ident)
+            if not etat:
+                raise SkipScenario(f"card #{ident} introuvable après dépôt")
+            if etat['statut'] in ('RUNNING', 'SUCCESS'):
+                raise SkipScenario(
+                    f"l'élément déposé est déjà « {etat['statut']} » — cette app traite AU "
+                    "DÉPÔT, il n'y a pas de geste « démarrer » distinct à mesurer (geste 7)")
+
+            # ── Geste 8 : DÉMARRER ────────────────────────────────────────────────────
+            bouton = page.query_selector(
+                f'.wama-card[data-id="{ident}"] .wama-cycle-btn[data-cycle-action="start"]')
+            if not bouton:
+                raise SkipScenario(
+                    f"card #{ident} sans bouton de cycle au contrat commun "
+                    "(`.wama-cycle-btn[data-cycle-action=start]`, `_cycle_button.html`)")
+            bouton.scroll_into_view_if_needed(timeout=3000)
+            bouton.click(timeout=8000)
+
+            # ── Gestes 9 et 10 : le bouton passe à ⏹, la progression AVANCE ───────────
+            vues, statuts, largeurs = [], set(), set()
+            fin, arret = None, time.time() + 150
+            while time.time() < arret:
+                page.wait_for_timeout(2000)
+                e = page.evaluate(CARTE, ident)
+                if not e:
+                    break
+                statuts.add(e['statut'])
+                if e['largeur']:
+                    largeurs.add(e['largeur'])
+                vues.append(e['action'])
+                if e['statut'] in ('SUCCESS', 'FAILURE'):
+                    fin = e
+                    break
+
+            if fin is None:
+                return False, (
+                    f"élément #{ident} démarré : aucun état final en 150 s "
+                    f"(statuts vus : {sorted(statuts) or '—'}). Soit la tâche n'est pas "
+                    "consommée (worker de la file absent), soit elle n'aboutit pas — dans "
+                    "les deux cas l'utilisateur voit une card qui ne finit jamais"
+                    + (f" ; {' | '.join(erreurs_js)}" if erreurs_js else ""))
+            if fin['statut'] == 'FAILURE':
+                return False, (f"élément #{ident} : le traitement ÉCHOUE "
+                               f"(statuts vus : {sorted(statuts)}) — la chaîne de production "
+                               "de cette app est cassée sur une entrée témoin minimale")
+
+            constats = [f"démarré → {sorted(statuts - {'PENDING'})} → SUCCESS"]
+            if 'stop' in vues:
+                constats.append("bouton passé à ⏹ pendant le traitement")
+            else:
+                constats.append("⚠ ⏹ non observé (traitement trop bref pour l'échantillonnage)")
+            if len(largeurs) > 1:
+                constats.append(f"progression vue à {len(largeurs)} valeurs distinctes")
+            elif largeurs:
+                constats.append(f"⚠ progression figée à {largeurs.pop()}")
+            if fin['action'] == 'restart':
+                constats.append("bouton repassé à ↻ (relance offerte)")
+
+            # ── Geste 12 : TÉLÉCHARGER le résultat ────────────────────────────────────
+            if not fin.get('telechargement'):
+                constats.append("⚠ aucun lien de téléchargement dans la card après succès")
+            else:
+                lien = fin['telechargement']
+                if not lien.startswith('http'):
+                    lien = f"{BASE_URL.rstrip('/')}{lien}"
+                r = page.request.get(lien)
+                taille = len(r.body() or b'')
+                if r.status != 200:
+                    return False, (f"élément #{ident} en SUCCESS mais le téléchargement "
+                                   f"répond {r.status} — le résultat est annoncé et "
+                                   "inatteignable")
+                if taille == 0:
+                    return False, (f"élément #{ident} : le téléchargement répond 200 mais "
+                                   "rend 0 octet — un fichier vide est un faux succès")
+                constats.append(f"téléchargement 200, {taille} octets")
+
+            if erreurs_js:
+                return False, f"chaîne mesurée mais JS en erreur : {' | '.join(erreurs_js)}"
+        finally:
+            navigateur.close()
+
+    detail = "; ".join(constats)
+    if _nettoyes:
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de montage nettoyé(s)"
+    return True, detail
+
+
+def register_processing_scenarios():
+    """Un scénario `<app>.processing` par app — la VRAM déclarée décide s'il est JOUÉ.
+
+    Le scénario est ÉCRIT et ENREGISTRÉ pour les 17 apps (doctrine « on prépare tout »,
+    Fabien 06/09) ; le mode par défaut du runner n'en joue que ceux à `vram_gb = 0`. Le jour
+    où le GPU rouvrira, `--with-gpu` (ou `--max-vram N`, progressivement) les libère sans
+    qu'une ligne soit à écrire.
+    """
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        vram = _vram_declaree(label)
+        register(
+            id=f"{label}.processing", app=label, stage="output",
+            description=(f"File {label} : démarrer un élément → progression → SUCCESS → "
+                         f"télécharger le résultat (gestes 8/9/10/12)"
+                         + (" ⚠ TRAITEMENT GPU (tâches routées sur la file `gpu`) — écarté "
+                            "sans --with-gpu" if vram else
+                            " — CPU (tâches routées hors GPU)")),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_processing(a, p)))(),
+            timeout_s=300, vram_gb=vram,
+        )

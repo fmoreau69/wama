@@ -390,6 +390,7 @@ try:
                                                register_import_scenarios,
                                                register_inspector_actions_scenarios,
                                                register_history_scenarios,
+                                               register_processing_scenarios,
                                                register_queue_dnd_scenarios,
                                                register_send_to_scenarios,
                                                register_settings_scenarios,
@@ -443,6 +444,12 @@ try:
     # studio ne persiste qu'en localStorage. Le scénario mesure les DEUX moitiés — le câblage
     # du consommateur ET la sémantique de la brique — parce qu'aucune ne se déduit de l'autre.
     register_history_scenarios()
+    # 2026-09-06 — gestes 8/9/10/12 : DÉMARRER → PROGRESSER → RÉUSSIR → TÉLÉCHARGER. Le
+    # premier scénario du harnais qui va jusqu'au RÉSULTAT sur une app de file. Sa VRAM est
+    # DÉRIVÉE du catalogue (`AIModel.source`), donc le mode sans GPU l'écarte partout où l'app
+    # mobilise un modèle : seul le converter (aucun modèle, tâches routées sur `default`) le
+    # joue chaque nuit. Les autres sont ÉCRITS et attendent `--with-gpu`.
+    register_processing_scenarios()
     # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
     # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
     # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais
