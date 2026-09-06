@@ -958,6 +958,41 @@ Un fichier du compte réel ne peut donc pas être atteint, même par accident.
 
 ## 4. Contrainte qui dicte l'ordre : le GPU
 
+### 4.0 Le mode « sans GPU » est RÉEL depuis le 2026-09-06 — il ne l'était pas avant
+
+> Question de Fabien : *« on a normalement des modes dans les tests nocturnes pour n'effectuer
+> que des parties des tests, notamment pour écarter les tests mettant en œuvre le GPU. On est
+> ok ? »* — mesuré : **non, pas vraiment.**
+
+`Scenario.vram_gb` était déclaré sur **chaque** scénario depuis l'origine, commenté « info de
+planification »… et **lu par personne**. Aucun filtre ne s'en servait. L'exclusion du GPU
+reposait entièrement sur le fait de SAVOIR que `model_loaded` et `output` sont les étages GPU,
+et sur la discipline de passer `--stage`. *Un champ qui a l'air d'une garde sans en être une est
+pire qu'un champ absent : il fait croire que la protection existe.*
+
+| commutateur | effet |
+|---|---|
+| *(défaut)* | **écarte tout scénario déclarant `vram_gb > 0`** — le passage nocturne est sans GPU |
+| `--with-gpu` | les réintègre |
+| `--max-vram N` | plafond intermédiaire, pour rouvrir le GPU **progressivement** plutôt qu'en tout-ou-rien |
+
+**L'exclusion n'est jamais silencieuse** : le runner NOMME les scénarios écartés, leur VRAM, et
+dit comment les rejouer — une exclusion muette se lit comme une couverture. Mesuré au
+branchement : **225 scénarios sans GPU, 227 avec** (`enhancer.deepfilternet_load` 1 Go,
+`transcriber.asr_load` 10 Go).
+
+**Conséquence directe, et c'est la doctrine retenue (Fabien, 06/09)** : les scénarios GPU
+s'ÉCRIVENT et s'ENREGISTRENT — ils sont simplement écartés du passage. *Un scénario qu'on
+n'écrit pas n'existera jamais ; un scénario écrit et non joué attend.*
+
+⚠ Le filtre porte sur ce qui est **DÉCLARÉ**. Il ne peut pas deviner qu'un scénario à `0`
+touche le GPU par un chemin détourné — le triage VLM d'une batterie UI a provoqué deux crashs
+hôte le 02/09 en étant parfaitement « sans VRAM déclarée ». La déclaration engage son auteur ;
+`wama/common/tests_nightly_modes.py` (6 tests) vérifie que le filtre agit, qu'il le dit, et
+qu'aucun scénario d'étage `model_loaded` ne part à `0`. ⚠ L'étage `output` n'est PAS soumis à
+la même exigence : `studio.pipeline.converter` va au résultat en ffmpeg pur — **c'est la CHARGE
+qui décide, pas la profondeur**.
+
 Les gestes 8–13 exigent un **traitement réel**. Or la règle est absolue ici : **jamais de charge
 GPU en WSL2 déclenchée par l'assistant, ni de job GPU nocturne** (crashs hôte répétés,
 `reference_wsl_gpu_windows_update_regression`). Deux issues, aucune n'est un détail :
