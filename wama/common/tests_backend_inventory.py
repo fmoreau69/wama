@@ -568,21 +568,16 @@ class BackendsDecouplesDeLeurAppTest(SimpleTestCase):
     l'absence de Django qui rend un backend déplaçable, lire le catalogue la détruirait.
     """
 
-    #: {module: raison} — couplages ASSUMÉS, avec leur raison. Tout le reste est levé.
+    #: {module: raison} — couplages ASSUMÉS. **VIDE**, et c'est le résultat, pas un point
+    #: de départ : les 15 sites mesurés le 06/09 sont tous levés.
     #:
-    #: ⚠ Ces trois-là ne tirent pas une DÉCLARATION mais de la LOGIQUE d'app (résolution de
-    #: dossier conditionnelle, préparation de cache). Un passe-plat ne peut donc pas les
-    #: remplacer : il faudrait remonter ces helpers dans le commun, ce qui est un geste à
-    #: part — et le faire à la sauvette ici aurait déplacé du code sans le comprendre.
-    #: Ils sont donc INSCRITS, pas masqués : le jour du déplacement vers le substrat, cette
-    #: liste EST la liste des choses à traiter d'abord.
-    COUPLAGES_ASSUMES = {
-        'wama/imager/backends/diffusers_backend.py':
-            'helpers de résolution de dossier (stable-diffusion/flux/logo) + LoRA : logique '
-            'métier de l’imager, à remonter dans le commun lors du déplacement',
-        'wama/imager/backends/hunyuan_video_backend.py':
-            '`setup_hf_cache_for_hunyuan()` — préparation de cache, logique, pas déclaration',
-    }
+    #: ⚠ Cette liste a d'abord contenu `diffusers_backend` et `hunyuan_video_backend`, que
+    #: j'avais classés « logique métier, à remonter dans le commun » SANS AVOIR LU le corps
+    #: des helpers. Vérification faite : ce sont des accesseurs d'une ligne (`Path(<CONST>)`,
+    #: `str(<CONST>)`), et trois des symboles importés n'étaient même jamais appelés.
+    #: *Classer sans lire, c'est décider sans savoir* — une entrée d'exception assumée doit
+    #: se mériter par une mesure, sinon elle sanctuarise une dette imaginaire.
+    COUPLAGES_ASSUMES = {}
 
     def test_aucun_backend_n_importe_le_model_config_de_son_app(self):
         import ast

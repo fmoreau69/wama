@@ -26,8 +26,11 @@ from django.conf import settings
 # ce fichier (vérifié). Le socle est posé une fois au démarrage (`settings.py:165-167`).
 def _resoudre_dossier_hunyuan():
     """Dossier des poids Hunyuan. NE TOUCHE PAS à l'environnement — voir le bloc ci-dessus."""
-    from wama.imager.utils.model_config import setup_hf_cache_for_hunyuan
-    return setup_hf_cache_for_hunyuan()
+    # Étape 2 : `setup_hf_cache_for_hunyuan()` ne « prépare » RIEN — elle rend
+    # `str(HUNYUAN_DIR)`, et sa docstring le dit (« Ne touche PLUS à l'environnement »). Le nom
+    # est un vestige de l'époque où elle mutait le cache. Lu à la source, sans import d'app.
+    from django.conf import settings
+    return str(settings.MODEL_PATHS.get('diffusion', {}).get('hunyuan') or '')
 
 
 _HUNYUAN_MODELS_DIR = _resoudre_dossier_hunyuan()

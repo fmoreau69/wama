@@ -15,34 +15,24 @@ from .base import ImageGenerationBackend, GenerationParams, GenerationResult
 
 logger = logging.getLogger(__name__)
 
-# Import centralized model configuration
-try:
-    from wama.imager.utils.model_config import (
-        get_stable_diffusion_directory,
-        get_flux_directory,
-        get_logo_directory,
-        LOGO_MODELS,
-        is_lora_model,
-        get_model_trigger_words,
-    )
-    _SD_CACHE_DIR = str(get_stable_diffusion_directory())
-    _FLUX_CACHE_DIR = str(get_flux_directory())
-    _LOGO_CACHE_DIR = str(get_logo_directory())
-    logger.info(f"[Diffusers] Using cache directory: {_SD_CACHE_DIR}")
-    logger.info(f"[Diffusers] FLUX cache directory: {_FLUX_CACHE_DIR}")
-    logger.info(f"[Diffusers] Logo cache directory: {_LOGO_CACHE_DIR}")
-except ImportError:
-    _SD_CACHE_DIR = None
-    _FLUX_CACHE_DIR = None
-    _LOGO_CACHE_DIR = None
-    LOGO_MODELS = {}
-    logger.warning("[Diffusers] model_config not available, using default HF cache")
+# ── Dossiers de poids — lus à leur SOURCE (étape 2, 2026-09-06) ─────────────────────────
+# Ces trois chemins venaient de `wama.imager.utils.model_config`, via des accesseurs qui ne
+# faisaient qu'un `Path(<CONSTANTE>)` — et la constante dérivait déjà de `settings.MODEL_PATHS`.
+# Trois indirections pour une lecture de réglage : le backend lit désormais la source.
+#
+# ⚠ J'avais classé ce fichier « logique métier de l'imager, à remonter dans le commun » sans
+# avoir lu le corps des helpers. C'était FAUX : ce sont des accesseurs d'une ligne. Et
+# `LOGO_MODELS`, `is_lora_model`, `get_model_trigger_words` étaient importés — avec leurs
+# bouchons de repli — mais **jamais appelés** : six lignes de couplage pour du code mort.
+# *Classer sans lire, c'est décider sans savoir.*
+from django.conf import settings
 
-    def is_lora_model(model_name):
-        return False
-
-    def get_model_trigger_words(model_name):
-        return []
+_DIFFUSION_PATHS = settings.MODEL_PATHS.get('diffusion', {})
+_SD_CACHE_DIR = str(_DIFFUSION_PATHS.get('stable_diffusion') or '') or None
+_FLUX_CACHE_DIR = str(_DIFFUSION_PATHS.get('flux') or '') or None
+_LOGO_CACHE_DIR = str(_DIFFUSION_PATHS.get('logo') or '') or None
+logger.info("[Diffusers] caches : SD=%s FLUX=%s LOGO=%s",
+            _SD_CACHE_DIR, _FLUX_CACHE_DIR, _LOGO_CACHE_DIR)
 
 
 # Module-level pipeline cache — persists across Celery tasks within the same worker process.
@@ -608,8 +598,11 @@ class DiffusersBackend(ImageGenerationBackend):
         }
         # HunyuanImage uses its own cache directory
         try:
-            from wama.imager.utils.model_config import get_hunyuan_directory
-            kwargs["cache_dir"] = str(get_hunyuan_directory())
+            # Étape 2 : dossier lu à la source (l'accesseur de l'app ne faisait
+            # qu'un `Path(HUNYUAN_DIR)`, lui-même issu de `settings.MODEL_PATHS`).
+            from django.conf import settings
+            kwargs["cache_dir"] = str(
+                settings.MODEL_PATHS.get('diffusion', {}).get('hunyuan') or '')
             logger.info(f"[Diffusers] Loading HunyuanImage from cache: {kwargs['cache_dir']}")
         except ImportError:
             pass
