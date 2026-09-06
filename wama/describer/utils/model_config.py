@@ -44,6 +44,7 @@ HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 DESCRIBER_MODELS = {
     # Image description
     'blip': {
+        'engine': 'transformers',
         'model_id': 'Salesforce/blip-image-captioning-large',
         'type': 'vision-language',
         'task': 'image-to-text',

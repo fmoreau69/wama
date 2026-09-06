@@ -193,6 +193,7 @@ class ModelRegistry:
         # reste toujours l'autorité.
         self._discover_installed_hf_snapshots()
 
+        self._overlay_declared_engines()
         self._overlay_residency()
 
         # Log summary
@@ -251,6 +252,45 @@ class ModelRegistry:
             if owner.startswith(prefixe) and owner not in vivants:
                 release_reservation(owner)
         return len(vivants)
+
+    def _overlay_declared_engines(self):
+        """Reporte le MOTEUR déclaré par chaque app sur les modèles qu'elle possède.
+
+        UNE passe, au lieu d'une ligne dans chacune des ~11 découvertes — et surtout : elle
+        LIT la déclaration au lieu de la recopier. C'est le défaut mesuré le 05/09 sur
+        CodeFormer, déclaré depuis toujours dans `AVATARIZER_MODELS` et jamais découvert
+        parce que sa découverte codait ses valeurs en dur. *Une déclaration que personne ne
+        lit ne vaut rien.*
+
+        Convention exploitée (vérifiée sur les 8 apps porteuses de modèles) :
+        `wama/<app>/utils/model_config.py` expose `<APP>_MODELS`, dont les clés sont les
+        `model_id` qui composent `model_key` (`<source>:<model_id>`). Une app qui ne suit pas
+        la convention est simplement ignorée — on ne devine rien.
+
+        ⚠ N'ÉCRASE JAMAIS une composition existante : une app qui déclare son anatomie
+        complète (composants + moteur, cf. transcriber/diarisation) reste l'autorité. Cette
+        passe ne fait que COMBLER.
+        """
+        import importlib
+        for cle, info in list(self._models.items()):
+            if (getattr(info, 'composition', None) or {}).get('runtime', {}).get('engine'):
+                continue                                   # déjà déclaré : on ne touche pas
+            source, _, model_id = cle.partition(':')
+            if not model_id:
+                continue
+            try:
+                mod = importlib.import_module(f'wama.{source}.utils.model_config')
+                declarations = getattr(mod, f'{source.upper()}_MODELS', None)
+            except Exception:
+                continue
+            if not isinstance(declarations, dict):
+                continue
+            moteur = (declarations.get(model_id) or {}).get('engine')
+            if not moteur:
+                continue
+            composition = dict(getattr(info, 'composition', None) or {})
+            composition['runtime'] = {**(composition.get('runtime') or {}), 'engine': moteur}
+            info.composition = composition
 
     def _overlay_residency(self):
         """Rabat la résidence RÉELLE (registre VRAM partagé) sur `is_loaded`.
@@ -1846,6 +1886,11 @@ class ModelRegistry:
                                 is_loaded=(model_name in charges),
                                 is_downloaded=True,
                                 backend_ref='ollama',
+                                # Le MOTEUR est le démon lui-même (inventaire
+                                # `ollama_host.ollama_engine_inventory`) : ces modèles
+                                # n'échappent plus au verdict d'exécutabilité, et un
+                                # démon éteint les grise pour la bonne raison.
+                                composition={'runtime': {'engine': 'ollama'}},
                                 format='gguf',
                                 preferred_format=preferred,
                                 can_convert_to=[],  # Managed by Ollama
@@ -1974,6 +2019,8 @@ class ModelRegistry:
                                         ram_gb=round(size_gb, 1),
                                         is_downloaded=True,
                                         backend_ref='ollama',
+                                        # Moteur = le démon (cf. site principal ci-dessus).
+                                        composition={'runtime': {'engine': 'ollama'}},
                                         format='gguf',
                                         preferred_format=preferred,
                                         can_convert_to=[],  # Managed by Ollama

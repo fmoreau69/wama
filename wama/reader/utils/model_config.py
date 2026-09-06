@@ -30,6 +30,7 @@ Path(DOCTR_DIR).mkdir(parents=True, exist_ok=True)
 READER_MODELS = {
     'olmocr': {
         'model_id':    'olmocr',
+        'engine': 'transformers',
         'hf_model_id': 'allenai/olmOCR-7B-0225-preview',  # à ajuster si nécessaire
         'type':        'ocr-vlm',
         'vram_gb':     14.0,
@@ -47,6 +48,7 @@ READER_MODELS = {
     # Servi par Ollama : aucune VRAM réservée côté worker Django.
     'glm-ocr': {
         'model_id':    'glm-ocr',
+        'engine': 'ollama',
         # ⚠ Le tag `glm-ocr:0.9b` N'EXISTE PLUS sur le registre Ollama (404 mesuré le
         # 2026-09-02 ; restent `latest` 2,2 Go et `q8_0` 1,6 Go). Un `ollama pull` sur
         # l'ancien tag échouait en silence — le modèle n'était plus installable d'ici.
@@ -62,6 +64,7 @@ READER_MODELS = {
     },
     'doctr': {
         'model_id':    'doctr',
+        'engine': 'doctr',
         'hf_model_id': '',   # modèles embarqués dans le package
         'type':        'ocr-pipeline',
         'vram_gb':     0.0,  # CPU

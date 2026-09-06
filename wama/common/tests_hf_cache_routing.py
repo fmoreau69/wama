@@ -317,23 +317,39 @@ class TroisiemeVoieTest(SimpleTestCase):
         self.assertEqual(len(faux.call_args_list), 2)
 
 
-class BasculeDEnvironnementSansConsommateurTest(SimpleTestCase):
-    """`hf_cache_scope` n'a plus AUCUN consommateur depuis le 2026-09-06.
+class BasculeDEnvironnementResteUnDERNIERRECOURSTest(SimpleTestCase):
+    """`hf_cache_scope` n'est ni morte ni libre : c'est un DERNIER RECOURS, qui se DÉCLARE.
 
-    SAM3 était le dernier : il passe désormais par la 3ᵉ voie
-    (`hf_weights.poids_locaux` + `checkpoint_path=` / `load_from_HF=False`). Le module reste sur
-    disque — son retrait touche 6 surfaces (registre des mécanismes, grille de conformité, 3
-    docs, ses propres tests) et mérite son geste propre, avec entrée au `REMOVAL_LEDGER`.
+    ⚠ CORRECTION (2026-09-06, recadrage Fabien). La 1ʳᵉ version de cette garde exigeait ZÉRO
+    consommateur — elle INTERDISAIT le dernier recours au lieu de le gouverner. C'était faux :
+    la brique existe pour la classe de libs qui n'offre AUCUN levier, et une telle lib peut
+    arriver demain. *Une garde qui interdit une exception légitime pousse le suivant à la
+    contourner en silence — ce qui est exactement le contraire du but.*
 
-    ⚠ Mais un helper qui implémente exactement l'anti-pattern que la doctrine interdit est un
-    piège tant qu'il est importable : le prochain qui cherchera « comment router les poids d'une
-    lib récalcitrante » le trouvera. Cette garde fait donc échouer la SUITE au premier
-    réemploi — c'est ce qui autorise à le laisser en place sans risque.
+    LA RÈGLE (ROADMAP §5b, doctrine du dépôt) : le modèle PRINCIPAL va dans son dossier
+    catégorisé, ses SOUS-DÉPENDANCES HF vont au cache partagé. Quatre leviers permettent de la
+    tenir, dans cet ordre de préférence — le choix n'est pas un goût, il est imposé par la lib :
+
+      A. `cache_dir=` sur `from_pretrained()`               majorité (transformers, diffusers…)
+      B. un CHEMIN local (3ᵉ voie, `hf_weights.poids_locaux`)  sam3, kokoro
+      C. la variable propre à LA lib, posée dans `settings.py`  DEEPFACE_HOME, AUDIOCRAFT_CACHE_DIR
+      D. `hf_cache_scope` — la lib n'offre AUCUN levier          ← dernier recours
+
+    Le coût de D, qui justifie son rang : la bascule restaure l'environnement, **jamais les
+    fichiers**. Tout ce que la lib télécharge pendant la fenêtre — sous-dépendances comprises —
+    reste dans le dossier du modèle. C'est le mécanisme exact qui a déposé `timm/resnet18` dans
+    le dossier de table-transformer. D est donc licite, mais jamais par confort.
     """
 
-    def test_aucun_module_n_importe_plus_la_bascule(self):
+    #: {module: raison} — les emplois ASSUMÉS de la bascule. VIDE aujourd'hui : les deux
+    #: adopteurs historiques (kokoro le 2026-08-12, sam3 le 2026-09-06) acceptaient en réalité
+    #: un chemin, donc relèvent de B. Inscrire une entrée ici est une DÉCISION : elle veut dire
+    #: « cette lib n'offre ni A, ni B, ni C — vérifié dans sa signature ».
+    RECOURS_ASSUMES = {}
+
+    def test_tout_emploi_de_la_bascule_est_un_recours_ASSUME(self):
         racine = Path(settings.BASE_DIR)
-        coupables = []
+        emplois = []
         for dossier in ('wama', 'wama_lab'):
             for f in (racine / dossier).rglob('*.py'):
                 if 'venv' in f.parts or 'site-packages' in f.parts:
@@ -345,14 +361,38 @@ class BasculeDEnvironnementSansConsommateurTest(SimpleTestCase):
                 except (OSError, SyntaxError, UnicodeDecodeError):
                     continue
                 # AST, jamais grep : trois motifs textuels se sont trompés de cible cette
-                # session en accusant des COMMENTAIRES. Ici, seul un import réel compte.
+                # session en accusant des COMMENTAIRES. Seul un import réel compte.
                 for n in ast.walk(arbre):
-                    if isinstance(n, ast.ImportFrom) and 'hf_cache' in (n.module or ''):
-                        coupables.append(str(f.relative_to(racine)))
-                    elif isinstance(n, ast.Import) and any('hf_cache' in a.name for a in n.names):
-                        coupables.append(str(f.relative_to(racine)))
-        self.assertEqual(sorted(set(coupables)), [],
-                         "la bascule d'environnement `hf_cache_scope` est réemployée — elle "
-                         "restaure l'environnement mais JAMAIS les fichiers : tout ce que la "
-                         "lib télécharge pendant la fenêtre reste dans le dossier du modèle. "
-                         "Utiliser `common/utils/hf_weights.poids_locaux` (3ᵉ voie).")
+                    if ((isinstance(n, ast.ImportFrom) and 'hf_cache' in (n.module or ''))
+                            or (isinstance(n, ast.Import)
+                                and any('hf_cache' in a.name for a in n.names))):
+                        emplois.append(str(f.relative_to(racine)).replace(chr(92), '/'))
+        surprise = sorted(set(emplois) - set(self.RECOURS_ASSUMES))
+        self.assertEqual(surprise, [],
+                         "emploi NON assumé de `hf_cache_scope`. Vérifier d'abord A/B/C dans la "
+                         "signature de la lib (la contrainte de sam3 était une croyance : elle "
+                         "acceptait `checkpoint_path=`). Si aucun levier n'existe, inscrire le "
+                         "module dans RECOURS_ASSUMES avec sa raison — c'est le geste qui "
+                         "transforme un contournement en décision.")
+
+    def test_la_brique_reste_DISPONIBLE_et_correcte(self):
+        """Elle n'est pas dépréciée : on vérifie qu'elle restaure bien TOUT, absence comprise.
+
+        Sans cette moitié, la garde ci-dessus laisserait pourrir un dernier recours dont
+        personne ne vérifie plus qu'il marche — et on le découvrirait le jour où on en a besoin.
+        """
+        import os
+        from wama.common.utils.hf_cache import hf_cache_scope
+        avant = {k: os.environ.get(k) for k in ('HF_HOME', 'HF_HUB_CACHE',
+                                                'HUGGINGFACE_HUB_CACHE')}
+        temoin = os.environ.pop('WAMA_TEMOIN_ABSENT', None)   # une clé ABSENTE au départ
+        with hf_cache_scope('/tmp/wama-temoin-scope'):
+            self.assertEqual(os.environ['HF_HUB_CACHE'], '/tmp/wama-temoin-scope')
+            import huggingface_hub.constants as c
+            self.assertEqual(c.HF_HUB_CACHE, '/tmp/wama-temoin-scope',
+                             "les CONSTANTES doivent basculer aussi : le hub les fige à "
+                             "l'import, muter l'env seul ne suffit pas dans un worker")
+        for k, v in avant.items():
+            self.assertEqual(os.environ.get(k), v, f"{k} non restauré")
+        if temoin is not None:
+            os.environ['WAMA_TEMOIN_ABSENT'] = temoin

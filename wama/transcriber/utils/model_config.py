@@ -61,6 +61,7 @@ TRANSCRIBER_MODELS = {
 VIBEVOICE_MODELS = {
     'vibevoice-asr': {
         'model_id': 'vibevoice-asr',
+        'engine': 'vibevoice',
         'hf_model_id': 'microsoft/VibeVoice-ASR',
         'type': 'speech-to-text',
         'size_gb': 18,
@@ -79,6 +80,7 @@ VIBEVOICE_MODELS = {
 # Qwen3-ASR models (Alibaba) — context biasing, 52 languages, low VRAM
 QWEN_ASR_MODELS = {
     'qwen3-asr-0.6b': {
+        'engine': 'transformers',
         'model_id': 'Qwen/Qwen3-ASR-0.6B',
         'hf_model_id': 'Qwen/Qwen3-ASR-0.6B',
         'type': 'speech-to-text',
@@ -91,6 +93,7 @@ QWEN_ASR_MODELS = {
         'languages': '52',
     },
     'qwen3-asr-1.7b': {
+        'engine': 'transformers',
         'model_id': 'Qwen/Qwen3-ASR-1.7B',
         'hf_model_id': 'Qwen/Qwen3-ASR-1.7B',
         'type': 'speech-to-text',

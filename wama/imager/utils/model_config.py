@@ -90,6 +90,7 @@ for dir_path in [HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR,
 HUNYUAN_MODELS = {
     'hunyuan-image-2.1': {
         'model_id': 'hunyuan-image-2.1',
+        'engine': 'diffusers',
         'hf_id': 'hunyuanvideo-community/HunyuanImage-2.1-Diffusers',
         'type': 'image',
         'tasks': 't2i',
@@ -110,6 +111,7 @@ COGVIDEOX_MODELS = {
     # ⚠ La variante I2V ci-dessous est un dépôt HF DISTINCT et reste en service.
     'cogvideox-5b-i2v': {
         'model_id': 'cogvideox-5b-i2v',
+        'engine': 'diffusers',
         'hf_id': 'THUDM/CogVideoX-5b-I2V',
         'type': 'video',
         'tasks': 'i2v',
@@ -131,6 +133,7 @@ LTX_MODELS = {
     # ── 13B Distilled — rapide, haute qualité ────────────────────────────────
     'ltx-video-13b-0.9.8-distilled': {
         'model_id': 'ltx-video-13b-0.9.8-distilled',
+        'engine': 'diffusers',
         'hf_id': 'Lightricks/LTX-Video-0.9.8-13B-distilled',
         'type': 'video',
         'tasks': 't2v+i2v',
@@ -146,6 +149,7 @@ LTX_MODELS = {
     # ── 13B Distilled FP8 — meilleur ratio qualité/VRAM sur RTX 4090 ─────────
     'ltx-video-13b-0.9.8-distilled-fp8': {
         'model_id': 'ltx-video-13b-0.9.8-distilled-fp8',
+        'engine': 'diffusers',
         'hf_id': 'Lightricks/LTX-Video-0.9.8-13B-distilled',
         'type': 'video',
         'tasks': 't2v+i2v',
@@ -165,6 +169,7 @@ LTX_MODELS = {
 MOCHI_MODELS = {
     'mochi-1-preview': {
         'model_id': 'mochi-1-preview',
+        'engine': 'diffusers',
         'hf_id': 'genmo/mochi-1-preview',
         'type': 'video',
         'tasks': 't2v',
@@ -197,6 +202,7 @@ STABLE_DIFFUSION_MODELS = {
     },
     'stable-diffusion-xl': {
         'model_id': 'stable-diffusion-xl',
+        'engine': 'diffusers',
         'hf_id': 'stabilityai/stable-diffusion-xl-base-1.0',
         'type': 'image',
         'pipeline': 'sdxl',
@@ -226,6 +232,7 @@ STABLE_DIFFUSION_MODELS = {
 QWEN_IMAGE_MODELS = {
     'qwen-image-2': {
         'model_id': 'qwen-image-2',
+        'engine': 'diffusers',
         'hf_id': 'Qwen/Qwen-Image-2512',
         'type': 'image',
         'tasks': 't2i',
@@ -250,6 +257,7 @@ QWEN_IMAGE_MODELS = {
     },
     'qwen-image-edit': {
         'model_id': 'qwen-image-edit',
+        'engine': 'diffusers',
         'hf_id': 'Qwen/Qwen-Image-Edit-2511',
         'type': 'image',
         'tasks': 'edit',
@@ -279,6 +287,7 @@ QWEN_IMAGE_MODELS = {
 FLUX2_KLEIN_MODELS = {
     'flux2-klein-4b': {
         'model_id': 'flux2-klein-4b',
+        'engine': 'diffusers',
         'hf_id': 'black-forest-labs/FLUX.2-klein-4B',
         'type': 'image',
         'tasks': 't2i',
@@ -305,6 +314,7 @@ LOGO_MODELS = {
     # HF benchmark #1 for local logo generation. Replaces logo-redmond-v2 and amazing-logos-v2.
     'flux-lora-logo-design': {
         'model_id': 'flux-lora-logo-design',
+        'engine': 'diffusers',
         'hf_id': 'Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
         'base_model': 'black-forest-labs/FLUX.1-dev',
         'type': 'image',
@@ -349,6 +359,7 @@ FLUX_MODELS = {
     # du LoRA dès que model_type != 'lora' (diffusers_backend.py:526).
     'flux-1-dev': {
         'model_id': 'flux-1-dev',
+        'engine': 'diffusers',
         'hf_id': 'black-forest-labs/FLUX.1-dev',
         'base_model': 'black-forest-labs/FLUX.1-dev',
         'type': 'image',

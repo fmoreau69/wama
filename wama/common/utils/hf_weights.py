@@ -1,14 +1,31 @@
 """
 Poids d'un modèle rangés dans SON dossier — pour les libs qui n'acceptent pas `cache_dir=`.
 
-LA RÈGLE (une seule, `ROADMAP §5b`) : **le modèle est routé explicitement vers son dossier,
-l'environnement n'est JAMAIS touché.** Elle a deux idiomes, et le choix n'est pas une
-préférence — il est imposé par la lib :
+LA RÈGLE (une seule, `ROADMAP §5b`) : **le modèle PRINCIPAL est routé explicitement vers son
+dossier catégorisé (`models/<catégorie>/<famille>/`), et ses SOUS-DÉPENDANCES HF partagées
+(t5, bert, tokenizers, backbones timm…) vont au CACHE PARTAGÉ** — celui que `settings.py` pose
+une fois au démarrage. Les deux moitiés comptent : router le modèle sans laisser les
+sous-dépendances au cache partagé, c'est éparpiller ; l'inverse, c'est décatégoriser.
 
-    la lib accepte `cache_dir=`   →  `from_pretrained(hf_id, cache_dir=<dossier>)`
-                                     (transformers, diffusers, pyannote… : la majorité)
-    la lib ne l'accepte pas       →  CE MODULE : on télécharge nous-mêmes DANS le dossier,
-                                     et on donne à la lib un CHEMIN LOCAL.
+QUATRE LEVIERS la tiennent, et le choix n'est PAS une préférence — il est imposé par la lib.
+Il se vérifie dans sa SIGNATURE, jamais par habitude (la contrainte de sam3, « n'accepte pas
+de `cache_dir=` », était vraie et a masqué pendant 3 semaines qu'il acceptait mieux) :
+
+    A. la lib accepte `cache_dir=`     →  `from_pretrained(hf_id, cache_dir=<dossier>)`
+                                          transformers, diffusers, pyannote… : la MAJORITÉ
+    B. elle accepte un CHEMIN local    →  CE MODULE : on télécharge nous-mêmes DANS le
+                                          dossier, on donne le chemin (sam3, kokoro)
+    C. elle a SA variable d'env        →  posée UNE FOIS dans `settings.py`, jamais ailleurs
+                                          (`DEEPFACE_HOME`, `AUDIOCRAFT_CACHE_DIR`)
+    D. elle n'offre AUCUN levier       →  `common/utils/hf_cache.hf_cache_scope`, DERNIER
+                                          RECOURS, à déclarer dans `RECOURS_ASSUMES`
+                                          (`tests_hf_cache_routing`)
+
+⚠ Pourquoi D est le dernier et pas l'uniforme : la bascule restaure l'environnement, **jamais
+les fichiers**. Tout ce que la lib télécharge pendant la fenêtre — sous-dépendances comprises —
+reste dans le dossier du modèle, ce qui casse la SECONDE moitié de la règle. C'est le mécanisme
+exact qui a déposé `timm/resnet18` dans le dossier de table-transformer. D reste LÉGITIME quand
+rien d'autre n'existe : ce qui est interdit, c'est d'y aller sans avoir vérifié A, B et C.
 
 ⚠ Pourquoi ce module ne remplace PAS `cache_dir=` là où il existe : `from_pretrained` gère la
 révision, la reprise de téléchargement, le mode hors-ligne et la disposition de cache HF

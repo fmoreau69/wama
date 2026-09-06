@@ -37,6 +37,7 @@ Path(MINIMAX_MUSIC3_DIR).mkdir(parents=True, exist_ok=True)
 
 COMPOSER_MODELS = {
     'musicgen-small': {
+        'engine': 'audiocraft',
         'hf_id': 'facebook/musicgen-small',
         'audiocraft_name': 'small',
         'type': 'music',
@@ -55,6 +56,7 @@ COMPOSER_MODELS = {
         'overhead_s': 12,    # chargement modèle + encodec
     },
     'musicgen-medium': {
+        'engine': 'audiocraft',
         'hf_id': 'facebook/musicgen-medium',
         'audiocraft_name': 'medium',
         'type': 'music',
@@ -71,6 +73,7 @@ COMPOSER_MODELS = {
         'overhead_s': 20,
     },
     'musicgen-melody': {
+        'engine': 'audiocraft',
         'hf_id': 'facebook/musicgen-melody',
         'audiocraft_name': 'melody',
         'type': 'music',
@@ -111,6 +114,7 @@ COMPOSER_MODELS = {
         'overhead_s': 120,
     },
     'audiogen-medium': {
+        'engine': 'audiocraft',
         'hf_id': 'facebook/audiogen-medium',
         'audiocraft_name': 'facebook/audiogen-medium',
         'type': 'sfx',

@@ -194,8 +194,16 @@ class CurseurDeQualiteTest(TestCase):
         from wama.common.services.backend_inventory import inventory
         declares = {e.engine for a in inventory() if not a.generated_from
                     for e in a.entries if e.engine}
-        self.assertTrue(connus <= declares | set(ENGINE_BACKENDS) | {'audio-cpp'},
-                        f"moteurs annoncés sans déclaration : {sorted(connus - declares - set(ENGINE_BACKENDS) - {'audio-cpp'})}")
+        # ⚠ 2026-09-06 — la source s'élargit une 2ᵉ fois, et pour une raison de NATURE, pas de
+        # rattrapage : certains moteurs n'ont PAS de classe de backend et n'en auront jamais,
+        # parce qu'ils ne sont pas du code Python qu'on charge. `audio-cpp` est un binaire C++ ;
+        # `ollama` est un DÉMON. Leur déclaration passe donc par un inventaire enregistré à la
+        # main (`register_engine_inventory`), seule voie possible pour eux. Les lister ici n'est
+        # pas une dérogation : c'est dire que la 2ᵉ voie de déclaration existe et laquelle.
+        HORS_PROCESSUS = {'audio-cpp', 'ollama'}
+        self.assertTrue(connus <= declares | set(ENGINE_BACKENDS) | HORS_PROCESSUS,
+                        f"moteurs annoncés sans déclaration : "
+                        f"{sorted(connus - declares - set(ENGINE_BACKENDS) - HORS_PROCESSUS)}")
         # (b) la POLITIQUE « exécutable », testée sur le mécanisme et non sur un roster.
         # ⚠ Cette assertion figeait `assertNotIn('qwen3-tts', connus)` au motif que « son
         # runtime pip n'est installé nulle part tant que Fabien n'a pas donné le GO ». Elle

@@ -9,12 +9,27 @@ Deux implémentations locales du même geste coexistaient (règle des 2 occurren
     vide constaté).
 Les deux ont été portées ici.
 
-QUAND l'utiliser : uniquement pour une lib qui N'ACCEPTE PAS de `cache_dir=` et lit
-l'env/les constantes au chargement (kokoro, sam3). Les backends qui passent `cache_dir=`
-à `from_pretrained()` gardent le pattern CLAUDE.md (env posé avant import + cache_dir
-explicite) — et `settings.py` pose déjà le défaut global UNE fois au démarrage
-(`HF_DEFAULT_CACHE`). La cible long-terme reste ROADMAP §5b : `cache_dir=` partout, zéro
-mutation d'env par modèle — cette brique est le pont sûr, JAMAIS un permis de muter.
+QUAND l'utiliser — **DERNIER RECOURS, levier D** de la taxonomie écrite dans
+`common/utils/hf_weights.py` : uniquement quand la lib n'offre AUCUN des trois autres leviers
+(A `cache_dir=`, B un chemin local, C sa propre variable d'environnement). Cela se VÉRIFIE dans
+sa signature, jamais par habitude.
+
+⚠ MISE À JOUR 2026-09-06 — les deux adopteurs historiques cités ici (kokoro, sam3) n'en
+relevaient PAS : les deux acceptaient un chemin (`KModel(config=…, model=…)`,
+`build_sam3_image_model(checkpoint_path=…, load_from_HF=False)`), donc le levier B. Ils sont
+convertis. La brique n'a donc plus aucun emploi aujourd'hui — mais elle reste DISPONIBLE et
+TESTÉE, parce que la classe de libs qu'elle couvre peut réapparaître à tout moment.
+*Une contrainte non re-mesurée devient une habitude.*
+
+Le PRIX qui la place en dernier : elle restaure l'environnement, **jamais les fichiers**. Tout
+ce que la lib télécharge pendant la fenêtre reste dans le dossier du modèle — y compris les
+sous-dépendances, qui devraient aller au cache PARTAGÉ (seconde moitié de ROADMAP §5b). C'est
+le mécanisme exact qui a déposé `timm/resnet18` dans le dossier de table-transformer.
+
+Tout emploi se DÉCLARE dans `RECOURS_ASSUMES` (`common/tests_hf_cache_routing.py`) : la garde
+n'interdit pas le recours, elle interdit le recours SILENCIEUX. `settings.py` pose déjà le
+défaut global UNE fois au démarrage (`HF_DEFAULT_CACHE`) ; cette brique reste le pont sûr,
+JAMAIS un permis de muter.
 
 Pourquoi les CONSTANTES en plus de l'env : huggingface_hub fige ces valeurs à l'import
 dans `huggingface_hub.constants` — dans un process où le hub est déjà importé (Django,

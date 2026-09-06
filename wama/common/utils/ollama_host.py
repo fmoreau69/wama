@@ -102,3 +102,43 @@ def ollama_kwargs(**extra) -> dict:
     n'y a pas la même sémantique. Un appelant httpx n'a donc besoin que de `ollama_base()`.
     """
     return {'proxies': ollama_proxies(), **extra}
+
+
+# ── Le DÉMON comme MOTEUR (2026-09-06) ───────────────────────────────────────────────────
+#
+# 29 modèles Ollama ne déclaraient AUCUN moteur : ils échappaient donc entièrement au verdict
+# d'exécutabilité, alors que leur mode de panne le plus courant — le démon éteint — est
+# précisément mesurable. Le « moteur » d'un modèle Ollama n'est pas une librairie Python : c'est
+# le démon. `missing_packages()` répond donc « qu'est-ce qui manque pour que ça tourne ? », ce
+# qui est la vraie question posée par `known_engines()`, pas « quel paquet pip installer ».
+#
+# ⚠ FAIL-SAFE, et c'est la doctrine du dépôt : on ne condamne QUE le positivement inlançable.
+# Un refus de connexion propre = démon éteint (verdict). Toute autre erreur (proxy, DNS, pile
+# réseau) = on ne sait pas, donc on n'accuse pas. Sans cette distinction, un hoquet réseau
+# griserait 29 modèles d'un coup.
+#
+# Le coût réseau est borné par le cache d'importabilité de `backends.manager` (60 s par classe).
+
+class _MoteurOllama:
+    """Porteur d'inventaire pour le moteur `ollama` — pas un `BaseModelBackend`."""
+
+    __slots__ = ()
+
+    @classmethod
+    def missing_packages(cls):
+        import requests
+        try:
+            r = requests.get(f"{ollama_base()}/api/tags", **ollama_kwargs(timeout=2))
+            return [] if r.ok else []          # une réponse, même laide, prouve que ça répond
+        except requests.exceptions.ConnectionError:
+            return ['démon Ollama injoignable']
+        except Exception:
+            return []                          # mesure impossible ≠ moteur absent
+
+    def __repr__(self):
+        return '<moteur ollama>'
+
+
+def ollama_engine_inventory() -> dict:
+    """{'ollama': porteur} — enregistré au `ready()` du substrat commun."""
+    return {'ollama': _MoteurOllama}

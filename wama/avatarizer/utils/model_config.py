@@ -51,6 +51,7 @@ AVATARIZER_MODELS = {
     },
     'musetalk-v1.0': {
         'model_id': 'musetalk-v1.0',
+        'engine': 'musetalk',
         'hf_id': 'TMElyralab/MuseTalk',
         'type': 'lipsync',
         'vram_gb': MUSETALK_VRAM_GB,

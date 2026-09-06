@@ -19,6 +19,12 @@ class CommonConfig(AppConfig):
             from wama.common.backends.manager import register_engine_inventory
             from wama.common.services.backend_inventory import declared_engines
             register_engine_inventory(declared_engines)
+            # Le DÉMON Ollama est un moteur au même titre qu'une librairie : 29 modèles le
+            # nomment, et son mode de panne le plus courant (démon éteint) est mesurable.
+            # Il ne peut pas venir de `declared_engines`, qui dérive des classes de backend —
+            # Ollama n'en a pas, et n'en aura pas : ce n'est pas du code Python qu'on charge.
+            from wama.common.utils.ollama_host import ollama_engine_inventory
+            register_engine_inventory(ollama_engine_inventory)
         except Exception:
             pass
 
