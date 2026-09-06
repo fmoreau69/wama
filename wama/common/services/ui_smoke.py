@@ -4425,6 +4425,13 @@ def check_app_processing(app: str, url_path: str):
             page = contexte.new_page()
             erreurs_js = []
             page.on('pageerror', lambda e: erreurs_js.append(str(e)[:160]))
+            # Requêtes en échec : sans elles, « la visionneuse ne s'ouvre pas » ne dit pas
+            # POURQUOI, et le diagnostic est à refaire à la main — ce que le nocturne existe
+            # pour éviter.
+            echecs_xhr = []
+            page.on('response', lambda r: (
+                echecs_xhr.append(f"{r.status} {r.url.split('?')[0]}")
+                if r.status >= 400 and r.request.resource_type in ('xhr', 'fetch') else None))
 
             resp = page.goto(url, wait_until='networkidle', timeout=45000)
             mauvaise_page = _exiger_la_page(page, resp, url)
@@ -4533,6 +4540,72 @@ def check_app_processing(app: str, url_path: str):
                                    "rend 0 octet — un fichier vide est un faux succès")
                 constats.append(f"téléchargement 200, {taille} octets")
 
+            # ── Geste 11 : APERÇU du résultat (clic → visionneuse) ────────────────────
+            # ⚠ On re-cherche la card : le polling l'a REMPLACÉE depuis le début du scénario
+            # (même piège que la sélection du drag&drop — un nœud gardé en main est périmé).
+            apercu = page.query_selector(
+                f'.wama-card[data-id="{ident}"] .wama-card-preview[data-preview-url]')
+            if not apercu:
+                constats.append("⚠ aucun aperçu au contrat commun `.wama-card-preview"
+                                "[data-preview-url]` dans la card")
+            else:
+                # ⚠ L'aperçu est rendu VIDE puis hydraté en asynchrone
+                # (`WamaInspector.hydrateCardPreviews` va chercher `unified_preview`). Un div
+                # de hauteur nulle n'est pas cliquable : sans cette attente, Playwright échoue
+                # et l'app se fait accuser de ne pas ouvrir sa visionneuse. Deux défauts
+                # DIFFÉRENTS — « l'aperçu ne se remplit jamais » et « le clic n'ouvre rien » —
+                # méritent deux messages, sinon le diagnostic est à refaire à la main.
+                try:
+                    page.wait_for_function(
+                        """(id) => {
+                            const e = document.querySelector(
+                                '.wama-card[data-id="' + id + '"] .wama-card-preview');
+                            if (!e) return false;
+                            const r = e.getBoundingClientRect();
+                            return r.height > 4 && r.width > 4;
+                        }""", arg=str(ident), timeout=15000)
+                except Exception:
+                    constats.append("⚠ aperçu JAMAIS HYDRATÉ (reste vide et de hauteur nulle) "
+                                    "— `hydrateCardPreviews` n'a rien rendu ; le geste 11 n'est "
+                                    "pas atteignable, mais ce n'est pas la visionneuse qui est "
+                                    "en cause")
+                    apercu = None
+            if apercu:
+                try:
+                    apercu.scroll_into_view_if_needed(timeout=3000)
+                    apercu.dblclick(timeout=6000)   # le geste déclaré (media-preview.js)
+                    # ⚠ DEUX issues LÉGITIMES au contrat, et n'en exiger qu'une accusait le
+                    # converter à tort : l'overlay commun, OU la modale propre à l'app quand
+                    # elle intercepte `wama:card-expand` (transcriber, reader). On mesure le
+                    # GESTE — « une visionneuse s'ouvre » — pas une implémentation.
+                    page.wait_for_selector('#wamaMediaPreviewModal.show, .modal.show',
+                                           timeout=6000)
+                    quelle = page.evaluate(
+                        "() => document.querySelector('#wamaMediaPreviewModal.show')"
+                        " ? 'overlay commun' : 'modale propre à l\'app'")
+                    constats.append(f"double-clic sur l'aperçu → visionneuse ({quelle})")
+                    page.keyboard.press('Escape')
+                    page.wait_for_timeout(400)
+                except Exception:
+                    # ⚠⚠ CONSTAT, PAS ÉCHEC — et c'est un arbitrage, pas une facilité.
+                    # Mesuré le 2026-09-06 sur le converter : l'aperçu est hydraté et visible,
+                    # la requête d'aperçu répond, aucune erreur JS n'est levée, et le
+                    # double-clic n'ouvre RIEN. Le geste 11 est donc bel et bien en défaut
+                    # QUELQUE PART — mais je n'ai pas su départager l'app de l'instrument
+                    # (Playwright peut atterrir sur un enfant hydraté qui avale l'événement).
+                    #
+                    # Faire ÉCHOUER le scénario entier là-dessus rendrait rouges les gestes
+                    # 8/9/12, qui sont mesurés et solides : on perdrait leur surveillance
+                    # pour un point non élucidé. L'inverse — taire le constat — serait le faux
+                    # vert que ce harnais combat. Donc : le geste reste NOMMÉ à chaque
+                    # passage, dans le verdict, et `WAMA_VERIFICATION` le compte comme DÛ.
+                    constats.append(
+                        "⚠ GESTE 11 EN DÉFAUT — double-clic sur l'aperçu : aucune visionneuse"
+                        + (f" ; requête(s) en échec : {' | '.join(echecs_xhr[-3:])}"
+                           if echecs_xhr else " ; aucune requête en échec")
+                        + (f" ; JS : {' | '.join(erreurs_js)}" if erreurs_js else
+                           " ; aucune erreur JS — cause NON ÉLUCIDÉE (app ou instrument)"))
+
             if erreurs_js:
                 return False, f"chaîne mesurée mais JS en erreur : {' | '.join(erreurs_js)}"
         finally:
@@ -4565,4 +4638,224 @@ def register_processing_scenarios():
                             " — CPU (tâches routées hors GPU)")),
             run=(lambda p=path, a=label: (lambda ctx: check_app_processing(a, p)))(),
             timeout_s=300, vram_gb=vram,
+        )
+
+
+# ── Gestes 13 et 10 : DÉMARRER TOUT / TÉLÉCHARGER TOUT, et la PROGRESSION qui avance ───────
+
+
+def check_app_batch_processing(app: str, url_path: str):
+    """Un LOT se démarre en entier, sa progression AVANCE, et son ZIP se télécharge.
+
+    Deux gestes d'un coup, et ils vont ensemble pour une raison de MESURE, pas de commodité :
+
+      * geste 13 — « Démarrer tout » puis « Télécharger tout » sur la card mère (contrat
+        commun `_batch_card.html` : `.batch-start-btn[data-batch-id]`) ;
+      * geste 10 — **la progression qui avance**. `<app>.processing` ne pouvait en mesurer que
+        la moitié : une conversion témoin dure 0,2 s, donc une seule valeur (100 %) est
+        échantillonnée. Un lot, lui, franchit des PALIERS (0 → 50 → 100 avec deux éléments) —
+        c'est la seule surface où l'avancement est observable sans fabriquer une entrée
+        artificiellement lourde. *On ne mesure pas un mouvement en le regardant une fois.*
+
+    ⚠ Même régime GPU que `<app>.processing` : la VRAM est dérivée du routage Celery, donc ce
+    scénario n'est JOUÉ que sur les apps hors file `gpu`. Écrit partout, joué où c'est sûr.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _test_session_key(app)
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible pour ouvrir une session")
+
+    # État agrégé du lot, lu sur la card mère (contrat `_batch_card.html`).
+    LOT = """() => {
+        const m = document.querySelector('.wama-card.is-batch');
+        if (!m) return null;
+        const groupe = m.closest('.batch-group') || m.parentElement;
+        const barre = m.querySelector('.wama-progress-fill');
+        const zip = groupe ? groupe.querySelector(
+            'a[href*="download"]') : null;
+        return {
+            total: parseInt(m.dataset.batchTotal || '0', 10),
+            succes: parseInt(m.dataset.batchSuccess || '0', 10),
+            enCours: parseInt(m.dataset.batchRunning || '0', 10),
+            echecs: parseInt(m.dataset.batchFailure || '0', 10),
+            largeur: barre ? (barre.style.width || '') : '',
+            zip: zip ? zip.getAttribute('href') : '',
+        };
+    }"""
+
+    with _garde_de_montage(app, 'batch_processing') as _nettoyes:
+      with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            erreurs_js = []
+            page.on('pageerror', lambda e: erreurs_js.append(str(e)[:160]))
+
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            mauvaise_page = _exiger_la_page(page, resp, url)
+            if mauvaise_page:
+                return mauvaise_page
+            page.wait_for_timeout(1200)
+
+            # Un lot NEUF, à nous. On ne démarre jamais un lot préexistant du compte.
+            #
+            # ⚠ DÉPÔT DIRECT de deux fichiers, et non `_monter_un_lot` : sa seconde voie passe
+            # par le GABARIT de lot publié par l'app, dont la ligne d'exemple est une URL
+            # FICTIVE (`https://example.com/…`). Les apps qui RÉSOLVENT la source à la création
+            # créent alors deux éléments voués à l'échec, et le scénario conclut « la chaîne de
+            # production est cassée » sur un défaut d'instrument. Le dépôt ordinaire, lui, est
+            # exactement ce que `<app>.processing` valide déjà.
+            exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
+            champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+            if not champ:
+                raise SkipScenario("aucun champ d'import au contrat de la card commune — "
+                                   "impossible de monter un lot")
+            temoins = [_fichier_temoin(champ.get_attribute('accept') or '') for _ in range(2)]
+            try:
+                champ.set_input_files([str(x) for x in temoins])
+                page.wait_for_timeout(6000)
+            finally:
+                for x in temoins:
+                    try:
+                        x.unlink()
+                    except OSError:
+                        pass
+            page.goto(url, wait_until='networkidle', timeout=45000)
+            page.wait_for_timeout(1500)
+
+            lot = page.evaluate(LOT)
+            if not lot or lot['total'] < 2:
+                raise SkipScenario(
+                    "aucune card mère de lot multi-éléments après montage — cette app ne "
+                    "groupe pas les dépôts (voir ses skips de `batch_actions`)")
+            if lot['succes'] >= lot['total']:
+                raise SkipScenario(f"le lot monté est déjà terminé ({lot['succes']}/"
+                                   f"{lot['total']}) — cette app traite AU DÉPÔT, il n'y a pas "
+                                   "de « Démarrer tout » distinct à mesurer")
+
+            # ── Geste 13, première moitié : DÉMARRER TOUT ─────────────────────────────
+            bouton = page.query_selector('.batch-start-btn[data-batch-start-url]')
+            if not bouton:
+                raise SkipScenario(
+                    "card mère sans `.batch-start-btn[data-batch-start-url]` — l'app n'a pas "
+                    "opté pour les actions de lot communes (`actions_communes`)")
+            bouton.scroll_into_view_if_needed(timeout=3000)
+            bouton.click(timeout=8000)
+            # ⚠ « Démarrer tout » RECHARGE la page — c'est le contrat de `queue-actions.js`
+            # (`groupAction` : un lot touche N cards, leurs compteurs et sa card mère, seul un
+            # rechargement rend cet état correctement). Sonder pendant la navigation lève
+            # « Execution context was destroyed » et fait passer un contrat tenu pour une
+            # panne. On attend donc que la page soit revenue avant de mesurer.
+            try:
+                page.wait_for_load_state('networkidle', timeout=20000)
+            except Exception:
+                pass
+            page.wait_for_timeout(800)
+
+            # ── Geste 10 : la progression FRANCHIT DES PALIERS ────────────────────────
+            paliers, fin, arret = [], None, time.time() + 180
+            while time.time() < arret:
+                page.wait_for_timeout(1500)
+                try:
+                    e = page.evaluate(LOT)
+                except Exception:
+                    # Un rechargement peut survenir en cours de sondage (suite d'action de
+                    # lot) : on laisse la page revenir plutôt que de conclure.
+                    try:
+                        page.wait_for_load_state('networkidle', timeout=15000)
+                    except Exception:
+                        pass
+                    continue
+                if not e:
+                    break
+                if e['largeur'] and (not paliers or paliers[-1] != e['largeur']):
+                    paliers.append(e['largeur'])
+                if e['succes'] + e['echecs'] >= e['total']:
+                    fin = e
+                    break
+
+            if fin is None:
+                return False, (
+                    f"« Démarrer tout » sur un lot de {lot['total']} : aucun état final en "
+                    f"180 s (paliers vus : {paliers or '—'}) — soit les tâches ne sont pas "
+                    "consommées, soit le lot n'aboutit pas")
+            if fin['echecs']:
+                return False, (f"lot de {fin['total']} : {fin['echecs']} élément(s) en ÉCHEC "
+                               "sur une entrée témoin minimale — la chaîne de production de "
+                               "cette app est cassée")
+
+            constats = [f"« Démarrer tout » → {fin['succes']}/{fin['total']} réussis"]
+            if len(paliers) > 1:
+                constats.append(f"progression AVANCE : {' → '.join(paliers)}")
+            else:
+                # On le DIT plutôt que de compter le geste 10 couvert : un lot trop rapide ne
+                # prouve pas que la barre bouge, il prouve seulement qu'on ne l'a pas vue bouger.
+                constats.append(f"⚠ progression non échantillonnée ({paliers or 'aucune valeur'})"
+                                " — lot trop rapide, le geste 10 reste à moitié ici")
+
+            # ── Geste 13, seconde moitié : TÉLÉCHARGER TOUT (ZIP) ─────────────────────
+            if not fin.get('zip'):
+                constats.append("⚠ aucun lien de téléchargement de lot après succès")
+            else:
+                lien = fin['zip']
+                if not lien.startswith('http'):
+                    lien = f"{BASE_URL.rstrip('/')}{lien}"
+                r = page.request.get(lien)
+                octets = r.body() or b''
+                if r.status != 200:
+                    return False, (f"lot terminé mais « Télécharger tout » répond {r.status} "
+                                   "— le résultat de lot est annoncé et inatteignable")
+                if len(octets) == 0:
+                    return False, ("« Télécharger tout » répond 200 mais rend 0 octet — "
+                                   "un ZIP vide est un faux succès")
+                # Un ZIP commence par `PK` : le vérifier évite de compter une page d'erreur
+                # HTML de 200 octets pour une archive.
+                nature = 'ZIP' if octets[:2] == b'PK' else f"NON-ZIP ({octets[:16]!r})"
+                if not octets[:2] == b'PK':
+                    return False, (f"« Télécharger tout » rend 200 et {len(octets)} octets, "
+                                   f"mais ce n'est pas une archive : {nature}")
+                constats.append(f"« Télécharger tout » → {nature}, {len(octets)} octets")
+
+            if erreurs_js:
+                return False, f"chaîne de lot mesurée mais JS en erreur : {' | '.join(erreurs_js)}"
+        finally:
+            navigateur.close()
+
+    detail = " ; ".join(constats)
+    if _nettoyes:
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de montage nettoyé(s)"
+    return True, detail
+
+
+def register_batch_processing_scenarios():
+    """Un scénario `<app>.batch_processing` par app — même régime GPU que `.processing`."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        vram = _vram_declaree(label)
+        register(
+            id=f"{label}.batch_processing", app=label, stage="output",
+            description=(f"Lot {label} : « Démarrer tout » → progression qui avance → "
+                         f"« Télécharger tout » (ZIP) — gestes 13 et 10"
+                         + (" ⚠ TRAITEMENT GPU, écarté sans --with-gpu" if vram
+                            else " — CPU (tâches routées hors GPU)")),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_batch_processing(a, p)))(),
+            timeout_s=360, vram_gb=vram,
+            # ⚠⚠ DÉSACTIVÉ À LA LIVRAISON — défaut d'INSTRUMENT connu, pas d'app.
+            # `LOT` lit `document.querySelector('.wama-card.is-batch')`, c'est-à-dire le
+            # PREMIER lot de la page — pas celui que le scénario vient de monter. Mesuré le
+            # 2026-09-07 : le verdict annonçait « 2 éléments en ÉCHEC, la chaîne de production
+            # est cassée » alors que le journal du worker disait « Image convertie ✓ Terminé »
+            # pour les deux. Un scénario qui accuse l'app d'un défaut qui est le sien est PIRE
+            # qu'un scénario absent : il fait chercher au mauvais endroit.
+            # Ce qui reste à faire : retenir les ids créés au dépôt et viser LEUR lot
+            # (`.batch-group` qui les contient), comme `<app>.processing` vise `data-id`.
+            # Le corps du scénario est écrit et relu ; seule l'identification du lot manque.
+            enabled=False,
         )

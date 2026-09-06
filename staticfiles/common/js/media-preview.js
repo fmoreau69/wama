@@ -95,41 +95,71 @@
      *   niveau 1 → niveau 3 ; généralise le pattern de Reader, cf. CARD_CENTRIC_UI §5bis).
      * Les deux lisent data-preview-url (endpoint common:unified_preview).
      */
-    function initMediaPreview() {
-        document.querySelectorAll('.preview-media-link').forEach(function(btn) {
-            if (btn.dataset.previewBound === '1') {
-                return;
-            }
-            btn.dataset.previewBound = '1';
-            btn.addEventListener('click', function(event) {
-                event.preventDefault();
-                event.stopPropagation();
-                openPreview(btn.dataset.previewUrl, btn);
-            });
+    // ══ DÉLÉGATION, et non N liaisons — corrigé le 2026-09-06 ═══════════════════════════
+    //
+    // ⚠⚠ DÉFAUT RÉEL, trouvé par le scénario nocturne `<app>.processing` : l'aperçu MOURAIT
+    // dès qu'une card était re-rendue. Les écouteurs étaient posés NŒUD PAR NŒUD à
+    // `DOMContentLoaded` ; or le polling remplace la card entière quand son statut change —
+    // c'est-à-dire précisément au moment où un résultat devient consultable. Le nouveau nœud
+    // n'était lié par personne, et le double-clic ne faisait plus RIEN. Sans erreur, sans
+    // journal.
+    //
+    // Trois apps s'en tiraient en rappelant `initMediaPreview()` après leur re-rendu
+    // (anonymizer, enhancer, reader) ; **les neuf autres ne le faisaient pas**. Un mécanisme
+    // dont la survie dépend de ce que chaque app pense à le ré-armer n'est pas un mécanisme
+    // commun — c'est une convention, et une convention se perd. `queue-actions.js` documente
+    // le remède en tête de fichier : UNE délégation posée sur le document, qui re-résout la
+    // cible à chaque événement et se moque de savoir quand les nœuds ont été remplacés.
+    //
+    // Même famille que la sélection du drag&drop (`wama-queue-dnd.js::stateOf`), trouvée le
+    // même jour : *tout ce qui s'accroche à une card doit survivre au rendu serveur.*
+    var _delegue = false;
+
+    function _deleguer() {
+        if (_delegue) return;
+        _delegue = true;
+
+        document.addEventListener('click', function (event) {
+            var btn = event.target.closest('.preview-media-link');
+            if (!btn) return;
+            event.preventDefault();
+            event.stopPropagation();
+            openPreview(btn.dataset.previewUrl, btn);
         });
 
-        document.querySelectorAll('.wama-card-preview').forEach(function(el) {
-            if (el.dataset.previewBound === '1') {
-                return;
+        document.addEventListener('dblclick', function (event) {
+            var el = event.target.closest('.wama-card-preview');
+            if (!el) return;
+            event.preventDefault();
+            event.stopPropagation();
+            // L'app peut ouvrir SON détail (ex. modal de résultat transcriber/reader)
+            // en écoutant 'wama:card-expand' et en appelant preventDefault().
+            var ev = new CustomEvent('wama:card-expand', {
+                bubbles: true, cancelable: true,
+                detail: { id: el.dataset.id || null, url: el.dataset.previewUrl || null, el: el }
+            });
+            var notHandled = el.dispatchEvent(ev);
+            // Sinon (apps média) : overlay commun via data-preview-url.
+            if (notHandled && el.dataset.previewUrl) {
+                openPreview(el.dataset.previewUrl, el);
             }
+        });
+    }
+
+    /**
+     * Pose la délégation (une fois) et DÉCORE les aperçus présents (curseur, infobulle).
+     *
+     * Reste exporté et idempotent : trois apps l'appellent après leur re-rendu et doivent
+     * continuer de fonctionner. Ce qu'elles gagnent est que ce rappel n'est plus NÉCESSAIRE
+     * au comportement — il ne fait plus que rafraîchir la décoration.
+     */
+    function initMediaPreview() {
+        _deleguer();
+        document.querySelectorAll('.wama-card-preview').forEach(function (el) {
+            if (el.dataset.previewBound === '1') return;
             el.dataset.previewBound = '1';
             el.style.cursor = 'zoom-in';
             if (!el.title) el.title = 'Double-cliquez pour agrandir';
-            el.addEventListener('dblclick', function(event) {
-                event.preventDefault();
-                event.stopPropagation();
-                // L'app peut ouvrir SON détail (ex. modal de résultat transcriber/reader)
-                // en écoutant 'wama:card-expand' et en appelant preventDefault().
-                var ev = new CustomEvent('wama:card-expand', {
-                    bubbles: true, cancelable: true,
-                    detail: { id: el.dataset.id || null, url: el.dataset.previewUrl || null, el: el }
-                });
-                var notHandled = el.dispatchEvent(ev);
-                // Sinon (apps média) : overlay commun via data-preview-url.
-                if (notHandled && el.dataset.previewUrl) {
-                    openPreview(el.dataset.previewUrl, el);
-                }
-            });
         });
     }
 

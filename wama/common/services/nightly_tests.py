@@ -390,6 +390,7 @@ try:
                                                register_import_scenarios,
                                                register_inspector_actions_scenarios,
                                                register_history_scenarios,
+                                               register_batch_processing_scenarios,
                                                register_processing_scenarios,
                                                register_queue_dnd_scenarios,
                                                register_send_to_scenarios,
@@ -450,6 +451,11 @@ try:
     # mobilise un modèle : seul le converter (aucun modèle, tâches routées sur `default`) le
     # joue chaque nuit. Les autres sont ÉCRITS et attendent `--with-gpu`.
     register_processing_scenarios()
+    # 2026-09-06 — gestes 13 et 10 : « Démarrer tout » / « Télécharger tout » sur un LOT, et
+    # la PROGRESSION qui avance. Le lot est la seule surface où l'avancement s'échantillonne
+    # sans fabriquer une entrée artificiellement lourde : il franchit des paliers (0 → 50 →
+    # 100), là où un élément seul saute à 100 % en 0,2 s. Même régime GPU que `.processing`.
+    register_batch_processing_scenarios()
     # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
     # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
     # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais
