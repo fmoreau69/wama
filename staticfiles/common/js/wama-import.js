@@ -24,11 +24,24 @@
  *     csrfToken:      APP.csrfToken,
  *     dropZoneId:     'converterDropZone',
  *     fileInputId:    'converterFileInput',
+ *     folderInputId:  'converterFolderInput',       // optionnel : <input webkitdirectory>
  *     batch:          window._batchImport,          // instance WamaBatchImport (optionnel)
+ *     batchScope:     'single' | 'each',            // défaut 'single' : lot testé si fichier SEUL
  *     consolidateUrl: APP.urls.consolidate,         // optionnel : regroupe N dépôts en lot
- *     extraFields:    function (fd) { … },          // optionnel : champs POST supplémentaires
- *     afterImport:    function (ids) { … },         // défaut : rechargement de la page
+ *     consolidateField: 'ids',                      // 'job_ids' pour le contrat historique
+ *     multiple:       false,                        // true : N fichiers en UNE requête (champ `files`)
+ *     fieldName:      'file',                       // nom du champ POST (défaut : file / files)
+ *     beforeFile:     function (file) { … },        // optionnel : rendre false = fichier écarté
+ *     extraFields:    function (fd, file) { … },    // optionnel : champs POST supplémentaires
+ *     afterImport:    function (ids, reponses) {…}, // défaut : rechargement de la page
  *   });
+ *
+ * Réponse d'upload acceptée : `{id}` / `{job_id}` / `{pk}` (scalaire), ou une LISTE —
+ * `{ids:[…]}`, `{created:[{id}…]}`, `{added:[{id}…]}` (reader, anonymizer).
+ *
+ * Évolutions du 2026-09-05 (ROUTE « Portage F2 ») — chacune répond à un comportement qu'une
+ * app en place a DÉJÀ et que la brique ne savait pas faire ; les DÉFAUTS sont inchangés, le
+ * gabarit généré se comporte exactement comme avant.
  */
 (function (global) {
   'use strict';
@@ -70,24 +83,47 @@
       return (v === null || v === '' ) ? null : v;
     }
 
-    /** Envoie UN fichier. Rend son identifiant, ou null (l'erreur est déjà signalée). */
-    async function envoyer(file) {
+    /**
+     * Identifiants d'une réponse — scalaire à la racine OU LISTE (2026-09-05, ROUTE
+     * « Portage F2 » évolution 1). Deux apps en place répondent une liste : reader
+     * `{created:[…], multi}` (N fichiers en une requête) et anonymizer `{added:[…]}`. Avec la
+     * lecture scalaire seule, `ids` restait VIDE et `handleFiles` sortait sans reload ni
+     * message — le mode de panne le plus silencieux qui soit, précisément celui que l'en-tête
+     * de cette brique dit vouloir éviter. Éléments de liste : objets à id, ou scalaires.
+     */
+    function identifiants(data) {
+      if (!data || typeof data !== 'object') return [];
+      var un = identifiant(data);
+      if (un != null) return [un];
+      var liste = data.ids || data.created || data.added || data.items;
+      if (!Array.isArray(liste)) return [];
+      return liste.map(function (x) { return (x && typeof x === 'object') ? identifiant(x) : x; })
+                  .filter(function (v) { return v != null && v !== ''; });
+    }
+
+    /**
+     * Envoie UN fichier, ou TOUS (`cfg.multiple` : une seule requête, champ répété — reader
+     * poste `files` × N et son serveur groupe le lot lui-même, évolution 2). Rend
+     * `{ids, data}` ; `ids` vide si erreur (déjà signalée).
+     */
+    async function envoyer(fichiers) {
       var fd = new FormData();
-      fd.append(cfg.fieldName || 'file', file);
-      if (typeof cfg.extraFields === 'function') cfg.extraFields(fd, file);
+      var champ = cfg.fieldName || (cfg.multiple ? 'files' : 'file');
+      fichiers.forEach(function (f) { fd.append(champ, f); });
+      if (typeof cfg.extraFields === 'function') cfg.extraFields(fd, fichiers[0], fichiers);
       try {
         var resp = await poster(cfg.uploadUrl, fd);
         var data = {};
         try { data = await resp.json(); } catch (e) { data = {}; }
         if (!resp.ok || data.error) {
           signaler('Import : ' + (data.error || resp.statusText || 'échec'));
-          return null;
+          return { ids: [], data: data };
         }
         if (global.WamaFM && WamaFM.uploaded) WamaFM.uploaded();
-        return identifiant(data);
+        return { ids: identifiants(data), data: data };
       } catch (err) {
         signaler('Import : ' + (err && err.message ? err.message : 'erreur réseau'));
-        return null;
+        return { ids: [], data: null };
       }
     }
 
@@ -99,16 +135,46 @@
       files = Array.prototype.slice.call(files || []);
       if (!files.length) return;
 
-      // Un fichier SEUL peut être un descripteur de lot : la décision appartient au
-      // formalisme commun (structure du contenu), pas à cette brique.
-      if (files.length === 1 && cfg.batch && cfg.batch.detectAndHandle) {
-        if (await cfg.batch.detectAndHandle(files[0])) return;
+      // Un fichier peut être un descripteur de LOT : la décision appartient au formalisme
+      // commun (structure du contenu), pas à cette brique. Portée DÉCLARÉE (évolution 6) :
+      //   'single' (défaut) — seulement quand un fichier est déposé SEUL (le gabarit généré) ;
+      //   'each'            — chaque fichier est testé, les lots reconnus sortent de l'envoi
+      //                       (enhancer, synthesizer font ainsi aujourd'hui).
+      if (cfg.batch && cfg.batch.detectAndHandle) {
+        if ((cfg.batchScope || 'single') === 'each') {
+          var restants = [];
+          for (var b = 0; b < files.length; b++) {
+            if (!(await cfg.batch.detectAndHandle(files[b]))) restants.push(files[b]);
+          }
+          files = restants;
+          if (!files.length) return;
+        } else if (files.length === 1) {
+          if (await cfg.batch.detectAndHandle(files[0])) return;
+        }
       }
 
-      var ids = [];
-      for (var i = 0; i < files.length; i++) {
-        var id = await envoyer(files[i]);
-        if (id != null) ids.push(id);
+      // Refus AVANT envoi (évolution 3) : `beforeFile(file) → false` écarte le fichier — 4 apps
+      // refusent une extension ou exigent un réglage avant d'envoyer (converter, enhancer audio,
+      // imager, avatarizer). `extraFields` ne pouvait pas annuler ; ce hook le peut. Il dit
+      // lui-même pourquoi (toast) : la brique ne signale pas un refus qu'elle n'a pas décidé.
+      if (typeof cfg.beforeFile === 'function') {
+        var gardes = [];
+        for (var g = 0; g < files.length; g++) {
+          if ((await cfg.beforeFile(files[g])) !== false) gardes.push(files[g]);
+        }
+        files = gardes;
+        if (!files.length) return;
+      }
+
+      var ids = [], reponses = [];
+      if (cfg.multiple) {
+        var r = await envoyer(files);
+        ids = r.ids; reponses.push(r.data);
+      } else {
+        for (var i = 0; i < files.length; i++) {
+          var ri = await envoyer([files[i]]);
+          ids = ids.concat(ri.ids); reponses.push(ri.data);
+        }
       }
       if (!ids.length) return;
 
@@ -129,7 +195,9 @@
         try { await poster(cfg.consolidateUrl, fd); } catch (e) { /* non bloquant */ }
       }
 
-      if (typeof cfg.afterImport === 'function') cfg.afterImport(ids);
+      // `afterImport(ids, reponses)` (évolution 7) : 5 apps insèrent la card dans le DOM au
+      // lieu de recharger — elles ont besoin de la RÉPONSE, pas seulement de l'id.
+      if (typeof cfg.afterImport === 'function') cfg.afterImport(ids, reponses);
       else global.location.reload();
     }
 

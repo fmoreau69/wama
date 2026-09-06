@@ -1967,20 +1967,30 @@ anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas fai
 | **avatarizer** | **aucun upload** — `handleAudioFile` (whitelist MIME, aperçu) | — (route existe, jamais appelée) | oui | insertion DOM | dépôt = **ATTACHE** | ❌ **mode `attach`** |
 | **composer** | **aucun upload, aucun handler** : la zone n'est câblée que par `WamaBatchImport.hookDropZone` | — | oui (hook) | — | 🔴 **un fichier NON-lot déposé est AVALÉ SANS TRACE** (`batch-import.js:256` : « let the app deal with it » — personne) | ⚠ **gain net** dès qu'une vue `upload` existe |
 
-**Ce que la brique doit GAGNER avant de couvrir le parc** (par ordre de rendement) :
-1. **réponse LISTE** (`{ids}` / `created[]` / `added[]`) — sans elle anonymizer et reader
-   sont hors d'atteinte, et le mode de panne est le plus silencieux qui soit ;
-2. **`multiple: true`** — N fichiers en UNE requête, champ répété (reader) ;
-3. **`beforeFile(file) → false`** qui ANNULE — 4 apps refusent un fichier avant l'envoi
-   (`extraFields` ne peut pas annuler) ;
-4. ✅ **drop de DOSSIER + `folderInputId`** — fait le 05/09 ;
-5. **mode `attach`** — le fichier va dans un `<input>` cible, pas vers `uploadUrl` (imager,
+**Ce que la brique doit GAGNER avant de couvrir le parc** (par ordre de rendement) —
+**5 des 7 LIVRÉES le 05/09 soir**, défauts inchangés (le gabarit généré se comporte comme
+avant), contrat vérifié en navigateur avec le réseau intercepté (aucune card créée) :
+1. ✅ **réponse LISTE** (`{ids}` / `created[]` / `added[]` / `items[]`, éléments objets ou
+   scalaires) — mesuré : `created:[{id:11},{id:12}]` → `ids=[11,12]` ; `added:[{id:3}]` → `[3]` ;
+2. ✅ **`multiple: true`** — N fichiers en UNE requête, champ `files` répété — mesuré : 2
+   fichiers → **1 POST** à 2 champs, `afterImport` reçoit 1 réponse ;
+3. ✅ **`beforeFile(file) → false`** écarte AVANT l'envoi — mesuré : 3 fichiers, le 2ᵉ refusé →
+   2 POST puis la consolidation ;
+4. ✅ **drop de DOSSIER + `folderInputId`** — `converter_01.folder_import` ✓ par la brique ;
+5. ⏳ **mode `attach`** — le fichier va dans un `<input>` cible, pas vers `uploadUrl` (imager,
    avatarizer, mélodie du composer) : 3 apps sur 10 ne postent jamais fichier par fichier.
    ⚠ C'est le même mouvement que `WamaApp.injectFiles` (drag depuis l'explorateur) — une seule
-   mécanique, deux entrées ;
-6. **`batchScope: 'single' | 'each'`** — la brique impose « si 1 fichier », enhancer et
-   synthesizer testent chaque fichier ;
-7. **`afterImport(ids, payload)`** — 5 apps insèrent dans le DOM au lieu de recharger.
+   mécanique, deux entrées. **À faire avec la card v4** (c'est sa modalité « attache ») ;
+6. ✅ **`batchScope: 'single' | 'each'`** — mesuré : `each` sur `[lot.txt, a.txt]` → le lot sort,
+   1 POST pour `a.txt` ;
+7. ✅ **`afterImport(ids, reponses)`** — les réponses brutes accompagnent les ids.
+
+🔴 **Règle de câblage (Fabien, 05/09) : rien ne bascule si un geste tombe.** La brique couvre
+d'abord chaque comportement existant ; chaque app bascule ensuite UNE par UNE, prouvée par ses
+5 gestes nocturnes AVANT et APRÈS. La brique est liée à des **ids** (`dropZoneId`,
+`fileInputId`, `folderInputId`) et à `data-wama-depot`, pas à une version de card : une v4 qui
+garde ces ids se branche sans changer une ligne de JS — c'est ce qui rend le portage et la v4
+indépendants.
 
 **Ordre de câblage proposé** (du sûr au risqué) : transcriber → converter → describer →
 synthesizer → enhancer-image → composer (vue `upload` à créer, gain net) → reader (2 et 1) →
