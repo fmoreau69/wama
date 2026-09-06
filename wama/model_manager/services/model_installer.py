@@ -644,6 +644,15 @@ def pip_install_packages(packages, timeout: int = 1800, no_deps: bool = False) -
             capture_output=True, text=True, timeout=timeout,
         )
         if proc.returncode == 0:
+            # Le verdict d'importabilité des backends est mémoïsé une minute (perf des pages
+            # qui listent le catalogue, 05/09) : une install fraîche doit ré-autoriser TOUT DE
+            # SUITE, pas à l'expiration — c'est le contrat « un backend qui apparaît
+            # ré-autorise seul » (03/09), tenu ici pour l'installeur.
+            try:
+                from wama.common.backends.manager import invalidate_engine_cache
+                invalidate_engine_cache()
+            except Exception:
+                pass
             return {'ok': True, 'installed': pkgs}
         return {'ok': False, 'installed': [], 'error': (proc.stderr or '')[-2000:]}
     except Exception as e:

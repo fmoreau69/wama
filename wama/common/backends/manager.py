@@ -67,8 +67,41 @@ def engine_backends() -> dict:
     return carte
 
 
+#: Verdict d'IMPORTABILITÉ par classe de backend : {classe: (instant, exécutable)}.
+#: Mémoïsé à court terme (2026-09-05) — `missing_packages()` interroge `importlib.find_spec`
+#: pour chaque paquet de chaque backend, soit **400 `find_spec` et 2 904 `stat` sur `/mnt/d`
+#: par appel** (profilé). `get_registry_models` appelait `backend_missing` PAR MODÈLE (×8),
+#: et la page synthesizer trois fois `get_registry_models` : ~24 inventaires disque par
+#: rendu, **4,5 s** pour `/synthesizer/` contre 0,6 s pour `/transcriber/` — c'est ce qui
+#: faisait tomber le geste nocturne `synthesizer.import` (mesure pendant le rechargement).
+#: La doctrine du 03/09 tient : les INVENTAIRES sont relus à chaque appel (un backend
+#: ENREGISTRÉ ré-autorise seul, `tests_auto_model` le tient) ; seul le `stat` du disque n'est
+#: pas refait dans la minute. Un pip install n'est pas un événement de la seconde — et
+#: `invalidate_engine_cache()` existe pour l'installeur qui veut un verdict immédiat.
+_EXECUTABLE_CACHE: dict = {}
+ENGINE_CACHE_TTL_S = 60.0
+
+
+def invalidate_engine_cache() -> None:
+    """À appeler après une installation de librairie : le prochain `known_engines()`
+    re-mesure l'importabilité de chaque backend."""
+    _EXECUTABLE_CACHE.clear()
+
+
+def _executable(cls) -> bool:
+    import time
+    now = time.monotonic()
+    hit = _EXECUTABLE_CACHE.get(cls)
+    if hit is not None and now - hit[0] < ENGINE_CACHE_TTL_S:
+        return hit[1]
+    ok = not getattr(cls, 'missing_packages', lambda: [])()
+    _EXECUTABLE_CACHE[cls] = (now, ok)
+    return ok
+
+
 def known_engines() -> set:
-    """Moteurs réellement EXÉCUTABLES — relus à CHAQUE appel (ré-autorisation auto).
+    """Moteurs réellement EXÉCUTABLES — inventaires relus à CHAQUE appel (ré-autorisation
+    auto) ; le verdict d'importabilité par classe est mémoïsé une minute (cf. ci-dessus).
 
     ⚠ La politique « exécutable » (backend enregistré ET runtime importable) vit ICI
     depuis le 2026-09-03, plus chez chaque producteur : elle y était recopiée, donc
@@ -82,8 +115,7 @@ def known_engines() -> set:
         try:
             res = fn()
             if isinstance(res, dict):
-                moteurs.update(k for k, c in res.items()
-                               if not getattr(c, 'missing_packages', lambda: [])())
+                moteurs.update(k for k, c in res.items() if _executable(c))
             else:
                 moteurs.update(res)
         except Exception as e:
