@@ -1,153 +1,137 @@
 /**
- * WAMA — ZONE DE PREVIEW de la card d'entrée : bascule de modalité par SLOT (card v4).
- * Spec : CARD_DESIGN.md §11.11 · maquette : docs/card_designs/card_v4_maquette.html
+ * WAMA — ZONE DE PREVIEW de la card d'entrée (card v4) : ports en onglets, modalités dans la
+ * preview, bascule sur les fichiers attachés. Spec : CARD_DESIGN.md §11.11 B / B bis / D.
  *
  * Le contrat, en une phrase : le PORT est la case, la MODALITÉ est ce qu'on y met.
- *   - une sous-division (`[data-wama-slot]`) par port déclaré, TOUJOURS visible ;
- *   - ses icônes (`[data-slot-mod]`) basculent le pane actif (`[data-slot-pane]`) ;
- *   - la hauteur ne change JAMAIS — ce qui déborde défile (CSS wama-input-slots.css).
+ *   - onglet `[data-port-tab]`  → montre le pane `[data-port-pane]` du port ;
+ *   - face `mods` du pane       → TOUTES les modalités du port, visibles d'un coup ;
+ *   - face `files`              → ce qui est attaché à l'input du port (liste ou aperçu) ;
+ *   - la hauteur ne change JAMAIS (CSS) ; ce qui déborde défile.
  *
- * Ce que cette brique NE fait pas, et pourquoi : elle n'envoie rien au serveur. L'import
- * reste le geste des briques existantes (`WamaImport`, `batch-import.js`, `MediaPicker`) et
- * du JS d'app, dont les ids sont préservés par le gabarit. Ajouter un second chemin d'upload
- * ici créerait exactement la duplication que la v4 cherche à supprimer.
+ * CE QUE CETTE BRIQUE NE FAIT PAS, et pourquoi : elle n'ENVOIE rien. L'import reste le geste
+ * des briques existantes — `WamaImport` (liée aux ids `dropZoneId`/`fileInputId`/`folderInputId`,
+ * qui sont ceux de la v3), `batch-import.js`, `MediaPicker`, `WamaInputMatch` (chip du fichier
+ * de référence, requis/suggéré) — et du JS d'app, dont les ids sont préservés. La modalité
+ * « attache » d'une card `data-wama-depot="attache"` n'est PAS un autre chemin : le fichier
+ * entre dans l'input du port, et le `change` de l'app fait le reste (le geste de MediaPicker).
  *
- * Zéro code par app : auto-init sur DOMContentLoaded, comme wama-new-item-card.js.
+ * Zéro code par app : auto-init sur DOMContentLoaded. Garde anti-double-init comme
+ * wama-new-item-card.js.
  */
-(function () {
+(function (global) {
     'use strict';
 
-    /** Bascule le pane actif d'un slot. Silencieux si la modalité n'a pas de pane rendu
-     *  (cas légitime : `folder` n'est émis que pour un port `multi`). */
-    function activate(slot, modality) {
-        var pane = slot.querySelector('[data-slot-pane="' + modality + '"]');
-        if (!pane) return false;
-        slot.querySelectorAll('[data-slot-pane]').forEach(function (p) {
-            p.classList.toggle('is-active', p === pane);
-        });
-        slot.querySelectorAll('[data-slot-mod]').forEach(function (m) {
-            m.classList.toggle('is-active', m.dataset.slotMod === modality);
-        });
-        return true;
+    function inputOf(pane) {
+        var id = pane.dataset.portInput;
+        return (id && document.getElementById(id)) || pane.querySelector('input[type="file"]');
     }
 
-    /** Rend la LISTE des fichiers attachés — ou la preview quand il n'y en a qu'UN.
-     *  La règle vit ici et nulle part ailleurs (§11.11 E) : une preview de média n'a de
-     *  sens qu'à un seul fichier ; à N, c'est une liste qui défile. */
-    function renderFiles(slot, files) {
-        var list = slot.querySelector('[data-slot-filelist]');
-        var meta = slot.querySelector('[data-slot-filemeta]');
+    function showFace(pane, name) {
+        pane.querySelectorAll('[data-port-face]').forEach(function (f) {
+            f.classList.toggle('is-active', f.dataset.portFace === name);
+        });
+    }
+
+    /** Liste des fichiers attachés au port — ou l'aperçu quand il n'y en a qu'UN (§11.11 E).
+     *  La règle vit ici et nulle part ailleurs : une preview de MÉDIA n'a de sens qu'à un
+     *  fichier ; à N, c'est une liste retirable qui défile, même cadre, même hauteur. */
+    function renderFiles(card, pane) {
+        var input = inputOf(pane);
+        var list = pane.querySelector('[data-files-list]');
+        var meta = pane.querySelector('[data-files-meta]');
+        var title = pane.querySelector('[data-files-title]');
+        var tab = card.querySelector('[data-port-tab="' + pane.dataset.portPane + '"] [data-port-count]');
+        var files = (input && input.files) ? Array.prototype.slice.call(input.files) : [];
+        if (tab) tab.textContent = files.length ? '· ' + files.length : '';
         if (!list) return;
         list.textContent = '';
-        if (!files || !files.length) {
-            activate(slot, 'drop');
-            if (meta) meta.textContent = '';
-            return;
-        }
+        if (!files.length) { showFace(pane, 'mods'); if (meta) meta.textContent = ''; return; }
         var total = 0;
-        Array.prototype.forEach.call(files, function (f, i) {
+        files.forEach(function (f, i) {
             total += f.size || 0;
             var chip = document.createElement('span');
-            chip.className = 'badge bg-info bg-opacity-10 text-info border border-info border-opacity-25';
-            chip.textContent = f.name;
+            chip.className = 'wama-file-chip';
+            chip.title = f.name;
+            chip.appendChild(document.createTextNode(f.name));
             var x = document.createElement('span');
-            x.className = 'ms-1';
-            x.textContent = '✕';
-            x.setAttribute('role', 'button');
-            x.title = 'Retirer';
-            x.addEventListener('click', function (ev) {
-                ev.stopPropagation();
-                removeAt(slot, i);
-            });
+            x.className = 'wama-file-x'; x.textContent = '✕'; x.setAttribute('role', 'button'); x.title = 'Retirer';
+            x.addEventListener('click', function (ev) { ev.stopPropagation(); removeAt(card, pane, i); });
             chip.appendChild(x);
             list.appendChild(chip);
         });
-        if (meta) {
-            meta.textContent = files.length + ' fichier(s) · ' + (total / 1048576).toFixed(1) + ' Mio';
-        }
-        activate(slot, 'files');
+        if (title) title.textContent = files.length === 1 ? files[0].name : files.length + ' fichiers';
+        if (meta) meta.textContent = files.length + ' fichier(s) · ' + (total / 1048576).toFixed(1) + ' Mio';
+        showFace(pane, 'files');
     }
 
-    /** Retire un fichier de l'input du slot (DataTransfer : la seule façon de reconstruire
-     *  une FileList — `input.files` n'est pas mutable élément par élément). */
-    function removeAt(slot, index) {
-        var input = inputOf(slot);
+    /** Retire un fichier de l'input (DataTransfer : seule façon de rebâtir une FileList). */
+    function removeAt(card, pane, index) {
+        var input = inputOf(pane);
         if (!input || !input.files) return;
         try {
             var dt = new DataTransfer();
-            Array.prototype.forEach.call(input.files, function (f, i) {
-                if (i !== index) dt.items.add(f);
-            });
+            Array.prototype.forEach.call(input.files, function (f, i) { if (i !== index) dt.items.add(f); });
             input.files = dt.files;
-            renderFiles(slot, input.files);
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        } catch (e) { /* navigateur sans DataTransfer : la liste reste, pas de crash */ }
+        } catch (e) { return; }
+        renderFiles(card, pane);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    function inputOf(slot) {
-        var id = slot.dataset.slotInput;
-        return id ? document.getElementById(id) : slot.querySelector('input[type="file"]');
-    }
+    function wirePane(card, pane) {
+        var input = inputOf(pane);
 
-    function wire(slot) {
-        if (slot.dataset.slotWired === '1') return;   // garde anti-double-init (cf. wama-new-item-card)
-        slot.dataset.slotWired = '1';
+        // Onglet → pane
+        // (câblé au niveau card, voir wire)
 
-        slot.querySelectorAll('[data-slot-mod]').forEach(function (mod) {
-            mod.addEventListener('click', function (ev) {
-                ev.stopPropagation();   // ne pas replier la card en cliquant une icône
-                activate(slot, mod.dataset.slotMod);
-            });
-        });
+        // Tuile IMPORT : c'est la dropzone — et cette brique NE la câble PAS. Sur une card
+        // « crée », `WamaImport` s'y lie par ses ids (clic + drop + dossier) ; sur une card
+        // « attache », c'est le JS de l'app (imager : routeFile ; avatarizer : handleAudioFile)
+        // qui écoute sa zone, exactement comme en v3. Un second écouteur ici doublerait le
+        // geste. La v4 change la PRÉSENTATION des modalités, jamais qui les traite.
 
-        // Le slot EST la dropzone : cliquer n'importe où dans le pane `drop` ouvre le
-        // sélecteur. C'est ce qui rend l'import simple gratuit — zéro clic de modalité.
-        var dz = slot.querySelector('.wama-slot-dz');
-        var input = inputOf(slot);
-        if (dz && input) {
-            dz.addEventListener('click', function () { input.click(); });
-            ['dragenter', 'dragover'].forEach(function (t) {
-                dz.addEventListener(t, function (ev) {
-                    ev.preventDefault();
-                    dz.classList.add('is-hot');
-                });
-            });
-            ['dragleave', 'drop'].forEach(function (t) {
-                dz.addEventListener(t, function () { dz.classList.remove('is-hot'); });
-            });
-        }
-
-        // Les fichiers arrivent par l'input (dépôt, clic, médiathèque, filemanager) : un seul
-        // point d'écoute suffit, quelle que soit la modalité qui les y a mis.
-        if (input) {
-            input.addEventListener('change', function () { renderFiles(slot, input.files); });
-        }
-
-        // Médiathèque PAR RÔLE (exigence 5 du §11.8) : le filtre vient du slot, plus de la
-        // card. C'est ce qui règle « l'utilisateur ne sait pas le rôle du fichier importé ».
-        var libBtn = slot.querySelector('[data-slot-library-btn]');
-        if (libBtn && input) {
-            libBtn.addEventListener('click', function () {
-                if (typeof MediaPicker === 'undefined') return;
+        // Tuile MÉDIATHÈQUE — filtrée PAR PORT (exigence 5 du §11.8) : le filtre vient du
+        // port, plus de la card. Le File choisi entre dans l'input du port (le geste commun).
+        var lib = pane.querySelector('[data-mod-library-btn]');
+        if (lib && input) {
+            lib.addEventListener('click', function () {
+                if (typeof global.MediaPicker === 'undefined') return;
                 MediaPicker.open({
-                    type: slot.dataset.slotLibrary || 'all',
+                    type: pane.dataset.portLibrary || 'all',
                     onSelect: function (f) {
                         if (!f) return;
-                        try {
-                            var dt = new DataTransfer();
-                            dt.items.add(f);
-                            input.files = dt.files;
-                        } catch (e) { /* pas de DataTransfer : l'app garde son chemin */ }
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        if (global.WamaApp && WamaApp.injectFiles) WamaApp.injectFiles(input, [f]);
                     }
                 });
             });
         }
+
+        // Les fichiers arrivent par l'input, quelle que soit la modalité : un seul point
+        // d'écoute → la face FICHIERS.
+        if (input) {
+            input.addEventListener('change', function () { renderFiles(card, pane); });
+        }
+        var back = pane.querySelector('[data-files-back]');
+        if (back) back.addEventListener('click', function () { showFace(pane, 'mods'); });
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('[data-wama-slot]').forEach(wire);
-    });
+    function wire(card) {
+        if (card.dataset.slotsWired === '1') return;
+        card.dataset.slotsWired = '1';
+        var tabs = card.querySelectorAll('[data-port-tab]');
+        var panes = card.querySelectorAll('[data-port-pane]');
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function (e) {
+                e.stopPropagation();   // ne pas replier la card
+                tabs.forEach(function (t) { t.classList.toggle('is-active', t === tab); });
+                panes.forEach(function (p) { p.classList.toggle('is-active', p.dataset.portPane === tab.dataset.portTab); });
+            });
+        });
+        panes.forEach(function (p) { if (p.dataset.portKind === 'file') wirePane(card, p); });
+    }
 
-    window.WamaInputSlots = { activate: activate, renderFiles: renderFiles };
-})();
+    function boot() { document.querySelectorAll('[data-wama-ports]').forEach(wire); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+
+    global.WamaInputSlots = { renderFiles: renderFiles, showFace: showFace };
+})(window);

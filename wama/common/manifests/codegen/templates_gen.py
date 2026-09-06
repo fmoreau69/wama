@@ -481,14 +481,16 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
     {{% include 'common/_global_progress.html' %}}
 
     {{% url '{app}:batch_template' as batch_tpl_url %}}
-    {{% comment %}}Card d'entrée COMMUNE (v3) — la même que les 10 apps en place. Une v4
-    (`_new_item_card_v4.html`, modèle du 04/09) a été branchée ici le 04/09 puis DÉBRANCHÉE le
-    05/09 : elle cachait le champ URL dans un pane inactif et ne rendait pas le lien
-    `#<id>Btn` du dossier — deux gestes nocturnes (`url_import`, `folder_import`) tombaient sur
-    la jumelle, qui cessait de mesurer la chaîne réelle. La v4 se REFAIT selon
-    CARD_DESIGN §11.11 B (ports en onglets, modalités dans la preview) ; elle se rebranchera
-    quand ses gestes passeront les mêmes scénarios que la v3.{{% endcomment %}}
-    {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' folder_input_id='{app}FolderInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits} %}}
+    {{% comment %}}Card d'entrée v4 (CARD_DESIGN §11.11 B) — DÉRIVÉE de la v3, mêmes ids, mêmes
+    contrats : onglets = PORTS déclarés (tag `input_slots`), modalités du port actif toutes
+    visibles dans la preview, bascule sur les fichiers attachés à hauteur constante. Le
+    générateur en est le SEUL consommateur : les 10 apps en place gardent l'inclusion
+    littérale de la v3 — le bac à sable sert à ça (route §10.3 marche S). ⚠ Une 1ʳᵉ v4
+    (modèle du 04/09) avait fait tomber 3 gestes nocturnes et a été débranchée le 05/09 ;
+    celle-ci ne se rebranche qu'en passant les 8 gestes de `converter_01`. `app_id` remplace
+    les littéraux de modalité ; `file_accept`/`show_media_library`/`reference_*` restent
+    émis parce que la v3 les lit (les 10 apps) et que la v4 honore les ids `reference_*`.{{% endcomment %}}
+    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' folder_input_id='{app}FolderInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits} %}}
     <hr class="border-secondary">
 
 {urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}

@@ -1165,15 +1165,36 @@ avant toute adoption plus large — ce qu'elle a déjà prouvé, et qui reste vr
 l'ISOLEMENT : on peut faire évoluer la card d'entrée sur les seules jumelles sans toucher aux
 10 apps.
 
-🔴 **DÉBRANCHÉE du générateur le 2026-09-05** : `templates_gen` inclut de nouveau la card v3
-commune. Raison mesurée : trois gestes nocturnes tombaient sur la jumelle avec la v4 —
-`url_import` (champ URL dans un pane inactif, `Page.fill` en timeout), `folder_import` (pas de
-lien `#<id>Btn`, input `display:none` inatteignable), `batch_import` (pas de
-`#batchTemplateLink`). **Une card d'entrée qui ne passe pas les gestes de la v3 ne peut pas la
-remplacer, même en bac à sable** — la jumelle cesserait de mesurer la chaîne réelle. Les
-fichiers (`_new_item_card_v4.html`, `wama-input-slots.js`, `wama-input-slots.css`, tag `input_slots`) restent
-sur le disque, sans consommateur, en-tête marqué, en attendant la v4 refaite selon B/B bis/D ;
-elle se rebranchera quand elle passera les mêmes scénarios que la v3.
+🔴 **DÉBRANCHÉE du générateur le 2026-09-05** : trois gestes nocturnes tombaient sur la
+jumelle avec cette 1ʳᵉ v4 — `url_import` (champ URL dans un pane inactif), `folder_import`
+(pas de lien `#<id>Btn`), `batch_import` (pas de `#batchTemplateLink`). **Une card d'entrée
+qui ne passe pas les gestes de la v3 ne peut pas la remplacer, même en bac à sable.**
+
+#### ✅ v4 REFAITE et REBRANCHÉE le 2026-09-06 — dérivée de la v3, selon B / B bis / D
+
+Mêmes fichiers, réécrits : `_new_item_card_v4.html` (dérivé de `_new_item_card.html`, mêmes
+ids, mêmes contrats), `wama-input-slots.js` (onglets de port → face modalités → face fichiers ;
+**n'envoie rien et ne câble pas la dropzone** : `WamaImport` ou le JS d'app le font, comme en
+v3), `wama-input-slots.css` (hauteur constante 96 px, tuiles empilées en mosaïque, repli en v2),
+tag `input_slots` (une entrée par port fichier + le port `live` si déclaré ; `drop`+`folder`
+fusionnés en `import`).
+
+| ce qui se voit | mesuré |
+|---|---|
+| onglets = **ports** (« Entrée · requis », « Image de référence ») | `converter_01` 1 onglet · `imager_01` 2 onglets |
+| modalités du port actif **toutes visibles** : Importer (= la dropzone, avec « ou un dossier » et « gabarit de lot »), Médiathèque, **URL = son champ** | `['import','library','url']` sur travail ; **`['library','url','import']` sur référence** — l'ordre inversé, l'argument de B rendu visible |
+| bascule sur les fichiers attachés : chips retirables, compteur sur l'onglet, `‹ modalités` | 2 fichiers → face `files`, 2 chips, « · 2 » ; hauteur **96 px avant et après** |
+| card « attache » : le fichier entre dans l'input du port, `WamaInputMatch` pose sa chip | `imager_01` : image du temp → port référence → chip + face fichiers, zéro erreur |
+| **les 8 gestes nocturnes** de `converter_01` | **8/8** (ui, import, batch_import, url_import, folder_import, send_to, duplicate_delete, clear_all) |
+
+⚠ Un choix de forme, fidèle à la décision ② : la modalité URL **est** son champ dans la tuile
+(visible d'un coup, aucune bascule pour saisir) ; la bascule de la preview sert aux fichiers
+attachés. C'est aussi ce qui garde le contrat des scénarios (`Page.fill('#…Url')` sans clic).
+
+⚠ `imager_01` n'a pas de gabarit généré (le codegen refuse ses vues : file à modèle de liaison,
+trou déclaré) — la v4 y est branchée **à la main dans la copie jetable** de la jumelle, ce qui
+est exactement son usage. Le `live` reste le littéral `show_live` (déclaration à venir avec son
+lecteur — il existe désormais).
 
 **Deux défauts que le bac à sable a révélés en chemin** (c'est son rôle) :
 1. **`APP_MODES` est indexé par nom d'app** → une jumelle perdait SILENCIEUSEMENT les

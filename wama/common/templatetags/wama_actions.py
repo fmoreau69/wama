@@ -164,13 +164,14 @@ def input_slots(app, live=False):
         types = port.get('types') or []
         accept = ','.join(mimes[t] for t in types if t in mimes) or '*/*'
         travail = port.get('group') == 'travail'
-        mods = ['drop', 'library', 'url']
-        if port.get('multi'):
-            mods.append('folder')
-        if travail and live:
-            mods.append('live')
+        # IMPORT = UN SEUL GESTE (décision Fabien 05/09) : fichier(s) ET dossier(s), dépôt ET
+        # clic — `drop` et `folder` ne sont plus deux modalités. Le sélecteur de dossier reste
+        # une affordance DANS la tuile Importer (contrainte de l'<input> natif), sur les ports
+        # `multi` seulement.
+        mods = ['import', 'library', 'url']
         slots.append({
             'id': port.get('id'),
+            'kind': 'file',
             'label': port.get('label') or port.get('id'),
             'group': port.get('group'),
             'accept': accept,
@@ -180,5 +181,14 @@ def input_slots(app, live=False):
             'multi': bool(port.get('multi')),
             'required': travail,
             'modalities': mods,
+        })
+    if live:
+        # LE LIVE EST UN PORT, pas une modalité (décision Fabien 05/09, CARD_DESIGN §11.11 D) :
+        # « en direct » est une SOURCE alternative au fichier de travail, pas une façon de le
+        # fournir. Sa modalité unique ARME ; ▶ démarre (deux temps, §11.9 A).
+        slots.append({
+            'id': 'live', 'kind': 'live', 'label': 'En direct', 'group': 'live',
+            'accept': '', 'library_type': 'all', 'multi': False, 'required': False,
+            'modalities': ['arm'],
         })
     return slots
