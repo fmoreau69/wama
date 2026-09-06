@@ -10,7 +10,7 @@ from wama.common.services.nightly_tests import register, SkipScenario
 
 def _run_deepfilternet_load(ctx):
     """Charge DeepFilterNet (débruitage temps réel) puis le décharge."""
-    from wama.enhancer.utils.audio_enhancer import (
+    from wama.enhancer.backends.audio_enhancer import (
         DeepFilterNetBackend, get_deepfilternet_backend,
     )
 

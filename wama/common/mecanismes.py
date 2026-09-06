@@ -599,7 +599,7 @@ MECANISMES = (
               "c'est le NOM qui porte l'unicité, pas un sous-dossier par card — ce dernier est "
               "précisément ce qui a été démonté le 2026-08-25 (`job_<id>/`, 1,7 Go)",
               'wama/common/utils/output_naming.py', 'MEDIA_STORAGE_TIERING.md',
-              annexes=('wama/anonymizer/core/anonymize.py',)),
+              annexes=('wama/anonymizer/backends/anonymize.py',)),
     Mecanisme('media_integrity', 'Intégrité des médias',
               "Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe "
               "dessus), orphelin, RÉSIDU DE TEST, et RÉFÉRENCÉ MAIS ABSENT — ce dernier étant "

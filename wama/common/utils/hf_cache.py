@@ -3,7 +3,7 @@ Bascule SCOPÉE du cache HuggingFace — LA brique anti-fuite (extraite le 2026-
 
 Deux implémentations locales du même geste coexistaient (règle des 2 occurrences) :
   - `wama/views.py::_get_kokoro` — save/restore de l'env seul ;
-  - `wama/anonymizer/core/sam3_processor.py` — env + constantes (version corrigée du jour,
+  - `wama/anonymizer/backends/sam3_processor.py` — env + constantes (version corrigée du jour,
     après la fuite inter-apps : la mutation PERMANENTE routait les artefacts HF — refs/
     locks/xet — des backends suivants du même worker vers vision/sam/, squelette olmOCR
     vide constaté).

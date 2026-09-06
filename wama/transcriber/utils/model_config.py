@@ -52,6 +52,10 @@ TRANSCRIBER_MODELS = {
     'whisper': {
         'model_id': 'large-v3',
         'hf_model_id': 'openai/whisper-large-v3',
+        # Moteur : `faster-whisper` (cf. `WhisperBackend.ENGINE`) — la réimplémentation
+        # CTranslate2, PAS la lib `openai-whisper`. C'est le MÊME backend que le Describer
+        # consomme via `common/utils/whisper_utils`, avec un modèle différent.
+        'engine': 'faster-whisper',
         'type': 'speech-to-text',
         'size_gb': 2.87,
     },

@@ -88,6 +88,7 @@ REGISTRY_MODEL_DESCRIPTIONS = {
 ENHANCER_MODELS = {
     'RealESR_Gx4': {
         'model_id': 'RealESR_Gx4',
+        'engine': 'onnxruntime',  # ort.InferenceSession (AIUpscaler)
         'file': 'RealESR_Gx4_fp16.onnx',
         'type': 'upscaling',
         'scale': 4,
@@ -98,6 +99,7 @@ ENHANCER_MODELS = {
     },
     'RealESR_Animex4': {
         'model_id': 'RealESR_Animex4',
+        'engine': 'onnxruntime',  # ort.InferenceSession (AIUpscaler)
         'file': 'RealESR_Animex4_fp16.onnx',
         'type': 'upscaling',
         'scale': 4,
@@ -108,6 +110,7 @@ ENHANCER_MODELS = {
     },
     'BSRGANx2': {
         'model_id': 'BSRGANx2',
+        'engine': 'onnxruntime',  # ort.InferenceSession (AIUpscaler)
         'file': 'BSRGANx2_fp16.onnx',
         'type': 'upscaling',
         'scale': 2,
@@ -118,6 +121,7 @@ ENHANCER_MODELS = {
     },
     'BSRGANx4': {
         'model_id': 'BSRGANx4',
+        'engine': 'onnxruntime',  # ort.InferenceSession (AIUpscaler)
         'file': 'BSRGANx4_fp16.onnx',
         'type': 'upscaling',
         'scale': 4,
@@ -128,6 +132,7 @@ ENHANCER_MODELS = {
     },
     'RealESRGANx4': {
         'model_id': 'RealESRGANx4',
+        'engine': 'onnxruntime',  # ort.InferenceSession (AIUpscaler)
         'file': 'RealESRGANx4_fp16.onnx',
         'type': 'upscaling',
         'scale': 4,
@@ -138,6 +143,7 @@ ENHANCER_MODELS = {
     },
     'IRCNN_Mx1': {
         'model_id': 'IRCNN_Mx1',
+        'engine': 'onnxruntime',  # ort.InferenceSession (AIUpscaler)
         'file': 'IRCNN_Mx1_fp16.onnx',
         'type': 'denoising',
         'scale': 1,
@@ -148,6 +154,7 @@ ENHANCER_MODELS = {
     },
     'IRCNN_Lx1': {
         'model_id': 'IRCNN_Lx1',
+        'engine': 'onnxruntime',  # ort.InferenceSession (AIUpscaler)
         'file': 'IRCNN_Lx1_fp16.onnx',
         'type': 'denoising',
         'scale': 1,

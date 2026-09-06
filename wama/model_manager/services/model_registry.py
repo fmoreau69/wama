@@ -717,6 +717,11 @@ class ModelRegistry:
                         is_downloaded=True,
                         extra_info=extra_info,
                         backend_ref='anonymizer',
+                        # Moteur : `ultralytics`, lu dans `Anonymize.ENGINE` — la classe
+                        # qui charge REELLEMENT ces poids (`YOLO(chemin)`). Les poids sont
+                        # balayes sur le disque, pas declares dans un dict : la passe
+                        # generique `_overlay_declared_engines` ne peut pas les couvrir.
+                        composition={'runtime': {'engine': 'ultralytics'}},
                         format=model_format,
                         preferred_format=preferred,
                         can_convert_to=convert_options,
@@ -753,6 +758,8 @@ class ModelRegistry:
                     is_downloaded=status.get('models_cached', False),
                     extra_info=status,
                     backend_ref='anonymizer',
+                    # Moteur : la lib `sam3` elle-meme (cf. `SAM3Processor.ENGINE`).
+                    composition={'runtime': {'engine': 'sam3'}},
                     format='safetensors',
                     preferred_format=preferred,
                     can_convert_to=['onnx'],
@@ -866,6 +873,9 @@ class ModelRegistry:
                 description='Profondeur monoculaire métrique + focale estimée, natif transformers '
                             '(Apache-2.0). Candidat cam_analyzer (re-calage du plan de sol, §[E]).',
                 hf_id='apple/DepthPro-hf',
+                # Moteur : `transformers` — la description ci-dessus le dit déjà
+                # (« natif transformers », AutoModelForDepthEstimation).
+                composition={'runtime': {'engine': 'transformers'}},
                 vram_gb=8.0,
                 is_downloaded=cached,
                 # Vocabulaire canonique (model_capabilities) : tâche + entrées + modalités, comme
@@ -1361,6 +1371,8 @@ class ModelRegistry:
                          'les réglages Mode / Force / Qualité (NFE) s\'appliquent.'),
                 'vram': 4.0,
                 'params': ['mode', 'strength', 'quality'],
+                # Moteur PILOTE — meme graphie que `ResembleEnhanceBackend.ENGINE`.
+                'engine': 'resemble-enhance',
             },
             'deepfilternet': {
                 'name': 'DeepFilterNet 3',
@@ -1370,6 +1382,7 @@ class ModelRegistry:
                          'les réglages Mode / Force / Qualité ne s\'appliquent pas.'),
                 'vram': 1.0,
                 'params': [],
+                'engine': 'deepfilternet',   # cf. `DeepFilterNetBackend.ENGINE`
             },
         }
         for _eng_id, _eng in _audio_engines.items():
@@ -1383,6 +1396,8 @@ class ModelRegistry:
                 vram_gb=_eng['vram'],
                 is_downloaded=True,
                 backend_ref='enhancer',
+                # Lien modele<->moteur, LU dans la declaration `_audio_engines`.
+                composition={'runtime': {'engine': _eng['engine']}},
                 # kebab-case comme tout le vocabulaire (ModelTask) : 'audio_enhance' etait la
                 # seule valeur en snake_case, donc hors taxonomie declaree.
                 capabilities={'task': 'audio-enhance', 'modalities': ['audio'], 'params': _eng['params'],

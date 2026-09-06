@@ -262,7 +262,7 @@ def enhance_audio(self, audio_enhancement_id: int):
     start_time = time.time()
 
     try:
-        from .utils.audio_enhancer import run_audio_enhancement
+        from .backends.audio_enhancer import run_audio_enhancement
         import tempfile
         from django.core.files.base import ContentFile
         from django.core.files.storage import default_storage
@@ -383,7 +383,7 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
     """
     logger.info("--- _enhance_image START ---")
 
-    from .utils.ai_upscaler import upscale_image_file
+    from .backends.ai_upscaler import upscale_image_file
     import os
     from django.core.files.base import ContentFile
 
@@ -523,7 +523,7 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
     import subprocess
     # (`tempfile` et `shutil` retires le 2026-08-26 : leurs SEULS usages ici etaient le mkdtemp
     #  et les deux rmtree, tous trois absorbes par la brique `work_dir`.)
-    from .utils.ai_upscaler import AIUpscaler
+    from .backends.ai_upscaler import AIUpscaler
     import cv2
     from django.core.files.base import ContentFile
 

@@ -3,7 +3,7 @@ Compat torchaudio 2.x → shims soundfile — BRIQUE COMMUNE (extraite le 2026-0
 
 torchcodec est cassé sur ce poste (mémoire [[reference_torchcodec_broken]]) et torchaudio 2.x
 a retiré `AudioMetaData`/`torchaudio.backend.common` : plusieurs briques audio patchaient donc
-torchaudio À L'IDENTIQUE chacune de leur côté — `enhancer/utils/audio_enhancer.py`
+torchaudio À L'IDENTIQUE chacune de leur côté — `enhancer/backends/audio_enhancer.py`
 (ResembleEnhance + DeepFilterNet : info/load/save + stub backend.common) et le service TTS
 (Coqui lit ses références via torchaudio.load). Deux copies = seuil de brique.
 
