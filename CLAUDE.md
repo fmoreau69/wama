@@ -96,6 +96,18 @@
   for d in $(find wama wama_lab wama_data -type d -name migrations); do
       mkdir -p /tmp/verif/$d && cp $d/*.py /tmp/verif/$d/; done
   ```
+  ⚠⚠⚠ **DEUX FAMILLES DE TESTS ÉCHOUENT DANS UN WORKTREE SANS QUE RIEN NE SOIT CASSÉ**
+  (mesuré le 2026-09-06, après un palier de déplacements de fichiers) — tout ce qui lit un
+  fichier **gitignoré** est absent d'un arbre neuf :
+  | test | ce qui manque | verdict |
+  |---|---|---|
+  | `tests_capabilities_languages.VendoringTest` | `staticfiles/vendors/three-*/…` | artefact |
+  | `reader.tests_table_transformer.IntegrationReelleTest` | les poids d'`AI-models` | artefact |
+  **La contre-épreuve est obligatoire** : relancer LE MÊME test sur l'arbre principal. Vert
+  ici + rouge là-bas = artefact ; rouge des deux côtés = régression. Sans ce geste, on lit un
+  échec de worktree comme une casse et on « corrige » du code sain.
+  *Un worktree ne porte que ce qui est VERSIONNÉ — ses échecs parlent d'abord de ça.*
+
   ⚠⚠ **`manage.py check` passe sans rien de tout cela** — il ne touche pas la base. Un « check
   vert sur HEAD » ne prouve donc RIEN sur la capacité de HEAD à monter sa base : c'est
   exactement l'angle mort que ce rituel visait. Seuls des TESTS l'attestent.
