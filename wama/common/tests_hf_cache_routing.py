@@ -37,6 +37,7 @@ import ast
 import re
 import unittest
 
+from django.conf import settings
 from django.test import SimpleTestCase
 from functools import lru_cache
 from pathlib import Path
@@ -314,3 +315,44 @@ class TroisiemeVoieTest(SimpleTestCase):
             chemin = poids_locaux('org/modele', self.famille)
         self.assertEqual(chemin, '/telecharge')
         self.assertEqual(len(faux.call_args_list), 2)
+
+
+class BasculeDEnvironnementSansConsommateurTest(SimpleTestCase):
+    """`hf_cache_scope` n'a plus AUCUN consommateur depuis le 2026-09-06.
+
+    SAM3 était le dernier : il passe désormais par la 3ᵉ voie
+    (`hf_weights.poids_locaux` + `checkpoint_path=` / `load_from_HF=False`). Le module reste sur
+    disque — son retrait touche 6 surfaces (registre des mécanismes, grille de conformité, 3
+    docs, ses propres tests) et mérite son geste propre, avec entrée au `REMOVAL_LEDGER`.
+
+    ⚠ Mais un helper qui implémente exactement l'anti-pattern que la doctrine interdit est un
+    piège tant qu'il est importable : le prochain qui cherchera « comment router les poids d'une
+    lib récalcitrante » le trouvera. Cette garde fait donc échouer la SUITE au premier
+    réemploi — c'est ce qui autorise à le laisser en place sans risque.
+    """
+
+    def test_aucun_module_n_importe_plus_la_bascule(self):
+        racine = Path(settings.BASE_DIR)
+        coupables = []
+        for dossier in ('wama', 'wama_lab'):
+            for f in (racine / dossier).rglob('*.py'):
+                if 'venv' in f.parts or 'site-packages' in f.parts:
+                    continue
+                if f.name in ('hf_cache.py', 'tests_hf_cache_routing.py'):
+                    continue        # le module lui-même et sa garde citent forcément le nom
+                try:
+                    arbre = ast.parse(f.read_text(encoding='utf-8'))
+                except (OSError, SyntaxError, UnicodeDecodeError):
+                    continue
+                # AST, jamais grep : trois motifs textuels se sont trompés de cible cette
+                # session en accusant des COMMENTAIRES. Ici, seul un import réel compte.
+                for n in ast.walk(arbre):
+                    if isinstance(n, ast.ImportFrom) and 'hf_cache' in (n.module or ''):
+                        coupables.append(str(f.relative_to(racine)))
+                    elif isinstance(n, ast.Import) and any('hf_cache' in a.name for a in n.names):
+                        coupables.append(str(f.relative_to(racine)))
+        self.assertEqual(sorted(set(coupables)), [],
+                         "la bascule d'environnement `hf_cache_scope` est réemployée — elle "
+                         "restaure l'environnement mais JAMAIS les fichiers : tout ce que la "
+                         "lib télécharge pendant la fenêtre reste dans le dossier du modèle. "
+                         "Utiliser `common/utils/hf_weights.poids_locaux` (3ᵉ voie).")

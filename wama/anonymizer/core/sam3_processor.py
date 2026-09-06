@@ -66,12 +66,18 @@ def setup_sam3_hf_environment():
         except Exception as e:
             logger.warning(f"[SAM3] Could not read token from {token_file}: {e}")
 
-    # La bascule du cache HF vers sam_root est CONFINÉE au chargement — brique commune
-    # `hf_cache_scope` (extraite le 2026-08-12 après la fuite inter-apps : la mutation
-    # permanente env + constantes routait les artefacts HF des backends suivants du même
-    # worker vers vision/sam/ — squelette olmOCR vide constaté). La lib sam3 n'accepte
-    # pas de `cache_dir=`, d'où la bascule scopée ; ne JAMAIS revenir à la mutation
-    # permanente (anti-pattern ROADMAP §5b).
+    # ⚠ HISTORIQUE, corrigé le 2026-09-06 — ce bloc prescrivait la bascule `hf_cache_scope`
+    # au motif que « la lib sam3 n'accepte pas de `cache_dir=` ». Le motif était VRAI et la
+    # conclusion FAUSSE : la lib accepte `checkpoint_path=` + `load_from_HF=False`, ce qui est
+    # mieux qu'un `cache_dir=`. La bascule (2026-08-12, après la fuite inter-apps qui vidait le
+    # squelette olmOCR) était le bon réflexe avec l'information de l'époque ; elle n'a
+    # simplement jamais été re-mesurée.
+    #
+    # Le chargement passe désormais par la 3ᵉ voie (`common/utils/hf_weights.poids_locaux`) :
+    # on résout les poids DANS le dossier du modèle, on donne un chemin, et l'environnement du
+    # processus n'est jamais touché — ni durablement, ni « le temps d'un with ». SAM3 était le
+    # DERNIER consommateur de `hf_cache_scope`.
+    # Ne JAMAIS revenir à une mutation d'environnement, permanente ou scopée (ROADMAP §5b).
 
 
 def _sam_root():
@@ -187,9 +193,28 @@ class SAM3Processor(DetectionBackend):
             if model_type in ['image', 'auto']:
                 logger.info("[SAM3] Loading image model...")
                 print("[SAM3] Loading image model...")
-                from wama.common.utils.hf_cache import hf_cache_scope
-                with hf_cache_scope(_sam_root()):
-                    self.image_model = build_sam3_image_model()
+                # 3ᵉ VOIE (2026-09-06) — remplace la bascule d'environnement `hf_cache_scope`,
+                # dont SAM3 était le DERNIER consommateur. On résout les poids nous-mêmes DANS
+                # le dossier du modèle, puis on donne à la lib un CHEMIN. L'environnement du
+                # processus n'est jamais touché.
+                #
+                # ⚠ Le commentaire d'en-tête de ce fichier affirmait « la lib sam3 n'accepte pas
+                # de `cache_dir=` » — exact, mais elle accepte MIEUX : `checkpoint_path=` +
+                # `load_from_HF=False` (signature vérifiée dans `sam3/model_builder.py`). La
+                # bascule n'était donc pas imposée par la lib, seulement par ce qu'on croyait
+                # d'elle. *Une contrainte non re-mesurée devient une habitude.*
+                #
+                # Ce que la bascule laissait passer : elle restaure l'environnement, JAMAIS les
+                # fichiers — tout ce que HF téléchargeait pendant la fenêtre (sous-dépendances
+                # comprises) restait dans `vision/sam/`. C'est le mécanisme exact qui a déposé
+                # `timm/resnet18` dans le dossier de table-transformer.
+                import os
+                from wama.common.utils.hf_weights import poids_locaux
+                snapshot = poids_locaux('facebook/sam3', _sam_root(),
+                                        patterns=['sam3.pt', 'config.json'])
+                self.image_model = build_sam3_image_model(
+                    checkpoint_path=os.path.join(snapshot, 'sam3.pt'),
+                    load_from_HF=False)
                 self.image_processor = Sam3ImageProcessor(self.image_model)
                 logger.info("[SAM3] Image model loaded successfully")
                 print("[SAM3] Image model loaded successfully")
