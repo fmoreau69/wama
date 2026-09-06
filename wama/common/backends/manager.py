@@ -96,8 +96,22 @@ def backend_missing(model) -> Optional[str]:
 
     `model` : AIModel (ou tout porteur de `composition`/`backend_ref`).
     """
-    if getattr(model, 'backend_ref', ''):
-        return None                          # l'app qui déclare un backend l'assume
+    # ⚠ Un court-circuit `if model.backend_ref: return None` vivait ICI jusqu'au 2026-09-05.
+    # Il partait d'une idée juste — « l'app qui déclare un backend l'assume » — mais
+    # `backend_ref` porte un nom d'APP, pas de backend : il attestait donc une APPARTENANCE,
+    # jamais une EXÉCUTABILITÉ. Résultat : tout modèle rattaché à une app était réputé
+    # exécutable, y compris quand son moteur n'existait nulle part. Il masquait exactement ce
+    # que cette fonction existe pour dire.
+    #
+    # RETIRÉ après avoir MESURÉ son effet réel : sur 174 modèles, un SEUL change de verdict
+    # (`ResembleAI/chatterbox` → moteur `chatterbox-tts`, qu'aucun backend ne pilote —
+    # vérifié : `wama/synthesizer/backends/` n'en contient pas). Le nouveau verdict est JUSTE.
+    # Les 159 modèles qui ne déclarent pas de moteur restent non condamnés : on ne condamne
+    # pas ce qu'on ne sait pas mesurer.
+    #
+    # Le CHAMP `backend_ref` survit à son court-circuit : il sert encore la PROVENANCE du lien
+    # au registre des backends (`lien='backend_ref'`). Son retrait complet reste un chantier —
+    # il suppose que les 95 modèles qui le portent déclarent leur moteur (14 aujourd'hui).
     composition = getattr(model, 'composition', None) or {}
     engine = (composition.get('runtime') or {}).get('engine') or ''
     if not engine or engine in known_engines():

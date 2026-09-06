@@ -220,8 +220,17 @@ class CurseurDeQualiteTest(TestCase):
         self.assertIsNone(backend_missing(
             SimpleNamespace(backend_ref='', composition={'runtime': {'engine': 'kokoro'}})))
         self.assertIsNone(backend_missing(SimpleNamespace(backend_ref='', composition={})))
-        self.assertIsNone(backend_missing(
-            SimpleNamespace(backend_ref='une.classe.Backend', composition={'runtime': {'engine': 'moteur-fantome'}})))
+        # ⚠ ASSERTION INVERSÉE le 2026-09-05, DÉLIBÉRÉMENT. Elle attendait `None` : un
+        # `backend_ref` renseigné suffisait à absoudre un moteur introuvable. C'était le
+        # court-circuit de `backend_missing`, et il contredisait le nom même de ce test —
+        # `backend_ref` porte un nom d'APP, donc il atteste une APPARTENANCE, jamais une
+        # EXÉCUTABILITÉ. Mesuré avant de retirer : sur 174 modèles du catalogue réel, UN SEUL
+        # change de verdict (`ResembleAI/chatterbox`), et il devient juste — aucun backend
+        # chatterbox n'existe dans `wama/synthesizer/backends/`.
+        self.assertIn('moteur-fantome', backend_missing(
+            SimpleNamespace(backend_ref='une.classe.Backend',
+                            composition={'runtime': {'engine': 'moteur-fantome'}})),
+            "un backend_ref ne doit plus absoudre un moteur que personne ne pilote")
 
     def test_le_tirage_auto_exclut_l_inlancable_et_le_backend_qui_apparait_reautorise(self):
         """Le vécu du jour : chatterbox (sans backend) prévu à curseur 50 — refus garanti

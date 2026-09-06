@@ -2289,5 +2289,48 @@ class ModelRegistry:
                     can_convert_to=[],
                 )
 
+            # ── CodeFormer — restauration de visage (option `use_enhancer` du pipeline) ──
+            # ⚠ Il était DÉCLARÉ dans `AVATARIZER_MODELS` depuis toujours et n'a JAMAIS été
+            # découvert : la boucle ci-dessus code en dur les deux MuseTalk et ne lit pas la
+            # déclaration de l'app. Une déclaration que personne ne lit ne vaut rien — c'est
+            # le même défaut de famille que les poids DeepFace hors catalogue (05/09).
+            # On lit donc la DÉCLARATION plutôt que de re-coder ses valeurs ici.
+            from wama.avatarizer.utils.model_config import (
+                AVATARIZER_MODELS, CODEFORMER_MODELS_DIR,
+            )
+            cf = AVATARIZER_MODELS.get('codeformer') or {}
+            if cf:
+                # Le poids PRINCIPAL atteste la présence ; `facelib`/`realesrgan` sont ses
+                # composants et sont déclarés comme tels, pas comme des modèles à part.
+                poids = Path(CODEFORMER_MODELS_DIR) / 'CodeFormer' / 'codeformer.pth'
+                self._models['avatarizer:codeformer'] = ModelInfo(
+                    id='avatarizer:codeformer',
+                    name='CodeFormer',
+                    model_type=ModelType.VISION,
+                    source=ModelSource.WAMA_AVATARIZER,
+                    description=cf.get('description', ''),
+                    hf_id=cf.get('hf_id') or None,
+                    vram_gb=cf.get('vram_gb'),
+                    is_downloaded=poids.exists(),
+                    extra_info={'path': str(CODEFORMER_MODELS_DIR),
+                                'pipeline': 'codeformer',
+                                'model_id': 'codeformer'},
+                    capabilities={'task': 'face-restoration', 'modalities': ['image', 'video'],
+                                  'inputs_required': ['work_file']},
+                    backend_ref='avatarizer',
+                    format='pth',
+                    preferred_format='pth',
+                    # Lien modèle↔moteur (l'autre moitié est `ENGINE = 'codeformer'` sur
+                    # `avatarizer/backends/codeformer_backend.py`) + anatomie DÉCLARÉE : les
+                    # trois sous-dossiers de poids sont des COMPOSANTS, ce qui évite que
+                    # `check_model_layout` les compte comme des dépôts étrangers.
+                    composition={
+                        'runtime': {'engine': 'codeformer'},
+                        'components': [{'repo': 'sczhou/CodeFormer', 'role': 'CodeFormer'},
+                                       {'pattern': 'facelib', 'role': 'détection + parsing'},
+                                       {'pattern': 'realesrgan', 'role': 'upscaler optionnel'}],
+                    },
+                )
+
         except Exception as e:
             logger.debug(f"Could not discover Avatarizer models: {e}")

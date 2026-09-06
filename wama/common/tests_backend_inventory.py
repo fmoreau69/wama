@@ -418,3 +418,57 @@ class ContratCommunIsolationTest(SimpleTestCase):
         dispense de vérification."""
         from wama.common.backends.base import BaseModelBackend
         self.assertEqual(BaseModelBackend.ISOLATION, '')
+
+class BackendRefNAbsoutPlusTest(SimpleTestCase):
+    """`backend_ref` ne court-circuite PLUS le verdict d'exécutabilité (2026-09-05).
+
+    Le champ atteste une APPARTENANCE (il porte un nom d'app), jamais une EXÉCUTABILITÉ.
+    Tant qu'il absolvait, `backend_missing()` ne pouvait rien dire d'utile sur les 95 modèles
+    qui le portent — et le chantier « retirer backend_ref » ne pouvait pas commencer, puisque
+    rien ne mesurait ce qu'on perdrait en le retirant.
+
+    Cette garde existe parce que le court-circuit était ÉCRIT DANS UN TEST : le remettre
+    aurait donc paru légitime. *Une décision retirée sans garde revient par la porte du test
+    qui l'encodait.*
+    """
+
+    def test_un_backend_ref_n_excuse_pas_un_moteur_introuvable(self):
+        from types import SimpleNamespace
+        from wama.common.backends.manager import backend_missing
+        verdict = backend_missing(SimpleNamespace(
+            backend_ref='une_app',
+            composition={'runtime': {'engine': 'moteur-qui-n-existe-pas'}}))
+        self.assertIsNotNone(verdict, "backend_ref ne doit plus absoudre")
+        self.assertIn('moteur-qui-n-existe-pas', verdict)
+
+    def test_l_absence_de_moteur_declare_reste_NON_condamnee(self):
+        """La contrepartie : on ne condamne pas ce qu'on ne sait pas mesurer. Sans cette
+        moitié, retirer le court-circuit aurait grisé 159 modèles d'un coup."""
+        from types import SimpleNamespace
+        from wama.common.backends.manager import backend_missing
+        self.assertIsNone(backend_missing(SimpleNamespace(backend_ref='une_app', composition={})))
+        self.assertIsNone(backend_missing(SimpleNamespace(backend_ref='', composition={})))
+
+    def test_aucun_court_circuit_sur_backend_ref_ne_subsiste_dans_le_verdict(self):
+        """Garde par AST : le motif retiré ne doit pas réapparaître dans le CODE de la fonction.
+
+        ⚠ La 1ʳᵉ version était textuelle et accusait la DOCSTRING (« ou tout porteur de
+        `composition`/`backend_ref` ») — une phrase, pas une dépendance. Troisième fois de la
+        session qu'un motif textuel se trompe de cible. *Un grep lit des caractères ; seul
+        l'AST lit du code.*
+        """
+        import ast
+        from pathlib import Path
+        from django.conf import settings
+
+        source = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'backends' / 'manager.py'
+                  ).read_text(encoding='utf-8')
+        fonction = next(n for n in ast.parse(source).body
+                        if isinstance(n, ast.FunctionDef) and n.name == 'backend_missing')
+        corps = fonction.body[1:] if ast.get_docstring(fonction) else fonction.body
+        usages = [n for stmt in corps for n in ast.walk(stmt)
+                  if (isinstance(n, ast.Attribute) and n.attr == 'backend_ref')
+                  or (isinstance(n, ast.Constant) and n.value == 'backend_ref')]
+        self.assertEqual(usages, [],
+                         "`backend_ref` est redevenu ACTIF dans backend_missing — il atteste "
+                         "une appartenance, pas une exécutabilité")
