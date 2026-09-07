@@ -2643,8 +2643,30 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
-> **Engager l'étape 3 : déplacer les 63 backends mobiles vers le substrat transversal.** Il n'y a
-> plus d'obstacle de code — c'est une décision d'emplacement, pas un chantier de découplage.
+> ⚠⚠ **CORRIGÉ le 2026-09-07 après relecture de la ROUTE — NE PAS engager l'étape 3 telle
+> qu'elle était écrite ici.** Déplacer les backends vers `wama/common/` contredit **trois
+> mécanismes déclarés**, et la vérification n'avait pas été faite quand cette ligne a été écrite :
+>
+> | ce qui casse | où c'est écrit | pourquoi |
+> |---|---|---|
+> | le VIVIER (12ᵉ registre, DÉRIVÉ) | `backend_inventory.py` — `Path(config.path) / 'backends'` | il parcourt les **apps installées** et lit le paquet `backends` de chacune ; tout mettre sous `common` réduit 9 groupes à un seul et vide la « signature de voisinage » que la marche B trie |
+> | le corps de tâche GÉNÉRÉ (marche B1) | `codegen/tasks_gen.py` | l'appel au backend est un **import RELATIF AU PAQUET**, choisi pour que « la jumelle résolve SES copies de `backends/` sans citer aucun nom d'app » — une cible absolue dans `common` casse l'auto-suffisance du bac à sable |
+> | le critère de grille `backend_routes` (F, posé le 03/09) | `conformity_checker.py` | il mesure `backends/__init__.ROUTES` **par app** |
+>
+> **La propriété visée est déjà acquise, et elle n'était pas l'emplacement.** « Un backend est lié
+> au MODÈLE, pas à l'app » se traduit par la MOBILITÉ (aucun import de son app : 63/65) et par le
+> LIEN DÉCLARÉ (`ENGINE`/`SUPPORTED_MODELS` ↔ `composition.runtime.engine` — 108/116 modèles,
+> 97 résolvent leur backend réel). Les deux sont mesurés. Déménager n'y ajoute rien et coûte trois
+> mécanismes. *La route loge le paquet `backends` DANS l'app exprès : c'est ce qui rend une app
+> générée exécutable telle quelle dans le bac à sable.*
+>
+> **Reste alors le périmètre RÉEL, bien plus petit** : les deux arbres de CODE TIERS vendorisé
+> (81 Mo mesurés — un clone gitignoré, un gitlink sans URL), qui ne sont pas les backends mais
+> l'implémentation de leurs moteurs, et dont le déplacement ne touche AUCUN des trois mécanismes.
+>
+> 🔚 **Décision de Fabien** : l'étape 3 se réduit-elle à ce périmètre (code vendorisé seul,
+> backends laissés où la route les met) ? La consigne d'origine — « les backends au commun » —
+> visait le découplage, qui est fait.
 
 **File des chantiers ouverts** (ordre recommandé, bloquants marqués) :
 
@@ -11894,6 +11916,7 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 | critère de grille **`import_front`** (F2, `mecanisme='import_front'`) — réclamé par le contrôle de jonction à la 1ʳᵉ adoption, écrit sur le patron `recursive_import` ; gate commun `_card_entree_rendue` factorisé avec `import_wired` | grille **88 → 89** ; transcriber ✅, 9 apps ❌ (= la mesure de « 1/10 ») ; `tests_import_wired` **+5 tests** (boucle maison = ROUGE même si écoutée, JS d'app / gabarit = VERT, commentaire ne sauve pas, N/A commun) |
 | docs : `ROUTE §Portage F2` (1/10 + leçons), `MEDIA_STORAGE_TIERING §8.6 D11/D4`, `CLAUDE.md` (grille 89), blocs `doc_facts` régénérés (conformite, mecanismes) | `check_docs` inchangé ; `doc_facts --check` : `modeles` PÉRIMÉ **par l'autre instance** (export du corpus en cours dans l'arbre), non régénéré à dessein |
 | **2ᵉ app — CONVERTER** (2ᵉ commit) : `beforeFile` = refus avant envoi (format non supporté, pas de format de sortie) + détection de type posée quand le type CHANGE (l'ancienne boucle re-rendait le volet à CHAQUE dépôt et effaçait les défauts réglés) ; `extraFields` = `output_format` + réglages posés ; `consolidateField:'job_ids'` ; un fichier seul n'est plus consolidé par le front (auto-wrap au reload) | 5 gestes **4/5 + 1 skip** avant (garde anti-bouclage `url_import`, hors sujet) ; famille `converter.` **13/14 + le même skip** après, dont `processing`/`batch_processing` ; smoke 0 erreur JS ; 77 tests OK ; grille converter **100 %** (72/72) |
+| **3ᵉ app — DESCRIBER** (3ᵉ commit) : `extraFields` = 3 réglages du volet ; `afterImport` = la bifurcation de l'app (1 → card rendue serveur sans reload, N → reload) — 1ʳᵉ utilisation de l'évolution 7 par une app en place ; **branche « drop FileManager » RETIRÉE** (`application/x-wama-file` émis nulle part, jstree = vakata sans `drop` natif, canal global `filemanager.js` déjà en place) | 5 gestes **5/5** avant ; famille `describer.` **12/12** après ; smoke 0 erreur JS, 3 entrées liées ; ⚠ `wama.describer` = **0 test unitaire** lui aussi |
 
 ### Ce que ça a appris
 
