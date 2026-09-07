@@ -2364,11 +2364,30 @@ def plan_app_integration(user, target: str) -> dict:
             'target': target, 'state': {'known_app': False},
             'next_step': ("une app se compose de TROIS briques déclarées — UI (facettes du "
                           "manifeste `app`), MODÈLES et LIBRAIRIES (son `requires`). La "
-                          "production d'un manifeste d'app À PARTIR d'un dépôt n'est pas "
-                          "automatisée : c'est le trou restant de la chaîne"),
-            'human_gesture': ("intégrer d'abord les briques une par une "
-                              "(plan_library_integration / plan_model_integration), puis "
-                              "déclarer l'app au manifeste — le codegen fait le reste"),
+                          "production du manifeste `app` LUI-MÊME est le seul maillon non "
+                          "automatisé — tout ce qui l'entoure a son rôle (voir `roles`)"),
+            # ⚠ Cette réponse envoyait tout faire À LA MAIN, y compris l'étape « quelle app ? »
+            # que `run_integrator.py` OUTILLE depuis le 2026-08-27 (mesuré le 2026-09-07 :
+            # 6 rôles existent, la réponse n'en citait aucun). Un planificateur qui ignore les
+            # outils disponibles fait refaire à la main du travail déjà outillé — c'est le
+            # défaut que ce champ corrige.
+            'roles': [
+                "librarian (run_librarian.py --repo owner/name) → manifeste `library`",
+                "scout (run_scout.py --hf org/depot) → manifeste `model`, squelette MÉCANIQUE",
+                "model (run_model_manifest.py) → manifeste `model` : runtime.engine, capabilities",
+                "integrator (run_integrator.py --manifest …) → app EXISTANTE vs `new_app`",
+                "codegen (run_codegen.py --app <app>) → corps de glu, APRÈS que l'app existe",
+            ],
+            'gap': ("aucun rôle ne produit un manifeste `app` : `integrator` s'arrête à "
+                    "`new_app` et renvoie à WAMA_APP_GENERATION_ROUTE.md, `codegen` exige "
+                    "une app déjà déclarée. Les 13 facettes sont propres à chaque app "
+                    "(mesuré : 10 valeurs distinctes sur 10 apps pour 8 d'entre elles) — "
+                    "il n'y a donc pas de gabarit à hériter, et un dépôt ne contient pas "
+                    "l'app : il porte une CAPACITÉ, l'app est une décision WAMA"),
+            'human_gesture': ("les briques d'abord (plan_library_integration / "
+                              "plan_model_integration), puis `run_integrator.py` pour "
+                              "trancher app existante vs nouvelle ; le manifeste `app` "
+                              "reste écrit à la main, et le codegen prend le relais"),
         }
     manifeste = extract_app(target)
     if manifeste is None:

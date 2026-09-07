@@ -2084,6 +2084,80 @@ maillon de l'interop) ; ④ plugins de visualisation → monde DATA (dernier, le
 
 ---
 
+### §10.5 — « dépôt GitHub → app » : la CHAÎNE COMPLÈTE et son unique point d'arrêt (mesuré 2026-09-07)
+
+> **Pourquoi cette section existe.** Deux sessions d'affilée ont *reproposé* de construire des
+> briques **déjà écrites** (le tirage mécanique des faits depuis la source ; le choix « app
+> existante vs nouvelle »). La cause n'est pas l'étourderie : les rôles sont documentés dans
+> `PROSPECTION_PIPELINE.md` (producteurs de manifestes), la génération l'est ici (manifeste →
+> code), et **nulle part la chaîne entière n'était écrite bout à bout**. Chacun voyait son
+> tronçon et redécouvrait le reste. *Un maillon manquant se redécouvre ; une chaîne non écrite
+> se réinvente.*
+
+**Les six rôles `wama-dev-ai`, relevés dans le code — entrée → sortie** :
+
+| rôle | fichier | produit |
+|---|---|---|
+| `librarian` | `run_librarian.py` | manifeste **`library`** — depuis un dépôt GitHub (`--repo`) **ou** un paquet installé (`--dist`) |
+| `scout` | `run_scout.py` | manifeste **`model`** — squelette **mécanique** (`squelette()`, « ZÉRO LLM ici ») puis jugement LLM |
+| `model` | `run_model_manifest.py` | manifeste **`model`** — `composition.runtime.engine`, `capabilities` |
+| `integrator` | `run_integrator.py` | **décision** : app EXISTANTE (vérifiée contre `APP_CATALOG`) vs `new_app` |
+| `codegen` | `run_codegen.py` | **corps de glu** d'une tâche, depuis le manifeste COMPOSÉ |
+| `audit` | `run_audit.py` | audit read-only |
+
+Tous suivent la même discipline bornée : matière mécanique → **un** appel Ollama → contrôles
+mécaniques → `outputs/` en `PENDING_HUMAN_VALIDATION`, jamais d'auto-application.
+
+**La chaîne, et où elle s'arrête** :
+
+```
+dépôt  →  librarian ──→ manifeste library ─┐
+       →  scout / model ─→ manifeste model ─┤
+                                            ├─→ integrator ─→ « new_app »
+                                            │                     │
+                                            │              ╳ [LE TROU] ╳
+                                            │                     ↓
+                                            └────────────→  manifeste `app`
+                                                                  ↓
+                                              7 générateurs (write_back_app) + bac à sable
+                                                                  ↓
+                                                       codegen (corps de glu)
+```
+
+**Le trou est unique et précis : rien ne produit le manifeste `app` lui-même.** `integrator`
+s'arrête à `new_app` et renvoie ici ; `codegen` exige une app **déjà déclarée** (`--app
+<app>`). Vérifié : aucun `run_app*.py`, aucun `prompts/app*.txt`, et `manifest_kind: 'app'`
+n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANTE).
+
+**Et ce n'est pas un oubli — c'est une difficulté réelle, mesurée.** Deux raisons :
+
+1. **Il n'y a pas de gabarit à hériter.** Sur les 10 manifestes d'app du corpus, les facettes
+   `data`, `identity`, `modes`, `params`, `ports`, `processing`, `studio` et `tool_api` ont
+   **10 valeurs distinctes sur 10 apps** ; `capabilities`, `inspector` et `models` 9 ; seul
+   `access` descend à 4. Aucune convention réutilisable — l'idée « le nouveau manifeste hérite
+   du boilerplate » est **fausse**, et elle a été testée avant d'être écartée.
+2. **Un dépôt ne contient pas l'app.** Il porte une **capacité** (un modèle, une lib, un point
+   d'entrée d'inférence). L'app — l'item de la file, ses entrées, son volet droit, ses modes —
+   est une **décision WAMA**, absente du dépôt par nature. La formule « produire un manifeste
+   d'app à partir d'un dépôt » demande donc de tirer d'une source une information qui n'y est
+   pas : c'est ce qui la fait stagner, pas un manque d'outillage.
+
+**Ce qui, en revanche, est DÉJÀ acquis et ne doit pas être réécrit** :
+- le rassemblement mécanique des sources d'un dépôt GitHub — `run_librarian.sources_repo()`
+  (README + `pyproject.toml`/`setup.py`/`setup.cfg`/`requirements.txt`/LICENSE, `main` puis
+  `master`) ;
+- l'extraction des imports par AST — `common/services/library_index._modules_du_fichier()`,
+  et `scan_imports()` pour la résolution module → distribution ;
+- le choix de l'app cible — `integrator`, avec son contexte mécanique (`APP_CATALOG` +
+  descriptions longues + types d'E/S + modèles installés du même type).
+
+> ⚠ **`plan_app_integration` ignorait ces rôles jusqu'au 2026-09-07** : il renvoyait l'humain
+> tout faire à la main, y compris l'étape que l'`integrator` outille depuis le 2026-08-27.
+> Corrigé — l'outil expose désormais `roles` et `gap`. *Un planificateur qui ignore les outils
+> disponibles fait refaire à la main du travail déjà outillé.*
+
+---
+
 ## 11. Trous prioritaires (liste actionnable, confrontée au code)
 
 > **Passe de confirmation du 2026-08-22.** Les statuts ci-dessous ont été re-mesurés contre le
