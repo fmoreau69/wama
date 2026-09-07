@@ -11983,6 +11983,18 @@ maison » (`ROADMAP §23`, grille 🔶 honnête), portage différé **« AVEC la
 profils, pas avant »** (`PROJECT_STATUS`, clôture 01/09). Ce correctif NE porte PAS l'anonymizer sur
 la brique (89 lectures du modèle maison dans les vues, 22 dans les tâches — c'est le chantier
 différé) : il retire le geste HISTORIQUE du signal, que le mécanisme commun n'a jamais eu.
+**La pyramide défaut < profil < user, relue à la demande de Fabien (07/09 nuit)** — deux cascades,
+une par moment : (1) à la NAISSANCE d'un élément, `_reglages_du_depot` (généré) et
+`converter/views.py::upload` posent **défauts applicables du schéma ← `user_settings` persistés
+(brique cache, derniers réglages de l'utilisateur) ← POST non vide**, et re-persistent le POST comme
+défauts du prochain dépôt ; (2) à l'EXÉCUTION, `param_schema.effective_settings` = **défauts (schéma)
+← preset/profil ← réglages POSÉS** (`ROADMAP §23.2bis`), remplacée par le modèle ÉVÉNEMENTIEL du
+02/09 (§23.2quater : le dernier geste ÉCRIT, la tâche lit les colonnes) ; les profils NOMMÉS n'existent
+qu'au converter, généralisation §22 après le portage. **Ce que les 7 portages en font** : `extraFields`
+poste exactement ce que chaque app postait avant (converter : les réglages POSÉS du volet, vides
+ignorés — c'est ce qui laisse la couche `user_settings` puis le préréglage agir), rien n'a changé de
+quelle couche l'emporte. L'anonymizer garde sa table `UserSettings` maison comme couche « user »
+(le portage à la brique = §23.3, différé) ; le signal corrigé ne touche plus cette couche.
 
 ### Ce que j'ai LU avant de porter, et ce que je n'avais PAS lu (réponse à Fabien, 07/09 nuit)
 
