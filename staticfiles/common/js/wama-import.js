@@ -216,7 +216,14 @@
         // ne doit pas doubler les envois — la leçon de la double inclusion du 18/08.
         if (dz.dataset.wamaImportBound !== '1') {
           dz.dataset.wamaImportBound = '1';
-          if (fi) dz.addEventListener('click', function () { fi.click(); });
+          // Clic = ouvrir le sélecteur — SAUF sur un lien de la zone : la card commune y
+          // rend « Template » (téléchargement du gabarit de lot) et « importer un dossier ».
+          // Sans cette garde, télécharger le gabarit ouvrait AUSSI le sélecteur de fichiers
+          // (le reader s'en protégeait seul ; porté à la brique à son adoption, 2026-09-07).
+          if (fi) dz.addEventListener('click', function (e) {
+            if (e.target && e.target.closest && e.target.closest('a')) return;
+            fi.click();
+          });
           // DEUX classes de survol, à dessein (2026-09-07, 1ʳᵉ adoption par une app EN
           // PLACE) : la card v4 stylise `.wama-mod-import.dragover`, la card v3 commune
           // (`_new_item_card.html`, 10 apps) stylise `.drop-zone.drag-over` (app_modern.css).

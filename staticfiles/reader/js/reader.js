@@ -350,33 +350,50 @@
 
     // ─── Upload ───────────────────────────────────────────────────────────────
 
-    async function uploadFiles(files) {
-        if (!files || !files.length) return;
-
-        const fd = new FormData();
-        Array.from(files).forEach(f => fd.append('files', f));
-        fd.append('backend',       document.getElementById('backendSelect')?.value || 'auto');
-        fd.append('mode',          document.getElementById('modeSelect')?.value || 'auto');
-        fd.append('output_format', document.getElementById('outputFormatSelect')?.value || 'txt');
-        fd.append('language',      document.getElementById('languageInput')?.value.trim() || '');
-
-        try {
-            const r = await csrfFetch(urls.upload, { method: 'POST', body: fd });
-            const data = await r.json();
-            if (data.multi) {
-                // Multi-file batch → reload to render the batch group structure
-                window.location.reload();
-                return;
-            }
-            (data.created || []).forEach(item => upsertCard(item));
-            updateGlobalProgress();
-            if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
-        } catch (e) {
-            console.error('[Reader] upload error:', e);
+    // ─── Voie d'import : brique commune WamaImport (wama-import.js) — portage 2026-09-07 ──
+    //
+    // 6ᵉ app EN PLACE à l'adopter (plan « fichiers d'entrée », MEDIA_STORAGE_TIERING §8 ;
+    // inventaire ROUTE §Portage F2 : « multi-upload + réponse liste »). Ce qui vivait ici —
+    // `uploadFiles` (N fichiers en UNE requête, champ `files`), `uploadFilesWithBatch`, la
+    // zone de dépôt (`initDropZone`) — est le contrat de la brique depuis ses évolutions 1 et 2
+    // (réponse `created[]`, `multiple:true`), écrites POUR le reader et utilisées ici pour la
+    // 1ʳᵉ fois par une app en place. L'app ne DÉCLARE que :
+    //   • `multiple:true`   : une seule requête, le SERVEUR groupe (`{created:[…], multi}`) —
+    //                         donc pas de `consolidateUrl` ;
+    //   • `extraFields`     : moteur, mode, format, langue du volet ;
+    //   • `afterImport`     : SA politique — `multi` → reload (la structure de lot est rendue
+    //                         serveur), sinon `upsertCard` par élément créé + progression globale.
+    // La garde « un clic sur un lien de la zone n'ouvre pas le sélecteur » (gabarit de lot),
+    // que seul le reader avait, est passée DANS la brique : les 5 apps déjà portées en héritent.
+    function initImport() {
+        if (typeof window.WamaImport !== 'function') {
+            // Défaut le plus silencieux qui soit (une zone de dépôt que rien n'écoute) → on le DIT.
+            WamaApp.toast("Voie d'import non chargée (wama-import.js) — dépôt impossible", 'error');
+            console.error('[Reader] WamaImport absent : wama-import.js non chargé par le gabarit');
+            return;
         }
+        window._import = WamaImport({
+            uploadUrl:    urls.upload,
+            csrfToken:    csrf,
+            dropZoneId:   'dropZone',
+            fileInputId:  'fileInput',
+            folderInputId:'readerFolderInput',
+            batch:        window._batchImport,
+            multiple:     true,
+            extraFields:  function (fd) {
+                fd.append('backend',       document.getElementById('backendSelect')?.value || 'auto');
+                fd.append('mode',          document.getElementById('modeSelect')?.value || 'auto');
+                fd.append('output_format', document.getElementById('outputFormatSelect')?.value || 'txt');
+                fd.append('language',      document.getElementById('languageInput')?.value.trim() || '');
+            },
+            afterImport:  function (ids, reponses) {
+                const data = reponses[0] || {};
+                if (data.multi) { window.location.reload(); return; }
+                (data.created || []).forEach(item => upsertCard(item));
+                updateGlobalProgress();
+            },
+        });
     }
-
-    // ─── Drag & drop + click to browse (defined later, with batch detection) ──
 
     // ─── Global actions ───────────────────────────────────────────────────────
 
@@ -659,7 +676,7 @@
     }
 
     function init() {
-        initDropZone();
+        initImport();
         initGlobalButtons();
         initBatchSettingsModal();
         initInspector();
@@ -710,59 +727,8 @@
         if (typeof window.initMediaPreview === 'function') window.initMediaPreview();
     }
 
-    async function uploadFilesWithBatch(files) {
-        if (!files || !files.length) return;
-        // SNAPSHOT obligatoire : `files` peut être la FileList VIVANTE de l'input,
-        // que le handler vide (`input.value=''`) pendant l'await ci-dessous —
-        // relire la liste vivante après l'await = upload silencieusement vide.
-        const arr = Array.from(files);
-        if (arr.length === 1 && window._batchImport) {
-            if (await window._batchImport.detectAndHandle(arr[0])) return;
-        }
-        uploadFiles(arr);
-    }
-
-    function initDropZone() {
-        const zone = document.getElementById('dropZone');
-        const input = document.getElementById('fileInput');
-        if (!zone || !input) return;
-
-        zone.addEventListener('click', (e) => {
-            // Don't trigger file input if batch template link was clicked
-            if (e.target.closest('a')) return;
-            input.click();
-        });
-        input.addEventListener('change', () => {
-            uploadFilesWithBatch(input.files);
-            input.value = '';
-        });
-
-        zone.addEventListener('dragover', e => {
-            e.preventDefault();
-            zone.classList.add('dragover');
-        });
-        zone.addEventListener('dragleave', () => {
-            zone.classList.remove('dragover');
-        });
-        zone.addEventListener('drop', e => {
-            e.preventDefault();
-            zone.classList.remove('dragover');
-            // Dossiers inclus (brique commune WamaFolderImport, F2).
-            WamaFolderImport.collect(e.dataTransfer).then(list => {
-                if (list.length > 0) uploadFilesWithBatch(WamaFolderImport.files(list));
-            });
-        });
-
-        // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
-        const folderInput = document.getElementById('readerFolderInput');
-        if (folderInput) {
-            folderInput.addEventListener('change', () => {
-                const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
-                if (files.length > 0) uploadFilesWithBatch(files);
-                folderInput.value = '';
-            });
-        }
-    }
+    // uploadFilesWithBatch / initDropZone SUPPRIMÉS (2026-09-07) : lot testé sur un fichier
+    // seul, sélecteur, drop récursif et sélecteur de dossier sont câblés par WamaImport (initImport).
 
     // Handle files imported via filemanager "Envoyer vers Reader" context menu
     document.addEventListener('wama:fileimported', e => {

@@ -1943,8 +1943,8 @@ recopier NULLE PART, re-mesurer)** :
   codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
   `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
   (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
-- **`WamaImport` : 5/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter,
-  describer, synthesizer, enhancer-image) ; `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
+- **`WamaImport` : 6/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter,
+  describer, synthesizer, enhancer-image, reader) ; `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
   généré et le banc. Une app
   générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
   même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
@@ -2056,6 +2056,15 @@ dans leur CODE. Après HUP : synthesizer **12/13** (+ `batch_import`, dont la vu
 `batch_template` levait `NameError: HttpResponse` depuis mars — import manquant, ajouté),
 enhancer **11/12** (skip anti-bouclage inchangé). *Une garde se pose avec ses JUMEAUX* — 2ᵉ
 occurrence mesurée ; et **un test qui ne reproduit pas le middleware atteste du code cassé**.
+
+**6ᵉ adoption — reader, 2026-09-07 (soir)** : `multiple:true` (N fichiers en UNE requête, champ
+`files`, le SERVEUR groupe → pas de `consolidateUrl`) et réponse `{created:[…], multi}` — les
+évolutions 1 et 2 de la brique, écrites POUR lui le 05/09, servent pour la 1ʳᵉ fois ;
+`afterImport` = `multi` → reload, sinon `upsertCard` par élément. **La garde « un clic sur un
+lien de la zone n'ouvre pas le sélecteur »** (gabarit de lot, lien « importer un dossier »), que
+seul le reader avait, est passée DANS la brique : les 5 apps déjà portées en héritent — vérifié
+par le geste `.import` de tout le parc après HUP (toutes vertes). Mesuré : 4/5 + skip déclaré
+avant, famille `reader.` **11/12** après, smoke 0 erreur JS, 21 tests OK, grille 96 %.
 
 **Inventaire par app** (balayage exhaustif des JS d'import, ancres vérifiées sur reader et
 anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas faire :
