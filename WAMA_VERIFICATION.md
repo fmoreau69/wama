@@ -70,10 +70,10 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | **oui sauf imager** — mesuré 27/08 : composer expédie la tâche DANS sa vue de création (`composer/views.py:235`) et avatarizer enchaîne `createJob()` puis `startJob()` (`avatarizer/js/index.js:253-254`) |
 | 8 | Démarrer un item → RUNNING → SUCCESS | ✅ **JOUÉ** sur le converter · **ÉCRIT et ÉCARTÉ** sur les 16 autres — `<app>.processing` (06/09), étage `output`. C'est le premier scénario du harnais à atteindre le RÉSULTAT sur une app de file | non |
 | 9 | Arrêter / relancer (bouton de cycle) | ✅ même scénario — le bouton passe à ⏹ pendant le traitement puis à ↻ après succès (contrat `_cycle_button.html`) | non |
-| 10 | Progression : % et ETA visibles et qui avancent | ⚠️ **MOITIÉ** — la barre est LUE à chaque tour, mais une conversion témoin dure 0,2 s : une seule valeur (100 %) est échantillonnée. Le scénario le DIT (« ⚠ progression figée à 100% ») au lieu de compter un vert. Mesurer l'avancement demande une entrée assez longue — à traiter avec le geste 13 | **oui** |
+| 10 | Progression : % et ETA visibles et qui avancent | ⚠️ **MOITIÉ** (lot compris : deux conversions de 0,3 s ne laissent pas voir de palier intermédiaire — il faudra une entrée assez longue, ou un lot assez large) — la barre est LUE à chaque tour, mais une conversion témoin dure 0,2 s : une seule valeur (100 %) est échantillonnée. Le scénario le DIT (« ⚠ progression figée à 100% ») au lieu de compter un vert. Mesurer l'avancement demande une entrée assez longue — à traiter avec le geste 13 | **oui** |
 | 11 | Aperçu du résultat (clic → visionneuse) | ❌ **et le scénario le NOMME chaque nuit** — `<app>.processing` va jusqu'au double-clic et constate qu'aucune visionneuse ne s'ouvre sur le converter : aperçu hydraté, requête d'aperçu OK, zéro erreur JS. Cause **NON ÉLUCIDÉE** (app ou instrument). Porté en CONSTAT et non en échec, pour ne pas rendre rouges les gestes 8/9/12 qui, eux, sont mesurés | **oui** |
 | 12 | Télécharger le résultat | ✅ même scénario — le TRANSFERT est mesuré : 200 + **octets non nuls** (un 200 rendant 0 octet est un faux succès). Ce qui bloquait était exact et est levé : le compte de test possède désormais un élément qu'il a lui-même traité | non |
-| 13 | Démarrer tout / télécharger tout (lot) | ❌ — `<app>.batch_processing` est ÉCRIT (démarrer tout → paliers de progression → ZIP vérifié `PK` + octets non nuls) mais **DÉSACTIVÉ** : son instrument vise `.wama-card.is-batch`, donc le PREMIER lot de la page et non le sien. Il a accusé le converter de « chaîne cassée » quand le worker disait « ✓ Terminé ». **Ciblage CORRIGÉ le 07/09** (il remonte désormais des ids que le dépôt vient de créer) ; reste un rouge NON ÉLUCIDÉ — le lot de 2 finit en 2 échecs sans erreur au journal du worker, alors que le MÊME témoin passe en unitaire. Mesure impossible au calme ce jour-là : une autre instance réécrivait `common/utils/video_utils.py` et la chaîne d'import du converter a cassé puis guéri pendant la mesure | **oui** |
+| 13 | Démarrer tout / télécharger tout (lot) | ✅ **JOUÉ** sur le converter · **ÉCRIT et ÉCARTÉ** sur les 16 autres — `<app>.batch_processing` (07/09) : « Démarrer tout » → paliers → « Télécharger tout » avec ZIP **vérifié** (signature `PK` + octets non nuls, un 200 rendant une page d'erreur n'étant pas une archive). ⚠⚠ **Ce scénario a trouvé un défaut RÉEL et visible** — voir l'encadré plus bas | non |
 | 15 | **Sélection multiple** d'une file (clic / Ctrl / Maj / Ctrl+A / Échap) | ✅ `<app>.queue_dnd` (06/09) — **12 OK / 4 skips / 1 échec**, l'échec étant RÉEL (jumelle périmée) | non |
 | 16 | **Glisser-déposer** : entrer dans un lot · en former un · en sortir · ordonner | ⚠️ **MOITIÉ** — `<app>.queue_dnd` mesure la **décision** de dépôt (le seuil : tiers médian = appartenance, tiers haut/bas = ordre) et le nettoyage du retour visuel. Le **dépôt lui-même** n'est pas joué au navigateur (il recomposerait des lots sur le compte de test) ; sa moitié SERVEUR est tenue par `wama.common.tests_queue_dnd` (14 tests, dont le refus de fusion entre natures exercé en base) | non |
 | 17 | **Annuler / rétablir** (page de correction transcriber, canvas studio) | ✅ `common.history.studio` (06/09) — les DEUX moitiés : le CÂBLAGE du consommateur (ajouter, annuler, rétablir, Ctrl+Z, « vider » en UN cran donc annulable) **et** la SÉMANTIQUE de la brique sur un modèle jetable (plafond, abandon de la branche redo, `silence`, référence recalée). ⚠ Un seul consommateur est jouable : la page de correction AUTO-ENREGISTRE (`markDirty` → save 800 ms), y annuler écrirait sur une transcription réelle ; le studio ne persiste qu'en `localStorage`. Le câblage transcriber reste donc dû | non |
@@ -136,6 +136,35 @@ app de file : déposer → démarrer → RUNNING → SUCCESS → télécharger u
 > ⚠ Le geste 10 reste à MOITIÉ pour une raison d'échantillonnage, pas de câblage : une
 > conversion témoin dure 0,2 s, une seule valeur de progression (100 %) est donc observée. Le
 > scénario l'écrit dans son verdict plutôt que de compter un vert.
+
+**Au 2026-09-07 : 16,5 gestes sur 19** — `<app>.batch_processing` ferme le geste 13.
+
+> 🔴🔴 **LE DÉFAUT LE PLUS COÛTEUX TROUVÉ PAR CE HARNAIS, ET IL ÉTAIT VISIBLE PAR
+> L'UTILISATEUR.** Un lot de deux conversions de 0,3 s finissait en **« Traitement interrompu
+> (worker arrêté) »** — deux cards ROUGES — alors que le journal du worker écrivait
+> **« ✓ Terminé »** pour les deux et que les fichiers convertis étaient là, à côté.
+>
+> La cause tient en une ligne : **`is_task_dead()` répond `True` pour l'état Celery `SUCCESS`**.
+> Son nom dit « terminal », pas « morte », et sa docstring PRÉVENAIT — *« à utiliser avec un
+> délai de grâce côté appelant »*. `reconcile_orphaned_running` l'appelait **sans aucun délai**
+> et basculait l'item en ÉCHEC.
+>
+> La course : la tâche publie son état au broker **et** écrit le statut de son item — deux
+> écritures, deux instants. Un rechargement de page tombé entre les deux — et « Démarrer tout »
+> RECHARGE, par contrat de `queue-actions.js` — lisait l'item encore `RUNNING` et la tâche déjà
+> terminée, puis **écrasait le succès en échec**.
+>
+> Deux gardes posées dans la brique commune, et aucune n'est de trop : ① l'état `SUCCESS` ne
+> justifie jamais un échec (le travail a été fait ; seuls `FAILURE`/`REVOKED` et l'orphelinat
+> PROUVÉ le justifient) ; ② on **relit la ligne** avant d'écrire — c'est cette fenêtre qui
+> laissait un `FAILURE` écraser un `SUCCESS` écrit une fraction de seconde plus tôt. Tenu par
+> `wama/common/tests_reconcile.py` (4 tests), parce qu'un défaut pareil ne se retrouve qu'en le
+> cherchant.
+>
+> ⚠ Et il a fallu **trois** corrections d'instrument avant d'y arriver — le scénario visait le
+> premier lot de la page au lieu du sien, ne laissait pas la page se recharger, et montait son
+> lot par le gabarit à URL fictive. *Chacune accusait l'app à la place du harnais ; c'est le
+> pire service qu'un filet puisse rendre, et c'est le prix à payer pour qu'il en rende un bon.*
 
 > ⚠⚠ **ET IL A TROUVÉ, EN UNE EXÉCUTION, UN DÉFAUT DU HARNAIS LUI-MÊME : le fichier témoin
 > n'était pas décodable.** `_fichier_temoin` écrivait un PNG 1×1 recopié en hexadécimal —

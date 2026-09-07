@@ -278,10 +278,59 @@ def reconcile_orphaned_running(instances, *, snapshot=None,
         tid = getattr(inst, task_field, "") or ""
         if not tid:
             continue
-        if is_task_dead(tid) or is_task_orphaned(tid, snapshot):
-            _mark_reconciled(inst, status_field, task_field, to_status, error_field, error_message)
-            n += 1
+        if not (is_task_dead(tid) or is_task_orphaned(tid, snapshot)):
+            continue
+        # ⚠⚠ UNE TÂCHE QUI A RÉUSSI N'EST PAS UNE TÂCHE MORTE — défaut RÉEL, trouvé le
+        # 2026-09-07 par le scénario nocturne `<app>.batch_processing`.
+        #
+        # `is_task_dead()` répond True pour l'état Celery `SUCCESS` (son nom dit « terminal »,
+        # pas « morte » — et sa docstring PRÉVIENT : « à utiliser avec un délai de grâce côté
+        # appelant »). Ici il n'y avait aucun délai. Conséquence mesurée sur le converter : un
+        # lot de deux conversions de 0,3 s partait en « Traitement interrompu (worker arrêté) »
+        # alors que le journal du worker disait « ✓ Terminé » pour les DEUX. L'utilisateur
+        # voyait deux cards ROUGES et des fichiers parfaitement convertis à côté.
+        #
+        # La course : la tâche publie son état `SUCCESS` au broker et écrit le statut de son
+        # item — deux écritures, deux instants. Un rechargement de page tombé entre les deux
+        # (et « Démarrer tout » RECHARGE, par contrat) lisait l'item encore RUNNING et la tâche
+        # déjà terminée, puis ÉCRASAIT le succès en échec.
+        #
+        # Deux gardes, et aucune n'est de trop :
+        #   1. l'état `SUCCESS` ne justifie JAMAIS un échec — le travail a été fait ; seuls
+        #      `FAILURE`/`REVOKED` (is_task_dead) et l'orphelinat prouvé le justifient ;
+        #   2. on RELIT la ligne avant d'écrire : si le statut a bougé depuis la photo, la
+        #      tâche a fini son travail entre-temps et nous n'avons rien à dire.
+        if _tache_reussie(tid):
+            continue
+        if not _statut_inchange(inst, status_field, running_value):
+            continue
+        _mark_reconciled(inst, status_field, task_field, to_status, error_field, error_message)
+        n += 1
     return n
+
+
+def _tache_reussie(task_id: str) -> bool:
+    """La tâche s'est-elle terminée en SUCCÈS ? (≠ « morte » — cf. `reconcile_orphaned_running`)"""
+    try:
+        from celery import current_app
+        from celery.result import AsyncResult
+        return AsyncResult(task_id, app=current_app).state == "SUCCESS"
+    except Exception:
+        return False        # incertitude → on ne protège pas, les autres gardes jouent
+
+
+def _statut_inchange(instance, status_field: str, running_value: str) -> bool:
+    """Relit la ligne : le statut est-il TOUJOURS celui de la photo ?
+
+    Ferme la fenêtre entre la lecture et l'écriture — c'est elle qui laissait un `FAILURE`
+    écraser un `SUCCESS` écrit une fraction de seconde plus tôt par la tâche elle-même.
+    """
+    try:
+        frais = type(instance).objects.filter(pk=instance.pk).values_list(
+            status_field, flat=True).first()
+    except Exception:
+        return True         # pas de relecture possible → comportement d'avant
+    return frais == running_value
 
 
 def refuse_crash_redelivery(task, instance, *,

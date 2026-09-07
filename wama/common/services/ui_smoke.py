@@ -4824,9 +4824,26 @@ def check_app_batch_processing(app: str, url_path: str):
                     f"180 s (paliers vus : {paliers or '—'}) — soit les tâches ne sont pas "
                     "consommées, soit le lot n'aboutit pas")
             if fin['echecs']:
+                # ⚠ UN COMPTE N'EST PAS UN DIAGNOSTIC. La première version s'arrêtait à
+                # « N éléments en ÉCHEC », ce qui obligeait à aller lire le journal du worker
+                # — exactement le travail manuel que ce harnais existe pour supprimer. On
+                # remonte le message d'erreur porté par les cards elles-mêmes.
+                motifs = page.evaluate(
+                    """(ids) => {
+                        const out = [];
+                        for (const id of ids) {
+                            const c = document.querySelector('.wama-card[data-id="' + id + '"]');
+                            if (!c || (c.dataset.status || '') !== 'FAILURE') continue;
+                            const e = c.querySelector('.text-danger, .error-message, [class*="error"]');
+                            out.push('#' + id + ' : '
+                                     + (e ? e.textContent.trim().slice(0, 120) : 'sans message'));
+                        }
+                        return out;
+                    }""", ids_lot)
                 return False, (f"lot de {fin['total']} : {fin['echecs']} élément(s) en ÉCHEC "
-                               "sur une entrée témoin minimale — la chaîne de production de "
-                               "cette app est cassée")
+                               "sur une entrée témoin minimale — "
+                               + (" ; ".join(motifs) if motifs
+                                  else "aucun message d'erreur porté par les cards"))
 
             constats = [f"« Démarrer tout » → {fin['succes']}/{fin['total']} réussis"]
             if len(paliers) > 1:
@@ -4885,22 +4902,4 @@ def register_batch_processing_scenarios():
                             else " — CPU (tâches routées hors GPU)")),
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_processing(a, p)))(),
             timeout_s=360, vram_gb=vram,
-            # ⚠ ENCORE DÉSACTIVÉ — mais plus pour la même raison, et la distinction compte.
-            #
-            # SOLDÉ (2026-09-07) : le défaut d'instrument qui le désactivait la veille. `LOT`
-            # visait `document.querySelector('.wama-card.is-batch')`, donc le PREMIER lot de la
-            # page ; il remonte désormais depuis les IDS que le dépôt vient de créer. C'était
-            # bien mon défaut, et il est corrigé.
-            #
-            # RESTE : sur le converter, le lot de 2 finit en 2 ÉCHECS sans qu'AUCUNE erreur
-            # neuve n'apparaisse au journal du worker — alors que le même fichier témoin passe
-            # en unitaire (`converter.processing` est vert, téléchargement compris). Non
-            # élucidé. Et il ne peut pas l'être maintenant de façon fiable : une autre instance
-            # réécrit `common/utils/video_utils.py` et la chaîne d'import du converter a cassé
-            # puis guéri pendant cette mesure même — tout verdict pris ici porterait autant sur
-            # son chantier que sur le mien.
-            #
-            # Un scénario rouge sur une cause non élucidée ne se livre pas : il apprend à
-            # ignorer le rouge. Écrit, ciblé juste, désactivé — il attend une mesure au calme.
-            enabled=False,
         )
