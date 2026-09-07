@@ -13,7 +13,7 @@ from wama.common.utils.output_formats import (
 )
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.enhancer.models import Enhancement
-from wama.enhancer.backends.ai_upscaler import MODELS_INFO
+from wama.common.backends.ai_upscaler import MODELS_INFO
 
 
 def _media_model_help():

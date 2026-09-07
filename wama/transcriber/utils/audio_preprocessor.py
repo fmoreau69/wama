@@ -53,7 +53,7 @@ class AudioPreprocessor:
         source = input_path
         tmp_denoised = None
         try:
-            from wama.enhancer.backends.audio_enhancer import (
+            from wama.common.backends.audio_enhancer import (
                 get_deepfilternet_backend, DeepFilterNetBackend,
             )
             if DeepFilterNetBackend.is_available():

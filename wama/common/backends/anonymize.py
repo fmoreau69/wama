@@ -12,7 +12,7 @@ from wama.common.utils.video_utils import copy_audio_to_video
 from ultralytics import YOLO, settings
 from ultralytics.utils import MACOS, WINDOWS
 
-from .base import DetectionBackend
+from .detection_base import DetectionBackend
 from wama.common.utils.video_utils import is_image
 from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 

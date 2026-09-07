@@ -78,8 +78,14 @@ class DerivationDuVivierTest(TestCase):
         jumelles = [a for a in self.inv if a.generated_from]
         for j in jumelles:
             self.assertNotIn(j.app, s['without_routes'])
-            self.assertIn(j.generated_from, self.par_app,
-                          'une jumelle nomme une source réellement inventoriée')
+            # ⚠ L'invariant portait sur `self.par_app` — les apps VUES PAR LE VIVIER — et il
+            # confondait « la source existe » avec « la source a un paquet backends ». Depuis
+            # l'externalisation (2026-09-07), une source n'a plus de backends chez elle : ils
+            # vivent au substrat. Ce qu'il faut interdire reste le fantôme, pas l'app sans
+            # paquet local. La question posée est donc celle du CATALOGUE D'APPS.
+            from wama.common.app_registry import APP_CATALOG
+            self.assertIn(j.generated_from, APP_CATALOG,
+                          'une jumelle nomme une source qui existe réellement')
         entrees_reelles = sum(len(a.entries) for a in self.inv if not a.generated_from)
         self.assertEqual(s['backends_count'], entrees_reelles,
                          'les jumelles ne gonflent pas le total du vivier')

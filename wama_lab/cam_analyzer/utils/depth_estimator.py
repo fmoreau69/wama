@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # symboles importés sont exactement ceux que l'orchestration appelle — pas une ré-exportation
 # de confort : `tasks.py` appelle `depth_estimator.is_available()`, et le garder ici lui évite
 # de connaître l'organisation interne du paquet.
-from ..backends.depth_engine import (  # noqa: F401  (is_available est relayée à tasks.py)
+from wama.common.backends.depth_engine import (  # noqa: F401  (is_available est relayée à tasks.py)
     DEPTH_MODEL_DIR, DEPTH_MODEL_ID, clear_model_cache, estimate_depth, is_available, load,
     unload,
 )

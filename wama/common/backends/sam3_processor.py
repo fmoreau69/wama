@@ -21,7 +21,7 @@ from PIL import Image
 from wama.common.utils.blur_utils import blur_segmentation, normalize_blur_ratio
 from wama.common.utils.video_utils import copy_audio_to_video
 
-from .base import DetectionBackend
+from .detection_base import DetectionBackend
 from wama.common.utils.video_utils import is_image
 from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT, MODEL_PATHS, AI_MODELS_DIR
 

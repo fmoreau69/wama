@@ -123,7 +123,7 @@ class SAM3RoadAnalyzer:
     def load(self):
         """Load SAM3 image model. Must be called before analyze_frame()."""
         # Env setup BEFORE any SAM3 import (CLAUDE.md: env vars avant imports HF)
-        from wama.anonymizer.backends.sam3_processor import setup_sam3_hf_environment
+        from wama.common.backends.sam3_processor import setup_sam3_hf_environment
         setup_sam3_hf_environment()
 
         try:

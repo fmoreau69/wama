@@ -13,7 +13,7 @@ from django.test import TestCase
 
 from wama.model_manager.models import AIModel
 
-from .backends.audiocpp_backend import (AudioCppBackend, _snapshot_root,
+from wama.common.backends.audiocpp_backend import (AudioCppBackend, _snapshot_root,
                                         ensure_engine_default_aliases, split_caption_lyrics)
 
 

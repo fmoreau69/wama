@@ -51,7 +51,7 @@ def apply_cross_app_options(job, output_path: str, console, progress) -> None:
 
 def _enhance_image(xa, output_path, console, progress):
     """Upscale et/ou débruitage Real-ESRGAN/IRCNN (enhancer inline, ONNX)."""
-    from wama.enhancer.backends.ai_upscaler import upscale_image_file
+    from wama.common.backends.ai_upscaler import upscale_image_file
 
     factor = xa.get('upscale') or ''
     model = _UPSCALE_MODELS.get(factor) or (_DENOISE_MODEL if xa.get('denoise') else None)
@@ -79,7 +79,7 @@ def _enhance_audio_file(job, xa, output_path, console, progress):
     """Enhancement DeepFilterNet (enhancer inline) ; sortie WAV ré-encodée au format cible."""
     if not xa.get('audio_enhance'):
         return
-    from wama.enhancer.backends.audio_enhancer import run_audio_enhancement
+    from wama.common.backends.audio_enhancer import run_audio_enhancement
 
     console("Post-traitement IA : enhancement audio (DeepFilterNet)…")
     fd, tmp_wav = tempfile.mkstemp(prefix='wama_xa_', suffix='.wav')
@@ -122,7 +122,7 @@ def _enhance_video_audio(xa, output_path, console, progress):
         console("Enhancement audio ignoré : la vidéo n'a pas de piste audio.")
         return
 
-    from wama.enhancer.backends.audio_enhancer import run_audio_enhancement
+    from wama.common.backends.audio_enhancer import run_audio_enhancement
     console("Post-traitement IA : enhancement de la piste audio (DeepFilterNet)…")
     _ff = get_ffmpeg_exe()
     ext = os.path.splitext(output_path)[1].lower() or '.mp4'

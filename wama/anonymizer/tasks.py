@@ -7,7 +7,7 @@ from django.db import close_old_connections
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from .models import Media, UserSettings
-from .backends import anonymize
+from wama.common.backends import anonymize
 from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
 from wama.common.app_registry import normalize_types
@@ -577,7 +577,7 @@ def start_process(**kwargs):
             else:
                 # Use SAM3 processor
                 try:
-                    from .backends.sam3_processor import SAM3Processor
+                    from wama.common.backends.sam3_processor import SAM3Processor
 
                     if user_id:
                         _console(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")

@@ -82,7 +82,7 @@ def compose_task(self, generation_id: int):
     gen.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
 
     try:
-        from wama.composer.backends.audiocraft_backend import AudioCraftBackend
+        from wama.common.backends.audiocraft_backend import AudioCraftBackend
 
         # Build output path
         import uuid
@@ -121,7 +121,7 @@ def compose_task(self, generation_id: int):
         # défaut = AudioCraft, inchangé pour toutes les entrées historiques.
         from wama.composer.utils.model_config import COMPOSER_MODELS
         if (COMPOSER_MODELS.get(gen.model) or {}).get('backend') == 'audiocpp':
-            from wama.composer.backends.audiocpp_backend import AudioCppBackend
+            from wama.common.backends.audiocpp_backend import AudioCppBackend
             backend = AudioCppBackend()
         else:
             backend = AudioCraftBackend()
