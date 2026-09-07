@@ -11558,15 +11558,24 @@ Cinq défauts RÉELS, tous invisibles à la vérification manuelle, tous trouvé
 | **La garde GPU n'en était pas une** — `Scenario.vram_gb` déclaré partout, **lu par personne** | tout le nocturne | `f1cffffd` |
 | 🔴 **Des succès écrasés en échec** — `is_task_dead()` répond True pour l'état Celery `SUCCESS`. Un lot de conversions rapides finissait « Traitement interrompu (worker arrêté) » quand le worker écrivait « ✓ Terminé ». **Visible par l'utilisateur** | toute app à tâches rapides | `4da3ff4d` |
 
-### Livré — 9 commits
+### Livré — 15 commits, en deux moitiés
 
-1. **Manipulation directe (`0e67422b` et avant)** — brique `wama-queue-dnd.js` : 4 gestes
+⚠ **Les shas des DEUX moitiés sont listés ici** — la première (produit) et la seconde (filet).
+Une première rédaction annonçait « 9 commits » et ne nommait que la seconde : une reprise à
+froid n'aurait pas retrouvé le drag&drop ni l'historique. Corrigé à la vérification de clôture.
+
+| moitié | commits |
+|---|---|
+| **PRODUIT** (drag&drop, historique) | `9e89d4eb` `3824ce40` `5d1aed80` `797bc6d6` `f22841c4` |
+| **FILET** (scénarios nocturnes, correctifs qu'ils ont révélés) | `0e67422b` `a367ab50` `9e29b3d0` `f1cffffd` `3094f04c` `2499ca89` `864b60a5` `4da3ff4d` `4e60e53e` `df48f1e0` |
+
+1. **Manipulation directe** (`9e89d4eb`, `3824ce40`) — brique `wama-queue-dnd.js` : 4 gestes
    (entrer dans un lot / en former un / en sortir / ordonner) + sélection clic/Ctrl/Maj/Ctrl+A.
    Règle unique : **déposer SUR une card change l'APPARTENANCE, ENTRE deux cards change
    l'ORDRE**. `QueueOrderMixin.queue_index` (13 modèles) + 6ᵉ tri « Manuel ». `merge` ≠
    `consolidate` (fusion stricte vs rangement par nature à l'import). `group_key` = le MÊME
    `nature_of` que l'import, vérifié par AST. SortableJS écarté, motifs consignés.
-2. **`WamaHistory` (`common/js/wama-history.js`)** — extrait du transcriber pour un 2ᵉ
+2. **`WamaHistory` (`common/js/wama-history.js`, `5d1aed80` `797bc6d6` `f22841c4`)** — extrait du transcriber pour un 2ᵉ
    consommateur, le studio, qui l'a ADOPTÉ. C'est l'adoption qui a corrigé la brique :
    `commit()` (entonnoir post-mutation) et `silence()` n'existaient pas, et la garde de
    RÉ-ENTRANCE manquait.
