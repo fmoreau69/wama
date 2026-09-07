@@ -11958,6 +11958,31 @@ dossier `wama/static/js/jquery-file-upload/`, `REMOVAL_LEDGER`) à faire en 3 su
 | grille | converter **100**, describer **100**, reader **96**, transcriber **95**, synthesizer **95** ; anonymizer **91** / enhancer **92** en BAISSE par le chantier backends d'une autre instance (`backend_packages`, `hf_cache_isolation`…), pas par le portage |
 | familles nocturnes après portage | transcriber 13/13 · converter 13/14 + skip anti-bouclage · describer 12/12 · synthesizer 12/13 + skip « pas d'URL » · enhancer 11/12 + skip anti-bouclage · reader 11/12 + skip « pas d'URL » · anonymizer 11/12 + skip anti-bouclage ; parc `.import` **0 échec** |
 | push | `dev` non poussée par moi (6 commits de portage : `18a6266c`, `401bd9a0`, `90984b25` + 3 suivants) — mesurer contre `origin/dev` avant de conclure |
+| **`wama.common.tests_import_contract`** (ajouté après relecture demandée par Fabien) | **4 OK** — pour les 7 apps portées : la vue d'upload accepte le multipart de la brique (`file` / `files`) et répond une forme lisible par `identifiants()` (transcription Python du lecteur JS) ; un dépôt vide est REFUSÉ ; critère `import_front` vert sur l'arbre RÉEL ; `wama-import.js` chargé AVANT le script qui l'instancie — **garde contre la déconstruction** d'un portage |
+
+### ⚠ Trouvé par ces tests, CONSIGNÉ et NON corrigé (domaine anonymizer, chantier d'une autre instance)
+
+`anonymizer/signals.py` : le `post_save` de `Media` appelle `init_user_settings()` pour **TOUS les
+utilisateurs** à chaque création de média — chaque dépôt **réinitialise les réglages de tout le
+monde** (précision, segmentation, aperçu… remis aux défauts, `GSValues_customised = 0`), et commence
+par `close_old_connections()` en plein cycle de requête. Mesuré : dans un `TestCase` la connexion se
+ferme au milieu du test (« the connection is closed », l'upload répond 400) ; sous gunicorn Django
+rouvre, donc personne ne l'a vu — sauf les utilisateurs dont les réglages disparaissent. Le test de
+contrat est en `TransactionTestCase` pour cette raison. À trancher par l'auteur du signal : ce
+qu'il voulait faire (initialiser les réglages du seul utilisateur qui dépose ?) n'est pas ce qu'il fait.
+
+### Ce que j'ai LU avant de porter, et ce que je n'avais PAS lu (réponse à Fabien, 07/09 nuit)
+
+Lu avant le 1ᵉʳ commit : `PROJECT_STATUS §REPRISE 04→07/09` (point d'entrée + décisions D7/D9/
+provenance), `MEDIA_STORAGE_TIERING §8` (matrice, D4/D11), `ROUTE §Portage F2` (inventaire par app :
+c'est lui qui a dicté `job_ids`, `beforeFile`, `afterImport`, `multiple`, `each`), la brique
+`wama-import.js` en entier, `_new_item_card.html`, le câblage de `converter_01`, et pour chaque app
+son JS d'import + sa vue `upload`/`consolidate`. **Pas lu avant** : `CARD_DESIGN §11.11` (card v4) —
+lu après coup à la demande de Fabien : la v4 « n'envoie rien et ne câble pas la dropzone :
+`WamaImport` ou le JS d'app le font, comme en v3 », mêmes ids, mêmes contrats. Les 7 portages sont
+donc la couche que la v4 attend ; adopter la v4 dans une app = remplacer l'inclusion de la card,
+pas le JS d'import. Rien de ce qui a été retiré n'était consommé (mesuré : boutons « parcourir »
+jamais rendus, `application/x-wama-file` émis nulle part, jQuery-file-upload sans autre appelant).
 
 ### Pendings système
 
