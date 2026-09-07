@@ -2745,7 +2745,7 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
 > coup)** : plus AUCUNE app ne porte une classe de backend, 35 classes sous `common/backends/`.
 > Ce qui reste, dans l'ordre : ① **`vendor/`** (MuseTalk, CodeFormer — décision prise, non
 > exécutée, cf. « Laissé » n°2) ; ② **19 moteurs → registre des librairies** par manifeste ;
-> ③ faire DESCENDRE le budget d'adoption (**18** sites, `tests_backend_adoption` les nomme :
+> ③ ~~faire DESCENDRE le budget d'adoption~~ ✅ **FAIT (nuit du 07/09, `7494a61f`) : budget 0**, 18 sites convertis (imager vidéo ×5 avec `PARAMS` déclaré par le backend, `model_registry` ×8 par le moteur déclaré, avatarizer ×2 paresseux, SAM3, DeepFilterNet, défauts imager par déclaration ; describer BLIP résolu au 1ᵉʳ appel). ⚠ **Test de vie fait AVANT** : sur les 18, 2 étaient du CODE MORT EN PARALLÈLE — les branches Wan et HunyuanVideo (aucune surface ne les offrait ; poids partis en janvier, `diffusion/wan` = 22 Ko, les 50 Go de `hunyuan` sont l'image 2.1 ; jobs de janvier SUCCESS). Un budget compte des lignes, pas des chemins vivants. ⚠ Wan : le backend charge `Wan-AI/Wan2.2-*` depuis `diffusion/wan` — le FastWan 2.2 (23 Go) présent à la racine `diffusion/` et au catalogue (`huggingface:FastVideo/…`, SANS moteur déclaré) n'est PAS ce qu'il charge : à harmoniser par DÉCLARATION si Wan doit resservir. (ancien texte : **18** sites, `tests_backend_adoption` les nomme :
 > imager vidéo ×5, `model_registry` ×8, avatarizer ×2, anonymizer ×1, transcriber ×1) ; ④ la
 > dérivation des `requires` d'app par modèle→backend (corpus **8 périmés voulus**) ; ⑤ le
 > retrait de `backend_ref`. Protocole ÉPROUVÉ : smoke de résolution AVANT la substitution,
@@ -2840,7 +2840,7 @@ corriger chaque passe… ce n'est pas viable ») :
 | corpus (depuis `venv_linux`) | **8 périmés, NOMMÉS et VOULUS** — les 8 apps à backends, même cause (cf. laissé n°5) ; 0 invalide |
 | `doc_facts --check` | à jour (table des mécanismes régénérée — annexe déplacée) |
 | `check_backend_links` | **108/116** déclarent, **97** résolvent — inchangé par les déplacements |
-| `tests_backend_adoption` | budget **18** imports par chemin (22 le soir, 4 sites adoptés par la 3ᵉ tranche) |
+| `tests_backend_adoption` | budget **0** — SOLDÉ (22 → 18 → 0 dans la journée) : plus aucune app n'importe une classe de backend par chemin ; la garde est ABSOLUE et nomme l'app fautive |
 | `tests_hf_cache_routing` | budget **0** mutations (cache ET jeton) |
 | classes de backend hors des apps | **11/11** — 35 classes sous `common/backends/` ; 4 paquets d'app subsistent SANS classe (describer : `ROUTES` + fonctions de route ; transcriber, imager : manager d'app ; synthesizer : `ENGINE_BACKENDS`) |
 
