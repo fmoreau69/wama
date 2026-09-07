@@ -34,6 +34,9 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_DIR = SCRIPT_DIR.parent.resolve()
 MEMORY_PATH = SCRIPT_DIR / "memory.json"
 sys.path.insert(0, str(SCRIPT_DIR))
+# La RACINE du dépôt sur le chemin d'import : `os.chdir` ne l'y met pas (Python n'ajoute que
+# le dossier du script). Sans elle, `wama.common.*` n'est pas importable depuis ici.
+sys.path.insert(0, str(PROJECT_DIR))
 os.chdir(PROJECT_DIR)
 
 
@@ -88,10 +91,23 @@ def _format_memory_for_prompt(memory: dict) -> str:
 
 from config import (
     BASE_DIR, OUTPUT_DIR, PROMPTS_DIR,
-    OLLAMA_HOST,
     select_model_for_role, get_memory_status,
     WAMA_BASE_URL, WAMA_USERNAME, WAMA_PASSWORD,
 )
+# Adresse d'Ollama : la brique COMMUNE, comme les 5 rôles (2026-09-07).
+#
+# Ce fichier lisait `config.OLLAMA_HOST` BRUT, donc `http://127.0.0.1:11434` — qui depuis
+# WSL2 désigne la VM Linux et PAS l'hôte Windows où tourne Ollama. Il ne fonctionnait que
+# par accident d'environnement (un shell ou un cron qui exporte `OLLAMA_HOST`) : c'est
+# exactement le piège n°1 que la brique commune documente et corrige.
+#
+# ⚠ Aucun `django.setup()` n'est requis, et c'est ce qui rend l'adoption possible ici :
+# `base_url()` résout réglage Django → variable d'environnement → défaut déclaré, l'accès
+# aux settings étant dans un `try`. Vérifié le 2026-09-07 avec `DJANGO_SETTINGS_MODULE`
+# NON DÉFINI (`settings.configured is False`) : l'appel rend bien la passerelle.
+# L'audit ne charge donc PAS `INSTALLED_APPS` — un import cassé dans une app ne peut pas
+# l'empêcher de tourner, ce qui était la seule objection sérieuse à ce rattachement.
+from wama.common.utils.ollama_host import ollama_base
 from core.llm import LLMClient
 from core.tools import ToolRegistry, ToolCall, Tool, ToolResult
 from core.history import ConversationHistory
@@ -208,15 +224,20 @@ class AuditToolRegistry(ToolRegistry):
 # VRAM Pre-flight
 # =============================================================================
 
-def _free_ollama_models(ollama_host: str = OLLAMA_HOST, verbose: bool = True) -> bool:
+def _free_ollama_models(ollama_host: str = None, verbose: bool = True) -> bool:
     """
     Unload all models currently resident in Ollama (frees VRAM and RAM).
     Uses Ollama's /api/ps endpoint to list loaded models, then sends
     keep_alive=0 to each one to trigger immediate unloading.
+
+    `ollama_host=None` → adresse commune (`ollama_base()`). Le défaut est résolu À L'APPEL
+    et non plus à l'import : une adresse figée dans une signature ne peut pas tenir compte
+    de la réécriture WSL2, qui dépend de l'environnement d'exécution.
     """
     try:
         import requests
 
+        ollama_host = ollama_host or ollama_base()
         resp = requests.get(f"{ollama_host}/api/ps", timeout=5)
         if resp.status_code != 200:
             if verbose:
@@ -367,7 +388,7 @@ def _is_thinking_model(model_id: str, ollama_host: str = None) -> bool:
     try:
         import requests
         resp = requests.post(
-            f"{ollama_host or OLLAMA_HOST}/api/show",
+            f"{ollama_host or ollama_base()}/api/show",
             json={"model": model_id},
             timeout=10,
         )
@@ -536,7 +557,7 @@ class AuditAgent:
             return self._run_loop(task)
         finally:
             try:
-                _free_ollama_models(OLLAMA_HOST, verbose=self.verbose)
+                _free_ollama_models(verbose=self.verbose)
             except Exception as exc:      # libérer ne doit JAMAIS masquer le résultat du run
                 if self.verbose:
                     print(f"[Audit] Déchargement final impossible : {exc}")
@@ -747,8 +768,8 @@ def main():
     # Step 1: Unload all Ollama models from VRAM/RAM (Ollama keeps models resident
     # by default for 5 min — this often occupies 2-8 GB that blocks the audit model).
     if not args.no_free_vram:
-        print(f"[wama-dev-ai] Déchargement des modèles Ollama ({OLLAMA_HOST})…")
-        unloaded = _free_ollama_models(OLLAMA_HOST, verbose=True)
+        print(f"[wama-dev-ai] Déchargement des modèles Ollama ({ollama_base()})…")
+        unloaded = _free_ollama_models(verbose=True)
         if unloaded:
             import time
             time.sleep(1)
