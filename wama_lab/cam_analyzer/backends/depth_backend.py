@@ -1,6 +1,6 @@
 """Depth Pro — profondeur monoculaire métrique, au contrat commun.
 
-Il n'ENVELOPPE aucune logique nouvelle : `utils/depth_estimator` porte déjà le cache de
+Il n'ENVELOPPE aucune logique nouvelle : `backends/depth_engine` porte déjà le cache de
 modèle, le repli CPU et le routage des poids (`cache_dir=`, jamais de mutation
 d'environnement). Ce backend l'expose au contrat `load`/`unload`/`process`/`is_loaded`, ce
 qui apporte trois choses que l'app n'avait pas :
@@ -48,21 +48,21 @@ class DepthProBackend(BaseModelBackend):
         """`model` est ignoré : le dépôt est déclaré par le module (`DEPTH_MODEL_ID`)."""
         if self._charge:
             return True
-        from wama_lab.cam_analyzer.utils import depth_estimator
-        depth_estimator.load(device=device)
+        from .depth_engine import load
+        load(device=device)
         self._charge = True
         return True
 
     def unload(self) -> None:
-        from wama_lab.cam_analyzer.utils import depth_estimator
-        depth_estimator.unload()
+        from .depth_engine import unload
+        unload()
         self._charge = False
 
     def process(self, frame_bgr=None, device: str = 'cuda', **kwargs):
         """Carte de profondeur d'une image BGR — délègue au verbe métier historique."""
         if frame_bgr is None:
             raise ValueError("DepthProBackend.process attend une image (`frame_bgr`)")
-        from wama_lab.cam_analyzer.utils import depth_estimator
+        from .depth_engine import estimate_depth
         if not self._charge:
             self.load(device=device)
-        return depth_estimator.estimate_depth(frame_bgr, device=device)
+        return estimate_depth(frame_bgr, device=device)

@@ -13,7 +13,7 @@ from .utils.preprocessing import FaceDetector, ROIExtractor, FaceLandmarks
 from .utils.visualization import OverlayRenderer, ChartData
 from .rppg import RPPGExtractor, RPPGMethod, RPPGResult
 from .eye_tracking import EyeTracker, EyeTrackingResult
-from .emotions import EmotionRecognizer, EmotionResult
+from .backends.emotions import EmotionRecognizer, EmotionResult
 from .respiration import RespirationAnalyzer, RespirationResult
 
 logger = logging.getLogger(__name__)

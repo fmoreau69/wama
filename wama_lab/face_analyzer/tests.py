@@ -32,7 +32,7 @@ class BackendEmotionsImportableTest(SimpleTestCase):
 
     @unittest.skipUnless(_FER_PRESENT, "paquet `fer` absent de ce venv")
     def test_la_classe_FER_se_trouve_quelle_que_soit_la_disposition(self):
-        from wama_lab.face_analyzer.emotions import _import_fer
+        from wama_lab.face_analyzer.backends.emotions import _import_fer
         try:
             classe = _import_fer()
         except ImportError as e:
@@ -52,7 +52,7 @@ class BackendEmotionsImportableTest(SimpleTestCase):
         *Une garde se pose avec ses JUMEAUX : tous les points d'appel, au moment où la leçon
         s'apprend.*
         """
-        source = (Path(settings.BASE_DIR) / 'wama_lab' / 'face_analyzer' / 'emotions.py'
+        source = (Path(settings.BASE_DIR) / 'wama_lab' / 'face_analyzer' / 'backends' / 'emotions.py'
                   ).read_text(encoding='utf-8')
         # Les deux lignes du résolveur lui-même sont les seules légitimes.
         lignes = [l.strip() for l in source.splitlines()
@@ -67,7 +67,7 @@ class BackendEmotionsImportableTest(SimpleTestCase):
     @unittest.skipUnless(_FER_PRESENT, "paquet `fer` absent de ce venv")
     def test_le_backend_par_defaut_est_bien_celui_qui_est_couvert(self):
         """Si le défaut changeait, cette garde protégerait le mauvais chemin."""
-        from wama_lab.face_analyzer.emotions import EmotionRecognizer
+        from wama_lab.face_analyzer.backends.emotions import EmotionRecognizer
         import inspect
         defaut = inspect.signature(EmotionRecognizer.__init__).parameters['backend'].default
         self.assertEqual(defaut, 'fer')

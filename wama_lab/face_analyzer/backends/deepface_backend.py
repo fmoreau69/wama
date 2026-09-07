@@ -61,7 +61,7 @@ class DeepFaceBackend(BaseModelBackend):
         """
         if self.is_loaded:
             return True
-        from wama_lab.face_analyzer.emotions import EmotionRecognizer
+        from .emotions import EmotionRecognizer
         self._recognizer = EmotionRecognizer(backend='deepface',
                                              enable_age_gender=enable_age_gender)
         logger.info("[face_analyzer] backend DeepFace chargé (âge/genre=%s)", enable_age_gender)
