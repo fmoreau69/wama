@@ -4589,17 +4589,53 @@ def check_app_processing(app: str, url_path: str):
                     apercu = None
             if apercu:
                 try:
-                    apercu.scroll_into_view_if_needed(timeout=3000)
-                    apercu.dblclick(timeout=6000)   # le geste déclaré (media-preview.js)
+                    # ⚠⚠ LOCATOR, jamais l'ElementHandle capturé plus haut — TROISIÈME fois que
+                    # cette leçon revient dans la session, et `check_app_settings` la documente
+                    # déjà : « un handle pointe sur un nœud PRÉCIS, or les cards sont remplacées
+                    # au changement de statut (nœud détaché → clic qui expire) ». Ici la card
+                    # vient JUSTEMENT de passer à SUCCESS, donc d'être re-rendue : le handle
+                    # obtenu avant la boucle d'attente désigne un nœud mort.
+                    # Mesuré le 2026-09-07 : le même double-clic ÉCHOUE par handle et RÉUSSIT
+                    # par locator, sur la même page, à la même seconde. Le geste 11 n'a jamais
+                    # été en défaut — c'était l'instrument, et il a fallu le mesurer au
+                    # navigateur pour le savoir.
+                    loc = page.locator(
+                        f'.wama-card[data-id="{ident}"] .wama-card-preview[data-preview-url]'
+                    ).first
+                    loc.scroll_into_view_if_needed(timeout=3000)
+                    # Sonde POSÉE AVANT le clic : elle dit si la délégation a été atteinte.
+                    page.evaluate(
+                        """(id) => {
+                            window.__sondeApercu = { expand: 0, showModal: typeof window.showPreviewModal };
+                            const e = document.querySelector(
+                                '.wama-card[data-id="' + id + '"] .wama-card-preview');
+                            if (e) e.addEventListener('wama:card-expand',
+                                () => { window.__sondeApercu.expand++; });
+                        }""", str(ident))
+                    loc.dblclick(timeout=6000)      # le geste déclaré (media-preview.js)
                     # ⚠ DEUX issues LÉGITIMES au contrat, et n'en exiger qu'une accusait le
                     # converter à tort : l'overlay commun, OU la modale propre à l'app quand
                     # elle intercepte `wama:card-expand` (transcriber, reader). On mesure le
                     # GESTE — « une visionneuse s'ouvre » — pas une implémentation.
+                    # ⚠ 20 s, et ce n'est pas de la marge gratuite. À 6 s, l'attente expirait
+                    # alors que la visionneuse s'ouvrait BEL ET BIEN : la sonde posée dans la
+                    # branche d'échec comptait « 1 modale visible » une fraction de seconde
+                    # plus tard. La modale n'est pas dans le gabarit — `media-preview.js` la
+                    # CONSTRUIT à la volée après avoir fetché l'aperçu puis chargé le média,
+                    # ce qui est plus lent qu'un simple toggle Bootstrap. Un seuil trop court
+                    # transforme une lenteur en panne, et c'est ce qui a fait porter à cette
+                    # app, trois runs durant, un « geste 11 en défaut » qui n'existait pas.
                     page.wait_for_selector('#wamaMediaPreviewModal.show, .modal.show',
-                                           timeout=6000)
+                                           timeout=20000)
+                    # ⚠ Apostrophe BANNIE de cette chaîne JS. La version d'avant écrivait
+                    # `'modale propre à l'app'` : après les échappements Python, le moteur JS
+                    # recevait une chaîne mal fermée et levait une SyntaxError — capturée par le
+                    # `except` d'à côté, donc rapportée comme « le geste 11 est en défaut »
+                    # ALORS QUE LA VISIONNEUSE ÉTAIT OUVERTE. Trois exécutions ont accusé l'app
+                    # d'un défaut qui était une coquille d'échappement dans la sonde.
                     quelle = page.evaluate(
-                        "() => document.querySelector('#wamaMediaPreviewModal.show')"
-                        " ? 'overlay commun' : 'modale propre à l\'app'")
+                        '() => document.querySelector("#wamaMediaPreviewModal.show")'
+                        ' ? "overlay commun" : "modale propre a cette app"')
                     constats.append(f"double-clic sur l'aperçu → visionneuse ({quelle})")
                     page.keyboard.press('Escape')
                     page.wait_for_timeout(400)
@@ -4616,8 +4652,15 @@ def check_app_processing(app: str, url_path: str):
                     # pour un point non élucidé. L'inverse — taire le constat — serait le faux
                     # vert que ce harnais combat. Donc : le geste reste NOMMÉ à chaque
                     # passage, dans le verdict, et `WAMA_VERIFICATION` le compte comme DÛ.
+                    sonde = page.evaluate(
+                        "() => Object.assign({ modales: document.querySelectorAll('.modal').length,"
+                        " visibles: document.querySelectorAll('.modal.show').length },"
+                        " window.__sondeApercu || {})")
                     constats.append(
-                        "⚠ GESTE 11 EN DÉFAUT — double-clic sur l'aperçu : aucune visionneuse"
+                        f"⚠ GESTE 11 EN DÉFAUT — double-clic sur l'aperçu : aucune visionneuse "
+                        f"[sonde : wama:card-expand émis {sonde.get('expand')} fois, "
+                        f"showPreviewModal={sonde.get('showModal')}, "
+                        f"{sonde.get('modales')} modale(s) dont {sonde.get('visibles')} visible(s)]"
                         + (f" ; requête(s) en échec : {' | '.join(echecs_xhr[-3:])}"
                            if echecs_xhr else " ; aucune requête en échec")
                         + (f" ; JS : {' | '.join(erreurs_js)}" if erreurs_js else

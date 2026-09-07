@@ -71,7 +71,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 8 | Démarrer un item → RUNNING → SUCCESS | ✅ **JOUÉ** sur le converter · **ÉCRIT et ÉCARTÉ** sur les 16 autres — `<app>.processing` (06/09), étage `output`. C'est le premier scénario du harnais à atteindre le RÉSULTAT sur une app de file | non |
 | 9 | Arrêter / relancer (bouton de cycle) | ✅ même scénario — le bouton passe à ⏹ pendant le traitement puis à ↻ après succès (contrat `_cycle_button.html`) | non |
 | 10 | Progression : % et ETA visibles et qui avancent | ⚠️ **MOITIÉ** (lot compris : deux conversions de 0,3 s ne laissent pas voir de palier intermédiaire — il faudra une entrée assez longue, ou un lot assez large) — la barre est LUE à chaque tour, mais une conversion témoin dure 0,2 s : une seule valeur (100 %) est échantillonnée. Le scénario le DIT (« ⚠ progression figée à 100% ») au lieu de compter un vert. Mesurer l'avancement demande une entrée assez longue — à traiter avec le geste 13 | **oui** |
-| 11 | Aperçu du résultat (clic → visionneuse) | ❌ **et le scénario le NOMME chaque nuit** — `<app>.processing` va jusqu'au double-clic et constate qu'aucune visionneuse ne s'ouvre sur le converter : aperçu hydraté, requête d'aperçu OK, zéro erreur JS. Cause **NON ÉLUCIDÉE** (app ou instrument). Porté en CONSTAT et non en échec, pour ne pas rendre rouges les gestes 8/9/12 qui, eux, sont mesurés | **oui** |
+| 11 | Aperçu du résultat (clic → visionneuse) | ✅ **JOUÉ** sur le converter · **ÉCRIT et ÉCARTÉ** ailleurs — même scénario `<app>.processing` : double-clic sur `.wama-card-preview` → visionneuse ouverte, et le verdict DIT laquelle (overlay commun, ou modale propre à l'app quand elle intercepte `wama:card-expand` — deux issues légitimes au contrat) | non |
 | 12 | Télécharger le résultat | ✅ même scénario — le TRANSFERT est mesuré : 200 + **octets non nuls** (un 200 rendant 0 octet est un faux succès). Ce qui bloquait était exact et est levé : le compte de test possède désormais un élément qu'il a lui-même traité | non |
 | 13 | Démarrer tout / télécharger tout (lot) | ✅ **JOUÉ** sur le converter · **ÉCRIT et ÉCARTÉ** sur les 16 autres — `<app>.batch_processing` (07/09) : « Démarrer tout » → paliers → « Télécharger tout » avec ZIP **vérifié** (signature `PK` + octets non nuls, un 200 rendant une page d'erreur n'étant pas une archive). ⚠⚠ **Ce scénario a trouvé un défaut RÉEL et visible** — voir l'encadré plus bas | non |
 | 15 | **Sélection multiple** d'une file (clic / Ctrl / Maj / Ctrl+A / Échap) | ✅ `<app>.queue_dnd` (06/09) — **12 OK / 4 skips / 1 échec**, l'échec étant RÉEL (jumelle périmée) | non |
@@ -137,7 +137,31 @@ app de file : déposer → démarrer → RUNNING → SUCCESS → télécharger u
 > conversion témoin dure 0,2 s, une seule valeur de progression (100 %) est donc observée. Le
 > scénario l'écrit dans son verdict plutôt que de compter un vert.
 
-**Au 2026-09-07 : 16,5 gestes sur 19** — `<app>.batch_processing` ferme le geste 13.
+**Au 2026-09-07 : 17,5 gestes sur 19** — `<app>.batch_processing` ferme le geste 13, et le
+geste 11 tombe dans la foulée. **Restent le geste 10 entier** (une conversion de 0,3 s ne laisse
+voir aucun palier : il faudra une entrée plus longue) **et le câblage transcriber du 17**.
+
+> ⚠⚠ **LE GESTE 11 N'A JAMAIS ÉTÉ EN DÉFAUT — c'était ma sonde, et il a fallu quatre mesures
+> pour l'admettre.** Le scénario a rapporté « aucune visionneuse » pendant trois exécutions.
+> Élucidé au navigateur, en reproduisant à la main : le double-clic ouvre parfaitement l'overlay.
+>
+> La cause, une fois trouvée, est humiliante de simplicité : mon `except` englobait une
+> évaluation JS dont l'échappement était faux (`'modale propre à l'app'` — après les
+> échappements Python, le moteur JS recevait une chaîne mal fermée). Elle levait une
+> `SyntaxError` **pendant que la visionneuse était ouverte**, et le `except` la rapportait comme
+> un défaut de l'app.
+>
+> Deux fausses pistes traversées avant : le `ElementHandle` périmé (vrai piège, corrigé au
+> passage — la card est re-rendue au moment même où elle passe à SUCCESS, et
+> `check_app_settings` documentait déjà le remède : un **Locator**, qui re-résout au clic) et un
+> délai trop court (porté à 20 s : la modale n'est pas dans le gabarit, `media-preview.js` la
+> CONSTRUIT après avoir fetché l'aperçu).
+>
+> **La leçon, et elle vaut pour tout ce document : un `try/except` large autour d'une mesure
+> transforme n'importe quelle erreur d'instrument en défaut d'application.** Le harnais avait
+> déjà attrapé trois de mes instruments cette semaine ; celui-ci s'est caché derrière son propre
+> filet. *Ce qu'on entoure d'un `except` doit être exactement le geste mesuré, jamais la sonde
+> qui l'observe.*
 
 > 🔴🔴 **LE DÉFAUT LE PLUS COÛTEUX TROUVÉ PAR CE HARNAIS, ET IL ÉTAIT VISIBLE PAR
 > L'UTILISATEUR.** Un lot de deux conversions de 0,3 s finissait en **« Traitement interrompu
