@@ -59,6 +59,20 @@ def squelette(hf_id: str) -> tuple[dict, str]:
         pass
     auteur = getattr(info, 'author', '') or hf_id.partition('/')[0]
 
+    # ACCÈS au dépôt — fait MÉCANIQUE, pas un jugement (2026-09-07). HF distingue deux
+    # régimes que la prose confondait (« nécessite un token HuggingFace ») :
+    #   'auto'   — on accepte les conditions en ligne, l'accès est immédiat ;
+    #   'manual' — un humain chez l'éditeur approuve, le délai n'est pas maîtrisé ;
+    #   False    — libre.
+    # La différence est opérationnelle : `facebook/sam3` est 'manual', `pyannote/…-3.1`
+    # est 'auto' (mesuré ce jour). Écrire « il faut un token » pour les deux fait croire
+    # qu'un jeton suffit là où il faut une autorisation accordée.
+    # Vocabulaire NORMALISE, identique a celui du registre (`AIModel.GATED_*`) : HF rend
+    # `False` la ou WAMA ecrit 'no'. Laisser passer le booleen ferait deux vocabulaires pour
+    # un seul fait, et la moitie manifeste ne se projetterait jamais sur la moitie registre.
+    brut = getattr(info, 'gated', None)
+    gated = 'no' if brut in (None, False) else str(brut)
+
     manifeste = {
         'manifest_kind': 'model',
         'key': f'huggingface:{hf_id}',
@@ -77,6 +91,7 @@ def squelette(hf_id: str) -> tuple[dict, str]:
                 'license': str(licence)[:64] or None,
                 'author': str(auteur)[:200] or None,
                 'platform_ref': f'huggingface:{hf_id}',
+                'gated': gated,              # ← mécanique : 'no' | 'auto' | 'manual'
                 'description_short': None,   # ← jugement LLM
             },
             'resources': {'disk_gb': disk_gb},

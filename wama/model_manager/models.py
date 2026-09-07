@@ -527,6 +527,35 @@ class AIModel(models.Model):
     # stockees qu'il y a de modeles.
     platform_ref = models.CharField(max_length=255, blank=True, default='', db_index=True)
 
+    # ACCES au depot amont. Fait MECANIQUE tire de la source (`HfApi().model_info().gated`),
+    # porte par le manifeste comme `license` (identity.gated) et projete ici.
+    #
+    # Ne existe parce que la contrainte vivait UNIQUEMENT en prose : la description de SAM3
+    # disait « Necessite un token HuggingFace configure », ce qu'aucun selecteur, aucun
+    # installeur et aucun planificateur ne pouvait lire. Une contrainte en prose n'agit pas.
+    #
+    # ⚠ QUATRE valeurs, et le vide n'est PAS « libre » -- c'est INCONNU. Un modele jamais
+    # ausculte ne doit pas se presenter comme accessible : c'est la meme regle que « VRAM
+    # inconnue != gratuite ». D'ou `no` explicite pour un depot VERIFIE libre.
+    #   ''       inconnu -- jamais interroge
+    #   'no'     verifie libre
+    #   'auto'   conditions a accepter en ligne, acces immediat
+    #   'manual' approbation HUMAINE chez l'editeur, delai non maitrise
+    # La distinction auto/manual est operationnelle, pas cosmetique (mesure le 2026-09-07 :
+    # facebook/sam3 = 'manual', pyannote/speaker-diarization-3.1 = 'auto') : un jeton suffit
+    # pour l'un, pas pour l'autre.
+    GATED_INCONNU, GATED_LIBRE, GATED_AUTO, GATED_MANUEL = '', 'no', 'auto', 'manual'
+    GATED_CHOICES = [
+        (GATED_INCONNU, 'Inconnu — jamais interrogé'),
+        (GATED_LIBRE, 'Libre — accès vérifié sans condition'),
+        (GATED_AUTO, 'Conditionné — acceptation en ligne, accès immédiat'),
+        (GATED_MANUEL, 'Sur approbation — un humain de l’éditeur valide'),
+    ]
+    gated = models.CharField(max_length=8, blank=True, default=GATED_INCONNU,
+                             choices=GATED_CHOICES, db_index=True,
+                             help_text="Régime d'accès au dépôt amont, tiré de la source. "
+                                       "Vide = inconnu, jamais « libre ».")
+
     # Contrat de SORTIE du prompt attendu par CE modele (markdown, anglais) : longueur,
     # structure, sections, tags de paroles, prompt negatif… Fait DECLARE comme `license` --
     # porte par le manifeste `model` (body.prompts.contract), JAMAIS par la decouverte

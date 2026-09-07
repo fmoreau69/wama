@@ -281,7 +281,7 @@ class Command(BaseCommand):
             return
         from wama.model_manager.services.provenance import huggingface_identity
 
-        vus, corriges, echecs = 0, 0, 0
+        vus, corriges, echecs, acces_poses = 0, 0, 0, 0
         # Plus de `filter(license='')` : la carte de l'editeur fait AUTORITE, y compris pour
         # corriger une licence deja posee par le repli « poids » (qui rend l'AGPL du cadre
         # ultralytics). Rester sur les seuls champs vides rendait l'outil dependant de l'ORDRE
@@ -305,6 +305,16 @@ class Command(BaseCommand):
                 m.author = auteur[:200]
                 if ecrire:
                     m.save(update_fields=['author'])
+            # Regime d'ACCES : meme requete, donc gratuit. Il s'ECRASE, contrairement a l'auteur --
+            # ce n'est pas un fait cure a la main mais l'etat courant du depot amont, qui change
+            # (un editeur ouvre ou ferme l'acces). La reponse ne dit jamais 'inconnu' : on vient
+            # d'interroger. Compte a part, car il progresse meme quand la licence, elle, ne bouge pas.
+            acces = ident.get('gated') or ''
+            if acces and acces != m.gated:
+                m.gated = acces
+                acces_poses += 1
+                if ecrire:
+                    m.save(update_fields=['gated'])
             lic = str(lic)[:64]
             if not lic or lic == m.license:
                 continue
@@ -324,3 +334,5 @@ class Command(BaseCommand):
                 m.license = lic
                 m.save(update_fields=['license'])
         self.stdout.write(f"licences      : {vus} posee(s), {corriges} corrigee(s), {echecs} en echec")
+        self.stdout.write(f"acces (gated) : {acces_poses} regime(s) mis a jour"
+                          + ("" if ecrire else " (simulation)"))

@@ -56,6 +56,14 @@ def validate_model_body(body: dict) -> list[str]:
                 errs.append(f"identity.platform_ref '{ref}' doit s'ecrire '<plateforme>:<identifiant>'")
             elif plateforme not in connues:
                 errs.append(f"identity.platform_ref plateforme '{plateforme}' inconnue ({', '.join(connues)})")
+        # Regime d'acces : vocabulaire FERME, et surtout PAS de booleen. HF rend `False`, WAMA
+        # ecrit 'no' — accepter les deux ferait deux ecritures du meme fait, dont une seule se
+        # projetterait. Absent = inconnu, ce qui est une reponse legitime (et differente de 'no').
+        gated = ident.get('gated')
+        if gated is not None and gated not in ('no', 'auto', 'manual'):
+            errs.append(f"identity.gated {gated!r} invalide — 'no' (verifie libre), 'auto' "
+                        "(acceptation en ligne) ou 'manual' (approbation humaine) ; "
+                        "omettre la cle quand c'est INCONNU, ne jamais ecrire un booleen")
 
     res = body.get('resources') or {}
     if res and not isinstance(res, dict):
@@ -180,6 +188,10 @@ def extract_model(key: str) -> Optional[dict]:
             # de la tenir.
             'author': m.author or None,
             'platform_ref': m.platform_ref or None,
+            # Regime d'ACCES au depot amont (False | 'auto' | 'manual'). Absent tant qu'il est
+            # INCONNU — un manifeste muet dit « je ne sais pas », alors qu'un `false` ecrit
+            # affirmerait « libre » sur un depot jamais interroge.
+            **({'gated': m.gated} if m.gated else {}),
             'description_short': m.description_short or None,
         },
         # besoins (pilotent select_model VRAM-aware)
@@ -293,6 +305,13 @@ _CHAMPS_PROJETES = [
 #: Champ projeté SOUS CONDITION — cf. `_capabilities_projectable`.
 _CAPABILITIES_FIELD = ('capabilities', lambda m, b: b.get('capabilities') or {})
 
+#: Regime d'acces — projete SEULEMENT si le manifeste le DECLARE (2026-09-07).
+#: Il ne peut pas rejoindre `_CHAMPS_PROJETES` : ces lambdas rendent '' quand la cle manque, ce
+#: qui EFFACERAIT un regime connu des qu'un manifeste muet passerait. Or ici le vide n'est pas
+#: une valeur, c'est l'absence de mesure — « je ne sais pas » n'autorise pas a oublier ce qu'on
+#: savait. Meme raison que `_capabilities_projectable`, autre cause.
+_GATED_FIELD = ('gated', lambda m, b: (b.get('identity') or {}).get('gated') or '')
+
 
 def _capabilities_projectable(target) -> bool:
     """Le manifeste a-t-il autorité pour poser `capabilities` sur CETTE ligne ?
@@ -349,12 +368,18 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     if _capabilities_projectable(cible) and (body.get('capabilities') or {}):
         champs.append(_CAPABILITIES_FIELD)
         voulu[_CAPABILITIES_FIELD[0]] = _CAPABILITIES_FIELD[1](manifest, body)
+    # Regime d'acces : seulement si DECLARE — sinon la ligne garde ce qu'elle sait (cf. _GATED_FIELD).
+    if (body.get('identity') or {}).get('gated'):
+        champs.append(_GATED_FIELD)
+        voulu[_GATED_FIELD[0]] = _GATED_FIELD[1](manifest, body)
 
     actuel = {champ: getattr(cible, champ) for champ, _ in champs}
     deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}
     preserves = ['is_downloaded', 'is_loaded', 'local_path', 'vram_gb']
     if not any(c == _CAPABILITIES_FIELD[0] for c, _ in champs):
         preserves.append('capabilities')
+    if not any(c == _GATED_FIELD[0] for c, _ in champs):
+        preserves.append('gated')
 
     if not apply:
         return {'model': key, 'would_change': sorted(deltas), 'target': voulu,

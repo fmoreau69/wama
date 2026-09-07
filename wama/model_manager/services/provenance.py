@@ -33,10 +33,12 @@ logger = logging.getLogger(__name__)
 
 def huggingface_identity(hf_id: str) -> Optional[dict]:
     """
-    `{license, author, platform_ref, hf_id}` lu sur la carte du dépôt, ou None si injoignable.
+    `{license, author, platform_ref, hf_id, gated}` lu sur la carte du dépôt, ou None si injoignable.
 
     L'auteur et la licence viennent de la MÊME requête : les séparer coûterait un aller-retour
-    par modèle pour deux faits posés sur la même table.
+    par modèle pour deux faits posés sur la même table. `gated` a rejoint le lot pour cette
+    raison exacte (2026-09-07) — `model_info()` le rend dans la réponse déjà demandée, donc
+    l'ignorer coûtait un fait, pas une requête.
     """
     hf_id = (hf_id or '').strip()
     if not hf_id:
@@ -62,11 +64,18 @@ def huggingface_identity(hf_id: str) -> Optional[dict]:
     # l'éditeur — ce n'est pas une déduction, c'est la façon dont la plateforme nomme.
     auteur = (getattr(info, 'author', '') or hf_id.partition('/')[0] or '')
 
+    # Régime d'ACCÈS au dépôt (`AIModel.GATED_*`). HuggingFace rend `False` / 'auto' / 'manual' ;
+    # WAMA écrit 'no' pour le libre VÉRIFIÉ, afin que le vide reste disponible pour « inconnu ».
+    # Cette réponse ne dit JAMAIS « inconnu » : on vient d'interroger le dépôt.
+    brut = getattr(info, 'gated', None)
+    gated = 'no' if brut in (None, False) else str(brut)[:8]
+
     return {
         'license': str(licence)[:64],
         'author': str(auteur)[:200],
         'platform_ref': f"huggingface:{hf_id}",
         'hf_id': hf_id,
+        'gated': gated,
     }
 
 

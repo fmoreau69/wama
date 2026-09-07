@@ -473,6 +473,79 @@ class CompositionTest(TestCase):
         self.assertIsNone(patterns_from_composition(None))
 
 
+class RegimeDAccesTest(TestCase):
+    """Le régime d'accès au dépôt amont (`gated`) est un FAIT tiré de la source, pas une phrase.
+
+    Né d'un constat (2026-09-07) : la description de SAM3 portait « Nécessite un token
+    HuggingFace configuré » — une contrainte qu'aucun sélecteur, aucun installeur et aucun
+    planificateur ne pouvait lire. Le rattrapage a révélé 9 autres dépôts conditionnés que
+    personne n'avait écrits nulle part.
+    """
+
+    def test_le_vocabulaire_est_ferme_et_un_booleen_est_refuse(self):
+        """HuggingFace rend `False`, WAMA écrit 'no'. Accepter les deux ferait DEUX écritures
+        du même fait, dont une seule se projetterait — le défaut exact qu'on a failli livrer."""
+        from wama.common.manifests.builtin.model import validate_model_body
+        for bon in ('no', 'auto', 'manual'):
+            self.assertEqual(validate_model_body({'identity': {'gated': bon}}), [],
+                             f"'{bon}' doit être accepté")
+        for mauvais in (False, True, 'oui', 'gated'):
+            self.assertTrue(any('gated' in e for e in
+                                validate_model_body({'identity': {'gated': mauvais}})),
+                            f"{mauvais!r} doit être refusé")
+
+    def test_la_cle_absente_est_licite_car_inconnu_n_est_pas_libre(self):
+        """Le vide n'est pas une valeur : c'est l'absence de mesure. Un modèle jamais interrogé
+        ne doit pas se présenter comme accessible — même règle que « VRAM inconnue ≠ gratuite »."""
+        from wama.common.manifests.builtin.model import validate_model_body
+        self.assertEqual(validate_model_body({'identity': {}}), [])
+        self.assertEqual(validate_model_body({}), [])
+
+    def test_un_manifeste_MUET_ne_rabaisse_pas_un_regime_deja_connu(self):
+        """Le piège de ce chantier : les lambdas de `_CHAMPS_PROJETES` rendent '' quand la clé
+        manque, donc y inscrire `gated` aurait EFFACÉ un régime connu au premier manifeste muet.
+        Ne pas savoir n'autorise pas à oublier ce qu'on savait."""
+        from wama.common.manifests.builtin.model import write_back_model
+        AIModel.objects.create(model_key='huggingface:Org/Ferme', name='Fermé',
+                               model_type='vision', source='huggingface', gated='manual')
+        write_back_model({'manifest_kind': 'model', 'key': 'huggingface:Org/Ferme',
+                          'body': {'identity': {}}}, apply=True)
+        self.assertEqual(AIModel.objects.get(model_key='huggingface:Org/Ferme').gated, 'manual')
+
+    def test_un_manifeste_QUI_DECLARE_ecrase_car_le_depot_amont_change(self):
+        """Contrairement à l'auteur (fait curé à la main), le régime est l'état COURANT du dépôt :
+        un éditeur ouvre ou ferme l'accès, et la dernière lecture fait foi."""
+        from wama.common.manifests.builtin.model import write_back_model
+        AIModel.objects.create(model_key='huggingface:Org/Ouvert', name='Ouvert',
+                               model_type='vision', source='huggingface', gated='manual')
+        write_back_model({'manifest_kind': 'model', 'key': 'huggingface:Org/Ouvert',
+                          'body': {'identity': {'gated': 'no'}}}, apply=True)
+        self.assertEqual(AIModel.objects.get(model_key='huggingface:Org/Ouvert').gated, 'no')
+
+    def test_l_extraction_TAIT_la_cle_tant_que_le_regime_est_inconnu(self):
+        """Un manifeste muet dit « je ne sais pas » ; un `gated` écrit affirmerait « libre »
+        sur un dépôt jamais interrogé."""
+        from wama.common.manifests.builtin.model import extract_model
+        AIModel.objects.create(model_key='huggingface:Org/Jamais', name='Jamais',
+                               model_type='vision', source='huggingface', hf_id='Org/Jamais')
+        muet = extract_model('huggingface:Org/Jamais')
+        self.assertNotIn('gated', muet['body']['identity'])
+
+        AIModel.objects.filter(model_key='huggingface:Org/Jamais').update(gated='auto')
+        su = extract_model('huggingface:Org/Jamais')
+        self.assertEqual(su['body']['identity']['gated'], 'auto')
+
+    def test_le_registre_et_le_manifeste_partagent_UN_SEUL_vocabulaire(self):
+        """L'invariant qui empêche la divergence de revenir : les valeurs non vides des choix du
+        champ sont exactement celles que le validateur du manifeste accepte."""
+        from wama.common.manifests.builtin.model import validate_model_body
+        du_registre = {v for v, _ in AIModel.GATED_CHOICES if v}
+        self.assertEqual(du_registre, {'no', 'auto', 'manual'})
+        for v in du_registre:
+            self.assertEqual(validate_model_body({'identity': {'gated': v}}), [],
+                             f"le registre admet '{v}' — le manifeste doit l'admettre aussi")
+
+
 class InstallDepuisLeCatalogueTest(TestCase):
     """Un modèle d'app « Not downloaded » doit s'installer EXPLICITEMENT (2026-08-27, cas
     musicgen-melody : affiché sans aucun geste — l'affichage est voulu, le geste manquait).
