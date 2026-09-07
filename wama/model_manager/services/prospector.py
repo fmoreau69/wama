@@ -268,17 +268,52 @@ _NOISE_MARKERS = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
                  'controlnet', 'adapter')
 
 
-def _repo_weight_gb(hf_id: str):
-    """Poids total d'un dépôt HF en Go (somme des fichiers), ou None si indéterminable.
-    Un appel HTTP par dépôt : à réserver aux candidats RETENUS, pas au listing."""
+#: Extensions de fichiers de POIDS (pour le détail par fichier des dépôts quantisés).
+#: Remontée ici le 2026-09-07 avec la dérivation qui l'emploie — elle vivait 190 lignes plus
+#: bas, à côté de la seule fonction qui la lisait.
+_WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth')
+
+
+def _siblings(hf_id: str):
+    """`[(nom, taille_octets)]` de TOUS les fichiers d'un dépôt — la SEULE requête HTTP de
+    l'inventaire (2026-09-07).
+
+    Domicile unique de ce geste : il partait en DEUX exemplaires dans ce fichier
+    (`_repo_weight_gb` et l'ex-`_weight_files`, 170 lignes d'écart, même appel), et les deux
+    étaient invoqués sur le MÊME dépôt à quatre lignes d'écart dans `install_options` — donc
+    deux allers-retours HTTP par variante. Les DÉRIVATIONS, elles, restent distinctes : le
+    poids total compte TOUS les fichiers, la liste de poids n'en garde que certains. C'est
+    l'appel qui était en double, pas le calcul.
+
+    None = dépôt injoignable, à distinguer d'un dépôt VIDE (`[]`) : l'un est une panne,
+    l'autre un fait. À réserver aux candidats RETENUS, pas au listing.
+    """
     try:
         from huggingface_hub import HfApi
         info = HfApi().model_info(hf_id, files_metadata=True)
-        total = sum((s.size or 0) for s in (info.siblings or []))
-        return round(total / 1024 ** 3, 1) if total else None
+        return [(s.rfilename, s.size or 0) for s in (info.siblings or [])]
     except Exception as e:
-        logger.debug("[prospect_hf_seed] poids de %s indéterminable : %s", hf_id, e)
+        logger.debug("[prospect_hf_seed] inventaire de %s indéterminable : %s", hf_id, e)
         return None
+
+
+def _poids_total_gb(fichiers):
+    """Go de la somme de TOUS les fichiers, ou None — dérivation PURE, aucun réseau.
+    `0` rend None : un dépôt dont les tailles sont absentes n'est pas un dépôt vide."""
+    total = sum(t for _, t in (fichiers or []))
+    return round(total / 1024 ** 3, 1) if total else None
+
+
+def _fichiers_de_poids(fichiers):
+    """`[(nom, taille)]` des seuls fichiers de POIDS — dérivation PURE, aucun réseau."""
+    return [(n, t) for n, t in (fichiers or []) if n.lower().endswith(_WEIGHT_EXTS)]
+
+
+def _repo_weight_gb(hf_id: str):
+    """Poids total d'un dépôt HF en Go, ou None si indéterminable. Un appel HTTP par dépôt.
+    Conservée : trois appelants ne veulent QUE cette valeur (`prospect_hf_seed` ×2,
+    `views.install` pour sa garde d'espace) et n'ont pas à connaître l'inventaire."""
+    return _poids_total_gb(_siblings(hf_id))
 
 
 #: Marqueurs de QUANTISATION/repack dans l'id d'un dépôt dérivé. Sous-ensemble de
@@ -433,21 +468,6 @@ def _analyze_license_text(hf_id: str, lid: str):
                 'detail': f"texte de licence illisible ({lid or '?'})"}
 
 
-#: Extensions de fichiers de POIDS (pour le détail par fichier des dépôts quantisés).
-_WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth')
-
-
-def _weight_files(hf_id: str) -> list[tuple[str, int]]:
-    """`[(nom, taille_octets)]` des fichiers de poids d'un dépôt (metadata, 1 requête)."""
-    try:
-        from huggingface_hub import HfApi
-        info = HfApi().model_info(hf_id, files_metadata=True)
-        return [(s.rfilename, s.size or 0) for s in (info.siblings or [])
-                if s.rfilename.lower().endswith(_WEIGHT_EXTS)]
-    except Exception as e:
-        logger.debug("[options_install] fichiers de %s indéterminables : %s", hf_id, e)
-        return []
-
 
 def install_options(cand) -> dict:
     """
@@ -476,12 +496,18 @@ def install_options(cand) -> dict:
     enrichies = []
     for v in variants:
         v = dict(v)
-        if v.get('disk_gb') is None:
-            v['disk_gb'] = _repo_weight_gb(v['hf_id'])
+        besoin_taille = v.get('disk_gb') is None
+        besoin_fichiers = 'files' not in v
+        # UNE requête pour les deux besoins : ils portaient sur le MÊME dépôt et partaient
+        # chacun en HTTP (2 allers-retours PAR VARIANTE, sur une boucle). Les deux gardes
+        # restent DISTINCTES — une variante peut n'avoir besoin que de l'une des deux.
+        fichiers = _siblings(v['hf_id']) if (besoin_taille or besoin_fichiers) else None
+        if besoin_taille:
+            v['disk_gb'] = _poids_total_gb(fichiers)
             a_persister = True
-        if 'files' not in v:
+        if besoin_fichiers:
             v['files'] = [{'file': nom, 'gb': round(taille / 1024 ** 3, 1)}
-                          for nom, taille in _weight_files(v['hf_id'])]
+                          for nom, taille in _fichiers_de_poids(fichiers)]
             a_persister = True
         enrichies.append(v)
     if a_persister:
