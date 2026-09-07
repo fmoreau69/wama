@@ -4,38 +4,16 @@
  * La zone d'import est la card d'entrée COMMUNE `_new_item_card` (drag&drop + URL +
  * batch + médiathèque) : ids `dropZoneAnonymizer` / `fileupload` / `anonUrlInput` /
  * `anonUrlSubmit`. L'upload passe par la brique commune WamaImport (portage 2026-09-07,
- * 7ᵉ app en place) : envoi séquentiel AVEC progression (XHR — évolution 8 de la brique,
- * écrite pour cette modale), lot testé sur chaque fichier, consolidation en UN batch quand
- * plusieurs fichiers arrivent ensemble, puis la page recharge (file re-rendue serveur).
- * jQuery-file-upload n'a plus de consommateur ici.
+ * 7ᵉ app en place) : envoi séquentiel avec la barre de progression COMMUNE, lot testé sur
+ * chaque fichier, consolidation en UN batch quand plusieurs fichiers arrivent ensemble, puis
+ * la page recharge (file re-rendue serveur). L'URL passe par le formalisme de lot commun
+ * (08/09). jQuery-file-upload et la modale `#modal-progress` n'ont plus de consommateur.
  */
 $(function () {
   const cfg = window.WAMA_ANON || {};
 
-  // Initialize modal once and reuse the instance
-  let progressModal = null;
-  const modalElement = document.getElementById('modal-progress');
-
-  if (modalElement) {
-    progressModal = new bootstrap.Modal(modalElement, {
-      backdrop: 'static',
-      keyboard: false,
-      focus: true
-    });
-
-    modalElement.addEventListener('hide.bs.modal', function () {
-      const focusedElement = modalElement.querySelector(':focus');
-      if (focusedElement) {
-        focusedElement.blur();
-      }
-    });
-    modalElement.addEventListener('hidden.bs.modal', function () {
-      modalElement.setAttribute('aria-hidden', 'true');
-    });
-    modalElement.addEventListener('shown.bs.modal', function () {
-      modalElement.setAttribute('aria-hidden', 'false');
-    });
-  }
+  // (La modale `#modal-progress` a disparu le 08/09 : la progression d'envoi est la barre
+  // commune de la brique, l'import par URL passe par le formalisme de lot — plus rien à montrer.)
 
   // Protège la PAGE : un fichier lâché hors de la zone ne doit pas être ouvert par le
   // navigateur (comportement d'avant, conservé — ce n'est pas de l'import, c'est de la page).
@@ -54,9 +32,8 @@ $(function () {
   //   • `afterImport`     : les erreurs PAR LIGNE (`errors[]`) restent lisibles en console,
   //                           puis reload (file re-rendue serveur).
   // La PROGRESSION D'ENVOI est celle de la brique, COMMUNE à toutes les apps (08/09, demande
-  // Fabien) : la modale `#modal-progress` que cette app montrait pendant l'upload (héritage
-  // jQuery-file-upload, puis hooks `onProgress`/`onSettled` le 07/09) n'est plus utilisée
-  // ICI — elle ne sert plus qu'à l'import par URL ci-dessous, chemin propre à l'app.
+  // Fabien) : la modale `#modal-progress` (héritage jQuery-file-upload, puis hooks
+  // `onProgress`/`onSettled` le 07/09) est RETIRÉE du gabarit.
   // Réponse `{success, added:[{id…}], errors}` : lue par la brique (évolution 1, écrite le
   // 05/09 pour ce contrat). Consolidation `ids` (multipart) → `anonymizer:consolidate`, qui lit
   // par le lecteur commun `ids_from_request` (corrigé le 07/09 : il lisait `request.body`).
@@ -88,62 +65,24 @@ $(function () {
     console.error('[Anonymizer] WamaImport absent : wama-import.js non chargé par le gabarit');
   }
 
-  // Import par URL (champ de la card d'entrée commune)
-  function submitUrlImport() {
-    const input = document.getElementById('anonUrlInput');
-    const mediaUrl = input ? input.value.trim() : '';
-    if (!mediaUrl) {
-      WamaApp.toast("Veuillez entrer une URL de média.", 'warning');
-      return;
-    }
-    if (progressModal) progressModal.show();
-
-    const _fmt = (document.getElementById('output_format') || {}).value || 'original';
-    const _qual = (document.getElementById('output_quality') || {}).value || 'balanced';
-    $.ajax({
-      type: 'POST',
-      url: cfg.uploadUrl,
-      data: {
-        csrfmiddlewaretoken: cfg.csrfToken,
-        media_url: mediaUrl,
-        output_format: _fmt,
-        output_quality: _qual,
+  // Import par URL : le FORMALISME COMMUN, comme les 6 autres apps portées (08/09, Fabien :
+  // « l'import par URL n'est pas propre aux apps, c'est le portage qui n'était pas terminé »).
+  // L'URL = un lot d'UNE ligne → même parseur (`batch_parsers`) → `batch_create` la stocke en
+  // `source_url` (régime PARESSEUX, `WAMA_INGEST` sur `Media`) et `ensure_local_input` la
+  // télécharge AU LANCEMENT de la tâche. L'ancien `$.ajax` maison postait `media_url` à la vue
+  // d'upload, qui téléchargeait À L'IMPORT derrière une modale bloquante — la seule app du parc
+  // à le faire (`MEDIA_STORAGE_TIERING §8.3`). `initUrlImport` (commun) porte champ, bouton,
+  // touche Entrée, spinner, vidage et erreurs ; le format/qualité de sortie viennent du
+  // `formDataBuilder` du lot (gabarit), comme pour un fichier de lot.
+  if (window.WamaApp && WamaApp.initUrlImport) {
+    WamaApp.initUrlImport({
+      inputId: 'anonUrlInput',
+      buttonId: 'anonUrlSubmit',
+      onEmpty: function () { WamaApp.toast("Veuillez entrer une URL de média.", 'warning'); },
+      onSubmit: function (url) {
+        if (!window._batchImport) throw new Error("Import batch non initialisé");
+        return window._batchImport.ingestText(url + '\n', 'url.txt');
       },
-      dataType: 'json',
-      success: function (data) {
-        if (data.success && data.media) {
-          if (window.WamaFM) WamaFM.uploaded();
-          location.reload();
-        } else {
-          WamaApp.toast(data.error || "Le téléchargement a échoué.", 'error');
-        }
-      },
-      error: function (xhr) {
-        let msg = "Une erreur s'est produite";
-        try { msg = JSON.parse(xhr.responseText).error || msg; } catch (e) {}
-        WamaApp.toast("Erreur téléchargement URL : " + msg, 'error');
-      },
-      complete: function () {
-        if (progressModal) progressModal.hide();
-        if (input) input.value = '';
-      }
-    });
-  }
-
-  const urlSubmit = document.getElementById('anonUrlSubmit');
-  if (urlSubmit) {
-    urlSubmit.addEventListener('click', function (e) {
-      e.preventDefault();
-      submitUrlImport();
-    });
-  }
-  const urlInput = document.getElementById('anonUrlInput');
-  if (urlInput) {
-    urlInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        submitUrlImport();
-      }
     });
   }
 });

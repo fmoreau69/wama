@@ -2078,8 +2078,15 @@ de progression » a coûté **deux évolutions de brique** et **deux rouges élu
   elle-même une barre commune dans la zone de dépôt** (classes `wama-progress-track/fill` des
   cards, `app_modern.css` chargé par `base.html`, libellé « Envoi i/N · fichier · pct % »),
   retirée à la fin de l'envoi, ids créés ou non. Aucune app n'écrit de markup ; `onProgress` /
-  `onSettled` restent des hooks de REMPLACEMENT, qu'aucune app n'utilise. La modale
-  `#modal-progress` de l'anonymizer ne sert plus qu'à son import par URL (chemin propre à l'app).
+  `onSettled` restent des hooks de REMPLACEMENT, qu'aucune app n'utilise.
+- **L'import par URL n'est pas propre aux apps non plus** (Fabien, 08/09 : « c'est juste que le
+  portage n'était pas terminé ») : l'anonymizer était la SEULE app à poster `media_url` à sa vue
+  d'upload par un `$.ajax` maison (téléchargement À L'IMPORT, modale bloquante). Porté sur le
+  formalisme commun des 6 autres — `WamaApp.initUrlImport` + `ingestText` : l'URL = un lot d'une
+  ligne, stockée en `source_url` par `batch_create` (`WAMA_INGEST` sur `Media`) et téléchargée AU
+  LANCEMENT par `ensure_local_input`. La modale `#modal-progress` n'a plus aucun consommateur :
+  retirée du gabarit. Mesuré : famille `anonymizer.` **12/12**, `url_import` passe de SKIP (garde
+  anti-bouclage sur le téléchargement à l'import) à **OK** (élément créé, résolution différée).
   Mesuré (sonde `MutationObserver` persistée à travers le reload) : la barre apparaît puis
   disparaît sur transcriber, anonymizer, converter, 0 erreur JS ;
 - **la forme `{media:{id}}`** : l'endpoint répond `media` (objet) pour UN fichier et `added[]`

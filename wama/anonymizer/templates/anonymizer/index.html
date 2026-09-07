@@ -583,34 +583,7 @@ WamaParams.render(context:'batch') dans #anonBatchParams, appliqués à tous les
     </div>
 </div>
 
-<!--  Progress popup - Must be at body level for proper z-index -->
-<div class="modal fade" id="modal-progress" tabindex="-1" aria-labelledby="modalProgressLabel">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title text-white" id="modalProgressLabel">
-                    <i class="fas fa-upload me-2"></i>Téléchargement en cours...
-                </h4>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="progress" style="height: 24px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated"
-                         role="progressbar"
-                         style="width: 0%;"
-                         aria-valuenow="0"
-                         aria-valuemin="0"
-                         aria-valuemax="100">0%</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-1"></i>Fermer
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+{# La modale de progression `#modal-progress` est RETIRÉE (2026-09-08) : progression d'envoi = barre commune de WamaImport, import par URL = formalisme de lot commun. #}
 
 <!-- HuggingFace Token Configuration Modal -->
 <div class="modal fade" id="modal_hf_config" tabindex="-1" aria-labelledby="modalHfConfigLabel">
