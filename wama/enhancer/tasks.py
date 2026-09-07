@@ -523,7 +523,6 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
     import subprocess
     # (`tempfile` et `shutil` retires le 2026-08-26 : leurs SEULS usages ici etaient le mkdtemp
     #  et les deux rmtree, tous trois absorbes par la brique `work_dir`.)
-    from wama.common.backends.ai_upscaler import AIUpscaler
     import cv2
     from django.core.files.base import ContentFile
 
@@ -582,7 +581,17 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
             # Step 2: Upscale frames (10-80%)
             _console(user_id, f"Upscaling frames with {enhancement.ai_model}...")
 
-            upscaler = AIUpscaler(
+            # Le MODÈLE porte son moteur ; le backend s'en DÉRIVE (2ᵉ adoptant de
+            # `backend_for_key`, 2026-09-07). Les 7 modèles déclarent `onnxruntime` et
+            # résolvent tous `AIUpscaler` — mesuré avant la substitution. Aucun repli muet.
+            from wama.common.backends.manager import backend_for_key
+            cle_catalogue = f'enhancer:{enhancement.ai_model}'
+            classe = backend_for_key(cle_catalogue)
+            if classe is None:
+                raise RuntimeError(
+                    f"Modèle « {enhancement.ai_model} » : aucun backend résolu depuis le "
+                    f"catalogue ({cle_catalogue} absent, ou sans moteur déclaré)")
+            upscaler = classe(
                 model_name=enhancement.ai_model,
                 tile_size=enhancement.tile_size if enhancement.tile_size > 0 else 512
             )

@@ -179,6 +179,29 @@ def backend_for_model(model):
     return backend_for_engine(engine, cle.rsplit(':', 1)[-1] if cle else '')
 
 
+def backend_for_key(model_key: str):
+    """La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
+
+    Pourquoi elle existe (1ᵉʳ adoptant, 2026-09-07 — composer, puis enhancer) : une app ne tient
+    pas la LIGNE du catalogue, elle tient l'IDENTIFIANT du modèle choisi (sa colonne `model` /
+    `ai_model`). Sans cette entrée, chaque app recopierait les mêmes trois lignes de recherche
+    — c'est ce que le dépôt interdit. Elle DÉLÈGUE, elle ne décide rien : aucun second chemin.
+
+    ⚠ Recherche ORM TARDIVE : ce module est importé par des backends SANS Django. Une base
+    absente ou une ligne manquante rendent None — l'appelant dit alors POURQUOI il s'arrête,
+    il ne devine pas un backend « par défaut » (c'est la règle de `resolve_backend`).
+    """
+    if not model_key:
+        return None
+    try:
+        from wama.model_manager.models import AIModel
+        ligne = AIModel.objects.filter(model_key=model_key).first()
+    except Exception as e:                       # hors Django, base absente : pas de verdict
+        logger.warning('[backends] catalogue illisible pour %s : %s', model_key, e)
+        return None
+    return backend_for_model(ligne) if ligne is not None else None
+
+
 def backend_missing(model) -> Optional[str]:
     """Raison si `model` est POSITIVEMENT sans backend, sinon None.
 

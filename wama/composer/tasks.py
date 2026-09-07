@@ -82,8 +82,6 @@ def compose_task(self, generation_id: int):
     gen.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
 
     try:
-        from wama.common.backends.audiocraft_backend import AudioCraftBackend
-
         # Build output path
         import uuid
         from django.conf import settings
@@ -116,15 +114,20 @@ def compose_task(self, generation_id: int):
             instance=gen, user=gen.user, console=lambda m: _console(user_id, m),
         )
 
-        # Dispatch par le discriminateur `backend` du modèle (2026-08-27) : 'audiocpp' =
-        # moteur composé audio.cpp (sous-processus, composants déclarés au manifeste) ;
-        # défaut = AudioCraft, inchangé pour toutes les entrées historiques.
-        from wama.composer.utils.model_config import COMPOSER_MODELS
-        if (COMPOSER_MODELS.get(gen.model) or {}).get('backend') == 'audiocpp':
-            from wama.common.backends.audiocpp_backend import AudioCppBackend
-            backend = AudioCppBackend()
-        else:
-            backend = AudioCraftBackend()
+        # Le MODÈLE porte son moteur (catalogue, `composition.runtime.engine`) ; le backend s'en
+        # DÉRIVE — l'app ne choisit rien et n'importe aucun module par son chemin. 1ᵉʳ adoptant
+        # de `backend_for_key` (2026-09-07). Avant : le discriminateur `backend` de
+        # `COMPOSER_MODELS` (une déclaration de modèle rangée dans le dossier de l'app) et un
+        # import de classe par chemin — le motif que la ROUTE §10.3 interdit.
+        # ⚠ Aucun repli « par défaut » : un modèle non résolu arrête le job en le DISANT.
+        from wama.common.backends.manager import backend_for_key
+        cle_catalogue = f'composer:{gen.model}'
+        classe = backend_for_key(cle_catalogue)
+        if classe is None:
+            raise RuntimeError(
+                f"Modèle « {gen.model} » : aucun backend résolu depuis le catalogue "
+                f"({cle_catalogue} absent, ou sans moteur déclaré)")
+        backend = classe()
         from wama.common.utils.preview_utils import emit_streaming_peaks, clear_partial
         backend.generate(
             model_id=gen.model,
