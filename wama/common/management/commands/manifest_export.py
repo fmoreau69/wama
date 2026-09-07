@@ -188,13 +188,48 @@ class Command(BaseCommand):
             w(s(f"  {app_id:14s} écrit — {len(manifest['body'])} facettes, "
                 f"{len(texte):,} octets{note}"))
 
+        # ── Manifestes AUTORÉS : le seul angle mort de cette garde (2026-09-07) ────────────
+        # Un kind sans `extract` (`dataset` : « AUTORÉ — le manifeste est l'origine ») n'a
+        # rien à régénérer, donc pas d'entrée dans DOSSIERS, donc il ne passait NI par la
+        # boucle ci-dessus, NI par `manifest_roundtrip` (apps seules). Résultat : le seul
+        # manifeste du corpus écrit À LA MAIN était le seul qu'aucun contrôle ne relisait.
+        # Rien à REGÉNÉRER ne veut pas dire rien à VALIDER — la validation, elle, ne demande
+        # aucune source. Balayage par dossier NON couvert : un futur kind autoré est pris
+        # automatiquement, sans qu'on ait à y penser.
+        couverts = {base / d for d in DOSSIERS.values()}
+        autores, invalides = [], []
+        for f in sorted(base.glob('manifests/*/*.json')):
+            if f.parent in couverts:
+                continue
+            autores.append(f)
+            try:
+                manuel = json.loads(f.read_text(encoding='utf-8'))
+            except (ValueError, OSError) as exc:
+                invalides.append((f, [f"illisible : {exc}"]))
+                continue
+            erreurs_a = list(validate(manuel) or [])
+            if erreurs_a:
+                invalides.append((f, erreurs_a))
+        if autores:
+            rel = lambda p: p.relative_to(base).as_posix()          # noqa: E731
+            for f, msgs in invalides:
+                w(e(f"  {rel(f)} INVALIDE — {len(msgs)} erreur(s)"))
+                for m in msgs[:5]:
+                    w(e(f"    - {m}"))
+            if not invalides:
+                w(s(f"  {len(autores)} manifeste(s) AUTORÉ(S) relu(s) — tous valides "
+                    f"({', '.join(sorted({rel(f.parent) for f in autores}))})"))
+
         w("")
         if o['check']:
-            if perimes or refuses:
-                w(e(f"Corpus PÉRIMÉ : {len(perimes)} à régénérer, {len(refuses)} invalide(s). "
+            if perimes or refuses or invalides:
+                détail = (f"{len(perimes)} à régénérer, {len(refuses)} invalide(s)"
+                          + (f", {len(invalides)} autoré(s) invalide(s)" if invalides else ""))
+                w(e(f"Corpus PÉRIMÉ : {détail}. "
                     f"Lancer : python manage.py manifest_export"))
                 raise SystemExit(1)
-            w(s(f"Corpus à jour ({len(inchanges)} manifeste(s))."))
+            w(s(f"Corpus à jour ({len(inchanges)} manifeste(s), "
+                f"+ {len(autores)} autoré(s) valide(s))."))
             return
 
         w(f"{len(ecrits)} écrit(s), {len(inchanges)} inchangé(s), {len(refuses)} refusé(s) "

@@ -43,23 +43,33 @@ def fetch(url, user_agent='wama-dev-ai'):
         return r.read().decode('utf-8', 'replace')
 
 
-def call_ollama(model, system, user_msg, num_ctx=16384, keep_alive=None):
+def call_ollama(model, system, user_msg, num_ctx=16384, keep_alive=None,
+                temperature=0.1, timeout=600):
     """Appel Ollama one-shot. `keep_alive='0'` décharge le modèle SITÔT la réponse rendue
     (au lieu des ~5 min de résidence par défaut) — c'est la parade du mode dépannage GPU,
-    à passer depuis `resource_governor.pipeline_keep_alive()`. None = défaut Ollama."""
+    à passer depuis `resource_governor.pipeline_keep_alive()`. None = défaut Ollama.
+
+    ⚠ `temperature` et `timeout` sont PARAMÈTRES depuis le 2026-09-07, et les défauts ici
+    sont EXACTEMENT ceux d'avant (0.1 / 600 s) : les quatre rôles qui appellent sans les
+    citer sont donc inchangés au bit près. Ils existent parce que `run_codegen` portait un
+    DOUBLON de cette fonction avec trois valeurs différentes (0.2 / 32768 / 900 s) —
+    remplacer sans les offrir aurait TRONQUÉ sa matière (jusqu'à 60 000 caractères servis,
+    illisibles à num_ctx=16384) et raccourci son délai. *Avant de supprimer un doublon, on
+    compare ; s'il diverge, on FUSIONNE — sinon la déduplication perd une capacité.*
+    """
     payload = {
         'model': model,
         'messages': [{'role': 'system', 'content': system},
                      {'role': 'user', 'content': user_msg}],
         'stream': False,
-        'options': {'temperature': 0.1, 'num_ctx': num_ctx},
+        'options': {'temperature': temperature, 'num_ctx': num_ctx},
     }
     if keep_alive is not None:
         payload['keep_alive'] = keep_alive
     req = urllib.request.Request(
         f'{ollama_host()}/api/chat', data=json.dumps(payload).encode('utf-8'),
         headers={'Content-Type': 'application/json'})
-    with _OPENER_DIRECT.open(req, timeout=600) as r:
+    with _OPENER_DIRECT.open(req, timeout=timeout) as r:
         return json.loads(r.read())['message']['content']
 
 

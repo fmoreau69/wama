@@ -334,6 +334,59 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   ni `qc` ni `assess_output_quality` — la carte des mécanismes le
   signale comme brique morte). Ligne 12 du tableau §5.
 
+### 2quater. OÙ WAMA PARLE À OLLAMA — la carte des appelants (MESURÉE 2026-09-07)
+
+> **Pourquoi elle existe** (demande de Fabien) : « Ollama sert à plein d'endroits — apps,
+> AI-Assistant, wama-dev-ai, pipeline LLM, prospection du model_manager. Il faut pouvoir
+> vérifier partout avant de toucher, pour ne rien casser. » Cette carte est ce qu'on relit
+> **avant** de modifier une brique d'appel. Le §2ter dit *quel modèle* est choisi ; celle-ci
+> dit *par où l'appel passe*.
+
+**Deux briques, et elles ne se confondent pas** :
+- **l'ADRESSE** → `common/utils/ollama_host.ollama_base()` — annexe du mécanisme
+  `external_sources`. Elle porte les **deux pièges vérifiés** que rien de générique ne sait
+  faire : WSL2 → passerelle Windows (`127.0.0.1` y désigne la VM, pas l'hôte), et le
+  contournement du proxy UGE (qui avale `172.x` et rend un `ReadTimeout` trompeur, « Ollama
+  ne répond pas » alors qu'il tourne). ⚠ Le piège n°2 **effaçait des candidats valides** :
+  `prospect_ollama()` purge quand la liste revient vide ;
+- **le CLIENT** → `common/utils/llm_utils.ollama_chat()`, « point de passage de toutes les
+  fonctions de ce module ». Le registre des sources externes, lui, ne déclare **jamais** le
+  client — c'est écrit dans son périmètre.
+
+**Les appelants, par famille** :
+
+| famille | point d'appel | passe par |
+|---|---|---|
+| Pipeline LLM (traduction, enrichissement, skills) | `llm_utils.ollama_chat` → `/api/chat` | `ollama_base()` |
+| AI-Assistant (web, API v1, canaux) | `services/assistant_engine.py` | `ollama_base()` |
+| RAG / embeddings | `common/memory/embed.py` → `/api/embed`, `/api/tags` | `ollama_base()` |
+| model_manager — **prospection** | `prospect_ollama` → `ollama_registry` + `update_checker` | `ollama_base()` |
+| model_manager — bancs & registre | `benchmark_sync`, `model_registry` → `/api/show` | `ollama_base()` |
+| model_manager — chargement | `memory_manager` → `/api/generate` | `ollama_base()` |
+| **wama-dev-ai — les 5 rôles** | `role_utils.call_ollama` → `/api/chat` | `role_utils.ollama_host()` |
+
+**Règle de modification** : une brique d'appel se change après avoir relu **cette ligne-là**
+du tableau *et* les appelants réels (`grep` natif — `rtk` compresse, il ne mesure pas). Les
+familles ci-dessus sont **étanches** : rien dans `wama/` n'importe `role_utils`, et
+`wama-dev-ai` n'importe pas `llm_utils` (vérifié sur tout le dépôt le 2026-09-07).
+
+> ⚠ **Un doublon SUBSISTE, sciemment consigné** : `role_utils.ollama_host()` réimplémente la
+> réécriture WSL2 de `common/utils/ollama_host.ollama_base()` — alors que cette brique commune
+> a justement été **extraite de `run_librarian.py`** le 2026-08-02 comme « seule implémentation
+> correcte du repo ». Les deux lisent la MÊME variable (`os.environ['OLLAMA_HOST']`) avec le
+> MÊME défaut : elles sont équivalentes aujourd'hui, et rien ne garantit qu'elles le restent.
+> Non fusionné faute d'arbitrage sur le couplage `wama-dev-ai → wama.common` (les rôles font
+> déjà `django.setup()`, donc c'est techniquement possible). *Une brique qu'on extrait sans que
+> sa source l'adopte laisse deux vérités derrière elle.*
+>
+> ✅ Le doublon voisin, lui, est SOLDÉ (2026-09-07) : `run_codegen` portait sa propre copie de
+> `call_ollama`, `ollama_host` et de l'écriture de sortie. Fusionné — mais **pas remplacé** :
+> il divergeait sur trois valeurs (`temperature` 0.2, `num_ctx` 32768, `timeout` 900 s) que le
+> commun ne savait pas exprimer, et un remplacement sec aurait **tronqué sa matière** (jusqu'à
+> 60 000 caractères, illisibles à `num_ctx=16384`). Le commun a gagné deux paramètres à défauts
+> INCHANGÉS ; codegen passe les siens. *Avant de supprimer un doublon on compare ; s'il diverge,
+> on fusionne — sinon la déduplication perd une capacité en silence.*
+
 ### 3. RAG — alimentation par GESTE, rappel par NIVEAUX (`WAMA_MEMORY.md §7ter`)
 
 ```

@@ -26,8 +26,6 @@ import ast
 import json
 import re
 import sys
-import urllib.request
-from datetime import datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -39,33 +37,16 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
 
-from config import OLLAMA_HOST, select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
+from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
+# Helpers COMMUNS aux rôles — adoptés le 2026-09-07 (audit « la route est-elle unique ? »).
+# Ce fichier portait sa PROPRE copie de `ollama_host`, `_OPENER_DIRECT`, `call_ollama` et de
+# l'écriture de sortie : 4 rôles sur 5 adoptaient déjà `role_utils`, celui-ci non.
+from role_utils import call_ollama, write_output  # noqa: E402
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'codegen.txt').read_text(encoding='utf-8')
-OUTPUTS = Path(__file__).parent / 'outputs'
 MAX_MATTER_CHARS = 60000   # tâche étroite : tronquer plutôt que faire dériver
 FEWSHOT = (('converter', 'wama/converter/tasks.py', ('convert_media_task', '_convert')),
            ('reader', 'wama/reader/tasks.py', ('read_document_task', '_read')))
-
-
-def _ollama_host():
-    """Sous WSL2, 127.0.0.1 n'atteint PAS l'Ollama de l'hôte Windows : gateway obligatoire."""
-    host = OLLAMA_HOST
-    if '127.0.0.1' in host or 'localhost' in host:
-        try:
-            if 'microsoft' in Path('/proc/version').read_text().lower():
-                import subprocess
-                gw = subprocess.run(['sh', '-c', "ip route | awk '/default/ {print $3; exit}'"],
-                                    capture_output=True, text=True).stdout.strip()
-                if gw:
-                    host = re.sub(r'127\.0\.0\.1|localhost', gw, host)
-        except OSError:
-            pass
-    return host
-
-
-# Ollama (gateway) SANS proxy — le proxy UGE avalerait 172.x.
-_OPENER_DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def _source_de(path: Path, noms: tuple) -> str:
@@ -160,19 +141,11 @@ def matiere_manifeste(app_id: str) -> tuple:
     return compact, resolus
 
 
-def call_ollama(model, system, user_msg):
-    payload = {
-        'model': model,
-        'messages': [{'role': 'system', 'content': system},
-                     {'role': 'user', 'content': user_msg}],
-        'stream': False,
-        'options': {'temperature': 0.2, 'num_ctx': 32768},
-    }
-    req = urllib.request.Request(
-        f'{_ollama_host()}/api/chat', data=json.dumps(payload).encode('utf-8'),
-        headers={'Content-Type': 'application/json'})
-    with _OPENER_DIRECT.open(req, timeout=900) as r:
-        return json.loads(r.read())['message']['content']
+#: Réglages PROPRES au codegen, conservés À L'IDENTIQUE lors de l'adoption du commun
+#: (2026-09-07). Ils ne sont PAS cosmétiques : la matière servie va jusqu'à
+#: `MAX_MATTER_CHARS` (60 000 caractères), illisible au num_ctx de 16384 du défaut commun —
+#: et écrire du code prend plus longtemps qu'un verdict JSON.
+CODEGEN_NUM_CTX, CODEGEN_TEMPERATURE, CODEGEN_TIMEOUT = 32768, 0.2, 900
 
 
 def extract_code(text: str) -> str:
@@ -302,7 +275,8 @@ def main():
 
     model = args.model or select_model_for_role('codegen')[1].ollama_id
     print(f'[codegen] modèle : {model} | app : {args.app} | glu : {nom_impose}')
-    reponse = call_ollama(model, PROMPT, user_msg)
+    reponse = call_ollama(model, PROMPT, user_msg, num_ctx=CODEGEN_NUM_CTX,
+                          temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
     code = extract_code(reponse)
     verif = controles(code, nom_impose, args.app)
 
@@ -312,19 +286,17 @@ def main():
         chemin = REPO_ROOT.joinpath(*module.split('.')).with_suffix('.py')
         verite = {'ref': args.truth, 'source': _source_de(chemin, (fn,))}
 
-    OUTPUTS.mkdir(exist_ok=True)
-    horodatage = datetime.now().strftime('%Y-%m-%d_%H-%M')
-    sortie = OUTPUTS / f'codegen_{args.app}_{task}_{horodatage}.json'
-    sortie.write_text(json.dumps({
-        'status': 'PENDING_HUMAN_VALIDATION',
-        'role': 'codegen',
+    # `write_output` produit EXACTEMENT le même fichier qu'avant : le nom se compose
+    # `{role}_{slug}_{horodatage}.json`, donc `codegen_{app}_{task}_{horodatage}.json` avec
+    # ce slug, et l'enveloppe pose les mêmes `status`/`role` en tête. Vérifié avant bascule.
+    sortie = write_output('codegen', f'{args.app}_{task}', {
         'model': model,
         'app': args.app, 'task': task, 'function': nom_impose,
         'checks': verif,
         'code': code,
         'truth': verite,
         'matter_chars': len(user_msg),
-    }, ensure_ascii=False, indent=2), encoding='utf-8')
+    })
 
     print(f'[codegen] → {sortie.relative_to(REPO_ROOT)}')
     print(f"[codegen] compile={verif['compile_ok']} signature={verif['signature_ok']} "
