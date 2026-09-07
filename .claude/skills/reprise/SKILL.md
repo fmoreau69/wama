@@ -111,26 +111,24 @@ recouvrir un échec qui remplace un autre :
 - Comparer les chiffres au bloc « Contrôles attendus au prochain /reprise » du **dernier
   §REPRISE** de `PROJECT_STATUS.md` (corpus N manifestes, roundtrip, scores de grille) — c'est
   lui qui porte les valeurs à jour, pas ce skill.
-- 🔴 **LE CRITÈRE EST LE NOMBRE DE CIBLES DISTINCTES — attendu = 1.** (Détail et raison plus bas.)
+- 🔴 **LE CRITÈRE EST LE NOMBRE DE CIBLES DISTINCTES — attendu = 0** (resserré le 2026-09-07 :
+  la dernière cible due a été créée). Toute cible distincte est désormais une dérive.
   Comparer les **fichiers cités**, jamais le nombre de références.
 
-- **État MESURÉ au 2026-08-31** : `check_docs` = **8 références cassées / 0 périmée sur ~1274**,
-  pour **1 SEULE cible distincte** — le **partial d'onglets de résultat jamais créé** (cible de
-  `REMOVAL_LEDGER` R18 ; duplication vérifiée présente, `transcriber/index.html:307` et
-  `describer/index.html:109` portent le même `#resultTabs`).
-  ⚠ **Le chemin n'est volontairement pas réécrit ici** — l'écrire ferait de cette ligne une
-  référence cassée de plus. C'est exactement ainsi que le compte est passé de 4 à 5 le 24/08 :
-  le bloc « Contrôles attendus » l'a recité pour en rendre compte.
-  ⚠ Le total de RÉFÉRENCES enfle mécaniquement (518 → 1103 le 28/08 → **~1274** le 31/08) sans
+- **État MESURÉ au 2026-09-07** : `check_docs` = **0 cassée / 0 périmée sur 1469** —
+  **ZÉRO cible distincte**. Le partial d'onglets de résultat, seule cible due depuis des
+  semaines, a été CRÉÉ ce jour-là ; le seuil est descendu de 1 à 0 dans la foulée
+  (`nightly_scenarios.CIBLES_ASSUMEES`), parce qu'un seuil qui survit à la cible qu'il
+  couvrait laisse passer la suivante sans rien dire.
+  ⚠ Le total de RÉFÉRENCES enfle mécaniquement (518 → 1103 le 28/08 → **1469** le 07/09) sans
   qu'aucune dérive n'existe : chaque §REPRISE ajoute des citations. **Seul le nombre de cibles
-  distinctes est le critère** ; ce total n'est là que pour dater la mesure.
-  ⚠⚠ **Ne pas lire « 4 », « 5 » ni « 8 » comme un seuil** — voir le 🔴 ci-dessus. Le 26/08, j'ai lu la
-  ligne d'état périmée (« 4 / 518 ») et conclu à tort que le seuil du skill avait dérivé, alors
-  que le critère juste était deux lignes plus bas et **tenait**. *Un chiffre périmé posé à côté
-  de la bonne règle se fait lire à sa place.*
+  distinctes est le critère** ; ce total ne sert qu'à dater la mesure.
+  ⚠⚠ **Ne lire aucun de ces nombres comme un seuil** — voir le 🔴 ci-dessus. Le 26/08, la
+  ligne d'état périmée (« 4 / 518 ») a été lue à la place de la règle, deux lignes plus bas.
+  *Un chiffre périmé posé à côté de la bonne règle se fait lire à sa place.*
   - ⚠ `wama/common/middleware.py` a QUITTÉ cette liste le 20/08 : le fichier EXISTE désormais
-    (`RunOutcomeCaptureMiddleware`, chantier mémoire) — mais `UserLanguageMiddleware` (tableau
-    i18n du `ROADMAP`) n'y est toujours PAS écrit : la référence résout, l'intention i18n reste due.
+    (`RunOutcomeCaptureMiddleware`) — mais `UserLanguageMiddleware` (tableau i18n du `ROADMAP`)
+    n'y est toujours PAS écrit : la référence résout, l'intention i18n reste due.
 
   🔴 **NE PAS LIRE CE NOMBRE COMME UN SEUIL.** Le contrat automatique, lui, compte désormais juste :
   `nightly_scenarios.CIBLES_ASSUMEES = 1` compare des **CIBLES DISTINCTES** (✅ **corrigé le

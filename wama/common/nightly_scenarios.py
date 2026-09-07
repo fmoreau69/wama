@@ -38,9 +38,15 @@ from wama.common.services.nightly_tests import SkipScenario, register
 # aucune dérive réelle » (skill `/reprise`). Conséquence mesurée le 27/08 : le scénario
 # `common.consistency.docs` était ROUGE (5 références pour UNE seule cible), donc un contrôle
 # nocturne échouait sans rien signaler de vrai — un rouge permanent ne se lit plus.
-# `wama/common/middleware.py` a quitté la liste le 20/08 (le fichier existe) : la seule cible
-# encore due est le partial d'onglets de résultat, d'où 1.
-CIBLES_ASSUMEES = 1      # contrat REPRISE §3a — CIBLES distinctes, jamais des références
+# `wama/common/middleware.py` a quitté la liste le 20/08 (le fichier existe).
+#
+# 🔴 RESSERRÉ À 0 le 2026-09-07 — mesuré à la clôture : `check_docs` rend **0 cassée / 0 périmée
+# sur 1471 références**. La dernière cible due (le partial d'onglets de résultat) a été CRÉÉE
+# par une autre instance ce jour-là ; son commit n'a pas rabaissé le seuil, et un seuil qui
+# survit à la cible qu'il couvrait est exactement ce que le rituel appelle « pire qu'absent » :
+# il aurait laissé passer UNE vraie cible manquante sans rien dire.
+# Toute cible distincte est désormais une dérive — il n'y a plus de dette assumée ici.
+CIBLES_ASSUMEES = 0      # contrat REPRISE §3a — CIBLES distinctes, jamais des références
 REDONDANCES_ASSUMEES = 0  # dette anonymizer résorbée au palier 1 du port (03/08) — toute trouvaille = nouvelle recopie
 
 # Famille « chiffre sans source » (check_docs, 2026-08-27). Contrat à 0 dès le premier jour :

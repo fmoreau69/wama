@@ -11395,6 +11395,76 @@ navigateur Playwright et a été purgé en fin de passe.
   presque toujours la mauvaise réponse — la faire entrer dans `ui_smoke.py` la rend rejouable et
   nocturne ». Un scénario `studio.history` (ajouter, annuler, rétablir, vider+annuler) n'existe
   pas encore : tant qu'il n'est pas écrit, cette attestation vaut pour AUJOURD'HUI et rien de plus.
+
+## §REPRISE — 2026-09-04 → 09-07, instance « CARD v4 + FICHIERS D'ENTRÉE » — ✅ CLOSE — 🔚 POINT D'ENTRÉE
+
+> Session ouverte sur la card d'entrée v4 (question de Fabien : *« la card_v4 a son gabarit
+> mais pas de zone de preview »*), élargie par lui à la **gestion des fichiers d'entrée** (*« 5 à
+> 6 fonctionnements parallèles à confronter »*), puis cadrée par sa règle : **corriger /
+> uniformiser / universaliser AVANT de câbler**. 14 commits dans ce périmètre, tous par chemins
+> explicites ; une autre instance a travaillé en parallèle (backends, HF cache, DeepFace).
+> Détail vivant : `CARD_DESIGN §11.11`, `MEDIA_STORAGE_TIERING §8`, `ROUTE § Portage F2`.
+
+### Livré (dans l'ordre, chaque palier prouvé avant le suivant)
+
+| commit | quoi | preuve |
+|---|---|---|
+| `9c517abf` | 4 tests rouges soldés + `related_name` sur `imager.ImageGeneration.user` (bloquait toute jumelle d'imager) + règle « la suite se lance depuis WSL2 » dans `/reprise` | suite complète **1595 OK** (base recréée) |
+| `e75ffe0c` `0cb66cd7` | maquette v4 **dérivée de la v3.5** + matrice port × modalité, lecture rectifiée par Fabien (le LOT n'a pas de port, c'est le GESTE qui le crée ; composer sans port travail = normal ; enhancer/imager à 2 inclusions = trou de PORTAGE) | `docs/card_designs/card_v4_maquette.html`, 94 px constants sur 4 vues |
+| `30189784` | **matrice des voies d'import MESURÉE** (6 cas de Fabien, 2 suppositions renversées : la médiathèque COPIE ; le prompt n'est jamais un fichier) — 10 défauts dont 1 de sécurité | `MEDIA_STORAGE_TIERING §8` (domicile décidé, ligne `CLAUDE.md` élargie) |
+| `8b51fe08` | **palier 1** — brique `media_paths.resolve_under_media_root`, **17 sites** rabattus (🔴 traversée de chemin du synthesizer ; 9 dans `tool_api` où une garde existait et que 8 fonctions ignoraient), gardien anti-récidive | 82 tests OK WSL2 + Windows |
+| `b6917571` `0622030e` | **palier 2** — transcriber consolide ; canal de drag déclaré par la card (`WamaApp.filesFromServerPaths` / `injectFiles`, GLOBAL) ; dépôt en arborescence dé-collisionné ; **la brique `WamaImport` porte le DOSSIER** (elle ne le traversait pas : câbler dessus aurait régressé 8 apps) | parc **32 OK / 0 échec / 18 skips nommés** (5 gestes × 10 apps) ; `converter_01` 8/8 |
+| `35cc5b0a` | `WamaImport` couvre ce que les apps FONT : réponse liste, `multiple`, `beforeFile`, `batchScope`, `afterImport(ids, réponses)` — défauts inchangés | contrat vérifié réseau intercepté |
+| `636aa2d6` | **D12** — `/synthesizer/` 4,5 s → **0,78 s** (le grisage refaisait 2 904 `stat` disque ×24 par page) ; `synthesizer.import` redevient vert | mémo 60 s + `invalidate_engine_cache()` dans l'installeur |
+| `b5d0c1cc` | **palier « symbole »** — 11 briques globales comptées par leur symbole ; `consommateurs()` front = symbole ∪ nom (le remplacement faisait tomber la file de 81 à 2) ; dossier récursif **2 → 22** | `doc_facts` à jour, 64 tests OK |
+| `13904b7c` | drag hors card commune → import serveur (face_analyzer redevenait muette par ma branche du 05/09) ; l'événement `filemanager:filedrop` n'a plus de consommateur vivant | JS servis parse OK |
+| `b92be04c` | **card v4 REFAITE et rebranchée** (ports en onglets, modalités toutes visibles, URL = son champ, bascule fichiers, 96 px ; ne câble jamais la dropzone) | `converter_01` **8/8 gestes** ; `imager_01` (v4 posée à la main dans la copie jetable) : 2 onglets, port référence `library·url·import`, injection → chip `WamaInputMatch` |
+
+### ⚠⚠ Les leçons de la session (les détails vivent dans les commits cités)
+
+- **Un vert sur une seule plateforme n'atteste que cette plateforme** : 4 tests « terminés » n'avaient jamais pu passer sous Linux (littéral `/dossier` créé sur le disque réel sous Windows ; roster figé sur l'état d'un venv) → règle posée dans `/reprise §3a`.
+- **Les gabarits sont en cache PAR WORKER gunicorn** (`ROUTE §28` corrigé) : après régénération, 5 requêtes sur 6 servaient l'ancien — 3 gestes « tombaient » au hasard du worker. `kill -HUP <maître>` AVANT de mesurer, pour un gabarit comme pour du Python.
+- **Une brique n'est pas ce qu'on a décidé tant qu'on ne l'a pas relue** (Fabien : *« revérifier en profondeur avant d'attaquer »*) : `WamaImport` ne traversait pas un dossier déposé ; le critère de grille `wama_import` n'était PAS à écrire (le contrôle de jonction le réclame seul à la 1ʳᵉ adoption, et le champ `symbole` existait pour mesurer l'adoption).
+- **Une card d'entrée qui ne passe pas les gestes de la v3 ne peut pas la remplacer, même en bac à sable** — la jumelle cesserait de mesurer la chaîne réelle.
+- **`WamaImport` n'est chargé par AUCUNE app en place** (0/10 confirmé au navigateur ; `import_wired` mesure le JS propre) : tout helper que l'explorateur (global) doit atteindre va dans `wama-app-base.js`.
+- ORM **hors** du contexte Playwright dans les sondes ; un `\` dans un nom de test est un caractère valide sous Linux.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Câbler le TRANSCRIBER sur `WamaImport`** — le plus proche du gabarit : `extraFields = _appendPanelParams`, `consolidateField: 'ids'`, `folderInputId`, `batch: window._batchImport`. Preuve = ses 5 gestes nocturnes AVANT et APRÈS (`transcriber.import/batch_import/url_import/folder_import/send_to`), après `kill -HUP`. **Rien ne bascule si un geste tombe.** Le contrôle de jonction (`doc_facts` → « de niveau app sans critère ») réclamera alors le critère `import_front` : l'écrire à ce moment, sur le patron `recursive_import`.
+
+### File des chantiers ouverts (ordre)
+
+1. câblage `WamaImport` : transcriber → converter (`consolidateField:'job_ids'`, `beforeFile`) → describer (`afterImport` 1 vs N) → synthesizer → enhancer-image → **composer** (vue `upload` à créer — aujourd'hui un fichier non-lot déposé est AVALÉ sans trace, `batch-import.js:256`) → reader (`multiple`) → anonymizer (réponse `added[]` + progression) → enhancer-audio (lot maison) → imager/avatarizer (attache = injection + `WamaInputMatch`, déjà en place côté card v4) ;
+2. le port **`live`** : encore le littéral `show_live` — sa déclaration, maintenant qu'un lecteur existe (`input_slots`) ;
+3. **provenance** (palier 3 du plan fichiers) — proposé : table commune à relation générique (`kind` upload/asset/temp/mount/url + `ref` + sha256), zéro migration par app ; `MediaPicker` télécharge le blob avant `onSelect` (D10) se règle avec ;
+4. `check_media_integrity` étendu aux **montages** et à `UserFile` (20 pointeurs morts mesurés) + « proposer le retrait » ;
+5. les **8 cases de la matrice sans scénario** (`MEDIA_STORAGE_TIERING §8.7`) ;
+6. cam_analyzer : retirer l'écouteur `filemanager:filedrop` mort (`wama_lab/cam_analyzer/static/cam_analyzer/js/index.js:626`, zones `.camera-drop-zone` jamais trouvées par `findDropZoneAt`) — avec son CHANGELOG.
+
+### Décisions ouvertes (Fabien) — aucune ne BLOQUE le point d'entrée
+
+- **D9** durée de rétention de `users/*/temp` (jamais purgé ; ×4 exemplaires mesurés) et entrée des 5 apps hors `RETENTION_MODELS` ;
+- **D7** `-o` / `-r` de lot : implémenter, ou retirer de `BATCH_FORMAT.md` qui les annonce ;
+- le schéma de **provenance** (table commune vs mixin — je déconseille le mixin : 10 migrations).
+
+### Pendings système
+
+- **push** : la branche `dev` a 30+ commits d'avance (deux instances) — non poussée ;
+- gunicorn : maître **HUP trois fois** cette session (recyclage sans coupure) ; workers homogènes au dernier relevé ;
+- fichiers **untracked à la racine** `0.27.2`, `1.26.4`, `=1.26.0,`, `torchvision` : artefacts d'une redirection shell (une commande pip non quotée) — **pas les miens**, à supprimer par leur auteur ;
+- `check_docs` : mesuré **13 cassées** à 19 h (8 = la cible assumée de `/reprise §3a` ; 5 = trois modules que l'instance backends déplaçait — processeur SAM3, anonymisation, améliorateur audio — cités sous leur ancien chemin), puis **0 cassée / 1470 réf. à la clôture** : l'autre instance a résorbé ses 3 cibles ET **créé le partial d'onglets de résultat** (cible R18, assumée depuis le 24/08) — `/reprise §3a` est à son tour dans son diff de travail ; **attendu au prochain /reprise : 0 cible distincte**, à confirmer contre sa version du skill ;
+- jumelles : `converter_01` (gabarits + vues générés, card v4), `imager_01` (copie, card v4 posée à la main dans `index.html`), `composer_01` (créée, ports OK, vues non substituées) ;
+- `media/` : `D:\dossier\` résiduel des anciens tests **supprimé** ; les sondes ont nettoyé leurs témoins (vérifié après chaque passe).
+
+### Contrôles attendus au prochain /reprise (tous MESURÉS cette session)
+
+- `manage.py test` (WSL2) : **1595 OK** au 05/09 après recréation de base ; **périmètre de clôture : 217 OK** (07/09 01:25 — media_paths, auto_model, hf_cache_routing, codegen_templates/lot, import_wired, backend_inventory, catalogues, sandbox_coherence, filemanager, synthesizer.Confinement, transcriber) ;
+- `check_docs` : **0 cassée / 1470 réf.** à la clôture (voir pendings : les cibles assumée et déplacées ont été résorbées par l'autre instance pendant ma clôture) ;
+- `manifest_export --check` : **PÉRIMÉ, 106 à régénérer, 0 invalide** à la clôture (07/09 01:20) — ⚠ **PAS de cette session** (mon dernier relevé à jour : 123 le 04/09 ; je n'ai touché aucun registre projeté aux manifestes) : c'est le chantier backends de l'autre instance (résolution par déclaration, `backend_for_engine`, coupes Lab) qui a fait bouger les `requires` des modèles. **Non régénéré volontairement** (`/cloture §2b` : régénérer figerait son WIP) — à régénérer par elle, dans son commit ; `doc_facts --check` : à jour (06/09 soir) ;
+- grille : converter **100 %**, describer **100 %**, transcriber 95 %, synthesizer 95 %, imager 93 % ;
+- nocturne : `converter_01` **8/8**, parc import **32/50 OK, 0 échec, 18 skips nommés**.
+
 ## §REPRISE — 2026-09-04 → 09-07, instance « CAM_ANALYZER : GÉO + INVENTAIRE + POSE NAVETTE + MANIFESTES FONCTIONS » — ✅ CLOSE — 🔚 POINT D'ENTRÉE
 
 > Session ouverte sur une question de Fabien (*« OSM / Google Earth / QGIS / dépôts SLAM /
@@ -11466,3 +11536,137 @@ navigateur Playwright et a été purgé en fin de passe.
 - `doc_facts --check` : `mecanismes` périmé tant que l'arbre partagé n'est pas commité ;
 - catalogue **58 fonctions** (20 app-bound) ; cam_analyzer **17 bascules** (`shuttle_filter` OFF, `sam3_homography` ON, `display_ema` ON) ; corpus `manifests/functions/` **58** ;
 - smoke `cam_analyzer` (compte de test, sans VLM) : HTTP 200, 0 erreur JS.
+
+---
+
+## §REPRISE — 2026-09-06/07, instance « MANIPULATION DIRECTE + HISTORIQUE + FILET NOCTURNE » — ✅ CLOSE
+
+**Trois chantiers enchaînés**, tous partis d'une demande de Fabien : (1) le glisser-déposer de
+file, universel et commun ; (2) l'undo/redo porté dans `common/` ; (3) l'extension des tests
+nocturnes « pour détecter n'importe quelle casse sans avoir à tester à la main ».
+
+### ⭐ CE QUE LE FILET A TROUVÉ — c'est le vrai résultat de la session
+
+Cinq défauts RÉELS, tous invisibles à la vérification manuelle, tous trouvés par des scénarios
+écrits le jour même :
+
+| défaut | portée | commit |
+|---|---|---|
+| **La sélection mourait au polling** — 4 apps remplacent la card entière à chaque tour, la classe partait avec le nœud. Sans erreur, invisible au repos, systématique dès qu'un traitement tourne | drag&drop, 4 apps | `0e67422b` |
+| **L'aperçu mourait au re-rendu** — `media-preview.js` liait ses écouteurs nœud par nœud au `DOMContentLoaded` ; 3 apps ré-armaient à la main, **9 non** | 9 apps | `2499ca89` |
+| **Le fichier témoin du harnais n'était pas décodable** — PNG hexadécimal de 71 octets, `broken data stream`. Personne ne l'avait vu : aucun scénario ne DÉCODAIT le fichier | tout le nocturne, depuis l'origine | `3094f04c` |
+| **La garde GPU n'en était pas une** — `Scenario.vram_gb` déclaré partout, **lu par personne** | tout le nocturne | `f1cffffd` |
+| 🔴 **Des succès écrasés en échec** — `is_task_dead()` répond True pour l'état Celery `SUCCESS`. Un lot de conversions rapides finissait « Traitement interrompu (worker arrêté) » quand le worker écrivait « ✓ Terminé ». **Visible par l'utilisateur** | toute app à tâches rapides | `4da3ff4d` |
+
+### Livré — 9 commits
+
+1. **Manipulation directe (`0e67422b` et avant)** — brique `wama-queue-dnd.js` : 4 gestes
+   (entrer dans un lot / en former un / en sortir / ordonner) + sélection clic/Ctrl/Maj/Ctrl+A.
+   Règle unique : **déposer SUR une card change l'APPARTENANCE, ENTRE deux cards change
+   l'ORDRE**. `QueueOrderMixin.queue_index` (13 modèles) + 6ᵉ tri « Manuel ». `merge` ≠
+   `consolidate` (fusion stricte vs rangement par nature à l'import). `group_key` = le MÊME
+   `nature_of` que l'import, vérifié par AST. SortableJS écarté, motifs consignés.
+2. **`WamaHistory` (`common/js/wama-history.js`)** — extrait du transcriber pour un 2ᵉ
+   consommateur, le studio, qui l'a ADOPTÉ. C'est l'adoption qui a corrigé la brique :
+   `commit()` (entonnoir post-mutation) et `silence()` n'existaient pas, et la garde de
+   RÉ-ENTRANCE manquait.
+3. **Filet nocturne : 8,5/16 → 17,5/19 gestes** (le dénominateur a monté : 3 gestes livrés
+   cette semaine n'étaient pas au catalogue). Familles ajoutées : `<app>.queue_dnd`,
+   `common.history.studio`, `<app>.processing`, `<app>.batch_processing` ; `<app>.settings`
+   passé de moitié à ENTIER.
+4. **Mode « sans GPU » RÉEL** — défaut = exclusion de tout `vram_gb > 0`, `--with-gpu` et
+   `--max-vram N` pour rouvrir progressivement. L'exclusion NOMME ce qu'elle écarte.
+
+### ⚠ CE QUE J'AI CASSÉ MOI-MÊME, et ce que ça coûte
+
+**Cinq corrections d'instrument** ont été nécessaires, et chacune accusait l'app à ma place :
+marqueur DOM effacé par le polling · `ElementHandle` périmé (le remède, un **Locator**, était
+DÉJÀ documenté dans le même fichier) · lot visé = le premier de la page · navigation non
+attendue après un rechargement contractuel · et surtout **un `except` large qui a transformé
+une coquille d'échappement JS en « défaut de l'app » pendant trois exécutions**.
+
+⭐ **La leçon transversale, à retenir avant tout** : *ce qu'on entoure d'un `try/except` doit
+être exactement le geste mesuré, jamais la sonde qui l'observe.* Et : *un scénario qui accuse à
+tort est le pire service qu'un filet puisse rendre* — d'où le refus, tenu deux fois, de livrer
+un rouge dont la cause n'était pas élucidée.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Régénérer les deux jumelles de bac à sable** (`app_sandbox`) : c'est le seul rouge restant du
+filet (`converter_01.queue_dnd`), ça débloque aussi `describer_01.queue_dnd` qui skippe, **et
+ça valide la chaîne de codegen modifiée le 04/09** (routes `reorder_queue`/`merge`, nature
+partagée, `queue_dnd_attrs` au gabarit de file) — qui n'est à ce jour vérifiée que par lecture
+du générateur. ⚠ Touche leurs tables : demander le GO à Fabien avant.
+
+### File des chantiers ouverts (ordre proposé)
+
+1. **Jumelles périmées** — ci-dessus. 🔴 **BLOQUANT : GO de Fabien** (migrate zero + recréation).
+2. **Geste 10 entier** (progression qui AVANCE) — une conversion témoin dure 0,3 s et un lot de
+   2 aussi : aucun palier intermédiaire n'est échantillonnable. Il faut une entrée plus lourde
+   ou un lot plus large. Les deux scénarios le DISENT dans leur verdict (« progression figée à
+   100% ») au lieu de compter un vert.
+3. **Câblage transcriber du geste 17** — `wama-history.js` a deux consommateurs, un seul est
+   couvert. La page de correction AUTO-ENREGISTRE (`markDirty` → save 800 ms) : y jouer une
+   annulation écrirait sur une transcription réelle. Il faudrait monter une transcription
+   jetable pour le compte de test.
+4. **Équivalent clavier du drag&drop** (proposé, non fait) — Ctrl+X/Ctrl+V + Alt+↑/↓, ce qui
+   suppose de **généraliser la notion de card focalisée** hors du mode Pile (`is-stack-focus`
+   n'existe qu'empilé). C'est la pièce qui rend le geste utilisable sans souris.
+5. **« Annuler » d'un cran dans la FILE** (proposé, non fait) — rejeu d'opération INVERSE, pas
+   un snapshot : la file commet côté serveur, il n'y a rien à photographier. Ne PAS le loger
+   dans `WamaHistory` (l'API mentirait sur ce qu'elle garantit). Demande d'étendre le toast
+   commun, qui ne fait aujourd'hui que du `textContent`.
+6. **Réglages sur sélection multiple** — délibérément absents du volet : appliquer des réglages
+   à N éléments hétérogènes touche à l'héritage batch→item (conventions §9.9), et le trancher
+   au passage aurait été le trancher mal.
+7. **Scénarios GPU écrits et EN ATTENTE** — `<app>.processing` et `<app>.batch_processing` pour
+   16 apps. Ils existent, ils sont relus, `--with-gpu` les libère. Rien à écrire le jour où la
+   rampe CUDA sera élucidée.
+
+### Pendings SYSTÈME / effets de bord de ma session
+
+- **gunicorn rechargé plusieurs fois** (`kill -HUP`) pour recharger JS et Python — il tourne
+  avec le code de HEAD. Rien à faire.
+- **9 commits non poussés** (`0e67422b` → `4e60e53e`). Push = décision de Fabien.
+- **Compte de test** : tous les éléments créés (scénarios + une sonde manuelle #477 posée
+  pendant l'investigation du geste 11) ont été retirés — file du compte de test **à 0**, vérifié.
+- **Un PNG témoin** a été écrit dans le répertoire temporaire de WSL pour piloter le navigateur ;
+  jetable, il disparaît au redémarrage.
+- **Scripts de session** (renommage JS masquant les commentaires, câblage des routes dans les
+  apps, inventaire d'identifiants, forge de clé de session) : ils vivent **dans le scratchpad de
+  session**, hors dépôt, et sont jetables — leur logique utile est décrite dans les commits.
+
+### ⚠ NE M'APPARTIENT PAS — chantier d'une autre instance, laissé intact
+
+- `doc_facts --check` rend **2 blocs PÉRIMÉS** : `conformite` (son `SKILL.md` est en cours
+  d'édition dans l'arbre) et `mecanismes` (dont la source a été touchée par `527a4f5e`,
+  session « chaîne modèle↔backend↔moteur »). **Non régénérés à dessein** : régénérer figerait
+  leur WIP. La commande est `python manage.py doc_facts`.
+- Un `SyntaxWarning: invalid escape sequence '\d'` apparaît dans la suite — hors de mes
+  fichiers (aucun antislash non brut chez moi, vérifié).
+- Pendant mes mesures, `common/utils/video_utils.py` a **cassé puis guéri** en quelques minutes
+  (f-string non fermée) : les imports du converter étaient morts entretemps. Aucune action.
+
+### 🔴 SEUIL RESSERRÉ — à connaître avant le prochain `check_docs`
+
+`check_docs` rend **0 cassée / 0 périmée sur 1469** : **ZÉRO cible distincte**. Le partial
+d'onglets de résultat, seule cible due depuis des semaines, a été créé par l'autre instance —
+sans que le seuil soit rabaissé. Je l'ai descendu de 1 à **0** dans `nightly_scenarios` ET dans
+`/reprise`, parce qu'un seuil qui survit à la cible qu'il couvrait laisse passer la suivante
+sans rien dire. **Toute cible distincte est désormais une dérive.**
+
+### Contrôles attendus au prochain /reprise — TOUS MESURÉS le 2026-09-07
+
+| contrôle | valeur mesurée |
+|---|---|
+| `manage.py test wama.common` | **665 OK** |
+| suite complète | **1660 OK (skipped=11)** |
+| `check_docs` | **0 cassée / 0 périmée sur 1469** — **0 cible distincte** (seuil désormais 0) |
+| `doc_facts --check` | 2 blocs périmés, **appartenant à une autre instance** (voir ci-dessus) |
+| `run_nightly_tests --dry-run` | **233 joués**, **20 écartés** (VRAM déclarée) |
+| `<app>.queue_dnd` | **12 OK / 1 échec / 4 skips** — l'échec est `converter_01` (jumelle périmée) |
+| `<app>.settings` | **9 OK / 0 échec / 8 skips** (files vides) |
+| `common.history.studio` | **1 OK** |
+| `converter.processing` | **OK** — démarrer → SUCCESS → téléchargement 519 o → visionneuse |
+| `converter.batch_processing` | **OK** — 2/2 réussis, ZIP vérifié `PK` 730 o |
+| catalogue des gestes | **17,5 / 19** |
