@@ -39,6 +39,35 @@
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : VÉRIFIER LA ROUTE AVANT DE **PROPOSER** (pas seulement avant d'écrire)
+
+> Demande de Fabien, 2026-09-07 : *« WAMA est très complexe et on cherche une cohérence globale
+> entre les mondes. Il faut systématiquement vérifier que l'on ne s'écarte pas de la route déjà
+> tracée. »* Le point 1 de la philosophie couvre « avant d'**écrire**, chercher la brique dans
+> `common/` ». Le défaut vécu est **en amont** : une PROPOSITION — un emplacement, une convention,
+> un champ, une racine de dossier — formulée sans avoir ouvert l'index. Elle coûte plus cher qu'un
+> mauvais bout de code, parce qu'on la DISCUTE avant de découvrir qu'elle contredit l'existant.
+
+**Quatre sources d'autorité, dans cet ordre. Aucune n'est facultative.**
+
+| ce qu'on cherche | où | pourquoi celle-là |
+|---|---|---|
+| la brique existe-t-elle déjà ? | `WAMA_MECANISMES.md` — table **GÉNÉRÉE** depuis `wama/common/mecanismes.py` | seul index exhaustif du substrat. ⚠ **Y compris les mécanismes qu'on a écrits soi-même** : c'est le cas vécu le 07/09, un mécanisme rédigé trois jours plus tôt et non relu |
+| la question est-elle déjà tranchée ? | `WAMA_APP_GENERATION_ROUTE.md` **§S** (« ce qu'une génération ne doit plus redécouvrir ») et **§10.5** (chaîne dépôt→app + briques à ne PAS réécrire) | ces deux blocs n'existent que **parce que** des sessions ont reproposé de l'existant. Les ignorer, c'est refaire exactement ce qu'ils documentent |
+| l'objet a-t-il déjà un registre ? | `wama/common/registries.py` → `overview()` (nature comprise : mesure / dérivé / redéclaration / scan) | un simple LIBELLÉ tranche parfois la question : le registre « Backends (moteurs) » dit que WAMA **ne distingue pas** le backend du moteur — inutile de chercher un lieu pour une famille qui n'existe pas |
+| est-ce cohérent entre les MONDES ? | la règle « un monde n'est pas un sous-dossier du substrat » (plus bas) | la cohérence visée est INTER-mondes — substrat ↔ Médias ↔ Data ↔ Lab —, pas la propreté d'une app |
+
+**Le test d'acceptation d'une proposition : elle doit pouvoir CITER ce qu'elle a lu.** « Je ne
+l'ai pas trouvé » n'est recevable qu'après avoir nommé les quatre endroits regardés.
+
+⚠ **Une frontière VOULUE se lit comme une réponse, jamais comme un trou à combler.** Exemple
+mesuré : la route `library` refuse `git+`, les URL, `file:`, `-e` et les contraintes lâches
+**avant** de toucher pip (verrous `ROADMAP §16.7`, câblés le 2026-08-31 — PyPI par nom seul, pin
+exact). Proposer d'y faire entrer un dépôt cloné est **mort au verrou** : ce n'est pas un manque
+d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
+
+---
+
 ## 🔴 RÈGLE OBLIGATOIRE : JAMAIS de `cd` EN PRÉFIXE DE COMMANDE SHELL
 
 > Le répertoire de travail est **déjà** `D:\WAMA\web-app-for-media-automation`. Préfixer une
