@@ -83,7 +83,7 @@ Le code **copié dans le repo** a été inventorié à part :
 - Reste non établi : binaires gitleaks (amont MIT).
 - **Moteur EXTERNE (hors dépôt, 2026-08-27)** : `audio.cpp` (github.com/0xShug0/audio.cpp,
   **Apache 2.0** — compatible AGPL-3.0), compilé sur l'hôte dans `~/tools/audio.cpp` (WSL2)
-  et invoqué en sous-processus par `composer/backends/audiocpp_backend.py` (override env
+  et invoqué en sous-processus par `common/backends/audiocpp_backend.py` (override env
   `AUDIOCPP_BINARY`, même motif que `FFMPEG_BINARY`/ffmpeg). Rien de son code n'est copié
   dans le dépôt.
 

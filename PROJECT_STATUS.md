@@ -2643,6 +2643,8 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
+> ⚠⚠⚠ **CE BLOC EST SUPERSÉDÉ par « SUITE 2026-09-07 (soir) » plus bas.** Sa thèse — laisser les backends dans les apps parce que trois mécanismes en dépendent — a été **réfutée par Fabien et par l'exécution** : les backends VONT au substrat (`wama/common/backends/`, 5 apps déjà faites, suite verte), et les trois « obstacles » n'en étaient pas — le vivier balaie déjà `common` comme une app, le corps généré n'a pas cassé, le critère de grille mesure `ROUTES` qui reste dans l'app. Il est conservé tel quel parce qu'il montre l'erreur de méthode de cette session : une proposition d'architecture faite en lisant le CODE des outils sans lire ce qui avait été CONSIGNÉ (ROUTE §10.3).
+>
 > ⚠⚠ **CORRIGÉ le 2026-09-07 après relecture de la ROUTE — NE PAS engager l'étape 3 telle
 > qu'elle était écrite ici.** Déplacer les backends vers `wama/common/` contredit **trois
 > mécanismes déclarés**, et la vérification n'avait pas été faite quand cette ligne a été écrite :
@@ -2736,6 +2738,101 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
 | `check_backend_links` | **108/116** modèles déclarent leur moteur, **97** résolvent leur backend |
 | backends | **65 fichiers, 63 mobiles**, 25 moteurs exécutables, 0 environnement isolé |
 | mutations d'environnement HF | **0** |
+
+### SUITE 2026-09-07 (soir) — EXTERNALISATION DES BACKENDS engagée, adoption de la résolution, et les erreurs d'une session qui a tourné en rond
+
+> 🔚 **POINT D'ENTRÉE** : **continuer l'externalisation** — 6 apps gardent encore leur paquet
+> `backends/` (reader, describer, transcriber, synthesizer, imager, avatarizer ; + 27 copies dans
+> les jumelles `_01`, qui disparaîtront avec leurs sources). Protocole ÉPROUVÉ sur 5 apps : `git mv`
+> vers `wama/common/backends/`, l'app **demande son backend par `backend_for_key('<app>:<id>')`**
+> (jamais un import de chemin — la garde `tests_backend_adoption` le compte), smoke de résolution
+> AVANT la substitution, suite complète, commit avec les DEUX côtés du `mv`.
+> ⚠ Trois `__init__.py` portent du vrai code (registre de moteurs du synthesizer, sélecteur du
+> transcriber, `ROUTES` du describer) : `ROUTES`/`RESULT`/`NATURE_FIELD` **restent dans l'app**
+> (c'est une décision de routage d'app), seules les CLASSES partent.
+
+**Le sens du lien, rappelé trois fois par Fabien, et désormais écrit partout** :
+le MODÈLE porte son moteur (`composition.runtime.engine`) → le backend s'en DÉRIVE
+(`ENGINE`, départagé par `SUPPORTED_MODELS`) → **l'app appelle son modèle et obtient son
+backend**. Le backend n'a AUCUN lien avec une app. Les modèles sont hors des apps (`AI-models/`) ;
+les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIES.
+
+**Fait (7 commits)** :
+- `bbf7f867` + `b5d15464` — 5 apps sans backends chez elles (face_analyzer, composer, enhancer,
+  cam_analyzer, anonymizer) ; 11 modules au substrat ; `anonymizer/backends/base.py` renommé
+  `detection_base.py` (collision avec le contrat). **Trois imports inter-apps guéris d'un coup**,
+  dont l'inversion Lab→Médias (`cam_analyzer` → `anonymizer`) : la cause était l'EMPLACEMENT.
+- `000a5e69` — **`backend_for_key()`** (même porte que `backend_for_model`, adressée par la clé de
+  catalogue que l'app tient réellement), **2 premiers adoptants** (composer : le discriminateur
+  `backend` de `COMPOSER_MODELS` disparaît ; enhancer vidéo), et la **garde-budget**
+  `tests_backend_adoption` : **22 imports de classe par chemin**, ne peut que descendre.
+- `b4492acf` — **dernier site mutant un jeton HF retiré** (`setup_sam3_hf_environment` : second
+  exemplaire du jeton + écriture dans le `$HOME`) ; la garde HF couvre désormais le JETON, socle
+  exclu explicitement (c'est LE domicile).
+- `1454c691` — règle `CLAUDE.md` « vérifier la route AVANT de PROPOSER » (4 sources d'autorité,
+  test d'acceptation : citer ce qu'on a lu).
+
+**Décisions de Fabien (prises, pas encore toutes exécutées)** :
+- ✅ backends → `wama/common/backends/`, à plat (pas de sous-dossiers par domaine : 22/35 backends
+  n'ont pas de domaine DÉRIVABLE, et `transformers` en couvre 4 — grouper serait inventer).
+- ✅ code tiers vendorisé (MuseTalk 45 Mo, CodeFormer 36 Mo) → **`wama/common/backends/vendor/<nom>/`**
+  avec un README et les sous-dossiers gitignorés ; reconstruit à l'installation. ⚠ Le balayage du
+  vivier est `glob('*.py')`, NON récursif : `vendor/` lui est déjà invisible, rien à exclure.
+- ✅ **un moteur est une librairie** (sauf `ollama` = service, `audio-cpp` = binaire, déjà couverts)
+  → PAS de 13ᵉ registre : les moteurs entrent au **registre des librairies**, par manifeste
+  (`librarian --dist` pour les 17 installés, `--repo` pour les 2 clonés) — **manifeste ET
+  prospection coexistent**, comme pour les modèles.
+- ✅ `engine=sam3` est JUSTE (modèle `sam3` ET librairie `sam3`) — rien à renommer.
+- ✅ `backend_ref` = résidu, retiré APRÈS l'externalisation (c'est lui qui porte encore
+  l'attribution à contresens du vivier — colonne « modèles servis » vide sur 47 entrées).
+
+**Laissé, nommément** :
+1. les 6 apps restantes (ci-dessus) ;
+2. **`vendor/`** : déplacement + README + `.gitignore` + cibles de clone du setup + retrait du
+   gitlink `codeformer` sans URL + `VENDOR_PACKAGE` disparaît des 2 backends (le moteur se
+   référence par son NOM ; sa présence sur disque doit entrer dans `engine_installed`, qui
+   n'interroge que pip) ;
+3. **19 moteurs sans ligne au registre des librairies** (5/24 y sont) ; `transformers-remote-code`
+   est un mode d'usage, pas un moteur ;
+4. `anonymizer/tasks.py` SAM3 non converti : le job ne porte aucune clé de modèle (bascule =
+   option utilisateur, poids YOLO choisis dans le backend) — à traiter par déclaration ;
+5. ⚠ **corpus : 3 manifestes d'app PÉRIMÉS (anonymizer, composer, enhancer) — VOLONTAIREMENT non
+   régénérés.** La jambe `library` de leurs `requires` est mesurée par un balayage AST **du dossier
+   de l'app** (`library_index.librairies_de`) : backends partis, l'app « n'importe plus » torch ni
+   soundfile, et régénérer FIGERAIT cette perte. La dérivation doit passer par le lien
+   modèle→backend→`REQUIRED_PACKAGES`. ⚠⚠ Et JAMAIS `manifest_export` depuis `venv_win` : il a
+   réécrit torch/vibevoice et vidé les `requires` de 4 apps — remis à HEAD, vérifié.
+6. `ROADMAP.md` : mes 2 corrections de chemin (l.2129, l.2157) sont dans l'ARBRE, non commitées —
+   le fichier porte 23 lignes non commitées de l'instance parallèle ; son commit les emportera.
+7. fonctions utilitaires importées par chemin (`upscale_image_file`, `run_audio_enhancement`,
+   `MODELS_INFO`, `EmotionRecognizer`, `depth_engine`) : une autre couche (kind `function`),
+   hors du budget, hors de cette session.
+
+**LES ERREURS DE CETTE SESSION — écrites pour ne pas les reproduire** (Fabien : « je dois
+corriger chaque passe… ce n'est pas viable ») :
+| erreur | ce qui l'a produite | garde posée |
+|---|---|---|
+| proposer 2 fois un LIEU (champ `VENDOR_TREE`, racine `AI-engines`, groupement par domaine) | raisonner sur le CODE des outils sans lire ROUTE §10.3, l'index des mécanismes (128, dont un écrit par moi 3 jours avant), le registre des registres (« Backends (moteurs) ») | règle `CLAUDE.md` + test d'acceptation « citer ce qu'on a lu » |
+| écrire un 🔚 qui contredit la route (« ne pas engager l'étape 3 ») | idem — rouvrir une décision CLOSE | supersédé ci-dessus, conservé comme pièce |
+| déplacer 11 backends en RÉÉCRIVANT 20 imports de chemin — le motif interdit, suite verte | « mobile » compris comme « déplaçable » au lieu de « résolu par déclaration » | `tests_backend_adoption` (budget 22, ne peut que descendre) |
+| confondre backend et moteur ; dire « vide » / « pas déclaré » sans mesurer | vocabulaire non tenu, affirmation avant relevé | le sens du lien est écrit en tête de ce bloc ; règle : MESURER avant d'affirmer |
+| commencer à réécrire l'attribution du vivier (hors demande) | « prérequis » inventé | annulé avant commit ; la colonne meurt avec `backend_ref` |
+| réécrire un message de garde au-delà de l'ajout demandé (perte de « `HF_HOME` posé une fois ») | édit non additif | restauré ; un ajout est ADDITIF |
+| régénérer le corpus depuis `venv_win` | ignorer l'avertissement du skill | remis à HEAD ; consigné ci-dessus |
+
+**Contrôles attendus au prochain `/reprise`** — MESURÉS le 2026-09-07 soir :
+
+| contrôle | valeur |
+|---|---|
+| suite complète | **1704 OK** (skipped=11) — après la DERNIÈRE écriture de code |
+| `check_docs` | **0 cassée**, 0 périmée, **1492** références · 0 chiffre sans source (avec les 2 hunks ROADMAP de l'arbre) |
+| corpus (depuis `venv_linux`) | **3 périmés, NOMMÉS et VOULUS** (cf. laissé n°5) ; 0 invalide |
+| `doc_facts --check` | à jour (table des mécanismes régénérée — annexe déplacée) |
+| `check_backend_links` | **108/116** déclarent, **97** résolvent — inchangé par les déplacements |
+| `tests_backend_adoption` | budget **22** imports par chemin |
+| `tests_hf_cache_routing` | budget **0** mutations (cache ET jeton) |
+| apps sans paquet `backends/` | **5/11** (face_analyzer, composer, enhancer, cam_analyzer, anonymizer) |
+
 
 
 ## §REPRISE — 2026-08-28, instance « DETTES MESURÉES + PORTAGE AVATARIZER » — ✅ PALIER LIVRÉ (`d3f16e5f`, `a2554117`)
