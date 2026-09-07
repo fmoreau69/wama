@@ -2541,6 +2541,75 @@ RÉFUTÉ comme critère — **46 conflits** sur le venv qui fait tourner toute l
 pins figés d'amont. Le critère prospectif est `pip install --dry-run` (lecture seule) : il a attrapé
 **deux** rétrogradages que j'allais introduire. Zéro backend isolé aujourd'hui.
 
+### 2ᵉ palier (06→07/09) — les backends deviennent MOBILES, et l'installation cesse de mentir
+
+**Plus AUCUN backend n'est attaché à son app.** Sur les 65 fichiers, **63 sont mobiles** ; les 2
+restants sont le contrat lui-même (`wama/common/backends/base.py`, `wama/common/backends/manager.py`). Quatre gestes :
+
+1. **anonymizer et enhancer** gardaient leurs backends hors de `backends/` — 57 modèles hors
+   d'atteinte du registre. Déplacés ; `wama/anonymizer/core/` a disparu.
+2. **15 backends importaient le `model_config` de leur app** — bloquant pour le substrat. Tous
+   levés : un CHEMIN vient de `settings.MODEL_PATHS`, une DÉCLARATION du passe-plat commun
+   `model_declarations.declaration()`, **sans ORM** (c'est l'absence de Django qui rend un
+   backend déplaçable — lire le catalogue l'aurait détruite).
+3. **`blur_utils` + `bounds`** remontés au commun ; **`ffmpeg_utils` était un DOUBLON** de
+   `common/utils/ffmpeg_utils.py` — 3 fonctions sur 4, dont deux `is_wsl()` divergents.
+4. **Les deux coupes Lab** : `wama_lab/face_analyzer/backends/emotions.py` n'avait aucune dépendance Django (rien
+   à séparer, seulement à déplacer) ; `wama_lab/cam_analyzer/utils/depth_estimator.py` était réellement mixte
+   → 110 lignes de moteur pur extraites, 329 lignes ORM conservées.
+
+**R18 soldé** (ouvert depuis le 22/07) : les onglets de résultat TEXTE deviennent un partial
+commun, déclaré dans la SPEC DE DÉTAIL (`register_app_detail_spec`, donc déjà extractible au
+manifeste et projetable). 118 lignes de gabarit → un tag ; **check_docs passe de 8 à 0 cassée**,
+les références pointaient une cible qui n'existait pas. Critère de grille `result_tabs` (F3),
+avec enveloppe non-applicable — la grille passe à **88 critères**.
+
+**L'installation ne pouvait pas produire une WAMA qui marche**, et deux défauts s'annulaient :
+
+| défaut | mesure |
+|---|---|
+| `setup_avatarizer.sh` RÉTROGRADAIT le venv | `musetalk/requirements.txt` épingle numpy 1.23.5, transformers 4.39.2, tensorflow 2.12.0, diffusers 0.30.2 — quatre dépendances PARTAGÉES |
+| …et ces pins sont PROUVÉS inutiles | les 18 dépendances sont présentes en versions plus récentes, et l'avatarizer tourne ainsi (**4 jobs SUCCESS**) |
+| face_analyzer n'était installé NULLE PART | ses deps ne sont dans aucun `requirements` de la racine, et l'app est en `INSTALLED_APPS` : l'échec serait passé pour un bug d'app |
+| les manifestes `library` n'étaient jamais appliqués | 16 manifestes lettre morte sur une install neuve |
+
+Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'installe qu'en
+`--no-deps`) ; `--with-face-analyzer` ajouté avec les deux gestes dans l'ordre ;
+`manage.py apply_manifests` (le sens ENTRANT du corpus, qui manquait) branché après `init_wama`.
+
+> **Question de Fabien — « à l'installation ou à la 1ʳᵉ utilisation ? »** Les deux, selon la
+> NATURE de la donnée. `library` = déclaration pure (16 JSON, aucune I/O) → **installation**.
+> `model` = le catalogue reflète le DISQUE, sa vérité est le balayage, **déjà** branché en tâche
+> périodique Celery Beat. Les appliquer créerait des lignes pour des poids absents. **Rien au
+> démarrage** : aucun balayage au boot, et la tâche de fond existait déjà — il n'y avait rien à
+> inventer, seulement le maillon `library` à poser.
+
+### Leçons du 2ᵉ palier
+
+- ⚠⚠ **Un chemin parallèle ne se signale pas : il attend.** Deux voies mortes créées par moi
+  dans la même session (`_DeclaredEngine.resolve()`, `declaration_for`) — retirées. Et l'inverse :
+  j'ai inventé `check_venv_compat` alors que `install_library` existait depuis le 31/08.
+  *Chercher un NOM ne prouve pas l'absence d'une FONCTION.*
+- ⚠⚠ **Une réécriture par troncature ne s'annonce jamais** : mon script a supprimé une classe de
+  tests entière, la suite est restée verte. Seul le COMPTE des classes l'a dit.
+- ⚠⚠ **Un test qui parcourt le catalogue depuis un `TestCase` mesure la base de TEST** — qui
+  contient 0 modèle. L'invariant sème désormais ses cas ; l'état réel se mesure par une COMMANDE
+  (`check_backend_links`).
+- ⚠ **Une garde ne couvre que la forme qu'elle sait lire** : la mienne ignorait les imports
+  RELATIFS et déclarait conformes 3 backends qui ne l'étaient pas.
+- ⚠ **Classer sans lire, c'est décider sans savoir** : deux « exceptions assumées » inscrites
+  sans avoir lu le corps des helpers — c'étaient des accesseurs d'une ligne, dont 3 symboles
+  jamais appelés.
+- ⚠ **Une référence en chaîne ne casse pas à l'import : elle casse au premier appel.**
+  `function_specs` désigne son implémentation par une chaîne — la déplacer n'aurait alerté ni
+  l'interpréteur ni la suite.
+- ⚠ **Comparer deux numéros de version ne dit rien du graphe qu'on va déplacer** : le plan
+  d'`install_library` comparait installé/cible ; il SIMULE désormais (`pip install --dry-run`)
+  et liste les rétrogradations.
+- ⚠ Mes heredocs ont corrompu des échappements **quatre fois** (`\s`, `\b` → backspace, `\n`,
+  puis des `>` de message de commit lus comme des REDIRECTIONS, créant 4 fichiers parasites à la
+  racine). *Quand un verdict contredit une mesure directe, l'instrument est suspect avant le code.*
+
 ### Ce qui reste, mesuré
 
 - **4 backends attachés** à du code d'app, dont 2 sont le contrat lui-même. Restent les deux apps

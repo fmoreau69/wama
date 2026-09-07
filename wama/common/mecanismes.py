@@ -504,6 +504,29 @@ MECANISMES = (
               symbole='poids_locaux',
               annexes=('wama/common/utils/hf_cache.py',
                        'wama/common/tests_hf_cache_routing.py')),
+    Mecanisme('result_tabs', 'Onglets de résultat TEXTE',
+              "Un item peut avoir PLUSIEURS lectures d'un même résultat (transcription, "
+              "diarisation, résumé, cohérence). Le schéma canonique ne portait qu'UN "
+              "`result_text` — d'où deux modales à onglets quasi identiques, tracées au "
+              "`REMOVAL_LEDGER R18` depuis le 22/07. Les facettes se déclarent désormais dans "
+              "la SPEC DE DÉTAIL de l'app (donc extractibles au manifeste, facette `inspector`, "
+              "et projetables), et un partial commun les rend. "
+              "⚠ Ce n'est PAS une 2ᵉ mécanique de preview : la preview de CARD reste "
+              "`PreviewRegistry`, et les autres apps n'ont qu'une lecture — ou plusieurs "
+              "RÉSULTATS dans une seule preview (imager, `result_files`)",
+              'wama/common/templates/common/_result_tabs.html', 'CARD_DESIGN.md',
+              annexes=('wama/common/utils/detail_registry.py',
+                       'wama/common/tests_result_tabs.py')),
+    Mecanisme('apply_manifests', 'Application du corpus de manifestes',
+              "Le sens ENTRANT du corpus : `manifest_export` écrit les manifestes DEPUIS les "
+              "registres, rien ne les appliquait DANS l'autre sens. Sur une installation neuve, "
+              "les 16 manifestes de librairies restaient lettre morte. "
+              "⚠ Kind par kind, et le choix est de NATURE : `library` est une déclaration pure "
+              "(aucune I/O) → appliquée à l'installation ; `model` NON, car le catalogue reflète "
+              "le DISQUE et sa vérité est le balayage (déjà périodique) — l'appliquer créerait "
+              "des lignes pour des poids absents. Dry-run par défaut",
+              'wama/common/management/commands/apply_manifests.py',
+              'WAMA_MANIFEST_ARCHITECTURE.md'),
     Mecanisme('output_formats', 'Formats de sortie',
               "Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter)",
               'wama/common/utils/output_formats.py', ''),
