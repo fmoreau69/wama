@@ -11645,6 +11645,19 @@ du générateur. ⚠ Touche leurs tables : demander le GO à Fabien avant.
   apps, inventaire d'identifiants, forge de clé de session) : ils vivent **dans le scratchpad de
   session**, hors dépôt, et sont jetables — leur logique utile est décrite dans les commits.
 
+### 🔴 CE QUE MON RESSERREMENT DE SEUIL A CASSÉ — corrigé par une autre instance, NON COMMITÉ
+
+Descendre `CIBLES_ASSUMEES` de 1 à 0 (commit `df48f1e0`) **casse 2 tests** de
+`wama/common/tests_check_docs.py` : ils assertaient le VERDICT (`ok`) là où ils ne testent que
+le COMPTAGE, donc ils étaient liés au budget. **Mesuré : 27 OK avec le correctif, 2 échecs
+sans.** Le correctif (découpler comptage et politique) est écrit **dans l'arbre de travail par
+une autre instance, non commité** — je ne le commite pas, il est à elle.
+
+⚠ **Ma faute, et elle est de MÉTHODE** : j'ai lancé les tests au début de la clôture, puis
+modifié le seuil ensuite. La clôture attestait « 665 OK » sur un arbre qui n'existait plus.
+`/cloture §2a` porte désormais la garde : **relancer le ciblé après la DERNIÈRE écriture**, le
+§2c et le §3 pouvant tous deux modifier du code.
+
 ### ⚠ NE M'APPARTIENT PAS — chantier d'une autre instance, laissé intact
 
 - `doc_facts --check` rend **2 blocs PÉRIMÉS** : `conformite` (son `SKILL.md` est en cours

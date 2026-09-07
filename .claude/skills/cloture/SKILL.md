@@ -41,6 +41,16 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > rituel ne puisse le voir. Une clôture qui ne lance rien referme exactement le même trou, par
 > l'autre bout — on peut fermer une session sur du rouge et le léguer.
 >
+> 🔴🔴 **ET SI UNE SECTION SUIVANTE MODIFIE DU CODE, REVENIR ICI.** Vécu le 2026-09-07 : les
+> tests ont été lancés au §2a (665 OK), puis le §2c a fait resserrer un seuil
+> (`CIBLES_ASSUMEES` 1 → 0, geste que ce skill PRESCRIT au §4) — **et ce changement cassait
+> deux tests**, découverts par une AUTRE instance qui les réparait pendant que je rédigeais le
+> handoff. La clôture attestait « 665 OK » sur un état qui n'existait plus.
+> *Un chiffre de tests ne vaut que pour l'arbre au moment où il a été mesuré ; toute écriture
+> postérieure le périme.* Le §2c (seuils), le §3 (correctifs de balayage) et le §5 (fiches
+> mémoire, si du code y est touché) sont concernés — **relancer le ciblé après la DERNIÈRE
+> écriture**, pas après la première.
+>
 > Ciblé suffit ici (`/reprise` lance la suite complète à l'ouverture) ; ce qui compte est que
 > **le chiffre reporté au §4 soit MESURÉ dans cette session**, pas recopié du handoff précédent.
 > ⚠ Et lire les **NOMS** des rouges, jamais le seul compte — un total identique peut recouvrir
