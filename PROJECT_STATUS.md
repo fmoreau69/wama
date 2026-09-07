@@ -11960,16 +11960,29 @@ dossier `wama/static/js/jquery-file-upload/`, `REMOVAL_LEDGER`) à faire en 3 su
 | push | `dev` non poussée par moi (6 commits de portage : `18a6266c`, `401bd9a0`, `90984b25` + 3 suivants) — mesurer contre `origin/dev` avant de conclure |
 | **`wama.common.tests_import_contract`** (ajouté après relecture demandée par Fabien) | **4 OK** — pour les 7 apps portées : la vue d'upload accepte le multipart de la brique (`file` / `files`) et répond une forme lisible par `identifiants()` (transcription Python du lecteur JS) ; un dépôt vide est REFUSÉ ; critère `import_front` vert sur l'arbre RÉEL ; `wama-import.js` chargé AVANT le script qui l'instancie — **garde contre la déconstruction** d'un portage |
 
-### ⚠ Trouvé par ces tests, CONSIGNÉ et NON corrigé (domaine anonymizer, chantier d'une autre instance)
+### ✅ Trouvé par ces tests et CORRIGÉ (demande Fabien : « il faut régler ça »)
 
-`anonymizer/signals.py` : le `post_save` de `Media` appelle `init_user_settings()` pour **TOUS les
-utilisateurs** à chaque création de média — chaque dépôt **réinitialise les réglages de tout le
-monde** (précision, segmentation, aperçu… remis aux défauts, `GSValues_customised = 0`), et commence
-par `close_old_connections()` en plein cycle de requête. Mesuré : dans un `TestCase` la connexion se
-ferme au milieu du test (« the connection is closed », l'upload répond 400) ; sous gunicorn Django
-rouvre, donc personne ne l'a vu — sauf les utilisateurs dont les réglages disparaissent. Le test de
-contrat est en `TransactionTestCase` pour cette raison. À trancher par l'auteur du signal : ce
-qu'il voulait faire (initialiser les réglages du seul utilisateur qui dépose ?) n'est pas ce qu'il fait.
+`anonymizer/signals.py` : le `post_save` de `Media` appelait `init_user_settings()` pour **TOUS les
+utilisateurs** à chaque création de média — chaque dépôt **réinitialisait les réglages de tout le
+monde** (précision, segmentation, aperçu, `GSValues_customised = 0`), en commençant par
+`close_old_connections()` en plein cycle de requête. Mesuré : dans un `TestCase` la connexion se
+fermait au milieu du test (« the connection is closed », upload en 400) ; sous gunicorn Django
+rouvrait, donc rien ne plantait — seuls les réglages disparaissaient. **Correctif** : le signal
+garantit les réglages GLOBAUX et ceux du seul DÉPOSANT par `get_or_create` (jamais une ligne
+existante n'est touchée) ; la réinitialisation reste le geste explicite `reset_user_settings`, dont
+le `close_old_connections()` inutile est retiré. Tenu par `anonymizer/tests.py` (3 tests : l'autre
+utilisateur garde ses réglages, le déposant garde les siens, un `TestCase` survit) ; le test de
+contrat est revenu en `TestCase` — *une vue qui ne survit pas à une transaction englobante a un
+effet de bord à trouver, pas à contourner*. ⚠ J'avais d'abord attribué ce signal à « un chantier
+anonymizer d'une autre instance » : FAUX — les suppressions stagées de `anonymizer/backends/` que
+j'avais vues sont l'externalisation des backends (`bbf7f867`, `b5d15464`), pas un chantier de l'app.
+**Cadre lu après coup (question Fabien : « as-tu lu le fonctionnement commun des réglages ? »)** :
+la brique est `common/utils/user_settings.py` (cache `user_{id}_{app}_{clé}`, défauts déclarés) ;
+anonymizer et enhancer sont « les seules apps sans `user_settings` commun, table `UserSettings`
+maison » (`ROADMAP §23`, grille 🔶 honnête), portage différé **« AVEC la généralisation des
+profils, pas avant »** (`PROJECT_STATUS`, clôture 01/09). Ce correctif NE porte PAS l'anonymizer sur
+la brique (89 lectures du modèle maison dans les vues, 22 dans les tâches — c'est le chantier
+différé) : il retire le geste HISTORIQUE du signal, que le mécanisme commun n'a jamais eu.
 
 ### Ce que j'ai LU avant de porter, et ce que je n'avais PAS lu (réponse à Fabien, 07/09 nuit)
 

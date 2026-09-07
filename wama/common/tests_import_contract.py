@@ -30,7 +30,7 @@ from pathlib import Path
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import SimpleTestCase, TransactionTestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from wama.common.services.ui_smoke import _png_1x1, _wav_silence
@@ -90,16 +90,14 @@ def identifiants(data):
     return out
 
 
-class ContratUploadDesAppsPorteesTest(TransactionTestCase):
+class ContratUploadDesAppsPorteesTest(TestCase):
     """(1) — la vue d'upload répond ce que la brique sait lire.
 
-    ⚠ `TransactionTestCase` et non `TestCase`, mesuré le 2026-09-07 : le `post_save` de
-    `anonymizer.Media` (`signals.py`) appelle `init_user_settings()` pour TOUS les utilisateurs,
-    qui commence par `close_old_connections()` — dans la transaction d'un `TestCase`, la
-    connexion se ferme au milieu du test (« the connection is closed », 400 sur l'upload).
-    Hors transaction englobante, Django rouvre la connexion à la requête suivante, comme
-    sous gunicorn. ⚠ Consigné, non corrigé ici : ce signal RÉINITIALISE les réglages de
-    tous les utilisateurs à chaque dépôt (`PROJECT_STATUS §PALIER 07/09`).
+    ⚠ `TestCase` (transaction englobante) À DESSEIN : c'est ce qui a révélé, le 2026-09-07, que
+    le `post_save` de `anonymizer.Media` fermait la connexion en plein cycle de requête
+    (« the connection is closed ») en réinitialisant les réglages de TOUS les utilisateurs —
+    corrigé dans `anonymizer/signals.py`, tenu par `anonymizer/tests.py`. Une vue d'upload qui
+    ne survit pas à une transaction englobante a un effet de bord à trouver, pas à contourner.
     """
 
     def _utilisateur(self, app, roles):

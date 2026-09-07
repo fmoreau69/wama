@@ -1488,9 +1488,12 @@ def reset_user_settings(request):
 def init_user_settings(user):
     """
     Réinitialise les UserSettings d'un utilisateur avec les valeurs par défaut des GlobalSettings.
-    """
-    close_old_connections()
 
+    Geste EXPLICITE (endpoint `reset_user_settings`) — jamais appelé par un signal depuis le
+    2026-09-07 : le `post_save` de `Media` l'appelait pour tous les utilisateurs à chaque dépôt.
+    Le `close_old_connections()` qui ouvrait cette fonction est retiré : dans un cycle de requête
+    il ne sert à rien, et il fermait la connexion au milieu d'une transaction de test.
+    """
     user_settings, _ = UserSettings.objects.get_or_create(user=user)
     global_settings_list = GlobalSettings.objects.all()
 
