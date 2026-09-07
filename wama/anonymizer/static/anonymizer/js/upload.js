@@ -3,30 +3,14 @@
  *
  * La zone d'import est la card d'entrée COMMUNE `_new_item_card` (drag&drop + URL +
  * batch + médiathèque) : ids `dropZoneAnonymizer` / `fileupload` / `anonUrlInput` /
- * `anonUrlSubmit`. L'upload passe par jQuery-file-upload (séquentiel + modale de
- * progression) vers IndexView.post ; en fin d'import les fichiers déposés ensemble
- * sont consolidés en UN batch, puis la page recharge (file re-rendue serveur).
+ * `anonUrlSubmit`. L'upload passe par la brique commune WamaImport (portage 2026-09-07,
+ * 7ᵉ app en place) : envoi séquentiel AVEC progression (XHR — évolution 8 de la brique,
+ * écrite pour cette modale), lot testé sur chaque fichier, consolidation en UN batch quand
+ * plusieurs fichiers arrivent ensemble, puis la page recharge (file re-rendue serveur).
+ * jQuery-file-upload n'a plus de consommateur ici.
  */
 $(function () {
   const cfg = window.WAMA_ANON || {};
-
-  // Consolidation des fichiers uploadés ensemble en UN batch (débouncé).
-  let _anonUploadedIds = [];
-  let _anonUploadTimer = null;
-  function _finalizeAnonUpload() {
-    const ids = _anonUploadedIds.slice();
-    _anonUploadedIds = [];
-    const done = () => location.reload();
-    if (ids.length > 1) {
-      fetch('/anonymizer/batch/consolidate/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cfg.csrfToken },
-        body: JSON.stringify({ ids }),
-      }).then(done).catch(done);
-    } else {
-      done();
-    }
-  }
 
   // Initialize modal once and reuse the instance
   let progressModal = null;
@@ -53,144 +37,84 @@ $(function () {
     });
   }
 
-  // Drag & drop : la card d'entrée commune gère l'apparence ; on branche l'upload.
-  const dropZone = document.getElementById('dropZoneAnonymizer');
-  const fileInput = document.getElementById('fileupload');
-
-  if (dropZone && fileInput) {
-    dropZone.addEventListener('click', function (e) {
-      if (!e.target.closest('button')) {
-        fileInput.click();
-      }
-    });
-
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      dropZone.addEventListener(eventName, preventDefaults, false);
-      document.body.addEventListener(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false);
-    });
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false);
-    });
-
-    dropZone.addEventListener('drop', function (e) {
-      // Dossiers déposés → traversée récursive (brique commune WamaFolderImport, F2).
-      WamaFolderImport.collect(e.dataTransfer).then(function (list) {
-        if (list.length > 0) {
-          $(fileInput).fileupload('add', { files: WamaFolderImport.files(list) });
-        }
-      });
-    });
-
-    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
-    const folderInput = document.getElementById('anonFolderInput');
-    if (folderInput) {
-      folderInput.addEventListener('change', function () {
-        const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
-        if (files.length > 0) $(fileInput).fileupload('add', { files: files });
-        folderInput.value = '';
-      });
-    }
-  }
-
-  // Upload des fichiers (endpoint et CSRF via config — l'input commun n'a pas de data-url)
-  $("#fileupload").fileupload({
-    url: cfg.uploadUrl,
-    dataType: 'json',
-    sequentialUploads: true,
-    // ⚠ paramName EXPLICITE (2026-08-22). jQuery-file-upload le dérive de l'attribut `name`
-    // de l'input et retombe sur `files[]` quand il n'y en a pas — or la card d'entrée COMMUNE
-    // (`common/_new_item_card.html:85`) rend son input SANS `name`. Le serveur, lui, lit
-    // `request.FILES['file']` (views.upload_from_url) : le fichier n'arrivait donc jamais et
-    // la vue répondait 400 « No media file or URL provided. » Régression d'ADOPTION : le
-    // markup propre à l'app portait ce `name`, la brique commune ne le porte pas.
-    // Mesuré par le scénario `anonymizer.import`, dont l'échec ne devenait lisible qu'une fois
-    // le CORPS de la réponse capturé — jusque-là on soupçonnait la route.
-    paramName: 'file',
-
-    // ── Un FICHIER DE LOT n'est pas un média : il part à la brique, pas à l'upload ──────
-    // jQuery-file-upload s'abonne lui-même au `change` de l'input et téléverse TOUT ce qui
-    // y arrive. Un `.txt` de lot partait donc vers `/anonymizer/upload/`, qui répondait
-    // 200 avec `added: []` et une erreur PAR LIGNE (« Local path not found ») — y compris
-    // pour les lignes de commentaire du gabarit. Rien à l'écran : la barre de lot ne
-    // s'ouvrait jamais, et l'échec ne vivait que dans un `console.warn`. Mesuré 2026-08-27.
-    // On demande à la BRIQUE si c'est un lot (elle seule connaît la liste d'extensions et
-    // la garde MIME) ; si non, on reprend le comportement par défaut du plugin.
-    add: function (e, data) {
-      const fichier = data.files && data.files[0];
-      if (fichier && window._batchImport) {
-        Promise.resolve(window._batchImport.detectAndHandle(fichier))
-          .then(function (pris) { if (!pris) data.submit(); })
-          .catch(function () { data.submit(); });
-        return;
-      }
-      data.submit();
-    },
-
-    // Inclut le format/qualité de sortie choisis dans le panneau (Phase 3 élargie)
-    formData: function () {
-      const fmt = (document.getElementById('output_format') || {}).value || 'original';
-      const qual = (document.getElementById('output_quality') || {}).value || 'balanced';
-      return [
-        { name: 'csrfmiddlewaretoken', value: cfg.csrfToken },
-        { name: 'output_format', value: fmt },
-        { name: 'output_quality', value: qual },
-      ];
-    },
-
-    start: function () {
-      if (progressModal) {
-        progressModal.show();
-        $("#modal-progress .progress-bar").css({ width: "0%" }).text("0%").attr('aria-valuenow', 0);
-      }
-    },
-
-    stop: function () {
-      if (progressModal) {
-        progressModal.hide();
-      }
-    },
-
-    progressall: function (e, data) {
-      const progress = parseInt((data.loaded / data.total) * 100, 10);
-      $("#modal-progress .progress-bar").css({ width: progress + "%" }).text(progress + "%").attr('aria-valuenow', progress);
-    },
-
-    done: function (e, data) {
-      if (data.result && data.result.success) {
-        const medias = data.result.added || (data.result.media ? [data.result.media] : []);
-        // Collecte des ids pour consolidation en batch (upload multi-fichiers)
-        medias.forEach(function (m) { if (m.id) _anonUploadedIds.push(m.id); });
-        if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
-
-        if (data.result.errors && data.result.errors.length) {
-          console.warn("Erreurs lors de l'ajout de médias :", data.result.errors);
-        }
-      } else {
-        const error = data.result?.error || "Le fichier n'est pas valide ou une erreur est survenue.";
-        WamaApp.toast(error, 'error');
-      }
-
-      // Consolidation débouncée puis reload : un seul batch si plusieurs fichiers ensemble.
-      clearTimeout(_anonUploadTimer);
-      _anonUploadTimer = setTimeout(_finalizeAnonUpload, 600);
-    },
-
-    fail: function (e, data) {
-      WamaApp.toast("Échec du téléchargement : " + (data.errorThrown || "erreur inconnue"), 'error');
-      if (progressModal) {
-        progressModal.hide();
-      }
-    }
+  // Protège la PAGE : un fichier lâché hors de la zone ne doit pas être ouvert par le
+  // navigateur (comportement d'avant, conservé — ce n'est pas de l'import, c'est de la page).
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (eventName) {
+    document.body.addEventListener(eventName, function (e) { e.preventDefault(); e.stopPropagation(); }, false);
   });
+
+  // ── Voie d'import : brique commune WamaImport (wama-import.js) — portage 2026-09-07 ──
+  //
+  // Ce qui vivait ici — jQuery-file-upload (séquentiel, `paramName:'file'`, `add` déléguant
+  // le LOT à la brique batch, `formData`, modale de progression, `done` collectant `added[]`,
+  // consolidation débouncée puis reload) — est le contrat de la brique. L'app ne DÉCLARE que :
+  //   • `batchScope:'each'` : chaque fichier est testé comme descripteur de lot (un `.txt` de
+  //                           lot ne part JAMAIS vers /upload/ — leçon du 27/08) ;
+  //   • `extraFields`     : format et qualité de sortie du volet ;
+  //   • `onProgress` / `onSettled` : la MODALE DE PROGRESSION (évolution 8 de la brique, envoi
+  //                           par XHR — `fetch` ne sait pas dire où en est un envoi, et une
+  //                           vidéo d'anonymisation pèse) ; barre = fichiers faits + part du
+  //                           fichier en cours ;
+  //   • `afterImport`     : les erreurs PAR LIGNE (`errors[]`) restent lisibles en console,
+  //                           puis reload (file re-rendue serveur).
+  // Réponse `{success, added:[{id…}], errors}` : lue par la brique (évolution 1, écrite le
+  // 05/09 pour ce contrat). Consolidation `ids` (multipart) → `anonymizer:consolidate`, qui lit
+  // par le lecteur commun `ids_from_request` (corrigé le 07/09 : il lisait `request.body`).
+  const _bar = function (pct) {
+    $("#modal-progress .progress-bar").css({ width: pct + "%" }).text(pct + "%").attr('aria-valuenow', pct);
+  };
+  let _modaleOuverte = false;   // show() demandé
+  let _modaleAffichee = false;  // transition d'ouverture TERMINÉE (`shown.bs.modal`)
+  if (modalElement) {
+    modalElement.addEventListener('shown.bs.modal', function () { _modaleAffichee = true; });
+    modalElement.addEventListener('hidden.bs.modal', function () { _modaleAffichee = false; });
+  }
+  // ⚠ Bootstrap IGNORE un `hide()` lancé PENDANT l'animation d'ouverture (`_isTransitioning`).
+  // Un envoi court (témoin de quelques octets, réponse locale) se termine avant la fin des
+  // 150 ms de fondu : la modale restait ouverte et interceptait tous les clics — mesuré au
+  // 1er passage nocturne du portage (`anonymizer.import` ✗, « #modal-progress intercepts
+  // pointer events »). jQuery-file-upload ne l'avait jamais montré : son `stop` arrivait
+  // après. On ferme donc APRÈS `shown.bs.modal` si l'ouverture n'est pas terminée.
+  const _fermerModale = function () {
+    if (!progressModal || !_modaleOuverte) return;
+    _modaleOuverte = false;
+    if (_modaleAffichee) { progressModal.hide(); return; }
+    modalElement.addEventListener('shown.bs.modal', function () { progressModal.hide(); }, { once: true });
+  };
+  if (typeof window.WamaImport === 'function') {
+    window._import = WamaImport({
+      uploadUrl:        cfg.uploadUrl,
+      consolidateUrl:   cfg.consolidateUrl,
+      consolidateField: 'ids',
+      csrfToken:        cfg.csrfToken,
+      dropZoneId:       'dropZoneAnonymizer',
+      fileInputId:      'fileupload',
+      folderInputId:    'anonFolderInput',
+      batch:            window._batchImport,
+      batchScope:       'each',
+      extraFields:      function (fd) {
+        fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+        fd.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
+      },
+      onProgress:       function (loaded, size, _file, index, total) {
+        if (!progressModal) return;
+        if (!_modaleOuverte) { _modaleOuverte = true; progressModal.show(); _bar(0); }
+        const part = size ? loaded / size : 1;
+        _bar(Math.min(100, parseInt(((index + part) / (total || 1)) * 100, 10)));
+      },
+      onSettled:        _fermerModale,
+      afterImport:      function (_ids, reponses) {
+        reponses.forEach(function (r) {
+          if (r && r.errors && r.errors.length) console.warn("Erreurs lors de l'ajout de médias :", r.errors);
+        });
+        location.reload();
+      },
+    });
+  } else {
+    // Défaut le plus silencieux qui soit (une zone de dépôt que rien n'écoute) → on le DIT.
+    WamaApp.toast("Voie d'import non chargée (wama-import.js) — dépôt impossible", 'error');
+    console.error('[Anonymizer] WamaImport absent : wama-import.js non chargé par le gabarit');
+  }
 
   // Import par URL (champ de la card d'entrée commune)
   function submitUrlImport() {

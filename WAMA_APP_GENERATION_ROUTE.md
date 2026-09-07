@@ -1943,8 +1943,8 @@ recopier NULLE PART, re-mesurer)** :
   codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
   `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
   (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
-- **`WamaImport` : 6/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter,
-  describer, synthesizer, enhancer-image, reader) ; `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
+- **`WamaImport` : 7/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter,
+  describer, synthesizer, enhancer-image, reader, anonymizer) ; `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
   généré et le banc. Une app
   générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
   même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
@@ -2065,6 +2065,27 @@ lien de la zone n'ouvre pas le sélecteur »** (gabarit de lot, lien « importer
 seul le reader avait, est passée DANS la brique : les 5 apps déjà portées en héritent — vérifié
 par le geste `.import` de tout le parc après HUP (toutes vertes). Mesuré : 4/5 + skip déclaré
 avant, famille `reader.` **11/12** après, smoke 0 erreur JS, 21 tests OK, grille 96 %.
+
+**7ᵉ adoption — anonymizer, 2026-09-07 (nuit)** : jQuery-file-upload n'a plus de consommateur
+(3 `<script>` retirés du gabarit ; ⚠ `common/app_base.html:8-10` le charge encore pour rien —
+retrait à consigner au `REMOVAL_LEDGER`). Ce que l'inventaire annonçait « ❌ réponse liste + hooks
+de progression » a coûté **deux évolutions de brique** et **deux rouges élucidés** :
+- **évolution 8 — progression d'envoi** : `fetch` ne dit rien d'un envoi en cours, seul
+  `XMLHttpRequest.upload` le fait ; la brique passe par XHR quand `onProgress` est déclaré, et
+  appelle `onSettled` à la fin de l'envoi, ids vides compris (fermer une modale ne peut pas
+  dépendre d'un id créé). La modale de progression de l'anonymizer (vidéos lourdes) survit ;
+- **la forme `{media:{id}}`** : l'endpoint répond `media` (objet) pour UN fichier et `added[]`
+  pour plusieurs — la brique ne lisait que les listes → `ids` vide, pas de reload, aucune card
+  (`anonymizer.import` ✗ « 200 mais aucun élément n'apparaît »). Ajoutée au lecteur tolérant ;
+- **Bootstrap ignore un `hide()` pendant l'animation d'ouverture** : un envoi court finissait
+  avant les 150 ms de fondu, la modale restait ouverte et interceptait tous les clics (5 scénarios
+  en erreur « #modal-progress intercepts pointer events »). jQuery-file-upload ne l'avait jamais
+  montré (son `stop` arrivait après). Fermeture différée à `shown.bs.modal` si besoin.
+Mesuré : 4/5 + skip anti-bouclage avant ; famille `anonymizer.` **11/12** + le même skip après ;
+parc `.import` 0 échec ; smoke 0 erreur JS. La consolidation passe par `anonymizer:consolidate`
+(URL déclarée dans la config, elle était EN DUR dans `upload.js`) — vue déjà corrigée le même soir
+(lecteur commun). *Une brique adoptée par une app en place révèle ce que les jumelles ne voyaient
+pas : ici, deux formes de réponse et une course d'animation.*
 
 **Inventaire par app** (balayage exhaustif des JS d'import, ancres vérifiées sur reader et
 anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas faire :

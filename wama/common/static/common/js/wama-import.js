@@ -33,11 +33,14 @@
  *     fieldName:      'file',                       // nom du champ POST (défaut : file / files)
  *     beforeFile:     function (file) { … },        // optionnel : rendre false = fichier écarté
  *     extraFields:    function (fd, file) { … },    // optionnel : champs POST supplémentaires
+ *     onProgress:     function (loaded, size, file, index, total) {…}, // optionnel : envoi par XHR
+ *     onSettled:      function (ids, reponses) {…}, // optionnel : fin d'envoi, même sans id créé
  *     afterImport:    function (ids, reponses) {…}, // défaut : rechargement de la page
  *   });
  *
- * Réponse d'upload acceptée : `{id}` / `{job_id}` / `{pk}` (scalaire), ou une LISTE —
- * `{ids:[…]}`, `{created:[{id}…]}`, `{added:[{id}…]}` (reader, anonymizer).
+ * Réponse d'upload acceptée : `{id}` / `{job_id}` / `{pk}` (scalaire), un OBJET `{media:{id}}`
+ * (anonymizer, un fichier), ou une LISTE — `{ids:[…]}`, `{created:[{id}…]}`, `{added:[{id}…]}`
+ * (reader, anonymizer N fichiers).
  *
  * Évolutions du 2026-09-05 (ROUTE « Portage F2 ») — chacune répond à un comportement qu'une
  * app en place a DÉJÀ et que la brique ne savait pas faire ; les DÉFAUTS sont inchangés, le
@@ -57,6 +60,38 @@
       }
       fd.append('csrfmiddlewaretoken', cfg.csrfToken);
       return fetch(url, { method: 'POST', body: fd });
+    }
+
+    /**
+     * Envoi AVEC progression (évolution 8, 2026-09-07 — anonymizer, 7ᵉ adoption) : `fetch`
+     * n'expose pas la progression d'ENVOI, seul `XMLHttpRequest.upload` le fait. L'anonymizer
+     * (vidéos lourdes) montrait une modale de progression par jQuery-file-upload ; sans ce
+     * chemin, le porter aurait fait disparaître ce retour — une régression que les gestes
+     * nocturnes ne voient pas (leurs témoins pèsent quelques octets). Rendu : la même forme
+     * que `fetch` (`ok`, `status`, `statusText`, `json()`), pour que `envoyer` ne bifurque pas.
+     */
+    function posterAvecProgression(url, fd, onProgress) {
+      return new Promise(function (resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.setRequestHeader('X-CSRFToken', cfg.csrfToken);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.upload.addEventListener('progress', function (e) {
+          if (e.lengthComputable) onProgress(e.loaded, e.total);
+        });
+        xhr.onload = function () {
+          resolve({
+            ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status,
+            statusText: xhr.statusText,
+            json: function () {
+              try { return Promise.resolve(JSON.parse(xhr.responseText)); }
+              catch (e) { return Promise.reject(e); }
+            },
+          });
+        };
+        xhr.onerror = function () { reject(new Error('erreur réseau')); };
+        xhr.send(fd);
+      });
     }
 
     function signaler(msg, niveau) {
@@ -95,6 +130,14 @@
       if (!data || typeof data !== 'object') return [];
       var un = identifiant(data);
       if (un != null) return [un];
+      // Un OBJET unique sous `media` (anonymizer, dépôt d'UN fichier : `{success, media:{id…}}`
+      // — le même endpoint répond `added:[…]` pour plusieurs). Mesuré le 2026-09-07 à
+      // l'adoption : sans cette forme, `ids` restait vide, aucun reload, aucune card — le
+      // scénario `anonymizer.import` disait « 200 mais aucun élément n'apparaît ».
+      if (data.media && typeof data.media === 'object' && !Array.isArray(data.media)) {
+        var seul = identifiant(data.media);
+        if (seul != null) return [seul];
+      }
       var liste = data.ids || data.created || data.added || data.items;
       if (!Array.isArray(liste)) return [];
       return liste.map(function (x) { return (x && typeof x === 'object') ? identifiant(x) : x; })
@@ -106,13 +149,19 @@
      * poste `files` × N et son serveur groupe le lot lui-même, évolution 2). Rend
      * `{ids, data}` ; `ids` vide si erreur (déjà signalée).
      */
-    async function envoyer(fichiers) {
+    async function envoyer(fichiers, index, total) {
       var fd = new FormData();
       var champ = cfg.fieldName || (cfg.multiple ? 'files' : 'file');
       fichiers.forEach(function (f) { fd.append(champ, f); });
       if (typeof cfg.extraFields === 'function') cfg.extraFields(fd, fichiers[0], fichiers);
       try {
-        var resp = await poster(cfg.uploadUrl, fd);
+        var resp = (typeof cfg.onProgress === 'function')
+          ? await posterAvecProgression(cfg.uploadUrl, fd, function (loaded, size) {
+              // `onProgress(loaded, size, fichier, index, total)` : la part de CE fichier et sa
+              // place dans l'envoi — de quoi afficher une barre globale ou par fichier.
+              cfg.onProgress(loaded, size, fichiers[0], index || 0, total || 1);
+            })
+          : await poster(cfg.uploadUrl, fd);
         var data = {};
         try { data = await resp.json(); } catch (e) { data = {}; }
         if (!resp.ok || data.error) {
@@ -168,13 +217,19 @@
 
       var ids = [], reponses = [];
       if (cfg.multiple) {
-        var r = await envoyer(files);
+        var r = await envoyer(files, 0, 1);
         ids = r.ids; reponses.push(r.data);
       } else {
         for (var i = 0; i < files.length; i++) {
-          var ri = await envoyer([files[i]]);
+          var ri = await envoyer([files[i]], i, files.length);
           ids = ids.concat(ri.ids); reponses.push(ri.data);
         }
+      }
+      // `onSettled(ids, reponses)` (évolution 8) : appelé à la FIN de l'envoi, ids vides
+      // compris — c'est le moment de fermer une modale de progression. `afterImport`, lui,
+      // n'est appelé que si quelque chose a été créé (et recharge la page par défaut).
+      if (typeof cfg.onSettled === 'function') {
+        try { cfg.onSettled(ids, reponses); } catch (e) { /* non bloquant */ }
       }
       if (!ids.length) return;
 
