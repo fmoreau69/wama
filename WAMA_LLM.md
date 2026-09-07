@@ -363,23 +363,35 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
 | model_manager — **prospection** | `prospect_ollama` → `ollama_registry` + `update_checker` | `ollama_base()` |
 | model_manager — bancs & registre | `benchmark_sync`, `model_registry` → `/api/show` | `ollama_base()` |
 | model_manager — chargement | `memory_manager` → `/api/generate` | `ollama_base()` |
-| **wama-dev-ai — les 5 rôles** | `role_utils.call_ollama` → `/api/chat` | `role_utils.ollama_host()` |
+| **wama-dev-ai — les 5 rôles** | `role_utils.call_ollama` → `/api/chat` | `ollama_base()` (délégué, 2026-09-07) |
+| wama-dev-ai — `run_audit` | `/api/ps`, `/api/generate`, `/api/show` | **`config.OLLAMA_HOST` BRUT** ⚠ |
 
 **Règle de modification** : une brique d'appel se change après avoir relu **cette ligne-là**
 du tableau *et* les appelants réels (`grep` natif — `rtk` compresse, il ne mesure pas). Les
 familles ci-dessus sont **étanches** : rien dans `wama/` n'importe `role_utils`, et
 `wama-dev-ai` n'importe pas `llm_utils` (vérifié sur tout le dépôt le 2026-09-07).
 
-> ⚠ **Un doublon SUBSISTE, sciemment consigné** : `role_utils.ollama_host()` réimplémente la
-> réécriture WSL2 de `common/utils/ollama_host.ollama_base()` — alors que cette brique commune
-> a justement été **extraite de `run_librarian.py`** le 2026-08-02 comme « seule implémentation
-> correcte du repo ». Les deux lisent la MÊME variable (`os.environ['OLLAMA_HOST']`) avec le
-> MÊME défaut : elles sont équivalentes aujourd'hui, et rien ne garantit qu'elles le restent.
-> Non fusionné faute d'arbitrage sur le couplage `wama-dev-ai → wama.common` (les rôles font
-> déjà `django.setup()`, donc c'est techniquement possible). *Une brique qu'on extrait sans que
-> sa source l'adopte laisse deux vérités derrière elle.*
+> ✅ **`role_utils.ollama_host()` DÉLÈGUE désormais à la brique commune** (2026-09-07, GO
+> Fabien : « pas de chemins parallèles, une route unique, on globalise »). Il en portait une
+> copie — alors que la brique commune a justement été **extraite de `run_librarian.py`** le
+> 2026-08-02 comme « seule implémentation correcte du repo ». *Une brique qu'on extrait sans
+> que son origine l'adopte laisse deux vérités derrière elle.* Les deux résolvaient la même
+> adresse (mesuré des deux côtés : `http://172.21.96.1:11434`), mais la copie était en retard
+> sur **trois points latents** : elle lisait `os.environ` BRUT au lieu du registre
+> `external_sources` ; son `subprocess` n'avait **aucun timeout** ; et une passerelle
+> introuvable retombait **en silence** sur la boucle locale. Import paresseux — `role_utils`
+> reste importable sans Django (vérifié), et aucun repli n'a été ajouté : ce serait le second
+> chemin qu'on retire.
 >
-> ✅ Le doublon voisin, lui, est SOLDÉ (2026-09-07) : `run_codegen` portait sa propre copie de
+> ⚠ **Il reste UN accès brut, et son cas est CONTRAINT** : `run_audit.py` (`/api/ps`,
+> `/api/generate`, `/api/show`) lit `config.OLLAMA_HOST` sans la réécriture WSL2 — donc
+> `127.0.0.1`, qui depuis WSL2 désigne la VM et **pas** l'hôte Windows. Il ne peut pas
+> déléguer comme les cinq rôles : **il ne fait pas `django.setup()`** (agent autonome sur
+> `core.llm`, hors périmètre de découverte des tests). Il fonctionne tant qu'il tourne côté
+> Windows ou que `OLLAMA_HOST` est exporté. Le résorber demande de trancher s'il devient un
+> consommateur Django comme les autres — décision, pas oubli.
+>
+> ✅ Le doublon voisin est SOLDÉ lui aussi (2026-09-07) : `run_codegen` portait sa propre copie de
 > `call_ollama`, `ollama_host` et de l'écriture de sortie. Fusionné — mais **pas remplacé** :
 > il divergeait sur trois valeurs (`temperature` 0.2, `num_ctx` 32768, `timeout` 900 s) que le
 > commun ne savait pas exprimer, et un remplacement sec aurait **tronqué sa matière** (jusqu'à

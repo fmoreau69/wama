@@ -20,20 +20,29 @@ _OPENER_DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def ollama_host():
-    """Sous WSL2, 127.0.0.1 n'atteint PAS l'Ollama de l'hôte Windows : gateway obligatoire."""
-    from config import OLLAMA_HOST  # wama-dev-ai/config.py
-    host = OLLAMA_HOST
-    if '127.0.0.1' in host or 'localhost' in host:
-        try:
-            if 'microsoft' in Path('/proc/version').read_text().lower():
-                import subprocess
-                gw = subprocess.run(['sh', '-c', "ip route | awk '/default/ {print $3; exit}'"],
-                                    capture_output=True, text=True).stdout.strip()
-                if gw:
-                    host = re.sub(r'127\.0\.0\.1|localhost', gw, host)
-        except OSError:
-            pass
-    return host
+    """Adresse d'Ollama — DÉLÈGUE à la brique commune (2026-09-07).
+
+    Ce fichier en portait une copie. Elle n'était pas « une variante » : la brique commune
+    `common/utils/ollama_host.py` a justement été EXTRAITE de `run_librarian.py` le
+    2026-08-02 comme « seule implémentation correcte du repo » — et sa source ne l'a jamais
+    adoptée. *Une brique qu'on extrait sans que son origine l'adopte laisse deux vérités
+    derrière elle.*
+
+    Les deux résolvaient la même adresse aujourd'hui (mesuré : `http://172.21.96.1:11434`
+    des deux côtés), mais la copie était en retard sur TROIS points, tous latents :
+      • elle lisait `os.environ` BRUT au lieu du registre `external_sources` — le jour où
+        l'adresse est posée par réglage Django et non par l'environnement, elle vise encore
+        la boucle locale, avec le symptôme trompeur que la brique commune documente
+        (« Ollama ne répond pas » alors qu'il tourne) ;
+      • son `subprocess` n'avait AUCUN timeout — un `ip route` qui pend gèle le rôle ;
+      • passerelle introuvable = retour silencieux sur la boucle locale, sans avertissement.
+
+    Import PARESSEUX : `role_utils` reste importable sans Django, et Django n'est exigé qu'à
+    l'appel — les 5 rôles font tous `django.setup()` avant d'importer ce module (vérifié).
+    Pas de repli « si Django manque » : ce serait exactement le second chemin qu'on retire.
+    """
+    from wama.common.utils.ollama_host import ollama_base
+    return ollama_base()
 
 
 def fetch(url, user_agent='wama-dev-ai'):
