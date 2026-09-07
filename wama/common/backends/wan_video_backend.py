@@ -39,7 +39,7 @@ def _resoudre_dossier_wan():
 
 _WAN_MODELS_DIR = _resoudre_dossier_wan()
 
-from .base import ImageGenerationBackend, GenerationParams, GenerationResult
+from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
 
 logger = logging.getLogger(__name__)
 

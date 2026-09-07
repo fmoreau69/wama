@@ -41,15 +41,15 @@ class ContratCapacitesTest(TestCase):
 
     def test_stt_herite_sans_redeclarer(self):
         """Le contrat STT ne doit PAS re-poser les flags : ce serait rouvrir la divergence."""
-        from wama.transcriber.backends.base import SpeechToTextBackend
+        from wama.common.backends.speech_to_text_base import SpeechToTextBackend
         for flag in self.FLAGS:
             self.assertNotIn(flag, SpeechToTextBackend.__dict__,
                              f"{flag} redéclaré dans SpeechToTextBackend — doit être hérité")
 
     def test_moteurs_asr_conservent_leurs_capacites(self):
-        from wama.transcriber.backends.qwen_asr_backend import QwenASRBackend
-        from wama.transcriber.backends.vibevoice_backend import VibeVoiceBackend
-        from wama.transcriber.backends.whisper_backend import WhisperBackend
+        from wama.common.backends.qwen_asr_backend import QwenASRBackend
+        from wama.common.backends.vibevoice_backend import VibeVoiceBackend
+        from wama.common.backends.whisper_backend import WhisperBackend
         self.assertTrue(WhisperBackend.supports_timestamps)
         self.assertTrue(WhisperBackend.supports_hotwords)
         self.assertFalse(WhisperBackend.supports_diarization)   # pyannote = post-traitement
@@ -57,10 +57,10 @@ class ContratCapacitesTest(TestCase):
         self.assertTrue(QwenASRBackend.supports_timestamps)
 
     def test_tts_declarent_leur_clonage(self):
-        from wama.synthesizer.backends.bark_backend import BarkBackend
-        from wama.synthesizer.backends.coqui_backend import CoquiBackend
-        from wama.synthesizer.backends.higgs_backend import HiggsAudioBackend
-        from wama.synthesizer.backends.kokoro_backend import KokoroBackend
+        from wama.common.backends.bark_backend import BarkBackend
+        from wama.common.backends.coqui_backend import CoquiBackend
+        from wama.common.backends.higgs_backend import HiggsAudioBackend
+        from wama.common.backends.kokoro_backend import KokoroBackend
         self.assertTrue(CoquiBackend.supports_cloning)
         self.assertTrue(HiggsAudioBackend.supports_cloning)
         self.assertFalse(BarkBackend.supports_cloning)
@@ -79,7 +79,7 @@ class BorneLangueTest(TestCase):
 
         Une liste manuelle aurait dit ['en'] et se serait trompée sur 8 langues.
         """
-        from wama.synthesizer.backends.kokoro_backend import KokoroBackend
+        from wama.common.backends.kokoro_backend import KokoroBackend
         attendu = sorted(l for l, c in KOKORO_LANG_MAP.items() if c in ('a', 'b'))
         self.assertEqual(sorted(KokoroBackend.timestamp_languages), attendu)
         self.assertIn('en', KokoroBackend.timestamp_languages)
@@ -161,7 +161,7 @@ class ReplideLangueTest(TestCase):
         self.assertIsNone(BaseModelBackend.fallback_languages)
 
     def test_kokoro_derive_son_repli_du_mapping(self):
-        from wama.synthesizer.backends.kokoro_backend import KokoroBackend
+        from wama.common.backends.kokoro_backend import KokoroBackend
         attendu = sorted(l for l, c in KOKORO_LANG_MAP.items()
                          if c in ('a', 'b') and l != 'en')
         self.assertEqual(sorted(KokoroBackend.fallback_languages), attendu)
@@ -171,7 +171,7 @@ class ReplideLangueTest(TestCase):
     def test_repli_et_langues_gerees_sont_DISJOINTS(self):
         """Sans quoi le catalogue dirait d'une même langue qu'elle est servie ET empruntée —
         et l'UI la marquerait ⚠ tout en la déclarant native."""
-        from wama.synthesizer.backends.kokoro_backend import KokoroBackend
+        from wama.common.backends.kokoro_backend import KokoroBackend
         from wama.synthesizer.utils.model_config import SYNTHESIZER_MODELS
         gerees = set(SYNTHESIZER_MODELS['kokoro']['languages'])
         self.assertEqual(gerees & set(KokoroBackend.fallback_languages), set())
@@ -180,7 +180,7 @@ class ReplideLangueTest(TestCase):
         """`est_repli()` existait pour « que l'UI puisse le DIRE » sans avoir de lecteur.
         Le lecteur est désormais `WamaModelCaps.langFilter` via cette capacité : les deux
         doivent parler du même ensemble."""
-        from wama.synthesizer.backends.kokoro_backend import KokoroBackend
+        from wama.common.backends.kokoro_backend import KokoroBackend
         for langue in KokoroBackend.fallback_languages:
             self.assertTrue(est_repli(langue), f"{langue} déclarée en repli mais non vue ainsi")
 

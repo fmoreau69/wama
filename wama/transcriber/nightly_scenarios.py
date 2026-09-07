@@ -44,7 +44,7 @@ def register_scenarios():
     # chiffre recopié ici dériverait du réel : c'est ce type d'écart (16 déclarés vs 38 réels
     # sur qwen-image) qui a fait paniquer le noyau WSL2 le 29/07/2026.
     try:
-        from wama.transcriber.backends.whisper_backend import WhisperBackend
+        from wama.common.backends.whisper_backend import WhisperBackend
         vram_gb = float(WhisperBackend.recommended_vram_gb or 0) or 10.0
     except Exception:
         vram_gb = 10.0

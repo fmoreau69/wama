@@ -24,7 +24,7 @@ class DossierDeTravailGlmOcrTests(SimpleTestCase):
 
     def test_la_conversion_ecrit_dans_le_dossier_FOURNI(self):
         """`dest_dir` est honoré : la fonction ne fabrique plus son propre dossier."""
-        from wama.reader.backends.glm_ocr_backend import _pdf_to_images
+        from wama.common.backends.glm_ocr_backend import _pdf_to_images
 
         avant = _dossiers_glmocr()
         with tempfile.TemporaryDirectory() as fourni:
@@ -41,7 +41,7 @@ class DossierDeTravailGlmOcrTests(SimpleTestCase):
     def test_le_dossier_fourni_survit_a_l_appel_puis_c_est_l_APPELANT_qui_le_ferme(self):
         """La fonction n'efface pas ce qui ne lui appartient pas : le `with` de l'appelant
         est seul responsable, ce qui est précisément ce qui rend le nettoyage garanti."""
-        from wama.reader.backends.glm_ocr_backend import _pdf_to_images
+        from wama.common.backends.glm_ocr_backend import _pdf_to_images
 
         fourni = Path(tempfile.mkdtemp(prefix='test_glmocr_proprio_'))
         try:

@@ -26,7 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .base import TTSBackend, ai_models_dir, write_wav_int16
+from .tts_base import TTSBackend, ai_models_dir, write_wav_int16
 
 logger = logging.getLogger(__name__)
 

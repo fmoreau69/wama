@@ -719,7 +719,7 @@ MECANISMES = (
               "Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du "
               "job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés",
               'wama/common/utils/work_dir.py', 'MEDIA_STORAGE_TIERING.md',
-              annexes=('wama/avatarizer/backends/codeformer_backend.py',
+              annexes=('wama/common/backends/codeformer_backend.py',
                        'wama/avatarizer/views.py')),
     Mecanisme('console', 'Console utilisateur',
               "Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », "

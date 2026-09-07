@@ -898,10 +898,10 @@ class ModelRegistry:
             # Modules backend LÉGERS (libs lourdes lazy dans load()) — import sûr au sync.
             # NB : ne PAS instancier TranscriberBackendManager ici (registration paresseuse
             # → 0 backend) ; on importe les classes directement.
-            from wama.transcriber.backends.whisper_backend import WhisperBackend
-            from wama.transcriber.backends.vibevoice_backend import VibeVoiceBackend
-            from wama.transcriber.backends.qwen_asr_backend import QwenASRBackend
-            from wama.transcriber.backends.pyannote_diarizer import PyannoteDiarizerBackend
+            from wama.common.backends.whisper_backend import WhisperBackend
+            from wama.common.backends.vibevoice_backend import VibeVoiceBackend
+            from wama.common.backends.qwen_asr_backend import QwenASRBackend
+            from wama.common.backends.pyannote_diarizer import PyannoteDiarizerBackend
 
             preferred = self._get_preferred_format(ModelType.SPEECH)
             whisper_dir = Path(WHISPER_DIR)

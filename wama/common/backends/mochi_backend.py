@@ -17,7 +17,7 @@ from typing import Optional, Callable, List
 
 from django.conf import settings
 
-from .base import ImageGenerationBackend, GenerationParams, GenerationResult
+from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
 
 logger = logging.getLogger(__name__)
 

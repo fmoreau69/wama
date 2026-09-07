@@ -90,7 +90,7 @@ REGISTRY_MODEL_DESCRIPTIONS = {
 # survit au retrait des trois moteurs (R32) : une table d'exceptions n'est pas un inventaire.
 # Source UNIQUE = backends/base.py (Django-free : la même table sert de clé d'owner
 # publiée au gouverneur par les backends du service TTS).
-from wama.synthesizer.backends.base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  # noqa: E402
+from wama.common.backends.tts_base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  # noqa: E402
 
 # =============================================================================
 # MODEL DEFINITIONS

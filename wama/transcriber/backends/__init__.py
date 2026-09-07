@@ -21,7 +21,7 @@ Usage:
     result = backend.transcribe('/path/to/audio.mp3', hotwords='WAMA, transcription')
 """
 
-from .base import (
+from wama.common.backends.speech_to_text_base import (
     SpeechToTextBackend,
     TranscriptionResult,
     TranscriptionSegment,

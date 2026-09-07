@@ -66,8 +66,8 @@ BUDGET_MUTATIONS = 0
 #: puisqu'il pollue sans qu'aucun modèle ne soit chargé et que le dernier importé gagne.
 #: Aucun n'importe `torch` au niveau module (vérifié) : la sonde ne touche donc pas au GPU.
 MODULES_SANS_EFFET_DE_BORD = (
-    'wama.imager.backends.wan_video_backend',
-    'wama.imager.backends.hunyuan_video_backend',
+    'wama.common.backends.wan_video_backend',
+    'wama.common.backends.hunyuan_video_backend',
 )
 
 #: Bacs à sable : copies GÉNÉRÉES d'une app source. Une mutation y est le reflet de la

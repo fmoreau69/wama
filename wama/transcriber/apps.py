@@ -25,7 +25,7 @@ class TranscriberConfig(AppConfig):
             from wama.model_manager.services.memory_manager import register_vram_unloader
 
             def _unload_diarizer() -> bool:
-                from .backends.pyannote_diarizer import unload_pipeline
+                from wama.common.backends.pyannote_diarizer import unload_pipeline
                 return bool(unload_pipeline())
 
             register_vram_unloader('transcriber-diarizer', _unload_diarizer)

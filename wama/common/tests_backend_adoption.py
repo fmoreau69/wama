@@ -28,14 +28,16 @@ from django.test import TestCase
 
 from wama.common.services import backend_inventory as bi
 
-#: Sites MESURÉS le 2026-09-07 après les deux premières adoptions (composer, enhancer vidéo) :
-#:   imager 8 (tasks ×7, views ×1) · model_manager/model_registry 8 (la DÉCOUVERTE importe les
-#:   classes pour lire leurs déclarations — l'inventaire, lui, les lit par AST) · reader 2 ·
-#:   avatarizer 2 · anonymizer 1 (SAM3 : le job ne porte pas de clé de modèle, la bascule est une
-#:   option utilisateur — à traiter avec la déclaration du modèle, pas par une substitution) ·
-#:   transcriber 1 (DeepFilterNet depuis le préprocesseur audio).
+#: Sites MESURÉS le 2026-09-07 (soir, après la 3ᵉ tranche — 22 → 18 : reader olmocr/doctr et
+#: imager qwen-image/flux2-klein passés par la déclaration) :
+#:   imager 6 (tasks vidéo ×5 — hunyuan/cogvideox/ltx/mochi/wan, choisis par PRÉFIXE de nom et
+#:   accompagnés de leur classe de Params ; views ×1 — lecture des défauts de DiffusersBackend) ·
+#:   model_manager/model_registry 8 (la DÉCOUVERTE importe les classes pour lire leurs
+#:   déclarations — l'inventaire, lui, les lit par AST) · avatarizer 2 (singletons de module,
+#:   le job ne choisit pas par clé) · anonymizer 1 (SAM3 : bascule = option utilisateur, poids
+#:   YOLO choisis dans le backend) · transcriber 1 (DeepFilterNet depuis le préprocesseur audio).
 #: NE JAMAIS RELEVER CE NOMBRE. Le faire descendre = une app de plus passe par la déclaration.
-BUDGET_IMPORTS_PAR_CHEMIN = 22
+BUDGET_IMPORTS_PAR_CHEMIN = 18
 
 _RACINES_CODE = ('wama', 'wama_lab')
 _DOSSIERS_ELAGUES = {'__pycache__', 'node_modules', 'site-packages', 'staticfiles',

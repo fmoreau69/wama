@@ -7,7 +7,7 @@ Manages transcription backend registration, availability checking, and selection
 import logging
 from typing import Dict, List, Optional, Type
 
-from .base import SpeechToTextBackend
+from wama.common.backends.speech_to_text_base import SpeechToTextBackend
 
 logger = logging.getLogger(__name__)
 
@@ -52,21 +52,21 @@ class TranscriberBackendManager:
         """Register all available backends."""
         # Import backends
         try:
-            from .whisper_backend import WhisperBackend
+            from wama.common.backends.whisper_backend import WhisperBackend
             self._backends['whisper'] = WhisperBackend
             logger.debug("[TranscriberManager] Registered: whisper")
         except ImportError as e:
             logger.warning(f"[TranscriberManager] Could not import WhisperBackend: {e}")
 
         try:
-            from .vibevoice_backend import VibeVoiceBackend
+            from wama.common.backends.vibevoice_backend import VibeVoiceBackend
             self._backends['vibevoice'] = VibeVoiceBackend
             logger.debug("[TranscriberManager] Registered: vibevoice")
         except ImportError as e:
             logger.warning(f"[TranscriberManager] Could not import VibeVoiceBackend: {e}")
 
         try:
-            from .qwen_asr_backend import QwenASRBackend
+            from wama.common.backends.qwen_asr_backend import QwenASRBackend
             self._backends['qwen_asr'] = QwenASRBackend
             logger.debug("[TranscriberManager] Registered: qwen_asr")
         except ImportError as e:

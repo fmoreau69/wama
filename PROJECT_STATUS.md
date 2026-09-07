@@ -2741,15 +2741,25 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
 
 ### SUITE 2026-09-07 (soir) — EXTERNALISATION DES BACKENDS engagée, adoption de la résolution, et les erreurs d'une session qui a tourné en rond
 
-> 🔚 **POINT D'ENTRÉE** : **continuer l'externalisation** — 6 apps gardent encore leur paquet
-> `backends/` (reader, describer, transcriber, synthesizer, imager, avatarizer ; + 27 copies dans
-> les jumelles `_01`, qui disparaîtront avec leurs sources). Protocole ÉPROUVÉ sur 5 apps : `git mv`
-> vers `wama/common/backends/`, l'app **demande son backend par `backend_for_key('<app>:<id>')`**
-> (jamais un import de chemin — la garde `tests_backend_adoption` le compte), smoke de résolution
-> AVANT la substitution, suite complète, commit avec les DEUX côtés du `mv`.
-> ⚠ Trois `__init__.py` portent du vrai code (registre de moteurs du synthesizer, sélecteur du
-> transcriber, `ROUTES` du describer) : `ROUTES`/`RESULT`/`NATURE_FIELD` **restent dans l'app**
-> (c'est une décision de routage d'app), seules les CLASSES partent.
+> 🔚 **POINT D'ENTRÉE** — ✅ **l'externalisation est FAITE le 07/09 (3ᵉ tranche, 6 apps d'un
+> coup)** : plus AUCUNE app ne porte une classe de backend, 35 classes sous `common/backends/`.
+> Ce qui reste, dans l'ordre : ① **`vendor/`** (MuseTalk, CodeFormer — décision prise, non
+> exécutée, cf. « Laissé » n°2) ; ② **19 moteurs → registre des librairies** par manifeste ;
+> ③ faire DESCENDRE le budget d'adoption (**18** sites, `tests_backend_adoption` les nomme :
+> imager vidéo ×5, `model_registry` ×8, avatarizer ×2, anonymizer ×1, transcriber ×1) ; ④ la
+> dérivation des `requires` d'app par modèle→backend (corpus **8 périmés voulus**) ; ⑤ le
+> retrait de `backend_ref`. Protocole ÉPROUVÉ : smoke de résolution AVANT la substitution,
+> `backend_for_key('<app>:<id>')` (jamais un import de chemin), suite complète, commit avec
+> les DEUX côtés du `mv`.
+> ⚠ Ce qui est resté DANS les apps l'est par FRONTIÈRE, pas par oubli : `ROUTES`/`RESULT`/
+> `NATURE_FIELD` et les fonctions de route (describer) = décision de routage + couche
+> « fonction » ; les managers d'app (transcriber, imager) et `ENGINE_BACKENDS` du synthesizer
+> (consommé par `tts_service`, SANS Django) = leur sélection à l'exécution — les remplacer
+> est un PORTAGE, pas un déplacement. Trois bases métier renommées (`speech_to_text_base`,
+> `tts_base`, `image_generation_base`) : trois `base.py` ne cohabitent pas à plat.
+> ⚠ **Sélection automatique de modèle** (alerte Fabien) VÉRIFIÉE : `known_engines()` rend les
+> MÊMES moteurs avant/après (19 depuis venv_win ; **25** et grisage **1/116** depuis
+> venv_linux — les chiffres consignés) ; `tests_auto_model` + `model_manager` 183 OK.
 
 **Le sens du lien, rappelé trois fois par Fabien, et désormais écrit partout** :
 le MODÈLE porte son moteur (`composition.runtime.engine`) → le backend s'en DÉRIVE
@@ -2787,7 +2797,8 @@ les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIE
   l'attribution à contresens du vivier — colonne « modèles servis » vide sur 47 entrées).
 
 **Laissé, nommément** :
-1. les 6 apps restantes (ci-dessus) ;
+1. ~~les 6 apps restantes~~ ✅ FAIT le 07/09 (3ᵉ tranche, 30 modules, 66 recalages) — restent les
+   27 copies des jumelles `_01`, qui disparaîtront à leur régénération (GO Fabien déjà acquis) ;
 2. **`vendor/`** : déplacement + README + `.gitignore` + cibles de clone du setup + retrait du
    gitlink `codeformer` sans URL + `VENDOR_PACKAGE` disparaît des 2 backends (le moteur se
    référence par son NOM ; sa présence sur disque doit entrer dans `engine_installed`, qui
@@ -2796,7 +2807,7 @@ les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIE
    est un mode d'usage, pas un moteur ;
 4. `anonymizer/tasks.py` SAM3 non converti : le job ne porte aucune clé de modèle (bascule =
    option utilisateur, poids YOLO choisis dans le backend) — à traiter par déclaration ;
-5. ⚠ **corpus : 3 manifestes d'app PÉRIMÉS (anonymizer, composer, enhancer) — VOLONTAIREMENT non
+5. ⚠ **corpus : 8 manifestes d'app PÉRIMÉS (les 8 apps à backends — 3 le soir, 8 après la 3ᵉ tranche) — VOLONTAIREMENT non
    régénérés.** La jambe `library` de leurs `requires` est mesurée par un balayage AST **du dossier
    de l'app** (`library_index.librairies_de`) : backends partis, l'app « n'importe plus » torch ni
    soundfile, et régénérer FIGERAIT cette perte. La dérivation doit passer par le lien
@@ -2826,12 +2837,12 @@ corriger chaque passe… ce n'est pas viable ») :
 |---|---|
 | suite complète | **1704 OK** (skipped=11) — après la DERNIÈRE écriture de code |
 | `check_docs` | **0 cassée**, 0 périmée, **1492** références · 0 chiffre sans source (avec les 2 hunks ROADMAP de l'arbre) |
-| corpus (depuis `venv_linux`) | **3 périmés, NOMMÉS et VOULUS** (cf. laissé n°5) ; 0 invalide |
+| corpus (depuis `venv_linux`) | **8 périmés, NOMMÉS et VOULUS** — les 8 apps à backends, même cause (cf. laissé n°5) ; 0 invalide |
 | `doc_facts --check` | à jour (table des mécanismes régénérée — annexe déplacée) |
 | `check_backend_links` | **108/116** déclarent, **97** résolvent — inchangé par les déplacements |
-| `tests_backend_adoption` | budget **22** imports par chemin |
+| `tests_backend_adoption` | budget **18** imports par chemin (22 le soir, 4 sites adoptés par la 3ᵉ tranche) |
 | `tests_hf_cache_routing` | budget **0** mutations (cache ET jeton) |
-| apps sans paquet `backends/` | **5/11** (face_analyzer, composer, enhancer, cam_analyzer, anonymizer) |
+| classes de backend hors des apps | **11/11** — 35 classes sous `common/backends/` ; 4 paquets d'app subsistent SANS classe (describer : `ROUTES` + fonctions de route ; transcriber, imager : manager d'app ; synthesizer : `ENGINE_BACKENDS`) |
 
 
 
@@ -4099,7 +4110,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 > ① `user_settings` composer+reader ADOPTÉ (pattern converter « POST prime, sinon dernier
 > utilisé, re-persisté après création » ; clés = noms de params.py ; ⚠ `language` reader :
 > `''` posté = auto-détection VOULUE → test de présence, pas `or`). ② **BLIP = backend sous
-> contrat** (`describer/backends/blip_backend.py`) — REMPLACE le cache de module
+> contrat** (`common/backends/blip_backend.py`) — REMPLACE le cache de module
 > `_blip_processor/_blip_model` + l'unloader explicite d'apps.py ; `REQUIRED_PACKAGES`
 > déclarés (PIL↔pillow), gouverneur alimenté, `process()` neutre (la politique de style
 > reste chez l'appelant). ⚠ le grep de chaînage a attrapé DEUX consommateurs externes qui
@@ -10133,7 +10144,7 @@ on l'écrit dans un fichier, puis on le concatène.*
 
 > Périmètre : `model_manager/services/{benchmark_sync,model_selector,model_registry,prospect_agents}.py`,
 > `model_manager/{models,tasks,views,tests}.py`, `model_manager/templates/…/index.html`,
-> `imager/utils/model_config.py`, `imager/backends/ltx_video_backend.py`, 12 manifestes `model`
+> `imager/utils/model_config.py`, `common/backends/ltx_video_backend.py`, 12 manifestes `model`
 > de l'imager. **Aucun recoupement** avec l'instance « tirage des modèles depuis les apps »
 > (elle tenait `model_selector.py` en fin de session, `reader`, `avatarizer`, `synthesizer`,
 > `common/tts` — vérifié fichier par fichier, diff relu avant chaque commit).
@@ -11229,7 +11240,7 @@ garde de cohérence, la docstring d'autorité, le ROADMAP qui a déjà tranché.
 dans `start_wama_prod.sh`** (vérifié). Le reste du §5b, c'est donc uniquement **retirer les
 mutations per-modèle** : **38 lignes** mesurées (inventaire **AST**, bacs à sable exclus).
 
-**1ᵉʳ pas livré — `reader/backends/table_transformer_backend.py`** : mutation retirée,
+**1ᵉʳ pas livré — `common/backends/table_transformer_backend.py`** : mutation retirée,
 `cache_dir=` conservé. Test **sur poids réels 6/6 `OK` AVANT (71 s) et APRÈS (66 s)**.
 Reste **37**.
 
@@ -12018,6 +12029,7 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 | ⚠⚠ **500 LATENT révélé par la 4ᵉ adoption** : `synthesizer.queue_dnd`/`batch_actions` VERTS à 16:40 → SKIP après câblage. Sonde réseau : `POST /synthesizer/consolidate/` **500 `RawPostDataException`** — la brique poste en multipart, le middleware CSRF consomme le flux, la vue lisait `request.body` avec un `except (ValueError, TypeError)` qui ne l'attrape pas. Le lecteur commun de la fabrique (22/08) documentait EXACTEMENT ce cas ; **5 `consolidate` d'app** (describer, synthesizer, enhancer ×2, anonymizer) gardaient l'ancien code — le describer était déjà cassé (traceback pendant sa famille, `queue_dnd` passé par le REPLI fichier de lot) | lecteur PUBLIC `ids_from_request` (`field=` pour `job_ids`) adopté par les **6** vues (converter compris) ; `tests_queue_dnd.LecteurDIdsSurMultipartTest` rejoue la forme exacte (multipart + `request.POST` touché) et interdit `request.body` dans leur CODE ; sonde : consolidate 200, lot de 2 formé. + `synthesizer.batch_template` levait `NameError: HttpResponse` depuis mars (import manquant) → `batch_import` mesuré pour la 1ʳᵉ fois. *Une garde se pose avec ses JUMEAUX — 2ᵉ occurrence ; un test qui ne reproduit pas le middleware atteste du code cassé.* |
 | **6ᵉ app — READER** (5ᵉ commit) : `multiple:true` + réponse `created[]` (évolutions 1-2, écrites pour lui, utilisées pour la 1ʳᵉ fois), `afterImport` = `multi` → reload sinon `upsertCard` ; **garde « clic sur un lien de la zone » passée dans la brique** (seul le reader l'avait) | 4/5 + skip déclaré avant ; famille `reader.` **11/12** après ; geste `.import` de TOUT le parc vert après la modification de brique ; smoke 0 erreur JS ; 21 tests OK ; grille reader **96 %** |
 | **7ᵉ app — ANONYMIZER** (6ᵉ commit) : jQuery-file-upload remplacé (3 scripts retirés du gabarit) ; **évolution 8 de la brique** : envoi par XHR quand `onProgress` est déclaré + `onSettled` (fin d'envoi, ids vides compris) → la modale de progression survit ; forme de réponse `{media:{id}}` (UN fichier) ajoutée au lecteur tolérant ; `consolidateUrl` déclarée (était en dur) | 4/5 + skip avant ; **1ᵉʳ passage : `anonymizer.import` ✗ + 4 scénarios en erreur** — deux causes élucidées : la forme `media` (pas de reload) et **Bootstrap ignore `hide()` pendant l'animation d'ouverture** (modale bloquant les clics) ; après correctifs famille `anonymizer.` **11/12** + le même skip, parc `.import` 0 échec, smoke 0 erreur JS, 29 tests OK |
+| **08/09 — progression d'envoi UNIFORMISÉE** (question Fabien : « pourquoi une spécificité anonymizer ? ») : la brique envoie TOUJOURS par XHR et affiche une **barre commune dans la zone de dépôt** (classes de progression des cards, libellé « Envoi i/N · fichier · pct % »), retirée à la fin ; l'anonymizer abandonne sa modale pour l'upload (elle ne sert plus qu'à son import par URL) ; `onProgress`/`onSettled` = hooks de remplacement, 0 utilisateur | sonde `MutationObserver` (persistée à travers le reload) : apparue 1 / disparue 1 sur transcriber, anonymizer, converter, 0 erreur JS ; parc `.import` et familles rejouées (voir contrôles) |
 | ⚠ Pending : `common/app_base.html:8-10` charge encore jQuery-file-upload pour PERSONNE (`.fileupload(` = 0 consommateur dans `wama/`) — retrait = 3 surfaces (gabarit, `wama/static/js/jquery-file-upload/`, `REMOVAL_LEDGER`), pas fait ici | grille anonymizer/enhancer ont BAISSÉ (`backend_packages`, `hf_cache_isolation`, `backend_contract`…) pendant ma session **sans que j'y touche** : un autre chantier bouge leurs backends dans l'arbre partagé — à relire par son auteur |
 
 ### Ce que ça a appris

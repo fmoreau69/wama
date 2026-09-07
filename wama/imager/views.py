@@ -1689,7 +1689,7 @@ def api_model_resolutions(request):
     default_guidance_scale = 7.5
     default_steps = 30
     try:
-        from .backends.diffusers_backend import DiffusersBackend
+        from wama.common.backends.diffusers_backend import DiffusersBackend
         model_info = DiffusersBackend.SUPPORTED_MODELS.get(model_name, {})
         if isinstance(model_info, dict):
             default_guidance_scale = model_info.get('default_guidance_scale', 7.5)

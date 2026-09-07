@@ -14,7 +14,7 @@ import tempfile
 
 from wama.common.tts.constants import COQUI_MODEL_MAPPING
 
-from .base import CATALOG_KEYS, TTSBackend, _device, project_root, speech_dir
+from .tts_base import CATALOG_KEYS, TTSBackend, _device, project_root, speech_dir
 
 logger = logging.getLogger(__name__)
 

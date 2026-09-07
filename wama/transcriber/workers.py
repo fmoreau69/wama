@@ -472,7 +472,7 @@ def transcribe(self, transcript_id: int):
         # Step 4b: Pyannote diarization (Whisper + Qwen3-ASR — VibeVoice has its own)
         if backend.name in ('whisper', 'qwen_asr') and t.enable_diarization and result.segments:
             try:
-                from .backends.pyannote_diarizer import is_available as pyannote_ok, diarize
+                from wama.common.backends.pyannote_diarizer import is_available as pyannote_ok, diarize
                 if pyannote_ok():
                     _set_status_message(t, "Diarisation des locuteurs…")
                     _console(t.user_id, "Diarisation des locuteurs (pyannote)…")

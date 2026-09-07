@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from .base import GenerationResult, ImageGenerationBackend
+from .image_generation_base import GenerationResult, ImageGenerationBackend
 
 logger = logging.getLogger(__name__)
 

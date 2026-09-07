@@ -13,7 +13,7 @@ import numpy as np
 
 from wama.common.tts.constants import BARK_LANG_DEFAULTS
 
-from .base import CATALOG_KEYS, TTSBackend, speech_dir, write_wav_int16
+from .tts_base import CATALOG_KEYS, TTSBackend, speech_dir, write_wav_int16
 
 logger = logging.getLogger(__name__)
 

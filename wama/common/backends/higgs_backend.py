@@ -18,7 +18,7 @@ import numpy as np
 
 from wama.common.tts.constants import LANGUAGE_NAMES_EN
 
-from .base import CATALOG_KEYS, TTSBackend, project_root, speech_dir, write_wav_int16
+from .tts_base import CATALOG_KEYS, TTSBackend, project_root, speech_dir, write_wav_int16
 
 logger = logging.getLogger(__name__)
 

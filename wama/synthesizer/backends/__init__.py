@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from wama.common.tts.constants import COQUI_MODEL_MAPPING
 
-from .bark_backend import BarkBackend
-from .base import CATALOG_KEYS, TTSBackend
-from .audio8_backend import Audio8Backend
-from .coqui_backend import CoquiBackend
-from .qwen3_tts_backend import Qwen3TTSBackend
-from .higgs_backend import HiggsAudioBackend
-from .kokoro_backend import KokoroBackend
-from .kokoro_onnx_backend import KokoroOnnxBackend
+from wama.common.backends.bark_backend import BarkBackend
+from wama.common.backends.tts_base import CATALOG_KEYS, TTSBackend
+from wama.common.backends.audio8_backend import Audio8Backend
+from wama.common.backends.coqui_backend import CoquiBackend
+from wama.common.backends.qwen3_tts_backend import Qwen3TTSBackend
+from wama.common.backends.higgs_backend import HiggsAudioBackend
+from wama.common.backends.kokoro_backend import KokoroBackend
+from wama.common.backends.kokoro_onnx_backend import KokoroOnnxBackend
 
 #: Moteur → classe de backend (vocabulaire `SYNTHESIZER_MODELS[*]['engine']`).
 #: Cette table est AUSSI l'inventaire du grisage automatique (apps.ready → un moteur

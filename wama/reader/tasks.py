@@ -21,9 +21,16 @@ _olmocr_singleton = None
 def _get_olmocr():
     """Retourne le backend olmOCR partagé, le charge si nécessaire."""
     global _olmocr_singleton
-    from .backends.olmocr_backend import OlmOCRBackend
     if _olmocr_singleton is None or _olmocr_singleton._model is None:
-        _olmocr_singleton = OlmOCRBackend()
+        # Le MODÈLE porte son moteur ; le backend s'en dérive (4ᵉ adoptant de
+        # `backend_for_key`, 2026-09-07). La colonne `item.backend` du reader porte des
+        # identifiants qui SONT des clés de catalogue (`reader:olmocr`, `reader:doctr`).
+        from wama.common.backends.manager import backend_for_key
+        classe = backend_for_key('reader:olmocr')
+        if classe is None:
+            raise RuntimeError("reader:olmocr : aucun backend résolu depuis le catalogue "
+                               "(ligne absente, ou sans moteur déclaré)")
+        _olmocr_singleton = classe()
         _olmocr_singleton.load()
     return _olmocr_singleton
 
@@ -81,7 +88,7 @@ def _olmocr_is_resident() -> bool:
 def _glm_ocr_available() -> bool:
     """GLM-OCR tourne dans Ollama : téléchargé ≠ joignable (serveur éteint)."""
     try:
-        from .backends.glm_ocr_backend import is_available as glm_available
+        from wama.common.backends.glm_ocr_backend import is_available as glm_available
         return bool(glm_available())
     except Exception:
         return False
@@ -291,14 +298,17 @@ def _read(item, ctx):
                 keep_loaded=True, on_partial=_partial,
             )
         elif backend == 'glm-ocr':
-            from .backends.glm_ocr_backend import GlmOcrBackend
+            from wama.common.backends.glm_ocr_backend import GlmOcrBackend
             raw_text = GlmOcrBackend().run(
                 item.input_file.path, item.mode, item.language, ctx.progress,
                 on_partial=_partial,
             )
         elif backend == 'doctr':
-            from .backends.doctr_backend import DocTRBackend
-            raw_text = DocTRBackend().run(
+            from wama.common.backends.manager import backend_for_key
+            classe = backend_for_key('reader:doctr')
+            if classe is None:
+                raise RuntimeError("reader:doctr : aucun backend résolu depuis le catalogue")
+            raw_text = classe().run(
                 item.input_file.path, item.mode, item.language, ctx.progress,
                 on_partial=_partial,
             )

@@ -27,8 +27,8 @@ from django.db import close_old_connections
 
 from .models import AvatarJob
 from wama.common.services.resource_governor import vram_reservation
-from wama.avatarizer.backends.codeformer_backend import CodeFormerBackend
-from wama.avatarizer.backends.musetalk_backend import MuseTalkBackend
+from wama.common.backends.codeformer_backend import CodeFormerBackend
+from wama.common.backends.musetalk_backend import MuseTalkBackend
 
 # Backends hors process (contrat commun BaseModelBackend) — le worker orchestre, ils executent.
 _musetalk_backend = MuseTalkBackend()

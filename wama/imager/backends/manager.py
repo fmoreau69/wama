@@ -7,7 +7,7 @@ Manages available image generation backends and provides automatic fallback.
 import logging
 from typing import Optional, Dict, Type, List, Tuple
 
-from .base import ImageGenerationBackend
+from wama.common.backends.image_generation_base import ImageGenerationBackend
 
 logger = logging.getLogger(__name__)
 
@@ -37,28 +37,28 @@ class BackendManager:
         """Register built-in backends."""
         # Import backends
         try:
-            from .diffusers_backend import DiffusersBackend
+            from wama.common.backends.diffusers_backend import DiffusersBackend
             self._backends['diffusers'] = DiffusersBackend
             logger.debug("Registered DiffusersBackend")
         except ImportError as e:
             logger.warning(f"Could not register DiffusersBackend: {e}")
 
         try:
-            from .imaginairy_backend import ImaginAiryBackend
+            from wama.common.backends.imaginairy_backend import ImaginAiryBackend
             self._backends['imaginairy'] = ImaginAiryBackend
             logger.debug("Registered ImaginAiryBackend")
         except ImportError as e:
             logger.warning(f"Could not register ImaginAiryBackend: {e}")
 
         try:
-            from .qwen_image_backend import QwenImageBackend
+            from wama.common.backends.qwen_image_backend import QwenImageBackend
             self._backends['qwen_image'] = QwenImageBackend
             logger.debug("Registered QwenImageBackend")
         except ImportError as e:
             logger.warning(f"Could not register QwenImageBackend: {e}")
 
         try:
-            from .flux2_klein_backend import Flux2KleinBackend
+            from wama.common.backends.flux2_klein_backend import Flux2KleinBackend
             self._backends['flux2_klein'] = Flux2KleinBackend
             logger.debug("Registered Flux2KleinBackend")
         except ImportError as e:

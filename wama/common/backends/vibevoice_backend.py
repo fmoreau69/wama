@@ -20,7 +20,7 @@ import gc
 import logging
 from typing import List, Optional
 
-from .base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
+from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
 
 logger = logging.getLogger(__name__)
 

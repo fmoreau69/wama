@@ -10,7 +10,7 @@ class ContratTest(TestCase):
 
     def test_le_backend_honore_le_contrat_commun(self):
         from wama.common.backends.base import BaseModelBackend
-        from wama.reader.backends.table_transformer_backend import TableTransformerBackend
+        from wama.common.backends.table_transformer_backend import TableTransformerBackend
         self.assertTrue(issubclass(TableTransformerBackend, BaseModelBackend))
         b = TableTransformerBackend()
         self.assertFalse(b.is_loaded)
@@ -32,7 +32,7 @@ class GrilleVersMarkdownTest(TestCase):
     COLONNES = [[0, 0, 100, 40], [100, 0, 200, 40]]       # 2 colonnes
 
     def test_les_mots_tombent_dans_leur_cellule_par_leur_centre(self):
-        from wama.reader.backends.table_transformer_backend import rows_cols_to_markdown
+        from wama.common.backends.table_transformer_backend import rows_cols_to_markdown
         mots = [
             {'text': 'Nom',  'bbox': [10, 5, 40, 15]},     # r0 c0
             {'text': 'Prix', 'bbox': [110, 5, 150, 15]},   # r0 c1
@@ -45,7 +45,7 @@ class GrilleVersMarkdownTest(TestCase):
         self.assertIn('| --- | --- |', md, 'ligne de séparation Markdown attendue')
 
     def test_deux_mots_d_une_cellule_se_concatenent_dans_l_ordre_de_lecture(self):
-        from wama.reader.backends.table_transformer_backend import rows_cols_to_markdown
+        from wama.common.backends.table_transformer_backend import rows_cols_to_markdown
         mots = [
             {'text': 'unitaire', 'bbox': [40, 5, 90, 15]},
             {'text': 'Prix',     'bbox': [5, 5, 35, 15]},   # plus à gauche → premier
@@ -54,7 +54,7 @@ class GrilleVersMarkdownTest(TestCase):
         self.assertIn('| Prix unitaire |', md)
 
     def test_sans_grille_le_rendu_est_vide_pas_une_erreur(self):
-        from wama.reader.backends.table_transformer_backend import rows_cols_to_markdown
+        from wama.common.backends.table_transformer_backend import rows_cols_to_markdown
         self.assertEqual(rows_cols_to_markdown([], [], []), '')
 
 
@@ -67,7 +67,7 @@ def _poids_presents():
         # venv_win saute ce test AVEC sa raison au lieu d'un rouge de plateforme.
         return False
     try:
-        from wama.reader.backends.table_transformer_backend import (
+        from wama.common.backends.table_transformer_backend import (
             HF_DETECTION, HF_STRUCTURE, TableTransformerBackend, _cache_dir_for)
         return (TableTransformerBackend.is_available()
                 and _cache_dir_for(HF_DETECTION) and _cache_dir_for(HF_STRUCTURE))
@@ -89,7 +89,7 @@ class IntegrationReelleTest(TestCase):
         # paragraphe, tableau DENSE avec texte par cellule) rend un score de 0,999.
         import tempfile
         from PIL import Image, ImageDraw
-        from wama.reader.backends.table_transformer_backend import TableTransformerBackend
+        from wama.common.backends.table_transformer_backend import TableTransformerBackend
 
         page = Image.new('RGB', (816, 1056), 'white')       # ~A4 à 96 dpi
         d = ImageDraw.Draw(page)

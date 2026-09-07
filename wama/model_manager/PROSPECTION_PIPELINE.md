@@ -1463,7 +1463,7 @@ est mesurable : le fichier existe **AUX DEUX endroits**
 `snapshot_download(cache_dir=…)` « **SANS muter `HF_HUB_CACHE` global** » (sa docstring le dit,
 et la dispersion est la raison invoquée) — et il ne tire qu'un dépôt.
 
-Le coupable est le **chargement** : `reader/backends/table_transformer_backend.py:90` fait
+Le coupable est le **chargement** : `common/backends/table_transformer_backend.py:90` fait
 `os.environ['HF_HUB_CACHE'] = cache_det` avant l'import transformers. Table Transformer est un
 DETR dont la config déclare un **backbone timm** ; celui-ci se résout par le hub, donc atterrit
 dans `HF_HUB_CACHE` — c'est-à-dire dans le dossier du modèle principal. *La mutation d'env est

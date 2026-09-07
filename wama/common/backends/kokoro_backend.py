@@ -17,7 +17,7 @@ import numpy as np
 
 from wama.common.tts.constants import KOKORO_LANG_MAP
 
-from .base import CATALOG_KEYS, TTSBackend, speech_dir, write_wav_int16
+from .tts_base import CATALOG_KEYS, TTSBackend, speech_dir, write_wav_int16
 
 logger = logging.getLogger(__name__)
 

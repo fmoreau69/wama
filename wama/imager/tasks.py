@@ -112,7 +112,7 @@ def generate_image_task(self, generation_id):
         # Import backend system
         try:
             from .backends import get_backend, get_available_backends
-            from .backends.base import GenerationParams
+            from wama.common.backends.image_generation_base import GenerationParams
         except ImportError as e:
             error_msg = f"Backend system not available: {e}"
             logger.error(error_msg)
@@ -126,43 +126,29 @@ def generate_image_task(self, generation_id):
         _console(user_id, f"[Imager] Available backends: {available}")
         logger.info(f"Available backends: {available}")
 
-        # Route Qwen Image models to dedicated backend
-        if generation.model.startswith('qwen-image'):
-            try:
-                from .backends.qwen_image_backend import QwenImageBackend
-                backend = QwenImageBackend()
-                if not QwenImageBackend.is_available():
-                    error_msg = "Qwen Image backend not available. Need CUDA with 12GB+ VRAM."
-                    logger.error(error_msg)
-                    generation.status = 'FAILURE'
-                    generation.error_message = error_msg
-                    generation.save()
-                    _console(user_id, f"[Imager] Error: {error_msg}")
-                    return {'error': error_msg}
-            except ImportError as e:
-                error_msg = f"Qwen Image backend not importable: {e}"
+        # Modèles à backend DÉDIÉ (Qwen Image, FLUX.2 Klein) : le MODÈLE porte son moteur et le
+        # catalogue départage le générique (DiffusersBackend) du spécialisé par SUPPORTED_MODELS
+        # — c'est exactement ce que les deux branches `startswith(...)` refaisaient à la main
+        # avec un import de classe par chemin. 3ᵉ adoptant de `backend_for_key` (2026-09-07).
+        # Le préfixe ne sert plus qu'à décider QUI résout : le catalogue (ici) ou le manager
+        # d'app (ci-dessous, qui porte le repli diffusers/imaginairy). Aucun repli muet.
+        if generation.model.startswith(('qwen-image', 'flux2-klein')):
+            from wama.common.backends.manager import backend_for_key
+            cle_catalogue = f'imager:{generation.model}'
+            classe = backend_for_key(cle_catalogue)
+            if classe is None:
+                error_msg = (f"Modèle « {generation.model} » : aucun backend résolu depuis le "
+                             f"catalogue ({cle_catalogue} absent, ou sans moteur déclaré)")
                 logger.error(error_msg)
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
                 _console(user_id, f"[Imager] Error: {error_msg}")
                 return {'error': error_msg}
-
-        # Route FLUX.2 Klein models to dedicated backend
-        elif generation.model.startswith('flux2-klein'):
-            try:
-                from .backends.flux2_klein_backend import Flux2KleinBackend
-                backend = Flux2KleinBackend()
-                if not Flux2KleinBackend.is_available():
-                    error_msg = "FLUX.2 Klein backend not available. Need CUDA + diffusers>=0.37."
-                    logger.error(error_msg)
-                    generation.status = 'FAILURE'
-                    generation.error_message = error_msg
-                    generation.save()
-                    _console(user_id, f"[Imager] Error: {error_msg}")
-                    return {'error': error_msg}
-            except ImportError as e:
-                error_msg = f"FLUX.2 Klein backend not importable: {e}"
+            backend = classe()
+            if not classe.is_available():
+                error_msg = (f"{classe.__name__} indisponible pour « {generation.model} » "
+                             f"(CUDA/VRAM ou dépendances manquantes).")
                 logger.error(error_msg)
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
@@ -518,7 +504,7 @@ def generate_video_task(self, generation_id):
         if backend_type == 'hunyuan':
             _console(user_id, f"[Imager Video] Importing HunyuanVideo backend...")
             try:
-                from .backends.hunyuan_video_backend import HunyuanVideoBackend, HunyuanVideoParams
+                from wama.common.backends.hunyuan_video_backend import HunyuanVideoBackend, HunyuanVideoParams
                 backend_class = HunyuanVideoBackend
                 params_class = HunyuanVideoParams
                 _console(user_id, f"[Imager Video] ✓ HunyuanVideo backend imported")
@@ -546,7 +532,7 @@ def generate_video_task(self, generation_id):
         elif backend_type == 'cogvideox':
             _console(user_id, f"[Imager Video] Importing CogVideoX backend...")
             try:
-                from .backends.cogvideox_backend import CogVideoXBackend, CogVideoXParams
+                from wama.common.backends.cogvideox_backend import CogVideoXBackend, CogVideoXParams
                 backend_class = CogVideoXBackend
                 params_class = CogVideoXParams
                 _console(user_id, f"[Imager Video] ✓ CogVideoX backend imported")
@@ -574,7 +560,7 @@ def generate_video_task(self, generation_id):
         elif backend_type == 'ltx':
             _console(user_id, f"[Imager Video] Importing LTX-Video backend...")
             try:
-                from .backends.ltx_video_backend import LTXVideoBackend, LTXVideoParams
+                from wama.common.backends.ltx_video_backend import LTXVideoBackend, LTXVideoParams
                 backend_class = LTXVideoBackend
                 params_class = LTXVideoParams
                 _console(user_id, f"[Imager Video] ✓ LTX-Video backend imported")
@@ -602,7 +588,7 @@ def generate_video_task(self, generation_id):
         elif backend_type == 'mochi':
             _console(user_id, f"[Imager Video] Importing Mochi backend...")
             try:
-                from .backends.mochi_backend import MochiBackend, MochiParams
+                from wama.common.backends.mochi_backend import MochiBackend, MochiParams
                 backend_class = MochiBackend
                 params_class = MochiParams
                 _console(user_id, f"[Imager Video] ✓ Mochi backend imported")
@@ -631,7 +617,7 @@ def generate_video_task(self, generation_id):
             # Default: Wan video backend
             _console(user_id, f"[Imager Video] Importing Wan backend...")
             try:
-                from .backends.wan_video_backend import WanVideoBackend, VideoGenerationParams
+                from wama.common.backends.wan_video_backend import WanVideoBackend, VideoGenerationParams
                 backend_class = WanVideoBackend
                 params_class = VideoGenerationParams
                 _console(user_id, f"[Imager Video] ✓ Wan backend imported")

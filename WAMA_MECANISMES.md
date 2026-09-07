@@ -268,10 +268,10 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 12 |
 
-**Mécanismes déclarés : 128** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 17 · modules balayés non rattachés : 13 · **de niveau app sans critère de grille : 37**
+**Mécanismes déclarés : 128** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 17 · modules balayés non rattachés : 42 · **de niveau app sans critère de grille : 35**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `qc` (wama/common/utils/qc.py), `apply_manifests` (wama/common/management/commands/apply_manifests.py)
 
-<details><summary>⚠ <b>37 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
+<details><summary>⚠ <b>35 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 
 | Mécanisme | Adopté par | Domicile |
 |---|---|---|
@@ -296,17 +296,15 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `audio_player` — Lecteur audio (onde + transport) | **4** app(s) : composer, enhancer, synthesizer, transcriber | `wama/common/static/common/js/wama-audio-player.js` |
 | `ffmpeg` — Accès ffmpeg | **4** app(s) : converter, describer, enhancer, transcriber | `wama/common/utils/ffmpeg_utils.py` |
 | `app_access` — Accès aux éléments (apps aujourd'hui) | **3** app(s) : avatarizer, synthesizer, transcriber | `wama/accounts/permissions.py` |
-| `audio_decode` — Décodage audio robuste | **3** app(s) : converter, synthesizer, transcriber | `wama/common/utils/audio_decode.py` |
 | `document_export` — Export document | **3** app(s) : describer, reader, transcriber | `wama/common/utils/document_export.py` |
-| `external_sources` — Sources externes | **3** app(s) : describer, reader, synthesizer | `wama/common/external_sources.py` |
 | `llm` — Accès LLM | **3** app(s) : describer, reader, transcriber | `wama/common/utils/llm_utils.py` |
-| `model_declarations` — Passe-plat des déclarations de modèle | **3** app(s) : describer, imager, reader | `wama/common/utils/model_declarations.py` |
+| `external_sources` — Sources externes | **2** app(s) : describer, synthesizer | `wama/common/external_sources.py` |
 | `media_picker` — Sélecteur de médiathèque | **2** app(s) : avatarizer, imager | `wama/common/static/common/js/media-picker.js` |
 | `media_probe` — Sonde média | **2** app(s) : converter, transcriber | `wama/common/utils/media_probe.py` |
 | `nightly_tests` — Tests nocturnes | **2** app(s) : enhancer, transcriber | `wama/common/services/nightly_tests.py` |
 | `tts_service_client` — Client du service TTS | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/service_client.py` |
 | `tts_vocabulaire` — Vocabulaire TTS partagé | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/constants.py` |
-| `hf_weights` — Routage des poids hors HuggingFace | **1** app(s) : synthesizer | `wama/common/utils/hf_weights.py` |
+| `audio_decode` — Décodage audio robuste | **1** app(s) : converter | `wama/common/utils/audio_decode.py` |
 | `history` — Historique annuler / rétablir | **1** app(s) : transcriber | `wama/common/static/common/js/wama-history.js` |
 | `model_coverage` — Couverture multi-modèles | **1** app(s) : anonymizer | `wama/common/services/model_coverage.py` |
 | `provenance` — Provenance de modèle | **1** app(s) : anonymizer | `wama/model_manager/services/provenance.py` |
@@ -315,12 +313,12 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 </details>
 
-<details><summary>⚠ <b>13 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
+<details><summary>⚠ <b>42 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
 
 
 `wama/common/utils/` (2) — `blur_utils.py` · `bounds.py`
 
-`wama/common/backends/` (10) — `ai_upscaler.py` · `audio_enhancer.py` · `audiocpp_backend.py` · `audiocraft_backend.py` · `deepface_backend.py` · `depth_backend.py` · `depth_engine.py` · `detection_base.py` · `emotions.py` · `sam3_processor.py`
+`wama/common/backends/` (39) — `ai_upscaler.py` · `audio8_backend.py` · `audio_enhancer.py` · `audiocpp_backend.py` · `audiocraft_backend.py` · `bark_backend.py` · `blip_backend.py` · `cogvideox_backend.py` · `coqui_backend.py` · `deepface_backend.py` · `depth_backend.py` · `depth_engine.py` · `detection_base.py` · `diffusers_backend.py` · `doctr_backend.py` · `emotions.py` · `flux2_klein_backend.py` · `glm_ocr_backend.py` · `higgs_backend.py` · `hunyuan_video_backend.py` · `image_generation_base.py` · `imaginairy_backend.py` · `kokoro_backend.py` · `kokoro_onnx_backend.py` · `ltx_video_backend.py` · `mochi_backend.py` · `musetalk_backend.py` · `olmocr_backend.py` · `pyannote_diarizer.py` · `qwen3_tts_backend.py` · `qwen_asr_backend.py` · `qwen_image_backend.py` · `sam3_processor.py` · `speech_to_text_base.py` · `table_transformer_backend.py` · `tts_base.py` · `vibevoice_backend.py` · `wan_video_backend.py` · `whisper_backend.py`
 
 `wama/common/static/common/js/` (1) — `wama-input-slots.js`
 

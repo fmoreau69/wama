@@ -1,7 +1,7 @@
 """Backends du describer — contrat commun + registre `BackendManager` (brique commune)."""
 from wama.common.backends.manager import BackendManager
 
-from .blip_backend import BlipBackend
+from wama.common.backends.blip_backend import BlipBackend
 
 #: ── ROUTAGE nature → backend : LA déclaration que la chaîne de génération COMPOSE ─────────
 #: (marche B1 describer, 2026-09-03 — 2ᵉ app routée, 1ʳᵉ à MODÈLES IA ; pilote converter.)
