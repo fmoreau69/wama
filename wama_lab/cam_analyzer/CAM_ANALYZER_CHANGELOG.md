@@ -35,6 +35,28 @@ Cap/orientation (consensus axial, fondu ratio↔trajectoire) · Marquages monde 
 /branches apprises · Ortho/recalage IGN + mini-carte orientable · Live/complétion + préemption ·
 Levier antenne GPS · UI toolbar par familles + bascules ⚑ génériques.
 
+## ⭐ ÉTAT 2026-09-05/07 — l'inventaire, la pose navette, et l'ordre de travail acté
+
+> **La carte vivante des traitements est `CAM_ANALYZER_CHAINE_TRAITEMENT.md §INVENTAIRE`** (13 passes,
+> 43 leviers de correction, 3 réfutations, cadre de fusion, 6 modèles IA — tout MESURÉ dans le code le
+> 05/09). Ce qui suit est l'ordre de travail acté avec Fabien ce jour-là et son état.
+
+| étape | contenu | état |
+|---|---|---|
+| inventaire | §INVENTAIRE + 3 réfutations (IMU jamais consommé · voie DLT conditionnée · hypothèse EMA repli ③) | ✅ `478e0151` `aa44318b` |
+| ① pose navette | ⚑ `shuttle_filter` (OFF) — Kalman+RTS (`kinematics.rts_smoother`, commun), `effective_gps_track` = point d'accès unique, 6 consommateurs, miroir JS | ✅ `05ea8776` |
+| ②③④ visibilité | ⚑ `sam3_homography` (ON) · `placement_source` par détection (G7 se compte) · ⚑ `display_ema` (ON, live) | ✅ `0204021e` |
+| ⑤a manifestes | kind `function` exporté (58/58), chaque entrée du registre attestée valide | ✅ `e1c2cd6a` |
+| **⑤b facette estimateur** | `estimates` / `uncertainty` / `derived_from` sur les ports de sortie — le socle de la fusion (§INVENTAIRE E) | ⏳ **forme soumise à Fabien le 05/09, PAS codée** |
+| **⑥ test D.3** | ⚑ `display_ema` OFF sur session ENA (dérive des garés cesse-t-elle ?) puis ⚑ `shuttle_filter` ON → lire `Filtre navette` / `Source de placement` / `Cohérence placement`, `placement_spread` OFF vs ON | ⏳ **geste navigateur sur données réelles, en dernier (acté)** |
+| accéléromètre | axes X/Y du capteur **non mesurés** (seul Z ≈ 0,95 g) → identifier l'axe avant par corrélation avec dv/dt du GPS filtré AVANT tout modèle à accélération commandée | ⏳ mesure |
+| σ du filtre | 0,8 m/s² / 2,0 m **provisoires** → réétalonner sur `placement_spread` | ⏳ |
+| #7 bâtiments IGN | `fetch_buildings` n'a qu'un consommateur (`sky_mask`) : rien n'affiche les emprises — palier JS à part | ⏳ |
+| `locate_anything` | poids présents, `capabilities={}`, `backend_ref` vide : la capacité n'existe pas ; PoC bloqué par les crashs GPU | ⏳ |
+
+**Rien de tout cela n'a tourné sur données réelles ni au navigateur** (GPU interdit sur le poste ;
+le smoke du 05/09 atteste seulement : page cam_analyzer HTTP 200, 0 erreur JS, JS servi = le bon).
+
 ## RESTE À FAIRE (priorisé — qualité/cohérence vue de dessus)
 
 **P1 — le cœur (position) :**

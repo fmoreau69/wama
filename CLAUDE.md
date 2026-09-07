@@ -107,6 +107,18 @@
   ici + rouge là-bas = artefact ; rouge des deux côtés = régression. Sans ce geste, on lit un
   échec de worktree comme une casse et on « corrige » du code sain.
   *Un worktree ne porte que ce qui est VERSIONNÉ — ses échecs parlent d'abord de ça.*
+  ⚠ **Mais « artefact » ne veut pas dire « rien à faire »** (mesuré 2026-09-05, autre instance,
+  même test) : `three.module.js` manque à HEAD parce que **`.gitignore:31` = `build/`** (motif
+  Python générique) avale `wama/static/vendors/three-0.180.0/build/` pendant que les 11 addons
+  de three sont suivis. **Un clone frais n'a pas le cœur du 3D.** Le test a raison sur le fond
+  et tort sur le lieu : c'est un trou de VERSIONNEMENT, comme les migrations — décision de
+  Fabien (négation `!wama/static/vendors/**/build/` + `git add`), signalée, pas prise.
+  ⚠ **Harnais** : lancer `<worktree>/manage.py` depuis le dépôt principal met le **cwd en
+  `sys.path[0]`** → `wama` vient du worktree, `wama_data`/`wama_lab` du dépôt principal →
+  `ImportError: 'tests…' module incorrectly imported from …` (3 runs perdus le 05/09, rien à
+  voir avec HEAD). Sans préfixe `cd` : `env -C "$W" <python ABSOLU> manage.py test --keepdb`,
+  et vérifier la résolution d'abord (`manage.py shell -c "import wama_data; print(wama_data.__file__)"`).
+  `git worktree remove` échoue sous Windows (« Filename too long ») → `rm -rf` puis `prune`.
 
   ⚠⚠ **`manage.py check` passe sans rien de tout cela** — il ne touche pas la base. Un « check
   vert sur HEAD » ne prouve donc RIEN sur la capacité de HEAD à monter sa base : c'est

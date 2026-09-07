@@ -11395,3 +11395,74 @@ navigateur Playwright et a été purgé en fin de passe.
   presque toujours la mauvaise réponse — la faire entrer dans `ui_smoke.py` la rend rejouable et
   nocturne ». Un scénario `studio.history` (ajouter, annuler, rétablir, vider+annuler) n'existe
   pas encore : tant qu'il n'est pas écrit, cette attestation vaut pour AUJOURD'HUI et rien de plus.
+## §REPRISE — 2026-09-04 → 09-07, instance « CAM_ANALYZER : GÉO + INVENTAIRE + POSE NAVETTE + MANIFESTES FONCTIONS » — ✅ CLOSE — 🔚 POINT D'ENTRÉE
+
+> Session ouverte sur une question de Fabien (*« OSM / Google Earth / QGIS / dépôts SLAM /
+> locate_anything : qu'est-ce qui vaut le coup pour le cam_analyzer sans intégration lourde ? »*),
+> réorientée par lui vers une **lecture et consignation exhaustives AVANT tout** (*« pour ne pas
+> réinventer ou recâbler un traitement non tracé de bout en bout »*), puis un ordre de travail
+> acté : **corrections d'abord, chacune derrière un ⚑ dont le défaut = état d'aujourd'hui, test
+> D.3 en dernier**. 9 commits par chemins explicites ; **~50 commits d'autres instances en
+> parallèle** (backends, card v4/fichiers d'entrée, nocturne, face_analyzer, R18) — aucun
+> recouvrement de fichier, mais trois de mes constats ont été résorbés ou déplacés par elles
+> (voir pendings). Domicile vivant : **`CAM_ANALYZER_CHAINE_TRAITEMENT.md §INVENTAIRE`** +
+> `CAM_ANALYZER_CHANGELOG § ÉTAT 2026-09-05/07`.
+
+### Livré (chaque palier : suite complète `OK` avant commit)
+
+| commit | quoi | preuve |
+|---|---|---|
+| `ba126921` | **3 briques pures** : `geo.ign_road_map` (BD TOPO → port `road_map`, la 2ᵉ voie à côté du CSV de projet), `geo/osm_vector.py` (`osm_control_nodes` = la seule sémantique de carrefour, `osm_road_map` mondial, `nearest_control` en mètres), `geometry.ego_rotation` (lacet/tangage par flux de points — PAS un SLAM : fx ≈ 134 px, frontière = « l'angle par le mouvement, jamais l'échelle ») ; **2 manifestes menteurs corrigés** (`ign_roads`/`road_branches` promettaient `road_map` sans en servir la forme) | 38 tests, contre-épreuve par MUTATION (axes IGN inversés ⇒ `section_id=None` sans erreur) |
+| `05d54922` | **contrat `pure` rétabli** (noyau + wrapper `TypedFrame → TypedFrame`, patron `placement_metrics`) + **le 4ᵉ registre déclaratif gagne ses tests** (`FunctionCatalogConformiteTest`, il n'en avait aucun) → trouve dès la 1ʳᵉ exécution `protocol`/`protocole` (TypeError garanti) sur 3 fonctions | 26/30 pures honoraient déjà le contrat — mesuré AVANT de poser le garde |
+| `bbff49fe` | `yaw_disagreement` **mentait à basse vitesse** : le cap GPS y est GELÉ (`ego_pose.py:139`), pas bruité → garde `reference_held` (G7 transposé au cap) | trouvé en lisant `CHAINE §[2]` — que je n'avais pas lu avant de coder |
+| `478e0151` `aa44318b` | **INVENTAIRE EXHAUSTIF mesuré dans le code** : 13 passes en 3 étages + ordre interne du tracker (12 étapes), chemin d'une bbox jusqu'à la carte, **43 leviers de correction** (13 en ⚑, 30 constantes non comparables ; UN seul touchait la pose navette, en JS ; UN seul chiffre A/B), 3 réfutations, cadre de fusion, 6 modèles IA | `check_docs` 1443 réf. ; D.2 corrigé dans l'heure (« le tracker ne l'ignore pas » était FAUX) |
+| `05ea8776` | **① la pose NAVETTE filtrée pour la 1ʳᵉ fois** — ⚑ `shuttle_filter` (OFF) : brique pure `driving.ego_track_filter` (Kalman+RTS, cap dérivé de la vitesse lissée, tenu < 1 m/s **mesuré**) ; le lisseur remonte dans `kinematics.rts_smoother`, `trajectory_smoother` délègue (**empreinte enregistrée AVANT le déplacement**, 1e-5) ; `effective_gps_track` = point d'accès UNIQUE, 6 consommateurs ; miroir JS au point d'ingestion unique | 12 tests (cap brut > 8° d'erreur vs filtré < 1/3 ; convergence < 2 s ; limite à ±2 m DOCUMENTÉE) ; 1628 `OK` |
+| `0204021e` | **②③④ visibilité** : ⚑ `sam3_homography` (ON — la voie DLT devient commutable), **`placement_source`** par détection (G7 se COMPTE, `results_summary.placement_sources` + console), ⚑ `display_ema` (ON, **live** — l'hypothèse D.3 testable sans recalcul) | 17 bascules ; 1628 `OK` |
+| `e1c2cd6a` | **⑤a** `manifest_export --kind function` : 58/58 exportés, `--check` à jour dans les DEUX venvs, test « chaque entrée du registre s'extrait en manifeste VALIDE » | 1629 `OK` |
+| `05542404` | `effective_gps_track` : 7 tests — **⚑ OFF rend l'objet MÊME** (identité stricte), brut jamais muté | revérification de session demandée par Fabien |
+
+### ⚠⚠ Les leçons (le détail vit dans les commits et les mémoires citées)
+
+- **Un doc de design peut déclarer FAIT ce que le code n'a jamais câblé** : `DISTANCE_DESIGN` disait la fusion IMU faite ; `git log -S imu_track` rend UN commit (la création, 09/07). Fabien s'en souvenait comme d'un travail réalisé. **L'attestation d'un câblage est `git log -S <symbole>` + le compte des LECTEURS, jamais la doc ni une case UI** ([[feedback_doc_declare_fait_git_log_S]]). Vocabulaire posé dans §INVENTAIRE : CÂBLÉ / CONDITIONNÉ / ⚑ OFF / MESURE SEULE / JAMAIS EXÉCUTÉ / DÉCLARÉ-MORT / INEXISTANT.
+- **Une métrique peut être verte et MENTIR** : comparer un lacet vu à un cap GELÉ rend un désaccord égal au lacet — maximal là où la vision est la plus fiable. Le §[4] le disait déjà pour le placement (G7) ; je l'ai reproduit sur le cap parce que je n'avais pas lu le doc de domaine avant de coder (`/reprise §3a bis`, encore).
+- **Le chemin le mieux corrigé était le chemin de SECOURS** : le seul lissage du cap navette vivait dans le JS, en repli d'affichage ③ ; tout le serveur (`world_en`, ancres, TTC/PET, calib 2a) héritait du cap brut.
+- **Trois faux verts d'instrument en une session** : `manage.py test` sort en code 0 sans lancer un test (base de test existante → `EOFError`) ; une sonde `requests` sur `localhost` sous `django.setup()` parle au **proxy UGE** (« JS absent » alors que `curl` le montrait servi) ; un worktree lancé depuis le dépôt principal importe la moitié des paquets du mauvais arbre (cwd en `sys.path[0]`). **Contre-vérifier l'instrument avant d'accuser le code** — et le seul verdict d'une suite est la ligne `OK`/`FAILED`, jamais le code de retour ni un `tail`.
+- **Le rituel HEAD a trouvé un 2ᵉ trou de versionnement** (après les migrations) : `.gitignore:31 build/` avale `three.module.js` — un clone frais n'a pas le 3D. Consigné dans `CLAUDE.md` avec la parade harnais (`env -C`).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**⑤b — la facette estimateur, dès que Fabien a tranché la FORME** (soumise le 05/09, ni codée ni refusée) : trois champs optionnels sur les **ports de sortie** existants — `estimates` (grandeur physique, vocabulaire fermé), `uncertainty` (constante | champ par ligne | modèle déclaré), `derived_from` (donnée native : `gps`/`bbox`/`depth_map`/`imu`). **Pas de 9ᵉ registre.** Puis : `PortSpec` + `to_dict` + enveloppe `function` (la facette voyage) → remplir les producteurs depuis §INVENTAIRE C (c'est du relevé) → 1ᵉʳ consommateur `fuse_estimates` (1/σ², refus si `derived_from` partagé), sur le **cap** d'abord (le plus de sources, le moins de contradicteur). Critère fusion/contrôle = **indépendance**, jamais la qualité ; les deux risques nommés = biais et corrélation.
+
+**Puis ⑥ — le test D.3, en dernier (acté)**, sur une session ENA, sans GPU : ⚑ `display_ema` OFF (la dérive des garés cesse-t-elle ?) → ⚑ `shuttle_filter` ON → « Calculer les indicateurs » → lire les 3 lignes console nouvelles (`Filtre navette`, `Source de placement`, `Cohérence placement`) → `placement_spread` OFF vs ON. Tous OFF = l'état d'avant la session, au bit près.
+
+### File des chantiers ouverts (ordre)
+
+1. ⑤b facette estimateur (décision Fabien puis code) ; 2. ⑥ test D.3 ; 3. **accéléromètre** : identifier l'axe avant par corrélation avec dv/dt du GPS filtré — une MESURE (les axes X/Y ne sont écrits nulle part, seul Z ≈ 0,95 g) — avant tout modèle à accélération commandée ; 4. réétalonner σ (0,8 m/s² / 2,0 m, PROVISOIRES) sur `placement_spread` ; 5. **câbler `ego_rotation`** (Lucas-Kanade hors bbox + ligne A/B `lacet vu ↔ GPS`, en n'utilisant que les points où `heading_held` est faux) et **`osm_control_nodes`** (écart médian marquages détectés ↔ déclarés) — deux mesures avant toute bascule ; 6. **#7 bâtiments IGN** : `fetch_buildings` n'a qu'un consommateur (`sky_mask`), rien n'affiche les emprises — palier JS à part ; 7. `locate_anything` : poids présents, `capabilities={}`, `backend_ref` vide — la capacité n'existe pas, PoC bloqué GPU ; 8. G7 complet : `placement_spread` scindé par `placement_source` (le champ existe maintenant).
+
+### Décisions ouvertes (Fabien)
+
+- **la forme de la facette estimateur (⑤b)** — bloque le point d'entrée ;
+- **`.gitignore:31 build/` avale `three.module.js`** : négation `!wama/static/vendors/**/build/` + `git add` des deux fichiers (taille + domaine vendoring) ;
+- l'orientation des axes de l'accéléromètre du rig (mesure ou documentation constructeur) ;
+- RGE ALTI 1 m (MNT) pour lever l'hypothèse « sol plan » — pas un quick win (touche la projection sol → ⚑ + A/B) ; EU-DEM/Copernicus écartés (25-30 m).
+
+### Pendings système (attribués)
+
+- **Rien de mien n'est laissé dans l'arbre** ; `WAMA_MECANISMES.md` a été régénéré puis **remis à HEAD** (le bloc `mecanismes` est périmé par l'ARBRE PARTAGÉ : compteurs de consommateurs gonflés par les fichiers non commités de l'autre instance — à régénérer par qui commite en dernier) ;
+- `manifest_export --check` (WSL2) : **3 périmés `avatarizer` / `imager` / `avatarizer:codeformer` — autre instance** ; `--check --kind function` : **58 à jour** ;
+- `/reprise §3a` annonce encore « attendu = 1 cible » pour `check_docs` : **faux depuis `144b17c2`** (R18 soldé, 0/0 sur 1470) — le skill est dans le diff de travail de l'autre instance, non touché ici ;
+- `nightly_scenarios.CIBLES_ASSUMEES = 1` devra passer à **0** dans le même geste (idem, dans son diff) ;
+- fichiers untracked à la racine (`0.27.2`, `1.26.4`, `=1.26.0,`, `torchvision`) : pas les miens, déjà signalés par l'instance card v4 ;
+- **push** : `dev` a ~60 commits d'avance (trois instances) — non poussée ;
+- sondes : `logs/ui_smoke/current/cam_analyzer.png` + référence créées par mon smoke (brique `ui_smoke`, compte de test, 0 fixture déposée) — aucune sonde ad hoc ajoutée ;
+- ⚠ ma mémoire `reference_verif_sur_head_worktree` porte les points 6-7 (cwd / `build/`) que `CLAUDE.md` porte désormais aussi — la mémoire garde le récit, `CLAUDE.md` la règle.
+
+### Contrôles attendus au prochain /reprise (MESURÉS à la clôture, 07/09)
+
+- `manage.py test` : **`OK` est le seul attendu** (1629 le 06/09 sur mon arbre ; le total bouge avec trois instances — ne pas en faire un critère) ; sur **HEAD en worktree** : 1 échec = `VendoringTest` (artefact + trou de versionnement, voir `CLAUDE.md`), **0 régression** ;
+- `check_docs` : **0 cassée / 0 périmée sur 1470** ;
+- `manifest_roundtrip --all` : **10/10 OK** ;
+- `manifest_export --check --kind function` : **à jour (58)** ; complet : 3 périmés (autre instance) ;
+- `doc_facts --check` : `mecanismes` périmé tant que l'arbre partagé n'est pas commité ;
+- catalogue **58 fonctions** (20 app-bound) ; cam_analyzer **17 bascules** (`shuttle_filter` OFF, `sam3_homography` ON, `display_ema` ON) ; corpus `manifests/functions/` **58** ;
+- smoke `cam_analyzer` (compte de test, sans VLM) : HTTP 200, 0 erreur JS.
