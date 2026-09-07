@@ -850,6 +850,35 @@ document.addEventListener('DOMContentLoaded', function () {
         return lines.join('\n');
     }
 
+    // Dernier état du pipeline servi par le serveur (registre des passes + statuts) : la
+    // SOURCE des ▶ d'étage et du CTA « Analyser » — jamais une liste de passes écrite ici.
+    let _lastPipelinePasses = [];
+
+    // Passes qu'un ▶ d'étage ne lance pas : l'extraction se relance depuis le panneau RTMaps.
+    const STAGE_LAUNCH_EXCLUDED = new Set(['extraction']);
+
+    // ▶ d'ÉTAGE (2026-09-07) — remplace les deux paires de boutons de tête (« Analyser » /
+    // « SAM3 seul », barre d'outils ET panneau) : UNE seule voie de lancement, `run_passes`,
+    // qui force la détection quand elle est demandée explicitement et CHAÎNE les calculs
+    // dans l'ordre des dépendances. L'ancien « Analyser » passait par `start_analysis`, qui
+    // EFFAÇAIT toutes les DetectionFrame sans confirmation — voie retirée du front.
+    async function runStage(stage) {
+        if (!currentSessionId) return;
+        let list = _lastPipelinePasses;
+        if (!list.length) list = (await loadPipelinePanel()) || [];
+        const types = [...new Set(list.filter(p => (p.stage || 'analyse') === stage).map(p => p.pass_type))]
+            .filter(t => !STAGE_LAUNCH_EXCLUDED.has(t))
+            // Profondeur : GPU lourd et optionnel — seulement si la bascule ⚑ la demande.
+            .filter(t => t !== 'depth' || camFeat.depth_estimation === true);
+        if (!types.length) { alert('Aucune passe à lancer pour cet étage.'); return; }
+        if (stage === 'analyse') {
+            const withSam3 = types.includes('sam3_markings');
+            if (!confirm(`Lancer TOUTE l'analyse (détection YOLO + voies${withSam3 ? ' + SAM3' : ''}, GPU) ?\n`
+                         + 'La détection existante est refaite ; relancer ensuite ▶ Calculs.')) return;
+        }
+        await runPasses(types, false);
+    }
+
     async function loadPipelinePanel() {
         // Retourne la liste des passes (état frais) — null si indisponible. Utilisé par
         // startPassesPolling pour détecter la fin des passes légères.
@@ -887,19 +916,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 ['analyse', '📷 Analyse', 'Perception : regarde les images (extraction, YOLO, lanes, SAM3, profondeur)'],
                 ['calcul',  '🧮 Calculs', 'Dérive des données déjà extraites (événements, distances, tracking 360°, indicateurs, conflits)'],
             ];
+            _lastPipelinePasses = _passes;
+            // ▶ d'ÉTAGE (2026-09-07) : lancer TOUTE l'analyse, ou TOUS les calculs. Le gating
+            // du ▶ Calculs dérive du graphe : un calcul dérive des détections → grisé tant
+            // qu'aucune détection YOLO n'est `completed` (le serveur refuse aussi, 409).
+            const _analyseDone = _passes.some(p => p.pass_type === 'yolo_detect' && p.status === 'completed');
             const rows = _stageDefs.map(([key, title, sub]) => {
                 const group = _passes.filter(p => (p.stage || 'analyse') === key);
                 if (!group.length) return '';
+                const _blocked = key === 'calcul' && !_analyseDone;
+                const _stageTip = key === 'analyse'
+                    ? "Lancer TOUTE l'analyse (perception, GPU) : détection + voies + SAM3 si activé"
+                    : (_blocked ? "Aucune détection en base : lancer l'analyse d'abord"
+                                : 'Lancer TOUS les calculs (CPU, rejouables), enchaînés dans l\'ordre des dépendances');
                 return `
-                    <div class="text-uppercase text-secondary mt-2 mb-1"
-                         style="font-size:0.62rem;letter-spacing:0.08em;" title="${sub}">${title}</div>
+                    <div class="d-flex align-items-center gap-2 mt-2 mb-1">
+                        <span class="text-uppercase text-secondary flex-grow-1"
+                              style="font-size:0.62rem;letter-spacing:0.08em;" title="${sub}">${title}</span>
+                        <button type="button" class="btn btn-sm ${key === 'analyse' ? 'btn-outline-success' : 'btn-outline-info'} py-0 px-1"
+                                data-rp-stage="${key}" ${_blocked ? 'disabled' : ''} title="${_stageTip}"
+                                style="font-size:0.7rem;">▶ tout</button>
+                    </div>
                     ${group.map(_rowHtml).join('')}`;
             }).join('');
             panel.innerHTML = `
                 ${rows || '<div class="text-secondary">Aucun passage enregistré.</div>'}
                 <div class="d-grid gap-1 mt-2">
-                    <button type="button" class="btn btn-sm btn-success" id="rpRunMissingBtn">
-                        <i class="fas fa-play me-1"></i>Compléter (manquant + périmé)
+                    <button type="button" class="btn btn-sm btn-success" id="rpRunMissingBtn"
+                            title="Lance les PASSES manquantes ou périmées (pas les tranches de temps : voir « Étendre la couverture »)">
+                        <i class="fas fa-play me-1"></i>Compléter les passes (manquantes + périmées)
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-warning" id="rpRunAllBtn">
                         <i class="fas fa-redo me-1"></i>Tout relancer (force)
@@ -913,11 +958,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="d-grid gap-1 mt-1">
                     <button type="button" class="btn btn-sm btn-outline-success" id="rpCompleteFullBtn"
                             title="Analyse UNIQUEMENT les tranches du parcours jamais analysées (registre de couverture). Ne ré-analyse rien d'existant, pas de vidéo annotée. Relancer « Calculer les indicateurs » ensuite pour souder les tranches.">
-                        <i class="fas fa-puzzle-piece me-1"></i>Compléter l'analyse (parcours complet)
+                        <i class="fas fa-puzzle-piece me-1"></i>Étendre la couverture (parcours complet)
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-success" id="rpCompleteWinBtn"
-                            title="Complète uniquement les tranches manquantes DANS les fenêtres d'intersection (utile après correction des fenêtres).">
-                        <i class="fas fa-puzzle-piece me-1"></i>Compléter (fenêtres intersections)
+                            title="Étend la couverture aux seules tranches manquantes DANS les fenêtres d'intersection (utile après correction des fenêtres).">
+                        <i class="fas fa-puzzle-piece me-1"></i>Étendre la couverture (fenêtres)
                     </button>
                 </div>`;
             // ── Ligne de couverture (registre analyzed_ranges, % vs durée vidéo) ─────
@@ -973,6 +1018,9 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             panel.querySelectorAll('[data-rp-run]').forEach(btn => {
                 btn.addEventListener('click', () => runPasses([btn.dataset.rpRun], false));
+            });
+            panel.querySelectorAll('[data-rp-stage]').forEach(btn => {
+                btn.addEventListener('click', () => runStage(btn.dataset.rpStage));
             });
             return data.passes || [];
         } catch (e) {
@@ -1078,7 +1126,6 @@ document.addEventListener('DOMContentLoaded', function () {
             activeProfile = p || null;
             renderProfileSummary();
             refreshAllAnalyzedBadges();
-            refreshSam3OnlyButton();
         } catch (e) {
             console.error('Error loading active profile:', e);
         }
@@ -1130,15 +1177,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 Lancer une analyse
             </div>
             <button class="btn btn-sm btn-success w-100 mb-1" id="rpStartAnalysisBtn"
-                    title="Détection véhicules (YOLO)${sam3Enabled ? ' + SAM3' : ''}">
-                <i class="fas fa-play me-1"></i>Détection véhicules${sam3Enabled ? ' + SAM3' : ''}
+                    title="= ▶ tout de l'étage Analyse du pipeline : détection véhicules (YOLO) + voies${sam3Enabled ? ' + SAM3' : ''}">
+                <i class="fas fa-play me-1"></i>Analyser${sam3Enabled ? ' (+ SAM3)' : ''}
             </button>
-            ${sam3Enabled ? `
-                <button class="btn btn-sm btn-info w-100 mb-1" id="rpStartSam3OnlyBtn"
-                        title="Re-lancer SAM3 seul, sans refaire YOLO">
-                    <i class="fas fa-route me-1"></i>Marquages SAM3 (seul)
-                </button>
-            ` : ''}
             ${isIntersection ? `
                 <button class="btn btn-sm btn-outline-info w-100 mb-1" id="rpRecomputeWindowsBtn"
                         title="Recalcule les fenêtres d'intersection à partir du profil — sans refaire l'analyse">
@@ -1159,9 +1200,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const recomputeBtn = document.getElementById('rpRecomputeWindowsBtn');
         if (recomputeBtn) recomputeBtn.addEventListener('click', recomputeWindows);
         const rpStart = document.getElementById('rpStartAnalysisBtn');
-        if (rpStart) rpStart.addEventListener('click', startAnalysis);
-        const rpSam3 = document.getElementById('rpStartSam3OnlyBtn');
-        if (rpSam3) rpSam3.addEventListener('click', startSam3Only);
+        if (rpStart) rpStart.addEventListener('click', () => runStage('analyse'));   // même voie que ▶ tout
         const rpCancel = document.getElementById('rpCancelAnalysisBtn');
         if (rpCancel) rpCancel.addEventListener('click', cancelAnalysis);
         // Sync visibility/enabled state with the toolbar twin buttons.
@@ -1202,54 +1241,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    async function startSam3Only() {
-        if (!currentSessionId) return;
-        if (!confirm('Lancer SAM3 seul ? La détection YOLO existante sera conservée.')) return;
-        try {
-            const url = `${config.urls.startSam3Only}${currentSessionId}/start-sam3/`;
-            const resp = await fetch(url, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': config.csrfToken },
-            });
-            const data = await resp.json();
-            if (!data.success) {
-                alert('Erreur: ' + (data.error || 'Lancement SAM3 échoué'));
-                return;
-            }
-            setAnalysisUI(true);
-            startStatusPolling(currentSessionId);
-        } catch (e) {
-            console.error('startSam3Only failed:', e);
-            alert('Erreur réseau lors du lancement SAM3');
-        }
-    }
+    // « SAM3 seul » (barre d'outils + panneau) RETIRÉ le 2026-09-07 : doublon strict du ▶ de la
+    // ligne `sam3_markings` du pipeline (même tâche `analyze_sam3_only_task`, via run_passes).
 
-    // Show the SAM3-only button when the active profile has SAM3 enabled and
-    // the session is in a state where re-running SAM3 makes sense (i.e. not
-    // currently processing). Called after loadActiveProfile + setAnalysisUI.
-    function refreshSam3OnlyButton() {
-        const btn = document.getElementById('startSam3OnlyBtn');
-        if (!btn) return;
-        const sam3Enabled = activeProfile && activeProfile.sam3_markings_enabled;
-        const running = startAnalysisBtn.style.display === 'none'
-                        && cancelAnalysisBtn.style.display !== 'none';
-        const sessionReady = !!currentSessionId;
-        if (sam3Enabled && sessionReady && !running) {
-            btn.style.display = '';
-            btn.disabled = false;
-        } else if (sam3Enabled && running) {
-            btn.style.display = 'none';
-        } else {
-            btn.style.display = 'none';
-        }
-    }
-
-    // Mirror toolbar state on the right-panel action buttons. The buttons
-    // exist in two places (toolbar + right panel) so the user can launch from
-    // wherever their attention is; this keeps both in sync.
+    // Mirror toolbar state on the right-panel action buttons. « Analyser » existe en deux
+    // endroits (barre d'outils + panneau) pour que l'utilisateur lance d'où est son attention ;
+    // les deux appellent la MÊME voie (`runStage('analyse')`) et restent synchrones ici.
     function refreshRightPanelActionState() {
         const start = document.getElementById('rpStartAnalysisBtn');
-        const sam3 = document.getElementById('rpStartSam3OnlyBtn');
         const recompute = document.getElementById('rpRecomputeWindowsBtn');
         const cancel = document.getElementById('rpCancelAnalysisBtn');
         if (!start) return;  // panel summary not rendered yet
@@ -1257,18 +1256,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const running = startAnalysisBtn.style.display === 'none'
                         && cancelAnalysisBtn.style.display !== 'none';
         const sessionReady = !!currentSessionId;
-        const sam3Enabled = activeProfile && activeProfile.sam3_markings_enabled;
 
-        // Disable both YOLO + SAM3 launchers while a job is running, and the
-        // recompute button (it'd touch the windows the running task reads).
+        // Disable the launcher while a job is running, and the recompute button
+        // (it'd touch the windows the running task reads).
         start.disabled = !sessionReady || running || startAnalysisBtn.disabled;
-        if (sam3) sam3.disabled = !sessionReady || running;
         if (recompute) recompute.disabled = !sessionReady || running;
 
         if (cancel) cancel.style.display = running ? '' : 'none';
-        // Hide the launchers while running so the cancel CTA is unambiguous.
+        // Hide the launcher while running so the cancel CTA is unambiguous.
         start.style.display = running ? 'none' : '';
-        if (sam3) sam3.style.display = running ? 'none' : '';
     }
 
     // (escapeHtml is defined later — same scope, no conflict at call time)
@@ -1700,7 +1696,6 @@ document.addEventListener('DOMContentLoaded', function () {
             cancelAnalysisBtn.style.display = 'none';
             analysisProgress.style.display = 'none';
         }
-        refreshSam3OnlyButton();
         refreshRightPanelActionState();
         updateStickyBarVisibility();
     }
@@ -1709,31 +1704,13 @@ document.addEventListener('DOMContentLoaded', function () {
         analysisProgress.style.display = 'none';
         startAnalysisBtn.style.display = '';
         cancelAnalysisBtn.style.display = 'none';
-        refreshSam3OnlyButton();
         refreshRightPanelActionState();
         updateStickyBarVisibility();
     }
 
-    async function startAnalysis() {
-        if (!currentSessionId) return;
-        try {
-            const resp = await fetch(`${config.urls.startAnalysis}${currentSessionId}/start/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': config.csrfToken },
-            });
-            const data = await resp.json();
-            if (data.success) {
-                setAnalysisUI(true);
-                hideResults();
-                clearAllCanvases();
-                startStatusPolling(currentSessionId);
-            } else {
-                alert(data.error || 'Erreur');
-            }
-        } catch (e) {
-            console.error('Error starting analysis:', e);
-        }
-    }
+    // `startAnalysis()` (POST …/start/ → `start_analysis`, qui EFFAÇAIT toutes les DetectionFrame
+    // et le results_summary sans confirmation) n'est plus appelée du front depuis le 2026-09-07 :
+    // « Analyser » = `runStage('analyse')`, la voie du pipeline. La vue reste servie (API).
 
     async function cancelAnalysis() {
         if (!currentSessionId) return;
@@ -4690,10 +4667,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (currentSessionId) deleteSession(currentSessionId);
     });
 
-    startAnalysisBtn.addEventListener('click', startAnalysis);
-
-    const sam3OnlyBtn = document.getElementById('startSam3OnlyBtn');
-    if (sam3OnlyBtn) sam3OnlyBtn.addEventListener('click', startSam3Only);
+    // CTA de la barre d'outils = la même voie que le ▶ tout de l'étage Analyse (une seule voie).
+    startAnalysisBtn.addEventListener('click', () => runStage('analyse'));
 
     cancelAnalysisBtn.addEventListener('click', cancelAnalysis);
 

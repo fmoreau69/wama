@@ -579,9 +579,17 @@ homographie vs pinhole.
 
 ### A. Chronologie d'exécution — les 13 passes (`AnalysisPass.PassType`) en trois étages
 
-L'ordre est celui de `pass_tracking._DEPENDS_ON` + `views.run_passes` (`dispatch_map`). Étage =
-`pass_tracking._STAGE` : **ANALYSE** regarde les pixels (GPU), **CALCUL** dérive des données stockées
-(CPU, rejouable sans GPU). Le 3ᵉ étage, **AFFICHAGE**, n'est pas une passe : c'est le JS (§C).
+Depuis le 2026-09-07 le pipeline est déclaré **UNE fois** : `pass_tracking.PASSES` (patron
+`features.FEATURES`) — étage, dépendances, paramètres surveillés, granularité par caméra, tâche
+dispatchable ; `_WATCHED`/`_STAGE`/`_DEPENDS_ON`/`_PER_CAMERA_PASSES`, l'ordre d'affichage et la
+table de dispatch de `run_passes` en DÉRIVENT (il y avait **six copies** du même graphe, dont une
+sans dépendances pour `depth`/`depth_calc`). Étage : **ANALYSE** regarde les pixels (GPU),
+**CALCUL** dérive des données stockées (CPU, rejouable sans GPU). Le 3ᵉ étage, **AFFICHAGE**, n'est
+pas une passe : c'est le JS (§C). **Lancement** : un ▶ par étage dans le volet droit (« ▶ tout »),
+gating du ▶ Calculs dérivé du graphe (grisé sans détection `completed` ; le serveur refuse aussi,
+409) ; les calculs demandés sont **chaînés en ordre topologique** (Celery `chain`, signatures
+immuables) — ils partaient en parallèle avant. « Analyser » (barre d'outils et panneau) = le ▶ tout
+de l'étage Analyse ; « SAM3 seul » (2 exemplaires) retiré = ▶ de la ligne `sam3_markings`.
 
 | # | passe | ét. | fonction | entrées | traitement | sorties écrites | état |
 |---|---|---|---|---|---|---|---|

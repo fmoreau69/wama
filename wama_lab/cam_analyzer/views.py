@@ -985,39 +985,39 @@ def run_passes(request, session_id):
 
     # 3. Decoupled computers (Proposition D) — light tasks, no GPU loading
     elif needs_run:
-        from .tasks import (
-            compute_lane_events_task,
-            compute_distance_task,
-            compute_global_tracking_task,
-            compute_temporal_segments_task,
-            compute_conflict_events_task,
-            analyze_sam3_only_task,
-            compute_depth_task,
-            compute_depth_calc_task,
-            compute_indicators_task,
-        )
+        from .utils.pass_tracking import _STAGE, dispatch_table, topological_order
+        # Gating DÉRIVÉ du graphe (2026-09-07) : un CALCUL dérive des détections ; sans une
+        # seule DetectionFrame il n'a rien à lire. Refus explicite (409) plutôt qu'une chaîne
+        # qui échoue passe après passe — et le ▶ Calculs du panneau se grise sur le même fait.
+        if any(_STAGE.get(pt) == 'calcul' for pt in needs_run) \
+                and not DetectionFrame.objects.filter(camera__session=session).exists():
+            return JsonResponse({
+                'success': False,
+                'error': "Aucune détection en base : lancer l'ANALYSE d'abord — les calculs "
+                         "dérivent des détections, ils n'ont rien à lire.",
+            }, status=409)
         _pause_live(session_id)
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
 
-        dispatch_map = {
-            'lane_events':       compute_lane_events_task,
-            'distance':          compute_distance_task,
-            'depth':             compute_depth_task,        # ÉTAGE 1 : inférence Depth Pro → DepthFrame
-            'depth_calc':        compute_depth_calc_task,   # ÉTAGE 2 : calculs (plan de sol / distances), CPU
-            'global_tracking':   compute_global_tracking_task,
-            'indicators':        compute_indicators_task,   # CALCUL : TTC/PET + tracks 360°, CPU
-            'temporal_segments': compute_temporal_segments_task,
-            'conflicts':         compute_conflict_events_task,
-            'sam3_markings':     analyze_sam3_only_task,
-        }
-        for pt in list(needs_run):
+        # Table de dispatch DÉRIVÉE du registre (ex-dict écrit ici, 7ᵉ copie du graphe).
+        dispatch_map = dispatch_table()
+        # CHAÎNE en ordre topologique, pas N `.delay()` parallèles : `_DEPENDS_ON` ordonne
+        # les calculs (distance avant global_tracking avant indicators…), et le dispatch
+        # ne le respectait pas — `conflicts` pouvait partir avant `distance`. Signatures
+        # IMMUABLES (`.si`) : chaque tâche reçoit la session, jamais le retour de la précédente.
+        from celery import chain
+        sigs, names = [], []
+        for pt in topological_order(needs_run):
             task_fn = dispatch_map.get(pt)
             if task_fn is None:
                 continue
-            task = task_fn.delay(str(session.id))
-            cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
-            launched.append(task_fn.__name__)
+            sigs.append(task_fn.si(str(session.id)))
+            names.append(task_fn.__name__)
             needs_run.discard(pt)
+        if sigs:
+            result = chain(*sigs).apply_async()
+            cache.set(f"cam_analyzer_task_{session.id}", result.id, timeout=86400)
+            launched.extend(names)
 
     return JsonResponse({
         'success': True,

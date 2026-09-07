@@ -15,58 +15,120 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-# Watched profile parameters per pass — change → STALE.
-# YOLO_DETECT does NOT watch target_classes / confidence (≥0.10) because
-# inference stores all classes at conf=0.10; we filter at read time.
-_WATCHED: dict[str, list[str]] = {
-    'extraction': [],
-    'intersection_windows': ['intersections'],
-    'yolo_detect': ['model_path', 'iou_threshold', 'tracker'],
-    'yolopv2_lanes': ['road_model_path'],
-    'sam3_markings': ['sam3_markings_enabled', 'sam3_markings_prompts',
-                      'sam3_as_road_fallback'],
-    'lane_events': [],  # purely derivative of yolo_detect + yolopv2_lanes
-    'temporal_segments': ['target_classes', 'confidence'],
-    'distance': [],
-    'global_tracking': [],   # tracking 360° : gids + ancres + trajectoires lissées
-    'indicators': [],        # TTC/PET par trajectoire + insertions (pur calcul, re-jouable)
-    'conflicts': [],
-}
+# ── LE REGISTRE DES PASSES — déclaration UNIQUE du pipeline (2026-09-07) ──────────────
+# Avant ce registre, le même graphe était écrit SIX fois : `PassType.choices` (models),
+# `_WATCHED`, `_STAGE`, `_DEPENDS_ON`, `_PER_CAMERA_PASSES` (ici), la liste `order` en dur de
+# `get_passes_status`, et `views.run_passes.dispatch_map`. Six copies qui ne pouvaient que
+# diverger (`depth`/`depth_calc` avaient un étage mais aucune dépendance déclarée). Patron :
+# `features.FEATURES` — un registre, des dérivés. `PassType` reste la source des LIBELLÉS et
+# des valeurs persistées ; `tests_pass_registry` atteste que les deux ensembles coïncident.
+#
+# C'est aussi la marche ① vers D13 (`WAMA_DATA_WORLD §9undecies.2`, tranchée le 24/08) : les
+# passes sont déjà des `FunctionSpec` app-bound (`function_specs.py`) ; ce registre est ce qui
+# s'exportera en manifeste `pipeline` à nœuds `function` quand le kind les acceptera.
+#
+# Champs :
+#   stage       'analyse' (perception : REGARDE les images, GPU) | 'calcul' (DÉRIVE des données
+#               stockées, CPU, rejouable) — scinde le volet droit et pilote les ▶ d'étage ;
+#   depends_on  amont dont la péremption (STALE/FAILED/absent) se propage à cette passe, et
+#               ordre de la chaîne de lancement ;
+#   watched     paramètres du PROFIL dont le changement rend la passe STALE (yolo_detect ne
+#               surveille PAS target_classes/confidence : l'inférence stocke tout à conf ≥ 0,10,
+#               le filtre est à la lecture) ;
+#   per_camera  une ligne par caméra dans le panneau (et une passe par caméra en base) ;
+#   task        attribut de `cam_analyzer.tasks` dispatché SEUL par `run_passes` — '' quand la
+#               passe est portée par `process_session_task` (yolo/yolopv2/lane_events/distance
+#               y sont enchaînés) ou synchrone (`intersection_windows`, `extraction` = panneau
+#               RTMaps) ;
+#   gpu         charge GPU (un ▶ d'étage Analyse le dit à l'utilisateur ; le ▶ Calculs jamais).
+from dataclasses import dataclass, field as _field
 
-# Étage d'affichage de chaque passe dans le volet droit : « analyse » (perception qui REGARDE
-# les images : extraction, fenêtres, YOLO, lanes, SAM3, profondeur) vs « calcul » (DÉRIVE des
-# données déjà stockées, sans re-regarder les pixels : événements, segments, distance, calculs
-# profondeur, tracking 360°, indicateurs, conflits). Sert à scinder visuellement le pipeline.
-_STAGE: dict[str, str] = {
-    'extraction': 'analyse',
-    'intersection_windows': 'analyse',
-    'yolo_detect': 'analyse',
-    'yolopv2_lanes': 'analyse',
-    'sam3_markings': 'analyse',
-    'depth': 'analyse',
-    'lane_events': 'calcul',
-    'temporal_segments': 'calcul',
-    'distance': 'calcul',
-    'depth_calc': 'calcul',
-    'global_tracking': 'calcul',
-    'indicators': 'calcul',
-    'conflicts': 'calcul',
-}
 
-# Dependency graph: if upstream is stale → downstream becomes stale.
-_DEPENDS_ON: dict[str, list[str]] = {
-    'extraction': [],
-    'intersection_windows': ['extraction'],
-    'yolo_detect': ['extraction'],
-    'yolopv2_lanes': ['extraction'],
-    'sam3_markings': ['extraction', 'intersection_windows'],
-    'lane_events': ['yolo_detect', 'yolopv2_lanes'],
-    'temporal_segments': ['yolo_detect', 'intersection_windows'],
-    'distance': ['lane_events'],
-    'global_tracking': ['yolo_detect', 'distance'],
-    'indicators': ['global_tracking', 'distance'],
-    'conflicts': ['lane_events', 'distance'],
-}
+@dataclass(frozen=True)
+class Pass:
+    key: str
+    stage: str
+    depends_on: tuple = ()
+    watched: tuple = ()
+    per_camera: bool = False
+    task: str = ''
+    gpu: bool = False
+
+
+PASSES: tuple = (
+    # ── ANALYSE (perception) ────────────────────────────────────────────────────
+    Pass('extraction', 'analyse'),
+    Pass('intersection_windows', 'analyse', depends_on=('extraction',), watched=('intersections',)),
+    Pass('yolo_detect', 'analyse', depends_on=('extraction',),
+         watched=('model_path', 'iou_threshold', 'tracker'), per_camera=True, gpu=True),
+    Pass('yolopv2_lanes', 'analyse', depends_on=('extraction',),
+         watched=('road_model_path',), per_camera=True, gpu=True),
+    Pass('sam3_markings', 'analyse', depends_on=('extraction', 'intersection_windows'),
+         watched=('sam3_markings_enabled', 'sam3_markings_prompts', 'sam3_as_road_fallback'),
+         per_camera=True, task='analyze_sam3_only_task', gpu=True),
+    # Profondeur (Depth Pro) : lit les bbox (profondeur de contact) → dépend de la détection.
+    Pass('depth', 'analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True),
+    # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
+    Pass('lane_events', 'calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
+         task='compute_lane_events_task'),
+    Pass('temporal_segments', 'calcul', depends_on=('yolo_detect', 'intersection_windows'),
+         watched=('target_classes', 'confidence'), task='compute_temporal_segments_task'),
+    Pass('distance', 'calcul', depends_on=('lane_events',), task='compute_distance_task'),
+    Pass('depth_calc', 'calcul', depends_on=('depth',), task='compute_depth_calc_task'),
+    Pass('global_tracking', 'calcul', depends_on=('yolo_detect', 'distance'),
+         task='compute_global_tracking_task'),
+    Pass('indicators', 'calcul', depends_on=('global_tracking', 'distance'),
+         task='compute_indicators_task'),
+    Pass('conflicts', 'calcul', depends_on=('lane_events', 'distance'),
+         task='compute_conflict_events_task'),
+)
+
+#: Ordre de DÉCLARATION = ordre d'affichage du panneau (ex-liste `order` de get_passes_status).
+ORDER: tuple = tuple(p.key for p in PASSES)
+_BY_KEY: dict = {p.key: p for p in PASSES}
+
+# Dérivés — mêmes noms qu'avant pour les consommateurs existants (recompute_stale, views…).
+_WATCHED: dict[str, list[str]] = {p.key: list(p.watched) for p in PASSES}
+_STAGE: dict[str, str] = {p.key: p.stage for p in PASSES}
+_DEPENDS_ON: dict[str, list[str]] = {p.key: list(p.depends_on) for p in PASSES}
+
+
+def stage_keys(stage: str) -> list:
+    """Clés des passes d'un étage, dans l'ordre de déclaration."""
+    return [p.key for p in PASSES if p.stage == stage]
+
+
+def dispatch_table():
+    """{clé: tâche Celery} des passes que `run_passes` dispatche SEULES — dérivé de `task`.
+
+    Import paresseux (les tâches importent des modèles) ; une clé dont l'attribut n'existe
+    pas lève : mieux vaut casser au premier appel que dispatcher dans le vide.
+    """
+    from wama_lab.cam_analyzer import tasks as _tasks
+    return {p.key: getattr(_tasks, p.task) for p in PASSES if p.task}
+
+
+def topological_order(keys) -> list:
+    """Sous-ensemble `keys` trié pour que tout amont précède son aval (Kahn, STABLE : à égalité,
+    l'ordre de déclaration). Les amonts ABSENTS de `keys` sont ignorés — on ordonne ce qu'on
+    lance, on ne complète pas la demande.
+
+    Raison d'être (2026-09-07) : `run_passes` lançait les passes de calcul en PARALLÈLE (un
+    `.delay()` chacune) alors que `_DEPENDS_ON` les ordonne — `conflicts` pouvait partir avant
+    `distance`. Une chaîne Celery bâtie sur cet ordre corrige ça pour tous les appelants.
+    """
+    wanted = [k for k in ORDER if k in set(keys)]
+    remaining = list(wanted)
+    done, out = set(), []
+    while remaining:
+        progressed = False
+        for k in list(remaining):
+            deps = [d for d in _DEPENDS_ON.get(k, []) if d in wanted]
+            if all(d in done for d in deps):
+                out.append(k); done.add(k); remaining.remove(k); progressed = True
+        if not progressed:                      # cycle : impossible par construction, mais on
+            out.extend(remaining); break        # préfère un ordre dégradé à une boucle infinie
+    return out
 
 
 def _profile_snapshot(profile, watched_keys: list[str]) -> dict:
@@ -194,8 +256,8 @@ def recompute_stale(session) -> int:
     return flipped
 
 
-# Passes that are *per-camera* (one row per camera). Others are session-wide.
-_PER_CAMERA_PASSES = {'yolo_detect', 'yolopv2_lanes', 'sam3_markings'}
+# Passes that are *per-camera* (one row per camera). Others are session-wide. Dérivé du registre.
+_PER_CAMERA_PASSES = {p.key for p in PASSES if p.per_camera}
 
 
 def get_passes_status(session) -> list[dict]:
@@ -220,21 +282,8 @@ def get_passes_status(session) -> list[dict]:
     _SAM3_POSITIONS = {'front'}
     _yolopv2_all = bool(getattr(getattr(session, 'profile', None), 'yolopv2_all_views', False))
     out = []
-    order = [
-        AnalysisPass.PassType.EXTRACTION,
-        AnalysisPass.PassType.INTERSECTION_WINDOWS,
-        AnalysisPass.PassType.YOLO_DETECT,
-        AnalysisPass.PassType.YOLOPV2_LANES,
-        AnalysisPass.PassType.SAM3_MARKINGS,
-        AnalysisPass.PassType.LANE_EVENTS,
-        AnalysisPass.PassType.TEMPORAL_SEGMENTS,
-        AnalysisPass.PassType.DISTANCE,
-        AnalysisPass.PassType.DEPTH,
-        AnalysisPass.PassType.DEPTH_CALC,
-        AnalysisPass.PassType.GLOBAL_TRACKING,
-        AnalysisPass.PassType.INDICATORS,
-        AnalysisPass.PassType.CONFLICTS,
-    ]
+    # Ordre d'affichage = ordre de déclaration du registre (plus de liste en dur ici).
+    order = [AnalysisPass.PassType(k) for k in ORDER]
     label_map = dict(AnalysisPass.PassType.choices)
     for pt in order:
         if pt.value in _PER_CAMERA_PASSES:
