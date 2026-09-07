@@ -74,7 +74,29 @@ def register_app_detail_spec(app_name, model_class, spec):
                  {'label': 'Mode', 'field': 'mode', 'display': True}],   # get_<f>_display()
        'extra_from_params': 'options' | True,   # labels du SCHÉMA (schema_for_app) ; str =
                                                 # champ JSON porteur, True = champs individuels
-       'aliases': {'quality_preset': 'output_quality'}}
+       'aliases': {'quality_preset': 'output_quality'},
+
+       # FACETTES TEXTE du résultat (2026-09-07, R18). Une app à sortie texte peut en avoir
+       # PLUSIEURS pour un même item : le transcriber rend transcription + diarisation +
+       # résumé + cohérence. Le schéma canonique ne porte qu'UN `result_text` — c'est ce
+       # manque qui a fait écrire deux modales à onglets quasi identiques (describer et
+       # transcriber), la duplication tracée au `REMOVAL_LEDGER R18`.
+       #
+       # ⚠ Ce n'est PAS une seconde mécanique de preview : la preview de CARD reste
+       # `PreviewRegistry` (fichier/média), et les autres apps n'ont qu'une facette — ou
+       # plusieurs RÉSULTATS dans une seule preview (imager). Les onglets ne concernent que
+       # le cas « un résultat, plusieurs LECTURES de ce résultat », et uniquement du TEXTE.
+       #
+       # Chaque facette : {'cle', 'label', 'icone'} + le rendu du panneau
+       #   'cible'  : id de l'élément que le JS de l'app remplit (défaut : `<cle>Content`) ;
+       #   'forme'  : 'pre' (texte préformaté) | 'html' (contenu riche) | 'nu' (l'app pose
+       #              tout elle-même — cas cohérence, dont le bloc est déjà autonome) ;
+       #   'copie'  : bouton « copier » (défaut True pour pre/html) ;
+       #   'badge'  : compteur de mots `wc-<cle>` (le JS l'alimente) ;
+       #   'cache'  : onglet masqué tant qu'il n'a rien (résumé/cohérence : à la demande) ;
+       #   'attente': texte d'attente affiché avant remplissage (diarisation).
+       'result_tabs': [{'cle': 'transcription', 'label': 'Transcription',
+                        'icone': 'fa-file-alt', 'cible': 'resultText', 'forme': 'pre'}]}
 
     Étant une donnée, elle est EXTRACTIBLE (facette `inspector` du manifeste) et PROJETABLE
     (gabarit apps_gen) — c'est le déblocage de la marche A3. Une app à logique irréductible
@@ -297,3 +319,36 @@ def unified_detail(request, app_name: str, pk: int):
         return JsonResponse(entry['adapter'](instance))
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def result_tabs_for(app_name: str) -> list:
+    """Facettes TEXTE déclarées par `app_name` — [] si l'app n'en déclare pas.
+
+    Lue depuis la SPEC de l'app (`register_app_detail_spec`, ou le `spec=` d'une app à adapter
+    code) : les onglets sont une propriété de son DÉTAIL, pas une donnée d'interface posée à
+    côté. C'est ce qui les rend extractibles au manifeste (facette `inspector`) et projetables
+    par la chaîne de génération, sans rien déclarer deux fois.
+
+    Les défauts sont appliqués ICI et non dans le gabarit : une valeur par défaut dans un
+    template se recopie au premier partial qui l'oublie.
+    """
+    entree = DetailRegistry.get(app_name) or {}
+    facettes = ((entree.get('spec') or {}).get('result_tabs')) or []
+    sortie = []
+    for f in facettes:
+        if not isinstance(f, dict) or not f.get('cle'):
+            continue
+        forme = f.get('forme') or 'html'
+        sortie.append({
+            'cle': f['cle'],
+            'label': f.get('label') or f['cle'].capitalize(),
+            'icone': f.get('icone') or 'fa-file-alt',
+            'cible': f.get('cible') or f"{f['cle']}Content",
+            'forme': forme,
+            'copie': f.get('copie', forme in ('pre', 'html')),
+            'badge': bool(f.get('badge')),
+            'cache': bool(f.get('cache')),
+            'attente': f.get('attente') or '',
+            'actif': not sortie,          # le PREMIER déclaré est l'onglet actif
+        })
+    return sortie

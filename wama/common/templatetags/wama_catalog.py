@@ -46,3 +46,15 @@ def refresh_button(context, key, reload_page=True):
         'allowed': is_authorized(registry, user),
         'reload_page': '1' if reload_page else '0',
     }
+
+
+@register.inclusion_tag('common/_result_tabs.html')
+def result_tabs(app_name):
+    """Onglets de résultat TEXTE d'une app, depuis sa spec de détail (R18).
+
+    Le gabarit ne décide de rien : il rend ce que l'app a DÉCLARÉ. Une app sans facettes
+    déclarées rend un bloc vide — pas une erreur, pas un défaut : la plupart des apps n'ont
+    qu'une seule lecture de leur résultat.
+    """
+    from ..utils.detail_registry import result_tabs_for
+    return {'onglets': result_tabs_for(app_name)}

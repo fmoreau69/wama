@@ -48,4 +48,17 @@ class DescriberConfig(AppConfig):
                 {'label': 'Langue de sortie', 'field': 'output_language', 'display': True},
                 {'label': 'Longueur max', 'field': 'max_length'},
             ],
+            # Facettes TEXTE du résultat (R18, 2026-09-07) — la modale les rendait en dur,
+            # dans un bloc quasi identique à celui du transcriber. Les clés/ids sont ceux que
+            # le JS de l'app consomme DÉJÀ (`resultText`, `resumeContent`, `coherenceContent`) :
+            # l'extraction ne change aucun contrat, elle déplace la structure.
+            'result_tabs': [
+                {'cle': 'description', 'label': 'Description', 'icone': 'fa-file-alt',
+                 'cible': 'resultText', 'forme': 'pre', 'badge': True},
+                {'cle': 'resume', 'label': 'Résumé', 'icone': 'fa-file-lines',
+                 'cible': 'resumeContent', 'forme': 'html', 'badge': True, 'cache': True},
+                # « nu » : le bloc cohérence est posé entièrement par le JS (verdict + diff).
+                {'cle': 'coherence', 'label': 'Cohérence', 'icone': 'fa-spell-check',
+                 'cible': 'coherenceContent', 'forme': 'nu', 'badge': True, 'cache': True},
+            ],
         })

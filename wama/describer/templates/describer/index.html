@@ -1,5 +1,6 @@
 {% extends 'describer/base.html' %}
 {% load wama_actions %}
+{% load wama_catalog %}
 {% load static %}
 {% load wama_static %}
 
@@ -91,61 +92,7 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
                 </div>
                 <div id="resultContent" style="display: none;">
                     <!-- Tabs -->
-                    <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="tab-description-btn" data-bs-toggle="tab"
-                                    data-bs-target="#tab-description" type="button" role="tab">
-                                <i class="fas fa-file-alt"></i> Description
-                                <span id="wc-description" class="badge bg-secondary ms-1" style="font-weight:normal;font-size:0.72em;display:none;"></span>
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="tab-resume-btn" data-bs-toggle="tab"
-                                    data-bs-target="#tab-resume" type="button" role="tab" style="display:none;">
-                                <i class="fas fa-file-lines"></i> Résumé
-                                <span id="wc-resume" class="badge bg-secondary ms-1" style="font-weight:normal;font-size:0.72em;display:none;"></span>
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="tab-coherence-btn" data-bs-toggle="tab"
-                                    data-bs-target="#tab-coherence" type="button" role="tab" style="display:none;">
-                                <i class="fas fa-spell-check"></i> Cohérence
-                                <span id="wc-coherence" class="badge bg-secondary ms-1" style="font-weight:normal;font-size:0.72em;display:none;"></span>
-                            </button>
-                        </li>
-                    </ul>
-                    <div class="tab-content">
-                        <!-- Description -->
-                        <div class="tab-pane fade show active" id="tab-description" role="tabpanel">
-                            <div class="card position-relative" style="background: #1e1e1e; border: 1px solid #495057;">
-                                <button class="btn btn-sm btn-outline-secondary copy-result-btn"
-                                        data-target="resultText" title="Copier le texte"
-                                        style="position:absolute; top:6px; right:6px; z-index:1; opacity:0.7;">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                                <div class="card-body">
-                                    <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 460px; overflow-y: auto;"></pre>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Résumé -->
-                        <div class="tab-pane fade" id="tab-resume" role="tabpanel">
-                            <div class="card position-relative" style="background: #1e1e1e; border: 1px solid #495057;">
-                                <button class="btn btn-sm btn-outline-secondary copy-result-btn"
-                                        data-target="resumeContent" title="Copier le texte"
-                                        style="position:absolute; top:6px; right:6px; z-index:1; opacity:0.7;">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                                <div class="card-body">
-                                    <div id="resumeContent" style="color: #d4d4d4; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; max-height: 460px; overflow-y: auto;"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Cohérence -->
-                        <div class="tab-pane fade" id="tab-coherence" role="tabpanel">
-                            <div id="coherenceContent"></div>
-                        </div>
-                    </div>
+                    {% result_tabs 'describer' %}
                 </div>
             </div>
             <div class="modal-footer">

@@ -84,4 +84,25 @@ class TranscriberConfig(AppConfig):
                                 engine=item.backend, engine_effective=item.used_backend,
                                 result_file=None, result_text=item.text or None, extra=extra)
 
-        register_app_detail('transcriber', Transcript, _transcriber_detail)
+        # ⚠ Le transcriber garde un adapter CODE (logique irréductible, chemin A3
+        # assumé) — mais ses FACETTES de résultat, elles, sont une DONNÉE. On passe donc la
+        # spec en plus de l'adapter : `DetailRegistry.register` accepte les deux depuis
+        # l'origine, et c'est ce qui rend les onglets extractibles au manifeste sans exiger
+        # d'abord la conversion complète de l'adapter.
+        # Clés/ids INCHANGÉS : `resultText`, `diarisationContent`, `resumeContent`,
+        # `coherenceContent` sont le contrat que son JS consomme déjà (R18, 2026-09-07).
+        from wama.common.utils.detail_registry import DetailRegistry
+        DetailRegistry.register('transcriber', Transcript, _transcriber_detail, spec={
+            'result_tabs': [
+                {'cle': 'transcription', 'label': 'Transcription', 'icone': 'fa-file-alt',
+                 'cible': 'resultText', 'forme': 'pre', 'badge': True},
+                # Visible d'emblée (pas de `cache`) : la diarisation se charge à l'ouverture,
+                # d'où son texte d'attente — c'est ce que faisait le bloc en dur.
+                {'cle': 'diarisation', 'label': 'Diarisation', 'icone': 'fa-users',
+                 'cible': 'diarisationContent', 'forme': 'nu', 'attente': 'Chargement...'},
+                {'cle': 'resume', 'label': 'Résumé', 'icone': 'fa-file-lines',
+                 'cible': 'resumeContent', 'forme': 'html', 'badge': True, 'cache': True},
+                {'cle': 'coherence', 'label': 'Cohérence', 'icone': 'fa-spell-check',
+                 'cible': 'coherenceContent', 'forme': 'nu', 'badge': True, 'cache': True},
+            ],
+        })

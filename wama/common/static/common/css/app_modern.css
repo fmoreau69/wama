@@ -996,3 +996,16 @@ small.form-text {
 .home-wrapper {
     padding: 20px 0;
 }
+
+/* ── Onglets de RÉSULTAT TEXTE (partial commun `_result_tabs.html`, 2026-09-07) ──────────
+   Ces règles sont la TRANSCRIPTION EXACTE des styles inline que describer et transcriber
+   répétaient dans leurs deux modales. Elles ne changent rien au rendu — c'est la condition
+   pour que l'extraction soit une factorisation et non une refonte déguisée. */
+.wama-result-card      { background: #1e1e1e; border: 1px solid #495057; }
+.wama-result-copy      { position: absolute; top: 6px; right: 6px; z-index: 1; opacity: .7; }
+.wama-result-text      { color: #d4d4d4; font-family: 'Segoe UI', Arial, sans-serif;
+                         font-size: 14px; line-height: 1.6; max-height: 460px; overflow-y: auto; }
+/* `pre` seul : le retour à la ligne et la marge nulle ne valent que pour le texte préformaté. */
+pre.wama-result-text   { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
+/* Le badge de comptage est POSÉ vide et révélé par le JS de l'app quand il a un nombre. */
+.wama-tab-badge        { font-weight: normal; font-size: .72em; display: none; }

@@ -1,0 +1,63 @@
+{% comment %}
+  Onglets de RÉSULTAT TEXTE — barre + panneaux, générés depuis la DÉCLARATION de l'app
+  (`detail_registry.result_tabs_for`, clé `result_tabs` de sa spec).
+
+  Solde `REMOVAL_LEDGER R18` : describer et transcriber maintenaient deux blocs quasi
+  identiques — même barre `nav-tabs`, mêmes panneaux `resume`/`coherence` — qui ne pouvaient
+  que diverger. Le nom `common/_result_tabs.html` était écrit dans le ledger depuis le
+  2026-07-22 ; le fichier, lui, n'a jamais existé (d'où 8 références « cassées » à `check_docs`
+  qui pointaient une CIBLE, pas un fichier supprimé).
+
+  ⚠ CE QUE CE PARTIAL N'EST PAS : une seconde mécanique de preview. La preview de CARD reste
+  `PreviewRegistry` + `hydrateCardPreviews` (fichier/média), et l'inspecteur reste nourri par le
+  schéma canonique. Ici on couvre le seul cas « UN résultat, PLUSIEURS lectures de ce résultat »,
+  et uniquement du TEXTE — les autres apps n'ont qu'une facette, ou plusieurs RÉSULTATS dans une
+  seule preview (imager). C'est pourquoi les facettes se déclarent dans la spec de DÉTAIL et pas
+  dans un dictionnaire d'interface posé à côté.
+
+  Le CONTENU reste rempli par le JS de l'app (endpoints résumé/cohérence/diarisation) : ce
+  partial pose la structure et les ancres (`#tab-<clé>`, `#<cible>`, `#wc-<clé>`), qui sont le
+  contrat déjà consommé par les scripts existants — aucun d'eux n'a à changer.
+
+  Usage :  {% templatetag openblock %} result_tabs 'describer' {% templatetag closeblock %}
+{% endcomment %}
+{% if onglets %}
+<ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
+  {% for o in onglets %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link{% if o.actif %} active{% endif %}" id="tab-{{ o.cle }}-btn"
+            data-bs-toggle="tab" data-bs-target="#tab-{{ o.cle }}" type="button" role="tab"
+            {% if o.cache %}style="display:none;"{% endif %}>
+      <i class="fas {{ o.icone }}"></i> {{ o.label }}
+      {% if o.badge %}<span id="wc-{{ o.cle }}" class="badge bg-secondary ms-1 wama-tab-badge"></span>{% endif %}
+    </button>
+  </li>
+  {% endfor %}
+</ul>
+<div class="tab-content">
+  {% for o in onglets %}
+  <div class="tab-pane fade{% if o.actif %} show active{% endif %}" id="tab-{{ o.cle }}" role="tabpanel">
+    {% if o.forme == 'nu' %}
+      {# L'app pose tout elle-même : on ne fournit que l'ancre (cas cohérence). #}
+      <div id="{{ o.cible }}">{% if o.attente %}<p class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> {{ o.attente }}</p>{% endif %}</div>
+    {% else %}
+      <div class="card position-relative wama-result-card">
+        {% if o.copie %}
+        <button class="btn btn-sm btn-outline-secondary copy-result-btn wama-result-copy"
+                data-target="{{ o.cible }}" title="Copier le texte">
+          <i class="fas fa-copy"></i>
+        </button>
+        {% endif %}
+        <div class="card-body">
+          {% if o.forme == 'pre' %}
+          <pre id="{{ o.cible }}" class="wama-result-text"></pre>
+          {% else %}
+          <div id="{{ o.cible }}" class="wama-result-text">{% if o.attente %}<p class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> {{ o.attente }}</p>{% endif %}</div>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
