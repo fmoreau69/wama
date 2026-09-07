@@ -801,6 +801,43 @@ def _recursive_import(f: _AppFiles):
     return present
 
 
+def _card_entree_rendue(f: _AppFiles):
+    """Preuve qu'une card d'entrée est RENDUE par le gabarit (None sinon) — gate commun des
+    critères d'import (`import_wired`, `import_front`), pour qu'ils exemptent les mêmes surfaces.
+
+    ⚠ La card d'entrée est le plus souvent INCLUSE depuis `common/`, pas écrite dans l'app :
+    ne chercher que du markup local répondait « aucune card d'entrée » sur 10 apps qui en ont
+    une (converter, transcriber, anonymizer…). Erreur commise en écrivant `import_wired` le
+    2026-08-22, et de la MÊME famille que le trou qu'il traque : mesurer l'artefact local au
+    lieu de ce qui est réellement rendu. L'inclusion de la brique commune EST le markup.
+    """
+    return f.find_code(
+        TEMPLATES,
+        r'_new_item_card(?:_v4)?\.html|data-wama-nic|wama-dropzone|dropzone|type=[\'"]file[\'"]')
+
+
+def _import_front(f: _AppFiles):
+    """La voie d'import est-elle la BRIQUE COMMUNE `WamaImport` (front) ?
+
+    Jumeau d'adoption de `import_wired` : celui-là constate que QUELQUE CHOSE écoute le dépôt
+    (n'importe quel JS), celui-ci que c'est la brique commune — la boucle upload →
+    consolidation → rafraîchissement n'est plus réécrite par app. Réclamé par le contrôle de
+    jonction (« mécanisme de niveau app sans critère de grille ») le jour de la 1ʳᵉ adoption
+    par une app EN PLACE (transcriber, 2026-09-07) — avant, seules les apps GÉNÉRÉES la
+    chargeaient, et un critère par app n'avait rien à mesurer.
+
+    Même exemption que `import_wired` : sans card d'entrée rendue, rien à importer → `None`.
+    L'instanciation vit dans le JS de l'app (transcriber) OU dans le gabarit (apps générées,
+    `_app_scripts.html` + bloc inline) — les deux comptent. `find_code` : un commentaire qui
+    cite `WamaImport(` (celui qui explique pourquoi on ne l'a PAS encore adopté, typiquement)
+    ne doit pas faire passer au vert.
+    """
+    if not _card_entree_rendue(f):
+        return None, "aucune card d'entrée rendue — rien à importer"
+    ev = f.find_code(TEMPLATES + JS, r'\bWamaImport\s*\(')
+    return (True, ev) if ev else (False, None)
+
+
 def _import_wired(f: _AppFiles):
     """Zone de dépôt que RIEN n'écoute (trou #26 de la route) — le défaut le plus SILENCIEUX.
 
@@ -824,14 +861,7 @@ def _import_wired(f: _AppFiles):
     `data-wama-depot="attache"` (le fichier est joint, le bouton primaire crée) et ont bien un
     écouteur. Ce critère mesure « quelque chose écoute », pas « quoi ».
     """
-    # ⚠ La card d'entrée est le plus souvent INCLUSE depuis `common/`, pas écrite dans l'app :
-    # ne chercher que du markup local répondait « aucune card d'entrée » sur 10 apps qui en ont
-    # une (converter, transcriber, anonymizer…). Erreur commise en écrivant ce critère le
-    # 2026-08-22, et de la MÊME famille que le trou qu'il traque : mesurer l'artefact local au
-    # lieu de ce qui est réellement rendu. L'inclusion de la brique commune EST le markup.
-    markup = f.find_code(
-        TEMPLATES,
-        r'_new_item_card\.html|data-wama-nic|wama-dropzone|dropzone|type=[\'"]file[\'"]')
+    markup = _card_entree_rendue(f)
     if not markup:
         return None, "aucune card d'entrée rendue — aucun dépôt à écouter"
     # ⚠ Coller à l'IDIOME RÉEL des gabarits, pas à celui qu'on imagine : le projet charge par
@@ -1338,6 +1368,11 @@ CRITERIA: list[Criterion] = [
     # Les autres critères d'import constatent une présence ; celui-ci constate un chargement.
     Criterion('import_wired', 'F2', 'Voie d’import CHARGÉE par le gabarit (dépôt non inerte)',
               _import_wired),
+    # Jumeau d'ADOPTION (2026-09-07, 1ʳᵉ app en place sur la brique) : la voie d'import est la
+    # brique commune WamaImport, pas une boucle upload maison. Jonction avec `import_front`.
+    Criterion('import_front', 'F2', 'Voie d’import = brique commune WamaImport (front)',
+              _import_front,
+              mecanisme='import_front'),
     # ── F3 UI / params / inspecteur ──
     Criterion('settings_modal_item', 'F3', 'Modale paramètres générée (WamaParams.render)', _params_modal,
               mecanisme='param_schema'),

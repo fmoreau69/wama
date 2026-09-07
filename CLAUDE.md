@@ -587,14 +587,15 @@ ne plus recopier de listes figées ici (elles dérivent — la ligne « Composer
 manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 
 > ⚠ Depuis 2026-07-25 la grille est **MESURÉE** : `python manage.py check_app_conformity`
-> (**87 critères** couvrant les 8 facettes — F1:4 F2:11 F3:18 F4:10 F5:31 F6:6 F7:5 F8:2, **relevé
-> le 2026-09-03 depuis `logs/conformity_report.json`** ; elle valait 40 critères le 2026-07-30 —
-> F1–F5 seules — puis 72, puis 82 au 26/08 ; les 4 du 03/09 mesurent la CHAÎNE DE GÉNÉRATION
-> côté app : `backend_routes`, `task_skeleton`, `detail_spec`, `triad_specs` — par analyse du code réel,
+> (**89 critères** couvrant les 8 facettes — F1:4 F2:12 F3:19 F4:10 F5:31 F6:6 F7:5 F8:2, **relevé
+> le 2026-09-07 depuis `logs/conformity_report.json`** ; elle valait 40 critères le 2026-07-30 —
+> F1–F5 seules — puis 72, puis 82 au 26/08, 87 au 03/09 ; les 4 du 03/09 mesurent la CHAÎNE DE GÉNÉRATION
+> côté app : `backend_routes`, `task_skeleton`, `detail_spec`, `triad_specs` ; les 2 du 07/09 sont
+> `result_tabs` (F3, R18) et `import_front` (F2, adoption de `WamaImport`) — par analyse du code réel,
 > `common/services/conformity_checker.py`) écrit `logs/conformity_report.json` qui **écrase les
 > booléens déclarés** de `_conv(...)`. Ne plus éditer ces booléens à la main pour les critères
 > mesurés ; re-lancer la commande après un palier de portage (skill `/conformite`).
-> Le dénominateur varie par app (**71–87**, mesuré 2026-09-03) : un critère peut être **non applicable** (état `None`)
+> Le dénominateur varie par app (**72–88**, mesuré 2026-09-07) : un critère peut être **non applicable** (état `None`)
 > et sortir du calcul — ex. le F4 enveloppé `_f4` pour le converter (ffmpeg/pandoc, aucun modèle
 > IA — mais `backend_routes`/`task_skeleton`, hors enveloppe, s'y appliquent : c'est le pilote).
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place

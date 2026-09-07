@@ -1943,10 +1943,13 @@ recopier NULLE PART, re-mesurer)** :
   codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
   `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
   (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
-- **`WamaImport` et `_app_scripts.html` : 0/10 dans le parc réel** — ces deux briques ne
-  vivent que dans le gabarit généré et le banc. Une app générée et une app à la main ne
-  chargent pas leur JS ni n'importent leurs fichiers par le même chemin : toute doc qui
-  décrit la chaîne générée comme « la » voie décrit un parc de zéro app.
+- **`WamaImport` : 1/10 dans le parc réel depuis le 2026-09-07 (transcriber) ; `_app_scripts.html` :
+  0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit généré et le banc. Une app
+  générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
+  même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
+  zéro app. Le transcriber charge `wama-import.js` par une balise DIRECTE dans son gabarit (pas
+  par `_app_scripts.html`, qui rechargerait `wama-global-progress.js` déjà inclus) — l'adoption
+  se mesure désormais par le critère **`import_front`** (F2, jonction `import_front`).
 - **`_is_app_owned` (propriété des fichiers) : 1/10** — le converter SEUL protège les
   fichiers utilisateur seulement référencés ; l'avatarizer fait l'OPPOSÉ (rattachement par
   référence voulu). ⚠ **Arbitrage de PLATEFORME non pris** : se caler sur la majorité
@@ -1984,6 +1987,25 @@ handler, et que le câblage de l'`<input webkitdirectory>` vivait dans le gabari
 brique. Câbler le parc dessus tel quel aurait **régressé le drop de dossier de 8 apps**.
 Corrigé le 05/09 (`wama-import.js` : `collect` sur le drop, `folderInputId` déclaré) ;
 mesuré : `converter_01.folder_import` ✓ par la brique seule.
+
+**1ʳᵉ adoption par une app EN PLACE — transcriber, 2026-09-07** (règle Fabien : rien ne
+bascule si un geste tombe ; app d'origine, pas de jumelle). Ce qui a été fait, et ce que ça a
+appris :
+- `index.js` ne DÉCLARE plus que ses spécificités : `extraFields` (paramètres du volet postés
+  avec chaque dépôt), `consolidateField:'ids'` (la vue est la fabrique commune, qui lit JSON
+  comme champ répété), `folderInputId`. **~90 lignes de boucle maison retirées** (upload
+  séquentiel, drop, sélecteur de dossier) ; le bouton « parcourir » qu'elle câblait n'existait
+  dans aucun gabarit depuis la card commune.
+- **La brique ne posait qu'une classe de survol (`dragover`)** ; la card v3 commune stylise
+  `.drop-zone.drag-over` (`app_modern.css`) — le transcriber aurait perdu son surlignage, une
+  régression que les 5 gestes ne mesurent pas. La brique pose désormais les deux.
+- Preuve : 5 gestes **5/5 avant, 13/13 après** (toute la famille `transcriber.` hors GPU, après
+  `kill -HUP`) ; smoke navigateur 0 erreur JS, fichier servi parsé, `window._import` instancié,
+  les 3 entrées marquées `wamaImportBound`. ⚠ `wama.transcriber` n'a **aucun** module de tests
+  unitaires : son filet est entièrement nocturne + smoke.
+- Le contrôle de jonction a réclamé son critère : **`import_front`** (F2, `mecanisme=
+  'import_front'`), gate commun `_card_entree_rendue` avec `import_wired` → grille à **89**
+  critères ; 9 apps passent ROUGE dessus, c'est la mesure attendue de « 1/10 ».
 
 **Inventaire par app** (balayage exhaustif des JS d'import, ancres vérifiées sur reader et
 anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas faire :

@@ -11796,6 +11796,45 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 | `converter.batch_processing` | **OK** — 2/2 réussis, ZIP vérifié `PK` 730 o |
 | catalogue des gestes | **17,5 / 19** |
 
+---
+
+## §PALIER — 2026-09-07 (soir), instance « FICHIERS D'ENTRÉE : transcriber sur `WamaImport` » — ✅ LIVRÉ
+
+> Point d'entrée du handoff « CARD v4 + FICHIERS D'ENTRÉE » (04→07/09) exécuté tel quel : **app
+> d'origine, pas de jumelle** (consigne Fabien : « surtout rien casser au Transcriber »). Partition
+> tenue : `wama/transcriber/{static/transcriber/js/index.js, templates/transcriber/index.html}`,
+> `wama/common/static/common/js/wama-import.js`, `common/services/conformity_checker.py`,
+> `common/tests_import_wired.py`, `staticfiles/{common,transcriber}/js/`. ⚠ Deux autres instances
+> actives dans l'arbre (cam_analyzer ; régénération du corpus `manifests/`) — aucun fichier commun.
+
+### Ce qui a été fait
+
+| geste | mesure |
+|---|---|
+| **AVANT** : 5 gestes nocturnes du transcriber (`import`, `batch_import`, `url_import`, `folder_import`, `send_to`) | **5/5 OK** (`nightly_20260907_175143`) ; suite complète WSL2 **1685 OK** |
+| `index.js` : boucle upload → consolidation → reload, câblage drop/clic/dossier **REMPLACÉS** par `window._import = WamaImport({...})` — l'app ne déclare que `extraFields` (paramètres du volet), `consolidateField:'ids'`, `folderInputId` | ~90 lignes retirées ; `initUpload`/`initDragDrop`/`uploadFile`/`handleFiles` supprimés ; `transcriber-browse-btn` (câblé, jamais rendu) disparaît avec |
+| gabarit : `wama-import.js` chargé par balise DIRECTE (pas `_app_scripts.html` — il rechargerait `wama-global-progress.js`, déjà inclus : double inclusion = le défaut du 18/08) | `typeof WamaImport === 'function'`, `window._import` instancié, 3 entrées `wamaImportBound` |
+| **brique** : la zone de dépôt ne posait que `dragover` ; la card v3 commune stylise `.drop-zone.drag-over` → le transcriber aurait PERDU son surlignage (régression visuelle, invisible aux 5 gestes). La brique pose les deux classes | `wama-import.js:220-231` |
+| **APRÈS** (après `kill -HUP` du maître gunicorn) : toute la famille `transcriber.` hors GPU | **13/13 OK** (`nightly_20260907_180041`) ; smoke navigateur : HTTP 200, **0 erreur console**, fichier servi parsé (`new Function`), ancien code absent, nouveau présent |
+| critère de grille **`import_front`** (F2, `mecanisme='import_front'`) — réclamé par le contrôle de jonction à la 1ʳᵉ adoption, écrit sur le patron `recursive_import` ; gate commun `_card_entree_rendue` factorisé avec `import_wired` | grille **88 → 89** ; transcriber ✅, 9 apps ❌ (= la mesure de « 1/10 ») ; `tests_import_wired` **+5 tests** (boucle maison = ROUGE même si écoutée, JS d'app / gabarit = VERT, commentaire ne sauve pas, N/A commun) |
+| docs : `ROUTE §Portage F2` (1/10 + leçons), `MEDIA_STORAGE_TIERING §8.6 D11/D4`, `CLAUDE.md` (grille 89), blocs `doc_facts` régénérés (conformite, mecanismes) | `check_docs` inchangé ; `doc_facts --check` : `modeles` PÉRIMÉ **par l'autre instance** (export du corpus en cours dans l'arbre), non régénéré à dessein |
+
+### Ce que ça a appris
+
+- ⚠⚠ **`wama.transcriber` n'a AUCUN module de tests unitaires** (`manage.py test wama.transcriber` → `Ran 0 tests`). L'app « gold standard » n'est tenue que par ses 13 scénarios nocturnes et le smoke — c'est exactement la leçon face_analyzer du 05/09 (« l'absence de test laisse pourrir »), sur l'app de référence. À consigner comme dette, pas à combler en passant.
+- ⚠ **Une brique commune adoptée par une app EN PLACE révèle ce que les jumelles ne voyaient pas** : la classe de survol. Les jumelles sont nées avec la card v4 (`dragover`), le parc est en v3 (`drag-over`). Chaque adoption suivante peut lever un écart de ce genre — les mesurer au navigateur, pas seulement aux gestes.
+- Le contrat de consolidation n'a PAS eu besoin d'être choisi : la fabrique commune lit JSON **et** champ répété — vérifié au code (`queue_manipulation._ids_de_la_requete`) avant d'écrire `consolidateField`.
+
+### 🔚 SUITE (ordre du handoff 04→07/09, inchangé)
+
+converter (`consolidateField:'job_ids'`, `beforeFile`) → describer (`afterImport` 1 vs N) → synthesizer → enhancer-image → composer (vue `upload` à créer) → reader (`multiple`) → anonymizer (`added[]` + progression) → enhancer-audio → imager/avatarizer (attache). **Même protocole** : 5 gestes avant, `kill -HUP`, famille `<app>.` après, smoke navigateur (classe de survol, `_import`, 0 erreur console).
+
+### Pendings système
+
+- `manifest_export --check` : 106 périmés au `/reprise` (chantier backends clos sans régénérer) — **une autre instance régénère le corpus dans l'arbre** au moment de ce palier (106 manifestes modifiés + `avatarizer__codeformer.json` untracked) : pas touché ;
+- `doc_facts --check` : `modeles` PÉRIMÉ (même cause) ; `mecanismes` régénéré ici sur l'ARBRE PARTAGÉ (compteurs de 5 briques bougent d'une unité avec les fichiers non commités de cam_analyzer) — à re-régénérer par qui commite en dernier ;
+- un `manage.py test --keepdb` lancé depuis venv_win par une autre instance à 17:41 a coexisté avec ma suite WSL2 (17:43-17:53) sur la même base de test : les deux verts, mais **c'est un hasard, pas une garantie** — attendre reste la règle.
+
 ## §CLÔTURE — 2026-09-07, instance « CAM_ANALYZER » (suite du §REPRISE 04→07/09 ci-dessus) — ✅ CLOSE — 🔚 DEUX DÉCISIONS ATTENDUES
 
 > Ce bloc complète le `§REPRISE — 2026-09-04 → 09-07, instance « CAM_ANALYZER … »` (commité

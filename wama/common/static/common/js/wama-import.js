@@ -217,14 +217,19 @@
         if (dz.dataset.wamaImportBound !== '1') {
           dz.dataset.wamaImportBound = '1';
           if (fi) dz.addEventListener('click', function () { fi.click(); });
+          // DEUX classes de survol, à dessein (2026-09-07, 1ʳᵉ adoption par une app EN
+          // PLACE) : la card v4 stylise `.wama-mod-import.dragover`, la card v3 commune
+          // (`_new_item_card.html`, 10 apps) stylise `.drop-zone.drag-over` (app_modern.css).
+          // N'en poser qu'une aurait fait perdre au transcriber son surlignage au survol —
+          // une régression VISUELLE, que les 5 gestes nocturnes ne mesurent pas.
           dz.addEventListener('dragover', function (e) {
             e.preventDefault();
-            dz.classList.add('dragover');
+            dz.classList.add('dragover', 'drag-over');
           });
-          dz.addEventListener('dragleave', function () { dz.classList.remove('dragover'); });
+          dz.addEventListener('dragleave', function () { dz.classList.remove('dragover', 'drag-over'); });
           dz.addEventListener('drop', function (e) {
             e.preventDefault();
-            dz.classList.remove('dragover');
+            dz.classList.remove('dragover', 'drag-over');
             if (!e.dataTransfer) return;
             // IMPORT = UN SEUL GESTE (décision Fabien 05/09, CARD_DESIGN §11.11 B bis) :
             // fichier(s) ET dossier(s), dépôt ET clic. La brique GLOBALE WamaFolderImport

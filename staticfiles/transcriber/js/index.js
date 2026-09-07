@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const config = window.TRANSCRIBER_APP || {};
   const csrfToken = config.csrfToken;
-  const fileInput = document.getElementById('transcriber-file');
   const queueContainer = document.getElementById('transcriptQueue');
   // Bouton de cycle : mécanisme plug-and-play commun — l'icône ▶/⏹/↻ suit data-status des cards
   // (cohérent avec les autres apps ; refreshCard re-rend la card entière depuis le serveur).
@@ -79,27 +78,6 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }
 
-  async function uploadFile(file) {
-    const body = new FormData();
-    body.append('file', file);
-    _appendPanelParams(body);
-
-    try {
-      const response = await fetch(config.uploadUrl, {
-        method: 'POST', headers: csrfHeaders(), body,
-      });
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      // L'élément arrive en zone de staging (DRAFT) — il n'est PAS ajouté à la
-      // file ici ; le rechargement affiche la zone « À valider » (rendu serveur).
-      if (window.WamaFM) WamaFM.uploaded();  // fichier de travail ajouté → refresh filemanager
-      return data.id;
-    } catch (error) {
-      showToast(`Erreur pour ${file.name}: ${error.message}`, 'danger');
-      return null;
-    }
-  }
-
   // ── Toast : brique commune (wama-app-base.js), zéro dialogue bloquant ──
   function showToast(message, type) {
     if (window.WamaApp && WamaApp.toast) WamaApp.toast(message, type);
@@ -113,42 +91,42 @@ document.addEventListener('DOMContentLoaded', function () {
     badge.textContent = cards.length;
   }
 
-  // ── Batch file detection — delegated to WamaBatchImport (common/js/batch-import.js)
-
-  async function handleFiles(files) {
-    const fileList = Array.from(files);
-    if (fileList.length === 1 && window._batchImport) {
-      if (await window._batchImport.detectAndHandle(fileList[0])) return;
+  // ── Voie d'import : brique commune WamaImport (wama-import.js) — portage 2026-09-07 ──
+  //
+  // Le transcriber est la 1ʳᵉ app EN PLACE à l'adopter (plan « fichiers d'entrée »,
+  // MEDIA_STORAGE_TIERING §8 ; jusqu'ici la brique n'était chargée que par les apps GÉNÉRÉES).
+  // Ce qui vivait ici — boucle upload → consolidation → reload, câblage de la zone de dépôt,
+  // du sélecteur de fichiers et du sélecteur de dossier — est exactement le contrat de la
+  // brique ; l'app ne DÉCLARE plus que ses spécificités :
+  //   • `extraFields`      : les paramètres du volet droit voyagent avec chaque dépôt (l'élément
+  //                          DRAFT capture l'état complet du volet, comme avant) ;
+  //   • `consolidateField` : 'ids' — la vue `consolidate` est la fabrique commune
+  //                          (`queue_manipulation`), qui lit aussi bien le JSON que le champ répété.
+  // Comportements PRÉSERVÉS par les défauts de la brique : lot détecté seulement sur un fichier
+  // déposé SEUL (`batchScope:'single'`), `WamaFM.uploaded()` après chaque envoi, rechargement
+  // de la page à la fin (les DRAFT sont rendus serveur — staging supprimé le 2026-06-29), et le
+  // drop de dossier récursif (`WamaFolderImport`, porté par la brique depuis le 05/09).
+  // La médiathèque n'a rien à câbler : son bouton injecte le File dans #transcriber-file et
+  // déclenche `change`, que la brique écoute.
+  function initImport() {
+    if (typeof window.WamaImport !== 'function') {
+      // Défaut le plus silencieux qui soit (une zone de dépôt que rien n'écoute) → on le DIT.
+      showToast("Voie d'import non chargée (wama-import.js) — dépôt impossible", 'danger');
+      console.error('[Transcriber] WamaImport absent : wama-import.js non chargé par le gabarit');
+      return;
     }
-    // Upload séquentiel puis consolidation en UN lot si plusieurs — couvre drag&drop,
-    // explorateur Windows et sélecteur de fichiers.
-    // ⚠ Jusqu'au 2026-09-05 ce commentaire disait « puis consolide en UN batch » et RIEN ne
-    // le faisait : la boucle uploadait puis rechargeait, et N fichiers déposés d'un coup
-    // donnaient N cards isolées, chacune enveloppée en lot-de-1 par `auto_wrap_orphans` —
-    // seule app du parc dans ce cas (MEDIA_STORAGE_TIERING §8.6 D4). L'URL existait déjà
-    // dans TRANSCRIBER_APP.consolidateUrl ; il manquait l'appel.
-    const ids = [];
-    for (const file of fileList) {
-      const id = await uploadFile(file);
-      if (id) ids.push(id);
-    }
-    if (!ids.length) return;
-    if (ids.length > 1 && config.consolidateUrl) {
-      try {
-        await fetch(config.consolidateUrl, {
-          method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
-          body: JSON.stringify({ ids }),
-        });
-      } catch (e) { /* à défaut : cards unitaires, enveloppées en lots-de-1 par le serveur */ }
-    }
-    // Les fichiers importés deviennent des cards BROUILLON (DRAFT) dans la file : on recharge
-    // pour le rendu serveur. Staging supprimé (2026-06-29).
-    location.reload();
+    window._import = WamaImport({
+      uploadUrl:        config.uploadUrl,
+      consolidateUrl:   config.consolidateUrl,
+      consolidateField: 'ids',
+      csrfToken:        csrfToken,
+      dropZoneId:       'dropZoneTranscriber',
+      fileInputId:      'transcriber-file',
+      folderInputId:    'transcriberFolderInput',
+      batch:            window._batchImport,
+      extraFields:      function (fd) { _appendPanelParams(fd); },
+    });
   }
-
-  // Staging (« à valider ») SUPPRIMÉ 2026-06-29 : les DRAFT sont des cards BROUILLON directement
-  // dans la file (config via inspecteur, lancement via Lancer). Plus de zone ni de handlers staging.
 
   // ── Actions de LOT (▶ ⧉ 🗑) : brique commune queue-actions.js (portage 2026-08-23).
   // Les URLs sont émises par le partial `common/_batch_card.html`, dérivées de la convention
@@ -162,43 +140,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // et posera sessionStorage['wama_focus_card'] sur l'id déplacé pour le repérer après reload.
 
 
-  function initUpload() {
-    if (!fileInput) return;
-    fileInput.addEventListener('change', function () {
-      if (!this.files.length) return;
-      handleFiles(this.files);
-      fileInput.value = '';
-    });
-  }
-
-  function initDragDrop() {
-    const dropZone = document.getElementById('dropZoneTranscriber');
-    const browseBtn = document.getElementById('transcriber-browse-btn');
-    if (!dropZone || !fileInput) return;
-
-    dropZone.addEventListener('click', (e) => { if (e.target !== browseBtn) fileInput.click(); });
-    if (browseBtn) browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      // Dossiers inclus (brique commune WamaFolderImport, F2).
-      WamaFolderImport.collect(e.dataTransfer).then(list => {
-        if (list.length > 0) handleFiles(WamaFolderImport.files(list));
-      });
-    });
-
-    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
-    const folderInput = document.getElementById('transcriberFolderInput');
-    if (folderInput) {
-      folderInput.addEventListener('change', () => {
-        const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
-        if (files.length > 0) handleFiles(files);
-        folderInput.value = '';
-      });
-    }
-  }
+  // initUpload / initDragDrop SUPPRIMÉS (2026-09-07) : sélecteur de fichiers, zone de dépôt
+  // (clic, survol, drop récursif) et sélecteur de dossier sont câblés par WamaImport (initImport).
 
   function initYoutube() {
     // Import par URL : réutilise le FORMALISME BATCH commun (comme converter et
@@ -1324,8 +1267,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  initUpload();
-  initDragDrop();
+  initImport();
   initYoutube();
   initExistingCards();
   initSpeech();

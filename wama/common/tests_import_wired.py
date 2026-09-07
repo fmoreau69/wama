@@ -20,7 +20,7 @@ from unittest import mock
 from django.test import SimpleTestCase
 
 
-def _mesure(nom: str, fichiers: dict) -> tuple:
+def _mesure(nom: str, fichiers: dict, critere: str = '_import_wired') -> tuple:
     """Monte une app FICTIVE sur disque et lui applique le critère.
 
     On écrit de vrais fichiers plutôt que de simuler `_AppFiles` : le critère lit des gabarits,
@@ -34,7 +34,7 @@ def _mesure(nom: str, fichiers: dict) -> tuple:
             cible.parent.mkdir(parents=True, exist_ok=True)
             cible.write_text(contenu, encoding='utf-8')
         with mock.patch.object(cc, 'WAMA_ROOT', racine):
-            return cc._import_wired(cc._AppFiles(nom))
+            return getattr(cc, critere)(cc._AppFiles(nom))
 
 
 CARD = "{% include 'common/_new_item_card.html' %}"
@@ -111,5 +111,69 @@ class ImportWiredTests(SimpleTestCase):
         etat, preuve = _mesure('appfictive', {
             'templates/appfictive/index.html': "<h1>Tableau de bord</h1>\n",
         })
+        self.assertIsNone(etat)
+        self.assertIn("aucune card d'entrée", preuve)
+
+
+class ImportFrontTests(SimpleTestCase):
+    """Critère `import_front` (2026-09-07) — jumeau d'ADOPTION de `import_wired`.
+
+    `import_wired` dit « quelque chose écoute le dépôt » ; celui-ci dit « c'est la brique
+    commune WamaImport ». Écrit le jour où le transcriber, 1ʳᵉ app EN PLACE, l'a adoptée :
+    avant, seules les apps générées la chargeaient, et le contrôle de jonction n'exigeait
+    rien. La forme de chaque cas est celle du parc réel — instanciation dans le JS d'app
+    (transcriber) ou dans le gabarit (converter_01).
+    """
+
+    def test_boucle_upload_MAISON_est_ROUGE_meme_si_le_depot_est_ecoute(self):
+        """L'état du transcriber jusqu'au 07/09 : un `handleFiles` à lui, la brique absente.
+
+        `import_wired` y est VERT (le JS d'app est chargé) ; `import_front` doit être ROUGE,
+        sinon les deux critères mesurent la même chose et l'adoption reste invisible.
+        """
+        fichiers = {
+            'templates/appfictive/index.html':
+                f"{CARD}\n<script src=\"{{% static_v 'appfictive/js/index.js' %}}\"></script>\n",
+            'static/appfictive/js/index.js':
+                "async function handleFiles(files) { for (const f of files) await fetch('/up', "
+                "{method:'POST'}); location.reload(); }\n",
+        }
+        self.assertIs(_mesure('appfictive', fichiers)[0], True)
+        etat, _ = _mesure('appfictive', fichiers, '_import_front')
+        self.assertIs(etat, False)
+
+    def test_instanciation_dans_le_JS_d_app_est_VERT(self):
+        """Forme du transcriber : `window._import = WamaImport({...})` dans index.js."""
+        etat, preuve = _mesure('appfictive', {
+            'templates/appfictive/index.html': f"{CARD}\n",
+            'static/appfictive/js/index.js':
+                "window._import = WamaImport({ uploadUrl: '/up', fileInputId: 'f' });\n",
+        }, '_import_front')
+        self.assertIs(etat, True)
+        self.assertIn('static/appfictive/js/index.js', preuve)
+
+    def test_instanciation_dans_le_gabarit_est_VERT(self):
+        """Forme des apps générées : bloc inline dans index.html (converter_01)."""
+        etat, _ = _mesure('appfictive', {
+            'templates/appfictive/index.html':
+                f"{CARD}\n<script>window._import = WamaImport({{uploadUrl: '/up'}});</script>\n",
+        }, '_import_front')
+        self.assertIs(etat, True)
+
+    def test_un_COMMENTAIRE_qui_cite_WamaImport_ne_sauve_pas(self):
+        """Le commentaire typique est celui qui explique pourquoi on ne l'a PAS encore adopté."""
+        etat, _ = _mesure('appfictive', {
+            'templates/appfictive/index.html': f"{CARD}\n",
+            'static/appfictive/js/index.js':
+                "// TODO : passer à WamaImport({...}) quand la brique sera prête\n"
+                "/* idem : WamaImport( */\n",
+        }, '_import_front')
+        self.assertIs(etat, False)
+
+    def test_surface_sans_card_d_entree_est_NON_APPLICABLE_comme_import_wired(self):
+        """Les deux critères d'import doivent exempter les MÊMES surfaces (gate commun)."""
+        fichiers = {'templates/appfictive/index.html': "<h1>Tableau de bord</h1>\n"}
+        self.assertIsNone(_mesure('appfictive', fichiers)[0])
+        etat, preuve = _mesure('appfictive', fichiers, '_import_front')
         self.assertIsNone(etat)
         self.assertIn("aucune card d'entrée", preuve)
