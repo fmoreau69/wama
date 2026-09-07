@@ -1943,8 +1943,8 @@ recopier NULLE PART, re-mesurer)** :
   codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
   `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
   (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
-- **`WamaImport` : 3/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter,
-  describer) ; `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
+- **`WamaImport` : 5/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter,
+  describer, synthesizer, enhancer-image) ; `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
   généré et le banc. Une app
   générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
   même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
@@ -2030,6 +2030,32 @@ Elle ne pouvait jouer que sur un TEXTE glissé contenant « / » (un chemin dép
 garde). Le synthesizer porte la même branche → même verdict. Mesuré : 5/5 avant, famille
 `describer.` **12/12** après, smoke 0 erreur JS. ⚠ `wama.describer` n'a pas non plus de tests
 unitaires (`Ran 0 tests`) — même dette que le transcriber.
+
+**4ᵉ et 5ᵉ adoptions — synthesizer et enhancer-IMAGE, 2026-09-07 (soir)** : `batchScope:'each'`
+(lot testé sur CHAQUE fichier — l'évolution 6 servait pour la 1ʳᵉ fois) ; synthesizer :
+`extraFields` = réglages du volet + champs Higgs, par le lecteur `v(id, défaut)` du lot (l'ancien
+`uploadFile` lisait `#tts_model` SANS garde) ; enhancer : `afterImport` = 1 → `appendRow` (card
+rendue serveur), N → reload — la voie AUDIO (`audio-enhancer.js`, lot maison) reste hors brique.
+
+⚠⚠ **CE QUE LA 4ᵉ ADOPTION A CASSÉ, ET CE QUI L'A VU** : `synthesizer.queue_dnd` et
+`batch_actions`, verts à 16:40, sont passés SKIP après le câblage (« deux dépôts n'ont créé
+aucun LOT »). Sonde réseau sur un dépôt de 2 fichiers : `POST /synthesizer/consolidate/` → **500**,
+`RawPostDataException`. La brique poste la consolidation en **multipart** ; le middleware CSRF lit
+`request.POST` sur tout POST (flux consommé) ; la vue lisait ensuite `request.body`, et son
+`except (ValueError, TypeError)` ne rattrape pas cette exception. **Le lecteur commun
+`_ids_de_la_requete` (fabrique `queue_manipulation`, 22/08) documentait EXACTEMENT ce défaut** —
+mais **cinq vues `consolidate` propres aux apps** (describer, synthesizer, enhancer ×2,
+anonymizer) gardaient le `try/except` d'origine, invisibles tant que leur front postait du JSON.
+Le describer était déjà cassé de la même façon (traceback dans `django-errors.log` pendant sa
+famille — son `queue_dnd` avait passé par le REPLI « fichier de lot »). Correctif : lecteur rendu
+PUBLIC (`ids_from_request`, anglais parce qu'importé ; `field=` pour le `job_ids` du converter),
+adopté par les **six** vues (converter compris : son `except Exception` l'attrapait par chance) ;
+`tests_queue_dnd.LecteurDIdsSurMultipartTest` rejoue la forme exacte (`RequestFactory`
+multipart + `request.POST` touché comme le middleware) sur les six et interdit `request.body`
+dans leur CODE. Après HUP : synthesizer **12/13** (+ `batch_import`, dont la vue
+`batch_template` levait `NameError: HttpResponse` depuis mars — import manquant, ajouté),
+enhancer **11/12** (skip anti-bouclage inchangé). *Une garde se pose avec ses JUMEAUX* — 2ᵉ
+occurrence mesurée ; et **un test qui ne reproduit pas le middleware atteste du code cassé**.
 
 **Inventaire par app** (balayage exhaustif des JS d'import, ancres vérifiées sur reader et
 anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas faire :

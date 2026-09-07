@@ -947,15 +947,13 @@ move_to_batch     = _qm['move_to_batch']
 
 def consolidate(request):
     """Regroupe plusieurs Media importés ensemble en UN batch-of-N."""
-    import json as _json
     if request.method != 'POST':
         return JsonResponse({'error': 'POST requis'}, status=405)
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    try:
-        ids = _json.loads(request.body or '{}').get('ids', [])
-    except (ValueError, TypeError):
-        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
-    ids = [int(i) for i in ids if str(i).isdigit()]
+    # Lecteur COMMUN (JSON ou multipart) — jumeau des consolidate describer/synthesizer/enhancer,
+    # corrigés le 2026-09-07 (500 sur FormData : `request.body` après le middleware CSRF).
+    from wama.common.utils.queue_manipulation import ids_from_request
+    ids = ids_from_request(request)
 
     from wama.common.utils.batch_common import load_in_import_order
     items = load_in_import_order(Media, ids, user)

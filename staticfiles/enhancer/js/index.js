@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const config = window.ENHANCER_APP || {};
   const csrfToken = config.csrfToken;
-  const fileInput = document.getElementById('enhancer-file');
   const queueTable = document.getElementById('enhancer-queue');
   const startProcessBtn = document.getElementById('enhancer-process-btn');
   const clearAllBtn = document.getElementById('enhancer-clear-btn');
@@ -20,116 +19,52 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  async function uploadFile(file) {
-    const body = new FormData();
-    body.append('file', file);
-    body.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-    body.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-
-    try {
-      const response = await fetch(config.uploadUrl, {
-        method: 'POST',
-        headers: csrfHeaders(),
-        body,
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      console.log('[Enhancer] Upload response:', data);
-      data.status = data.status || 'PENDING';
-      appendRow(data);
-      if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
-      return data.id;
-    } catch (error) {
-      WamaApp.toast(`Erreur pour ${file.name}: ${error.message}`, 'error');
-      return null;
+  // ── Voie d'import (IMAGE/VIDÉO) : brique commune WamaImport — portage 2026-09-07 ──
+  //
+  // 5ᵉ app EN PLACE à l'adopter (plan « fichiers d'entrée », MEDIA_STORAGE_TIERING §8 ;
+  // inventaire ROUTE §Portage F2). Ce qui vivait ici — `uploadFile`, `handleFiles` (lot testé
+  // sur CHAQUE fichier), `initUpload`, `initDragDrop` (clic, survol, drop récursif, sélecteur de
+  // dossier, bouton « parcourir » que la card commune ne rend pas) — est le contrat de la brique.
+  // L'app ne DÉCLARE que :
+  //   • `batchScope:'each'` : chaque fichier est testé comme descripteur de lot (évolution 6) ;
+  //   • `extraFields`     : format et qualité de sortie du volet ;
+  //   • `afterImport`     : SA politique d'affichage — 1 élément → la card arrive RENDUE DU
+  //                         SERVEUR en tête de file (`appendRow`, sans reload) ; plusieurs →
+  //                         reload (la consolidation vient d'être faite par la brique).
+  //                         L'ancienne boucle insérait chaque card PUIS rechargeait quand N > 1 :
+  //                         des insertions aussitôt effacées. Réponse brute reçue via
+  //                         `reponses` (évolution 7).
+  // ⚠ La voie AUDIO (`audio-enhancer.js`, zone `dropZoneAudio`) n'est PAS concernée : lot maison
+  // (`AUDIO_BATCH_EXTS`, `batch_file`) hors `WamaBatchImport` — inventaire ROUTE : « ❌ sans
+  // évolution ». Deux voies sur la même page, une seule portée ici.
+  function initImport() {
+    if (typeof window.WamaImport !== 'function') {
+      // Défaut le plus silencieux qui soit (une zone de dépôt que rien n'écoute) → on le DIT.
+      WamaApp.toast("Voie d'import non chargée (wama-import.js) — dépôt impossible", 'error');
+      console.error('[Enhancer] WamaImport absent : wama-import.js non chargé par le gabarit');
+      return;
     }
-  }
-
-  async function handleFiles(files) {
-    const ids = [];
-    for (const file of files) {
-      if (window._batchImport && await window._batchImport.detectAndHandle(file)) continue;
-      const id = await uploadFile(file);
-      if (id) ids.push(id);
-    }
-    // Consolidation en UN batch si plusieurs fichiers médias importés ensemble.
-    if (ids.length > 1 && config.consolidateUrl) {
-      try {
-        await fetch(config.consolidateUrl, {
-          method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
-          body: JSON.stringify({ ids }),
-        });
-      } catch (e) { /* ignore : à défaut, items individuels */ }
-      location.reload();
-    }
-  }
-
-  function initUpload() {
-    if (!fileInput) return;
-
-    fileInput.addEventListener('change', function () {
-      if (!this.files.length) return;
-      handleFiles(this.files);
-      fileInput.value = '';
+    window._import = WamaImport({
+      uploadUrl:        config.uploadUrl,
+      consolidateUrl:   config.consolidateUrl,
+      consolidateField: 'ids',
+      csrfToken:        csrfToken,
+      dropZoneId:       'dropZoneEnhancer',
+      fileInputId:      'enhancer-file',
+      folderInputId:    'enhancerFolderInput',
+      batch:            window._batchImport,
+      batchScope:       'each',
+      extraFields:      function (fd) {
+        fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+        fd.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
+      },
+      afterImport:      function (ids, reponses) {
+        if (ids.length !== 1) { location.reload(); return; }
+        const data = reponses[0] || { id: ids[0] };
+        data.status = data.status || 'PENDING';
+        appendRow(data);
+      },
     });
-  }
-
-  function initDragDrop() {
-    const dropZone = document.getElementById('dropZoneEnhancer');
-    const browseBtn = document.getElementById('enhancer-browse-btn');
-
-    if (!dropZone || !fileInput) return;
-
-    // Click on drop zone
-    dropZone.addEventListener('click', (e) => {
-      if (e.target !== browseBtn) {
-        fileInput.click();
-      }
-    });
-
-    // Browse button
-    if (browseBtn) {
-      browseBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        fileInput.click();
-      });
-    }
-
-    // Drag over
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-
-    // Drag leave
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('drag-over');
-    });
-
-    // Drop — dossiers inclus (brique commune WamaFolderImport, F2).
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      WamaFolderImport.collect(e.dataTransfer).then(list => {
-        if (list.length > 0) handleFiles(WamaFolderImport.files(list));
-      });
-    });
-
-    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
-    const folderInput = document.getElementById('enhancerFolderInput');
-    if (folderInput) {
-      folderInput.addEventListener('change', () => {
-        const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
-        if (files.length > 0) handleFiles(files);
-        folderInput.value = '';
-      });
-    }
   }
 
   async function refreshCard(id) {
@@ -755,8 +690,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Initialize
-  initUpload();
-  initDragDrop();
+  initImport();
   initUrlUpload();
   initExistingRows();
   initBulkActions();

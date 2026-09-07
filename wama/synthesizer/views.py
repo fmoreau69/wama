@@ -13,7 +13,7 @@ from django.conf import settings
 from django.shortcuts import render, get_object_or_404
 from django.views import View
 from django.views.generic import TemplateView
-from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
+from django.http import JsonResponse, FileResponse, HttpResponse, HttpResponseBadRequest
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.core.cache import cache
@@ -67,14 +67,13 @@ def consolidate(request):
     batch-of-1 créés à l'upload puis crée le batch-de-N (généralisation common).
     Si < 2 ids → ne fait rien.
     """
-    import json as _json
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    try:
-        ids = _json.loads(request.body or '{}').get('ids', [])
-    except (ValueError, TypeError):
-        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
-    ids = [int(i) for i in ids if str(i).isdigit()]
+    # Lecteur COMMUN (JSON ou multipart) — ne jamais lire `request.body` ici : sur un FormData,
+    # le middleware CSRF a consommé le flux et `request.body` lève `RawPostDataException`
+    # (500 mesuré le 2026-09-07 au 1er appel par la brique WamaImport ; cf. queue_manipulation).
+    from wama.common.utils.queue_manipulation import ids_from_request
+    ids = ids_from_request(request)
 
     syntheses = list(VoiceSynthesis.objects.filter(id__in=ids, user=user))
     order = {sid: pos for pos, sid in enumerate(ids)}

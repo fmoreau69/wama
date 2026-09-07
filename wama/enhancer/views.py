@@ -81,13 +81,12 @@ def _auto_wrap_orphans(user):
 @require_POST
 def consolidate(request):
     """Regroupe plusieurs enhancements (médias) importés ensemble en UN batch-of-N."""
-    import json as _json
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    try:
-        ids = _json.loads(request.body or '{}').get('ids', [])
-    except (ValueError, TypeError):
-        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
-    ids = [int(i) for i in ids if str(i).isdigit()]
+    # Lecteur COMMUN (JSON ou multipart) — ne jamais lire `request.body` ici : sur un FormData,
+    # le middleware CSRF a consommé le flux et `request.body` lève `RawPostDataException`
+    # (500 mesuré le 2026-09-07 au 1er appel par la brique WamaImport ; cf. queue_manipulation).
+    from wama.common.utils.queue_manipulation import ids_from_request
+    ids = ids_from_request(request)
 
     from wama.common.utils.batch_common import load_in_import_order
     items = load_in_import_order(Enhancement, ids, user)
@@ -105,13 +104,9 @@ def audio_consolidate(request):
     Audio = nature unique → consolidation simple (défait les batch-of-1 créés à
     l'upload). Mirroir de la consolidation média / synthesizer.
     """
-    import json as _json
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    try:
-        ids = _json.loads(request.body or '{}').get('ids', [])
-    except (ValueError, TypeError):
-        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
-    ids = [int(i) for i in ids if str(i).isdigit()]
+    from wama.common.utils.queue_manipulation import ids_from_request   # jumeau du précédent
+    ids = ids_from_request(request)
 
     # Même helper que l'import filemanager (of-N, défait les of-1).
     batch = consolidate_audio_into_batches(ids, user)

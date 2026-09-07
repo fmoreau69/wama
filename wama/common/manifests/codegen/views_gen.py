@@ -775,7 +775,7 @@ def batch_start(request, pk):
     # piège que la cascade du dépôt) : le FormData d'une modale poste TOUTES ses valeurs,
     # VIDES comprises — appliquer '' sur une colonne Integer plante au save (int('') →
     # 500)... et SEULEMENT depuis un vrai navigateur : le client de test Django poste en
-    # urlencoded, le défaut lui est invisible (même angle mort que _ids_de_la_requete).
+    # urlencoded, le défaut lui est invisible (même angle mort que ids_from_request, queue_manipulation).
     # `coerce_schema_values` type ('640'→640, 'true'→True) et FAIT DISPARAÎTRE les vides —
     # la sémantique voulue : un champ vide veut dire « ne pas toucher », jamais « effacer ».
     try:

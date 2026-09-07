@@ -117,76 +117,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Drag & Drop
+    // Zone de dépôt : clic, survol, drop récursif, sélecteur de fichiers et sélecteur de dossier
+    // sont câblés par WamaImport (instancié plus bas, APRÈS `_batchImport` dont il dépend —
+    // portage 2026-09-07). Ne reste ici que l'écouteur du canal FileManager (vakata), qui n'est
+    // pas un `drop` natif. Le bouton « parcourir » (#browseBtn) n'est rendu par aucun gabarit.
+    // ⚠ La branche « drop depuis le FileManager » (`getFileManagerData` → `importToApp`) est
+    // RETIRÉE, même verdict que le describer : `application/x-wama-file` n'est émis nulle part,
+    // et un glisser jstree ne produit aucun `drop` natif — il arrive par `filemanager:imported`
+    // ci-dessous, émis par le canal GLOBAL de filemanager.js (import serveur).
     const dropZone = document.getElementById('dropZoneSynthesizer');
-    const fileInput = document.getElementById('fileInput');
-    const browseBtn = document.getElementById('browseBtn');
 
-    if (dropZone && fileInput) {
-        dropZone.addEventListener('click', () => fileInput.click());
-
-        if (browseBtn) {
-            browseBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                fileInput.click();
-            });
-        }
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('drag-over');
-        });
-
-        dropZone.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-
-            // Check if this is a FileManager drop
-            if (window.FileManager && window.FileManager.getFileManagerData) {
-                const fileData = window.FileManager.getFileManagerData(e);
-                if (fileData && fileData.path) {
-                    // Handle FileManager import
-                    try {
-                        const result = await window.FileManager.importToApp(fileData.path, 'synthesizer');
-                        if (result.imported && result.is_batch && result.tasks && result.tasks.length > 0) {
-                            // Batch file detected — show batch bar instead of reloading
-                            _serverBatchDirect(result);
-                        } else if (result.imported) {
-                            window.location.reload();
-                        }
-                    } catch (error) {
-                        console.error('FileManager import error:', error);
-                        if (window.FileManager.showToast) {
-                            window.FileManager.showToast('Erreur d\'import: ' + error.message, 'danger');
-                        }
-                    }
-                    return;
-                }
-            }
-
-            // Regular file drop — dossiers inclus (brique commune WamaFolderImport, F2).
-            const list = await WamaFolderImport.collect(e.dataTransfer);
-            if (list.length > 0) handleFilesWithDetect(WamaFolderImport.files(list));
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            handleFilesWithDetect(e.target.files);
-        });
-
-        // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
-        const folderInput = document.getElementById('synthFolderInput');
-        if (folderInput) {
-            folderInput.addEventListener('change', () => {
-                const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
-                if (files.length > 0) handleFilesWithDetect(files);
-                folderInput.value = '';
-            });
-        }
-
+    if (dropZone) {
         // FileManager import result (vakata.dnd path — native drop event never fires for filemanager drags)
         dropZone.addEventListener('filemanager:imported', (e) => {
             const result = e.detail;
@@ -884,26 +825,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    async function handleFiles(files) {
-        // Upload tous les fichiers, puis consolide en UN batch si plusieurs
-        // (le serveur défait les batch-of-1 créés à l'upload). Un seul reload.
-        const ids = [];
-        for (const file of files) {
-            const id = await uploadFile(file);
-            if (id) ids.push(id);
-        }
-        if (ids.length > 1 && URLS.consolidate) {
-            try {
-                await fetch(URLS.consolidate, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                    body: JSON.stringify({ ids }),
-                });
-            } catch (_e) { /* à défaut : items individuels */ }
-        }
-        if (ids.length > 0) location.reload();
-    }
-
     // ── Batch detection ───────────────────────────────────────────────────────
     // Detects if a file is a pipe-separated batch file before uploading.
     // For text-based formats (txt/md/csv): client-side analysis.
@@ -936,16 +857,50 @@ document.addEventListener('DOMContentLoaded', function() {
         },
     }) : null;
 
-    async function handleFilesWithDetect(files) {
-        // SNAPSHOT : files peut être la FileList VIVANTE de l'input, vidée par
-        // l'appelant pendant les await ci-dessous (leçon reader 2026-07-27).
-        const arr = Array.from(files);
-        const rest = [];
-        for (const f of arr) {
-            if (_batchImport && await _batchImport.detectAndHandle(f)) continue;
-            rest.push(f);
-        }
-        if (rest.length) await handleFiles(rest);
+    // ── Voie d'import : brique commune WamaImport (wama-import.js) — portage 2026-09-07 ──
+    //
+    // 4ᵉ app EN PLACE à l'adopter (plan « fichiers d'entrée », MEDIA_STORAGE_TIERING §8 ;
+    // inventaire ROUTE §Portage F2). Ce qui vivait ici — `handleFilesWithDetect` (lot testé sur
+    // CHAQUE fichier), `handleFiles` (upload séquentiel, consolidation `ids`, reload),
+    // `uploadFile` (les réglages du volet postés avec le fichier) — est le contrat de la brique.
+    // L'app ne DÉCLARE que :
+    //   • `batchScope:'each'` : chaque fichier déposé est testé comme descripteur de lot, les
+    //                           lots reconnus sortent de l'envoi (évolution 6 de la brique, écrite
+    //                           POUR cette politique — la brique ne connaissait que « si seul ») ;
+    //   • `extraFields`     : les réglages du volet (mêmes ids et mêmes défauts que le
+    //                           `formDataBuilder` du lot ci-dessus) + les champs Higgs.
+    // PRÉSERVÉ par les défauts : `id` lu en repli, reload après consolidation, rien si aucun id.
+    // ⚠ L'ancien `uploadFile` lisait `#tts_model` et consorts SANS garde : un id absent levait
+    // dans un `async` non attendu — import mort, sans un mot. Le lecteur `v(id, défaut)` du lot
+    // est réutilisé : même valeur quand le champ existe, un défaut sinon.
+    if (typeof window.WamaImport === 'function') {
+        window._import = WamaImport({
+            uploadUrl:        URLS.upload,
+            consolidateUrl:   URLS.consolidate,
+            consolidateField: 'ids',
+            csrfToken:        csrfToken,
+            dropZoneId:       'dropZoneSynthesizer',
+            fileInputId:      'fileInput',
+            folderInputId:    'synthFolderInput',
+            batch:            _batchImport,
+            batchScope:       'each',
+            extraFields:      function (fd) {
+                const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
+                fd.append('tts_model', v('tts_model', 'coqui-xtts'));
+                fd.append('quality_intent', v('quality_intent', '50'));
+                fd.append('language', v('language', 'fr'));
+                fd.append('voice_preset', v('voice_preset', 'default'));
+                fd.append('speed', v('speed', '1.0'));
+                fd.append('pitch', v('pitch', '1.0'));
+                fd.append('output_format', v('output_format', '') || 'original');
+                fd.append('output_quality', v('output_quality', '') || 'balanced');
+                appendHiggsFields(fd);
+            },
+        });
+    } else {
+        // Défaut le plus silencieux qui soit (une zone de dépôt que rien n'écoute) → on le DIT.
+        WamaApp.toast("Voie d'import non chargée (wama-import.js) — dépôt impossible", 'error');
+        console.error('[Synthesizer] WamaImport absent : wama-import.js non chargé par le gabarit');
     }
 
     async function _serverBatchDirect(result) {
@@ -969,43 +924,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (err) { WamaApp.toast('Erreur réseau : ' + err.message, 'error'); }
     }
     // ─────────────────────────────────────────────────────────────────────────
-
-    async function uploadFile(file) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('tts_model', document.getElementById('tts_model').value);
-                formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
-        formData.append('language', document.getElementById('language').value);
-        formData.append('voice_preset', document.getElementById('voice_preset').value);
-        formData.append('speed', document.getElementById('speed').value);
-        formData.append('pitch', document.getElementById('pitch').value);
-        formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-        formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-        appendHiggsFields(formData);
-
-        try {
-            const response = await fetch(URLS.upload, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrfToken },
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // Ne PAS recharger ici : handleFiles consolide d'abord les
-                // imports multiples en UN seul batch, puis recharge une fois.
-                return data.id || null;
-            } else {
-                WamaApp.toast('Erreur: ' + (data.error || 'Upload échoué'), 'error');
-                return null;
-            }
-        } catch (error) {
-            console.error('Upload error:', error);
-            WamaApp.toast('Erreur de communication: ' + error.message, 'error');
-            return null;
-        }
-    }
 
     async function updateConsole() {
         try {

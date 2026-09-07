@@ -60,7 +60,7 @@ from django.views.decorators.http import require_POST
 from wama.common.utils.batch_common import wrap_in_batch, consolidate_into_batch
 
 
-def _ids_de_la_requete(request):
+def ids_from_request(request, field: str = 'ids'):
     """Identifiants postés — quelle que soit la FORME de la requête.
 
     ⚠ Ne JAMAIS toucher `request.body` sans avoir vérifié le type de contenu. Sur un POST
@@ -69,20 +69,35 @@ def _ids_de_la_requete(request):
     `ValueError` ni `TypeError`, donc que le `try/except` d'origine ne rattrapait pas. La vue
     partait en 500 dès qu'un navigateur l'appelait.
 
-    Pourquoi ça n'avait pas été vu : le client de test Django poste en **urlencoded**, où
-    `request.body` reste lisible — le défaut ne se manifeste QUE depuis un vrai navigateur.
+    Pourquoi ça n'avait pas été vu : c'est le middleware CSRF qui consomme le flux (il lit
+    `request.POST` sur tout POST) — et le client de test Django ne l'applique pas, donc
+    `request.body` y reste lisible. Le défaut ne se manifeste QUE depuis un vrai navigateur.
     Mesuré le 2026-08-22 au smoke Playwright de converter_01 (import multi-fichiers).
 
-    Formes acceptées : JSON `{"ids": [...]}`, et champs répétés `ids` ou `ids[]`.
+    ⚠⚠ RÉCIDIVE le 2026-09-07 : cette garde vivait ICI (fabrique commune) pendant que **quatre
+    vues `consolidate` propres aux apps** (describer, synthesizer, enhancer ×2) gardaient le
+    `try/except` d'origine — invisible tant que leur front postait du JSON. Le jour où la brique
+    d'import commune (`WamaImport`, FormData) les a appelées, le lot de 2 fichiers a cessé de se
+    former, en 500, sur les trois apps portées. « Une garde se pose avec ses JUMEAUX » : le
+    lecteur est désormais PUBLIC et importé par ces vues — plus aucune ne lit `request.body`.
+    Nom anglais parce qu'IMPORTÉ (règle de nommage) ; `field` pour le contrat historique du
+    converter (`job_ids`).
+
+    Formes acceptées : JSON `{"<field>": [...]}`, et champs répétés `<field>` ou `<field>[]`.
     """
     if (request.content_type or '').startswith('application/json'):
         try:
-            return [int(i) for i in (json.loads(request.body or '{}').get('ids') or [])
+            return [int(i) for i in (json.loads(request.body or '{}').get(field) or [])
                     if str(i).isdigit()]
         except (ValueError, TypeError):
             return []
-    brut = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    brut = request.POST.getlist(field + '[]') or request.POST.getlist(field)
     return [int(i) for i in brut if str(i).isdigit()]
+
+
+#: Ancien nom (privé, français) — conservé le temps d'un cycle pour les lecteurs de diff ;
+#: aucun consommateur hors de ce module ne l'a jamais importé (grep 2026-09-07).
+_ids_de_la_requete = ids_from_request
 
 
 def _refus_de_groupe(group_key, work, membres):
@@ -230,7 +245,7 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
         Défait les batch-of-1 créés à l'upload puis crée le batch-of-N.
         """
         user = get_user(request)
-        ids = _ids_de_la_requete(request)
+        ids = ids_from_request(request)
 
         works = list(work_model.objects.filter(id__in=ids, user=user))
         pos = {wid: p for p, wid in enumerate(ids)}
@@ -373,7 +388,7 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         delete d'un batch encore peuplé — cf. CASCADE).
         """
         user = get_user(request)
-        ids = _ids_de_la_requete(request)
+        ids = ids_from_request(request)
 
         works = list(work_model.objects.filter(id__in=ids, user=user))
         pos = {wid: p for p, wid in enumerate(ids)}

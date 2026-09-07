@@ -680,12 +680,11 @@ def consolidate(request):
     Appelé par le front après avoir uploadé plusieurs fichiers d'un coup :
     chaque /upload/ crée un job orphelin, puis on consolide ici → 1 batch/nature.
     """
-    import json as _json
-    try:
-        ids = _json.loads(request.body or '{}').get('job_ids', [])
-    except Exception:
-        ids = request.POST.getlist('job_ids')
-    ids = [int(i) for i in ids if str(i).isdigit()]
+    # Lecteur COMMUN (JSON ou multipart), champ HISTORIQUE `job_ids` — l'`except Exception`
+    # d'origine attrapait par chance la `RawPostDataException` d'un FormData ; ses jumeaux
+    # (describer, synthesizer, enhancer) ne l'attrapaient pas (500, 2026-09-07). Un lecteur.
+    from wama.common.utils.queue_manipulation import ids_from_request
+    ids = ids_from_request(request, field='job_ids')
     batches = consolidate_jobs_into_batches(ids, request.user)
     return JsonResponse({'success': True, 'batches': len(batches)})
 

@@ -249,6 +249,77 @@ class RefusDeFusionTest(TestCase):
                             "l'import RANGE par nature : deux lots, jamais un lot mixte")
 
 
+class LecteurDIdsSurMultipartTest(TestCase):
+    """Les `consolidate` PROPRES aux apps survivent-ils à un FormData dont le flux est CONSOMMÉ ?
+
+    La forme EXACTE de la panne du 2026-09-07 : la brique d'import commune poste la
+    consolidation en multipart ; le middleware CSRF lit `request.POST` sur tout POST (flux
+    consommé) ; la vue lit ensuite `request.body` → `RawPostDataException`, que son
+    `except (ValueError, TypeError)` ne rattrape pas → 500 → le lot de 2 fichiers ne se forme
+    plus. Trois apps portées le même soir, trois fois le même 500 — la garde vivait dans la
+    fabrique commune (22/08) sans ses jumeaux.
+
+    ⚠ Le client de test n'applique pas le middleware CSRF : sans le `r.POST` explicite
+    ci-dessous, `request.body` reste lisible et ces tests seraient verts sur le code cassé.
+    """
+
+    #: (app, vue, champ) — TOUTES les vues `consolidate` écrites par une app (les autres viennent
+    #: de la fabrique `queue_manipulation`, déjà tenue par `ids_from_request`).
+    VUES = [
+        ('converter', 'consolidate', 'job_ids'),
+        ('describer', 'consolidate', 'ids'),
+        ('synthesizer', 'consolidate', 'ids'),
+        ('enhancer', 'consolidate', 'ids'),
+        ('enhancer', 'audio_consolidate', 'ids'),
+        ('anonymizer', 'consolidate', 'ids'),
+    ]
+
+    def setUp(self):
+        self.user = User.objects.create_user('dnd_multipart', 'mp@test.local', 'x')
+        self.rf = RequestFactory()
+
+    def _formdata_consomme(self, champ):
+        r = self.rf.post('/', {champ: ['1', '2']})      # multipart : le défaut de RequestFactory
+        r.user = self.user
+        _ = r.POST                                       # ce que fait le middleware CSRF
+        return r
+
+    def test_la_premisse_tient_le_flux_consomme_rend_request_body_illisible(self):
+        from django.http import RawPostDataException
+        r = self._formdata_consomme('ids')
+        with self.assertRaises(RawPostDataException):
+            _ = r.body
+
+    def test_le_lecteur_commun_lit_les_ids_d_un_formdata_consomme(self):
+        from wama.common.utils.queue_manipulation import ids_from_request
+        self.assertEqual([1, 2], ids_from_request(self._formdata_consomme('ids')))
+        self.assertEqual([1, 2], ids_from_request(self._formdata_consomme('job_ids'), field='job_ids'))
+
+    def test_chaque_consolidate_d_app_repond_sur_un_formdata_consomme(self):
+        """Ids inconnus → réponse « rien à consolider », jamais un 500 : c'est le lecteur qu'on éprouve."""
+        import importlib
+        for app, nom, champ in self.VUES:
+            with self.subTest(app=app, vue=nom):
+                vue = getattr(importlib.import_module(f'wama.{app}.views'), nom)
+                rep = vue(self._formdata_consomme(champ))
+                self.assertEqual(200, rep.status_code)
+
+    def test_aucun_consolidate_d_app_ne_lit_request_body(self):
+        """Garde mécanique : la prochaine vue qui recopie l'ancien `try/except` sort ici en rouge."""
+        import importlib
+        import inspect
+        for app, nom, _champ in self.VUES:
+            with self.subTest(app=app, vue=nom):
+                vue = getattr(importlib.import_module(f'wama.{app}.views'), nom)
+                # CODE seul : le commentaire qui explique POURQUOI on ne lit pas `request.body`
+                # le cite forcément — un garde qu'un commentaire fait tomber devine au lieu de
+                # mesurer (même leçon que `find_code` dans la grille, 19/08).
+                code = '\n'.join(l for l in inspect.getsource(inspect.unwrap(vue)).splitlines()
+                                 if not l.strip().startswith('#'))
+                self.assertNotIn('request.body', code)
+                self.assertIn('ids_from_request', code)
+
+
 class OrdreManuelDeFileTest(TestCase):
     """`reorder_queue` + le tri `manual` — l'ordre de niveau supérieur, qui n'existait pas."""
 

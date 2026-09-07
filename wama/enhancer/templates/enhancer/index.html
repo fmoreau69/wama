@@ -325,6 +325,7 @@
 </script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
+<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE (WamaImport) : instanciée par index.js pour la zone image/vidéo — 5ᵉ app en place (2026-09-07) ; la zone audio garde audio-enhancer.js #}
 <script src="{% static_v 'enhancer/js/index.js' %}"></script>
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'enhancer:global_progress' %}";</script>
