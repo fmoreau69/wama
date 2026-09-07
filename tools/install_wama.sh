@@ -29,6 +29,8 @@
 #     --skip-venv          venv et pip déjà faits — passe aux étapes suivantes
 #     --skip-vendors       ne retélécharge pas les assets front
 #     --with-avatarizer    ajoute MuseTalk + CodeFormer (LOURD : clones git + pip, plusieurs Go)
+#                          ⚠ RÉTROGRADE des dépendances PARTAGÉES — voir l'étape 8
+#     --with-face-analyzer ajoute FER + DeepFace + MediaPipe (WAMA Lab, ~2 Go avec TensorFlow)
 #     --help
 # =============================================================================
 set -euo pipefail
@@ -36,13 +38,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-DRY=0; SKIP_VENV=0; SKIP_VENDORS=0; WITH_AVATARIZER=0
+DRY=0; SKIP_VENV=0; SKIP_VENDORS=0; WITH_AVATARIZER=0; WITH_FACE_ANALYZER=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run)         DRY=1 ;;
     --skip-venv)       SKIP_VENV=1 ;;
     --skip-vendors)    SKIP_VENDORS=1 ;;
     --with-avatarizer) WITH_AVATARIZER=1 ;;
+    --with-face-analyzer) WITH_FACE_ANALYZER=1 ;;
     --help|-h)         sed -n '2,33p' "$0"; exit 0 ;;
     *) echo "Option inconnue : $arg (voir --help)"; exit 2 ;;
   esac
@@ -138,11 +141,46 @@ lancer "$PY" "$ROOT/manage.py" collectstatic --noinput
 # Hors du chemin par défaut : plusieurs Go de clones git + pip. Une install de base doit
 # pouvoir aboutir sans eux — les apps concernées signalent proprement leur indisponibilité.
 titre "Setups optionnels"
+
+# ⚠⚠ AVATARIZER — MESURÉ le 2026-09-07 : `setup_avatarizer.sh` installe DANS LE VENV COURANT
+# et y RÉTROGRADE deux dépendances PARTAGÉES —
+#     numpy      2.3.5  → 1.26.4   (pin `numpy>=1.26.0,<2.0`, pour un build Python 3.12)
+#     diffusers  0.37.0 → 0.27.2   (pin de MuseTalk ; c'est la version des 8 backends imager)
+# Les deux pins avaient une raison à leur époque ; aucun n'a été re-mesuré depuis. On ne les
+# corrige pas ICI (le domicile est `setup_avatarizer.sh`), mais on ne les subit plus en
+# silence : la simulation `pip install --dry-run` est LECTURE SEULE et dit ce qui reculerait.
+# *Une installation optionnelle ne doit pas pouvoir abîmer l'installation principale sans
+# qu'on l'ait vu.*
 if [ "$WITH_AVATARIZER" = "1" ]; then
   echo "  Avatarizer (MuseTalk + CodeFormer) — LOURD…"
+  if [ "$DRY" != "1" ]; then
+    echo "  Simulation préalable (lecture seule) des pins connus pour reculer…"
+    for spec in "numpy>=1.26.0,<2.0" "diffusers==0.27.2"; do
+      recul="$("$PY" -m pip install --dry-run "$spec" 2>/dev/null | grep -oE 'Would install.*' || true)"
+      [ -n "$recul" ] && echo "    ⚠ $spec → $recul"
+    done
+    echo "    ↑ ces paquets sont PARTAGÉS. Interrompre maintenant (Ctrl-C) si ce recul n'est pas voulu."
+  fi
   lancer bash "$ROOT/wama/avatarizer/setup_avatarizer.sh"
 else
   echo "  → avatarizer NON installé (--with-avatarizer pour l'ajouter)"
+fi
+
+# FACE ANALYZER (WAMA Lab) — ses dépendances ne sont dans AUCUN requirements de la racine.
+# Elles vivent dans `wama_lab/face_analyzer/requirements/linux.txt`, DÉLIBÉRÉMENT non inclus :
+# `fer` y traîne `facenet-pytorch → torchvision`, et comme nos torch viennent de
+# `download.pytorch.org` en versions LOCALES (`+cu128`) absentes de PyPI, pip re-résout contre
+# PyPI et rétrograde torch 2.9.1 → 2.2.2 (15 paquets, mesuré le 2026-09-06).
+# D'où les DEUX gestes, dans cet ordre : `fer` en `--no-deps` (ses dépendances réelles sont
+# déjà là), puis le reste normalement.
+# ⚠ Sans cette étape, l'app est en INSTALLED_APPS mais son backend PAR DÉFAUT lève à la
+# première analyse — et l'échec passe pour un bug d'app, pas pour une install incomplète.
+if [ "$WITH_FACE_ANALYZER" = "1" ]; then
+  echo "  Face Analyzer (FER + DeepFace + MediaPipe, tire TensorFlow) — ~2 Go…"
+  lancer "$PY" -m pip install --no-deps "fer>=25.10.3"
+  lancer "$PY" -m pip install -r "$ROOT/wama_lab/face_analyzer/requirements/linux.txt"
+else
+  echo "  → face_analyzer NON installé (--with-face-analyzer pour l'ajouter)"
 fi
 
 # ── 9. Contrôles de bonne fin ───────────────────────────────────────────────
@@ -155,6 +193,14 @@ else
   "$PY" "$ROOT/manage.py" migrate --check >/dev/null 2>&1 \
     && echo "  ✔ aucune migration en attente" \
     || echo "  ⚠ des migrations restent à appliquer"
+  # Deux mesures nées en septembre 2026. Elles répondent à des questions que `check` ne pose
+  # pas : où sont RANGÉS les poids, et quels modèles sont réellement EXÉCUTABLES.
+  "$PY" "$ROOT/manage.py" check_model_layout >/dev/null 2>&1 \
+    && echo "  ✔ disposition des modèles : aucun snapshot étranger" \
+    || echo "  ⚠ check_model_layout signale quelque chose (le relancer pour le détail)"
+  # Informatif, jamais bloquant : sur une install neuve le catalogue est vide, et un catalogue
+  # vide n'est pas un défaut d'installation.
+  "$PY" "$ROOT/manage.py" check_backend_links 2>/dev/null | tail -n 3 || true
 fi
 
 cat <<'FIN'
