@@ -11795,3 +11795,51 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 | `converter.processing` | **OK** — démarrer → SUCCESS → téléchargement 519 o → visionneuse |
 | `converter.batch_processing` | **OK** — 2/2 réussis, ZIP vérifié `PK` 730 o |
 | catalogue des gestes | **17,5 / 19** |
+
+## §CLÔTURE — 2026-09-07, instance « CAM_ANALYZER » (suite du §REPRISE 04→07/09 ci-dessus) — ✅ CLOSE — 🔚 DEUX DÉCISIONS ATTENDUES
+
+> Ce bloc complète le `§REPRISE — 2026-09-04 → 09-07, instance « CAM_ANALYZER … »` (commité
+> `570641b1`) avec ce qui a suivi le 07/09 : question de Fabien sur la SURCHARGE DE BOUTONS de
+> lancement, le pipeline schéma-driven, et le palier ① livré sur GO. Contexte épuisé → clôture
+> pour session fraîche. **Trois instances** ont commité en parallèle toute la journée ; aucun
+> recouvrement de fichier, mais `PROJECT_STATUS` porte au moment de cette clôture un `§REPRISE`
+> NON commité de l'instance « card v4 » (laissé dans l'arbre, à elle).
+
+### Livré le 07/09 (après le handoff précédent)
+
+| commit | quoi | preuve |
+|---|---|---|
+| `5ee8ee4e` | **Inventaire des boutons de lancement** (`CHANGELOG § ÉTAT`, ligne « boutons de lancement ») : 11 boutons + 13 ▶ pour 4 intentions, 1 doublon strict ×2, 2 « tout relancer » dont un destructif, 3 « Compléter » pour 2 notions, calculs lancés en PARALLÈLE malgré `_DEPENDS_ON` ; artefact « volet droit » (05/08) relu contre le code = v1 partiellement livrée (Q1-Q3 ✅, Q4/3b ⏳), en-tête d'état posé dans `REPRISE_2026-08-06.md` (clé Playwright citée périmée) | mesuré dans `index.html`/`base.html`/`index.js`/`views.py` |
+| `adb74e16` | **Le pipeline schéma-driven n'était PAS à proposer : D13** (`WAMA_DATA_WORLD §9undecies.2`, tranchée 24/08 — kind `pipeline` étendu d'un nœud `function`, dispatch dans l'exécuteur ; plan C+D) — ma ligne d'une heure plus tôt le présentait comme ma route, corrigée | `/reprise §3a bis`, encore |
+| `913d9411` | **① Palier boutons** : registre `pass_tracking.PASSES` (SIX copies du graphe en dérivent : `_WATCHED`/`_STAGE`/`_DEPENDS_ON`/`_PER_CAMERA_PASSES`/`order`/`dispatch_map`) ; **▶ tout par étage** (📷/🧮) avec gating dérivé du graphe (+ 409 serveur) ; calculs **chaînés** en ordre topologique (`celery.chain`) ; « SAM3 seul » ×2 retiré, « Analyser » ×2 rebranché sur la voie du pipeline (l'ancienne `start_analysis` effaçait les DetectionFrame sans confirmation — vue laissée servie, plus appelée) ; « Compléter les passes » / « Étendre la couverture » | 20 tests registre · `check_js` 67/0 · `check_templates` 0 · **HUP gunicorn** puis smoke page 200 / 0 erreur JS · JS servi vérifié au `curl` · suite **1685 `OK`** |
+
+### ⚠⚠ Leçons du 07/09
+
+- **Un retrait se vérifie par ses LECTEURS, pas par la syntaxe** : un 3ᵉ appel `refreshSam3OnlyButton()` survivait dans `loadActiveProfile` ; `check_js` (parse) ne pouvait pas le voir, il aurait planté au chargement d'un profil. Grep des symboles retirés AVANT le smoke — et le smoke connecté (`ui_smoke`, 0 erreur JS) reste l'attestation.
+- **Chercher la DÉCISION avant la solution, y compris la table des D-décisions** de `WAMA_DATA_WORLD` : D13 y était depuis 15 jours.
+- **Le même graphe écrit six fois diverge** (deux passes sans dépendances) : un registre + des dérivés, comme `features.FEATURES`.
+- **Un run de suite rouge se relit ligne à ligne** : deux échecs = mon test mal écrit + un fugace hors périmètre (`gateway.QrAppariementTests…url_publique`, lien QR vide, 3/3 seul, non reparu au run suivant) — dépendant de l'ordre, **à attribuer**, pas touché.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — deux décisions de Fabien, puis coder
+
+1. **La FORME de la facette estimateur (⑤b)** — soumise le 05/09 : `estimates` (grandeur, vocabulaire fermé) · `uncertainty` (constante | champ par ligne | modèle déclaré) · `derived_from` (donnée native : gps/bbox/depth_map/imu) sur les **ports de sortie**, pas de 9ᵉ registre ; 1ᵉʳ consommateur `fuse_estimates` (1/σ², refus si `derived_from` partagé), sur le CAP d'abord.
+2. **GO + PARTITION pour le commun et le Studio** — marches **C** (`group` sur `PortSpec` + `function_node_ports()` de MÊME forme que `studio_node_ports`) et **D** (nœud `function` : validateur du kind `pipeline` + dispatch dans `run_pipeline_task` — `pure` → `spec.fn(TypedFrame)` synchrone, `app`-bound → `impl` + poll comme un job — + palette `api_nodes`). ⚠ **C et ⑤b modèlent tous deux `PortSpec`** : les décider ensemble. Le Studio (`wama/studio/`) a été touché par une autre instance cette semaine (`WamaHistory`) — partition à déclarer.
+
+Ordre ensuite : C → D → export du registre `PASSES` en manifeste `pipeline` à nœuds `function` (le kind n'a aujourd'hui aucun dossier au corpus) → ⑥ test D.3 (en dernier, acté) → accéléromètre (MESURER l'axe avant) → σ du filtre → `ego_rotation`/`osm_control_nodes` câblés en mesure → #7 bâtiments IGN → `locate_anything`.
+
+### Pendings système (attribués)
+
+- `gateway` QR : échec **fugace dépendant de l'ordre** de la suite (1 run sur 2) — hors périmètre, à attribuer par qui tient `external_sources`/`base_url` ;
+- artefact `claude.ai/…/33b7052a` (« Réagencement du volet droit ») = v1 du 05/08, **non republié** — son état vit dans `REPRISE_2026-08-06.md` (en-tête) et `CHANGELOG § ÉTAT` ; Q4 (lecture chiffrée) et 3b (toggles « Vue » hors registre ⚑) restent ouverts ;
+- `start_analysis` (vue) et `start_sam3_only` (vue + URL) restent servis sans appelant front : à retirer ou à documenter comme API dans une passe dédiée ;
+- gunicorn : maître **HUP** une fois (07/09, ~21h) après le gabarit ; workers homogènes ;
+- **push** : `dev` a ~65 commits d'avance (trois instances) — non poussée ;
+- scratchpad de session purgé au changement de date : les sondes ad hoc ne survivent pas — celle du smoke est réécrite à chaque fois depuis la brique `ui_smoke` (aucune sonde ajoutée à `logs/ui_smoke/`).
+
+### Contrôles attendus au prochain /reprise (MESURÉS à la clôture, 07/09 soir)
+
+- `manage.py test` : **1685 `OK`** (11 skipped) — `OK` seul critère ; tolérer le fugace `gateway` UNE fois, pas deux ;
+- `check_docs` : **0 cassée / 0 périmée** (1472 au dernier relevé) ;
+- cam_analyzer : **13 passes** dans `PASSES` (= `PassType`), **17 bascules**, catalogue **58 fonctions**, corpus `manifests/functions/` **58** ;
+- smoke `cam_analyzer` (compte de test, sans VLM) : HTTP 200, 0 erreur JS ;
+- `doc_facts --check` : `mecanismes` périmé tant que l'arbre partagé n'est pas commité (autre instance).
