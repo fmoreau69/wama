@@ -11929,9 +11929,35 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 - ⚠ **Une brique commune adoptée par une app EN PLACE révèle ce que les jumelles ne voyaient pas** : la classe de survol. Les jumelles sont nées avec la card v4 (`dragover`), le parc est en v3 (`drag-over`). Chaque adoption suivante peut lever un écart de ce genre — les mesurer au navigateur, pas seulement aux gestes.
 - Le contrat de consolidation n'a PAS eu besoin d'être choisi : la fabrique commune lit JSON **et** champ répété — vérifié au code (`queue_manipulation._ids_de_la_requete`) avant d'écrire `consolidateField`.
 
-### 🔚 SUITE (ordre du handoff 04→07/09, inchangé)
+### 🔚 SUITE — état à la clôture du 07/09 (nuit) : **7/10 câblés, 6 commits**
 
-converter (`consolidateField:'job_ids'`, `beforeFile`) → describer (`afterImport` 1 vs N) → synthesizer → enhancer-image → composer (vue `upload` à créer) → reader (`multiple`) → anonymizer (`added[]` + progression) → enhancer-audio → imager/avatarizer (attache). **Même protocole** : 5 gestes avant, `kill -HUP`, famille `<app>.` après, smoke navigateur (classe de survol, `_import`, 0 erreur console).
+Portés (dans l'ordre, chacun avec 5 gestes avant / famille `<app>.` après / smoke) : transcriber,
+converter, describer, synthesizer, enhancer-image, reader, anonymizer. **Restent 3, et aucun
+n'est un simple câblage** :
+1. **composer** — aucune vue `upload` : un fichier NON-lot déposé est avalé sans trace
+   (`batch-import.js:256`). Ce qu'un fichier déposé SIGNIFIE pour le composer (mélodie de
+   référence = « attache » ? création d'une génération ?) est une **DÉCISION**, pas un portage ;
+2. **enhancer-audio** — lot maison (`AUDIO_BATCH_EXTS`, `batch_file`, `#audioBatchDetectBar`)
+   hors `WamaBatchImport` : soit la brique batch apprend ce contrat, soit l'audio adopte la barre
+   commune — un chantier de brique, pas un câblage ;
+3. **imager / avatarizer** — dépôt = ATTACHE (le fichier rejoint le formulaire) : c'est la
+   modalité « attache » de la **card v4** (`CARD_DESIGN §11.11 B`, autre instance).
+Protocole inchangé pour qui reprend : 5 gestes avant, `kill -HUP`, famille après, smoke navigateur
+(classe de survol, `_import`, 0 erreur console, **sonde réseau sur un dépôt de 2 fichiers**).
+⚠ `jQuery-file-upload` : 0 consommateur dans `wama/` — retrait (gabarit `app_base.html:8-10`,
+dossier `wama/static/js/jquery-file-upload/`, `REMOVAL_LEDGER`) à faire en 3 surfaces.
+
+### Contrôles attendus au prochain `/reprise` — TOUS MESURÉS le 2026-09-07 (nuit, après le 6ᵉ commit)
+
+| contrôle | valeur mesurée |
+|---|---|
+| suite complète (WSL2, `--keepdb`, base de test libre) | **1694 OK** (1685 au `/reprise` du matin ; +5 `import_front`, +4 `LecteurDIdsSurMultipartTest`) |
+| `check_docs` | **3 cassées / 1488** — TOUTES dans `ROADMAP.md` vers `anonymizer/backends/{sam3_processor,anonymize}.py`, fichiers **supprimés (stagés) par une autre instance** pendant ma session : 0 cible mienne |
+| `doc_facts --check` | `mecanismes` régénéré puis **remis à HEAD** : sur l'arbre partagé il encodait les suppressions non commitées de l'autre instance (`data_noms`, `audio_decode`, `hf_weights`, `resource_governor` en baisse) — à régénérer par qui commite en dernier ; `conformite` à jour (89) |
+| `manifest_export --check` | non relancé : le corpus est en cours de régénération par une autre instance (106 manifestes modifiés dans l'arbre) |
+| grille | converter **100**, describer **100**, reader **96**, transcriber **95**, synthesizer **95** ; anonymizer **91** / enhancer **92** en BAISSE par le chantier backends d'une autre instance (`backend_packages`, `hf_cache_isolation`…), pas par le portage |
+| familles nocturnes après portage | transcriber 13/13 · converter 13/14 + skip anti-bouclage · describer 12/12 · synthesizer 12/13 + skip « pas d'URL » · enhancer 11/12 + skip anti-bouclage · reader 11/12 + skip « pas d'URL » · anonymizer 11/12 + skip anti-bouclage ; parc `.import` **0 échec** |
+| push | `dev` non poussée par moi (6 commits de portage : `18a6266c`, `401bd9a0`, `90984b25` + 3 suivants) — mesurer contre `origin/dev` avant de conclure |
 
 ### Pendings système
 
