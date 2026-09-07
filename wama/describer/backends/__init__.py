@@ -1,8 +1,6 @@
 """Backends du describer — contrat commun + registre `BackendManager` (brique commune)."""
 from wama.common.backends.manager import BackendManager
 
-from wama.common.backends.blip_backend import BlipBackend
-
 #: ── ROUTAGE nature → backend : LA déclaration que la chaîne de génération COMPOSE ─────────
 #: (marche B1 describer, 2026-09-03 — 2ᵉ app routée, 1ʳᵉ à MODÈLES IA ; pilote converter.)
 #:
@@ -36,13 +34,22 @@ RESULT = {'kind': 'text', 'field': 'result_text'}
 NATURE_FIELD = 'detected_type'
 
 #: Registre/singletons — brique commune (remplace le boilerplate de manager par-app).
+#: ⚠ Plus AUCUNE classe enregistrée à l'import (2026-09-07) : le MODÈLE porte son moteur, la
+#: classe s'en dérive par le catalogue (`describer:blip`), et l'enregistrement se fait au
+#: premier appel — un import de paquet ne doit ni toucher la base ni choisir un backend.
 MANAGER = BackendManager('describer')
-MANAGER.register('blip', BlipBackend)
 
 
-def get_blip() -> BlipBackend:
-    """Instance singleton (keep_loaded) du backend BLIP."""
+def get_blip():
+    """Instance singleton (keep_loaded) du backend BLIP, résolu par le catalogue."""
+    if 'blip' not in MANAGER.keys():
+        from wama.common.backends.manager import backend_for_key
+        classe = backend_for_key('describer:blip')
+        if classe is None:
+            raise RuntimeError("describer:blip : aucun backend résolu depuis le catalogue "
+                               "(ligne absente, ou sans moteur déclaré)")
+        MANAGER.register('blip', classe)
     return MANAGER.get_backend('blip')
 
 
-__all__ = ['BlipBackend', 'MANAGER', 'get_blip', 'ROUTES', 'RESULT', 'NATURE_FIELD']
+__all__ = ['MANAGER', 'get_blip', 'ROUTES', 'RESULT', 'NATURE_FIELD']

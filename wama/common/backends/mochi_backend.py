@@ -78,6 +78,8 @@ class MochiBackend(ImageGenerationBackend):
     # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'diffusers'
+    #: Classe de PARAMÈTRES déclarée par le backend (2026-09-07) — lue sur la classe RÉSOLUE.
+    PARAMS = MochiParams
     REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "mochi"
     display_name = "Mochi-1"

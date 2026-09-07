@@ -53,10 +53,13 @@ class AudioPreprocessor:
         source = input_path
         tmp_denoised = None
         try:
-            from wama.common.backends.audio_enhancer import (
-                get_deepfilternet_backend, DeepFilterNetBackend,
-            )
-            if DeepFilterNetBackend.is_available():
+            # Le MODÈLE porte son moteur ; le backend s'en dérive (2026-09-07) : le
+            # préprocesseur demande « le backend d'enhancer:deepfilternet », plus une classe
+            # par chemin. Le singleton keep_loaded reste celui de l'enhancer (fonction).
+            from wama.common.backends.manager import backend_for_key
+            from wama.common.backends.audio_enhancer import get_deepfilternet_backend
+            DeepFilterNetBackend = backend_for_key('enhancer:deepfilternet')
+            if DeepFilterNetBackend is not None and DeepFilterNetBackend.is_available():
                 tmp_denoised = output_path + ".dfn.wav"
                 # mono=True : l'étape 2 reconvertit de toute façon en 16 kHz mono, donc
                 # débruiter en stéréo ne change RIEN au résultat ASR et double la RAM

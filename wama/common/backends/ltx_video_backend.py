@@ -89,6 +89,8 @@ class LTXVideoBackend(ImageGenerationBackend):
     # côté DiffusersBackend).
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'diffusers'
+    #: Classe de PARAMÈTRES déclarée par le backend (2026-09-07) — lue sur la classe RÉSOLUE.
+    PARAMS = LTXVideoParams
     REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "ltx_video"
     display_name = "LTX-Video"

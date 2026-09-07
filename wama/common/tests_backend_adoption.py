@@ -28,16 +28,17 @@ from django.test import TestCase
 
 from wama.common.services import backend_inventory as bi
 
-#: Sites MESURÉS le 2026-09-07 (soir, après la 3ᵉ tranche — 22 → 18 : reader olmocr/doctr et
-#: imager qwen-image/flux2-klein passés par la déclaration) :
-#:   imager 6 (tasks vidéo ×5 — hunyuan/cogvideox/ltx/mochi/wan, choisis par PRÉFIXE de nom et
-#:   accompagnés de leur classe de Params ; views ×1 — lecture des défauts de DiffusersBackend) ·
-#:   model_manager/model_registry 8 (la DÉCOUVERTE importe les classes pour lire leurs
-#:   déclarations — l'inventaire, lui, les lit par AST) · avatarizer 2 (singletons de module,
-#:   le job ne choisit pas par clé) · anonymizer 1 (SAM3 : bascule = option utilisateur, poids
-#:   YOLO choisis dans le backend) · transcriber 1 (DeepFilterNet depuis le préprocesseur audio).
-#: NE JAMAIS RELEVER CE NOMBRE. Le faire descendre = une app de plus passe par la déclaration.
-BUDGET_IMPORTS_PAR_CHEMIN = 18
+#: **0 depuis le 2026-09-07 (nuit)** — le budget est SOLDÉ, la garde est désormais ABSOLUE.
+#: Trajet mesuré dans la journée : 22 (premiers adoptants composer/enhancer) → 18 (reader,
+#: imager image) → 0 (imager vidéo ×5 — la classe de PARAMÈTRES est DÉCLARÉE par le backend,
+#: `PARAMS` ; model_registry ×8 — la découverte résout par le moteur que la déclaration d'app
+#: porte déjà ; avatarizer ×2 — résolution paresseuse ; anonymizer SAM3 ; DeepFilterNet du
+#: préprocesseur ; défauts de l'imager lus sur la déclaration du modèle).
+#: ⚠ Sur les 18 derniers, 2 étaient du CODE MORT EN PARALLÈLE (branches Wan et HunyuanVideo :
+#: plus aucune surface ne les offrait, poids partis depuis janvier) — un budget compte des
+#: lignes, pas des chemins vivants ; le test de vie se fait à part.
+#: NE JAMAIS RELEVER CE NOMBRE.
+BUDGET_IMPORTS_PAR_CHEMIN = 0
 
 _RACINES_CODE = ('wama', 'wama_lab')
 _DOSSIERS_ELAGUES = {'__pycache__', 'node_modules', 'site-packages', 'staticfiles',
@@ -122,7 +123,10 @@ class AdoptionParLesAppsTest(TestCase):
             f"dans le MÊME commit que l'adoption.")
 
     def test_les_adoptants_n_ont_plus_aucun_import_par_chemin(self):
-        """Preuve POSITIVE de l'adoption — le budget seul ne dit pas QUI a adopté."""
-        adoptants = ('wama/composer/', 'wama/enhancer/')
+        """Preuve POSITIVE de l'adoption — le budget seul ne dit pas QUI a adopté.
+
+        Depuis le 2026-09-07 (budget 0) : TOUTES les apps des deux mondes. Le test nomme le
+        site fautif, là où le budget ne donnerait qu'un compte."""
+        adoptants = ('wama/', 'wama_lab/')
         restes = [s for s in sites_import_par_chemin() if s[0].startswith(adoptants)]
-        self.assertEqual(restes, [], f'un adoptant importe encore par chemin : {restes}')
+        self.assertEqual(restes, [], f'une app importe encore une classe de backend par chemin : {restes}')

@@ -895,13 +895,10 @@ class ModelRegistry:
             # Descriptions = SOURCE UNIQUE : les CLASSES backend (contrat BaseModelBackend,
             # attributs `description`/`description_long` — c'est ce que l'app AFFICHE via
             # get_backends_info/WamaModelHelp). Le catalogue en devient le MIROIR (R10).
-            # Modules backend LÉGERS (libs lourdes lazy dans load()) — import sûr au sync.
-            # NB : ne PAS instancier TranscriberBackendManager ici (registration paresseuse
-            # → 0 backend) ; on importe les classes directement.
-            from wama.common.backends.whisper_backend import WhisperBackend
-            from wama.common.backends.vibevoice_backend import VibeVoiceBackend
-            from wama.common.backends.qwen_asr_backend import QwenASRBackend
-            from wama.common.backends.pyannote_diarizer import PyannoteDiarizerBackend
+            # La classe se RÉSOUT depuis le moteur que la DÉCLARATION d'app porte déjà
+            # (`engine` / `composition.runtime.engine`) — plus d'import par chemin ni de
+            # correspondance par préfixe de nom (2026-09-07). Import CIBLÉ et tardif, sûr au sync.
+            from wama.common.backends.manager import backend_for_engine
 
             preferred = self._get_preferred_format(ModelType.SPEECH)
             whisper_dir = Path(WHISPER_DIR)
@@ -919,15 +916,12 @@ class ModelRegistry:
                 # Descriptions : COURT + LONG séparés, depuis la classe backend (= ce qui
                 # s'affiche). Qwen = 2 modèles pour UN moteur → le COURT par-modèle vient de
                 # la config (différencie 0.6B/1.7B), le LONG (paragraphe moteur) de la classe.
-                if model_id.startswith('vibevoice-'):
-                    _cls = VibeVoiceBackend
-                elif model_id.startswith('qwen3-asr-'):
-                    _cls = QwenASRBackend
-                elif model_id == 'pyannote-diarization':
-                    _cls = PyannoteDiarizerBackend
-                else:
-                    _cls = WhisperBackend
-                description_short = config.get('description') or _cls.description
+                _moteur = (config.get('engine')
+                           or ((config.get('composition') or {}).get('runtime') or {}).get('engine')
+                           or '')
+                _cls = backend_for_engine(_moteur, model_id)   # None = description de repli
+                description_short = (config.get('description')
+                                     or getattr(_cls, 'description', '') or model_id)
                 description_long = getattr(_cls, 'description_long', '') or description_short
 
                 if model_id.startswith('vibevoice-'):
@@ -1071,16 +1065,19 @@ class ModelRegistry:
             # `supports_cloning` ferait disparaître les voix clonées de l'UI (voice_options
             # filtre dessus) — panne invisible, donc on la rend bruyante.
             # Coût nul : ces 4 modules n'importent rien de lourd (torch/TTS sont paresseux).
-            try:
-                from wama.synthesizer.backends import (
-                    BarkBackend, CoquiBackend, HiggsAudioBackend, KokoroBackend,
-                )
-                _TTS_BACKENDS = {'coqui-xtts': CoquiBackend, 'bark': BarkBackend,
-                                 'higgs-audio': HiggsAudioBackend, 'kokoro': KokoroBackend}
-            except Exception as _e:
-                _TTS_BACKENDS = {}
-                logger.error("[ModelRegistry] backends TTS illisibles (%s) — capacités de "
-                             "clonage/horodatage ABSENTES du catalogue ce cycle", _e)
+            # Le MODÈLE (déclaration d'app, `SYNTHESIZER_MODELS[*]['engine']`) porte son
+            # moteur ; la classe s'en DÉRIVE (2026-09-07) — plus de table de classes importées
+            # par chemin. Import CIBLÉ et tardif, coût nul (torch/TTS restent paresseux).
+            from wama.common.backends.manager import backend_for_engine
+
+            def _tts_backend_class(engine_key):
+                moteur = (_SYNTH_MODELS.get(engine_key) or {}).get('engine')
+                cls = backend_for_engine(moteur, engine_key) if moteur else None
+                if cls is None:
+                    logger.error("[ModelRegistry] backend TTS non résolu pour %s (moteur %r) — "
+                                 "capacités de clonage/horodatage ABSENTES du catalogue ce cycle",
+                                 engine_key, moteur)
+                return cls
 
             def _tts_caps(engine_key=None, **caps):
                 """Complète les capacités d'un moteur TTS avec le tronc CANONIQUE.
@@ -1096,7 +1093,7 @@ class ModelRegistry:
                 déjà, en True comme en False, et l'UI filtre dessus), les autres seulement
                 s'ils sont vrais — sinon on noierait chaque modèle sous des False sans objet.
                 """
-                cls = _TTS_BACKENDS.get(engine_key)
+                cls = _tts_backend_class(engine_key)
                 if cls is not None:
                     caps.setdefault('supports_cloning', bool(cls.supports_cloning))
                     if cls.supports_timestamps:

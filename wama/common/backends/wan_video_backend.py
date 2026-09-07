@@ -104,6 +104,8 @@ class WanVideoBackend(ImageGenerationBackend):
     # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'diffusers'
+    #: Classe de PARAMÈTRES déclarée par le backend (2026-09-07) — lue sur la classe RÉSOLUE.
+    PARAMS = VideoGenerationParams
     REQUIRED_PACKAGES = ['torch', 'diffusers', 'numpy']
     name = "wan_video"
     display_name = "Wan Video (Hugging Face)"

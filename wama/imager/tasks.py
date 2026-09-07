@@ -500,148 +500,38 @@ def generate_video_task(self, generation_id):
         else:
             backend_type = 'wan'  # Default to Wan
 
-        # Import and initialize the appropriate backend
-        if backend_type == 'hunyuan':
-            _console(user_id, f"[Imager Video] Importing HunyuanVideo backend...")
-            try:
-                from wama.common.backends.hunyuan_video_backend import HunyuanVideoBackend, HunyuanVideoParams
-                backend_class = HunyuanVideoBackend
-                params_class = HunyuanVideoParams
-                _console(user_id, f"[Imager Video] ✓ HunyuanVideo backend imported")
-            except ImportError as e:
-                error_msg = f"HunyuanVideo backend not available: {e}"
-                logger.error(error_msg)
-                logger.error(traceback.format_exc())
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-
-            _console(user_id, f"[Imager Video] Checking HunyuanVideo availability...")
-            if not HunyuanVideoBackend.is_available():
-                error_msg = "HunyuanVideo backend not available. Need CUDA with 14GB+ VRAM."
-                logger.error(error_msg)
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-            _console(user_id, f"[Imager Video] ✓ HunyuanVideo backend available")
-
-        elif backend_type == 'cogvideox':
-            _console(user_id, f"[Imager Video] Importing CogVideoX backend...")
-            try:
-                from wama.common.backends.cogvideox_backend import CogVideoXBackend, CogVideoXParams
-                backend_class = CogVideoXBackend
-                params_class = CogVideoXParams
-                _console(user_id, f"[Imager Video] ✓ CogVideoX backend imported")
-            except ImportError as e:
-                error_msg = f"CogVideoX backend not available: {e}"
-                logger.error(error_msg)
-                logger.error(traceback.format_exc())
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-
-            _console(user_id, f"[Imager Video] Checking CogVideoX availability...")
-            if not CogVideoXBackend.is_available():
-                error_msg = "CogVideoX backend not available. Need CUDA with 4GB+ VRAM."
-                logger.error(error_msg)
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-            _console(user_id, f"[Imager Video] ✓ CogVideoX backend available")
-
-        elif backend_type == 'ltx':
-            _console(user_id, f"[Imager Video] Importing LTX-Video backend...")
-            try:
-                from wama.common.backends.ltx_video_backend import LTXVideoBackend, LTXVideoParams
-                backend_class = LTXVideoBackend
-                params_class = LTXVideoParams
-                _console(user_id, f"[Imager Video] ✓ LTX-Video backend imported")
-            except ImportError as e:
-                error_msg = f"LTX-Video backend not available: {e}"
-                logger.error(error_msg)
-                logger.error(traceback.format_exc())
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-
-            _console(user_id, f"[Imager Video] Checking LTX-Video availability...")
-            if not LTXVideoBackend.is_available():
-                error_msg = "LTX-Video backend not available. Need CUDA with 6GB+ VRAM."
-                logger.error(error_msg)
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-            _console(user_id, f"[Imager Video] ✓ LTX-Video backend available")
-
-        elif backend_type == 'mochi':
-            _console(user_id, f"[Imager Video] Importing Mochi backend...")
-            try:
-                from wama.common.backends.mochi_backend import MochiBackend, MochiParams
-                backend_class = MochiBackend
-                params_class = MochiParams
-                _console(user_id, f"[Imager Video] ✓ Mochi backend imported")
-            except ImportError as e:
-                error_msg = f"Mochi backend not available: {e}"
-                logger.error(error_msg)
-                logger.error(traceback.format_exc())
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-
-            _console(user_id, f"[Imager Video] Checking Mochi availability...")
-            if not MochiBackend.is_available():
-                error_msg = "Mochi backend not available. Need CUDA with 16GB+ VRAM (22GB recommended)."
-                logger.error(error_msg)
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-            _console(user_id, f"[Imager Video] ✓ Mochi backend available")
-
-        else:
-            # Default: Wan video backend
-            _console(user_id, f"[Imager Video] Importing Wan backend...")
-            try:
-                from wama.common.backends.wan_video_backend import WanVideoBackend, VideoGenerationParams
-                backend_class = WanVideoBackend
-                params_class = VideoGenerationParams
-                _console(user_id, f"[Imager Video] ✓ Wan backend imported")
-            except ImportError as e:
-                error_msg = f"Wan video backend not available: {e}"
-                logger.error(error_msg)
-                logger.error(traceback.format_exc())
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                return {'error': error_msg}
-
-            _console(user_id, f"[Imager Video] Checking Wan availability (torch, diffusers)...")
-            if not WanVideoBackend.is_available():
-                error_msg = "Wan video backend not available. Please install diffusers with Wan support."
-                logger.error(error_msg)
-                generation.status = 'FAILURE'
-                generation.error_message = error_msg
-                generation.save()
-                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                _console(user_id, f"[Imager Video] Install with: pip install diffusers transformers accelerate")
-                return {'error': error_msg}
-            _console(user_id, f"[Imager Video] ✓ Wan backend available")
+        # Le MODÈLE porte son moteur ; la CLASSE s'en dérive par le catalogue (les 5 backends
+        # vidéo pilotent tous `diffusers` — `SUPPORTED_MODELS` les départage), et la classe de
+        # PARAMÈTRES est DÉCLARÉE par le backend (`PARAMS`) : plus aucun import par chemin
+        # (2026-09-07, 5 branches → 1). `backend_type` (préfixe de nom) ne sert plus qu'à la
+        # POLITIQUE de cadence/résolution par famille, plus bas — c'est une décision d'app.
+        # ⚠ Un modèle absent du catalogue ne se devine plus « par défaut » (l'ancien `else`
+        # envoyait tout inconnu vers Wan) : il s'arrête en le DISANT. Wan et HunyuanVideo n'ont
+        # plus ni déclaration ni poids sur disque depuis janvier ; leurs branches étaient mortes.
+        from wama.common.backends.manager import backend_for_key
+        cle_catalogue = f'imager:{model_name}'
+        backend_class = backend_for_key(cle_catalogue)
+        params_class = getattr(backend_class, 'PARAMS', None)
+        if backend_class is None or params_class is None:
+            error_msg = (f"Modèle vidéo « {model_name} » : aucun backend résolu depuis le catalogue "
+                         f"({cle_catalogue} absent, sans moteur déclaré, ou backend sans PARAMS)")
+            logger.error(error_msg)
+            generation.status = 'FAILURE'
+            generation.error_message = error_msg
+            generation.save()
+            _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+            return {'error': error_msg}
+        _console(user_id, f"[Imager Video] Backend résolu par le catalogue : {backend_class.__name__}")
+        if not backend_class.is_available():
+            error_msg = (f"{backend_class.__name__} indisponible pour « {model_name} » "
+                         f"(CUDA/VRAM ou dépendances manquantes).")
+            logger.error(error_msg)
+            generation.status = 'FAILURE'
+            generation.error_message = error_msg
+            generation.save()
+            _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+            return {'error': error_msg}
+        _console(user_id, f"[Imager Video] ✓ {backend_class.__name__} disponible")
 
         # Create output directory (user-specific path)
         output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', str(generation.user.id), 'output', 'video')

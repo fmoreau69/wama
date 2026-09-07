@@ -123,6 +123,10 @@ class HunyuanVideoBackend(ImageGenerationBackend):
     # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'diffusers'
+    #: Classe de PARAMÈTRES déclarée par le backend (2026-09-07) : l'app la lit sur la classe
+    #: RÉSOLUE par le catalogue au lieu de l'importer avec elle — la branche vidéo cesse de
+    #: dépendre du chemin du module.
+    PARAMS = HunyuanVideoParams
     REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "hunyuan_video"
     display_name = "HunyuanVideo 1.5"

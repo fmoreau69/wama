@@ -1689,8 +1689,12 @@ def api_model_resolutions(request):
     default_guidance_scale = 7.5
     default_steps = 30
     try:
-        from wama.common.backends.diffusers_backend import DiffusersBackend
-        model_info = DiffusersBackend.SUPPORTED_MODELS.get(model_name, {})
+        # Les défauts (guidance, steps) sont une DÉCLARATION du modèle (IMAGER_MODELS), lue par
+        # le passe-plat commun — plus une table lue sur une classe de backend importée par
+        # chemin (2026-09-07). La déclaration d'app est d'ailleurs la source la plus complète :
+        # la table du backend ne portait ces défauts que pour deux modèles.
+        from wama.common.utils.model_declarations import declaration
+        model_info = declaration('imager', model_name) or {}
         if isinstance(model_info, dict):
             default_guidance_scale = model_info.get('default_guidance_scale', 7.5)
             default_steps = model_info.get('default_steps', 30)

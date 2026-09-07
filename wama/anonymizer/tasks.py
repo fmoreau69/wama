@@ -577,7 +577,14 @@ def start_process(**kwargs):
             else:
                 # Use SAM3 processor
                 try:
-                    from wama.common.backends.sam3_processor import SAM3Processor
+                    # Le MODÈLE porte son moteur ; le backend s'en dérive (2026-09-07). La
+                    # bascule SAM3/YOLO reste une option utilisateur ; ce qu'elle désigne est
+                    # le modèle `anonymizer:sam3`, et c'est lui qui donne sa classe.
+                    from wama.common.backends.manager import backend_for_key
+                    SAM3Processor = backend_for_key('anonymizer:sam3')
+                    if SAM3Processor is None:
+                        raise ImportError("anonymizer:sam3 : aucun backend résolu depuis le "
+                                          "catalogue (ligne absente, ou sans moteur déclaré)")
 
                     if user_id:
                         _console(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")

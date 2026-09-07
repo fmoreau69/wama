@@ -27,13 +27,26 @@ from django.db import close_old_connections
 
 from .models import AvatarJob
 from wama.common.services.resource_governor import vram_reservation
-from wama.common.backends.codeformer_backend import CodeFormerBackend
-from wama.common.backends.musetalk_backend import MuseTalkBackend
+from wama.common.utils.console_utils import push_console_line
 
 # Backends hors process (contrat commun BaseModelBackend) — le worker orchestre, ils executent.
-_musetalk_backend = MuseTalkBackend()
-_codeformer_backend = CodeFormerBackend()
-from wama.common.utils.console_utils import push_console_line
+# Le MODÈLE porte son moteur ; le backend s'en dérive (2026-09-07). Résolution PARESSEUSE et
+# mémoïsée : les deux singletons étaient instanciés À L'IMPORT du module, depuis des classes
+# importées par chemin. Le job ne porte pas de version MuseTalk — le backend exécute la v1.5
+# (`--version v15`, `musetalkV15/`), d'où la clé de catalogue employée plus bas.
+_backends_resolus: dict = {}
+
+
+def _backend(cle_catalogue: str):
+    """Instance (singleton) du backend que le catalogue désigne pour `cle_catalogue`."""
+    if cle_catalogue not in _backends_resolus:
+        from wama.common.backends.manager import backend_for_key
+        classe = backend_for_key(cle_catalogue)
+        if classe is None:
+            raise RuntimeError(f"{cle_catalogue} : aucun backend résolu depuis le catalogue "
+                               "(ligne absente, ou sans moteur déclaré)")
+        _backends_resolus[cle_catalogue] = classe()
+    return _backends_resolus[cle_catalogue]
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +209,7 @@ def generate_avatar(self, job_id: int):
         _set_progress(job, 40)
 
         with work_dir(f'avatarizer_job{job_id}') as travail:
-            musetalk_video = _musetalk_backend.process(
+            musetalk_video = _backend('avatarizer:musetalk-v1.5').process(
                 image_path=image_path,
                 audio_path=audio_path,
                 output_dir=str(travail),
@@ -213,7 +226,7 @@ def generate_avatar(self, job_id: int):
             if job.use_enhancer:
                 _console(job.user_id, "CodeFormer : amélioration faciale en cours…", 'info')
                 _set_progress(job, 85)
-                final_video = _codeformer_backend.process(musetalk_video, str(travail))
+                final_video = _backend('avatarizer:codeformer').process(musetalk_video, str(travail))
                 _console(job.user_id, "CodeFormer terminé.", 'info')
 
             # ⚠ SORTIR le livrable AVANT la fin du bloc — après, `travail` n'existe plus.
