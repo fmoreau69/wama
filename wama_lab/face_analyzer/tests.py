@@ -32,7 +32,7 @@ class BackendEmotionsImportableTest(SimpleTestCase):
 
     @unittest.skipUnless(_FER_PRESENT, "paquet `fer` absent de ce venv")
     def test_la_classe_FER_se_trouve_quelle_que_soit_la_disposition(self):
-        from wama_lab.face_analyzer.backends.emotions import _import_fer
+        from wama.common.backends.emotions import _import_fer
         try:
             classe = _import_fer()
         except ImportError as e:
@@ -52,8 +52,12 @@ class BackendEmotionsImportableTest(SimpleTestCase):
         *Une garde se pose avec ses JUMEAUX : tous les points d'appel, au moment où la leçon
         s'apprend.*
         """
-        source = (Path(settings.BASE_DIR) / 'wama_lab' / 'face_analyzer' / 'backends' / 'emotions.py'
-                  ).read_text(encoding='utf-8')
+        # ⚠ Le module se localise par LUI-MÊME, jamais par un chemin écrit à la main : cette
+        # garde a cassé au déplacement du backend vers le substrat (2026-09-07) alors que le
+        # comportement qu'elle mesure n'avait pas bougé d'une ligne. Un contrôle qui suit le
+        # code plutôt qu'un chemin survit au prochain déménagement.
+        from wama.common.backends import emotions as _mod
+        source = Path(_mod.__file__).read_text(encoding='utf-8')
         # Les deux lignes du résolveur lui-même sont les seules légitimes.
         lignes = [l.strip() for l in source.splitlines()
                   if 'import FER' in l and 'fer.fer' not in l]
@@ -67,7 +71,7 @@ class BackendEmotionsImportableTest(SimpleTestCase):
     @unittest.skipUnless(_FER_PRESENT, "paquet `fer` absent de ce venv")
     def test_le_backend_par_defaut_est_bien_celui_qui_est_couvert(self):
         """Si le défaut changeait, cette garde protégerait le mauvais chemin."""
-        from wama_lab.face_analyzer.backends.emotions import EmotionRecognizer
+        from wama.common.backends.emotions import EmotionRecognizer
         import inspect
         defaut = inspect.signature(EmotionRecognizer.__init__).parameters['backend'].default
         self.assertEqual(defaut, 'fer')

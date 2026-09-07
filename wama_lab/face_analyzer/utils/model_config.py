@@ -41,7 +41,7 @@ from django.conf import settings
 # `backend_ref='face_analyzer'` court-circuite `backend_missing()` — c'est-à-dire par le champ
 # que le dépôt veut RETIRER. Le jour où il tombe, ces 3 modèles seront grisés « moteur deepface
 # sans backend installé », et ce sera JUSTE.
-# Le portage doit donc créer `wama_lab/face_analyzer/backends/` avec une classe déclarant
+# Le backend vit désormais au SUBSTRAT (`wama/common/backends/`) : une classe y déclare
 # `ENGINE = 'deepface'` — même graphie qu'ici, sinon le lien ne se referme pas.
 # *Un verdict sauvé par un champ condamné n'est pas un verdict.*
 
