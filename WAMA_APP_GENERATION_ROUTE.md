@@ -1943,8 +1943,8 @@ recopier NULLE PART, re-mesurer)** :
   codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
   `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
   (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
-- **`WamaImport` : 2/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter) ;
-  `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
+- **`WamaImport` : 3/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter,
+  describer) ; `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
   généré et le banc. Une app
   générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
   même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
@@ -2018,6 +2018,18 @@ partir de 2) — `_auto_wrap_orphans` l'enveloppe au reload, même état à l'é
 4/5 + 1 skip (garde anti-bouclage de `url_import`, identique avant/après), famille `converter.`
 **13/14 + le même skip** dont `processing` et `batch_processing` ; smoke 0 erreur JS ; 77 tests
 (converter, import_wired, codegen_templates, sandbox_coherence) OK ; grille converter **100 %**.
+
+**3ᵉ adoption — describer, 2026-09-07 (soir)** : `extraFields` = les 3 réglages du volet ;
+`afterImport` porte la BIFURCATION de l'app (1 élément → card rendue serveur insérée sans reload,
+N → reload après la consolidation par nature) — c'est l'évolution 7 de la brique, utilisée pour la
+1ʳᵉ fois par une app en place. **La branche « drop depuis le FileManager » est RETIRÉE** : le type
+MIME `application/x-wama-file` qu'elle lisait n'est émis nulle part, et un glisser jstree
+(vakata) ne produit aucun `drop` natif — il est pris par le canal GLOBAL de `filemanager.js`
+(`dnd_stop.vakata`, import serveur pour toute card « crée », `MEDIA_STORAGE_TIERING §8.6 D5`).
+Elle ne pouvait jouer que sur un TEXTE glissé contenant « / » (un chemin déposé à la main, sans
+garde). Le synthesizer porte la même branche → même verdict. Mesuré : 5/5 avant, famille
+`describer.` **12/12** après, smoke 0 erreur JS. ⚠ `wama.describer` n'a pas non plus de tests
+unitaires (`Ran 0 tests`) — même dette que le transcriber.
 
 **Inventaire par app** (balayage exhaustif des JS d'import, ancres vérifiées sur reader et
 anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas faire :
