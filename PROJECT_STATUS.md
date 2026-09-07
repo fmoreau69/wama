@@ -11672,13 +11672,15 @@ du générateur. ⚠ Touche leurs tables : demander le GO à Fabien avant.
   apps, inventaire d'identifiants, forge de clé de session) : ils vivent **dans le scratchpad de
   session**, hors dépôt, et sont jetables — leur logique utile est décrite dans les commits.
 
-### 🔴 CE QUE MON RESSERREMENT DE SEUIL A CASSÉ — corrigé par une autre instance, NON COMMITÉ
+### ✅ CE QUE MON RESSERREMENT DE SEUIL A CASSÉ — SOLDÉ avant la fermeture
 
 Descendre `CIBLES_ASSUMEES` de 1 à 0 (commit `df48f1e0`) **casse 2 tests** de
 `wama/common/tests_check_docs.py` : ils assertaient le VERDICT (`ok`) là où ils ne testent que
 le COMPTAGE, donc ils étaient liés au budget. **Mesuré : 27 OK avec le correctif, 2 échecs
-sans.** Le correctif (découpler comptage et politique) est écrit **dans l'arbre de travail par
-une autre instance, non commité** — je ne le commite pas, il est à elle.
+sans.** Le correctif (découpler comptage et politique) a été écrit par une AUTRE instance et
+est **désormais dans HEAD** (porté par son commit `47606901`) : vérifié à la fermeture,
+`tests_check_docs` **27 OK** et suite complète **1673 OK (skipped=11)**. Plus rien à faire —
+la trace reste ici parce que la CAUSE était mienne.
 
 ⚠ **Ma faute, et elle est de MÉTHODE** : j'ai lancé les tests au début de la clôture, puis
 modifié le seuil ensuite. La clôture attestait « 665 OK » sur un arbre qui n'existait plus.
@@ -11708,8 +11710,8 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 
 | contrôle | valeur mesurée |
 |---|---|
-| `manage.py test wama.common` | **665 OK** |
-| suite complète | **1660 OK (skipped=11)** |
+| `manage.py test wama.common` | **665 OK** (relancés APRÈS la dernière écriture) |
+| suite complète | **1673 OK (skipped=11)** — mesurée À LA FERMETURE, après le correctif de l'autre instance |
 | `check_docs` | **0 cassée / 0 périmée sur 1469** — **0 cible distincte** (seuil désormais 0) |
 | `doc_facts --check` | 2 blocs périmés, **appartenant à une autre instance** (voir ci-dessus) |
 | `run_nightly_tests --dry-run` | **233 joués**, **20 écartés** (VRAM déclarée) |
