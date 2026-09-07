@@ -2071,9 +2071,17 @@ avant, famille `reader.` **11/12** après, smoke 0 erreur JS, 21 tests OK, grill
 retrait à consigner au `REMOVAL_LEDGER`). Ce que l'inventaire annonçait « ❌ réponse liste + hooks
 de progression » a coûté **deux évolutions de brique** et **deux rouges élucidés** :
 - **évolution 8 — progression d'envoi** : `fetch` ne dit rien d'un envoi en cours, seul
-  `XMLHttpRequest.upload` le fait ; la brique passe par XHR quand `onProgress` est déclaré, et
-  appelle `onSettled` à la fin de l'envoi, ids vides compris (fermer une modale ne peut pas
-  dépendre d'un id créé). La modale de progression de l'anonymizer (vidéos lourdes) survit ;
+  `XMLHttpRequest.upload` le fait. ⚠ **Rectifié le 08/09 (question Fabien : « pourquoi une
+  spécificité anonymizer ? on uniformise »)** : la 1ʳᵉ version passait par XHR seulement quand
+  l'app déclarait `onProgress`, et seul l'anonymizer le faisait — pour garder SA modale. Six apps
+  restaient muettes pendant l'envoi. Désormais **la brique envoie TOUJOURS par XHR et affiche
+  elle-même une barre commune dans la zone de dépôt** (classes `wama-progress-track/fill` des
+  cards, `app_modern.css` chargé par `base.html`, libellé « Envoi i/N · fichier · pct % »),
+  retirée à la fin de l'envoi, ids créés ou non. Aucune app n'écrit de markup ; `onProgress` /
+  `onSettled` restent des hooks de REMPLACEMENT, qu'aucune app n'utilise. La modale
+  `#modal-progress` de l'anonymizer ne sert plus qu'à son import par URL (chemin propre à l'app).
+  Mesuré (sonde `MutationObserver` persistée à travers le reload) : la barre apparaît puis
+  disparaît sur transcriber, anonymizer, converter, 0 erreur JS ;
 - **la forme `{media:{id}}`** : l'endpoint répond `media` (objet) pour UN fichier et `added[]`
   pour plusieurs — la brique ne lisait que les listes → `ids` vide, pas de reload, aucune card
   (`anonymizer.import` ✗ « 200 mais aucun élément n'apparaît »). Ajoutée au lecteur tolérant ;

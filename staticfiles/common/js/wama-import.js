@@ -33,8 +33,8 @@
  *     fieldName:      'file',                       // nom du champ POST (défaut : file / files)
  *     beforeFile:     function (file) { … },        // optionnel : rendre false = fichier écarté
  *     extraFields:    function (fd, file) { … },    // optionnel : champs POST supplémentaires
- *     onProgress:     function (loaded, size, file, index, total) {…}, // optionnel : envoi par XHR
- *     onSettled:      function (ids, reponses) {…}, // optionnel : fin d'envoi, même sans id créé
+ *     onProgress:     function (loaded, size, file, index, total) {…}, // optionnel : REMPLACE la barre commune
+ *     onSettled:      function (ids, reponses) {…}, // optionnel : fin d'envoi (avec onProgress)
  *     afterImport:    function (ids, reponses) {…}, // défaut : rechargement de la page
  *   });
  *
@@ -63,12 +63,13 @@
     }
 
     /**
-     * Envoi AVEC progression (évolution 8, 2026-09-07 — anonymizer, 7ᵉ adoption) : `fetch`
-     * n'expose pas la progression d'ENVOI, seul `XMLHttpRequest.upload` le fait. L'anonymizer
-     * (vidéos lourdes) montrait une modale de progression par jQuery-file-upload ; sans ce
-     * chemin, le porter aurait fait disparaître ce retour — une régression que les gestes
-     * nocturnes ne voient pas (leurs témoins pèsent quelques octets). Rendu : la même forme
-     * que `fetch` (`ok`, `status`, `statusText`, `json()`), pour que `envoyer` ne bifurque pas.
+     * Envoi AVEC progression (évolution 8, 2026-09-07) : `fetch` n'expose pas la progression
+     * d'ENVOI, seul `XMLHttpRequest.upload` le fait. C'est désormais LE chemin d'envoi de la
+     * brique, pour toutes les apps : l'anonymizer (vidéos lourdes) avait ce retour par une
+     * modale jQuery-file-upload et les six autres n'en avaient aucun — un envoi de 800 Mo y
+     * restait muet jusqu'au rechargement. Uniformisé le 08/09 (demande Fabien) : la barre
+     * COMMUNE ci-dessous s'affiche dans la zone de dépôt, aucune app n'écrit de markup.
+     * Rendu : la même forme que `fetch` (`ok`, `status`, `statusText`, `json()`).
      */
     function posterAvecProgression(url, fd, onProgress) {
       return new Promise(function (resolve, reject) {
@@ -97,6 +98,38 @@
     function signaler(msg, niveau) {
       if (global.WamaApp && WamaApp.toast) WamaApp.toast(msg, niveau || 'error');
       else console.error('[WamaImport]', msg);
+    }
+
+    /**
+     * Barre de progression d'ENVOI commune — dans la zone de dépôt, classes communes des cards
+     * (`wama-progress-track` / `wama-progress-fill`, app_modern.css chargé par base.html).
+     * Créée au premier octet envoyé, retirée à la fin (`finCommune`), ids créés ou non.
+     * Une app peut la REMPLACER (`onProgress` + `onSettled`) — aucune ne le fait au 08/09 :
+     * c'est le même retour partout, c'est le but.
+     */
+    function progressionCommune(loaded, size, file, index, total) {
+      var dz = el(cfg.dropZoneId);
+      if (!dz) return;
+      var bloc = dz.querySelector('.wama-upload-progress');
+      if (!bloc) {
+        bloc = document.createElement('div');
+        bloc.className = 'wama-upload-progress';
+        bloc.innerHTML = '<div class="wama-progress-track"><div class="wama-progress-fill active"></div></div>'
+                       + '<small class="wama-upload-progress-label"></small>';
+        dz.appendChild(bloc);
+      }
+      var part = size ? loaded / size : 1;
+      var pct = Math.min(100, Math.round(((index + part) / (total || 1)) * 100));
+      bloc.querySelector('.wama-progress-fill').style.width = pct + '%';
+      var nom = (file && file.name) ? file.name : '';
+      bloc.querySelector('.wama-upload-progress-label').textContent =
+        'Envoi ' + (index + 1) + '/' + (total || 1) + (nom ? ' · ' + nom : '') + ' · ' + pct + ' %';
+    }
+
+    function finCommune() {
+      var dz = el(cfg.dropZoneId);
+      var bloc = dz && dz.querySelector('.wama-upload-progress');
+      if (bloc) bloc.remove();
     }
 
     /**
@@ -154,14 +187,14 @@
       var champ = cfg.fieldName || (cfg.multiple ? 'files' : 'file');
       fichiers.forEach(function (f) { fd.append(champ, f); });
       if (typeof cfg.extraFields === 'function') cfg.extraFields(fd, fichiers[0], fichiers);
+      var afficher = (typeof cfg.onProgress === 'function') ? cfg.onProgress : progressionCommune;
       try {
-        var resp = (typeof cfg.onProgress === 'function')
-          ? await posterAvecProgression(cfg.uploadUrl, fd, function (loaded, size) {
-              // `onProgress(loaded, size, fichier, index, total)` : la part de CE fichier et sa
-              // place dans l'envoi — de quoi afficher une barre globale ou par fichier.
-              cfg.onProgress(loaded, size, fichiers[0], index || 0, total || 1);
-            })
-          : await poster(cfg.uploadUrl, fd);
+        // TOUJOURS par XHR (08/09) : la progression d'envoi est un retour COMMUN, pas une
+        // option d'app. `poster` (fetch) ne sert plus qu'aux requêtes sans fichier (consolidation).
+        // `onProgress(loaded, size, fichier, index, total)` : la part de CE fichier et sa place.
+        var resp = await posterAvecProgression(cfg.uploadUrl, fd, function (loaded, size) {
+          afficher(loaded, size, fichiers[0], index || 0, total || 1);
+        });
         var data = {};
         try { data = await resp.json(); } catch (e) { data = {}; }
         if (!resp.ok || data.error) {
@@ -225,12 +258,11 @@
           ids = ids.concat(ri.ids); reponses.push(ri.data);
         }
       }
-      // `onSettled(ids, reponses)` (évolution 8) : appelé à la FIN de l'envoi, ids vides
-      // compris — c'est le moment de fermer une modale de progression. `afterImport`, lui,
-      // n'est appelé que si quelque chose a été créé (et recharge la page par défaut).
-      if (typeof cfg.onSettled === 'function') {
-        try { cfg.onSettled(ids, reponses); } catch (e) { /* non bloquant */ }
-      }
+      // Fin de l'envoi, ids vides compris : la barre commune se retire (`finCommune`), ou
+      // `onSettled(ids, reponses)` si l'app a remplacé l'affichage. `afterImport`, lui, n'est
+      // appelé que si quelque chose a été créé (et recharge la page par défaut).
+      try { ((typeof cfg.onSettled === 'function') ? cfg.onSettled : finCommune)(ids, reponses); }
+      catch (e) { /* non bloquant */ }
       if (!ids.length) return;
 
       // Regroupement en lot(s) — l'app le déclare ; sans URL, les cards restent unitaires.

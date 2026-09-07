@@ -354,6 +354,23 @@ textarea {
     transform: scale(1.02);
 }
 
+/* Progression d'ENVOI commune (WamaImport, 2026-09-08) : posée par la brique dans la zone de
+   dépôt le temps de l'envoi — même barre que les cards, aucune app n'écrit ce markup. */
+.wama-upload-progress {
+    margin-top: 10px;
+    text-align: left;
+}
+.wama-upload-progress .wama-progress-track { height: 4px; }
+.wama-upload-progress-label {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: #adb5bd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .drop-zone i {
     transition: transform 0.3s ease;
 }

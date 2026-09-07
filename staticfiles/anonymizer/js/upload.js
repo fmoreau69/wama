@@ -51,36 +51,15 @@ $(function () {
   //   • `batchScope:'each'` : chaque fichier est testé comme descripteur de lot (un `.txt` de
   //                           lot ne part JAMAIS vers /upload/ — leçon du 27/08) ;
   //   • `extraFields`     : format et qualité de sortie du volet ;
-  //   • `onProgress` / `onSettled` : la MODALE DE PROGRESSION (évolution 8 de la brique, envoi
-  //                           par XHR — `fetch` ne sait pas dire où en est un envoi, et une
-  //                           vidéo d'anonymisation pèse) ; barre = fichiers faits + part du
-  //                           fichier en cours ;
   //   • `afterImport`     : les erreurs PAR LIGNE (`errors[]`) restent lisibles en console,
   //                           puis reload (file re-rendue serveur).
+  // La PROGRESSION D'ENVOI est celle de la brique, COMMUNE à toutes les apps (08/09, demande
+  // Fabien) : la modale `#modal-progress` que cette app montrait pendant l'upload (héritage
+  // jQuery-file-upload, puis hooks `onProgress`/`onSettled` le 07/09) n'est plus utilisée
+  // ICI — elle ne sert plus qu'à l'import par URL ci-dessous, chemin propre à l'app.
   // Réponse `{success, added:[{id…}], errors}` : lue par la brique (évolution 1, écrite le
   // 05/09 pour ce contrat). Consolidation `ids` (multipart) → `anonymizer:consolidate`, qui lit
   // par le lecteur commun `ids_from_request` (corrigé le 07/09 : il lisait `request.body`).
-  const _bar = function (pct) {
-    $("#modal-progress .progress-bar").css({ width: pct + "%" }).text(pct + "%").attr('aria-valuenow', pct);
-  };
-  let _modaleOuverte = false;   // show() demandé
-  let _modaleAffichee = false;  // transition d'ouverture TERMINÉE (`shown.bs.modal`)
-  if (modalElement) {
-    modalElement.addEventListener('shown.bs.modal', function () { _modaleAffichee = true; });
-    modalElement.addEventListener('hidden.bs.modal', function () { _modaleAffichee = false; });
-  }
-  // ⚠ Bootstrap IGNORE un `hide()` lancé PENDANT l'animation d'ouverture (`_isTransitioning`).
-  // Un envoi court (témoin de quelques octets, réponse locale) se termine avant la fin des
-  // 150 ms de fondu : la modale restait ouverte et interceptait tous les clics — mesuré au
-  // 1er passage nocturne du portage (`anonymizer.import` ✗, « #modal-progress intercepts
-  // pointer events »). jQuery-file-upload ne l'avait jamais montré : son `stop` arrivait
-  // après. On ferme donc APRÈS `shown.bs.modal` si l'ouverture n'est pas terminée.
-  const _fermerModale = function () {
-    if (!progressModal || !_modaleOuverte) return;
-    _modaleOuverte = false;
-    if (_modaleAffichee) { progressModal.hide(); return; }
-    modalElement.addEventListener('shown.bs.modal', function () { progressModal.hide(); }, { once: true });
-  };
   if (typeof window.WamaImport === 'function') {
     window._import = WamaImport({
       uploadUrl:        cfg.uploadUrl,
@@ -96,13 +75,6 @@ $(function () {
         fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
         fd.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
       },
-      onProgress:       function (loaded, size, _file, index, total) {
-        if (!progressModal) return;
-        if (!_modaleOuverte) { _modaleOuverte = true; progressModal.show(); _bar(0); }
-        const part = size ? loaded / size : 1;
-        _bar(Math.min(100, parseInt(((index + part) / (total || 1)) * 100, 10)));
-      },
-      onSettled:        _fermerModale,
       afterImport:      function (_ids, reponses) {
         reponses.forEach(function (r) {
           if (r && r.errors && r.errors.length) console.warn("Erreurs lors de l'ajout de médias :", r.errors);
