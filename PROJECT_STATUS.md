@@ -2641,6 +2641,81 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
 - ⚠ **Un worktree ne porte que ce qui est VERSIONNÉ** : 2 tests rouges sur HEAD, 0 régression — la
   contre-épreuve sur l'arbre principal est obligatoire (ajoutée au rituel `CLAUDE.md`).
 
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+> **Engager l'étape 3 : déplacer les 63 backends mobiles vers le substrat transversal.** Il n'y a
+> plus d'obstacle de code — c'est une décision d'emplacement, pas un chantier de découplage.
+
+**File des chantiers ouverts** (ordre recommandé, bloquants marqués) :
+
+1. **Étape 3 — les backends au substrat.** 63/65 mobiles ; les 2 restants sont le contrat
+   lui-même (`wama/common/backends/base.py`, `wama/common/backends/manager.py`).
+   ⚠ **BLOQUANT — arbitrage de Fabien** : où va le code VENDORISÉ (MuseTalk, CodeFormer, 38 Mo
+   de source sous `wama/avatarizer/`) ? Il est reconstruit à l'installation, jamais versionné,
+   et déclaré par `VENDOR_PACKAGE` — donc une ligne change. Rester sous l'app, ou racine neutre ?
+2. **Retrait du champ `backend_ref`** — il n'absout plus rien depuis le 05/09, il ne sert que la
+   PROVENANCE du lien au registre. Ménage, plus un chantier.
+3. **Explicitation « lecture principale / lectures complémentaires / résultats multiples »**
+   (accord de Fabien le 07/09, à faire APRÈS l'étape 3). Les trois notions existent déjà —
+   `result_text`/`result_file`, `result_tabs`, `result_files` — mais ne se nomment pas ensemble.
+   ⚠ Ne PAS les fondre : N lectures d'UN résultat ≠ N résultats. Décidé aussi : l'inspecteur et
+   la card ne portent que la PRINCIPALE (les complémentaires se calculent à la demande — les
+   charger au survol les déclencherait à chaque sélection) ; les onglets restent au double-clic.
+4. **Retrait de `hf_cache_scope`** — zéro consommateur depuis le 06/09, mais son retrait touche
+   6 surfaces (registre des mécanismes, grille, 3 docs, ses tests). Une garde interdit déjà son
+   réemploi silencieux, donc rien ne presse.
+5. **Promotion de 2 entrées du balayage HF générique** (`table-transformer-*`) en déclaration
+   reader : un backend existe et les nomme.
+
+**Décisions ouvertes** (une par ligne) :
+- ⚠ **BLOQUANT** : emplacement du code vendorisé (cf. chantier 1).
+- `.gitmodules` — `codeformer` a une entrée de sous-module SANS déclaration d'URL, `musetalk`
+  est gitignoré. Les deux sont reconstruits par le setup, donc rien n'est cassé ; déclarer
+  l'URL rendrait le clone récursif complet. Engage la façon dont le dépôt se clone → Fabien.
+- Deux entrées **R43** au ledger (formulaire de composition / option de voix `custom`), venues
+  des commits `2e19ef61` et `f81e55a9`. **Aucune n'est de moi** — les renuméroter casserait les
+  références de leurs auteurs. À trancher par ceux qui les ont ouvertes.
+- `describer:whisper` : sa déclaration annonce `whisper-base` et 0,3 Go, son code charge
+  **faster-whisper large-v3** via la brique commune. Signalé dans le fichier, non corrigé —
+  touche le catalogue et la taille annoncée.
+- `ImaginAiryBackend` déclare 4 modèles dont **3 ne sont plus au catalogue** (retirés comme
+  obsolètes). Sa liste est périmée aux trois quarts ; retirer un backend est une décision.
+- `ResembleAI/chatterbox` : moteur déclaré, **aucun backend ne le pilote** — le grisage est
+  juste. Écrire le backend, ou retirer l'entrée.
+- Inversion de couche : `wama_lab/cam_analyzer` importe un backend de `wama/anonymizer`
+  (monde Lab → monde Médias). Import propre, dépendance discutable.
+
+**Pendings système** :
+- **Aucun redémarrage requis** — WAMA a été relancé en cours de session et les 5 pages sondées
+  répondent (`/`, `/common/apps/`, `/common/backends/`, `/common/registries/`, `/common/sources/`).
+- **Push** : `git status` dit l'avance réelle sur `origin/dev` — la mesurer, ne pas la recopier.
+- **Effets de bord sur le terrain partagé, à connaître** :
+  - `venv_linux` : `tf-keras` passé de 2.20.1 à **2.21.0** (lève un conflit `pip check`, aucun
+    rétrogradage) — seule installation de la session.
+  - Disque : **1,1 Go** de poids DeepFace déplacés de `$HOME` vers `AI-models/models/vision/` ;
+    **2,7 Go** de venvs reliquats supprimés sous `wama_lab/face_analyzer` ; **609 Mo** CodeFormer
+    sortis du dépôt vers `AI-models/models/lipsync/`.
+  - Base LIVE : migration `0016_alter_aimodel_source` **appliquée** (⚠ gitignorée par la
+    politique du dépôt, donc absente d'un clone) ; 3 librairies ajoutées au registre (13→16) ;
+    catalogue 115→116 (CodeFormer ajouté, ligne fantôme `timm/resnet18` retirée).
+  - Scratchpad de session : une douzaine de scripts de mesure et de refactor, tous jetables.
+- **Aucune validation navigateur en attente** ; aucun artefact claude.ai publié cette session.
+
+**Contrôles attendus au prochain `/reprise`** — tous MESURÉS le 2026-09-07 :
+
+| contrôle | valeur |
+|---|---|
+| suite complète | **1690 OK** (skipped=11) |
+| `check_docs` | **0 cassée**, 0 périmée, **1487** références · 0 chiffre sans source |
+| corpus de manifestes | **0 périmé** (106 régénérés, 0 refusé) |
+| `doc_facts --check` | 6 faits à jour |
+| grille de conformité | **88 critères** (F1:4 F2:11 F3:19 F4:10 F5:31 F6:6 F7:5 F8:2) |
+| `check_model_layout` | aucun snapshot étranger |
+| `check_backend_links` | **108/116** modèles déclarent leur moteur, **97** résolvent leur backend |
+| backends | **65 fichiers, 63 mobiles**, 25 moteurs exécutables, 0 environnement isolé |
+| mutations d'environnement HF | **0** |
+
+
 ## §REPRISE — 2026-08-28, instance « DETTES MESURÉES + PORTAGE AVATARIZER » — ✅ PALIER LIVRÉ (`d3f16e5f`, `a2554117`)
 
 > **Partition tenue** : `wama/avatarizer/*`, `wama/synthesizer/{views,utils/model_config}.py`,
