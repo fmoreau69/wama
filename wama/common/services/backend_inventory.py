@@ -515,30 +515,18 @@ class _DeclaredEngine:
     de bord d'import que ce chantier vient de fermer.
     """
 
-    __slots__ = ('engine', 'packages', 'isolation', 'module', 'classe')
+    __slots__ = ('engine', 'packages', 'isolation')
 
-    def __init__(self, engine: str, packages, isolation: str = '',
-                 module: str = '', classe: str = ''):
+    def __init__(self, engine: str, packages, isolation: str = ''):
         self.engine, self.packages = engine, list(packages or [])
         self.isolation = isolation
-        #: Coordonnées d'import de la classe RÉELLE — jamais suivies au balayage.
-        self.module, self.classe = module, classe
 
-    def resolve(self):
-        """Importe et rend la CLASSE réelle du backend. Import CIBLÉ et TARDIF.
-
-        C'est le seul endroit du registre qui importe du code d'app, et il ne le fait qu'à la
-        demande, pour UN module — jamais pour balayer. La distinction est celle qui a fait
-        passer la page des backends de 9,07 s à 0,16 s : *lire une déclaration ne doit rien
-        exécuter ; exécuter est une décision de l'appelant.*
-
-        Rend None si les coordonnées manquent (moteur déclaré par un inventaire à la main,
-        comme `audio-cpp` ou `ollama` : ils n'ont pas de classe, et n'en auront pas).
-        """
-        if not self.module or not self.classe:
-            return None
-        import importlib
-        return getattr(importlib.import_module(self.module), self.classe, None)
+    # ⚠ Ce porteur ne RÉSOUT PAS la classe, et c'est délibéré depuis le 2026-09-07. Une
+    # méthode `resolve()` a vécu ici quelques heures : je l'avais écrite AVANT `resolve_backend`
+    # ci-dessous, qui fait mieux — elle voit TOUS les candidats d'un moteur, là où le porteur
+    # ne connaît que le premier retenu par `setdefault`. Elle n'a jamais eu d'appelant, et
+    # deux chemins pour la même question, c'est celui qu'on n'utilise pas qui diverge.
+    # *Un chemin parallèle ne se signale pas : il attend.*
 
     def missing_packages(self):
         """Même règle que le contrat commun : un backend ISOLÉ n'a rien à installer ICI."""
@@ -579,8 +567,7 @@ def declared_engines() -> dict:
             for e in a.entries:
                 if e.engine:
                     carte.setdefault(e.engine,
-                                     _DeclaredEngine(e.engine, e.packages, e.isolation,
-                                                     module=e.module, classe=e.name))
+                                     _DeclaredEngine(e.engine, e.packages, e.isolation))
         _ENGINES_CACHE = carte
     return dict(_ENGINES_CACHE)
 

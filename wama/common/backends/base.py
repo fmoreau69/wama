@@ -390,8 +390,10 @@ class BaseModelBackend(ABC):
     #: ⚠ Ce n'est PAS un permis d'en créer : l'isolement se DÉCLARE au cas par cas, jamais
     #: ne se génère automatiquement. Le coût n'est pas le disque (~10 Go de torch+CUDA par
     #: venv) mais la VRAM — chaque processus isolé est un détenteur que le gouverneur de
-    #: ressources ne voit pas. Le critère d'admission est `manage.py check_venv_compat`
-    #: (simulation `pip install --dry-run`), jamais `pip check` : ce dernier compte
+    #: ressources ne voit pas. Le critère d'admission est le PLAN de
+    #: `manage.py install_library <clé>` (dry-run par défaut) : depuis le 2026-09-07 il SIMULE
+    #: l'installation et liste les RÉTROGRADATIONS qu'elle entraînerait — mesuré, `fer` en
+    #: provoque 15, dont torch 2.9.1+cu128 → 2.2.2. Jamais `pip check`, qui compte
     #: **46 conflits** sur le venv_linux qui fait tourner toute la production (mesuré le
     #: 2026-09-04 — des pins figés d'amont, pas des incompatibilités).
     ISOLATION: str = ""
@@ -434,7 +436,8 @@ class BaseModelBackend(ABC):
         ISOLÉ la réponse est *rien* — ses paquets vivent dans son propre environnement, et
         `find_spec` d'ici n'en dirait rien. Répondre la liste des absents reviendrait à le
         griser à vie (cf. `ISOLATION`). Savoir si l'environnement DISTANT est prêt est une
-        autre question, qui demande une preuve POSITIVE : `check_venv_compat`.
+        autre question, qui demande une preuve POSITIVE : un import réel dans CET
+        environnement-là, ou le plan de `manage.py install_library` (qui simule).
         """
         if cls.ISOLATION:
             return []

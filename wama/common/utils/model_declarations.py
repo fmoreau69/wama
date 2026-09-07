@@ -56,13 +56,8 @@ def declaration(source: str, model_id: str) -> Optional[dict]:
     return valeur if isinstance(valeur, dict) else None
 
 
-def declaration_for(model_key: str) -> Optional[dict]:
-    """Idem, depuis une clé de catalogue `<source>:<model_id>`.
-
-    ⚠ Certaines clés portent une famille intermédiaire (`anonymizer:yolo:<fichier>`) : c'est
-    le DERNIER segment qui identifie le modèle, comme pour la résolution de backend.
-    """
-    if not model_key or ':' not in model_key:
-        return None
-    source, _, reste = model_key.partition(':')
-    return declaration(source, reste.rsplit(':', 1)[-1])
+# ⚠ Une commodité `declaration_for(model_key)` a vécu ici le 2026-09-06 — elle découpait la clé
+# de catalogue puis appelait `declaration()`. AUCUN appelant : les backends connaissent leur app
+# et leur `model_id`, ils n'ont pas de `model_key` sous la main. Retirée le 07/09.
+# *Une commodité sans appelant n'est pas une API, c'est une seconde façon de faire qui attend
+# son premier utilisateur pour diverger.*

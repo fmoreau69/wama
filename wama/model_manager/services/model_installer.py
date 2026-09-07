@@ -703,6 +703,65 @@ def _replay_patches() -> dict:
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
 
+def simuler_installation(spec: str, timeout: int = 300) -> dict:
+    """Ce qu'une installation ENTRAÎNERAIT — `pip install --dry-run`, LECTURE SEULE.
+
+    POURQUOI (2026-09-07, recadrage Fabien : « l'intérêt est de vérifier si une librairie peut
+    s'installer dans le venv global ») : le plan d'`install_library` comparait la version
+    INSTALLÉE à la version CIBLE. C'est vrai mais insuffisant — ça ne dit rien de ce que
+    l'installation TRAÎNE AVEC ELLE. Deux cas mesurés le même jour, invisibles à cette
+    comparaison :
+      • `tf-keras` non borné → retenait la 2.20.1, qui exige `tensorflow<2.21` : TF 2.21 → 2.20 ;
+      • `fer` → `facenet-pytorch` → `torchvision` : **torch 2.9.1 → 2.2.2**, numpy 2.3.5 → 1.26.4
+        et toute une pile CUDA 12.1 — parce que nos torch viennent de `download.pytorch.org` en
+        versions LOCALES (`+cu128`), absentes de PyPI, donc pip re-résout contre PyPI.
+    Aucun des deux ne se voit sans simuler. *Comparer deux numéros de version ne dit rien du
+    graphe qu'on va déplacer.*
+
+    ⚠ N'INSTALLE RIEN : `--dry-run` n'écrit pas. C'est ce qui en fait un critère utilisable
+    AVANT décision, là où `pip check` (46 conflits sur un venv qui tourne, tous des pins figés
+    d'amont) ne sert à rien.
+
+    Retourne {ok, would_install: [...], retrogradations: [...], sortie}.
+    `retrogradations` ne liste que ce qui est DÉJÀ installé dans une version DIFFÉRENTE — c'est
+    la seule partie réellement dangereuse, et la seule qui mérite un refus.
+    """
+    import subprocess
+    import sys
+
+    import importlib.metadata as im
+
+    err = pip_spec_error(spec)
+    if err:
+        return {'ok': False, 'error': err}
+    try:
+        proc = subprocess.run(
+            [sys.executable, '-m', 'pip', 'install', '--dry-run', spec],
+            capture_output=True, text=True, timeout=timeout)
+    except Exception as e:
+        return {'ok': False, 'error': f'simulation impossible : {e}'}
+    if proc.returncode != 0:
+        return {'ok': False, 'error': (proc.stderr or proc.stdout or '').strip()[:800]}
+
+    prevus = []
+    for ligne in (proc.stdout or '').splitlines():
+        if ligne.startswith('Would install '):
+            prevus = ligne[len('Would install '):].split()
+    retro = []
+    for item in prevus:
+        nom, _, version = item.rpartition('-')
+        if not nom:
+            continue
+        try:
+            actuelle = im.version(nom.replace('_', '-'))
+        except Exception:
+            continue                      # absent du venv : c'est un AJOUT, pas un recul
+        if actuelle != version:
+            retro.append({'paquet': nom, 'installee': actuelle, 'deviendrait': version})
+    return {'ok': True, 'would_install': prevus, 'retrogradations': retro,
+            'sortie': (proc.stdout or '').strip()[-400:]}
+
+
 def install_library(key: str, apply: bool = False) -> dict:
     """
     Installe UNE librairie depuis son registre (`common.models.Library`) — la JONCTION
@@ -749,6 +808,11 @@ def install_library(key: str, apply: bool = False) -> dict:
 
     if not apply:
         # Le PLAN est visible sans allowlist — le verrou ne gate que l'EXÉCUTION.
+        # ⚠ Depuis le 2026-09-07 il SIMULE au lieu de seulement comparer deux numéros : c'est
+        # la seule façon de voir ce que l'installation traînerait avec elle (cf.
+        # `simuler_installation`). Une simulation qui échoue ne condamne pas le plan — elle
+        # est REPORTÉE telle quelle, l'appelant décide.
+        plan['simulation'] = simuler_installation(spec)
         return {'ok': True, 'plan': plan, 'would_install': constat != version_cible}
 
     if not lib.is_allowed:
