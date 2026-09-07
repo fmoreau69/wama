@@ -42,12 +42,13 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "pyannote",
       "description_short": "pyannote 3.1 — diarisation (qui parle, et quand)",
+      "gated": "auto",
       "hf_id": "pyannote/speaker-diarization-3.1",
-      "license": null,
+      "license": "mit",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:pyannote/speaker-diarization-3.1",
       "source": "transcriber"
     },
     "prompts": {

@@ -50,6 +50,7 @@
     "identity": {
       "author": "Coqui",
       "description_short": "Coqui XTTS v2 — TTS multilingue avec clonage de voix.",
+      "gated": "no",
       "hf_id": "coqui/XTTS-v2",
       "license": "cpml-1.0",
       "model_type": "speech",

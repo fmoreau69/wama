@@ -34,6 +34,7 @@
     "identity": {
       "author": "ResembleAI",
       "description_short": "Snapshot HF chatterbox — installé, en attente d'intégration",
+      "gated": "no",
       "hf_id": "ResembleAI/chatterbox",
       "license": "mit",
       "model_type": "speech",

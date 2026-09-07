@@ -20,6 +20,7 @@
     "identity": {
       "author": "PaddlePaddle",
       "description_short": "Snapshot HF PP-DocLayoutV3_safetensors — installé, en attente d'intégration",
+      "gated": "no",
       "hf_id": "PaddlePaddle/PP-DocLayoutV3_safetensors",
       "license": "apache-2.0",
       "model_type": "vision",

@@ -11,7 +11,11 @@
       "scale": 4,
       "task": "upscale"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "onnxruntime"
+      }
+    },
     "extra_info": {
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/BSRGANx4_fp16.onnx",
       "size_mb": 32.25595569610596

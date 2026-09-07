@@ -15,7 +15,11 @@
       ],
       "task": "detect"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "ultralytics"
+      }
+    },
     "extra_info": {
       "class_list": [
         "sign",
@@ -39,6 +43,7 @@
     "identity": {
       "author": "Panoramax",
       "description_short": "YOLO detect (faces&plates)",
+      "gated": "no",
       "hf_id": "Panoramax/detect_face_plate_sign",
       "license": "etalab-2.0",
       "model_type": "vision",

@@ -15,7 +15,11 @@
       "supports_timestamps": true,
       "task": "transcription"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "faster-whisper"
+      }
+    },
     "extra_info": {
       "hf_id": "openai/whisper-large-v3",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/whisper/models--Systran--faster-whisper-large-v3"
@@ -28,6 +32,7 @@
     "identity": {
       "author": "openai",
       "description_short": "large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote.",
+      "gated": "no",
       "hf_id": "openai/whisper-large-v3",
       "license": "apache-2.0",
       "model_type": "speech",

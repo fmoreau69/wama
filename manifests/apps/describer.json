@@ -856,6 +856,34 @@
           }
         ],
         "result_file": "result_file",
+        "result_tabs": [
+          {
+            "badge": true,
+            "cible": "resultText",
+            "cle": "description",
+            "forme": "pre",
+            "icone": "fa-file-alt",
+            "label": "Description"
+          },
+          {
+            "badge": true,
+            "cache": true,
+            "cible": "resumeContent",
+            "cle": "resume",
+            "forme": "html",
+            "icone": "fa-file-lines",
+            "label": "Résumé"
+          },
+          {
+            "badge": true,
+            "cache": true,
+            "cible": "coherenceContent",
+            "cle": "coherence",
+            "forme": "nu",
+            "icone": "fa-spell-check",
+            "label": "Cohérence"
+          }
+        ],
         "result_text": "result_text",
         "source_file": "input_file",
         "source_type": "detected_type"

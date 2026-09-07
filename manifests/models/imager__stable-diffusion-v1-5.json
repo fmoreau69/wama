@@ -15,7 +15,11 @@
         "text-to-image"
       ]
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "diffusers"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],
@@ -25,6 +29,7 @@
     "identity": {
       "author": "stable-diffusion-v1-5",
       "description_short": "Stable Diffusion 1.5 — classique (compatibilité LoRA)",
+      "gated": "no",
       "hf_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
       "license": "creativeml-openrail-m",
       "model_type": "diffusion",

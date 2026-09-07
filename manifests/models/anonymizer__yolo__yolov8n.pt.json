@@ -92,7 +92,11 @@
       ],
       "task": "detect"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "ultralytics"
+      }
+    },
     "extra_info": {
       "class_list": [
         "person",

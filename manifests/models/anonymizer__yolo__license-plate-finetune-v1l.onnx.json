@@ -13,7 +13,11 @@
       ],
       "task": "detect"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "ultralytics"
+      }
+    },
     "extra_info": {
       "class_list": [
         "license_plate"
@@ -32,6 +36,7 @@
     "identity": {
       "author": "morsetechlab",
       "description_short": "YOLO detect (plates)",
+      "gated": "no",
       "hf_id": "morsetechlab/yolov11-license-plate-detection",
       "license": "agpl-3.0",
       "model_type": "vision",

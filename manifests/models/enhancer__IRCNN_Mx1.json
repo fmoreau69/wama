@@ -10,7 +10,11 @@
       ],
       "task": "denoise"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "onnxruntime"
+      }
+    },
     "extra_info": {
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/IRCNN_Mx1_fp16.onnx",
       "size_mb": 0.36255931854248047

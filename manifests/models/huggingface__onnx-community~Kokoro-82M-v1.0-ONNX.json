@@ -52,6 +52,7 @@
     "identity": {
       "author": "onnx-community",
       "description_short": "Snapshot HF Kokoro-82M-v1.0-ONNX — installé, en attente d'intégration",
+      "gated": "no",
       "hf_id": "onnx-community/Kokoro-82M-v1.0-ONNX",
       "license": "apache-2.0",
       "model_type": "speech",

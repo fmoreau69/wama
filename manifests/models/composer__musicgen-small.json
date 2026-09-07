@@ -12,7 +12,11 @@
       ],
       "task": "text-to-music"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "audiocraft"
+      }
+    },
     "extra_info": {
       "install_dir": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/musicgen",
       "max_duration": 30,
@@ -27,6 +31,7 @@
     "identity": {
       "author": "facebook",
       "description_short": "MusicGen Small — génération rapide, 300M params",
+      "gated": "no",
       "hf_id": "facebook/musicgen-small",
       "license": "cc-by-nc-4.0",
       "model_type": "music",

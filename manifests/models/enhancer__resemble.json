@@ -14,7 +14,11 @@
       ],
       "task": "audio-enhance"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "resemble-enhance"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],

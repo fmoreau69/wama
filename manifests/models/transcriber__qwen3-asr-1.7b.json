@@ -15,7 +15,11 @@
       "supports_timestamps": true,
       "task": "transcription"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
     "extra_info": {
       "hf_id": "Qwen/Qwen3-ASR-1.7B",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/qwen_asr"
@@ -28,6 +32,7 @@
     "identity": {
       "author": "Qwen",
       "description_short": "Qwen3-ASR 1.7B — précis, context biasing, 52 langues",
+      "gated": "no",
       "hf_id": "Qwen/Qwen3-ASR-1.7B",
       "license": "apache-2.0",
       "model_type": "speech",

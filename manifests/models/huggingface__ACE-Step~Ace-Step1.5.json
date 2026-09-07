@@ -20,6 +20,7 @@
     "identity": {
       "author": "ACE-Step",
       "description_short": "Snapshot HF Ace-Step1.5 — installé, en attente d'intégration",
+      "gated": "no",
       "hf_id": "ACE-Step/Ace-Step1.5",
       "license": "mit",
       "model_type": "music",

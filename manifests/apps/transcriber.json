@@ -1106,6 +1106,44 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "result_tabs": [
+          {
+            "badge": true,
+            "cible": "resultText",
+            "cle": "transcription",
+            "forme": "pre",
+            "icone": "fa-file-alt",
+            "label": "Transcription"
+          },
+          {
+            "attente": "Chargement...",
+            "cible": "diarisationContent",
+            "cle": "diarisation",
+            "forme": "nu",
+            "icone": "fa-users",
+            "label": "Diarisation"
+          },
+          {
+            "badge": true,
+            "cache": true,
+            "cible": "resumeContent",
+            "cle": "resume",
+            "forme": "html",
+            "icone": "fa-file-lines",
+            "label": "Résumé"
+          },
+          {
+            "badge": true,
+            "cache": true,
+            "cible": "coherenceContent",
+            "cle": "coherence",
+            "forme": "nu",
+            "icone": "fa-spell-check",
+            "label": "Cohérence"
+          }
+        ]
+      },
       "preview": {
         "file_field": "audio",
         "user_field": "user"

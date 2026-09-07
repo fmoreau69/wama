@@ -60,6 +60,7 @@
     "identity": {
       "author": "hexgrad",
       "description_short": "Kokoro 82M — TTS multilingue ultra-léger.",
+      "gated": "no",
       "hf_id": "hexgrad/Kokoro-82M",
       "license": "apache-2.0",
       "model_type": "speech",

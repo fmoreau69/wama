@@ -13,7 +13,11 @@
         "text-to-video"
       ]
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "diffusers"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],
@@ -23,6 +27,7 @@
     "identity": {
       "author": "genmo",
       "description_short": "Mochi-1 Preview — haute qualité, 30 fps",
+      "gated": "no",
       "hf_id": "genmo/mochi-1-preview",
       "license": "apache-2.0",
       "model_type": "diffusion",

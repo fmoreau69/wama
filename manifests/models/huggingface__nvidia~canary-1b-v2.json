@@ -20,6 +20,7 @@
     "identity": {
       "author": "nvidia",
       "description_short": "Snapshot HF canary-1b-v2 — installé, en attente d'intégration",
+      "gated": "no",
       "hf_id": "nvidia/canary-1b-v2",
       "license": "cc-by-4.0",
       "model_type": "speech",

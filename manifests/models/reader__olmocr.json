@@ -10,7 +10,11 @@
       ],
       "task": "ocr"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
     "extra_info": {
       "type": "ocr-vlm"
     },
@@ -22,6 +26,7 @@
     "identity": {
       "author": "allenai",
       "description_short": "olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules",
+      "gated": "no",
       "hf_id": "allenai/olmOCR-7B-0225-preview",
       "license": "apache-2.0",
       "model_type": "ocr",

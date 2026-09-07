@@ -43,6 +43,7 @@
     "identity": {
       "author": "suno",
       "description_short": "Bark — TTS expressif avec effets sonores.",
+      "gated": "no",
       "hf_id": "suno/bark",
       "license": "mit",
       "model_type": "speech",

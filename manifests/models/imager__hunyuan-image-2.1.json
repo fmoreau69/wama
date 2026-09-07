@@ -13,7 +13,11 @@
         "text-to-image"
       ]
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "diffusers"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],
@@ -23,6 +27,7 @@
     "identity": {
       "author": "Tencent Hunyuan",
       "description_short": "HunyuanImage 2.1 — qualité max, text rendering, 1K-4K",
+      "gated": "no",
       "hf_id": "hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
       "license": "hunyuan-community",
       "model_type": "diffusion",

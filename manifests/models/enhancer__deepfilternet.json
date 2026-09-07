@@ -10,7 +10,11 @@
       "params": [],
       "task": "audio-enhance"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "deepfilternet"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],

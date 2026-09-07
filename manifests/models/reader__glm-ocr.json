@@ -10,7 +10,11 @@
       ],
       "task": "ocr"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
     "extra_info": {
       "type": "ocr-vlm"
     },

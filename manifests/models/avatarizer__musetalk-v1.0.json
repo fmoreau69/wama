@@ -12,7 +12,11 @@
       ],
       "task": "lip-sync"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "musetalk"
+      }
+    },
     "extra_info": {
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/lipsync/musetalk/musetalk",
       "pipeline": "musetalk"
@@ -25,6 +29,7 @@
     "identity": {
       "author": "TMElyralab",
       "description_short": "Lip-sync pipeline v1.0 (UNet + DWPose + Whisper + SD-VAE)",
+      "gated": "no",
       "hf_id": "TMElyralab/MuseTalk",
       "license": "creativeml-openrail-m",
       "model_type": "lipsync",

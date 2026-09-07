@@ -15,7 +15,11 @@
       ],
       "task": "text-to-music"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "audiocraft"
+      }
+    },
     "extra_info": {
       "install_dir": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/musicgen",
       "max_duration": 30,
@@ -30,6 +34,7 @@
     "identity": {
       "author": "facebook",
       "description_short": "MusicGen Melody — conditionné par mélodie de référence",
+      "gated": "no",
       "hf_id": "facebook/musicgen-melody",
       "license": "cc-by-nc-4.0",
       "model_type": "music",

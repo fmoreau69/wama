@@ -9,7 +9,11 @@
       ],
       "task": "captioning"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],
@@ -19,6 +23,7 @@
     "identity": {
       "author": "Salesforce",
       "description_short": "BLIP — légendage d'images (captioning)",
+      "gated": "no",
       "hf_id": "Salesforce/blip-image-captioning-large",
       "license": "bsd-3-clause",
       "model_type": "vlm",

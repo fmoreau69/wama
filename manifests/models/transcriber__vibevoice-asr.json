@@ -15,7 +15,11 @@
       "supports_timestamps": true,
       "task": "transcription"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "vibevoice"
+      }
+    },
     "extra_info": {
       "hf_id": "microsoft/VibeVoice-ASR",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/vibevoice"
@@ -28,6 +32,7 @@
     "identity": {
       "author": "microsoft",
       "description_short": "VibeVoice-ASR — multi-locuteurs, précis, un seul passage. Diarisation + timestamps natifs.",
+      "gated": "no",
       "hf_id": "microsoft/VibeVoice-ASR",
       "license": "mit",
       "model_type": "speech",

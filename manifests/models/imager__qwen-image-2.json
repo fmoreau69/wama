@@ -13,7 +13,11 @@
         "text-to-image"
       ]
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "diffusers"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],
@@ -23,6 +27,7 @@
     "identity": {
       "author": "Qwen",
       "description_short": "Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif",
+      "gated": "no",
       "hf_id": "Qwen/Qwen-Image-2512",
       "license": "apache-2.0",
       "model_type": "diffusion",

@@ -824,6 +824,7 @@
     },
     "models": {
       "catalog_keys": [
+        "avatarizer:codeformer",
         "avatarizer:musetalk-v1.0",
         "avatarizer:musetalk-v1.5"
       ],
@@ -1493,6 +1494,10 @@
   "name": "Avatarizer",
   "projects": [],
   "requires": [
+    {
+      "key": "avatarizer:codeformer",
+      "kind": "model"
+    },
     {
       "key": "avatarizer:musetalk-v1.0",
       "kind": "model"

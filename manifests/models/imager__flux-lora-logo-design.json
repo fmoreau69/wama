@@ -14,7 +14,11 @@
         "text-to-image"
       ]
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "diffusers"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],
@@ -24,6 +28,7 @@
     "identity": {
       "author": "Shakker-Labs",
       "description_short": "FLUX Logo Design LoRA — logos pro, open-source, max 768 px",
+      "gated": "no",
       "hf_id": "Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
       "license": "flux-1-dev-non-commercial",
       "model_type": "diffusion",

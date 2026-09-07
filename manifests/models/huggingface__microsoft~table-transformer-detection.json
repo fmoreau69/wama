@@ -20,6 +20,7 @@
     "identity": {
       "author": "microsoft",
       "description_short": "Snapshot HF table-transformer-detection — installé, en attente d'intégration",
+      "gated": "no",
       "hf_id": "microsoft/table-transformer-detection",
       "license": "mit",
       "model_type": "vision",

@@ -58,6 +58,7 @@
     "identity": {
       "author": "Audio8",
       "description_short": "Snapshot HF Audio8-TTS-Preview-0.6b — installé, en attente d'intégration",
+      "gated": "no",
       "hf_id": "Audio8/Audio8-TTS-Preview-0.6b",
       "license": "apache-2.0",
       "model_type": "speech",

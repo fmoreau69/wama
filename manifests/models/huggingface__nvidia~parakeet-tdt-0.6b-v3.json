@@ -18,8 +18,9 @@
       "preferred_format": null
     },
     "identity": {
-      "author": null,
+      "author": "nvidia",
       "description_short": "Snapshot HF parakeet-tdt-0.6b-v3 — installé, en attente d'intégration",
+      "gated": "no",
       "hf_id": "nvidia/parakeet-tdt-0.6b-v3",
       "license": "cc-by-4.0",
       "model_type": "speech",

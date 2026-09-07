@@ -188,6 +188,10 @@
                     "import django.db.models.deletion"
                   ]
                 },
+                "related_name": {
+                  "expr": "'image_generations'",
+                  "imports": []
+                },
                 "to": {
                   "expr": "settings.AUTH_USER_MODEL",
                   "imports": [
@@ -2375,7 +2379,7 @@
             "output_format",
             "output_quality"
           ],
-          "user_related_name": null
+          "user_related_name": "image_generations"
         }
       },
       "processing_time": false,

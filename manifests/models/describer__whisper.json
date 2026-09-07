@@ -9,7 +9,11 @@
       ],
       "task": "transcription"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "faster-whisper"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [
@@ -22,6 +26,7 @@
     "identity": {
       "author": "openai",
       "description_short": "Whisper — transcription audio (description de contenus sonores)",
+      "gated": "no",
       "hf_id": "openai/whisper-base",
       "license": "apache-2.0",
       "model_type": "speech",

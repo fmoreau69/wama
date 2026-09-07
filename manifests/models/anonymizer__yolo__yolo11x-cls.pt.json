@@ -1012,7 +1012,11 @@
       ],
       "task": "classify"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "ultralytics"
+      }
+    },
     "extra_info": {
       "class_list": [
         "n01440764",

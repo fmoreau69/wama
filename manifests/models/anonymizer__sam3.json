@@ -12,7 +12,11 @@
       "task": "segment",
       "text_promptable": true
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "sam3"
+      }
+    },
     "extra_info": {
       "error": null,
       "hf_authenticated": true,
@@ -33,6 +37,7 @@
     "identity": {
       "author": "facebook",
       "description_short": "SAM3 (Meta) — segmentation par prompt texte.",
+      "gated": "manual",
       "hf_id": "facebook/sam3",
       "license": "sam-license",
       "model_type": "vision",

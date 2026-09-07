@@ -59,6 +59,7 @@
     "identity": {
       "author": "MiniMaxAI (poids) / audio-cpp (package GGUF)",
       "description_short": "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)",
+      "gated": "no",
       "hf_id": "audio-cpp/MiniMax-Music3-GGUF",
       "license": "minimax-music3-community",
       "model_type": "music",

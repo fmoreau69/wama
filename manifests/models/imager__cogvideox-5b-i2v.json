@@ -14,7 +14,11 @@
         "image-to-video"
       ]
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "diffusers"
+      }
+    },
     "extra_info": {},
     "formats": {
       "can_convert_to": [],
@@ -24,6 +28,7 @@
     "identity": {
       "author": "Zhipu AI (Z.ai)",
       "description_short": "CogVideoX 5B — Image-to-Video, 24 fps",
+      "gated": "no",
       "hf_id": "THUDM/CogVideoX-5b-I2V",
       "license": "cogvideox-license",
       "model_type": "diffusion",

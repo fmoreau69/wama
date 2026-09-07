@@ -27,7 +27,11 @@
       ],
       "task": "obb"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "ultralytics"
+      }
+    },
     "extra_info": {
       "class_list": [
         "plane",
