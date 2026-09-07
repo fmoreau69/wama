@@ -61,53 +61,52 @@ else
 fi
 
 # =============================================================================
-# 3. Dépendances pip
+# 3. Dépendances pip — VÉRIFIÉES, jamais imposées
 # =============================================================================
-echo "--- [3/5] Installation des dépendances pip ---"
+# ⚠⚠ RÉÉCRIT LE 2026-09-07. Cette section INSTALLAIT les `requirements.txt` de MuseTalk et
+# CodeFormer dans le venv PRINCIPAL, plus un pin `numpy>=1.26.0,<2.0`. Mesuré :
+#
+#     musetalk/requirements.txt épingle  numpy==1.23.5, transformers==4.39.2,
+#                                        tensorflow==2.12.0, diffusers==0.30.2
+#     le venv porte                      numpy 2.3.5, transformers 4.57.6,
+#                                        tensorflow 2.21.0, diffusers 0.37.0
+#
+# Les appliquer aurait rétrogradé QUATRE dépendances partagées — dont `transformers`, sur
+# lequel reposent les 9 patches boson_multimodal, et `diffusers`, moteur des 8 backends de
+# l'imager. Sur une installation qui marche, ce script la cassait.
+#
+# Et ils sont PROUVÉS inutiles : les 18 dépendances de MuseTalk sont déjà présentes en versions
+# plus récentes, et l'avatarizer tourne ainsi (4 jobs SUCCESS au catalogue). C'est la doctrine
+# du dépôt : le venv est la RÉFÉRENCE, la lib vendorisée s'y adapte — et si elle ne le peut
+# pas, le correctif est un patch (`patches/apply_patches.py`), jamais un retour en arrière.
+#
+# Cette section VÉRIFIE donc, et n'installe que ce qui MANQUE VRAIMENT — en `--no-deps`, pour
+# qu'un pin d'amont ne puisse jamais entraîner le venv avec lui.
+echo "--- [3/5] Vérification des dépendances (le venv fait référence) ---"
 
-# Mettre à jour pip/setuptools/wheel en premier (évite les erreurs de build sur Python 3.12)
-echo "Mise à jour pip/setuptools/wheel..."
-pip install --quiet --upgrade pip "setuptools>=68.0" wheel
+manquants=""
+for mod in diffusers accelerate numpy cv2 soundfile transformers huggingface_hub \
+           librosa einops omegaconf moviepy basicsr facexlib; do
+    python -c "import $mod" >/dev/null 2>&1 || manquants="$manquants $mod"
+done
 
-# Pré-installer numpy compatible Python 3.12 AVANT les requirements.txt
-# (évite l'erreur pkgutil.ImpImporter si requirements.txt pin une vieille version)
-echo "Pré-installation numpy compatible Python 3.12..."
-pip install --quiet "numpy>=1.26.0,<2.0"
-
-# MuseTalk requirements (numpy déjà installé, sera ignoré)
-if [ -f "$AVATARIZER_DIR/musetalk/requirements.txt" ]; then
-    echo "Installation requirements MuseTalk..."
-    pip install -r "$AVATARIZER_DIR/musetalk/requirements.txt" --quiet || {
-        echo "Tentative sans isolation de build (fallback Python 3.12)..."
-        pip install -r "$AVATARIZER_DIR/musetalk/requirements.txt" --quiet --no-build-isolation || true
-    }
+if [ -z "$manquants" ]; then
+    echo "  ✔ toutes les dépendances sont présentes — rien à installer."
 else
-    echo "requirements.txt MuseTalk non trouvé — installation manuelle des essentiels"
-    pip install --quiet \
-        diffusers==0.27.2 \
-        accelerate \
-        imageio \
-        imageio-ffmpeg \
-        moviepy \
-        facenet-pytorch \
-        mmpose \
-        mmdet \
-        mmengine \
-        openmim
-    pip install --quiet mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html || \
-    pip install --quiet mmcv==2.1.0 || true
+    echo "  Modules absents :$manquants"
+    echo "  Installation en --no-deps (un pin d'amont ne doit pas rétrograder le venv) :"
+    # Nom d'IMPORT ≠ nom pip pour deux d'entre eux.
+    for mod in $manquants; do
+        case "$mod" in
+            cv2) paquet="opencv-python" ;;
+            huggingface_hub) paquet="huggingface-hub" ;;
+            *) paquet="$mod" ;;
+        esac
+        pip install --quiet --no-deps "$paquet" || echo "    ⚠ $paquet : échec, à traiter à la main"
+    done
+    echo "  ⚠ En --no-deps, pip ne comble pas les manques transitifs : relancer les contrôles"
+    echo "    de bonne fin de tools/install_wama.sh après cette étape."
 fi
-
-# CodeFormer requirements
-if [ -f "$AVATARIZER_DIR/codeformer/requirements.txt" ]; then
-    echo "Installation requirements CodeFormer..."
-    pip install -r "$AVATARIZER_DIR/codeformer/requirements.txt" --quiet || {
-        pip install -r "$AVATARIZER_DIR/codeformer/requirements.txt" --quiet --no-build-isolation || true
-    }
-fi
-
-# Dépendances communes
-pip install --quiet basicsr facexlib gfpgan pyyaml
 
 # =============================================================================
 # 4. Checkpoints MuseTalk

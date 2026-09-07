@@ -193,7 +193,12 @@ class ContratNocturneTests(SimpleTestCase):
         ok, detail = self._verdict(f"INTÉGRITÉ DOCS+SKILLS → CODE  (11 documents)\n"
                                    f"CASSÉ (5) :\n{lignes}\n"
                                    f"Bilan : 5 cassée(s), 0 périmée(s)\n")
-        self.assertTrue(ok, detail)
+        # ⚠ Ce test porte sur le COMPTAGE (cinq références, UNE cible), pas sur le verdict.
+        # Il assertait aussi `ok` — ce qui le liait au BUDGET : quand `CIBLES_ASSUMEES` est
+        # passé de 1 à 0 (seuil resserré une fois les docs à zéro, commit df48f1e0), il est
+        # devenu rouge sans qu'une ligne de la logique testée ne bouge.
+        # *Un test de comptage qui asserte une POLITIQUE casse au premier changement de seuil.*
+        # Le verdict reste éprouvé là où il est vraiment en jeu, deux tests plus bas.
         self.assertIn('1 cible(s) distincte(s)', detail)
 
     def test_la_fleche_de_l_en_tete_ne_compte_pas_pour_une_cible(self):
@@ -201,7 +206,8 @@ class ContratNocturneTests(SimpleTestCase):
                                    "CASSÉ (1) :\n"
                                    "  PROJECT_STATUS.md:10  fichier inexistant → common/_x.html\n"
                                    "Bilan : 1 cassée(s), 0 périmée(s)\n")
-        self.assertTrue(ok, detail)
+        # Idem : ce qui est testé est que la flèche de l'EN-TÊTE ne compte pas — donc UNE
+        # cible et non deux. Le verdict, lui, dépend du budget et non du parseur.
         self.assertIn('1 cible(s) distincte(s)', detail)
 
     def test_une_deuxieme_cible_distincte_fait_echouer_le_contrat(self):

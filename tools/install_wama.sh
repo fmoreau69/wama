@@ -132,6 +132,15 @@ fi
 titre "Base de données (migrations + données initiales)"
 lancer "$PY" "$ROOT/manage.py" migrate
 lancer "$PY" "$ROOT/manage.py" init_wama
+# Le registre des LIBRAIRIES vient des manifestes — une declaration pure (nom pip,
+# licence, version cible), 16 fichiers JSON, aucun disque a balayer. Il dit ce que WAMA
+# SAIT installer, ce qui a du sens AVANT d'avoir quoi que ce soit sur disque.
+# ⚠ Les manifestes de MODELES ne sont deliberement PAS appliques ici : le catalogue
+# AIModel reflete le DISQUE, et sa verite est le balayage (deja branche en tache
+# periodique `model-manager-reconcile`). Les appliquer creerait des lignes pour des
+# poids absents — un catalogue qui annonce ce qu'il n'a pas. Sur une install neuve,
+# un catalogue de modeles VIDE est juste.
+lancer "$PY" "$ROOT/manage.py" apply_manifests --kind library --apply
 
 # ── 7. Fichiers statiques ───────────────────────────────────────────────────
 titre "Collecte des fichiers statiques"
@@ -142,25 +151,18 @@ lancer "$PY" "$ROOT/manage.py" collectstatic --noinput
 # pouvoir aboutir sans eux — les apps concernées signalent proprement leur indisponibilité.
 titre "Setups optionnels"
 
-# ⚠⚠ AVATARIZER — MESURÉ le 2026-09-07 : `setup_avatarizer.sh` installe DANS LE VENV COURANT
-# et y RÉTROGRADE deux dépendances PARTAGÉES —
-#     numpy      2.3.5  → 1.26.4   (pin `numpy>=1.26.0,<2.0`, pour un build Python 3.12)
-#     diffusers  0.37.0 → 0.27.2   (pin de MuseTalk ; c'est la version des 8 backends imager)
-# Les deux pins avaient une raison à leur époque ; aucun n'a été re-mesuré depuis. On ne les
-# corrige pas ICI (le domicile est `setup_avatarizer.sh`), mais on ne les subit plus en
-# silence : la simulation `pip install --dry-run` est LECTURE SEULE et dit ce qui reculerait.
-# *Une installation optionnelle ne doit pas pouvoir abîmer l'installation principale sans
-# qu'on l'ait vu.*
+# AVATARIZER — le setup CLONE MuseTalk et CodeFormer (reconstruction a l'installation, jamais
+# versionnee : `musetalk` est gitignore, `codeformer` est un sous-module). Depuis le 2026-09-07
+# il ne fait plus QUE ca cote pip : il VERIFIE les dependances au lieu de les imposer.
+# Ce qu'il faisait avant, et pourquoi c'etait grave : il installait `musetalk/requirements.txt`
+# dans le venv PRINCIPAL, qui epingle numpy==1.23.5, transformers==4.39.2, tensorflow==2.12.0
+# et diffusers==0.30.2 — quatre RETROGRADATIONS de dependances partagees, dont transformers
+# (les 9 patches boson_multimodal en dependent) et diffusers (les 8 backends de l'imager).
+# Mesure qui a tranche : les 18 dependances sont deja presentes en versions plus recentes, et
+# l'avatarizer TOURNE ainsi (4 jobs SUCCESS). Le venv est la reference ; une lib qui ne s'y
+# plie pas se PATCHE (`patches/apply_patches.py`), elle ne fait pas reculer le venv.
 if [ "$WITH_AVATARIZER" = "1" ]; then
-  echo "  Avatarizer (MuseTalk + CodeFormer) — LOURD…"
-  if [ "$DRY" != "1" ]; then
-    echo "  Simulation préalable (lecture seule) des pins connus pour reculer…"
-    for spec in "numpy>=1.26.0,<2.0" "diffusers==0.27.2"; do
-      recul="$("$PY" -m pip install --dry-run "$spec" 2>/dev/null | grep -oE 'Would install.*' || true)"
-      [ -n "$recul" ] && echo "    ⚠ $spec → $recul"
-    done
-    echo "    ↑ ces paquets sont PARTAGÉS. Interrompre maintenant (Ctrl-C) si ce recul n'est pas voulu."
-  fi
+  echo "  Avatarizer (clone MuseTalk + CodeFormer) — LOURD…"
   lancer bash "$ROOT/wama/avatarizer/setup_avatarizer.sh"
 else
   echo "  → avatarizer NON installé (--with-avatarizer pour l'ajouter)"
