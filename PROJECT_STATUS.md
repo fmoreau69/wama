@@ -11663,7 +11663,12 @@ du générateur. ⚠ Touche leurs tables : demander le GO à Fabien avant.
 
 - **gunicorn rechargé plusieurs fois** (`kill -HUP`) pour recharger JS et Python — il tourne
   avec le code de HEAD. Rien à faire.
-- **9 commits non poussés** (`0e67422b` → `4e60e53e`). Push = décision de Fabien.
+- **Push : mesuré À LA FERMETURE** — `origin/dev` connaît déjà `df48f1e0` (mon handoff) : la
+  branche **a été poussée pendant la session**. Restent **7 commits d'avance**, dont mes trois
+  derniers (`fb395a9c` shas manquants · `ea707be4` garde de clôture · `bd396a14` rectification)
+  et ceux d'autres instances. ⚠ Une première rédaction annonçait « 9 non poussés » en comptant
+  les MIENS sans regarder l'amont : *un pending de push se mesure contre `origin`, jamais contre
+  sa propre liste de commits.*
 - **Compte de test** : tous les éléments créés (scénarios + une sonde manuelle #477 posée
   pendant l'investigation du geste 11) ont été retirés — file du compte de test **à 0**, vérifié.
 - **Un PNG témoin** a été écrit dans le répertoire temporaire de WSL pour piloter le navigateur ;
