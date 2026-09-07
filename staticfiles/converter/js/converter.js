@@ -25,8 +25,7 @@
     });
 
     // ── DOM refs ─────────────────────────────────────────────────────────────
-    const dropZone       = document.getElementById('converterDropZone');
-    const fileInput      = document.getElementById('converterFileInput');
+    // (zone de dépôt et sélecteurs de fichier/dossier : câblés par WamaImport, plus bas)
     const mediaTypeBadge = document.getElementById('converterMediaTypeBadge');
     const queue          = document.getElementById('converterQueue');
     // État vide : ADOPTE la brique commune `WamaApp.emptyState` (2026-08-23). Le `const`
@@ -165,103 +164,6 @@
         window.CONVERTER_DEFAUTS = readMainPanelOptions();
     }
 
-    // Upload UN fichier → retourne son job_id (ou null). PAS de reload ici :
-    // le reload se fait une fois après la consolidation (handleFiles).
-    async function uploadFile(file) {
-        const mediaType = detectMediaType(file.name);
-        if (!mediaType) { WamaApp.toast(`Format non supporté : ${file.name}`, 'warning'); return null; }
-        const outputFmt = panelOutputFormat();
-        if (!outputFmt) {
-            WamaApp.toast('Choisissez un format de sortie avant d\'envoyer un fichier.', 'error');
-            return null;
-        }
-        const opts = readMainPanelOptions();
-        const fd   = new FormData();
-        fd.append('file', file);
-        fd.append('output_format', outputFmt);
-        Object.entries(opts).forEach(([k, v]) => fd.append(k, v));
-        try {
-            const resp = await csrfPost(APP.urls.upload, fd);
-            const data = await resp.json();
-            if (!resp.ok || data.error) {
-                WamaApp.toast('Erreur : ' + (data.error || resp.statusText), 'error');
-                return null;
-            }
-            if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
-            // `id` = contrat COMMUN des vues d'upload (trou #24). Les deux anciennes graphies
-            // restent lues en repli le temps que le parc converge : un identifiant `undefined`
-            // ne lève RIEN ici (`return null` silencieux, aucune card, aucune erreur console) —
-            // c'est ce mutisme qui a rendu converter_01 inerte pendant tout le 22/08.
-            return data.id || data.job_id || data.pk || null;
-        } catch (err) {
-            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
-            return null;
-        }
-    }
-
-    // Point d'entrée unique : détecte un fichier batch (1 .txt/.csv) sinon
-    // upload tous les fichiers puis les consolide en batch(s) par nature.
-    async function handleFiles(files) {
-        files = Array.from(files);
-        if (!files.length) return;
-
-        // 1 fichier descripteur de batch (urls/chemins) → flux batch dédié
-        if (files.length === 1 && window._converterBatchImport &&
-            await window._converterBatchImport.detectAndHandle(files[0])) {
-            return;
-        }
-
-        const type = detectMediaType(files[0].name);
-        if (type) setMediaType(type);
-
-        const ids = [];
-        for (const f of files) {
-            const id = await uploadFile(f);
-            if (id) ids.push(id);
-        }
-        if (ids.length) {
-            // Consolidation en batch(s) par nature (1 fichier → batch-of-1)
-            const fd = new FormData();
-            ids.forEach(id => fd.append('job_ids', id));
-            try { await csrfPost(APP.urls.consolidate, fd); } catch (_) { /* non-fatal */ }
-            location.reload();
-        }
-    }
-
-    // ── Drag & Drop ───────────────────────────────────────────────────────────
-
-    // Clic pour parcourir : l'ancien markup avait un onclick inline sur la div, retiré au
-    // passage à la card commune _new_item_card.html (2026-07-10, tête de file — cf. reader.js
-    // initDropZone). Sans ce listener, cliquer la zone n'ouvrait plus le sélecteur de fichiers.
-    dropZone.addEventListener('click', () => fileInput.click());
-
-    dropZone.addEventListener('dragover', e => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-    });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-    dropZone.addEventListener('drop', e => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        // Dossiers déposés → traversée récursive par la brique commune (F2 recursive_import).
-        WamaFolderImport.collect(e.dataTransfer)
-            .then(list => handleFiles(WamaFolderImport.files(list)));
-    });
-
-    fileInput.addEventListener('change', () => {
-        handleFiles(fileInput.files);
-        fileInput.value = '';
-    });
-
-    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
-    const folderInput = document.getElementById('converterFolderInput');
-    if (folderInput) {
-        folderInput.addEventListener('change', () => {
-            handleFiles(WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files)));
-            folderInput.value = '';
-        });
-    }
-
     // ── Batch import (fichier d'URLs/chemins) — composant commun ────────────────
     if (typeof WamaBatchImport === 'function') {
         window._converterBatchImport = WamaBatchImport({
@@ -270,6 +172,65 @@
             csrfToken:       csrf,
             afterCreate:     function () { location.reload(); },
         });
+    }
+
+    // ── Voie d'import : brique commune WamaImport (wama-import.js) — portage 2026-09-07 ──
+    //
+    // 2ᵉ app EN PLACE à l'adopter (après le transcriber ; plan « fichiers d'entrée »,
+    // MEDIA_STORAGE_TIERING §8, inventaire ROUTE §Portage F2). Ce qui vivait ici — upload
+    // séquentiel, consolidation `job_ids`, reload, câblage clic / survol / drop récursif /
+    // sélecteur de dossier — est le contrat de la brique. L'app ne DÉCLARE que ce qui est à elle :
+    //   • `beforeFile`  : le REFUS AVANT ENVOI que l'ancien `uploadFile` faisait (format non
+    //                     supporté → toast, aucun format de sortie → toast), et la détection de
+    //                     TYPE qui pilote le volet (`setMediaType` re-rend le schéma : show_if +
+    //                     liste des formats, premier format proposé d'emblée). Posée quand le
+    //                     type CHANGE : un dépôt du même type que le volet ne re-rend pas — les
+    //                     « défauts des prochains dépôts » que l'utilisateur vient de régler
+    //                     restent en place (l'ancienne boucle re-rendait à CHAQUE dépôt, depuis
+    //                     le premier fichier seulement, et un dépôt MIXTE envoyait le 2ᵉ type
+    //                     avec le format du 1ᵉʳ) ;
+    //   • `extraFields` : `output_format` + les réglages POSÉS du volet (vides ignorés — c'est
+    //                     ce qui laisse le préréglage serveur agir, ROADMAP §23.2bis) ;
+    //   • `consolidateField:'job_ids'` : contrat HISTORIQUE de `converter:consolidate` (la vue
+    //                     lit JSON `job_ids` ou champ répété — `views.py`, `consolidate`).
+    // PRÉSERVÉ par les défauts de la brique : lot détecté sur un fichier déposé SEUL, `id` /
+    // `job_id` / `pk` lus en repli (trou #24), `WamaFM.uploaded()`, reload à la fin.
+    // ⚠ Différence assumée : l'ancienne boucle consolidait AUSSI un fichier seul (batch-of-1
+    // immédiat) ; la brique ne consolide qu'à partir de 2. Le reload qui suit passe par
+    // `_auto_wrap_orphans` (IndexView) qui enveloppe l'orphelin — même état à l'écran.
+    function beforeFile(file) {
+        const type = detectMediaType(file.name);
+        if (!type) { WamaApp.toast(`Format non supporté : ${file.name}`, 'warning'); return false; }
+        if (type !== currentMediaType) setMediaType(type);
+        if (!panelOutputFormat()) {
+            WamaApp.toast('Choisissez un format de sortie avant d\'envoyer un fichier.', 'error');
+            return false;
+        }
+        return true;
+    }
+
+    function extraFields(fd) {
+        fd.append('output_format', panelOutputFormat());
+        Object.entries(readMainPanelOptions()).forEach(([k, v]) => fd.append(k, v));
+    }
+
+    if (typeof WamaImport === 'function') {
+        window._import = WamaImport({
+            uploadUrl:        APP.urls.upload,
+            consolidateUrl:   APP.urls.consolidate,
+            consolidateField: 'job_ids',
+            csrfToken:        csrf,
+            dropZoneId:       'converterDropZone',
+            fileInputId:      'converterFileInput',
+            folderInputId:    'converterFolderInput',
+            batch:            window._converterBatchImport,
+            beforeFile:       beforeFile,
+            extraFields:      extraFields,
+        });
+    } else {
+        // Défaut le plus silencieux qui soit (une zone de dépôt que rien n'écoute) → on le DIT.
+        WamaApp.toast("Voie d'import non chargée (wama-import.js) — dépôt impossible", 'error');
+        console.error('[Converter] WamaImport absent : wama-import.js non chargé par le gabarit');
     }
 
     // ── Queue actions ─────────────────────────────────────────────────────────

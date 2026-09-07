@@ -1943,8 +1943,9 @@ recopier NULLE PART, re-mesurer)** :
   codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
   `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
   (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
-- **`WamaImport` : 1/10 dans le parc réel depuis le 2026-09-07 (transcriber) ; `_app_scripts.html` :
-  0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit généré et le banc. Une app
+- **`WamaImport` : 2/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter) ;
+  `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
+  généré et le banc. Une app
   générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
   même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
   zéro app. Le transcriber charge `wama-import.js` par une balise DIRECTE dans son gabarit (pas
@@ -2006,6 +2007,17 @@ appris :
 - Le contrôle de jonction a réclamé son critère : **`import_front`** (F2, `mecanisme=
   'import_front'`), gate commun `_card_entree_rendue` avec `import_wired` → grille à **89**
   critères ; 9 apps passent ROUGE dessus, c'est la mesure attendue de « 1/10 ».
+
+**2ᵉ adoption — converter, 2026-09-07 (soir)** : `beforeFile` porte le refus AVANT envoi de
+l'ancien `uploadFile` (format non supporté, aucun format de sortie) ET la détection de type qui
+pilote le volet — posée quand le type CHANGE, alors que l'ancienne boucle re-rendait le volet à
+chaque dépôt (ce qui effaçait les « défauts des prochains dépôts » que l'utilisateur venait de
+régler) ; `extraFields` = `output_format` + réglages posés ; `consolidateField:'job_ids'`.
+Différence assumée : un fichier SEUL n'est plus consolidé par le front (la brique consolide à
+partir de 2) — `_auto_wrap_orphans` l'enveloppe au reload, même état à l'écran. Mesuré : 5 gestes
+4/5 + 1 skip (garde anti-bouclage de `url_import`, identique avant/après), famille `converter.`
+**13/14 + le même skip** dont `processing` et `batch_processing` ; smoke 0 erreur JS ; 77 tests
+(converter, import_wired, codegen_templates, sandbox_coherence) OK ; grille converter **100 %**.
 
 **Inventaire par app** (balayage exhaustif des JS d'import, ancres vérifiées sur reader et
 anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas faire :
