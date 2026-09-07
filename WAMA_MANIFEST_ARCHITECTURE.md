@@ -411,6 +411,70 @@ pas dans les intentions :
 | `project` | `extract_project` | ❌ |
 | `dataset` | `None` — *le manifeste est l'origine* | ❌ |
 
+### 7bis. LES DEUX SENS, et lequel s'applique à quel kind (cartographié 2026-09-07)
+
+> **Pourquoi cette section.** Le tableau ci-dessus dit *quels hooks existent* ; il ne dit pas
+> **qui les déclenche, ni dans quel sens**. Faute de cette carte, j'ai proposé deux fois un
+> contresens : faire naître des lignes de catalogue depuis des manifestes de modèle, puis
+> router une première installation par une `composition` qui n'existe pas encore. *La route
+> était tracée ; c'est de ne l'avoir écrite nulle part qu'on la réinvente.*
+
+**Sens ENTRANT — manifeste → registres.** Commande **`apply_manifests --kind <k> [--apply]`**
+(dry-run par défaut). ⚠ **Ce n'est PAS un chemin parallèle à l'ingest** (question de Fabien,
+vérifiée dans le code) : elle **appelle** `ingest.write_back(manifeste, apply=…)` et réutilise
+la table `manifest_export.DOSSIERS` au lieu de la re-dériver. Périmètres complémentaires —
+`write_back` traite **un** manifeste, `apply_manifests` **parcourt un corpus**.
+**La doctrine « quel kind s'applique à l'installation, et pourquoi pas les autres » vit dans
+l'en-tête de cette commande** — elle n'est pas recopiée ici, pour qu'elle ne puisse pas
+diverger. En un mot : `library` **oui** (déclaration pure, aucune I/O, utile avant tout
+disque) ; `model` **non** (créerait des lignes pour des poids absents) ; `app` **non** à
+l'installation (`write_back_app` écrit du CODE) ; `function` **non** (registre en mémoire).
+
+**Sens SORTANT — disque → catalogue → manifeste.** C'est le sens des **modèles** :
+
+```
+poids déposés dans AI-models/ ─▶ file_watcher (watchdog, démarré par model_manager/apps.py)
+                                        │  sync_file_change(path, is_added)
+        sync_models · register_after_install · Celery Beat ─▶ discover_all_models()
+                                        ▼
+                        la ligne AIModel NAÎT du disque, jamais d'un manifeste
+                                        ▼
+                        manifest_export --kind model <clé> ─▶ le manifeste est EXTRAIT
+```
+
+C'est ce qui rend le dépôt manuel opérant : le **file manager** expose `BASE_DIR.parent`
+(donc `AI-models/`), on y dépose des poids, **le watcher les catalogue seul**.
+
+**Ce que ce sens sert, et son état MESURÉ** (précision de Fabien, 2026-09-07) : on ne partage
+que le CODE, jamais les poids ; chacun ne tire que ce qui l'intéresse ; et une installation
+fraîche se repeuple **depuis la sauvegarde** plutôt qu'en re-téléchargeant les sources
+externes. La doctrine est saine et **à moitié outillée** :
+
+| moitié | état |
+|---|---|
+| sauvegarde SORTANTE | ✅ `remote_backup.py` — `backup_all_models`, `offload_file`, `list_backups` + API `backup/{status,list,model,models/start}` |
+| **restauration ENTRANTE** | ❌ **aucun code** — ni fonction, ni endpoint (`backup_db`/`restore_db` concernent la BASE, pas les poids) |
+| repeuplement du catalogue | ✅ **automatique** dès que les fichiers sont revenus (watcher + `sync_models`) |
+
+Autrement dit il ne manque que la **recopie retour** ; la moitié difficile — reconstruire le
+catalogue — est déjà là et n'a rien à apprendre.
+
+**Le cas `app`, et l'obstacle mesuré.** Deux pistes évoquées (Fabien) : faire installer une app
+par l'assistant depuis son manifeste (en tout ou partie), ou l'installer depuis un catalogue
+d'apps dans l'interface — les poids manquants se téléchargeant au 1ᵉʳ usage. ⚠ La seconde
+suppose des apps **au catalogue sans être installées**, et c'est **incohérent avec l'état
+actuel** : `APP_CATALOG` est un dict **statique** des apps présentes dans le code et dans
+`INSTALLED_APPS` — aucune notion d'« installable non installée ». Le trancher est une
+décision de conception, pas un manque d'outillage.
+
+**Le cas `function` — ne pas lire « registre en mémoire » comme « marginal ».** Les fonctions
+sont massivement celles des mondes **Data**, **Lab** et du **studio** ; le monde Média n'en
+porte qu'à la marge (fonctions de traitement). Mesuré : les modules déclarants sont
+`wama_data/functions/` (paquet) et `wama_lab/cam_analyzer/function_specs.py`, pour **58
+manifestes** au corpus. `load_all()` reste **agnostique du monde** par construction — il
+parcourt les apps installées et importe leur module déclarant : *le registre ne connaît
+jamais ses producteurs.*
+
 > **Re-mesuré le 2026-08-12 (soir, marche A close)** : **4 kinds sur 7 projettent** (app —
 > 10 facettes, library, model, function/user).
 > `manifest_roundtrip --all` mesure les facettes d'`app` (**8/10 à 10/12 projetées**, le reste
