@@ -11442,11 +11442,38 @@ navigateur Playwright et a été purgé en fin de passe.
 5. les **8 cases de la matrice sans scénario** (`MEDIA_STORAGE_TIERING §8.7`) ;
 6. cam_analyzer : retirer l'écouteur `filemanager:filedrop` mort (`wama_lab/cam_analyzer/static/cam_analyzer/js/index.js:626`, zones `.camera-drop-zone` jamais trouvées par `findDropZoneAt`) — avec son CHANGELOG.
 
-### Décisions ouvertes (Fabien) — aucune ne BLOQUE le point d'entrée
+### Décisions ouvertes — ✅ TRANCHÉES par Fabien le 2026-09-07 (réponses vérifiées au code avant d'être écrites)
 
-- **D9** durée de rétention de `users/*/temp` (jamais purgé ; ×4 exemplaires mesurés) et entrée des 5 apps hors `RETENTION_MODELS` ;
-- **D7** `-o` / `-r` de lot : implémenter, ou retirer de `BATCH_FORMAT.md` qui les annonce ;
-- le schéma de **provenance** (table commune vs mixin — je déconseille le mixin : 10 migrations).
+- **D9 — rétention du temp : PAS de déclinaison par filemanager/app.** La durée est celle du
+  PROFIL de chaque utilisateur (`UserProfile.media_retention_days`, défaut infini, plafond
+  global `WAMA_MAX_RETENTION_DAYS`), et `retention.py` l'applique déjà par utilisateur à chaque
+  modèle de `RETENTION_MODELS`. Le seul défaut : `filemanager.UserFile` et 5 apps (reader,
+  describer, converter, anonymizer, avatarizer) n'y sont **pas inscrits** — la préférence de
+  l'utilisateur ne s'applique donc pas à son temp sans qu'il le sache. **Geste = 6 lignes
+  déclaratives dans `RETENTION_MODELS`**, aucun réglage de plus. Précaution à écrire : un
+  fichier du temp « envoyé vers » une app a été COPIÉ — sa purge ne casse aucune card.
+- **D7 — `-o` / `-r` de lot : IMPLÉMENTER, dans cet ordre `-r` puis `-o`** (Fabien croyait le
+  sujet réglé : c'est la DÉCISION du 25/08 qui l'est — copie sous un dossier monté, 4 règles
+  dans `BATCH_FORMAT.md` —, pas l'implémentation : `MountedFolder` ne vit que dans le
+  filemanager, `output_filename` ne sert qu'au nom dans le ZIP du composer, perdu ailleurs).
+  `-r` est le plus grave : la doc l'annonce honoré, et le composer crée sa génération SANS
+  rattacher la mélodie (`composer/views.py:395-401`), le synthesizer ne lit jamais
+  `voice_reference`, l'imager filtre `style_reference` — un lot de clonage de voix est
+  impossible en silence. `-r` = rattacher le fichier résolu par la brique de confinement et
+  copié par `copy_into_app_input` (une ligne par app) ; `-o` = la copie sous montage du 25/08.
+  Alternative refusée : retirer les promesses de la doc.
+- **Provenance : OUI, en base, PROPREMENT.** Une table dans `common` (une migration, aucune par
+  app) : `app_label` + `object_id` + `field` (l'adresse qu'utilise déjà `safe_delete_file`),
+  `kind` ∈ {upload, asset, temp, mount, url}, `ref` (id d'asset / chemin relatif du temp /
+  `mounts/<id>/…` / URL), `sha256` + `size` + `original_name` (l'empreinte au moment de la
+  copie → « même source, même copie »), `user`, `created_at`. ÉCRITE par les briques seules
+  (`copy_into_app_input`, `ensure_local_input`, l'upload) — ⚠ l'injection médiathèque perd
+  l'id d'asset en route (un `File` nu) : la card v4 doit le POSTER avec le fichier (hook
+  `extraFields`). LUE par `to_dict()` (face Entrée, inspecteur, modale sans une ligne par app),
+  `check_media_integrity` (réparer depuis la source), `safe_delete_file` (références entre
+  modèles), l'export médiathèque (relier au lieu de recopier). ⚠ Ce sera la PREMIÈRE relation
+  générique de WAMA (grep : zéro `GenericForeignKey`) — un seul domicile, jamais écrite par une
+  app, et un test qui refuse une copie sans provenance.
 
 ### Pendings système
 
