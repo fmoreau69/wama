@@ -43,7 +43,17 @@ from functools import lru_cache
 from pathlib import Path
 
 #: Variables dont la mutation per-modèle est le défaut visé.
-VARS_HF = {'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE', 'HF_HOME'}
+#:
+#: ⚠⚠ LE JETON A ÉTÉ AJOUTÉ LE 2026-09-07, et il a fallu un défaut pour y penser. La garde ne
+#: comptait que le CACHE ; `sam3_processor` mutait `HF_TOKEN`/`HUGGING_FACE_HUB_TOKEN` depuis un
+#: fichier posé dans le dossier du modèle — et l'écrivait en plus dans le `$HOME` de
+#: l'utilisateur — pendant que le budget affichait 0. Le budget disait vrai sur ce qu'il
+#: mesurait ; il ne mesurait pas tout.
+#: Le jeton relève de la MÊME règle que le cache : un seul domicile, `.env` → `settings.py`, posé
+#: une fois au démarrage. Un second exemplaire finit toujours par diverger de l'autre.
+#: *Une garde se pose avec ses jumeaux : toutes les variables qui aiguillent le même sous-système.*
+VARS_HF = {'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE', 'HF_HOME',
+           'HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HUGGINGFACE_TOKEN'}
 
 #: Sites de mutation MESURÉS le 2026-09-03, après les retraits de `table_transformer` (1er),
 #: puis du goulot `model_config.setup_hf_cache_for_model` et des replis de `wan_video_backend`
@@ -65,7 +75,12 @@ MODULES_SANS_EFFET_DE_BORD = (
 #: régénération, sans qu'aucune dette réelle n'ait changé.
 _SANDBOX = re.compile(r'_\d\d(/|$)')
 _HORS_PERIMETRE = ('site-packages', 'staticfiles', '/archive/', 'musetalk',
-                   '/migrations/', 'node_modules')
+                   '/migrations/', 'node_modules',
+                   # ⚠ LE SOCLE EST LE DOMICILE, pas une dette. La règle dit « posées UNE FOIS
+                   # au démarrage » : c'est ICI que ça se fait, et nulle part ailleurs. Exclu
+                   # explicitement depuis que la garde couvre aussi le JETON (2026-09-07) —
+                   # sans quoi elle condamnerait l'endroit même qu'elle prescrit.
+                   'wama/settings.py')
 
 #: Racines de CODE WAMA balayées. Explicites, et non un `rglob` depuis la racine du dépôt :
 #: celui-ci descend dans `venv_win`/`venv_linux`, soit **97 000 des 113 000 fichiers .py**
@@ -141,16 +156,21 @@ class RoutageCacheHFTest(unittest.TestCase):
 
     def test_aucune_nouvelle_mutation_per_modele_de_cache_HF(self):
         """Le budget ne peut que DESCENDRE. Une mutation de plus = un dossier de modèle qui
-        se remettra à collecter les sous-dépendances des autres."""
+        se remettra à collecter les sous-dépendances des autres — ou, depuis le 2026-09-07,
+        un second exemplaire du JETON hors de son unique domicile."""
         sites = sites_de_mutation()
         if len(sites) <= BUDGET_MUTATIONS:
             return
         nouveaux = '\n'.join(f"    {f}:{l}  {v}" for f, l, v in sites)
         self.fail(
-            f"{len(sites)} mutations per-modèle de cache HF pour un budget de "
+            f"{len(sites)} mutation(s) d'environnement HF (cache OU jeton) pour un budget de "
             f"{BUDGET_MUTATIONS} — une au moins a été AJOUTÉE.\n"
-            f"Cible : `cache_dir=` explicite + `HF_HOME` posé une fois au démarrage "
-            f"(ROADMAP §5b ; `settings.py:165`).\n"
+            f"Cible, selon la variable :\n"
+            f"  • CACHE → `cache_dir=` explicite + `HF_HOME` posé une fois au démarrage\n"
+            f"    (ROADMAP §5b ; `settings.py:165`) ;\n"
+            f"  • JETON → un seul domicile, `.env` lu par `settings.py` au démarrage. Ne pas\n"
+            f"    en poser un second, ni l'écrire dans le `$HOME` de l'utilisateur.\n"
+            f"Dans les deux cas le socle est LE domicile — d'où son exclusion du balayage.\n"
             f"Sites actuels :\n{nouveaux}")
 
     def test_le_budget_est_a_jour_quand_la_dette_a_baisse(self):

@@ -28,56 +28,36 @@ from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT, MODEL_PATHS, AI_M
 logger = logging.getLogger(__name__)
 
 
-def setup_sam3_hf_environment():
-    """
-    Setup HuggingFace environment variables for SAM3 model loading.
-    Reads the token from the SAM3 models directory and configures HF cache.
+# ⚠⚠ `setup_sam3_hf_environment()` RETIRÉE le 2026-09-07 (demande de Fabien) — elle était le
+# DERNIER site à muter un jeton HuggingFace dans l'environnement du processus.
+#
+# Ce qu'elle faisait, et pourquoi plus rien ne doit le faire :
+#   • elle lisait un SECOND exemplaire du jeton dans un fichier `token` du dossier du modèle,
+#     alors que le socle en a UN SEUL DOMICILE depuis le 2026-09-02 — `.env`, lu par
+#     `load_dotenv()` et promu en `HF_TOKEN` au démarrage (`settings.py`). Deux domiciles pour
+#     un secret, c'est un domicile de trop : celui qui n'est pas le bon finit par diverger ;
+#   • elle écrivait ce jeton dans le `$HOME` de l'utilisateur (`HfFolder.save_token`) — hors du
+#     dépôt, hors de toute déclaration, exactement ce que la règle des poids hors HuggingFace
+#     interdit pour les fichiers de modèles ; un secret mérite au moins la même rigueur ;
+#   • son bloc de CACHE avait déjà été retiré le 06/09 (SAM3 était le dernier consommateur de
+#     `hf_cache_scope`). Il ne restait donc que le jeton — la fonction entière était le résidu.
+#
+# `huggingface_hub` lit `HF_TOKEN` dans l'environnement : le jeton posé par le socle suffit,
+# et le dépôt gated se charge sans que personne ne touche `os.environ`.
+# Ne JAMAIS réintroduire de mutation d'environnement ici (ROADMAP §5b).
 
-    HuggingFace expects cache structure: HF_HUB_CACHE/models--facebook--sam3/
-    So HF_HUB_CACHE must point to the parent directory (e.g. models/vision/sam/).
-    """
-    # Get SAM root directory (contains models--facebook--sam3/)
-    sam_root = MODEL_PATHS.get('vision', {}).get('sam')
-    if sam_root:
-        sam_root = Path(sam_root)
-    else:
-        sam_root = AI_MODELS_DIR / 'models' / 'vision' / 'sam'
-
-    # HF cache dir for SAM3 model (matches hf_hub_download naming convention)
-    sam3_cache_dir = sam_root / 'models--facebook--sam3'
-
-    # Check for token file in SAM3 cache directory
-    token_file = sam3_cache_dir / 'token'
-    if token_file.exists():
-        try:
-            token = token_file.read_text().strip()
-            if token:
-                os.environ['HF_TOKEN'] = token
-                os.environ['HUGGING_FACE_HUB_TOKEN'] = token
-                logger.info(f"[SAM3] HuggingFace token loaded from {token_file}")
-
-                try:
-                    from huggingface_hub import HfFolder
-                    HfFolder.save_token(token)
-                    logger.debug("[SAM3] Token saved to HuggingFace standard location")
-                except Exception as e:
-                    logger.debug(f"[SAM3] Could not save token to standard location: {e}")
-
-        except Exception as e:
-            logger.warning(f"[SAM3] Could not read token from {token_file}: {e}")
-
-    # ⚠ HISTORIQUE, corrigé le 2026-09-06 — ce bloc prescrivait la bascule `hf_cache_scope`
-    # au motif que « la lib sam3 n'accepte pas de `cache_dir=` ». Le motif était VRAI et la
-    # conclusion FAUSSE : la lib accepte `checkpoint_path=` + `load_from_HF=False`, ce qui est
-    # mieux qu'un `cache_dir=`. La bascule (2026-08-12, après la fuite inter-apps qui vidait le
-    # squelette olmOCR) était le bon réflexe avec l'information de l'époque ; elle n'a
-    # simplement jamais été re-mesurée.
-    #
-    # Le chargement passe désormais par la 3ᵉ voie (`common/utils/hf_weights.poids_locaux`) :
-    # on résout les poids DANS le dossier du modèle, on donne un chemin, et l'environnement du
-    # processus n'est jamais touché — ni durablement, ni « le temps d'un with ». SAM3 était le
-    # DERNIER consommateur de `hf_cache_scope`.
-    # Ne JAMAIS revenir à une mutation d'environnement, permanente ou scopée (ROADMAP §5b).
+# ⚠ HISTORIQUE, corrigé le 2026-09-06 — ce bloc prescrivait la bascule `hf_cache_scope`
+# au motif que « la lib sam3 n'accepte pas de `cache_dir=` ». Le motif était VRAI et la
+# conclusion FAUSSE : la lib accepte `checkpoint_path=` + `load_from_HF=False`, ce qui est
+# mieux qu'un `cache_dir=`. La bascule (2026-08-12, après la fuite inter-apps qui vidait le
+# squelette olmOCR) était le bon réflexe avec l'information de l'époque ; elle n'a
+# simplement jamais été re-mesurée.
+#
+# Le chargement passe désormais par la 3ᵉ voie (`common/utils/hf_weights.poids_locaux`) :
+# on résout les poids DANS le dossier du modèle, on donne un chemin, et l'environnement du
+# processus n'est jamais touché — ni durablement, ni « le temps d'un with ». SAM3 était le
+# DERNIER consommateur de `hf_cache_scope`.
+# Ne JAMAIS revenir à une mutation d'environnement, permanente ou scopée (ROADMAP §5b).
 
 
 def _sam_root():
@@ -188,7 +168,6 @@ class SAM3Processor(DetectionBackend):
             return True
 
         # Token HF (global, inoffensif) — la bascule du CACHE, elle, est confinée ci-dessous.
-        setup_sam3_hf_environment()
 
         try:
             # Import SAM3 modules
@@ -202,7 +181,7 @@ class SAM3Processor(DetectionBackend):
                 # 3ᵉ VOIE (2026-09-06) — remplace la bascule d'environnement `hf_cache_scope`,
                 # dont SAM3 était le DERNIER consommateur. On résout les poids nous-mêmes DANS
                 # le dossier du modèle, puis on donne à la lib un CHEMIN. L'environnement du
-                # processus n'est jamais touché.
+            # processus n'est jamais touché.
                 #
                 # ⚠ Le commentaire d'en-tête de ce fichier affirmait « la lib sam3 n'accepte pas
                 # de `cache_dir=` » — exact, mais elle accepte MIEUX : `checkpoint_path=` +
