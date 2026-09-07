@@ -29,7 +29,7 @@ Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/Quality
 ### Audio (branche dédiée)
 
 L'app porte aussi une **amélioration audio** complète (modèle `AudioEnhancement`,
-`utils/audio_enhancer.py`, ~20 routes `audio/*` dans `urls.py`) : débruitage DeepFilterNet et
+`backends/audio_enhancer.py`, ~20 routes `audio/*` dans `urls.py`) : débruitage DeepFilterNet et
 resemble-enhance, avec sa propre file. Les batchs (import multi-fichiers, actions de lot) sont
 câblés sur les deux branches.
 

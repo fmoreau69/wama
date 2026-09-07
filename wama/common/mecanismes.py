@@ -445,12 +445,65 @@ MECANISMES = (
               "Ne stocke RIEN et n'a pas de rafraîchisseur — une page qui DÉRIVE ne peut pas "
               "diverger de ses sources. Ne cite aucune app : il parcourt les apps installées "
               "(le registre ne connaît jamais ses producteurs). "
-              "⚠ Fait MESURÉ le 03/09 : `AIModel.backend_ref` porte un nom d'APP, pas de "
-              "backend — le rattachement est donc « déduit de l'app » et la page le DIT ; le "
-              "compteur « lien fin déclaré » (0) est la mesure du chantier restant",
+              "⚠ MISE À JOUR 2026-09-06/07 — le lien FIN EXISTE désormais et `backend_ref` "
+              "n'absout plus : le modèle déclare son moteur (`composition.runtime.engine`), le "
+              "backend déclare celui qu'il pilote (`ENGINE`) et ce qu'il sert "
+              "(`SUPPORTED_MODELS`), et l'inventaire porte les COORDONNÉES D'IMPORT pour "
+              "résoudre PARESSEUSEMENT. Mesuré : 108/116 modèles déclarent leur moteur "
+              "(14 la veille), 97 résolvent leur backend réel. `backend_ref` ne sert plus "
+              "qu'à la PROVENANCE du lien",
               'wama/common/services/backend_inventory.py', 'WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/templates/common/backends.html',
                        'wama/common/tests_backend_inventory.py')),
+    Mecanisme('backend_resolution', 'Résolution de backend par DÉCLARATION',
+              "Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter "
+              "ce modèle » : `backend_for_model()` va de `composition.runtime.engine` (moitié "
+              "modèle) à `BaseModelBackend.ENGINE` (moitié backend), départagé par "
+              "`SUPPORTED_MODELS` quand le moteur est PARTAGÉ — `diffusers` est piloté par 8 "
+              "backends, `transformers` par 4. L'import de la classe est CIBLÉ et TARDIF : le "
+              "registre reste statique. C'est ce qui rend l'EMPLACEMENT PHYSIQUE des backends "
+              "indifférent, préalable à leur passage au substrat transversal. "
+              "⚠ Rend None plutôt qu'un tirage quand rien ne tranche — une erreur silencieuse "
+              "coûte plus cher qu'un refus ; et ne rend QUE des sous-classes du contrat (le "
+              "porteur du démon Ollama n'en est pas un)",
+              'wama/common/backends/manager.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              symbole='backend_for_model',
+              annexes=('wama/common/management/commands/check_backend_links.py',
+                       'wama/common/tests_backend_inventory.py')),
+    Mecanisme('model_declarations', "Passe-plat des déclarations de modèle",
+              "Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la "
+              "convention `wama/<app>/utils/model_config.py::<APP>_MODELS`, ne connaît aucune "
+              "app, et surtout ne touche AUCUNE BASE. "
+              "⚠ Le catalogue `AIModel` porte la même information, mais le lire ajouterait une "
+              "dépendance ORM à chaque backend — or c'est justement l'absence de Django qui les "
+              "rend déplaçables. On lirait la bonne donnée en détruisant la propriété cherchée",
+              'wama/common/utils/model_declarations.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              symbole='declaration',
+              annexes=('wama/common/tests_backend_inventory.py',)),
+    Mecanisme('backend_isolation', "Environnement d'exécution d'un backend",
+              "`ISOLATION` déclare où tourne un backend (`venv:<chemin>` | `service:<url>`, "
+              "vide = venv principal). Sans elle le GRISAGE MENT : `missing_packages()` "
+              "interroge `find_spec` dans CE processus, verdict muet sur un backend qui vit "
+              "ailleurs. Le défaut est UN venv — l'isolement se DÉCLARE, ne se génère jamais : "
+              "son coût n'est pas le disque mais la VRAM, chaque processus isolé étant un "
+              "détenteur que le gouverneur ne voit pas. Zéro isolement aujourd'hui",
+              'wama/common/backends/base.py', 'INFRA_WSL_VS_WINDOWS.md',
+              symbole='ISOLATION',
+              annexes=('wama/common/tests_backend_inventory.py',)),
+    Mecanisme('hf_weights', 'Routage des poids hors HuggingFace',
+              "QUATRE leviers pour tenir la règle « modèle principal catégorisé, "
+              "sous-dépendances au cache partagé » (ROADMAP §5b), et le choix est imposé par la "
+              "LIB, pas par le goût : A `cache_dir=` — B un CHEMIN local (`poids_locaux`) — "
+              "C la variable propre à la lib, posée dans settings (`DEEPFACE_HOME`, "
+              "`AUDIOCRAFT_CACHE_DIR`) — D `hf_cache_scope`, DERNIER RECOURS déclaré. "
+              "⚠ D restaure l'environnement mais JAMAIS LES FICHIERS : ce que la lib télécharge "
+              "pendant la fenêtre reste dans le dossier du modèle — c'est ainsi que "
+              "`timm/resnet18` a atterri chez table-transformer. Zéro mutation d'environnement "
+              "dans le code aujourd'hui",
+              'wama/common/utils/hf_weights.py', 'ROADMAP.md',
+              symbole='poids_locaux',
+              annexes=('wama/common/utils/hf_cache.py',
+                       'wama/common/tests_hf_cache_routing.py')),
     Mecanisme('output_formats', 'Formats de sortie',
               "Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter)",
               'wama/common/utils/output_formats.py', ''),

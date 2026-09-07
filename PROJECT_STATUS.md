@@ -2470,6 +2470,108 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-09-04→07, instance « CHAÎNE MODÈLE ↔ BACKEND ↔ MOTEUR » — ✅ PALIER LIVRÉ
+
+> **Partition tenue** : `wama/common/{backends,services/backend_inventory,utils/{model_declarations,
+> hf_weights,hf_cache,blur_utils,bounds,video_utils,ffmpeg_utils,ollama_host}}`,
+> `wama/*/backends/*`, `wama/*/utils/model_config.py`, `wama_lab/{face_analyzer,cam_analyzer}`,
+> `wama/model_manager/services/model_registry.py`, `settings.py` (socle d'environnement).
+> ⚠ Une autre instance travaillait en parallèle sur `card v4` / `wama_data` — aucun fichier commun.
+
+### Ce que la session a fermé
+
+**Le lien modèle ↔ backend existe et se RÉSOUT.** Il était théorique au départ : `backend_ref`
+portait un nom d'APP, donc une appartenance, jamais une exécutabilité — et son court-circuit dans
+`backend_missing()` absolvait tout modèle rattaché à une app, y compris quand son moteur n'existait
+nulle part. Retiré après mesure : **sur 174 modèles, un SEUL change de verdict**
+(`ResembleAI/chatterbox`, qu'aucun backend ne pilote — le nouveau verdict est juste).
+
+| indicateur | avant | après |
+|---|---|---|
+| moteurs exécutables (`known_engines`) | 8 | **25** |
+| backends inventoriés | 38 | **65 fichiers, 61 mobiles** |
+| modèles déclarant leur moteur | 14 / 116 | **108 / 116** |
+| modèles résolvant leur backend RÉEL | — | **97 / 108** |
+| backends concrets sans `ENGINE` | 4 (invisibles) | **0** |
+| mutations d'environnement HF | 0 | **0** (SAM3 converti, dernier consommateur) |
+
+Les 11 non résolus sont NOMMÉS : 10 Ollama (le démon n'est pas du code Python qu'on charge) et
+chatterbox (aucun backend n'existe). Mesuré en continu par **`manage.py check_backend_links`**.
+
+### Les quatre défauts STRUCTURELS trouvés en chemin
+
+1. **Deux apps gardaient leurs backends hors de `backends/`** — anonymizer dans `core/`, enhancer
+   dans `utils/`. Invisibles au registre, donc leurs **57 modèles** ne pouvaient pas déclarer un
+   moteur qui se résolve. Déplacés (`git mv`), `wama/anonymizer/core/` a disparu.
+2. **L'invariant « tout backend concret déclare ENGINE » ne les voyait pas** — il lit le même
+   inventaire. *Un invariant ne vaut que sur le périmètre qu'il balaie.*
+3. **`AIUpscaler` était un moteur hors contrat** (`ort.InferenceSession`) : raccordé, ses 7 modèles
+   déclarent `onnxruntime`, et le gouverneur voit enfin une VRAM qui n'était comptée nulle part.
+4. **15 backends importaient le `model_config` de leur app** — bloquant pour leur passage au
+   substrat. Tous levés : un CHEMIN vient de `settings.MODEL_PATHS`, une DÉCLARATION du passe-plat
+   commun `model_declarations.declaration()` — **sans ORM**, parce que c'est l'absence de Django qui
+   rend un backend déplaçable.
+
+### Stockage des modèles — la règle est tenue de bout en bout
+
+`ROADMAP §5b` a désormais **quatre leviers écrits** (`hf_weights.py`) : `cache_dir=` / chemin local /
+variable propre à la lib / bascule d'environnement en DERNIER RECOURS déclaré. SAM3 est passé au
+levier B — sa contrainte supposée (« n'accepte pas `cache_dir=` ») était vraie mais masquait qu'il
+acceptait mieux (`checkpoint_path=`). **1,1 Go de poids DeepFace** dormaient dans `$HOME/.deepface`,
+hors catalogue : rangés via `DEEPFACE_HOME` posé dans `settings.py`. Ligne fantôme `timm/resnet18`
+retirée par le mécanisme, CodeFormer catalogué (il était déclaré depuis toujours, jamais découvert —
+*une déclaration que personne ne lit ne vaut rien*).
+
+### Face Analyzer — l'app était à moitié MORTE
+
+Son backend PAR DÉFAUT levait `ImportError` depuis une montée `fer>=22.5.0` sans borne haute.
+**Aucun test ne couvrait l'app** : elle a pourri en silence. 8 gardes posées, venvs reliquats
+supprimés (2,7 Go), requirements harmonisés — `tf-keras>=2.21` lève un conflit `pip check`, et `fer`
+reste en `--no-deps` (sa chaîne `facenet-pytorch → torchvision` rétrograderait torch 2.9 → 2.2,
+parce que nos torch viennent de `download.pytorch.org` en versions locales absentes de PyPI).
+
+> ⚠⚠ **La leçon dépasse l'app** : elle tournait dans le venv commun ET elle était cassée. Un venv
+> partagé ne casse pas une app — **l'absence de test la laisse pourrir**. C'est l'argument le plus
+> fort du dossier « un seul venv » : ce n'est pas l'isolement qui protège, c'est la couverture.
+
+### Doctrine des venvs (décidée, `INFRA_WSL_VS_WINDOWS.md §Venvs isolés`)
+
+**Un venv par défaut ; l'isolement se DÉCLARE (`ISOLATION`), ne se génère jamais.** `pip check` est
+RÉFUTÉ comme critère — **46 conflits** sur le venv qui fait tourner toute la production, tous des
+pins figés d'amont. Le critère prospectif est `pip install --dry-run` (lecture seule) : il a attrapé
+**deux** rétrogradages que j'allais introduire. Zéro backend isolé aujourd'hui.
+
+### Ce qui reste, mesuré
+
+- **4 backends attachés** à du code d'app, dont 2 sont le contrat lui-même. Restent les deux apps
+  Lab (`face_analyzer/emotions`, `cam_analyzer/utils`) : leur coupe pur/ORM est nette et connue.
+- **Étape 3** (déplacement des backends vers le substrat transversal) : mécanique pour 61 fichiers.
+  ⚠ Le **code vendorisé** (MuseTalk, CodeFormer sous `wama/avatarizer/`) devra suivre ou aller dans
+  un emplacement neutre — il est DÉCLARÉ (`VENDOR_PACKAGE`), donc une seule ligne changera.
+- **9 entrées `huggingface:`** sans app propriétaire (balayage générique, `backend_ref` vide
+  DÉLIBÉRÉMENT : « catalogué ≠ utilisable »). Deux, `table-transformer-*`, mériteraient une
+  promotion en déclaration reader.
+- **Inversion de couche** `cam_analyzer` (Lab) → `anonymizer` (Médias) : import propre, dépendance
+  toujours discutable.
+- Divergence déclaration↔code de `describer:whisper` (annonce `whisper-base`, charge `large-v3`).
+- `ImaginAiryBackend` déclare 4 modèles dont **3 ne sont plus au catalogue**.
+
+### Leçons de méthode (elles ont toutes coûté)
+
+- ⚠⚠ **Un `git mv` produit DEUX entrées d'index** : un pathspec qui ne nomme que la destination
+  laisse les modules EN DOUBLE sur HEAD. 4ᵉ variante du motif « arbre vert, HEAD faux ».
+- ⚠⚠ **Un test qui parcourt le catalogue depuis un `TestCase` mesure la base de TEST** — qui
+  contient 0 modèle. Mon invariant était vert sur du vide. Il SÈME désormais ses cas, et l'état réel
+  se mesure par une COMMANDE.
+- ⚠⚠ **Une réécriture par troncature ne s'annonce jamais** : mon script a supprimé une classe de
+  tests entière, la suite est restée verte. Seul le COMPTE des classes l'a dit.
+- ⚠ **Une garde ne couvre que la forme qu'elle sait lire** : la mienne ignorait les imports
+  RELATIFS et déclarait conformes 3 backends qui ne l'étaient pas.
+- ⚠ **Classer sans lire, c'est décider sans savoir** : j'avais inscrit deux « exceptions assumées »
+  qui étaient des accesseurs d'une ligne, dont 3 symboles jamais appelés.
+- ⚠ **Un worktree ne porte que ce qui est VERSIONNÉ** : 2 tests rouges sur HEAD, 0 régression — la
+  contre-épreuve sur l'arbre principal est obligatoire (ajoutée au rituel `CLAUDE.md`).
+
 ## §REPRISE — 2026-08-28, instance « DETTES MESURÉES + PORTAGE AVATARIZER » — ✅ PALIER LIVRÉ (`d3f16e5f`, `a2554117`)
 
 > **Partition tenue** : `wama/avatarizer/*`, `wama/synthesizer/{views,utils/model_config}.py`,
@@ -4226,7 +4328,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 > avec retour arrière possible. **Rien n'est modifié à ce stade** (le floutage est la fonction de
 > conformité RGPD de l'app : on ne change pas sa sortie en passant).
 
-**LES TROIS CHEMINS** (`core/anonymize.py:792-798`, `core/blur_utils.py`) :
+**LES TROIS CHEMINS** (`backends/anonymize.py:792-798`, `common/utils/blur_utils.py`) :
 - **P1 — boîte simple** : `blur_detection` → `apply_simple_blur` (label ∉ {face, person} **ou**
   `progressive_blur = 0`) ;
 - **P2 — boîte progressive** : `blur_detection` → `apply_progressive_blur` (label ∈ {face, person}
@@ -4251,7 +4353,7 @@ Trois autres faits mesurés, tous producteurs d'hétérogénéité :
   `blur_detection` (P1/P2), même quand la détection d'origine était un masque → dans une vidéo,
   le même objet alterne entre flou-masque (frames détectées) et flou-boîte (frames interpolées),
   ce qui se voit comme une **pulsation** de la zone floutée ;
-- **SAM3 est un moteur SÉPARÉ** (`core/sam3_processor.py:317, 413`) qui appelle `blur_segmentation`
+- **SAM3 est un moteur SÉPARÉ** (`backends/sam3_processor.py:317, 413`) qui appelle `blur_segmentation`
   directement : `roi_enlargement` et `rounded_edges` ne lui sont **même pas passés**.
 
 ⚠ **Paramètre INERTE trouvé au passage** : `use_segmentation` est stocké (`models.py:101`),
@@ -5117,7 +5219,7 @@ n'a pas produite. Voie envisagée : la médiathèque. **Non tranché, repoussé 
   visible en bas de `WAMA_MECANISMES.md`. Tout n'est pas un mécanisme transversal : il faut
   trancher au cas par cas.
 - `docs/SEGMENTATION_BLUR.md` : **conservé volontairement** (la fonction décrite existe toujours),
-  mais son chemin d'import est faux (`anonymizer.blur_utils` → `wama/anonymizer/core/blur_utils.py`).
+  mais son chemin d'import est faux (`anonymizer.blur_utils` → `wama/common/utils/blur_utils.py` (remonté au commun le 07/09)).
 - `check_docs` : toujours **2 cassés assumés** (seuil dans `nightly_scenarios.CASSE_ASSUMES` —
   ⚠ renommé `CIBLES_ASSUMEES` le 27/08, et l'unité comparée a changé : cibles distinctes).
 

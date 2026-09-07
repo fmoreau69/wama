@@ -2103,7 +2103,7 @@ rares vers des YOLO spécialisés (le goulot actuel des modèles faces/plates).
    cam_analyzer) sur **Linux natif (serveur R760xa) ou venv Windows natif** — pas via WSL2 ici.
 2. **Brique commune détection** dans `wama/common/` — contrat `BaseModelBackend`, sortie normalisée
    `{bbox, label, confidence, mask?, track_id?}`, en y absorbant D'ABORD les 2 wrappers SAM3
-   dupliqués (`anonymizer/core/sam3_processor.py` + `cam_analyzer/utils/sam3_road_analyzer.py`,
+   dupliqués (`anonymizer/backends/sam3_processor.py` + `cam_analyzer/utils/sam3_road_analyzer.py`,
    dont l'import cross-app l.126 est une dette). LocateAnything = backend supplémentaire.
 3. **Manifeste `function`** « détection open-vocabulary » — port de sortie `DataType.DETECTIONS`,
    entrée `image + prompt` (champ déclaré dans `PROMPT_TARGETS`) = 1er nœud Studio natif.
@@ -2130,7 +2130,7 @@ tiennent pas dans une même app.
 (`formes_equivalentes`).
 
 **LA COUTURE À EXTRAIRE, le jour où le Detector existe** — et pas avant :
-`anonymizer/core/anonymize.py` porte désormais un moteur *un décodage, N modèles, union des zones
+`anonymizer/backends/anonymize.py` porte désormais un moteur *un décodage, N modèles, union des zones
 frame par frame*, plus le **suivi de piste et l'interpolation**. C'est exactement ce qu'exige un
 objet **déplacé** ou un feu **changé** de façon cohérente d'une frame à l'autre. La couture est
 nette : **une fonction qui rend, par frame, l'image et les zones — l'appelant décide quoi en
@@ -2144,7 +2144,7 @@ heure, pas une redécouverte.
 
 **Le floutage dans les fonctions du monde Data** (cf. `WAMA_DATA_FUNCTION_CARDS.md`) : oui, mais
 **la primitive seulement** — `blur_detection` / `blur_segmentation`, déjà isolées dans
-`anonymizer/core/blur_utils.py`, à E/S typées. L'*anonymisation* n'est pas une fonction : c'est
+`wama/common/utils/blur_utils.py` (remonté au commun le 07/09), à E/S typées. L'*anonymisation* n'est pas une fonction : c'est
 une chaîne détecter → suivre → interpoler → flouter → ré-encoder.
 
 **Points d'appui existants** : **SAM3** est déjà dans l'anonymizer et **pilotable par prompt

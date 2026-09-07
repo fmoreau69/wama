@@ -372,6 +372,41 @@ disabled/title à chaque change et effaçait le verdict serveur — marqueur
 la permissivité : un modèle SANS moteur déclaré (Qwen3-TTS fraîchement tiré) n'a pas de
 verdict — déclarer son `composition.runtime.engine` (manifeste) le fait entrer au système.
 
+> ### ✅ SUITE DU 2026-09-04→07 — le lien est passé du DÉCLARATIF au RÉSOLU
+>
+> Le §ci-dessus décrit le verdict (« ce moteur est-il exécutable ? »). Trois manques y
+> subsistaient, tous mesurés puis fermés :
+>
+> **① L'inventaire n'agrégeait que 2 producteurs enregistrés à la main** (synthesizer, composer)
+> alors que les backends déclaraient 18 moteurs. Un modèle exigeant `pyannote` recevait donc
+> « moteur sans backend installé » — FAUX, et masqué par `backend_ref`. L'inventaire est
+> désormais **DÉRIVÉ** des déclarations `BaseModelBackend.ENGINE`
+> (`services/backend_inventory.declared_engines`) : **8 → 25 moteurs exécutables**.
+>
+> **② `backend_ref` ABSOLVAIT.** Le court-circuit `if model.backend_ref: return None` de
+> `backend_missing()` est RETIRÉ (05/09) : le champ porte un nom d'APP, donc une appartenance,
+> jamais une exécutabilité. Mesuré avant de toucher — sur 174 modèles, **un seul** change de
+> verdict, et il devient juste. La contrepartie tient : un modèle SANS moteur déclaré reste NON
+> condamné (sans elle, le retrait en aurait grisé 159 d'un coup).
+>
+> **③ Le moteur seul ne suffit pas comme CLÉ.** `diffusers` est piloté par **8** backends de
+> l'imager, `transformers` par **4** de 4 apps : résoudre par moteur rendait « le premier venu »
+> — un modèle Mochi servi par CogVideoX, silencieusement. `SUPPORTED_MODELS` tranche, et
+> `backend_for_model()` (`common/backends/manager.py`) est le point d'entrée que les apps doivent
+> employer : **elles demandent un backend pour leur MODÈLE, plus jamais un module par son chemin**.
+> C'est ce qui rendra l'emplacement physique des backends indifférent lors de leur passage au
+> substrat transversal.
+>
+> **Mesure vivante** : `manage.py check_backend_links` — 108/116 modèles déclarent leur moteur
+> (14 la veille), **97 résolvent leur backend réel**. Les 11 restants sont NOMMÉS : 10 Ollama
+> (le démon n'est pas du code Python qu'on charge) et chatterbox (aucun backend n'existe).
+>
+> ⚠ **Deux apps gardaient leurs backends HORS de `<app>/backends/`** — anonymizer dans `core/`,
+> enhancer dans `utils/` — donc invisibles au registre, et leurs **57 modèles** hors d'atteinte.
+> Déplacées le 06/09. *Un invariant ne vaut que sur le périmètre qu'il balaie* : la garde « tout
+> backend concret déclare `ENGINE` » passait au vert sans voir ces quatre-là.
+
+
 **Ce qu'il ne faut PAS casser** : la lecture BIDIRECTIONNELLE des capacités dans la card
 (entrées⇄modèles, `WamaInputMatch` + `WamaModelCaps`, **8/8 câblées**, adoption SOLDÉE). Elle
 n'est pas menacée — elle est *simplifiée* : mêmes clés partout, plus de traduction.
