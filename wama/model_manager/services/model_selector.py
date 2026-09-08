@@ -18,15 +18,43 @@ logger = logging.getLogger(__name__)
 
 
 def get_free_vram_gb() -> Optional[float]:
-    """VRAM libre (Go) du GPU le plus libre, ou None si indéterminable."""
+    """VRAM libre (Go) du GPU le plus libre, MOINS ce que d'autres process ont réservé.
+
+    ⚠⚠ LA DÉDUCTION A ÉTÉ AJOUTÉE LE 2026-09-08 (revérification demandée par Fabien : « ce n'est
+    pas géré par le model manager et le gouverneur ? »). Elle l'était à MOITIÉ, et c'est pire
+    qu'un manque franc : la sélection auto ÉTAIT VRAM-aware — `budget = get_free_vram_gb()`, et
+    `_best_by_vram` écarte ce qui n'entre pas — mais elle lisait la mesure NAÏVE du pilote. Or le
+    gouverneur porte déjà la bonne (`effective_free_gb`), dont la docstring dit exactement ce qui
+    manquait : « `mem_get_info()` ne voit que le présent et ignore qu'un autre process s'apprête
+    à prendre 18 Go ». Deux tâches lancées de front voyaient donc toutes deux le GPU libre, et
+    passaient — c'est le scénario de superposition que le gouverneur existe pour empêcher.
+
+    On ne remplace PAS l'appel par `effective_free_gb()` : celle-ci rend `0.0` quand torch est
+    absent, ce qui vaudrait « aucun budget » et écarterait TOUS les modèles. Ici, `None` veut dire
+    « budget inconnu, ne contraint pas » — sémantique préservée : on garde la sonde du moniteur
+    et on lui retranche le registre partagé. Une seule mesure de référence, deux appelants.
+    """
     try:
         from .memory_monitor import WAMAMemoryMonitor
         gpus = WAMAMemoryMonitor().get_gpu_usage()
-        if gpus:
-            return max((g.free_gb for g in gpus), default=None)
+        if not gpus:
+            return None
+        libre = max((g.free_gb for g in gpus), default=None)
+        if libre is None:
+            return None
     except Exception as e:
         logger.debug(f"[model_selector] free VRAM indéterminable : {e}")
-    return None
+        return None
+    try:
+        from wama.common.services.resource_governor import reserved_gb
+        reserve = reserved_gb()
+    except Exception as e:      # registre indisponible : on ne DÉGRADE pas, on rend le brut
+        logger.debug(f"[model_selector] registre de réservations indisponible : {e}")
+        return libre
+    if reserve:
+        logger.info(f"[model_selector] budget VRAM : {libre:.1f} Go libres − {reserve:.1f} Go "
+                    f"réservés par d'autres process = {max(0.0, libre - reserve):.1f} Go")
+    return max(0.0, libre - reserve)
 
 
 def _specialization_ok(model, requested) -> bool:

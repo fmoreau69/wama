@@ -106,6 +106,13 @@ class WanVideoBackend(ImageGenerationBackend):
     ENGINE = 'diffusers'
     #: Classe de PARAMÈTRES déclarée par le backend (2026-09-07) — lue sur la classe RÉSOLUE.
     PARAMS = VideoGenerationParams
+    DEPRECATED = ("aucun modèle Wan au catalogue et poids partis du disque depuis 2026-01 "
+                  "(3 jobs SUCCESS à l'époque) ; conservé comme EXEMPLE de backend vidéo "
+                  "multi-pipeline (T2V + I2V, VAE dédié, dtype selon VRAM). ⚠ Le FastWan "
+                  "présent au catalogue n'est PAS servable ici : son dépôt déclare "
+                  "`WanDMDPipeline`, absent de diffusers — il vient du paquet `fastvideo`, "
+                  "dont l'installation est REFUSÉE par le verrou (mesuré : torch 2.12, "
+                  "transformers 5.x). Décision en attente (Fabien, 2026-09-08).")
     REQUIRED_PACKAGES = ['torch', 'diffusers', 'numpy']
     name = "wan_video"
     display_name = "Wan Video (Hugging Face)"

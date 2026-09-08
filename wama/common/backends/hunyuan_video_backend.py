@@ -127,6 +127,11 @@ class HunyuanVideoBackend(ImageGenerationBackend):
     #: RÉSOLUE par le catalogue au lieu de l'importer avec elle — la branche vidéo cesse de
     #: dépendre du chemin du module.
     PARAMS = HunyuanVideoParams
+    DEPRECATED = ("aucun modèle HunyuanVideo au catalogue et poids partis du disque depuis "
+                  "2026-01 (1 job SUCCESS à l'époque ; les 50 Go de `diffusion/hunyuan` sont "
+                  "HunyuanImage 2.1, un modèle d'IMAGE servi par DiffusersBackend) ; conservé "
+                  "comme EXEMPLE de backend vidéo à variantes déclarées (t2v/i2v, 480p/720p, "
+                  "cfg et flow_shift par variante).")
     REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "hunyuan_video"
     display_name = "HunyuanVideo 1.5"

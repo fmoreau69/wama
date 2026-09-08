@@ -28,6 +28,13 @@ class ImaginAiryBackend(ImageGenerationBackend):
     # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'imaginairy'
+    DEPRECATED = ("3 de ses 4 modèles ont quitté le catalogue (openjourney-v4, "
+                  "dreamlike-art-2, stable-diffusion-2-1 — retirés comme obsolètes 2022-2023) "
+                  "et le 4ᵉ résout DiffusersBackend ; conservé comme REPLI historique de "
+                  "l'imager (le manager le propose encore quand diffusers manque) et comme "
+                  "exemple de backend à API tierce non-diffusers. ⚠ Sa liste `SUPPORTED_MODELS` "
+                  "est périmée aux trois quarts : la corriger ou retirer le backend est une "
+                  "décision, pas un ménage.")
     REQUIRED_PACKAGES = ['torch', 'imaginairy']
     name = "imaginairy"
     display_name = "imaginAIry (Legacy)"

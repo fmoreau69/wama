@@ -83,6 +83,10 @@ class BackendEntry:
     #: `venv:<chemin>` ou `service:<url>`. C'est la MOITIÉ MANQUANTE du verdict de grisage :
     #: sans elle, « paquet absent » et « backend qui vit ailleurs » se confondent.
     isolation: str = ''
+    #: RAISON pour laquelle le backend est conservé sans qu'aucun modèle ne le désigne
+    #: (`DEPRECATED`) — vide = en service. Distingue l'OUBLI (à corriger) de la DÉCISION (à
+    #: laisser) : les deux se ressemblent à l'écran, ils ne se traitent pas pareil.
+    deprecated: str = ''
     #: MOTEURS (librairies d'exécution) que ce backend appelle — DÉRIVÉS des modèles servis
     #: (`composition.runtime.engine`). ⚠ Backend ≠ moteur (recadrage Fabien 2026-09-03) : le
     #: backend est l'adaptateur WAMA (contrat load/unload/process), le moteur est la
@@ -422,6 +426,7 @@ def inventory() -> List[AppBackends]:
                 description=(info['attrs'].get('description') or '').strip(),
                 engine=(info['attrs'].get('ENGINE') or '').strip(),
                 isolation=isolation,
+                deprecated=(info['attrs'].get('DEPRECATED') or '').strip(),
                 engine_installed=_packages_present(
                     info['attrs'].get('REQUIRED_PACKAGES'), isolation),
                 models=servis,
@@ -575,6 +580,25 @@ def declared_engines() -> dict:
 def count() -> int:
     """Total de backends du vivier (apps réelles) — pour le registre des registres."""
     return summary()['backends_count']
+
+
+def orphelins(entrees, servis) -> tuple:
+    """(muets, expliqués) — backends qu'AUCUN modèle ne désigne, séparés par la RAISON.
+
+    PURE et sans I/O, donc utilisable des deux côtés du partage consigné le 2026-09-06 : la
+    COMMANDE (`check_backend_links`) l'appelle sur le catalogue RÉEL, le TEST sur des cas SEMÉS.
+    Écrite le 2026-09-08 après avoir REFAIT le défaut qu'elle évite : un invariant qui parcourt
+    le catalogue depuis un `TestCase` mesure la base de TEST — vide — et déclare TOUT orphelin.
+
+    `servis` : noms de classes que le catalogue désigne (via le lien déclaré).
+    Un backend MUET est un OUBLI (le lien modèle→moteur manque) ; un backend EXPLIQUÉ est une
+    DÉCISION (`DEPRECATED` dit pourquoi on le garde). Les deux se ressemblent à l'écran, ils ne
+    se traitent pas pareil — c'est toute la raison de cette séparation.
+    """
+    vus = set(servis)
+    classes = [e for e in entrees if e.kind == 'classe' and e.name not in vus]
+    return ([e for e in classes if not e.deprecated],
+            [e for e in classes if e.deprecated])
 
 def resolve_entry(engine: str, model_id: str = '', entries=None) -> Optional[BackendEntry]:
     """ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :

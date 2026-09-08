@@ -398,6 +398,21 @@ class BaseModelBackend(ABC):
     #: 2026-09-04 — des pins figés d'amont, pas des incompatibilités).
     ISOLATION: str = ""
 
+    #: POURQUOI ce backend est conservé alors qu'aucun modèle ne le désigne — vide = en service.
+    #:
+    #: Déclaré le 2026-09-08 (demande de Fabien : « pour les backends morts, on les laisse —
+    #: ils peuvent servir d'exemple — mais peut-on leur attribuer un tag pour l'indiquer ? »).
+    #: Le vivier savait déjà repérer un backend que plus aucun modèle ne désigne ; il ne savait
+    #: pas DIRE si c'est un oubli ou une décision. Les deux se ressemblent à l'écran et ne se
+    #: traitent pas pareil : l'un se corrige, l'autre se laisse.
+    #:
+    #: ⚠ Une CHAÎNE, pas un booléen : un drapeau nu ferait relire le code pour savoir pourquoi,
+    #: et la raison se perdrait au premier départ. Même règle que partout ici — on dit POURQUOI.
+    #: ⚠ Littéral (l'inventaire lit par AST, sans importer), et ce n'est PAS un permis de garder :
+    #: un backend déprécié reste comptabilisé, testé et entretenu ; il est simplement EXPLIQUÉ.
+    #:   ex. ``DEPRECATED = "modèles retirés du catalogue le 2026-01 ; conservé comme exemple"``
+    DEPRECATED: str = ""
+
     # ── Capacités déclarées par le moteur (vocabulaire commun) ───────────────
     # Vocabulaire figé par `common/utils/model_capabilities.py` (source unique) — qui annonce
     # depuis 2026-07-01 que le préfixe `supports_` est « ALIGNÉ sur les flags backend », alors

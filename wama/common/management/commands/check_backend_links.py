@@ -74,8 +74,30 @@ class Command(BaseCommand):
             for m, _ in sans_moteur[:8]:
                 self.stdout.write(f'      {m.model_key}')
 
-        if not (moteur_absent or sans_backend):
+        # ── LE SENS INVERSE : des backends que plus aucun modèle ne désigne ────────────
+        # Ajouté le 2026-09-08 (demande de Fabien sur les « backends morts »). Ici et pas dans
+        # un test : l'état dépend du CATALOGUE, et un invariant qui l'interroge depuis un
+        # `TestCase` mesure la base de test — vide. La LOGIQUE (`orphelins`) est testée à part.
+        from wama.common.services.backend_inventory import inventory, orphelins
+        entrees = [e for a in inventory() if not a.generated_from for e in a.entries]
+        servis = {c.__name__ for m in reels for c in [backend_for_model(m)] if c}
+        muets, expliques = orphelins(entrees, servis)
+
+        self.stdout.write(f'\n{ligne}\nBACKENDS SANS MODÈLE — l’oubli et la décision\n{ligne}')
+        for e in expliques:
             self.stdout.write(self.style.SUCCESS(
-                '\n✓ tout modèle à moteur exécutable résout son backend.'))
+                f'  ⊙ {e.name} — CONSERVÉ : {e.deprecated[:96]}…'))
+        for e in muets:
+            self.stdout.write(self.style.WARNING(
+                f'  ⚠ {e.name} — aucun modèle ne le désigne et AUCUNE raison déclarée : '
+                f'soit le lien modèle→moteur manque, soit poser `DEPRECATED = "…"`'))
+        if not muets:
+            self.stdout.write(self.style.SUCCESS(
+                f'  ✓ aucun backend orphelin MUET ({len(expliques)} conservé(s), tous expliqués)'))
+
+        if not (moteur_absent or sans_backend or muets):
+            self.stdout.write(self.style.SUCCESS(
+                '\n✓ tout modèle à moteur exécutable résout son backend, et tout backend sans '
+                'modèle dit pourquoi il reste.'))
         elif options['strict']:
             raise SystemExit(1)
