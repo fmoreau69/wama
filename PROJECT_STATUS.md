@@ -12032,6 +12032,7 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 | **08/09 — progression d'envoi UNIFORMISÉE** (question Fabien : « pourquoi une spécificité anonymizer ? ») : la brique envoie TOUJOURS par XHR et affiche une **barre commune dans la zone de dépôt** (classes de progression des cards, libellé « Envoi i/N · fichier · pct % »), retirée à la fin ; l'anonymizer abandonne sa modale pour l'upload (elle ne sert plus qu'à son import par URL) ; `onProgress`/`onSettled` = hooks de remplacement, 0 utilisateur | sonde `MutationObserver` (persistée à travers le reload) : apparue 1 / disparue 1 sur transcriber, anonymizer, converter, 0 erreur JS ; parc `.import` et familles rejouées (voir contrôles) |
 | **08/09 — import par URL de l'anonymizer porté sur le formalisme commun** (Fabien : « l'import par URL n'est pas propre aux apps ») : `initUrlImport` + `ingestText`, URL = lot d'une ligne en `source_url`, résolue au lancement ; le `$.ajax` maison et la modale `#modal-progress` disparaissent | famille `anonymizer.` **12/12** (`url_import` SKIP → OK) ; smoke 0 erreur JS |
 | **08/09 — COMPOSER (8ᵉ app) + ENHANCER-AUDIO** : composer lu dans ses REGISTRES (prompt + lot + slot `reference_melody` audio) → mode **ATTACHE déclaratif** de la brique (`attach:['melodyInput']`, le fichier va au 1ᵉʳ input dont l'`accept` l'admet ; sans `uploadUrl`, refus DIT au lieu d'avalé) ; enhancer-audio = « rien de maison » : `WamaBatchImport({idBase})` + partial commun paramétré (`bid`, `label`), 10 fonctions et 44 lignes de gabarit recopié retirées | sondes : composer WAV → chip, PNG → refus, TXT → lot (0 card, 0 erreur), famille inchangée 6/12 + 6 skips déclarés ; enhancer WAV → card audio, TXT → barre audio (barre image fermée), famille **11/12** ; 73 tests OK. Restent **imager / avatarizer** : même mode `attach`, registres à lire d'abord |
+| **08/09 — PORTAGE TERMINÉ, 10/10** : imager (×2 domaines) et avatarizer en mode attache (+ attache SUR SOI-MÊME quand l'input de la zone est le port, + `afterAttach`), URL de l'enhancer-image sur le formalisme de lot ; plus une seule boucle d'import propre à une app. ⚠ Défaut d'instrument trouvé au passage : le dépouilleur de commentaires de la grille retirait `/* */` avant `//` — un `text/*` en commentaire de ligne avalait 100 lignes (avatarizer `import_front` ROUGE à tort) → ordre inversé + test | sondes imager/avatarizer (slot + chip/badge, refus dit, lot), familles imager 7/12 + 5 skips déclarés, avatarizer 6/12 + 6 skips déclarés, enhancer **12/12** (`url_import` SKIP → OK) ; tests import OK ; `import_front` **10/10** |
 | ⚠ Pending : `common/app_base.html:8-10` charge encore jQuery-file-upload pour PERSONNE (`.fileupload(` = 0 consommateur dans `wama/`) — retrait = 3 surfaces (gabarit, `wama/static/js/jquery-file-upload/`, `REMOVAL_LEDGER`), pas fait ici | grille anonymizer/enhancer ont BAISSÉ (`backend_packages`, `hf_cache_isolation`, `backend_contract`…) pendant ma session **sans que j'y touche** : un autre chantier bouge leurs backends dans l'arbre partagé — à relire par son auteur |
 
 ### Ce que ça a appris
@@ -12040,21 +12041,19 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 - ⚠ **Une brique commune adoptée par une app EN PLACE révèle ce que les jumelles ne voyaient pas** : la classe de survol. Les jumelles sont nées avec la card v4 (`dragover`), le parc est en v3 (`drag-over`). Chaque adoption suivante peut lever un écart de ce genre — les mesurer au navigateur, pas seulement aux gestes.
 - Le contrat de consolidation n'a PAS eu besoin d'être choisi : la fabrique commune lit JSON **et** champ répété — vérifié au code (`queue_manipulation._ids_de_la_requete`) avant d'écrire `consolidateField`.
 
-### 🔚 SUITE — état à la clôture du 07/09 (nuit) : **7/10 câblés, 6 commits**
+### 🔚 SUITE — état au 08/09 (nuit) : **PORTAGE TERMINÉ, 10/10, 15 commits**
 
-Portés (dans l'ordre, chacun avec 5 gestes avant / famille `<app>.` après / smoke) : transcriber,
-converter, describer, synthesizer, enhancer-image, reader, anonymizer. **Restent 3, et aucun
-n'est un simple câblage** :
-1. **composer** — aucune vue `upload` : un fichier NON-lot déposé est avalé sans trace
-   (`batch-import.js:256`). Ce qu'un fichier déposé SIGNIFIE pour le composer (mélodie de
-   référence = « attache » ? création d'une génération ?) est une **DÉCISION**, pas un portage ;
-2. **enhancer-audio** — lot maison (`AUDIO_BATCH_EXTS`, `batch_file`, `#audioBatchDetectBar`)
-   hors `WamaBatchImport` : soit la brique batch apprend ce contrat, soit l'audio adopte la barre
-   commune — un chantier de brique, pas un câblage ;
-3. **imager / avatarizer** — dépôt = ATTACHE (le fichier rejoint le formulaire) : c'est la
-   modalité « attache » de la **card v4** (`CARD_DESIGN §11.11 B`, autre instance).
-Protocole inchangé pour qui reprend : 5 gestes avant, `kill -HUP`, famille après, smoke navigateur
-(classe de survol, `_import`, 0 erreur console, **sonde réseau sur un dépôt de 2 fichiers**).
+Portés (chacun avec 5 gestes avant / famille `<app>.` après / smoke ou sonde) : transcriber,
+converter, describer, synthesizer, enhancer (image, audio, URL), reader, anonymizer (fichiers,
+URL), composer, imager ×2, avatarizer. **Ce que le 07/09 annonçait comme « 3 restes qui ne sont
+pas des câblages » ÉTAIT du portage inachevé — relu dans les registres à la demande de Fabien** :
+composer déclare prompt + lot + slot audio (→ attache), enhancer-audio n'avait « rien de maison »
+(→ brique batch avec `idBase`), imager/avatarizer déclarent `depot_cree=False` et leurs slots
+(→ attache, dont sur soi-même). Plus une seule boucle d'import propre à une app, `import_front`
+10/10, progression d'envoi commune, URL par le formalisme de lot partout.
+Ce qui reste, hors portage : retrait de jQuery-file-upload (3 surfaces), `user_settings`
+anonymizer/enhancer (`ROADMAP §23.3`, avec les profils), adoption de la card v4 par les apps
+(autre instance — elle se pose sur ces portages sans les modifier).
 ⚠ `jQuery-file-upload` : 0 consommateur dans `wama/` — retrait (gabarit `app_base.html:8-10`,
 dossier `wama/static/js/jquery-file-upload/`, `REMOVAL_LEDGER`) à faire en 3 surfaces.
 
