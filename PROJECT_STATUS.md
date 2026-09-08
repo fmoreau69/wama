@@ -2829,6 +2829,69 @@ corriger chaque passe… ce n'est pas viable ») :
 | réécrire un message de garde au-delà de l'ajout demandé (perte de « `HF_HOME` posé une fois ») | édit non additif | restauré ; un ajout est ADDITIF |
 | régénérer le corpus depuis `venv_win` | ignorer l'avertissement du skill | remis à HEAD ; consigné ci-dessus |
 
+### 🔴 GOUVERNEUR DE RESSOURCES — DEUX TROUS MESURÉS le 2026-09-08 (question de Fabien sur le multi-venv)
+
+> Question posée : *« a-t-on bien géré le multi-venv, dans le sens où les tâches Celery se
+> verraient en multi-venv pour ne pas superposer des tâches GPU sans la garde du gouverneur ? »*
+> Réponse : **le mécanisme le permet, mais aucun des deux maillons ne tient aujourd'hui.**
+
+**① LE REGISTRE EST SCINDÉ — deux Redis distincts sur le même port.** Le gouverneur stocke ses
+réservations dans Redis (`CELERY_BROKER_URL`, TTL 1 h) : c'est le bon dispositif, inter-processus
+par construction, et `vram_reservation()` vise explicitement les consommateurs HORS process
+(sous-processus MuseTalk/CodeFormer, service TTS). Un venv isolé y entrerait — **à condition
+d'atteindre le MÊME Redis**. Or ce n'est déjà pas le cas entre les deux venvs actuels :
+
+| venv | `run_id` Redis | OS | uptime au relevé |
+|---|---|---|---|
+| `venv_win` | `bcc0ebb3…` | **Windows** | ~5 j |
+| `venv_linux` | `90ae891d…` | **Linux WSL2** | ~17 h |
+
+L'URL est pourtant identique (`redis://127.0.0.1:6379/0`) — deux serveurs écoutent le même port
+de part et d'autre de la frontière WSL2 (cf. la note d'infra « DEUX REDIS sur 6379 », 02/09).
+**Preuve directe** : une réservation écrite depuis `venv_win` est INVISIBLE depuis `venv_linux`
+(sonde posée, mesurée, puis retirée). En production tout tourne côté WSL2, donc le registre y est
+unique ; le risque est une charge GPU lancée depuis Windows en parallèle — le scénario même des
+crashs hôte.
+
+**② LA GARDE N'EST ACTIVÉE NULLE PART, et c'est le trou décisif.** Le squelette commun sait
+différer un item faute de VRAM (`_differer_faute_de_vram` → `AWAITING_RESOURCES`, re-livraison,
+attente VISIBLE et annulable) — mais il ne le fait que si l'app passe `vram_needed`, et
+**AUCUNE ne le passe** (mesuré : zéro occurrence hors du squelette et de ses tests). Neuf sites
+DÉCLARENT une réservation (`base.py` pour les résidents, musetalk/codeformer/audiocpp pour les
+sous-processus, embed, prospect_agents) mais seuls `audiocpp` (`wait_for_free_vram`) et `olmocr`
+(`_free_vram_before_load`) CONSULTENT la VRAM avant de charger. Donc, même registre unique, rien
+n'empêche aujourd'hui deux tâches GPU de se superposer.
+
+🔚 **Chantier nommé** : ① faire converger les deux runtimes sur UN Redis (ou déclarer explicitement
+que le registre est par-runtime, ce qui condamnerait le multi-venv) ; ② activer `vram_needed` app
+par app — c'est une ligne par app, et le squelette fait déjà tout le reste.
+⚠ Ces deux points sont le PRÉALABLE à tout venv isolé (FastWan) : sans eux, un venv parallèle
+ajouterait une charge GPU que le gouverneur ne verrait pas.
+
+### CARTOGRAPHIE modèle → moteur → backend → exécutabilité (MESURÉE le 2026-09-08, depuis venv_linux)
+
+**116 modèles catalogués ; tous déclarent un moteur ; 99 résolvent un backend ; 94 exécutables.**
+
+| état | nb | qui |
+|---|---|---|
+| ✅ **exécutable** (moteur + backend + poids) | **94** | Anonymize 47 · AIUpscaler 7 · Diffusers 5 · AudioCraft 3 · DeepFace 3 · MuseTalk/Whisper/**TableTransformer**/LTX/QwenASR 2 · 19 backends à 1 |
+| hors processus — NORMAL | 11 | 10 Ollama + `composer:minimax-music3` (binaire audio.cpp) |
+| moteur OK, **aucun backend ne les sert** | 6 | ACE-Step, FastWan, PP-DocLayoutV3, LocateAnything, canary-1b-v2, parakeet-tdt |
+| backend OK, **poids absents** | 4 | musicgen-melody, flux2-klein-4b, mochi-1-preview, qwen-image-edit |
+| moteur non exécutable | 1 | chatterbox (`chatterbox-tts` qu'aucun backend ne pilote) |
+
+**Sens inverse — 3 backends que plus aucun modèle ne désigne** : `WanVideoBackend` et
+`HunyuanVideoBackend` (les deux morts identifiés le 07/09) et `ImaginAiryBackend` (3 de ses 4
+modèles ont quitté le catalogue). *La chaîne n'a plus de trou INVISIBLE : ce qui ne tourne pas est
+nommé, et chaque cas dit pourquoi.*
+
+**FastWan — décision MISE EN ATTENTE par Fabien (08/09).** Mesuré : son snapshot déclare
+`_class_name = WanDMDPipeline`, absent de diffusers 0.37 (il vient du paquet `fastvideo`), et la
+simulation d'installation par le mécanisme WAMA **refuse** — 66 paquets, `torch` → 2.12,
+`transformers` → **5.x** (qui emporterait les 9 patches Higgs), `huggingface_hub` → 1.x,
+`accelerate`/`gradio` rétrogradés, chaîne CUDA 13 en doublon. Ce serait le 1ᵉʳ cas réel
+d'`ISOLATION` — à ne pas engager avant les deux points du gouverneur ci-dessus.
+
 **Contrôles attendus au prochain `/reprise`** — MESURÉS le 2026-09-07 soir :
 
 | contrôle | valeur |
@@ -2837,7 +2900,7 @@ corriger chaque passe… ce n'est pas viable ») :
 | `check_docs` | **0 cassée**, 0 périmée, **1492** références · 0 chiffre sans source (avec les 2 hunks ROADMAP de l'arbre) |
 | corpus (depuis `venv_linux`) | **0 périmé, 0 invalide** — MESURÉ après le ré-export des 8 apps par clé (le seul périmé restant, `synthesizer:kokoro`, gagnait `requires → library:kokoro` par mon semis : exporté) ; 28 manifestes `library` ; ⚠ `--check` depuis venv_linux, jamais venv_win |
 | `doc_facts --check` | à jour (table des mécanismes régénérée — annexe déplacée) |
-| `check_backend_links` | **108/116** déclarent, **97** résolvent — inchangé par les déplacements |
+| `check_backend_links` | **116/116** déclarent un moteur (dérivation du 08/09), **99** résolvent un backend ; **94** pleinement exécutables |
 | `tests_backend_adoption` | budget **0** — SOLDÉ (22 → 18 → 0 dans la journée) : plus aucune app n'importe une classe de backend par chemin ; la garde est ABSOLUE et nomme l'app fautive |
 | `tests_hf_cache_routing` | budget **0** mutations (cache ET jeton) |
 | classes de backend hors des apps | **11/11** — 35 classes sous `common/backends/` ; 4 paquets d'app subsistent SANS classe (describer : `ROUTES` + fonctions de route ; transcriber, imager : manager d'app ; synthesizer : `ENGINE_BACKENDS`) |
