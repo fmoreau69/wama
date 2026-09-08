@@ -355,12 +355,26 @@
         // ne doit pas doubler les envois — la leçon de la double inclusion du 18/08.
         if (dz.dataset.wamaImportBound !== '1') {
           dz.dataset.wamaImportBound = '1';
-          // Clic = ouvrir le sélecteur — SAUF sur un lien de la zone : la card commune y
-          // rend « Template » (téléchargement du gabarit de lot) et « importer un dossier ».
-          // Sans cette garde, télécharger le gabarit ouvrait AUSSI le sélecteur de fichiers
-          // (le reader s'en protégeait seul ; porté à la brique à son adoption, 2026-09-07).
+          // Clic = ouvrir le sélecteur — SAUF sur un LIEN ou un INPUT de la zone.
+          //
+          // Les liens : la card commune y rend « gabarit de lot » et « ou importer un
+          // dossier » ; sans la garde, télécharger le gabarit ouvrait AUSSI le sélecteur
+          // (le reader s'en protégeait seul ; porté à la brique le 2026-09-07).
+          //
+          // ⚠ LES INPUTS, et c'est le défaut que Fabien a signalé le 2026-09-08 : « quand
+          // je clique sur "ou importer un dossier", c'est la fenêtre FICHIER qui s'ouvre ».
+          // Le lien faisait pourtant son travail. MESURÉ (trace des phases de capture sur
+          // la zone, + `filechooser` de Playwright) : son `onclick` appelle
+          // `folderInput.click()`, et ce clic PROGRAMMATIQUE sur l'input caché — qui vit
+          // DANS la zone — remonte jusqu'ici. Sa cible n'est pas un `<a>`, la garde le
+          // laissait passer, et la zone demandait une SECONDE fenêtre, celle des fichiers,
+          // qui recouvrait la bonne. Défaut mesuré sur les 7 apps qui offrent l'affordance.
+          // *Une garde qui nomme la SOURCE du clic (un lien) rate le clic que ce lien
+          // ÉMET.* Le geste nocturne ne pouvait pas le voir : il vérifie que l'`onclick`
+          // cite l'input, puis pilote l'input DIRECTEMENT (`set_input_files`) — il
+          // n'emprunte jamais le chemin humain.
           if (fi) dz.addEventListener('click', function (e) {
-            if (e.target && e.target.closest && e.target.closest('a')) return;
+            if (e.target && e.target.closest && e.target.closest('a, input')) return;
             fi.click();
           });
           // DEUX classes de survol, à dessein (2026-09-07, 1ʳᵉ adoption par une app EN

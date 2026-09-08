@@ -1679,6 +1679,37 @@ def check_app_folder_import(app: str, url_path: str):
                                        f" : l'`<input webkitdirectory>` est `display:none`, "
                                        "donc inatteignable au clic")
 
+                    # ── Moitié A bis : QUELLE FENÊTRE le clic ouvre-t-il vraiment ? ────────
+                    # ⚠ AJOUTÉ LE 2026-09-08 sur un défaut que Fabien a vu et que ce scénario
+                    # ne pouvait PAS voir : « quand je clique sur "ou importer un dossier",
+                    # c'est la fenêtre FICHIER qui s'ouvre ». Le contrôle `lien_cable`
+                    # ci-dessus lit l'attribut `onclick` — il atteste un CÂBLAGE, pas un
+                    # RÉSULTAT ; et la moitié B pilote l'input DIRECTEMENT (`set_input_files`),
+                    # donc elle saute le chemin humain. Entre les deux, personne ne regardait
+                    # ce que le navigateur ouvre. Mesuré alors sur les 7 apps qui offrent
+                    # l'affordance : DEUX fenêtres demandées, celle des fichiers recouvrant
+                    # la bonne (le clic programmatique du lien sur l'input caché remontait
+                    # jusqu'à la zone de dépôt, dont la garde ne connaissait que les liens).
+                    # `filechooser` est le seul témoin honnête : c'est le NAVIGATEUR qui dit
+                    # quel `<input>` demande une fenêtre.
+                    fenetres = []
+                    page.on('filechooser', lambda fc: fenetres.append(
+                        (fc.element.get_attribute('id') or '?',
+                         fc.element.get_attribute('webkitdirectory') is not None)))
+                    page.evaluate(
+                        "(id) => document.getElementById(id).dispatchEvent("
+                        "new MouseEvent('click', {bubbles: true, cancelable: true}))",
+                        f"{etat['input_id']}Btn")
+                    page.wait_for_timeout(800)
+                    intruses = [i for i, dossier_ in fenetres if not dossier_]
+                    if intruses:
+                        return False, (f"{detail_a} ; mais le lien « importer un dossier » ouvre "
+                                       f"AUSSI le sélecteur de FICHIERS ({', '.join(intruses)}) — "
+                                       f"deux fenêtres demandées, l'utilisateur voit la mauvaise")
+                    if not fenetres:
+                        return False, (f"{detail_a} ; mais le clic sur le lien « importer un "
+                                       f"dossier » n'ouvre AUCUNE fenêtre")
+
                     # ── Moitié B : l'app écoute-t-elle son input ? ─────────────────────────
                     source = _fichier_temoin(etat['accept'] or _accept_declare(app))
                     dossier = Path(tempfile.mkdtemp(prefix='wama_dossier_'))
