@@ -12249,6 +12249,45 @@ SIGNIFIE sur une card d'attache : le scénario attend « N fichiers → N élém
 mono-fichier n'en crée aucun (l'avatarizer prend le premier). Sans cette décision, l'affordance
 transformerait 3 skips déclarés en 3 échecs.
 
+### PALIER 2026-09-08 (nuit) — deux défauts VUS PAR FABIEN, et un troisième trouvé en mesurant
+
+**① Le lien « ou importer un dossier » ouvrait la fenêtre FICHIERS** (« de toute façon », y
+compris sur la jumelle v4). Le lien faisait pourtant son travail. MESURÉ (phases de capture sur
+la zone + `filechooser` de Playwright, seul témoin honnête : c'est le NAVIGATEUR qui dit quel
+`<input>` demande une fenêtre) : son `onclick` appelle `folderInput.click()`, et ce clic
+PROGRAMMATIQUE part d'un input qui vit DANS la zone de dépôt — il y remonte, sa cible n'est pas
+un `<a>`, la garde le laisse passer, la zone demande une SECONDE fenêtre qui recouvre la bonne.
+*Une garde qui nomme la SOURCE du clic (un lien) rate le clic que ce lien ÉMET.* Correctif :
+`closest('a')` → `closest('a, input')` dans la brique commune — **un seul point pour les 7 apps
+ET la card v4** (consigne Fabien : ne pas refaire le travail sur les cards existantes ; ici il
+n'y avait rien à refaire, la brique EST le domicile). Avant : 7/7 en défaut. Après : 7/7 une
+seule fenêtre, la bonne ; non-régression vérifiée (clic zone → fichiers, clic « gabarit de lot »
+→ aucune fenêtre), jumelle v4 comprise.
+⚠ **Le geste `<app>.folder_import` ne pouvait PAS le voir** : `lien_cable` lit l'attribut
+`onclick` (un CÂBLAGE, pas un RÉSULTAT) et la moitié B pilote l'input directement — elle saute
+le chemin humain. Entre les deux, personne ne regardait ce que le navigateur OUVRE. Le scénario
+clique désormais le lien et refuse toute fenêtre d'un input sans `webkitdirectory` ; **morsure
+prouvée** (défaut réinjecté dans le seul fichier SERVI → rouge ; restauré → vert), 7/7 verts.
+
+**② La card d'entrée de l'imager démarrait DÉPLIÉE, seule du parc.** Mesuré sur les 10 apps :
+9 repliées, imager déplié sur ses DEUX cards. Aucune mémoire d'état n'existe (`wama-new-item-card.js`
+n'a pas de persistance) : l'état initial vient du seul gabarit. Cause = `deployed=True` déclaré
+deux fois dans `imager/index.html`, introduit par `b02ca266` (portage P2) **sans une ligne de
+justification dans le message**. Retiré. Le prompt reste visible replié (il est rendu HORS du
+bloc repliable), donc rien ne se perd. Famille nocturne imager après : **7/12, 0 échec, 5 skips
+déclarés** — identique à avant le changement.
+
+**③ TROUVÉ EN MESURANT, NON CORRIGÉ — l'enhancer rend DEUX cards avec le MÊME id.**
+`newItemCard` et `newItemCardBody` existent en double dans son document (sa card audio ne
+déclare pas de `card_id`). Conséquence VISIBLE, mesurée : cliquer l'en-tête de la card AUDIO
+déplie la card MÉDIA, pendant que la card audio reçoit le chevron « dépliée » sans s'ouvrir —
+`getElementById` rend toujours le premier. Correctif = déclarer un `card_id` distinct sur la
+seconde. **Laissé à la session CARDS/UI** (partition annoncée par Fabien) : c'est un gabarit
+d'app, et deux instances ne doivent pas y écrire en même temps.
+
+**Vocabulaire (remarque de Fabien)** : j'employais « affordance » pour dire « le moyen VISIBLE
+d'accomplir le geste » (ici le lien). Terme abandonné — on dit le lien, le bouton, le champ.
+
 ### Contrôles attendus au prochain `/reprise` — TOUS MESURÉS le 2026-09-07 (nuit, après le 6ᵉ commit)
 
 | contrôle | valeur mesurée |
