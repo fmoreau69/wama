@@ -1,0 +1,53 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   WAMA — Modale de PARTAGE (brique `wama-share.js`).
+
+   Même langue de design que le menu contextuel (`wama-card-menu.css`) : tokens déjà posés dans
+   WAMA, pas une palette de plus. Un choix de PORTÉE est une décision qui engage la visibilité
+   d'un travail — l'option retenue doit se voir sans relire les libellés.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+.wama-share-choix {
+    padding: .55rem .7rem;
+    margin-bottom: .4rem;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color .12s, border-color .12s;
+}
+
+.wama-share-choix:hover {
+    background: rgba(13, 202, 240, .07);
+    border-color: rgba(13, 202, 240, .28);
+}
+
+/* L'option RETENUE est cerclée, pas seulement cochée : sur quatre lignes de même densité, un
+   simple radio se cherche. */
+.wama-share-choix.est-actif {
+    background: rgba(13, 202, 240, .12);
+    border-color: #0dcaf0;
+}
+
+.wama-share-libelle { font-size: .9rem; }
+
+.wama-share-choix .form-select {
+    background: #1a1d20;
+    border-color: #495057;
+    color: #e9ecef;
+    font-size: .82rem;
+}
+
+/* Le select d'une portée non retenue reste VISIBLE mais inerte : le masquer ferait sauter la
+   hauteur de la modale à chaque changement d'option. */
+.wama-share-choix .form-select:disabled { opacity: .45; }
+
+/* La note de portée du geste — informative, jamais alarmante : le partage en lecture est le
+   comportement VOULU, pas une limitation subie. */
+.wama-share-note {
+    padding: .5rem .7rem;
+    background: rgba(13, 202, 240, .08);
+    border-left: 2px solid #0dcaf0;
+    border-radius: 4px;
+    color: #adb5bd;
+    font-size: .8rem;
+}

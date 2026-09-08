@@ -202,6 +202,23 @@
             });
         }
 
+        // PARTAGER — la premiere des « sorties complementaires » (arbitrage Fabien 2026-09-08 :
+        // « les sorties manquantes vont dans les "..." »). L'entree n'apparait que si la card
+        // porte ses coordonnees (`data-preview-url` → surface + pk, present sur les 10 gabarits
+        // du parc, mesure) : une app non portee ne se voit rien proposer, plutot que d'ouvrir
+        // une modale qui echouerait.
+        // ⚠ UNE card a la fois : partager N elements exigerait N portees a la fois, ce qui n'est
+        // pas la meme decision. On ne l'offre donc pas en selection multiple.
+        if (cibles.length === 1 && global.WamaShare && WamaShare.coordonnees(card)) {
+            entrees.push({
+                icone: 'fas fa-share-nodes', libelle: 'Partager…',
+                agir: function () {
+                    var nom = (card.textContent || '').trim().slice(0, 70);
+                    WamaShare.ouvrirPourCard(card, nom);
+                },
+            });
+        }
+
         // « Ajouter à un lot » — n'a de sens que s'il EXISTE un lot d'accueil autre que le sien.
         if (d.dndMoveUrl) {
             var lots = $$('.batch-group[data-batch-id]', q).filter(function (g) {

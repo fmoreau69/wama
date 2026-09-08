@@ -44,6 +44,8 @@
     <link href="{% static_v 'common/css/wama-filter-bar.css' %}" rel="stylesheet">
     {# Menu contextuel de card/lot + débordement « … » de la rangée (wama-card-menu.js) #}
     <link href="{% static_v 'common/css/wama-card-menu.css' %}" rel="stylesheet">
+    {# Modale de PARTAGE — première interface du mécanisme de visibilité (wama-share.js) #}
+    <link href="{% static_v 'common/css/wama-share.css' %}" rel="stylesheet">
     {# Squelette commun des pages CATALOGUE (stats/hero/grille/cards) — voir wama-catalog.css #}
     <link href="{% static_v 'common/css/wama-catalog.css' %}" rel="stylesheet">
     <link rel="shortcut icon" type="image/png" href="{% static 'images/favicon.png' %}" >
@@ -384,6 +386,10 @@
     que le clic droit sur une card sélectionnée agisse sur TOUTE la sélection. Auto-monté sur
     `[data-wama-dnd]`, donc inerte là où la file n'est pas déclarée manipulable — même contrat
     que le glisser-déposer.{% endcomment %}
+    {% comment %}Modale de PARTAGE. Chargée AVANT le menu : celui-ci n'offre l'entrée
+    « Partager… » que si `WamaShare` existe — l'ordre inverse rendrait l'entrée absente au
+    premier montage, sans erreur, donc sans qu'on le voie.{% endcomment %}
+    <script src="{% static_v 'common/js/wama-share.js' %}"></script>
     <script src="{% static_v 'common/js/wama-card-menu.js' %}"></script>
 
     {% block javascript %}

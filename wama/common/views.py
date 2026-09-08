@@ -1000,3 +1000,53 @@ class AppAboutView(AppTabRedirectView):
 
 class AppHelpView(AppTabRedirectView):
     tab_anchor = 'help-pane'
+
+@login_required
+def api_partage(request, surface: str, pk: int):
+    """PARTAGE d'un élément de file — la première interface du mécanisme de visibilité (§7).
+
+    GET  → les portées OFFRABLES par cet utilisateur + l'état courant de l'élément.
+    POST → applique la portée (`visibility`, `org_unit_id`, `project_id`).
+
+    `surface` et non « app » : la clé est celle de `PreviewRegistry`, et l'enhancer en expose
+    DEUX (`enhancer`, `audio_enhancer`) avec deux modèles distincts. Le front la lit sur la
+    card elle-même (`data-preview-url` = `/common/preview/<surface>/<pk>/`, présent sur les 10
+    gabarits de card du parc — mesuré) : c'est déjà l'idiome de l'inspecteur, qui en dérive
+    l'URL de détail. Aucune déclaration nouvelle, et le cas de l'enhancer se distingue tout seul.
+
+    ⚠ L'élément est cherché DANS LE PÉRIMÈTRE DE L'UTILISATEUR (`user=request.user`), donc un pk
+    étranger rend 404 et non 403 : un 403 confirmerait l'existence de l'objet d'un autre. Le
+    service revérifie la propriété — c'est son invariant, pas une redite : il est appelable
+    ailleurs (commande de gestion prévue au §7.5).
+
+    ⚠ Ce endpoint n'accorde AUCUN droit d'écriture (cf. `services/sharing`). Le partage est en
+    lecture seule par construction ; l'escalade est le jalon S3 `AccessGrant`.
+    """
+    from django.shortcuts import get_object_or_404
+    from wama.common.services.sharing import (RefusDePartage, etat, partager, portees_offrables)
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    modele = PreviewRegistry.get_model(surface)
+    if modele is None:
+        return JsonResponse({'error': f"surface inconnue : {surface}"}, status=404)
+    element = get_object_or_404(modele, pk=pk, user=request.user)
+
+    if request.method == 'GET':
+        return JsonResponse({'ok': True, 'surface': surface, 'pk': pk,
+                             'etat': etat(element),
+                             'portees': portees_offrables(request.user)})
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'méthode non autorisée'}, status=405)
+
+    # `request.POST` et JAMAIS `request.body` : sur un POST multipart le flux est déjà consommé
+    # par le middleware CSRF et `request.body` lève `RawPostDataException` — leçon payée deux
+    # fois dans ce dépôt (`queue_manipulation.ids_from_request`).
+    try:
+        compte_rendu = partager(request.user, element,
+                                request.POST.get('visibility') or '',
+                                request.POST.get('org_unit_id') or None,
+                                request.POST.get('project_id') or None)
+    except RefusDePartage as refus:
+        return JsonResponse({'ok': False, 'reason': str(refus)}, status=400)
+    return JsonResponse({'ok': True, **compte_rendu})

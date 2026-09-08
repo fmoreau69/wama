@@ -357,6 +357,41 @@ def batch_model_for(element_model):
     return next(iter(candidats)) if len(candidats) == 1 else None
 
 
+def batch_of(element):
+    """Le LOT (instance) auquel cet élément appartient, ou None s'il n'en a pas.
+
+    Jumeau d'INSTANCE de `batch_model_for`, et même dérivation : les deux formes de
+    rattachement du dépôt, dans le même ordre.
+      • FK DIRECTE  : `element.batch` (converter, converter_01) ;
+      • par LIAISON : `element.<liaison>.batch` — le reverse est un OneToOne nommé
+        `batch_item` sur les 10 apps qui l'utilisent (`queue_manipulation` s'appuie déjà
+        dessus), mais on ne le NOMME pas en dur : on cherche le reverse one-to-one dont le
+        modèle porte une FK `batch`. Une 13ᵉ app qui nommerait autrement son reverse est
+        couverte sans geste.
+
+    ⚠ Écrit le 2026-09-08 pour le PARTAGE. `PROFILES_PERMISSIONS §7.4bis` l'exige noir sur
+    blanc : « une card partagée sans son batch **n'apparaît pas** » — la file est construite à
+    partir des LOTS. Partager une card sans propager au lot produirait donc un partage
+    silencieusement inopérant : le destinataire ne verrait rien, et rien ne le dirait.
+    """
+    if element is None:
+        return None
+    direct = getattr(element, 'batch', None)
+    if direct is not None:
+        return direct
+    for f in element._meta.related_objects:
+        if not getattr(f, 'one_to_one', False):
+            continue
+        modele = f.related_model
+        if not any(getattr(x, 'many_to_one', False) and x.name == 'batch'
+                   for x in modele._meta.get_fields()):
+            continue
+        liaison = getattr(element, f.get_accessor_name(), None)
+        if liaison is not None:
+            return getattr(liaison, 'batch', None)
+    return None
+
+
 def batch_model_for_app(app_name):
     """Idem depuis un nom de SURFACE (`'enhancer'`, `'audio_enhancer'`…).
 
