@@ -49,7 +49,7 @@ pas en profiter pour le changer.
             class="btn btn-sm {{ css_class|default:'btn-outline-info' }} dropdown-toggle"
             data-bs-toggle="dropdown" aria-expanded="false"{% if not ready %} disabled{% endif %}
             title="{% if ready %}{{ title|default:_('Télécharger') }}{% else %}{{ empty_title|default:_('Pas encore de résultat') }}{% endif %}">
-      <i class="fas fa-download"></i>{% if label %} {{ label }}{% endif %}
+      <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
     </button>
     <ul class="dropdown-menu dropdown-menu-dark">
       {% for f in formats %}
@@ -66,19 +66,19 @@ pas en profiter pour le changer.
   <button{% if id %} id="{{ id }}"{% endif %} class="btn btn-sm {{ css_class|default:'btn-outline-info' }}" disabled
           aria-disabled="true" tabindex="-1"
           title="{{ empty_title|default:_('Pas encore de résultat') }}">
-    <i class="fas fa-download"></i>{% if label %} {{ label }}{% endif %}
+    <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
   </button>
 {% elif not formats %}
   <a{% if id %} id="{{ id }}"{% endif %} href="{{ url }}" class="btn btn-sm {{ css_class|default:'btn-outline-info' }} download-btn"
      title="{{ title|default:_('Télécharger') }}">
-    <i class="fas fa-download"></i>{% if label %} {{ label }}{% endif %}
+    <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
   </a>
 {% else %}
   <div class="btn-group btn-group-sm">
     <a{% if id %} id="{{ id }}"{% endif %} href="{{ url }}?format={{ formats.0.value }}"
        class="btn {{ css_class|default:'btn-outline-info' }} download-btn"
        title="{{ title|default:_('Télécharger') }}">
-      <i class="fas fa-download"></i>{% if label %} {{ label }}{% endif %}
+      <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
     </a>
     <button type="button"
             class="btn {{ css_class|default:'btn-outline-info' }} dropdown-toggle dropdown-toggle-split"

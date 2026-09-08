@@ -45,24 +45,33 @@ Usage :
   {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
 {% endcomment %}
 {% load wama_actions %}
+{% comment %}⚠ LIBELLÉS ENROBÉS dans `.wama-btn-label` + `title` sur CHAQUE bouton (2026-09-08).
+Ce n'est pas cosmétique : la barre de file replie ses libellés en ICÔNES SEULES sous un certain
+seuil de largeur de conteneur (`wama-filter-bar.css`, container query), pour tenir sur UNE ligne
+volets ouverts. Un libellé masqué sans `title` laisserait un bouton muet — d'où les deux gestes
+ensemble, jamais l'un sans l'autre. Hors barre de file, l'enrobage ne change rien.{% endcomment %}
 <div class="d-flex gap-2 flex-wrap wama-queue-actions">
-    <button id="{{ start_id }}" class="btn btn-success btn-sm"{% if start_url %} data-queue-start-url="{{ start_url }}"{% endif %}>
-        <i class="fas fa-play"></i> {{ start_label|default:'Démarrer tout' }}
+    <button id="{{ start_id }}" class="btn btn-success btn-sm"{% if start_url %} data-queue-start-url="{{ start_url }}"{% endif %}
+            title="{{ start_label|default:'Démarrer tout' }}">
+        <i class="fas fa-play"></i> <span class="wama-btn-label">{{ start_label|default:'Démarrer tout' }}</span>
     </button>
     {% if show_download %}
     {% if app and download_url %}
     {% download_button app download_url download_ready|default:False title=download_title empty_title=download_empty_title css_class='btn-info' html_id=download_id label=download_label|default:'Télécharger tout' split=False %}
     {% elif download_url %}
-    <a id="{{ download_id }}" class="btn btn-info btn-sm" href="{{ download_url }}">
-        <i class="fas fa-download"></i> {{ download_label|default:'Télécharger tout' }}
+    <a id="{{ download_id }}" class="btn btn-info btn-sm" href="{{ download_url }}"
+       title="{{ download_label|default:'Télécharger tout' }}">
+        <i class="fas fa-download"></i> <span class="wama-btn-label">{{ download_label|default:'Télécharger tout' }}</span>
     </a>
     {% else %}
-    <button id="{{ download_id }}" class="btn btn-info btn-sm" disabled>
-        <i class="fas fa-download"></i> {{ download_label|default:'Télécharger tout' }}
+    <button id="{{ download_id }}" class="btn btn-info btn-sm" disabled
+            title="{{ download_label|default:'Télécharger tout' }}">
+        <i class="fas fa-download"></i> <span class="wama-btn-label">{{ download_label|default:'Télécharger tout' }}</span>
     </button>
     {% endif %}
     {% endif %}
-    <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm"{% if clear_url %} data-queue-clear-url="{{ clear_url }}"{% endif %}>
-        <i class="fas fa-trash"></i> {{ clear_label|default:'Tout effacer' }}
+    <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm"{% if clear_url %} data-queue-clear-url="{{ clear_url }}"{% endif %}
+            title="{{ clear_label|default:'Tout effacer' }}">
+        <i class="fas fa-trash"></i> <span class="wama-btn-label">{{ clear_label|default:'Tout effacer' }}</span>
     </button>
 </div>

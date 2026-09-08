@@ -191,6 +191,41 @@ class RegistreDOutilsTest(SimpleTestCase):
         self.assertIn('recherche', PROFILS['registre']['outils'],
                       "la recherche des registres était le point de départ — elle doit rester")
 
+    def test_un_libelle_repliable_a_TOUJOURS_son_title(self):
+        """Le repli en icônes et l'infobulle se posent ENSEMBLE, jamais l'un sans l'autre.
+
+        La barre de file replie ses libellés d'action sous 1160 px de conteneur
+        (`wama-filter-bar.css`, container query) pour tenir sur une ligne volets ouverts —
+        mesuré : les trois libellés pèsent 432 px, le reste de la barre 724, et la
+        configuration la plus courante n'offre que ~888 px. Un libellé masqué sans `title`
+        laisserait un bouton MUET : l'utilisateur verrait une icône sans savoir ce qu'elle fait,
+        et rien ne planterait.
+
+        Mesuré le 2026-09-08 sur les 12 barres du parc : 36 boutons d'action, 36 libellés
+        repliables, 0 muet. Ce test est ce qui garde ce 0.
+        """
+        from django.template.loader import render_to_string
+
+        rendu = render_to_string('common/_queue_actions.html', {
+            'start_id': 'x-start', 'clear_id': 'x-clear', 'download_id': 'x-dl',
+            'show_download': True,
+        })
+        libelles = rendu.count('class="wama-btn-label"')
+        titres = rendu.count('title="')
+        self.assertGreaterEqual(libelles, 3, "les trois actions globales doivent être enrobées")
+        self.assertGreaterEqual(titres, libelles,
+                                f"{libelles} libellé(s) repliable(s) pour seulement {titres} "
+                                f"title — un bouton deviendra muet au repli")
+
+        # La brique commune du ⬇ enrobe aussi son libellé : sans ça, l'app qui passe par elle
+        # (`app` + `download_url`) garderait un libellé non repliable et casserait la ligne.
+        dl = (RACINE / 'wama' / 'common' / 'templates' / 'common'
+              / '_download_button.html').read_text(encoding='utf-8')
+        self.assertNotIn('{% if label %} {{ label }}{% endif %}', dl,
+                         "une branche de `_download_button.html` rend son libellé sans enrobage")
+        self.assertEqual(4, dl.count('class="wama-btn-label"'),
+                         "les 4 branches de `_download_button.html` doivent enrober leur libellé")
+
     def test_les_deux_barres_historiques_DELEGUENT_a_la_barre_generale(self):
         """`_queue_toolbar.html` et `_filter_bar.html` restent des FAÇADES.
 

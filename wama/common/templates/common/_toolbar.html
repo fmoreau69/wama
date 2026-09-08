@@ -78,7 +78,11 @@ elle, taper dans l'une filtrerait l'autre.{% endcomment %}
      data-cible=".wama-queue-entry, .batch-group"
      data-cible-dans="file-suivante">
     <div class="d-flex align-items-center gap-2 flex-wrap">
-        {% with placeholder_defaut='Rechercher dans la file…' %}
+        {% comment %}Placeholder COURT : le champ est volontairement étroit (arbitrage Fabien —
+        « 1 ou 2 mots tout au plus », le défilement natif fait le reste), et « Rechercher dans la
+        file… » s'y faisait tronquer en « Rechercher dan ». Un placeholder coupé se lit comme un
+        bug d'affichage.{% endcomment %}
+        {% with placeholder_defaut='Rechercher…' %}
         {% for o in tb_gauche %}{% include o.partial %}{% endfor %}
         {% endwith %}
     </div>

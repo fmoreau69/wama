@@ -29,6 +29,70 @@
 .wama-filter-bar .wama-filter-search { width: 220px; }
 .wama-filter-bar .wama-filter-search input { font-size: 0.85rem; }
 
+/* ═══ BARRE DE FILE : la recherche est l'élément ÉLASTIQUE ═══════════════════════════════
+   ⚠ DÉFAUT VÉCU (2026-09-08, signalé par Fabien : « l'ajout de la recherche rend la barre sur
+   4 lignes au lieu d'une seule »). `.input-group` de Bootstrap porte `width: 100%` : dans le
+   pôle en `flex-wrap`, la recherche prenait TOUTE la largeur de la barre — mesuré 592 px sur
+   592 — et poussait à la ligne tout ce qui la suivait. 5 lignes, 154 px de haut.
+   La règle `.wama-filter-bar .wama-filter-search { width: 220px }` ci-dessus ne s'y appliquait
+   pas : la barre de file ne porte pas `.wama-filter-bar`.
+
+   Cible demandée : UNE ligne, ajustée à la largeur de la fenêtre, qui ne passe à la ligne que
+   si la fenêtre se réduit vraiment. D'où trois leviers, et pas un seul :
+     1. la recherche cesse d'imposer 100 % et prend une largeur MODESTE, qui se comprime mais
+        ne s'étire pas (`flex: 0 1 …`). Arbitrage de Fabien : « la plupart du temps on va
+        chercher 1 ou 2 mots tout au plus, et on peut gérer ça avec un défilement dans la barre
+        de recherche » — un `<input>` défile nativement, donc rien ne se perd. Ne pas la faire
+        grandir est aussi ce qui garde la barre sur une ligne : aucun élément ne réclame
+        l'espace libre, il reste entre les deux pôles ;
+     2. les deux selects s'alignaient sur leur option la plus longue (241 px pour « ✋ Manuel
+        (glisser-déposer) », 221 px pour « En attente de ressources ») = 462 px des 592
+        disponibles, alors qu'ils affichent une valeur courante bien plus courte. On les borne :
+        le menu natif, lui, reste lisible en entier à l'ouverture ;
+     3. le pôle gauche doit pouvoir SE RÉTRÉCIR — sans `min-width: 0`, un conteneur flex refuse
+        de descendre sous la largeur de son contenu et le `flex` de la recherche reste lettre
+        morte.
+   `flex-wrap` est CONSERVÉ : c'est lui qui permet le repli légitime en fenêtre étroite. */
+.wama-queue-toolbar { row-gap: .5rem; }
+
+.wama-queue-toolbar > div:first-child { min-width: 0; flex: 1 1 auto; }
+
+.wama-queue-toolbar .wama-filter-search {
+    width: auto;                 /* annule le width:100% de `.input-group` */
+    flex: 0 1 10rem;             /* se comprime, ne s'étire jamais */
+    min-width: 6.5rem;           /* en dessous, le champ ne dit plus ce qu'il est */
+}
+
+.wama-queue-toolbar select.form-select {
+    max-width: 11rem;
+    text-overflow: ellipsis;
+}
+
+/* Les actions globales ne s'étirent pas : le pôle gauche se comprime avant elles. */
+.wama-queue-toolbar .wama-queue-actions { flex: 0 0 auto; }
+
+/* ═══ REPLI EN ICÔNES — container query, JAMAIS media query ═══════════════════════════════
+   Dans WAMA la largeur UTILE n'est pas celle de la fenêtre : les volets en mangent la moitié
+   (mesuré le 2026-08-01 : fenêtre 1600 px → 888 px pour la file). Un `@media (max-width: …)`
+   ne se déclencherait donc jamais au moment où on en a besoin — même piège que les pistes de
+   la card v3, et même remède.
+
+   Les trois libellés d'action pèsent **432 px** à eux seuls (mesuré) ; le reste de la barre en
+   demande 724. Une ligne exige donc ~1165 px, alors que la configuration la plus courante en
+   offre ~888. Les replier en icônes rend ~290 px — c'est CE levier, et lui seul, qui fait
+   tenir la barre sur une ligne volets ouverts. Chaque bouton garde son `title`
+   (`_queue_actions.html`), donc rien ne devient muet.
+
+   SEUIL MESURÉ, pas choisi : 1160 px est juste sous la largeur où la barre À LIBELLÉS tient
+   encore sur une ligne (1165). Au-dessus on garde les libellés, en dessous on les replie —
+   et la barre ne passe réellement à la ligne qu'en dessous de ~880 px, « si la fenêtre se
+   réduit trop » (demande Fabien 2026-09-08). */
+.wama-queue-toolbar { container-type: inline-size; }
+
+@container (max-width: 1160px) {
+    .wama-queue-toolbar .wama-btn-label { display: none; }
+}
+
 /* Compteur « X sur Y » — discret, à droite. Il n'apparaît qu'une fois la brique montée :
    sans JS, afficher un compteur figé mentirait. */
 .wama-filter-count {
