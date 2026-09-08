@@ -119,6 +119,13 @@ def _porte_la_visibilite(obj) -> bool:
     return isinstance(obj, ScopedVisibility) or hasattr(obj, 'visibility')
 
 
+def _poser(objet, visibility, unite, projet):
+    objet.visibility = visibility
+    objet.scope_org_unit_id = unite
+    objet.scope_project_id = projet
+    objet.save(update_fields=['visibility', 'scope_org_unit', 'scope_project'])
+
+
 def partager(user, element, visibility, org_unit_id=None, project_id=None) -> dict:
     """Applique la portée à l'élément ET à son lot. Rend un compte-rendu.
 
@@ -136,27 +143,62 @@ def partager(user, element, visibility, org_unit_id=None, project_id=None) -> di
         raise RefusDePartage("seul le propriétaire peut partager")
 
     unite, projet = _verifier_cible(user, visibility, org_unit_id, project_id)
-
-    element.visibility = visibility
-    element.scope_org_unit_id = unite
-    element.scope_project_id = projet
-    element.save(update_fields=['visibility', 'scope_org_unit', 'scope_project'])
+    _poser(element, visibility, unite, projet)
 
     lot = batch_of(element)
     lot_touche = None
     if lot is not None and _porte_la_visibilite(lot):
-        lot.visibility = visibility
-        lot.scope_org_unit_id = unite
-        lot.scope_project_id = projet
-        lot.save(update_fields=['visibility', 'scope_org_unit', 'scope_project'])
+        _poser(lot, visibility, unite, projet)
         lot_touche = lot.id
 
     return {'visibility': visibility, 'libelle': PORTEES[visibility],
             'org_unit_id': unite, 'project_id': projet,
-            'lot': lot_touche,
+            'lot': lot_touche, 'elements': 1,
             # Le lot EXISTE mais ne porte pas la visibilité : le partage est alors incomplet et
             # il faut le dire, pas le taire (§7.4bis : 🔶 si un seul des deux modèles l'a).
             'lot_non_partageable': lot is not None and lot_touche is None}
+
+
+def partager_lot(user, lot, modele_element, visibility,
+                 org_unit_id=None, project_id=None) -> dict:
+    """Partage un LOT ENTIER : le lot et TOUS ses éléments.
+
+    Question de Fabien (2026-09-08) : « est-ce que le partage fonctionne pour les batch ? » Il
+    ne fonctionnait PAS — la card mère de lot ne porte pas `data-preview-url`, donc l'entrée
+    n'apparaissait même pas. C'est pourtant le geste le plus naturel : `imager/views.py:231`
+    dit que « le batch est l'unité de partage », et `models_gen` le répète (« unité de partage
+    F7 »). Le manque était dans l'UI, pas dans l'intention.
+
+    ⚠⚠ LA DESCENTE AUX ÉLÉMENTS EST UNE EXIGENCE, exactement symétrique de la remontée au lot :
+    un lot partagé dont les éléments restent privés s'affiche chez le destinataire… VIDE. Le
+    filtre de lecture s'applique aux deux niveaux, donc le geste doit écrire aux deux.
+    """
+    if visibility not in PORTEES:
+        raise RefusDePartage(f"portée inconnue : {visibility!r}")
+    if not _porte_la_visibilite(lot):
+        raise RefusDePartage("ce lot n'est pas partageable (app non portée)")
+    if getattr(lot, 'user_id', None) != getattr(user, 'id', None):
+        raise RefusDePartage("seul le propriétaire peut partager")
+
+    unite, projet = _verifier_cible(user, visibility, org_unit_id, project_id)
+    _poser(lot, visibility, unite, projet)
+
+    from wama.common.utils.batch_common import elements_du_lot
+    touches, non_partageables = 0, 0
+    for element in elements_du_lot(lot, modele_element):
+        if not _porte_la_visibilite(element):
+            non_partageables += 1
+            continue
+        _poser(element, visibility, unite, projet)
+        touches += 1
+
+    return {'visibility': visibility, 'libelle': PORTEES[visibility],
+            'org_unit_id': unite, 'project_id': projet,
+            'lot': lot.id, 'elements': touches,
+            # On COMPTE ce qui n'a pas suivi au lieu de le taire : un lot dont la moitié des
+            # éléments reste privée est un partage à trous, et le destinataire n'en saura rien.
+            'elements_non_partageables': non_partageables,
+            'lot_non_partageable': False}
 
 
 def etat(element) -> dict:

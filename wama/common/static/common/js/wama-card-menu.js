@@ -209,14 +209,26 @@
         // une modale qui echouerait.
         // ⚠ UNE card a la fois : partager N elements exigerait N portees a la fois, ce qui n'est
         // pas la meme decision. On ne l'offre donc pas en selection multiple.
-        if (cibles.length === 1 && global.WamaShare && WamaShare.coordonnees(card)) {
-            entrees.push({
-                icone: 'fas fa-share-nodes', libelle: 'Partager…',
-                agir: function () {
-                    var nom = (card.textContent || '').trim().slice(0, 70);
-                    WamaShare.ouvrirPourCard(card, nom);
-                },
-            });
+        // ⚠ DEUX CIBLES, et c'est ce sur quoi on a CLIQUÉ qui décide (question de Fabien :
+        // « est-ce que le partage fonctionne pour les batch ? » — il ne fonctionnait pas) :
+        //   • card MÈRE de lot  → on partage LE LOT (et le serveur descend à ses éléments) ;
+        //   • card unitaire ou FILLE → on partage cet élément (le serveur remonte à son lot).
+        // La mère ne porte pas `data-preview-url` (`_batch_card.html`, mesuré) : sa surface est
+        // lue sur une card fille, son pk sur l'enveloppe `.batch-group`.
+        if (cibles.length === 1 && global.WamaShare) {
+            var estMere = card.classList.contains('is-batch');
+            var dispo = estMere ? WamaShare.coordonneesDuLot(card) : WamaShare.coordonnees(card);
+            if (dispo) {
+                entrees.push({
+                    icone: 'fas fa-share-nodes',
+                    libelle: estMere ? 'Partager le lot…' : 'Partager…',
+                    agir: function () {
+                        var nom = (card.textContent || '').trim().slice(0, 70);
+                        if (estMere) WamaShare.ouvrirPourLot(card, nom);
+                        else WamaShare.ouvrirPourCard(card, nom);
+                    },
+                });
+            }
         }
 
         // « Ajouter à un lot » — n'a de sens que s'il EXISTE un lot d'accueil autre que le sien.

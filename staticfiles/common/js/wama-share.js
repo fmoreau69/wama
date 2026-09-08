@@ -40,11 +40,18 @@
         if (type === 'error') alert(msg);
     }
 
-    function urlDe(surface, pk) {
-        return '/common/api/partage/' + encodeURIComponent(surface) + '/' + encodeURIComponent(pk) + '/';
+    function urlDe(surface, pk, nature) {
+        return '/common/api/partage/' + encodeURIComponent(surface) + '/'
+             + encodeURIComponent(nature || 'element') + '/' + encodeURIComponent(pk) + '/';
     }
 
-    /** Surface + pk lus sur la CARD, via le contrat `data-preview-url`. */
+    /**
+     * Surface + pk lus sur la CARD, via le contrat `data-preview-url`.
+     *
+     * ⚠ La card MÈRE d'un lot ne le porte PAS (`_batch_card.html` : 0 occurrence, mesuré) —
+     * elle porte `data-batch-id`. C'est `coordonneesDuLot` qui la traite : la surface vient
+     * alors d'une card FILLE, et le pk du lot de l'enveloppe `.batch-group`.
+     */
     function coordonnees(card) {
         var hote = (card.matches && card.matches('[data-preview-url]'))
             ? card : card.querySelector('[data-preview-url]');
@@ -140,8 +147,8 @@
         return el;
     }
 
-    function ouvrir(surface, pk, nom) {
-        return fetch(urlDe(surface, pk), { credentials: 'same-origin' })
+    function ouvrir(surface, pk, nom, nature) {
+        return fetch(urlDe(surface, pk, nature), { credentials: 'same-origin' })
             .then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
@@ -186,7 +193,7 @@
                     if (cible && !cible.disabled) {
                         fd.append(choix.value === 'unit' ? 'org_unit_id' : 'project_id', cible.value);
                     }
-                    fetch(urlDe(surface, pk), {
+                    fetch(urlDe(surface, pk, nature), {
                         method: 'POST', headers: { 'X-CSRFToken': csrf() },
                         body: fd, credentials: 'same-origin',
                     }).then(function (r) {
@@ -218,14 +225,41 @@
             });
     }
 
+    /**
+     * Coordonnées d'un LOT, depuis sa card mère ou n'importe quelle card du groupe.
+     *
+     * Le pk est celui du LOT (`.batch-group[data-batch-id]`) ; la SURFACE, elle, ne peut venir
+     * que d'une card fille — la mère ne la déclare pas. Un lot REPLIÉ garde ses filles dans le
+     * DOM (`.collapse`, taille nulle), donc la lecture marche plié comme déplié : c'est déjà
+     * l'hypothèse du glisser-déposer, vérifiée par son scénario nocturne.
+     */
+    function coordonneesDuLot(el) {
+        var groupe = el.closest ? el.closest('.batch-group[data-batch-id]') : null;
+        if (!groupe) return null;
+        var fille = groupe.querySelector('.wama-card:not(.is-batch) [data-preview-url], '
+                                       + '.wama-card:not(.is-batch)[data-preview-url]');
+        var c = fille ? coordonnees(fille) : null;
+        if (!c) return null;
+        return { surface: c.surface, pk: groupe.dataset.batchId, nature: 'lot' };
+    }
+
     /** Ouvre depuis une CARD, en lisant ses coordonnées. Rend false si la card ne les porte pas. */
     function ouvrirPourCard(card, nom) {
         var c = coordonnees(card);
         if (!c) return false;
-        ouvrir(c.surface, c.pk, nom);
+        ouvrir(c.surface, c.pk, nom, 'element');
+        return true;
+    }
+
+    /** Ouvre pour le LOT auquel appartient cet élément du DOM. */
+    function ouvrirPourLot(el, nom) {
+        var c = coordonneesDuLot(el);
+        if (!c) return false;
+        ouvrir(c.surface, c.pk, nom, 'lot');
         return true;
     }
 
     global.WamaShare = { ouvrir: ouvrir, ouvrirPourCard: ouvrirPourCard,
-                         coordonnees: coordonnees };
+                         ouvrirPourLot: ouvrirPourLot,
+                         coordonnees: coordonnees, coordonneesDuLot: coordonneesDuLot };
 })(window);

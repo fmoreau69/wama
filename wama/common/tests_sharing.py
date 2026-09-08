@@ -192,6 +192,129 @@ class PartageTest(TestCase):
                       {o['valeur'] for o in portees_offrables(self.u)})
 
 
+class PartageDUnLotTest(TestCase):
+    """Partager un LOT ENTIER — question de Fabien (2026-09-08) : « est-ce que le partage
+    fonctionne pour les batch ? »
+
+    Il ne fonctionnait PAS : la card mère ne porte pas `data-preview-url`, donc l'entrée
+    n'apparaissait même pas. Or c'est le geste le plus naturel — `imager/views.py:231` dit que
+    « le batch est l'unité de partage ».
+
+    ⚠⚠ LA DESCENTE AUX ÉLÉMENTS est le pendant EXACT de la remontée au lot : un lot partagé dont
+    les éléments restent privés s'affiche chez le destinataire… VIDE. Les deux sens sont des
+    exigences, et le test décisif ci-dessous le mesure du point de vue du destinataire.
+    """
+
+    def setUp(self):
+        self.u = User.objects.create_user('partageur_lot', password='x')
+        self.autre = User.objects.create_user('temoin_lot', password='x')
+        self.labo = OrgUnit.objects.create(code='LOTLABO_T', name='Labo', unit_type='labo')
+        for compte in (self.u, self.autre):
+            prof = compte.profile
+            prof.org_entity_code = 'LOTLABO_T'
+            prof.save(update_fields=['org_entity_code'])
+
+    def test_elements_du_lot_couvre_les_DEUX_formes(self):
+        from wama.common.utils.batch_common import elements_du_lot
+        from wama.converter.models import ConversionJob
+        from wama.imager.models import ImageGeneration
+
+        lot = _lot_converter(self.u, total=2)
+        a, b = _job(self.u, batch=lot, nom='a'), _job(self.u, batch=lot, nom='b')
+        self.assertEqual({a.id, b.id},
+                         {x.id for x in elements_du_lot(lot, ConversionJob)})
+
+        gen, lot2 = _generation(self.u)
+        self.assertEqual([gen.id], [x.id for x in elements_du_lot(lot2, ImageGeneration)])
+
+    def test_elements_du_lot_ne_rend_JAMAIS_l_utilisateur(self):
+        """⚠ Défaut de ma première version : elle suivait « la première relation qui n'est pas
+        `batch` » — et `ConversionJob` porte aussi `user`. Elle rendait donc l'UTILISATEUR
+        comme élément du lot, ce qui aurait fait écrire `visibility` sur un compte."""
+        from django.contrib.auth.models import User as ModeleUser
+        from wama.common.utils.batch_common import elements_du_lot
+        from wama.converter.models import ConversionJob
+
+        lot = _lot_converter(self.u)
+        _job(self.u, batch=lot)
+        elements = elements_du_lot(lot, ConversionJob)
+        self.assertTrue(elements)
+        self.assertFalse(any(isinstance(x, ModeleUser) for x in elements))
+
+    def test_partager_un_lot_DESCEND_a_tous_ses_elements(self):
+        from wama.common.services.sharing import partager_lot
+        from wama.converter.models import ConversionJob
+
+        lot = _lot_converter(self.u, total=3)
+        jobs = [_job(self.u, batch=lot, nom=f'{i}.png') for i in range(3)]
+        cr = partager_lot(self.u, lot, ConversionJob, ScopedVisibility.VIS_UNIT,
+                          org_unit_id=self.labo.id)
+        self.assertEqual(3, cr['elements'])
+        self.assertEqual(0, cr['elements_non_partageables'])
+        lot.refresh_from_db()
+        self.assertEqual(ScopedVisibility.VIS_UNIT, lot.visibility)
+        for j in jobs:
+            j.refresh_from_db()
+            self.assertEqual(ScopedVisibility.VIS_UNIT, j.visibility)
+            self.assertEqual(self.labo.id, j.scope_org_unit_id)
+
+    def test_le_destinataire_VOIT_le_lot_ET_son_contenu(self):
+        """LE test du geste. Un lot visible dont les éléments sont privés serait un lot VIDE."""
+        from wama.common.services.sharing import partager_lot
+        from wama.converter.models import ConversionBatch, ConversionJob
+
+        lot = _lot_converter(self.u, total=2)
+        jobs = [_job(self.u, batch=lot, nom=f'{i}.png') for i in range(2)]
+
+        def lots_vus():
+            return set(ConversionBatch.objects.filter(scoped_visible_q(self.autre))
+                       .values_list('id', flat=True))
+
+        def jobs_vus():
+            return set(ConversionJob.objects.filter(scoped_visible_q(self.autre))
+                       .values_list('id', flat=True))
+
+        self.assertNotIn(lot.id, lots_vus())
+        partager_lot(self.u, lot, ConversionJob, ScopedVisibility.VIS_UNIT,
+                     org_unit_id=self.labo.id)
+        self.assertIn(lot.id, lots_vus(), "le lot doit être visible")
+        self.assertEqual({j.id for j in jobs}, jobs_vus() & {j.id for j in jobs},
+                         "un lot visible dont le contenu reste privé s'affiche VIDE")
+
+    def test_seul_le_proprietaire_partage_un_lot(self):
+        from wama.common.services.sharing import partager_lot
+        from wama.converter.models import ConversionJob
+
+        lot = _lot_converter(self.u)
+        with self.assertRaises(RefusDePartage):
+            partager_lot(self.autre, lot, ConversionJob, ScopedVisibility.VIS_PUBLIC)
+
+    def test_endpoint_du_lot(self):
+        from wama.accounts.permissions import GROUP_PREFIX
+        from django.contrib.auth.models import Group
+        for role in ('communication', 'recherche', 'ingenierie', 'administratif'):
+            g, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')
+            self.u.groups.add(g)
+        self.client.force_login(self.u)
+        lot = _lot_converter(self.u, total=2)
+        job = _job(self.u, batch=lot)
+
+        url = reverse('common:api_partage', args=['converter', 'lot', lot.id])
+        self.assertEqual(200, self.client.get(url).status_code)
+        rep = self.client.post(url, {'visibility': ScopedVisibility.VIS_PUBLIC})
+        self.assertEqual(200, rep.status_code, rep.content[:200])
+        self.assertEqual(1, rep.json()['elements'])
+        job.refresh_from_db(); lot.refresh_from_db()
+        self.assertEqual(ScopedVisibility.VIS_PUBLIC, job.visibility)
+        self.assertEqual(ScopedVisibility.VIS_PUBLIC, lot.visibility)
+
+    def test_une_nature_inconnue_rend_404(self):
+        self.client.force_login(self.u)
+        lot = _lot_converter(self.u)
+        url = reverse('common:api_partage', args=['converter', 'grappe', lot.id])
+        self.assertEqual(404, self.client.get(url).status_code)
+
+
 class BriqueDePartageTest(TestCase):
     """Le CÂBLAGE de la brique front. Son comportement, lui, s'atteste au navigateur.
 
@@ -289,8 +412,8 @@ class EndpointDePartageTest(TestCase):
         self.client.force_login(self.u)
         self.job = _job(self.u, batch=_lot_converter(self.u))
 
-    def _url(self, surface='converter', pk=None):
-        return reverse('common:api_partage', args=[surface, pk or self.job.id])
+    def _url(self, surface='converter', pk=None, nature='element'):
+        return reverse('common:api_partage', args=[surface, nature, pk or self.job.id])
 
     def test_get_rend_l_etat_et_les_portees(self):
         rep = self.client.get(self._url())

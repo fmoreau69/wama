@@ -392,6 +392,49 @@ def batch_of(element):
     return None
 
 
+def elements_du_lot(lot, modele_element):
+    """Les ÉLÉMENTS d'un lot — le pendant DESCENDANT de `batch_of`.
+
+    `lot.items` est uniforme sur les deux formes du dépôt (mesuré : le converter, seule app à FK
+    directe, nomme AUSSI son `related_name='items'`). Ce que `items` CONTIENT diffère :
+      • FK DIRECTE  : les éléments eux-mêmes ;
+      • par LIAISON : des objets de liaison, qui portent l'élément sur une autre relation.
+
+    ⚠ `modele_element` est EXIGÉ, et ce n'est pas de la paresse. Ma première version le devinait
+    en suivant « la première relation sortante qui n'est pas `batch` » : sur la forme à FK
+    directe, `ConversionJob` porte aussi `user` — elle rendait donc l'UTILISATEUR comme élément.
+    Le modèle attendu est une donnée que l'appelant POSSÈDE (il l'a résolu par
+    `PreviewRegistry`), la deviner était un choix arbitraire déguisé en dérivation.
+    *Quand une dérivation doit trancher entre deux relations plausibles, c'est qu'il manque une
+    donnée à l'entrée.*
+
+    ⚠ Écrit le 2026-09-08 pour le PARTAGE D'UN LOT (question de Fabien : « est-ce que le partage
+    fonctionne pour les batch ? »). La symétrie est une EXIGENCE, pas une élégance : un lot
+    partagé dont les éléments restent privés se montre au destinataire… VIDE. C'est le miroir
+    exact du défaut que `batch_of` évite dans l'autre sens.
+    """
+    if lot is None or modele_element is None:
+        return []
+    gestionnaire = getattr(lot, 'items', None)
+    if gestionnaire is None:
+        return []
+    sortie = []
+    for item in gestionnaire.all():
+        if isinstance(item, modele_element):
+            sortie.append(item)                      # forme à FK directe
+            continue
+        for f in type(item)._meta.get_fields():       # forme par liaison
+            if not (getattr(f, 'many_to_one', False) or getattr(f, 'one_to_one', False)):
+                continue
+            if getattr(f, 'auto_created', False) or f.related_model is not modele_element:
+                continue
+            valeur = getattr(item, f.name, None)
+            if valeur is not None:
+                sortie.append(valeur)
+            break
+    return sortie
+
+
 def batch_model_for_app(app_name):
     """Idem depuis un nom de SURFACE (`'enhancer'`, `'audio_enhancer'`…).
 

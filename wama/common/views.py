@@ -1002,10 +1002,10 @@ class AppHelpView(AppTabRedirectView):
     tab_anchor = 'help-pane'
 
 @login_required
-def api_partage(request, surface: str, pk: int):
-    """PARTAGE d'un élément de file — la première interface du mécanisme de visibilité (§7).
+def api_partage(request, surface: str, nature: str, pk: int):
+    """PARTAGE d'un élément ou d'un LOT de file — l'interface du mécanisme de visibilité (§7).
 
-    GET  → les portées OFFRABLES par cet utilisateur + l'état courant de l'élément.
+    GET  → les portées OFFRABLES par cet utilisateur + l'état courant de la cible.
     POST → applique la portée (`visibility`, `org_unit_id`, `project_id`).
 
     `surface` et non « app » : la clé est celle de `PreviewRegistry`, et l'enhancer en expose
@@ -1014,7 +1014,13 @@ def api_partage(request, surface: str, pk: int):
     gabarits de card du parc — mesuré) : c'est déjà l'idiome de l'inspecteur, qui en dérive
     l'URL de détail. Aucune déclaration nouvelle, et le cas de l'enhancer se distingue tout seul.
 
-    ⚠ L'élément est cherché DANS LE PÉRIMÈTRE DE L'UTILISATEUR (`user=request.user`), donc un pk
+    `nature` ∈ {element, lot}. Le LOT est une cible de plein droit — « le batch est l'unité de
+    partage » (imager/views.py:231) — et son partage DESCEND à ses éléments, là où le partage
+    d'un élément REMONTE à son lot. Les deux sens sont des exigences, pas des commodités : le
+    filtre de lecture s'applique aux deux niveaux, donc n'en écrire qu'un produit un partage
+    qui ne montre rien.
+
+    ⚠ La cible est cherchée DANS LE PÉRIMÈTRE DE L'UTILISATEUR (`user=request.user`), donc un pk
     étranger rend 404 et non 403 : un 403 confirmerait l'existence de l'objet d'un autre. Le
     service revérifie la propriété — c'est son invariant, pas une redite : il est appelable
     ailleurs (commande de gestion prévue au §7.5).
@@ -1023,17 +1029,29 @@ def api_partage(request, surface: str, pk: int):
     lecture seule par construction ; l'escalade est le jalon S3 `AccessGrant`.
     """
     from django.shortcuts import get_object_or_404
-    from wama.common.services.sharing import (RefusDePartage, etat, partager, portees_offrables)
+    from wama.common.services.sharing import (RefusDePartage, etat, partager, partager_lot,
+                                              portees_offrables)
+    from wama.common.utils.batch_common import batch_model_for_app
     from wama.common.utils.preview_registry import PreviewRegistry
 
-    modele = PreviewRegistry.get_model(surface)
-    if modele is None:
+    if nature not in ('element', 'lot'):
+        return JsonResponse({'error': f"nature inconnue : {nature}"}, status=404)
+
+    modele_element = PreviewRegistry.get_model(surface)
+    if modele_element is None:
         return JsonResponse({'error': f"surface inconnue : {surface}"}, status=404)
-    element = get_object_or_404(modele, pk=pk, user=request.user)
+
+    if nature == 'lot':
+        modele = batch_model_for_app(surface)
+        if modele is None:
+            return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
+    else:
+        modele = modele_element
+    cible = get_object_or_404(modele, pk=pk, user=request.user)
 
     if request.method == 'GET':
-        return JsonResponse({'ok': True, 'surface': surface, 'pk': pk,
-                             'etat': etat(element),
+        return JsonResponse({'ok': True, 'surface': surface, 'nature': nature, 'pk': pk,
+                             'etat': etat(cible),
                              'portees': portees_offrables(request.user)})
 
     if request.method != 'POST':
@@ -1042,11 +1060,15 @@ def api_partage(request, surface: str, pk: int):
     # `request.POST` et JAMAIS `request.body` : sur un POST multipart le flux est déjà consommé
     # par le middleware CSRF et `request.body` lève `RawPostDataException` — leçon payée deux
     # fois dans ce dépôt (`queue_manipulation.ids_from_request`).
+    visibility = request.POST.get('visibility') or ''
+    unite = request.POST.get('org_unit_id') or None
+    projet = request.POST.get('project_id') or None
     try:
-        compte_rendu = partager(request.user, element,
-                                request.POST.get('visibility') or '',
-                                request.POST.get('org_unit_id') or None,
-                                request.POST.get('project_id') or None)
+        if nature == 'lot':
+            compte_rendu = partager_lot(request.user, cible, modele_element,
+                                        visibility, unite, projet)
+        else:
+            compte_rendu = partager(request.user, cible, visibility, unite, projet)
     except RefusDePartage as refus:
         return JsonResponse({'ok': False, 'reason': str(refus)}, status=400)
     return JsonResponse({'ok': True, **compte_rendu})

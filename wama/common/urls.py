@@ -63,10 +63,14 @@ urlpatterns = [
     # autres catalogues sans nouvel endpoint. Elle ne peut RIEN ouvrir — un droit passe par
     # une modération, pas par ce bouton.
     path('api/abonnement/', views.api_subscription, name='api_subscription'),
-    # PARTAGE d'un élément de file (PROFILES_PERMISSIONS §7) — GET : portées offrables + état,
-    # POST : applique. La clé est la SURFACE de `PreviewRegistry` (l'enhancer en a deux), lue
-    # par le front sur `data-preview-url` de la card. UNE route pour les 12 files.
-    path('api/partage/<str:surface>/<int:pk>/', views.api_partage, name='api_partage'),
+    # PARTAGE (PROFILES_PERMISSIONS §7) — GET : portées offrables + état, POST : applique.
+    # La clé est la SURFACE de `PreviewRegistry` (l'enhancer en a deux), lue par le front sur
+    # `data-preview-url` de la card. `nature` ∈ {element, lot} : le LOT est une cible de plein
+    # droit — « le batch est l'unité de partage » (imager/views.py:231) — et le partager DESCEND
+    # à ses éléments, sinon le destinataire verrait un lot vide.
+    # UNE route pour les 12 files × 2 natures.
+    path('api/partage/<str:surface>/<str:nature>/<int:pk>/', views.api_partage,
+         name='api_partage'),
 
     # Skills de prompt : la PAGE du registre `skills`, qui existait sans elle (seul registre
     # de la carte sans `url_name`). Elle DÉRIVE des fichiers + PROMPT_TARGETS + DOMAINES, et
