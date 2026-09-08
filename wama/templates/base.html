@@ -42,6 +42,8 @@
     <link href="{% static_v 'common/css/wama-queue-dnd.css' %}" rel="stylesheet">
     {# Barre de filtrage commune (apparence model manager) — voir _filter_bar.html #}
     <link href="{% static_v 'common/css/wama-filter-bar.css' %}" rel="stylesheet">
+    {# Menu contextuel de card/lot + débordement « … » de la rangée (wama-card-menu.js) #}
+    <link href="{% static_v 'common/css/wama-card-menu.css' %}" rel="stylesheet">
     {# Squelette commun des pages CATALOGUE (stats/hero/grille/cards) — voir wama-catalog.css #}
     <link href="{% static_v 'common/css/wama-catalog.css' %}" rel="stylesheet">
     <link rel="shortcut icon" type="image/png" href="{% static 'images/favicon.png' %}" >
@@ -376,6 +378,13 @@
     Chargé APRÈS queue-actions : sur un même clic, les actions de bouton priment sur la
     sélection.{% endcomment %}
     <script src="{% static_v 'common/js/wama-queue-dnd.js' %}"></script>
+
+    {% comment %}Menu contextuel de card/lot + débordement « … » de la rangée d'actions.
+    Chargé APRÈS `wama-queue-dnd.js` : il LIT sa sélection (`WamaQueueDnd.selectedCards`) pour
+    que le clic droit sur une card sélectionnée agisse sur TOUTE la sélection. Auto-monté sur
+    `[data-wama-dnd]`, donc inerte là où la file n'est pas déclarée manipulable — même contrat
+    que le glisser-déposer.{% endcomment %}
+    <script src="{% static_v 'common/js/wama-card-menu.js' %}"></script>
 
     {% block javascript %}
       <script src="{% static_v 'vendors/bootstrap-wysiwyg/js/bootstrap-wysiwyg.min.js' %}"></script>

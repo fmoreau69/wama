@@ -469,6 +469,65 @@ class ExpositionDesUrlsTest(TestCase):
         self.assertNotIn('/audio/', media)
 
 
+class MenuContextuelDeCardTest(TestCase):
+    """La brique `wama-card-menu.js` — menu au clic droit + débordement « … ».
+
+    Un `.js` ne casse jamais à la compilation, il casse dans le navigateur : la SEULE attestation
+    de son comportement est le smoke (fait le 2026-09-08 — proxy à un seul clic, sous-menu des
+    lots d'accueil, sélection multiple). Ce que ces tests tiennent, c'est le CÂBLAGE — ce qu'un
+    smoke ne rejouera pas tout seul si quelqu'un défait l'inclusion.
+    """
+
+    def _base(self):
+        return (RACINE / 'wama' / 'templates' / 'base.html').read_text(encoding='utf-8')
+
+    def test_la_brique_est_montee_globalement_et_APRES_le_glisser_deposer(self):
+        """L'ordre n'est pas cosmétique : le menu LIT la sélection du drag&drop.
+
+        `WamaQueueDnd` doit exister quand `wama-card-menu.js` s'exécute, sinon le clic droit sur
+        une card sélectionnée n'agirait que sur elle — la sélection multiple serait perdue en
+        silence, sans qu'aucune erreur ne paraisse.
+        """
+        base = self._base()
+        i_dnd = base.find('wama-queue-dnd.js')
+        i_menu = base.find('wama-card-menu.js')
+        self.assertNotEqual(-1, i_menu, "`wama-card-menu.js` n'est plus chargé par base.html")
+        self.assertNotEqual(-1, i_dnd, "`wama-queue-dnd.js` n'est plus chargé par base.html")
+        self.assertLess(i_dnd, i_menu,
+                        "le menu est chargé AVANT la brique de sélection : la sélection "
+                        "multiple serait perdue")
+        self.assertIn('wama-card-menu.css', base, "la feuille du menu n'est plus chargée")
+
+    def test_le_seuil_nominal_est_de_six_boutons(self):
+        """Décision de Fabien (2026-09-08) : « le nombre nominal est de 6 (avec le bouton
+        édition), au-delà on utilise les "..." ». Un seuil qui dérive change l'apparence de
+        toutes les cards du parc sans que personne ne l'ait demandé."""
+        js = (RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
+              / 'wama-card-menu.js').read_text(encoding='utf-8')
+        self.assertIn('var NOMINAL = 6;', js)
+
+    def test_la_brique_ne_se_relit_pas_elle_meme(self):
+        """Le bouton « … » vit dans la rangée qu'il relit — il DOIT s'en exclure.
+
+        Défaut mesuré à la 1ʳᵉ sonde : le clic droit offrait une entrée « Plus d'actions » qui
+        n'aurait fait qu'ouvrir un menu depuis un menu.
+        """
+        js = (RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
+              / 'wama-card-menu.js').read_text(encoding='utf-8')
+        self.assertIn("classList.contains('wama-cm-plus')", js)
+
+    def test_staticfiles_sert_la_meme_brique(self):
+        """`staticfiles/` est le dossier SERVI : un correctif non resynchronisé est invisible."""
+        for rel in ('common/js/wama-card-menu.js', 'common/css/wama-card-menu.css'):
+            source = RACINE / 'wama' / 'common' / 'static' / rel
+            servi = RACINE / 'staticfiles' / rel
+            with self.subTest(fichier=rel):
+                self.assertTrue(servi.exists(), f"{rel} absent de staticfiles/")
+                self.assertEqual(source.read_text(encoding='utf-8'),
+                                 servi.read_text(encoding='utf-8'),
+                                 f"{rel} : staticfiles/ diverge de la source")
+
+
 def _urls_de_manipulation_par_file():
     """Rend (etiquette, gabarit_url) pour CHAQUE file du parc et chaque route à pk.
 

@@ -1,0 +1,139 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   WAMA — MENU CONTEXTUEL de card / de lot (brique `wama-card-menu.js`).
+
+   Demande de Fabien (2026-09-08) : « j'aimerais qu'on améliore l'esthétique du menu contextuel,
+   car celui du filemanager est vraiment peu esthétique. »
+
+   Ce menu-là n'est PAS celui du filemanager : le sien est le `vakata-context` de jsTree,
+   rhabillé par des `!important` (`filemanager.css:545-559`) — un composant tiers dont on ne
+   maîtrise ni la structure ni les états. Celui-ci est à nous, et le filemanager pourra y migrer.
+
+   Langue de design : on reprend les tokens DÉJÀ posés dans WAMA plutôt que d'en inventer —
+   fond `#2b3035` (celui de la barre de filtrage), accent cyan `#0dcaf0` (famille de lot,
+   CARD_DESIGN §11.2), danger `#f87171` (celui que le filemanager utilise pour ses entrées
+   destructrices). Un menu qui a sa propre palette se lit comme un morceau d'une autre
+   application.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+.wama-card-menu {
+    position: fixed;
+    z-index: 1080;                    /* au-dessus des modales Bootstrap (1055) et des dropdowns */
+    min-width: 13rem;
+    max-width: 22rem;
+    padding: .35rem;
+    background: #2b3035;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 10px;
+    /* Deux ombres : une portée large pour détacher du fond, une fine pour le liseré du haut.
+       C'est ce qui donne l'impression de flotter au lieu d'être collé. */
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .45), 0 1px 0 rgba(255, 255, 255, .04) inset;
+    color: #e9ecef;
+    font-size: .85rem;
+    animation: wama-cm-apparait .12s ease-out;
+}
+
+/* Une apparition très courte : assez pour que l'œil suive le menu jusqu'à sa position, jamais
+   assez pour qu'on attende. Au-delà de ~150 ms un menu contextuel donne l'impression de ramer. */
+@keyframes wama-cm-apparait {
+    from { opacity: 0; transform: translateY(-4px) scale(.98); }
+    to   { opacity: 1; transform: none; }
+}
+
+.wama-card-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.wama-cm-titre {
+    padding: .3rem .6rem .45rem;
+    color: #8fa3b3;
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.wama-cm-item {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    width: 100%;
+    padding: .42rem .6rem;
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color .1s, color .1s;
+}
+
+/* L'icône occupe une gouttière FIXE : sans elle, les libellés se décalent d'une entrée à
+   l'autre selon la largeur du glyphe, et la colonne de texte ondule. */
+.wama-cm-item > i:first-child {
+    flex: 0 0 1.1rem;
+    text-align: center;
+    color: #adb5bd;
+}
+
+.wama-cm-item > span {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wama-cm-item:hover,
+.wama-cm-item:focus-visible {
+    background: rgba(13, 202, 240, .14);
+    color: #fff;
+    outline: none;
+}
+
+.wama-cm-item:hover > i:first-child,
+.wama-cm-item:focus-visible > i:first-child { color: #0dcaf0; }
+
+.wama-cm-item:active { background: rgba(13, 202, 240, .22); }
+
+.wama-cm-item:disabled {
+    opacity: .45;
+    cursor: default;
+}
+.wama-cm-item:disabled:hover { background: none; color: inherit; }
+
+/* DANGER — même rouge que les entrées destructrices du filemanager, pour que « supprimer »
+   se reconnaisse d'un menu à l'autre. */
+.wama-cm-danger { color: #f87171; }
+.wama-cm-danger > i:first-child { color: #f87171; }
+.wama-cm-danger:hover,
+.wama-cm-danger:focus-visible {
+    background: rgba(248, 113, 113, .16);
+    color: #fca5a5;
+}
+.wama-cm-danger:hover > i:first-child { color: #fca5a5; }
+
+.wama-cm-sep {
+    height: 1px;
+    margin: .3rem .35rem;
+    background: rgba(255, 255, 255, .08);
+}
+
+/* Chevron du sous-menu : discret, aligné à droite, il n'entre pas dans la gouttière d'icône. */
+.wama-cm-fleche {
+    flex: 0 0 auto;
+    margin-left: .4rem;
+    font-size: .7rem;
+    color: #6c757d;
+}
+.wama-cm-item:hover .wama-cm-fleche { color: #0dcaf0; }
+
+/* ── Rangée d'actions : le bouton « … » et le surplus masqué ─────────────────────────────
+   Les boutons au-delà du nominal (6, bouton édition compris — décision Fabien) sont retirés de
+   la rangée et servis par le « … ». Masquage par CLASSE : la rangée d'une card peut porter des
+   styles inline selon l'app, et `style.display` ne se restaure pas proprement (même leçon que
+   `.wama-f-hors-filtre` dans `wama-filter-bar.css`). */
+.wama-cm-debord { display: none !important; }
+
+.wama-cm-plus { line-height: 1; }
+.wama-cm-plus > i { pointer-events: none; }
