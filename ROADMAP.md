@@ -121,6 +121,29 @@
     (speakAudio, alignement approché acceptable au pilote), toggle de mode dans l'UI assistant —
     ≈ une session dédiée. Cas (a) : gate de test EchoMimicV3 (rituel GNM : venv isolé, pin,
     mesures VRAM/latence/qualité) avant intégration avatarizer.
+- **Bibliothèques UI externes pour la passe visuelle — 21st.dev et assimilés** (question Fabien
+  2026-09-07, **décision : on ne fait rien pour le moment**, consigné pour ne pas reperdre la
+  discussion). Socle MESURÉ dans `base.html` : **Bootstrap 5.3.0 vendorisé + JS sans framework**
+  (ni React, ni Tailwind, ni htmx/Alpine) ; règles qui bornent tout choix : assets **LOCAUX**
+  (`memory/reference_offline_assets_local`), UI **auto-générée depuis les métadonnées** (pas de
+  HTML par app), **zéro duplication** dans `common/`, homogénéité = objectif de design.
+  - ❌ **21st.dev** : composants React typés shadcn stylés Tailwind, « Magic MCP » qui génère du
+    React → soit introduire React+Tailwind à côté de Bootstrap (contredit les 3 règles), soit
+    retranscrire à la main en Bootstrap (= inspiration visuelle seulement). Son apport réel est
+    l'esthétique, pas du code réutilisable ici. À garder comme **galerie de référence**, au même
+    titre que Mobbin/Godly, pour la card v4 et les volets.
+  - ✅ **Voies alignées, par rendement** : ① Bootstrap 5.3 mieux exploité (mode sombre natif
+    `data-bs-theme`, offcanvas/toasts/accordéons, utilitaires) — zéro dépendance ; ② un **thème
+    Bootstrap open source** déposé en local (Bootswatch ; **Tabler** = le plus proche de l'esprit
+    « app dense à volets et cards » ; AdminLTE) ; ③ **web components sans framework** pour les
+    briques que Bootstrap n'a pas (Shoelace / Web Awesome, Tom Select pour les sélecteurs riches)
+    — vendorisables dans `staticfiles` ; ④ **htmx ou Alpine.js** = choix d'ARCHITECTURE à
+    trancher par Fabien, pas un ajout de composant.
+  - **Recommandation Claude** : ne rien importer avant d'avoir choisi UNE direction visuelle pour
+    le système entier — thème Bootstrap cohérent + **tokens CSS dans `common/`** (c'est
+    `CARD_DESIGN §9.3`, différé « fonctionnel d'abord ») appliqués aux cards et aux deux volets,
+    puis quelques web components. Point de raccroche naturel : la card v4 (`CARD_DESIGN §11.11`),
+    le skill `frontend-design` étant disponible pour cadrer la direction.
 
 ---
 
@@ -363,7 +386,7 @@ les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprim
 > dossier vide, `cache_dir=` inchangé). *La var d'env emporte les sous-dépendances dans le
 > dossier du modèle principal — c'est le mécanisme exact du défaut.*
 >
-> **1ᵉʳ pas livré** : `reader/backends/table_transformer_backend.py` — mutation retirée,
+> **1ᵉʳ pas livré** : `common/backends/table_transformer_backend.py` — mutation retirée,
 > test sur poids réels **6/6 `OK` avant ET après**. Résidu créé par l'ancien routage :
 > `REMOVAL_LEDGER R47`.
 >
@@ -2103,8 +2126,9 @@ rares vers des YOLO spécialisés (le goulot actuel des modèles faces/plates).
    cam_analyzer) sur **Linux natif (serveur R760xa) ou venv Windows natif** — pas via WSL2 ici.
 2. **Brique commune détection** dans `wama/common/` — contrat `BaseModelBackend`, sortie normalisée
    `{bbox, label, confidence, mask?, track_id?}`, en y absorbant D'ABORD les 2 wrappers SAM3
-   dupliqués (`anonymizer/backends/sam3_processor.py` + `cam_analyzer/utils/sam3_road_analyzer.py`,
-   dont l'import cross-app l.126 est une dette). LocateAnything = backend supplémentaire.
+   dupliqués (`common/backends/sam3_processor.py` — au substrat depuis le 2026-09-07 — +
+   `cam_analyzer/utils/sam3_road_analyzer.py`, dont l'import cross-app est soldé par ce
+   déplacement). LocateAnything = backend supplémentaire.
 3. **Manifeste `function`** « détection open-vocabulary » — port de sortie `DataType.DETECTIONS`,
    entrée `image + prompt` (champ déclaré dans `PROMPT_TARGETS`) = 1er nœud Studio natif.
 4. **App detector** = UI prompt-first + file PAR-DESSUS la fonction — APRÈS anonymizer/imager, et
@@ -2130,7 +2154,7 @@ tiennent pas dans une même app.
 (`formes_equivalentes`).
 
 **LA COUTURE À EXTRAIRE, le jour où le Detector existe** — et pas avant :
-`anonymizer/backends/anonymize.py` porte désormais un moteur *un décodage, N modèles, union des zones
+`common/backends/anonymize.py` (au substrat depuis le 2026-09-07) porte désormais un moteur *un décodage, N modèles, union des zones
 frame par frame*, plus le **suivi de piste et l'interpolation**. C'est exactement ce qu'exige un
 objet **déplacé** ou un feu **changé** de façon cohérente d'une frame à l'autre. La couture est
 nette : **une fonction qui rend, par frame, l'image et les zones — l'appelant décide quoi en
@@ -2929,7 +2953,7 @@ RÉFUTÉ** (test demandé par Fabien, 3 appels identiques sur le même dépôt) 
    du §5b) ; 9 médias utilisateur sans licence (à renseigner par leur propriétaire) ;
    `leaflet-rotate.js` sans en-tête de licence.
 6. **Angle mort à combler un jour** : l'audit ne voit que les 4 registres — le **code
-   vendorisé** (`static/vendors/`, `avatarizer/codeformer/` = **NTU S-Lab NON COMMERCIAL**)
+   vendorisé** (`static/vendors/`, `common/backends/vendor/codeformer/` = **NTU S-Lab NON COMMERCIAL**)
    a dû être inventorié à la main. Le rattacher au registre `Library` le rendrait mesuré.
 
 ---
