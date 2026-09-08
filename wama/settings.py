@@ -64,6 +64,12 @@ MODEL_PATHS = {
         # 2026-09-05). La lib ajoute elle-même `.deepface/weights` sous ce dossier : c'est sa
         # convention, on la subit plutôt que de patcher — `DEEPFACE_HOME` pointe donc ICI.
         'deepface': AI_MODELS_DIR / "models" / "vision" / "deepface",
+        # LocateAnything-3B (NVIDIA) — détection open-vocabulary par prompt texte (ROADMAP §17).
+        # Le dossier existait depuis le PoC du 2026-07-27 ; il est DÉCLARÉ ici le 2026-09-08,
+        # à l'écriture du backend, pour que celui-ci le lise à sa source au lieu de le
+        # reconstruire (règle : un CHEMIN vient de `MODEL_PATHS`, jamais d'une convention
+        # recopiée dans un backend).
+        'locate_anything': AI_MODELS_DIR / "models" / "vision" / "locate-anything",
     },
     # Upscaling/Enhancement models (ONNX)
     'upscaling': {
