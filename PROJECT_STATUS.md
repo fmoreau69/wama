@@ -2835,7 +2835,7 @@ corriger chaque passe… ce n'est pas viable ») :
 |---|---|
 | suite complète | **1704 OK** (skipped=11) — après la DERNIÈRE écriture de code |
 | `check_docs` | **0 cassée**, 0 périmée, **1492** références · 0 chiffre sans source (avec les 2 hunks ROADMAP de l'arbre) |
-| corpus (depuis `venv_linux`) | **0 périmé** attendu après ré-export des 8 apps par clé (mesurer : `manifest_export --check` — ⚠ depuis venv_linux, jamais venv_win) ; 28 manifestes `library` ; 0 invalide |
+| corpus (depuis `venv_linux`) | **0 périmé, 0 invalide** — MESURÉ après le ré-export des 8 apps par clé (le seul périmé restant, `synthesizer:kokoro`, gagnait `requires → library:kokoro` par mon semis : exporté) ; 28 manifestes `library` ; ⚠ `--check` depuis venv_linux, jamais venv_win |
 | `doc_facts --check` | à jour (table des mécanismes régénérée — annexe déplacée) |
 | `check_backend_links` | **108/116** déclarent, **97** résolvent — inchangé par les déplacements |
 | `tests_backend_adoption` | budget **0** — SOLDÉ (22 → 18 → 0 dans la journée) : plus aucune app n'importe une classe de backend par chemin ; la garde est ABSOLUE et nomme l'app fautive |

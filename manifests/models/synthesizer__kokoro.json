@@ -90,6 +90,10 @@
   "projects": [],
   "requires": [
     {
+      "key": "kokoro",
+      "kind": "library"
+    },
+    {
       "key": "soundfile",
       "kind": "library"
     }
