@@ -1943,8 +1943,9 @@ recopier NULLE PART, re-mesurer)** :
   codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
   `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
   (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
-- **`WamaImport` : 7/10 dans le parc réel depuis le 2026-09-07 (transcriber, converter,
-  describer, synthesizer, enhancer-image, reader, anonymizer) ; `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
+- **`WamaImport` : 8/10 dans le parc réel depuis le 2026-09-08 (transcriber, converter,
+  describer, synthesizer, enhancer image ET audio, reader, anonymizer, composer) ;
+  `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
   généré et le banc. Une app
   générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
   même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
@@ -2087,6 +2088,33 @@ de progression » a coûté **deux évolutions de brique** et **deux rouges élu
   LANCEMENT par `ensure_local_input`. La modale `#modal-progress` n'a plus aucun consommateur :
   retirée du gabarit. Mesuré : famille `anonymizer.` **12/12**, `url_import` passe de SKIP (garde
   anti-bouclage sur le téléchargement à l'import) à **OK** (élément créé, résolution différée).
+
+**8ᵉ adoption — composer, 2026-09-08 : le mode ATTACHE (évolution 5), déclaratif.** Fabien :
+« Composer prend un prompt, un fichier batch, un audio de référence. Tout est dans les registres,
+une app déclare tout ce qui la concerne. » Lu : `input_types=('prompt',)`, `input_extensions` =
+formats de LOT, slot `reference_melody` (`#melodyInput`, `accept='audio/*'`, apparié par
+`WamaInputMatch`). Donc un dépôt sur sa zone : lot si texte, mélodie de référence si audio, refus
+sinon. La brique le fait DÉCLARATIVEMENT : `attach: ['melodyInput']` = les inputs candidats, le
+fichier va au premier dont l'attribut `accept` l'admet (`WamaApp.injectFiles`, le `change` réveille
+`WamaInputMatch` qui pose sa chip) ; sans `uploadUrl`, ce qui n'est ni lot ni attachable est
+REFUSÉ à l'écran — avant, **avalé sans trace** (`batch-import.js:256`). La card déclare
+`depot_cree=False`. ⚠ La brique batch ne câble plus la zone (`dropZoneId` retiré de son config) :
+deux briques sur une zone = deux écouteurs, deux aperçus. Mesuré (sonde) : WAV → `melodyInput`
+1 fichier + chip ; PNG → toast « Fichier non attendu ici » ; TXT → barre de lot (1) ; 0 card créée,
+0 erreur ; famille `composer.` inchangée (6/12 + 6 skips déclarés). ⚠ « À faire avec la card v4 »
+disait l'inventaire : la v4 ne câble pas la dropzone, l'attache est bien l'affaire de la brique.
+
+**enhancer-AUDIO, 2026-09-08 : « il n'y a rien de maison, c'est encore du portage » (Fabien).**
+La voie audio recopiait la barre de lot commune (`_audio_batch_bar.html`, 44 lignes) ET sa
+logique (10 fonctions) parce que `WamaBatchImport` ne savait rendre qu'UN jeu d'ids par page, et
+la page enhancer porte deux voies. Deux évolutions de brique : `WamaBatchImport({idBase})`
+(`audioBatch…`) et `common/batch_detect_bar.html` paramétré (`bid`, `label`) — le gabarit audio
+devient une inclusion de 2 lignes avec sa couleur. `audio-enhancer.js` : `WamaImport` +
+`WamaBatchImport` avec les endpoints audio (mêmes contrats `items/count/warnings`, `batch_id`),
+`beforeFile` = le filtre d'extensions audio d'avant. Mesuré (sonde) : WAV → card audio rendue
+serveur ; PNG → refus ; TXT → barre AUDIO ouverte (2) pendant que la barre image reste fermée ;
+0 erreur ; 73 tests OK. **Restent imager et avatarizer** — même mode `attach`, à lire dans leurs
+registres (slots de référence) avant d'écrire une ligne.
   Mesuré (sonde `MutationObserver` persistée à travers le reload) : la barre apparaît puis
   disparaît sur transcriber, anonymizer, converter, 0 erreur JS ;
 - **la forme `{media:{id}}`** : l'endpoint répond `media` (objet) pour UN fichier et `added[]`

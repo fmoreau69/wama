@@ -76,7 +76,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 {# comme Imager) — provisoire jusqu'à la card intégrée-miniaturisée dans la file (MODES_QUEUE_UX). #}
 {# IDs batchFileInput + barre batch communs → handlers WamaBatchImport existants inchangés. #}
 {% url 'composer:batch_template' as composer_batch_template_url %}
-{% include 'common/_new_item_card.html' with drop_zone_id='composerBatchDrop' file_input_id='batchFileInput' file_accept='.txt,.md,.csv,.pdf,.docx' formats_label='TXT · MD · CSV · PDF · DOCX' batch_format='sortie|prompt|modèle|durée' batch_hint='En-têtes de colonnes ou balises -p/-o/--option acceptés (détection auto)' batch_template_url=composer_batch_template_url show_batch_bar=True show_media_library=True media_library_type='document' show_reference=True reference_input_id='melodyInput' reference_chip_id='melodyChip' reference_zone_id='melodySlot' reference_label='Mélodie de référence' reference_accept='audio/*' reference_hint='Audio 5s–5min servant de ligne mélodique (modèle Melody)' show_url=True url_input_id='melodyUrlInput' url_label='ou mélodie depuis une URL' url_placeholder='https://youtube.com/… (téléchargée au lancement)' url_hint='YouTube ou lien audio direct — un fichier joint prime sur l’URL' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' collapsible=True %}
+{% include 'common/_new_item_card.html' with depot_cree=False drop_zone_id='composerBatchDrop' file_input_id='batchFileInput' file_accept='.txt,.md,.csv,.pdf,.docx,audio/*' formats_label='TXT · MD · CSV · PDF · DOCX' batch_format='sortie|prompt|modèle|durée' batch_hint='En-têtes de colonnes ou balises -p/-o/--option acceptés (détection auto)' batch_template_url=composer_batch_template_url show_batch_bar=True show_media_library=True media_library_type='document' show_reference=True reference_input_id='melodyInput' reference_chip_id='melodyChip' reference_zone_id='melodySlot' reference_label='Mélodie de référence' reference_accept='audio/*' reference_hint='Audio 5s–5min servant de ligne mélodique (modèle Melody)' show_url=True url_input_id='melodyUrlInput' url_label='ou mélodie depuis une URL' url_placeholder='https://youtube.com/… (téléchargée au lancement)' url_hint='YouTube ou lien audio direct — un fichier joint prime sur l’URL' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' collapsible=True %}
 
 {# ── Barre de progression globale : brique COMMUNE (_global_progress + wama-global-progress.js #}
 {# + endpoint composer:global_progress au contrat {total,done,running,failed,overall_progress}). #}
@@ -197,6 +197,7 @@ ce que views.batch_update accepte : modèle/durée/format/qualité — le prompt
 <script src="{% static_v 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
 <script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée DÉPLIABLE (auto-init, mécanisme synthesizer globalisé) #}
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>  {# import batch COMMUN : aperçu serveur + créer/lancer (audit B3-9) #}
+<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE (WamaImport) : lot / attache mélodie / refus — 8ᵉ app en place (2026-09-08) #}
 <script>
 // Import batch COMMUN (WamaBatchImport, pattern transcriber) : aperçu serveur dans la detect bar,
 // « Créer seulement » ≠ « Créer et lancer » (le lancement passe par composer:batch_start —
@@ -204,8 +205,8 @@ ce que views.batch_update accepte : modèle/durée/format/qualité — le prompt
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof WamaBatchImport === 'undefined') { console.warn('[Composer] batch-import.js manquant — import batch inactif'); return; }
     window._batchImport = WamaBatchImport({
-        dropZoneId: 'composerBatchDrop',
-        fileInputId: 'batchFileInput',
+        // ⚠ Plus de dropZoneId/fileInputId ICI (08/09) : la zone est câblée par WamaImport
+        // ci-dessous — deux briques sur la même zone = deux écouteurs de drop, deux aperçus.
         batchExtensions: ['txt', 'md', 'csv', 'pdf', 'docx'],
         batchPreviewUrl: '{% url "composer:batch_preview" %}',
         batchCreateUrl: '{% url "composer:import_batch" %}',
@@ -224,6 +225,25 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         },
     });
+
+    // ── Voie d'import : brique commune WamaImport (8ᵉ app en place, 2026-09-08) ──
+    // Le composer DÉCLARE (registres) : entrée = PROMPT, `input_extensions` = formats de LOT,
+    // un slot de référence `reference_melody` (#melodyInput, accept audio/*). Donc un dépôt sur
+    // sa zone : lot si texte (brique batch, `batchScope:'each'`), MÉLODIE DE RÉFÉRENCE si audio
+    // (mode ATTACHE — évolution 5 de la brique : le fichier entre dans l'input du port et
+    // `WamaInputMatch` pose sa chip), REFUS dit à l'écran sinon. Pas d'`uploadUrl` : rien ne se
+    // téléverse tel quel ici, c'est « Générer » qui crée. Avant : un fichier non-lot déposé
+    // était AVALÉ SANS TRACE (`batch-import.js:256` — « let the app deal with it » : personne).
+    if (typeof WamaImport === 'function') {
+        window._import = WamaImport({
+            csrfToken:   '{{ csrf_token }}',
+            dropZoneId:  'composerBatchDrop',
+            fileInputId: 'batchFileInput',
+            batch:       window._batchImport,
+            batchScope:  'each',
+            attach:      ['melodyInput'],
+        });
+    }
 });
 </script>
 <script>

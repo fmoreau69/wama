@@ -48,7 +48,13 @@ function WamaBatchImport(cfg) {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  function el(id) { return document.getElementById(id); }
+  // `idBase` (2026-09-08, enhancer AUDIO) : DEUX voies de lot sur une même page exigent deux
+  // barres, donc deux jeux d'ids. Les 11 ids de la barre commencent tous par `batch` — la base
+  // les remplace (`audioBatch` → `audioBatchDetectBar`…), et `common/batch_detect_bar.html`
+  // les rend depuis la même variable (`bid`). Avant, l'enhancer audio recopiait la barre ET
+  // sa logique (10 fonctions) faute de cette seule option.
+  const ID_BASE = cfg.idBase || 'batch';
+  function el(id) { return document.getElementById(ID_BASE + id.slice('batch'.length)); }
 
   function escHtml(s) {
     return String(s || '').replace(/[&<>"']/g, function (c) {

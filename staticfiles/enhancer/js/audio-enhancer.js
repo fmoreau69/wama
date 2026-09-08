@@ -31,255 +31,70 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // ── Batch file detection ─────────────────────────────────────────────────
-
-  const AUDIO_BATCH_EXTS = ['txt', 'md', 'csv', 'pdf', 'docx'];
-  let _audioBatchFile = null;
-  let _audioBatchItems = [];
-
-  // ── File upload ───────────────────────────────────────────────────────────
-
-  async function uploadAudioFile(file) {
-    const body = new FormData();
-    body.append('file', file);
-
-    try {
-      const resp = await fetch(cfg.audioUploadUrl, {
-        method: 'POST',
-        headers: csrfHeaders(),
-        body,
-      });
-      const data = await resp.json();
-      if (data.error) throw new Error(data.error);
-      appendAudioRow(data);
-      return data.id || null;
-    } catch (err) {
-      WamaApp.toast('Erreur upload audio: ' + err.message);
-      return null;
-    }
-  }
-
-  async function handleAudioFiles(files) {
-    const fileList = Array.from(files);
-    if (fileList.length === 1) {
-      const ext = fileList[0].name.split('.').pop().toLowerCase();
-      if (AUDIO_BATCH_EXTS.includes(ext)) {
-        await _handleAudioBatchFileDetect(fileList[0]);
-        return;
-      }
-    }
-    // Upload tous les fichiers, puis consolide en UN batch si plusieurs.
-    const ids = [];
-    for (const f of fileList) {
-      const id = await uploadAudioFile(f);
-      if (id) ids.push(id);
-    }
-    if (ids.length > 1 && cfg.audioConsolidateUrl) {
-      try {
-        await fetch(cfg.audioConsolidateUrl, {
-          method: 'POST',
-          headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ ids }),
-        });
-      } catch (_e) { /* à défaut : items individuels */ }
-      location.reload();
-    }
-  }
-
-  function initAudioUpload() {
-    const fileInput = document.getElementById('audio-enhancer-file');
-    if (!fileInput) return;
-    fileInput.addEventListener('change', function () {
-      if (!this.files.length) return;
-      handleAudioFiles(this.files);
-      fileInput.value = '';
-    });
-  }
-
-  function initAudioDragDrop() {
-    const dropZone = document.getElementById('dropZoneAudio');
-    const browseBtn = document.getElementById('audio-browse-btn');
-    const fileInput = document.getElementById('audio-enhancer-file');
-    if (!dropZone || !fileInput) return;
-
-    dropZone.addEventListener('click', e => {
-      if (e.target !== browseBtn) fileInput.click();
-    });
-    if (browseBtn) {
-      browseBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        fileInput.click();
-      });
-    }
-
-    dropZone.addEventListener('dragover', e => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('drag-over');
-    });
-    // Filtre commun aux entrées fichier ET dossier (formats audio + fichiers batch).
-    function filterAudioFiles(allFiles) {
-      return allFiles.filter(f => {
-        const ext = f.name.split('.').pop().toLowerCase();
-        return AUDIO_BATCH_EXTS.includes(ext) || /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i.test(f.name);
-      });
-    }
-
-    dropZone.addEventListener('drop', e => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      // Dossiers inclus (brique commune WamaFolderImport, F2).
-      WamaFolderImport.collect(e.dataTransfer).then(list => {
-        const files = filterAudioFiles(WamaFolderImport.files(list));
-        if (files.length === 0) {
-          WamaApp.toast('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA (ou fichier batch .txt/.csv/.md)');
-          return;
-        }
-        handleAudioFiles(files);
-      });
-    });
-
-    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
-    const folderInput = document.getElementById('audioEnhFolderInput');
-    if (folderInput) {
-      folderInput.addEventListener('change', () => {
-        const files = filterAudioFiles(WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files)));
-        if (files.length > 0) handleAudioFiles(files);
-        folderInput.value = '';
-      });
-    }
-  }
-
-  // ── Audio Batch bar ──────────────────────────────────────────────────────
-
-  async function _handleAudioBatchFileDetect(file) {
-    _audioBatchFile = file;
-    _audioBatchItems = [];
-    if (!cfg.audioBatchPreviewUrl) { await uploadAudioFile(file); return; }
-
-    const fd = new FormData();
-    fd.append('batch_file', file);
-    try {
-      const resp = await fetch(cfg.audioBatchPreviewUrl, { method: 'POST', headers: csrfHeaders(), body: fd });
-      const data = await resp.json();
-      if (data.error || !data.items || data.items.length === 0) { await uploadAudioFile(file); return; }
-      _audioBatchItems = data.items;
-      _showAudioBatchBar(data);
-    } catch (e) {
-      await uploadAudioFile(file);
-    }
-  }
-
-  function _showAudioBatchBar(data) {
-    const bar = document.getElementById('audioBatchDetectBar');
-    if (!bar) return;
-    const cnt = document.getElementById('audioBatchDetectedCount');
-    if (cnt) cnt.textContent = data.count;
-    const preview = document.getElementById('audioBatchDetectPreview');
-    if (preview) preview.style.display = 'none';
-    bar.style.display = '';
-  }
-
-  function _hideAudioBatchBar() {
-    const bar = document.getElementById('audioBatchDetectBar');
-    if (bar) bar.style.display = 'none';
-    const preview = document.getElementById('audioBatchDetectPreview');
-    if (preview) preview.style.display = 'none';
-    _audioBatchFile = null;
-    _audioBatchItems = [];
-  }
-
-  function _populateAudioBatchPreview(data) {
-    const tbody = document.getElementById('audioBatchDetectTable');
-    if (tbody) {
-      tbody.innerHTML = '';
-      (data.items || []).forEach(item => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td style="word-break:break-all;">${item.filename || item.path}</td>`;
-        tbody.appendChild(tr);
-      });
-    }
-    const cnt = document.getElementById('audioBatchCreateCount');
-    if (cnt) cnt.textContent = data.count;
-    const warnEl = document.getElementById('audioBatchDetectWarnings');
-    if (warnEl) {
-      if (data.warnings && data.warnings.length > 0) {
-        warnEl.textContent = data.warnings.join(' | ');
-        warnEl.style.display = '';
-      } else {
-        warnEl.style.display = 'none';
-      }
-    }
-  }
-
-  async function _doAudioBatchImport(autoStart) {
-    if (!_audioBatchFile) return;
-    const progress = document.getElementById('audioBatchCreateProgress');
-    const btnStart = document.getElementById('audioBatchCreateAndStartBtn');
-    const btnOnly  = document.getElementById('audioBatchCreateOnlyBtn');
-    if (progress) progress.style.display = '';
-    if (btnStart) btnStart.disabled = true;
-    if (btnOnly)  btnOnly.disabled  = true;
-
-    const fd = new FormData();
-    fd.append('batch_file', _audioBatchFile);
-
-    try {
-      const resp = await fetch(cfg.audioBatchCreateUrl, { method: 'POST', headers: csrfHeaders(), body: fd });
-      const data = await resp.json();
-      if (!resp.ok) { WamaApp.toast(data.error || 'Erreur création batch'); return; }
-      if (autoStart && data.batch_id) {
+  // ── Voie d'import AUDIO : les DEUX briques communes (portage 2026-09-08) ───────────
+  //
+  // Fabien : « il n'y a rien de maison, c'est encore du portage ». Jusqu'ici cette voie
+  // recopiait la barre de lot commune (gabarit `_audio_batch_bar.html`, 44 lignes) ET sa
+  // logique (10 fonctions : détection par extension, aperçu, création, boutons), plus une
+  // boucle d'upload à elle — parce que la brique batch ne savait rendre qu'UN jeu d'ids par
+  // page et que la page enhancer porte deux voies (image + audio). La brique a gagné `idBase`
+  // (`audioBatch…`), le gabarit commun `bid` : la voie audio n'écrit plus rien.
+  //   • lot : `WamaBatchImport({ idBase:'audioBatch' })` — mêmes endpoints audio, mêmes
+  //     réponses (`items/count/warnings`, `batch_id`) ; « Démarrer » poste les réglages du
+  //     volet audio au lancement, comme avant ;
+  //   • fichiers : `WamaImport` — `beforeFile` = le filtre d'extensions audio qu'on avait
+  //     (toast sinon), lot testé sur un fichier SEUL (comportement d'avant), `afterImport` =
+  //     1 → card rendue serveur (`appendAudioRow`), N → reload après consolidation.
+  const _audioBatch = (typeof WamaBatchImport === 'function') ? WamaBatchImport({
+    idBase:          'audioBatch',
+    batchExtensions: ['txt', 'md', 'csv', 'pdf', 'docx'],
+    batchPreviewUrl: cfg.audioBatchPreviewUrl,
+    batchCreateUrl:  cfg.audioBatchCreateUrl,
+    csrfToken:       csrfToken,
+    afterCreate: async function (data, autoStart) {
+      if (autoStart && data && data.batch_id && cfg.audioBatchStartUrlTemplate) {
         const startUrl = cfg.audioBatchStartUrlTemplate.replace('/0/', `/${data.batch_id}/`);
         const engine = document.getElementById('audioEngine')?.value || 'resemble';
         const mode   = document.getElementById('audioMode')?.value || 'both';
         const strength = document.getElementById('audioDenoisingStrength')?.value || '0.5';
         const quality  = document.getElementById('audioQuality')?.value || '64';
-        await fetch(startUrl, {
-          method: 'POST',
-          headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) }),
-        });
-      }
-      _hideAudioBatchBar();
-      setTimeout(() => location.reload(), 600);
-    } catch (e) {
-      WamaApp.toast('Erreur lors de la création du batch audio');
-    } finally {
-      if (progress) progress.style.display = 'none';
-      if (btnStart) btnStart.disabled = false;
-      if (btnOnly)  btnOnly.disabled  = false;
-    }
-  }
-
-  function initAudioBatchBar() {
-    const previewBtn = document.getElementById('audioBatchPreviewBtn');
-    if (previewBtn) {
-      previewBtn.addEventListener('click', async () => {
-        if (!_audioBatchFile) return;
-        const fd = new FormData();
-        fd.append('batch_file', _audioBatchFile);
         try {
-          const resp = await fetch(cfg.audioBatchPreviewUrl, { method: 'POST', headers: csrfHeaders(), body: fd });
-          const data = await resp.json();
-          if (!data.error) {
-            _populateAudioBatchPreview(data);
-            const preview = document.getElementById('audioBatchDetectPreview');
-            if (preview) preview.style.display = '';
-          }
-        } catch (e) {}
-      });
+          await fetch(startUrl, {
+            method: 'POST',
+            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) }),
+          });
+        } catch (_e) { /* la création est faite ; le lancement se rejoue depuis la card */ }
+      }
+      setTimeout(() => location.reload(), 600);
+    },
+  }) : null;
+
+  function initAudioImport() {
+    if (typeof window.WamaImport !== 'function') {
+      WamaApp.toast("Voie d'import non chargée (wama-import.js) — dépôt audio impossible", 'error');
+      console.error('[Enhancer audio] WamaImport absent : wama-import.js non chargé par le gabarit');
+      return;
     }
-
-    const cancelBtn = document.getElementById('audioBatchCancelBar');
-    if (cancelBtn) cancelBtn.addEventListener('click', _hideAudioBatchBar);
-
-    const createAndStartBtn = document.getElementById('audioBatchCreateAndStartBtn');
-    if (createAndStartBtn) createAndStartBtn.addEventListener('click', () => _doAudioBatchImport(true));
-
-    const createOnlyBtn = document.getElementById('audioBatchCreateOnlyBtn');
-    if (createOnlyBtn) createOnlyBtn.addEventListener('click', () => _doAudioBatchImport(false));
+    window._importAudio = WamaImport({
+      uploadUrl:        cfg.audioUploadUrl,
+      consolidateUrl:   cfg.audioConsolidateUrl,
+      consolidateField: 'ids',
+      csrfToken:        csrfToken,
+      dropZoneId:       'dropZoneAudio',
+      fileInputId:      'audio-enhancer-file',
+      folderInputId:    'audioEnhFolderInput',
+      batch:            _audioBatch,
+      beforeFile:       function (f) {
+        if (/\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i.test(f.name)) return true;
+        WamaApp.toast('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA (ou fichier batch .txt/.csv/.md)');
+        return false;
+      },
+      afterImport:      function (ids, reponses) {
+        if (ids.length !== 1) { location.reload(); return; }
+        appendAudioRow(reponses[0] || { id: ids[0] });
+      },
+    });
   }
 
   // ── Queue row management ──────────────────────────────────────────────────
@@ -728,10 +543,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  initAudioUpload();
-  initAudioDragDrop();
+  initAudioImport();
   initButtons();
-  initAudioBatchBar();
 
   // Barre globale AUDIO : réutilise la fonction commune (zéro duplication), endpoint audio dédié.
   // onData : (dés)active le bouton « tout télécharger » selon le nombre de succès.

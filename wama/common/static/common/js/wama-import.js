@@ -31,6 +31,7 @@
  *     consolidateField: 'ids',                      // 'job_ids' pour le contrat historique
  *     multiple:       false,                        // true : N fichiers en UNE requête (champ `files`)
  *     fieldName:      'file',                       // nom du champ POST (défaut : file / files)
+ *     attach:         ['melodyInput'],               // optionnel : ATTACHE au 1er input dont l'accept admet le fichier
  *     beforeFile:     function (file) { … },        // optionnel : rendre false = fichier écarté
  *     extraFields:    function (fd, file) { … },    // optionnel : champs POST supplémentaires
  *     onProgress:     function (loaded, size, file, index, total) {…}, // optionnel : REMPLACE la barre commune
@@ -92,6 +93,20 @@
         };
         xhr.onerror = function () { reject(new Error('erreur réseau')); };
         xhr.send(fd);
+      });
+    }
+
+    /** Un input ACCEPTE-t-il ce fichier ? Lecture de son attribut `accept` (familles MIME
+     *  `audio/*`, types exacts, extensions `.wav`) — vide = tout. */
+    function accepte(input, file) {
+      var spec = (input.getAttribute('accept') || '').split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+      if (!spec.length) return true;
+      var type = (file.type || '').toLowerCase();
+      var nom = (file.name || '').toLowerCase();
+      return spec.some(function (s) {
+        if (s.charAt(0) === '.') return nom.slice(-s.length) === s;
+        if (s.slice(-2) === '/*') return type.indexOf(s.slice(0, -1)) === 0;
+        return type === s;
       });
     }
 
@@ -246,6 +261,34 @@
         }
         files = gardes;
         if (!files.length) return;
+      }
+
+      // ATTACHE (évolution 5, 2026-09-08 — composer, 8ᵉ adoption) : le fichier ne part pas vers
+      // `uploadUrl`, il ENTRE dans l'input d'un port de référence — le même mouvement que
+      // `WamaApp.injectFiles` (drag depuis l'explorateur), une seule mécanique, deux entrées.
+      // DÉCLARATIF : `attach: ['melodyInput', …]` = les inputs candidats ; le fichier va au
+      // premier dont l'attribut `accept` l'admet (le port DÉCLARE ce qu'il prend — la brique ne
+      // connaît ni MIME ni extension par elle-même). Le `change` déclenché réveille ce qui
+      // écoute l'input (`WamaInputMatch` pose sa chip). Une app SANS `uploadUrl` (composer :
+      // prompt + lot + référence, rien à téléverser tel quel) REFUSE ce qui n'est ni lot ni
+      // attachable — avant, un tel fichier était AVALÉ SANS TRACE (`batch-import.js:256`).
+      if (cfg.attach && cfg.attach.length) {
+        var restes = [];
+        files.forEach(function (f) {
+          var cible = null;
+          for (var a = 0; a < cfg.attach.length; a++) {
+            var inp = el(cfg.attach[a]);
+            if (inp && accepte(inp, f)) { cible = inp; break; }
+          }
+          if (cible && global.WamaApp && WamaApp.injectFiles) WamaApp.injectFiles(cible, [f]);
+          else restes.push(f);
+        });
+        files = restes;
+        if (!files.length) return;
+      }
+      if (!cfg.uploadUrl) {
+        signaler('Fichier non attendu ici : ' + files.map(function (f) { return f.name; }).join(', '), 'warning');
+        return;
       }
 
       var ids = [], reponses = [];
