@@ -73,12 +73,12 @@ Le code **copié dans le repo** a été inventorié à part :
   TalkingHead, jsTree, animate.css, bootstrap-wysiwyg, jQuery (+ File Upload) — tous **MIT** ;
   Font Awesome Free (CC BY 4.0 icônes / OFL fontes / MIT code) ; Leaflet (BSD-2 amont, en-tête
   sans nom de licence) ; `leaflet-rotate.js` → **licence non établie** (aucun en-tête).
-- **`wama/avatarizer/codeformer/`** : **NTU S-Lab License 1.0 = NON COMMERCIAL** — la clause
+- **`wama/common/backends/vendor/codeformer/`** : **NTU S-Lab License 1.0 = NON COMMERCIAL** — la clause
   la plus contraignante du code embarqué ; elle couvre le mode « Qualité » de l'avatarizer.
   Sous-composants sans LICENSE propre (BasicSR, YOLOv5-face — amont GPL-3.0, ops StyleGAN2) →
-  à qualifier avant toute redistribution. NB : dossier présent comme **gitlink sans
-  `.gitmodules`** — son contenu n'est pas versionné dans ce dépôt (idem MuseTalk, gitignoré,
-  MIT).
+  à qualifier avant toute redistribution. NB (2026-09-07) : plus de gitlink — les deux arbres
+  (CodeFormer, MuseTalk MIT) vivent sous `wama/common/backends/vendor/`, **gitignorés** et
+  reclonés à l'installation ; seul le README du dossier est versionné.
 - **`brunette.glb`** (avatar de test TalkingHead, gitignoré) : CC BY-NC 4.0.
 - Reste non établi : binaires gitleaks (amont MIT).
 - **Moteur EXTERNE (hors dépôt, 2026-08-27)** : `audio.cpp` (github.com/0xShug0/audio.cpp,

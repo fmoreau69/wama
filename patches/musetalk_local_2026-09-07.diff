@@ -1,0 +1,121 @@
+diff --git a/musetalk/models/unet.py b/musetalk/models/unet.py
+index 575e79a..7c2edb0 100755
+--- a/musetalk/models/unet.py
++++ b/musetalk/models/unet.py
+@@ -41,7 +41,7 @@ class UNet():
+             self.device = device
+         else:
+             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+-        weights = torch.load(model_path) if torch.cuda.is_available() else torch.load(model_path, map_location=self.device)
++        weights = torch.load(model_path, weights_only=False) if torch.cuda.is_available() else torch.load(model_path, map_location=self.device, weights_only=False)
+         self.model.load_state_dict(weights)
+         if use_float16:
+             self.model = self.model.half()
+diff --git a/musetalk/utils/face_detection/detection/sfd/sfd_detector.py b/musetalk/utils/face_detection/detection/sfd/sfd_detector.py
+index 8fbce15..5a92c8f 100755
+--- a/musetalk/utils/face_detection/detection/sfd/sfd_detector.py
++++ b/musetalk/utils/face_detection/detection/sfd/sfd_detector.py
+@@ -21,7 +21,7 @@ class SFDDetector(FaceDetector):
+         if not os.path.isfile(path_to_detector):
+             model_weights = load_url(models_urls['s3fd'])
+         else:
+-            model_weights = torch.load(path_to_detector)
++            model_weights = torch.load(path_to_detector, weights_only=False)
+ 
+         self.face_detector = s3fd()
+         self.face_detector.load_state_dict(model_weights)
+diff --git a/musetalk/utils/face_parsing/__init__.py b/musetalk/utils/face_parsing/__init__.py
+index 09c1c02..6833f58 100755
+--- a/musetalk/utils/face_parsing/__init__.py
++++ b/musetalk/utils/face_parsing/__init__.py
+@@ -62,9 +62,9 @@ class FaceParsing():
+         net = BiSeNet(resnet_path)
+         if torch.cuda.is_available():
+             net.cuda()
+-            net.load_state_dict(torch.load(model_pth)) 
++            net.load_state_dict(torch.load(model_pth, weights_only=False))
+         else:
+-            net.load_state_dict(torch.load(model_pth, map_location=torch.device('cpu')))
++            net.load_state_dict(torch.load(model_pth, map_location=torch.device('cpu'), weights_only=False))
+         net.eval()
+         return net
+ 
+diff --git a/musetalk/utils/face_parsing/resnet.py b/musetalk/utils/face_parsing/resnet.py
+index e2e5d87..a306abb 100755
+--- a/musetalk/utils/face_parsing/resnet.py
++++ b/musetalk/utils/face_parsing/resnet.py
+@@ -80,7 +80,7 @@ class Resnet18(nn.Module):
+         return feat8, feat16, feat32
+ 
+     def init_weight(self, model_path):
+-        state_dict = torch.load(model_path) #modelzoo.load_url(resnet18_url)
++        state_dict = torch.load(model_path, weights_only=False) #modelzoo.load_url(resnet18_url)
+         self_state_dict = self.state_dict()
+         for k, v in state_dict.items():
+             if 'fc' in k: continue
+diff --git a/musetalk/utils/preprocessing.py b/musetalk/utils/preprocessing.py
+index 978480c..23a2aae 100755
+--- a/musetalk/utils/preprocessing.py
++++ b/musetalk/utils/preprocessing.py
+@@ -77,7 +77,10 @@ def get_bbox_range(img_list,upperbondrange =0):
+             if upperbondrange != 0:
+                 half_face_coord[1] = upperbondrange+half_face_coord[1] #手动调整  + 向下（偏29）  - 向上（偏28）
+ 
+-    text_range=f"Total frame:「{len(frames)}」 Manually adjust range : [ -{int(sum(average_range_minus) / len(average_range_minus))}~{int(sum(average_range_plus) / len(average_range_plus))} ] , the current value: {upperbondrange}"
++    if average_range_minus:
++        text_range=f"Total frame:「{len(frames)}」 Manually adjust range : [ -{int(sum(average_range_minus) / len(average_range_minus))}~{int(sum(average_range_plus) / len(average_range_plus))} ] , the current value: {upperbondrange}"
++    else:
++        text_range=f"Total frame:「{len(frames)}」 NO FACE DETECTED in any frame."
+     return text_range
+     
+ 
+@@ -132,7 +135,10 @@ def get_landmark_and_bbox(img_list,upperbondrange =0):
+                 coords_list += [f_landmark]
+     
+     print("********************************************bbox_shift parameter adjustment**********************************************************")
+-    print(f"Total frame:「{len(frames)}」 Manually adjust range : [ -{int(sum(average_range_minus) / len(average_range_minus))}~{int(sum(average_range_plus) / len(average_range_plus))} ] , the current value: {upperbondrange}")
++    if average_range_minus:
++        print(f"Total frame:「{len(frames)}」 Manually adjust range : [ -{int(sum(average_range_minus) / len(average_range_minus))}~{int(sum(average_range_plus) / len(average_range_plus))} ] , the current value: {upperbondrange}")
++    else:
++        print(f"Total frame:「{len(frames)}」 NO FACE DETECTED in any frame. Check that the image shows a forward-facing face.")
+     print("*************************************************************************************************************************************")
+     return coords_list,frames
+     
+diff --git a/musetalk/whisper/whisper/__init__.py b/musetalk/whisper/whisper/__init__.py
+index b925553..b47a6d3 100755
+--- a/musetalk/whisper/whisper/__init__.py
++++ b/musetalk/whisper/whisper/__init__.py
+@@ -106,7 +106,7 @@ def load_model(name: str, device: Optional[Union[str, torch.device]] = None, dow
+         raise RuntimeError(f"Model {name} not found; available models = {available_models()}")
+ 
+     with (io.BytesIO(checkpoint_file) if in_memory else open(checkpoint_file, "rb")) as fp:
+-        checkpoint = torch.load(fp, map_location=device)
++        checkpoint = torch.load(fp, map_location=device, weights_only=False)
+     del checkpoint_file
+ 
+     dims = ModelDimensions(**checkpoint["dims"])
+diff --git a/scripts/inference.py b/scripts/inference.py
+index 428afb9..04e8ffc 100644
+--- a/scripts/inference.py
++++ b/scripts/inference.py
+@@ -175,6 +175,11 @@ def main(args):
+                 latents = vae.get_latents_for_unet(crop_frame)
+                 input_latent_list.append(latents)
+         
++            if not input_latent_list:
++                print("NO FACE DETECTED: no valid bounding box found in the input image. "
++                      "MuseTalk requires a forward-facing portrait. Cannot generate video.")
++                continue
++
+             # Smooth first and last frames
+             frame_list_cycle = frame_list + frame_list[::-1]
+             coord_list_cycle = coord_list + coord_list[::-1]
+@@ -228,7 +233,7 @@ def main(args):
+ 
+             # Save prediction results
+             temp_vid_path = f"{temp_dir}/temp_{input_basename}_{audio_basename}.mp4"
+-            cmd_img2video = f"ffmpeg -y -v warning -r {fps} -f image2 -i {result_img_save_path}/%08d.png -vcodec libx264 -vf format=yuv420p -crf 18 {temp_vid_path}"
++            cmd_img2video = f"ffmpeg -y -v warning -r {fps} -f image2 -i {result_img_save_path}/%08d.png -vcodec libx264 -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p\" -crf 18 {temp_vid_path}"
+             print("Video generation command:", cmd_img2video)
+             os.system(cmd_img2video)   
+             

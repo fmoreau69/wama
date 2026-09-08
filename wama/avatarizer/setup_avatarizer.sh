@@ -9,8 +9,8 @@
 #   bash wama/avatarizer/setup_avatarizer.sh
 #
 # Ce script :
-#   1. Clone MuseTalk dans wama/avatarizer/musetalk/
-#   2. Clone CodeFormer dans wama/avatarizer/codeformer/
+#   1. Clone MuseTalk dans wama/common/backends/vendor/musetalk/
+#   2. Clone CodeFormer dans wama/common/backends/vendor/codeformer/
 #   3. Installe les dépendances pip dans le venv courant
 #   4. Télécharge les checkpoints MuseTalk vers AI-models/models/avatarizer/musetalk/
 #   5. Télécharge les checkpoints CodeFormer vers AI-models/models/avatarizer/codeformer/
@@ -21,6 +21,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 AVATARIZER_DIR="$SCRIPT_DIR"
+# Code tiers des moteurs : racine DECLAREE (settings.BACKEND_VENDOR_DIR), gitignoree.
+VENDOR_DIR="$PROJECT_DIR/wama/common/backends/vendor"
 MODELS_DIR="$PROJECT_DIR/AI-models/models/avatarizer"
 
 echo "=== WAMA Avatarizer Setup ==="
@@ -35,6 +37,7 @@ if [ -z "$VIRTUAL_ENV" ]; then
     exit 1
 fi
 
+mkdir -p "$VENDOR_DIR"
 mkdir -p "$MODELS_DIR/musetalk"
 mkdir -p "$MODELS_DIR/codeformer"
 
@@ -42,22 +45,22 @@ mkdir -p "$MODELS_DIR/codeformer"
 # 1. MuseTalk v1.5
 # =============================================================================
 echo "--- [1/5] Clone MuseTalk ---"
-if [ ! -d "$AVATARIZER_DIR/musetalk/.git" ]; then
-    git clone https://github.com/TMElyralab/MuseTalk.git "$AVATARIZER_DIR/musetalk"
+if [ ! -d "$VENDOR_DIR/musetalk/.git" ]; then
+    git clone https://github.com/TMElyralab/MuseTalk.git "$VENDOR_DIR/musetalk"
 else
     echo "MuseTalk déjà cloné, mise à jour..."
-    git -C "$AVATARIZER_DIR/musetalk" pull --ff-only || true
+    git -C "$VENDOR_DIR/musetalk" pull --ff-only || true
 fi
 
 # =============================================================================
 # 2. CodeFormer
 # =============================================================================
 echo "--- [2/5] Clone CodeFormer ---"
-if [ ! -d "$AVATARIZER_DIR/codeformer/.git" ]; then
-    git clone https://github.com/sczhou/CodeFormer.git "$AVATARIZER_DIR/codeformer"
+if [ ! -d "$VENDOR_DIR/codeformer/.git" ]; then
+    git clone https://github.com/sczhou/CodeFormer.git "$VENDOR_DIR/codeformer"
 else
     echo "CodeFormer déjà cloné, mise à jour..."
-    git -C "$AVATARIZER_DIR/codeformer" pull --ff-only || true
+    git -C "$VENDOR_DIR/codeformer" pull --ff-only || true
 fi
 
 # =============================================================================
@@ -116,9 +119,9 @@ echo "--- [4/5] Téléchargement checkpoints MuseTalk ---"
 # MuseTalk utilise huggingface_hub pour télécharger ses modèles au premier lancement.
 # On peut pré-télécharger en utilisant huggingface-cli ou le script fourni par MuseTalk.
 
-if [ -f "$AVATARIZER_DIR/musetalk/scripts/download_weights.py" ]; then
+if [ -f "$VENDOR_DIR/musetalk/scripts/download_weights.py" ]; then
     echo "Téléchargement via script MuseTalk..."
-    python "$AVATARIZER_DIR/musetalk/scripts/download_weights.py" \
+    python "$VENDOR_DIR/musetalk/scripts/download_weights.py" \
         --save_dir "$MODELS_DIR/musetalk" || \
     echo "Script MuseTalk non disponible — les modèles se téléchargeront au premier lancement."
 elif python -c "import huggingface_hub" 2>/dev/null; then
@@ -145,8 +148,8 @@ fi
 # =============================================================================
 echo "--- [5/5] Téléchargement checkpoints CodeFormer ---"
 
-if [ -f "$AVATARIZER_DIR/codeformer/scripts/download_pretrained_models.py" ]; then
-    python "$AVATARIZER_DIR/codeformer/scripts/download_pretrained_models.py" all || \
+if [ -f "$VENDOR_DIR/codeformer/scripts/download_pretrained_models.py" ]; then
+    python "$VENDOR_DIR/codeformer/scripts/download_pretrained_models.py" all || \
     echo "Script CodeFormer non disponible — téléchargement manuel requis."
 else
     echo "Téléchargement checkpoints CodeFormer..."
@@ -193,8 +196,8 @@ echo ""
 echo "=== Installation terminée ==="
 echo ""
 echo "Structure :"
-echo "  wama/avatarizer/musetalk/     : $([ -d "$AVATARIZER_DIR/musetalk" ] && echo 'OK' || echo 'MANQUANT')"
-echo "  wama/avatarizer/codeformer/   : $([ -d "$AVATARIZER_DIR/codeformer" ] && echo 'OK' || echo 'MANQUANT')"
+echo "  common/backends/vendor/musetalk/   : $([ -d "$VENDOR_DIR/musetalk" ] && echo 'OK' || echo 'MANQUANT')"
+echo "  common/backends/vendor/codeformer/ : $([ -d "$VENDOR_DIR/codeformer" ] && echo 'OK' || echo 'MANQUANT')"
 echo "  AI-models/.../musetalk/       : $(ls "$MODELS_DIR/musetalk" 2>/dev/null | wc -l) fichier(s)"
 echo "  AI-models/.../codeformer/     : $(ls "$MODELS_DIR/codeformer" 2>/dev/null | wc -l) fichier(s)"
 echo ""

@@ -38,22 +38,15 @@ from pathlib import Path as _Path
 
 from django.conf import settings
 
-#: Paquet portant le code vendorisé — DÉCLARÉ, jamais importé pour ses symboles.
-VENDOR_PACKAGE = 'wama.avatarizer'
-
-
-def _vendor_dir(nom: str):
-    """Chemin du code vendorisé `nom` sous le paquet déclaré. Résolution TARDIVE."""
-    import importlib.util
-    spec = importlib.util.find_spec(VENDOR_PACKAGE)
-    racine = _Path(spec.origin).parent if spec and spec.origin else _Path('.')
-    return racine / nom
 
 MUSETALK_MODELS_DIR = _Path(settings.MODEL_PATHS.get('lipsync', {}).get(
     'musetalk', settings.AI_MODELS_DIR / 'models' / 'lipsync' / 'musetalk'))
 MUSETALK_HF_CACHE = MUSETALK_MODELS_DIR / 'hf_cache'
 MUSETALK_VRAM_GB = 8.0
-MUSETALK_DIR = _vendor_dir('musetalk')
+#: Le MOTEUR vendorisé se trouve sous la racine DÉCLARÉE (`settings.BACKEND_VENDOR_DIR`),
+#: dans le dossier qui porte son nom — celui d'`ENGINE`. Plus aucun paquet Python n'est
+#: résolu pour localiser un dossier jamais importé (2026-09-07).
+MUSETALK_DIR = _Path(settings.BACKEND_VENDOR_DIR) / 'musetalk'
 
 logger = logging.getLogger(__name__)
 

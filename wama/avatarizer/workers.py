@@ -9,8 +9,8 @@ Pipeline recommandé :
   5. Sauvegarde dans media/avatarizer/{user_id}/output/
 
 Prérequis (voir setup_avatarizer.sh) :
-  wama/avatarizer/musetalk/     ← git clone TMElyralab/MuseTalk
-  wama/avatarizer/codeformer/   ← git clone sczhou/CodeFormer
+  wama/common/backends/vendor/musetalk/    ← git clone TMElyralab/MuseTalk
+  wama/common/backends/vendor/codeformer/  ← git clone sczhou/CodeFormer
   AI-models/models/lipsync/musetalk/    ← checkpoints MuseTalk
   AI-models/models/lipsync/codeformer/ ← checkpoints CodeFormer (via symlinks weights/)
 """

@@ -39,6 +39,12 @@ TEST_RUNNER = 'wama.common.runners.WamaTestRunner'
 AI_MODELS_DIR = BASE_DIR / "AI-models"
 AI_MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Code TIERS des moteurs vendorises (depots clones, executes en sous-processus : MuseTalk,
+# CodeFormer). Meme nature qu'AI-models : jamais importe, volumineux, reconstruit a l'installation,
+# gitignore. Declare UNE FOIS ici ; les backends adressent leur moteur par son NOM (`ENGINE`) sous
+# cette racine — plus jamais en resolvant un paquet Python pour trouver un dossier (2026-09-07).
+BACKEND_VENDOR_DIR = BASE_DIR / "wama" / "common" / "backends" / "vendor"
+
 # New centralized model paths (organized by domain, then by model family)
 # Structure: models/<domain>/<model_family>/
 MODEL_PATHS = {

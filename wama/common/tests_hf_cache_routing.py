@@ -74,7 +74,7 @@ MODULES_SANS_EFFET_DE_BORD = (
 #: source, pas une décision — la compter deux fois ferait bouger le budget à chaque
 #: régénération, sans qu'aucune dette réelle n'ait changé.
 _SANDBOX = re.compile(r'_\d\d(/|$)')
-_HORS_PERIMETRE = ('site-packages', 'staticfiles', '/archive/', 'musetalk',
+_HORS_PERIMETRE = ('site-packages', 'staticfiles', '/archive/', 'musetalk', 'backends/vendor/',
                    '/migrations/', 'node_modules',
                    # ⚠ LE SOCLE EST LE DOMICILE, pas une dette. La règle dit « posées UNE FOIS
                    # au démarrage » : c'est ICI que ça se fait, et nulle part ailleurs. Exclu

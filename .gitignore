@@ -119,8 +119,8 @@ tmpclaude-*-cwd
 *.sqlite3
 *.rdb
 
-# Cloned third-party repos embedded in the project
-wama/avatarizer/musetalk/
+# Code tiers des moteurs vendorises (clones a l'installation ; seul le README est suivi)
+wama/common/backends/vendor/*/
 # Screenshots de travail (comparaison avant/après) — ne pas committer
 claude/
 # Artefact auto-généré par headroom (proxy de compression)

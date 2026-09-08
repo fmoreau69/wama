@@ -262,7 +262,7 @@ class AucuneRecidiveTest(SimpleTestCase):
     }
 
     #: Dossiers de code TIERS recopié dans le dépôt — ils ne suivent pas nos règles.
-    VENDORISES = ('wama/avatarizer/musetalk', 'wama/avatarizer/codeformer')
+    VENDORISES = ('wama/common/backends/vendor/',)
 
     def _litteraux_de_code(self, chemin: Path, attendus: set[str]) -> set[str]:
         """Chaînes présentes dans le CODE — docstrings et chaînes libres exclues.
