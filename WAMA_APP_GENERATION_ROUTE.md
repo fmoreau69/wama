@@ -872,17 +872,27 @@ sur la même liste.
 > ✅ **VIVIER DES BACKENDS — registre DÉRIVÉ (2026-09-03, demande Fabien)** — le LLM de la
 > marche B doit « piocher dans le vivier pour s'inspirer du plus approchant » : c'est
 > `common/services/backend_inventory.py` (12ᵉ registre, page `/common/backends/`, nature
-> `DERIVED` — rien de stocké, rien à actualiser). Il LIT `wama/<app>/backends/`
-> (ROUTES/RESULT/NATURE_FIELD + classes `BaseModelBackend`, **balayées jusque dans les
-> sous-modules** — s'en tenir à l'`__init__` ratait 4 apps sur 9) et recoupe le catalogue
-> `AIModel`. Chaque entrée porte la **signature de voisinage** « natures → saveur » + paquets,
-> VRAM, modèles servis : c'est la clé de tri du « plus approchant ». **Mesuré : 9 apps,
-> 41 backends, 9 natures routées.**
-> ⚠ **Le lien modèle↔backend est aujourd'hui DÉDUIT, pas déclaré** : `AIModel.backend_ref`
-> porte un nom d'**app** (`sam3` → `anonymizer`), pas de backend — la page l'affiche comme
-> « déduit de l'app » et compte **0 lien fin déclaré**. Rendre `backend_ref` déclaratif au
-> manifeste modèle (chantier déjà ouvert depuis table-transformer, posé EN BASE le 02/09)
-> fera monter ce compteur : *le chiffre est la mesure du chantier, pas un habillage*.
+> `DERIVED` — rien de stocké, rien à actualiser). Il balaie le paquet `backends` de chaque app
+> INSTALLÉE (ROUTES/RESULT/NATURE_FIELD + classes `BaseModelBackend`, **modules frères compris**
+> — s'en tenir à l'`__init__` ratait 4 apps sur 9) et recoupe le catalogue `AIModel`. Chaque
+> entrée porte la **signature de voisinage** « natures → saveur » + paquets, VRAM, modèles
+> servis : c'est la clé de tri du « plus approchant ».
+>
+> ⚠⚠ **MIS À JOUR le 2026-09-08 — ce paragraphe décrivait un état RÉVOLU.** Il disait « il LIT
+> `wama/<app>/backends/` » et « **0 lien fin déclaré** » : les deux sont faux depuis.
+> ① **Les backends ont quitté les apps** (décision Fabien : *« ils ne sont pas censés être dans
+> les app, seulement appelés par elles ; s'ils sont dedans, ils gardent un lien avec l'app »*) —
+> **11/11**, les 35 classes vivent sous `wama/common/backends/`, et le balayage les y trouve
+> parce que `wama.common` est une app installée comme une autre : **le vivier n'a demandé aucune
+> adaptation**. Ce qui reste dans une app est sa décision de ROUTAGE (`ROUTES`/`RESULT`/
+> `NATURE_FIELD`) et son manager, jamais une classe de backend.
+> ② **Le lien fin EXISTE et se mesure** : le modèle déclare son moteur
+> (`composition.runtime.engine`, dérivé du snapshot quand personne ne le déclare), le backend
+> déclare celui qu'il pilote (`ENGINE`) et ce qu'il sert (`SUPPORTED_MODELS`, **en littéral** —
+> l'inventaire lit par AST). **116/116 modèles déclarent un moteur, 100 résolvent un backend**
+> (`manage.py check_backend_links`, qui dit aussi le sens inverse : 0 backend orphelin MUET).
+> `backend_ref` ne sert plus qu'à la PROVENANCE et son retrait est un ménage en attente.
+> *Un chiffre de doc n'est vrai qu'à sa date : celui-ci se relève par une commande.*
 >
 > ✅ **B1 ÉTENDUE À UNE 2ᵉ APP — describer, 1ʳᵉ À MODÈLES IA (2026-09-03)** — le contrat
 > gagne une SAVEUR déclarée par `backends/__init__.RESULT` (→ `processing.backend_result`) :

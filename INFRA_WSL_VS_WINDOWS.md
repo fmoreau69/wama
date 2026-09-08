@@ -202,6 +202,19 @@ bge-m3:latest`) et 15 clés de cache. Autant de dispatches faits depuis des proc
 de geste (regarder, puis décider), même si ces messages étaient indélivrables. Le reste n'a pas
 été touché.
 
+> ⚠⚠ **PROUVÉ SUR LE REGISTRE DU GOUVERNEUR le 2026-09-08** (question de Fabien sur le
+> multi-venv). Ce paragraphe listait « réservations VRAM du gouverneur » parmi les victimes ; la
+> mesure directe le confirme et en donne la portée. Sonde : une réservation écrite depuis
+> `venv_win` est **invisible** depuis `venv_linux`, et les deux serveurs se distinguent par leur
+> identité — `run_id` `bcc0ebb3…` (OS **Windows**, ~5 j) contre `90ae891d…` (**Linux WSL2**,
+> ~17 h). *Une même URL n'atteste pas un même serveur : on demande son `run_id` au SERVEUR, on
+> ne lit pas la configuration.*
+> **Conséquence pour le multi-venv** : le dispositif le PERMET — `vram_reservation()` vise
+> explicitement les consommateurs hors process (sous-processus, service séparé) — mais un venv
+> isolé n'apporterait AUCUNE garde tant que les deux runtimes n'atteignent pas le même Redis.
+> C'est, avec la garde jamais activée (`vram_needed` : zéro app), le PRÉALABLE à tout venv
+> parallèle. Détail : `PROJECT_STATUS §GOUVERNEUR DE RESSOURCES — DEUX TROUS`.
+
 **Pourquoi un résolveur ne suffit pas.** Le Redis WSL2 écoute sur `*` mais en `protected-mode yes`
 sans mot de passe : une connexion depuis l'IP Windows est refusée. Deux issues, à trancher (Fabien) :
 1. **la même que Postgres (§ Ports disjoints)** : déplacer le Redis Windows sur un autre port (ou

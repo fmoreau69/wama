@@ -2107,6 +2107,24 @@ libres), ground_single/multi (referring expressions), point, detect_text, ground
 4.57.6 — écart mineur, tester AVANT de créer un venv isolé) ; TensorRT-LLM/Triton non supportés ;
 Linux only (WSL2 OK). `generation_mode="hybrid"` + `max_new_tokens=8192` recommandés.
 
+> ✅ **2026-09-08 — LA QUESTION DU VENV ISOLÉ EST TRANCHÉE : il n'en faut pas.** Ce paragraphe
+> demandait de « tester AVANT de créer un venv isolé » ; le test est fait, sans charger un seul
+> poids : `AutoConfig.from_pretrained(<snapshot local>, trust_remote_code=True)` rend
+> `LocateAnythingConfig` avec le venv_linux actuel (transformers 4.57.6). L'écart à la pin
+> officielle 4.57.1 n'a aucune conséquence.
+> **Le backend est écrit** — `wama/common/backends/locate_anything_backend.py`, au contrat commun,
+> qui ADAPTE la classe officielle NVIDIA gardée verbatim dans `scripts/locate_anything_worker.py`
+> (« ne pas modifier ») et rend déjà la forme NORMALISÉE de l'étape 2 : `{boxes, answer, task}`
+> en pixels. Le dossier des poids est désormais DÉCLARÉ (`MODEL_PATHS['vision']['locate_anything']`)
+> au lieu d'être reconstruit ; il existait sans déclaration depuis le PoC du 27/07.
+> ⚠ **NON ÉPROUVÉ DE BOUT EN BOUT** : ~9 Go de VRAM, et aucune charge GPU n'est lancée depuis le
+> poste de dev (crashs hôte, cf. l'étape 1 ci-dessous, toujours SUSPENDUE). Sont vérifiés : la
+> résolution modèle→backend, la disponibilité, la présence des poids, la résolution de la config,
+> les refus d'entrée. Ne le sont pas : `load()` et `process()` en conditions réelles.
+> ⚠ **C'est le SEUL des 6 modèles prospectés sans backend qui soit chargeable ici** — les autres
+> (canary, parakeet, PP-DocLayout, FastWan, ACE-Step) exigent `transformers 5.x` ou un toolkit
+> absent, et l'installation est refusée par le verrou : c'est une DÉCISION de venv, pas du code.
+
 **⚠ Licence NVIDIA NON-COMMERCIALE** (+ Qwen Research License sur le LLM) : OK recherche Lescot,
 **EXCLU pour livrables partenaires ou valorisation**. → Conséquence architecturale : déclarer
 `license` en **métadonnée** (`AIModel`/`capabilities`) pour que `select_model()`/Studio filtrent ou
