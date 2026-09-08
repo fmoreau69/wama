@@ -579,68 +579,23 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(error => console.error('Error updating global progress:', error));
   }
 
-  // === URL Upload (zone URL de la card d'entrée COMMUNE _new_item_card) ===
+  // === Import par URL : le FORMALISME COMMUN (2026-09-08) ===
+  // Même reste de portage que l'anonymizer : ce JS postait `media_url` à la vue d'upload
+  // (téléchargement À L'IMPORT, bouton bloqué le temps du transfert — d'où le skip nocturne
+  // « l'app RÉSOUT l'URL à l'import »). Désormais comme les autres apps : l'URL = un lot d'une
+  // ligne, `batch_create` la stocke en `source_url` (`WAMA_INGEST` sur `Enhancement`) et
+  // `ensure_local_input` la télécharge AU LANCEMENT. `initUrlImport` (commun) porte champ,
+  // bouton, touche Entrée, spinner, vidage et erreurs.
   function initUrlUpload() {
-    const mediaUrlInput = document.getElementById('enhancerUrlInput');
-    const submitBtn = document.getElementById('enhancerUrlSubmit');
-    if (!mediaUrlInput || !submitBtn) return;
-
-    async function submitMediaUrl() {
-      const mediaUrl = mediaUrlInput.value.trim();
-
-      if (!mediaUrl) {
-        WamaApp.toast('Veuillez entrer une URL de média.', 'warning');
-        return;
-      }
-
-      // Show loading state
-      const originalBtnHtml = submitBtn.innerHTML;
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-      try {
-        const formData = new FormData();
-        formData.append('media_url', mediaUrl);
-        formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-        formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-
-        const response = await fetch(config.uploadUrl, {
-          method: 'POST',
-          headers: csrfHeaders(),
-          body: formData
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        // Add item to queue
-        data.status = data.status || 'PENDING';
-        appendRow(data);
-
-        // Clear the form
-        mediaUrlInput.value = '';
-
-        // Show success message
-        if (window.FileManager && window.FileManager.showToast) {
-          window.FileManager.showToast('Média téléchargé avec succès!', 'success');
-        }
-
-      } catch (error) {
-        console.error('URL upload error:', error);
-        WamaApp.toast('Erreur lors du téléchargement: ' + error.message, 'error');
-      } finally {
-        // Restore button
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalBtnHtml;
-      }
-    }
-
-    submitBtn.addEventListener('click', submitMediaUrl);
-    mediaUrlInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submitMediaUrl(); }
+    if (!window.WamaApp || !WamaApp.initUrlImport) return;
+    WamaApp.initUrlImport({
+      inputId: 'enhancerUrlInput',
+      buttonId: 'enhancerUrlSubmit',
+      onEmpty: function () { WamaApp.toast('Veuillez entrer une URL de média.', 'warning'); },
+      onSubmit: function (url) {
+        if (!window._batchImport) throw new Error("Import batch non initialisé");
+        return window._batchImport.ingestText(url + '\n', 'url.txt');
+      },
     });
   }
 

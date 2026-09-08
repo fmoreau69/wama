@@ -32,6 +32,7 @@
  *     multiple:       false,                        // true : N fichiers en UNE requête (champ `files`)
  *     fieldName:      'file',                       // nom du champ POST (défaut : file / files)
  *     attach:         ['melodyInput'],               // optionnel : ATTACHE au 1er input dont l'accept admet le fichier
+ *     afterAttach:    function (input, file) {…},   // optionnel : l'app pose son état après l'attache
  *     beforeFile:     function (file) { … },        // optionnel : rendre false = fichier écarté
  *     extraFields:    function (fd, file) { … },    // optionnel : champs POST supplémentaires
  *     onProgress:     function (loaded, size, file, index, total) {…}, // optionnel : REMPLACE la barre commune
@@ -280,8 +281,16 @@
             var inp = el(cfg.attach[a]);
             if (inp && accepte(inp, f)) { cible = inp; break; }
           }
-          if (cible && global.WamaApp && WamaApp.injectFiles) WamaApp.injectFiles(cible, [f]);
-          else restes.push(f);
+          if (!cible) { restes.push(f); return; }
+          // L'input de la zone peut ÊTRE le port (avatarizer : `audio_input` est à la fois
+          // le sélecteur de la dropzone et le slot audio) : le fichier y est déjà, on ne le
+          // ré-injecte pas (un `change` de plus rebouclerait ici). Sinon : injection.
+          if (cible !== el(cfg.fileInputId) && global.WamaApp && WamaApp.injectFiles) {
+            WamaApp.injectFiles(cible, [f]);
+          }
+          // `afterAttach(input, file)` : l'app pose son ÉTAT (imager rafraîchit l'appariement,
+          // avatarizer retient le fichier pour Générer) — après la détection de lot, jamais avant.
+          if (typeof cfg.afterAttach === 'function') cfg.afterAttach(cible, f);
         });
         files = restes;
         if (!files.length) return;
@@ -392,7 +401,9 @@
         fi.addEventListener('change', function () {
           if (this.files && this.files.length) {
             handleFiles(this.files);
-            this.value = '';           // re-déposer le MÊME fichier doit re-déclencher
+            // Re-déposer le MÊME fichier doit re-déclencher → on vide l'input… SAUF s'il est
+            // lui-même un port d'attache (`attach` le cite) : le fichier doit y RESTER.
+            if ((cfg.attach || []).indexOf(this.id) < 0) this.value = '';
           }
         });
       }

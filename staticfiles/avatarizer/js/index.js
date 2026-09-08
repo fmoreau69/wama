@@ -141,24 +141,11 @@
     const audioFilename = $('#audio-filename');
     const btnRemoveAudio = $('#btn-remove-audio');
 
-    if (audioDropzone) {
-        audioDropzone.addEventListener('click', () => audioInput.click());
-        audioDropzone.addEventListener('dragover', e => {
-            e.preventDefault();
-            audioDropzone.classList.add('dragover');
-        });
-        audioDropzone.addEventListener('dragleave', () => audioDropzone.classList.remove('dragover'));
-        audioDropzone.addEventListener('drop', e => {
-            e.preventDefault();
-            audioDropzone.classList.remove('dragover');
-            // Slot MONO-fichier : même traitement que le slot avatar (dossier → 1er fichier).
-            WamaFolderImport.collect(e.dataTransfer)
-                .then(list => { const f = WamaFolderImport.files(list)[0]; if (f) handleAudioFile(f); });
-        });
-    }
-    if (audioInput) {
-        audioInput.addEventListener('change', () => handleAudioFile(audioInput.files[0]));
-    }
+    // Zone audio : clic, survol, drop récursif et `change` de l'input sont câblés par la brique
+    // commune WamaImport (instanciée plus bas, après la brique batch dont elle dépend — portage
+    // 2026-09-08, 10ᵉ app). Ici `audio_input` est À LA FOIS le sélecteur de la dropzone et le
+    // slot audio (mode attache sur lui-même) : la brique le sait, ne le vide pas et ne le
+    // ré-injecte pas ; `afterAttach` pose l'état de la card (`audioFile`, badge, bouton).
 
     // Import depuis le Filemanager (drag depuis le panneau latéral) : plus rien à écouter
     // ici (2026-09-05). La card est « attache » (`depot_cree=False`) — le filemanager
@@ -204,11 +191,9 @@
         });
     }
 
-    async function handleAudioFile(file) {
-        // Fichier batch déposé sur la zone audio → flux d'import de lot commun.
-        // detectAndHandle est async : sans await, la Promise (toujours truthy)
-        // court-circuitait TOUT fichier audio (bug import filemanager 2026-08-04).
-        if (file && batchImport && await batchImport.detectAndHandle(file)) return;
+    // (`handleAudioFile` — détection de lot puis état de la card — est devenu `afterAttach`
+    // de la brique WamaImport, plus bas : la détection de lot est celle de la brique.)
+    function retenirAudio(file) {
         if (!file) return;
         audioFile = file;
         audioFilename.textContent = file.name;
@@ -305,6 +290,22 @@
         batchExtensions: ['txt', 'csv', 'pdf', 'docx'],
         afterCreate: () => window.location.reload(),
     }) : null;
+
+    // ── Voie d'import : brique commune WamaImport, mode ATTACHE (portage 2026-09-08) ──
+    // La card déclare `depot_cree=False` et `file_accept='.wav,.mp3,.ogg,.flac'` : un audio
+    // déposé RESTE dans `audio_input` (le port), un fichier de lot part à la brique batch,
+    // tout autre fichier est REFUSÉ à l'écran (avant : accepté comme audio sans regarder).
+    // Le filemanager injecte dans le même input (`WamaApp.injectFiles`) → même chemin.
+    if (typeof window.WamaImport === 'function' && audioDropzone && audioInput) {
+        WamaImport({
+            csrfToken:   csrf,
+            dropZoneId:  'audio-dropzone',
+            fileInputId: 'audio_input',
+            batch:       batchImport,
+            attach:      ['audio_input'],
+            afterAttach: function (_input, file) { retenirAudio(file); },
+        });
+    }
 
     async function createJob() {
         const fd = new FormData();

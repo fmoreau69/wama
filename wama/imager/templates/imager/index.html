@@ -381,6 +381,7 @@ lancer ». PAS de dropZoneId/fileInputId ici — la card de l'imager route déj�
 (input_card.js:routeFile) et lui accrocher un 2e gestionnaire ferait double détection. On passe
 donc par l'intégration « app existante » : routeFile appelle detectAndHandle(). {% endcomment %}
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
+<script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE (WamaImport, mode attache) : instanciée par input_card.js, une fois par domaine — 9ᵉ app en place (2026-09-08) #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof WamaBatchImport === 'undefined') {

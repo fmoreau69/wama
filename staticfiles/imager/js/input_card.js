@@ -20,7 +20,6 @@
     function toast(msg, type) { WamaApp.toast(msg, type || 'info'); }   // brique globale
 
     function isBatchFile(f) { return /\.(txt|csv)$/i.test(f.name || ''); }
-    function isImageFile(f) { return (f.type || '').indexOf('image/') === 0; }
 
     function initDomain(d) {
         const btn = document.getElementById(d.btnId);
@@ -120,49 +119,32 @@
             }
         }
 
-        // ── Routage d'un fichier importé (dropzone / picker / médiathèque → file input) ──
-        function routeFile(f) {
-            if (!f) return;
-            if (d.allowBatch && isBatchFile(f)) {
-                // Import batch COMMUN (WamaBatchImport) : aperçu serveur + « Créer » /
-                // « Créer et lancer » dans la detect bar. Intégration « app existante » —
-                // on DÉLÈGUE depuis notre propre routeur au lieu de laisser la brique
-                // accrocher un 2e gestionnaire sur la même dropzone (double détection).
-                if (window._batchImport) { window._batchImport.detectAndHandle(f); return; }
-                setBatchFile(f);   // repli : chemin historique si la brique manque
-                return;
-            }
-            if (isImageFile(f)) {
-                try {
-                    const dt = new DataTransfer();
-                    dt.items.add(f);
-                    refInput.files = dt.files;
-                    refInput.dispatchEvent(new Event('change', { bubbles: true }));  // → chip WamaInputMatch
-                    if (matcher) matcher.refresh();   // injection PROGRAMMATIQUE : refresh explicite
-                } catch (e) { /* vieux navigateurs : passer par le bouton Ajouter du slot */ }
-                return;
-            }
-            toast(d.allowBatch ? 'Format non géré : image, ou fichier de prompts .txt/.csv.'
-                               : 'Format non géré : image attendue.', 'warning');
-        }
-
-        if (fileInput) {
-            fileInput.addEventListener('change', function () {
-                Array.prototype.forEach.call(fileInput.files || [], routeFile);
-                fileInput.value = '';
-            });
-        }
-        if (dropZone && fileInput) {
-            dropZone.addEventListener('click', function () { fileInput.click(); });
-            dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('dragover'); });
-            dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('dragover'); });
-            dropZone.addEventListener('drop', function (e) {
-                e.preventDefault();
-                dropZone.classList.remove('dragover');
-                // Dossiers inclus (brique commune WamaFolderImport, F2) — chaque fichier routé
-                // (image → référence, txt/csv → batch), comme pour un drop multiple.
-                WamaFolderImport.collect(e.dataTransfer)
-                    .then(function (list) { WamaFolderImport.files(list).forEach(routeFile); });
+        // ── Voie d'import : brique commune WamaImport, mode ATTACHE (portage 2026-09-08) ──
+        // Ce que faisait `routeFile` (dropzone / sélecteur / médiathèque → .txt/.csv au lot
+        // commun, image/* dans le slot de référence, toast sinon) est le contrat de la brique,
+        // DÉCLARÉ : `attach: [refInputId]` — le fichier va au port dont l'`accept` (image/*,
+        // déclaré par la card) l'admet ; `batch` (image seulement, `batchScope:'each'` : chaque
+        // fichier est testé) ; sans `uploadUrl`, le reste est REFUSÉ à l'écran. `afterAttach`
+        // = le refresh EXPLICITE de l'appariement (injection programmatique). Le repli
+        // `setBatchFile` (brique batch absente) est conservé par `beforeFile`.
+        if (typeof window.WamaImport === 'function' && dropZone && fileInput) {
+            WamaImport({
+                csrfToken:   CFG.csrf,
+                dropZoneId:  d.dropZoneId,
+                fileInputId: d.fileInputId,
+                // `_batchImport` naît dans un DOMContentLoaded du gabarit enregistré APRÈS
+                // celui-ci : résolution PARESSEUSE, jamais au moment de l'instanciation
+                // (mesuré : lot ignoré, fichier de prompts refusé comme « non attendu »).
+                batch:       d.allowBatch ? { detectAndHandle: function (f) {
+                                 return window._batchImport ? window._batchImport.detectAndHandle(f)
+                                                            : Promise.resolve(false); } } : null,
+                batchScope:  'each',
+                attach:      [d.refInputId],
+                afterAttach: function () { if (matcher) matcher.refresh(); },
+                beforeFile:  function (f) {
+                    if (d.allowBatch && isBatchFile(f) && !window._batchImport) { setBatchFile(f); return false; }
+                    return true;
+                },
             });
         }
 

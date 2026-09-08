@@ -106,8 +106,13 @@ def _sans_commentaires(text: str, suffixe: str) -> str:
         text = re.sub(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', _blanc, text, flags=re.S)
         text = re.sub(r'<!--.*?-->', _blanc, text, flags=re.S)
         if suffixe == '.js':
-            text = re.sub(r'/\*.*?\*/', _blanc, text, flags=re.S)
+            # ⚠ Les lignes `//` d'ABORD (2026-09-08) : un commentaire de ligne qui cite `text/*`
+            # ou `image/*` ouvrait un faux bloc `/* … */` quand les blocs étaient retirés en
+            # premier — 100 lignes de code de l'avatarizer avalées, `import_front` ROUGE sur une
+            # app portée. Un bloc `/* */` contenant une ligne `//` reste un bloc : l'ordre
+            # inverse ne crée aucun faux positif.
             text = re.sub(r'(?m)^\s*//[^\n]*', _blanc, text)
+            text = re.sub(r'/\*.*?\*/', _blanc, text, flags=re.S)
         return text
     return text
 

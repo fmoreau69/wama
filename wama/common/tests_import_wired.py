@@ -170,6 +170,22 @@ class ImportFrontTests(SimpleTestCase):
         }, '_import_front')
         self.assertIs(etat, False)
 
+    def test_un_commentaire_de_ligne_contenant_slash_etoile_n_avale_pas_le_code(self):
+        """Défaut d'INSTRUMENT mesuré le 2026-09-08 sur l'avatarizer (portage terminé, critère
+        ROUGE) : `_sans_commentaires` retirait les blocs `/* … */` AVANT les lignes `//`, donc
+        un commentaire de ligne citant `text/*` ouvrait un faux bloc qui avalait 100 lignes de
+        code — l'instanciation `WamaImport(` avec. Un instrument qui rate des correspondances est
+        pire qu'aucun instrument : il rend un verdict.
+        """
+        etat, _ = _mesure('appfictive', {
+            'templates/appfictive/index.html': f"{CARD}\n",
+            'static/appfictive/js/index.js':
+                "// la garde MIME écarte tout ce qui n'est pas `text/*`, donc rien\n"
+                "const x = 1;\n"
+                "window._import = WamaImport({ uploadUrl: '/up' });\n",
+        }, '_import_front')
+        self.assertIs(etat, True)
+
     def test_surface_sans_card_d_entree_est_NON_APPLICABLE_comme_import_wired(self):
         """Les deux critères d'import doivent exempter les MÊMES surfaces (gate commun)."""
         fichiers = {'templates/appfictive/index.html': "<h1>Tableau de bord</h1>\n"}

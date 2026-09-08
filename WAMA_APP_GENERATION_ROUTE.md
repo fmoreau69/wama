@@ -1943,9 +1943,10 @@ recopier NULLE PART, re-mesurer)** :
   codegen génère un `_decorer` CONCURRENT : candidat brique) · `gear_data` **10/10** ·
   `initFromSchema`+`panelContainer` **10/10** · `reconcile_orphaned_running` **10/10**
   (bloc quasi identique — candidat brique) · `register_batch_sync` **10/10**.
-- **`WamaImport` : 8/10 dans le parc réel depuis le 2026-09-08 (transcriber, converter,
-  describer, synthesizer, enhancer image ET audio, reader, anonymizer, composer) ;
-  `_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
+- **`WamaImport` : 10/10 dans le parc réel depuis le 2026-09-08** (transcriber, converter,
+  describer, synthesizer, enhancer image ET audio, reader, anonymizer, composer, imager ×2
+  domaines, avatarizer) — **plus aucune boucle d'import propre à une app** ; l'import par URL
+  passe par le formalisme de lot commun dans les 10 ; **`_app_scripts.html` : 0/10** — jusque-là ces deux briques ne vivaient que dans le gabarit
   généré et le banc. Une app
   générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
   même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
@@ -2113,8 +2114,29 @@ devient une inclusion de 2 lignes avec sa couleur. `audio-enhancer.js` : `WamaIm
 `WamaBatchImport` avec les endpoints audio (mêmes contrats `items/count/warnings`, `batch_id`),
 `beforeFile` = le filtre d'extensions audio d'avant. Mesuré (sonde) : WAV → card audio rendue
 serveur ; PNG → refus ; TXT → barre AUDIO ouverte (2) pendant que la barre image reste fermée ;
-0 erreur ; 73 tests OK. **Restent imager et avatarizer** — même mode `attach`, à lire dans leurs
-registres (slots de référence) avant d'écrire une ligne.
+0 erreur ; 73 tests OK.
+
+**imager (×2 domaines) et avatarizer, 2026-09-08 — le portage est TERMINÉ (10/10).** Lu dans
+leurs cards (déclarées `depot_cree=False`) : imager = slot `imgRefInput` / `vidRefInput`
+(`accept='image/*'`), lot `.txt/.csv` côté image seulement ; avatarizer = `audio_input`
+(`accept='.wav,.mp3,.ogg,.flac'`) qui est À LA FOIS le sélecteur de la dropzone et le slot audio.
+Deux compléments de brique : (a) **attache sur soi-même** — quand l'input de la zone est le port,
+le fichier y RESTE (pas de ré-injection, pas de vidage) ; (b) **`afterAttach(input, file)`** —
+l'app pose son état APRÈS la détection de lot (imager : `matcher.refresh()` ; avatarizer :
+`retenirAudio` remplace `handleAudioFile`). `routeFile` (imager) et le câblage maison de
+l'avatarizer sont retirés. ⚠ Piège mesuré : `_batchImport` naît dans un `DOMContentLoaded` du
+gabarit enregistré APRÈS celui de `input_card.js` → référence PARESSEUSE, sinon un fichier de
+prompts était refusé comme « non attendu ». **Enhancer-image, import par URL** : même reste que
+l'anonymizer (`media_url` à la vue d'upload, téléchargement à l'import) → `initUrlImport` +
+`ingestText`. Mesuré (sonde) : imager PNG → slot + chip, WAV → refus, TXT → barre de lot (2) ;
+avatarizer WAV → slot + badge, PNG → refus ; 0 card créée, 0 erreur JS ; familles `imager.`
+**7/12 + 5 skips déclarés**, `avatarizer.` **6/12 + 6 skips déclarés** (dépôt « attache » = pas de
+scénario de dépôt-qui-crée), `enhancer.` **12/12** (`url_import` passe de SKIP à OK), 0 échec ;
+15 tests OK. ⚠ **Défaut d'INSTRUMENT trouvé par le 10ᵉ portage** : `import_front` restait ROUGE
+sur l'avatarizer parce que `_sans_commentaires` (grille) retirait les blocs `/* */` AVANT les
+lignes `//` — un commentaire de ligne citant `text/*` ouvrait un faux bloc qui avalait 100 lignes
+de code, l'instanciation avec. Ordre inversé + test (`tests_import_wired`). *Un instrument qui
+rate des correspondances est pire qu'aucun instrument : il rend un verdict.*
   Mesuré (sonde `MutationObserver` persistée à travers le reload) : la barre apparaît puis
   disparaît sur transcriber, anonymizer, converter, 0 erreur JS ;
 - **la forme `{media:{id}}`** : l'endpoint répond `media` (objet) pour UN fichier et `added[]`
