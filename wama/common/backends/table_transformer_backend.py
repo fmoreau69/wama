@@ -57,6 +57,21 @@ class TableTransformerBackend(BaseModelBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'transformers'
+    #: Modèles SERVIS — la moitié « backend » du lien, et le DÉPARTAGE quand le moteur est
+    #: partagé : `transformers` est piloté par 5 backends (reader ×2, describer, transcriber,
+    #: cam_analyzer), donc le moteur seul ne tranche pas et la résolution rendrait `None`.
+    #: Déclaré le 2026-09-07 : les deux dépôts étaient au catalogue, ce backend écrit pour eux,
+    #: et rien ne les reliait — ils sortaient « moteur sans backend ».
+    #: ⚠ Ce n'est PAS un second chemin vers le backend : le modèle déclare son MOTEUR
+    #: (`composition.runtime.engine`), jamais une classe. Les deux déclarations sont les deux
+    #: moitiés d'UN lien, jointes par `resolve_backend`.
+    #: ⚠ Clés en LITTÉRAL, jamais `{HF_DETECTION: …}` : l'inventaire lit cette déclaration par
+    #: AST, sans importer le module (`_class_backends`) — une clé portée par une constante est
+    #: invisible à une lecture statique, et le backend redevient introuvable. Mesuré ici même.
+    SUPPORTED_MODELS = {
+        'microsoft/table-transformer-detection': {},
+        'microsoft/table-transformer-structure-recognition': {},
+    }
     REQUIRED_PACKAGES = ['transformers', 'torch']
     recommended_vram_gb = 0.6          # 2 DETR ~110M ; tournés CPU (voir load)
     description = ("Table Transformer (Microsoft, DETR) — détecte les tableaux d'une page "

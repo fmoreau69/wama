@@ -292,6 +292,95 @@ class ModelRegistry:
             composition['runtime'] = {**(composition.get('runtime') or {}), 'engine': moteur}
             info.composition = composition
 
+        self._overlay_engines_derived_from_disk()
+
+    def _overlay_engines_derived_from_disk(self):
+        """Complète le moteur des modèles qu'AUCUNE app ne déclare — depuis leur SNAPSHOT.
+
+        POURQUOI (2026-09-07, question de Fabien : « les modèles étant censés connaître leur
+        backend, pourquoi ce n'est pas fait automatiquement ? »). Le lien est automatique côté
+        CONSOMMATION (`backend_for_model`) mais rien ne le posait côté PRODUCTION : un modèle
+        déclaré par une app reçoit son moteur de son `model_config` (passe ci-dessus) ; un
+        modèle arrivé par PROSPECTION n'en recevait aucun. Mesuré ce jour-là : 8 modèles sans
+        moteur, donc irrésolubles — dont les deux `table-transformer` qui ont pourtant un
+        backend écrit.
+
+        La matière est sur le disque, et c'est la méthode employée partout ailleurs (CONSTATER,
+        ne pas deviner) : la convention HuggingFace veut qu'un dépôt porte
+          • `model_index.json` → c'est un pipeline **diffusers** (son `_class_name` dit lequel) ;
+          • `config.json` → c'est un modèle **transformers** (ses `architectures` disent lequel).
+
+        ⚠ NE COMBLE QUE LE VIDE — la déclaration d'app reste l'autorité, comme la passe ci-dessus.
+        ⚠ Dériver le moteur ne suffit PAS à résoudre un backend quand le moteur est PARTAGÉ
+        (`transformers` est piloté par 5 backends) : il faut alors que l'un d'eux nomme le modèle
+        dans son `SUPPORTED_MODELS`. Les deux déclarations sont les deux moitiés d'UN lien, pas
+        deux chemins — la résolution rend `None` plutôt que de deviner (`resolve_backend`).
+        ⚠ La classe de pipeline lue est CONSIGNÉE (`extra_info['pipeline_class']`) sans être
+        interprétée : `WanDMDPipeline` (FastWan) n'existe pas dans diffusers 0.37 — le dépôt est
+        « diffusers » sans être servable par le backend Wan. On dit ce qu'on lit, pas ce qu'on
+        espère.
+
+        ⚠⚠ **UNE DÉRIVATION N'ÉCRASE JAMAIS UNE DÉCLARATION** — et le risque a été MESURÉ avant
+        d'être écrit (mise en garde de Fabien : « attention à ne pas créer deux chemins parallèles
+        et conflictuels »). La signature du disque est GROSSIÈRE : elle dit `transformers` là où
+        le catalogue sait `transformers-remote-code` (Audio8), `qwen3-tts` ou `kokoro-onnx` — et
+        `model_sync` écrit toute composition non vide (`if _compo: defaults['composition'] = …`).
+        Sans cette garde, chaque synchro dégradait le moteur de ces trois modèles, donc leur
+        résolution de backend. On saute donc ce que le CATALOGUE sait déjà : c'est le même
+        principe que la passe ci-dessus (« ne comble que le vide ») étendu au vide RÉEL, pas au
+        vide de cette passe.
+        """
+        import json as _json
+
+        try:                                   # le catalogue peut être absent (script, install)
+            from wama.model_manager.models import AIModel
+            deja_declares = {
+                m.model_key for m in AIModel.objects.only('model_key', 'composition')
+                if ((m.composition or {}).get('runtime') or {}).get('engine')
+            }
+        except Exception as e:
+            logger.debug(f"[engines] catalogue illisible, dérivation sur la seule découverte : {e}")
+            deja_declares = set()
+
+        for cle, info in list(self._models.items()):
+            if (getattr(info, 'composition', None) or {}).get('runtime', {}).get('engine'):
+                continue
+            if cle in deja_declares:           # le catalogue sait mieux : on ne dégrade pas
+                continue
+            chemin = (getattr(info, 'extra_info', None) or {}).get('path') or ''
+            if not chemin:
+                continue
+            moteur, classe = None, ''
+            try:
+                racine = Path(chemin)
+                revisions = sorted(racine.glob('snapshots/*')) or ([racine] if racine.is_dir() else [])
+                for rev in revisions:
+                    index = rev / 'model_index.json'
+                    config = rev / 'config.json'
+                    if index.is_file():
+                        moteur = 'diffusers'
+                        classe = (_json.loads(index.read_text(encoding='utf-8'))
+                                  .get('_class_name') or '')
+                        break
+                    if config.is_file():
+                        donnees = _json.loads(config.read_text(encoding='utf-8'))
+                        moteur = 'transformers'
+                        classe = ','.join(donnees.get('architectures') or []) \
+                            or donnees.get('model_type') or ''
+                        break
+            except (OSError, ValueError) as e:      # illisible : on ne conclut pas
+                logger.debug(f"[engines] signature illisible pour {cle} : {e}")
+                continue
+            if not moteur:
+                continue
+            composition = dict(getattr(info, 'composition', None) or {})
+            composition['runtime'] = {**(composition.get('runtime') or {}), 'engine': moteur}
+            info.composition = composition
+            if classe:
+                info.extra_info = {**(getattr(info, 'extra_info', None) or {}),
+                                   'pipeline_class': classe}
+            logger.info(f"[engines] {cle} : moteur « {moteur} » dérivé du snapshot ({classe})")
+
     def _overlay_residency(self):
         """Rabat la résidence RÉELLE (registre VRAM partagé) sur `is_loaded`.
 
