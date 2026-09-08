@@ -53,13 +53,46 @@
         return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: fd })
             .then(function (r) {
                 if (r.status === 204) return { success: true };
-                return r.json().catch(function () { return { success: r.ok }; });
+                return r.json().catch(function () { return { success: r.ok }; })
+                    .then(function (d) {
+                        // ⚠ LE STATUT NE DOIT PAS SE PERDRE. Un 404/500 rend une page HTML :
+                        // le `.catch` fabriquait `{success:false}`, un objet SANS clé métier —
+                        // et `chain()` n'y lisait donc aucun refus, puis `succeed()` annonçait
+                        // « 1 élément(s) sorti(s) du lot » et rechargeait. Le geste se félicitait
+                        // d'un échec, ce qui est exactement le pire des retours (le bloc
+                        // `consolidate` vs `merge` de queue_manipulation.py le dit déjà).
+                        // C'est ce silence qui a laissé le pk non substitué de l'imager vivre
+                        // sans être vu — le motif était le 404, personne ne le lisait.
+                        if (!r.ok && d && typeof d === 'object') {
+                            d.success = false;
+                            if (d.reason === undefined) d.reason = 'le serveur a répondu ' + r.status;
+                        }
+                        return d;
+                    });
             });
     }
 
-    // Une URL de la forme `/app/move-to-batch/0/` — le 0 est le gabarit de pk, convention déjà
-    // utilisée par les `APP.urls` des 12 apps (`{% url 'app:start' 0 %}`).
-    function withPk(urlTemplate, pk) { return urlTemplate.replace(/\/0\/?$/, '/' + pk + '/'); }
+    // Substitution du pk dans un gabarit d'URL — DÉLÉGUÉE à la brique commune.
+    // Le `0` est le gabarit de pk, convention des `APP.urls` des 12 apps (`{% url 'app:start' 0 %}`).
+    //
+    // ⚠ Ce helper portait sa propre expression `\/0\/?$` : elle ne remplaçait le `0` que
+    // s'il était en FIN d'URL. Or le pk n'y est pas toujours : sur les 12 files du parc,
+    // 11 ont la forme `/transcriber/remove-from-batch/0/` (pk final) mais l'imager déclare
+    // `/imager/queue/0/remove-from-batch/` (pk au MILIEU) — l'URL repartait alors INCHANGÉE,
+    // le serveur répondait 404 sur pk=0, et `remove_from_batch` comme `move_to_batch`
+    // rechargeaient la page sans rien avoir fait. Mesuré le 2026-09-08 (signalé par Fabien :
+    // « le batch reste un batch de 2 éléments »).
+    //
+    // `WamaApp.getUrl` remplace le SEGMENT `/0/` où qu'il soit, et existait depuis toujours —
+    // reader.js et converter.js s'en servent déjà. C'était une brique commune réécrite en
+    // moins bien, deux fois (cf. le jumeau de `wama-inspector.js`).
+    function withPk(urlTemplate, pk) {
+        // `window.` et non `global.` : cette IIFE ne reçoit PAS de paramètre `global`
+        // (contrairement à wama-inspector.js) — `global.WamaApp` y lèverait un ReferenceError,
+        // et un ReferenceError dans un helper appelé sur un geste casse le geste entier.
+        if (window.WamaApp && WamaApp.getUrl) return WamaApp.getUrl(urlTemplate, pk);
+        return (urlTemplate || '').replace('/0/', '/' + pk + '/');
+    }
 
     function toast(msg, type) {
         if (window.WamaApp && WamaApp.toast) { WamaApp.toast(msg, type || 'info'); return; }
@@ -558,8 +591,14 @@
             return p.then(function (refusal) {
                 if (refusal) return refusal;
                 return fn(id).then(function (d) {
-                    if (d && (d.moved === false || d.unwrapped === false
-                              || d.consolidated === false)) {
+                    // `success === false` = échec de TRANSPORT (statut non-2xx), posé par
+                    // `post()`. Les trois autres clés sont les refus MÉTIER des vues. Sans la
+                    // première, un 404 passait pour un succès (cf. le commentaire de `post`).
+                    // Aucune vue qui réussit n'émet `success:false` : `{unwrapped:true}`,
+                    // `{moved:true}`, `{consolidated:true}` n'ont pas la clé, et un 204 rend
+                    // `{success:true}` — la garde ne peut donc pas refuser un vrai succès.
+                    if (d && (d.success === false || d.moved === false
+                              || d.unwrapped === false || d.consolidated === false)) {
                         return d.reason || 'refusé';
                     }
                     return null;

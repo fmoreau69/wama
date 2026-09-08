@@ -16,7 +16,12 @@ from wama.imager.models import GenerationBatch, ImageGeneration
 User = get_user_model()
 
 
-class LotParDomaineTest(TestCase):
+class LotImagerMixin:
+    """Un utilisateur autorisé + la fabrique de lot par import — partagés par les deux familles.
+
+    ⚠ Mixin et non classe de base HÉRITÉE d'un `TestCase` : hériter d'une classe de tests fait
+    REJOUER ses tests dans chaque sous-classe (deux fois la même mesure, deux fois le coût).
+    """
 
     def setUp(self):
         from wama.accounts.permissions import GROUP_PREFIX
@@ -32,6 +37,9 @@ class LotParDomaineTest(TestCase):
         self.assertEqual(200, rep.status_code, rep.content[:200])
         return GenerationBatch.objects.get(id=rep.json()['batch_id'])
 
+
+class LotParDomaineTest(LotImagerMixin, TestCase):
+
     def test_un_lot_declare_video_cree_des_txt2vid_dans_un_lot_video(self):
         lot = self._lot(domain='video', video_duration='4', video_fps='24', video_resolution='720p')
         self.assertEqual('video', lot.domain)
@@ -46,3 +54,61 @@ class LotParDomaineTest(TestCase):
         self.assertEqual('image', lot.domain)
         self.assertTrue(all(g.generation_mode == 'txt2img'
                             for g in ImageGeneration.objects.filter(user=self.user)))
+
+
+class SortieDeLotTest(LotImagerMixin, TestCase):
+    """Sortir UN élément d'un lot de 2 doit rendre DEUX cards unitaires.
+
+    ⚠ DÉFAUT VÉCU (2026-09-08, signalé par Fabien : « pour un batch de 2 éléments, si j'essaie
+    de sortir 1 élément, on devrait retrouver 2 cards unitaires. Et là rien ne change »).
+
+    La vue était SAINE : le défaut vivait dans l'URL que le front construisait. Les deux briques
+    JS substituaient le pk avec une expression ancrée en FIN d'URL (`/0/?$`) ; l'imager est la
+    seule app du parc dont la route porte le pk au MILIEU
+    (`/imager/queue/0/remove-from-batch/`), donc le gabarit repartait tel quel → 404 sur pk=0,
+    puis `location.reload()`. Écran identique, aucun message.
+
+    Ce test emprunte le CHEMIN DU NAVIGATEUR : il prend l'URL que le templatetag ÉMET et la
+    substitue comme `WamaApp.getUrl` le fait. C'est la couture que ni le nocturne `queue_dnd`
+    (aucun POST, par conception) ni `tests_queue_dnd` (endpoints via `reverse()`, donc pk déjà
+    juste) ne pouvaient tenir — chacun déclarait sa moitié, et le défaut vivait entre les deux.
+    """
+
+    def _url_comme_le_front(self, pk):
+        """L'URL de sortie de lot telle que la page la déclare, pk substitué comme en JS."""
+        import re
+        from wama.common.templatetags.wama_actions import queue_dnd_attrs
+        rendu = str(queue_dnd_attrs('imager', 'image'))
+        m = re.search(r'data-dnd-remove-url="([^"]+)"', rendu)
+        self.assertIsNotNone(m, "la file n'expose pas `data-dnd-remove-url`")
+        return m.group(1).replace('/0/', f'/{pk}/')
+
+    def test_sortir_une_generation_d_un_lot_de_deux_rend_deux_lots_de_un(self):
+        lot = self._lot()
+        gens = list(ImageGeneration.objects.filter(user=self.user).order_by('id'))
+        self.assertEqual(2, len(gens))
+        self.assertEqual(2, lot.total)
+
+        url = self._url_comme_le_front(gens[0].id)
+        rep = self.client.post(url)
+        self.assertEqual(200, rep.status_code,
+                         f"{url} → {rep.status_code} (pk non substitué ? route déplacée ?)")
+        self.assertTrue(rep.json().get('unwrapped'), rep.content[:200])
+
+        lots = list(GenerationBatch.objects.filter(user=self.user).order_by('id'))
+        self.assertEqual(2, len(lots), "la sortie n'a pas créé de second lot")
+        self.assertEqual([1, 1], [b.total for b in lots])
+        # `batch_extra` de l'imager : le lot né de la sortie doit rester dans SON onglet.
+        self.assertEqual(['image', 'image'], [b.domain for b in lots])
+
+    def test_sortir_le_dernier_element_est_refuse_sans_rien_casser(self):
+        """Un lot de 1 est DÉJÀ isolé : la vue le dit au lieu de créer un lot vide."""
+        self._lot()
+        gens = list(ImageGeneration.objects.filter(user=self.user).order_by('id'))
+        self.client.post(self._url_comme_le_front(gens[0].id))
+
+        rep = self.client.post(self._url_comme_le_front(gens[1].id))
+        self.assertEqual(200, rep.status_code)
+        self.assertFalse(rep.json().get('unwrapped'))
+        self.assertEqual('déjà isolé', rep.json().get('reason'))
+        self.assertEqual(2, GenerationBatch.objects.filter(user=self.user).count())

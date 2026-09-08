@@ -467,3 +467,94 @@ class ExpositionDesUrlsTest(TestCase):
 
         media = str(queue_dnd_attrs('enhancer', 'image_video'))
         self.assertNotIn('/audio/', media)
+
+
+def _urls_de_manipulation_par_file():
+    """Rend (etiquette, gabarit_url) pour CHAQUE file du parc et chaque route à pk.
+
+    Enrôlé sur `get_domains()` — le tag lui-même dérive du domaine, donc l'énumération suit
+    la même déclaration que la production. Un domaine ajouté entre au contrôle tout seul.
+    """
+    import re
+    from wama.common.templatetags.wama_actions import queue_dnd_attrs
+    from wama.common.utils.app_modes import APP_MODES, get_domains
+
+    for app in sorted(APP_MODES):
+        domaines = [d.get('id') for d in get_domains(app)] or [None]
+        for dom in domaines:
+            rendu = str(queue_dnd_attrs(app, dom) if dom else queue_dnd_attrs(app))
+            for cle in ('data-dnd-remove-url', 'data-dnd-move-url'):
+                m = re.search(cle + r'="([^"]+)"', rendu)
+                if m:
+                    yield f"{app}/{dom or '-'} {cle}", m.group(1)
+
+
+class SubstitutionDuPkTest(TestCase):
+    """Le gabarit d'URL à pk doit être SUBSTITUABLE par la règle que le JS applique.
+
+    ⚠ DÉFAUT VÉCU (2026-09-08, signalé par Fabien : « pour un batch de 2 éléments, si j'essaie
+    de sortir 1 élément […] rien ne change »). `wama-queue-dnd.js:withPk` et le jumeau inline de
+    `wama-inspector.js:_multiSortir` remplaçaient le pk par l'expression `\\/0\\/?$` — donc
+    UNIQUEMENT en fin d'URL. Onze files du parc ont le pk final
+    (`/transcriber/remove-from-batch/0/`) et passaient ; l'imager déclare
+    `/imager/queue/0/remove-from-batch/` — pk au MILIEU — et l'URL repartait INCHANGÉE : 404 sur
+    pk=0, puis rechargement muet.
+
+    Ce test ne relit pas l'expression : il APPLIQUE la substitution aux gabarits réellement
+    émis et vérifie que Django résout le pk attendu. Une 13ᵉ file de forme encore différente
+    échouera ici sans que personne ait à y penser.
+    """
+
+    PK = 42
+
+    def test_chaque_gabarit_d_url_a_pk_se_substitue_et_resout(self):
+        from django.urls import Resolver404, resolve
+
+        # LA règle commune (`WamaApp.getUrl`) : le SEGMENT `/0/`, où qu'il soit.
+        def substituer(gabarit):
+            return gabarit.replace('/0/', f'/{self.PK}/')
+
+        defauts = []
+        vus = 0
+        for etiquette, gabarit in _urls_de_manipulation_par_file():
+            vus += 1
+            url = substituer(gabarit)
+            if '/0/' in url:
+                defauts.append(f"{etiquette} : {gabarit} — le pk n'a pas été substitué")
+                continue
+            try:
+                match = resolve(url)
+            except Resolver404:
+                defauts.append(f"{etiquette} : {url} ne résout pas")
+                continue
+            if match.kwargs.get('pk') != self.PK:
+                defauts.append(f"{etiquette} : {url} résout sur pk={match.kwargs.get('pk')!r}")
+        self.assertEqual([], defauts, "\n".join(defauts))
+        # Sans ce garde, un `_urls_de_manipulation_par_file()` qui ne rend RIEN (déclaration
+        # renommée) rendrait le test vert sur du vide — le défaut mesuré deux fois en août.
+        self.assertGreaterEqual(vus, 20, f"seulement {vus} gabarit(s) d'URL relevé(s)")
+
+    def test_aucune_brique_commune_ne_reecrit_la_substitution_de_pk(self):
+        """La substitution vit dans `WamaApp.getUrl` et NULLE PART ailleurs.
+
+        Le motif ancré en fin d'URL (`/0/?$`) est interdit : c'est lui qui a produit le défaut,
+        et il vivait en DEUX exemplaires. *Une garde se pose avec ses jumeaux.*
+        """
+        interdits = []
+        js = RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
+        for fichier in sorted(js.glob('*.js')):
+            for n, ligne in enumerate(fichier.read_text(encoding='utf-8').splitlines(), 1):
+                nu = ligne.strip()
+                if nu.startswith('//') or nu.startswith('*'):
+                    continue                      # commentaire : il DOCUMENTE le défaut
+                if r'\/0\/?$' in ligne or '/0/?$' in ligne:
+                    interdits.append(f"{fichier.name}:{n} — {nu[:90]}")
+        self.assertEqual([], interdits, "\n".join(interdits))
+
+        # …et les deux briques qui substituent un pk DÉLÉGUENT à la brique commune. Interdire
+        # le mauvais motif ne suffit pas : rien n'empêcherait d'en écrire un troisième, juste
+        # celui-là. C'est la délégation qui est l'invariant.
+        for nom in ('wama-queue-dnd.js', 'wama-inspector.js'):
+            texte = (js / nom).read_text(encoding='utf-8')
+            self.assertIn('WamaApp.getUrl', texte,
+                          f"{nom} substitue un pk sans passer par WamaApp.getUrl")

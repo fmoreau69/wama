@@ -907,7 +907,15 @@
       var fd = new FormData();
       cards.forEach(function (c) { fd.append('ids', c.dataset.id); });
       fetch(d.dndMergeUrl, { method: 'POST', headers: { 'X-CSRFToken': _csrf() }, body: fd })
-        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        // Le statut est retenu : sans lui, un 404 se racontait « ces éléments ne peuvent pas
+        // former un lot » — un motif MÉTIER pour une panne de TRANSPORT, qui envoie chercher
+        // le défaut au mauvais endroit.
+        .then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (res) {
+            if (!r.ok && res && res.reason === undefined) res.reason = 'le serveur a répondu ' + r.status;
+            return res;
+          });
+        })
         .then(function (res) {
           if (res && res.consolidated) { location.reload(); return; }
           var msg = res && res.reason ? res.reason : 'ces éléments ne peuvent pas former un lot';
@@ -916,15 +924,41 @@
         });
     }
 
+    // Substitution du pk — brique commune `WamaApp.getUrl` (segment `/0/` où qu'il soit).
+    // ⚠ L'expression écrite ici (`\/0\/?$`) ne remplaçait le `0` qu'en FIN d'URL : sur les
+    // routes de l'imager (`/imager/queue/0/remove-from-batch/`, pk au MILIEU) le gabarit
+    // repartait tel quel → 404 sur pk=0, puis `location.reload()` → « rien ne change ».
+    // Le même défaut vivait à l'identique dans `wama-queue-dnd.js:withPk` : une garde se pose
+    // avec ses jumeaux, et celle-ci était une brique commune réécrite deux fois en moins bien.
+    function _avecPk(gabarit, pk) {
+      if (global.WamaApp && WamaApp.getUrl) return WamaApp.getUrl(gabarit, pk);
+      return (gabarit || '').replace('/0/', '/' + pk + '/');
+    }
+
     function _multiSortir(cards, d) {
       // Séquentiel : chaque sortie recalcule le lot d'origine (et peut le supprimer).
       var aSortir = cards.filter(function (c) { return !!c.closest('.batch-group'); });
+      // ⚠ Les réponses étaient IGNORÉES et le `.then` rechargeait quoi qu'il arrive : un 404
+      // (pk non substitué) ou un refus métier produisait le même écran qu'un succès. C'est ce
+      // qui rendait le défaut de l'imager indétectable à l'usage — « rien ne change », sans un
+      // mot. On s'arrête au premier échec et on le DIT.
       aSortir.reduce(function (p, c) {
-        return p.then(function () {
-          return fetch(d.dndRemoveUrl.replace(/\/0\/?$/, '/' + c.dataset.id + '/'),
-                       { method: 'POST', headers: { 'X-CSRFToken': _csrf() } });
+        return p.then(function (motif) {
+          if (motif) return motif;
+          return fetch(_avecPk(d.dndRemoveUrl, c.dataset.id),
+                       { method: 'POST', headers: { 'X-CSRFToken': _csrf() } })
+            .then(function (r) {
+              if (!r.ok) return 'le serveur a répondu ' + r.status;
+              return r.json().catch(function () { return {}; }).then(function (res) {
+                return (res && res.unwrapped === false) ? (res.reason || 'refusé') : null;
+              });
+            });
         });
-      }, Promise.resolve()).then(function () { location.reload(); });
+      }, Promise.resolve(null)).then(function (motif) {
+        if (!motif) { location.reload(); return; }
+        var msg = 'Sortie du lot impossible — ' + motif;
+        if (global.WamaApp && WamaApp.toast) WamaApp.toast(msg, 'error'); else alert(msg);
+      });
     }
 
     function selectItem(id) {
