@@ -2724,6 +2724,7 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
     catalogue 115→116 (CodeFormer ajouté, ligne fantôme `timm/resnet18` retirée).
   - Scratchpad de session : une douzaine de scripts de mesure et de refactor, tous jetables.
 - **Aucune validation navigateur en attente** ; aucun artefact claude.ai publié cette session.
+- ⚠ **Un rouge dans la suite, PAS LE MIEN, attribué** (nuit du 07/09) : `tests_catalogues.CardEntreeConformiteTest` (composer, jeton `audio/*`) — `wama/composer/templates/composer/index.html` est MODIFIÉ dans l'arbre par l'instance parallèle (portage WamaImport du composer : `file_accept` gagne `audio/*` avant que `input_extensions` ne suive). Vert dans ma suite d'une heure plus tôt ; fichier non touché.
 
 **Contrôles attendus au prochain `/reprise`** — tous MESURÉS le 2026-09-07 :
 
@@ -2799,10 +2800,9 @@ les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIE
 **Laissé, nommément** :
 1. ~~les 6 apps restantes~~ ✅ FAIT le 07/09 (3ᵉ tranche, 30 modules, 66 recalages) — restent les
    27 copies des jumelles `_01`, qui disparaîtront à leur régénération (GO Fabien déjà acquis) ;
-2. **`vendor/`** : déplacement + README + `.gitignore` + cibles de clone du setup + retrait du
-   gitlink `codeformer` sans URL + `VENDOR_PACKAGE` disparaît des 2 backends (le moteur se
-   référence par son NOM ; sa présence sur disque doit entrer dans `engine_installed`, qui
-   n'interroge que pip) ;
+2. ~~**`vendor/`**~~ ✅ **FAIT (`52cb194e`)** : MuseTalk + CodeFormer sous `wama/common/backends/vendor/<moteur>/`, racine DÉCLARÉE `settings.BACKEND_VENDOR_DIR` (le sous-dossier porte le nom d'`ENGINE`), `VENDOR_PACKAGE`/`_vendor_dir` disparus des 2 backends, gitlink `codeformer` (sans URL) retiré de l'index, sous-dossiers gitignorés, README versionné, setup recalé (12 cibles, `bash -n` OK — ⚠ 205 CRLF retirés après réécriture Python), symlinks de poids ABSOLUS vérifiés depuis WSL2. Exclusion du balayage : RIEN à coder (les gardes parcouraient déjà ces arbres sous l'app ; pas de `__init__.py` dans `vendor/`).
+   ⚠⚠ **TROUVÉ EN BOUGEANT : MuseTalk porte 7 fichiers de correctifs LOCAUX** (20+/9−, `unet.py`, `sfd_detector.py`, `face_parsing/*`, `preprocessing.py`, `whisper/__init__.py`, `scripts/inference.py`) appliqués à la main dans le clone et captés NULLE PART — une installation fraîche les perdait en silence. Exportés dans `patches/musetalk_local_2026-09-07.diff`. 🔚 **À outiller** : les réappliquer à l'installation (`apply_patches.py`, même règle que les patches de venv) — décision : sont-ils encore nécessaires avec le venv actuel ? (les mesurer AVANT de les figer).
+   ⚠ `engine_installed` du vivier n'interroge toujours que pip : un moteur vendorisé ABSENT grise par `is_available()` à l'exécution, pas dans la page. Se règle avec le chantier 3 (le moteur = une librairie dont `repository` dit la source).
 3. **19 moteurs sans ligne au registre des librairies** (5/24 y sont) ; `transformers-remote-code`
    est un mode d'usage, pas un moteur ;
 4. `anonymizer/tasks.py` SAM3 non converti : le job ne porte aucune clé de modèle (bascule =
