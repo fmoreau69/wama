@@ -30,6 +30,9 @@
 </style>
 {% endblock %}
 
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
 {% block content %}
 <div class="wama-cat-wrap">
 
@@ -96,7 +99,8 @@
   `data-f-app`, `data-f-flavor`, `data-f-famille` = les trois facettes déclarées par la vue.
   Chaque facette est AUSSI visible en badge : une facette qu'on ne voit pas sur la carte
   n'explique pas ce qu'elle filtre (leçon des pages registres).{% endcomment %}
-  <div class="wama-cat-grid" id="backendsGrid" style="--cat-card-min: 340px;">
+  <div class="wama-cat-grid" id="backendsGrid" style="--cat-card-min: 340px;"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for a in inv.apps %}{% for e in a.entries %}
     <div class="wama-cat-card" data-id="{{ e.app }}:{{ e.name }}"
          data-f-app="{{ e.app }}" data-f-flavor="{{ e.flavor }}" data-f-famille="{{ e.kind }}"

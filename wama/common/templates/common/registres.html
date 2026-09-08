@@ -34,6 +34,9 @@
 </style>
 {% endblock %}
 
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
 {% block content %}
 <div class="wama-cat-wrap">
 
@@ -60,9 +63,10 @@
 
   {% include 'common/_filter_bar.html' with facettes=facettes_registres cible='.wama-cat-card' mode='client' placeholder='Filtrer (nom, source, description…)' %}
 
-  <div class="wama-cat-grid mt-3">
+  <div class="wama-cat-grid mt-3"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for r in registres %}
-    <div class="wama-cat-card" data-f-nature="{{ r.nature }}" data-cle="{{ r.key }}">
+    <div class="wama-cat-card" data-id="{{ r.key }}" data-f-nature="{{ r.nature }}" data-cle="{{ r.key }}">
       <h4>
         {{ r.label }}
         <span class="wama-cat-badge rg-{{ r.nature|slice:':6' }}">{{ r.nature_label }}</span>

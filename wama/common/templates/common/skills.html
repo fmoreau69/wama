@@ -45,6 +45,9 @@
 </style>
 {% endblock %}
 
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
 {% block content %}
 <div class="wama-cat-wrap">
 
@@ -105,9 +108,10 @@
 
   {% include 'common/_filter_bar.html' with facettes=facettes_skills cible='.wama-cat-card' mode='client' placeholder='Filtrer (nom, app, consigne…)' %}
 
-  <div class="wama-cat-grid mt-3" style="--cat-card-min: 340px;">
+  <div class="wama-cat-grid mt-3" style="--cat-card-min: 340px;"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for s in cat.skills %}
-    <div class="wama-cat-card" data-f-famille="{{ s.famille }}" data-nom="{{ s.nom }}">
+    <div class="wama-cat-card" data-id="{{ s.nom }}" data-f-famille="{{ s.famille }}" data-nom="{{ s.nom }}">
       <h4>
         <code>{{ s.nom }}</code>
         <span class="wama-cat-badge sk-{{ s.famille }}">{{ s.famille_label }}</span>

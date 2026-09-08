@@ -42,6 +42,9 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
 </style>
 {% endblock %}
 
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
 {% block content %}
 <div class="container rag-page">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -135,9 +138,11 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
   {% endif %}
 
   {% if docs %}
-    <div id="ragListe">
+    {% comment %}Inspecteur auto-monté : le détail se dérive de la ligne elle-même.
+    {% endcomment %}
+    <div id="ragListe" data-wama-inspecte=".rag-doc">
       {% for d in docs %}
-      <div class="rag-doc" data-source-id="{{ d.source_id }}">
+      <div class="rag-doc" data-id="{{ d.source_id }}" data-source-id="{{ d.source_id }}">
         <span class="rag-niveau {{ d.niveau }}">{{ d.niveau_libelle }}</span>
         <span class="ref">
           {% if d.app %}{{ d.app_libelle }} · #{{ d.pk }}{% else %}{{ d.source_ref }}{% endif %}

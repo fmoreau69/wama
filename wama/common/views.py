@@ -13,7 +13,7 @@ from django.views.generic import RedirectView
 
 from .services.system_monitor import SystemMonitor
 from .utils.console_utils import get_console_lines
-from .utils.volet import VOLET_AUCUN
+from .utils.volet import volet
 
 _STATS_CACHE_KEY = 'wama_footer_stats'
 _STATS_CACHE_TTL = 8  # secondes — subprocess wmic/nvidia-smi trop lents pour appel à chaque requête
@@ -485,7 +485,7 @@ def registres_view(request):
         'est_staff': request.user.is_authenticated and request.user.is_staff,
         # Page de SUPERVISION : tout y est dans le corps (cf. WAMA_VOLETS §2 — elle figurait
         # parmi les 17 pages héritant de 3 cadres vides).
-        'volet': VOLET_AUCUN,
+        'volet': volet(medias=False, actions=False),
     })
 
 
@@ -513,7 +513,7 @@ def licenses_catalog_view(request):
     return render(request, 'common/licenses.html',
                   {'audit': synthese(request.user if request.user.is_authenticated else None),
                    'facettes_licences': facettes,
-                   'volet': VOLET_AUCUN})
+                   'volet': volet(medias=False, actions=False)})
 
 
 def external_sources_view(request):
@@ -528,7 +528,6 @@ def external_sources_view(request):
       de page seraient le défaut des 31 s des anciens boutons, en pire (réseau externe).
     """
     from .external_sources import KINDS, SOURCES, LOCAL, api_key, base_url, last_report
-    from .utils.volet import volet
 
     rapport = last_report()
     sondes = {r['key']: r for r in (rapport or {}).get('results', [])}
@@ -584,7 +583,6 @@ def backends_catalog_view(request):
     filtre qui vide la page — leçon des sources externes), sauf leurs libellés.
     """
     from .services.backend_inventory import FLAVORS, summary
-    from .utils.volet import volet
 
     inv = summary()
     apps_presentes = {e.app for a in inv['apps'] for e in a.entries}
@@ -640,7 +638,7 @@ def skills_catalog_view(request):
                  'options': dict(FAMILLES)}]
 
     return render(request, 'common/skills.html',
-                  {'cat': synthese(), 'facettes_skills': facettes, 'volet': VOLET_AUCUN})
+                  {'cat': synthese(), 'facettes_skills': facettes, 'volet': volet(medias=False, actions=False)})
 
 
 @login_required
@@ -946,7 +944,7 @@ def rag_view(request):
         'unites': unites_partageables(prof),
         'unite_defaut': getattr(prof, 'rag_unite_defaut', '') if prof else '',
         # « Mon RAG » : liste de documents, tout est dans le corps (WAMA_VOLETS §2).
-        'volet': VOLET_AUCUN,
+        'volet': volet(medias=False, actions=False),
     })
 
 

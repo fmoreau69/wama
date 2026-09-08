@@ -50,6 +50,9 @@
 </style>
 {% endblock %}
 
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
 {% block content %}
 <div class="wama-cat-wrap">
   {% include 'common/_catalog_header.html' with titre='Catalogue des licences' icone='fa-scale-balanced' registre='licences' %}
@@ -103,9 +106,14 @@
     <h3>Répartition par licence</h3>
     <p>De la plus contraignante à la plus permissive.</p>
     {% if audit.repartition %}
-    <div class="wama-cat-grid" style="--cat-card-min: 300px;">
+    {% comment %}`data-wama-inspecte` : l'inspecteur se monte SEUL et dérive le détail de la
+    tuile (titre, description, facettes). C'est aussi ce qui donne enfin une barre d'outils
+    utile à cette section — Fabien : « la Répartition par licence n'a pas de barre d'outils ».
+    {% endcomment %}
+    <div class="wama-cat-grid" style="--cat-card-min: 300px;"
+         data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
       {% for e in audit.repartition %}
-      <div class="wama-cat-card">
+      <div class="wama-cat-card" data-id="{{ e.id }}">
         <h4>
           <code>{{ e.id }}</code>
           <span class="wama-cat-badge li-r{{ e.q.rang }}">{{ e.q.famille }}</span>
@@ -173,7 +181,9 @@
     (REMOVAL_LEDGER R21).{% endcomment %}
     {% include 'common/_filter_bar.html' with facettes=facettes_licences cible='#li-table tbody tr' mode='client' placeholder='Filtrer (nom, licence, auteur…)' %}
     <div class="li-scroll">
-      <table class="li-table" id="li-table">
+      {% comment %}Les en-têtes de colonne DONNENT les libellés du volet : rien à déclarer.
+      {% endcomment %}
+      <table class="li-table" id="li-table" data-wama-inspecte="tbody tr">
         <thead>
           <tr><th>Élément</th><th>Registre</th><th>Licence</th><th>Auteur</th><th>Source</th></tr>
         </thead>
@@ -181,7 +191,7 @@
           {% for l in audit.lignes %}
           {% comment %}`data-f-*` = contrat de la barre commune : `data-f-<facette>` pour les
           facettes, `data-f-text` pour la recherche.{% endcomment %}
-          <tr data-f-registre="{{ l.registre }}"
+          <tr data-id="{{ l.registre }}:{{ l.nom }}" data-f-registre="{{ l.registre }}"
               data-f-text="{{ l.nom|lower }} {{ l.q.id }} {{ l.auteur|lower }} {{ l.registre }}">
             <td><b>{{ l.nom }}</b>{% if l.detail %} <span class="li-muted">{{ l.detail }}</span>{% endif %}</td>
             <td class="li-meta">{{ l.registre }}</td>

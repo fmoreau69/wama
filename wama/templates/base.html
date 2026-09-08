@@ -42,6 +42,14 @@
     <link href="{% static_v 'common/css/wama-queue-dnd.css' %}" rel="stylesheet">
     {# Barre de filtrage commune (apparence model manager) — voir _filter_bar.html #}
     <link href="{% static_v 'common/css/wama-filter-bar.css' %}" rel="stylesheet">
+    {% comment %}`WamaDetails` (wama-inspector-autofill.js) est GLOBAL depuis base.html, mais sa
+    feuille ne l'était pas : trois pages l'incluaient à la main, et les cinq qui viennent de
+    gagner un inspecteur de registre rendaient des lignes clé/valeur COLLÉES
+    (« Registremodel »). Une brique globale et une feuille par page finissent toujours par
+    diverger — mesuré au navigateur le 2026-09-09. Les inclusions locales restantes sont
+    redondantes et inoffensives (CSS idempotent) ; leur retrait est une passe à part.
+    {% endcomment %}
+    <link href="{% static_v 'common/css/wama-inspector-autofill.css' %}" rel="stylesheet">
     {# Menu contextuel de card/lot + débordement « … » de la rangée (wama-card-menu.js) #}
     <link href="{% static_v 'common/css/wama-card-menu.css' %}" rel="stylesheet">
     {# Modale de PARTAGE — première interface du mécanisme de visibilité (wama-share.js) #}

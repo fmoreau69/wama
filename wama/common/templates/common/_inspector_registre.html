@@ -1,0 +1,28 @@
+{% comment %}
+WAMA Common — HÔTE du détail d'un élément de REGISTRE, dans le volet droit.
+
+Demande de Fabien (2026-09-08) : les pages de registre et de liste (licences, registres, RAG,
+skills, backends) n'offraient AUCUN accès au détail d'un élément. Mesuré le 2026-09-09 : 3 des 8
+pages transversales montent l'inspecteur, 5 ne le montent pas.
+
+À poser dans `{% templatetag openblock %} block right_panel_settings {% templatetag closeblock %}`.
+La page déclare en plus, sur son conteneur d'éléments :
+
+    <table class="li-table" data-wama-inspecte="tbody tr">              (lignes de tableau)
+    <div class="wama-cat-grid" data-wama-inspecte=".wama-cat-card"      (tuiles de catalogue)
+         data-wama-inspecte-actif="wama-cat-active">
+
+…et RIEN d'autre : ni schéma, ni table de données sérialisée, ni JS. Le détail est DÉRIVÉ de ce
+que l'élément porte déjà (en-têtes de colonne × cellules, ou titre + description + facettes
+`data-f-*`). Voir `wama-inspector.js § INSPECTEUR DE REGISTRE`.
+
+⚠ Côté VUE, il faut aussi que le volet EXISTE : les quatre pages concernées déclaraient
+`VOLET_AUCUN` (retrait délibéré du 2026-08-22, qui a supprimé 51 cadres vides sur 17 pages).
+Elles déclarent désormais `volet(medias=False, actions=False)` — le volet ne porte que ce
+détail, pas un aperçu de média ni une section Actions vide. *On ne rouvre que ce qu'on remplit.*
+{% endcomment %}
+<div id="inspectorRegistreDetail" class="wama-registre-detail">
+  <p class="small text-muted mb-0">
+    <i class="fas fa-hand-pointer"></i> Sélectionnez un élément pour en voir le détail.
+  </p>
+</div>

@@ -1237,6 +1237,8 @@
            (n.querySelector && !!n.querySelector(HOTE_PREVIEW));
   }
   document.addEventListener('DOMContentLoaded', function () {
+    // Inspecteur de REGISTRE : une page declare `data-wama-inspecte`, rien de plus.
+    try { autoInitRegistres(); } catch (e) { console.warn('[WamaInspector] registres', e); }
     hydrateCardPreviews(document);
     try {
       new MutationObserver(function (muts) {
@@ -1299,7 +1301,158 @@
     return commun || {};
   }
 
+  // ══ INSPECTEUR DE REGISTRE — auto-monté, détail DÉRIVÉ de l'élément ═══════════════════
+  //
+  // Demande de Fabien (2026-09-08) : « certaines pages de registres ou listes comme les
+  // licences n'utilisent pas l'inspecteur contextuel pour permettre d'avoir accès au détail
+  // des informations de chaque élément ».
+  //
+  // ÉTAT MESURÉ le 2026-09-09 : sur les 8 pages transversales, TROIS montent l'inspecteur
+  // (`apps`, `external_sources`, `journal`) et CINQ ne le montent pas (`licences`, `registres`,
+  // `rag`, `skills`, `backends`). ⚠ Mon relevé de la veille disait « backends l'a » : il
+  // comptait des MENTIONS du fichier (lien CSS, commentaire), pas des MONTAGES. Une mesure par
+  // motif oriente, elle ne conclut pas.
+  //
+  // POURQUOI DÉRIVER PLUTÔT QUE DÉCLARER. Les trois pages qui l'ont écrivent chacune ~40 lignes
+  // de JS : un `DETAIL_SCHEMA`, une table `byId` sérialisée depuis la vue, et un
+  // `renderItemActions`. Le reproduire cinq fois serait cinq fois la même duplication — et
+  // c'est justement pour ça que ces cinq pages ne l'ont jamais eu : le coût d'entrée était de
+  // quarante lignes. Ici la page déclare UN attribut, et le détail se dérive de ce que
+  // l'élément PORTE DÉJÀ.
+  //
+  // ⚠ CE N'EST PAS `fillDetail`. Celle-ci dérive une URL `/common/detail/<app>/<pk>/` du
+  // `data-preview-url` de la card : elle est faite pour les ITEMS D'APP, dont le détail suit le
+  // schéma canonique (`INSPECTOR_DETAIL_FIELDS`). Une ligne de registre n'a pas d'endpoint de
+  // détail — et lui en inventer un voudrait dire un adapter par registre, c'est-à-dire le coût
+  // qu'on cherche à supprimer.
+  //
+  // DEUX FORMES D'ÉLÉMENT, les deux du parc :
+  //   • une LIGNE DE TABLEAU  → les `<th>` de l'en-tête donnent les libellés, les `<td>` les
+  //     valeurs. Le tableau porte déjà sa sémantique : la reprendre, c'est ne rien inventer ;
+  //   • une TUILE de catalogue → son titre, sa description, et ses facettes `data-f-<clé>`
+  //     (celles-là même que la barre de filtrage consomme).
+
+  /** Libellé lisible d'une clé de facette : `unit_type` → « Unit type ». */
+  function _libelleDeCle(cle) {
+    var s = String(cle || '').replace(/[-_]+/g, ' ').trim();
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : cle;
+  }
+
+  /**
+   * Données + schéma dérivés d'un élément de registre, pour `WamaDetails.renderSections`.
+   *
+   * On réutilise `WamaDetails` plutôt que d'écrire un second rendu : c'est lui qui sait masquer
+   * une ligne vide et une section entièrement vide, et deux rendus auraient divergé.
+   */
+  function detailDeriveDe(el) {
+    var donnees = {};
+    var lignes = [];
+
+    if (el.tagName === 'TR') {
+      var table = el.closest('table');
+      var entetes = table
+        ? Array.prototype.map.call(table.querySelectorAll('thead th'),
+                                   function (h) { return (h.textContent || '').trim(); })
+        : [];
+      Array.prototype.forEach.call(el.cells, function (cell, i) {
+        var libelle = entetes[i] || _libelleDeCle('colonne ' + (i + 1));
+        var valeur = (cell.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!valeur || valeur === '—') return;      // une cellule vide n'est pas une donnée
+        var cle = 'c' + i;
+        donnees[cle] = valeur;
+        lignes.push({ k: libelle, field: cle });
+      });
+      return { donnees: donnees, schema: [{ section: 'Détail', rows: lignes, hideIfEmpty: true }] };
+    }
+
+    // TUILE : titre + description + facettes déclarées.
+    var titre = el.querySelector('h3, h4, h5, .wama-cat-title');
+    if (titre) { donnees.titre = (titre.textContent || '').replace(/\s+/g, ' ').trim(); }
+    var desc = el.querySelector('.wama-cat-desc, .wama-cat-description');
+    if (desc) { donnees.description = (desc.textContent || '').replace(/\s+/g, ' ').trim(); }
+
+    Object.keys(el.dataset || {}).forEach(function (k) {
+      // `data-f-<facette>` — le MÊME vocabulaire que la barre de filtrage. `data-f-text` est
+      // l'index de recherche, pas une donnée à montrer : on l'écarte.
+      if (k.indexOf('f') !== 0 || k === 'f' || k === 'fText') return;
+      var cle = k.slice(1);
+      if (!cle) return;
+      var valeur = String(el.dataset[k] || '').trim();
+      if (!valeur) return;
+      donnees['f_' + cle] = valeur;
+      lignes.push({ k: _libelleDeCle(cle), field: 'f_' + cle });
+    });
+
+    var meta = el.querySelector('.wama-cat-meta, .li-meta');
+    if (meta) {
+      donnees.meta = (meta.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+
+    // REPLI — un élément dont aucune structure connue ne ressort (la liste « Mon RAG » :
+    // des `<span>` de classe, sans titre ni facette). On rend alors son TEXTE sous un libellé
+    // neutre, et surtout on ne fabrique PAS de libellés à partir de noms de classes CSS :
+    // « Rag niveau », « Ref », « Meta » feraient fuiter l'implémentation dans l'interface.
+    // *Mieux vaut un résumé vrai qu'une fiche aux libellés inventés.*
+    if (!lignes.length && !donnees.titre) {
+      var brut = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (brut) {
+        donnees.resume = brut.slice(0, 600);
+        lignes.push({ k: '', field: 'resume' });
+      }
+    }
+
+    return {
+      donnees: donnees,
+      schema: [
+        { description: 'description' },
+        { section: 'Caractéristiques', rows: lignes, hideIfEmpty: true },
+        { section: 'Détail', rows: [{ k: '', field: 'meta' }], hideIfEmpty: true },
+      ],
+    };
+  }
+
+  /**
+   * Auto-montage : une page de registre déclare `data-wama-inspecte="<sélecteur d'élément>"`
+   * sur son conteneur, et n'écrit AUCUN JS.
+   *
+   * `data-wama-inspecte-actif` (option) : la classe de surbrillance, si la page en a une à elle
+   * (`wama-cat-active` pour les grilles de catalogue).
+   */
+  function autoInitRegistres() {
+    var conteneurs = Array.prototype.slice.call(
+      document.querySelectorAll('[data-wama-inspecte]'));
+    conteneurs.forEach(function (conteneur) {
+      if (conteneur.dataset.wamaInspecteMonte === '1') return;
+      conteneur.dataset.wamaInspecteMonte = '1';
+      var selecteur = conteneur.dataset.wamaInspecte;
+      if (!selecteur) return;
+
+      init({
+        queueContainer: conteneur,
+        cardSelector: selecteur,
+        highlightClass: conteneur.dataset.wamaInspecteActif || undefined,
+        // ⚠ On DÉCLARE notre hôte comme hôte d'ACTIONS, et c'est le point d'extension prévu
+        // (`ids` est fusionné par `Object.assign`, donc surcharger la seule clé suffit).
+        // Sans ça `fillActions` sort tôt sur `if (!host) return` : ces pages déclarent un
+        // volet SANS section Actions — le rappel n'était jamais appelé, la surbrillance
+        // s'appliquait, et le panneau restait sur son texte d'invite. Mesuré au navigateur le
+        // 2026-09-09 : un geste à moitié branché ne lève rien, il ne fait rien.
+        ids: { actions: 'inspectorRegistreDetail' },
+        itemLabel: function (id) { return id; },
+        renderItemActions: function (hote, el) {
+          if (!hote) return;
+          var d = detailDeriveDe(el);
+          hote.innerHTML = (global.WamaDetails && WamaDetails.renderSections)
+            ? WamaDetails.renderSections(d.donnees, d.schema)
+            : '';
+        },
+      });
+    });
+  }
+
   global.WamaInspector = { init: init, initFromSchema: initFromSchema, cloneActions: cloneActions,
+                           autoInitRegistres: autoInitRegistres,
+                           detailDeriveDe: detailDeriveDe,
                            cloneBatchActions: cloneBatchActions,
                            renderInlinePreview: renderInlinePreview,
                            gearValues: gearValues, sharedGearValues: sharedGearValues,

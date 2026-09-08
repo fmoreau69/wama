@@ -331,9 +331,16 @@ prétendre au partage sans l'avoir branché** :
 | `shareable_models` | La card **ET** son batch héritent de `ScopedVisibility`. 🔶 si un seul des deux — la file étant construite à partir des BATCHES, une card partagée sans son batch **n'apparaît pas**. |
 | `scoped_reads` | Les vues de lecture passent par les accès **nommés** (`visible_or_404` / `visible_to`). |
 
-Photo au 31/07 : ✅ **converter, enhancer, transcriber** · 🔶 **imager** (mixin sur la card, pas
-sur son batch — et lectures volontairement non portées, cf. §7.5) · ❌ anonymizer, avatarizer,
-composer, describer, reader, synthesizer.
+**État MESURÉ au 2026-09-08 : ✅ 10/10 sur les DEUX critères** (`logs/conformity_report.json`).
+Le portage annoncé « reste à faire » plus bas s'est fait entre-temps.
+
+> ⚠ La photo qui vivait ici — « ✅ converter, enhancer, transcriber · 🔶 imager · ❌ 6 apps » —
+> datait du **31/07** et est restée **six semaines** après avoir cessé d'être vraie. Elle a
+> failli faire différer l'UI de partage : le raisonnement « seules 3 apps sont portées, donc
+> l'interface ne servirait qu'à 3 apps » était fondé sur elle. C'est la remesure qui l'a
+> débloqué. *Une photo d'adoption dans un `.md` est périmée dès le lendemain du portage
+> suivant* — d'où la règle appliquée ailleurs dans ce dépôt : les compteurs vivent à UN endroit,
+> la source mesurée (ici `check_app_conformity`), et le document renvoie vers elle.
 
 **Geste de portage d'une app** (désormais mécanique, ~15 min) :
 1. `class Card(…, ScopedVisibility)` + `objects = ScopedManager()` ;
@@ -350,15 +357,26 @@ composer, describer, reader, synthesizer.
 Construire l'escalade d'écriture sur une visibilité inerte reviendrait à empiler du neuf sur du
 non-branché.
 
-**Reste à faire (au 31/07, fin de session)** :
-- porter les 6 apps ❌ ci-dessus (geste mécanique du §7.4bis) ;
+**Reste à faire — état au 2026-09-09** (les trois premiers points du 31/07 sont SOLDÉS) :
+- ~~porter les 6 apps ❌~~ · ~~imager : mixin sur son batch + lectures~~ → **10/10 mesuré** (§7.4bis) ;
+- ~~il n'existe aucune interface de partage~~ → **LIVRÉE le 2026-09-08** (demande Fabien) :
+  entrée « Partager… » au menu contextuel et au « … » d'une card, « Partager le lot… » sur une
+  card mère ; service `common/services/sharing.py`, route unique
+  `common:api_partage` (`<surface>/<nature>/<pk>/`), modale `wama-share.js`. Elle écrit
+  `visibility` + son scope, sur l'élément **et** son lot (ou sur le lot **et** ses éléments) —
+  les deux sens sont exigés, le filtre de lecture s'appliquant aux deux niveaux.
+  Tenue par `wama/common/tests_sharing.py`, dont le test décisif interroge `scoped_visible_q`
+  depuis un compte TIERS : il distingue « la colonne est écrite » de « la personne voit ».
+  ⚠ La commande de gestion `partager_card` prévue ici n'a PAS été écrite — l'UI a couvert le
+  besoin, et le nocturne sème désormais ses propres témoins (`<app>.batch_extract`) ;
 - **`cam_analyzer` : les SESSIONS de wama-lab ne sont pas regardées du tout** — leur structure
   diffère des cards (pas de batch, pas la même file). Reporté explicitement (décision Fabien
   31/07), à traiter comme un cas propre, pas par analogie ;
-- **imager** : mixin sur son batch + chemins de lecture, quand l'app sera portée sur
-  l'uniformisation (dernière de la grille, 56 % — ne pas industrialiser l'état partiel) ;
-- il n'existe **aucune interface de partage** : passer par l'admin Django, ou écrire la commande
-  de gestion prévue (`partager_card --app … --user wama_nightly_test`) pour le nocturne ;
+- **partage à une PERSONNE** : impossible aujourd'hui — `ScopedVisibility` n'offre que
+  privé/unité/projet/public. C'est prévu par `ObjectGrant` (§7.3, « bénéficiaire = user OU
+  project OU org_unit ») et arrivera donc AVEC l'écriture. Contournement légitime en attendant :
+  un `Project` à deux membres, qui traverse les organisations par construction (question de
+  Fabien, 2026-09-08) ;
 - puis `ObjectGrant` (§7.3), en **extension de `scoped_visible_q`** — jamais un second chemin.
 
 ### 7.6 Prior art
