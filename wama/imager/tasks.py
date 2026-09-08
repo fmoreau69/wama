@@ -179,6 +179,11 @@ def generate_image_task(self, generation_id):
         generation.save()
         cache.set(f"imager_progress_{generation_id}", 10, timeout=3600)
         _console(user_id, f"[Imager] Loading model: {generation.model}")
+        # Premier lancement d'un modèle jamais téléchargé : le DIRE (brique commune, 2026-09-08).
+        # Sans elle, l'utilisateur voit une tâche figée le temps de récupérer des dizaines de Go.
+        from wama.common.utils.model_readiness import annoncer_telechargement
+        annoncer_telechargement(f'imager:{generation.model}',
+                                console=lambda m: _console(user_id, f"[Imager] {m}"))
 
         # Load the model
         logger.info(f"[Imager] >>> Calling backend.load({generation.model})...")
@@ -545,7 +550,14 @@ def generate_video_task(self, generation_id):
         # Initialize backend
         backend = backend_class()
         _console(user_id, f"[Imager Video] Loading model: {generation.model}")
-        _console(user_id, f"[Imager Video] ⏳ This may take several minutes on first run (downloading ~5-10GB)...")
+        # ⚠ Un avertissement EN DUR vivait ici (« ~5-10GB on first run »), affiché à CHAQUE
+        # lancement — donc même quand les poids étaient déjà là, et avec un volume inventé.
+        # Remplacé par la brique commune (2026-09-08) : elle ne parle QUE si le catalogue dit
+        # `is_downloaded=False`, et elle annonce la taille RÉELLE quand elle la connaît.
+        # *Un avertissement permanent n'avertit plus de rien.*
+        from wama.common.utils.model_readiness import annoncer_telechargement
+        annoncer_telechargement(f'imager:{generation.model}',
+                                console=lambda m: _console(user_id, f"[Imager Video] ⏳ {m}"))
 
         model_load_start = time.time()
 

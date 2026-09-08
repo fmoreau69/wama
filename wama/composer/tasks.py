@@ -128,6 +128,11 @@ def compose_task(self, generation_id: int):
                 f"Modèle « {gen.model} » : aucun backend résolu depuis le catalogue "
                 f"({cle_catalogue} absent, ou sans moteur déclaré)")
         backend = classe()
+        # Premier lancement d'un modèle jamais téléchargé : le DIRE (brique commune, 2026-09-08)
+        # — `composer:musicgen-melody` est dans ce cas au catalogue.
+        from wama.common.utils.model_readiness import annoncer_telechargement
+        annoncer_telechargement(cle_catalogue,
+                                console=lambda m: _console(user_id, f"[Composer] ⏳ {m}"))
         from wama.common.utils.preview_utils import emit_streaming_peaks, clear_partial
         backend.generate(
             model_id=gen.model,

@@ -183,7 +183,7 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
 
 
 def run_item_task(task, *, app_id: str, model, item_id: int, process,
-                  vram_needed=None,
+                  vram_needed=None, model_key=None,
                   error_field: str = 'error_message', ingest_derive=None,
                   notify_label: str = None, progress_fn=None):
     """Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
@@ -229,6 +229,19 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
             return
 
     ctx.progress(0)
+
+    # ── Premier lancement : PRÉVENIR du téléchargement des poids (2026-09-08) ────────────
+    # `model_key` est OPTIONNEL et se déclare comme `vram_needed` : une chaîne, ou un callable
+    # qui la tire de l'item (le champ varie — `model`, `ai_model`, `backend`, `tts_model` : la
+    # convention n'existe pas, on ne la devine donc pas). Placé APRÈS `progress(0)` : la tâche
+    # est réellement partie, l'attente qu'on annonce commence maintenant.
+    if model_key is not None:
+        try:
+            cle = model_key(item) if callable(model_key) else str(model_key)
+            from wama.common.utils.model_readiness import annoncer_telechargement
+            annoncer_telechargement(cle, console=ctx.console)
+        except Exception as exc:      # prévenir est un confort, jamais une condition
+            logger.debug('[%s] annonce de téléchargement impossible : %s', app_id, exc)
 
     try:
         from wama.common.utils.source_ingest import ensure_local_input
