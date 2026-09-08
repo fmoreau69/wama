@@ -12173,6 +12173,11 @@ partiel, handler maison → partiel, rien → rouge, exemption intacte) ; 38 OK 
 Au passage `_AppFiles.find` et `find_code` n'ont plus qu'UNE implémentation : elles avaient
 divergé, `find` levait sur un fichier hors de `wama/`.
 
+⚠ **`doc_facts --check` dit `mecanismes: PÉRIMÉ` et je ne l'ai PAS régénéré** (2ᵉ fois, même
+raison qu'au 07/09) : la table encoderait `wama/common/templatetags/wama_toolbar.py`, fichier
+**non suivi** de la session UI en cours, et un `queue_dnd` compté pour l'imager. *Une table qui
+DÉRIVE ne doit dériver que de l'état COMMITÉ.* À régénérer par qui commite en dernier.
+
 **🔚 DETTE NOMMÉE, PAS PRISE — elle appartient à la session CARDS/UI** (partition annoncée par
 Fabien ce soir : une autre instance refactore l'UI d'app, le filemanager et les registres) :
 déclarer `folder_input_id` sur les cards d'entrée de **imager** (×2), **avatarizer** et
