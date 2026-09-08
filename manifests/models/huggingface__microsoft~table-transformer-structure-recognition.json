@@ -3,7 +3,11 @@
     "capabilities": {
       "task": "detect"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
     "extra_info": {
       "category": "vision",
       "family": "table-transformer-structure-recognition",

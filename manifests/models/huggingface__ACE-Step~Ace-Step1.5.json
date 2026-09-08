@@ -3,7 +3,11 @@
     "capabilities": {
       "task": "text-to-audio"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
     "extra_info": {
       "category": "music",
       "family": "Ace-Step1.5",

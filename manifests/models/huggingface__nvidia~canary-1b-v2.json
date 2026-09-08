@@ -3,7 +3,11 @@
     "capabilities": {
       "task": "transcription"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
     "extra_info": {
       "category": "speech",
       "family": "canary-1b-v2",
