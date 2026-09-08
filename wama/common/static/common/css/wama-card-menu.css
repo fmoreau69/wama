@@ -113,6 +113,16 @@
 }
 .wama-cm-danger:hover > i:first-child { color: #fca5a5; }
 
+/* Entrée d'ATTENTE ou d'INFORMATION (« Recherche… », « aucune app ne prend ce format »).
+   Un `<span>` et non un `<button>` : rien à cliquer, donc rien qui doive avoir l'air cliquable.
+   C'est ce qui distingue « le menu réfléchit » de « le menu est cassé ». */
+.wama-cm-attente {
+    color: #6c757d;
+    cursor: default;
+    font-style: italic;
+}
+.wama-cm-attente > i:first-child { color: #6c757d; }
+
 .wama-cm-sep {
     height: 1px;
     margin: .3rem .35rem;

@@ -390,6 +390,10 @@
     « Partager… » que si `WamaShare` existe — l'ordre inverse rendrait l'entrée absente au
     premier montage, sans erreur, donc sans qu'on le voie.{% endcomment %}
     <script src="{% static_v 'common/js/wama-share.js' %}"></script>
+    {% comment %}« Envoyer vers » — chaînage progressif : la sortie d'une card devient l'entrée
+    d'une autre app. Après `wama-share.js` (elle réutilise son lecteur de coordonnées) et avant
+    le menu, qui n'offre l'entrée que si `WamaSendTo` existe.{% endcomment %}
+    <script src="{% static_v 'common/js/wama-send-to.js' %}"></script>
     <script src="{% static_v 'common/js/wama-card-menu.js' %}"></script>
 
     {% block javascript %}

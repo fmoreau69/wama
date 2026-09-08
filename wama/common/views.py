@@ -1072,3 +1072,42 @@ def api_partage(request, surface: str, nature: str, pk: int):
     except RefusDePartage as refus:
         return JsonResponse({'ok': False, 'reason': str(refus)}, status=400)
     return JsonResponse({'ok': True, **compte_rendu})
+
+@login_required
+def api_envoyer_vers(request, surface: str, pk: int):
+    """ENVOYER VERS — quelles apps peuvent recevoir la sortie de cet élément, et par où.
+
+    RÉSOLVEUR EN LECTURE SEULE. Il ne réalise PAS l'envoi : il rend les chemins de sortie et les
+    destinations éligibles, et le client POSTe sur `filemanager:api_import` — l'endpoint qui
+    reçoit déjà « Envoyer vers… » depuis le gestionnaire de fichiers (critère de grille
+    `filemanager_import` 10/10, scénario nocturne `<app>.send_to`). Écrire ici un second chemin
+    d'import aurait dupliqué ses gardes — dont `is_path_allowed`, qui est exactement le genre de
+    garde qu'on ne recopie pas.
+
+    Cadre (Fabien 2026-09-08) : « la sortie qu'on envoie en entrée d'une autre app, dans l'idée
+    de faire du chaînage progressif, sans forcément devoir passer par le studio ».
+
+    ⚠ Les destinations sont DÉRIVÉES de trois conditions (importeur, extension déclarée, accès),
+    jamais listées : le menu du gestionnaire de fichiers a offert pendant des semaines trois apps
+    que le serveur refusait (`WAMA_VERIFICATION §Geste 14`). Une liste vide est une RÉPONSE.
+    """
+    from django.shortcuts import get_object_or_404
+    from django.urls import reverse
+    from wama.common.services.send_to import destinations, sorties_de
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    modele = PreviewRegistry.get_model(surface)
+    if modele is None:
+        return JsonResponse({'error': f"surface inconnue : {surface}"}, status=404)
+    # Périmètre de l'utilisateur : un pk étranger rend 404, pas 403 (cf. `api_partage`).
+    element = get_object_or_404(modele, pk=pk, user=request.user)
+
+    chemins = sorties_de(surface, element)
+    return JsonResponse({
+        'ok': True, 'surface': surface, 'pk': pk,
+        'chemins': chemins,
+        'destinations': destinations(request.user, chemins),
+        # L'endpoint est RENDU et non écrit dans le JS : le front n'a pas à connaître les URLs
+        # d'une autre app, et un changement de route ne casse pas la brique commune.
+        'endpoint': reverse('filemanager:api_import'),
+    })

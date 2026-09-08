@@ -231,6 +231,23 @@
             }
         }
 
+        // ENVOYER VERS — la sortie de cette card devient l'entrée d'une autre app : le
+        // chaînage progressif, sans passer par le studio (cadre Fabien 2026-09-08).
+        //
+        // ⚠ L'entrée est posée SANS savoir encore s'il y a des destinations : les connaître
+        // exige un appel serveur, et un menu ne doit pas attendre le réseau pour s'ouvrir. Le
+        // sous-menu se remplit au clic et DIT ce qu'il a trouvé — y compris « aucune app ne
+        // prend ce format », qui est une réponse, pas un vide. La condition dure, elle, est
+        // qu'il faut une SORTIE : une card sans résultat n'a rien à envoyer.
+        if (cibles.length === 1 && !card.classList.contains('is-batch')
+                && global.WamaSendTo && WamaSendTo.coordonnees(card)) {
+            entrees.push({
+                icone: 'fas fa-share-from-square', libelle: 'Envoyer vers…',
+                sous: [{ chargement: true }],
+                charger: function () { return WamaSendTo.entrees(card); },
+            });
+        }
+
         // « Ajouter à un lot » — n'a de sens que s'il EXISTE un lot d'accueil autre que le sien.
         if (d.dndMoveUrl) {
             var lots = $$('.batch-group[data-batch-id]', q).filter(function (g) {
@@ -282,6 +299,15 @@
 
     function ligne(e, i) {
         if (e.separateur) return '<li class="wama-cm-sep" role="separator"></li>';
+        if (e.chargement) {
+            return '<li><span class="wama-cm-item wama-cm-attente">'
+                + '<i class="fas fa-spinner fa-spin"></i><span>Recherche…</span></span></li>';
+        }
+        if (e.vide) {
+            return '<li><span class="wama-cm-item wama-cm-attente">'
+                + '<i class="fas fa-circle-info"></i><span>' + echapper(e.libelle)
+                + '</span></span></li>';
+        }
         return '<li><button type="button" class="wama-cm-item'
             + (e.danger ? ' wama-cm-danger' : '')
             + (e.sous ? ' wama-cm-parent' : '') + '"'
@@ -305,9 +331,8 @@
         var el = document.createElement('div');
         el.className = 'wama-card-menu';
         el.setAttribute('role', 'menu');
-        el.innerHTML = (titre ? '<div class="wama-cm-titre">' + echapper(titre) + '</div>' : '')
-            + '<ul>' + entrees.map(ligne).join('') + '</ul>';
         document.body.appendChild(el);
+        remplir(el, entrees, titre);
 
         // Placement : on corrige APRÈS insertion, quand la taille réelle est connue — un menu
         // dimensionné à l'aveugle sort de l'écran en bas de page.
@@ -316,6 +341,19 @@
         var gy = Math.min(y, window.innerHeight - r.height - 8);
         el.style.left = Math.max(8, gx) + 'px';
         el.style.top = Math.max(8, gy) + 'px';
+        ouvert = el;
+        return el;
+    }
+
+    /**
+     * (Re)rend le CONTENU d'un menu déjà posé, et recâble ses entrées.
+     *
+     * Extrait d'`ouvrir` pour que le remplissage DIFFÉRÉ d'un sous-menu passe par le même code :
+     * deux rendus auraient divergé au premier ajout de type d'entrée.
+     */
+    function remplir(el, entrees, titre) {
+        el.innerHTML = (titre ? '<div class="wama-cm-titre">' + echapper(titre) + '</div>' : '')
+            + '<ul>' + entrees.map(ligne).join('') + '</ul>';
 
         $$('.wama-cm-item', el).forEach(function (b) {
             var e = entrees[parseInt(b.dataset.i, 10)];
@@ -324,7 +362,23 @@
                 b.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     var rb = b.getBoundingClientRect();
-                    ouvrir(rb.right - 4, rb.top, e.sous, e.libelle);
+                    var sousMenu = ouvrir(rb.right - 4, rb.top, e.sous, e.libelle);
+                    // SOUS-MENU DIFFÉRÉ : `charger()` rend une promesse d'entrées. Le menu
+                    // s'ouvre TOUT DE SUITE sur « Recherche… » puis se remplit — un menu qui
+                    // attend le réseau avant de s'afficher se lit comme un clic perdu.
+                    if (typeof e.charger !== 'function' || !sousMenu) return;
+                    var pourCeMenu = sousMenu;
+                    e.charger().then(function (entrees) {
+                        // Le menu a pu être refermé (ou remplacé) entre-temps : on ne réécrit
+                        // que CELUI qu'on a ouvert.
+                        if (ouvert !== pourCeMenu || !pourCeMenu.parentNode) return;
+                        var liste = entrees && entrees.length ? entrees
+                            : [{ vide: true, libelle: "Aucune app ne prend ce format" }];
+                        remplir(pourCeMenu, liste, e.libelle);
+                    }).catch(function () {
+                        if (ouvert !== pourCeMenu || !pourCeMenu.parentNode) return;
+                        remplir(pourCeMenu, [{ vide: true, libelle: 'Indisponible' }], e.libelle);
+                    });
                 });
                 return;
             }
@@ -334,8 +388,6 @@
                 try { e.agir(); } catch (err) { console.error('[WamaCardMenu]', err); }
             });
         });
-        ouvert = el;
-        return el;
     }
 
     // ── Assemblage des deux surfaces ─────────────────────────────────────────────────────

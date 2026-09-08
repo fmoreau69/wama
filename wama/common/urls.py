@@ -71,6 +71,11 @@ urlpatterns = [
     # UNE route pour les 12 files × 2 natures.
     path('api/partage/<str:surface>/<str:nature>/<int:pk>/', views.api_partage,
          name='api_partage'),
+    # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
+    # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
+    # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.
+    path('api/envoyer-vers/<str:surface>/<int:pk>/', views.api_envoyer_vers,
+         name='api_envoyer_vers'),
 
     # Skills de prompt : la PAGE du registre `skills`, qui existait sans elle (seul registre
     # de la carte sans `url_name`). Elle DÉRIVE des fichiers + PROMPT_TARGETS + DOMAINES, et
