@@ -51,17 +51,13 @@ class _AppFiles:
 
     def find(self, patterns: list[str], regex: str) -> str | None:
         """Première occurrence de `regex` dans les fichiers matchant `patterns`.
-        Retourne une preuve 'chemin/relatif:ligne' ou None."""
-        rx = re.compile(regex)
-        for pattern in patterns:
-            for path in self.glob(pattern):
-                text = self._read(path)
-                m = rx.search(text)
-                if m:
-                    line = text.count('\n', 0, m.start()) + 1
-                    rel = path.relative_to(WAMA_ROOT).as_posix()
-                    return f"{rel}:{line}"
-        return None
+        Retourne une preuve 'chemin/relatif:ligne' ou None.
+
+        UNE seule implémentation avec `find_code` depuis le 2026-09-08 (`_find_in`) : les
+        deux avaient divergé sur la mise en forme de la preuve — `find` levait sur un
+        fichier hors de `wama/` (racine imposée par un harnais de test), `find_code` non.
+        """
+        return self._find_in([p for pattern in patterns for p in self.glob(pattern)], regex)
 
     def text(self, patterns: list[str]) -> str:
         return '\n'.join(self._read(p) for pattern in patterns for p in self.glob(pattern))
@@ -885,15 +881,39 @@ def _recursive_import(f: _AppFiles):
     `input_types` ne déclarent que 'prompt' : chaque fichier EST un item). L'exemption ne
     joue que sur une ABSENCE : app sans aucune entrée média-fichier déclarée (composer —
     ses fichiers sont des DESCRIPTEURS de batch, un dossier n'a pas d'objet). Verdict
-    Fabien 2026-08-13."""
-    present = _present(f, TEMPLATES + JS, r'webkitdirectory|folder_input_id|WamaFolderImport')
-    if present[0]:
-        return present
+    Fabien 2026-08-13, INCHANGÉ.
+
+    ⚠ LE GESTE A DEUX MOITIÉS, et ce critère les confondait (recalibré le 2026-09-08 —
+    la card commune le dit noir sur blanc : « le drop récursif marche même sans ce
+    paramètre ») :
+      • le DÉPÔT d'un dossier — porté par la brique `WamaImport` pour toute app qui
+        l'instancie (elle appelle `WamaFolderImport.collect`), donc acquis depuis le
+        portage du 08/09 sans que l'app écrive une ligne ;
+      • le CLIC « ou importer un dossier » — l'`<input webkitdirectory>` que la card ne
+        rend QUE si l'app déclare `folder_input_id`.
+    Un seul motif pour les deux rendait la grille fausse DANS LES DEUX SENS, mesuré ce
+    jour-là contre le geste nocturne `<app>.folder_import` : **avatarizer VERT** alors que
+    son geste SAUTE (il n'a que le drop, sur un slot mono-fichier), **imager ROUGE** alors
+    que la brique lui donne le drop. *Deux moitiés d'un geste ne se mesurent pas par un
+    seul motif* — et un vert qui ne se joue pas est pire qu'un rouge.
+
+    Vert = l'affordance de CLIC est offerte (c'est elle que le geste exige) ; partiel = le
+    drop seul ; rouge = ni l'un ni l'autre. Le partiel nomme exactement la dette que le
+    scénario nomme déjà : « `folder_input_id` non déclaré sur la card d'entrée commune ».
+    """
+    clic = f.find(TEMPLATES + JS, r'webkitdirectory|folder_input_id|folderInputId')
+    if clic:
+        return True, clic
+    drop = f.find_code(JS + TEMPLATES, r'WamaFolderImport|WamaImport\s*\(')
     from wama.common.app_registry import APP_CATALOG
     kinds = set((APP_CATALOG.get(f.app) or {}).get('input_types') or ())
     if not kinds & {'image', 'video', 'audio', 'document', 'archive', 'pdf'}:
         return None, "aucune entrée média-fichier déclarée (input_types) — import de dossier sans objet"
-    return present
+    if drop:
+        return 'partial', (f"dépôt d'un dossier acquis ({drop}) mais l'affordance de CLIC "
+                           f"manque : déclarer `folder_input_id` sur la card d'entrée "
+                           f"(c'est ce que le geste `{f.app}.folder_import` exige)")
+    return False, None
 
 
 def _card_entree_rendue(f: _AppFiles):

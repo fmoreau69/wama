@@ -12141,6 +12141,46 @@ synthesizer (témoin déjà porté) inchangé ; familles nocturnes **enhancer 12
 | **composer** | son select est en **deux groupes** (🎵 Musique / ⚡ Bruitages), chacun avec **son propre « auto »** (`auto-music`, `auto-sfx`) ; l'endpoint ne rend qu'UN groupe et un seul « auto » | déclarer deux domaines groupés (nouvelle capacité de l'endpoint), ou aplatir le select en perdant les deux « auto » par type ? Le groupe PORTE le sens : « le type est dérivé du modèle choisi » (décision 02/07) |
 | **anonymizer** | `model_to_use` stocke un **CHEMIN** (`detect/yolov8n.pt`), le catalogue une **clé** (`yolo:yolov8n.pt`) ; 22 modèles `detect` sous cette source | aligner l'espace de clés (migration des valeurs, comme le synthesizer l'a fait le 18/08) ou déclarer une correspondance ? Tant que les deux espaces coexistent, le select serait peuplé de valeurs que la tâche ne sait pas ouvrir |
 
+### PALIER 2026-09-08 (soir, suite) — `recursive_import` : la grille était fausse DANS LES DEUX SENS
+
+**Ce que je m'apprêtais à faire était FAUX**, et c'est la mesure qui l'a dit. Le plan annonçait
+« passer `recursive_import` en non applicable pour une card d'ATTACHE (imager) ». Deux faits l'ont
+réfuté : **l'avatarizer est une card d'attache ET traite un dossier déposé** (`WamaFolderImport`
+résout les vrais fichiers, il prend le premier pour son slot mono-fichier — « avant, l'entrée
+dossier échouait ») ; et le scénario nocturne qualifie l'absence de « **dette d'adoption, pas de
+conception** ». *Une exemption ne s'accorde pas sur une intuition d'architecture : le geste avait
+déjà tranché.*
+
+**LE GESTE A DEUX MOITIÉS** — la card commune le dit noir sur blanc (« le drop récursif marche
+même sans ce paramètre ») et le critère les confondait sous un seul motif :
+| moitié | qui la porte | mesurée par |
+|---|---|---|
+| **dépôt** d'un dossier | la brique `WamaImport` (elle appelle `WamaFolderImport.collect`) — acquis pour toute app portée le 08/09, sans une ligne d'app | rien, avant aujourd'hui |
+| **clic** « ou importer un dossier » | l'`<input webkitdirectory>` que la card ne rend QUE si l'app déclare `folder_input_id` | le geste `<app>.folder_import` |
+
+**Confrontation grille ↔ geste (parc entier, 10 apps, mesuré ce soir)** : geste **VERT ×7**
+(transcriber, converter, describer, synthesizer, enhancer, reader, anonymizer), **SAUTÉ ×3**
+(composer, imager, avatarizer — même message : affordance non offerte). La grille, elle, disait
+**avatarizer ✅** (vert qui ne se joue pas — il n'a que le drop) et **imager ❌** (rouge alors que
+la brique lui donne le drop). Depuis : vert = affordance de CLIC, **partiel = drop seul**, rouge =
+ni l'un ni l'autre ; l'exemption Fabien du 13/08 (composer, « un dossier n'a pas d'objet ») est
+INTACTE — c'est un verdict, pas un effet de bord du motif. Résultat : avatarizer 95 → **94**
+(faux vert retiré), imager garde 92 mais son rouge devient partiel. *Un vert qui ne se joue pas
+est pire qu'un rouge.*
+
+**Mesure** : 5 tests ajoutés à `tests_conformity_backends.py` (clic → vert, brique seule →
+partiel, handler maison → partiel, rien → rouge, exemption intacte) ; 38 OK avec `import_wired`.
+Au passage `_AppFiles.find` et `find_code` n'ont plus qu'UNE implémentation : elles avaient
+divergé, `find` levait sur un fichier hors de `wama/`.
+
+**🔚 DETTE NOMMÉE, PAS PRISE — elle appartient à la session CARDS/UI** (partition annoncée par
+Fabien ce soir : une autre instance refactore l'UI d'app, le filemanager et les registres) :
+déclarer `folder_input_id` sur les cards d'entrée de **imager** (×2), **avatarizer** et
+**composer** rendrait leurs 3 gestes jouables. ⚠ Avant de le faire, trancher ce qu'un dossier
+SIGNIFIE sur une card d'attache : le scénario attend « N fichiers → N éléments », or un slot
+mono-fichier n'en crée aucun (l'avatarizer prend le premier). Sans cette décision, l'affordance
+transformerait 3 skips déclarés en 3 échecs.
+
 ### Contrôles attendus au prochain `/reprise` — TOUS MESURÉS le 2026-09-07 (nuit, après le 6ᵉ commit)
 
 | contrôle | valeur mesurée |

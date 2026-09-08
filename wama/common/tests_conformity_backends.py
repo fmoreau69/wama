@@ -225,6 +225,59 @@ class CriteresSurBackendsResolusTest(SimpleTestCase):
         self.assertIn('enfoui', cc._backend_routes(f)[1])
 
 
+class ImportDeDossierTest(SimpleTestCase):
+    """`recursive_import` : le CLIC et le DÉPÔT sont deux moitiés, pas un seul motif.
+
+    Confronté au geste nocturne `<app>.folder_import` le 2026-09-08 : 7 apps vertes,
+    3 SAUTÉES faute d'affordance de clic (composer, imager, avatarizer). La grille disait
+    avatarizer ✅ et imager ❌ — fausse dans les deux sens.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def _app(self, fichiers):
+        root = self.tmp / 'app'
+        for nom, texte in fichiers.items():
+            _ecrire(root, nom, texte)
+        f = cc._AppFiles('transcriber')          # app à entrées média (pas la branche N/A)
+        f.root = root
+        f._backend_paths = []
+        return f
+
+    def test_l_affordance_de_clic_rend_VERT(self):
+        f = self._app({'templates/index.html': "<input id='x' webkitdirectory>"})
+        etat, preuve = cc._recursive_import(f)
+        self.assertIs(etat, True, preuve)
+
+    def test_le_depot_par_la_brique_SEUL_rend_PARTIEL(self):
+        """Le cas imager : `WamaImport` appelle `WamaFolderImport.collect`, donc le dossier
+        DÉPOSÉ est traversé — mais aucun bouton ne l'offre au clic."""
+        f = self._app({'static/js/index.js': "WamaImport({ dropZoneId: 'z' });"})
+        etat, preuve = cc._recursive_import(f)
+        self.assertEqual(etat, 'partial')
+        self.assertIn('folder_input_id', preuve)
+
+    def test_un_handler_de_drop_maison_rend_PARTIEL_aussi(self):
+        """Le cas avatarizer : `WamaFolderImport.collect` dans son propre handler. Il était
+        VERT ici pendant que son geste SAUTAIT."""
+        f = self._app({'static/js/index.js': 'WamaFolderImport.collect(e.dataTransfer)'})
+        self.assertEqual(cc._recursive_import(f)[0], 'partial')
+
+    def test_ni_l_un_ni_l_autre_reste_ROUGE(self):
+        f = self._app({'static/js/index.js': 'const x = 1;'})
+        self.assertIs(cc._recursive_import(f)[0], False)
+
+    def test_l_exemption_de_Fabien_du_13_08_est_INTACTE(self):
+        """Une app sans entrée média-fichier déclarée reste NON APPLICABLE, même si elle
+        instancie la brique — c'est un verdict, pas un effet de bord du motif."""
+        f = self._app({'static/js/index.js': "WamaImport({ dropZoneId: 'z' });"})
+        f.app = 'composer'
+        self.assertIsNone(cc._recursive_import(f)[0])
+
+
 class MesureSurLArbreReelTest(SimpleTestCase):
     """Sans catalogue (base de test), le repli par imports suffit à ce que les apps qui
     nomment leurs backends redeviennent vertes — la preuve pointe le SUBSTRAT."""
