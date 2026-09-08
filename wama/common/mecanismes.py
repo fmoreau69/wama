@@ -103,6 +103,24 @@ MECANISMES = (
     Mecanisme('task_skeleton', 'Squelette de tâche',
               "Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA",
               'wama/common/utils/task_skeleton.py', 'WAMA_APP_GENERATION_ROUTE.md'),
+    Mecanisme('model_readiness', 'Annonce de téléchargement des poids',
+              "Un modèle jamais utilisé télécharge ses poids À LA PREMIÈRE EXÉCUTION (37 appels "
+              "`from_pretrained`/`snapshot_download` dans les backends) — et RIEN ne le disait : "
+              "ni le squelette, ni les backends, ni la card. Mesuré le 2026-09-08, 4 modèles "
+              "catalogués sont dans ce cas (mochi-1-preview, qwen-image-edit, flux2-klein-4b, "
+              "musicgen-melody) : les lancer donnait une tâche figée, sans un mot, le temps de "
+              "récupérer des dizaines de Go. *Une attente qu'on n'explique pas se lit comme une "
+              "panne.* La brique ANNONCE et rien d'autre — elle ne télécharge pas (c'est le "
+              "backend, au chargement), ne bloque pas, ne décide pas ; best-effort intégral. "
+              "Adressée par la CLÉ DE CATALOGUE, la même qui résout le backend : l'annonce et "
+              "l'exécution parlent du même modèle. Le squelette la déclare par `model_key` "
+              "(OPTIONNEL, comme `vram_needed`). ⚠ Elle ne parle QUE si `is_downloaded=False`, et "
+              "n'annonce la taille que si `disk_gb` la connaît : un avertissement permanent "
+              "n'avertit plus de rien (celui de l'imager vidéo, en dur et à chaque lancement avec "
+              "un volume inventé, a été retiré ce jour-là)",
+              'wama/common/utils/model_readiness.py', 'PROJECT_STATUS.md',
+              annexes=('wama/common/utils/task_skeleton.py',
+                       'wama/common/tests_model_readiness.py')),
     Mecanisme('task_progress', 'Progression de tâche longue',
               "Avancement d'une tâche Celery HORS file d'items publié dans le cache "
               "(F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; "

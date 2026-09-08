@@ -2829,6 +2829,82 @@ corriger chaque passe… ce n'est pas viable ») :
 | réécrire un message de garde au-delà de l'ajout demandé (perte de « `HF_HOME` posé une fois ») | édit non additif | restauré ; un ajout est ADDITIF |
 | régénérer le corpus depuis `venv_win` | ignorer l'avertissement du skill | remis à HEAD ; consigné ci-dessus |
 
+## §CLÔTURE — 2026-09-08/09, instance « CHAÎNE MODÈLES ↔ BACKENDS ↔ MOTEURS » — ✅ CLOSE
+
+> 🔚 **POINT D'ENTRÉE SESSION SUIVANTE — une seule décision débloque tout le reste :**
+> **les quatre modèles qui exigent un runtime que le venv partagé ne peut pas prendre.**
+> Mesuré : `fastvideo` (FastWan) et `transformers 5.x` (canary, parakeet, PP-DocLayout) —
+> l'installation est REFUSÉE par le verrou, et à raison : 66 paquets, `torch` → 2.12,
+> `transformers` → 5.x (qui emporterait les 9 patches Higgs), chaîne CUDA 13 en doublon.
+> Trois issues, aucune n'est technique : ① venv isolé DÉCLARÉ (`ISOLATION`, 1ᵉʳ cas réel) —
+> ⚠ **à ne pas engager avant les 2 trous du gouverneur ci-dessus**, sans quoi il ajouterait
+> une charge GPU invisible ; ② retirer ces lignes du catalogue ; ③ attendre l'amont.
+
+### Ce que la session a fermé
+
+| chantier | état | preuve |
+|---|---|---|
+| backends hors des apps | ✅ **11/11** | 35 classes sous `common/backends/`, plus aucune app n'en porte |
+| adoption de la résolution déclarée | ✅ **budget 0** | `tests_backend_adoption` : plus un seul import de classe par chemin |
+| code tiers vendorisé | ✅ | `common/backends/vendor/`, racine DÉCLARÉE, gitignorée, README |
+| moteurs → registre des librairies | ✅ **16 → 28** | 12 distributions SONT le moteur ; extracteur de licence corrigé |
+| `requires` d'app par le lien déclaré | ✅ | 2 jambes unies ; corpus 0 périmé |
+| moteur dérivé du snapshot | ✅ **116/116** | tous les modèles déclarent un moteur (108 avant) |
+| backends orphelins expliqués | ✅ | `DEPRECATED` porte la RAISON ; 0 orphelin muet |
+| annonce de téléchargement | ✅ | `model_readiness`, + l'avertissement en dur qui mentait, retiré |
+| LocateAnything | ✅ câblé | **100/116** modèles résolvent un backend |
+
+### CARTOGRAPHIE FINALE — ce qui ne peut pas tourner, et pourquoi (mesuré depuis venv_linux)
+
+**116 modèles ; tous déclarent un moteur ; 100 résolvent un backend ; 94 exécutables.**
+
+| état | nb | qui, et la raison |
+|---|---|---|
+| ✅ exécutable | **94** | Anonymize 47 · AIUpscaler 7 · Diffusers 5 · AudioCraft 3 · DeepFace 3 · TableTransformer 2 … |
+| servi par un DÉMON (normal) | 10 | Ollama — le porteur n'est pas un `BaseModelBackend`, c'est correct |
+| **runtime impossible** dans le venv | 4 | FastWan (`fastvideo`), canary + parakeet (`.nemo`, transformers 5.x), PP-DocLayout |
+| poids absents (jamais utilisés) | 4 | mochi, flux2-klein, qwen-image-edit, musicgen-melody — **désormais ANNONCÉS** |
+| autre | 2 | ACE-Step (pipeline sans config racine) · chatterbox (moteur sans backend) |
+| ⊙ backends conservés SANS modèle | 3 | Wan, HunyuanVideo, ImaginAiry — tous trois portent leur `DEPRECATED` |
+
+⚠ `composer:minimax-music3` a été classé « non servi » par erreur dans une version précédente de
+cette carte : **il résout `AudioCppBackend`**, et c'est le seul backend qui à la fois RÉSERVE la
+VRAM et ATTEND qu'elle se libère. *Un moteur BINAIRE n'est pas un moteur sans backend.*
+
+### Laissé, nommément (rien n'est tombé en silence)
+
+1. **Les 4 modèles au runtime impossible** — la décision ci-dessus.
+2. **Les 2 trous du gouverneur** (registre scindé entre deux Redis ; `vram_needed` activé par
+   aucune app) — préalable au venv isolé.
+3. **Correctifs locaux de MuseTalk** : 7 fichiers exportés dans `patches/` le 07/09 ; les
+   réappliquer à l'installation reste à outiller — et il faut d'abord MESURER s'ils sont encore
+   nécessaires avec le venv actuel.
+4. **1ʳᵉ librairie AUTORÉE** (SPEC §6bis.1) pour les 2 moteurs vendorisés : à acter, la route
+   `library` refusant `git+`.
+5. **4 lignes du registre des librairies plus riches que leur manifeste** (kokoro-onnx,
+   pyannote-audio, torchaudio, vibevoice) : non projetées — les projeter les VIDERAIT. Le corpus
+   doit rattraper le registre (rôle `librarian`).
+6. **`backend_ref`** : 0 verdict n'en dépend plus, mais son retrait passe par une MIGRATION, sous
+   une politique de migrations gitignorées non tranchée.
+7. **LocateAnything n'a jamais tourné** — câblage vérifié, exécution non éprouvée (~9 Go VRAM,
+   aucune charge GPU lancée). Le fichier le dit lui-même.
+8. **`get_free_vram_gb` est plus CONSERVATEUR** depuis qu'il déduit les réservations : le jour où
+   un reclaim cross-process existera, ce choix sera à revoir (écrit dans le code).
+9. **Table des mécanismes PÉRIMÉE** : laissée telle par l'instance parallèle (leur `92a85910`), et
+   ma nouvelle entrée `model_readiness` s'y ajoute — la régénérer figerait leur WIP.
+
+### Contrôles attendus au prochain `/reprise` — MESURÉS le 2026-09-09
+
+| contrôle | valeur |
+|---|---|
+| suite complète | **1872** — 2 rouges, AUCUN de moi (`tests_queue_dnd`, `tests_volet` : fichiers de l'instance parallèle, modifiés dans l'arbre pendant mon run) |
+| `check_docs` | **0 cassée / 1499** · 0 chiffre sans source — ⚠ et désormais **sur HEAD aussi** |
+| `check_backend_links` | 116/116 déclarent · **100** résolvent · 0 orphelin MUET (3 expliqués) |
+| corpus (venv_linux) | 0 périmé, 0 invalide · 28 manifestes `library` |
+| `check_model_layout` | aucun snapshot étranger |
+| `tests_backend_adoption` | budget **0** — la garde est absolue |
+| `tests_hf_cache_routing` | budget **0** (cache ET jeton) |
+
 ### 🔴 GOUVERNEUR DE RESSOURCES — DEUX TROUS MESURÉS le 2026-09-08 (question de Fabien sur le multi-venv)
 
 > Question posée : *« a-t-on bien géré le multi-venv, dans le sens où les tâches Celery se
