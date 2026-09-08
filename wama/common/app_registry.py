@@ -535,7 +535,13 @@ APP_CATALOG = {
         'icon':        'fas fa-music',
         'url_name':    'composer:index',
         'description': 'Génération de musique et effets sonores par IA.',
-        'input_extensions': TEXT_EXTENSIONS,
+        # fichier de prompts (lot) + MÉLODIE de référence — même forme que l'imager
+        # (`TEXT + IMAGE`, « fichier de prompts (lot) + image reference »). L'audio est
+        # entré dans la card au portage du mode ATTACHE (2026-09-07, `b5fc83eb`) sans que
+        # cette déclaration suive : `tests_catalogues.CardEntreeConformiteTest` a relevé
+        # l'écart. `input_types` NE bouge PAS — l'audio est une RÉFÉRENCE, pas une nature
+        # d'entrée de travail (le composer part d'un prompt).
+        'input_extensions': TEXT_EXTENSIONS + AUDIO_EXTENSIONS,
         'input_types': ('prompt',),
         'batch_type':  'pipe',   # Type B: filename|prompt|model|duration
         'has_batch':   True,
