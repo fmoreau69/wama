@@ -33,6 +33,24 @@
         return (t !== null ? t : el.textContent || '').toLowerCase();
     }
 
+    /**
+     * Masquage/affichage d'une cible — PAR CLASSE, jamais par `style.display`.
+     *
+     * ⚠ La brique posait `el.style.display = 'none'` et restaurait `''`. Cette restauration
+     * n'est pas neutre : elle SUPPRIME la déclaration `display` de l'attribut `style`. Sur une
+     * cible qui en porte une en inline, l'élément ne revient donc pas à son état d'origine.
+     * Cas réel qui a imposé le changement (2026-09-08, en préparant la recherche dans la file) :
+     * l'entrée unitaire de file porte `style="display:contents"` — indispensable pour que la
+     * card se dispose comme si l'enrobage n'existait pas. Filtrer puis vider la recherche
+     * l'aurait rendue `div` de bloc, cassant la grille jusqu'au rechargement.
+     *
+     * Aucun changement de comportement pour les 15 surfaces déjà montées : elles n'ont pas de
+     * `display` inline, et la classe produit exactement le même rendu.
+     */
+    var HORS = 'wama-f-hors-filtre';
+    function montrer(el, visible) { el.classList.toggle(HORS, !visible); }
+    function estVisible(el) { return !el.classList.contains(HORS); }
+
     /** Construit les <option> d'une facette à partir des valeurs PRÉSENTES dans le DOM. */
     function derivierOptions(select, elements, cle) {
         var vues = {};
@@ -62,7 +80,28 @@
         var selects = $$('[data-f-facette]', bar);
         var form = bar.closest('form') || (cfg.form ? $(cfg.form) : null);
 
-        var elements = selCible ? $$(selCible) : [];
+        // PORTÉE de la recherche. Par défaut le sélecteur balaie tout le document — ce qui
+        // convient aux catalogues (une liste par page) mais serait FAUX sur une file : l'imager
+        // et l'enhancer affichent DEUX files sur la même page, et chacune a sa barre. Sans
+        // portée, taper dans la barre du haut filtrerait aussi la file du bas.
+        //   `data-cible-dans="file-suivante"` — la file gouvernée est le frère SUIVANT de la
+        //     barre. Aucune app n'a rien à déclarer : c'est l'invariant de placement tenu par
+        //     `tests_queue_toolbar` (la barre est au-dessus de son conteneur, jamais dedans).
+        //   `data-cible-dans="<sélecteur>"` — n'importe quel autre élément borne la recherche.
+        var racine = null;
+        var selRacine = cfg.dans || bar.getAttribute('data-cible-dans');
+        if (selRacine === 'file-suivante') {
+            racine = bar.nextElementSibling;
+        } else if (selRacine) {
+            racine = $(selRacine);
+        }
+        // Une portée DEMANDÉE mais introuvable ne doit pas se replier sur « tout le document » :
+        // ce serait filtrer plus large que voulu, en silence. On ne monte rien et on le dit.
+        if (selRacine && !racine) {
+            console.warn('[WamaFilterBar] portée `' + selRacine + '` introuvable — barre non montée');
+            return null;
+        }
+        var elements = selCible ? $$(selCible, racine || document) : [];
 
         // Mode client : les facettes se remplissent de ce qui est réellement affiché.
         if (mode === 'client') {
@@ -88,7 +127,7 @@
                     }
                 }
                 if (ok && q && texteDe(el).indexOf(q) === -1) { ok = false; }
-                el.style.display = ok ? '' : 'none';
+                montrer(el, ok);
                 if (ok) { visibles++; }
             });
             // GROUPES — un en-tête de section n'a pas de sens si sa section est vide. Sans ça,
@@ -105,8 +144,7 @@
             $$('[data-f-groupe]').forEach(function (g) {
                 var dedans = elements.filter(function (e) { return g.contains(e); });
                 if (!dedans.length) { return; }          // groupe d'une AUTRE barre : on n'y touche pas
-                var visiblesIci = dedans.filter(function (e) { return e.style.display !== 'none'; });
-                g.style.display = visiblesIci.length ? '' : 'none';
+                montrer(g, dedans.some(estVisible));
             });
 
             if (compteur) {

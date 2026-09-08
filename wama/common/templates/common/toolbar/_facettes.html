@@ -1,0 +1,22 @@
+{% comment %}OUTIL « facettes » — markup DÉPLACÉ de `_filter_bar.html`, inchangé.
+
+⚠ SEUL outil à `enveloppe_propre=True` (`common/toolbar.py`) : il rend N selects, chacun dans
+son `col-auto`. Si l'enveloppe les enrobait, les N facettes tomberaient dans UNE colonne et la
+barre de registre changerait de mise en page — ce que la demande interdit explicitement.
+
+`valeur` est portée par la facette ELLE-MÊME et non par un dict `valeurs` séparé : Django ne
+sait pas indexer un dict par une variable sans filtre maison, et en ajouter un pour ça seul
+serait un mécanisme de plus à connaître.
+{% endcomment %}
+{% for f in facettes %}
+<div class="col-auto">
+  <label class="text-muted small me-2" for="f-{{ f.cle }}">{{ f.label }}&nbsp;:</label>
+  <select class="form-select form-select-sm filter-select d-inline-block w-auto"
+          id="f-{{ f.cle }}" name="{{ f.cle }}" data-f-facette="{{ f.cle }}">
+    <option value="all">{{ f.tous|default:"Tous" }}</option>
+    {% for val, lib in f.options.items %}
+    <option value="{{ val }}" {% if f.valeur == val %}selected{% endif %}>{{ lib }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endfor %}

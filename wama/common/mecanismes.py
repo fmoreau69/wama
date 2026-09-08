@@ -248,10 +248,28 @@ MECANISMES = (
               "RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente)",
               'wama/common/memory/project.py', 'WAMA_MEMORY.md §7'),
     Mecanisme('filter_bar', 'Barre de filtrage',
-              "Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server)",
+              "Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées "
+              "(server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre "
+              "(`toolbar_registre`), donc la même dans les registres et dans les 12 files. "
+              "Masquage PAR CLASSE (`.wama-f-hors-filtre`) et non par `style.display` : une "
+              "cible à `display` inline (l'entrée unitaire de file est en `display:contents`) "
+              "ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans "
+              "quoi deux files sur une même page se filtreraient l'une l'autre",
               'wama/common/static/common/js/wama-filter-bar.js', 'CARD_DESIGN.md',
               annexes=('wama/common/templates/common/_filter_bar.html',),
               symbole='WamaFilterBar'),      # global de base.html : compté par son symbole
+    Mecanisme('toolbar_registre', "Barre d'outils générale (registre + profils)",
+              "UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de "
+              "surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire "
+              "des outils, elle ne les énumère pas — ajouter un outil à toutes les files est UNE "
+              "clé, plus jamais douze gabarits (demande Fabien 2026-09-08 : « de façon globale, "
+              "pas par app »). Les deux barres historiques SURVIVENT en façades vers "
+              "`_toolbar.html`, ce qui laisse les 27 pages appelantes inchangées ; les deux "
+              "ENVELOPPES sont conservées telles quelles (les fondre aurait changé les deux "
+              "apparences). Chaque outil est un partial sous `common/toolbar/`",
+              'wama/common/toolbar.py', 'CARD_DESIGN.md',
+              annexes=('wama/common/templates/common/_toolbar.html',
+                       'wama/common/templatetags/wama_toolbar.py')),
     Mecanisme('journal', "Journal transversal de l'utilisateur",
               "Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app",
               'wama/common/services/journal.py', 'WAMA_MEMORY.md §9bis'),

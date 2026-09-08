@@ -150,11 +150,34 @@ def _apps_notees() -> tuple:
     return tuple(sorted(a for a, spec in APP_CATALOG.items() if not (spec or {}).get('sandbox')))
 
 
+#: Modules de HARNAIS — ils consomment un mécanisme pour le MESURER, jamais pour s'en servir.
+#: ⚠ Ils sont exclus de l'ADOPTION seulement, pas de la colonne « consommateurs » : un test
+#: importe réellement le domicile, donc le compte de consommateurs ne mentait pas. Ce qui
+#: mentait, c'est la phrase DÉRIVÉE « adoptés par des apps » du contrôle de jonction.
+#: Mesuré le 2026-09-08 : un test ajouté à `wama/imager/tests.py` (il appelle `queue_dnd_attrs`
+#: pour construire l'URL que le gabarit émet — c'est le bon test) faisait apparaître
+#: « `queue_dnd` — adopté par 1 app : imager » dans la liste des trous de grille. Une app ne
+#: devient pas adoptante parce qu'on l'a testée. À l'échelle du registre le biais portait sur
+#: **83 mécanismes** et **328** fichiers de test comptés (queue_order 44, gateway_identity 43,
+#: queue_entry 40) — donc autant de lignes d'adoption gonflées.
+#: Même règle, même raison que `conformity_checker._AppFiles.code_paths()`, qui écarte déjà
+#: `tests*`/`nightly_*` : *une preuve qui pointe un test dit qu'on a regardé au mauvais endroit.*
+PREFIXES_DE_HARNAIS = ('tests', 'test_', 'nightly_')
+
+
+def _est_harnais(rel: str) -> bool:
+    return Path(rel).name.startswith(PREFIXES_DE_HARNAIS)
+
+
 def apps_consommatrices(mecanisme, sources: dict[str, str], consos=None) -> list[str]:
-    """Apps du catalogue dont au moins un fichier consomme le mécanisme."""
+    """Apps du catalogue dont au moins un fichier NON-HARNAIS consomme le mécanisme.
+
+    Cf. `PREFIXES_DE_HARNAIS` : mesurer un mécanisme n'est pas l'adopter.
+    """
     consos = consommateurs(mecanisme, sources) if consos is None else consos
+    utiles = [rel for rel in consos if not _est_harnais(rel)]
     return [a for a in _apps_notees()
-            if any(rel.startswith(f'wama/{a}/') for rel in consos)]
+            if any(rel.startswith(f'wama/{a}/') for rel in utiles)]
 
 
 def matrice_adoption(sources: dict[str, str] | None = None) -> dict:

@@ -78,8 +78,17 @@ class CardsStatutAwaitingTest(SimpleTestCase):
         self.assertIn("statuses.count('AWAITING_RESOURCES')",
                       _lire('wama/common/utils/batch_common.py'))
         self.assertIn("'awaiting'", _lire('wama/common/utils/queue_view.py'))
-        self.assertIn('value="awaiting"',
-                      _lire('wama/common/templates/common/_queue_toolbar.html'))
+        # ⚠ On assure sur la barre RENDUE, plus sur le TEXTE de `_queue_toolbar.html`.
+        # Le 2026-09-08 l'union des barres a déplacé le markup du filtre par statut dans
+        # `common/toolbar/_statut.html` (registre `common/toolbar.py`) : ce test est tombé
+        # alors que l'option était toujours offerte, au même endroit à l'écran.
+        # Un test qui lit un FICHIER mesure l'emplacement du code ; ce qu'on veut tenir, c'est
+        # que la file OFFRE l'option — et le rendu le dit quel que soit le partial qui la porte.
+        from django.template.loader import render_to_string
+        rendu = render_to_string('common/_queue_toolbar.html',
+                                 {'q_sort': 'recent', 'q_filter': 'all'})
+        self.assertIn('value="awaiting"', rendu)
+        self.assertIn('En attente de ressources', rendu)
 
     def test_staticfiles_sert_les_memes_fichiers(self):
         """`staticfiles/` est le dossier SERVI : un correctif non resynchronisé est

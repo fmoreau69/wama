@@ -1,0 +1,87 @@
+{% comment %}
+WAMA Common — BARRE D'OUTILS GÉNÉRALE. Un registre d'outils (`common/toolbar.py`), des PROFILS.
+
+Demande de Fabien (2026-09-08) : « une générale commune proposant tous les outils possibles
+(union de toutes les barres d'outils) et que les app tirent les outils dont elles ont besoin de
+façon globale, pas par app […] tout en conservant l'apparence actuelle ».
+
+ON NE M'APPELLE PAS DIRECTEMENT, en général — deux façades restent en place et ne changent rien
+pour les 27 pages appelantes :
+  * `common/_queue_toolbar.html`  → profil `file`     (12 files d'app)
+  * `common/_filter_bar.html`     → profil `registre` (15 registres/catalogues)
+
+LES DEUX ENVELOPPES SONT CONSERVÉES TELLES QUELLES, et c'est volontaire : elles ne se
+ressemblent pas (la file en pôles gauche/droite sur fond transparent, le registre en grille
+Bootstrap sur fond `#2b3035`), et les fondre en une seule aurait changé l'apparence des deux.
+L'union porte sur les OUTILS, pas sur le contenant.
+
+Variables : celles des outils tirés par le profil — elles traversent par le contexte
+(`{% templatetag openblock %} include {% templatetag closeblock %}` le propage). Voir
+`common/toolbar.py` pour la liste, et chaque `common/toolbar/_*.html` pour ses propres
+paramètres.
+  profil — 'file' | 'registre' (REQUIS ; un profil inconnu lève, cf. `outils_du_profil`)
+{% endcomment %}
+{% load wama_toolbar %}
+{% comment %}⚠ Les noms de variables NE PEUVENT PAS commencer par un underscore : Django lève
+« Variables and attributes may not begin with underscores » — 500 sur les 19 pages, mesuré au
+premier essai. D'où le préfixe `tb_`.{% endcomment %}
+{% toolbar_enveloppe profil as tb_enveloppe %}
+{% toolbar_outils profil 'gauche' as tb_gauche %}
+{% toolbar_outils profil 'droite' as tb_droite %}
+
+{% if tb_enveloppe == 'registre' %}
+{% comment %}Apparence du MODEL MANAGER, retenue comme référence commune (Fabien, 2026-08-20).
+Filtrage EN DIRECT : aucun bouton « Filtrer ». Montage automatique, aucune page n'écrit de JS.
+
+⚠ MODE `server` : la barre DOIT être dans un `<form method="get">`, et les champs portent des
+`name=` — c'est le formulaire qui est soumis (débouncé). Un `<input type="hidden" name="offset">`
+y est remis à 0 par la brique : conserver l'offset sur un filtre changé afficherait « 26–50 sur
+3 », donc une page vide sans explication.{% endcomment %}
+<div class="wama-filter-bar" data-wama-filter-bar
+     data-mode="{{ mode|default:'client' }}"
+     {% if cible %}data-cible="{{ cible }}"{% endif %}
+     {% if cible_dans %}data-cible-dans="{{ cible_dans }}"{% endif %}>
+  {% comment %}⚠ `placeholder_defaut` est posé dans LES DEUX enveloppes, jamais laissé absent :
+  un argument de filtre qui est une variable non définie LÈVE (`Failed lookup for key`), il ne
+  vaut pas la chaîne vide. Mesuré ici même — la barre de registre partait en 500 pendant que
+  celle de file, qui le posait, rendait très bien.{% endcomment %}
+  {% with placeholder_defaut='Rechercher…' %}
+  <div class="row align-items-center g-3">
+    {% for o in tb_gauche %}
+      {% if o.enveloppe_propre %}{% include o.partial %}
+      {% else %}<div class="col-auto">{% include o.partial %}</div>{% endif %}
+    {% endfor %}
+    <div class="col-auto ms-auto d-flex align-items-center gap-2">
+      {% for o in tb_droite %}{% include o.partial %}{% endfor %}
+    </div>
+  </div>
+  {% endwith %}
+</div>
+
+{% else %}
+{% comment %}Pôle GAUCHE : organisation de l'affichage (tri, filtre, recherche, disposition) —
+facettes/contexte. Pôle DROIT : actions globales — COHÉRENCE avec les cards (actions à droite de
+l'en-tête, danger 🗑/Tout effacer à l'extrême droite). Décision Fabien 2026-07-03.
+
+⚠ CETTE BARRE DOIT ÊTRE RENDUE **AVANT** LE CONTENEUR `.wama-queue-*`, JAMAIS DEDANS. En
+mosaïque le conteneur passe en `display:grid` et la barre y deviendrait une CELLULE (mesuré le
+2026-09-08 sur l'imager : 592 px en ligne, 290 px en mosaïque). Tenu par
+`wama/common/tests_queue_toolbar.py` — et c'est aussi cet invariant qui permet à la recherche
+de trouver SA file sans qu'aucune app ne la déclare (`data-cible-dans="file-suivante"` :
+le frère suivant de la barre).
+
+La recherche filtre les ENTRÉES de file en direct, côté client. Deux files sur une même page
+(imager image/vidéo, enhancer média/audio) restent indépendantes grâce à cette portée : sans
+elle, taper dans l'une filtrerait l'autre.{% endcomment %}
+<div class="d-flex justify-content-between align-items-center gap-2 flex-wrap wama-queue-toolbar mb-2"
+     data-wama-filter-bar data-mode="client"
+     data-cible=".wama-queue-entry, .batch-group"
+     data-cible-dans="file-suivante">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        {% with placeholder_defaut='Rechercher dans la file…' %}
+        {% for o in tb_gauche %}{% include o.partial %}{% endfor %}
+        {% endwith %}
+    </div>
+    {% for o in tb_droite %}{% include o.partial %}{% endfor %}
+</div>
+{% endif %}

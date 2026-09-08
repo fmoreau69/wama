@@ -1,0 +1,15 @@
+{% comment %}OUTIL « tri » — markup DÉPLACÉ de `_queue_toolbar.html` (2026-09-08), inchangé.
+Tri + filtrage de la file : fonctionnel, persisté en session, recharge la page.{% endcomment %}
+<select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
+        onchange="location.search='?sort='+this.value+'&filter={{ q_filter }}'" title="Trier la file">
+    <option value="recent" {% if q_sort == 'recent' %}selected{% endif %}>↓ Plus récent</option>
+    <option value="oldest" {% if q_sort == 'oldest' %}selected{% endif %}>↑ Plus ancien</option>
+    <option value="name"   {% if q_sort == 'name' %}selected{% endif %}>Nom</option>
+    <option value="batches_first" {% if q_sort == 'batches_first' %}selected{% endif %}>Batchs puis cards</option>
+    <option value="singles_first" {% if q_sort == 'singles_first' %}selected{% endif %}>Cards puis batchs</option>
+    {% comment %}Le seul tri qui LIT un ordre au lieu de le calculer (CARD_DESIGN §3bis).
+    Sélectionné tout seul au premier glisser-déposer : sans ça l'ordre serait bien
+    enregistré mais jamais affiché — le geste marcherait puis s'évanouirait au
+    rechargement.{% endcomment %}
+    <option value="manual" {% if q_sort == 'manual' %}selected{% endif %}>✋ Manuel (glisser-déposer)</option>
+</select>

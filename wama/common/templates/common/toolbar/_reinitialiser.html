@@ -1,0 +1,5 @@
+{% comment %}OUTIL « réinitialiser » — markup DÉPLACÉ de `_filter_bar.html`, inchangé.
+N'apparaît QUE si un filtre est actif (`.is-filtered`, posé par la brique JS).{% endcomment %}
+<a href="{{ url_reset|default:'?' }}" class="btn btn-sm btn-link text-white-50 wama-filter-reset">
+  Réinitialiser
+</a>

@@ -133,3 +133,79 @@ class PlacementDeLaBarreTest(SimpleTestCase):
         self.assertNotEqual(-1, conteneur, "le générateur n'émet plus de conteneur de file")
         self.assertLess(barre, conteneur,
                         "le générateur émettrait la barre DANS le conteneur de file")
+
+
+class RegistreDOutilsTest(SimpleTestCase):
+    """La barre GÉNÉRALE : un registre d'outils, des profils (`common/toolbar.py`).
+
+    Demande de Fabien (2026-09-08) : une barre commune offrant l'UNION des outils, que les
+    surfaces tirent « de façon globale, pas par app ». Ces tests tiennent les trois promesses
+    qui rendent l'union vraie : chaque outil RENDIT quelque chose, chaque profil ne tire que des
+    outils connus, et les deux barres historiques DÉLÈGUENT au lieu de recopier.
+    """
+
+    def test_chaque_outil_du_registre_a_son_partial(self):
+        from django.template.loader import get_template
+        from django.template import TemplateDoesNotExist
+        from wama.common.toolbar import OUTILS
+
+        manquants = []
+        for cle, outil in sorted(OUTILS.items()):
+            try:
+                get_template(outil.partial)
+            except TemplateDoesNotExist:
+                manquants.append(f"{cle} → {outil.partial}")
+        self.assertEqual([], manquants, "\n".join(manquants))
+
+    def test_chaque_profil_ne_tire_que_des_outils_connus(self):
+        from wama.common.toolbar import PROFILS, outils_du_profil
+
+        for profil in PROFILS:
+            outils = outils_du_profil(profil)          # lève si une clé est inconnue
+            self.assertTrue(outils, f"profil {profil!r} sans aucun outil")
+
+    def test_aucun_outil_orphelin(self):
+        """Un outil qu'aucun profil ne tire est du markup MORT — il ne se voit nulle part."""
+        from wama.common.toolbar import OUTILS, PROFILS
+
+        tires = {cle for p in PROFILS.values() for cle in p['outils']}
+        orphelins = sorted(set(OUTILS) - tires)
+        self.assertEqual([], orphelins,
+                         f"outils déclarés mais tirés par aucun profil : {orphelins}")
+
+    def test_un_profil_inconnu_leve_au_lieu_de_rendre_une_barre_plausible(self):
+        from wama.common.toolbar import outils_du_profil
+
+        with self.assertRaises(KeyError):
+            outils_du_profil('registres')              # au pluriel : la faute de frappe typique
+
+    def test_les_douze_files_offrent_la_recherche(self):
+        """L'outil demandé le 2026-09-08. Une clé au registre, et les douze files l'ont.
+
+        Ancré ici parce que c'est exactement le genre d'ajout qu'un futur remaniement de profil
+        retirerait sans que rien ne le dise : la barre continuerait de rendre, en silence.
+        """
+        from wama.common.toolbar import PROFILS
+
+        self.assertIn('recherche', PROFILS['file']['outils'])
+        self.assertIn('recherche', PROFILS['registre']['outils'],
+                      "la recherche des registres était le point de départ — elle doit rester")
+
+    def test_les_deux_barres_historiques_DELEGUENT_a_la_barre_generale(self):
+        """`_queue_toolbar.html` et `_filter_bar.html` restent des FAÇADES.
+
+        C'est ce qui garantit que les 27 pages appelantes n'ont rien à changer. Si quelqu'un
+        y recopie du markup, l'union est défaite sans qu'aucune page ne casse — donc sans que
+        personne ne le voie. D'où une assertion sur la délégation elle-même.
+        """
+        base = RACINE / 'wama' / 'common' / 'templates' / 'common'
+        for fichier, profil in (('_queue_toolbar.html', 'file'),
+                                ('_filter_bar.html', 'registre')):
+            texte = (base / fichier).read_text(encoding='utf-8')
+            self.assertIn(f"include 'common/_toolbar.html' with profil='{profil}'", texte,
+                          f"{fichier} ne délègue plus à la barre générale")
+            # …et ne rend rien par elle-même : hors commentaire, la délégation est SEULE.
+            hors_commentaire = re.sub(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', '',
+                                      texte, flags=re.S).strip()
+            self.assertEqual(1, hors_commentaire.count('{%'),
+                             f"{fichier} contient autre chose que la délégation :\n{hors_commentaire}")

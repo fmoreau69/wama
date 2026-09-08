@@ -150,6 +150,42 @@ class MecanismesConformiteTest(TestCase):
                 self.assertTrue(present,
                                 f"symbole '{m.symbole}' absent des fichiers du mécanisme {siens}")
 
+    def test_un_fichier_de_harnais_ne_rend_pas_une_app_ADOPTANTE(self):
+        """MESURER un mécanisme n'est pas l'ADOPTER (corrigé le 2026-09-08).
+
+        `apps_consommatrices` alimente le contrôle de jonction, dont la phrase est « mécanismes
+        de niveau app SANS critère de grille — **adoptés par des apps** ». Un `tests*.py` y
+        entrait comme n'importe quel fichier : un test ajouté à `wama/imager/tests.py`, qui
+        appelle `queue_dnd_attrs` pour construire l'URL que le gabarit émet (c'est le BON test),
+        faisait apparaître « `queue_dnd` adopté par 1 app : imager ».
+
+        Le biais portait sur **83 mécanismes** / **328** fichiers de harnais comptés. Et il est
+        CORROBORÉ par une trouvaille indépendante du même jour : la recalibration de la grille a
+        constaté que la preuve de `backend_contract` pointait `tests_table_transformer.py`
+        (reader) et `nightly_scenarios.py` (enhancer) — mêmes deux apps que cette exclusion
+        retire ici. *Deux instruments, un seul biais.*
+
+        ⚠ La colonne « consommateurs » de la carte n'est PAS touchée : un test importe
+        réellement le domicile, ce compte ne mentait pas.
+        """
+        from wama.common.services.mecanismes_scan import _est_harnais, apps_consommatrices
+
+        for rel, attendu in (('wama/imager/tests.py', True),
+                             ('wama/common/tests_queue_dnd.py', True),
+                             ('wama/common/services/nightly_scenarios.py', True),
+                             ('wama/common/services/test_utils.py', True),
+                             ('wama/imager/views.py', False),
+                             ('wama/common/templates/common/_queue_toolbar.html', False),
+                             # Piège : le nom CONTIENT « test » sans être un harnais.
+                             ('wama/common/utils/latest_tests.py', False)):
+            with self.subTest(fichier=rel):
+                self.assertEqual(attendu, _est_harnais(rel))
+
+        # Contre-épreuve fonctionnelle : un mécanisme dont le SEUL consommateur d'app est un
+        # harnais ne doit produire AUCUNE app adoptante.
+        faux = type('M', (), {'domicile': 'wama/common/x.py', 'annexes': (), 'symbole': ''})()
+        self.assertEqual([], apps_consommatrices(faux, {}, ['wama/imager/tests.py']))
+
 
 class ManifestKindsConformiteTest(TestCase):
     """Contrat des 7 kinds de manifeste. Aucun défaut au 2026-08-22 : garde pour le 8ᵉ.

@@ -1,0 +1,23 @@
+{% comment %}OUTIL « recherche » — markup DÉPLACÉ de `_filter_bar.html` (2026-09-08), inchangé.
+
+C'est l'outil qui a MOTIVÉ le registre : il existait pour les registres et manquait aux files
+(demande Fabien, « il serait bien d'avoir une barre de recherche dans cette même barre d'outils
+de file. On l'a déjà dans la barre d'outil des registres »). Le même partial sert les deux
+profils — un seul comportement à connaître, celui de `wama-filter-bar.js`.
+
+`placeholder_defaut` est posé par l'ENVELOPPE (la file dit « dans la file »), et une page garde
+le dernier mot avec `placeholder`.
+{% endcomment %}
+<div class="input-group input-group-sm wama-filter-search">
+  <span class="input-group-text bg-dark border-secondary">
+    <i class="fas fa-search text-muted"></i>
+  </span>
+  <input type="text" class="form-control bg-dark border-secondary text-light"
+         name="{{ nom_recherche|default:'q' }}" value="{{ recherche|default:'' }}"
+         data-f-role="recherche"
+         placeholder="{{ placeholder|default:placeholder_defaut }}">
+  <button class="btn btn-outline-secondary" type="button" data-f-role="effacer"
+          title="Effacer la recherche" style="display:none;">
+    <i class="fas fa-times"></i>
+  </button>
+</div>

@@ -42,6 +42,16 @@
 .wama-filter-reset { display: none; }
 .wama-filter-bar.is-filtered .wama-filter-reset { display: inline-block; }
 
+/* Élément écarté par le filtre — MASQUAGE PAR CLASSE, jamais par `style.display`.
+   ⚠ C'est une exigence, pas une préférence (2026-09-08). La brique posait `el.style.display =
+   'none'` puis restaurait `''` : sur une cible qui porte un display INLINE, cette restauration
+   EFFACE la déclaration. Les entrées unitaires de file portent `style="display:contents"`
+   (`_queue_entry.html` — c'est ce qui laisse la card se disposer telle quelle dans la
+   grille/liste) : les filtrer puis vider la recherche les aurait transformées en `div` de bloc,
+   cassant la mise en page pour le reste de la session. Une classe ne touche pas à l'attribut
+   `style`, donc rien à restaurer. */
+.wama-f-hors-filtre { display: none !important; }
+
 /* État vide DÛ AU FILTRE, distinct de « la page n'a rien à montrer » : le second est un fait,
    le premier est réversible et doit le dire. */
 .wama-filter-empty {
