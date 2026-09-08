@@ -19,6 +19,23 @@ PARAMS = derive_from_model(
         "backend": dict(
             type="select", label="Moteur OCR", icon="fa-microchip", chip=True,
             dom_id={"panel": "backendSelect", "batch": "batchSettingsBackend", "item": "rSettings_backend"},
+            # ── Route F4b (2026-09-08) — les options viennent du CATALOGUE ────────────────
+            # Les `choices` du modèle (TextChoices `Backend`) figeaient la liste : un moteur
+            # OCR installé n'apparaissait jamais sans édition de code. Le domaine déclaré ici
+            # est EXACTEMENT celui que `_select_best_backend` interroge déjà pour résoudre
+            # « auto » (`select_model_id('reader', task='ocr')`, tasks.py) — un seul domaine,
+            # deux usages : ce que le select PROPOSE et ce que « auto » TIRE ne peuvent plus
+            # diverger (c'est la propriété que la brique `auto_model` cherche par
+            # `catalog_domain`). `source` est légitime ICI, à l'inverse du parc TTS partagé :
+            # les 3 moteurs OCR (olmocr/doctr/glm-ocr) sont possédés par le reader, et c'est
+            # lui seul qui les exécute. Il maintient aussi l'ESPACE DE CLÉS de la colonne :
+            # domaine avec `source` → identifiants nus ('olmocr'), ceux que `ReadingItem.backend`
+            # porte déjà et que `backend_for_key('reader:' + …)` recompose.
+            options_source="catalog",
+            options_query={"source": "reader", "task": "ocr"},
+            # « auto » en 1ʳᵉ option + prévision sous le select : le reader RÉSOUT réellement
+            # « auto » au lancement (`_select_best_backend`), donc l'option a un sens.
+            options_auto=True,
             # Descriptif du moteur sous le select (WamaParams → WamaModelHelp ; le script
             # wama-model-help.js doit être CHARGÉ par la page, sinon déclaration inerte).
             # help_source = catalogue (doctr/olmocr y sont : desc + VRAM) ; repli statique

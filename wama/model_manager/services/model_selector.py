@@ -569,6 +569,17 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
     # requête ne trouve rien et le repli ci-dessous sert toute la catégorie, en silence.
     task = canonical_task(task)
     qs = AIModel.objects.filter(is_available=True)
+    # ⚠ Un `model_type` EXPLICITE borne le domaine dans les DEUX modes (2026-09-08). Il ne
+    # jouait que dans la branche sans `source` : un appelant qui combinait les deux — ce que
+    # l'endpoint `api/models/options/` documente pourtant comme deux paramètres de domaine —
+    # le voyait IGNORÉ EN SILENCE. Mesuré sur l'enhancer : `{source: 'enhancer',
+    # model_type: 'upscaling'}` rendait ses **9** modèles, les 2 moteurs audio compris — un
+    # select d'upscaling aurait proposé un débruiteur de voix. *Un filtre ignoré ne rend pas
+    # une erreur : il rend une liste qui a l'air juste.*
+    # L'INFÉRENCE `task` → `model_type`, elle, reste réservée au mode SANS source : là-bas
+    # elle est l'ancrage de catégorie qui rend le permissif sûr ; ici la source ancre déjà.
+    if model_type:
+        qs = qs.filter(model_type=model_type)
     if source:
         qs = qs.filter(source=source)
     else:

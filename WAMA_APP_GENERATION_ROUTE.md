@@ -592,6 +592,36 @@ par un chemin indépendant) : **8 ROUGE** — anonymizer `models.py:43` · avata
 `params.py:39` — **1 PARTIEL** (imager) · **1 N/A** (converter). Rejouable :
 `manage.py check_app_conformity`.
 
+> **ÉTAT AU 2026-09-08 — 5 portées sur 8, et les 3 restantes ne sont pas des câblages.**
+> Portées : synthesizer + avatarizer (01/09, pilotes), describer (par la chaîne),
+> **reader** et **enhancer** (08/09). Le patron d'un portage tient en trois questions, dans
+> cet ordre, et la 3ᵉ est celle qu'on oublie :
+> 1. **quel DOMAINE ?** — celui que la résolution « auto » de l'app interroge déjà, s'il y en
+>    a une (reader : `{source: reader, task: ocr}` = l'appel de `_select_best_backend`) ; sinon
+>    la borne la plus étroite qui couvre exactement le parc visé (enhancer média :
+>    `model_type: upscaling`, parce que ses 7 modèles se partagent DEUX tâches) ;
+> 2. **quel ESPACE DE CLÉS ?** — `source` dans la requête ⇒ identifiants NUS, ce que les
+>    colonnes d'app portent déjà ; sans `source` ⇒ clé entière, donc migration des valeurs
+>    stockées. C'est ce qui décide si le portage est une déclaration ou un chantier ;
+> 3. **le select est-il RENDU par la brique ?** — `WamaParams.render` (modales) et
+>    `WamaInspector.initFromSchema` (volet, qui ne lie QUE `catalog`) suffisent ; une app qui
+>    peuple son select en JS maison ne verrait rien changer, et le critère serait vert sur une
+>    déclaration inerte. Vérifier au NAVIGATEUR (l'appel `api/models/options/` doit partir).
+>
+> **Restent, chacune sur une décision** — transcriber (le select est au grain BACKEND,
+> le catalogue au grain MODÈLE : `qwen` vs `qwen3-asr-0.6b`/`1.7b`) · composer (deux GROUPES
+> avec un « auto » chacun ; l'endpoint n'en rend qu'un) · anonymizer (la colonne stocke un
+> CHEMIN `detect/yolov8n.pt`, le catalogue une clé `yolo:yolov8n.pt`). Détail et arbitrages :
+> `PROJECT_STATUS §PALIER 2026-09-08 (soir)`.
+>
+> **Deux défauts SILENCIEUX de la brique, révélés par ces portages** (aucun n'avait
+> d'appelant avant) : `get_registry_models` **ignorait un `model_type` explicite** dès qu'une
+> `source` était fournie — alors que l'endpoint documente les deux comme bornes de domaine
+> (mesuré : 9 options au lieu de 7, dont 2 moteurs audio dans un select d'upscaling) ; et la
+> résolution des CHIPS passait `source` deux fois (`TypeError` avalé par son `except`), si
+> bien qu'une card serait retombée sur la clé technique. *Une brique n'est éprouvée que par
+> son premier appelant réel.*
+
 **⚠ ALIAS DE VOCABULAIRE (arbitrage Fabien : « on modifie avec la taxonomie HFHub ou on gère
 un alias ? »)** → **alias, et il existait déjà**. S'aligner sur HF effacerait des distinctions
 voulues (`text-to-music` ≠ `text-to-audio`) et des tâches sans équivalent (`obb`, `lip-sync`).

@@ -60,7 +60,15 @@ def _inventaire_catalogue(options_query: dict) -> list:
         return entree[1]
     try:
         from wama.model_manager.services import get_registry_models
-        choix, _ = get_registry_models(None, **(options_query or {}))
+        # ⚠ `source` se passe en POSITIONNEL, il ne peut pas rester dans les mots-clés
+        # (2026-09-08) : `get_registry_models(None, source='reader', …)` lève
+        # « got multiple values for argument 'source' » — et le `except` ci-dessous
+        # l'AVALAIT, donc les chips seraient retombés sur la clé nue sans que rien ne le
+        # dise. Aucun schéma ne déclarait de `source` avant les portages du jour : le
+        # défaut attendait son premier appelant. Sans source déclarée, on garde le mode
+        # PAR CAPACITÉ (source=None), qui est l'intention d'origine.
+        domaine = dict(options_query or {})
+        choix, _ = get_registry_models(domaine.pop('source', None), **domaine)
         valeur = list(choix)
     except Exception:
         # Catalogue indisponible : valeur NUE plutôt qu'un libellé inventé. Une clé technique
@@ -130,7 +138,15 @@ def chips_for(instance, params_json, extra=None, values=None):
             # Générique par construction : on n'interroge que ce que le SCHÉMA déclare
             # (`options_query`), la brique ne connaît ni le TTS ni aucune app. Le résultat est
             # mémoïsé par domaine — une file de 50 cards ne fait pas 50 requêtes.
-            if not _plates and field.get('options_source') == 'catalog':
+            # ⚠ JOINT SANS CONDITION depuis le 2026-09-08, comme les voix ci-dessous. La
+            # garde `not _plates` supposait qu'un champ porte SOIT des plaques statiques,
+            # SOIT le catalogue. Les portages F4b du jour (reader, enhancer) font les deux :
+            # les `choices` du modèle restent le REPLI rendu avant la réponse de la requête,
+            # et le catalogue est la liste servie. Avec la garde, un modèle installé APRÈS
+            # coup — le cas même que la route F4b existe pour rendre choisissable — se serait
+            # affiché en clé technique sur la card, jamais par son nom. Les plaques statiques
+            # gardent la PRIORITÉ (premier match) : aucun libellé existant ne change.
+            if field.get('options_source') == 'catalog':
                 _plates += _inventaire_catalogue(field.get('options_query') or {})
             # Voix par utilisateur (`options_source: 'voices'`) : les valeurs `ua_`/`cv_` ne
             # sont dans AUCUNE plaque statique — sans cette résolution le chip affichait

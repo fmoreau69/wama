@@ -12094,6 +12094,53 @@ auto_model : **107 OK** ; `check_app_conformity` relancé ; `doc_facts --only co
 ⚠ Leçon (5ᵉ occurrence, cf. `_hf_cache_routing`) : *un critère doit SUIVRE la règle qu'il mesure
 quand elle change* — et **une preuve qui pointe un test dit qu'on a regardé au mauvais endroit**.
 
+### PALIER 2026-09-08 (soir) — `model_options_catalog` : reader et enhancer tirent leurs options du CATALOGUE
+
+Suite directe du recalibrage (même GO : « on commence par régler tous les problèmes de ton
+1ᵉʳ tableau », puis le 2ᵉ). Le critère `model_options_catalog` (route F4b) était rouge sur 5 apps.
+**Deux sont portées ; les trois autres ne sont PAS des câblages** — chacune demande une décision,
+elles sont nommées plus bas.
+
+| app | domaine déclaré | pourquoi celui-là |
+|---|---|---|
+| **reader** `backend` | `{source: reader, task: ocr}` + `options_auto` | **le même** que sa résolution « auto » (`select_model_id('reader', task='ocr')`) : ce que le select PROPOSE et ce que « auto » TIRE ne peuvent plus diverger. `source` garde l'ESPACE DE CLÉS de la colonne (`'olmocr'`, que `backend_for_key('reader:'+…)` recompose) |
+| **enhancer** `ai_model` | `{source: enhancer, model_type: upscaling}` | une tâche unique ne suffit pas — les 7 se partagent `upscale` (5) et `denoise` (2 IRCNN) ; la CATÉGORIE les réunit |
+| **enhancer** `engine` | `{source: enhancer, task: audio-enhance}` | ⚠ le commentaire « moteurs audio HORS catalogue » du schéma était **périmé** : `enhancer:resemble` et `enhancer:deepfilternet` y sont |
+
+**DEUX défauts de brique trouvés en chemin, tous deux SILENCIEUX** — c'est le portage qui les a
+révélés, aucun n'avait d'appelant avant :
+1. **`get_registry_models` ignorait un `model_type` EXPLICITE dès qu'une `source` était donnée**
+   (le filtre vivait dans la branche `else`). L'endpoint `api/models/options/` documente pourtant
+   les deux comme paramètres de domaine. Mesuré : `{source: enhancer, model_type: upscaling}`
+   rendait les **9** modèles de l'app, les 2 moteurs audio compris — un select d'upscaling
+   proposant un débruiteur de voix. *Un filtre ignoré ne rend pas une erreur : il rend une liste
+   qui a l'air juste.* L'INFÉRENCE `task`→`model_type` reste, elle, réservée au mode sans source
+   (là-bas elle est l'ancrage de catégorie).
+2. **Les CHIPS de card levaient sur un domaine à `source`** : `get_registry_models(None, source=…)`
+   → « multiple values for argument 'source' », **avalé par le `except`**. Aucun schéma ne
+   déclarait de `source` avant aujourd'hui : le défaut attendait son premier appelant. Au passage,
+   la garde `not _plates` a sauté (comme la branche `voices`) : un modèle installé APRÈS coup —
+   le cas même que la route F4b existe pour rendre choisissable — se serait affiché en **clé
+   technique** sur la card. Les plaques statiques gardent la priorité, aucun libellé ne change.
+
+**Mesure** : `wama/common/tests_model_options_catalog.py` (16 tests : borne de catégorie avec
+source, non-réélargissement, domaines des 2 apps, clés = valeurs stockées, invariants « tout
+`catalog` porte un domaine » et « aucun domaine ne porte de capacité requise » — lus sur TOUS les
+schémas déclarés, pas seulement le principal : trou #10) ; model_manager + reader + enhancer +
+auto_model **156 OK** ; codegen + conformité **93 OK** ; **sonde navigateur** (après `kill -HUP`) :
+reader → `?source=reader&task=ocr&auto=1` puis `[auto, olmocr, glm-ocr, doctr]`, enhancer → deux
+domaines distincts, `[BSRGANx2…RealESR_Gx4]` (7) et `[resemble, deepfilternet]`, 0 erreur JS, le
+synthesizer (témoin déjà porté) inchangé ; familles nocturnes **enhancer 12/12**, **reader 11/12
++ 1 skip déclaré** (pas d'URL). Grille : reader **96 → 97**, enhancer **94 → 95**.
+
+**🔚 LES TROIS RESTANTES — décisions de Fabien, aucune n'est un câblage** :
+
+| app | ce qui bloque | ce qu'il faudrait trancher |
+|---|---|---|
+| **transcriber** | le select liste des **BACKENDS** (`whisper`, `vibevoice`, `qwen` — noms du manager d'app), le catalogue liste des **MODÈLES** (`whisper`, `vibevoice-asr`, `qwen3-asr-0.6b`, `qwen3-asr-1.7b`) : deux granularités | passer le select au grain MODÈLE (l'utilisateur choisit 0.6b ou 1.7b) et dispatcher par `backend_for_key` ? C'est un changement d'UX + une migration des valeurs stockées, pas une déclaration |
+| **composer** | son select est en **deux groupes** (🎵 Musique / ⚡ Bruitages), chacun avec **son propre « auto »** (`auto-music`, `auto-sfx`) ; l'endpoint ne rend qu'UN groupe et un seul « auto » | déclarer deux domaines groupés (nouvelle capacité de l'endpoint), ou aplatir le select en perdant les deux « auto » par type ? Le groupe PORTE le sens : « le type est dérivé du modèle choisi » (décision 02/07) |
+| **anonymizer** | `model_to_use` stocke un **CHEMIN** (`detect/yolov8n.pt`), le catalogue une **clé** (`yolo:yolov8n.pt`) ; 22 modèles `detect` sous cette source | aligner l'espace de clés (migration des valeurs, comme le synthesizer l'a fait le 18/08) ou déclarer une correspondance ? Tant que les deux espaces coexistent, le select serait peuplé de valeurs que la tâche ne sait pas ouvrir |
+
 ### Contrôles attendus au prochain `/reprise` — TOUS MESURÉS le 2026-09-07 (nuit, après le 6ᵉ commit)
 
 | contrôle | valeur mesurée |

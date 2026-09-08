@@ -62,6 +62,23 @@ AUDIO_ENGINE_HELP = {
 MEDIA_PARAMS = [
     Param(name='ai_model', type='select', label='Modèle AI', icon='fa-brain', chip=True,
           dom_id={'panel': 'defaultAiModel', 'item': 'settingsAiModel'}, contexts=('panel', 'item'),
+          # ── Route F4b (2026-09-08) — les OPTIONS viennent du catalogue ────────────────
+          # `choices` (les 7 valeurs d'`AI_MODEL_CHOICES`) restent le REPLI rendu avant que
+          # la requête réponde ; la liste servie, elle, est celle du catalogue : un modèle
+          # d'upscaling installé apparaît désormais sans toucher au code.
+          # Domaine = `source` + `model_type`, et les DEUX sont nécessaires :
+          #   • sans `model_type`, la source rendait les 9 modèles de l'enhancer, dont les
+          #     2 moteurs AUDIO (un select d'upscaling proposant un débruiteur de voix) ;
+          #   • une tâche unique ne convient pas — les 7 se partagent `upscale` (5) et
+          #     `denoise` (2, les IRCNN) ; `model_type='upscaling'` est la catégorie qui
+          #     les réunit, et c'est la taxonomie du catalogue, pas une invention d'ici.
+          # `source` maintient aussi l'ESPACE DE CLÉS : identifiants nus ('BSRGANx4'), ceux
+          # que `Enhancement.ai_model` porte et que `tasks.py` recompose en
+          # `enhancer:<id>` pour résoudre son backend.
+          # Pas d'`options_auto` : l'enhancer ne RÉSOUT pas « auto » — l'utilisateur désigne
+          # son moteur (c'est aussi pourquoi le critère `select_model` y est non applicable).
+          options_source='catalog',
+          options_query={'source': 'enhancer', 'model_type': 'upscaling'},
           choices=list(Enhancement.AI_MODEL_CHOICES),
           # Catalogue (desc + VRAM) branchable depuis l'ALIGNEMENT des model_key (18/08,
           # artefact _fp16 retiré : clés = valeurs d'option) ; le repli statique reste.
@@ -80,6 +97,13 @@ MEDIA_PARAMS = [
 AUDIO_PARAMS = [
     Param(name='engine', type='select', label='Moteur', icon='fa-cogs', chip=True,
           dom_id={'panel': 'audioEngine', 'item': 'settingsAudioEngine'}, contexts=('panel', 'item'),
+          # Options du CATALOGUE (route F4b, 2026-09-08) — `enhancer:resemble` et
+          # `enhancer:deepfilternet` y sont, avec la tâche `audio-enhance` : le commentaire
+          # « moteurs audio HORS catalogue » qui vivait ici était PÉRIMÉ (mesuré). Domaine
+          # par `source` + `task` : c'est la tâche qui sépare les moteurs audio des 7
+          # modèles d'upscaling de la même source. Clés nues = valeurs d'`engine`.
+          options_source='catalog',
+          options_query={'source': 'enhancer', 'task': 'audio-enhance'},
           choices=[('resemble', 'Resemble Enhance (Recommandé)'),
                    ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)')],
           help_source='enhancer',   # moteurs audio au catalogue (déjà alignés) ; repli statique
