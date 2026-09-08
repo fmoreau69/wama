@@ -576,8 +576,11 @@ def count() -> int:
     """Total de backends du vivier (apps réelles) — pour le registre des registres."""
     return summary()['backends_count']
 
-def resolve_backend(engine: str, model_id: str = ''):
-    """Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
+def resolve_entry(engine: str, model_id: str = '', entries=None) -> Optional[BackendEntry]:
+    """ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
+    rien n'est importé, c'est la moitié « décision » de `resolve_backend`, séparée le
+    2026-09-08 pour que la grille de conformité puisse lire les FICHIERS d'un backend résolu
+    sans exécuter le code qui les porte (règle de `_class_backends`).
 
     ⚠ LE MOTEUR NE SUFFIT PAS COMME CLÉ, et c'est le défaut qu'une première version de cette
     résolution avait : `diffusers` est piloté par 8 backends de l'imager, `transformers` par 4
@@ -589,18 +592,22 @@ def resolve_backend(engine: str, model_id: str = ''):
       2. plusieurs, et l'un déclare `model_id` dans son `SUPPORTED_MODELS` → c'est lui ;
       3. plusieurs, aucun ne le déclare → **None**. On ne devine pas : rendre un backend au
          hasard est pire que ne rien rendre, parce que l'erreur serait silencieuse.
+
+    `entries` : le vivier déjà lu, pour un appelant qui résout en série (une lecture AST
+    par appel coûterait N balayages du paquet pour N modèles).
     """
     if not engine:
         return None
-    candidats = [e for a in inventory() if not a.generated_from
-                 for e in a.entries if e.engine == engine]
+    if entries is None:
+        entries = [e for a in inventory() if not a.generated_from for e in a.entries]
+    candidats = [e for e in entries if e.engine == engine]
     if not candidats:
         return None
     if len(candidats) == 1:
-        return _resoudre_classe(candidats[0])
+        return candidats[0]
     exacts = [e for e in candidats if model_id and model_id in e.supported_models]
     if len(exacts) == 1:
-        return _resoudre_classe(exacts[0])
+        return exacts[0]
     if len(exacts) > 1:
         # ⚠ Cas MESURÉ sur l'imager : `DiffusersBackend` LISTE des modèles qu'il ROUTE vers un
         # backend spécialisé — son propre code le dit (« Routed to flux2_klein_backend at
@@ -611,9 +618,53 @@ def resolve_backend(engine: str, model_id: str = ''):
         # plutôt que de tirer au sort — une erreur silencieuse coûte plus qu'un refus.
         exacts.sort(key=lambda e: len(e.supported_models))
         if len(exacts[0].supported_models) < len(exacts[1].supported_models):
-            return _resoudre_classe(exacts[0])
+            return exacts[0]
     logger.debug("[engines] %s : %d backends, %s indécidable", engine, len(candidats), model_id)
     return None
+
+
+def resolve_backend(engine: str, model_id: str = ''):
+    """Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
+    La DÉCISION est `resolve_entry` (statique) ; ici on ne fait qu'importer ce qu'elle a choisi."""
+    entree = resolve_entry(engine, model_id)
+    return _resoudre_classe(entree) if entree is not None else None
+
+
+def app_backend_entries(app: str) -> List[BackendEntry]:
+    """Backends que `app` RÉSOUT réellement, par le lien du catalogue — STATIQUE, dédoublonnés
+    par module, triés.
+
+    Le sens du lien (rappelé trois fois au handoff du 07/09) : un backend est lié au MODÈLE,
+    l'app appelle SON modèle. Depuis que les classes vivent sous `wama/common/backends/`
+    (8c556100), « les backends de l'app » ne se lisent plus dans son dossier : ils se
+    DÉRIVENT — `AIModel.source = app` → `composition.runtime.engine` → `ENGINE` /
+    `SUPPORTED_MODELS` du backend. C'est la même dérivation que `backend_for_model`, sans
+    l'import. Hors Django ou catalogue vide : liste vide (l'appelant a un repli à lui).
+    """
+    modeles = _models_by_app().get(app) or []
+    if not modeles:
+        return []
+    entries = [e for a in inventory() if not a.generated_from for e in a.entries]
+    par_module = {}
+    for cle, _ref, engine in modeles:
+        e = resolve_entry(engine, cle.rsplit(':', 1)[-1] if cle else '', entries)
+        if e is not None and e.module:
+            par_module.setdefault(e.module, e)
+    return [par_module[m] for m in sorted(par_module)]
+
+
+def app_backend_paths(app: str) -> List[Path]:
+    """Fichiers source des backends résolus par `app` (cf. `app_backend_entries`), n'existant
+    que s'ils existent sur le disque. Le module absolu se traduit en chemin depuis la racine
+    du dépôt — jamais par `find_spec`, qui importerait les paquets parents."""
+    import wama
+    racine = Path(wama.__file__).resolve().parent.parent
+    chemins = []
+    for e in app_backend_entries(app):
+        p = racine.joinpath(*e.module.split('.')).with_suffix('.py')
+        if p.is_file():
+            chemins.append(p)
+    return chemins
 
 
 def _resoudre_classe(entree):

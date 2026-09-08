@@ -12056,6 +12056,44 @@ anonymizer/enhancer (`ROADMAP §23.3`, avec les profils), adoption de la card v4
 ⚠ `jQuery-file-upload` : 0 consommateur dans `wama/` — retrait (gabarit `app_base.html:8-10`,
 dossier `wama/static/js/jquery-file-upload/`, `REMOVAL_LEDGER`) à faire en 3 surfaces.
 
+### PALIER 2026-09-08 (midi) — GRILLE RECALIBRÉE sur les backends RÉSOLUS (GO Fabien : « on commence par régler tous les problèmes de ton 1ᵉʳ tableau »)
+
+**Le constat** (remesure demandée par Fabien) : la nuit de l'externalisation des backends
+(`8c556100`, 11/11 apps au substrat), six critères F4/F5 avaient rougi sur toutes les apps sans
+qu'une seule déclaration ait disparu — ils lisaient `wama/<app>/**/*.py`, et REQUIRED_PACKAGES,
+`BaseModelBackend`, `cache_dir=` avaient déménagé AVEC les classes. Ce n'était pas « le chantier
+d'une autre instance qui fait baisser anonymizer/enhancer » (ligne du 07/09 ci-dessous, FAUSSE
+dans son attribution) : c'était la grille qui ne suivait plus la règle qu'elle mesure.
+
+| critère | avant (08/09 matin) | après | ce qui a changé |
+|---|---|---|---|
+| `backend_packages` | ❌ **0/10** | ✅ 9/9 applicables | lu sur les backends RÉSOLUS |
+| `hf_cache_isolation` | 🔶 9/10 « aucun routage explicite » | ✅ 9/9 | `cache_dir=`/`poids_locaux`/env de sous-processus lus au substrat ; une MUTATION dans un backend résolu condamne l'app |
+| `backend_contract` | ❌ anonymizer, composer, imager (+ preuves FAUSSES : reader via `tests_table_transformer.py`, enhancer via `nightly_scenarios.py`) | ✅ 9/9, preuves au substrat | fermeture par les BASES MÉTIER (`detection_base`, `tts_base`, `image_generation_base`, `speech_to_text_base`) : c'est la base qui nomme le contrat ; harnais exclus |
+| `vram_unloader` | N/A FAUX sur l'anonymizer (aucun `torch` chez elle), rouge imager | ✅ 9/9 | voie 1 (automatique) lue sur les backends résolus |
+| `select_model` | inchangé en verdict | idem, hors commentaires | sondes VRAM maison cherchées aussi au substrat |
+| `backend_routes` | ❌ 7, raison « moteur enfoui dans tasks/utils » | ❌ 7, raison VRAIE | les ROUTES restent une décision d'APP (« c'est la frontière », 8c556100) : « N backends résolus au substrat, aucune ROUTES déclarée » |
+
+**Comment** : la décision de `backend_for_model` est extraite en `backend_inventory.resolve_entry`
+(STATIQUE, rien n'est importé — règle de `_class_backends`), `resolve_backend` ne fait plus que
+l'import de ce qu'elle a choisi (garde AST) ; `app_backend_paths(app)` = fichiers des backends
+que l'app résout par le catalogue. Côté grille, `_AppFiles.backend_paths()` = lien du catalogue ∪
+modules `wama.common.backends.*` que le code de l'app importe (repli sans base : tests, arbre nu —
+et complément pour les backends-fonctions `ai_upscaler`/`audio_enhancer` qu'aucun modèle ne route)
+∪ leurs bases métier ; `find_py()` = code de l'app puis backends résolus, hors commentaires ;
+`code_paths()` = les `.py` de l'app hors `tests*`/`nightly_*`. Aucun critère nouveau (toujours 89).
+**Scores** : converter 100, describer 100, reader 96, avatarizer/synthesizer/transcriber 95,
+anonymizer/composer/enhancer 94, imager 92. Le 2ᵉ tableau (vrais restes) est inchangé :
+`backend_routes` ×7, `task_skeleton` ×7, `detail_spec`/`triad_specs` 🔶, `model_options_catalog`
+×5, `model_caps_ui` ×3, `during_preview` ×3, `recursive_import` imager (à passer N/A pour une
+card d'attache), `user_settings` anonymizer/enhancer (§23.3), `btn_order` imager.
+**Mesure** : `wama/common/tests_conformity_backends.py` (20 tests : résolution statique semée,
+repli par imports, bases métier, harnais et commentaires jamais preuves, mutation condamne,
+message de `backend_routes`) ; familles inventaire + adoption + import_wired + hf_cache +
+auto_model : **107 OK** ; `check_app_conformity` relancé ; `doc_facts --only conformite` régénéré.
+⚠ Leçon (5ᵉ occurrence, cf. `_hf_cache_routing`) : *un critère doit SUIVRE la règle qu'il mesure
+quand elle change* — et **une preuve qui pointe un test dit qu'on a regardé au mauvais endroit**.
+
 ### Contrôles attendus au prochain `/reprise` — TOUS MESURÉS le 2026-09-07 (nuit, après le 6ᵉ commit)
 
 | contrôle | valeur mesurée |

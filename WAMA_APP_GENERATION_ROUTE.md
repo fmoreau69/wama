@@ -872,6 +872,28 @@ sur la même liste.
 > La GRILLE mesure désormais la chaîne côté app (4 critères 03/09 : `backend_routes`,
 > `task_skeleton`, `detail_spec`, `triad_specs`) — describer **100 %**, 2ᵉ plein score.
 
+> **⚠ GRILLE RECALIBRÉE après l'externalisation des backends (2026-09-08).** Depuis
+> `8c556100`, aucune app ne porte de classe de backend : les 35 classes vivent sous
+> `wama/common/backends/`, et une app **appelle son modèle**, dont le catalogue résout le
+> backend (`AIModel.source` → `composition.runtime.engine` → `ENGINE`/`SUPPORTED_MODELS`).
+> Six critères F4/F5 lisaient encore `wama/<app>/**/*.py` : remesure du matin =
+> `backend_packages` **0/10**, `hf_cache_isolation` 🔶 **9/10**, `backend_contract` rouge sur
+> 4 apps, `vram_unloader` en faux N/A sur l'anonymizer — sans qu'une seule déclaration ait
+> disparu. Défaut d'INSTRUMENT, 5ᵉ occurrence du précédent `btn_order`/`status_vocab`/
+> `batch_card_common`/`hf_cache_isolation` : *un critère doit SUIVRE la règle qu'il mesure
+> quand elle change*. Correctif : la résolution est STATIQUE et partagée
+> (`backend_inventory.resolve_entry` = la décision de `backend_for_model` sans l'import ;
+> `app_backend_paths(app)` = les fichiers des backends que l'app résout) ; la grille lit
+> **le code de l'app ∪ ses backends résolus** (`_AppFiles.backend_paths` : lien du
+> catalogue ∪ modules de `wama.common.backends` que l'app importe, ∪ leurs bases métier —
+> `detection_base`, `tts_base`… — car c'est la base qui nomme `BaseModelBackend`), hors
+> commentaires et hors harnais (`tests*`, `nightly_*` : le reader était vert « via
+> `tests_table_transformer.py` »). `backend_routes` garde son sens — les ROUTES sont une
+> décision d'APP, « ce n'est pas un reste, c'est la frontière » — mais dit la vraie raison
+> (« N backends résolus au substrat, aucune ROUTES déclarée » au lieu de « moteur enfoui »).
+> Après : les 6 critères verts sur 9 apps applicables (converter N/A), 7 rouges
+> `backend_routes` = le vrai reste. Tenu par `wama/common/tests_conformity_backends.py`.
+
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
 `{primary, schemas}` (forme liste historique acceptée à l'ingest). Projecteur : un `params.py`

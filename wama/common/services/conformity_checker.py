@@ -33,6 +33,7 @@ class _AppFiles:
         self.app = app
         self.root = WAMA_ROOT / app
         self._cache: dict[str, str] = {}
+        self._backend_paths: list[Path] | None = None
 
     def _read(self, path: Path) -> str:
         key = str(path)
@@ -75,16 +76,105 @@ class _AppFiles:
         peut faire mentir ne mesure pas, elle devine. Les numéros de ligne restent justes :
         on remplace le commentaire par des espaces, on ne le supprime pas.
         """
+        return self._find_in([p for pattern in patterns for p in self.glob(pattern)], regex, code=True)
+
+    def _find_in(self, paths: list[Path], regex: str, code: bool = False) -> str | None:
         rx = re.compile(regex)
-        for pattern in patterns:
-            for path in self.glob(pattern):
-                text = _sans_commentaires(self._read(path), path.suffix)
-                m = rx.search(text)
-                if m:
-                    line = text.count('\n', 0, m.start()) + 1
+        for path in paths:
+            text = self._read(path)
+            if code:
+                text = _sans_commentaires(text, path.suffix)
+            m = rx.search(text)
+            if m:
+                line = text.count('\n', 0, m.start()) + 1
+                try:
                     rel = path.relative_to(WAMA_ROOT).as_posix()
-                    return f"{rel}:{line}"
+                except ValueError:              # fichier hors de wama/ (harnais de test)
+                    rel = path.as_posix()
+                return f"{rel}:{line}"
         return None
+
+    def code_paths(self) -> list[Path]:
+        """Les `.py` de l'app qui S'EXÉCUTENT en production — sans ses tests ni ses scénarios
+        nocturnes. Un harnais qui cite `BaseModelBackend` n'est pas un backend qui le porte
+        (preuves fausses du 08/09 : `reader/tests_table_transformer.py`,
+        `enhancer/nightly_scenarios.py`)."""
+        return [p for p in self.glob('**/*.py')
+                if not p.name.startswith('tests') and not p.name.startswith('nightly_')]
+
+    # ── Les BACKENDS de l'app — RÉSOLUS, plus lus dans son dossier (2026-09-08) ──────────
+    #
+    # Depuis `8c556100`, aucune app ne porte de classe de backend chez elle : les 35 classes
+    # vivent sous `wama/common/backends/`, et une app appelle SON modèle, dont le catalogue
+    # résout le backend. Les critères F4 qui lisaient `wama/<app>/**/*.py` (REQUIRED_PACKAGES,
+    # BaseModelBackend, cache_dir=, sondes VRAM) ont donc ROUGI sur 10 apps en une nuit sans
+    # qu'une seule ait perdu quoi que ce soit — remesure du 08/09 : `backend_packages` 0/10,
+    # `hf_cache_isolation` 🔶 9/10. C'est un défaut d'INSTRUMENT, la 5ᵉ occurrence du précédent
+    # `btn_order` / `status_vocab` / `batch_card_common` / `hf_cache_isolation` : *un critère
+    # doit SUIVRE la règle qu'il mesure quand elle change*.
+    #
+    # Deux sources, dans cet ordre, UNION des deux :
+    #   1. le LIEN DU CATALOGUE (`backend_inventory.app_backend_paths`) — la vérité de
+    #      l'exécution, statique (AST), mais qui suppose un catalogue peuplé ;
+    #   2. les modules de `wama.common.backends` que le CODE de l'app nomme (imports) — repli
+    #      sans base (tests, arbre nu), et complément pour les backends-fonctions
+    #      (`ai_upscaler`, `audio_enhancer`) qu'aucun modèle ne route.
+    # Ni `base.py` ni `manager.py` : ce sont le contrat et le registre, pas un backend.
+
+    _IMPORT_COMMUN = re.compile(
+        r'(?m)^\s*from\s+wama\.common\.backends(?:\.([A-Za-z_][\w]*))?\s+import\s+([^\n]+)')
+    #: Import d'un module FRÈRE depuis un backend du substrat (`from .tts_base import …`).
+    _IMPORT_FRERE = re.compile(
+        r'(?m)^\s*from\s+(?:\.|wama\.common\.backends\.)([A-Za-z_][\w]*)\s+import')
+
+    def backend_paths(self) -> list[Path]:
+        """Fichiers des backends que cette app RÉSOUT (voir le bloc ci-dessus). Mémoïsé."""
+        if getattr(self, '_backend_paths', None) is not None:
+            return self._backend_paths
+        trouves: dict[str, Path] = {}
+        try:
+            from wama.common.services.backend_inventory import app_backend_paths
+            for p in app_backend_paths(self.app):
+                trouves[p.stem] = p
+        except Exception:                       # module pur : hors Django on garde le repli
+            pass
+        dossier = WAMA_ROOT / 'common' / 'backends'
+        for path in self.glob('**/*.py'):
+            if path.name.startswith('tests'):
+                continue                        # un test cite un backend, il ne l'exécute pas
+            texte = _sans_commentaires(self._read(path), '.py')
+            for m in self._IMPORT_COMMUN.finditer(texte):
+                noms = [m.group(1)] if m.group(1) else [
+                    n.strip().split(' ')[0] for n in m.group(2).strip('() ').split(',')]
+                for nom in noms:
+                    if nom in ('base', 'manager', '') or nom in trouves:
+                        continue
+                    fichier = dossier / f'{nom}.py'
+                    if fichier.is_file():
+                        trouves[nom] = fichier
+        # 3. Les BASES MÉTIER dont ces backends dérivent (`detection_base`, `tts_base`,
+        #    `image_generation_base`, `speech_to_text_base`) : c'est ELLES qui nomment
+        #    `BaseModelBackend`, pas le backend concret. Sans cette fermeture, l'anonymizer
+        #    (anonymize → DetectionBackend → BaseModelBackend) sortait « aucun backend ne
+        #    dérive du contrat » (mesuré le 08/09, juste après le 1ᵉʳ recalibrage). Même
+        #    fermeture transitive que `backend_inventory._class_backends`, en fichiers.
+        a_voir = list(trouves.values())
+        while a_voir:
+            texte = _sans_commentaires(self._read(a_voir.pop()), '.py')
+            for m in self._IMPORT_FRERE.finditer(texte):
+                nom = m.group(1)
+                fichier = dossier / f'{nom}.py'
+                if nom not in trouves and nom not in ('base', 'manager') and fichier.is_file():
+                    trouves[nom] = fichier
+                    a_voir.append(fichier)
+        self._backend_paths = [trouves[k] for k in sorted(trouves)]
+        return self._backend_paths
+
+    def find_py(self, regex: str, code: bool = False) -> str | None:
+        """`regex` dans le code de l'app PUIS dans ses backends résolus — la surface que les
+        critères F4 doivent lire depuis l'externalisation. Preuve = 1ʳᵉ occurrence."""
+        own = self.find_code(PY, regex) if code else self.find(PY, regex)
+        return own or self._find_in(self.backend_paths(), regex, code=code)
 
 
 def _blanc(m: re.Match) -> str:
@@ -1017,12 +1107,14 @@ def _hf_cache_routing(f: _AppFiles):
     valent, et le choix est imposé par la lib : `cache_dir=` quand elle l'accepte, sinon
     `poids_locaux()` (téléchargement dans le dossier + chargement par chemin).
     """
-    mute = f.find_code(PY, r"os\.environ\[['\"](HF_HUB_CACHE|HUGGINGFACE_HUB_CACHE|HF_HOME)['\"]\]\s*=")
+    # Surface lue = code de l'app + ses backends RÉSOLUS (`_AppFiles.backend_paths`) : le
+    # routage `cache_dir=` vit dans le backend, et le backend vit au substrat depuis le 08/09.
+    mute = f.find_py(r"os\.environ\[['\"](HF_HUB_CACHE|HUGGINGFACE_HUB_CACHE|HF_HOME)['\"]\]\s*=", code=True)
     if mute:
         return False, (f"mutation d'environnement en {mute} — INTERDITE (ROADMAP §5b) : "
                        "globale au processus, elle emporte les sous-dépendances dans le "
                        "dossier du modèle")
-    route = f.find_code(PY, r'cache_dir\s*=|poids_locaux\(')
+    route = f.find_py(r'cache_dir\s*=|poids_locaux\(', code=True)
     if route:
         return True, route
     # 3ᵉ idiome LÉGITIME : l'app lance un SOUS-PROCESSUS et lui donne son propre
@@ -1030,7 +1122,7 @@ def _hf_cache_routing(f: _AppFiles):
     # une mutation : l'enfant est isolé, le parent intact. Mesuré sur avatarizer/musetalk —
     # sans cette branche, le critère punissait la bonne pratique (et le garde AST, lui,
     # l'excluait déjà correctement en exigeant `os.environ`).
-    enfant = f.find_code(PY, r"env\[['\"](HF_HUB_CACHE|HUGGINGFACE_HUB_CACHE)['\"]\]\s*=")
+    enfant = f.find_py(r"env\[['\"](HF_HUB_CACHE|HUGGINGFACE_HUB_CACHE)['\"]\]\s*=", code=True)
     if enfant:
         return True, f"{enfant} — environnement d'un SOUS-PROCESSUS (parent intact)"
     return 'partial', ("aucun routage explicite trouvé (ni `cache_dir=`, ni `poids_locaux()`, "
@@ -1039,15 +1131,37 @@ def _hf_cache_routing(f: _AppFiles):
 
 
 def _backend_contract(f: _AppFiles):
-    ev = f.find(PY, r'BaseModelBackend')
+    """Les backends que l'app RÉSOUT dérivent-ils du contrat commun ?
+
+    Lu sur les backends résolus D'ABORD (`backend_paths`, 08/09) : c'est là que la classe
+    est. Le code de l'app vient en second — et hors commentaires : jusqu'au 08/09 la preuve
+    du reader était `tests_table_transformer.py:12`, celle de l'enhancer
+    `nightly_scenarios.py:22` — un harnais qui cite le contrat n'est pas un backend qui le
+    porte. Une preuve qui pointe un test dit surtout qu'on n'a pas regardé au bon endroit.
+    """
+    ev = (f._find_in(f.backend_paths(), r'\bBaseModelBackend\b', code=True)
+          or f._find_in(f.code_paths(), r'\bBaseModelBackend\b', code=True))
     if not ev:
-        return False, "aucun backend ne dérive de common/backends/base.py::BaseModelBackend"
+        return False, "aucun backend résolu ne dérive de common/backends/base.py::BaseModelBackend"
     # Piège documenté : l'alias de classe capture la fonction AVANT l'enveloppe
     # `__init_subclass__` → mécanisme présent mais inopérant.
-    alias = f.find(PY, r'^\s*load_model\s*=\s*load\b|^\s*unload_model\s*=\s*unload\b')
+    alias = f.find_py(r'(?m)^\s*load_model\s*=\s*load\b|^\s*unload_model\s*=\s*unload\b', code=True)
     if alias:
         return 'partial', f"{ev} — mais alias de classe en {alias} (enveloppe VRAM court-circuitée)"
     return True, ev
+
+
+def _backend_packages(f: _AppFiles):
+    """Dépendances DÉCLARATIVES (`REQUIRED_PACKAGES`) — sur les backends résolus de l'app,
+    pas dans son dossier : 0/10 le 08/09 après l'externalisation, sans qu'une seule
+    déclaration ait disparu (elles avaient déménagé avec les classes)."""
+    ev = f.find_py(r'REQUIRED_PACKAGES', code=True)
+    if ev:
+        return True, ev
+    if f.backend_paths():
+        return False, (f"{len(f.backend_paths())} backend(s) résolu(s), aucun ne déclare "
+                       "REQUIRED_PACKAGES")
+    return False, "aucun backend résolu (catalogue muet et aucun import de wama.common.backends)"
 
 
 # ── Chaîne de GÉNÉRATION (marche B, route §10.3) — l'app est-elle COMPOSABLE ? ───────────
@@ -1079,7 +1193,15 @@ def _backend_routes(f: _AppFiles):
         return True, ev
     if f.glob('backends/*.py'):
         return False, "paquet backends/ présent mais sans ROUTES — tasks_gen laisse le stub NotImplementedError"
-    return False, "aucun paquet backends/ — moteur enfoui dans tasks/utils, incomposable par nature"
+    # ⚠ Depuis le 08/09 les CLASSES vivent au substrat ; seules les ROUTES restent une
+    # décision d'app (« ce n'est pas un reste, c'est la frontière », 8c556100). Une app sans
+    # paquet n'a donc plus « le moteur enfoui » : elle a des backends résolus et pas de
+    # routage déclaré — le rouge est le même, la raison dite est la vraie.
+    resolus = f.backend_paths()
+    if resolus:
+        return False, (f"{len(resolus)} backend(s) résolu(s) au substrat, aucune ROUTES déclarée "
+                       "dans l'app (backends/__init__.py) — tasks_gen laisse le stub NotImplementedError")
+    return False, "aucun paquet backends/ ni backend résolu — moteur enfoui dans tasks/utils, incomposable par nature"
 
 
 def _task_skeleton(f: _AppFiles):
@@ -1216,20 +1338,22 @@ def _select_model(f: _AppFiles):
     # DÉLÈGUE à select_model_id — l'adopter, c'est adopter la brique. Ce critère et elle
     # sont nés le même jour dans deux instances : sans cette ligne, l'adoptant le plus
     # conforme (résolution au lancement, domaine du schéma) sortait ROUGE.
-    adopted = f.find(PY, r'\b(select_model(_id)?|resolve_model_choice)\b')
+    # Surface = code de l'app + backends résolus (08/09) : une sonde VRAM maison qui a
+    # déménagé au substrat avec sa classe tourne toujours dans le processus de l'app.
+    adopted = f.find_py(r'\b(select_model(_id)?|resolve_model_choice)\b', code=True)
     if adopted:
         return True, adopted
 
     # Sélecteur MAISON : soit une sonde VRAM écrite à la main, soit une fonction de choix.
-    probe = f.find(PY, r'nvidia-smi|mem_get_info|free_vram')
-    chooser = f.find(PY, r'def (select|choose|_select|_auto)\w*model|def select_best')
+    probe = f.find_py(r'nvidia-smi|mem_get_info|free_vram', code=True)
+    chooser = f.find_py(r'def (select|choose|_select|_auto)\w*model|def select_best', code=True)
     home_made = probe or chooser
     if home_made:
         # Un sélecteur qui lit DÉJÀ le catalogue n'est pas une source concurrente : il peut
         # être un sur-ensemble légitime (l'anonymizer combine plusieurs modèles pour couvrir
         # un jeu de classes ; la brique commune n'en choisit qu'un). On le distingue du
         # sélecteur qui se fabrique sa propre vérité.
-        reads_catalog = f.find(PY, r'model_manager|AIModel')
+        reads_catalog = f.find_py(r'model_manager|AIModel', code=True)
         if reads_catalog and not probe:
             return 'partial', (f"sélecteur maison en {home_made}, mais alimenté par le "
                                f"catalogue ({reads_catalog}) — sur-ensemble, pas doublon")
@@ -1281,13 +1405,17 @@ def _vram_unloader(f: _AppFiles):
     service TTS (aucun `torch`/`from_pretrained` chez lui) — y exiger un unloader ferait
     libérer de la VRAM qu'il ne détient pas.
     """
-    explicit = f.find(PY, r'register_vram_unloader|vram_reservation')
+    explicit = f.find_code(PY, r'register_vram_unloader|vram_reservation')
     if explicit:
         return True, explicit
-    auto = f.find(PY, r'BaseModelBackend')
+    # Voie 1 : lue sur les backends RÉSOLUS (08/09) — la classe qui dérive du contrat est au
+    # substrat ; et hors commentaires, pour ne plus produire « automatique via
+    # nightly_scenarios.py » (enhancer, 08/09).
+    auto = (f._find_in(f.backend_paths(), r'\bBaseModelBackend\b', code=True)
+            or f._find_in(f.code_paths(), r'\bBaseModelBackend\b', code=True))
     if auto:
         return True, f'automatique via BaseModelBackend ({auto})'
-    if not f.find(PY, r'^\s*import torch|^\s*from torch|from_pretrained'):
+    if not f.find_py(r'(?m)^\s*import torch|^\s*from torch|from_pretrained', code=True):
         return None, None
     return False, "modèle résident sans unloader : ni BaseModelBackend, ni register_vram_unloader"
 
@@ -1444,7 +1572,7 @@ CRITERIA: list[Criterion] = [
               _f4(_backend_contract),
               mecanisme='backend_contract'),
     Criterion('backend_packages', 'F4', 'Dépendances déclaratives (REQUIRED_PACKAGES)',
-              _f4(lambda f: _present(f, PY, r'REQUIRED_PACKAGES'))),
+              _f4(_backend_packages)),
     Criterion('model_caps_canonical', 'F4', 'Entrée au catalogue en capacités CANONIQUES',
               _f4(_model_caps_canonical),
               mecanisme='model_capabilities'),
