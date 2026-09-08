@@ -393,6 +393,8 @@ try:
                                                register_batch_processing_scenarios,
                                                register_processing_scenarios,
                                                register_queue_dnd_scenarios,
+                                               register_queue_search_scenarios,
+                                               register_batch_extract_scenarios,
                                                register_send_to_scenarios,
                                                register_settings_scenarios,
                                                register_ui_scenarios,
@@ -439,6 +441,17 @@ try:
     # re-mesuré à la main, faute de ce scénario. Aucun POST : on lit la DÉCISION de dépôt,
     # jamais le dépôt.
     register_queue_dnd_scenarios()
+    # 2026-09-09 — geste 18 : la RECHERCHE de la barre de file et la SORTIE DE LOT, les deux
+    # gestes livrés le 08/09. Ils tombaient dans l'interstice EXACT que la session a nommé :
+    # `queue_dnd` ci-dessus ne POSTE rien (par conception, il lit la décision de dépôt) et
+    # `tests_queue_dnd` appelle les endpoints par `reverse()`, donc avec un pk déjà juste. La
+    # substitution du pk — le PONT — n'était tenue par personne, et c'est là que le défaut de
+    # l'imager a vécu : 404 sur pk=0, puis un rechargement identique, sans un mot.
+    # Ces deux familles POSTENT pour de vrai, sur une file HABITÉE qu'elles sèment par la voie
+    # de lot (la seule création dont le contrat garantit qu'elle ne démarre rien) et qu'elles
+    # nettoient en sortie. `duplicate_delete` écrit déjà : ce n'est pas une première.
+    register_queue_search_scenarios()
+    register_batch_extract_scenarios()
     # 2026-09-06 — geste 17 : ANNULER / RÉTABLIR. `wama-history.js` a deux consommateurs
     # (correction transcriber, canvas studio) et n'avait AUCUN scénario. Un seul est jouable
     # sans écrire : la page de correction auto-enregistre (`markDirty` → save 800 ms), le

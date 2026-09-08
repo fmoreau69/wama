@@ -4176,6 +4176,347 @@ def register_queue_dnd_scenarios():
         )
 
 
+# ── Geste 18 : RECHERCHE DE FILE et SORTIE DE LOT (livrés le 2026-09-08) ──────────────────
+#
+# POURQUOI CES DEUX-LÀ, ET POURQUOI MAINTENANT. Les deux gestes livrés le 08/09 tombaient dans
+# l'interstice EXACT que la session a documenté : le nocturne `<app>.queue_dnd` ne fait AUCUN
+# POST (par conception — il mesure la DÉCISION de dépôt), et `tests_queue_dnd` couvre les
+# ENDPOINTS via `reverse()`, donc avec un pk déjà juste. Chacun déclare honnêtement sa moitié,
+# et la substitution du pk — le PONT entre les deux — n'était tenue par personne. C'est là que
+# le défaut de l'imager a vécu des semaines : `remove_from_batch` répondait 404 sur pk=0 et la
+# page se rechargeait, identique, sans un mot.
+#
+# Ces deux familles ferment la couture : elles POSTENT pour de vrai, sur une file HABITÉE, par
+# la voie de LOT (la seule création dont le contrat garantit qu'elle ne démarre rien).
+# La famille `duplicate_delete` écrit déjà sur le compte de test : écrire ici n'est pas une
+# première, c'est la pratique établie.
+
+
+_ENTREES_VISIBLES = """(() => {
+    const q = document.querySelector('[data-wama-dnd]');
+    if (!q) return null;
+    const vis = e => !e.classList.contains('wama-f-hors-filtre');
+    // ⚠ DÉFINITION D'ENTRÉE REPRISE DE LA BRIQUE (`wama-queue-dnd.js:entries()`), pas
+    // réinventée : elle a TROIS formes, et la troisième est celle qui m'a piégé le 2026-09-09.
+    // Le converter ne passe pas par `_queue_entry.html` : ses cards unitaires sont des enfants
+    // NUS, sans enrobage `.wama-queue-entry`. Mon compteur les ignorait, et le scénario a donc
+    // rapporté « le geste n'a rien changé » sur un dégroupage qui avait parfaitement marché
+    // (lots 1→0, filles 2→0, cards 2→2 : le lot AVAIT été dissous en deux cards unitaires).
+    // *Une mesure qui ne connaît pas toutes les formes de son objet rend un verdict inverse.*
+    const estEntree = e => e.classList.contains('batch-group')
+        || e.classList.contains('wama-queue-entry')
+        || (e.classList.contains('wama-card') && !e.classList.contains('wama-new-item-card')
+            && !e.classList.contains('wama-new-card') && !!e.dataset.id);
+    const entrees = Array.from(q.children).filter(estEntree);
+    return {
+        total: entrees.length,
+        visibles: entrees.filter(vis).length,
+        contents: entrees.filter(e => e.classList.contains('wama-queue-entry'))
+                         .map(e => getComputedStyle(e).display),
+    };
+})()"""
+
+#: Idem pour la SECONDE file d'une page (imager image/vidéo, enhancer média/audio) — c'est elle
+#: qui atteste la PORTÉE de la recherche.
+_ENTREES_SECONDE_FILE = """(() => {
+    const q = document.querySelectorAll('[data-wama-dnd]')[1];
+    if (!q) return null;
+    const e = Array.from(q.children).filter(x => x.classList.contains('batch-group')
+        || x.classList.contains('wama-queue-entry')
+        || (x.classList.contains('wama-card') && !!x.dataset.id
+            && !x.classList.contains('wama-new-item-card')));
+    return {total: e.length,
+            visibles: e.filter(x => !x.classList.contains('wama-f-hors-filtre')).length};
+})()"""
+
+#: État de file pour le geste de dégroupage : entrées de niveau supérieur, lots, filles.
+_ETAT_DE_FILE = """(() => {
+    const q = document.querySelector('[data-wama-dnd]');
+    // ⚠ On DIT l'absence de file au lieu de rendre `null` : un appelant qui lit `null` comme
+    // « 0 entrée » transforme un défaut d'INSTRUMENT en défaut de CODE. Mesuré le 2026-09-09,
+    // premier passage de ce scénario : il a rapporté « 1 → 0 entrée, le geste n'a rien fait »
+    // alors que la file n'avait simplement pas été retrouvée après rechargement.
+    if (!q) return {absente: true};
+    // ⚠ DÉFINITION D'ENTRÉE REPRISE DE LA BRIQUE (`wama-queue-dnd.js:entries()`), pas
+    // réinventée : elle a TROIS formes, et la troisième est celle qui m'a piégé le 2026-09-09.
+    // Le converter ne passe pas par `_queue_entry.html` : ses cards unitaires sont des enfants
+    // NUS, sans enrobage `.wama-queue-entry`. Mon compteur les ignorait, et le scénario a donc
+    // rapporté « le geste n'a rien changé » sur un dégroupage qui avait parfaitement marché
+    // (lots 1→0, filles 2→0, cards 2→2 : le lot AVAIT été dissous en deux cards unitaires).
+    // *Une mesure qui ne connaît pas toutes les formes de son objet rend un verdict inverse.*
+    const estEntree = e => e.classList.contains('batch-group')
+        || e.classList.contains('wama-queue-entry')
+        || (e.classList.contains('wama-card') && !e.classList.contains('wama-new-item-card')
+            && !e.classList.contains('wama-new-card') && !!e.dataset.id);
+    const entrees = Array.from(q.children).filter(estEntree);
+    return {absente: false,
+            entrees: entrees.length,
+            lots: q.querySelectorAll('.batch-group[data-batch-id]').length,
+            filles: q.querySelectorAll('.batch-group .wama-card[data-id]:not(.is-batch)').length,
+            cards: q.querySelectorAll('.wama-card[data-id]:not(.is-batch)').length,
+            url: location.pathname};
+})()"""
+
+
+def check_app_queue_search(app: str, url_path: str):
+    """La RECHERCHE de la barre de file filtre-t-elle vraiment les entrées ? (ok, detail).
+
+    Outil ajouté le 2026-09-08 à la barre GÉNÉRALE (`common/toolbar.py`, profil `file`) : une
+    clé au registre, et les douze files l'ont. Aucun scénario ne l'exerçait — et un filtre qui
+    ne filtre pas ne plante pas, il montre simplement tout.
+
+    TROIS CONSTATS, dont le dernier est celui qu'aucun test Django ne peut rendre :
+      1. un terme introuvable fait disparaître TOUTES les entrées — c'est le sens du filtre, et
+         c'est mesurable sans rien savoir du contenu réel de la file ;
+      2. effacer les REMONTE toutes, et l'entrée unitaire RETROUVE `display: contents`. Ce
+         second point n'est pas un détail : la brique masquait par `style.display` et restaurait
+         `''`, ce qui EFFACE la déclaration inline de l'entrée unitaire — la mise en page de la
+         file restait cassée jusqu'au rechargement ;
+      3. sur une page à DEUX files (imager, enhancer), la seconde reste INTACTE : c'est la
+         portée `data-cible-dans="file-suivante"`. Sans elle, chercher dans l'une filtrerait
+         l'autre — invisible tant qu'on ne change pas d'onglet.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _test_session_key(app)
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+
+    with _garde_de_montage(app, 'queue_search') as _nettoyes:
+      with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1600, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            mauvaise = _exiger_la_page(page, resp, url)
+            if mauvaise:
+                return mauvaise
+            page.wait_for_timeout(1000)
+
+            champ = page.query_selector('.wama-queue-toolbar [data-f-role="recherche"]')
+            if not champ:
+                return False, ("la barre de file ne porte AUCUN champ de recherche — l'outil "
+                               "`recherche` a quitté `PROFILS['file']`, ou la barre n'est plus "
+                               "la barre générale")
+
+            # Il faut de quoi chercher. On SÈME par la voie de lot : la seule création dont le
+            # contrat garantit qu'elle ne démarre rien (cf. `_monter_un_lot_par_gabarit`).
+            avant = page.evaluate(_ENTREES_VISIBLES) or {}
+            if avant is None:
+                return False, "conteneur de file introuvable — état ILLISIBLE"
+            semes = 0
+            if (avant.get('total') or 0) < 1:
+                try:
+                    neufs, _d = _monter_un_lot_par_gabarit(page, app)
+                    semes = len(neufs or [])
+                except _LotRefuse as exc:
+                    raise SkipScenario(f"file vide et le semis de lot a été refusé : {exc}")
+                page.goto(url, wait_until='networkidle', timeout=45000)
+                page.wait_for_timeout(900)
+                champ = page.query_selector('.wama-queue-toolbar [data-f-role="recherche"]')
+                avant = page.evaluate(_ENTREES_VISIBLES) or {}
+            if (avant.get('total') or 0) < 1:
+                raise SkipScenario("aucune entrée en file après semis — rien à filtrer")
+
+            files = len(page.query_selector_all('[data-wama-dnd]'))
+            seconde_avant = page.evaluate(_ENTREES_SECONDE_FILE) if files > 1 else None
+
+            champ.fill('zzzintrouvablezzz')
+            page.wait_for_timeout(450)
+            vide = page.evaluate(_ENTREES_VISIBLES) or {}
+            if (vide.get('visibles') or 0) != 0:
+                return False, (f"un terme introuvable laisse {vide.get('visibles')} entrée(s) "
+                               f"visible(s) sur {vide.get('total')} : le filtre ne filtre pas")
+
+            if seconde_avant:
+                seconde_apres = page.evaluate(_ENTREES_SECONDE_FILE) or {}
+                if seconde_apres.get('visibles') != seconde_avant.get('visibles'):
+                    return False, (f"chercher dans la 1re file a filtré la SECONDE "
+                                   f"({seconde_avant.get('visibles')} → "
+                                   f"{seconde_apres.get('visibles')} visibles) : la portée "
+                                   f"`data-cible-dans` ne borne plus la recherche")
+
+            champ.fill('')
+            page.wait_for_timeout(450)
+            apres = page.evaluate(_ENTREES_VISIBLES) or {}
+            if (apres.get('visibles') or 0) != (avant.get('total') or 0):
+                return False, (f"après effacement, {apres.get('visibles')} entrée(s) visible(s) "
+                               f"pour {avant.get('total')} attendue(s) — le filtre ne se "
+                               f"relâche pas complètement")
+            perdus = [d for d in (apres.get('contents') or []) if d != 'contents']
+            if perdus:
+                return False, (f"une entrée unitaire a PERDU son `display: contents` (devenu "
+                               f"{perdus[0]!r}) : le filtre a écrit dans son attribut `style` "
+                               f"au lieu de poser une classe — la mise en page de la file est "
+                               f"cassée jusqu'au rechargement")
+
+            detail = (f"recherche câblée sur {files} file(s) ; {avant.get('total')} entrée(s) "
+                      f"→ 0 sur un terme introuvable → {apres.get('visibles')} après "
+                      f"effacement ; `display:contents` préservé")
+            if seconde_avant:
+                detail += (f" ; 2e file INTACTE ({seconde_avant.get('visibles')} visible(s)) — "
+                           f"la portée tient")
+            if semes:
+                detail += f" ; {semes} élément(s) semés par la voie de lot"
+        finally:
+            navigateur.close()
+    if _nettoyes:
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de test nettoyé(s)"
+    return True, detail
+
+
+def check_app_batch_extract(app: str, url_path: str):
+    """Sortir un élément d'un lot rend-il DEUX entrées de file ? (ok, detail).
+
+    ⚠⚠ CE SCÉNARIO EXISTE À CAUSE D'UN DÉFAUT QUI A VÉCU DES SEMAINES. Signalé par Fabien le
+    2026-09-08 : « pour un batch de 2 éléments, si j'essaie de sortir 1 élément, on devrait
+    retrouver 2 cards unitaires. Et là rien ne change. » La vue était SAINE ; le front postait
+    `pk=0`, parce que sa substitution était ancrée en FIN d'URL et que l'imager porte son pk au
+    MILIEU. 404, puis `location.reload()` : écran identique, aucun message.
+
+    NI LE NOCTURNE NI LES TESTS DJANGO NE POUVAIENT LE VOIR, et c'est le vrai enseignement :
+    `queue_dnd` ne POSTE pas (par conception), `tests_queue_dnd` appelle les endpoints par
+    `reverse()`, donc avec un pk déjà juste. Le pont entre les deux n'était tenu par personne.
+    Ce scénario EST ce pont : il part d'un vrai clic et va jusqu'à la base.
+
+    Il passe par le MENU CONTEXTUEL (livré le 08/09), surface où « Sortir du lot » vit pour une
+    card seule — il couvre donc les deux livraisons du même geste.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _test_session_key(app)
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+
+    with _garde_de_montage(app, 'batch_extract') as _nettoyes:
+      with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1600, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            posts = []
+            page.on('response', lambda r: (posts.append((r.status, r.url.split('?')[0]))
+                                           if r.request.method == 'POST' else None))
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            mauvaise = _exiger_la_page(page, resp, url)
+            if mauvaise:
+                return mauvaise
+            page.wait_for_timeout(900)
+
+            if not page.query_selector('[data-wama-dnd][data-dnd-remove-url]'):
+                raise SkipScenario("la file ne déclare pas `data-dnd-remove-url` — le geste "
+                                   "« sortir du lot » n'a pas de route ici")
+
+            # SEMER un lot de ≥ 2 filles : c'est la situation même du défaut signalé.
+            try:
+                neufs, _d = _monter_un_lot_par_gabarit(page, app)
+            except _LotRefuse as exc:
+                raise SkipScenario(f"semis de lot refusé, rien à dégrouper : {exc}")
+            page.goto(url, wait_until='networkidle', timeout=45000)
+            page.wait_for_timeout(1100)
+
+            avant = page.evaluate(_ETAT_DE_FILE) or {'absente': True}
+            if avant.get('absente'):
+                return False, ("aucun conteneur `[data-wama-dnd]` après le semis — état de file "
+                               "ILLISIBLE, on ne conclut pas sur le geste")
+            if (avant.get('filles') or 0) < 2:
+                raise SkipScenario(f"le semis n'a pas produit de lot à ≥ 2 filles "
+                                   f"({avant.get('filles')} fille(s)) — rien à sortir")
+
+            # Les filles vivent dans un `.collapse` REPLIÉ (convention Solitaire) : on déplie,
+            # sinon `click` viserait un élément de taille nulle.
+            page.evaluate("""() => document.querySelectorAll('.batch-group .collapse')
+                                     .forEach(c => c.classList.add('show'))""")
+            page.wait_for_timeout(300)
+            fille = page.query_selector('.batch-group .wama-card[data-id]:not(.is-batch)')
+            if not fille:
+                return False, "aucune card fille atteignable après dépliage"
+            fille.scroll_into_view_if_needed()
+            fille.click(button='right')
+            page.wait_for_timeout(450)
+
+            entree = None
+            for b in page.query_selector_all('.wama-card-menu .wama-cm-item'):
+                if 'Sortir du lot' in (b.inner_text() or ''):
+                    entree = b
+                    break
+            if entree is None:
+                offert = [b.inner_text().strip()
+                          for b in page.query_selector_all('.wama-card-menu .wama-cm-item')]
+                return False, (f"le menu contextuel d'une fille de lot n'offre pas « Sortir du "
+                               f"lot » — offert : {offert}")
+            entree.click()
+            # Le geste RECHARGE (le serveur seul sait recomposer la file) : on attend la page.
+            page.wait_for_load_state('networkidle', timeout=30000)
+            page.wait_for_timeout(1200)
+
+            apres = page.evaluate(_ETAT_DE_FILE) or {'absente': True}
+            if apres.get('absente'):
+                return False, (f"après « Sortir du lot », plus aucun conteneur de file dans la "
+                               f"page (url={page.url}) — état ILLISIBLE, pas un verdict sur le "
+                               f"geste")
+            echecs = [f"{s} {u}" for s, u in posts if s >= 400]
+            if echecs:
+                return False, (f"la sortie de lot a produit une requête en ÉCHEC : "
+                               f"{' | '.join(echecs[:2])} — c'est le défaut du 2026-09-08 "
+                               f"(pk non substitué) ou sa récidive")
+            if (apres.get('entrees') or 0) <= (avant.get('entrees') or 0):
+                return False, (f"« Sortir du lot » n'a RIEN changé : {avant.get('entrees')} → "
+                               f"{apres.get('entrees')} entrée(s) de file "
+                               f"(lots {avant.get('lots')}→{apres.get('lots')}, "
+                               f"filles {avant.get('filles')}→{apres.get('filles')}, "
+                               f"cards {avant.get('cards')}→{apres.get('cards')}). C'est le "
+                               f"symptôme signalé le 2026-09-08 (« le batch reste un batch de "
+                               f"2 éléments »)")
+            detail = (f"lot semé à {avant.get('filles')} filles → « Sortir du lot » par le menu "
+                      f"contextuel → {avant.get('entrees')} → {apres.get('entrees')} entrée(s) "
+                      f"de file ; {len(posts)} POST, aucun en échec ; "
+                      f"{len(neufs or [])} élément(s) semés")
+        finally:
+            navigateur.close()
+    if _nettoyes:
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de test nettoyé(s)"
+    return True, detail
+
+
+def register_queue_search_scenarios():
+    """Un scénario `<app>.queue_search` par app d'index — déduit des URLs, comme ses sœurs."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.queue_search", app=label, stage="ui",
+            description=(f"File {label} : la RECHERCHE de la barre filtre les entrées, se "
+                         f"relâche, préserve `display:contents`, et ne déborde pas sur une "
+                         f"seconde file"),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_queue_search(a, p)))(),
+            timeout_s=180, vram_gb=0.0,
+        )
+
+
+def register_batch_extract_scenarios():
+    """Un scénario `<app>.batch_extract` par app d'index — le PONT front↔serveur du geste."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.batch_extract", app=label, stage="ui",
+            description=(f"File {label} : sortir une fille de son lot par le menu contextuel "
+                         f"rend DEUX entrées — le geste POSTÉ, du clic jusqu'à la base"),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_batch_extract(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )
+
+
 # ── Geste 17 : ANNULER / RÉTABLIR (brique commune `wama-history.js`) ───────────────────────
 
 
