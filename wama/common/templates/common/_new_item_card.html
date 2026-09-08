@@ -120,7 +120,8 @@ lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut tr
                     <i class="fas fa-photo-film"></i> Médiathèque
                 </button>
                 {% endif %}
-                {% if show_batch_bar %}{% include 'common/batch_detect_bar.html' %}{% endif %}
+                {# `batch_bid` / `batch_label` (2026-09-08) : base des ids et libellé de la barre — une SECONDE card de lot sur la même page (imager vidéo) en déclare une (`WamaBatchImport({idBase})`). #}
+                {% if show_batch_bar %}{% include 'common/batch_detect_bar.html' with bid=batch_bid label=batch_label %}{% endif %}
             </div>
             {% if show_url %}
             <div class="col-md-6">

@@ -2118,7 +2118,18 @@ serveur ; PNG → refus ; TXT → barre AUDIO ouverte (2) pendant que la barre i
 
 **imager (×2 domaines) et avatarizer, 2026-09-08 — le portage est TERMINÉ (10/10).** Lu dans
 leurs cards (déclarées `depot_cree=False`) : imager = slot `imgRefInput` / `vidRefInput`
-(`accept='image/*'`), lot `.txt/.csv` côté image seulement ; avatarizer = `audio_input`
+(`accept='image/*'`), lot `.txt/.csv` côté image — **ET côté vidéo depuis le 08/09** (Fabien :
+« je ne vois pas de raison de ne pas permettre de fichier batch dans le domaine vidéo », lots
+vidéo prévus depuis le studio) : la card vidéo déclare sa barre (`show_batch_bar` + `batch_bid=
+'vidBatch'`, passés par `_new_item_card` au partial commun), une 2ᵉ instance
+`WamaBatchImport({idBase:'vidBatch'})` poste `domain:'video'` + réglages du volet vidéo, et
+`handle_file2img` — qui écrivait `txt2img`/`domain='image'` EN DUR — lit le domaine déclaré
+(`txt2vid`, lot vidéo, durée/fps/résolution ; sans déclaration = image, comme avant).
+Tests `imager/tests.py` (module vide jusque-là) ; sonde : fichier de prompts sur la card vidéo
+→ barre `vidBatch…` (2) pendant que la barre image reste fermée, « Ajouter » → lot **video** de
+2 `txt2vid`. ⚠ La veille j'avais écrit « l'imager n'a jamais eu deux barres, donc rien à
+changer » en confrontant code et doc — les deux disaient la même chose, et c'était le BESOIN
+qui manquait, pas la cohérence. Le studio postera `domain='video'` au même endpoint ; avatarizer = `audio_input`
 (`accept='.wav,.mp3,.ogg,.flac'`) qui est À LA FOIS le sélecteur de la dropzone et le slot audio.
 Deux compléments de brique : (a) **attache sur soi-même** — quand l'input de la zone est le port,
 le fichier y RESTE (pas de ré-injection, pas de vidage) ; (b) **`afterAttach(input, file)`** —

@@ -174,7 +174,7 @@ Tout telecharger. {% endcomment %}
     <div class="tab-pane fade" id="videoTab" role="tabpanel" aria-labelledby="video-tab">
 
 {% comment %} Card d'entrée vidéo — même brique, domaine vidéo (modèles t2v/i2v). {% endcomment %}
-{% include 'common/_new_item_card.html' with card_id='vidNewCard' depot_cree=False collapsible=True deployed=True show_prompt=True prompt_input_id='vidPrompt' prompt_rows=2 prompt_placeholder='Décrivez la vidéo à obtenir… (le ✨ traduit et enrichit)' drop_zone_id='vidDropZone' file_input_id='vidFileInput' file_accept='image/*' formats_label='Image de départ (image → vidéo)' show_media_library=True media_library_type='image' show_reference=True reference_zone_id='vidRefSlot' reference_input_id='vidRefInput' reference_chip_id='vidRefChip' reference_accept='image/*' reference_label='Image de départ' reference_hint='Requise (CogVideoX i2v) ou optionnelle (LTX) selon le modèle.' match_status_id='vidMatchStatus' show_url=True url_input_id='vidUrlInput' url_label='ou image de départ par URL' url_placeholder='https://…/image.jpg' url_hint='Téléchargée au lancement (WAMA_INGEST) ; un fichier joint prime. Mode dérivé : image → vidéo.' extra_zone_template='imager/_model_zone.html' mz_prefix='vid' mz_groups=video_model_groups primary_btn_id='vidGenerateBtn' primary_btn_label='Générer' primary_btn_icon='fa-film' %}
+{% include 'common/_new_item_card.html' with card_id='vidNewCard' depot_cree=False collapsible=True deployed=True show_prompt=True prompt_input_id='vidPrompt' prompt_rows=2 prompt_placeholder='Décrivez la vidéo à obtenir… (le ✨ traduit et enrichit)' drop_zone_id='vidDropZone' file_input_id='vidFileInput' file_accept='image/*,.txt,.csv' formats_label='Image de départ (image → vidéo), ou fichier de prompts .txt/.csv (batch vidéo)' show_batch_bar=True batch_bid='vidBatch' batch_label='Batch vidéo' batch_format='prompt|modele|steps|seed' batch_hint='Un prompt par ligne ; réglages vidéo (durée, fps, résolution) du volet.' batch_template_url=batch_tpl_url batch_template_id='vidBatchTemplateLink' show_media_library=True media_library_type='image' show_reference=True reference_zone_id='vidRefSlot' reference_input_id='vidRefInput' reference_chip_id='vidRefChip' reference_accept='image/*' reference_label='Image de départ' reference_hint='Requise (CogVideoX i2v) ou optionnelle (LTX) selon le modèle.' match_status_id='vidMatchStatus' show_url=True url_input_id='vidUrlInput' url_label='ou image de départ par URL' url_placeholder='https://…/image.jpg' url_hint='Téléchargée au lancement (WAMA_INGEST) ; un fichier joint prime. Mode dérivé : image → vidéo.' extra_zone_template='imager/_model_zone.html' mz_prefix='vid' mz_groups=video_model_groups primary_btn_id='vidGenerateBtn' primary_btn_label='Générer' primary_btn_icon='fa-film' %}
 
 <hr class="border-secondary">
 <div id="videoGlobalStatus" style="opacity:0; pointer-events:none;">
@@ -407,6 +407,42 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             var sel = document.getElementById('imgModelSelect');
             fd.append('model', (sel && sel.value) || 'auto');
+            fd.append('domain', 'image');
+        },
+        afterCreate: function (data, autoStart) {
+            if (autoStart && data.batch_id) {
+                fetch('{% url "imager:batch_start" 0 %}'.replace('/0/', '/' + data.batch_id + '/'),
+                      { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+                    .finally(function () { location.reload(); });
+            } else {
+                location.reload();
+            }
+        },
+    });
+    // Lot VIDÉO (2026-09-08, décision Fabien — lots vidéo prévus, dont depuis le studio) :
+    // 2ᵉ instance de la brique sur la même page, SES ids (`vidBatch…`, barre déclarée par la
+    // card vidéo via `batch_bid`), SON volet, SON select, `domain:'video'` → `import_batch`
+    // crée des `txt2vid` dans un lot de domaine vidéo. Même endpoints, même contrat.
+    window._batchImportVideo = WamaBatchImport({
+        idBase: 'vidBatch',
+        batchExtensions: ['txt', 'csv'],
+        batchPreviewUrl: '{% url "imager:batch_preview" %}',
+        batchCreateUrl: '{% url "imager:import_batch" %}',
+        csrfToken: '{{ csrf_token }}',
+        formDataBuilder: function (fd) {
+            var host = document.getElementById('videoPanelParams');
+            if (host && window.WamaParams) {
+                var vals = WamaParams.read(host) || {};
+                Object.keys(vals).forEach(function (k) {
+                    if (k === 'model') return;
+                    if (vals[k] !== null && vals[k] !== undefined && vals[k] !== '') {
+                        fd.append(k, vals[k]);
+                    }
+                });
+            }
+            var sel = document.getElementById('vidModelSelect');
+            fd.append('model', (sel && sel.value) || 'auto');
+            fd.append('domain', 'video');
         },
         afterCreate: function (data, autoStart) {
             if (autoStart && data.batch_id) {

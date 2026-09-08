@@ -429,6 +429,20 @@ def handle_file2img(request, user):
     height = int(request.POST.get('height', _def['height']))
     steps = int(request.POST.get('steps', _def['steps']))
     guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
+    # DOMAINE du lot (2026-09-08, décision Fabien : « je ne vois pas de raison de ne pas
+    # permettre de fichier batch dans le domaine vidéo », lots vidéo prévus depuis le studio).
+    # Jusqu'ici `txt2img` et `domain='image'` étaient écrits en dur : un lot déposé sur la card
+    # VIDÉO ne pouvait exister. Le domaine est DÉCLARÉ par l'appelant (card vidéo, studio) ;
+    # les réglages vidéo suivent le même patron que `handle_text_to_video`.
+    domain = 'video' if (request.POST.get('domain') or 'image') == 'video' else 'image'
+    mode = 'txt2vid' if domain == 'video' else 'txt2img'
+    video_kwargs = {}
+    if domain == 'video':
+        video_kwargs = {
+            'video_duration': float(request.POST.get('video_duration', 5.0)),
+            'video_fps': int(request.POST.get('video_fps', 16)),
+            'video_resolution': request.POST.get('video_resolution', '480p'),
+        }
 
     # Save file temporarily to parse it
     import tempfile
@@ -458,7 +472,7 @@ def handle_file2img(request, user):
         generations = [
             ImageGeneration.objects.create(
                 user=user,
-                generation_mode='txt2img',
+                generation_mode=mode,
                 prompt=v.get('prompt', ''),
                 negative_prompt=v.get('negative_prompt', ''),
                 model=v.get('model', model),
@@ -469,12 +483,13 @@ def handle_file2img(request, user):
                 seed=v.get('seed'),
                 num_images=v.get('num_images', 1),
                 status='PENDING',
+                **video_kwargs,
             )
             for v in (validate_prompt_config(p) for p in prompts)
         ]
 
         def _create_batch(total):
-            b = GenerationBatch.objects.create(user=user, domain='image', total=total)
+            b = GenerationBatch.objects.create(user=user, domain=domain, total=total)
             # Le fichier de prompts vit sur le BATCH (champ prevu pour, models.py:445) et non
             # sur un faux item : il est partage par les lignes et nettoye par BatchMixin.
             b.batch_file.save(prompt_file.name, prompt_file)

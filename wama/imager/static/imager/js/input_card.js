@@ -136,13 +136,13 @@
                 // celui-ci : résolution PARESSEUSE, jamais au moment de l'instanciation
                 // (mesuré : lot ignoré, fichier de prompts refusé comme « non attendu »).
                 batch:       d.allowBatch ? { detectAndHandle: function (f) {
-                                 return window._batchImport ? window._batchImport.detectAndHandle(f)
-                                                            : Promise.resolve(false); } } : null,
+                                 var b = window[d.batchGlobal];
+                                 return b ? b.detectAndHandle(f) : Promise.resolve(false); } } : null,
                 batchScope:  'each',
                 attach:      [d.refInputId],
                 afterAttach: function () { if (matcher) matcher.refresh(); },
                 beforeFile:  function (f) {
-                    if (d.allowBatch && isBatchFile(f) && !window._batchImport) { setBatchFile(f); return false; }
+                    if (d.allowBatch && isBatchFile(f) && !window[d.batchGlobal]) { setBatchFile(f); return false; }
                     return true;
                 },
             });
@@ -242,7 +242,7 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         initDomain({
-            prefix: 'img', domain: 'image', allowBatch: true,
+            prefix: 'img', domain: 'image', allowBatch: true, batchGlobal: '_batchImport',
             selectId: 'imgModelSelect', promptId: 'imgPrompt',
             fileInputId: 'imgFileInput', dropZoneId: 'imgDropZone',
             refInputId: 'imgRefInput', refChipId: 'imgRefChip', refSlotId: 'imgRefSlot',
@@ -250,7 +250,10 @@
             statusId: 'imgMatchStatus', btnId: 'imgGenerateBtn',
         });
         initDomain({
-            prefix: 'vid', domain: 'video', allowBatch: false,
+            // Lot vidéo AUTORISÉ (2026-09-08, décision Fabien) : sa propre instance de brique
+            // (`_batchImportVideo`, ids `vidBatch…`), sinon un fichier de prompts déposé sur la
+            // card vidéo était refusé comme « non attendu ».
+            prefix: 'vid', domain: 'video', allowBatch: true, batchGlobal: '_batchImportVideo',
             selectId: 'vidModelSelect', promptId: 'vidPrompt',
             fileInputId: 'vidFileInput', dropZoneId: 'vidDropZone',
             refInputId: 'vidRefInput', refChipId: 'vidRefChip', refSlotId: 'vidRefSlot',
