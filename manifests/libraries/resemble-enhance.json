@@ -1,0 +1,53 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "celluloid",
+      "deepspeed",
+      "gradio",
+      "librosa",
+      "matplotlib",
+      "numpy",
+      "omegaconf",
+      "pandas",
+      "ptflops",
+      "resampy",
+      "rich",
+      "scipy",
+      "soundfile",
+      "tabulate",
+      "torch",
+      "torchaudio",
+      "torchvision",
+      "tqdm"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "resemble-enhance"
+      ]
+    },
+    "identity": {
+      "author": "Resemble AI",
+      "license": null,
+      "repository": "https://github.com/resemble-ai/resemble-enhance",
+      "summary": "Speech denoising and enhancement with deep learning",
+      "version": "0.0.1"
+    },
+    "install": {
+      "pip": "resemble-enhance==0.0.1",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Speech denoising and enhancement with deep learning",
+  "key": "resemble-enhance",
+  "manifest_kind": "library",
+  "name": "resemble-enhance",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:resemble-enhance==0.0.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

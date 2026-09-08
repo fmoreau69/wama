@@ -1,0 +1,43 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "appdirs",
+      "deepfilterlib",
+      "loguru",
+      "numpy",
+      "packaging",
+      "requests",
+      "sympy"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "deep-filter-py",
+        "deepFilter"
+      ]
+    },
+    "identity": {
+      "author": "Hendrik Schröter",
+      "license": "MIT",
+      "repository": "https://github.com/Rikorose/DeepFilterNet",
+      "summary": "Noise supression using deep filtering",
+      "version": "0.5.6"
+    },
+    "install": {
+      "pip": "DeepFilterNet==0.5.6",
+      "requires_python": ">=3.8,<4.0"
+    }
+  },
+  "description": "Noise supression using deep filtering",
+  "key": "DeepFilterNet",
+  "manifest_kind": "library",
+  "name": "DeepFilterNet",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:DeepFilterNet==0.5.6",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

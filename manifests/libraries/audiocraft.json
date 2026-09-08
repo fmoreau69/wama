@@ -1,0 +1,55 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "av",
+      "demucs",
+      "einops",
+      "encodec",
+      "flashy",
+      "gradio",
+      "huggingface_hub",
+      "hydra-core",
+      "hydra_colorlog",
+      "julius",
+      "librosa",
+      "num2words",
+      "numpy",
+      "protobuf",
+      "sentencepiece",
+      "spacy",
+      "torch",
+      "torchaudio",
+      "torchmetrics",
+      "torchtext",
+      "torchvision",
+      "tqdm",
+      "transformers",
+      "xformers"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "FAIR Speech & Audio",
+      "license": "MIT License",
+      "repository": "https://github.com/facebookresearch/audiocraft",
+      "summary": "Audio generation research library for PyTorch",
+      "version": "1.3.0"
+    },
+    "install": {
+      "pip": "audiocraft==1.3.0",
+      "requires_python": ">=3.8.0"
+    }
+  },
+  "description": "Audio generation research library for PyTorch",
+  "key": "audiocraft",
+  "manifest_kind": "library",
+  "name": "audiocraft",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:audiocraft==1.3.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

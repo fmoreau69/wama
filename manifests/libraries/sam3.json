@@ -1,0 +1,42 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "decord",
+      "einops",
+      "ftfy",
+      "huggingface-hub",
+      "iopath",
+      "numpy",
+      "pycocotools",
+      "regex",
+      "timm",
+      "tqdm",
+      "typing_extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Meta AI Research",
+      "license": "MIT License",
+      "repository": "https://github.com/facebookresearch/sam3",
+      "summary": "SAM3 (Segment Anything Model 3) implementation",
+      "version": "0.1.2"
+    },
+    "install": {
+      "pip": "sam3==0.1.2",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "SAM3 (Segment Anything Model 3) implementation",
+  "key": "sam3",
+  "manifest_kind": "library",
+  "name": "sam3",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:sam3==0.1.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

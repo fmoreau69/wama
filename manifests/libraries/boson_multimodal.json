@@ -1,0 +1,52 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "accelerate",
+      "boto3",
+      "click",
+      "dacite",
+      "descript-audio-codec",
+      "jieba",
+      "json_repair",
+      "langid",
+      "librosa",
+      "loguru",
+      "omegaconf",
+      "pandas",
+      "pydantic",
+      "pydub",
+      "ruff",
+      "s3fs",
+      "torch",
+      "torchaudio",
+      "torchvision",
+      "transformers",
+      "vector_quantize_pytorch"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Boson AI",
+      "license": "MIT License",
+      "repository": "https://github.com/yourusername/boson_multimodal",
+      "summary": "Boson Multimodal - A multimodal AI framework",
+      "version": "0.1.1"
+    },
+    "install": {
+      "pip": "boson_multimodal==0.1.1",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Boson Multimodal - A multimodal AI framework",
+  "key": "boson_multimodal",
+  "manifest_kind": "library",
+  "name": "boson_multimodal",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:boson_multimodal==0.1.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,44 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "Pillow",
+      "filelock",
+      "httpx",
+      "huggingface-hub",
+      "importlib_metadata",
+      "numpy",
+      "regex",
+      "requests",
+      "safetensors"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "diffusers-cli"
+      ]
+    },
+    "identity": {
+      "author": "The Hugging Face team (past and future) with the help of all our contributors (https://github.com/huggingface/diffusers/graphs/contributors)",
+      "license": "Apache 2.0 License",
+      "repository": "https://github.com/huggingface/diffusers",
+      "summary": "State-of-the-art diffusion in PyTorch and JAX.",
+      "version": "0.37.0"
+    },
+    "install": {
+      "pip": "diffusers==0.37.0",
+      "requires_python": ">=3.10.0"
+    }
+  },
+  "description": "State-of-the-art diffusion in PyTorch and JAX.",
+  "key": "diffusers",
+  "manifest_kind": "library",
+  "name": "diffusers",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:diffusers==0.37.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,48 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "matplotlib",
+      "numpy",
+      "opencv-python",
+      "pillow",
+      "polars",
+      "psutil",
+      "pyyaml",
+      "requests",
+      "scipy",
+      "torch",
+      "torchvision",
+      "ultralytics-thop"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "ultralytics",
+        "yolo"
+      ]
+    },
+    "identity": {
+      "author": "Glenn Jocher <glenn.jocher@ultralytics.com>, Jing Qiu <jing.qiu@ultralytics.com>",
+      "license": "AGPL-3.0",
+      "repository": "https://github.com/ultralytics/ultralytics",
+      "summary": "Ultralytics YOLO 🚀 for SOTA object detection, multi-object tracking, instance segmentation, pose estimation and image classification.",
+      "version": "8.4.14"
+    },
+    "install": {
+      "pip": "ultralytics==8.4.14",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Ultralytics YOLO 🚀 for SOTA object detection, multi-object tracking, instance segmentation, pose estimation and image classification.",
+  "key": "ultralytics",
+  "manifest_kind": "library",
+  "name": "ultralytics",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:ultralytics==8.4.14",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

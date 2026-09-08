@@ -1,0 +1,45 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "Pillow",
+      "anyascii",
+      "defusedxml",
+      "h5py",
+      "huggingface-hub",
+      "langdetect",
+      "numpy",
+      "opencv-python",
+      "pyclipper",
+      "pypdfium2",
+      "rapidfuzz",
+      "scipy",
+      "shapely",
+      "tqdm"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Mindee <contact@mindee.com>",
+      "license": "Apache Software License",
+      "repository": "https://github.com/mindee/doctr",
+      "summary": "Document Text Recognition (docTR): deep Learning for high-performance OCR on documents.",
+      "version": "0.11.0"
+    },
+    "install": {
+      "pip": "python-doctr==0.11.0",
+      "requires_python": "<4,>=3.10.0"
+    }
+  },
+  "description": "Document Text Recognition (docTR): deep Learning for high-performance OCR on documents.",
+  "key": "python-doctr",
+  "manifest_kind": "library",
+  "name": "python-doctr",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:python-doctr==0.11.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

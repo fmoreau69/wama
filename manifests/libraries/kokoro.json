@@ -1,0 +1,41 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "huggingface-hub",
+      "loguru",
+      "misaki",
+      "numpy",
+      "torch",
+      "transformers"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "kokoro"
+      ]
+    },
+    "identity": {
+      "author": "hexgrad <hello@hexgrad.com>",
+      "license": "Apache Software License",
+      "repository": "https://github.com/hexgrad/kokoro",
+      "summary": "TTS",
+      "version": "0.9.4"
+    },
+    "install": {
+      "pip": "kokoro==0.9.4",
+      "requires_python": "<3.13,>=3.10"
+    }
+  },
+  "description": "TTS",
+  "key": "kokoro",
+  "manifest_kind": "library",
+  "name": "kokoro",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:kokoro==0.9.4",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

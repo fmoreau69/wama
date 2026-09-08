@@ -30,6 +30,12 @@ def validate_library_body(body: dict) -> list[str]:
         errs.append("identity doit être un dict")
     elif not ident.get('version'):
         errs.append("identity.version manquant (une library sans version n'est pas installable)")
+    elif ident.get('license') and (len(str(ident['license'])) > LICENCE_MAX
+                                   or '\n' in str(ident['license'])):
+        # Un manifeste porte un IDENTIFIANT de licence, jamais son texte : le registre le
+        # projette dans 128 caractères, et un texte y faisait échouer la projection (07/09).
+        errs.append(f"identity.license est un TEXTE ({len(str(ident['license']))} car.), "
+                    f"pas un identifiant (≤ {LICENCE_MAX}, sans retour à la ligne)")
 
     install = body.get('install') or {}
     if not isinstance(install, dict):
@@ -45,6 +51,41 @@ def validate_library_body(body: dict) -> list[str]:
     if deps is not None and not isinstance(deps, list):
         errs.append("dependencies doit être une liste")
     return errs
+
+
+#: Longueur du champ `Library.license` (un IDENTIFIANT — 'MIT', 'Apache-2.0' — jamais un texte).
+LICENCE_MAX = 128
+
+
+def licence_courte(meta) -> Optional[str]:
+    """Identifiant de licence depuis des métadonnées de distribution — ou None, jamais un TEXTE.
+
+    ⚠ Défaut MESURÉ le 2026-09-07, au premier semis mécanique de 12 moteurs : `kokoro`,
+    `python-doctr`, `sam3` et `suno-bark` mettent le texte INTÉGRAL de leur licence (1 à 11 Ko)
+    dans le champ `License` des métadonnées, et l'extracteur le recopiait tel quel dans
+    `identity.license` — que le registre projette dans un `CharField(128)`. La projection
+    s'arrêtait en `DataError` au 6ᵉ manifeste. Trois d'entre eux portent pourtant un
+    classifieur propre (« Apache Software License », « MIT License »).
+
+    Ordre, du plus DÉCLARÉ au plus déduit :
+      1. `License-Expression` (PEP 639) — l'identifiant SPDX, quand le paquet le fournit ;
+      2. `License` s'il est COURT (≤ LICENCE_MAX) : c'est alors un identifiant, pas un texte ;
+      3. le classifieur `License :: …`, débarrassé de ses préfixes — le libellé Trove tel quel
+         (« MIT License »), sans table de traduction vers SPDX : on ne devine pas ;
+      4. sinon None — une licence inconnue se dit, elle ne s'invente pas (`suno-bark` : texte
+         seul, aucun classifieur ; `pyannote-audio`, `vibevoice`, `kokoro-onnx` : rien du tout,
+         leur licence au registre est un enrichissement HUMAIN que l'extraction ne remplace pas).
+    """
+    expr = (meta.get('License-Expression') or '').strip()
+    if expr:
+        return expr[:LICENCE_MAX]
+    brut = (meta.get('License') or '').strip()
+    if brut and len(brut) <= LICENCE_MAX and '\n' not in brut:
+        return brut
+    for c in (meta.get_all('Classifier') or []):
+        if c.startswith('License ::'):
+            return c.split('::')[-1].strip()[:LICENCE_MAX]
+    return None
 
 
 def extract_library(key: str) -> Optional[dict]:
@@ -74,7 +115,7 @@ def extract_library(key: str) -> Optional[dict]:
     body = {
         'identity': {
             'version': dist.version,
-            'license': meta.get('License-Expression') or meta.get('License') or None,
+            'license': licence_courte(meta),
             # `Author` est souvent vide au profit de `Author-email` (« Nom <a@b.c> ») dans les
             # métadonnées PyPI modernes : on prend le premier des deux qui est renseigné plutôt
             # que de conclure « pas d'auteur » sur le seul champ historique.
