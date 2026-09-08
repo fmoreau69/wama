@@ -1434,6 +1434,10 @@
       "kind": "model"
     },
     {
+      "key": "faster-whisper",
+      "kind": "library"
+    },
+    {
       "key": "torch",
       "kind": "library"
     },

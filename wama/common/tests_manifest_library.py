@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 
 from django.conf import settings
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.manifests.builtin.library import (
     LICENCE_MAX, licence_courte, validate_library_body,
@@ -105,3 +105,44 @@ class CorpusLibraryTest(SimpleTestCase):
                 fautifs.append(f'{f.name} ({len(str(lic))} car.)')
         self.assertEqual(fautifs, [], 'manifeste(s) library à licence-TEXTE — ré-exporter '
                                       'depuis venv_linux après le correctif de l’extracteur')
+
+
+class JambeBackendsDesRequiresTest(TestCase):
+    """La 2ᵉ jambe du `requires` d'app : modèle → backend résolu → paquets déclarés → librairies.
+
+    POURQUOI (2026-09-07) : depuis que les backends vivent au substrat, la jambe « le dossier de
+    l'app importe » ne voit plus torch/diffusers/soundfile — les 8 manifestes d'apps à backends
+    perdaient leurs librairies au premier export. La dépendance suit le lien DÉCLARÉ, pas
+    l'emplacement d'un fichier. Sème ses cas (la base de test est vide) ; ne dépend d'aucune
+    distribution installée dans CE venv : `PIP_PACKAGES` nomme des distributions directement.
+    """
+
+    def _semer(self, cle, moteur):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.create(          # même semis que tests_backend_inventory
+            model_key=cle, name=cle, model_type='image', source=cle.split(':')[0],
+            is_available=True, is_downloaded=True,
+            composition={'runtime': {'engine': moteur}})
+
+    def test_un_modele_resolu_apporte_les_distributions_de_son_backend(self):
+        """`deepface` : un seul backend le pilote, `PIP_PACKAGES = ['deepface', 'tf-keras>=2.21']`
+        — `deepface` est semé au corpus, `tf-keras` ne l'est pas : seule la semée est citée."""
+        from wama.common.services.library_index import librairies_des_backends, semees
+        self.assertIn('deepface', semees(), 'le cas suppose deepface semé au corpus')
+        self._semer('face_analyzer:deepface-age', 'deepface')
+        libs = librairies_des_backends(['face_analyzer:deepface-age'])
+        self.assertIn('deepface', libs)
+        self.assertNotIn('tf-keras', libs, 'une distribution NON semée ne se cite pas')
+
+    def test_un_modele_sans_backend_n_apporte_rien(self):
+        from wama.common.services.library_index import librairies_des_backends
+        self._semer('x:sans-moteur', '')
+        self.assertEqual(librairies_des_backends(['x:sans-moteur', 'x:inexistant']), [])
+
+    def test_le_socle_plateforme_reste_exclu(self):
+        """`diffusers` déclare `REQUIRED_PACKAGES = ['torch', 'diffusers', 'numpy']` : numpy est
+        du SOCLE — jamais cité, même semé (même règle que la 1ʳᵉ jambe)."""
+        from wama.common.services.library_index import librairies_des_backends, SOCLE_PLATEFORME
+        self._semer('imager:qwen-image-2', 'diffusers')
+        libs = librairies_des_backends(['imager:qwen-image-2'])
+        self.assertFalse(set(libs) & SOCLE_PLATEFORME, libs)

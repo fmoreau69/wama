@@ -2010,7 +2010,11 @@
       "kind": "model"
     },
     {
-      "key": "kokoro-onnx",
+      "key": "boson_multimodal",
+      "kind": "library"
+    },
+    {
+      "key": "kokoro",
       "kind": "library"
     },
     {
@@ -2018,11 +2022,11 @@
       "kind": "library"
     },
     {
-      "key": "qwen-tts",
+      "key": "soundfile",
       "kind": "library"
     },
     {
-      "key": "soundfile",
+      "key": "suno-bark",
       "kind": "library"
     },
     {

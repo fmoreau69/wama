@@ -212,3 +212,66 @@ def librairies_de(app_id: str) -> list[str]:
         if app_id in c['apps'] and _normalise(c['dist']) in sem
         and _normalise(c['dist']) not in SOCLE_PLATEFORME
     )
+
+
+def librairies_des_backends(catalog_keys) -> list[str]:
+    """
+    Librairies que les MODÈLES d'une app exigent — par le lien modèle → backend → paquets.
+
+    POURQUOI UNE 2ᵉ JAMBE (2026-09-07) : `librairies_de` mesure ce que le DOSSIER de l'app importe.
+    Depuis que les backends vivent au substrat (`wama/common/backends/`), c'est `common` qui
+    importe torch, diffusers ou soundfile — et les 8 manifestes d'apps à backends ont perdu leurs
+    librairies au premier `manifest_export`. Or ce que l'app exige n'a pas changé : ses modèles
+    tournent sur ces librairies. La dépendance passe donc par le lien DÉCLARÉ — le modèle porte
+    son moteur, le backend résolu déclare ses paquets (`REQUIRED_PACKAGES`, noms d'import ;
+    `PIP_PACKAGES`, noms de distribution) — et non par l'emplacement d'un fichier.
+
+    Mêmes trois conditions que `librairies_de` : distribution INSTALLÉE (sinon on ne sait pas la
+    nommer), SEMÉE au corpus, hors SOCLE. La résolution est CIBLÉE (un import par backend, à la
+    demande) — jamais un balayage.
+    """
+    import importlib.metadata as im
+    import sys as _sys
+    try:
+        from wama.common.backends.manager import backend_for_key
+    except Exception:
+        return []
+    mapping = im.packages_distributions()
+    # Clé CANONIQUE du corpus par nom normalisé : un `requires` doit citer le manifeste tel qu'il
+    # est semé (`pyannote-audio`), jamais la graphie d'un spécificateur pip (`pyannote.audio`) —
+    # une référence pendante invalide le manifeste d'app entier (`ingest.valider`).
+    dossier = _base_dir() / 'manifests' / 'libraries'
+    canon = {_normalise(p.stem): p.stem for p in dossier.glob('*.json')} if dossier.is_dir() else {}
+    out, modules_vus = set(), set()
+    for cle in catalog_keys or ():
+        try:
+            classe = backend_for_key(cle)
+        except Exception:
+            classe = None
+        if classe is None:
+            continue
+        dists = set()
+        # ① ce que le backend DÉCLARE — noms de distribution (`PIP_PACKAGES`) et d'import
+        #    (`REQUIRED_PACKAGES`) ;
+        for spec in (getattr(classe, 'PIP_PACKAGES', None) or ()):
+            nom = spec.split('[')[0]
+            for sep in ('==', '>=', '<=', '~=', '>', '<', ';'):
+                nom = nom.split(sep)[0]
+            dists.add(nom.strip())
+        modules = {m.split('.')[0] for m in (getattr(classe, 'REQUIRED_PACKAGES', None) or ())}
+        # ② ce que son MODULE importe réellement — même mesure AST que la 1ʳᵉ jambe, sur le bon
+        #    fichier : `REQUIRED_PACKAGES` sert la disponibilité, pas l'exhaustivité (mesuré :
+        #    l'audiocraft ne déclare que `audiocraft` et importe torch, soundfile, torchaudio).
+        fichier = getattr(_sys.modules.get(classe.__module__), '__file__', None)
+        if fichier and fichier not in modules_vus:
+            modules_vus.add(fichier)
+            modules |= {m for m in _modules_du_fichier(Path(fichier))
+                        if m not in INTERNES and m not in _sys.stdlib_module_names
+                        and not m.startswith('_')}
+        for module in modules:
+            dists.update(mapping.get(module) or ())
+        for d in dists:
+            n = _normalise(d)
+            if n in canon and n not in SOCLE_PLATEFORME:
+                out.add(canon[n])
+    return sorted(out)

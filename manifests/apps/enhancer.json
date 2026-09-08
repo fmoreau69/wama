@@ -2743,7 +2743,19 @@
       "kind": "model"
     },
     {
+      "key": "DeepFilterNet",
+      "kind": "library"
+    },
+    {
+      "key": "onnxruntime",
+      "kind": "library"
+    },
+    {
       "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
+      "key": "resemble-enhance",
       "kind": "library"
     },
     {

@@ -1289,6 +1289,10 @@
       "kind": "model"
     },
     {
+      "key": "python-doctr",
+      "kind": "library"
+    },
+    {
       "key": "torch",
       "kind": "library"
     },

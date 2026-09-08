@@ -2527,6 +2527,10 @@
       "kind": "model"
     },
     {
+      "key": "diffusers",
+      "kind": "library"
+    },
+    {
       "key": "torch",
       "kind": "library"
     }

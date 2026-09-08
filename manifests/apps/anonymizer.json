@@ -3010,7 +3010,15 @@
       "kind": "model"
     },
     {
+      "key": "sam3",
+      "kind": "library"
+    },
+    {
       "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "ultralytics",
       "kind": "library"
     }
   ],

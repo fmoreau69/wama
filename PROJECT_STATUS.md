@@ -2803,16 +2803,14 @@ les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIE
 2. ~~**`vendor/`**~~ ✅ **FAIT (`52cb194e`)** : MuseTalk + CodeFormer sous `wama/common/backends/vendor/<moteur>/`, racine DÉCLARÉE `settings.BACKEND_VENDOR_DIR` (le sous-dossier porte le nom d'`ENGINE`), `VENDOR_PACKAGE`/`_vendor_dir` disparus des 2 backends, gitlink `codeformer` (sans URL) retiré de l'index, sous-dossiers gitignorés, README versionné, setup recalé (12 cibles, `bash -n` OK — ⚠ 205 CRLF retirés après réécriture Python), symlinks de poids ABSOLUS vérifiés depuis WSL2. Exclusion du balayage : RIEN à coder (les gardes parcouraient déjà ces arbres sous l'app ; pas de `__init__.py` dans `vendor/`).
    ⚠⚠ **TROUVÉ EN BOUGEANT : MuseTalk porte 7 fichiers de correctifs LOCAUX** (20+/9−, `unet.py`, `sfd_detector.py`, `face_parsing/*`, `preprocessing.py`, `whisper/__init__.py`, `scripts/inference.py`) appliqués à la main dans le clone et captés NULLE PART — une installation fraîche les perdait en silence. Exportés dans `patches/musetalk_local_2026-09-07.diff`. 🔚 **À outiller** : les réappliquer à l'installation (`apply_patches.py`, même règle que les patches de venv) — décision : sont-ils encore nécessaires avec le venv actuel ? (les mesurer AVANT de les figer).
    ⚠ `engine_installed` du vivier n'interroge toujours que pip : un moteur vendorisé ABSENT grise par `is_available()` à l'exécution, pas dans la page. Se règle avec le chantier 3 (le moteur = une librairie dont `repository` dit la source).
-3. **19 moteurs sans ligne au registre des librairies** (5/24 y sont) ; `transformers-remote-code`
-   est un mode d'usage, pas un moteur ;
+3. ~~**19 moteurs sans ligne au registre des librairies**~~ ✅ **FAIT (`e3ff6526`) — registre 16 → 28.** Mesuré depuis les `REQUIRED_PACKAGES` des backends résolus en distributions : le « 19 » mélangeait moteurs et dépendances ; **12 distributions SONT le moteur** (audiocraft, suno-bark, DeepFilterNet, diffusers, python-doctr, boson_multimodal, imaginAIry, kokoro, onnxruntime, resemble-enhance, sam3, ultralytics), semées par `manifest_export <clé> --kind library` depuis venv_linux puis projetées (créations seules ; `is_allowed`/`is_installed` jamais posés par la projection).
+   ⚠⚠ **Défaut révélé et corrigé à la source** : 4 paquets mettent le TEXTE de leur licence (1–11 Ko) dans les métadonnées ; l'extracteur le recopiait dans un champ de 128 caractères → `DataError` au 6ᵉ manifeste. `licence_courte()` (expression → champ court → classifieur → None) + validateur qui refuse un texte + `tests_manifest_library.py` (11 tests, invariant de corpus).
+   🔚 **Décision** : 4 lignes existantes (`kokoro-onnx`, `pyannote-audio`, `torchaudio`, `vibevoice`) sont PLUS RICHES que leur manifeste mécanique (licence, dépôt, contrainte GPU posés à la main) — NON projetées, sinon vidées. Le corpus doit rattraper le registre : rôle `librarian` (LLM) ou manifeste AUTORÉ. Et les 2 moteurs vendorisés (musetalk, codeformer) = 1ʳᵉ librairie autorée (SPEC §6bis.1 : à acter explicitement) — la route `library` refuse `git+`, le mode d'installation « clone » est une décision.
+   ⚠ **Piège de commande** : `manifest_export --kind library` SANS clé exporte TOUT (apps, models compris) — 10 fichiers réécrits puis remis à HEAD. Toujours une clé explicite pour semer.
 4. `anonymizer/tasks.py` SAM3 non converti : le job ne porte aucune clé de modèle (bascule =
    option utilisateur, poids YOLO choisis dans le backend) — à traiter par déclaration ;
-5. ⚠ **corpus : 8 manifestes d'app PÉRIMÉS (les 8 apps à backends — 3 le soir, 8 après la 3ᵉ tranche) — VOLONTAIREMENT non
-   régénérés.** La jambe `library` de leurs `requires` est mesurée par un balayage AST **du dossier
-   de l'app** (`library_index.librairies_de`) : backends partis, l'app « n'importe plus » torch ni
-   soundfile, et régénérer FIGERAIT cette perte. La dérivation doit passer par le lien
-   modèle→backend→`REQUIRED_PACKAGES`. ⚠⚠ Et JAMAIS `manifest_export` depuis `venv_win` : il a
-   réécrit torch/vibevoice et vidé les `requires` de 4 apps — remis à HEAD, vérifié.
+5. ~~⚠ **corpus : 8 manifestes d'app PÉRIMÉS**~~ ✅ **FAIT** : la jambe `library` des `requires` suit le lien MODÈLE → backend résolu → paquets (`library_index.librairies_des_backends`, unie à la jambe « le dossier importe » dans `_librairies(app_id, body)`), cle CANONIQUE du corpus. Mesuré en deux passes AVANT d'écrire : 0 perte hors deux cas structurels et justes — synthesizer ne cite plus `kokoro-onnx`/`qwen-tts` (exigés par des modèles `huggingface:` hors de sa facette `models`) ; avatarizer ne cite plus torch/librosa/transformers (imports du code VENDORISÉ, attribués à l'app par son dossier — relèvent du manifeste du moteur). Les 8 manifestes ré-exportés PAR CLÉ EXPLICITE. Tests : `JambeBackendsDesRequiresTest` (3).
+   🔚 **Décision** : quels modèles une app POSSÈDE (facette `models` = `source == app`) — les moteurs des modèles `huggingface:` génériques qu'elle sert (kokoro-onnx, qwen-tts) n'entrent pas dans son `requires`.
 6. `ROADMAP.md` : mes 2 corrections de chemin (l.2129, l.2157) sont dans l'ARBRE, non commitées —
    le fichier porte 23 lignes non commitées de l'instance parallèle ; son commit les emportera.
 7. fonctions utilitaires importées par chemin (`upscale_image_file`, `run_audio_enhancement`,
@@ -2837,7 +2835,7 @@ corriger chaque passe… ce n'est pas viable ») :
 |---|---|
 | suite complète | **1704 OK** (skipped=11) — après la DERNIÈRE écriture de code |
 | `check_docs` | **0 cassée**, 0 périmée, **1492** références · 0 chiffre sans source (avec les 2 hunks ROADMAP de l'arbre) |
-| corpus (depuis `venv_linux`) | **8 périmés, NOMMÉS et VOULUS** — les 8 apps à backends, même cause (cf. laissé n°5) ; 0 invalide |
+| corpus (depuis `venv_linux`) | **0 périmé** attendu après ré-export des 8 apps par clé (mesurer : `manifest_export --check` — ⚠ depuis venv_linux, jamais venv_win) ; 28 manifestes `library` ; 0 invalide |
 | `doc_facts --check` | à jour (table des mécanismes régénérée — annexe déplacée) |
 | `check_backend_links` | **108/116** déclarent, **97** résolvent — inchangé par les déplacements |
 | `tests_backend_adoption` | budget **0** — SOLDÉ (22 → 18 → 0 dans la journée) : plus aucune app n'importe une classe de backend par chemin ; la garde est ABSOLUE et nomme l'app fautive |

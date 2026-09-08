@@ -289,17 +289,22 @@ def extract_app(app_id: str) -> Optional[dict]:
         # invaliderait les 10 manifestes d'apps d'un coup.
         'requires': [{'kind': 'model', 'key': k}
                      for k in ((body.get('models') or {}).get('catalog_keys') or [])]
-                    + [{'kind': 'library', 'key': k} for k in _librairies(app_id)],
+                    + [{'kind': 'library', 'key': k} for k in _librairies(app_id, body)],
         'body': body,
     }
 
 
-def _librairies(app_id: str) -> list:
-    """Librairies semées ET réellement importées par l'app (best-effort : jamais bloquant —
-    un inventaire indisponible ne doit pas empêcher d'extraire un manifeste)."""
+def _librairies(app_id: str, body: dict | None = None) -> list:
+    """Librairies semées que l'app exige — DEUX jambes, unies (best-effort : jamais bloquant —
+    un inventaire indisponible ne doit pas empêcher d'extraire un manifeste) :
+      • ce que le DOSSIER de l'app importe réellement (`librairies_de`) ;
+      • ce que ses MODÈLES exigent par le lien modèle → backend → paquets déclarés
+        (`librairies_des_backends`, 2026-09-07 — depuis que les backends vivent au substrat,
+        la 1ʳᵉ jambe seule vidait le `requires` des 8 apps à backends)."""
     try:
-        from wama.common.services.library_index import librairies_de
-        return librairies_de(app_id)
+        from wama.common.services.library_index import librairies_de, librairies_des_backends
+        cles = ((body or {}).get('models') or {}).get('catalog_keys') or []
+        return sorted(set(librairies_de(app_id)) | set(librairies_des_backends(cles)))
     except Exception:
         logger.debug("[manifest:app] inventaire des librairies indisponible", exc_info=True)
         return []
