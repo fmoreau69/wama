@@ -194,5 +194,53 @@ class MasqueAbsentTest(unittest.TestCase):
         self.assertEqual(w1["alpha"], 0.0)
 
 
+class CleTemporelleDeclareeTest(unittest.TestCase):
+    """7. La clé temporelle DÉCLARÉE est celle que le code sert (ajouté le 2026-09-09).
+
+    Le port `track` exigeait `ts` alors qu'un `geo_track` porte `time` par définition de son type
+    (`CANONICAL_FIELDS`) — corrigé le 09/09. Mais les 25 contrôles ci-dessus alimentent TOUS
+    `correct_track` avec `ts` : la forme que la fonction ANNONCE désormais n'était exercée nulle
+    part, et la déclaration pouvait re-diverger du code sans qu'aucun test ne tombe.
+
+    ⚠ Le repli sur `ts` n'est PAS une dette à résorber : les traces déjà écrites par cam_analyzer
+    le portent. Les deux formes doivent donc marcher, et c'est ce que ce bloc atteste — pas
+    « `time` a remplacé `ts` ».
+    """
+
+    ANCRES = [{"ts": 0.0, "de_m": -5.0, "dn_m": 0.0, "n": 5, "alpha": 1.0},
+              {"ts": 100.0, "de_m": -5.0, "dn_m": 0.0, "n": 5, "alpha": 1.0}]
+
+    def test_la_DECLARATION_du_port_track_exige_bien_time(self):
+        port = [p for p in oa.SPEC.inputs if p.key == 'track'][0]
+        self.assertIn('time', port.required_fields)
+        self.assertNotIn('ts', port.required_fields,
+                         "le port `track` est un geo_track : son champ temporel est `time`")
+
+    def test_une_trace_clee_sur_TIME_est_bien_corrigee(self):
+        """Sans ce contrôle, la forme déclarée pouvait ressortir INCHANGÉE en silence."""
+        corr = oa.correct_track([{"time": 50.0, "lat": 45.75, "lon": 4.83}], self.ANCRES)
+        self.assertAlmostEqual(corr[0]["corr_de_m"], -5.0, places=9)
+        self.assertLess(corr[0]["lon"], 4.83)          # -5 m est = vers l'ouest
+        self.assertEqual(corr[0]["lon_raw"], 4.83)
+
+    def test_le_repli_sur_TS_donne_EXACTEMENT_le_meme_resultat(self):
+        par_time = oa.correct_track([{"time": 50.0, "lat": 45.75, "lon": 4.83}], self.ANCRES)
+        par_ts = oa.correct_track([{"ts": 50.0, "lat": 45.75, "lon": 4.83}], self.ANCRES)
+        self.assertAlmostEqual(par_time[0]["lon"], par_ts[0]["lon"], places=12)
+        self.assertAlmostEqual(par_time[0]["lat"], par_ts[0]["lat"], places=12)
+
+    def test_time_PRIME_sur_ts_quand_les_deux_sont_la(self):
+        """Ordre de lecture non ambigu : le canonique gagne, le repli ne sert qu'en son absence.
+
+        Les deux clés portent ici des instants qui donnent des offsets DIFFÉRENTS — sans cet
+        écart, le contrôle passerait quelle que soit la clé lue, et n'attesterait rien.
+        """
+        ancres = [{"ts": 0.0, "de_m": 0.0, "dn_m": 0.0, "n": 5, "alpha": 1.0},
+                  {"ts": 100.0, "de_m": -10.0, "dn_m": 0.0, "n": 5, "alpha": 1.0}]
+        p = oa.correct_track(
+            [{"time": 100.0, "ts": 0.0, "lat": 45.75, "lon": 4.83}], ancres)[0]
+        self.assertAlmostEqual(p["corr_de_m"], -10.0, places=9)
+
+
 if __name__ == "__main__":       # exécution directe encore possible
     unittest.main(verbosity=2)

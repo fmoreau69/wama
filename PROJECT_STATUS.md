@@ -12907,3 +12907,114 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
   scission de `tests_volet`, 4 sur l'exécuteur de nœuds fonction, −1 fusionné).
   ⚠ Une autre instance ajoute des tests en parallèle : **le total n'est pas un critère**, `OK`
   l'est.
+
+---
+
+## §CLÔTURE — 2026-09-09, instance « CHAÎNAGE & CATALOGUE DE FONCTIONS » — ✅ CLOSE
+
+> Session ouverte par `/reprise`, poursuivie sur le monde Data et la couche `function`. C'est
+> l'instance que le §CLÔTURE cam_analyzer ci-dessus désigne comme « une autre instance travaille
+> dans `wama/common/tests_catalogues.py` » : les 66 lignes qu'il voyait non commitées sont
+> devenues `8e321021`. **Partition tenue** : aucun fichier de l'instance CARDS/UI
+> (`codegen/templates_gen.py`, `codegen/views_gen.py`, `tests_codegen_*`, `CARD_DESIGN.md`,
+> `staticfiles/`) n'a été touché ni commité.
+
+### Ce que la session a livré — 6 commits
+
+| commit | ce qu'il ferme |
+|---|---|
+| `8e321021` | **62 REFUS comptés comme « inchangés »** par `apply_manifests` — la sortie annonçait un succès là où rien n'était projeté. `_raison_du_saut()` lit les DEUX formes de refus (chaîne / liste de `{field, reason}`) et agrège. + l'en-tête de `manifests/kinds.py` mentait depuis un mois sur qui projette |
+| `80e73bab` | la **loi de propagation de schéma** (§9quater.4) REMONTE de `wama_data/view.py` au commun (`common/catalog/function_catalog.py`) — `studio` en a besoin sans dépendre du monde Data. + `diagnostiquer_chainage()` dans `studio/services/launch.py`, **mesuré à blanc et DÉLIBÉRÉMENT NON BRANCHÉ** |
+| `8734ec8a` | **29 « déclarations suspectes » n'en étaient qu'UNE** : les champs canoniques d'un type sont là *par définition* — `can_connect` consulte désormais `CANONICAL_FIELDS` |
+| `20dd2ff4` | `trajectory_offset` exigeait `ts` sur un `geo_track` — **le seul port du catalogue réclamant un champ que son type ne porte jamais**, donc inalimentable en silence |
+| `8d0cad0d` | **66 ports muets sur 143 décrits** (46 %) + garde à ZÉRO (`test_TOUT_port_porte_une_description`) |
+| *(ce commit)* | clôture : les tests qui manquaient, la réponse « alias de colonne », une description FAUSSE corrigée |
+
+### Ce que la clôture elle-même a trouvé (§2a « revenir ici après la dernière écriture »)
+
+- 🔴 **Une des 66 descriptions écrites hier était FAUSSE**, et seule l'écriture d'un test l'a
+  montrée : la sortie `track` de `trajectory_offset` annonçait « un point hors bornes d'ancrage
+  ressort INCHANGÉ … et donc sans champs de correction ». Le code fait l'inverse — `offset_at`
+  **MAINTIENT l'offset extrême** (pas d'extrapolation, mais pas d'abstention non plus), donc le
+  point EST corrigé. Description corrigée, manifeste régénéré.
+  ⭐ *Une description dérivée d'une docstring hérite de ce que la docstring a d'approximatif :
+  « aucune extrapolation » ne veut pas dire « aucune correction ». Le contrôle qui l'a levée
+  n'est pas une relecture, c'est un test qui EXÉCUTE la phrase.*
+- **3 contrôles ajoutés là où la session n'en avait laissé aucun** :
+  1. `CleTemporelleDeclareeTest` (4 tests) — les 25 contrôles existants alimentaient TOUS
+     `correct_track` avec `ts` : **la forme que la fonction annonce depuis `20dd2ff4` n'était
+     exercée nulle part**, et déclaration et code pouvaient re-diverger sans qu'un test tombe.
+     Atteste les deux formes (`time` canonique, `ts` en repli hérité) et l'ordre de lecture ;
+  2. `test_AUCUN_CHEMIN_PARALLELE_view_ne_fait_que_REEXPORTER_la_loi` — `tests_view.py` importe
+     la loi depuis `.view`, donc **une réimplémentation locale passerait tous les contrôles de
+     comportement** : deux copies d'accord entre elles se comportent pareil. Seule l'IDENTITÉ
+     des objets (`assertIs`) réfute le chemin parallèle. C'est la doctrine « une route unique,
+     pas de chemins parallèles » rendue mécanique plutôt que confiée à la vigilance.
+
+### La réponse due à Fabien : où vit un alias de colonne → `WAMA_DATA_WORLD §13.8bis`
+
+Question posée en séance (`.trip` / `.wdat` / `.rec` ne nomment pas leurs colonnes pareil, et
+« un LLM pourrait explorer un dossier complet de données d'expérimentation »). Réponse écrite :
+**oui, à la génération du manifeste `dataset`** — pas dans la fonction (chaque fonction
+re-déclarerait le vocabulaire de chaque source), pas dans une liste globale (elle marche pour
+l'axe du temps parce qu'il est universel, et confondrait deux sens du même mot dès qu'il ne
+l'est plus). Le LLM **propose**, la projection reste un geste humain — régime `gated`, pour une
+raison mesurée : *un alias faux ne casse rien à l'import, il fait silencieusement calculer sur
+la mauvaise colonne.*
+⚠ Au passage, §13.8 affirmait que l'alias était « codé en dur pour une seule clé » — **faux
+depuis le 2026-08-24** : ils sont 7 et vivent au commun. Corrigé.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+> **Trancher l'activation de `diagnostiquer_chainage()`** — il est écrit, testé (7 gardes),
+> rend 0 refus sur le pipeline réel du corpus, et **n'est appelé par personne**. Une ligne dans
+> `launch_graph` suffit. La question n'est pas technique : **refuser** un lien mal chaîné, ou
+> **avertir** ? (Fabien tranche — voir décisions ci-dessous.)
+
+### Décisions ouvertes — dont UNE bloquante
+
+| # | décision | qui | bloquant ? |
+|---|---|---|---|
+| ① | 🔴 **`fields_from_params`** (« pièce 3 ») — une fonction dont les champs produits dépendent de ses paramètres ne peut pas les déclarer statiquement (`distance_to_point` nomme sa colonne d'après `name`). La suite naturelle est une capacité sur `FunctionSpec`, **or `WAMA_APPRENTISSAGE §9` dit explicitement de NE PAS y toucher**, et A-Q5 (bibliothèque stat unique vs capacité par fonction) est ouverte. **Rien ne se code avant une phrase de Fabien** | Fabien | 🔴 **OUI** — bloque toute fonction statistique |
+| ② | activer le diagnostic de chaînage : **refus** ou **avertissement** ? Mesuré : 0 refus sur le pipeline réel, mais ~52 refus légitimes ailleurs dans le catalogue (des chaînages que personne ne construit aujourd'hui) | Fabien | non — le code attend |
+| ③ | **la carte d'alias** (§13.8bis) : champ du kind `dataset`, ou `reference_tables` ? Et **rien avant les relevés réels** des deux jeux simulateur promis au §13.8 | Fabien | non |
+| ④ | `cam_analyzer.extraction.track` **produit `ts`** là où un `geo_track` porte `time` — même écart que celui soldé sur `trajectory_offset`, **sans effet aujourd'hui** (fonction `app`-bound : ses liens ORDONNENT, aucune frame ne circule). À trancher **au portage `pure`**, et renommer suppose de vérifier ce qu'ÉCRIT `extract_rtmaps_task`, pas seulement la déclaration | au portage | non |
+| ⑤ | le vocabulaire d'un kind **ne sait pas déclarer « je ne projette que pour tel binding »** — la portée partielle de `write_back_function` reste renvoyée à l'exécution. Manque de FORMALISME, écrit dans l'en-tête de `manifests/kinds.py`, non traité | — | non |
+
+**Constat de langue TRANCHÉ (pas une décision ouverte)** : `ign_vector` garde `largeur`/`nature`
+— ce sont les colonnes de la BD TOPO, transmises telles quelles ; les traduire ferait DIVERGER
+la donnée de sa source.
+
+### Pendings système, artefacts, effets de bord
+
+- **push** : mes 6 commits sont LOCAUX (`git rev-list --count origin/dev..dev` au prochain
+  `/reprise`) ;
+- **aucun** worker recyclé, **aucun** flag d'environnement posé, **aucune** charge GPU lancée
+  par moi (règle des crashs hôte tenue) ; `git stash` vide, un seul worktree ;
+- artefacts : **aucun** script laissé hors du scratchpad de session, aucune sonde ajoutée à
+  `logs/ui_smoke/`, aucun compte ni fichier de test semé ; pas d'artefact claude.ai publié ;
+- ⚠ **fuite i18n CONSTATÉE, PAS TRAITÉE — et elle n'est pas à moi** : le générateur de gabarits
+  (`wama/common/manifests/codegen/`) émet du français en dur, sans marquage de traduction. Le
+  fichier était en cours d'édition par l'autre instance pendant ma session, donc je ne l'ai ni
+  touché ni commité. À rattacher au chantier `ROADMAP §10.A`, qui est **bloqué par une décision
+  antérieure** (la langue des `msgid`) ;
+- ⚠ `AGENTS.md` (49 Ko) : sa taille a été relevée, son statut **non** tranché — signalé, pas traité ;
+- **non fait, annoncé** : le smoke navigateur de l'exécution ▶ d'un pipeline de fonctions et le
+  rechargement d'un manifeste `pipeline` dans le canvas (marche E) restent au §CLÔTURE
+  cam_analyzer ci-dessus ; ma session n'y a rien ajouté.
+
+### Contrôles attendus au prochain /reprise — tous MESURÉS le 2026-09-09 en clôture
+
+- `manage.py test wama.common.tests_catalogues wama.studio wama_data wama_lab.cam_analyzer`
+  (venv_linux, `--keepdb`) : **848 tests, `OK`** — 843 avant les 5 gardes de clôture.
+  ⚠ Le verdict est `OK` dans la SORTIE, jamais le code de retour ;
+- `check_docs` : **0 cassée / 0 périmée sur 1538** — et surtout **0 CIBLE DISTINCTE**, qui est
+  le seul critère. ⚠ Relevé APRÈS écriture de ce bloc : il valait 1529 à l'ouverture de la
+  clôture, 1531 après le §13.8bis, 1538 une fois ce §CLÔTURE écrit. *Le total est du bruit —
+  il monte du seul fait qu'on rende compte* ;
+- `manifest_export --check` (venv_linux) : **corpus à jour, 202 manifestes** + 1 autoré valide.
+  Un seul a été régénéré ce jour (`trajectory_offset`, description de sortie corrigée) ;
+- `check_skills` : **0 défaut franc**, 2 candidats `n=1` (12 j, aucun dormant), 1 promu sur 14 ;
+- catalogue : **143 ports**, **0 sans description** (garde à zéro, pas budget dégressif) ;
+- `apply_manifests --kind function` : les 62 sortent en **`sautés`** avec leur raison agrégée,
+  plus en « inchangés ».

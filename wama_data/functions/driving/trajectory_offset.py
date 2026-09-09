@@ -249,9 +249,12 @@ SPEC = register(FunctionSpec(
                  description="Trace corrigée EN PLACE : `lat`/`lon` portent la position "
                              "corrigée, et l'originale survit sous `lat_raw`/`lon_raw`. "
                              "`corr_de_m`/`corr_dn_m` disent de combien chaque point a bougé "
-                             "— sans eux la correction serait invérifiable après coup. Un "
-                             "point hors bornes d'ancrage ressort INCHANGÉ (aucune "
-                             "extrapolation) et donc sans champs de correction."),
+                             "— sans eux la correction serait invérifiable après coup. Hors "
+                             "des bornes d'ancrage, l'offset EXTRÊME est MAINTENU (jamais "
+                             "extrapolé : une extrapolation diverge et corromprait le début "
+                             "et la fin de trace) — le point est donc corrigé, pas laissé "
+                             "tel quel. Seul un point sans coordonnées ou sans instant "
+                             "ressort inchangé, et lui seul n'a pas de champs de correction."),
     ],
     params=[
         ParamSpec('full_trust_mask_deg', 'float', FULL_TRUST_MASK_DEG, 0.0, 45.0, unit='°',

@@ -3588,14 +3588,58 @@ La réponse est **déjà à moitié dans le dépôt** :
    comme sous-types d'un `position` commun. Une fonction qui veut « une position » marche avec les
    deux ; une fonction qui **exige** du WGS84 (map-matching, fond de carte) refuse la simulée **par
    le type**, pas par convention ni par commentaire ;
-2. **une table d'alias PAR SOURCE** — le mécanisme existe **en germe** et **codé en dur pour une
-   seule clé** (`timecode` comme alias d'entrée, `sources/tabular.py`). À généraliser en **carte
-   déclarée par source**, pas à réinventer.
+2. **une table d'alias PAR SOURCE** — le mécanisme existe **en germe**, et il a GRANDI depuis la
+   rédaction de ce §. ⚠ **Ce paragraphe disait « codé en dur pour une seule clé (`timecode`),
+   `sources/tabular.py` » — c'est FAUX depuis le 2026-08-24** (relevé mécaniquement à la clôture
+   du 09/09) : les alias d'ingestion de l'axe du temps sont **7** (`COLONNES_TEMPS`, `core/naming.py`)
+   et ont été **remontés au commun parce qu'ils avaient déjà trois consommateurs** (le lecteur, le
+   pont de cadres, l'écrivain de conteneur). *Un vocabulaire partagé n'appartient à aucun de ses
+   usagers* — la note y est écrite. Ce qui reste vrai : c'est une liste **globale**, pas une carte
+   **par source**. La suite est au §13.8bis.
 
 > 🔚 **À MESURER avant de concevoir.** Fabien fournit deux jeux : un de l'**ancien** simulateur
 > (rétrocompatibilité d'import uniquement — remplacé) et un du simulateur **actuel**. Premier geste :
 > **relever les noms réels de tables et de colonnes**, pas les deviner. C'est la même méthode qui a
 > payé sur `.rec` et sur la base `.trip` réelle.
+
+### 13.8bis OÙ VIT UN ALIAS DE COLONNE — la réponse (question de Fabien, 2026-09-09)
+
+> *« Est-ce que la convention ne serait pas de gérer les alias à la génération d'un manifeste de
+> dataset ? J'avais dans l'idée qu'un LLM pourrait explorer un dossier complet de données
+> d'expérimentation. »* — **Oui, et c'est le seul endroit qui tienne.** Ce § dit pourquoi les deux
+> autres emplacements possibles sont mauvais, et ce qui a changé le 09/09 pour rendre la carte
+> VÉRIFIABLE au lieu de libre.
+
+**Trois emplacements possibles, deux qui échouent par construction :**
+
+| où | ce que ça donne | verdict |
+|---|---|---|
+| **dans la fonction** (`champ_lat='lat'` en paramètre) | existe déjà, et c'est le **dernier recours** : chaque fonction re-déclare le vocabulaire de chaque source. `distance_to_point` porte `champ_lat`/`champ_lon` — utile pour un cas isolé, ruineux comme convention | ❌ n'échelle pas |
+| **une liste GLOBALE**, comme `COLONNES_TEMPS` | marche pour l'axe du temps parce qu'il est **universel et unique** : aucune source n'appelle `temps` autre chose que le temps. **Ne marche PLUS dès qu'un mot est ambigu entre sources** — deux corpus peuvent employer `largeur` pour la largeur de voie et pour la largeur d'un véhicule. Une liste globale les CONFONDRAIT sans rien signaler | ❌ ambigu par nature |
+| **une carte déclarée dans le manifeste `dataset`** | l'alias est attaché au **corpus qui l'emploie**, donc jamais imposé aux autres. C'est aussi le seul objet qui accompagne les données quand elles se déplacent (bundle `.wds`, D26) | ✅ |
+
+**Ce qui a changé le 2026-09-09 et rend la carte contrôlable.** Jusque-là, une carte d'alias
+aurait pointé vers un ensemble d'arrivée OUVERT : rien ne disait quels noms canoniques existent,
+donc rien n'aurait pu réfuter `lat → latitude_wgs`. Depuis `8734ec8a`, `CANONICAL_FIELDS`
+(`common/catalog/data_types.py`) est **consulté par `can_connect`** : un `geo_track` porte
+`time`/`lat`/`lon` **par définition de son type**. La cible d'un alias est donc un ensemble
+**FERMÉ et déjà exécutoire** — une carte qui vise un nom hors de cet ensemble est réfutable
+mécaniquement, exactement comme une déclaration de port l'est aujourd'hui.
+
+**Le rôle du LLM est celui du régime `gated`, pas un rôle de plus.** Même arbitrage que pour les
+descriptions de modèle réglé cette même semaine : le LLM **explore** le dossier et **propose** la
+carte (il lit des en-têtes, des unités, des ordres de grandeur — un travail de lecture, pas de
+décision) ; la **projection reste un geste humain**. Deux raisons mesurées, pas de principe :
+un alias faux ne casse rien à l'import, il fait **silencieusement calculer sur la mauvaise
+colonne** ; et une source rebaptisée après coup périme tous les manifestes qui la citent.
+
+> 🔚 **NON IMPLÉMENTÉ — décision de Fabien attendue sur UN point** : la carte est-elle un champ du
+> kind `dataset` (à côté de `signals[]` / `axes[]`), ou une **table de référence** au sens de
+> `reference_tables` — qui existe déjà et sait justement porter des correspondances ? Le premier
+> est plus simple à lire, le second évite un champ de plus et se partage entre datasets d'un même
+> projet. Rien ne se code avant cet arbitrage, et **avant les relevés réels réclamés au §13.8**
+> (deux jeux simulateur) : concevoir une carte d'alias sans les noms qu'elle doit couvrir
+> reproduirait exactement l'erreur que ce § dénonce.
 
 ### 13.9 INTÉGRATION DANS L'ÉCOSYSTÈME WAMA — où chaque pièce se branche
 

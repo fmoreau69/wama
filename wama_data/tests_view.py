@@ -77,6 +77,22 @@ class RegleTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             changes_time_key('inexistante')
 
+    def test_AUCUN_CHEMIN_PARALLELE_view_ne_fait_que_REEXPORTER_la_loi(self):
+        """La loi de propagation vit au COMMUN ; `view` n'en garde qu'un renvoi (2026-09-09).
+
+        Elle était écrite dans `wama_data/view.py`, alors que `studio` et le substrat en ont
+        besoin sans dépendre du monde Data — elle est remontée à `common/catalog` le 09/09
+        (`80e73bab`). Ce fichier continue d'importer depuis `.view`, donc **une réimplémentation
+        locale passerait tous les contrôles ci-dessus** : ils mesurent un COMPORTEMENT, et deux
+        copies d'accord entre elles ont le même. Seule l'IDENTITÉ des objets réfute le chemin
+        parallèle — c'est la doctrine « une route unique » rendue mécanique.
+        """
+        from wama.common.catalog import function_catalog as commun
+        from . import view as v
+        self.assertIs(v.changes_time_key, commun.changes_time_key)
+        self.assertIs(v.CATEGORIES_ADJOINTES, commun.CATEGORIES_ADJOINTES)
+        self.assertIs(v.CATEGORIES_NOUVELLE_TABLE, commun.CATEGORIES_NOUVELLE_TABLE)
+
 
 class DeclarationTest(unittest.TestCase):
 
