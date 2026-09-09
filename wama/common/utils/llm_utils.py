@@ -387,20 +387,47 @@ def extract_json_from_llm(text: str) -> Optional[dict]:
     return None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Les 5 aides de haut niveau ci-dessous (transcriber + describer + reader).
+#
+# `_APPEL_LLM` — LE CONTRAT, écrit une fois ici plutôt que redécouvert 10 fois.
+#
+# Elles appelaient `ollama_chat()` EN DIRECT jusqu'au 2026-09-09 : elles étaient donc
+# LOCAL-ONLY par construction — ni routage cloud, ni clé API d'utilisateur, alors que
+# `llm_chat()` (LiteLLM, ROADMAP §8d) était déjà adopté par 5 autres consommateurs
+# (assistant_engine, prompt_enrichment, qc, translator, prospect_agents).
+#
+# Deux règles, et elles ne sont pas cosmétiques :
+#
+# 1. **`model or None`, jamais `model`.** Le défaut de ces signatures est `''`, et la
+#    branche cloud de `llm_chat` teste `if model is None` pour appliquer le défaut du
+#    fournisseur. Une chaîne VIDE passe ce test, et produit le modèle `"openai/"` —
+#    une erreur distante, pas une exception locale.
+# 2. **`provider` remonte à l'appelant.** Aucun des 5 consommateurs déjà adoptés ne se
+#    repose sur `settings.LITELLM_PROVIDER` : tous passent un `provider` explicite,
+#    résolu AVEC leur modèle. Le laisser implicite ici marierait un modèle résolu
+#    localement (`gemma4:e4b`) à un fournisseur global cloud — le seul appariement que
+#    `llm_chat` ne peut pas rattraper. `None` = « le réglage global décide », ce qui
+#    reproduit à l'octet le comportement d'avant tant que `LITELLM_PROVIDER='ollama'`
+#    (sa valeur par défaut, `settings.py:845`).
+# ─────────────────────────────────────────────────────────────────────────────
+
 def generate_meeting_summary(
     text: str,
     language: str = 'fr',
     speakers: Optional[list] = None,
     model: str = '',
+    provider: Optional[str] = None,
 ) -> str:
     """
-    Generate a structured meeting summary (compte-rendu de réunion) using Ollama.
+    Generate a structured meeting summary (compte-rendu de réunion).
 
     Args:
         text:     Transcript or meeting text (truncated to ~8000 chars).
         language: 'fr' | 'en'
         speakers: Optional list of speaker IDs from diarization.
-        model:    Ollama model to use.
+        model:    Model name. `''` ⇒ résolu par le funnel (cf. `_APPEL_LLM`).
+        provider: Fournisseur LiteLLM. `None` ⇒ `settings.LITELLM_PROVIDER`.
 
     Returns:
         Formatted meeting summary as a markdown string.
@@ -439,9 +466,11 @@ def generate_meeting_summary(
     ]
 
     # think=False + budget suffisant + retry (cf. generate_structured_summary).
-    result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+    result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                  think=False, num_predict=4096)
     if not result_text:
-        result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                      think=False, num_predict=4096)
 
     if error or not result_text:
         logger.warning(f"[llm_utils] generate_meeting_summary failed: {error}")
@@ -487,15 +516,17 @@ def verify_text_coherence(
     content_hint: str = 'transcription',
     language: str = 'fr',
     model: str = '',
+    provider: Optional[str] = None,
 ) -> dict:
     """
-    Verify text coherence and suggest corrections using Ollama.
+    Verify text coherence and suggest corrections.
 
     Args:
         text:         Source text to verify (truncated to ~6000 chars).
         content_hint: 'transcription' | 'description' | 'audio' | 'video' | 'image' | 'text'
         language:     'fr' | 'en'
-        model:        Ollama model to use.
+        model:        Model name. `''` ⇒ résolu par le funnel (cf. `_APPEL_LLM`).
+        provider:     Fournisseur LiteLLM. `None` ⇒ `settings.LITELLM_PROVIDER`.
 
     Returns:
         {
@@ -546,9 +577,11 @@ def verify_text_coherence(
     # think=False : tâche de sortie JSON → pas de raisonnement qui consomme le budget
     # de tokens (cause des réponses vides avec les modèles « thinking » type qwen3).
     # + 1 retry sur réponse vide (intermittence Ollama).
-    result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+    result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                  think=False, num_predict=4096)
     if not result_text:
-        result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                      think=False, num_predict=4096)
 
     if error or not result_text:
         logger.warning(f"[llm_utils] verify_text_coherence failed: {error}")
@@ -570,12 +603,15 @@ def analyze_segments_coherence(
     segments: list,
     language: str = 'fr',
     model: str = '',
+    provider: Optional[str] = None,
 ) -> dict:
     """Analyse la cohérence PAR SEGMENT (1 seul appel LLM).
 
     Args:
         segments: liste de dicts {'index': int, 'text': str}.
         language: 'fr' | 'en'.
+        model:    Model name. `''` ⇒ résolu par le funnel (cf. `_APPEL_LLM`).
+        provider: Fournisseur LiteLLM. `None` ⇒ `settings.LITELLM_PROVIDER`.
 
     Returns:
         {index: {"severity": "warn"|"error", "note": str}} — uniquement les
@@ -603,9 +639,11 @@ def analyze_segments_coherence(
     ]
     try:
         # think=False (sortie JSON) + 1 retry sur réponse vide.
-        result_text, error = ollama_chat(messages, model=model, think=False)
+        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                      think=False)
         if not result_text:
-            result_text, error = ollama_chat(messages, model=model, think=False)
+            result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                          think=False)
         if error or not result_text:
             logger.warning(f"[llm_utils] analyze_segments_coherence: {error or 'réponse vide'}")
             return {}
@@ -631,6 +669,7 @@ def suggest_speaker_names(
     segments: list,
     language: str = 'fr',
     model: str = '',
+    provider: Optional[str] = None,
 ) -> dict:
     """Propose des noms d'intervenants à partir des présentations dans la transcription.
 
@@ -640,6 +679,8 @@ def suggest_speaker_names(
     Args:
         segments: liste de dicts {'speaker_id': str, 'text': str} (libellés canoniques).
         language: 'fr' | 'en'.
+        model:    Model name. `''` ⇒ résolu par le funnel (cf. `_APPEL_LLM`).
+        provider: Fournisseur LiteLLM. `None` ⇒ `settings.LITELLM_PROVIDER`.
 
     Returns:
         {SPEAKER_NN: "Nom proposé"} — uniquement les locuteurs pour lesquels un nom
@@ -676,9 +717,11 @@ def suggest_speaker_names(
             'Retourne UNIQUEMENT un JSON : {"speakers": [{"id": "SPEAKER_00", "name": "Prénom Nom"}, ...]}.')},
     ]
     try:
-        result_text, error = ollama_chat(messages, model=model, think=False, num_predict=1024)
+        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                      think=False, num_predict=1024)
         if not result_text:
-            result_text, error = ollama_chat(messages, model=model, think=False, num_predict=1024)
+            result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                          think=False, num_predict=1024)
         if error or not result_text:
             logger.warning(f"[llm_utils] suggest_speaker_names: {error or 'réponse vide'}")
             return {}
@@ -702,15 +745,17 @@ def generate_structured_summary(
     content_hint: str = 'transcription',
     language: str = 'fr',
     model: str = '',
+    provider: Optional[str] = None,
 ) -> dict:
     """
-    Generate a structured summary (summary, key_points, action_items) using Ollama.
+    Generate a structured summary (summary, key_points, action_items).
 
     Args:
         text:         Source text to summarize (will be truncated to ~8000 chars).
         content_hint: 'transcription' | 'description' | 'audio' | 'video'
         language:     'fr' | 'en'
-        model:        Ollama model to use.
+        model:        Model name. `''` ⇒ résolu par le funnel (cf. `_APPEL_LLM`).
+        provider:     Fournisseur LiteLLM. `None` ⇒ `settings.LITELLM_PROVIDER`.
 
     Returns:
         {
@@ -753,9 +798,11 @@ def generate_structured_summary(
 
     # think=False (sortie JSON) + num_predict suffisant + 1 retry : sans ça, un texte long
     # fait que le modèle « thinking » épuise son budget en raisonnement → JSON vide.
-    result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+    result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                  think=False, num_predict=4096)
     if not result_text:
-        result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+                                      think=False, num_predict=4096)
 
     if error or not result_text:
         logger.warning(f"[llm_utils] generate_structured_summary failed: {error}")

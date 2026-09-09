@@ -204,15 +204,17 @@ def _format_as_markdown(text: str, language: str = '') -> str:
         "Return only the formatted Markdown, no preamble or explanation."
     ).format(hint=lang_hint)
 
-    from wama.common.utils.llm_utils import ollama_chat, get_describer_model
+    # `llm_chat` et non `ollama_chat` : dernier appelant direct porté le 2026-09-09 —
+    # le contrat d'appel est documenté à `llm_utils.py::_APPEL_LLM` (dont le `model or None`).
+    from wama.common.utils.llm_utils import llm_chat, get_describer_model
     model = get_describer_model('text', 'markdown')
 
-    result, error = ollama_chat(
+    result, error = llm_chat(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},
         ],
-        model=model,
+        model=model or None,
         num_predict=8192,
         num_ctx=8192,   # Cap KV cache — formatting needs no large context window
         think=False,
