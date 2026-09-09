@@ -306,6 +306,74 @@ def can_connect(out_port: PortSpec, in_port: PortSpec, available_fields=None):
     return True, ''
 
 
+# ── LA RÈGLE DE GRANULARITÉ (WAMA_DATA_WORLD §9quater.4) ─────────────────────────────────
+# « Une colonne calculée reste dans SA table tant que la CLÉ TEMPORELLE ne change pas ;
+#   elle en sort dès qu'elle change. »
+#
+# ⚠ REMONTÉE ICI le 2026-09-09, depuis `wama_data/view.py` où elle est née. Elle porte sur
+# `FunctionCategory`, qui vit dans CE module — la glu INTER-MONDES. La laisser dans le monde
+# Data obligeait le STUDIO (substrat) à en dépendre pour valider un graphe : exactement le
+# défaut que le AGENTS.md nomme, « le registre ne connaît JAMAIS ses producteurs ».
+# `wama_data/view.py` la RÉ-EXPORTE : aucun appelant ne change, aucun comportement non plus.
+
+#: Catégories qui LAISSENT la granularité intacte — leur sortie a les mêmes lignes que l'entrée,
+#: donc la colonne produite s'adjoint à la table qu'on regarde.
+CATEGORIES_ADJOINTES = frozenset({FunctionCategory.TRANSFORM, FunctionCategory.ENRICHER})
+
+#: Tout le reste change la clé temporelle, donc sort dans une table à part. On énumère quand même
+#: — un `not in` silencieux rangerait une catégorie NOUVELLE du mauvais côté sans le dire.
+CATEGORIES_NOUVELLE_TABLE = frozenset({
+    FunctionCategory.DETECTOR, FunctionCategory.INDICATOR, FunctionCategory.RESAMPLER,
+    FunctionCategory.AGGREGATE, FunctionCategory.JOIN,
+})
+
+
+def changes_time_key(cle_fonction: str) -> bool:
+    """La fonction change-t-elle la clé temporelle — donc faut-il une nouvelle table ?
+
+    Lu dans la `FunctionCategory` DÉCLARÉE, jamais dans une liste de noms de fonctions. C'est ce
+    qui fait que la règle de §9quater.4 s'applique à une fonction écrite demain sans qu'on touche
+    ici. Une catégorie inconnue lève : mieux vaut refuser que ranger au hasard.
+    """
+    spec = get(cle_fonction)
+    if spec is None:
+        raise ValueError(f"fonction '{cle_fonction}' absente du catalogue "
+                         f"(connues : {', '.join(sorted(FUNCTION_CATALOG)) or '—'})")
+    if spec.category in CATEGORIES_ADJOINTES:
+        return False
+    if spec.category in CATEGORIES_NOUVELLE_TABLE:
+        return True
+    raise ValueError(
+        f"catégorie '{spec.category}' de '{cle_fonction}' non classée par la règle de "
+        "§9quater.4 — décider si elle change la clé temporelle et l'ajouter à l'un des deux "
+        "ensembles de `common/catalog/function_catalog.py`, plutôt que de la laisser tomber "
+        "d'un côté par défaut")
+
+
+def champs_apres(sortie: PortSpec, cle_fonction: str, champs_avant=()) -> set:
+    """Champs DISPONIBLES en aval d'un nœud fonction — l'accumulation que `can_connect`
+    attendait et que personne ne lui donnait (mesuré le 2026-09-09).
+
+    C'est la règle de granularité ci-dessus, appliquée aux CHAMPS au lieu des tables :
+      • granularité intacte (`transform`/`enricher`) → les champs d'amont SURVIVENT, la
+        fonction ajoute les siens. `calc_rolling` enrichit : il ne « produit » pas `time`,
+        il le laisse passer — d'où `produced_fields == []` alors que `time` reste lisible ;
+      • clé temporelle changée → on repart des SEULS champs produits : les lignes ne sont
+        plus les mêmes, une colonne d'amont n'a plus de sens en face.
+
+    ⚠ POURQUOI ÇA COMPTE : sans cette accumulation, `can_connect` refuse
+    `calc_rolling → calc_per_segment` (« champs manquants : ['time'] ») — une connexion que
+    la suite de tests déclare VALIDE. Un contrôle des champs alimenté au seul saut précédent
+    transforme tout enrichisseur en cul-de-sac.
+
+    ⚠ COUTURE À CONNAÎTRE, non construite ici (`WAMA_APPRENTISSAGE §3` A2) : la provenance
+    réel/synthétique devra être PROPAGÉE le long des mêmes liens. Le jour venu, c'est CE
+    parcours qu'on étend — pas un second. *Une couture nommée n'est pas une couture bâtie.*
+    """
+    produits = set(sortie.produced_fields or ())
+    return produits if changes_time_key(cle_fonction) else set(champs_avant) | produits
+
+
 #: Modules qu'une app peut exposer pour déclarer ses fonctions. Convention, pas configuration.
 MODULES_DECLARANTS = ('functions', 'function_specs')
 

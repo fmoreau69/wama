@@ -44,47 +44,26 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from wama.common.catalog.data_types import DataType, TypedFrame
-from wama.common.catalog.function_catalog import FUNCTION_CATALOG, FunctionCategory, get
+from wama.common.catalog.function_catalog import get
 
 from .core.naming import annex_name
 from .core.temporal import TemporalReferential
 from .frames import frame_from_referential
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
-# 1. LA RÈGLE, dérivée du catalogue
+# 1. LA RÈGLE, dérivée du catalogue — RÉ-EXPORTÉE depuis le commun
 # ══════════════════════════════════════════════════════════════════════════════════════════════
-
-#: Catégories qui LAISSENT la granularité intacte — leur sortie a les mêmes lignes que l'entrée,
-#: donc la colonne produite s'adjoint à la table qu'on regarde.
-CATEGORIES_ADJOINTES = frozenset({FunctionCategory.TRANSFORM, FunctionCategory.ENRICHER})
-
-#: Tout le reste change la clé temporelle, donc sort dans une table à part. On énumère quand même
-#: — un `not in` silencieux rangerait une catégorie NOUVELLE du mauvais côté sans le dire.
-CATEGORIES_NOUVELLE_TABLE = frozenset({
-    FunctionCategory.DETECTOR, FunctionCategory.INDICATOR, FunctionCategory.RESAMPLER,
-    FunctionCategory.AGGREGATE, FunctionCategory.JOIN,
-})
-
-
-def changes_time_key(cle_fonction: str) -> bool:
-    """La fonction change-t-elle la clé temporelle — donc faut-il une nouvelle table ?
-
-    Lu dans la `FunctionCategory` DÉCLARÉE, jamais dans une liste de noms de fonctions. C'est ce
-    qui fait que la règle de §9quater.4 s'applique à une fonction écrite demain sans qu'on touche
-    ici. Une catégorie inconnue lève : mieux vaut refuser que ranger au hasard.
-    """
-    spec = get(cle_fonction)
-    if spec is None:
-        raise ValueError(f"fonction '{cle_fonction}' absente du catalogue "
-                         f"(connues : {', '.join(sorted(FUNCTION_CATALOG)) or '—'})")
-    if spec.category in CATEGORIES_ADJOINTES:
-        return False
-    if spec.category in CATEGORIES_NOUVELLE_TABLE:
-        return True
-    raise ValueError(
-        f"catégorie '{spec.category}' de '{cle_fonction}' non classée par la règle de "
-        "§9quater.4 — décider si elle change la clé temporelle et l'ajouter à l'un des deux "
-        "ensembles de `vue.py`, plutôt que de la laisser tomber d'un côté par défaut")
+#
+# ⚠ Elle est NÉE ici et a DÉMÉNAGÉ le 2026-09-09 dans `common/catalog/function_catalog.py`,
+# à côté de la `FunctionCategory` sur laquelle elle porte et de `can_connect` qui la
+# consomme. Motif : le STUDIO (substrat) doit la lire pour valider un graphe, et le faire
+# depuis `wama_data` aurait fait dépendre le substrat du monde Data — le défaut même que
+# le AGENTS.md interdit (« un monde n'est pas un sous-dossier du substrat »).
+#
+# Ré-exportée telle quelle : `from .view import changes_time_key` continue de fonctionner,
+# et `tests_view.py` — qui importe les deux ensembles — n'a pas une ligne à changer.
+from wama.common.catalog.function_catalog import (       # noqa: F401 (ré-export délibéré)
+    CATEGORIES_ADJOINTES, CATEGORIES_NOUVELLE_TABLE, changes_time_key)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
