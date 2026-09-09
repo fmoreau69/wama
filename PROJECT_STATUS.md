@@ -12715,10 +12715,23 @@ Ordre ensuite : C → D → export du registre `PASSES` en manifeste `pipeline` 
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
-**⑥ le test D.3, EN DERNIER comme acté** — c'est désormais le prochain de la file, et il
-demande le NAVIGATEUR sur une session ENA : ⚑ `display_ema` OFF (la dérive des garés cesse-t-elle ?)
-→ ⚑ `shuttle_filter` ON → « Calculer les indicateurs » → lire `Filtre navette` / `Source de
-placement` / `Cohérence placement` → `placement_spread` OFF vs ON. Tous ⚑ OFF = l'état d'avant.
+**⑥ D.3 — le volet OBJECTIF est JOUÉ** (09/09, WAMA relancé ; session P97 réelle `4da52df3`,
+1,2 M détections, 4352 gids ; lecture seule, sans GPU ni worker). Chiffres et méthode :
+`CAM_ANALYZER_CHAINE_TRAITEMENT §D.3 ⭐`, commit `dc2667f0`. **Deux réfutations** : « tous les
+objets qui dérivent sont en ③ » est FAUX (90 % portent un `world_en`) ; et la cause n'est PAS
+l'exclusion « près d'une intersection » qu'annonçait §C (**1,3 %**) mais le seuil **« vu moins
+de 4 s » (70,4 %)** du levier 29. **Une confirmation par un autre chemin** : 970 véhicules
+immobiles — étalement médian **1,22 m**, MEILLEUR que les 48 ancrés (**1,79 m**) — n'obtiennent
+aucune ancre, donc sont rejoués frame par frame ; or une EMA α=0,3 ne converge jamais sur un
+objet vu 1 à 3 s.
+🔴 **ARBITRAGE FABIEN avant tout code** : le seuil de 4 s a été posé le 2026-07-17 pour cesser
+de marquer « garés » des véhicules ROULANTS vus brièvement — le baisser rouvre ce défaut-là.
+Séparer « immobile » de « vu longtemps » demande une AUTRE grandeur (vitesse relative mesurée,
+cohérence de la position monde), pas un réglage de seuil.
+**Reste à jouer** : les bascules — ⚑ `display_ema` OFF (la dérive cesse-t-elle ?) → ⚑
+`shuttle_filter` ON → « Calculer les indicateurs » → `Filtre navette` / `Source de placement` /
+`Cohérence placement` → `placement_spread` OFF vs ON. Elles exigent un RECALCUL (les données
+lues datent d'avant le 05/09) et, pour la dérive, l'œil sur la carte. Tous ⚑ OFF = l'état d'avant.
 
 Puis, dans l'ordre : **accéléromètre** (identifier l'axe avant par corrélation avec dv/dt du GPS
 filtré — une MESURE, les axes X/Y ne sont écrits nulle part) → **réétalonner σa/σm** (0,8 / 2,0
