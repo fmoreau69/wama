@@ -400,40 +400,27 @@ document.addEventListener('DOMContentLoaded', function () {
     <div id="converterQueue" class="wama-queue-{{ card_layout|default:'list' }}"
          {% queue_dnd_attrs 'converter' %}>
         {% for b in batches_list %}
-        {% if b.is_group %}
-        {# ── Groupe batch (multi-fichiers même nature) — card mère COMMUNE (_batch_card.html) #}
-        <div class="batch-group mb-2" data-batch-id="{{ b.obj.id }}" data-media-type="{{ b.obj.media_type }}">
-            {% url 'converter:batch_download' b.obj.id as batch_dl_url %}
-            {% include 'common/_batch_card.html' with batch_info=b card_class='job-card' meta_template='converter/_batch_card_meta.html' eta_ids=b.eta_ids download_url=batch_dl_url app='converter' actions_communes=True %}
-            {% comment %}Repliée par défaut (Solitaire, wama-queue.js) — 'show' hardcodé retiré
-            2026-07-10 : convention commune = collapsed + état persisté en localStorage, comme
-            reader/composer/transcriber/describer.{% endcomment %}
-            <div class="collapse ps-2 pt-1" id="batchItems{{ b.obj.id }}" data-wama-batch-key="converter_{{ b.obj.id }}">
-                {% for job in b.items %}{% include 'converter/_job_card.html' with in_batch=True %}{% endfor %}
-            </div>
-        </div>
-        {% else %}
-        {% comment %}── batch-of-1 → carte simple, DANS son enrobage d'entrée ──────────────
-        ⚠ CORRIGÉ le 2026-09-09. La carte était rendue NUE : elle ne portait donc ni
-        `.wama-queue-entry` ni `data-entry-batch-id`. Or `batchIdOf` (brique de manipulation directe) nomme une
-        entrée par l'un ou l'autre, et `reorder_queue` fait
-        `entries(queue).map(batchIdOf).filter(Boolean)` — le `filter` ÉCARTAIT donc
-        silencieusement toutes les entrées unitaires du converter. Réordonner la file
-        n'envoyait au serveur que ses LOTS : le geste marchait à moitié, sans rien dire, et se
-        « réparait » au rechargement suivant en remettant l'ordre d'avant.
+        {% comment %}── ENTRÉE DE FILE : brique COMMUNE `common/_queue_entry.html` ──────────
+        PORTÉ le 2026-09-09. Le converter était la DERNIÈRE des 10 apps à rendre ce bloc à la
+        main — il rendait la card mère, le repli, l'enrobage d'entrée et les deux boucles,
+        c'est-à-dire exactement ce que la brique fait depuis le 2026-08-25.
 
-        Le contrat est celui de `common/_queue_entry.html` (2026-09-04) : `display:contents`
-        pour que la carte se dispose EXACTEMENT comme avant dans la grille/liste — l'enrobage
-        n'existe que pour porter la donnée.
+        Le seul verrou était un NOM : la brique passe l'élément sous `elem`, `_job_card.html`
+        lisait `job`. Levé par le renommage du gabarit (frontière des données respectée :
+        `.job-card`, `data-job-id` et `data-delete-url` sont INCHANGÉS) et par `elem` posé sur
+        le job dans `_decorate_job` — pour le converter, la liaison et l'élément coïncident
+        (FK directe job→batch, pas de modèle de liaison comme dans les 9 autres apps).
 
-        ⚠ Pourquoi pas `_queue_entry.html` lui-même : la brique passe l'élément sous le nom
-        `elem`, et `_job_card.html` lit `job` (45 occurrences). L'adopter est un PORTAGE de
-        renommage, pas ce correctif — nommé au handoff plutôt que bâclé ici.{% endcomment %}
-        {% for job in b.items %}
-        <div class="wama-queue-entry" style="display:contents"
-             data-entry-batch-id="{{ b.obj.id }}">{% include 'converter/_job_card.html' %}</div>
-        {% endfor %}
-        {% endif %}
+        Ce que la brique reprend TEL QUEL, et qu'il n'y a donc plus à tenir ici : le choix
+        card seule / card mère (`obj.is_unitary`, équivalent mesuré de l'ancien `is_group` —
+        `_auto_wrap_orphans` tourne AVANT, aucun job n'arrive sans lot), l'enrobage
+        `.wama-queue-entry[data-entry-batch-id]` des entrées unitaires (le correctif du
+        09/09 : sans lui `reorder_queue` écartait silencieusement les cards seules), l'id de
+        repli `batchItems<id>` et la clé localStorage `converter_<id>` — les deux défauts de
+        la brique, donc rien à passer —, et `data-media-type` sur le wrapper de groupe, que
+        `converter.js:378` lit pour ouvrir la modale de lot sur la bonne nature.{% endcomment %}
+        {% url 'converter:batch_download' b.obj.id as batch_dl_url %}
+        {% include 'common/_queue_entry.html' with batch_info=b card_template='converter/_job_card.html' card_class='job-card' meta_template='converter/_batch_card_meta.html' eta_ids=b.eta_ids download_url=batch_dl_url app='converter' actions_communes=True %}
         {% empty %}
         {% comment %}`empty-queue` AJOUTÉ le 2026-08-23 : c'est la classe que la brique commune
         `WamaApp.emptyState` cherche. Sans elle, le rendu SERVEUR et le rendu JS ne se voyaient

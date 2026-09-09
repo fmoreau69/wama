@@ -466,19 +466,23 @@ def _toast(f: _AppFiles):
 def _queue_entry(f: _AppFiles):
     """L'entrée de file (card seule OU lot) vient-elle de la brique commune ?
 
-    ⚠ GATE : le partial `_queue_entry.html` lit `batch_info.items[].elem`, alias posé par
-    `build_batches_list`. Une app qui construit sa file À LA MAIN ne peut donc pas l'adopter
-    sans passer d'abord par la brique commune — le lui reprocher désignerait le mauvais
-    défaut. Mesuré le 2026-08-25 : le CONVERTER est dans ce cas (`views.py` groupe en mémoire,
-    « FK directe job→batch, pas de modèle de liaison »), et son vrai reste-à-faire est
-    l'adoption de `build_batches_list`, pas celle de ce partial.
+    ⚠⚠ LA PORTE `build_batches_list` A ÉTÉ RETIRÉE le 2026-09-09, et c'est une correction
+    d'INSTRUMENT, pas un assouplissement. Elle disait : « le partial lit
+    `batch_info.items[].elem`, alias posé par `build_batches_list` ; une app qui construit sa
+    file À LA MAIN ne peut donc pas l'adopter ». Le converter — l'app même que cette porte
+    exemptait, nommément, depuis le 2026-08-25 — vient de l'adopter **sans** appeler la
+    brique : l'alias `elem` n'appartient pas à `build_batches_list`, c'est un CONTRAT de
+    gabarit que l'app peut honorer elle-même (ici `_decorate_job` pose `job.elem = job`, la
+    FK étant directe — liaison et élément coïncident).
+
+    La prémisse était donc fausse, et son effet ne l'était pas à moitié : elle rendait le
+    critère NON APPLICABLE là où il y avait un vrai reste-à-faire, puis l'aurait laissé
+    non applicable une fois le travail FAIT — une adoption réelle invisible de la grille.
+    *Une exemption qui nomme une app est une hypothèse sur cette app ; le jour où l'app la
+    dément, c'est l'exemption qui tombe, pas le constat.*
+
+    Ce qui reste gardé, et suffit : une app SANS file à lots n'a pas d'objet ici (None).
     """
-    #: ⚠ un APPEL, pas une mention : le converter cite `build_batches_list` dans un
-    #: COMMENTAIRE (`views.py:150`) tout en construisant sa file a la main. Chercher le
-    #: nom seul le declarait adoptant — le piege des commentaires, deja mesure sur
-    #: `mecanismes_scan` (60 affiches / 18 reels).
-    if not f.find(PY, r'build_batches_list\s*\('):
-        return None, None          # file construite à la main → autre chantier
     trouve = f.find(TEMPLATES, r"common/_queue_entry\.html")
     if trouve:
         return True, trouve

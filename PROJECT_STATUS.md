@@ -12628,8 +12628,9 @@ Ordre ensuite : C → D → export du registre `PASSES` en manifeste `pipeline` 
    project OU org_unit ») et arrive donc AVEC l'écriture = jalon **S3**. Ouvrir S3 est un
    chantier de DROITS, pas d'UI : ne pas le lancer sans GO explicite. Contournement légitime :
    un `Project` à deux membres.
-3. Puis, sans décision : porter le converter sur `common/_queue_entry.html` (renommage
-   `job` → `elem`, 45 occurrences) ; lancer les 2 familles nocturnes sur les apps restantes.
+3. ~~Puis, sans décision : porter le converter sur `common/_queue_entry.html` (renommage
+   `job` → `elem`, 45 occurrences)~~ — ✅ **FAIT le 2026-09-09** (cf. §PALIER ci-dessous) ;
+   reste : lancer les 2 familles nocturnes sur les apps restantes.
 
 ### Pendings système / trous NOMMÉS (pas enterrés)
 
@@ -12642,7 +12643,10 @@ Ordre ensuite : C → D → export du registre `PASSES` en manifeste `pipeline` 
 - **6 gabarits incluent encore `wama-inspector-autofill.css` en local** — mesuré : `apps`,
   `backends`, `external_sources`, `journal`, `model_manager/index`, `studio/index`. Redondant
   depuis son passage en global (CSS idempotent, donc inoffensif) ; retrait = une passe à part ;
-- **converter** : ne passe pas par `_queue_entry.html` (cf. point 3 ci-dessus) ;
+- ~~**converter** : ne passe pas par `_queue_entry.html`~~ — ✅ **SOLDÉ le 2026-09-09**. ⚠ Ce
+  qui RESTE de la même famille : la **FABRIQUE** (`codegen/templates_gen.py`) recopie encore
+  le bloc à la main — donc toute app générée naît hors brique. *L'artefact est corrigé, la
+  fabrique ne l'est pas encore* ;
 - `wama/imager_01/` (jumelle) n'est PAS versionnée : elle héritera des correctifs de gabarit à
   sa prochaine régénération, le générateur étant juste. ⚠ `git show` sur un fichier non suivi
   rend un message d'erreur — un détecteur nourri de vide dit toujours vert (piège rencontré) ;
@@ -12669,6 +12673,83 @@ Ordre ensuite : C → D → export du registre `PASSES` en manifeste `pipeline` 
   `/reprise` du 08/09, le rouge composer `audio/*` — SOLDÉ depuis par une autre instance,
   `app_registry`). Périmètres ciblés tous verts : 148 (inspecteur+registres+partage+envoi+barre+
   accounts), 92 (envoi+partage+menu+barre+filemanager), 75, 60, 58.
+
+---
+
+## §PALIER — 2026-09-09, instance « PORTAGE : ENTRÉE DE FILE » — converter sur la brique commune
+
+> Reprise du point 3 du 🔚 CARDS/UI ci-dessus (« sans décision »). Une autre instance travaille
+> en parallèle sur la mémoire (`souvenirs` → `memories`), wama-dev-ai et cam_analyzer —
+> **périmètres disjoints**, commits par chemins explicites.
+
+**Le converter était la 10ᵉ et DERNIÈRE file hors `common/_queue_entry.html`.** Le verrou
+n'était qu'un nom (`job` vs `elem`) ; il est levé, et la brique est désormais adoptée par les
+10 apps. Renommage tokenisé du seul `_job_card.html` (40 références) — `.job-card`,
+`data-job-id`, `.job-delete-btn` INCHANGÉS : frontière des DONNÉES, ce sont des contrats DOM
+lus par `converter.js`. `_decorate_job` pose `job.elem = job` (FK directe → liaison et élément
+coïncident), au point de décoration UNIQUE pour que l'endpoint `card_html` l'ait aussi.
+
+**Deux corrections que le portage a RÉVÉLÉES, et qui valent plus que lui :**
+
+1. **`data-media-type` remonte dans la brique.** `converter.js:378` le lit pour ouvrir la
+   modale de réglages du LOT sur la bonne nature ; le bouton de `_batch_card.html` ne le porte
+   pas — le wrapper de groupe en est la SEULE source (mesuré avant de porter). Émis gardé :
+   seul `ConversionBatch` déclare `media_type`. *La brique surface ce que le MODÈLE déclare.*
+2. **Le critère de grille `queue_entry` mesurait faux — défaut d'INSTRUMENT.** Il s'exemptait
+   sur l'absence d'appel à `build_batches_list`, au motif qu'« une app qui construit sa file à
+   la main ne peut donc pas adopter le partial », **en nommant le converter**. Le converter
+   vient de l'adopter sans appeler la brique : l'alias `elem` est un contrat de GABARIT, pas
+   une propriété de `build_batches_list`. L'exemption rendait le critère non applicable là où
+   il y avait un vrai reste-à-faire — **et l'aurait laissé non applicable une fois le travail
+   FAIT**. *Une exemption qui nomme une app est une hypothèse sur cette app ; le jour où l'app
+   la dément, c'est l'exemption qui tombe.* Effet : converter **72/72 → 73/73**, toujours
+   100 %, aucune autre app ne bouge.
+
+### ⚠⚠ Leçons (chacune payée dans la session)
+
+- **UNE GARDE SE CONTRE-ÉPROUVE, ELLE NE SE RELIT PAS.** Ma 1ʳᵉ version du test « nature »
+  cherchait `data-media-type="image"` dans TOUTE la page : elle restait VERTE avec l'attribut
+  retiré de la brique, parce que le ⚙ de chaque card fille en émet un homonyme via
+  `gear_data`. Resserrée sur la balise `.batch-group`. *Une garde qui se satisfait d'une
+  occurrence homonyme ailleurs dans la page ne garde rien.*
+- **NE PAS DEVINER UN SÉLECTEUR — trois fois dans la même sonde** : `.wcv3-actions` (le menu
+  contextuel restructure la rangée au-delà de 6 boutons), puis `.batch-group … .job-card` qui
+  désigne AUSSI la card mère (`card_class='job-card'`), d'où un A/B qui comparait la mère à
+  une fille. Le DOM se demande, il ne se suppose pas.
+- **UN ÉCART VISUEL N'EST PAS UNE RÉGRESSION TANT QU'IL N'EST PAS MESURÉ** : les actions
+  passent à deux rangées sur les filles — mais la card SEULE, que le port ne touche pas, fait
+  pareil. Mesuré : seule 788 px / fille 774 px (les 14 px de la brique), **actions 84 px de
+  haut des DEUX côtés**. C'est le seuil des 6 boutons, antérieur au portage.
+- **UN `git stash` EST DANGEREUX QUAND UNE AUTRE INSTANCE VIT** — fait une fois pour un A/B,
+  restauré intact, puis abandonné au profit d'une comparaison qui ne touche pas l'arbre.
+
+### 🔚 RESTE NOMMÉ (pas enterré)
+
+- **La FABRIQUE recopie encore le bloc** — `codegen/templates_gen.py` rend l'entrée de file à
+  la main (`{% for item in b.items %}` + wrapper écrit), donc **toute app générée naît hors
+  brique**, et `REMOVAL_LEDGER R26` ne peut pas passer à ✅ tant que c'est le cas. Elle a le
+  MÊME verrou que le converter (FK directe, trou déjà consigné dans `views_gen.py` : « le
+  motif est écrit à 4 endroits »). *On corrige la fabrique, pas seulement l'artefact.*
+- **`folder_input_id` (pending rendu par la session CARDS/UI) — MESURÉ, pas fait**, et la
+  mesure conteste la décision consignée du 09/09 :
+  | app | port déclaré | câblage réel | verdict |
+  |---|---|---|---|
+  | avatarizer | `work` travail **multi** (audio+image) | **mode ATTACHE** (`attach:['audio_input']`) — le fichier RESTE dans le port, c'est la voix d'UN avatar | déclarer `folder_input_id` seul ferait **un vert qui ne se joue pas** : le geste demande de passer l'import en création multi-items, pas une ligne de gabarit |
+  | imager | `work` travail **multi** (image) + `reference_image` | — | la décision dit « pas de sens, leurs fichiers sont des références au prompt » — cela décrit `reference_image`, **pas** le port `work`. Contradiction à trancher par Fabien : soit le port `work` de l'imager est de trop, soit l'import de dossier y a du sens |
+  | composer / synthesizer | `prompt` + `reference_*`, **aucun port travail** | — | non applicable, et le critère le voit déjà |
+
+### Contrôles MESURÉS à ce palier
+
+| contrôle | valeur |
+|---|---|
+| tests du périmètre | **118 OK** (converter + files communes) puis **179 OK** (grille, codegen, import, registres, gabarits) |
+| gardes ajoutées | **3**, chacune contre-éprouvée (cassée → rouge → restaurée → vert) |
+| batterie UI nocturne converter | **9/9 OK** — après `kill -HUP` du maître gunicorn (gabarits en cache PAR WORKER) |
+| navigateur | lot rendu correct, **0 erreur console**, `data-media-type="image"` au DOM du serveur vivant |
+| grille | converter **73/73 = 100 %** ; describer 100 % ; les 8 autres inchangées |
+| `check_docs` | **0 cassée / 0 périmée sur 1525** · 0 chiffre sans source |
+| `check_templates --strict` | **0 défaut / 152** |
+| ⚠ `doc_facts` | **NON commité** : le bloc `mecanismes` régénéré capte aussi le mécanisme « Mémoire & RAG » que l'autre instance est en train de migrer — le figer serait figer son WIP (`/cloture §2b`). Rendu à HEAD ; à régénérer par elle, ou au prochain `/reprise`. Mon seul effet dessus : `queue_entry` 263 → 265 consommateurs |
 
 ---
 

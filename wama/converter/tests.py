@@ -5,6 +5,7 @@ scénarios nocturnes (gestes), jamais par un test de comportement de vue. Les de
 ci-dessous ont vécu précisément dans cet angle mort — aucun ne levait d'erreur.
 """
 import io
+import re
 import zipfile
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -152,3 +153,113 @@ class SauverCommeProfilTest(TestCase):
         self.assertNotIn('data-key', params,
                          'WamaParams émet désormais data-key : réexaminer readModalForm '
                          '(le mort pourrait revivre — ou être retiré pour de bon)')
+
+
+class AdoptionDeLaBriqueDEntreeDeFileTest(TestCase):
+    """Le converter est passé sur `common/_queue_entry.html` le 2026-09-09 — DERNIER des 10.
+
+    Le portage a levé un verrou de nommage (`job` → `elem` dans `_job_card.html`), et c'est
+    précisément le genre de geste dont les ratés ne LÈVENT RIEN : un gabarit Django qui
+    déréférence un nom absent ne casse pas, il rend du VIDE. Les deux contrats ci-dessous
+    sont ceux que le port pouvait emporter sans un mot ; aucun n'était gardé avant ce jour.
+    """
+
+    def _utilisateur(self, nom):
+        """Un compte qui FRANCHIT le portier, jamais un superuser.
+
+        `AppAccessMiddleware` redirige (302) un compte sans rôle : neutraliser le portier
+        rendrait le test aveugle à une régression du gating (arbitrage repris de
+        `nightly_tests.get_test_user()` et de la fabrique du synthesizer).
+        """
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import GROUP_PREFIX
+
+        u = get_user_model().objects.create_user(nom, password='x')
+        for role in ('communication', 'recherche', 'ingenierie', 'administratif'):
+            g, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')
+            u.groups.add(g)
+        self.client.force_login(u)
+        return u
+
+    def test_le_wrapper_de_lot_porte_la_NATURE_du_lot(self):
+        """`data-media-type` sur `.batch-group` — lu par `converter.js:378`.
+
+        Le converter rendait ce wrapper lui-même ; la brique commune ne l'émettait pas. La
+        modale de réglages d'un LOT dérive ses options de format de la NATURE, que le bouton
+        de `_batch_card.html` ne porte PAS : ce wrapper en est la SEULE source (mesuré avant
+        le port). Sans lui, `mt` vaut `undefined` et la modale s'ouvre sur une nature vide —
+        sans erreur console, sans 500, sans rien.
+        """
+        from wama.converter.models import ConversionBatch, ConversionJob
+
+        u = self._utilisateur('conv_nature')
+        lot = ConversionBatch.objects.create(user=u, total=2, media_type='image')
+        for n in ('un.png', 'deux.png'):
+            ConversionJob.objects.create(user=u, batch=lot, input_filename=n,
+                                         media_type='image')
+
+        html = self.client.get('/converter/').content.decode('utf-8', 'replace')
+        self.assertIn(f'data-batch-id="{lot.id}"', html,
+                      'le lot ne porte pas son id : la brique ne rend pas son wrapper')
+
+        # ⚠ L'assertion doit porter sur LA BALISE `.batch-group`, pas sur la page. Première
+        # version écrite : `assertIn('data-media-type="image"', html)` — elle restait VERTE
+        # avec l'attribut retiré de la brique, parce que le ⚙ de chaque card FILLE en émet un
+        # homonyme via `gear_data` (index.html:338). Or `onBatchSettings` reçoit le bouton du
+        # LOT, qui n'a pas de `gear_data` : la fille ne le secourt pas. Une garde qui se
+        # satisfait d'une occurrence homonyme ailleurs dans la page ne garde rien — trouvé par
+        # contre-épreuve, pas par relecture.
+        ouvrante = re.search(r'<div class="batch-group[^>]*>', html)
+        self.assertIsNotNone(ouvrante, 'aucun wrapper de lot rendu')
+        balise = ouvrante.group(0)
+        self.assertIn(f'data-batch-id="{lot.id}"', balise)
+        self.assertIn('data-media-type="image"', balise,
+                      "le wrapper de lot a perdu la NATURE — la modale de réglages du lot "
+                      "s'ouvrira sans elle, en silence (converter.js:378). Balise rendue :\n"
+                      + balise)
+
+    def test_l_endpoint_card_html_rend_une_card_HABITEE(self):
+        """La clé de contexte du partial — jumeau PAR CHAÎNE du renommage `job` → `elem`.
+
+        `card_html` est la source unique du markup au rafraîchissement (le JS remplace le
+        nœud entier). Renommer la variable DANS le gabarit sans renommer la clé qui l'alimente
+        aurait rendu une card structurellement complète et TOTALEMENT VIDE — statut, nom de
+        fichier, boutons : tout déréférencé sur un nom absent. Un `manage.py check` passe,
+        aucun test de vue ne l'ouvrait. On exige donc du CONTENU, pas un 200.
+        """
+        from wama.converter.models import ConversionBatch, ConversionJob
+
+        u = self._utilisateur('conv_card_html')
+        lot = ConversionBatch.objects.create(user=u, total=1)
+        job = ConversionJob.objects.create(user=u, batch=lot, status='SUCCESS',
+                                           input_filename='temoin_habite.png',
+                                           media_type='image', output_format='jpg')
+
+        r = self.client.get(reverse('converter:card_html', args=[job.id]))
+        self.assertEqual(200, r.status_code)
+        html = r.content.decode('utf-8', 'replace')
+        self.assertIn('temoin_habite.png', html,
+                      'card VIDE : le gabarit lit `elem`, la vue alimente autre chose')
+        self.assertIn(f'data-id="{job.id}"', html)
+        self.assertIn('data-status="SUCCESS"', html)
+
+    def test_le_gabarit_ne_recopie_plus_le_bloc_d_entree_de_file(self):
+        """Le POINT du portage : plus une 11ᵉ copie, mais l'appel à la brique.
+
+        Garde de non-retour — c'est la duplication elle-même qu'on interdit, pas son
+        symptôme. Un futur correctif « local » qui réécrirait la boucle ici rendrait le
+        converter à nouveau sourd aux corrections de la brique.
+        """
+        from pathlib import Path
+
+        from django.conf import settings
+
+        src = (Path(settings.BASE_DIR) / 'wama' / 'converter' / 'templates'
+               / 'converter' / 'index.html').read_text(encoding='utf-8')
+        self.assertIn("include 'common/_queue_entry.html'", src,
+                      "le converter ne passe plus par la brique commune d'entrée de file")
+        for recopie in ("{% for job in b.items %}", "{% for item in b.items %}"):
+            self.assertNotIn(recopie, src,
+                             f'boucle de file recopiée à la main ({recopie}) : la brique '
+                             'la tient déjà')

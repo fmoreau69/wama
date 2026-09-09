@@ -1110,6 +1110,16 @@ def _decorate_job(job):
     if str(valeurs.get('rotation', '')) in ('0', ''):
         valeurs.pop('rotation', None)
     job.chips = chips_by_section(job, PARAMS_JSON, values=valeurs)
+    # ── Alias NORMALISÉ `elem` (2026-09-09, adoption de `common/_queue_entry.html`) ──────
+    # La brique itère les LIAISONS d'un lot et atteint l'élément métier par `item.elem` —
+    # alias que `build_batches_list` pose sur chaque liaison (`_it.elem = getattr(_it,
+    # work_attr)`). Le converter n'a PAS de modèle de liaison : sa FK est directe
+    # (job→batch), donc la liaison et l'élément COÏNCIDENT et l'alias pointe sur le job
+    # lui-même. Ce n'est pas un contournement : c'est la même équation, avec un terme égal.
+    # Posé ICI parce que `_decorate_job` est le point de décoration UNIQUE des deux chemins
+    # de rendu (la file, et l'endpoint card_html) — le poser dans la vue d'index aurait
+    # laissé le second sans alias.
+    job.elem = job
     return job
 
 
@@ -1119,7 +1129,11 @@ def card_html(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     job = get_object_or_404(ConversionJob, pk=pk, user=user)
     _decorate_job(job)
-    return render(request, 'converter/_job_card.html', {'job': job})
+    # Clé `elem` (2026-09-09) : le gabarit lit désormais l'élément sous le nom commun, comme
+    # les 9 autres cards d'app. Jumeau PAR CHAÎNE du renommage du gabarit — invisible d'un
+    # `manage.py check` comme d'un test qui n'ouvrirait pas ce partial : une card rendue avec
+    # l'ancienne clé serait sortie VIDE, sans lever quoi que ce soit.
+    return render(request, 'converter/_job_card.html', {'elem': job})
 
 
 def console_content(request):

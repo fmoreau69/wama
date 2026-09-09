@@ -2,8 +2,17 @@
 {% comment %}
 Carte d'un ConversionJob — CARD v3 « sections × chips » (formalisme CARD_DESIGN §11,
 portée du pilote reader/_item_card.html le 2026-08-13 ; remplace la card empilée v2).
-Source UNIQUE du markup : rendue au chargement (index.html, seule ou fille de batch via
-in_batch=True) et par l'endpoint converter:card_html (refreshCard remplace le nœud entier).
+Source UNIQUE du markup : rendue au chargement (via la brique commune
+`common/_queue_entry.html`, seule ou fille de lot — elle pose `in_batch` elle-même) et par
+l'endpoint converter:card_html (refreshCard remplace le nœud entier).
+
+⚠ L'élément se lit `elem`, PAS `job` (renommé le 2026-09-09). Ce n'était pas un choix de
+goût : `_queue_entry.html` passe toutes les cards filles sous ce nom unique — c'est le
+verrou qui a permis de centraliser le bloc recopié dans les 10 gabarits (cf. son en-tête).
+Le converter était le DERNIER à rendre son bloc à la main, pour cette seule raison de
+nommage. Ce qui n'a PAS été renommé, et ne doit pas l'être : `.job-card`, `data-job-id`,
+`.job-delete-btn` — frontière des DONNÉES (contrats DOM lus par converter.js), pas des
+identifiants de gabarit.
 
 Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card à l'autre :
   ENTRÉE   icône média + nom (clic = aperçu source) → #id · date en bandeau
@@ -19,12 +28,12 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
   .progress-text (:370), .btn-group-actions (clonage inspecteur), .settings-btn[data-id],
   .job-delete-btn, .duplicate-btn[data-duplicate-url], .preview-media-link.
 {% endcomment %}
-<div class="job-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% elif job.status == 'AWAITING_RESOURCES' %}awaiting{% endif %}"
-     data-job-id="{{ job.id }}" data-id="{{ job.id }}" data-status="{{ job.status }}"
-     data-preview-url="{% url 'common:unified_preview' 'converter' job.id %}">
+<div class="job-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% endif %}"
+     data-job-id="{{ elem.id }}" data-id="{{ elem.id }}" data-status="{{ elem.status }}"
+     data-preview-url="{% url 'common:unified_preview' 'converter' elem.id %}">
 <div class="card-body py-2">
 
-  <div class="wcv3-head">#{{ job.id }}<span class="sep">·</span>{{ job.created_at|date:"d/m H:i" }}</div>
+  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
 
   <div class="wcv3">
 
@@ -33,18 +42,18 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
       <span class="wcv3-lbl">Entrée</span>
       <div class="wcv3-in">
         <span class="wcv3-thumb">
-          <i class="fas fa-file{% if job.media_type == 'video' %}-video{% elif job.media_type == 'audio' %}-audio{% elif job.media_type == 'image' %}-image{% endif %} text-info"></i>
+          <i class="fas fa-file{% if elem.media_type == 'video' %}-video{% elif elem.media_type == 'audio' %}-audio{% elif elem.media_type == 'image' %}-image{% endif %} text-info"></i>
         </span>
         <div class="wcv3-in-lines">
-          {% if job.input_file %}
+          {% if elem.input_file %}
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu du fichier source"
-                data-preview-url="/filemanager/api/preview/?path={{ job.input_file.name|urlencode }}">
-            {{ job.input_filename }}
+                data-preview-url="/filemanager/api/preview/?path={{ elem.input_file.name|urlencode }}">
+            {{ elem.input_filename }}
           </span>
           {% else %}
-          <span class="wcv3-in-name" title="{{ job.input_filename }}">{{ job.input_filename }}</span>
+          <span class="wcv3-in-name" title="{{ elem.input_filename }}">{{ elem.input_filename }}</span>
           {% endif %}
-          <span class="wcv3-in-props">{{ job.media_type|default:'—' }}</span>
+          <span class="wcv3-in-props">{{ elem.media_type|default:'—' }}</span>
         </div>
       </div>
     </div>
@@ -53,25 +62,25 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=job.chips.settings %}
+        {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
       </div>
     </div>
 
     {# ── SORTIE : format (chips 'output') → étape live → fichier produit ; erreur ici #}
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
-      {% if job.status == 'FAILURE' and job.error_message %}
-        <span class="wcv3-out-error" title="{{ job.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ job.error_message|truncatechars:120|escape }}
+      {% if elem.status == 'FAILURE' and elem.error_message %}
+        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
-          {% include 'common/_card_chips.html' with chips=job.chips.output %}
-          {% if job.status == 'RUNNING' %}
-            <span class="wcv3-out-step"><span class="pct progress-text">{{ job.progress }}%</span> — conversion…</span>
-          {% elif job.status == 'SUCCESS' and job.output_file %}
-            <span class="wcv3-out-step" title="{{ job.output_filename }}">
-              <i class="fas fa-check-circle text-success"></i> {{ job.output_filename }}
+          {% include 'common/_card_chips.html' with chips=elem.chips.output %}
+          {% if elem.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ elem.progress }}%</span> — conversion…</span>
+          {% elif elem.status == 'SUCCESS' and elem.output_file %}
+            <span class="wcv3-out-step" title="{{ elem.output_filename }}">
+              <i class="fas fa-check-circle text-success"></i> {{ elem.output_filename }}
             </span>
           {% endif %}
         </div>
@@ -83,11 +92,11 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ job.status }}"></span>
-          <span>{{ job.get_status_display }}</span>
+          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
+          <span>{{ elem.get_status_display }}</span>
         </span>
-        {% if job.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ job.id }}"></span>{% endif %}
-        {% if job.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=job.processing_display %}{% endif %}
+        {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
       </div>
     </div>
 
@@ -103,19 +112,19 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
         `job-settings-btn`/`data-job-id`, graphie propre au converter ; le handler local de
         `converter.js` est retiré DANS LE MÊME GESTE.{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn"
-                title="Paramètres" data-id="{{ job.id }}"
-                {% for k, v in job.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
+                title="Paramètres" data-id="{{ elem.id }}"
+                {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
-        {% url 'converter:download' job.id as url_dl %}
-        {% if job.status == 'SUCCESS' and job.output_file %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% url 'converter:download' elem.id as url_dl %}
+        {% if elem.status == 'SUCCESS' and elem.output_file %}
           {% download_button 'converter' url_dl True %}
         {% else %}
           {% download_button 'converter' url_dl False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                title="Dupliquer" data-duplicate-url="{% url 'converter:duplicate' job.id %}">
+                title="Dupliquer" data-duplicate-url="{% url 'converter:duplicate' elem.id %}">
           <i class="fas fa-copy"></i>
         </button>
         {% comment %}`delete-btn` + `data-delete-url` = contrat de la brique commune
@@ -124,8 +133,8 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
         `converter.js` est retiré DANS LE MÊME GESTE : garder les deux ferait tirer l'app ET
         la brique — un double-fire, donc deux requêtes de suppression.{% endcomment %}
         <button class="btn btn-sm btn-outline-danger delete-btn"
-                title="Supprimer" data-job-id="{{ job.id }}"
-                data-delete-url="{% url 'converter:delete' job.id %}">
+                title="Supprimer" data-job-id="{{ elem.id }}"
+                data-delete-url="{% url 'converter:delete' elem.id %}">
           <i class="fas fa-trash"></i>
         </button>
       </div>
@@ -134,11 +143,11 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
     {% comment %}Barre pleine largeur — VERTE sur tout le cycle (§11), en LIGNE 2 de la
     grille (jamais dans la piste État). En ÉCHEC : FIGÉE au % atteint, on voit OÙ le
     process est mort. Jamais de commentaire dièse ici (boîte fantôme dans la grille).{% endcomment %}
-    {% if job.status != 'PENDING' %}
+    {% if elem.status != 'PENDING' %}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
-        <div class="wama-progress-fill{% if job.status == 'RUNNING' %} active{% elif job.status == 'FAILURE' %} is-frozen{% endif %}"
-             style="width:{% if job.status == 'SUCCESS' %}100{% else %}{{ job.progress }}{% endif %}%"></div>
+        <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
     {% endif %}
@@ -150,12 +159,12 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
   (WamaInspector.hydrateCardPreviews) fetch unified_preview ?side=output et rend en
   mime-driven (renderInlinePreview : image/vidéo/audio-waveform/pdf/texte). AUCUN markup
   média par app (correction Fabien 18/08 — le markup à la main était hors-route).{% endcomment %}
-  {% if job.status == 'SUCCESS' and job.output_file %}
-  {% url 'common:unified_preview' 'converter' job.id as pv_out %}
-  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ job.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ job.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ job.id }}"></div>
+  {% if elem.status == 'SUCCESS' and elem.output_file %}
+  {% url 'common:unified_preview' 'converter' elem.id as pv_out %}
+  <div class="wcv3-preview wama-card-preview" id="preview-row-{{ elem.id }}" data-preview-url="{{ pv_out }}?side=output" data-id="{{ elem.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
-  <div id="preview-row-{{ job.id }}"></div>
+  <div id="preview-row-{{ elem.id }}"></div>
   {% endif %}
 
 </div>

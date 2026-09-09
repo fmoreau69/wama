@@ -66,7 +66,18 @@ grille/liste de la file — l'enrobage n'existe que pour porter la donnée.{% en
     {% endwith %}
   {% endif %}{% endfor %}
 {% else %}
-  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
+  {% comment %}⚠ `data-media-type` (2026-09-09, adoption du converter — le 10ᵉ et dernier
+  gabarit à rejoindre cette brique). Il n'est PAS décoratif : `converter.js:378` lit
+  `btn.closest('.batch-group')?.dataset.mediaType` pour ouvrir la modale de réglages du LOT
+  sur la bonne nature, et le bouton de `_batch_card.html` ne porte pas l'attribut — ce
+  wrapper en est la SEULE source. Le rendre sans lui aurait ouvert la modale sans nature,
+  sans lever la moindre erreur (mesuré avant de porter : `mt` serait `undefined`).
+
+  Gardé par `{% templatetag openblock %} if {% templatetag closeblock %}` et non émis à vide : `media_type` est déclaré par le SEUL
+  modèle de lot du dépôt qui groupe par nature (`ConversionBatch`, + sa jumelle de bac à
+  sable) — les 9 autres n'ont pas le champ et ne rendent donc aucun attribut. La brique
+  surface ce que le modèle DÉCLARE ; elle ne connaît aucune app.{% endcomment %}
+  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}"{% if batch_info.obj.media_type %} data-media-type="{{ batch_info.obj.media_type }}"{% endif %}>
     {% include 'common/_batch_card.html' %}
     <div class="collapse" id="{{ collapse_prefix|default:'batchItems' }}{{ batch_info.obj.id }}"
          data-wama-batch-key="{{ batch_key|default:app }}_{{ batch_info.obj.id }}"
