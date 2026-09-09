@@ -1671,8 +1671,11 @@
             "name": "engine",
             "option_groups": null,
             "options_auto": false,
-            "options_query": null,
-            "options_source": null,
+            "options_query": {
+              "source": "enhancer",
+              "task": "audio-enhance"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
@@ -2049,8 +2052,11 @@
             "name": "ai_model",
             "option_groups": null,
             "options_auto": false,
-            "options_query": null,
-            "options_source": null,
+            "options_query": {
+              "model_type": "upscaling",
+              "source": "enhancer"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",

@@ -851,9 +851,12 @@
             "min_label": "",
             "name": "backend",
             "option_groups": null,
-            "options_auto": false,
-            "options_query": null,
-            "options_source": null,
+            "options_auto": true,
+            "options_query": {
+              "source": "reader",
+              "task": "ocr"
+            },
+            "options_source": "catalog",
             "pills": [],
             "radio_name": "",
             "section": "settings",
