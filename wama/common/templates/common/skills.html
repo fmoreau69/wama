@@ -42,6 +42,16 @@
                border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: .8rem;
                color: #ffe0b2; }
   .sk-manque ul { margin: 6px 0 0; padding-left: 18px; }
+  /* Mécanisme de sélection + nature de gabarit — ajoutés le 2026-09-09 avec les 2 familles. */
+  .sk-selection { font-size: .68rem; color: #8fa3b8; border: 1px solid #2d4055;
+                  border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
+  .sk-gabarit { font-size: .68rem; color: #e7d16e; border: 1px solid #6b5a1c;
+                border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
+  .sk-decl { background: rgba(110,200,231,.06); border: 1px solid rgba(110,200,231,.22);
+             border-radius: .5rem; padding: .8rem 1rem; margin: 1rem 0; }
+  .sk-decl h4 { font-size: .9rem; color: #6ec8e7; margin-bottom: .5rem; }
+  .sk-decl ul { margin: 0; padding-left: 18px; font-size: .82rem; color: #c3ccd6; }
+  .sk-decl em { color: #8fa3b8; }
 </style>
 {% endblock %}
 
@@ -64,10 +74,20 @@
       des apps, l'assistant et l'agent de développement — aucune app n'en écrit.
     </p>
     <p>
-      <strong>Deux familles, à ne pas confondre.</strong> Un skill
-      d'<em>enrichissement</em> transforme un prompt <em>dans l'app</em>, au lancement de la
-      tâche. Un skill de <em>rôle</em> définit la posture de l'assistant lui-même — il ne
-      transforme aucun prompt. Appliquer l'un à la place de l'autre coûte une passe LLM pour rien.
+      <strong>Cinq familles, et c'est QUI CHOISIT la consigne qui les sépare</strong> — pas
+      l'outil qui la lit. Quatre d'entre elles sont choisies <em>par le code</em> : le
+      destinataire final (un modèle de diffusion, SAM3, une TTS) n'encaisse qu'une chaîne et ne
+      sait rien sélectionner, donc le fichier est <em>nu</em> et c'est la résolution qui décide.
+      La cinquième — les skills de <em>développement</em> — est choisie <em>par un agent</em>,
+      d'après une description : d'où son format à frontmatter, dans un dossier par skill.
+    </p>
+    <p>
+      Dans les familles choisies par le code, ne pas confondre l'<em>enrichissement</em> (qui
+      transforme un prompt dans l'app, au lancement de la tâche) et le <em>rôle</em> (qui définit
+      une posture et ne transforme rien) : appliquer l'un pour l'autre coûte une passe LLM pour
+      rien. Les <em>rôles wama-dev-ai</em> marqués <span class="sk-gabarit">gabarit</span> sont
+      des patrons à substitution (<code>.format()</code>) — ce ne sont pas des consignes prêtes
+      à l'emploi, et c'est ce qui interdit de les porter au format des skills de développement.
     </p>
     <p>
       Cette page dérive des fichiers et des déclarations qui les résolvent : elle dit surtout
@@ -77,13 +97,38 @@
   </div>
 
   <div class="wama-cat-stats">
-    <div class="wama-cat-stat"><b>{{ cat.total }}</b> skill{{ cat.total|pluralize }}</div>
+    <div class="wama-cat-stat"><b>{{ cat.total }}</b> consigne{{ cat.total|pluralize }}, toutes familles</div>
+    <div class="wama-cat-stat"><b>{{ cat.total_prompt }}</b> skill{{ cat.total_prompt|pluralize }} de prompt</div>
     {% for cle, n in cat.par_famille.items %}
     <div class="wama-cat-stat"><b>{{ n }}</b> {{ cle }}</div>
     {% endfor %}
     {% if cat.orphelins %}
     <div class="wama-cat-stat"><b>{{ cat.orphelins }}</b> sans consommateur</div>
     {% endif %}
+  </div>
+
+  {% comment %}
+    Les DÉCLARATIONS de prompt (registre `prompts`, 14ᵉ). Elles n'apparaissaient qu'en creux,
+    comme « consommateurs » d'un skill : une app qui n'en résout aucun était donc invisible.
+    `synthesizer` déclare une liste VIDE À DESSEIN (§16.6 — un texte TTS ne se traduit jamais,
+    on prononce ce que l'utilisateur a écrit) ; ne pas la montrer laisse lire un oubli là où il
+    y a une décision.
+  {% endcomment %}
+  <div class="sk-decl">
+    <h4><i class="fas fa-file-signature me-1"></i> Prompts déclarés — <code>PROMPT_TARGETS</code></h4>
+    <ul>
+      {% for d in cat.declarations %}
+      <li>
+        <strong>{{ d.app }}</strong> —
+        {% if d.aucun %}
+          <em>aucun champ-prompt, délibérément</em>
+        {% else %}
+          {% for c in d.champs %}<code>{{ c.champ }}</code> ({{ c.kind }}{% if c.domaine %},
+          domaine {{ c.domaine }}{% endif %}{% if c.enrich %}, enrichi{% endif %}){% if not forloop.last %} · {% endif %}{% endfor %}
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
   </div>
 
   {% comment %}
@@ -115,6 +160,16 @@
       <h4>
         <code>{{ s.nom }}</code>
         <span class="wama-cat-badge sk-{{ s.famille }}">{{ s.famille_label }}</span>
+        {% comment %}Le mécanisme de SÉLECTION est ce qui impose le format : l'afficher sur
+        chaque carte évite d'avoir à le déduire de la famille.{% endcomment %}
+        {% if s.selection == 'agent' %}
+        <span class="sk-selection" title="Choisi par un agent d'après sa description (frontmatter)">
+          <i class="fas fa-robot me-1"></i>choisi par l'agent</span>
+        {% else %}
+        <span class="sk-selection" title="Résolu par le code — le destinataire ne sait pas choisir">
+          <i class="fas fa-code me-1"></i>résolu par le code</span>
+        {% endif %}
+        {% if s.gabarit %}<span class="sk-gabarit" title="Patron à substitution .format()">gabarit</span>{% endif %}
       </h4>
 
       <div class="sk-resume">{{ s.resume }}</div>

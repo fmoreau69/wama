@@ -13,7 +13,8 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from wama.common.services.skills_catalog import FAMILLES, _resume, synthese
+from wama.common.services.skills_catalog import (DOSSIER_ROLES_DEV, DOSSIER_SKILLS_AGENT,
+                                                 FAMILLES, _frontmatter, _resume, synthese)
 
 
 class SyntheseTests(SimpleTestCase):
@@ -129,3 +130,74 @@ class PageSkillsTests(TestCase):
         # Et le nom se résout — un `url_name` qui ne pointe nulle part serait la même panne
         # silencieuse, déplacée d'un cran.
         self.assertTrue(reverse(skills['url_name']))
+
+
+class CinqFamillesTest(TestCase):
+    """Les 2 familles ajoutées le 2026-09-09 — et surtout l'invariant qui les justifie.
+
+    Rappel du raisonnement, parce qu'il a failli partir dans l'autre sens : on avait envisagé
+    de FUSIONNER `wama-dev-ai/prompts/` et `.claude/skills/` en un dossier, au motif qu'ils
+    travaillent tous deux sur le code. La mesure l'a interdit — 5 des consignes de rôle sont
+    des gabarits `.format()`. Le critère qui tranche est le MÉCANISME DE SÉLECTION, et ces
+    tests le figent pour qu'une session suivante ne re-propose pas la fusion.
+    """
+
+    def test_les_cinq_familles_sont_declarees(self):
+        self.assertEqual(
+            ['enrichissement', 'role', 'repli', 'role_dev', 'dev_agent'], list(FAMILLES))
+
+    def test_seule_la_famille_des_agents_est_choisie_par_un_agent(self):
+        """L'invariant CENTRAL : la sélection découle de la famille, jamais du dossier."""
+        for s in synthese()['skills']:
+            with self.subTest(skill=s['nom']):
+                attendu = 'agent' if s['famille'] == 'dev_agent' else 'code'
+                self.assertEqual(attendu, s['selection'])
+
+    def test_les_gabarits_sont_REPERES_et_seulement_chez_les_roles_dev(self):
+        """Un gabarit à `{placeholders}` n'est pas une consigne prête à l'emploi.
+
+        S'il cessait d'être signalé, plus rien n'empêcherait de le porter au format des skills
+        d'agent — et la substitution casserait sans bruit à l'exécution du rôle.
+        """
+        skills = synthese()['skills']
+        gabarits = {s['nom'] for s in skills if s['gabarit']}
+        self.assertTrue(gabarits, "aucun gabarit repéré : le détecteur de placeholders est muet")
+        for s in skills:
+            if s['gabarit']:
+                self.assertEqual('role_dev', s['famille'],
+                                 f"{s['nom']} : un gabarit hors des rôles wama-dev-ai")
+
+    def test_le_registre_publie_le_compte_des_skills_de_PROMPT_pas_celui_de_la_page(self):
+        """Deux totaux, deux sens — et c'est le NOM qui doit les tenir séparés.
+
+        `total` = ce que la page liste (5 familles) ; `total_prompt` = ce que publie le registre
+        `skills`. Ma première rédaction les avait intervertis, et deux gardes préexistantes
+        l'ont attrapé en une seconde (`sum(par_famille) != total`). Les confondre afficherait
+        deux nombres différents pour la même chose ici et sur la carte des registres.
+        """
+        from wama.common.registries import overview
+        cat = synthese()
+        registre = next(r for r in overview() if r['key'] == 'skills')['total']
+        self.assertEqual(registre, cat['total_prompt'])
+        self.assertGreater(cat['total'], cat['total_prompt'])
+
+    def test_les_declarations_montrent_AUSSI_les_apps_sans_champ_prompt(self):
+        """`synthesizer` déclare `[]` À DESSEIN (§16.6). Invisible, ça se relit comme un oubli."""
+        apps = {d['app']: d for d in synthese()['declarations']}
+        self.assertIn('synthesizer', apps)
+        self.assertTrue(apps['synthesizer']['aucun'])
+
+    def test_le_frontmatter_se_lit_sans_dependance(self):
+        meta, corps = _frontmatter("---\nname: x\ndescription: y\n---\n\ncorps\n")
+        self.assertEqual({'name': 'x', 'description': 'y'}, meta)
+        self.assertEqual('corps\n', corps)
+        # Un fichier SANS frontmatter ne doit pas perdre son corps.
+        self.assertEqual(({}, 'nu'), _frontmatter('nu'))
+
+    def test_les_deux_dossiers_declares_existent(self):
+        from django.conf import settings
+        from pathlib import Path
+        for rel in (DOSSIER_ROLES_DEV, DOSSIER_SKILLS_AGENT):
+            with self.subTest(dossier=rel):
+                self.assertTrue((Path(settings.BASE_DIR) / rel).is_dir(),
+                                f"{rel} déclaré mais absent — la famille serait vide en silence")

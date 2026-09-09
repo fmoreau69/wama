@@ -31,15 +31,46 @@ Rien n'est stocké : la synthèse dérive de `skills_catalog()`, de `PROMPT_TARG
 from __future__ import annotations
 
 import logging
+import re
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+#: Placeholder de `str.format()` — ce qui distingue un GABARIT d'une consigne.
+_PLACEHOLDER = re.compile(r'\{(\w+)\}')
+
 #: Familles DÉCLARÉES. La clé sert de facette ; l'ordre fait l'ordre d'affichage.
+#:
+#: ⚠ ÉTENDU le 2026-09-09 de 3 à 5 familles — et l'axe qui les ordonne n'est PAS « quel outil
+#: lit le fichier » mais **QUI CHOISIT LA CONSIGNE**, parce que c'est lui qui impose le format
+#: (tranché avec Fabien, `WAMA_LLM §0bis 🔒`) :
+#:
+#:   • CHOISIE PAR LE CODE → fichier NU. Le consommateur final ne sait pas choisir : un modèle
+#:     de diffusion, SAM3 ou MusicGen n'encaissent qu'une chaîne. Les quatre premières familles
+#:     sont là — y compris les consignes de rôle de wama-dev-ai, que `consigne_role(nom)`
+#:     sélectionne par NOM DE RÔLE, jamais par description.
+#:   • CHOISIE PAR UN AGENT → dossier + SKILL.md à frontmatter, parce qu'il faut une
+#:     `description` à lire pour décider. C'est `.claude/skills/`, et c'est la seule.
+#:
+#: CE QUE CETTE EXTENSION A CORRIGÉ DANS MON PROPRE PLAN : on avait envisagé de FUSIONNER
+#: `wama-dev-ai/prompts/` et `.claude/skills/` en un seul dossier, au motif qu'ils travaillent
+#: tous deux sur le CODE. La mesure du 2026-09-09 l'a interdit : **5 des 11 consignes de rôle
+#: sont des gabarits `.format()`** (`{task}`, `{tools}`, `{code}`, `{files}`) — les porter en
+#: SKILL.md casserait la substitution ET le contrat du format, qui veut un corps lu VERBATIM.
+#: L'objet traité (le code) rapprochait les deux familles ; le mécanisme de sélection les
+#: sépare, et c'est le mécanisme qui décide. *Elles se rejoignent sur cette PAGE, pas sur le
+#: disque.*
 FAMILLES = {
     'enrichissement': "Enrichissement de prompt",
     'role': "Rôle de l'assistant",
     'repli': "Repli générique",
+    'role_dev': "Rôle wama-dev-ai",
+    'dev_agent': "Skill de développement",
 }
+
+#: Où vivent les deux familles ajoutées. Relatif à la racine du dépôt, résolu à l'appel.
+DOSSIER_ROLES_DEV = 'wama-dev-ai/prompts'
+DOSSIER_SKILLS_AGENT = '.claude/skills'
 
 
 def _resume(texte: str) -> str:
@@ -108,6 +139,108 @@ def _consommateurs_role() -> dict:
                       + (" · rappel RAG" if d.rag else "")] for d in DOMAINES}
 
 
+def _racine():
+    from django.conf import settings
+    return Path(settings.BASE_DIR)
+
+
+def _roles_dev() -> list:
+    """Consignes de rôle de wama-dev-ai (`prompts/*.txt`) — famille `role_dev`.
+
+    Leur consommateur est `role_utils.consigne_role(nom)`, qui les choisit PAR NOM DE RÔLE.
+    C'est donc bien le CODE qui sélectionne, comme pour l'enrichissement — d'où le fichier nu.
+
+    On DIT lesquelles sont des gabarits (`{task}`, `{tools}`…) : c'est l'information qui
+    interdit de les confondre avec un skill d'agent, et elle est invisible partout ailleurs.
+    Une consigne à placeholders n'est pas une consigne, c'est un patron à remplir.
+    """
+    dossier = _racine() / DOSSIER_ROLES_DEV
+    sorties = []
+    try:
+        fichiers = sorted(dossier.glob('*.txt'))
+    except OSError as e:
+        logger.debug("[skills_catalog] rôles dev illisibles : %s", e)
+        return sorties
+
+    for p in fichiers:
+        try:
+            texte = p.read_text(encoding='utf-8')
+        except OSError:
+            continue
+        trous = sorted(set(_PLACEHOLDER.findall(texte)))
+        conso = [f"wama-dev-ai · <code>consigne_role('{p.stem}')</code>"]
+        if trous:
+            conso.append("gabarit <code>.format()</code> — attend "
+                         + ", ".join(f"<code>{{{t}}}</code>" for t in trous))
+        sorties.append({
+            'nom': p.stem, 'famille': 'role_dev', 'famille_label': FAMILLES['role_dev'],
+            'app': 'wama-dev-ai', 'domaine': '', 'resume': _resume(texte), 'texte': texte,
+            'lignes': len(texte.splitlines()), 'consommateurs': conso,
+            'selection': 'code', 'gabarit': bool(trous), 'orphelin': False,
+        })
+    return sorties
+
+
+def _skills_agent() -> list:
+    """Skills de développement (`.claude/skills/<nom>/SKILL.md`) — famille `dev_agent`.
+
+    La SEULE famille choisie par un AGENT, d'après la `description` de son frontmatter — d'où
+    le format à frontmatter, et d'où sa présence ici : sans elle, la page prétendrait montrer
+    « les consignes données aux modèles » en en cachant un tiers.
+
+    ⚠ Elles ne sont PAS résolues par WAMA : aucun code du dépôt ne les charge. Leur
+    « consommateur » est le harnais de l'agent, ce qu'on affiche tel quel plutôt que de laisser
+    croire à un orphelin.
+    """
+    dossier = _racine() / DOSSIER_SKILLS_AGENT
+    sorties = []
+    try:
+        fichiers = sorted(dossier.glob('*/SKILL.md'))
+    except OSError as e:
+        logger.debug("[skills_catalog] skills d'agent illisibles : %s", e)
+        return sorties
+
+    for p in fichiers:
+        try:
+            texte = p.read_text(encoding='utf-8')
+        except OSError:
+            continue
+        meta, corps = _frontmatter(texte)
+        sorties.append({
+            'nom': meta.get('name') or p.parent.name,
+            'famille': 'dev_agent', 'famille_label': FAMILLES['dev_agent'],
+            'app': '', 'domaine': '',
+            # Le résumé EST la description du frontmatter : c'est littéralement le texte sur
+            # lequel l'agent décide d'activer le skill. Le remplacer par la 1ʳᵉ ligne du corps
+            # afficherait autre chose que ce qui sert à choisir.
+            'resume': meta.get('description') or _resume(corps),
+            'texte': corps, 'lignes': len(corps.splitlines()),
+            'consommateurs': [f"Harnais d'agent · <code>{DOSSIER_SKILLS_AGENT}/"
+                              f"{p.parent.name}/</code> (choisi sur description)"],
+            'selection': 'agent', 'gabarit': False, 'orphelin': False,
+        })
+    return sorties
+
+
+def _frontmatter(texte: str):
+    """`(métadonnées, corps)` d'un SKILL.md. Sans PyYAML : les clés utiles sont plates.
+
+    Volontairement minimal — on ne lit que `name` et `description`, seules clés dont la page a
+    besoin. Un parseur complet ferait dépendre une page d'affichage d'un format tiers.
+    """
+    if not texte.startswith('---'):
+        return {}, texte
+    fin = texte.find('\n---', 3)
+    if fin == -1:
+        return {}, texte
+    meta = {}
+    for ligne in texte[3:fin].splitlines():
+        cle, sep, valeur = ligne.partition(':')
+        if sep and cle.strip() in ('name', 'description'):
+            meta[cle.strip()] = valeur.strip()
+    return meta, texte[fin + 4:].lstrip('\n')
+
+
 def synthese() -> dict:
     """Le catalogue complet, prêt à rendre. Aucun argument : les skills ne sont pas scopés."""
     from ..utils.prompt_skills import skills_catalog
@@ -139,15 +272,54 @@ def synthese() -> dict:
             'texte': texte,
             'lignes': len((texte or '').splitlines()),
             'consommateurs': conso,
+            'selection': 'code',
+            'gabarit': False,
             # Un skill de repli n'a pas de consommateur NOMMÉ : il est atteint par défaut,
             # donc l'absence de lien y est normale et ne doit pas s'afficher en alerte.
             'orphelin': not conso and famille != 'repli',
         })
 
+    # Les deux familles ajoutées le 2026-09-09. Elles ne passent PAS par `skills_catalog()` :
+    # ce sont d'autres dossiers, d'autres extensions, d'autres consommateurs. Les y forcer
+    # aurait demandé d'élargir un accesseur dont le contrat est « les skills de prompt WAMA ».
+    skills += _roles_dev()
+    skills += _skills_agent()
+
+    # ⚠ DEUX totaux, et les nommer mal se paie tout de suite : `total` doit rester le nombre de
+    # ce que la page LISTE (sinon `sum(par_famille) != total`, et deux gardes préexistantes le
+    # signalent aussitôt — elles l'ont fait). Le compte des skills de PROMPT est un total à part,
+    # parce que c'est LUI que le registre `skills` publie (`_count_skills` → `skills_catalog()`).
+    # Les confondre ferait afficher deux nombres différents pour la même chose sur la page et
+    # sur la carte des registres, et on chercherait longtemps lequel ment.
+    total_prompt = sum(1 for s in skills if s['famille'] in ('enrichissement', 'role', 'repli'))
+
     return {
         'skills': skills,
         'total': len(skills),
+        'total_prompt': total_prompt,
         'par_famille': {c: sum(1 for s in skills if s['famille'] == c) for c in FAMILLES},
         'orphelins': sum(1 for s in skills if s['orphelin']),
         'targets_orphelins': targets_orphelins,
+        # Les DÉCLARATIONS elles-mêmes (registre `prompts`) : la page montrait les champs-prompt
+        # seulement comme « consommateurs » d'un skill, donc une app qui n'en résout aucun était
+        # invisible — `synthesizer` déclare `[]` DÉLIBÉRÉMENT (§16.6 : un texte TTS ne se traduit
+        # jamais) et n'apparaissait nulle part. Un « explicitement rien » qu'on ne voit pas se
+        # relit comme un oubli.
+        'declarations': _declarations(),
     }
+
+
+def _declarations() -> list:
+    """`PROMPT_TARGETS` rendu lisible — le registre `prompts` (14ᵉ) sur sa page."""
+    from ..utils.app_metadata import PROMPT_TARGETS
+
+    lignes = []
+    for app, targets in sorted(PROMPT_TARGETS.items()):
+        lignes.append({
+            'app': app,
+            'champs': [{'champ': t.get('field', '?'), 'kind': t.get('kind') or 'generative',
+                        'domaine': t.get('domain') or t.get('domain_field') or '',
+                        'enrich': bool(t.get('enrich'))} for t in targets],
+            'aucun': not targets,
+        })
+    return lignes
