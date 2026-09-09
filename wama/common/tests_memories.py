@@ -1,5 +1,5 @@
 """
-Page « Mes souvenirs » + accesseur `store.list_souvenirs` (13ᵉ registre, 2026-09-09).
+Page « Mes souvenirs » + accesseur `store.list_memories` (13ᵉ registre, 2026-09-09).
 
 Ce que ces tests protègent, et pourquoi chacun existe :
 
@@ -19,7 +19,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .memory.store import list_souvenirs
+from .memory.store import list_memories
 from .models import MemoryItem
 
 
@@ -41,7 +41,7 @@ class ListSouvenirsTest(TestCase):
     def test_la_liste_active_ne_rend_que_les_approuves(self):
         _souvenir(user=self.moi, content='approuvé', approved_at=timezone.now())
         _souvenir(user=self.moi, content='brouillon')
-        contenus = [s['content'] for s in list_souvenirs(self.moi)]
+        contenus = [s['content'] for s in list_memories(self.moi)]
         self.assertIn('approuvé', contenus)
         self.assertNotIn('brouillon', contenus,
                          "un souvenir non approuvé est invisible au rappel : la page ne doit "
@@ -49,7 +49,7 @@ class ListSouvenirsTest(TestCase):
 
     def test_la_liste_active_ne_montre_pas_le_souvenir_dun_autre(self):
         _souvenir(user=self.autre, content='chez autre', approved_at=timezone.now())
-        self.assertEqual([], [s['content'] for s in list_souvenirs(self.moi)])
+        self.assertEqual([], [s['content'] for s in list_memories(self.moi)])
 
     def test_la_file_de_revue_voit_les_souvenirs_SANS_PROPRIETAIRE(self):
         """Le cas qui a motivé la page : 25 souvenirs importés portaient `user=NULL`.
@@ -58,14 +58,14 @@ class ListSouvenirsTest(TestCase):
         que la gouvernance attend une validation humaine.
         """
         _souvenir(user=None, provenance='dev-ai', content='importé sans propriétaire')
-        contenus = [s['content'] for s in list_souvenirs(self.moi, en_attente=True)]
+        contenus = [s['content'] for s in list_memories(self.moi, en_attente=True)]
         self.assertIn('importé sans propriétaire', contenus)
 
     def test_un_souvenir_remplace_sort_des_deux_listes(self):
         remplacant = _souvenir(user=self.moi, content='neuf', approved_at=timezone.now())
         _souvenir(user=self.moi, content='vieux', superseded_by=remplacant)
-        self.assertNotIn('vieux', [s['content'] for s in list_souvenirs(self.moi)])
-        self.assertNotIn('vieux', [s['content'] for s in list_souvenirs(self.moi, en_attente=True)])
+        self.assertNotIn('vieux', [s['content'] for s in list_memories(self.moi)])
+        self.assertNotIn('vieux', [s['content'] for s in list_memories(self.moi, en_attente=True)])
 
 
 class PageSouvenirsTest(TestCase):
@@ -77,19 +77,19 @@ class PageSouvenirsTest(TestCase):
         _souvenir(user=None, provenance='dev-ai', content='EN-ATTENTE-SECRET')
 
     def test_la_page_exige_une_connexion(self):
-        r = self.client.get(reverse('common:souvenirs'))
+        r = self.client.get(reverse('common:memories'))
         self.assertEqual(302, r.status_code)
 
     def test_un_simple_connecte_ne_voit_PAS_la_file_de_revue(self):
         """La file n'est pas scopée : sans cette garde, elle exposerait les souvenirs de tous."""
         self.client.force_login(self.simple)
-        corps = self.client.get(reverse('common:souvenirs')).content.decode()
+        corps = self.client.get(reverse('common:memories')).content.decode()
         self.assertNotIn('EN-ATTENTE-SECRET', corps)
         self.assertNotIn('File de revue', corps)
 
     def test_le_staff_voit_la_file_de_revue(self):
         self.client.force_login(self.staff)
-        corps = self.client.get(reverse('common:souvenirs')).content.decode()
+        corps = self.client.get(reverse('common:memories')).content.decode()
         self.assertIn('EN-ATTENTE-SECRET', corps)
         self.assertIn('File de revue', corps)
 
@@ -100,7 +100,7 @@ class RegistresMemoireTest(TestCase):
         un catalogue que personne ne peut ouvrir."""
         from .registries import overview
         par_cle = {r['key']: r for r in overview()}
-        for cle, url in (('souvenirs', 'common:souvenirs'),
+        for cle, url in (('memories', 'common:memories'),
                          ('prompts', 'common:skills_catalog')):
             with self.subTest(registre=cle):
                 self.assertIn(cle, par_cle, f"registre `{cle}` absent de la carte")

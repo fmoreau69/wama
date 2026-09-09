@@ -497,7 +497,11 @@ class NormeUrlsTest(TestCase):
 
     #: Pages de registre qui ne sont PAS des catalogues — exemptions NOMMÉES, jamais tacites :
     #: l'index du model_manager est la page d'accueil d'une app, `rag` une page personnelle.
-    HORS_NORME = {'model_manager:index', 'common:rag'}
+    #: `memories` rejoint `rag` le 2026-09-09 pour la raison EXACTEMENT identique, et c'est ce
+    #: qui la justifie : `MemoryItem` et `RagChunk` sont deux jumeaux (mêmes mixins, un seul
+    #: `recall()`). Les normer différemment ferait de l'un un catalogue et de l'autre une page
+    #: personnelle — l'asymétrie de surface que cette page a précisément été écrite pour finir.
+    HORS_NORME = {'model_manager:index', 'common:rag', 'common:memories'}
 
     def test_tout_nom_de_page_catalogue_finit_en_catalog(self):
         from .registries import REGISTRIES
@@ -514,7 +518,11 @@ class NormeUrlsTest(TestCase):
     #: NOMMÉES : l'index du model_manager est l'accueil d'une app, `rag` une page personnelle
     #: (liste en mode server), `apps` une page bespoke dont les h2 titrent des SECTIONS.
     #: Toutes trois portent la barre commune — c'est l'en-tête qu'elles n'ont pas.
-    HORS_SQUELETTE = {'model_manager:index', 'common:rag', 'common:apps_catalog'}
+    HORS_SQUELETTE = {'model_manager:index', 'common:rag', 'common:apps_catalog',
+                      # `memories` : même exemption que `rag`, même motif (page personnelle,
+                      # liste en mode server). Elle porte bien la barre commune — c'est
+                      # l'en-tête catalogue qu'elle n'a pas, comme sa jumelle.
+                      'common:memories'}
 
     def test_chaque_page_de_registre_rend_la_barre_de_filtrage_commune(self):
         """L'uniformité des pages registres se MESURE (demande Fabien, 01/09).

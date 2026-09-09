@@ -595,7 +595,7 @@ def expire(*, jours_non_approuve=90, dry_run=True):
 
 # ──────────────────────────────────────────────────────── lister (surface) ────
 
-def list_souvenirs(user, *, en_attente=False):
+def list_memories(user, *, en_attente=False):
     """
     Les souvenirs à AFFICHER — matière de la page « Mes souvenirs » (jumelle de « Mon RAG »).
 

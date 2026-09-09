@@ -52,7 +52,7 @@ sans l'avoir tracé referait le « chemin parallèle » que la doctrine interdit
 <div class="container souv-page">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
     <h1 class="mb-0">Mes souvenirs</h1>
-    {% refresh_button "souvenirs" %}
+    {% refresh_button "memories" %}
   </div>
   <p class="subtitle">
     Ce que WAMA retient — faits, événements et procédures rappelables par l'assistant.
@@ -64,7 +64,7 @@ sans l'avoir tracé referait le « chemin parallèle » que la doctrine interdit
 
   {% comment %}Barre COMMUNE en mode `server`, comme le journal, le RAG et les catalogues.
   Aucune barre propre à cette page (R21).{% endcomment %}
-  <form method="get" action="{% url 'common:souvenirs' %}">
+  <form method="get" action="{% url 'common:memories' %}">
     {% include 'common/_filter_bar.html' with facettes=facettes mode='server' recherche=q placeholder='Rechercher un souvenir…' url_reset=url_reset %}
   </form>
 

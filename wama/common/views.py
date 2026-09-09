@@ -949,14 +949,14 @@ def rag_view(request):
 
 
 @login_required
-def souvenirs_view(request):
+def memories_view(request):
     """« Mes souvenirs » — la page JUMELLE de « Mon RAG » (13ᵉ registre, 2026-09-09).
 
     Le fragment (`RagChunk`) avait sa page ; le souvenir (`MemoryItem`) n'en avait aucune, alors
     qu'ils héritent des mêmes mixins et partagent un seul `recall()`. Son seul accès était
     `memory_recall` — l'assistant, en langage naturel : impossible de LISTER ce que WAMA retient.
 
-    Deux listes, deux questions distinctes (cf. `store.list_souvenirs`) :
+    Deux listes, deux questions distinctes (cf. `store.list_memories`) :
       • ACTIFS — exactement ce que `recall()` rendrait, par réutilisation de `_visible_memory` ;
       • FILE DE REVUE — les non approuvés, que la gouvernance cache au rappel (`WAMA_MEMORY §6`).
         Réservée au STAFF, parce qu'elle n'est délibérément pas scopée.
@@ -967,10 +967,10 @@ def souvenirs_view(request):
     """
     from django.urls import reverse
 
-    from .memory.store import list_souvenirs
+    from .memory.store import list_memories
 
-    actifs = list_souvenirs(request.user)
-    attente = list_souvenirs(request.user, en_attente=True) if request.user.is_staff else []
+    actifs = list_memories(request.user)
+    attente = list_memories(request.user, en_attente=True) if request.user.is_staff else []
 
     q = (request.GET.get('q') or '').strip()
     if q:
@@ -997,7 +997,7 @@ def souvenirs_view(request):
     for s in actifs + attente:
         s['kind_libelle'] = kinds.get(s['kind'], s['kind'])
 
-    return render(request, 'common/souvenirs.html', {
+    return render(request, 'common/memories.html', {
         'actifs': actifs,
         'attente': attente,
         'total': len(actifs),
@@ -1005,7 +1005,7 @@ def souvenirs_view(request):
         'kinds': kinds,
         'facettes': facettes,
         'q': q,
-        'url_reset': reverse('common:souvenirs'),
+        'url_reset': reverse('common:memories'),
         'est_staff': request.user.is_staff,
         # Même volet réduit que ses sœurs catalogues (`tests_inspecteur_registre`).
         'volet': volet(medias=False, actions=False),

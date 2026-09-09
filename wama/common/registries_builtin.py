@@ -315,9 +315,9 @@ register(Registry(
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 register(Registry(
-    key='souvenirs', label='Mes souvenirs', nature=DERIVED,
+    key='memories', label='Mes souvenirs', nature=DERIVED,
     source="`MemoryItem` (`common/memory/`, Postgres + pgvector) — le jumeau du fragment RAG",
-    url_name='common:souvenirs', permission='auth',
+    url_name='common:memories', permission='auth',
     doc='WAMA_MEMORY.md',
     description="Ce que WAMA retient : faits, événements, procédures. Lu en base à chaque "
                 "affichage — rien à actualiser. La liste ACTIVE est exactement ce que `recall()` "
