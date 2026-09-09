@@ -92,7 +92,7 @@ class CardsStatutAwaitingTest(SimpleTestCase):
 
     def test_staticfiles_sert_les_memes_fichiers(self):
         """`staticfiles/` est le dossier SERVI : un correctif non resynchronisé est
-        invisible au navigateur (règle CLAUDE.md « resynchroniser dans le même geste »)."""
+        invisible au navigateur (règle AGENTS.md « resynchroniser dans le même geste »)."""
         paires = [
             ('wama/common/static/common/js/wama-app-base.js',
              'staticfiles/common/js/wama-app-base.js'),

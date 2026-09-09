@@ -193,7 +193,7 @@ Ce qu'il faut est un **audit MESURÉ**, dans la famille de `check_docs` / `licen
 
 > Demandée par Fabien : *« 5 à 6 fonctionnements parallèles à confronter/questionner […] faire
 > la cartographie complète de tout ça et la consigner »*. Ce document est LE domicile du sujet
-> (décision 05/09 : un domaine = un fichier ; la table de `CLAUDE.md` est mise à jour en
+> (décision 05/09 : un domaine = un fichier ; la table de `AGENTS.md` est mise à jour en
 > conséquence — il couvrait déjà « ce que `media/` a le droit de contenir » et l'audit
 > d'intégrité, les voies d'import en sont la suite naturelle). `BATCH_FORMAT.md` reste la
 > spec du FORMAT de lot, `WAMA_VERIFICATION.md §3` le catalogue des GESTES exécutables.

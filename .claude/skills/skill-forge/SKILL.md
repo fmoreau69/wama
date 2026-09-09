@@ -40,7 +40,7 @@ distiller (un gabarit vide au mieux, de la doctrine inventée au pire).
       dira réellement (« les disques se remplissent », « on clôt la session »…)
 - [ ] **la COMMANDE, pas la valeur** : tout chiffre mesurable est remplacé par la commande
       qui le mesure ; une valeur ne subsiste que **datée**, pour l'ordre de grandeur
-- [ ] **les chiffres vivent dans leur doc-domicile** (table des domaines de CLAUDE.md) —
+- [ ] **les chiffres vivent dans leur doc-domicile** (table des domaines de AGENTS.md) —
       le skill RENVOIE, il ne recopie pas
 - [ ] scripts rejouables **DANS le dossier du skill**, jamais au scratchpad — un scratchpad
       meurt avec sa session (vécu : les scripts de nettoyage du 25/08, réécrits le 28/08

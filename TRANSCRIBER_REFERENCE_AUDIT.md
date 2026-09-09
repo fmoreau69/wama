@@ -37,7 +37,7 @@
 
 ### Card & cycle de vie
 - Boutons ordre conforme ⚙▶⬇⧉🗑 ; **bouton cycle** ▶/⏹/↻ (vert, anti-race `select_for_update`
-  + revoke Celery — pattern CLAUDE.md) ; `duplicate` (via brique commune) ; `delete`
+  + revoke Celery — pattern AGENTS.md) ; `duplicate` (via brique commune) ; `delete`
   (`safe_delete_file`) ; `clear_all`, `download_all`, `batch_download` (ZIP).
 - **Progression** : `progress` + `batch_status` + `global_progress` (barre commune) ; **ETA**
   `WamaEta` + seeding hardware-aware (`eta_estimator`, stat `transcriber:whisper`).

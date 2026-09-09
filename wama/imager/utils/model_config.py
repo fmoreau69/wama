@@ -198,7 +198,7 @@ STABLE_DIFFUSION_MODELS = {
         #
         # ⚠ Sur ses 4 modèles déclarés, imaginairy n'en sert plus qu'UN au catalogue :
         # `openjourney-v4`, `dreamlike-art-2` et `stable-diffusion-2-1` ont été retirés comme
-        # obsolètes (cf. CLAUDE.md §Supprimés). Sa liste `SUPPORTED_MODELS` est donc périmée
+        # obsolètes (cf. AGENTS.md §Supprimés). Sa liste `SUPPORTED_MODELS` est donc périmée
         # aux trois quarts — signalé, pas corrigé : retirer un backend est une décision.
         'engine': 'diffusers',
         'hf_id': 'stable-diffusion-v1-5/stable-diffusion-v1-5',

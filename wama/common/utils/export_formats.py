@@ -19,7 +19,7 @@ les formats partagés — la table ci-dessous ne tranche donc aucun arbitrage, e
 ⚠ RENOMMAGE DU 2026-08-30 (question de Fabien : « je vois encore un nom de fonction en français »).
 `VOCABULAIRE` / `entree` / `entrees` / `entrees_pour_app` et les clés de payload `valeur`/`icone`/
 `groupe`/`separateur` sont passés à l'anglais. Ce module est IMPORTÉ et son tag est lu dans 12
-gabarits : c'est une API, donc la règle de CLAUDE.md s'applique sans exception. Il avait échappé
+gabarits : c'est une API, donc la règle de AGENTS.md s'applique sans exception. Il avait échappé
 à la passe du 29/08 parce que celle-ci visait le model_manager et le JS commun — *un renommage se
 mesure sur un CRITÈRE, jamais sur la liste des fichiers qu'on avait en tête*.
 """

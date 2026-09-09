@@ -113,7 +113,7 @@ fi
 
 # ── 4. Patches de compatibilité ─────────────────────────────────────────────
 # APRÈS pip, et à relancer après tout `pip install --upgrade` : ces correctifs portent sur des
-# fichiers DU VENV, que pip réécrit. Cf. règle CLAUDE.md « patches/apply_patches.py ».
+# fichiers DU VENV, que pip réécrit. Cf. règle AGENTS.md « patches/apply_patches.py ».
 titre "Patches de compatibilité des dépendances"
 lancer "$PY" "$ROOT/patches/apply_patches.py"
 

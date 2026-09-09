@@ -60,7 +60,7 @@ def _build_musetalk_env() -> dict:
     # Pointer vers les checkpoints si disponibles
     if MUSETALK_MODELS_DIR.exists():
         env['MUSETALK_MODELS_DIR'] = str(MUSETALK_MODELS_DIR)
-    # Isolation du cache HF du SOUS-PROCESSUS (whisper/dwpose de MuseTalk) — regle CLAUDE.md :
+    # Isolation du cache HF du SOUS-PROCESSUS (whisper/dwpose de MuseTalk) — regle AGENTS.md :
     # jamais de telechargement dans le cache global par defaut.
     env['HF_HUB_CACHE'] = str(MUSETALK_HF_CACHE)
     env['HUGGINGFACE_HUB_CACHE'] = str(MUSETALK_HF_CACHE)

@@ -348,7 +348,7 @@ MECANISMES = (
     Mecanisme('docs_integrity', 'Intégrité doc → code',
               "Vérifie que chaque chemin, ligne et renvoi .md cité par la doc ET par les skills "
               "existe encore ; gate nocturne sur les CIBLES distinctes, pas sur les références",
-              'wama/common/management/commands/check_docs.py', 'CLAUDE.md §Fichiers de référence',
+              'wama/common/management/commands/check_docs.py', 'AGENTS.md §Fichiers de référence',
               annexes=('wama/common/tests_check_docs.py',),
               symbole='check_docs'),      # nommée par une CHAÎNE, jamais importée — cf. plus bas
     Mecanisme('templates_integrity', 'Intégrité des gabarits',
@@ -358,7 +358,7 @@ MECANISMES = (
               "diagnostics qui ont coûté des sessions. Depuis le 01/09, signale AUSSI tout "
               "`{% load %}` vers une bibliothèque de balises absente (garde posée le jour où un "
               "retrait de templatetag a laissé son load — page reader en TemplateSyntaxError)",
-              'wama/common/management/commands/check_templates.py', 'CLAUDE.md',
+              'wama/common/management/commands/check_templates.py', 'AGENTS.md',
               annexes=('wama/common/tests_check_templates.py',),
               symbole='check_templates'),
     # Ces deux-là TOURNENT CHAQUE NUIT (`nightly_scenarios.py:137,145`) et étaient pourtant hors
@@ -641,7 +641,7 @@ MECANISMES = (
     )),
 
     *_domaine("File d'attente & lots", (
-    # Déclarés parce que CLAUDE.md les nomme explicitement « ce qui existe déjà dans common/ —
+    # Déclarés parce que AGENTS.md les nomme explicitement « ce qui existe déjà dans common/ —
     # à utiliser, ne pas recréer » : ne pas les tracer ici laisserait la carte en dessous des
     # instructions du dépôt.
     Mecanisme('queue_duplication', 'Duplication et suppression sûres',

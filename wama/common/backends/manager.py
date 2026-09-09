@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Le pending « griser les moteurs sans backend » (31/08) est tranché : PAS de grisage à la
 # main — un système qui VÉRIFIE. Chaque producteur enregistre l'inventaire des moteurs
 # qu'il sait exécuter (`apps.py:ready()` — le registre ne connaît JAMAIS ses producteurs,
-# règle CLAUDE.md) ; `backend_missing()` rend un verdict à la demande. Comme l'inventaire
+# règle AGENTS.md) ; `backend_missing()` rend un verdict à la demande. Comme l'inventaire
 # est RELU à chaque appel, un backend qui apparaît RÉ-AUTORISE tout seul — rien à dégriser.
 #
 # Verdict PERMISSIF par construction (même doctrine que `matches_inputs`) : on ne condamne

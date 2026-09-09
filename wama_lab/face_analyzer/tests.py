@@ -100,7 +100,7 @@ class PoidsDeepFaceRangesTest(SimpleTestCase):
         """Même règle que le cache HF : l'environnement se pose au démarrage, point.
 
         Une mutation dans un backend est globale au processus et emporte ce que la lib
-        télécharge ENSUITE — c'est la leçon écrite au CLAUDE.md, elle vaut pour toute
+        télécharge ENSUITE — c'est la leçon écrite au AGENTS.md, elle vaut pour toute
         variable d'aiguillage, pas seulement pour celles de HuggingFace.
         """
         racine = Path(settings.BASE_DIR)
@@ -115,7 +115,7 @@ class PoidsDeepFaceRangesTest(SimpleTestCase):
             if "environ['DEEPFACE_HOME']" in texte or 'environ["DEEPFACE_HOME"]' in texte:
                 coupables.append(str(f.relative_to(racine)))
         self.assertEqual(coupables, [],
-                         "DEEPFACE_HOME muté hors de settings.py — interdit (cf. CLAUDE.md)")
+                         "DEEPFACE_HOME muté hors de settings.py — interdit (cf. AGENTS.md)")
 
     @unittest.skipUnless(_DEEPFACE_PRESENT, "paquet `deepface` absent de ce venv")
     def test_la_librairie_resout_le_meme_dossier_que_le_socle(self):

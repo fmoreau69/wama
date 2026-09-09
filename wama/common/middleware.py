@@ -43,7 +43,7 @@ SIGNAL_PAR_ROUTE = {
 }
 
 #: Méthodes qui portent un geste. Un GET sur `download` en est un ; un GET sur `start` n'existe
-#: pas (POST only, cf. le pattern anti-race de CLAUDE.md).
+#: pas (POST only, cf. le pattern anti-race de AGENTS.md).
 METHODES = ('GET', 'POST')
 
 

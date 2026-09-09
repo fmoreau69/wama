@@ -55,7 +55,7 @@ préciser laquelle des trois on cite.
 ## 3. Catalogue des gestes — il existe déjà, il n'est pas exécutable
 
 Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoires de
-`CLAUDE.md` (§Conventions UI) + les voies d'import. Il faut le rendre *exécutable*.
+`AGENTS.md` (§Conventions UI) + les voies d'import. Il faut le rendre *exécutable*.
 
 | # | Geste utilisateur | Scénario aujourd'hui | Traitement requis |
 |---|---|---|---|

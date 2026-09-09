@@ -126,7 +126,7 @@ explicite **non loopback** reste prioritaire. `.env` est PARTAGÉ par les deux c
 **La base Postgres de Windows est désormais orpheline** — plus rien ne la lit. Comparaison des
 deux avant bascule : ses seules lignes exclusives sont 48 entrées périmées du catalogue
 `AIModel` (openjourney-v4, realistic-vision-v5, cogvideox-2b, wan-*, logo-redmond-v2… — soit
-exactement les modèles listés « Supprimés (obsolètes) » dans `CLAUDE.md`) et le seed
+exactement les modèles listés « Supprimés (obsolètes) » dans `AGENTS.md`) et le seed
 `anonymizer_globalsettings.precision_level`. WSL2, lui, a 3 entrées que Windows n'a pas : c'est
 le plus récent. **Aucune donnée utilisateur exclusive côté Windows.**
 
@@ -459,7 +459,7 @@ orphelins — un par mort, datés à la minute des Kernel-Power 41 (23/08 21:49,
 | `swap.vhdx` orphelins + cache installeur VS + DLL fuitées | **29,39 Go** | ✅ **libérés le 25/08** |
 | `hiberfil.sys` | **38,37 Go** | ✅ **libérés le 25/08** (`powercfg /h off`, décision de Fabien ; désactive aussi le Démarrage rapide, qui cohabite mal avec WSL2 — S3 reste disponible) |
 | Clichés VSS sur **D:** | plafond ramené à **10 Go** (était 69,3, dont 40,8 utilisés au 25/08) | ✅ **réglé — plafond confirmé à 10 Go par Fabien le 28/08** (`vssadmin resize shadowstorage /for=D: /on=D: /maxsize=10GB`) ; les clichés (1/4 h + 1 par redémarrage) tournent désormais sous ce plafond |
-| `hunyuan-image-2.1` (`AI-models/models/diffusion/hunyuan/`) | **49,48 Go** | ⏳ **non traité** — déjà en attente de retrait depuis la revue de licences du 21/08 (**interdit UE**) ; ⚠ encore déclaré ACTIF dans `CLAUDE.md` et le catalogue → le retrait doit toucher le CODE aussi, pas seulement le disque |
+| `hunyuan-image-2.1` (`AI-models/models/diffusion/hunyuan/`) | **49,48 Go** | ⏳ **non traité** — déjà en attente de retrait depuis la revue de licences du 21/08 (**interdit UE**) ; ⚠ encore déclaré ACTIF dans `AGENTS.md` et le catalogue → le retrait doit toucher le CODE aussi, pas seulement le disque |
 | Ollama (`D:\.ollama`) | **107,65 Go** | ⏳ **non traité** — plus gros poste isolé de D:. ⚠ `AI-models/models/llm/ollama` en est un **SymbolicLink**, pas une copie : compté deux fois dans les scans, occupé une seule fois |
 | ~112 Go sur D: | — | ⚠ **non expliqués** par l'inventaire des dossiers ; probablement des répertoires aux ACL restrictives, à remesurer en session élevée |
 
@@ -984,4 +984,4 @@ production est en WSL2), mais une commande qui `rglob` le dépôt depuis Windows
 - `start_wama_dev.sh`, `start_wama_prod.sh`, `gunicorn_conf.py`, `.env` / `.env.example`.
 - `wama/common/management/commands/rotate_secrets.py` (rotation des secrets).
 - `scripts/set_wslconfig.ps1` (plafond RAM WSL2), `wama/common/utils/log_rotation.py` (journaux).
-- `CLAUDE.md` (proxy UGE, modèles), `memory/reference_proxy_uge.md`.
+- `AGENTS.md` (proxy UGE, modèles), `memory/reference_proxy_uge.md`.

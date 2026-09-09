@@ -38,7 +38,7 @@ CRITICAL RULES FOR TOOL USE:
 3. **No code is applied automatically** — all findings go through Claude + human validation first.
 4. **PENDING_HUMAN_VALIDATION** — every suggested action must have this status in the report.
 
-## ARCHITECTURAL RULES (from CLAUDE.md — always apply)
+## ARCHITECTURAL RULES (from AGENTS.md — always apply)
 
 ### HuggingFace model integration — mandatory pattern:
 - Path declared in settings.MODEL_PATHS

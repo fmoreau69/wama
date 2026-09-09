@@ -462,7 +462,7 @@ def start(request, pk: int):
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    # Anti-race (pattern CLAUDE.md) : select_for_update + revoke — brique commune.
+    # Anti-race (pattern AGENTS.md) : select_for_update + revoke — brique commune.
     from wama.common.utils.process_control import begin_processing
     t, err = begin_processing(Transcript, pk, user=user, reset=_reset_for_relaunch)
     if err == 'not_found':

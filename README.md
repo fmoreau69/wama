@@ -266,7 +266,7 @@ netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 conne
 
 ## AI model management
 
-All models are stored under `AI-models/models/<domain>/<family>/` to avoid storing anything in the default HuggingFace cache. The rule — enforced in `CLAUDE.md` — is: **set `HF_HUB_CACHE` before importing `transformers` or `diffusers`**, and always pass `cache_dir` to `from_pretrained()`.
+All models are stored under `AI-models/models/<domain>/<family>/` to avoid storing anything in the default HuggingFace cache. The rule — enforced in `AGENTS.md` — is: **set `HF_HUB_CACHE` before importing `transformers` or `diffusers`**, and always pass `cache_dir` to `from_pretrained()`.
 
 Download and status are managed via **Model Manager** (`/model-manager/`).
 
@@ -326,7 +326,7 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 
 | Document | Contenu |
 |----------|---------|
-| [`CLAUDE.md`](CLAUDE.md) | Règles d'intégration des modèles AI, centralisation `common/`, collaboration wama-dev-ai. |
+| [`AGENTS.md`](AGENTS.md) | Règles d'intégration des modèles AI, centralisation `common/`, collaboration wama-dev-ai. |
 | [`WAMA_APP_CONVENTIONS.md`](WAMA_APP_CONVENTIONS.md) | Conventions UI/architecture, checklist de création d'app, ordre des boutons, composants de file, table de conformité. |
 | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | Point d'étape des chantiers en cours (✅/🔄/⏳) + ordre de reprise. |
 | [`ROADMAP.md`](ROADMAP.md) | Feuille de route détaillée (numérotée par section). |

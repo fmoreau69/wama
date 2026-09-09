@@ -6,7 +6,7 @@ par la prospection validée), on le télécharge AU BON ENDROIT puis on l'enregi
 catalogue `AIModel` pour qu'il devienne visible/sélectionnable.
 
 Ollama d'abord : `POST /api/pull` sur le démon LOCAL = API officielle (le démon parle au
-registre, pas nous → aucun scraping). HF viendra ensuite (règle CLAUDE.md : path→env→import).
+registre, pas nous → aucun scraping). HF viendra ensuite (règle AGENTS.md : path→env→import).
 """
 from __future__ import annotations
 
@@ -672,7 +672,7 @@ def ensure_backend_deps(backend_cls, timeout: int = 1800) -> dict:
                                no_deps=bool(getattr(backend_cls, 'PIP_NO_DEPS', False)))
     res['already'] = False
     # ⚠ REJEU DES PATCHES — post-étape OBLIGATOIRE de TOUT pip install (contrat
-    # `WAMA_MANIFEST_ARCHITECTURE §7` + règle CLAUDE.md « patches de compatibilité venv »).
+    # `WAMA_MANIFEST_ARCHITECTURE §7` + règle AGENTS.md « patches de compatibilité venv »).
     # Il manquait ICI (trouvé le 2026-09-03 en vérifiant la route « modèle → tire une
     # librairie ») : le chemin LIBRAIRIE le rejouait, le chemin BACKEND non — or c'est le
     # même venv et les mêmes patches (Higgs/transformers, df/torchaudio, xformers…), qu'un

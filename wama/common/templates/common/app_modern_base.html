@@ -200,7 +200,7 @@
             {% comment %}Contenu par DÉFAUT auto-généré des métadonnées (current_app_spec =
             entrée APP_CATALOG, via le context processor accounts). Une app n'écrit ce bloc
             que pour une spécificité au-delà du catalogue — soigner les métadonnées À LA
-            SOURCE est ce qui remplit cette page (CLAUDE.md, principe 3).{% endcomment %}
+            SOURCE est ce qui remplit cette page (AGENTS.md, principe 3).{% endcomment %}
             <div class="info-card">
                 {% if current_app_spec %}
                 <h3><i class="{{ current_app_spec.icon }} me-2"></i>À propos de {{ current_app_spec.label }}</h3>
@@ -227,7 +227,7 @@
         <div class="tab-pane fade" id="help-pane" role="tabpanel">
             {% block help_content %}
             {% comment %}Aide par DÉFAUT : les gestes sont COMMUNS par construction (mêmes
-            boutons, même file, même volet partout — CLAUDE.md principe 2), donc un texte
+            boutons, même file, même volet partout — AGENTS.md principe 2), donc un texte
             commun est exact pour toute app du gabarit ; les puces conditionnelles viennent
             des capacités déclarées au catalogue.{% endcomment %}
             <div class="info-card">

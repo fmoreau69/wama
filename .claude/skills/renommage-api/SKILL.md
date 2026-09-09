@@ -1,6 +1,6 @@
 ---
 name: renommage-api
-description: Renommer une API française (ou tout renommage d'identifiants multi-fichiers) sans rien rendre FAUX — inventaire mesuré, moteur tokenisé, grep des jumeaux par chaîne, revérification jusqu'à HEAD. Utiliser quand on solde une couche de la dette de nommage (CLAUDE.md §nommage), ou pour tout renommage traversant plusieurs consommateurs. PROMU (n=2 : 2026-08-29 registries.py + ~45 noms model_manager ; 2026-08-30 les 2 briques JS communes, 119 identifiants + 1 nom de fichier — zéro casse les deux fois).
+description: Renommer une API française (ou tout renommage d'identifiants multi-fichiers) sans rien rendre FAUX — inventaire mesuré, moteur tokenisé, grep des jumeaux par chaîne, revérification jusqu'à HEAD. Utiliser quand on solde une couche de la dette de nommage (AGENTS.md §nommage), ou pour tout renommage traversant plusieurs consommateurs. PROMU (n=2 : 2026-08-29 registries.py + ~45 noms model_manager ; 2026-08-30 les 2 briques JS communes, 119 identifiants + 1 nom de fichier — zéro casse les deux fois).
 ---
 
 # /renommage-api — renommer sans rendre FAUX
@@ -82,4 +82,4 @@ description: Renommer une API française (ou tout renommage d'identifiants multi
    `reference_verif_sur_head_worktree` : .env + migrations à recopier) → 5. smoke
    NAVIGATEUR après restart du parc (⚠ gunicorn sert l'ancien code ; ⚠ sonde WSL :
    `no_proxy=localhost` sinon le proxy UGE avale localhost) → 6. re-consignation
-   (CLAUDE.md, §PENDING, mémoire) avec les RESTES ASSUMÉS nommés.
+   (AGENTS.md, §PENDING, mémoire) avec les RESTES ASSUMÉS nommés.

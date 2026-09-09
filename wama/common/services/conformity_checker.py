@@ -1092,7 +1092,7 @@ def _model_options_from_catalog(f: _AppFiles):
     Gate « composant sans hôte → N/A » (2026-09-03, 4ᵉ occurrence du verdict Fabien du
     14/08 — model_help, input_match_ui, model_caps_ui l'avaient, pas lui) : une app SANS
     sélecteur de moteur ne propose aucune liste — la mesure accusait alors la déclaration
-    OBLIGATOIRE `<APP>_MODELS` de model_config (checklist CLAUDE.md) comme « liste en
+    OBLIGATOIRE `<APP>_MODELS` de model_config (checklist AGENTS.md) comme « liste en
     dur » : le describer (cascade interne, zéro select) sortait ROUGE pour un composant
     qu'il n'a pas.
     """

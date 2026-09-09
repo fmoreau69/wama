@@ -17,7 +17,7 @@ le 2026-08-29). PURE COMPOSITION de déclarations existantes, aucun vocabulaire 
     dans les trois voies sinon, mesuré) ;
   • les MONDES se déclarent ici par sonde (`register_intake_probe`, appelé depuis leur
     `apps.py` — même sens que `lecteurs_data` au registre des registres) : ce module ne
-    cite JAMAIS un monde en dur (doctrine des mondes, CLAUDE.md) ;
+    cite JAMAIS un monde en dur (doctrine des mondes, AGENTS.md) ;
   • PAS de couche modèles : il n'existe AUCUNE correspondance déclarée entre catégorie de
     fichier et ids d'`INPUT_TYPES` — l'inventer ici créerait le vocabulaire parallèle que
     le plan interdit. Le rétrécissement par modèle reste dans l'app, au lancement

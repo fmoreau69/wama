@@ -3,7 +3,7 @@ AudioCraft Backend — MusicGen + AudioGen
 
 Handles music and SFX generation via Meta's AudioCraft library.
 
-CLAUDE.md rule: HF_HUB_CACHE is set BEFORE any audiocraft/transformers import.
+AGENTS.md rule: HF_HUB_CACHE is set BEFORE any audiocraft/transformers import.
 """
 
 import gc
@@ -99,7 +99,7 @@ class AudioCraftBackend(BaseModelBackend):
         sample_rate = config['sample_rate']
         model_type = config['type']
 
-        # ── CLAUDE.md: env vars BEFORE any audiocraft import ──────────────
+        # ── AGENTS.md: env vars BEFORE any audiocraft import ──────────────
         # ROADMAP §5b (2026-09-04) — audiocraft n'accepte pas `cache_dir=` sur
         # `MusicGen.get_pretrained`, MAIS il expose SA PROPRE variable : `loaders.py:36`
         # (`get_audiocraft_cache_dir`) la lit, et `_get_state_dict` la passe à

@@ -21,7 +21,7 @@ WEIGHTS_DIR = REPO_ROOT / "AI-models" / "models" / "vision" / "locate-anything"
 
 # Poids rangés dans leur dossier SANS toucher l'environnement (ROADMAP §5b, 2026-09-04) :
 # le worker charge par `from_pretrained(model_path)`, donc on lui donne un CHEMIN local.
-# L'ancienne mutation d'env (prescrite par une règle CLAUDE.md depuis corrigée) emportait les
+# L'ancienne mutation d'env (prescrite par une règle AGENTS.md depuis corrigée) emportait les
 # sous-dépendances de tout ce que le process chargeait ensuite.
 WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
 

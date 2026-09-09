@@ -6,7 +6,7 @@
 > description des modes**. **On ne réinvente rien** : on réutilise tout l'existant + on ajoute la couche MODE.
 >
 > Complète : `CARD_DESIGN.md` (formalisme de card), `WAMA_APP_CONVENTIONS.md §22` (inspecteur volet droit
-> GLOBAL), `WAMA_APP_GENERATION_ROUTE.md` (axes — ex-GENERALIZATION_PLAN, archivé). Philosophie : `CLAUDE.md §Philosophie` (métadonnée-driven).
+> GLOBAL), `WAMA_APP_GENERATION_ROUTE.md` (axes — ex-GENERALIZATION_PLAN, archivé). Philosophie : `AGENTS.md §Philosophie` (métadonnée-driven).
 
 ## 1. Une seule surface : la file + card « nouveau » persistante
 - Plus de 3 surfaces (temps-réel + import-card + card-orange-config). **UNE file**, terminée par une

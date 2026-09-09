@@ -49,11 +49,15 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-# Docs de référence (CLAUDE.md : « un domaine = un fichier »).
+# Docs de référence (AGENTS.md : « un domaine = un fichier »).
 DOCS = [
     'WAMA_APP_GENERATION_ROUTE.md', 'WAMA_APP_CONVENTIONS.md', 'WAMA_MANIFEST_SPEC.md',
     'WAMA_MANIFEST_ARCHITECTURE.md', 'PROJECT_STATUS.md', 'ROADMAP.md', 'WAMA_LLM.md',
-    'CLAUDE.md', 'STUDIO_VISION.md', 'TRANSCRIBER_REFERENCE_AUDIT.md',
+    # ⚠ LES DEUX, depuis la découpe du 2026-09-09 : `AGENTS.md` porte la DOCTRINE (et la
+    # table des fichiers de référence), `CLAUDE.md` le seul harnais Claude Code. Contrôler
+    # le second sans le premier laisserait le gros du corpus hors surveillance — c'est
+    # exactement l'écart que l'extension du 27/08 ci-dessous avait servi à combler.
+    'AGENTS.md', 'CLAUDE.md', 'STUDIO_VISION.md', 'TRANSCRIBER_REFERENCE_AUDIT.md',
     # Carte des mécanismes transversaux : sa TABLE est générée (doc_facts, fait `mecanismes`)
     # et donc ingénérable, mais ses chemins écrits à la main — l'intro, les documents de
     # référence — méritent le même contrôle que les autres. Ajoutée le 2026-08-13.
@@ -63,11 +67,11 @@ DOCS = [
     # doivent rester vivants. ⚠ `docs/` est exclu de l'index : y citer un .md exige le
     # chemin complet (`docs/archive/…`), jamais le nom nu.
     'docs/WAMA_VISION_COMPLET.md',
-    # Extension 2026-08-27 (audit /doc-sync) : la table de CLAUDE.md déclare ~25 docs de
-    # référence, la liste ci-dessus n'en couvrait que 11 — l'écart était exactement la
-    # définition du « périmé non détecté » (5 renvois morts et 1 ligne fantôme dormaient
-    # dans 4 de ces docs, dont des renommages D28 vieux de 5 jours). Un doc de référence
-    # ajouté à la table de CLAUDE.md s'ajoute ICI dans le même commit.
+    # Extension 2026-08-27 (audit /doc-sync) : la table de référence déclare ~25 docs, la
+    # liste ci-dessus n'en couvrait que 11 — l'écart était exactement la définition du
+    # « périmé non détecté » (5 renvois morts et 1 ligne fantôme dormaient dans 4 de ces
+    # docs, dont des renommages D28 vieux de 5 jours). Un doc de référence ajouté à la
+    # table (dans `AGENTS.md` depuis le 2026-09-09) s'ajoute ICI dans le même commit.
     'CARD_DESIGN.md', 'MODES_QUEUE_UX.md', 'INSPECTOR_DETAIL_FIELDS.md', 'WAMA_VOLETS.md',
     'BATCH_FORMAT.md', 'INFRA_WSL_VS_WINDOWS.md', 'LICENSING.md', 'PROFILES_PERMISSIONS.md',
     'STUDIO_VISION.md', 'WAMA_VERIFICATION.md', 'WAMA_DATA_WORLD.md', 'WAMA_MEMORY.md',

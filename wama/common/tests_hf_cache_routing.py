@@ -1,7 +1,7 @@
 """Garde du ROUTAGE des caches HuggingFace (ROADMAP §5b).
 
 CE QUE CE CONTRÔLE PROTÈGE. Poser `os.environ['HF_HUB_CACHE'] = <dossier du modèle>` avant
-un import HF est une règle TRANSITOIRE (`CLAUDE.md`, qui le dit lui-même) : la variable est
+un import HF est une règle TRANSITOIRE (`AGENTS.md`, qui le dit lui-même) : la variable est
 **globale au processus**, donc elle emporte dans le dossier du modèle principal tout ce que
 la lib télécharge ensuite — sous-dépendances comprises. Le dépôt en porte déjà trois traces :
 
@@ -117,7 +117,7 @@ def sites_de_mutation():
     """[(chemin relatif, ligne, variable)] — par AST, jamais par grep.
 
     Par AST parce qu'un grep compterait les mentions en COMMENTAIRE (il y en a : la règle
-    `CLAUDE.md` est citée dans plusieurs docstrings, et ce fichier-ci en est plein).
+    `AGENTS.md` est citée dans plusieurs docstrings, et ce fichier-ci en est plein).
 
     ⚠ MÉMOÏSÉ : le balayage lit tout l'arbre, et `/mnt/d` depuis WSL2 est lent (le skill
     `/reprise` fait la même remarque pour `check_docs`, qu'il fait lancer depuis Windows).

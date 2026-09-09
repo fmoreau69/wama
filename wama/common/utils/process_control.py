@@ -24,7 +24,7 @@ def begin_processing(model, pk, *, user=None, reset=None,
                      status_field: str = "status", task_field: str = "task_id",
                      running_value: str = "RUNNING"):
     """
-    Démarrage ANTI-RACE d'un item (pattern obligatoire CLAUDE.md — généralise describer
+    Démarrage ANTI-RACE d'un item (pattern obligatoire AGENTS.md — généralise describer
     ``start()``, seule implémentation conforme à l'audit 2026-07-06) : transaction +
     ``select_for_update`` (refuse le double-clic Start), révocation de l'éventuelle tâche
     Celery encore en file, resets d'app, passage à RUNNING.

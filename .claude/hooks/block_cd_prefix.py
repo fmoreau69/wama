@@ -3,7 +3,8 @@
 Garde-fou ENFORCANT (hook PreToolUse/Bash) : refuse toute commande Bash commençant par `cd`.
 
 Le cwd du tool Bash est déjà le repo → préfixer par `cd /d/WAMA/...` est inutile et déclenche une
-validation de permission. La règle est dans CLAUDE.md mais elle est PASSIVE ; ce hook la rend active.
+validation de permission. La règle est dans CLAUDE.md (harnais Claude Code — elle n'a de sens
+que pour le matcher de permissions de ce client) mais elle est PASSIVE ; ce hook la rend active.
 
 Autorisé : `cd` À L'INTÉRIEUR d'une chaîne `wsl.exe -e bash -lc '... cd ... && ...'` (le cd est alors
 dans la chaîne WSL, pas un préfixe de la commande hôte). On ne bloque donc que le `cd` en TÊTE.

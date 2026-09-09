@@ -31,7 +31,7 @@ POURQUOI CE FICHIER EXISTE (demande de Fabien, 2026-08-22)
 
 ⚠ IDENTIFIANTS RENOMMÉS EN ANGLAIS le 2026-08-29 (dette de nommage, plan validé Fabien —
     `PROJECT_STATUS §PENDING 2026-08-29`) : l'API s'importait en français (`rafraichir`, `lancer`,
-    `etat`…) contre le critère de CLAUDE.md §nommage. Prose et docstrings restent françaises.
+    `etat`…) contre le critère de AGENTS.md §nommage. Prose et docstrings restent françaises.
 """
 from __future__ import annotations
 

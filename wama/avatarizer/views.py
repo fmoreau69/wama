@@ -961,7 +961,7 @@ def batch_start(request, pk):
         job = it.job
         if not job:
             continue
-        # Anti-race (pattern CLAUDE.md) : verrou par item — un double-clic sur ▶ batch
+        # Anti-race (pattern AGENTS.md) : verrou par item — un double-clic sur ▶ batch
         # ne doit pas mettre deux fois le même job en file Celery.
         with transaction.atomic():
             locked = AvatarJob.objects.select_for_update().get(pk=job.pk)

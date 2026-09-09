@@ -282,7 +282,7 @@ MODELS = {
     # Codegen (marche B, route §10.3) — génération one-shot de glu depuis le
     # manifeste composé. Candidats du BANC (jugé par le harnais app_regen_check,
     # jamais au jugé) ; tags VÉRIFIÉS présents sur l'hôte le 2026-08-12.
-    # NB : le verdict « qwen3-coder:30b trop lourd » de CLAUDE.md valait pour
+    # NB : le verdict « qwen3-coder:30b trop lourd » de AGENTS.md valait pour
     # l'AGENTIQUE multi-tours — la génération one-shot est un autre profil.
     # BANC MESURÉ 2026-08-13 (run_codegen --truth, converter+reader, 4 modèles) :
     #   qwen3.6:35b  = seul 8/8 mécanique (2× compile+signature, 0 warning) ET seul

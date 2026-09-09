@@ -42,7 +42,7 @@
   la génération d'app. L'assistant PRÉPARE le spec ; l'humain valide l'exécution.
 - **Sources fermées** : noms/refs officiels (Ollama, HF repo id, poids YOLO officiels) —
   jamais d'URL arbitraire dans le spec.
-- **Path d'abord** (règle CLAUDE.md) : chaque driver installe dans l'arborescence dédiée
+- **Path d'abord** (règle AGENTS.md) : chaque driver installe dans l'arborescence dédiée
   (`model_locations` / `vision/yolo/<task>/`), jamais dans le cache HF global.
 
 ## Mise en conformité avec la couche manifestes (2026-08-04)
@@ -1150,7 +1150,7 @@ UE EXCLUE mais pas H3-Turbo — manque ou permission ? ». Relevé sur 65 propos
 1. **Aucun doublon strict** (le `already` du seeding fait son travail). Les retours de
    Realistic Vision et du merge H3 par le tri tendance ne sont PAS des résidus — règle de
    Fabien : *le retrait vaut pour un modèle INSTALLÉ, jamais pour un proposé* (la liste
-   « Supprimés » de `CLAUDE.md` date du nettoyage disque du 2026-03-05, `0b1ac4e9` : des
+   « Supprimés » de `AGENTS.md` date du nettoyage disque du 2026-03-05, `0b1ac4e9` : des
    modèles déclarés dans `imager/model_config`, pas des propositions).
 2. **Licence à double étage NON héritée** — le manque. `lightx2v/Minimax-h3-Turbo` se tagge
    `apache-2.0` : SPDX permissif → la garde rendait None, pendant que la card du modèle de
@@ -1470,7 +1470,7 @@ dans `HF_HUB_CACHE` — c'est-à-dire dans le dossier du modèle principal. *La 
 globale au processus : la dépendance suit le modèle dans son dossier.*
 
 Ce n'est pas une faute du backend : il applique **à la lettre** la règle transitoire de
-`CLAUDE.md` (« path d'abord, env vars ensuite, import après »), dont la règle elle-même dit
+`AGENTS.md` (« path d'abord, env vars ensuite, import après »), dont la règle elle-même dit
 qu'elle est TRANSITOIRE et que la cible est `cache_dir=` seul + `HF_HOME` posé **une fois au
 démarrage**. `resnet18` est donc **une nouvelle occurrence d'un défaut connu, conçu et non
 corrigé**, pas une découverte isolée.

@@ -22,7 +22,7 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
 
 ## 2. Consignation (exhaustive, pas lossy)
 - `PROJECT_STATUS.md` : mettre à jour la/les sections du chantier (✅/🔄/⏳, date, ce qui RESTE — y compris « validation navigateur en attente » si on n'a pas pu cliquer).
-- Le doc de référence du domaine (cf. table CLAUDE.md) : consigner décision + pourquoi + implications + ce que ça remplace.
+- Le doc de référence du domaine (cf. table AGENTS.md) : consigner décision + pourquoi + implications + ce que ça remplace.
 - Mécanisme transversal créé/déplacé/supprimé → entrée du registre `wama/common/mecanismes.py` puis `python manage.py doc_facts` (la table de `WAMA_MECANISMES.md` est GÉNÉRÉE, ne jamais l'éditer à la main).
 - Un registre déclaratif a bougé (params, capacités, tool_api, modèles…) → `python manage.py manifest_export` puis `manifest_export --check` **depuis WSL2** (la vue venv_win donne de faux « périmés » sur les libraries — dépendances de wheel différentes).
 - Cam Analyzer : entrée `CAM_ANALYZER_CHANGELOG.md` obligatoire si le comportement a changé.
@@ -32,7 +32,7 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
 - 🔴 **`git commit <chemins explicites> -m "…"` — en UN geste.** JAMAIS `git add -A`, jamais
   `git add .`, et **jamais un `git commit` sans pathspec**, même après un `add` ciblé. ⚠ Ce
   skill a prescrit `git add <explicites>` puis commit jusqu'au 2026-08-26 : c'est **exactement**
-  le geste que CLAUDE.md interdit depuis le 22/08, et il rate dans les deux sens — il emporte
+  le geste que AGENTS.md interdit depuis le 22/08, et il rate dans les deux sens — il emporte
   tout l'index d'une autre instance, ET il laisse derrière ce qui est modifié sans être stagé
   (HEAD cassé le 22/08 alors que l'arbre de travail passait 245 tests).
 - 🔴 **Relire `git diff <fichier>` AVANT de commiter un fichier co-édité** (`PROJECT_STATUS.md`,

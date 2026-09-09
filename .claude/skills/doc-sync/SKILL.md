@@ -5,7 +5,7 @@ description: Synchroniser les .md de référence WAMA (PROJECT_STATUS, WAMA_APP_
 
 # /doc-sync — Audit et mise à jour des docs de référence
 
-Objectif : que les docs de référence (un domaine = un fichier, cf. CLAUDE.md) reflètent le réel. On corrige les références et l'état ; on ne réécrit PAS les docs.
+Objectif : que les docs de référence (un domaine = un fichier, cf. AGENTS.md) reflètent le réel. On corrige les références et l'état ; on ne réécrit PAS les docs.
 
 ## 1. Vérité terrain d'abord
 - `git log --since=<date dernière MAJ du doc> --name-status --format='=== %h %ad %s' --date=short -- . ':(exclude)venv_win' ':(exclude)venv_linux'` → dumper dans le scratchpad (fichier consultable par les agents).
@@ -18,9 +18,9 @@ Lancer des agents Explore en parallèle (1 par groupe de docs) avec pour chacun 
 - confronter les affirmations d'état aux commits récents, preuve obligatoire ;
 - sortie normalisée : LIGNE / ACTUEL / PROBLÈME / PREUVE / CORRECTION PROPOSÉE, classée [CASSÉ]/[PÉRIMÉ]/[MINEUR], INCERTAIN si pas de preuve.
 
-Groupes habituels : ① PROJECT_STATUS.md ② WAMA_APP_GENERATION_ROUTE.md + WAMA_APP_CONVENTIONS.md ③ WAMA_MANIFEST_SPEC/ARCHITECTURE + WAMA_DATA_FUNCTION_CARDS + WAMA_LLM ④ ROADMAP + CLAUDE.md ⑤ WAMA_DATA_WORLD + WAMA_APPRENTISSAGE + WAMA_MEMORY.
+Groupes habituels : ① PROJECT_STATUS.md ② WAMA_APP_GENERATION_ROUTE.md + WAMA_APP_CONVENTIONS.md ③ WAMA_MANIFEST_SPEC/ARCHITECTURE + WAMA_DATA_FUNCTION_CARDS + WAMA_LLM ④ ROADMAP + AGENTS.md ⑤ WAMA_DATA_WORLD + WAMA_APPRENTISSAGE + WAMA_MEMORY.
 
-⚠ La liste des docs de référence VIT dans la table de `CLAUDE.md` (~25 domaines) : la relire pour composer les groupes, plutôt que de reprendre ceux-ci — ils ne couvrent pas tout et cette énumération dérive (les `REPRISE_*.md` y figuraient encore le 26/08 alors qu'un seul subsiste, les handoffs étant passés dans `PROJECT_STATUS §REPRISE`).
+⚠ La liste des docs de référence VIT dans la table de `AGENTS.md` (~25 domaines) : la relire pour composer les groupes, plutôt que de reprendre ceux-ci — ils ne couvrent pas tout et cette énumération dérive (les `REPRISE_*.md` y figuraient encore le 26/08 alors qu'un seul subsiste, les handoffs étant passés dans `PROJECT_STATUS §REPRISE`).
 
 ## 3. Contre-vérification (obligatoire avant édition)
 - Les agents hallucinent parfois, surtout les affirmations d'ABSENCE : re-vérifier soi-même (Grep/test -f) chaque finding [CASSÉ] et [PÉRIMÉ] AVANT de l'appliquer. Ignorer les INCERTAIN non confirmés.

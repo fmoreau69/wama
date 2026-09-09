@@ -191,7 +191,7 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
     précédent produit un contrôle qui ne contrôle plus rien, et il survit des semaines.
   - 🔴 **Si une CIBLE DISTINCTE a été créée ou abandonnée, mettre à jour `/reprise` DANS LE MÊME
     COMMIT** — même règle que « créer un `.md` de référence = ajouter sa ligne à la table de
-    CLAUDE.md dans le même commit ». Un critère périmé fait passer une vraie dérive pour du
+    AGENTS.md dans le même commit ». Un critère périmé fait passer une vraie dérive pour du
     normal (vécu 10/08), et le rattrapage différé n'arrive jamais.
 
 ## 5. Mémoire persistante

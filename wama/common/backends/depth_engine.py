@@ -22,7 +22,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
-# « Path d'abord, env vars ensuite, import après » (CLAUDE.md §Ajout d'un nouveau modèle AI).
+# « Path d'abord, env vars ensuite, import après » (AGENTS.md §Ajout d'un nouveau modèle AI).
 DEPTH_MODEL_ID = 'apple/DepthPro-hf'  # natif transformers, métrique + focale estimée, Apache-2.0
 DEPTH_MODEL_DIR = (settings.MODEL_PATHS.get('vision', {}).get('depth')
                    or settings.AI_MODELS_DIR / "models" / "vision" / "depth-pro")
@@ -60,7 +60,7 @@ def clear_model_cache():
 def load(device: str = 'cuda'):
     """Charge Depth Pro (keep_loaded) et retourne (processor, model, device_effectif).
 
-    Pattern obligatoire (CLAUDE.md §Ajout d'un nouveau modèle AI, corrigé le 2026-09-03) :
+    Pattern obligatoire (AGENTS.md §Ajout d'un nouveau modèle AI, corrigé le 2026-09-03) :
     `cache_dir=` passé à `from_pretrained`, et **jamais** de mutation d'environnement — elle
     emporterait les sous-dépendances du modèle hors du cache partagé (ROADMAP §5b).
     """

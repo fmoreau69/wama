@@ -65,7 +65,7 @@ _GARDER = os.environ.get('WAMA_GARDER_MEDIA_TESTS', '').strip() not in ('', '0',
 #: Racines du dépôt que la DÉCOUVERTE de tests ne doit pas visiter.
 #:
 #: ⚠ Ce ne sont PAS des tests exclus : ce sont des dossiers qui n'en contiennent aucun et
-#: que Python n'importe jamais — la règle de nommage du dépôt (CLAUDE.md, « le critère est
+#: que Python n'importe jamais — la règle de nommage du dépôt (AGENTS.md, « le critère est
 #: *Python l'importe-t-il ?* ») les écrit justement en tiret-case pour le dire. Un tiret
 #: rend le paquet inimportable (`import wama-dev-ai` = « wama moins data »), et leurs
 #: modules internes s'importent en absolu (`from config import …`) parce que leur lanceur

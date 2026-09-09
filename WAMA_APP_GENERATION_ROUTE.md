@@ -4,7 +4,7 @@
 > généralistes (le côté « mécanismes réels » du tunnel). Il **remplace et consolide** 4 anciens docs,
 > désormais dans `docs/archive/` : `UI_MECHANISMS_CONSOLIDATION.md`, `COMMON_REFACTORING.md`,
 > `GENERALIZATION_PLAN.md`, `BACKEND_CARTOGRAPHY.md`. Ne plus créer de `.md` concurrent sur ce sujet
-> (règle CLAUDE.md) — compléter CELUI-CI.
+> (règle AGENTS.md) — compléter CELUI-CI.
 >
 > **Chaînage avec les manifestes (manifeste ⟷ mécanismes)** — les 3 docs s'emboîtent, mêmes facettes F1–F8 :
 > - **[`WAMA_MANIFEST_SPEC.md`](WAMA_MANIFEST_SPEC.md)** = ce que le manifeste **déclare** (schéma).
@@ -205,7 +205,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   `model_capabilities.py:30`). **Découverte** : `_discover_<app>_models()` importe le `model_config.py` de
   l'app et construit les capabilities (`model_registry.py`). **Déclaration app** : `<APP>_MODELS` + `*_DIR`.
 - **Tirage runtime** : `settings.MODEL_PATHS → *_DIR → HF_HUB_CACHE (avant import) → cache_dir → from_pretrained`
-  (backends imager conformes CLAUDE.md) — **indépendant de `select_model()`**.
+  (backends imager conformes AGENTS.md) — **indépendant de `select_model()`**.
 - **Sélection VRAM-aware** `select_model()` (`model_selector.py:66`) : **adoptée par 2/10** — composer
   (`auto_model.py:43`) + **transcriber depuis 2026-07-24** (`transcriber/backends/manager.py`,
   `_select_backend_via_model_manager` = fin adaptateur, **fallback intégral** sur la priorité statique si
@@ -995,7 +995,7 @@ outillé avant d'ouvrir cette marche.
      tirés sur l'hôte) ⇒ les poids doivent résider (VRAM+RAM) mais l'offload CPU est TOLÉRABLE
      (seuls les experts actifs calculent) — cohabitation partielle avec WAMA envisageable, le
      banc mesurera le débit réel sous offload. Challengers `qwen3-coder:30b` (le verdict « trop
-     lourd » de CLAUDE.md valait pour l'AGENTIQUE multi-tours — la génération one-shot est un
+     lourd » de AGENTS.md valait pour l'AGENTIQUE multi-tours — la génération one-shot est un
      autre profil), `gemma4:26b`/`e4b`. Banc indexé sur la TÂCHE canonique (« corps de backend
      depuis manifeste composé + skill »), jugé par le harnais C (compile + contrat
      BaseModelBackend + smoke) — jamais au jugé. Verdict inscrit dans
@@ -2417,7 +2417,7 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 | 2 | ✅ **clos comme trou d'adoption — RE-MESURÉ 2026-08-31 : `context:'batch'` est à 10/10** (avatarizer compris, `index.html:367` — la ligne précédente « 5/10, avatarizer jamais » était périmée par le bas ; 3ᵉ recomptage de cette ligne, toujours faux). Le générateur émet désormais l'ouvreur de lot COMPLET (`onBatchSettings` + `settingsModal context:'batch'`, §S2ter). Le déficit RÉEL a changé de nom : le **cycle complet** `settingsModal` n'est qu'à **2/10** (8 apps gardent leur coquille + save maison) — c'est la ligne « cycle » de la table F3, pas celle-ci | F3 | ✅ re-qualifié |
 | 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) | F3/F8 | réinvention à supprimer |
 | 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10) | F3b | adoption, pas frontend |
-| 5 | `select_model()` : composer, transcriber, imager, **reader** (2026-07-31, `61a666f`). Reclaim VRAM ✅ **unifié** (cf. F4). Ce qui restait n'était PAS un trou : enhancer/avatarizer/synthesizer n'ont **aucune sélection automatique à faire** (l'utilisateur désigne, ou le modèle vit hors process) ; describer = unification différée par CLAUDE.md (Phase 4) ; anonymizer = `select_best_models()` couvre un **jeu de classes avec plusieurs modèles** là où la brique n'en choisit qu'un, et lit déjà le catalogue → sur-ensemble légitime | F4 | ✅ pour l'essentiel |
+| 5 | `select_model()` : composer, transcriber, imager, **reader** (2026-07-31, `61a666f`). Reclaim VRAM ✅ **unifié** (cf. F4). Ce qui restait n'était PAS un trou : enhancer/avatarizer/synthesizer n'ont **aucune sélection automatique à faire** (l'utilisateur désigne, ou le modèle vit hors process) ; describer = unification différée par AGENTS.md (Phase 4) ; anonymizer = `select_best_models()` couvre un **jeu de classes avec plusieurs modèles** là où la brique n'en choisit qu'un, et lit déjà le catalogue → sur-ensemble légitime | F4 | ✅ pour l'essentiel |
 | 5b | **Capacités canoniques** ✅ (2026-07-31, `8ffac24`) : `inputs_required/optional` n'était produit que par **2 découvertes sur 9** → `WamaInputMatch` n'avait rien à comparer (c'est la cause de `input_match_ui` 9/10 KO, pas un défaut d'UI). Les 98 modèles portent désormais `task` + `modalities` + `inputs_*`, zéro clé hors `CANONICAL_CAPABILITIES`. ⚠ La canonicalisation se fait **à la DÉCOUVERTE**, pas dans les `model_config` d'app : frontière **délibérée** (l'app déclare en son vocabulaire, le catalogue est la source unique) | F4 | ✅ |
 | 6 | **statuts non uniformes** → 3 tables d'alias | F5 | dette de schéma |
 | 7 | ✅ **clos (2026-08-01)** — gating ré-appliqué **par nœud** au RUN (`studio/tasks.py:181`) ET sur toute la surface outils (`tool_accessible`, cf. F7). Le trou était plus large que décrit : `/api/v1/tools/run/` n'était gardé par RIEN (middleware aveugle à `/api/v1/`, auth DRF postérieure au middleware) et `tools/list` annonçait 43 outils à tous. Mesuré après correctif : 22/43 annoncés à un compte `recherche` seul, `create_image` → 403 | F7 | ✅ |

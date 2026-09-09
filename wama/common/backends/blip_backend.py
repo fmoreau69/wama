@@ -63,7 +63,7 @@ class BlipBackend(BaseModelBackend):
 
         # Env NON muté (ROADMAP §5b, 2026-09-04) : `BlipProcessor.from_pretrained` et
         # `BlipForConditionalGeneration.from_pretrained` portent `cache_dir=` (ci-dessous).
-        # ⚠ La règle CLAUDE.md qui PRESCRIVAIT cette mutation a été corrigée le 03/09 : elle
+        # ⚠ La règle AGENTS.md qui PRESCRIVAIT cette mutation a été corrigée le 03/09 : elle
         # emportait les sous-dépendances (tokenizers, backbones) dans le dossier du modèle.
 
         from transformers import BlipForConditionalGeneration, BlipProcessor

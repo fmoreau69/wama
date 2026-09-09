@@ -696,7 +696,7 @@ class AuditAgent:
 
 DEFAULT_TASK = """
 Run a full audit of the WAMA codebase covering:
-1. HuggingFace model integration rule compliance (CLAUDE.md)
+1. HuggingFace model integration rule compliance (AGENTS.md)
 2. UI compliance — duplication button in queue-based apps
 3. Static files sync (wama/*/static/ vs staticfiles/)
 4. Dead code detection (TODO/FIXME, unused functions)

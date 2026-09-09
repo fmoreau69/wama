@@ -95,7 +95,7 @@ def register_category_extensions(category, extensions):
     """Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
 
     Même sens que `register_intake_probe` : le monde POUSSE, le registre ne tire jamais (le
-    registre ne connaît pas ses producteurs — CLAUDE.md §mondes). Refuse une nature inconnue,
+    registre ne connaît pas ses producteurs — AGENTS.md §mondes). Refuse une nature inconnue,
     et ne VOLE jamais une extension déjà attribuée (`setdefault`) : le lecteur tabulaire du
     monde Data sait LIRE un `.csv` sans le posséder — un `.csv` reste un document.
     ⚠ `_CAT_OF` est muté APRÈS l'import du module (au `ready()` du monde) : ne jamais en

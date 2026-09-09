@@ -12,7 +12,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Model paths (CLAUDE.md rule: paths first, then imports)
+# Model paths (AGENTS.md rule: paths first, then imports)
 # ---------------------------------------------------------------------------
 
 MODEL_PATHS = getattr(settings, 'MODEL_PATHS', {})

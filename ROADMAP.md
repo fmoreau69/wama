@@ -401,7 +401,7 @@ les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprim
 > (`--workers 1` du service TTS déclaré STRUCTURANT à cause de cette course), et la commande
 > `dedup_models` née comme « séquelle de la course `os.environ['HF_HUB_CACHE']` ».
 >
-> **🔴 CAUSE RACINE RETIRÉE le 2026-09-03 (soir) — elle était DOCUMENTAIRE.** `CLAUDE.md`
+> **🔴 CAUSE RACINE RETIRÉE le 2026-09-03 (soir) — elle était DOCUMENTAIRE.** `AGENTS.md`
 > **prescrivait** la mutation comme « pattern obligatoire » tout en se déclarant transitoire :
 > tout nouveau modèle réintroduisait donc le défaut **en étant conforme**. Le pattern est
 > désormais `cache_dir=` seul, muter l'environnement est explicitement INTERDIT, et la ligne
@@ -627,7 +627,7 @@ dépendants au `change` du modèle. Lié à [[project-assistant-vision]] (TTS au
 ### Phase 1 — Audit read-only 🔄
 - [x] Prompt audit + format rapport JSON
 - [x] `run_audit.py` avec AuditToolRegistry restreint
-- [x] CLAUDE.md enrichi (règles UI + section wama-dev-ai)
+- [x] AGENTS.md enrichi (règles UI + section wama-dev-ai)
 - [x] Fix VRAM (décharge Ollama + WAMA avant audit)
 - [x] Fix format DeepSeek Coder V2 (Format 6 + strip hallucinations)
 - [x] Migrer vers `qwen3-coder:30b` (remplace deepseek-coder-v2:16b — config.py + views.py mis à jour)
@@ -1306,7 +1306,7 @@ verbatim, par exemple, n'est pas une sortie qu'on retraduit sans le dire).
 > **L'anglais est la langue de référence dans tout WAMA, a minima pour tout le CODE.**
 > **Les docs en français ne posent pas de problème tant qu'elles servent le suivi du développement.**
 
-C'est le cadre au-dessus des deux frontières : `CLAUDE.md` § « la LANGUE des identifiants » en est
+C'est le cadre au-dessus des deux frontières : `AGENTS.md` § « la LANGUE des identifiants » en est
 l'application au code (et son critère « qui doit le lire ? » en découle), et la question des `msgid`
 ci-dessous s'y rattache — un `msgid` est écrit **dans le code source**, ce qui penche pour l'anglais.
 
@@ -1334,7 +1334,7 @@ où on compilera des traductions.
 | **`msgid` = français** (entériner l'existant) | tagger les gabarits ; aucune traduction à écrire pour le FR | contredit le pivot EN déclaré côté manifestes ; `msgid` accentués, plus fragiles en outillage |
 | **`msgid` = anglais** (doctrine déclarée) | tagger les gabarits **ET** traduire toute l'UI FR→EN pour *fabriquer la source*, avant de la retraduire en FR | rien de déclaré, mais l'effort de la table ci-dessous est ~doublé |
 
-⚠ **Ce n'est PAS la frontière tranchée par `CLAUDE.md` § « la LANGUE des identifiants »** (« qui
+⚠ **Ce n'est PAS la frontière tranchée par `AGENTS.md` § « la LANGUE des identifiants »** (« qui
 doit le lire ? »). Celle-là concerne les IDENTIFIANTS (modules, fonctions, fichiers `.js`, globals)
 → anglais. Ici il s'agit des **CHAÎNES AFFICHÉES**, l'autre versant : un identifiant anglais
 affiche très bien un libellé français, et c'est même la cible. Les confondre ferait renommer du

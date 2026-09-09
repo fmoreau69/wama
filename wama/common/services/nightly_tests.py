@@ -6,7 +6,7 @@ Idée (Fabien) : plutôt que des bêta-testeurs, automatiser le debug fonctionne
 des SCÉNARIOS déclaratifs joués la nuit, sérialisés (un seul à la fois) pour ne pas
 superposer des tâches gourmandes en VRAM, avec déchargement entre chaque.
 
-Principes (cf. CLAUDE.md §Philosophie) :
+Principes (cf. AGENTS.md §Philosophie) :
 - **Déclaratif & métadonnée-driven** : un scénario = des métadonnées + un callable `run`.
   Les apps enregistrent leurs scénarios ; le runner est générique.
 - **Sérialisé + VRAM-aware** : un scénario à la fois, téardown VRAM avant ET après.

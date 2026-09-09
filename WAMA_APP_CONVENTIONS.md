@@ -3,7 +3,7 @@
 > **Version :** 1.0 — 2026-03-19
 > **Audience :** Développeurs humains, Claude Code, wama-dev-ai
 > **Portée :** Toutes les applications Django de WAMA (`wama/<app>/`)
-> **Relation :** Complète `CLAUDE.md` — lire les deux avant tout développement
+> **Relation :** Complète `AGENTS.md` — lire les deux avant tout développement
 
 ---
 
@@ -1787,9 +1787,9 @@ Le singleton est déchargé naturellement par le model_manager ou à la fin du w
 
 ---
 
-## 15. Modèles AI — Voir CLAUDE.md
+## 15. Modèles AI — Voir AGENTS.md
 
-Les règles d'intégration des modèles HuggingFace sont documentées dans `CLAUDE.md`
+Les règles d'intégration des modèles HuggingFace sont documentées dans `AGENTS.md`
 sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 
 **Rappel mnémotechnique :**
@@ -2418,7 +2418,7 @@ consommateur). Détails brique : `WAMA_APP_GENERATION_ROUTE.md` (ex-`COMMON_REFA
 La **richesse du volet droit dépend de la qualité des métadonnées** de l'élément (description longue,
 `extra_info`, capacités). Soigner ces champs à la source (catalogue d'app, `model_config.py`,
 `to_dict()`) est ce qui « remplit » l'inspecteur — pas du HTML par app. C'est l'application directe de
-la philosophie *métadonnée-driven* (voir `CLAUDE.md` § Philosophie générale).
+la philosophie *métadonnée-driven* (voir `AGENTS.md` § Philosophie générale).
 
 ---
 

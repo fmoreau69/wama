@@ -460,7 +460,7 @@ brique `common/tts/` — résolution de voix par LANGUE dans `voices.py`, capaci
 `timestamp_languages` bornée par langue) — orthogonal à l'enrichissement de requête ; seul son
 **contrat de surface** (§1 : étape cliente, jamais dans le tour d'assistant) appartient à cette
 chaîne. ⚠ Le TTS n'a **aucun document de référence dédié** dans la table des domaines
-(`CLAUDE.md`) — son intention vit dans le code et la fiche « langues » ; trou à combler le jour
+(`AGENTS.md`) — son intention vit dans le code et la fiche « langues » ; trou à combler le jour
 où le sujet grossit, sans créer de doc concurrent d'ici là.
 
 ## Investigation web de l'assistant — design acté le 2026-08-29, NON implémenté

@@ -122,7 +122,7 @@ class SAM3RoadAnalyzer:
 
     def load(self):
         """Load SAM3 image model. Must be called before analyze_frame()."""
-        # Env setup BEFORE any SAM3 import (CLAUDE.md: env vars avant imports HF)
+        # Env setup BEFORE any SAM3 import (AGENTS.md: env vars avant imports HF)
         # ⚠ Plus rien à préparer : le jeton HF a UN SEUL domicile (.env -> settings), et le
         # cache n''est jamais muté. L''appel de préparation a été retiré le 2026-09-07.
 

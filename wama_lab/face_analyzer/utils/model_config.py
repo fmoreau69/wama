@@ -28,7 +28,7 @@ from django.conf import settings
 # CIBLE, pour que le portage n'ait rien à refaire :
 #
 #   • `MODEL_PATHS['vision']['deepface']` (settings) — convention de chemin de toutes les apps ;
-#   • ce `utils/model_config.py` — le domicile de déclaration que la checklist du CLAUDE.md
+#   • ce `utils/model_config.py` — le domicile de déclaration que la checklist du AGENTS.md
 #     impose à chaque app ;
 #   • `model_registry._discover_face_analyzer_models()` — le mécanisme documenté (« Découverte
 #     unifiée des modèles », 13 consommateurs), et non un chemin parallèle ;

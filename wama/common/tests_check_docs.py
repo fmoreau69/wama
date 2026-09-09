@@ -166,7 +166,7 @@ class HorsDepotTests(SimpleTestCase):
             self.assertTrue(_hors_depot(c), c)
 
     def test_un_doc_du_depot_reste_dans_le_perimetre(self):
-        for c in ('CLAUDE.md', 'WAMA_LLM.md', 'wama/common/README.md', 'ROADMAP.md'):
+        for c in ('AGENTS.md', 'WAMA_LLM.md', 'wama/common/README.md', 'ROADMAP.md'):
             self.assertFalse(_hors_depot(c), c)
 
 
@@ -261,5 +261,5 @@ class JournauxTests(SimpleTestCase):
 
     def test_les_docs_de_doctrine_ne_sont_pas_des_journaux(self):
         # L'exemption doit rester ÉTROITE : elle vaut pour l'archive datée, pas pour la doctrine.
-        for d in ('CLAUDE.md', 'WAMA_APP_CONVENTIONS.md', 'WAMA_MECANISMES.md'):
+        for d in ('AGENTS.md', 'WAMA_APP_CONVENTIONS.md', 'WAMA_MECANISMES.md'):
             self.assertNotIn(d, JOURNAUX)

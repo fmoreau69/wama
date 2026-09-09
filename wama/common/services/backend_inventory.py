@@ -216,7 +216,7 @@ def _class_backends(paquet_dir, prefixe: str) -> tuple:
         modèles — diffusers, torch…), 0,10 s ensuite : un registre qui fait payer le socle
         à son premier visiteur n'est pas un registre, c'est un chargement ;
       • surtout, IMPORTER a des EFFETS : deux backends imager ont muté `HF_HUB_CACHE` au
-        niveau module (règle CLAUDE.md). Le chantier HF est en cours de re-correction — une
+        niveau module (règle AGENTS.md). Le chantier HF est en cours de re-correction — une
         page de lecture ne doit dépendre d'aucun état de ce chantier. *Lire une déclaration
         ne doit jamais exécuter le code qui la porte.*
 

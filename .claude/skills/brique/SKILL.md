@@ -5,7 +5,7 @@ description: Extraire une logique dupliquée vers wama/common/ (brique commune) 
 
 # /brique — Extraction vers common/ + adoption
 
-Règle CLAUDE.md : tout code utilisé par plus d'une app va dans `wama/common/`. Si tu t'apprêtes
+Règle AGENTS.md : tout code utilisé par plus d'une app va dans `wama/common/`. Si tu t'apprêtes
 à copier-coller entre apps, c'est LE signal d'extraire d'abord.
 
 ## 1. Avant d'écrire — la brique existe-t-elle déjà ?
@@ -27,7 +27,7 @@ grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F 
 >
 > 🔴 **C'est la commande qui fait foi, PAS cette liste** — elle a déjà menti dans les deux sens
 > le 2026-08-26 : elle citait `common/data/`, **déporté vers `wama_data/` le 22/08** (doctrine
-> des mondes, CLAUDE.md « un monde n'est pas un sous-dossier du substrat »), et omettait
+> des mondes, AGENTS.md « un monde n'est pas un sous-dossier du substrat »), et omettait
 > `catalog/`, présent. Une étape de découverte qui envoie chercher dans un dossier disparu
 > rejoue exactement l'erreur que ce déport a corrigée. Lire la sortie, pas le souvenir.
 

@@ -25,7 +25,7 @@ tué l'ancien README) :
 
 - `wama/imager/utils/model_config.py` — les modèles déclarés, VRAM, répertoires ;
 - le catalogue `AIModel` (model_manager) — l'état installé/actif réel ;
-- la table de `CLAUDE.md §Modèles imager actifs` — indicative, marquée comme telle.
+- la table de `AGENTS.md §Modèles imager actifs` — indicative, marquée comme telle.
 
 ## Sélection automatique de modèle
 

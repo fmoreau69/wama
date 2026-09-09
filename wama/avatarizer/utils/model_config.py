@@ -1,7 +1,7 @@
 """
 Configuration des modèles de l'Avatarizer — MuseTalk (lip-sync) + CodeFormer (restauration).
 
-Règle CLAUDE.md « Ajout d'un nouveau modèle AI » : les chemins viennent de
+Règle AGENTS.md « Ajout d'un nouveau modèle AI » : les chemins viennent de
 settings.MODEL_PATHS['lipsync'] (fallback AI-models/models/lipsync/) ; le cache HF des
 sous-processus MuseTalk (Whisper/DWPose) est isolé sous le dossier du modèle.
 

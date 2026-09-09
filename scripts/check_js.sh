@@ -35,7 +35,7 @@ done < <(find wama wama_lab -name "*.js" \
 echo "=== $n fichiers contrôlés, $ko en erreur ==="
 
 # ── Parité source ↔ staticfiles ────────────────────────────────────────────────────────
-# Pourquoi ici : `CLAUDE.md` impose de recopier tout JS/CSS modifié de `wama/<app>/static/`
+# Pourquoi ici : `AGENTS.md` impose de recopier tout JS/CSS modifié de `wama/<app>/static/`
 # vers `staticfiles/<app>/`, et c'est CETTE copie que le serveur sert. Le contrôle syntaxique
 # ci-dessus ne balaie que les sources : une copie oubliée laisse donc le script au vert
 # pendant que la page tourne avec l'ANCIEN code — exactement le mode de défaillance

@@ -164,12 +164,12 @@ recouvrir un échec qui remplace un autre :
 > mal, et en tournant en rond.
 
 1. **Nommer le domaine du chantier**, puis ouvrir SON document de référence — la table
-   « Fichiers de référence par domaine » de `CLAUDE.md` est l'index (`/port-app` porte la même
+   « Fichiers de référence par domaine » de `AGENTS.md` est l'index (`/port-app` porte la même
    discipline pour les facettes d'app). Exemples de correspondance :
 
    | chantier | à lire AVANT |
    |---|---|
-   | cache HF, emplacement/catégories des modèles | **`ROADMAP §5b`** (+ la règle « nouveau modèle » de `CLAUDE.md`) |
+   | cache HF, emplacement/catégories des modèles | **`ROADMAP §5b`** (+ la règle « nouveau modèle » de `AGENTS.md`) |
    | modèles, capacités, tirage, entrées acceptées | `INPUT_MODEL_MATCHING.md` + `WAMA_APP_GENERATION_ROUTE §F4b` |
    | génération d'app, jumelle, gabarits | `WAMA_APP_GENERATION_ROUTE.md` (dont **§S 🔒**) |
    | manifestes | `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` |

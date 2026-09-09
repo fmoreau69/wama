@@ -5,7 +5,7 @@ Deux apps le font depuis le 2026-08-28 : le **synthesizer** (geste natif) et l'*
 (pipeline dérivé texte→voix→avatar). Elles lisent le MÊME catalogue — `AIModel.source ==
 'synthesizer'`, le lien app↔modèles étant `AIModel.source` — et affichent le même descriptif
 de moteur. Extrait de `synthesizer/views.py` AU 2ᵉ CONSOMMATEUR : l'original a été remplacé
-par un appel, jamais recopié (règle « zéro duplication », CLAUDE.md).
+par un appel, jamais recopié (règle « zéro duplication », AGENTS.md).
 
 ⚠ Ce module ne connaît AUCUNE de ses apps : la table valeur-d'option → suffixe-catalogue lui
 est PASSÉE (`catalog_keys`), jamais importée. Même règle que le registre de fonctions — *le

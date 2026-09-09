@@ -2,7 +2,7 @@
 
 Agent de développement **local** (Ollama, `localhost:11434`) au service de WAMA : audits
 read-only, génération de code bornée, et rôles producteurs de manifestes. Doctrine
-(`CLAUDE.md §Collaboration wama-dev-ai`) : **Claude réfléchit, wama-dev-ai exécute, l'humain
+(`AGENTS.md §Collaboration wama-dev-ai`) : **Claude réfléchit, wama-dev-ai exécute, l'humain
 valide** — jamais d'auto-application.
 
 > ⚠ Réécrit le 2026-08-27 — l'ancien README décrivait l'outil de janvier 2026 : il faisait
