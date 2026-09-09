@@ -536,6 +536,66 @@ class CardEntreeConformiteTest(TestCase):
                                 jeton.lower(), declarees,
                                 f"{gabarit} offre une extension absente d'input_extensions")
 
+    def test_aucune_card_d_entree_ne_demarre_DEPLIEE(self):
+        """Une card d'entrée repliable démarre REPLIÉE — l'imager était le seul écart.
+
+        Mesuré au navigateur le 2026-09-08 sur les 10 apps (constat Fabien : « la card
+        d'entrée de l'Imager est dépliée par défaut alors que toutes les autres se comportent
+        correctement ») : 9 repliées, imager déplié sur ses DEUX cards. Cause = `deployed=True`
+        déclaré dans son gabarit au portage `b02ca266`, sans une ligne de justification.
+
+        Le mécanisme n'a AUCUNE mémoire d'état (`wama-new-item-card.js` ne persiste rien) :
+        l'état initial vient du seul gabarit, donc un test statique suffit et ne peut pas
+        mentir. Le prompt reste visible replié (rendu HORS du bloc repliable) : replier ne
+        cache jamais l'action principale.
+
+        ⚠ Si une app doit un jour démarrer dépliée, ce test est le lieu où l'écart se
+        DÉCLARE — pas un paramètre qu'on repose en silence dans un gabarit.
+        """
+        base = _base()
+        deployees = []
+        for racine in ('wama', 'wama_lab'):
+            for gabarit in sorted((base / racine).glob('*/templates/*/*.html')):
+                if '_01/' in gabarit.as_posix():
+                    continue                    # jumelle : gabarits générés, jugés sur leur source
+                for n, ligne in enumerate(gabarit.read_text(encoding='utf-8').splitlines(), 1):
+                    if '_new_item_card' in ligne and re.search(r'\bdeployed=True\b', ligne):
+                        deployees.append(f'{gabarit.relative_to(base).as_posix()}:{n}')
+        self.assertEqual(deployees, [],
+                         f"card(s) d'entrée démarrant dépliées : {deployees} — le parc "
+                         f"démarre replié ; retirer `deployed=True` ou déclarer l'écart ici")
+
+    def test_deux_cards_sur_une_page_portent_deux_ids_DISTINCTS(self):
+        """Deux cards d'entrée dans un même gabarit doivent déclarer des `card_id` différents.
+
+        Défaut MESURÉ le 2026-09-08 : l'enhancer rendait ses deux cards (média et audio) sans
+        `card_id`, donc toutes deux avec le défaut `newItemCard` — et `newItemCardBody` en
+        double. `wama-new-item-card.js` résout par `getElementById(card.id + 'Body')`, qui
+        rend TOUJOURS le premier : cliquer l'en-tête de la card AUDIO dépliait la card MÉDIA,
+        pendant que l'audio recevait le chevron « dépliée » sans s'ouvrir. Zéro erreur JS —
+        le défaut était entièrement silencieux, et aucun contrôle ne le voyait.
+
+        L'imager portait déjà la bonne forme (`imgNewCard` / `vidNewCard`) : ce test fige la
+        règle plutôt que de la laisser dépendre de l'attention de qui écrit le gabarit.
+        """
+        base = _base()
+        fautifs = []
+        for racine in ('wama', 'wama_lab'):
+            for gabarit in sorted((base / racine).glob('*/templates/*/*.html')):
+                if '_01/' in gabarit.as_posix():
+                    continue
+                ids = []
+                for ligne in gabarit.read_text(encoding='utf-8').splitlines():
+                    if '_new_item_card' not in ligne or '{% include' not in ligne:
+                        continue
+                    m = re.search(r"card_id='([^']*)'", ligne)
+                    ids.append(m.group(1) if m else 'newItemCard')   # défaut du partial
+                if len(ids) > 1 and len(set(ids)) != len(ids):
+                    fautifs.append(f'{gabarit.relative_to(base).as_posix()} → {ids}')
+        self.assertEqual(fautifs, [],
+                         f"cards d'entrée à id DUPLIQUÉ sur la même page : {fautifs} — "
+                         f"déclarer un `card_id` par card (getElementById rend le premier)")
+
     def test_aucun_wrapper_de_file_en_overflow_x_hidden(self):
         """Garde anti-récidive (2026-08-30, constat Fabien sur converter_01, JUMEAU sur 7 apps).
 
