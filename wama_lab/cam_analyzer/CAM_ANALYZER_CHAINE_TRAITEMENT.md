@@ -817,32 +817,55 @@ donc pas « tous en ③ ». **② Mais le mécanisme est confirmé par une voie 
 véhicules sont immobiles — *mieux* immobiles que ceux qui reçoivent une ancre — et **aucun n'en
 reçoit**, donc tous sont rejoués frame par frame, donc soumis à l'EMA du levier 36.
 
-**③ Et la cause n'est PAS celle que §C annonçait.** La ligne « un garé PRÈS d'une intersection
-n'est jamais stationné » (levier 29) désigne un mécanisme réel — qui ne pèse que **1,3 %**.
-En reproduisant le filtre de `multicam_tracker.py:439-444` condition par condition sur les 858
-candidats :
+**③ 🔴 RECTIFICATION DU MÊME JOUR — ce qui suivait ici était FAUX, et l'erreur vaut d'être
+gardée.** J'avais écrit « 86 % des garés échappent à la qualification parce qu'ils sont vus
+moins de 4 s », en reproduisant le filtre sur 858 « candidats ». **Fabien a demandé : « es-tu
+sûr de ce que tu avances ? »** — non, et voici pourquoi.
 
-| condition qui écarte | part |
+*Le biais* : j'avais sélectionné ces candidats par un **étalement < 6 m**, calculé sur les
+`world_en` PERSISTÉS. Or (a) ce champ est la position **LISSÉE** (Kalman+RTS,
+`multicam_tracker.py:576-606`), pas celle que le filtre juge — il travaille sur `track_hist`,
+BRUT ; (b) il n'est **pas écrit du tout** pour les stationnés ni pour les tracks < 5
+observations ; (c) surtout, **un track court a mécaniquement un faible étalement**. J'ai donc
+sur-sélectionné les tracks courts, puis « découvert » qu'ils étaient courts. *Une sélection
+circulaire fait dire n'importe quoi à un comptage pourtant juste* — même famille que « un relevé
+par motif oriente, il ne conclut pas », une strate plus bas. (Le temps aussi était faux de 4 % :
+le tracker calcule `t = fn/fps * scale + off`, scale = 0,95996 ; je lisais `fn/fps` nu.)
+
+*La mesure REFAITE sur des grandeurs qui ne dépendent d'AUCUN placement* — nombre
+d'observations et durée (scale appliqué), les deux seuls critères non positionnels du filtre :
+
+| grandeur | mesure |
 |---|---|
-| **vu moins de 4 s** | **70,4 %** |
-| moins de 5 observations | 15,3 % |
-| vitesse moyenne ≥ 0,7 m/s | 7,0 % |
-| *aucune (devrait être ancré ?)* | 6,1 % — à élucider |
-| **près d'une intersection** | **1,3 %** |
+| véhicules suivis | **3887** |
+| ≥ 5 observations | 3478 (89,5 %) |
+| vus ≥ 4 s | 2125 (54,7 %) |
+| **RECEVABLES** (les deux) | **2114 (54,4 %)** — plafond absolu du filtre |
+| **effectivement ANCRÉS** | **55** |
 
-**86 % des garés échappent à la qualification parce qu'ils sont vus trop BRIÈVEMENT**, pas parce
-qu'ils bougent : une navette qui roule croise un véhicule garé une à trois secondes avant qu'il
-ne sorte du champ. Or une EMA α=0,3 met trois à quatre échantillons à atteindre 70 % de sa
-cible : sur un objet vu si peu, **elle ne converge jamais** — le retard est donc subi pendant
-toute sa vie visible. C'est la confirmation mécanistique de D.3, par un chemin que le protocole
-n'avait pas prévu.
+**→ 97,4 % des véhicules RECEVABLES ne sont pas qualifiés stationnés.** Ce n'est donc PAS la
+durée qui élimine : ce sont les critères de POSITION (étalement < 6 m, étalement/durée
+< 0,7 m/s) ou l'exclusion d'intersection. **Lequel exactement est INDÉTERMINABLE depuis le
+persisté** — il faudrait instrumenter le tracker ou relire `track_hist` pendant un run.
 
-⚠ **Le seuil de 4 s n'est pas une négligence** : le commentaire du code (2026-07-17) dit qu'il
-a été posé pour cesser de marquer « garés » des véhicules ROULANTS vus brièvement (10 km/h ×
-1,5 s = 4 m < 6 m). Le baisser rouvrirait ce défaut-là. **Le correctif n'est donc pas un
-réglage de seuil** : il faut séparer « immobile » de « vu longtemps » par une autre grandeur que
-la durée — la vitesse RELATIVE mesurée, ou la cohérence de la position monde entre observations.
-🔴 **Arbitrage Fabien** avant de coder quoi que ce soit ici.
+*Et la question de Fabien, mesurée* : le taux de recevabilité reste plat (49-70 %) quelle que
+soit la vitesse de la navette, mais la **durée médiane d'un track passe de 4,6 s à l'arrêt à
+11,5 s entre 20 et 25 km/h**. Un seuil en secondes mêle donc la scène et le mouvement porteur —
+et il est **en dur, invisible de l'interface** (`spread_max_m` est un argument, les 4 s et les
+5 observations sont écrites dans le corps de la fonction).
+
+**Le verdict de Fabien est le bon, et il est plus large que mon diagnostic** : dans une session
+urbaine où la navette est à l'arrêt **77 % du temps** (mesuré sur les 24 143 fixes), **55 garés
+reconnus sur 3887 véhicules — le filtre des garés n'a jamais fonctionné**. Ce qui reste vrai de
+mon analyse : les non-ancrés sont rejoués frame par frame, donc soumis à l'EMA du levier 36, et
+une EMA α=0,3 ne converge pas sur un objet vu quelques secondes.
+
+🔴 **Chantier, pas réglage** (arbitrage Fabien, 2026-09-09) : « un garé se remarque uniquement
+sur un ENSEMBLE d'images successives, non image par image ». Le seuil de 4 s n'est pas non plus
+à baisser tel quel — le commentaire du code (2026-07-17) dit qu'il a été posé pour cesser de
+marquer « garés » des véhicules ROULANTS vus brièvement (10 km/h × 1,5 s = 4 m < 6 m). Il faut
+une autre grandeur que la durée : vitesse RELATIVE mesurée, ou cohérence de la position monde
+entre observations — et le paramètre doit devenir RÉGLABLE.
 
 ⚠ Ce qui n'a PAS été joué : les bascules ⚑ elles-mêmes (`display_ema` OFF, `shuttle_filter` ON)
 et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les
