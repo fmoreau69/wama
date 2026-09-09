@@ -92,6 +92,48 @@ class OrdreTopologiqueTest(unittest.TestCase):
         self.assertEqual(pt.topological_order(pt.stage_keys('analyse')), pt.stage_keys('analyse'))
 
 
+class PipelineManifesteTest(unittest.TestCase):
+    """D13 ③ (2026-09-09) : le registre `PASSES` EST un manifeste `pipeline` à nœuds `function`."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from wama.common.catalog.function_catalog import load_all, FUNCTION_CATALOG
+        load_all()
+        cls.catalogue = FUNCTION_CATALOG
+
+    def test_chaque_passe_est_une_fonction_du_catalogue(self):
+        """Une passe sans `FunctionSpec` ne peut pas devenir un nœud : elle serait invisible du
+        pipeline exporté. `extraction`, `intersection_windows`, `depth_calc` ont été déclarées
+        pour cette raison, et `prediction` renommée `indicators` (un nom pour trois objets)."""
+        for p in pt.PASSES:
+            with self.subTest(passe=p.key):
+                self.assertIn(p.function_key, self.catalogue)
+
+    def test_le_manifeste_pipeline_du_registre_s_extrait_et_est_VALIDE(self):
+        from wama.common.manifests.ingest import extract, validate
+        m = extract('pipeline', 'cam_analyzer')
+        self.assertIsNotNone(m, "registre non inscrit (register_pipeline_source)")
+        self.assertEqual(m['manifest_kind'], 'pipeline')
+        self.assertEqual(list(validate(m) or []), [])
+        body = m['body']
+        self.assertEqual([n['id'] for n in body['nodes']], list(pt.ORDER))
+        self.assertTrue(all(n['kind'] == 'function' and n['app'] is None for n in body['nodes']))
+        self.assertEqual({n['function'] for n in body['nodes']}, {p.function_key for p in pt.PASSES})
+        liens = {(l['from'], l['to']) for l in body['links']}
+        self.assertEqual(liens, {(d, p.key) for p in pt.PASSES for d in p.depends_on})
+        self.assertEqual(body['layout'], {}, "un registre n'a pas de présentation")
+
+    def test_la_forme_canvas_du_registre_se_charge_dans_le_studio(self):
+        """« UNE représentation, DEUX éditeurs » : le graphe est exactement celui que
+        `wama-studio.js` sérialise (nodes id/app/params + links from/to/to_port)."""
+        g = pt.pipeline_graph()
+        self.assertEqual(set(g), {'nodes', 'links'})
+        for n in g['nodes']:
+            self.assertTrue(n['app'].startswith('function:cam_analyzer.'))
+            self.assertEqual(set(n['params']), {'stage', 'per_camera', 'gpu', 'watched', 'task'})
+
+
 class DispatchTest(unittest.TestCase):
 
     def test_chaque_task_declaree_existe_dans_tasks(self):

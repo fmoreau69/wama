@@ -22,6 +22,8 @@ def launch_graph(user, graph, *, pipeline_id=None):
     from wama.studio.services.runners import runner_for
     from wama.studio.services.generic_runner import GENERIC_APPS
     from wama.studio.tasks import run_pipeline_task, topo_order, SOURCE_HANDLERS
+    from wama.common.manifests.builtin.pipeline import node_kind, function_key
+    from wama.common.catalog import function_catalog as fc
 
     graph = graph or {}
     nodes = graph.get('nodes', [])
@@ -32,20 +34,29 @@ def launch_graph(user, graph, *, pipeline_id=None):
     except ValueError as exc:
         return None, str(exc)
     links = graph.get('links', [])
+    fc.load_all()
 
-    def _executable(app):
-        return runner_for(app) is not None or app in SOURCE_HANDLERS or app == 'studio_output'
+    def _is_function(n):
+        # D13 : un nœud fonction est exécutable ssi sa clé est au catalogue.
+        return node_kind(n) == 'function' and fc.get(function_key(n)) is not None
+
+    def _executable(n):
+        app = n['app']
+        return (runner_for(app) is not None or app in SOURCE_HANDLERS
+                or app == 'studio_output' or _is_function(n))
 
     runnable = ', '.join(sorted(GENERIC_APPS.keys()))
     for n in nodes:
         # Un nœud non exécutable ne peut être CONNECTÉ ni en amont ni en aval : il ne
         # produira aucune sortie et ne peut rien consommer (validation AVANT dispatch).
-        if not _executable(n['app']) and any(
+        if not _executable(n) and any(
                 l['to'] == n['id'] or l['from'] == n['id'] for l in links):
             return None, (f"Nœud « {n['app']} » : non exécutable dans un pipeline "
-                          f"(apps : {runnable} + nœuds Texte/Médiathèque/Sortie).")
-    if not any(runner_for(n['app']) for n in nodes):
-        return None, f'Aucun nœud-app exécutable dans le graphe (apps : {runnable}).'
+                          f"(apps : {runnable} + fonctions du catalogue + nœuds "
+                          f"Texte/Médiathèque/Jeu de données/Sortie).")
+    if not any(runner_for(n['app']) or _is_function(n) for n in nodes):
+        return None, (f'Aucun nœud-app ni nœud fonction exécutable dans le graphe '
+                      f'(apps : {runnable}).')
 
     run = StudioRun.objects.create(user=user, graph=graph, pipeline_id=pipeline_id)
     task = run_pipeline_task.delay(run.pk)

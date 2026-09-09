@@ -40,7 +40,10 @@ logger = logging.getLogger(__name__)
 #               passe est portée par `process_session_task` (yolo/yolopv2/lane_events/distance
 #               y sont enchaînés) ou synchrone (`intersection_windows`, `extraction` = panneau
 #               RTMaps) ;
-#   gpu         charge GPU (un ▶ d'étage Analyse le dit à l'utilisateur ; le ▶ Calculs jamais).
+#   gpu         charge GPU (un ▶ d'étage Analyse le dit à l'utilisateur ; le ▶ Calculs jamais) ;
+#   function    clé `FUNCTION_CATALOG` de la passe quand elle diffère de `cam_analyzer.<key>`
+#               (`depth` → `cam_analyzer.depth_analysis`) — c'est le nœud `function` que le
+#               registre devient au manifeste `pipeline` (D13, `pipeline_manifest()` ci-dessous).
 from dataclasses import dataclass, field as _field
 
 
@@ -53,6 +56,11 @@ class Pass:
     per_camera: bool = False
     task: str = ''
     gpu: bool = False
+    function: str = ''
+
+    @property
+    def function_key(self) -> str:
+        return self.function or f'cam_analyzer.{self.key}'
 
 
 PASSES: tuple = (
@@ -67,7 +75,8 @@ PASSES: tuple = (
          watched=('sam3_markings_enabled', 'sam3_markings_prompts', 'sam3_as_road_fallback'),
          per_camera=True, task='analyze_sam3_only_task', gpu=True),
     # Profondeur (Depth Pro) : lit les bbox (profondeur de contact) → dépend de la détection.
-    Pass('depth', 'analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True),
+    Pass('depth', 'analyse', depends_on=('yolo_detect',), task='compute_depth_task', gpu=True,
+         function='cam_analyzer.depth_analysis'),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
     Pass('lane_events', 'calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
          task='compute_lane_events_task'),
@@ -106,6 +115,43 @@ def dispatch_table():
     """
     from wama_lab.cam_analyzer import tasks as _tasks
     return {p.key: getattr(_tasks, p.task) for p in PASSES if p.task}
+
+
+def pipeline_graph() -> dict:
+    """Le registre sous la forme CANVAS du Studio (`{nodes, links}`) : une passe = un nœud
+    `function` (clé du catalogue), une dépendance = un lien. C'est la forme que `graph_to_body`
+    traduit en manifeste et que le Studio sait charger (« UNE représentation, DEUX éditeurs »,
+    `WAMA_DATA_WORLD §9undecies`). Les `params` d'un nœud portent ce qui est propre à la passe
+    et n'existe pas dans le `FunctionSpec` : étage, par-caméra, GPU, paramètres surveillés."""
+    from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
+    nodes = [{'id': p.key, 'app': f'{FUNCTION_NODE_PREFIX}{p.function_key}',
+              'params': {'stage': p.stage, 'per_camera': p.per_camera, 'gpu': p.gpu,
+                         'watched': list(p.watched), 'task': p.task}}
+             for p in PASSES]
+    links = [{'from': d, 'to': p.key, 'to_port': None} for p in PASSES for d in p.depends_on]
+    return {'nodes': nodes, 'links': links}
+
+
+def pipeline_manifest() -> dict:
+    """Manifeste `pipeline` complet du registre — inscrit sous la clé `cam_analyzer` par
+    `function_specs.py` (`register_pipeline_source`), exporté par `manifest_export --kind
+    pipeline` vers `manifests/pipelines/`."""
+    from wama.common.manifests.builtin.pipeline import graph_to_body
+    return {
+        'manifest_kind': 'pipeline',
+        'key': 'cam_analyzer',
+        'schema_version': '1.0',
+        'name': 'Cam Analyzer — chaîne d’analyse (13 passes)',
+        'description': "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage ANALYSE "
+                       "(perception, GPU) puis CALCUL (dérivation CPU rejouable) ; chaque passe "
+                       "est un nœud `function` du catalogue, chaque dépendance un lien.",
+        'world': 'lab',
+        'owner': None,
+        'visibility': 'public',
+        'projects': ['ENA'],
+        'source': {'type': 'extract', 'ref': 'cam_analyzer.utils.pass_tracking:PASSES'},
+        'body': graph_to_body(pipeline_graph()),
+    }
 
 
 def topological_order(keys) -> list:

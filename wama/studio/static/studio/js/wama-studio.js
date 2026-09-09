@@ -41,6 +41,19 @@
             output: false, builtin: true,
         },
     };
+    // Nœud-source « Jeu de données » (D13) : ses types de sortie sont LA taxonomie Data servie
+    // par /studio/api/nodes/ (`data_types`) — jamais recopiée ici. Posé à la réception.
+    function installDatasetSource(dataTypes) {
+        if (!dataTypes || !dataTypes.length) return;
+        BUILTINS.dataset_input = {
+            label: 'Jeu de données', icon: 'fas fa-table', color: '#9ad0ec',
+            description: "Source : un fichier tabulaire (CSV) de la médiathèque lu comme donnée TYPÉE (type choisi dans l'inspecteur) → entrée d'un nœud fonction.",
+            inputs: [], output: { label: 'Données', types: dataTypes }, builtin: true,
+        };
+        // La Sortie accepte aussi une donnée typée (écrite en CSV, rangée en document).
+        var sink = BUILTINS.studio_output.inputs[0];
+        dataTypes.forEach(function (t) { if (sink.types.indexOf(t) === -1) sink.types.push(t); });
+    }
 
     // (Les apps de montage / mixage-mastering restent en ROADMAP — voir STUDIO_VISION.md — et ne sont
     //  PAS exposées ici tant qu'elles ne sont pas réellement développées.)
@@ -85,9 +98,15 @@
         // Sources (nœuds intégrés)
         paletteList.appendChild(el('div', 'studio-pal-group', 'Sources'));
         Object.keys(BUILTINS).forEach(function (id) { paletteList.appendChild(paletteItem(id, BUILTINS[id])); });
-        // Apps (catalogue)
+        // Apps (catalogue) puis Fonctions (D13 : même palette, même typage par connexion)
+        var appIds = Object.keys(apps).filter(function (id) { return apps[id].kind !== 'function'; });
+        var fnIds = Object.keys(apps).filter(function (id) { return apps[id].kind === 'function'; });
         paletteList.appendChild(el('div', 'studio-pal-group', 'Apps'));
-        Object.keys(apps).forEach(function (id) { paletteList.appendChild(paletteItem(id, apps[id])); });
+        appIds.forEach(function (id) { paletteList.appendChild(paletteItem(id, apps[id])); });
+        if (fnIds.length) {
+            paletteList.appendChild(el('div', 'studio-pal-group', 'Fonctions (' + fnIds.length + ')'));
+            fnIds.forEach(function (id) { paletteList.appendChild(paletteItem(id, apps[id])); });
+        }
     }
 
     // ── Nœud ─────────────────────────────────────────────────────────────
@@ -120,12 +139,12 @@
         var outCol = el('div', 'studio-port-col out');
         // Entrées typées (travail / prompt / référence) — plusieurs ports possibles.
         (a.inputs || []).forEach(function (p) {
-            inCol.appendChild(portEl('in', p.types, p.label, p.group || 'travail'));
+            inCol.appendChild(portEl('in', p.types, p.label, p.group || 'travail', p.id));
         });
         // Sortie : types produits (output === false → nœud TERMINAL, pas de port).
         if (a.output !== false) {
             var out = a.output || { label: 'Sortie', types: [] };
-            outCol.appendChild(portEl('out', out.types, out.label, 'out'));
+            outCol.appendChild(portEl('out', out.types, out.label, 'out', out.id));
         }
         ports.appendChild(inCol);
         ports.appendChild(outCol);
@@ -144,11 +163,15 @@
         return node;
     }
 
-    function portEl(side, types, label, group) {
+    function portEl(side, types, label, group, portId) {
         var p = el('div', 'studio-port ' + side);
         var dot = el('span', 'dot');
         dot.dataset.side = side;
         dot.dataset.group = group || '';
+        // `port` = l'ID du port (travail/prompt/référence pour une app, la CLÉ du port pour
+        // une fonction) : c'est ce que `to_port` sérialise depuis le 2026-09-09 — deux ports
+        // d'une fonction partagent souvent le rôle `travail`, le rôle seul ne les distingue pas.
+        dot.dataset.port = portId || group || '';
         dot.dataset.types = (types || []).join(',');
         var txt = label ? label : ((types && types.length) ? types.join(' · ') : '—');
         p.appendChild(dot);
@@ -269,6 +292,7 @@
     function typeBadge(a) {
         if (a.planned) return '<span class="badge bg-warning text-dark">à venir</span>';
         if (a.builtin) return '<span class="badge bg-success">source</span>';
+        if (a.kind === 'function') return '<span class="badge bg-info text-dark">fonction · ' + (a.binding || 'pure') + '</span>';
         return '<span class="badge bg-primary">app</span>';
     }
     function selectNode(id) {
@@ -414,7 +438,7 @@
             }),
             links: links.map(function (l) {
                 return { from: nodeOf(l.from.dot), to: nodeOf(l.to.dot),
-                         to_port: l.to.dot.dataset.group || '' };
+                         to_port: l.to.dot.dataset.port || l.to.dot.dataset.group || '' };
             }),
         };
     }
@@ -435,8 +459,11 @@
             var from = byId[sl.from], to = byId[sl.to];
             if (!from || !to) return;
             var outDot = from.el.querySelector('.studio-port-col.out .dot');
+            // Par ID de port d'abord ; par rôle ensuite (graphes sauvés avant le 2026-09-09,
+            // où `to_port` portait le rôle) ; premier port sinon.
             var inDot = sl.to_port
-                ? to.el.querySelector('.studio-port-col.in .dot[data-group="' + sl.to_port + '"]')
+                ? (to.el.querySelector('.studio-port-col.in .dot[data-port="' + sl.to_port + '"]')
+                   || to.el.querySelector('.studio-port-col.in .dot[data-group="' + sl.to_port + '"]'))
                 : null;
             if (!inDot) inDot = to.el.querySelector('.studio-port-col.in .dot');
             if (outDot && inDot) createLink(outDot, inDot);
@@ -745,6 +772,7 @@
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 apps = d.nodes || {};
+                installDatasetSource(d.data_types);
                 renderPalette();
                 restoreDraft();   // le graphe en cours survit à la navigation (2026-07-15)
             })

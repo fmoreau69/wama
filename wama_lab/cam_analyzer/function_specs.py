@@ -298,3 +298,21 @@ _spec('indicators', 'Indicateurs prédiction (TTC/PET)', "TTC/PET par prédictio
                         estimates='ttc', estimate_field='prediction_ttc',
                         uncertainty={'model': 'declared', 'note': 'aucune mesure A/B (§C)'},
                         derived_from=['bbox', 'gps'])])
+
+
+# ── Le PIPELINE lui-même (D13 ③, 2026-09-09) ──────────────────────────────────
+# Le registre des passes (`pass_tracking.PASSES`) s'inscrit comme source de manifeste
+# `pipeline` sous la clé `cam_analyzer` : chaque passe est un nœud `function` (les specs
+# ci-dessus), chaque dépendance un lien. Exporté par `manifest_export --kind pipeline`.
+# Import paresseux : `pass_tracking` n'importe rien de Django au module, mais `function_specs`
+# est chargé par `apps.ready()` et par `load_all()` hors cycle — la fabrique n'est appelée
+# qu'à l'extraction.
+from wama.common.manifests.builtin.pipeline import register_pipeline_source  # noqa: E402
+
+
+def _cam_analyzer_pipeline():
+    from wama_lab.cam_analyzer.utils.pass_tracking import pipeline_manifest
+    return pipeline_manifest()
+
+
+register_pipeline_source('cam_analyzer', _cam_analyzer_pipeline)

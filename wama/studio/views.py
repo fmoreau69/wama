@@ -41,7 +41,78 @@ def api_nodes(request):
             'inputs': ports['inputs'],
             'output': ports['output'],
         }
-    return JsonResponse({'nodes': nodes})
+    # D13 — nœuds FONCTION : le catalogue de fonctions par le MÊME accesseur de forme que les
+    # apps (`function_node_ports` ≡ `studio_node_ports`). Le JS ne connaît qu'un identifiant
+    # de palette : `function:<clé>` (lu par `pipeline.node_kind`/`function_key`, nulle part
+    # ailleurs). Fonctions `pure` ET `app`-bound ; une privée ne sort pas (visibilité).
+    from wama.common.catalog import function_catalog as fc
+    from wama.common.catalog.data_types import DataType
+    from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
+    fc.load_all()
+    for key, spec in sorted(fc.FUNCTION_CATALOG.items()):
+        if spec.visibility != 'public':
+            continue
+        ports = fc.function_node_ports(key)
+        nodes[f'{FUNCTION_NODE_PREFIX}{key}'] = {
+            'label': spec.name or key,
+            'icon': _FUNCTION_ICONS.get(spec.category, 'fas fa-square-root-variable'),
+            'color': '#9ad0ec' if spec.binding == fc.Binding.PURE else '#c9b5e8',
+            'description': spec.description,
+            'inputs': ports['inputs'],
+            'output': ports['output'],
+            'kind': 'function',
+            'binding': spec.binding,
+            'app': spec.app,
+            'category': spec.category,
+        }
+    data_types = sorted(v for k, v in vars(DataType).items()
+                        if not k.startswith('_') and isinstance(v, str))
+    return JsonResponse({'nodes': nodes, 'data_types': data_types})
+
+
+_FUNCTION_ICONS = {
+    'transform': 'fas fa-wand-magic-sparkles', 'enricher': 'fas fa-layer-group',
+    'detector': 'fas fa-bolt', 'indicator': 'fas fa-gauge', 'resampler': 'fas fa-wave-square',
+    'join': 'fas fa-code-merge', 'aggregate': 'fas fa-chart-column',
+}
+
+
+def function_node_params_specs():
+    """Specs de params des nœuds FONCTION (forme des `params_spec` du runner générique) :
+    `ParamSpec` → champ ; pour une fonction `app`-bound, les arguments OBLIGATOIRES de sa
+    tâche `impl` (ex. `session_id`) s'ajoutent en tête — par introspection, jamais par app."""
+    from wama.common.catalog import function_catalog as fc
+    from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
+    from wama.studio.tasks import app_function_job_kwargs
+    fc.load_all()
+    specs = {}
+    for key, spec in fc.FUNCTION_CATALOG.items():
+        entries = []
+        if spec.binding == fc.Binding.APP and spec.impl:
+            try:
+                required = app_function_job_kwargs(spec.impl)
+            except ValueError:
+                required = []
+            entries += [{'name': n, 'label': n, 'type': 'text',
+                         'placeholder': f'requis par {spec.impl.split(":")[-1]}'} for n in required]
+        for p in spec.params:
+            e = {'name': p.key, 'label': p.description or p.key}
+            if p.type == 'enum' and p.choices:
+                e['type'] = 'select'
+                e['options'] = [{'value': c, 'label': str(c)} for c in p.choices]
+            elif p.type == 'bool':
+                e['type'] = 'select'
+                e['options'] = [{'value': '', 'label': 'Non'}, {'value': '1', 'label': 'Oui'}]
+            else:
+                e['type'] = 'text'
+                if p.min is not None or p.max is not None or p.unit:
+                    e['placeholder'] = f"{p.min if p.min is not None else ''}–" \
+                                       f"{p.max if p.max is not None else ''} {p.unit}".strip(' –')
+            if p.default is not None:
+                e['default'] = p.default
+            entries.append(e)
+        specs[f'{FUNCTION_NODE_PREFIX}{key}'] = entries
+    return specs
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -109,6 +180,15 @@ def api_run_options(request):
     specs['media_import'] = [
         {'name': 'asset_path', 'label': 'Média (médiathèque)', 'type': 'media_picker'},
     ]
+    from wama.common.catalog.data_types import DataType
+    specs['dataset_input'] = [
+        {'name': 'asset_path', 'label': 'Fichier tabulaire (médiathèque)', 'type': 'media_picker'},
+        {'name': 'data_type', 'label': 'Type de donnée', 'type': 'select',
+         'options': sorted(v for k, v in vars(DataType).items()
+                           if not k.startswith('_') and isinstance(v, str)),
+         'default': DataType.TABLE},
+    ]
+    specs.update(function_node_params_specs())   # D13 : nœuds fonction
     specs['studio_output'] = [
         {'name': 'asset_name', 'label': 'Nom dans la médiathèque', 'type': 'text',
          'placeholder': '(défaut : nom du fichier produit)'},

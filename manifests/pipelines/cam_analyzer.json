@@ -1,0 +1,298 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "extraction",
+        "to": "intersection_windows",
+        "to_port": null
+      },
+      {
+        "from": "extraction",
+        "to": "yolo_detect",
+        "to_port": null
+      },
+      {
+        "from": "extraction",
+        "to": "yolopv2_lanes",
+        "to_port": null
+      },
+      {
+        "from": "extraction",
+        "to": "sam3_markings",
+        "to_port": null
+      },
+      {
+        "from": "intersection_windows",
+        "to": "sam3_markings",
+        "to_port": null
+      },
+      {
+        "from": "yolo_detect",
+        "to": "depth",
+        "to_port": null
+      },
+      {
+        "from": "yolo_detect",
+        "to": "lane_events",
+        "to_port": null
+      },
+      {
+        "from": "yolopv2_lanes",
+        "to": "lane_events",
+        "to_port": null
+      },
+      {
+        "from": "yolo_detect",
+        "to": "temporal_segments",
+        "to_port": null
+      },
+      {
+        "from": "intersection_windows",
+        "to": "temporal_segments",
+        "to_port": null
+      },
+      {
+        "from": "lane_events",
+        "to": "distance",
+        "to_port": null
+      },
+      {
+        "from": "depth",
+        "to": "depth_calc",
+        "to_port": null
+      },
+      {
+        "from": "yolo_detect",
+        "to": "global_tracking",
+        "to_port": null
+      },
+      {
+        "from": "distance",
+        "to": "global_tracking",
+        "to_port": null
+      },
+      {
+        "from": "global_tracking",
+        "to": "indicators",
+        "to_port": null
+      },
+      {
+        "from": "distance",
+        "to": "indicators",
+        "to_port": null
+      },
+      {
+        "from": "lane_events",
+        "to": "conflicts",
+        "to_port": null
+      },
+      {
+        "from": "distance",
+        "to": "conflicts",
+        "to_port": null
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "cam_analyzer.extraction",
+        "id": "extraction",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "analyse",
+          "task": "",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.intersection_windows",
+        "id": "intersection_windows",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "analyse",
+          "task": "",
+          "watched": [
+            "intersections"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.yolo_detect",
+        "id": "yolo_detect",
+        "kind": "function",
+        "params": {
+          "gpu": true,
+          "per_camera": true,
+          "stage": "analyse",
+          "task": "",
+          "watched": [
+            "model_path",
+            "iou_threshold",
+            "tracker"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.yolopv2_lanes",
+        "id": "yolopv2_lanes",
+        "kind": "function",
+        "params": {
+          "gpu": true,
+          "per_camera": true,
+          "stage": "analyse",
+          "task": "",
+          "watched": [
+            "road_model_path"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.sam3_markings",
+        "id": "sam3_markings",
+        "kind": "function",
+        "params": {
+          "gpu": true,
+          "per_camera": true,
+          "stage": "analyse",
+          "task": "analyze_sam3_only_task",
+          "watched": [
+            "sam3_markings_enabled",
+            "sam3_markings_prompts",
+            "sam3_as_road_fallback"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.depth_analysis",
+        "id": "depth",
+        "kind": "function",
+        "params": {
+          "gpu": true,
+          "per_camera": false,
+          "stage": "analyse",
+          "task": "compute_depth_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.lane_events",
+        "id": "lane_events",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_lane_events_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.temporal_segments",
+        "id": "temporal_segments",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_temporal_segments_task",
+          "watched": [
+            "target_classes",
+            "confidence"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.distance",
+        "id": "distance",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_distance_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.depth_calc",
+        "id": "depth_calc",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_depth_calc_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.global_tracking",
+        "id": "global_tracking",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_global_tracking_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.indicators",
+        "id": "indicators",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_indicators_task",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.conflicts",
+        "id": "conflicts",
+        "kind": "function",
+        "params": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_conflict_events_task",
+          "watched": []
+        }
+      }
+    ]
+  },
+  "description": "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage ANALYSE (perception, GPU) puis CALCUL (dérivation CPU rejouable) ; chaque passe est un nœud `function` du catalogue, chaque dépendance un lien.",
+  "key": "cam_analyzer",
+  "manifest_kind": "pipeline",
+  "name": "Cam Analyzer — chaîne d’analyse (13 passes)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "cam_analyzer.utils.pass_tracking:PASSES",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "lab"
+}

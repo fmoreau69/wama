@@ -217,12 +217,14 @@ MODULES: Tuple[ModuleData, ...] = (
         'analyzer', 'Analyzer', "Orchestre les modules selon un manifeste `pipeline`",
         "manifeste `pipeline` → exécution",
         doc='§9bis.2',
-        bloque_par="⚠ D13 n'est plus en attente — TRANCHÉE le 2026-08-24 (§9undecies.2) : un "
-                   "seul kind `pipeline`, étendu d'un nœud `function`, parce qu'un protocole réel "
-                   "TRAVERSE les mondes et que deux kinds le rendraient inexprimable. Le nœud "
-                   "reste à IMPLÉMENTER, et avec lui le dispatch app (job de file, asynchrone) vs "
-                   "fonction (transformation typée, synchrone). C'est désormais le premier "
-                   "chantier non bloqué de la chaîne",
+        bloque_par="D13 TRANCHÉE le 2026-08-24 (§9undecies.2) et CODÉE le 2026-09-09 : le kind "
+                   "`pipeline` accepte le nœud `function`, l'exécuteur du Studio "
+                   "(`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, "
+                   "fonction pure = transformation typée synchrone, fonction app-bound = `impl` "
+                   "pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste "
+                   "`pipeline` (`manifests/pipelines/`). Ce qui manque encore à l'Analyzer : une "
+                   "SURFACE Data (le Studio est aujourd'hui le seul éditeur/exécuteur) et la porte "
+                   "d'ingestion d'un manifeste de process (marche E)",
     ),
 )
 

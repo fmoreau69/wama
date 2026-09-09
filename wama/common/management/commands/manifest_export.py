@@ -14,6 +14,7 @@ commande REFUSE de l'écrire.
   python manage.py manifest_export --kind function                 # TOUT le FUNCTION_CATALOG → manifests/functions/
   python manage.py manifest_export --check          # n'écrit rien ; sort en erreur si périmé
   python manage.py manifest_export --check --kind function         # idem, fonctions seules
+  python manage.py manifest_export --kind pipeline                 # pipelines DÉCLARÉS EN CODE → manifests/pipelines/
 
 Fonctions (2026-09-05, demande Fabien « voir si toute la chaîne manifeste → registre →
 utilisation tient ») : le kind `function` existait (extract/validate/write-back borné à
@@ -50,7 +51,15 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 
 DOSSIERS = {'app': 'manifests/apps', 'library': 'manifests/libraries',
-            'model': 'manifests/models', 'function': 'manifests/functions'}
+            'model': 'manifests/models', 'function': 'manifests/functions',
+            'pipeline': 'manifests/pipelines'}
+
+
+def _pipeline_keys() -> list:
+    """Clés des pipelines DÉCLARÉS EN CODE (`register_pipeline_source`, ex. `cam_analyzer`).
+    Les pipelines du canvas (StudioPipeline, clé = pk) sont PRIVÉS : jamais au corpus."""
+    from wama.common.manifests.builtin.pipeline import registered_pipeline_keys
+    return registered_pipeline_keys()
 
 
 def _function_keys() -> list:
@@ -119,6 +128,8 @@ class Command(BaseCommand):
             # Fonctions SEULES : le seul mode sans clé qui ne touche pas aux libraries
             # (venv-dépendantes) — utilisable depuis n'importe quel venv.
             cibles = [('function', k) for k in _function_keys()]
+        elif o['kind'] == 'pipeline':
+            cibles = [('pipeline', k) for k in _pipeline_keys()]
         else:
             # Jumelles bac à sable EXCLUES : le corpus décrit les apps RÉELLES — une jumelle
             # est jetable et se COMPARE à sa source (route §10.3 marche S, fuite mesurée
@@ -137,6 +148,8 @@ class Command(BaseCommand):
             cibles += [('model', k) for k in sorted(cites | semes)]
             # Fonctions : ÉNUMÉRÉES depuis le catalogue code (pas de semis, pas de dérivation).
             cibles += [('function', k) for k in _function_keys()]
+            # Pipelines déclarés en code (D13, 2026-09-09) : même énumération, même garde.
+            cibles += [('pipeline', k) for k in _pipeline_keys()]
 
         w, s, e, warn = self.stdout.write, self.style.SUCCESS, self.style.ERROR, self.style.WARNING
         ecrits, perimes, refuses, inchanges = [], [], [], []
