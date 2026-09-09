@@ -16,9 +16,15 @@ import os
 BASE_DIR = Path(__file__).parent.parent  # WAMA root
 WAMA_DEV_AI_DIR = Path(__file__).parent
 PROMPTS_DIR = WAMA_DEV_AI_DIR / "prompts"
-# Skills de prompt par app WAMA (source UNIQUE, partagée avec la pipeline Django et
-# l'enrichissement à la demande) — voir wama/common/prompt_skills/README.md.
-PROMPT_SKILLS_DIR = BASE_DIR / "wama" / "common" / "prompt_skills"
+# ⚠ `PROMPT_SKILLS_DIR` A ÉTÉ RETIRÉ D'ICI le 2026-09-09, et son retrait EST le correctif.
+# Déclarée le 2026-07-08, elle pointait les skills de prompt WAMA et n'a JAMAIS été lue —
+# vérifié au code : zéro import, zéro lecture par chaîne, en 14 mois. Trois fichiers
+# affirmaient pourtant que le pont existait (ce fichier, le README, la docstring de
+# `prompt_skills.py`), tous descendant d'UNE phrase de décision recopiée : déclarer le chemin
+# avait été compté comme construire le pont.
+# Le pont RÉEL est maintenant `role_utils.skill_wama()` / `catalogue_skills()`, qui délèguent
+# aux accesseurs officiels. *Un chemin déclaré sans lecteur est pire qu'une absence : il fait
+# croire à une liaison, et on ne cherche pas ce qu'on croit avoir.*
 OUTPUT_DIR = WAMA_DEV_AI_DIR / "outputs"
 CACHE_DIR = WAMA_DEV_AI_DIR / ".cache"
 EMBEDDINGS_DIR = CACHE_DIR / "embeddings"

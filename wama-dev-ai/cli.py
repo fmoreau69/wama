@@ -894,11 +894,15 @@ Use [cyan]/memory[/] to see which models can run on your system.
     # =========================================================================
 
     def _load_prompt(self, name: str) -> str:
-        """Load a prompt template."""
-        path = PROMPTS_DIR / name
-        if path.exists():
-            return path.read_text(encoding='utf-8')
-        return ""
+        """Consigne de rôle — DÉLÈGUE à l'accesseur unique (`role_utils`, 2026-09-09).
+
+        Ce corps lisait `PROMPTS_DIR / name` en direct : c'était l'un des QUATRE chemins vers
+        le même dossier. Il rendait `""` sur fichier absent — un silence qui donne un rôle
+        SANS POSTURE, donc une sortie plausible et fausse : le pire cas pour un agent dont
+        toutes les sorties partent en validation humaine.
+        """
+        from role_utils import consigne_role
+        return consigne_role(name[:-4] if name.endswith('.txt') else name)
 
     def _build_prompt(self, task: str, code: str, model: str) -> str:
         """Build a prompt for a specific model role."""

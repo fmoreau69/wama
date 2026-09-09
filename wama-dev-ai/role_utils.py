@@ -45,6 +45,59 @@ def ollama_host():
     return ollama_base()
 
 
+def consigne_role(nom):
+    """Consigne système d'un RÔLE de wama-dev-ai (`prompts/<nom>.txt`) — accesseur UNIQUE.
+
+    Il y avait QUATRE chemins vers ce dossier avant le 2026-09-09 : `cli.py::_load_prompt`,
+    `run_audit.py` (via `config.PROMPTS_DIR`), un chemin ÉCRIT EN DUR dans `run_codegen.py`,
+    et cette constante `PROMPTS` — jamais lue, donc morte. Quatre lectures d'un même dossier,
+    c'est quatre endroits où une convention de nommage peut diverger sans que rien ne plante.
+
+    `nom` s'écrit SANS extension (`'audit'`, `'codegen'`). Lève si le fichier manque : une
+    consigne absente donnerait un rôle sans posture, ce qui rend une sortie plausible et
+    fausse — exactement ce que la validation humaine doit attraper, mais trop tard.
+    """
+    chemin = PROMPTS / f"{nom}.txt"
+    if not chemin.is_file():
+        connues = sorted(p.stem for p in PROMPTS.glob('*.txt'))
+        raise FileNotFoundError(f"consigne de rôle introuvable : {chemin} (connues : {connues})")
+    return chemin.read_text(encoding='utf-8')
+
+
+def skill_wama(app=None, domain=None, kind='generative'):
+    """Skill de prompt WAMA le plus spécifique pour (app, domain, kind) → `(nom, texte)`.
+
+    LE PONT, enfin construit (2026-09-09). Il était ANNONCÉ depuis le 2026-07-08 par trois
+    fichiers — `config.py::PROMPT_SKILLS_DIR`, ce README, et la docstring de `prompt_skills.py`
+    (« réutilisable depuis TOUTES les sources d'appel : … wama-dev-ai ») — et il n'existait
+    dans AUCUN. Les trois descendaient de la MÊME phrase de décision, recopiée : ce n'étaient
+    pas trois vérifications, c'était une intention comptée comme faite parce que le chemin
+    avait été déclaré. La constante est retirée en même temps que ce pont est posé : un chemin
+    déclaré sans lecteur est précisément ce qui a fait croire au pont pendant 14 mois.
+
+    Import PARESSEUX et SANS REPLI, comme `ollama_host()` — mêmes raisons, même précédent.
+    ⚠ Aucun `django.setup()` n'est requis : `prompt_skills` n'importe que `pathlib`/`re`/
+    `logging`. VÉRIFIÉ empiriquement le 2026-09-09, `DJANGO_SETTINGS_MODULE` non défini —
+    la promesse « importable sans Django » de sa docstring tient réellement, elle. Comme pour
+    l'audit, aucun `INSTALLED_APPS` n'est chargé : un import cassé dans une app ne peut pas
+    empêcher un rôle de tourner.
+
+    ⚠ CE QUE ÇA N'EST PAS : les skills de `prompt_skills/` traitent le prompt d'un
+    UTILISATEUR pour un modèle qui ne sait pas choisir (diffusion, SAM3, TTS) — ils sont
+    résolus PAR LE CODE. Les consignes de DÉVELOPPEMENT sont d'une autre famille et d'un autre
+    format (`.claude/skills/`, `SKILL.md` à frontmatter, choisi par l'agent) : ne pas les
+    confondre, `WAMA_LLM §0bis 🔒` trace la frontière.
+    """
+    from wama.common.utils.prompt_skills import resolve_skill
+    return resolve_skill(app=app, domain=domain, kind=kind)
+
+
+def catalogue_skills():
+    """`{nom: texte}` de tous les skills de prompt WAMA — pour un rôle qui explore le corpus."""
+    from wama.common.utils.prompt_skills import skills_catalog
+    return skills_catalog()
+
+
 def fetch(url, user_agent='wama-dev-ai'):
     """GET texte via le proxy d'environnement (GitHub/HF passent par le proxy UGE)."""
     req = urllib.request.Request(url, headers={'User-Agent': user_agent})

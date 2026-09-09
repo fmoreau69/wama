@@ -493,11 +493,16 @@ class AuditAgent:
         # une cartographie de corpus externe n'obéit pas aux mêmes règles qu'un audit de code
         # WAMA (pas de suggested_actions, preuves obligatoires, couverture déclarée). Le codage
         # en dur de "audit.txt" rendait `prompts/cartography.txt` inatteignable.
+        # Accesseur UNIQUE depuis le 2026-09-09 (`role_utils.consigne_role`) : ce dossier avait
+        # quatre lecteurs. `consigne_role` LÈVE si la consigne manque, en listant les connues —
+        # ce qui transforme une faute de frappe sur `--prompt` en message clair, là où le
+        # `if .exists()` la faisait retomber en silence sur le prompt intégré.
         audit_prompt_path = PROMPTS_DIR / f"{prompt}.txt"
         if audit_prompt_path.exists():
             if verbose:
                 print(f"[Audit] Prompt: {audit_prompt_path.name}")
-            self._system_prompt = audit_prompt_path.read_text(encoding='utf-8')
+            from role_utils import consigne_role
+            self._system_prompt = consigne_role(prompt)
             # ⚠ GARDE — un prompt sans `{tools}` produit un ÉCHEC SILENCIEUX : le modèle ne reçoit
             # ni la liste des outils ni la syntaxe d'appel, ne peut donc appeler personne, répond
             # vide, l'agent ne parse aucun appel et conclut « terminé » avec un rapport de 0 octet

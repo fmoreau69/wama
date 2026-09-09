@@ -41,9 +41,12 @@ from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 # Helpers COMMUNS aux rôles — adoptés le 2026-09-07 (audit « la route est-elle unique ? »).
 # Ce fichier portait sa PROPRE copie de `ollama_host`, `_OPENER_DIRECT`, `call_ollama` et de
 # l'écriture de sortie : 4 rôles sur 5 adoptaient déjà `role_utils`, celui-ci non.
-from role_utils import call_ollama, write_output  # noqa: E402
+from role_utils import call_ollama, consigne_role, write_output  # noqa: E402
 
-PROMPT = (Path(__file__).parent / 'prompts' / 'codegen.txt').read_text(encoding='utf-8')
+# ⚠ Ce chemin était ÉCRIT EN DUR ici — la 3ᵉ lecture du même dossier, et la seule qui ne
+# passait même pas par `config.PROMPTS_DIR`. Même défaut que les copies de `ollama_host` et
+# `call_ollama` soldées le 07/09 : le fichier avait adopté `role_utils` pour tout SAUF ça.
+PROMPT = consigne_role('codegen')
 MAX_MATTER_CHARS = 60000   # tâche étroite : tronquer plutôt que faire dériver
 FEWSHOT = (('converter', 'wama/converter/tasks.py', ('convert_media_task', '_convert')),
            ('reader', 'wama/reader/tasks.py', ('read_document_task', '_read')))

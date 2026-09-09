@@ -6,6 +6,20 @@ envoyé comme system prompt au LLM d'enrichissement. Centralisé → réutilisab
 les sources d'appel : pipeline de prompts (au lancement de tâche), enrichissement à la demande
 (bouton ✨ des apps), assistant IA et wama-dev-ai (mêmes fichiers, zéro dépendance Django).
 
+⚠ **« et wama-dev-ai » a été FAUX du 2026-07-08 au 2026-09-09** — cette phrase énonçait une
+intention, pas un état. Le pont existe désormais pour de bon (`role_utils.skill_wama()` /
+`catalogue_skills()`), et la promesse est vérifiable : `wama-dev-ai/config.py` ne déclare plus
+de chemin vers ce dossier, il APPELLE ces accesseurs. La clause « zéro dépendance Django »,
+elle, a été mesurée le 2026-09-09 et TIENT : ce module n'importe que `pathlib`/`re`/`logging`,
+et `from wama.common.utils.prompt_skills import resolve_skill` réussit avec
+`DJANGO_SETTINGS_MODULE` non défini.
+
+🔒 CE FICHIER-CI N'A PAS DE FRONTMATTER, ET C'EST UN CONTRAT (tranché le 2026-09-09) : le
+consommateur final de ces skills est un modèle qui ne sait pas CHOISIR (diffusion, SAM3, TTS),
+donc c'est le CODE qui choisit pour lui (`resolve_skill`). Le format `SKILL.md` à frontmatter
+sert l'autre cas — une consigne de DÉVELOPPEMENT qu'un AGENT sélectionne d'après sa description
+(`.claude/skills/`). Deux mécanismes de sélection, deux formats. Cf. `WAMA_LLM §0bis 🔒`.
+
 Résolution du plus spécifique au plus générique :
     <app>-<domain>  (ex. imager-image, imager-video, composer-music)
     <app>           (ex. imager)

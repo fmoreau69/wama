@@ -59,8 +59,21 @@ sont plus recopiées ici.
 ## Prompt skills WAMA (source partagée)
 
 Les skills de prompt de WAMA (`wama/common/prompt_skills/*.md`) sont lisibles par wama-dev-ai via
-`config.py::PROMPT_SKILLS_DIR` ; accesseurs côté WAMA : `wama/common/utils/prompt_skills.py`
-(`resolve_skill`, `skills_catalog`). Voir `wama/common/prompt_skills/README.md`.
+**`role_utils.skill_wama(app, domain, kind)`** et **`role_utils.catalogue_skills()`**, qui
+délèguent aux accesseurs officiels `wama/common/utils/prompt_skills.py` (`resolve_skill`,
+`skills_catalog`). Voir `wama/common/prompt_skills/README.md`.
+
+> ⚠ **Cette section a annoncé un pont INEXISTANT du 2026-07-08 au 2026-09-09.** Elle renvoyait à
+> `config.py::PROMPT_SKILLS_DIR`, une constante qui n'a jamais été lue par personne — vérifié au
+> code, pas à la doc. Elle a été retirée en même temps que le vrai pont a été posé. La leçon
+> vaut au-delà d'ici : *déclarer un chemin n'est pas construire une liaison, et trois documents
+> qui recopient la même intention ne font pas trois vérifications.*
+
+Les consignes des RÔLES de wama-dev-ai (`prompts/*.txt`) se chargent par
+**`role_utils.consigne_role('<nom>')`** — accesseur unique depuis le 2026-09-09, qui a remplacé
+quatre lectures du même dossier (`cli.py`, `run_audit.py`, un chemin en dur dans `run_codegen.py`,
+et une constante morte). Il LÈVE si la consigne manque, en listant les connues : un rôle sans
+posture rend une sortie plausible et fausse.
 
 ## Format des sorties des rôles (remplace l'ex-`AUDIT_FORMAT.md`, archivé 2026-08-27)
 

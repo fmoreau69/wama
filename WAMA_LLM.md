@@ -226,7 +226,7 @@ inutile ou un assistant sans posture.
 > (tranché avec Fabien le 2026-09-09) : un modèle de diffusion, SAM3 ou MusicGen ne peuvent
 > qu'**encaisser une chaîne** — ils ne savent pas choisir une consigne, donc c'est le CODE qui
 > choisit pour eux (`resolve_skill`), et le fichier reste **nu** (il EST le system prompt). Un
-> AGENT lit des descriptions et choisit — d'où le format `SKILL.md` à frontmatter, réservé aux
+> AGENT lit des descriptions et choisit — d'où le format SKILL.md à frontmatter, réservé aux
 > consignes de DÉVELOPPEMENT (`.claude/skills/`, cf. `ROADMAP §16.7`). Deux formats, parce que
 > deux mécanismes de SÉLECTION — pas deux goûts. Mettre un frontmatter sur `imager-image.md`
 > n'apporterait rien : personne ne le choisit, il se calcule.
