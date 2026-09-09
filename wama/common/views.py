@@ -948,6 +948,70 @@ def rag_view(request):
     })
 
 
+@login_required
+def souvenirs_view(request):
+    """« Mes souvenirs » — la page JUMELLE de « Mon RAG » (13ᵉ registre, 2026-09-09).
+
+    Le fragment (`RagChunk`) avait sa page ; le souvenir (`MemoryItem`) n'en avait aucune, alors
+    qu'ils héritent des mêmes mixins et partagent un seul `recall()`. Son seul accès était
+    `memory_recall` — l'assistant, en langage naturel : impossible de LISTER ce que WAMA retient.
+
+    Deux listes, deux questions distinctes (cf. `store.list_souvenirs`) :
+      • ACTIFS — exactement ce que `recall()` rendrait, par réutilisation de `_visible_memory` ;
+      • FILE DE REVUE — les non approuvés, que la gouvernance cache au rappel (`WAMA_MEMORY §6`).
+        Réservée au STAFF, parce qu'elle n'est délibérément pas scopée.
+
+    ⚠ La page ne CRÉE rien et n'approuve rien pour l'instant : elle rend visible une file qui
+    l'était pour personne. Le geste d'approbation est la marche suivante — l'ouvrir ici sans
+    l'avoir tracé ferait exactement le « chemin parallèle » qu'on cherche à éviter.
+    """
+    from django.urls import reverse
+
+    from .memory.store import list_souvenirs
+
+    actifs = list_souvenirs(request.user)
+    attente = list_souvenirs(request.user, en_attente=True) if request.user.is_staff else []
+
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        motif = q.lower()
+        actifs = [s for s in actifs if motif in (s['content'] or '').lower()
+                  or motif in (s['subject'] or '').lower()]
+        attente = [s for s in attente if motif in (s['content'] or '').lower()
+                   or motif in (s['subject'] or '').lower()]
+
+    kind_actif = (request.GET.get('kind') or '').strip()
+    if kind_actif and kind_actif != 'all':
+        actifs = [s for s in actifs if s['kind'] == kind_actif]
+        attente = [s for s in attente if s['kind'] == kind_actif]
+
+    from .models import MemoryItem
+    kinds = {MemoryItem.KIND_SEMANTIC: 'Fait', MemoryItem.KIND_EPISODIC: 'Événement',
+             MemoryItem.KIND_PROCEDURAL: 'Procédure'}
+    facettes = [{'cle': 'kind', 'label': 'Nature', 'tous': 'Toutes natures',
+                 'options': kinds, 'valeur': kind_actif or 'all'}]
+
+    # Libellé résolu ICI : aucun filtre de gabarit n'est enregistré dans ce dépôt (vérifié —
+    # `templatetags/` ne déclare que des tags), donc un `dict|lookup:clé` en gabarit n'existe
+    # pas. Le résoudre côté vue est la voie du dépôt, pas un contournement.
+    for s in actifs + attente:
+        s['kind_libelle'] = kinds.get(s['kind'], s['kind'])
+
+    return render(request, 'common/souvenirs.html', {
+        'actifs': actifs,
+        'attente': attente,
+        'total': len(actifs),
+        'sans_vecteur': sum(1 for s in actifs if s['sans_vecteur']),
+        'kinds': kinds,
+        'facettes': facettes,
+        'q': q,
+        'url_reset': reverse('common:souvenirs'),
+        'est_staff': request.user.is_staff,
+        # Même volet réduit que ses sœurs catalogues (`tests_inspecteur_registre`).
+        'volet': volet(medias=False, actions=False),
+    })
+
+
 def unites_partageables(profile):
     """Les unités vers lesquelles CE profil peut réellement partager — `[{code, nom}]`.
 

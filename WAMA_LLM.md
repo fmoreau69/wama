@@ -201,7 +201,7 @@ Trois notions distinctes portent le mot « niveau » ; elles se croisent mais ne
 
 | Axe | Question à laquelle il répond | Mécanisme | État mesuré |
 |---|---|---|---|
-| **A. Hiérarchie ORGANISATIONNELLE** | qui appartient à quoi ? | arbre `OrgUnit` (`parent` : institut→université→département→labo→service→équipe) + affiliations du profil (`org_affiliations` — une **LISTE** : multi-labos, multi-équipes) | mécanisme ✅ (héritage ancêtres testé) · **données ❌ : 0 `OrgUnit` en base** |
+| **A. Hiérarchie ORGANISATIONNELLE** | qui appartient à quoi ? | arbre `OrgUnit` (`parent` : institut→université→département→labo→service→équipe) + affiliations du profil (`org_affiliations` — une **LISTE** : multi-labos, multi-équipes) | mécanisme ✅ (héritage ancêtres testé) · données ✅ **5 `OrgUnit` en base** (mesuré 2026-09-09 ; cette ligne annonçait **0**, chiffre du 22/08 jamais repris — le niveau `unit` a donc de quoi s'accrocher) |
 | **B. Niveaux de PARTAGE du RAG** | qui peut rappeler ce document ? | `ScopedVisibility` porté par chaque fragment : `user` / `unit` / `project` / `public` | écriture `user`+`unit` ✅ (`project` ANNONCÉ, `public` plus tard) · lecture `rag_niveaux` ✅ : son RAG / labo / les deux / **rien** |
 | **C. Niveaux d'ENRICHISSEMENT du prompt** (vision §10) | qu'ajoute-t-on au prompt avant le modèle ? | global (règles DANS le code : langue d'émission, glossaire verbatim) · métier (skills `<app>-<domaine>.md`) · organisationnel · utilisateur | global ✅ · métier ✅ · **organisationnel ❌** · **utilisateur ❌** |
 
@@ -212,6 +212,24 @@ appliqué au prompt système ; les SKILLS disent *comment traiter* — composabl
 l'enrichissement. Contrats opposés : un skill de rôle ne transforme rien, un skill
 d'enrichissement transforme un prompt et ne rend que lui. Les confondre coûte une passe LLM
 inutile ou un assistant sans posture.
+
+> ✅ **Cette distinction est CÂBLÉE depuis le 2026-08-27, pas seulement écrite ici** :
+> `common/services/skills_catalog.py` déclare trois familles (`enrichissement` / `role` /
+> `repli`), calcule *qui consomme quoi* en REJOUANT la résolution, et affiche les deux écarts
+> muets ailleurs (skill orphelin, target sans skill). Mesuré le 2026-09-09 :
+> **5 enrichissement · 5 rôle · 1 repli · 0 orphelin**, et 1 target orphelin
+> (`assistant · message · intent`) qui est ATTENDU — ce kind ne fait que du routage de langue
+> (§1). Le registre `skills` ne rend qu'un COMPTEUR (11) : lire ce total comme la structure fait
+> conclure à un mélange qui n'existe pas.
+>
+> 🔒 **La frontière de FORMAT en découle, et c'est le consommateur FINAL qui la fixe**
+> (tranché avec Fabien le 2026-09-09) : un modèle de diffusion, SAM3 ou MusicGen ne peuvent
+> qu'**encaisser une chaîne** — ils ne savent pas choisir une consigne, donc c'est le CODE qui
+> choisit pour eux (`resolve_skill`), et le fichier reste **nu** (il EST le system prompt). Un
+> AGENT lit des descriptions et choisit — d'où le format `SKILL.md` à frontmatter, réservé aux
+> consignes de DÉVELOPPEMENT (`.claude/skills/`, cf. `ROADMAP §16.7`). Deux formats, parce que
+> deux mécanismes de SÉLECTION — pas deux goûts. Mettre un frontmatter sur `imager-image.md`
+> n'apporterait rien : personne ne le choisit, il se calcule.
 
 | Famille (vision §9) | Réalité dans le code | État |
 |---|---|---|

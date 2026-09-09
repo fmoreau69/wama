@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% load wama_catalog %}
+
+{% comment %}
+« Mes souvenirs » — la page JUMELLE de « Mon RAG » (13ᵉ registre, 2026-09-09).
+
+Le trio se lit ensemble, et c'est pour ça que les trois pages sont voisines dans le menu :
+  • le JOURNAL montre ce que l'utilisateur a FAIT ;
+  • « Mon RAG » ce qu'il a CONFIÉ à l'IA ;
+  • cette page ce que WAMA RETIENT de lui.
+
+`MemoryItem` et `RagChunk` héritent des mêmes `Embedded` + `ScopedVisibility` et partagent un
+seul `recall()` — mais le fragment avait sa page et son entrée de registre, le souvenir n'avait
+ni l'une ni l'autre. Son seul accès était `memory_recall` (tool_api), c'est-à-dire l'assistant
+en langage naturel : on pouvait interroger sa mémoire, jamais la LIRE.
+
+⚠ Cette page n'ÉCRIT rien — ni ajout, ni approbation. Rendre visible une file de revue qui ne
+l'était pour personne est la marche 1 ; le geste d'approbation est la marche 2, et l'ouvrir ici
+sans l'avoir tracé referait le « chemin parallèle » que la doctrine interdit.
+{% endcomment %}
+
+{% block title %}WAMA — Mes souvenirs{% endblock %}
+
+{% block extra_css %}
+<style>
+    .souv-page { padding: 2rem 0; }
+    .souv-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: .25rem; }
+    .souv-page .subtitle { color: #6c757d; font-size: .9rem; margin-bottom: 1.5rem; }
+    .souv-item { background: #1a1a2e; border: 1px solid #2d2d4e; border-radius: .4rem;
+                 padding: .6rem .8rem; margin-bottom: .5rem; }
+    .souv-item .contenu { color: #e9ecef; }
+    .souv-item .meta { color: #6c757d; font-size: .82rem; margin-top: .3rem;
+                       display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+    .souv-kind { border-radius: 999px; padding: .15rem .6rem; font-size: .75rem;
+                 border: 1px solid #2d2d4e; color: #adb5bd; }
+    .souv-kind.semantic { border-color: #1c4f6b; color: #6ec8e7; }
+    .souv-kind.episodic { border-color: #6b5a1c; color: #e7d16e; }
+    .souv-kind.procedural { border-color: #1c6b45; color: #6ee7a8; }
+    .souv-alerte { color: #ffc107; font-size: .78rem; }
+    .souv-revue { background: #16213e; border: 1px solid #4a3a1a; border-radius: .5rem;
+                  padding: 1rem; margin-top: 2rem; }
+    .souv-revue h2 { font-size: .95rem; color: #ffc107; font-weight: 600; margin-bottom: .35rem; }
+    .souv-revue .hint { color: #6c757d; font-size: .82rem; margin-bottom: .75rem; }
+    .souv-vide { color: #6c757d; text-align: center; padding: 3rem 0; }
+</style>
+{% endblock %}
+
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
+{% block content %}
+<div class="container souv-page">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <h1 class="mb-0">Mes souvenirs</h1>
+    {% refresh_button "souvenirs" %}
+  </div>
+  <p class="subtitle">
+    Ce que WAMA retient — faits, événements et procédures rappelables par l'assistant.
+    {{ total }} souvenir{{ total|pluralize }} actif{{ total|pluralize }}.
+    {% if sans_vecteur %}
+      <span class="souv-alerte">{{ sans_vecteur }} sans vecteur (rappel lexical seul).</span>
+    {% endif %}
+  </p>
+
+  {% comment %}Barre COMMUNE en mode `server`, comme le journal, le RAG et les catalogues.
+  Aucune barre propre à cette page (R21).{% endcomment %}
+  <form method="get" action="{% url 'common:souvenirs' %}">
+    {% include 'common/_filter_bar.html' with facettes=facettes mode='server' recherche=q placeholder='Rechercher un souvenir…' url_reset=url_reset %}
+  </form>
+
+  {% for s in actifs %}
+  <div class="souv-item">
+    <div class="contenu">{{ s.content }}</div>
+    <div class="meta">
+      <span class="souv-kind {{ s.kind }}">{{ s.kind_libelle }}</span>
+      {% if s.subject %}<span>{{ s.subject }}</span>{% endif %}
+      <span>{{ s.cree_le|date:"d/m/Y" }}</span>
+      <span>provenance : {{ s.provenance }}</span>
+      {% if s.sans_vecteur %}<span class="souv-alerte">sans vecteur</span>{% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="souv-vide">
+    <p>Aucun souvenir actif.</p>
+    <p class="small">
+      Un souvenir n'apparaît ici qu'une fois <strong>approuvé</strong> : tout ce qui sort d'un LLM
+      arrive non validé et reste invisible au rappel, par conception.
+    </p>
+  </div>
+  {% endfor %}
+
+  {% if est_staff %}
+  <div class="souv-revue">
+    <h2><i class="fas fa-clock me-1"></i> File de revue — {{ attente|length }} souvenir{{ attente|length|pluralize }} non approuvé{{ attente|length|pluralize }}</h2>
+    <p class="hint">
+      Invisibles au rappel tant qu'un humain ne les a pas validés (gouvernance : sur 6 audits
+      wama-dev-ai, les affirmations d'absence étaient fausses 4 fois sur 6). Cette liste n'est
+      volontairement pas scopée — d'où sa réserve au staff.
+    </p>
+    {% for s in attente %}
+    <div class="souv-item">
+      <div class="contenu">{{ s.content }}</div>
+      <div class="meta">
+        <span class="souv-kind {{ s.kind }}">{{ s.kind_libelle }}</span>
+        {% if s.subject %}<span>{{ s.subject }}</span>{% endif %}
+        <span>{{ s.cree_le|date:"d/m/Y" }}</span>
+        <span>provenance : {{ s.provenance }}</span>
+        <span>propriétaire : {{ s.proprietaire|default:"— aucun —" }}</span>
+      </div>
+    </div>
+    {% empty %}
+    <p class="hint mb-0">Rien en attente.</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

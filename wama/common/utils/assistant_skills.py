@@ -146,8 +146,16 @@ def laboratory_context(user, question: str, key: str = None) -> str:
         # NIVEAUX choisis par l'utilisateur (page « Mon RAG », jalon 14). Trois états :
         # NULL ⇒ None ⇒ tous les niveaux visibles (défaut historique) ; [] ⇒ ne rien rappeler
         # du RAG — un choix explicite qu'on RESPECTE, y compris quand il vide le contexte ;
-        # sinon la sélection. La mémoire (souvenirs) n'est PAS concernée : elle n'a pas de
-        # niveaux de partage, c'est le RAG seul que l'utilisateur dose.
+        # sinon la sélection.
+        #
+        # ⚠ CORRIGÉ le 2026-09-09 — ces lignes affirmaient que la mémoire « n'a pas de niveaux
+        # de partage ». C'est FAUX : `MemoryItem(Embedded, ScopedVisibility)` (models.py) porte
+        # les MÊMES quatre niveaux que le fragment, et `remember()` accepte `visibility=`,
+        # `scope_org_unit=`, `scope_project=`. Ce qui manque au souvenir n'est pas le NIVEAU,
+        # c'est le SÉLECTEUR de rappel : `rag_niveaux` ne filtre que `_visible_rag`, tandis que
+        # `_visible_memory` prend tout le visible. Dit autrement : on PEUT partager un souvenir
+        # au labo, on ne peut simplement pas encore choisir de ne rappeler QUE ceux-là.
+        # (Laissée telle quelle, l'ancienne rédaction faisait conclure à un mécanisme absent.)
         prof = getattr(user, 'profile', None)
         niveaux = getattr(prof, 'rag_niveaux_rappel', None) if prof else None
         hits = recall(question, user=user, k=RECALL_K,

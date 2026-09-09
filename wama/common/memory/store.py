@@ -591,3 +591,61 @@ def expire(*, jours_non_approuve=90, dry_run=True):
         logger.info('[memory] expire() : %s brouillons non approuvés purgés (>%s j)',
                     n, jours_non_approuve)
     return resume
+
+
+# ──────────────────────────────────────────────────────── lister (surface) ────
+
+def list_souvenirs(user, *, en_attente=False):
+    """
+    Les souvenirs à AFFICHER — matière de la page « Mes souvenirs » (jumelle de « Mon RAG »).
+
+    Deux listes, et elles ne répondent pas à la même question :
+
+    - `en_attente=False` → **exactement ce que `recall()` peut rendre** : on réutilise
+      `_visible_memory(user)`, jamais une requête parallèle. Si la page filtrait autrement, elle
+      montrerait des souvenirs que l'assistant ne verra jamais — ou l'inverse — et on déboguerait
+      une différence entre deux vérités au lieu d'une seule.
+    - `en_attente=True` → la **FILE DE REVUE** : les non approuvés, que la gouvernance rend
+      volontairement invisibles au rappel (`§6`). Sans surface, cette file est un cul-de-sac —
+      c'est l'état mesuré le 2026-09-09 : 25 souvenirs y dorment depuis l'import de
+      `memory.json`, et il fallait un `manage.py shell` pour les voir.
+
+    ⚠ LA FILE DE REVUE N'EST PAS SCOPÉE, ET C'EST DÉLIBÉRÉ — donc réservée au staff par la vue.
+    Raison : les 25 souvenirs importés portent `user=NULL` + `visibility='private'`, que
+    `scoped_visible_q()` ne matche par AUCUNE de ses branches (ni public, ni mien, ni unité, ni
+    projet). Les scoper ici les rendrait tous invisibles et la page serait vide.
+    ⚠⚠ Ce n'est PAS un contournement de la gouvernance : les trois filtres de `_visible_memory`
+    gardent le RAPPEL, et le rappel n'est pas touché. Une file de revue qu'on ne peut pas lire
+    n'est pas une garde, c'est un oubli. **Ne jamais réutiliser ce chemin pour du rappel.**
+
+    ⚠ CE QUE LA PAGE VA RÉVÉLER, et qu'il faut traiter à la SOURCE : ces 25 lignes resteront
+    irrécupérables même APRÈS approbation, puisque `scoped_visible_q` les exclut par construction.
+    Le correctif est dans `memory/dev_ai.py` (écrire avec un propriétaire ou un scope d'unité),
+    pas dans un assouplissement des filtres.
+
+    Rend une liste de dicts prêts à rendre, du plus récent au plus ancien.
+    """
+    from ..models import MemoryItem
+
+    if en_attente:
+        qs = (MemoryItem.objects.filter(approved_at__isnull=True, superseded_by__isnull=True)
+              .order_by('-created_at'))
+    else:
+        qs = _visible_memory(user).order_by('-created_at')
+
+    return [{
+        'id': m.id,
+        'kind': m.kind,
+        'subject': m.subject,
+        'content': m.content,
+        'provenance': m.provenance,
+        'source_app': m.source_app,
+        'confidence': m.confidence,
+        'cree_le': m.created_at,
+        'approuve_le': m.approved_at,
+        'niveau': m.visibility,
+        'proprietaire': getattr(m.user, 'username', '') or '',
+        # Un souvenir sans vecteur ne sort que du rappel LEXICAL : on l'affiche plutôt que de
+        # le taire, même raison que `vectorises < fragments` sur la page RAG.
+        'sans_vecteur': m.embedding is None,
+    } for m in qs]

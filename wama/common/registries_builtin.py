@@ -297,6 +297,71 @@ register(Registry(
 ))
 
 
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# SOUVENIRS — le JUMEAU manquant du RAG (13ᵉ registre, 2026-09-09)
+#
+# `MemoryItem` et `RagChunk` héritent des MÊMES `Embedded` + `ScopedVisibility` et partagent UN
+# seul `recall()`. Le fragment avait sa page et son entrée ici ; le souvenir n'avait NI l'une NI
+# l'autre — son seul accès était `memory_recall` (tool_api), c'est-à-dire l'assistant en langage
+# naturel. Personne ne pouvait LISTER ses souvenirs.
+#
+# Deux jumeaux aux surfaces asymétriques finissent par se lire comme deux natures différentes,
+# ce qui est faux. Et l'absence de surface a un coût mesuré : la gouvernance (`WAMA_MEMORY §6`)
+# EXIGE une validation humaine, mais 25 souvenirs importés de `memory.json` attendaient sans
+# qu'aucun écran ne les montre. Une file de revue illisible n'est pas une garde.
+#
+# ⚠ Pas de `count` : comme `rag`, la page est PAR UTILISATEUR — un total global ne voudrait rien
+# dire sur la carte des registres.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+register(Registry(
+    key='souvenirs', label='Mes souvenirs', nature=DERIVED,
+    source="`MemoryItem` (`common/memory/`, Postgres + pgvector) — le jumeau du fragment RAG",
+    url_name='common:souvenirs', permission='auth',
+    doc='WAMA_MEMORY.md',
+    description="Ce que WAMA retient : faits, événements, procédures. Lu en base à chaque "
+                "affichage — rien à actualiser. La liste ACTIVE est exactement ce que `recall()` "
+                "peut rendre (même requête, jamais une seconde vérité) ; la FILE DE REVUE des "
+                "souvenirs non approuvés est réservée au staff.",
+))
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# PROMPTS — la déclaration qui manquait à la carte (14ᵉ registre, 2026-09-09)
+#
+# `PROMPT_TARGETS` dit QUEL champ de QUELLE app est un prompt, son KIND, son modèle cible et son
+# domaine. C'est le pivot métadonnée-driven de toute la couche LLM — et il était le seul
+# mécanisme de ce genre SANS surface : ni entrée, ni compteur, ni page. Il n'était que LU, par la
+# page des skills, pour calculer les liens.
+#
+# Le déclarer ici fait de la page `skills_catalog` ce qu'elle est déjà en pratique : la vue
+# « Prompts & Skills » — les DÉCLARATIONS d'un côté, les CONSIGNES de l'autre, et le lien calculé
+# entre les deux (avec ses deux écarts : skill orphelin, target sans skill).
+#
+# Nature DERIVED : c'est un dict figé dans le code, relu à chaque import. Il n'y a rien à
+# actualiser, et un bouton le prétendant serait le « bouton qui ment » que ce module combat.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def _count_prompt_targets() -> int:
+    """Nombre de CHAMPS-prompt déclarés, toutes apps confondues — pas le nombre d'apps."""
+    from .utils.app_metadata import PROMPT_TARGETS
+    return sum(len(t) for t in PROMPT_TARGETS.values())
+
+
+register(Registry(
+    key='prompts', label='Prompts déclarés', nature=DERIVED,
+    source="`PROMPT_TARGETS` (`common/utils/app_metadata.py`) — un champ-prompt déclaré par app, "
+           "avec son KIND, son modèle cible et son domaine",
+    count=_count_prompt_targets,
+    url_name='common:skills_catalog', permission='auth',
+    doc='WAMA_LLM.md',
+    description="La DÉCLARATION que la pipeline de prompts consomme : quel champ est un prompt, "
+                "de quel KIND, vers quel modèle. Figé dans le code, donc toujours à jour. Partage "
+                "sa page avec les skills : c'est le même écran qui montre la déclaration, la "
+                "consigne, et le lien calculé entre les deux.",
+))
+
+
 def _count_backends() -> int:
     from .services.backend_inventory import count
     return count()
