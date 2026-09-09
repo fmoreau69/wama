@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Trajectoires monde des AUTRES véhicules : c'est leur passage répété qui révèle les voies, sans carte.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -22,7 +22,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Trace de la navette — situe l'intersection observée.",
         "group": "reference",
         "key": "track",
         "optional": false,
@@ -35,7 +35,7 @@
       {
         "cardinality": "one",
         "data_type": "segments",
-        "description": "",
+        "description": "Une branche par voie apprise : `a`/`b` en bornent le segment monde, `bearing_deg` donne son azimut. APPRISES du trafic, donc absentes si personne n'est passé.",
         "key": "branches",
         "optional": false,
         "produced_fields": [

@@ -24,7 +24,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections par frame. `track_id` est LOCAL à une caméra — l'identité inter-caméras est le rôle du tracking 360° (`global_track_id`). Les confondre associerait deux objets distincts vus par deux caméras.",
         "key": "detections",
         "optional": false,
         "produced_fields": [

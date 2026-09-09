@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "events",
-        "description": "",
+        "description": "Événements à filtrer : seul leur INSTANT compte — un événement est ponctuel, il tombe dans un segment ou non.",
         "group": "travail",
         "key": "events",
         "optional": false,

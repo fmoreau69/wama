@@ -21,7 +21,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections portant DÉJÀ leur profondeur de contact : cette passe RELIT, elle ne ré-infère jamais (aucun GPU).",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -37,7 +37,7 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
-        "description": "",
+        "description": "Sortie de `depth_ground_plane`, réémise ici parce que la passe enchaîne les deux calculs.",
         "key": "ground_calib",
         "optional": false,
         "produced_fields": [
@@ -50,7 +50,7 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
-        "description": "",
+        "description": "Sortie de `depth_distance_report`, même raison.",
         "key": "depth_report",
         "optional": false,
         "produced_fields": [

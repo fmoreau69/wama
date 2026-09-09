@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "table",
-        "description": "",
+        "description": "Frames caméra (RTMaps).",
         "group": "travail",
         "key": "video",
         "optional": false,
@@ -24,7 +24,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Deux masques par frame : `drivable` = zone roulable, `lane` = lignes de voie. Masques image, PAS des objets suivis — ils n'ont ni `track_id` ni distance.",
         "key": "lanes",
         "optional": false,
         "produced_fields": [

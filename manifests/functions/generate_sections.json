@@ -27,7 +27,7 @@
       {
         "cardinality": "one",
         "data_type": "segments",
-        "description": "",
+        "description": "Une plage temporelle par PASSAGE sur une section routière — pas une par section : repasser deux fois au même endroit donne deux segments, distingués au besoin par `direction` (±1).",
         "key": "sections",
         "optional": false,
         "produced_fields": [

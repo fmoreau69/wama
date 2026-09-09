@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "segments",
-        "description": "",
+        "description": "Marquages vus par la CAMÉRA et projetés au monde — le côté mesuré de la comparaison ; l'orthophoto fournit l'autre.",
         "group": "travail",
         "key": "markings",
         "optional": false,
@@ -23,7 +23,7 @@
       {
         "cardinality": "one",
         "data_type": "road_map",
-        "description": "",
+        "description": "Référentiel routier, OPTIONNEL : sert au masquage satellite (bâti) qui pondère la confiance, pas au calcul de l'offset.",
         "group": "reference",
         "key": "road_map",
         "optional": true,
@@ -40,7 +40,7 @@
           "orthophoto",
           "segmentation"
         ],
-        "description": "",
+        "description": "Décalage est/nord en mètres entre marquages caméra et orthophoto — la SEULE position absolue de la chaîne. MESURE seule : l'appliquer est le rôle d'`ortho_correction`.",
         "estimate_field": "de_m",
         "estimates": "offset",
         "key": "recalage",

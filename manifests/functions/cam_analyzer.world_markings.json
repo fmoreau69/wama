@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Marquages segmentés en coordonnées IMAGE (sortie SAM3) — c'est cette passe qui les projette au sol.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -22,7 +22,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Pose de la navette à chaque passage : elle fournit la projection image→monde et permet d'AGRÉGER les passages successifs sur un même marquage.",
         "group": "reference",
         "key": "track",
         "optional": false,
@@ -35,7 +35,7 @@
       {
         "cardinality": "one",
         "data_type": "segments",
-        "description": "",
+        "description": "Marquages en MONDE, un segment `a`→`b` par marquage, consolidés sur plusieurs passages.",
         "key": "markings",
         "optional": false,
         "produced_fields": [

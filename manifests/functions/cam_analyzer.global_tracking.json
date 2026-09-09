@@ -23,7 +23,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Pose de la navette : c'est elle qui ancre les détections dans le monde. Sans elle, `world_en` n'a pas de sens.",
         "group": "reference",
         "key": "track",
         "optional": false,
@@ -43,7 +43,7 @@
           "bbox",
           "gps"
         ],
-        "description": "",
+        "description": "Détections des 4 caméras RÉUNIES sous une identité unique (`global_track_id`) et posées en coordonnées monde est/nord (`world_en`).",
         "estimate_field": "world_en",
         "estimates": "position",
         "key": "detections",

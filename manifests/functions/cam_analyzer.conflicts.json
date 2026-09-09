@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "events",
-        "description": "",
+        "description": "Plages d'intérêt par objet (sortie de `temporal_segments`) — elles bornent QUAND chercher un conflit.",
         "group": "travail",
         "key": "segments",
         "optional": false,
@@ -23,7 +23,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Trajectoires sur ces plages — elles disent QUI est en conflit avec qui. Aucun champ n'est exigé ici : la passe lit ce que la session a stocké.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -36,7 +36,7 @@
       {
         "cardinality": "one",
         "data_type": "events",
-        "description": "",
+        "description": "Un événement daté par conflit détecté, gradué par `severity`. C'est la sortie MÉTIER de la chaîne.",
         "key": "conflicts",
         "optional": false,
         "produced_fields": [

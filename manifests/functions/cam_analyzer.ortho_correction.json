@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
-        "description": "",
+        "description": "Offsets MESURÉS par `ortho_recalage`, par intersection.",
         "group": "travail",
         "key": "recalage",
         "optional": false,
@@ -25,7 +25,7 @@
       {
         "cardinality": "one",
         "data_type": "table",
-        "description": "",
+        "description": "Ce qui est PERSISTÉ de la correction : les `anchors` (quelques repères, jamais une trace dupliquée — tout consommateur rejoue l'interpolation), le `camera_bias` écarté à dessein, et le masquage de ciel qui atténue la correction là où le GPS est déjà bon.",
         "key": "ortho_correction",
         "optional": false,
         "produced_fields": [

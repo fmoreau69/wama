@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Trace de la navette : c'est sa POSITION qui décide de l'entrée et de la sortie du rayon d'analyse.",
         "group": "travail",
         "key": "track",
         "optional": false,
@@ -27,7 +27,7 @@
       {
         "cardinality": "one",
         "data_type": "segments",
-        "description": "",
+        "description": "Une fenêtre par passage d'intersection ; `intersection` nomme laquelle. C'est le PÉRIMÈTRE que les passes aval regardent — hors fenêtre, elles ne calculent rien.",
         "key": "windows",
         "optional": false,
         "produced_fields": [

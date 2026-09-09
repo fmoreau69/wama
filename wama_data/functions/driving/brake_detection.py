@@ -139,7 +139,12 @@ SPEC = register(FunctionSpec(
     ],
     outputs=[
         PortSpec('events', DataType.EVENTS,
-                 produced_fields=['time', 'duration', 'type', 'level', 'peak_decel']),
+                 produced_fields=['time', 'duration', 'type', 'level', 'peak_decel'],
+                 description="Un événement par plage de freinage. `level` gradue la sévérité "
+                             "(modéré → urgence) et `peak_decel` porte la décélération de "
+                             "pointe, en m/s² NÉGATIFS. ⚠ Les seuils qui décident du niveau "
+                             "sont des a-priori à recalibrer (tag `needs-calibration`) : "
+                             "l'événement est fiable, sa GRADUATION ne l'est pas encore."),
     ],
     params=[
         ParamSpec('trigger', 'float', -1.5, -10.0, 0.0, unit='m/s²',

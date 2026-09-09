@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Trace BRUTE de la navette, telle que décodée du `.rec`.",
         "group": "travail",
         "key": "track",
         "optional": false,
@@ -30,7 +30,7 @@
         "derived_from": [
           "gps"
         ],
-        "description": "",
+        "description": "Trace filtrée en champs SÉPARÉS (`_f`) : le brut n'est jamais écrasé, c'est la bascule ⚑ qui choisit à la lecture. `heading_f_held` marque les caps TENUS (navette quasi immobile) — un cap tenu n'est pas une mesure.",
         "estimate_field": "heading_f",
         "estimates": "heading",
         "key": "track",

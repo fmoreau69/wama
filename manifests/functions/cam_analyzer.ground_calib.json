@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections DÉJÀ suivies en monde : la calibration se règle sur les véhicules STATIONNÉS, qu'on ne peut isoler qu'avec une identité globale.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -23,7 +23,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Trace de la navette : l'ego-motion fournit la parallaxe qui rend le pitch observable sans mire.",
         "group": "reference",
         "key": "track",
         "optional": false,
@@ -43,7 +43,7 @@
           "bbox",
           "gps"
         ],
-        "description": "",
+        "description": "Pose de la caméra par rapport au sol — un seul couple pour la session, pas une valeur par frame.",
         "estimate_field": "pitch_deg",
         "estimates": "ground_plane",
         "key": "ground_calib",

@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections suivies ET distancées : c'est l'ÉVOLUTION de la distance le long d'une piste qui distingue une approche d'un suivi ou d'un passage transverse.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -26,7 +26,7 @@
       {
         "cardinality": "one",
         "data_type": "events",
-        "description": "",
+        "description": "Plages temporelles d'intérêt par objet. ⚠ Typé `events` et non `segments` : ces plages sont rattachées à un objet suivi, pas à la session.",
         "key": "segments",
         "optional": false,
         "produced_fields": [

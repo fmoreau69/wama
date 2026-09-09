@@ -181,7 +181,12 @@ SPEC = register(FunctionSpec(
     ],
     outputs=[
         PortSpec('track', DataType.GEO_TRACK,
-                 produced_fields=['section_id', 'direction', 'matched_bearing', 'match_dist_m']),
+                 produced_fields=['section_id', 'direction', 'matched_bearing', 'match_dist_m'],
+                 description="La MÊME trace, enrichie du rattachement routier : section, sens "
+                             "de circulation (±1) et cap de l'axe (`matched_bearing`, plus "
+                             "propre que le cap GPS à basse vitesse). `match_dist_m` mesure la "
+                             "confiance du rattachement — un point loin de tout axe garde ses "
+                             "colonnes mais son `section_id` ne vaut rien."),
     ],
     params=[
         ParamSpec('max_dist_m', 'float', 20.0, 1.0, 100.0, unit='m',

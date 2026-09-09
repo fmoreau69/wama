@@ -181,7 +181,12 @@ SPEC_GROUND = register(FunctionSpec(
     ],
     outputs=[
         PortSpec('ground_plane', DataType.SCALAR,
-                 produced_fields=['pitch_deg', 'height_m', 'n_inliers', 'rms_m']),
+                 produced_fields=['pitch_deg', 'height_m', 'n_inliers', 'rms_m'],
+                 description="Plan de sol ajusté : pose de la caméra (`pitch_deg`, `height_m`) "
+                             "ET la qualité de l'ajustement — `n_inliers` (combien de points "
+                             "soutiennent le plan) et `rms_m` (résidu). Ces deux derniers ne "
+                             "sont pas décoratifs : un plan tenu par peu d'inliers ou à fort "
+                             "résidu ne vaut pas celui d'une route bien vue."),
     ],
     params=[
         ParamSpec('z_min', 'float', 1.5, 0.1, 20.0, 'm', 'Profondeur min retenue (route utile).'),
@@ -209,7 +214,10 @@ SPEC_CONTACT = register(FunctionSpec(
                  description='Objets dont on mesure la distance au contact-sol.'),
     ],
     outputs=[
-        PortSpec('detections', DataType.DETECTIONS, produced_fields=['depth_distance_m']),
+        PortSpec('detections', DataType.DETECTIONS, produced_fields=['depth_distance_m'],
+                 description="Les mêmes objets, enrichis d'une distance en mètres lue au point "
+                             "de contact-sol. Champ ADDITIF : la distance pinhole existante "
+                             "n'est pas remplacée — c'est leur écart qui fait la mesure."),
     ],
     params=[
         ParamSpec('half', 'int', 3, 0, 32, 'px', 'Demi-taille du patch médian.'),

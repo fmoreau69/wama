@@ -50,7 +50,7 @@
         "derived_from": [
           "depth_map"
         ],
-        "description": "",
+        "description": "Les détections reçoivent une distance issue de la CARTE de profondeur, indépendante de la bbox — c'est cette indépendance qui autorise à la fusionner avec le pinhole plutôt qu'à seulement la confronter.",
         "estimate_field": "depth_distance_m",
         "estimates": "distance",
         "key": "detections",

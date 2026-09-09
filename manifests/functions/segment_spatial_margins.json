@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "segments",
-        "description": "",
+        "description": "Segments à élargir en DISTANCE et non en durée : « 50 m avant l'entrée de zone » ne se traduit en instants que via la trace, et vaut donc un décalage différent selon la vitesse.",
         "group": "travail",
         "key": "segments",
         "optional": false,

@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "segments",
-        "description": "",
+        "description": "Segments à élargir ou rétrécir. Leurs bornes sont des INSTANTS : la marge est en secondes (pour une marge en distance parcourue, voir `segment_spatial_margins`).",
         "group": "travail",
         "key": "segments",
         "optional": false,

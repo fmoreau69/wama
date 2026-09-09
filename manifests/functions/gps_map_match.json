@@ -39,7 +39,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "La MÊME trace, enrichie du rattachement routier : section, sens de circulation (±1) et cap de l'axe (`matched_bearing`, plus propre que le cap GPS à basse vitesse). `match_dist_m` mesure la confiance du rattachement — un point loin de tout axe garde ses colonnes mais son `section_id` ne vaut rien.",
         "key": "track",
         "optional": false,
         "produced_fields": [

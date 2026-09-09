@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections d'UNE caméra : la hauteur de `bbox` donne la distance pinhole, `track_id` permet le filtrage temporel.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -22,7 +22,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Trace de la navette, OPTIONNELLE : sans elle, la vitesse reste relative à la caméra au lieu d'être absolue.",
         "group": "reference",
         "key": "track",
         "optional": true,
@@ -38,7 +38,7 @@
         "derived_from": [
           "bbox"
         ],
-        "description": "",
+        "description": "Les mêmes détections, enrichies. `ground_xy` est le point de contact au sol dans le repère caméra — pas encore monde (c'est le tracking 360° qui y projette).",
         "estimate_field": "distance_m",
         "estimates": "distance",
         "key": "detections",

@@ -36,7 +36,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Les mêmes objets, enrichis d'une distance en mètres lue au point de contact-sol. Champ ADDITIF : la distance pinhole existante n'est pas remplacée — c'est leur écart qui fait la mesure.",
         "key": "detections",
         "optional": false,
         "produced_fields": [

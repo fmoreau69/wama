@@ -102,7 +102,10 @@ SPEC = register(FunctionSpec(
     ],
     outputs=[
         PortSpec('sections', DataType.SEGMENTS,
-                 produced_fields=['start', 'end', 'section_id', 'direction']),
+                 produced_fields=['start', 'end', 'section_id', 'direction'],
+                 description="Une plage temporelle par PASSAGE sur une section routière — pas "
+                             "une par section : repasser deux fois au même endroit donne deux "
+                             "segments, distingués au besoin par `direction` (±1)."),
     ],
     params=[
         ParamSpec('guard_s', 'float', 0.3, 0.0, 2.0, unit='s',

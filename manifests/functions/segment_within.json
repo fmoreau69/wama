@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "segments",
-        "description": "",
+        "description": "Segments à filtrer — ceux qu'on garde ou qu'on écarte.",
         "group": "travail",
         "key": "segments",
         "optional": false,

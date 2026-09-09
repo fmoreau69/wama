@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections à filtrer : `track_id` est indispensable — le critère porte sur l'IMMOBILITÉ d'une piste dans le temps, pas sur une frame isolée.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -22,7 +22,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Trace de la navette : c'est son DÉPLACEMENT qui rend suspecte une bbox immobile (un reflet de vitrage suit la caméra, un objet réel non).",
         "group": "reference",
         "key": "track",
         "optional": false,
@@ -38,7 +38,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Les mêmes détections, MARQUÉES `artifact` — aucune n'est supprimée : l'aval décide s'il les écarte.",
         "key": "detections",
         "optional": false,
         "produced_fields": [

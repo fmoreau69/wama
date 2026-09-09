@@ -119,7 +119,11 @@ SPEC = register(FunctionSpec(
     ],
     outputs=[
         PortSpec('events', DataType.EVENTS,
-                 produced_fields=['clean_tag', 'gestion', 'valid', 'near_tags']),
+                 produced_fields=['clean_tag', 'gestion', 'valid', 'near_tags'],
+                 description="Les taps de l'opérateur, consolidés. ⚠ Rien n'est SUPPRIMÉ : une "
+                             "annulation se marque `valid=False` plutôt que d'effacer la ligne "
+                             "— la trace de ce que l'opérateur a fait, y compris se reprendre, "
+                             "fait partie de la donnée d'expérimentation."),
     ],
     params=[
         ParamSpec('gestion_window_s', 'float', 10.0, 1.0, 60.0, unit='s',

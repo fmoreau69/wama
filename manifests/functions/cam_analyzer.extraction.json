@@ -40,7 +40,7 @@
         "derived_from": [
           "gps"
         ],
-        "description": "",
+        "description": "Trace GPS de la navette annotée cap/vitesse, synchronisée sur les vidéos. C'est le RÉFÉRENTIEL de toute la chaîne : toutes les passes aval s'y rapportent.",
         "estimate_field": "heading",
         "estimates": "heading",
         "key": "track",

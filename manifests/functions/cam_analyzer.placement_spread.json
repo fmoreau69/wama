@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections posées en monde et suivies : la métrique mesure la DISPERSION des positions d'une même piste stationnée — sans identité globale, il n'y a rien à disperser.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -25,7 +25,7 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
-        "description": "",
+        "description": "Étalement RMS en mètres, un jeu par run. PLUS BAS = MEILLEUR ; `n_tracks` dit sur combien de pistes il porte (un RMS sur 2 pistes ne se compare pas à un RMS sur 50).",
         "key": "placement_spread",
         "optional": false,
         "produced_fields": [

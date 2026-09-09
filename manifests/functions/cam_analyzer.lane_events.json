@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections suivies : un franchissement est un CHANGEMENT de voie d'une même piste, il ne se lit pas sur une frame.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -25,7 +25,7 @@
       {
         "cardinality": "one",
         "data_type": "events",
-        "description": "",
+        "description": "Un événement daté par franchissement ou attribution de voie ; `lane` nomme la voie concernée.",
         "key": "events",
         "optional": false,
         "produced_fields": [

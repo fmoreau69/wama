@@ -27,7 +27,7 @@
       {
         "cardinality": "one",
         "data_type": "events",
-        "description": "",
+        "description": "Les taps de l'opérateur, consolidés. ⚠ Rien n'est SUPPRIMÉ : une annulation se marque `valid=False` plutôt que d'effacer la ligne — la trace de ce que l'opérateur a fait, y compris se reprendre, fait partie de la donnée d'expérimentation.",
         "key": "events",
         "optional": false,
         "produced_fields": [

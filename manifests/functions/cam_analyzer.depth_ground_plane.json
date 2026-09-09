@@ -33,7 +33,7 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
-        "description": "",
+        "description": "Trace de la navette : situe les cartes de profondeur dans la session (elle n'entre pas dans l'ajustement du plan).",
         "group": "reference",
         "key": "track",
         "optional": false,
@@ -53,7 +53,7 @@
           "depth_map",
           "segmentation"
         ],
-        "description": "",
+        "description": "Même grandeur que `ground_calib`, obtenue par une donnée native DIFFÉRENTE : `source` dit laquelle a servi — c'est ce champ qui rend l'A/B lisible.",
         "estimate_field": "pitch_deg",
         "estimates": "ground_plane",
         "key": "ground_calib",

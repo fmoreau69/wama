@@ -9,7 +9,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Trajectoires MONDE suivies : la prédiction extrapole une trajectoire, ce qui exige des positions comparables entre caméras — donc `world_en`, pas la bbox.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -29,7 +29,7 @@
           "bbox",
           "gps"
         ],
-        "description": "",
+        "description": "Les mêmes détections, RÉ-ANNOTÉES : temps avant collision et temps post-empiètement, tous deux PRÉDITS par extrapolation — jamais observés.",
         "estimate_field": "prediction_ttc",
         "estimates": "ttc",
         "key": "detections",

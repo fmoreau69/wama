@@ -34,7 +34,7 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
-        "description": "",
+        "description": "Plan de sol ajusté : pose de la caméra (`pitch_deg`, `height_m`) ET la qualité de l'ajustement — `n_inliers` (combien de points soutiennent le plan) et `rms_m` (résidu). Ces deux derniers ne sont pas décoratifs : un plan tenu par peu d'inliers ou à fort résidu ne vaut pas celui d'une route bien vue.",
         "key": "ground_plane",
         "optional": false,
         "produced_fields": [

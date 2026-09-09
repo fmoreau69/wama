@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Détections portant les DEUX distances — celle du pinhole et celle de la profondeur : c'est leur ÉCART qui est la mesure, aucune des deux n'est corrigée.",
         "group": "travail",
         "key": "detections",
         "optional": false,
@@ -28,7 +28,7 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
-        "description": "",
+        "description": "Désaccords en mètres entre sources de distance. RAPPORT SEUL : cette passe ne bascule aucune source.",
         "key": "depth_report",
         "optional": false,
         "produced_fields": [

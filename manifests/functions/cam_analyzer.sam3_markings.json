@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "table",
-        "description": "",
+        "description": "Frames caméra (RTMaps).",
         "group": "travail",
         "key": "video",
         "optional": false,
@@ -24,7 +24,7 @@
       {
         "cardinality": "one",
         "data_type": "detections",
-        "description": "",
+        "description": "Marquages au sol segmentés, en coordonnées IMAGE (`polygon`). Leur passage au monde est le rôle du tracking 360°, pas de cette passe.",
         "key": "markings",
         "optional": false,
         "produced_fields": [

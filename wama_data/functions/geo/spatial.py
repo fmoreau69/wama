@@ -113,7 +113,10 @@ register(FunctionSpec(
     category=FunctionCategory.TRANSFORM,
     tags=['geo', 'spatial', 'segmentation'],
     inputs=[
-        PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end']),
+        PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end'],
+                 description="Segments à élargir en DISTANCE et non en durée : « 50 m avant "
+                             "l'entrée de zone » ne se traduit en instants que via la trace, "
+                             "et vaut donc un décalage différent selon la vitesse."),
         PortSpec('track', DataType.GEO_TRACK, required_fields=['time', 'lat', 'lon'],
                  description="Trace géolocalisée qui porte la distance parcourue."),
     ],

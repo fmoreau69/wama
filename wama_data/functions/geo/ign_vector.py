@@ -412,7 +412,13 @@ SPEC_BRANCHES = register(FunctionSpec(
     outputs=[PortSpec('branches', DataType.TABLE,
                       produced_fields=['coords', 'bearing_deg', 'delta_deg', 'is_crossing',
                                        'dist_m', 'largeur', 'nature', 'name'],
-                      cardinality='many')],
+                      cardinality='many',
+                      description="Tronçons IGN voisins d'un point, avec leur azimut et le "
+                                  "verdict `is_crossing` (croisant ou non l'axe de référence, "
+                                  "comparaison modulo 180°). ⚠ `largeur` et `nature` gardent "
+                                  "le nom des colonnes de la BD TOPO : ce sont des attributs "
+                                  "IGN transmis tels quels, pas du vocabulaire WAMA — les "
+                                  "traduire ici ferait diverger la donnée de sa source.")],
     params=_LOC_PARAMS + [
         ParamSpec('axis_bearing_deg', 'float', None, 0.0, 360.0, unit='°',
                   description="Cap de l'axe de référence (ex. cap d'entrée dans l'intersection)."),

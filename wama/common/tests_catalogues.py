@@ -735,6 +735,25 @@ class FunctionCatalogConformiteTest(TestCase):
         """Le piège du vert sur du vide (cf. en-tête) : sans ça, tout ce qui suit ment."""
         self.assertGreaterEqual(len(self.catalogue), 40)
 
+    def test_TOUT_port_porte_une_description(self):
+        """Un port sans description n'est pas apparaissable — ni par un humain qui câble le
+        canvas, ni par un LLM qui doit rapprocher une colonne de données d'une entrée.
+
+        ⚠ Mesuré le 2026-09-09 : **66 ports sur 143** étaient muets (46 %), sans qu'aucune
+        autre déclaration ne manque — c'était le SEUL déficit systématique du catalogue.
+        Soldé le même jour. Ce test empêche la dette de revenir port par port, ce qui est
+        exactement la façon dont elle s'était installée.
+
+        Le seuil est ZÉRO et non un budget dégressif : contrairement au contrat `fn`
+        ci-dessous, écrire une description ne demande aucun portage — il n'y a donc pas de
+        dette légitime à tolérer.
+        """
+        muets = [f'{cle}.{p.key}[{cote}]'
+                 for cle, spec in self.catalogue.items()
+                 for cote, ports in (('in', spec.inputs), ('out', spec.outputs))
+                 for p in ports if not (p.description or '').strip()]
+        self.assertEqual(muets, [], f"{len(muets)} port(s) sans description : {muets[:5]}")
+
     def test_la_cle_du_dict_et_la_cle_declaree_coincident(self):
         for cle, spec in self.catalogue.items():
             with self.subTest(fonction=cle):

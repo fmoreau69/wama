@@ -11,7 +11,7 @@
       {
         "cardinality": "one",
         "data_type": "timeseries",
-        "description": "",
+        "description": "Signal à seuiller. La colonne testée n'est PAS imposée : elle se choisit au paramètre `column` — ce qui permet d'appliquer la même fonction à n'importe quelle grandeur.",
         "group": "travail",
         "key": "signal",
         "optional": false,

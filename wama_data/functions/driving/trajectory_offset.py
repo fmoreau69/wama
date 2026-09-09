@@ -245,7 +245,13 @@ SPEC = register(FunctionSpec(
     outputs=[
         PortSpec('track', DataType.GEO_TRACK,
                  produced_fields=['lat', 'lon', 'lat_raw', 'lon_raw',
-                                  'corr_de_m', 'corr_dn_m']),
+                                  'corr_de_m', 'corr_dn_m'],
+                 description="Trace corrigée EN PLACE : `lat`/`lon` portent la position "
+                             "corrigée, et l'originale survit sous `lat_raw`/`lon_raw`. "
+                             "`corr_de_m`/`corr_dn_m` disent de combien chaque point a bougé "
+                             "— sans eux la correction serait invérifiable après coup. Un "
+                             "point hors bornes d'ancrage ressort INCHANGÉ (aucune "
+                             "extrapolation) et donc sans champs de correction."),
     ],
     params=[
         ParamSpec('full_trust_mask_deg', 'float', FULL_TRUST_MASK_DEG, 0.0, 45.0, unit='°',

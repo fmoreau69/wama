@@ -27,7 +27,7 @@
       {
         "cardinality": "one",
         "data_type": "events",
-        "description": "",
+        "description": "Un événement par plage de freinage. `level` gradue la sévérité (modéré → urgence) et `peak_decel` porte la décélération de pointe, en m/s² NÉGATIFS. ⚠ Les seuils qui décident du niveau sont des a-priori à recalibrer (tag `needs-calibration`) : l'événement est fiable, sa GRADUATION ne l'est pas encore.",
         "key": "events",
         "optional": false,
         "produced_fields": [

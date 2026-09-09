@@ -212,7 +212,10 @@ register(FunctionSpec(
                 "survit dans `source`.",
     category=FunctionCategory.TRANSFORM,
     tags=['temporel', 'segmentation'],
-    inputs=[PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end'])],
+    inputs=[PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end'],
+                     description="Segments à élargir ou rétrécir. Leurs bornes sont des "
+                                 "INSTANTS : la marge est en secondes (pour une marge en "
+                                 "distance parcourue, voir `segment_spatial_margins`).")],
     outputs=[_SORTIE],
     params=[
         ParamSpec('before', 'float', 0.0, unit='s',
@@ -232,7 +235,10 @@ register(FunctionSpec(
                 "centaines de micro-segments dus au bruit.",
     category=FunctionCategory.DETECTOR,
     tags=['temporel', 'segmentation'],
-    inputs=[PortSpec('signal', DataType.TIMESERIES, required_fields=['time'])],
+    inputs=[PortSpec('signal', DataType.TIMESERIES, required_fields=['time'],
+                     description="Signal à seuiller. La colonne testée n'est PAS imposée : "
+                                 "elle se choisit au paramètre `column` — ce qui permet "
+                                 "d'appliquer la même fonction à n'importe quelle grandeur.")],
     outputs=[_SORTIE],
     params=[
         ParamSpec('column', 'str', 'value', description="Colonne testée."),
@@ -258,9 +264,16 @@ register(FunctionSpec(
                 "signal reste inexploitable comme segment.",
     category=FunctionCategory.TRANSFORM,
     tags=['temporel', 'segmentation', 'categoriel'],
-    inputs=[PortSpec('signal', DataType.TIMESERIES, required_fields=['time'])],
+    inputs=[PortSpec('signal', DataType.TIMESERIES, required_fields=['time'],
+                     description="Signal CATÉGORIEL échantillonné : c'est la représentation "
+                                 "IMPLICITE d'un état (une colonne qui vaut la même chose "
+                                 "pendant un moment), que cette fonction rend explicite.")],
     outputs=[PortSpec('segments', DataType.SEGMENTS,
-                      produced_fields=CHAMPS_SEGMENT + ['value', 'samples'])],
+                      produced_fields=CHAMPS_SEGMENT + ['value', 'samples'],
+                      description="Une plage par valeur constante. `value` porte l'état "
+                                  "segmenté et `samples` le nombre d'échantillons qui le "
+                                  "soutiennent — une plage longue tenue par 2 points ne vaut "
+                                  "pas la même chose qu'une plage dense.")],
     params=[
         ParamSpec('column', 'str', 'value'),
         ParamSpec('ignore', 'str', '',
@@ -281,7 +294,8 @@ register(FunctionSpec(
     category=FunctionCategory.TRANSFORM,
     tags=['temporel', 'segmentation', 'ensembliste'],
     inputs=[
-        PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end']),
+        PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end'],
+                 description="Segments à filtrer — ceux qu'on garde ou qu'on écarte."),
         PortSpec('reference', DataType.SEGMENTS, required_fields=['start', 'end'],
                  description="Contexte auquel on restreint."),
     ],
@@ -317,7 +331,9 @@ register(FunctionSpec(
     category=FunctionCategory.TRANSFORM,
     tags=['temporel', 'segmentation', 'ensembliste', 'evenement'],
     inputs=[
-        PortSpec('events', DataType.EVENTS, required_fields=['time']),
+        PortSpec('events', DataType.EVENTS, required_fields=['time'],
+                 description="Événements à filtrer : seul leur INSTANT compte — un événement "
+                             "est ponctuel, il tombe dans un segment ou non."),
         PortSpec('reference', DataType.SEGMENTS, required_fields=['start', 'end'],
                  description="Contexte auquel on restreint."),
     ],
