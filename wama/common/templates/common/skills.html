@@ -47,6 +47,8 @@
                   border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
   .sk-gabarit { font-size: .68rem; color: #e7d16e; border: 1px solid #6b5a1c;
                 border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
+  .sk-paire { font-size: .68rem; color: #6ee7a8; border: 1px solid #1c6b45;
+              border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
   .sk-decl { background: rgba(110,200,231,.06); border: 1px solid rgba(110,200,231,.22);
              border-radius: .5rem; padding: .8rem 1rem; margin: 1rem 0; }
   .sk-decl h4 { font-size: .9rem; color: #6ec8e7; margin-bottom: .5rem; }
@@ -114,6 +116,24 @@
     on prononce ce que l'utilisateur a écrit) ; ne pas la montrer laisse lire un oubli là où il
     y a une décision.
   {% endcomment %}
+  {% comment %}
+    Un `prompt:` qui ne résout pas : le skill s'active quand même, l'agent lit son séquençage,
+    et la MÉTHODE qu'il est censé appliquer n'existe pas. Muet partout ailleurs.
+  {% endcomment %}
+  {% if cat.liens_casses %}
+  <div class="sk-manque">
+    <i class="fas fa-link-slash me-1"></i>
+    <strong>{{ cat.liens_casses|length }} lien méthode↔séquençage cassé</strong> — le skill
+    déclare une consigne de rôle qui n'existe pas. Il s'activera sans sa méthode.
+    <ul>
+      {% for l in cat.liens_casses %}
+      <li><code>/{{ l.skill }}</code> déclare <code>prompt: {{ l.prompt }}</code> —
+          aucun <code>{{ l.prompt }}.txt</code></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
   <div class="sk-decl">
     <h4><i class="fas fa-file-signature me-1"></i> Prompts déclarés — <code>PROMPT_TARGETS</code></h4>
     <ul>
@@ -170,6 +190,13 @@
           <i class="fas fa-code me-1"></i>résolu par le code</span>
         {% endif %}
         {% if s.gabarit %}<span class="sk-gabarit" title="Patron à substitution .format()">gabarit</span>{% endif %}
+        {% comment %}Le lien DÉCLARÉ méthode↔séquençage (`prompt:` du frontmatter) : le skill
+        porte le quoi-dans-quel-ordre, la consigne de rôle porte le comment-penser, et l'un ne
+        recopie jamais l'autre. Convention posée par /cartographie.{% endcomment %}
+        {% if s.prompt_lie %}
+        <span class="sk-paire" title="Méthode portée par la consigne de rôle liée">
+          <i class="fas fa-link me-1"></i>méthode : <code>{{ s.prompt_lie }}</code></span>
+        {% endif %}
       </h4>
 
       <div class="sk-resume">{{ s.resume }}</div>

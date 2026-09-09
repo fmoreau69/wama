@@ -126,3 +126,84 @@ class RegistresMemoireTest(TestCase):
         self.assertTrue(multi, "aucune app multi-champs : un comptage par app passerait le test")
         self.assertTrue(vides, "aucune app à liste vide — l'« explicitement rien » a disparu, "
                                "ce qui change le sens du compteur")
+
+
+class ApprobationTest(TestCase):
+    """Le geste de VALIDATION — `store.approve()` + son endpoint.
+
+    Il n'existait NULLE PART avant le 2026-09-09 : ni dans `store.py`, ni en admin, ni en vue.
+    `WAMA_MEMORY §6` exigeait pourtant une validation humaine depuis le premier jour, et la
+    file se remplissait sans que personne puisse la vider autrement qu'au `manage.py shell`.
+    Ces tests gardent les deux refus qui font tout le sens du geste.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        U = get_user_model()
+        cls.simple = U.objects.create_user('simple_appro', password='x')
+        cls.staff = U.objects.create_user('chef_appro', password='x', is_staff=True)
+
+    def test_approve_refuse_sans_approbateur(self):
+        """« Approuvé par personne » est le trou par lequel une sortie LLM entrerait en fait."""
+        from .memory.store import approve
+        item = _souvenir(user=None, provenance='dev-ai')
+        self.assertIsNone(approve(item, par=None))
+        item.refresh_from_db()
+        self.assertIsNone(item.approved_at)
+
+    def test_approuver_SANS_portee_laisse_un_souvenir_sans_proprietaire_invisible(self):
+        """Le cœur du problème : c'est pourquoi la portée est dans la MÊME signature.
+
+        `scoped_visible_q` ne matche ni `user=NULL` ni `private` — approuver seul rend donc un
+        succès qui ne change rien, et le relecteur croit avoir agi.
+        """
+        from .memory.store import approve, list_memories
+        item = _souvenir(user=None, provenance='dev-ai', content='ORPHELIN')
+        self.assertIsNotNone(approve(item, par=self.staff))
+        self.assertNotIn('ORPHELIN', [s['content'] for s in list_memories(self.staff)])
+
+    def test_approuver_AVEC_portee_publique_le_rend_rappelable(self):
+        from .memory.store import approve, list_memories
+        from .models import ScopedVisibility
+        item = _souvenir(user=None, provenance='dev-ai', content='PUBLIE')
+        self.assertIsNotNone(approve(item, par=self.staff,
+                                     visibility=ScopedVisibility.VIS_PUBLIC))
+        self.assertIn('PUBLIE', [s['content'] for s in list_memories(self.simple)],
+                      "approuvé ET publié, il doit entrer dans ce que `recall()` peut rendre")
+
+    def test_une_visibilite_unite_sans_unite_est_REFUSEE(self):
+        """Sinon on écrirait `unit` sans `scope_org_unit` : invisible comme avant, mais en
+        ayant l'air traité. Un succès qui ne change rien est pire qu'un refus."""
+        from .memory.store import approve
+        from .models import ScopedVisibility
+        item = _souvenir(user=None, provenance='dev-ai')
+        self.assertIsNone(approve(item, par=self.staff,
+                                  visibility=ScopedVisibility.VIS_UNIT, scope_org_unit=None))
+        item.refresh_from_db()
+        self.assertIsNone(item.approved_at, "un refus ne doit RIEN écrire")
+
+    def test_endpoint_refuse_un_simple_connecte(self):
+        item = _souvenir(user=None, provenance='dev-ai')
+        self.client.force_login(self.simple)
+        r = self.client.post(reverse('common:memories_approve'),
+                             {'id': item.pk, 'visibility': 'public'})
+        self.assertEqual(403, r.status_code)
+        item.refresh_from_db()
+        self.assertIsNone(item.approved_at)
+
+    def test_endpoint_valide_pour_le_staff_et_pose_l_approbateur(self):
+        item = _souvenir(user=None, provenance='dev-ai')
+        self.client.force_login(self.staff)
+        r = self.client.post(reverse('common:memories_approve'),
+                             {'id': item.pk, 'visibility': 'public'})
+        self.assertEqual(200, r.status_code)
+        item.refresh_from_db()
+        self.assertIsNotNone(item.approved_at)
+        self.assertEqual(self.staff, item.approved_by)
+
+    def test_un_souvenir_deja_approuve_n_est_pas_re_approuvable(self):
+        item = _souvenir(user=None, provenance='dev-ai', approved_at=timezone.now())
+        self.client.force_login(self.staff)
+        r = self.client.post(reverse('common:memories_approve'),
+                             {'id': item.pk, 'visibility': 'public'})
+        self.assertEqual(404, r.status_code)

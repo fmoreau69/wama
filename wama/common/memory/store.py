@@ -6,6 +6,12 @@ Les cinq opérations de la mémoire. Doc : `WAMA_MEMORY.md §5-6`.
     forget(...)    invalider                   (par défaut : `valid_to`, JAMAIS un DELETE)
     merge(...)     PROPOSER une fusion         (n'écrit rien)
     expire()       appliquer les TTL           (n'atteint jamais un souvenir approuvé)
+    approve(...)   VALIDER humainement         (approuve ET repositionne — 2026-09-09)
+
+⚠ `approve()` est la SIXIÈME, et son absence était un trou béant : `§6` exigeait une validation
+humaine depuis le premier jour, et aucun chemin ne permettait de la faire (vérifié le
+2026-09-09 : rien ici, rien en admin, rien en vue). La file de revue se remplissait sans que
+personne puisse la vider autrement qu'au `shell`.
 
 Vocabulaire emprunté à memorywire (arXiv 2606.01138) — la FORME du contrat, pas la dépendance
 (v0.4, format qui se réserve de casser jusqu'en v0.5). L'emprunter rend un adaptateur externe
@@ -591,6 +597,73 @@ def expire(*, jours_non_approuve=90, dry_run=True):
         logger.info('[memory] expire() : %s brouillons non approuvés purgés (>%s j)',
                     n, jours_non_approuve)
     return resume
+
+
+# ─────────────────────────────────────────────────────────── approve ─────────
+
+def approve(item, *, par, visibility=None, scope_org_unit=None, scope_project=None):
+    """
+    LE GESTE DE VALIDATION HUMAINE — ajouté le 2026-09-09, et son absence était le trou.
+
+    `WAMA_MEMORY §6` exige depuis le premier jour que tout écrit LLM soit validé par un humain.
+    Mesuré le 2026-09-09 : **aucun chemin d'approbation n'existait dans le dépôt** — ni ici, ni
+    en admin, ni en vue. La règle était écrite, la file se remplissait (25 souvenirs importés de
+    `memory.json`), et le seul moyen de la vider était un `manage.py shell`. *Une gouvernance
+    sans surface de validation n'est pas une gouvernance, c'est un cul-de-sac.*
+
+    ⚠ APPROUVER SANS REPOSITIONNER NE SUFFIT PAS, et c'est le piège que `dev_ai.py` avait déjà
+    documenté : ses souvenirs portent `user=NULL` + `private`, que `scoped_visible_q()` ne
+    matche par AUCUNE de ses branches. Approuver seul les laisserait donc invisibles — le
+    relecteur croirait avoir agi. D'où `visibility` dans la MÊME signature : le geste est
+    « je valide ET je décide de la portée », en un seul acte, ou il ne sert à rien.
+
+    `par` est OBLIGATOIRE : « approuvé par personne » est exactement le trou par lequel une
+    sortie LLM entrerait comme un fait (même garde que `remember()`).
+
+    Rend le `MemoryItem` mis à jour, ou `None` si le geste est refusé.
+    """
+    from django.utils import timezone
+
+    from ..models import MemoryItem, ScopedVisibility
+
+    if item is None or par is None or not getattr(par, 'is_authenticated', False):
+        logger.warning('[memory] approve() sans approbateur authentifié — refusé')
+        return None
+
+    champs = ['approved_at', 'approved_by']
+    item.approved_at = timezone.now()
+    item.approved_by = par
+
+    if visibility is not None:
+        valides = {c for c, _ in ScopedVisibility.VIS_CHOICES}
+        if visibility not in valides:
+            logger.warning('[memory] approve() : visibilité inconnue %r — refusé', visibility)
+            return None
+        item.visibility = visibility
+        champs.append('visibility')
+        # Une visibilité d'unité sans unité serait invisible comme avant : on refuse plutôt que
+        # de rendre un succès qui ne change rien.
+        if visibility == ScopedVisibility.VIS_UNIT:
+            if scope_org_unit is None:
+                logger.warning("[memory] approve() : visibilité 'unit' sans unité — refusé")
+                return None
+            item.scope_org_unit = scope_org_unit
+            champs.append('scope_org_unit')
+        if visibility == ScopedVisibility.VIS_PROJECT:
+            if scope_project is None:
+                logger.warning("[memory] approve() : visibilité 'project' sans projet — refusé")
+                return None
+            item.scope_project = scope_project
+            champs.append('scope_project')
+
+    try:
+        item.save(update_fields=champs)
+    except Exception:
+        logger.exception('[memory] approbation impossible')
+        return None
+    logger.info('[memory] souvenir #%s approuvé par %s (visibilité=%s)',
+                item.pk, getattr(par, 'username', par), item.visibility)
+    return item
 
 
 # ──────────────────────────────────────────────────────── lister (surface) ────

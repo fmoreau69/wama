@@ -11935,7 +11935,7 @@ navigateur Playwright et a été purgé en fin de passe.
 - **Une métrique peut être verte et MENTIR** : comparer un lacet vu à un cap GELÉ rend un désaccord égal au lacet — maximal là où la vision est la plus fiable. Le §[4] le disait déjà pour le placement (G7) ; je l'ai reproduit sur le cap parce que je n'avais pas lu le doc de domaine avant de coder (`/reprise §3a bis`, encore).
 - **Le chemin le mieux corrigé était le chemin de SECOURS** : le seul lissage du cap navette vivait dans le JS, en repli d'affichage ③ ; tout le serveur (`world_en`, ancres, TTC/PET, calib 2a) héritait du cap brut.
 - **Trois faux verts d'instrument en une session** : `manage.py test` sort en code 0 sans lancer un test (base de test existante → `EOFError`) ; une sonde `requests` sur `localhost` sous `django.setup()` parle au **proxy UGE** (« JS absent » alors que `curl` le montrait servi) ; un worktree lancé depuis le dépôt principal importe la moitié des paquets du mauvais arbre (cwd en `sys.path[0]`). **Contre-vérifier l'instrument avant d'accuser le code** — et le seul verdict d'une suite est la ligne `OK`/`FAILED`, jamais le code de retour ni un `tail`.
-- **Le rituel HEAD a trouvé un 2ᵉ trou de versionnement** (après les migrations) : `.gitignore:31 build/` avale `three.module.js` — un clone frais n'a pas le 3D. Consigné dans `CLAUDE.md` avec la parade harnais (`env -C`).
+- **Le rituel HEAD a trouvé un 2ᵉ trou de versionnement** (après les migrations) : `.gitignore:31 build/` avale `three.module.js` — un clone frais n'a pas le 3D. Consigné dans `AGENTS.md` avec la parade harnais (`env -C`).
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
@@ -12798,17 +12798,29 @@ coïncident), au point de décoration UNIQUE pour que l'endpoint `card_html` l'a
 
 **⑥ D.3 — le volet OBJECTIF est JOUÉ** (09/09, WAMA relancé ; session P97 réelle `4da52df3`,
 1,2 M détections, 4352 gids ; lecture seule, sans GPU ni worker). Chiffres et méthode :
-`CAM_ANALYZER_CHAINE_TRAITEMENT §D.3 ⭐`, commit `dc2667f0`. **Deux réfutations** : « tous les
-objets qui dérivent sont en ③ » est FAUX (90 % portent un `world_en`) ; et la cause n'est PAS
-l'exclusion « près d'une intersection » qu'annonçait §C (**1,3 %**) mais le seuil **« vu moins
-de 4 s » (70,4 %)** du levier 29. **Une confirmation par un autre chemin** : 970 véhicules
-immobiles — étalement médian **1,22 m**, MEILLEUR que les 48 ancrés (**1,79 m**) — n'obtiennent
-aucune ancre, donc sont rejoués frame par frame ; or une EMA α=0,3 ne converge jamais sur un
-objet vu 1 à 3 s.
-🔴 **ARBITRAGE FABIEN avant tout code** : le seuil de 4 s a été posé le 2026-07-17 pour cesser
-de marquer « garés » des véhicules ROULANTS vus brièvement — le baisser rouvre ce défaut-là.
-Séparer « immobile » de « vu longtemps » demande une AUTRE grandeur (vitesse relative mesurée,
-cohérence de la position monde), pas un réglage de seuil.
+`CAM_ANALYZER_CHAINE_TRAITEMENT §D.3 ⭐`, commits `dc2667f0` puis la RECTIFICATION.
+« Tous les objets qui dérivent sont en ③ » est FAUX (90 % portent un `world_en`).
+
+⚠⚠ **MA PREMIÈRE CONCLUSION ÉTAIT FAUSSE, Fabien a demandé « es-tu sûr ? » — non.** J'avais
+écrit « 70 % écartés parce que vus moins de 4 s ». Le biais : j'avais choisi les candidats par
+un **étalement < 6 m calculé sur `world_en`**, qui est la position LISSÉE (et n'est même pas
+écrite pour les stationnés) — or **un track court a mécaniquement un faible étalement**. J'ai
+sur-sélectionné les tracks courts puis constaté qu'ils étaient courts. *Une sélection circulaire
+fait dire n'importe quoi à un comptage juste.*
+**Mesure REFAITE sur les grandeurs qui ne dépendent d'aucun placement** (nombre d'observations,
+durée avec le `scale` du tracker) : **3887 véhicules → 2114 RECEVABLES (54,4 %) → 55 ANCRÉS**.
+Donc **97,4 % des recevables sont éliminés par les critères de POSITION**, pas par la durée ;
+lequel exactement est **indéterminable depuis le persisté** (il faudrait instrumenter le tracker).
+La durée médiane d'un track passe tout de même de **4,6 s à l'arrêt à 11,5 s à 20-25 km/h** :
+un seuil en secondes mêle bien la scène et le mouvement porteur, et il est **en dur**.
+
+🔴 **VERDICT DE FABIEN, plus large que mon diagnostic et FONDÉ** : « le filtre sur les garés n'a
+jamais fonctionné ; toute la chaîne est à recalculer de fond en comble ». Mesuré : **55 garés
+reconnus sur 3887 véhicules**, dans une session où la navette est **à l'arrêt 77 % du temps**.
+C'est un **CHANTIER**, pas un réglage : « un garé se remarque sur un ENSEMBLE d'images
+successives, non image par image ». Ne pas baisser le seuil tel quel (il a été posé le
+2026-07-17 contre les véhicules ROULANTS vus brièvement) — il faut une autre grandeur (vitesse
+RELATIVE mesurée, cohérence de la position monde) **et** un paramètre RÉGLABLE dans l'interface.
 **Reste à jouer** : les bascules — ⚑ `display_ema` OFF (la dérive cesse-t-elle ?) → ⚑
 `shuttle_filter` ON → « Calculer les indicateurs » → `Filtre navette` / `Source de placement` /
 `Cohérence placement` → `placement_spread` OFF vs ON. Elles exigent un RECALCUL (les données

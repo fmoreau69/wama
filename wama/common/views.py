@@ -997,9 +997,18 @@ def memories_view(request):
     for s in actifs + attente:
         s['kind_libelle'] = kinds.get(s['kind'], s['kind'])
 
+    # Unités proposables comme PORTÉE à la validation. Toutes, pas celles du relecteur : il
+    # arbitre pour des souvenirs de PLATEFORME (`user=NULL`), qui ne dépendent d'aucun profil.
+    # ⚠ Le champ est `unit_type`, pas `type` (mesuré — un `u.type` lève).
+    unites = []
+    if request.user.is_staff:
+        from .models import OrgUnit
+        unites = [{'id': u.id, 'nom': u.name or u.code} for u in OrgUnit.objects.order_by('name')]
+
     return render(request, 'common/memories.html', {
         'actifs': actifs,
         'attente': attente,
+        'unites': unites,
         'total': len(actifs),
         'sans_vecteur': sum(1 for s in actifs if s['sans_vecteur']),
         'kinds': kinds,
@@ -1010,6 +1019,47 @@ def memories_view(request):
         # Même volet réduit que ses sœurs catalogues (`tests_inspecteur_registre`).
         'volet': volet(medias=False, actions=False),
     })
+
+
+@login_required
+@require_POST
+def memories_approve(request):
+    """Valide UN souvenir de la file de revue — le geste que `WAMA_MEMORY §6` exigeait.
+
+    ⚠ RÉSERVÉ AU STAFF, pour la même raison que la file elle-même : elle n'est pas scopée.
+    Un simple connecté n'a rien à approuver qui ne lui appartienne pas.
+
+    ⚠ `visibility` est demandée DANS LE MÊME APPEL, jamais après : approuver un souvenir
+    `user=NULL` + `private` (les 25 importés de `memory.json`) ne le rend visible à personne —
+    le relecteur croirait avoir agi. Le geste est « je valide ET je décide de la portée ».
+    """
+    from .memory.store import approve
+    from .models import MemoryItem
+
+    if not request.user.is_staff:
+        return JsonResponse({'erreur': 'réservé au staff'}, status=403)
+
+    try:
+        pk = int(request.POST.get('id') or 0)
+    except (TypeError, ValueError):
+        return JsonResponse({'erreur': 'id invalide'}, status=400)
+
+    item = MemoryItem.objects.filter(pk=pk, approved_at__isnull=True).first()
+    if item is None:
+        return JsonResponse({'erreur': 'souvenir introuvable ou déjà approuvé'}, status=404)
+
+    visibilite = (request.POST.get('visibility') or '').strip() or None
+    unite = None
+    if visibilite == 'unit':
+        from .models import OrgUnit
+        unite = OrgUnit.objects.filter(pk=request.POST.get('org_unit') or 0).first()
+        if unite is None:
+            return JsonResponse({'erreur': "visibilité « unité » sans unité valide"}, status=400)
+
+    resultat = approve(item, par=request.user, visibility=visibilite, scope_org_unit=unite)
+    if resultat is None:
+        return JsonResponse({'erreur': 'approbation refusée'}, status=400)
+    return JsonResponse({'approuve': resultat.pk, 'visibilite': resultat.visibility})
 
 
 def unites_partageables(profile):

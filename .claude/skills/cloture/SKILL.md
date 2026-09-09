@@ -150,6 +150,12 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
   → dérouler `/skill-forge` (distiller à la clôture est LE moment-écrivain ; à n=1 le skill
   naît CANDIDAT, une 2ᵉ demande proche le promeut). Si un skill EXISTANT a été déroulé et
   qu'une étape n'a pas tenu → le corriger maintenant, pas le consigner ailleurs.
+  - ⚠ **Lancer `python manage.py check_skills`** (ajouté le 2026-09-09) — cette étape a déjà
+    été SAUTÉE (`PROJECT_STATUS:10928` : « `/skill-forge` NON déroulé, clôture tardive »), et
+    une étape de rituel qui dépend de la diligence finit toujours par l'être. La commande
+    rend l'état MESURÉ : candidats `n=1` et leur âge (un dormant > 60 j est candidat à la
+    fusion ou au retrait — **le signaler, jamais le supprimer seul**), déclencheur absent
+    d'une `description`, frontmatter incomplet. Elle n'écrit rien et ne distille rien.
 - Données/artefacts de session à tracer : comptes et items de test semés (compte smoke,
   jobs), scripts utilitaires laissés hors git (scratchpad, logs/), sorties
   PENDING_HUMAN_VALIDATION (wama-dev-ai/outputs). Les CONSIGNER (où, pourquoi, jetable ?).

@@ -99,6 +99,9 @@ urlpatterns = [
     # son seul accès était `memory_recall` (assistant, langage naturel). Voisine du journal et
     # du RAG dans le menu, comme eux : ce que j'ai FAIT · ce que j'ai CONFIÉ · ce qu'on RETIENT.
     path('memories/', views.memories_view, name='memories'),
+    # Le geste de VALIDATION (WAMA_MEMORY §6). Il n'existait nulle part avant le 2026-09-09 :
+    # la règle était écrite, la file se remplissait, et rien ne permettait de la vider.
+    path('api/memories/approve/', views.memories_approve, name='memories_approve'),
     path('api/rag/ajouter/', views.rag_ajouter, name='rag_ajouter'),
     path('api/rag/retirer/', views.rag_retirer, name='rag_retirer'),
     path('api/rag/preference/', views.rag_preference, name='rag_preference'),

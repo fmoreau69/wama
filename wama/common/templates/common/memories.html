@@ -42,6 +42,12 @@ sans l'avoir tracé referait le « chemin parallèle » que la doctrine interdit
     .souv-revue h2 { font-size: .95rem; color: #ffc107; font-weight: 600; margin-bottom: .35rem; }
     .souv-revue .hint { color: #6c757d; font-size: .82rem; margin-bottom: .75rem; }
     .souv-vide { color: #6c757d; text-align: center; padding: 3rem 0; }
+    .souv-valider { display: flex; gap: .5rem; align-items: center; margin-top: .5rem;
+                    flex-wrap: wrap; }
+    .souv-valider .form-select { background-color: #1a1a2e; border-color: #2d2d4e;
+                                 color: #e9ecef; width: auto; }
+    .souv-retour { font-size: .8rem; color: #8fa3b8; }
+    .souv-retour.souv-ok { color: #6ee7a8; }
 </style>
 {% endblock %}
 
@@ -98,7 +104,7 @@ sans l'avoir tracé referait le « chemin parallèle » que la doctrine interdit
       volontairement pas scopée — d'où sa réserve au staff.
     </p>
     {% for s in attente %}
-    <div class="souv-item">
+    <div class="souv-item" data-souv-id="{{ s.id }}">
       <div class="contenu">{{ s.content }}</div>
       <div class="meta">
         <span class="souv-kind {{ s.kind }}">{{ s.kind_libelle }}</span>
@@ -107,11 +113,79 @@ sans l'avoir tracé referait le « chemin parallèle » que la doctrine interdit
         <span>provenance : {{ s.provenance }}</span>
         <span>propriétaire : {{ s.proprietaire|default:"— aucun —" }}</span>
       </div>
+      {% comment %}
+        La PORTÉE se choisit dans le MÊME geste que l'approbation, jamais après : un souvenir
+        `user=NULL` + privé (les 25 importés) reste invisible à tous une fois approuvé seul —
+        le relecteur croirait avoir agi. D'où un select obligatoire à côté du bouton.
+      {% endcomment %}
+      <div class="souv-valider">
+        <select class="form-select form-select-sm" data-souv-portee>
+          <option value="">— portée après validation —</option>
+          <option value="public">Public (tous les comptes)</option>
+          {% for u in unites %}
+          <option value="unit:{{ u.id }}">Unité — {{ u.nom }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-success" data-souv-valider>
+          <i class="fas fa-check me-1"></i>Valider
+        </button>
+        <span class="souv-retour"></span>
+      </div>
     </div>
     {% empty %}
     <p class="hint mb-0">Rien en attente.</p>
     {% endfor %}
   </div>
+
+  {% comment %}
+    Le geste de validation. Il passe par `csrfFetch` de `wama-app-base.js` — brique COMMUNE
+    montée globalement par `base.html` — et non par un `fetch` local : c'est la règle « zéro
+    duplication » appliquée au JS, et c'est elle qui porte l'en-tête CSRF correctement.
+  {% endcomment %}
+  <script>
+  (function () {
+    'use strict';
+    const jeton = '{{ csrf_token }}';
+    document.querySelectorAll('[data-souv-valider]').forEach(function (bouton) {
+      bouton.addEventListener('click', function () {
+        const ligne = bouton.closest('[data-souv-id]');
+        const retour = ligne.querySelector('.souv-retour');
+        const portee = ligne.querySelector('[data-souv-portee]').value;
+        if (!portee) {
+          // Refus CÔTÉ CLIENT aussi : approuver sans portée laisse le souvenir invisible.
+          // Le serveur l'accepterait (visibility=None = inchangée) — c'est précisément le
+          // « succès qui ne change rien » qu'on veut rendre impossible à déclencher par erreur.
+          retour.textContent = 'Choisir une portée d’abord.';
+          retour.className = 'souv-retour souv-alerte';
+          return;
+        }
+        const corps = new FormData();
+        corps.append('id', ligne.dataset.souvId);
+        const [type, id] = portee.split(':');
+        corps.append('visibility', type);
+        if (id) { corps.append('org_unit', id); }
+
+        bouton.disabled = true;
+        retour.textContent = '…';
+        retour.className = 'souv-retour';
+        window.WamaApp.csrfFetch('{% url "common:memories_approve" %}', jeton,
+                                 { method: 'POST', body: corps })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok) { throw new Error(res.d.erreur || 'refus'); }
+            ligne.style.opacity = '.45';
+            retour.textContent = 'Validé — portée : ' + res.d.visibilite;
+            retour.className = 'souv-retour souv-ok';
+          })
+          .catch(function (e) {
+            bouton.disabled = false;
+            retour.textContent = 'Échec : ' + e.message;
+            retour.className = 'souv-retour souv-alerte';
+          });
+      });
+    });
+  }());
+  </script>
   {% endif %}
 </div>
 {% endblock %}

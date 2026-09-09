@@ -144,7 +144,7 @@ def _racine():
     return Path(settings.BASE_DIR)
 
 
-def _roles_dev() -> list:
+def _roles_dev(sequences=None) -> list:
     """Consignes de rôle de wama-dev-ai (`prompts/*.txt`) — famille `role_dev`.
 
     Leur consommateur est `role_utils.consigne_role(nom)`, qui les choisit PAR NOM DE RÔLE.
@@ -154,6 +154,7 @@ def _roles_dev() -> list:
     interdit de les confondre avec un skill d'agent, et elle est invisible partout ailleurs.
     Une consigne à placeholders n'est pas une consigne, c'est un patron à remplir.
     """
+    sequences = sequences or {}
     dossier = _racine() / DOSSIER_ROLES_DEV
     sorties = []
     try:
@@ -172,11 +173,18 @@ def _roles_dev() -> list:
         if trous:
             conso.append("gabarit <code>.format()</code> — attend "
                          + ", ".join(f"<code>{{{t}}}</code>" for t in trous))
+        # Le SENS INVERSE du lien déclaré : quel skill d'agent séquence cette méthode. Sans lui,
+        # la page dirait « qui l'exécute » sans jamais dire « qui l'orchestre ».
+        sequence_par = sequences.get(p.stem, [])
+        for s in sequence_par:
+            conso.append(f"séquencé par le skill <code>/{s}</code> "
+                         f"(<code>prompt: {p.stem}</code>)")
         sorties.append({
             'nom': p.stem, 'famille': 'role_dev', 'famille_label': FAMILLES['role_dev'],
             'app': 'wama-dev-ai', 'domaine': '', 'resume': _resume(texte), 'texte': texte,
             'lignes': len(texte.splitlines()), 'consommateurs': conso,
             'selection': 'code', 'gabarit': bool(trous), 'orphelin': False,
+            'sequence_par': sequence_par,
         })
     return sorties
 
@@ -206,10 +214,16 @@ def _skills_agent() -> list:
         except OSError:
             continue
         meta, corps = _frontmatter(texte)
+        # Lien DÉCLARÉ vers une consigne de rôle : `prompt: <nom>` (+ `agent:`). Le skill porte
+        # le SÉQUENÇAGE, le prompt porte la MÉTHODE — l'un ne recopie jamais l'autre. Un lien
+        # qui ne résout pas est signalé : aujourd'hui il serait parfaitement muet.
+        lien = meta.get('prompt', '')
         sorties.append({
             'nom': meta.get('name') or p.parent.name,
             'famille': 'dev_agent', 'famille_label': FAMILLES['dev_agent'],
             'app': '', 'domaine': '',
+            'prompt_lie': lien,
+            'agent_lie': meta.get('agent', ''),
             # Le résumé EST la description du frontmatter : c'est littéralement le texte sur
             # lequel l'agent décide d'activer le skill. Le remplacer par la 1ʳᵉ ligne du corps
             # afficherait autre chose que ce qui sert à choisir.
@@ -236,7 +250,11 @@ def _frontmatter(texte: str):
     meta = {}
     for ligne in texte[3:fin].splitlines():
         cle, sep, valeur = ligne.partition(':')
-        if sep and cle.strip() in ('name', 'description'):
+        # `prompt` / `agent` : le LIEN DÉCLARÉ vers une consigne de rôle wama-dev-ai. Convention
+        # posée par `/cartographie` et documentée dans son corps (« la méthode vit dans le
+        # prompt, le séquençage ici, ne JAMAIS recopier la méthode »). Elle existait sans être
+        # ni outillée ni mesurée : 1 skill sur 14 la portait, et rien ne l'aurait dit.
+        if sep and cle.strip() in ('name', 'description', 'prompt', 'agent'):
             meta[cle.strip()] = valeur.strip()
     return meta, texte[fin + 4:].lstrip('\n')
 
@@ -282,8 +300,25 @@ def synthese() -> dict:
     # Les deux familles ajoutées le 2026-09-09. Elles ne passent PAS par `skills_catalog()` :
     # ce sont d'autres dossiers, d'autres extensions, d'autres consommateurs. Les y forcer
     # aurait demandé d'élargir un accesseur dont le contrat est « les skills de prompt WAMA ».
-    skills += _roles_dev()
-    skills += _skills_agent()
+    # ORDRE IMPOSÉ : les skills d'agent d'abord, parce qu'ils PORTENT le lien déclaré
+    # (`prompt: <nom>`) dont les consignes de rôle ont besoin pour afficher le sens inverse.
+    agents = _skills_agent()
+    sequences = {}
+    for s in agents:
+        if s['prompt_lie']:
+            sequences.setdefault(s['prompt_lie'], []).append(s['nom'])
+
+    roles = _roles_dev(sequences)
+    connus = {r['nom'] for r in roles}
+
+    # ⚠ Un `prompt:` qui ne résout pas est PARFAITEMENT MUET aujourd'hui : le skill s'active
+    # quand même, l'agent lit son séquençage, et la méthode qu'il est censé appliquer n'existe
+    # pas. Même famille que le skill orphelin — l'absence ne lève rien, donc elle s'affiche.
+    liens_casses = [{'skill': s['nom'], 'prompt': s['prompt_lie']}
+                    for s in agents if s['prompt_lie'] and s['prompt_lie'] not in connus]
+
+    skills += roles
+    skills += agents
 
     # ⚠ DEUX totaux, et les nommer mal se paie tout de suite : `total` doit rester le nombre de
     # ce que la page LISTE (sinon `sum(par_famille) != total`, et deux gardes préexistantes le
@@ -300,6 +335,11 @@ def synthese() -> dict:
         'par_famille': {c: sum(1 for s in skills if s['famille'] == c) for c in FAMILLES},
         'orphelins': sum(1 for s in skills if s['orphelin']),
         'targets_orphelins': targets_orphelins,
+        'liens_casses': liens_casses,
+        # Combien de paires méthode↔séquençage sont DÉCLARÉES. Mesuré le 2026-09-09 : 1 sur 14.
+        # La convention existe (posée et documentée par `/cartographie`), elle n'était ni
+        # outillée ni comptée — donc invisible, donc jamais étendue.
+        'paires_declarees': sum(1 for s in agents if s['prompt_lie']),
         # Les DÉCLARATIONS elles-mêmes (registre `prompts`) : la page montrait les champs-prompt
         # seulement comme « consommateurs » d'un skill, donc une app qui n'en résout aucun était
         # invisible — `synthesizer` déclare `[]` DÉLIBÉRÉMENT (§16.6 : un texte TTS ne se traduit
