@@ -413,8 +413,26 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
         {% else %}
-        {# ── batch-of-1 → carte simple ── #}
-        {% for job in b.items %}{% include 'converter/_job_card.html' %}{% endfor %}
+        {% comment %}── batch-of-1 → carte simple, DANS son enrobage d'entrée ──────────────
+        ⚠ CORRIGÉ le 2026-09-09. La carte était rendue NUE : elle ne portait donc ni
+        `.wama-queue-entry` ni `data-entry-batch-id`. Or `wama-queue-dnd.js:batchIdOf` nomme une
+        entrée par l'un ou l'autre, et `reorder_queue` fait
+        `entries(queue).map(batchIdOf).filter(Boolean)` — le `filter` ÉCARTAIT donc
+        silencieusement toutes les entrées unitaires du converter. Réordonner la file
+        n'envoyait au serveur que ses LOTS : le geste marchait à moitié, sans rien dire, et se
+        « réparait » au rechargement suivant en remettant l'ordre d'avant.
+
+        Le contrat est celui de `common/_queue_entry.html` (2026-09-04) : `display:contents`
+        pour que la carte se dispose EXACTEMENT comme avant dans la grille/liste — l'enrobage
+        n'existe que pour porter la donnée.
+
+        ⚠ Pourquoi pas `_queue_entry.html` lui-même : la brique passe l'élément sous le nom
+        `elem`, et `_job_card.html` lit `job` (45 occurrences). L'adopter est un PORTAGE de
+        renommage, pas ce correctif — nommé au handoff plutôt que bâclé ici.{% endcomment %}
+        {% for job in b.items %}
+        <div class="wama-queue-entry" style="display:contents"
+             data-entry-batch-id="{{ b.obj.id }}">{% include 'converter/_job_card.html' %}</div>
+        {% endfor %}
         {% endif %}
         {% empty %}
         {% comment %}`empty-queue` AJOUTÉ le 2026-08-23 : c'est la classe que la brique commune

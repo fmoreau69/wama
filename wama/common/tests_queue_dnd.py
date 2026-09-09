@@ -157,6 +157,80 @@ class CodegenJumelleTest(TestCase):
                       "le conteneur de file généré ne déclare pas ses URLs → file inerte, "
                       "et l'inertie ne lève aucune erreur")
 
+    def test_le_gabarit_ENROBE_ses_entrees_unitaires(self):
+        """Une carte simple doit porter `data-entry-batch-id`, sinon l'ordre la SAUTE.
+
+        ⚠ DÉFAUT CORRIGÉ le 2026-09-09, trouvé sur le converter puis retrouvé DANS LA FABRIQUE.
+        `wama-queue-dnd.js:batchIdOf` nomme une entrée par `data-batch-id` (lot déplié) ou
+        `data-entry-batch-id` (carte unitaire) ; `reorder_queue` fait ensuite
+        `entries(queue).map(batchIdOf).filter(Boolean)`. Une carte nue rend `null`, donc le
+        `filter` l'ÉCARTE : réordonner la file n'envoyait au serveur que ses LOTS, et l'ordre
+        revenait au rechargement suivant. Rien ne levait — le geste marchait à moitié.
+
+        *On corrige la fabrique, pas seulement l'artefact* : sans ce test, toute app générée
+        après coup aurait réintroduit le défaut sans qu'on le sache.
+        """
+        from wama.common.manifests.codegen import templates_gen
+
+        source = Path(templates_gen.__file__).read_text(encoding='utf-8')
+        self.assertIn('wama-queue-entry', source,
+                      "le gabarit généré rend ses cartes unitaires SANS enrobage d'entrée")
+        self.assertIn('data-entry-batch-id', source,
+                      "l'enrobage généré ne porte pas l'id de lot : `reorder_queue` sautera "
+                      "les entrées unitaires, en silence")
+
+    def test_aucune_file_du_parc_ne_rend_une_carte_unitaire_NUE(self):
+        """Le même invariant, côté apps ÉCRITES À LA MAIN.
+
+        Le converter était le seul à rendre sa carte simple nue (mesuré ce jour) : il ne passe
+        pas par `common/_queue_entry.html`, la brique qui pose l'enrobage pour les autres. On
+        exige donc l'un OU l'autre — la brique, ou l'enrobage écrit — et jamais rien.
+        """
+        manquants = []
+        jumelles = _jumelles()
+        for gabarit in sorted((RACINE / 'wama').glob('*/templates/*/index.html')):
+            if gabarit.parts[-4] in jumelles:
+                continue                       # gabarit GÉNÉRÉ — cf. `_jumelles()`
+            texte = gabarit.read_text(encoding='utf-8')
+            if 'class="wama-queue-' not in texte:
+                continue                       # pas de file dans cette page
+            if ('_queue_entry.html' in texte) or ('data-entry-batch-id' in texte):
+                continue
+            manquants.append(str(gabarit.relative_to(RACINE)))
+        self.assertEqual([], manquants,
+                         "files rendant des entrées unitaires sans id de lot (l'ordre les "
+                         "sautera) :\n" + "\n".join(manquants))
+
+    def test_la_page_RENDUE_du_converter_porte_l_id_de_lot_sur_sa_carte_simple(self):
+        """La mesure qui compte : la PAGE, pas le texte du gabarit.
+
+        Les deux tests ci-dessus lisent des fichiers — ils attestent qu'un attribut est ÉCRIT,
+        pas qu'il est RENDU (une condition de gabarit, un `{% if %}` mal placé, et il
+        disparaîtrait sans qu'aucun des deux ne bouge). Celui-ci crée un batch-of-1 réel et lit
+        le HTML servi.
+        """
+        from django.contrib.auth.models import Group, User
+        from wama.accounts.permissions import GROUP_PREFIX
+        from wama.converter.models import ConversionBatch, ConversionJob
+
+        u = User.objects.create_user('converter_ordre', password='x')
+        for role in ('communication', 'recherche', 'ingenierie', 'administratif'):
+            g, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')
+            u.groups.add(g)
+        self.client.force_login(u)
+
+        lot = ConversionBatch.objects.create(user=u, total=1)
+        ConversionJob.objects.create(user=u, input_filename='temoin_ordre.png', batch=lot)
+
+        rep = self.client.get('/converter/')
+        self.assertEqual(200, rep.status_code)
+        html = rep.content.decode('utf-8', 'replace')
+        self.assertIn(f'data-entry-batch-id="{lot.id}"', html,
+                      "la carte simple du converter est rendue SANS son id de lot : "
+                      "`reorder_queue` la sautera en silence")
+        # …et l'enrobage ne doit pas changer la disposition : `display:contents`, comme la brique.
+        self.assertIn('class="wama-queue-entry" style="display:contents"', html)
+
 
 class RefusDeFusionTest(TestCase):
     """Le refus est-il RÉELLEMENT appliqué — pas seulement déclaré ?
@@ -433,7 +507,14 @@ class ExpositionDesUrlsTest(TestCase):
             if gabarit.parts[-4] in jumelles:
                 continue        # gabarit GÉNÉRÉ — cf. `_jumelles()`
             texte = gabarit.read_text(encoding='utf-8')
-            files = texte.count('class="wama-queue-')
+            # ⚠ Motif RESSERRÉ le 2026-09-09. Il comptait `class="wama-queue-`, qui attrape
+            # aussi `wama-queue-ENTRY` — l'enrobage d'une entrée unitaire, pas une file. Les
+            # neuf autres apps passent par `common/_queue_entry.html` (fichier séparé), donc
+            # leur `index.html` n'avait jamais contenu ce mot : le piège dormait jusqu'à ce que
+            # le converter écrive son enrobage à la main. Le conteneur, lui, est TOUJOURS
+            # `class="wama-queue-{{ card_layout … }}"`.
+            # *Un motif qui vaut pour neuf cas sur dix n'est pas une mesure, c'est une chance.*
+            files = texte.count('class="wama-queue-{{')
             if not files:
                 continue
             poses = texte.count('queue_dnd_attrs')

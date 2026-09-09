@@ -515,7 +515,21 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
             </div>
             </div>
             {{% else %}}
-            {{% for item in b.items %}}{{% include '{app}/_generic_card.html' %}}{{% endfor %}}
+            {{% comment %}}Carte simple DANS son enrobage d'entrée — contrat de
+            `common/_queue_entry.html` (2026-09-04), corrigé ici le 2026-09-09.
+            ⚠ Le générateur rendait la carte NUE : elle ne portait donc ni `.wama-queue-entry`
+            ni `data-entry-batch-id`, et `wama-queue-dnd.js:batchIdOf` ne pouvait pas la
+            nommer. `reorder_queue` fait `entries(queue).map(batchIdOf).filter(Boolean)` : le
+            `filter` ÉCARTAIT silencieusement toutes les entrées unitaires — réordonner la file
+            n'envoyait que ses LOTS, et l'ordre revenait au rechargement suivant. Le défaut a
+            été trouvé sur le converter, qui rend sa file à la main ; la FABRIQUE le semait à
+            l'identique dans toute app future. *On corrige la fabrique, pas seulement
+            l'artefact.* `display:contents` : la carte se dispose exactement comme avant.
+            {{% endcomment %}}
+            {{% for item in b.items %}}
+            <div class="wama-queue-entry" style="display:contents"
+                 data-entry-batch-id="{{{{ b.obj.id }}}}">{{% include '{app}/_generic_card.html' %}}</div>
+            {{% endfor %}}
             {{% endif %}}
         {{% empty %}}
             <p class="text-muted small">Aucun élément dans la file.</p>
