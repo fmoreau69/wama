@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from wama.common.catalog.data_types import is_compatible
+from wama.common.catalog.data_types import CANONICAL_FIELDS, is_compatible
 
 
 class FunctionCategory:
@@ -295,11 +295,28 @@ def function_node_ports(key):
 def can_connect(out_port: PortSpec, in_port: PortSpec, available_fields=None):
     """Validation d'une connexion sortie→entrée (chaînage) : compatibilité de TYPE
     (sous-typage) ET satisfaction des champs requis depuis les champs disponibles à
-    ce point de la chaîne (`produced` + champs déjà présents). Retourne (ok, raison)."""
+    ce point de la chaîne (`produced` + CANONIQUES DU TYPE + champs déjà présents).
+    Retourne (ok, raison)."""
     if not is_compatible(out_port.data_type, in_port.data_type):
         return False, (f"type incompatible : {out_port.data_type} → attend {in_port.data_type}")
     avail = set(available_fields) if available_fields is not None else set()
     avail |= set(out_port.produced_fields)
+    # ⚠ LES CHAMPS CANONIQUES DU TYPE SONT LÀ PAR DÉFINITION (2026-09-09). Un `geo_track`
+    # PORTE `time/lat/lon` — c'est ce que le type VEUT DIRE. Une fonction qui en rend un
+    # ne « produit » donc pas `time` : elle le transmet, et n'a aucune raison de le déclarer.
+    #
+    # Mesuré avant d'écrire cette ligne : sur les paires de fonctions pures, 81 refus après
+    # accumulation réaliste, dont **exactement 29** dus à ce seul manque — `gps_map_match`
+    # (geo_track → geo_track) refusé vers `generate_sections` faute de `time`, alors que les
+    # deux ports sont des `geo_track`. Ce n'étaient pas 29 déclarations à corriger, c'était
+    # UNE règle absente. *Un compte qui se concentre sur une cause n'est pas une liste de
+    # défauts, c'est un défaut unique vu N fois.*
+    #
+    # Ça n'assouplit rien : une fonction qui déclare rendre un `signal` sans porter
+    # `time`/`value` ment sur son TYPE — et c'est `FunctionCatalogConformiteTest` qui tient
+    # ce contrat-là, pas le chaînage. Même forme que `_PATTERNS_DE_BORD` côté installation :
+    # le jeu déclaré, plus ce que la nature garantit.
+    avail |= set(CANONICAL_FIELDS.get(out_port.data_type) or ())
     missing = [f for f in in_port.required_fields if f not in avail]
     if missing and available_fields is not None:
         return False, f"champs manquants : {missing}"

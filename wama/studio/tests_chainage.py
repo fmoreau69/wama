@@ -60,17 +60,49 @@ class ChampsApresTest(SimpleTestCase):
         self.assertEqual(champs_apres(sortie, 'calc_per_segment', {'time', 'value'}),
                          set(sortie.produced_fields))
 
-    def test_c_est_l_ACCUMULATION_qui_debloque_le_cas_mesure(self):
-        """Le cas qui a invalidé l'ordre de travail : sans accumulation, un enrichisseur
-        devient un cul-de-sac."""
-        sortie = fc.get('calc_rolling').outputs[0]
-        entree = fc.get('calc_per_segment').inputs[1]
-        un_saut, _ = can_connect(sortie, entree, available_fields=sortie.produced_fields)
-        accumule, _ = can_connect(sortie, entree,
-                                  available_fields=champs_apres(sortie, 'calc_rolling',
-                                                                {'time', 'value'}))
+    def test_les_champs_CANONIQUES_du_type_sont_la_par_definition(self):
+        """Un `geo_track` PORTE `time/lat/lon` — c'est ce que le type veut dire. Une fonction
+        qui en rend un ne « produit » donc pas `time`, elle le transmet.
+
+        ⚠ Mesuré le 2026-09-09 : ce seul manque expliquait **29** des 81 refus du contrôle de
+        champs — `gps_map_match → generate_sections` refusé faute de `time` alors que les deux
+        ports sont des `geo_track`. Ce n'étaient pas 29 déclarations à corriger, c'était UNE
+        règle absente.
+        """
+        sortie = fc.get('gps_map_match').outputs[0]          # geo_track, produit section_id…
+        entree = fc.get('generate_sections').inputs[0]       # geo_track, exige time + section_id
+        self.assertNotIn('time', sortie.produced_fields,
+                         "prémisse du test : l'amont ne DÉCLARE pas produire `time`")
+        ok, raison = can_connect(sortie, entree, available_fields=set())
+        self.assertTrue(ok, f"le type garantit `time` : {raison}")
+
+    def test_c_est_l_ACCUMULATION_qui_debloque_un_champ_NON_canonique(self):
+        """L'accumulation reste nécessaire là où la règle canonique ne peut rien : un champ
+        PROPRE à une fonction, qui traverse un enrichisseur en aval.
+
+        Chaîne : `gps_map_match` produit `section_id` (non canonique) → `ego_track_filter`
+        l'enrichit SANS le produire → `generate_sections` l'exige. À un seul saut, le port de
+        `ego_track_filter` ne montre que ses propres colonnes : la connexion est refusée alors
+        qu'elle est valide.
+
+        ⚠ Ce test remplace une version qui prenait `calc_rolling → calc_per_segment` : la règle
+        canonique la SUBSUME désormais (`time` est canonique de `timeseries`), donc elle ne
+        discriminait plus rien. *Un test qui cesse de discriminer est un test à remplacer, pas
+        un test à assouplir.*
+        """
+        amont, milieu = fc.get('gps_map_match'), fc.get('ego_track_filter')
+        aval = fc.get('generate_sections')
+        self.assertEqual(milieu.category, fc.FunctionCategory.ENRICHER,
+                         "prémisse : le maillon du milieu doit LAISSER PASSER")
+        self.assertNotIn('section_id', milieu.outputs[0].produced_fields)
+
+        un_saut, _ = can_connect(milieu.outputs[0], aval.inputs[0],
+                                 available_fields=milieu.outputs[0].produced_fields)
+        apres = champs_apres(milieu.outputs[0], 'ego_track_filter',
+                             champs_apres(amont.outputs[0], 'gps_map_match', set()))
+        accumule, raison = can_connect(milieu.outputs[0], aval.inputs[0], available_fields=apres)
         self.assertFalse(un_saut, "un seul saut devrait échouer — c'est le défaut à éviter")
-        self.assertTrue(accumule, "l'accumulation doit récupérer la connexion")
+        self.assertTrue(accumule, f"l'accumulation doit récupérer la connexion : {raison}")
 
 
 class DiagnosticDeChainageTest(SimpleTestCase):
