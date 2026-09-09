@@ -12749,7 +12749,11 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
   renommée), `pipelines` **1** (nouveau dossier) — régénérés depuis **venv_linux** ;
 - `doc_facts` : bloc `wama_data` régénéré (l'Analyzer n'est plus bloqué par D13 mais par sa
   SURFACE) ; les autres blocs non touchés ;
-- **push** : `dev` non poussée par moi ;
+- **push** : je n'ai rien poussé, mais **`origin/dev` a avancé jusqu'à `8320f0da` pendant la
+  session** — mes trois premiers commits (⑤b+C, D13, docs) sont donc DÉJÀ publiés, poussés par
+  quelqu'un d'autre. Seul le dernier (`doc_facts`/mécanismes) reste local. À vérifier au
+  prochain `/reprise` : `git rev-list --count origin/dev..dev`, jamais `git log | wc -l`
+  (⚠ `rtk` COMPRESSE la sortie : le compte de lignes qui en sort ne veut rien dire) ;
 - gunicorn : maître **HUP** une fois (09/09) avant le smoke — le JS servi a été vérifié au `curl` ;
 - aucune sonde ad hoc déposée dans `logs/ui_smoke/` (script de smoke dans le scratchpad, jeté avec lui).
 
