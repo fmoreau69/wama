@@ -12757,8 +12757,9 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
 
 - `check_docs` : **0 cassée / 0 périmée sur 1514** (ce §REPRISE en ajoute lui-même deux — le
   total n'est PAS un critère, seule la cible distincte l'est) ;
-- `manifest_export --check` (venv_linux) : corpus à jour — `--kind function` **62**,
-  `--kind pipeline` **1** ;
+- `manifest_export --check` (venv_linux) : corpus à jour, **202 manifestes** au total (197 le
+  08/09 : +4 fonctions déclarées, +1 pipeline) — `--kind function` **62**, `--kind pipeline`
+  **1** (dossier `manifests/pipelines/` créé ce jour) ;
 - `manifest_roundtrip --all` : **10/10 OK** ;
 - cam_analyzer : **13 passes** (= `PassType`, = les 13 nœuds du manifeste `pipeline`),
   **17 bascules**, catalogue **62 fonctions** (24 app-bound) ;
