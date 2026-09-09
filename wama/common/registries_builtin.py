@@ -367,20 +367,39 @@ def _count_backends() -> int:
     return count()
 
 
+# ⚠ LIBELLÉ CORRIGÉ le 2026-09-09 (relevé de Fabien) : il disait « Backends (moteurs) », et le
+# parenthésage valait ÉQUIVALENCE. C'est faux depuis le 2026-09-07, où le sens du lien a été
+# écrit partout (`PROJECT_STATUS §backends`, « rappelé trois fois par Fabien ») :
+#
+#     le MODÈLE porte son moteur (`composition.runtime.engine`)
+#       → le BACKEND s'en DÉRIVE (`ENGINE`, départagé par `SUPPORTED_MODELS`)
+#         → l'app appelle son MODÈLE et obtient son backend.
+#
+# Un backend est donc **la méthode qui APPELLE un moteur**, et un moteur est une **librairie**
+# (`whisper`, `diffusers`, `pyannote`…). Les confondre efface le seul objet qui porte la
+# décision — le modèle — et laisse croire qu'une app « a » des moteurs.
+#
+# ⚠⚠ Ce libellé était CITÉ COMME AUTORITÉ dans `AGENTS.md` (« un simple LIBELLÉ tranche parfois
+# la question : le registre "Backends (moteurs)" dit que WAMA ne distingue pas le backend du
+# moteur »). Un libellé périmé promu en source de vérité fait trancher une question dans le
+# mauvais sens — corrigé là-bas dans le même commit.
 register(Registry(
-    key='backends', label='Backends (moteurs)', nature=DERIVED,
+    key='backends', label='Backends', nature=DERIVED,
     source="Déclarations des paquets `wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + "
            "classes BaseModelBackend : ENGINE, ISOLATION, REQUIRED_PACKAGES, VRAM) recoupées "
            "au catalogue `AIModel` (source, backend_ref, composition.runtime.engine)",
     count=_count_backends,
     url_name='common:backends_catalog', permission='auth',
     doc='WAMA_APP_GENERATION_ROUTE.md',
-    description="Le VIVIER des moteurs : ce que chaque app sait exécuter, la nature d'entrée qui "
-                "y mène, la SAVEUR de sortie (fichier/texte), les paquets requis, la VRAM et les "
-                "modèles servis. Dit aussi l'ENVIRONNEMENT d'exécution : le défaut est un venv "
-                "unique, et un backend qui tourne ailleurs le déclare (`ISOLATION`) — sans quoi "
-                "le verdict de disponibilité confondrait « paquet absent » et « backend qui vit "
-                "ailleurs ». Deux usages : la vision d'ensemble, et le voisinage dont le LLM "
-                "de la marche B a besoin pour s'inspirer du backend le plus approchant. Dérivé à "
-                "chaque affichage — un backend ajouté y apparaît sans qu'on déclare rien ici.",
+    description="Le VIVIER des BACKENDS — la méthode qui appelle un moteur, jamais le moteur "
+                "lui-même : le MODÈLE porte son moteur, le backend s'en DÉRIVE, et un moteur "
+                "est une LIBRAIRIE. On y lit ce que chaque app sait exécuter, la nature "
+                "d'entrée qui y mène, la SAVEUR de sortie (fichier/texte), les paquets requis, "
+                "la VRAM et les modèles servis. Dit aussi l'ENVIRONNEMENT d'exécution : le "
+                "défaut est un venv unique, et un backend qui tourne ailleurs le déclare "
+                "(`ISOLATION`) — sans quoi le verdict de disponibilité confondrait « paquet "
+                "absent » et « backend qui vit ailleurs ». Deux usages : la vision d'ensemble, "
+                "et le voisinage dont le LLM de la marche B a besoin pour s'inspirer du backend "
+                "le plus approchant. Dérivé à chaque affichage — un backend ajouté y apparaît "
+                "sans qu'on déclare rien ici.",
 ))

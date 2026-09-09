@@ -994,8 +994,20 @@ def memories_view(request):
     # Libellé résolu ICI : aucun filtre de gabarit n'est enregistré dans ce dépôt (vérifié —
     # `templatetags/` ne déclare que des tags), donc un `dict|lookup:clé` en gabarit n'existe
     # pas. Le résoudre côté vue est la voie du dépôt, pas un contournement.
+    #
+    # ⚠ PROPRIÉTAIRE ET PORTÉE dans la liste ACTIVE (ajoutés le 2026-09-09, relevé de Fabien).
+    # La page s'appelle « Mes souvenirs » mais `_visible_memory` rend AUSSI ce qui est partagé
+    # à mon unité ou publié par d'autres : taire à qui appartient une ligne laissait croire que
+    # tout venait de moi. Et un souvenir de PLATEFORME n'a aucun propriétaire (`user=NULL`) —
+    # c'est un état légitime, qui doit se lire comme tel et non comme une donnée manquante.
+    portees = {'private': 'Privé', 'unit': 'Unité', 'project': 'Projet', 'public': 'Public'}
     for s in actifs + attente:
         s['kind_libelle'] = kinds.get(s['kind'], s['kind'])
+        s['portee_libelle'] = portees.get(s['niveau'], s['niveau'])
+        s['est_mien'] = bool(s['proprietaire']) and s['proprietaire'] == request.user.username
+        s['proprietaire_libelle'] = (
+            'moi' if s['est_mien']
+            else (s['proprietaire'] or 'la plateforme (aucun propriétaire)'))
 
     # Unités proposables comme PORTÉE à la validation. Toutes, pas celles du relecteur : il
     # arbitre pour des souvenirs de PLATEFORME (`user=NULL`), qui ne dépendent d'aucun profil.

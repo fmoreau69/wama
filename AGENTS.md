@@ -67,11 +67,20 @@
 |---|---|---|
 | la brique existe-t-elle déjà ? | `WAMA_MECANISMES.md` — table **GÉNÉRÉE** depuis `wama/common/mecanismes.py` | seul index exhaustif du substrat. ⚠ **Y compris les mécanismes qu'on a écrits soi-même** : c'est le cas vécu le 07/09, un mécanisme rédigé trois jours plus tôt et non relu |
 | la question est-elle déjà tranchée ? | `WAMA_APP_GENERATION_ROUTE.md` **§S** (« ce qu'une génération ne doit plus redécouvrir ») et **§10.5** (chaîne dépôt→app + briques à ne PAS réécrire) | ces deux blocs n'existent que **parce que** des sessions ont reproposé de l'existant. Les ignorer, c'est refaire exactement ce qu'ils documentent |
-| l'objet a-t-il déjà un registre ? | `wama/common/registries.py` → `overview()` (nature comprise : mesure / dérivé / redéclaration / scan) | un simple LIBELLÉ tranche parfois la question : le registre « Backends (moteurs) » dit que WAMA **ne distingue pas** le backend du moteur — inutile de chercher un lieu pour une famille qui n'existe pas |
+| l'objet a-t-il déjà un registre ? | `wama/common/registries.py` → `overview()` (nature comprise : mesure / dérivé / redéclaration / scan) | un registre dit ce que WAMA sait NOMMER, et sa `description` dit la RELATION entre ses objets — ex. `backends` : *le modèle porte son moteur, le backend s'en dérive, un moteur est une librairie*. Chercher un lieu pour une famille sans registre, c'est en inventer une |
 | est-ce cohérent entre les MONDES ? | la règle « un monde n'est pas un sous-dossier du substrat » (plus bas) | la cohérence visée est INTER-mondes — substrat ↔ Médias ↔ Data ↔ Lab —, pas la propreté d'une app |
 
 **Le test d'acceptation d'une proposition : elle doit pouvoir CITER ce qu'elle a lu.** « Je ne
 l'ai pas trouvé » n'est recevable qu'après avoir nommé les quatre endroits regardés.
+
+⚠ **Mais une source d'autorité se VÉRIFIE aussi, et un LIBELLÉ n'en est pas une.** Cette ligne
+disait, jusqu'au 2026-09-09 : *« le registre "Backends (moteurs)" dit que WAMA ne distingue pas
+le backend du moteur »*. C'était vrai en août, faux depuis le **2026-09-07**, où le sens du lien
+a été écrit partout — *le modèle porte son moteur, le backend s'en DÉRIVE, un moteur est une
+librairie*. Le libellé, lui, n'avait pas suivi (relevé par Fabien). **Un libellé périmé promu en
+source de vérité fait trancher une question dans le mauvais sens, avec l'assurance de celui qui
+a cité sa source.** Citer reste obligatoire ; citer une chose datée sans la confronter au code
+ne l'est jamais.
 
 ⚠ **Une frontière VOULUE se lit comme une réponse, jamais comme un trou à combler.** Exemple
 mesuré : la route `library` refuse `git+`, les URL, `file:`, `-e` et les contraintes lâches
