@@ -3248,6 +3248,41 @@ maison, volet seul) converge sur la brique avec la généralisation des profils 
 - Validation par **régénération de `converter_01`** (la facette `data` porte alors les
   colonnes, le modèle généré les a).
 
+#### 23.3bis CARTOGRAPHIE des réglages — mesurée en base le 2026-09-09 (demande de Fabien)
+
+> Écrite parce que la question « porter enhancer + anonymizer ? » ci-dessus s'est discutée
+> **quatre échanges durant sur un malentendu de vocabulaire** : « réglages utilisateur »
+> désigne QUATRE choses dans WAMA, et une seule est concernée. Fabien : « les réglages
+> utilisateurs sont persistés dans les cards. De quels réglages parles-tu ? » — il avait
+> raison, et la carte manquait.
+
+| couche | où | durabilité | mesure du 09/09 |
+|---|---|---|---|
+| **réglages d'un ÉLÉMENT** | colonnes SQL de la table de l'app | **durable** | le plus ancien transcript (20/11/2025) porte ses 7 réglages ; converter 20 ; synthesizer garde modèle et voix depuis 12/2025 |
+| **préférences d'INTERFACE** | `accounts.UserProfile` | **durable** | 14 lignes, 23 champs (langue, unités, disposition, niveaux RAG) |
+| **profils NOMMÉS** | `ConversionProfile`, `AnalysisProfile` | **durable** | converter 0, cam_analyzer 4 |
+| **PRÉ-REMPLISSAGE du prochain dépôt** | `common/utils/user_settings.py` → **cache Redis** | **30 jours glissants** | 430 clés en base 1 ; 60 clés examinées, **0 sans expiration**, ~28,6 j restants ; Redis en instantanés (`appendonly no`) |
+
+**Ce que la 4ᵉ couche porte réellement** (mesuré, `grep` des appels) : converter = le dernier
+format de sortie par type de média ; describer et transcriber = quelques défauts de
+formulaire. **Aucun réglage de job n'y passe.** C'est un confort, pas une donnée de travail —
+d'où l'invisibilité totale du défaut. L'expiration n'a AUCUN rapport avec la rétention des
+médias (`UserProfile.media_retention_days`, illimitée par défaut) : elle vient d'une ligne de
+juillet, justifiée par analogie avec la durée de l'historique du transcriber.
+
+**Conséquence pour la décision ci-dessus** : l'anonymizer (15 lignes) et l'enhancer (7 lignes)
+sont les seuls dont le PRÉ-REMPLISSAGE est durable. Les porter tels quels le rendrait
+périssable — on alignerait vers le régime le moins bon. Trois issues, au choix de Fabien :
+aligner malgré tout (homogène, sans risque pour les jobs) · **rendre la brique durable
+d'abord** (un modèle commun `{user, app, nom, valeur JSON}`, unicité sur les trois premiers,
+mêmes signatures publiques donc zéro ligne changée dans les 11 apps, cache conservé en lecture
+devant, 430 clés recopiées) · ne rien faire (variante assumée, ce que la ligne ci-dessus
+autorise déjà). ⚠ Dans tous les cas, la table de l'anonymizer demande un **TRI** : 8 champs
+sont des préférences d'affichage (console, aperçu, boîtes, étiquettes) dont le domicile est
+`UserProfile`, 8 autres sont du pré-remplissage (floutage, seuil, précision, invite SAM3).
+**Précédent utile : l'imager a fait ce portage le 2026-08-11** — sa table a été supprimée par
+migration (`0016_delete_usersettings`) au profit de la brique, défauts dérivés du schéma.
+
 
 ### 23.4 Présentation du REDIMENSIONNEMENT (question Fabien, 02/09) — à dessiner avec la card v4
 

@@ -197,6 +197,35 @@ Préférences **par utilisateur** sur `UserProfile` :
 - **Préavis** : notification email J‑N avant suppression (réutilise §2).
 - **Médiathèque** : les `UserAsset` peuvent avoir leur propre politique (assets « gardés » exemptés).
 
+### 3bis 🔚 QUESTION OUVERTE (Fabien, 2026-09-09) — que devient la CARD quand ses fichiers expirent ?
+
+**Ce que le code fait AUJOURD'HUI, mesuré** (`common/services/retention.py`) : la purge supprime
+les fichiers **puis l'enregistrement** (`obj.delete()`), sur les 6 modèles inscrits à
+`RETENTION_MODELS`. La card disparaît donc avec ses fichiers.
+
+**Position de Fabien, à instruire** : *« si une durée d'expiration est appliquée et que les
+fichiers entrée/sortie sont supprimés, que fait-on des cards et réglages ? Je dirais qu'on
+pourrait conserver mais signaler l'expiration (statut de card ?). L'utilisateur peut réutiliser
+la card en la dupliquant et en réaffectant des entrées. »* Argument qui la soutient : **ce qui
+sature l'espace, ce sont les FICHIERS, pas les lignes** — supprimer la ligne détruit en plus des
+réglages et, pour transcriber/describer/reader, un RÉSULTAT TEXTUEL qui ne pèse rien.
+
+**Quatre points d'attention relevés à l'analyse, si ce chemin est pris :**
+1. **Entrée et sortie ne se valent pas.** Une card dont la SORTIE a expiré mais dont l'entrée
+   est là reste **rejouable d'un clic** ; l'inverse exige la duplication + réaffectation que
+   Fabien décrit. Deux états, pas un.
+2. **Ne pas écraser le statut de traitement.** Une card expirée reste un `SUCCESS` dont les
+   fichiers ont été purgés — confondre les deux ferait mentir l'historique. Le marqueur
+   d'expiration vit À CÔTÉ du statut, pas à sa place.
+3. **Le dériver, ne pas l'écrire.** Un drapeau « expiré » en base se désynchronise dès qu'un
+   fichier revient (ré-import) ou disparaît autrement. Même raison que `AIModel.is_loaded`,
+   rabattu à la lecture (« un booléen en base ne se répare pas seul »). L'absence de fichier se
+   constate déjà (`check_media_integrity`) ; mémoïser comme le grisage le fait.
+4. **L'épinglage est déjà prévu et n'existe nulle part.** `RETENTION_MODELS` documente une clé
+   `pin` qui EXEMPTE un enregistrement de la purge, et « aucun modèle n'a de champ pin pour
+   l'instant » : c'est la façon la plus simple de laisser l'utilisateur protéger ce qu'il veut
+   garder, et elle ne demande qu'un booléen.
+
 ## 4. Questions ouvertes / recommandations
 1. **Terminologie** : adopter **« Profil de compte » (tier)** + **« Rôles métier » (cumulatifs)** ;
    abandonner « sous-profil » (ambigu). → *recommandé*.

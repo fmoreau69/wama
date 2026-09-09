@@ -12364,6 +12364,62 @@ d'app, et deux instances ne doivent pas y écrire en même temps.
 **Vocabulaire (remarque de Fabien)** : j'employais « affordance » pour dire « le moyen VISIBLE
 d'accomplir le geste » (ici le lien). Terme abandonné — on dit le lien, le bouton, le champ.
 
+### CLÔTURE 2026-09-09 — grille, options au catalogue, 3 défauts d'interface, et 4 réponses à Fabien
+
+**11 commits.** ① six critères F4/F5 lisent les backends RÉSOLUS (l'externalisation les avait
+fait rougir sur 10 apps sans qu'une déclaration disparaisse) ② reader + enhancer tirent leurs
+options du CATALOGUE, plus deux défauts SILENCIEUX de brique révélés par ce premier appelant
+réel (`model_type` ignoré dès qu'une `source` est donnée ; `source` passé deux fois aux chips,
+`TypeError` avalé) ③ `recursive_import` mesurait UN motif pour DEUX moitiés de geste ④ le lien
+« ou importer un dossier » ouvrait la fenêtre FICHIERS sur 7/7 apps ⑤ la card de l'imager
+démarrait dépliée, seule du parc ⑥ les deux cards de l'enhancer portaient le MÊME id ⑦ la
+déclaration du composer ne disait pas qu'il accepte une mélodie ⑧ deux gardes de card + la
+cartographie des réglages (`ROADMAP §23.3bis`) et la question de rétention (`PROFILES §3bis`).
+
+**LES 4 RÉPONSES DEMANDÉES PAR FABIEN, mesurées** :
+| question | réponse MESURÉE |
+|---|---|
+| « le transcriber propose des moteurs ou des modèles ? » | **ma formulation était fausse.** Le menu propose des ADAPTATEURS : whisper et vibevoice correspondent 1:1 à un modèle, seul `qwen_asr` recouvre DEUX tailles (0,6B/1,7B, 2 vs 4 Go) que l'utilisateur ne peut pas départager. Le vrai moteur (faster-whisper, vibevoice, transformers) n'est jamais affiché. Aligner = traduire 2 valeurs stockées sur 4 |
+| « anonymizer : harmoniser sans rien casser ni inventer ? » | **oui.** Le catalogue porte DÉJÀ la clé ET le chemin complet sur la même ligne ; la colonne ne stocke que le chemin relatif, et **2 valeurs distinctes** existent en base |
+| « composer : remettre les 2 modes ? » | **déconseillé.** La réponse serveur porte déjà un champ `group` et le front sait déjà rendre des `<optgroup>` : il manque le GROUPEMENT côté serveur et un « auto » par groupe. Extension du même mécanisme, dont l'imager profiterait (Images/Logos/Vidéos) |
+| « import de dossier » | **DÉCIDÉ par Fabien** : pas de sens pour imager ni composer (leurs fichiers sont des références au prompt) ; **du sens pour l'avatarizer** (un dossier d'audios = un lot d'avatars). ⚠ La grille ne peut pas deviner cette distinction — avatarizer et imager déclarent la même chose sur leur card : elle devra être ÉCRITE (registre = session CARDS/UI) |
+
+**Tests ajoutés (réponse à « a-t-on ajouté tous les tests nécessaires ? » — non, il en manquait
+deux)** : `tests_conformity_backends` 25 · `tests_model_options_catalog` 16 · `tests_catalogues`
++2 gardes (card dépliée, ids dupliqués) · le geste `<app>.folder_import` clique désormais le
+LIEN (il vérifiait l'attribut `onclick` puis pilotait l'input : il sautait le chemin humain).
+**Morsures prouvées** pour les trois, par réinjection du défaut.
+
+**⚠ MES ERREURS DE LA SESSION, écrites pour ne pas les refaire** :
+1. **9ᵉ récidive du commentaire `{# #}` multi-ligne** dans `enhancer/index.html` — la mémoire du
+   projet l'interdit depuis 7 récidives, `check_templates` existe depuis le 27/08, je ne l'ai
+   pas lancé. Sorti à la SUITE COMPLÈTE ; corrigé par l'AUTRE instance (`d5b2f8b8`) avant moi.
+2. **Une sonde fausse deux fois.** J'espionnais `input.click()` sans appeler le natif : je
+   SUPPRIMAIS la remontée que je voulais observer, et j'ai rendu « OK » sur 3 apps. Puis ma
+   contre-épreuve du garde d'ids retirait UN seul `card_id` sur deux, donc aucune collision :
+   la garde avait raison de se taire. *La sonde est suspecte avant le code.*
+3. **Deux affirmations non mesurées** : « le select liste des moteurs » (faux, cf. table) et
+   « porter les réglages ferait perdre des réglages utilisateurs » (alarmiste : la couche
+   concernée ne porte QUE le pré-remplissage — 4 échanges perdus sur ce malentendu).
+4. **Une proposition d'exemption réfutée par le geste** : « `recursive_import` N/A pour une card
+   d'attache » — l'avatarizer EST une card d'attache et traite un dossier déposé, et le
+   scénario disait déjà « dette d'ADOPTION, pas de conception ».
+
+**Contrôles mesurés à la clôture** : suite complète **1888 tests, 1 échec** —
+`tests_volet.PagesDeclarantesTest` sur la page **Registres**, livrée par la session CARDS/UI
+(`0e587583`) et qui fait tomber le test de son propre commit précédent (`2a91d59b`) : **pas mon
+périmètre, à reprendre par son auteur** · `check_docs` **0 cassée / 1505** · `check_templates`
+**0 défaut / 151** · `doc_facts` régénéré (13ᵉ mécanisme de ressources) · corpus de manifestes :
+**3 périmés par mes changements** (composer, enhancer, reader) régénérés · grille : converter et
+describer **100**, reader **97**, enhancer/synthesizer/transcriber **95**, anonymizer/composer/
+avatarizer **94**, imager **92**.
+
+**🔚 CE QUI RESTE, et à qui** : 3 apps pour les options au catalogue (chacune sur une décision
+ci-dessus) · le lien dossier sur la card de l'avatarizer + la déclaration « un dossier a-t-il un
+objet ici ? » (session CARDS/UI) · réglages communs (3 issues, `ROADMAP §23.3bis`) · rétention et
+cards orphelines (`PROFILES §3bis`) · triades déclaratives, specs de détail, squelette de tâche
+(non engagés) · jQuery-file-upload en 3 surfaces.
+
 ### Contrôles attendus au prochain `/reprise` — TOUS MESURÉS le 2026-09-07 (nuit, après le 6ᵉ commit)
 
 | contrôle | valeur mesurée |
