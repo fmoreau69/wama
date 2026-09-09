@@ -17,7 +17,7 @@
         "optional": false,
         "produced_fields": [],
         "required_fields": [
-          "ts",
+          "time",
           "lat",
           "lon"
         ]

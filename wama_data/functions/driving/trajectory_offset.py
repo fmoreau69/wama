@@ -167,7 +167,11 @@ def correct_track(gps_track, anchors):
     out = []
     for p in (gps_track or []):
         q = dict(p)
-        ts, lat, lon = p.get('ts'), p.get('lat'), p.get('lon')
+        # `time` est le champ canonique d'un `geo_track` ; `ts` est accepté en REPLI pour les
+        # traces héritées (et parce que les ancres, elles, portent bien `ts` — cf. le SPEC).
+        # Lire les deux ici est une tolérance de LECTURE, pas un second vocabulaire : la
+        # déclaration, elle, n'exige que `time`.
+        ts, lat, lon = (p.get('time', p.get('ts')), p.get('lat'), p.get('lon'))
         if ts is None or lat is None or lon is None:
             out.append(q)
             continue
@@ -219,8 +223,21 @@ SPEC = register(FunctionSpec(
     category=FunctionCategory.TRANSFORM,
     tags=['geo', 'gnss', 'timeseries'],
     inputs=[
-        PortSpec('track', DataType.GEO_TRACK, required_fields=['ts', 'lat', 'lon'],
+        # ⚠ `time`, PAS `ts` (corrigé le 2026-09-09) : c'est un port `geo_track`, et le champ
+        # temporel canonique de ce type est `time` (`CANONICAL_FIELDS`). Avec `ts`, cette
+        # fonction était la SEULE du catalogue à exiger un champ que son propre type ne porte
+        # jamais — donc AUCUN producteur de `geo_track` ne pouvait l'alimenter, en silence.
+        # Famille de la leçon `ign_vector`, inversée : là un port PROMETTAIT ce qu'il ne
+        # servait pas ; ici il EXIGEAIT ce qui n'existe pas. Trouvé par le tri des refus de
+        # chaînage — 62 fonctions passées au crible, un seul cas.
+        PortSpec('track', DataType.GEO_TRACK, required_fields=['time', 'lat', 'lon'],
                  description='Trace à corriger.'),
+        # ⚠ Les ANCRES gardent `ts`, et ce n'est pas une incohérence : c'est une structure
+        # INTERNE produite par `build_anchors`, sur un port `table` — type SANS champs
+        # canoniques, donc sans vocabulaire imposé. Et surtout elle est PERSISTÉE par
+        # cam_analyzer (`results_summary`, « on ne stocke que les ANCRES ») : la renommer
+        # rendrait illisibles les ancres déjà écrites. Un vocabulaire canonique s'applique
+        # là où un TYPE le garantit, pas partout par uniformité de façade.
         PortSpec('anchors', DataType.TABLE, required_fields=['ts', 'de_m', 'dn_m'],
                  cardinality='many',
                  description="Offsets ancrés (sortie de `build_anchors`)."),
