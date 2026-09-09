@@ -848,6 +848,43 @@ durée qui élimine : ce sont les critères de POSITION (étalement < 6 m, étal
 < 0,7 m/s) ou l'exclusion d'intersection. **Lequel exactement est INDÉTERMINABLE depuis le
 persisté** — il faudrait instrumenter le tracker ou relire `track_hist` pendant un run.
 
+#### 🔴 LA MESURE FAITE PAR LE CODE LUI-MÊME (2026-09-09, demande de Fabien)
+
+*« Tu ne peux pas regarder directement ce que fait le code plutôt que de supposer ? Le pipeline
+de traitement existe, les fonctions existent. »* — et il avait raison une seconde fois : les deux
+passes ci-dessus faisaient de l'ARCHÉOLOGIE sur des positions persistées (lissées, partielles,
+issues d'un run ancien) là où `annotate_global_tracks` est une fonction **CPU, rejouable**.
+Le filtre a donc été **instrumenté** (`stationary_rejects`, compté DANS la boucle, sur les
+positions BRUTES de `track_hist`) puis la fonction **exécutée sur la session réelle, écritures
+neutralisées** (`DetectionFrame.save`/`AnalysisSession.save` remplacés — 237 318 tentatives
+bloquées, base intacte), 94 s de calcul.
+
+| porte de sortie du filtre | candidats | part |
+|---|---|---|
+| **étalement ≥ 6 m** (`trop_etale`) | **1904** | **45,4 %** |
+| **vu moins de 4 s** | **1609** | **38,4 %** |
+| moins de 5 observations | 555 | 13,2 % |
+| **RETENU** | **77** | **1,8 %** |
+| étalement/durée ≥ 0,7 m/s | 33 | 0,8 % |
+| près d'une intersection | 12 | 0,3 % |
+
+**Le verdict, enfin établi.** ① La cause DOMINANTE est l'**étalement** (45,4 %) — et c'est le
+fait le plus lourd de tout ce §D.3 : *le filtre exige une précision de placement que la chaîne
+ne fournit pas*. Un garé vu à 20 m avec le pinhole à ±20 % (levier 1) s'étale mécaniquement de
+plusieurs mètres ; le seuil de 6 m mesure donc le BRUIT DE PLACEMENT autant que le mouvement de
+l'objet. ② La brièveté pèse tout de même **51,6 %** au total (durée + nombre de vues) — ma
+première conclusion la surestimait à 86 %, la seconde la déclarait négligeable : les deux
+étaient fausses, la réalité est que **deux causes massives coexistent**. ③ L'exclusion
+d'intersection est **négligeable (0,3 %)**, ce que §C laissait croire déterminant.
+
+Relevés du même run, jamais mesurés jusqu'ici sur données réelles : `placement_spread` des
+retenus = **0,85 m** (RMS médian, 77 tracks) ; **sources de placement** (G7 enfin compté) =
+`ground:homographie` 264 281 · `pinhole` 252 278 · `pinhole_relaxed` 56 751 — soit **46 % de
+pinhole et 10 % de repli dégradé** dans ce que l'on croit lire comme « projection sol ».
+
+⚠ Le tracker rend **5210** tracks globaux là où la base en porte 4352 : les données persistées
+viennent bien d'un autre run — d'où l'inanité des deux mesures externes.
+
 *Et la question de Fabien, mesurée* : le taux de recevabilité reste plat (49-70 %) quelle que
 soit la vitesse de la navette, mais la **durée médiane d'un track passe de 4,6 s à l'arrêt à
 11,5 s entre 20 et 25 km/h**. Un seuil en secondes mêle donc la scène et le mouvement porteur —

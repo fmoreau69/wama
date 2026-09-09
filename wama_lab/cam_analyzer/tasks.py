@@ -2436,6 +2436,11 @@ def _run_global_tracking(session):
         # Compteurs de SOURCE de placement (G7 rendu visible) : un A/B ne vaut que si l'on
         # sait quelle part des détections est réellement passée par la projection sol.
         rs['placement_sources'] = _gt.get('placement_sources') or {}
+        # POURQUOI le filtre des garés a écarté (2026-09-09). « 77 stationnés détectés » ne
+        # disait pas si les 4113 autres étaient mobiles, vus trop brièvement, ou trop étalés —
+        # et l'ignorer a fait conclure faux DEUX fois depuis les données persistées. Un filtre
+        # qui retient 1,8 % de ses candidats doit dire par quelle porte sortent les autres.
+        rs['stationary_rejects'] = _gt.get('stationary_rejects') or {}
         # Métrique A/B objective de cohérence de placement (étalement monde des
         # stationnés autour de leur barycentre — 0 = idéal). Persistée pour trancher
         # la bascule ⚑ auto_ground_calib ON/OFF sur un CHIFFRE, pas « à l'œil ».
@@ -2466,6 +2471,15 @@ def _run_global_tracking(session):
         _console(session.user_id,
                  f"Tracking multi-caméra : {_gt['tracks']} tracks globaux (hand-off), "
                  f"{len(stat)} véhicules stationnés détectés.")
+        _rej = _gt.get('stationary_rejects') or {}
+        if _rej:
+            _tr = sum(_rej.values()) or 1
+            _console(session.user_id,
+                     "Garés — pourquoi le filtre écarte : " + ", ".join(
+                         f"{k} {v} ({100.0 * v / _tr:.0f} %)"
+                         for k, v in sorted(_rej.items(), key=lambda kv: -kv[1]))
+                     + " — un seuil qui écarte l'essentiel de ses candidats se juge sur CETTE "
+                       "répartition, pas sur le nombre de retenus.")
         _srcs = _gt.get('placement_sources') or {}
         if _srcs:
             _tot = sum(_srcs.values()) or 1

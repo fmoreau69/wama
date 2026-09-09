@@ -432,18 +432,41 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # véhicules ROULANTS trackés brièvement (10 km/h × 1,5 s = 4 m < 6 m). Un stationné
     # doit être vu ASSEZ LONGTEMPS (≥ 4 s) avec une vitesse moyenne quasi nulle
     # (étalement/durée < 0,7 m/s ≈ 2,5 km/h), en plus du plafond absolu d'étalement.
+    # ⚠⚠ CE FILTRE NE DISAIT RIEN DE CE QU'IL REJETTE (instrumenté le 2026-09-09, demande de
+    # Fabien : « regarder ce que fait le code plutôt que supposer »). Quatre conditions
+    # s'enchaînaient en silence : on lisait « 55 garés » sans savoir si les 3800 autres étaient
+    # mobiles, vus trop brièvement, ou trop étalés. Deux sessions d'analyse EXTERNE (sur les
+    # positions PERSISTÉES, donc lissées) ont conclu faux avant qu'on ne compte ici, à la
+    # source, sur les positions BRUTES que le filtre juge réellement.
+    # Le compte part dans `results_summary['stationary_rejects']` et en console : un filtre qui
+    # écarte 97 % de ses candidats doit DIRE par quelle porte.
     stationary_gids = []
+    _rejets = {'moins_de_5_obs': 0, 'vu_moins_de_4s': 0, 'trop_etale': 0,
+               'trop_rapide': 0, 'pres_intersection': 0, 'retenu': 0}
     for gid, hist in track_hist.items():
         hs = sorted(hist)
         dur = (hs[-1][1] - hs[0][1]) if len(hs) >= 2 else 0.0
-        if len(hs) < 5 or dur < 4.0:
+        if len(hs) < 5:
+            _rejets['moins_de_5_obs'] += 1
+            continue
+        if dur < 4.0:
+            _rejets['vu_moins_de_4s'] += 1
             continue
         e0, n0 = hs[0][2], hs[0][3]
         spread = max(math.hypot(e - e0, n - n0) for (_, _, e, n, _) in hs)
-        if (spread < spread_max_m and (spread / dur) < 0.7
-                and not _near_intersection(hs)):
-            stationary_gids.append(gid)
+        if spread >= spread_max_m:
+            _rejets['trop_etale'] += 1
+            continue
+        if (spread / dur) >= 0.7:
+            _rejets['trop_rapide'] += 1
+            continue
+        if _near_intersection(hs):
+            _rejets['pres_intersection'] += 1
+            continue
+        _rejets['retenu'] += 1
+        stationary_gids.append(gid)
     _stat_set = set(stationary_gids)
+    logger.info('[stationnés] %s', ' · '.join(f'{k}={v}' for k, v in _rejets.items()))
 
     # ── Ancres MONDE des stationnés ─────────────────────────────────────────────
     # Un stationné est STATIQUE par définition : sa position monde est unique. La
@@ -628,4 +651,5 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     return {'tracks': next_id - 1, 'stationary_gids': stationary_gids,
             'stationary_anchors': stationary_anchors,
             'placement_spread': placement_spread,
-            'placement_sources': dict(_src_counts)}
+            'placement_sources': dict(_src_counts),
+            'stationary_rejects': _rejets}

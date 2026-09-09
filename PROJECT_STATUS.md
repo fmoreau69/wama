@@ -13036,3 +13036,149 @@ la donnée de sa source.
 - catalogue : **143 ports**, **0 sans description** (garde à zéro, pas budget dégressif) ;
 - `apply_manifests --kind function` : les 62 sortent en **`sautés`** avec leur raison agrégée,
   plus en « inchangés ».
+
+---
+
+## §REPRISE — 2026-09-09→10, instance « ÉCOSYSTÈME MULTI-AGENTS : AGENTS.md, SKILLS, MÉMOIRE » — ✅ CLOSE — 🔚 POINT D'ENTRÉE
+
+> Périmètre : la couche LLM/skills/mémoire et la doctrine. **Zéro fichier partagé avec
+> l'instance cam_analyzer/converter/codegen**, qui a travaillé en parallèle tout du long.
+> 9 commits : `57d4b0d0` `be48bb98` `5b161d1e` `2d907c72` `c42a98a4` `a40f386a` `78713ff3`
+> `204d013c` `583f90c6`.
+
+**Point de départ** : une question de Fabien — « peut-on faire travailler ensemble Claude,
+Codex, Copilot, avec mémoire et skills communs ? ». La session a répondu en MESURANT, et la
+mesure a démenti la moitié des propositions, y compris les miennes.
+
+### Ce qui est livré
+
+1. **`AGENTS.md` / `CLAUDE.md` — la doctrine se sépare du harnais** (`be48bb98`). 698 lignes
+   coupées **par script** (« lignes de contenu perdues : 0 »), 140 renvois réaiguillés dans
+   66 fichiers. La ligne de fracture n'est pas « partagé / spécifique » mais **doctrine /
+   harnais** : une règle qui parle du matcher de permissions n'a aucun sens pour Codex.
+   `AGENTS.md` est lu nativement par 30+ agents ; `check_docs` contrôle désormais LES DEUX.
+2. **Le cloud atteint enfin transcriber/describer/reader** (`57d4b0d0`). Les 5 aides de haut
+   niveau de `llm_utils` appelaient `ollama_chat()` en direct : **local-only par construction**,
+   alors que `llm_chat` était adopté par 5 autres consommateurs. 14 sites, 8 fichiers.
+3. **Le SOUVENIR récupère page + registre** (`5b161d1e`, `c42a98a4`) — le fragment RAG les avait,
+   son jumeau non. Et **`store.approve()`, la 6ᵉ opération** (`204d013c`) : la validation humaine
+   qu'exige `WAMA_MEMORY §6` **n'existait NULLE PART** — ni store, ni admin, ni vue.
+4. **Le pont wama-dev-ai → skills WAMA existe** (`2d907c72`) — annoncé depuis le 08/07 par
+   TROIS fichiers, présent dans AUCUN. Et son dossier de consignes avait **4 lecteurs** :
+   un accesseur unique, `role_utils.consigne_role()`.
+5. **La page devient « Prompts & Skills », 5 familles, 36 entrées** (`a40f386a`, `78713ff3`) —
+   avec le mécanisme de sélection, les gabarits marqués, les déclarations `PROMPT_TARGETS`.
+6. **`manage.py check_skills`** (`204d013c`) — la santé du corpus de skills, branchée dans
+   `/cloture`. *(Déjà adoptée par l'autre instance dans sa propre clôture du jour.)*
+7. **Deux registres de plus : 12 → 14** — `memories` et `prompts`.
+
+### Les 6 décisions prises avec Fabien
+
+| # | décision | motif |
+|---|---|---|
+| 1 | **Le CONSOMMATEUR FINAL fixe le format d'une consigne** | un modèle de diffusion/SAM3/TTS n'encaisse qu'une chaîne et ne CHOISIT pas → fichier nu résolu par le code ; un agent lit des descriptions → format SKILL.md à frontmatter. Deux mécanismes de sélection, pas deux goûts |
+| 2 | **FUSION des consignes de dev : ÉCARTÉE** | 5 des 11 consignes de rôle sont des **gabarits `.format()`**. Les porter casserait la substitution ET le contrat du format. Le partage est **4 contre 1**, pas 2 contre 2 : *elles se rejoignent sur la PAGE, pas sur le disque* |
+| 3 | **Pas de registre pour le journal** | un registre catalogue ce sur quoi on AGIT (le RAG s'alimente, un souvenir s'approuve). Le journal ne se cure pas — c'est une VUE sur `RunOutcome`. ⚠ Le motif « c'est vivant » ne tient pas : `rag` l'est aussi |
+| 4 | **Registre + page pour les souvenirs** | argument STRUCTUREL : `MemoryItem` et `RagChunk` partagent mixins et `recall()`. Deux jumeaux aux surfaces asymétriques finissent par se lire comme deux natures |
+| 5 | **`PROMPT_TARGETS` devient un registre** | seul mécanisme métadonnée-driven sans surface. Partage la page des skills, qui calculait déjà le lien |
+| 6 | **`wama-dev-ai` garde son nom** | `AGENTS.md §nommage` le tranche déjà (0 import, renommer coûte sans rien gagner). Ce qui change est sa DESCRIPTION : deux familles de rôles, dev et auto-maintenance du parc |
+
+### 🔴 Ce que la MESURE a démenti — cinq fois, dont trois fois moi
+
+- **Ma critique du registre de skills était FAUSSE** : `services/skills_catalog.py` sépare les
+  familles depuis le 27/08. J'avais lu le compteur `total=11` et conclu sur la STRUCTURE.
+- **Le « doublon » `cartography`/`cartographie` n'en est pas un** : le skill déclare
+  `prompt:`/`agent:` et une table « Séparation des rôles » — méthode dans la consigne de rôle,
+  séquençage dans le skill. Convention **délibérée**, portée par 1 skill sur 14.
+- **Les 25 souvenirs** : `dev_ai.py` ANTICIPAIT le cas (« approuvés ET repositionnés »). Ce
+  n'était pas un défaut d'écriture, c'était le GESTE qui manquait.
+- **Le déclencheur de `/skill-forge` existe déjà** (`/cloture`) — c'est MA ligne du ROADMAP,
+  écrite le matin même, qui était imprécise. Le défaut réel : une étape de rituel dépend de
+  la diligence, et le dépôt le MESURE (« `/skill-forge` NON déroulé, clôture tardive »).
+- **Trois fois le même biais** : conclure d'un relevé par MOTIF au lieu de lire.
+
+### ⚠ Défauts introduits PAR MOI et rattrapés avant livraison
+
+- Mon script de découpe a **sorti `CLAUDE.md` du corpus de `check_docs`** et réaiguillé un hook
+  qui applique une règle RESTÉE dans le harnais (filtre heuristique, faux dans les deux sens).
+- Un **`url_name` FRANÇAIS** (`common:souvenirs`) dans une surface d'API — attrapé par la suite
+  COMPLÈTE, pas par mes tests de périmètre. Renommé `memories`.
+- Un **`total` qui ne valait pas `len(skills)`** — deux gardes préexistantes l'ont dit aussitôt.
+- Un **faux positif de mon propre `check_skills`** : il accusait `/conformite` de n'avoir pas de
+  déclencheur alors que sa description dit « Utiliser après ». Mesure : les 14 respectent la
+  convention. *Un détecteur qui rate des correspondances est pire qu'aucun — il rend un chiffre.*
+- ⚠⚠ **Le libellé « Backends (moteurs) » était CITÉ COMME AUTORITÉ dans `AGENTS.md`**, dans la
+  table même des sources à consulter avant de PROPOSER (relevé de Fabien). Il valait
+  équivalence, faux depuis le 07/09. *Un libellé périmé promu en source de vérité fait trancher
+  dans le mauvais sens, avec l'assurance de celui qui a cité sa source.*
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Vérifier en 10 secondes que l'import `@AGENTS.md` est bien pris par Claude Code** : demander
+de citer la règle des 3 racines (`wama/`, `wama_data/`, `wama_lab/`) SANS ouvrir de fichier.
+Si elle ne vient pas, l'import n'est pas actif et `CLAUDE.md` doit renvoyer à `AGENTS.md` en
+toutes lettres — son en-tête le dit déjà, mais le contrôle n'a jamais été fait.
+
+### File des chantiers ouverts
+
+1. 🔴 **BLOQUANT — les 25 souvenirs `dev-ai` sont VALIDABLES mais NON VALIDÉS.** La page les
+   montre, le bouton existe, la portée se choisit dans le même geste. **C'est un arbitrage de
+   Fabien, un par un** : personne d'autre ne peut décider de la portée d'un savoir de
+   plateforme. Tant que ce n'est pas fait, la mémoire de dev reste vide au rappel.
+2. **Le MCP server** — reporté à une session fraîche (demande de Fabien). Cadre : `ROADMAP §16`
+   (3 couches, réutiliser LiteLLM/MCP/Headroom) + Phase 3. ⚠ Trancher d'abord la contradiction
+   `AGENTS.md §Collaboration wama-dev-ai` (« ne pas précipiter, découplés jusqu'à Phase 4 »)
+   contre `ROADMAP §8d` (« c'est à lui d'adopter la brique, plus simple que MCP »).
+3. **`select_model_for_role` de wama-dev-ai doit adopter la brique** (`ROADMAP §8d`) — c'est ce
+   qui rendrait Copilot disponible aux DEUX workflows d'un coup. ⚠ Porter d'abord ses
+   **chaînes de repli RAM-aware** (`MODEL_FALLBACK_CHAINS`) : la brique WAMA est VRAM-aware et
+   ne les a pas. Adopter sans les porter PERDRAIT une capacité.
+4. **Copilot via token universitaire** — ⚠ vérifier la ToS AVANT : un siège GitHub Education
+   consommé par un client non officiel est un risque sur le siège lui-même.
+5. **Étendre la convention `prompt:`/`agent:`** aux paires méthode↔séquençage qui la méritent
+   (10 consignes de rôle n'ont aucun skill qui les déclare — légitime ou trou, à regarder).
+6. **Les 2 candidats skills** `crash-residus` et `skill-forge` (posés le 28/08, 12 j) attendent
+   leur 2ᵉ occurrence. Aucun dormant (seuil 60 j).
+
+### Décisions ouvertes (hors file)
+
+- Le rôle `assistant-dev` et l'outil `ask_claude_code` existent : le dev **depuis l'AI Assistant**
+  est déjà praticable. Faut-il l'ouvrir explicitement, et à quel profil ?
+- `wama-dev-ai/README.md` : le décrire comme « moteur LLM local, deux familles de rôles » plutôt
+  qu'« agent de développement » (proposé, non fait — c'est de la rédaction, pas du code).
+
+### Pendings système
+
+- **6 commits à pousser** (`origin/dev` 0 behind) — les miens ET ceux de l'instance parallèle.
+- ⚠ **`doc_facts` : le fait `mecanismes` est PÉRIMÉ, et il n'est PAS à moi.** `WAMA_MECANISMES.md`
+  et `mecanismes.py` sont tous deux à HEAD (vérifié) : le périmé vient des compteurs de
+  consommateurs calculés sur l'ARBRE, qui porte le WIP non commité de l'instance parallèle
+  (cam_analyzer, codegen). **Ne pas régénérer avant qu'elle ait commité** — cela figerait son
+  travail en cours. Même piège qu'évité en cours de session, où j'avais annulé une régénération
+  pour cette raison exacte.
+- Aucun autre effet de bord d'infra : aucun worker recyclé, aucun flag d'environnement posé,
+  aucune charge GPU lancée. Base de test partagée utilisée en `--keepdb` seul, jamais `--noinput`.
+- **Artefacts de session** : les scripts de découpe, de réaiguillage et les deux smokes vivent
+  **dans le scratchpad de session** (jetables, hors dépôt — chemins volontairement non écrits
+  ici, cf. le piège que `/cloture §2c` documente). Aucun compte ni item de test semé en base
+  réelle : les smokes sont des GET en lecture seule, et les tests d'approbation créent leurs
+  propres souvenirs jetables.
+
+### Contrôles attendus au prochain `/reprise` — MESURÉS le 2026-09-09→10
+
+- **Suite complète** (venv_win, `--keepdb`) : **1980 tests, `OK (skipped=11)`**. ⚠ Le verdict
+  est `OK` dans la SORTIE, jamais le code de retour ; et lire les NOMS des rouges, pas le compte.
+- `check_docs` : **0 cassée / 0 périmée sur 1538** — et surtout **0 CIBLE DISTINCTE**, seul
+  critère. ⚠ Le total monte du seul fait qu'on rende compte : il valait 1523 en début de session.
+- `check_templates` : **0 défaut sur 152 gabarits**.
+- `check_skills` : **0 défaut franc**, **2 candidats `n=1`** (12 j, **0 dormant**), **1 promu**
+  sur 14 skills.
+- **Registres : 14** (`apps, backends, conteneurs_data, fonctions, formats_export_data,
+  lecteurs_data, librairies, licences, memories, modeles, prompts, rag, skills,
+  sources_externes`). C'était 12 en début de session.
+- **Catalogue Prompts & Skills : 36 consignes** — 5 enrichissement · 5 rôle · 1 repli ·
+  11 rôle_dev · 14 dev_agent ; **0 orphelin**, 1 target orphelin ATTENDU
+  (`assistant · message · intent`, routage de langue seul), **1 paire méthode↔séquençage
+  déclarée** sur 14, 0 lien cassé.
+- **Mémoire, base réelle** : 28 `MemoryItem` (3 approuvés, 25 `dev-ai` en file de revue),
+  0 `RagChunk`, **5 `OrgUnit`** — ⚠ `WAMA_LLM §0` annonçait « 0 `OrgUnit` », corrigé.
