@@ -7,7 +7,7 @@
 >
 > 🔜 **REPRISE session neuve** : le handoff `REPRISE_2026-07-22.md` est **ARCHIVÉ**
 > (`docs/archive/`, 2026-07-25 — plan doc B8) après migration de son vivant : backlog → **§40**,
-> duplications → `REMOVAL_LEDGER R18/R19`, discipline git multi-instances → `CLAUDE.md`.
+> duplications → `REMOVAL_LEDGER R18/R19`, discipline git multi-instances → `AGENTS.md`.
 
 ## 0. 🔴 Gardes anti-crash GPU & gouvernance des ressources — portage INCOMPLET (2026-07-29)
 
@@ -200,7 +200,7 @@ Doc : [`WAMA_LLM.md`](WAMA_LLM.md).
 > était INERTE ; lit désormais aussi `resource_governor.resident_models()`, cf. §REPRISE 2026-08-12),
 > filtre capacités `requires`/`classes`, paliers `priority`,
 > `availability_probe` runtime ; il se déclare remplaçant du `backend_selector` planifié
-> (CLAUDE.md corrigé en conséquence) ; ② `WAMAMemoryCleaner` (thread périodique, seuils RAM/GPU
+> (AGENTS.md corrigé en conséquence) ; ② `WAMAMemoryCleaner` (thread périodique, seuils RAM/GPU
 > 80-95 %) + API/UI volet droit — **signalement** corrigé 12/08 et **déclenchement** corrigé 13/08
 > (registre partagé au lieu de `WAMAMemoryTracker`, jamais alimenté ; déchargement délégué à
 > `MemoryManager.unload_model`, qui ne ment plus sur son succès) ; ⚠ reste **intra-process** :
@@ -252,7 +252,7 @@ Doc : [`WAMA_LLM.md`](WAMA_LLM.md).
   (`renderSections(data, schema)` / `renderActions(data, actions)` ; supporte badges/description/rows/
   kv/code, et actions when/href/onClick/expand). **model_manager rebranché dessus** (1er consommateur).
   Doc : `WAMA_APP_GENERATION_ROUTE.md` (ex-`COMMON_REFACTORING.md`, archivé `docs/archive/`) +
-  `WAMA_APP_CONVENTIONS.md §22` + philosophie dans `CLAUDE.md`.
+  `WAMA_APP_CONVENTIONS.md §22` + philosophie dans `AGENTS.md`.
 - ✅ **Inspecteur `/apps/` (2e consommateur de `WamaDetails`)** : catalogue d'apps câblé dans le volet
   droit global — clic carte `.app-item[data-id]` → `WamaInspector` + `WamaDetails` sur les métadonnées
   `APP_CATALOG` (`description_long`, types E/S, type de batch, **conformité** score/%/issues) + action
@@ -402,7 +402,7 @@ Un seul composant `WamaInspector`, deux catalogues, contenu généré depuis la 
 
 ## 3. wama-dev-ai (agent Ollama local) — fiabilisé
 - ✅ Robustesse runner (troncature, retry EOF, read_file numéroté, fallback `gemma4:e4b`, `--force-model`, cp1252) — validé pour audit ciblé
-- ✅ Règle de délégation scopée (CLAUDE.md) + `wama-dev-ai/query_transcript.py`
+- ✅ Règle de délégation scopée (AGENTS.md) + `wama-dev-ai/query_transcript.py`
 - ⏳ Calibration sélecteur RAM ; Phase 2 (API WAMA read-only) ; option routage cloud LiteLLM ; Phase 4 MCP (plus tard)
 
 ## 4. Refactoring common (unification) — documenté
@@ -799,7 +799,7 @@ ci-dessus pendant ce port (4 consommateurs immédiats).
 `templates/common/_batch_card.html` (card MÈRE de batch, slots meta/download_menu/download_url/
 eta_ids/show_start, boutons canoniques `.batch-*-btn`) · dans `batch_common.py` :
 `wrap_in_batch`/`auto_wrap_orphans`/`build_batches_list` · dans `process_control.py` :
-`begin_processing` (anti-race CLAUDE.md) + **réconciliation des RUNNING orphelins** (2026-07-24/25 :
+`begin_processing` (anti-race AGENTS.md) + **réconciliation des RUNNING orphelins** (2026-07-24/25 :
 `collect_worker_snapshot`/`is_task_orphaned`/`reconcile_orphaned_running`, 93329c4 puis 32df89c =
 bascule en échec sur **preuve positive de mort** seulement ; adopté par transcriber IndexView) · dans `wama-app-base.js` : `WamaApp.toast` +
 `STATUS_BADGE/LABEL` (monté GLOBAL dans base.html) · `_cycle_button.html` : overrides
@@ -1188,7 +1188,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | WAMA_MANIFEST_ARCHITECTURE.md | — | schéma fonctionnel manifestes/ingest/projection | ✅ vivant (créé 2026-07-21) |
 | WAMA_DATA_FUNCTION_CARDS.md | — | catalogue capability WAMA Data | ✅ vivant (créé 2026-07-20 ; à resynchroniser post-refactoring `data/functions/` par domaine) |
 | WAMA_MEMORY.md | — | référence UNIQUE mémoire + RAG (architecture décidée, non construite) | ✅ vivant (créé 2026-08-20 ; **périme le plan ChromaDB** de §6 / vision §11 / `prompt_pipeline.py:116`) |
-| ~~REPRISE_2026-07-22.md~~ | — | handoff daté | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B8 ; vivant migré §40 + R18/R19 + CLAUDE.md) |
+| ~~REPRISE_2026-07-22.md~~ | — | handoff daté | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B8 ; vivant migré §40 + R18/R19 + AGENTS.md) |
 
 ### 23.2 Recouvrements identifiés (pas de vrai doublon strict trouvé)
 
@@ -2278,7 +2278,7 @@ maintenir ici en parallèle reproduirait le défaut.
 - ✅ **Déport hors de `common/` (2026-08-22)** — `wama_data/` est une racine, sœur de `wama/` et
   `wama_lab/`. Réalise la cible de `ROADMAP §18` (« un monde = un package frère »). Le registre de
   fonctions et la taxonomie de types RESTENT dans `wama/common/catalog/` : glu inter-mondes, le Lab
-  y déclare ses propres fonctions. Règles écrites dans `CLAUDE.md` (nommage + structure en mondes).
+  y déclare ses propres fonctions. Règles écrites dans `AGENTS.md` (nommage + structure en mondes).
 - ⏳ UI de chaînage (canvas), exposition `tool_api` du catalogue
 
 ## 40. Backlog repris du handoff REPRISE_2026-07-22 (archivé 2026-07-25) — état re-vérifié
@@ -2639,7 +2639,7 @@ Corrigés : la section pip du setup **vérifie** au lieu d'imposer (et n'install
 - ⚠ **Classer sans lire, c'est décider sans savoir** : j'avais inscrit deux « exceptions assumées »
   qui étaient des accesseurs d'une ligne, dont 3 symboles jamais appelés.
 - ⚠ **Un worktree ne porte que ce qui est VERSIONNÉ** : 2 tests rouges sur HEAD, 0 régression — la
-  contre-épreuve sur l'arbre principal est obligatoire (ajoutée au rituel `CLAUDE.md`).
+  contre-épreuve sur l'arbre principal est obligatoire (ajoutée au rituel `AGENTS.md`).
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
@@ -2780,7 +2780,7 @@ les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIE
 - `b4492acf` — **dernier site mutant un jeton HF retiré** (`setup_sam3_hf_environment` : second
   exemplaire du jeton + écriture dans le `$HOME`) ; la garde HF couvre désormais le JETON, socle
   exclu explicitement (c'est LE domicile).
-- `1454c691` — règle `CLAUDE.md` « vérifier la route AVANT de PROPOSER » (4 sources d'autorité,
+- `1454c691` — règle `AGENTS.md` « vérifier la route AVANT de PROPOSER » (4 sources d'autorité,
   test d'acceptation : citer ce qu'on a lu).
 
 **Décisions de Fabien (prises, pas encore toutes exécutées)** :
@@ -2821,7 +2821,7 @@ les backends le deviennent (`common/backends/`) ; les moteurs sont des LIBRAIRIE
 corriger chaque passe… ce n'est pas viable ») :
 | erreur | ce qui l'a produite | garde posée |
 |---|---|---|
-| proposer 2 fois un LIEU (champ `VENDOR_TREE`, racine `AI-engines`, groupement par domaine) | raisonner sur le CODE des outils sans lire ROUTE §10.3, l'index des mécanismes (128, dont un écrit par moi 3 jours avant), le registre des registres (« Backends (moteurs) ») | règle `CLAUDE.md` + test d'acceptation « citer ce qu'on a lu » |
+| proposer 2 fois un LIEU (champ `VENDOR_TREE`, racine `AI-engines`, groupement par domaine) | raisonner sur le CODE des outils sans lire ROUTE §10.3, l'index des mécanismes (128, dont un écrit par moi 3 jours avant), le registre des registres (« Backends (moteurs) ») | règle `AGENTS.md` + test d'acceptation « citer ce qu'on a lu » |
 | écrire un 🔚 qui contredit la route (« ne pas engager l'étape 3 ») | idem — rouvrir une décision CLOSE | supersédé ci-dessus, conservé comme pièce |
 | déplacer 11 backends en RÉÉCRIVANT 20 imports de chemin — le motif interdit, suite verte | « mobile » compris comme « déplaçable » au lieu de « résolu par déclaration » | `tests_backend_adoption` (budget 22, ne peut que descendre) |
 | confondre backend et moteur ; dire « vide » / « pas déclaré » sans mesurer | vocabulaire non tenu, affirmation avant relevé | le sens du lien est écrit en tête de ce bloc ; règle : MESURER avant d'affirmer |
@@ -3256,7 +3256,7 @@ accompagné de la COMMANDE qui le produit, ou vivre dans un bloc `doc_facts`), a
 ## §REPRISE — 2026-08-21, instance « LICENCES & DÉPÔT OFFICIEL » — ✅ PALIER LIVRÉ
 
 > **Partition** : cette instance n'a touché QUE le domaine licences — `LICENSE`, `LICENSING.md`
-> (créé), `README.md`, `CLAUDE.md` (une ligne de table), `manifests/models/*` (régénérés),
+> (créé), `README.md`, `AGENTS.md` (une ligne de table), `manifests/models/*` (régénérés),
 > `common/services/license_audit.py`, `common/templates/common/licenses.html`,
 > `model_manager/management/commands/backfill_platform_refs.py`, `common/mecanismes.py`.
 > Une autre instance travaillait en parallèle sur la **passerelle de canaux** (§REPRISE
@@ -3275,7 +3275,7 @@ accompagné de la COMMANDE qui le produit, ou vivre dans un bloc `doc_facts`), a
 | **Inventaire complété** | 65 → **102 licences établies / 119** ; **0 « à qualifier »** (6 licences maison lues) ; 30 → **2** attributions sans auteur |
 | **`LICENSE` = AGPL-3.0** + **`COPYRIGHT`** | le texte AGPL seul ne nommait personne ; `COPYRIGHT` pose les deux étages (UGE titulaire / Fabien auteur) |
 | Famille **« Interdite (territoire) »** (rang 6) | `hunyuan-community` : la licence Tencent **exclut l'UE** ; page `/common/licences/` smoke **200**, badge `li-r6` rendu |
-| `LICENSING.md` | doc de référence du domaine (politique, code vendorisé, dépôt APP/HAL-SWH/Soleau/marque, §7 décisions) — déclaré dans la table `CLAUDE.md` |
+| `LICENSING.md` | doc de référence du domaine (politique, code vendorisé, dépôt APP/HAL-SWH/Soleau/marque, §7 décisions) — déclaré dans la table `AGENTS.md` |
 | Corpus `manifests/models` | régénéré (`manifest_export`, 56 écrits) — le `git diff` du corpus EST la revue de ce qui a changé |
 
 **Pourquoi AGPL-3.0 et pas la cible « non commercial » annoncée le 04/08.** 36 poids
@@ -3708,7 +3708,7 @@ son `apps.py:ready()` ; le registre parcourt les apps installées.
 
 **⚠ MON ERREUR, consignée en règle** : `git commit` SANS pathspec ne prend QUE l'index — il a laissé
 derrière toutes les réécritures d'imports. **HEAD était cassé** (`wama_data` absent d'`INSTALLED_APPS`,
-cam_analyzer sur l'ancien chemin) pendant que l'arbre de travail passait 245 tests. `CLAUDE.md` porte
+cam_analyzer sur l'ancien chemin) pendant que l'arbre de travail passait 245 tests. `AGENTS.md` porte
 maintenant les deux sens du danger + la règle **« vérifier SUR HEAD via un worktree jetable après un
 commit structurel »**.
 
@@ -4008,7 +4008,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 
 ## §REPRISE — 2026-08-18 : PARTITION MULTI-INSTANCES (session vision 3D, périmètre disjoint du portage)
 
-> **Deux instances en parallèle ce jour** (déclaration de partition, règle CLAUDE.md git multi-instances) :
+> **Deux instances en parallèle ce jour** (déclaration de partition, règle AGENTS.md git multi-instances) :
 > - **Instance A (portage)** : portage/bac à sable — en vol au moment de cette déclaration :
 >   `.claude/settings.json`, `wama/common/management/commands/app_sandbox.py`, `staticfiles/converter_01/`.
 > - **Instance B (cette session, TERMINÉE et commitée)** : consignation cas d'usage studio
@@ -4117,7 +4117,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 >   ② Nocturne : AUCUN LLM en dur ; `model_loaded` passe par les backends d'app (route
 >   `select_model` — conforme) ; ui_smoke corrigé ci-dessus.
 >   ③ wama-dev-ai : table MODELS hardcodée PAR DESIGN (découplage acté jusqu'à Phase 4,
->   CLAUDE.md « ne pas précipiter ») ; tous ses tags existent encore sur l'hôte, MAIS la
+>   AGENTS.md « ne pas précipiter ») ; tous ses tags existent encore sur l'hôte, MAIS la
 >   dérive a commencé : **aucune entrée qwen3.8** — dev/coder/architect/codegen restent sur
 >   qwen3.6:35b. Décision Fabien : maj ponctuelle de la table, ou accélérer l'unification
 >   par la route commune. **Précision Fabien 19/08 : le MCP est ORTHOGONAL** (= conformité à
@@ -6817,7 +6817,7 @@ segmentation parmi plusieurs.
 | 4 | `redundancy` **14 trouvailles** contre un contrat de **0** | non diagnostiqué — mesurer avant de décider si c'est une correction ou un contrat à réviser |
 | 5 | `dep_vulns` **11 nouvelles CVE** sur 577 paquets | idem |
 | 6 | Cousin du bug SAM3 : `model_registry.py:1556` | `except: pass` sur un répertoire Ollama de repli — même famille, **non couvert** par ma garde (il ne remonte rien) |
-| 7 | Dette de nommage `registries.py` | fonctions françaises **importées** (`rafraichir`, `lancer`, `etat`) — coordination requise. ⚠ Critère de langue désormais **écrit dans `CLAUDE.md`** : importé → anglais, `test_*` → français |
+| 7 | Dette de nommage `registries.py` | fonctions françaises **importées** (`rafraichir`, `lancer`, `etat`) — coordination requise. ⚠ Critère de langue désormais **écrit dans `AGENTS.md`** : importé → anglais, `test_*` → français |
 | 8 | `created_at` de SAM3 **perdu** | janvier → 22/08 22:00 : la ligne a été détruite puis recréée. Irréversible, cosmétique. ⚠ **Si la suppression avait frappé l'un des 13 modèles portant un `benchmark_index`, la perte aurait été silencieuse ET irrécupérable** — c'est l'argument de la garde |
 | 9 | **31 commits d'écart** avec `origin/dev` | push sur décision de Fabien |
 
@@ -7354,7 +7354,7 @@ Vérifier un reste-à-faire AVANT de le porter : ici, l'instrument officiel le d
 > | volet | état MESURÉ |
 > |---|---|
 > | sélection bidirectionnelle entrée↔modèle | ✅ `input_match_ui` 7 True / 3 N/A justes / 0 False. Reste son **complément** `model_caps_ui` **False ×3** (composer, imager, reader) |
-> | sélection **automatique** de modèle (VRAM-aware) | 🔶 `select_model` 4 True / **partial ×1 (anonymizer)** / 5 N/A — cohérent avec `CLAUDE.md` |
+> | sélection **automatique** de modèle (VRAM-aware) | 🔶 `select_model` 4 True / **partial ×1 (anonymizer)** / 5 N/A — cohérent avec `AGENTS.md` |
 > | **détection des types de fichiers** | ❌ **pas universelle** — domicile commun existant (`app_registry`), **1 app sur 10** l'utilisait. **Aucun critère de grille ne le mesure** |
 >
 > Le 3ᵉ était invisible **parce qu'aucun critère ne le regarde** — le cas « un geste sans brique »
@@ -8076,7 +8076,7 @@ second sur un corpus de nature différente est le meilleur rapport trouvailles/e
 
 | # | quoi | preuve |
 |---|---|---|
-| 1 | **`WAMA_APPRENTISSAGE.md`** — cadre ML/DL, statistiques, boucle de simulation | doc + ligne CLAUDE.md |
+| 1 | **`WAMA_APPRENTISSAGE.md`** — cadre ML/DL, statistiques, boucle de simulation | doc + ligne AGENTS.md |
 | 2 | **`§13` plan d'expérience** — 20 sous-sections, confronté à 5 standards (SDMX, DDI, BIDS, Psych-DS, BORIS) | doc |
 | 3 | **kind `dataset` étendu** — `axes[]`, `signals` facultatif | 20 tests (`tests_manifest_axes.py`) |
 | 4 | **1ᵉʳ manifeste écrit à la main** depuis un `.trip` réel | `conforme: True` |
@@ -8171,7 +8171,7 @@ dans un registre partagé · taille bornée de `MEMORY.md` · et « dire nommém
 de côté », l'arbitrage bloquant signalé à part.
 
 **Trois chiffres de référence étaient périmés**, tous remesurés : `check_app_conformity`
-**77 → 82 critères** (F1:4 F2:11 F3:17 F4:9 F5:29 F6:5 F7:5 F8:2) — et `CLAUDE.md` disait **72**,
+**77 → 82 critères** (F1:4 F2:11 F3:17 F4:9 F5:29 F6:5 F7:5 F8:2) — et `AGENTS.md` disait **72**,
 avec « 60–72 par app » là où le réel est **67–82** · suite de tests **852 → 911** · `check_docs`
 « 4 / 518 » → **5 références / 542, une seule cible distincte**.
 
@@ -8288,7 +8288,7 @@ l'expérience ne conclura sur rien, comme la corrélation « onduleur » déjà 
 >
 > **Partition tenue ici** : `wama/synthesizer/tests.py`, `wama/common/runners.py`,
 > `wama/common/tests_queue_sort.py`, `wama/avatarizer/views.py`, `wama/common/services/ui_smoke.py`,
-> `WAMA_VERIFICATION.md`, `REMOVAL_LEDGER.md`, `CLAUDE.md`. **Non touchés, laissés à l'instance
+> `WAMA_VERIFICATION.md`, `REMOVAL_LEDGER.md`, `AGENTS.md`. **Non touchés, laissés à l'instance
 > GARDES** : `wama/accounts/*`, `wama/common/mecanismes.py`, `wama/common/nightly_scenarios.py`,
 > `WAMA_MECANISMES.md`, `check_templates`.
 >
@@ -8655,10 +8655,10 @@ model_manager du `tool_api` · MARCHEUR `project`→`requires`→drivers · gén
    finding appliqué) : 3 [CASSÉ] réparés (entrée licence `minimax-music3-community` manquante au
    `_CATALOGUE`, 4 doublons R20-R23 du ledger → R27-R30 + mode d'emploi d'en-tête, README patches
    qui niait le patch venv deepfilternet) + ~30 péremptions retournées preuve à l'appui —
-   `63e6b4e7`. **`check_docs` étendu de 12 à 34 documents** (l'écart avec la table CLAUDE.md
+   `63e6b4e7`. **`check_docs` étendu de 12 à 34 documents** (l'écart avec la table AGENTS.md
    était la définition même du « périmé non détecté »).
 4. **Ménage** : 14 `.md` archivés (9 orphelins purs + 5 fusionnés — Enhancer promu doc de
-   référence avec sa ligne CLAUDE.md) — `e68cfabb` ; README imager et wama-dev-ai **réécrits sur
+   référence avec sa ligne AGENTS.md) — `e68cfabb` ; README imager et wama-dev-ai **réécrits sur
    le réel**, 3 tables figées → sources vivantes (geste B12), tricolore unifié sur CARD_DESIGN
    §8.5, STUDIO_VISION purgé de ses états — `32938e8f`. **46 → 32 documents vivants.**
 
@@ -8977,7 +8977,7 @@ c'est une DÉRIVE, pas une exception : la couche prospection/provenance du model
 ~30 identifiants français IMPORTABLES (`poser_identite`, `identite_pour_spec`,
 `ecrire_candidat`, `variantes_quantisees`, `taille_go`, `digest_distant`,
 `analyse_licence`…), chaque ajout imitant l'idiome LOCAL du fichier au lieu du critère du
-dépôt (CLAUDE.md §nommage : importé → anglais). Mesure à refaire, jamais à recopier :
+dépôt (AGENTS.md §nommage : importé → anglais). Mesure à refaire, jamais à recopier :
 `grep -rhoE "^(def|    def) [a-z_]+" wama/model_manager/services/*.py | awk '{print $2}' | sort -u`
 puis trier à l'œil les français. Dette JUMELLE : `common/registries.py` (`rafraichir`,
 `lancer`, `etat` — pending #2 du §REPRISE 22/08, `registres_view` importe `etat`).
@@ -9000,7 +9000,7 @@ toujours) ; ③ renommage mécanique + alias de transition si un consommateur es
 périmètre ; ④ revérification : suite de tests COMPLÈTE + `manage.py check` +
 `check_templates` + smoke navigateur des pages touchées (model manager, /common/registres/)
 + **vérif sur HEAD en worktree** (reference_verif_sur_head_worktree : .env + migrations à
-recopier) ; ⑤ re-consignation : solder la dette dans CLAUDE.md §nommage, ce §PENDING,
+recopier) ; ⑤ re-consignation : solder la dette dans AGENTS.md §nommage, ce §PENDING,
 et le pending #2 du 22/08.
 
 ### SUITE (même instance, après-midi/soir) — INVESTIGATION WEB + VÉRIF CHAÎNE + INTAKE
@@ -9050,7 +9050,7 @@ identifiants registries) ; une seule prose française abîmée, restaurée.
   critère (rien ne s'importe) ;
 - autres couches à API française hors périmètre (ex. `license_audit.synthese`,
   `prompt_skills`…) — même traitement au fil de l'eau, règle « anglais pour tout NOUVEL
-  identifiant » (CLAUDE.md §nommage) en vigueur partout.
+  identifiant » (AGENTS.md §nommage) en vigueur partout.
 
 ⚠ **Redémarrage gunicorn + celery REQUIS** avant tout usage : le parc sert l'ancien code
 (imports renommés) et la tâche Celery renommée doit prendre sa route.
@@ -9066,7 +9066,7 @@ TEXTE** → garde `analyze_license` AFFICHÉE jamais éliminatoire (arbitrage Fa
 = poids fermés, reco installable = Wan2.2-TI2V-5B ; réf = `PROSPECTION_PIPELINE
 §2026-08-28/29`. ③ **Provenance YOLO** : 39/47 avec lien (vérif nom+octets automatisée,
 `--ultralytics`) ; les 8 `face_plate_*` vides À DESSEIN. ④ **Dette de nommage SOLDÉE**
-(§PENDING ci-dessus : bilan, restes assumés, 4 règles pérennes dans CLAUDE.md §nommage) +
+(§PENDING ci-dessus : bilan, restes assumés, 4 règles pérennes dans AGENTS.md §nommage) +
 skill CANDIDAT `.claude/skills/renommage-api/` (n=1).
 
 **🔚 POINT D'ENTRÉE SESSION SUIVANTE** : les gestes en file sont tous côté Fabien (bloc
@@ -9102,7 +9102,7 @@ pas à moi.
 
 ## §REPRISE — 2026-08-30, instance « RENOMMAGE JS COMMUN + RECTIFICATION i18n » (CLOSE) — 🔚 POINT D'ENTRÉE
 
-> Session parallèle, périmètre étroit : les 2 briques JS communes, `CLAUDE.md`, `ROADMAP §10`.
+> Session parallèle, périmètre étroit : les 2 briques JS communes, `AGENTS.md`, `ROADMAP §10`.
 > 4 commits (`6b9972e7`, `39ea17e3`, `9bd75699`, `ba31c4d2`). **Rien poussé.**
 
 ### ① Les 2 briques JS communes passent aux identifiants ANGLAIS (`6b9972e7`, `39ea17e3`)
@@ -9112,7 +9112,7 @@ Application n=2 du skill `/renommage-api` (désormais **PROMU**) : `queue-action
 fichier + le global `WamaAbonnement`→`WamaSubscription`). Contrat public inchangé (les 7 clés
 de `WamaQueueActions`), donc aucun JS d'app à toucher.
 
-**Le trou par lequel elles étaient entrées** : la règle de `CLAUDE.md` demandait « Python
+**Le trou par lequel elles étaient entrées** : la règle de `AGENTS.md` demandait « Python
 l'importe-t-il ? ». Pour un identifiant privé d'IIFE la réponse est NON — ces 119 noms étaient
 donc conformes à la LETTRE. Le critère réel est **« qui doit le lire ? »** : le commun que 10
 apps montent se lit dans chaque revue, chaque diff, chaque erreur de console. Règle complétée
@@ -9139,7 +9139,7 @@ et n'a **aucun appelant** (0 consommateur hors de son fichier), alors que `trans
 branché dans le pipeline de prompts. §10.A porte désormais **TROIS** états distincts (interface :
 rien · IN : ✅ en place · OUT : ⏳ écrit jamais appelé) et §10.B l'état mesuré correspondant.
 
-**🧭 Doctrine posée par Fabien (consignée dans `CLAUDE.md` §nommage et rappelée au ROADMAP)** :
+**🧭 Doctrine posée par Fabien (consignée dans `AGENTS.md` §nommage et rappelée au ROADMAP)** :
 *l'anglais est la langue de référence dans tout WAMA, a minima pour tout le CODE ; les docs en
 français ne posent pas de problème tant qu'elles servent le suivi du développement.*
 
@@ -11353,7 +11353,7 @@ légitime, + `models/vision/table-transformer-detection/`). **L'installeur est H
 Coupable = le **chargement** : `table_transformer_backend.py:90` fait
 `os.environ['HF_HUB_CACHE'] = cache_det` ; le backbone timm du DETR se résout par le hub et
 atterrit donc dans le dossier du modèle principal. Le backend applique **à la lettre** la règle
-`CLAUDE.md`, qui se déclare elle-même TRANSITOIRE (cible : `cache_dir=` seul + `HF_HOME` posé
+`AGENTS.md`, qui se déclare elle-même TRANSITOIRE (cible : `cache_dir=` seul + `HF_HOME` posé
 UNE fois). → **nouvelle occurrence d'un défaut connu, conçu, non corrigé.**
 ⚠ **Ne PAS supprimer le dossier** : chargement en `local_files_only=True` avec `HF_HUB_CACHE`
 pointant là. Ordre : poser `HF_HOME` (§5b) → nettoyer → purger la ligne de catalogue.
@@ -11459,7 +11459,7 @@ verrous `.locks` orphelins datent les contaminations passées, **22 traces** don
 exactement le « dump de modèles dans speech/kokoro » que `wama/views.py:223` raconte. *On a
 nettoyé, la cause est restée, ça a repollué.*
 
-### ① La cause racine était DOCUMENTAIRE — `CLAUDE.md` prescrivait le défaut
+### ① La cause racine était DOCUMENTAIRE — `AGENTS.md` prescrivait le défaut
 
 Sa règle « AJOUT D'UN NOUVEAU MODÈLE AI » §3 imposait `os.environ['HF_HUB_CACHE'] = cache_dir`
 comme **pattern obligatoire**, avec un « ❌ INTERDIT : importer transformers AVANT de setter
@@ -11822,7 +11822,7 @@ navigateur Playwright et a été purgé en fin de passe.
 |---|---|---|
 | `9c517abf` | 4 tests rouges soldés + `related_name` sur `imager.ImageGeneration.user` (bloquait toute jumelle d'imager) + règle « la suite se lance depuis WSL2 » dans `/reprise` | suite complète **1595 OK** (base recréée) |
 | `e75ffe0c` `0cb66cd7` | maquette v4 **dérivée de la v3.5** + matrice port × modalité, lecture rectifiée par Fabien (le LOT n'a pas de port, c'est le GESTE qui le crée ; composer sans port travail = normal ; enhancer/imager à 2 inclusions = trou de PORTAGE) | `docs/card_designs/card_v4_maquette.html`, 94 px constants sur 4 vues |
-| `30189784` | **matrice des voies d'import MESURÉE** (6 cas de Fabien, 2 suppositions renversées : la médiathèque COPIE ; le prompt n'est jamais un fichier) — 10 défauts dont 1 de sécurité | `MEDIA_STORAGE_TIERING §8` (domicile décidé, ligne `CLAUDE.md` élargie) |
+| `30189784` | **matrice des voies d'import MESURÉE** (6 cas de Fabien, 2 suppositions renversées : la médiathèque COPIE ; le prompt n'est jamais un fichier) — 10 défauts dont 1 de sécurité | `MEDIA_STORAGE_TIERING §8` (domicile décidé, ligne `AGENTS.md` élargie) |
 | `8b51fe08` | **palier 1** — brique `media_paths.resolve_under_media_root`, **17 sites** rabattus (🔴 traversée de chemin du synthesizer ; 9 dans `tool_api` où une garde existait et que 8 fonctions ignoraient), gardien anti-récidive | 82 tests OK WSL2 + Windows |
 | `b6917571` `0622030e` | **palier 2** — transcriber consolide ; canal de drag déclaré par la card (`WamaApp.filesFromServerPaths` / `injectFiles`, GLOBAL) ; dépôt en arborescence dé-collisionné ; **la brique `WamaImport` porte le DOSSIER** (elle ne le traversait pas : câbler dessus aurait régressé 8 apps) | parc **32 OK / 0 échec / 18 skips nommés** (5 gestes × 10 apps) ; `converter_01` 8/8 |
 | `35cc5b0a` | `WamaImport` couvre ce que les apps FONT : réponse liste, `multiple`, `beforeFile`, `batchScope`, `afterImport(ids, réponses)` — défauts inchangés | contrat vérifié réseau intercepté |
@@ -11963,11 +11963,11 @@ navigateur Playwright et a été purgé en fin de passe.
 - fichiers untracked à la racine (`0.27.2`, `1.26.4`, `=1.26.0,`, `torchvision`) : pas les miens, déjà signalés par l'instance card v4 ;
 - **push** : `dev` a ~60 commits d'avance (trois instances) — non poussée ;
 - sondes : `logs/ui_smoke/current/cam_analyzer.png` + référence créées par mon smoke (brique `ui_smoke`, compte de test, 0 fixture déposée) — aucune sonde ad hoc ajoutée ;
-- ⚠ ma mémoire `reference_verif_sur_head_worktree` porte les points 6-7 (cwd / `build/`) que `CLAUDE.md` porte désormais aussi — la mémoire garde le récit, `CLAUDE.md` la règle.
+- ⚠ ma mémoire `reference_verif_sur_head_worktree` porte les points 6-7 (cwd / `build/`) que `AGENTS.md` porte désormais aussi — la mémoire garde le récit, `AGENTS.md` la règle.
 
 ### Contrôles attendus au prochain /reprise (MESURÉS à la clôture, 07/09)
 
-- `manage.py test` : **`OK` est le seul attendu** (1629 le 06/09 sur mon arbre ; le total bouge avec trois instances — ne pas en faire un critère) ; sur **HEAD en worktree** : 1 échec = `VendoringTest` (artefact + trou de versionnement, voir `CLAUDE.md`), **0 régression** ;
+- `manage.py test` : **`OK` est le seul attendu** (1629 le 06/09 sur mon arbre ; le total bouge avec trois instances — ne pas en faire un critère) ; sur **HEAD en worktree** : 1 échec = `VendoringTest` (artefact + trou de versionnement, voir `AGENTS.md`), **0 régression** ;
 - `check_docs` : **0 cassée / 0 périmée sur 1470** ;
 - `manifest_roundtrip --all` : **10/10 OK** ;
 - `manifest_export --check --kind function` : **à jour (58)** ; complet : 3 périmés (autre instance) ;
@@ -12159,7 +12159,7 @@ sans rien dire. **Toute cible distincte est désormais une dérive.**
 | **brique** : la zone de dépôt ne posait que `dragover` ; la card v3 commune stylise `.drop-zone.drag-over` → le transcriber aurait PERDU son surlignage (régression visuelle, invisible aux 5 gestes). La brique pose les deux classes | `wama-import.js:220-231` |
 | **APRÈS** (après `kill -HUP` du maître gunicorn) : toute la famille `transcriber.` hors GPU | **13/13 OK** (`nightly_20260907_180041`) ; smoke navigateur : HTTP 200, **0 erreur console**, fichier servi parsé (`new Function`), ancien code absent, nouveau présent |
 | critère de grille **`import_front`** (F2, `mecanisme='import_front'`) — réclamé par le contrôle de jonction à la 1ʳᵉ adoption, écrit sur le patron `recursive_import` ; gate commun `_card_entree_rendue` factorisé avec `import_wired` | grille **88 → 89** ; transcriber ✅, 9 apps ❌ (= la mesure de « 1/10 ») ; `tests_import_wired` **+5 tests** (boucle maison = ROUGE même si écoutée, JS d'app / gabarit = VERT, commentaire ne sauve pas, N/A commun) |
-| docs : `ROUTE §Portage F2` (1/10 + leçons), `MEDIA_STORAGE_TIERING §8.6 D11/D4`, `CLAUDE.md` (grille 89), blocs `doc_facts` régénérés (conformite, mecanismes) | `check_docs` inchangé ; `doc_facts --check` : `modeles` PÉRIMÉ **par l'autre instance** (export du corpus en cours dans l'arbre), non régénéré à dessein |
+| docs : `ROUTE §Portage F2` (1/10 + leçons), `MEDIA_STORAGE_TIERING §8.6 D11/D4`, `AGENTS.md` (grille 89), blocs `doc_facts` régénérés (conformite, mecanismes) | `check_docs` inchangé ; `doc_facts --check` : `modeles` PÉRIMÉ **par l'autre instance** (export du corpus en cours dans l'arbre), non régénéré à dessein |
 | **2ᵉ app — CONVERTER** (2ᵉ commit) : `beforeFile` = refus avant envoi (format non supporté, pas de format de sortie) + détection de type posée quand le type CHANGE (l'ancienne boucle re-rendait le volet à CHAQUE dépôt et effaçait les défauts réglés) ; `extraFields` = `output_format` + réglages posés ; `consolidateField:'job_ids'` ; un fichier seul n'est plus consolidé par le front (auto-wrap au reload) | 5 gestes **4/5 + 1 skip** avant (garde anti-bouclage `url_import`, hors sujet) ; famille `converter.` **13/14 + le même skip** après, dont `processing`/`batch_processing` ; smoke 0 erreur JS ; 77 tests OK ; grille converter **100 %** (72/72) |
 | **3ᵉ app — DESCRIBER** (3ᵉ commit) : `extraFields` = 3 réglages du volet ; `afterImport` = la bifurcation de l'app (1 → card rendue serveur sans reload, N → reload) — 1ʳᵉ utilisation de l'évolution 7 par une app en place ; **branche « drop FileManager » RETIRÉE** (`application/x-wama-file` émis nulle part, jstree = vakata sans `drop` natif, canal global `filemanager.js` déjà en place) | 5 gestes **5/5** avant ; famille `describer.` **12/12** après ; smoke 0 erreur JS, 3 entrées liées ; ⚠ `wama.describer` = **0 test unitaire** lui aussi |
 | **4ᵉ et 5ᵉ apps — SYNTHESIZER + ENHANCER-image** (4ᵉ commit) : `batchScope:'each'` (évolution 6, 1ʳᵉ utilisation) ; synthesizer `extraFields` = volet + Higgs par le lecteur `v(id, défaut)` du lot ; enhancer `afterImport` = 1 → `appendRow`, N → reload ; voie audio hors périmètre | synthesizer **12/13** (+ `batch_actions`, `queue_dnd`, `batch_import` qui skippaient), enhancer **11/12** (skip anti-bouclage inchangé) ; smoke 0 erreur JS ×2 ; 57 tests OK |
@@ -12759,11 +12759,19 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
   inventaire des kinds qui projettent, et un défaut qu'elle a mesuré : `apply_manifests --kind
   function` annonce « inchangés 62 » alors que les 62 sont REFUSÉS). Je ne l'ai pas touché après
   mon commit et je ne le commite pas. À coordonner si le chantier reprend là ;
-- **ce qui n'est PAS couvert par mes tests**, nommément : ① le comportement NAVIGATEUR d'un
-  nœud fonction (poser, connecter, lancer) ; ② le **JS** lui-même — aucun harnais JS n'existe
-  dans le dépôt, `check_js` ne lit que la syntaxe ; ③ une fonction `app`-bound exécutée contre
-  un worker réel ; ④ `fuse_estimates` sur données réelles ; ⑤ le manifeste `pipeline` rechargé
-  dans le canvas (marche E). Détail dans `CAM_ANALYZER_CHANGELOG § 2026-09-09` ;
+- ✅ **SMOKE NAVIGATEUR FAIT** (serveur relancé par Fabien en fin de session) : palette
+  « Fonctions (62) », nœud fonction posé, inspecteur juste, **lien tracé** par typage
+  d'intersection, lien incompatible **refusé**, 0 erreur JS. Il a trouvé un défaut que les 60
+  tests Django ne pouvaient pas voir : la `description` déclarée de chaque `PortSpec` n'était
+  rendue NULLE PART — elle est maintenant l'infobulle du port. ⚠ Et il a d'abord accusé le
+  produit à tort : `.studio-node` `.last` est un locator DYNAMIQUE, mes deux clics tombaient
+  sur le même nœud. *La sonde est suspecte avant le code* (3ᵉ fois cette semaine dans ce dépôt) ;
+- **ce qui reste NON couvert**, nommément : ① **exécuter** un pipeline de fonctions depuis
+  l'UI (le canvas est éprouvé, le bouton ▶ ne l'est pas) ; ② le **JS** en tant que tel — aucun
+  harnais JS dans le dépôt, `check_js` ne lit que la syntaxe, seul un smoke le prouve ;
+  ③ une fonction `app`-bound exécutée contre un worker réel ; ④ `fuse_estimates` sur données
+  réelles ; ⑤ le manifeste `pipeline` rechargé dans le canvas (marche E).
+  Détail dans `CAM_ANALYZER_CHANGELOG § 2026-09-09` ;
 - `manifests/` : `functions` **62** (+4 specs, +`fuse_estimates`, −`cam_analyzer.prediction`
   renommée), `pipelines` **1** (nouveau dossier) — régénérés depuis **venv_linux** ;
 - `doc_facts` : bloc `wama_data` régénéré (l'Analyzer n'est plus bloqué par D13 mais par sa

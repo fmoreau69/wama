@@ -238,6 +238,21 @@ class LaPaletteServeLesFonctionsTest(TestCase):
         self.assertIn('geo_track', d['data_types'])
         self.assertIn('function:cam_analyzer.distance', d['nodes'])
 
+    def test_un_port_de_fonction_emporte_sa_DESCRIPTION_jusqu_au_canvas(self):
+        """Elle devient l'infobulle du port (smoke du 09/09 : elle n'était rendue nulle part).
+
+        Le libellé reste la CLÉ — c'est le nom du créneau, et c'est lui que `to_port`
+        sérialise ; un libellé inventé au passage divergerait du graphe sauvegardé.
+        """
+        from wama.common.catalog.function_catalog import function_node_ports
+        ports = function_node_ports('gps_map_match')
+        par_id = {p['id']: p for p in ports['inputs']}
+        self.assertEqual(par_id['track']['label'], 'track')
+        self.assertIn('Trace GPS', par_id['track']['description'])
+        self.assertEqual(par_id['road_map']['group'], 'reference')
+        self.assertIn('Polylignes', par_id['road_map']['description'])
+        self.assertIn('description', ports['output'])
+
     def test_les_params_d_un_noeud_fonction_viennent_des_ParamSpec_et_de_la_signature(self):
         from wama.studio.views import function_node_params_specs
         specs = function_node_params_specs()

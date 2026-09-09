@@ -139,12 +139,12 @@
         var outCol = el('div', 'studio-port-col out');
         // Entrées typées (travail / prompt / référence) — plusieurs ports possibles.
         (a.inputs || []).forEach(function (p) {
-            inCol.appendChild(portEl('in', p.types, p.label, p.group || 'travail', p.id));
+            inCol.appendChild(portEl('in', p.types, p.label, p.group || 'travail', p.id, p.description));
         });
         // Sortie : types produits (output === false → nœud TERMINAL, pas de port).
         if (a.output !== false) {
             var out = a.output || { label: 'Sortie', types: [] };
-            outCol.appendChild(portEl('out', out.types, out.label, 'out', out.id));
+            outCol.appendChild(portEl('out', out.types, out.label, 'out', out.id, out.description));
         }
         ports.appendChild(inCol);
         ports.appendChild(outCol);
@@ -163,7 +163,7 @@
         return node;
     }
 
-    function portEl(side, types, label, group, portId) {
+    function portEl(side, types, label, group, portId, description) {
         var p = el('div', 'studio-port ' + side);
         var dot = el('span', 'dot');
         dot.dataset.side = side;
@@ -176,7 +176,11 @@
         var txt = label ? label : ((types && types.length) ? types.join(' · ') : '—');
         p.appendChild(dot);
         p.appendChild(el('span', 'types', txt));
-        p.title = (label ? label + ' — ' : '') + ((types && types.length) ? types.join(', ') : '—');
+        // Infobulle : la DESCRIPTION déclarée du port quand il y en a une (fonctions), sinon le
+        // libellé. Elle dit ce que le créneau attend — le nom du port et son type ne le disent
+        // pas (« track · geo_track » ne prévient pas qu'il faut lat/lon).
+        var quoi = (label ? label + ' — ' : '') + ((types && types.length) ? types.join(', ') : '—');
+        p.title = description ? quoi + '\n' + description : quoi;
         dot.addEventListener('click', function (e) { e.stopPropagation(); onDot(dot); });
         return p;
     }

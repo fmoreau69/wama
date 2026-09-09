@@ -276,11 +276,17 @@ def function_node_ports(key):
     spec = FUNCTION_CATALOG.get(key)
     if spec is None:
         return None
+    # `label` = la CLÉ du port : c'est le nom du créneau (`WAMA_DATA_FUNCTION_CARDS §2`), il est
+    # court, et c'est lui que `to_port` sérialise — un libellé inventé ici divergerait du graphe.
+    # La `description` DÉCLARÉE voyage à côté et devient l'infobulle : elle existait dans chaque
+    # spec sans être rendue nulle part (mesuré au navigateur le 2026-09-09), alors que c'est la
+    # seule phrase qui dise à l'utilisateur ce qu'un port attend.
     inputs = [{'id': p.key, 'label': p.key, 'group': p.group or PORT_GROUPS[0],
                'types': [p.data_type], 'multi': p.cardinality == 'many',
-               'optional': bool(p.optional)}
+               'optional': bool(p.optional), 'description': p.description}
               for p in spec.inputs]
-    outs = [{'id': p.key, 'label': p.key, 'types': sorted(ancestors(p.data_type))}
+    outs = [{'id': p.key, 'label': p.key, 'types': sorted(ancestors(p.data_type)),
+             'description': p.description}
             for p in spec.outputs]
     if not outs:
         output = None
