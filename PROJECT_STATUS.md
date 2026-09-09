@@ -12987,10 +12987,28 @@ la donnée de sa source.
 
 ### Pendings système, artefacts, effets de bord
 
-- **push** : mes 6 commits sont LOCAUX (`git rev-list --count origin/dev..dev` au prochain
-  `/reprise`) ;
+- **push** : ⚠ **MESURÉ, pas supposé** — `origin/dev` a avancé pendant la session, poussé par
+  quelqu'un d'autre. `git rev-list --count origin/dev..dev` = **4**, dont **2 à moi**
+  (`8d0cad0d` les 66 descriptions, `e733f85f` cette clôture) ; mes quatre premiers
+  (`8e321021`, `80e73bab`, `8734ec8a`, `20dd2ff4`) sont **DÉJÀ publiés**. *Ma première
+  rédaction de cette ligne disait « mes 6 commits sont locaux » — faux, et invérifiable sans
+  la commande. Même piège que le §CLÔTURE cam_analyzer ci-dessus, le même jour.* ;
 - **aucun** worker recyclé, **aucun** flag d'environnement posé, **aucune** charge GPU lancée
   par moi (règle des crashs hôte tenue) ; `git stash` vide, un seul worktree ;
+- 🔴🔴 **INCIDENT MULTI-INSTANCES, RATTRAPÉ — `git commit --amend` est le TROU de la règle des
+  chemins explicites.** En corrigeant le message du commit ci-dessus, un `--amend -F <msg>`
+  **sans pathspec** a recommité **l'index entier** : 5 fichiers de `wama_lab/cam_analyzer/`
+  stagés par l'autre instance (dont un fichier de test NEUF) sont partis sous MON message — et
+  ma propre modification en avait DISPARU (un `git commit <chemin>` ne laisse pas ce chemin
+  stagé). Rattrapé par `git reset --soft HEAD~1` : le WIP de l'autre instance est revenu stagé
+  intact (vérifié au `git status --porcelain`, 1ʳᵉ colonne `M `/`A ` sur ses fichiers), puis
+  re-commit avec pathspec. **Rien n'a été perdu, rien n'a été poussé.**
+  ⭐ *Une règle formulée sur une COMMANDE (« jamais `git add -A` ») laisse passer toutes ses
+  variantes ; la règle réelle est « aucun commit ne se fait depuis l'index partagé ».*
+  🔚 **PENDING NOMMÉ** : la ligne « `--amend` sans pathspec = même danger qu'un `git commit` nu ;
+  la forme sûre est `--amend -F <msg> -- <chemins>` » **doit rejoindre la règle git multi-instances
+  d'`AGENTS.md`**. Non fait ICI parce que ce fichier était en cours d'édition par l'autre instance
+  au moment de la clôture — l'éditer aurait créé exactement le conflit que la règle prévient ;
 - artefacts : **aucun** script laissé hors du scratchpad de session, aucune sonde ajoutée à
   `logs/ui_smoke/`, aucun compte ni fichier de test semé ; pas d'artefact claude.ai publié ;
 - ⚠ **fuite i18n CONSTATÉE, PAS TRAITÉE — et elle n'est pas à moi** : le générateur de gabarits
