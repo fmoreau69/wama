@@ -276,6 +276,43 @@ MECANISMES = (
               'wama/common/static/common/js/wama-filter-bar.js', 'CARD_DESIGN.md',
               annexes=('wama/common/templates/common/_filter_bar.html',),
               symbole='WamaFilterBar'),      # global de base.html : compté par son symbole
+    Mecanisme('card_menu', "Menu contextuel de card/lot + débordement « … »",
+              "Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; "
+              "le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales "
+              "(bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les "
+              "actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de "
+              "`cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), "
+              "les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une "
+              "route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus "
+              "DIFFÉRÉS (le menu s'ouvre sur « Recherche… » puis se remplit : il n'attend pas le "
+              "réseau). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur "
+              "à `overflow` qui le rognerait",
+              'wama/common/static/common/js/wama-card-menu.js', 'CARD_DESIGN.md',
+              symbole='WamaCardMenu'),
+    Mecanisme('partage_element', "Partage d'un élément ou d'un lot (1ʳᵉ interface)",
+              "LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5` "
+              "disait « il n'existe AUCUNE interface de partage » (il fallait l'admin Django). "
+              "Écrit `visibility` + son scope sur l'élément ET son lot — ou sur le lot ET ses "
+              "éléments : les DEUX sens sont exigés, le filtre de lecture s'appliquant aux deux "
+              "niveaux (un lot partagé aux éléments privés s'affiche VIDE chez le destinataire). "
+              "Portées OFFRABLES dérivées de l'utilisateur (unités qui le couvrent, projets dont "
+              "il est membre) : une portée sans cible réelle n'est pas proposée. Lecture seule "
+              "par construction — l'écriture est le jalon S3 `AccessGrant`, et la modale le DIT",
+              'wama/common/services/sharing.py', 'PROFILES_PERMISSIONS.md',
+              annexes=('wama/common/static/common/js/wama-share.js',)),
+    Mecanisme('envoyer_vers', "Envoyer vers (chaînage progressif, hors studio)",
+              "La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studio. "
+              "RÉSOLVEUR en lecture seule : il rend les chemins de sortie (clé canonique "
+              "`result_file`/`result_files` du schéma de détail), les apps ÉLIGIBLES et l'URL de "
+              "l'endpoint. L'envoi lui-même passe par `filemanager:api_import` — celui qui sert "
+              "déjà « Envoyer vers… » — donc aucun second dispatch et aucune garde de chemin "
+              "recopiée. ⚠ Les destinations sont DÉRIVÉES de trois conditions (importeur, "
+              "extension déclarée, accès) et jamais listées : c'est la leçon du Geste 14, où le "
+              "menu offrait trois apps que le serveur refusait. Une app qui ne prendrait qu'une "
+              "PARTIE des fichiers n'est pas offerte — un envoi partiel silencieux ferait croire "
+              "le résultat entier transmis",
+              'wama/common/services/send_to.py', 'WAMA_VERIFICATION.md',
+              annexes=('wama/common/static/common/js/wama-send-to.js',)),
     Mecanisme('toolbar_registre', "Barre d'outils générale (registre + profils)",
               "UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de "
               "surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire "

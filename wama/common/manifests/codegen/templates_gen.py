@@ -518,7 +518,7 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
             {{% comment %}}Carte simple DANS son enrobage d'entrée — contrat de
             `common/_queue_entry.html` (2026-09-04), corrigé ici le 2026-09-09.
             ⚠ Le générateur rendait la carte NUE : elle ne portait donc ni `.wama-queue-entry`
-            ni `data-entry-batch-id`, et `wama-queue-dnd.js:batchIdOf` ne pouvait pas la
+            ni `data-entry-batch-id`, et `batchIdOf` (brique de manipulation directe) ne pouvait pas la
             nommer. `reorder_queue` fait `entries(queue).map(batchIdOf).filter(Boolean)` : le
             `filter` ÉCARTAIT silencieusement toutes les entrées unitaires — réordonner la file
             n'envoyait que ses LOTS, et l'ordre revenait au rechargement suivant. Le défaut a

@@ -161,7 +161,7 @@ class CodegenJumelleTest(TestCase):
         """Une carte simple doit porter `data-entry-batch-id`, sinon l'ordre la SAUTE.
 
         ⚠ DÉFAUT CORRIGÉ le 2026-09-09, trouvé sur le converter puis retrouvé DANS LA FABRIQUE.
-        `wama-queue-dnd.js:batchIdOf` nomme une entrée par `data-batch-id` (lot déplié) ou
+        `batchIdOf` (brique de manipulation directe) nomme une entrée par `data-batch-id` (lot déplié) ou
         `data-entry-batch-id` (carte unitaire) ; `reorder_queue` fait ensuite
         `entries(queue).map(batchIdOf).filter(Boolean)`. Une carte nue rend `null`, donc le
         `filter` l'ÉCARTE : réordonner la file n'envoyait au serveur que ses LOTS, et l'ordre

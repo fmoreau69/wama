@@ -12479,3 +12479,137 @@ Ordre ensuite : C → D → export du registre `PASSES` en manifeste `pipeline` 
 - cam_analyzer : **13 passes** dans `PASSES` (= `PassType`), **17 bascules**, catalogue **58 fonctions**, corpus `manifests/functions/` **58** ;
 - smoke `cam_analyzer` (compte de test, sans VLM) : HTTP 200, 0 erreur JS ;
 - `doc_facts --check` : `mecanismes` périmé tant que l'arbre partagé n'est pas commité (autre instance).
+
+---
+
+## §REPRISE — 2026-09-08 → 09-09, instance « CARDS/UI : BARRE, MENU, PARTAGE, ENVOI » — ✅ CLOSE — 🔚 POINT D'ENTRÉE
+
+> Liste de correctifs UI donnée par Fabien le 08/09, traitée en entier. Partition tenue :
+> `common/{toolbar.py, services/{sharing,send_to}.py, static/common/{js,css}/wama-{filter-bar,
+> card-menu,share,send-to,inspector,queue-dnd}.*, templates/common/{_toolbar,toolbar/*,
+> _queue_toolbar,_filter_bar,_queue_actions,_download_button,_inspector_registre,licenses,
+> registres,skills,backends,rag}.html, services/{ui_smoke,nightly_tests,mecanismes_scan}.py,
+> tests_*}`, `imager/{templates,tests}`, `converter/templates`, `templates/base.html`,
+> `PROFILES_PERMISSIONS.md`. ⚠ DEUX autres instances ont commité en parallèle tout du long
+> (backends/`locate_anything`, grille `recursive_import`, corpus, card d'entrée imager,
+> `app_registry`) — aucun recouvrement de fichier, un seul contact signalé plus bas.
+
+### Livré — 11 commits, chacun mesuré avant commit
+
+| # | commit | quoi | preuve |
+|---|---|---|---|
+| 1 | `f9bf888f` | **Deux bugs de l'imager, deux causes sans rapport.** (a) la barre d'outils était incluse DANS le `div.wama-queue-*` : en mosaïque le conteneur passe en `display:grid`, la barre y devient une CELLULE ; (b) `withPk` (dnd) et son jumeau inline (inspecteur) substituaient le pk par `\/0\/?$` — ancré en FIN d'URL, alors que l'imager porte son pk au MILIEU → POST pk=0 → 404 → `location.reload()` muet. `WamaApp.getUrl` faisait déjà ça correctement : brique commune réécrite en moins bien, DEUX fois | mosaïque 592→**290 px** mesuré ; **404** mesuré sur `/imager/queue/0/remove-from-batch/` ; audit d'imbrication sur les 17 barres du parc : imager SEUL ; contre-épreuve sur HEAD ROUGE |
+| 2 | `ab4d067f` | **Barre d'outils GÉNÉRALE** — `common/toolbar.py` : 10 outils (l'union), 2 profils (`file`, `registre`). Les 2 barres historiques SURVIVENT en FAÇADES → les 27 pages appelantes inchangées. La recherche entre dans les 12 files par UNE clé de registre | 16 pages en 200 ; 12 barres de file × 1 recherche, portée `ok` ; licences 144→30 sur « apache » ; **`display:contents` préservé** après masquage ET effacement |
+| 3 | `ab4bbceb` | carte des mécanismes régénérée depuis un état COMMITÉ ; `toolbar_registre` déclaré ; trous de jonction 38→**37** | la fausse ligne `queue_dnd`/imager disparaît |
+| 4 | `f449d5f1` | **La barre tient sur UNE ligne volets ouverts** — 3 causes : `.input-group{width:100%}` (recherche à 592 px sur 592), selects alignés sur leur option la plus longue (462 px), libellés d'action (432 px). Container query à seuil MESURÉ (1160 px), repli des libellés en icônes | 1 ligne ≥ **880 px** (la config courante en offre ~888) ; 36 boutons / 36 libellés repliables / **0 muet** ; menus déroulants non rognés (débordent de 129 px) |
+| 5 | `b3f98d1c` | **MENU CONTEXTUEL de card/lot + débordement « … »** — clic droit = TOUT + sélection multiple ; « … » = le débordement seul (seuil nominal **6**, bouton édition compris). Actions existantes LUES sur `.btn-group-actions` (contrat de `cloneActions`), transverses DÉCLARÉES via `queue_dnd_attrs`. Zéro ligne par app | proxy à **1** clic (pas de double) ; sous-menu des lots d'accueil ; « 2 éléments sélectionnés » + « Former un lot (2) » |
+| 6 | `b3f98d1c` | **PARTAGE — la 1ʳᵉ interface de partage de WAMA** (`§7.5` : « il n'existe AUCUNE interface »). Service + route unique `<surface>/<nature>/<pk>/` + modale générée. Écrit `visibility` et son scope, sur l'élément **et** son lot | **le destinataire VOIT** : `scoped_visible_q` depuis un compte tiers, invisible en privé → visible dès qu'il rejoint l'unité → visible pour un membre du projet |
+| 7 | *(idem)* | **Le LOT devient une cible de plein droit** (question Fabien) — il ne l'était PAS : la card mère ne porte pas `data-preview-url`. Son partage DESCEND à ses éléments | `test_le_destinataire_VOIT_le_lot_ET_son_contenu` ; 31 tests |
+| 8 | `?` | **« ENVOYER VERS… »** — la sortie d'une card en entrée d'une autre app, sans studio. RÉSOLVEUR en lecture seule ; l'envoi passe par `filemanager:api_import`, l'endpoint EXISTANT → aucun second dispatch, aucune garde recopiée | sous-menu différé (« Recherche… » puis rempli) ; POST `{paths:[2], app:'enhancer'}` sur l'endpoint RENDU ; cas vide DIT |
+| 9 | `?` | **Geste 18 nocturne** : `<app>.queue_search` + `<app>.batch_extract` (17+17). Elles POSTENT, sèment par la voie de lot, nettoient | converter/imager/transcriber : **1 → 2 entrées** ; imager : **2e file INTACTE** ; registre 261→**295** |
+| 10 | `?` | **Inspecteur de REGISTRE** sur 5 pages (licences, registres, skills, backends, rag) — détail DÉRIVÉ de l'élément (en-têtes × cellules, ou titre+facettes), UN attribut par page, zéro JS | licences : libellés pris aux en-têtes ; backends 66/66 ; volet+hôte sur les 5 |
+| 11 | `?` | **File du converter** : sa carte simple était rendue NUE → `reorder_queue` sautait ses entrées unitaires (`filter(Boolean)`). Corrigé + **la FABRIQUE aussi** (le générateur semait le même défaut) | page rendue porte `data-entry-batch-id` ; nocturne `batch_extract` toujours vert |
+
+### ⚠⚠ Les leçons — les plus chères d'abord
+
+- **UNE MESURE QUI NE CONNAÎT PAS TOUTES LES FORMES DE SON OBJET REND UN VERDICT INVERSE.** Mon
+  scénario `batch_extract` a rapporté « le geste n'a RIEN changé » sur un dégroupage
+  parfaitement réussi : ma définition d'« entrée de file » ignorait la 3ᵉ forme (carte nue —
+  le converter ne passe pas par `_queue_entry.html`). Les diagnostics renforcés l'ont montré :
+  `lots 1→0, filles 2→0, cards 2→2`. **Un verdict inverse coûte plus cher qu'une absence de
+  mesure** : il fait « corriger » du code sain. Définition désormais REPRISE de
+  `wama-queue-dnd.js:entries()`.
+- **UN APPELANT QUI LIT UNE ABSENCE COMME UN ZÉRO transforme un défaut d'INSTRUMENT en défaut de
+  CODE.** Même scénario, passage précédent : l'évaluateur rendait `null` (file introuvable) et
+  je comptais 0 entrée. Il dit maintenant `{absente:true}` et le scénario REFUSE de conclure.
+- **UNE MESURE PAR MOTIF ORIENTE, ELLE NE CONCLUT PAS — 3ᵉ fois cette semaine.** J'ai annoncé
+  « backends a l'inspecteur » en comptant les MENTIONS de `wama-inspector` (lien CSS,
+  commentaire) au lieu des MONTAGES : le périmètre réel était de 5 pages, pas 4. Idem pour les
+  boutons de card (« 7 » comptait des branches `{% if %}/{% elif %}` exclusives ; le vrai
+  maximum est 5).
+- **QUAND UN CORRECTIF CRÉE UN SECOND DÉFAUT DE LA MÊME FAMILLE, C'EST LA FORME QU'IL FAUT
+  CHANGER, PAS LA GARDE.** Modale de partage : recréée à chaque ouverture, elle empilait deux
+  backdrops (un backdrop orphelin ne « laisse pas une modale ouverte », il fait que
+  l'application ne répond plus) ; puis purger l'ancienne avant d'ouvrir a fait LEVER Bootstrap
+  (`_showElement` sur un élément retiré en pleine animation). Réponse : **un hôte unique**, dont
+  on remplace le contenu — la classe de défaut disparaît.
+- **UN GESTE À MOITIÉ BRANCHÉ NE LÈVE RIEN, IL NE FAIT RIEN.** Inspecteur de registre : le clic
+  posait la surbrillance et le panneau restait sur son invite, parce que (a) `data-id` manquait
+  et (b) `fillActions` sort tôt sans son hôte. Trois maillons, aucun déductible des autres.
+- **UNE BRIQUE GLOBALE ET UNE FEUILLE PAR PAGE FINISSENT PAR DIVERGER** : `WamaDetails` est
+  global depuis toujours, sa feuille était incluse par 3 pages → les 5 nouvelles rendaient des
+  lignes clé/valeur COLLÉES (« Registremodel »). Passée en global.
+- **ADOPTER UNE BRIQUE SUR UNE NOUVELLE CIBLE, C'EST DÉCOUVRIR CE QUE SES CIBLES ACTUELLES NE
+  DEMANDAIENT PAS** : la barre de filtrage masquait par `style.display` et restaurait `''` — ce
+  qui EFFACE la déclaration inline de l'entrée unitaire (`display:contents`). Masquage par
+  CLASSE désormais.
+- **UNE BRIQUE QUI ÉCRIT DANS LE DOM QU'ELLE RELIT DOIT S'EXCLURE ELLE-MÊME** : le clic droit
+  offrait « Plus d'actions » — le bouton « … » se relisait comme une action.
+- **QUAND UNE DÉRIVATION DOIT TRANCHER ENTRE DEUX RELATIONS PLAUSIBLES, IL MANQUE UNE DONNÉE À
+  L'ENTRÉE** : `elements_du_lot` devinait l'élément par « la 1ʳᵉ relation qui n'est pas
+  `batch` » — `ConversionJob` porte aussi `user`, elle rendait donc l'UTILISATEUR comme élément
+  du lot (et aurait écrit `visibility` sur un compte). Le modèle attendu est désormais EXIGÉ.
+- **UNE PHOTO D'ADOPTION DANS UN `.md` EST PÉRIMÉE DÈS LE PORTAGE SUIVANT** :
+  `PROFILES_PERMISSIONS §7.4bis` affichait « 3 ✅ / 6 ❌ » depuis SIX SEMAINES alors que c'est
+  **10/10**. Elle a failli faire différer l'UI de partage (« seules 3 apps sont portées »).
+- **DEUX HARNAIS QUI DÉCLARENT CHACUN LEUR MOITIÉ LAISSENT UNE COUTURE** : `queue_dnd` ne POSTE
+  pas (par conception), `tests_queue_dnd` appelle les endpoints par `reverse()` (pk déjà juste).
+  La substitution du pk n'était tenue par personne — c'est là que le bug de l'imager a vécu.
+- **ON CORRIGE LA FABRIQUE, PAS SEULEMENT L'ARTEFACT** : le défaut d'enrobage trouvé sur le
+  converter était AUSSI dans `templates_gen.py` — toute app future l'héritait.
+- **UN CONTRÔLE NE SERT QUE SI ON LE RELANCE** : `check_templates --strict` est passé de 0 à 2
+  défauts pendant la session (2 commentaires `{# #}` multi-ligne commités par une autre
+  instance, dont le TEXTE fuyait dans `/enhancer/`). 8ᵉ récidive de ce piège.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+1. **DÉCISION Fabien** — passer le menu/les actions à l'**option 2** (un registre pour TOUTES les
+   actions de card, la rangée comprise), acté « à terme, pas d'implémentation pour le moment ».
+   Rassurant : rangée, « … », menu et inspecteur sont déjà tous CONSOMMATEURS de la même liste →
+   migrer = déplacer les actions existantes du DOM vers le registre, sans toucher un consommateur.
+2. **DÉCISION Fabien** — **partage à une PERSONNE** : impossible aujourd'hui (`ScopedVisibility`
+   n'a que privé/unité/projet/public). Prévu par `ObjectGrant` (§7.3, « bénéficiaire = user OU
+   project OU org_unit ») et arrive donc AVEC l'écriture = jalon **S3**. Ouvrir S3 est un
+   chantier de DROITS, pas d'UI : ne pas le lancer sans GO explicite. Contournement légitime :
+   un `Project` à deux membres.
+3. Puis, sans décision : porter le converter sur `common/_queue_entry.html` (renommage
+   `job` → `elem`, 45 occurrences) ; lancer les 2 familles nocturnes sur les apps restantes.
+
+### Pendings système / trous NOMMÉS (pas enterrés)
+
+- **`rag` : inspecteur CÂBLÉ mais NON ÉPROUVÉ** — `#ragListe` n'existe que s'il y a des
+  documents, et il n'y en a aucun sur ce compte ;
+- **partage et « Envoyer vers » : smoke sur charge INTERCEPTÉE** (aucune file de la session
+  navigateur n'est habitée). La forme des charges est validée côté serveur par les tests ;
+  `batch_extract` couvre désormais le menu contextuel sur une VRAIE card. Un scénario
+  `<app>.share` / `<app>.send_to_card` reste à écrire pour fermer complètement ;
+- **6 gabarits incluent encore `wama-inspector-autofill.css` en local** — mesuré : `apps`,
+  `backends`, `external_sources`, `journal`, `model_manager/index`, `studio/index`. Redondant
+  depuis son passage en global (CSS idempotent, donc inoffensif) ; retrait = une passe à part ;
+- **converter** : ne passe pas par `_queue_entry.html` (cf. point 3 ci-dessus) ;
+- `wama/imager_01/` (jumelle) n'est PAS versionnée : elle héritera des correctifs de gabarit à
+  sa prochaine régénération, le générateur étant juste. ⚠ `git show` sur un fichier non suivi
+  rend un message d'erreur — un détecteur nourri de vide dit toujours vert (piège rencontré) ;
+- gunicorn : maître **HUP** une dizaine de fois (gabarits en cache PAR WORKER) ; workers
+  homogènes. Le serveur a été relancé par Fabien en cours de session (nouveau PID) ;
+- ⚠ **PENDING QUI M'ÉTAIT ASSIGNÉ ET QUE JE N'AI PAS TRAITÉ** : `MEMORY.md` (ligne du 08/09)
+  attribuait `folder_input_id` sur 3 cards à la « session CARDS/UI ». La liste de correctifs de
+  Fabien portait sur autre chose, et je l'ai traitée en entier ; ce pending reste donc OUVERT et
+  je le rends au lieu de le laisser passer pour fait. Contexte : le critère `recursive_import`
+  distingue le DÉPÔT d'un dossier (acquis par `WamaImport`) du CLIC « ou importer un dossier »
+  (l'`<input webkitdirectory>` que la card ne rend que si l'app déclare `folder_input_id`) ;
+- **push** : `dev` non poussée par moi.
+
+### Contrôles attendus au prochain `/reprise` (MESURÉS à la clôture)
+
+- `check_docs` : **0 cassée / 0 périmée sur 1509** ;
+- `check_templates --strict` : **0 défaut / 151** gabarits ;
+- `manifest_export --check` : corpus à jour (**197** manifestes) — non relancé après mes commits
+  (aucun registre touché) ;
+- ⚠ **citer le CHEMIN d'un domicile dans un commentaire fait compter le fichier comme CONSOMMATEUR** du mécanisme (le scan lit le texte brut) : ma ligne « `wama-queue-dnd.js:batchIdOf` » a fait apparaître « queue_dnd — adopté par 1 app : converter », ce qui SUGGÉRAIT que les 11 autres ne l'adoptent pas. Citer la FONCTION, pas le fichier ;
+- carte des mécanismes : **133** mécanismes (mes 3 briques DÉCLARÉES : `card_menu`, `partage_element`, `envoyer_vers` — + `model_readiness` d'une autre instance), 39 trous de jonction ; `doc_facts --check` **les 6 blocs à jour** ;
+- registre nocturne : **295** scénarios (261 + 17 + 17) ;
+- suite complète : **NON relancée en fin de session** (elle valait 1766 tests / 1 échec au
+  `/reprise` du 08/09, le rouge composer `audio/*` — SOLDÉ depuis par une autre instance,
+  `app_registry`). Périmètres ciblés tous verts : 148 (inspecteur+registres+partage+envoi+barre+
+  accounts), 92 (envoi+partage+menu+barre+filemanager), 75, 60, 58.
