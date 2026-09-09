@@ -73,6 +73,36 @@
 **Le test d'acceptation d'une proposition : elle doit pouvoir CITER ce qu'elle a lu.** « Je ne
 l'ai pas trouvé » n'est recevable qu'après avoir nommé les quatre endroits regardés.
 
+### 🔴 DURCISSEMENT (2026-09-10, demande de Fabien) — CITER NE SUFFIT PAS, IL FAUT AVOIR LU LE CODE
+
+> La règle ci-dessus a été respectée à la lettre et a quand même produit **cinq diagnostics
+> faux en une seule session**, dont trois par la même faute : **conclure d'un RELEVÉ PAR MOTIF**
+> (un `grep`, un nom de fichier, un compteur) **au lieu d'ouvrir ce qu'il désigne**. Citer une
+> source périmée, c'est se tromper *avec l'assurance de celui qui a cité*.
+
+**Trois interdits, et chacun a son cas vécu :**
+
+| interdit | le cas | ce qu'il fallait faire |
+|---|---|---|
+| **Conclure d'un COMPTEUR sur une STRUCTURE** | « le registre `skills` rend `total=11` donc il mélange les familles » — le service en déclarait **trois**, câblées depuis 15 jours | ouvrir le service, pas lire son total |
+| **Conclure d'une RESSEMBLANCE DE NOMS** | « `cartography` / `cartographie` = doublon » — le skill déclarait `prompt: cartography` et une table « Séparation des rôles » | ouvrir les deux fichiers |
+| **Conclure d'un `grep` ÉTROIT sur une ABSENCE** | « le pont n'existe pas » (`grep PROMPT_SKILLS_DIR`) — vrai par chance ; le même raisonnement sur `ollama_host` aurait été FAUX, ce module étant importé sous un autre nom | greper le SYMBOLE **et** ses accesseurs, puis ouvrir |
+
+**Le test durci : une affirmation sur le code doit nommer la LIGNE qui la fonde.**
+Pas le fichier — la ligne, ou la sortie de commande, ou l'assertion d'un test. « J'ai grepé et
+il n'y a rien » n'est recevable **que** si l'on dit *quel motif* a été cherché et *pourquoi il
+couvre le cas* (`rtk grep` est explicitement exclu : il compresse, il ne mesure pas).
+
+⚠ **Trois affirmations valent une seule si elles descendent d'une même phrase.** Trois fichiers
+ont affirmé pendant 14 mois qu'un pont existait ; tous recopiaient la même décision, qui avait
+compté « déclarer le chemin » comme « construire la liaison ». **Une mesure bat N citations**,
+quel que soit N — parce que les N peuvent n'être qu'une, dupliquée.
+
+⭐ **Et une DOC qui contredit le CODE a tort par défaut.** Sur les cinq écarts de cette session,
+**cinq fois** c'est la doc qui était en retard, jamais le code. Devant une contradiction :
+mesurer, corriger la doc, dater la correction — ne jamais « aligner le code sur la doc » sans
+avoir établi laquelle des deux porte l'intention.
+
 ⚠ **Mais une source d'autorité se VÉRIFIE aussi, et un LIBELLÉ n'en est pas une.** Cette ligne
 disait, jusqu'au 2026-09-09 : *« le registre "Backends (moteurs)" dit que WAMA ne distingue pas
 le backend du moteur »*. C'était vrai en août, faux depuis le **2026-09-07**, où le sens du lien

@@ -76,6 +76,47 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > Une clôture qui reporte « N tests OK » en ayant écarté les rouges du décompte est pire qu'une
 > clôture sans tests : elle produit une preuve fausse.
 
+### 2a bis. 🔴 LES TESTS QUE TU AS **AJOUTÉS** — lancer n'est pas garder
+
+> **Ajouté le 2026-09-10, demande de Fabien : « les tests nécessaires ajoutés ? »** Le §2a
+> ci-dessus fait LANCER les tests ; il ne demande nulle part d'en avoir ÉCRIT. Une clôture
+> pouvait donc cocher « ✓ tests, N OK » sur du code neuf **entièrement non gardé** — et c'est
+> exactement ce qui s'est passé ce jour-là : trois livrables sur neuf n'avaient aucune garde
+> (l'adoption de `llm_chat` par les aides de `llm_utils`, le pont wama-dev-ai, `check_skills`),
+> découverts **seulement parce que Fabien a posé la question**.
+
+**Le geste — un tableau, une ligne par livrable de la session :**
+
+```bash
+# 1. Ce que la session a livré (fichiers de CODE touchés par TES commits)
+git diff --name-only <premier sha>..HEAD | grep -E '\.py$|\.js$' | grep -v '^.*tests'
+# 2. Pour CHAQUE symbole neuf ou porté, son grep dans les tests — NOMMÉMENT
+grep -rl "<symbole>" --include="tests*.py" wama/ wama_lab/
+```
+
+Chaque livrable est **gardé**, ou **déclaré non gardé dans le handoff avec sa raison**. Pas de
+troisième état. ⚠ « Les tests existants passent » n'est PAS une réponse : ils passaient déjà
+avant que le code existe.
+
+🔴 **Priorité absolue au défaut QUI NE SE VOIT PAS À L'EXÉCUTION LOCALE.** C'est le critère qui
+trie, et il est plus utile que « couverture » :
+- un défaut qui **lève** se trouve à l'usage → garde utile mais pas urgente ;
+- un défaut qui rend un résultat **plausible et faux**, ou qui ne se manifeste que **chez un
+  tiers** (fournisseur cloud, autre venv, autre machine), **ne se trouvera jamais autrement**.
+  Vécu : `model=''` produit le modèle `"openai/"` — erreur DISTANTE, invisible en local ;
+  un rôle sans posture rend une sortie crédible et fausse.
+
+⚠ **Un smoke lancé à la main n'est pas une garde.** Vécu le 09/09 : le pont wama-dev-ai avait
+été validé par un script du scratchpad — donc rien ne le protégeait, alors qu'il venait de
+passer 14 mois à ne pas exister pendant que trois documents l'affirmaient. Si le code n'est pas
+atteignable par la découverte (paquet en tiret-case…), le charger **par chemin depuis un test
+côté WAMA** est la voie — pas renoncer.
+
+⚠ **Écrire la garde APRÈS coup révèle souvent le vrai contrat.** Les 4 gardes de l'adoption
+`llm_chat` ont été écrites en fin de session : la 4ᵉ (« un modèle EXPLICITE est transmis tel
+quel ») est une CONTRE-ÉPREUVE qu'aucune des trois autres n'imposait — sans elle, un `model=None`
+en dur les satisfaisait toutes en cassant la sélection par catalogue.
+
 ### 2b. Les autres — seulement ceux que la session a rendus nécessaires
 - Un REGISTRE a bougé (APP_CATALOG, params, capacités, tool_api, mecanismes.py…) →
   `manifest_export --check` (⚠ depuis WSL2 — venv_win = faux périmés sur les libraries) ;
@@ -226,6 +267,7 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
   | 0 périmètre | ✓/✗ | ce que `git status` disait, à qui étaient les fichiers |
   | 1 palier | ✓/✗ | derniers commits (shas) |
   | 2a tests | ✓/✗ | le chiffre MESURÉ + les noms des rouges s'il y en a |
+  | 2a bis gardes AJOUTÉES | ✓/✗ | **une ligne PAR livrable** : son symbole → le fichier de test qui le nomme, ou « non gardé, parce que… ». ⚠ Un chiffre global ne coche PAS cette case — c'est celle du §2a |
   | 2b/2c contrôles | ✓/–/N-A | chiffres (corpus N, cibles distinctes N) OU « aucun registre n'a bougé » |
   | 3 balayage | ✓/✗ | nb de ⚠ balayés → réglés/pendings ; artefacts+effets de bord déclarés |
   | 4 handoff | ✓/✗ | l'ancre du bloc écrit |
