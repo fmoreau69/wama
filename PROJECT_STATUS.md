@@ -13005,10 +13005,10 @@ la donnée de sa source.
   re-commit avec pathspec. **Rien n'a été perdu, rien n'a été poussé.**
   ⭐ *Une règle formulée sur une COMMANDE (« jamais `git add -A` ») laisse passer toutes ses
   variantes ; la règle réelle est « aucun commit ne se fait depuis l'index partagé ».*
-  🔚 **PENDING NOMMÉ** : la ligne « `--amend` sans pathspec = même danger qu'un `git commit` nu ;
-  la forme sûre est `--amend -F <msg> -- <chemins>` » **doit rejoindre la règle git multi-instances
-  d'`AGENTS.md`**. Non fait ICI parce que ce fichier était en cours d'édition par l'autre instance
-  au moment de la clôture — l'éditer aurait créé exactement le conflit que la règle prévient ;
+  ✅ **PENDING SOLDÉ le 2026-09-10** : la règle est écrite dans `AGENTS.md`, sous le bullet des
+  chemins explicites (forme sûre + geste de rattrapage). Elle attendait que l'autre instance
+  cesse d'éditer ce fichier — l'y écrire pendant son travail aurait créé exactement le conflit
+  que la règle prévient ;
 - artefacts : **aucun** script laissé hors du scratchpad de session, aucune sonde ajoutée à
   `logs/ui_smoke/`, aucun compte ni fichier de test semé ; pas d'artefact claude.ai publié ;
 - ⚠ **fuite i18n CONSTATÉE, PAS TRAITÉE — et elle n'est pas à moi** : le générateur de gabarits

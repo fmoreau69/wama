@@ -107,6 +107,21 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
      réécritures d'imports dans les fichiers déjà suivis ne l'étaient pas. **HEAD était cassé
      (`wama_data` absent d'`INSTALLED_APPS`, cam_analyzer pointant sur l'ancien chemin) alors que
      l'arbre de travail passait 245 tests.** Un `git checkout` de ce commit ne démarrait pas.
+- 🔴 **`git commit --amend` SANS PATHSPEC EST LE TROU DE CETTE RÈGLE** (vécu le 2026-09-09,
+  rattrapé). La règle ci-dessus est formulée sur des COMMANDES (`git add -A`, `git commit` nu) —
+  `--amend` n'y figurait pas, et recommite pourtant **l'index entier**, exactement comme un
+  `git commit` nu. Mesuré : un `--amend -F <msg>` lancé pour corriger un message a produit un
+  commit de **5 fichiers stagés par une autre instance** (dont un fichier de test NEUF), sous mon
+  message. ⚠ Et le second effet, plus sournois : **ma propre modification avait DISPARU du
+  commit** — un `git commit <chemin>` ne laisse pas ce chemin stagé, donc l'index amendé ne le
+  contenait pas.
+  ✅ **Forme sûre** : `git commit --amend -F <msg> -- <mes chemins>` — un pathspec implique
+  `--only`, donc l'index est IGNORÉ. Sans pathspec, ne jamais amender sur ce dépôt.
+  ✅ **Rattrapage, dans cet ordre** : `git reset --soft HEAD~1` (l'index revient tel qu'il était,
+  le WIP de l'autre instance re-stagé intact — le vérifier au `git status --porcelain`, 1ʳᵉ
+  colonne `M `/`A ` sur SES fichiers), puis re-commiter avec pathspec.
+  ⭐ *Une règle formulée sur une COMMANDE laisse passer toutes ses variantes ; la règle réelle est
+  « aucun commit ne se fait depuis l'index partagé ».*
 - **Après un commit structurel, VÉRIFIER SUR HEAD, pas sur l'arbre de travail** :
   `git worktree add /tmp/verif HEAD` puis `manage.py check` + tests dedans. C'est le seul contrôle
   qui distingue « mon disque marche » de « ce que j'ai commité marche ».
