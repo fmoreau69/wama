@@ -222,6 +222,24 @@ inutile ou un assistant sans posture.
 > (§1). Le registre `skills` ne rend qu'un COMPTEUR (11) : lire ce total comme la structure fait
 > conclure à un mélange qui n'existe pas.
 >
+> 📊 **ÉTENDU à CINQ familles le 2026-09-09** — la page catalogue les montre toutes
+> (`services/skills_catalog.py`, `/common/skills/`) : `enrichissement` 5 · `role` 5 · `repli` 1 ·
+> **`role_dev` 11** (`wama-dev-ai/prompts/*.txt`) · **`dev_agent` 14** (`.claude/skills/*/`).
+> Chaque carte affiche son **mécanisme de sélection**, parce que c'est lui qui impose le format.
+>
+> 🔴 **FUSION DES DEUX FAMILLES DE DEV : ÉCARTÉE, et par la mesure.** On avait prévu de réunir
+> `wama-dev-ai/prompts/` et `.claude/skills/` dans un seul dossier, au motif qu'ils travaillent
+> tous deux sur le CODE. Relevé du 2026-09-09 : **5 des 11 consignes de rôle sont des gabarits
+> `.format()`** — `architect {code}`, `audit {task,tools}`, `cartography {task,tools}`,
+> `debug {code}`, `dev {files,task}`. Les porter au format SKILL.md casserait la substitution
+> (`cli.py::_build_prompt`, la garde `{tools}` de `run_audit.py`) **et** le contrat du format,
+> dont le corps est lu VERBATIM. Et le critère ci-dessous tranche dans le même sens :
+> `consigne_role(nom)` sélectionne **par nom de rôle**, jamais par description — donc
+> `role_dev` est de la nature de `prompt_skills/`, pas de celle de `.claude/skills/`. Le partage
+> est **4 contre 1**, pas 2 contre 2. *Les quatre familles se rejoignent sur la PAGE, pas sur le
+> disque.* Le doublon `cartography` ↔ `cartographie` y est désormais visible côte à côte : c'est
+> là qu'on en décidera, pas par une chirurgie de fichiers.
+>
 > 🔒 **La frontière de FORMAT en découle, et c'est le consommateur FINAL qui la fixe**
 > (tranché avec Fabien le 2026-09-09) : un modèle de diffusion, SAM3 ou MusicGen ne peuvent
 > qu'**encaisser une chaîne** — ils ne savent pas choisir une consigne, donc c'est le CODE qui
