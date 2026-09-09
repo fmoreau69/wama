@@ -12669,3 +12669,101 @@ Ordre ensuite : C → D → export du registre `PASSES` en manifeste `pipeline` 
   `/reprise` du 08/09, le rouge composer `audio/*` — SOLDÉ depuis par une autre instance,
   `app_registry`). Périmètres ciblés tous verts : 148 (inspecteur+registres+partage+envoi+barre+
   accounts), 92 (envoi+partage+menu+barre+filemanager), 75, 60, 58.
+
+---
+
+## §REPRISE — 2026-09-09, instance « CAM_ANALYZER : ⑤b FACETTE ESTIMATEUR + D13 NŒUD FONCTION » — ✅ CLOSE — 🔚 POINT D'ENTRÉE
+
+> Session ouverte par `/reprise` sur le point d'entrée laissé le 07/09 (`§CLÔTURE 2026-09-07,
+> instance CAM_ANALYZER`), qui s'arrêtait sur **deux décisions de Fabien**. Les deux ont été
+> posées et tranchées en début de session : ⑤b = **« GO, les 3 champs »** ; D13 = **« C + D,
+> Studio inclus »**. Les deux modèlent `PortSpec` — c'est pourquoi elles étaient à décider
+> ensemble, et elles ont été livrées ensemble. Domicile vivant : `CAM_ANALYZER_CHANGELOG
+> § 2026-09-09` (deux lignes) + `WAMA_DATA_WORLD §9` (marches C et D passées à ✅) +
+> `WAMA_DATA_FUNCTION_CARDS §2`.
+
+### Livré (chaque palier : périmètre vert avant d'écrire la suite)
+
+| palier | quoi | preuve |
+|---|---|---|
+| **① ⑤b + marche C** | `PortSpec` gagne le **rôle** `group` (entrée : `travail`\|`reference`, vocabulaire EMPRUNTÉ à `app_modes.INPUT_TYPES[*]['port']`) et la **facette estimateur** (sortie, optionnelle) : `estimates` (vocabulaire fermé `ESTIMATED_QUANTITIES` → unité de σ), `uncertainty` (nombre \| `{field}` \| `{model: relative\|held\|declared}`), `derived_from` (⊆ `NATIVE_SOURCES`), `estimate_field`. `validate_port_facet` applique **la même règle** au catalogue (tests) et au kind manifeste `function` (ingest). `port_estimate_meta()` = la forme portée par `TypedFrame.meta['estimate']` à l'exécution. **`function_node_ports(key)`** rend la MÊME forme que `studio_node_ports` (types de sortie = type ∧ super-types). **1ᵉʳ consommateur** : `wama_data/functions/fusion/estimates.py` — pondération 1/σ², **vectorielle** pour une grandeur circulaire, σ fusionnée 1/√Σ1/σᵢ², REFUS si `derived_from` se recouvrent. **10 producteurs déclarés** depuis `§INVENTAIRE C`. | 11 tests fusion · 6 au `FunctionCatalogConformiteTest` · 3 `tests_function_specs` · 36 tests des producteurs inchangés · corpus `functions` régénéré |
+| **② D13 (marche D)** | Kind `pipeline` : `NODE_KINDS` += `function` ; `node_kind()`/`function_key()` = les **deux seuls** lecteurs de la convention de palette `app='function:<clé>'` ; `graph_to_body()` ; `register_pipeline_source()` (registre keyé — le kind ne connaît pas ses producteurs). **Exécuteur** `studio/tasks.py` : dispatch SUR LE KIND — `pure` = `spec.fn(1ᵉʳ port, ports suivants par NOM, **params typés)` **synchrone en process**, `TypedFrame` en mémoire entre nœuds, facette du port posée sur `meta['estimate']` ; `app`-bound = `impl` lancée avec les params du nœud (arguments requis **par introspection**) puis pollée comme un job. Nœud-source **`dataset_input`** (CSV → `TypedFrame` du type DIT), Sortie qui range un `TypedFrame` en CSV. `launch_graph`, `api_nodes` (+ `data_types`), `api_run_options`, palette JS « Fonctions (62) », `to_port` = **ID de port**. | 9 tests `studio/tests_function_nodes` dont la **chaîne exécutée de bout en bout** ; `check_js` 70/0 ; staticfiles synchro ; smoke |
+| **③ le registre `PASSES` s'exporte** | `Pass.function` (clé du catalogue quand elle diffère de `cam_analyzer.<key>`), `pipeline_graph()` (forme canvas) + `pipeline_manifest()` inscrits sous la clé `cam_analyzer`. **3 specs déclarées** pour que CHAQUE passe soit un nœud (`extraction` — avec la facette du cap brut, levier 10 —, `intersection_windows`, `depth_calc`) et **`prediction` → `indicators`** (un nom pour la passe, la tâche et la fonction). `manifest_export --kind pipeline` → `manifests/pipelines/cam_analyzer.json` (**13 nœuds, 14 liens**), inclus dans l'export complet et le `--check`. | 3 tests `tests_pass_registry` (chaque passe EST une fonction ; le manifeste s'extrait et est VALIDE ; la forme canvas est chargeable) |
+
+### ⚠⚠ Ce que la session a appris
+
+- **Une σ « declared » n'est pas de la paresse, c'est l'état MESURÉ.** Deux leviers sur dix
+  ont une incertitude chiffrée (cap filtré 3° sur trace synthétique, pinhole ±20 %) ; les huit
+  autres portent `{'model': 'declared'}` parce que la colonne « mesure A/B » de `§INVENTAIRE C`
+  dit **« aucune »**. Écrire un σ inventé aurait fait peser ces leviers dans la fusion —
+  exactement le « réglage caché » que `§E` reproche à la pondération arbitraire. Le jour où la
+  mesure existe, elle s'écrit sur le port et la fusion la prend d'elle-même.
+- **Le critère de fusion est l'INDÉPENDANCE, et il fallait le CODER, pas le documenter** :
+  `fuse_estimates` lève sur deux sources qui partagent une donnée native, en la nommant. C'est
+  le seul moyen que les leviers 1 et 40 (même bbox) ne se « confirment » jamais l'un l'autre.
+- **Trois passes n'avaient pas de `FunctionSpec`** — donc pas de nœud possible, donc le registre
+  du 07/09 serait resté « ce qui s'exportera un jour ». Les déclarer EST le geste (skill
+  cam-analyzer : *« une sortie non déclarée n'existe pas pour le système »*).
+- **Un nom pour trois objets** : la passe `indicators`, la tâche `compute_indicators_task` et la
+  fonction `prediction` désignaient la même chose sous deux noms — le registre ne pouvait pas
+  dériver son nœud sans table de traduction. Renommée (corpus régénéré ; aucun consommateur par
+  chaîne, vérifié au grep natif).
+- **`to_port` portait le RÔLE, pas le port.** Sans effet tant qu'une app n'avait qu'un port par
+  rôle ; faux dès la première fonction à deux entrées (`gps_map_match` : `track` + `road_map`,
+  tous deux dans un rôle). Corrigé en ID de port, avec repli par rôle pour les graphes déjà
+  sauvegardés.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**⑥ le test D.3, EN DERNIER comme acté** — c'est désormais le prochain de la file, et il
+demande le NAVIGATEUR sur une session ENA : ⚑ `display_ema` OFF (la dérive des garés cesse-t-elle ?)
+→ ⚑ `shuttle_filter` ON → « Calculer les indicateurs » → lire `Filtre navette` / `Source de
+placement` / `Cohérence placement` → `placement_spread` OFF vs ON. Tous ⚑ OFF = l'état d'avant.
+
+Puis, dans l'ordre : **accéléromètre** (identifier l'axe avant par corrélation avec dv/dt du GPS
+filtré — une MESURE, les axes X/Y ne sont écrits nulle part) → **réétalonner σa/σm** (0,8 / 2,0
+PROVISOIRES) et la σ de 3° du cap filtré, sur `placement_spread` → **câbler `ego_rotation`**
+(2ᵉ source de cap, indépendante : c'est le 1ᵉʳ cas réel de `fuse_estimates`, mais il lui faut
+d'abord un σ) et `osm_control_nodes` → **charger le manifeste pipeline DANS le canvas** (le
+Studio lit `StudioPipeline`, pas le corpus — le manifeste s'exporte, il ne se réimporte pas
+encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 bâtiments IGN →
+`locate_anything`.
+
+### Décisions ouvertes (Fabien)
+
+- **`.gitignore:31 build/` avale `three.module.js`** (report du 07/09, non traité ici) ;
+- l'orientation des axes de l'accéléromètre du rig (mesure ou doc constructeur) ;
+- RGE ALTI 1 m (MNT) pour lever l'hypothèse « sol plan » ;
+- Q4 (lecture chiffrée des indicateurs) et 3b (toggles « Vue » hors registre ⚑) de l'artefact
+  « volet droit » du 05/08, toujours ouverts.
+
+### Pendings système (attribués)
+
+- ⚠ **`wama.common.tests_volet.PagesDeclarantesTest.test_les_pages_declarantes_n_ont_plus_de_cadres`
+  était ROUGE au `/reprise`, AVANT toute modification de ma part** — `id="settings-section"`
+  trouvé sur la page des registres, dont le volet droit est déclaré depuis `0e587583` (01/09,
+  « les registres deviennent NAVIGABLES »). **Hors de mon périmètre, non touché, à attribuer** à
+  qui tient les volets/registres. Reproduit isolément (`4 tests, 1 failure`) : ce n'est pas un
+  fugace dépendant de l'ordre ;
+- `manifests/` : `functions` **62** (+4 specs, +`fuse_estimates`, −`cam_analyzer.prediction`
+  renommée), `pipelines` **1** (nouveau dossier) — régénérés depuis **venv_linux** ;
+- `doc_facts` : bloc `wama_data` régénéré (l'Analyzer n'est plus bloqué par D13 mais par sa
+  SURFACE) ; les autres blocs non touchés ;
+- **push** : `dev` non poussée par moi ;
+- gunicorn : maître **HUP** une fois (09/09) avant le smoke — le JS servi a été vérifié au `curl` ;
+- aucune sonde ad hoc déposée dans `logs/ui_smoke/` (script de smoke dans le scratchpad, jeté avec lui).
+
+### Contrôles attendus au prochain /reprise (MESURÉS ce jour)
+
+- `check_docs` : **0 cassée / 0 périmée sur 1514** (ce §REPRISE en ajoute lui-même deux — le
+  total n'est PAS un critère, seule la cible distincte l'est) ;
+- `manifest_export --check` (venv_linux) : corpus à jour — `--kind function` **62**,
+  `--kind pipeline` **1** ;
+- `manifest_roundtrip --all` : **10/10 OK** ;
+- cam_analyzer : **13 passes** (= `PassType`, = les 13 nœuds du manifeste `pipeline`),
+  **17 bascules**, catalogue **62 fonctions** (24 app-bound) ;
+- smoke `/studio/` (compte de test) : **HTTP 200, 0 erreur JS** ; l'API des nœuds sert **10 apps +
+  62 fonctions** et la taxonomie (11 `data_types`) ;
+- `manage.py test` : le SEUL attendu est **`OK`** — ⚠ **sauf** le rouge `tests_volet` ci-dessus,
+  antérieur à cette session et attribué ailleurs. Ne pas le lire comme une régression de ce
+  palier ; ne pas le tolérer indéfiniment non plus.

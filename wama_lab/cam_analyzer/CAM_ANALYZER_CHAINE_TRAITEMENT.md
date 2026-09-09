@@ -833,6 +833,18 @@ gain ou dégradation. Le §C montre ce qui manque, et ce n'est ni la provenance 
 Ordre de travail retenu (Fabien, 2026-09-05) : **inventaire (cette section) → filtrage navette
 (§D.1, après le test §D.3) → facette estimateur (§E.1/3) → fusion.**
 
+**État au 2026-09-09 — la facette estimateur (E.1, E.3) est LIVRÉE, la fusion (E.2, E.4) a son
+premier consommateur.** `PortSpec` porte `estimates` / `uncertainty` / `derived_from` /
+`estimate_field` (vocabulaires fermés dans `function_catalog.py`, la même validation au catalogue
+et au kind manifeste `function`) ; `wama_data/functions/fusion/estimates.py::fuse_estimates`
+pondère en 1/σ² (vectoriel pour un cap), **refuse** deux sources qui partagent une donnée native
+(E.2 : leviers 1 et 40 ne se fusionneront jamais), **écarte** ce qui n'est pas chiffré. Les
+neuf producteurs de §C déclarés : σ chiffrées pour le cap filtré (levier 15, 3° mesurés sur
+trace synthétique — provisoire) et le pinhole (levier 1, ±20 %) ; `declared` pour les sept
+autres, parce que la colonne « mesure A/B » de §C dit « aucune » — la facette ne ment pas à la
+place du relevé. **Aucun appelant dans la chaîne encore** : les deux sources de cap
+indépendantes (levier 15, `ego_rotation`) ne sont pas câblées ensemble (§CHANGELOG 2026-09-09).
+
 ### F. Les modèles IA de la chaîne (chronologie, ce qu'ils apportent)
 
 | ordre | modèle | passe | entrée | sortie | apport à la vue de dessus | état |
