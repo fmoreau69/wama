@@ -273,6 +273,72 @@ class ManifestKindsConformiteTest(TestCase):
                     self.assertIs(params['apply'].default, False,
                                   "le défaut doit être le DRY-RUN")
 
+    #: Kinds qui DÉCLARENT un `write_back`. Inventaire TENU, pas indicatif : l'en-tête de
+    #: `kinds.py` porte la table « qui projette, et dans quelle mesure », et elle a MENTI
+    #: du 2026-08-11 au 2026-09-09 — elle annonçait « 3 kinds » et rangeait `function`
+    #: parmi ceux qui n'en ont PAS, alors qu'il en enregistrait un depuis un mois.
+    #: Ajouter ou retirer une projection FAIT TOMBER ce test : c'est le rappel d'aller
+    #: rouvrir la table. *Une table d'en-tête que rien ne tient dérive par le haut.*
+    KINDS_QUI_PROJETTENT = {'app', 'function', 'library', 'model'}
+
+    def test_l_INVENTAIRE_des_kinds_qui_projettent_est_TENU(self):
+        projettent = {cle for cle, mk in self._chaque() if mk.write_back}
+        self.assertEqual(
+            projettent, self.KINDS_QUI_PROJETTENT,
+            "l'inventaire des kinds projetants a changé — mettre à jour la table de "
+            "l'en-tête de `wama/common/manifests/kinds.py` DANS LE MÊME COMMIT")
+
+
+class ApplyManifestsRendCompteDesREFUSTest(TestCase):
+    """`apply_manifests` doit distinguer « sauté » d'« inchangé ».
+
+    ⚠ DÉFAUT MESURÉ le 2026-09-09 : `--kind function` annonçait « créés 0 · modifiés 0 ·
+    **inchangés 62** » alors qu'AUCUN des 62 manifestes n'avait été tenté — tous refusés par
+    `write_back_function` (binding `pure`/`app` = catalogue CODE), avec une raison que
+    l'appelant JETAIT. Un refus compté comme « déjà synchrone » se lit comme un succès.
+    *Un vert qui ne se joue pas est pire qu'un rouge.*
+    """
+
+    def _plan(self, kind: str) -> str:
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command('apply_manifests', '--kind', kind, stdout=out, stderr=out)
+        return out.getvalue()
+
+    def test_un_corpus_entierement_REFUSE_ne_se_dit_pas_inchange(self):
+        sortie = self._plan('function')
+        # ⚠ Anti-vacuité : sans cette borne, un corpus VIDE ferait passer le test en silence
+        # — le défaut « 0 FAIL sur du vide » que deux harnais du dépôt ont déjà commis.
+        self.assertRegex(sortie, r'sautés [1-9]',
+                         "aucun manifeste `function` sauté : corpus vide ou write_back changé ?")
+        self.assertIn('inchangés 0', sortie,
+                      "un manifeste REFUSÉ ne doit jamais être compté « inchangé »")
+
+    def test_la_RAISON_du_refus_est_rendue_lisible(self):
+        # La raison est ce qui distingue « je n'ai rien eu à faire » de « je n'ai rien tenté ».
+        self.assertIn('catalogue CODE', self._plan('function'))
+
+    def test_un_kind_qui_projette_VRAIMENT_ne_saute_rien(self):
+        # Contre-épreuve : le compteur ne doit pas s'allumer partout. `library` est le kind
+        # d'initialisation — il projette, donc il ne saute rien.
+        self.assertIn('sautés 0', self._plan('library'))
+
+    def test_les_DEUX_formes_de_skipped_du_depot_se_lisent(self):
+        """`skipped` a deux formes ANTÉRIEURES au lecteur : chaîne (`write_back_function`) et
+        liste de `{field, reason}` (`write_back_app`). En inventer une troisième pour
+        uniformiser serait le chemin parallèle qu'on refuse."""
+        from wama.common.management.commands.apply_manifests import _raison_du_saut
+        self.assertEqual(_raison_du_saut('binding pure'), 'binding pure')
+        self.assertEqual(
+            _raison_du_saut([{'field': 'access', 'reason': 'écrit main'}]),
+            'access : écrit main')
+        # Une même raison sur N facettes ne se répète pas N fois.
+        self.assertEqual(
+            _raison_du_saut([{'field': 'a', 'reason': 'r'}, {'field': 'a', 'reason': 'r'}]),
+            'a : r')
+        self.assertEqual(_raison_du_saut([]), 'sans raison déclarée')
+
 
 class AppCatalogConformiteTest(TestCase):
     """Contrat des 11 entrées d'`APP_CATALOG` — le registre qui peuple menu, accueil et /apps/.

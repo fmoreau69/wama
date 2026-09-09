@@ -8,14 +8,28 @@ Chaque kind fournit :
   - `verify(manifest) -> list[dict]` : diff manifeste ↔ état courant (facultatif ; défaut = compare au
                                       résultat de `extract`).
   - `write_back(manifest, *, apply=False) -> dict` : ÉCRIT les entrées dérivées dans les registres
-                                      (dry-run par défaut). IMPLÉMENTÉ sur 3 kinds : `app`
-                                      (facette `access`), `library` (crée la ligne `Library`),
-                                      `model` (champs déclaratifs) — cf. spec §7.1 ter.
+                                      (dry-run par défaut). IMPLÉMENTÉ sur 4 kinds — cf. spec §7.1 ter.
   - `un_write_back(manifest, *, apply=False) -> dict` : retire les entrées dérivées (réversibilité).
 
-Un kind SANS `write_back` (`function`, `pipeline`, `project`, `dataset`) est « store+verify only » :
-le manifeste est stocké et diffable, mais n'écrit pas dans les registres fonctionnels (posture
-prudente, briques inchangées).
+QUI PROJETTE, ET DANS QUELLE MESURE (corrigé le 2026-09-09 — cet en-tête annonçait « 3 kinds » et
+rangeait `function` parmi ceux qui n'en ont PAS, alors qu'il en enregistre un depuis 2026-08-11) :
+
+  | kind      | write_back | portée                                                            |
+  |-----------|------------|-------------------------------------------------------------------|
+  | `app`     | ✅         | facette `access` en base + facettes projetées en CODE              |
+  | `library` | ✅         | CRÉE la ligne `common.models.Library`                              |
+  | `model`   | ✅         | champs déclaratifs seuls — ne crée JAMAIS la ligne (un modèle se DÉCOUVRE) |
+  | `function`| ⚠ PARTIEL  | binding `user` → `UserFunction`. `pure`/`app` = catalogue CODE : REFUSÉ, avec `skipped` |
+  | `pipeline` / `project` / `dataset` | ❌ | « store+verify only » : stocké et diffable, n'écrit dans aucun registre |
+
+⚠ LA PORTÉE PARTIELLE DE `function` N'EST PAS DÉCLARÉE, ELLE EST RENVOYÉE À L'EXÉCUTION — un
+`{'skipped': …}` par manifeste refusé. Conséquence MESURÉE le 2026-09-09 :
+`apply_manifests --kind function` rendait « 62 manifeste(s) · créés 0 · modifiés 0 · **inchangés
+62** » alors qu'AUCUN n'avait été tenté. Un refus compté comme « déjà synchrone » se lit comme un
+succès. La commande distingue désormais « sauté » d'« inchangé » ; le vocabulaire du kind, lui,
+ne sait toujours pas dire « je ne projette que pour tel binding » — c'est un manque de
+FORMALISME, pas de construction, et il est ouvert.
+*Un vert qui ne se joue pas est pire qu'un rouge.*
 """
 
 from __future__ import annotations

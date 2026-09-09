@@ -34,6 +34,30 @@ from django.core.management.base import BaseCommand
 KINDS_INITIALISABLES = ('library',)
 
 
+def _raison_du_saut(skipped) -> str:
+    """Raison LISIBLE d'un refus de `write_back`, quelle que soit la forme de `skipped`.
+
+    Le dépôt en porte DEUX, toutes deux légitimes et antérieures à ce lecteur :
+      • chaîne — `write_back_function` : « binding 'pure' = catalogue CODE … » ;
+      • liste de `{field, reason}` — `write_back_app`, qui saute FACETTE par facette.
+    On lit la véracité et la forme, jamais le type déclaré : inventer une troisième forme
+    pour uniformiser serait exactement le chemin parallèle qu'on refuse.
+    """
+    if isinstance(skipped, str):
+        return skipped
+    if isinstance(skipped, (list, tuple)):
+        raisons = []
+        for e in skipped:
+            if isinstance(e, dict):
+                r = e.get('reason') or '?'
+                raisons.append(f"{e['field']} : {r}" if e.get('field') else r)
+            else:
+                raisons.append(str(e))
+        # Dédoublonné en PRÉSERVANT l'ordre : une même raison vaut souvent pour N facettes.
+        return ' | '.join(dict.fromkeys(raisons)) or 'sans raison déclarée'
+    return str(skipped)
+
+
 class Command(BaseCommand):
     help = ("Applique les manifestes d'un kind aux registres (dry-run par défaut ; "
             "--apply exécute). Utile sur une installation neuve : library.")
@@ -68,7 +92,7 @@ class Command(BaseCommand):
 
         fichiers = sorted(dossier.glob('*.json'))
         crees = changes = inchanges = 0
-        erreurs = []
+        erreurs, sautes = [], []
         for f in fichiers:
             try:
                 manifeste = json.loads(f.read_text(encoding='utf-8'))
@@ -82,14 +106,36 @@ class Command(BaseCommand):
                 crees += 1
             elif res.get('changed') or res.get('would_change'):
                 changes += 1
+            # ⚠ SAUTÉ ≠ INCHANGÉ (2026-09-09). Un `write_back` peut REFUSER un manifeste en
+            # rendant `{'skipped': …}` sans rien avoir tenté — c'est le cas de TOUS les
+            # manifestes `function` de binding `pure`/`app` (catalogue CODE). Ils tombaient
+            # dans le `else` et se comptaient « inchangés », donc « déjà synchrones » :
+            # `--kind function` annonçait « inchangés 62 » pour 62 non-tentatives.
+            # `skipped` a DEUX formes dans le dépôt — chaîne (`write_back_function`) et liste
+            # de `{field, reason}` (`write_back_app`) : on teste la véracité, jamais le type,
+            # et on rend la raison LISIBLE au lieu de la jeter.
+            elif res.get('skipped'):
+                sautes.append(f"{f.stem} : {_raison_du_saut(res['skipped'])}")
             else:
                 inchanges += 1
 
         mode = 'APPLIQUÉ' if o['apply'] else 'PLAN (rien écrit)'
         self.stdout.write(f"  {kind} — {len(fichiers)} manifeste(s) · {mode}")
-        self.stdout.write(f"    créés {crees} · modifiés {changes} · inchangés {inchanges}")
+        self.stdout.write(f"    créés {crees} · modifiés {changes} · inchangés {inchanges} "
+                          f"· sautés {len(sautes)}")
         for e in erreurs:
             self.stdout.write(self.style.ERROR(f"    ✗ {e}"))
+        # Les raisons de saut sont AGRÉGÉES : sur un corpus entier elles sont identiques à la
+        # virgule près (62 fois « binding 'pure' = catalogue CODE »), et 62 lignes égales
+        # noieraient les erreurs qui, elles, sont uniques.
+        if sautes:
+            par_raison = {}
+            for ligne in sautes:
+                par_raison.setdefault(ligne.split(' : ', 1)[-1], []).append(ligne.split(' : ')[0])
+            for raison, cles in sorted(par_raison.items(), key=lambda kv: -len(kv[1])):
+                exemples = ', '.join(sorted(cles)[:3]) + ('…' if len(cles) > 3 else '')
+                self.stdout.write(self.style.WARNING(
+                    f"    ⊘ {len(cles)} sauté(s) — {raison}  [{exemples}]"))
         if not o['apply'] and (crees or changes):
             self.stdout.write(self.style.NOTICE(
                 "    → relancer avec --apply pour écrire."))
