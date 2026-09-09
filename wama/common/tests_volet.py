@@ -27,6 +27,16 @@ MARQUEURS = {
     'parametres': 'id="settings-section"',
     'actions': 'id="actions-section"',
 }
+#: Contenu que `base.html` rend quand la page NE SURCHARGE PAS le bloc de la section.
+#: Une section rendue qui porte encore ce contenu EST le « cadre vide » que le chantier du
+#: 2026-08-22 a supprimé — c'est ce couple (section rendue + contenu par défaut) qui se
+#: mesure, jamais la présence de la section seule : une page peut légitimement rouvrir une
+#: section POUR LA REMPLIR (cf. `PagesDeclarantesTest`).
+DEFAUTS = {
+    'medias': 'id="preview-placeholder"',
+    'parametres': 'Aucun paramètre disponible',
+    'actions': '<!-- Actions will be added by apps -->',
+}
 ASIDE = 'id="wama-right-panel"'
 SANS_VOLET = 'class="wama-sans-volet"'
 
@@ -115,6 +125,23 @@ class PagesDeclarantesTest(TestCase):
     Sans ce test, le mécanisme pourrait être juste et les 17 déclarations inertes (oubli d'un
     `context[...]`, vue qui reconstruit son contexte, gabarit qui n'étend pas `base.html`).
     On mesure donc la PAGE, pas la vue.
+
+    ⚠⚠ CE QUE CE TEST MESURE A CHANGÉ LE 2026-09-09, ET POURQUOI. Il exigeait « aucune de ces
+    pages ne rend AUCUN cadre » — l'état exact du 2026-08-22, où les 17 pages déclaraient
+    `VOLET_AUCUN`. Le 2026-09-09, sur demande de Fabien, **cinq pages de liste ont RÉCUPÉRÉ un
+    volet** pour héberger l'inspecteur de détail (`licenses`, `registres`, `skills`, `backends`,
+    `rag` — `tests_inspecteur_registre.py`) : elles déclarent `volet(medias=False,
+    actions=False)` et REMPLISSENT la section Paramètres (titre « Détail de l'élément »,
+    `_inspector_registre.html`). Le test est donc devenu rouge en décrivant une intention
+    volontairement abandonnée — et il l'était contre `registres` la première de sa liste, ce qui
+    MASQUAIT les deux autres pages concernées (`licences`, `rag`).
+
+    *Un test qui fige un ÉTAT se périme dès que l'état bouge pour de bonnes raisons ; deux tests
+    du même dépôt se contredisaient alors, sans que l'un ni l'autre ait tort.* Il mesure
+    désormais l'INVARIANT que le chantier visait vraiment — son titre le disait déjà :
+    « 17 pages cessent d'hériter de 54 cadres VIDES ». Une section rendue est licite ; une
+    section rendue avec le contenu par défaut de `base.html` ne l'est pas. L'invariant survit
+    à ce qu'une page ouvre ou ferme une section, et il couvre les pages qu'aucune liste ne cite.
     """
 
     @classmethod
@@ -146,10 +173,16 @@ class PagesDeclarantesTest(TestCase):
         ('face_analyzer', 'wama_lab:face_analyzer:index'),
     ]
 
-    def test_les_pages_declarantes_n_ont_plus_de_cadres(self):
+    def _pages_rendues(self):
+        """(libellé, html) de chaque page atteignable — et l'inventaire de ce qui a échappé.
+
+        Rendu UNE fois pour les deux tests qui suivent : chacun mesure une propriété
+        différente du MÊME rendu, et les faire diverger sur deux parcours serait le meilleur
+        moyen qu'ils finissent par ne plus parler des mêmes pages.
+        """
         from django.urls import NoReverseMatch, reverse
 
-        mesurees, introuvables, detournees = [], [], []
+        rendues, introuvables, detournees = [], [], []
         for libelle, nom_url in self.PAGES:
             try:
                 chemin = reverse(nom_url)
@@ -160,22 +193,51 @@ class PagesDeclarantesTest(TestCase):
             if reponse.status_code != 200:
                 detournees.append(f"{libelle} (HTTP {reponse.status_code})")
                 continue
-            html = reponse.content.decode('utf-8', 'replace')
-            mesurees.append(libelle)
+            rendues.append((libelle, reponse.content.decode('utf-8', 'replace')))
+        self.assertFalse(introuvables, f"URL(s) irrésolvable(s) : {introuvables}")
+        # 10 et non 11 : la page de CONNEXION redirige (302) parce que ce test est authentifié —
+        # il le faut pour les pages d'administration. Elle est mesurée en VISITEUR plus bas,
+        # donc la couverture est complète malgré ce seuil.
+        self.assertGreaterEqual(
+            len(rendues), 10,
+            f"trop peu de pages mesurées ({[l for l, _ in rendues]}) — "
+            f"détournées : {detournees}")
+        return rendues
+
+    def test_les_pages_declarantes_ne_rendent_aucun_cadre_VIDE(self):
+        """L'invariant du chantier : une section rendue est REMPLIE, sinon elle ne l'est pas.
+
+        C'est ce que « 54 cadres vides » désignait. Une page peut rouvrir une section (les 5
+        pages de l'inspecteur de registre l'ont fait le 09/09) — à condition de la remplir.
+        """
+        fautes = []
+        for libelle, html in self._pages_rendues():
             for cle, marqueur in MARQUEURS.items():
-                self.assertNotIn(marqueur, html,
-                                 f"{libelle} : cadre '{cle}' TOUJOURS rendu — la déclaration "
-                                 "n'a pas pris effet sur la page")
+                if marqueur in html and DEFAUTS[cle] in html:
+                    fautes.append(f"{libelle} : section '{cle}' rendue avec le contenu par "
+                                  f"défaut de base.html — cadre VIDE hérité")
+        self.assertEqual([], fautes, "\n".join(fautes))
+
+    def test_une_page_sans_section_perd_son_aside_et_rend_sa_largeur(self):
+        """La cohérence structurelle, pour les pages qui ne gardent AUCUNE section.
+
+        Les deux vont ensemble : sans `wama-sans-volet`, retirer l'aside laisserait 360 px de
+        bande morte (le CSS réserve la place sur `body > .container-fluid`, en `!important`).
+        """
+        vides = []
+        for libelle, html in self._pages_rendues():
+            if any(m in html for m in MARQUEURS.values()):
+                self.assertNotIn(SANS_VOLET, html,
+                                 f"{libelle} : classe « sans volet » posée alors qu'une section "
+                                 "est rendue — le panneau serait masqué avec son contenu")
+                continue
+            vides.append(libelle)
             self.assertNotIn(ASIDE, html, f"{libelle} : l'aside subsiste alors qu'il est vide")
             self.assertIn(SANS_VOLET, html,
                           f"{libelle} : classe absente → 360 px de bande morte à droite")
-        self.assertFalse(introuvables, f"URL(s) irrésolvable(s) : {introuvables}")
-        # 10 et non 11 : la page de CONNEXION redirige (302) parce que ce test est authentifié —
-        # il le faut pour les pages d'administration. Elle est mesurée en VISITEUR juste en
-        # dessous, donc la couverture est complète malgré ce seuil.
-        self.assertGreaterEqual(
-            len(mesurees), 10,
-            f"trop peu de pages mesurées ({mesurees}) — détournées : {detournees}")
+        self.assertGreaterEqual(len(vides), 5,
+                                f"trop peu de pages au volet entièrement vide ({vides}) — "
+                                "le retrait du 2026-08-22 a-t-il été défait ?")
 
     def test_la_page_de_connexion_en_visiteur(self):
         """Mesurée déconnectée : c'est le seul état où elle s'affiche."""

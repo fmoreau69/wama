@@ -373,6 +373,7 @@ def run_pipeline_task(self, run_id):
                 _console(user.id, f"Studio run #{run.pk} : fonction {key} ({spec.binding})")
                 if spec.binding == fc.Binding.PURE:
                     frames = {}
+                    ports_connus = {p.key for p in spec.inputs}
                     first_port = spec.inputs[0].key if spec.inputs else None
                     for l in links:
                         if l['to'] != nid or l['from'] not in outputs:
@@ -383,7 +384,18 @@ def run_pipeline_task(self, run_id):
                                 f"Nœud fonction « {key} » : l'amont « {l['from']} » ne produit pas "
                                 f"une donnée typée (fichier {up.get('type')}) — passez par un "
                                 f"nœud « Jeu de données » ou une autre fonction.")
-                        port = l.get('to_port') or first_port
+                        # `to_port` désigne un port PAR SON ID depuis le 2026-09-09. Un lien qui
+                        # n'en nomme aucun — ou qui en nomme un que cette fonction n'a pas —
+                        # entre par le PREMIER port. Deux cas réels, et le second est celui qui
+                        # se perdait en silence : un graphe sauvegardé AVANT cette date porte le
+                        # RÔLE du port (`travail`), et les ports intégrés du JS (Sortie, Jeu de
+                        # données) n'ont pas d'id du tout. Sans ce repli, la donnée était rangée
+                        # sous une clé que `_run_pure_function` ne lit jamais, et le port requis
+                        # ressortait « non alimenté » — un message qui accuse le graphe alors que
+                        # c'est le nom du lien qui a vieilli.
+                        port = l.get('to_port')
+                        if port not in ports_connus:
+                            port = first_port
                         frames.setdefault(port, []).append(up['value'])
                     frames = {p: (v if len(v) > 1 else v[0]) for p, v in frames.items()}
                     try:

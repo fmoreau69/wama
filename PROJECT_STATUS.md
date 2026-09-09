@@ -12739,12 +12739,31 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
 
 ### Pendings système (attribués)
 
-- ⚠ **`wama.common.tests_volet.PagesDeclarantesTest.test_les_pages_declarantes_n_ont_plus_de_cadres`
-  était ROUGE au `/reprise`, AVANT toute modification de ma part** — `id="settings-section"`
-  trouvé sur la page des registres, dont le volet droit est déclaré depuis `0e587583` (01/09,
-  « les registres deviennent NAVIGABLES »). **Hors de mon périmètre, non touché, à attribuer** à
-  qui tient les volets/registres. Reproduit isolément (`4 tests, 1 failure`) : ce n'est pas un
-  fugace dépendant de l'ordre ;
+- ✅ **`tests_volet.PagesDeclarantesTest` — RÉGLÉ le 09/09 (demande de Fabien en fin de
+  session)**. Ce n'était **ni un bug de page, ni un test faux** : deux tests du dépôt se
+  contredisaient, sans qu'aucun ait tort. Le 22/08, 17 pages déclaraient `VOLET_AUCUN` et le
+  test figeait cet état (« plus AUCUN cadre »). Le **09/09 à 01h12** (`b071b25b`, demande de
+  Fabien du 08/09), **cinq pages de liste ont RÉCUPÉRÉ un volet** pour héberger l'inspecteur de
+  détail — `licenses`, `registres`, `skills`, `backends`, `rag` : elles déclarent
+  `volet(medias=False, actions=False)` et REMPLISSENT la section Paramètres (titre « Détail de
+  l'élément »). `tests_inspecteur_registre` EXIGE ce volet ; `tests_volet` exigeait son absence.
+  Le second n'a pas été mis à jour dans le commit qui changeait l'intention, et la suite n'a pas
+  été relancée. **Il masquait deux autres pages** (`licences`, `rag`) derrière la première de sa
+  liste. Corrigé en mesurant l'INVARIANT que le chantier visait — son titre le disait :
+  « 54 cadres VIDES » — au lieu d'un état : *une section rendue est licite, une section rendue
+  avec le contenu par défaut de `base.html` ne l'est pas*. L'invariant survit à ce qu'une page
+  ouvre ou ferme une section, et couvre les pages qu'aucune liste ne cite ; le test est scindé
+  en deux (cadres vides / cohérence aside+classe), 14 tests `OK` ;
+- ⚠ **PARTITION** : une autre instance travaille dans `wama/common/tests_catalogues.py`, le
+  fichier de mon palier ① — 66 lignes NON commitées dans l'arbre au moment où j'écris (un
+  inventaire des kinds qui projettent, et un défaut qu'elle a mesuré : `apply_manifests --kind
+  function` annonce « inchangés 62 » alors que les 62 sont REFUSÉS). Je ne l'ai pas touché après
+  mon commit et je ne le commite pas. À coordonner si le chantier reprend là ;
+- **ce qui n'est PAS couvert par mes tests**, nommément : ① le comportement NAVIGATEUR d'un
+  nœud fonction (poser, connecter, lancer) ; ② le **JS** lui-même — aucun harnais JS n'existe
+  dans le dépôt, `check_js` ne lit que la syntaxe ; ③ une fonction `app`-bound exécutée contre
+  un worker réel ; ④ `fuse_estimates` sur données réelles ; ⑤ le manifeste `pipeline` rechargé
+  dans le canvas (marche E). Détail dans `CAM_ANALYZER_CHANGELOG § 2026-09-09` ;
 - `manifests/` : `functions` **62** (+4 specs, +`fuse_estimates`, −`cam_analyzer.prediction`
   renommée), `pipelines` **1** (nouveau dossier) — régénérés depuis **venv_linux** ;
 - `doc_facts` : bloc `wama_data` régénéré (l'Analyzer n'est plus bloqué par D13 mais par sa
@@ -12769,6 +12788,8 @@ encore) → **marche E** (émetteur/importeur de manifeste de process) → #7 b�
   **17 bascules**, catalogue **62 fonctions** (24 app-bound) ;
 - smoke `/studio/` (compte de test) : **HTTP 200, 0 erreur JS** ; l'API des nœuds sert **10 apps +
   62 fonctions** et la taxonomie (11 `data_types`) ;
-- `manage.py test` : le SEUL attendu est **`OK`** — ⚠ **sauf** le rouge `tests_volet` ci-dessus,
-  antérieur à cette session et attribué ailleurs. Ne pas le lire comme une régression de ce
-  palier ; ne pas le tolérer indéfiniment non plus.
+- `manage.py test` : **`OK`, sans exception** — le rouge `tests_volet` (antérieur à la session)
+  est SOLDÉ. La suite valait 1922 tests / 1 échec avant ce correctif ; +5 tests depuis (2 par la
+  scission de `tests_volet`, 4 sur l'exécuteur de nœuds fonction, −1 fusionné).
+  ⚠ Une autre instance ajoute des tests en parallèle : **le total n'est pas un critère**, `OK`
+  l'est.

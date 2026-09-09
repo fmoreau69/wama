@@ -143,6 +143,63 @@ class LExecuteurDispatcheSurLeKindTest(TestCase):
             pass
         asset.delete()
 
+    def test_un_lien_SANS_to_port_alimente_le_PREMIER_port(self):
+        """Le repli de `to_port`, et il a deux raisons d'exister — donc de se garder.
+
+        1. Les graphes SAUVEGARDÉS AVANT le 2026-09-09 portent le RÔLE du port dans `to_port`
+           (`travail`), pas son id : pour une fonction, aucun port ne s'appellerait ainsi.
+        2. Un lien tracé sur un nœud à une seule entrée n'a rien à désambiguïser.
+        Dans les deux cas la donnée doit entrer par le premier port, jamais se perdre en
+        silence — c'est ce silence que ce test interdit.
+        """
+        for etiquette, lien in (('absent', {}), ('rôle hérité', {'to_port': 'travail'})):
+            with self.subTest(to_port=etiquette):
+                run = self._run({
+                    'nodes': [{'id': 'n1', 'app': 'dataset_input',
+                               'params': {'asset_path': self.rel, 'data_type': 'geo_track'}},
+                              {'id': 'n2', 'app': 'function:ego_track_filter', 'params': {}}],
+                    'links': [dict({'from': 'n1', 'to': 'n2'}, **lien)]})
+                self.assertEqual(run.status, 'SUCCESS', run.error_message)
+                self.assertIn('heading_f', run.node_states['n2']['output'])
+
+    def test_un_port_requis_non_alimente_NOMME_le_port_et_son_type(self):
+        """`gps_map_match` a deux entrées dont une `reference` REQUISE (le référentiel
+        routier). Sans elle, l'appel lèverait un `TypeError` illisible dans la tâche ; le
+        message doit dire quel créneau manque et ce qu'il attend."""
+        run = self._run({
+            'nodes': [{'id': 'n1', 'app': 'dataset_input',
+                       'params': {'asset_path': self.rel, 'data_type': 'geo_track'}},
+                      {'id': 'n2', 'app': 'function:gps_map_match', 'params': {}}],
+            'links': [{'from': 'n1', 'to': 'n2', 'to_port': 'track'}]})
+        self.assertEqual(run.status, 'FAILURE')
+        self.assertIn('road_map', run.error_message)
+        self.assertIn('road_map', run.error_message)      # le port
+        self.assertIn('non alimenté', run.error_message)
+
+    def test_un_parametre_de_noeud_INCONVERTIBLE_est_refuse_par_son_nom(self):
+        """Les params de nœud arrivent du formulaire en CHAÎNES. La coercition suit le
+        `ParamSpec` ; ce qui ne se convertit pas doit être nommé, pas propagé jusqu'à un
+        `ValueError` anonyme au fond d'une fonction numérique."""
+        run = self._run({
+            'nodes': [{'id': 'n1', 'app': 'dataset_input',
+                       'params': {'asset_path': self.rel, 'data_type': 'geo_track'}},
+                      {'id': 'n2', 'app': 'function:ego_track_filter',
+                       'params': {'sigma_m': 'beaucoup'}}],
+            'links': [{'from': 'n1', 'to': 'n2', 'to_port': 'track'}]})
+        self.assertEqual(run.status, 'FAILURE')
+        self.assertIn('sigma_m', run.error_message)
+
+    def test_un_parametre_VIDE_laisse_le_defaut_de_la_fonction(self):
+        """Un champ de formulaire non renseigné arrive à '' — il ne doit pas écraser le défaut
+        déclaré (même règle que le runner générique d'app)."""
+        run = self._run({
+            'nodes': [{'id': 'n1', 'app': 'dataset_input',
+                       'params': {'asset_path': self.rel, 'data_type': 'geo_track'}},
+                      {'id': 'n2', 'app': 'function:ego_track_filter',
+                       'params': {'sigma_m': '', 'inconnu_de_la_fonction': '3'}}],
+            'links': [{'from': 'n1', 'to': 'n2', 'to_port': 'track'}]})
+        self.assertEqual(run.status, 'SUCCESS', run.error_message)
+
     def test_un_amont_non_type_est_refuse_avec_un_message_qui_nomme_la_porte(self):
         run = self._run({
             'nodes': [{'id': 'n1', 'app': 'text_input', 'params': {'text': 'bonjour'}},
