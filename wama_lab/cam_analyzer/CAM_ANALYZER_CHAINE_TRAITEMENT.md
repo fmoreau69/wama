@@ -800,6 +800,55 @@ l'EMA sans recalcul — si la dérive cesse (au prix du jitter), la cause est le
 si elle persiste, elle vient de la pose ou du placement (→ ⚑ `shuttle_filter`, `placement_source`). *Le Kalman+RTS a été écrit « sans retard de phase » précisément pour remplacer ça — mais
 il ne s'applique qu'après calcul, et jamais aux stationnés.*
 
+#### ⭐ D.3 — LE VOLET OBJECTIF JOUÉ SUR DONNÉES RÉELLES (2026-09-09, session P97 `4da52df3`)
+
+Le protocole prévoyait « relever les gids qui dérivent, vérifier s'ils ont une ancre ou un
+`world_en` ; **tous en ③ ⇒ confirmé** ». Fait, en lecture seule, sans GPU ni navigateur —
+1 209 155 détections, 655 843 suivies, **4352 gids**. Trois mesures, et **deux réfutations** :
+
+| relevé | mesure |
+|---|---|
+| ① ancre / ② `world_en` / ③ repli | **77** / **3902** / **373** gids |
+| immobiles (étalement ≤ 2,5 m) NON ancrés, ≥ 5 positions | **1142**, dont **970 véhicules** |
+| étalement MÉDIAN : immobiles non ancrés ↔ ancrés | **1,22 m** ↔ **1,79 m** |
+
+**① La forme absolue de l'hypothèse est FAUSSE** : 90 % des gids portent un `world_en`, on n'est
+donc pas « tous en ③ ». **② Mais le mécanisme est confirmé par une voie plus forte** : 970
+véhicules sont immobiles — *mieux* immobiles que ceux qui reçoivent une ancre — et **aucun n'en
+reçoit**, donc tous sont rejoués frame par frame, donc soumis à l'EMA du levier 36.
+
+**③ Et la cause n'est PAS celle que §C annonçait.** La ligne « un garé PRÈS d'une intersection
+n'est jamais stationné » (levier 29) désigne un mécanisme réel — qui ne pèse que **1,3 %**.
+En reproduisant le filtre de `multicam_tracker.py:439-444` condition par condition sur les 858
+candidats :
+
+| condition qui écarte | part |
+|---|---|
+| **vu moins de 4 s** | **70,4 %** |
+| moins de 5 observations | 15,3 % |
+| vitesse moyenne ≥ 0,7 m/s | 7,0 % |
+| *aucune (devrait être ancré ?)* | 6,1 % — à élucider |
+| **près d'une intersection** | **1,3 %** |
+
+**86 % des garés échappent à la qualification parce qu'ils sont vus trop BRIÈVEMENT**, pas parce
+qu'ils bougent : une navette qui roule croise un véhicule garé une à trois secondes avant qu'il
+ne sorte du champ. Or une EMA α=0,3 met trois à quatre échantillons à atteindre 70 % de sa
+cible : sur un objet vu si peu, **elle ne converge jamais** — le retard est donc subi pendant
+toute sa vie visible. C'est la confirmation mécanistique de D.3, par un chemin que le protocole
+n'avait pas prévu.
+
+⚠ **Le seuil de 4 s n'est pas une négligence** : le commentaire du code (2026-07-17) dit qu'il
+a été posé pour cesser de marquer « garés » des véhicules ROULANTS vus brièvement (10 km/h ×
+1,5 s = 4 m < 6 m). Le baisser rouvrirait ce défaut-là. **Le correctif n'est donc pas un
+réglage de seuil** : il faut séparer « immobile » de « vu longtemps » par une autre grandeur que
+la durée — la vitesse RELATIVE mesurée, ou la cohérence de la position monde entre observations.
+🔴 **Arbitrage Fabien** avant de coder quoi que ce soit ici.
+
+⚠ Ce qui n'a PAS été joué : les bascules ⚑ elles-mêmes (`display_ema` OFF, `shuttle_filter` ON)
+et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les
+données lues datent d'un run antérieur au 2026-09-05 : `placement_spread` et `placement_sources`
+y sont absents) et, pour la dérive elle-même, l'œil sur la carte.
+
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 
 La doctrine actuelle est **comparer** (⚑ ON/OFF, un chiffre). Fabien vise **fusionner** : accumuler
