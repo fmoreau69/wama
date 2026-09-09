@@ -57,6 +57,23 @@ PortSpec:
     produced_fields: list[str]  # (sortie) champs ajoutés/produits, ex. ["section_id","direction"]
     cardinality:     "one"|"many"
     optional:        bool
+    # ── rôle (ENTRÉE) — marche C du plan `WAMA_DATA_WORLD §9`, 2026-09-09 ──
+    group:           "travail"|"reference"   # EMPRUNTÉ à app_modes.INPUT_TYPES[*]['port'] ; '' = travail.
+                                # `reference` = ce qui SERT à transformer sans être transformé
+                                # (référentiel routier, trace ego à côté des détections).
+    # ── facette ESTIMATEUR (SORTIE, optionnelle) — ⑤b, forme validée le 2026-09-09 ──
+    estimates:       str        # grandeur estimée, vocabulaire FERMÉ `ESTIMATED_QUANTITIES`
+                                # (distance, lateral, position, speed, heading, yaw, ground_plane,
+                                # offset, ttc, pet) → fixe l'unité de σ
+    uncertainty:     number | {"field": col} | {"model": "relative", "ratio": r}
+                     | {"model": "held", "field": drapeau, "sigma": s} | {"model": "declared", …}
+                                # σ constante · σ par ligne · r·|valeur| · σ sauf ligne tenue
+                                # (invalide) · NON CHIFFRÉE (la sortie se confronte, ne pèse pas)
+    derived_from:    list[str]  # données NATIVES ⊆ `NATIVE_SOURCES` (gps, bbox, image, segmentation,
+                                # depth_map, imu, orthophoto, road_map) — c'est ce qui décide de
+                                # l'INDÉPENDANCE : deux sorties qui en partagent une se confrontent,
+                                # jamais ne se fusionnent (`fusion.fuse_estimates` REFUSE)
+    estimate_field:  str        # colonne qui porte la valeur ('' = `value`)
 
 ParamSpec:
     key, type (float|int|bool|enum|str), default, min/max/choices, unit, description
@@ -64,6 +81,18 @@ ParamSpec:
 
 **Règle d'or** : une fonction ne connaît QUE ses `data_type` + `required_fields`. Elle ne sait pas
 d'où viennent les données ni où elles vont — c'est le canvas qui relie.
+
+**Les ports d'un NŒUD** (Studio, card v4) se lisent par `function_catalog.function_node_ports(key)`,
+qui rend la MÊME forme que `app_registry.studio_node_ports(app_id)` — `{inputs: [{id, label,
+group, types, multi}], output: {id, label, types}}` (+ `outputs`, une fonction pouvant produire
+plusieurs sorties). Les `types` d'une sortie incluent ses super-types (§3) : le canvas apparie
+par intersection, le sous-typage y reste vrai sans réécrire la taxonomie côté JS.
+
+**La facette estimateur voyage** : `to_dict()` ne l'écrit que si elle est déclarée (un port qui
+n'estime rien garde la forme d'avant), le kind manifeste `function` la valide à l'ingest avec
+la même règle que le catalogue (`validate_port_facet`), et `port_estimate_meta(port)` est la
+forme que porte `TypedFrame.meta['estimate']` à l'exécution — ce que `fusion.fuse_estimates`
+lit. Le premier relevé vit dans `CAM_ANALYZER_CHAINE_TRAITEMENT.md §INVENTAIRE C/E`.
 
 ---
 

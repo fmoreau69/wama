@@ -1,0 +1,93 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "enricher",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "cam_analyzer.tasks:compute_depth_calc_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "depth_map",
+        "description": "Cartes stockées (DepthFrame).",
+        "group": "travail",
+        "key": "depth",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "",
+        "group": "travail",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "bbox",
+          "depth_distance_m"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.depth_calc",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "ground_calib",
+        "optional": false,
+        "produced_fields": [
+          "pitch_deg",
+          "height_m",
+          "source"
+        ],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "scalar",
+        "description": "",
+        "key": "depth_report",
+        "optional": false,
+        "produced_fields": [
+          "disagree_pinhole_m",
+          "disagree_homography_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "vision",
+      "geo",
+      "depth",
+      "monocular"
+    ],
+    "visibility": "public"
+  },
+  "description": "La PASSE `depth_calc` du volet (session-wide, CPU) : relit les DepthFrame stockées et enchaîne les deux calculs catalogués à part — `depth_ground_plane` (plan de sol, store_ground_calib source='depth') puis `depth_distance_report` (cross-check). Déclarée comme passe pour que le pipeline soit exportable nœud par nœud (D13).",
+  "key": "cam_analyzer.depth_calc",
+  "manifest_kind": "function",
+  "name": "Calculs profondeur (passe)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.depth_calc",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

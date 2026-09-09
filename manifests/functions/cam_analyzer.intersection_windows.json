@@ -1,0 +1,69 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "detector",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "cam_analyzer.utils.window_recompute:recompute_intersection_windows",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "description": "",
+        "group": "travail",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "lat",
+          "lon"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.intersection_windows",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "segments",
+        "description": "",
+        "key": "windows",
+        "optional": false,
+        "produced_fields": [
+          "start",
+          "end",
+          "intersection"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "per-section"
+    ],
+    "visibility": "public"
+  },
+  "description": "Découpe la trace en fenêtres temporelles autour des intersections déclarées (rayon d'ANALYSE) — ce que les passes aval regardent.",
+  "key": "cam_analyzer.intersection_windows",
+  "manifest_kind": "function",
+  "name": "Fenêtres d'intersection",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.intersection_windows",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

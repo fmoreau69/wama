@@ -747,6 +747,101 @@ class FunctionCatalogConformiteTest(TestCase):
                 self.assertEqual(list(validate(m) or []), [],
                                  "manifeste invalide → refusé à l'export")
 
+    # ── Marche C (rôle des ports) + facette estimateur ⑤b — 2026-09-09 ──────────────────
+
+    def test_tout_port_honore_sa_facette_rôle_ou_estimateur(self):
+        """La MÊME règle que le kind manifeste `function` applique à l'ingest : un rôle
+        (`group`) hors vocabulaire, une estimation sans provenance ou sans incertitude, une
+        facette de sortie posée sur une entrée — tout cela est refusé ICI, au catalogue, avant
+        que le corpus ne l'écrive."""
+        from wama.common.catalog.function_catalog import validate_port_facet
+        for cle, spec in self.catalogue.items():
+            for side, ports in (('input', spec.inputs), ('output', spec.outputs)):
+                for p in ports:
+                    with self.subTest(fonction=cle, sens=side, port=p.key):
+                        self.assertEqual(validate_port_facet(p.port_dict(side), side), [])
+
+    def test_le_role_d_un_port_d_entree_est_emprunte_au_vocabulaire_des_apps(self):
+        """`group` ∈ INPUT_TYPES[*]['port'] (app_modes) — jamais un 3ᵉ enum (marche C)."""
+        from wama.common.utils.app_modes import INPUT_TYPES
+        roles_apps = {v.get('port') for v in INPUT_TYPES.values() if v.get('port')}
+        self.assertTrue(roles_apps, "INPUT_TYPES sans rôle → contrôle muet")
+        for cle, spec in self.catalogue.items():
+            for p in spec.inputs:
+                with self.subTest(fonction=cle, port=p.key):
+                    self.assertIn(p.port_dict('input')['group'], roles_apps)
+
+    def test_function_node_ports_a_la_MEME_forme_que_studio_node_ports(self):
+        """Marche C : la card v4 et le Studio lisent `{inputs:[{id,label,group,types,multi}],
+        output:{id,label,types}}` — une fonction doit rendre EXACTEMENT ces clés (un superset
+        est toléré, un manque casse le consommateur en silence)."""
+        from wama.common.app_registry import studio_node_ports, APP_CATALOG
+        from wama.common.catalog.function_catalog import function_node_ports
+        modele = next(studio_node_ports(a) for a in APP_CATALOG if studio_node_ports(a))
+        cles_entree = set(modele['inputs'][0]) if modele['inputs'] else {'id', 'label', 'group', 'types', 'multi'}
+        cles_sortie = set(modele['output'])
+        self.assertIsNone(function_node_ports('fonction.inexistante'))
+        for cle in self.catalogue:
+            ports = function_node_ports(cle)
+            with self.subTest(fonction=cle):
+                self.assertIsNotNone(ports)
+                self.assertEqual(set(ports) >= {'inputs', 'output', 'outputs'}, True)
+                for p in ports['inputs']:
+                    self.assertTrue(cles_entree <= set(p), f"clés manquantes : {cles_entree - set(p)}")
+                    self.assertEqual(len(p['types']), 1, "un port de fonction a UN type déclaré")
+                if ports['output'] is not None:
+                    self.assertTrue(cles_sortie <= set(ports['output']))
+
+    def test_le_type_de_sortie_d_un_noeud_fonction_inclut_ses_super_types(self):
+        """Le canvas apparie par INTERSECTION : `geo_track` doit pouvoir entrer dans `table`."""
+        from wama.common.catalog.function_catalog import function_node_ports
+        ports = function_node_ports('ego_track_filter')
+        self.assertEqual(ports['output']['types'], ['geo_track', 'table', 'timeseries'])
+
+    def test_la_facette_estimateur_est_posee_sur_les_leviers_releves(self):
+        """§INVENTAIRE C → ⑤b : les producteurs de cap, distance, plan de sol et position
+        DÉCLARENT ce qu'ils estiment et de quelle donnée native. Un producteur qui perd sa
+        facette redevient invisible pour la fusion — c'est un bug de manifeste."""
+        from wama.common.catalog.function_catalog import port_estimate_meta
+        attendus = {
+            'ego_track_filter': ('heading', ['gps']),
+            'ego_rotation': ('yaw', ['image']),
+            'cam_analyzer.shuttle_filter': ('heading', ['gps']),
+            'cam_analyzer.distance': ('distance', ['bbox']),
+            'cam_analyzer.depth_analysis': ('distance', ['depth_map']),
+            'cam_analyzer.ground_calib': ('ground_plane', ['bbox', 'gps']),
+            'cam_analyzer.depth_ground_plane': ('ground_plane', ['depth_map', 'segmentation']),
+            'cam_analyzer.global_tracking': ('position', ['bbox', 'gps']),
+            'cam_analyzer.ortho_recalage': ('offset', ['orthophoto', 'segmentation']),
+        }
+        for cle, (grandeur, natives) in attendus.items():
+            with self.subTest(fonction=cle):
+                spec = self.catalogue[cle]
+                facettes = [port_estimate_meta(p) for p in spec.outputs if p.estimates]
+                self.assertTrue(facettes, "aucune sortie ne porte de facette")
+                self.assertIn((grandeur, natives), [(f['quantity'], f['derived_from']) for f in facettes])
+        # et la facette voyage : elle est dans le manifeste extrait, pas seulement en mémoire
+        from wama.common.manifests.ingest import extract
+        m = extract('function', 'ego_track_filter')
+        port = m['body']['outputs'][0]
+        self.assertEqual(port['estimates'], 'heading')
+        self.assertEqual(port['uncertainty'], {'model': 'held', 'field': 'heading_f_held', 'sigma': 3.0})
+        self.assertEqual(port['derived_from'], ['gps'])
+
+    def test_le_kind_function_refuse_une_facette_bancale_a_l_ingest(self):
+        """Ce que le catalogue refuse, le manifeste le refuse aussi — sinon un manifeste ingéré
+        pourrait déclarer une estimation sans provenance, et la fusion la prendrait."""
+        from wama.common.manifests.builtin.function import validate_function_body
+        body = {'binding': 'pure', 'inputs': [{'key': 'x', 'data_type': 'table', 'group': 'autre'}],
+                'outputs': [{'key': 'y', 'data_type': 'scalar', 'estimates': 'heading'}]}
+        errs = validate_function_body(body)
+        self.assertTrue(any("group 'autre'" in e for e in errs), errs)
+        self.assertTrue(any('derived_from' in e for e in errs), errs)
+        self.assertTrue(any('uncertainty' in e for e in errs), errs)
+        sain = {'binding': 'pure', 'outputs': [{'key': 'y', 'data_type': 'scalar', 'estimates': 'heading',
+                                               'uncertainty': 3.0, 'derived_from': ['gps']}]}
+        self.assertEqual(validate_function_body(sain), [])
+
     def test_les_params_declares_sont_acceptes_en_MOTS_CLES_par_le_fn(self):
         """`view.apply()` fait `spec.fn(entrée, **params)` : un ParamSpec que la signature
         n'accepte pas est un `TypeError` à l'exécution, invisible au catalogue."""

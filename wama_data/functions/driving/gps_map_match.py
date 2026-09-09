@@ -174,8 +174,10 @@ SPEC = register(FunctionSpec(
     inputs=[
         PortSpec('track', DataType.GEO_TRACK, required_fields=['lat', 'lon'],
                  description='Trace GPS (heading optionnel pour le sens).'),
+        # `group='reference'` (marche C) : le référentiel SERT à recaler la trace, il n'est
+        # pas transformé — même rôle que l'image de référence d'un Imager.
         PortSpec('road_map', DataType.ROAD_MAP, required_fields=['geometry'],
-                 description='Polylignes routières de référence (WKT).'),
+                 description='Polylignes routières de référence (WKT).', group='reference'),
     ],
     outputs=[
         PortSpec('track', DataType.GEO_TRACK,

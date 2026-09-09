@@ -38,6 +38,49 @@ class ParamSpec:
     description: str = ''
 
 
+#: RÔLE d'un port d'ENTRÉE (marche C du plan `WAMA_DATA_WORLD §9`, 2026-09-09). Vocabulaire
+#: EMPRUNTÉ à `app_modes.INPUT_TYPES[*]['port']` — le même que `studio_node_ports` rend pour les
+#: apps — jamais un 3ᵉ enum : c'est ce qui permet à `function_node_ports()` de rendre la MÊME
+#: forme, donc à la card v4 et au Studio de couvrir Data sans une ligne par consommateur.
+#: `travail` = la donnée transformée ; `reference` = ce qui SERT à la transformer (référentiel
+#: routier, trace ego…) sans être transformé.
+PORT_GROUPS = ('travail', 'reference')
+
+#: FACETTE ESTIMATEUR d'un port de SORTIE (⑤b, forme validée par Fabien le 2026-09-09 —
+#: `CAM_ANALYZER_CHAINE_TRAITEMENT §INVENTAIRE E`). Un levier de correction devient un MODÈLE DE
+#: MESURE : « j'estime G (`estimates`), je vaux ±σ (`uncertainty`), à partir de telle donnée
+#: native (`derived_from`) ». Trois champs OPTIONNELS sur le port existant — pas de 9ᵉ registre.
+#: Le critère fusion / confrontation n'est pas la qualité, c'est l'INDÉPENDANCE : deux sorties
+#: dont `derived_from` se recouvrent se CONFRONTENT (leviers 1 et 40 viennent de la même bbox),
+#: jamais ne se fusionnent — `fusion.fuse_estimates` refuse. Vocabulaires FERMÉS ci-dessous.
+#: Grandeurs estimées → unité de σ (celle du levier §INVENTAIRE C qui la corrige).
+ESTIMATED_QUANTITIES = {
+    'distance': 'm',        # distance longitudinale objet ↔ caméra/navette
+    'lateral': 'm',         # écart latéral
+    'position': 'm',        # position monde (est/nord) — σ radial
+    'speed': 'km/h',
+    'heading': 'deg',       # cap (0 = nord, horaire) — grandeur CIRCULAIRE
+    'yaw': 'deg',           # rotation autour de la verticale entre deux instants — CIRCULAIRE
+    'ground_plane': 'deg',  # angle du plan de sol (pitch) ; la hauteur voyage dans les champs
+    'offset': 'm',          # décalage absolu (recalage ortho)
+    'ttc': 's',
+    'pet': 's',
+}
+#: Grandeurs dont la fusion est une moyenne VECTORIELLE (mod 360°), jamais arithmétique.
+CIRCULAR_QUANTITIES = {'heading', 'yaw'}
+#: Données NATIVES dont une estimation dérive — ce qui décide de l'indépendance de deux sources.
+NATIVE_SOURCES = {'gps', 'bbox', 'image', 'segmentation', 'depth_map', 'imu', 'orthophoto',
+                  'road_map'}
+#: Formes de `uncertainty` (évaluées par `fusion.estimates.sigma_of`) :
+#:   nombre                                → σ constante (unité de la grandeur) ;
+#:   {'field': col}                        → σ par ligne, lue dans la colonne `col` ;
+#:   {'model': 'relative', 'ratio': r}     → σ = r·|valeur| (pinhole : ±20 %) ;
+#:   {'model': 'held', 'field': f, 'sigma': s} → σ = s, ligne INVALIDE quand le drapeau `f` est vrai
+#:                                           (cap tenu à l'arrêt : pas une mesure) ;
+#:   {'model': 'declared', 'note': …}      → non chiffrée : la sortie se CONFRONTE, ne se fusionne pas.
+UNCERTAINTY_MODELS = ('relative', 'held', 'declared')
+
+
 @dataclass
 class PortSpec:
     """Un créneau d'entrée ou de sortie typé."""
@@ -48,6 +91,97 @@ class PortSpec:
     cardinality: str = 'one'                              # 'one' | 'many'
     optional: bool = False
     description: str = ''
+    # ── rôle (entrée) — marche C ; '' = `travail` (le défaut historique, jamais réécrit) ──
+    group: str = ''
+    # ── facette estimateur (sortie) — ⑤b ; absente = la sortie n'estime rien ──
+    estimates: str = ''                 # ∈ ESTIMATED_QUANTITIES
+    uncertainty: object = None          # nombre | {'field'} | {'model', …} — cf. UNCERTAINTY_MODELS
+    derived_from: list = field(default_factory=list)      # ⊆ NATIVE_SOURCES
+    estimate_field: str = ''            # colonne qui porte la valeur estimée ('' = `value`)
+
+    def port_dict(self, side: str) -> dict:
+        """Forme sérialisée d'un port. `group` ne s'écrit que pour une ENTRÉE (une sortie n'a
+        pas de rôle) ; la facette estimateur ne s'écrit que si elle est DÉCLARÉE — un port sans
+        estimation garde exactement la forme d'avant, le corpus ne bouge pas pour rien."""
+        d = {'key': self.key, 'data_type': self.data_type,
+             'required_fields': self.required_fields, 'produced_fields': self.produced_fields,
+             'cardinality': self.cardinality, 'optional': self.optional,
+             'description': self.description}
+        if side == 'input':
+            d['group'] = self.group or PORT_GROUPS[0]
+        if self.estimates:
+            d['estimates'] = self.estimates
+            d['uncertainty'] = self.uncertainty
+            d['derived_from'] = list(self.derived_from)
+            if self.estimate_field:
+                d['estimate_field'] = self.estimate_field
+        return d
+
+
+def validate_port_facet(port: dict, side: str) -> list:
+    """Erreurs de la facette d'un port SÉRIALISÉ (dict) — partagé par le kind manifeste
+    `function` (validation à l'export/ingest) et par les tests du catalogue. `side` ∈
+    {'input', 'output'} : un rôle n'a de sens qu'en entrée, une estimation qu'en sortie."""
+    errs = []
+    k = port.get('key', '?')
+    grp = port.get('group')
+    if grp is not None and grp not in PORT_GROUPS:
+        errs.append(f"port '{k}' : group '{grp}' invalide ({'|'.join(PORT_GROUPS)})")
+    if side == 'output' and grp:
+        errs.append(f"port '{k}' : une SORTIE ne porte pas de rôle (group)")
+    q = port.get('estimates')
+    if not q:
+        for champ in ('uncertainty', 'derived_from'):
+            if port.get(champ):
+                errs.append(f"port '{k}' : `{champ}` sans `estimates` — la facette est incomplète")
+        return errs
+    if side == 'input':
+        errs.append(f"port '{k}' : une ENTRÉE n'estime rien (`estimates` est une facette de sortie)")
+    if q not in ESTIMATED_QUANTITIES:
+        errs.append(f"port '{k}' : estimates '{q}' hors vocabulaire "
+                    f"({', '.join(sorted(ESTIMATED_QUANTITIES))})")
+    src = port.get('derived_from')
+    if not src or not isinstance(src, (list, tuple)):
+        errs.append(f"port '{k}' : `derived_from` requis avec `estimates` (l'indépendance en dépend)")
+    else:
+        for s in src:
+            if s not in NATIVE_SOURCES:
+                errs.append(f"port '{k}' : derived_from '{s}' hors vocabulaire "
+                            f"({', '.join(sorted(NATIVE_SOURCES))})")
+    u = port.get('uncertainty')
+    if u is None:
+        errs.append(f"port '{k}' : `uncertainty` requis avec `estimates` "
+                    f"(au pire {{'model': 'declared'}})")
+    elif isinstance(u, bool) or not isinstance(u, (int, float, dict)):
+        errs.append(f"port '{k}' : uncertainty doit être un nombre ou un dict")
+    elif isinstance(u, dict):
+        if 'field' in u and 'model' not in u:
+            if not u['field']:
+                errs.append(f"port '{k}' : uncertainty.field vide")
+        elif u.get('model') not in UNCERTAINTY_MODELS:
+            errs.append(f"port '{k}' : uncertainty.model '{u.get('model')}' inconnu "
+                        f"({'|'.join(UNCERTAINTY_MODELS)})")
+        elif u['model'] == 'relative' and not isinstance(u.get('ratio'), (int, float)):
+            errs.append(f"port '{k}' : uncertainty relative sans `ratio`")
+        elif u['model'] == 'held' and (not u.get('field') or not isinstance(u.get('sigma'), (int, float))):
+            errs.append(f"port '{k}' : uncertainty held exige `field` (drapeau) et `sigma`")
+    elif u <= 0:
+        errs.append(f"port '{k}' : σ constante doit être > 0")
+    return errs
+
+
+def port_estimate_meta(port: PortSpec) -> Optional[dict]:
+    """La facette d'un port de sortie sous la forme que porte un `TypedFrame.meta['estimate']`
+    à l'exécution — c'est ce que `fusion.fuse_estimates` lit, et ce que l'exécuteur du Studio
+    pose sur chaque sortie de nœud `function`. `None` si le port n'estime rien."""
+    if not port.estimates:
+        return None
+    return {'quantity': port.estimates,
+            'unit': ESTIMATED_QUANTITIES.get(port.estimates, ''),
+            'field': port.estimate_field or 'value',
+            'uncertainty': port.uncertainty,
+            'derived_from': list(port.derived_from),
+            'circular': port.estimates in CIRCULAR_QUANTITIES}
 
 
 class Binding:
@@ -79,12 +213,6 @@ class FunctionSpec:
 
     def to_dict(self):
         """Représentation métadonnée-driven (card + ports + modale)."""
-        def _port(p):
-            return {'key': p.key, 'data_type': p.data_type,
-                    'required_fields': p.required_fields, 'produced_fields': p.produced_fields,
-                    'cardinality': p.cardinality, 'optional': p.optional,
-                    'description': p.description}
-
         def _param(p):
             return {'key': p.key, 'type': p.type, 'default': p.default, 'min': p.min,
                     'max': p.max, 'choices': p.choices, 'unit': p.unit,
@@ -95,8 +223,8 @@ class FunctionSpec:
             'category': self.category, 'binding': self.binding, 'app': self.app,
             'impl': self.impl, 'tags': self.tags, 'projects': self.projects,
             'visibility': self.visibility, 'owner': self.owner,
-            'inputs': [_port(p) for p in self.inputs],
-            'outputs': [_port(p) for p in self.outputs],
+            'inputs': [p.port_dict('input') for p in self.inputs],
+            'outputs': [p.port_dict('output') for p in self.outputs],
             'params': [_param(p) for p in self.params],
             'cost': self.cost,
         }
@@ -131,6 +259,37 @@ def by_tag(tag):
 def catalog_dict():
     """Tout le catalogue en dicts (pour l'UI / tool_api)."""
     return {k: s.to_dict() for k, s in FUNCTION_CATALOG.items()}
+
+
+def function_node_ports(key):
+    """Ports d'un NŒUD de fonction — MÊME forme que `app_registry.studio_node_ports(app_id)`
+    (marche C, `WAMA_DATA_WORLD §9`) : `{'inputs': [{id, label, group, types, multi}],
+    'output': {id, label, types}}`, plus `outputs` (liste) parce qu'une fonction peut produire
+    plusieurs sorties là où une app n'en a qu'une — `manifests/builtin/app._ports` lit déjà
+    les deux formes. `None` si la clé est inconnue.
+
+    Les `types` d'une SORTIE sont le type déclaré ET ses super-types (`data_types.ancestors`) :
+    le Studio apparie par INTERSECTION de listes (JS `inter()`), c'est ainsi que le sous-typage
+    `geo_track ⊂ timeseries ⊂ table` reste vrai au canvas sans y réécrire la taxonomie.
+    """
+    from wama.common.catalog.data_types import ancestors
+    spec = FUNCTION_CATALOG.get(key)
+    if spec is None:
+        return None
+    inputs = [{'id': p.key, 'label': p.key, 'group': p.group or PORT_GROUPS[0],
+               'types': [p.data_type], 'multi': p.cardinality == 'many',
+               'optional': bool(p.optional)}
+              for p in spec.inputs]
+    outs = [{'id': p.key, 'label': p.key, 'types': sorted(ancestors(p.data_type))}
+            for p in spec.outputs]
+    if not outs:
+        output = None
+    elif len(outs) == 1:
+        output = outs[0]
+    else:
+        output = {'id': 'out', 'label': 'Sortie',
+                  'types': sorted({t for o in outs for t in o['types']})}
+    return {'inputs': inputs, 'output': output, 'outputs': outs}
 
 
 def can_connect(out_port: PortSpec, in_port: PortSpec, available_fields=None):

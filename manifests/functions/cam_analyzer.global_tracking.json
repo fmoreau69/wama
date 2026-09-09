@@ -10,6 +10,7 @@
         "cardinality": "many",
         "data_type": "detections",
         "description": "Détections des 4 caméras.",
+        "group": "travail",
         "key": "detections",
         "optional": false,
         "produced_fields": [],
@@ -23,6 +24,7 @@
         "cardinality": "one",
         "data_type": "geo_track",
         "description": "",
+        "group": "reference",
         "key": "track",
         "optional": false,
         "produced_fields": [],
@@ -37,7 +39,13 @@
       {
         "cardinality": "one",
         "data_type": "detections",
+        "derived_from": [
+          "bbox",
+          "gps"
+        ],
         "description": "",
+        "estimate_field": "world_en",
+        "estimates": "position",
         "key": "detections",
         "optional": false,
         "produced_fields": [
@@ -46,7 +54,11 @@
           "stable_class",
           "artifact"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "σ par run = placement_spread (RMS des stationnés)"
+        }
       }
     ],
     "owner": "",

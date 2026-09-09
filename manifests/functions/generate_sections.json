@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "geo_track",
         "description": "Trace map-matchée (sortie de gps_map_match).",
+        "group": "travail",
         "key": "track",
         "optional": false,
         "produced_fields": [],

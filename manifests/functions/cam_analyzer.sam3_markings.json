@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "table",
         "description": "",
+        "group": "travail",
         "key": "video",
         "optional": false,
         "produced_fields": [],

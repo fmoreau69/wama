@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "segments",
         "description": "",
+        "group": "travail",
         "key": "segments",
         "optional": false,
         "produced_fields": [],

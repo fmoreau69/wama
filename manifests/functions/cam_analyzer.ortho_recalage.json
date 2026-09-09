@@ -10,6 +10,7 @@
         "cardinality": "one",
         "data_type": "segments",
         "description": "",
+        "group": "travail",
         "key": "markings",
         "optional": false,
         "produced_fields": [],
@@ -23,6 +24,7 @@
         "cardinality": "one",
         "data_type": "road_map",
         "description": "",
+        "group": "reference",
         "key": "road_map",
         "optional": true,
         "produced_fields": [],
@@ -34,14 +36,24 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
+        "derived_from": [
+          "orthophoto",
+          "segmentation"
+        ],
         "description": "",
+        "estimate_field": "de_m",
+        "estimates": "offset",
         "key": "recalage",
         "optional": false,
         "produced_fields": [
           "de_m",
           "dn_m"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "dispersion par intersection dans le rapport"
+        }
       }
     ],
     "owner": "",

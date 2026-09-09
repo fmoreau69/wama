@@ -1,0 +1,91 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "cam_analyzer.tasks:extract_rtmaps_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Enregistrement RTMaps (.rec + CSV par canal).",
+        "group": "travail",
+        "key": "rec",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "cam_analyzer.extraction",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une vidéo par caméra.",
+        "key": "video",
+        "optional": false,
+        "produced_fields": [
+          "position",
+          "fps",
+          "path"
+        ],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "geo_track",
+        "derived_from": [
+          "gps"
+        ],
+        "description": "",
+        "estimate_field": "heading",
+        "estimates": "heading",
+        "key": "track",
+        "optional": false,
+        "produced_fields": [
+          "ts",
+          "lat",
+          "lon",
+          "heading",
+          "speed_kmh"
+        ],
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "±10-25° à basse vitesse (§[2]) ; tenu si < 0,30 m"
+        }
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "io",
+      "rtmaps",
+      "gnss"
+    ],
+    "visibility": "public"
+  },
+  "description": "Décode le `.rec`/quadrature RTMaps : vidéos par caméra, trace GPS annotée (cap/vitesse), synchro GPS↔vidéo (scale/offset), accéléromètre stocké.",
+  "key": "cam_analyzer.extraction",
+  "manifest_kind": "function",
+  "name": "Extraction RTMaps",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.extraction",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

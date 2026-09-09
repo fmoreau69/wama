@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "detections",
         "description": "",
+        "group": "travail",
         "key": "detections",
         "optional": false,
         "produced_fields": [],

@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "events",
         "description": "Gestes de codage : un instant + un code du protocole. Produits par un humain à l'interface OU par un modèle de vision — le port ne fait pas la différence, et c'est le but.",
+        "group": "travail",
         "key": "gestures",
         "optional": false,
         "produced_fields": [],

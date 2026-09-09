@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "geo_track",
         "description": "Trace géolocalisée.",
+        "group": "travail",
         "key": "track",
         "optional": false,
         "produced_fields": [],

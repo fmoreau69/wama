@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "signal",
         "description": "Accélération longitudinale (m/s², décélération < 0).",
+        "group": "travail",
         "key": "signal",
         "optional": false,
         "produced_fields": [],

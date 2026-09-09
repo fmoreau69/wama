@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "timeseries",
         "description": "Signal portant les colonnes testées par les conditions.",
+        "group": "travail",
         "key": "signal",
         "optional": false,
         "produced_fields": [],

@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "segments",
         "description": "Situations à trier — leurs colonnes (et `duration` dérivée) portent les conditions.",
+        "group": "travail",
         "key": "segments",
         "optional": false,
         "produced_fields": [],

@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "table",
         "description": "Correspondances de points du DÉCOR entre deux images.",
+        "group": "travail",
         "key": "matches",
         "optional": false,
         "produced_fields": [],
@@ -28,14 +29,22 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
+        "derived_from": [
+          "image"
+        ],
         "description": "Lacet caméra (°, positif à droite) ; tangage, expansion, inliers et résidu dans meta.",
+        "estimates": "yaw",
         "key": "ego_rotation",
         "optional": false,
         "produced_fields": [
           "metric",
           "value"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "σ non étalonnée ; validité = meta.residual_px ≤ 2"
+        }
       }
     ],
     "owner": "",

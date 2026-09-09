@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "timeseries",
         "description": "",
+        "group": "travail",
         "key": "signal",
         "optional": false,
         "produced_fields": [],

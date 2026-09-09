@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "events",
         "description": "Taps opérateur bruts (time, annotation_type, tag).",
+        "group": "travail",
         "key": "events",
         "optional": false,
         "produced_fields": [],

@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "table",
         "description": "Frames caméra (RTMaps).",
+        "group": "travail",
         "key": "video",
         "optional": false,
         "produced_fields": [],
@@ -21,6 +22,7 @@
         "cardinality": "one",
         "data_type": "detections",
         "description": "Détections (bbox → profondeur de contact).",
+        "group": "travail",
         "key": "detections",
         "optional": false,
         "produced_fields": [],
@@ -45,13 +47,22 @@
       {
         "cardinality": "one",
         "data_type": "detections",
+        "derived_from": [
+          "depth_map"
+        ],
         "description": "",
+        "estimate_field": "depth_distance_m",
+        "estimates": "distance",
         "key": "detections",
         "optional": false,
         "produced_fields": [
           "depth_distance_m"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "σ croît au-delà de 15-20 m (§[E]) ; jamais exécuté"
+        }
       }
     ],
     "owner": "",

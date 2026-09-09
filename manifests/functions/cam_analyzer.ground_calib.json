@@ -10,6 +10,7 @@
         "cardinality": "one",
         "data_type": "detections",
         "description": "",
+        "group": "travail",
         "key": "detections",
         "optional": false,
         "produced_fields": [],
@@ -23,6 +24,7 @@
         "cardinality": "one",
         "data_type": "geo_track",
         "description": "",
+        "group": "reference",
         "key": "track",
         "optional": false,
         "produced_fields": [],
@@ -37,14 +39,24 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
+        "derived_from": [
+          "bbox",
+          "gps"
+        ],
         "description": "",
+        "estimate_field": "pitch_deg",
+        "estimates": "ground_plane",
         "key": "ground_calib",
         "optional": false,
         "produced_fields": [
           "pitch_deg",
           "height_m"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "jugée par placement_spread, pas par σ"
+        }
       }
     ],
     "owner": "",

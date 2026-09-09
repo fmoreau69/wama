@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "depth_map",
         "description": "Cartes de profondeur stockées (DepthFrame).",
+        "group": "travail",
         "key": "depth",
         "optional": false,
         "produced_fields": [],
@@ -21,6 +22,7 @@
         "cardinality": "one",
         "data_type": "detections",
         "description": "Masque roulable (road_mask) par caméra.",
+        "group": "travail",
         "key": "detections",
         "optional": false,
         "produced_fields": [],
@@ -32,6 +34,7 @@
         "cardinality": "one",
         "data_type": "geo_track",
         "description": "",
+        "group": "reference",
         "key": "track",
         "optional": false,
         "produced_fields": [],
@@ -46,7 +49,13 @@
       {
         "cardinality": "one",
         "data_type": "scalar",
+        "derived_from": [
+          "depth_map",
+          "segmentation"
+        ],
         "description": "",
+        "estimate_field": "pitch_deg",
+        "estimates": "ground_plane",
         "key": "ground_calib",
         "optional": false,
         "produced_fields": [
@@ -54,7 +63,11 @@
           "height_m",
           "source"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "résidu RANSAC non exposé"
+        }
       }
     ],
     "owner": "",

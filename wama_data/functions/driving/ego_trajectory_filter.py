@@ -174,9 +174,18 @@ SPEC = register(FunctionSpec(
     tags=['geo', 'timeseries', 'ego-motion', 'gnss', 'ab-metric'],
     inputs=[PortSpec('track', DataType.GEO_TRACK, required_fields=['lat', 'lon'],
                      description='Trace GPS du véhicule porteur (heading optionnel, sert au rapport).')],
+    # Facette estimateur (⑤b) : ce port ESTIME le cap ego depuis le GPS seul. σ = 3° est
+    # la valeur MESURÉE sur trace synthétique (`tests_ego_trajectory_filter` : < 1/3 des 8°
+    # du cap brut) — PROVISOIRE sur données réelles, à réétalonner comme σa/σm. Cap tenu
+    # (`heading_f_held`) = pas une mesure : la fusion l'écarte. `derived_from=['gps']` dit
+    # à `fuse_estimates` que cette sortie ne se fusionne JAMAIS avec le cap brut GPS (même
+    # source) — seulement avec une source indépendante (`geometry.ego_rotation`, image).
     outputs=[PortSpec('track', DataType.GEO_TRACK,
                       produced_fields=['lat_f', 'lon_f', 'speed_f_kmh', 'heading_f', 'heading_f_held'],
-                      description='Même trace, enrichie ; rapport A/B dans meta.ego_filter.')],
+                      description='Même trace, enrichie ; rapport A/B dans meta.ego_filter.',
+                      estimates='heading', estimate_field='heading_f',
+                      uncertainty={'model': 'held', 'field': 'heading_f_held', 'sigma': 3.0},
+                      derived_from=['gps'])],
     params=[
         ParamSpec('sigma_a', 'float', DEFAULT_SIGMA_A, 0.05, 10.0, unit='m/s²',
                   description="Accélération de processus (agilité du véhicule)."),

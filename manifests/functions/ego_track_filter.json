@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "geo_track",
         "description": "Trace GPS du véhicule porteur (heading optionnel, sert au rapport).",
+        "group": "travail",
         "key": "track",
         "optional": false,
         "produced_fields": [],
@@ -26,7 +27,12 @@
       {
         "cardinality": "one",
         "data_type": "geo_track",
+        "derived_from": [
+          "gps"
+        ],
         "description": "Même trace, enrichie ; rapport A/B dans meta.ego_filter.",
+        "estimate_field": "heading_f",
+        "estimates": "heading",
         "key": "track",
         "optional": false,
         "produced_fields": [
@@ -36,7 +42,12 @@
           "heading_f",
           "heading_f_held"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "field": "heading_f_held",
+          "model": "held",
+          "sigma": 3.0
+        }
       }
     ],
     "owner": "",

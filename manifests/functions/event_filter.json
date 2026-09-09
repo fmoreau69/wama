@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "events",
         "description": "Occurrences à trier — leurs colonnes portent les conditions.",
+        "group": "travail",
         "key": "events",
         "optional": false,
         "produced_fields": [],

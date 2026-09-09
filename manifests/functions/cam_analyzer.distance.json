@@ -10,6 +10,7 @@
         "cardinality": "one",
         "data_type": "detections",
         "description": "",
+        "group": "travail",
         "key": "detections",
         "optional": false,
         "produced_fields": [],
@@ -22,6 +23,7 @@
         "cardinality": "one",
         "data_type": "geo_track",
         "description": "",
+        "group": "reference",
         "key": "track",
         "optional": true,
         "produced_fields": [],
@@ -33,7 +35,12 @@
       {
         "cardinality": "one",
         "data_type": "detections",
+        "derived_from": [
+          "bbox"
+        ],
         "description": "",
+        "estimate_field": "distance_m",
+        "estimates": "distance",
         "key": "detections",
         "optional": false,
         "produced_fields": [
@@ -42,7 +49,11 @@
           "ttc",
           "ground_xy"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "model": "relative",
+          "ratio": 0.2
+        }
       }
     ],
     "owner": "",

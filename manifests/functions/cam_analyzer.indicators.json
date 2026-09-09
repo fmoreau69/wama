@@ -10,6 +10,7 @@
         "cardinality": "one",
         "data_type": "detections",
         "description": "",
+        "group": "travail",
         "key": "detections",
         "optional": false,
         "produced_fields": [],
@@ -19,19 +20,29 @@
         ]
       }
     ],
-    "key": "cam_analyzer.prediction",
+    "key": "cam_analyzer.indicators",
     "outputs": [
       {
         "cardinality": "one",
         "data_type": "detections",
+        "derived_from": [
+          "bbox",
+          "gps"
+        ],
         "description": "",
+        "estimate_field": "prediction_ttc",
+        "estimates": "ttc",
         "key": "detections",
         "optional": false,
         "produced_fields": [
           "prediction_ttc",
           "prediction_pet"
         ],
-        "required_fields": []
+        "required_fields": [],
+        "uncertainty": {
+          "model": "declared",
+          "note": "aucune mesure A/B (§C)"
+        }
       }
     ],
     "owner": "",
@@ -46,7 +57,7 @@
     "visibility": "public"
   },
   "description": "TTC/PET par prédiction de trajectoire (ré-annotation des détections, sans re-détection).",
-  "key": "cam_analyzer.prediction",
+  "key": "cam_analyzer.indicators",
   "manifest_kind": "function",
   "name": "Indicateurs prédiction (TTC/PET)",
   "owner": null,
@@ -57,7 +68,7 @@
   "scope_org_unit": null,
   "scope_project": null,
   "source": {
-    "ref": "FUNCTION_CATALOG:cam_analyzer.prediction",
+    "ref": "FUNCTION_CATALOG:cam_analyzer.indicators",
     "type": "extract"
   },
   "visibility": "public",

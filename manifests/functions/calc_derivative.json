@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "timeseries",
         "description": "Flux échantillonné à enrichir. La colonne mesurée est choisie par le paramètre `colonne`.",
+        "group": "travail",
         "key": "signal",
         "optional": false,
         "produced_fields": [],

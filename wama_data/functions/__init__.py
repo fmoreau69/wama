@@ -13,6 +13,8 @@ Domaines (axe orthogonal à `DataType` = type de donnée et `FunctionCategory` =
                     sections, annotations opérateur
   - `temporal/`   : SEGMENTATION — transverse, aucun métier supposé (autour d'une ancre, jonction
                     de deux flux, condition avec hystérésis, états, restriction à un contexte)
+  - `fusion/`     : FUSION d'estimations indépendantes d'une même grandeur (1/σ²), 1ᵉʳ
+                    consommateur de la facette estimateur des ports (2026-09-09)
 
 Voir `WAMA_DATA_FUNCTION_CARDS.md` et `WAMA_DATA_WORLD.md` §9ter.
 """
@@ -22,3 +24,4 @@ from . import kinematics  # noqa: F401
 from . import driving     # noqa: F401
 from . import geo         # noqa: F401
 from . import temporal    # noqa: F401
+from . import fusion      # noqa: F401

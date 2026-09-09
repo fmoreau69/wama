@@ -12,6 +12,7 @@
         "cardinality": "one",
         "data_type": "detections",
         "description": "Détections placées en monde, avec identité de track et position.",
+        "group": "travail",
         "key": "detections",
         "optional": false,
         "produced_fields": [],

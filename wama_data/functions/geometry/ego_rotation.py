@@ -252,10 +252,18 @@ SPEC = register(FunctionSpec(
     inputs=[PortSpec('matches', DataType.TABLE,
                      required_fields=['x0', 'y0', 'x1', 'y1'],
                      description='Correspondances de points du DÉCOR entre deux images.')],
+    # Facette estimateur (⑤b) : la seule source de cap INDÉPENDANTE du GPS de toute la chaîne
+    # (`derived_from=['image']`). σ n'est PAS étalonnée — `meta.residual_px` dit si le modèle
+    # décrit la scène, pas de combien le lacet se trompe : `declared` = cette sortie se
+    # CONFRONTE au GPS (ligne A/B), elle ne pèse pas encore dans une fusion. Le jour où une
+    # mesure sur données réelles donne σ, elle s'écrit ici et la fusion la prend d'elle-même.
     outputs=[PortSpec('ego_rotation', DataType.SCALAR,
                       produced_fields=['metric', 'value'],
                       description="Lacet caméra (°, positif à droite) ; tangage, expansion, "
-                                  "inliers et résidu dans meta.")],
+                                  "inliers et résidu dans meta.",
+                      estimates='yaw', derived_from=['image'],
+                      uncertainty={'model': 'declared',
+                                   'note': "σ non étalonnée ; validité = meta.residual_px ≤ 2"})],
     params=[
         ParamSpec('focal_px', 'float', None, 1.0, 10000.0, unit='px',
                   description='Focale en pixels (fx, ou fx=fy).'),

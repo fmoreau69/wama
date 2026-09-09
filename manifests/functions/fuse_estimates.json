@@ -1,0 +1,86 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "join",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "many",
+        "data_type": "table",
+        "description": "Sorties porteuses d'une facette estimateur (meta.estimate).",
+        "group": "travail",
+        "key": "estimates",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "fuse_estimates",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "timeseries",
+        "description": "Grandeur fusionnée + σ ; rapport par source dans meta.fusion.",
+        "key": "fused",
+        "optional": false,
+        "produced_fields": [
+          "time",
+          "value",
+          "sigma",
+          "n_sources"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 0.05,
+        "description": "Deux instants plus proches que cela sont le même instant.",
+        "key": "tolerance_s",
+        "max": 5.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": "s"
+      },
+      {
+        "choices": null,
+        "default": "time",
+        "description": "Colonne de temps des entrées.",
+        "key": "time_field",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "fusion",
+      "uncertainty",
+      "ab-metric",
+      "timeseries"
+    ],
+    "visibility": "public"
+  },
+  "description": "Combine N sorties qui estiment la MÊME grandeur (facette `estimates` de leur port) en une série pondérée par 1/σ², alignée sur le temps ; moyenne vectorielle pour un cap. REFUSE deux sources dérivées de la même donnée native (corrélées : elles se confrontent, ne se fusionnent pas) et ÉCARTE ce qui n'est pas chiffré.",
+  "key": "fuse_estimates",
+  "manifest_kind": "function",
+  "name": "Fusion d'estimations (1/σ²)",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:fuse_estimates",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

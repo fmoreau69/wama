@@ -25,10 +25,19 @@ def validate_function_body(body: dict) -> list[str]:
     b = body.get('binding')
     if b and b not in FUNCTION_BINDINGS:
         errs.append(f"binding '{b}' invalide ({', '.join(sorted(FUNCTION_BINDINGS))})")
-    for side in ('inputs', 'outputs'):
+    # Facettes de port (rôle en entrée, estimateur en sortie — 2026-09-09) : la MÊME règle que
+    # le catalogue, pour qu'un manifeste ingéré ne puisse pas déclarer ce que le code refuse.
+    from wama.common.catalog.function_catalog import validate_port_facet
+    for side, sens in (('inputs', 'input'), ('outputs', 'output')):
         v = body.get(side)
-        if v is not None and not isinstance(v, list):
+        if v is None:
+            continue
+        if not isinstance(v, list):
             errs.append(f"{side} doit être une liste de ports")
+            continue
+        for p in v:
+            if isinstance(p, dict):
+                errs.extend(f"{side}: {m}" for m in validate_port_facet(p, sens))
     if 'params' in body and not isinstance(body['params'], list):
         errs.append("params doit être une liste")
     return errs

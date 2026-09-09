@@ -26,6 +26,34 @@ def _spec(key, name, desc, category, impl, tags, inputs, outputs, params=None, c
         projects=list(projects)))
 
 
+# ── Extraction & fenêtrage (les deux premières passes du registre `PASSES`) ────
+# Déclarées le 2026-09-09 pour que CHAQUE passe du pipeline soit un nœud `function` (D13) :
+# avant, `extraction` et `intersection_windows` n'existaient que dans le registre des passes.
+_spec('extraction', 'Extraction RTMaps', "Décode le `.rec`/quadrature RTMaps : vidéos par caméra, "
+      "trace GPS annotée (cap/vitesse), synchro GPS↔vidéo (scale/offset), accéléromètre stocké.",
+      FC.TRANSFORM, 'cam_analyzer.tasks:extract_rtmaps_task', ['io', 'rtmaps', 'gnss'],
+      inputs=[PortSpec('rec', DT.TABLE, description="Enregistrement RTMaps (.rec + CSV par canal).")],
+      outputs=[PortSpec('video', DT.TABLE, produced_fields=['position', 'fps', 'path'],
+                        description='Une vidéo par caméra.'),
+               PortSpec('track', DT.GEO_TRACK,
+                        produced_fields=['ts', 'lat', 'lon', 'heading', 'speed_kmh'],
+                        # levier 10 : cap = bearing entre fixes bruts, TENU si < 0,30 m —
+                        # ±10-25° à basse vitesse (§[2]), la source d'erreur angulaire dominante.
+                        # Non chiffrée par ligne : `declared` ; la valeur mesurée vit sur
+                        # `shuttle_filter` (levier 15), qui en dérive.
+                        estimates='heading', estimate_field='heading',
+                        uncertainty={'model': 'declared',
+                                     'note': '±10-25° à basse vitesse (§[2]) ; tenu si < 0,30 m'},
+                        derived_from=['gps'])],
+      cost={'cpu_bound': True})
+
+_spec('intersection_windows', "Fenêtres d'intersection", "Découpe la trace en fenêtres temporelles "
+      "autour des intersections déclarées (rayon d'ANALYSE) — ce que les passes aval regardent.",
+      FC.DETECTOR, 'cam_analyzer.utils.window_recompute:recompute_intersection_windows', ['geo', 'per-section'],
+      inputs=[PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
+      outputs=[PortSpec('windows', DT.SEGMENTS, produced_fields=['start', 'end', 'intersection'])],
+      cost={'cpu_bound': True})
+
 # ── Détection & segmentation image ────────────────────────────────────────────
 _spec('yolo_detect', 'Détection YOLO', "Détection/segmentation d'objets par frame (ultralytics).",
       FC.DETECTOR, 'cam_analyzer.tasks:process_session_task', ['vision', 'gpu'],
@@ -51,32 +79,50 @@ _spec('sam3_markings', 'Marquages SAM3', "Marquages au sol (passages piétons, l
 _spec('distance', 'Distance / vitesse / TTC', "Distance pinhole/homographie + vitesse et TTC filtrés par track.",
       FC.ENRICHER, 'cam_analyzer.tasks:compute_distance_task', ['vision', 'geo'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'track_id']),
-              PortSpec('track', DT.GEO_TRACK, optional=True)],
+              PortSpec('track', DT.GEO_TRACK, optional=True, group='reference')],
       outputs=[PortSpec('detections', DT.DETECTIONS,
-                        produced_fields=['distance_m', 'speed', 'ttc', 'ground_xy'])])
+                        produced_fields=['distance_m', 'speed', 'ttc', 'ground_xy'],
+                        # levier 1 : pinhole H_classe·f/h_bbox, ±20 % (jitter 1 px) — la
+                        # référence de tout le reste, dérivée de la bbox SEULE.
+                        estimates='distance', estimate_field='distance_m',
+                        uncertainty={'model': 'relative', 'ratio': 0.2},
+                        derived_from=['bbox'])])
 
 _spec('global_tracking', 'Tracking 360°', "Hand-off d'identité inter-caméras (gids), classes stables, "
       "stationnés+ancres, fantômes, lissage Kalman → world_en. Enchaîne branches et marquages monde.",
       FC.ENRICHER, 'cam_analyzer.tasks:_run_global_tracking', ['vision', 'geo', 'per-vehicle'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'track_id', 'distance_m'],
                        cardinality='many', description='Détections des 4 caméras.'),
-              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
+              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'], group='reference')],
       outputs=[PortSpec('detections', DT.DETECTIONS,
-                        produced_fields=['global_track_id', 'world_en', 'stable_class', 'artifact'])])
+                        produced_fields=['global_track_id', 'world_en', 'stable_class', 'artifact'],
+                        # position monde = distance bbox ∘ pose GPS : DEUX données natives,
+                        # donc jamais fusionnable avec une source bbox OU gps seule. σ non
+                        # chiffrée par détection — `placement_spread` en donne une par run.
+                        estimates='position', estimate_field='world_en',
+                        uncertainty={'model': 'declared',
+                                     'note': "σ par run = placement_spread (RMS des stationnés)"},
+                        derived_from=['bbox', 'gps'])])
 
 _spec('artifact_filter', 'Filtre reflets/artefacts', "Reflets de vitrage : bbox fixe pendant que la navette "
       "avance (cinématique) OU bbox géante + confiance basse (fantôme géant).",
       FC.TRANSFORM, 'cam_analyzer.utils.artifact_filter:detect_static_artifacts', ['vision'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'track_id']),
-              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
+              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'], group='reference')],
       outputs=[PortSpec('detections', DT.DETECTIONS, produced_fields=['artifact'])])
 
 _spec('ground_calib', 'Calibration sol auto (pitch)', "Estime le pitch/hauteur caméra en minimisant "
       "l'étalement monde des stationnés (auto-calibration par ego-motion).",
       FC.INDICATOR, 'cam_analyzer.utils.homography_estimator:store_ground_calib', ['vision', 'geo', 'needs-calibration'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'global_track_id', 'distance_m']),
-              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
-      outputs=[PortSpec('ground_calib', DT.SCALAR, produced_fields=['pitch_deg', 'height_m'])])
+              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'], group='reference')],
+      outputs=[PortSpec('ground_calib', DT.SCALAR, produced_fields=['pitch_deg', 'height_m'],
+                        # levier 18 : l'angle par l'ego-motion (stationnés + GPS) — désaccord
+                        # 14,55 → 3,05 m mesuré, mais aucune σ sur l'angle lui-même.
+                        estimates='ground_plane', estimate_field='pitch_deg',
+                        uncertainty={'model': 'declared',
+                                     'note': 'jugée par placement_spread, pas par σ'},
+                        derived_from=['bbox', 'gps'])])
 
 _spec('placement_spread', 'Cohérence de placement (étalement stationnés)',
       "Métrique A/B OBJECTIVE : dispersion RMS monde des véhicules stationnés autour de leur "
@@ -107,7 +153,14 @@ _spec('depth_analysis', 'Analyse de profondeur (Depth Pro)',
                        description='Détections (bbox → profondeur de contact).')],
       outputs=[PortSpec('depth', DT.DEPTH_MAP, produced_fields=['focal_px'],
                         description='Carte métrique par frame (DepthFrame, sur disque).'),
-               PortSpec('detections', DT.DETECTIONS, produced_fields=['depth_distance_m'])],
+               PortSpec('detections', DT.DETECTIONS, produced_fields=['depth_distance_m'],
+                        # levier 20 : distance de contact par la carte de profondeur —
+                        # INDÉPENDANTE de la bbox (levier 1) : les deux SE FUSIONNENT ;
+                        # σ croît fort au-delà de 15-20 m (§[E]), non chiffrée : declared.
+                        estimates='distance', estimate_field='depth_distance_m',
+                        uncertainty={'model': 'declared',
+                                     'note': 'σ croît au-delà de 15-20 m (§[E]) ; jamais exécuté'},
+                        derived_from=['depth_map'])],
       cost={'vram_gb': 8})
 
 _spec('depth_ground_plane', 'Plan de sol par profondeur (usage 4)',
@@ -121,9 +174,28 @@ _spec('depth_ground_plane', 'Plan de sol par profondeur (usage 4)',
       inputs=[PortSpec('depth', DT.DEPTH_MAP, description='Cartes de profondeur stockées (DepthFrame).'),
               PortSpec('detections', DT.DETECTIONS, required_fields=['polygon'],
                        description='Masque roulable (road_mask) par caméra.'),
-              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
+              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'], group='reference')],
       outputs=[PortSpec('ground_calib', DT.SCALAR,
-                        produced_fields=['pitch_deg', 'height_m', 'source'])],
+                        produced_fields=['pitch_deg', 'height_m', 'source'],
+                        # levier 19 : le même angle que ground_calib, par une donnée native
+                        # DIFFÉRENTE (carte de profondeur) — c'est ce qui rend les deux
+                        # confrontables ET fusionnables ; σ = résidu RANSAC, non exposé.
+                        estimates='ground_plane', estimate_field='pitch_deg',
+                        uncertainty={'model': 'declared', 'note': 'résidu RANSAC non exposé'},
+                        derived_from=['depth_map', 'segmentation'])],
+      cost={'cpu_bound': True})
+
+_spec('depth_calc', 'Calculs profondeur (passe)',
+      "La PASSE `depth_calc` du volet (session-wide, CPU) : relit les DepthFrame stockées et "
+      "enchaîne les deux calculs catalogués à part — `depth_ground_plane` (plan de sol, "
+      "store_ground_calib source='depth') puis `depth_distance_report` (cross-check). Déclarée "
+      "comme passe pour que le pipeline soit exportable nœud par nœud (D13).",
+      FC.ENRICHER, 'cam_analyzer.tasks:compute_depth_calc_task', ['vision', 'geo', 'depth', 'monocular'],
+      inputs=[PortSpec('depth', DT.DEPTH_MAP, description='Cartes stockées (DepthFrame).'),
+              PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'depth_distance_m'])],
+      outputs=[PortSpec('ground_calib', DT.SCALAR, produced_fields=['pitch_deg', 'height_m', 'source']),
+               PortSpec('depth_report', DT.SCALAR,
+                        produced_fields=['disagree_pinhole_m', 'disagree_homography_m'])],
       cost={'cpu_bound': True})
 
 _spec('depth_distance_report', 'Cross-check distance & reflets par profondeur (usages 3+1)',
@@ -144,22 +216,29 @@ _spec('learned_branches', 'Branches apprises du trafic', "Voies croisantes aux i
       "des trajectoires monde des véhicules.",
       FC.AGGREGATE, 'cam_analyzer.utils.intersection_branches:learn_branches', ['geo', 'per-section'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['world_en', 'global_track_id']),
-              PortSpec('track', DT.GEO_TRACK)],
+              PortSpec('track', DT.GEO_TRACK, group='reference')],
       outputs=[PortSpec('branches', DT.SEGMENTS, produced_fields=['bearing_deg', 'width_m', 'a', 'b'])])
 
 _spec('world_markings', 'Marquages SAM3 en monde', "stop_line/crossing projetés au sol et agrégés "
       "multi-passages (bornes d'intersection).",
       FC.AGGREGATE, 'cam_analyzer.utils.marking_world:aggregate_markings', ['vision', 'geo', 'per-section'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['polygon', 'label']),
-              PortSpec('track', DT.GEO_TRACK)],
+              PortSpec('track', DT.GEO_TRACK, group='reference')],
       outputs=[PortSpec('markings', DT.SEGMENTS, produced_fields=['a', 'b', 'label', 'bearing_deg'])])
 
 _spec('ortho_recalage', 'Recalage absolu ortho', "Segmente les passages piétons sur l'orthophoto IGN et "
       "mesure le décalage avec les crossings caméra (offset de recalage GPS/projection).",
       FC.INDICATOR, 'cam_analyzer.tasks:compute_ortho_recalage_task', ['vision', 'geo', 'gpu'],
       inputs=[PortSpec('markings', DT.SEGMENTS, required_fields=['a', 'b', 'label']),
-              PortSpec('road_map', DT.ROAD_MAP, optional=True)],
-      outputs=[PortSpec('recalage', DT.SCALAR, produced_fields=['de_m', 'dn_m'])])
+              PortSpec('road_map', DT.ROAD_MAP, optional=True, group='reference')],
+      outputs=[PortSpec('recalage', DT.SCALAR, produced_fields=['de_m', 'dn_m'],
+                        # levier 21 : la seule POSITION ABSOLUE de la chaîne (2,93 E / 4,2 N m
+                        # mesurés) — orthophoto ∘ marquages caméra ; σ = dispersion par
+                        # intersection, non exposée en champ.
+                        estimates='offset', estimate_field='de_m',
+                        uncertainty={'model': 'declared',
+                                     'note': 'dispersion par intersection dans le rapport'},
+                        derived_from=['orthophoto', 'segmentation'])])
 _spec('ortho_correction', 'Correction de trajectoire (ortho)',
       "APPLIQUE le recalage mesuré à la trajectoire, derrière la bascule ⚑ ortho_correction. "
       "La médiane globale est tenue pour un biais de PROJECTION caméra et n'est PAS appliquée ; "
@@ -179,7 +258,13 @@ _spec('shuttle_filter', 'Filtre de trajectoire navette (Kalman+RTS)',
       FC.ENRICHER, 'cam_analyzer.utils.ego_pose:compute_shuttle_filter', ['geo', 'gnss', 'ego-motion', 'ab-metric'],
       inputs=[PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
       outputs=[PortSpec('track', DT.GEO_TRACK,
-                        produced_fields=['lat_f', 'lon_f', 'heading_f', 'speed_f_kmh', 'heading_f_held'])],
+                        produced_fields=['lat_f', 'lon_f', 'heading_f', 'speed_f_kmh', 'heading_f_held'],
+                        # levier 15 : MÊME facette que la brique pure `ego_track_filter` qu'elle
+                        # délègue (σ 3° mesurée sur trace synthétique, provisoire ; cap tenu =
+                        # pas une mesure). Une seule donnée native : gps.
+                        estimates='heading', estimate_field='heading_f',
+                        uncertainty={'model': 'held', 'field': 'heading_f_held', 'sigma': 3.0},
+                        derived_from=['gps'])],
       cost={'cpu_bound': True})
 
 # ── Évènements / indicateurs métier ───────────────────────────────────────────
@@ -201,8 +286,15 @@ _spec('conflicts', 'Conflits', "Détecte les conflits (approche frontale, suivi 
               PortSpec('detections', DT.DETECTIONS)],
       outputs=[PortSpec('conflicts', DT.EVENTS, produced_fields=['time', 'type', 'severity'])])
 
-_spec('prediction', 'Indicateurs prédiction (TTC/PET)', "TTC/PET par prédiction de trajectoire (ré-annotation "
+# `indicators` = la clé de la PASSE (`PassType.INDICATORS`, `compute_indicators_task`) ; la
+# fonction s'appelait `prediction` jusqu'au 2026-09-09 — un nom pour trois objets (passe, tâche,
+# fonction), sinon le registre des passes ne peut pas dériver son nœud sans table de traduction.
+_spec('indicators', 'Indicateurs prédiction (TTC/PET)', "TTC/PET par prédiction de trajectoire (ré-annotation "
       "des détections, sans re-détection).",
       FC.ENRICHER, 'cam_analyzer.tasks:compute_indicators_task', ['geo', 'per-vehicle'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['world_en', 'global_track_id'])],
-      outputs=[PortSpec('detections', DT.DETECTIONS, produced_fields=['prediction_ttc', 'prediction_pet'])])
+      outputs=[PortSpec('detections', DT.DETECTIONS, produced_fields=['prediction_ttc', 'prediction_pet'],
+                        # levier 43 : extrapolation des trajectoires monde (bbox ∘ gps).
+                        estimates='ttc', estimate_field='prediction_ttc',
+                        uncertainty={'model': 'declared', 'note': 'aucune mesure A/B (§C)'},
+                        derived_from=['bbox', 'gps'])])
