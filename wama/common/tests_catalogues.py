@@ -1145,3 +1145,57 @@ class UnionDesEntreesDeModelesTest(TestCase):
         self._modele('sans_tache', requis=['work_file'])          # aucune `task` déclarée
         self.assertEqual({'work_file'},
                          {p['id'] for p in app_input_ports(self.APP, domain='image')})
+
+
+class ObligationDesSlotsVientDesModelesTest(TestCase):
+    """Un slot ne s'annonce « requis » que si TOUS les modèles retenus l'exigent.
+
+    Défaut mesuré au navigateur le 2026-09-11 sur la card v4 de l'imager : l'onglet affichait
+    « Image de travail **requis** » alors que `work_image` n'est exigé que par 2 de ses 12
+    modèles — les 10 autres génèrent depuis le seul prompt. `input_slots` déduisait
+    l'obligation du GROUPE (`required = (group == 'travail')`), donc tout port de travail
+    était annoncé requis. C'est un mensonge d'interface : l'utilisateur d'un modèle
+    texte→image se serait cru bloqué faute d'image.
+
+    ⚠ Les entrées sont SIMULÉES, pas lues du catalogue : en base de test il n'y a aucun
+    `AIModel`, donc l'union serait vide, le repli s'appliquerait et la garde passerait sans
+    rien mesurer. Un test qui ne peut pas échouer ne garde rien.
+    """
+
+    def _slots(self, ports_union, app='imager'):
+        # ⚠ On patche `app_registry.app_input_ports`, PAS l'attribut du module de tags :
+        # `input_slots` l'importe DEPUIS `app_registry` au moment de l'appel, et
+        # `studio_node_ports` la lit au même endroit — patcher la source fait donc dériver les
+        # deux du même faux catalogue, ce qui est précisément la situation à mesurer.
+        from unittest.mock import patch
+        from wama.common.templatetags import wama_actions
+        with patch('wama.common.app_registry.app_input_ports', return_value=ports_union):
+            return {s['id']: s for s in wama_actions.input_slots(app)}
+
+    def _port(self, pid, requis, groupe='travail'):
+        return {'id': pid, 'label': pid, 'group': groupe, 'types': ['image'],
+                'multi': True, 'required': requis, 'description': 'texte'}
+
+    def test_un_port_de_travail_OPTIONNEL_n_est_pas_annonce_requis(self):
+        slots = self._slots([self._port('work_image', False)])
+        self.assertIn('work_image', slots, 'le slot attendu n’est pas rendu')
+        self.assertFalse(slots['work_image']['required'],
+                         'la card annonce « requis » une entrée que les modèles rendent '
+                         'facultative — le défaut du 11/09 est revenu')
+
+    def test_un_port_de_travail_REQUIS_par_tous_reste_requis(self):
+        slots = self._slots([self._port('work_audio', True)])
+        self.assertTrue(slots['work_audio']['required'])
+
+    def test_sans_union_le_critere_de_GROUPE_reprend_la_main(self):
+        """Repli : une app sans moteur IA (converter) garde exactement le comportement d'avant —
+        son port de travail est requis, faute de modèle pour dire mieux."""
+        slots = self._slots([], app='converter')
+        self.assertTrue(slots, 'le repli doit rendre les slots, pas rien')
+        for s in slots.values():
+            if s['group'] == 'travail':
+                self.assertTrue(s['required'])
+
+    def test_chaque_slot_porte_le_texte_explicatif_de_son_jeton(self):
+        slots = self._slots([self._port('work_image', False)])
+        self.assertEqual('texte', slots['work_image']['description'])

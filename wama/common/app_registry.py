@@ -301,9 +301,20 @@ def app_input_ports(app_id, domain=None):
     """
     from wama.common.utils.app_modes import INPUT_TYPES
 
+    # ⚠ REPLI JUMELLE — une jumelle de bac à sable n'a PAS de modèles à elle : le catalogue les
+    # rattache à l'app SOURCE (`AIModel.source='imager'`, jamais `imager_01`). Sans ce repli,
+    # `app_input_ports('imager_01')` rend vide, le repli général s'applique, et la jumelle
+    # continue d'afficher les ports d'AVANT — c'est-à-dire qu'elle cesse de mesurer ce qu'elle
+    # existe pour mesurer. Mesuré au navigateur le 2026-09-11 : sa card v4 rendait encore
+    # `work` + `reference_image`.
+    # C'est le MÊME piège que `studio_node_ports` signale quelques lignes plus haut pour
+    # `get_app_modes` (« par l'ACCESSEUR, jamais par le dict ») — la source d'une jumelle se
+    # lit dans `generated_from`, elle ne se devine pas.
+    source = (APP_CATALOG.get(app_id) or {}).get('generated_from') or app_id
+
     try:
         from wama.model_manager.models import AIModel
-        lignes = list(AIModel.objects.filter(source=app_id)
+        lignes = list(AIModel.objects.filter(source=source)
                       .values_list('capabilities', flat=True))
     except Exception:
         return []

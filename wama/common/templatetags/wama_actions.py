@@ -156,6 +156,20 @@ def input_slots(app, live=False):
     from wama.common.app_registry import studio_node_ports
 
     ports = (studio_node_ports(app) or {}).get('inputs') or []
+
+    # ── L'OBLIGATION VIENT DES MODÈLES, pas du groupe (2026-09-11) ──────────────────────
+    # `required` valait `group == 'travail'` : tout port de travail était donc annoncé
+    # « requis ». Mesuré au navigateur sur la card v4 de l'imager, elle affichait « Image de
+    # travail REQUIS » alors que `work_image` n'est exigé que par 2 de ses 12 modèles (les 10
+    # autres génèrent depuis le seul prompt). C'est un mensonge d'interface : l'utilisateur
+    # d'un modèle texte→image se serait cru bloqué faute d'image.
+    # L'union sait la vérité (`app_input_ports` : requis = exigé par TOUS les modèles retenus),
+    # et c'est ce que dit `matches_inputs` côté serveur. Repli sur l'ancien critère quand
+    # l'union est vide (app sans moteur IA) — le comportement d'avant, exactement.
+    from wama.common.app_registry import app_input_ports
+    oblig = {p['id']: p['required'] for p in (app_input_ports(app) or [])}
+    textes = {p['id']: p.get('description', '') for p in (app_input_ports(app) or [])}
+
     mimes = {'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*'}
     slots = []
     for port in ports:
@@ -179,7 +193,11 @@ def input_slots(app, live=False):
             # ouvre la médiathèque non filtrée plutôt que sur une nature arbitraire.
             'library_type': types[0] if len(types) == 1 else 'all',
             'multi': bool(port.get('multi')),
-            'required': travail,
+            'required': oblig.get(port.get('id'), travail),
+            # Texte qui dit À QUOI sert cette entrée (demande Fabien 10/09) : deux onglets
+            # « Image » ne se distinguent pas par leur type — il faut dire lequel sera ÉDITÉ et
+            # lequel GUIDERA. Vide tant que le gabarit ne l'affiche pas : ajout additif.
+            'description': textes.get(port.get('id'), '') or port.get('description', ''),
             'modalities': mods,
         })
     if live:
@@ -189,6 +207,7 @@ def input_slots(app, live=False):
         slots.append({
             'id': 'live', 'kind': 'live', 'label': 'En direct', 'group': 'live',
             'accept': '', 'library_type': 'all', 'multi': False, 'required': False,
+            'description': "Capture en direct au lieu d'un fichier. Le clic ARME, ▶ démarre.",
             'modalities': ['arm'],
         })
     return slots
