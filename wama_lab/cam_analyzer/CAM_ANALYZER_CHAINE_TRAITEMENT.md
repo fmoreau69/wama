@@ -704,8 +704,8 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 12 | interpolation **circulaire** du cap entre fixes | cap ego (calcul) | `shuttle_traj` | `_shuttle_pose_at` | — | CÂBLÉ | wrap 359→1° corrigé |
 | 13 | interpolation **linéaire** de la position entre fixes (~2,7 s) | position ego | GPS brut | `_shuttle_pose_at`, JS | — | CÂBLÉ | aucune |
 | 14 | synchro GPS↔vidéo `scale/offset` | temps | `.rec` | `extract_rtmaps_task` + réglage manuel | manuel | CÂBLÉ | aucune |
-| 15 | **filtre de Kalman + RTS sur la navette**, cap dérivé de la vitesse lissée (tenu < 1 m/s) | position/vitesse/cap ego | `gps_track` | `driving.ego_trajectory_filter` (pur) → `ego_pose.compute_shuttle_filter` → `effective_gps_track` (serveur, 6 consommateurs) + `_applyShuttleFilter` (JS) | ⚑ `shuttle_filter` **OFF** | **LIVRÉ 2026-09-05** (était INEXISTANT le matin même) ; pas d'accéléro en commande (axes non mesurés) | rapport : déplacement RMS, écart de cap médian, part tenue ; puis `placement_spread` OFF/ON |
-| 16 | **fusion accéléromètre + GPS** | position/vitesse ego | `session.imu_track` (stocké) | **nulle part** — `EgoPose.accel` assigné jamais relu ; `profile.use_imu` (défaut True) **0 consommateur** | — | **DÉCLARÉ-MORT** depuis 2026-07-09 | — |
+| 15 | **filtre de Kalman + RTS sur la navette**, cap dérivé de la vitesse lissée (tenu < 1 m/s) | position/vitesse/cap ego | `gps_track` | `driving.ego_trajectory_filter` (pur) → `ego_pose.compute_shuttle_filter` → `effective_gps_track` (serveur, 6 consommateurs) + `_applyShuttleFilter` (JS) | ⚑ `shuttle_filter` **OFF** | **LIVRÉ 2026-09-05** (était INEXISTANT le matin même) ; pas d'accéléro en commande — **le motif « axes non mesurés » est LEVÉ le 2026-09-10 (§D.4)** ; ⚠ mesuré le même jour : ce filtre **ATTÉNUE l'accélération de ~35 %** (σ(dv/dt) 0,163 m/s² en sortie contre **0,246** au Doppler) — 1ʳᵉ mesure objective sur `σa = 0,8` | rapport : déplacement RMS, écart de cap médian, part tenue ; puis `placement_spread` OFF/ON |
+| 16 | **fusion accéléromètre + GPS** | position/vitesse ego | `session.imu_track` (stocké) | **nulle part** — `EgoPose.accel` assigné jamais relu ; `profile.use_imu` (défaut True) **0 consommateur** | — | **DÉCLARÉ-MORT** depuis 2026-07-09 — mais **le verrou est levé le 2026-09-10** : les axes sont MESURÉS (§D.4) et le résidu de `ax` vaut **0,20 m/s²** contre `σa = 0,8` du Kalman, soit **4× mieux** | résidu vs σa ; dérive à l'intégration (§D.4) |
 | **Position au sol (l'ANGLE)** ||||||||
 | 17 | homographie sol par **DLT sur passage piéton SAM3** (« ancienne voie ») | distance/latéral (`ground_xy`, `dist_*_m`) | polygone `crossing` + dimensions FR | `calibration.homography_from_quad` ← `tasks._calibrate_from_crossing_polygons` → `camera.ground_homography` ; appliqué par `GroundProjector.distances_for_bbox` dans l'analyse | ⚑ `sam3_homography` **ON** (depuis 2026-09-05) ∧ `profile.geometry_enabled` (défaut False, forcé True par la calibration SAM3 — désormais annoncé en console) | **COMMUTABLE** — prouvée biaisée (#546, #537), ON = historique ; OFF coupe les 3 consommateurs sans toucher au profil (§D.2) | RMS de reprojection du quad seulement |
 | 18 | pitch/hauteur auto par **étalement des stationnés** (2a) | angle → position | stationnés d'un run précédent + `distance_m` + ego GPS (ancre) | `homography_estimator.estimate_camera/store_ground_calib` → `ground_projector_for` → `ground_ego` | ⚑ `auto_ground_calib` **OFF** | ⚑ OFF ; garde-fous : ≥ 6 objets, étalement ≤ 2,5 m ; **repli pinhole silencieux (G7)** | `placement_spread` ; désaccord 14,55 → 3,05 m (caméra avant) |
@@ -759,6 +759,10 @@ lit**. `EgoPose.__init__` l'assigne à `self.accel`, aucune méthode ne s'en ser
 n'a **jamais** été appliqué à la navette : un seul appelant, sur les objets mobiles, position seule.
 La navette roule sur GPS brut interpolé linéairement. *Conséquence : avant tout re-câblage, savoir
 que c'est un TROU et pas une régression — rien n'a été retiré.*
+→ **Ce trou n'est plus un trou d'IGNORANCE depuis le 2026-09-10** : les axes sont mesurés et le
+résidu de l'accéléromètre est chiffré (**§D.4**). Ce qui reste à faire est du CÂBLAGE, plus une
+question ouverte.
+
 **Asymétrie à connaître** : le seul lissage du cap navette (moyenne circulaire ±2 fixes) vit dans le
 JS, donc ne sert que le repli d'affichage ③ ; tout ce que le SERVEUR calcule (`world_en`, ancres,
 TTC/PET, calibration 2a) hérite du cap brut à ±10-25°. Le chemin le mieux corrigé est le chemin de
@@ -908,6 +912,95 @@ entre observations — et le paramètre doit devenir RÉGLABLE.
 et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les
 données lues datent d'un run antérieur au 2026-09-05 : `placement_spread` et `placement_sources`
 y sont absents) et, pour la dérive elle-même, l'œil sur la carte.
+
+### ⭐ D.4 — L'ACCÉLÉROMÈTRE : les axes MESURÉS, et ce qu'il peut vraiment corriger (2026-09-10)
+
+> Chantier ③ de la file ouverte au `§CLÔTURE 2026-09-09 (soir)` : *« identifier l'axe avant par
+> corrélation avec dv/dt du GPS filtré — une MESURE, les axes X/Y ne sont écrits nulle part »*.
+> Fait, sur la session P97 `4da52df3`, **en lecture seule** (aucune écriture en base, aucun
+> comportement modifié). Question de Fabien en cours de mesure : *« il y a bien x, y et z, de quoi
+> parles-tu ? »* — les trois canaux existent (`Accel_Sensor_{X,Y,Z}_axis.csv`, 80 477 échantillons
+> à 10 Hz, zéro trou) ; ce qui manquait n'était pas leur EXISTENCE mais leur **correspondance avec
+> le repère du véhicule**, que rien dans le dépôt ne déclare (`parse_accel` renomme des suffixes de
+> fichiers, sans sémantique).
+
+**① Les axes, par trois discriminants INDÉPENDANTS** — et chacun réclame un axe différent, ce qui
+est la contre-épreuve (un seul test aurait pu se tromper de la même façon partout) :
+
+| axe | gravité (moyenne) | r avec dv/dt | r avec v·ω (virage) | verdict |
+|---|---|---|---|---|
+| **`ax`** | −0,016 g | **+0,57** | −0,05 | **LONGITUDINAL — l'axe AVANT**, `+ax` = accélération |
+| **`ay`** | −0,009 g | −0,06 | **−0,44** | **LATÉRAL** (négatif en virage à droite) |
+| **`az`** | **+0,938 g** | −0,03 | +0,04 | **VERTICAL** |
+
+Stable sur les 4 quarts temporels (`ax` : r ∈ [0,396 ; 0,432] ; `ay` : r ∈ [−0,39 ; −0,53]).
+
+**② La synchro : l'import la PRÉSERVE** (question de Fabien : *« la synchro vit dans le .rec »*).
+Vérifié fichier contre fichier : les `sample_ts` des CSV **sont** les `@ts` du `.rec` — écart
+**0,0000 s** au début ET à la fin, sur les **six** canaux (`oPosition`, `Accel X/Y/Z`, `oUTCInfos`,
+`ignition_mode`). GPS et IMU sont donc déjà mutuellement synchronisés une fois en base.
+⚠ `gps_time_offset = 0,7239` (posé, réglable dans l'UI) vaut exactement `video_ts[0] − gps_ts[0]`
+(1,5397 − 0,8158) : c'est la synchro **GPS↔vidéo**, une AUTRE question — sa ressemblance avec le
+décalage ci-dessous est une coïncidence.
+
+**③ ⚠ UN DÉCALAGE ANNONCÉ « RÉEL », QUI ÉTAIT LE MIEN.** La 1ʳᵉ mesure donnait un retard de
+**+0,6 s** de l'IMU sur `dv/dt`, stable sur les 4 quarts — je l'ai consigné comme physique et à
+élucider. Rejoué contre **`$GPVTG`** (vitesse **Doppler** du récepteur, qui ne passe ni par ma
+différence de positions ni par mon Kalman) :
+
+| référence de dv/dt | r avec `ax` | décalage |
+|---|---|---|
+| positions différenciées → Kalman+RTS (ma chaîne) | +0,41 | **+0,6 s** |
+| **Doppler `$GPVTG`** | **+0,57** | **−0,3 s** (dans la résolution d'un VTG à 1 Hz) |
+
+*La corrélation MONTE et le décalage CHANGE DE SIGNE : il n'y a aucun décalage d'appareil à
+déclarer, le +0,6 s était produit par le traitement que j'avais choisi pour le mesurer.*
+⭐ **Une propriété mesurée à travers sa propre chaîne de traitement décrit la chaîne autant que
+l'objet** — la contre-épreuve n'est pas de refaire le même calcul, c'est d'entrer par une SOURCE
+indépendante.
+
+**④ LA PENTE : hypothèse NON confirmée, et la piste que j'avais proposée est MORTE.** `ax`
+porte 1,7× l'amplitude de l'accélération réelle ; l'explication naturelle est que g·sin(pente) se
+lit sur l'axe avant. J'avais relevé que `parse_gps_position` **jette l'altitude** (`ts;lat;lon[;alt…]`,
+`ego_pose.py:89-91`) et proposé de la garder. Mesuré : `$GPGGA` donne une altitude qui varie de
+87 → 125,8 m sur 14,2 km, mais la pente qu'on en tire vaut **4,5 % en médiane et 18 % au p95 sur
+une base de 50 m** — c'est le bruit vertical du GPS, pas une route. La régression tranche :
+`dv/dt ~ ax` rend r² = **0,317** ; `dv/dt ~ ax + g·pente` rend **0,356**, avec un coefficient de
+pente de **−0,055** là où l'hypothèse en prédit ~1, et du mauvais signe. **Conserver l'altitude
+n'aurait rien apporté.** Séparer tangage et accélération demanderait un GYROSCOPE — absent des
+canaux enregistrés. *L'excès de variance de `ax` (×1,7) reste donc INEXPLIQUÉ.*
+
+**⑤ ⭐ CE QU'IL PEUT CORRIGER — la question de Fabien : « on ne peut pas corriger les positions GPS
+avec l'accélération x ? »** Oui, mais **pas comme source de position** — comme **ENTRÉE DE COMMANDE**
+du filtre qui existe déjà (levier 15), dont le modèle CV suppose aujourd'hui « accélération
+inconnue, `σa = 0,8 m/s²` ». La grandeur qui décide est le RÉSIDU :
+
+| mesure | valeur |
+|---|---|
+| σ de `dv/dt` au Doppler (le signal à expliquer) | 0,246 m/s² |
+| **σ du RÉSIDU `dv/dt − (k·ax·g + b)`** | **0,202 m/s²** |
+| `DEFAULT_SIGMA_A` du Kalman | 0,8 m/s² → **4,0× plus grossier** |
+
+⚠ **Et l'échelle n'est PAS anormale — c'est moi qui l'avais mal lue.** J'ai d'abord annoncé
+`k ≈ 0,16` puis `0,30`, « loin de 1 ». Les deux signaux étant bruités (erreurs sur la variable
+explicative), la régression directe SOUS-estime k et l'inverse le SUR-estime : l'encadrement
+mesuré est **0,333 … 1,037**, donc **compatible avec 1**. *Prendre une atténuation de régression
+pour un facteur d'échelle, c'est attribuer au capteur un défaut qui est dans l'estimateur.*
+
+**Pourquoi PAS une source de position** — mesuré, pas argumenté : le biais résiduel vaut
+**−0,16 m/s²** (= exactement la moyenne de `ax`, soit ~1,0° d'assiette de pose), et une double
+intégration le transforme en **8 m après 10 s, 72 m après 30 s, 290 m après 60 s** sans GPS.
+✅ *Mais ce biais est OBSERVABLE* : la navette est à l'arrêt **77 % du temps** — de quoi l'estimer
+en continu là où v ≈ 0 et dv/dt ≈ 0.
+
+**Ce que ça n'achète PAS** : le **cap**. L'erreur angulaire dominante (±10-25° à basse vitesse,
+`§[2]`) demande un gyroscope ; un accéléromètre n'observe pas le lacet. Et cela ne touche pas non
+plus le placement des OBJETS (pinhole ±20 %, le verrou du filtre des garés) — c'est la pose de la
+NAVETTE qui s'améliore, dont tout l'aval hérite.
+
+**Reste ouvert avant de câbler** : le σ à déclarer pour la facette estimateur (§E.1) — 0,20 m/s²
+est le résidu contre un Doppler lui-même bruité, donc une BORNE HAUTE, pas encore un σ ; et
+l'excès de variance ×1,7 non expliqué. *Aucune ligne de code n'a été modifiée par cette mesure.*
 
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 
