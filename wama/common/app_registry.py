@@ -313,19 +313,50 @@ def app_input_ports(app_id, domain=None):
     requis = set(union.get('inputs_required') or [])
     optionnels = set(union.get('inputs_optional') or [])
 
+    # ⚠ RÔLE et NATURES sont deux choses, et il faut les DEUX (mesuré le 2026-09-10).
+    # Le jeton dit le RÔLE (`work_audio` = l'audio transformé) ; les natures acceptées, elles,
+    # se déclarent au niveau APP (`input_types`). Tirer les types du seul `accept` du jeton
+    # perdait des natures RÉELLES : le transcriber serait passé de `['audio', 'video']` à
+    # `['audio']` — or il accepte une vidéo et en extrait la bande son —, et le describer de
+    # ses quatre natures à AUCUNE (`work_file` n'a pas d'`accept`, il est générique).
+    # C'est exactement ce que dit la règle d'appariement : slots = déclaration d'APP ∪ union
+    # des MODÈLES. L'app apporte les natures, les modèles apportent les rôles.
+    natures_app = [c for c in normalize_types((APP_CATALOG.get(app_id) or {}).get('input_types', []))
+                   if c != 'prompt']
+
+    jetons = [j for j in sorted(requis | optionnels,
+                                key=lambda j: (INPUT_TYPES.get(j, {}).get('port') != 'prompt', j))
+              if j in INPUT_TYPES]
+    # Un port de travail UNIQUE est l'entrée de l'app : il en prend toutes les natures. Ce
+    # n'est que lorsqu'il y en a PLUSIEURS qu'ils se partagent les natures par leur `accept`.
+    # Sans cette distinction, le transcriber passait de `['audio', 'video']` à `['audio']` sur
+    # son unique jeton `work_audio` — or il accepte une vidéo et en extrait la bande son : le
+    # RÔLE du port est bien l'audio, la NATURE reçue reste la vidéo aussi.
+    travaux = [j for j in jetons if INPUT_TYPES[j].get('port') == 'travail']
+    partage = len(travaux) > 1
+
     ports = []
-    for jeton in sorted(requis | optionnels, key=lambda j: (INPUT_TYPES.get(j, {}).get('port') != 'prompt', j)):
-        spec = INPUT_TYPES.get(jeton)
-        if not spec:
-            # Jeton inconnu du vocabulaire : on ne fabrique pas un port muet. Le contrôle
-            # `VocabulaireDesEntreesTest` refuse déjà ce cas — ici on ne fait que ne pas mentir.
-            continue
+    for jeton in jetons:
+        spec = INPUT_TYPES[jeton]
+        groupe = spec.get('port')
         acc = spec.get('accept')
+        if groupe == 'prompt':
+            # `['prompt']` et non `[]` : le studio TYPE ses liens, et c'est ce type qu'un nœud
+            # source « Batch de prompts » présente à l'autre bout.
+            types = ['prompt']
+        elif groupe == 'reference':
+            # Une référence est ce que son jeton dit : une image de style est une image, point.
+            types = normalize_types([acc]) if acc else (natures_app or [])
+        else:
+            types = natures_app or (normalize_types([acc]) if acc else [])
+            if acc and partage:
+                restreint = [t for t in types if t in normalize_types([acc])]
+                types = restreint or types
         ports.append({
             'id': jeton,
             'label': spec.get('label', jeton),
-            'group': spec.get('port'),
-            'types': normalize_types([acc]) if acc else [],
+            'group': groupe,
+            'types': types,
             'multi': bool(spec.get('multi')),
             'required': jeton in requis,
             'description': spec.get('description', ''),
