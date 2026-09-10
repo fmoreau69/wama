@@ -27,7 +27,21 @@
         const select = document.getElementById(d.selectId);
         const fileInput = document.getElementById(d.fileInputId);
         const dropZone = document.getElementById(d.dropZoneId);
-        const refInput = document.getElementById(d.refInputId);
+        // ── L'INPUT D'IMAGE EST CELUI QUE LA CARD REND, pas celui qu'on suppose (2026-09-11) ──
+        // Depuis que les ports viennent des MODÈLES (INPUT_MODEL_MATCHING §6.3), l'imager ne
+        // déclare plus de port `reference_image` — aucun de ses 12 modèles ne le réclame — mais
+        // un port `work_image`, que 6 d'entre eux consomment (qwen-image-edit et cogvideox-i2v
+        // l'exigent, SD/SDXL/LTX l'acceptent). La card v4 rend donc UN volet fichier, servi par
+        // `file_input_id` ; l'ancien `reference_input_id` n'y existe plus.
+        // Mesuré au navigateur : la v4 ne rendait que `imgFileInput`, et `attach: ['imgRefInput']`
+        // visait un élément ABSENT — le fichier déposé allait nulle part, sans une erreur. La v3
+        // (les 10 apps en place) rend encore les deux, et garde donc exactement son comportement.
+        // On RÉSOUT au lieu de supposer : la référence si la card l'offre, le port de travail
+        // sinon. Le champ POSTé reste `reference_image` — c'est la frontière des DONNÉES, et le
+        // backend s'en sert déjà comme image source de l'i2v (`imager/tasks.py`).
+        const refInput = document.getElementById(d.refInputId)
+                      || document.getElementById(d.fileInputId);
+        const refInputId = (refInput && refInput.id) || d.refInputId;
         // Référence par URL (WAMA_INGEST, contrat composer 307b9fb) : champ SANS bouton —
         // l'URL fait partie du payload Générer, téléchargée AU LANCEMENT par la tâche.
         const urlInput = document.getElementById(d.urlInputId);
@@ -48,7 +62,7 @@
                 meta: CFG.matchMeta || {},
                 inputLabels: CFG.inputLabels || {},
                 slots: { work_image: {
-                    inputId: d.refInputId, chipId: d.refChipId, zoneId: d.refSlotId,
+                    inputId: refInputId, chipId: d.refChipId, zoneId: d.refSlotId,
                     // Le slot est FOURNI par un fichier OU par une URL (crochets déclaratifs
                     // de la brique) ; le ✕ de la chip efface les deux.
                     isProvided: function (el) { return !!(el.files && el.files.length) || !!refUrl(); },
@@ -139,7 +153,7 @@
                                  var b = window[d.batchGlobal];
                                  return b ? b.detectAndHandle(f) : Promise.resolve(false); } } : null,
                 batchScope:  'each',
-                attach:      [d.refInputId],
+                attach:      [refInputId],
                 afterAttach: function () { if (matcher) matcher.refresh(); },
                 beforeFile:  function (f) {
                     if (d.allowBatch && isBatchFile(f) && !window[d.batchGlobal]) { setBatchFile(f); return false; }

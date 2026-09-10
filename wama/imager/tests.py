@@ -228,3 +228,55 @@ class LotDePromptsRespecteLaJUMELLETest(TestCase):
         batch, gens = creer_lot_de_prompts(self._fichier(), 'wama_temoin_jumelle.txt', user)
         self.assertIsNotNone(batch)
         self.assertTrue(all(isinstance(g, ImageGeneration) for g in gens))
+
+
+class ImageAttacheeAUnInputQuiEXISTETest(TestCase):
+    """Le JS de la card ne doit pas SUPPOSER quel input d'image la card rend.
+
+    Depuis que les ports viennent des modèles, l'imager ne déclare plus `reference_image`
+    (aucun de ses 12 modèles ne le réclame) mais `work_image`. La card v4 rend donc UN volet
+    fichier, servi par `file_input_id` ; `reference_input_id` n'y existe plus. Le JS attachait
+    le fichier déposé à `d.refInputId` en dur : sur la v4, **il visait un élément ABSENT et le
+    dépôt n'allait nulle part, sans une seule erreur**.
+
+    Mesuré au navigateur le 2026-09-11 — imager (v3) rendait `imgRefInput` + `imgFileInput`,
+    imager_01 (v4) `imgFileInput` seul.
+
+    ⚠ Un `.js` ne casse pas à la compilation, il casse dans le navigateur, et aucun
+    vérificateur de syntaxe JS n'est installé ici. Ce test tient donc le CONTRAT en texte —
+    l'attestation de validité, elle, reste le smoke qui parse le fichier SERVI.
+    """
+
+    def _js(self, chemin):
+        from pathlib import Path
+        import wama
+        return (Path(wama.__file__).parent.parent / chemin).read_text(encoding='utf-8')
+
+    def test_l_input_d_image_est_RESOLU_avec_un_repli_jamais_suppose(self):
+        js = self._js('wama/imager/static/imager/js/input_card.js')
+        i = js.index('const refInput =')
+        bloc = js[i:i + 220]
+        self.assertIn('d.fileInputId', bloc,
+                      "`refInput` ne se replie plus sur le port de travail : sur une card qui "
+                      "ne rend pas d'input de référence, le dépôt ira nulle part EN SILENCE")
+        self.assertIn('refInputId', js[i:i + 320],
+                      'l’id résolu doit être exposé — les consommateurs (attache, appariement) '
+                      'ne doivent plus lire `d.refInputId` directement')
+
+    def test_l_attache_et_l_appariement_lisent_l_id_RESOLU(self):
+        js = self._js('wama/imager/static/imager/js/input_card.js')
+        self.assertIn('attach:      [refInputId],', js,
+                      'l’attache vise encore l’id DÉCLARÉ au lieu de l’id résolu')
+        self.assertNotIn('attach:      [d.refInputId],', js)
+        self.assertIn('inputId: refInputId,', js,
+                      'le slot d’appariement vise encore l’id déclaré')
+
+    def test_la_copie_SERVIE_est_le_meme_fichier(self):
+        """`staticfiles/` est ce que le navigateur reçoit : une modification qui ne s'y
+        resynchronise pas ne change rien à l'écran, et rien ne le signale."""
+        import hashlib
+        a = self._js('wama/imager/static/imager/js/input_card.js')
+        b = self._js('staticfiles/imager/js/input_card.js')
+        self.assertEqual(hashlib.sha256(a.encode()).hexdigest(),
+                         hashlib.sha256(b.encode()).hexdigest(),
+                         'staticfiles/ n’a pas été resynchronisé — le navigateur sert l’ancien')
