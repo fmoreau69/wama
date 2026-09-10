@@ -267,6 +267,38 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIsNotNone(src, raison)
         self.assertIn('register_batch_sync(ConversionJob, direct_fk=True)', src)
 
+    def test_la_vue_delete_generee_NE_REDUPLIQUE_PAS_le_nettoyage_du_lot(self):
+        """Le pendant du test ci-dessus, et sa raison d'être : le signal étant branché, une
+        vue qui refait son travail n'est pas « ceinture et bretelles » — elle CASSE.
+
+        Mesuré le 2026-09-09 sur `converter_01` : la vue générée gardait
+        `b = item.batch ; item.delete() ; if b is not None and not b.items.exists()`.
+        Or `post_delete` déclenche `sync_batch_total`, qui supprime le lot vidé AVANT le
+        retour — l'instance encore tenue en mémoire n'a donc plus de clé primaire, et
+        `b.items` lève `ValueError: … needs to have a primary key value …`. Résultat : **500
+        sur un simple 🗑 de card**, scénario `<app>.duplicate_delete` rouge (le doublon
+        restait à l'écran). L'app réelle de référence, elle, se contente de `job.delete()`.
+
+        On tient donc l'ABSENCE, pas une graphie : c'est la reduplication qui est interdite.
+        """
+        from wama.common.manifests.codegen.views_gen import render_views
+        from wama.common.manifests.ingest import extract
+        src, raison = render_views(extract('app', SOURCE))
+        self.assertIsNotNone(src, raison)
+        i = src.index('def delete(request, pk):')
+        corps = src[i:src.index('\ndef ', i + 1)]
+        # ⚠ On mesure le CODE, pas la PROSE : le commentaire qui explique le retrait cite
+        # forcément `.items.exists()`, et une première version de cette garde est tombée
+        # dessus. Même piège que le scan de mécanismes, qui comptait un fichier comme
+        # CONSOMMATEUR parce qu'un commentaire nommait le domicile. Un contrôle qui lit du
+        # texte brut doit d'abord retirer ce qui n'est pas exécuté.
+        code = '\n'.join(l for l in corps.splitlines()
+                         if not l.lstrip().startswith('#'))
+        for motif in ('.items.exists()', 'b.delete()'):
+            self.assertNotIn(motif, code,
+                             f'la vue delete générée reduplique le nettoyage de lot ({motif}) '
+                             f'— `batch_sync` le fait déjà, et le doublon rend un 500')
+
     def test_sans_conteneur_json_aucun_routage_invente(self):
         # Discriminant : un modèle SANS champ `options` ne doit recevoir aucun bloc _extras —
         # écrire dans un attribut inexistant serait le défaut silencieux type.

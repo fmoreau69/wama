@@ -498,39 +498,37 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
     <div id="{app}Queue" class="wama-queue-{{{{ card_layout|default:'list' }}}}"
          {{% queue_dnd_attrs '{app}' %}}>
         {{% for b in batches_list %}}
-            {{% if b.is_group %}}
-            {{% comment %}}Wrapper `.batch-group` : `_batch_card.html:32` le déclare À LA CHARGE
-            de l'app (« l'app garde autour »). Il n'était pas émis — d'où un lot sans identité
-            dans le DOM : l'inspecteur ne pouvait pas le sélectionner et le nettoyage de lot vidé
-            de `queue-actions.js` ne le trouvait pas non plus.{{% endcomment %}}
-            <div class="batch-group mb-2" data-batch-id="{{{{ b.obj.id }}}}">
-            {{% include 'common/_batch_card.html' with batch_info=b card_class='job-card' meta_template='common/_batch_meta_chips.html' eta_ids=b.eta_ids{lot_bits} %}}
-            {{% comment %}}Convention Solitaire MESURÉE sur l'app réelle : filles REPLIÉES par
-            défaut (état persisté par wama-queue.js — pas de `show` codé en dur), conteneur
-            indenté `ps-2 pt-1`, cards filles avec `in_batch=True` (classe wcv3--batch-child =
-            le décalage visuel). Écart relevé par Fabien le 31/08, capture à l'appui : les
-            filles générées étaient pleine largeur, non décalées, toujours dépliées.{{% endcomment %}}
-            <div class="collapse ps-2 pt-1" id="batchItems{{{{ b.obj.id }}}}" data-wama-batch-key="{app}-{{{{ b.obj.id }}}}">
-                {{% for item in b.items %}}{{% include '{app}/_generic_card.html' with in_batch=True %}}{{% endfor %}}
-            </div>
-            </div>
-            {{% else %}}
-            {{% comment %}}Carte simple DANS son enrobage d'entrée — contrat de
-            `common/_queue_entry.html` (2026-09-04), corrigé ici le 2026-09-09.
-            ⚠ Le générateur rendait la carte NUE : elle ne portait donc ni `.wama-queue-entry`
-            ni `data-entry-batch-id`, et `batchIdOf` (brique de manipulation directe) ne pouvait pas la
-            nommer. `reorder_queue` fait `entries(queue).map(batchIdOf).filter(Boolean)` : le
-            `filter` ÉCARTAIT silencieusement toutes les entrées unitaires — réordonner la file
-            n'envoyait que ses LOTS, et l'ordre revenait au rechargement suivant. Le défaut a
-            été trouvé sur le converter, qui rend sa file à la main ; la FABRIQUE le semait à
-            l'identique dans toute app future. *On corrige la fabrique, pas seulement
-            l'artefact.* `display:contents` : la carte se dispose exactement comme avant.
+            {{% comment %}}ENTRÉE DE FILE — brique COMMUNE `common/_queue_entry.html`.
+            PORTÉ le 2026-09-09, le lendemain du jour où la fabrique a reçu un CORRECTIF
+            ponctuel au même endroit. C'est la leçon du jour : le 09/09 on a recopié ICI
+            l'enrobage `.wama-queue-entry` que la brique posait DÉJÀ, au lieu d'appeler la
+            brique. Un correctif qui REPRODUIT le contenu d'un commun au lieu de l'appeler
+            n'est pas « on corrige la fabrique » — c'est semer la MÊME dette une génération
+            plus loin. La fabrique était de fait la 11ᵉ copie du bloc, et la seule qui se
+            réplique.
+
+            Le verrou était le même que pour le converter (dernière app portée, le même
+            jour) : la brique passe l'élément sous `elem`, la card générée lisait `item`.
+            Levé — `_generic_card.html` lit `elem`, et `_decorer` (views_gen) pose
+            `item.elem = item`, la FK étant DIRECTE ici aussi (pas de modèle de liaison —
+            trou déjà consigné dans `views_gen` : « le motif est écrit à 4 endroits »).
+
+            Ce que la brique tient désormais à la place de ces 30 lignes : le choix card
+            seule / card mère (`obj.is_unitary`, ex-`b.is_group`), le wrapper de groupe et
+            son id, la card mère commune, le repli par défaut avec son état persisté,
+            l'enrobage `data-entry-batch-id` des entrées unitaires (le correctif du 09/09),
+            et `in_batch` posé sur les filles.
+
+            ⚠ DEUX ALIGNEMENTS ASSUMÉS, l'un et l'autre voulus :
+              • la clé de persistance du repli passe de `{app}-<id>` à `{app}_<id>`
+                (souligné) — la graphie des 10 apps réelles. Une jumelle oublie donc UNE
+                fois son état replié/déplié : c'est du localStorage de bac à sable ;
+              • l'indentation `ps-2 pt-1` cède au liseré cyan de la brique
+                (`CARD_DESIGN §11.2`, référence transcriber). L'écart relevé par Fabien le
+                31/08 — filles pleine largeur et toujours dépliées — reste corrigé : c'est
+                la brique qui le tient maintenant, et pour toutes les apps à la fois.
             {{% endcomment %}}
-            {{% for item in b.items %}}
-            <div class="wama-queue-entry" style="display:contents"
-                 data-entry-batch-id="{{{{ b.obj.id }}}}">{{% include '{app}/_generic_card.html' %}}</div>
-            {{% endfor %}}
-            {{% endif %}}
+            {{% include 'common/_queue_entry.html' with batch_info=b card_template='{app}/_generic_card.html' card_class='job-card' meta_template='common/_batch_meta_chips.html' batch_key='{app}' eta_ids=b.eta_ids{lot_bits} %}}
         {{% empty %}}
             <p class="text-muted small">Aucun élément dans la file.</p>
         {{% endfor %}}
@@ -603,7 +601,7 @@ document.addEventListener('DOMContentLoaded', function () {{
     # est auto-suffisante (CARD_DESIGN). ⚠ Ne pas revenir à un préfixe (`data-param-*`) : ce
     # vocabulaire privé rendait la card ILLISIBLE aux lecteurs communs (02/09).
     attrs_params = ''.join(
-        f''' data-{c.replace('_', '-')}="{{{{ item.{c}|default:'' }}}}"'''
+        f''' data-{c.replace('_', '-')}="{{{{ elem.{c}|default:'' }}}}"'''
         for c in champs_card)
 
     # Routes de card LUES au manifeste (jamais supposées — leçon `stop` vs `cancel`).
@@ -611,15 +609,15 @@ document.addEventListener('DOMContentLoaded', function () {{
     route_duplicate = resolve_route('duplicate', noms_routes)
     route_delete = resolve_route('delete', noms_routes)
     bouton_dl = (f'''
-        {{% url '{app}:{route_download}' item.id as url_dl %}}
-        {{% if item.status == 'SUCCESS' %}}{{% download_button '{app}' url_dl True %}}{{% else %}}{{% download_button '{app}' url_dl False %}}{{% endif %}}''' if route_download else f'''
+        {{% url '{app}:{route_download}' elem.id as url_dl %}}
+        {{% if elem.status == 'SUCCESS' %}}{{% download_button '{app}' url_dl True %}}{{% else %}}{{% download_button '{app}' url_dl False %}}{{% endif %}}''' if route_download else f'''
         {{% comment %}}TROU {mark} — aucune route de téléchargement déclarée au manifeste.{{% endcomment %}}''')
     bouton_dup = (f'''
         <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn" title="Dupliquer"
-                data-duplicate-url="{{% url '{app}:{route_duplicate}' item.id %}}"><i class="fas fa-copy"></i></button>''' if route_duplicate else '')
+                data-duplicate-url="{{% url '{app}:{route_duplicate}' elem.id %}}"><i class="fas fa-copy"></i></button>''' if route_duplicate else '')
     bouton_del = (f'''
         <button type="button" class="btn btn-sm btn-outline-danger delete-btn" title="Supprimer"
-                data-delete-url="{{% url '{app}:{route_delete}' item.id %}}"><i class="fas fa-trash"></i></button>''' if route_delete else '')
+                data-delete-url="{{% url '{app}:{route_delete}' elem.id %}}"><i class="fas fa-trash"></i></button>''' if route_delete else '')
 
     card = f'''{{% load wama_actions %}}{{% comment %}}{mark} — _generic_card.html GÉNÉRÉ.
 CARD v3 « sections × chips » (CARD_DESIGN §11) émise DEPUIS LE MANIFESTE — recadrage Fabien
@@ -631,43 +629,43 @@ _processing_time, unified_preview, queue-actions) ; seuls l'app id, les routes (
 manifeste) et les noms de champs varient — et chaque champ ABSENT du modèle généré dégrade en
 silence (Django rend '' sur un attribut manquant : la card reste juste, jamais cassée).
 On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et on RÉGÉNÈRE.{{% endcomment %}}
-<div class="job-card card bg-dark border-secondary wama-card {{% if in_batch %}}mb-1 wcv3--batch-child{{% else %}}mb-2{{% endif %}} {{% if item.status == 'RUNNING' %}}processing{{% elif item.status == 'SUCCESS' %}}success{{% elif item.status == 'FAILURE' %}}error{{% endif %}}"
-     data-id="{{{{ item.id }}}}" data-status="{{{{ item.status }}}}"
-     data-preview-url="{{% url 'common:unified_preview' '{app}' item.id %}}"{attrs_params}>
+<div class="job-card card bg-dark border-secondary wama-card {{% if in_batch %}}mb-1 wcv3--batch-child{{% else %}}mb-2{{% endif %}} {{% if elem.status == 'RUNNING' %}}processing{{% elif elem.status == 'SUCCESS' %}}success{{% elif elem.status == 'FAILURE' %}}error{{% endif %}}"
+     data-id="{{{{ elem.id }}}}" data-status="{{{{ elem.status }}}}"
+     data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}"{attrs_params}>
   <div class="card-body py-2">
-    <div class="wcv3-head">#{{{{ item.id }}}}<span class="sep">·</span>{{{{ item.created_at|date:"d/m H:i" }}}}</div>
+    <div class="wcv3-head">#{{{{ elem.id }}}}<span class="sep">·</span>{{{{ elem.created_at|date:"d/m H:i" }}}}</div>
     <div class="wcv3">
 
       <div class="wcv3-sec wcv3-sec--input">
         <span class="wcv3-lbl">Entrée</span>
         <div class="wcv3-in">
-          <span class="wcv3-thumb"><i class="fas fa-file{{% if item.media_type == 'video' %}}-video{{% elif item.media_type == 'audio' %}}-audio{{% elif item.media_type == 'image' %}}-image{{% endif %}} text-info"></i></span>
+          <span class="wcv3-thumb"><i class="fas fa-file{{% if elem.media_type == 'video' %}}-video{{% elif elem.media_type == 'audio' %}}-audio{{% elif elem.media_type == 'image' %}}-image{{% endif %}} text-info"></i></span>
           <div class="wcv3-in-lines">
-            {{% if item.input_file %}}
+            {{% if elem.input_file %}}
             <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu du fichier source"
-                  data-preview-url="/filemanager/api/preview/?path={{{{ item.input_file.name|urlencode }}}}">{{{{ item.input_filename|default:item.id }}}}</span>
+                  data-preview-url="/filemanager/api/preview/?path={{{{ elem.input_file.name|urlencode }}}}">{{{{ elem.input_filename|default:elem.id }}}}</span>
             {{% else %}}
-            <span class="wcv3-in-name">{{{{ item.input_filename|default:item.id }}}}</span>
+            <span class="wcv3-in-name">{{{{ elem.input_filename|default:elem.id }}}}</span>
             {{% endif %}}
-            <span class="wcv3-in-props">{{{{ item.media_type|default:'—' }}}}{{% for p in item.input_props %}} · {{{{ p }}}}{{% endfor %}}</span>
+            <span class="wcv3-in-props">{{{{ elem.media_type|default:'—' }}}}{{% for p in elem.input_props %}} · {{{{ p }}}}{{% endfor %}}</span>
           </div>
         </div>
       </div>
 
       <div class="wcv3-sec wcv3-sec--settings">
         <span class="wcv3-lbl">Réglages</span>
-        <div class="wcv3-out">{{% include 'common/_card_chips.html' with chips=item.chips.settings %}}</div>
+        <div class="wcv3-out">{{% include 'common/_card_chips.html' with chips=elem.chips.settings %}}</div>
       </div>
 
       <div class="wcv3-sec wcv3-sec--output">
         <span class="wcv3-lbl">Sortie</span>
-        {{% if item.status == 'FAILURE' and item.error_message %}}
-        <span class="wcv3-out-error" title="{{{{ item.error_message|escape }}}}"><i class="fas fa-triangle-exclamation"></i> {{{{ item.error_message|truncatechars:120|escape }}}}</span>
+        {{% if elem.status == 'FAILURE' and elem.error_message %}}
+        <span class="wcv3-out-error" title="{{{{ elem.error_message|escape }}}}"><i class="fas fa-triangle-exclamation"></i> {{{{ elem.error_message|truncatechars:120|escape }}}}</span>
         {{% else %}}
         <div class="wcv3-out">
-          {{% include 'common/_card_chips.html' with chips=item.chips.output %}}
-          {{% if item.status == 'RUNNING' %}}<span class="wcv3-out-step"><span class="pct progress-text">{{{{ item.progress }}}}%</span> — en cours…</span>
-          {{% elif item.status == 'SUCCESS' and item.output_filename %}}<span class="wcv3-out-step" title="{{{{ item.output_filename }}}}"><i class="fas fa-check-circle text-success"></i> {{{{ item.output_filename }}}}</span>{{% endif %}}
+          {{% include 'common/_card_chips.html' with chips=elem.chips.output %}}
+          {{% if elem.status == 'RUNNING' %}}<span class="wcv3-out-step"><span class="pct progress-text">{{{{ elem.progress }}}}%</span> — en cours…</span>
+          {{% elif elem.status == 'SUCCESS' and elem.output_filename %}}<span class="wcv3-out-step" title="{{{{ elem.output_filename }}}}"><i class="fas fa-check-circle text-success"></i> {{{{ elem.output_filename }}}}</span>{{% endif %}}
         </div>
         {{% endif %}}
       </div>
@@ -675,10 +673,10 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
       <div class="wcv3-sec wcv3-sec--state">
         <span class="wcv3-lbl">État</span>
         <div class="wcv3-state">
-          <span class="wcv3-state-line"><span class="wama-status-dot" data-s="{{{{ item.status }}}}"></span>
-            <span>{{% if item.status == 'PENDING' %}}En attente{{% elif item.status == 'RUNNING' %}}En cours{{% elif item.status == 'SUCCESS' %}}Terminé{{% elif item.status == 'FAILURE' %}}Échec{{% else %}}{{{{ item.status }}}}{{% endif %}}</span></span>
-          {{% if item.status == 'RUNNING' %}}<span class="wama-eta" data-eta-ids="{{{{ item.id }}}}"></span>{{% endif %}}
-          {{% if item.status == 'SUCCESS' and item.processing_display %}}{{% include 'common/_processing_time.html' with elapsed=item.processing_display %}}{{% endif %}}
+          <span class="wcv3-state-line"><span class="wama-status-dot" data-s="{{{{ elem.status }}}}"></span>
+            <span>{{% if elem.status == 'PENDING' %}}En attente{{% elif elem.status == 'RUNNING' %}}En cours{{% elif elem.status == 'SUCCESS' %}}Terminé{{% elif elem.status == 'FAILURE' %}}Échec{{% else %}}{{{{ elem.status }}}}{{% endif %}}</span></span>
+          {{% if elem.status == 'RUNNING' %}}<span class="wama-eta" data-eta-ids="{{{{ elem.id }}}}"></span>{{% endif %}}
+          {{% if elem.status == 'SUCCESS' and elem.processing_display %}}{{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}}{{% endif %}}
         </div>
       </div>
 
@@ -686,15 +684,15 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
         <span class="wcv3-lbl">Actions</span>
         <div class="btn-group-actions wcv3-actions">
         <button type="button" class="btn btn-sm btn-outline-secondary settings-btn" title="Paramètres"
-                data-id="{{{{ item.id }}}}" {{% for k, v in item.gear_data.items %}}data-{{{{ k }}}}="{{{{ v }}}}" {{% endfor %}}><i class="fas fa-cog"></i></button>
-        {{% include 'common/_cycle_button.html' with id=item.id status=item.status %}}{bouton_dl}{bouton_dup}{bouton_del}
+                data-id="{{{{ elem.id }}}}" {{% for k, v in elem.gear_data.items %}}data-{{{{ k }}}}="{{{{ v }}}}" {{% endfor %}}><i class="fas fa-cog"></i></button>
+        {{% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}}{bouton_dl}{bouton_dup}{bouton_del}
         </div>
       </div>
 
-      {{% if item.status != 'PENDING' %}}
+      {{% if elem.status != 'PENDING' %}}
       <div class="wcv3-bar" style="grid-column:1/-1;">
         <div class="wama-progress-track">
-          <div class="wama-progress-fill{{% if item.status == 'RUNNING' %}} active{{% elif item.status == 'FAILURE' %}} is-frozen{{% endif %}}" style="width:{{% if item.status == 'SUCCESS' %}}100{{% else %}}{{{{ item.progress }}}}{{% endif %}}%"></div>
+          <div class="wama-progress-fill{{% if elem.status == 'RUNNING' %}} active{{% elif elem.status == 'FAILURE' %}} is-frozen{{% endif %}}" style="width:{{% if elem.status == 'SUCCESS' %}}100{{% else %}}{{{{ elem.progress }}}}{{% endif %}}%"></div>
         </div>
       </div>
       {{% endif %}}
@@ -704,16 +702,16 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
     double-clic → overlay niveau 3, pattern Reader) ; `data-card-preview` = le CONTENU
     (hydrateur commun). Sans la classe, la preview s'affichait mais ne s'AGRANDISSAIT pas
     (constat Fabien 31/08 — câblage manquant, mécanisme déjà en place).{{% endcomment %}}
-    {{% if item.status == 'SUCCESS' %}}
-    {{% url 'common:unified_preview' '{app}' item.id as pv_out %}}
-    <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_out }}}}?side=output" data-preview-url="{{{{ pv_out }}}}?side=output" data-id="{{{{ item.id }}}}" data-player-id="{{{{ item.id }}}}"></div>
+    {{% if elem.status == 'SUCCESS' %}}
+    {{% url 'common:unified_preview' '{app}' elem.id as pv_out %}}
+    <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ elem.id }}}}" data-card-preview="{{{{ pv_out }}}}?side=output" data-preview-url="{{{{ pv_out }}}}?side=output" data-id="{{{{ elem.id }}}}" data-player-id="{{{{ elem.id }}}}"></div>
     {{% else %}}
     {{% comment %}}Preview de la SOURCE en attendant le résultat (demande Fabien 31/08 : « la
     preview n'apparaît pas dans les cards, uniquement dans le volet droit ») — MÊME hydrateur
     commun (hydrateCardPreviews), face input. Les cards réelles n'affichent qu'une icône à ce
     stade : écart voulu jumelle>réel, à porter au parc après validation écran (CARD_DESIGN §11).{{% endcomment %}}
-    {{% url 'common:unified_preview' '{app}' item.id as pv_in %}}
-    <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_in }}}}?side=input" data-preview-url="{{{{ pv_in }}}}?side=input" data-id="{{{{ item.id }}}}" data-player-id="{{{{ item.id }}}}"></div>
+    {{% url 'common:unified_preview' '{app}' elem.id as pv_in %}}
+    <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ elem.id }}}}" data-card-preview="{{{{ pv_in }}}}?side=input" data-preview-url="{{{{ pv_in }}}}?side=input" data-id="{{{{ elem.id }}}}" data-player-id="{{{{ elem.id }}}}"></div>
     {{% endif %}}
   </div>
 </div>

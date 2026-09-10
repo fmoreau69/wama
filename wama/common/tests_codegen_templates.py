@@ -552,7 +552,11 @@ class VoletParametresGenereTest(SimpleTestCase):
         self.assertIn('?side=output', card)
         self.assertIn('?side=input', card,
                       'la card en attente doit hydrater la preview de sa SOURCE')
-        self.assertNotIn('<div id="preview-row-{{ item.id }}"></div>', card,
+        # ⚠ `elem` et non `item` depuis le 2026-09-09 (la card générée lit l'élément sous le
+        # nom commun de `_queue_entry.html`). Laisser `item.id` ici aurait gardé un test VERT
+        # incapable d'échouer : il aurait cherché une chaîne que le générateur ne peut plus
+        # produire. Une garde écrite sur une graphie meurt avec elle, en silence.
+        self.assertNotIn('<div id="preview-row-{{ elem.id }}"></div>', card,
                          'le placeholder MORT (jamais hydraté) ne doit pas revenir')
 
     def test_la_card_mere_affiche_les_reglages_communs_des_filles(self):

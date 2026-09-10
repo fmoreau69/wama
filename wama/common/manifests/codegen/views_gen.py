@@ -628,13 +628,22 @@ def {nom}(request, pk):
         item.input_props = input_props_for(item, '{d['input_field']}', {nom_pour_props})
     except Exception:
         item.input_props = []
+    # Alias NORMALISÉ `elem` (2026-09-09) : `common/_queue_entry.html` atteint l'élément
+    # métier par `item.elem` — alias que `build_batches_list` pose sur chaque LIAISON. Une
+    # app générée n'a pas de modèle de liaison (FK directe, comme le converter) : liaison et
+    # élément COÏNCIDENT, l'alias pointe donc sur l'item lui-même. Posé dans `_decorer`, point
+    # d'attache UNIQUE des deux chemins de rendu (index et card_html).
+    item.elem = item
     return item'''
 
     vues['card_html'] = f'''def card_html(request, pk):
     """Card = partial serveur UNIQUE : le JS remplace la card par ce rendu."""
     user = _user(request)
     item = get_object_or_404({item}, pk=pk, user=user)
-    return render(request, '{app}/_generic_card.html', {{'item': _decorer(item)}})'''
+    # Clé `elem` (2026-09-09) — jumeau PAR CHAÎNE du renommage de `_generic_card.html` :
+    # rendre ce partial avec l'ancienne clé sortirait une card complète et TOTALEMENT VIDE,
+    # sans lever quoi que ce soit.
+    return render(request, '{app}/_generic_card.html', {{'elem': _decorer(item)}})'''
 
     corps_status = f'''    data = {{'id': item.id, 'status': item.status, 'progress': item.progress,
             'error_message': item.error_message}}
@@ -661,10 +670,17 @@ def delete(request, pk):
     for _champ in {champs_fichiers!r}:
         if _fichier_de_l_app(item, _champ):
             safe_delete_file(item, _champ)
-    b = item.{fk}
     item.delete()
-    if b is not None and not b.items.exists():
-        b.delete()
+    # ⚠ NE PAS supprimer le lot vidé ici (retiré le 2026-09-09). C'était une REDUPLICATION du
+    # mécanisme commun `batch_sync` — `register_batch_sync(<Item>, direct_fk=True)` est branché
+    # en `post_delete` par l'AppConfig générée, et `sync_batch_total` supprime déjà le lot
+    # devenu vide (`common/utils/batch_sync.py:34`). Et c'est la duplication qui CASSAIT : le
+    # signal supprime le lot AVANT le retour ici, l'instance gardée en mémoire n'a donc plus de
+    # clé primaire, et `b.items.exists()` lève `ValueError: instance needs to have a primary key
+    # value before this relationship can be used` → **500 sur un simple 🗑 de card**.
+    # Mesuré le 2026-09-09 sur `converter_01` (`converter_01.duplicate_delete` rouge, doublon
+    # toujours présent après clic). L'app RÉELLE de référence ne fait rien de tel non plus :
+    # `converter/views.py::delete` se contente de `job.delete()` et laisse le signal faire.
     return JsonResponse({{'deleted': True}})'''
 
     vues['duplicate'] = f'''@require_POST
