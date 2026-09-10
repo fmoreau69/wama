@@ -233,6 +233,106 @@ def studio_node_ports(app_id):
     return {'inputs': inputs, 'output': {'id': 'out', 'label': 'Sortie', 'types': out_cats}}
 
 
+def _domaine_dune_tache(task):
+    """Domaine média d'une tâche de modèle — DÉRIVÉ de son nom, jamais tabulé par app.
+
+    Le vocabulaire de `capabilities.task` est `<source>-to-<cible>` (`text-to-image`,
+    `image-to-video`…). La cible EST le domaine de sortie. Mesuré le 2026-09-10 : c'est le seul
+    discriminant utilisable — `AIModel.model_type` vaut `diffusion` pour les 12 modèles de
+    l'imager, image ET vidéo confondues, donc il ne sépare rien.
+    """
+    if not task or '-to-' not in str(task):
+        return None
+    return str(task).rsplit('-to-', 1)[-1].strip() or None
+
+
+def app_input_ports(app_id, domain=None):
+    """Ports d'entrée d'une app DÉRIVÉS DES CAPACITÉS DE SES MODÈLES — l'auto-adaptation.
+
+    Répond à l'exigence de stabilité posée par Fabien le 2026-09-10 : *« à l'ajout d'un
+    nouveau modèle proposant plus de modalités d'entrée, on sera bloqué […] la seule solution
+    stable dans le temps est l'union des capacités d'entrée de tous les modèles acceptés par
+    une application »*. Un modèle qui arrive avec une modalité de plus apporte son slot ; aucun
+    gabarit, aucune déclaration d'app à retoucher.
+
+    La règle n'est pas neuve — elle est écrite dans `app_modes.py` depuis l'origine : *slots =
+    inputs déclarés au niveau APP ∪ union des `inputs_required`/`inputs_optional` des MODÈLES*.
+    Ce qui manquait était son CONSOMMATEUR. Doctrine et plan : `INPUT_MODEL_MATCHING.md §6`.
+
+    Ce que la fonction fait, et ce qu'elle ne fait PAS :
+      • elle dit quels slots EXISTENT (`required` = exigé par au moins un modèle) ;
+      • elle ne dit PAS lequel est obligatoire ici et maintenant — ça, c'est `matches_inputs`
+        selon le modèle CHOISI, via `wama-input-match`. Un slot exigé par un seul modèle est
+        donc OFFERT, pas imposé : c'est ce qui permet le comportement « rien n'est bloquant,
+        une entrée suffit » (référence Suno, §6.2).
+
+    Args:
+        domain : filtre optionnel par domaine de SORTIE (`image`, `video`…). Un domaine
+                 composé (`image_video`) retient ses composantes. Domaine non résolu ⇒ aucun
+                 filtre — on préfère un slot de trop à un slot perdu.
+    Returns:
+        [{id, label, group, types, multi, required, description}] — MÊME forme que
+        `studio_node_ports()['inputs']`, plus `required`. Liste vide si l'app n'a aucun modèle
+        déclarant ses entrées (converter : aucun moteur IA) — l'appelant garde alors sa
+        dérivation actuelle, aucune app ne régresse.
+    """
+    from wama.common.utils.app_modes import INPUT_TYPES
+
+    try:
+        from wama.model_manager.models import AIModel
+        lignes = list(AIModel.objects.filter(source=app_id)
+                      .values_list('capabilities', flat=True))
+    except Exception:
+        return []
+
+    vises = {d.strip() for d in str(domain).split('_') if d.strip()} if domain else None
+
+    meta = {}
+    for i, caps in enumerate(lignes):
+        if not isinstance(caps, dict):
+            continue
+        if vises:
+            dom = _domaine_dune_tache(caps.get('task'))
+            # ⚠ `dom is None` = tâche non nommable → on GARDE le modèle. Filtrer sur une
+            # inconnue ferait disparaître des slots en silence, exactement le défaut que ce
+            # mécanisme existe pour supprimer.
+            if dom is not None and dom not in vises:
+                continue
+        if caps.get('inputs_required') or caps.get('inputs_optional'):
+            meta[i] = caps
+
+    if not meta:
+        return []
+
+    # `auto_entry` porte DÉJÀ la sémantique voulue (intersection des requis, union du reste) —
+    # écrite le 2026-08-17 pour le pseudo-modèle « auto » d'un select. Le besoin est le même :
+    # « ce que l'app accepte, c'est ce qu'au moins UN de ses modèles accepte ». On la réutilise
+    # au lieu d'en réécrire une variante — c'est la règle « chercher la brique avant d'écrire ».
+    from wama.common.utils.input_match import auto_entry
+    union = auto_entry(meta)
+    requis = set(union.get('inputs_required') or [])
+    optionnels = set(union.get('inputs_optional') or [])
+
+    ports = []
+    for jeton in sorted(requis | optionnels, key=lambda j: (INPUT_TYPES.get(j, {}).get('port') != 'prompt', j)):
+        spec = INPUT_TYPES.get(jeton)
+        if not spec:
+            # Jeton inconnu du vocabulaire : on ne fabrique pas un port muet. Le contrôle
+            # `VocabulaireDesEntreesTest` refuse déjà ce cas — ici on ne fait que ne pas mentir.
+            continue
+        acc = spec.get('accept')
+        ports.append({
+            'id': jeton,
+            'label': spec.get('label', jeton),
+            'group': spec.get('port'),
+            'types': normalize_types([acc]) if acc else [],
+            'multi': bool(spec.get('multi')),
+            'required': jeton in requis,
+            'description': spec.get('description', ''),
+        })
+    return ports
+
+
 # ---------------------------------------------------------------------------
 # Convention conformity flags
 # Meanings:

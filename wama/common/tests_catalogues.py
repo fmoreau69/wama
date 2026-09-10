@@ -944,3 +944,204 @@ class FunctionCatalogConformiteTest(TestCase):
                     self.assertIn(ps.key, acceptes,
                                   f"`{ps.key}` est déclaré au manifeste mais absent de la "
                                   f"signature de {spec.fn.__name__}")
+
+
+class VocabulaireDesEntreesTest(TestCase):
+    """`INPUT_TYPES` ne contient QUE des entrées — ni modalité, ni geste, ni réglage.
+
+    Le vocabulaire confondait QUATRE axes orthogonaux, et c'est ce mélange qui rendait
+    insoluble toute discussion « travail vs référence » : on demandait à une catégorie de
+    trancher ce qui relève de trois autres plans.
+      • un JETON d'entrée — ce que l'élément consomme (`prompt`, `work_image`…) ;
+      • une MODALITÉ — comment un fichier atteint un slot (`url` y figurait, alors que la card
+        v4 rend un champ URL PAR VOLET DE PORT) ;
+      • une VOIE — par où le fichier entre dans WAMA (`MEDIA_STORAGE_TIERING §8.2`) ;
+      • un GESTE de LOT — `prompt_file` y figurait, libellé « Fichier de prompts (batch) »,
+        alors que « le LOT n'a pas de port, c'est le GESTE qui le crée » (Fabien, 05/09).
+
+    Ces intrus étaient tous INERTES, donc invisibles : `studio_node_ports` ne retient des
+    `inputs` d'une app que les jetons `port == 'reference'`. Un contrôle vaut mieux qu'une
+    intention — sans lui, le prochain jeton hors-axe rentrera aussi silencieusement.
+    """
+
+    PORTS_VALIDES = {'travail', 'prompt', 'reference'}
+
+    def test_chaque_jeton_declare_un_port_VALIDE(self):
+        from wama.common.utils.app_modes import INPUT_TYPES
+        fautifs = {k: v.get('port') for k, v in INPUT_TYPES.items()
+                   if v.get('port') not in self.PORTS_VALIDES}
+        self.assertEqual({}, fautifs,
+                         "port hors vocabulaire — un `None` trahit un RÉGLAGE déguisé en "
+                         f"entrée, un nom inconnu une 4ᵉ famille non décidée : {fautifs}")
+
+    def test_aucune_MODALITE_ni_GESTE_ne_revient_dans_le_vocabulaire(self):
+        from wama.common.utils.app_modes import INPUT_TYPES
+        intrus = {'url', 'prompt_file', 'batch_file', 'negative_prompt'} & set(INPUT_TYPES)
+        self.assertEqual(set(), intrus,
+                         "ces clés ne sont pas des ENTRÉES : `url` est une modalité (déjà "
+                         "servie par `input_slots.mods`), `prompt_file`/`batch_file` sont le "
+                         "geste de LOT (brique commune), `negative_prompt` un réglage. "
+                         f"Revenues : {sorted(intrus)}")
+
+    def test_le_PROMPT_n_est_pas_un_port_de_travail(self):
+        """Le seul endroit du dépôt qui disait le contraire, jusqu'au 2026-09-10.
+
+        `studio_node_ports` lui donne un groupe `prompt` distinct, la card v4 l'exclut des
+        onglets pour le rendre en cellule primaire, et la règle de preview d'entrée écrit
+        `group ∈ {travail, prompt}` — donc deux choses. L'accesseur d'union lira ce champ pour
+        assigner le groupe d'un jeton : s'il redevient `travail`, le prompt retournerait sur le
+        port de travail et la card v4 en ferait un onglet fichier.
+        """
+        from wama.common.utils.app_modes import INPUT_TYPES
+        self.assertEqual('prompt', INPUT_TYPES['prompt']['port'])
+
+    def test_tout_jeton_declare_par_un_MODELE_existe_dans_le_vocabulaire(self):
+        """La garde qui protège l'auto-adaptation aux modèles (INPUT_MODEL_MATCHING §6.3).
+
+        Les slots d'une app dériveront de l'union des `inputs_required`/`inputs_optional` de
+        ses modèles. Un modèle qui déclare un jeton absent d'`INPUT_TYPES` produirait un slot
+        SANS libellé, sans `accept` et sans port — donc un onglet muet, ou pas d'onglet du
+        tout. Mesuré au 2026-09-10 : les deux vocabulaires sont alignés (0 écart).
+        """
+        from wama.model_manager.models import AIModel
+        from wama.common.utils.app_modes import INPUT_TYPES
+
+        vus = set()
+        for caps in AIModel.objects.values_list('capabilities', flat=True):
+            if isinstance(caps, dict):
+                vus.update(caps.get('inputs_required') or [])
+                vus.update(caps.get('inputs_optional') or [])
+        orphelins = sorted(vus - set(INPUT_TYPES))
+        self.assertEqual([], orphelins,
+                         "des modèles déclarent des entrées que le vocabulaire ignore : "
+                         f"{orphelins} — l'union produirait des slots muets")
+
+    def test_chaque_jeton_porte_un_texte_qui_dit_A_QUOI_il_sert(self):
+        """Demande Fabien (10/09) : deux onglets « Image » ne se distinguent pas par leur type.
+
+        Ce qu'un jeton NOMMÉ doit dire, et qu'une catégorie travail/référence ne dit pas :
+        lequel sera ÉDITÉ, lequel GUIDERA. La case existait déjà dans le contrat de port
+        (`portEl()` la prend en 6ᵉ argument).
+        """
+        from wama.common.utils.app_modes import INPUT_TYPES
+        muets = [k for k, v in INPUT_TYPES.items() if not (v.get('description') or '').strip()]
+        self.assertEqual([], muets, f'entrées sans texte explicatif : {muets}')
+
+
+class UnionDesEntreesDeModelesTest(TestCase):
+    """`app_input_ports` — les slots d'une app dérivent des CAPACITÉS DE SES MODÈLES.
+
+    Exigence de Fabien (2026-09-10) : *« la seule solution stable dans le temps quel que soit
+    l'ajout de nouveaux modèles est l'union des capacités d'entrée de tous les modèles acceptés
+    par une application »*. Un modèle qui arrive avec une modalité de plus apporte son slot,
+    sans qu'aucun gabarit ni aucune déclaration d'app ne soit retouché.
+
+    ⚠ FIXTURES LOCALES, jamais le catalogue ambiant. Première version écrite contre les
+    `AIModel` réels : elle échouait en base de TEST (catalogue vide) — et surtout, elle aurait
+    changé de verdict au premier modèle ajouté au parc. Un test qui lit l'état du monde ne
+    mesure pas un invariant, il le suit.
+    """
+
+    #: source dédiée — n'entre en collision avec aucune app réelle du catalogue.
+    APP = 'app_temoin_union'
+
+    def _modele(self, cle, requis=(), optionnels=(), task=None):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.create(
+            model_key=f'{self.APP}:{cle}', name=cle, source=self.APP,
+            capabilities={'inputs_required': list(requis),
+                          'inputs_optional': list(optionnels),
+                          **({'task': task} if task else {})})
+
+    def test_une_app_sans_modele_declarant_rend_VIDE_et_non_un_port_invente(self):
+        """Le repli qui garantit qu'aucune app ne régresse.
+
+        Une app dont les modèles ne déclarent AUCUNE entrée (converter : aucun moteur IA, N/A
+        mesuré `INPUT_MODEL_MATCHING §5`) doit rendre vide, pour que l'appelant garde sa
+        dérivation actuelle. Fabriquer un port serait pire que ne rien rendre.
+        """
+        from wama.common.app_registry import app_input_ports
+        self._modele('sans_entrees')                      # modèle présent, mais muet
+        self.assertEqual([], app_input_ports(self.APP))
+
+    def test_l_obligation_est_l_INTERSECTION_l_offre_est_l_UNION(self):
+        """La sémantique qui rend le système « non bloquant » (référence Suno, §6.2).
+
+        Un jeton exigé par TOUS les modèles est requis ; exigé par UN SEUL, il est seulement
+        OFFERT. C'est ce qui permet « une entrée suffit, plusieurs sont acceptées » sans qu'un
+        modèle minoritaire impose sa contrainte à toute l'app. L'obligation réelle au moment du
+        lancement reste l'affaire de `matches_inputs` selon le modèle CHOISI.
+        """
+        from wama.common.app_registry import app_input_ports
+        self._modele('txt', requis=['prompt'])
+        self._modele('edit', requis=['prompt', 'work_image'])
+        self._modele('i2i', requis=['prompt'], optionnels=['work_image'])
+
+        ports = {p['id']: p['required'] for p in app_input_ports(self.APP)}
+        self.assertEqual({'prompt': True, 'work_image': False}, ports,
+                         'prompt exigé par les 3 → requis ; work_image par 2 sur 3 → offert')
+
+    def test_un_jeton_exige_par_TOUS_devient_requis(self):
+        from wama.common.app_registry import app_input_ports
+        self._modele('a', requis=['work_audio'])
+        self._modele('b', requis=['work_audio'], optionnels=['reference_voice'])
+        ports = {p['id']: p['required'] for p in app_input_ports(self.APP)}
+        self.assertEqual({'work_audio': True, 'reference_voice': False}, ports)
+
+    def test_la_forme_rendue_est_celle_d_un_PORT_augmentee_de_l_obligation(self):
+        from wama.common.app_registry import app_input_ports
+        from wama.common.utils.app_modes import INPUT_TYPES
+
+        self._modele('m', requis=['prompt'], optionnels=['reference_melody'])
+        ports = app_input_ports(self.APP)
+        self.assertEqual(2, len(ports))
+        for p in ports:
+            self.assertEqual({'id', 'label', 'group', 'types', 'multi', 'required', 'description'},
+                             set(p), f'forme de port inattendue : {p}')
+            self.assertIn(p['id'], INPUT_TYPES)
+            self.assertIn(p['group'], {'travail', 'prompt', 'reference'})
+            self.assertTrue(p['description'], f"port sans texte explicatif : {p['id']}")
+        # Le prompt vient EN TÊTE : c'est la consigne, et la card v4 la rend au-dessus des onglets.
+        self.assertEqual('prompt', ports[0]['id'])
+
+    def test_un_jeton_hors_vocabulaire_ne_fabrique_PAS_de_port_muet(self):
+        """Un modèle mal déclaré ne doit pas produire un onglet sans libellé ni `accept`.
+        Le contrôle `VocabulaireDesEntreesTest` refuse ce cas en amont ; ici on vérifie que
+        l'accesseur ne MENT pas si ça arrive quand même."""
+        from wama.common.app_registry import app_input_ports
+        self._modele('exotique', requis=['prompt'], optionnels=['entree_inconnue_xyz'])
+        ids = [p['id'] for p in app_input_ports(self.APP)]
+        self.assertEqual(['prompt'], ids)
+
+    def test_le_domaine_se_DERIVE_de_la_tache_jamais_d_une_table_par_app(self):
+        """`model_type` ne sépare rien — il vaut `diffusion` pour les 12 modèles de l'imager,
+        image ET vidéo confondues. Le discriminant est `capabilities.task`, dont la CIBLE est le
+        domaine de sortie."""
+        from wama.common.app_registry import _domaine_dune_tache
+
+        self.assertEqual('image', _domaine_dune_tache('text-to-image'))
+        self.assertEqual('image', _domaine_dune_tache('image-to-image'))
+        self.assertEqual('video', _domaine_dune_tache('image-to-video'))
+        self.assertIsNone(_domaine_dune_tache(None))
+        self.assertIsNone(_domaine_dune_tache('transcription'))
+
+    def test_le_filtre_par_domaine_retient_les_modeles_de_CE_domaine(self):
+        from wama.common.app_registry import app_input_ports
+        self._modele('t2i', requis=['prompt'], task='text-to-image')
+        self._modele('i2v', requis=['prompt', 'work_image'], task='image-to-video')
+
+        image = {p['id'] for p in app_input_ports(self.APP, domain='image')}
+        video = {p['id'] for p in app_input_ports(self.APP, domain='video')}
+        self.assertEqual({'prompt'}, image, 'le modèle vidéo ne doit pas peupler le domaine image')
+        self.assertEqual({'prompt', 'work_image'}, video)
+        # Domaine COMPOSÉ (`image_video` de l'enhancer) : il retient ses composantes.
+        self.assertEqual({'prompt', 'work_image'},
+                         {p['id'] for p in app_input_ports(self.APP, domain='image_video')})
+
+    def test_une_tache_NON_NOMMABLE_ne_disparait_pas_du_filtre(self):
+        """Garde anti-silence : filtrer sur une inconnue ferait disparaître des slots sans
+        rien dire — exactement le défaut que ce mécanisme existe pour supprimer."""
+        from wama.common.app_registry import app_input_ports
+        self._modele('sans_tache', requis=['work_file'])          # aucune `task` déclarée
+        self.assertEqual({'work_file'},
+                         {p['id'] for p in app_input_ports(self.APP, domain='image')})

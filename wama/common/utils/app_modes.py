@@ -73,17 +73,52 @@ Dicts simples (JSON-sérialisables) → exposables tels quels à l'endpoint que 
 
 # ── Types d'entrée canoniques (= ports de la méta-app) ───────────────────────
 INPUT_TYPES = {
-    'prompt':          {'label': 'Prompt', 'kind': 'text', 'multi': False, 'port': 'travail'},
-    'negative_prompt': {'label': 'Prompt négatif', 'kind': 'text', 'multi': False, 'port': None},
-    'work_file':       {'label': 'Fichier de travail', 'kind': 'file', 'multi': True, 'port': 'travail'},
-    'work_image':      {'label': 'Image de travail', 'kind': 'file', 'accept': 'image', 'multi': True, 'port': 'travail'},
-    'reference_image': {'label': 'Image de référence (style)', 'kind': 'file', 'accept': 'image', 'multi': False, 'port': 'reference'},
-    'work_audio':      {'label': 'Audio de travail', 'kind': 'file', 'accept': 'audio', 'multi': True, 'port': 'travail'},
-    'reference_file':  {'label': 'Fichier de référence', 'kind': 'file', 'multi': False, 'port': 'reference'},
-    'reference_voice': {'label': 'Voix de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference'},
-    'reference_melody': {'label': 'Mélodie de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference'},
-    'url':             {'label': 'URL', 'kind': 'url', 'multi': False, 'port': 'travail'},
+    # ⚠ `prompt` a le port `prompt`, PAS `travail` (corrigé le 2026-09-10). Il portait
+    # `travail`, et c'était le SEUL endroit du dépôt à le dire : `studio_node_ports` lui donne
+    # un groupe `prompt` distinct depuis toujours, la card v4 l'exclut des onglets pour le
+    # rendre en cellule primaire (§11.9 C), et la règle de preview d'entrée écrit
+    # `group ∈ {travail, prompt}` — donc DEUX choses. Le vocabulaire était en retard sur ses
+    # deux consommateurs, et c'est cette ligne qui a fait conclure, à tort, que le studio
+    # « inventait » un groupe. Elle devient déterminante pour l'accesseur d'union (§6.3 de
+    # INPUT_MODEL_MATCHING) : c'est ici qu'il lira le groupe d'un jeton.
+    'prompt':          {'label': 'Prompt', 'kind': 'text', 'multi': False, 'port': 'prompt',
+                        'description': "La consigne écrite. C'est elle que le modèle exécute."},
+    'work_file':       {'label': 'Fichier de travail', 'kind': 'file', 'multi': True, 'port': 'travail',
+                        'description': "Le fichier TRANSFORMÉ par le traitement — c'est lui qui devient le résultat."},
+    'work_image':      {'label': 'Image de travail', 'kind': 'file', 'accept': 'image', 'multi': True, 'port': 'travail',
+                        'description': "L'image à ÉDITER ou à animer : le modèle part d'elle (img2img, in/outpainting, image-to-video)."},
+    'work_audio':      {'label': 'Audio de travail', 'kind': 'file', 'accept': 'audio', 'multi': True, 'port': 'travail',
+                        'description': "L'audio TRANSFORMÉ par le traitement (transcription, amélioration, animation)."},
+    'reference_image': {'label': 'Image de référence (style)', 'kind': 'file', 'accept': 'image', 'multi': False, 'port': 'reference',
+                        'description': "Une image qui GUIDE le rendu (style, apparence) sans être transformée."},
+    'reference_file':  {'label': 'Fichier de référence', 'kind': 'file', 'multi': False, 'port': 'reference',
+                        'description': "Un fichier qui CONDITIONNE le traitement sans être transformé."},
+    'reference_voice': {'label': 'Voix de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference',
+                        'description': "Un extrait de voix à IMITER. La voix produite lui ressemblera ; l'extrait n'est pas modifié."},
+    'reference_melody': {'label': 'Mélodie de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference',
+                        'description': "Une mélodie qui ORIENTE la composition. Elle guide, elle n'est pas remixée."},
 }
+
+# ⚠ `description` (2026-09-10, demande Fabien) : « il faut peut-être ajouter un petit texte
+# expliquant à quoi va servir chaque entrée en fonction des capacités du modèle ». C'est ce que
+# dit un jeton NOMMÉ, là où une catégorie travail/référence ne le dit pas — un utilisateur qui
+# voit deux onglets « Image » doit savoir lequel sera édité et lequel guidera.
+# La case existait DÉJÀ dans le contrat de port : `portEl()` de `wama-studio.js` prend une
+# description en 6ᵉ argument et les nœuds sources en portent une. Ajout purement ADDITIF —
+# les consommateurs qui ne la lisent pas encore ne changent pas de comportement.
+#
+# ⚠ `url` et `negative_prompt` ONT ÉTÉ RETIRÉS de ce vocabulaire le 2026-09-10 — même
+# correction d'AXE que `prompt_file` la veille (cf. bloc ci-dessous) :
+#   • `url` n'est pas une ENTRÉE, c'est une MODALITÉ — une façon d'alimenter un port, au même
+#     titre que le dépôt de fichier ou la médiathèque. `input_slots` la sert déjà comme telle
+#     (`mods = ['import', 'library', 'url']`), et la card v4 rend un champ URL PAR VOLET DE
+#     PORT : c'est ce qui lève l'ambiguïté « cette URL, est-ce un travail ou une référence ? »
+#     sans recourir à la chronologie de saisie. En faire aussi un jeton créait un port pour
+#     une modalité, donc un doublon inclassable ;
+#   • `negative_prompt` est un RÉGLAGE (son `port` valait déjà `None`, c'est-à-dire « aucun ») —
+#     il vit dans le schéma de paramètres de l'app, pas dans ses entrées.
+# Les DEUX étaient inertes, mesuré avant retrait : aucune app ne les déclare dans ses `inputs`,
+# aucun modèle du catalogue ne les cite dans `inputs_required`/`inputs_optional`.
 
 # ⚠ `prompt_file` A ÉTÉ RETIRÉ de ce vocabulaire le 2026-09-10, et c'est une correction d'AXE.
 # Il y figurait sous le libellé « Fichier de prompts (batch) » — c'est-à-dire qu'il décrivait
