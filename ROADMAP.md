@@ -19,19 +19,37 @@
 > d'avancement au jour le jour (fait/en cours/détails). Le dédoublonnage à venir = redescendre au
 > bon niveau ce qui a dérivé (statuts et checklists détaillées présents ici → PROJECT_STATUS).
 
+> 🔴 **CETTE BOUSSOLE A ÉTÉ RE-MESURÉE LE 2026-09-10 — deux de ses items disaient le CONTRAIRE
+> du code.** Elle datait du 2026-07-20 et se déclare « fait foi » : un cap périmé qui se déclare
+> prioritaire fait travailler à côté. Corrections portées ci-dessous, chacune avec sa mesure ;
+> le détail et l'inventaire complet vivent au **§24**. *Règle appliquée : une doc qui contredit
+> le code a tort par défaut — mesurer, corriger, dater.*
+
 ### H1 — Maintenant (finir avant d'ouvrir quoi que ce soit)
-1. Consolidation des mécanismes d'UI + port schéma-driven des 5 apps restantes
-   (enhancer, anonymizer, synthesizer, imager, avatarizer) — LE goulot qui gate manifestes,
-   génération d'apps et prospection Phase B.
-2. Transcriber 100 % (gold standard) + extraction des dernières briques communes.
+1. ~~port schéma-driven des 5 apps restantes (enhancer, anonymizer, synthesizer, imager,
+   avatarizer)~~ — ✅ **FAUX depuis des semaines, mesuré le 2026-09-10** : les cinq sont portées
+   (`check_app_conformity` : enhancer 95 %, synthesizer 95 %, anonymizer 94 %, avatarizer 94 %,
+   imager 92 % ; converter et describer à **100 %**). Ce n'est plus un goulot. **Ce qui RESTE
+   de cette ligne** est nommé au §24 : trois critères rouges reviennent sur presque toutes les
+   apps — `backend_routes`, `task_skeleton` (F5) et `detail_spec`/`triad_specs` (F3/F6).
+2. Transcriber gold standard — ⚠ **95 %, pas 100 %** (mesuré 2026-09-10). Restent 3 rouges dont
+   un de fond : `model_options_catalog` — la liste de modèles est **écrite en dur**
+   (`transcriber/params.py:39`), donc un modèle installé n'apparaîtra jamais.
 3. Studio — suites V1 : sorties → filemanager studio, specs montage/mixage (runners : 10/10 apps
    génériques sur le runner générique depuis 2026-07-13, cf. PROJECT_STATUS §37.10 ; restent les
    apps wama_lab).
 4. Cam Analyzer Phase 3 (calibration vitesses) — livrable labo concret.
 
 ### H2 — Ensuite (dès H1 stabilisé)
-1. Fondation RAG **mono-niveau** (`wama/rag/`, ChromaDB + bge-m3, branchée sur l'étape `enrich`) —
-   la hiérarchie univ/labo/équipe attendra la preuve d'usage.
+1. ~~Fondation RAG **mono-niveau** (`wama/rag/`, ChromaDB + bge-m3)~~ — 🔴 **DOUBLEMENT FAUX,
+   mesuré le 2026-09-10** : `wama/rag/` **n'existe pas** et n'existera pas ; **ChromaDB est MORT**
+   (le code le dit lui-même : `wama/common/utils/prompt_pipeline.py:176` — « annonçait ChromaDB :
+   PÉRIMÉ »). Le substrat RÉEL est **`wama/common/memory/`** sur **Postgres + pgvector**, livré
+   (recherche HYBRIDE vecteur + plein-texte FR fusionnée par RRF, `memory/store.py:188`), scope
+   hérité de `ScopedVisibility`. Jalons 1-11 et 13-14 livrés (`WAMA_MEMORY.md`).
+   **Ce qui reste vraiment** : 0 `RagChunk` en base (mesuré) — le RAG est câblé et VIDE ; la
+   bascule d'embedder vers `qwen3-embedding:4b` et le réindex ne sont pas faits ; jalon 12
+   (outillage assistant list/detail).
 2. Traduction de sortie (`translate_output` existe mais n'est appelé nulle part) + i18n statique.
 3. Manifeste formel 🔄 — socle LIVRÉ et en avance sur ce fichier : enveloppe + 6 kinds + ingest
    idempotent + 1ʳᵉ projection write-back réelle (access → AppAccessPolicy, 2026-07-23) ; docs de
@@ -3316,3 +3334,169 @@ l'enhancer (mêmes gestes). À traiter avec la maquette v4.
 - **Étage 3 (code vraiment nouveau, wama-dev-ai assisté) : EN ATTENTE** — terminer ce qui
   est connu et en place avant de se lancer sur du neuf.
 - Préalable à B1 : l'arbitrage **§23.2ter** (défauts affichés vs stockés).
+
+---
+
+## 24. ÉTAT CONSOLIDÉ DES CHANTIERS — relevé **MESURÉ** du 2026-09-10
+
+> **Demande de Fabien (2026-09-10)** : « retrouver tout ce qui est en cours et non terminé,
+> consigner où on en est, et évaluer l'avancement par rapport à la vision ».
+>
+> **Méthode — ce qui distingue ce §24 d'un résumé de docs** : chaque ligne ci-dessous est soit
+> une **sortie de commande**, soit une **ligne de code citée**. Aucune n'est recopiée d'un `.md`.
+> C'est délibéré : sur les 5 écarts trouvés en le construisant, **5 fois la doc était en retard,
+> jamais le code** — dont deux dans la boussole des Horizons, qui se déclare pourtant « fait foi ».
+>
+> **Ce document ne remplace rien** : `PROJECT_STATUS §REPRISE` garde le récit jour par jour,
+> `docs/WAMA_VISION_COMPLET.md` garde le cap. Le §24 est la **photo transversale** qui manquait.
+
+### 24.1 La plateforme est SAINE — les 8 contrôles, mesurés le 2026-09-10
+
+| contrôle | mesure |
+|---|---|
+| suite complète (WSL2, `venv_linux`) | **1997 tests, `OK`** — 0 skip (venv_win en skippe 11 : Linux est le plus strict) |
+| `check_docs` | 0 cassée / 0 périmée sur 1539 — **0 cible distincte** |
+| `manifest_export --check` | corpus **à jour**, 202 manifestes + 1 autoré |
+| `manifest_roundtrip --all` | **10/10** apps, fidélité OK |
+| `check_templates` | 0 défaut / 152 |
+| `check_skills` | 0 défaut franc · 2 candidats `n=1` (13 j) · 1 promu / 14 |
+| `migrate --check` | aucune migration en attente |
+| `check_app_conformity` | converter **100 %** · describer **100 %** · reader 97 % · enhancer/synthesizer/transcriber 95 % · anonymizer/avatarizer/composer 94 % · imager 92 % |
+
+Registres : **14**. Mémoire, base réelle : **28 `MemoryItem`**, **0 `RagChunk`**. Catalogue de
+fonctions : **62**. Studio : **10 runners sur 11** (seul `audio_enhancer` n'en a pas).
+
+### 24.2 Les DEUX chantiers actifs — partition à respecter
+
+| # | chantier | instance | fichiers à NE PAS toucher |
+|---|---|---|---|
+| 1 | portage / card d'entrée v4 / **ajustement des entrées selon les modèles disponibles** | active | `manifests/codegen/*`, `tests_codegen_*`, `filemanager/views.py`, `imager/{views,tests}.py`, `CARD_DESIGN.md`, `wama-subscription.js` |
+| 2 | **cam_analyzer** — filtre des garés, D.3, accéléromètre | active | `wama_lab/cam_analyzer/**` |
+
+### 24.3 🔴 CE QUI EST BLOQUÉ SUR UN ARBITRAGE DE FABIEN (rien n'avance sans)
+
+| # | quoi | où | pourquoi c'est bloquant |
+|---|---|---|---|
+| B1 | **Le filtre des garés est à REFAIRE** | `§CLÔTURE 09/09` | verdict mesuré : **55 garés reconnus sur 3887 véhicules**, dans une session où la navette est à l'arrêt **77 % du temps**. Le seuil (4 s) est **en dur**, non réglable. Ne PAS le baisser tel quel. ⚠ Le vrai verrou est en AMONT : tant que le placement est à ±20 %, aucun critère d'étalement ne sépare un garé d'un mobile lent |
+| B2 | **`fields_from_params`** — « pièce 3 » | `§CLÔTURE 09/09 ①` | une fonction dont les champs dépendent de ses paramètres ne peut pas les déclarer statiquement. La suite naturelle est une capacité sur `FunctionSpec`, **mais `WAMA_APPRENTISSAGE §9` interdit explicitement d'y toucher**. **Bloque toute fonction statistique** |
+| B3 | diagnostic de chaînage : **refuser** ou **AVERTIR** ? | `§CLÔTURE 09/09 ②` | `diagnostiquer_chainage()` est écrit, testé (7 gardes), rend 0 refus sur le pipeline réel — et **n'est appelé par personne**. Une ligne dans `launch_graph` suffit. La question est de POLITIQUE, pas de code (~52 refus légitimes ailleurs au catalogue) |
+| B4 | **25 souvenirs `dev-ai` validables, non validés** | `§REPRISE 09→10/09` | *(Fabien : « à moi de voir plus tard » — sorti de la file, gardé ici pour mémoire)* |
+| B5 | `.gitignore:31 `build/`` avale `three.module.js` | reporté depuis le 07/09 | **un clone frais n'a pas le cœur du 3D**. Trou de VERSIONNEMENT, pas de test |
+| B6 | régénérer les **jumelles de bac à sable** | `§REPRISE 06/07-09` | touche leurs tables (migrate zero + recréation) — GO explicite requis |
+
+### 24.4 ⚠ TROIS TROUS MESURÉS CE JOUR, qui n'étaient consignés NULLE PART
+
+**① L'API de l'assistant n'est pas « incomplète par app » — elle est incomplète par VERBE et par MONDE.**
+Mesuré (`tool_descriptions()`, 59 outils) : la **triade `add_to`/`start`/`get_status` est
+COMPLÈTE, 11 apps sur 11, zéro trou** — `TRIAD_SPECS` la GÉNÈRE (`tool_api.py:2710`). *Le relevé
+par noms de fonctions donnait l'inverse : `start_describer` n'est écrit nulle part, il est
+construit à l'import.* Ce qui manque est ailleurs, et vérifié **par le sens, pas par le préfixe** :
+
+- **verbes absents** : aucun outil ne sait **supprimer**, **annuler**, **dupliquer**, ni **régler**
+  un élément, ni **récupérer un résultat produit** comme fichier. L'assistant sait créer, lancer,
+  observer — il ne sait pas défaire. *(Les seules occurrences de « télécharger » concernent
+  l'entrée d'un fichier dans reader et l'état de téléchargement d'un modèle.)*
+- **mondes absents** : `cam_analyzer` **0 outil**, `face_analyzer` **0** (monde Lab entier),
+  monde **Data 0** (aucun `dataset`/`function`/`manifest`), **journal 0**, **rag 0** ; la mémoire
+  est en **lecture seule** (`memory_recall` — ni écriture, ni approbation).
+
+⚠ Cela contredit la philosophie §5 d'`AGENTS.md` (« chaque app expose son API à l'assistant IA
+(`tool_api.py`) ») **sur deux points** : il n'y a pas un `tool_api.py` par app mais **un seul
+fichier central** (`wama/tool_api.py`, 3255 lignes), et **deux mondes sur quatre n'y sont pas**.
+
+**② Le Data Analyzer est DÉCIDÉ depuis le 2026-08-25 et n'existe pas.**
+`WAMA_DATA_WORLD §11.8` le tranche (« l'app-file du monde Data, hérite de la file Médias »).
+Mesure : **aucun fichier, aucun dossier** ne porte ce nom dans le dépôt. C'est le **point
+d'entrée du monde Data** que Fabien nomme — donc le chantier qui débloque l'usage réel de tout
+le socle Data déjà construit.
+
+**③ Trois critères rouges reviennent sur PRESQUE TOUTES les apps** — ce sont eux, le reste du
+portage, et non « 5 apps à porter » :
+
+| critère | facette | ce qu'il dit | portée |
+|---|---|---|---|
+| `backend_routes` | F5 | paquet `backends/` présent **sans `ROUTES`** → `tasks_gen` laisse le stub `NotImplementedError` | ~toutes |
+| `task_skeleton` | F5 | tâche d'item **hand-rolled** — gardes/progress/ETA réécrits au lieu de `run_item_task` | ~toutes |
+| `detail_spec` / `triad_specs` | F3/F6 | détail en adapter CODE seul, **non projetable au manifeste** | ~toutes (🔶) |
+
+### 24.5 Les chantiers OUVERTS, par ordre de dépendance (rien d'inventé : chaque ligne a sa source)
+
+1. **Chaîne d'entrée** (chantier 1) — câblage `WamaImport` app par app ; port `live` encore
+   littéral ; **provenance en base** (décidée « OUI, PROPREMENT » le 07/09 : 1ʳᵉ relation
+   générique de WAMA, `grep` = zéro `GenericForeignKey` aujourd'hui) ; `-r` puis `-o` de lot
+   (décision du 07/09 : **`-r` est le plus grave** — un lot de clonage de voix est impossible
+   *en silence*) ; 6 lignes dans `RETENTION_MODELS` (D9).
+2. **cam_analyzer** (chantier 2) — B1 puis bascules D.3, accéléromètre (MESURER l'axe avant),
+   réétalonner σ, `ego_rotation`/`osm_control_nodes`, #7 bâtiments IGN, `locate_anything`.
+3. **Studio** — exécuter un pipeline de fonctions **depuis le bouton ▶** (jamais fait) ;
+   **marche E** : recharger un manifeste `pipeline` DANS le canvas (l'export existe, l'import
+   non) ; batch orchestré et fan-out parallèle. ⚠ Aucun harnais JS n'existe : la seule
+   attestation du JS Studio est le smoke navigateur.
+4. **Monde Data** — **Data Analyzer** (24.4②) ; D16/D18/D19 ; audit SQLite→HDF5 (🔴 bloque `.wds`) ;
+   2ᵉ manifeste + A2/A3/A4 du plan d'expérience.
+5. **API exhaustive** (24.4①) — verbes manquants, puis mondes Lab et Data.
+6. **MCP server** — cadre écrit (`§16` : 3 couches, réutiliser LiteLLM/MCP/Headroom, outils
+   dev/admin en **process séparé**). ⚠ **Trancher d'abord la contradiction** : `AGENTS.md
+   §Collaboration wama-dev-ai` dit « ne pas précipiter, découplés jusqu'à Phase 4 », `§8d` dit
+   « c'est à lui d'adopter la brique, plus simple que MCP ». Et porter les chaînes de repli
+   **RAM-aware** avant d'adopter la brique VRAM-aware, sinon on PERD une capacité.
+7. **RAG** — câblé et **VIDE** (0 `RagChunk`) ; bascule d'embedder + réindex non faits ; jalon 12.
+8. **i18n** — `§10.A` ; ⚠ **fuite constatée le 09/09** : le générateur de gabarits émet du
+   français **en dur, sans marquage de traduction** — toute app générée naîtra non traduisible.
+9. **Dette nommée, non enterrée** — `folder_input_id` sur 3 cards (pending rendu explicitement
+   par la session du 09/09) ; 6 gabarits incluent encore `wama-inspector-autofill.css` en local ;
+   `start_analysis`/`start_sam3_only` servies sans appelant front ; geste 10 (progression qui
+   AVANCE) ; scénarios GPU écrits et EN ATTENTE de la rampe CUDA.
+
+### 24.6 Avancement par rapport à la VISION — la DISTRIBUTION, pas un pourcentage
+
+`docs/WAMA_VISION_COMPLET.md` porte déjà un marquage d'état par section. Relevé automatiquement
+sur ses **50 sections** (2026-09-10) :
+
+| état | sections | lecture |
+|---|---|---|
+| 📜 doctrine seule | 10 | principes — rien à « livrer » |
+| ✅ livré | 6 | fermé |
+| ✅🔄 livré + extension en cours | 9 | le socle tient, la couverture grandit |
+| ✅⏳ livré + reste non commencé | 6 | |
+| 🔄 en cours | 7 | |
+| 🔄⏳ | 1 | |
+| ⏳ non commencé | 10 | dont Story Director, SI labo, gouvernance des IA — **gatés volontairement** |
+| (aucun marqueur) | 1 | §2.1, descriptif |
+
+Sur **39 sections « à construire »** (hors doctrine pure) : **21 ont un socle livré** (6 + 9 + 6),
+**8 sont en cours**, **10 ne sont pas commencées**.
+
+🔴 **Pourquoi PAS un pourcentage unique.** Passer de cette distribution à « WAMA est à N % »
+demande de **pondérer** un ✅🔄 contre un 🔄 — et cette pondération est une **DÉCISION**, pas une
+mesure. Avec des poids plausibles on obtient de 45 % à 60 % **sur les mêmes données** : le nombre
+dirait alors le poids choisi, pas l'état du projet. *Un nombre ne se trie pas sans son SENS.*
+La distribution ci-dessus, elle, est vérifiable et ne bouge que si le code bouge.
+
+### 24.7 Faut-il un mécanisme d'évaluation de la progression ? — **il en existe DÉJÀ trois**
+
+Vérifié avant de proposer quoi que ce soit (`mecanismes.py` : **133 mécanismes**, aucun ne porte
+sur la progression ; `vision_probe` concerne la capacité VISION d'un modèle, rien à voir).
+
+| ce qui existe | ce qu'il mesure | généré ? |
+|---|---|---|
+| `check_app_conformity` | **89 critères** × 10 apps — l'ADOPTION du standard d'app | ✅ oui, écrase les booléens déclarés |
+| `WAMA_VERIFICATION §3` | le catalogue des **GESTES** exécutables — le FONCTIONNEMENT | partiellement (nocturne) |
+| marquage ✅/🔄/⏳ de la vision | l'avancement par section de vision | ❌ **écrit à la main** |
+
+**Le trou réel est là** : le seul instrument qui parle de la VISION est le seul qui ne soit pas
+généré — donc le seul qui dérive en silence. C'est exactement le défaut que `doc_facts` a corrigé
+partout ailleurs (6 faits générés aujourd'hui : `conformite`, `mecanismes`, `modeles`, `outils`,
+`roundtrip`, `wama_data`).
+
+**Proposition (NON implémentée — arbitrage Fabien) : un 7ᵉ fait `doc_facts` = `vision`**, qui
+relit les marqueurs des 50 sections et régénère le tableau du §24.6. Coût ≈ une fonction de
+30 lignes, sur le patron exact de `_fait_conformite()`.
+
+⚠ **Et sa limite, à dire d'emblée** : cela rendrait la DISTRIBUTION générée et infalsifiable,
+mais **les marqueurs eux-mêmes resteraient déclaratifs**. Ce serait une grille d'**ADOPTION**,
+jamais de **FONCTIONNEMENT** — la distinction que `WAMA_VERIFICATION §2` interdit de confondre.
+Un ✅ posé à la main sur une section resterait une intention. **Le rendre vraiment mesuré**
+supposerait d'accrocher chaque section de vision à un signal existant (un critère de grille, un
+geste nocturne, un registre) — c'est un chantier plus lourd, et c'est la vraie question à trancher :
+*veut-on une progression CONSOLIDÉE (peu coûteux, honnête sur sa nature) ou MESURÉE (coûteux) ?*
