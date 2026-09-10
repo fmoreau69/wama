@@ -1505,16 +1505,25 @@ def import_to_imager(source_path, user, app_label='imager'):
     dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, subfolder)
 
     if file_type == 'prompt_file':
-        # For prompt files, we just save the file reference
-        # The actual batch will be created when user opens Imager
-        generation = ImageGeneration.objects.create(
-            user=user,
-            generation_mode=generation_mode,
-            prompt=f'Batch from {dest_path.name} (pending)',
-            status='PENDING',
-        )
-        generation.prompt_file.name = relative_path
-        generation.save()
+        # ── LOT COMMUN (2026-09-10) — cette voie créait un PLACEHOLDER ────────────────────
+        # Avant : un `ImageGeneration` en `file2img` portant le fichier dans son champ
+        # `prompt_file`, avec le commentaire « the actual batch will be created when user opens
+        # Imager ». Personne ne le créait jamais : mesuré au portage, **0 génération avec
+        # `prompt_file` rempli** en base. L'utilisateur envoyait un .txt vers l'Imager et
+        # obtenait une card fantôme intitulée « Batch from X (pending) ».
+        # Le lot est un GESTE commun (décision Fabien 05/09 : « le LOT n'a pas de port, c'est le
+        # GESTE qui le crée ») : cette porte d'entrée appelle donc le MÊME cœur que la card et
+        # que la barre de détection — `creer_lot_de_prompts`, extraite de `handle_file2img`.
+        from wama.imager.views import creer_lot_de_prompts
+
+        batch, generations = creer_lot_de_prompts(dest_path, dest_path.name, user)
+        if batch is None:
+            raise ValueError(f"Aucun prompt exploitable dans {dest_path.name}")
+        return {
+            'imported': True, 'app': app_label, 'file_type': file_type,
+            'batch_id': batch.id, 'count': len(generations),
+            'filename': dest_path.name, 'path': relative_path,
+        }
     else:
         # For reference images, create a describe2img generation
         generation = ImageGeneration.objects.create(

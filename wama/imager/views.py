@@ -407,42 +407,116 @@ def handle_txt2img(request, user):
     })
 
 
-def handle_file2img(request, user):
-    """Handle batch generation from prompt file (txt/json/yaml)"""
-    from .utils.prompt_parser import parse_prompt_file, validate_prompt_config
+def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=None):
+    """Crée le LOT depuis un fichier de prompts déjà sur disque — cœur SANS `request`.
 
+    Extrait de `handle_file2img` le 2026-09-10, quand une TROISIÈME entrée s'est présentée :
+    le gestionnaire de fichiers (« Envoyer vers Imager » d'un .txt). Les deux premières — la
+    card historique et la barre de détection commune — étaient déjà réconciliées derrière
+    `handle_file2img` ; la troisième ne pouvait pas l'être, parce que ce point d'entrée lit
+    `request.FILES`. Elle avait donc sa propre voie : un `ImageGeneration` PLACEHOLDER en
+    `file2img`, portant le fichier dans le champ `prompt_file`, avec la promesse — écrite dans
+    `filemanager/views.py` — que « le batch sera créé quand l'utilisateur ouvrira l'Imager ».
+    Personne ne le créait. Mesuré avant le portage : **0 génération avec `prompt_file` rempli**.
+
+    C'est le motif que la doctrine nomme : la divergence de nommage (`prompt_file` vs
+    `batch_file`) était la trace d'une brique absente. Le lot est un GESTE commun — décision
+    Fabien 05/09, « le LOT n'a pas de port, c'est le GESTE qui le crée » — et il n'a donc pas
+    à exister en deux implémentations selon la porte d'entrée.
+
+    Args:
+        chemin        : fichier de prompts sur disque (str | Path).
+        nom_fichier   : nom d'origine, conservé sur `batch_file` du lot.
+        reglages      : dict optionnel (model/width/height/steps/guidance_scale + vidéo).
+    Returns:
+        (batch, generations) — ou (None, []) si le fichier ne contient aucun prompt valide.
+    """
+    from .utils.prompt_parser import parse_prompt_file, validate_prompt_config
+    from wama.common.utils.batch_common import consolidate_into_batch
+    from wama.imager.models import GenerationBatch, GenerationBatchItem
+
+    r = dict(reglages or {})
+    model = r.get('model') or 'auto'
+    _def = get_model_defaults(model)
+    width = int(r.get('width', _def['width']))
+    height = int(r.get('height', _def['height']))
+    steps = int(r.get('steps', _def['steps']))
+    guidance_scale = float(r.get('guidance_scale', _def['guidance_scale']))
+    domain = 'video' if domain == 'video' else 'image'
+    mode = 'txt2vid' if domain == 'video' else 'txt2img'
+    video_kwargs = {}
+    if domain == 'video':
+        video_kwargs = {
+            'video_duration': float(r.get('video_duration', 5.0)),
+            'video_fps': int(r.get('video_fps', 16)),
+            'video_resolution': r.get('video_resolution', '480p'),
+        }
+
+    prompts = parse_prompt_file(str(chemin))
+    if not prompts:
+        return None, []
+
+    generations = [
+        ImageGeneration.objects.create(
+            user=user,
+            generation_mode=mode,
+            prompt=v.get('prompt', ''),
+            negative_prompt=v.get('negative_prompt', ''),
+            model=v.get('model', model),
+            width=v.get('width', width),
+            height=v.get('height', height),
+            steps=v.get('steps', steps),
+            guidance_scale=v.get('guidance_scale', guidance_scale),
+            seed=v.get('seed'),
+            num_images=v.get('num_images', 1),
+            status='PENDING',
+            **video_kwargs,
+        )
+        for v in (validate_prompt_config(p) for p in prompts)
+    ]
+
+    def _create_batch(total):
+        b = GenerationBatch.objects.create(user=user, domain=domain, total=total)
+        # Le fichier de prompts vit sur le BATCH (champ prévu pour, models.py:445) et non sur
+        # un faux item : il est partagé par les lignes et nettoyé par BatchMixin.
+        from django.core.files import File
+        with open(chemin, 'rb') as fh:
+            b.batch_file.save(nom_fichier, File(fh))
+        return b
+
+    batch = consolidate_into_batch(
+        generations,
+        create_batch=_create_batch,
+        link_item=lambda b, g, idx: GenerationBatchItem.objects.create(
+            batch=b, generation=g, row_index=idx),
+    )
+    return batch, generations
+
+
+def handle_file2img(request, user):
+    """Handle batch generation from prompt file (txt/json/yaml) — ADAPTATEUR de requête.
+
+    Ne fait plus que lire la requête et déléguer à `creer_lot_de_prompts` (le cœur commun).
+    """
     # `batch_file` = nom de champ du contrat WamaBatchImport ; `prompt_file` = nom historique
     # posté par la card. UNE seule implémentation de création sert les deux entrées.
     prompt_file = request.FILES.get('prompt_file') or request.FILES.get('batch_file')
     if not prompt_file:
         return JsonResponse({'error': 'No prompt file provided'}, status=400)
 
-    # Default parameters for batch
-    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
-    # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
-    # modèle 1024 px en rectified flow (Qwen, FLUX).
-    # On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où la
-    # VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
-    model = request.POST.get('model') or 'auto'
-    _def = get_model_defaults(model)
-    width = int(request.POST.get('width', _def['width']))
-    height = int(request.POST.get('height', _def['height']))
-    steps = int(request.POST.get('steps', _def['steps']))
-    guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
+    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur : 512x512 /
+    # 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout modèle 1024 px
+    # en rectified flow (Qwen, FLUX). On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au
+    # LANCEMENT, où la VRAM libre est celle du moment. Résoudre ici serait périmé.
+    #
     # DOMAINE du lot (2026-09-08, décision Fabien : « je ne vois pas de raison de ne pas
-    # permettre de fichier batch dans le domaine vidéo », lots vidéo prévus depuis le studio).
-    # Jusqu'ici `txt2img` et `domain='image'` étaient écrits en dur : un lot déposé sur la card
-    # VIDÉO ne pouvait exister. Le domaine est DÉCLARÉ par l'appelant (card vidéo, studio) ;
-    # les réglages vidéo suivent le même patron que `handle_text_to_video`.
-    domain = 'video' if (request.POST.get('domain') or 'image') == 'video' else 'image'
-    mode = 'txt2vid' if domain == 'video' else 'txt2img'
-    video_kwargs = {}
-    if domain == 'video':
-        video_kwargs = {
-            'video_duration': float(request.POST.get('video_duration', 5.0)),
-            'video_fps': int(request.POST.get('video_fps', 16)),
-            'video_resolution': request.POST.get('video_resolution', '480p'),
-        }
+    # permettre de fichier batch dans le domaine vidéo »). Il est DÉCLARÉ par l'appelant (card
+    # vidéo, studio) ; les réglages vidéo suivent le patron de `handle_text_to_video`.
+    reglages = {k: request.POST[k] for k in
+                ('model', 'width', 'height', 'steps', 'guidance_scale',
+                 'video_duration', 'video_fps', 'video_resolution')
+                if request.POST.get(k) not in (None, '')}
+    domain = request.POST.get('domain') or 'image'
 
     # Save file temporarily to parse it
     import tempfile
@@ -452,55 +526,10 @@ def handle_file2img(request, user):
         tmp_path = tmp.name
 
     try:
-        # Parse prompts from file
-        prompts = parse_prompt_file(tmp_path)
-
-        if not prompts:
+        batch, generations = creer_lot_de_prompts(
+            tmp_path, prompt_file.name, user, domain=domain, reglages=reglages)
+        if batch is None:
             return JsonResponse({'error': 'No valid prompts found in file'}, status=400)
-
-        # ── Batch COMMUN (GenerationBatch), plus de parent/enfants par self-FK ────────
-        # Avant : un ImageGeneration « conteneur » en status SUCCESS + N enfants relies par
-        # `parent_generation`. Ce mecanisme etait DOUBLE par GenerationBatch depuis `9922f65`
-        # sans avoir ete retire — juxtaposition, pas remplacement. Effet concret : le conteneur
-        # n'etant pas un vrai travail, `auto_wrap_orphans` l'enveloppait dans un batch-of-1 et
-        # il occupait une card fantome dans la file (2 en base au moment du portage).
-        # Le batch est aussi l'unite de PARTAGE : passer par lui rend le lot partageable, ce que
-        # le self-FK ne permettait pas.
-        from wama.common.utils.batch_common import consolidate_into_batch
-        from wama.imager.models import GenerationBatch, GenerationBatchItem
-
-        generations = [
-            ImageGeneration.objects.create(
-                user=user,
-                generation_mode=mode,
-                prompt=v.get('prompt', ''),
-                negative_prompt=v.get('negative_prompt', ''),
-                model=v.get('model', model),
-                width=v.get('width', width),
-                height=v.get('height', height),
-                steps=v.get('steps', steps),
-                guidance_scale=v.get('guidance_scale', guidance_scale),
-                seed=v.get('seed'),
-                num_images=v.get('num_images', 1),
-                status='PENDING',
-                **video_kwargs,
-            )
-            for v in (validate_prompt_config(p) for p in prompts)
-        ]
-
-        def _create_batch(total):
-            b = GenerationBatch.objects.create(user=user, domain=domain, total=total)
-            # Le fichier de prompts vit sur le BATCH (champ prevu pour, models.py:445) et non
-            # sur un faux item : il est partage par les lignes et nettoye par BatchMixin.
-            b.batch_file.save(prompt_file.name, prompt_file)
-            return b
-
-        batch = consolidate_into_batch(
-            generations,
-            create_batch=_create_batch,
-            link_item=lambda b, g, idx: GenerationBatchItem.objects.create(
-                batch=b, generation=g, row_index=idx),
-        )
 
         logger.info(f"Created generation batch #{batch.id} with {len(generations)} items "
                     f"for user {user.username}")

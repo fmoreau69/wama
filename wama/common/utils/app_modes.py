@@ -65,7 +65,7 @@ dérivent sans une ligne par consommateur. Détail : `WAMA_APP_GENERATION_ROUTE.
 Hiérarchie : App → Domaine → Mode → {entrées typées + sections de réglages}. Tout est métadonnée-driven :
 l'UI (onglets, switch de mode, champs, sections) se GÉNÈRE depuis ce schéma (générateur JS `WamaModes`).
 
-Les ENTRÉES typées (prompt / work_file / reference_file / url / prompt_file) sont AUSSI les futurs
+Les ENTRÉES typées (prompt / work_file / reference_file / url) sont AUSSI les futurs
 **ports de la méta-app** (typage par connexion : card batch → port travail ; card unitaire → port référence).
 
 Dicts simples (JSON-sérialisables) → exposables tels quels à l'endpoint que `WamaModes` consomme.
@@ -83,12 +83,28 @@ INPUT_TYPES = {
     'reference_voice': {'label': 'Voix de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference'},
     'reference_melody': {'label': 'Mélodie de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference'},
     'url':             {'label': 'URL', 'kind': 'url', 'multi': False, 'port': 'travail'},
-    'prompt_file':     {'label': 'Fichier de prompts (batch)', 'kind': 'file', 'multi': False, 'port': 'travail'},
 }
+
+# ⚠ `prompt_file` A ÉTÉ RETIRÉ de ce vocabulaire le 2026-09-10, et c'est une correction d'AXE.
+# Il y figurait sous le libellé « Fichier de prompts (batch) » — c'est-à-dire qu'il décrivait
+# un LOT, pas une entrée. Or le lot n'est pas un port : décision Fabien du 2026-09-05, « le LOT
+# n'a pas de port, c'est le GESTE qui le crée ». Il est porté par la brique commune (barre de
+# détection + `batch_parsers` + `WamaBatchImport`), pas par un slot de card.
+#
+# Sa présence ici était par ailleurs INERTE, et c'est ce qui l'avait rendue invisible : mesuré
+# avant retrait, `studio_node_ports` ne retient des `inputs` d'une app que les jetons dont le
+# `port` vaut `reference` — un jeton `travail` déclaré là était donc silencieusement ignoré.
+# imager et composer le déclaraient tous deux ; aucun des deux n'obtenait de port ni de slot.
+# *Une déclaration que personne ne lit ne se signale jamais : elle se mesure.*
+#
+# ⚠ Le CHAMP de modèle `ImageGeneration.prompt_file` n'est pas concerné — c'est de la donnée
+# (frontière des DONNÉES), et il reste lu par `imager/apps.py`. Ce qui a changé est la VOIE :
+# « Envoyer vers Imager » d'un fichier de prompts crée désormais un vrai lot par le cœur commun
+# `creer_lot_de_prompts`, au lieu d'un item placeholder qui portait ce champ.
 
 
 # RÈGLE D'APPARIEMENT (INPUT_MODEL_MATCHING.md) : les slots de la card d'entrée d'une app =
-# ses inputs déclarés ci-dessous (niveau APP : communs à tous les modèles, ex. prompt/prompt_file)
+# ses inputs déclarés ci-dessous (niveau APP : communs à tous les modèles, ex. `prompt`)
 # ∪ l'union des `inputs_required/optional` de ses MODÈLES (capabilities catalogue, ex.
 # reference_melody porté par musicgen-melody seul). La brique `wama-input-match.js` lie les deux :
 # entrée fournie → modèles incompatibles DÉSACTIVÉS avec raison (jamais cachés) ; modèle choisi →
@@ -121,7 +137,7 @@ APP_MODES = {
              'accepts': ('prompt', 'image'),
              # Slots MESURÉS sur la card réelle (index.html:133) : prompt primaire, image de
              # référence (`reference_accept='image/*'`), fichier de prompts batch (.txt/.csv).
-             'inputs': ['prompt', 'reference_image', 'prompt_file'], 'modes': []},
+             'inputs': ['prompt', 'reference_image'], 'modes': []},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'success',
              'accepts': ('prompt', 'image'),
              # Card vidéo (index.html:175) : prompt + image de DÉPART (i2v) — pas de batch file.
@@ -250,7 +266,7 @@ APP_MODES = {
          # Card réelle (index.html:78) : prompt primaire, mélodie de référence (le littéral
          # `reference_accept='audio/*'` a enfin sa déclaration — c'est ELLE qui donne au
          # composer son port audio, absent d'input_extensions), fichier de prompts batch.
-         'inputs': ['prompt', 'reference_melody', 'prompt_file'], 'modes': []},
+         'inputs': ['prompt', 'reference_melody'], 'modes': []},
     ]},
     # reader : un seul geste « lire » ; backend/mode/langue sont des PARAMS, pas des modes.
     'reader': {'domains': [

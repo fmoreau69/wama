@@ -97,3 +97,110 @@ Pour les apps à FILE (fichiers consommés au dépôt), la direction VIVANTE est
 (ligne d'état sous le select) ; le grisage entrée-d'abord s'activera avec les slots RETENUS
 (références). Le serveur (`matches_inputs()`) et l'UI partagent la même déclaration catalogue :
 le grisage d'une entrée et l'exclusion d'un modèle disent la même chose.
+
+---
+
+## 6. LES QUATRE AXES D'ENTRÉE — et l'auto-adaptation aux modèles (2026-09-10)
+
+> Section née d'une question de Fabien : *« la solution est l'auto-adaptation de la card
+> d'entrée aux capacités des modèles d'une application. Sinon, à l'ajout d'un nouveau modèle
+> proposant plus de modalités d'entrée, on sera bloqué. »* Elle ne décide rien de neuf : elle
+> SÉPARE ce qui était mélangé, et rend implémentable une règle déjà écrite.
+
+### 6.1 Le mélange qui bloquait
+
+`INPUT_TYPES` confondait **quatre axes orthogonaux**. C'est ce qui rendait toute discussion
+« travail vs référence » insoluble : on cherchait à faire trancher par une catégorie ce qui
+relève de trois autres plans.
+
+| axe | ce qu'il décrit | où il vit |
+|---|---|---|
+| **A — jeton d'entrée** | ce que l'ÉLÉMENT consomme (`prompt`, `work_image`, `reference_melody`…) | `INPUT_TYPES` |
+| **B — modalité** | comment un fichier ATTEINT un slot (import, médiathèque, url, live) | `input_slots` → `mods` |
+| **C — voie** | par où le fichier entre dans WAMA (13 lignes mesurées) | `MEDIA_STORAGE_TIERING §8.2` |
+| **D — lot** | un GESTE qui crée N éléments — **jamais un port** (décision Fabien 05/09) | brique batch commune |
+
+**Retiré le 2026-09-10** : `prompt_file` (axe D déguisé en axe A — libellé « Fichier de prompts
+(batch) »). Il était de surcroît INERTE : `studio_node_ports` ne retient des `inputs` d'une app
+que les jetons `port == 'reference'`, donc un jeton `travail` déclaré là était ignoré en
+silence. imager et composer le déclaraient ; ni port ni slot n'en sortait.
+**Restent à traiter** : `url` (axe B — déjà présent dans `mods`) et `negative_prompt` (réglage,
+`port: None`).
+
+### 6.2 Ce que dit l'état de l'art — et ce qu'il ne dit pas
+
+| outil | modèle d'entrée |
+|---|---|
+| **ComfyUI** | `INPUT_TYPES()` → `{required, optional, hidden}`, chaque entrée = `(TYPE_DE_DONNÉE, options)`. **Aucune catégorie travail/référence** : le rôle est porté par le NOM du socket |
+| **diffusers** | trois paramètres NOMMÉS distincts : `image` (init, transformé), `ip_adapter_image` (style, conditionne), `control_image` (structure) |
+| **Suno** | prompt de style + paroles + audio, **rien n'est bloquant** ; le rôle de l'audio dépend du MODE (« Add Vocals » = travail ; style = référence) |
+
+**Conclusion opératoire** : la distinction travail/référence est RÉELLE (diffusers la nomme),
+mais ce n'est pas un axe de STRUCTURE. Un onglet de card = **un jeton nommé**, pas une
+catégorie. `group` est rétrogradé au rang d'ATTRIBUT, utile à deux choses et deux seulement :
+le bind de la preview d'entrée (`WAMA_MANIFEST_SPEC §141-147` — jamais sur une référence) et
+l'ordre des onglets.
+
+⚠ **Corollaire qui règle le cas « deux références de rôles différents »** (style + décor) :
+deux jetons nommés, deux onglets, deux libellés. Le système est universel *parce qu'*il nomme
+au lieu de catégoriser. Aucune règle nouvelle n'est requise.
+
+### 6.3 La règle d'auto-adaptation — déjà écrite, pas encore implémentée
+
+`app_modes.py` la porte depuis l'origine : **slots d'une app = ses `inputs` de niveau APP ∪
+l'union des `inputs_required`/`inputs_optional` de ses MODÈLES**. Mesuré le 2026-09-10 : le
+vocabulaire est peuplé sur **100 % des modèles d'app** (48/48 anonymizer, 12/12 imager, 5/5
+composer, 9/9 enhancer…), et **aucun jeton employé par un modèle n'est absent d'`INPUT_TYPES`**.
+
+Ce qui manque est le CONSOMMATEUR : `studio_node_ports` dérive encore le port travail des
+catégories grossières d'`APP_CATALOG.input_types`, d'où un port FANTÔME chez l'imager
+(`work[image]` alors que l'app déclare `reference_image`). Trois mesures indépendantes le
+confirment : la card v4 le rend en `data-wama-depot=attache`, `GENERIC_APPS` écrase la
+dérivation par `primary_input='prompt'`, et `studio_redundancy('imager')` sort en
+`narrowed_by_declaration` avec l'`io_scope` « le port image (i2i/référence) de la card n'est
+pas exposé au nœud ».
+
+**L'obligation reste au runtime** : l'union dit quels slots EXISTENT, `wama-input-match` dit
+lesquels sont OBLIGATOIRES selon le modèle choisi (`matches_inputs`). Un slot requis par un
+seul modèle est OFFERT, pas imposé.
+
+### 6.4 La card v4 implémente déjà la bonne forme
+
+Vérifié au gabarit et au navigateur : section **prompt** au-dessus, hors onglets (`input_slots`
+fait `if group == 'prompt': continue`) · un **onglet par port fichier**, chacun portant TOUTES
+ses modalités **dont son propre champ URL** — ce qui lève l'ambiguïté « cette URL, c'est un
+prompt, un travail ou une référence ? » sans recourir à la chronologie · un onglet **live** ·
+la **barre de lot** hors ports. Le studio en fait autant, avec le prompt en socket connectable
+(nœud source « Batch de prompts »). **Aucun conflit studio ↔ card v4.**
+
+⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
+C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.
+
+### 6.5 Reste à faire — dans cet ordre
+
+| # | geste | preuve attendue |
+|---|---|---|
+| ~~P0~~ | ~~`prompt_file` → brique de lot commune~~ | ✅ **fait le 2026-09-10** |
+| P0′ | séparer les axes restants : `prompt.port` → `prompt`, sortir `url`, classer `negative_prompt` | ports inchangés hors `prompt` ; v4 et studio d'accord |
+| P1 | accesseur d'union `app_input_ports(app, domain)` — **réutiliser `input_match.auto_entry()`**, qui en calcule déjà une variante | table des écarts union ↔ ports actuels, sans changer un comportement |
+| P2 | `studio_node_ports` le consomme (repli si union vide) | `studio_redundancy` : imager `narrowed_by_declaration` → `derived` ; roundtrip fidèle ; corpus ré-exporté |
+| P3 | la card v4 suit seule | batteries `converter_01` et `imager_01` |
+| P4 | câblage de l'imager : l'attache d'image devient un dépôt de TRAVAIL | `imager_01.import` : `skip` → OK |
+
+### 6.6 Points ouverts, nommés
+
+- **Aucun jeton de `tasks` ne dit le transfert de style.** `model_registry.py:553-559` dérive
+  `inputs_required/optional` des `tasks` et ne sait produire que `work_image` — d'où
+  `reference_image` déclaré par **zéro modèle**. Un modèle IP-Adapter/ControlNet verrait son
+  image classée « travail » à tort. À ajouter avant d'intégrer un tel modèle.
+- **Texte explicatif par entrée** (demande Fabien) : le contrat de port porte DÉJÀ une case
+  `description` (rendue par `portEl()` côté studio, peuplée sur les nœuds sources). L'ajouter à
+  `INPUT_TYPES` est additif.
+- **Seuil d'onglets** : rien ne borne leur nombre. Un modèle multi-entrées type Wan3 en
+  produirait beaucoup — reprendre le motif du seuil de 6 avec « … » de la rangée d'actions.
+- **`describe2img` (imager)** : rendu superflu par « Envoyer vers » + studio (décision Fabien
+  10/09) — c'est aussi ce qui explique que son image n'aille jamais au modèle d'image. Retrait
+  à faire, 0 génération dans ce mode en base.
+- **`prompt` de l'avatarizer** : ajout personnalisé (TTS+avatar), qu'aucun modèle ne déclare.
+  Sous la règle d'union il DISPARAÎT, au profit de la chaîne synthesizer → avatarizer — et il
+  reviendra de lui-même le jour où un modèle déclarera le couple. Position Fabien 10/09.

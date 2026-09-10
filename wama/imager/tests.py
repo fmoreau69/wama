@@ -112,3 +112,61 @@ class SortieDeLotTest(LotImagerMixin, TestCase):
         self.assertFalse(rep.json().get('unwrapped'))
         self.assertEqual('déjà isolé', rep.json().get('reason'))
         self.assertEqual(2, GenerationBatch.objects.filter(user=self.user).count())
+
+
+class EnvoyerVersImagerCreeUnLotTest(LotImagerMixin, TestCase):
+    """La TROISIÈME porte d'entrée du lot — « Envoyer vers Imager » depuis le gestionnaire.
+
+    Elle ne créait pas de lot : elle posait un `ImageGeneration` PLACEHOLDER en `file2img`,
+    portant le fichier dans le champ `prompt_file`, avec la promesse écrite en commentaire que
+    « le batch sera créé quand l'utilisateur ouvrira l'Imager ». Personne ne le créait — mesuré
+    au portage du 2026-09-10 : **0 génération avec `prompt_file` rempli** en base. L'utilisateur
+    envoyait un .txt et récupérait une card fantôme « Batch from X (pending) ».
+
+    Depuis, les trois portes (card historique, barre de détection commune, gestionnaire de
+    fichiers) partagent le même cœur `creer_lot_de_prompts`. Le lot est un GESTE commun, pas
+    une implémentation par point d'entrée.
+    """
+
+    def _envoyer(self, contenu=b'un phare dans la brume\nune foret la nuit\n', nom='wama_temoin_envoi.txt'):
+        import tempfile
+        from pathlib import Path
+
+        from wama.filemanager.views import import_to_imager
+
+        dossier = Path(tempfile.mkdtemp())
+        source = dossier / nom
+        source.write_bytes(contenu)
+        return import_to_imager(source, self.user)
+
+    def test_envoyer_un_fichier_de_prompts_cree_un_VRAI_lot(self):
+        res = self._envoyer()
+        self.assertTrue(res.get('imported'))
+        self.assertIn('batch_id', res,
+                      'la voie « Envoyer vers » ne rend pas de lot : le placeholder est revenu')
+        self.assertEqual(2, res['count'])
+
+        lot = GenerationBatch.objects.get(id=res['batch_id'])
+        self.assertEqual(2, lot.total)
+        gens = list(ImageGeneration.objects.filter(user=self.user).order_by('id'))
+        self.assertEqual(2, len(gens))
+        self.assertEqual(['un phare dans la brume', 'une foret la nuit'],
+                         [g.prompt for g in gens])
+
+    def test_aucune_card_FANTOME_ne_subsiste(self):
+        """Le défaut se voyait à l'écran, pas dans une exception : une card « (pending) »
+        qui n'était le travail de personne. On tient donc l'ABSENCE du placeholder."""
+        self._envoyer()
+        fantomes = ImageGeneration.objects.filter(user=self.user, generation_mode='file2img')
+        self.assertEqual(0, fantomes.count(),
+                         'un item `file2img` placeholder a été recréé')
+        self.assertEqual(0,
+                         ImageGeneration.objects.filter(user=self.user)
+                         .exclude(prompt_file='').exclude(prompt_file=None).count(),
+                         'le champ `prompt_file` est réalimenté : le lot vit sur le BATCH')
+
+    def test_un_fichier_sans_prompt_exploitable_est_REFUSE_sans_rien_creer(self):
+        with self.assertRaises(ValueError):
+            self._envoyer(contenu=b'\n\n\n')
+        self.assertEqual(0, ImageGeneration.objects.filter(user=self.user).count())
+        self.assertEqual(0, GenerationBatch.objects.filter(user=self.user).count())
