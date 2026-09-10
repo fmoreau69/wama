@@ -13166,7 +13166,7 @@ toutes lettres — son en-tête le dit déjà, mais le contrôle n'a jamais ét�
 
 ### Contrôles attendus au prochain `/reprise` — MESURÉS le 2026-09-09→10
 
-- **Suite complète** (venv_win, `--keepdb`) : **1980 tests, `OK (skipped=11)`**. ⚠ Le verdict
+- **Suite complète** (venv_win, `--keepdb`) : **1995 tests, `OK (skipped=11)`**. ⚠ Le verdict
   est `OK` dans la SORTIE, jamais le code de retour ; et lire les NOMS des rouges, pas le compte.
 - `check_docs` : **0 cassée / 0 périmée sur 1538** — et surtout **0 CIBLE DISTINCTE**, seul
   critère. ⚠ Le total monte du seul fait qu'on rende compte : il valait 1523 en début de session.
@@ -13182,3 +13182,24 @@ toutes lettres — son en-tête le dit déjà, mais le contrôle n'a jamais ét�
   déclarée** sur 14, 0 lien cassé.
 - **Mémoire, base réelle** : 28 `MemoryItem` (3 approuvés, 25 `dev-ai` en file de revue),
   0 `RagChunk`, **5 `OrgUnit`** — ⚠ `WAMA_LLM §0` annonçait « 0 `OrgUnit` », corrigé.
+
+### ⚠ ADDENDUM — les 3 livrables NON GARDÉS, et deux durcissements (2026-09-10)
+
+Question de Fabien en fin de clôture : « les tests nécessaires ajoutés ? ». **Mesure : sur
+9 livrables, TROIS n'avaient AUCUNE garde** — l'adoption de `llm_chat`, le pont wama-dev-ai,
+`check_skills`. Ma table de clôture disait « ✓ tests » : vrai pour LANCER, faux pour AJOUTER,
+et **rien dans le rituel ne demandait la seconde**. Les trois sont de la même famille : *un
+défaut invisible à l'exécution locale* (`model=''` → modèle `"openai/"`, erreur distante ; un
+rôle sans posture rend une sortie plausible et fausse). **+15 gardes**, suite à **1995 OK**.
+
+**`/cloture` gagne un §2a bis — « lancer n'est pas garder »** : une ligne par livrable (son
+symbole → le fichier de test qui le nomme, ou « non gardé parce que »), et le critère de
+priorité n'est pas la couverture mais *« ce défaut se verrait-il à l'exécution locale ? »*.
+⚠ Un smoke lancé à la main n'est pas une garde — le pont en était l'exemple.
+
+**`AGENTS.md` durcit la règle de vérification** : elle a été respectée à la lettre et a produit
+**5 diagnostics faux en une session**, dont 3 par la même faute (conclure d'un RELEVÉ PAR MOTIF
+au lieu d'ouvrir). Trois interdits nommés avec leur cas vécu, et le test durci : **une
+affirmation sur le code doit nommer la LIGNE qui la fonde**. Plus deux invariants : *une mesure
+bat N citations* (les N peuvent n'être qu'une, dupliquée) et *une doc qui contredit le code a
+tort par défaut* (5 écarts, 5 fois la doc en retard).
