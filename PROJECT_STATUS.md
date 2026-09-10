@@ -206,7 +206,9 @@ Doc : [`WAMA_LLM.md`](WAMA_LLM.md).
 - ✅ C Transparence console (🌐 traduit / ✨ enrichi / 📎 référence ; silence si direct)
 - ✅ D Composer câblé (MusicGen EN) + synthesizer tranché (TTS jamais traduit)
 - ✅ Hook compréhension fichiers de référence (`reference_comprehension.py`, dormant)
-- ⏳ Hook RAG (dépend de la fondation `wama/rag/`, §6)
+- ⏳ Hook RAG — ⚠ **la dépendance annoncée était `wama/rag/` : ce paquet N'EXISTE PAS et
+  n'existera pas** (vérifié 2026-09-10). Le socle est LIVRÉ ailleurs : `wama/common/memory/`
+  sur pgvector (§6). Le hook lui-même reste à câbler ; il n'attend plus rien.
 - ⏳ Choisir le 1er adopteur `reference_field` (reco : sous-page describer doc-understanding)
 - ⏳ Câbler QC (`qc.py`) en post-génération ; (option) preview pré-lancement
 
@@ -414,10 +416,16 @@ Un seul composant `WamaInspector`, deux catalogues, contenu généré depuis la 
   de `APP_CATALOG` (catalogue = apps génériques seulement) → décider de les inclure (flag `lab`/`hub`).
 - ⏳ **Grille §15** (WAMA_APP_CONVENTIONS) = photo manuelle (2026-05-16) dérivée du registre live →
   remplacer par un pointeur vers `/apps/` (`get_conformity_summary()`, seule source à jour ; NE PAS
-  recopier de scores figés ici, ils dérivent). Scores live **2026-07-02** (après correction F1 des flags
-  `inspector`/`modes`, cf. REMOVAL_LEDGER) : transcriber 76% (top) · describer/enhancer/reader 68% ·
-  converter 62% · synthesizer 61% · anonymizer 59% · composer 57% · **imager 42%, avatarizer 40%
-  (à travailler)**.
+  recopier de scores figés ici, ils dérivent).
+  🔴 **~~Scores live 2026-07-02 : transcriber 76 % · describer/enhancer/reader 68 % · converter
+  62 % · synthesizer 61 % · anonymizer 59 % · composer 57 % · imager 42 %, avatarizer 40 %~~ —
+  RETIRÉS le 2026-09-10, ils étaient FAUX de 20 à 50 points.** Mesure du jour : converter et
+  describer **100 %**, reader 97 %, enhancer/synthesizer/transcriber 95 %, anonymizer/avatarizer/
+  composer 94 %, **imager 92 %** (annoncé 42), **avatarizer 94 %** (annoncé 40).
+  ⭐ *La ligne juste au-dessus disait « NE PAS recopier de scores figés ici, ils dérivent » — et
+  la phrase suivante en recopiait neuf. Une consigne posée à côté de ce qu'elle interdit ne
+  protège de rien.* Source vivante : `/apps/` (`get_conformity_summary()`) ou
+  `manage.py check_app_conformity`.
 
 ## 3. wama-dev-ai (agent Ollama local) — fiabilisé
 - ✅ Robustesse runner (troncature, retry EOF, read_file numéroté, fallback `gemma4:e4b`, `--force-model`, cp1252) — validé pour audit ciblé
@@ -534,8 +542,13 @@ Docs : `STUDIO_VISION.md`, `memory/project_meta_app_studio.md`, `memory/project_
 - ✅ **Décision archi** : montage & mixage = **apps dédiées** ; Monteur = 1 app à modes + `edit_page` par mode ; Mixage/Mastering plus tard.
 - ✅ **Persistance + exécution V1** (2026-07-11, §37) : StudioPipeline/StudioRun, moteur
   Celery topo (runners synthesizer→avatarizer via tool_api), toolbar Save/Load/Run,
-  coloration des nœuds. ⏳ Suites : plus de runners (imager, converter…), sorties → dossier
+  coloration des nœuds. ⏳ Suites : ~~plus de runners (imager, converter…)~~, sorties → dossier
   filemanager studio, ports multi-entrées, specs Fabien (montage/mixage).
+  ⚠ **Runners : PÉRIMÉ (mesuré 2026-09-10)** — `runner_for()` en rend **10 sur 11** (imager et
+  converter compris) ; seul `audio_enhancer` n'en a pas. Ce qui reste vraiment au Studio est
+  ailleurs : **exécuter un pipeline de FONCTIONS depuis le bouton ▶** (jamais fait) et la
+  **marche E** (recharger un manifeste `pipeline` dans le canvas — l'export existe, l'import
+  non). Voir `ROADMAP §24.5-3`.
 
 ## 16. Profils / permissions / notifications / rétention — palier 2026-06-25
 Doc : `PROFILES_PERMISSIONS.md` + `memory/project_profiles_permissions.md`.
@@ -593,8 +606,9 @@ Doc : `CARD_DESIGN.md §8`. Affine §17 (file épurée) + §3ter (pile Solitaire
   signal recale l'ancien batch) + `consolidate` (entrée). **Reste = l'UI DRAG** (SortableJS, posera
   `wama_focus_card` sur l'id déplacé). **Backend du drag COMPLET + validé (2026-06-29)** : `remove_from_batch`
   (sortie), `reorder` (`row_index` dans un batch), `move_to_batch` (entrée), `consolidate` (existant).
-  **Reste = uniquement l'UI SortableJS** branchée sur ces endpoints → **session VISUELLE**. (Filtrer/trier
-  = FAIT, voir bullet ci-dessous.) NB : bouton « sortir » ajouté par erreur puis retiré.
+  ~~**Reste = uniquement l'UI SortableJS**~~ → ✅ **LIVRÉE** (vérifié 2026-09-10) :
+  `common/static/common/js/wama-queue-dnd.js` existe, et le geste `queue_dnd` est couvert par
+  **17 scénarios nocturnes**. (Filtrer/trier = FAIT.) NB : bouton « sortir » ajouté par erreur puis retiré.
 - ✅ **Fix hauteur mosaïque** (2026-06-29) : cards individuelles à hauteur égale par ligne
   (`align-self:stretch`) ; card batch laissée courte (distinction, choix Fabien).
 - 🔄 **Card mère = squelette des filles** : **P1 FAIT + validé sur le Transcriber (référence, 2026-06-29)** :
@@ -603,9 +617,10 @@ Doc : `CARD_DESIGN.md §8`. Affine §17 (file épurée) + §3ter (pile Solitaire
   `.is-batch` (couleur) + méta/actions. Toggle collapse scopé sur `col-md-9` (actions HORS toggle →
   handlers délégués préservés) ; look « pile Solitaire » + fan-in conservés. **+ bouton ▶ Lancer/Relancer
   ajouté sur la card mère** (pos. 2, vue `batch_start`, sans passer par la modale) → convention fixée
-  `WAMA_APP_CONVENTIONS §9.8`. **Reste** : extraire en
-  brique commune `common/templates/common/_batch_card.html` (réutilise `_card_progress`/`_card_state`)
-  pour dédupliquer entre apps, puis P2 (éventail `translateY`) / P3 (polish).
+  `WAMA_APP_CONVENTIONS §9.8`. ~~**Reste** : extraire en brique commune
+  `common/templates/common/_batch_card.html`~~ — ✅ **LA BRIQUE EXISTE** (vérifiée sur disque le
+  2026-09-10), et `common/_queue_entry.html` est venu par-dessus (entrée de file complète).
+  Reste de cette ligne : P2 (éventail `translateY`) / P3 (polish).
 - ⏳ **Dépliage éventail + animation** : P1 mère `.is-batch` + collapse Solitaire existant ; P2 overlap
   `translateY` ∝ distance à la card sélectionnée + stagger ; P3 durée ~0,35–0,45 s easing (trop rapide
   aujourd'hui). Lié `wama-queue.js`.
