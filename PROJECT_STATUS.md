@@ -13304,6 +13304,14 @@ depuis le bouton ▶ du Studio ; 7. charger le manifeste `pipeline` DANS le canv
   d'une autre instance (vérifiée présente dans HEAD). `tests_catalogues.py`, `function_specs.py`,
   `launch.py`, `function_catalog.py` ont été enrichis par d'autres instances APRÈS mes commits :
   non touchés depuis ;
+- ⚠ **UN DE MES COMMITS A ÉTÉ ABSORBÉ PAR CELUI D'UNE AUTRE INSTANCE** — celui qui instrumentait
+  le filtre des garés (`stationary_rejects` + ses 6 tests) n'existe plus sous son propre sha :
+  son contenu est arrivé dans HEAD **porté par le `§REPRISE 09→10/09` d'une instance voisine**.
+  **Contenu VÉRIFIÉ intact** (fichier de test suivi, le champ présent dans le tracker ET dans la
+  tâche) ; ce qui est perdu est le MESSAGE, où vivaient les six chiffres du filtre — ils sont
+  consignés ailleurs (`CHAINE §D.3`, `CHANGELOG 09/09`, ce bloc), donc rien d'utile ne manque.
+  *Cause probable : un `--amend` sans pathspec chez la voisine — exactement le trou que son
+  propre commit `dc800fe3` documente le même jour.* Contenu > attribution (règle du rituel) ;
 - les scripts de mesure de la session (rejeu du tracker, 4 sondes D.3, smoke du nœud fonction)
   vivent **dans le scratchpad de session** — jetables, non versionnés.
 
