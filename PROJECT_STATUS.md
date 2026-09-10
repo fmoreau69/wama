@@ -3,6 +3,13 @@
 > Photo des chantiers en cours. Mise à jour : **2026-07-25** (synchro doc : liens vers docs archivés,
 > VRAM/select_model §2, orphelins/statedb, socle manifestes §38 + WAMA Data §39). Conformité
 > 2026-07-11 (§31 : audit empirique conformité 10 apps).
+>
+> 🔴 **LES SECTIONS §0 À §33 CI-DESSOUS SONT DES PHOTOS DE JUIN-JUILLET 2026** — elles se lisent
+> EN PREMIER et **surestiment ou sous-estiment** l'état réel. Balayage de vérification au code
+> commencé le **2026-09-10** (demande de Fabien) : §0, §6, §9 corrigés et datés ; les autres
+> **ne sont pas encore re-mesurés**. **L'état consolidé et MESURÉ vit dans
+> [`ROADMAP.md §24`](ROADMAP.md)** ; le récit à jour, dans les `§REPRISE` de fin de fichier.
+> *Ne prendre aucune section de tête pour argent comptant sans la confronter au code.*
 > Marqueurs : ✅ fait · 🔄 en cours · ⏳ à faire. Détails par chantier dans les docs/mémoire référencés.
 >
 > 🔜 **REPRISE session neuve** : le handoff `REPRISE_2026-07-22.md` est **ARCHIVÉ**
@@ -44,11 +51,23 @@
    PROCESS** : signal Celery `worker_process_init` (pool `solo` + chaque enfant `prefork`),
    `common/apps.py::ready()` (gunicorn), `startup` du service TTS. Couvre désormais tous les
    backends faisant `.to('cuda')` en direct. Voir `ROADMAP.md` §Gouvernance des ressources.
-2. **32 tâches sur 42 sans garde de redélivrance** : `wama_lab/cam_analyzer` (13), reader ×2,
-   converter, studio, face_analyzer, 3 tâches anonymizer (dont les sous-tâches de chord
-   `detect_with_model` / `merge_and_blur`, les plus GPU-lourdes), 2 synthesizer, 2 transcriber,
-   model_manager ×4, common ×2.
+2. ~~**32 tâches sur 42 sans garde de redélivrance** : cam_analyzer (13), reader ×2, converter,
+   studio, face_analyzer, 3 anonymizer, 2 synthesizer, 2 transcriber, model_manager ×4,
+   common ×2.~~ 🔴 **PÉRIMÉ SUR LES DEUX TERMES — re-mesuré le 2026-09-10.**
+   - Le **dénominateur** a bougé : **60 tâches** aujourd'hui, pas 42.
+   - Le **MÉCANISME** a changé, et c'est l'essentiel : la garde est désormais **HÉRITÉE** par la
+     brique commune `run_item_task` (`common/utils/task_skeleton.py:199-200`). Adopter la brique
+     = obtenir la garde sans une ligne. *C'est le même levier que le critère de grille
+     `task_skeleton` (`ROADMAP §24.4③`) — une seule adoption solde les deux.*
+   - **Toutes les apps MÉDIA sont gardées** (directement ou par la brique) : reader, converter,
+     anonymizer, synthesizer, transcriber sont sortis de cette liste.
+   - **Ce qui reste réellement sans garde** (mesuré, aucun `refuse_crash_redelivery` NI
+     `run_item_task`) : `wama_lab/cam_analyzer` **15**, `model_manager` **9**, `common` **6**,
+     `studio` **1**, `face_analyzer` **1**, `celery.py` **1**. → le **Lab et le transversal**,
+     plus le monde média.
 3. `reconcile_orphaned_running` **manquant** : anonymizer, avatarizer, translator, apps lab.
+   ⚠ Non re-mesuré le 10/09 — à vérifier avant de s'en servir (les 5 lignes ci-dessus montrent
+   ce que vaut un relevé de juillet).
 3bis. ~~**CONTRAT BACKEND CONCURRENT — transcriber**~~ ✅ **PORTÉ 2026-07-29** —
    `SpeechToTextBackend` hérite désormais de `BaseModelBackend` et n'est plus qu'une
    **spécialisation métier** (verbe `transcribe()`, `TranscriptionResult/Segment`, capacités,
@@ -422,7 +441,20 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   (étapes 1-3) ; **reste** : validation terrain des vitesses, infos caméras pour mesures absolues,
   (option) palliatif UI segments < 1 s. Détail : `CAM_ANALYZER_CHANGELOG.md`.
 
-## 6. Mémoire & RAG (fondation §8c) — ARCHITECTURE DÉCIDÉE 2026-08-20, non construit
+## 6. Mémoire & RAG (fondation §8c) — ✅ **CONSTRUIT** (titre corrigé le 2026-09-10)
+
+> 🔴 **CE TITRE DISAIT « non construit » et contredisait SON PROPRE CORPS** (qui liste depuis le
+> 20/08 les jalons livrés), et le code. Mesuré le 2026-09-10 : jalons **1-11 et 13-14 LIVRÉS**,
+> pgvector **actif** (le « bloquant #1 sudo » ci-dessous est SOLDÉ), **28 `MemoryItem`** en base.
+> *Un titre périmé se lit avant le corps qui le dément — c'est lui qu'on corrige en premier.*
+>
+> ⚠ **MÉMOIRE et RAG sont DEUX mécanismes distincts, tous DEUX implémentés** (rectification de
+> Fabien, 2026-09-10) : `MemoryItem` = les souvenirs, `RagChunk` = les fragments de documents.
+> Ils partagent le magasin, les mixins et `recall()` — ils ne se confondent pas.
+> ⚠ **0 `RagChunk` en base n'est PAS un manque** : l'entrée au RAG est un **GESTE de
+> l'utilisateur, jamais un balayage** (`common/memory/index.py:2`). Le balayage a existé
+> (939 fragments écrits sans demande) et a été PURGÉ le jour même sur objection de Fabien, sans
+> perte — un `RagChunk` est re-dérivable. *Le trou serait le balayage, pas son absence.*
 > **Doc de référence UNIQUE du domaine : [`WAMA_MEMORY.md`](WAMA_MEMORY.md)** (mémoire agent +
 > mémoire de travail utilisateur + RAG = **un seul mécanisme**, une seule brique).
 - ⚠ **Le plan « store ChromaDB + module `wama/rag/` » est ABANDONNÉ** — un store séparé ne peut pas
@@ -449,6 +481,9 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   aucun framework ne le récupérera rétroactivement.
 - ⏳ Suite proposée : `tool_api` — remplacer les ~10 `get_<app>_status` par `list_my_items` +
   `get_item_detail` adossés au schéma canonique (`§9ter` du doc).
+  ⭐ **TOUJOURS OUVERT et REDEVENU d'actualité** (vérifié 2026-09-10 : les deux outils sont
+  **ABSENTS** des 59 exposés). C'est une **DÉCISION DÉJÀ PRISE** pour le chantier « compléter
+  l'API » (`ROADMAP §24.4① quater`) — la chercher avant de reconcevoir des lectures d'items.
 
 ## 7. Anonymisation multimodale (§16.4) — décidé, non construit
 - ⏳ Presidio + GLiNER FR ; mode « texte » = porte privacy avant-cloud (même composant) ; audio (PII + biométrie) ; dispatcher par modalité
@@ -462,7 +497,10 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
 - ✅ 2026-07-09 **Phases 2-4 en fait FAITES** (doc périmé corrigé — vérifié empiriquement lors de
   l'audit doc §23) : filtrage UI présent (`index.html`), `MediaProvider`/`UserProviderConfig`
   (migration `0004`) + connecteurs Wikimedia/Pixabay/Freesound/Jamendo/Pexels/Openverse (migration
-  `..._add_providers_phase5`). Reste lié à l'indexation RAG (§6, non démarré).
+  `..._add_providers_phase5`). ~~Reste lié à l'indexation RAG (§6, non démarré).~~
+  ⚠ **Périmé (2026-09-10)** : le RAG **est construit** (§6 corrigé). Ce qui manque ici est le
+  GESTE d'indexation depuis la médiathèque — le flux voulu étant
+  `sortie d'app → médiathèque → (ACTION EXPLICITE) → RAG`, jamais un balayage.
 
 ## 10. Progression globale + ETA
 - ✅ **Barre globale + balayage coloré** : tronc commun (`_global_progress.html` + `wama-global-progress.js`), card « Nouveau » en 1ʳᵉ position, déployé partout (apps mono- et multi-domaine, barres séparées par file).
