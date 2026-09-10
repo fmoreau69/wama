@@ -47,9 +47,13 @@
    PÉRIMÉ »). Le substrat RÉEL est **`wama/common/memory/`** sur **Postgres + pgvector**, livré
    (recherche HYBRIDE vecteur + plein-texte FR fusionnée par RRF, `memory/store.py:188`), scope
    hérité de `ScopedVisibility`. Jalons 1-11 et 13-14 livrés (`WAMA_MEMORY.md`).
-   **Ce qui reste vraiment** : 0 `RagChunk` en base (mesuré) — le RAG est câblé et VIDE ; la
-   bascule d'embedder vers `qwen3-embedding:4b` et le réindex ne sont pas faits ; jalon 12
-   (outillage assistant list/detail).
+   🔴 **MÉMOIRE et RAG sont DEUX mécanismes distincts, et les DEUX sont IMPLÉMENTÉS**
+   (rectification Fabien, 2026-09-10) : `MemoryItem` = les **souvenirs** (faits, événements,
+   procédures) ; `RagChunk` = les **fragments de documents**. Ils partagent le magasin, les
+   mixins et `recall()` — ils ne se confondent pas pour autant.
+   **Ce qui reste vraiment** : la bascule d'embedder vers `qwen3-embedding:4b` et le réindex
+   (aujourd'hui **`bge-m3`**, `memory/embed.py:32` — choisi CONTRE `nomic`, anglo-centré, parce
+   que le corpus du Lescot est francophone) ; jalon 12 (outillage assistant list/detail).
 2. Traduction de sortie (`translate_output` existe mais n'est appelé nulle part) + i18n statique.
 3. Manifeste formel 🔄 — socle LIVRÉ et en avance sur ce fichier : enveloppe + 6 kinds + ingest
    idempotent + 1ʳᵉ projection write-back réelle (access → AppAccessPolicy, 2026-07-23) ; docs de
@@ -3363,8 +3367,10 @@ l'enhancer (mêmes gestes). À traiter avec la maquette v4.
 | `migrate --check` | aucune migration en attente |
 | `check_app_conformity` | converter **100 %** · describer **100 %** · reader 97 % · enhancer/synthesizer/transcriber 95 % · anonymizer/avatarizer/composer 94 % · imager 92 % |
 
-Registres : **14**. Mémoire, base réelle : **28 `MemoryItem`**, **0 `RagChunk`**. Catalogue de
-fonctions : **62**. Studio : **10 runners sur 11** (seul `audio_enhancer` n'en a pas).
+Registres : **14**. Catalogue de fonctions : **62**. Studio : **10 runners sur 11** (seul
+`audio_enhancer` n'en a pas). Mémoire, base réelle : **28 `MemoryItem`** (souvenirs) et
+**0 `RagChunk`** (fragments) — ⚠ **deux mécanismes distincts, tous deux implémentés**, et le 0
+est l'état NORMAL (voir §24.5-7 : l'entrée au RAG est un geste, pas un balayage).
 
 ### 24.2 Les DEUX chantiers actifs — partition à respecter
 
@@ -3396,13 +3402,62 @@ construit à l'import.* Ce qui manque est ailleurs, et vérifié **par le sens, 
   un élément, ni **récupérer un résultat produit** comme fichier. L'assistant sait créer, lancer,
   observer — il ne sait pas défaire. *(Les seules occurrences de « télécharger » concernent
   l'entrée d'un fichier dans reader et l'état de téléchargement d'un modèle.)*
-- **mondes absents** : `cam_analyzer` **0 outil**, `face_analyzer` **0** (monde Lab entier),
-  monde **Data 0** (aucun `dataset`/`function`/`manifest`), **journal 0**, **rag 0** ; la mémoire
-  est en **lecture seule** (`memory_recall` — ni écriture, ni approbation).
+- **surfaces transversales absentes** : registres, permissions, rôles, journal, RAG, tests
+  nocturnes → **aucun outil** ; la mémoire est en **lecture seule** (`memory_recall` — ni
+  écriture, ni approbation) ; le Studio n'a que `list`/`run`/`status` de pipelines.
 
-⚠ Cela contredit la philosophie §5 d'`AGENTS.md` (« chaque app expose son API à l'assistant IA
-(`tool_api.py`) ») **sur deux points** : il n'y a pas un `tool_api.py` par app mais **un seul
-fichier central** (`wama/tool_api.py`, 3255 lignes), et **deux mondes sur quatre n'y sont pas**.
+⚠ Cela nuance la philosophie §5 d'`AGENTS.md` (« chaque app expose son API à l'assistant IA
+(`tool_api.py`) ») : il n'y a pas un `tool_api.py` par app mais **un seul fichier central**
+(`wama/tool_api.py`, 3255 lignes).
+
+**🔴 CADRAGE FABIEN (2026-09-10) — les mondes Lab et Data attendent** (trop de chantiers
+ouverts). L'API se complète **sur le monde MÉDIA et sur le TRANSVERSAL**, quick wins d'abord.
+
+**① bis — `add_to_*` n'est PAS aligné sur l'import de l'UI. Mesuré, à deux niveaux.**
+*(Question de Fabien ; elle porte, parce que le chantier 1 révise CETTE chaîne en ce moment.)*
+
+| niveau | ce que fait l'API | ce que fait l'UI | conséquence |
+|---|---|---|---|
+| **ce qu'il accepte** | **8 listes d'extensions EN DUR** (`tool_api.py:42-61` et `:679` — `_MEDIA_EXTS`, `_DESCRIBER_EXTS`, `_TRANSCRIBER_EXTS`, `_READER_EXTS`, `_AUDIO_ENHANCER_EXTS`…) | ports **déclarés**, appariement entrée↔modèle | un modèle installé ou un port ajouté **ne change rien** à ce que l'API accepte |
+| **comment il copie** | `copy_into_app_input` : **0 appel** dans tout `tool_api.py` ; l'anonymizer recopie le geste à la main (`shutil.copy2` + boucle anti-collision, `:159-170`) | `copy_into_app_input` (`media_paths.py:150`), adopté par les vues d'app | provenance, dédup et contrat `WamaImport` **ne remonteront jamais** à l'assistant |
+
+⭐ **Et la brique déclarative est DÉJÀ dans le fichier** : `inspect_user_file` appelle
+`capabilities_for_path()` (`common/utils/intake.py:128`), qui compose les ports depuis les
+déclarations. *Un grep étroit sur `input_slots`/`accepts` rend 0 et ferait écrire « l'API ne
+consulte pas les ports » — c'est faux : elle le fait, dans UN outil sur 59.* Le geste est donc
+un **raccordement**, pas une construction : brancher les `add_to_*` sur ce que `inspect_user_file`
+sait déjà lire. ⚠ À faire **après** le chantier 1, ou avec lui — pas contre lui.
+
+**① ter — ce que les TESTS disent qu'il manque** (suggestion de Fabien : les scénarios
+utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles de gestes ×
+17 apps**. Recoupées avec les 59 outils :
+
+| geste utilisateur (×17 apps) | couvert par l'API ? |
+|---|---|
+| `import` | ✅ `add_to_*` — mais désaligné (① bis) |
+| `processing` / `batch_processing` | ✅ `start_*` + `get_*_status` |
+| `batch_import` · `url_import` · `folder_import` · `send_to` | ❌ |
+| `settings` · `duplicate_delete` · `clear_all` | ❌ |
+| `queue_search` · `queue_dnd` · `inspector_actions` | ❌ |
+| `batch_actions` · `batch_extract` | ❌ |
+
+**2 familles couvertes sur 14.** C'est la mesure la plus parlante du trou, et elle ne doit rien
+à une opinion : ce sont les gestes que le dépôt teste déjà comme étant ceux de l'utilisateur.
+
+**① quater — ordre proposé (quick wins d'abord, à valider)**
+
+1. **Lectures transversales** — le moins risqué, aucune écriture : interroger les **registres**
+   (14 existent, `overview()` rend déjà tout), le **journal**, la **mémoire** (list/detail =
+   jalon 12 déjà prévu), les **permissions/rôles** d'un utilisateur. Pur enrobage d'accesseurs.
+2. **`url_import` / `folder_import` / `batch_import`** — les briques existent et sont testées
+   par 17 scénarios chacune ; l'API n'en expose aucune.
+3. **`preview` d'un job en cours** (demande Fabien) — la vue `common:unified_preview` existe et
+   la card la consomme ; aucun outil ne la rend.
+4. **Verbes de cycle** : `delete`, `duplicate`, `clear_all`, `settings` — écritures, donc après
+   les lectures, et avec les gardes de `common.tool_api.garde_fous`.
+5. **Raccordement de `add_to_*`** (① bis) — après/avec le chantier 1.
+6. **Lancer les tests nocturnes** depuis l'assistant (`run_nightly_tests` est une commande de
+   gestion ; ⚠ scénarios GPU exclus par défaut — ne pas ouvrir cette porte sans le gouverneur).
 
 **② Le Data Analyzer est DÉCIDÉ depuis le 2026-08-25 et n'existe pas.**
 `WAMA_DATA_WORLD §11.8` le tranche (« l'app-file du monde Data, hérite de la file Médias »).
@@ -3434,13 +3489,22 @@ portage, et non « 5 apps à porter » :
    attestation du JS Studio est le smoke navigateur.
 4. **Monde Data** — **Data Analyzer** (24.4②) ; D16/D18/D19 ; audit SQLite→HDF5 (🔴 bloque `.wds`) ;
    2ᵉ manifeste + A2/A3/A4 du plan d'expérience.
-5. **API exhaustive** (24.4①) — verbes manquants, puis mondes Lab et Data.
+5. **API — monde MÉDIA + TRANSVERSAL** (24.4① *quater*), dans cet ordre. ⚠ **Les mondes Lab et
+   Data n'en font PAS partie** (cadrage Fabien 2026-09-10) : ils viendront après, quand il y
+   aura moins de chantiers ouverts. Ne pas les rouvrir en croyant « compléter l'API ».
 6. **MCP server** — cadre écrit (`§16` : 3 couches, réutiliser LiteLLM/MCP/Headroom, outils
    dev/admin en **process séparé**). ⚠ **Trancher d'abord la contradiction** : `AGENTS.md
    §Collaboration wama-dev-ai` dit « ne pas précipiter, découplés jusqu'à Phase 4 », `§8d` dit
    « c'est à lui d'adopter la brique, plus simple que MCP ». Et porter les chaînes de repli
    **RAM-aware** avant d'adopter la brique VRAM-aware, sinon on PERD une capacité.
-7. **RAG** — câblé et **VIDE** (0 `RagChunk`) ; bascule d'embedder + réindex non faits ; jalon 12.
+7. **Mémoire & RAG — DEUX mécanismes, tous DEUX implémentés** (rectification Fabien 2026-09-10).
+   ⚠ **Ne pas relire « 0 `RagChunk` » comme un manque** : l'entrée au RAG est un **GESTE de
+   l'utilisateur, jamais un balayage** (`memory/index.py:2`). Une 1ʳᵉ version balayait les sorties
+   de toutes les apps — **939 fragments écrits sans que personne n'ait rien demandé** — et a été
+   PURGÉE le jour même sur objection de Fabien, sans perte (un `RagChunk` est re-dérivable par
+   construction). Une base à 0 fragment est donc l'état NORMAL d'un compte qui n'a pas fait le
+   geste. *Le trou serait un balayage automatique, pas son absence.*
+   Restent : bascule d'embedder + réindex ; jalon 12.
 8. **i18n** — `§10.A` ; ⚠ **fuite constatée le 09/09** : le générateur de gabarits émet du
    français **en dur, sans marquage de traduction** — toute app générée naîtra non traduisible.
 9. **Dette nommée, non enterrée** — `folder_input_id` sur 3 cards (pending rendu explicitement
