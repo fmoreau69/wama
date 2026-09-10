@@ -3564,3 +3564,45 @@ Un ✅ posé à la main sur une section resterait une intention. **Le rendre vra
 supposerait d'accrocher chaque section de vision à un signal existant (un critère de grille, un
 geste nocturne, un registre) — c'est un chantier plus lourd, et c'est la vraie question à trancher :
 *veut-on une progression CONSOLIDÉE (peu coûteux, honnête sur sa nature) ou MESURÉE (coûteux) ?*
+
+### 24.8 Balayage des blocs ANTÉRIEURS de `PROJECT_STATUS` — ce qu'il a appris (2026-09-10)
+
+> Demande de Fabien : « balayer les blocs antérieurs en remontant, en vérifiant AU CODE ce qui
+> est périmé dans la doc ». Passe faite ce jour sur les **sections de tête §0-§33** et par
+> sondage ciblé sur le corps (33 affirmations falsifiables extraites au motif « à créer / n'existe
+> pas / manquant / non construit », puis vérifiées une à une).
+
+**🔴 Le résultat structurel — les deux moitiés du fichier ne vieillissent PAS pareil.**
+
+| partie | nature | vieillissement | verdict du balayage |
+|---|---|---|---|
+| **§0-§33** (tête, juin-juillet) | se présentent comme **l'état courant** | 🔴 **mauvais** — un « reste à faire » de juillet se lit comme vrai aujourd'hui | 5 corrections sur 7 sections regardées |
+| **§REPRISE / §CLÔTURE** (corps) | **instantanés DATÉS**, append-only | ✅ **bon** — un bloc daté ne prétend rien sur le présent | 1 correction sur 5 sondages |
+
+⭐ **La leçon** : ce n'est pas l'âge qui périme une ligne, c'est sa **prétention au présent**.
+Les blocs datés restent vrais *en tant que photos* ; les sections de tête deviennent fausses sans
+qu'une seule ligne ne bouge. → Un avertissement a été posé **en tête de `PROJECT_STATUS.md`**,
+et les sections non re-mesurées y sont **déclarées comme telles** plutôt que laissées pour bonnes.
+
+**⚠ Et le biais va dans le sens INVERSE de celui qu'on redoute.** La doctrine met en garde
+contre des statuts qui SURESTIMENT l'avancement. Ici, **quatre corrections sur cinq annonçaient
+comme RESTANT une brique qui EXISTE** : `_batch_card.html`, l'UI de drag&drop, les runners
+imager/converter, la fondation RAG. *Une doc qui sous-estime le code fait refaire ce qui est
+fait — c'est aussi coûteux qu'un statut trop optimiste, et bien plus difficile à repérer.*
+
+**Corrigé et daté** : §0 (gardes de redélivrance — périmé sur les DEUX termes, et le mécanisme a
+changé : la garde est désormais héritée de `run_item_task`) · §1 (hook RAG « dépend de
+`wama/rag/` » — paquet inexistant) · §6 (titre « non construit » contredisant son propre corps) ·
+§9 (« RAG non démarré ») · §2bis (scores de grille faux de 20 à 50 points) · §15 (runners) ·
+§18 (deux briques « à extraire » déjà extraites) · §23.2 (table des docs).
+
+**Vérifié et CONFIRMÉ ENCORE VRAI** (ne pas rouvrir en croyant que c'est périmé) :
+`manage.py check_structure` **toujours absent** (dû avant la 1ʳᵉ app data, `§18.2`) · **UI de
+l'Explorer** à créer · `APP_CATALOG` = **14 entrées** (10 apps + 4 jumelles), `media_library`,
+`cam_analyzer`, `face_analyzer`, `studio` et `model_manager` en sont bien absents · Presidio/
+GLiNER (§7) **non construits** · le JS inline de `home.html` reste à extraire — ⚠ **631 lignes
+mesurées, pas « ~500 »** : il a GROSSI depuis l'annonce.
+
+**Reste à balayer** (non fait ce jour, déclaré) : les `§REPRISE` du **2026-08-29 au 09-03**, et
+les sections §20bis-§33 en détail. Le sondage ci-dessus suggère un rendement faible — les blocs
+datés vieillissent bien — mais il n'en fait pas la preuve.

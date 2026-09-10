@@ -1240,7 +1240,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | WAMA_MANIFEST_SPEC.md | — | formalisme des manifestes (7 kinds) | ✅ vivant (créé 2026-07-21) |
 | WAMA_MANIFEST_ARCHITECTURE.md | — | schéma fonctionnel manifestes/ingest/projection | ✅ vivant (créé 2026-07-21) |
 | WAMA_DATA_FUNCTION_CARDS.md | — | catalogue capability WAMA Data | ✅ vivant (créé 2026-07-20 ; à resynchroniser post-refactoring `data/functions/` par domaine) |
-| WAMA_MEMORY.md | — | référence UNIQUE mémoire + RAG (architecture décidée, non construite) | ✅ vivant (créé 2026-08-20 ; **périme le plan ChromaDB** de §6 / vision §11 / `prompt_pipeline.py:116`) |
+| WAMA_MEMORY.md | — | référence UNIQUE de la mémoire ET du RAG — ⚠ **deux mécanismes distincts, tous DEUX CONSTRUITS** (corrigé 2026-09-10 ; disait « architecture décidée, non construite ») | ✅ vivant (créé 2026-08-20 ; **périme le plan ChromaDB**) |
 | ~~REPRISE_2026-07-22.md~~ | — | handoff daté | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B8 ; vivant migré §40 + R18/R19 + AGENTS.md) |
 
 ### 23.2 Recouvrements identifiés (pas de vrai doublon strict trouvé)
