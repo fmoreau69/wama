@@ -208,6 +208,29 @@ class LExecuteurDispatcheSurLeKindTest(TestCase):
         self.assertEqual(run.status, 'FAILURE')
         self.assertIn('Jeu de données', run.error_message)
 
+    def test_la_source_JEU_DE_DONNEES_refuse_en_NOMMANT_ce_qui_manque(self):
+        """Les trois refus de `dataset_input` — la surface que l'utilisateur touche en premier.
+
+        Elle est la seule PORTE d'entrée d'une donnée typée dans un pipeline : ses messages
+        sont ce qu'on lit quand un graphe ne part pas. Un refus muet ou générique s'y paierait
+        à chaque essai. ⚠ Le type est DIT par l'utilisateur, jamais deviné d'une extension
+        (card d'entrée de `WAMA_DATA_FUNCTION_CARDS §5`) : un type inconnu doit donc être
+        refusé sur le vocabulaire, pas silencieusement ramené à `table`.
+        """
+        cas = [
+            ({}, 'choisissez'),                                              # rien de choisi
+            ({'asset_path': 'nexiste/pas.csv'}, 'introuvable'),               # chemin mort
+            ({'asset_path': self.rel, 'data_type': 'trajectoire'}, 'taxonomie'),   # hors vocabulaire
+        ]
+        for params, attendu in cas:
+            with self.subTest(params=params):
+                run = self._run({'nodes': [{'id': 'n1', 'app': 'dataset_input', 'params': params}],
+                                 'links': []})
+                self.assertEqual(run.status, 'FAILURE')
+                self.assertIn(attendu, run.error_message)
+                self.assertIn('Jeu de données', run.error_message,
+                              "le message doit nommer le NŒUD, pas seulement la cause")
+
     def test_une_fonction_app_bound_est_un_job_qui_exige_ses_arguments(self):
         """`app`-bound → `impl` + poll. Sans `session_id`, rien ne part en file : l'erreur
         nomme l'argument requis, lu par introspection de la tâche."""

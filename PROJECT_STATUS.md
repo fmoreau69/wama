@@ -13278,6 +13278,16 @@ depuis le bouton ▶ du Studio ; 7. charger le manifeste `pipeline` DANS le canv
 
 ### Ce qui N'EST PAS gardé par un test — déclaré, pas tu
 
+> Établi par le balayage MÉCANIQUE du rituel (§2a bis) : les fichiers de code touchés par mes
+> commits, puis chaque symbole ajouté confronté à `grep -rl <symbole> --include="tests*.py"`.
+> **18 fichiers, 38 symboles.** Six helpers privés ne sont nommés par aucun test
+> (`_source_dataset`, `_sink_frame_to_media_library`, `_coerce_params`, `_frame_summary`,
+> `_fuse_values`, `_impl_callable`) — **tous EXERCÉS par la chaîne de bout en bout**, ce qui est
+> la meilleure garde possible pour un helper : elle tient le contrat, pas l'implémentation.
+> Deux gardes ont été ajoutées PENDANT ce balayage : l'énumération des pipelines à l'export
+> (défaut silencieux) et les trois refus de `dataset_input` (la porte d'entrée que
+> l'utilisateur touche en premier).
+
 - **le JS du Studio** (`installDatasetSource`, groupe « Fonctions » de la palette, `to_port` par
   ID, infobulle de port) : **aucun harnais JS n'existe dans le dépôt**, `check_js` ne lit que la
   syntaxe. Seule attestation = le smoke navigateur de cette session (palette « Fonctions (62) »,
@@ -13317,8 +13327,11 @@ depuis le bouton ▶ du Studio ; 7. charger le manifeste `pipeline` DANS le canv
 
 ### Contrôles attendus au prochain /reprise (MESURÉS ce soir)
 
-- tests de mon périmètre (cam_analyzer + studio + fusion + catalogues + volet) : **129 `OK`**,
-  puis **+2** gardes d'export de pipeline → `tests_pass_registry` **17 `OK`** ;
+- tests de mon périmètre (cam_analyzer + studio + fusion + catalogues + volet) : **132 `OK`**
+  — chiffre FINAL, relancé après la dernière garde ajoutée (les refus de `dataset_input`).
+  ⚠ Les chiffres intermédiaires de cette session (129, 131) étaient justes au moment où ils
+  ont été pris et périmés par l'écriture suivante : *un compte de tests ne vaut que pour
+  l'arbre où il a été mesuré* ;
 - suite complète : **1932 `OK`** au dernier run complet (avant mes 8 derniers tests) — ⚠ le
   total n'est pas un critère, plusieurs instances en ajoutent en parallèle ;
 - `check_docs` : **0 cassée / 0 périmée sur 1539** — **0 cible distincte** ;
