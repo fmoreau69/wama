@@ -13203,3 +13203,117 @@ au lieu d'ouvrir). Trois interdits nommés avec leur cas vécu, et le test durci
 affirmation sur le code doit nommer la LIGNE qui la fonde**. Plus deux invariants : *une mesure
 bat N citations* (les N peuvent n'être qu'une, dupliquée) et *une doc qui contredit le code a
 tort par défaut* (5 écarts, 5 fois la doc en retard).
+
+---
+
+## §CLÔTURE — 2026-09-09 (soir), instance « CAM_ANALYZER : ⑤b + D13 + LE FILTRE DES GARÉS » — ✅ CLOSE — 🔚 UN ARBITRAGE BLOQUANT
+
+> Suite du `§REPRISE — 2026-09-09 « ⑤b FACETTE ESTIMATEUR + D13 »` ci-dessus, qu'elle NE
+> remplace PAS (append-only). Ce bloc porte ce qui a suivi : le smoke navigateur, le test D.3,
+> **deux conclusions fausses que Fabien a fait tomber en posant deux questions**, et la mesure
+> qui les a remplacées. 11 commits, `77b43f43` → `b75d6b31`.
+
+### Ce que Fabien a corrigé, et ce que ça a produit
+
+| sa question | ce qu'elle a révélé | ce qui a été livré |
+|---|---|---|
+| *« quel est le souci avec `tests_volet` ? le test ou un bug ? »* | **ni l'un ni l'autre** : deux tests du dépôt se contredisaient depuis `b071b25b` (09/09 01h12), sans qu'aucun ait tort — 5 pages de liste ont RÉCUPÉRÉ un volet pour l'inspecteur, et le test du 22/08 figeait leur état d'avant. Il masquait 2 pages derrière la 1ʳᵉ de sa liste | test rebâti sur l'INVARIANT (« pas de cadre VIDE ») au lieu d'un état ; `e0888d2c` |
+| *« as-tu ajouté tous les tests nécessaires ? »* | **non** — 4 chemins de l'exécuteur non tenus. Le 1ᵉʳ test écrit a trouvé un **vrai défaut** : un `to_port` inconnu de la fonction rangeait la donnée sous une clé jamais lue | 4 tests + correctif du repli ; `e0888d2c` |
+| *« es-tu sûr de ce que tu avances ? »* | **non** : ma conclusion sur D.3 reposait sur une **sélection circulaire** (candidats choisis par un faible étalement — or un track court en a mécaniquement peu) | rectification `6dbb7f82` |
+| *« regarder directement ce que fait le code plutôt que supposer »* | mes DEUX analyses externes étaient fausses ; `annotate_global_tracks` est CPU et **rejouable** | filtre INSTRUMENTÉ + exécuté sur données réelles ; `b75d6b31` |
+
+### 🔴 LE FAIT DE LA SESSION — le filtre des garés, mesuré PAR LE CODE
+
+`annotate_global_tracks` exécuté sur la session P97 réelle, **écritures neutralisées**
+(237 318 tentatives bloquées, base intacte), 94 s. Comptage DANS la boucle qui décide, sur les
+positions BRUTES (`stationary_rejects`, désormais persisté et annoncé en console) :
+
+| porte de sortie | candidats | part |
+|---|---|---|
+| **étalement ≥ 6 m** | **1904** | **45,4 %** |
+| **vu moins de 4 s** | **1609** | **38,4 %** |
+| moins de 5 observations | 555 | 13,2 % |
+| **RETENU** | **77** | **1,8 %** |
+| étalement/durée ≥ 0,7 m/s | 33 | 0,8 % |
+| près d'une intersection | 12 | 0,3 % |
+
+**Le fait le plus lourd** : la cause dominante est l'ÉTALEMENT — *le filtre exige une précision
+de placement que la chaîne ne fournit pas* (pinhole ±20 %, soit plusieurs mètres à 20 m). Le
+seuil de 6 m mesure donc le BRUIT DE PLACEMENT autant que le mouvement de l'objet. La brièveté
+pèse tout de même 51,6 % ; l'exclusion d'intersection, que `§C` laissait croire déterminante,
+pèse 0,3 %.
+
+Deux chiffres jamais mesurés sur données réelles, tombés du même run : `placement_spread` des
+retenus = **0,85 m** ; et **G7 enfin compté** — `ground:homographie` 264 281 · `pinhole`
+252 278 · `pinhole_relaxed` 56 751, soit **46 % de pinhole et 10 % de repli dégradé** sous ce
+qu'on lit « projection sol ».
+
+### 🔴 ARBITRAGE BLOQUANT (rien ne peut commencer sans lui)
+
+**Le filtre des garés est à REFAIRE, pas à régler** (verdict Fabien, mesuré) : « un garé se
+remarque uniquement sur un ENSEMBLE d'images successives, non image par image » ; le seuil est
+**en dur et non modifiable dans l'interface** ; et « toute la chaîne est à recalculer de fond en
+comble ». Ne PAS baisser le seuil de 4 s tel quel — il a été posé le 2026-07-17 contre les
+véhicules ROULANTS vus brièvement. Il faut **une autre grandeur** (vitesse relative mesurée,
+cohérence de la position monde entre observations) **et** un paramètre réglable.
+⚠ Et la mesure ci-dessus dit que le vrai verrou est en AMONT : tant que le placement est à
+±20 %, aucun critère d'étalement ne séparera un garé d'un mobile lent.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Le filtre des garés, sur décision de Fabien** (ci-dessus). À défaut de décision : ⑥ les
+BASCULES de D.3 (⚑ `display_ema` OFF → ⚑ `shuttle_filter` ON → « Calculer les indicateurs » →
+les 3 lignes console → `placement_spread` OFF vs ON), qui exigent un RECALCUL de session et
+l'œil sur la carte.
+
+### File des chantiers ouverts (ordre)
+
+1. 🔴 **filtre des garés** (bloqué : arbitrage) ; 2. ⑥ bascules D.3 (recalcul + œil) ;
+3. **accéléromètre** — identifier l'axe avant par corrélation avec dv/dt du GPS filtré (une
+MESURE, les axes X/Y ne sont écrits nulle part) ; 4. réétalonner σa/σm (0,8 / 2,0) et la σ de 3°
+du cap filtré ; 5. câbler `ego_rotation` (2ᵉ source de cap — 1ᵉʳ cas réel de `fuse_estimates`,
+mais il lui faut d'abord un σ) et `osm_control_nodes` ; 6. **exécuter** un pipeline de fonctions
+depuis le bouton ▶ du Studio ; 7. charger le manifeste `pipeline` DANS le canvas (marche E) ;
+8. #7 bâtiments IGN ; 9. `locate_anything`.
+
+### Ce qui N'EST PAS gardé par un test — déclaré, pas tu
+
+- **le JS du Studio** (`installDatasetSource`, groupe « Fonctions » de la palette, `to_port` par
+  ID, infobulle de port) : **aucun harnais JS n'existe dans le dépôt**, `check_js` ne lit que la
+  syntaxe. Seule attestation = le smoke navigateur de cette session (palette « Fonctions (62) »,
+  nœud posé, lien tracé, lien incompatible refusé, 0 erreur JS) ;
+- **exécuter un pipeline de fonctions depuis l'UI** (bouton ▶) : jamais fait ;
+- une fonction `app`-bound contre un **worker réel** : le test s'arrête au refus AVANT dispatch ;
+- `fuse_estimates` sur **données réelles** : aucun appelant dans la chaîne, `ego_rotation` n'a
+  pas de σ ;
+- le manifeste `pipeline` **rechargé** dans le canvas : l'import n'existe pas (marche E).
+
+### Pendings système
+
+- **push** : `dev` en avance sur `origin` — non poussée par moi. ⚠ compter avec
+  `git rev-list --count origin/dev..dev`, jamais `git log | wc -l` (l'outil de compression
+  fausse le compte : il a rendu 6, 8 puis 1 pour la même question) ;
+- **gunicorn** : maître HUP deux fois (09/09) ; serveur relancé par Fabien en cours de session
+  (nouveau PID) ; workers homogènes ;
+- **base** : AUCUNE écriture — le rejeu du tracker s'est fait avec `save` neutralisé (compté) ;
+- capture de smoke `studio` rafraîchie dans le dossier courant des captures (`logs/`, gitignoré),
+  référence du 28/08 **intacte** ; aucune sonde ajoutée au dossier des sondes ;
+- **co-édition** : `PROJECT_STATUS.md` a été écrit par ≥ 2 instances toute la journée — deux de
+  mes consignations y sont entrées via l'index construit à la main (version de HEAD + mon seul
+  paragraphe) pour ne pas emporter le travail d'autrui, et une 3ᵉ a été absorbée par le commit
+  d'une autre instance (vérifiée présente dans HEAD). `tests_catalogues.py`, `function_specs.py`,
+  `launch.py`, `function_catalog.py` ont été enrichis par d'autres instances APRÈS mes commits :
+  non touchés depuis ;
+- les scripts de mesure de la session (rejeu du tracker, 4 sondes D.3, smoke du nœud fonction)
+  vivent **dans le scratchpad de session** — jetables, non versionnés.
+
+### Contrôles attendus au prochain /reprise (MESURÉS ce soir)
+
+- tests de mon périmètre (cam_analyzer + studio + fusion + catalogues + volet) : **129 `OK`**,
+  puis **+2** gardes d'export de pipeline → `tests_pass_registry` **17 `OK`** ;
+- suite complète : **1932 `OK`** au dernier run complet (avant mes 8 derniers tests) — ⚠ le
+  total n'est pas un critère, plusieurs instances en ajoutent en parallèle ;
+- `check_docs` : **0 cassée / 0 périmée sur 1539** — **0 cible distincte** ;
+- `manifest_export --check` : `--kind function` **62** à jour, `--kind pipeline` **1** à jour ;
+- `check_skills` : **0 défaut franc**, 2 candidats `n=1` (aucun dormant), 1 promu sur 14 ;
+- cam_analyzer : **13 passes**, **17 bascules**, catalogue **62 fonctions**.

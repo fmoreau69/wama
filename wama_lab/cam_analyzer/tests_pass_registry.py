@@ -124,6 +124,36 @@ class PipelineManifesteTest(unittest.TestCase):
         self.assertEqual(liens, {(d, p.key) for p in pt.PASSES for d in p.depends_on})
         self.assertEqual(body['layout'], {}, "un registre n'a pas de présentation")
 
+    def test_le_pipeline_est_ENUMERE_par_la_commande_d_export(self):
+        """⚠ Défaut SILENCIEUX si personne ne garde ceci : `manifest_export --kind pipeline`
+        énumère `registered_pipeline_keys()`, qui dépend de `load_all()` ayant importé le
+        module déclarant de l'app. Si l'inscription disparaît (module renommé, `ready()`
+        modifié, import cassé et avalé), la commande exporte **zéro** manifeste — et
+        `--check` répond « corpus à jour » sur un corpus qui a perdu son pipeline.
+        Rien ne lèverait : ni la commande, ni le contrôle, ni la suite.
+        """
+        from wama.common.manifests.builtin.pipeline import registered_pipeline_keys
+        from wama.common.management.commands.manifest_export import _pipeline_keys
+        self.assertIn('cam_analyzer', registered_pipeline_keys())
+        self.assertIn('cam_analyzer', _pipeline_keys(),
+                      "la commande d'export ne voit pas le pipeline : le corpus le perdrait "
+                      "en silence")
+
+    def test_le_manifeste_EXPORTE_est_celui_du_corpus(self):
+        """Le fichier versionné doit être ce que le registre rend AUJOURD'HUI — sinon le
+        corpus décrit un pipeline qui n'existe plus, et `--check` ne le dit qu'à l'export."""
+        import json
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.manifests.ingest import extract
+        chemin = Path(settings.BASE_DIR) / 'manifests' / 'pipelines' / 'cam_analyzer.json'
+        self.assertTrue(chemin.exists(), "le pipeline n'est pas au corpus")
+        corpus = json.loads(chemin.read_text(encoding='utf-8'))
+        vivant = extract('pipeline', 'cam_analyzer')
+        self.assertEqual([n['id'] for n in corpus['body']['nodes']],
+                         [n['id'] for n in vivant['body']['nodes']])
+        self.assertEqual(corpus['body']['links'], vivant['body']['links'])
+
     def test_la_forme_canvas_du_registre_se_charge_dans_le_studio(self):
         """« UNE représentation, DEUX éditeurs » : le graphe est exactement celui que
         `wama-studio.js` sérialise (nodes id/app/params + links from/to/to_port)."""

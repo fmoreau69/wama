@@ -55,6 +55,43 @@ Corollaire : un profil restreint aux intersections laisse ~75 % de la timeline s
 de conclure à un bug d'affichage, **vérifier la couverture** (`config['analyzed_ranges']`, ou en
 base). Le nom d'un profil décrit le RAPPORT visé, pas le périmètre d'analyse.
 
+## 5bis. 🔴 MESURER CE QUE FAIT LE CODE — le rejouer, jamais l'inférer du persisté
+
+> Recadrage de Fabien, 2026-09-09 : *« Tu ne peux pas regarder directement ce que fait le code
+> plutôt que de supposer ? Le pipeline de traitement existe, les fonctions existent. »* — après
+> que **deux** analyses successives, menées sur les données PERSISTÉES, ont conclu faux sur le
+> même sujet (le filtre des garés). Coût : une demi-session et deux consignations à rectifier.
+
+**Pourquoi le persisté ment sur ce que le code fait** — trois raisons cumulables, toutes
+vérifiées ce jour-là dans `multicam_tracker` :
+1. il est **transformé** (`world_en` est la position LISSÉE, pas celle que le filtre juge) ;
+2. il est **partiel** (pas de `world_en` pour les stationnés ni sous 5 observations) ;
+3. il vient d'un **autre run** (le tracker rendait 5210 tracks, la base en portait 4352) —
+   et `results_summary` peut être le résumé périmé d'un run interrompu.
+
+**Le geste, quand la question porte sur un CALCUL** (qualification, seuil, score, filtre) :
+1. **Instrumenter à la source** : compter DANS la boucle qui décide, par porte de sortie, et
+   rendre ce compte (`results_summary` + une ligne console). C'est du code qui reste — un
+   filtre qui écarte l'essentiel de ses candidats doit dire par où ils sortent.
+2. **Rejouer la vraie fonction, écritures NEUTRALISÉES** — la plupart des passes de calcul
+   sont CPU et rejouables (`annotate_global_tracks` : 94 s sur 1,2 M détections) :
+   ```python
+   DetectionFrame.save = lambda self, *a, **k: None   # AVANT tout appel
+   AnalysisSession.save = lambda self, *a, **k: None
+   res = annotate_global_tracks(session)              # lit le RETOUR, rien n'entre en base
+   ```
+   Compter les tentatives bloquées et le DIRE (237 318 ce jour-là) : c'est la preuve que la
+   base est intacte, pas une intention.
+3. Seulement ensuite, conclure — et si une analyse antérieure disait autre chose, la
+   **rectifier là où elle a été écrite**, pas ailleurs.
+
+⚠ **Le piège de la SÉLECTION, plus sournois que celui de l'instrument.** La 2ᵉ analyse fausse
+ne venait pas d'un mauvais comptage : elle venait du choix des candidats. Sélectionner des
+« garés » par un faible étalement retient mécaniquement les tracks COURTS (peu d'observations =
+peu d'étalement), après quoi « ils sont courts » n'est plus une découverte mais une tautologie.
+*Un comptage juste sur une population mal choisie rend un chiffre faux avec l'air d'un fait.*
+Vérifier qu'aucun critère de sélection ne préjuge de ce qu'on va mesurer.
+
 ## 6. Pièges d'exécution (chèrement acquis)
 - **Aucune charge GPU sous WSL2 sur le poste de dev** (crashs hôte, bug MS WSL #40732). Vaut aussi
   pour `manage.py shell` : `django.setup()` importe `torch.cuda` et le process meurt en silence
