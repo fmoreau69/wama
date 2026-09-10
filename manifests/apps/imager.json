@@ -1143,8 +1143,7 @@
           "id": "image",
           "inputs": [
             "prompt",
-            "reference_image",
-            "prompt_file"
+            "reference_image"
           ],
           "label": "Image",
           "modes": [],
@@ -2106,15 +2105,7 @@
     "ports": {
       "inputs": [
         {
-          "group": "travail",
-          "id": "work",
-          "label": "Entrée",
-          "multi": true,
-          "types": [
-            "image"
-          ]
-        },
-        {
+          "description": "La consigne écrite. C'est elle que le modèle exécute.",
           "group": "prompt",
           "id": "prompt",
           "label": "Prompt",
@@ -2124,10 +2115,11 @@
           ]
         },
         {
-          "group": "reference",
-          "id": "reference_image",
-          "label": "Image de référence (style)",
-          "multi": false,
+          "description": "L'image à ÉDITER ou à animer : le modèle part d'elle (img2img, in/outpainting, image-to-video).",
+          "group": "travail",
+          "id": "work_image",
+          "label": "Image de travail",
+          "multi": true,
           "types": [
             "image"
           ]

@@ -707,8 +707,7 @@
           "id": "composition",
           "inputs": [
             "prompt",
-            "reference_melody",
-            "prompt_file"
+            "reference_melody"
           ],
           "label": "Composition",
           "modes": []
@@ -1014,6 +1013,7 @@
     "ports": {
       "inputs": [
         {
+          "description": "La consigne écrite. C'est elle que le modèle exécute.",
           "group": "prompt",
           "id": "prompt",
           "label": "Prompt",
@@ -1023,6 +1023,7 @@
           ]
         },
         {
+          "description": "Une mélodie qui ORIENTE la composition. Elle guide, elle n'est pas remixée.",
           "group": "reference",
           "id": "reference_melody",
           "label": "Mélodie de référence",

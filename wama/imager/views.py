@@ -407,7 +407,8 @@ def handle_txt2img(request, user):
     })
 
 
-def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=None):
+def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=None,
+                         app_label='imager'):
     """Crée le LOT depuis un fichier de prompts déjà sur disque — cœur SANS `request`.
 
     Extrait de `handle_file2img` le 2026-09-10, quand une TROISIÈME entrée s'est présentée :
@@ -428,12 +429,26 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
         chemin        : fichier de prompts sur disque (str | Path).
         nom_fichier   : nom d'origine, conservé sur `batch_file` du lot.
         reglages      : dict optionnel (model/width/height/steps/guidance_scale + vidéo).
+        app_label     : re-cible une JUMELLE de bac à sable (`imager_01`) — contrat
+                        `importer_for()`, identique à celui de `import_to_imager`.
     Returns:
         (batch, generations) — ou (None, []) si le fichier ne contient aucun prompt valide.
+
+    ⚠ Les modèles se résolvent PAR `app_label`, jamais par import direct. Ma première version
+    importait `ImageGeneration`/`GenerationBatch` en dur : elle créait donc le lot dans l'app
+    RÉELLE même appelée pour la jumelle, et `imager_01.send_to` est sorti rouge avec le seul
+    symptôme possible — « requête acceptée (200) mais AUCUN élément n'apparaît ». Le code
+    d'origine résolvait dynamiquement (`django_apps.get_model(app_label, …)`) précisément pour
+    ça ; l'extraction avait perdu ce contrat en route.
     """
+    from django.apps import apps as django_apps
+
     from .utils.prompt_parser import parse_prompt_file, validate_prompt_config
     from wama.common.utils.batch_common import consolidate_into_batch
-    from wama.imager.models import GenerationBatch, GenerationBatchItem
+
+    ImageGeneration = django_apps.get_model(app_label, 'ImageGeneration')
+    GenerationBatch = django_apps.get_model(app_label, 'GenerationBatch')
+    GenerationBatchItem = django_apps.get_model(app_label, 'GenerationBatchItem')
 
     r = dict(reglages or {})
     model = r.get('model') or 'auto'

@@ -1516,7 +1516,8 @@ def import_to_imager(source_path, user, app_label='imager'):
         # que la barre de détection — `creer_lot_de_prompts`, extraite de `handle_file2img`.
         from wama.imager.views import creer_lot_de_prompts
 
-        batch, generations = creer_lot_de_prompts(dest_path, dest_path.name, user)
+        batch, generations = creer_lot_de_prompts(
+            dest_path, dest_path.name, user, app_label=app_label)
         if batch is None:
             raise ValueError(f"Aucun prompt exploitable dans {dest_path.name}")
         return {

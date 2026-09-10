@@ -190,6 +190,29 @@ def studio_node_ports(app_id):
     out_cats = normalize_types(cat.get('output_types', []))
     media_in = [c for c in in_cats if c != 'prompt']
 
+    # ── LES PORTS D'ENTRÉE VIENNENT DES MODÈLES (2026-09-10) ────────────────────────────
+    # C'est le geste qui rend la card AUTO-ÉVOLUTIVE : un modèle qui arrive avec une modalité
+    # de plus apporte son port, sans qu'aucune déclaration d'app ni aucun gabarit ne bouge
+    # (exigence Fabien, `INPUT_MODEL_MATCHING §6.3`). La règle était écrite depuis l'origine
+    # dans `app_modes.py` — il lui manquait ce consommateur.
+    #
+    # ⚠ Ce que la dérivation précédente produisait, et qui était FAUX : un port `work` unique
+    # fabriqué à partir des catégories grossières d'`input_types`. D'où, chez l'imager, un port
+    # de TRAVAIL portant `image` alors que ses modèles déclarent `work_image` — le port fantôme
+    # que trois mesures indépendantes signalaient déjà (card rendue en `data-wama-depot=attache`,
+    # `GENERIC_APPS` écrasant la dérivation par `primary_input='prompt'`, et `studio_redundancy`
+    # sortant en `narrowed_by_declaration` avec l'`io_scope` « le port image (i2i/référence) de
+    # la card n'est pas exposé au nœud »).
+    #
+    # REPLI EXPLICITE : une app dont aucun modèle ne déclare ses entrées (converter — aucun
+    # moteur IA) garde EXACTEMENT la dérivation d'avant. Aucune app ne régresse, et le jour où
+    # ses modèles déclarent, elle bascule d'elle-même.
+    depuis_modeles = app_input_ports(app_id)
+    if depuis_modeles:
+        inputs = [{k: v for k, v in p.items() if k != 'required'} for p in depuis_modeles]
+        return {'inputs': inputs,
+                'output': {'id': 'out', 'label': 'Sortie', 'types': out_cats}}
+
     inputs = []
     if media_in:
         inputs.append({'id': 'work', 'label': 'Entrée', 'group': 'travail',

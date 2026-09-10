@@ -170,3 +170,61 @@ class EnvoyerVersImagerCreeUnLotTest(LotImagerMixin, TestCase):
             self._envoyer(contenu=b'\n\n\n')
         self.assertEqual(0, ImageGeneration.objects.filter(user=self.user).count())
         self.assertEqual(0, GenerationBatch.objects.filter(user=self.user).count())
+
+
+class LotDePromptsRespecteLaJUMELLETest(TestCase):
+    """`creer_lot_de_prompts` doit créer dans l'app CIBLE, jamais dans l'app réelle.
+
+    Régression introduite puis rattrapée le 2026-09-10, en extrayant le cœur de
+    `handle_file2img` : la version extraite importait `ImageGeneration`/`GenerationBatch` en
+    dur depuis `wama.imager.models`. Appelée pour `imager_01`, elle créait donc le lot dans
+    l'imager RÉEL. Le code d'origine résolvait par `django_apps.get_model(app_label, …)`
+    précisément pour ça — l'extraction avait perdu ce contrat en route.
+
+    ⚠ Le symptôme est le pire qui soit : la requête répond **200**, et rien n'apparaît. Aucun
+    test unitaire de l'app réelle ne pouvait le voir (elle, elle recevait bien son lot) ; c'est
+    le scénario nocturne de la JUMELLE qui l'a attrapé — « requête acceptée (200) mais AUCUN
+    élément n'apparaît dans imager_01 ». D'où cette garde, qui rend le contrat mesurable sans
+    passer par le navigateur.
+    """
+
+    def _fichier(self):
+        import tempfile
+        from pathlib import Path
+        d = Path(tempfile.mkdtemp())
+        f = d / 'wama_temoin_jumelle.txt'
+        f.write_bytes(b'un phare\nune foret\n')
+        return f
+
+    def test_le_lot_est_cree_dans_l_app_CIBLE(self):
+        from django.apps import apps as django_apps
+        from django.contrib.auth import get_user_model
+        from wama.imager.views import creer_lot_de_prompts
+
+        try:
+            Jumelle = django_apps.get_model('imager_01', 'ImageGeneration')
+        except LookupError:
+            self.skipTest('jumelle imager_01 non installée sur cet arbre')
+
+        from wama.imager.models import ImageGeneration as Reelle
+        user = get_user_model().objects.create_user('lot_jumelle', password='x')
+        avant_reel = Reelle.objects.count()
+
+        batch, gens = creer_lot_de_prompts(self._fichier(), 'wama_temoin_jumelle.txt', user,
+                                           app_label='imager_01')
+        self.assertIsNotNone(batch)
+        self.assertEqual(2, len(gens))
+        self.assertTrue(all(isinstance(g, Jumelle) for g in gens),
+                        'les éléments ont été créés dans l’app RÉELLE au lieu de la jumelle')
+        self.assertEqual(avant_reel, Reelle.objects.count(),
+                         'l’app réelle a été polluée par un import destiné à la jumelle')
+
+    def test_le_defaut_reste_l_app_reelle(self):
+        from django.contrib.auth import get_user_model
+        from wama.imager.models import ImageGeneration
+        from wama.imager.views import creer_lot_de_prompts
+
+        user = get_user_model().objects.create_user('lot_reel', password='x')
+        batch, gens = creer_lot_de_prompts(self._fichier(), 'wama_temoin_jumelle.txt', user)
+        self.assertIsNotNone(batch)
+        self.assertTrue(all(isinstance(g, ImageGeneration) for g in gens))

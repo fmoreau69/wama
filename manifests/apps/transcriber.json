@@ -1482,9 +1482,10 @@
     "ports": {
       "inputs": [
         {
+          "description": "L'audio TRANSFORMÉ par le traitement (transcription, amélioration, animation).",
           "group": "travail",
-          "id": "work",
-          "label": "Entrée",
+          "id": "work_audio",
+          "label": "Audio de travail",
           "multi": true,
           "types": [
             "audio",

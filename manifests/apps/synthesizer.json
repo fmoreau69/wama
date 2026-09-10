@@ -1672,6 +1672,7 @@
     "ports": {
       "inputs": [
         {
+          "description": "La consigne écrite. C'est elle que le modèle exécute.",
           "group": "prompt",
           "id": "prompt",
           "label": "Prompt",
@@ -1681,6 +1682,7 @@
           ]
         },
         {
+          "description": "Un extrait de voix à IMITER. La voix produite lui ressemblera ; l'extrait n'est pas modifié.",
           "group": "reference",
           "id": "reference_voice",
           "label": "Voix de référence",

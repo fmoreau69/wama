@@ -1016,9 +1016,10 @@
     "ports": {
       "inputs": [
         {
+          "description": "Le fichier TRANSFORMÉ par le traitement — c'est lui qui devient le résultat.",
           "group": "travail",
-          "id": "work",
-          "label": "Entrée",
+          "id": "work_file",
+          "label": "Fichier de travail",
           "multi": true,
           "types": [
             "document",
