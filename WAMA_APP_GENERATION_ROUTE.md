@@ -748,9 +748,9 @@ le passé.*
   **Surface outils courante** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Outils au registre (`TOOL_REGISTRY`) : **59**
-- Outils décrits (`tool_descriptions()`, dérivé) : **59/59**
-- Arguments documentés (types/choix/bornes/défauts) : **212**
+- Outils au registre (`TOOL_REGISTRY`) : **64**
+- Outils décrits (`tool_descriptions()`, dérivé) : **64/64**
+- Arguments documentés (types/choix/bornes/défauts) : **220**
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
   `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points
