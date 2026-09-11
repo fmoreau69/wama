@@ -2572,8 +2572,168 @@ def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300) ->
     }
 
 
+# ---------------------------------------------------------------------------
+# Lectures TRANSVERSALES — la décision est `WAMA_MEMORY.md §9ter`, prise le 2026-08-20 et
+# restée non construite jusqu'ici (jalon 12). Elle n'a PAS été reconçue : cherchée d'abord.
+#
+# POURQUOI ces deux-là d'abord. Les ~10 `get_<app>_status` sont dix projections écrites à la
+# main, avec des noms de clés DIFFÉRENTS pour la même chose : l'assistant doit apprendre dix
+# vocabulaires pour lire l'état d'un item. Ces deux outils en offrent UN, et il n'est pas neuf —
+# c'est le contrat canonique qui a déjà deux consommateurs éprouvés (l'inspecteur du volet droit
+# et le runner du Studio). tool_api en est le TROISIÈME : cela renforce le contrat au lieu de
+# lui opposer une 4ᵉ surface. Bénéfice qui n'est pas qu'une économie de lignes : l'assistant voit
+# alors EXACTEMENT ce que l'utilisateur voit.
+#
+# ⚠ Les deux RÉSERVES de §9ter sont traitées, pas ignorées :
+#   1. l'adapter rend de l'AFFICHAGE (`created_at` formaté « 12/08/2026 14:03 ») — lisible par un
+#      LLM mais LOSSY pour le calcul. D'où le bloc `raw` de `get_item_detail`, et une date en
+#      ISO dans le listing ;
+#   2. l'adapter peut déclencher une sonde ffmpeg — acceptable à l'unité, PAS sur un listing.
+#      `list_my_items` ne l'appelle donc jamais (le journal diffère déjà l'hydratation : 73 → 31
+#      requêtes mesurées). Le coûteux, c'est `get_item_detail`, et il est à la demande.
+#
+# PORTÉE : ces outils calquent la page `/common/journal/` et l'endpoint `unified_detail`, qui
+# gardent l'OWNERSHIP et non le droit d'app (vérifié : `views.py:689` n'ajoute aucun filtre de
+# droit). Les rendre plus stricts créerait une divergence entre l'assistant et la page que
+# l'utilisateur peut déjà ouvrir — c'est la divergence qu'on cherche à éviter, pas à créer.
+def list_my_items(user, app: str = '', limite: int = 25, statut: str = 'all', q: str = '') -> dict:
+    """
+    List what the user has produced across ALL apps — one vocabulary instead of ten.
+
+    Prefer this over the per-app `get_<app>_status` tools: those are ten hand-written
+    projections that name the same things differently. This returns the same rows the user
+    sees on their own journal page, newest first.
+
+    Stays light on purpose: no media probing, no per-item hydration. For the full picture of
+    one item, call `get_item_detail`.
+
+    Args:
+        app:    restrict to one app id (e.g. 'transcriber'); empty = every app.
+        limite: how many rows to return (1-100, default 25).
+        statut: filter by state; the error names the valid values if you pass a wrong one.
+        q:      free-text search on the item title and the app name.
+
+    Returns:
+        {"items": [{"app","monde","id","titre","statut","statut_libelle","modele","date","chips"}],
+         "total", "returned"} or {"error"}
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    from wama.common.services.journal import STATUTS, entrees
+
+    if statut and statut not in STATUTS:
+        return {'error': f"statut invalide : {statut!r}. Valides : {', '.join(sorted(STATUTS))}"}
+    try:
+        limite = max(1, min(int(limite or 25), 100))
+    except (TypeError, ValueError):
+        limite = 25
+
+    lignes, total = entrees(user, apps=[app] if app else None, limite=limite,
+                            statut=statut or 'all', q=q or '')
+    items = [{
+        'app': e.app,
+        'monde': e.monde,
+        'id': e.pk,
+        'titre': e.titre,
+        'statut': e.statut,
+        'statut_libelle': e.statut_libelle,
+        'modele': e.modele,
+        # ISO, jamais le format d'affichage : une date sert aussi à COMPARER (réserve 1).
+        'date': e.date.isoformat() if getattr(e, 'date', None) else None,
+        'chips': e.chips or [],
+    } for e in lignes]
+    return {'items': items, 'total': total, 'returned': len(items)}
+
+
+def get_item_detail(user, app: str, pk: int) -> dict:
+    """
+    Everything known about ONE item, in the canonical schema — exactly what the user sees in
+    the right-hand inspector.
+
+    Use it after `list_my_items` to look at one row closely: source file, engine actually used,
+    settings, result, error message. `detail` is formatted for reading; `raw` carries the same
+    state unformatted, for when you need to compare or compute.
+
+    Args:
+        app: app id the item belongs to (as returned by `list_my_items`).
+        pk:  item id.
+
+    Returns:
+        {"app","id","detail":{…},"raw":{"status","progress","created_at"}} or {"error"}
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    from wama.common.utils.detail_registry import DetailRegistry
+
+    entry = DetailRegistry.get(app)
+    if not entry:
+        connues = ', '.join(DetailRegistry.registered_apps())
+        return {'error': f"App inconnue au détail : '{app}'. Connues : {connues}"}
+
+    instance = entry['model'].objects.filter(pk=pk).first()
+    if instance is None:
+        return {'error': f"Élément #{pk} introuvable dans '{app}'."}
+
+    # MÊME règle d'ownership que `unified_detail` (detail_registry.py) — les deux portes ne
+    # doivent jamais diverger, sinon l'assistant voit plus (ou moins) que l'inspecteur.
+    owner = getattr(instance, 'user', None)
+    if owner is not None and owner != user and not getattr(user, 'is_staff', False):
+        return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
+
+    try:
+        detail = entry['adapter'](instance)
+    except Exception as e:                      # un adapter d'app ne doit jamais casser la porte
+        logger.warning(f"[tool_api] get_item_detail {app}#{pk} : adapter en échec : {e}")
+        return {'error': f"Détail indisponible pour {app}#{pk} : {e}"}
+
+    # Réserve 1 de §9ter — les clés canoniques BRUTES, à côté de l'affichage.
+    raw = {c: getattr(instance, c) for c in ('status', 'progress') if hasattr(instance, c)}
+    cree = getattr(instance, 'created_at', None) or getattr(instance, 'uploaded_at', None)
+    if cree:
+        raw['created_at'] = cree.isoformat()
+    return {'app': app, 'id': pk, 'detail': detail, 'raw': raw}
+
+
+def list_registries(user) -> dict:
+    """
+    List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
+    libraries, licences, skills, prompts, memories, RAG, external sources, data readers…).
+
+    Each entry says how it is kept up to date — `nature` is 'mesure' (probed from the real
+    system), 'derive' (computed from another source), 'redeclaration' (reloaded from code) or
+    'scan' (reconciled with what is on disk) — and whether a human can refresh it.
+
+    Call it to answer "what does WAMA know about X?" before guessing, or to find which page
+    holds a catalogue.
+
+    Returns:
+        {"registries": [{"key","label","total","nature","description","refreshable"}], "count"}
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    from wama.common.registries import overview
+
+    lignes = []
+    for r in overview():
+        lignes.append({
+            'key': r.get('key'),
+            'label': r.get('label'),
+            'total': r.get('total'),
+            'nature': r.get('nature'),
+            'description': r.get('description'),
+            'refreshable': bool(r.get('refreshable')),
+        })
+    return {'registries': lignes, 'count': len(lignes)}
+
+
 TOOL_REGISTRY = {
     'translate_text': translate_text,
+    # Lectures TRANSVERSALES (WAMA_MEMORY §9ter jalon 12 + registre des registres) — LECTURE
+    # SEULE, scopée par OWNERSHIP. Voir le bloc de commentaire au-dessus des fonctions : ces
+    # deux premiers outils existent pour REMPLACER à terme les ~10 `get_<app>_status`.
+    'list_my_items':    list_my_items,
+    'get_item_detail':  get_item_detail,
+    'list_registries':  list_registries,
     # Mémoire & RAG — LECTURE SEULE et scopée (jalon 8, WAMA_MEMORY.md). Transverse : ce que
     # l'assistant retrouve, c'est ce que SON utilisateur possède, dans n'importe quelle app.
     'memory_recall':  memory_recall,

@@ -3446,9 +3446,11 @@ utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles 
 
 **① quater — ordre proposé (quick wins d'abord, à valider)**
 
-1. **Lectures transversales** — le moins risqué, aucune écriture : interroger les **registres**
-   (14 existent, `overview()` rend déjà tout), le **journal**, la **mémoire** (list/detail =
-   jalon 12 déjà prévu), les **permissions/rôles** d'un utilisateur. Pur enrobage d'accesseurs.
+1. **Lectures transversales** — le moins risqué, aucune écriture. 🔄 **ENTAMÉ le 2026-09-11** :
+   ✅ `list_my_items` + `get_item_detail` (la décision `WAMA_MEMORY §9ter`, jalon 12 — suivie
+   telle quelle, réserves traitées) et ✅ `list_registries`. **59 → 62 outils**, 13 gardes.
+   ⏳ Restent de cette étape : les **permissions/rôles** d'un utilisateur, et la **mémoire**
+   en list/detail (distincte des items d'app).
 2. **`url_import` / `folder_import` / `batch_import`** — les briques existent et sont testées
    par 17 scénarios chacune ; l'API n'en expose aucune.
 3. **`preview` d'un job en cours** (demande Fabien) — la vue `common:unified_preview` existe et

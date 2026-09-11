@@ -54,6 +54,13 @@ class DetailRegistry:
     def get(cls, app_name):
         return cls._registry.get(app_name)
 
+    @classmethod
+    def registered_apps(cls):
+        """Apps ayant un adapter de détail, triées. Accesseur PUBLIC : `tool_api` en a besoin
+        pour nommer les cibles valides d'une erreur, et lire `_registry` de l'extérieur ferait
+        d'un attribut privé une API de fait."""
+        return sorted(cls._registry)
+
 
 def register_app_detail(app_name, model_class, adapter):
     """Enregistre l'adapter de détail d'une app. `adapter(instance) -> dict canonique`."""

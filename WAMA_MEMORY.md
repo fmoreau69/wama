@@ -323,7 +323,21 @@ la page). Le tri inter-modèles se fait en Python — une union SQL sur 12 table
 casserait à la première app ajoutée, exactement ce qu'on veut éviter. ⚠ Les entrées sont fabriquées
 **après** le tri et la tranche : les fabriquer avant coûtait 73 requêtes pour 20 lignes.
 
-## 9ter. tool_api — la lecture est générique, l'écriture ne l'est pas (proposition, non construit)
+## 9ter. tool_api — la lecture est générique, l'écriture ne l'est pas ✅ **CONSTRUIT le 2026-09-11**
+
+> ✅ **`list_my_items` et `get_item_detail` sont livrés** (`wama/tool_api.py`), 13 gardes dans
+> `wama/common/tests_tool_api_lectures.py`. La proposition ci-dessous n'a **pas été reconçue** :
+> elle a été cherchée avant de coder, et suivie telle quelle — accesseurs compris
+> (`journal.entrees()` pour le listing, l'adapter de `detail_registry` pour le détail).
+>
+> **Les deux réserves sont TRAITÉES, pas contournées** : ① le listing rend la date en **ISO**
+> (comparable) et le détail porte un bloc **`raw`** (`status`, `progress`, `created_at`) à côté
+> de l'affichage ; ② `list_my_items` n'appelle **jamais** l'adapter — donc aucune sonde ffmpeg
+> sur un listing ; le coûteux est `get_item_detail`, à la demande.
+>
+> ⏳ **Ce qui RESTE de §9ter** : les ~10 `get_<app>_status` ne sont pas encore retirés. Ils
+> coexistent volontairement — les retirer est un geste de DÉPRÉCIATION (l'assistant et le runner
+> du studio les appellent), à faire quand les nouveaux outils auront servi.
 
 **Constat.** `wama/tool_api.py` (le compte d'outils vit dans `WAMA_LLM.md`, domicile du pivot —
 recopié ici il avait divergé) suit une **triade par app** :
@@ -666,7 +680,7 @@ Ne rien arbitrer sur ces chiffres.
 | 9 | Entrée au registre `common/mecanismes.py` | ✅ 2026-08-21 — 5 mécanismes + `common/memory/` **ajouté aux dossiers balayés** (il en était absent : 4 modules invisibles, « non rattachés : 0 » mentait) |
 | 10 | ~~Entrée catalogue `AIModel` pour `bge-m3`~~ | ✅ **le jalon n'avait pas lieu d'être** — `bge-m3` y était déjà. Mais un VRAI défaut a été trouvé et corrigé : 3 modèles d'embedding étaient typés `llm`, donc **sélectionnables comme modèles de chat** à budget VRAM serré |
 | 11 | Journal `/common/journal/` (couche 1) + captation générique (couche 2) | ✅ 2026-08-20 — §9bis |
-| 12 | **tool_api : lecture générique** (`list_my_items` / `get_item_detail`) — §9ter | ⏳ |
+| 12 | **tool_api : lecture générique** (`list_my_items` / `get_item_detail`) — §9ter | ✅ 2026-09-11 — 13 gardes ; les 2 réserves traitées (date ISO + bloc `raw` ; aucun adapter au listing). Reste la dépréciation des ~10 `get_<app>_status` |
 | 13 | **Niveaux de RAG** — `rag_niveaux` dans `recall()` + `memory_recall(niveaux=…)` + niveaux à l'écriture | ✅ 2026-08-21 — 31 tests, héritage équipe→labo prouvé |
 | 14 | **Surfaces du geste** : bouton « Ajouter au RAG » + **page de gestion** (défauts de niveaux, liste, retrait, état des vecteurs) | ✅ 2026-08-22 — **placement tranché : l'INSPECTEUR**, pas les cards (§9quater) ; page `/common/rag/` ; 10 tests |
 

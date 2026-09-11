@@ -214,6 +214,27 @@ def _call_rolled_back(tool, args, user):
     return box['out'] or {}
 
 
+#: Apps dont la TRIADE N'A PAS D'OBJET — l'exemption dit POURQUOI, sinon elle devient une
+#: décharge où l'on range ce qu'on ne veut pas corriger.
+#: La triade `add`/`start`/`status` suppose un travail ASYNCHRONE : on dépose, on lance, on
+#: suit. Quand le geste est synchrone et complet, `start` et `status` n'ont rien à désigner.
+_TRIADE_SANS_OBJET = {
+    # `run_studio_pipeline` FUSIONNE add+start (un run = création + dispatch). Exemption
+    # d'origine, portée ici depuis un `a != 'studio'` en dur.
+    'studio',
+    # `add_to_media_library` range un fichier dans la médiathèque : c'est fait quand ça rend.
+    # ⚠ Ce scénario était ROUGE depuis `6ffd8bad` (Intake universel) sans que personne le voie
+    # — les scénarios nocturnes ne sont pas dans `manage.py test`. Relevé le 2026-09-11 en
+    # ajoutant les lectures transverses, et PROUVÉ antérieur (rejoué sur HEAD sans les ajouts).
+    # 🔚 QUESTION OUVERTE POUR FABIEN, volontairement NON tranchée ici : son jumeau d'Intake
+    # `inspect_user_file` est TRANSVERSE (aucune app ne le garde) alors que
+    # `add_to_media_library` est gaté sur `media_library` du seul fait de son NOM. Le passer
+    # à `None` dans `TOOL_APP_OVERRIDE` l'ouvrirait à tous : c'est une décision de DROITS,
+    # pas un ajustement de test — elle ne se prend pas dans un contournement de scénario.
+    'media_library',
+}
+
+
 def _run_tool_api_inventaire(ctx):
     """Contrat STRUCTUREL du registre — aucun compte en dur (il évolue avec les outils) :
     tout outil décrit, triades complètes (studio excepté : add+start fusionnés dans run,
@@ -229,7 +250,7 @@ def _run_tool_api_inventaire(ctx):
         if app and role in ('add', 'start', 'status'):
             roles.setdefault(app, set()).add(role)
     incomplets = {a: sorted({'add', 'start', 'status'} - r) for a, r in roles.items()
-                  if a != 'studio' and r != {'add', 'start', 'status'}}
+                  if a not in _TRIADE_SANS_OBJET and r != {'add', 'start', 'status'}}
     sans_arg = [n for n in reg
                 if T.tool_role(n) in ('add', 'start') and not T.primary_arg_name(n)]
     problemes = ([f"sans description : {sans_desc}"] if sans_desc else []) \
@@ -248,7 +269,13 @@ def _run_tool_api_lectures(ctx):
     user = ctx['user']
     lectures = [n for n in sorted(T.TOOL_REGISTRY) if T.tool_role(n) == 'status']
     lectures += ['list_user_files', 'list_media_assets', 'sam3_examples',
-                 'list_ai_models', 'list_studio_pipelines']
+                 'list_ai_models', 'list_studio_pipelines',
+                 # Lectures transverses (§9ter jalon 12) — appelables SANS argument, donc
+                 # exerçables ici. `get_item_detail` en est absent à dessein : il EXIGE
+                 # (app, pk), un appel à vide rendrait une erreur légitime que ce scénario
+                 # compterait comme un échec. Sa garde est unitaire
+                 # (`tests_tool_api_lectures.py`), pas nocturne.
+                 'list_my_items', 'list_registries']
     echecs, refus, ok = [], [], 0
     for tool in lectures:
         try:
