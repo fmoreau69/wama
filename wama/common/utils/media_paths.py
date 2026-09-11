@@ -33,7 +33,9 @@ def get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str =
         get_app_media_path('anonymizer', 1, 'input')
         -> Path('/media/anonymizer/1/input/')
     """
-    return Path(settings.MEDIA_ROOT) / app_name / str(user_id) / subfolder
+    # DÉRIVÉ de `app_media_dir` : la forme absolue et la forme relative ne doivent pas
+    # pouvoir diverger. Elles l'ont fait tant qu'elles étaient écrites deux fois.
+    return Path(settings.MEDIA_ROOT) / app_media_dir(app_name, user_id, subfolder)
 
 
 class OutsideMediaRoot(ValueError):
@@ -147,6 +149,16 @@ def app_media_dir(app_name: str, user_id: Union[int, str], subfolder: str = 'inp
     et le déplacement du parc sont deux gestes distincts, et les mélanger rendrait le second
     indébogable.
 
+    ⚠ LA BASCULE VERS `users/<user>/<app>/…` A ÉTÉ TENTÉE PUIS ANNULÉE le 2026-09-11 — deux
+    causes, toutes deux à corriger AVANT de recommencer, et consignées ici pour que la
+    prochaine tentative ne les redécouvre pas :
+      1. **`max_length=100`** — le défaut de Django sur un `FileField`. Le nouveau chemin est
+         plus long de 6 caractères ; la base a refusé (`value too long for character
+         varying(100)`) à mi-parcours, laissant des lignes migrées et d'autres non ;
+      2. **les fichiers PARTAGÉS** — `duplicate_instance` fait pointer plusieurs lignes sur le
+         MÊME fichier (c'est son contrat). Déplacer par ligne casse donc les autres lignes qui
+         le désignent : la migration doit raisonner par FICHIER, pas par ligne.
+
     Returns:
         `"{app_name}/{user_id}/{subfolder}"` — sans barre finale, séparateurs POSIX.
     """
@@ -215,7 +227,7 @@ def copy_into_app_input(source_path, app_name: str, user_id, subfolder: str = 'i
             counter += 1
 
     shutil.copy2(src, dest_path)
-    relative_path = f"{app_name}/{user_id}/{subfolder}/{dest_path.name}"
+    relative_path = get_relative_media_path(app_name, user_id, subfolder, dest_path.name)
 
     if for_instance is not None and field:
         # ⚠ L'adresse de la SOURCE, pas celle de la copie : c'est ce qui permet de retrouver
