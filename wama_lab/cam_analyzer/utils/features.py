@@ -63,6 +63,17 @@ FEATURES = [
             "angulaire dominante, §[2]). Premier levier qui touche la pose navette (inventaire "
             "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul.",
             default=False, scope='compute'),
+    Feature('prediction_kalman', "Extrapolation Kalman pour le TTC/PET",
+            "Les trajectoires navette et objet sont extrapolées par un filtre de Kalman à "
+            "accélération constante au lieu de « vitesse + accélération constantes ». ⚠ Les "
+            "DEUX existent depuis l'origine et la seconde est le PORTAGE du script MATLAB "
+            "d'origine (`ExtrTraj_WithSpeedAndAccel.m`) ; la variante Kalman a été écrite "
+            "parce que le Kalman MATLAB était incomplet — et elle est restée INATTEIGNABLE, "
+            "aucun appelant ne posant le paramètre `method` (mesuré 2026-09-11, `CHAINE "
+            "§D.5 ④`). ⚠ Extrapolation CAUSALE dans les deux cas (historique jusqu'à t0) : "
+            "rien à voir avec le lissage RTS, qui voit le futur. OFF = le script d'origine, "
+            "comportement historique.",
+            default=False, scope='compute'),
     Feature('imu_command', "Accéléromètre en commande du filtre navette",
             "Le filtre de trajectoire navette (⚑ `shuttle_filter`) cesse de supposer "
             "« accélération inconnue ±0,8 m/s² » et prend l'accélération MESURÉE par "

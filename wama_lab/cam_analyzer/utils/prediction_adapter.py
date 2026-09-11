@@ -11,11 +11,14 @@ un objet à position ego constante avance en réalité → il faut le monde pour
 Position ego de l'objet = reconstruction PINHOLE (distance_m + cap du bbox), plus fiable
 que l'homographie (comprimée/biaisée). Puis ego → monde via GPS (position + cap navette).
 """
+import logging
 import math
 
 import numpy as np
 
 from wama_data.functions.geometry import point_traj_to_shape
+
+logger = logging.getLogger(__name__)
 from wama_data.functions.kinematics import (extrapolate_speed_accel,
                                                    extrapolate_kalman, collision_detection)
 
@@ -308,22 +311,43 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
     multi-caméra (`global_track_id`, à calculer avant via annotate_global_tracks) → une
     trajectoire CONTINUE par objet même en passant d'une caméra à l'autre = TTC/PET meilleurs.
     Repli sur `<caméra>:<track_id>` si les tracks globaux ne sont pas encore calculés.
+
+    `method` : `speed_accel` (défaut — le PORTAGE du script MATLAB d'origine) ou `kalman`.
+    ⚠ Jusqu'au 2026-09-11 aucun appelant ne le posait : la branche `kalman` était
+    INATTEIGNABLE (`CHAINE §D.5 ④`). Le ⚑ `prediction_kalman` la rend sélectionnable — et
+    `method` reste prioritaire s'il est passé explicitement (tests, appels ciblés).
+
+    Retourne un DICT `{'annotated', 'ttc', 'pet', 'ttc_median', 'pet_median', 'method'}` —
+    c'était un simple entier avant le 11/09. La règle « toute bascule comparable s'accompagne
+    d'une métrique CHIFFRÉE » l'exige : sans ces compteurs, comparer OFF et ON se réduirait à
+    regarder la carte. Consommateur unique : `tasks.compute_indicators_task`.
     """
     from collections import defaultdict
     from django.apps import apps
     DF = apps.get_model('cam_analyzer', 'DetectionFrame')
     from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
+    # ⚑ `prediction_kalman` — même idiome que `camera_geometry` et `antenna_offset` plus haut
+    # dans ce fichier : le registre est relu À CHAQUE appel, jamais mis en cache.
+    if method == 'speed_accel':
+        try:
+            from .features import effective as _feat
+            if _feat(session).get('prediction_kalman', False):
+                method = 'kalman'
+        except Exception:
+            pass
+    _vide = {'annotated': 0, 'ttc': 0, 'pet': 0, 'ttc_median': None,
+             'pet_median': None, 'method': method}
     gt = effective_gps_track(session)
     if len(gt) < 5:
-        return 0
+        return dict(_vide)
     to_local = make_local_frame(gt)
     sh_traj = shuttle_trajectory(gt, to_local, antenna=antenna_offset(session))
     if len(sh_traj) < 5:
-        return 0
+        return dict(_vide)
     cams = [c for c in session.cameras.all()
             if c.position in CAMERA_YAW and DF.objects.filter(camera=c).exists()]
     if not cams:
-        return 0
+        return dict(_vide)
     _geo = camera_geometry(session)  # yaw/FOV/montage réels par caméra (rig + session)
     fps = cams[0].fps or 12.0
     scale = session.gps_time_scale or 1.0
@@ -358,6 +382,7 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
                 by_gid[gid].append((ts, d, f, e, n, ego[1], d.get('class_name', 'car')))
 
     count, dirty = 0, set()
+    _ttc, _pet = [], []      # A/B : ce que la bascule change SE COMPTE, ne se regarde pas
     for gid, rows in by_gid.items():
         rows.sort(key=lambda r: r[0])
         # Trajectoire monde continue ; dédupliquer les ts identiques (2 caméras) par moyenne.
@@ -383,14 +408,23 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
             changed = False
             if last['ttc'] is not None:
                 d['prediction_ttc'] = round(last['ttc'], 2); changed = True
+                _ttc.append(float(last['ttc']))
             if last['pet'] is not None:
                 d['prediction_pet'] = round(last['pet'], 2); changed = True
+                _pet.append(float(last['pet']))
             if changed:
                 dirty.add(f)
                 count += 1
     for f in dirty:
         f.save(update_fields=['detections'])
-    return count
+
+    def _med(v):
+        return round(sorted(v)[len(v) // 2], 3) if v else None
+
+    rapport = {'annotated': count, 'ttc': len(_ttc), 'pet': len(_pet),
+               'ttc_median': _med(_ttc), 'pet_median': _med(_pet), 'method': method}
+    logger.info('[prédiction] %s', ' · '.join(f'{k}={v}' for k, v in rapport.items()))
+    return rapport
 
 
 def smooth_trajectory(traj, window=5):

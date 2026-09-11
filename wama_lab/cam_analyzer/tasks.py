@@ -2677,10 +2677,18 @@ def compute_indicators_task(self, session_id: str):
         _gt = _run_global_tracking(session)
         ng = _gt.get('tracks', 0)
         # 2) Prédiction TTC/PET par trajectoire.
-        n = annotate_prediction_indicators(session)
-        summary = {'global_tracks': ng, 'annotated': n}
+        # ⚠ Depuis le 2026-09-11 la prédiction rend un DICT (elle rendait un entier) : son
+        # A/B doit être CHIFFRÉ pour que ⚑ `prediction_kalman` se compare autrement qu'à
+        # l'œil. Consommateur unique — si un second apparaît, il lira le même dict.
+        pred = annotate_prediction_indicators(session)
+        n = pred.get('annotated', 0)
+        summary = {'global_tracks': ng, 'annotated': n, 'prediction': pred}
         mark_completed(session, 'indicators', output_summary=summary)
-        _console(session.user_id, f"Indicateurs : {ng} tracks 360°, {n} détections annotées (TTC/PET).")
+        _console(session.user_id,
+                 f"Indicateurs : {ng} tracks 360°, {n} détections annotées (TTC/PET) · "
+                 f"extrapolation {pred.get('method')} · TTC {pred.get('ttc')} "
+                 f"(médiane {pred.get('ttc_median')} s) · PET {pred.get('pet')} "
+                 f"(médiane {pred.get('pet_median')} s)")
         return {'session': session_id, **summary}
     except Exception as e:
         logger.error(f"compute_indicators_task failed: {e}", exc_info=True)
