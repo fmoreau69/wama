@@ -1033,3 +1033,96 @@ class ConversationTurn(models.Model):
 
     def __str__(self):
         return f"{self.role}: {self.content[:60]}"
+
+
+class InputProvenance(models.Model):
+    """D'OÙ vient le fichier d'entrée d'un élément — le LIEN qui manquait.
+
+    POURQUOI (décision Fabien du 2026-09-07, `MEDIA_STORAGE_TIERING §8.7`)
+        La frontière que le code trace déjà : *la SOURCE de vérité — médiathèque, montage,
+        temp — reste où elle est ; l'ENTRÉE D'UNE CARD est une copie de travail*. Ce qui
+        manquait n'était pas d'abolir la copie, c'était **le lien** entre les deux. Sans lui,
+        quatre gestes sont impossibles, et ils ont tous été demandés :
+          • la DÉDUPLICATION par provenance — même source, même copie. Mesuré le 2026-09-11 :
+            « Envoyer vers » une autre app passe par `copy_into_app_input`, donc chaîner
+            describer → imager → enhancer produit TROIS copies des mêmes octets, sans aucun
+            lien entre elles ;
+          • le retour app → médiathèque sans re-copier ;
+          • la RÉPARATION d'une entrée dont la source a bougé — et surtout le fait de SAVOIR
+            qu'elle a bougé, au lieu de le découvrir au lancement ;
+          • la « proposition de retrait » : le gestionnaire de fichiers ne sait pas aujourd'hui
+            qu'un fichier est référencé par une card. C'est l'INDEX INVERSE que cette table
+            porte, et c'est la seule objection qui tenait encore contre le pointage
+            (`§8.7` (a) : « supprimer l'original casse la card »).
+
+    ⚠ PAS DE `GenericForeignKey`, et ce n'est pas un raccourci. La décision du 07/09 annonçait
+    « la PREMIÈRE relation générique de WAMA » — mais `RunOutcome` a déjà tranché l'inverse,
+    avec sa raison écrite : « les items vivent dans 10 apps et une ContentType ne servirait
+    qu'à joindre ce qu'on ne joint jamais ». On adopte donc SA convention (`app` +
+    `object_type` + `object_id`), à laquelle s'ajoute `field` — parce qu'un élément peut avoir
+    PLUSIEURS entrées (l'avatarizer a un visage et une voix) et que chacune a sa provenance.
+    Le triplet `(object_type, object_id, field)` est exactement l'adresse que
+    `safe_delete_file` manipule déjà.
+
+    ⚠ ÉCRITE PAR LES BRIQUES SEULES, jamais par une app. Trois sites : l'upload direct,
+    `copy_into_app_input` (import) et `ensure_local_input` (URL matérialisée). Une app qui
+    l'écrirait elle-même rouvrirait la porte aux 13 graphies que ce dépôt vient de fermer.
+    """
+
+    #: D'où vient la source — le vocabulaire décidé le 2026-09-07. `upload` = l'utilisateur a
+    #: déposé depuis son poste (aucune source antérieure dans WAMA) ; les quatre autres
+    #: DÉSIGNENT quelque chose qui existe ailleurs et qui peut bouger.
+    KIND_CHOICES = [
+        ('upload', 'Dépôt direct depuis le poste'),
+        ('asset',  'Asset de la médiathèque'),
+        ('temp',   "Dossier temporaire de l'utilisateur"),
+        ('mount',  'Dossier connecté (montage local ou distant)'),
+        ('url',    'Ressource distante matérialisée'),
+    ]
+
+    #: Cible : même adressage que `RunOutcome`, plus le CHAMP — un élément peut avoir
+    #: plusieurs entrées de provenances différentes.
+    app = models.CharField(max_length=64, db_index=True)
+    object_type = models.CharField(max_length=64)
+    object_id = models.IntegerField(db_index=True)
+    field = models.CharField(max_length=64, help_text="Nom du FileField porteur de l'entrée")
+
+    kind = models.CharField(max_length=8, choices=KIND_CHOICES, db_index=True)
+
+    #: Adresse de la SOURCE, dans le vocabulaire de son `kind` : id d'asset, chemin relatif à
+    #: `MEDIA_ROOT` (`users/<u>/temp/…`), `mounts/<id>/…`, ou URL. Chaîne et non FK : les cinq
+    #: natures ne partagent aucune table, et une FK par nature rendrait la lecture conditionnelle.
+    ref = models.TextField(blank=True, default='')
+
+    #: Empreinte AU MOMENT DE LA COPIE. C'est elle qui permet « même source, même copie » — et
+    #: elle seule qui distingue « la source a bougé » de « la source a changé ». Vide quand le
+    #: calcul est trop coûteux (gros fichier de montage) : l'absence est un fait, pas un échec.
+    sha256 = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    size = models.BigIntegerField(default=0)
+
+    #: Nom d'ORIGINE, tel que l'utilisateur le connaît — la copie de travail porte souvent un
+    #: nom dé-collisionné, et c'est celui-ci qu'il faut lui montrer.
+    original_name = models.CharField(max_length=255, blank=True, default='')
+
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                             related_name='input_provenances')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Provenance d'entrée"
+        verbose_name_plural = "Provenances d'entrée"
+        ordering = ['-created_at']
+        constraints = [
+            # UNE provenance par champ d'entrée : la réécrire remplace, elle ne s'empile pas.
+            models.UniqueConstraint(fields=['object_type', 'object_id', 'field'],
+                                    name='une_provenance_par_entree'),
+        ]
+        indexes = [
+            # L'INDEX INVERSE : « qui référence cette source ? » — la question que le
+            # gestionnaire de fichiers doit poser avant de supprimer.
+            models.Index(fields=['kind', 'ref']),
+            models.Index(fields=['user', 'kind']),
+        ]
+
+    def __str__(self):
+        return f"{self.object_type}#{self.object_id}.{self.field} ← {self.kind}:{self.ref[:60]}"

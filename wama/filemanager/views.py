@@ -1385,6 +1385,7 @@ def import_to_describer(source_path, user, app_label='describer'):
     from django.apps import apps as django_apps
     from wama.describer.views import detect_type_from_extension
     from wama.common.utils.media_paths import copy_into_app_input
+    from wama.common.utils.provenance import record_import
 
     Description = django_apps.get_model(app_label, 'Description')
 
@@ -1397,6 +1398,10 @@ def import_to_describer(source_path, user, app_label='describer'):
     description.filename = dest_path.name
     description.file_size = dest_path.stat().st_size
     description.save()
+    # PROVENANCE (2026-09-11) : la card se souvient d'OU vient son entree. C'est l'index
+    # inverse qui permettra au gestionnaire de fichiers de savoir, AVANT de supprimer, qu'un
+    # fichier est reference — et la deduplication « meme source, meme copie ».
+    record_import(description, 'input_file', source_path)
 
     return {
         'imported': True,

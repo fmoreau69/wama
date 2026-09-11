@@ -148,7 +148,8 @@ def get_relative_media_path(app_name: str, user_id: Union[int, str], subfolder: 
 
 
 def copy_into_app_input(source_path, app_name: str, user_id, subfolder: str = 'input',
-                        allowed_exts=None):
+                        allowed_exts=None, *, for_instance=None, field=None,
+                        provenance_kind='temp', provenance_ref=None):
     """Copy a source file into an app's media folder with collision-safe naming.
 
     Centralises the logic duplicated by every ``import_to_<app>()`` helper:
@@ -163,6 +164,12 @@ def copy_into_app_input(source_path, app_name: str, user_id, subfolder: str = 'i
         allowed_exts: Optional iterable of accepted extensions (lowercase,
                       dot-prefixed, e.g. {'.pdf', '.png'}). Raises ValueError
                       if the source extension is not in the set.
+        for_instance/field: si donnés, la PROVENANCE est enregistrée ici — au SEUL endroit
+                      où la copie se fait. La brique se souvient de ce qu'elle a fait ; aucune
+                      app n'écrit la provenance elle-même (cf. `utils/provenance.py`).
+        provenance_kind/ref: nature et adresse de la source. `temp` par défaut, parce que
+                      c'est d'où vient l'écrasante majorité des imports (`users/<u>/temp/…`,
+                      le dossier que le gestionnaire de fichiers alimente).
 
     Returns:
         (dest_path: Path, relative_path: str)
@@ -187,6 +194,16 @@ def copy_into_app_input(source_path, app_name: str, user_id, subfolder: str = 'i
 
     shutil.copy2(src, dest_path)
     relative_path = f"{app_name}/{user_id}/{subfolder}/{dest_path.name}"
+
+    if for_instance is not None and field:
+        # ⚠ L'adresse de la SOURCE, pas celle de la copie : c'est ce qui permet de retrouver
+        # « qui référence ce fichier » et « ai-je déjà copié cette source ». Par défaut on
+        # rend le chemin relatif à MEDIA_ROOT quand la source y vit — sinon son chemin brut.
+        from wama.common.utils.provenance import record_provenance, ref_for
+        record_provenance(for_instance, field, kind=provenance_kind,
+                          ref=provenance_ref if provenance_ref is not None else ref_for(src),
+                          original_name=src.name, source_path=src)
+
     return dest_path, relative_path
 
 
