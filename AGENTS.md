@@ -98,10 +98,18 @@ ont affirmé pendant 14 mois qu'un pont existait ; tous recopiaient la même dé
 compté « déclarer le chemin » comme « construire la liaison ». **Une mesure bat N citations**,
 quel que soit N — parce que les N peuvent n'être qu'une, dupliquée.
 
-⭐ **Et une DOC qui contredit le CODE a tort par défaut.** Sur les cinq écarts de cette session,
-**cinq fois** c'est la doc qui était en retard, jamais le code. Devant une contradiction :
-mesurer, corriger la doc, dater la correction — ne jamais « aligner le code sur la doc » sans
-avoir établi laquelle des deux porte l'intention.
+⭐ **Et un CONSTAT de la doc qui contredit le CODE a tort par défaut — une INTENTION, jamais.**
+Sur les cinq écarts de cette session, **cinq fois** c'est la doc qui était en retard, jamais le
+code. Devant une contradiction : mesurer, corriger la doc, dater la correction — ne jamais
+« aligner le code sur la doc » sans avoir établi laquelle des deux porte l'intention.
+
+⚠ **La règle vaut pour les CONSTATS, pas pour les INTENTIONS** (précision de Fabien,
+2026-09-11). Un constat affirme l'état présent (« X est adopté par N apps ») : s'il contredit le
+code, il est faux. Une intention — objectif, cible, vision — ne « contredit » pas le code : elle
+projette une implémentation future (⏳). **Appliquée à la lettre, la règle ferait retirer de la
+vision tout ce qui n'est pas encore construit.** Un constat faux se corrige ; une intention non
+réalisée se GARDE, marquée comme telle (✅/🔄/⏳), et ne se retire que par une DÉCISION —
+jamais par un contrôle ni par une passe de nettoyage.
 
 ⚠ **Mais une source d'autorité se VÉRIFIE aussi, et un LIBELLÉ n'en est pas une.** Cette ligne
 disait, jusqu'au 2026-09-09 : *« le registre "Backends (moteurs)" dit que WAMA ne distingue pas
@@ -425,13 +433,21 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | audience | ce que c'est | état |
 |---|---|---|
 | **construction** | les `.md` de la table ci-dessus : trace, doctrine, décisions, vision — vivants | ✅ existe ; lisible depuis WAMA (`/common/docs/`, admins) |
-| **développeur** | comment ÉTENDRE WAMA : parcours d'entrée + pages projetées des registres (mécanismes, registres, backends, `APP_CATALOG`, kinds de manifestes, `TOOL_REGISTRY`) + docstrings de `common/` | 🔄 amorcée le 2026-09-11 : 3 pages **générées à la lecture** — parcours, registres + kinds de manifeste, briques + API lue par AST (`wama/common/dev_docs.py`) ; restent backends, `APP_CATALOG`, `TOOL_REGISTRY` |
-| **utilisateur** | comment se SERVIR de WAMA : un guide des gestes communs écrit UNE fois + sections par app projetées des métadonnées | 🔄 germe : onglets À-propos/Aide (`AppAboutView`/`AppHelpView`, auto-remplis d'`APP_CATALOG`) |
+| **développeur** | comment ÉTENDRE WAMA — **DÉRIVÉE** de la doc de construction, faits tirés des registres | 🔄 amorçage du 2026-09-11 : 3 pages calculées à la lecture (`wama/common/dev_docs.py`), à reverser en `.md` dérivés (`ROADMAP.md §25`) |
+| **utilisateur** | comment se SERVIR de WAMA — **DÉRIVÉE** de la doc de construction ; un fragment n'y entre que si le registre confirme ce qu'il décrit | 🔄 germe : onglets À-propos/Aide (`AppAboutView`/`AppHelpView`, auto-remplis d'`APP_CATALOG`) |
 
-**La règle** : les registres sont la seule source qui ne ment pas — **une doc destinée à un
-public est une PROJECTION générée, jamais une rédaction parallèle** (la doctrine
-métadonnée-driven de l'UI, appliquée à la doc). Chaque document déclare son `audience` dans
-`docs_catalog.py` ; les docs développeur et utilisateur s'y rangeront sans nouvelle page.
+**La règle (recadrée par Fabien le 2026-09-11)** : une seule source de vérité, qui tient par
+trois appuis — les **registres** (la vérité tenue à jour de ce qu'utilise WAMA, mais pas
+exhaustive), la **doc de construction à jour** (intentions, décisions, pourquoi, pièges) et la
+**confrontation au code** (`check_docs`, `doc_facts`). Les docs développeur et utilisateur
+**DÉRIVENT de la doc de construction** et y **injectent les faits des registres** par balise
+(`WAMA:FAIT(registre/clé/champ)`, `wama/common/fact_tags.py`) : jamais générées des registres
+seuls — un registre dit ce qui existe, pas pourquoi ni comment s'en servir — et jamais rédigées
+en parallèle. **Toutes sont des `.md`**, lisibles depuis le dépôt ET depuis WAMA
+(`/common/docs/`), rangées par audience puis par sous-catégorie. Mécanique et ordre de
+construction : `ROADMAP.md §25`.
+*(Cette règle disait le matin même « une doc destinée à un public est une PROJECTION générée des
+registres » : trop court, et c'est Fabien qui l'a relevé.)*
 
 ⚠ **Un statut écrit dans une doc de construction est une trace DATÉE, pas une mesure** — sur
 l'état présent, la grille de conformité et les registres font foi. C'est pourquoi la page de

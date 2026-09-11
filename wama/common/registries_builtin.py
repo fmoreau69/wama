@@ -59,10 +59,16 @@ def _count_apps() -> int:
     return len(APP_CATALOG)
 
 
+def _entries_apps() -> dict:
+    """Les fiches d'`APP_CATALOG`, adressables par une balise de doc (`fact_tags`)."""
+    from .app_registry import APP_CATALOG
+    return APP_CATALOG
+
+
 register(Registry(
     key='apps', label='Applications', nature=MEASURE,
     source="`APP_CATALOG` (déclaré en code) + grille de conformité MESURÉE depuis le code réel",
-    refresh=_refresh_apps, count=_count_apps,
+    refresh=_refresh_apps, count=_count_apps, entries=_entries_apps,
     url_name='common:apps_catalog', manifest_kind='app',
     periodic='nightly-consistency',
     doc='WAMA_APP_CONVENTIONS.md',
@@ -163,10 +169,16 @@ def _count_functions() -> int:
     return len(FUNCTION_CATALOG)
 
 
+def _entries_functions() -> dict:
+    """Les `FunctionSpec` par clé, adressables par une balise de doc (`fact_tags`)."""
+    from .catalog.function_catalog import FUNCTION_CATALOG
+    return FUNCTION_CATALOG
+
+
 register(Registry(
     key='fonctions', label='Fonctions de traitement', nature=REDECLARATION,
     source="`apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…",
-    refresh=_refresh_functions, count=_count_functions,
+    refresh=_refresh_functions, count=_count_functions, entries=_entries_functions,
     url_name='model_manager:functions_catalog', manifest_kind='function',
     doc='WAMA_DATA_FUNCTION_CARDS.md',
     description="Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les "
@@ -243,10 +255,18 @@ def _count_external_sources() -> int:
     return len(SOURCES)
 
 
+def _entries_external_sources() -> dict:
+    """Les `ExternalSource` par clé — la DÉCLARATION seule, jamais le rapport de sonde (une
+    balise de doc qui citerait « joignable » serait fausse le lendemain d'une coupure)."""
+    from .external_sources import SOURCES
+    return {s.key: s for s in SOURCES}
+
+
 register(Registry(
     key='sources_externes', label='Sources externes', nature=MEASURE,
     source="Registre déclaratif `common/external_sources.py` + sonde réseau (clé, joignabilité)",
     refresh=_refresh_external_sources, count=_count_external_sources,
+    entries=_entries_external_sources,
     url_name='common:sources_catalog',
     doc='WAMA_MECANISMES.md',
     description="Sonde chaque source déclarée : clé d'API posée ? adresse joignable (proxy UGE "
@@ -422,11 +442,17 @@ def _count_docs() -> int:
     return len(DOCS)
 
 
+def _entries_docs() -> dict:
+    """Les docs déclarés par clé, adressables par une balise de doc (`fact_tags`)."""
+    from .docs_catalog import BY_KEY
+    return BY_KEY
+
+
 register(Registry(
     key='docs', label='Documentation', nature=DERIVED,
     source="Déclaration `common/docs_catalog.py` (docs de référence d'AGENTS.md), lus sur le "
            "disque à chaque affichage",
-    count=_count_docs,
+    count=_count_docs, entries=_entries_docs,
     url_name='common:docs_catalog', permission='staff',
     doc='AGENTS.md',
     description="La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de "

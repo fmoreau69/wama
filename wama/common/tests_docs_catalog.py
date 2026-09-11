@@ -141,6 +141,24 @@ class RenduTest(SimpleTestCase):
     def test_les_tableaux_sont_rendus(self):
         self.assertIn('<table>', render_markdown("| a | b |\n|---|---|\n| 1 | 2 |\n")['html'])
 
+    def test_un_commentaire_html_est_masque_comme_sur_github(self):
+        # Les marqueurs `WAMA:FAITS` s'affichaient en texte brut avant le 2026-09-11.
+        html = render_markdown("<!-- WAMA:FAITS(x) — généré -->\ncontenu\n"
+                               "<!-- /WAMA:FAITS(x) -->\n")['html']
+        self.assertNotIn('WAMA:FAITS', html)
+        self.assertIn('contenu', html)
+
+    def test_un_fait_en_ligne_montre_sa_valeur_sans_ses_balises(self):
+        html = render_markdown(
+            "Il y a <!-- WAMA:FAIT(registres) -->15<!-- /WAMA:FAIT --> registres.")['html']
+        self.assertIn('Il y a 15 registres.', html)
+        self.assertNotIn('WAMA:FAIT', html)
+
+    def test_un_commentaire_cite_en_code_reste_lisible(self):
+        # Masquer les commentaires ne doit pas effacer une doc qui EXPLIQUE la syntaxe.
+        html = render_markdown("La balise `<!-- WAMA:FAIT(x) -->` s'écrit ainsi.")['html']
+        self.assertIn('&lt;!-- WAMA:FAIT(x) --&gt;', html)
+
 
 class ModuleApiTest(SimpleTestCase):
     """L'API d'une brique est lue par AST — ce qu'on montre doit être ce que le code DÉCLARE."""

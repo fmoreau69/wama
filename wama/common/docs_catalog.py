@@ -375,15 +375,37 @@ def _rewrite_links(children: list, source_path: str, site_links: bool = False) -
     return out
 
 
+_COMMENT = re.compile(r'<!--.*?-->', re.S)
+
+
+def _neutralize_html(tok) -> None:
+    """Le HTML brut d'un `.md` n'est JAMAIS exécuté — mais un COMMENTAIRE est masqué, comme sur
+    GitHub. Corrigé le 2026-09-11 : avec `html=False`, les marqueurs `<!-- WAMA:FAITS(…) -->` et
+    `<!-- WAMA:FAIT(…) -->` (invisibles sur le dépôt) s'affichaient en texte brut dans le lecteur.
+    On parse donc le HTML pour le RECONNAÎTRE, et on n'en laisse passer que le silence : un
+    commentaire disparaît, tout le reste est échappé en texte."""
+    if tok.type == 'html_block':
+        reste = _COMMENT.sub('', tok.content).strip()
+        tok.content = f'<p>{_html.escape(reste)}</p>\n' if reste else ''
+    elif tok.type == 'inline' and tok.children:
+        for c in tok.children:
+            if c.type == 'html_inline':
+                c.content = ('' if _COMMENT.fullmatch(c.content.strip())
+                             else _html.escape(c.content))
+
+
 def render_markdown(text: str, source_path: str = '', site_links: bool = False) -> dict:
     """Markdown → `{'html', 'toc'}`. `source_path` sert à résoudre les liens relatifs."""
     from markdown_it import MarkdownIt
 
-    md = MarkdownIt('commonmark', {'html': False}).enable(['table', 'strikethrough'])
+    # `html=True` pour que le HTML soit RECONNU, puis neutralisé token par token (voir
+    # `_neutralize_html`) — jamais rendu tel quel.
+    md = MarkdownIt('commonmark', {'html': True}).enable(['table', 'strikethrough'])
     tokens = md.parse(text)
     seen: Dict[str, int] = {}
     toc = []
     for i, tok in enumerate(tokens):
+        _neutralize_html(tok)
         if tok.type == 'heading_open':
             titre = _inline_text(tokens[i + 1])
             ident = _slug(titre, seen)

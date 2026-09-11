@@ -3613,3 +3613,53 @@ mesurées, pas « ~500 »** : il a GROSSI depuis l'annonce.
 **Reste à balayer** (non fait ce jour, déclaré) : les `§REPRISE` du **2026-08-29 au 09-03**, et
 les sections §20bis-§33 en détail. Le sondage ci-dessus suggère un rendement faible — les blocs
 datés vieillissent bien — mais il n'en fait pas la preuve.
+
+## 25. Documentation — trois publics, UNE source de vérité (ouvert le 2026-09-11)
+
+> **Cadre** : `AGENTS.md §Trois docs, trois publics` (la règle) et la règle CONSTAT / INTENTION
+> (`AGENTS.md §VÉRIFIER LA ROUTE`). Ce § porte la MÉCANIQUE et son ordre de construction.
+
+**La cible (Fabien, 2026-09-11).** Une seule source de vérité, qui tient par trois appuis : les
+**registres** (la vérité tenue à jour de ce qu'utilise WAMA — mais pas exhaustive), la **doc de
+construction à jour** (intentions, décisions, pourquoi, pièges) et la **confrontation au code**.
+Les docs **développeur** et **utilisateur** DÉRIVENT de la doc de construction et y injectent les
+faits des registres. Toutes sont des `.md`, lisibles depuis le dépôt ET depuis WAMA
+(`/common/docs/`), rangées par audience puis par sous-catégorie. Les registres seuls ne suffisent
+pas à les générer : ils disent ce qui existe, pas pourquoi ni comment s'en servir.
+
+**Ce qui existe au 2026-09-11** : le catalogue des docs (`common/docs_catalog.py`, lecteur,
+registre `docs`) ; `check_docs` (doc → code) ; `doc_facts` (blocs `WAMA:FAITS`) ; trois pages
+développeur CALCULÉES à la lecture (`common/dev_docs.py`) — un amorçage, pas la cible.
+
+### 25.1 La mécanique, dans l'ordre (on part des REGISTRES : la structure la plus stable)
+
+| # | pièce | état |
+|---|---|---|
+| ① | **Faits en ligne** : `<!-- WAMA:FAIT(registre/clé/champ) -->valeur<!-- /WAMA:FAIT -->`, résolus depuis `Registry.entries`, régénérés par `doc_facts`, confrontés par `--check` (`common/fact_tags.py`). Le registre des registres en compte aujourd'hui <!-- WAMA:FAIT(registres) -->15<!-- /WAMA:FAIT --> | 🔄 livré le 2026-09-11 ; fiches déclarées pour quelques registres, les autres à suivre |
+| ② | **Marquage des sections** de la doc de construction — par SECTION, pas par paragraphe (le coût connu de DITA) ; proposition : `<!-- WAMA:SECTION(audience=developpeur,utilisateur; type=guide) -->` sous le titre, `type` ∈ tutoriel · guide · référence · explication (cadre Diátaxis) | ⏳ syntaxe à valider |
+| ③ | **Plans des docs dérivées** : un plan déclaré par doc (ordre des sections, fragments tirés) → `.md` générés, lisibles hors WAMA, confrontés par `doc_facts --check` | ⏳ |
+| ④ | **Confrontation doc → doc** : chaque section dérivée garde l'empreinte de ses sources ; une source modifiée depuis la dernière dérivation → « à revoir » | ⏳ |
+| ⑤ | **Porte registre** pour la doc utilisateur : un fragment n'y apparaît que si le registre confirme ce qu'il décrit — la vision reste entière dans la doc de construction, et n'arrive chez l'utilisateur qu'une fois implémentée | ⏳ |
+| ⑥ | Reverser les trois pages de `dev_docs.py` en `.md` générés (registres, API des briques → faits et blocs) | ⏳ |
+
+### 25.2 Réviser la doc de construction — APRÈS la mécanique, quand le monde Médias sera abouti
+
+1. **D'abord, vérifier qu'aucune INTENTION légitime n'a été supprimée** par le balayage de
+   `PROJECT_STATUS` du 2026-09-10 (`§24.8`, confrontation au code). La règle constat/intention
+   n'était pas écrite ce jour-là : relire ses corrections une à une, en particulier les « reste
+   à faire » retirés, et remettre — marqué ⏳ — ce qui était une intention et non un constat.
+2. **Puis la révision de fond**, sur les seuls docs qui portent la connaissance (pas
+   `PROJECT_STATUS`, pas les changelogs) : marquer audience × type par section, séparer
+   constats et intentions, remplacer chaque chiffre recopié par une balise ①.
+3. Ensuite, ajouter une app, une librairie, un modèle — tout ce qui vit dans un registre — ne
+   pourra plus faire dériver la doc.
+
+### 25.3 D'où vient cette approche (pour ne pas la réinventer)
+
+Chaque pièce est éprouvée ailleurs ; l'assemblage l'est moins. **DITA** (OASIS) : attribut
+`audience` et filtrage à la publication, *maps* = plans (③). **Markdoc** (Stripe) : variables et
+conditions dans du Markdown. **tfplugindocs** (Terraform) et **Home Assistant** (manifestes
+validés par `hassfest`) : gabarits écrits à la main, valeurs tirées d'un schéma (①). **Backstage**
+TechDocs : catalogue d'éléments + `.md` à côté du code. **Diátaxis** : le type de doc compte autant
+que le public (②). Moins courant : la doc de DÉCISIONS comme source des deux autres, la porte
+registre (⑤), la confrontation dans les deux sens.

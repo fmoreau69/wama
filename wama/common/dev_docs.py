@@ -145,6 +145,10 @@ def registres() -> str:
             out.append(f"- **Doc** : {_lien_ref(r['doc'])}")
         if r['manifest_kind']:
             out.append(f"- **Kind de manifeste** : `{r['manifest_kind']}`")
+        from .registries import REGISTRIES
+        reg = REGISTRIES.get(r['key'])
+        if reg is not None and reg.entries is not None:
+            out.append(f"- **Citable dans une doc** : `WAMA:FAIT({r['key']}/<clé>/<champ>)`")
         if r['description']:
             out += ["", r['description']]
         out.append("")

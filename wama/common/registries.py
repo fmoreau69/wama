@@ -132,6 +132,11 @@ class Registry:
     execution: str = ''
     #: Comptage courant, pour afficher un total sans lancer d'actualisation.
     count: Optional[Callable[[], int]] = None
+    #: Les FICHES du registre, par clé — `{clé: dict | dataclass}`. Facultatif (2026-09-11).
+    #: C'est ce qui rend un champ ADRESSABLE par une balise de doc (`fact_tags`,
+    #: `<!-- WAMA:FAIT(registre/clé/champ) -->`) : un registre qui ne le déclare pas peut être
+    #: compté, pas cité. Il ne fait PAS partie du contrat d'actualisation — il le lit.
+    entries: Optional[Callable[[], Dict[str, object]]] = None
     url_name: str = ''
     #: 'staff' (une actualisation qui ÉCRIT) ou 'auth' (sans effet de bord partagé).
     permission: str = 'staff'

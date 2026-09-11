@@ -17,6 +17,11 @@ Marqueurs (dans le .md) :
     …contenu régénéré…
     <!-- /WAMA:FAITS(id) -->
 
+Faits EN LIGNE (2026-09-11, ROADMAP §25 ①) — la même idée, sans fonction par fait :
+    <!-- WAMA:FAIT(registre/clé/champ) -->valeur<!-- /WAMA:FAIT -->
+    résolus depuis `Registry.entries` (`common/fact_tags.py`), dans toutes les docs du catalogue
+    et les skills. Une balise qui ne se résout pas est CASSÉE : `--check` échoue.
+
 Usage :
     python manage.py doc_facts                # régénère tous les blocs en place
     python manage.py doc_facts --check        # code sortie 1 si un bloc est périmé
@@ -461,6 +466,39 @@ class Command(BaseCommand):
             chemin.write_text(motif.sub(f"{ouvrant}\n{frais}\n{fermant}", texte, count=1),
                               encoding='utf-8')
             self.stdout.write(self.style.WARNING(f"{fid}: régénéré ({fichier})"))
+
+        # ── Faits EN LIGNE (2026-09-11, ROADMAP §25) : `<!-- WAMA:FAIT(reg/clé/champ) -->…` ──
+        # Même contrat que les blocs : régénérés en place, `--check` refuse un fait périmé — et une
+        # balise qui ne se résout pas est CASSÉE, jamais laissée pour bonne. Balayés : les docs du
+        # catalogue et les skills, c'est-à-dire exactement ce que `check_docs` contrôle déjà.
+        if not o['only']:
+            from wama.common.docs_catalog import checked_paths
+            from wama.common.fact_tags import refresh_text
+            cibles = checked_paths() + sorted(
+                str(p.relative_to(racine)).replace('\\', '/')
+                for p in racine.glob('.claude/skills/*/SKILL.md'))
+            nb_balises = 0
+            for rel in cibles:
+                chemin = racine / rel
+                if not chemin.is_file():
+                    continue
+                texte = chemin.read_text(encoding='utf-8')
+                if 'WAMA:FAIT(' not in texte:
+                    continue
+                neuf, n, erreurs = refresh_text(texte)
+                nb_balises += n
+                for fchemin, msg in erreurs:
+                    perimes.append((fchemin, rel, 'balise cassée'))
+                    self.stdout.write(self.style.ERROR(f"fait {fchemin} ({rel}) : CASSÉ — {msg}"))
+                if neuf == texte:
+                    continue
+                if o['check']:
+                    perimes.append(('en ligne', rel, 'fait périmé'))
+                    self.stdout.write(self.style.ERROR(f"faits en ligne : PÉRIMÉS ({rel})"))
+                    continue
+                chemin.write_text(neuf, encoding='utf-8')
+                self.stdout.write(self.style.WARNING(f"faits en ligne : régénérés ({rel})"))
+            self.stdout.write(f"faits en ligne : {nb_balises} balise(s)")
 
         if perimes:
             self.stdout.write(f"\n{len(perimes)} bloc(s) à régénérer : python manage.py doc_facts")

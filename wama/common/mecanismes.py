@@ -380,6 +380,15 @@ MECANISMES = (
               "registres, API des briques lue par AST)",
               'wama/common/docs_catalog.py', 'AGENTS.md §Trois docs, trois publics',
               annexes=('wama/common/dev_docs.py', 'wama/common/tests_docs_catalog.py')),
+    # 2026-09-11 : 1ʳᵉ pièce de la mécanique des docs dérivées (ROADMAP §25) — les vérités
+    # terrain des registres injectées dans les .md, au lieu d'y être recopiées.
+    Mecanisme('fact_tags', 'Faits en ligne (balises de registre)',
+              "Une balise `WAMA:FAIT(registre/clé/champ)` dans un .md va chercher sa valeur dans "
+              "le registre (`Registry.entries`) ; `doc_facts` la régénère, `--check` la "
+              "confronte, et une balise qui ne se résout pas est CASSÉE. Généralise les blocs "
+              "`WAMA:FAITS` (une fonction par fait) à n'importe quel champ de registre",
+              'wama/common/fact_tags.py', 'ROADMAP.md §25',
+              annexes=('wama/common/tests_fact_tags.py',)),
     Mecanisme('templates_integrity', 'Intégrité des gabarits',
               "Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` "
               "MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — "
