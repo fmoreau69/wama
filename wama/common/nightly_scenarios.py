@@ -271,10 +271,10 @@ def _run_tool_api_lectures(ctx):
     lectures += ['list_user_files', 'list_media_assets', 'sam3_examples',
                  'list_ai_models', 'list_studio_pipelines',
                  # Lectures transverses (§9ter jalon 12) — appelables SANS argument, donc
-                 # exerçables ici. `get_item_detail` en est absent à dessein : il EXIGE
-                 # (app, pk), un appel à vide rendrait une erreur légitime que ce scénario
-                 # compterait comme un échec. Sa garde est unitaire
-                 # (`tests_tool_api_lectures.py`), pas nocturne.
+                 # exerçables ici. `get_item_detail` et `get_item_preview` en sont absents à
+                 # dessein : ils EXIGENT (app, pk), un appel à vide rendrait une erreur
+                 # légitime que ce scénario compterait comme un échec. Leurs gardes sont
+                 # unitaires (`tests_tool_api_lectures.py`), pas nocturnes.
                  'list_my_items', 'list_registries', 'get_my_access', 'list_my_memories']
     echecs, refus, ok = [], [], 0
     for tool in lectures:

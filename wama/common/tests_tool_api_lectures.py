@@ -12,14 +12,33 @@ c'est l'ISOLATION entre utilisateurs, le refus nommé, et les deux réserves exp
 ⚠ `get_item_detail` EXIGE (app, pk) : il est volontairement absent de la liste nocturne, où un
 appel à vide rendrait une erreur légitime comptée comme un échec. Sa garde est ICI.
 """
+import json
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from wama import tool_api as T
 
 
-def _utilisateur(nom):
-    return get_user_model().objects.create_user(username=nom, password='x')
+def _utilisateur(nom, role='communication'):
+    """Utilisateur qui FRANCHIT le portier d'app, il ne le contourne pas.
+
+    ⚠ Mesuré ici le 2026-09-11 : un compte neuf n'a AUCUN rôle, donc aucun accès à `imager` —
+    les tests d'écriture rendaient tous `forbidden`, y compris ceux du chemin heureux. La voie
+    `is_superuser=True` est ÉCARTÉE (même raison que `synthesizer/tests.py:38`) : neutraliser
+    le portier rendrait ces tests aveugles à une régression du gating, qui est précisément ce
+    que `_refus_app` doit tenir. `imager` exige le rôle `communication` (mesuré dans
+    `DEFAULT_APP_ACCESS`), on l'accorde — et rien de plus, pour qu'il reste des apps REFUSÉES
+    sur lesquelles éprouver la garde.
+    """
+    from django.contrib.auth.models import Group
+
+    from wama.accounts.permissions import GROUP_PREFIX
+    user = get_user_model().objects.create_user(username=nom, password='x')
+    if role:
+        groupe, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')
+        user.groups.add(groupe)
+    return user
 
 
 def _item(user, prompt='une image de test'):
@@ -114,6 +133,54 @@ class ListRegistriesTest(TestCase):
         self.assertTrue(all(r['key'] and r['label'] for r in out['registries']))
 
 
+class GetItemPreviewTest(TestCase):
+    def setUp(self):
+        self.moi = _utilisateur('prev1')
+        self.autre = _utilisateur('prev2')
+
+    def test_l_hote_FABRIQUE_ne_fuite_JAMAIS_dans_une_reponse(self):
+        """🔴 LA garde de cet outil. Les adapters appellent `build_absolute_uri()`, qui exige un
+        hôte : la requête synthétique en fabrique un FAUX. S'il sortait, l'assistant proposerait
+        une URL qui ne résout nulle part — un lien mort présenté comme valide."""
+        from wama.tool_api import _HOTE_SYNTHETIQUE
+        item = _item(self.moi)
+        out = T.get_item_preview(self.moi, 'imager', item.pk)
+        self.assertNotIn(_HOTE_SYNTHETIQUE, json.dumps(out, default=str))
+
+    def test_le_normaliseur_rend_bien_un_chemin_relatif(self):
+        """Garde DIRECTE du normaliseur — le test ci-dessus serait vert sur une charge SANS
+        aucune URL (donc vacueux). Celui-ci ne peut pas l'être : il fournit les URL lui-même."""
+        from wama.tool_api import _HOTE_SYNTHETIQUE, _url_relative
+        charge = {'url': f'http://{_HOTE_SYNTHETIQUE}/media/a.png',
+                  'liste': [{'u': f'http://{_HOTE_SYNTHETIQUE}/media/b.png?x=1'}],
+                  'intact': 'https://exemple.org/c.png'}
+        out = _url_relative(charge)
+        self.assertEqual(out['url'], '/media/a.png')
+        self.assertEqual(out['liste'][0]['u'], '/media/b.png?x=1')
+        self.assertEqual(out['intact'], 'https://exemple.org/c.png')   # hôte tiers préservé
+
+    def test_annonce_ce_qui_EXISTE_avant_qu_on_le_demande(self):
+        """`sides` est ce qui permet de répondre « où en est mon job » : `has_during` dit qu'un
+        job en cours a DÉJÀ quelque chose à montrer."""
+        item = _item(self.moi)
+        out = T.get_item_preview(self.moi, 'imager', item.pk)
+        self.assertIn('sides', out)
+        for cle in ('has_input', 'has_output', 'has_during', 'during_capable'):
+            self.assertIn(cle, out['sides'])
+
+    def test_refuse_l_element_d_un_autre_utilisateur(self):
+        """La permission n'est pas réécrite ici : elle vient de l'endpoint réutilisé."""
+        item = _item(self.autre)
+        self.assertEqual(T.get_item_preview(self.moi, 'imager', item.pk).get('error'), 'forbidden')
+
+    def test_refuse_un_side_invalide_en_nommant_les_valides(self):
+        out = T.get_item_preview(self.moi, 'imager', 1, side='nawak')
+        self.assertIn('during', out['error'])
+
+    def test_app_inconnue_sans_lever(self):
+        self.assertIn('error', T.get_item_preview(self.moi, 'pasunapp', 1))
+
+
 class GetMyAccessTest(TestCase):
     def test_dit_les_apps_REFUSEES_autant_que_les_permises(self):
         """Sans la liste des refus, l'assistant ne peut qu'OMETTRE une app en silence — et
@@ -179,8 +246,87 @@ class ListMyMemoriesTest(TestCase):
         self.assertIn('error', T.list_my_memories(AnonymousUser()))
 
 
-_LECTURES = ('list_my_items', 'get_item_detail', 'list_registries',
+class VerbesDeCycleTest(TestCase):
+    """🔴 Écritures. Leur garde d'app n'est portée NI par le registre (elles sont transverses
+    par leur nom, donc `tool_accessible` les autorise) NI par `AppAccessMiddleware` (elles
+    appellent la vue par une requête synthétique). Elle n'existe que dans leur corps — donc
+    c'est elle qu'il faut prouver, et elle seule protège."""
+
+    def setUp(self):
+        self.moi = _utilisateur('cyc1')
+        self.autre = _utilisateur('cyc2')
+
+    def _app_refusee(self):
+        refusees = T.get_my_access(self.moi)['apps_denied']
+        if not refusees:
+            self.skipTest("ce compte a accès à toutes les apps : la garde n'est pas éprouvable ici")
+        return refusees[0]
+
+    def test_la_garde_d_APP_tient_alors_que_les_DEUX_couches_habituelles_sont_absentes(self):
+        """Le test qui justifie tout le bloc. On vérifie d'abord que les deux couches sont
+        bien inertes ici — sinon on croirait tester la garde alors qu'autre chose protège."""
+        from wama.accounts.permissions import tool_accessible
+        app = self._app_refusee()
+        self.assertTrue(tool_accessible(self.moi, 'delete_item'),
+                        "si le registre gardait déjà, ce test ne prouverait rien")
+        self.assertIsNone(T.app_id_for_tool('delete_item'))
+        for outil in (T.delete_item, T.duplicate_item):
+            self.assertEqual(outil(self.moi, app, 1).get('error'), 'forbidden', outil.__name__)
+        self.assertEqual(T.clear_my_queue(self.moi, app, confirm=True).get('error'), 'forbidden')
+
+    def test_clear_my_queue_REFUSE_sans_confirmation(self):
+        """Un geste de masse qui part sur un malentendu ne se rattrape pas."""
+        out = T.clear_my_queue(self.moi, 'imager')
+        self.assertIn('error', out)
+        self.assertNotEqual(out['error'], 'forbidden')      # c'est bien le REFUS de confirmation
+        self.assertIn('confirm', out['error'])
+
+    def test_ne_supprime_PAS_l_element_d_un_autre_utilisateur(self):
+        from wama.imager.models import ImageGeneration
+        item = _item(self.autre)
+        T.delete_item(self.moi, 'imager', item.pk)
+        self.assertTrue(ImageGeneration.objects.filter(pk=item.pk).exists(),
+                        "l'élément d'autrui a été supprimé")
+
+    def test_supprime_bien_le_MIEN(self):
+        """Contre-épreuve du test précédent : sans elle, un outil qui ne supprime JAMAIS rien
+        passerait les deux."""
+        from wama.imager.models import ImageGeneration
+        item = _item(self.moi)
+        out = T.delete_item(self.moi, 'imager', item.pk)
+        self.assertNotIn('error', out)
+        self.assertFalse(ImageGeneration.objects.filter(pk=item.pk).exists())
+
+    def test_duplique_le_MIEN_et_rend_un_nouvel_element(self):
+        from wama.imager.models import ImageGeneration
+        item = _item(self.moi, 'à dupliquer')
+        avant = ImageGeneration.objects.filter(user=self.moi).count()
+        out = T.duplicate_item(self.moi, 'imager', item.pk)
+        self.assertNotIn('error', out, out)
+        self.assertEqual(ImageGeneration.objects.filter(user=self.moi).count(), avant + 1)
+
+    def test_dit_clairement_qu_une_route_MANQUE_au_lieu_d_echouer_obscurement(self):
+        """Mesuré le 2026-09-11 : `duplicate` n'existe pas sur anonymizer, ni aucune des trois
+        sur audio_enhancer. L'outil doit le DIRE — un trou d'app n'est pas une panne d'API."""
+        out = T.duplicate_item(self.moi, 'audio_enhancer', 1)
+        self.assertIn('error', out)
+        self.assertIn('duplication', out['error'].lower())
+
+    def test_app_inconnue_sans_lever(self):
+        for outil in (T.delete_item, T.duplicate_item):
+            self.assertIn('error', outil(self.moi, 'pasunapp', 1))
+
+    def test_refusent_l_anonyme(self):
+        from django.contrib.auth.models import AnonymousUser
+        a = AnonymousUser()
+        self.assertIn('error', T.delete_item(a, 'imager', 1))
+        self.assertIn('error', T.duplicate_item(a, 'imager', 1))
+        self.assertIn('error', T.clear_my_queue(a, 'imager', confirm=True))
+
+
+_LECTURES = ('list_my_items', 'get_item_detail', 'get_item_preview', 'list_registries',
              'get_my_access', 'list_my_memories')
+_ECRITURES = ('delete_item', 'duplicate_item', 'clear_my_queue')
 
 
 class PorteTest(TestCase):
@@ -188,14 +334,14 @@ class PorteTest(TestCase):
 
     def test_toutes_sont_au_registre_et_decrites(self):
         desc = T.tool_descriptions()
-        for nom in _LECTURES:
+        for nom in _LECTURES + _ECRITURES:
             self.assertIn(nom, T.TOOL_REGISTRY)
             self.assertTrue(str(desc[nom]['description']).strip(), nom)
 
     def test_aucune_n_est_prise_pour_un_outil_de_triade(self):
         """`get_item_detail` et `get_my_access` commencent par `get_` : si le motif de triade
         les attrapait, ils seraient gatés sur une app fantôme et refusés à tout le monde."""
-        for nom in _LECTURES:
+        for nom in _LECTURES + _ECRITURES:
             self.assertIsNone(T.tool_role(nom), nom)
             self.assertIsNone(T.app_id_for_tool(nom), nom)
 

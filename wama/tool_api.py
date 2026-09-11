@@ -2705,6 +2705,272 @@ def get_item_detail(user, app: str, pk: int) -> dict:
     return {'app': app, 'id': pk, 'detail': detail, 'raw': raw}
 
 
+#: Hôte de la requête SYNTHÉTISÉE ci-dessous. Il ne sort jamais des réponses : `_url_relative`
+#: le retire. Le nommer ici évite de le chercher dans deux fichiers le jour où il change.
+_HOTE_SYNTHETIQUE = 'tool-api.invalid'
+
+
+def _url_relative(valeur):
+    """`http://<hôte synthétique>/media/x.png` → `/media/x.png`, récursivement.
+
+    POURQUOI : les adapters d'aperçu appellent `request.build_absolute_uri()`, qui a besoin d'un
+    hôte. Une requête synthétique en fabrique un FAUX — le rendre tel quel à l'assistant lui
+    ferait proposer une URL qui ne résout nulle part. Les outils de ce fichier rendent des URL
+    RELATIVES (précédent : `get_media_asset_url` rend `file.url`), on s'y aligne.
+    """
+    if isinstance(valeur, dict):
+        return {k: _url_relative(v) for k, v in valeur.items()}
+    if isinstance(valeur, list):
+        return [_url_relative(v) for v in valeur]
+    if isinstance(valeur, str) and _HOTE_SYNTHETIQUE in valeur:
+        from urllib.parse import urlparse
+        p = urlparse(valeur)
+        if p.netloc == _HOTE_SYNTHETIQUE:
+            return p.path + (f'?{p.query}' if p.query else '')
+    return valeur
+
+
+def get_item_preview(user, app: str, pk: int, side: str = 'input') -> dict:
+    """
+    Look at what an item actually holds: the file it started from, the result it produced, or
+    what it is producing RIGHT NOW while the job is still running.
+
+    `sides` tells you what exists before you ask for it — `has_during` is true when a running
+    job already has something to show, so you can answer "how is it going?" with the real
+    partial output instead of a percentage.
+
+    Args:
+        app:  app id the item belongs to (as returned by `list_my_items`).
+        pk:   item id.
+        side: 'input' (default), 'output', or 'during' for a job in progress.
+
+    Returns:
+        {"app","id","side","sides":{"has_input","has_output","has_during","during_capable",
+         "comparable"}, …preview payload with relative URLs…} or {"error"}
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    side = (side or 'input').lower()
+    if side not in ('input', 'output', 'during'):
+        return {'error': f"side invalide : {side!r}. Valides : input, output, during"}
+
+    # ⭐ On RÉUTILISE l'endpoint de l'inspecteur au lieu de refaire sa logique : mêmes adapters,
+    # MÊME contrôle de permission (`PreviewRegistry.check_permission`), même charge. C'est la
+    # règle de §9ter appliquée à l'aperçu — si l'assistant avait sa propre projection, elle
+    # divergerait de ce que l'utilisateur voit, et on déboguerait deux vérités.
+    from django.test import RequestFactory
+
+    from wama.common.utils.preview_utils import unified_preview
+
+    requete = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE).get('/', {'side': side})
+    requete.user = user
+    try:
+        reponse = unified_preview(requete, app, pk)
+    except Exception as e:
+        logger.warning(f"[tool_api] get_item_preview {app}#{pk} : {e}")
+        return {'error': f"Aperçu indisponible pour {app}#{pk} : {e}"}
+
+    statut = getattr(reponse, 'status_code', 500)
+    if statut == 403:
+        return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
+    if statut == 404:
+        return {'error': f"Aucun aperçu pour '{app}' #{pk} (app non enregistrée ou élément absent)."}
+    if statut != 200:
+        return {'error': f"Aperçu indisponible (HTTP {statut}) pour {app}#{pk}."}
+
+    try:
+        charge = json.loads(reponse.content.decode('utf-8'))
+    except Exception as e:
+        return {'error': f"Aperçu illisible pour {app}#{pk} : {e}"}
+    charge = _url_relative(charge)
+    charge.update({'app': app, 'id': pk})
+    return charge
+
+
+# ---------------------------------------------------------------------------
+# VERBES DE CYCLE — les PREMIÈRES écritures de la série « compléter l'API ». L'assistant savait
+# créer, lancer et observer ; il ne savait pas DÉFAIRE (mesuré : aucun outil ne supprimait,
+# dupliquait ni vidait — `ROADMAP §24.4①`).
+#
+# 🔴🔴 LE POINT DE SÉCURITÉ DE CE BLOC — À LIRE AVANT D'Y TOUCHER.
+# Ces outils sont TRANSVERSES PAR LEUR NOM (`delete_item`, pas `delete_transcriber`), donc
+# `app_id_for_tool()` rend None et **`tool_accessible()` les AUTORISE à tout le monde**. Et
+# comme ils appellent la vue de l'app par une requête synthétique, ils **court-circuitent aussi
+# `AppAccessMiddleware`**. Les DEUX couches de gating sont donc absentes : sans la garde écrite
+# ICI, un utilisateur supprimerait dans une app qu'il n'a pas le droit d'ouvrir.
+# → `_refus_app()` est OBLIGATOIRE en tête de chaque écriture. Même raison que la restriction
+#   écrite dans le corps de `ask_claude_code` : ce qui ne peut pas être porté par le registre
+#   se porte dans la fonction, et se dit.
+# ⚠ Pour les LECTURES, l'ownership suffisait (elles calquent une page que l'utilisateur peut
+#   déjà ouvrir). Une ÉCRITURE n'a pas cet équivalent : agir dans une app n'est pas la regarder.
+#
+# POURQUOI passer par la VUE de l'app plutôt que par les briques directement : `duplicate_instance`
+# et `safe_delete_file` sont communes, mais les `reset_fields`/`clear_fields` sont SPÉCIFIQUES à
+# chaque app (ce qu'on remet à zéro dans une transcription n'est pas ce qu'on remet à zéro dans
+# une génération d'image). Les recopier ici en ferait une 2ᵉ vérité qui dériverait au premier
+# champ ajouté. La route est LUE (`route_variants`, jamais supposée — leçon `stop` vs `cancel`).
+def _refus_app(user, app: str):
+    """`None` si l'utilisateur peut AGIR dans cette app, sinon le dict d'erreur à renvoyer."""
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Écriture réservée aux utilisateurs identifiés."}
+    from wama.accounts.permissions import accessible, all_gated_apps
+    # Une app hors périmètre gardé (jumelle de bac à sable…) n'a pas de politique : on ne
+    # l'invente pas, on laisse l'ownership de la vue trancher.
+    if app in all_gated_apps() and not accessible(user, 'app', app):
+        return {'error': 'forbidden',
+                'detail': f"Accès non autorisé à l'application « {app} »."}
+    return None
+
+
+def _route_dispo(app: str, canonique: str, args):
+    """Nom de route RÉELLEMENT servi par l'app pour ce geste conventionnel, '' si aucun."""
+    from django.urls import NoReverseMatch, reverse
+
+    from wama.common.manifests.codegen.urls_gen import route_variants
+    for nom in route_variants(canonique):
+        try:
+            reverse(f'{app}:{nom}', args=args)
+            return nom
+        except NoReverseMatch:
+            continue
+    return ''
+
+
+def _poster_vue(user, app: str, nom_route: str, args):
+    """POST la vue de l'app par une requête synthétique. Rend (status_code, charge|texte)."""
+    from django.test import RequestFactory
+    from django.urls import reverse
+
+    url = reverse(f'{app}:{nom_route}', args=args)
+    requete = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE).post(url)
+    requete.user = user
+    from django.urls import resolve
+    vue, v_args, v_kwargs = resolve(url)
+    reponse = vue(requete, *v_args, **v_kwargs)
+    statut = getattr(reponse, 'status_code', 500)
+    contenu = getattr(reponse, 'content', b'')
+    try:
+        return statut, json.loads(contenu.decode('utf-8'))
+    except Exception:
+        return statut, {}
+
+
+def _verdict(statut, charge, quoi):
+    """Traduction commune des retours de vue en réponse d'outil."""
+    if statut in (200, 201, 204):
+        return None
+    if statut in (301, 302):        # une vue qui redirige a FAIT le geste (retour à la file)
+        return None
+    if statut == 403:
+        return {'error': 'forbidden', 'detail': f"{quoi} : accès refusé."}
+    if statut == 404:
+        return {'error': f"{quoi} : élément introuvable."}
+    detail = (charge or {}).get('error') or f"HTTP {statut}"
+    return {'error': f"{quoi} : {detail}"}
+
+
+def delete_item(user, app: str, pk: int) -> dict:
+    """
+    Delete ONE of the user's items from an app queue.
+
+    Destructive and not undoable: ask the user to confirm before calling it, and say which
+    item you are about to remove (use `list_my_items` to name it first).
+
+    Shared input files are preserved when another item still points at them — the app's own
+    delete path is used, so this behaves exactly like the delete button in the interface.
+
+    Args:
+        app: app id the item belongs to.
+        pk:  item id.
+
+    Returns:
+        {"deleted": true, "app", "id"} or {"error"}
+    """
+    refus = _refus_app(user, app)
+    if refus:
+        return refus
+    route = _route_dispo(app, 'delete', [pk])
+    if not route:
+        return {'error': f"L'app '{app}' ne déclare aucune route de suppression."}
+    try:
+        statut, charge = _poster_vue(user, app, route, [pk])
+    except Exception as e:
+        logger.warning(f"[tool_api] delete_item {app}#{pk} : {e}")
+        return {'error': f"Suppression impossible pour {app}#{pk} : {e}"}
+    mauvais = _verdict(statut, charge, f"Suppression de {app}#{pk}")
+    return mauvais or {'deleted': True, 'app': app, 'id': pk}
+
+
+def duplicate_item(user, app: str, pk: int) -> dict:
+    """
+    Duplicate ONE of the user's items, so it can be re-run with different settings.
+
+    The copy shares the same input file (nothing is copied on disk) and starts empty: no
+    result, no status. Use it instead of asking the user to upload the same file twice.
+
+    Args:
+        app: app id the item belongs to.
+        pk:  item id to copy.
+
+    Returns:
+        {"duplicated": true, "app", "source_id", "new_id"} or {"error"}
+    """
+    refus = _refus_app(user, app)
+    if refus:
+        return refus
+    route = _route_dispo(app, 'duplicate', [pk])
+    if not route:
+        return {'error': f"L'app '{app}' ne déclare aucune route de duplication."}
+    try:
+        statut, charge = _poster_vue(user, app, route, [pk])
+    except Exception as e:
+        logger.warning(f"[tool_api] duplicate_item {app}#{pk} : {e}")
+        return {'error': f"Duplication impossible pour {app}#{pk} : {e}"}
+    mauvais = _verdict(statut, charge, f"Duplication de {app}#{pk}")
+    if mauvais:
+        return mauvais
+    # L'id du double n'est pas normalisé entre apps : on le REND s'il est là, on ne l'invente pas.
+    nouveau = (charge or {}).get('new_id') or (charge or {}).get('id')
+    return {'duplicated': True, 'app': app, 'source_id': pk, 'new_id': nouveau}
+
+
+def clear_my_queue(user, app: str, confirm: bool = False) -> dict:
+    """
+    Empty the user's WHOLE queue for one app — every item, at once.
+
+    This is the most destructive tool here. It will refuse unless `confirm` is true, and you
+    must get the user's explicit agreement first: say how many items will go (call
+    `list_my_items(app=...)` and report the count), then ask.
+
+    Args:
+        app:     app id whose queue should be emptied.
+        confirm: must be true; the refusal is deliberate, not a formality.
+
+    Returns:
+        {"cleared": true, "app", "items_before"} or {"error"}
+    """
+    refus = _refus_app(user, app)
+    if refus:
+        return refus
+    if not confirm:
+        return {'error': "Geste destructif non confirmé : rappelez le NOMBRE d'éléments à "
+                         "l'utilisateur, obtenez son accord, puis rappelez avec confirm=true.",
+                'app': app}
+    route = _route_dispo(app, 'clear_all', [])
+    if not route:
+        return {'error': f"L'app '{app}' ne déclare aucune route « tout effacer »."}
+    # Compté AVANT : après, il n'y a plus rien à compter — et un geste de masse doit pouvoir
+    # dire ce qu'il a emporté.
+    avant = list_my_items(user, app=app, limite=1).get('total')
+    try:
+        statut, charge = _poster_vue(user, app, route, [])
+    except Exception as e:
+        logger.warning(f"[tool_api] clear_my_queue {app} : {e}")
+        return {'error': f"Vidage impossible pour '{app}' : {e}"}
+    mauvais = _verdict(statut, charge, f"Vidage de la file '{app}'")
+    return mauvais or {'cleared': True, 'app': app, 'items_before': avant}
+
+
 def list_registries(user) -> dict:
     """
     List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
@@ -2825,6 +3091,15 @@ TOOL_REGISTRY = {
     # deux premiers outils existent pour REMPLACER à terme les ~10 `get_<app>_status`.
     'list_my_items':    list_my_items,
     'get_item_detail':  get_item_detail,
+    # Aperçu — dont le côté PENDANT : « où en est mon job » se répond avec la sortie partielle
+    # réelle, pas avec un pourcentage. Réutilise l'endpoint de l'inspecteur (permission comprise).
+    'get_item_preview': get_item_preview,
+    # VERBES DE CYCLE — premières ÉCRITURES. 🔴 Transverses par leur nom, donc NI `tool_accessible`
+    # NI `AppAccessMiddleware` ne les gardent : la garde d'app est écrite DANS leurs corps
+    # (`_refus_app`). Ne jamais leur donner un nom d'app sans relire ce bloc.
+    'delete_item':      delete_item,
+    'duplicate_item':   duplicate_item,
+    'clear_my_queue':   clear_my_queue,
     'list_registries':  list_registries,
     # Droits de l'appelant, et ce que WAMA retient de lui — LECTURE SEULE, sur SON compte.
     # `get_my_access` n'ÉLARGIT aucun droit : il DIT la décision que `accessible()` prend déjà.

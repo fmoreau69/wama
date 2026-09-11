@@ -268,7 +268,7 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
   │     3 gardes : DÉCLARÉ · DATA-GATED (rien de pertinent ⇒ prompt inchangé) · FAIL-SAFE ('')
   │     chaque extrait injecté AVEC sa référence ([transcriber:134] …)
   │
-  └─ boucle LLM à outils (64 outils, gating F7) — c'est ICI que tout se rejoint :
+  └─ boucle LLM à outils (68 outils, gating F7) — c'est ICI que tout se rejoint :
        • charger_competence(domaine)  → l'ASSISTANT charge LUI-MÊME posture + contexte labo
          (jamais la surface : un adaptateur de canal ne devine pas le domaine)
        • memory_recall(query, niveaux=…) → recall() souvenirs + RAG, sélecteur de niveaux,
@@ -278,11 +278,25 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
    routage langue seul, pas d'enrichissement]
 ```
 
-**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **64 outils** *(mesuré 2026-09-11 ;
+**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **68 outils** *(mesuré 2026-09-11 ;
 disait **51**, périmé — le compte vit ICI, c'est donc ici qu'il se re-mesure : `len(tool_descriptions())`)*
-— dont **5 LECTURES TRANSVERSES** livrées le 2026-09-11 (`list_my_items`, `get_item_detail`,
-`list_registries`, `get_my_access`, `list_my_memories`) : première étape du chantier
-« compléter l'API » (`ROADMAP §24.4① quater`), celle qui n'écrit rien — triades
+— dont **6 LECTURES TRANSVERSES** livrées le 2026-09-11 (`list_my_items`, `get_item_detail`,
+`get_item_preview`, `list_registries`, `get_my_access`, `list_my_memories`) et **3 VERBES DE
+CYCLE** (`delete_item`, `duplicate_item`, `clear_my_queue`) : chantier « compléter l'API »
+(`ROADMAP §24.4① quater`).
+⭐ Les trois `get_item_*` et les 3 verbes **réutilisent les surfaces de l'app** (`unified_detail`,
+`unified_preview`, les vues `delete`/`duplicate`/`clear_all` résolues par `route_variants`) au
+lieu de reprojeter ou de recopier des `reset_fields` : l'assistant voit et fait EXACTEMENT ce que
+l'utilisateur voit et fait. Une projection propre à l'assistant divergerait, et on déboguerait
+deux vérités.
+
+🔴 **GARDE D'APP DES ÉCRITURES — à connaître avant d'ajouter un verbe.** Ces outils sont
+**transverses par leur NOM** (`delete_item`, pas `delete_transcriber`) : `app_id_for_tool()` rend
+`None`, donc **`tool_accessible()` les autorise à tous** ; et comme ils appellent la vue par une
+requête synthétique, ils **court-circuitent aussi `AppAccessMiddleware`**. Les deux couches
+habituelles sont donc ABSENTES : la garde est écrite dans leur corps (`_refus_app`), et c'est la
+seule. *Éprouvé par un test qui vérifie d'abord que les deux couches sont bien inertes — sinon il
+croirait tester la garde alors qu'autre chose protège.* — triades
 `add_to_/start_/get_…_status` (déclaratives, marche A4) pour les apps + studio ; l'inventaire
 complet et ses trous vivent dans `WAMA_APP_GENERATION_ROUTE.md §11` (trou #18), pas ici. Ce qui
 appartient à CE document : les outils **IA-transverses** (gating `None` — aucune app ne les
