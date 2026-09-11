@@ -942,12 +942,61 @@ comparaison directe**, et non plus déduit.
 reste : ce qu'il écarte est nettement plus mobile (p50 = **0,521** contre 0,118-0,127 partout
 ailleurs). *Les deux gardes du filtre ne se valent pas : l'une trie, l'autre non.*
 
-**Ce que ça dessine** (à décider, pas encore fait) : remplacer la porte d'étalement par un
-seuil sur `net_sur_chemin` — **réglable**, comme demandé — en conservant une exigence de durée
-et d'observations. Ordre de grandeur : un seuil à 0,25 retiendrait ~1250 tracks au lieu de 77.
-⚠ Réserves à lever avant d'y toucher : un `net_sur_chemin` ≈ 0 peut aussi venir d'un track qui
-CONFOND deux objets, ou d'un mobile qui revient sur ses pas ; et tout ceci est mesuré sur UNE
-session.
+#### 🔴 RECTIFICATION LE JOUR MÊME — la candidate est RÉFUTÉE, et mon inférence était fautive
+
+> La rédaction initiale de ce § concluait : *« remplacer la porte d'étalement par un seuil sur
+> `net_sur_chemin` ; un seuil à 0,25 retiendrait ~1250 tracks au lieu de 77 »*. **Les deux
+> moitiés sont fausses**, et c'est la mise à l'épreuve qui l'a montré — pas une relecture.
+
+**① Le « ~1250 » était une extrapolation, pas une mesure.** Exécuté : le seuil à 0,25 rend
+**143** retenus, pas 1250. Les 1904 écartés par l'étalement ne deviennent pas des retenus —
+**1216 d'entre eux sont repris par la porte `trop_rapide`**, qui calcule `spread_first / durée`.
+*J'avais remplacé une porte en laissant LA MÊME GRANDEUR agir dans la suivante* : il n'y avait
+pas « un seul facteur changé », contrairement à ce que le commentaire du code annonçait.
+
+| config | <5 obs | <4 s | trop_étalé | **trop_rapide** | inter. | **retenus** |
+|---|---|---|---|---|---|---|
+| actuel (étalement 6 m) | 555 | 1609 | **1904** | 33 | 12 | **77** |
+| `net_sur_chemin ≥ 0,25` | 555 | 1609 | 637 | **1216** | 30 | **143** |
+
+**② `placement_spread` NE PEUT PAS arbitrer ce chantier — c'est une circularité.** Il passe de
+0,855 à 2,308 m, ce qui se lit volontiers « on a laissé entrer des mobiles ». Mais il mesure la
+dispersion des positions monde, *c'est-à-dire le bruit de placement* — l'effet même qu'on
+étudie. Un garé vu à 20 m avec le pinhole à ±20 % disperse de plusieurs mètres **sans bouger**.
+*Juger un filtre « bruit de placement » avec une métrique faite de bruit de placement ne
+conclut rien.*
+
+**③ L'arbitre INDÉPENDANT : la distance à la navette.** Si les retenus supplémentaires étaient
+des garés mal placés, ils seraient plus LOIN (là où le placement est mauvais). Mesuré :
+
+| population | n | distance navette (méd.) | `rms` méd. | obs. méd. |
+|---|---|---|---|---|
+| les 77 actuels | 77 | **2,7 m** | 0,85 m | 101 |
+| les 89 **supplémentaires** | 89 | **2,4 m** | **3,32 m** | 342 |
+
+**À distance égale — plus près, même — ils dispersent 4× plus.** Ce ne sont donc pas des garés
+mal placés. Et le critère fait **perdre 23 des 77 actuels** (54 communs seulement).
+
+**④ Ce que ça change à la lecture du croisement.** « Les 1904 écartés sont indiscernables des
+77 retenus par `net_sur_chemin` » reste VRAI ; l'inférence que j'en tirais (« donc la porte
+d'étalement rejette de vrais garés ») ne l'est pas. L'explication plus parcimonieuse, et
+soutenue par ③, est que **`net_sur_chemin` ne discrimine pas** — deux populations y ont la
+même valeur parce que la grandeur est muette, pas parce qu'elles sont de même nature.
+⭐ *Deux groupes qui se ressemblent selon une grandeur peuvent aussi bien dire que la GRANDEUR
+est aveugle que qu'ils sont SEMBLABLES. Sans une troisième mesure, indépendante, les deux
+lectures sont ouvertes — et j'ai publié la plus flatteuse pour mon hypothèse.*
+
+**Ce qui reste acquis** : la porte d'étalement écarte 45,4 % des candidats ; la porte de durée,
+elle, sépare quelque chose (p50 0,52 contre 0,12) ; `pas_median` est inutilisable ;
+`net_sur_chemin` est réfutée comme discriminante ; et `placement_spread` est disqualifié comme
+arbitre de CE chantier.
+
+**Piste suivante, dictée par le symptôme d'origine** (§D.3, constat Fabien : *« les garés
+suivent la navette puis se décrochent »*) : un garé a une position monde CONSTANTE pendant que
+la navette bouge. Un track dont la position apparente se déplace **avec** la navette est un
+artefact de placement, pas un mobile. La corrélation entre le déplacement apparent du track et
+celui de la navette est sans dimension, indépendante de l'échelle du bruit — et elle vise
+exactement ce qui a été OBSERVÉ à l'écran. À mesurer, pas à croire.
 
 ⚠ Ce qui n'a PAS été joué : les bascules ⚑ elles-mêmes (`display_ema` OFF, `shuttle_filter` ON)
 et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les

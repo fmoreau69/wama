@@ -185,7 +185,7 @@ _BORNES_HISTO = {'duree': 60.0, 'spread_first': 20.0, 'spread_robuste': 20.0,
 
 
 def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
-                           frame_range=None, spread_max_m=6.0):
+                           frame_range=None, spread_max_m=6.0, path_ratio_max=None):
     """
     Assigne un `global_track_id` à chaque détection (objets suivis) de toutes les caméras
     ANALYSÉES, associées en repère monde. Retourne le nombre de tracks globaux créés.
@@ -549,7 +549,24 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             d['porte'] = 'vu_moins_de_4s'
             continue
         spread = d['spread_first']
-        if spread >= spread_max_m:
+        # La porte d'ÉTALEMENT — elle écarte 45,4 % des candidats (mesuré 09/09).
+        # `path_ratio_max` permet de lui substituer le rapport SANS DIMENSION (§D.3 bis).
+        # ⚠⚠ DEUX AVERTISSEMENTS, tous deux mesurés le 11/09 et tous deux contre ma première
+        # rédaction de ce commentaire :
+        # 1. Ce n'est PAS « un seul facteur changé ». La porte SUIVANTE (`trop_rapide`) calcule
+        #    `spread_first / durée` : la grandeur remplacée ici continue d'agir juste après —
+        #    1216 des 1904 écartés par l'étalement sont simplement repris par la vitesse.
+        #    **Remplacer une porte ne remplace pas une GRANDEUR tant qu'elle sert ailleurs
+        #    dans la même cascade.**
+        # 2. La candidate est RÉFUTÉE (§D.3 bis ③) : à distance égale à la navette (2,4 m
+        #    contre 2,7 m), les retenus supplémentaires dispersent 4× plus. Cet argument reste
+        #    ici parce qu'il est la COUTURE DE MESURE du chantier, pas parce qu'il serait la
+        #    solution — le jour où la bonne grandeur sera trouvée, il lui cédera la place.
+        if path_ratio_max is None:
+            trop = spread >= spread_max_m
+        else:
+            trop = d['net_sur_chemin'] >= path_ratio_max
+        if trop:
             _rejets['trop_etale'] += 1
             d['porte'] = 'trop_etale'
             continue
