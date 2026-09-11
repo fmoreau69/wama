@@ -142,5 +142,102 @@ class CommandeAccelerometreTest(unittest.TestCase):
         self.assertIn('arrêts trop rares', infos['bias_source'])
 
 
+class LaBasculeCOMMANDE_vraiment_le_filtreTest(unittest.TestCase):
+    """La couture APPLICATIVE : ⚑ `imu_command` ON ⇒ le filtre est réellement commandé.
+
+    Trouvé par le balayage mécanique des gardes : `compute_shuttle_filter` n'était nommée par
+    AUCUN test. Les gardes du 11/09 vivaient toutes DANS la brique pure — or c'est ici que la
+    bascule rencontre la fonction, et une bascule qui n'arrive pas rendrait une trace
+    parfaitement plausible, calculée comme avant, sous un drapeau annoncé ON.
+    """
+
+    class _SessionEcrivable(_Session):
+        def __init__(self, features):
+            n = 120
+            gps, imu = [], []
+            for i in range(n):
+                t = i * 0.5
+                gps.append({'ts': t, 'lat': 45.0 + i * 2e-5, 'lon': 4.0 + i * 1e-5,
+                            'heading': 37.0, 'speed_kmh': 12.0})
+            for i in range(n * 5):
+                imu.append({'ts': i * 0.1, 'ax': 0.03, 'ay': 0.0, 'az': 0.95})
+            super().__init__(gps, features=features)
+            self.imu_track = imu
+            self.sauvegardes = 0
+
+        def save(self, **kw):
+            self.sauvegardes += 1
+
+    def _rapport(self, features):
+        from wama_lab.cam_analyzer.utils.ego_pose import compute_shuttle_filter
+        s = self._SessionEcrivable(features)
+        rep = compute_shuttle_filter(s)
+        self.assertEqual(s.sauvegardes, 1, "le calcul se persiste une fois")
+        return rep
+
+    def test_bascule_OFF_le_filtre_n_est_PAS_commande(self):
+        rep = self._rapport({'shuttle_filter': True})
+        self.assertNotIn('commanded', rep)
+        self.assertEqual(rep['sigma_a'], 0.8)
+
+    def test_bascule_ON_le_filtre_EST_commande_et_le_rapport_le_DIT(self):
+        rep = self._rapport({'shuttle_filter': True, 'imu_command': True})
+        self.assertTrue(rep.get('commanded'))
+        self.assertEqual(rep['sigma_a'], 0.25)
+        self.assertIn('imu', rep)
+        self.assertEqual(rep['imu']['axis'], 'ax')
+
+    def test_bascule_ON_mais_AUCUN_IMU_retombe_sur_le_filtre_libre_sans_planter(self):
+        from wama_lab.cam_analyzer.utils.ego_pose import compute_shuttle_filter
+        s = self._SessionEcrivable({'shuttle_filter': True, 'imu_command': True})
+        s.imu_track = []
+        rep = compute_shuttle_filter(s)
+        self.assertNotIn('commanded', rep)
+        self.assertEqual(rep['sigma_a'], 0.8)
+
+    def test_le_sigma_commande_vient_de_la_CONSTANTE_pas_d_un_litteral(self):
+        """Sans ça, changer la constante casse un test sur `0.25` sans dire pourquoi."""
+        from wama_data.functions.driving.ego_trajectory_filter import (
+            DEFAULT_SIGMA_A, DEFAULT_SIGMA_A_COMMANDED)
+        rep = self._rapport({'shuttle_filter': True, 'imu_command': True})
+        self.assertEqual(rep['sigma_a'], DEFAULT_SIGMA_A_COMMANDED)
+        self.assertEqual(rep['sigma_a_libre'], DEFAULT_SIGMA_A)
+        self.assertLess(DEFAULT_SIGMA_A_COMMANDED, DEFAULT_SIGMA_A,
+                        "commander le filtre DOIT resserrer sa dispersion de processus")
+
+
+class LeLisseurAcceptEUneCommandeTest(unittest.TestCase):
+    """`kalman_rts_cv(command=…)` directement — la brique commune, sans passer par le GPS.
+
+    Elle sert AUSSI le tracking des objets (`trajectory_smoother`) : son contrat par défaut
+    doit rester bit-identique, et c'est la seule garde qui le dise à ce niveau.
+    """
+
+    @staticmethod
+    def _serie(n=60, dt=0.5, a=0.4):
+        """Mouvement uniformément accéléré vers l'est : x = ½·a·t², y = 0."""
+        return [(i * dt, 0.5 * a * (i * dt) ** 2, 0.0) for i in range(n)]
+
+    def test_sans_commande_le_resultat_est_INCHANGE(self):
+        from wama_data.functions.kinematics.rts_smoother import kalman_rts_cv
+        pts = self._serie()
+        self.assertEqual(kalman_rts_cv(pts), kalman_rts_cv(pts, command=None))
+
+    def test_la_commande_est_prise_dans_la_PREDICTION(self):
+        from wama_data.functions.kinematics.rts_smoother import kalman_rts_cv
+        pts = self._serie()
+        libre = kalman_rts_cv(pts, sigma_a=0.2)
+        cmde = kalman_rts_cv(pts, sigma_a=0.2, command=lambda t: (0.4, 0.0))
+        self.assertNotEqual(libre, cmde, "la commande n'arrive pas jusqu'au filtre")
+        # la vitesse finale doit être plus proche de la vérité a·t quand on la commande
+        vrai = 0.4 * pts[-1][0]
+        self.assertLess(abs(cmde[-1][3] - vrai), abs(libre[-1][3] - vrai))
+
+    def test_une_commande_VIDE_est_ignoree_sans_planter(self):
+        from wama_data.functions.kinematics.rts_smoother import kalman_rts_cv
+        pts = self._serie()
+        self.assertEqual(kalman_rts_cv(pts), kalman_rts_cv(pts, command=lambda t: (None, None)))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
