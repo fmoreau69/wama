@@ -98,6 +98,92 @@ def _cam_to_vehicle(lateral, longitudinal, yaw_deg):
     return (longitudinal * s + lateral * c, longitudinal * c - lateral * s)
 
 
+def track_descriptors(hs):
+    """`[(fn, t, e, n, classe)]` TRIÉ → descripteurs d'un track global, pour la
+    qualification « garé ».
+
+    Quatre grandeurs, dont **trois ne servent pas encore au filtre** : elles sont mesurées
+    pour le chantier de refonte (§D.3 — verdict Fabien 2026-09-09 : « un garé se remarque
+    uniquement sur un ENSEMBLE d'images successives »), où la question est de savoir laquelle
+    sépare un garé d'un mobile lent **sans exiger une précision de placement que la chaîne
+    ne fournit pas** (pinhole ±20 %, soit plusieurs mètres à 20 m).
+
+    - `spread_first` — distance max à la PREMIÈRE observation. ⚠ C'est ce que le filtre
+      utilise depuis le 2026-07-17, et une première position bruitée fixe tout le verdict.
+    - `spread_robuste` — **p90** des distances à la position MÉDIANE. ⚠ La 1ʳᵉ version prenait
+      le MAX des distances à la médiane : un test l'a réfutée en naissant (une observation
+      aberrante rendait `spread_first` = `spread_robuste` = 11,8 m). *La fragilité n'était pas
+      dans le point de RÉFÉRENCE mais dans l'AGRÉGATEUR* — changer l'origine sans changer le
+      max ne robustifie rien. C'est le quantile qui écarte l'aberration, pas la médiane.
+    - `pas_median` — médiane de |Δposition| / Δt entre observations CONSÉCUTIVES : un garé
+      jitte, un mobile avance régulièrement.
+    - `net_sur_chemin` — |dernière − première| / longueur totale du chemin. **Sans dimension** :
+      un garé jitte sur place (net ≈ 0, chemin long), un mobile avance (net ≈ chemin), et le
+      rapport ne dépend PAS de l'échelle du bruit de placement — c'est ce qui en fait la
+      candidate la plus directement opposée au verrou mesuré.
+    """
+    n = len(hs)
+    out = {'n_obs': n, 'duree': (hs[-1][1] - hs[0][1]) if n >= 2 else 0.0,
+           'spread_first': 0.0, 'spread_robuste': 0.0,
+           'pas_median': 0.0, 'net_sur_chemin': 0.0}
+    if n < 2:
+        return out
+    es = [h[2] for h in hs]
+    ns = [h[3] for h in hs]
+    e0, n0 = es[0], ns[0]
+    out['spread_first'] = max(math.hypot(e - e0, n - n0) for e, n in zip(es, ns))
+    em = sorted(es)[n // 2]
+    nm = sorted(ns)[n // 2]
+    dm = sorted(math.hypot(e - em, n - nm) for e, n in zip(es, ns))
+    out['spread_robuste'] = dm[min(int(0.9 * (n - 1)), n - 1)]
+
+    pas, chemin = [], 0.0
+    for i in range(1, n):
+        d = math.hypot(es[i] - es[i - 1], ns[i] - ns[i - 1])
+        chemin += d
+        dt = hs[i][1] - hs[i - 1][1]
+        if dt > 1e-6:
+            pas.append(d / dt)
+    if pas:
+        pas.sort()
+        out['pas_median'] = pas[len(pas) // 2]
+    net = math.hypot(es[-1] - e0, ns[-1] - n0)
+    out['net_sur_chemin'] = (net / chemin) if chemin > 1e-6 else 0.0
+    return out
+
+
+def _quantiles(valeurs, qs=(0.05, 0.25, 0.5, 0.75, 0.95)):
+    """Quantiles d'une liste — l'agrégat qui tient dans `results_summary` (5210 tracks n'y
+    tiennent pas, et une moyenne ne dirait pas si la distribution est BIMODALE)."""
+    if not valeurs:
+        return {}
+    v = sorted(valeurs)
+    return {f'p{int(q * 100)}': round(v[min(int(q * (len(v) - 1)), len(v) - 1)], 4)
+            for q in qs}
+
+
+def _histogramme(valeurs, vmax, nb=20):
+    """Comptes par classe sur [0, vmax], dernière classe = débordement.
+
+    ⚠ Des quantiles ne disent PAS si une distribution est bimodale — or c'est exactement la
+    question posée aux grandeurs candidates (§D.3) : une bonne discriminante sépare la
+    population en deux modes, une mauvaise rend un continuum. 20 entiers y répondent et
+    tiennent dans `results_summary`.
+    """
+    h = [0] * nb
+    if not valeurs or vmax <= 0:
+        return h
+    for v in valeurs:
+        k = int(v / vmax * (nb - 1))
+        h[min(max(k, 0), nb - 1)] += 1
+    return h
+
+
+#: Bornes d'histogramme par descripteur (la dernière classe absorbe au-delà).
+_BORNES_HISTO = {'duree': 60.0, 'spread_first': 20.0, 'spread_robuste': 20.0,
+                 'pas_median': 5.0, 'net_sur_chemin': 1.0}
+
+
 def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                            frame_range=None, spread_max_m=6.0):
     """
@@ -426,6 +512,12 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     return True
         return False
 
+    # Descripteurs par track — extraits en fonction PURE le 2026-09-11 pour que le chantier
+    # de refonte du filtre (§D.3, verdict Fabien : « à REFAIRE, pas à régler ») puisse MESURER
+    # des grandeurs candidates sans rejouer un monkeypatch fragile sur une variable locale.
+    # Le filtre ci-dessous n'utilise que ce qu'il utilisait déjà : comportement INCHANGÉ
+    # (gardé par un test d'empreinte).
+    #
     # Métrique robuste au bruit : ÉTALEMENT spatial de la position monde sur la vie du
     # track (un véhicule garé reste groupé ; un mobile s'étale le long de son trajet).
     # ⚠ Critère VITESSE-AWARE (2026-07-17) : l'étalement seul marquait « garés » des
@@ -443,30 +535,56 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     stationary_gids = []
     _rejets = {'moins_de_5_obs': 0, 'vu_moins_de_4s': 0, 'trop_etale': 0,
                'trop_rapide': 0, 'pres_intersection': 0, 'retenu': 0}
+    _candidats = []          # descripteurs des tracks qui ATTEIGNENT la décision
     for gid, hist in track_hist.items():
         hs = sorted(hist)
-        dur = (hs[-1][1] - hs[0][1]) if len(hs) >= 2 else 0.0
-        if len(hs) < 5:
+        d = track_descriptors(hs)
+        dur = d['duree']
+        if d['n_obs'] < 5:
             _rejets['moins_de_5_obs'] += 1
             continue
+        _candidats.append(d)
         if dur < 4.0:
             _rejets['vu_moins_de_4s'] += 1
+            d['porte'] = 'vu_moins_de_4s'
             continue
-        e0, n0 = hs[0][2], hs[0][3]
-        spread = max(math.hypot(e - e0, n - n0) for (_, _, e, n, _) in hs)
+        spread = d['spread_first']
         if spread >= spread_max_m:
             _rejets['trop_etale'] += 1
+            d['porte'] = 'trop_etale'
             continue
         if (spread / dur) >= 0.7:
             _rejets['trop_rapide'] += 1
+            d['porte'] = 'trop_rapide'
             continue
         if _near_intersection(hs):
             _rejets['pres_intersection'] += 1
+            d['porte'] = 'pres_intersection'
             continue
         _rejets['retenu'] += 1
+        d['porte'] = 'retenu'
         stationary_gids.append(gid)
     _stat_set = set(stationary_gids)
     logger.info('[stationnés] %s', ' · '.join(f'{k}={v}' for k, v in _rejets.items()))
+
+    # Distribution des grandeurs CANDIDATES sur la population qui atteint la décision
+    # (≥ 5 observations). Des quantiles, pas une moyenne : la question posée au chantier
+    # §D.3 est de savoir si une grandeur SÉPARE la population en deux modes — une moyenne
+    # ne le dirait pas, et 5210 tracks ne tiennent pas dans `results_summary`.
+    _stat_candidats = {'n': len(_candidats)}
+    for _k, _vmax in _BORNES_HISTO.items():
+        _vals = [c[_k] for c in _candidats]
+        _stat_candidats[_k] = _quantiles(_vals)
+        _stat_candidats[_k + '_histo'] = {'vmax': _vmax, 'bins': _histogramme(_vals, _vmax)}
+    # CROISEMENT : que dit la grandeur candidate de ceux que le filtre ACTUEL écarte ?
+    # Une distribution globale ne le dit pas — or c'est la question qui décide d'une refonte :
+    # la nouvelle grandeur retiendrait-elle ce que l'ancienne rejette, ou les mêmes ?
+    _par_porte = {}
+    for _c in _candidats:
+        _par_porte.setdefault(_c.get('porte', '?'), []).append(_c['net_sur_chemin'])
+    _stat_candidats['net_sur_chemin_par_porte'] = {
+        _p: dict(_quantiles(_v), n=len(_v)) for _p, _v in _par_porte.items()}
+    logger.info('[stationnés/candidats] %s', _stat_candidats)
 
     # ── Ancres MONDE des stationnés ─────────────────────────────────────────────
     # Un stationné est STATIQUE par définition : sa position monde est unique. La
@@ -652,4 +770,5 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'stationary_anchors': stationary_anchors,
             'placement_spread': placement_spread,
             'placement_sources': dict(_src_counts),
-            'stationary_rejects': _rejets}
+            'stationary_rejects': _rejets,
+            'stationary_candidates': _stat_candidats}

@@ -18,21 +18,28 @@ SPREAD_MAX = 6.0
 
 
 def trier(hists, near=lambda hs: False, spread_max=SPREAD_MAX):
-    """Réplique EXACTE de la boucle de `multicam_tracker` (mêmes seuils, même ORDRE des
-    conditions — c'est l'ordre qui décide de la porte de sortie quand deux motifs valent)."""
+    """Réplique de la boucle de `multicam_tracker` (mêmes seuils, même ORDRE des conditions —
+    c'est l'ordre qui décide de la porte de sortie quand deux motifs valent).
+
+    ⚠ Depuis le 2026-09-11, elle n'est plus une réplique INTÉGRALE : le calcul des
+    descripteurs vient de la VRAIE fonction (`track_descriptors`). Une réplique qui recopie
+    aussi le calcul peut diverger de lui sans qu'aucun test ne le dise — c'est le défaut
+    qu'on retire ici, pas une commodité.
+    """
+    from wama_lab.cam_analyzer.utils.multicam_tracker import track_descriptors
     retenus, rej = [], {'moins_de_5_obs': 0, 'vu_moins_de_4s': 0, 'trop_etale': 0,
                         'trop_rapide': 0, 'pres_intersection': 0, 'retenu': 0}
     for gid, hist in hists.items():
         hs = sorted(hist)
-        dur = (hs[-1][1] - hs[0][1]) if len(hs) >= 2 else 0.0
-        if len(hs) < 5:
+        d = track_descriptors(hs)
+        dur = d['duree']
+        if d['n_obs'] < 5:
             rej['moins_de_5_obs'] += 1
             continue
         if dur < 4.0:
             rej['vu_moins_de_4s'] += 1
             continue
-        e0, n0 = hs[0][2], hs[0][3]
-        spread = max(math.hypot(e - e0, n - n0) for (_, _, e, n, _) in hs)
+        spread = d['spread_first']
         if spread >= spread_max:
             rej['trop_etale'] += 1
             continue
@@ -123,3 +130,69 @@ class LeFiltreExposeSonCompteTest(SimpleTestCase):
                / 'tasks.py').read_text(encoding='utf-8')
         self.assertIn("rs['stationary_rejects']", src)
         self.assertIn('Garés — pourquoi le filtre écarte', src)
+
+
+class DescripteursCandidatsTest(SimpleTestCase):
+    """`track_descriptors` — les grandeurs du chantier de refonte (§D.3).
+
+    Trois d'entre elles ne servent à AUCUNE décision aujourd'hui : elles sont mesurées pour
+    répondre à « laquelle sépare un garé d'un mobile lent ». Les garder ici évite qu'elles
+    dérivent en silence avant même d'avoir servi.
+    """
+
+    @staticmethod
+    def _desc(hs):
+        from wama_lab.cam_analyzer.utils.multicam_tracker import track_descriptors
+        return track_descriptors(sorted(hs))
+
+    def test_spread_first_vaut_EXACTEMENT_l_ancienne_expression(self):
+        """Non-régression du seul descripteur que le filtre CONSOMME : l'extraction en
+        fonction ne doit rien avoir changé au verdict."""
+        for hist in (_hist(12, 0.5, 0.4), _hist(30, 0.2, 0.0), _hist(6, 1.0, 3.0)):
+            hs = sorted(hist)
+            e0, n0 = hs[0][2], hs[0][3]
+            attendu = max(math.hypot(e - e0, n - n0) for (_, _, e, n, _) in hs)
+            with self.subTest(n=len(hs)):
+                self.assertAlmostEqual(self._desc(hs)['spread_first'], attendu, places=9)
+
+    def test_un_GARE_qui_jitte_a_un_rapport_net_sur_chemin_QUASI_NUL(self):
+        hs = [(i, i * 0.5, (0.6 if i % 2 else -0.6), (0.5 if i % 3 else -0.5), 'car')
+              for i in range(20)]
+        d = self._desc(hs)
+        self.assertLess(d['net_sur_chemin'], 0.2, d)
+
+    def test_un_MOBILE_qui_avance_a_un_rapport_net_sur_chemin_PROCHE_DE_1(self):
+        d = self._desc(_hist(20, 0.5, 1.5))
+        self.assertGreater(d['net_sur_chemin'], 0.95, d)
+
+    def test_le_rapport_net_sur_chemin_NE_DEPEND_PAS_de_l_echelle_du_bruit(self):
+        """C'est sa raison d'être : le verrou mesuré est la précision de PLACEMENT
+        (pinhole ±20 %). Un critère qui s'effondre quand le bruit grandit ne peut pas
+        trancher là où la chaîne est imprécise."""
+        base = [(i, i * 0.5, (1.0 if i % 2 else -1.0), 0.0, 'car') for i in range(20)]
+        gros = [(i, t, e * 5.0, n, c) for (i, t, e, n, c) in base]
+        self.assertAlmostEqual(self._desc(base)['net_sur_chemin'],
+                               self._desc(gros)['net_sur_chemin'], places=6)
+
+    def test_une_PREMIERE_observation_aberrante_gonfle_spread_first_mais_PAS_spread_robuste(self):
+        """La motivation MESURÉE du chantier : 45,4 % des candidats sortent par l'étalement,
+        or celui-ci se mesure depuis la PREMIÈRE observation (`multicam_tracker`, 2026-07-17)."""
+        hs = [(0, 0.0, 12.0, 0.0, 'car')] + [(i, i * 0.5, 0.2, 0.0, 'car')
+                                             for i in range(1, 20)]
+        d = self._desc(hs)
+        self.assertGreater(d['spread_first'], 11.0)
+        self.assertLess(d['spread_robuste'], 12.0)
+        self.assertLess(d['spread_robuste'], d['spread_first'])
+
+    def test_un_track_trop_court_rend_des_descripteurs_NEUTRES_sans_planter(self):
+        self.assertEqual(self._desc([(0, 0.0, 1.0, 2.0, 'car')]),
+                         {'n_obs': 1, 'duree': 0.0, 'spread_first': 0.0,
+                          'spread_robuste': 0.0, 'pas_median': 0.0, 'net_sur_chemin': 0.0})
+
+    def test_les_quantiles_sortent_avec_le_calcul_et_pas_seulement_en_console(self):
+        from pathlib import Path
+        from django.conf import settings
+        src = (Path(settings.BASE_DIR) / 'wama_lab' / 'cam_analyzer' / 'utils'
+               / 'multicam_tracker.py').read_text(encoding='utf-8')
+        self.assertIn("'stationary_candidates': _stat_candidats", src,
+                      "une distribution qui ne sort pas de la fonction ne sert à personne")

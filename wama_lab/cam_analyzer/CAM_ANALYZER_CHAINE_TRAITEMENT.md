@@ -908,6 +908,47 @@ marquer « garés » des véhicules ROULANTS vus brièvement (10 km/h × 1,5 s =
 une autre grandeur que la durée : vitesse RELATIVE mesurée, ou cohérence de la position monde
 entre observations — et le paramètre doit devenir RÉGLABLE.
 
+#### ⭐ D.3 bis — LES GRANDEURS CANDIDATES, MESURÉES (2026-09-11) : le croisement qui tranche
+
+Le verdict du 09/09 (« à REFAIRE, pas à régler ; il faut une autre grandeur ») ne disait pas
+LAQUELLE. Quatre candidates ont donc été calculées pour chaque track (`track_descriptors`,
+fonction pure extraite pour cela), et la population qui atteint la décision (**3635** tracks
+≥ 5 obs) rejouée écritures neutralisées (**237 318** bloquées, base intacte) :
+
+| candidate | ce qu'elle mesure | verdict MESURÉ |
+|---|---|---|
+| `spread_first` | distance max à la 1ʳᵉ observation — **ce que le filtre utilise** | continuum, **37,8 % au-delà de 20 m** ; aucun mode |
+| `spread_robuste` | p90 des distances à la position médiane | continuum décroissant, médiane 6,8 m ; aucun mode |
+| `pas_median` | vitesse médiane entre observations consécutives | **inutilisable : médiane 7,3 m/s (26 km/h)** pour des candidats « garés » — elle mesure le JITTER DE PLACEMENT, pas le mouvement (0,7 m de bruit à 10 fps = 7 m/s) |
+| ⭐ `net_sur_chemin` | déplacement net / longueur du chemin, **sans dimension** | **seule bimodale** : mode à ~0 (**20,5 %** sous 0,05) ET remontée à ~0,95 (6,4 %, contre 2,8-3,6 % avant) |
+
+**Et le croisement avec la porte de sortie actuelle est le fait qui décide :**
+
+| porte du filtre ACTUEL | n | `net_sur_chemin` p25 · **p50** · p75 |
+|---|---|---|
+| `trop_etale` | **1904** | 0,034 · **0,118** · 0,329 |
+| `retenu` | 77 | 0,056 · **0,127** · 0,314 |
+| `trop_rapide` | 33 | 0,037 · **0,100** · 0,308 |
+| `pres_intersection` | 12 | 0,011 · **0,114** · 0,195 |
+| `vu_moins_de_4s` | 1609 | 0,238 · **0,521** · 0,846 |
+
+🔴 **Les 1904 tracks écartés pour « trop étalés » sont INDISCERNABLES des 77 retenus** par la
+grandeur sans dimension (0,118 contre 0,127). *La porte qui écarte 45 % des candidats rejette
+une population qui se comporte exactement comme celle qu'elle garde* — ce que la mesure du
+09/09 laissait présager (l'étalement mesure le bruit de placement) est ici **établi par
+comparaison directe**, et non plus déduit.
+
+⚠ **Et la même mesure RÉHABILITE le seuil de durée**, que j'aurais volontiers accusé avec le
+reste : ce qu'il écarte est nettement plus mobile (p50 = **0,521** contre 0,118-0,127 partout
+ailleurs). *Les deux gardes du filtre ne se valent pas : l'une trie, l'autre non.*
+
+**Ce que ça dessine** (à décider, pas encore fait) : remplacer la porte d'étalement par un
+seuil sur `net_sur_chemin` — **réglable**, comme demandé — en conservant une exigence de durée
+et d'observations. Ordre de grandeur : un seuil à 0,25 retiendrait ~1250 tracks au lieu de 77.
+⚠ Réserves à lever avant d'y toucher : un `net_sur_chemin` ≈ 0 peut aussi venir d'un track qui
+CONFOND deux objets, ou d'un mobile qui revient sur ses pas ; et tout ceci est mesuré sur UNE
+session.
+
 ⚠ Ce qui n'a PAS été joué : les bascules ⚑ elles-mêmes (`display_ema` OFF, `shuttle_filter` ON)
 et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les
 données lues datent d'un run antérieur au 2026-09-05 : `placement_spread` et `placement_sources`
