@@ -3446,11 +3446,16 @@ utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles 
 
 **① quater — ordre proposé (quick wins d'abord, à valider)**
 
-1. **Lectures transversales** — le moins risqué, aucune écriture. 🔄 **ENTAMÉ le 2026-09-11** :
-   ✅ `list_my_items` + `get_item_detail` (la décision `WAMA_MEMORY §9ter`, jalon 12 — suivie
-   telle quelle, réserves traitées) et ✅ `list_registries`. **59 → 62 outils**, 13 gardes.
-   ⏳ Restent de cette étape : les **permissions/rôles** d'un utilisateur, et la **mémoire**
-   en list/detail (distincte des items d'app).
+1. ~~**Lectures transversales**~~ — ✅ **FAIT le 2026-09-11**, en deux incréments. **59 → 64
+   outils**, **20 gardes** (`common/tests_tool_api_lectures.py`) :
+   `list_my_items` + `get_item_detail` (décision `WAMA_MEMORY §9ter`, jalon 12 — suivie telle
+   quelle, ses 2 réserves traitées) · `list_registries` (les 14 registres avec leur `nature`) ·
+   `get_my_access` (tier, rôles, apps permises **ET refusées** — un assistant qui ignore le
+   refus ne peut qu'omettre une app en silence) · `list_my_memories`.
+   🔴 **La garde qui compte** : `list_my_memories` n'expose JAMAIS `en_attente=True` — cette
+   branche n'est **pas scopée** (`memory/store.py:686`, staff seulement côté vue) et rendrait
+   des souvenirs d'autrui, non approuvés. Le test l'atteste, et **refuse d'être vacueux**
+   (il échoue si la file de revue est vide, donc s'il n'exclut rien).
 2. **`url_import` / `folder_import` / `batch_import`** — les briques existent et sont testées
    par 17 scénarios chacune ; l'API n'en expose aucune.
 3. **`preview` d'un job en cours** (demande Fabien) — la vue `common:unified_preview` existe et

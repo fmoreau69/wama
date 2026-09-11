@@ -2726,6 +2726,87 @@ def list_registries(user) -> dict:
     return {'registries': lignes, 'count': len(lignes)}
 
 
+def get_my_access(user) -> dict:
+    """
+    What the current user is allowed to do: account tier, business roles, and which apps they
+    may open.
+
+    Call it before proposing an app the user may not have — an assistant that offers a refused
+    app makes the user discover the refusal instead of telling them. It answers "can I use
+    X?" and "why can't I see X?".
+
+    Returns:
+        {"tier", "roles": [...], "apps_allowed": [...], "apps_denied": [...], "is_staff"}
+        or {"error"}
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    from wama.accounts.permissions import accessible_apps, all_gated_apps, user_roles, user_tier
+
+    gardees = all_gated_apps()
+    autorisees = set(accessible_apps(user, gardees))
+    return {
+        'tier': user_tier(user),
+        'roles': sorted(user_roles(user) or []),
+        'apps_allowed': sorted(autorisees),
+        # Le refus est aussi informatif que l'accord : sans lui, l'assistant ne peut pas
+        # DIRE pourquoi il ne propose pas une app, il peut seulement l'omettre en silence.
+        'apps_denied': sorted(gardees - autorisees),
+        'is_staff': bool(getattr(user, 'is_staff', False)),
+    }
+
+
+def list_my_memories(user, kind: str = '', limite: int = 25) -> dict:
+    """
+    List what WAMA remembers for this user — facts, events and procedures it has kept.
+
+    Complements `memory_recall`: that one answers a question semantically, this one simply
+    shows what is there, newest first. Use it for "what do you know about me?" or before
+    stating something as remembered.
+
+    Args:
+        kind:   restrict to one memory kind (e.g. 'fact'); empty = every kind.
+        limite: how many rows (1-100, default 25).
+
+    Returns:
+        {"memories": [{"id","kind","subject","content","provenance","source_app",
+                       "confidence","niveau","cree_le","sans_vecteur"}], "total", "returned"}
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Lecture réservée aux utilisateurs identifiés."}
+    from wama.common.memory.store import list_memories
+
+    try:
+        limite = max(1, min(int(limite or 25), 100))
+    except (TypeError, ValueError):
+        limite = 25
+
+    # ⚠ TOUJOURS `en_attente=False`. L'autre branche est la FILE DE REVUE, délibérément NON
+    # SCOPÉE (store.py:686) et réservée au staff par sa vue : l'exposer ici rendrait des
+    # souvenirs d'autrui. Et la garder à False tient la promesse de §6 — l'assistant ne voit
+    # QUE ce que `recall()` pourrait rendre, jamais du non approuvé.
+    lignes = list_memories(user)
+    if kind:
+        lignes = [m for m in lignes if m.get('kind') == kind]
+    total = len(lignes)
+    out = []
+    for m in lignes[:limite]:
+        cree = m.get('cree_le')
+        out.append({
+            'id': m.get('id'),
+            'kind': m.get('kind'),
+            'subject': m.get('subject'),
+            'content': m.get('content'),
+            'provenance': m.get('provenance'),
+            'source_app': m.get('source_app'),
+            'confidence': m.get('confidence'),
+            'niveau': m.get('niveau'),
+            'cree_le': cree.isoformat() if hasattr(cree, 'isoformat') else cree,
+            'sans_vecteur': m.get('sans_vecteur'),
+        })
+    return {'memories': out, 'total': total, 'returned': len(out)}
+
+
 TOOL_REGISTRY = {
     'translate_text': translate_text,
     # Lectures TRANSVERSALES (WAMA_MEMORY §9ter jalon 12 + registre des registres) — LECTURE
@@ -2734,6 +2815,10 @@ TOOL_REGISTRY = {
     'list_my_items':    list_my_items,
     'get_item_detail':  get_item_detail,
     'list_registries':  list_registries,
+    # Droits de l'appelant, et ce que WAMA retient de lui — LECTURE SEULE, sur SON compte.
+    # `get_my_access` n'ÉLARGIT aucun droit : il DIT la décision que `accessible()` prend déjà.
+    'get_my_access':    get_my_access,
+    'list_my_memories': list_my_memories,
     # Mémoire & RAG — LECTURE SEULE et scopée (jalon 8, WAMA_MEMORY.md). Transverse : ce que
     # l'assistant retrouve, c'est ce que SON utilisateur possède, dans n'importe quelle app.
     'memory_recall':  memory_recall,

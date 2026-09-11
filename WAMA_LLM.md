@@ -268,7 +268,7 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
   │     3 gardes : DÉCLARÉ · DATA-GATED (rien de pertinent ⇒ prompt inchangé) · FAIL-SAFE ('')
   │     chaque extrait injecté AVEC sa référence ([transcriber:134] …)
   │
-  └─ boucle LLM à outils (62 outils, gating F7) — c'est ICI que tout se rejoint :
+  └─ boucle LLM à outils (64 outils, gating F7) — c'est ICI que tout se rejoint :
        • charger_competence(domaine)  → l'ASSISTANT charge LUI-MÊME posture + contexte labo
          (jamais la surface : un adaptateur de canal ne devine pas le domaine)
        • memory_recall(query, niveaux=…) → recall() souvenirs + RAG, sélecteur de niveaux,
@@ -278,8 +278,11 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
    routage langue seul, pas d'enrichissement]
 ```
 
-**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **62 outils** *(mesuré 2026-09-11 ;
-disait **51**, périmé — le compte vit ICI, c'est donc ici qu'il se re-mesure : `len(tool_descriptions())`)* — triades
+**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **64 outils** *(mesuré 2026-09-11 ;
+disait **51**, périmé — le compte vit ICI, c'est donc ici qu'il se re-mesure : `len(tool_descriptions())`)*
+— dont **5 LECTURES TRANSVERSES** livrées le 2026-09-11 (`list_my_items`, `get_item_detail`,
+`list_registries`, `get_my_access`, `list_my_memories`) : première étape du chantier
+« compléter l'API » (`ROADMAP §24.4① quater`), celle qui n'écrit rien — triades
 `add_to_/start_/get_…_status` (déclaratives, marche A4) pour les apps + studio ; l'inventaire
 complet et ses trous vivent dans `WAMA_APP_GENERATION_ROUTE.md §11` (trou #18), pas ici. Ce qui
 appartient à CE document : les outils **IA-transverses** (gating `None` — aucune app ne les

@@ -275,7 +275,7 @@ def _run_tool_api_lectures(ctx):
                  # (app, pk), un appel à vide rendrait une erreur légitime que ce scénario
                  # compterait comme un échec. Sa garde est unitaire
                  # (`tests_tool_api_lectures.py`), pas nocturne.
-                 'list_my_items', 'list_registries']
+                 'list_my_items', 'list_registries', 'get_my_access', 'list_my_memories']
     echecs, refus, ok = [], [], 0
     for tool in lectures:
         try:
