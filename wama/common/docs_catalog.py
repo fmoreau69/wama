@@ -13,11 +13,10 @@ POURQUOI CE MODULE (demande de Fabien, 2026-09-11)
 
 TROIS PUBLICS (cadre posé par Fabien le 2026-08-12, acté le 2026-09-11 — AGENTS.md §Trois docs)
 
-    `audience` dit à qui un document s'adresse. Aujourd'hui tous sont de CONSTRUCTION : la trace
-    et la vision de WAMA, qui vivent au fil des décisions — ni une référence développeur, ni un
-    manuel utilisateur. Les docs DÉVELOPPEUR et UTILISATEUR viendront comme des PROJECTIONS
-    générées des registres, jamais comme des `.md` rédigés en parallèle ; le champ existe pour
-    qu'elles s'y rangent sans refaire la page.
+    `audience` dit à qui un document s'adresse. La doc de CONSTRUCTION — la trace et la vision de
+    WAMA, qui vivent au fil des décisions — est faite de fichiers `.md` (`path`). La doc
+    DÉVELOPPEUR est GÉNÉRÉE (`generator`) : chaque page est une projection d'un registre,
+    recalculée à la lecture (`dev_docs.py`). La doc UTILISATEUR suivra le même chemin.
 
 SÉCURITÉ — on ne lit que ce qui est DÉCLARÉ
 
@@ -36,6 +35,7 @@ RENDU — markdown-it-py, pas Python-Markdown
 from __future__ import annotations
 
 import html as _html
+import importlib
 import posixpath
 import re
 from dataclasses import dataclass
@@ -72,7 +72,7 @@ FAMILIES = {
 @dataclass(frozen=True)
 class Doc:
     key: str
-    #: Relatif à BASE_DIR, séparateur `/`.
+    #: Relatif à BASE_DIR, séparateur `/`. VIDE pour une doc générée.
     path: str
     label: str
     family: str
@@ -81,6 +81,8 @@ class Doc:
     #: Journal DATÉ : ce qu'il écrit était vrai à sa date. Ses renvois `.md` vers un document
     #: depuis archivé sont des faits d'histoire — `check_docs` ne les contrôle donc pas.
     journal: bool = False
+    #: `module:fonction` qui rend le markdown d'une doc GÉNÉRÉE. Exclusif de `path`.
+    generator: str = ''
 
 
 DOCS: Tuple[Doc, ...] = (
@@ -180,10 +182,24 @@ DOCS: Tuple[Doc, ...] = (
     Doc('roadmap', 'ROADMAP.md', 'Roadmap', 'suivi', "Les chantiers ouverts et leur ordre."),
     Doc('removal-ledger', 'REMOVAL_LEDGER.md', 'Registre des retraits', 'suivi',
         "Ce qui a été retiré, et pourquoi."),
+    # ── DÉVELOPPEUR — GÉNÉRÉE (projections des registres, `dev_docs.py`) ──
+    Doc('dev-parcours', '', "Parcours d'entrée", 'doctrine',
+        "L'ordre dans lequel lire la doc pour étendre WAMA ; chaque étape reprend la description "
+        "que le document déclare.",
+        audience=DEVELOPER, generator='wama.common.dev_docs:parcours'),
+    Doc('dev-registres', '', 'Registres', 'architecture',
+        "Tous les registres de WAMA — ce qu'il sait nommer, d'où ils viennent, leur page — et "
+        "les kinds de manifeste.",
+        audience=DEVELOPER, generator='wama.common.dev_docs:registres'),
+    Doc('dev-briques', '', 'Briques communes — API', 'architecture',
+        "Chaque mécanisme transversal avec l'API publique de son module : signatures et "
+        "docstrings lues dans le code.",
+        audience=DEVELOPER, generator='wama.common.dev_docs:briques'),
 )
 
 BY_KEY: Dict[str, Doc] = {d.key: d for d in DOCS}
-BY_PATH: Dict[str, Doc] = {d.path: d for d in DOCS}
+#: Docs-FICHIERS seulement : une doc générée n'a pas de chemin vers lequel un lien pourrait mener.
+BY_PATH: Dict[str, Doc] = {d.path: d for d in DOCS if d.path}
 
 
 def get(key: str) -> Optional[Doc]:
@@ -191,12 +207,12 @@ def get(key: str) -> Optional[Doc]:
 
 
 def checked_paths() -> List[str]:
-    """Les cibles de `check_docs` — dans l'ordre de déclaration."""
-    return [d.path for d in DOCS]
+    """Les cibles de `check_docs` — les docs-fichiers, dans l'ordre de déclaration."""
+    return [d.path for d in DOCS if d.path]
 
 
 def journal_paths() -> set:
-    return {d.path for d in DOCS if d.journal}
+    return {d.path for d in DOCS if d.path and d.journal}
 
 
 def file_of(doc: Doc) -> Path:
@@ -221,14 +237,20 @@ def _stamp(f: Path) -> tuple:
 
 def entry(doc: Doc) -> dict:
     """La fiche d'un doc pour sa card : déclaration + ce que le disque dit de lui."""
-    f = file_of(doc)
     out = {
         'key': doc.key, 'path': doc.path, 'label': doc.label, 'description': doc.description,
         'family': doc.family, 'family_label': FAMILIES.get(doc.family, doc.family),
         'audience': doc.audience, 'audience_label': AUDIENCES.get(doc.audience, doc.audience),
         'audience_badge': AUDIENCE_BADGES.get(doc.audience, doc.audience),
-        'journal': doc.journal, 'exists': False, 'lines': 0, 'modified': None,
+        'journal': doc.journal, 'generated': bool(doc.generator), 'generator': doc.generator,
+        'exists': False, 'lines': 0, 'modified': None,
     }
+    if doc.generator:
+        # Rien à mesurer sur le disque : la page n'existe qu'à la lecture. La générer ici pour
+        # afficher un nombre de lignes coûterait la page entière à chaque affichage du catalogue.
+        out['exists'] = True
+        return out
+    f = file_of(doc)
     try:
         stamp = _stamp(f)
     except OSError:
@@ -248,8 +270,18 @@ def entries() -> List[dict]:
     return [entry(d) for d in DOCS]
 
 
+def generate(doc: Doc) -> str:
+    """Le markdown d'une doc GÉNÉRÉE — son générateur, appelé à la lecture."""
+    module, _, fonction = doc.generator.partition(':')
+    return getattr(importlib.import_module(module), fonction)()
+
+
 def render_doc(doc: Doc) -> dict:
     """`{'html', 'toc'}` du doc. Lève `FileNotFoundError` si le fichier déclaré manque."""
+    if doc.generator:
+        # Une page générée peut renvoyer vers les pages de WAMA (`/common/backends/`) : c'est
+        # nous qui l'écrivons. Un `.md` du dépôt, lui, ne le peut pas — cf. `_target`.
+        return render_markdown(generate(doc), '', site_links=True)
     f = file_of(doc)
     stamp = _stamp(f)
     hit = _RENDERED.get(doc.path)
@@ -279,15 +311,20 @@ def _inline_text(tok) -> str:
                    if c.type in ('text', 'code_inline')).strip()
 
 
-def _target(href: str, source_path: str) -> Optional[str]:
+def _target(href: str, source_path: str, site_links: bool = False) -> Optional[str]:
     """Où mène un lien. `None` = lien externe gardé tel quel ; `''` = PAS de lien (fichier non
-    déclaré) ; sinon l'URL du lecteur, ancre comprise."""
+    déclaré) ; sinon l'URL du lecteur, ancre comprise.
+
+    `site_links` : une page GÉNÉRÉE peut viser une page de WAMA (`/common/…`). Refusé aux `.md` du
+    dépôt, où `/x` désigne un fichier à la racine — le suivre mènerait à une 404 ou pire."""
     if href.startswith('#'):
         return href
     if _SCHEME.match(href):
         return None if href.lower().startswith(('http:', 'https:', 'mailto:')) else ''
     chemin, _, ancre = href.partition('#')
     if not chemin:
+        return href
+    if site_links and chemin.startswith('/') and not chemin.endswith('.md'):
         return href
     rel = posixpath.normpath(posixpath.join(posixpath.dirname(source_path), unquote(chemin)))
     doc = BY_PATH.get(rel.lstrip('/'))
@@ -304,12 +341,12 @@ def _raw(content: str):
     return t
 
 
-def _rewrite_links(children: list, source_path: str) -> list:
+def _rewrite_links(children: list, source_path: str, site_links: bool = False) -> list:
     out, ouverts = [], []
     for c in children:
         if c.type == 'link_open':
             href = str(c.attrGet('href') or '')
-            cible = _target(href, source_path)
+            cible = _target(href, source_path, site_links)
             if cible is None:
                 c.attrSet('target', '_blank')
                 c.attrSet('rel', 'noopener noreferrer')
@@ -338,7 +375,7 @@ def _rewrite_links(children: list, source_path: str) -> list:
     return out
 
 
-def render_markdown(text: str, source_path: str = '') -> dict:
+def render_markdown(text: str, source_path: str = '', site_links: bool = False) -> dict:
     """Markdown → `{'html', 'toc'}`. `source_path` sert à résoudre les liens relatifs."""
     from markdown_it import MarkdownIt
 
@@ -355,5 +392,5 @@ def render_markdown(text: str, source_path: str = '') -> dict:
             if niveau <= 3:
                 toc.append({'level': niveau, 'text': titre, 'id': ident})
         elif tok.type == 'inline' and tok.children:
-            tok.children = _rewrite_links(tok.children, source_path)
+            tok.children = _rewrite_links(tok.children, source_path, site_links)
     return {'html': md.renderer.render(tokens, md.options, {}), 'toc': toc}

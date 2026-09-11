@@ -425,7 +425,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | audience | ce que c'est | état |
 |---|---|---|
 | **construction** | les `.md` de la table ci-dessus : trace, doctrine, décisions, vision — vivants | ✅ existe ; lisible depuis WAMA (`/common/docs/`, admins) |
-| **développeur** | comment ÉTENDRE WAMA : parcours d'entrée + pages projetées des registres (mécanismes, registres, backends, `APP_CATALOG`, kinds de manifestes, `TOOL_REGISTRY`) + docstrings de `common/` | ⏳ à construire, **générée** |
+| **développeur** | comment ÉTENDRE WAMA : parcours d'entrée + pages projetées des registres (mécanismes, registres, backends, `APP_CATALOG`, kinds de manifestes, `TOOL_REGISTRY`) + docstrings de `common/` | 🔄 amorcée le 2026-09-11 : 3 pages **générées à la lecture** — parcours, registres + kinds de manifeste, briques + API lue par AST (`wama/common/dev_docs.py`) ; restent backends, `APP_CATALOG`, `TOOL_REGISTRY` |
 | **utilisateur** | comment se SERVIR de WAMA : un guide des gestes communs écrit UNE fois + sections par app projetées des métadonnées | 🔄 germe : onglets À-propos/Aide (`AppAboutView`/`AppHelpView`, auto-remplis d'`APP_CATALOG`) |
 
 **La règle** : les registres sont la seule source qui ne ment pas — **une doc destinée à un

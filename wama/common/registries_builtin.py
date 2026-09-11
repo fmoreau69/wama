@@ -429,9 +429,9 @@ register(Registry(
     count=_count_docs,
     url_name='common:docs_catalog', permission='staff',
     doc='AGENTS.md',
-    description="La doc de CONSTRUCTION de WAMA — doctrine, décisions, vision, chantiers — en "
-                "lecture seule. Chaque doc déclare son AUDIENCE : les docs développeur et "
-                "utilisateur s'y rangeront comme des projections générées des registres, pas "
-                "comme des .md rédigés en parallèle. `check_docs` dérive sa liste de la même "
+    description="La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de "
+                "CONSTRUCTION (doctrine, décisions, vision, chantiers) est faite de fichiers ; la "
+                "doc DÉVELOPPEUR est GÉNÉRÉE à la lecture depuis les registres (`dev_docs.py`), "
+                "jamais rédigée en parallèle. `check_docs` dérive sa liste de la même "
                 "déclaration : un doc ajouté ici est contrôlé sans rien toucher d'autre.",
 ))

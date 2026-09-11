@@ -3,10 +3,11 @@
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
-  LECTEUR d'un doc déclaré (`wama/common/docs_catalog.py`). Le HTML vient de `render_doc` :
-  markdown-it-py avec `html=False` (le HTML brut des .md est échappé), liens vers les docs
-  déclarés réécrits vers ce lecteur, liens vers tout autre fichier rendus en texte. D'où le
-  `|safe`, qui ne l'est QUE parce que le rendu échappe tout ce qu'il n'a pas produit lui-même.
+  LECTEUR d'un doc déclaré (`wama/common/docs_catalog.py`) — fichier de la doc de construction
+  ou page générée de la doc développeur. Le HTML vient de `render_doc` : markdown-it-py avec
+  `html=False` (le HTML brut est échappé), liens vers les docs déclarés réécrits vers ce lecteur,
+  liens vers tout autre fichier rendus en texte. D'où le `|safe`, qui ne l'est QUE parce que le
+  rendu échappe tout ce qu'il n'a pas produit lui-même.
   Le sommaire occupe le volet droit : c'est la seule chose qu'on y cherche en lisant.
 {% endcomment %}
 
@@ -64,10 +65,14 @@
     <span class="wama-cat-stat">{{ doc.family_label }}</span>
     <span class="wama-cat-stat">{{ doc.audience_badge }}</span>
     {% if doc.journal %}<span class="wama-cat-stat">journal daté — vrai à sa date</span>{% endif %}
-    <span class="wama-cat-stat"><b>{{ doc.lines }}</b> lignes</span>
-    <span class="wama-cat-stat">modifié le {{ doc.modified|date:"d/m/Y H:i" }}</span>
+    {% if doc.generated %}
+      <span class="wama-cat-stat">générée à cette lecture</span>
+    {% else %}
+      <span class="wama-cat-stat"><b>{{ doc.lines }}</b> lignes</span>
+      <span class="wama-cat-stat">modifié le {{ doc.modified|date:"d/m/Y H:i" }}</span>
+    {% endif %}
   </div>
-  <p class="wama-doc-meta mb-3"><code>{{ doc.path }}</code> · lecture seule</p>
+  <p class="wama-doc-meta mb-3">{% if doc.generated %}générée par <code>{{ doc.generator }}</code>{% else %}<code>{{ doc.path }}</code>{% endif %} · lecture seule</p>
 
   <article class="wama-doc-body">{{ rendu.html|safe }}</article>
 </div>

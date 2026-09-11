@@ -655,7 +655,9 @@ def docs_catalog_view(request):
     return render(request, 'common/docs.html', {
         'docs': docs,
         'nb_familles': len(familles),
-        'nb_lignes': sum(d['lines'] for d in docs),
+        # Lignes de doc ÉCRITE : une page générée n'en a pas (elle n'existe qu'à la lecture).
+        'nb_lignes': sum(d['lines'] or 0 for d in docs),
+        'nb_generees': sum(1 for d in docs if d['generated']),
         'nb_absents': sum(1 for d in docs if not d['exists']),
         'facettes_docs': facettes,
         'volet': volet(medias=False, actions=False),

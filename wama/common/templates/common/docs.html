@@ -7,8 +7,10 @@
 {% comment %}
   Page du registre `docs` (15ᵉ, 2026-09-11) — la doc de WAMA en LECTURE SEULE, depuis WAMA.
   La liste vient de `wama/common/docs_catalog.py` (déclarée une fois ; `check_docs` en dérive
-  aussi) et chaque fiche est relue sur le disque à chaque affichage : rien n'est stocké, donc
-  aucun bouton d'actualisation. Réservée aux administrateurs (décision de Fabien, 11/09).
+  aussi). Deux natures de doc, une seule page : les FICHIERS de la doc de construction, relus sur
+  le disque à chaque affichage, et les pages GÉNÉRÉES de la doc développeur (`dev_docs.py`),
+  calculées à la lecture. Rien n'est stocké, donc aucun bouton d'actualisation. Réservée aux
+  administrateurs (décision de Fabien, 11/09).
 {% endcomment %}
 
 {% block extra_css %}
@@ -19,6 +21,7 @@
   .doc-titre:hover { color: #90caf9; text-decoration: underline; }
   .doc-famille   { background: #0d47a1; color: #bbdefb; }
   .doc-audience  { background: #37474f; color: #eceff1; }
+  .doc-generee   { background: #1b5e20; color: #c8e6c9; }
   .doc-journal   { background: #4e342e; color: #ffe0b2; }
   .doc-absent    { background: #b71c1c; color: #ffebee; }
   .doc-chemin    { font-size: .74rem; color: #b0bec5; word-break: break-all; }
@@ -35,19 +38,22 @@
 
   <div class="wama-cat-stats">
     <span class="wama-cat-stat"><b>{{ docs|length }}</b> documents</span>
+    <span class="wama-cat-stat"><b>{{ nb_generees }}</b> générés à la lecture</span>
     <span class="wama-cat-stat"><b>{{ nb_familles }}</b> familles</span>
-    <span class="wama-cat-stat"><b>{{ nb_lignes }}</b> lignes</span>
+    <span class="wama-cat-stat"><b>{{ nb_lignes }}</b> lignes de doc écrite</span>
     {% if nb_absents %}<span class="wama-cat-stat doc-absent"><b>{{ nb_absents }}</b> déclaré(s) mais absent(s) du disque</span>{% endif %}
   </div>
 
   <div class="wama-cat-hero">
-    <h3>La doc de construction de WAMA</h3>
-    <p>Ces documents gardent la trace de ce qu'est WAMA et de pourquoi il l'est&nbsp;: la doctrine,
-       les décisions, la vision, les chantiers. Ils évoluent au fil des idées et des
-       développements — ce ne sont ni une référence développeur, ni un manuel utilisateur.
-       Ces deux-là viendront comme des projections générées des registres.</p>
-    <p>⚠ Un statut écrit ici est une trace <b>datée</b>, pas une mesure&nbsp;: sur l'état présent,
-       ce sont la grille de conformité et les registres qui font foi.</p>
+    <h3>La doc de WAMA — construction et développement</h3>
+    <p>La doc de <b>construction</b> garde la trace de ce qu'est WAMA et de pourquoi il l'est&nbsp;:
+       doctrine, décisions, vision, chantiers. Elle évolue au fil des idées et des
+       développements. ⚠ Un statut qui y est écrit est une trace <b>datée</b>, pas une
+       mesure&nbsp;: sur l'état présent, ce sont la grille de conformité et les registres qui font
+       foi.</p>
+    <p>La doc <b>développeur</b> n'est pas écrite&nbsp;: chacune de ses pages est <b>générée à la
+       lecture</b> depuis un registre (mécanismes, registres, code des briques). Elle ne peut donc
+       pas être en retard sur le code.</p>
     <p>La liste est déclarée une seule fois (<code>wama/common/docs_catalog.py</code>)&nbsp;; le
        contrôle d'intégrité <code>check_docs</code> en dérive. Lecture seule.</p>
   </div>
@@ -65,13 +71,14 @@
       <h4>{% if d.exists %}<a class="doc-titre" href="{% url 'common:doc_read' d.key %}">{{ d.label }}</a>{% else %}{{ d.label }}{% endif %}
         <span class="wama-cat-badge doc-famille">{{ d.family_label }}</span>
         <span class="wama-cat-badge doc-audience">{{ d.audience_badge }}</span>
+        {% if d.generated %}<span class="wama-cat-badge doc-generee">générée</span>{% endif %}
         {% if d.journal %}<span class="wama-cat-badge doc-journal">journal daté</span>{% endif %}
         {% if not d.exists %}<span class="wama-cat-badge doc-absent">absent du disque</span>{% endif %}
       </h4>
       <div class="wama-cat-desc">{{ d.description }}</div>
-      <div class="doc-chemin"><code>{{ d.path }}</code></div>
+      <div class="doc-chemin">{% if d.generated %}générée par <code>{{ d.generator }}</code>{% else %}<code>{{ d.path }}</code>{% endif %}</div>
       {% if d.exists %}
-      <div class="wama-cat-meta">{{ d.lines }} lignes · modifié le {{ d.modified|date:"d/m/Y H:i" }}</div>
+      <div class="wama-cat-meta">{% if d.generated %}calculée à chaque lecture{% else %}{{ d.lines }} lignes · modifié le {{ d.modified|date:"d/m/Y H:i" }}{% endif %}</div>
       <a class="btn btn-sm btn-outline-info mt-2" href="{% url 'common:doc_read' d.key %}">
         <i class="fas fa-book-open me-1"></i> Lire</a>
       {% endif %}
