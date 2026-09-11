@@ -51,6 +51,19 @@ _TAGS_PAR_DEFAUT = {
     'imager': 'gen',
     'composer': 'audio',
     'synthesizer': 'voice',
+    # ── Ajoutés le 2026-09-11, en portant les 4 apps qui n'avaient jamais adopté la brique.
+    # Ce ne sont PAS des mots choisis ici : ce sont les conventions que ces apps appliquaient
+    # déjà à la main — `{base}_ocr` (reader, 8 sites), `{base}_description` (describer, 3
+    # sites de téléchargement). Les DÉCLARER au lieu de les coder est tout l'objet de la
+    # brique ; en profiter pour les renommer aurait changé ce que l'utilisateur reçoit, sans
+    # que rien ne l'exige.
+    'reader': 'ocr',
+    'describer': 'description',
+    # Le transcriber, lui, n'avait PAS de mot de process : il composait `{base}_{backend}`,
+    # donc le nom ne disait pas ce qui avait été fait au fichier. `transcript` comble ce
+    # manque — c'est le verbe de l'app, comme le dit la règle en tête de cette table.
+    'transcriber': 'transcript',
+    'describer_01': 'description',
 }
 
 #: Longueur max du nom produit (hors extension). Bien en deçà des 255 usuels : le nom passe

@@ -961,9 +961,32 @@ def progress(request, pk: int):
 
 
 def _output_stem(t: Transcript) -> str:
-    """Build output filename stem: {input_stem}_{backend}."""
-    input_stem = os.path.splitext(t.filename)[0]
-    return f"{input_stem}_{t.used_backend}" if t.used_backend else input_stem
+    """Souche du nom de sortie — BRIQUE COMMUNE (`compose_output_name`), portée le 2026-09-11.
+
+    Le transcriber composait `{souche}_{backend}` à la main. La convention commune existe
+    depuis le 2026-08-25 et il ne l'avait jamais adoptée : mesuré ce jour, **6 apps sur 10**
+    l'utilisaient, et les 4 restantes — anonymizer, describer, reader, transcriber — chacune
+    la sienne. Aucun critère de grille ne le mesurait, d'où quinze jours d'invisibilité.
+
+    Ce que l'adoption apporte ici, et que Fabien a nommé : le nom porte le PROCESS **et** le
+    MODÈLE, *« ce qui permettra aussi la comparaison des résultats / benchmark interne de
+    différents modèles »*. Plus l'identifiant de card, qui garantit l'unicité quand deux
+    transcriptions du même fichier coexistent.
+
+    ⚠ Aucun fichier n'est renommé sur le disque : le transcriber ne STOCKE pas de sortie, il
+    la génère au téléchargement. Le changement porte sur le nom proposé à l'utilisateur.
+
+    ⚠ On rend une SOUCHE, sans extension : le transcriber est la seule app à produire le même
+    résultat en quatre formats (txt/srt/pdf/docx), et ce sont les appelants qui ajoutent
+    l'extension. La brique, elle, rend toujours un nom COMPLET — elle la déduit de la source.
+    On la retire donc ici, explicitement, plutôt que d'amputer la source avant l'appel : un
+    `entretien.v2.m4a` y perdrait son `.v2`.
+    """
+
+    from wama.common.utils.output_naming import compose_output_name
+    nom = compose_output_name(app='transcriber', model=t.used_backend or '',
+                              source_name=t.filename, item_id=t.id)
+    return os.path.splitext(nom)[0]
 
 
 def _srt_ts(s):

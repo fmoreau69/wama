@@ -702,6 +702,32 @@ def _settings_wiring(f: _AppFiles):
     return False, None
 
 
+def _output_naming(f: _AppFiles):
+    """L'app nomme-t-elle ses sorties par la BRIQUE COMMUNE (`compose_output_name`) ?
+
+    La convention existe depuis le 2026-08-25, écrite à la demande de Fabien. Mesuré le
+    2026-09-11 : **6 apps sur 10** l'utilisaient, et les 4 restantes — anonymizer, describer,
+    reader, transcriber — appliquaient chacune la sienne à la main. **Aucun critère ne le
+    mesurait**, d'où quinze jours d'invisibilité : la brique était adoptée à 60 % et la grille
+    affichait 100 % partout.
+
+    Ce que l'adoption apporte, et pourquoi ça vaut un critère : le nom porte le PROCESS et le
+    MODÈLE, donc deux sorties du même fichier par deux modèles se distinguent — c'est la
+    condition d'un benchmark interne (demande Fabien, 2026-09-11). Et l'identifiant de card
+    rend les entrées d'un ZIP uniques, là où deux items homonymes s'écrasaient.
+
+    ⚠ NON APPLICABLE à une app qui ne produit aucun fichier de sortie : lui reprocher un nom
+    qu'elle n'écrit pas désignerait le mauvais défaut.
+    """
+    if not f.find(PY + TEMPLATES, r'output_file|result_file|download|\.zip'):
+        return None, "aucune sortie produite — le nom de sortie n'a pas d'objet"
+    trouve = f.find(PY, r'compose_output_name')
+    if trouve:
+        return True, trouve
+    return False, ("sortie nommée à la main — deux modèles produisent le même nom, "
+                   "et la comparaison entre eux devient impossible")
+
+
 def _download_wiring(f: _AppFiles):
     """⬇ Télécharger rendu par la brique commune — QUATRIÈME et dernier jumeau (2026-08-23).
 
@@ -1700,6 +1726,8 @@ CRITERIA: list[Criterion] = [
     # comportement de la file.
     Criterion('download_wiring', 'F3', 'Téléchargement via la brique (forme dérivée de la déclaration)',
               _download_wiring, mecanisme='param_schema'),
+    Criterion('output_naming', 'F3', 'Nom de sortie par la brique (process + modèle + id)',
+              _output_naming, mecanisme='output_naming'),
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
               mecanisme='queue_duplication'),

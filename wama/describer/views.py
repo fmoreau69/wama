@@ -562,14 +562,20 @@ def download(request, pk):
         return JsonResponse({'error': 'No result available'}, status=400)
 
     fmt = request.GET.get('format', 'txt').lower()
-    base_name = description.filename.rsplit('.', 1)[0] if '.' in description.filename else description.filename
+    # SOUCHE par la BRIQUE COMMUNE (`compose_output_name`, 2026-08-25) — le describer
+    # composait `{base}_description` a la main. Le tag `description` est DECLARE, donc la
+    # convention connue de l'utilisateur est preservee ; s'ajoute l'identifiant de card,
+    # qui rend les entrees d'un ZIP uniques quand deux descriptions partagent une source.
+    from wama.common.utils.output_naming import compose_output_name
+    base_name = os.path.splitext(compose_output_name(
+        app='describer', source_name=description.filename, item_id=description.pk))[0]
 
     if fmt == 'pdf':
         try:
             from wama.common.utils.document_export import generate_description_pdf
             pdf_bytes = generate_description_pdf(description)
             response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = content_disposition_header(True, f"{base_name}_description.pdf")
+            response['Content-Disposition'] = content_disposition_header(True, f"{base_name}.pdf")
             return response
         except ImportError as e:
             return JsonResponse({'error': str(e)}, status=501)
@@ -585,7 +591,7 @@ def download(request, pk):
                 docx_bytes,
                 content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
-            response['Content-Disposition'] = content_disposition_header(True, f"{base_name}_description.docx")
+            response['Content-Disposition'] = content_disposition_header(True, f"{base_name}.docx")
             return response
         except ImportError as e:
             return JsonResponse({'error': str(e)}, status=501)
@@ -603,7 +609,7 @@ def download(request, pk):
     if description.result_text:
         content = description.result_text.encode('utf-8')
         response = HttpResponse(content, content_type='text/plain; charset=utf-8')
-        response['Content-Disposition'] = content_disposition_header(True, f"{base_name}_description.txt")
+        response['Content-Disposition'] = content_disposition_header(True, f"{base_name}.txt")
         return response
 
     return JsonResponse({'error': 'No result available'}, status=400)
@@ -758,25 +764,27 @@ def download_all(request):
     buffer = BytesIO()
     with ZipFile(buffer, 'w') as zf:
         for desc in descriptions:
-            base_name = desc.filename.rsplit('.', 1)[0] if '.' in desc.filename else desc.filename
+            from wama.common.utils.output_naming import compose_output_name
+            base_name = os.path.splitext(compose_output_name(
+                app='describer', source_name=desc.filename, item_id=desc.pk))[0]
 
             entry = None
             try:
                 if fmt == 'pdf':
                     from wama.common.utils.document_export import generate_description_pdf
-                    entry = (f"{base_name}_description.pdf", generate_description_pdf(desc))
+                    entry = (f"{base_name}.pdf", generate_description_pdf(desc))
                 elif fmt == 'docx':
                     from wama.common.utils.document_export import generate_description_docx
-                    entry = (f"{base_name}_description.docx", generate_description_docx(desc))
+                    entry = (f"{base_name}.docx", generate_description_docx(desc))
             except Exception as e:
                 logger.warning(f"[Describer] download_all: {fmt} failed for #{desc.pk} ({e}); falling back to txt")
                 entry = None
             if entry is not None:
                 zf.writestr(*entry)
             elif desc.result_file and os.path.exists(desc.result_file.path):
-                zf.write(desc.result_file.path, f"{base_name}_description.txt")
+                zf.write(desc.result_file.path, f"{base_name}.txt")
             elif desc.result_text:
-                zf.writestr(f"{base_name}_description.txt", desc.result_text.encode('utf-8'))
+                zf.writestr(f"{base_name}.txt", desc.result_text.encode('utf-8'))
 
     buffer.seek(0)
 
@@ -1075,11 +1083,14 @@ def batch_download(request, pk):
         for item in batch.items.select_related('description').order_by('row_index'):
             d = item.description
             if d and d.status == 'SUCCESS':
-                stem = os.path.splitext(d.filename)[0] if d.filename else f'desc_{d.id}'
+                from wama.common.utils.output_naming import compose_output_name
+                stem = os.path.splitext(compose_output_name(
+                    app='describer', source_name=d.filename or f'desc_{d.id}',
+                    item_id=d.id))[0]
                 built = _build_description_bytes(d, fmt)
                 if built:
                     ext, data = built
-                    archive.writestr(f'{stem}_description.{ext}', data)
+                    archive.writestr(f'{stem}.{ext}', data)
 
     buffer.seek(0)
     zip_name = f"batch_describer_{pk}_{fmt}_{datetime.date.today()}.zip"

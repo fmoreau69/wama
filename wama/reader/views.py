@@ -426,7 +426,14 @@ def download(request, pk: int):
     item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
 
     fmt = request.GET.get('format', 'txt').lower()
-    base = os.path.splitext(item.filename)[0]
+    # SOUCHE par la BRIQUE COMMUNE (`compose_output_name`) — le reader composait
+    # `{base}_ocr` a la main sur 8 sites. Le tag `ocr` est DECLARE (table des mots de
+    # process), donc la convention que l'utilisateur connait est preservee ; s'ajoute
+    # l'identifiant de card, qui rend le nom unique quand deux lectures du meme fichier
+    # coexistent — et qui permet la comparaison entre modeles (demande Fabien 11/09).
+    from wama.common.utils.output_naming import compose_output_name
+    base = os.path.splitext(compose_output_name(
+        app='reader', source_name=item.filename, item_id=item.pk))[0]
 
     # JSON format — serve raw backend output
     if fmt == 'json':
@@ -437,7 +444,7 @@ def download(request, pk: int):
         return FileResponse(
             buffer,
             as_attachment=True,
-            filename=f"{base}_ocr_raw.json",
+            filename=f"{base}_raw.json",
             content_type='application/json; charset=utf-8',
         )
 
@@ -449,7 +456,7 @@ def download(request, pk: int):
             from wama.common.utils.document_export import generate_reader_pdf
             pdf_bytes = generate_reader_pdf(item)
             response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = content_disposition_header(True, f"{base}_ocr.pdf")
+            response['Content-Disposition'] = content_disposition_header(True, f"{base}.pdf")
             return response
         except ImportError as e:
             return HttpResponseBadRequest(str(e))
@@ -465,7 +472,7 @@ def download(request, pk: int):
                 docx_bytes,
                 content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             )
-            response['Content-Disposition'] = content_disposition_header(True, f"{base}_ocr.docx")
+            response['Content-Disposition'] = content_disposition_header(True, f"{base}.docx")
             return response
         except ImportError as e:
             return HttpResponseBadRequest(str(e))
@@ -482,7 +489,7 @@ def download(request, pk: int):
     return FileResponse(
         buffer,
         as_attachment=True,
-        filename=f"{base}_ocr{ext}",
+        filename=f"{base}{ext}",
         content_type=f'{content_type}; charset=utf-8',
     )
 
@@ -562,26 +569,33 @@ def download_all(request):
     buf = BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         for item in items:
-            base = os.path.splitext(item.original_filename)[0] if '.' in (item.original_filename or '') else (item.original_filename or f'item_{item.id}')
+            # ⚠ Ce site-ci a failli partir SANS être porté, alors que les entrées qu'il
+            # compose plus bas avaient déjà perdu leur `_ocr` : le ZIP serait sorti avec des
+            # noms NUS. La relecture du diff avant commit l'a rattrapé — un portage se vérifie
+            # sur le site qui DÉFINIT la souche, pas seulement sur ceux qui la consomment.
+            from wama.common.utils.output_naming import compose_output_name
+            base = os.path.splitext(compose_output_name(
+                app='reader', source_name=item.original_filename or f'item_{item.id}',
+                item_id=item.pk))[0]
             entry = None
             try:
                 if fmt == 'json' and item.raw_result:
-                    entry = (f'{base}_ocr_raw.json', item.raw_result.encode('utf-8'))
+                    entry = (f'{base}_raw.json', item.raw_result.encode('utf-8'))
                 elif fmt == 'pdf' and item.result_text:
                     from wama.common.utils.document_export import generate_reader_pdf
-                    entry = (f'{base}_ocr.pdf', generate_reader_pdf(item))
+                    entry = (f'{base}.pdf', generate_reader_pdf(item))
                 elif fmt == 'docx' and item.result_text:
                     from wama.common.utils.document_export import generate_reader_docx
-                    entry = (f'{base}_ocr.docx', generate_reader_docx(item))
+                    entry = (f'{base}.docx', generate_reader_docx(item))
                 elif fmt in ('txt', 'md') and item.result_text:
-                    entry = (f"{base}_ocr.{fmt}",
+                    entry = (f"{base}.{fmt}",
                              _extract_natural_text(item.result_text).encode('utf-8'))
             except Exception as e:
                 logger.warning(f"[Reader] download_all: {fmt} failed for #{item.pk} ({e}); falling back to txt")
                 entry = None
             if entry is None and item.result_text:
                 ext = '.md' if item.output_format == 'markdown' else '.txt'
-                entry = (f'{base}_ocr{ext}', item.result_text.encode('utf-8'))
+                entry = (f'{base}{ext}', item.result_text.encode('utf-8'))
             if entry:
                 zf.writestr(*entry)
     buf.seek(0)
@@ -888,11 +902,14 @@ def batch_download(request, pk):
         for item in batch.items.select_related('reading').order_by('row_index'):
             r = item.reading
             if r and r.status == 'SUCCESS':
-                stem = os.path.splitext(r.filename)[0] if r.filename else f'item_{r.id}'
+                from wama.common.utils.output_naming import compose_output_name
+                stem = os.path.splitext(compose_output_name(
+                    app='reader', source_name=r.filename or f'item_{r.id}',
+                    item_id=r.id))[0]
                 built = _build_reading_bytes(r, fmt)
                 if built:
                     ext, data = built
-                    archive.writestr(f'{stem}_ocr.{ext}', data)
+                    archive.writestr(f'{stem}.{ext}', data)
 
     buffer.seek(0)
     zip_name = f"batch_reader_{pk}_{fmt}_{datetime.date.today()}.zip"

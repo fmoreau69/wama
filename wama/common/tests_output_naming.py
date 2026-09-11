@@ -4,7 +4,11 @@
 l'anonymizer et l'enhancer produisaient déjà `<stem>_<process>_<modèle><ext>`, et un fichier
 dont le nom change est un fichier que l'utilisateur ne retrouve plus.
 """
-from django.test import SimpleTestCase
+import io
+import zipfile
+
+from django.test import Client, SimpleTestCase, TestCase
+from django.urls import reverse
 
 from wama.common.utils.output_naming import compose_output_name, output_tag
 
@@ -118,3 +122,59 @@ class NommageDeSortieTests(SimpleTestCase):
         self.assertEqual(
             compose_output_name(app='app_qui_nexiste_pas', model='m', item_id=2, ext='.txt'),
             'app_qui_nexiste_pas2_m.txt')
+
+
+class EntreesDeZipTests(TestCase):
+    """Les SITES d'adoption, pas la brique — ajoutés le 2026-09-11.
+
+    ⚠ Ces tests existent à cause d'un défaut réel, rattrapé à la relecture du diff et non par
+    une garde : dans `reader.download_all`, les entrées du ZIP avaient perdu leur `_ocr`
+    pendant que la souche restait composée à la main. Le critère de grille `output_naming`
+    n'aurait rien vu — il atteste qu'une app APPELLE la brique, jamais que TOUS ses sites
+    l'appellent. C'est la différence entre un vert d'adoption et un fonctionnement.
+
+    Ce que les ZIP doivent garantir, et que le nommage à la main ne garantissait pas : deux
+    items portant le MÊME nom d'origine produisent deux entrées DISTINCTES. Auparavant elles
+    s'écrasaient en silence — l'archive sortait avec un fichier de moins, sans erreur.
+    """
+
+    def setUp(self):
+        from wama.common.services.nightly_tests import get_test_user
+        self.user = get_test_user()
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def test_le_zip_du_reader_distingue_deux_lectures_du_meme_nom(self):
+        from wama.reader.models import ReadingItem
+        for _ in range(2):
+            ReadingItem.objects.create(user=self.user, original_filename='rapport.pdf',
+                                       status='SUCCESS', result_text='texte')
+
+        reponse = self.client.get(reverse('reader:download_all'), {'format': 'txt'})
+        self.assertEqual(reponse.status_code, 200)
+        noms = self._entrees(reponse)
+
+        self.assertEqual(len(noms), 2, "une entrée a écrasé l'autre dans l'archive")
+        for nom in noms:
+            self.assertIn('_ocr', nom, f"{nom} a perdu le mot de process de l'app")
+            self.assertTrue(nom.startswith('rapport_'), f"{nom} ne repart plus du nom d'origine")
+
+    def test_le_zip_du_describer_distingue_deux_descriptions_du_meme_nom(self):
+        from wama.describer.models import Description
+        for _ in range(2):
+            Description.objects.create(user=self.user, filename='photo.jpg',
+                                       status='SUCCESS', result_text='une description')
+
+        reponse = self.client.get(reverse('describer:download_all'), {'format': 'txt'})
+        self.assertEqual(reponse.status_code, 200)
+        noms = self._entrees(reponse)
+
+        self.assertEqual(len(noms), 2, "une entrée a écrasé l'autre dans l'archive")
+        for nom in noms:
+            self.assertIn('_description', nom, f"{nom} a perdu le mot de process de l'app")
+            self.assertTrue(nom.startswith('photo_'), f"{nom} ne repart plus du nom d'origine")
+
+    def _entrees(self, reponse) -> list:
+        """Noms des entrées de l'archive — la réponse peut être streamée ou non."""
+        blob = b''.join(reponse.streaming_content) if reponse.streaming else reponse.content
+        return zipfile.ZipFile(io.BytesIO(blob)).namelist()
