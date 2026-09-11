@@ -82,6 +82,11 @@ urlpatterns = [
     # dit surtout QUI consomme quoi — un skill que rien ne résout est un fichier inerte.
     path('skills/', views.skills_catalog_view, name='skills_catalog'),
     path('backends/', views.backends_catalog_view, name='backends_catalog'),
+    # Documentation (15ᵉ registre, 2026-09-11) : la doc de construction en LECTURE SEULE. Le
+    # lecteur prend une CLÉ déclarée dans `docs_catalog.py`, jamais un chemin — il n'existe
+    # aucune URL par laquelle demander un fichier non déclaré.
+    path('docs/', views.docs_catalog_view, name='docs_catalog'),
+    path('docs/<slug:key>/', views.doc_read_view, name='doc_read'),
 
     # Sources externes : la PAGE du registre `sources_externes` (8ᵉ registre, 2026-09-01).
     # La déclaration dérive du code ; la sonde (clé, joignabilité) est le rapport écrit par

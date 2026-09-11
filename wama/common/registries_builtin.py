@@ -403,3 +403,35 @@ register(Registry(
                 "le plus approchant. Dérivé à chaque affichage — un backend ajouté y apparaît "
                 "sans qu'on déclare rien ici.",
 ))
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# DOCUMENTATION — la doc de WAMA lisible depuis WAMA (15ᵉ registre, 2026-09-11)
+#
+# Demande de Fabien : un accès en lecture seule à la doc depuis le menu du profil. La liste des
+# docs de référence existait déjà deux fois à la main (table d'AGENTS.md, `check_docs.DOCS`) :
+# ce registre ne porte PAS la sienne, il lit `docs_catalog.py`, que `check_docs` lit aussi.
+#
+# Nature DERIVED : les fiches sont relues sur le disque à chaque affichage (cache sur l'empreinte
+# du fichier). Permission 'staff' : réservé aux administrateurs pour l'instant (décision 11/09) —
+# la VUE applique `admin_required`, le même prédicat que le menu.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def _count_docs() -> int:
+    from .docs_catalog import DOCS
+    return len(DOCS)
+
+
+register(Registry(
+    key='docs', label='Documentation', nature=DERIVED,
+    source="Déclaration `common/docs_catalog.py` (docs de référence d'AGENTS.md), lus sur le "
+           "disque à chaque affichage",
+    count=_count_docs,
+    url_name='common:docs_catalog', permission='staff',
+    doc='AGENTS.md',
+    description="La doc de CONSTRUCTION de WAMA — doctrine, décisions, vision, chantiers — en "
+                "lecture seule. Chaque doc déclare son AUDIENCE : les docs développeur et "
+                "utilisateur s'y rangeront comme des projections générées des registres, pas "
+                "comme des .md rédigés en parallèle. `check_docs` dérive sa liste de la même "
+                "déclaration : un doc ajouté ici est contrôlé sans rien toucher d'autre.",
+))

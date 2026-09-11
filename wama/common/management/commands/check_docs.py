@@ -49,39 +49,18 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-# Docs de référence (AGENTS.md : « un domaine = un fichier »).
-DOCS = [
-    'WAMA_APP_GENERATION_ROUTE.md', 'WAMA_APP_CONVENTIONS.md', 'WAMA_MANIFEST_SPEC.md',
-    'WAMA_MANIFEST_ARCHITECTURE.md', 'PROJECT_STATUS.md', 'ROADMAP.md', 'WAMA_LLM.md',
-    # ⚠ LES DEUX, depuis la découpe du 2026-09-09 : `AGENTS.md` porte la DOCTRINE (et la
-    # table des fichiers de référence), `CLAUDE.md` le seul harnais Claude Code. Contrôler
-    # le second sans le premier laisserait le gros du corpus hors surveillance — c'est
-    # exactement l'écart que l'extension du 27/08 ci-dessous avait servi à combler.
-    'AGENTS.md', 'CLAUDE.md', 'STUDIO_VISION.md', 'TRANSCRIBER_REFERENCE_AUDIT.md',
-    # Carte des mécanismes transversaux : sa TABLE est générée (doc_facts, fait `mecanismes`)
-    # et donc ingénérable, mais ses chemins écrits à la main — l'intro, les documents de
-    # référence — méritent le même contrôle que les autres. Ajoutée le 2026-08-13.
-    'WAMA_MECANISMES.md',
-    # Vision produit d'ensemble — document UNIQUE depuis le 2026-08-27 (il a absorbé
-    # VISION_STATUS, dont 8 commentaires de code citaient l'ancre §MONDES) : ses renvois
-    # doivent rester vivants. ⚠ `docs/` est exclu de l'index : y citer un .md exige le
-    # chemin complet (`docs/archive/…`), jamais le nom nu.
-    'docs/WAMA_VISION_COMPLET.md',
-    # Extension 2026-08-27 (audit /doc-sync) : la table de référence déclare ~25 docs, la
-    # liste ci-dessus n'en couvrait que 11 — l'écart était exactement la définition du
-    # « périmé non détecté » (5 renvois morts et 1 ligne fantôme dormaient dans 4 de ces
-    # docs, dont des renommages D28 vieux de 5 jours). Un doc de référence ajouté à la
-    # table (dans `AGENTS.md` depuis le 2026-09-09) s'ajoute ICI dans le même commit.
-    'CARD_DESIGN.md', 'MODES_QUEUE_UX.md', 'INSPECTOR_DETAIL_FIELDS.md', 'WAMA_VOLETS.md',
-    'BATCH_FORMAT.md', 'INFRA_WSL_VS_WINDOWS.md', 'LICENSING.md', 'PROFILES_PERMISSIONS.md',
-    'STUDIO_VISION.md', 'WAMA_VERIFICATION.md', 'WAMA_DATA_WORLD.md', 'WAMA_MEMORY.md',
-    'WAMA_APPRENTISSAGE.md', 'WAMA_DATA_FUNCTION_CARDS.md', 'INPUT_MODEL_MATCHING.md',
-    'MEDIA_STORAGE_TIERING.md', 'REMOVAL_LEDGER.md',
-    'wama/transcriber/TRANSCRIBER_CORRECTION.md', 'wama/model_manager/PROSPECTION_PIPELINE.md',
-    'wama/common/README.md', 'wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md',
-    # Promu référence du domaine Enhancer le 2026-08-27 (fusion des ex-docs/ENHANCER_*).
-    'wama/enhancer/README.md',
-]
+from wama.common.docs_catalog import checked_paths, journal_paths
+
+# Docs de référence — DÉRIVÉS du catalogue des docs depuis le 2026-09-11.
+#
+# Cette liste était écrite ICI à la main, en double de la table d'AGENTS.md (« un doc ajouté à
+# la table s'ajoute ICI dans le même commit »). Le jour où le lecteur de doc en a demandé une
+# troisième, les trois ont été ramenées à UNE déclaration : `wama/common/docs_catalog.py`. Un
+# test y vérifie que la table d'AGENTS.md ne cite aucun doc non déclaré — ajouter un doc de
+# référence, c'est donc l'ajouter là-bas, et il est contrôlé ici sans rien toucher.
+# Historique des extensions (13/08 carte des mécanismes, 27/08 table complète, 09/09 découpe
+# AGENTS/CLAUDE) : `git log -S "DOCS = ["` sur ce fichier.
+DOCS = checked_paths()
 
 #: Les skills sont DÉCOUVERTES, jamais énumérées ici. Une liste figée est exactement le défaut
 #: que cette extension corrige : `/brique` listait un package disparu depuis quatre jours.
@@ -107,7 +86,10 @@ REF_MD = re.compile(r'`([\w/\\.\-]+\.md)`')
 #: La frontière est nette et ne vaut QUE pour les renvois `.md` : un document qui n'existe plus
 #: est un fait d'histoire, un CHEMIN DE CODE qui n'existe plus est une affirmation sur le code
 #: d'aujourd'hui. Les références de code de ces mêmes journaux restent donc contrôlées.
-JOURNAUX = {'PROJECT_STATUS.md'}
+#:
+#: Dérivé du catalogue des docs depuis le 2026-09-11 (champ `journal`) : c'est la déclaration du
+#: document qui dit s'il est un journal, pas une seconde liste tenue ici.
+JOURNAUX = journal_paths()
 
 #: ── Famille « chiffre sans source » (skills seulement) ────────────────────────────────────
 #: Noms COMPTABLES : un nombre ne devient un constat qu'accolé à ce qu'il compte. C'est ce qui
@@ -312,7 +294,13 @@ class Command(BaseCommand):
                     if _hors_depot(cible):
                         continue
                     verifies += 1
-                    if not (base / cible.replace('\\', '/')).exists():
+                    # Un lien markdown se résout depuis le DOSSIER du document (c'est ce que
+                    # font GitHub et le lecteur de doc), la racine restant admise pour les docs
+                    # qui l'écrivent ainsi. Racine SEULE jusqu'au 2026-09-11 : muet tant que
+                    # tous les docs contrôlés vivaient à la racine, 9 faux « morts » le jour où
+                    # le README de cam_analyzer (liens vers ses voisins) est entré dans la liste.
+                    c = cible.replace('\\', '/')
+                    if not ((base / c).exists() or (f.parent / c).exists()):
                         casses.append((nom, i, f"lien .md mort → {cible}"))
 
                 # ── .md cités en backticks ────────────────────────────────

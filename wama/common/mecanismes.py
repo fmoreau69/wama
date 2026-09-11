@@ -351,6 +351,14 @@ MECANISMES = (
               'wama/common/management/commands/check_docs.py', 'AGENTS.md §Fichiers de référence',
               annexes=('wama/common/tests_check_docs.py',),
               symbole='check_docs'),      # nommée par une CHAÎNE, jamais importée — cf. plus bas
+    # 2026-09-11 : la liste des docs de référence vivait en double (table d'AGENTS.md +
+    # `check_docs.DOCS`) ; le lecteur de doc en aurait fait une troisième. UNE déclaration.
+    Mecanisme('docs_catalog', 'Catalogue & lecteur de docs',
+              "Déclare les docs de référence (famille, AUDIENCE, journal) et les rend lisibles "
+              "depuis WAMA en lecture seule (page `docs`, admins) ; `check_docs` en dérive sa "
+              "liste, et un test refuse que la table d'AGENTS.md cite un doc non déclaré",
+              'wama/common/docs_catalog.py', 'AGENTS.md §Trois docs, trois publics',
+              annexes=('wama/common/tests_docs_catalog.py',)),
     Mecanisme('templates_integrity', 'Intégrité des gabarits',
               "Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` "
               "MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — "

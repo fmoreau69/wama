@@ -410,6 +410,32 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 > réels au 2026-08-20 (relevé à la demande de Fabien). **Créer un `.md` de référence = ajouter sa
 > ligne ici dans le même commit**, sinon le suivant ne le trouvera pas et en écrira un concurrent —
 > ce que la règle ci-dessus interdit précisément.
+>
+> **Et sa déclaration dans `wama/common/docs_catalog.py`** (depuis le 2026-09-11) : c'est la liste
+> que lisent la page `/common/docs/` et `check_docs`. `tests_docs_catalog` échoue si cette table
+> cite un doc que le catalogue ne déclare pas — l'oubli ne peut plus être muet.
+
+### Trois docs, trois publics (Fabien, 2026-08-12 — acté le 2026-09-11)
+
+> Posé le 12/08, resté sans trace hors d'une transcription de session pendant un mois — d'où
+> cette section. *« La doc actuelle n'est ni une doc développeur, ni une doc utilisateur, mais
+> une doc de construction de WAMA qui vit et évolue au fur et à mesure des idées et des
+> développements. »*
+
+| audience | ce que c'est | état |
+|---|---|---|
+| **construction** | les `.md` de la table ci-dessus : trace, doctrine, décisions, vision — vivants | ✅ existe ; lisible depuis WAMA (`/common/docs/`, admins) |
+| **développeur** | comment ÉTENDRE WAMA : parcours d'entrée + pages projetées des registres (mécanismes, registres, backends, `APP_CATALOG`, kinds de manifestes, `TOOL_REGISTRY`) + docstrings de `common/` | ⏳ à construire, **générée** |
+| **utilisateur** | comment se SERVIR de WAMA : un guide des gestes communs écrit UNE fois + sections par app projetées des métadonnées | 🔄 germe : onglets À-propos/Aide (`AppAboutView`/`AppHelpView`, auto-remplis d'`APP_CATALOG`) |
+
+**La règle** : les registres sont la seule source qui ne ment pas — **une doc destinée à un
+public est une PROJECTION générée, jamais une rédaction parallèle** (la doctrine
+métadonnée-driven de l'UI, appliquée à la doc). Chaque document déclare son `audience` dans
+`docs_catalog.py` ; les docs développeur et utilisateur s'y rangeront sans nouvelle page.
+
+⚠ **Un statut écrit dans une doc de construction est une trace DATÉE, pas une mesure** — sur
+l'état présent, la grille de conformité et les registres font foi. C'est pourquoi la page de
+lecture l'affiche en toutes lettres, et pourquoi on n'exposera pas cette doc comme un manuel.
 
 ---
 

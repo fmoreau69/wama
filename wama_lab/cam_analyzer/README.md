@@ -151,7 +151,7 @@ FileManager (WAMA Lab → Cam Analyzer).
 
 - **Vitesses irréalistes** : ✅ **corrigé** — `distance_speed.py` filtre désormais vitesse/TTC (lissage
   EMA de la distance + régression sur fenêtre courte + clamp/rejet des valeurs implausibles) au lieu
-  d'une dérivée frame-à-frame brute. Voir [`CAM_ANALYZER_DISTANCE_DESIGN.md`](CAM_ANALYZER_DISTANCE_DESIGN.md) §3a.
+  d'une dérivée frame-à-frame brute. Voir [`CAM_ANALYZER_DISTANCE_DESIGN.md`](archive/CAM_ANALYZER_DISTANCE_DESIGN.md) §3a (archivé).
 - **Vue de dessus des objets** : ✅ **implémentée** — fusion 360° de toutes les caméras dans le repère
   véhicule, positions monde lissées (Kalman) tracées sur la mini-carte Leaflet, ancres pour les stationnés,
   fond orthophoto IGN (🛰) et orientation cap-navette (🧭).

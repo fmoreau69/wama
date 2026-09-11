@@ -263,3 +263,32 @@ class JournauxTests(SimpleTestCase):
         # L'exemption doit rester ÉTROITE : elle vaut pour l'archive datée, pas pour la doctrine.
         for d in ('AGENTS.md', 'WAMA_APP_CONVENTIONS.md', 'WAMA_MECANISMES.md'):
             self.assertNotIn(d, JOURNAUX)
+
+
+class LienRelatifTests(SimpleTestCase):
+    """Un lien markdown se résout depuis le DOSSIER du document (2026-09-11).
+
+    Le contrôle ne résolvait que depuis la racine : muet tant que tous les docs contrôlés y
+    vivaient, 9 faux « morts » le jour où le README de cam_analyzer est entré dans la liste. La
+    contre-épreuve (un voisin ABSENT reste signalé) empêche que la correction n'aveugle le contrôle.
+    """
+
+    def _rapport_doc(self, corps):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name) / 'sous'
+        d.mkdir()
+        (d / 'VOISIN.md').write_text("# voisin\n", encoding='utf-8')
+        (d / 'DOC.md').write_text(corps, encoding='utf-8')
+        sortie = StringIO()
+        with override_settings(BASE_DIR=tmp.name):
+            call_command('check_docs', '--doc', 'sous/DOC.md', stdout=sortie)
+        return sortie.getvalue()
+
+    def test_un_lien_vers_un_voisin_du_dossier_est_vivant(self):
+        r = self._rapport_doc("Voir [le voisin](VOISIN.md).\n")
+        self.assertNotIn('lien .md mort', r)
+
+    def test_un_voisin_absent_reste_signale(self):
+        r = self._rapport_doc("Voir [l'absent](ABSENT_XYZ.md).\n")
+        self.assertIn('lien .md mort → ABSENT_XYZ.md', r)

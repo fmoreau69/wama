@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_static %}
+{% block title %}Documentation — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Page du registre `docs` (15ᵉ, 2026-09-11) — la doc de WAMA en LECTURE SEULE, depuis WAMA.
+  La liste vient de `wama/common/docs_catalog.py` (déclarée une fois ; `check_docs` en dérive
+  aussi) et chaque fiche est relue sur le disque à chaque affichage : rien n'est stocké, donc
+  aucun bouton d'actualisation. Réservée aux administrateurs (décision de Fabien, 11/09).
+{% endcomment %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
+<style>
+  /* Squelette = brique COMMUNE `wama-catalog.css` — restent les spécificités. */
+  .doc-titre     { color: #e3f2fd; text-decoration: none; }
+  .doc-titre:hover { color: #90caf9; text-decoration: underline; }
+  .doc-famille   { background: #0d47a1; color: #bbdefb; }
+  .doc-audience  { background: #37474f; color: #eceff1; }
+  .doc-journal   { background: #4e342e; color: #ffe0b2; }
+  .doc-absent    { background: #b71c1c; color: #ffebee; }
+  .doc-chemin    { font-size: .74rem; color: #b0bec5; word-break: break-all; }
+</style>
+{% endblock %}
+
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
+{% block content %}
+<div class="wama-cat-wrap">
+
+  {% include 'common/_catalog_header.html' with titre='Documentation' icone='fa-file-lines' registre='docs' %}
+
+  <div class="wama-cat-stats">
+    <span class="wama-cat-stat"><b>{{ docs|length }}</b> documents</span>
+    <span class="wama-cat-stat"><b>{{ nb_familles }}</b> familles</span>
+    <span class="wama-cat-stat"><b>{{ nb_lignes }}</b> lignes</span>
+    {% if nb_absents %}<span class="wama-cat-stat doc-absent"><b>{{ nb_absents }}</b> déclaré(s) mais absent(s) du disque</span>{% endif %}
+  </div>
+
+  <div class="wama-cat-hero">
+    <h3>La doc de construction de WAMA</h3>
+    <p>Ces documents gardent la trace de ce qu'est WAMA et de pourquoi il l'est&nbsp;: la doctrine,
+       les décisions, la vision, les chantiers. Ils évoluent au fil des idées et des
+       développements — ce ne sont ni une référence développeur, ni un manuel utilisateur.
+       Ces deux-là viendront comme des projections générées des registres.</p>
+    <p>⚠ Un statut écrit ici est une trace <b>datée</b>, pas une mesure&nbsp;: sur l'état présent,
+       ce sont la grille de conformité et les registres qui font foi.</p>
+    <p>La liste est déclarée une seule fois (<code>wama/common/docs_catalog.py</code>)&nbsp;; le
+       contrôle d'intégrité <code>check_docs</code> en dérive. Lecture seule.</p>
+  </div>
+
+  {% include 'common/_filter_bar.html' with facettes=facettes_docs cible='.wama-cat-card' mode='client' placeholder='Filtrer (titre, domaine, chemin…)' %}
+
+  {% comment %}`data-id` = clé du doc, lue par WamaInspector au clic ; `data-f-famille` et
+  `data-f-audience` = les facettes déclarées par la vue, aussi visibles en badge (une facette
+  qu'on ne voit pas sur la carte n'explique pas ce qu'elle filtre).{% endcomment %}
+  <div class="wama-cat-grid" id="docsGrid" style="--cat-card-min: 320px;"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
+    {% for d in docs %}
+    <div class="wama-cat-card" data-id="{{ d.key }}"
+         data-f-famille="{{ d.family }}" data-f-audience="{{ d.audience }}">
+      <h4>{% if d.exists %}<a class="doc-titre" href="{% url 'common:doc_read' d.key %}">{{ d.label }}</a>{% else %}{{ d.label }}{% endif %}
+        <span class="wama-cat-badge doc-famille">{{ d.family_label }}</span>
+        <span class="wama-cat-badge doc-audience">{{ d.audience_badge }}</span>
+        {% if d.journal %}<span class="wama-cat-badge doc-journal">journal daté</span>{% endif %}
+        {% if not d.exists %}<span class="wama-cat-badge doc-absent">absent du disque</span>{% endif %}
+      </h4>
+      <div class="wama-cat-desc">{{ d.description }}</div>
+      <div class="doc-chemin"><code>{{ d.path }}</code></div>
+      {% if d.exists %}
+      <div class="wama-cat-meta">{{ d.lines }} lignes · modifié le {{ d.modified|date:"d/m/Y H:i" }}</div>
+      <a class="btn btn-sm btn-outline-info mt-2" href="{% url 'common:doc_read' d.key %}">
+        <i class="fas fa-book-open me-1"></i> Lire</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

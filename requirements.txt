@@ -32,6 +32,10 @@ requests>=2.32.3
 # dépendance implicite régularisée le 2026-08-29 (déjà présents dans les deux venvs).
 beautifulsoup4>=4.12
 lxml>=5.0
+# Lecteur de doc (common/docs_catalog.py, 2026-09-11) — déjà présent dans les deux venvs comme
+# dépendance de `rich` ; déclaré parce que WAMA l'importe désormais directement. `html=False`
+# échappe nativement le HTML brut des .md (raison du choix face à Python-Markdown).
+markdown-it-py>=4.0
 safetensors>=0.4.0
 segno>=1.6  # QR codes (pur Python, BSD-3, zéro dépendance) — brique commune common/utils/qr.py : QR d'appariement joint par le bot (ROADMAP §19.1) ; TOTP/Imager à venir
 # torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER.

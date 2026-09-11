@@ -157,6 +157,16 @@
                                 <i class="fas fa-cubes me-2 text-primary"></i> Apps
                             </a>
                         </li>
+                        {% comment %}Documentation (15ᵉ registre, 11/09) : la doc de construction
+                        en lecture seule. Réservée aux admins pour l'instant (décision Fabien) —
+                        `is_admin` est le prédicat que la vue applique (`admin_required`).{% endcomment %}
+                        {% if is_admin %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:docs_catalog' %}">
+                                <i class="fas fa-file-lines me-2 text-success"></i> Documentation
+                            </a>
+                        </li>
+                        {% endif %}
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:libraries_catalog' %}">
                                 <i class="fas fa-book me-2 text-warning"></i> Librairies

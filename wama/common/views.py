@@ -618,6 +618,72 @@ def backends_catalog_view(request):
     })
 
 
+def _admin_required(view):
+    """`accounts.views.admin_required`, résolu À L'APPEL — même usage que les autres vues de ce
+    module, qui importent `wama.accounts` paresseusement. C'est le prédicat du menu (`is_admin`,
+    fourni par le context processor) : le lien et la vue ne peuvent pas dire deux choses."""
+    from functools import wraps
+
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        from wama.accounts.views import admin_required
+        return admin_required(view)(request, *args, **kwargs)
+    return wrapper
+
+
+@_admin_required
+def docs_catalog_view(request):
+    """
+    Page du registre `docs` (15ᵉ, 2026-09-11) — la doc de WAMA en lecture seule, depuis WAMA.
+
+    DÉRIVÉE : la liste vient de `docs_catalog.py` (la déclaration que `check_docs` lit aussi),
+    chaque fiche est relue sur le disque. Réservée aux administrateurs (décision de Fabien).
+    """
+    from .docs_catalog import AUDIENCES, FAMILIES, entries
+
+    docs = entries()
+    familles = {d['family'] for d in docs}
+    audiences = {d['audience'] for d in docs}
+    facettes = [{'cle': 'famille', 'label': 'Famille', 'tous': 'Toutes les familles',
+                 'options': {k: v for k, v in FAMILIES.items() if k in familles}}]
+    # La facette « Audience » n'apparaît qu'à partir de DEUX audiences présentes : aujourd'hui
+    # tout est de construction, et un filtre à une seule option serait décoratif.
+    if len(audiences) > 1:
+        facettes.append({'cle': 'audience', 'label': 'Audience', 'tous': 'Toutes les audiences',
+                         'options': {k: v for k, v in AUDIENCES.items() if k in audiences}})
+
+    return render(request, 'common/docs.html', {
+        'docs': docs,
+        'nb_familles': len(familles),
+        'nb_lignes': sum(d['lines'] for d in docs),
+        'nb_absents': sum(1 for d in docs if not d['exists']),
+        'facettes_docs': facettes,
+        'volet': volet(medias=False, actions=False),
+    })
+
+
+@_admin_required
+def doc_read_view(request, key):
+    """Lecteur d'UN doc déclaré. La clé est cherchée dans le catalogue : ce qui n'y est pas
+    n'existe pas pour cette vue (404), quel que soit le contenu du disque."""
+    from django.http import Http404
+
+    from .docs_catalog import entry, get, render_doc
+
+    doc = get(key)
+    if doc is None:
+        raise Http404("document non déclaré")
+    try:
+        rendu = render_doc(doc)
+    except FileNotFoundError:
+        raise Http404("document déclaré mais absent du disque")
+    return render(request, 'common/doc_read.html', {
+        'doc': entry(doc), 'rendu': rendu,
+        # Le volet droit porte le SOMMAIRE (bloc `right_panel_settings`) — rien d'autre.
+        'volet': volet(medias=False, actions=False),
+    })
+
+
 def skills_catalog_view(request):
     """
     Catalogue des SKILLS de prompt — la page qui manquait au registre `skills`.

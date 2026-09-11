@@ -35,7 +35,9 @@ from .registries import DERIVED, REGISTRIES
 
 #: Fichiers scannés. Le point d'entrée est le fichier de tests du mécanisme ; un registre porté par
 #: une app pourra ajouter le sien sans que cette brique change.
-FICHIERS_DE_TEST = ('wama/common/tests_registries.py',)
+FICHIERS_DE_TEST = ('wama/common/tests_registries.py',
+                    # Le registre `docs` (15ᵉ) porte ses tests avec son mécanisme.
+                    'wama/common/tests_docs_catalog.py')
 
 _DEF_TEST = re.compile(r'\n    def (test_\w+)\(self[^)]*\):(.*?)(?=\n    def |\nclass |\Z)', re.S)
 _CLASSE = re.compile(r'\nclass (\w+)\(')

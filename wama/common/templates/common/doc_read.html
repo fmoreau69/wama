@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}{{ doc.label }} — Documentation — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  LECTEUR d'un doc déclaré (`wama/common/docs_catalog.py`). Le HTML vient de `render_doc` :
+  markdown-it-py avec `html=False` (le HTML brut des .md est échappé), liens vers les docs
+  déclarés réécrits vers ce lecteur, liens vers tout autre fichier rendus en texte. D'où le
+  `|safe`, qui ne l'est QUE parce que le rendu échappe tout ce qu'il n'a pas produit lui-même.
+  Le sommaire occupe le volet droit : c'est la seule chose qu'on y cherche en lisant.
+{% endcomment %}
+
+{% block extra_css %}
+<style>
+  .wama-doc-body { max-width: 980px; color: #e0e6ea; line-height: 1.6; font-size: .95rem; }
+  .wama-doc-body h1, .wama-doc-body h2, .wama-doc-body h3,
+  .wama-doc-body h4, .wama-doc-body h5, .wama-doc-body h6 {
+    color: #e3f2fd; margin: 1.6em 0 .6em; scroll-margin-top: 80px; }
+  .wama-doc-body h1 { font-size: 1.7rem; border-bottom: 1px solid #37474f; padding-bottom: .3em; }
+  .wama-doc-body h2 { font-size: 1.4rem; border-bottom: 1px solid #2c3a41; padding-bottom: .25em; }
+  .wama-doc-body h3 { font-size: 1.15rem; color: #bbdefb; }
+  .wama-doc-body a  { color: #90caf9; }
+  .wama-doc-body code { background: #1e2a30; color: #ffe082; padding: .1em .35em; border-radius: 4px;
+                        font-size: .85em; }
+  .wama-doc-body pre { background: #1a2328; border: 1px solid #2c3a41; border-radius: 6px;
+                       padding: .8em 1em; overflow-x: auto; }
+  .wama-doc-body pre code { background: none; color: #cfd8dc; padding: 0; }
+  .wama-doc-body blockquote { border-left: 4px solid #546e7a; margin: 1em 0; padding: .3em 1em;
+                              color: #cfd8dc; background: rgba(84, 110, 122, .12); }
+  .wama-doc-body table { display: block; overflow-x: auto; border-collapse: collapse;
+                         margin: 1em 0; font-size: .88rem; }
+  .wama-doc-body th, .wama-doc-body td { border: 1px solid #37474f; padding: .35em .6em;
+                                         vertical-align: top; }
+  .wama-doc-body th { background: #263238; color: #eceff1; }
+  .wama-doc-body hr { border-color: #37474f; }
+  .wama-doc-horslien { border-bottom: 1px dotted #90a4ae; cursor: help; }
+  .wama-doc-meta { font-size: .8rem; color: #b0bec5; }
+  .wama-doc-toc { max-height: 70vh; overflow-y: auto; font-size: .82rem; }
+  .wama-doc-toc a { display: block; color: #cfd8dc; text-decoration: none; padding: .12em 0; }
+  .wama-doc-toc a:hover { color: #90caf9; }
+  .wama-doc-toc .niv2 { padding-left: .9em; }
+  .wama-doc-toc .niv3 { padding-left: 1.8em; color: #b0bec5; }
+</style>
+{% endblock %}
+
+{% block right_panel_settings_title %}<i class="fas fa-list me-1"></i> Sommaire{% endblock %}
+{% block right_panel_settings %}
+<nav class="wama-doc-toc">
+  {% for h in rendu.toc %}<a class="niv{{ h.level }}" href="#{{ h.id }}">{{ h.text }}</a>
+  {% empty %}<p class="small text-muted mb-0">Aucun titre dans ce document.</p>{% endfor %}
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="wama-cat-wrap">
+  <div class="mb-2">
+    <a href="{% url 'common:docs_catalog' %}" class="small text-info">
+      <i class="fas fa-arrow-left me-1"></i> Documentation</a>
+  </div>
+
+  {% include 'common/_catalog_header.html' with titre=doc.label icone='fa-file-lines' %}
+
+  <div class="wama-cat-stats">
+    <span class="wama-cat-stat">{{ doc.family_label }}</span>
+    <span class="wama-cat-stat">{{ doc.audience_badge }}</span>
+    {% if doc.journal %}<span class="wama-cat-stat">journal daté — vrai à sa date</span>{% endif %}
+    <span class="wama-cat-stat"><b>{{ doc.lines }}</b> lignes</span>
+    <span class="wama-cat-stat">modifié le {{ doc.modified|date:"d/m/Y H:i" }}</span>
+  </div>
+  <p class="wama-doc-meta mb-3"><code>{{ doc.path }}</code> · lecture seule</p>
+
+  <article class="wama-doc-body">{{ rendu.html|safe }}</article>
+</div>
+{% endblock %}
