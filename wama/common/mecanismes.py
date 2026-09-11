@@ -313,6 +313,25 @@ MECANISMES = (
               "le résultat entier transmis",
               'wama/common/services/send_to.py', 'WAMA_VERIFICATION.md',
               annexes=('wama/common/static/common/js/wama-send-to.js',)),
+    Mecanisme('provenance_entree', "Provenance d'une entrée (source ⟷ copie de travail)",
+              "D'OÙ vient le fichier qu'une card consomme. La frontière était déjà tracée par le "
+              "code — la SOURCE de vérité (médiathèque, temp, montage, URL) reste où elle est, "
+              "l'ENTRÉE d'une card est une copie de travail jetable — mais rien ne reliait les "
+              "deux. Quatre gestes en dépendaient, tous demandés et tous impossibles : la DÉDUP "
+              "par provenance (mesuré le 11/09 : chaîner describer → imager → enhancer par "
+              "« Envoyer vers » produit TROIS copies des mêmes octets), le retour app → "
+              "médiathèque sans re-copie, savoir qu'une source a BOUGÉ au lieu de le découvrir "
+              "au lancement, et surtout l'INDEX INVERSE — « qui référence ce fichier ? », la "
+              "question que le gestionnaire de fichiers doit poser AVANT de supprimer. C'est lui "
+              "qui lève la seule objection restée debout contre le pointage : on ne bloque pas la "
+              "suppression, on la rend INFORMÉE (la card survit, l'utilisateur sait que sa source "
+              "a disparu). ⚠ PAS de `GenericForeignKey` malgré la lettre de la décision du 07/09 : "
+              "`RunOutcome` avait déjà tranché l'inverse avec sa raison écrite, on suit SA "
+              "convention (`app`+`object_type`+`object_id`, plus `field` — un élément peut avoir "
+              "plusieurs entrées). ⚠ ÉCRITE PAR LES BRIQUES SEULES : `copy_into_app_input` "
+              "enregistre quand on lui donne l'élément, `record_import` est sa moitié pour le "
+              "motif « copier PUIS créer ». Aucune app n'écrit sa provenance",
+              'wama/common/utils/provenance.py', 'MEDIA_STORAGE_TIERING.md'),
     Mecanisme('toolbar_registre', "Barre d'outils générale (registre + profils)",
               "UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de "
               "surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire "
@@ -356,9 +375,11 @@ MECANISMES = (
     Mecanisme('docs_catalog', 'Catalogue & lecteur de docs',
               "Déclare les docs de référence (famille, AUDIENCE, journal) et les rend lisibles "
               "depuis WAMA en lecture seule (page `docs`, admins) ; `check_docs` en dérive sa "
-              "liste, et un test refuse que la table d'AGENTS.md cite un doc non déclaré",
+              "liste, et un test refuse que la table d'AGENTS.md cite un doc non déclaré. Sert "
+              "aussi la doc DÉVELOPPEUR, GÉNÉRÉE à la lecture (`dev_docs.py` : parcours, "
+              "registres, API des briques lue par AST)",
               'wama/common/docs_catalog.py', 'AGENTS.md §Trois docs, trois publics',
-              annexes=('wama/common/tests_docs_catalog.py',)),
+              annexes=('wama/common/dev_docs.py', 'wama/common/tests_docs_catalog.py')),
     Mecanisme('templates_integrity', 'Intégrité des gabarits',
               "Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` "
               "MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — "
