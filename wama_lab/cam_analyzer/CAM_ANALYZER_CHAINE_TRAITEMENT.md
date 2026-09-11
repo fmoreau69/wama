@@ -704,7 +704,7 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 12 | interpolation **circulaire** du cap entre fixes | cap ego (calcul) | `shuttle_traj` | `_shuttle_pose_at` | — | CÂBLÉ | wrap 359→1° corrigé |
 | 13 | interpolation **linéaire** de la position entre fixes (~2,7 s) | position ego | GPS brut | `_shuttle_pose_at`, JS | — | CÂBLÉ | aucune |
 | 14 | synchro GPS↔vidéo `scale/offset` | temps | `.rec` | `extract_rtmaps_task` + réglage manuel | manuel | CÂBLÉ | aucune |
-| 15 | **filtre de Kalman + RTS sur la navette**, cap dérivé de la vitesse lissée (tenu < 1 m/s) | position/vitesse/cap ego | `gps_track` | `driving.ego_trajectory_filter` (pur) → `ego_pose.compute_shuttle_filter` → `effective_gps_track` (serveur, 6 consommateurs) + `_applyShuttleFilter` (JS) | ⚑ `shuttle_filter` **OFF** | **LIVRÉ 2026-09-05** (était INEXISTANT le matin même) ; pas d'accéléro en commande — **le motif « axes non mesurés » est LEVÉ le 2026-09-10 (§D.4)** ; ⚠ mesuré le même jour : ce filtre **ATTÉNUE l'accélération de ~35 %** (σ(dv/dt) 0,163 m/s² en sortie contre **0,246** au Doppler) — 1ʳᵉ mesure objective sur `σa = 0,8` | rapport : déplacement RMS, écart de cap médian, part tenue ; puis `placement_spread` OFF/ON |
+| 15 | **filtre de Kalman + RTS sur la navette**, cap dérivé de la vitesse lissée (tenu < 1 m/s) | position/vitesse/cap ego | `gps_track` | `driving.ego_trajectory_filter` (pur) → `ego_pose.compute_shuttle_filter` → `effective_gps_track` (serveur, 6 consommateurs) + `_applyShuttleFilter` (JS) | ⚑ `shuttle_filter` **OFF** | **LIVRÉ 2026-09-05** (était INEXISTANT le matin même) ; **accéléro en commande CÂBLÉ le 2026-09-11** (⚑ `imu_command`, défaut OFF — §D.4 ⑦ : +14,8 % à σa identique, +4,0 % net) ; ⚠ mesuré le 10/09 : ce filtre **ATTÉNUE l'accélération de ~35 %** (σ(dv/dt) 0,163 m/s² en sortie contre **0,246** au Doppler) — 1ʳᵉ mesure objective sur `σa = 0,8`, et le témoin du ⑦ montre que le baisser SEUL dégrade | rapport : déplacement RMS, écart de cap médian, part tenue ; puis `placement_spread` OFF/ON |
 | 16 | **fusion accéléromètre + GPS** | position/vitesse ego | `session.imu_track` (stocké) | **nulle part** — `EgoPose.accel` assigné jamais relu ; `profile.use_imu` (défaut True) **0 consommateur** | — | **DÉCLARÉ-MORT** depuis 2026-07-09 — mais **le verrou est levé le 2026-09-10** : les axes sont MESURÉS (§D.4) et le résidu de `ax` vaut **0,20 m/s²** contre `σa = 0,8` du Kalman, soit **4× mieux** | résidu vs σa ; dérive à l'intégration (§D.4) |
 | **Position au sol (l'ANGLE)** ||||||||
 | 17 | homographie sol par **DLT sur passage piéton SAM3** (« ancienne voie ») | distance/latéral (`ground_xy`, `dist_*_m`) | polygone `crossing` + dimensions FR | `calibration.homography_from_quad` ← `tasks._calibrate_from_crossing_polygons` → `camera.ground_homography` ; appliqué par `GroundProjector.distances_for_bbox` dans l'analyse | ⚑ `sam3_homography` **ON** (depuis 2026-09-05) ∧ `profile.geometry_enabled` (défaut False, forcé True par la calibration SAM3 — désormais annoncé en console) | **COMMUTABLE** — prouvée biaisée (#546, #537), ON = historique ; OFF coupe les 3 consommateurs sans toucher au profil (§D.2) | RMS de reprojection du quad seulement |
@@ -1034,9 +1034,47 @@ signal est absent produit un coefficient absurde ET des conclusions d'aval créd
 côtés du GPS), **pas comme intégrateur autonome**. Tenir le cap à l'arrêt demande un **gyroscope** —
 le seul capteur dont le signal ne s'effondre pas quand `v → 0`. Il est absent des canaux enregistrés.
 
-**Reste ouvert avant de câbler** : le σ à déclarer pour la facette estimateur (§E.1) — 0,20 m/s²
-est le résidu contre un Doppler lui-même bruité, donc une BORNE HAUTE, pas encore un σ ; et
-l'excès de variance ×1,7 non expliqué. *Aucune ligne de code n'a été modifiée par cette mesure.*
+**Reste ouvert** : le σ à déclarer pour la facette estimateur (§E.1) — 0,20 m/s² est le résidu
+contre un Doppler lui-même bruité, donc une BORNE HAUTE, pas encore un σ ; et l'excès de
+variance ×1,7 non expliqué.
+
+#### ⑦ CÂBLÉ le 2026-09-11 — ⚑ `imu_command`, et le TÉMOIN qui a renversé la lecture
+
+`filter_gps_points` accepte `accel_long` (callable) : le modèle passe de « accélération inconnue
+±`σa` » à « accélération mesurée ±`σa_commanded` ». **Deux passes** — la 1ʳᵉ donne le cap, qui
+projette l'accélération longitudinale en ENU (un accéléromètre mesure dans le repère du VÉHICULE,
+le filtre travaille dans celui du TERRAIN). La commande entre dans la PRÉDICTION `x_pred = F·x + B·u`
+du Kalman ; le passage arrière RTS est inchangé **parce que** sa récursion lit `x_pred`, qui la
+porte déjà. Côté app, `ego_pose.longitudinal_accel_series` sert la série et **réestime le biais À
+L'ARRÊT** (mesuré sur P97 : **−0,215 m/s²**, source « arrêt ») — un capteur monté avec ~1° d'assiette
+lit g·sin(assiette) en permanence, et c'est quand le véhicule ne bouge pas qu'on le voit pur.
+
+**A/B sur DONNÉES RÉELLES** (P97, lecture seule), arbitré par une source **indépendante** des deux
+filtres — la vitesse **Doppler** `$GPVTG`, qu'aucun des deux ne consomme :
+
+| configuration | écart RMS à la vitesse Doppler |
+|---|---|
+| libre, `σa = 0,8` (production actuelle) | 0,232 m/s |
+| **témoin** `σa = 0,25` **sans** commande | **0,261 m/s** — *pire* |
+| **commandée** `σa = 0,25` | **0,223 m/s** |
+
+⭐ **Le témoin est ce qui rend ce tableau lisible, et il a renversé la lecture.** Le premier A/B
+changeait DEUX choses à la fois (la commande ET `σa`) et affichait « +4 % » — un chiffre juste et
+inattribuable. Le témoin montre que **baisser `σa` seul DÉGRADE** (le filtre devient trop raide
+pour suivre les accélérations réelles) : le gain **propre à l'accéléromètre**, à `σa` identique,
+est de **+14,8 %** (12,6 % en mouvement) et **n'est pas récupérable par un réglage**. Le gain NET
+sur la configuration d'aujourd'hui reste **+4,0 %**, parce que `σa = 0,8` est déjà un compromis
+correct. *Les deux chiffres sont vrais ; c'est le témoin qui dit lequel répond à quelle question.*
+
+⚠ **Le banc synthétique annonçait +50 %** (`tests_ego_trajectory_filter.AccelerationCommandeeTest`) :
+il nourrit le filtre avec l'accélération VRAIE bruitée, là où `ax` réel ne partage que r² = 0,32
+avec elle. *Un test de gain sur données synthétiques mesure le mécanisme, jamais le capteur* — il
+garde le câblage (commande arrivée, tournée par le cap, sans régression), pas la promesse.
+
+`σa_commanded = 0,25` vient du **résidu mesuré** (0,202, arrondi prudent), **pas** d'un ajustement
+sur cet A/B : la seule session disponible ne permettrait pas de distinguer un réglage d'un
+surajustement. Défaut **OFF** (la bascule n'a d'effet qu'au RECALCUL, et seulement si ⚑
+`shuttle_filter` sert la trace). ⚠ **Rien n'a été validé au navigateur ni recalculé en base.**
 
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 

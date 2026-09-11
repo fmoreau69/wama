@@ -63,6 +63,16 @@ FEATURES = [
             "angulaire dominante, §[2]). Premier levier qui touche la pose navette (inventaire "
             "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul.",
             default=False, scope='compute'),
+    Feature('imu_command', "Accéléromètre en commande du filtre navette",
+            "Le filtre de trajectoire navette (⚑ `shuttle_filter`) cesse de supposer "
+            "« accélération inconnue ±0,8 m/s² » et prend l'accélération MESURÉE par "
+            "l'accéléromètre embarqué, à son résidu près (±0,25 m/s² — mesuré 4× plus fin, "
+            "`CHAINE §D.4 ⑤`). L'axe avant est `ax`, identifié par trois discriminants "
+            "indépendants sur données réelles ; le biais de pose est réestimé À L'ARRÊT. "
+            "N'a d'effet qu'au RECALCUL, et seulement si ⚑ `shuttle_filter` sert la trace. "
+            "Ne corrige PAS le cap : ça demande un gyroscope (§D.4 ⑥). OFF = modèle à "
+            "accélération inconnue, comportement historique.",
+            default=False, scope='compute'),
     Feature('sam3_homography', 'Homographie sol par passage piéton (DLT)',
             "Utilise l'homographie calibrée sur un passage piéton (SAM3 ou clics, "
             "`camera.ground_homography`) là où elle est consommée : distances géométriques à "

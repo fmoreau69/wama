@@ -81,5 +81,66 @@ class BasculeTest(unittest.TestCase):
         self.assertEqual(s.gps_track, GT, "gps_track est la source de vérité : lecture seule")
 
 
+class CommandeAccelerometreTest(unittest.TestCase):
+    """`longitudinal_accel_series` — la série d'accélération servie au filtre (⚑ `imu_command`).
+
+    Ce qui doit être gardé ici n'est pas le lissage mais les deux FAITS MESURÉS dont tout
+    dépend : l'axe avant (`ax`, signe +) et l'estimation du biais À L'ARRÊT. Une inversion
+    silencieuse de l'un ou l'autre rendrait une trajectoire plausible et FAUSSE.
+    """
+
+    @staticmethod
+    def _session(biais=0.0, a_roule=0.5, n=200):
+        """Moitié à l'arrêt (accélération nulle + biais), moitié en mouvement."""
+        imu, gps = [], []
+        for i in range(n):
+            t = i * 0.1
+            arret = i < n // 2
+            imu.append({'ts': t, 'ax': (0.0 if arret else a_roule) / 9.80665 + biais / 9.80665,
+                        'ay': 0.0, 'az': 0.95})
+            gps.append({'ts': t, 'lat': 45.0, 'lon': 4.0,
+                        'speed_kmh': 0.0 if arret else 12.0})
+        s = _Session(gps)
+        s.imu_track = imu
+        return s
+
+    def test_l_axe_avant_DECLARE_est_celui_qui_a_ete_mesure(self):
+        from wama_lab.cam_analyzer.utils import ego_pose
+        self.assertEqual(ego_pose.IMU_FORWARD_AXIS, 'ax')
+        self.assertEqual(ego_pose.IMU_FORWARD_SIGN, 1.0)
+
+    def test_le_biais_est_estime_A_L_ARRET_et_non_sur_toute_la_trace(self):
+        from wama_lab.cam_analyzer.utils.ego_pose import longitudinal_accel_series
+        at, infos = longitudinal_accel_series(self._session(biais=0.30, a_roule=0.5))
+        self.assertIsNotNone(at)
+        self.assertEqual(infos['bias_source'], 'arrêt')
+        self.assertAlmostEqual(infos['bias_ms2'], 0.30, places=2)
+        # une moyenne GLOBALE aurait absorbé la moitié roulante (0,30 + 0,25 = 0,55)
+        self.assertLess(infos['bias_ms2'], 0.40)
+
+    def test_le_biais_retire_rend_l_acceleration_REELLE(self):
+        from wama_lab.cam_analyzer.utils.ego_pose import longitudinal_accel_series
+        at, _ = longitudinal_accel_series(self._session(biais=0.30, a_roule=0.5))
+        self.assertAlmostEqual(at(2.0), 0.0, places=1)      # à l'arrêt
+        self.assertAlmostEqual(at(18.0), 0.5, places=1)     # en mouvement
+
+    def test_sans_IMU_la_serie_est_ABSENTE_et_le_dit(self):
+        from wama_lab.cam_analyzer.utils.ego_pose import longitudinal_accel_series
+        s = _Session(GT)
+        s.imu_track = []
+        at, raison = longitudinal_accel_series(s)
+        self.assertIsNone(at)
+        self.assertIn('IMU', raison)
+
+    def test_sans_arrets_le_repli_est_ANNONCE_pas_silencieux(self):
+        from wama_lab.cam_analyzer.utils.ego_pose import longitudinal_accel_series
+        imu = [{'ts': i * 0.1, 'ax': 0.05, 'ay': 0.0, 'az': 0.95} for i in range(200)]
+        gps = [{'ts': i * 0.1, 'lat': 45.0, 'lon': 4.0, 'speed_kmh': 20.0} for i in range(200)]
+        s = _Session(gps)
+        s.imu_track = imu
+        _at, infos = longitudinal_accel_series(s)
+        self.assertIn('arrêts trop rares', infos['bias_source'])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

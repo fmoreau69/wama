@@ -16,10 +16,13 @@ Pur (math + stdlib), testable hors Django, sans dépendance lourde.
 from __future__ import annotations
 
 import glob
+import logging
 import math
 import os
 from bisect import bisect_left
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # ── Parsing des CSV par canal ─────────────────────────────────────────
@@ -181,6 +184,92 @@ class EgoPose:
 # à la lecture, entre la trace brute et la trace filtrée — côté serveur via
 # `effective_gps_track`, côté JS via `_applyShuttleFilter` au même point d'ingestion unique.
 
+# ── Accéléromètre : convention d'axes du rig ──────────────────────────
+# MESURÉ le 2026-09-10 sur la session P97 (`CAM_ANALYZER_CHAINE §D.4 ①`), par TROIS
+# discriminants indépendants réclamant chacun un axe DIFFÉRENT — c'est la contre-épreuve :
+#   `ax` longitudinal (r=+0,57 avec dv/dt Doppler, ~0 avec v·ω) → AXE AVANT, signe +
+#   `ay` latéral      (r=−0,44 avec v·ω, ~0 avec dv/dt)
+#   `az` vertical     (moyenne +0,938 g = la gravité)
+# Rien ne déclarait cette correspondance : les CSV nomment les VOIES DU CAPTEUR (X/Y/Z), pas
+# le repère du véhicule, et `parse_accel` ne fait que renommer des suffixes de fichiers.
+# ⚠ Ces constantes valent pour LE RIG de ces enregistrements. Un autre montage les invalide —
+# le jour où un 2ᵉ rig entre, elles se déclarent par profil, pas ici (elles ne sont pas une
+# propriété du code mais de l'installation physique).
+IMU_FORWARD_AXIS = 'ax'
+IMU_FORWARD_SIGN = 1.0
+#: g pour convertir l'accéléromètre (exprimé en g dans les CSV) en m/s².
+_G = 9.80665
+#: Fenêtre de moyenne glissante (échantillons à 10 Hz) : ~0,5 s, l'ordre de grandeur de
+#: l'intervalle entre deux fixes GPS — on donne au filtre une accélération de la MÊME bande
+#: passante que ce qu'il propage, pas la vibration de caisse à 10 Hz.
+_LISSAGE_ECH = 5
+
+
+def longitudinal_accel_series(session):
+    """`session.imu_track` → `(callable(t) -> a en m/s², infos)` ou `(None, raison)`.
+
+    Le biais est estimé À L'ARRÊT, pas sur toute la trace : un accéléromètre monté avec
+    ~1° d'assiette lit en permanence g·sin(assiette) sur son axe avant, et c'est exactement
+    ce qu'on mesure quand le véhicule NE BOUGE PAS. La navette étant à l'arrêt 77 % du temps
+    (mesuré, `§D.4 ⑤`), l'estimation est abondante — et elle vaut mieux qu'une moyenne
+    globale, qui absorberait aussi les accélérations réelles.
+    """
+    imu = session.imu_track or []
+    if len(imu) < 10:
+        return None, 'aucun échantillon IMU'
+    ts, va = [], []
+    for p in imu:
+        v = p.get(IMU_FORWARD_AXIS)
+        if p.get('ts') is None or v is None:
+            continue
+        ts.append(float(p['ts']))
+        va.append(IMU_FORWARD_SIGN * float(v) * _G)
+    if len(ts) < 10:
+        return None, f'axe {IMU_FORWARD_AXIS} absent des échantillons'
+
+    # Moyenne glissante centrée (bande passante alignée sur le pas de propagation).
+    n, demi = len(va), _LISSAGE_ECH // 2
+    cum = [0.0]
+    for v in va:
+        cum.append(cum[-1] + v)
+    lisse = []
+    for i in range(n):
+        a, b = max(0, i - demi), min(n, i + demi + 1)
+        lisse.append((cum[b] - cum[a]) / (b - a))
+
+    # Biais à l'arrêt : médiane de l'accélération lue là où la vitesse GPS est quasi nulle.
+    arret = []
+    gt = [p for p in (session.gps_track or [])
+          if p.get('ts') is not None and p.get('speed_kmh') is not None]
+    if gt:
+        gt.sort(key=lambda p: p['ts'])
+        g_ts = [float(p['ts']) for p in gt]
+        for i, t in enumerate(ts):
+            k = min(bisect_left(g_ts, t), len(gt) - 1)
+            if float(gt[k]['speed_kmh']) < 1.8:        # < 0,5 m/s
+                arret.append(lisse[i])
+    source = 'arrêt'
+    if len(arret) < 50:
+        arret, source = list(lisse), 'trace entière (arrêts trop rares)'
+    arret.sort()
+    biais = arret[len(arret) // 2]
+
+    def _at(t):
+        k = bisect_left(ts, t)
+        if k <= 0:
+            return lisse[0] - biais
+        if k >= len(ts):
+            return lisse[-1] - biais
+        t0, t1 = ts[k - 1], ts[k]
+        if t1 <= t0:
+            return lisse[k] - biais
+        w = (t - t0) / (t1 - t0)
+        return (lisse[k - 1] * (1 - w) + lisse[k] * w) - biais
+
+    return _at, {'n': len(ts), 'bias_ms2': round(biais, 4), 'bias_source': source,
+                 'axis': IMU_FORWARD_AXIS, 'sign': IMU_FORWARD_SIGN}
+
+
 def compute_shuttle_filter(session):
     """Filtre `session.gps_track` (brique pure `driving.ego_trajectory_filter`) et PERSISTE
     le résultat dans `results_summary['shuttle_filter'] = {'track': [...], 'report': {...}}`.
@@ -191,7 +280,25 @@ def compute_shuttle_filter(session):
     """
     from wama_data.functions.driving.ego_trajectory_filter import filter_gps_points
     gt = session.gps_track or []
-    enriched, report = filter_gps_points(gt)
+    accel, infos = None, None
+    try:
+        from .features import enabled
+        if enabled(session, 'imu_command'):
+            accel, infos = longitudinal_accel_series(session)
+            if accel is None:
+                logger.info('[shuttle_filter] ⚑ imu_command ON mais inutilisable : %s', infos)
+    except Exception:
+        logger.debug('commande IMU indisponible (non bloquant)', exc_info=True)
+        accel = None
+    enriched, report = filter_gps_points(gt, accel_long=accel)
+    if accel is not None and isinstance(infos, dict):
+        report['imu'] = infos
+        logger.info('[shuttle_filter] ⚑ imu_command ON · axe %s%s · biais %+.3f m/s² (%s) · '
+                    'déplacement médian %s m (p95 %s) · Δvitesse médiane %s km/h',
+                    '+' if infos['sign'] > 0 else '-', infos['axis'], infos['bias_ms2'],
+                    infos['bias_source'], report.get('command_shift_median_m'),
+                    report.get('command_shift_p95_m'),
+                    report.get('command_speed_delta_median_kmh'))
     track = [{'ts': p.get('ts'), 'lat_f': p['lat_f'], 'lon_f': p['lon_f'],
               'heading_f': p.get('heading_f'), 'speed_f_kmh': p.get('speed_f_kmh'),
               'heading_f_held': bool(p.get('heading_f_held'))}

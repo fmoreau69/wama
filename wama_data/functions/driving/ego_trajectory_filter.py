@@ -18,14 +18,24 @@ Ce que ça fait
    < 0,30 m » du cap brut, mais appliquée à une vitesse débruitée plutôt qu'à un déplacement
    entre deux fixes bruités.
 
+5. **accélération COMMANDÉE** (optionnel, `accel_long`) : quand l'accéléromètre est disponible,
+   le modèle cesse de supposer « accélération inconnue ±`sigma_a` » et suppose « accélération
+   mesurée ±`sigma_a_commanded` ». MESURÉ le 2026-09-10 (§D.4 ⑤) : le résidu vaut 0,20 m/s²
+   contre 0,8 — **4× plus fin**. Deux passes (la 1ʳᵉ donne le cap qui projette l'accélération
+   longitudinale en ENU) ; le rapport chiffre ce que la commande DÉPLACE.
+
 Ce que ça ne fait PAS (assumé, mesurable)
 -----------------------------------------
-* Pas d'accéléromètre en entrée de commande : les axes X/Y du capteur du rig ne sont mesurés
-  nulle part (seul Z ≈ 0,95 g = gravité est connu). L'orienter à l'aveugle serait pire que
-  rien. Prochaine étape : identifier l'axe avant par corrélation avec dv/dt du GPS filtré —
-  une MESURE, puis un modèle à accélération commandée.
-* Pas de cap à l'arrêt : sans gyroscope, aucune source ne le donne. C'est la case que
-  `geometry.ego_rotation` (rotation par flux de points) est destinée à remplir.
+* Pas de cap à l'arrêt : sans gyroscope, aucune source ne le donne. ⚠ **Et l'accéléromètre
+  n'y supplée PAS** : la relation non-holonome `ω = ay/v` tient pourtant à l'échelle 1
+  (mesuré : `c = −1,004`, §D.4 ⑥), mais elle divise par `v` — or le cap n'est mauvais QUE
+  lorsque `v` est petit, et à 0,5 m/s un virage à 10°/s passe 3× SOUS le bruit de l'axe.
+  Testé sur 61 segments : tenir le cap erre de 4,8° en médiane, l'intégrer de 65,5°. C'est la
+  case que `geometry.ego_rotation` (rotation par flux de points) est destinée à remplir.
+* La commande n'est PAS atteignable depuis le Studio : `accel_long` est un CALLABLE (une série
+  échantillonnée à une autre cadence), pas un scalaire — un `ParamSpec` ne peut pas le porter.
+  Le jour où l'accélération arrivera comme un second PORT d'entrée typé, ce sera la bonne
+  forme ; en attendant, seul l'appelant applicatif (`cam_analyzer.ego_pose`) la fournit.
 
 Enricher : mêmes lignes en sortie, colonnes AJOUTÉES (`lat_f`, `lon_f`, `speed_f_kmh`,
 `heading_f`, `heading_f_held`), colonnes brutes intactes — l'A/B se lit ligne à ligne.
@@ -35,6 +45,7 @@ sans pandas) et `filter_ego_track` (wrapper TypedFrame, ce que le catalogue appe
 from __future__ import annotations
 
 import math
+from bisect import bisect_left
 
 from ..kinematics.rts_smoother import kalman_rts_cv
 
@@ -45,6 +56,14 @@ M_LAT = 111_320.0
 #: de l'ordre de 2 m. À réétalonner sur `placement_spread` (règle : la métrique conclut).
 DEFAULT_SIGMA_A = 0.8
 DEFAULT_SIGMA_M = 2.0
+#: Dispersion de processus quand l'accélération est COMMANDÉE (accéléromètre en entrée).
+#: MESURÉ le 2026-09-10 sur la session P97 (`CAM_ANALYZER_CHAINE §D.4 ⑤`) : le résidu
+#: `dv/dt − (k·ax·g + b)` contre la vitesse Doppler vaut **0,202 m/s²**, soit 4× plus fin que
+#: `DEFAULT_SIGMA_A`. ⚠ C'est une **BORNE HAUTE** — le résidu inclut le bruit du Doppler qui
+#: sert de référence, donc la vraie dispersion de l'accéléromètre lui est inférieure. 0,25
+#: arrondit dans le sens PRUDENT (un σ trop petit ferait diverger le filtre en croyant la
+#: commande plus qu'elle ne vaut ; trop grand, il perd du gain sans rien casser).
+DEFAULT_SIGMA_A_COMMANDED = 0.25
 #: En dessous, la direction de la vitesse lissée n'est plus significative → cap tenu.
 #: MESURÉ (2026-09-05, trace synthétique 1 Hz, arrêt franc) : la vitesse filtrée résiduelle à
 #: l'ARRÊT vaut ~0,17 m/s médiane / 0,50 max pour ±1 m de bruit GPS, ~0,33 / 1,01 pour ±2 m.
@@ -67,13 +86,23 @@ def _angle_diff(a: float, b: float) -> float:
 def filter_gps_points(points, *, sigma_a: float = DEFAULT_SIGMA_A,
                       sigma_m: float = DEFAULT_SIGMA_M,
                       heading_min_speed_mps: float = DEFAULT_HEADING_MIN_SPEED_MPS,
-                      time_field: str = 'ts'):
+                      time_field: str = 'ts', accel_long=None,
+                      sigma_a_commanded: float = DEFAULT_SIGMA_A_COMMANDED):
     """NOYAU — liste de dicts {ts, lat, lon[, heading, speed_kmh]} → même liste enrichie.
 
     Rend (points_enrichis, rapport). Chaque point reçoit `lat_f`, `lon_f`, `speed_f_kmh`,
     `heading_f`, `heading_f_held`. Le rapport chiffre l'A/B : déplacement RMS brut→filtré (m),
     écart de cap médian |brut − filtré| (deg) sur les points où les deux existent, part des
     caps tenus. Points sans lat/lon ou sans temps : recopiés tels quels, sans champs `_f`.
+
+    `accel_long` (optionnel) : `callable(t) -> a` en m/s², accélération LONGITUDINALE mesurée
+    (accéléromètre, axe avant). Fournie, le filtre passe du modèle « accélération inconnue
+    ±`sigma_a` » au modèle « accélération mesurée ±`sigma_a_commanded` ». **DEUX PASSES** : la
+    1ʳᵉ (non commandée) donne le cap, qui sert à projeter l'accélération longitudinale en ENU
+    pour la 2ᵉ — un accéléromètre mesure dans le repère du VÉHICULE, le filtre travaille dans
+    celui du TERRAIN, et rien d'autre ne donne la rotation entre les deux. Là où le cap est
+    tenu (vitesse trop faible), c'est le dernier cap connu qui sert : à ce régime la navette
+    démarre ou s'arrête dans l'axe de sa voie, l'hypothèse est explicite et bornée.
     """
     usable = [(i, p) for i, p in enumerate(points)
               if p.get('lat') is not None and p.get('lon') is not None
@@ -89,9 +118,41 @@ def filter_gps_points(points, *, sigma_a: float = DEFAULT_SIGMA_A,
     series = [(float(p[time_field]),
                (float(p['lon']) - lon0) * m_lon,
                (float(p['lat']) - lat0) * M_LAT) for _, p in usable]
-    smoothed = kalman_rts_cv(series, sigma_a=sigma_a, sigma_m=sigma_m)
-    # Le lisseur moyenne les doublons de temps : on relit par timestamp arrondi.
-    by_t = {round(t, 4): (e, n, ve, vn) for t, e, n, ve, vn in smoothed}
+
+    def _lisse(sig_a, command):
+        sm = kalman_rts_cv(series, sigma_a=sig_a, sigma_m=sigma_m, command=command)
+        # Le lisseur moyenne les doublons de temps : on relit par timestamp arrondi.
+        return {round(t, 4): (e, n, ve, vn) for t, e, n, ve, vn in sm}
+
+    by_t = _lisse(sigma_a, None)
+    by_t_libre, commande = None, None
+
+    if accel_long is not None:
+        # Cap de la 1ʳᵉ passe, tenu au dernier connu sous le seuil — même règle qu'en sortie.
+        t_cap, cap_rad = [], []
+        dernier = None
+        for t, _e, _n in series:
+            st = by_t.get(round(t, 4))
+            if st is not None and math.hypot(st[2], st[3]) >= heading_min_speed_mps:
+                dernier = math.atan2(st[2], st[3])
+            t_cap.append(t)
+            cap_rad.append(dernier)
+
+        def _commande(t):
+            a = accel_long(t)
+            if a is None:
+                return (None, None)
+            k = bisect_left(t_cap, t)
+            if k >= len(cap_rad):
+                k = len(cap_rad) - 1
+            h = cap_rad[k]
+            if h is None:
+                return (None, None)          # aucun cap encore connu : on ne commande pas
+            return (a * math.sin(h), a * math.cos(h))
+
+        by_t_libre = by_t
+        by_t = _lisse(sigma_a_commanded, _commande)
+        commande = True
 
     last_heading = None
     disp2, dheads, held = [], [], 0
@@ -126,12 +187,34 @@ def filter_gps_points(points, *, sigma_a: float = DEFAULT_SIGMA_A,
     report = {
         'n': len(disp2),
         'filtered': True,
-        'sigma_a': sigma_a, 'sigma_m': sigma_m,
+        'sigma_a': sigma_a_commanded if commande else sigma_a,
+        'sigma_m': sigma_m,
         'heading_min_speed_mps': heading_min_speed_mps,
         'displacement_rms_m': round(math.sqrt(sum(disp2) / len(disp2)), 3) if disp2 else None,
         'heading_delta_median_deg': (round(dheads[len(dheads) // 2], 1) if dheads else None),
         'heading_held_ratio': round(held / len(disp2), 3) if disp2 else None,
     }
+    if commande:
+        # A/B INTERNE : ce que la commande DÉPLACE par rapport à la même trace non commandée.
+        # Un écart nul dirait que la commande n'arrive pas (garde contre le câblage muet) ;
+        # un écart énorme dirait qu'elle tire le filtre au lieu de l'aider.
+        ecarts, dv = [], []
+        for t, _e, _n in series:
+            k = round(t, 4)
+            a, b = by_t.get(k), by_t_libre.get(k)
+            if a is None or b is None:
+                continue
+            ecarts.append(math.hypot(a[0] - b[0], a[1] - b[1]))
+            dv.append(abs(math.hypot(a[2], a[3]) - math.hypot(b[2], b[3])))
+        ecarts.sort()
+        dv.sort()
+        report['commanded'] = True
+        report['sigma_a_libre'] = sigma_a
+        report['command_shift_median_m'] = round(ecarts[len(ecarts) // 2], 3) if ecarts else None
+        report['command_shift_p95_m'] = (round(ecarts[int(0.95 * (len(ecarts) - 1))], 3)
+                                         if ecarts else None)
+        report['command_speed_delta_median_kmh'] = (round(dv[len(dv) // 2] * 3.6, 3)
+                                                    if dv else None)
     return out, report
 
 

@@ -128,6 +128,115 @@ class ArretTest(unittest.TestCase):
         self.assertGreaterEqual(ratio, 0.75, f"{ratio:.2f} tenus à ±2 m")
 
 
+def _trace_acceleree(n=300, dt=0.4, heading_deg=37.0, noise_m=2.0, seed=11,
+                     amp=0.8, periode=24.0, biais=0.0, bruit_a=0.0, v0=3.0):
+    """Ligne droite à cap constant mais vitesse SINUSOÏDALE → accélération connue.
+
+    v(t) = v0 + (amp/ω)·sin(ωt) ⇒ a(t) = amp·cos(ωt), et la position s'intègre
+    analytiquement : pas de vérité approchée, la comparaison est exacte.
+    Rend (points, vérité, accéléromètre) où `accéléromètre` est un callable interpolant une
+    série ÉCHANTILLONNÉE à 10 Hz (avec biais/bruit optionnels) — comme le vrai capteur, et
+    non la fonction analytique : un capteur ne s'évalue pas à la demande.
+    """
+    rng = random.Random(seed)
+    rng_a = random.Random(seed + 1)
+    m_lon = M_LAT * math.cos(math.radians(LAT0))
+    h = math.radians(heading_deg)
+    w = 2 * math.pi / periode
+    pts, truth, vits = [], [], []
+    for i in range(n):
+        t = i * dt
+        s = v0 * t + (amp / (w * w)) * (1 - math.cos(w * t))
+        e, n_ = s * math.sin(h), s * math.cos(h)
+        lat = LAT0 + (n_ + rng.gauss(0, noise_m)) / M_LAT
+        lon = LON0 + (e + rng.gauss(0, noise_m)) / m_lon
+        pts.append({'ts': t, 'lat': lat, 'lon': lon, 'heading': None})
+        truth.append((LAT0 + n_ / M_LAT, LON0 + e / m_lon, heading_deg))
+        vits.append(v0 + (amp / w) * math.sin(w * t))
+
+    duree = (n - 1) * dt
+    ts_a = [k / 10.0 for k in range(int(duree * 10) + 2)]
+    val_a = [amp * math.cos(w * t) + biais + (rng_a.gauss(0, bruit_a) if bruit_a else 0.0)
+             for t in ts_a]
+
+    def accel(t):
+        k = min(max(int(t * 10), 0), len(val_a) - 2)
+        w0 = t * 10 - k
+        return val_a[k] * (1 - w0) + val_a[k + 1] * w0
+
+    return pts, truth, accel, vits
+
+
+def _rms_vitesse(out, vits):
+    acc, k = 0.0, 0
+    for p, v in zip(out, vits):
+        if p.get('speed_f_kmh') is None:
+            continue
+        acc += (p['speed_f_kmh'] / 3.6 - v) ** 2
+        k += 1
+    return math.sqrt(acc / k) if k else float('nan')
+
+
+class AccelerationCommandeeTest(unittest.TestCase):
+    """⚑ `imu_command` — l'accéléromètre en ENTRÉE DE COMMANDE du filtre.
+
+    Le gain attendu n'est pas cosmétique : le modèle passe de « accélération inconnue
+    ±0,8 m/s² » à « accélération mesurée ±0,25 » (résidu MESURÉ, `CHAINE §D.4 ⑤`).
+    """
+
+    def setUp(self):
+        self.pts, self.truth, self.accel, self.vits = _trace_acceleree()
+
+    def test_la_vitesse_filtree_est_PLUS_PROCHE_de_la_verite_quand_l_acceleration_est_commandee(self):
+        libre, _ = filter_gps_points(self.pts)
+        cmde, _ = filter_gps_points(self.pts, accel_long=self.accel)
+        e_libre = _rms_vitesse(libre, self.vits)
+        e_cmde = _rms_vitesse(cmde, self.vits)
+        self.assertLess(e_cmde, e_libre,
+                        f"commandée {e_cmde:.3f} m/s vs libre {e_libre:.3f} m/s")
+
+    def test_la_position_filtree_ne_se_DEGRADE_pas(self):
+        libre, _ = filter_gps_points(self.pts)
+        cmde, _ = filter_gps_points(self.pts, accel_long=self.accel)
+        self.assertLessEqual(_rms_pos(cmde, self.truth, 'lat_f', 'lon_f'),
+                             _rms_pos(libre, self.truth, 'lat_f', 'lon_f') * 1.05)
+
+    def test_le_rapport_DIT_que_la_commande_est_arrivee(self):
+        """Garde contre le câblage MUET : une commande ignorée rendrait un écart NUL et
+        tout le reste aurait l'air normal — c'est exactement le défaut qu'on ne verrait pas."""
+        _, rep = filter_gps_points(self.pts, accel_long=self.accel)
+        self.assertTrue(rep.get('commanded'))
+        self.assertEqual(rep['sigma_a'], 0.25)
+        self.assertEqual(rep['sigma_a_libre'], 0.8)
+        self.assertGreater(rep['command_shift_median_m'], 0.0)
+        self.assertIsNotNone(rep['command_speed_delta_median_kmh'])
+
+    def test_SANS_commande_rien_ne_change_pour_les_appelants_existants(self):
+        a, ra = filter_gps_points(self.pts)
+        b, rb = filter_gps_points(self.pts, accel_long=None)
+        self.assertEqual([p.get('lat_f') for p in a], [p.get('lat_f') for p in b])
+        self.assertEqual([p.get('speed_f_kmh') for p in a], [p.get('speed_f_kmh') for p in b])
+        self.assertEqual(ra, rb)
+        self.assertNotIn('commanded', ra)
+        self.assertEqual(ra['sigma_a'], 0.8)
+
+    def test_la_commande_est_PROJETEE_PAR_LE_CAP_et_non_appliquee_a_l_aveugle(self):
+        """Un accéléromètre mesure dans le repère du VÉHICULE. Même accélération, deux caps
+        opposés ⇒ la correction doit partir dans deux directions OPPOSÉES. Sans rotation,
+        elle partirait deux fois du même côté — et le filtre resterait plausible."""
+        ecarts = {}
+        for cap in (0.0, 180.0):
+            pts, _tr, accel, _v = _trace_acceleree(heading_deg=cap, noise_m=0.5)
+            libre, _ = filter_gps_points(pts)
+            cmde, _ = filter_gps_points(pts, accel_long=accel)
+            # déplacement nord induit par la commande, au milieu de la trace
+            k = len(pts) // 2
+            ecarts[cap] = (cmde[k]['lat_f'] - libre[k]['lat_f']) * M_LAT
+        self.assertGreater(abs(ecarts[0.0]), 1e-3)
+        self.assertLess(ecarts[0.0] * ecarts[180.0], 0.0,
+                        f"mêmes signes ({ecarts}) : la commande n'est pas tournée par le cap")
+
+
 class ContratEnricherTest(unittest.TestCase):
 
     def test_memes_lignes_colonnes_brutes_INTACTES(self):

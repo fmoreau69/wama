@@ -21,11 +21,20 @@ les fonctions qui l'emploient.
 import numpy as np
 
 
-def kalman_rts_cv(points, sigma_a=2.5, sigma_m=1.5):
+def kalman_rts_cv(points, sigma_a=2.5, sigma_m=1.5, command=None):
     """Lisse une série [(t, x, y)] triée par t → [(t, x, y, vx, vy)] aux mêmes instants.
 
     Doublons de `t` tolérés (moyennés : un même objet vu par deux caméras au même instant).
     Moins de 3 points : renvoie l'entrée avec vitesses nulles (rien à lisser).
+
+    `command` (optionnel) : `callable(t) -> (ux, uy)` en m/s², l'accélération MESURÉE du
+    mobile pendant l'intervalle qui se termine en `t`. Elle entre dans la PRÉDICTION
+    (`x_pred = F·x + B·u`), pas dans la mesure : le modèle cesse de supposer « accélération
+    inconnue de dispersion `sigma_a` » et suppose « accélération connue, à son résidu près ».
+    L'appelant doit alors passer un `sigma_a` réduit à ce RÉSIDU — c'est là qu'est tout le
+    gain, et le lisseur ne peut pas le deviner à sa place.
+    ⚠ Le passage arrière RTS est inchangé **parce que** sa récursion lit `x_pred`, qui porte
+    déjà `B·u` ; commander le filtre sans toucher au lisseur serait un défaut silencieux.
     """
     if not points:
         return []
@@ -60,6 +69,11 @@ def kalman_rts_cv(points, sigma_a=2.5, sigma_m=1.5):
         Q = np.outer(G, G) * q * np.array([[1, 0, 1, 0], [0, 1, 0, 1],
                                            [1, 0, 1, 0], [0, 1, 0, 1]])
         xp = F @ x
+        if command is not None and dt > 0.0:
+            ux, uy = command(0.5 * (ts[i - 1] + ts[i]))    # milieu de l'intervalle propagé
+            if ux is not None and uy is not None:
+                xp = xp + np.array([0.5 * dt * dt * ux, 0.5 * dt * dt * uy,
+                                    dt * ux, dt * uy])
         Pp = F @ P @ F.T + Q
         z = xs[i]
         S = H @ Pp @ H.T + R
