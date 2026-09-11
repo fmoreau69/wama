@@ -998,6 +998,42 @@ en continu là où v ≈ 0 et dv/dt ≈ 0.
 plus le placement des OBJETS (pinhole ±20 %, le verrou du filtre des garés) — c'est la pose de la
 NAVETTE qui s'améliore, dont tout l'aval hérite.
 
+**⑥ ⭐ LE CAP PAR `ax` ET `ay` — question de Fabien : « en combinant l'accélération x et y, ne
+peut-on pas estimer le cap ? »** Physiquement OUI, et la mesure le confirme au premier chiffre :
+un véhicule qui ne dérape pas obéit à `a_latérale = v·ω`, donc `ω = ay/v`. Ajusté sur les points
+qui roulent (décalage +0,4 s) :
+
+> **`ay·g = c × (v·ω)` avec `c` mesuré = −1,004** — la relation non-holonome tient **à l'échelle 1**
+> sur données réelles (r = −0,45 ; biais −0,078 m/s², où se loge le dévers moyen). `ay` PORTE bien
+> le taux de lacet. La phrase « un accéléromètre n'observe pas le lacet », écrite plus haut le même
+> jour, était **trop catégorique** : il ne l'observe pas SEUL, il l'observe divisé par la vitesse.
+
+**Et pourtant l'intégration PERD, par une cause structurelle** — testé là où ça servirait, les
+**61 segments** où le filtre TIENT le cap faute de déplacement (`heading_f_held`, durée médiane
+18,6 s) :
+
+| prédicteur du cap de sortie | \|erreur\| médiane | p90 |
+|---|---|---|
+| **tenir le cap** (comportement actuel) | **4,8°** | 23,0° |
+| intégrer `ω = ay/v` | 65,5° | 150,8° |
+
+Tenir gagne sur **54 segments sur 61** ; et même sur les 9 où le cap tourne de plus de 20°,
+tenir erre de 30° contre 49° à l'IMU. **La raison n'est pas un réglage** : l'estimateur divise
+par `v`, et le cap n'est mauvais QUE lorsque `v` est petit. À 0,5 m/s, un virage réel à 10°/s ne
+produit que **0,087 m/s²** de latéral — **3× sous le plancher de bruit de l'axe** (σ(ay) =
+0,27 m/s²). *Le signal cherché est sous le bruit précisément là où on en a besoin.*
+
+**Où `ay` EST informatif** : bande **2-3 m/s**, r = 0,65 avec le taux de lacet GPS (0,32 à 1-2 m/s ;
+~0 au-delà de 3 m/s, où cette navette — 5,1 m/s au maximum — roule DROIT : σ(ω) 1,1°/s contre
+3,6°/s à 2-3 m/s). ⚠ *C'est ce dernier point qui a fait rater ma 1ʳᵉ version de cette mesure :
+l'échelle y était ajustée sur `v > 3 m/s`, donc là où il n'y a pas de virage — elle rendait
+`c ∈ [0,3 ; 24,9]`, et Q2/Q3 héritaient du facteur faux. **Ajuster un modèle sur la plage où son
+signal est absent produit un coefficient absurde ET des conclusions d'aval crédibles.***
+
+**Conclusion, la même que pour `ax`** : `ay` vaut comme **MESURE dans un filtre** (avec son σ, aux
+côtés du GPS), **pas comme intégrateur autonome**. Tenir le cap à l'arrêt demande un **gyroscope** —
+le seul capteur dont le signal ne s'effondre pas quand `v → 0`. Il est absent des canaux enregistrés.
+
 **Reste ouvert avant de câbler** : le σ à déclarer pour la facette estimateur (§E.1) — 0,20 m/s²
 est le résidu contre un Doppler lui-même bruité, donc une BORNE HAUTE, pas encore un σ ; et
 l'excès de variance ×1,7 non expliqué. *Aucune ligne de code n'a été modifiée par cette mesure.*
