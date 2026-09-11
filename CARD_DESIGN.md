@@ -414,6 +414,9 @@ densité) via des **tokens CSS communs** (`.wama-tile` ou variables `--wama-card
 global) — chaque surface les adopte sans se faire imposer sa structure interne. À traiter dans la
 continuité de la brique card commune (le formalisme de CE document) ; **différé** tant que le
 schéma-driven des apps n'est pas fini (priorité Fabien : fonctionnel d'abord, passe UI ensuite).
+> Bibliothèques externes pour cette passe (21st.dev écarté : React/Tailwind ; thèmes Bootstrap,
+> web components) : verdict et voies alignées consignés dans `ROADMAP.md §Études / veille`
+> (2026-09-07, rien d'engagé).
 
 ---
 

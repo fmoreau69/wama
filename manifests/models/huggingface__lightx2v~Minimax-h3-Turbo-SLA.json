@@ -1,0 +1,58 @@
+{
+  "body": {
+    "capabilities": {
+      "task": "image-to-video"
+    },
+    "composition": {},
+    "extra_info": {
+      "category": "diffusion",
+      "family": "Minimax-h3-Turbo-SLA",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/Minimax-h3-Turbo-SLA/models--lightx2v--Minimax-h3-Turbo-SLA",
+      "size_bytes": 3339876935,
+      "vram_estimated": true
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "lightx2v",
+      "description_short": "Snapshot HF Minimax-h3-Turbo-SLA — installé, en attente d'intégration",
+      "hf_id": "lightx2v/Minimax-h3-Turbo-SLA",
+      "license": "apache-2.0",
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 3.110502786003053,
+      "ram_gb": 0.0,
+      "vram_gb": 4.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (diffusion/Minimax-h3-Turbo-SLA) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",
+  "manifest_kind": "model",
+  "name": "Minimax-h3-Turbo-SLA",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:lightx2v/Minimax-h3-Turbo-SLA",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

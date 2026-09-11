@@ -20,7 +20,7 @@
  * DONNÉES, écrits dans les gabarits et jumeaux du vocabulaire de facettes de la barre de filtrage
  * (`data-f-abonnement`, `data-f-categorie`, `data-f-registre`… — 6 gabarits, 2 JS). Les renommer
  * ici seulement créerait un demi-vocabulaire ; c'est un arbitrage à mener sur les DEUX briques.
- * Les identifiants du module, eux, sont anglais (règle de nommage, CLAUDE.md).
+ * Les identifiants du module, eux, sont anglais (règle de nommage, AGENTS.md).
  *
  * L'élément filtrable qui porte `data-f-abonnement` (contrat de la barre de filtrage commune)
  * est mis à jour en place, puis la barre est ré-appliquée : sans ça, masquer une app depuis la
