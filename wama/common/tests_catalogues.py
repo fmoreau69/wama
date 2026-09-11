@@ -1199,3 +1199,65 @@ class ObligationDesSlotsVientDesModelesTest(TestCase):
     def test_chaque_slot_porte_le_texte_explicatif_de_son_jeton(self):
         slots = self._slots([self._port('work_image', False)])
         self.assertEqual('texte', slots['work_image']['description'])
+
+
+class LaCardDIT_A_QuoiSertChaqueEntreeTest(TestCase):
+    """La tuile d'un port affiche le texte du JETON, pas un littéral d'app.
+
+    Demande Fabien (2026-09-10) : *« il faut peut-être ajouter un petit texte explicatif sur ce
+    à quoi va servir chaque entrée en fonction des capacités du modèle. Ça finirait de lever
+    l'ambiguïté. »* C'est ce qu'un jeton NOMMÉ permet et qu'une catégorie travail/référence ne
+    permet pas : deux onglets « Image » ne se distinguent pas par leur type.
+
+    Défaut mesuré avant : la card v4 de l'imager affichait « **Image de référence**, ou fichier
+    de prompts .txt/.csv (batch) » — un `formats_label` écrit à la main, devenu faux sur les
+    DEUX points depuis que ses ports viennent des modèles (c'est un port de TRAVAIL, et le lot
+    a sa propre barre).
+    """
+
+    def _rendu(self, app):
+        from django.template.loader import render_to_string
+        return render_to_string('common/_new_item_card_v4.html', {
+            'app_id': app, 'collapsible': True, 'show_prompt': True,
+            'prompt_input_id': 'p', 'file_input_id': 'f', 'drop_zone_id': 'z',
+            'formats_label': 'LITTERAL_DE_REPLI', 'reference_input_id': 'r',
+        })
+
+    def test_le_texte_du_jeton_PRIME_sur_le_litteral_de_l_app(self):
+        from unittest.mock import patch
+        from wama.common.utils.app_modes import INPUT_TYPES
+
+        port = {'id': 'work_image', 'label': 'Image de travail', 'group': 'travail',
+                'types': ['image'], 'multi': True, 'required': False,
+                'description': INPUT_TYPES['work_image']['description']}
+        with patch('wama.common.app_registry.app_input_ports', return_value=[port]):
+            html = self._rendu('imager')
+        self.assertIn('à ÉDITER', html,
+                      'la tuile n’affiche pas le texte du jeton — le littéral d’app a repris '
+                      'la main, et il redeviendra faux au prochain changement de port')
+        self.assertNotIn('LITTERAL_DE_REPLI', html)
+
+    def test_le_litteral_reste_le_REPLI_quand_le_jeton_est_muet(self):
+        """Une app sans description déclarée garde exactement son ancien affichage."""
+        from unittest.mock import patch
+        port = {'id': 'work_file', 'label': 'Fichier', 'group': 'travail',
+                'types': ['image'], 'multi': True, 'required': True, 'description': ''}
+        with patch('wama.common.app_registry.app_input_ports', return_value=[port]):
+            html = self._rendu('describer')
+        self.assertIn('LITTERAL_DE_REPLI', html)
+
+    def test_le_format_de_LOT_est_etiquete_comme_tel(self):
+        """Il décrit un GESTE, pas ce port — le lire comme le format du port était la seconde
+        moitié du mensonge de la tuile."""
+        from unittest.mock import patch
+        from django.template.loader import render_to_string
+        port = {'id': 'work_file', 'label': 'Fichier', 'group': 'travail',
+                'types': ['image'], 'multi': True, 'required': True, 'description': 'texte'}
+        with patch('wama.common.app_registry.app_input_ports', return_value=[port]):
+            html = render_to_string('common/_new_item_card_v4.html', {
+                'app_id': 'imager', 'collapsible': True, 'file_input_id': 'f',
+                'drop_zone_id': 'z', 'formats_label': 'x', 'batch_format': 'prompt|modele',
+            })
+        self.assertIn('prompt|modele', html, 'le format de lot n’est plus rendu du tout')
+        self.assertIn('lot :', html,
+                      'le format de lot est affiché sans dire que c’est celui du LOT')

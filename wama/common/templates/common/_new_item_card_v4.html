@@ -101,7 +101,18 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                         <div class="drop-zone wama-mod wama-mod-import" id="{{ drop_zone_id }}" data-mod="import">
                             <i class="fas fa-cloud-upload-alt text-primary wama-mod-g"></i>
                             <span>Importer</span>
-                            <small>{{ formats_label }}{% if batch_format %} — <code style="font-size:.65rem">{{ batch_format }}</code>{% endif %}</small>
+                            {% comment %}⚠ Le texte vient du JETON, pas d'un littéral d'app (2026-09-11,
+                            demande Fabien : « ajouter un petit texte expliquant à quoi va servir
+                            chaque entrée »). Deux onglets « Image » ne se distinguent pas par leur
+                            type — il faut DIRE lequel sera édité et lequel guidera.
+                            Mesuré avant : l'imager affichait ici « Image de RÉFÉRENCE, ou fichier de
+                            prompts .txt/.csv (batch) », faux sur les deux points depuis que ses ports
+                            viennent des modèles — c'est un port de TRAVAIL (`work_image`), et le lot a
+                            sa propre barre. `formats_label` reste le repli des apps sans description.
+                            Le format de LOT est étiqueté comme tel : il décrit un geste, pas ce
+                            port.{% endcomment %}
+                            <small>{{ p.description|default:formats_label }}</small>
+                            {% if batch_format %}<small class="text-muted">lot : <code style="font-size:.65rem">{{ batch_format }}</code></small>{% endif %}
                             <input type="file" id="{{ file_input_id }}" multiple accept="{{ p.accept }}" style="display:none">
                             {% if folder_input_id %}
                             <input type="file" id="{{ folder_input_id }}" webkitdirectory multiple style="display:none">
@@ -160,7 +171,8 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                         <div class="drop-zone wama-mod wama-mod-import" data-mod="import" style="flex:1.2">
                             <i class="fas fa-paperclip text-info wama-mod-g"></i>
                             <span>Importer</span>
-                            <small>{{ reference_hint|default:'depuis le poste' }}</small>
+                            {# Même règle que le port de travail : le JETON dit à quoi il sert. #}
+                            <small>{{ p.description|default:reference_hint|default:'depuis le poste' }}</small>
                             <input type="file" id="{{ rid }}" accept="{{ p.accept }}" style="display:none">
                         </div>
                     </div>
