@@ -35,6 +35,9 @@ from .utils.format_router import detect_media_type, get_output_formats, SUPPORTE
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.queue_duplication import safe_delete_file, duplicate_instance
 from ..common.utils.param_schema import schema_extra_params, schema_model_kwargs
+# Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
+# s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
+from wama.common.utils.media_paths import get_relative_media_path
 
 logger = logging.getLogger(__name__)
 
@@ -745,7 +748,7 @@ def batch_create(request):
                     continue
                 fname = new[0]
                 dpath = dest_dir / fname
-                rel = f'converter/{user.id}/input/{fname}'
+                rel = get_relative_media_path('converter', user.id, 'input', fname)
             else:
                 from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
                 try:

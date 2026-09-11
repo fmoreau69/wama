@@ -63,13 +63,24 @@ _READER_EXTS = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp
 # ---------------------------------------------------------------------------
 # Folder mapping: logical name → MEDIA_ROOT-relative path template
 # ---------------------------------------------------------------------------
+def _dir(app: str, subfolder: str) -> str:
+    """Gabarit de chemin d'app, laissant `{user_id}` à formater par l'appelant."""
+    from wama.common.utils.media_paths import app_media_dir
+    return app_media_dir(app, '{user_id}', subfolder)
+
+
+#: ⚠ Les chemins d'app se DÉRIVENT (`app_media_dir`), ils ne s'écrivent plus. Mesuré le
+#: 2026-09-11 : 61 littéraux `f'<app>/{user_id}/<sous-dossier>'` vivaient dans 4 fichiers, et
+#: tant qu'ils existent le domicile des fichiers ne peut pas bouger — chaque littéral oublié
+#: deviendrait un dossier vide, une preview morte ou un import écrivant à l'ancien endroit,
+#: sans qu'aucune erreur ne le dise. Le temp utilisateur, lui, EST déjà chez l'utilisateur.
 _FOLDER_MAP = {
     'temp':               'users/{user_id}/temp',
-    'anon_input':         'anonymizer/{user_id}/input',
-    'anon_output':        'anonymizer/{user_id}/output',
-    'transcriber_input':  'transcriber/{user_id}/input',
-    'describer_input':    'describer/{user_id}/input',
-    'reader_input':       'reader/{user_id}/input',
+    'anon_input':         _dir('anonymizer', 'input'),
+    'anon_output':        _dir('anonymizer', 'output'),
+    'transcriber_input':  _dir('transcriber', 'input'),
+    'describer_input':    _dir('describer', 'input'),
+    'reader_input':       _dir('reader', 'input'),
 }
 
 

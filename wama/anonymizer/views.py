@@ -44,6 +44,9 @@ from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import get_media_info
 from ..common.utils.video_utils import upload_media_from_url
 from ..common.utils.media_paths import get_app_media_path, ensure_app_media_dirs
+# Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
+# s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
+from wama.common.utils.media_paths import get_relative_media_path
 
 
 @method_decorator(app_access('anonymizer'), name='dispatch')
@@ -161,7 +164,7 @@ def process_media(video_path, user, output_format='original', output_quality='ba
         filename = os.path.basename(video_path)
         ext = os.path.splitext(filename)[1]
         # Use user-specific path
-        relative_path = f'anonymizer/{user.id}/input/{filename}'
+        relative_path = get_relative_media_path('anonymizer', user.id, 'input', filename)
         media = Media.objects.create(
             file=relative_path, file_ext=ext, user=user,
             output_format=output_format or 'original',

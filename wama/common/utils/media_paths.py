@@ -131,6 +131,28 @@ def get_unique_filename(folder: Union[str, Path], filename: str) -> str:
     return candidate
 
 
+def app_media_dir(app_name: str, user_id: Union[int, str], subfolder: str = 'input') -> str:
+    """Dossier média d'une app, RELATIF à `MEDIA_ROOT` — la FORME du chemin, en un seul endroit.
+
+    ⚠ L'INTÉRÊT EST QU'ELLE SOIT SEULE. Mesuré le 2026-09-11 : **61 sites** fabriquaient cette
+    chaîne à la main (`f'anonymizer/{user_id}/input'`), concentrés sur 4 fichiers — dont une
+    table déclarative de 43 entrées dans l'arbre du gestionnaire de fichiers. Tant qu'ils
+    existent, DÉPLACER le domicile des fichiers est impossible : chaque littéral oublié devient
+    un dossier vide dans l'arbre, une preview morte ou un import qui écrit à l'ancien endroit —
+    et rien ne le signale.
+
+    C'est le préalable au « domicile unique par utilisateur » demandé par Fabien le 2026-09-11
+    (tous les fichiers importés sous `users/<u>/`, condition d'un chiffrement par utilisateur).
+    Cette fonction rend AUJOURD'HUI la forme historique, à l'identique : le portage des 61 sites
+    et le déplacement du parc sont deux gestes distincts, et les mélanger rendrait le second
+    indébogable.
+
+    Returns:
+        `"{app_name}/{user_id}/{subfolder}"` — sans barre finale, séparateurs POSIX.
+    """
+    return f"{app_name}/{user_id}/{subfolder}"
+
+
 def get_relative_media_path(app_name: str, user_id: Union[int, str], subfolder: str, filename: str) -> str:
     """
     Get the relative path for storing in Django FileField.
@@ -144,7 +166,7 @@ def get_relative_media_path(app_name: str, user_id: Union[int, str], subfolder: 
     Returns:
         Relative path string: {app_name}/{user_id}/{subfolder}/{filename}
     """
-    return f"{app_name}/{user_id}/{subfolder}/{filename}"
+    return f"{app_media_dir(app_name, user_id, subfolder)}/{filename}"
 
 
 def copy_into_app_input(source_path, app_name: str, user_id, subfolder: str = 'input',

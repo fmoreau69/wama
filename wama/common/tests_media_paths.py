@@ -106,3 +106,71 @@ class AucunConfinementReecritTest(SimpleTestCase):
         self.assertEqual(fautifs, [],
                          'confinement réécrit par préfixe de chaîne — passer par '
                          '`media_paths.resolve_under_media_root` : ' + ', '.join(fautifs))
+
+
+class FormeDuCheminEnUnSeulEndroitTest(SimpleTestCase):
+    """Aucun site ne fabrique plus `<app>/<user>/<sous-dossier>` à la main.
+
+    C'est le PRÉALABLE au domicile unique par utilisateur (demande Fabien 2026-09-11 : tous les
+    fichiers importés sous `users/<u>/`, condition d'un chiffrement par utilisateur). Mesuré
+    avant portage : **61 littéraux** répartis sur 4 fichiers, dont une table déclarative de 43
+    entrées dans l'arbre du gestionnaire de fichiers.
+
+    Pourquoi un test et pas une intention : un littéral oublié ne casse RIEN au moment du
+    déplacement. Il devient un dossier vide dans l'arbre, une preview morte, ou un import qui
+    écrit encore à l'ancien endroit — et aucune erreur ne le dit. C'est exactement la famille
+    « garde muette » que ce dépôt traque.
+    """
+
+    #: Les fichiers qui portaient les 61 littéraux. On les tient explicitement plutôt que de
+    #: balayer tout `wama/` : un balayage large attraperait des chaînes de tests et de
+    #: migrations, et un test qui crie à tort finit par être ignoré.
+    FICHIERS = (
+        'wama/filemanager/views.py',
+        'wama/tool_api.py',
+        'wama/anonymizer/views.py',
+        'wama/converter/views.py',
+    )
+
+    #: `users/<u>/…` est EXCLU : le temp de l'utilisateur est déjà chez lui, c'est la forme
+    #: CIBLE, pas celle qu'on pourchasse.
+    MOTIF = re.compile(r"""f['"](?!users/)[a-z_]+/\{user(?:_id|\.id)\}/(?:input|output)""")
+
+    def _src(self, chemin):
+        from pathlib import Path
+        import wama
+        return (Path(wama.__file__).parent.parent / chemin).read_text(encoding='utf-8')
+
+    def test_aucun_litteral_de_chemin_d_app_ne_subsiste(self):
+        fautifs = {}
+        for f in self.FICHIERS:
+            trouves = self.MOTIF.findall(self._src(f))
+            if trouves:
+                fautifs[f] = len(trouves)
+        self.assertEqual({}, fautifs,
+                         'des chemins d’app sont encore écrits à la main — ils resteront à '
+                         f'l’ancien endroit le jour du déplacement, en silence : {fautifs}')
+
+    def test_la_brique_rend_la_forme_historique_a_l_identique(self):
+        """P2a ne DÉPLACE rien : il centralise. Mélanger les deux gestes rendrait le
+        déplacement indébogable — on ne saurait pas si un chemin faux vient du portage ou du
+        nouveau domicile."""
+        from wama.common.utils.media_paths import app_media_dir, get_relative_media_path
+        self.assertEqual('anonymizer/7/input', app_media_dir('anonymizer', 7, 'input'))
+        self.assertEqual('imager/42/output', app_media_dir('imager', '42', 'output'))
+        self.assertEqual('reader/3/input/x.pdf',
+                         get_relative_media_path('reader', 3, 'input', 'x.pdf'))
+
+    def test_get_relative_media_path_DERIVE_de_la_brique(self):
+        """Deux fonctions qui composent le même chemin divergeraient au premier changement."""
+        from wama.common.utils.media_paths import app_media_dir, get_relative_media_path
+        for app, uid, sub in (('describer', 1, 'input'), ('enhancer', 9, 'output')):
+            self.assertTrue(
+                get_relative_media_path(app, uid, sub, 'f.bin').startswith(
+                    app_media_dir(app, uid, sub) + '/'))
+
+    def test_le_temp_utilisateur_n_est_PAS_touche(self):
+        """Il est déjà à sa place cible : le porter le ferait passer par une brique d'APP,
+        ce qu'il n'est pas."""
+        src = self._src('wama/tool_api.py')
+        self.assertIn("'temp':               'users/{user_id}/temp'", src)

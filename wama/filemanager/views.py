@@ -16,6 +16,9 @@ from django.utils.http import content_disposition_header
 
 from .models import UserFile, MountedFolder
 from wama.accounts.views import get_or_create_anonymous_user
+# FORME du chemin d'app en UN SEUL endroit (`app_media_dir`) : préalable au domicile
+# unique par utilisateur — 30 littéraux remplacés ici le 2026-09-11.
+from wama.common.utils.media_paths import app_media_dir
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +71,8 @@ def build_file_tree(user):
             'text': 'Anonymizer',
             'icon': 'fa fa-user-secret text-danger',
             'children': [
-                {'id': 'anonymizer_input', 'text': 'Input', 'path': f'anonymizer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'anonymizer_output', 'text': 'Output', 'path': f'anonymizer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'anonymizer_input', 'text': 'Input', 'path': app_media_dir('anonymizer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'anonymizer_output', 'text': 'Output', 'path': app_media_dir('anonymizer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -77,8 +80,8 @@ def build_file_tree(user):
             'text': 'Avatarizer',
             'icon': 'fa fa-user-circle text-info',
             'children': [
-                {'id': 'avatarizer_input', 'text': 'Input', 'path': f'avatarizer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'avatarizer_output', 'text': 'Output', 'path': f'avatarizer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'avatarizer_input', 'text': 'Input', 'path': app_media_dir('avatarizer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'avatarizer_output', 'text': 'Output', 'path': app_media_dir('avatarizer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
                 {'id': 'avatarizer_gallery', 'text': 'Galerie', 'path': 'avatarizer/gallery', 'icon': 'fa fa-images text-info'},
             ]
         },
@@ -87,8 +90,8 @@ def build_file_tree(user):
             'text': 'Composer',
             'icon': 'fa fa-music text-success',
             'children': [
-                {'id': 'composer_input', 'text': 'Input', 'path': f'composer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'composer_output', 'text': 'Output', 'path': f'composer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'composer_input', 'text': 'Input', 'path': app_media_dir('composer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'composer_output', 'text': 'Output', 'path': app_media_dir('composer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -96,8 +99,8 @@ def build_file_tree(user):
             'text': 'Converter',
             'icon': 'fa fa-exchange-alt text-teal',
             'children': [
-                {'id': 'converter_input', 'text': 'Input', 'path': f'converter/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'converter_output', 'text': 'Output', 'path': f'converter/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'converter_input', 'text': 'Input', 'path': app_media_dir('converter', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'converter_output', 'text': 'Output', 'path': app_media_dir('converter', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -105,8 +108,8 @@ def build_file_tree(user):
             'text': 'Describer',
             'icon': 'fa fa-search-plus text-info',
             'children': [
-                {'id': 'describer_input', 'text': 'Input', 'path': f'describer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'describer_output', 'text': 'Output', 'path': f'describer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'describer_input', 'text': 'Input', 'path': app_media_dir('describer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'describer_output', 'text': 'Output', 'path': app_media_dir('describer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -114,10 +117,10 @@ def build_file_tree(user):
             'text': 'Enhancer',
             'icon': 'fa fa-magic text-info',
             'children': [
-                {'id': 'enhancer_input_media', 'text': 'Input (Image/Vidéo)', 'path': f'enhancer/{user_id}/input/media', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'enhancer_input_audio', 'text': 'Input (Audio)', 'path': f'enhancer/{user_id}/input/audio', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'enhancer_output_media', 'text': 'Output (Image/Vidéo)', 'path': f'enhancer/{user_id}/output/media', 'icon': 'fa fa-folder text-success'},
-                {'id': 'enhancer_output_audio', 'text': 'Output (Audio)', 'path': f'enhancer/{user_id}/output/audio', 'icon': 'fa fa-folder text-success'},
+                {'id': 'enhancer_input_media', 'text': 'Input (Image/Vidéo)', 'path': app_media_dir('enhancer', user_id, 'input/media'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'enhancer_input_audio', 'text': 'Input (Audio)', 'path': app_media_dir('enhancer', user_id, 'input/audio'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'enhancer_output_media', 'text': 'Output (Image/Vidéo)', 'path': app_media_dir('enhancer', user_id, 'output/media'), 'icon': 'fa fa-folder text-success'},
+                {'id': 'enhancer_output_audio', 'text': 'Output (Audio)', 'path': app_media_dir('enhancer', user_id, 'output/audio'), 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -125,10 +128,10 @@ def build_file_tree(user):
             'text': 'Imager',
             'icon': 'fa fa-image text-success',
             'children': [
-                {'id': 'imager_prompts', 'text': 'Prompts', 'path': f'imager/{user_id}/input/prompts', 'icon': 'fa fa-file-alt text-secondary'},
-                {'id': 'imager_references', 'text': 'References', 'path': f'imager/{user_id}/input/references', 'icon': 'fa fa-image text-secondary'},
-                {'id': 'imager_output_image', 'text': 'Images', 'path': f'imager/{user_id}/output/image', 'icon': 'fa fa-image text-success'},
-                {'id': 'imager_output_video', 'text': 'Vidéos', 'path': f'imager/{user_id}/output/video', 'icon': 'fa fa-film text-success'},
+                {'id': 'imager_prompts', 'text': 'Prompts', 'path': app_media_dir('imager', user_id, 'input/prompts'), 'icon': 'fa fa-file-alt text-secondary'},
+                {'id': 'imager_references', 'text': 'References', 'path': app_media_dir('imager', user_id, 'input/references'), 'icon': 'fa fa-image text-secondary'},
+                {'id': 'imager_output_image', 'text': 'Images', 'path': app_media_dir('imager', user_id, 'output/image'), 'icon': 'fa fa-image text-success'},
+                {'id': 'imager_output_video', 'text': 'Vidéos', 'path': app_media_dir('imager', user_id, 'output/video'), 'icon': 'fa fa-film text-success'},
             ]
         },
         {
@@ -136,9 +139,9 @@ def build_file_tree(user):
             'text': 'Synthesizer',
             'icon': 'fa fa-microphone text-primary',
             'children': [
-                {'id': 'synthesizer_input', 'text': 'Input', 'path': f'synthesizer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'synthesizer_output', 'text': 'Output', 'path': f'synthesizer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
-                {'id': 'synthesizer_voices', 'text': 'Custom_voices', 'path': f'synthesizer/{user_id}/custom_voices', 'icon': 'fa fa-user-circle text-info'},
+                {'id': 'synthesizer_input', 'text': 'Input', 'path': app_media_dir('synthesizer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'synthesizer_output', 'text': 'Output', 'path': app_media_dir('synthesizer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
+                {'id': 'synthesizer_voices', 'text': 'Custom_voices', 'path': app_media_dir('synthesizer', user_id, 'custom_voices'), 'icon': 'fa fa-user-circle text-info'},
             ]
         },
         {
@@ -146,8 +149,8 @@ def build_file_tree(user):
             'text': 'Reader',
             'icon': 'fa fa-file-invoice text-cyan',
             'children': [
-                {'id': 'reader_input', 'text': 'Input', 'path': f'reader/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'reader_output', 'text': 'Output', 'path': f'reader/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'reader_input', 'text': 'Input', 'path': app_media_dir('reader', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'reader_output', 'text': 'Output', 'path': app_media_dir('reader', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -155,8 +158,8 @@ def build_file_tree(user):
             'text': 'Transcriber',
             'icon': 'fa fa-file-alt text-warning',
             'children': [
-                {'id': 'transcriber_input', 'text': 'Input', 'path': f'transcriber/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'transcriber_output', 'text': 'Output', 'path': f'transcriber/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'transcriber_input', 'text': 'Input', 'path': app_media_dir('transcriber', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'transcriber_output', 'text': 'Output', 'path': app_media_dir('transcriber', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -170,8 +173,8 @@ def build_file_tree(user):
                     'text': 'Face Analyzer',
                     'icon': 'fa fa-smile text-info',
                     'children': [
-                        {'id': 'face_analyzer_input', 'text': 'Input', 'path': f'face_analyzer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                        {'id': 'face_analyzer_output', 'text': 'Output', 'path': f'face_analyzer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                        {'id': 'face_analyzer_input', 'text': 'Input', 'path': app_media_dir('face_analyzer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                        {'id': 'face_analyzer_output', 'text': 'Output', 'path': app_media_dir('face_analyzer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
                     ]
                 },
                 {
@@ -179,8 +182,8 @@ def build_file_tree(user):
                     'text': 'Cam Analyzer',
                     'icon': 'fa fa-video text-warning',
                     'children': [
-                        {'id': 'cam_analyzer_input', 'text': 'Input', 'path': f'cam_analyzer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                        {'id': 'cam_analyzer_output', 'text': 'Output', 'path': f'cam_analyzer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                        {'id': 'cam_analyzer_input', 'text': 'Input', 'path': app_media_dir('cam_analyzer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
+                        {'id': 'cam_analyzer_output', 'text': 'Output', 'path': app_media_dir('cam_analyzer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
                     ]
                 },
             ]
@@ -524,31 +527,31 @@ def api_search(request):
     # Search in all user-accessible folders
     search_paths = [
         f'users/{user.id}/temp',
-        f'anonymizer/{user.id}/input',
-        f'anonymizer/{user.id}/output',
-        f'avatarizer/{user.id}/input',
-        f'avatarizer/{user.id}/output',
-        f'composer/{user.id}/input',
-        f'composer/{user.id}/output',
-        f'describer/{user.id}/input',
-        f'describer/{user.id}/output',
-        f'enhancer/{user.id}/input',
-        f'enhancer/{user.id}/output',
-        f'imager/{user.id}/input/prompts',
-        f'imager/{user.id}/input/references',
-        f'imager/{user.id}/output/image',
-        f'imager/{user.id}/output/video',
-        f'reader/{user.id}/input',
-        f'reader/{user.id}/output',
-        f'synthesizer/{user.id}/input',
-        f'synthesizer/{user.id}/output',
-        f'synthesizer/{user.id}/custom_voices',
-        f'transcriber/{user.id}/input',
-        f'transcriber/{user.id}/output',
-        f'face_analyzer/{user.id}/input',
-        f'face_analyzer/{user.id}/output',
-        f'cam_analyzer/{user.id}/input',
-        f'cam_analyzer/{user.id}/output',
+        app_media_dir('anonymizer', user.id, 'input'),
+        app_media_dir('anonymizer', user.id, 'output'),
+        app_media_dir('avatarizer', user.id, 'input'),
+        app_media_dir('avatarizer', user.id, 'output'),
+        app_media_dir('composer', user.id, 'input'),
+        app_media_dir('composer', user.id, 'output'),
+        app_media_dir('describer', user.id, 'input'),
+        app_media_dir('describer', user.id, 'output'),
+        app_media_dir('enhancer', user.id, 'input'),
+        app_media_dir('enhancer', user.id, 'output'),
+        app_media_dir('imager', user.id, 'input/prompts'),
+        app_media_dir('imager', user.id, 'input/references'),
+        app_media_dir('imager', user.id, 'output/image'),
+        app_media_dir('imager', user.id, 'output/video'),
+        app_media_dir('reader', user.id, 'input'),
+        app_media_dir('reader', user.id, 'output'),
+        app_media_dir('synthesizer', user.id, 'input'),
+        app_media_dir('synthesizer', user.id, 'output'),
+        app_media_dir('synthesizer', user.id, 'custom_voices'),
+        app_media_dir('transcriber', user.id, 'input'),
+        app_media_dir('transcriber', user.id, 'output'),
+        app_media_dir('face_analyzer', user.id, 'input'),
+        app_media_dir('face_analyzer', user.id, 'output'),
+        app_media_dir('cam_analyzer', user.id, 'input'),
+        app_media_dir('cam_analyzer', user.id, 'output'),
     ]
 
     for search_path in search_paths:
