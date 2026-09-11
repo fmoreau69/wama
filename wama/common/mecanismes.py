@@ -389,6 +389,14 @@ MECANISMES = (
               "`WAMA:FAITS` (une fonction par fait) à n'importe quel champ de registre",
               'wama/common/fact_tags.py', 'ROADMAP.md §25',
               annexes=('wama/common/tests_fact_tags.py',)),
+    Mecanisme('doc_sections', 'Marquage des sections de doc',
+              "Une balise `WAMA:SECTION(audience=…; type=…; nature=…; etat=…)` sous un titre dit "
+              "à qui la section parle (développeur, utilisateur), quel genre de texte elle est "
+              "(tutoriel, guide, référence, explication) et si elle CONSTATE ou VISE ; une "
+              "sous-section hérite. `check_docs` contrôle le vocabulaire et la double "
+              "vérification (constat ⇒ ✅, intention ⇒ 🔄/⏳) ; `extract` sert les docs dérivées",
+              'wama/common/doc_sections.py', 'ROADMAP.md §25',
+              annexes=('wama/common/tests_doc_sections.py',)),
     Mecanisme('templates_integrity', 'Intégrité des gabarits',
               "Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` "
               "MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — "

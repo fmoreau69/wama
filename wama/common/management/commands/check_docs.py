@@ -214,6 +214,15 @@ class Command(BaseCommand):
             texte = f.read_text(encoding='utf-8', errors='replace')
             lignes = texte.splitlines()
 
+            # Marquage des SECTIONS (2026-09-11, ROADMAP §25.1 ②) : vocabulaire, placement, et la
+            # double vérification nature × état (un constat est ✅, une intention 🔄/⏳). Une
+            # balise qu'on ne sait pas lire ferait sortir la section des docs dérivées EN SILENCE.
+            if 'WAMA:SECTION(' in texte:
+                from wama.common.doc_sections import sections as _sections
+                verifies += 1
+                for num, msg in _sections(texte)[1]:
+                    casses.append((nom, num, f"section : {msg}"))
+
             # Lignes NEUTRALISÉES pour la famille « chiffre » : un bloc de code montre une
             # commande (ses chiffres sont des arguments), un bloc `WAMA:FAITS` est généré donc
             # vrai par construction. Calculé d'un coup : l'état est séquentiel, pas local.

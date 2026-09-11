@@ -3636,7 +3636,7 @@ développeur CALCULÉES à la lecture (`common/dev_docs.py`) — un amorçage, p
 | # | pièce | état |
 |---|---|---|
 | ① | **Faits en ligne** : `<!-- WAMA:FAIT(registre/clé/champ) -->valeur<!-- /WAMA:FAIT -->`, résolus depuis `Registry.entries`, régénérés par `doc_facts`, confrontés par `--check` (`common/fact_tags.py`). Le registre des registres en compte aujourd'hui <!-- WAMA:FAIT(registres) -->15<!-- /WAMA:FAIT --> | 🔄 livré le 2026-09-11 ; fiches déclarées pour quelques registres, les autres à suivre |
-| ② | **Marquage des sections** de la doc de construction — par SECTION, pas par paragraphe (le coût connu de DITA) ; proposition : `<!-- WAMA:SECTION(audience=developpeur,utilisateur; type=guide) -->` sous le titre, `type` ∈ tutoriel · guide · référence · explication (cadre Diátaxis) | ⏳ syntaxe à valider |
+| ② | **Marquage des sections** de la doc de construction — par SECTION, pas par paragraphe (le coût connu de DITA) : `<!-- WAMA:SECTION(audience=developpeur,utilisateur; type=guide; nature=constat; etat=✅) -->` sur la ligne qui suit le titre ; une sous-section sans balise hérite. `type` ∈ tutoriel · guide · reference · explication (Diátaxis). **Double vérification** (Fabien) : `nature=constat` ⇒ ✅, `nature=intention` ⇒ 🔄 ou ⏳ — `check_docs` refuse les incohérences (`common/doc_sections.py`) | 🔄 livré le 2026-09-11 (syntaxe validée par Fabien) : marquage, contrôle, extraction ; pilote : `AGENTS.md §Trois docs` ; les docs de fond seront marqués à la révision (§25.2) |
 | ③ | **Plans des docs dérivées** : un plan déclaré par doc (ordre des sections, fragments tirés) → `.md` générés, lisibles hors WAMA, confrontés par `doc_facts --check` | ⏳ |
 | ④ | **Confrontation doc → doc** : chaque section dérivée garde l'empreinte de ses sources ; une source modifiée depuis la dernière dérivation → « à revoir » | ⏳ |
 | ⑤ | **Porte registre** pour la doc utilisateur : un fragment n'y apparaît que si le registre confirme ce qu'il décrit — la vision reste entière dans la doc de construction, et n'arrive chez l'utilisateur qu'une fois implémentée | ⏳ |
@@ -3663,3 +3663,15 @@ validés par `hassfest`) : gabarits écrits à la main, valeurs tirées d'un sch
 TechDocs : catalogue d'éléments + `.md` à côté du code. **Diátaxis** : le type de doc compte autant
 que le public (②). Moins courant : la doc de DÉCISIONS comme source des deux autres, la porte
 registre (⑤), la confrontation dans les deux sens.
+
+### 25.4 Décisions du 2026-09-11 (soir)
+
+- **Plans des docs dérivées** (③) : déclarés dans `common/docs_catalog.py`, à côté de la
+  déclaration du doc — une seule liste, contrôlable.
+- **Pilote de ③** : la doc développeur « Les registres de WAMA ».
+- **Emplacement** — proposition de Fabien, **en discussion** : remonter la doc dans `docs/`,
+  classée par audience, et ne laisser à la racine qu'un README portant l'arborescence et les
+  liens. Contraintes à trancher : `AGENTS.md` et `CLAUDE.md` sont lus À LA RACINE par les outils
+  d'agents ; les docs de module vivent à côté de leur code ; coût du renommage à mesurer.
+- **Langue** : la doc reste en FRANÇAIS pour l'instant. Plus tard : l'harmoniser en anglais et la
+  faire entrer dans l'i18n (`§10`) pour la traduction complète de WAMA.

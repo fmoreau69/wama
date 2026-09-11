@@ -424,6 +424,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 > cite un doc que le catalogue ne déclare pas — l'oubli ne peut plus être muet.
 
 ### Trois docs, trois publics (Fabien, 2026-08-12 — acté le 2026-09-11)
+<!-- WAMA:SECTION(audience=developpeur; type=explication; nature=constat; etat=✅) -->
 
 > Posé le 12/08, resté sans trace hors d'une transcription de session pendant un mois — d'où
 > cette section. *« La doc actuelle n'est ni une doc développeur, ni une doc utilisateur, mais
