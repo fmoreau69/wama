@@ -1261,3 +1261,67 @@ class LaCardDIT_A_QuoiSertChaqueEntreeTest(TestCase):
         self.assertIn('prompt|modele', html, 'le format de lot n’est plus rendu du tout')
         self.assertIn('lot :', html,
                       'le format de lot est affiché sans dire que c’est celui du LOT')
+
+
+class JetonDeTransfertDeStyleTest(TestCase):
+    """Le vocabulaire de `tasks` doit savoir dire « cette image GUIDE », pas seulement
+    « cette image est éditée ».
+
+    Mesuré le 2026-09-10 : `reference_image` était déclaré par ZÉRO modèle du dépôt. Non pas
+    parce qu'aucun ne conditionne par une image, mais parce que la dérivation ne savait
+    produire que `work_image` — il n'existait aucun jeton pour le transfert de style. Un
+    IP-Adapter ou un ControlNet aurait vu son image classée en fichier de TRAVAIL.
+    (État de l'art, `INPUT_MODEL_MATCHING §6.2` : diffusers nomme ces rôles séparément —
+    `image` l'init transformée, `ip_adapter_image` le style, `control_image` la structure.)
+
+    ⚠ Ces tests appellent la VRAIE fonction. Une première version REJOUAIT la règle en la
+    recopiant, parce qu'elle vivait au milieu d'une boucle de découverte de 400 lignes : une
+    copie mesure une règle qui peut déjà avoir changé. C'est ce qui a motivé l'extraction de
+    `derive_inputs_from_tasks` — tester a rendu le code meilleur, pas l'inverse.
+    """
+
+    def _derive(self, tasks, is_video=False):
+        from wama.common.utils.model_capabilities import derive_inputs_from_tasks
+        return derive_inputs_from_tasks(tasks, is_video=is_video)
+
+    def test_model_registry_APPELLE_la_brique_au_lieu_de_porter_la_regle(self):
+        """Sans ça, la règle pourrait revenir vivre dans la boucle — et ces tests mesureraient
+        une fonction que plus personne n'appelle."""
+        from pathlib import Path
+        import wama
+        src = (Path(wama.__file__).parent / 'model_manager' / 'services'
+               / 'model_registry.py').read_text(encoding='utf-8')
+        self.assertIn('derive_inputs_from_tasks(_mode', src,
+                      'la découverte de modèles ne passe plus par la brique')
+        self.assertNotIn("_genere = _tasks", src,
+                         'la règle est revenue vivre dans la boucle de découverte')
+
+    def test_style_ajoute_une_reference_OPTIONNELLE(self):
+        d = self._derive('t2i+style')
+        self.assertEqual('text-to-image', d['task'],
+                         'le style n’est pas une tâche de génération : le modèle reste t2i')
+        self.assertEqual(['prompt'], d['inputs_required'])
+        self.assertEqual(['reference_image'], d['inputs_optional'])
+
+    def test_style_n_impose_JAMAIS_une_image_de_travail(self):
+        """Le piège qu'écarte `_genere` : sans lui, `{t2i, style} <= {i2v, edit, i2i}` est faux
+        et la branche `work_image` se déclencherait de travers."""
+        d = self._derive('t2i+style')
+        self.assertNotIn('work_image', d['inputs_required'])
+        self.assertNotIn('work_image', d['inputs_optional'])
+
+    def test_un_modele_qui_EDITE_et_stylise_declare_les_DEUX_entrees(self):
+        d = self._derive('t2i+i2i+style')
+        self.assertIn('work_image', d['inputs_optional'], 'l’image à éditer')
+        self.assertIn('reference_image', d['inputs_optional'], 'l’image qui guide')
+
+    def test_sans_style_rien_ne_change(self):
+        """Non-régression du parc : les 12 modèles de l'imager passent par ces mêmes lignes."""
+        self.assertEqual({'task': 'text-to-image', 'inputs_required': ['prompt'],
+                          'inputs_optional': []}, self._derive('t2i'))
+        self.assertEqual({'task': 'image-to-image', 'inputs_required': ['prompt', 'work_image'],
+                          'inputs_optional': []}, self._derive('edit'))
+        self.assertEqual({'task': 'text-to-image', 'inputs_required': ['prompt'],
+                          'inputs_optional': ['work_image']}, self._derive('t2i+i2i'))
+        self.assertEqual({'task': 'text-to-video', 'inputs_required': ['prompt'],
+                          'inputs_optional': ['work_image']}, self._derive('t2v+i2v', is_video=True))

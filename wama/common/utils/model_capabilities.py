@@ -165,3 +165,63 @@ def normalize_capabilities(raw: Dict[str, Any]) -> Dict[str, Any]:
 def is_canonical_key(key: str) -> bool:
     """Vrai si `key` fait partie du vocabulaire canonique (utilitaire d'audit/tests)."""
     return key in CANONICAL_CAPABILITIES
+
+
+#: Jetons du raccourci `tasks` déclaré par app dans `model_config.py`. `style` a été ajouté le
+#: 2026-09-11 (cf. `derive_inputs_from_tasks`).
+TASK_TOKENS = ('t2i', 't2v', 'i2v', 'edit', 'i2i', 'style')
+
+#: Les jetons qui décrivent une tâche de GÉNÉRATION. `style` n'en est pas une : un modèle à
+#: transfert de style reste text-to-image, il accepte une entrée de conditionnement en plus.
+GENERATIVE_TOKENS = ('t2i', 't2v', 'i2v', 'edit', 'i2i')
+
+
+def derive_inputs_from_tasks(tasks: str, is_video: bool = False) -> Dict[str, Any]:
+    """`tasks` (raccourci d'app) → vocabulaire CANONIQUE : task + entrées consommées.
+
+    Extraite de `model_registry` le 2026-09-11, quand le jeton `style` y a été ajouté : la
+    règle vivait au milieu d'une boucle de découverte de 400 lignes, donc la seule façon de la
+    tester était d'en RECOPIER la logique — et une copie dérive de sa source sans rien dire.
+
+    ⚠ `style` est le jeton qui MANQUAIT, et son absence était structurante. La dérivation ne
+    savait produire que `work_image` : un modèle à transfert de style (IP-Adapter, ControlNet)
+    aurait vu son image classée en fichier de TRAVAIL — « l'image qu'on édite » au lieu de
+    « l'image qui guide ». Conséquence mesurée avant l'ajout : `reference_image` était déclaré
+    par ZÉRO modèle du dépôt, non parce qu'aucun ne conditionne par une image, mais parce que
+    le vocabulaire n'avait pas le mot pour le dire.
+    (État de l'art, `INPUT_MODEL_MATCHING §6.2` : diffusers nomme ces rôles séparément —
+    `image` l'init transformée, `ip_adapter_image` le style, `control_image` la structure.)
+
+    Returns:
+        {'task', 'inputs_required', 'inputs_optional'} — ids d'`INPUT_TYPES`.
+    """
+    mode = (tasks or '').lower()
+    for long, court in (('text-to-image', 't2i'), ('text-to-video', 't2v'),
+                        ('image-to-video', 'i2v'), ('image-to-image', 'edit')):
+        mode = mode.replace(long, court)
+    jetons = {t for t in TASK_TOKENS if t in mode}
+    if not jetons:                          # mode absent → déduit de la modalité
+        jetons = {'t2v'} if is_video else {'t2i'}
+
+    # `style` écarté du calcul de la tâche ET de l'obligation : sans ça,
+    # `genere <= {'i2v','edit','i2i'}` deviendrait faux pour un `t2i+style`, et le modèle
+    # exigerait une image de travail qu'il ne consomme pas.
+    genere = jetons & set(GENERATIVE_TOKENS)
+    if is_video:
+        task = 'image-to-video' if genere == {'i2v'} else 'text-to-video'
+    elif 'edit' in genere:
+        task = 'image-to-image'
+    else:
+        task = 'text-to-image'
+
+    requis, optionnels = ['prompt'], []
+    if genere & {'i2v', 'edit', 'i2i'}:
+        # L'image est OBLIGATOIRE si le modèle ne sait faire que ça, OPTIONNELLE s'il sait
+        # aussi partir d'un simple prompt (LTX = t2v+i2v, SD = t2i+i2i).
+        (requis if genere <= {'i2v', 'edit', 'i2i'} else optionnels).append('work_image')
+    if 'style' in jetons:
+        # TOUJOURS optionnelle : un modèle qui sait conditionner par une image sait aussi
+        # générer sans elle. Un modèle qui l'exigerait le dirait en déclarant `style` SEUL —
+        # cas inexistant aujourd'hui, à trancher s'il arrive.
+        optionnels.append('reference_image')
+    return {'task': task, 'inputs_required': requis, 'inputs_optional': optionnels}

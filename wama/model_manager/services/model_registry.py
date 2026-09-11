@@ -538,25 +538,21 @@ class ModelRegistry:
                 for _long, _short in (('text-to-image', 't2i'), ('text-to-video', 't2v'),
                                       ('image-to-video', 'i2v'), ('image-to-image', 'edit')):
                     _mode = _mode.replace(_long, _short)
-                _tasks = {t for t in ('t2i', 't2v', 'i2v', 'edit', 'i2i') if t in _mode}
-                if not _tasks:                      # mode absent → déduit de la modalité
-                    _tasks = {'t2v'} if _is_video else {'t2i'}
+                # ⚠ La RÈGLE vit dans `model_capabilities.derive_inputs_from_tasks` depuis le
+                # 2026-09-11 — extraite au moment où le jeton `style` y a été ajouté. Elle
+                # vivait ICI, au milieu d'une boucle de découverte de 400 lignes : la seule
+                # façon de la tester était d'en RECOPIER la logique dans le test, et une copie
+                # dérive de sa source sans rien dire. `style` est ce qui manquait au vocabulaire
+                # pour qu'un modèle puisse déclarer « cette image GUIDE » au lieu de « cette
+                # image est éditée » — le pourquoi est dans la docstring de la brique.
                 # Traduction en vocabulaire CANONIQUE (`CANONICAL_CAPABILITIES`) : `task` au
                 # format HF + entrées consommées en ids d'`INPUT_TYPES`. Le `mode` du manifeste
                 # est un raccourci d'app ; il ne doit pas fuiter tel quel dans le catalogue.
-                if _is_video:
-                    _task = 'image-to-video' if _tasks == {'i2v'} else 'text-to-video'
-                elif 'edit' in _tasks:
-                    _task = 'image-to-image'
-                else:
-                    _task = 'text-to-image'
-                _inputs_required = ['prompt']
-                _inputs_optional = []
-                if _tasks & {'i2v', 'edit', 'i2i'}:
-                    # L'image est OBLIGATOIRE si le modèle ne sait faire que ça, OPTIONNELLE
-                    # s'il sait aussi partir d'un simple prompt (LTX = t2v+i2v, SD = t2i+i2i).
-                    (_inputs_required if _tasks <= {'i2v', 'edit', 'i2i'} else _inputs_optional
-                     ).append('work_image')
+                from wama.common.utils.model_capabilities import derive_inputs_from_tasks
+                _derive = derive_inputs_from_tasks(_mode, is_video=_is_video)
+                _task = _derive['task']
+                _inputs_required = _derive['inputs_required']
+                _inputs_optional = _derive['inputs_optional']
                 self._models[f"imager:{model_id}"] = ModelInfo(
                     id=f"imager:{model_id}",
                     name=name,

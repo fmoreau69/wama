@@ -189,10 +189,13 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
 
 ### 6.6 Points ouverts, nommés
 
-- **Aucun jeton de `tasks` ne dit le transfert de style.** `model_registry.py:553-559` dérive
-  `inputs_required/optional` des `tasks` et ne sait produire que `work_image` — d'où
-  `reference_image` déclaré par **zéro modèle**. Un modèle IP-Adapter/ControlNet verrait son
-  image classée « travail » à tort. À ajouter avant d'intégrer un tel modèle.
+- ~~**Aucun jeton de `tasks` ne dit le transfert de style.**~~ ✅ **AJOUTÉ le 2026-09-11** :
+  le jeton `style` existe, et la règle a été EXTRAITE de la boucle de découverte vers
+  `model_capabilities.derive_inputs_from_tasks` — elle n'était testable qu'en la recopiant.
+  Un modèle déclare `tasks: 't2i+style'` et gagne `reference_image` en OPTIONNELLE, sans
+  devenir image-to-image et sans exiger d'image de travail. **Aucun modèle du parc ne le
+  déclare encore** : le vocabulaire est prêt, l'intégration d'un IP-Adapter/ControlNet reste
+  à faire.
 - **Texte explicatif par entrée** (demande Fabien) : le contrat de port porte DÉJÀ une case
   `description` (rendue par `portEl()` côté studio, peuplée sur les nœuds sources). L'ajouter à
   `INPUT_TYPES` est additif.
