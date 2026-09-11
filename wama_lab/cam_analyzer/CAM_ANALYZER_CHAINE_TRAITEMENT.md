@@ -604,7 +604,7 @@ de l'étage Analyse ; « SAM3 seul » (2 exemplaires) retiré = ▶ de la ligne 
 | 9 | `distance` | C | `tasks.compute_distance_task` (1766) → `distance_speed` | détections stockées (bbox, classe, ts) | **ré-annote** distance/vitesse/TTC avec les FOV V RÉELS, trace `fov_v_used` (→ `dist_scale` = 1) | `detections.distance_m/relative_speed_kmh/ttc_s`, `config.fov_v_used` | CÂBLÉ |
 | 10 | `depth_calc` (ét. 2) | C | `tasks.compute_depth_calc_task` (1877) → `depth_estimator.estimate_ground_plane_ph` (RANSAC sur roulable, briques pures `geometry.depth_geometry`), `depth_distance_report` | `DepthFrame` + `road_mask` + `depth_distance_m` | plan de sol → (pitch, hauteur) source `depth` ; désaccord profondeur↔pinhole↔homographie ; confirmation reflets | `config.ground_calib[pos]{source:'depth'}`, `results_summary.depth_report` | CÂBLÉ, **JAMAIS EXÉCUTÉ** (pas de `DepthFrame`) |
 | 11 | `global_tracking` | C | `tasks._run_global_tracking` (2359) → `multicam_tracker.annotate_global_tracks` (101) puis `intersection_branches.learn_branches`, `marking_world.aggregate_markings` | détections des caméras analysées, `gps_track`, bascules | **§A.11 ci-dessous** (le cœur) | `detections.global_track_id/world_en/stable_class/artifact` + fantômes `{type:'ghost',predicted,vehicle_xy,world_en}` ; `results_summary.stationary_global_tracks/stationary_anchors/placement_spread/intersection_branches/intersection_markings[/depth_report]` ; `config.ground_calib` (si ⚑) | CÂBLÉ |
-| 12 | `indicators` | C | `tasks.compute_indicators_task` (2610) = `_run_global_tracking` **+** `prediction_adapter.annotate_prediction_indicators` (303) | détections + `gps_track` | trajectoire monde par gid (pinhole_ego → véhicule → monde), **moyenne glissante 5 pts**, extrapolation `speed_accel` (défaut) ou `kalman`, pas 0,2 s, horizon 4 s, collision SAT navette↔objet | `detections.prediction_ttc/prediction_pet` | CÂBLÉ — c'est le bouton « Calculer les indicateurs » |
+| 12 | `indicators` | C | `tasks.compute_indicators_task` (2610) = `_run_global_tracking` **+** `prediction_adapter.annotate_prediction_indicators` (303) | détections + `gps_track` | trajectoire monde par gid (pinhole_ego → véhicule → monde), **moyenne glissante 5 pts**, extrapolation `speed_accel` (défaut) ou `kalman`, pas 0,2 s, horizon 4 s, collision SAT navette↔objet | `detections.prediction_ttc/prediction_pet` | CÂBLÉ — c'est le bouton « Calculer les indicateurs ». ⚠ **Mais il RE-DÉRIVE les positions objets au pinhole et ne lit JAMAIS `world_en`** (0 occurrence dans le fichier, mesuré 11/09) : il hérite de la correction EGO mais d'aucune correction OBJET — §D.5 |
 | 13 | `conflicts` | C | `tasks._compute_conflict_events` (518) | fenêtres + détections + `_gps_speed_at` | conflits en voie navette (qui passe premier, Δt, distance min, TTC min, sévérité) | `ConflictEvent` | CÂBLÉ |
 
 **Hors passes (boutons dédiés, panneau Calibration)** : `compute_ortho_recalage_task` (2498, MESURE
@@ -736,7 +736,7 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 41 | interpolation des marquages SAM3 entre keyframes | rendu marquages | `sam3_marking` | `index.js:2045-2128` | ⚑ `sam3_interp` ON | CÂBLÉ (JS) | aucune |
 | **Structure & indicateurs** ||||||||
 | 42 | branches apprises du trafic (rectitude, ≥ 4 véh., span ≥ 14 m) / marquages SAM3 agrégés en monde (2-12 m) | géométrie d'intersection | `world_en` / `sam3_marking` + `GroundProjector` (`ground_homography` **si présent**, sinon pitch 0) | `intersection_branches`, `marking_world` | ⚑ `learned_branches`, ⚑ `world_markings` ON | CÂBLÉ ; **aucune vérité terrain** (→ `geo.osm_control_nodes`, 2026-09-04) | aucune |
-| 43 | moyenne glissante 5 pts + extrapolation `speed_accel`\|`kalman` + SAT | TTC/PET | trajectoires monde | `prediction_adapter.smooth_trajectory`, `ttc_pet_shuttle_object`, `kinematics.extrapolation` | param `method` | CÂBLÉ | aucune |
+| 43 | moyenne glissante 5 pts + extrapolation `speed_accel`\|`kalman` + SAT | TTC/PET | trajectoires monde | `prediction_adapter.smooth_trajectory`, `ttc_pet_shuttle_object`, `kinematics.extrapolation` | param `method` — ⚠ **AUCUN APPELANT ne le pose** | **`speed_accel` CÂBLÉ · `kalman` INATTEIGNABLE** (`tasks.py:2680` appelle `annotate_prediction_indicators(session)` sans `method`) — mesuré 2026-09-11, §D.5 | aucune |
 
 **Déclaré, jamais implémenté** : ⚑ `track_speed_unified` (défaut OFF, 0 consommateur — le CHANGELOG le dit).
 **Non câblé, mesurable** : `geometry.ego_rotation` (rotation caméra par flux de points, 2026-09-04) —
@@ -1165,6 +1165,54 @@ garde le câblage (commande arrivée, tournée par le cap, sans régression), pa
 sur cet A/B : la seule session disponible ne permettrait pas de distinguer un réglage d'un
 surajustement. Défaut **OFF** (la bascule n'a d'effet qu'au RECALCUL, et seulement si ⚑
 `shuttle_filter` sert la trace). ⚠ **Rien n'a été validé au navigateur ni recalculé en base.**
+
+### ⭐ D.5 — OÙ S'APPLIQUENT LISSAGE ET PRÉDICTION : trois défauts de câblage MESURÉS (2026-09-11)
+
+> Questions de Fabien : *« à quel moment inclure la prédiction et Kalman — au plus près des
+> données brutes ou au bout de la chaîne pour profiter des corrections amont ? Kalman
+> faut-il l'utiliser en aller-retour (c'est peut-être déjà le cas) et est-ce redondant avec
+> mes scripts de prédiction de trajectoire ? »* Le code répond à trois des quatre.
+
+**① L'aller-retour existe déjà, et il n'est PAS redondant avec la prédiction — les deux ne
+peuvent pas se remplacer.** `kalman_rts_cv` est un Kalman avant **+ un lisseur RTS arrière**
+(c'est l'aller-retour). La distinction qui compte n'est pas « Kalman ou pas » mais la
+**causalité** :
+
+| | ce que ça fait | voit le futur ? |
+|---|---|---|
+| **lissage RTS** (`kalman_rts_cv`) | ré-estime l'état PASSÉ avec toute la trace | **oui** |
+| **prédiction** (`extrapolate_*`) | extrapole depuis l'historique **jusqu'à t0** | **non** |
+
+⭐ **Nourrir un TTC avec un état qui a vu le futur donnerait un indicateur MEILLEUR que ce
+qu'un véhicule réel peut calculer.** L'un reconstitue ce qui s'est passé, l'autre simule ce
+qu'on pouvait savoir : ils ne se substituent jamais. *Cette règle décide aussi de la question
+« brut ou bout de chaîne » : l'ENTRÉE de la prédiction se prend le plus corrigée possible,
+l'EXTRAPOLATION reste causale à partir de t0.*
+
+**② La prédiction est en bout de chaîne pour l'EGO et au plus près du BRUT pour les OBJETS.**
+Mesuré : `grep -c world_en prediction_adapter.py` → **0**. Elle prend `effective_gps_track`
+(donc ⚑ `shuttle_filter` s'applique) mais **re-dérive chaque position objet au pinhole**
+(`:352-357` — `pinhole_ego` puis `ego_to_world`). Conséquence : **ni la projection sol (⚑
+`auto_ground_calib`) ni le lissage Kalman+RTS du tracker n'atteignent le TTC.**
+⚠ Ce n'est pas forcément un bug : `world_en` est **PARTIEL par conception** (absent pour les
+stationnés et sous 5 observations, §D.1), donc la re-dérivation est un repli légitime. Le
+défaut est qu'elle est le chemin **UNIQUE** : la forme juste est « `world_en` quand il existe,
+pinhole sinon », derrière un ⚑ et avec l'A/B chiffré. **Arbitrage, pas évidence.**
+
+**③ Un TROISIÈME idiome de lissage, local.** `prediction_adapter.smooth_trajectory` (`:396`)
+est une moyenne glissante `window=5`, définie dans le fichier — ni la brique commune
+(`kinematics.rts_smoother`), ni le RTS. La chaîne lisse donc les objets deux fois, de deux
+manières, sur deux dérivations différentes de la même position.
+
+**④ `extrapolate_kalman` est INATTEIGNABLE.** Le paramètre `method` existe, la fonction est
+testée (`kinematics/test_prediction.py`), et **aucun appelant ne la choisit** :
+`tasks.py:2680` appelle `annotate_prediction_indicators(session)` sans `method`, donc toujours
+`speed_accel`. Le §C annonçait « param `method` · CÂBLÉ » — corrigé le même jour.
+*Un paramètre qu'aucun appelant ne pose n'est pas un réglage, c'est une branche morte.*
+
+**Ordre de traitement retenu (Fabien, 2026-09-11)** : consigner (ce §), puis régler **en
+vérifiant le code en profondeur — sans jamais supposer qu'une brique n'est pas câblée ni la
+réinventer**, puis reprendre les garés.
 
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 
