@@ -292,12 +292,52 @@ class ModelSyncService:
             model_key=model_key,
             defaults=defaults
         )
+        self._reconcile_engine_flags(obj)
 
         # If not created, it was updated
         updated = not created
 
         logger.debug(f"[ModelSync] {model_key}: created={created}, updated={updated}")
         return created, updated
+
+    def _reconcile_engine_flags(self, obj) -> bool:
+        """Le MOTEUR fait autorité sur ce qu'il DÉCLARE — pour TOUTE ligne dont il se résout.
+
+        La règle existait (`_capabilities_projectable`, 2026-08-31 : *« c'est la DÉCOUVERTE
+        qui fait autorité — elle lit les flags sur les classes de backend »*), mais elle ne
+        s'exerçait que sur les modèles qu'une APP déclare (`_tts_caps`, 4 moteurs). Une ligne
+        PROSPECTÉE (`huggingface:…`) recevait ses capacités de son manifeste, puis plus rien
+        ne relisait jamais la classe — même quand elle se résout.
+
+        Conséquence mesurée le 2026-09-12 : `Audio8` au catalogue `supports_cloning=True`,
+        son backend `False` (délibéré, motivé dans sa docstring) ; `Qwen3-TTS` muet au
+        catalogue, `False` au backend. L'UI offrait les voix clonées, les moteurs les
+        ignoraient en silence. *Un filtre qui s'absente ne lève pas ; il rend l'UI permissive.*
+
+        Ce qui délimite l'autorité : `apply_engine_flags` ne touche que ce que la classe
+        DÉCLARE dans son propre corps — le défaut du contrat commun n'écrase jamais un
+        manifeste. Sans classe résolue (chatterbox : moteur sans code chargé), rien ne change.
+        Rend True si la ligne a été réécrite.
+        """
+        try:
+            from wama.common.backends.manager import backend_for_model
+            from wama.common.utils.model_capabilities import apply_engine_flags
+            cls = backend_for_model(obj)
+        except Exception as e:                   # jamais bloquant pour la synchro
+            logger.debug(f"[ModelSync] {obj.model_key}: moteur non résolu ({e})")
+            return False
+        if cls is None:
+            return False
+        avant = dict(obj.capabilities or {})
+        apres = apply_engine_flags(avant, cls)
+        if apres == avant:
+            return False
+        obj.capabilities = apres
+        obj.save(update_fields=['capabilities'])
+        logger.info(f"[ModelSync] {obj.model_key}: capacités réalignées sur {cls.__name__} "
+                    f"(supports_cloning {avant.get('supports_cloning')!r} → "
+                    f"{apres.get('supports_cloning')!r})")
+        return True
 
     def sync_file_change(
         self,

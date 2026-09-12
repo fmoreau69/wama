@@ -140,6 +140,59 @@ def supports_timestamps_for(caps: Dict[str, Any], lang: str) -> bool:
     return ANY_LANGUAGE in bornes or (lang or "") in bornes
 
 
+# ── AUTORITÉ du moteur sur les flags qu'il DÉCLARE ─────────────────────────────────────────
+def declared_engine_flag(cls, flag: str):
+    """Valeur d'un `supports_*` telle que la classe de moteur la DÉCLARE — ou `None`.
+
+    ⚠ « Déclare » n'est pas « porte ». Le contrat commun (`backends/base.py`) pose tous les
+    flags à False par défaut — *« un backend ne promet rien tant qu'il ne l'a pas déclaré »*.
+    Ce défaut est un SILENCE, pas un fait : il ne doit jamais contredire ce qu'un manifeste a
+    pu établir. On remonte donc la MRO jusqu'au contrat, et on ne rend une valeur que si une
+    classe EN DESSOUS du contrat l'a écrite dans son propre corps.
+
+    Ce qui a motivé cette distinction (2026-09-12, mesuré sur le catalogue) : `Audio8Backend`
+    déclare `supports_cloning = False` avec sa raison (l'API exige le transcript de la
+    référence, que le flux de voix WAMA ne porte pas — promettre le clonage serait mentir) ;
+    la ligne de catalogue disait `True`, héritée d'un manifeste antérieur au backend. L'UI
+    offrait les voix clonées, le moteur les ignorait en silence. `Qwen3TTSBackend` : même
+    déclaration, catalogue muet — même effet.
+    """
+    from wama.common.backends.base import BaseModelBackend      # paresseux : utilitaire feuille
+    for klass in getattr(cls, "__mro__", ()):
+        if klass is BaseModelBackend:
+            return None                       # atteint le contrat : rien de déclaré en dessous
+        if flag in vars(klass):
+            return bool(vars(klass)[flag])
+    return None
+
+
+def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
+    """Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
+
+    Règle, dans le vocabulaire du dépôt (`_capabilities_projectable`, 2026-08-31) : *« c'est la
+    DÉCOUVERTE qui fait autorité — elle lit les flags sur les classes de backend ; on ne comble
+    qu'un vide, on ne conteste jamais un fait »*. Le FAIT, quand il existe, est la déclaration
+    du moteur ; le manifeste ne garde autorité que là où aucune classe ne se résout.
+
+    Aujourd'hui la règle porte le CLONAGE, seul flag dont la contradiction avait une
+    conséquence visible ; `inputs_optional` suit, parce que `reference_voice` n'est rien
+    d'autre que « ce moteur accepte une voix à imiter » (INPUT_MODEL_MATCHING.md).
+    Les autres flags (`supports_timestamps`…) restent posés « seulement s'ils sont vrais » par la
+    découverte — sémantique différente, hors de cette règle.
+    """
+    caps = dict(caps or {})
+    declare = declared_engine_flag(cls, "supports_cloning")
+    if declare is None:
+        return caps                           # défaut de base seulement : on ne conteste rien
+    caps["supports_cloning"] = declare
+    optionnels = [x for x in (caps.get("inputs_optional") or []) if x != "reference_voice"]
+    if declare:
+        optionnels.append("reference_voice")
+    if optionnels or "inputs_optional" in caps:
+        caps["inputs_optional"] = optionnels
+    return caps
+
+
 # ── NORMALISATION des dicts LEGACY vers le vocabulaire canonique ──────────────
 def normalize_capabilities(raw: Dict[str, Any]) -> Dict[str, Any]:
     """
