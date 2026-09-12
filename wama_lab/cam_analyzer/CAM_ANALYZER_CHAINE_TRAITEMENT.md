@@ -1479,7 +1479,14 @@ de bord** :
 |---|---|
 | `homography_estimator:53` | `bb[0] <= 6 or bb[2] >= size[0] - 6` → seuil **6 px** |
 | `prediction_adapter:211` | `bb[0] <= 8 or bb[2] >= iw - 8` → seuil **8 px** |
-| `multicam_tracker` (« mesure dégradée ») | **ne teste rien** : il l'infère de `ego is None` — or `pinhole_ego` rend `None` pour **deux causes indistinguables** (bbox tronquée **ou** `distance_m` absente) |
+| `multicam_tracker` (« mesure dégradée ») | l'infère de `pinhole_ego() is None` **après avoir écarté les autres causes** de ce `None` (l. 324-326 : `tid`/`dm`/`bb` re-testés, sinon `continue`) — donc seule la cause « coupée au bord » l'atteint |
+
+⚠⚠ **RECTIFICATION LE JOUR MÊME** : la 1ʳᵉ rédaction de cette ligne accusait le tracker
+d'« inférer d'un `None` à deux causes indistinguables ». **C'est faux** — le chemin dégradé
+re-teste les deux autres causes et abandonne. Son raisonnement est SAIN. *Lire la moitié d'un
+chemin suffit à condamner à tort l'autre moitié.* Ce qui reste vrai : une même notion vit en
+**trois exemplaires**, avec **deux valeurs de marge** et une version implicite — donc aucun
+levier d'aval ne peut s'y conditionner.
 
 *Le levier « continuité d'aire » que Fabien désigne comme indispensable ne peut pas exister
 tant que « l'aire diminue parce que l'objet SORT » n'est écrit nulle part.*
@@ -1495,9 +1502,14 @@ repose ne protège pas : il invente.* Mesuré par ailleurs : **3 496** réutilis
 profil **n'atteint jamais** `model.track()`.
 
 **⑤ Le design proposé — où tombe le coût.**
-1. **Déclarer l'état de bord UNE fois**, à l'analyse : quels bords la bbox touche et de combien.
-   Arithmétique de bbox, **coût nul**, et **rétro-calculable sur les données déjà en base** ;
-   les trois consommateurs s'y branchent, leurs seuils divergents disparaissent.
+1. ✅ **FAIT le 2026-09-12** — `wama_data/functions/geometry/frame_edges.py` (brique PURE) :
+   `bbox_edges()` rend l'ensemble des bords touchés, `touches_side_edge()` isole les bords
+   **latéraux** (ceux qui tronquent la largeur et le centre ; le haut et le bas ne le font
+   pas). `prediction_adapter` et `homography_estimator` s'y branchent. ⭐ **La marge reste un
+   ARGUMENT** — 8 px et 6 px conservés : les unifier changerait le jeu d'observations de
+   l'estimateur de pitch, donc c'est une décision à MESURER, pas un effet de bord de
+   refactoring. **Aucun comportement changé** (gardé par un test qui compare, marge par marge
+   et pixel par pixel, à l'expression littérale remplacée).
 2. **La couleur se capture à l'ANALYSE, jamais à l'association** : la passe décode déjà chaque
    image, en extraire une signature (médiane RGB du cœur de bbox) y coûte quasi rien, et
    l'association travaille ensuite sur des **scalaires**. *Le coût tombe une fois, dans la

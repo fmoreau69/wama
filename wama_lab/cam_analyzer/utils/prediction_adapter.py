@@ -208,7 +208,13 @@ def pinhole_ego(det, iw, ih, fov_v_deg=60.0, fov_h_deg=None, dist_scale=1.0):
     bb = det.get('bbox')
     if dm is None or not (isinstance(bb, (list, tuple)) and len(bb) >= 4):
         return None
-    if bb[0] <= 8 or bb[2] >= iw - 8:      # coupé au bord → cap non fiable
+    # Coupé au bord latéral → étendue apparente et centre faux, donc cap non fiable.
+    # ⚠ La notion vit désormais dans `geometry.frame_edges` (brique pure) : elle était
+    # redérivée ici, dans `homography_estimator` (marge 6) et implicitement dans le tracker.
+    # La MARGE reste celle de cet appelant (8 px) — l'unifier changerait le comportement de
+    # l'estimateur d'homographie, ce qui est une décision à mesurer (`CHAINE §H ③`).
+    from wama_data.functions.geometry.frame_edges import touches_side_edge
+    if touches_side_edge(bb, iw, ih, margin_px=8.0):
         return None
     dm = dm * dist_scale
     if fov_h_deg:

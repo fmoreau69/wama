@@ -23,6 +23,8 @@ import logging
 import math
 from collections import defaultdict
 
+from wama_data.functions.geometry.frame_edges import touches_side_edge
+
 logger = logging.getLogger(__name__)
 
 Y_MIN, Y_MAX = 2.0, 15.0
@@ -50,8 +52,13 @@ def _collect_static_obs(session, position, max_gids=40, max_per_gid=120):
             dist = d.get('distance_m') or d.get('dist_euclid_m')
             if not bb or len(bb) < 4 or not dist:
                 continue
-            if bb[0] <= 6 or bb[2] >= size[0] - 6:
-                continue   # bbox coupée : bas-de-bbox non fiable
+            # bbox coupée au bord latéral : bas-de-bbox non fiable.
+            # Même notion que `prediction_adapter.pinhole_ego`, désormais partagée
+            # (`geometry.frame_edges`) — mais la MARGE reste celle d'ici (6 px) : l'unifier
+            # à 8 px changerait le jeu d'observations de l'estimateur, donc son pitch.
+            # C'est une décision à mesurer, pas un effet de bord (`CHAINE §H ③`).
+            if touches_side_edge(bb, size[0], size[1], margin_px=6.0):
+                continue
             if len(obs[gid]) < max_per_gid:
                 obs[gid].append(((bb[0] + bb[2]) / 2.0, bb[3], df.timestamp, float(dist)))
     obs = dict(sorted(obs.items(), key=lambda kv: -len(kv[1]))[:max_gids])
