@@ -171,6 +171,35 @@ et doit vivre ailleurs : `media_tests/` pour les tests (cf. `wama/common/runners
 > déplacement (`check_media_integrity` les listait à l'identique). Famille `anonymizer` du filet
 > nocturne : **14/14**.
 >
+> ### Ménage du domicile — 2026-09-12, après le déplacement
+>
+> | geste | résultat | invariant |
+> |---|---|---|
+> | résidus de sonde (`_t.*`, `temoin_*`, `sonde_*`) | **25 supprimés**, aucun référencé | 330 / 29 |
+> | dossiers fantômes (vides) | **172 supprimés** | — |
+> | doublons **mécaniques** (`xxx_1.ext` → `xxx.ext`) | **36 copies résorbées, 32 lignes repointées, 0,56 Go** | 330 → 309 référencés (les cards PARTAGENT désormais le même fichier), **29 absents inchangés** |
+>
+> `manage.py dedupe_user_media [--apply]` — idempotente (relancée : 0 copie). Ce qui rend ce cas
+> **mécanique** et lui seul : l'original s'identifie SANS arbitrage (c'est la copie sans suffixe)
+> et les deux fichiers sont dans le MÊME dossier — donc même utilisateur, même app, aucun droit
+> ne bouge. Trois conditions vérifiées avant d'agir : contenu identique (sha256, pas la taille),
+> même dossier, **exactement une** copie sans suffixe.
+>
+> ⚠ **Les trois autres familles de doublons ne sont PAS mécaniques** et sont exclues :
+> **cam_analyzer** (consigne Fabien — il lit ses entrées **par DOSSIER**, RTMaps : *« aucune
+> référence en base » n'y signifie donc pas « orphelin »*) ; **inter-apps**, que l'architecture
+> cible résoudra mieux qu'un ménage (voir ci-dessous) ; **inter-utilisateurs**, 🔴 à ne jamais
+> dédupliquer — un fichier partagé par deux utilisateurs rend le chiffrement par utilisateur
+> impossible et donnerait à l'un accès aux octets de l'autre.
+>
+> ### 🎯 Cible énoncée par Fabien le 2026-09-12
+>
+> > *« Sortir les fichiers médias des apps et ne faire que les POINTER depuis les apps. »*
+>
+> C'est la suite du domicile unique, et c'est ce qui supprime la famille inter-apps **par
+> construction** : un média importé une fois vit au niveau de l'utilisateur, chaque card le
+> désigne au lieu d'en recevoir une copie. Jalon déjà tracé sous le nom `reference_or_copy()`.
+>
 > ⚠ **CE QUI N'EST PAS FAIT, et qu'il ne faut pas lire comme fait** :
 > 1. **45 fichiers d'app SANS identifiant utilisateur** restent hors du domicile, et c'est
 >    JUSTE : `avatarizer/gallery` (9), `synthesizer/voice_references` (29), `default_voices` (7)
