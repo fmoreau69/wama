@@ -293,3 +293,78 @@ class VendoringTest(TestCase):
                     'talkinghead-1.7/lipsync-fr.mjs',
                     'talkinghead-1.7/lipsync-en.mjs'):
             self.assertTrue((base / rel).exists(), f"{rel} manquant — relancer update_vendors.sh")
+
+
+class AutoriteDuMoteurSurLeClonageTest(TestCase):
+    """Le catalogue ne contredit JAMAIS un moteur qui se résout et DÉCLARE son clonage.
+
+    Les deux gardes plus haut contrôlent la DÉCLARATION (la classe) et le TEXTE de la
+    découverte. Aucune ne comparait le CATALOGUE à la classe — et c'est là que le défaut
+    vivait, mesuré le 2026-09-12 : `Audio8` `True` au catalogue (manifeste antérieur au
+    backend), `False` au moteur (délibéré) ; `Qwen3-TTS` muet au catalogue, `False` au moteur.
+    L'UI offrait les voix clonées, les moteurs les ignoraient en silence.
+    """
+
+    def test_le_moteur_fait_autorite_sur_ce_qu_il_DECLARE(self):
+        from wama.common.backends.audio8_backend import Audio8Backend
+        from wama.common.backends.coqui_backend import CoquiBackend
+        from wama.common.utils.model_capabilities import apply_engine_flags, declared_engine_flag
+
+        self.assertIs(declared_engine_flag(Audio8Backend, 'supports_cloning'), False)
+        self.assertIs(declared_engine_flag(CoquiBackend, 'supports_cloning'), True)
+
+        # Le cas Audio8 tel qu'il était en base : True + reference_voice, contre le moteur.
+        caps = apply_engine_flags(
+            {'task': 'text-to-speech', 'supports_cloning': True,
+             'inputs_optional': ['reference_voice'], 'inputs_required': ['prompt']},
+            Audio8Backend)
+        self.assertIs(caps['supports_cloning'], False)
+        self.assertNotIn('reference_voice', caps['inputs_optional'],
+                         "un moteur qui ne clone pas n'accepte pas de voix à imiter")
+        # Et l'inverse : un moteur qui clone reçoit son entrée optionnelle.
+        caps = apply_engine_flags({'task': 'text-to-speech'}, CoquiBackend)
+        self.assertIs(caps['supports_cloning'], True)
+        self.assertIn('reference_voice', caps['inputs_optional'])
+
+    def test_le_defaut_du_contrat_n_ecrase_JAMAIS_un_manifeste(self):
+        """« Un backend ne promet rien tant qu'il ne l'a pas déclaré » : le False du contrat
+        est un SILENCE, pas un fait — il ne conteste pas ce qu'un manifeste a établi."""
+        from wama.common.utils.model_capabilities import apply_engine_flags, declared_engine_flag
+
+        class MoteurMuet(BaseModelBackend):          # hérite le défaut, ne déclare rien
+            ENGINE = 'muet'
+
+        self.assertIsNone(declared_engine_flag(MoteurMuet, 'supports_cloning'))
+        avant = {'task': 'text-to-speech', 'supports_cloning': True,
+                 'inputs_optional': ['reference_voice']}
+        self.assertEqual(avant, apply_engine_flags(avant, MoteurMuet))
+
+    def test_la_synchro_REALIGNE_une_ligne_prospectee_sur_son_moteur(self):
+        """Le chemin que les lignes `huggingface:` ne prenaient pas : après l'upsert, la synchro
+        relit la classe. On force la résolution (une clé de test ne résout aucun moteur réel)
+        pour mesurer le CROCHET, pas le résolveur — qui a ses propres tests."""
+        from unittest.mock import patch
+
+        from wama.common.backends.audio8_backend import Audio8Backend
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.model_sync import get_sync_service
+
+        ligne = AIModel.objects.create(
+            model_key='huggingface:test/audio8-comme-en-base', name='Audio8 (test)',
+            model_type='speech', source='huggingface',
+            capabilities={'task': 'text-to-speech', 'supports_cloning': True,
+                          'inputs_required': ['prompt'], 'inputs_optional': ['reference_voice']},
+            composition={'runtime': {'engine': 'transformers-remote-code'}})
+
+        with patch('wama.common.backends.manager.backend_for_model', return_value=Audio8Backend):
+            self.assertTrue(get_sync_service()._reconcile_engine_flags(ligne))
+        ligne.refresh_from_db()
+        self.assertIs(ligne.capabilities['supports_cloning'], False)
+        self.assertNotIn('reference_voice', ligne.capabilities['inputs_optional'])
+
+        # Sans classe résolue (chatterbox : moteur sans code chargé), RIEN ne bouge.
+        avant = dict(ligne.capabilities)
+        with patch('wama.common.backends.manager.backend_for_model', return_value=None):
+            self.assertFalse(get_sync_service()._reconcile_engine_flags(ligne))
+        ligne.refresh_from_db()
+        self.assertEqual(avant, ligne.capabilities)

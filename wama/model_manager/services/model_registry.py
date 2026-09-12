@@ -1186,7 +1186,10 @@ class ModelRegistry:
                 """
                 cls = _tts_backend_class(engine_key)
                 if cls is not None:
-                    caps.setdefault('supports_cloning', bool(cls.supports_cloning))
+                    # `supports_cloning` (+ `reference_voice`) : par la RÈGLE COMMUNE
+                    # `apply_engine_flags`, en fin de fonction — la même que la synchro
+                    # applique aux lignes prospectées. Un `setdefault` vivait ici : il
+                    # laissait une valeur déjà écrite contredire le moteur (2026-09-12).
                     if cls.supports_timestamps:
                         caps.setdefault('supports_timestamps', True)
                         if cls.timestamp_languages:
@@ -1197,6 +1200,13 @@ class ModelRegistry:
                 caps.setdefault('task', 'text-to-speech')
                 caps.setdefault('modalities', ['audio'])
                 caps.setdefault('inputs_required', ['prompt'])
+                if cls is not None:
+                    # Le moteur fait autorité sur ce qu'il DÉCLARE (règle commune, une seule
+                    # pour la découverte ET la synchro des lignes prospectées).
+                    from wama.common.utils.model_capabilities import apply_engine_flags
+                    return apply_engine_flags(caps, cls)
+                # Sans classe résolue, le manifeste est la seule connaissance : on ne conteste
+                # rien, on complète seulement l'entrée optionnelle qu'un clonage annoncé implique.
                 if caps.get('supports_cloning'):
                     caps.setdefault('inputs_optional', ['reference_voice'])
                 return caps

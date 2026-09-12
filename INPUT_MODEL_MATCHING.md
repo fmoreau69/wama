@@ -207,3 +207,49 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
 - **`prompt` de l'avatarizer** : ajout personnalisé (TTS+avatar), qu'aucun modèle ne déclare.
   Sous la règle d'union il DISPARAÎT, au profit de la chaîne synthesizer → avatarizer — et il
   reviendra de lui-même le jour où un modèle déclarera le couple. Position Fabien 10/09.
+
+### 6.7 La voix et la langue sont des AXES DE CAPACITÉ, pas un cas TTS (2026-09-12)
+
+> Cadre posé par Fabien : *« ça ne doit pas être la sélection des voix/langues qui définit le
+> modèle, mais ça doit rentrer dans le fonctionnement tirage des modèles / désactivation des
+> capacités entrée↔modèle en double sens / entrées proposées selon l'union des capacités. »*
+> Mesuré le même jour, et le mesuré donne raison au cadre : ce qui existe est déjà déclaratif
+> (`reference_voice` est un jeton d'`INPUT_TYPES`, `supports_cloning` un flag du contrat commun,
+> `WamaModelCaps` et `WamaInputMatch` lisent le catalogue « zéro hardcode/app ») — ce qui manque
+> est l'application UNIFORME de ces mécanismes.
+
+**Ce qui est fait (commits du 12/09) :**
+
+- **Le MOTEUR fait autorité sur ce qu'il DÉCLARE** — `model_capabilities.apply_engine_flags`,
+  appliquée par la découverte (`_tts_caps`) ET par la synchro à toute ligne dont le moteur se
+  résout (`ModelSyncService._reconcile_engine_flags`). La règle existait
+  (`_capabilities_projectable`, 31/08 : *« la DÉCOUVERTE lit les flags sur les classes »*) mais ne
+  s'exerçait que sur les modèles qu'une app déclare : une ligne PROSPECTÉE gardait ce que son
+  manifeste avait établi, même quand une classe existait. Mesuré : **Audio8** `True` au catalogue,
+  `False` au moteur (délibéré — l'API exige le transcript de la référence) ; **Qwen3-TTS** muet au
+  catalogue, `False` au moteur. L'UI offrait les voix clonées, les moteurs les ignoraient en
+  silence. Après synchro : **zéro écart sur 12 modèles TTS** ; chatterbox (aucune classe) garde
+  son manifeste — *on ne comble qu'un vide, on ne conteste jamais un fait.*
+  ⚠ « Déclare » ≠ « porte » : le `False` par défaut du contrat commun est un SILENCE, il n'écrase
+  jamais un manifeste (`declared_engine_flag` remonte la MRO jusqu'au contrat).
+- **La résolution des voix est au commun** (`common/tts/voice_refs`, jadis
+  `synthesizer/utils/voice_utils`) : quatre consommateurs — synthesizer, avatarizer, l'assistant,
+  `accounts` — plus `tts_service.py` hors Django, qui recompose le dossier des voix à la main.
+
+**Ce qui reste, nommé — la partie double sens du cadre :**
+
+| axe | modèle → choix | choix → modèle |
+|---|---|---|
+| **voix** | ✅ `hideOption` masque `ua_`/`cv_` si le moteur ne clone pas | ✅ `WamaInputMatch` grise les moteurs sans clonage |
+| **langue** | ✅ `langFilter` restreint les langues (3 états) | ❌ **rien** — aucun slot `language` : choisir une langue d'abord ne désactive aucun modèle |
+
+- Le prédicat `/^(ua_|cv_)/` est **recopié sur 4 sites dans 2 apps** (2 `hideOption`, 2
+  `isProvided`) : il doit remonter dans la brique et s'y DÉCLARER.
+- La **langue** doit devenir un slot de `WamaInputMatch` comme la voix — la brique sait déjà
+  porter des slots non-fichier (crochets `isProvided`/`describe`/`clear`, adoption synthesizer
+  17/08) ; il manque la déclaration et son prédicat commun.
+- Les **voix de référence** vont en médiathèque (`SystemAsset`) : leur taxonomie
+  `<langue>/<âge>/<genre>` devient des CHAMPS, et c'est ce qui permet aux deux filtres de s'y
+  brancher sans rien connaître du TTS. ⚠ `tts_service.py:34` (processus séparé) et
+  `VOICE_REFS_SUBDIR` (commun) sont les deux endroits qui décident du dossier : ils suivent
+  ensemble ou pas du tout.
