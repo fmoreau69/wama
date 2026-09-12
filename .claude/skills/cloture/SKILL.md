@@ -22,6 +22,20 @@ retrouve-t-elle TOUT ? »*
   Si le diff contient du travail d'autrui : soit on l'annonce **dans le message**, soit on
   attend — jamais en silence. (Vécu 23/08 : 2 lignes emportées. Vécu 26/08 : 14 lignes
   emportées dans `mecanismes.py`, découvertes APRÈS le commit.)
+- 🔴 **UN RESTE EST VIEUX, UN WIP EST CHAUD — le critère est la DATE, pas l'apparence du
+  `git status`** (ajouté le 2026-09-12). Cas vécu : demande de « remettre l'arbre au propre,
+  toutes les autres instances ont commité ». Le `git status` montrait 11 fichiers modifiés, tous
+  d'allure identique. **Les mtime les ont séparés en deux populations** : trois dataient de 3 à
+  5 jours (des restes orphelins, personne ne revenait les chercher) et **huit avaient 17 minutes**
+  — un chantier EN COURS, `AGENTS.md` et `common/views.py` compris.
+  Les commiter aurait été le balayage d'index que la règle des chemins explicites interdit, *au
+  moment même où l'on croit rendre service*.
+  ✅ **Le geste** : `date -r <fichier>` sur chaque ligne du `git status` AVANT de décider ; ne
+  toucher que ce qui est nettement antérieur à la session, et **vérifier après coup que la 1ʳᵉ
+  colonne du `git status` est restée à espace** sur les fichiers d'autrui (rien passé dans
+  l'index par le geste). Et si un reste orphelin est un fichier NON SUIVI, vérifier qu'il
+  DEVRAIT l'être (ses jumeaux le sont-ils ?) avant de le versionner — un artefact de passage et
+  un trou de versionnement ont la même tête dans un `git status`.
 
 ## 1. Palier final
 - Dérouler `/palier` sur le travail restant : validations empiriques, consignation dans les
