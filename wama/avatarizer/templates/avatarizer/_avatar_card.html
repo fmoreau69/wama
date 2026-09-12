@@ -31,8 +31,11 @@ pas la variable de gabarit.
       <span class="wcv3-lbl">Entrée</span>
       <div class="wcv3-in">
         <span class="wcv3-thumb">
-          {% if elem.avatar_source == 'gallery' and elem.avatar_gallery_name %}
-          <img src="{{ media_url }}avatarizer/gallery/{{ elem.avatar_gallery_name }}"
+          {# ⚠ L'URL est DÉRIVÉE (`avatar_gallery_url`, qui interroge la médiathèque), plus
+             composée ici : ce gabarit écrivait `{{ media_url }}avatarizer/gallery/…` et aurait
+             été le dernier à pointer sur l'ancien dossier après le versement de la galerie. #}
+          {% if elem.avatar_gallery_url %}
+          <img src="{{ elem.avatar_gallery_url }}"
                style="width:100%;height:100%;object-fit:cover;border-radius:4px;"
                alt="{{ elem.avatar_gallery_name }}">
           {% elif elem.avatar_upload %}

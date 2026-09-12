@@ -98,6 +98,22 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])],
     )
 
+    @property
+    def avatar_gallery_url(self):
+        """URL de l'avatar de galerie, DEMANDÉE à la médiathèque (jamais composée).
+
+        ⚠ `_avatar_card.html` écrivait `{{ media_url }}avatarizer/gallery/{{ … }}` à la main.
+        Une URL composée dans un gabarit est un chemin de plus à changer le jour où le domicile
+        bouge — et celui-là aurait été le dernier à pointer sur l'ancien dossier après le
+        versement de la galerie en `SystemAsset` (2026-09-12). Rend `''` si l'avatar n'existe
+        plus : le gabarit affiche alors son état vide au lieu d'une image brisée.
+        """
+        if self.avatar_source != 'gallery' or not self.avatar_gallery_name:
+            return ''
+        from wama.media_library.services import gallery_assets
+        a = gallery_assets().filter(name=self.avatar_gallery_name).first()
+        return a.file.url if (a and a.file) else ''
+
     # Paramètres pipeline MuseTalk
     # DÉRIVÉ de use_enhancer depuis 2026-08-03 (l'UI n'expose plus de mode) —
     # conservé pour les clés ETA (avatarizer:<mode>) et les données existantes.

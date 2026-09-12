@@ -147,3 +147,48 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
 
     logger.info(f"[media_library] {app}#{pk} → asset #{asset.id} ({asset_type}) pour {user}")
     return {'asset_id': asset.id, 'name': asset.name, 'asset_type': asset.asset_type}
+
+
+# ── Galerie d'avatars PARTAGÉE — domicile unique d'une ressource d'application ──────────
+#
+# ⚠ POURQUOI ICI, ET PAS DANS L'AVATARIZER. La galerie était un DOSSIER parcouru à la main par
+# TROIS sites Python (`avatarizer.views._gallery_images`, `avatarizer.workers`, `studio.views`)
+# et DEUX gabarits qui composaient l'URL (`{{ media_url }}avatarizer/gallery/{{ nom }}`). Six
+# endroits pour neuf images, et aucun droit : la galerie était lisible et servie à tous sans que
+# personne ne l'ait décidé.
+#
+# `SystemAsset` est le modèle EXACT de ce qu'elle est — « asset générique partagé par tous les
+# utilisateurs, géré par les admins, non supprimable par les utilisateurs finaux ». Il existait
+# depuis le début ; la galerie l'ignorait. L'y verser donne les droits fins, un domicile unique,
+# et supprime les six compositions de chemin.
+#
+# ⚠ LA CLÉ RESTE LE NOM DE FICHIER. `AvatarJob.avatar_gallery_name` STOCKE ce nom : c'est la
+# frontière des DONNÉES, elle ne se renomme pas. `SystemAsset.name` porte donc le même nom, et
+# les lignes déjà en base continuent de résoudre — le stockage change, pas le contrat.
+
+def gallery_assets():
+    """Les avatars de la galerie partagée, actifs, dans l'ordre d'affichage."""
+    from .models import SystemAsset
+    return SystemAsset.objects.filter(asset_type='avatar', is_active=True).order_by('name')
+
+
+def gallery_entries() -> list:
+    """`[{'name', 'url'}]` — ce dont les gabarits ont besoin, sans composer d'URL.
+
+    Rendre l'URL ICI est tout l'intérêt : le jour où le domicile des assets bouge (chiffrement),
+    les gabarits suivent sans être touchés. C'est la même règle que `app_media_dir` pour les
+    chemins — *un seul endroit décide de la forme*.
+    """
+    return [{'name': a.name, 'url': a.file.url} for a in gallery_assets() if a.file]
+
+
+def gallery_path(name: str):
+    """Chemin ABSOLU de l'avatar nommé, ou `None` s'il n'existe pas (le worker en a besoin).
+
+    Rend `None` plutôt que de lever : l'appelant sait dire « avatar introuvable » avec le nom,
+    ce qui est plus utile qu'une trace d'exception sur un chemin composé.
+    """
+    if not name:
+        return None
+    a = gallery_assets().filter(name=name).first()
+    return a.file.path if (a and a.file) else None

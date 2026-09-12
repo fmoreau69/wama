@@ -179,9 +179,11 @@ def generate_avatar(self, job_id: int):
         if job.avatar_source == 'gallery':
             if not job.avatar_gallery_name:
                 raise ValueError("Galerie : aucun avatar sélectionné.")
-            gallery_dir = Path(settings.MEDIA_ROOT) / 'avatarizer' / 'gallery'
-            image_path = str(gallery_dir / job.avatar_gallery_name)
-            if not os.path.exists(image_path):
+            # La galerie est un `SystemAsset` depuis le 2026-09-12 : on ne compose plus son
+            # chemin, on le DEMANDE. La clé reste le nom stocké dans `avatar_gallery_name`.
+            from wama.media_library.services import gallery_path
+            image_path = gallery_path(job.avatar_gallery_name)
+            if not image_path or not os.path.exists(image_path):
                 raise FileNotFoundError(f"Avatar introuvable : {job.avatar_gallery_name}")
         else:
             if not job.avatar_upload:
