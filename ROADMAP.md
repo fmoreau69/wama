@@ -3503,8 +3503,18 @@ ajouter dans les "…", pas comme bouton d'action principal »*. Mesuré avant d
   rôle est FOURNI, jamais deviné), et **« Ajouter au RAG »**, qui n'était que dans l'inspecteur.
   **Smoke navigateur** : les 4 entrées rendues, sous-menu `[Voix, Musique, Bruitage]`, **0 erreur
   console**, fixture nettoyée.
-- 🔚 **Reste** : retirer les 3 duplications (geste de DÉPRÉCIATION à part — routes propres +
-  drapeau `exported_to_library`).
+- ✅ **Dépréciation FAITE le 2026-09-12** — et le relevé du 11/09 qui annonçait « 3 copies »
+  était **faux d'un tiers** : `synthesizer/views.py:897` n'est PAS le même geste, c'est
+  l'**upload d'une voix personnalisée** (`request.FILES`, nom requis, extensions de voix), qui
+  ne part d'aucun résultat d'app. *Compter une ressemblance de surface comme une duplication est
+  la même faute que conclure d'un nom de route.* Les **2** vraies copies (composer + sa jumelle)
+  délèguent ; leurs routes et leur contrat de réponse `{success}` sont **conservés** (leur front
+  les consomme — on déprécie l'implémentation, pas la porte), et ce qui leur appartient reste
+  chez elles : le rôle dérivé du `generation_type`, et le refus du double export.
+  **Un gardien AST** refuse qu'une vue d'app recopie le geste — contre-épreuve faite sur la
+  version d'avant : il accuse bien la ligne 688 qui vient d'être retirée.
+- ✅ **3ᵉ surface** : `add_item_to_media_library` (assistant). Menu « … » · route d'app · outil —
+  une seule brique, donc les mêmes refus partout.
 
 **② Le Data Analyzer est DÉCIDÉ depuis le 2026-08-25 et n'existe pas.**
 `WAMA_DATA_WORLD §11.8` le tranche (« l'app-file du monde Data, hérite de la file Médias »).

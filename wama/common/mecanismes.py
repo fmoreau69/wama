@@ -270,8 +270,11 @@ MECANISMES = (
               "toute app qui déclare son adapter a le geste sans une ligne. Le RÔLE est FOURNI "
               "(un .mp3 peut être voix/musique/bruitage) ; une seule route pour les 10 apps. "
               "⚠ NE CONSTRUIT AUCUN CHEMIN — `upload_to` décide du domicile, donc le geste suit "
-              "la refonte des dossiers utilisateur (chiffrement) au lieu de la figer, "
-              "contrairement aux 3 copies qu'il remplace (composer ×2, synthesizer).",
+              "la refonte des dossiers utilisateur (chiffrement) au lieu de la figer. Les 2 "
+              "copies manuelles (composer + sa jumelle) DÉLÈGUENT depuis le 2026-09-12, et un "
+              "gardien AST refuse qu'une vue d'app recopie le geste. TROIS surfaces, une brique "
+              "(menu « … », route d'app, outil d'assistant). ⚠ `synthesizer` n'était PAS une "
+              "copie : son écriture d'asset est l'UPLOAD d'une voix, un autre geste.",
               'wama/media_library/services.py', 'CARD_DESIGN.md §2bis',
               symbole='export_item_to_library'),
     Mecanisme('filter_bar', 'Barre de filtrage',

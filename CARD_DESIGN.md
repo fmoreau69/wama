@@ -143,6 +143,15 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - ⚠ **Le message de sous-menu vide appartient à l'APPELANT** (`videLibelle`). Il était figé à
   « Aucune app ne prend ce format » — le vocabulaire d'« Envoyer vers… » dans la brique commune,
   qui devenait faux dès le 2ᵉ sous-menu.
+- ⭐ **TROIS surfaces, UNE brique** (2026-09-12) : le geste médiathèque est le même depuis le
+  menu « … », depuis la route d'app (`composer:export_to_library`, conservée pour son front) et
+  depuis l'assistant (`add_item_to_media_library`). Aucune n'est une variante — elles appellent
+  toutes `media_library/services.py::export_item_to_library`, donc elles ont les **mêmes refus**
+  (ownership, rôle non deviné). *Trois surfaces d'un geste ne sont une dette que si chacune a
+  son propre chemin serveur.*
+  Un **gardien AST** refuse qu'une vue d'app recopie la copie de fichier
+  (`media_library/tests_export_service.py`) — par AST et non par grep, parce qu'une 1ʳᵉ version
+  par motif accusait la docstring qui explique la correction.
 
 ## 3. Rendu : server-side (partial) + update en place — PAS de rebuild JS
 

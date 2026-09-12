@@ -345,9 +345,52 @@ class VerbesDeCycleTest(TestCase):
         self.assertIn('error', T.clear_my_queue(a, 'imager', confirm=True))
 
 
+class AddItemToMediaLibraryTest(TestCase):
+    """3ᵉ surface du geste médiathèque (menu « … » · route d'app · assistant). Ce qui se garde
+    ici, c'est qu'elle n'en soit pas une VARIANTE : même brique, donc mêmes refus."""
+
+    def setUp(self):
+        self.moi = _utilisateur('mlib1')
+        self.autre = _utilisateur('mlib2')
+
+    def _avec_sortie(self, user):
+        from django.core.files.base import ContentFile
+        from wama.composer.models import ComposerGeneration
+        gen = ComposerGeneration.objects.create(user=user, prompt='t', model='musicgen')
+        gen.audio_output.save('wama_temoin_outil.wav', ContentFile(b'\x00'), save=True)
+        return gen
+
+    def test_ne_DEVINE_pas_le_role_et_rend_les_candidats(self):
+        gen = self._avec_sortie(self.moi)
+        out = T.add_item_to_media_library(self.moi, 'composer', gen.pk)
+        self.assertIn('candidates', out)
+        self.assertIn('error', out)
+
+    def test_range_quand_le_role_est_fourni(self):
+        from wama.media_library.models import UserAsset
+        gen = self._avec_sortie(self.moi)
+        out = T.add_item_to_media_library(self.moi, 'composer', gen.pk,
+                                         asset_type='audio_music')
+        self.assertNotIn('error', out, out)
+        self.assertEqual(UserAsset.objects.get(pk=out['asset_id']).user, self.moi)
+
+    def test_refuse_l_element_d_un_autre(self):
+        gen = self._avec_sortie(self.autre)
+        out = T.add_item_to_media_library(self.moi, 'composer', gen.pk,
+                                         asset_type='audio_music')
+        self.assertEqual(out.get('error'), 'forbidden')
+
+    def test_n_est_pas_pris_pour_une_triade_add_to(self):
+        """Son nom COMMENCE par `add_` : s'il matchait `add_to_<app>`, il serait gaté sur une
+        app fantôme « item_to_media_library » et refusé à tout le monde."""
+        self.assertIsNone(T.tool_role('add_item_to_media_library'))
+        self.assertIsNone(T.app_id_for_tool('add_item_to_media_library'))
+
+
 _LECTURES = ('list_my_items', 'get_item_detail', 'get_item_preview', 'list_registries',
              'get_my_access', 'list_my_memories')
-_ECRITURES = ('delete_item', 'duplicate_item', 'clear_my_queue')
+_ECRITURES = ('delete_item', 'duplicate_item', 'clear_my_queue',
+              'add_item_to_media_library')
 
 
 class PorteTest(TestCase):

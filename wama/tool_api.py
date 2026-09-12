@@ -167,7 +167,8 @@ def add_to_anonymizer(
         return {'error': f'Format non supporté : {src.suffix}'}
 
     # Copy to anonymizer input if not already there
-    dest_dir = Path(settings.MEDIA_ROOT) / 'anonymizer' / str(user.id) / 'input'
+    from wama.common.utils.media_paths import app_media_dir
+    dest_dir = Path(settings.MEDIA_ROOT) / app_media_dir('anonymizer', user.id, 'input')
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / src.name
 
@@ -2971,6 +2972,34 @@ def clear_my_queue(user, app: str, confirm: bool = False) -> dict:
     return mauvais or {'cleared': True, 'app': app, 'items_before': avant}
 
 
+def add_item_to_media_library(user, app: str, pk: int, asset_type: str = '',
+                              name: str = '') -> dict:
+    """
+    Keep the RESULT of one of the user's items in their media library, so it can be reused as
+    an input later (a voice, a music bed, an image, a 3D object…).
+
+    Prefer this over `add_to_media_library` when the file came out of a WAMA app: you pass the
+    app and the item id, and the result file is found for you — no path to guess.
+
+    The role is asked, never guessed: if several roles fit the file (a .mp3 can be a voice, a
+    music track or a sound effect), the answer lists `candidates` and nothing is written. Ask
+    the user which one, then call again with `asset_type`.
+
+    Args:
+        app:        app id the item belongs to (as returned by `list_my_items`).
+        pk:         item id.
+        asset_type: the role; omit it to be told the admissible ones.
+        name:       display name (defaults to the file name).
+
+    Returns:
+        {"asset_id","name","asset_type"} or {"error", "candidates": [...]}
+    """
+    # MÊME brique que le menu « … » et que la route d'app (`CARD_DESIGN §2bis`) : trois surfaces,
+    # un seul geste. L'ownership et le refus de deviner le rôle vivent DANS la brique.
+    from wama.media_library.services import export_item_to_library
+    return export_item_to_library(user, app, pk, asset_type=asset_type, name=name)
+
+
 def list_registries(user) -> dict:
     """
     List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
@@ -3100,6 +3129,9 @@ TOOL_REGISTRY = {
     'delete_item':      delete_item,
     'duplicate_item':   duplicate_item,
     'clear_my_queue':   clear_my_queue,
+    # Ranger une SORTIE d'app en médiathèque — 3ᵉ surface du même geste (menu « … » + route
+    # d'app + ici). Transverse : c'est la médiathèque DE L'APPELANT, garde = ownership.
+    'add_item_to_media_library': add_item_to_media_library,
     'list_registries':  list_registries,
     # Droits de l'appelant, et ce que WAMA retient de lui — LECTURE SEULE, sur SON compte.
     # `get_my_access` n'ÉLARGIT aucun droit : il DIT la décision que `accessible()` prend déjà.

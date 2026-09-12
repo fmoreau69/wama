@@ -268,7 +268,7 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
   │     3 gardes : DÉCLARÉ · DATA-GATED (rien de pertinent ⇒ prompt inchangé) · FAIL-SAFE ('')
   │     chaque extrait injecté AVEC sa référence ([transcriber:134] …)
   │
-  └─ boucle LLM à outils (68 outils, gating F7) — c'est ICI que tout se rejoint :
+  └─ boucle LLM à outils (69 outils, gating F7) — c'est ICI que tout se rejoint :
        • charger_competence(domaine)  → l'ASSISTANT charge LUI-MÊME posture + contexte labo
          (jamais la surface : un adaptateur de canal ne devine pas le domaine)
        • memory_recall(query, niveaux=…) → recall() souvenirs + RAG, sélecteur de niveaux,
@@ -278,11 +278,13 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
    routage langue seul, pas d'enrichissement]
 ```
 
-**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **68 outils** *(mesuré 2026-09-11 ;
+**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **69 outils** *(mesuré 2026-09-12 ;
 disait **51**, périmé — le compte vit ICI, c'est donc ici qu'il se re-mesure : `len(tool_descriptions())`)*
 — dont **6 LECTURES TRANSVERSES** livrées le 2026-09-11 (`list_my_items`, `get_item_detail`,
-`get_item_preview`, `list_registries`, `get_my_access`, `list_my_memories`) et **3 VERBES DE
-CYCLE** (`delete_item`, `duplicate_item`, `clear_my_queue`) : chantier « compléter l'API »
+`get_item_preview`, `list_registries`, `get_my_access`, `list_my_memories`), **3 VERBES DE
+CYCLE** (`delete_item`, `duplicate_item`, `clear_my_queue`) et **`add_item_to_media_library`**
+(2026-09-12 — 3ᵉ surface du geste médiathèque, cf. `CARD_DESIGN §2bis` : même brique que le
+menu « … » et que la route d'app, donc mêmes refus) : chantier « compléter l'API »
 (`ROADMAP §24.4① quater`).
 ⭐ Les trois `get_item_*` et les 3 verbes **réutilisent les surfaces de l'app** (`unified_detail`,
 `unified_preview`, les vues `delete`/`duplicate`/`clear_all` résolues par `route_variants`) au

@@ -18,8 +18,19 @@ from wama.media_library.models import UserAsset
 from wama.media_library.services import candidate_asset_types, export_item_to_library
 
 
-def _utilisateur(nom):
-    return get_user_model().objects.create_user(username=nom, password='x')
+def _utilisateur(nom, role='communication'):
+    """Utilisateur qui FRANCHIT le portier d'app (rôle `communication` = composer, mesuré dans
+    `DEFAULT_APP_ACCESS`), jamais `is_superuser` — neutraliser le portier rendrait aveugle aux
+    régressions de gating. ⚠ Mesuré ici : sans rôle, la route composer répond **302** et le test
+    de dépréciation lit une redirection là où il croit lire un refus métier."""
+    from django.contrib.auth.models import Group
+
+    from wama.accounts.permissions import GROUP_PREFIX
+    user = get_user_model().objects.create_user(username=nom, password='x')
+    if role:
+        groupe, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')
+        user.groups.add(groupe)
+    return user
 
 
 def _generation(user, nom_fichier='piste.mp3', avec_sortie=True):
@@ -178,6 +189,88 @@ class VueExportTest(TestCase):
         self.client.logout()
         r = self.client.get(self._url())
         self.assertIn(r.status_code, (302, 403))
+
+
+class DeprecationDesCopiesTest(TestCase):
+    """Les 2 copies manuelles du geste (composer + sa jumelle) DÉLÈGUENT désormais à la brique
+    (2026-09-12). Ce qui se garde ici n'est pas « ça marche » mais **que rien n'a changé pour
+    l'appelant** : une dépréciation qui casse le contrat de réponse casse un bouton qui marchait.
+
+    ⚠ `synthesizer/views.py:897` a été SORTI de la liste des copies : ce n'est pas le même geste
+    — c'est l'UPLOAD d'une voix personnalisée (`request.FILES`, nom requis, extensions de voix),
+    qui ne part d'aucun résultat d'app. Mon relevé du 11/09 l'avait compté à tort.
+    """
+
+    def setUp(self):
+        self.moi = _utilisateur('depr1')
+        self.client.force_login(self.moi)
+
+    def test_la_route_composer_garde_son_CONTRAT_de_reponse(self):
+        from django.urls import reverse
+        gen = _generation(self.moi, 'piste.wav')
+        r = self.client.post(reverse('composer:export_to_library', args=[gen.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json().get('success'), r.json())
+        self.assertEqual(UserAsset.objects.filter(user=self.moi).count(), 1)
+
+    def test_le_ROLE_reste_derive_du_type_de_generation(self):
+        """Le composer SAIT ce qu'il produit : la brique refuse de deviner, l'app fournit. Si ce
+        lien se perdait, une musique atterrirait en « bruitage » sans que rien ne le dise."""
+        from django.urls import reverse
+        from wama.composer.models import ComposerGeneration
+        for type_gen, attendu in (('music', 'audio_music'), ('sfx', 'audio_sfx')):
+            gen = _generation(self.moi, f'{type_gen}.wav')
+            ComposerGeneration.objects.filter(pk=gen.pk).update(generation_type=type_gen)
+            r = self.client.post(reverse('composer:export_to_library', args=[gen.pk]))
+            self.assertEqual(r.status_code, 200, r.content[:200])
+            self.assertEqual(UserAsset.objects.get(pk=r.json()['asset_id']).asset_type, attendu)
+
+    def test_le_double_export_reste_REFUSE(self):
+        """Garde propre à l'app (`exported_to_library`) que la brique ne connaît pas — donc la
+        seule chose que la délégation pouvait faire disparaître en silence."""
+        from django.urls import reverse
+        gen = _generation(self.moi, 'unefois.wav')
+        self.assertEqual(self.client.post(
+            reverse('composer:export_to_library', args=[gen.pk])).status_code, 200)
+        r2 = self.client.post(reverse('composer:export_to_library', args=[gen.pk]))
+        self.assertEqual(r2.status_code, 400)
+        self.assertIn('Déjà', r2.json()['error'])
+
+    def test_plus_AUCUNE_copie_manuelle_du_geste(self):
+        """🔴 Le gardien de la dette : si une vue d'app réintroduit une copie de fichier vers la
+        médiathèque, le geste recommence à figer la forme du domicile.
+
+        ⚠ PAR AST, JAMAIS PAR GREP — et ce n'est pas de la coquetterie : ma 1ʳᵉ version cherchait
+        la chaîne `shutil.copy2` dans le texte et accusait `composer/views.py`… à cause de MA
+        PROPRE DOCSTRING, qui cite le défaut qu'elle vient de retirer. Un gardien qui lit les
+        commentaires condamne les fichiers qui expliquent leur correction.
+        (Même famille que le `find_code` du `conformity_checker`, et que la règle de mémoire
+        « gardien anti-duplication par AST, jamais grep ».)
+        """
+        import ast
+        from pathlib import Path
+
+        racine = Path(__file__).resolve().parent.parent
+        coupables = []
+        for vues in sorted(racine.glob('*/views.py')):
+            if vues.parent.name == 'media_library':
+                continue                       # le domicile du geste a le droit d'écrire
+            try:
+                arbre = ast.parse(vues.read_text(encoding='utf-8', errors='ignore'))
+            except SyntaxError:
+                continue
+            cite_mediatheque = 'media_library' in vues.read_text(encoding='utf-8',
+                                                                 errors='ignore')
+            if not cite_mediatheque:
+                continue
+            for n in ast.walk(arbre):
+                # `shutil.copy2(...)` / `shutil.copyfile(...)` APPELÉS, pas mentionnés.
+                if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                        and n.func.attr in ('copy2', 'copyfile', 'copy')
+                        and isinstance(n.func.value, ast.Name)
+                        and n.func.value.id == 'shutil'):
+                    coupables.append(f'{vues.parent.name}/views.py:{n.lineno}')
+        self.assertEqual(coupables, [], f'copie manuelle vers la médiathèque : {coupables}')
 
 
 class GeneriquePourTOUTESLesAppsTest(TestCase):

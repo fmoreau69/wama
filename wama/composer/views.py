@@ -357,7 +357,9 @@ def import_batch(request):
     from django.conf import settings
     import uuid
     import shutil
-    tmp_dir = os.path.join(settings.MEDIA_ROOT, 'composer', str(user.id), 'batch_imports')
+    from wama.common.utils.media_paths import app_media_dir
+    tmp_dir = os.path.join(settings.MEDIA_ROOT,
+                           app_media_dir('composer', user.id, 'batch_imports'))
     os.makedirs(tmp_dir, exist_ok=True)
     tmp_path = os.path.join(tmp_dir, f"batch_{uuid.uuid4().hex[:8]}_{batch_file.name}")
     with open(tmp_path, 'wb') as f:
@@ -667,43 +669,38 @@ def batch_delete(request, pk):
 
 @require_POST
 def export_to_library(request, pk):
+    """Range la sortie en médiathèque — DÉLÈGUE à la brique commune (2026-09-12).
+
+    ⚠ Cette vue CONSTRUISAIT son chemin de stockage à la main (`media_library/<uid>/audio`,
+    `os.makedirs` + `shutil.copy2`), donc elle figeait la FORME du domicile dans une app : la
+    refonte du domicile par utilisateur (et le chiffrement à venir) l'aurait laissée derrière.
+    La brique, elle, assigne un `File` et laisse `UserAsset.file.upload_to` décider.
+    Le geste est désormais le MÊME que celui du menu « … », pour les 10 apps.
+
+    La ROUTE et le CONTRAT DE RÉPONSE (`{success}` / `{error}`) sont conservés : le front de
+    cette app les consomme (`composer/js/index.js:316`). On déprécie l'implémentation, pas la
+    porte — retirer la route aurait cassé un bouton qui marche.
+    Ce qui reste ICI et n'appartient à personne d'autre : le RÔLE d'asset dérivé du
+    `generation_type` (musique vs bruitage), que la brique refuse de deviner, et le refus du
+    double export (`exported_to_library`), que la brique ne connaît pas.
+    """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
 
-    if not gen.audio_output:
-        return JsonResponse({'error': 'Aucun fichier à exporter'}, status=400)
     if gen.exported_to_library:
         return JsonResponse({'error': 'Déjà exporté'}, status=400)
 
-    try:
-        from wama.media_library.models import UserAsset
-        import shutil
-        from django.conf import settings
-
-        src = os.path.join(settings.MEDIA_ROOT, gen.audio_output.name)
-        filename = os.path.basename(src)
-        dest_dir = os.path.join(settings.MEDIA_ROOT, 'media_library', str(gen.user_id), 'audio')
-        os.makedirs(dest_dir, exist_ok=True)
-        dest = os.path.join(dest_dir, filename)
-        shutil.copy2(src, dest)
-        rel_dest = os.path.relpath(dest, settings.MEDIA_ROOT)
-
-        asset_type = 'audio_music' if gen.generation_type == 'music' else 'audio_sfx'
-        UserAsset.objects.create(
-            user=gen.user,
-            asset_type=asset_type,
-            name=filename,
-            file=rel_dest,
-            tags=','.join([gen.model, 'ia-généré', gen.generation_type]),
-        )
-
-        gen.exported_to_library = True
-        gen.save(update_fields=['exported_to_library'])
-        return JsonResponse({'success': True})
-
-    except Exception as exc:
-        logger.exception(f"[Composer] Export failed: {exc}")
-        return JsonResponse({'error': str(exc)}, status=500)
+    from wama.media_library.services import export_item_to_library
+    resultat = export_item_to_library(
+        user, 'composer', gen.pk,
+        # Le composer SAIT ce qu'il produit : il fournit le rôle au lieu de le laisser deviner.
+        asset_type='audio_music' if gen.generation_type == 'music' else 'audio_sfx',
+    )
+    if 'error' in resultat:
+        code = 403 if resultat.get('error') == 'forbidden' else 400
+        return JsonResponse({'error': resultat['error']}, status=code)
+    # `exported_to_library` est posé par la brique (elle le fait quand le champ existe).
+    return JsonResponse({'success': True, **resultat})
 
 
 # ---------------------------------------------------------------------------
