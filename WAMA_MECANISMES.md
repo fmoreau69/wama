@@ -130,7 +130,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Sonde vision** | Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence) | `wama/model_manager/services/vision_probe.py` | — | 5 |
 | **Sélection de modèle** | Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité | `wama/model_manager/services/model_selector.py` | `INPUT_MODEL_MATCHING.md` | 8 |
 
-#### Qualité & auto-amélioration (22)
+#### Qualité & auto-amélioration (23)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
@@ -155,6 +155,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Projection des faits en souvenirs** | RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente) | `wama/common/memory/project.py` | `WAMA_MEMORY.md §7` | 2 |
 | **Provenance d'une entrée (source ⟷ copie de travail)** | D'OÙ vient le fichier qu'une card consomme. La frontière était déjà tracée par le code — la SOURCE de vérité (médiathèque, temp, montage, URL) reste où elle est, l'ENTRÉE d'une card est une copie de travail jetable — mais rien ne reliait les deux. Quatre gestes en dépendaient, tous demandés et tous impossibles : la DÉDUP par provenance (mesuré le 11/09 : chaîner describer → imager → enhancer par « Envoyer vers » produit TROIS copies des mêmes octets), le retour app → médiathèque sans re-copie, savoir qu'une source a BOUGÉ au lieu de le découvrir au lancement, et surtout l'INDEX INVERSE — « qui référence ce fichier ? », la question que le gestionnaire de fichiers doit poser AVANT de supprimer. C'est lui qui lève la seule objection restée debout contre le pointage : on ne bloque pas la suppression, on la rend INFORMÉE (la card survit, l'utilisateur sait que sa source a disparu). ⚠ PAS de `GenericForeignKey` malgré la lettre de la décision du 07/09 : `RunOutcome` avait déjà tranché l'inverse avec sa raison écrite, on suit SA convention (`app`+`object_type`+`object_id`, plus `field` — un élément peut avoir plusieurs entrées). ⚠ ÉCRITE PAR LES BRIQUES SEULES : `copy_into_app_input` enregistre quand on lui donne l'élément, `record_import` est sa moitié pour le motif « copier PUIS créer ». Aucune app n'écrit sa provenance | `wama/common/utils/provenance.py` | `MEDIA_STORAGE_TIERING.md` | 6 |
 | **Signaux d'exécution** | Journal append-only des FAITS observés sur un résultat (produit/corrigé/relancé…) | `wama/common/services/run_outcome.py` | `ROADMAP.md §16.7` | 3 |
+| **Sortie d’app → médiathèque** | Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détail : toute app qui déclare son adapter a le geste sans une ligne. Le RÔLE est FOURNI (un .mp3 peut être voix/musique/bruitage) ; une seule route pour les 10 apps. ⚠ NE CONSTRUIT AUCUN CHEMIN — `upload_to` décide du domicile, donc le geste suit la refonte des dossiers utilisateur (chiffrement) au lieu de la figer, contrairement aux 3 copies qu'il remplace (composer ×2, synthesizer). | `wama/media_library/services.py` | `CARD_DESIGN.md §2bis` | 3 |
 | **Vulnérabilités des dépendances** | CVE des paquets INSTALLÉS du venv courant via l'API OSV.dev (pas les requirements, qui sont des bornes basses). Contrat-cliquet : la dette connue vit dans une baseline versionnée par venv, toute vulnérabilité nouvelle est rouge | `wama/common/management/commands/check_dep_vulns.py` | `ROADMAP.md §16.10` | 3 |
 
 #### Contenu & prompts (13)
@@ -278,7 +279,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 9 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 13 |
 
-**Mécanismes déclarés : 138** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 17 · modules balayés non rattachés : 43 · **de niveau app sans critère de grille : 38**
+**Mécanismes déclarés : 139** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 17 · modules balayés non rattachés : 43 · **de niveau app sans critère de grille : 38**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `qc` (wama/common/utils/qc.py)
 
 <details><summary>⚠ <b>38 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>

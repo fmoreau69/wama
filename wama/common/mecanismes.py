@@ -265,6 +265,15 @@ MECANISMES = (
     Mecanisme('memory_project', 'Projection des faits en souvenirs',
               "RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente)",
               'wama/common/memory/project.py', 'WAMA_MEMORY.md §7'),
+    Mecanisme('library_export', 'Sortie d’app → médiathèque',
+              "Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détail : "
+              "toute app qui déclare son adapter a le geste sans une ligne. Le RÔLE est FOURNI "
+              "(un .mp3 peut être voix/musique/bruitage) ; une seule route pour les 10 apps. "
+              "⚠ NE CONSTRUIT AUCUN CHEMIN — `upload_to` décide du domicile, donc le geste suit "
+              "la refonte des dossiers utilisateur (chiffrement) au lieu de la figer, "
+              "contrairement aux 3 copies qu'il remplace (composer ×2, synthesizer).",
+              'wama/media_library/services.py', 'CARD_DESIGN.md §2bis',
+              symbole='export_item_to_library'),
     Mecanisme('filter_bar', 'Barre de filtrage',
               "Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées "
               "(server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre "
