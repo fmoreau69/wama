@@ -132,6 +132,45 @@ class LeFiltreExposeSonCompteTest(SimpleTestCase):
         self.assertIn('Garés — pourquoi le filtre écarte', src)
 
 
+class LaCoutureDeMesureDuChantierGaresTest(SimpleTestCase):
+    """`path_ratio_max` et `_histogramme` — la couture qui a servi à RÉFUTER une candidate.
+
+    Trouvés non gardés par le balayage mécanique de la clôture. `path_ratio_max` n'est pas
+    décoratif : posé, il **remplace la porte d'étalement** du filtre des garés. Un défaut y
+    changerait le comptage des garés en silence, et c'est précisément la grandeur sur laquelle
+    le chantier §D.3 discute.
+    """
+
+    def test_l_argument_par_defaut_ne_change_RIEN(self):
+        """Le seul invariant qui compte pour un dépôt : la couture de mesure est inerte tant
+        qu'on ne la pose pas."""
+        from pathlib import Path
+        from django.conf import settings
+        src = (Path(settings.BASE_DIR) / 'wama_lab' / 'cam_analyzer' / 'utils'
+               / 'multicam_tracker.py').read_text(encoding='utf-8')
+        self.assertIn('path_ratio_max=None', src, "le défaut doit être None (= inerte)")
+        self.assertIn('if path_ratio_max is None:', src)
+        self.assertIn('trop = spread >= spread_max_m', src,
+                      "à None, la porte doit rester CELLE D'ORIGINE (étalement)")
+        self.assertIn("trop = d['net_sur_chemin'] >= path_ratio_max", src)
+
+    def test_l_histogramme_compte_TOUT_y_compris_le_debordement(self):
+        """Un histogramme qui perd des valeurs hors bornes ferait lire une distribution
+        tronquée comme une distribution complète — exactement le genre de chiffre qui se
+        commente sans se vérifier."""
+        from wama_lab.cam_analyzer.utils.multicam_tracker import _histogramme
+        vals = [0.0, 0.5, 1.0, 5.0, 99.0]
+        h = _histogramme(vals, vmax=1.0, nb=5)
+        self.assertEqual(sum(h), len(vals))
+        self.assertEqual(h[-1], 3, "1.0, 5.0 et 99.0 tombent dans la classe de débordement")
+        self.assertEqual(h[0], 1)
+
+    def test_l_histogramme_ne_plante_pas_sur_le_VIDE(self):
+        from wama_lab.cam_analyzer.utils.multicam_tracker import _histogramme
+        self.assertEqual(_histogramme([], vmax=1.0, nb=4), [0, 0, 0, 0])
+        self.assertEqual(_histogramme([1.0], vmax=0.0, nb=4), [0, 0, 0, 0])
+
+
 class LaMargeDuVoteDeClasseTest(SimpleTestCase):
     """La classe stable DIT désormais si son vote était serré (`CHAINE §H ②`).
 
