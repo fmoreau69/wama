@@ -187,7 +187,7 @@ class IndexView(View):
         custom_voices = UserAsset.objects.filter(user=user, asset_type='voice')
 
         # Scan voice references folder for dynamic dropdown
-        from wama.synthesizer.utils.voice_utils import scan_voice_refs, needs_voice_download
+        from wama.common.tts.voice_refs import scan_voice_refs, needs_voice_download
         voice_refs_groups = scan_voice_refs()
 
         # Téléchargement automatique en fond si des voix manquent (une seule fois par heure)
@@ -1706,7 +1706,7 @@ def voice_preview(request):
 
         # Résoudre la voix de clonage (ua_<id>/cv_<id>/preset) → speaker_wav, comme la
         # synthèse complète. Sinon la preview XTTS ignorait la voix custom (voix par défaut).
-        from .utils.voice_utils import resolve_speaker_wav
+        from wama.common.tts.voice_refs import resolve_speaker_wav
         speaker_wav = resolve_speaker_wav(voice_preset, request.user)
 
         # Stocker les paramètres dans le cache pour le traitement

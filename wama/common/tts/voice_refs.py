@@ -1,4 +1,24 @@
+"""Voix de RÉFÉRENCE — scan, résolution d'un preset en fichier, téléchargement, libellés.
+
+⚠ PORTÉ AU COMMUN le 2026-09-12 depuis `synthesizer/utils/voice_utils.py`. Il y vivait alors
+que QUATRE consommateurs s'en servaient : le synthesizer, l'avatarizer (qui l'importait depuis
+l'app voisine, en l'appelant « la brique CENTRALISÉE du synthesizer » — une contradiction dans
+les termes), `common/utils/voice_options.py` (le COMMUN important depuis une app : l'inversion
+de dépendance que la règle de centralisation interdit) et, hors Django, `tts_service.py` qui
+recompose le même dossier à la main. Constat de Fabien : *« ça n'a pas de sens de laisser les
+voix dans le synthesizer »* — vrai des fichiers, vrai du code qui les cherche.
+
+⚠ `common/tts/voices.py` (à côté) est AUTRE CHOSE : la résolution voix↔langue de Kokoro pour
+l'assistant. Ce module-ci résout un `voice_preset` (`ua_<id>` médiathèque, `cv_<id>` voix
+personnalisée, chemin `<langue>/<âge>/<nom>`, ids plats hérités) en FICHIER pour le clonage.
+Les fusionner est une question ouverte, pas une évidence : l'un nomme, l'autre localise.
+
+Ce qui suit est le module d'origine, inchangé : le déplacement est un geste, la refonte (voix en
+médiathèque, taxonomie en champs) en est un autre — étape 5 du plan du 2026-09-12.
 """
+
+# ── Docstring d'origine ─────────────────────────────────────────────────────────────
+'''
 WAMA Synthesizer — Voice References Utilities
 ==============================================
 Gestion automatique des voix de référence :
@@ -35,7 +55,7 @@ Convention de nommage des fichiers :
 IDs de preset :
   - Nouveau format : chemin relatif sans extension, ex. 'french/adult/male_adult_1_fr'
   - Héritage       : 'default', 'male_1', 'male_2', 'female_1', 'female_2'
-"""
+'''
 
 import re
 import logging
@@ -147,7 +167,7 @@ def scan_voice_refs() -> List[Dict]:
             for wav in sorted(age_dir.glob('*.wav')):
                 m = _FILE_PATTERN.match(wav.name)
                 if not m:
-                    logger.debug(f"[voice_utils] Skipped (bad name): {wav.name}")
+                    logger.debug(f"[voice_refs] Skipped (bad name): {wav.name}")
                     continue
 
                 gender, _, variant, _ = m.groups()
@@ -238,7 +258,7 @@ def resolve_voice_preset(preset_value: str) -> Optional[str]:
         path = refs_dir / (preset_value + '.wav')
         if path.exists():
             return str(path)
-        logger.warning(f"[voice_utils] Voice ref not found: {path}")
+        logger.warning(f"[voice_refs] Voice ref not found: {path}")
         return None
 
     # Héritage : fichiers plats dans voice_references/
@@ -405,10 +425,10 @@ def _save_audio_array(arr, sr: int, target: Path) -> bool:  # noqa: ANN001
             arr_int16 = (arr * 32767).astype(np.int16)
             wavfile.write(str(target), sr, arr_int16)
         except Exception as exc:
-            logger.warning(f"[voice_utils] Impossible d'écrire le WAV (soundfile/scipy requis) : {exc}")
+            logger.warning(f"[voice_refs] Impossible d'écrire le WAV (soundfile/scipy requis) : {exc}")
             return False
     except Exception as exc:
-        logger.warning(f"[voice_utils] Erreur écriture WAV : {exc}")
+        logger.warning(f"[voice_refs] Erreur écriture WAV : {exc}")
         return False
 
     ok = target.exists() and target.stat().st_size > 1024
@@ -497,7 +517,7 @@ def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
     used = _used_vp_speakers.setdefault(vp_lang, set())
 
     try:
-        logger.info(f"[voice_utils] VoxPopuli streaming : lang={vp_lang} …")
+        logger.info(f"[voice_refs] VoxPopuli streaming : lang={vp_lang} …")
         ds = load_dataset(
             "facebook/voxpopuli", vp_lang,
             split="train",
@@ -512,7 +532,7 @@ def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
             except Exception:
                 pass
     except Exception as exc:
-        logger.warning(f"[voice_utils] Impossible d'ouvrir VoxPopuli ({vp_lang}) : {exc}")
+        logger.warning(f"[voice_refs] Impossible d'ouvrir VoxPopuli ({vp_lang}) : {exc}")
         return False
 
     try:
@@ -533,12 +553,12 @@ def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
 
             if _save_audio_array(arr, sr, target):
                 used.add(speaker)
-                logger.info(f"[voice_utils] VoxPopuli OK : {target.name} "
+                logger.info(f"[voice_refs] VoxPopuli OK : {target.name} "
                             f"({duration:.1f}s, locuteur {speaker})")
                 return True
 
     except Exception as exc:
-        logger.warning(f"[voice_utils] Erreur streaming VoxPopuli : {exc}")
+        logger.warning(f"[voice_refs] Erreur streaming VoxPopuli : {exc}")
 
     return False
 
@@ -549,15 +569,15 @@ def _try_url_download(target: Path, sources: List[tuple]) -> bool:
 
     for url, description in sources:
         try:
-            logger.info(f"[voice_utils] URL fallback : {description} …")
+            logger.info(f"[voice_refs] URL fallback : {description} …")
             urllib.request.urlretrieve(url, str(target))
             if target.exists() and target.stat().st_size > 1024:
-                logger.info(f"[voice_utils] URL OK : {target.name} "
+                logger.info(f"[voice_refs] URL OK : {target.name} "
                             f"({target.stat().st_size // 1024} Ko)")
                 return True
             target.unlink(missing_ok=True)
         except Exception as exc:
-            logger.warning(f"[voice_utils] Échec URL {url} : {exc}")
+            logger.warning(f"[voice_refs] Échec URL {url} : {exc}")
             target.unlink(missing_ok=True)
 
     return False
@@ -613,12 +633,12 @@ def download_missing_voice_refs(force: bool = False) -> Dict[str, str]:
 
         results[rel_path] = 'downloaded' if downloaded else 'failed'
         if not downloaded:
-            logger.error(f"[voice_utils] Toutes les sources ont échoué : {rel_path}")
+            logger.error(f"[voice_refs] Toutes les sources ont échoué : {rel_path}")
 
     n_ok   = sum(1 for s in results.values() if s == 'downloaded')
     n_skip = sum(1 for s in results.values() if s == 'skipped')
     n_fail = sum(1 for s in results.values() if s == 'failed')
-    logger.info(f"[voice_utils] Terminé : {n_ok} téléchargées, "
+    logger.info(f"[voice_refs] Terminé : {n_ok} téléchargées, "
                 f"{n_skip} déjà présentes, {n_fail} échec(s)")
     return results
 

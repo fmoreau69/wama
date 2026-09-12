@@ -252,7 +252,7 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
         # New format: relative path within voice_references/
         if self.voice_preset and '/' in self.voice_preset:
             try:
-                from wama.synthesizer.utils.voice_utils import get_voice_label
+                from wama.common.tts.voice_refs import get_voice_label
                 label = get_voice_label(self.voice_preset)
                 if label:
                     return label

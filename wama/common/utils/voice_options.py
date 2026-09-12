@@ -43,7 +43,7 @@ def get_voice_groups(user) -> list[dict]:
 
     # 2. Voix de référence intégrées (dynamique) ou repli héritage.
     try:
-        from wama.synthesizer.utils.voice_utils import scan_voice_refs
+        from wama.common.tts.voice_refs import scan_voice_refs
         refs = scan_voice_refs() or []
     except Exception:
         refs = []

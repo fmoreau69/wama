@@ -8,7 +8,7 @@ Usage :
 
 from django.core.management.base import BaseCommand
 
-from wama.synthesizer.utils.voice_utils import (
+from wama.common.tts.voice_refs import (
     VOICE_DOWNLOAD_CATALOG,
     _VOICE_DATASETS_CATALOG,
     download_missing_voice_refs,
