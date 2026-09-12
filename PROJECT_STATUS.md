@@ -13391,3 +13391,117 @@ depuis le bouton ▶ du Studio ; 7. charger le manifeste `pipeline` DANS le canv
 - `manifest_export --check` : `--kind function` **62** à jour, `--kind pipeline` **1** à jour ;
 - `check_skills` : **0 défaut franc**, 2 candidats `n=1` (aucun dormant), 1 promu sur 14 ;
 - cam_analyzer : **13 passes**, **17 bascules**, catalogue **62 fonctions**.
+
+---
+
+## §REPRISE — 2026-09-10 → 09-12, instance « POINT COMPLET + CHANTIER API + GESTE MÉDIATHÈQUE » — ✅ CLOSE — 🔚 POINT D'ENTRÉE
+
+> Périmètre : la **doctrine mesurée** (`ROADMAP §24`), le **pivot assistant** (`tool_api.py`) et
+> le **geste médiathèque**. Zéro fichier partagé avec les trois instances parallèles
+> (import/montage, doc, cam_analyzer) — vérifié avant chaque commit, jamais supposé.
+> 14 commits, de `c30c00c6` à `be89ef56`.
+
+**Point de départ** : une demande de Fabien — « faire un point complet : tout ce qu'on a laissé
+de côté, ce qui est fait, ce qui reste ; et évaluer l'avancement par rapport à la vision ».
+
+### Ce qui est livré
+
+1. **`ROADMAP §24` — l'état consolidé MESURÉ** (§24.1→24.8). Chaque ligne est une sortie de
+   commande ou une ligne de code citée, jamais une recopie de `.md`.
+2. **Le chantier API : 59 → 69 outils**, 63 gardes. 6 lectures transverses (dont la décision
+   `WAMA_MEMORY §9ter`, restée non construite depuis le 20/08), l'aperçu **PENDANT** un job,
+   3 verbes de cycle, et `add_item_to_media_library`.
+3. **Le geste médiathèque devient une brique COMMUNE** — il existait, écrit deux fois, absent de
+   8 apps sur 10. Trois surfaces (menu « … », route d'app, assistant), une seule brique.
+4. **Balayage des sections de tête de ce fichier** (§0 §1 §2bis §6 §9 §15 §18 §23.2 corrigés).
+5. **`build/` n'avale plus le cœur de three.js** — un clone frais a enfin la 3D.
+
+### 🔴 Les leçons — toutes de la même famille : un MOTIF n'est pas une MESURE
+
+| ce que j'ai affirmé | pourquoi c'était faux | ce qui l'a corrigé |
+|---|---|---|
+| « anonymizer n'a pas de `duplicate` » | j'ai mesuré un **nom de route** (`reverse` → NoReverseMatch) et conclu sur l'existence d'un **geste**. Elle s'appelle `duplicate_media` | relevé de Fabien ; 2 alias déclarés → 3 verbes × 10 apps résolvent. **Les 14 apps utilisaient DÉJÀ la brique commune** : personne à faire rentrer dans le rang |
+| « audio_enhancer n'a aucune route » | ce **n'est pas une app** : branche audio d'enhancer, et `TOOL_APP_ALIAS` le disait déjà | idem |
+| « 3 copies du geste médiathèque » | `synthesizer:897` est l'**upload d'une voix**, pas un export de résultat. Compté sur une **ressemblance de surface** (« ça crée un UserAsset ») | ouverture du code ; il y en avait **deux** |
+| « le RAG est câblé et VIDE » | j'ai lu un **choix de conception** comme un manque : l'entrée au RAG est un GESTE, jamais un balayage (939 fragments avaient été purgés pour cette raison) | rectification de Fabien |
+| mon gardien anti-duplication accusait `composer/views.py` | il cherchait `shutil.copy2` **dans le texte** et lisait **ma propre docstring**, qui cite le défaut qu'elle vient de retirer | refait par **AST** ; contre-épreuve sur la version d'avant → il accuse bien la ligne 688 retirée |
+
+⭐ **Deux gardes qui refusent d'être vacueuses** : le test d'isolation des souvenirs échoue si la
+file de revue est vide (sinon il serait vert sans rien exclure) ; le gardien AST a été rejoué sur
+le code d'AVANT pour prouver qu'il aurait attrapé le défaut. *Une vérification ne protège que le
+jour où on la fait ; c'est l'assertion qui protège ensuite.*
+
+⚠ **La garde des écritures n'était portée par RIEN.** Les verbes de cycle sont transverses par
+leur NOM : `tool_accessible` les autorise (app_id → None) **et**, passant par une requête
+synthétique, ils court-circuitent `AppAccessMiddleware`. `_refus_app()` est écrit dans leur corps,
+et le test vérifie D'ABORD que les deux couches sont inertes — sinon il croirait tester la garde.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Deux dettes d'architecture créées sciemment, à reprendre** — l'API est aujourd'hui un **pont**,
+pas une couche :
+
+1. `get_item_preview` et les 3 verbes appellent des **vues** via une requête synthétique. La
+   conception propre serait des logiques appelables **sans requête** ; j'ai préféré réutiliser
+   plutôt que refactorer `preview_utils` + 10 vues d'app en session partagée. Le prix : chaque
+   verbe traîne un hôte fabriqué qu'il faut neutraliser (d'où la garde anti-fuite).
+2. `export_item_to_library` dérive un **chemin** depuis l'**URL d'affichage** du contrat canonique
+   (retrait de `MEDIA_URL`, puis brique de confinement). Ça marche et c'est gardé, mais c'est
+   exactement le défaut que `§9ter` signale (« l'affichage est lossy »). Le propre serait une clé
+   canonique **brute** (`result_file_path`) à côté de l'URL — le contrat ne l'offre pas.
+
+### File des chantiers ouverts
+
+1. ⏸ **Étape 2 de l'API** (`url_import` / `folder_import` / `batch_import`) — **bloquée par
+   cadrage Fabien** : périmètre import/montage en refonte. Ne pas l'ouvrir contre l'instance
+   qui y travaille.
+2. **Le mécanisme d'évaluation de progression** (`ROADMAP §24.7`) — proposé, non implémenté :
+   *progression CONSOLIDÉE (peu coûteuse, honnête sur sa nature) ou MESURÉE (coûteuse)* ?
+3. **Balayage non fait** : les `§REPRISE` du 29/08 au 03/09 et les §20bis–§33 en détail. Le
+   sondage suggère un rendement faible — les blocs **datés** vieillissent bien, les sections qui
+   se présentent comme « l'état courant » non — mais ce n'est pas une preuve.
+4. `settings` dans l'API : **écarté par la mesure** (route `update` sur 2 apps sur 15). Trou côté
+   APPS. Ne pas le rouvrir comme un trou d'API.
+
+### Décisions ouvertes (Fabien)
+
+- **`fields_from_params`** (bloque toute fonction statistique) · **diagnostic de chaînage :
+  refuser ou avertir ?** · **GO pour régénérer les jumelles** — repris du handoff précédent, hors
+  de mon périmètre, non traités ici.
+- Les 25 souvenirs `dev-ai` : **sortis de la file** sur consigne (« à voir plus tard »).
+
+### 🔴 Pendings système — dont un qui n'est PAS à moi et qui compte
+
+- ⚠⚠ **`wama_data/corpus.py` a été laissé derrière par la migration des médias.** Il attend
+  `media/cam_analyzer/1/input/ENA_CASA` (ancienne disposition) ; le corpus est désormais à
+  `media/users/1/cam_analyzer/input/ENA_CASA` (mesuré). Conséquence :
+  `tests_rtmaps.CorpusReelTest` **skippe silencieusement** — la contre-épreuve « deux chemins
+  indépendants donnent le même résultat » **ne tourne plus**. *Un vert qui a cessé de tester
+  quelque chose.* Le correctif appartient à l'instance import/montage, et il devrait **dériver**
+  le chemin de sa nouvelle brique plutôt que coder en dur l'une ou l'autre disposition.
+- Les **3 erreurs** de ma dernière suite (`CorpusReelTest`) sont **une course**, pas un défaut :
+  le corpus a été déplacé à **13:05**, en plein milieu de mon run (12:47→13:26) — l'import a vu
+  l'ancien chemin, l'exécution ne l'a plus trouvé. En isolé : `OK (skipped=4)`.
+- `composer_01` **n'est pas versionné** (`.gitignore:136`) : ma correction y est locale et lui
+  reviendra par RÉGÉNÉRATION (une jumelle est copiée de sa source). Ne pas chercher le diff.
+- **push** : `dev` en avance sur `origin`, non poussée par moi (mesuré au
+  `git rev-list --count origin/dev..dev`, jamais au comptage de ma propre liste).
+- **Aucun** worker recyclé, **aucune** charge GPU, **aucun** flag d'environnement posé. Scripts de
+  session et sonde de smoke dans le **scratchpad** (hors dépôt) ; la fixture du smoke a été
+  supprimée par la sonde elle-même (ligne + fichier), file du compte de test vérifiée à **0**.
+
+### Contrôles attendus au prochain `/reprise` — MESURÉS le 2026-09-12
+
+- **Suite complète** (WSL2) : **`OK`** sur 2202 tests au dernier run propre ; le run suivant
+  (2221) porte les **3 erreurs de course** ci-dessus. ⚠ Le total n'est pas un critère — quatre
+  instances en ajoutent.
+- `check_docs` : **0 cassée / 0 périmée sur 1630** — **0 cible distincte**.
+- `check_templates` : **0 défaut / 154** · `check_skills` : **0 défaut franc**, 2 candidats
+  `n=1`, 1 promu sur 14.
+- `doc_facts --check` : **tout à jour** (dont `doc dev-registres`, de l'instance doc).
+- **Mécanismes : 139** (`library_export` ajouté) · **outils du pivot : 69**.
+- Grille : converter **100 %** · describer **100 %** · reader 97 % · enhancer/synthesizer/
+  transcriber 95 % · avatarizer/composer 94 % · anonymizer 93 % · imager 92 %.
+- `check_js` : **70 fichiers, 0 erreur, 0 divergence** source↔`staticfiles`.
+- **Smoke navigateur** du menu « … » : 4 entrées rendues, sous-menu `[Voix, Musique, Bruitage]`,
+  **0 erreur console**.
