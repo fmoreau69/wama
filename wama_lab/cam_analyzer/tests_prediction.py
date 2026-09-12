@@ -106,12 +106,26 @@ class LaProjectionSolAtteintLaPredictionTest(unittest.TestCase):
         self.assertLess(i_sol, i_pin,
                         "le pinhole doit être le REPLI, pas le chemin principal")
 
-    def test_la_MEME_condition_de_bascule_que_le_tracker(self):
-        """Deux conditions divergentes feraient un placement différent des DEUX côtés sans
-        qu'aucun test ne le dise — c'est exactement le défaut qu'on vient de réparer."""
-        cond = "_feat.get('auto_ground_calib', False) or _feat.get('depth_estimation', False)"
-        self.assertIn(cond, self._src('prediction_adapter.py'))
-        self.assertIn(cond, self._src('multicam_tracker.py'))
+    def test_la_prediction_a_sa_PROPRE_bascule_et_le_TTC_reste_au_pinhole_par_defaut(self):
+        """🔴 Garde de DÉCISION (Fabien, 2026-09-12) : la projection sol avait été RETIRÉE du
+        TTC parce que le résultat était très mauvais avec l'homographie — dont la calib sol
+        dérive. Le TTC reste donc au pinhole tant que l'homographie n'est pas améliorée.
+
+        ⚠ Ma 1ʳᵉ version de ce test exigeait la MÊME condition que le tracker, « pour ne pas
+        dédoubler un interrupteur ». C'était figer une confusion : le tracker et le TTC ont
+        deux placements et la différence est VOULUE. *Une frontière voulue se lit comme une
+        réponse, jamais comme un trou à combler* — et celle-ci était écrite dans le docstring
+        du module.
+        """
+        from wama_lab.cam_analyzer.utils.features import FEATURES
+        f = {x.key: x for x in FEATURES}
+        self.assertIn('prediction_ground', f)
+        self.assertFalse(f['prediction_ground'].default,
+                         "le TTC reste au pinhole tant que l'homographie n'est pas améliorée")
+        src = self._src('prediction_adapter.py')
+        self.assertIn("_feat.get('prediction_ground', False)", src)
+        self.assertNotIn("_feat.get('auto_ground_calib'", src,
+                         "la bascule du TRACKER ne doit pas piloter le placement du TTC")
 
     def test_la_SOURCE_de_placement_est_comptee_et_RENDUE(self):
         """G7 : le repli `ground → pinhole` était silencieux, donc un A/B comparait du pinhole

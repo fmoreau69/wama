@@ -10,6 +10,19 @@ un objet à position ego constante avance en réalité → il faut le monde pour
 
 Position ego de l'objet = reconstruction PINHOLE (distance_m + cap du bbox), plus fiable
 que l'homographie (comprimée/biaisée). Puis ego → monde via GPS (position + cap navette).
+
+🔴 **CE CHOIX EST UNE DÉCISION, PAS UN OUBLI** (rappelé par Fabien le 2026-09-12) : la
+projection sol avait été RETIRÉE du TTC parce que le résultat était très mauvais avec
+l'homographie — et la calibration sol de cette chaîne est justement dérivée de l'homographie
+(`ground_calib[pos]['source'] = 'homographie'`). Elle ne sera recâblée qu'une fois
+l'homographie améliorée. Le raccordement EXISTE désormais (⚑ `prediction_ground`, défaut
+**OFF**) pour que ce jour-là il ne reste qu'à basculer, et pour qu'on puisse le MESURER
+avant : mesuré le 2026-09-12, ON ferait passer 51 % des placements du TTC par le sol et
+récupérerait 61 068 détections que le pinhole refuse (bbox coupées au bord).
+⚠ Il a sa PROPRE bascule, distincte de ⚑ `auto_ground_calib` qui vaut pour le TRACKER : deux
+placements, une différence VOULUE. J'avais d'abord câblé la prédiction sur la bascule du
+tracker en croyant réparer une incohérence — *une frontière voulue se lit comme une réponse,
+jamais comme un trou à combler*, et celle-ci était écrite trois lignes plus haut.
 """
 import logging
 import math
@@ -289,6 +302,29 @@ def build_object_world_trajectory(det_rows, shuttle_traj, iw, ih, fov_v_deg=60.0
     """
     det_rows : liste de (ts, det) pour UN track_id, triés par ts.
     Retourne (T, 3) [t, east, north] de l'objet dans le repère monde, ou None si trop court.
+
+    🔴 **SUPERSÉDÉE — ne pas la rebrancher.** Sans appelant depuis `e5eb55d4`, et ce n'est pas
+    un oubli : ce commit RETIRE son appel et le remplace par la boucle inline de
+    `annotate_prediction_indicators`, qui porte la géométrie **par caméra**
+    (`cam_to_vehicle(..., CAMERA_YAW[c.position])`). La raison est dans sa SIGNATURE : elle
+    prend UN seul `(iw, ih, fov_v_deg)` pour tout un track, alors qu'un track global traverse
+    plusieurs caméras de yaw, FOV et montage différents.
+
+    Six divergences accumulées depuis — les rebrancher réintroduirait chacune :
+    pas de `fov_h_deg` (latéral compressé ×1,6 sur l'avant, audit 2026-07-16) · pas de
+    `dist_scale` (×3,6 sur les latérales) · pas de `cam_to_vehicle` donc **ni yaw ni bras de
+    levier de montage** (~4,5 m sur l'avant) · pas de projection sol (⚑ `auto_ground_calib`,
+    câblée le 2026-09-12) · pas de déduplication des instants vus par deux caméras · pas de
+    lissage causal (⚑ `prediction_causal_smoothing`).
+
+    ⚠ **Le défaut à retenir n'est pas la fonction, c'est la façon dont elle est morte** : son
+    remplacement a été fait dans un commit annoncé comme un simple RENOMMAGE (« renomme
+    PROSPECT → prediction partout »). *Un changement de comportement glissé dans un commit de
+    refactor ne laisse aucune trace là où on la cherche* — d'où ce bloc, écrit le 2026-09-12
+    après l'avoir d'abord prise pour un oubli.
+
+    Son sort (supprimer, ou la réécrire en prenant la géométrie par caméra pour factoriser la
+    boucle inline) est une DÉCISION, pas un nettoyage : `REMOVAL_LEDGER.md`.
     """
     pts = []
     for ts, det in det_rows:
@@ -354,18 +390,21 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
         return dict(_vide)
     _geo = camera_geometry(session)  # yaw/FOV/montage réels par caméra (rig + session)
     # PROJECTION SOL — même recette que `multicam_tracker` (l. 245-253 et 300-310), pas une
-    # réécriture. ⚠ Jusqu'au 2026-09-12 la prédiction plaçait TOUT au pinhole : elle héritait
-    # de la correction EGO (⚑ `shuttle_filter`, via `effective_gps_track`) mais d'AUCUNE
-    # correction OBJET, alors que le tracker, lui, applique ⚑ `auto_ground_calib`. Sur la
-    # session de référence cette bascule est ON avec une calib `front`/`right` : le même objet
-    # avait donc DEUX positions monde — celle du tracker et celle du TTC (`CHAINE §D.5 ②`).
-    # ⭐ Aucune bascule nouvelle : la notion en a déjà UNE, le défaut était qu'elle n'était pas
-    # honorée ici. Un second interrupteur pour une seule notion contredirait le registre.
-    # ⚠ On prend la projection sol (meilleure MESURE à l'instant t) et RIEN d'autre : pas
-    # `world_en`, qui est lissé Kalman+RTS donc informé du FUTUR — il détruirait l'écart
-    # prédit/réel que la méthode cherche (`CHAINE §F`).
+    # réécriture. Derrière ⚑ `prediction_ground`, **défaut OFF**.
+    # 🔴 OFF PAR DÉCISION, pas par prudence : la projection sol avait été RETIRÉE du TTC parce
+    # que le résultat était très mauvais avec l'homographie (Fabien, 2026-09-12) — et la
+    # calib sol de cette chaîne en dérive (`ground_calib[pos]['source'] = 'homographie'`).
+    # Elle se rebranchera quand l'homographie sera améliorée ; d'ici là le TTC reste au
+    # pinhole, comme l'annonce le docstring du module.
+    # ⚠ Bascule PROPRE à la prédiction, distincte de ⚑ `auto_ground_calib` qui vaut pour le
+    # TRACKER : deux placements, une différence VOULUE. La 1ʳᵉ version de ce bloc les avait
+    # confondus « pour ne pas dédoubler un interrupteur » — c'était lire une frontière voulue
+    # comme une incohérence.
+    # ⚠ Et on ne prendra JAMAIS `world_en` ici, même le jour où le sol reviendra : il est
+    # lissé Kalman+RTS, donc informé du FUTUR — il détruirait l'écart prédit/réel que la
+    # méthode cherche (`CHAINE §F`).
     _gproj = {}
-    if _feat.get('auto_ground_calib', False) or _feat.get('depth_estimation', False):
+    if _feat.get('prediction_ground', False):
         for _pos in _geo:
             _gp = ground_projector_for(session, _pos, _geo[_pos])
             if _gp is not None:

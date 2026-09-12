@@ -63,6 +63,17 @@ FEATURES = [
             "angulaire dominante, §[2]). Premier levier qui touche la pose navette (inventaire "
             "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul.",
             default=False, scope='compute'),
+    Feature('prediction_ground', "Projection sol dans le TTC/PET",
+            "Place les objets du calcul TTC/PET par PROJECTION SOL (calib `ground_calib`) au "
+            "lieu du pinhole. 🔴 **OFF par DÉCISION, pas par prudence** : la projection sol "
+            "avait été retirée du TTC parce que le résultat était très mauvais avec "
+            "l'homographie — or la calib sol de cette chaîne en DÉRIVE. À rebrancher quand "
+            "l'homographie sera améliorée. Mesuré le 2026-09-12 sur la session de référence : "
+            "ON ferait passer 51 % des placements du TTC par le sol et récupérerait 61 068 "
+            "détections que le pinhole refuse (bbox coupées au bord) — un gain de COUVERTURE "
+            "réel, sur une PRÉCISION encore mauvaise. ⚠ Distincte de ⚑ `auto_ground_calib`, "
+            "qui vaut pour le TRACKER : deux placements, une différence VOULUE.",
+            default=False, scope='compute'),
     Feature('prediction_causal_smoothing', "Lissage CAUSAL en entrée de la prédiction",
             "La trajectoire objet servie au TTC/PET est lissée par une fenêtre TRAÎNANTE "
             "(le point courant et ses prédécesseurs) au lieu de la fenêtre CENTRÉE "

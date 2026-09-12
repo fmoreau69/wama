@@ -1214,11 +1214,34 @@ testée (`kinematics/test_prediction.py`), et **aucun appelant ne la choisit** :
 vérifiant le code en profondeur — sans jamais supposer qu'une brique n'est pas câblée ni la
 réinventer**, puis reprendre les garés.
 
-**✅ ÉTAT AU 2026-09-12** — ④ réglé (⚑ `prediction_kalman`), ② réglé (projection sol câblée
-avec la recette du tracker : **51 % des placements du TTC** y passent désormais, contre 0 %,
-et elle **récupère 61 068 détections que le pinhole refusait**), ③ réglé (⚑
-`prediction_causal_smoothing`). ⚠ **5ᵉ mort trouvé au passage** :
-`build_object_world_trajectory` n'a **aucun appelant** dans le dépôt — déclaré, pas retiré.
+**✅ ÉTAT AU 2026-09-12** — ④ réglé (⚑ `prediction_kalman`), ③ réglé (⚑
+`prediction_causal_smoothing`).
+
+🔴 **② N'ÉTAIT PAS UN DÉFAUT — RECTIFIÉ LE JOUR MÊME.** *« On avait retiré la projection sol
+du TTC car le résultat était très mauvais avec l'homographie. Mais on devrait améliorer
+l'homographie avant de la recâbler »* (Fabien, 2026-09-12). La calib sol de cette chaîne
+**dérive de l'homographie** (`ground_calib[pos]['source'] = 'homographie'`), et
+l'homographie est **prouvée biaisée** — c'est déjà écrit au §D.2 (#546 inversion de signe,
+#537 profondeur non monotone). Le pinhole du TTC était donc une **réponse**, pas un oubli.
+⚠⚠ **Et la décision était écrite dans le docstring du module que je modifiais**, lignes
+11-12 : *« reconstruction PINHOLE […], plus fiable que l'homographie (comprimée/biaisée) »*.
+Je l'ai eue sous les yeux le jour même — elle a défilé dans la sortie d'un test en échec.
+⭐ *Une frontière VOULUE se lit comme une réponse, jamais comme un trou à combler — et la
+lire suppose d'ouvrir l'en-tête du fichier qu'on modifie, pas seulement la fonction.*
+**Ce qui reste** : le raccordement existe, derrière ⚑ **`prediction_ground` défaut OFF**,
+distinct de ⚑ `auto_ground_calib` (qui vaut pour le TRACKER — deux placements, une différence
+voulue). Le jour où l'homographie sera améliorée, il n'y aura qu'à basculer — et l'A/B est
+déjà mesuré : ON ferait passer **51 % des placements du TTC** par le sol et **récupérerait
+61 068 détections que le pinhole refuse** (bbox coupées au bord). *Un gain de COUVERTURE réel,
+sur une PRÉCISION encore mauvaise : c'est la précision qui commande, donc OFF.*
+
+⚠ **`build_object_world_trajectory` : ce n'est pas un oubli non plus.** Née appelée
+(`65881d48`, `d79f8615`), son appel est **retiré par `e5eb55d4`** au profit de la boucle
+inline qui porte la géométrie PAR CAMÉRA — sa signature ne prend qu'un `(iw, ih, fov_v)` pour
+tout un track, or un track global traverse plusieurs caméras. Six divergences accumulées
+depuis (voir son docstring). 🔴 **Le vrai défaut est la façon dont elle est morte** : le
+remplacement a été fait dans un commit annoncé comme un simple RENOMMAGE — *un changement de
+comportement glissé dans un commit de refactor ne laisse aucune trace là où on la cherche.*
 
 ### ⭐ F. INTENTION DES INDICATEURS — pourquoi le TTC se recalcule à chaque pas (2026-09-12)
 
