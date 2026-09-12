@@ -15,10 +15,12 @@ partagée). Les ids/classes sont ceux du markup historique — les handlers JS (
     </label>
     {% if gallery_images %}
     <div class="avatar-gallery-grid mb-2" id="gallery-grid">
-        {# ⚠ L'URL vient de la MÉDIATHÈQUE (`gallery_entries`), elle n'est plus composée ici :
-           ce gabarit écrivait `{{ media_url }}avatarizer/gallery/…` à la main, et il aurait été
-           le dernier à pointer sur l'ancien dossier après le versement. `data-avatar-name`
-           garde le NOM — c'est lui qui est stocké dans `AvatarJob.avatar_gallery_name`. #}
+        {% comment %}
+        ⚠ L'URL vient de la MÉDIATHÈQUE (`gallery_entries`), elle n'est plus composée ici :
+        ce gabarit écrivait `{{ media_url }}avatarizer/gallery/…` à la main, et il aurait été
+        le dernier à pointer sur l'ancien dossier après le versement. `data-avatar-name`
+        garde le NOM — c'est lui qui est stocké dans `AvatarJob.avatar_gallery_name`.
+        {% endcomment %}
         {% for img in gallery_images %}
         <div class="avatar-card" data-avatar-source="gallery" data-avatar-name="{{ img.name }}">
             <img src="{{ img.url }}" alt="{{ img.name }}" title="{{ img.name }}">
