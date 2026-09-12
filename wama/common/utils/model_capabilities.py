@@ -193,7 +193,17 @@ def derive_inputs_from_tasks(tasks: str, is_video: bool = False) -> Dict[str, An
     `image` l'init transformée, `ip_adapter_image` le style, `control_image` la structure.)
 
     Returns:
-        {'task', 'inputs_required', 'inputs_optional'} — ids d'`INPUT_TYPES`.
+        {'task', 'inputs_required', 'inputs_optional', 'tokens'} — ids d'`INPUT_TYPES`, plus
+        les JETONS reconnus dans `tasks` (triés), pour qui a besoin de TOUS les métiers déclarés.
+
+    ⚠ `tokens` ajouté le 2026-09-12, et pas pour le confort : l'extraction du 11/09 a laissé
+    dans `model_registry` (l. 584) une référence à `_tasks` — la variable locale qui portait ces
+    jetons avant qu'ils ne soient calculés ici — sans plus rien qui la définisse. Mesuré dans le
+    log Celery : **40 synchros du catalogue en échec sur la journée, toutes**
+    (`name '_tasks' is not defined`), et le catalogue figé depuis le matin. Re-tokeniser dans la
+    boucle aurait remis une seconde règle à côté de celle-ci ; la brique rend donc ce qu'elle
+    calcule déjà, et la boucle le lit. *Une règle extraite doit rendre TOUT ce que son ancien
+    domicile lisait — sinon l'extraction laisse une référence pendante que seul un RUN révèle.*
     """
     mode = (tasks or '').lower()
     for long, court in (('text-to-image', 't2i'), ('text-to-video', 't2v'),
@@ -224,4 +234,5 @@ def derive_inputs_from_tasks(tasks: str, is_video: bool = False) -> Dict[str, An
         # générer sans elle. Un modèle qui l'exigerait le dirait en déclarant `style` SEUL —
         # cas inexistant aujourd'hui, à trancher s'il arrive.
         optionnels.append('reference_image')
-    return {'task': task, 'inputs_required': requis, 'inputs_optional': optionnels}
+    return {'task': task, 'inputs_required': requis, 'inputs_optional': optionnels,
+            'tokens': sorted(jetons)}

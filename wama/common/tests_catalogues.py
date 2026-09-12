@@ -1296,6 +1296,37 @@ class JetonDeTransfertDeStyleTest(TestCase):
         self.assertNotIn("_genere = _tasks", src,
                          'la règle est revenue vivre dans la boucle de découverte')
 
+    def test_la_decouverte_imager_S_EXECUTE_et_porte_tous_les_metiers(self):
+        """La garde ci-dessus lit le TEXTE ; celle-ci EXÉCUTE la découverte.
+
+        ⚠ Elle existe parce que la garde textuelle a validé l'extraction du 11/09 tout en
+        laissant passer une référence survivante : `_tasks` cité l. 584 sans plus rien qui le
+        définisse. `NameError` à CHAQUE synchro du catalogue — 40 échecs mesurés dans le log
+        Celery sur la seule journée du 12/09, le catalogue figé depuis le matin — et aucun
+        test rouge, parce qu'aucun test ne faisait TOURNER cette boucle.
+
+        *Un test qui lit la source atteste une forme ; seul un test qui exécute atteste un
+        comportement.* On instancie un objet NEUF (le registre est un singleton — le partager
+        avec les autres tests mélangerait leurs découvertes) et on exige que la branche
+        produise ses modèles avec TOUS leurs métiers (LTX déclare `t2v+i2v` : deux tâches).
+        """
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registre = object.__new__(ModelRegistry)      # hors singleton, sans `__init__`
+        registre._models = {}
+        registre.discovery_errors = []
+        registre._discover_imager_models()             # un NameError lève ICI
+
+        imager = {k: v for k, v in registre._models.items() if k.startswith('imager:')}
+        self.assertTrue(imager, 'la découverte imager ne produit plus aucun modèle')
+        for cle, info in imager.items():
+            taches = (info.capabilities or {}).get('tasks')
+            self.assertTrue(taches, f'{cle} : `tasks` absent — les métiers ne sont plus portés')
+            self.assertEqual(taches[0], info.capabilities['task'],
+                             f'{cle} : le métier principal doit ouvrir la liste')
+        multi = [k for k, v in imager.items() if len(v.capabilities.get('tasks', [])) > 1]
+        self.assertTrue(multi, "aucun modèle à PLUSIEURS métiers — c'est pourtant le cas mesuré "
+                               "(LTX : t2v+i2v), donc les jetons ne sont plus lus")
+
     def test_style_ajoute_une_reference_OPTIONNELLE(self):
         d = self._derive('t2i+style')
         self.assertEqual('text-to-image', d['task'],
@@ -1317,11 +1348,15 @@ class JetonDeTransfertDeStyleTest(TestCase):
 
     def test_sans_style_rien_ne_change(self):
         """Non-régression du parc : les 12 modèles de l'imager passent par ces mêmes lignes."""
+        # `tokens` (2026-09-12) : les jetons reconnus, triés — la clé que la boucle de découverte
+        # lisait sous le nom `_tasks` et que l'extraction avait laissée pendante.
         self.assertEqual({'task': 'text-to-image', 'inputs_required': ['prompt'],
-                          'inputs_optional': []}, self._derive('t2i'))
+                          'inputs_optional': [], 'tokens': ['t2i']}, self._derive('t2i'))
         self.assertEqual({'task': 'image-to-image', 'inputs_required': ['prompt', 'work_image'],
-                          'inputs_optional': []}, self._derive('edit'))
+                          'inputs_optional': [], 'tokens': ['edit']}, self._derive('edit'))
         self.assertEqual({'task': 'text-to-image', 'inputs_required': ['prompt'],
-                          'inputs_optional': ['work_image']}, self._derive('t2i+i2i'))
+                          'inputs_optional': ['work_image'], 'tokens': ['i2i', 't2i']},
+                         self._derive('t2i+i2i'))
         self.assertEqual({'task': 'text-to-video', 'inputs_required': ['prompt'],
-                          'inputs_optional': ['work_image']}, self._derive('t2v+i2v', is_video=True))
+                          'inputs_optional': ['work_image'], 'tokens': ['i2v', 't2v']},
+                         self._derive('t2v+i2v', is_video=True))
