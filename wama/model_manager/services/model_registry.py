@@ -573,15 +573,21 @@ class ModelRegistry:
                     capabilities={
                         'modalities': ['video'] if _is_video else ['image'],
                         'task': _task,
-                        # TOUS les metiers declares, le principal d'abord. `_tasks` porte
-                        # deja l'ensemble ('t2v+i2v' pour LTX) et il etait ECRASE ici en une
-                        # tache unique : les autres metiers disparaissaient sans un mot, et
-                        # `sync_benchmarks` ne cherchait LTX que dans le leaderboard
-                        # texte->video alors qu'AA le classe aussi en image->video
-                        # (releve le 2026-09-01). `task` reste le metier principal — rien
-                        # de ce qui le lit ne change.
+                        # TOUS les metiers declares, le principal d'abord. Les JETONS
+                        # ('t2v+i2v' pour LTX) etaient ECRASES ici en une tache unique : les
+                        # autres metiers disparaissaient sans un mot, et `sync_benchmarks` ne
+                        # cherchait LTX que dans le leaderboard texte->video alors qu'AA le
+                        # classe aussi en image->video (releve le 2026-09-01). `task` reste le
+                        # metier principal — rien de ce qui le lit ne change.
+                        #
+                        # ⚠ Les jetons viennent de la BRIQUE (`_derive['tokens']`). Jusqu'au
+                        # 2026-09-12 cette ligne lisait `_tasks`, une locale que l'extraction
+                        # de `derive_inputs_from_tasks` (11/09) avait emportee : NameError a
+                        # CHAQUE synchro du catalogue — 40 echecs mesures sur la journee, le
+                        # catalogue fige. La garde textuelle voisine ne pouvait pas le voir ;
+                        # seule une garde qui EXECUTE cette decouverte le peut (tests_catalogues).
                         'tasks': [_task] + sorted(
-                            {MODE_VERS_TACHE[t] for t in _tasks if t in MODE_VERS_TACHE}
+                            {MODE_VERS_TACHE[t] for t in _derive['tokens'] if t in MODE_VERS_TACHE}
                             - {_task}),
                         # Entrées consommées, en ids d'INPUT_TYPES — c'est ce qui permet
                         # l'appariement entrée↔modèle (`matches_inputs`) SANS drapeau ad hoc :
