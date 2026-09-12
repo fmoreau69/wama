@@ -13547,6 +13547,7 @@ proposition ignorait : *un générateur n'écrit aucun nombre lu en base dans un
   (59→69 outils, la garde des écritures, les 2 dettes), `project_memory_rag_architecture`
   (la récidive « 0 `RagChunk` » **malgré la fiche** — *un compteur ne dit pas si son zéro est un
   défaut ou une conception*).
-- ⚠ `manifest_export --check` **lancé, verdict non attendu à la fermeture** : aucun registre
-  projeté aux manifestes n'a bougé de mon fait (`mecanismes.py` et `TOOL_REGISTRY` ne sont pas
-  des sources de manifeste) — à confirmer au prochain `/reprise` plutôt qu'affirmé ici.
+- `manifest_export --check` (WSL2) : **corpus à jour — 203 manifestes + 1 autoré valide.**
+  *(Ma première rédaction de cette ligne disait « verdict non attendu à la fermeture, à confirmer
+  au prochain /reprise » : le contrôle a rendu avant la fin, donc la mesure remplace la
+  prudence. Un contrôle lancé doit être LU, pas légué.)*
