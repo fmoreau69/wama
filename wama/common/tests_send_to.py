@@ -50,24 +50,34 @@ class SortiesDeclareesTest(TestCase):
         C'est la seule conversion de ce module, et elle doit ÉCARTER ce qui ne relève pas de
         `MEDIA_URL` : un chemin fabriqué autrement ne serait pas importable.
         """
+        from wama.common.utils.media_paths import app_media_dir
         from wama.converter.models import ConversionJob
+        # ⚠ Le chemin vient de la BRIQUE, plus d'un littéral : ce test écrivait
+        # `converter/{uid}/output/…` en dur, donc il serait resté VERT après la bascule au
+        # domicile unique (2026-09-12) tout en n'attestant plus la forme réelle.
+        attendu = f"{app_media_dir('converter', self.u.id, 'output')}/a.webp"
         job = ConversionJob.objects.create(user=self.u, input_filename='a.png')
-        job.output_file.name = f'converter/{self.u.id}/output/a.webp'
+        job.output_file.name = attendu
         job.save(update_fields=['output_file'])
-        self.assertEqual([f'converter/{self.u.id}/output/a.webp'],
-                         sorties_de('converter', job))
+        self.assertEqual([attendu], sorties_de('converter', job))
 
     def test_le_chemin_rendu_est_celui_qu_AUTORISE_la_garde_d_import(self):
         """Le contrat entre les deux endpoints : ce que l'un rend, l'autre doit l'accepter.
 
-        `is_path_allowed` n'autorise que `<app>/<user_id>/…`. Si la forme du chemin de sortie
-        changeait, l'envoi échouerait avec un « Access denied » incompréhensible — c'est
+        `is_path_allowed` doit accepter la forme que le résolveur rend. Si l'une des deux
+        change sans l'autre, l'envoi échoue avec un « Access denied » incompréhensible — c'est
         exactement le genre de couture qu'aucun des deux côtés ne teste tout seul.
+
+        ⚠ Le cas s'est PRODUIT le 2026-09-12 : la bascule au domicile unique a déplacé la
+        forme rendue vers `users/<uid>/<app>/…` pendant que la garde n'autorisait encore que
+        `<app>/<uid>/…`. Ce test ne l'aurait PAS vu — il fabriquait son chemin à la main, donc
+        il testait l'ancienne forme des deux côtés. Il part maintenant de la brique.
         """
+        from wama.common.utils.media_paths import app_media_dir
         from wama.converter.models import ConversionJob
         from wama.filemanager.views import is_path_allowed
         job = ConversionJob.objects.create(user=self.u, input_filename='a.png')
-        job.output_file.name = f'converter/{self.u.id}/output/a.webp'
+        job.output_file.name = f"{app_media_dir('converter', self.u.id, 'output')}/a.webp"
         job.save(update_fields=['output_file'])
         for chemin in sorties_de('converter', job):
             self.assertTrue(is_path_allowed(chemin, self.u),

@@ -80,10 +80,17 @@ def get_app_media_url(app_name: str, user_id: Union[int, str], subfolder: str = 
         user_id: User ID
         subfolder: Subfolder name (e.g., 'input', 'output')
 
+    ⚠ DÉRIVÉ de `app_media_dir`, comme la forme absolue et la forme relative. Cette fonction
+    composait la chaîne à la main jusqu'au 2026-09-12 — donc elle a survécu au portage des 61
+    littéraux (elle EST une brique, on ne l'a pas cherchée comme un littéral) et elle serait
+    restée seule à pointer vers l'ancien domicile après la bascule : des aperçus morts, sans
+    la moindre erreur. *Une brique qui compose ce qu'une autre brique compose déjà est un
+    littéral déguisé.*
+
     Returns:
-        URL string: /media/{app_name}/{user_id}/{subfolder}/
+        URL string: /media/users/{user_id}/{app_name}/{subfolder}/
     """
-    return f"{settings.MEDIA_URL}{app_name}/{user_id}/{subfolder}/"
+    return f"{settings.MEDIA_URL}{app_media_dir(app_name, user_id, subfolder)}/"
 
 
 def ensure_app_media_dirs(app_name: str, user_id: Union[int, str]) -> dict:
@@ -143,26 +150,36 @@ def app_media_dir(app_name: str, user_id: Union[int, str], subfolder: str = 'inp
     un dossier vide dans l'arbre, une preview morte ou un import qui écrit à l'ancien endroit —
     et rien ne le signale.
 
-    C'est le préalable au « domicile unique par utilisateur » demandé par Fabien le 2026-09-11
-    (tous les fichiers importés sous `users/<u>/`, condition d'un chiffrement par utilisateur).
-    Cette fonction rend AUJOURD'HUI la forme historique, à l'identique : le portage des 61 sites
-    et le déplacement du parc sont deux gestes distincts, et les mélanger rendrait le second
-    indébogable.
+    ✅ LA BASCULE EST FAITE — 2026-09-12. Demande de Fabien (2026-09-11) : *« que tous les
+    fichiers importés d'un utilisateur, quelle que soit la manière, aillent dans le dossier de
+    l'utilisateur »*, condition d'un chiffrement PAR UTILISATEUR (ses octets doivent vivre dans
+    UN sous-arbre). Cette fonction est le point de bascule : tout ce qui écrit un chemin média
+    en dérive, donc changer cette seule ligne déplace le domicile de TOUTES les apps à la fois.
+    Le parc existant a été déplacé par `manage.py migrate_media_to_user_home`.
 
-    ⚠ LA BASCULE VERS `users/<user>/<app>/…` A ÉTÉ TENTÉE PUIS ANNULÉE le 2026-09-11 — deux
-    causes, toutes deux à corriger AVANT de recommencer, et consignées ici pour que la
-    prochaine tentative ne les redécouvre pas :
-      1. **`max_length=100`** — le défaut de Django sur un `FileField`. Le nouveau chemin est
-         plus long de 6 caractères ; la base a refusé (`value too long for character
-         varying(100)`) à mi-parcours, laissant des lignes migrées et d'autres non ;
-      2. **les fichiers PARTAGÉS** — `duplicate_instance` fait pointer plusieurs lignes sur le
-         MÊME fichier (c'est son contrat). Déplacer par ligne casse donc les autres lignes qui
-         le désignent : la migration doit raisonner par FICHIER, pas par ligne.
+    ⚠ L'ORDRE DES DEUX GESTES N'EST PAS INDIFFÉRENT, et c'est ce qui a rendu la bascule sûre :
+    le portage des 61 sites s'est fait à forme CONSTANTE (la fonction rendait alors la forme
+    historique), et le déplacement du parc n'a suivi qu'après. Les mélanger aurait rendu
+    indébogable le moindre écart — on n'aurait pas su si un fichier manquait parce qu'un
+    littéral avait été oublié ou parce qu'un rename avait échoué.
+
+    ⚠ UNE PREMIÈRE TENTATIVE A ÉCHOUÉ EN VOL le 2026-09-11 (413 lignes / 30 fichiers à
+    réparer). Ses deux causes — `max_length=100`, et les fichiers PARTAGÉS par
+    `duplicate_instance` — sont désormais traitées DANS la commande de migration, qui porte le
+    détail des quatre corrections (pré-vol bloquant, raisonnement par fichier, base écrite
+    dans la transaction du rename, unités atomiques indépendantes). Elles ne sont plus décrites
+    ici : ce sont des propriétés de la MIGRATION, pas de la forme du chemin.
+
+    ⚠ CE QUI N'A PAS BOUGÉ, et qu'il ne faut pas croire fait : les fichiers ORPHELINS (~290 au
+    12/09, aucune ligne de base ne les cite) dorment toujours dans les arbres d'app. Pour le
+    chiffrement ils comptent — ce sont des octets d'utilisateur —, mais les déplacer est une
+    décision distincte : certains lecteurs les retrouvent par GLOB (anonymizer `_blurred*`) et
+    aucun test ne couvre ce chemin-là.
 
     Returns:
-        `"{app_name}/{user_id}/{subfolder}"` — sans barre finale, séparateurs POSIX.
+        `"users/{user_id}/{app_name}/{subfolder}"` — sans barre finale, séparateurs POSIX.
     """
-    return f"{app_name}/{user_id}/{subfolder}"
+    return f"users/{user_id}/{app_name}/{subfolder}"
 
 
 def get_relative_media_path(app_name: str, user_id: Union[int, str], subfolder: str, filename: str) -> str:

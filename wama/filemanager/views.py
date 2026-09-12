@@ -1142,22 +1142,50 @@ def _allowed_app_prefixes(user_id):
     """Préfixes de dossiers d'app autorisés POUR CET UTILISATEUR — dérivés
     automatiquement de APP_CATALOG (+ apps WAMA Lab).
 
-    Chaque préfixe inclut l'id utilisateur (`<app>/<user_id>/`), ce qui
-    garantit qu'un utilisateur ne peut accéder qu'à SES propres fichiers d'app,
-    même en fabriquant un chemin à la main (pas seulement via l'arbre).
+    Chaque préfixe inclut l'id utilisateur, ce qui garantit qu'un utilisateur ne peut accéder
+    qu'à SES propres fichiers d'app, même en fabriquant un chemin à la main (pas seulement via
+    l'arbre). La bascule au domicile unique (2026-09-12) ne change RIEN à cette propriété :
+    `users/<user_id>/<app>/` porte l'id encore plus tôt dans le chemin.
 
     Ajouter une app à APP_CATALOG suffit : son dossier média devient
     automatiquement accessible — évite l'erreur chronique « aperçu non
     disponible » à la création d'une nouvelle app.
+
+    ⚠ CE SITE AVAIT ÉCHAPPÉ AU PORTAGE DES 61 LITTÉRAUX (2026-09-11), et il faut comprendre
+    pourquoi pour ne pas refaire l'erreur : la garde P2a cherchait le TRIPLET
+    `<app>/<uid>/<sous-dossier>`, alors qu'ici la chaîne est une PAIRE `<app>/<uid>/`. Une
+    garde écrite sur la forme complète d'un chemin ne voit pas ses PRÉFIXES — et un préfixe
+    d'autorisation resté sur l'ancien domicile n'aurait rien cassé bruyamment : il aurait
+    simplement refusé tous les fichiers, en rendant « aperçu non disponible ».
+
+    ⚠ LES DEUX FORMES SONT AUTORISÉES, à dessein. La bascule a déplacé tout ce qu'une ligne de
+    base désigne, mais ~290 fichiers ORPHELINS dorment encore dans les arbres d'app : ce sont
+    des octets d'utilisateur, ils restent visibles et servables tant qu'on n'a pas tranché leur
+    sort. Retirer l'ancien préfixe les ferait disparaître de l'arbre sans les supprimer — la
+    pire des deux options.
     """
+    from wama.common.utils.media_paths import app_media_dir
+
+    def _paire(app):
+        """`users/<uid>/<app>/` — les deux premiers segments de la forme canonique.
+
+        DÉRIVÉE de `app_media_dir` plutôt que réécrite : c'est elle qui décide de la forme, et
+        un second endroit qui la décide est un second endroit à changer le jour suivant.
+        """
+        return app_media_dir(app, user_id, '').rstrip('/') + '/'
+
     prefixes = set()
+    labels = set()
     try:
         from wama.common.app_registry import APP_CATALOG
-        prefixes.update(f'{app}/{user_id}/' for app in APP_CATALOG)
+        labels.update(APP_CATALOG)
     except Exception:
         pass
     # Apps WAMA Lab (hors APP_CATALOG)
-    prefixes.update([f'face_analyzer/{user_id}/', f'cam_analyzer/{user_id}/'])
+    labels.update(['face_analyzer', 'cam_analyzer'])
+    for app in labels:
+        prefixes.add(_paire(app))            # domicile unique — la forme d'aujourd'hui
+        prefixes.add(f'{app}/{user_id}/')    # arbre historique — orphelins non migrés
     # Dossiers partagés (non rattachés à un utilisateur)
     prefixes.add('avatarizer/gallery/')
     return prefixes
@@ -1168,7 +1196,8 @@ def is_path_allowed(path, user):
     Check if a path is allowed for the given user.
     Users can only access:
     - Their own temp folder: users/{user_id}/temp/
-    - Their OWN app media folders (`<app>/<user_id>/…`, par-utilisateur)
+    - Their OWN app media folders — `users/<user_id>/<app>/…` (domicile unique) et l'arbre
+      historique `<app>/<user_id>/…`, qui porte encore les orphelins non migrés
     - Shared folders (avatarizer/gallery)
     - Their mounted folders
     """

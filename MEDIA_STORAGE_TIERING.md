@@ -115,6 +115,42 @@ Tout le reste — fichiers de travail d'un pipeline, médias de test, résidus �
 et doit vivre ailleurs : `media_tests/` pour les tests (cf. `wama/common/runners.py`), un dossier
 **temporaire** pour les intermédiaires de traitement.
 
+> ### 🔄 DOMICILE UNIQUE PAR UTILISATEUR — bascule faite le 2026-09-12
+>
+> **La règle ci-dessus se lit désormais avec UNE racine, pas trois** : la forme canonique d'un
+> chemin média d'app est **`users/<user>/<app>/input|output/`**. Demande de Fabien (2026-09-11) :
+> *« que tous les fichiers importés d'un utilisateur, quelle que soit la manière, aillent dans le
+> dossier de l'utilisateur »* — **condition d'un chiffrement PAR UTILISATEUR**, qui suppose que
+> ses octets vivent dans UN sous-arbre et non dispersés dans 11 arbres d'app.
+>
+> | | avant | après |
+> |---|---|---|
+> | forme du chemin | `<app>/<user>/input\|output/` | `users/<user>/<app>/input\|output/` |
+> | qui la décide | 61 littéraux sur 4 fichiers | **`media_paths.app_media_dir()`, seule** |
+> | structure `input`/`output` | conservée | **conservée** (arbitrage Fabien — le passage à `imports/`+`outputs/` est un geste distinct) |
+>
+> **Deux gestes, dans cet ordre, et l'ordre est la raison pour laquelle ça a marché** : P2a a
+> centralisé les 61 littéraux **à forme constante**, P2b a déplacé le parc. Les mélanger aurait
+> rendu indébogable le moindre écart — on n'aurait pas su distinguer « un littéral oublié » de
+> « un rename raté ».
+>
+> **Mesure avant / après** (`check_media_integrity`, le seul verdict qui compte) : **330 champs
+> fichier référencés ET présents sur le disque, 29 absents, 620 fichiers — identiques des deux
+> côtés.** 302 fichiers / 381 lignes sont à la forme cible. Commande :
+> `manage.py migrate_media_to_user_home [--check|--apply]` — son en-tête porte les quatre
+> corrections issues de l'échec en vol du 11/09 (pré-vol bloquant sur `max_length`, raisonnement
+> par FICHIER à cause des fichiers partagés par `duplicate_instance`, base écrite dans la
+> transaction du rename, unités atomiques indépendantes).
+>
+> ⚠ **CE QUI N'EST PAS FAIT, et qu'il ne faut pas lire comme fait** — trois restes nommés :
+> 1. **~290 fichiers ORPHELINS** dorment encore dans les arbres d'app (aucune ligne de base ne
+>    les cite, donc la migration ne les voit pas). Pour le chiffrement ils comptent : ce sont des
+>    octets d'utilisateur. Les déplacer est une **décision distincte** — certains lecteurs les
+>    retrouvent par GLOB (anonymizer `_blurred*`) et aucun test ne couvre ce chemin ;
+> 2. **la médiathèque** (`media_library/`) n'a pas bougé : ses URLs circulent ;
+> 3. **les deux formes restent AUTORISÉES** par `is_path_allowed` tant que les orphelins sont là
+>    — retirer l'ancien préfixe les ferait disparaître de l'arbre sans les supprimer.
+
 ### ① Médias de TEST — soldé le 2026-08-25
 
 **1069 fichiers** écrits par la suite de tests, dispersés dans les dossiers d'app et **jusque dans

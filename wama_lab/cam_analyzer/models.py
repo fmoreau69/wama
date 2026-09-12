@@ -28,12 +28,31 @@ def _default_analyzed_positions():
 
 
 def cam_upload_path(instance, filename):
-    """Upload path: cam_analyzer/<user_id>/input/<filename>"""
+    """Dossier d'entrée du cam_analyzer — par la BRIQUE COMMUNE `app_media_dir`.
+
+    ⚠ Ce site composait `cam_analyzer/<user_id>/input` À LA MAIN jusqu'au 2026-09-12 : c'était
+    le **62ᵉ littéral**, celui que le portage des 61 n'a pas vu. Deux raisons, et les deux sont
+    des leçons :
+      1. il vit dans `wama_lab/`, hors du périmètre balayé — *une garde qui liste ses fichiers
+         ne protège que les mondes qu'on a pensé à y mettre* ;
+      2. il n'emploie pas l'idiome cherché (`f'app/{user_id}/input'`) mais `os.path.join`, que
+         le motif de la garde ne reconnaît pas.
+
+    Il aurait été le seul à écrire encore dans l'ancien arbre APRÈS la bascule — ses fichiers
+    déjà déposés déplacés, les suivants non : une app coupée en deux, sans une erreur. Trouvé
+    parce que la nouvelle garde raisonne par CHAMP au lieu de chercher des chaînes.
+
+    ⚠ `user_id = 0` quand la session n'a pas d'utilisateur : comportement HISTORIQUE conservé,
+    et volontairement pas « corrigé » ici — changer la destination d'un fichier orphelin est un
+    autre sujet que changer la forme du chemin.
+    """
+    from wama.common.utils.media_paths import app_media_dir
+
     user_id = instance.session.user.id if instance.session and instance.session.user else 0
-    relative_dir = os.path.join('cam_analyzer', str(user_id), 'input')
+    relative_dir = app_media_dir('cam_analyzer', user_id, 'input')
     full_dir = os.path.join(settings.MEDIA_ROOT, relative_dir)
     unique_filename = get_unique_filename(full_dir, filename)
-    return os.path.join(relative_dir, unique_filename)
+    return f"{relative_dir}/{unique_filename}"
 
 
 class AnalysisProfile(models.Model):
@@ -284,7 +303,15 @@ class CameraView(models.Model):
         related_name='cameras'
     )
     position = models.CharField(max_length=10, choices=Position.choices)
-    video_file = models.FileField(upload_to=cam_upload_path)
+    # ⚠ `max_length` EXPLICITE — le défaut Django est 100, et le pré-vol du déplacement vers le
+    # domicile unique (`migrate_media_to_user_home --check`, 2026-09-12) mesure ici un chemin
+    # cible de **103** caractères : c'est le SEUL champ fichier du dépôt que la bascule ferait
+    # refuser par la base. C'est exactement la cause n°1 de l'échec du 2026-09-11, où le refus
+    # était tombé à mi-parcours en laissant des lignes migrées et d'autres non.
+    # 255 et non 106 : la marge ne se calcule pas sur le parc du jour. Les noms d'origine sont
+    # PRÉSERVÉS (`output_naming._souche_utilisateur`), donc un titre de vidéo long suffit à
+    # repousser la borne — et un varchar plus large ne coûte rien en Postgres.
+    video_file = models.FileField(upload_to=cam_upload_path, max_length=255)
     label = models.CharField(max_length=100, blank=True)
     duration = models.FloatField(null=True, blank=True)
     fps = models.FloatField(null=True, blank=True)
