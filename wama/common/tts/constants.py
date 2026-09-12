@@ -163,7 +163,7 @@ LANGUAGE_NAMES_EN = {  # wama:redondance-ok — noms anglais par code langue (in
 # ---------------------------------------------------------------------------
 # Les nouvelles voix sont dans media/synthesizer/voice_references/
 # Les anciens presets (default, male_1 ...) sont dans ce même dossier pour compat.
-# Voir wama/synthesizer/utils/voice_utils.py pour le scan et la résolution.
+# Voir wama/common/tts/voice_refs.py pour le scan et la résolution.
 # ---------------------------------------------------------------------------
 
 VOICE_REFS_SUBDIR = "synthesizer/voice_references"
@@ -172,7 +172,7 @@ def _lj_base() -> str:
     """Échantillons LJSpeech publiés en clair dans le dépôt coqui-ai-TTS.
 
     DOMICILE UNIQUE de ce chemin depuis le 2026-09-01 : il était recopié à l'identique dans
-    `synthesizer/utils/voice_utils.py` et `synthesizer/workers.py`. L'HÔTE vient du registre
+    `common/tts/voice_refs.py` et `synthesizer/workers.py`. L'HÔTE vient du registre
     commun des sources externes ; le chemin de dépôt, lui, appartient au domaine TTS.
     """
     from wama.common.external_sources import base_url

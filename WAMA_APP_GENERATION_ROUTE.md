@@ -2023,7 +2023,7 @@ recopier NULLE PART, re-mesurer)** :
   gabarit.
 - **Le graphe transverse app→app n'est déclaré nulle part** : `common/` importe 6 apps
   médias, `inline_convert` (converter) sert 5 apps, `speakers` (transcriber) sert
-  `document_export`/`llm_utils`, `voice_utils` (synthesizer) sert l'avatarizer et
+  `document_export`/`llm_utils`, `voice_refs` (jadis `synthesizer/utils/voice_utils`, porté au commun le 2026-09-12) sert l'avatarizer et
   `voice_options`, `UserSettings` (anonymizer) sert la page de profil. **Régénérer une app
   sans ce graphe rompt ces arêtes en silence** — à déclarer (candidat : `requires`
   inter-apps au manifeste).

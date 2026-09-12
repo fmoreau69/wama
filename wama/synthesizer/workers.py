@@ -35,7 +35,7 @@ from wama.common.tts.service_client import (TTSServiceLoadingError,
 def _get_default_speaker_wav(voice_preset: str) -> str:
     """
     Retourne le chemin vers un fichier audio de référence par défaut.
-    Délègue à voice_utils.resolve_voice_preset() pour la résolution.
+    Délègue à common.tts.voice_refs.resolve_voice_preset() pour la résolution.
     Si aucun fichier trouvé pour le preset, télécharge les samples LJSpeech en fallback.
 
     Args:
@@ -45,7 +45,7 @@ def _get_default_speaker_wav(voice_preset: str) -> str:
         str: Chemin vers le fichier audio de référence, ou None
     """
     import urllib.request
-    from wama.synthesizer.utils.voice_utils import resolve_voice_preset, get_voice_refs_dir
+    from wama.common.tts.voice_refs import resolve_voice_preset, get_voice_refs_dir
 
     # 1. Essayer la résolution directe (nouveau format ou héritage)
     resolved = resolve_voice_preset(voice_preset)
@@ -88,9 +88,9 @@ def _get_default_speaker_wav(voice_preset: str) -> str:
 def download_voice_refs_task(force: bool = False):
     """
     Tâche Celery : télécharge les fichiers de voix de référence manquants
-    selon VOICE_DOWNLOAD_CATALOG défini dans voice_utils.py.
+    selon VOICE_DOWNLOAD_CATALOG défini dans common/tts/voice_refs.py.
     """
-    from wama.synthesizer.utils.voice_utils import download_missing_voice_refs
+    from wama.common.tts.voice_refs import download_missing_voice_refs
     results = download_missing_voice_refs(force=force)
     n_ok   = sum(1 for s in results.values() if s == 'downloaded')
     n_fail = sum(1 for s in results.values() if s == 'failed')
