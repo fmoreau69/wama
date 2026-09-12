@@ -25,6 +25,21 @@ POURQUOI (demande Fabien, 2026-09-11)
     geste, plus facile une fois celui-ci fait. La médiathèque migre plus tard : ses URLs
     circulent.
 
+⚠⚠ LE PLAN PART DU DISQUE, PAS DE LA BASE — corrigé le 2026-09-12 (constat de Fabien : les
+    sorties de l'anonymizer n'avaient pas bougé). La première version énumérait les champs
+    fichier et déplaçait ce qu'ils désignaient : **275 fichiers / 11,7 Go sont restés dans les
+    arbres d'app, dont 273 qu'aucune ligne ne référence.** Leur chemin était pourtant standard —
+    ils étaient simplement INCONNUS de la base.
+    *Une migration de FICHIERS qui s'énumère depuis la BASE ne voit pas les orphelins, par
+    définition.* Le disque est le seul inventaire complet de ce qu'il contient ; la base sert
+    d'index INVERSE, pour réécrire les références quand il y en a.
+
+⚠ CE QUI RESTE VOLONTAIREMENT HORS PÉRIMÈTRE, et pourquoi : un dossier d'app SANS identifiant
+    utilisateur (`avatarizer/gallery`, `synthesizer/voice_references`, `synthesizer/
+    default_voices`) n'appartient à personne — ce sont des ressources d'APPLICATION. Les loger
+    chez un utilisateur serait faux. Ils sont exclus PAR CONSTRUCTION (pas d'identifiant dans le
+    chemin), sans liste à tenir.
+
 ────────────────────────────────────────────────────────────────────────────────────────────
 CE QUE CETTE VERSION CORRIGE — la première tentative du 2026-09-11 a ÉCHOUÉ EN VOL et il a
 fallu réparer la base (413 lignes / 30 fichiers restaurés). Les quatre corrections sont ici, et
@@ -68,9 +83,11 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import models, transaction
 
-#: Les sous-dossiers d'app qu'on déplace. Tout le reste (`users/`, `media_library/`, `mounts/`)
-#: est soit déjà à sa place, soit hors périmètre de ce palier.
-SOUS_DOSSIERS = ('input', 'output')
+#: ⚠ `SOUS_DOSSIERS = ('input', 'output')` vivait ici et RESTREIGNAIT le périmètre. Retiré le
+#: 2026-09-12 : il excluait `synthesizer/<uid>/custom_voices`, `composer/<uid>/batch_imports` et
+#: `cam_analyzer/<uid>/input/rtmaps` — des octets d'utilisateur comme les autres. Ce qui délimite
+#: le périmètre est la présence de l'IDENTIFIANT UTILISATEUR dans le chemin (cf. `cible`), pas une
+#: liste de noms de dossiers qu'il aurait fallu tenir à jour à chaque app.
 
 
 def champs_fichier():
@@ -86,17 +103,32 @@ def champs_fichier():
                 yield modele, champ
 
 
+#: Racines qui ne sont PAS des arbres d'app — déjà à leur place, ou hors périmètre par décision.
+HORS_PERIMETRE = ('users', 'media_library', 'mounts', 'nightly_tests', 'tests_lot', 'studio')
+
+
 def cible(valeur: str):
-    """`<app>/<uid>/<sub>/reste` → `users/<uid>/<app>/<sub>/reste`, ou `None` si hors périmètre."""
+    """`<app>/<uid>/reste…` → `users/<uid>/<app>/reste…`, ou `None` si hors périmètre.
+
+    ⚠ DEUX ÉLARGISSEMENTS le 2026-09-12, après que Fabien a constaté que les sorties de
+    l'anonymizer étaient restées sur place :
+      1. **le sous-dossier n'est plus filtré à `input`/`output`**. `synthesizer/1/custom_voices`
+         et `cam_analyzer/1/input/rtmaps` sont des octets d'utilisateur au même titre ; les
+         exclure laissait des poches entières hors du domicile. Ce qui définit le périmètre
+         n'est pas le nom du sous-dossier, c'est la présence de l'IDENTIFIANT UTILISATEUR ;
+      2. la profondeur minimale passe de 4 à **3** segments (`<app>/<uid>/<fichier>`).
+
+    Ce qui délimite reste inchangé et suffit : un `<uid>` numérique en 2ᵉ position. Les dossiers
+    PARTAGÉS (`avatarizer/gallery`, `synthesizer/voice_references`) n'en ont pas — ils sont donc
+    exclus par construction, sans liste à tenir.
+    """
     parts = (valeur or '').replace('\\', '/').split('/')
-    if len(parts) < 4:
+    if len(parts) < 3:
         return None
-    app, uid, sous = parts[0], parts[1], parts[2]
-    if app in ('users', 'media_library', 'mounts') or sous not in SOUS_DOSSIERS:
+    app, uid = parts[0], parts[1]
+    if app in HORS_PERIMETRE or not uid.isdigit():
         return None
-    if not uid.isdigit():
-        return None
-    return '/'.join(['users', uid, app, sous, *parts[3:]])
+    return '/'.join(['users', uid, app, *parts[2:]])
 
 
 class Command(BaseCommand):
@@ -111,16 +143,30 @@ class Command(BaseCommand):
 
     # ── Plan ────────────────────────────────────────────────────────────────────────────
     def _plan(self, racine: Path, filtre: str):
-        """Plan indexé par CHEMIN SOURCE — correction n°2 (fichiers partagés).
+        """Plan construit depuis le DISQUE, la base servant d'index INVERSE.
 
-        Un fichier peut être désigné par plusieurs lignes, de plusieurs modèles : le déplacer
-        est UN geste qui doit mettre à jour TOUTES ses références, sous peine de casser celles
-        qu'on n'a pas regardées.
+        ⚠⚠ C'EST LA CORRECTION DU 2026-09-12, ET ELLE EST STRUCTURELLE. La première version
+        partait de la BASE : elle parcourait les champs fichier et déplaçait ce qu'ils
+        désignaient. Conséquence mesurée quand Fabien a constaté que les sorties de l'anonymizer
+        n'avaient pas bougé : **275 fichiers / 11,7 Go étaient restés dans les arbres d'app,
+        dont 273 qu'AUCUNE ligne ne référence**. Ils étaient invisibles à la migration — non
+        parce que leur chemin avait une forme spéciale (il était parfaitement standard), mais
+        parce que personne ne les citait.
+
+        *Une migration de FICHIERS qui s'énumère depuis la BASE ne voit que ce que la base
+        connaît — et un orphelin est exactement ce qu'elle ne connaît pas.* Le disque est le
+        seul inventaire complet de ce qu'il contient.
+
+        On garde intégralement la correction n°2 (raisonner par FICHIER) : la base est lue en
+        index inverse `chemin → [(modèle, champ, pk)]`, de sorte qu'un fichier partagé par
+        plusieurs lignes met à jour TOUTES ses références en un seul geste. Un fichier sans
+        aucune référence se déplace quand même — il n'y a simplement rien à réécrire.
         """
-        refs = defaultdict(list)     # valeur source → [(modèle, nom de champ, pk)]
+        refs = defaultdict(list)     # chemin source → [(modèle, nom de champ, pk)]
         longueurs = {}               # "app.Modèle.champ" → (max longueur cible, max_length)
         absents, hors = 0, 0
 
+        # ── 1. La base en index INVERSE (et le pré-vol, qui ne concerne qu'elle) ──────────
         for modele, champ in champs_fichier():
             if filtre and modele._meta.app_label != filtre:
                 continue
@@ -128,6 +174,7 @@ class Command(BaseCommand):
             cle = f"{modele._meta.app_label}.{modele.__name__}.{nom}"
             qs = modele.objects.exclude(**{nom: ''}).exclude(**{f'{nom}__isnull': True})
             for pk, valeur in qs.values_list('pk', nom).iterator():
+                valeur = (valeur or '').replace('\\', '/')
                 dest = cible(valeur)
                 if dest is None:
                     hors += 1
@@ -141,6 +188,21 @@ class Command(BaseCommand):
                     absents += 1      # préexistant — `check_media_integrity` les connaît déjà
                     continue
                 refs[valeur].append((modele, nom, pk))
+
+        # ── 2. Le DISQUE, qui seul connaît les orphelins ────────────────────────────────
+        for app_dir in sorted(racine.iterdir()):
+            if not app_dir.is_dir() or app_dir.name in HORS_PERIMETRE:
+                continue
+            if filtre and app_dir.name != filtre:
+                continue
+            for fichier in app_dir.rglob('*'):
+                if not fichier.is_file():
+                    continue
+                rel = fichier.relative_to(racine).as_posix()
+                if cible(rel) is None:
+                    hors += 1          # dossier PARTAGÉ (pas d'identifiant) — hors domicile
+                    continue
+                refs.setdefault(rel, [])   # orphelin : à déplacer, rien à réécrire
 
         return refs, longueurs, absents, hors
 
@@ -201,25 +263,39 @@ class Command(BaseCommand):
             return
 
         if not appliquer:
-            par_app = defaultdict(lambda: [0, 0])
+            # ⚠ Groupé par ARBRE D'APP et non par champ de modèle : depuis que le plan part du
+            # disque, la plupart des fichiers n'ont AUCUNE référence — lire `r[0]` levait.
+            par_app = defaultdict(lambda: [0, 0, 0])   # fichiers, octets, dont référencés
             for valeur, r in refs.items():
-                modele, nom, _pk = r[0]
-                e = par_app[f"{modele._meta.app_label}.{modele.__name__}.{nom}"]
+                e = par_app[valeur.split('/')[0]]
                 e[0] += 1
                 e[1] += tailles[valeur]
+                e[2] += 1 if r else 0
             self.stdout.write("")
+            self.stdout.write(f"    {'arbre d’app':22s} {'fichiers':>8s} {'Go':>7s} "
+                              f"{'référencés':>11s} {'ORPHELINS':>10s}")
             for cle in sorted(par_app):
-                n, t = par_app[cle]
-                self.stdout.write(f"    {cle:52s} {n:5d}   {t / 1e9:6.2f} Go")
+                n, t, ref = par_app[cle]
+                self.stdout.write(f"    {cle:22s} {n:>8d} {t / 1e9:>7.2f} {ref:>11d} "
+                                  f"{n - ref:>10d}")
             self.stdout.write("")
             self.stdout.write("  → relancer avec --apply pour exécuter")
             return
 
         # ── EXÉCUTION — un FICHIER = une unité atomique ──────────────────────────────────
-        deplaces, relignes, echecs = 0, 0, []
+        deplaces, relignes, echecs, collisions = 0, 0, [], []
         for valeur, r in refs.items():
             dest = cible(valeur)
             src, dst = racine / valeur, racine / dest
+            # ⚠⚠ `os.rename` ÉCRASE SILENCIEUSEMENT une destination existante sous POSIX. Tant
+            # qu'on ne déplaçait que des fichiers RÉFÉRENCÉS, le cas ne pouvait guère se
+            # produire ; en déplaçant aussi les ORPHELINS, deux homonymes — l'un déjà migré,
+            # l'autre resté — se retrouvent sur la même cible, et le second effacerait le
+            # premier. *Une migration ne détruit jamais pour avancer* : on refuse, on nomme,
+            # et l'arbitrage revient à l'humain.
+            if dst.exists():
+                collisions.append((valeur, dest))
+                continue
             try:
                 # ⚠ Corrections n°3 et n°4 : la base d'abord, le rename DANS la transaction.
                 # Si `os.rename` lève, l'exception traverse l'`atomic()` et la base revient
@@ -241,6 +317,14 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(f"  déplacés : {deplaces} / {len(refs)} fichiers"
                           f"   ({relignes} ligne(s) réécrite(s))")
+        if collisions:
+            self.stdout.write(self.style.WARNING(
+                f"  ⚠ {len(collisions)} COLLISION(S) — la cible existait déjà, la source est "
+                "LAISSÉE EN PLACE (rien n'a été écrasé). À arbitrer un par un :"))
+            for src_rel, dst_rel in collisions[:15]:
+                self.stdout.write(f"    {src_rel}\n      → occupé : {dst_rel}")
+            if len(collisions) > 15:
+                self.stdout.write(f"    … et {len(collisions) - 15} autre(s)")
         if echecs:
             self.stdout.write(self.style.ERROR(
                 f"  ÉCHECS : {len(echecs)} fichier(s) — les autres sont COHÉRENTS "

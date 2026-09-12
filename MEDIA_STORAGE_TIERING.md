@@ -135,21 +135,60 @@ et doit vivre ailleurs : `media_tests/` pour les tests (cf. `wama/common/runners
 > « un rename raté ».
 >
 > **Mesure avant / après** (`check_media_integrity`, le seul verdict qui compte) : **330 champs
-> fichier référencés ET présents sur le disque, 29 absents, 620 fichiers — identiques des deux
-> côtés.** 302 fichiers / 381 lignes sont à la forme cible. Commande :
-> `manage.py migrate_media_to_user_home [--check|--apply]` — son en-tête porte les quatre
-> corrections issues de l'échec en vol du 11/09 (pré-vol bloquant sur `max_length`, raisonnement
-> par FICHIER à cause des fichiers partagés par `duplicate_instance`, base écrite dans la
-> transaction du rename, unités atomiques indépendantes).
+> fichier référencés ET présents sur le disque, 29 absents — identiques des deux côtés**, aux
+> deux passes. Commande : `manage.py migrate_media_to_user_home [--check|--apply]` — son en-tête
+> porte les quatre corrections issues de l'échec en vol du 11/09 (pré-vol bloquant sur
+> `max_length`, raisonnement par FICHIER à cause des fichiers partagés par `duplicate_instance`,
+> base écrite dans la transaction du rename, unités atomiques indépendantes).
 >
-> ⚠ **CE QUI N'EST PAS FAIT, et qu'il ne faut pas lire comme fait** — trois restes nommés :
-> 1. **~290 fichiers ORPHELINS** dorment encore dans les arbres d'app (aucune ligne de base ne
->    les cite, donc la migration ne les voit pas). Pour le chiffrement ils comptent : ce sont des
->    octets d'utilisateur. Les déplacer est une **décision distincte** — certains lecteurs les
->    retrouvent par GLOB (anonymizer `_blurred*`) et aucun test ne couvre ce chemin ;
-> 2. **la médiathèque** (`media_library/`) n'a pas bougé : ses URLs circulent ;
-> 3. **les deux formes restent AUTORISÉES** par `is_path_allowed` tant que les orphelins sont là
->    — retirer l'ancien préfixe les ferait disparaître de l'arbre sans les supprimer.
+> ### ⚠⚠ La bascule a demandé DEUX passes, et la seconde porte la vraie leçon
+>
+> La première passe (12/09 matin) a déplacé **68 fichiers** et laissé **275 fichiers / 11,7 Go**
+> dans les arbres d'app — dont les **29 sorties de l'anonymizer**, que Fabien a vues. Cause :
+> le plan s'énumérait depuis la **BASE**, en parcourant les champs fichier. Or **273 de ces 275
+> n'étaient référencés par AUCUNE ligne**. Leur chemin était parfaitement standard ; ils étaient
+> simplement inconnus de la base.
+>
+> > *Une migration de FICHIERS qui s'énumère depuis la BASE ne voit pas les orphelins — par
+> > définition. Le disque est le seul inventaire complet de ce qu'il contient.*
+>
+> La seconde passe part du **disque**, la base servant d'**index inverse** pour réécrire les
+> références quand il y en a. Deux élargissements l'accompagnent : le sous-dossier n'est plus
+> filtré à `input`/`output` (`custom_voices`, `batch_imports`, `input/rtmaps` étaient exclus), et
+> ce qui délimite le périmètre est **la présence de l'identifiant utilisateur** dans le chemin —
+> plus une liste de noms à tenir. Résultat : **223 fichiers / 11,66 Go déplacés**, puis
+> **`--apply` ne trouve plus rien** (commande idempotente).
+>
+> ⚠ **`os.rename` écrase silencieusement une destination existante sous POSIX.** Tant qu'on ne
+> déplaçait que des fichiers référencés le cas ne se posait guère ; avec les orphelins, deux
+> homonymes visent la même cible. La commande **refuse et nomme** désormais (2 collisions
+> mesurées, toutes deux des doublons byte-identiques de comptes de test). *Une migration ne
+> détruit jamais pour avancer.*
+>
+> **Les cards retrouvent-elles leurs médias ?** Mesuré sur les 202 cards du compte réel via la
+> brique d'aperçu (`/common/preview/…`, ce que le navigateur demande réellement) : **64 URL,
+> 62 résolvent**. Les 2 échecs sont deux fichiers de l'enhancer **déjà absents avant** le
+> déplacement (`check_media_integrity` les listait à l'identique). Famille `anonymizer` du filet
+> nocturne : **14/14**.
+>
+> ⚠ **CE QUI N'EST PAS FAIT, et qu'il ne faut pas lire comme fait** :
+> 1. **45 fichiers d'app SANS identifiant utilisateur** restent hors du domicile, et c'est
+>    JUSTE : `avatarizer/gallery` (9), `synthesizer/voice_references` (29), `default_voices` (7)
+>    n'appartiennent à personne — ce sont des ressources d'**application**. Les loger chez un
+>    utilisateur serait faux. Ils sont exclus **par construction** (pas d'identifiant dans le
+>    chemin), sans liste à tenir. Leur sort face au chiffrement par utilisateur est une
+>    **décision**, pas un portage ;
+> 2. **la médiathèque** (`media_library/`, 9 fichiers) n'a pas bougé : ses URLs circulent ;
+> 3. **`media/WAMA_Presentation.wav`** est référencé par des jobs de **deux utilisateurs
+>    différents** (#50 → user 1, #51/#55 → user 21) : le déplacer chez l'un casse l'autre. C'est
+>    le 2ᵉ modèle disque de la « conversion rapide » (§ plus bas) qui produit ce cas — arbitrage,
+>    pas portage ;
+> 4. **16 sites composent encore leur chemin de sortie à la main** dans les tâches et les workers
+>    (imager ×2, imager_01 ×2, cam_analyzer ×4, face_analyzer ×2, avatarizer ×2, composer ×2,
+>    tool_api ×1) : ils écriront les PROCHAINES sorties dans l'ancien arbre. La garde par CHAMP
+>    (`tests_media_paths`) ne les voit pas — elle ne couvre que les `upload_to` ;
+> 5. **les deux formes restent AUTORISÉES** par `is_path_allowed` tant que ces 16 sites écrivent
+>    à l'ancien endroit.
 
 ### ① Médias de TEST — soldé le 2026-08-25
 
