@@ -9,7 +9,29 @@ description: Travailler sur WAMA Lab Cam Analyzer — tracking 360°, projection
 - Lire `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne + conception) et le handoff le plus récent —
   ⚠ **`PROJECT_STATUS.md §REPRISE <date>`**, PAS un `REPRISE_*.md` : il n'en existe aucun dans
   `wama_lab/cam_analyzer/` (vérifié 2026-08-26), le seul du dépôt est à la racine et date du 06/08.
-- L'état vivant est le **CHANGELOG**, pas la doc de chaîne (qui décrit la cible).
+- 🔴 **LIRE LE `CAM_ANALYZER_CHANGELOG.md` EN ENTIER** avant de toucher à un mécanisme — pas
+  seulement l'en-tête et la dernière entrée. C'est **l'état vivant** (la doc de chaîne décrit
+  la cible) et surtout **le seul endroit où les DÉCISIONS sont motivées**.
+  ⚠⚠ *Écrire dans le journal n'est pas l'avoir lu.* On l'ouvre par le bas, on y ajoute une
+  entrée, et on repart sans avoir lu les 200 lignes du dessus — c'est le piège propre aux
+  journaux. **Deux sessions y sont tombées** : le 2026-09-04 (*« as-tu bien lu la philosophie
+  du cam_analyzer ? — non, pas en entier »*, et la lecture a trouvé un défaut réel) et le
+  2026-09-12 (une frontière VOULUE reprise pour un trou à combler, cf. ci-dessous). La
+  consigne de Fabien du 2026-09-05 le disait déjà : *« lecture et consignation exhaustive
+  AVANT tout pour ne pas réinventer ou recâbler un traitement non tracé de bout en bout »*.
+  **Quatre décisions qu'on a chacun redécouvertes à la dure** — les connaître avant de coder :
+  | ce qu'on croit trouver | ce que le journal dit |
+  |---|---|
+  | « le TTC devrait utiliser la projection sol » | `43cf064` : **homographie DÉBRANCHÉE**, prouvée cassée (#546 signe, #537 profondeur) — et `1508935` : une réintroduction **déjà ANNULÉE**. La calib sol en DÉRIVE |
+  | « pourquoi seulement 2 caméras calibrées ? » | `48b46df` : avant/droite **retenues**, arrière/gauche **REJETÉES** par un filtre de qualité (étalement > 2,5 m) |
+  | « améliorons l'optique de l'homographie » | `8a19577` : **k1 saturé sans gain** (3,05 → 3,05). Le résiduel vient de l'**ancrage pinhole**, pas de la distorsion |
+  | « les seuils des garés sont arbitraires » | `4e78e78` : ≥ 4 s et < 0,7 m/s posés contre les véhicules **ROULANTS** vus brièvement |
+  Et sa **procédure de non-régression** (fin de fichier) fournit un **cas de référence chiffré**
+  pour toute formule géométrique : frame 6176, session `8cecc4a6`, véhicules #537/#499/#546.
+- ⚠ Lire aussi l'**EN-TÊTE du fichier qu'on modifie**, pas seulement la fonction qu'on touche :
+  le 2026-09-12, la décision « le TTC se place au PINHOLE, plus fiable que l'homographie » était
+  dans le docstring du module en cours d'édition. *Une frontière VOULUE se lit comme une
+  réponse, jamais comme un trou à combler.*
 - Vérifier la partition multi-instances : l'infra GPU/ressources est souvent tenue par une autre instance.
 
 ## 2. Modèle mental de la chaîne
