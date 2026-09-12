@@ -1491,15 +1491,28 @@ levier d'aval ne peut s'y conditionner.
 *Le levier « continuité d'aire » que Fabien désigne comme indispensable ne peut pas exister
 tant que « l'aire diminue parce que l'objet SORT » n'est écrit nulle part.*
 
-**④ 🔴 ET UNE INCOHÉRENCE DE FENÊTRES, mesurée.** `botsort.yaml` : `track_buffer: 30` frames,
-soit **2,5 s** à 12 fps — au-delà BoTSORT **supprime** le track et **recycle son id**. Or le
-verrou de chaîne rattache un `(caméra, track_id)` vu il y a **moins de 4 s**
-(`multicam_tracker:355`). **Bande de 1,5 s [2,5 ; 4 s] où l'id a été réattribué à un autre
-objet et où le verrou les fusionne.** *Un garde-fou plus large que la garantie sur laquelle il
-repose ne protège pas : il invente.* Mesuré par ailleurs : **3 496** réutilisations d'un
-`track_id` à plus de 4 s sur `front` (3 960 rear, 2 331 left, 2 063 right).
-⚠ Et `profile.tracker` n'est lu que par les **vues** : le choix de tracker dans l'éditeur de
-profil **n'atteint jamais** `model.track()`.
+**④ ⚠⚠ UNE « INCOHÉRENCE DE FENÊTRES » QUE J'AI ANNONCÉE ET QUI N'EXISTE PAS.** J'avais écrit
+qu'il y avait une bande de 1,5 s où BoTSORT recycle un identifiant pendant que le verrou de
+chaîne (4 s) le rattache encore. **Faux deux fois**, vérifié dans la source installée :
+
+1. les identifiants **ne sont pas recyclés à l'expiration** du `track_buffer` : `BaseTrack._count`
+   est un compteur **de classe, monotone** (`basetrack.py:87-90`). Ils repartent à 1 uniquement
+   quand un tracker est **construit** (`byte_tracker.py:281` appelle `reset_id()`) ;
+2. ce redémarrage est **délibéré et documenté** : *« persist=False on the FIRST frame of each
+   window resets BoTSORT, so **track_ids are window-local**. This is correct semantically — no
+   object survives between two intersections separated by minutes »* (`tasks.py:1034-1038`).
+   La fenêtre de 4 s du verrou est là **pour ça**, et elle est bien dimensionnée : sur cette
+   session, **28 fenêtres, écart minimum 19,3 s** (médiane 49 s) — **zéro** en dessous de 4 s.
+
+*Les 3 496 « réutilisations à plus de 4 s » que j'avais relevées sur `front` sont donc le
+fonctionnement NORMAL : un identifiant local de fenêtre qui réapparaît une fenêtre plus tard,
+sur un autre objet, et que le verrou refuse à raison de rattacher.*
+⭐ **Un chiffre élevé n'est pas un défaut tant qu'on n'a pas lu le mécanisme qui le produit.**
+
+**Ce qui reste VRAI de cette enquête** : ⚑ le ReID par apparence est **éteint** (`with_reid:
+False`) alors que la voie peu coûteuse existe (`model: auto` = features du détecteur) ; et
+`profile.tracker` n'est lu **que par les vues** — le choix de tracker dans l'éditeur de profil
+**n'atteint jamais** `model.track()`, qui prend le défaut d'Ultralytics.
 
 **⑤ Le design proposé — où tombe le coût.**
 1. ✅ **FAIT le 2026-09-12** — `wama_data/functions/geometry/frame_edges.py` (brique PURE) :
@@ -1521,9 +1534,18 @@ profil **n'atteint jamais** `model.track()`.
    poignée de détections : trois comparaisons scalaires de plus sont négligeables.
 4. **Les fantômes en héritent mécaniquement** — ils sont émis *par gid*.
 
-**Ordre** : ③ d'abord (il débloque le levier d'aire et ne coûte rien), puis ④ (une constante à
-dériver au lieu d'être écrite en dur), puis ② (déclarer la marge), et la couleur avec la
-prochaine passe d'analyse.
+**Ordre** : ③ ✅ fait · ④ **sans objet** (réfuté ci-dessus) · ② déclarer la marge du vote de
+classe — sans GPU · **couleur** et confrontation profondeur : avec la prochaine passe
+d'analyse. ⚑ `with_reid` et le câblage de `profile.tracker` sont deux décisions à part.
+
+⚠ **La leçon de ce § — quatre fois dans la même session.** J'ai désigné comme défauts : la
+projection sol absente du TTC (c'était une DÉCISION, écrite dans le docstring du module), une
+fonction « oubliée » (elle avait été REMPLACÉE, pour une raison structurelle), une inférence
+« à deux causes indistinguables » (les autres causes étaient écartées trois lignes plus bas),
+et une fenêtre de garde « plus large que sa garantie » (le mécanisme qu'elle protège est
+documenté et bien dimensionné). *Dans une chaîne mûre, une anomalie apparente est plus souvent
+une décision qu'on n'a pas lue qu'un défaut qu'on a trouvé — et le coût de l'inverser est
+qu'on propose de casser ce qui protège.*
 
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 
