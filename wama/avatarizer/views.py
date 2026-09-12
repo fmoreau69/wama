@@ -53,14 +53,19 @@ def _get_user(request):
 
 
 def _gallery_images():
-    """Return list of filenames in the shared avatar gallery directory."""
-    gallery_dir = Path(settings.MEDIA_ROOT) / 'avatarizer' / 'gallery'
-    gallery_dir.mkdir(parents=True, exist_ok=True)
-    valid_exts = {'.jpg', '.jpeg', '.png', '.webp'}
-    return [
-        f.name for f in sorted(gallery_dir.iterdir())
-        if f.is_file() and f.suffix.lower() in valid_exts
-    ]
+    """Avatars de la galerie PARTAGÉE — `[{'name', 'url'}]`, lus à la médiathèque.
+
+    ⚠ Parcourait `media/avatarizer/gallery/` à la main jusqu'au 2026-09-12, comme deux autres
+    sites Python et deux gabarits : six endroits pour neuf images, et aucun droit. La galerie
+    est désormais un `SystemAsset` — le modèle qui la décrit mot pour mot (« asset générique
+    partagé par tous, géré par les admins ») et qui existait depuis le début.
+
+    ⚠ Rend des DICTS et non des noms : l'URL vient de la médiathèque au lieu d'être composée
+    dans le gabarit. Le jour où le domicile des assets bouge (chiffrement), rien à retoucher.
+    La CLÉ reste le nom de fichier — `AvatarJob.avatar_gallery_name` le stocke.
+    """
+    from wama.media_library.services import gallery_entries
+    return gallery_entries()
 
 
 from django.utils.decorators import method_decorator

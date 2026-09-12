@@ -196,14 +196,12 @@ def api_run_options(request):
          'options': ['video', 'image', 'voice', 'audio_music', 'audio_sfx', 'document'],
          'default': 'video'},
     ]
-    # Galerie d'avatars (même source que l'app avatarizer : media/avatarizer/gallery/)
-    import os
-    from django.conf import settings
-    gallery = []
-    gdir = os.path.join(settings.MEDIA_ROOT, 'avatarizer', 'gallery')
-    if os.path.isdir(gdir):
-        gallery = sorted(f for f in os.listdir(gdir)
-                         if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')))
+    # Galerie d'avatars — MÊME SOURCE que l'app avatarizer, et c'est maintenant vrai au sens
+    # fort : la médiathèque. Ce bloc RECOPIAIT le parcours de dossier de `avatarizer.views`
+    # (deux scans pour une seule galerie) ; les deux lisent désormais `SystemAsset`, donc ils
+    # ne peuvent plus diverger. Le studio n'a besoin que des NOMS pour sa liste d'options.
+    from wama.media_library.services import gallery_entries
+    gallery = [e['name'] for e in gallery_entries()]
     return JsonResponse({'params_specs': specs, 'options': {'avatar_gallery': gallery}})
 
 
