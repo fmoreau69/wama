@@ -39,12 +39,33 @@
     const slots = cfg.slots || {};
     const status = cfg.statusId ? document.getElementById(cfg.statusId) : null;
 
-    const label = (id) => labels[id] || id;
+    // Un slot peut porter son propre libellé (slot de VALEUR, hors INPUT_TYPES : la langue).
+    const label = (id) => (slots[id] && slots[id].label) || labels[id] || id;
     const acceptsOf = (mid) => {
       const m = meta[mid] || {};
       return new Set([].concat(m.inputs_required || [], m.inputs_optional || []));
     };
     const requiredOf = (mid) => (meta[mid] || {}).inputs_required || [];
+
+    // Capacités COMPLÈTES d'un modèle : `meta` (entrées, injectée par la vue) + le cache de
+    // WamaModelCaps.init (`capsProvider`, le même catalogue que la direction modèle→choix).
+    // Sans lui, `input_match_meta` ne porte que les entrées — jamais les langues.
+    const capsProvider = typeof cfg.capsProvider === 'function' ? cfg.capsProvider : null;
+    const capsOf = (mid) => Object.assign(
+      {}, meta[mid] || {}, (capsProvider && (capsProvider() || {})[mid]) || {});
+
+    // Un slot peut porter son PROPRE prédicat de compatibilité (`accepts(caps, el)`). C'est ce
+    // qui fait entrer une VALEUR (la langue) dans l'appariement, là où le défaut ne sait juger
+    // qu'un IDENTIFIANT d'entrée (membre de inputs_required ∪ inputs_optional). Mesuré le
+    // 2026-09-12 : la langue n'était filtrée que modèle→langue (langFilter) ; choisir une
+    // langue d'abord ne désactivait AUCUN modèle — la voix, elle, l'était dans les deux sens.
+    function slotAccepts(sid, mid) {
+      const s = slots[sid] || {};
+      if (typeof s.accepts === 'function') {
+        return !!s.accepts(capsOf(mid), document.getElementById(s.inputId));
+      }
+      return acceptsOf(mid).has(sid);
+    }
 
     // ── Entrées fournies (état) ─────────────────────────────────────────────
     const hasValue = (s, inp) =>
@@ -88,8 +109,7 @@
       const causes = {};   // input_id -> nb de modèles désactivés
       Array.from(select.options).forEach((opt) => {
         if (!opt.value) return;
-        const acc = acceptsOf(opt.value);
-        const bad = prov.filter((i) => !acc.has(i));
+        const bad = prov.filter((i) => !slotAccepts(i, opt.value));
         // Le VERDICT SERVEUR (data-backend-missing, grisage automatique 02/09) PRIME et
         // se RESPECTE : cette passe réécrivait disabled/title à chaque change et effaçait
         // le grisage « backend absent » posé par le fill (mesuré au smoke). Deux sources
@@ -97,8 +117,13 @@
         // lève que quand le backend existe — le verdict est relu à chaque service.
         const serveur = opt.dataset.backendMissing || '';
         opt.disabled = !!serveur || bad.length > 0;
+        // Le geste de réactivation dépend du slot : une pièce jointe se RETIRE (✕), une valeur
+        // (la langue, toujours choisie) se CHANGE.
+        const geste = (ids) => ids.some((i) => slots[i] && slots[i].chipId)
+          ? 'retirez la pièce (✕) ou changez la valeur pour réactiver'
+          : 'changez la valeur pour réactiver';
         opt.title = serveur || (bad.length
-          ? 'Incompatible avec : ' + bad.map(label).join(', ') + ' — retirez la pièce (✕) pour réactiver'
+          ? 'Incompatible avec : ' + bad.map(label).join(', ') + ' — ' + geste(bad)
           : '');
         bad.forEach((i) => { causes[i] = (causes[i] || 0) + 1; });
       });
@@ -137,7 +162,9 @@
       if (status) {
         const parts = [];
         Object.keys(causes).forEach((i) => {
-          parts.push(causes[i] + ' modèle(s) désactivé(s) par « ' + label(i) + ' » — ✕ pour les retrouver');
+          const retour = slots[i] && slots[i].chipId ? '✕ pour les retrouver'
+                                                     : 'changez-la pour les retrouver';
+          parts.push(causes[i] + ' modèle(s) désactivé(s) par « ' + label(i) + ' » — ' + retour);
         });
         // Informatif : TOUTES les attentes du modèle (indépendant du gate ci-dessus).
         if (req.length) parts.push('⚠ Ce modèle requiert : ' + req.map(label).join(', '));
@@ -168,5 +195,73 @@
     return { refresh: refresh, isLaunchable: () => refresh().launchable, provided: provided };
   }
 
-  global.WamaInputMatch = { init: init };
+  /*
+   * Slot VOIX CLONÉE prêt à l'emploi — direction voix → MODÈLE : une voix `ua_`/`cv_` choisie
+   * DÉSACTIVE les moteurs sans clonage (grisés avec raison, jamais cachés). Le prédicat est
+   * celui de `WamaModelCaps.isClonedVoice`, défini UNE fois : ce slot vivait recopié dans le
+   * synthesizer et l'avatarizer (isProvided/describe/clear, 12 lignes chacun).
+   *
+   *   slots: { reference_voice: WamaInputMatch.voiceSlot('voice_preset', { chipId, zoneId }) }
+   */
+  function voiceSlot(inputId, opts) {
+    opts = opts || {};
+    const cloned = function (v) {
+      const mc = global.WamaModelCaps;
+      if (!mc || typeof mc.isClonedVoice !== 'function') {
+        // Pas de repli local : ce serait la 2ᵉ copie du prédicat qu'on vient de retirer.
+        console.error('[wama-input-match] voiceSlot exige wama-model-caps.js (isClonedVoice)');
+        return false;
+      }
+      return mc.isClonedVoice(v);
+    };
+    return {
+      inputId: inputId, chipId: opts.chipId, zoneId: opts.zoneId,
+      isProvided: function (el) { return cloned(el.value); },
+      describe: function (el) {
+        const o = el.selectedOptions && el.selectedOptions[0];
+        return o ? o.textContent.trim() : 'voix clonée';
+      },
+      clear: function (el) {
+        el.value = opts.reset || 'default';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      },
+    };
+  }
+
+  /*
+   * Slot LANGUE — la direction qui MANQUAIT. Mesuré le 2026-09-12 : la langue n'était filtrée
+   * que modèle → langue (langFilter) ; choisir une langue d'abord ne désactivait aucun
+   * modèle, alors que la voix l'était dans les deux sens. Cadre Fabien : « la langue et les
+   * voix doivent être à double sens aussi ».
+   *
+   * Même fait canonique et mêmes trois états que langFilter (`capabilities.languages` +
+   * `fallback_languages`) : gérée → compatible ; en repli → compatible (le ⚠ reste sur le
+   * select de langue, côté langFilter) ; inconnue du moteur → INCOMPATIBLE, grisé avec raison.
+   * `languages` vide/absent ou `*` ⇒ aucune restriction affirmée (catalogue muet ≠ rien).
+   * Sans chip : une langue est TOUJOURS choisie, un ✕ n'aurait pas de sens — on réactive en
+   * changeant de langue. Requiert `capsProvider` : `input_match_meta` ne porte que les entrées.
+   *
+   *   slots: { language: WamaInputMatch.langSlot('language') }, capsProvider: modelCaps.caps
+   */
+  function langSlot(inputId, opts) {
+    opts = opts || {};
+    return {
+      inputId: inputId,
+      label: opts.label || 'Langue',
+      isProvided: function (el) { return !!(el && el.value); },
+      describe: function (el) {
+        const o = el && el.selectedOptions && el.selectedOptions[0];
+        return o ? o.textContent.trim() : (el ? el.value : '');
+      },
+      accepts: function (caps, el) {
+        const v = el ? el.value : '';
+        const langs = Array.isArray(caps.languages) ? caps.languages : [];
+        if (!v || !langs.length || langs.indexOf('*') !== -1) return true;
+        if (langs.indexOf(v) !== -1) return true;
+        return (caps.fallback_languages || []).indexOf(v) !== -1;
+      },
+    };
+  }
+
+  global.WamaInputMatch = { init: init, voiceSlot: voiceSlot, langSlot: langSlot };
 })(window);

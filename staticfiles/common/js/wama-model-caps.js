@@ -186,5 +186,36 @@
     };
   }
 
-  global.WamaModelCaps = { init: init, langFilter: langFilter };
+  /*
+   * Une voix CLONÉE se reconnaît à son identifiant : `ua_<id>` (asset de la médiathèque) ou
+   * `cv_<id>` (voix personnalisée) — c'est exactement ce que `resolve_speaker_wav`
+   * (common/tts/voice_refs) résout côté serveur. Ce prédicat vivait RECOPIÉ sur QUATRE sites
+   * dans DEUX apps (2 hideOption + 2 isProvided, synthesizer et avatarizer) : quatre occasions
+   * de le corriger à moitié le jour où un 3ᵉ préfixe apparaît (mesuré le 2026-09-12). Il est
+   * DÉFINI ICI, une fois ; les deux briques (celle-ci et wama-input-match) le LISENT.
+   */
+  function isClonedVoice(value) {
+    return /^(ua_|cv_)/.test(String(value || ''));
+  }
+
+  /*
+   * Filtre VOIX prêt à l'emploi — direction MODÈLE → voix : un moteur qui déclare ne pas
+   * cloner (`supports_cloning === false` — un fait du CATALOGUE, réaligné sur la classe de
+   * moteur à chaque synchro depuis le 2026-09-12) masque les voix clonées. `null`/absent ⇒
+   * aucune restriction affirmée : même lecture que langFilter, un catalogue muet n'est pas
+   * un moteur qui ne clone pas.
+   *
+   *   filters: [ WamaModelCaps.cloneVoiceFilter('voice_preset') ]
+   */
+  function cloneVoiceFilter(selectId) {
+    return {
+      selectId: selectId,
+      hideOption: function (caps, opt) {
+        return caps.supports_cloning === false && isClonedVoice(opt.value);
+      },
+    };
+  }
+
+  global.WamaModelCaps = { init: init, langFilter: langFilter,
+                           cloneVoiceFilter: cloneVoiceFilter, isClonedVoice: isClonedVoice };
 })(window);
