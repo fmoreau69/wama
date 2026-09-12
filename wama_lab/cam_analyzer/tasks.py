@@ -974,7 +974,9 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             sam3_analyzer = None
 
             # Setup annotated video writer
-            output_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'output')
+            from wama.common.utils.media_paths import app_media_dir
+            output_dir = os.path.join(settings.MEDIA_ROOT,
+                                      app_media_dir('cam_analyzer', user_id, 'output'))
             os.makedirs(output_dir, exist_ok=True)
 
             session_name = session.name.replace(' ', '_')[:30] if session.name else str(session_id)[:8]
@@ -3139,7 +3141,9 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
         user_id = session.user_id
 
         # Extracted views go alongside the input quadrature file under input/rtmaps/
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'input', 'rtmaps')
+        from wama.common.utils.media_paths import app_media_dir
+        output_dir = os.path.join(settings.MEDIA_ROOT,
+                                  app_media_dir('cam_analyzer', user_id, 'input'), 'rtmaps')
         os.makedirs(output_dir, exist_ok=True)
 
         import re as _re

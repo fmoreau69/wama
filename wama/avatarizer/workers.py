@@ -192,7 +192,8 @@ def generate_avatar(self, job_id: int):
 
         # Sortie de l'app : le livrable, et RIEN d'autre (règle `MEDIA_STORAGE_TIERING.md` —
         # `media/` ne contient que `<app>/<user>/input|output/` et `users/`).
-        sortie_app = Path(settings.MEDIA_ROOT) / 'avatarizer' / str(job.user_id) / 'output'
+        from wama.common.utils.media_paths import app_media_dir
+        sortie_app = Path(settings.MEDIA_ROOT) / app_media_dir('avatarizer', job.user_id, 'output')
         sortie_app.mkdir(parents=True, exist_ok=True)
 
         # Le travail se fait HORS de `media/` (2026-08-25). Avant, MuseTalk et CodeFormer

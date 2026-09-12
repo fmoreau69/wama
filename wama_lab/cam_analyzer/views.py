@@ -401,7 +401,9 @@ def sync_from_rec(request, session_id):
     from django.conf import settings
     from wama_data.functions.io.rtmaps_rec import parse_rec
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    base = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(request.user.id), 'input')
+    from wama.common.utils.media_paths import app_media_dir
+    base = os.path.join(settings.MEDIA_ROOT,
+                        app_media_dir('cam_analyzer', request.user.id, 'input'))
     recs = [r for r in glob.glob(os.path.join(base, '**', '*.rec'), recursive=True)
             if 'LogConsole' not in os.path.basename(r)]
     if not recs:
@@ -1522,7 +1524,9 @@ def upload_rtmaps(request, session_id):
         )
 
     # Save uploaded files (under input/rtmaps/ to keep all source data under input/)
-    rtmaps_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'input', 'rtmaps')
+    from wama.common.utils.media_paths import app_media_dir
+    rtmaps_dir = os.path.join(settings.MEDIA_ROOT,
+                              app_media_dir('cam_analyzer', user_id, 'input'), 'rtmaps')
     os.makedirs(rtmaps_dir, exist_ok=True)
 
     rec_filename = get_unique_filename(rtmaps_dir, rec_file.name)
@@ -1579,7 +1583,9 @@ def upload_quadrature_avi(request, session_id):
             status=400,
         )
 
-    rtmaps_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'input', 'rtmaps')
+    from wama.common.utils.media_paths import app_media_dir
+    rtmaps_dir = os.path.join(settings.MEDIA_ROOT,
+                              app_media_dir('cam_analyzer', user_id, 'input'), 'rtmaps')
     os.makedirs(rtmaps_dir, exist_ok=True)
 
     avi_filename = get_unique_filename(rtmaps_dir, avi_file.name)

@@ -91,15 +91,27 @@ from django.db import models, transaction
 
 
 def champs_fichier():
-    """Tous les (modèle, champ) portant un fichier — inventaire DÉRIVÉ, jamais listé.
+    """Tous les (modèle, champ) pouvant porter un chemin média — DÉRIVÉ, jamais listé.
 
     Une liste écrite à la main omettrait le champ ajouté demain, et l'omission ne se verrait
     qu'au moment où un utilisateur ouvrirait une card vide. On rend le CHAMP et non son nom :
     le pré-vol a besoin de son `max_length`.
+
+    ⚠⚠ LES CHAMPS TEXTE EN FONT PARTIE — ajouté le 2026-09-12, après un défaut que j'ai
+    INTRODUIT. `anonymizer.Media.output_file` est un `CharField(max_length=500)`, pas un
+    `FileField` : la migration a déplacé les 20 sorties de l'anonymizer **sans jamais réécrire
+    les lignes qui les désignent**, et l'aperçu de SORTIE s'est mis à pointer dans le vide.
+
+    *Un chemin de fichier ne vit pas seulement dans un `FileField`.* Le risque de balayer large
+    est nul ici : un champ texte n'est retenu que si SA VALEUR a exactement la forme
+    `<app>/<uid>/…` (cf. `cible`) — une phrase, une clé, un identifiant n'y ressemblent pas.
     """
     for modele in django_apps.get_models():
         for champ in modele._meta.get_fields():
             if isinstance(champ, models.FileField):
+                yield modele, champ
+            elif (isinstance(champ, (models.CharField, models.TextField))
+                    and not getattr(champ, 'choices', None)):
                 yield modele, champ
 
 
@@ -163,6 +175,7 @@ class Command(BaseCommand):
         aucune référence se déplace quand même — il n'y a simplement rien à réécrire.
         """
         refs = defaultdict(list)     # chemin source → [(modèle, nom de champ, pk)]
+        realign = defaultdict(list)  # chemin source DÉJÀ déplacé → lignes restées en arrière
         longueurs = {}               # "app.Modèle.champ" → (max longueur cible, max_length)
         absents, hors = 0, 0
 
@@ -185,7 +198,14 @@ class Command(BaseCommand):
                 vu, borne = longueurs.get(cle, (0, champ.max_length))
                 longueurs[cle] = (max(vu, len(dest)), borne)
                 if not (racine / valeur).is_file():
-                    absents += 1      # préexistant — `check_media_integrity` les connaît déjà
+                    # ⚠ TROIS CAS, et confondre les deux premiers est ce qui a cassé l'aperçu
+                    # de sortie de l'anonymizer : le fichier peut être DÉJÀ à sa destination
+                    # (déplacé lors d'une passe précédente, la ligne restée en arrière) — il
+                    # faut alors RÉALIGNER la ligne, pas la compter comme absente.
+                    if (racine / dest).is_file():
+                        realign[valeur].append((modele, nom, pk))
+                    else:
+                        absents += 1  # préexistant — `check_media_integrity` les connaît déjà
                     continue
                 refs[valeur].append((modele, nom, pk))
 
@@ -204,7 +224,7 @@ class Command(BaseCommand):
                     continue
                 refs.setdefault(rel, [])   # orphelin : à déplacer, rien à réécrire
 
-        return refs, longueurs, absents, hors
+        return refs, realign, longueurs, absents, hors
 
     # ── Pré-vol ─────────────────────────────────────────────────────────────────────────
     def _prevol(self, longueurs: dict) -> list:
@@ -220,11 +240,12 @@ class Command(BaseCommand):
         racine = Path(settings.MEDIA_ROOT)
         appliquer, prevol_seul, filtre = opts['apply'], opts['check'], opts['app']
 
-        refs, longueurs, absents, hors = self._plan(racine, filtre)
+        refs, realign, longueurs, absents, hors = self._plan(racine, filtre)
         tailles = {v: (racine / v).stat().st_size for v in refs}
         octets = sum(tailles.values())
         lignes = sum(len(r) for r in refs.values())
         partages = {v: r for v, r in refs.items() if len(r) > 1}
+        a_realigner = sum(len(r) for r in realign.values())
 
         entete = "PRÉ-VOL" if prevol_seul else ("EXÉCUTION" if appliquer else "PLAN (rien n'est écrit)")
         self.stdout.write("")
@@ -234,6 +255,10 @@ class Command(BaseCommand):
         self.stdout.write(f"  dont fichiers PARTAGÉS par plusieurs lignes : {len(partages)}"
                           "   (duplicate_instance — cause n°2 de l'échec du 11/09)")
         self.stdout.write(f"  déjà hors périmètre  : {hors}   (users/, médiathèque, montages…)")
+        self.stdout.write(self.style.WARNING(
+            f"  lignes à RÉALIGNER   : {a_realigner}   (le fichier est DÉJÀ au domicile, la "
+            "ligne pointe encore sur l'ancien chemin)") if a_realigner else
+            f"  lignes à RÉALIGNER   : 0")
         self.stdout.write(f"  ⚠ valeurs SANS fichier sur le disque : {absents}"
                           "   (préexistant — `check_media_integrity` les connaît)")
 
@@ -281,6 +306,18 @@ class Command(BaseCommand):
             self.stdout.write("")
             self.stdout.write("  → relancer avec --apply pour exécuter")
             return
+
+        # ── RÉALIGNEMENT — aucune écriture disque, seulement la base qui rattrape ────────
+        realignees = 0
+        for valeur, r in realign.items():
+            dest = cible(valeur)
+            with transaction.atomic():
+                for modele, nom, pk in r:
+                    modele.objects.filter(pk=pk).update(**{nom: dest})
+            realignees += len(r)
+        if realignees:
+            self.stdout.write(self.style.SUCCESS(
+                f"  réalignées : {realignees} ligne(s) — elles désignent à nouveau leur fichier"))
 
         # ── EXÉCUTION — un FICHIER = une unité atomique ──────────────────────────────────
         deplaces, relignes, echecs, collisions = 0, 0, [], []

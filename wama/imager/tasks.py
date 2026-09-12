@@ -172,7 +172,9 @@ def generate_image_task(self, generation_id):
         logger.info(f"Using backend: {backend.name} ({backend.display_name})")
 
         # Create output directory (user-specific path)
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', str(generation.user.id), 'output', 'image')
+        from wama.common.utils.media_paths import app_media_dir
+        output_dir = os.path.join(settings.MEDIA_ROOT,
+                                  app_media_dir('imager', generation.user.id, 'output'), 'image')
         os.makedirs(output_dir, exist_ok=True)
 
         generation.progress = 10
@@ -539,7 +541,9 @@ def generate_video_task(self, generation_id):
         _console(user_id, f"[Imager Video] ✓ {backend_class.__name__} disponible")
 
         # Create output directory (user-specific path)
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', str(generation.user.id), 'output', 'video')
+        from wama.common.utils.media_paths import app_media_dir
+        output_dir = os.path.join(settings.MEDIA_ROOT,
+                                  app_media_dir('imager', generation.user.id, 'output'), 'video')
         os.makedirs(output_dir, exist_ok=True)
         _console(user_id, f"[Imager Video] Output dir: {output_dir}")
 

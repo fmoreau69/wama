@@ -317,3 +317,55 @@ class ChaqueChampFichierEcritAuDomicileTest(TestCase):
             return upload_to(instance, 'fichier.bin').replace('\\', '/')
         except Exception:
             return None
+
+
+class AucuneEcritureNeRecomposeUnCheminDAppTest(SimpleTestCase):
+    """Aucune TÂCHE ni VUE ne recompose `MEDIA_ROOT / <app> / <uid> / …` à la main.
+
+    ⚠ CETTE GARDE EXISTE PARCE QUE LES DEUX AUTRES ÉTAIENT AVEUGLES ICI, et le trou était
+    large : **16 sites** — imager ×2, imager_01 ×2, cam_analyzer ×4, face_analyzer ×2,
+    avatarizer ×2, composer ×2, tool_api ×1 — composaient leur dossier de SORTIE à la main.
+    Ils ne cassaient rien : ils écrivaient simplement les prochaines sorties dans l'ANCIEN
+    arbre, pendant que le parc entier venait d'être déplacé. Les arbres d'app se seraient
+    remplis à nouveau, en silence.
+
+    Pourquoi les autres gardes ne les voyaient pas, et c'est la leçon :
+      * `FormeDuCheminEnUnSeulEndroitTest` ne balaie que **4 fichiers** (ceux qui portaient les
+        61 littéraux de P2a) — *une garde qui liste ses fichiers ne protège que ceux-là* ;
+      * `ChaqueChampFichierEcritAuDomicileTest` interroge les `upload_to` des modèles — or une
+        tâche Celery qui écrit un fichier ne passe par aucun `upload_to`.
+
+    *Un fichier arrive sur le disque par DEUX routes — le champ de modèle et l'écriture directe.
+    Garder la première seule laisse l'autre grande ouverte.*
+    """
+
+    APPS = ('anonymizer|avatarizer|composer|converter|describer|enhancer|imager|reader|'
+            'synthesizer|transcriber|cam_analyzer|face_analyzer')
+
+    #: `MEDIA_ROOT`, puis un nom d'app en dur, puis une expression d'utilisateur.
+    IDIOME = re.compile(
+        rf"MEDIA_ROOT.{{0,40}}['\"]({APPS})(_\d+)?['\"].{{0,60}}(user|str\(user)")
+
+    #: Les dossiers d'APPLICATION (galerie, voix) n'ont pas d'utilisateur : l'idiome ne les
+    #: attrape pas, et c'est voulu — ils n'ont rien à faire dans un domicile.
+    def test_aucune_tache_ni_vue_ne_compose_de_chemin_par_utilisateur(self):
+        from wama.common.sandbox import LABEL_RE
+
+        fautifs = []
+        for racine in ('wama', 'wama_lab'):
+            for py in (RACINE_DEPOT / racine).rglob('*.py'):
+                rel = py.relative_to(RACINE_DEPOT).as_posix()
+                if ('migrations' in py.parts or py.name.startswith(('tests_', 'test_'))
+                        or py.name in ('media_paths.py', 'migrate_media_to_user_home.py')
+                        # Jumelles de bac à sable : gitignorées, régénérées — on mesurerait
+                        # l'ARBRE et non la logique (même exclusion que la garde voisine).
+                        or any(LABEL_RE.match(p) for p in py.parts)):
+                    continue
+                for no, ligne in enumerate(
+                        py.read_text(encoding='utf-8', errors='replace').splitlines(), 1):
+                    if self.IDIOME.search(ligne) and 'app_media_dir' not in ligne:
+                        fautifs.append(f'{rel}:{no}')
+        self.assertEqual([], fautifs,
+                         'un chemin média par utilisateur est composé à la main — il écrira '
+                         'dans l’ANCIEN arbre pendant que tout le reste est au domicile, et '
+                         'rien ne le signalera : ' + ', '.join(fautifs))

@@ -424,9 +424,11 @@ def delete(request, pk):
     # DOSSIER par job (`workers.py:194`, `job_<id>/`) qui survivait à la suppression de la card :
     # relevé le 2026-08-25, **13 dossiers `job_*` orphelins** contre 4 rattachés — et l'un d'eux
     # pesait 1715,7 Mo. La card partait, les fichiers restaient, et rien ne le disait.
+    from wama.common.utils.media_paths import app_media_dir
     from wama.common.utils.work_dir import purge_job_dir
     libere = purge_job_dir(
-        Path(settings.MEDIA_ROOT) / 'avatarizer' / str(job.user_id) / 'output', job.pk)
+        Path(settings.MEDIA_ROOT) / app_media_dir('avatarizer', job.user_id, 'output'),
+        job.pk)
     if libere:
         logger.info("[avatarizer] job_%s : %.1f Mo de fichiers de job libérés", job.pk, libere / 1048576)
 

@@ -136,7 +136,9 @@ def process_video_task(self, session_id: str):
         input_name, input_ext = os.path.splitext(input_basename)
         output_filename = f"{input_name}_output.mp4"
 
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'face_analyzer', str(user_id), 'output')
+        from wama.common.utils.media_paths import app_media_dir
+        output_dir = os.path.join(settings.MEDIA_ROOT,
+                                  app_media_dir('face_analyzer', user_id, 'output'))
         os.makedirs(output_dir, exist_ok=True)
 
         # Check if output file exists, add UUID if needed
