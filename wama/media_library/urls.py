@@ -14,6 +14,12 @@ urlpatterns = [
     path('api/assets/<int:pk>/delete/',   views.api_delete,           name='api_delete'),
     path('api/assets/<int:pk>/promote/',  views.api_promote,          name='api_promote'),
 
+    # Le GESTE commun « ranger la sortie d'un élément d'app ici » (2026-09-11). Une route
+    # TRANSVERSE, pas une par app : la brique lit le résultat au schéma canonique, donc les
+    # 10 apps — et les suivantes — l'obtiennent sans une ligne. GET = les rôles admissibles
+    # (ce qui remplit le sous-menu « … ») ; POST = le rangement.
+    path('api/export/<str:app>/<int:pk>/', views.api_export_item,      name='api_export_item'),
+
     # Assets système
     path('api/system/',                   views.api_system_list,      name='api_system_list'),
 

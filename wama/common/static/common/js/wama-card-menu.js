@@ -150,6 +150,40 @@
         }).filter(Boolean);
     }
 
+    /**
+     * Range la sortie d'un élément dans la médiathèque, sous le rôle CHOISI (2026-09-11).
+     * Passe par la route COMMUNE — une seule pour toutes les apps, la brique lit le résultat au
+     * schéma canonique. Aucune connaissance d'app ici, donc rien à ajouter par app.
+     */
+    function rangerEnMediatheque(co, role) {
+        var url = '/media-library/api/export/' + encodeURIComponent(co.surface)
+            + '/' + encodeURIComponent(co.pk) + '/';
+        poster(url, { asset_type: role }).then(function (res) {
+            if (res && res.success) dire('Ajouté à la médiathèque : ' + (res.name || ''), 'ok');
+            // Le motif du refus est DIT : « précisez le rôle », « existe déjà »… Un geste qui
+            // échoue en silence se re-tente à l'identique.
+            else dire('Ajout impossible — ' + ((res && res.error) || 'refusé'), 'error');
+        });
+    }
+
+    /**
+     * Indexe l'élément au RAG. MÊME endpoint que le bouton de l'inspecteur
+     * (`wama-inspector.js:405`) — deux surfaces, un seul geste : si elles divergeaient, on
+     * déboguerait deux chemins pour la même promesse.
+     * Le NIVEAU n'est pas demandé ici non plus : il vient du défaut de profil (décision du
+     * 21/08 — le changer reste possible depuis « Mon RAG », où l'on voit ce qu'on a partagé).
+     */
+    function ajouterAuRag(co) {
+        poster('/common/api/rag/ajouter/', { app: co.surface, pk: co.pk }).then(function (res) {
+            if (res && res.erreur) { dire('RAG — ' + res.erreur, 'error'); return; }
+            if (!res || res.fragments == null) { dire('RAG — échec', 'error'); return; }
+            // « en attente de vectorisation » est DIT, pas tu : sans embedding le document ne
+            // remonte pas encore au rappel sémantique (mêmes mots que l'inspecteur, exprès).
+            dire(res.fragments + ' fragment' + (res.fragments > 1 ? 's' : '')
+                + ' au RAG · ' + (res.niveau || '') + ' · en attente de vectorisation', 'ok');
+        });
+    }
+
     function actionsTransverses(card, cibles) {
         var q = file(card);
         if (!q) return [];
@@ -245,6 +279,50 @@
                 icone: 'fas fa-share-from-square', libelle: 'Envoyer vers…',
                 sous: [{ chargement: true }],
                 charger: function () { return WamaSendTo.entrees(card); },
+            });
+        }
+
+        // ── LES DEUX « SORTIES COMPLÉMENTAIRES » (décision Fabien, 2026-09-11) ───────────────
+        //
+        // Ranger dans la MÉDIATHÈQUE et ajouter au RAG sont deux façons de garder une sortie.
+        // Elles vont dans le « … » et PAS dans la rangée : celle-ci est figée à cinq actions
+        // par les conventions (`[⚙][▶][⬇][⧉][🗑]`), et l'arbitrage du 2026-09-08 ci-dessus dit
+        // déjà que « les sorties manquantes vont dans les "..." ».
+        //
+        // ⚠ « Ajouter au RAG » EXISTAIT DÉJÀ, mais seulement dans l'inspecteur, dans sa section
+        // RAG (`wama-inspector.js:374`). Il fallait donc ouvrir le volet pour le trouver. Les
+        // deux surfaces coexistent volontairement — c'est le MÊME endpoint, et l'inspecteur
+        // garde l'avantage de dire l'état (« 3 fragments · en attente de vectorisation »).
+        if (cibles.length === 1 && !card.classList.contains('is-batch')
+                && global.WamaShare && WamaShare.coordonnees(card)) {
+            var co = WamaShare.coordonnees(card);
+
+            // MÉDIATHÈQUE — sous-menu des RÔLES, chargé au clic. Le rôle n'est pas dérivable du
+            // fichier (un .mp3 peut être une voix, une musique ou un bruitage) : le serveur
+            // rend les rôles admissibles, on ne propose donc jamais ce qu'il refuserait.
+            entrees.push({
+                icone: 'fas fa-photo-film', libelle: 'Ajouter à la médiathèque…',
+                sous: [{ chargement: true }],
+                videLibelle: 'Rien à ranger (pas encore de résultat)',
+                charger: function () {
+                    var base = '/media-library/api/export/' + encodeURIComponent(co.surface)
+                        + '/' + encodeURIComponent(co.pk) + '/';
+                    return fetch(base, { credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (d) {
+                            return (d.candidates || []).map(function (role) {
+                                return {
+                                    icone: 'fas fa-plus', libelle: (d.labels || {})[role] || role,
+                                    agir: function () { rangerEnMediatheque(co, role); },
+                                };
+                            });
+                        });
+                },
+            });
+
+            entrees.push({
+                icone: 'fas fa-book-open-reader', libelle: 'Ajouter au RAG',
+                agir: function () { ajouterAuRag(co); },
             });
         }
 
@@ -372,8 +450,13 @@
                         // Le menu a pu être refermé (ou remplacé) entre-temps : on ne réécrit
                         // que CELUI qu'on a ouvert.
                         if (ouvert !== pourCeMenu || !pourCeMenu.parentNode) return;
+                        // ⚠ Le message de vide était FIGÉ à « Aucune app ne prend ce format » —
+                        // le vocabulaire d'UN appelant (« Envoyer vers… ») dans la brique
+                        // commune. Dès le 2ᵉ sous-menu (médiathèque, 2026-09-11) il devenait
+                        // faux. L'appelant le dit désormais ; le repli garde l'existant intact.
                         var liste = entrees && entrees.length ? entrees
-                            : [{ vide: true, libelle: "Aucune app ne prend ce format" }];
+                            : [{ vide: true,
+                                 libelle: e.videLibelle || "Aucune app ne prend ce format" }];
                         remplir(pourCeMenu, liste, e.libelle);
                     }).catch(function () {
                         if (ouvert !== pourCeMenu || !pourCeMenu.parentNode) return;

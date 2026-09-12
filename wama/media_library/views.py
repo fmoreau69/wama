@@ -626,3 +626,59 @@ def api_prompt_keyword_delete(request, pk):
     from wama.media_library.models import PromptKeyword
     n, _ = PromptKeyword.objects.filter(pk=pk, user=request.user).delete()
     return JsonResponse({'success': bool(n)})
+
+
+@login_required
+def api_export_item(request, app: str, pk: int):
+    """
+    Le GESTE commun « ranger la sortie de cet élément dans ma médiathèque » (2026-09-11).
+
+    GET  → `{'candidates': [...], 'labels': {...}}` : les rôles admissibles pour CE fichier.
+           C'est ce qui remplit le sous-menu « … » — on ne propose donc jamais un rôle que le
+           serveur refuserait ensuite.
+    POST → range, et rend `{'asset_id', 'name', 'asset_type'}`.
+
+    ⚠ Une SEULE route pour toutes les apps : la brique lit le résultat au schéma canonique
+    (`detail_registry`), jamais un champ propre à une app. Les trois copies existantes
+    (composer, sa jumelle, synthesizer) restent en place pour l'instant — leur retrait est un
+    geste de dépréciation à part, consigné.
+    """
+    from .services import candidate_asset_types, export_item_to_library
+
+    if request.method == 'POST':
+        resultat = export_item_to_library(
+            request.user, app, pk,
+            asset_type=(request.POST.get('asset_type') or '').strip(),
+            name=(request.POST.get('name') or '').strip(),
+        )
+        if 'error' in resultat:
+            # 403 pour un refus de propriété, 400 pour tout le reste : un menu doit pouvoir
+            # distinguer « pas le droit » de « précisez le rôle ».
+            code = 403 if resultat.get('error') == 'forbidden' else 400
+            return JsonResponse(resultat, status=code)
+        return JsonResponse({'success': True, **resultat})
+
+    # GET — les rôles possibles, dérivés du RÉSULTAT réel de l'élément.
+    from wama.common.utils.detail_registry import DetailRegistry
+    from .services import _fichier_resultat
+
+    entree = DetailRegistry.get(app)
+    if not entree:
+        return JsonResponse({'error': f"App inconnue : '{app}'."}, status=404)
+    instance = entree['model'].objects.filter(pk=pk).first()
+    if instance is None:
+        return JsonResponse({'error': f"Élément #{pk} introuvable."}, status=404)
+    proprietaire = getattr(instance, 'user', None)
+    if proprietaire is not None and proprietaire != request.user and not request.user.is_staff:
+        return JsonResponse({'error': 'forbidden'}, status=403)
+    try:
+        detail = entree['adapter'](instance)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    chemin, souci = _fichier_resultat(detail)
+    if souci:
+        return JsonResponse({'error': souci, 'candidates': []}, status=400)
+    candidats = candidate_asset_types(chemin.name)
+    libelles = dict(ASSET_TYPES)
+    return JsonResponse({'candidates': candidats,
+                         'labels': {t: libelles.get(t, t) for t in candidats}})

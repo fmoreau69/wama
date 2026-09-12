@@ -114,6 +114,36 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 > **Pourquoi le converter gagne le débat « couleur dupliquer »** : chaque action a **sa** couleur → reconnaissable
 > d'un coup d'œil, sans deux boutons de même teinte côte à côte (≠ reader gris+gris, ≠ enhancer bleu+bleu).
 
+### 2bis. Les « SORTIES COMPLÉMENTAIRES » vont dans le « … », jamais dans la rangée
+
+> **Règle (arbitrage Fabien, 2026-09-08 puis 2026-09-11)** : la rangée ci-dessus est **close à
+> cinq**. Tout geste qui *garde* ou *ré-emploie* une sortie — partager, envoyer vers une autre
+> app, ranger en médiathèque, indexer au RAG — vit dans le menu « … » (`wama-card-menu.js`,
+> section « actions TRANSVERSES déclarées »).
+>
+> **Pourquoi la rangée ne s'allonge pas** : son ordre est une convention que l'utilisateur
+> apprend UNE fois et retrouve dans les 10 apps (philosophie §2). Chaque bouton ajouté la
+> rend moins mémorisable pour tout le monde, au bénéfice d'un geste que peu utilisent.
+
+| geste | depuis | forme |
+|---|---|---|
+| Partager… | 2026-09-08 | modale ; une card à la fois |
+| Envoyer vers… | 2026-09-08 | sous-menu **chargé au clic** |
+| **Ajouter à la médiathèque…** | **2026-09-11** | sous-menu des **RÔLES** admissibles |
+| **Ajouter au RAG** | **2026-09-11** | action directe |
+
+- ⚠ **Un sous-menu ne DEVINE pas.** Le rôle d'un asset n'est pas dérivable du fichier (un `.mp3`
+  peut être une voix, une musique ou un bruitage) : le serveur rend les rôles admissibles, et le
+  menu ne propose jamais ce que le POST refuserait. Même règle que le pivot assistant — *le rôle
+  est FOURNI, jamais deviné*.
+- ⚠ **« Ajouter au RAG » existait déjà**, mais **uniquement dans l'inspecteur**, dans sa section
+  RAG : il fallait ouvrir le volet pour le trouver. Les deux surfaces coexistent volontairement
+  et appellent **le même endpoint** — l'inspecteur garde l'avantage de dire l'ÉTAT (« 3 fragments
+  · en attente de vectorisation »), le menu celui d'être à un clic.
+- ⚠ **Le message de sous-menu vide appartient à l'APPELANT** (`videLibelle`). Il était figé à
+  « Aucune app ne prend ce format » — le vocabulaire d'« Envoyer vers… » dans la brique commune,
+  qui devenait faux dès le 2ᵉ sous-menu.
+
 ## 3. Rendu : server-side (partial) + update en place — PAS de rebuild JS
 
 - **Source de vérité = un partial Django** (`_card.html`, paramétré) — comme le converter et le transcriber.

@@ -300,11 +300,26 @@ croirait tester la garde alors qu'autre chose protège.* — triades
 `add_to_/start_/get_…_status` (déclaratives, marche A4) pour les apps + studio ; l'inventaire
 complet et ses trous vivent dans `WAMA_APP_GENERATION_ROUTE.md §11` (trou #18), pas ici. Ce qui
 appartient à CE document : les outils **IA-transverses** (gating `None` — aucune app ne les
-garde), exactement **8** au 2026-08-22 : `translate_text` (§2bis) · `memory_recall` (§3-4) ·
+garde) : `translate_text` (§2bis) · `memory_recall` (§3-4) ·
 `charger_competence` (§0bis) · `list_ai_models`/`get_ai_model` (§2ter) · `list_user_files` ·
 `switch_ui_mode` · `ask_claude_code` (garde développeur écrite DANS son corps, pas dans le
-registre — ne pas « corriger »). À venir : `list_my_items`/`get_item_detail` (jalon 12,
-`WAMA_MEMORY.md §9ter`). Toutes les surfaces (web, API v1 `/api/v1/assistant/chat/`, canaux
+registre — ne pas « corriger ») · les **6 lectures transverses** et les **3 verbes de cycle**
+du 2026-09-11 (ces derniers gardés par `_refus_app` dans leur corps, cf. le 🔴 ci-dessus) ·
+et **`add_to_media_library`** depuis le **2026-09-11**.
+
+> ⭐ **Pourquoi `add_to_media_library` a changé de régime** (décision Fabien, 2026-09-11 : « on
+> rend commun et on porte sur les apps de façon universelle »). Il était gaté sur l'app
+> `media_library` **du seul fait de son nom** — le motif `add_to_<app>` en déduisait une app —
+> alors que son jumeau d'Intake `inspect_user_file` est transverse depuis toujours.
+> ⚠ Mesuré AVANT de changer : `media_library` est gardée avec `roles: []`, donc le gate était
+> **permissif en pratique**. Le défaut n'était pas un refus d'aujourd'hui : `AppAccessPolicy`
+> est **éditable en base**, donc restreindre la médiathèque aurait cassé **en silence** un geste
+> que toutes les apps sont censées offrir. *Une garde qui dépend d'une politique modifiable ne
+> protège pas ce qu'elle a l'air de protéger — elle le rend fragile.* La garantie qui reste est
+> l'**ownership** : l'asset est créé pour `user`, dans SA médiathèque.
+
+À venir : ~~`list_my_items`/`get_item_detail`~~ ✅ livrés le 2026-09-11.
+Toutes les surfaces (web, API v1 `/api/v1/assistant/chat/`, canaux
 Discord/Matrix — ROADMAP §19) passent par ce même pivot : ajouter un outil ICI l'offre partout.
 
 ⚠ **Contrat de surface** (ROADMAP §19 ①) : le tour d'assistant ne porte **jamais** d'audio — la

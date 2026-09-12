@@ -380,6 +380,19 @@ l'inspecteur racontent la même chose — deux projections écrites séparément
 Le geste existait (§7ter) sans porte : `add_to_rag` n'avait aucun appelant d'UI. Deux
 surfaces le portent désormais, et le **placement** est la seule vraie décision de ce jalon.
 
+> ➕ **UNE TROISIÈME SURFACE le 2026-09-11 : le menu « … » de la card** (remarque de Fabien —
+> *« Ajouter au RAG ne devrait-il pas aussi aller dans les "…" ? Actuellement il n'est que dans
+> l'inspecteur, dans la partie RAG »*). Constat juste : il fallait **ouvrir le volet** pour
+> trouver le geste. `wama-card-menu.js` l'offre désormais en une action directe.
+> ⚠ **Le placement de ① n'est PAS annulé** — les deux surfaces coexistent et appellent **le même
+> endpoint** (`/common/api/rag/ajouter/`). Elles ne disent simplement pas la même chose :
+> l'inspecteur rend l'**ÉTAT** (« 3 fragments · en attente de vectorisation ») parce qu'il a la
+> place ; le menu rend le geste **à un clic** et signale par un toast. *Deux surfaces d'un même
+> geste ne sont une dette que si elles ont chacune leur propre chemin serveur — ici il n'y en a
+> qu'un.*
+> Consigné aussi dans `CARD_DESIGN §2bis` (la règle « les sorties complémentaires vont dans le
+> "…" », dont ce geste est le 4ᵉ client).
+
 **① Le geste vit dans l'INSPECTEUR, pas sur les cards des apps.**
 `renderDetailChips` ajoute un bouton « Ajouter au RAG » quand l'item porte du texte. Pourquoi
 là et pas ailleurs :

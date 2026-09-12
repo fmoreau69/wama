@@ -3209,6 +3209,17 @@ TOOL_APP_OVERRIDE = {
     # d'écriture (install/unload) serait gardée 'model_manager', pas ces lectures.
     'list_ai_models':      None,
     'get_ai_model':        None,
+    # Médiathèque : RANGER un fichier À SOI y est un geste TRANSVERSE, pas l'usage de l'app
+    # `media_library` (décision Fabien, 2026-09-11 : « on rend commun et on porte sur les apps
+    # de façon universelle »). Il était gaté sur `media_library` du seul FAIT DE SON NOM — le
+    # motif `add_to_<app>` en déduisait une app —, alors que son jumeau d'Intake
+    # `inspect_user_file` est transverse depuis toujours.
+    # ⚠ Mesuré avant de changer : `media_library` est gardée avec `roles: []`, donc le gate
+    # était PERMISSIF en pratique. Le défaut n'était pas un refus d'aujourd'hui, c'est que
+    # `AppAccessPolicy` est ÉDITABLE EN BASE : restreindre la médiathèque aurait cassé en
+    # silence un geste que toutes les apps sont censées offrir.
+    # La garantie qui reste est l'OWNERSHIP : l'asset est créé pour `user`, dans SA médiathèque.
+    'add_to_media_library': None,
     # ⚠ `None` ici veut dire « aucune app ne le garde », donc `tool_accessible` l'AUTORISE
     # à tous. Ce n'est pas un oubli : la restriction (développeurs/admins) est écrite dans
     # le CORPS de `ask_claude_code`, précisément pour qu'aucune retouche de ce registre ne
