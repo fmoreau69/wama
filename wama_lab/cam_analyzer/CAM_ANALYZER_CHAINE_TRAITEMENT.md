@@ -1214,6 +1214,12 @@ testée (`kinematics/test_prediction.py`), et **aucun appelant ne la choisit** :
 vérifiant le code en profondeur — sans jamais supposer qu'une brique n'est pas câblée ni la
 réinventer**, puis reprendre les garés.
 
+**✅ ÉTAT AU 2026-09-12** — ④ réglé (⚑ `prediction_kalman`), ② réglé (projection sol câblée
+avec la recette du tracker : **51 % des placements du TTC** y passent désormais, contre 0 %,
+et elle **récupère 61 068 détections que le pinhole refusait**), ③ réglé (⚑
+`prediction_causal_smoothing`). ⚠ **5ᵉ mort trouvé au passage** :
+`build_object_world_trajectory` n'a **aucun appelant** dans le dépôt — déclaré, pas retiré.
+
 ### ⭐ F. INTENTION DES INDICATEURS — pourquoi le TTC se recalcule à chaque pas (2026-09-12)
 
 > **L'INTENTION qui suit n'était écrite nulle part** — mesuré sur tout le dépôt le

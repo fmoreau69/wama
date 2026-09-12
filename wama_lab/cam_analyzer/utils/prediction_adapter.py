@@ -326,17 +326,21 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
     from django.apps import apps
     DF = apps.get_model('cam_analyzer', 'DetectionFrame')
     from .ego_pose import effective_gps_track   # ⚑ shuttle_filter : filtrée si ON, sinon brute
-    # ⚑ `prediction_kalman` — même idiome que `camera_geometry` et `antenna_offset` plus haut
-    # dans ce fichier : le registre est relu À CHAQUE appel, jamais mis en cache.
-    if method == 'speed_accel':
-        try:
-            from .features import effective as _feat
-            if _feat(session).get('prediction_kalman', False):
-                method = 'kalman'
-        except Exception:
-            pass
-    _vide = {'annotated': 0, 'ttc': 0, 'pet': 0, 'ttc_median': None,
-             'pet_median': None, 'method': method}
+    # Registre de bascules relu À CHAQUE appel, jamais mis en cache — même idiome que
+    # `camera_geometry` et `antenna_offset` plus haut dans ce fichier.
+    try:
+        from .features import effective as _features_effective
+        _feat = _features_effective(session)
+    except Exception:
+        _feat = {}
+    # ⚑ `prediction_kalman` (un `method=` explicite reste prioritaire).
+    if method == 'speed_accel' and _feat.get('prediction_kalman', False):
+        method = 'kalman'
+    # ⚑ `prediction_causal_smoothing` : fenêtre de lissage traînante au lieu de centrée
+    # (§D.5 ③) — l'entrée de la prédiction cesse de regarder ±2 points dans le futur.
+    _causal = bool(_feat.get('prediction_causal_smoothing', False))
+    _vide = {'annotated': 0, 'ttc': 0, 'pet': 0, 'ttc_median': None, 'pet_median': None,
+             'method': method, 'placement_sources': {}, 'causal_smoothing': _causal}
     gt = effective_gps_track(session)
     if len(gt) < 5:
         return dict(_vide)
@@ -349,6 +353,27 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
     if not cams:
         return dict(_vide)
     _geo = camera_geometry(session)  # yaw/FOV/montage réels par caméra (rig + session)
+    # PROJECTION SOL — même recette que `multicam_tracker` (l. 245-253 et 300-310), pas une
+    # réécriture. ⚠ Jusqu'au 2026-09-12 la prédiction plaçait TOUT au pinhole : elle héritait
+    # de la correction EGO (⚑ `shuttle_filter`, via `effective_gps_track`) mais d'AUCUNE
+    # correction OBJET, alors que le tracker, lui, applique ⚑ `auto_ground_calib`. Sur la
+    # session de référence cette bascule est ON avec une calib `front`/`right` : le même objet
+    # avait donc DEUX positions monde — celle du tracker et celle du TTC (`CHAINE §D.5 ②`).
+    # ⭐ Aucune bascule nouvelle : la notion en a déjà UNE, le défaut était qu'elle n'était pas
+    # honorée ici. Un second interrupteur pour une seule notion contredirait le registre.
+    # ⚠ On prend la projection sol (meilleure MESURE à l'instant t) et RIEN d'autre : pas
+    # `world_en`, qui est lissé Kalman+RTS donc informé du FUTUR — il détruirait l'écart
+    # prédit/réel que la méthode cherche (`CHAINE §F`).
+    _gproj = {}
+    if _feat.get('auto_ground_calib', False) or _feat.get('depth_estimation', False):
+        for _pos in _geo:
+            _gp = ground_projector_for(session, _pos, _geo[_pos])
+            if _gp is not None:
+                _gproj[_pos] = _gp
+    _gc_src = {p: ((v or {}).get('source') or 'homographie')
+               for p, v in (((session.config or {}).get('ground_calib')) or {}).items()
+               if isinstance(v, dict)}
+    _src_counts = defaultdict(int)   # G7 : un placement MIXTE se compte, il ne se suppose pas
     fps = cams[0].fps or 12.0
     scale = session.gps_time_scale or 1.0
     off = session.gps_time_offset or 0.0
@@ -373,10 +398,19 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
                         continue
                     gid = c.position + ':' + str(d['track_id'])
                 _g = _geo[c.position]
-                ego = pinhole_ego(d, iw, ih, fov_v_deg,
-                                  fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
+                ego, _psrc = None, None
+                if _gproj.get(c.position) is not None:
+                    ego = ground_ego(_gproj[c.position], d.get('bbox'))
+                    if ego is not None:
+                        _psrc = 'ground:' + _gc_src.get(c.position, 'homographie')
+                if ego is None:
+                    ego = pinhole_ego(d, iw, ih, fov_v_deg,
+                                      fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
+                    if ego is not None:
+                        _psrc = 'pinhole'
                 if ego is None:
                     continue
+                _src_counts[_psrc] += 1
                 xv, yv = cam_to_vehicle(ego[0], ego[1], _g['yaw'], mount=_g['mount'])
                 e, n = ego_to_world(se, sn, sh, xv, yv)
                 by_gid[gid].append((ts, d, f, e, n, ego[1], d.get('class_name', 'car')))
@@ -394,7 +428,8 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
         if len(ts_sorted) < 3:
             continue
         obj_traj = smooth_trajectory(
-            np.array([[t, agg[t][0] / agg[t][2], agg[t][1] / agg[t][2]] for t in ts_sorted]), window=5)
+            np.array([[t, agg[t][0] / agg[t][2], agg[t][1] / agg[t][2]] for t in ts_sorted]),
+            window=5, causal=_causal)
         cls = rows[0][6]
         # Échantillonnage : ne calculer que toutes les K détections et RÉUTILISER la valeur
         # sur l'intervalle (le TTC/PET varie lentement) → ~K× moins de calculs.
@@ -422,20 +457,37 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
         return round(sorted(v)[len(v) // 2], 3) if v else None
 
     rapport = {'annotated': count, 'ttc': len(_ttc), 'pet': len(_pet),
-               'ttc_median': _med(_ttc), 'pet_median': _med(_pet), 'method': method}
+               'ttc_median': _med(_ttc), 'pet_median': _med(_pet), 'method': method,
+               'placement_sources': dict(_src_counts), 'causal_smoothing': _causal}
     logger.info('[prédiction] %s', ' · '.join(f'{k}={v}' for k, v in rapport.items()))
     return rapport
 
 
-def smooth_trajectory(traj, window=5):
-    """Moyenne glissante sur les positions (réduit le tremblement GPS/pinhole)."""
+def smooth_trajectory(traj, window=5, causal=False):
+    """Moyenne glissante sur les positions (réduit le tremblement GPS/pinhole).
+
+    `causal=False` (défaut, historique) : fenêtre **CENTRÉE** — chaque point est moyenné avec
+    ±`window//2` voisins, **donc avec des points POSTÉRIEURS**.
+    `causal=True` : fenêtre **TRAÎNANTE** — uniquement le point courant et ses prédécesseurs.
+
+    ⚠ Pourquoi ce choix existe (`CHAINE §D.5 ③` + `§F`) : la méthode calcule le TTC sur des
+    trajectoires PRÉDITES à chaque pas, et l'écart entre prédit et réel s'interprète comme un
+    **comportement de correction**. Tout ce qui informe l'entrée du FUTUR réduit cet écart
+    artificiellement. La fenêtre centrée ne regarde que ±2 points (~0,17 s) — bien moins que
+    le lissage RTS de `world_en`, qui voit tout le track —, mais *elle regarde quand même*.
+    C'est une différence de DEGRÉ, pas de nature : d'où une bascule et une mesure, plutôt
+    qu'une correction silencieuse dans un sens ou dans l'autre.
+    """
     traj = np.asarray(traj, dtype=float)
     if len(traj) < window or window < 2:
         return traj
     out = traj.copy()
     k = window // 2
     for i in range(len(traj)):
-        lo, hi = max(0, i - k), min(len(traj), i + k + 1)
+        if causal:
+            lo, hi = max(0, i - window + 1), i + 1
+        else:
+            lo, hi = max(0, i - k), min(len(traj), i + k + 1)
         out[i, 1] = traj[lo:hi, 1].mean()
         out[i, 2] = traj[lo:hi, 2].mean()
     return out

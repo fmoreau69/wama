@@ -63,6 +63,17 @@ FEATURES = [
             "angulaire dominante, §[2]). Premier levier qui touche la pose navette (inventaire "
             "2026-09-05 : aucun avant lui). Rapport A/B chiffré en console au recalcul.",
             default=False, scope='compute'),
+    Feature('prediction_causal_smoothing', "Lissage CAUSAL en entrée de la prédiction",
+            "La trajectoire objet servie au TTC/PET est lissée par une fenêtre TRAÎNANTE "
+            "(le point courant et ses prédécesseurs) au lieu de la fenêtre CENTRÉE "
+            "historique, qui moyenne aussi ±2 points POSTÉRIEURS (~0,17 s). ⚠ Pourquoi ça "
+            "compte : la méthode calcule le TTC sur des trajectoires PRÉDITES à chaque pas, "
+            "et l'écart prédit/réel s'interprète comme un comportement de CORRECTION "
+            "(`CHAINE §F`) — tout ce qui informe l'entrée du futur réduit cet écart "
+            "artificiellement. La fenêtre centrée regarde bien moins loin que le lissage RTS "
+            "de `world_en` (tout le track), mais elle regarde quand même : différence de "
+            "DEGRÉ, pas de nature. OFF = fenêtre centrée, comportement historique.",
+            default=False, scope='compute'),
     Feature('prediction_kalman', "Extrapolation Kalman pour le TTC/PET",
             "Les trajectoires navette et objet sont extrapolées par un filtre de Kalman à "
             "accélération constante au lieu de « vitesse + accélération constantes ». ⚠ Les "
