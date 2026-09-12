@@ -1214,6 +1214,85 @@ testée (`kinematics/test_prediction.py`), et **aucun appelant ne la choisit** :
 vérifiant le code en profondeur — sans jamais supposer qu'une brique n'est pas câblée ni la
 réinventer**, puis reprendre les garés.
 
+### ⭐ F. INTENTION DES INDICATEURS — pourquoi le TTC se recalcule à chaque pas (2026-09-12)
+
+> **L'INTENTION qui suit n'était écrite nulle part** — mesuré sur tout le dépôt le
+> 2026-09-12 : « comportement correctif » **0 fichier**, « trajectoire prédite » **0**,
+> « décalage des pas de temps » **0**, « voie perpendiculaire » **0**. ⚠ *Ce relevé portait
+> sur MES formulations* : en cherchant ensuite les CONCEPTS, deux chantiers adjacents se sont
+> révélés déjà pendants dans `ROADMAP §9.0` (voir la table en fin de §). **L'intention, elle,
+> reste absente partout** — vérifié aussi dans `docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`
+> (0 sur « prédite », « correction de trajectoire », « criticité », « décalage »).
+> La conséquence s'est vue le jour même :
+> une médiane de PET à 0,2 s a d'abord été lue comme un défaut possible, alors que c'est le
+> **plancher de résolution de la méthode voulue**. *Une intention non écrite se fait
+> re-découvrir par mauvaise interprétation d'une mesure.* Source : Fabien, 2026-09-12.
+
+**Ce que la méthode fait, et pourquoi.** TTC et PET sont calculés **à chaque pas de temps sur
+les trajectoires PRÉDITES**, pas une fois sur la trajectoire réelle. Deux raisons :
+
+1. **la précision croît avec la proximité** — loin, les vitesses et accélérations extrapolées
+   à l'instant t éloignent l'objet de sa trajectoire réelle ; près, elles convergent ;
+2. **l'écart entre prédit et réel est lui-même l'information** : il s'assimile à un
+   **comportement de correction de trajectoire**. La criticité d'une situation ne se lit donc
+   pas sur la trajectoire réelle — qui peut ne montrer aucune criticité *parce que quelqu'un a
+   corrigé* — mais sur ce qui serait arrivé **sans** ce comportement correctif.
+
+> 🔴 **STATUT — à lire avant d'en faire une exigence.** Cette comparaison prédit/réel est une
+> **idée personnelle de Fabien, venue d'un AUTRE projet**, qui explique sa méthode. Ce n'est
+> **PAS un objectif du projet en cours** (décidé le 2026-09-12) ; il souhaite pouvoir la
+> réutiliser à titre personnel. **Décision** : calculer **les deux en parallèle**, afficher la
+> trajectoire **RÉELLE par défaut** et la **PRÉDITE en option**. Toute session qui lirait ce §
+> comme un livrable du projet se tromperait de périmètre.
+
+**⚠ Conséquence DURE sur le câblage — elle rectifie le §D.5 ① et ma recommandation du 11/09.**
+J'avais recommandé de nourrir la prédiction avec `world_en` au motif que le TTC serait une
+analyse a posteriori. **C'est faux au vu de l'intention ci-dessus** : `world_en` est lissé par
+**Kalman + RTS**, donc porte **le futur du track** — c'est-à-dire *la correction qui a
+effectivement eu lieu*. L'injecter réduirait **artificiellement** l'écart prédit/réel, soit
+exactement la grandeur cherchée.
+
+| ce qui est légitime en entrée de la prédiction | ce qui ne l'est pas |
+|---|---|
+| la **projection sol** (⚑ `auto_ground_calib`) : une *meilleure mesure à l'instant t* — et `ground_projector_for` / `ground_ego` sont **définis dans `prediction_adapter` lui-même** (`:210`, `:234`), le module possède la brique sans l'utiliser | le **lissage RTS** (`world_en`) : il voit tout le futur du track |
+| | la **moyenne glissante CENTRÉE** de `smooth_trajectory` (`:396`, ±2 points ≈ 0,17 s) — elle triche déjà, de peu, mais elle triche |
+
+*La question n'est donc pas « brut ou bout de chaîne » mais « corrigé, oui — informé du futur,
+jamais ».*
+
+**Le PET calculé N'EST PAS le PET officiel.** Mesuré dans `kinematics.collision_detection` :
+`pet` = *le plus petit |Δt| de collision DÉCALÉE*, obtenu en glissant l'empreinte de ±`delta`
+pas jusqu'à intersection. C'est la **méthode par décalage des pas de temps** de Fabien, jugée
+à l'époque « plus intuitive et concrète que la méthode officielle » — et non le PET canonique
+(temps entre la sortie de zone de conflit du premier et l'entrée du second, sur trajectoires
+RÉELLES). ⚠ `delta` part de **1**, donc le plus petit PET restituable vaut **exactement un pas
+= 0,2 s** : c'est un **plancher de résolution**, pas une épidémie de quasi-collisions.
+**Confronter les deux méthodes est un sujet ouvert**, jamais instruit.
+
+**Ce que le rapport du projet doit contenir, lui** (Fabien, 2026-09-12) : analyser toute la
+séquence ne pose pas de problème, mais le rapport de sortie ne retient **dans un premier
+temps** que les **interactions aux intersections**, et **uniquement pour les véhicules venant
+de la voie perpendiculaire**.
+
+**Chantiers nommés ce jour** — ⚠ **deux d'entre eux avaient déjà un pendant écrit**, retrouvé
+en cherchant les CONCEPTS et non mes propres mots (un relevé par motif étroit avait d'abord
+conclu « nulle part ») :
+
+| chantier | déjà consigné ? |
+|---|---|
+| identifier les **voies perpendiculaires** aux intersections | **oui** — `ROADMAP §9.0` : *« Branche perpendiculaire IGN : tâche par fenêtre + rendu + filtre `nature` + mappage `nom=None` (`road_branches_at`) »*. Le MÉCANISME est donc pendant ; ce qui manquait est son USAGE (ne pas compter comme garé un véhicule en attente d'insertion ou de traversée) |
+| restreindre le **rapport de sortie** | **partiellement** — `ROADMAP §9.0` : *« Rapport de sortie à revoir »* et *« Indicateurs de passage d'intersection À CONFIRMER »*. La CIBLE (intersections seules, voies perpendiculaires seules) n'y est pas |
+| **gabarit de largeur de voie** pour écarter des garés au-delà du gabarit | **non** — `lane_estimator` calcule la largeur, aucun consommateur côté garés |
+| **map-matching + recalage** de la pose navette (gabarit de route, appariement des passages piétons vue avant ↔ fond de carte) | **non** au sens du geste — 2 mentions du terme dans les docs de l'app, aucune procédure |
+| **modèle de PROFONDEUR** pour garés + tracking 360°, surtout **dépassements** et **interactions d'intersection** (les deux intérêts principaux de la vue de dessus) | **non** sous cet angle — la piste profondeur existe (`§[E]`, ⚑ `depth_estimation`) mais son OBJET n'était pas écrit |
+| améliorations du **tracking 360°** | **non**, non détaillées à ce stade |
+
+**D'où l'on part** : le cadrage technique initial du projet est archivé en
+[`archive/CAM_ANALYZER_ANALYSE_INITIALE.md`](archive/CAM_ANALYZER_ANALYSE_INITIALE.md) — il
+annonçait comme « difficiles / à risque » **exactement** les deux verrous que la mesure a
+confirmés (distance absolue en monoculaire, filtrage des garés comme « problème de
+temporalité »).
+
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 
 La doctrine actuelle est **comparer** (⚑ ON/OFF, un chiffre). Fabien vise **fusionner** : accumuler
