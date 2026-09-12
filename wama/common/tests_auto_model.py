@@ -351,3 +351,66 @@ class CurseurDeQualiteTest(TestCase):
                          'max="100"', 'Rapide', 'Équilibré', 'Qualité'):
             self.assertIn(marqueur, partial)
             self.assertIn(marqueur, js)
+
+
+class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
+    """Le prédicat « cette voix est clonée » (`ua_|cv_`) vit en UN endroit — la brique.
+
+    Mesuré le 2026-09-12 : il était recopié sur QUATRE sites dans DEUX apps (2 `hideOption`
+    dans WamaModelCaps.init, 2 `isProvided` dans WamaInputMatch.init — synthesizer et
+    avatarizer). Quatre copies d'un même prédicat sont quatre occasions de le corriger à
+    moitié le jour où un 3ᵉ préfixe apparaît. Les deux directions (modèle → voix, voix →
+    modèle) le LISENT désormais dans `wama-model-caps.js` (`isClonedVoice`), et les pages ne
+    font que DÉCLARER leurs ids (`cloneVoiceFilter`, `voiceSlot`, `langSlot`).
+
+    ⚠ Garde TEXTUELLE — elle atteste une forme, pas un comportement. Le comportement (les
+    moteurs se grisent bien dans les deux sens) est attesté par le filet navigateur, qui
+    exécute les briques SERVIES : aucun test Python ne peut le faire (pas de runtime JS ici).
+    """
+
+    RACINE = None
+
+    def _lire(self, rel):
+        from pathlib import Path
+        from django.conf import settings
+        return (Path(settings.BASE_DIR) / rel).read_text(encoding='utf-8')
+
+    def test_le_predicat_n_existe_qu_en_un_seul_endroit(self):
+        from pathlib import Path
+        from django.conf import settings
+        import re
+        base = Path(settings.BASE_DIR) / 'wama'
+        porteurs = []
+        for f in list(base.rglob('*.js')) + list(base.rglob('*.html')):
+            if 'staticfiles' in f.parts or 'node_modules' in f.parts:
+                continue
+            if re.search(r'\^\(ua_\|cv_\)', f.read_text(encoding='utf-8', errors='replace')):
+                porteurs.append(f.relative_to(base).as_posix())
+        self.assertEqual(['common/static/common/js/wama-model-caps.js'], sorted(porteurs),
+                         'le prédicat `^(ua_|cv_)` doit vivre dans la SEULE brique — '
+                         f'porteurs mesurés : {sorted(porteurs)}')
+
+    def test_les_deux_pages_ne_font_que_DECLARER(self):
+        for page in ('wama/synthesizer/templates/synthesizer/index.html',
+                     'wama/avatarizer/templates/avatarizer/index.html'):
+            src = self._lire(page)
+            for attendu in ('WamaModelCaps.cloneVoiceFilter(', 'WamaInputMatch.voiceSlot(',
+                            'WamaInputMatch.langSlot(', 'capsProvider:'):
+                self.assertIn(attendu, src, f'{page} : {attendu} absent — la page recopie '
+                                            'au lieu de déclarer, ou la langue n’a pas de '
+                                            'direction inverse')
+            self.assertNotIn('hideOption: function', src,
+                             f'{page} : un prédicat de masquage est encore écrit dans la page')
+
+    def test_les_briques_exposent_les_deux_directions(self):
+        caps_js = self._lire('wama/common/static/common/js/wama-model-caps.js')
+        match_js = self._lire('wama/common/static/common/js/wama-input-match.js')
+        self.assertIn('isClonedVoice: isClonedVoice', caps_js)
+        self.assertIn('cloneVoiceFilter: cloneVoiceFilter', caps_js)
+        self.assertIn('langSlot: langSlot', match_js)
+        self.assertIn('voiceSlot: voiceSlot', match_js)
+        # La langue entre dans l'appariement par un prédicat de VALEUR — le crochet `accepts`.
+        self.assertIn('typeof s.accepts === ', match_js,
+                      'un slot doit pouvoir porter son propre prédicat de compatibilité')
+        # Et la brique d'appariement NE recopie PAS le prédicat : elle le LIT.
+        self.assertIn('mc.isClonedVoice(v)', match_js)

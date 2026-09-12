@@ -379,8 +379,11 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
     // Modèle → entrées : moteur sans clonage ⇒ voix ua_/cv_ masquées ; langues restreintes
     // à celles du moteur. Capacités lues par la brique elle-même (api/models/db/) : rien à
     // passer depuis la vue. Dégradation douce si le catalogue est indisponible.
+    // Retour CAPTURÉ (2026-09-12) : son cache de capacités (`.caps`) alimente l'appariement
+    // entrée→modèle ci-dessous — le MÊME catalogue dans les deux directions.
+    var modelCaps = null;
     if (window.WamaModelCaps) {
-        WamaModelCaps.init({
+        modelCaps = WamaModelCaps.init({
             // Domaine par CAPACITÉ (route F4b ②, 2026-09-01), identique au synthesizer et au
             // peuplement du select : c'est le MÊME parc, et l'avatarizer n'en possède aucun
             // moteur — raison de plus pour ne pas l'ancrer sur une app.
@@ -390,38 +393,33 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
             // valeur qui porte déjà sa source, d'où `synthesizer:synthesizer:kokoro`, `caps`
             // nul, et un filtrage voix/langues MUET. *Une garde se pose avec ses jumeaux ;
             // celle-ci se RETIRE avec les siens.*
+            //
+            // Les DEUX prédicats sont DÉFINIS DANS LA BRIQUE, cette page ne déclare que ses ids
+            // — voix (12/09, `ua_|cv_` était recopié sur 4 sites dans 2 apps) comme langues
+            // (29/08, 3 états : géré / rendu par emprunt ⚠ gardé / non).
             filters: [
-                { selectId: 'settingsVoicePreset',
-                  hideOption: function (caps, opt) {
-                      return caps.supports_cloning === false && /^(ua_|cv_)/.test(opt.value);
-                  } },
-                // Langues : même filtre COMMUN que le synthesizer (29/08) — le prédicat était
-                // recopié des deux côtés. 3 états : géré / rendu par emprunt (⚠, gardé) / non.
+                WamaModelCaps.cloneVoiceFilter('settingsVoicePreset'),
                 WamaModelCaps.langFilter('settingsLanguage'),
             ],
         });
     }
 
     // Entrée → modèle (INPUT_MODEL_MATCHING) : une voix CLONÉE choisie DÉSACTIVE les moteurs
-    // sans clonage — grisés avec la raison, jamais cachés. Même prédicat ua_/cv_ que ci-dessus,
-    // direction inverse. Slot NON-fichier : crochets isProvided/describe/clear.
+    // sans clonage, une LANGUE choisie désactive ceux qui ne la parlent pas — grisés avec la
+    // raison, jamais cachés. Le prédicat de clonage est DÉFINI UNE FOIS (wama-model-caps) et
+    // lu ici ; il était recopié dans cette page (2026-09-12). Slots NON-fichier fournis par la
+    // brique (voiceSlot, langSlot) : cette page ne déclare que ses ids.
     if (window.WamaInputMatch) {
         WamaInputMatch.init({
             selectId: 'settingsTtsModel',
             meta: {{ input_match_meta|default:"{}"|safe }},
             inputLabels: {{ input_labels|default:"{}"|safe }},
-            slots: { reference_voice: {
-                inputId: 'settingsVoicePreset',
-                isProvided: function (el) { return /^(ua_|cv_)/.test(el.value || ''); },
-                describe: function (el) {
-                    var o = el.selectedOptions && el.selectedOptions[0];
-                    return o ? o.textContent.trim() : 'voix clonée';
-                },
-                clear: function (el) {
-                    el.value = 'default';
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                },
-            } },
+            slots: {
+                reference_voice: WamaInputMatch.voiceSlot('settingsVoicePreset'),
+                language: WamaInputMatch.langSlot('settingsLanguage'),
+            },
+            // Le MÊME catalogue que la direction modèle→choix (langues incluses).
+            capsProvider: modelCaps ? modelCaps.caps : null,
         });
     }
 })();

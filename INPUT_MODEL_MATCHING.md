@@ -236,18 +236,33 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
   `synthesizer/utils/voice_utils`) : quatre consommateurs — synthesizer, avatarizer, l'assistant,
   `accounts` — plus `tts_service.py` hors Django, qui recompose le dossier des voix à la main.
 
-**Ce qui reste, nommé — la partie double sens du cadre :**
+**Le double sens — fait le 12/09 (soir), les deux axes, dans les deux apps :**
 
 | axe | modèle → choix | choix → modèle |
 |---|---|---|
-| **voix** | ✅ `hideOption` masque `ua_`/`cv_` si le moteur ne clone pas | ✅ `WamaInputMatch` grise les moteurs sans clonage |
-| **langue** | ✅ `langFilter` restreint les langues (3 états) | ❌ **rien** — aucun slot `language` : choisir une langue d'abord ne désactive aucun modèle |
+| **voix** | ✅ `WamaModelCaps.cloneVoiceFilter` masque `ua_`/`cv_` si le moteur ne clone pas | ✅ `WamaInputMatch.voiceSlot` grise les moteurs sans clonage |
+| **langue** | ✅ `langFilter` restreint les langues (3 états) | ✅ **`WamaInputMatch.langSlot`** — choisir une langue d'abord grise les moteurs qui ne la parlent ni nativement ni en repli (raison : *« Incompatible avec : Langue — changez la valeur pour réactiver »*), jamais cachés |
 
-- Le prédicat `/^(ua_|cv_)/` est **recopié sur 4 sites dans 2 apps** (2 `hideOption`, 2
-  `isProvided`) : il doit remonter dans la brique et s'y DÉCLARER.
-- La **langue** doit devenir un slot de `WamaInputMatch` comme la voix — la brique sait déjà
-  porter des slots non-fichier (crochets `isProvided`/`describe`/`clear`, adoption synthesizer
-  17/08) ; il manque la déclaration et son prédicat commun.
+- Le prédicat `/^(ua_|cv_)/` vit en **UN** endroit — `WamaModelCaps.isClonedVoice` — lu par les
+  deux briques ; il était recopié sur 4 sites dans 2 apps. Une garde textuelle
+  (`tests_auto_model.PredicatDeVoixClonéeDéfiniUneFoisTest`) refuse toute seconde copie, et
+  exige que les pages ne fassent que DÉCLARER (`cloneVoiceFilter`, `voiceSlot`, `langSlot`,
+  `capsProvider`).
+- Ce qui a rendu la langue possible : un slot peut porter son **propre prédicat de
+  compatibilité** (`accepts(caps, el)`), là où le défaut ne sait juger qu'un IDENTIFIANT
+  d'entrée (membre de `inputs_required ∪ inputs_optional`) — la langue est une VALEUR. Et
+  input-match reçoit le cache de model-caps (`capsProvider`) : `input_match_meta` ne porte que
+  les entrées, jamais les langues. Même catalogue dans les deux directions.
+- Attesté **dans le navigateur, sur les briques servies** (aucun test Python ne le peut) :
+  14/14 gestes — `cs` grise 4 moteurs et `fr` les réactive ; une voix `ua_` grise 6 moteurs sans
+  clonage (dont Audio8 et Qwen3-TTS, désormais VRAIS depuis 2b) et `default` les réactive ; bark
+  masque les voix clonées et `nl`/`cs`/`ar` ; 0 erreur console. ⚠ Une première sonde avait lu
+  « 0 langue masquée » — parce que sa lecture dépendait d'un geste précédent conditionnel :
+  *une lecture qui dépend silencieusement d'un geste mesure l'ordre des gestes, pas le
+  comportement.*
+
+**Ce qui reste, nommé :**
+
 - Les **voix de référence** vont en médiathèque (`SystemAsset`) : leur taxonomie
   `<langue>/<âge>/<genre>` devient des CHAMPS, et c'est ce qui permet aux deux filtres de s'y
   brancher sans rien connaître du TTS. ⚠ `tts_service.py:34` (processus séparé) et
