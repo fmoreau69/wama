@@ -77,6 +77,19 @@ ROUTE_ALIASES = {
     # `poll: False`, aucune boucle émise — un gating qui teste le nom canonique en dur
     # refait exactement le défaut que cette table existe pour absorber).
     'progress': ('status',),
+    # anonymizer nomme ses gestes d'après son modèle (`Media`) : `duplicate_media` et
+    # `clear_all_media`. Ajoutés le 2026-09-12 après une erreur de mesure QUI A COÛTÉ UN FAUX
+    # CONSTAT : j'avais mesuré `reverse('anonymizer:duplicate')` → NoReverseMatch et conclu
+    # « l'app n'a pas le geste », alors qu'elle l'a — et qu'elle passe par la brique commune
+    # `duplicate_instance` comme les 13 autres (vérifié : 14/14, zéro implémentation maison).
+    # ⭐ *Mesurer un NOM DE ROUTE et conclure sur l'existence d'un GESTE est un relevé par motif.*
+    # C'est exactement ce que cette table existe pour absorber, comme le dit `progress` ci-dessus.
+    'duplicate': ('duplicate_media',),
+    # ⚠ `clear_media` (au singulier) N'EST PAS un alias : il supprime UN élément par `media_id`
+    # et délègue au même travail que `delete` (views.py:1389). L'aliaser ferait vider la file
+    # quand on demande une suppression — pire que l'absence. Seul `clear_all_media` efface tout
+    # (views.py:1292, « Delete all media files for the current user »).
+    'clear_all': ('clear_all_media',),
 }
 
 # Classes de vues COMMUNES admises dans les expressions (import connu du gabarit).

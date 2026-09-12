@@ -141,3 +141,13 @@ staticfiles/*_[0-9][0-9]/
 # autant dans l historique). Meme parti que MuseTalk, cloné par setup_avatarizer.sh.
 wama/static/vendors/avatars/
 staticfiles/vendors/avatars/
+
+# 🔴 RATTRAPAGE (2026-09-12, decision de Fabien) — `build/` ligne 31 est un motif Python de
+# PACKAGING (setuptools) : il avalait `vendors/three-0.180.0/build/three.module.js`, c'est-a-dire
+# LE COEUR DE THREE.JS, pendant que ses 11 addons etaient suivis. Consequence mesuree : un CLONE
+# FRAIS n'avait pas de 3D, et `tests_capabilities_languages.VendoringTest` echouait sur HEAD en
+# worktree -- un echec qu'on a longtemps lu comme un artefact de worktree alors qu'il disait vrai.
+# Un motif generique de langage n'a rien a faire au-dessus d'un dossier d'assets vendorises.
+# 603 Ko, un seul fichier, non minifie par revision : versionnable sans debat.
+!wama/static/vendors/**/build/
+!staticfiles/vendors/**/build/

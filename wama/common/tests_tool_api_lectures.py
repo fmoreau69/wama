@@ -305,9 +305,30 @@ class VerbesDeCycleTest(TestCase):
         self.assertNotIn('error', out, out)
         self.assertEqual(ImageGeneration.objects.filter(user=self.moi).count(), avant + 1)
 
+    def test_les_trois_verbes_resolvent_sur_les_10_apps(self):
+        """🔴 RECTIFICATION du 2026-09-12 (relevé de Fabien). La version du 11/09 affirmait
+        « `duplicate` n'existe pas sur anonymizer, ni aucune des trois sur audio_enhancer ».
+        LES DEUX ÉTAIENT FAUX, pour deux raisons différentes :
+          • anonymizer nomme ses gestes d'après son modèle (`duplicate_media`,
+            `clear_all_media`) — j'avais mesuré un NOM DE ROUTE et conclu sur l'existence d'un
+            GESTE. Alias ajoutés à `ROUTE_ALIASES`, qui existe exactement pour ça ;
+          • `audio_enhancer` n'est PAS une app : c'est la branche audio d'`enhancer`, et
+            `TOOL_APP_ALIAS` le déclarait déjà.
+        ⭐ *Un relevé par motif ne conclut pas.* Ce test remplace l'affirmation par la mesure."""
+        from wama.tool_api import _route_dispo
+        apps = ['anonymizer', 'avatarizer', 'composer', 'converter', 'describer',
+                'enhancer', 'imager', 'reader', 'synthesizer', 'transcriber']
+        manques = []
+        for app in apps:
+            for verbe, args in (('delete', [1]), ('duplicate', [1]), ('clear_all', [])):
+                if not _route_dispo(app, verbe, args):
+                    manques.append(f'{app}.{verbe}')
+        self.assertEqual(manques, [], f'routes non résolues : {manques}')
+
     def test_dit_clairement_qu_une_route_MANQUE_au_lieu_d_echouer_obscurement(self):
-        """Mesuré le 2026-09-11 : `duplicate` n'existe pas sur anonymizer, ni aucune des trois
-        sur audio_enhancer. L'outil doit le DIRE — un trou d'app n'est pas une panne d'API."""
+        """Le cas reste à garder : une app SANS la route doit s'entendre dire laquelle manque,
+        pas recevoir une trace. `audio_enhancer` est le cas réel — un sous-domaine d'app, donc
+        sans URLconf propre."""
         out = T.duplicate_item(self.moi, 'audio_enhancer', 1)
         self.assertIn('error', out)
         self.assertIn('duplication', out['error'].lower())
