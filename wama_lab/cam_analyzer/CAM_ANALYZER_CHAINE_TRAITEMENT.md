@@ -1274,24 +1274,56 @@ séquence ne pose pas de problème, mais le rapport de sortie ne retient **dans 
 temps** que les **interactions aux intersections**, et **uniquement pour les véhicules venant
 de la voie perpendiculaire**.
 
-**Chantiers nommés ce jour** — ⚠ **deux d'entre eux avaient déjà un pendant écrit**, retrouvé
-en cherchant les CONCEPTS et non mes propres mots (un relevé par motif étroit avait d'abord
-conclu « nulle part ») :
+**Chantiers nommés ce jour** — ⚠⚠ **ma première rédaction disait « non consigné » pour quatre
+d'entre eux, et c'était FAUX.** Deux erreurs de méthode, la même cause :
+1. j'ai cherché **mes propres formulations** au lieu des concepts ;
+2. j'ai grepé `wama_lab/cam_analyzer/*.md` — un motif **NON RÉCURSIF**, qui exclut
+   `archive/` et `projects/`. **Quatre `.md` de l'app étaient hors de ma mesure**, dont un
+   dossier `projects/` que je n'avais jamais ouvert.
+⭐ *Un relevé d'absence ne vaut que ce que vaut son PÉRIMÈTRE — et un glob non récursif est un
+périmètre qu'on croit avoir balayé.* (Signalé par Fabien : « je pense que tu n'as pas regardé
+tous les `.md` du cam analyzer ».)
+
+**Les archives et le dossier projet de l'app** — à lire avant de déclarer un sujet neuf :
+`archive/CONTEXT.md` (handoff complet ; **son §5 EST l'analyse critique de faisabilité du
+rapport intersections/insertions**, celle d'origine), `archive/CAM_ANALYZER_TOPDOWN_STATUS.md`
+(tracking 360°, fantômes, garés ancrés, **routes ⟂ ancrées balise**),
+`archive/CAM_ANALYZER_DISTANCE_DESIGN.md` (échelle métrique par **largeur de voie** et période
+des pointillés), `projects/ENA_CASA.md` (site, rig, FOV réels, `ground_calib` par caméra,
+intersections déclarées au profil).
 
 | chantier | déjà consigné ? |
 |---|---|
 | identifier les **voies perpendiculaires** aux intersections | **oui** — `ROADMAP §9.0` : *« Branche perpendiculaire IGN : tâche par fenêtre + rendu + filtre `nature` + mappage `nom=None` (`road_branches_at`) »*. Le MÉCANISME est donc pendant ; ce qui manquait est son USAGE (ne pas compter comme garé un véhicule en attente d'insertion ou de traversée) |
 | restreindre le **rapport de sortie** | **partiellement** — `ROADMAP §9.0` : *« Rapport de sortie à revoir »* et *« Indicateurs de passage d'intersection À CONFIRMER »*. La CIBLE (intersections seules, voies perpendiculaires seules) n'y est pas |
-| **gabarit de largeur de voie** pour écarter des garés au-delà du gabarit | **non** — `lane_estimator` calcule la largeur, aucun consommateur côté garés |
-| **map-matching + recalage** de la pose navette (gabarit de route, appariement des passages piétons vue avant ↔ fond de carte) | **non** au sens du geste — 2 mentions du terme dans les docs de l'app, aucune procédure |
-| **modèle de PROFONDEUR** pour garés + tracking 360°, surtout **dépassements** et **interactions d'intersection** (les deux intérêts principaux de la vue de dessus) | **non** sous cet angle — la piste profondeur existe (`§[E]`, ⚑ `depth_estimation`) mais son OBJET n'était pas écrit |
-| améliorations du **tracking 360°** | **non**, non détaillées à ce stade |
+| **gabarit de largeur de voie** pour écarter des garés au-delà du gabarit | **la GRANDEUR est consignée, pas cet USAGE** — `archive/CAM_ANALYZER_DISTANCE_DESIGN.md` la pose comme **échelle métrique** (largeur de voie + période des pointillés) et `lane_estimator` la calcule ; aucun consommateur côté garés |
+| **map-matching + recalage** de la pose navette (gabarit de route, appariement passages piétons vue avant ↔ fond de carte) | **non** au sens du geste — le terme apparaît dans la doc vivante, aucune procédure, rien dans les archives |
+| **modèle de PROFONDEUR** pour garés + 360°, surtout **dépassements** et **interactions d'intersection** | **le MÉCANISME oui, son OBJET non** — ⚑ `depth_estimation` existe et alimente la calib sol (`§[E]`) ; ce qu'on en attend pour les garés et les dépassements n'était écrit nulle part (le « profondeur » de `archive/CONTEXT.md` parle de profondeur d'ARBORESCENCE — faux ami vérifié) |
+| améliorations du **tracking 360°** | **largement consigné** — `archive/CAM_ANALYZER_TOPDOWN_STATUS.md` (verrou de chaîne gid, trajectoires fusionnées, 99 % de dépassement tracké) ; les améliorations VOULUES aujourd'hui ne sont pas détaillées |
 
-**D'où l'on part** : le cadrage technique initial du projet est archivé en
-[`archive/CAM_ANALYZER_ANALYSE_INITIALE.md`](archive/CAM_ANALYZER_ANALYSE_INITIALE.md) — il
-annonçait comme « difficiles / à risque » **exactement** les deux verrous que la mesure a
-confirmés (distance absolue en monoculaire, filtrage des garés comme « problème de
-temporalité »).
+**D'où l'on part** — le cadrage initial du projet est
+[`archive/CONTEXT.md`](archive/CONTEXT.md) **§5**, et il mérite d'être relu : il annonçait
+comme « difficiles / à risque » **exactement** les deux verrous que la mesure a confirmés
+trois ans plus tard — la **distance absolue en monoculaire** (« imprécis sans calibration »,
+« dégrade > 15 m ») → **±20 % mesuré au pinhole** (`§D.3`) ; et les **garés** (« track
+persistant + distance au centre d'intersection ») → **77 garés sur 3887 véhicules**, chantier
+ouvert. *Un cadrage qui désigne juste ses propres risques mérite d'être relu quand on bute
+dessus.*
+
+⚠ **Fabien a re-versé cette analyse le 2026-09-12 et j'ai commencé par en faire un second
+fichier d'archive** — avant de découvrir qu'elle y était déjà. Le doublon a été retiré dans le
+même geste : *« pas de `.md` concurrent » se viole d'autant plus facilement qu'on n'a pas
+ouvert le dossier où la chose existe déjà.*
+
+**Ce que l'expérience a déplacé depuis ce cadrage** :
+
+| prévu en §5 de `CONTEXT.md` | où ça en est |
+|---|---|
+| une caméra avant (+ arrière) | **quatre** caméras + **tracking global 360°** avec hand-off |
+| ego-motion par flot optique compensé | pose navette par **GPS + cap**, Kalman+RTS optionnel (⚑ `shuttle_filter`), **accéléromètre en commande** depuis le 2026-09-11 (⚑ `imu_command`) |
+| distance par marquages en approche frontale | **pinhole** + **projection sol** (⚑ `auto_ground_calib`) + homographie passage piéton — verrou de précision **mesuré** |
+| garés par « présent uniquement dans la zone ±100 m » | filtre par **étalement + durée** — dont la mesure du 11/09 montre qu'il n'a **jamais fonctionné** |
+| BEV + TTC/PET « phase avancée » | **fait** — et c'est l'objet de ce § |
 
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 
