@@ -132,6 +132,51 @@ class LeFiltreExposeSonCompteTest(SimpleTestCase):
         self.assertIn('Garés — pourquoi le filtre écarte', src)
 
 
+class LaMargeDuVoteDeClasseTest(SimpleTestCase):
+    """La classe stable DIT désormais si son vote était serré (`CHAINE §H ②`).
+
+    Mesuré avant de l'écrire : 40,4 % des gids changent de classe brute et le vote les
+    tranche nettement dans 95 % des cas — mais les 5 % restants étaient départagés à quelques
+    pourcents **sans que rien ne le dise**. On déclare l'hésitation au lieu de changer la
+    règle : l'alternative (pondérer par l'aire) déplacerait 232 gids, et rien ne dit qu'elle
+    a raison faute de vérité terrain.
+    """
+
+    @staticmethod
+    def _marge(votes):
+        """Réplique de la formule du tracker — la MÊME expression, testée sur ses cas."""
+        o = sorted(votes.values(), reverse=True)
+        tot = sum(o)
+        return round((o[0] - (o[1] if len(o) > 1 else 0.0)) / tot, 3) if tot else 1.0
+
+    def test_une_classe_UNIQUE_a_une_marge_de_1(self):
+        self.assertEqual(self._marge({'car': 12.0}), 1.0)
+
+    def test_une_EGALITE_parfaite_a_une_marge_NULLE(self):
+        """Le cas qui justifie tout : deux classes à égalité, la majorité tranche quand même
+        — et sans la marge, rien ne distingue ce verdict d'une certitude."""
+        self.assertEqual(self._marge({'car': 5.0, 'truck': 5.0}), 0.0)
+
+    def test_un_vote_NET_a_une_marge_elevee(self):
+        self.assertGreater(self._marge({'car': 95.0, 'truck': 5.0}), 0.85)
+
+    def test_la_marge_ne_depend_QUE_des_deux_premieres(self):
+        """Une 3ᵉ classe marginale ne doit pas faire passer un vote serré pour net — elle
+        gonfle le total, donc elle ne peut que RÉDUIRE la marge, jamais l'augmenter."""
+        sans = self._marge({'car': 5.0, 'truck': 4.0})
+        avec = self._marge({'car': 5.0, 'truck': 4.0, 'bus': 3.0})
+        self.assertLess(avec, sans)
+
+    def test_le_tracker_ECRIT_la_marge_et_la_REMONTE(self):
+        from pathlib import Path
+        from django.conf import settings
+        src = (Path(settings.BASE_DIR) / 'wama_lab' / 'cam_analyzer' / 'utils'
+               / 'multicam_tracker.py').read_text(encoding='utf-8')
+        self.assertIn("d['stable_class_margin'] = stable_marge.get(g, 1.0)", src)
+        self.assertIn("'stable_class_fragiles': _cls_fragiles", src,
+                      "un compte qui ne sort pas de la fonction ne sert à personne")
+
+
 class DescripteursCandidatsTest(SimpleTestCase):
     """`track_descriptors` — les grandeurs du chantier de refonte (§D.3).
 

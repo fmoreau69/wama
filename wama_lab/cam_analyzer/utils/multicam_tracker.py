@@ -753,12 +753,33 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # pondérée sur toute sa durée, écrite sur chaque détection (`stable_class`) —
     # l'affichage la préfère à la classe brute de la frame.
     stable_cls = {gid: max(v, key=v.get) for gid, v in cls_votes.items() if v}
+    # MARGE du vote (2026-09-12) — le verdict seul cachait sa propre fragilité.
+    # Mesuré avant de l'écrire : 40,4 % des gids changent de classe brute (45 701 bascules),
+    # et le vote les tranche NETTEMENT dans 95 % des cas — mais les 5 % restants sont
+    # départagés à quelques pourcents, sans que rien ne le dise. Un consommateur qui dessine
+    # un gabarit « truck » ne peut pas savoir qu'il repose sur 51 contre 49.
+    # ⭐ On DÉCLARE l'hésitation au lieu de changer la règle : l'alternative testée (pondérer
+    # par l'aire de bbox) déplacerait 232 gids, mais rien ne dit qu'elle a raison faute de
+    # vérité terrain — remplacer une pondération arbitraire par une autre n'est pas une
+    # amélioration. Même idiome que la facette estimateur (§E) : une incertitude se déclare.
+    stable_marge = {}
+    for gid, v in cls_votes.items():
+        if not v:
+            continue
+        o = sorted(v.values(), reverse=True)
+        tot = sum(o)
+        stable_marge[gid] = round((o[0] - (o[1] if len(o) > 1 else 0.0)) / tot, 3) if tot else 1.0
+    _cls_fragiles = sum(1 for m in stable_marge.values() if m < 0.1)
+    logger.info('[classe stable] %s gids · marge < 0,10 : %s · marge médiane %.3f',
+                len(stable_cls), _cls_fragiles,
+                sorted(stable_marge.values())[len(stable_marge) // 2] if stable_marge else 1.0)
     for f in dirty:
         for d in (f.detections or []):
             g = d.get('global_track_id')
             sc = stable_cls.get(g)
             if sc:
                 d['stable_class'] = sc
+                d['stable_class_margin'] = stable_marge.get(g, 1.0)
             w = smoothed.get((g, f.frame_number)) if g is not None else None
             if w:
                 d['world_en'] = [round(w[0], 2), round(w[1], 2)]
@@ -788,4 +809,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'placement_spread': placement_spread,
             'placement_sources': dict(_src_counts),
             'stationary_rejects': _rejets,
-            'stationary_candidates': _stat_candidats}
+            'stationary_candidates': _stat_candidats,
+            'stable_class_fragiles': _cls_fragiles,
+            'stable_class_margin_median': (sorted(stable_marge.values())[len(stable_marge) // 2]
+                                           if stable_marge else None)}
