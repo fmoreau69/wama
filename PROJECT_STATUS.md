@@ -13551,3 +13551,142 @@ proposition ignorait : *un générateur n'écrit aucun nombre lu en base dans un
   *(Ma première rédaction de cette ligne disait « verdict non attendu à la fermeture, à confirmer
   au prochain /reprise » : le contrôle a rendu avant la fin, donc la mesure remplace la
   prudence. Un contrôle lancé doit être LU, pas légué.)*
+
+---
+
+## §CLÔTURE — 2026-09-10 → 09-12, instance « CAM_ANALYZER : ACCÉLÉROMÈTRE, PRÉDICTION, IDENTITÉ, A/B RÉEL » — ✅ CLOSE — 🔚 POINT D'ENTRÉE
+
+> **Périmètre** : `wama_lab/cam_analyzer/**`, `wama_data/functions/{kinematics,driving,geometry}/**`,
+> `wama_data/corpus.py`, `.claude/skills/cam-analyzer/`. Domiciles vivants :
+> `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (§D.4 accéléromètre, §D.5 prédiction, §F intention des
+> indicateurs, §G homographie, §H identité) + `CAM_ANALYZER_CHANGELOG.md` (journal daté).
+> **Ce bloc ne recopie pas ces docs** — il porte le récit, les leçons et le point d'entrée.
+> ⚠ Le `§REPRISE — 2026-09-10 → 09-12` ci-dessus est celui d'une **autre** instance
+> (« POINT COMPLET + CHANTIER API + GESTE MÉDIATHÈQUE ») : même fenêtre, périmètre disjoint.
+
+### Ce qui est livré
+
+| chantier | livré | mesure |
+|---|---|---|
+| ③ **Accéléromètre** | axes identifiés par **trois discriminants indépendants** (`ax` = avant) ; synchro démontrée nulle ; pente écartée ; résidu **0,202 m/s²** contre `DEFAULT_SIGMA_A = 0,8` | `§D.4` |
+| ⚑ **`imu_command`** | l'accélération longitudinale entre en **COMMANDE** du filtre navette (`kalman_rts_cv(command=)`, deux passes pour le cap) | **+14,8 %** à σa égal contre la vitesse **Doppler** — arbitre que ni l'un ni l'autre filtre ne consomme |
+| **Cap par `ax`+`ay`** | relation non-holonome vérifiée à **l'échelle 1** (`c = −1,004`) — et **réfutée comme intégrateur** : tenir le cap erre de 4,8° contre 65,5° en intégrant | `§D.4 ⑥` |
+| **Prédiction TTC/PET** | 4 défauts instruits : ① lissage RTS non causal → ⚑ `prediction_causal_smoothing` ; ② projection sol → ⚑ **`prediction_ground`, défaut OFF par DÉCISION** ; ④ branche Kalman **inatteignable** → ⚑ `prediction_kalman` | ④ : **+72 %** d'annotations — *ce que l'A/B établit, c'est que le choix n'était pas un détail, pas que Kalman est meilleur* |
+| **⑥ A/B RÉEL des bascules** | `_run_global_tracking` rejoué 4× sur un banc dupliqué, **écritures neutralisées** | ⭐ **`auto_ground_calib` : −31 % d'étalement** (1,247 → 0,855 m), 6650 → 5210 tracks — jamais chiffré depuis sa livraison du 20/07 |
+| **Filtre des garés** | couture de mesure (`track_descriptors`, histogrammes, `path_ratio_max`) + **candidate `net_sur_chemin` RÉFUTÉE** par un arbitre indépendant | `§D.3 bis` |
+| **Identité** | `§H` : les leviers empilables mesurés dans le code ; **`stable_class_margin`** par détection (on DÉCLARE l'hésitation au lieu de changer la règle) ; brique commune `geometry/frame_edges` | `§H`, 3 réfutations |
+| **Chemins** | 3 sites manqués par la migration P2b réparés (dont un **lien d'UI qui pointait dans le vide**) + un balayage mécanique propre au cam_analyzer | 19/19 vidéos de caméra OK ; **4 skips → 0** |
+
+Registre des bascules : **17 → 21** (`imu_command`, `prediction_kalman`, `prediction_ground`,
+`prediction_causal_smoothing`) — aucune UI à écrire, le panneau se génère du registre.
+
+### 🔴 Les leçons — dont quatre réfutations de mes propres affirmations
+
+1. ⭐⭐ **Une propriété mesurée à travers sa propre chaîne décrit la chaîne autant que l'objet.**
+   J'ai annoncé un décalage IMU de **+0,6 s « réel »** ; mesuré contre la vitesse **Doppler
+   `$GPVTG`** — indépendante de ma différence de positions et de mon Kalman — il vaut **−0,3 s**
+   et `r` monte de 0,41 à 0,57. *Le choix de l'arbitre précède le verdict.*
+2. ⭐⭐ **Entrer dans une chaîne SOUS le point où une bascule s'applique la rend invisible** — et
+   le résultat se lit « la bascule ne change rien », la conclusion la plus coûteuse possible.
+   Ma première matrice A/B appelait `annotate_global_tracks` au lieu de `_run_global_tracking`.
+3. ⭐ **Une frontière VOULUE se lit comme une réponse, jamais comme un trou à combler.** J'ai
+   déclaré « défaut » le retrait de la projection sol du TTC : c'était une **décision de Fabien**,
+   écrite dans le docstring du module que j'éditais, lignes 11-12. Même famille :
+   `build_object_world_trajectory` n'est pas « morte », son appel a été remplacé pour une raison
+   structurelle — *« ce n'est pas parce qu'il n'est pas câblé qu'il ne doit pas l'être »* (Fabien).
+4. ⭐ **Deux groupes qui se ressemblent selon une grandeur peuvent dire que la GRANDEUR est
+   aveugle** autant qu'ils sont semblables — et j'avais publié la lecture qui flattait mon
+   hypothèse (`net_sur_chemin`). Le disqualifiant : `placement_spread` mesure **le bruit de
+   placement, l'effet même qu'on étudie** — juger un filtre avec une métrique faite de ce qu'il
+   corrige ne conclut rien.
+5. ⭐ **Un A/B sans arbitre ne départage rien.** « +72 % d'annotations » peut tout aussi bien dire
+   « +72 % de collisions FAUSSES ». Il n'existe aucune vérité terrain sur les collisions ici.
+6. ⭐ **Ajuster un modèle là où son signal est ABSENT rend des coefficients plausibles et faux**
+   (échelle ajustée à `v > 3 m/s` sur une navette qui y roule DROIT). Deux mesures du même objet
+   qui divergent **accusent la sonde avant l'objet**.
+7. ⭐ **Un relevé par MOTIF ne conclut pas** — récidive : *« je pense que tu n'as pas regardé tous
+   les `.md` du cam analyzer »* (Fabien). J'avais grepé un glob non récursif, excluant `archive/`
+   et `projects/`. Et j'ai créé un doublon d'archive de ce que le §5 du document de contexte
+   archivé du cam_analyzer portait déjà (doublon retiré).
+8. 🔴 **Je n'avais jamais lu le CHANGELOG en entier** — Fabien l'a demandé directement ; la
+   réponse était non. 294 lignes, quatre pièges dedans. Le skill `/cam-analyzer` le prescrit
+   désormais **en toutes lettres**, avec la table des quatre.
+9. ⭐ **Centraliser un chemin UNE FOIS n'est pas le DÉRIVER** : `corpus.py` avait supprimé une
+   triple recopie le 24/08, mais son littéral unique ne suivait rien — il a péri au déménagement
+   suivant, avec la même conséquence (4 épreuves en `skipped` annonçant « corpus absent », faux).
+10. ⭐ **Un chemin d'écriture se trahit au premier run ; un chemin de LECTURE se trahit à la
+    première visite, et personne ne relit un lien.** C'est la route que la garde commune de
+    `media_paths` ne couvrait pas (son motif exige `MEDIA_ROOT` sur la ligne).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+> **Quand un GPU est libre : la passe ortho 2b → passages piétons géoréférencés, puis
+> l'homographie multi-passages / multi-instants.** Tout le préparatif est écrit et mesuré en
+> `CAM_ANALYZER_CHAINE_TRAITEMENT §G` — y compris le **contrôle qualité de la segmentation des
+> passages** demandé par Fabien (*« il faut ajouter un contrôle pour être sûr qu'ils sont
+> proprement segmentés sinon on fait une homographie fausse »*). Rien d'autre n'attend un GPU.
+
+### File des chantiers ouverts (ordre)
+
+1. 🔴 **GPU — ortho 2b + homographie.** État MESURÉ : **1 caméra sur 4** homographiée,
+   dimensions du passage **SUPPOSÉES** (4,0 × 2,5 m), et `rms_error_m` vaut **structurellement 0**
+   (DLT à 4 points, 8 DOF — la métrique de qualité **ne peut rien détecter**, `§G ②`). Le contrôle
+   qualité de segmentation est la condition d'entrée, pas une option.
+2. **Filtre des garés — la refonte reste due.** L'arbitrage de Fabien du 09/09 (*« autre grandeur
+   + paramètre réglable »*) tient : `net_sur_chemin` est réfutée, la couture de mesure est en
+   place, la piste suivante est écrite (*corrélation du déplacement apparent AVEC la navette* —
+   sans dimension, donc indépendante de l'échelle du bruit). **À mesurer, pas à croire.**
+3. **A/B de `shuttle_filter` sur l'ensemble COMMUN.** Le chiffre actuel (0,855 → 0,912 m) compare
+   deux populations différentes (77 → 101 retenus) : *comparer la médiane de deux populations
+   n'est pas un A/B*. La comparaison à population constante reste à faire.
+4. **Identité — `§H`** : les leviers sont décrits et mesurés, **aucun n'est câblé**. Le prérequis
+   de toute l'idée manque et il est nommé : **la sortie de champ n'est pas DÉCLARÉE** (`§H ③`).
+   La brique `geometry/frame_edges` existe désormais pour la déclarer.
+5. **Prédiction — `§F`** : trajectoire réelle par défaut, prédite en option. Livré côté bascules ;
+   la comparaison prédit/réel elle-même reste une **idée personnelle de Fabien, PAS un objectif
+   du projet** — c'est écrit en tête du §F et il faut que ça le reste.
+
+### Décisions ouvertes (Fabien)
+
+- **⚑ `prediction_ground` reste OFF** tant que l'homographie n'est pas améliorée — c'est la
+  décision existante, le câblage est fait pour qu'il n'y ait **qu'à basculer** le jour venu.
+- **Aucune bascule livrée cette session n'est ON par défaut.** Les passer ON est une décision qui
+  demande un recalcul complet et un œil sur la carte.
+
+### 🔴 Pendings système — et ce qui n'est PAS à moi
+
+- 🔴 **L'angle mort de la garde commune `media_paths` est SIGNALÉ, pas corrigé** (fichier d'un
+  autre périmètre) : `AucuneEcritureNeRecomposeUnCheminDAppTest.IDIOME` exige `MEDIA_ROOT` **sur
+  la ligne**, donc il ne voit ni une composition étalée sur deux lignes, ni un chemin **relatif
+  rendu au front**. Mon balayage propre au cam_analyzer (`tests_media_paths.py`) montre la forme
+  qui les prend. **Décision pour l'instance qui porte `media_paths`.**
+- ⚠ Le docstring de `wama/common/utils/media_paths.py` annonce encore **l'ANCIENNE** forme
+  (`media/{app_name}/{user_id}/…`, l. 5) alors que la fonction rend le domicile par utilisateur.
+  Une ligne, même périmètre que ci-dessus — **non touchée**.
+- ✅ **Le pending `corpus.py` déclaré par l'instance « POINT COMPLET » est SOLDÉ** (elle l'avait
+  attribué à « l'instance import/montage » et prévu qu'il faudrait *dériver le chemin de la
+  nouvelle brique* — c'est exactement ce qui a été fait). Les **4 `CorpusReelTest` skippés**
+  qu'elle signale dans son bloc ne skippent plus : 30/30 sur le corpus réel.
+- ⚠ **Un de mes commits a été ABSORBÉ** par celui d'une autre instance (`7b8e9510` → **`151136ac`**
+  après mon `--amend` malheureux) : **contenu vérifié identique** (diff 0 ligne), seul le message
+  a changé de main. Aucune perte.
+- ⚠ **Aucune validation navigateur** n'est due : aucune surface n'a bougé. Les bascules n'ont
+  d'effet qu'au recalcul.
+- **Artefacts de session** : scripts de mesure et bancs A/B dans le **scratchpad de session**
+  (hors dépôt, jetables). **Banc `d7b8a6cd`** = session dupliquée par la vraie vue
+  `duplicate_session`, vidéos PARTAGÉES avec la source — *elle ne se supprime pas à la légère* ;
+  tous les rejeux s'y sont faits **écritures neutralisées** (base intacte, vérifié porte par porte).
+
+### Contrôles attendus au prochain `/reprise` — MESURÉS le 2026-09-12, après la dernière écriture
+
+- **Tests de mon périmètre** (`wama_lab.cam_analyzer` + `wama_data` + `wama.studio` +
+  `wama.common.tests_catalogues` + `wama.common.tests_media_paths`) : **956 `OK`, 0 skipped**
+  (venv_win). ⚠ Les **4 skips** du run précédent étaient `CorpusReelTest` — ils sont soldés, pas
+  écartés. *Un skip nouveau après une migration est plus grave qu'un rouge : c'est un vert qui a
+  cessé de tester quelque chose.*
+- `check_docs` : **0 cassée / 0 périmée sur 1639** — **0 cible distincte**.
+- **Bascules du cam_analyzer : 21** (`utils/features.py`), **toutes les 4 neuves à OFF**.
+- **19/19** fichiers vidéo de caméra présents et pointés au domicile par utilisateur.
+- ⚠ **Non relancés parce qu'aucun registre de mon périmètre n'a bougé** : `manifest_export`,
+  `check_app_conformity`, `doc_facts` (les blocs `mecanismes` et `outils` sont ceux d'une autre
+  instance). Ne pas lire leur absence comme un vert.
