@@ -76,9 +76,9 @@
         {% if not d.exists %}<span class="wama-cat-badge doc-absent">absent du disque</span>{% endif %}
       </h4>
       <div class="wama-cat-desc">{{ d.description }}</div>
-      <div class="doc-chemin">{% if d.generated %}générée par <code>{{ d.generator }}</code>{% else %}<code>{{ d.path }}</code>{% endif %}</div>
+      <div class="doc-chemin">{% if d.live %}calculée par <code>{{ d.generator }}</code>{% else %}<code>{{ d.path }}</code>{% endif %}</div>
       {% if d.exists %}
-      <div class="wama-cat-meta">{% if d.generated %}calculée à chaque lecture{% else %}{{ d.lines }} lignes · modifié le {{ d.modified|date:"d/m/Y H:i" }}{% endif %}</div>
+      <div class="wama-cat-meta">{% if d.live %}calculée à chaque lecture{% else %}{{ d.lines }} lignes · modifié le {{ d.modified|date:"d/m/Y H:i" }}{% if d.generated %} · écrite par <code>doc_facts</code> depuis son plan{% endif %}{% endif %}</div>
       <a class="btn btn-sm btn-outline-info mt-2" href="{% url 'common:doc_read' d.key %}">
         <i class="fas fa-book-open me-1"></i> Lire</a>
       {% endif %}

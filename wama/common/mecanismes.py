@@ -397,6 +397,13 @@ MECANISMES = (
               "vérification (constat ⇒ ✅, intention ⇒ 🔄/⏳) ; `extract` sert les docs dérivées",
               'wama/common/doc_sections.py', 'ROADMAP.md §25',
               annexes=('wama/common/tests_doc_sections.py',)),
+    Mecanisme('doc_plans', 'Docs dérivées par plan',
+              "Un PLAN déclaré dans le catalogue des docs (extraits de sections marquées + faits "
+              "de registre) produit un `.md` versionné, écrit par `doc_facts` ; `--check` refuse "
+              "un fichier qui n'est plus ce que son plan produit — la confrontation doc → doc, "
+              "gratuite parce que la dérivation est mécanique",
+              'wama/common/doc_plans.py', 'ROADMAP.md §25',
+              annexes=('wama/common/tests_doc_plans.py',)),
     Mecanisme('templates_integrity', 'Intégrité des gabarits',
               "Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` "
               "MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — "

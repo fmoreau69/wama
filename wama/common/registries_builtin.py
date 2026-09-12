@@ -72,8 +72,11 @@ register(Registry(
     url_name='common:apps_catalog', manifest_kind='app',
     periodic='nightly-consistency',
     doc='WAMA_APP_CONVENTIONS.md',
+    # ⚠ Cette description disait « 72 critères » : la grille en compte 89 (relevé du 2026-09-11).
+    # Trouvé par la 1ʳᵉ doc dérivée (`docs/dev/registres.md`), qui la publie telle quelle — un
+    # chiffre figé dans une chaîne ne se confronte à rien. Il sort ; le compte vit dans la grille.
     description="Le catalogue lui-même est déclaré en code — rien à y actualiser. Ce qui "
-                "s'actualise est la GRILLE : 72 critères re-mesurés par analyse du code.",
+                "s'actualise est la GRILLE : ses critères re-mesurés par analyse du code.",
 ))
 
 

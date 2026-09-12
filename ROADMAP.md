@@ -3637,8 +3637,8 @@ développeur CALCULÉES à la lecture (`common/dev_docs.py`) — un amorçage, p
 |---|---|---|
 | ① | **Faits en ligne** : `<!-- WAMA:FAIT(registre/clé/champ) -->valeur<!-- /WAMA:FAIT -->`, résolus depuis `Registry.entries`, régénérés par `doc_facts`, confrontés par `--check` (`common/fact_tags.py`). Le registre des registres en compte aujourd'hui <!-- WAMA:FAIT(registres) -->15<!-- /WAMA:FAIT --> | 🔄 livré le 2026-09-11 ; fiches déclarées pour quelques registres, les autres à suivre |
 | ② | **Marquage des sections** de la doc de construction — par SECTION, pas par paragraphe (le coût connu de DITA) : `<!-- WAMA:SECTION(audience=developpeur,utilisateur; type=guide; nature=constat; etat=✅) -->` sur la ligne qui suit le titre ; une sous-section sans balise hérite. `type` ∈ tutoriel · guide · reference · explication (Diátaxis). **Double vérification** (Fabien) : `nature=constat` ⇒ ✅, `nature=intention` ⇒ 🔄 ou ⏳ — `check_docs` refuse les incohérences (`common/doc_sections.py`) | 🔄 livré le 2026-09-11 (syntaxe validée par Fabien) : marquage, contrôle, extraction ; pilote : `AGENTS.md §Trois docs` ; les docs de fond seront marqués à la révision (§25.2) |
-| ③ | **Plans des docs dérivées** : un plan déclaré par doc (ordre des sections, fragments tirés) → `.md` générés, lisibles hors WAMA, confrontés par `doc_facts --check` | ⏳ |
-| ④ | **Confrontation doc → doc** : chaque section dérivée garde l'empreinte de ses sources ; une source modifiée depuis la dernière dérivation → « à revoir » | ⏳ |
+| ③ | **Plans des docs dérivées** : un plan déclaré dans `docs_catalog.py` (étapes `Excerpt` = section marquée de la doc de construction, `Facts` = bloc calculé depuis un registre) → `.md` écrit par `doc_facts`, lisible hors WAMA (`common/doc_plans.py`). Refusé : source ou section introuvable, section non marquée pour ce public | 🔄 livré le 2026-09-11 ; pilote `docs/dev/registres.md` (« Les registres de WAMA ») |
+| ④ | **Confrontation doc → doc** | ✅ **gratuite** : la dérivation étant MÉCANIQUE, une source modifiée change le fichier produit et `doc_facts --check` le voit. Une empreinte des sources ne servirait que si un humain ou un modèle réécrivait le texte |
 | ⑤ | **Porte registre** pour la doc utilisateur : un fragment n'y apparaît que si le registre confirme ce qu'il décrit — la vision reste entière dans la doc de construction, et n'arrive chez l'utilisateur qu'une fois implémentée | ⏳ |
 | ⑥ | Reverser les trois pages de `dev_docs.py` en `.md` générés (registres, API des briques → faits et blocs) | ⏳ |
 
@@ -3669,9 +3669,23 @@ registre (⑤), la confrontation dans les deux sens.
 - **Plans des docs dérivées** (③) : déclarés dans `common/docs_catalog.py`, à côté de la
   déclaration du doc — une seule liste, contrôlable.
 - **Pilote de ③** : la doc développeur « Les registres de WAMA ».
-- **Emplacement** — proposition de Fabien, **en discussion** : remonter la doc dans `docs/`,
-  classée par audience, et ne laisser à la racine qu'un README portant l'arborescence et les
-  liens. Contraintes à trancher : `AGENTS.md` et `CLAUDE.md` sont lus À LA RACINE par les outils
-  d'agents ; les docs de module vivent à côté de leur code ; coût du renommage à mesurer.
+- **Emplacement — VALIDÉ par Fabien**, à faire dans une **session DÉDIÉE** (toutes les autres
+  instances en pause) : toute la doc dans `docs/`, classée par audience, et un `README.md` racine
+  qui porte l'arborescence et les liens.
+  ```
+  README.md  AGENTS.md  CLAUDE.md          ← seuls restent à la racine
+  docs/construction/  architecture/ ui/ ia/ mondes/ exploitation/ suivi/ archive/
+  docs/dev/            docs/utilisateur/    ← GÉNÉRÉS, ne pas éditer
+  ```
+  Trois exceptions : `AGENTS.md` et `CLAUDE.md` restent à la racine (lus là par les outils
+  d'agents) ; les docs de MODULE restent à côté de leur code (le catalogue et le README les
+  rendent visibles) ; l'archive va DANS `construction/` (d'anciens docs de construction — une doc
+  générée ne s'archive pas, elle se régénère). Le sous-dossier pourra porter la FAMILLE, que le
+  catalogue n'aura plus à déclarer.
+  **Coût mesuré** (2026-09-11) : ~440 citations dans 175 fichiers de code, tests et skills, ~660
+  dans 68 `.md` — dont les journaux et archives, qu'on ne réécrit PAS (faits d'histoire).
+  **Méthode** : `git mv` (historique conservé), skill `/renommage-api` (grep exhaustif des
+  citations), `check_docs` en filet — ⚠ après avoir levé son exclusion de `docs/` dans l'index des
+  noms, sans quoi toute citation par nom nu casserait. À faire AVANT la révision de fond §25.2.
 - **Langue** : la doc reste en FRANÇAIS pour l'instant. Plus tard : l'harmoniser en anglais et la
   faire entrer dans l'i18n (`§10`) pour la traduction complète de WAMA.

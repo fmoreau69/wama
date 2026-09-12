@@ -65,14 +65,15 @@
     <span class="wama-cat-stat">{{ doc.family_label }}</span>
     <span class="wama-cat-stat">{{ doc.audience_badge }}</span>
     {% if doc.journal %}<span class="wama-cat-stat">journal daté — vrai à sa date</span>{% endif %}
-    {% if doc.generated %}
-      <span class="wama-cat-stat">générée à cette lecture</span>
+    {% if doc.live %}
+      <span class="wama-cat-stat">calculée à cette lecture</span>
     {% else %}
+      {% if doc.generated %}<span class="wama-cat-stat">générée depuis son plan — ne pas éditer</span>{% endif %}
       <span class="wama-cat-stat"><b>{{ doc.lines }}</b> lignes</span>
       <span class="wama-cat-stat">modifié le {{ doc.modified|date:"d/m/Y H:i" }}</span>
     {% endif %}
   </div>
-  <p class="wama-doc-meta mb-3">{% if doc.generated %}générée par <code>{{ doc.generator }}</code>{% else %}<code>{{ doc.path }}</code>{% endif %} · lecture seule</p>
+  <p class="wama-doc-meta mb-3">{% if doc.live %}calculée par <code>{{ doc.generator }}</code>{% else %}<code>{{ doc.path }}</code>{% endif %} · lecture seule</p>
 
   <article class="wama-doc-body">{{ rendu.html|safe }}</article>
 </div>

@@ -1779,6 +1779,7 @@ de moi. Les quatre autres sont correctes — ce qui compte autant que les défau
 « tout mettre en registre » serait la sur-correction évidente.
 
 ### 9quinquies.2 LE CRITÈRE — trois questions, dans cet ordre
+<!-- WAMA:SECTION(audience=developpeur; type=explication; nature=constat; etat=✅) -->
 
 > **Registre** quand l'ajout apporte du **COMPORTEMENT** et que la liste doit pouvoir s'allonger
 > **sans toucher le moteur**.

@@ -467,6 +467,37 @@ class Command(BaseCommand):
                               encoding='utf-8')
             self.stdout.write(self.style.WARNING(f"{fid}: régénéré ({fichier})"))
 
+        # ── Docs DÉRIVÉES par plan (2026-09-11, ROADMAP §25.1 ③) ──
+        # Le `.md` entier est produit par son plan (`docs_catalog.Doc.plan`, `doc_plans.build`).
+        # Même contrat que les blocs : réécrit en place, `--check` refuse un fichier qui n'est
+        # plus ce que son plan produit, et un plan qui ne se construit pas est CASSÉ. Passe AVANT
+        # les faits en ligne, qui balaient ensuite le fichier produit comme les autres.
+        if not o['only']:
+            from wama.common.doc_plans import PlanError, build
+            from wama.common.docs_catalog import DOCS as _DOCS
+            for d in _DOCS:
+                if not d.plan:
+                    continue
+                chemin = racine / d.path
+                try:
+                    frais = build(d)
+                except PlanError as e:
+                    perimes.append((d.key, d.path, 'plan cassé'))
+                    self.stdout.write(self.style.ERROR(f"doc {d.key} ({d.path}) : CASSÉ — {e}"))
+                    continue
+                courant = (chemin.read_text(encoding='utf-8').replace('\r\n', '\n')
+                           if chemin.is_file() else None)
+                if courant == frais:
+                    self.stdout.write(self.style.SUCCESS(f"doc {d.key}: à jour ({d.path})"))
+                    continue
+                if o['check']:
+                    perimes.append((d.key, d.path, 'doc dérivée périmée'))
+                    self.stdout.write(self.style.ERROR(f"doc {d.key}: PÉRIMÉE ({d.path})"))
+                    continue
+                chemin.parent.mkdir(parents=True, exist_ok=True)
+                chemin.write_text(frais, encoding='utf-8')
+                self.stdout.write(self.style.WARNING(f"doc {d.key}: générée ({d.path})"))
+
         # ── Faits EN LIGNE (2026-09-11, ROADMAP §25) : `<!-- WAMA:FAIT(reg/clé/champ) -->…` ──
         # Même contrat que les blocs : régénérés en place, `--check` refuse un fait périmé — et une
         # balise qui ne se résout pas est CASSÉE, jamais laissée pour bonne. Balayés : les docs du

@@ -4,14 +4,18 @@ Doc DÉVELOPPEUR — générée, jamais rédigée (AGENTS.md §Trois docs, trois
 POURQUOI CE MODULE (demande de Fabien, 2026-09-11)
 
     La doc de WAMA est une doc de CONSTRUCTION ; il manquait une doc DÉVELOPPEUR « structurée et
-    automatisée ». La règle actée le même jour dit comment la faire : une doc destinée à un public
-    est une PROJECTION des registres, jamais une rédaction parallèle. Chaque page ci-dessous est
-    donc calculée à la lecture depuis un registre qui existe déjà, et les seules phrases affichées
-    sont celles que ces registres portent : description d'un doc, rôle d'un mécanisme, source d'un
-    registre, docstring d'un module. Une phrase écrite ici ne pourrait que dériver.
+    automatisée ». Recadrage du même jour : elle DÉRIVE de la doc de construction, et y injecte
+    les faits des registres. Ce module fournit la moitié « faits » : des générateurs qui rendent
+    du markdown depuis un registre, et que les PLANS de `docs_catalog.py` citent (`Facts`). Les
+    seules phrases affichées sont celles que les registres portent (description d'un doc, rôle
+    d'un mécanisme, source d'un registre, docstring d'un module) — une phrase écrite ici dériverait.
 
-    Les pages sont déclarées dans `docs_catalog.DOCS` (audience `developpeur`, champ `generator`)
-    et servies par le même lecteur que la doc de construction.
+    ⚠ Un générateur cité par un plan écrit dans un fichier VERSIONNÉ : il n'y met aucun nombre lu
+    en base (il changerait d'une installation à l'autre et le fichier serait toujours périmé), et
+    ses liens partent de la RACINE du dépôt (`doc_plans.build` les recale sur le fichier cible).
+
+    Deux pages restent calculées à la lecture (`parcours`, `briques`) : l'amorçage du 11/09, à
+    reverser en plans (ROADMAP §25.1 ⑥).
 
 L'API DES BRIQUES EST LUE PAR AST, JAMAIS PAR IMPORT
 
@@ -77,7 +81,7 @@ def module_api(path) -> dict:
 
 def _lien_doc(doc) -> str:
     """Lien vers un doc du catalogue : son CHEMIN s'il en a un (le lecteur le réécrit vers sa
-    page), son URL de lecture sinon (doc générée)."""
+    page), son URL de lecture sinon (page calculée)."""
     if doc.path:
         return f"[{doc.label}]({doc.path})"
     from django.urls import reverse
@@ -95,7 +99,71 @@ def _cellule(texte) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
-# Les pages
+# Faits pour les PLANS (fichiers versionnés) — ni nombre lu en base, ni lien de site
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def registres_natures() -> str:
+    """Les natures d'actualisation déclarables par un registre, et où chacune s'exécute."""
+    from .registries import EXECUTION_BY_NATURE, EXECUTIONS, NATURES
+
+    out = ["## Les natures d'actualisation", "",
+           "| nature | ce qu'elle déclare | où tourne l'actualisation |", "|---|---|---|"]
+    for cle, libelle in NATURES.items():
+        lieu = EXECUTIONS.get(EXECUTION_BY_NATURE.get(cle, ''), 'rien à actualiser')
+        out.append(f"| `{cle}` | {_cellule(libelle)} | {_cellule(lieu)} |")
+    return '\n'.join(out) + '\n'
+
+
+def registres_fiches() -> str:
+    """Chaque registre de WAMA : clé, nature, source, page, doc, et s'il est citable par balise."""
+    from django.urls import NoReverseMatch, reverse
+
+    from .registries import NATURES, REGISTRIES
+
+    # Les DÉCLARATIONS, jamais `overview()` : celui-ci compte les entrées de chaque registre EN
+    # BASE, ce qu'aucune ligne de ce fichier n'affiche. Première version faite avec lui : la
+    # génération d'une doc dépendait de la base sans raison — et a bloqué le 2026-09-11 pendant
+    # une relance de WAMA. Tout ce qui est écrit ici est déclaré dans le code.
+    regs = sorted(REGISTRIES.values(), key=lambda r: r.label)
+    out = ["## Les registres, un par un", "",
+           f"**{len(regs)} registres**, par ordre alphabétique de libellé.", ""]
+    for r in regs:
+        out += [f"### {r.label}", "",
+                f"- **Clé** : `{r.key}` — {NATURES[r.nature]}",
+                f"- **Source** : {r.source}"]
+        if r.url_name:
+            try:
+                out.append(f"- **Page dans WAMA** : `{reverse(r.url_name)}`")
+            except NoReverseMatch:
+                pass
+        if r.doc:
+            out.append(f"- **Doc** : {_lien_ref(r.doc)}")
+        if r.manifest_kind:
+            out.append(f"- **Kind de manifeste** : `{r.manifest_kind}`")
+        if r.entries is not None:
+            out.append(f"- **Citable dans une doc** : `WAMA:FAIT({r.key}/<clé>/<champ>)`")
+        if r.description:
+            out += ["", r.description]
+        out.append("")
+    return '\n'.join(out) + '\n'
+
+
+def kinds_manifeste() -> str:
+    """Les kinds de manifeste, et lesquels écrivent dans les registres."""
+    from .manifests import builtin  # noqa: F401 — l'import peuple MANIFEST_KINDS
+    from .manifests.kinds import MANIFEST_KINDS
+
+    out = ["## Kinds de manifeste", "",
+           "| kind | description | écrit dans les registres |", "|---|---|---|"]
+    for k in sorted(MANIFEST_KINDS):
+        mk = MANIFEST_KINDS[k]
+        ecrit = 'oui (`write_back`)' if mk.write_back else 'non — stocké et diffable'
+        out.append(f"| `{k}` | {_cellule(mk.description) or '—'} | {ecrit} |")
+    return '\n'.join(out) + '\n'
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# Pages CALCULÉES à la lecture (amorçage du 11/09 — à reverser en plans)
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 def parcours() -> str:
@@ -109,55 +177,10 @@ def parcours() -> str:
     for i, cle in enumerate(PARCOURS, 1):
         d = BY_KEY[cle]
         out.append(f"{i}. **{_lien_doc(d)}** — {d.description}")
-    out += ["", "## Les autres pages générées", ""]
+    out += ["", "## Les autres pages développeur", ""]
     for d in DOCS:
         if d.audience == DEVELOPER and d.key != 'dev-parcours':
             out.append(f"- **{_lien_doc(d)}** — {d.description}")
-    return '\n'.join(out) + '\n'
-
-
-def registres() -> str:
-    from django.urls import NoReverseMatch, reverse
-
-    from .manifests import builtin  # noqa: F401 — l'import peuple MANIFEST_KINDS
-    from .manifests.kinds import MANIFEST_KINDS
-    from .registries import overview
-
-    regs = overview()
-    out = ["# Registres", "",
-           "> Page **générée** à chaque lecture depuis `registries.overview()` et "
-           "`MANIFEST_KINDS`. Un registre dit ce que WAMA sait NOMMER ; sa description dit la "
-           "relation entre ses objets.", "",
-           f"**{len(regs)} registres** · **{len(MANIFEST_KINDS)} kinds de manifeste**", ""]
-    for r in regs:
-        out += [f"## {r['label']}", "",
-                f"- **Clé** : `{r['key']}` — {r['nature_label']}"]
-        if r['total']:
-            out.append(f"- **Entrées** : {r['total']}")
-        out.append(f"- **Source** : {r['source']}")
-        if r['url_name']:
-            try:
-                url = reverse(r['url_name'])
-                out.append(f"- **Page** : [{url}]({url})")
-            except NoReverseMatch:
-                pass
-        if r['doc']:
-            out.append(f"- **Doc** : {_lien_ref(r['doc'])}")
-        if r['manifest_kind']:
-            out.append(f"- **Kind de manifeste** : `{r['manifest_kind']}`")
-        from .registries import REGISTRIES
-        reg = REGISTRIES.get(r['key'])
-        if reg is not None and reg.entries is not None:
-            out.append(f"- **Citable dans une doc** : `WAMA:FAIT({r['key']}/<clé>/<champ>)`")
-        if r['description']:
-            out += ["", r['description']]
-        out.append("")
-    out += ["## Kinds de manifeste", "",
-            "| kind | description | écrit dans les registres |", "|---|---|---|"]
-    for k in sorted(MANIFEST_KINDS):
-        mk = MANIFEST_KINDS[k]
-        ecrit = 'oui (`write_back`)' if mk.write_back else 'non — stocké et diffable'
-        out.append(f"| `{k}` | {_cellule(mk.description) or '—'} | {ecrit} |")
     return '\n'.join(out) + '\n'
 
 

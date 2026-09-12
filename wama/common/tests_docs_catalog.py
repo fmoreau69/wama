@@ -197,8 +197,9 @@ class DocDeveloppeurTest(TestCase):
             self.assertEqual(d.audience, DEVELOPER, d.key)
 
     def test_les_registres_sont_tous_projetes(self):
+        from .dev_docs import registres_fiches
         from .registries import REGISTRIES
-        texte = generate(BY_KEY['dev-registres'])
+        texte = registres_fiches()
         manquants = [k for k in REGISTRIES if f"`{k}`" not in texte]
         self.assertEqual(manquants, [])
 
