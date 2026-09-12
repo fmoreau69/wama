@@ -3456,15 +3456,55 @@ utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles 
    branche n'est **pas scopée** (`memory/store.py:686`, staff seulement côté vue) et rendrait
    des souvenirs d'autrui, non approuvés. Le test l'atteste, et **refuse d'être vacueux**
    (il échoue si la file de revue est vide, donc s'il n'exclut rien).
-2. **`url_import` / `folder_import` / `batch_import`** — les briques existent et sont testées
-   par 17 scénarios chacune ; l'API n'en expose aucune.
-3. **`preview` d'un job en cours** (demande Fabien) — la vue `common:unified_preview` existe et
-   la card la consomme ; aucun outil ne la rend.
-4. **Verbes de cycle** : `delete`, `duplicate`, `clear_all`, `settings` — écritures, donc après
-   les lectures, et avec les gardes de `common.tool_api.garde_fous`.
-5. **Raccordement de `add_to_*`** (① bis) — après/avec le chantier 1.
+2. ⏸ **`url_import` / `folder_import` / `batch_import`** — les briques existent et sont testées
+   par 17 scénarios chacune ; l'API n'en expose aucune. 🔴 **EN ATTENTE, cadrage Fabien du
+   2026-09-11** : c'est le périmètre `import / connexion / montage` qu'une instance refond
+   (domicile par utilisateur, en vue du chiffrement des dossiers). Ne pas l'ouvrir contre elle.
+3. ~~**`preview` d'un job en cours**~~ — ✅ **FAIT le 2026-09-11** : `get_item_preview(app, pk,
+   side)` avec `input` / `output` / **`during`**. `sides.has_during` dit qu'un job en cours a
+   déjà quelque chose à montrer — « où en est mon job » se répond donc avec la sortie PARTIELLE
+   réelle, pas un pourcentage. Réutilise `unified_preview` en entier (mêmes adapters, même
+   permission). 🔴 Sa garde : les adapters appellent `build_absolute_uri()`, donc la requête
+   synthétique fabrique un FAUX hôte — s'il fuitait, l'assistant proposerait un lien mort
+   présenté comme valide. Deux tests, dont un qui ne peut pas être vacueux.
+4. ~~**Verbes de cycle**~~ — ✅ **FAIT le 2026-09-11** : `delete_item`, `duplicate_item`,
+   `clear_my_queue` (qui REFUSE sans `confirm=true` et compte avant de vider). Ils appellent la
+   **vue de l'app** (route lue par `route_variants`), car les `reset_fields`/`clear_fields` sont
+   spécifiques — les recopier eût créé une 2ᵉ vérité.
+   🔴🔴 **Leur garde n'était portée par RIEN** : transverses par leur NOM, ils échappent à
+   `tool_accessible` (app_id → None) **et**, passant par une requête synthétique, à
+   `AppAccessMiddleware`. `_refus_app()` est donc écrit dans leur corps, et le test vérifie
+   D'ABORD que les deux couches sont inertes — sinon il croirait tester la garde.
+   ❌ **`settings` retiré de cette étape** : la route `update` n'existe que sur **2 apps sur 15**
+   (converter + jumelle). C'est un trou côté APPS, pas côté API — rien construit dessus plutôt
+   qu'une surface à moitié couverte qui mentirait sur ce qu'elle offre.
+5. **Raccordement de `add_to_*`** (① bis) — ⏸ même attente que le point 2.
 6. **Lancer les tests nocturnes** depuis l'assistant (`run_nightly_tests` est une commande de
    gestion ; ⚠ scénarios GPU exclus par défaut — ne pas ouvrir cette porte sans le gouverneur).
+
+**① quinquies — le geste MÉDIATHÈQUE, hors de cette file (2026-09-11/12)**
+
+Décision Fabien : *« on rend commun et on porte sur les apps de façon universelle ; c'est à
+ajouter dans les "…", pas comme bouton d'action principal »*. Mesuré avant de coder : le geste
+**existait déjà, écrit TROIS fois**, et **8 apps sur 10 ne l'avaient pas du tout**
+(`composer/views.py:669`, sa jumelle, `synthesizer/views.py:897`).
+
+- ✅ **Brique commune** `media_library/services.py::export_item_to_library` + une route unique,
+  générique par construction (résultat lu au schéma canonique) — 20 gardes.
+  ⭐ **Elle ne construit AUCUN chemin** : `upload_to` décide du domicile, donc elle **suivra** la
+  refonte des dossiers utilisateur (chiffrement) au lieu de la figer. C'est précisément ce que
+  les 3 copies font mal. Un test l'atteste ; mécanisme `library_export` au registre (138 → 139).
+- ✅ **`add_to_media_library` devient TRANSVERSE**. Il était gaté sur `media_library` du seul fait
+  de son nom. ⚠ Mesuré : la politique est `roles: []`, donc le gate était *permissif en pratique*
+  — le défaut n'était pas un refus d'aujourd'hui, c'est que `AppAccessPolicy` est **éditable en
+  base** : restreindre la médiathèque aurait cassé **en silence** un geste universel.
+- ✅ **Deux entrées dans le « … »** (`CARD_DESIGN §2bis`) : « Ajouter à la médiathèque… » avec
+  sous-menu des **rôles** rendus par le serveur (un `.mp3` peut être voix/musique/bruitage — le
+  rôle est FOURNI, jamais deviné), et **« Ajouter au RAG »**, qui n'était que dans l'inspecteur.
+  **Smoke navigateur** : les 4 entrées rendues, sous-menu `[Voix, Musique, Bruitage]`, **0 erreur
+  console**, fixture nettoyée.
+- 🔚 **Reste** : retirer les 3 duplications (geste de DÉPRÉCIATION à part — routes propres +
+  drapeau `exported_to_library`).
 
 **② Le Data Analyzer est DÉCIDÉ depuis le 2026-08-25 et n'existe pas.**
 `WAMA_DATA_WORLD §11.8` le tranche (« l'app-file du monde Data, hérite de la file Médias »).
