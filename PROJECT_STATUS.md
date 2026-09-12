@@ -13505,3 +13505,48 @@ pas une couche :
 - `check_js` : **70 fichiers, 0 erreur, 0 divergence** source↔`staticfiles`.
 - **Smoke navigateur** du menu « … » : 4 entrées rendues, sous-menu `[Voix, Musique, Bruitage]`,
   **0 erreur console**.
+
+### ⚠ ADDENDUM DE CLÔTURE (2026-09-12) — la décision de séquencement, et les 2 restes que le balayage a sortis
+
+**DÉCISION DE FABIEN** : *« on reviendra sur l'API après le refactoring de la doc »*. Donc
+**l'étape suivante du chantier API ne s'ouvre qu'après `§25`**, et pas seulement l'étape 2 (les
+imports, déjà bloquée par le périmètre import/montage) : **tout le chantier**.
+
+**Le mécanisme de progression attend aussi `§25`** — et sa FORME a changé, `ROADMAP §24.7`
+rectifié : l'option « mesurée » que j'avais proposée **contredit le contrat de rôle des docs**
+(mesuré : 4 sections de vision sur 50 citent du code ; accrocher les 46 autres ferait de la vision
+un document de statut). Et l'agrégation des mesures **est le périmètre de l'instance doc**
+(`dev_docs.py` génère déjà du markdown depuis les registres) — avec une contrainte que ma
+proposition ignorait : *un générateur n'écrit aucun nombre lu en base dans un fichier versionné*
+(`dev_docs.py:13`), donc cette moitié doit être une page **calculée à la lecture**.
+
+**Ce que le balayage mécanique du `§3` a sorti et qui n'était pas au handoff :**
+
+- 🔚 **Les ~10 `get_<app>_status` ne sont pas retirés.** `WAMA_MEMORY §9ter` les remplace par
+  `list_my_items`/`get_item_detail`, livrés — mais la **dépréciation** est un geste à part :
+  l'assistant ET le runner du Studio les appellent. À faire quand les nouveaux auront servi.
+- 🔚 **Un livrable NON GARDÉ, déclaré** : `videLibelle` (le message de sous-menu vide devenu
+  propriété de l'appelant, `wama-card-menu.js`). **Aucun harnais JS n'existe au dépôt** —
+  `check_js` parse, il ne clique pas. Seule attestation : le **smoke navigateur** de cette
+  session. Les 16 autres symboles livrés sont nommés dans un test (mesuré symbole par symbole).
+
+**Contrôles de clôture — MESURÉS après la dernière écriture**
+
+- Tests de mon périmètre (`tests_tool_api_lectures` + `media_library` + `composer` +
+  `tests_capabilities_languages`) : **103 `OK`** (4 skips — corpus absent, cf. pendings).
+- `check_docs` : **0 cassée / 0 périmée sur 1635** — 0 cible distincte.
+- `doc_facts --check` : **tout à jour** · **mécanismes 139** · **outils du pivot 69**.
+- `check_templates` **0 / 154** · `check_skills` **0 défaut franc**, 2 candidats `n=1`, 1 promu / 14.
+- `check_js` : **70 fichiers, 0 erreur, 0 divergence** source↔`staticfiles`.
+- Grille : converter **100 %** · describer **100 %** · reader 97 % · enhancer/synthesizer/
+  transcriber 95 % · avatarizer/composer 94 % · anonymizer 93 % · imager 92 %.
+- `MEMORY.md` : **19,7 Ko**, 70 entrées — compacté en même temps qu'augmenté (3 sessions closes
+  raccourcies, aucune entrée retirée : c'est un index partagé).
+- Fiches mémoire touchées : `feedback_un_releve_par_motif_ne_conclut_pas` (corollaire du 12/09 —
+  *mesurer un NOM et conclure sur une EXISTENCE*, 5 cas), `reference_assistant_tool_api`
+  (59→69 outils, la garde des écritures, les 2 dettes), `project_memory_rag_architecture`
+  (la récidive « 0 `RagChunk` » **malgré la fiche** — *un compteur ne dit pas si son zéro est un
+  défaut ou une conception*).
+- ⚠ `manifest_export --check` **lancé, verdict non attendu à la fermeture** : aucun registre
+  projeté aux manifestes n'a bougé de mon fait (`mecanismes.py` et `TOOL_REGISTRY` ne sont pas
+  des sources de manifeste) — à confirmer au prochain `/reprise` plutôt qu'affirmé ici.

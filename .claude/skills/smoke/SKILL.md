@@ -25,6 +25,12 @@ le RENDU RÉEL, pas la structure du code.
 - **Route FIABLE, indépendante du MCP : script Playwright (python) → PNG → `Read`.** L'outil de
   lecture rend l'image, la vérification visuelle marche sans MCP. Le dépôt a déjà ses sondes
   (`logs/ui_smoke/*.py`) et surtout ses scénarios enregistrés — cf. la charpente ci-dessous.
+  - ⚠ **LE `/tmp` DE WINDOWS N'EST PAS CELUI DE WSL2** (ajouté le 2026-09-12, un aller-retour
+    perdu). Le script s'écrit dans le scratchpad de session, qui est côté Windows ; le lancer
+    sous WSL2 exige donc le chemin `/mnt/c/...` équivalent — pas une copie vers `/tmp`, qui
+    atterrit dans le `/tmp` de l'hôte et laisse WSL dire `No such file or directory`.
+    ✅ `wsl.exe -e bash -lc 'cd /mnt/d/WAMA/... && venv_linux/bin/python "/mnt/c/Users/<…>/scratchpad/<sonde>.py"'`
+    — et ne PAS déposer la sonde dans le dépôt pour contourner (elle y resterait).
 - Navigateurs installés **côté WSL2** (`~/.cache/ms-playwright`, chromium-1228), `playwright`
   importable dans `venv_linux` **et** `venv_win` → lancer le script sous WSL2, là où tourne aussi
   le serveur.

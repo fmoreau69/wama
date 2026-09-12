@@ -75,6 +75,26 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > ou il est **DÉCLARÉ dans le handoff par son NOM**, avec ce qu'on en sait et à qui il appartient.
 > Une clôture qui reporte « N tests OK » en ayant écarté les rouges du décompte est pire qu'une
 > clôture sans tests : elle produit une preuve fausse.
+>
+> 🔴 **ET « À QUI IL APPARTIENT » S'ÉTABLIT, ça ne se devine pas** (ajouté le 2026-09-12, geste
+> déroulé TROIS fois en une session — `tests_media_paths`, `CorpusReelTest`,
+> `common.tool_api.inventaire` : **les trois étaient à d'autres**, et deux préexistaient à la
+> session). Dans un dépôt à quatre instances, « ce n'est pas moi » est une hypothèse, pas un fait.
+> **Quatre gestes, du moins cher au plus cher — s'arrêter dès que l'un tranche :**
+> 1. **rejouer le test EN ISOLÉ.** Vert isolé + rouge en suite = dépendance d'ORDRE ou course,
+>    pas un défaut du code testé ;
+> 2. **rejouer le contrôle sur HEAD sans ses propres modifications** — `git stash push <mes seuls
+>    fichiers>`, mesurer, `git stash pop`. S'il échoue pareil, il **préexiste** : c'est la preuve,
+>    pas l'intuition ;
+> 3. **comparer les mtime** du code et des données que le test lit. Un fichier déplacé pendant
+>    le run explique un rouge qu'aucun diff ne montre (vécu : corpus migré à 13:05, run
+>    12:47→13:26 — l'import voyait l'ancien chemin, l'exécution non) ;
+> 4. **`git log -1 -- <fichier du test>`** : qui l'a écrit, et dans quel chantier.
+>
+> ⚠⚠ **Un test qui SKIPPE après une migration est plus grave qu'un rouge.** Même session :
+> `CorpusReelTest` ne cherche plus son corpus au bon endroit, donc il passe en `skipped` — *un
+> vert qui a cessé de tester quelque chose*. Un rouge se voit ; un skip nouveau, non. Après toute
+> migration de chemins, **compter les skips** et non seulement les échecs.
 
 ### 2a bis. 🔴 LES TESTS QUE TU AS **AJOUTÉS** — lancer n'est pas garder
 
