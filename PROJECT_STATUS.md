@@ -13558,7 +13558,16 @@ proposition ignorait : *un générateur n'écrit aucun nombre lu en base dans un
 **Contrôles de clôture — MESURÉS après la dernière écriture**
 
 - Tests de mon périmètre (`tests_tool_api_lectures` + `media_library` + `composer` +
-  `tests_capabilities_languages`) : **103 `OK`** (4 skips — corpus absent, cf. pendings).
+  `tests_capabilities_languages`) : **103 `OK`**, relancés une dernière fois après mon ultime
+  écriture. **4 skips = `composer.AliasDefautsMoteurTest`**, motif imprimé par le test :
+  *« liens symboliques indisponibles sur cet hôte »* — artefact **Windows**, et la
+  **contre-épreuve a été faite** plutôt que supposée : **4/4 `OK` sous WSL2**. Ces 4 tests sont
+  donc couverts, pas troués.
+  ⚠ *Ma première rédaction les attribuait au « corpus absent ». FAUX : le corpus est dans
+  `wama_data`, hors de ces modules. Je les avais rattachés au skip que j'avais en tête (celui de
+  `CorpusReelTest`, trouvé une heure plus tôt) au lieu de LIRE leur motif — que `-v 2` imprime.*
+  ⭐ **Un skip porte sa raison ; l'attribuer par voisinage est la même faute que tout le reste de
+  cette session** (cf. les 5 cas du tableau ci-dessus).
 - `check_docs` : **0 cassée / 0 périmée sur 1635** — 0 cible distincte.
 - `doc_facts --check` : **tout à jour** · **mécanismes 139** · **outils du pivot 69**.
 - `check_templates` **0 / 154** · `check_skills` **0 défaut franc**, 2 candidats `n=1`, 1 promu / 14.
