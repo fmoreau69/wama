@@ -13438,29 +13438,54 @@ et le test vérifie D'ABORD que les deux couches sont inertes — sinon il croir
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
-**Deux dettes d'architecture créées sciemment, à reprendre** — l'API est aujourd'hui un **pont**,
-pas une couche :
+> 🔴 **NE RIEN OUVRIR SUR CE PÉRIMÈTRE.** Décision de Fabien (12/09) : **tout le chantier API
+> reprend APRÈS la refonte doc (`ROADMAP §25`)** — pas seulement l'étape 2. Le mécanisme de
+> progression attend le même jalon. Une session qui arrive ici n'a donc **rien à démarrer** de
+> mon côté : le seul geste utile est de **vérifier que `§25` est livrée** avant de rouvrir quoi
+> que ce soit.
+>
+> ⚠ *Corrigé le 12/09 : ce bloc annonçait « deux dettes d'architecture à reprendre » comme point
+> d'entrée — il CONTREDISAIT la décision écrite vingt lignes plus bas, et c'est lui qu'on lit
+> d'abord. Exactement le défaut que mon propre `§24.8` décrit (un en-tête lu avant le corps qui
+> le dément). Les deux dettes sont réelles : elles sont au §3 de la file, pas en tête.*
 
-1. `get_item_preview` et les 3 verbes appellent des **vues** via une requête synthétique. La
-   conception propre serait des logiques appelables **sans requête** ; j'ai préféré réutiliser
-   plutôt que refactorer `preview_utils` + 10 vues d'app en session partagée. Le prix : chaque
-   verbe traîne un hôte fabriqué qu'il faut neutraliser (d'où la garde anti-fuite).
-2. `export_item_to_library` dérive un **chemin** depuis l'**URL d'affichage** du contrat canonique
-   (retrait de `MEDIA_URL`, puis brique de confinement). Ça marche et c'est gardé, mais c'est
-   exactement le défaut que `§9ter` signale (« l'affichage est lossy »). Le propre serait une clé
-   canonique **brute** (`result_file_path`) à côté de l'URL — le contrat ne l'offre pas.
+**Si `§25` est livrée**, l'ordre est : ① le fait `doc_facts` **`vision`** et la page d'état
+mesuré (forme arrêtée, `ROADMAP §24.7`) → ② l'étape 2 de l'API **si** le périmètre
+import/montage est stabilisé → ③ les deux dettes ci-dessous.
 
 ### File des chantiers ouverts
 
-1. ⏸ **Étape 2 de l'API** (`url_import` / `folder_import` / `batch_import`) — **bloquée par
-   cadrage Fabien** : périmètre import/montage en refonte. Ne pas l'ouvrir contre l'instance
-   qui y travaille.
-2. **Le mécanisme d'évaluation de progression** (`ROADMAP §24.7`) — proposé, non implémenté :
-   *progression CONSOLIDÉE (peu coûteuse, honnête sur sa nature) ou MESURÉE (coûteuse)* ?
-3. **Balayage non fait** : les `§REPRISE` du 29/08 au 03/09 et les §20bis–§33 en détail. Le
+1. ⏸ **Étape 2 de l'API** (`url_import` / `folder_import` / `batch_import`) — **bloquée deux
+   fois** : par le cadrage « après `§25` », et par le périmètre import/montage en refonte
+   (domicile par utilisateur, en vue du chiffrement). Ne pas l'ouvrir contre l'instance qui y est.
+2. **Le mécanisme de progression** — ⚠ **la question n'est plus « consolidée ou mesurée »**
+   (rectifié le 12/09, `ROADMAP §24.7`) : « mesurée » **contredit le contrat de rôle des docs**
+   (4 sections de vision sur 50 citent du code — les accrocher ferait de la vision un document
+   de statut). **Forme arrêtée** : ① un fait `vision` (~30 lignes, patron `_fait_conformite`,
+   qui DIT qu'il consolide des déclarations) ② l'état mesuré en **page calculée à la lecture**,
+   dans la machinerie de `§25` — car un générateur *n'écrit aucun nombre lu en base dans un
+   fichier versionné* (`dev_docs.py:13`). Ne jamais les fondre en un seul chiffre.
+3. **Les 2 dettes d'architecture de l'API** — créées sciemment, l'API est un **pont**, pas une
+   couche. Où reprendre, concrètement :
+   - `get_item_preview` + les 3 verbes appellent des **vues** par requête synthétique
+     (`tool_api._poster_vue`). Le propre = des logiques appelables **sans requête** → extraire
+     le corps de `common/utils/preview_utils.py::unified_preview` et des vues
+     `delete`/`duplicate`/`clear_all` des 10 apps. Coût réel : c'est pour ça que je ne l'ai pas
+     fait en session partagée. Le prix actuel : un hôte fabriqué à neutraliser
+     (`_HOTE_SYNTHETIQUE`, garde anti-fuite).
+   - `export_item_to_library` dérive un **chemin** depuis l'**URL d'affichage**
+     (`media_library/services.py::_fichier_resultat`) — le défaut que `WAMA_MEMORY §9ter`
+     nomme (« l'affichage est lossy »). Le propre = une clé canonique **brute**
+     (`result_file_path`) ajoutée à `common/utils/detail_registry.py::build_detail`, à côté de
+     l'URL. ⚠ Toucher `build_detail` touche les 3 consommateurs du contrat canonique
+     (inspecteur, runner Studio, pivot) : à faire avec un test par consommateur.
+4. **Dépréciation des ~10 `get_<app>_status`** (`WAMA_MEMORY §9ter`) — leurs remplaçants
+   (`list_my_items`/`get_item_detail`) sont livrés. Geste à part : l'assistant ET le runner du
+   Studio les appellent.
+5. **Balayage non fait** : les `§REPRISE` du 29/08 au 03/09 et les §20bis–§33 en détail. Le
    sondage suggère un rendement faible — les blocs **datés** vieillissent bien, les sections qui
    se présentent comme « l'état courant » non — mais ce n'est pas une preuve.
-4. `settings` dans l'API : **écarté par la mesure** (route `update` sur 2 apps sur 15). Trou côté
+6. `settings` dans l'API : **écarté par la mesure** (route `update` sur 2 apps sur 15). Trou côté
    APPS. Ne pas le rouvrir comme un trou d'API.
 
 ### Décisions ouvertes (Fabien)
@@ -13687,6 +13712,12 @@ Registre des bascules : **17 → 21** (`imu_command`, `prediction_kalman`, `pred
 - `check_docs` : **0 cassée / 0 périmée sur 1639** — **0 cible distincte**.
 - **Bascules du cam_analyzer : 21** (`utils/features.py`), **toutes les 4 neuves à OFF**.
 - **19/19** fichiers vidéo de caméra présents et pointés au domicile par utilisateur.
-- ⚠ **Non relancés parce qu'aucun registre de mon périmètre n'a bougé** : `manifest_export`,
-  `check_app_conformity`, `doc_facts` (les blocs `mecanismes` et `outils` sont ceux d'une autre
-  instance). Ne pas lire leur absence comme un vert.
+- `doc_facts --check` : **2 blocs PÉRIMÉS — `mecanismes` et `outils`** — et 🔴 **ils ne sont PAS à
+  moi, donc je ne les ai PAS régénérés.** `git log` sur leurs sources (`common/mecanismes.py`,
+  les `tool_api.py`) rend `be89ef56` et `86a674f6`, deux commits de l'instance
+  **médias/médiathèque** ; aucun de mes 11 commits n'y figure. *Régénérer figerait le WIP d'une
+  autre instance* (règle `/cloture §2b`). ⚠ Leur propre bloc de clôture, écrit à 14:17, annonce
+  « `doc_facts` tout à jour » : **c'est leur travail postérieur qui a périmé ces deux blocs**, pas
+  une dérive — à régénérer par eux, en une commande.
+- ⚠ **Non relancés, aucun registre de mon périmètre n'ayant bougé** : `manifest_export`,
+  `check_app_conformity`. Ne pas lire leur absence comme un vert.
