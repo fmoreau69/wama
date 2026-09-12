@@ -1443,6 +1443,76 @@ d'atténuateur à **entrée de correction**. ⚠ Le signe n'est pas préjugé : 
 *Rien de tout cela ne change un comportement : ⚑ `prediction_ground` reste OFF, ⚑
 `sam3_homography` reste ON (historique).*
 
+### ⭐ H. IDENTITÉ DES OBJETS — empiler des leviers (idée Fabien, 2026-09-12) : état mesuré et design
+
+> *« Ne peut-on pas empiler des tests (leviers) pour la conservation des IDs, GIDs et type
+> d'objet ? On a la confiance, l'aire de bbox, la couleur du véhicule, la distance estimée.
+> […] La difficulté, c'est les entrées/sorties de champ : on doit identifier le moment où un
+> objet commence à sortir du champ pour informer que l'aire se réduit à cause de la sortie et
+> non parce que l'objet change. »* — tout ce qui suit est **mesuré en lecture seule**.
+
+**① Ce qui existe déjà, et qu'il ne faut pas réinventer.**
+
+| levier | état RÉEL |
+|---|---|
+| **type d'objet stable** | ✅ **la proposition de Fabien EST implémentée** — `cls_votes[gid][classe] += confiance` puis `max` (`multicam_tracker:409` et `:755`), écrit en `stable_class` sur **100 %** des 4 352 gids (`3dab195`, 16/07) |
+| **couleur** | ❌ **rien**. BoTSORT *sait* faire du ReID par apparence mais `with_reid: False` dans la config installée — et le projet **ne passe même pas `tracker=`** à `model.track()` (`_track_base`, `tasks.py:1014`) : il prend le défaut d'Ultralytics. La voie peu coûteuse existe (`model: auto` = « uses detector features if available »), éteinte |
+| **sortie de champ** | ⚠ **connue partout, déclarée nulle part** (voir ③) |
+| **distance estimée** | présente (`distance_m`), la confrontation profondeur attend la passe GPU |
+
+**② Le scintillement de classe, chiffré** : **40,4 %** des gids changent de classe brute
+(1 759 / 4 352), **45 701** bascules d'une détection à la suivante. Le vote les tranche
+**nettement dans 95 % des cas** — seuls **88** gids ont un vote serré (2ᵉ classe ≥ 45 %).
+⚠ J'ai testé l'alternative « pondérer par l'AIRE de bbox » (un objet de 12 px est mal classé) :
+elle changerait **232 gids (13,2 %)** — mais **rien ne dit qu'elle a raison**, faute de vérité
+terrain. *Remplacer une pondération arbitraire par une autre n'est pas une amélioration.*
+⭐ **La réponse propre est de DÉCLARER LA MARGE** du vote, pas de changer la règle : les 88
+votes serrés sont des décisions fragiles que la majorité tranche **sans le dire**. Même idiome
+que la facette estimateur (§E) : une hésitation se déclare, elle ne se cache pas derrière un
+verdict.
+
+**③ 🔴 LE PRÉREQUIS DE TOUTE L'IDÉE EST CE QUI MANQUE — la sortie de champ n'est pas déclarée.**
+Elle est redérivée à trois endroits, **avec deux seuils différents et une inférence par effet
+de bord** :
+
+| consommateur | comment il « sait » |
+|---|---|
+| `homography_estimator:53` | `bb[0] <= 6 or bb[2] >= size[0] - 6` → seuil **6 px** |
+| `prediction_adapter:211` | `bb[0] <= 8 or bb[2] >= iw - 8` → seuil **8 px** |
+| `multicam_tracker` (« mesure dégradée ») | **ne teste rien** : il l'infère de `ego is None` — or `pinhole_ego` rend `None` pour **deux causes indistinguables** (bbox tronquée **ou** `distance_m` absente) |
+
+*Le levier « continuité d'aire » que Fabien désigne comme indispensable ne peut pas exister
+tant que « l'aire diminue parce que l'objet SORT » n'est écrit nulle part.*
+
+**④ 🔴 ET UNE INCOHÉRENCE DE FENÊTRES, mesurée.** `botsort.yaml` : `track_buffer: 30` frames,
+soit **2,5 s** à 12 fps — au-delà BoTSORT **supprime** le track et **recycle son id**. Or le
+verrou de chaîne rattache un `(caméra, track_id)` vu il y a **moins de 4 s**
+(`multicam_tracker:355`). **Bande de 1,5 s [2,5 ; 4 s] où l'id a été réattribué à un autre
+objet et où le verrou les fusionne.** *Un garde-fou plus large que la garantie sur laquelle il
+repose ne protège pas : il invente.* Mesuré par ailleurs : **3 496** réutilisations d'un
+`track_id` à plus de 4 s sur `front` (3 960 rear, 2 331 left, 2 063 right).
+⚠ Et `profile.tracker` n'est lu que par les **vues** : le choix de tracker dans l'éditeur de
+profil **n'atteint jamais** `model.track()`.
+
+**⑤ Le design proposé — où tombe le coût.**
+1. **Déclarer l'état de bord UNE fois**, à l'analyse : quels bords la bbox touche et de combien.
+   Arithmétique de bbox, **coût nul**, et **rétro-calculable sur les données déjà en base** ;
+   les trois consommateurs s'y branchent, leurs seuils divergents disparaissent.
+2. **La couleur se capture à l'ANALYSE, jamais à l'association** : la passe décode déjà chaque
+   image, en extraire une signature (médiane RGB du cœur de bbox) y coûte quasi rien, et
+   l'association travaille ensuite sur des **scalaires**. *Le coût tombe une fois, dans la
+   passe qui décode déjà ; les leviers ne paient plus jamais.* ⚠ Non rétro-applicable sans
+   re-décoder les 4 vidéos.
+3. **Les leviers deviennent un SCORE**, chacun déclaré et commutable : distance monde
+   (existant) · accord de classe · **continuité d'aire, conditionnée à « aucun bord touché »**
+   · distance couleur · continuité de distance estimée. L'association est en O(N²) sur une
+   poignée de détections : trois comparaisons scalaires de plus sont négligeables.
+4. **Les fantômes en héritent mécaniquement** — ils sont émis *par gid*.
+
+**Ordre** : ③ d'abord (il débloque le levier d'aire et ne coûte rien), puis ④ (une constante à
+dériver au lieu d'être écrite en dur), puis ② (déclarer la marge), et la couleur avec la
+prochaine passe d'analyse.
+
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 
 La doctrine actuelle est **comparer** (⚑ ON/OFF, un chiffre). Fabien vise **fusionner** : accumuler
