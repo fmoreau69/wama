@@ -3619,8 +3619,41 @@ mais **les marqueurs eux-mêmes resteraient déclaratifs**. Ce serait une grille
 jamais de **FONCTIONNEMENT** — la distinction que `WAMA_VERIFICATION §2` interdit de confondre.
 Un ✅ posé à la main sur une section resterait une intention. **Le rendre vraiment mesuré**
 supposerait d'accrocher chaque section de vision à un signal existant (un critère de grille, un
-geste nocturne, un registre) — c'est un chantier plus lourd, et c'est la vraie question à trancher :
-*veut-on une progression CONSOLIDÉE (peu coûteux, honnête sur sa nature) ou MESURÉE (coûteux) ?*
+geste nocturne, un registre).
+
+🔴 **SÉQUENCEMENT ET FORME — rectifié le 2026-09-12 par deux mesures.** J'avais présenté le choix
+comme *« consolidée (peu coûteux) ou MESURÉE (coûteux) »*. **La seconde branche n'existe pas sous
+cette forme**, et l'ensemble est à faire **APRÈS la refonte doc** (`§25`), pas avant :
+
+1. **« Mesurée » n'est pas coûteux, c'est CONTRADICTOIRE.** Mesuré : **4 sections de vision sur
+   50 citent du code**. Accrocher les 46 autres supposerait de réécrire la vision pour qu'elle
+   cite du code — c'est-à-dire d'en faire un document de STATUT. Or le contrat de rôle des docs
+   (en tête de ce fichier, 2026-07-20) pose *« Vision = le cap, marquage GROSSIER »* et *« chaque
+   info vit à UN seul niveau »*. Ce n'était pas un arbitrage coût/bénéfice : c'était une option
+   qui contredit le contrat.
+2. **Le fait `vision` doit ATTENDRE `§25`.** Il écrirait un bloc dans
+   `docs/WAMA_VISION_COMPLET.md`, que la refonte va **trier en sous-dossiers** — or la table
+   `doc_facts.FAITS` associe un fait à un CHEMIN. Écrire le fait maintenant, c'est livrer une
+   entrée dont la cible bouge la semaine suivante, dans un fichier (`doc_facts.py`) que
+   l'instance doc édite. Le coût d'attendre est ≈ nul : une vision à horizon années ne change
+   pas de distribution en quinze jours.
+3. **L'agrégation des mesures existantes N'EST PAS une nouvelle surface à créer — c'est la leur.**
+   `wama/common/dev_docs.py` est déjà *« des générateurs qui rendent du markdown depuis un
+   registre, que les PLANS de `docs_catalog.py` citent »*. Un `doc_facts` séparé ou une page
+   `/common/etat/` de mon cru serait une **surface concurrente**, ce que `AGENTS.md` interdit.
+4. ⚠ **Et leur doctrine tranche une chose que ma proposition ignorait** : un générateur cité par
+   un plan *« n'écrit AUCUN nombre lu en base dans un fichier versionné — il changerait d'une
+   installation à l'autre et le fichier serait toujours périmé »* (`dev_docs.py:13`). Or
+   l'essentiel de ce que je voulais agréger EST lu en base (totaux de registres, mémoire, RAG).
+   Donc cette moitié **ne peut pas être un doc versionné** : elle doit être une page **calculée à
+   la lecture** — motif qu'ils ont déjà (`parcours`, `briques`, à reverser en plans, `§25.1 ⑥`).
+
+**Forme retenue, à exécuter après `§25`** : ① un fait `vision` (≈30 lignes, patron
+`_fait_conformite`) qui rend la DISTRIBUTION infalsifiable et datée — en disant dans le bloc
+qu'elle consolide des DÉCLARATIONS, donc une grille d'ADOPTION ; ② l'état MESURÉ (grille, gestes,
+registres, mécanismes) en **page calculée à la lecture**, dans la machinerie de `§25`.
+⭐ **Et ne jamais les fondre en un seul chiffre** : ① dit *« où l'on se croit »*, ② dit *« ce qui
+est vérifié »*. Les additionner reproduirait le défaut que `§24.6` refuse.
 
 ### 24.8 Balayage des blocs ANTÉRIEURS de `PROJECT_STATUS` — ce qu'il a appris (2026-09-10)
 
