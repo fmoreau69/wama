@@ -1496,8 +1496,10 @@ qu'il y avait une bande de 1,5 s où BoTSORT recycle un identifiant pendant que 
 chaîne (4 s) le rattache encore. **Faux deux fois**, vérifié dans la source installée :
 
 1. les identifiants **ne sont pas recyclés à l'expiration** du `track_buffer` : `BaseTrack._count`
-   est un compteur **de classe, monotone** (`basetrack.py:87-90`). Ils repartent à 1 uniquement
-   quand un tracker est **construit** (`byte_tracker.py:281` appelle `reset_id()`) ;
+   est un compteur **de classe, monotone** (Ultralytics : la classe `BaseTrack` et son `next_id()`).
+   Ils repartent à 1 uniquement quand un tracker est **construit** — le constructeur de
+   `BYTETracker` appelle `reset_id()`. ⚠ Références au paquet INSTALLÉ, hors dépôt : elles se
+   revérifient dans `venv_linux/lib/python3.12/site-packages/ultralytics/trackers/` ;
 2. ce redémarrage est **délibéré et documenté** : *« persist=False on the FIRST frame of each
    window resets BoTSORT, so **track_ids are window-local**. This is correct semantically — no
    object survives between two intersections separated by minutes »* (`tasks.py:1034-1038`).
