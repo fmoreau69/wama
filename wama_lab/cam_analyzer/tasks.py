@@ -1529,7 +1529,11 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
 
             # Store annotated video path
             if has_annotated_video and os.path.exists(output_path):
-                relative_path = f'cam_analyzer/{user_id}/output/{output_filename}'
+                # ⚠ Ce chemin RELATIF est celui que le front concatène à `/media/` pour le lien
+                # « vidéo annotée » (`index.js:1854`). Il DOIT dériver de la même brique que
+                # `output_dir` (l. 979) — il était resté en dur après le portage du 12/09, donc
+                # la vidéo était écrite au nouveau domicile et le lien pointait sur l'ancien.
+                relative_path = f"{app_media_dir('cam_analyzer', user_id, 'output')}/{output_filename}"
                 summary['annotated_videos'][position] = relative_path
 
             _console(user_id, f"  {cam_detections_count} détections, proximité max: {cam_max_proximity:.2f}")

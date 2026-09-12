@@ -24,6 +24,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from wama.common.utils.media_paths import app_media_dir
+
 #: Racine du dépôt (ce fichier vit à la racine du monde `wama_data/`).
 RACINE = Path(__file__).resolve().parents[1]
 
@@ -44,7 +46,18 @@ REC_2019 = _EXEMPLE / 'RecFile_REC_20190502_144710.rec'
 #: `.inf`. ⚠ Il est INDISPENSABLE et pas redondant : la grammaire du `.idy` a changé entre les
 #: deux versions (le nom de table a disparu), et un lecteur validé sur un seul des deux
 #: échantillons casserait sur l'autre (`WAMA_DATA_WORLD.md §6.6bis ②`).
-REC_2022 = (RACINE / 'media' / 'cam_analyzer' / '1' / 'input' / 'ENA_CASA'
+#:
+#: ⚠ IL A DÉMÉNAGÉ UNE SECONDE FOIS, le 2026-09-12 — vers le domicile par utilisateur
+#: (`users/1/cam_analyzer/input/`, migration P2b). Et **le défaut que ce fichier décrit en
+#: tête s'est reproduit à l'identique** : les quatre épreuves qui s'appuient sur lui sont
+#: passées en `skipped` en annonçant « corpus absent », ce qui était faux — il avait bougé.
+#: *Un chemin centralisé UNE FOIS n'est pas un chemin DÉRIVÉ : il ne suit pas ce qui bouge.*
+#: D'où la forme ci-dessous — la partie « domicile » vient désormais de la brique commune,
+#: donc un futur déplacement du domicile emportera ce corpus avec lui.
+#: ⚠ La racine reste `RACINE / 'media'` et **non** `settings.MEDIA_ROOT` : sous le harnais de
+#: tests, `MEDIA_ROOT` est un dossier jetable — l'y chercher ferait sauter les épreuves pour
+#: toujours, exactement le symptôme qu'on corrige.
+REC_2022 = (RACINE / 'media' / app_media_dir('cam_analyzer', 1, 'input') / 'ENA_CASA'
             / '20220404_124000_RecFile_Data' / 'RecFile_Data_20220404_124000.rec')
 
 #: Export CSV que RTMaps a produit LUI-MÊME du flux GPS de `REC_2022`. Sert de contre-épreuve

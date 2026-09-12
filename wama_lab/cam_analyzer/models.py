@@ -402,10 +402,20 @@ class DepthFrame(models.Model):
 
 
 def depth_output_dir(camera) -> str:
-    """Dossier disque des cartes de profondeur : cam_analyzer/<user_id>/depth/<session_id>/<position>/."""
+    """Dossier disque des cartes de profondeur : `<domicile utilisateur>/depth/<session>/<position>/`.
+
+    ⚠ Ce site FABRIQUAIT le chemin à la main (`cam_analyzer/<user_id>/depth/…`) et le portage
+    des 61 sites vers `app_media_dir` du 2026-09-12 l'a MANQUÉ — c'est exactement le défaut que
+    le docstring de cette brique décrit : *« chaque littéral oublié devient un dossier vide
+    dans l'arbre, une preview morte ou un import qui écrit à l'ancien endroit — et rien ne le
+    signale »*. Trouvé à la clôture du 12/09, **latent** : 0 `DepthFrame` en base (la passe est
+    GPU, jamais lancée ici), donc rien n'avait encore été écrit au mauvais endroit.
+    *Un littéral qui n'a jamais servi ne se signale pas — il attend le premier run.*
+    """
+    from wama.common.utils.media_paths import app_media_dir
     session = camera.session
     user_id = session.user.id if session and session.user else 0
-    relative_dir = os.path.join('cam_analyzer', str(user_id), 'depth',
+    relative_dir = os.path.join(app_media_dir('cam_analyzer', user_id, 'depth'),
                                 str(session.id), camera.position)
     Path(os.path.join(settings.MEDIA_ROOT, relative_dir)).mkdir(parents=True, exist_ok=True)
     return relative_dir
