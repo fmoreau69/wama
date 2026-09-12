@@ -116,7 +116,16 @@ def champs_fichier():
 
 
 #: Racines qui ne sont PAS des arbres d'app — déjà à leur place, ou hors périmètre par décision.
-HORS_PERIMETRE = ('users', 'media_library', 'mounts', 'nightly_tests', 'tests_lot', 'studio')
+#:
+#: ⚠ `media_library` EN EST SORTI le 2026-09-12. Il y figurait sur une raison que j'avais écrite
+#: moi-même — « ses URLs circulent » — et qui ne résiste pas à la vérification : aucune surface
+#: n'expose un chemin `media_library/` au dehors. *Se citer soi-même n'est pas vérifier.*
+#: La médiathèque a DEUX natures, et c'est l'identifiant utilisateur qui les sépare, sans liste
+#: à tenir : `UserAsset` range sous `media_library/<uid>/…` (des octets d'utilisateur, donc son
+#: domicile) tandis que `SystemAsset` range sous `media_library/system/` (asset générique, géré
+#: par les admins, sans propriétaire). `cible()` exige un `<uid>` NUMÉRIQUE : le premier migre,
+#: le second reste où il est. La zone commune se distingue donc toute seule.
+HORS_PERIMETRE = ('users', 'mounts', 'nightly_tests', 'tests_lot', 'studio')
 
 
 def cible(valeur: str):

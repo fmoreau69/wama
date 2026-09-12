@@ -67,8 +67,13 @@ EMPLACEMENTS_LEGITIMES = (
     ("voix du synthesizer — personnalisées, par défaut, et références par langue/âge/genre "
      "(ce sont des RESSOURCES d'entrée, pas des sorties)",
      re.compile(r'^synthesizer/(\d+/custom_voices|default_voices|voice_references)/.*$')),
-    ("médiathèque — rangement par TYPE, pas par input/output (app à structure propre)",
-     re.compile(r'^media_library/\d+/[A-Za-z0-9_]+/.*$')),
+    # ⚠ Remplace, le 2026-09-12, le motif `^media_library/\d+/…` qui couvrait les assets
+    # d'UTILISATEUR. Ceux-là ont rejoint `users/<uid>/media_library/…` (premier motif) : ce sont
+    # ses octets, ils vivent chez lui. Garder l'ancien motif en aurait fait un seuil PÉRIMÉ —
+    # une exception qui ne couvre plus rien et qui laisse passer la suivante sans rien dire.
+    ("médiathèque COMMUNE — `SystemAsset` : asset générique partagé, géré par les admins, "
+     "sans propriétaire (c'est ce qui le distingue d'un `UserAsset`, rangé chez l'utilisateur)",
+     re.compile(r'^media_library/system/.*$')),
 )
 
 
