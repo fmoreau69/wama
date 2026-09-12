@@ -13730,3 +13730,44 @@ Registre des bascules : **17 → 21** (`imu_command`, `prediction_kalman`, `pred
   une dérive — à régénérer par eux, en une commande.
 - ⚠ **Non relancés, aucun registre de mon périmètre n'ayant bougé** : `manifest_export`,
   `check_app_conformity`. Ne pas lire leur absence comme un vert.
+
+### 🔴 `fields_from_params` — PAS un quick win, et le MOTIF enregistré du blocage est FAUX (2026-09-12)
+
+Question de Fabien : *« peut-on régler `fields_from_params` maintenant si c'est un quick win ? »*
+Réponse mesurée : **non** — mais pas pour les raisons écrites au `§CLÔTURE 09/09 ①`.
+
+**① Les deux sources citées NE bloquent pas.** Le `§CLÔTURE 09/09` invoque
+`WAMA_APPRENTISSAGE §9` (« ne pas toucher à `FunctionSpec` ») et **A-Q5**. Lecture des deux :
+- `§9` renvoie à `§3`, et **`§3:144` donne le motif** : *« `FunctionSpec` n'a rien à changer — les
+  méthodes ML entrent comme fonctions ordinaires ; `cost` porte déjà `vram_gb`/`cpu_bound`,
+  `binding` distingue déjà pur et app-bound »*. C'est un argument contre l'ajout de capacités
+  **d'APPRENTISSAGE**. Or nommer une colonne de sortie d'après un paramètre n'est pas une
+  capacité d'apprentissage : c'est une affaire de **chaînage du monde Data**.
+- **A-Q5** demande *où se déclare la bibliothèque statistique* (unique en `library` vs capacité
+  par fonction) — **orthogonal** au nom des colonnes produites.
+⭐ *Le bullet de `§9` a été lu sans son renvoi.* Même faute que les six autres de cette session :
+une ligne citée sans son motif. Conséquence concrète : une session suivante qui lirait `§3`
+pourrait se croire autorisée à « débloquer » — et toucher un contrat partagé sans le savoir.
+
+**② Ce qui bloque RÉELLEMENT, mesuré — et c'est un PALIER, pas un quick win :**
+1. **`produced_fields` est PROJETÉ au corpus** : `PortSpec.to_dict()`
+   (`common/catalog/function_catalog.py:107`) et **143 occurrences** dans
+   `manifests/functions/`. Donc ⚠ **un callable est exclu** (non sérialisable) : la forme doit
+   rester **déclarative** — un gabarit du genre `distance_{name}` substitué depuis les `params`,
+   pas une fonction. Et tout changement de champ = régénération du corpus + fidélité du
+   round-trip à revérifier.
+2. **Le diagnostic de chaînage le CONSOMME** (`:309` `avail |= set(out_port.produced_fields)`,
+   `:396`) — et son **activation est elle-même une décision ouverte** (② du même `§CLÔTURE` :
+   refuser ou avertir ?). Des champs dynamiques changent ce que ce diagnostic voit : trancher
+   l'un présuppose l'autre. **Les deux se décident ensemble.**
+3. **`PortSpec` est CO-MODELÉ par le chantier cam_analyzer**, actif : il porte déjà `estimates`,
+   `uncertainty`, `derived_from` (facette estimateur ⑤b). Le handoff du 07/09 le disait déjà —
+   *« C et ⑤b modèlent tous deux `PortSpec` : les décider ensemble »*. Y ajouter un champ
+   pendant que cette instance le modèle est exactement le recouvrement que la partition évite.
+
+**③ Ce qui resterait à trancher par Fabien** (la phrase qui manque n'est donc pas « §9
+autorise-t-il ? » mais) : le gabarit vit-il sur **`PortSpec.produced_fields`** (une entrée
+`'distance_{name}'` reconnue comme gabarit) ou sur un **champ distinct**
+(`produced_fields_template`) qui laisse `produced_fields` strictement littéral ? La 2ᵉ voie
+évite d'ambiguïser 143 manifestes existants ; la 1ʳᵉ évite un 2ᵉ champ à lire partout.
+⚠ Et à décider **avec** le diagnostic de chaînage (②), pas avant.
