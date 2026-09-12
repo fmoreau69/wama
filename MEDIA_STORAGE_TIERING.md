@@ -192,6 +192,56 @@ et doit vivre ailleurs : `media_tests/` pour les tests (cf. `wama/common/runners
 > dédupliquer — un fichier partagé par deux utilisateurs rend le chiffrement par utilisateur
 > impossible et donnerait à l'un accès aux octets de l'autre.
 >
+> ### La médiathèque : DEUX natures, et c'est l'identifiant qui les sépare (2026-09-12)
+>
+> Question de Fabien : *« les assets, gallery et voix devraient être gérés et stockés dans la
+> médiathèque… faut-il, comme pour user, ajouter des dossiers par niveaux hiérarchiques ? »*
+>
+> **Réponse : non — `visibility` est MUTABLE, le chemin ne doit pas l'être.** Encoder le niveau
+> dans le dossier ferait d'une promotion `private` → `unit` un **déplacement de fichier**, donc
+> la réécriture de tous les chemins stockés et de toutes les cards qui le pointent. Le dépôt
+> sépare déjà les deux à raison : le **CHEMIN** dit qui possède (`is_path_allowed`, par préfixe),
+> la **BASE** dit qui peut voir (`scoped_visible_q` + `visibility`/`scope_org_unit`/`scope_project`).
+> Deux dossiers pour un même fait, ce sont deux vérités qui divergeront.
+>
+> ⭐ **La seule frontière qui justifie une séparation PHYSIQUE est la CLÉ de chiffrement** — on
+> ne chiffre pas un fichier avec deux clés. Donc : **une zone par détenteur de clé, jamais une
+> par niveau**. Le jour où une clé PAR UNITÉ existerait, la subdivision serait
+> `media_library/unit/<code>/` — une subdivision par clé.
+>
+> ⭐ **Et les deux zones EXISTENT DÉJÀ dans le modèle** (je proposais d'en inventer une) :
+>
+> | modèle | domicile | nature |
+> |---|---|---|
+> | `UserAsset` (`ScopedVisibility`) | `users/<uid>/media_library/…` | octets d'un utilisateur, partageables par niveau **sans qu'un octet bouge** |
+> | `SystemAsset` | `media_library/system/` | « asset générique partagé par tous, géré par les admins, non supprimable » — **sans propriétaire** |
+>
+> `cible()` exige un `<uid>` **numérique** : `media_library/<uid>/…` migre, `media_library/system/`
+> reste. La zone commune se distingue toute seule, sans liste à tenir.
+>
+> **Fait le 2026-09-12** : 9 fichiers d'assets déplacés (8 lignes réécrites) — invariant 309/29
+> inchangé. `media_library/` ne contient plus aucun fichier d'utilisateur.
+>
+> **Voix du synthesizer — ménage fait le même jour.** `default_voices/` est déclaré *dans le code
+> lui-même* comme « ancien dossier » de repli : ses 5 voix étaient **byte-identiques** à celles de
+> `voice_references/`, et `Voix_Fab.wav` — une voix d'UTILISATEUR — y était servie à tout le monde
+> alors que `UserAsset #1` et `CustomVoice #1` la désignent déjà depuis le domicile de son
+> propriétaire. Les 6 fichiers retirés ; le `README.md`, qui diffère, est conservé.
+> ⚠ Vérifié par une **empreinte FONCTIONNELLE** (on rejoue `resolve_voice_preset` sur les 30
+> presets, pas un comptage d'octets) : **un seul écart**, `Voix_Fab` qui retombe sur `default.wav`
+> — et **0 ligne** de `VoiceSynthesis` ne l'employait (`female_1` 78, `default` 18, `cv_1` 1).
+> `cv_1` et `ua_1` résolvent tous deux vers `users/1/synthesizer/custom_voices/Voix_Fab.wav`.
+>
+> ⚠ **CE QUI RESTE, et ce n'est PAS mécanique** — 39 fichiers hors domicile :
+> 1. **`synthesizer/voice_references/` (30)** — sa **taxonomie est dans l'ARBORESCENCE**
+>    (`<langue>/<âge>/<genre>.wav`) et `resolve_voice_preset` la LIT. La porter en `SystemAsset`
+>    n'est pas un déplacement : c'est déplacer une taxonomie du disque vers des champs, donc
+>    réécrire la résolution des voix. Chantier à part, avec l'empreinte fonctionnelle comme filet ;
+> 2. **`avatarizer/gallery/` (9)** — plat, lu comme une **liste de noms de fichiers** par
+>    `avatarizer.views._gallery_images` ET recopié dans `studio/views.py` (deux parcours de
+>    dossier pour la même galerie). Mécanique, mais il touche deux apps : à faire d'un geste,
+>    en portant les deux lecteurs sur `SystemAsset`.
+>
 > ### 🎯 Cible énoncée par Fabien le 2026-09-12
 >
 > > *« Sortir les fichiers médias des apps et ne faire que les POINTER depuis les apps. »*
