@@ -1354,6 +1354,95 @@ ouvert le dossier où la chose existe déjà.*
 | garés par « présent uniquement dans la zone ±100 m » | filtre par **étalement + durée** — dont la mesure du 11/09 montre qu'il n'a **jamais fonctionné** |
 | BEV + TTC/PET « phase avancée » | **fait** — et c'est l'objet de ce § |
 
+### ⭐ G. AMÉLIORER L'HOMOGRAPHIE — état MESURÉ et plan (2026-09-12, préparation)
+
+> Demande de Fabien : *« on devrait améliorer l'homographie avant de la recâbler »*, puis
+> *« il faut ajouter un contrôle pour être sûr qu'ils sont proprement segmentés sinon on fait
+> une homographie fausse »*. Tout ce qui suit est **mesuré en lecture seule** ; rien n'est
+> codé. Le run qui manque est **GPU**, donc hors de ce poste.
+
+**① L'état, mesuré.**
+
+| | |
+|---|---|
+| caméras portant une `ground_homography` | **1 sur 4** (`front`) — `left`/`rear`/`right` : aucune |
+| dimensions de calibration | `{width_m: 4.0, length_m: 2.5}` — les **défauts normatifs**. ⚠ Les champs `crossing_total_width_m`/`_length_m` que le code interroge **n'existent pas dans `AnalysisProfile`** : ils ne peuvent même pas être surchargés |
+| métrique de qualité | `rms_error_m` = **0,0** |
+| 2a en regard | `front` pitch 22,0° `scale_err_m` **3,06** · `right` 26,5° **4,95** |
+| 2b (ortho) | **jamais lancée** sur ces sessions, alors que `ortho_markings` porte 28 éléments |
+
+**② 🔴 Pourquoi `rms_error_m` vaut TOUJOURS 0 — c'est structurel, pas un bug.**
+`homography_from_quad` construit 4 points sol depuis les dimensions SUPPOSÉES, résout par DLT
+sur **4 correspondances**, puis `evaluate_homography` mesure l'erreur **sur ces mêmes 4
+points**. Or une homographie a **8 degrés de liberté** et 4 points en donnent **8 équations** :
+la solution est **exacte par construction**.
+⭐ *La seule métrique de qualité de l'homographie est mathématiquement incapable de détecter
+quoi que ce soit* — ni une dimension supposée fausse, ni un coin mal détecté, ni l'inversion
+de signe #546. Elle a pu être « prouvée cassée » pendant que son indicateur affichait 0,0.
+*Une métrique évaluée sur les points qui l'ont ajustée n'est pas une mesure, c'est un miroir.*
+
+**③ Le matériau disponible, mesuré** (session `4da52df3`) : **1 365** polygones `crossing`
+segmentés (+ 9 749 `stop_line`), tous sur `front`, d'aires **36 → 26 326 px²** (rapport 730×),
+avec un étalement en profondeur réel (bas de bbox 0,40 → 1,00). **Le code en retient UN**
+(`_polygon_area` max, `tasks.py:2264`) — *un sur mille trois cent soixante-cinq*, et
+mécaniquement **le plus proche**, donc la zone où le pinhole est déjà le moins mauvais. Le
+champ lointain, où l'erreur croît, **ne contraint rien**.
+
+**④ Le contrôle demandé — et pourquoi il est INSÉPARABLE de l'amélioration.** Quatre critères
+géométriques calculés sur les 1 365 (aucune vérité terrain requise) :
+
+| critère | part qui passe |
+|---|---|
+| quad **convexe** (un passage vu en perspective l'est toujours) | **33,1 %** |
+| aire quad / aire polygone ∈ [0,8 ; 1,25] | 27,1 % (médiane 0,72) |
+| rapport petit/grand côté ≥ 0,15 | **12,5 %** — médiane **0,00**, soit un côté de longueur nulle une fois sur deux |
+| confiance ≥ 0,5 | 100 % — **elle ne discrimine rien** |
+| **les quatre** | **136 / 1365 = 10 %** |
+
+⚠ **Et pourtant le passage actuellement retenu passe les quatre** (convexe, 0,84, 0,17,
+conf 0,879) : l'heuristique « aire max » tombe juste **sur cette session**, par chance et non
+par construction. *Le contrôle n'est donc pas nécessaire parce que le résultat d'aujourd'hui
+serait faux — il l'est parce que rien ne le garantit, et parce que l'amélioration elle-même
+va chercher dans les 90 % qui sont mauvais.* **Multi-passages sans contrôle = régression.**
+
+⭐ **Le contrôle et l'amélioration sont le MÊME mécanisme.** Avec 4 points le résidu est nul
+par construction, donc aucun contrôle n'est possible. Dès qu'on ajuste sur N passages à des
+éloignements différents, le système est **surdéterminé** : le résidu devient une vraie mesure,
+et une segmentation aberrante devient un **point aberrant** qu'un RANSAC écarte — en comptant
+ses refus, comme `stationary_rejects` (un filtre doit dire par quelle porte il écarte).
+
+**⑤ Ce que l'ortho apporte, et qui manque structurellement** : des coins **réels et
+géoréférencés** (2b segmente les vrais passages sur l'ortho IGN, *« géo-transform 0 cm »*
+vérifié au `034912c`) au lieu de dimensions normatives — et une **référence externe**, donc un
+écart mesurable en mètres contre des points qui n'ont pas servi à l'ajustement. ⚠ `ortho_markings`
+et `homography_estimator`/`calibration` **ne se parlent pas** aujourd'hui (grep : 0 occurrence).
+
+**⑥ Le recalage de la navette et les bâtiments** (hypothèse de Fabien : les erreurs de position
+dans la voie viennent en grande partie des bâtiments à droite). **Le mécanisme existe déjà en
+partie** : `geo.ign_vector.fetch_buildings` charge la BD TOPO **avec les hauteurs**, `sky_mask()`
+en dérive un **masquage satellite par azimut** (*urban canyon*), et `tasks.py:2627` l'appelle
+par fenêtre d'intersection (`sky_mask_at`, rayon 300 m) → `sky_mask_deg`. **Mais il ne sert qu'à
+ATTÉNUER** la correction ortho là où le ciel est dégagé ; il ne corrige rien, et **rien ne les
+affiche** (pending `#7 bâtiments IGN`).
+→ **Test disponible sans une ligne de code neuve** : la même tâche 2b produit l'**offset latéral
+par intersection** ET le **profil de masquage par azimut**. Si l'offset pointe systématiquement
+à l'**opposé** des azimuts bouchés, le multitrajet est confirmé et les bâtiments passent
+d'atténuateur à **entrée de correction**. ⚠ Le signe n'est pas préjugé : c'est la mesure.
+
+**⑦ LE RUN GPU À FAIRE (un seul, il débloque les trois sujets).** `ortho_recalage` est
+**vision + GPU** (SAM3 sur les tuiles ortho) — interdit sur ce poste (WSL2, 7 crashs hôte) ;
+`ortho_correction`, l'application, est du calcul pur. Ordre et lectures attendues :
+1. lancer **2b** sur `4da52df3` → `results_summary['ortho_correction']` : `anchors`,
+   `camera_bias_m`, `sky_mask_deg`, `report` ;
+2. lire l'**offset par intersection** et le confronter au **masque ciel** (⑥) ;
+3. extraire les **coins géoréférencés** des passages ortho et les confronter au quad supposé
+   4,0 × 2,5 m (⑤) — c'est la première mesure de ce que l'homographie vaut réellement ;
+4. alors seulement, ajuster l'homographie **surdéterminée** sur les 136 passages plausibles,
+   avec RANSAC et résidu rapporté (④), et comparer à `scale_err_m` 3,06/4,95 de 2a.
+
+*Rien de tout cela ne change un comportement : ⚑ `prediction_ground` reste OFF, ⚑
+`sam3_homography` reste ON (historique).*
+
 ### E. Vers la FUSION de données — ce que la liste §C rend possible (cadre, PAS un chantier ouvert)
 
 La doctrine actuelle est **comparer** (⚑ ON/OFF, un chiffre). Fabien vise **fusionner** : accumuler
