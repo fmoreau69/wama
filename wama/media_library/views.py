@@ -189,9 +189,11 @@ def api_upload(request):
         user=user, name=name, asset_type=asset_type,
         file=file, description=description, tags=tags,
     )
-    asset.mime_type = mimetypes.guess_type(file.name)[0] or ''
-    asset.file_size = file.size
-    asset.save(update_fields=['mime_type', 'file_size'])
+    # MIME, taille et `attributes` lus du FICHIER (sonde commune) — même geste que le rangement
+    # d'une sortie d'app (`export_item_to_library`) : un objet 3D arrive avec ses faces et son rig.
+    from .services import enrich_asset_from_file
+    enrich_asset_from_file(asset)
+    asset.save(update_fields=['mime_type', 'file_size', 'attributes', 'duration'])
 
     return JsonResponse(_serialize_user_asset(asset))
 

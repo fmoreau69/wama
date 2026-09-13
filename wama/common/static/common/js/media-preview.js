@@ -288,6 +288,8 @@
                 if (video) video.pause();
                 if (audio) audio.pause();
                 if (window.WamaAudioPlayer) WamaAudioPlayer.destroy('modal-audio');
+                // Visionneuse 3D : libérer le contexte WebGL (un navigateur n'en accorde qu'une poignée).
+                if (c) c.querySelectorAll('[data-wama-3d]').forEach(function (h) { if (h._dispose) h._dispose(); });
                 currentPreviewData = null;
                 previewItems = [];
                 previewCurrentIndex = -1;
@@ -417,6 +419,37 @@
             };
             wrapper.appendChild(fullscreenBtn);
 
+            return wrapper;
+        } else if (mimeType.startsWith('model/')) {
+            // Objet 3D (glTF/GLB, FBX) — visionneuse three.js chargée À LA DEMANDE par l'importmap
+            // commune (`wama/3d-viewer`). Une page sans importmap n'a pas déclaré savoir rendre du
+            // 3D : l'import échoue et l'on retombe sur le téléchargement, sans erreur console.
+            const wrapper = document.createElement('div');
+            wrapper.className = 'w-100 position-relative';
+            wrapper.setAttribute('data-wama-3d', '');
+            wrapper.style.cssText = 'height:65vh;min-height:320px;';
+            const status = document.createElement('div');
+            status.className = 'text-muted small text-center p-3';
+            status.textContent = 'Chargement de l’objet 3D…';
+            wrapper.appendChild(status);
+            const format = (String(data.name || data.url || '').match(/\.([a-z0-9]+)(?:[?#]|$)/i) || [])[1];
+            import('wama/3d-viewer')
+                .then((mod) => mod.mount(wrapper, data.url, { format: format }))
+                .then((viewer) => {
+                    status.remove();
+                    wrapper._dispose = viewer.dispose;
+                    const meta = document.getElementById('wamaMediaPreviewModal')?.querySelector('.preview-meta');
+                    if (meta && viewer.info) {
+                        const parts = [viewer.info.format.toUpperCase(), viewer.info.meshes + ' maillage(s)'];
+                        if (viewer.info.animations.length) parts.push(viewer.info.animations.length + ' animation(s)');
+                        meta.textContent = [meta.textContent, parts.join(' • ')].filter(Boolean).join(' | ');
+                    }
+                })
+                .catch((err) => {
+                    status.innerHTML = '<i class="fas fa-cube fa-3x text-secondary mb-3 d-block"></i>'
+                        + '<p class="mb-3">Aperçu 3D indisponible ici (' + escapeHtml(String(err && err.message || err)) + ')</p>'
+                        + (data.url ? '<a href="' + escapeHtml(data.url) + '" class="btn btn-primary" download><i class="fas fa-download"></i> Télécharger</a>' : '');
+                });
             return wrapper;
         } else if (mimeType === 'application/pdf') {
             // Use <embed> instead of <iframe> — X-Frame-Options: deny does not apply to <embed>

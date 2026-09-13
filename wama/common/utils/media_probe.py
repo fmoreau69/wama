@@ -137,6 +137,74 @@ def probe_video(path: str) -> dict:
         return {}
 
 
+def _gltf_document(path: str):
+    """Le document JSON d'un glTF — lu dans le chunk JSON d'un GLB (en-tête binaire 12 octets,
+    chunk 0 = JSON, spécification glTF 2.0) ou directement pour un `.gltf`. `None` si illisible.
+    Aucune dépendance : on ne décode PAS la géométrie, on lit la TABLE des matières."""
+    import struct
+    from pathlib import Path
+    try:
+        if Path(path).suffix.lower() == '.gltf':
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        with open(path, 'rb') as f:
+            magic, version, _length = struct.unpack('<4sII', f.read(12))
+            if magic != b'glTF':
+                return None
+            chunk_len, chunk_type = struct.unpack('<I4s', f.read(8))
+            if chunk_type != b'JSON':
+                return None
+            return json.loads(f.read(chunk_len).decode('utf-8'))
+    except Exception:
+        return None
+
+
+def probe_object3d(path: str) -> dict:
+    """Sonde d'un OBJET 3D (ROADMAP §17ter, trou 2) — ce que le fichier DÉCLARE, sans le décoder.
+
+    Returns:
+        {'properties': 'GLB • 3 maillages • 1 234 faces • riggé • 2 animations',
+         'attributes': {format, polygons, rigged, animations}}   ← clés de la nature `object3d`
+        Pour un format sans table des matières lisible ici (obj, stl, fbx…) : le format seul.
+        {} si le fichier est illisible (jamais d'exception).
+    """
+    from pathlib import Path
+    try:
+        fmt = Path(path).suffix.lower().lstrip('.')
+    except Exception:
+        return {}
+    attrs = {'format': fmt}
+    doc = _gltf_document(path) if fmt in ('glb', 'gltf') else None
+    if doc is not None:
+        accessors = doc.get('accessors') or []
+        faces = 0
+        for mesh in doc.get('meshes') or []:
+            for prim in mesh.get('primitives') or []:
+                idx = prim.get('indices')
+                if idx is not None and idx < len(accessors):
+                    faces += int(accessors[idx].get('count') or 0) // 3
+                else:
+                    pos = (prim.get('attributes') or {}).get('POSITION')
+                    if pos is not None and pos < len(accessors):
+                        faces += int(accessors[pos].get('count') or 0) // 3
+        animations = [a.get('name') or f'animation {i + 1}'
+                      for i, a in enumerate(doc.get('animations') or [])]
+        attrs.update({
+            'polygons': faces,
+            'rigged': bool(doc.get('skins')),
+            'animations': animations,
+        })
+        n_meshes = len(doc.get('meshes') or [])
+        parts = [fmt.upper(), f"{n_meshes} maillage{'s' if n_meshes > 1 else ''}",
+                 f"{faces:,} face{'s' if faces > 1 else ''}".replace(',', ' ')]
+        if attrs['rigged']:
+            parts.append('riggé')
+        if animations:
+            parts.append(f"{len(animations)} animation{'s' if len(animations) > 1 else ''}")
+        return {'properties': ' • '.join(parts), 'attributes': attrs}
+    return {'properties': fmt.upper(), 'attributes': attrs}
+
+
 def probe_media(path: str) -> dict:
     """Sonde générique TOUS types (dispatch par extension).
 
@@ -186,6 +254,10 @@ def probe_media(path: str) -> dict:
     if cat == 'audio':
         info = probe_audio(path)
         return {'media_type': 'audio', **info} if info else {'media_type': 'audio', 'properties': ''}
+
+    if cat == '3d':
+        info = probe_object3d(path)
+        return {'media_type': '3d', **info} if info else {'media_type': '3d', 'properties': ''}
 
     if cat == 'archive':
         count = None

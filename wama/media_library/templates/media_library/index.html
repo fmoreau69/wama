@@ -5,6 +5,11 @@
 {% block title %}Médiathèque — WAMA{% endblock %}
 
 {% block extra_css %}
+{% comment %}
+  Importmap three.js (brique commune) : c'est elle qui rend l'aperçu 3D possible — media-preview.js
+  importe `wama/3d-viewer` à la demande et retombe sur le téléchargement si elle manque.
+{% endcomment %}
+{% include 'common/_three_importmap.html' %}
 <style>
 /* ── Header ────────────────────────────────────────────────────── */
 .ml-header {

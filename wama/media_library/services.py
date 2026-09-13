@@ -27,6 +27,36 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def enrich_asset_from_file(asset) -> None:
+    """Ce que le FICHIER dit de l'asset — MIME, taille, et les `attributes` que la sonde commune
+    sait lire (`media_probe.probe_media` : un objet 3D livre format / faces / rig / animations ;
+    demain une voix sa durée). Posé à l'INGEST, quel que soit le chemin d'entrée (dépôt, rangement
+    d'une sortie d'app, fournisseur) : c'est ce qui remplit la déclaration A′ sans formulaire.
+    Fail-safe : une sonde qui échoue laisse l'asset tel quel. N'enregistre pas."""
+    from wama.common.utils.media_probe import probe_media
+    from wama.common.utils.mime_utils import guess_mime_type
+
+    try:
+        chemin = asset.file.path
+    except Exception:
+        return
+    if not asset.mime_type:
+        asset.mime_type = guess_mime_type(chemin) or ''
+    try:
+        asset.file_size = asset.file_size or asset.file.size
+    except Exception:
+        pass
+    try:
+        sonde = probe_media(chemin) or {}
+    except Exception:
+        sonde = {}
+    lus = sonde.get('attributes') or {}
+    if lus:
+        asset.attributes = {**lus, **(asset.attributes or {})}   # ce que l'utilisateur a saisi prime
+    if sonde.get('duration') and not asset.duration:
+        asset.duration = sonde['duration']
+
+
 def candidate_asset_types(nom_fichier: str) -> list:
     """Rôles d'asset admissibles pour cette extension, dans l'ordre de `ASSET_TYPES`.
 
@@ -135,7 +165,9 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
     try:
         with open(chemin, 'rb') as f:
             # ⭐ AUCUN chemin construit ici : `upload_to` (UploadToUserPath) décide du domicile.
-            asset.file.save(chemin.name, File(f), save=True)
+            asset.file.save(chemin.name, File(f), save=False)
+        enrich_asset_from_file(asset)
+        asset.save()
     except Exception as e:
         logger.warning(f"[media_library] export {app}#{pk} : écriture impossible : {e}")
         return {'error': f"Impossible de ranger le fichier : {e}"}
