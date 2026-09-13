@@ -3823,6 +3823,9 @@ registre (⑤), la confrontation dans les deux sens.
   les COMMANDES écrites dans les skills (`git show HEAD:…`) et les champs `doc` suivis d'une
   ANCRE (`'…md §3'`, révélés par 46 échecs de test). Les noms nus en commentaire restent valides :
   les noms sont uniques, et `check_docs` indexe désormais `docs/`.
-  ⏳ **Palier C** : le `README.md` racine — arborescence et liens GÉNÉRÉS depuis le catalogue.
+  ✅ **Palier C** (2026-09-14) : le `README.md` racine porte l'arborescence de la doc en bloc
+  GÉNÉRÉ depuis le catalogue (`doc_facts`, fait `arborescence_docs`) — la table écrite à la main
+  qu'il remplace citait 11 docs sur 45. Le README est déclaré : la carte n'a plus aucun `.md`
+  non déclaré, et `check_docs` contrôle désormais ses liens.
 - **Langue** : la doc reste en FRANÇAIS pour l'instant. Plus tard : l'harmoniser en anglais et la
   faire entrer dans l'i18n (`§10`) pour la traduction complète de WAMA.

@@ -408,11 +408,56 @@ def _fait_conformite():
     )
 
 
+def _fait_arborescence_docs():
+    """L'arborescence de la doc, rendue depuis le CATALOGUE des docs (ROADMAP §25.4, palier C).
+
+    Le README racine portait une table de 11 docs écrite à la main, quand le catalogue en déclare
+    plus de 40 — et ses liens ont tous dû être recalés au déménagement du 2026-09-14. La liste vit
+    dans `wama/common/docs_catalog.py` ; ce bloc n'en est que le rendu, dans l'ordre des dossiers.
+    Aucune donnée lue en base : le README est versionné, il doit être le même partout.
+    """
+    from django.conf import settings
+
+    from wama.common.docs_catalog import DOCS, FAMILIES
+
+    base = Path(settings.BASE_DIR)
+
+    def _item(d):
+        return f"- [{d.label}]({d.path}) — {d.description}"
+
+    lignes = ["- **À la racine** — la doctrine, lue par tout agent et par un humain"]
+    lignes += ["  " + _item(d) for d in DOCS
+               if d.path and '/' not in d.path and d.path != 'README.md']
+    lignes.append("- **`docs/construction/`** — la doc de CONSTRUCTION, écrite à la main : "
+                  "la source des deux autres")
+    for famille, libelle in FAMILIES.items():
+        docs = [d for d in DOCS if d.path.startswith(f"docs/construction/{famille}/")]
+        if docs:
+            lignes.append(f"  - **`{famille}/`** — {libelle}")
+            lignes += ["    " + _item(d) for d in docs]
+    archives = sorted((base / 'docs' / 'construction' / 'archive').glob('*.md'))
+    if archives:
+        lignes.append(f"  - **`archive/`** — {len(archives)} documents archivés, consultables pour "
+                      f"retrouver un oubli ; jamais déclarés ni réécrits")
+    lignes.append("- **`docs/dev/`** — la doc DÉVELOPPEUR, GÉNÉRÉE depuis la doc de construction "
+                  "et les registres : ne pas éditer")
+    lignes += ["  " + _item(d) for d in DOCS if d.path.startswith('docs/dev/')]
+    calculees = [d.label for d in DOCS if d.generator]
+    if calculees:
+        lignes.append("  - *et, calculées à la lecture dans WAMA :* " + ' · '.join(calculees))
+    lignes.append("- **`docs/utilisateur/`** — la doc UTILISATEUR, générée elle aussi : à venir")
+    lignes.append("- **Docs de module** — ils restent à côté de leur code")
+    lignes += ["  " + _item(d) for d in DOCS
+               if d.path and '/' in d.path and not d.path.startswith('docs/')]
+    return '\n'.join(lignes)
+
+
 # fait → (fichier de référence, fonction). Un fait vit dans UN doc (un domaine = un fichier).
 # ⚠ Un skill EST un fichier de référence recevable : le chemin est relatif à BASE_DIR, rien
 # d'autre n'est requis. Ouvert aux skills le 2026-08-27 — c'est là que les chiffres périmés
 # coûtent le plus cher, puisqu'on leur OBÉIT au lieu de les lire.
 FAITS = {
+    'arborescence_docs': ('README.md', _fait_arborescence_docs),
     'outils': ('docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md', _fait_outils),
     'modeles': ('docs/construction/architecture/WAMA_MANIFEST_SPEC.md', _fait_modeles),
     'roundtrip': ('docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md', _fait_roundtrip),

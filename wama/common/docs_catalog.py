@@ -115,6 +115,11 @@ DOCS: Tuple[Doc, ...] = (
     Doc('claude', 'CLAUDE.md', 'CLAUDE — le harnais Claude Code', 'doctrine',
         "Les seules règles propres au harnais Claude Code (permissions, hooks). Importe "
         "AGENTS.md et n'en recopie rien."),
+    # Le point d'entrée du dépôt. Son arborescence de la doc est un bloc GÉNÉRÉ depuis ce
+    # catalogue (`doc_facts`, fait `arborescence_docs`) — palier C du déménagement, 2026-09-14.
+    Doc('readme', 'README.md', 'README — présentation et carte de la doc', 'doctrine',
+        "Présentation de WAMA, installation, architecture — et l'arborescence de la doc, "
+        "générée depuis ce catalogue."),
     # ── architecture & génération ──
     Doc('mecanismes', 'docs/construction/architecture/WAMA_MECANISMES.md', 'Carte des mécanismes', 'architecture',
         "Index des briques transversales : où vit quoi, qui l'utilise. Sa table est générée "

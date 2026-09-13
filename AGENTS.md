@@ -240,12 +240,12 @@ apply_patch(
 
 | # | Fichier | Problème |
 |---|---------|----------|
-| 1 | `boson_multimodal/.../modeling_higgs_audio.py` | transformers 4.57+ (7 patches) |
-| 2 | `df/io.py` | torchaudio 2.x — `AudioMetaData` supprimé |
+| 1 | `site-packages/boson_multimodal/.../modeling_higgs_audio.py` | transformers 4.57+ (7 patches) |
+| 2 | `site-packages/df/io.py` | torchaudio 2.x — `AudioMetaData` supprimé |
 | 3 | `tts_service.py` | In-repo (vérification seulement) |
 | 4 | `start_wama_prod.sh` | In-repo (vérification seulement) |
-| 5 | `xformers/ops/seqpar.py` | torch 2.9.x — `GroupName` supprimé |
-| 6 | `vibevoice/.../modeling_vibevoice_asr.py` | lm_head : overflow int32 du GEMM CUDA sur audio long → `cudaErrorUnknown` (logits sur dernier token seulement) |
+| 5 | `site-packages/xformers/ops/seqpar.py` | torch 2.9.x — `GroupName` supprimé |
+| 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | lm_head : overflow int32 du GEMM CUDA sur audio long → `cudaErrorUnknown` (logits sur dernier token seulement) |
 
 ---
 
