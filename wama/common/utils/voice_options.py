@@ -6,7 +6,10 @@ Source COMMUNE des options de voix (TTS) — centralise ce qui était rendu en o
 
 5 groupes (ordre reproduisant l'existant Synthesizer) :
   1. Voix par défaut            → default
-  2. Voix de référence intégrées → scan_voice_refs() (dynamique) ; sinon « héritage » statique
+  2. Voix de référence intégrées → voice_reference_groups() : les `SystemAsset(voice)` de la
+                                   médiathèque, groupés par (langue, âge) depuis `attributes`
+                                   (depuis le 2026-09-13 — avant : un scan de dossier, et un
+                                   repli statique « héritage » quand le dossier était vide)
   3. Mes voix (clonage)         → UserAsset(asset_type='voice') de l'utilisateur (ua_<id>)
   4. Bark (presets)             → constantes BARK_PRESETS
 
@@ -28,33 +31,24 @@ BARK_PRESETS = [
     ("bark_v2_es_0", "Bark ES Speaker 0"), ("bark_v2_de_0", "Bark DE Speaker 0"),
 ]
 
-# Repli « héritage » si scan_voice_refs() ne renvoie rien (voix non téléchargées).
-_HERITAGE = [
-    ("male_1", "Voix masculine 1"), ("male_2", "Voix masculine 2"),
-    ("female_1", "Voix féminine 1"), ("female_2", "Voix féminine 2"),
-]
-
-
 def get_voice_groups(user) -> list[dict]:
     """Groupes de voix (optgroups) pour l'utilisateur, format WamaParams option_groups."""
     groups: list[dict] = [
         {"group": "Voix par défaut", "options": [("default", "Voix par défaut")]},
     ]
 
-    # 2. Voix de référence intégrées (dynamique) ou repli héritage.
+    # 2. Voix de référence de la médiathèque. Une médiathèque VIDE donne zéro groupe — plus de
+    # repli « héritage » (il offrait des ids plats dont les fichiers n'existaient pas forcément).
     try:
-        from wama.common.tts.voice_refs import scan_voice_refs
-        refs = scan_voice_refs() or []
+        from wama.common.tts.voice_refs import voice_reference_groups
+        refs = voice_reference_groups() or []
     except Exception:
         refs = []
-    if refs:
-        for grp in refs:
-            groups.append({
-                "group": grp.get("group", ""),
-                "options": [(v["id"], v["label"]) for v in grp.get("voices", [])],
-            })
-    else:
-        groups.append({"group": "Voix intégrées (héritage)", "options": list(_HERITAGE)})
+    for grp in refs:
+        groups.append({
+            "group": grp.get("group", ""),
+            "options": [(v["id"], v["label"]) for v in grp.get("voices", [])],
+        })
 
     # 3. Mes voix (clonage) — UserAsset type='voice'.
     try:
@@ -83,8 +77,8 @@ def voice_display_options(user) -> list[tuple[str, str]]:
     on ne rend pas illisible la donnée qui la porte.*
 
     Import du modèle synthesizer PARESSEUX et tolérant — même précédent que
-    `scan_voice_refs` plus haut : ce module centralise la connaissance des voix, il est le
-    seul du substrat autorisé à la chercher là où elle vit.
+    `voice_reference_groups` plus haut : ce module centralise la connaissance des voix, il est
+    le seul du substrat autorisé à la chercher là où elle vit.
     """
     plates: list[tuple[str, str]] = []
     for g in get_voice_groups(user):

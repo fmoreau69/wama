@@ -263,14 +263,20 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
 
 **Ce qui reste, nommé :**
 
-- Les **voix de référence** vont en médiathèque (`SystemAsset`) : leur taxonomie
-  `<langue>/<âge>/<genre>` devient des CHAMPS, et c'est ce qui permet aux deux filtres de s'y
-  brancher sans rien connaître du TTS. ⚠ `tts_service.py:34` (processus séparé) et
-  `VOICE_REFS_SUBDIR` (commun) sont les deux endroits qui décident du dossier : ils suivent
-  ensemble ou pas du tout.
-  **Le plan COMPLET est consigné le 13/09 dans `MEDIA_STORAGE_TIERING.md §9`** — la
-  construction A′ (`attributes` JSON + vocabulaire `ASSET_NATURES`, validée par Fabien), les
-  9 décisions à ne plus reposer, le relevé ligne par ligne des lecteurs du dossier de voix et
-  l'ordre des 7 marches. Le branchement voix ↔ langue des filtres est sa marche 6 : les options
-  de voix porteront `data-language` depuis `attributes`, et `voiceSlot`/`langSlot` croiseront
-  les deux axes (état « avertissement », jamais caché).
+- ✅ **Les voix de référence SONT en médiathèque (13/09)** — `SystemAsset(voice)`, taxonomie en
+  `attributes` (construction A′), menu dérivé d'une requête, `tts_service.py` sans dossier :
+  plan et bilan mesuré dans **`MEDIA_STORAGE_TIERING.md §9`** (9 décisions à ne plus reposer,
+  7 marches, marches 1-5 faites).
+- ⏳ **Marche 6 — le branchement voix ↔ langue** : les options de voix porteront
+  `data-language` depuis `attributes`, et `voiceSlot`/`langSlot` croiseront les deux axes (voix
+  française sur un moteur sans français = état « avertissement », jamais caché).
+- ⚠ **Trouvé le 13/09 en mesurant la page servie** : `avatarizer/index.html` ne chargeait NI
+  `wama-model-caps.js` NI `wama-input-match.js`. Le bloc d'appariement écrit le 28/08 et
+  « porté » le 12/09 était gardé par `if (window.WamaModelCaps)` — donc **MORT** : aucune voix
+  clonée masquée, aucune langue restreinte, aucun moteur grisé sur cette page, et rien ne le
+  signalait. Corrigé (les deux `<script>`), attesté par une sonde double sens sur l'avatarizer :
+  10/10. *Un bloc gardé par « si la brique existe » se tait quand elle manque — la garde à
+  poser est l'inverse : signaler son absence.*
+- 🔚 observation, non tranchée : une voix clonée grise aussi l'option **`auto`** (le choix
+  automatique ne porte pas `supports_cloning`) — à décider : `auto` devrait-il rester
+  compatible et laisser le tirage exiger un moteur qui clone ?
