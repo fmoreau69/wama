@@ -3809,6 +3809,10 @@ registre (⑤), la confrontation dans les deux sens.
   catalogue n'aura plus à déclarer.
   **Coût mesuré** (2026-09-11) : ~440 citations dans 175 fichiers de code, tests et skills, ~660
   dans 68 `.md` — dont les journaux et archives, qu'on ne réécrit PAS (faits d'histoire).
+  **Premier geste de la session** (demande de Fabien, 2026-09-12) : relever la CARTE du jour —
+  `python manage.py check_docs --carte` (les `.md` du dépôt, déclarés / non déclarés / déclarés
+  mais absents). Des sessions écrivent d'ici là : un inventaire recopié serait faux au moment
+  d'agir. C'est aussi la liste de ce qu'il faut DÉCLARER avant de déplacer quoi que ce soit.
   **Méthode** : `git mv` (historique conservé), skill `/renommage-api` (grep exhaustif des
   citations), `check_docs` en filet — ⚠ après avoir levé son exclusion de `docs/` dans l'index des
   noms, sans quoi toute citation par nom nu casserait. À faire AVANT la révision de fond §25.2.
