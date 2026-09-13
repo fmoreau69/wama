@@ -439,6 +439,9 @@ const CSRF_TOKEN = "{{ csrf_token }}";
 // Regroupement « audio » (voice/audio_music/audio_sfx) — source unique = TYPE_GROUPS
 // (media_library/models.py), plus de liste dupliquée en dur dans media-library.js.
 const AUDIO_TYPES = {{ audio_types_json|safe }};
+// La DÉCLARATION des natures (natures.py) — libellé, icône, formats admis, schéma d'attributs.
+// media-library.js en DÉRIVE ses tables ; avant le 2026-09-13 il en recopiait trois en dur.
+const NATURES = {{ natures_json|safe }};
 </script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-prompt-chips.css' %}">
 <script src="{% static_v 'common/js/wama-prompt-chips.js' %}"></script>

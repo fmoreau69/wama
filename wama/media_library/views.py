@@ -20,6 +20,7 @@ from wama.common.utils.volet import VOLET_AUCUN
 
 from .models import (UserAsset, SystemAsset, MediaProvider, UserProviderConfig, PromptKeyword,
                      ASSET_TYPES, ALLOWED_EXTENSIONS, TYPE_GROUPS)
+from .natures import natures_as_json
 from .providers.registry import get_provider
 from wama.accounts.views import get_or_create_anonymous_user
 
@@ -43,6 +44,7 @@ def _serialize_user_asset(a):
         'mime_type':   a.mime_type,
         'description': a.description,
         'tags':        a.tags,
+        'attributes':  a.attributes or {},
         'created_at':  a.created_at.strftime('%d/%m/%Y'),
     }
 
@@ -58,6 +60,7 @@ def _serialize_system_asset(a):
         'mime_type':   a.mime_type,
         'description': a.description,
         'tags':        a.tags,
+        'attributes':  a.attributes or {},
         'license':     a.license,
     }
 
@@ -82,6 +85,9 @@ def index(request):
         # `models.py`, filtrage serveur). Avant 2026-07-09 : dupliqué en dur (`AUDIO_TYPES` codé
         # dans media-library.js) — retiré, ne reste que cette source.
         'audio_types_json': json.dumps(TYPE_GROUPS['audio']),
+        # La DÉCLARATION des natures (libellé, icône, formats admis, schéma d'attributs) : le JS
+        # de la page en dérive ses trois tables au lieu de les recopier (A′, 2026-09-13).
+        'natures_json': json.dumps(natures_as_json()),
         # La médiathèque a sa PROPRE mise en page (grille + onglets) et son propre aperçu :
         # le volet n'y portait que 3 cadres vides (WAMA_VOLETS §2). ⚠ Elle expose un index,
         # donc `discoverable_apps()` la voit — mais ce n'est PAS une app du catalogue, d'où
@@ -220,8 +226,17 @@ def api_edit(request, pk: int):
         asset.tags = data['tags'].strip()
         updated.append('tags')
 
+    # Attributs déclarés par la nature (A′) : FUSION clé à clé (une clé absente du payload
+    # n'est pas effacée ; `null`/`''` la retire — c'est `normalize_attributes` qui l'applique).
+    if isinstance(data.get('attributes'), dict):
+        asset.attributes = {**(asset.attributes or {}), **data['attributes']}
+        updated.append('attributes')
+
     if updated:
-        asset.save(update_fields=updated)
+        try:
+            asset.save(update_fields=updated)
+        except ValueError as exc:            # valeur hors du vocabulaire de la nature
+            return JsonResponse({'error': str(exc)}, status=400)
 
     return JsonResponse(_serialize_user_asset(asset))
 
