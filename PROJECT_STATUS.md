@@ -13839,3 +13839,58 @@ la journée (double sens ×2, voix servies, natures, 3D) entrent au nocturne
 **Restent à Fabien** : provenance/licence des 28 voix, `WAMA_Presentation.wav` (Fabien + un
 smoke), réalignement des ids plats, miroir 7,5 Go, `describer.result_file`, le **push** ; et un
 tag Ollama mort relevé par `check_model_declarations` (`qwen3.5:9b`, hors de cette instance).
+
+## §CLÔTURE — 2026-09-13 (nuit), même instance, APRÈS CRASH HÔTE — ✅ CLOSE — 🔚 POINT D'ENTRÉE
+
+> Le PC a crashé pendant l'installation des librairies de TripoSR par la route `library`
+> (librarian → write_back → `install_library --allow --apply`). **Aucune des trois commandes
+> interrompues n'avait écrit quoi que ce soit** (mesuré : pas de sortie `library_*` du jour dans
+> `wama-dev-ai/outputs`, pas de clone `vendor/triposr/`, dossier `AI-models/models/vision/triposr`
+> créé mais VIDE). Tout le travail de la journée était déjà commité (`566d1605`).
+
+**🔚 POINT D'ENTRÉE** : `/reprise`, puis — si Fabien confirme — **reprendre la route library
+là où le crash l'a coupée**, dans cet ordre et avec le contrôle à chaque marche :
+1. `python wama-dev-ai/run_librarian.py --repo mikedh/trimesh` puis `--repo pmneila/PyMCubes`
+   (un appel Ollama hôte chacun) → relire `outputs/library_*.json` : le `install.pip` doit être
+   **épinglé** (`trimesh==5.1.0`, `PyMCubes==0.1.6` — versions vérifiées sur PyPI le 13/09),
+   corriger le pin si le LLM en a mis un autre, poser le manifeste dans `manifests/libraries/` ;
+2. `manage.py apply_manifests --apply` (projection → registre `Library`) ;
+3. `manage.py install_library trimesh` (PLAN : lire `simulation.retrogradations` — doit être
+   vide), puis `--allow --apply` ; idem PyMCubes ; contrôler `importlib.metadata.version`,
+   `patches` rejoués, `invalidate_engine_cache()` ;
+4. `bash tools/setup_triposr.sh` (clone épinglé + 2 patches) → `TripoSRBackend.missing_packages()`
+   doit rendre `[]` → `known_engines()` contient `triposr` ;
+5. `manage.py sync_models` (la ligne `huggingface:triposr` entre au catalogue) puis
+   `pull_model stabilityai/TripoSR --category vision --family triposr` (≈1,7 Go) ;
+6. **premier maillage AVEC Fabien** (GPU) : un cube ou une photo détourée par le studio
+   (`media_import` → `studio.image_to_3d` → « Sortie ») ; vérifier l'ORIENTATION des faces
+   (PyMCubes vs torchmcubes) et la médiathèque (`object3d`, attributs lus).
+
+⚠ Après crash hôte (Kernel-Power 41) : dérouler `/crash-residus` (swap.vhdx orphelins, VSS,
+dumps) et HWiNFO — pas fait par cette instance, le serveur WAMA n'était pas relancé.
+
+**Gardes AJOUTÉES à la clôture** (demande Fabien : « ajouter les tests qui pourraient manquer ») :
+la page de l'avatarizer CHARGE bien les deux briques (le trou du 13/09 était invisible d'une garde
+qui ne lisait que les déclarations), les deux modèles libellent par `describe_voice`,
+`ingest_voice_refs` rejouée sur un MEDIA_ROOT jetable (plan sans effet, apply, idempotence,
+résolution par l'ancien id), les trois scénarios nocturnes neufs sont bien AU REGISTRE.
+**Non gardé, nommément** : `download_missing_voice_refs` (réseau), `tts_service.py` sans dossier
+(contre-épreuve = script de session, 37 presets/0 écart — pas un test), l'inférence TripoSR et
+le chemin « résultat-fichier » de l'exécuteur studio (nécessite un run réel), `update_vendors.sh`
+/ `setup_triposr.sh` (scripts).
+
+**Pendings système** : serveur WAMA + workers + service TTS à RELANCER (crash) ; `dev` =
+**23 commits non poussés** (push = décision Fabien) ; `REMOVAL_LEDGER` porte **deux R43**
+(01/09, deux sessions — pas de cette instance ; renuméroter + table de renvoi) ; un tag Ollama
+mort (`qwen3.5:9b`, `check_model_declarations`) hors de cette instance.
+
+**Décisions ouvertes (Fabien)** : provenance/licence des 28 voix ; `WAMA_Presentation.wav`
+(Fabien + le compte smoke `pw_smoke`) ; réalignement des ids plats stockés ; miroir 7,5 Go ;
+`describer.result_file` ; loaders 3D obj/stl/ply à vendoriser ou non ; formulaire d'édition des
+`attributes` en médiathèque (A′ le promet, rien ne le rend encore).
+
+**Contrôles attendus au prochain /reprise** (mesurés cette nuit, après crash) : tests du
+périmètre **208** (9 modules) → le chiffre à comparer est le NOMBRE DE ROUGES, attendu 0 ;
+`check_docs` 0 cassée / 0 périmée sur **1716** ; `manifest_export --check` « corpus à jour
+(204) » ; `doc_facts --check` vert ; `check_skills` 0 défaut franc ; nocturne des trois scénarios
+neufs 3/3 (serveur vivant requis).

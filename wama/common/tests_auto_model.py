@@ -437,6 +437,13 @@ class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
                                             'direction inverse')
             self.assertNotIn('hideOption: function', src,
                              f'{page} : un prédicat de masquage est encore écrit dans la page')
+            # ⚠ DÉCLARER ne suffit pas : la page doit CHARGER les briques. Mesuré le 13/09 :
+            # l'avatarizer déclarait tout et n'incluait ni l'un ni l'autre — le bloc, gardé par
+            # `if (window.WamaModelCaps)`, était mort sans signal. Cette garde ne lisait que la
+            # déclaration ; elle lit désormais aussi le <script src>.
+            for brique in ('common/js/wama-model-caps.js', 'common/js/wama-input-match.js'):
+                self.assertIn(brique, src, f'{page} : la brique {brique} n’est pas chargée — '
+                                           'le bloc d’appariement se tait sans elle')
 
     def test_les_briques_exposent_les_deux_directions(self):
         caps_js = self._lire('wama/common/static/common/js/wama-model-caps.js')
