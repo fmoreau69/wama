@@ -86,7 +86,10 @@ def _sink_text_to_media_library(user, text, params, run_id):
     from django.core.files.base import ContentFile
     from wama.media_library.models import UserAsset
     base = (params.get('asset_name') or '').strip() or f"studio-run-{run_id}"
-    asset_type = params.get('asset_type') or 'document'
+    # Une CATÉGORIE (`'audio'`) devient sa nature par défaut ; un alias n'entre plus en base
+    # (A′, `natures.resolve_asset_type` — le puits écrivait la valeur telle quelle jusqu'au 13/09).
+    from wama.media_library.natures import resolve_asset_type
+    asset_type = resolve_asset_type(params.get('asset_type') or 'document', f"{base}.txt")
     name, k = base, 2
     while UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():
         name = f"{base} ({k})"
@@ -256,7 +259,8 @@ def _sink_frame_to_media_library(user, frame, params, run_id):
     from django.core.files.base import ContentFile
     from wama.media_library.models import UserAsset
     base = (params.get('asset_name') or '').strip() or f"studio-run-{run_id}-{frame.data_type}"
-    asset_type = params.get('asset_type') or 'document'
+    from wama.media_library.natures import resolve_asset_type
+    asset_type = resolve_asset_type(params.get('asset_type') or 'document', f"{base}.csv")
     name, k = base, 2
     while UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():
         name = f"{base} ({k})"
@@ -283,7 +287,9 @@ def _sink_media_library(user, value, params):
     src_abs = os.path.join(settings.MEDIA_ROOT, value)
     if not os.path.exists(src_abs):
         raise ValueError(f"Nœud « Sortie » : fichier à ranger introuvable ({value}).")
-    asset_type = params.get('asset_type') or 'video'
+    # Catégorie → nature (A′) ; l'extension du fichier rangé départage dans la catégorie.
+    from wama.media_library.natures import resolve_asset_type
+    asset_type = resolve_asset_type(params.get('asset_type') or 'video', os.path.basename(value))
     base = (params.get('asset_name') or '').strip() or os.path.splitext(os.path.basename(value))[0]
     name, k = base, 2
     while UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():

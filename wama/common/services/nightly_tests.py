@@ -187,8 +187,6 @@ def sweep_test_witnesses() -> int:
 
     ids = list(get_user_model().objects.filter(username__in=TEST_USERNAMES)
                .values_list('pk', flat=True))
-    if not ids:
-        return 0
     racine = Path(settings.MEDIA_ROOT)
     n = 0
     for uid in ids:
@@ -203,6 +201,18 @@ def sweep_test_witnesses() -> int:
                     n += 1
                 except OSError as exc:                       # pragma: no cover
                     logger.debug("[nightly] témoin non effacé %s (%s)", chemin, exc)
+    # 4. Le dossier TEMPORAIRE du système, où `_fichier_temoin` FABRIQUE ses témoins avant de
+    #    les déposer : un scénario interrompu entre les deux les y laisse (mesuré 13/09 : 3 dans
+    #    `/tmp`, datés des 01-02/09). Même borne de NOM — et uniquement notre préfixe explicite,
+    #    jamais la forme `tmpXXXXXXXX` que d'autres programmes produisent aussi.
+    import tempfile
+    for chemin in Path(tempfile.gettempdir()).glob('wama_temoin_*'):
+        try:
+            if chemin.is_file():
+                chemin.unlink()
+                n += 1
+        except OSError as exc:                               # pragma: no cover
+            logger.debug("[nightly] témoin temporaire non effacé %s (%s)", chemin, exc)
     return n
 
 

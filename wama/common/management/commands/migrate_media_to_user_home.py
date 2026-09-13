@@ -125,7 +125,10 @@ def champs_fichier():
 #: domicile) tandis que `SystemAsset` range sous `media_library/system/` (asset générique, géré
 #: par les admins, sans propriétaire). `cible()` exige un `<uid>` NUMÉRIQUE : le premier migre,
 #: le second reste où il est. La zone commune se distingue donc toute seule.
-HORS_PERIMETRE = ('users', 'mounts', 'nightly_tests', 'tests_lot', 'studio')
+#: ⚠ `nightly_tests` et `tests_lot` en sont SORTIS le 2026-09-13 : aucun test n'écrit plus à la
+#: racine de `media/` (la suite → `media_tests/`, le nocturne → le domicile du compte de test).
+#: Les garder ici ferait d'une exception un seuil périmé.
+HORS_PERIMETRE = ('users', 'mounts', 'studio')
 
 
 def cible(valeur: str):

@@ -96,6 +96,9 @@ class WamaTestRunner(DiscoverRunner):
         super().setup_test_environment(**kwargs)
         racine = Path(settings.BASE_DIR) / DOSSIER_MEDIAS_DE_TEST
         racine.mkdir(parents=True, exist_ok=True)
+        balayes = balayer_runs_orphelins(racine)
+        if balayes and self.verbosity >= 1:
+            print(f"Médias de test : {balayes} exécution(s) orpheline(s) balayée(s) de {racine.name}/")
         # Un sous-dossier PAR EXÉCUTION : deux campagnes concurrentes (deux instances
         # Claude, un nocturne pendant une session) ne se marchent pas dessus, et rien ne
         # survit d'une exécution à l'autre — c'est cette survivance qui créait la collision.
@@ -162,6 +165,35 @@ def _refuser_si_tests_reels(racine: str) -> None:
             f"liste (et rendre ses modules importables), ou déplacer ces tests.")
 
 
+#: Au-delà de cet âge, un `run-*` n'appartient plus à une campagne en cours (la suite complète
+#: dure ~40 min) : c'est une exécution INTERROMPUE (Ctrl-C, timeout, crash) dont le teardown
+#: n'a jamais tourné. Mesuré le 2026-09-13 : **134** dossiers `run-*` accumulés depuis le 04/09,
+#: 125 VIDES (sur DrvFS, `rmtree` retire le contenu mais laisse parfois le dossier) et 9 pleins.
+RUN_ORPHELIN_APRES_S = 24 * 3600
+
+
+def balayer_runs_orphelins(racine: Path, maintenant: float | None = None) -> int:
+    """Retire de `media_tests/` les exécutions ORPHELINES : dossiers `run-*` vides, ou plus
+    vieux que `RUN_ORPHELIN_APRES_S`. Une campagne CONCURRENTE (autre instance, nocturne) est
+    récente et non vide : elle n'est jamais touchée. Rend le nombre de dossiers retirés."""
+    import time
+    maintenant = time.time() if maintenant is None else maintenant
+    n = 0
+    for d in racine.glob('run-*'):
+        if not d.is_dir():
+            continue
+        try:
+            vide = not any(d.iterdir())
+            vieux = (maintenant - d.stat().st_mtime) > RUN_ORPHELIN_APRES_S
+        except OSError:
+            continue
+        if vide or vieux:
+            _supprimer_sans_risque(d)
+            if not d.exists():
+                n += 1
+    return n
+
+
 def _supprimer_sans_risque(dossier: Path) -> None:
     """Supprime `dossier` UNIQUEMENT s'il est bien un sous-dossier d'exécution.
 
@@ -181,6 +213,13 @@ def _supprimer_sans_risque(dossier: Path) -> None:
         if not cible.name.startswith('run-'):
             return
         shutil.rmtree(cible, ignore_errors=True)
+        # DrvFS (WSL2 sur `/mnt/d`) : le contenu part, le dossier reste parfois — un second
+        # `rmdir` le retire, sinon il traînera jusqu'au balayage des orphelins.
+        if cible.is_dir():
+            try:
+                cible.rmdir()
+            except OSError:
+                pass
     except Exception:
         # Un dossier temporaire non supprimé n'est pas une raison de faire échouer
         # une campagne de tests : il sera balayé au prochain passage.

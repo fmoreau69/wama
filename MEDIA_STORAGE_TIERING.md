@@ -277,6 +277,35 @@ vrais : `regis.blanchet` en avait 100). Cause : aucun `override_settings(MEDIA_R
 (`media_tests_quarantaine/` — dossier depuis résorbé, absent du disque au relevé du 27/08 ; le
 journal de déplacement est parti avec lui). Détail : `PROJECT_STATUS §REPRISE 25/08`.
 
+#### ①bis — `media_tests/` reste HORS de `media/`, et voici où va chaque média de test (question Fabien, 2026-09-13)
+
+> *« Si le dossier `media` est nettoyé, réincorpore-t-on `media_tests` à l'intérieur, ou on le
+> laisse à l'extérieur pour être sûr que ça ne se mélange pas ? »*
+
+**Dehors — c'est déjà DÉCIDÉ et écrit dans le code** (`runners.py:59-61`) : *« sœur de `media/`,
+JAMAIS dedans : `media/` est servi par Apache, sauvegardé et "tiré" (`mirror_sync`). Un dossier
+de test y serait servi et copié. »* Le nettoyage de `media/` ne peut donc pas toucher un média
+de test, et réciproquement. Un seul gitignore pour les deux (`.gitignore:9,12`).
+
+**Où va chaque média de test — MESURÉ le 13/09, trois familles :**
+
+| famille | où | pourquoi là | filet |
+|---|---|---|---|
+| **suite `manage.py test`** (2288 tests) | `media_tests/run-<id>/` — un dossier PAR exécution, hors `media/` | le runner redirige `MEDIA_ROOT` ; les ids d'une base de test entrent en collision avec les vrais | supprimé au teardown ; **depuis le 13/09** les exécutions ORPHELINES (vides, ou > 24 h — Ctrl-C, timeout) sont balayées à l'entrée de la suivante (`balayer_runs_orphelins`). Mesuré avant : **134 `run-*` accumulés** depuis le 04/09, 125 vides (DrvFS laisse le dossier), 9 pleins |
+| **nocturne** (`run_nightly_tests`, Playwright sur le serveur VIVANT) | `media/users/<uid des comptes de test>/…` — DANS `media/`, chez les comptes `wama_nightly_test` (22), `ui_smoke_v3` (54), `pw_smoke` (21), `wama_nightly_dev` (189)… | il passe par le vrai serveur, donc le vrai `MEDIA_ROOT` : c'est le prix de tester la chaîne réelle. **Un compte de test = une zone de test** ; tout est balayable par ID (filet ORM des scénarios) et par NOM (`wama_temoin_*`, `sweep_test_witnesses`) | **depuis le 13/09** le balayage couvre aussi le dossier TEMPORAIRE du système (3 témoins y traînaient depuis le 01/09). ⚠ Ce qui reste chez ces comptes après balayage (**26 fichiers**) est RÉFÉRENCÉ par leurs propres jobs (smokes manuels d'août : `smoke_h1908.*`, `pw_test.png`, `Chat.jpg`…) — ce sont leurs données, pas des orphelins ; 8 orphelins sans préfixe (`a.png`, `d.mp3`, `tts_smoke_test.wav`…) retirés à la main |
+| **fixtures nocturnes qui DOIVENT être sous `MEDIA_ROOT`** (le nœud `media_import` confine `asset_path`) | `media/users/<uid>/temp/wama_temoin_*` — chez le compte de test, nommées en témoin | jusqu'au 13/09 la seule était `media/nightly_tests/studio_sine_1s.wav` : un dossier de test à la **racine** du média de production, « égaré » pour `check_media_integrity` et exclu à la main par `migrate_media_to_user_home` — deux exceptions pour 1 s de sinus | régénérée à chaque run, balayée à la fin ; `nightly_tests` et `tests_lot` SORTIS de `HORS_PERIMETRE` et des producteurs de test (un seuil qui ne couvre plus rien laisse passer le suivant) |
+
+**Trouvé en rejouant le scénario studio** : son puits `studio_output` écrivait `asset_type`
+TEL QUEL (`'audio'`, une catégorie) — c'est ce qui avait produit `UserAsset #9` hors vocabulaire
+(§9.2). `natures.resolve_asset_type` (catégorie → nature par défaut déclarée, `CATEGORY_DEFAULT`,
+l'extension départageant) est branché sur les trois puits ; la ligne #9 est retypée
+`audio_music`. Et le converter piloté par le studio écrit encore `converter/<uid>/output/…`
+(ancienne forme) — un 17ᵉ site pour la liste du point 4 ci-dessus.
+
+**Ce que ça résout au passage** : les jobs #51/#55 qui référencent `media/WAMA_Presentation.wav`
+« pour un second utilisateur » appartiennent à **`pw_smoke` (uid 21), un compte de test** — la
+question du §8bis point 3 n'oppose pas deux utilisateurs, elle oppose Fabien et un smoke.
+
 ### ② Fichiers de TRAVAIL de l'avatarizer — ✅ SOLDÉ (les 2 correctifs livrés, relevé 2026-08-27)
 
 Mesuré : `media/avatarizer/` = **1,69 Go / 2101 fichiers**, dont **99,6 % de PNG** (1724 Mo).
@@ -695,8 +724,8 @@ décisions. **Redémarrage de WAMA dû** (Celery + service TTS sur l'ancien code
 |---|---|
 | retirer `choices=VOICE_PRESET_CHOICES` des champs `voice_preset` (2 apps) | les valeurs vivantes n'y sont pas ; la liste garde un rôle d'AFFICHAGE des hérités. Position Claude : retirer (une `choices` qui ne contient pas les valeurs réelles n'est qu'un piège de `full_clean`) |
 | licence des échantillons XTTS-v2 (`coqui/XTTS-v2/…/samples`) | ingest les pose `license=''` + signale ; à renseigner ou à remplacer par des voix sous licence connue (`LICENSING.md`) |
-| `UserAsset #9` (`asset_type='audio'`, fixture de smoke) | re-typer `audio_music` ou retirer |
-| `media/WAMA_Presentation.wav` partagé par deux utilisateurs (#50 → 1, #51/#55 → 21) | §8bis point 3 — arbitrage, pas portage |
+| ~~`UserAsset #9` (`asset_type='audio'`, fixture de smoke)~~ | **SOLDÉ 13/09** : retypée `audio_music` ; la cause (puits studio écrivant une catégorie) corrigée par `resolve_asset_type` (§①bis) |
+| `media/WAMA_Presentation.wav` partagé par deux comptes (#50 → Fabien, #51/#55 → **`pw_smoke`, compte de test**) | §8bis point 3 — c'est un smoke qui le partage, pas un utilisateur : le rapatrier chez Fabien et laisser les jobs du smoke pointer dans le vide (ou les supprimer) est une décision, mais plus un arbitrage entre deux personnes |
 | miroir de sauvegarde (7,5 Go recopiés après le domicile unique) | §③ ci-dessus |
 | `describer.result_file` (champ mort) | chantier « code mort par app » |
 | réalignement des ids plats stockés (`female_1` ×78…) vers `sa_<id>` | D5 : pas maintenant ; le jour venu, même geste que `migrate_media_to_user_home` (plan, réécriture, filet) |

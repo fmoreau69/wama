@@ -48,8 +48,10 @@ PRODUCTEURS_DE_TEST = (
      re.compile(rf'^(?:tests_lot/.*|(?:.*/)?lot{_DJ}\.txt)$')),
     ("common/services/ui_smoke.py — _fichier_temoin (NamedTemporaryFile)",
      re.compile(rf'^(?:.*/)?tmp[A-Za-z0-9_]{{6,}}{_DJ}\.[A-Za-z0-9]+$')),
-    ("studio/nightly_scenarios.py — fixture _ENTREE_REL",
-     re.compile(r'^nightly_tests/.*$')),
+    # Tout témoin nommé (`_fichier_temoin` depuis le 28/08, fixture du studio depuis le 13/09) :
+    # le préfixe EST le contrat — c'est lui que `sweep_test_witnesses` balaie.
+    ("common/services/ui_smoke.py — _fichier_temoin / studio/nightly_scenarios.py — préfixe wama_temoin_",
+     re.compile(rf'^(?:.*/)?wama_temoin_[A-Za-z0-9_]+{_DJ}\.[A-Za-z0-9]+$')),
 )
 
 #: Emplacements LÉGITIMES. La règle de base est `<app>/<user>/input|output/` + `users/`
