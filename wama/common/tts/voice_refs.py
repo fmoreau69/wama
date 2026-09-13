@@ -163,8 +163,10 @@ def voice_reference_groups() -> List[Dict]:
             {'id': f'sa_{a.pk}', 'label': _option_label(attrs),
              '_ord': (str(attrs['gender']).lower(), int(attrs.get('variant') or 0))})
     out = []
-    for _, g in sorted(groups.items(), key=lambda kv: _sort_key(kv[1]['_attrs'])):
-        voices = [{'id': v['id'], 'label': v['label']}
+    for key, g in sorted(groups.items(), key=lambda kv: _sort_key(kv[1]['_attrs'])):
+        # `language` accompagne chaque voix : c'est ce que les filtres croisent avec les langues
+        # du moteur (`data-language` sur l'option — marche 6, `WamaModelCaps.cloneVoiceFilter`).
+        voices = [{'id': v['id'], 'label': v['label'], 'language': key[0]}
                   for v in sorted(g['voices'], key=lambda v: v['_ord'])]
         out.append({'group': g['group'], 'voices': voices})
     return out

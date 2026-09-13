@@ -205,13 +205,32 @@
    * aucune restriction affirmée : même lecture que langFilter, un catalogue muet n'est pas
    * un moteur qui ne clone pas.
    *
+   * Et la LANGUE de la voix (2026-09-13, marche 6) : une option qui porte `data-language`
+   * (voix de référence de la médiathèque — `attributes.language` — ou voix de l'utilisateur
+   * qui l'a renseignée) est marquée ⚠ quand le moteur ne parle cette langue ni nativement ni
+   * en repli. AVERTISSEMENT, jamais masquage : un timbre se clone d'une langue à l'autre, la
+   * prononciation seule n'est pas garantie — c'est ce que la raison dit. Sans `data-language`,
+   * rien n'est affirmé.
+   *
    *   filters: [ WamaModelCaps.cloneVoiceFilter('voice_preset') ]
    */
-  function cloneVoiceFilter(selectId) {
+  function cloneVoiceFilter(selectId, opts) {
+    opts = opts || {};
+    const raison = opts.languageReason
+      || 'Cette voix est dans une langue que le moteur ne parle pas : le timbre sera '
+         + 'cloné, mais la prononciation de cette langue n\'est pas garantie.';
     return {
       selectId: selectId,
       hideOption: function (caps, opt) {
         return caps.supports_cloning === false && isClonedVoice(opt.value);
+      },
+      annotateOption: function (caps, opt) {
+        const lang = opt.dataset ? opt.dataset.language : '';
+        const langs = Array.isArray(caps.languages) ? caps.languages : [];
+        if (!lang || !langs.length || langs.indexOf('*') !== -1) return null;
+        if (langs.indexOf(lang) !== -1) return null;
+        if ((caps.fallback_languages || []).indexOf(lang) !== -1) return null;
+        return raison;
       },
     };
   }

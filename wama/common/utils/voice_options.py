@@ -44,19 +44,28 @@ def get_voice_groups(user) -> list[dict]:
         refs = voice_reference_groups() or []
     except Exception:
         refs = []
+    # `attributes` (par valeur d'option) : ce que l'option PORTE au-delà de sa valeur — ici la
+    # langue de la voix, rendue en `data-language` par WamaParams ; les filtres la croisent
+    # avec les langues du moteur. Les options restent des paires : `voice_display_options` et
+    # tous les lecteurs `for v, l in options` n'ont rien à apprendre.
     for grp in refs:
+        voices = grp.get("voices", [])
         groups.append({
             "group": grp.get("group", ""),
-            "options": [(v["id"], v["label"]) for v in grp.get("voices", [])],
+            "options": [(v["id"], v["label"]) for v in voices],
+            "attributes": {v["id"]: {"language": v["language"]} for v in voices if v.get("language")},
         })
 
-    # 3. Mes voix (clonage) — UserAsset type='voice'.
+    # 3. Mes voix (clonage) — UserAsset type='voice' ; sa langue si l'utilisateur l'a renseignée.
     try:
         from wama.media_library.models import UserAsset
-        customs = UserAsset.objects.filter(user=user, asset_type="voice").values("id", "name")
+        customs = list(UserAsset.objects.filter(user=user, asset_type="voice")
+                       .values("id", "name", "attributes"))
         groups.append({
             "group": "Mes voix (clonage)",
             "options": [(f"ua_{c['id']}", c["name"]) for c in customs],
+            "attributes": {f"ua_{c['id']}": {"language": (c["attributes"] or {}).get("language")}
+                           for c in customs if (c["attributes"] or {}).get("language")},
         })
     except Exception:
         pass

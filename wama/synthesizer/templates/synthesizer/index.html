@@ -99,13 +99,13 @@
         {% for grp in voice_refs_groups %}
         <optgroup label="{{ grp.group }}">
             {% for v in grp.voices %}
-            <option value="{{ v.id }}">{{ v.label }}</option>
+            <option value="{{ v.id }}"{% if v.language %} data-language="{{ v.language }}"{% endif %}>{{ v.label }}</option>
             {% endfor %}
         </optgroup>
         {% endfor %}
         <optgroup label="Mes voix (clonage)" id="customVoicesGroup">
             {% for cv in custom_voices %}
-            <option value="ua_{{ cv.id }}">{{ cv.name }}</option>
+            <option value="ua_{{ cv.id }}"{% if cv.attributes.language %} data-language="{{ cv.attributes.language }}"{% endif %}>{{ cv.name }}</option>
             {% endfor %}
         </optgroup>
         <optgroup label="Bark (presets)">

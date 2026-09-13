@@ -267,9 +267,15 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
   `attributes` (construction A′), menu dérivé d'une requête, `tts_service.py` sans dossier :
   plan et bilan mesuré dans **`MEDIA_STORAGE_TIERING.md §9`** (9 décisions à ne plus reposer,
   7 marches, marches 1-5 faites).
-- ⏳ **Marche 6 — le branchement voix ↔ langue** : les options de voix porteront
-  `data-language` depuis `attributes`, et `voiceSlot`/`langSlot` croiseront les deux axes (voix
-  française sur un moteur sans français = état « avertissement », jamais caché).
+- ✅ **Marche 6 — le branchement voix ↔ langue (13/09)** : l'option de voix porte
+  `data-language` (depuis `attributes` — voix de référence, et voix `ua_` dont l'utilisateur a
+  renseigné la langue ; WamaParams rend `g.attributes[valeur]` en `data-*`), et
+  `WamaModelCaps.cloneVoiceFilter.annotateOption` marque ⚠ la voix dont le moteur ne parle la
+  langue ni nativement ni en repli — **avertissement, jamais masquage** (un timbre se clone
+  d'une langue à l'autre ; la prononciation seule n'est pas garantie, c'est ce que la raison
+  dit). Attesté dans le navigateur sur les deux apps : le ⚠ est posé sur EXACTEMENT les moteurs
+  que le catalogue désigne (10/10). Pas de direction voix → moteur pour la langue : ce serait
+  griser un moteur pour une contrainte qui n'en est pas une.
 - ⚠ **Trouvé le 13/09 en mesurant la page servie** : `avatarizer/index.html` ne chargeait NI
   `wama-model-caps.js` NI `wama-input-match.js`. Le bloc d'appariement écrit le 28/08 et
   « porté » le 12/09 était gardé par `if (window.WamaModelCaps)` — donc **MORT** : aucune voix
