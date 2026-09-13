@@ -92,12 +92,16 @@ class PiloteTest(TestCase):
         self.assertIn('*Source : [docs/construction/mondes/WAMA_DATA_WORLD.md', texte)
         self.assertEqual([k for k in REGISTRIES if f"`{k}`" not in texte], [])
 
-    def test_le_fichier_versionne_est_ce_que_le_plan_produit(self):
+    def test_chaque_fichier_derive_est_ce_que_son_plan_produit(self):
         # La confrontation doc → doc : si une source ou un registre bouge, ce test (et
         # `doc_facts --check`) le voient. Régénérer : `python manage.py doc_facts`.
-        doc = BY_KEY['dev-registres']
-        sur_disque = file_of(doc).read_text(encoding='utf-8').replace('\r\n', '\n')
-        self.assertEqual(sur_disque, build(doc))
+        # Étendu à TOUTES les docs dérivées le 2026-09-14 (il ne gardait que le pilote).
+        from .docs_catalog import DOCS
+        derivees = [d for d in DOCS if d.plan]
+        self.assertGreater(len(derivees), 1, "moins de deux docs dérivées : garde affaiblie")
+        for doc in derivees:
+            sur_disque = file_of(doc).read_text(encoding='utf-8').replace('\r\n', '\n')
+            self.assertEqual(sur_disque, build(doc), doc.path)
 
     def test_un_plan_casse_est_refuse(self):
         for plan in ((Excerpt('inconnu', 'x'),),

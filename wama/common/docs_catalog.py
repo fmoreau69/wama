@@ -14,11 +14,14 @@ POURQUOI CE MODULE (demande de Fabien, 2026-09-11)
 TROIS PUBLICS (cadre posé par Fabien le 2026-08-12, acté le 2026-09-11 — AGENTS.md §Trois docs)
 
     `audience` dit à qui un document s'adresse. La doc de CONSTRUCTION — la trace et la vision de
-    WAMA, qui vivent au fil des décisions — est faite de fichiers `.md` écrits à la main. Les docs
-    DÉVELOPPEUR et UTILISATEUR en DÉRIVENT : un `plan` déclaré ici même dit quels extraits et
-    quels faits de registre les composent, et `doc_facts` écrit le `.md` (`doc_plans.py`). Trois
-    pages développeur restent calculées à la lecture (`generator`, `dev_docs.py`) — l'amorçage
-    du 11/09, à reverser en plans (ROADMAP §25.1 ⑥).
+    WAMA, qui vivent au fil des décisions — est écrite à la main. Les docs DÉVELOPPEUR et
+    UTILISATEUR en DÉRIVENT : un `plan` déclaré ici même dit quels extraits et quels faits de
+    registre les composent, et `doc_facts` écrit le `.md` (`doc_plans.py`).
+
+    TOUT EST FICHIER `.md` (Fabien, 2026-09-13) : lisible depuis le dépôt ET depuis WAMA. Les
+    pages « calculées à la lecture » de l'amorçage du 11/09 (champ `generator`) n'existaient que
+    dans WAMA, pour les administrateurs — un agent ne pouvait pas les lire. Reversées en plans le
+    2026-09-14 (ROADMAP §25.1 ⑥), et le mécanisme retiré avec elles, faute d'usage.
 
 SÉCURITÉ — on ne lit que ce qui est DÉCLARÉ
 
@@ -36,7 +39,6 @@ RENDU — markdown-it-py, pas Python-Markdown
 from __future__ import annotations
 
 import html as _html
-import importlib
 import posixpath
 import re
 from dataclasses import dataclass
@@ -92,7 +94,7 @@ class Facts:
 @dataclass(frozen=True)
 class Doc:
     key: str
-    #: Relatif à BASE_DIR, séparateur `/`. VIDE pour une page calculée à la lecture.
+    #: Relatif à BASE_DIR, séparateur `/`.
     path: str
     label: str
     family: str
@@ -101,9 +103,8 @@ class Doc:
     #: Journal DATÉ : ce qu'il écrit était vrai à sa date. Ses renvois `.md` vers un document
     #: depuis archivé sont des faits d'histoire — `check_docs` ne les contrôle donc pas.
     journal: bool = False
-    #: `module:fonction` qui rend le markdown d'une page CALCULÉE à la lecture. Exclusif de `path`.
-    generator: str = ''
-    #: Plan d'une doc DÉRIVÉE : étapes `Excerpt` / `Facts`. Exige un `path` — le fichier écrit.
+    #: Plan d'une doc DÉRIVÉE : étapes `Excerpt` / `Facts`. Le fichier `path` est écrit par
+    #: `doc_facts` — il ne s'édite jamais à la main.
     plan: tuple = ()
 
 
@@ -121,27 +122,31 @@ DOCS: Tuple[Doc, ...] = (
         "Présentation de WAMA, installation, architecture — et l'arborescence de la doc, "
         "générée depuis ce catalogue."),
     # ── architecture & génération ──
-    Doc('mecanismes', 'docs/construction/architecture/WAMA_MECANISMES.md', 'Carte des mécanismes', 'architecture',
+    Doc('mecanismes', 'docs/construction/architecture/WAMA_MECANISMES.md', 'Carte des mécanismes',
+        'architecture',
         "Index des briques transversales : où vit quoi, qui l'utilise. Sa table est générée "
         "depuis le registre des mécanismes."),
-    Doc('generation-route', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md', "Route d'auto-génération des apps",
-        'architecture',
+    Doc('generation-route', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
+        "Route d'auto-génération des apps", 'architecture',
         "Facettes F1–F8, briques communes, chaîne dépôt → app, et ce qu'une génération ne doit "
         "plus redécouvrir. À lire avant de créer ou modifier une app."),
-    Doc('app-conventions', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md', "Conventions d'app", 'architecture',
+    Doc('app-conventions', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
+        "Conventions d'app", 'architecture',
         "Conventions UI et architecture de toutes les apps, capacités d'app, checklist de "
         "création."),
-    Doc('manifest-spec', 'docs/construction/architecture/WAMA_MANIFEST_SPEC.md', 'Manifestes — formalisme', 'architecture',
+    Doc('manifest-spec', 'docs/construction/architecture/WAMA_MANIFEST_SPEC.md',
+        'Manifestes — formalisme', 'architecture',
         "Le formalisme des sept kinds de manifestes : app, library, model, function, pipeline, "
         "project, dataset."),
-    Doc('manifest-architecture', 'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md', 'Manifestes — flux et schéma',
-        'architecture',
+    Doc('manifest-architecture', 'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md',
+        'Manifestes — flux et schéma', 'architecture',
         "Comment circulent les manifestes : extraction, composition, projection vers les "
         "registres."),
-    Doc('transcriber-audit', 'docs/construction/architecture/TRANSCRIBER_REFERENCE_AUDIT.md', "Audit de l'app de référence",
-        'architecture',
+    Doc('transcriber-audit', 'docs/construction/architecture/TRANSCRIBER_REFERENCE_AUDIT.md',
+        "Audit de l'app de référence", 'architecture',
         "Le Transcriber comme étalon : audit de conformité et checklist de fin d'app."),
-    Doc('verification', 'docs/construction/architecture/WAMA_VERIFICATION.md', 'Vérification', 'architecture',
+    Doc('verification', 'docs/construction/architecture/WAMA_VERIFICATION.md', 'Vérification',
+        'architecture',
         "Comment on sait que ça marche : grille d'adoption contre grille fonctionnelle, "
         "catalogue des gestes, couverture."),
     Doc('common-readme', 'wama/common/README.md', 'Briques communes — carte', 'architecture',
@@ -153,9 +158,11 @@ DOCS: Tuple[Doc, ...] = (
         "UX de la file d'attente et des modes d'app."),
     Doc('volets', 'docs/construction/ui/WAMA_VOLETS.md', 'Volets gauche et droit', 'ui',
         "Ossature des volets, états contextuels, mode simplifié, repli — état mesuré des pages."),
-    Doc('inspector-fields', 'docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md', "Champs de l'inspecteur", 'ui',
+    Doc('inspector-fields', 'docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md',
+        "Champs de l'inspecteur", 'ui',
         "Schéma canonique des champs de détail affichés par l'inspecteur."),
-    Doc('input-matching', 'docs/construction/ui/INPUT_MODEL_MATCHING.md', 'Appariement entrée ↔ modèle', 'ui',
+    Doc('input-matching', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
+        'Appariement entrée ↔ modèle', 'ui',
         "Quel modèle accepte quelle entrée, et comment l'interface le montre."),
     Doc('batch-format', 'docs/construction/ui/BATCH_FORMAT.md', 'Format des fichiers de lot', 'ui',
         "Le format des fichiers batch (txt, csv, pdf, docx)."),
@@ -166,7 +173,8 @@ DOCS: Tuple[Doc, ...] = (
     Doc('memory', 'docs/construction/ia/WAMA_MEMORY.md', 'Mémoire & RAG', 'ia',
         "Mémoire d'agent, mémoire de travail et RAG comme un seul mécanisme, plus le journal "
         "utilisateur."),
-    Doc('apprentissage', 'docs/construction/ia/WAMA_APPRENTISSAGE.md', 'Apprentissage (ML/DL)', 'ia',
+    Doc('apprentissage', 'docs/construction/ia/WAMA_APPRENTISSAGE.md', 'Apprentissage (ML/DL)',
+        'ia',
         "Modèles appris, couche statistique, MLflow — WAMA déclare, déclenche et réingère ; il "
         "n'entraîne pas."),
     Doc('prospection', 'wama/model_manager/PROSPECTION_PIPELINE.md', 'Prospection de modèles',
@@ -178,8 +186,9 @@ DOCS: Tuple[Doc, ...] = (
         "Vision du studio et de la production audiovisuelle."),
     Doc('data-world', 'docs/construction/mondes/WAMA_DATA_WORLD.md', 'Monde Data', 'mondes',
         "Périmètre du monde Data et cartographie de corpus."),
-    Doc('data-function-cards', 'docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md', 'Fonctions Data — catalogue',
-        'mondes', "Le catalogue des fonctions de traitement du monde Data."),
+    Doc('data-function-cards', 'docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md',
+        'Fonctions Data — catalogue', 'mondes',
+        "Le catalogue des fonctions de traitement du monde Data."),
     Doc('cam-chaine', 'wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md',
         'Cam Analyzer — chaîne de traitement', 'mondes',
         "La chaîne de traitement de Cam Analyzer et sa conception."),
@@ -194,21 +203,25 @@ DOCS: Tuple[Doc, ...] = (
     Doc('enhancer', 'wama/enhancer/README.md', 'Enhancer', 'mondes',
         "Upscaling image et vidéo, et branche audio."),
     # ── infra, droits & données ──
-    Doc('profiles', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md', 'Profils, permissions, rétention', 'exploitation',
+    Doc('profiles', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
+        'Profils, permissions, rétention', 'exploitation',
         "Profils, droits d'accès, notifications, rétention."),
-    Doc('infra', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md', 'Infra WSL2 ↔ Windows', 'exploitation',
-        "Ce qui tourne où, entre WSL2 et Windows."),
-    Doc('media-storage', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md', 'Médias : stockage et import',
-        'exploitation', "Stockage, tiering, intégrité et voies d'import des médias."),
-    Doc('licensing', 'docs/construction/exploitation/LICENSING.md', 'Licences & dépôt', 'exploitation',
-        "Licence du dépôt, politique, code vendorisé, dépôt officiel."),
+    Doc('infra', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md', 'Infra WSL2 ↔ Windows',
+        'exploitation', "Ce qui tourne où, entre WSL2 et Windows."),
+    Doc('media-storage', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
+        'Médias : stockage et import', 'exploitation',
+        "Stockage, tiering, intégrité et voies d'import des médias."),
+    Doc('licensing', 'docs/construction/exploitation/LICENSING.md', 'Licences & dépôt',
+        'exploitation', "Licence du dépôt, politique, code vendorisé, dépôt officiel."),
     # ── suivi des chantiers ──
-    Doc('project-status', 'docs/construction/suivi/PROJECT_STATUS.md', "Point d'étape des chantiers", 'suivi',
+    Doc('project-status', 'docs/construction/suivi/PROJECT_STATUS.md',
+        "Point d'étape des chantiers", 'suivi',
         "Photo des chantiers et handoffs de session. Journal daté : ce qui y est écrit était "
         "vrai à sa date.", journal=True),
-    Doc('roadmap', 'docs/construction/suivi/ROADMAP.md', 'Roadmap', 'suivi', "Les chantiers ouverts et leur ordre."),
-    Doc('removal-ledger', 'docs/construction/suivi/REMOVAL_LEDGER.md', 'Registre des retraits', 'suivi',
-        "Ce qui a été retiré, et pourquoi."),
+    Doc('roadmap', 'docs/construction/suivi/ROADMAP.md', 'Roadmap', 'suivi',
+        "Les chantiers ouverts et leur ordre."),
+    Doc('removal-ledger', 'docs/construction/suivi/REMOVAL_LEDGER.md', 'Registre des retraits',
+        'suivi', "Ce qui a été retiré, et pourquoi."),
     # ── docs de MODULE — ils restent à côté de leur code (décision de Fabien, 2026-09-13) ──
     # Déclarés pour être lisibles depuis WAMA et contrôlés par `check_docs` ; ils ne partent pas
     # dans `docs/` au déménagement (ROADMAP §25.4). Les archives, elles, ne se déclarent pas.
@@ -236,7 +249,12 @@ DOCS: Tuple[Doc, ...] = (
         'Cam Analyzer — un projet (ENA_CASA)', 'mondes',
         "Les spécificités d'un projet cam_analyzer : données, calibration, rig. Une configuration "
         "de l'app, pas une propriété — façonné comme le futur manifeste."),
-    # ── DÉVELOPPEUR — DÉRIVÉE par plan (fichier écrit par `doc_facts`) ──
+    # ── DÉVELOPPEUR — DÉRIVÉE par plan (fichiers écrits par `doc_facts`, jamais à la main) ──
+    Doc('dev-parcours', 'docs/dev/parcours.md', "Parcours d'entrée", 'doctrine',
+        "L'ordre dans lequel lire la doc pour étendre WAMA ; chaque étape reprend la description "
+        "que le document déclare.",
+        audience=DEVELOPER,
+        plan=(Facts('wama.common.dev_docs:parcours_etapes'),)),
     Doc('dev-registres', 'docs/dev/registres.md', 'Les registres de WAMA', 'architecture',
         "Quand une chose mérite un registre, les natures d'actualisation, et chaque registre de "
         "WAMA — dérivé de la doc de construction et des registres eux-mêmes.",
@@ -246,20 +264,15 @@ DOCS: Tuple[Doc, ...] = (
               Facts('wama.common.dev_docs:registres_natures'),
               Facts('wama.common.dev_docs:registres_fiches'),
               Facts('wama.common.dev_docs:kinds_manifeste'))),
-    # ── DÉVELOPPEUR — calculées à la lecture (amorçage du 11/09, à reverser en plans) ──
-    Doc('dev-parcours', '', "Parcours d'entrée", 'doctrine',
-        "L'ordre dans lequel lire la doc pour étendre WAMA ; chaque étape reprend la description "
-        "que le document déclare.",
-        audience=DEVELOPER, generator='wama.common.dev_docs:parcours'),
-    Doc('dev-briques', '', 'Briques communes — API', 'architecture',
+    Doc('dev-briques', 'docs/dev/briques.md', 'Briques communes — API', 'architecture',
         "Chaque mécanisme transversal avec l'API publique de son module : signatures et "
         "docstrings lues dans le code.",
-        audience=DEVELOPER, generator='wama.common.dev_docs:briques'),
+        audience=DEVELOPER,
+        plan=(Facts('wama.common.dev_docs:briques_api'),)),
 )
 
 BY_KEY: Dict[str, Doc] = {d.key: d for d in DOCS}
-#: Docs-FICHIERS seulement : une page calculée n'a pas de chemin vers lequel un lien mènerait.
-BY_PATH: Dict[str, Doc] = {d.path: d for d in DOCS if d.path}
+BY_PATH: Dict[str, Doc] = {d.path: d for d in DOCS}
 
 
 def get(key: str) -> Optional[Doc]:
@@ -267,12 +280,19 @@ def get(key: str) -> Optional[Doc]:
 
 
 def checked_paths() -> List[str]:
-    """Les cibles de `check_docs` — les docs-fichiers, dans l'ordre de déclaration."""
-    return [d.path for d in DOCS if d.path]
+    """Les cibles de `check_docs` : les docs ÉCRITS À LA MAIN, dans l'ordre de déclaration.
+
+    ⚠ Les docs DÉRIVÉES n'y sont pas (2026-09-14). Elles se confrontent par leurs SOURCES — la
+    doc de construction, contrôlée ici — et par `doc_facts --check`, qui refuse un fichier dérivé
+    qui n'est plus ce que son plan produit. Contrôler leurs références reviendrait à soumettre à
+    `check_docs` les docstrings du code que `briques` publie, que rien n'y engage aujourd'hui ;
+    leurs liens, eux, viennent des chemins de ce catalogue, dont l'existence est testée.
+    """
+    return [d.path for d in DOCS if not d.plan]
 
 
 def journal_paths() -> set:
-    return {d.path for d in DOCS if d.path and d.journal}
+    return {d.path for d in DOCS if d.journal}
 
 
 def file_of(doc: Doc) -> Path:
@@ -302,17 +322,9 @@ def entry(doc: Doc) -> dict:
         'family': doc.family, 'family_label': FAMILIES.get(doc.family, doc.family),
         'audience': doc.audience, 'audience_label': AUDIENCES.get(doc.audience, doc.audience),
         'audience_badge': AUDIENCE_BADGES.get(doc.audience, doc.audience),
-        'journal': doc.journal,
-        # « générée » = pas écrite à la main (plan OU calcul) ; « live » = calculée à la lecture.
-        'generated': bool(doc.generator or doc.plan), 'live': bool(doc.generator),
-        'generator': doc.generator,
+        'journal': doc.journal, 'generated': bool(doc.plan),
         'exists': False, 'lines': 0, 'modified': None,
     }
-    if doc.generator:
-        # Rien à mesurer sur le disque : la page n'existe qu'à la lecture. La calculer ici pour
-        # afficher un nombre de lignes coûterait la page entière à chaque affichage du catalogue.
-        out['exists'] = True
-        return out
     f = file_of(doc)
     try:
         stamp = _stamp(f)
@@ -333,18 +345,8 @@ def entries() -> List[dict]:
     return [entry(d) for d in DOCS]
 
 
-def generate(doc: Doc) -> str:
-    """Le markdown d'une page CALCULÉE — son générateur, appelé à la lecture."""
-    module, _, fonction = doc.generator.partition(':')
-    return getattr(importlib.import_module(module), fonction)()
-
-
 def render_doc(doc: Doc) -> dict:
     """`{'html', 'toc'}` du doc. Lève `FileNotFoundError` si le fichier déclaré manque."""
-    if doc.generator:
-        # Une page calculée peut renvoyer vers les pages de WAMA (`/common/backends/`) : c'est
-        # nous qui l'écrivons. Un `.md` du dépôt, lui, ne le peut pas — cf. `_target`.
-        return render_markdown(generate(doc), '', site_links=True)
     f = file_of(doc)
     stamp = _stamp(f)
     hit = _RENDERED.get(doc.path)
@@ -374,20 +376,15 @@ def _inline_text(tok) -> str:
                    if c.type in ('text', 'code_inline')).strip()
 
 
-def _target(href: str, source_path: str, site_links: bool = False) -> Optional[str]:
+def _target(href: str, source_path: str) -> Optional[str]:
     """Où mène un lien. `None` = lien externe gardé tel quel ; `''` = PAS de lien (fichier non
-    déclaré) ; sinon l'URL du lecteur, ancre comprise.
-
-    `site_links` : une page CALCULÉE peut viser une page de WAMA (`/common/…`). Refusé aux `.md`
-    du dépôt, où `/x` désigne un fichier à la racine — le suivre mènerait à une 404 ou pire."""
+    déclaré) ; sinon l'URL du lecteur, ancre comprise."""
     if href.startswith('#'):
         return href
     if _SCHEME.match(href):
         return None if href.lower().startswith(('http:', 'https:', 'mailto:')) else ''
     chemin, _, ancre = href.partition('#')
     if not chemin:
-        return href
-    if site_links and chemin.startswith('/') and not chemin.endswith('.md'):
         return href
     rel = posixpath.normpath(posixpath.join(posixpath.dirname(source_path), unquote(chemin)))
     doc = BY_PATH.get(rel.lstrip('/'))
@@ -404,12 +401,12 @@ def _raw(content: str):
     return t
 
 
-def _rewrite_links(children: list, source_path: str, site_links: bool = False) -> list:
+def _rewrite_links(children: list, source_path: str) -> list:
     out, ouverts = [], []
     for c in children:
         if c.type == 'link_open':
             href = str(c.attrGet('href') or '')
-            cible = _target(href, source_path, site_links)
+            cible = _target(href, source_path)
             if cible is None:
                 c.attrSet('target', '_blank')
                 c.attrSet('rel', 'noopener noreferrer')
@@ -457,7 +454,7 @@ def _neutralize_html(tok) -> None:
                              else _html.escape(c.content))
 
 
-def render_markdown(text: str, source_path: str = '', site_links: bool = False) -> dict:
+def render_markdown(text: str, source_path: str = '') -> dict:
     """Markdown → `{'html', 'toc'}`. `source_path` sert à résoudre les liens relatifs."""
     from markdown_it import MarkdownIt
 
@@ -477,5 +474,5 @@ def render_markdown(text: str, source_path: str = '', site_links: bool = False) 
             if niveau <= 3:
                 toc.append({'level': niveau, 'text': titre, 'id': ident})
         elif tok.type == 'inline' and tok.children:
-            tok.children = _rewrite_links(tok.children, source_path, site_links)
+            tok.children = _rewrite_links(tok.children, source_path)
     return {'html': md.renderer.render(tokens, md.options, {}), 'toc': toc}

@@ -1,28 +1,31 @@
 """
-Doc DÉVELOPPEUR — générée, jamais rédigée (AGENTS.md §Trois docs, trois publics).
+Doc DÉVELOPPEUR — les FAITS calculés depuis les registres (AGENTS.md §Trois docs, trois publics).
 
 POURQUOI CE MODULE (demande de Fabien, 2026-09-11)
 
     La doc de WAMA est une doc de CONSTRUCTION ; il manquait une doc DÉVELOPPEUR « structurée et
     automatisée ». Recadrage du même jour : elle DÉRIVE de la doc de construction, et y injecte
     les faits des registres. Ce module fournit la moitié « faits » : des générateurs qui rendent
-    du markdown depuis un registre, et que les PLANS de `docs_catalog.py` citent (`Facts`). Les
-    seules phrases affichées sont celles que les registres portent (description d'un doc, rôle
-    d'un mécanisme, source d'un registre, docstring d'un module) — une phrase écrite ici dériverait.
+    du markdown depuis un registre, que les PLANS de `docs_catalog.py` citent (`Facts`) et que
+    `doc_facts` écrit en `.md`. Les seules phrases affichées sont celles que les registres portent
+    (description d'un doc, rôle d'un mécanisme, source d'un registre, docstring d'un module) — une
+    phrase écrite ici dériverait.
 
-    ⚠ Un générateur cité par un plan écrit dans un fichier VERSIONNÉ : il n'y met aucun nombre lu
-    en base (il changerait d'une installation à l'autre et le fichier serait toujours périmé), et
-    ses liens partent de la RACINE du dépôt (`doc_plans.build` les recale sur le fichier cible).
+    ⚠ Un générateur écrit dans un fichier VERSIONNÉ : il n'y met aucun nombre lu en base (il
+    changerait d'une installation à l'autre et le fichier serait toujours périmé), et ses liens
+    partent de la RACINE du dépôt (`doc_plans.build` les recale sur le fichier cible).
 
-    Deux pages restent calculées à la lecture (`parcours`, `briques`) : l'amorçage du 11/09, à
-    reverser en plans (ROADMAP §25.1 ⑥).
+    Jusqu'au 2026-09-14, deux pages (parcours, briques) étaient CALCULÉES à la lecture et
+    n'existaient que dans WAMA, pour les administrateurs. Reversées en fichiers (ROADMAP §25.1 ⑥) :
+    la cible est « tout en `.md`, lisible depuis le dépôt ET depuis WAMA » (Fabien, 2026-09-13) —
+    un agent ne lit pas une page réservée aux administrateurs.
 
 L'API DES BRIQUES EST LUE PAR AST, JAMAIS PAR IMPORT
 
     Importer ~150 modules pour lire leurs signatures chargerait backends, services et librairies
-    lourdes dans le processus web. `ast` lit le TEXTE : docstrings et signatures exactes, sans
-    exécuter une ligne. Le prix — ni décorateurs résolus, ni alias suivis — est acceptable pour
-    une carte ; ce n'est pas une introspection.
+    lourdes. `ast` lit le TEXTE : docstrings et signatures exactes, sans exécuter une ligne. Le
+    prix — ni décorateurs résolus, ni alias suivis — est acceptable pour une carte ; ce n'est pas
+    une introspection.
 """
 from __future__ import annotations
 
@@ -80,19 +83,15 @@ def module_api(path) -> dict:
 
 
 def _lien_doc(doc) -> str:
-    """Lien vers un doc du catalogue : son CHEMIN s'il en a un (le lecteur le réécrit vers sa
-    page), son URL de lecture sinon (page calculée)."""
-    if doc.path:
-        return f"[{doc.label}]({doc.path})"
-    from django.urls import reverse
-    return f"[{doc.label}]({reverse('common:doc_read', args=[doc.key])})"
+    """Lien vers un doc du catalogue, par son chemin depuis la racine (recalé par le plan)."""
+    return f"[{doc.label}]({doc.path})"
 
 
 def _lien_ref(ref: str) -> str:
     """Un champ `doc` de registre (« AGENTS.md §Trois docs ») en lien vers son fichier.
 
     Un NOM NU (« ROADMAP.md §25 ») se résout par le catalogue : depuis le déménagement de la doc
-    (2026-09-13) la plupart des docs ne sont plus à la racine, et un lien écrit depuis la racine
+    (2026-09-14) la plupart des docs ne sont plus à la racine, et un lien écrit depuis la racine
     pointerait dans le vide. Un nom qui ne se résout pas UNE seule fois reste tel quel."""
     cible = ref.split()[0] if ref else ''
     if not cible.endswith('.md'):
@@ -112,6 +111,21 @@ def _cellule(texte) -> str:
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # Faits pour les PLANS (fichiers versionnés) — ni nombre lu en base, ni lien de site
 # ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def parcours_etapes() -> str:
+    """L'ordre de lecture pour étendre WAMA, puis les autres pages développeur."""
+    from .docs_catalog import BY_KEY, DEVELOPER, DOCS
+
+    out = ["## Lire, dans cet ordre", ""]
+    for i, cle in enumerate(PARCOURS, 1):
+        d = BY_KEY[cle]
+        out.append(f"{i}. **{_lien_doc(d)}** — {d.description}")
+    out += ["", "## Les autres pages développeur", ""]
+    for d in DOCS:
+        if d.audience == DEVELOPER and d.key != 'dev-parcours':
+            out.append(f"- **{_lien_doc(d)}** — {d.description}")
+    return '\n'.join(out) + '\n'
+
 
 def registres_natures() -> str:
     """Les natures d'actualisation déclarables par un registre, et où chacune s'exécute."""
@@ -173,37 +187,16 @@ def kinds_manifeste() -> str:
     return '\n'.join(out) + '\n'
 
 
-# ──────────────────────────────────────────────────────────────────────────────────────────────
-# Pages CALCULÉES à la lecture (amorçage du 11/09 — à reverser en plans)
-# ──────────────────────────────────────────────────────────────────────────────────────────────
-
-def parcours() -> str:
-    from .docs_catalog import BY_KEY, DEVELOPER, DOCS
-
-    out = ["# Parcours d'entrée", "",
-           "> Page **générée** à chaque lecture (`wama/common/dev_docs.py`). L'ordre est déclaré "
-           "(`PARCOURS`) ; chaque étape affiche la description que le document déclare dans le "
-           "catalogue des docs — aucune phrase n'est écrite pour cette page.", "",
-           "## Lire, dans cet ordre", ""]
-    for i, cle in enumerate(PARCOURS, 1):
-        d = BY_KEY[cle]
-        out.append(f"{i}. **{_lien_doc(d)}** — {d.description}")
-    out += ["", "## Les autres pages développeur", ""]
-    for d in DOCS:
-        if d.audience == DEVELOPER and d.key != 'dev-parcours':
-            out.append(f"- **{_lien_doc(d)}** — {d.description}")
-    return '\n'.join(out) + '\n'
-
-
-#: Cache de la page « briques » : son coût est la lecture AST d'~150 modules. La clé est
-#: l'EMPREINTE des domiciles (mtime) — un module modifié est relu à la lecture suivante, la page
-#: reste donc dérivée.
+#: Cache de l'API des briques : son coût est la lecture AST d'~150 modules. La clé est
+#: l'EMPREINTE des domiciles (mtime) — un module modifié est relu au passage suivant.
 _BRIQUES: Dict[str, object] = {}
 
 
-def briques() -> str:
+def briques_api() -> str:
+    """Chaque mécanisme transversal, par domaine, avec l'API publique de son domicile."""
     from django.conf import settings
 
+    from .docs_catalog import BY_KEY
     from .mecanismes import MECANISMES
 
     base = Path(settings.BASE_DIR)
@@ -218,13 +211,11 @@ def briques() -> str:
         return _BRIQUES['texte']
 
     domaines = list(dict.fromkeys(m.domaine for m in MECANISMES))
-    out = ["# Briques communes — API", "",
-           "> Page **générée** à chaque lecture depuis le registre des mécanismes "
-           "(`wama/common/mecanismes.py`) et le CODE de leurs domiciles, lu par AST (sans import). "
-           "Ce qu'une brique FAIT est sa ligne de registre ; comment l'APPELER est ce que son "
-           "module expose. Qui l'utilise, et ce qui manque : la "
-           "[carte des mécanismes](WAMA_MECANISMES.md).", "",
-           f"**{len(MECANISMES)} mécanismes** en {len(domaines)} domaines.", ""]
+    carte = BY_KEY['mecanismes']
+    out = [f"**{len(MECANISMES)} mécanismes** en {len(domaines)} domaines. Ce qu'une brique FAIT "
+           f"est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que "
+           f"son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la "
+           f"[{carte.label.lower()}]({carte.path}).", ""]
     for dom in domaines:
         du = sorted((m for m in MECANISMES if m.domaine == dom), key=lambda x: x.nom.lower())
         out += [f"## {dom or 'Sans domaine'}", ""]

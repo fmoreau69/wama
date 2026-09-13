@@ -388,8 +388,8 @@ MECANISMES = (
               "Déclare les docs de référence (famille, AUDIENCE, journal) et les rend lisibles "
               "depuis WAMA en lecture seule (page `docs`, admins) ; `check_docs` en dérive sa "
               "liste, et un test refuse que la table d'AGENTS.md cite un doc non déclaré. Sert "
-              "aussi la doc DÉVELOPPEUR, GÉNÉRÉE à la lecture (`dev_docs.py` : parcours, "
-              "registres, API des briques lue par AST)",
+              "aussi la doc DÉVELOPPEUR : ses faits (`dev_docs.py` : parcours, registres, API "
+              "des briques lue par AST), écrits en `.md` par les plans",
               'wama/common/docs_catalog.py', 'AGENTS.md §Trois docs, trois publics',
               annexes=('wama/common/dev_docs.py', 'wama/common/tests_docs_catalog.py')),
     # 2026-09-11 : 1ʳᵉ pièce de la mécanique des docs dérivées (ROADMAP §25) — les vérités

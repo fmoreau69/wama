@@ -1,9 +1,10 @@
-"""Tests du catalogue des docs (`common/docs_catalog.py`) et de la doc développeur générée
+"""Tests du catalogue des docs (`common/docs_catalog.py`) et de la doc développeur dérivée
 (`common/dev_docs.py`) : la liste UNIQUE, le lecteur, la garde, les projections.
 
 Ce qui est vérifié est ce qui justifie ces modules :
   - la déclaration est la seule liste — `check_docs` en dérive, et la table d'AGENTS.md ne peut
     pas citer un doc qu'elle ne porte pas (sinon on retrouve deux listes qui divergent) ;
+  - tout doc est un FICHIER, et une doc dérivée vit là où rien ne s'écrit à la main ;
   - le lecteur ne lit QUE ce qui est déclaré, n'exécute aucun HTML des `.md`, et ne fait pas de
     la page un navigateur du dépôt ;
   - la page est réservée aux administrateurs, et le menu dit la même chose que la vue ;
@@ -19,12 +20,12 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from .dev_docs import PARCOURS, module_api
-from .docs_catalog import (AUDIENCES, BY_KEY, BY_PATH, DEVELOPER, DOCS, FAMILIES, checked_paths,
-                           file_of, generate, journal_paths, render_doc, render_markdown)
+from .docs_catalog import (AUDIENCES, BY_KEY, BY_PATH, CONSTRUCTION, DEVELOPER, DOCS, FAMILIES,
+                           checked_paths, file_of, journal_paths, render_doc, render_markdown)
 
 BASE = Path(settings.BASE_DIR)
-FICHIERS = [d for d in DOCS if d.path]
-GENEREES = [d for d in DOCS if d.generator]
+DERIVEES = [d for d in DOCS if d.plan]
+DOSSIERS_DERIVES = ('docs/dev/', 'docs/utilisateur/')
 
 
 def _cites_de_la_table_agents():
@@ -49,16 +50,22 @@ def _cites_de_la_table_agents():
 
 class DeclarationTest(SimpleTestCase):
 
-    def test_chaque_doc_fichier_existe_sur_le_disque(self):
-        absents = [d.path for d in FICHIERS if not file_of(d).is_file()]
+    def test_chaque_doc_existe_sur_le_disque(self):
+        absents = [d.path for d in DOCS if not file_of(d).is_file()]
         self.assertEqual(absents, [], f"docs déclarés mais absents : {absents}")
 
-    def test_une_doc_est_un_fichier_OU_une_generee_jamais_les_deux(self):
-        self.assertEqual([d.key for d in DOCS if bool(d.path) == bool(d.generator)], [])
+    def test_une_doc_derivee_vit_la_ou_rien_ne_s_ecrit_a_la_main(self):
+        # Et réciproquement : un fichier écrit à la main dans `docs/dev/` serait écrasé à la
+        # prochaine génération, ou oublié par elle.
+        self.assertTrue(DERIVEES, "aucune doc dérivée : le test ne mesurerait rien")
+        mal_places = [d.key for d in DERIVEES
+                      if not d.path.startswith(DOSSIERS_DERIVES) or d.audience == CONSTRUCTION]
+        sans_plan = [d.key for d in DOCS if d.path.startswith(DOSSIERS_DERIVES) and not d.plan]
+        self.assertEqual((mal_places, sans_plan), ([], []))
 
     def test_cles_et_chemins_uniques(self):
         self.assertEqual(len(BY_KEY), len(DOCS), "clé en double dans DOCS")
-        self.assertEqual(len(BY_PATH), len(FICHIERS), "chemin en double dans DOCS")
+        self.assertEqual(len(BY_PATH), len(DOCS), "chemin en double dans DOCS")
 
     def test_les_cles_sont_utilisables_dans_une_url(self):
         mauvaises = [d.key for d in DOCS if not re.fullmatch(r'[a-z0-9\-]+', d.key)]
@@ -80,11 +87,11 @@ class DeclarationTest(SimpleTestCase):
                          f"cités par la table d'AGENTS.md mais non déclarés dans docs_catalog : "
                          f"{orphelins}")
 
-    def test_check_docs_derive_du_catalogue_sans_les_pages_generees(self):
+    def test_check_docs_derive_du_catalogue_sans_les_docs_derivees(self):
         from wama.common.management.commands.check_docs import DOCS as CIBLES, JOURNAUX
         self.assertEqual(list(CIBLES), checked_paths())
         self.assertEqual(set(JOURNAUX), journal_paths())
-        self.assertNotIn('', CIBLES)
+        self.assertEqual([d.path for d in DERIVEES if d.path in CIBLES], [])
 
     def test_le_parcours_ne_cite_que_des_docs_declares(self):
         self.assertEqual([k for k in PARCOURS if k not in BY_KEY], [])
@@ -96,8 +103,7 @@ class DeclarationTest(SimpleTestCase):
         debut = texte.index('<!-- WAMA:FAITS(arborescence_docs)')
         fin = texte.index('<!-- /WAMA:FAITS(arborescence_docs) -->')
         bloc = texte[debut:fin]
-        absents = [d.path for d in FICHIERS if d.path != 'README.md'
-                   and f"]({d.path})" not in bloc]
+        absents = [d.path for d in DOCS if d.path != 'README.md' and f"]({d.path})" not in bloc]
         self.assertEqual(absents, [], "docs déclarés absents de l'arborescence du README : "
                                       "lancer `python manage.py doc_facts`")
 
@@ -112,7 +118,8 @@ class RenduTest(SimpleTestCase):
         self.assertIn('&lt;script&gt;', html)
 
     def test_un_lien_vers_un_doc_declare_mene_au_lecteur(self):
-        html = render_markdown("[llm](docs/construction/ia/WAMA_LLM.md#skills)", 'AGENTS.md')['html']
+        html = render_markdown("[llm](docs/construction/ia/WAMA_LLM.md#skills)",
+                               'AGENTS.md')['html']
         self.assertIn(f'href="{reverse("common:doc_read", args=["llm"])}#skills"', html)
 
     def test_un_lien_relatif_se_resout_depuis_le_dossier_du_doc(self):
@@ -125,11 +132,9 @@ class RenduTest(SimpleTestCase):
         self.assertNotIn('<a ', html)
         self.assertEqual(html.count('wama-doc-horslien'), 2)
 
-    def test_un_lien_de_site_n_est_suivi_que_depuis_une_page_generee(self):
-        # Dans un `.md` du dépôt, `/x` désigne un fichier à la racine : pas une page de WAMA.
+    def test_un_chemin_absolu_n_est_jamais_suivi(self):
+        # Dans un `.md` du dépôt, `/x` désigne un fichier à la racine, pas une page de WAMA.
         self.assertNotIn('<a ', render_markdown("[b](/common/backends/)")['html'])
-        self.assertIn('href="/common/backends/"',
-                      render_markdown("[b](/common/backends/)", site_links=True)['html'])
 
     def test_un_lien_externe_s_ouvre_ailleurs(self):
         html = render_markdown("[x](https://example.org)")['html']
@@ -200,10 +205,11 @@ class ModuleApiTest(SimpleTestCase):
 
 
 class DocDeveloppeurTest(TestCase):
-    """Les pages générées couvrent TOUT leur registre — une projection partielle mentirait."""
+    """Les docs dérivées couvrent TOUT leur registre — une projection partielle mentirait."""
 
-    def test_chaque_page_generee_se_rend(self):
-        for d in GENEREES:
+    def test_chaque_doc_derivee_se_rend(self):
+        self.assertTrue(DERIVEES, "aucune doc dérivée : le test ne mesurerait rien")
+        for d in DERIVEES:
             r = render_doc(d)
             self.assertTrue(r['toc'], f"{d.key} : page sans titre")
             self.assertEqual(d.audience, DEVELOPER, d.key)
@@ -252,7 +258,7 @@ class PageTest(TestCase):
         self.assertContains(r, 'wama-doc-body')
         self.assertTrue(r.context['rendu']['toc'], "AGENTS.md sans sommaire : rendu vide ?")
 
-    def test_l_admin_lit_une_page_generee(self):
+    def test_l_admin_lit_une_doc_derivee(self):
         self.client.force_login(self.admin)
         r = self.client.get(reverse('common:doc_read', args=['dev-briques']))
         self.assertEqual(r.status_code, 200)

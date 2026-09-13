@@ -191,7 +191,7 @@ class Command(BaseCommand):
         hors = {c for liste in exclus.values() for c in liste}
         trouves = [c for c in suivis if c not in hors]
         non_declares = [c for c in trouves if c not in BY_PATH]
-        absents = [d.path for d in DOCS if d.path and not (base / d.path).is_file()]
+        absents = [d.path for d in DOCS if not (base / d.path).is_file()]
 
         w(f"\n{'=' * 84}")
         w(f"CARTE DES .md SUIVIS PAR GIT  ({len(suivis)} suivis · {len(hors)} hors carte par règle "
@@ -203,7 +203,7 @@ class Command(BaseCommand):
                 w(f"  hors carte — {nom} : {len(liste)}")
 
         for audience, libelle in AUDIENCES.items():
-            docs = [d for d in DOCS if d.audience == audience and d.path]
+            docs = [d for d in DOCS if d.audience == audience]
             if not docs:
                 continue
             w(f"\n{libelle} ({len(docs)})")
@@ -213,7 +213,8 @@ class Command(BaseCommand):
                                                       errors='replace').splitlines())
                 except OSError:
                     n = 0
-                marque = '⏳' if d.plan else ('📓' if d.journal else '  ')
+                # ⚙ = dérivée (écrite par `doc_facts`) ; ⏳ disait « en attente », à tort.
+                marque = '⚙' if d.plan else ('📓' if d.journal else '  ')
                 w(f"  {marque} {d.family:<14} {d.path:<58} {n:>6} lignes")
 
         if absents:

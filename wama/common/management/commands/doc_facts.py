@@ -442,9 +442,6 @@ def _fait_arborescence_docs():
     lignes.append("- **`docs/dev/`** — la doc DÉVELOPPEUR, GÉNÉRÉE depuis la doc de construction "
                   "et les registres : ne pas éditer")
     lignes += ["  " + _item(d) for d in DOCS if d.path.startswith('docs/dev/')]
-    calculees = [d.label for d in DOCS if d.generator]
-    if calculees:
-        lignes.append("  - *et, calculées à la lecture dans WAMA :* " + ' · '.join(calculees))
     lignes.append("- **`docs/utilisateur/`** — la doc UTILISATEUR, générée elle aussi : à venir")
     lignes.append("- **Docs de module** — ils restent à côté de leur code")
     lignes += ["  " + _item(d) for d in DOCS
