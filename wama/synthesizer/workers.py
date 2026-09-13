@@ -32,58 +32,6 @@ from wama.common.tts.service_client import (TTSServiceLoadingError,
                                             tts_via_service as _tts_via_service)
 
 
-def _get_default_speaker_wav(voice_preset: str) -> str:
-    """
-    Retourne le chemin vers un fichier audio de référence par défaut.
-    Délègue à common.tts.voice_refs.resolve_voice_preset() pour la résolution.
-    Si aucun fichier trouvé pour le preset, télécharge les samples LJSpeech en fallback.
-
-    Args:
-        voice_preset: Le preset de voix sélectionné
-
-    Returns:
-        str: Chemin vers le fichier audio de référence, ou None
-    """
-    import urllib.request
-    from wama.common.tts.voice_refs import resolve_voice_preset, get_voice_refs_dir
-
-    # 1. Essayer la résolution directe (nouveau format ou héritage)
-    resolved = resolve_voice_preset(voice_preset)
-    if resolved:
-        return resolved
-
-    # 2. Fallback : essayer les samples du package TTS (Coqui)
-    try:
-        import pkg_resources
-        tts_path = pkg_resources.resource_filename('TTS', '')
-        samples_dir = os.path.join(tts_path, 'utils', 'samples')
-        if os.path.exists(samples_dir):
-            for file in os.listdir(samples_dir):
-                if file.endswith('.wav'):
-                    return os.path.join(samples_dir, file)
-    except Exception:
-        pass
-
-    # 3. Fallback final : télécharger un sample LJSpeech minimal
-    refs_dir = get_voice_refs_dir()
-    refs_dir.mkdir(parents=True, exist_ok=True)
-    default_file = refs_dir / 'default.wav'
-
-    if not default_file.exists():
-        from wama.common.tts.constants import LJ_BASE as _LJ_BASE
-        try:
-            logger.info("Downloading fallback voice sample (LJSpeech)...")
-            urllib.request.urlretrieve(f'{_LJ_BASE}/LJ001-0001.wav', str(default_file))
-            logger.info(f"Fallback voice saved to {default_file}")
-        except Exception as e:
-            logger.warning(f"Could not download fallback voice: {e}")
-
-    if default_file.exists():
-        return str(default_file)
-
-    return None
-
-
 @shared_task(name='wama.synthesizer.download_voice_refs', ignore_result=False)
 def download_voice_refs_task(force: bool = False):
     """
@@ -256,27 +204,16 @@ def synthesize_voice(self, synthesis_id: int):
         except Exception as exc:
             logger.warning(f"[synthesizer] ensure_local_input({synthesis.id}) : {exc}")
 
-        # Resolve speaker_wav for voice cloning models
-        speaker_wav = None
-        if synthesis.voice_reference:
-            speaker_wav = synthesis.voice_reference.path
-        elif synthesis.voice_preset.startswith('ua_'):
-            try:
-                from wama.media_library.models import UserAsset
-                ua = UserAsset.objects.get(pk=int(synthesis.voice_preset[3:]))
-                speaker_wav = ua.file.path
-            except (ValueError, UserAsset.DoesNotExist):
-                speaker_wav = _get_default_speaker_wav('default')
-        elif synthesis.voice_preset.startswith('cv_'):
-            # Compat legacy : chercher dans CustomVoice encore présent
-            try:
-                from .models import CustomVoice
-                cv = CustomVoice.objects.get(pk=int(synthesis.voice_preset[3:]))
-                speaker_wav = cv.audio.path
-            except (ValueError, CustomVoice.DoesNotExist):
-                speaker_wav = _get_default_speaker_wav('default')
-        elif synthesis.tts_model == 'coqui-xtts':
-            speaker_wav = _get_default_speaker_wav(synthesis.voice_preset)
+        # La voix de référence — UNE porte commune, décidée par la CAPACITÉ du moteur
+        # (`speaker_wav_for`, common/tts/voice_refs). Le bloc qui vivait ici recopiait la
+        # résolution ua_/cv_ de la brique et testait `tts_model == 'coqui-xtts'` — un test
+        # MORT (la colonne porte la clé entière `synthesizer:coqui-xtts`), si bien que XTTS
+        # partait sans voix et que le SERVICE la résolvait à la place de Django. Depuis le
+        # 13/09 tout `speaker_wav` est résolu ICI (MEDIA_STORAGE_TIERING §9.4, marche 2).
+        from wama.common.tts.voice_refs import speaker_wav_for
+        speaker_wav = speaker_wav_for(
+            synthesis.tts_model, synthesis.voice_preset, synthesis.user,
+            reference_path=synthesis.voice_reference.path if synthesis.voice_reference else None)
 
         # Generate audio via TTS service (with chunking for long texts)
         _synthesize_via_service(
@@ -422,7 +359,12 @@ def _synthesize_via_service(synthesis, text, output_path, speaker_wav,
         'higgs-audio': 500,
         'coqui-xtts': 1000,
     }
-    max_chars = chunk_limits.get(model, 800)
+    # ⚠ Indexée par le nom NU du moteur ; `model` porte la clé catalogue entière depuis la
+    # migration 0018 — sans cette traduction la table ne matchait JAMAIS (800 pour tous,
+    # kokoro compris, qui tronque au-delà de 400). Mesuré le 13/09 en retirant le test mort
+    # `tts_model == 'coqui-xtts'`, de la même famille.
+    from .backends import local_model_name
+    max_chars = chunk_limits.get(local_model_name(model), 800)
 
     # Split text into chunks if needed
     if len(text) > max_chars:

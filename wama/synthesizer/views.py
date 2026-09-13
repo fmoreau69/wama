@@ -1705,9 +1705,10 @@ def voice_preview(request):
         preview_id = hashlib.md5(f"{text_content}{time.time()}".encode()).hexdigest()[:8]
 
         # Résoudre la voix de clonage (ua_<id>/cv_<id>/preset) → speaker_wav, comme la
-        # synthèse complète. Sinon la preview XTTS ignorait la voix custom (voix par défaut).
-        from wama.common.tts.voice_refs import resolve_speaker_wav
-        speaker_wav = resolve_speaker_wav(voice_preset, request.user)
+        # synthèse complète — par LA porte commune, décidée par la capacité du moteur.
+        # Sinon la preview XTTS ignorait la voix custom (voix par défaut).
+        from wama.common.tts.voice_refs import speaker_wav_for
+        speaker_wav = speaker_wav_for(tts_model, voice_preset, request.user)
 
         # Stocker les paramètres dans le cache pour le traitement
         cache.set(f'voice_preview_{preview_id}', {

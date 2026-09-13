@@ -76,14 +76,15 @@ def _console(user_id: int, message: str, level: str = 'info') -> None:
 def _call_tts_service(job: AvatarJob) -> str:
     """Synthétise `job.text_content` via la brique commune, renvoie un WAV temporaire.
 
-    La voix est résolue par la brique COMMUNE `common.tts.voice_refs.resolve_speaker_wav`
-    (ua_ médiathèque / cv_ voix personnalisée / presets). Jusqu'au 2026-09-12 elle vivait dans
-    le synthesizer et ce docstring l'appelait « la brique CENTRALISÉE du synthesizer » — une
-    brique partagée par deux apps qui vit dans l'une d'elles n'est pas centralisée, elle est
-    mal rangée. Le bloc manuel qui vivait ici avant elle ne couvrait que `cv_*` : les voix de
-    la médiathèque étaient silencieusement ignorées."""
-    from wama.common.tts.voice_refs import resolve_speaker_wav
-    speaker_wav = resolve_speaker_wav(job.voice_preset, user=job.user)
+    La voix est résolue par la brique COMMUNE `common.tts.voice_refs.speaker_wav_for`
+    (ua_ médiathèque / cv_ voix personnalisée / presets), qui ne rend un fichier que si le
+    MOTEUR clone — la même règle que le synthesizer, tenue à un seul endroit (13/09).
+    Jusqu'au 2026-09-12 elle vivait dans le synthesizer et ce docstring l'appelait « la brique
+    CENTRALISÉE du synthesizer » — une brique partagée par deux apps qui vit dans l'une d'elles
+    n'est pas centralisée, elle est mal rangée. Le bloc manuel qui vivait ici avant elle ne
+    couvrait que `cv_*` : les voix de la médiathèque étaient silencieusement ignorées."""
+    from wama.common.tts.voice_refs import speaker_wav_for
+    speaker_wav = speaker_wav_for(job.tts_model, job.voice_preset, user=job.user)
     return tts_via_service(
         job.text_content, job.tts_model,
         language=job.language, voice_preset=job.voice_preset,
