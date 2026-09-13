@@ -331,6 +331,14 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 </script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) #}
+{% comment %}
+  ⚠ Ces deux briques n'étaient PAS chargées par cette page (mesuré 2026-09-13 : `typeof
+  window.WamaModelCaps` = undefined) : le bloc d'appariement ci-dessous, gardé par
+  `if (window.WamaModelCaps)`, était MORT depuis son écriture (28/08, puis 12/09) — voix clonées
+  jamais masquées, langues jamais restreintes, aucun moteur grisé, et rien ne le signalait.
+{% endcomment %}
+<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
+<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <!-- Batch Settings Modal (brique WamaParams context='batch' -> batch_update, miroir reader) -->
 <div class="modal fade" id="batchSettingsModal" tabindex="-1">
     <div class="modal-dialog">

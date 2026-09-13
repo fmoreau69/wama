@@ -186,9 +186,10 @@ class IndexView(View):
         from wama.media_library.models import UserAsset
         custom_voices = UserAsset.objects.filter(user=user, asset_type='voice')
 
-        # Scan voice references folder for dynamic dropdown
-        from wama.common.tts.voice_refs import scan_voice_refs, needs_voice_download
-        voice_refs_groups = scan_voice_refs()
+        # Voix de référence de la MÉDIATHÈQUE (SystemAsset(voice), groupées par langue/âge
+        # depuis `attributes`) — plus un scan de dossier (2026-09-13, §9.4 marche 4).
+        from wama.common.tts.voice_refs import voice_reference_groups, needs_voice_download
+        voice_refs_groups = voice_reference_groups()
 
         # Téléchargement automatique en fond si des voix manquent (une seule fois par heure)
         if needs_voice_download():

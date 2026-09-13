@@ -103,14 +103,6 @@
             {% endfor %}
         </optgroup>
         {% endfor %}
-        {% if not voice_refs_groups %}
-        <optgroup label="Voix intégrées (héritage)">
-            <option value="male_1">Voix masculine 1</option>
-            <option value="male_2">Voix masculine 2</option>
-            <option value="female_1">Voix féminine 1</option>
-            <option value="female_2">Voix féminine 2</option>
-        </optgroup>
-        {% endif %}
         <optgroup label="Mes voix (clonage)" id="customVoicesGroup">
             {% for cv in custom_voices %}
             <option value="ua_{{ cv.id }}">{{ cv.name }}</option>

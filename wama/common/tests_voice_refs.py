@@ -89,3 +89,124 @@ class LesWorkersNeDecidentPlusRienTest(TestCase):
             self.assertNotIn('_get_default_speaker_wav', t, rel)
             self.assertNotIn("voice_preset.startswith('ua_')", t, rel)
             self.assertNotIn('resolve_speaker_wav(', t, rel)
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# Marche 4 — les voix VIVENT en médiathèque (`SystemAsset(voice)` + attributs A′)
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+def _wav(name):
+    """Un WAV valide (0,1 s de silence, 16 kHz mono) — `ingest_voice_file` en lit la durée."""
+    import io
+    import struct
+    import wave
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
+        w.writeframes(struct.pack('<' + 'h' * 1600, *([0] * 1600)))
+    from django.core.files.base import ContentFile
+    return ContentFile(buf.getvalue(), name=name)
+
+
+class AttributsDepuisLIdentifiantTest(TestCase):
+    def test_un_id_de_taxonomie_porte_langue_age_genre_variante(self):
+        self.assertEqual(voice_refs.attributes_from_voice_id('french/adult/male_adult_1_fr'),
+                         {'language': 'fr', 'age': 'adult', 'gender': 'male', 'variant': 1})
+        self.assertEqual(voice_refs.attributes_from_voice_id('english/child/female_child_en'),
+                         {'language': 'en', 'age': 'child', 'gender': 'female'})
+
+    def test_la_langue_vient_du_suffixe_pas_du_dossier(self):
+        self.assertEqual(voice_refs.attributes_from_voice_id('bidon/adult/male_adult_2_pt')['language'], 'pt')
+
+    def test_un_preset_plat_herite_ne_porte_que_la_langue(self):
+        """Volontaire : avec âge+genre, `default` entrerait dans les groupes du menu — il n'y a
+        jamais figuré (empreinte d'avant)."""
+        self.assertEqual(voice_refs.attributes_from_voice_id('default'), {'language': 'en'})
+        self.assertEqual(voice_refs.attributes_from_voice_id('male_1'), {'language': 'en'})
+        self.assertEqual(voice_refs.attributes_from_voice_id('inconnu'), {})
+        self.assertEqual(voice_refs.attributes_from_voice_id('a/b'), {})
+
+
+class LaMediathequePorteLesVoixTest(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.voix = {}
+        for name in ('french/adult/male_adult_1_fr', 'french/adult/female_adult_1_fr',
+                     'french/adult/female_adult_2_fr', 'english/child/male_child_en',
+                     'german/adult/female_adult_1_de', 'default', 'male_1'):
+            cls.voix[name] = voice_refs.ingest_voice_file(name, cls._temp_wav(name))
+
+    @classmethod
+    def _temp_wav(cls, name):
+        import tempfile
+        p = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        p.write(_wav(name).read()); p.close()
+        return p.name
+
+    def test_ingest_pose_les_attributs_la_duree_et_le_domicile_systeme(self):
+        v = self.voix['french/adult/male_adult_1_fr']
+        v.refresh_from_db()
+        self.assertEqual(v.attributes, {'language': 'fr', 'age': 'adult', 'gender': 'male', 'variant': 1})
+        self.assertAlmostEqual(v.duration, 0.1, places=2)
+        self.assertTrue(v.file.name.startswith('media_library/system/'), v.file.name)
+        self.assertEqual(v.mime_type, 'audio/wav')
+
+    def test_ingest_est_idempotent(self):
+        avant = self.voix['default'].pk
+        again = voice_refs.ingest_voice_file('default', self._temp_wav('default'))
+        self.assertEqual(again.pk, avant)
+        from wama.media_library.models import SystemAsset
+        self.assertEqual(SystemAsset.objects.filter(asset_type='voice', name='default').count(), 1)
+
+    def test_les_groupes_derivent_des_attributs_dans_l_ordre_du_scan_d_avant(self):
+        g = voice_refs.voice_reference_groups()
+        self.assertEqual([x['group'] for x in g],
+                         ['Français — Adulte', 'English — Enfant', 'Deutsch — Adulte'])
+        fr = g[0]['voices']
+        self.assertEqual([v['label'] for v in fr], ['Femme 1', 'Femme 2', 'Homme 1'])
+        self.assertTrue(all(v['id'].startswith('sa_') for v in fr))
+        # les presets plats (sans genre) restent HORS des groupes, comme avant
+        ids = {v['id'] for x in g for v in x['voices']}
+        self.assertNotIn(f"sa_{self.voix['male_1'].pk}", ids)
+
+    def test_resolution_par_sa_par_nom_d_avant_et_repli_default(self):
+        v = self.voix['french/adult/female_adult_2_fr']
+        chemin = v.file.path
+        self.assertEqual(voice_refs.resolve_speaker_wav(f'sa_{v.pk}'), chemin)
+        self.assertEqual(voice_refs.resolve_speaker_wav('french/adult/female_adult_2_fr'), chemin)
+        self.assertEqual(voice_refs.resolve_speaker_wav('male_1'), self.voix['male_1'].file.path)
+        defaut = self.voix['default'].file.path
+        self.assertEqual(voice_refs.resolve_speaker_wav(''), defaut)
+        self.assertEqual(voice_refs.resolve_speaker_wav('inconnu_total'), defaut)
+        self.assertEqual(voice_refs.resolve_speaker_wav('sa_999999'), defaut)
+        self.assertEqual(voice_refs.resolve_speaker_wav('ua_999999'), defaut)
+        self.assertIsNone(voice_refs.resolve_speaker_wav('bark_v2_en_0'))
+
+    def test_une_voix_inactive_ne_resout_plus(self):
+        v = self.voix['german/adult/female_adult_1_de']
+        v.is_active = False
+        v.save()
+        self.assertEqual(voice_refs.resolve_speaker_wav(f'sa_{v.pk}'), self.voix['default'].file.path)
+        self.assertNotIn('Deutsch — Adulte', [x['group'] for x in voice_refs.voice_reference_groups()])
+
+    def test_describe_voice_dans_toutes_ses_formes(self):
+        v = self.voix['french/adult/male_adult_1_fr']
+        self.assertEqual(voice_refs.describe_voice(f'sa_{v.pk}'), 'Français — Adulte — Homme 1')
+        self.assertEqual(voice_refs.describe_voice('french/adult/male_adult_1_fr'), 'Français — Adulte — Homme 1')
+        self.assertEqual(voice_refs.describe_voice('english/elderly/female_elderly_en'),
+                         'English — Senior — Femme')            # ligne absente : l'id parle encore
+        self.assertEqual(voice_refs.describe_voice('default'), 'Voix par défaut')
+        self.assertEqual(voice_refs.describe_voice('bark_v2_fr_0'), 'Bark FR Speaker 0')
+        self.assertEqual(voice_refs.describe_voice('ua_999999'), 'ua_999999')
+        self.assertEqual(voice_refs.describe_voice(''), '')
+
+    def test_needs_voice_download_compare_le_catalogue_a_la_mediatheque(self):
+        self.assertTrue(voice_refs.needs_voice_download())       # 7 voix sur les 27 du catalogue
+        with patch.object(voice_refs, '_catalogue_names', return_value={'default', 'male_1'}):
+            self.assertFalse(voice_refs.needs_voice_download())
+
+    def test_get_voice_groups_ne_propose_plus_de_repli_heritage(self):
+        from wama.common.utils.voice_options import get_voice_groups
+        groupes = [g['group'] for g in get_voice_groups(user=None)]
+        self.assertNotIn('Voix intégrées (héritage)', groupes)
+        self.assertIn('Français — Adulte', groupes)

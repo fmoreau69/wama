@@ -155,18 +155,13 @@ LANGUAGE_NAMES_EN = {  # wama:redondance-ok — noms anglais par code langue (in
 }
 
 # ---------------------------------------------------------------------------
-# XTTS v2 / Coqui — mapping preset → (nom fichier local, URL téléchargement)
+# Voix de référence : MÉDIATHÈQUE (SystemAsset voice) depuis le 2026-09-13
 # ---------------------------------------------------------------------------
-
+# `VOICE_REFS_SUBDIR` (« synthesizer/voice_references ») et `PRESET_DOWNLOAD_MAPPING` vivaient
+# ici avec ZÉRO consommateur (mesuré 13/09) : retirés avec le dossier qu'ils désignaient.
+# Le catalogue de téléchargement est `voice_refs.VOICE_DOWNLOAD_CATALOG` ; la résolution,
+# `voice_refs.speaker_wav_for`.
 # ---------------------------------------------------------------------------
-# Dossier des voix de référence (nouveau système)
-# ---------------------------------------------------------------------------
-# Les nouvelles voix sont dans media/synthesizer/voice_references/
-# Les anciens presets (default, male_1 ...) sont dans ce même dossier pour compat.
-# Voir wama/common/tts/voice_refs.py pour le scan et la résolution.
-# ---------------------------------------------------------------------------
-
-VOICE_REFS_SUBDIR = "synthesizer/voice_references"
 
 def _lj_base() -> str:
     """Échantillons LJSpeech publiés en clair dans le dépôt coqui-ai-TTS.
@@ -179,16 +174,8 @@ def _lj_base() -> str:
     return base_url('github') + '/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs'
 
 
-#: Valeur figée à l'import (les tables ci-dessous sont des constantes de module).
+#: Valeur figée à l'import (les tables qui la lisent sont des constantes de module).
 LJ_BASE = _lj_base()
-
-PRESET_DOWNLOAD_MAPPING = {  # wama:redondance-ok — URLs de téléchargement par preset (info nouvelle)
-    "default":  ("default.wav",  f"{LJ_BASE}/LJ001-0001.wav"),
-    "male_1":   ("male_1.wav",   f"{LJ_BASE}/LJ001-0015.wav"),
-    "male_2":   ("male_2.wav",   f"{LJ_BASE}/LJ001-0020.wav"),
-    "female_1": ("female_1.wav", f"{LJ_BASE}/LJ001-0010.wav"),
-    "female_2": ("female_2.wav", f"{LJ_BASE}/LJ001-0025.wav"),
-}
 
 # ---------------------------------------------------------------------------
 # Kokoro — mapping langue WAMA → lang_code Kokoro

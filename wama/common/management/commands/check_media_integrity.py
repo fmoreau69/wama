@@ -64,9 +64,11 @@ EMPLACEMENTS_LEGITIMES = (
      re.compile(r'^[A-Za-z0-9_]+/\d+/(input|output)/.*$')),
     ("galerie d'avatars PARTAGÉE (lue par avatarizer.views._gallery_images)",
      re.compile(r'^avatarizer/gallery/.*$')),
-    ("voix du synthesizer — personnalisées, par défaut, et références par langue/âge/genre "
-     "(ce sont des RESSOURCES d'entrée, pas des sorties)",
-     re.compile(r'^synthesizer/(\d+/custom_voices|default_voices|voice_references)/.*$')),
+    # ⚠ `default_voices` et `voice_references` ont QUITTÉ ce motif le 2026-09-13 : les voix de
+    # référence sont des `SystemAsset(voice)` sous `media_library/system/` (dernier motif).
+    # Les garder ici en aurait fait un seuil périmé — voir la note du motif médiathèque.
+    ("voix PERSONNALISÉES du synthesizer (ancien modèle CustomVoice, `cv_<id>` encore stocké)",
+     re.compile(r'^synthesizer/\d+/custom_voices/.*$')),
     # ⚠ Remplace, le 2026-09-12, le motif `^media_library/\d+/…` qui couvrait les assets
     # d'UTILISATEUR. Ceux-là ont rejoint `users/<uid>/media_library/…` (premier motif) : ce sont
     # ses octets, ils vivent chez lui. Garder l'ancien motif en aurait fait un seuil PÉRIMÉ —

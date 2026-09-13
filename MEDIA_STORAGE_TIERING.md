@@ -251,12 +251,11 @@ et doit vivre ailleurs : `media_tests/` pour les tests (cf. `wama/common/runners
 > désigne au lieu d'en recevoir une copie. Jalon déjà tracé sous le nom `reference_or_copy()`.
 >
 > ⚠ **CE QUI N'EST PAS FAIT, et qu'il ne faut pas lire comme fait** :
-> 1. **45 fichiers d'app SANS identifiant utilisateur** restent hors du domicile, et c'est
->    JUSTE : `avatarizer/gallery` (9), `synthesizer/voice_references` (29), `default_voices` (7)
->    n'appartiennent à personne — ce sont des ressources d'**application**. Les loger chez un
->    utilisateur serait faux. Ils sont exclus **par construction** (pas d'identifiant dans le
->    chemin), sans liste à tenir. Leur sort face au chiffrement par utilisateur est une
->    **décision**, pas un portage ;
+> 1. ~~**45 fichiers d'app SANS identifiant utilisateur** restent hors du domicile~~ — **SOLDÉ
+>    le 2026-09-13** : `avatarizer/gallery` (9, le 12/09) et `synthesizer/voice_references`
+>    (28, le 13/09 — §9.4) sont des `SystemAsset` sous `media_library/system/` (37 fichiers) ;
+>    `default_voices/` et le dossier `synthesizer/` (vide) retirés. **Mesuré après coup : 2
+>    fichiers hors domicile**, tous deux `media/WAMA_Presentation*.wav` (point 3 ci-dessous) ;
 > 2. **la médiathèque** (`media_library/`, 9 fichiers) n'a pas bougé : ses URLs circulent ;
 > 3. **`media/WAMA_Presentation.wav`** est référencé par des jobs de **deux utilisateurs
 >    différents** (#50 → user 1, #51/#55 → user 21) : le déplacer chez l'un casse l'autre. C'est
@@ -608,7 +607,9 @@ chaîne `voice_references`) :
 | `check_media_integrity` — motif légitime `synthesizer/(…|voice_references)/` | `check_media_integrity.py:69` | le motif perd `voice_references` (plus rien de légitime hors domicile) |
 | docs/commandes citant le dossier | `migrate_media_to_user_home.py:38,143` ; `download_voice_refs.py:20` ; `voice_refs.py:25-29` ; `constants.py:164-166` | prose réalignée |
 
-**L'ordre (D6), avec le filet à chaque marche** :
+**L'ordre (D6), avec le filet à chaque marche** — **état au 13/09 (soir) : marches 1 à 5
+FAITES** (commits `6dedd161`→ ; la 4 et la 5 dans le même geste, la brique ne se réécrit
+qu'une fois) ; **6 et 7 restent** — voir le bilan en fin de liste :
 
 1. **A′ d'abord** : `natures.py` + `attributes` (2 migrations, WSL2) + helpers + normalisation au
    `save()` + dérivations dans `models.py`. Filet : suite `media_library`, `check_templates`,
@@ -645,6 +646,30 @@ chaîne `voice_references`) :
    avatarizer ; vérification SUR HEAD en worktree ; `INPUT_MODEL_MATCHING §6.7` « ce qui reste »
    vidé ; §8bis ci-dessus (« 45 fichiers d'app sans identifiant ») réécrit à **0**.
 
+**Bilan MESURÉ des marches 1-5 (2026-09-13)** :
+- 28 voix versées (`ingest_voice_refs --apply`), `voice_references/` + `default_voices/` +
+  `synthesizer/` (vide) retirés ; `media_library/system/` = 37 fichiers ; **2 fichiers hors
+  domicile** dans tout `media/` (les deux `WAMA_Presentation*.wav`, §9.6) ;
+- empreinte du menu : **23 options / 10 groupes, contenu IDENTIQUE** (groupe + libellé), ids
+  `sa_<n>` ; **28/28 anciens ids résolvent vers un fichier de même taille** ; `cv_1` → domicile
+  de l'utilisateur ; Bark → `None`. **Seul écart** : les langues « autres » se rangent par
+  libellé (Deutsch, Español, Italiano, Português) et non plus par nom de dossier anglais ;
+- contre-épreuve du service : 37 presets, 0 écart entre le résolveur du service et celui de
+  Django, AVANT de retirer le premier ;
+- trouvé en chemin : `tts_model == 'coqui-xtts'` était MORT (clé entière en base) — c'était le
+  service qui résolvait la voix ; `chunk_limits` ne matchait jamais (800 pour tous) ;
+- retirés : `get_voice_refs_dir`, `scan_voice_refs`, `resolve_voice_preset`, `_LEGACY_IDS`,
+  `_LANG_DIR_TO_CODE`, `get_voice_label`, `_get_default_speaker_wav`, `tts_service._get_speaker_wav`
+  + ses deux dossiers, `VOICE_REFS_SUBDIR`, `PRESET_DOWNLOAD_MAPPING`, `voice_options._HERITAGE`,
+  le bloc « héritage » du gabarit ; `check_media_integrity` ne connaît plus `voice_references` ;
+- ⚠ **redémarrage dû** : les workers Celery et le service TTS (processus séparés) servent
+  l'ANCIEN code jusqu'au prochain lancement de WAMA — l'ancien `resolve_voice_preset` cherche
+  des fichiers qui ne sont plus là. Gunicorn a été rechargé (HUP) ;
+- **trouvé en mesurant la page SERVIE de l'avatarizer** : elle ne chargeait ni
+  `wama-model-caps.js` ni `wama-input-match.js` — le bloc d'appariement (28/08, « porté » le
+  12/09) était MORT derrière `if (window.WamaModelCaps)`. Corrigé, sonde double sens avatarizer
+  10/10 (détail `INPUT_MODEL_MATCHING §6.7`).
+
 ### 9.5 Ce que A′ donne ensuite, sans nouvelle question
 
 - **Objets 3D** (§17ter trous 2-3) : ingérer = une ligne `object3d` + `attributes` ; l'aperçu =
@@ -665,3 +690,5 @@ chaîne `voice_references`) :
 | miroir de sauvegarde (7,5 Go recopiés après le domicile unique) | §③ ci-dessus |
 | `describer.result_file` (champ mort) | chantier « code mort par app » |
 | réalignement des ids plats stockés (`female_1` ×78…) vers `sa_<id>` | D5 : pas maintenant ; le jour venu, même geste que `migrate_media_to_user_home` (plan, réécriture, filet) |
+| une voix clonée grise l'option **`auto`** du moteur (observé 13/09 sur les deux apps) | `auto` ne porte pas `supports_cloning` ; faut-il le laisser compatible et faire exiger un moteur cloneur au tirage (`resolve_model_choice`) ? Position Claude : oui — sinon « auto » et « ma voix » s'excluent |
+| provenance des 28 voix versées | `source_url`/`license` VIDES (non traçables par fichier) ; `download_voice_refs --force` les re-téléchargerait AVEC provenance — au prix de voix différentes (VoxPopuli tire un autre locuteur) |

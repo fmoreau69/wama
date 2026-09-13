@@ -233,33 +233,11 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
         return gear_data(self, PARAMS)
 
     def get_voice_preset_display(self):
-        """Resolve custom voice names (ua_<id> or legacy cv_<id>) to their actual name."""
-        if self.voice_preset and self.voice_preset.startswith('ua_'):
-            try:
-                from wama.media_library.models import UserAsset
-                ua = UserAsset.objects.get(pk=int(self.voice_preset[3:]))
-                return ua.name
-            except Exception:
-                pass
-        if self.voice_preset and self.voice_preset.startswith('cv_'):
-            try:
-                # Compat legacy : chercher d'abord dans UserAsset migré
-                from wama.media_library.models import UserAsset
-                cv = CustomVoice.objects.get(pk=int(self.voice_preset[3:]))
-                return cv.name
-            except Exception:
-                pass
-        # New format: relative path within voice_references/
-        if self.voice_preset and '/' in self.voice_preset:
-            try:
-                from wama.common.tts.voice_refs import get_voice_label
-                label = get_voice_label(self.voice_preset)
-                if label:
-                    return label
-            except Exception:
-                pass
-            return self.voice_preset
-        return dict(self.VOICE_PRESET_CHOICES).get(self.voice_preset, self.voice_preset)
+        """Le libellé de la voix — par LA brique commune (`describe_voice` : sa_/ua_/cv_/nom
+        de référence/preset plat/Bark). Les quatre branches qui vivaient ici en étaient une
+        recopie partielle (2026-09-13)."""
+        from wama.common.tts.voice_refs import describe_voice
+        return describe_voice(self.voice_preset, self.user)
 
     @property
     def filename(self):

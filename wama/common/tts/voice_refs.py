@@ -1,62 +1,30 @@
-"""Voix de RÉFÉRENCE — scan, résolution d'un preset en fichier, téléchargement, libellés.
+"""Voix de RÉFÉRENCE — la brique COMMUNE : résolution d'un preset en fichier, groupes du menu,
+libellés, téléchargement. Les voix VIVENT EN MÉDIATHÈQUE (`SystemAsset(asset_type='voice')`,
+`media_library/system/`) depuis le 2026-09-13 — plan `MEDIA_STORAGE_TIERING §9.4`.
 
-⚠ PORTÉ AU COMMUN le 2026-09-12 depuis `synthesizer/utils/voice_utils.py`. Il y vivait alors
-que QUATRE consommateurs s'en servaient : le synthesizer, l'avatarizer (qui l'importait depuis
-l'app voisine, en l'appelant « la brique CENTRALISÉE du synthesizer » — une contradiction dans
-les termes), `common/utils/voice_options.py` (le COMMUN important depuis une app : l'inversion
-de dépendance que la règle de centralisation interdit) et, hors Django, `tts_service.py` qui
-recompose le même dossier à la main. Constat de Fabien : *« ça n'a pas de sens de laisser les
-voix dans le synthesizer »* — vrai des fichiers, vrai du code qui les cherche.
+Ce que ce module SAIT, et d'où :
+  * une voix de référence = une ligne `SystemAsset(voice)` ; sa taxonomie (langue, âge, genre,
+    variante) = ses `attributes` (construction A′, `media_library/natures.py`) — plus une
+    arborescence `<langue>/<âge>/<genre>_<âge>[_<n>]_<iso>.wav` parcourue à la main ;
+  * `SystemAsset.name` = l'IDENTIFIANT DE PRESET D'AVANT (`french/adult/male_adult_1_fr`,
+    `default`, `female_1`…) : c'est ce que les lignes en base STOCKENT (frontière des données,
+    décision D5), donc elles résolvent par ce nom sans conversion. Une sélection NOUVELLE se
+    fait par `sa_<id>` ;
+  * `speaker_wav_for` est LA porte des workers et des aperçus (la CAPACITÉ du moteur décide,
+    D7) ; `resolve_speaker_wav` résout `sa_`/`ua_`/`cv_`/nom ; `describe_voice` libelle ;
+    `voice_reference_groups` dérive les optgroups d'une REQUÊTE ; `download_missing_voice_refs`
+    verse dans la médiathèque (jamais un fichier nu).
+
+⚠ PORTÉ AU COMMUN le 2026-09-12 depuis `synthesizer/utils/voice_utils.py` (quatre
+consommateurs : synthesizer, avatarizer, `voice_options`, et — hors Django — `tts_service.py`,
+qui ne résout plus rien depuis le 13/09). Constat de Fabien : *« ça n'a pas de sens de laisser
+les voix dans le synthesizer »* — vrai des fichiers, vrai du code qui les cherche.
 
 ⚠ `common/tts/voices.py` (à côté) est AUTRE CHOSE : la résolution voix↔langue de Kokoro pour
-l'assistant. Ce module-ci résout un `voice_preset` (`ua_<id>` médiathèque, `cv_<id>` voix
-personnalisée, chemin `<langue>/<âge>/<nom>`, ids plats hérités) en FICHIER pour le clonage.
-Les fusionner est une question ouverte, pas une évidence : l'un nomme, l'autre localise.
-
-Ce qui suit est le module d'origine, inchangé : le déplacement est un geste, la refonte (voix en
-médiathèque, taxonomie en champs) en est un autre — étape 5 du plan du 2026-09-12.
+l'assistant. L'un nomme, l'autre localise ; les fusionner est une question ouverte.
 """
 
-# ── Docstring d'origine ─────────────────────────────────────────────────────────────
-'''
-WAMA Synthesizer — Voice References Utilities
-==============================================
-Gestion automatique des voix de référence :
-  - Scan du dossier voice_references/ (découverte dynamique)
-  - Résolution preset_id → chemin WAV absolu (legacy + nouveau format)
-
-Structure de dossiers attendue :
-  media/synthesizer/voice_references/
-    default.wav                 ← fallback universel
-    french/
-      adult/
-        male_adult_1_fr.wav     ← Homme adulte 1 (FR)
-        male_adult_2_fr.wav
-        female_adult_1_fr.wav
-        female_adult_2_fr.wav
-      elderly/
-        male_elderly_fr.wav
-        female_elderly_fr.wav
-      child/
-        male_child_fr.wav
-        female_child_fr.wav
-    english/
-      adult/ ...
-      elderly/ ...
-      child/ ...
-
-Convention de nommage des fichiers :
-  {gender}_{age}[_{n}]_{lang_code}.wav
-  gender : male | female
-  age    : child | adult | elderly
-  n      : numéro optionnel pour plusieurs voix du même profil (1, 2, ...)
-  lang   : fr | en | es | de | it | ...
-
-IDs de preset :
-  - Nouveau format : chemin relatif sans extension, ex. 'french/adult/male_adult_1_fr'
-  - Héritage       : 'default', 'male_1', 'male_2', 'female_1', 'female_2'
-'''
-
+import os
 import re
 import logging
 from pathlib import Path
@@ -65,25 +33,8 @@ from typing import List, Dict, Optional
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Dossier racine des voix de référence
+# Tables de conversion (libellés) — les VALEURS sont celles de `natures.py` ('voice')
 # ---------------------------------------------------------------------------
-
-def get_voice_refs_dir() -> Path:
-    """Retourne le dossier racine des voix de référence."""
-    from django.conf import settings
-    return Path(settings.MEDIA_ROOT) / 'synthesizer' / 'voice_references'
-
-
-# ---------------------------------------------------------------------------
-# Tables de conversion
-# ---------------------------------------------------------------------------
-
-_LANG_DIR_TO_CODE: Dict[str, str] = {
-    'french': 'fr', 'english': 'en', 'spanish': 'es',
-    'german': 'de', 'italian': 'it', 'portuguese': 'pt',
-    'japanese': 'ja', 'chinese': 'zh', 'korean': 'ko',
-    'dutch': 'nl', 'polish': 'pl', 'russian': 'ru',
-}
 
 _LANG_CODE_TO_LABEL: Dict[str, str] = {  # wama:redondance-ok — labels d'affichage par langue (info nouvelle)
     'fr': 'Français', 'en': 'English', 'es': 'Español',
@@ -110,101 +61,161 @@ _FILE_PATTERN = re.compile(
 )
 
 # ---------------------------------------------------------------------------
-# Voix héritage (backward compat pour anciens enregistrements DB)
+# Presets PLATS hérités (`default`, `male_1`…) : des lignes `SystemAsset(voice)` comme les
+# autres, nommées par leur id. Ce qu'on SAIT d'elles : ce sont des clips LJSpeech (Linda
+# Johnson, femme adulte anglophone — certifié) ; `male_1`/`male_2` en sont AUSSI (catalogue),
+# leur nom ment sur le genre. On ne pose que la LANGUE, volontairement : (1) un genre déduit
+# du nom mentirait ; (2) une ligne qui porte langue+âge+genre ENTRE dans les groupes du menu
+# (`voice_reference_groups`), et ces cinq-là n'y ont jamais figuré — `default` est un groupe
+# à part, les quatre autres ne sont plus proposées (elles restent RÉSOLUES pour les 96 lignes
+# qui les stockent). L'empreinte du menu d'avant/après en dépend.
 # ---------------------------------------------------------------------------
+LEGACY_FLAT_VOICES: Dict[str, Dict] = {  # wama:redondance-ok — ce qu'on SAIT de chaque preset plat (info nouvelle : la langue), pas une recopie des choices
+    'default':  {'language': 'en'},
+    'female_1': {'language': 'en'},
+    'female_2': {'language': 'en'},
+    'male_1':   {'language': 'en'},
+    'male_2':   {'language': 'en'},
+}
 
-# Fichiers plats dans voice_references/ (ou default_voices/) pour les anciens IDs
-_LEGACY_IDS = {'default', 'male_1', 'male_2', 'female_1', 'female_2'}  # wama:redondance-ok — ids historiques de presets plats (compat)
 
+def attributes_from_voice_id(voice_id: str) -> Dict:
+    """Les `attributes` (nature `voice`) qu'un identifiant de preset PORTE.
 
-# ---------------------------------------------------------------------------
-# Scan du dossier
-# ---------------------------------------------------------------------------
-
-def scan_voice_refs() -> List[Dict]:
+    `french/adult/male_adult_1_fr` → {language: 'fr', age: 'adult', gender: 'male', variant: 1}
+    (la langue vient du SUFFIXE du fichier, pas du dossier) ; un id plat hérité → ce qu'on en
+    sait (table ci-dessus) ; sinon {} — l'appelant décide s'il refuse ou verse sans attribut.
     """
-    Parcourt voice_references/ et retourne des groupes pour le dropdown.
+    parts = (voice_id or '').split('/')
+    if len(parts) == 3:
+        m = _FILE_PATTERN.match(parts[2] + '.wav')
+        if m:
+            gender, age, variant, lang = m.groups()
+            attrs = {'language': lang.lower(), 'age': age.lower(), 'gender': gender.lower()}
+            if variant:
+                attrs['variant'] = int(variant)
+            return attrs
+    return dict(LEGACY_FLAT_VOICES.get(voice_id, {}))
 
-    Retourne une liste de dicts :
-      [
-        {
-          'group': 'Français — Adulte',
-          'voices': [
-            {'id': 'french/adult/male_adult_1_fr', 'label': 'Homme 1'},
-            ...
-          ]
-        },
-        ...
-      ]
 
-    Seuls les groupes non vides sont inclus.
-    Les groupes sont triés : Français en premier, puis English, puis autres.
+# ---------------------------------------------------------------------------
+# Libellés et groupes — DÉRIVÉS des `attributes` (plus d'un scan de dossier)
+# ---------------------------------------------------------------------------
+
+def _group_label(attrs: Dict) -> str:
+    lang = str(attrs.get('language', '')).lower()
+    age = str(attrs.get('age', '')).lower()
+    return f"{_LANG_CODE_TO_LABEL.get(lang, lang.upper())} — {_AGE_TO_LABEL.get(age, age.capitalize())}"
+
+
+def _option_label(attrs: Dict) -> str:
+    gender = str(attrs.get('gender', '')).lower()
+    label = _GENDER_TO_LABEL.get(gender, gender.capitalize())
+    variant = attrs.get('variant')
+    return label + (f" {variant}" if variant else "")
+
+
+def _voice_label(asset) -> str:
+    """`Français — Adulte — Homme 1` si la ligne porte sa taxonomie, sinon son nom."""
+    attrs = asset.attributes or {}
+    if all(k in attrs for k in ('language', 'age', 'gender')):
+        return f"{_group_label(attrs)} — {_option_label(attrs)}"
+    return asset.name
+
+
+def _sort_key(attrs: Dict) -> tuple:
+    """Français d'abord, puis English, puis les autres par LIBELLÉ affiché ; enfants < adultes
+    < seniors. ⚠ Seul écart mesuré avec le scan de dossier d'avant (empreinte du 13/09) : les
+    « autres » langues se rangeaient par nom de DOSSIER anglais (german, italian, portuguese,
+    spanish) — un ordre que l'utilisateur ne voyait pas ; ici Deutsch, Español, Italiano,
+    Português, l'ordre de ce qu'il lit."""
+    lang = str(attrs.get('language', '')).lower()
+    return (0 if lang == 'fr' else 1 if lang == 'en' else 2,
+            _LANG_CODE_TO_LABEL.get(lang, lang.upper()),
+            _AGE_ORDER.get(str(attrs.get('age', '')).lower(), 9))
+
+
+def voice_reference_groups() -> List[Dict]:
+    """Les optgroups du menu « voix de référence », DÉRIVÉS de la médiathèque :
+
+        [{'group': 'Français — Adulte',
+          'voices': [{'id': 'sa_12', 'label': 'Homme 1'}, …]}, …]
+
+    Une ligne entre dans un groupe si elle porte langue, âge ET genre ; les presets plats
+    hérités (`default`, `male_1`…) n'en portent pas tous et restent hors des groupes, comme
+    avant (« Voix par défaut » est un groupe à part, servi par l'appelant).
     """
-    refs_dir = get_voice_refs_dir()
-    if not refs_dir.exists():
+    try:
+        from wama.media_library.models import SystemAsset
+        rows = list(SystemAsset.objects.filter(asset_type='voice', is_active=True)
+                    .filter(attributes__has_keys=['language', 'age', 'gender'])
+                    .only('id', 'name', 'attributes'))
+    except Exception as exc:                       # base absente : un menu vide, pas une erreur
+        logger.warning(f"[voice_refs] médiathèque illisible : {exc}")
         return []
 
-    groups: Dict[str, Dict] = {}
-
-    for lang_dir in sorted(refs_dir.iterdir()):
-        if not lang_dir.is_dir():
-            continue
-
-        lang_key = lang_dir.name.lower()
-        lang_code = _LANG_DIR_TO_CODE.get(lang_key, lang_key[:2])
-        lang_label = _LANG_CODE_TO_LABEL.get(lang_code, lang_dir.name.capitalize())
-
-        for age_dir in sorted(lang_dir.iterdir(), key=lambda d: _AGE_ORDER.get(d.name.lower(), 9)):
-            if not age_dir.is_dir():
-                continue
-
-            age_key = age_dir.name.lower()
-            age_label = _AGE_TO_LABEL.get(age_key, age_dir.name.capitalize())
-
-            group_key = f"{lang_label} — {age_label}"
-            voices = []
-
-            for wav in sorted(age_dir.glob('*.wav')):
-                m = _FILE_PATTERN.match(wav.name)
-                if not m:
-                    logger.debug(f"[voice_refs] Skipped (bad name): {wav.name}")
-                    continue
-
-                gender, _, variant, _ = m.groups()
-                gender_label = _GENDER_TO_LABEL.get(gender.lower(), gender.capitalize())
-                label = gender_label + (f" {variant}" if variant else "")
-                rel = wav.relative_to(refs_dir)
-                voice_id = str(rel).replace('\\', '/').removesuffix('.wav')
-                voices.append({'id': voice_id, 'label': label})
-
-            if voices:
-                groups[group_key] = {
-                    'group': group_key,
-                    'voices': voices,
-                    '_sort': (
-                        0 if 'Français' in lang_label else 1 if 'English' in lang_label else 2,
-                        _AGE_ORDER.get(age_key, 9),
-                    ),
-                }
-
-    return [v for _, v in sorted(groups.items(), key=lambda x: x[1]['_sort'])]
+    groups: Dict[tuple, Dict] = {}
+    for a in rows:
+        attrs = a.attributes or {}
+        key = (str(attrs['language']).lower(), str(attrs['age']).lower())
+        groups.setdefault(key, {'group': _group_label(attrs), 'voices': [], '_attrs': attrs})
+        groups[key]['voices'].append(
+            {'id': f'sa_{a.pk}', 'label': _option_label(attrs),
+             '_ord': (str(attrs['gender']).lower(), int(attrs.get('variant') or 0))})
+    out = []
+    for _, g in sorted(groups.items(), key=lambda kv: _sort_key(kv[1]['_attrs'])):
+        voices = [{'id': v['id'], 'label': v['label']}
+                  for v in sorted(g['voices'], key=lambda v: v['_ord'])]
+        out.append({'group': g['group'], 'voices': voices})
+    return out
 
 
 # ---------------------------------------------------------------------------
 # Résolution preset → chemin absolu
 # ---------------------------------------------------------------------------
 
+def _system_voice(name_or_pk, by_pk: bool = False):
+    """La ligne `SystemAsset(voice)` désignée — par NOM (l'id de preset d'avant) ou par pk
+    (`sa_<pk>`) ; `None` si absente, inactive, ou sans fichier sur disque."""
+    try:
+        from wama.media_library.models import SystemAsset
+        qs = SystemAsset.objects.filter(asset_type='voice', is_active=True)
+        row = (qs.filter(pk=int(name_or_pk)) if by_pk else qs.filter(name=name_or_pk)).first()
+    except Exception:
+        return None
+    if row is None or not row.file:
+        return None
+    try:
+        return row if os.path.isfile(row.file.path) else None
+    except Exception:
+        return None
+
+
+def _system_voice_path(name_or_pk, by_pk: bool = False) -> Optional[str]:
+    row = _system_voice(name_or_pk, by_pk)
+    return row.file.path if row is not None else None
+
+
 def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
     """
     Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
-    de voix (XTTS). Logique CENTRALISÉE, partagée par le worker et la preview :
-      - ua_<id> → UserAsset (médiathèque) ;
-      - cv_<id> → CustomVoice (legacy) ;
-      - sinon   → resolve_voice_preset() (voix par défaut/héritage).
-    Fallback sur la voix 'default' si l'asset est introuvable. `user` restreint l'UserAsset.
+    de voix. Logique CENTRALISÉE, partagée par les workers et les aperçus :
+      - sa_<id> → SystemAsset (médiathèque commune — les voix de référence) ;
+      - ua_<id> → UserAsset (médiathèque de l'utilisateur ; `user` la restreint) ;
+      - cv_<id> → CustomVoice (hérité) ;
+      - bark_*  → None (Bark résout ses locuteurs dans son backend) ;
+      - sinon   → la voix de référence qui porte ce NOM (`french/adult/male_adult_1_fr`,
+                  `female_1`… — les ids que les lignes en base stockent, décision D5).
+    Repli : la voix `default` de la médiathèque — XTTS EXIGE un fichier, lui en donner un est
+    plus sûr que de lui en refuser un (c'était déjà le sens du repli disque). `None` seulement
+    si la médiathèque n'a pas non plus de `default`.
     """
     if not voice_preset:
-        return resolve_voice_preset('default')
+        return _system_voice_path('default')
+    if voice_preset.startswith('bark_v2_'):
+        return None
+    if voice_preset.startswith('sa_'):
+        return _system_voice_path(voice_preset[3:], by_pk=True) or _system_voice_path('default')
     if voice_preset.startswith('ua_'):
         try:
             from wama.media_library.models import UserAsset
@@ -216,7 +227,7 @@ def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
                 return ua.file.path
         except Exception:
             pass
-        return resolve_voice_preset('default')
+        return _system_voice_path('default')
     if voice_preset.startswith('cv_'):
         try:
             from wama.synthesizer.models import CustomVoice
@@ -225,8 +236,8 @@ def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
                 return cv.audio.path
         except Exception:
             pass
-        return resolve_voice_preset('default')
-    return resolve_voice_preset(voice_preset)
+        return _system_voice_path('default')
+    return _system_voice_path(voice_preset) or _system_voice_path('default')
 
 
 def model_supports_cloning(model_key: str) -> Optional[bool]:
@@ -281,57 +292,50 @@ def speaker_wav_for(model_key: str, voice_preset: str, user=None,
     return resolve_speaker_wav(voice_preset, user)
 
 
-def resolve_voice_preset(preset_value: str) -> Optional[str]:
+def ingest_voice_file(name: str, path, *, source_url: str = '', license: str = '',
+                      description: str = '', replace: bool = False):
+    """Verse UN fichier de voix dans la médiathèque comme `SystemAsset(voice)` nommé `name`,
+    attributs déduits de l'id (`attributes_from_voice_id`). Idempotent : un nom déjà porté est
+    rendu tel quel (ou son fichier REMPLACÉ si `replace`). Le stockage Django COPIE sous
+    `media_library/system/` — l'appelant décide du sort de l'original.
+
+    C'est LE point d'entrée commun de l'ingest initial (`ingest_voice_refs`) et des
+    téléchargements (`download_missing_voice_refs`) : une voix n'entre jamais autrement.
     """
-    Résout un ID de preset en chemin absolu vers un fichier WAV.
+    import wave
 
-    Gère :
-    - Nouveau format  : 'french/adult/male_adult_1_fr'
-    - Héritage plat   : 'default', 'male_1', 'female_2', etc.
-    - Fallback final  : voice_references/default.wav ou default_voices/default.wav
-    """
-    # `'custom'` a QUITTÉ cette garde le 2026-09-01 (REMOVAL_LEDGER R43) : l'option n'existe
-    # plus au vocabulaire et les 3 lignes qui la portaient sont migrées vers `default`. Le
-    # citer ici entretiendrait une valeur morte.
-    # ⚠ Ce que ça change pour une valeur inconnue qui y échapperait : le repli final rend
-    # `default.wav`, PAS `None` (mesuré — mon premier commentaire disait l'inverse). C'est le
-    # bon sens ici : XTTS v2 EXIGE un `speaker_wav`, et lui en donner un est plus sûr que de
-    # lui en refuser un. Le comportement audio est de toute façon celui qu'avaient déjà les
-    # 3 lignes migrées — c'est bien pourquoi elles deviennent `default`.
-    if not preset_value or preset_value == 'bark_v2_en_0':
-        return None
-    if preset_value.startswith('bark_v2_') or preset_value.startswith('cv_'):
-        return None
+    from django.core.files import File
 
-    refs_dir = get_voice_refs_dir()
+    from wama.media_library.models import SystemAsset
 
-    # Nouveau format : contient un '/'
-    if '/' in preset_value:
-        path = refs_dir / (preset_value + '.wav')
-        if path.exists():
-            return str(path)
-        logger.warning(f"[voice_refs] Voice ref not found: {path}")
-        return None
+    path = Path(path)
+    existing = SystemAsset.objects.filter(asset_type='voice', name=name).first()
+    if existing is not None and not replace:
+        return existing
 
-    # Héritage : fichiers plats dans voice_references/
-    if preset_value in _LEGACY_IDS:
-        path = refs_dir / (preset_value + '.wav')
-        if path.exists():
-            return str(path)
+    duration = None
+    try:
+        with wave.open(str(path), 'rb') as w:
+            duration = w.getnframes() / float(w.getframerate() or 1)
+    except Exception:
+        pass
 
-    # Fallback : ancien dossier default_voices/
-    from django.conf import settings
-    legacy_dir = Path(settings.MEDIA_ROOT) / 'synthesizer' / 'default_voices'
-    path = legacy_dir / (preset_value + '.wav')
-    if path.exists():
-        return str(path)
-
-    # Fallback final : default.wav
-    for fallback in (refs_dir / 'default.wav', legacy_dir / 'default.wav'):
-        if fallback.exists():
-            return str(fallback)
-
-    return None
+    asset = existing or SystemAsset(name=name, asset_type='voice')
+    asset.attributes = attributes_from_voice_id(name)
+    asset.mime_type = 'audio/wav'
+    asset.file_size = path.stat().st_size
+    asset.duration = duration
+    if source_url:
+        asset.source_url = source_url
+    if license:
+        asset.license = license
+    if description:
+        asset.description = description
+    with open(path, 'rb') as fh:
+        # `upload_to` décide du domicile (`media_library/system/`) — on ne compose aucun chemin.
+        asset.file.save(path.name, File(fh), save=False)
+    asset.save()
+    return asset
 
 
 # ---------------------------------------------------------------------------
@@ -635,57 +639,85 @@ def _try_url_download(target: Path, sources: List[tuple]) -> bool:
     return False
 
 
+def _catalogue_names() -> set:
+    return set(VOICE_DOWNLOAD_CATALOG) | set(_VOICE_DATASETS_CATALOG)
+
+
+def _library_voice_names() -> set:
+    try:
+        from wama.media_library.models import SystemAsset
+        return set(SystemAsset.objects.filter(asset_type='voice').values_list('name', flat=True))
+    except Exception:
+        return set()
+
+
 def needs_voice_download() -> bool:
-    """Retourne True si au moins un fichier des catalogues est absent."""
-    refs_dir = get_voice_refs_dir()
-    all_keys = set(VOICE_DOWNLOAD_CATALOG) | set(_VOICE_DATASETS_CATALOG)
-    return any(not (refs_dir / (rel + '.wav')).exists() for rel in all_keys)
+    """Vrai si une voix du catalogue n'est pas (encore) en médiathèque."""
+    return bool(_catalogue_names() - _library_voice_names())
+
+
+#: Provenance posée sur une voix TÉLÉCHARGÉE — la seule qu'on connaisse avec certitude.
+_VOXPOPULI_URL = 'https://huggingface.co/datasets/facebook/voxpopuli'
 
 
 def download_missing_voice_refs(force: bool = False) -> Dict[str, str]:
     """
-    Télécharge les fichiers de voix de référence manquants.
+    Télécharge les voix de référence manquantes et les VERSE en médiathèque.
 
-    Stratégie pour chaque fichier (dans l'ordre) :
+    Stratégie pour chaque voix (dans l'ordre) :
       1. VoxPopuli (Facebook, sans auth) — locuteurs diversifiés, pip install datasets soundfile
       2. URLs directes (XTTS-v2 HuggingFace, LJSpeech GitHub) — fallback fiable
+    Le fichier transite par un dossier temporaire ; c'est `ingest_voice_file` qui l'installe,
+    avec sa provenance (`source_url` ; `license` seulement quand elle est CERTAINE — LJSpeech
+    est du domaine public ; VoxPopuli et les échantillons XTTS-v2 restent à renseigner).
 
     Args:
-        force: re-télécharge même si le fichier existe déjà.
+        force: re-télécharge même si la voix est déjà en médiathèque (fichier remplacé).
 
     Returns:
-        dict {rel_path: 'downloaded'|'skipped'|'failed'}
+        dict {name: 'downloaded'|'skipped'|'failed'}
     """
-    refs_dir = get_voice_refs_dir()
+    import shutil
+    import tempfile
+
     results: Dict[str, str] = {}
+    presentes = _library_voice_names()
+    tmp = Path(tempfile.mkdtemp(prefix='wama_voice_refs_'))
+    try:
+        for name in sorted(_catalogue_names()):
+            if name in presentes and not force:
+                results[name] = 'skipped'
+                continue
 
-    # Union des deux catalogues ; _VOICE_DATASETS_CATALOG est prioritaire
-    all_keys = set(VOICE_DOWNLOAD_CATALOG) | set(_VOICE_DATASETS_CATALOG)
+            target = tmp / (name.replace('/', '__') + '.wav')
+            source_url, license_ = '', ''
 
-    for rel_path in sorted(all_keys):
-        target = refs_dir / (rel_path + '.wav')
+            # ── 1. VoxPopuli ──────────────────────────────────────────────────
+            if name in _VOICE_DATASETS_CATALOG and _VOICE_DATASETS_CATALOG[name]:
+                if _try_voxpopuli(target, _VOICE_DATASETS_CATALOG[name]):
+                    source_url = _VOXPOPULI_URL
 
-        if target.exists() and not force:
-            results[rel_path] = 'skipped'
-            continue
+            # ── 2. URLs directes ──────────────────────────────────────────────
+            if not source_url and name in VOICE_DOWNLOAD_CATALOG:
+                for url, description in VOICE_DOWNLOAD_CATALOG[name]:
+                    if _try_url_download(target, [(url, description)]):
+                        source_url = url
+                        license_ = 'Public domain (LJSpeech)' if 'LJSpeech' in description else ''
+                        break
 
-        target.parent.mkdir(parents=True, exist_ok=True)
-
-        downloaded = False
-
-        # ── 1. VoxPopuli ──────────────────────────────────────────────────
-        if not downloaded and rel_path in _VOICE_DATASETS_CATALOG:
-            vp_lang = _VOICE_DATASETS_CATALOG[rel_path]
-            if vp_lang:
-                downloaded = _try_voxpopuli(target, vp_lang)
-
-        # ── 2. URLs directes ──────────────────────────────────────────────
-        if not downloaded and rel_path in VOICE_DOWNLOAD_CATALOG:
-            downloaded = _try_url_download(target, VOICE_DOWNLOAD_CATALOG[rel_path])
-
-        results[rel_path] = 'downloaded' if downloaded else 'failed'
-        if not downloaded:
-            logger.error(f"[voice_refs] Toutes les sources ont échoué : {rel_path}")
+            if not source_url:
+                results[name] = 'failed'
+                logger.error(f"[voice_refs] Toutes les sources ont échoué : {name}")
+                continue
+            try:
+                ingest_voice_file(name, target, source_url=source_url, license=license_,
+                                  replace=force)
+                results[name] = 'downloaded'
+            except Exception as exc:
+                results[name] = 'failed'
+                logger.error(f"[voice_refs] Versement en médiathèque impossible : {name} — {exc}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
     n_ok   = sum(1 for s in results.values() if s == 'downloaded')
     n_skip = sum(1 for s in results.values() if s == 'skipped')
@@ -695,29 +727,46 @@ def download_missing_voice_refs(force: bool = False) -> Dict[str, str]:
     return results
 
 
-def get_voice_label(preset_value: str) -> str:
-    """
-    Retourne un libellé lisible pour un ID de preset.
-    Utilisé par get_voice_preset_display() dans les modèles.
+def describe_voice(preset_value: str, user=None) -> str:
+    """Le libellé d'une valeur de `voice_preset`, quelle que soit sa forme — pour AFFICHER
+    (card, inspecteur) : `sa_<id>` / nom de référence → « Français — Adulte — Homme 1 » ;
+    `ua_<id>` / `cv_<id>` → le nom donné par l'utilisateur ; preset plat ou Bark → le libellé
+    de `VOICE_PRESET_CHOICES` ; sinon la valeur elle-même (on n'efface jamais une donnée).
     """
     if not preset_value:
         return ''
-
-    # Nouveau format : 'french/adult/male_adult_1_fr'
-    if '/' in preset_value:
-        parts = preset_value.split('/')
-        if len(parts) >= 3:
-            lang_key, age_key, fname = parts[0], parts[1], parts[-1]
-            lang_code = _LANG_DIR_TO_CODE.get(lang_key, lang_key[:2])
-            lang_label = _LANG_CODE_TO_LABEL.get(lang_code, lang_key.capitalize())
-            age_label = _AGE_TO_LABEL.get(age_key, age_key.capitalize())
-
-            m = _FILE_PATTERN.match(fname + '.wav')
-            if m:
-                gender, _, variant, _ = m.groups()
-                gender_label = _GENDER_TO_LABEL.get(gender.lower(), gender.capitalize())
-                voice_label = gender_label + (f" {variant}" if variant else "")
-                return f"{lang_label} — {age_label} — {voice_label}"
-        return preset_value.replace('/', ' › ')
-
+    if preset_value.startswith('sa_'):
+        row = _system_voice(preset_value[3:], by_pk=True)
+        return _voice_label(row) if row is not None else preset_value
+    if preset_value.startswith('ua_'):
+        try:
+            from wama.media_library.models import UserAsset
+            qs = UserAsset.objects.filter(pk=int(preset_value[3:]))
+            if user is not None:
+                qs = qs.filter(user=user)
+            ua = qs.first()
+            if ua:
+                return ua.name
+        except Exception:
+            pass
+        return preset_value
+    if preset_value.startswith('cv_'):
+        try:
+            from wama.synthesizer.models import CustomVoice
+            cv = CustomVoice.objects.filter(pk=int(preset_value[3:])).first()
+            if cv:
+                return cv.name
+        except Exception:
+            pass
+        return preset_value
+    from wama.common.tts.constants import VOICE_PRESET_CHOICES
+    plat = dict(VOICE_PRESET_CHOICES).get(preset_value)
+    if plat:
+        return plat
+    row = _system_voice(preset_value)
+    if row is not None:
+        return _voice_label(row)
+    attrs = attributes_from_voice_id(preset_value)     # la ligne manque, l'id parle encore
+    if all(k in attrs for k in ('language', 'age', 'gender')):
+        return f"{_group_label(attrs)} — {_option_label(attrs)}"
     return preset_value
