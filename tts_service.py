@@ -8,7 +8,8 @@ COMMUN (`wama/synthesizer/backends/`, dérivés de `BaseModelBackend`) : c'est l
 contrat qui mesure et publie leur empreinte VRAM au gouverneur (clé par modèle,
 ex. `…CoquiBackend:<pid>#synthesizer:coqui-xtts`) et qui enregistre les
 unloaders. Ce fichier ne garde que la POLITIQUE : bascule de moteur courant,
-résidence de Kokoro, résolution des presets de voix, file HTTP.
+résidence de Kokoro, file HTTP. (La résolution des presets de voix l'a quitté le
+2026-09-13 : elle est à Django, `common/tts/voice_refs.speaker_wav_for`.)
 
 Usage:
     python -m uvicorn tts_service:app --host 0.0.0.0 --port 8001 --workers 1
@@ -30,10 +31,11 @@ logger = logging.getLogger("tts_service")
 # ---------------------------------------------------------------------------
 PROJECT_DIR = Path(__file__).parent
 
-# Default voices directory
-DEFAULT_VOICES_DIR = PROJECT_DIR / "media" / "synthesizer" / "voice_references"
-_LEGACY_VOICES_DIR = PROJECT_DIR / "media" / "synthesizer" / "default_voices"
-DEFAULT_VOICES_DIR.mkdir(parents=True, exist_ok=True)
+# ⚠ Le service ne connaît plus AUCUN dossier de voix (2026-09-13, MEDIA_STORAGE_TIERING §9.4
+# marche 3) : `speaker_wav` arrive TOUJOURS résolu de Django (`common/tts/voice_refs.
+# speaker_wav_for`, décidé par la capacité du moteur). Les deux constantes de dossier et le
+# résolveur `_get_speaker_wav` qui vivaient ici recomposaient à la main ce que Django résout
+# déjà — contre-épreuve avant retrait : 37 presets, 0 écart de fichier entre les deux.
 
 # ---------------------------------------------------------------------------
 # Bootstrap PROCESS (pas backend) : torch.load + plafond CUDA
@@ -183,66 +185,6 @@ def _switch_model(model_name: str, engine_declare: str | None = None):
 
 
 # ---------------------------------------------------------------------------
-# Voice preset helper (politique MÉDIA — reste au service)
-# ---------------------------------------------------------------------------
-def _get_speaker_wav(voice_preset: str) -> Optional[str]:
-    """Resolve a voice preset name to a WAV file path."""
-    import urllib.request
-
-    # `'custom'` retiré du vocabulaire le 2026-09-01 (REMOVAL_LEDGER R43) — il ne désignait
-    # aucun fichier et faisait parler le moteur avec sa voix par défaut sous une étiquette de
-    # clonage. Les presets réellement sans fichier À CE NIVEAU restent listés : Bark résout ses
-    # locuteurs dans son propre backend, et `cv_` est résolu en amont par le worker Django.
-    if not voice_preset or voice_preset.startswith(('bark_v2_', 'cv_')):
-        return None
-
-    DEFAULT_VOICES_DIR.mkdir(parents=True, exist_ok=True)
-
-    # New format: relative path within voice_references/
-    if '/' in voice_preset:
-        path = DEFAULT_VOICES_DIR / (voice_preset + '.wav')
-        if path.exists():
-            return str(path)
-        logger.warning(f"Voice ref not found: {path}")
-        return None
-
-    # Legacy flat files: try voice_references/ root first, then default_voices/
-    for base_dir in (DEFAULT_VOICES_DIR, _LEGACY_VOICES_DIR):
-        path = base_dir / (voice_preset + '.wav')
-        if path.exists():
-            return str(path)
-
-    # Auto-download missing legacy presets (LJSpeech fallback)
-    _LJ_BASE = "https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs"
-    legacy_mapping = {  # wama:redondance-ok — compat presets plats historiques (même nature que _LEGACY_IDS)
-        'default':  ('default.wav',  f'{_LJ_BASE}/LJ001-0001.wav'),
-        'male_1':   ('male_1.wav',   f'{_LJ_BASE}/LJ001-0015.wav'),
-        'male_2':   ('male_2.wav',   f'{_LJ_BASE}/LJ001-0020.wav'),
-        'female_1': ('female_1.wav', f'{_LJ_BASE}/LJ001-0010.wav'),
-        'female_2': ('female_2.wav', f'{_LJ_BASE}/LJ001-0025.wav'),
-    }
-    if voice_preset in legacy_mapping:
-        fname, url = legacy_mapping[voice_preset]
-        fpath = DEFAULT_VOICES_DIR / fname
-        if not fpath.exists():
-            try:
-                logger.info(f"Downloading legacy voice preset '{voice_preset}' ...")
-                urllib.request.urlretrieve(url, str(fpath))
-            except Exception as e:
-                logger.warning(f"Could not download preset '{voice_preset}': {e}")
-        if fpath.exists():
-            return str(fpath)
-
-    # Final fallback: default.wav
-    for base_dir in (DEFAULT_VOICES_DIR, _LEGACY_VOICES_DIR):
-        fallback = base_dir / 'default.wav'
-        if fallback.exists():
-            return str(fallback)
-
-    return None
-
-
-# ---------------------------------------------------------------------------
 # Request/Response models
 # ---------------------------------------------------------------------------
 class TTSRequest(BaseModel):
@@ -319,9 +261,9 @@ def tts_endpoint(req: TTSRequest):
         # Switch model if needed
         _switch_model(req.model, req.engine)
 
-        # Résolution preset → fichier de référence (Bark n'en consomme pas ;
-        # son mapping preset → locuteur est dans son backend).
-        speaker_wav = req.speaker_wav or _get_speaker_wav(req.voice_preset)
+        # La voix de référence vient RÉSOLUE de Django (voir l'en-tête) ; Bark n'en
+        # consomme pas — son mapping preset → locuteur est dans son backend.
+        speaker_wav = req.speaker_wav or None
 
         # Contrat d'appel uniforme : chaque backend consomme ce qui le concerne.
         wav_path = _backend(_current_engine).synthesize(

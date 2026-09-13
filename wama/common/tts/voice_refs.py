@@ -229,6 +229,58 @@ def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
     return resolve_voice_preset(voice_preset)
 
 
+def model_supports_cloning(model_key: str) -> Optional[bool]:
+    """Le moteur du modèle `model_key` CLONE-t-il ? — `True`/`False` si quelque chose le dit,
+    `None` si rien ne le dit.
+
+    Autorité, dans l'ordre : la CLASSE de moteur (`backend_for_key`, le flag `supports_cloning`
+    du contrat commun), puis la ligne de catalogue (`AIModel.capabilities`, réconciliée sur
+    le moteur par `apply_engine_flags`). Aucune liste de clés ici : c'est la règle D7 de
+    `MEDIA_STORAGE_TIERING §9.1` — *la capacité décide, jamais `tts_model == 'coqui-xtts'`*.
+    ⚠ Ce test-là était d'ailleurs MORT au moment de le retirer (13/09) : `tts_model` porte la
+    clé entière (`synthesizer:coqui-xtts`, 100 % des lignes), la comparaison au nom nu n'était
+    jamais vraie, et c'est le SERVICE qui résolvait la voix à la place de Django.
+    """
+    if not model_key:
+        return None
+    try:
+        from wama.common.backends.manager import backend_for_key
+        cls = backend_for_key(model_key)
+    except Exception:                          # hors Django, base absente : pas de verdict ici
+        cls = None
+    if cls is not None:
+        return bool(getattr(cls, 'supports_cloning', False))
+    try:
+        from wama.model_manager.models import AIModel
+        ligne = AIModel.objects.filter(model_key=model_key).only('capabilities').first()
+    except Exception:
+        ligne = None
+    caps = (getattr(ligne, 'capabilities', None) or {})
+    if 'supports_cloning' in caps:
+        return bool(caps['supports_cloning'])
+    return None
+
+
+def speaker_wav_for(model_key: str, voice_preset: str, user=None,
+                    reference_path: Optional[str] = None) -> Optional[str]:
+    """LA porte des workers et des aperçus : le `speaker_wav` à passer au service TTS.
+
+    - le moteur ne clone PAS (déclaré) → `None`, quelle que soit la voix choisie : l'UI grise
+      déjà ces moteurs pour une voix clonée (`WamaInputMatch.voiceSlot`) ; ici on ne fait que
+      tenir la même règle côté serveur ;
+    - le moteur clone, ou rien ne le dit → un fichier de référence par job (`reference_path`)
+      prime, sinon `resolve_speaker_wav` (ua_/cv_/presets). Un moteur INCONNU reçoit donc
+      une voix : XTTS l'EXIGE, un moteur sans clonage l'ignore — le sens sûr.
+
+    Le service (`tts_service.py`) ne résout plus rien : tout `speaker_wav` vient d'ici (D6).
+    """
+    if model_supports_cloning(model_key) is False:
+        return None
+    if reference_path:
+        return reference_path
+    return resolve_speaker_wav(voice_preset, user)
+
+
 def resolve_voice_preset(preset_value: str) -> Optional[str]:
     """
     Résout un ID de preset en chemin absolu vers un fichier WAV.
