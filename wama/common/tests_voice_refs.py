@@ -39,6 +39,14 @@ class LaCapaciteDecideTest(TestCase):
             self.assertEqual(voice_refs.speaker_wav_for('synthesizer:???', 'default'), '/x/d.wav')
 
 
+class PredicatDeClonageServeurTest(TestCase):
+    def test_ua_et_cv_sont_des_clonages_sa_et_les_plats_non(self):
+        self.assertTrue(voice_refs.is_cloned_voice('ua_3'))
+        self.assertTrue(voice_refs.is_cloned_voice('cv_1'))
+        for v in ('sa_12', 'default', 'female_1', 'bark_v2_fr_0', '', None):
+            self.assertFalse(voice_refs.is_cloned_voice(v), v)
+
+
 class AutoriteDuMoteurTest(TestCase):
     """`model_supports_cloning` : la classe de moteur d'abord, le catalogue ensuite, None sinon."""
 
