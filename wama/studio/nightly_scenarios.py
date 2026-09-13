@@ -13,12 +13,20 @@ import os
 
 from wama.common.services.nightly_tests import SkipScenario, register
 
-_ENTREE_REL = 'nightly_tests/studio_sine_1s.wav'
+#: La fixture vit CHEZ LE COMPTE DE TEST (`users/<uid>/temp/`), nommée en témoin
+#: (`wama_temoin_*`) : c'est la zone que le balayage `sweep_test_witnesses` couvre, et la seule
+#: où un test a le droit d'écrire dans `media/` — le nocturne passe par le serveur VIVANT, donc
+#: par le vrai `MEDIA_ROOT` (le nœud `media_import` confine `asset_path` sous cette racine).
+#: Jusqu'au 2026-09-13 elle vivait à `media/nightly_tests/` : un dossier de test à la RACINE du
+#: média de production, signalé « égaré » par `check_media_integrity` et exclu à la main par
+#: `migrate_media_to_user_home` — deux exceptions pour un fichier de 1 s.
+_ENTREE_NOM = 'wama_temoin_studio_sine_1s.wav'
 
 
-def _entree(media_root):
-    """Wav sinus 1 s, généré une fois via le ffmpeg CENTRALISÉ (ffmpeg_utils)."""
-    abs_path = os.path.join(media_root, _ENTREE_REL)
+def _entree(media_root, user):
+    """Wav sinus 1 s, généré via le ffmpeg CENTRALISÉ (ffmpeg_utils) ; rend le chemin RELATIF."""
+    rel = f'users/{user.pk}/temp/{_ENTREE_NOM}'
+    abs_path = os.path.join(media_root, rel)
     if not os.path.exists(abs_path):
         import subprocess
         from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
@@ -26,7 +34,7 @@ def _entree(media_root):
         subprocess.run([get_ffmpeg_exe(), '-y', '-f', 'lavfi', '-i',
                         'sine=frequency=440:duration=1', abs_path],
                        check=True, capture_output=True, timeout=60)
-    return _ENTREE_REL
+    return rel
 
 
 def _worker_default_present():
@@ -48,7 +56,7 @@ def _run_pipeline_end_to_end(ctx):
     if not _worker_default_present():
         raise SkipScenario('aucun worker sur la file default (converter) — pile arrêtée ?')
 
-    rel = _entree(settings.MEDIA_ROOT)
+    rel = _entree(settings.MEDIA_ROOT, user)
     nom_sortie = f'nightly-studio-{user.pk}'
     graph = {
         'nodes': [

@@ -65,6 +65,30 @@ class LaDeclarationReproduitLesTablesDAvantTest(TestCase):
         self.assertEqual(set(j['voice']['attributes']), {'language', 'age', 'gender', 'variant'})
 
 
+class ResolutionDUneCategorieTest(TestCase):
+    """Un puits qui ne dit qu'une catégorie obtient une NATURE — jamais un alias en base."""
+
+    def test_une_nature_revient_telle_quelle(self):
+        self.assertEqual(natures.resolve_asset_type('voice'), 'voice')
+
+    def test_une_categorie_donne_sa_nature_par_defaut_declaree(self):
+        self.assertEqual(natures.resolve_asset_type('audio'), 'audio_music')
+        self.assertEqual(natures.resolve_asset_type('3d'), 'object3d')
+
+    def test_l_extension_departage_dans_la_categorie_le_defaut_en_tete(self):
+        self.assertEqual(natures.resolve_asset_type('audio', 'x.mp3'), 'audio_music')
+        self.assertEqual(natures.resolve_asset_type('audio', 'x.aiff'), 'audio_sfx')   # seul à l'admettre
+        self.assertEqual(natures.resolve_asset_type('image', 'x.gif'), 'image')
+
+    def test_ni_nature_ni_categorie_est_refuse_avec_le_vocabulaire(self):
+        with self.assertRaisesRegex(ValueError, 'audio_music'):
+            natures.resolve_asset_type('musique')
+
+    def test_le_defaut_de_chaque_categorie_est_une_nature_de_cette_categorie(self):
+        for c, t in natures.CATEGORY_DEFAULT.items():
+            self.assertEqual(natures.ASSET_NATURES[t].category, c)
+
+
 class NormalisationTest(TestCase):
     def test_coerce_au_type_declare_et_garde_les_cles_inconnues(self):
         out = natures.normalize_attributes(

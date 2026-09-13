@@ -117,6 +117,42 @@ for _k, _n in ASSET_NATURES.items():
 del _k, _n
 
 
+#: Quelle nature quand un appelant ne dit qu'une CATÉGORIE (`'audio'`, `'image'`…) — c'est le
+#: cas des puits du studio (`asset_type` d'un nœud « Sortie ») et de tout mode d'app qui parle
+#: en catégories (`accept='audio'`). Déclaré, pas déduit de l'ordre du dict : `voice` est la
+#: première nature audio, et une musique convertie n'est pas une voix. Mesuré 13/09 : le
+#: nocturne du studio écrivait `asset_type='audio'` tel quel — d'où une ligne hors vocabulaire.
+CATEGORY_DEFAULT: Dict[str, str] = {
+    'audio': 'audio_music', 'image': 'image', 'video': 'video',
+    'document': 'document', '3d': 'object3d',
+}
+for _c, _t in CATEGORY_DEFAULT.items():
+    if _t not in ASSET_NATURES or ASSET_NATURES[_t].category != _c:
+        raise ValueError(f"CATEGORY_DEFAULT[{_c!r}] = {_t!r} n'est pas une nature de cette catégorie")
+del _c, _t
+
+
+def resolve_asset_type(value: str, filename: str = '') -> str:
+    """La NATURE que désigne `value` : une nature telle quelle ; une catégorie → sa nature par
+    défaut (ou, si `filename` est donné, la première nature de la catégorie qui ADMET cette
+    extension, le défaut en tête) ; sinon `ValueError` qui cite le vocabulaire — jamais un
+    alias écrit en base."""
+    v = (value or '').strip()
+    if v in ASSET_NATURES:
+        return v
+    if v in CATEGORY_DEFAULT:
+        defaut = CATEGORY_DEFAULT[v]
+        ext = filename.rsplit('.', 1)[-1].lower() if '.' in (filename or '') else ''
+        if ext:
+            for k in [defaut] + [k for k in ASSET_NATURES if k != defaut]:
+                n = ASSET_NATURES[k]
+                if n.category == v and ext in n.extensions:
+                    return k
+        return defaut
+    raise ValueError(f"asset_type {v!r} : ni une nature ({', '.join(ASSET_NATURES)}) "
+                     f"ni une catégorie ({', '.join(CATEGORY_DEFAULT)})")
+
+
 # ── Lecture (dérivée — les consommateurs passent par ici) ────────────────────────────────
 def nature_of(asset_type: str) -> Nature:
     """La nature d'un `asset_type`, ou `KeyError` : une valeur hors vocabulaire n'est pas un
