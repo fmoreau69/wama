@@ -1,0 +1,96 @@
+{
+  "body": {
+    "app": "studio",
+    "binding": "app",
+    "category": "transform",
+    "cost": {
+      "approx_s": 5,
+      "vram_gb": 6
+    },
+    "impl": "studio.gpu_tasks:image_to_3d_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "L'image source (RGB ou RGBA détourée).",
+        "group": "travail",
+        "key": "image",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "studio.image_to_3d",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "object_3d",
+        "description": "Maillage GLB coloré par sommet, rangé chez l’utilisateur (`users/<uid>/studio/output/`).",
+        "key": "object",
+        "optional": false,
+        "produced_fields": [
+          "format",
+          "polygons"
+        ],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [
+      {
+        "choices": null,
+        "default": 256,
+        "description": "Résolution du marching cubes (plus fin = plus de faces, plus lent).",
+        "key": "resolution",
+        "max": 512,
+        "min": 64,
+        "type": "int",
+        "unit": "voxels"
+      },
+      {
+        "choices": null,
+        "default": 0.85,
+        "description": "Part du cadre occupée par l'objet après recadrage (image RGBA).",
+        "key": "foreground_ratio",
+        "max": 1.0,
+        "min": 0.5,
+        "type": "float",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": "huggingface:triposr",
+        "description": "Clé de catalogue du modèle image→3D (moteur résolu par le backend).",
+        "key": "model",
+        "max": null,
+        "min": null,
+        "type": "str",
+        "unit": ""
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "vision",
+      "gpu",
+      "3d",
+      "reconstruction",
+      "plausible"
+    ],
+    "visibility": "public"
+  },
+  "description": "Reconstruit un maillage 3D texturé (GLB, pivot de la médiathèque) depuis UNE image — de préférence détourée (sortie du detector / SAM3). Modèle TripoSR (MIT). ⚠ PLAUSIBLE, pas métrique : les faces occultées sont hallucinées ; un prop de simulation, jamais une mesure (§17ter).",
+  "key": "studio.image_to_3d",
+  "manifest_kind": "function",
+  "name": "Image → objet 3D",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:studio.image_to_3d",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

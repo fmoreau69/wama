@@ -186,6 +186,7 @@ class ModelRegistry:
         self._discover_composer_models()
         self._discover_reader_models()
         self._discover_depth_models()
+        self._discover_image_to_3d_models()
         self._discover_face_analyzer_models()
 
         # EN DERNIER, après toutes les découvertes d'app : le balayage générique ne
@@ -976,6 +977,50 @@ class ModelRegistry:
             )
         except Exception as e:
             logger.debug(f"Could not discover depth models: {e}")
+
+    def _discover_image_to_3d_models(self):
+        """Reconstruction image → objet 3D (task=image-to-3d) — ROADMAP §17ter trou 4.
+
+        Même patron que `_discover_depth_models` : une entrée CONNUE par ligne, scan disque pour
+        `is_downloaded`, aucune app importée (le consommateur est la fonction studio
+        `studio.image_to_3d`, substrat — pas une app de file). Une seule entrée : TripoSR
+        (Stability + Tripo, MIT), retenu le 2026-09-13 parmi les candidats du §17ter parce que
+        SEUL sans extension CUDA à compiler (torchmcubes rabattu sur PyMCubes) — TRELLIS
+        (flash-attn, spconv, kaolin), Hunyuan3D-2 (rasterizer custom) et SF3D restent des
+        candidats ; en ajouter un = une ligne ModelInfo ici + un backend qui déclare son moteur.
+        """
+        try:
+            from django.conf import settings
+            from pathlib import Path
+            cfg = (settings.MODEL_PATHS.get('vision', {}) or {}).get('triposr')
+            if not cfg:
+                return
+            root = Path(cfg)
+            cached = root.exists() and any(root.rglob('model.ckpt'))
+            self._models['huggingface:triposr'] = ModelInfo(
+                id='huggingface:triposr',
+                name='TripoSR',
+                model_type=ModelType.VISION,
+                source=ModelSource.HUGGINGFACE,
+                description='Reconstruction mono-image → maillage 3D texturé (LRM, ~0,5 s/objet '
+                            'sur GPU), MIT. ⚠ Reconstruction PLAUSIBLE, pas métrique : les faces '
+                            'occultées sont hallucinées (§17ter) — props de simulation, jamais '
+                            'une mesure.',
+                hf_id='stabilityai/TripoSR',
+                # Moteur : le code TripoSR vendorisé (`common/backends/vendor/triposr`, comme
+                # MuseTalk/CodeFormer) — la moitié backend est `TripoSRBackend.ENGINE`.
+                composition={'runtime': {'engine': 'triposr'},
+                             'components': [{'repo': 'https://github.com/VAST-AI-Research/TripoSR',
+                                             'role': 'code', 'pin': '107cefdc'}]},
+                vram_gb=6.0,
+                is_downloaded=cached,
+                capabilities={'task': 'image-to-3d', 'modalities': ['image'],
+                              'inputs_required': ['work_file'],
+                              # Déclaré en MÉTADONNÉE, pas en mémoire humaine (§17ter) :
+                              'reconstruction': 'plausible'},
+            )
+        except Exception as e:
+            logger.debug(f"Could not discover image-to-3d models: {e}")
 
     def _discover_transcriber_models(self):
         """Discover Transcriber app models (Whisper, VibeVoice, Qwen3-ASR)."""

@@ -229,12 +229,25 @@ def app_function_job_kwargs(impl: str) -> list:
             and p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)]
 
 
-def _run_app_function(spec, params: dict, save_state, deadline_s: float):
+def _run_app_function(spec, params: dict, save_state, deadline_s: float, inputs: dict | None = None):
     """Fonction `app`-bound = un JOB : `impl` (tâche Celery) lancée avec les params du nœud,
-    puis POLLÉE comme un nœud-app. Sans `.delay` (fonction ordinaire), appel direct."""
+    puis POLLÉE comme un nœud-app. Sans `.delay` (fonction ordinaire), appel direct.
+
+    `inputs` (2026-09-13, §17ter trou 4) : les FICHIERS reçus de l'amont, par PORT (`{'image':
+    'users/…/x.png'}`) — une fonction média (`studio.image_to_3d`) reçoit ainsi l'image du nœud
+    précédent, là où les passes du cam_analyzer ne prenaient que des params (`session_id`).
+    Un port qui n'est pas un paramètre de la tâche n'est pas passé : l'introspection décide."""
     target = _impl_callable(spec.impl)
     required = app_function_job_kwargs(spec.impl)
     kwargs = {k: v for k, v in (params or {}).items() if v not in (None, '')}
+    if inputs:
+        import inspect
+        fn = getattr(target, 'run', None) or getattr(target, '__wrapped__', None) or target
+        try:
+            acceptes = set(inspect.signature(fn).parameters)
+        except (TypeError, ValueError):
+            acceptes = set(inputs)
+        kwargs.update({k: v for k, v in inputs.items() if k in acceptes and v not in (None, '')})
     missing = [k for k in required if k not in kwargs]
     if missing:
         raise ValueError(f"paramètre(s) requis manquant(s) pour {spec.key} : {', '.join(missing)}")
@@ -418,10 +431,38 @@ def run_pipeline_task(self, run_id):
                     _save_state(nid, status='SUCCESS', progress=100, output=_frame_summary(result))
                     _console(user.id, f"Studio run #{run.pk} : fonction {key} ✔ → {_frame_summary(result)}")
                 else:
-                    res = _run_app_function(spec, node.get('params') or {},
-                                            lambda **kw: _save_state(nid, **kw), NODE_TIMEOUT_S)
+                    # Les FICHIERS de l'amont, par port (une fonction média — image→3D — les
+                    # reçoit ; les passes du cam_analyzer, à params seuls, les ignorent).
+                    fichiers = {}
+                    ports_connus = [p.key for p in spec.inputs]
+                    for l in links:
+                        if l['to'] != nid or l['from'] not in outputs:
+                            continue
+                        up = outputs[l['from']]
+                        if up.get('is_frame') or up.get('is_text'):
+                            continue
+                        port = l.get('to_port')
+                        if port not in ports_connus:
+                            port = ports_connus[0] if ports_connus else None
+                        if port:
+                            fichiers[port] = up['value']
+                    params_noeud = dict(node.get('params') or {})
+                    params_noeud.setdefault('user_id', user.pk)
+                    res = _run_app_function(spec, params_noeud,
+                                            lambda **kw: _save_state(nid, **kw), NODE_TIMEOUT_S,
+                                            inputs=fichiers)
                     otype = spec.outputs[0].data_type if spec.outputs else 'scalar'
-                    outputs[nid] = {'type': otype, 'value': str(res)[:2000], 'is_text': True}
+                    # Un résultat qui EST un fichier média (chemin relatif sous MEDIA_ROOT) se
+                    # transmet comme tel — le nœud « Sortie » le range en médiathèque avec ses
+                    # attributs lus du fichier ; un texte reste un texte.
+                    import os as _os
+                    from django.conf import settings as _settings
+                    est_media = (isinstance(res, str) and res and '\n' not in res
+                                 and _os.path.isfile(_os.path.join(_settings.MEDIA_ROOT, res)))
+                    if est_media:
+                        outputs[nid] = {'type': otype, 'value': res}
+                    else:
+                        outputs[nid] = {'type': otype, 'value': str(res)[:2000], 'is_text': True}
                     _save_state(nid, status='SUCCESS', progress=100, output=str(res)[:2000])
                     _console(user.id, f"Studio run #{run.pk} : fonction {key} ✔ (job)")
                 continue

@@ -59,6 +59,11 @@ MODEL_PATHS = {
         # cam_analyzer §[E]. Choix Depth Pro (vs DA3) : natif transformers + intrinsèque estimé,
         # ce que le re-calage du plan de sol consomme directement (2026-08-05).
         'depth': AI_MODELS_DIR / "models" / "vision" / "depth-pro",
+        # Reconstruction image → objet 3D (TripoSR, MIT — ROADMAP §17ter trou 4, 2026-09-13) :
+        # `config.yaml` + `model.ckpt` tirés de `stabilityai/TripoSR` par `hf_hub_download(
+        # cache_dir=…)` au premier chargement. Retenu vs TRELLIS / Hunyuan3D-2 / SF3D parce que
+        # SEUL sans extension CUDA à compiler (marching cubes rabattu sur PyMCubes, wheel pip).
+        'triposr': AI_MODELS_DIR / "models" / "vision" / "triposr",
         # DeepFace (face_analyzer) — poids `.h5` téléchargés depuis les GitHub Releases de
         # `serengil/deepface_models` (la lib n'expose AUCUN chemin HuggingFace, vérifié le
         # 2026-09-05). La lib ajoute elle-même `.deepface/weights` sous ce dossier : c'est sa
@@ -689,6 +694,9 @@ if ENABLE_CELERY:
         # Orchestrateur studio : file DÉDIÉE. run_pipeline_task retient son worker pendant
         # toute la durée du pipeline (boucle de poll) ; sur une file partagée avec les tâches
         # d'app il attendait sa propre tâche converter (deadlock en pool solo, smoke 03/08).
+        # Fonctions GPU du studio (image→3D…) : file `gpu`, JAMAIS `studio` — l'orchestrateur
+        # (solo) doit rester libre de poller, et l'inférence doit passer par le gouverneur VRAM.
+        'wama.studio.gpu_tasks.*': {'queue': 'gpu', 'priority': _prio('studio')},
         'wama.studio.tasks.*': {'queue': 'studio'},
         # Charge des modèles → queue GPU, mais palier le plus BAS : une campagne
         # de tests nocturnes ne doit jamais passer devant un traitement demandé.

@@ -486,6 +486,9 @@ APP_TIERS = {
     "composer": "basse",
     "avatarizer": "basse",
     "imager": "basse",
+    # Fonctions GPU du STUDIO (`studio.gpu_tasks`, ex. image→3D §17ter) : demandées par un
+    # utilisateur dans un pipeline, au palier des apps média courantes.
+    "studio": "normale",
     # Pseudo-app : campagne de tests nocturnes (`common.run_nightly_tests`).
     # Charge des modèles, donc file GPU, mais ne doit JAMAIS passer devant un
     # traitement demandé par un utilisateur.

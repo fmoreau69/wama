@@ -81,6 +81,13 @@ Le code **copié dans le repo** a été inventorié à part :
   (CodeFormer, MuseTalk MIT) vivent sous `wama/common/backends/vendor/`, **gitignorés** et
   reclonés à l'installation ; seul le README du dossier est versionné.
 - **`brunette.glb`** (avatar de test TalkingHead, gitignoré) : CC BY-NC 4.0.
+- **three.js** (2026-09-13) : sa `LICENSE` (MIT) est désormais versionnée à côté du build
+  (`wama/static/vendors/three-0.180.0/LICENSE`) — et le build est COMPLET (`three.core.js`
+  manquait depuis le 21/08, cf. `ROADMAP §17ter` trou 2).
+- **`wama/common/backends/vendor/triposr/`** (2026-09-13, §17ter trou 4) : code de TripoSR
+  (VAST-AI-Research, **MIT**), cloné à commit épinglé par `tools/setup_triposr.sh`, gitignoré
+  comme MuseTalk/CodeFormer ; deux patches WAMA (marching cubes → PyMCubes, `rembg` paresseux).
+  Poids `stabilityai/TripoSR` : **MIT** (carte HF), au registre des modèles (`huggingface:triposr`).
 - Reste non établi : binaires gitleaks (amont MIT).
 - **Moteur EXTERNE (hors dépôt, 2026-08-27)** : `audio.cpp` (github.com/0xShug0/audio.cpp,
   **Apache 2.0** — compatible AGPL-3.0), compilé sur l'hôte dans `~/tools/audio.cpp` (WSL2)
