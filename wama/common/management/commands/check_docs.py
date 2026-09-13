@@ -144,6 +144,73 @@ class Command(BaseCommand):
         parser.add_argument('--doc', help="Ne vérifier qu'un document (exclut les skills).")
         parser.add_argument('--skills', action='store_true',
                             help="Ne vérifier que `.claude/skills/*/SKILL.md`.")
+        parser.add_argument('--carte', action='store_true',
+                            help="CARTE des .md du dépôt : déclarés au catalogue, non déclarés, "
+                                 "déclarés mais absents. À relever avant tout déplacement de la "
+                                 "doc (ROADMAP §25.4) — une carte se MESURE le jour où l'on agit.")
+
+    #: Hors carte : ni code, ni doc (environnements, artefacts, données, corpus généré).
+    HORS_CARTE = ('venv_linux', 'venv_win', 'node_modules', 'staticfiles', 'AI-models', 'media',
+                  'logs', 'htmlcov', 'manifests')
+
+    def _carte(self, base):
+        """Ce que le dépôt porte comme `.md`, confronté à ce que le catalogue déclare.
+
+        Pourquoi une COMMANDE et pas un relevé à la main (demande de Fabien, 2026-09-12) : entre
+        la décision de déplacer la doc et le geste, des sessions écrivent. Un inventaire recopié
+        serait faux le jour où l'on s'en sert.
+        """
+        import os
+
+        from wama.common.docs_catalog import AUDIENCES, BY_PATH, DOCS
+
+        w, s, warn = self.stdout.write, self.style.SUCCESS, self.style.WARNING
+        trouves = []
+        for racine, dossiers, fichiers in os.walk(base):
+            dossiers[:] = [d for d in dossiers
+                           if not d.startswith('.') and d not in self.HORS_CARTE]
+            for nom in fichiers:
+                if nom.endswith('.md'):
+                    trouves.append((Path(racine) / nom).relative_to(base).as_posix())
+        trouves.sort()
+        non_declares = [c for c in trouves if c not in BY_PATH]
+        absents = [d.path for d in DOCS if d.path and not (base / d.path).is_file()]
+
+        w(f"\n{'=' * 84}")
+        w(f"CARTE DES .md  ({len(trouves)} fichiers · {len(trouves) - len(non_declares)} déclarés "
+          f"· {len(non_declares)} non déclarés · {len(absents)} déclarés mais ABSENTS)")
+        w('=' * 84)
+
+        for audience, libelle in AUDIENCES.items():
+            docs = [d for d in DOCS if d.audience == audience and d.path]
+            if not docs:
+                continue
+            w(f"\n{libelle} ({len(docs)})")
+            for d in sorted(docs, key=lambda x: (x.family, x.path)):
+                try:
+                    n = len((base / d.path).read_text(encoding='utf-8',
+                                                      errors='replace').splitlines())
+                except OSError:
+                    n = 0
+                marque = '⏳' if d.plan else ('📓' if d.journal else '  ')
+                w(f"  {marque} {d.family:<14} {d.path:<58} {n:>6} lignes")
+
+        if absents:
+            w(self.style.ERROR(f"\nDÉCLARÉS MAIS ABSENTS ({len(absents)}) :"))
+            for c in absents:
+                w(self.style.ERROR(f"  {c}"))
+        if non_declares:
+            w(warn(f"\nNON DÉCLARÉS AU CATALOGUE ({len(non_declares)}) — à déclarer, à archiver "
+                   f"ou à assumer comme doc de module :"))
+            par_dossier = {}
+            for c in non_declares:
+                par_dossier.setdefault(c.rsplit('/', 1)[0] if '/' in c else '.', []).append(c)
+            for dossier, fichiers in sorted(par_dossier.items()):
+                w(warn(f"  {dossier}/ ({len(fichiers)})"))
+                for c in fichiers:
+                    w(f"      {c.rsplit('/', 1)[-1]}")
+        else:
+            w(s("\nTout `.md` du dépôt est déclaré au catalogue."))
 
     # Index nom-de-fichier → chemins, construit UNE fois. La version précédente faisait un
     # glob('**/…') par référence non résolue : 300 s sur ce dépôt (venvs inclus).
@@ -195,6 +262,11 @@ class Command(BaseCommand):
         from django.conf import settings
         base = Path(settings.BASE_DIR)
         w, s, e, warn = self.stdout.write, self.style.SUCCESS, self.style.ERROR, self.style.WARNING
+
+        # La CARTE est un INVENTAIRE, pas un contrôle d'intégrité : elle sort seule.
+        if o.get('carte'):
+            self._carte(base)
+            return
 
         # Cibles = les .md de référence + les skills DÉCOUVERTES. `--doc` restreint aux docs ;
         # `--skills` restreint aux skills (utile après une passe sur `.claude/skills/`).
