@@ -2287,7 +2287,25 @@ approfondir en testant jusqu'où on peut aller (multi-vues, fidélité au véhic
    `data_type` (lien inter-mondes vérifié par test : toute nature qui déclare un type le
    déclare dans le vocabulaire Data). Le premier PRODUCTEUR est le trou 4 ; le premier
    consommateur, un `PortSpec('object', DataType.OBJECT_3D)` d'un nœud d'insertion (trou 6).
-4. **Manifeste `function` « image→3D »** + backend (contrat `BaseModelBackend`).
+4. 🔄 **Manifeste `function` « image→3D » + backend — ÉCRIT le 2026-09-13, NON EXÉCUTÉ**
+   (le premier run GPU se fait avec Fabien — règle crashs hôte) :
+   - **modèle** : `huggingface:triposr` au catalogue (`_discover_image_to_3d_models`, poids
+     `stabilityai/TripoSR` MIT sous `MODEL_PATHS['vision']['triposr']`, moteur `triposr`,
+     `capabilities.reconstruction='plausible'` — déclaré, pas en mémoire humaine). Retenu vs
+     TRELLIS / Hunyuan3D-2 / SF3D parce que SEUL sans extension CUDA à compiler ;
+   - **backend** `common/backends/image_to_3d_backend.TripoSRBackend` (contrat commun, ENGINE
+     `triposr`, résolu par `backend_for_key`) sur le code VENDORISÉ (`tools/setup_triposr.sh` :
+     clone épinglé + marching cubes → PyMCubes + `rembg` paresseux) ; poids par
+     `hf_hub_download(cache_dir=…)`, jamais d'env ;
+   - **fonction** `studio.image_to_3d` (`studio/function_specs.py`, ports `image` →
+     `OBJECT_3D`, tâche GPU `studio.gpu_tasks:image_to_3d_task` routée sur la file `gpu`, pas
+     `studio`) ; **l'exécuteur passe désormais les FICHIERS de l'amont par port** à une fonction
+     app-bound, et reconnaît un résultat-fichier (le nœud « Sortie » le range en médiathèque avec
+     ses attributs lus) ;
+   - attesté sans GPU : 9 tests (spec, ports, impl, catalogue → backend, contrat, routage,
+     fichiers par port) ; **reste** : `--allow --apply` de `trimesh` + `PyMCubes` par la route
+     `library`, `setup_triposr.sh`, et le premier maillage — vérifier l'ORIENTATION des faces
+     (permutation d'axes de torchmcubes reproduite, non attestée).
 5. **Passerelle virtualib** : APRÈS collecte en médiathèque ; **IMPORT ET EXPORT (décision
    Fabien 18/08)**, export d'abord ; lien inter-mondes déclaré (manifeste), pas de glu ad hoc.
 6. **Insertion dans une scène générée** (retour 3D→2D ET avatar-dans-décor, chaîne 4 studio) :
