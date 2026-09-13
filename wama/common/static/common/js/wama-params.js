@@ -522,7 +522,12 @@
             var tit = (!Array.isArray(o) && o.title) ? ' title="' + esc(o.title) + '"' : '';
             var dbm = (!Array.isArray(o) && o.disabled && o.title)
               ? ' data-backend-missing="' + esc(o.title) + '"' : '';
-            return '<option value="' + esc(v) + '"' + dis + tit + dbm + '>' + esc(l) + '</option>';
+            // Ce que l'option PORTE (`g.attributes[valeur]`, ex. la langue d'une voix) →
+            // `data-*`, pour que les filtres (WamaModelCaps) le lisent sur le DOM.
+            var attrs = (g.attributes && g.attributes[v]) || {};
+            var data = Object.keys(attrs).filter(function (k) { return attrs[k] !== null && attrs[k] !== undefined && attrs[k] !== ''; })
+              .map(function (k) { return ' data-' + esc(k) + '="' + esc(String(attrs[k])) + '"'; }).join('');
+            return '<option value="' + esc(v) + '"' + dis + tit + dbm + data + '>' + esc(l) + '</option>';
           }).join('');
           return g.group ? ('<optgroup label="' + esc(g.group) + '">' + opts + '</optgroup>') : opts;
         }).join('');

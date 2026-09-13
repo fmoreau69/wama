@@ -607,9 +607,11 @@ chaîne `voice_references`) :
 | `check_media_integrity` — motif légitime `synthesizer/(…|voice_references)/` | `check_media_integrity.py:69` | le motif perd `voice_references` (plus rien de légitime hors domicile) |
 | docs/commandes citant le dossier | `migrate_media_to_user_home.py:38,143` ; `download_voice_refs.py:20` ; `voice_refs.py:25-29` ; `constants.py:164-166` | prose réalignée |
 
-**L'ordre (D6), avec le filet à chaque marche** — **état au 13/09 (soir) : marches 1 à 5
+**L'ordre (D6), avec le filet à chaque marche** — **état au 13/09 (soir) : marches 1 à 6
 FAITES** (commits `6dedd161`→ ; la 4 et la 5 dans le même geste, la brique ne se réécrit
-qu'une fois) ; **6 et 7 restent** — voir le bilan en fin de liste :
+qu'une fois ; la 6 = `data-language` sur l'option + `annotateOption` du filtre voix, ⚠ posé
+exactement sur les moteurs qui ne parlent pas la langue de la voix, attesté 10/10 sur les deux
+apps) ; **reste la 7** — voir le bilan en fin de liste :
 
 1. **A′ d'abord** : `natures.py` + `attributes` (2 migrations, WSL2) + helpers + normalisation au
    `save()` + dérivations dans `models.py`. Filet : suite `media_library`, `check_templates`,

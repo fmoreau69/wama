@@ -210,3 +210,15 @@ class LaMediathequePorteLesVoixTest(TestCase):
         groupes = [g['group'] for g in get_voice_groups(user=None)]
         self.assertNotIn('Voix intégrées (héritage)', groupes)
         self.assertIn('Français — Adulte', groupes)
+
+    def test_chaque_voix_de_reference_porte_sa_langue_pour_les_filtres(self):
+        """Marche 6 : `language` sur la voix, `attributes` par valeur dans les groupes servis
+        (→ `data-language` sur l'option), les options restant des PAIRES."""
+        from wama.common.utils.voice_options import get_voice_groups, voice_display_options
+        g = voice_refs.voice_reference_groups()
+        self.assertTrue(all(v['language'] for x in g for v in x['voices']))
+        fr = next(x for x in get_voice_groups(user=None) if x['group'] == 'Français — Adulte')
+        self.assertEqual(len(fr['options'][0]), 2)
+        self.assertEqual(fr['attributes'][fr['options'][0][0]], {'language': 'fr'})
+        # le lecteur « paires » ne voit rien de neuf
+        self.assertTrue(all(len(p) == 2 for p in voice_display_options(user=None)))
