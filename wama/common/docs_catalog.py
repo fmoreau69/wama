@@ -204,6 +204,33 @@ DOCS: Tuple[Doc, ...] = (
     Doc('roadmap', 'ROADMAP.md', 'Roadmap', 'suivi', "Les chantiers ouverts et leur ordre."),
     Doc('removal-ledger', 'REMOVAL_LEDGER.md', 'Registre des retraits', 'suivi',
         "Ce qui a été retiré, et pourquoi."),
+    # ── docs de MODULE — ils restent à côté de leur code (décision de Fabien, 2026-09-13) ──
+    # Déclarés pour être lisibles depuis WAMA et contrôlés par `check_docs` ; ils ne partent pas
+    # dans `docs/` au déménagement (ROADMAP §25.4). Les archives, elles, ne se déclarent pas.
+    Doc('patches', 'patches/README.md', 'Patches de compatibilité des venvs', 'exploitation',
+        "Les correctifs des librairies tierces à réappliquer après une installation propre du "
+        "venv, et leur registre."),
+    Doc('ai-models', 'AI-models/README.md', 'AI-models — le dossier des poids', 'exploitation',
+        "Où vivent les poids des modèles de WAMA, et comment le dossier s'organise."),
+    Doc('ai-models-arbo', 'AI-models/models/README.md', 'AI-models — arborescence par domaine',
+        'exploitation', "L'arborescence des modèles, rangés par domaine."),
+    Doc('vendor-engines', 'wama/common/backends/vendor/README.md', 'Moteurs vendorisés',
+        'exploitation',
+        "Les moteurs livrés en code source (dépôts tiers clonés à l'installation, exécutés en "
+        "sous-processus) — rien n'y est du code WAMA."),
+    Doc('dev-ai', 'wama-dev-ai/README.md', 'wama-dev-ai — agent de développement local', 'ia',
+        "L'agent local (Ollama) : audits en lecture seule, génération bornée, rôles producteurs "
+        "de manifestes. Claude réfléchit, wama-dev-ai exécute, l'humain valide."),
+    Doc('imager', 'wama/imager/README.md', 'Imager', 'mondes',
+        "Génération d'images et de vidéos : backends interchangeables, fichiers de référence, "
+        "mots-clés imposés, enrichissement de prompt."),
+    Doc('face-analyzer', 'wama_lab/face_analyzer/README.md', 'Face Analyzer', 'mondes',
+        "Analyse faciale en vidéo expérimentale (monde Lab) : variables comportementales et "
+        "physiologiques, croisables avec les autres données du laboratoire."),
+    Doc('cam-projet-ena-casa', 'wama_lab/cam_analyzer/projects/ENA_CASA.md',
+        'Cam Analyzer — un projet (ENA_CASA)', 'mondes',
+        "Les spécificités d'un projet cam_analyzer : données, calibration, rig. Une configuration "
+        "de l'app, pas une propriété — façonné comme le futur manifeste."),
     # ── DÉVELOPPEUR — DÉRIVÉE par plan (fichier écrit par `doc_facts`) ──
     Doc('dev-registres', 'docs/dev/registres.md', 'Les registres de WAMA', 'architecture',
         "Quand une chose mérite un registre, les natures d'actualisation, et chaque registre de "

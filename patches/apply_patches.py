@@ -241,13 +241,17 @@ print()
 # PATCH 3 — backend Higgs du synthesizer (in-repo, vérification seulement)
 #           Historique : ces garde-fous vivaient dans tts_service.py ; depuis le
 #           passage des moteurs TTS sous contrat commun (2026-08-14), la partie
-#           Higgs vit dans wama/synthesizer/backends/higgs_backend.py.
+#           Higgs vit dans wama/common/backends/higgs_backend.py.
 #           (Les aiguilles 'completion_tokens' / 'trim_audio' d'une version
 #           antérieure étaient déjà mortes AVANT le déménagement — réalignées.)
+#           ⚠ Chemin corrigé le 2026-09-13 : il visait encore
+#           synthesizer/backends/, où le fichier n'existe plus — les 4 contrôles
+#           rendaient [MISSING] à chaque passage, une fausse alarme permanente.
+#           Trouvé en déclarant patches/README.md au catalogue (check_docs).
 # =============================================================================
 
 print("=== higgs_backend.py (in repo — vérification seulement) ===")
-higgs = project_dir / "wama" / "synthesizer" / "backends" / "higgs_backend.py"
+higgs = project_dir / "wama" / "common" / "backends" / "higgs_backend.py"
 checks = [
     ('HIGGS_DISABLE_CUDA_GRAPHS', "CUDA graphs disabled"),
     ('temperature=0.7', "temperature=0.7 (was 0.3)"),

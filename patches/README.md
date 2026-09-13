@@ -47,8 +47,9 @@ Ce que le shim corrige :
 
 ### 3. Higgs Audio — garde-fous in-repo (vérification seulement)
 
-Déménagés le 2026-08-14 de `tts_service.py` vers `wama/synthesizer/backends/higgs_backend.py`
-(passage des moteurs TTS sous contrat commun) ; `apply_patches.py` PATCH 3 ne fait que VÉRIFIER
+Déménagés le 2026-08-14 de `tts_service.py` vers le backend Higgs — aujourd'hui
+`wama/common/backends/higgs_backend.py` (relevé le 2026-09-13 ; il vivait d'abord sous
+`synthesizer/backends/`, chemin renommé depuis) — lors du passage des moteurs TTS sous contrat commun ; `apply_patches.py` PATCH 3 ne fait que VÉRIFIER
 la présence des marqueurs. Points clés historiques :
 - `output.usage.get("completion_tokens", 0)` — usage est un dict, pas un objet
 - `temperature=0.7` — évite l'EOS prématuré (était 0.3)

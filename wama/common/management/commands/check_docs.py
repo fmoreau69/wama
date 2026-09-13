@@ -149,9 +149,18 @@ class Command(BaseCommand):
                                  "déclarés mais absents. À relever avant tout déplacement de la "
                                  "doc (ROADMAP §25.4) — une carte se MESURE le jour où l'on agit.")
 
-    #: Hors carte : ni code, ni doc (environnements, artefacts, données, corpus généré).
-    HORS_CARTE = ('venv_linux', 'venv_win', 'node_modules', 'staticfiles', 'AI-models', 'media',
-                  'logs', 'htmlcov', 'manifests')
+    #: Hors carte PAR RÈGLE (décisions de Fabien, 2026-09-13). Ce ne sont pas des docs à ranger,
+    #: et chaque famille est COMPTÉE en tête de carte : on voit ce qu'on écarte, rien n'est caché.
+    HORS_CARTE = {
+        # Consultables pour retrouver un oubli, mais on ne déclare pas une archive.
+        'archives': lambda c: '/archive/' in f'/{c}',
+        # Des consignes de prompt, pas de la doc : leur registre est `skills`.
+        'skills de prompt (registre `skills`)': lambda c: c.startswith('wama/common/prompt_skills/'),
+        # Contrôlés par `check_docs --skills` et `check_skills`.
+        'skills Claude (`check_skills`)': lambda c: c.startswith('.claude/'),
+        # Le README d'une librairie tierce n'est pas notre doc.
+        'code tiers vendorisé': lambda c: c.startswith(('wama/static/vendors/', 'staticfiles/')),
+    }
 
     def _carte(self, base):
         """Ce que le dépôt porte comme `.md`, confronté à ce que le catalogue déclare.
@@ -159,27 +168,39 @@ class Command(BaseCommand):
         Pourquoi une COMMANDE et pas un relevé à la main (demande de Fabien, 2026-09-12) : entre
         la décision de déplacer la doc et le geste, des sessions écrivent. Un inventaire recopié
         serait faux le jour où l'on s'en sert.
+
+        ⚠ Ce que GIT SUIT, pas le disque (corrigé le 2026-09-13) : la 1ʳᵉ version parcourait le
+        disque et listait des `.md` qui ne sont pas dans le dépôt — rapports d'audit gitignorés,
+        jumelle de bac à sable, README des dépôts clonés dans `vendor/` — tout en masquant les
+        README VERSIONNÉS d'un dossier exclu (`AI-models/`).
         """
-        import os
+        import subprocess
 
         from wama.common.docs_catalog import AUDIENCES, BY_PATH, DOCS
 
         w, s, warn = self.stdout.write, self.style.SUCCESS, self.style.WARNING
-        trouves = []
-        for racine, dossiers, fichiers in os.walk(base):
-            dossiers[:] = [d for d in dossiers
-                           if not d.startswith('.') and d not in self.HORS_CARTE]
-            for nom in fichiers:
-                if nom.endswith('.md'):
-                    trouves.append((Path(racine) / nom).relative_to(base).as_posix())
-        trouves.sort()
+        try:
+            brut = subprocess.run(['git', 'ls-files', '-z', '--', '*.md'], cwd=str(base),
+                                  capture_output=True, check=True).stdout
+        except (OSError, subprocess.CalledProcessError) as exc:
+            w(self.style.ERROR(f"git ls-files indisponible — carte impossible : {exc}"))
+            return
+        suivis = sorted(p for p in brut.decode('utf-8').split('\0')
+                        if p and not p.startswith(('venv_linux/', 'venv_win/')))
+        exclus = {nom: [c for c in suivis if regle(c)] for nom, regle in self.HORS_CARTE.items()}
+        hors = {c for liste in exclus.values() for c in liste}
+        trouves = [c for c in suivis if c not in hors]
         non_declares = [c for c in trouves if c not in BY_PATH]
         absents = [d.path for d in DOCS if d.path and not (base / d.path).is_file()]
 
         w(f"\n{'=' * 84}")
-        w(f"CARTE DES .md  ({len(trouves)} fichiers · {len(trouves) - len(non_declares)} déclarés "
-          f"· {len(non_declares)} non déclarés · {len(absents)} déclarés mais ABSENTS)")
+        w(f"CARTE DES .md SUIVIS PAR GIT  ({len(suivis)} suivis · {len(hors)} hors carte par règle "
+          f"· {len(trouves) - len(non_declares)} déclarés · {len(non_declares)} non déclarés "
+          f"· {len(absents)} déclarés mais ABSENTS)")
         w('=' * 84)
+        for nom, liste in exclus.items():
+            if liste:
+                w(f"  hors carte — {nom} : {len(liste)}")
 
         for audience, libelle in AUDIENCES.items():
             docs = [d for d in DOCS if d.audience == audience and d.path]
