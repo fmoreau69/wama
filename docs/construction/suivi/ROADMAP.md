@@ -3765,7 +3765,24 @@ développeur CALCULÉES à la lecture (`common/dev_docs.py`) — un amorçage, p
 | ③ | **Plans des docs dérivées** : un plan déclaré dans `docs_catalog.py` (étapes `Excerpt` = section marquée de la doc de construction, `Facts` = bloc calculé depuis un registre) → `.md` écrit par `doc_facts`, lisible hors WAMA (`common/doc_plans.py`). Refusé : source ou section introuvable, section non marquée pour ce public | 🔄 livré le 2026-09-11 ; pilote `docs/dev/registres.md` (« Les registres de WAMA ») |
 | ④ | **Confrontation doc → doc** | ✅ **gratuite** : la dérivation étant MÉCANIQUE, une source modifiée change le fichier produit et `doc_facts --check` le voit. Une empreinte des sources ne servirait que si un humain ou un modèle réécrivait le texte |
 | ⑤ | **Porte registre** pour la doc utilisateur : un fragment n'y apparaît que si le registre confirme ce qu'il décrit — la vision reste entière dans la doc de construction, et n'arrive chez l'utilisateur qu'une fois implémentée | ⏳ |
-| ⑥ | Reverser les trois pages de `dev_docs.py` en `.md` générés (registres, API des briques → faits et blocs) | ⏳ |
+| ⑥ | Reverser les pages calculées à la lecture en `.md` générés | ✅ fait le 2026-09-14 : `docs/dev/parcours.md` et `docs/dev/briques.md` rejoignent `docs/dev/registres.md`. Le mécanisme des pages calculées (champ `generator`, liens de site réservés) est RETIRÉ, faute d'usage. Les docs dérivées sortent de `check_docs` : leurs SOURCES y restent, et elles-mêmes sont confrontées par `doc_facts --check` |
+
+### 25.1bis La REPRISE autrement — journal, handoff, état présent (orientation validée par Fabien le 2026-09-14)
+
+`PROJECT_STATUS.md` fait **13 896 lignes** (relevé du 2026-09-14) et mêle deux natures qui ne
+vieillissent pas pareil (`§24.8`) : des blocs DATÉS, vrais à leur date, et des sections qui se
+présentent comme l'état courant. **À séparer en trois, AVANT la révision de fond (§25.2)** :
+
+1. **Un journal** — en ajout seul, découpé par période (un fichier par mois, dans un dossier `journal` de `suivi`),
+   sur le modèle de `CAM_ANALYZER_CHANGELOG.md` : une entrée datée ne se réécrit jamais.
+2. **Un handoff COURT** — réécrit à chaque clôture : le point d'entrée 🔚 et les décisions en
+   attente, rien d'autre. Ce qu'il contenait la veille part au journal.
+3. **L'état présent** — plus de prose : généré ou mesuré (`§24`, blocs `doc_facts`, grille de
+   conformité, registres).
+
+⏳ À construire : le découpage de l'existant (les `§REPRISE` / `§CLÔTURE` vers le journal, SANS
+réécriture), l'adaptation des skills `/reprise` et `/cloture`, la déclaration au catalogue des docs
+(le journal avec `journal=True`).
 
 ### 25.2 Réviser la doc de construction — APRÈS la mécanique, quand le monde Médias sera abouti
 

@@ -68,7 +68,7 @@ Le VIVIER des BACKENDS — la méthode qui appelle un moteur, jamais le moteur l
 - **Doc** : [AGENTS.md](../../AGENTS.md)
 - **Citable dans une doc** : `WAMA:FAIT(docs/<clé>/<champ>)`
 
-La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de CONSTRUCTION (doctrine, décisions, vision, chantiers) est faite de fichiers ; la doc DÉVELOPPEUR est GÉNÉRÉE à la lecture depuis les registres (`dev_docs.py`), jamais rédigée en parallèle. `check_docs` dérive sa liste de la même déclaration : un doc ajouté ici est contrôlé sans rien toucher d'autre.
+La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de CONSTRUCTION (doctrine, décisions, vision, chantiers) est écrite à la main ; la doc DÉVELOPPEUR en DÉRIVE, avec les faits des registres, écrite en `.md` par `doc_facts` — jamais rédigée en parallèle. `check_docs` dérive sa liste de la même déclaration : un doc ajouté ici est contrôlé sans rien toucher d'autre.
 
 ### Fonctions de traitement
 

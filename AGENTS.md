@@ -434,7 +434,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | audience | ce que c'est | état |
 |---|---|---|
 | **construction** | les `.md` de la table ci-dessus : trace, doctrine, décisions, vision — vivants | ✅ existe ; lisible depuis WAMA (`/common/docs/`, admins) |
-| **développeur** | comment ÉTENDRE WAMA — **DÉRIVÉE** de la doc de construction, faits tirés des registres | 🔄 amorçage du 2026-09-11 : 3 pages calculées à la lecture (`wama/common/dev_docs.py`), à reverser en `.md` dérivés (`docs/construction/suivi/ROADMAP.md §25`) |
+| **développeur** | comment ÉTENDRE WAMA — **DÉRIVÉE** de la doc de construction, faits tirés des registres | 🔄 amorcée : 3 docs **dérivées en `.md`** dans `docs/dev/` (parcours d'entrée, registres, API des briques), écrites par `doc_facts` depuis leur plan (`docs/construction/suivi/ROADMAP.md §25`) |
 | **utilisateur** | comment se SERVIR de WAMA — **DÉRIVÉE** de la doc de construction ; un fragment n'y entre que si le registre confirme ce qu'il décrit | 🔄 germe : onglets À-propos/Aide (`AppAboutView`/`AppHelpView`, auto-remplis d'`APP_CATALOG`) |
 
 **La règle (recadrée par Fabien le 2026-09-11)** : une seule source de vérité, qui tient par

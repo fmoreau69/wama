@@ -372,8 +372,9 @@ by `python manage.py doc_facts` — do not edit it by hand; declare a document i
     - [Registre des retraits](docs/construction/suivi/REMOVAL_LEDGER.md) — Ce qui a été retiré, et pourquoi.
   - **`archive/`** — 44 documents archivés, consultables pour retrouver un oubli ; jamais déclarés ni réécrits
 - **`docs/dev/`** — la doc DÉVELOPPEUR, GÉNÉRÉE depuis la doc de construction et les registres : ne pas éditer
+  - [Parcours d'entrée](docs/dev/parcours.md) — L'ordre dans lequel lire la doc pour étendre WAMA ; chaque étape reprend la description que le document déclare.
   - [Les registres de WAMA](docs/dev/registres.md) — Quand une chose mérite un registre, les natures d'actualisation, et chaque registre de WAMA — dérivé de la doc de construction et des registres eux-mêmes.
-  - *et, calculées à la lecture dans WAMA :* Parcours d'entrée · Briques communes — API
+  - [Briques communes — API](docs/dev/briques.md) — Chaque mécanisme transversal avec l'API publique de son module : signatures et docstrings lues dans le code.
 - **`docs/utilisateur/`** — la doc UTILISATEUR, générée elle aussi : à venir
 - **Docs de module** — ils restent à côté de leur code
   - [Briques communes — carte](wama/common/README.md) — Carte d'entrée du dossier des briques communes.
