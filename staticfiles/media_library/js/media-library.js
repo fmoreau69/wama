@@ -8,33 +8,17 @@
 
     // ── Config ────────────────────────────────────────────────────────────────
 
-    const ALLOWED_EXT = {
-        voice:       ['wav', 'mp3', 'flac', 'ogg', 'm4a'],
-        audio_music: ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'],
-        audio_sfx:   ['mp3', 'wav', 'ogg', 'flac', 'aiff'],
-        image:       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],
-        video:       ['mp4', 'webm', 'mov', 'avi', 'mkv'],
-        document:    ['pdf', 'txt', 'docx', 'md', 'csv'],
-        avatar:      ['jpg', 'jpeg', 'png', 'webp'],
-    };
-    const TYPE_HINTS = {
-        voice:       'WAV, MP3, FLAC, OGG, M4A',
-        audio_music: 'MP3, WAV, FLAC, OGG, M4A, AAC',
-        audio_sfx:   'MP3, WAV, OGG, FLAC, AIFF',
-        image:       'JPG, PNG, GIF, WEBP',
-        video:       'MP4, WEBM, MOV',
-        document:    'PDF, TXT, DOCX, MD, CSV',
-        avatar:      'JPG, PNG, WEBP',
-    };
-    const TYPE_ICONS = {
-        voice:       'fa-microphone',
-        audio_music: 'fa-music',
-        audio_sfx:   'fa-volume-up',
-        image:       'fa-image',
-        video:       'fa-film',
-        document:    'fa-file-alt',
-        avatar:      'fa-user-circle',
-    };
+    // Les trois tables DÉRIVENT de la déclaration des natures servie par la page (`NATURES`,
+    // natures.py). Elles étaient recopiées ici en dur — et aucune n'avait `object3d`.
+    const natures = (typeof NATURES === 'object' && NATURES) || {};
+    const ALLOWED_EXT = {};
+    const TYPE_HINTS = {};
+    const TYPE_ICONS = {};
+    Object.keys(natures).forEach(function (t) {
+        ALLOWED_EXT[t] = natures[t].extensions || [];
+        TYPE_HINTS[t]  = ALLOWED_EXT[t].map(function (e) { return e.toUpperCase(); }).join(', ');
+        TYPE_ICONS[t]  = natures[t].icon || 'fa-file';
+    });
     // Types qui utilisent un player audio — AUDIO_TYPES vient du script global de la page
     // (TYPE_GROUPS['audio'] côté serveur, media_library/models.py — source unique, plus de
     // liste dupliquée ici depuis 2026-07-09).

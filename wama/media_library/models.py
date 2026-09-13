@@ -10,27 +10,14 @@ from wama.common.utils.media_paths import UploadToUserPath
 
 User = get_user_model()
 
-ASSET_TYPES = [
-    ('voice',       'Voix'),
-    ('audio_music', 'Musique'),
-    ('audio_sfx',   'Bruitage'),
-    ('image',       'Image'),
-    ('video',       'Vidéo'),
-    ('document',    'Document'),
-    ('avatar',      'Avatar'),
-    ('object3d',    'Objet 3D'),   # chaîne objets 3D (ROADMAP §17ter) — pivot GLB
-]
+# ── Tout ce qui suit DÉRIVE de la déclaration des natures (`natures.py`, construction A′,
+# 2026-09-13). Ces trois tables étaient écrites ici à la main, et recopiées une 4ᵉ fois côté
+# JS (formats, libellés, icônes — sans `object3d`). Une nature = une entrée dans `ASSET_NATURES` ;
+# rien ne s'ajoute ici.
+from .natures import ASSET_NATURES, normalize_attributes
 
-ALLOWED_EXTENSIONS = {
-    'voice':       ['wav', 'mp3', 'flac', 'ogg', 'm4a'],  # wama:redondance-ok — politique d'acceptation médiathèque par type d'asset
-    'audio_music': ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'],  # wama:redondance-ok — politique d'acceptation médiathèque par type d'asset
-    'audio_sfx':   ['mp3', 'wav', 'ogg', 'flac', 'aiff'],  # wama:redondance-ok — politique d'acceptation médiathèque par type d'asset
-    'image':       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],
-    'video':       ['mp4', 'webm', 'mov', 'avi', 'mkv'],  # wama:redondance-ok — politique d'acceptation médiathèque par type d'asset
-    'document':    ['pdf', 'txt', 'docx', 'md', 'csv'],
-    'avatar':      ['jpg', 'jpeg', 'png', 'webp'],
-    'object3d':    ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'usdz'],  # ⊂ app_registry.OBJECT3D_EXTENSIONS
-}
+ASSET_TYPES = [(k, n.label) for k, n in ASSET_NATURES.items()]
+ALLOWED_EXTENSIONS = {k: list(n.extensions) for k, n in ASSET_NATURES.items()}
 
 # Union de toutes les extensions pour le FileExtensionValidator
 _ALL_EXTENSIONS = sorted({ext for exts in ALLOWED_EXTENSIONS.values() for ext in exts})
@@ -41,13 +28,25 @@ _ALL_EXTENSIONS = sorted({ext for exts in ALLOWED_EXTENSIONS.values() for ext in
 # catégories : elle mappe ses types fins dessus (plusieurs ASSET_TYPES → une même catégorie).
 from wama.common.app_registry import MEDIA_CATEGORIES
 
-ASSET_TYPE_CATEGORY = {
-    'voice': 'audio', 'audio_music': 'audio', 'audio_sfx': 'audio',
-    'image': 'image', 'avatar': 'image',
-    'video': 'video',
-    'document': 'document',
-    'object3d': '3d',
-}
+ASSET_TYPE_CATEGORY = {k: n.category for k, n in ASSET_NATURES.items()}
+
+
+class _AttributesMixin:
+    """`attributes` normalisé À CHAQUE `save()` sur la déclaration de la nature — et un
+    `asset_type` hors vocabulaire est REFUSÉ ici, parce que Django ne vérifie `choices` qu'en
+    `full_clean()` : c'est ainsi qu'une ligne `asset_type='audio'` (une catégorie, pas un
+    type) a pu entrer en base (`MEDIA_STORAGE_TIERING §9.2`)."""
+
+    def save(self, *args, **kwargs):
+        try:
+            self.attributes = normalize_attributes(self.asset_type, self.attributes)
+        except KeyError:
+            raise ValueError(f"asset_type {self.asset_type!r} hors du vocabulaire des natures "
+                             f"({', '.join(ASSET_NATURES)})")
+        fields = kwargs.get('update_fields')
+        if fields is not None and 'attributes' not in fields:
+            kwargs['update_fields'] = list(fields) + ['attributes']
+        super().save(*args, **kwargs)
 
 # Alias logiques → liste de vraies valeurs ASSET_TYPES (bug 2026-07-09 : le picker/les modes d'app
 # passent des types « larges » — 'all' (défaut `_new_item_card.html`), 'audio' (transcriber +
@@ -68,7 +67,7 @@ del _cat, _members
 from wama.common.models import ScopedVisibility, scoped_visible_q
 
 
-class UserAsset(ScopedVisibility, models.Model):
+class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
     """Asset personnel d'un utilisateur, réutilisable dans toutes les apps.
     Hérite de ScopedVisibility : privé par défaut, promouvable vers une unité
     (labo/dépt/université) ou public (médiathèque partagée). Voir §MONDES."""
@@ -80,6 +79,11 @@ class UserAsset(ScopedVisibility, models.Model):
         upload_to=UploadToUserPath('media_library', 'assets'),
         validators=[FileExtensionValidator(allowed_extensions=_ALL_EXTENSIONS)],
     )
+    # Ce que l'asset EST, au-delà de son type : clés DÉCLARÉES par sa nature (`natures.py` —
+    # une voix : language/age/gender/variant ; un objet 3D : format/rigged/units…). Même
+    # construction que `AIModel.capabilities` : une colonne, un vocabulaire, pas de SQL par nature.
+    attributes = models.JSONField(default=dict, blank=True,
+                                  help_text="Attributs déclarés par la nature (voir natures.py)")
     mime_type  = models.CharField(max_length=100, blank=True)
     file_size  = models.PositiveBigIntegerField(default=0)         # bytes
     duration   = models.FloatField(null=True, blank=True)          # secondes (voix, vidéo)
@@ -129,7 +133,7 @@ class UserAsset(ScopedVisibility, models.Model):
         return f"{m}:{s:02d}"
 
 
-class SystemAsset(models.Model):
+class SystemAsset(_AttributesMixin, models.Model):
     """
     Asset générique partagé par tous les utilisateurs.
     Géré par les admins ou par téléchargement automatique.
@@ -139,6 +143,8 @@ class SystemAsset(models.Model):
     name       = models.CharField(max_length=200, unique=True)
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
     file       = models.FileField(upload_to='media_library/system/')
+    attributes = models.JSONField(default=dict, blank=True,
+                                  help_text="Attributs déclarés par la nature (voir natures.py)")
     mime_type  = models.CharField(max_length=100, blank=True)
     file_size  = models.PositiveBigIntegerField(default=0)
     duration   = models.FloatField(null=True, blank=True)
