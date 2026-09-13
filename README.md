@@ -327,15 +327,15 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 | Document | Contenu |
 |----------|---------|
 | [`AGENTS.md`](AGENTS.md) | Règles d'intégration des modèles AI, centralisation `common/`, collaboration wama-dev-ai. |
-| [`WAMA_APP_CONVENTIONS.md`](WAMA_APP_CONVENTIONS.md) | Conventions UI/architecture, checklist de création d'app, ordre des boutons, composants de file, table de conformité. |
-| [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | Point d'étape des chantiers en cours (✅/🔄/⏳) + ordre de reprise. |
-| [`ROADMAP.md`](ROADMAP.md) | Feuille de route détaillée (numérotée par section). |
-| [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md) | Route F1–F8 vers l'auto-génération d'apps : briques communes, adoption, write-back, trous priorisés. |
-| [`WAMA_MANIFEST_SPEC.md`](WAMA_MANIFEST_SPEC.md) | Formalisme des manifestes (7 kinds, enveloppe, composition `requires`, propriétés de sûreté). |
-| [`WAMA_MANIFEST_ARCHITECTURE.md`](WAMA_MANIFEST_ARCHITECTURE.md) | Flux manifeste : extract / ingest / verify / write-back, corpus et registres. |
-| [`WAMA_LLM.md`](WAMA_LLM.md) | Pipeline de prompts centralisée (traduction/enrichissement/fichiers de référence). |
-| [`CARD_DESIGN.md`](CARD_DESIGN.md) | Formalisme de card + UI card-centric (volet droit = inspecteur ; absorbe l'ex-`CARD_CENTRIC_UI.md`). |
-| [`BATCH_FORMAT.md`](BATCH_FORMAT.md) | Format des fichiers d'import batch. |
+| [`WAMA_APP_CONVENTIONS.md`](docs/construction/architecture/WAMA_APP_CONVENTIONS.md) | Conventions UI/architecture, checklist de création d'app, ordre des boutons, composants de file, table de conformité. |
+| [`PROJECT_STATUS.md`](docs/construction/suivi/PROJECT_STATUS.md) | Point d'étape des chantiers en cours (✅/🔄/⏳) + ordre de reprise. |
+| [`ROADMAP.md`](docs/construction/suivi/ROADMAP.md) | Feuille de route détaillée (numérotée par section). |
+| [`WAMA_APP_GENERATION_ROUTE.md`](docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md) | Route F1–F8 vers l'auto-génération d'apps : briques communes, adoption, write-back, trous priorisés. |
+| [`WAMA_MANIFEST_SPEC.md`](docs/construction/architecture/WAMA_MANIFEST_SPEC.md) | Formalisme des manifestes (7 kinds, enveloppe, composition `requires`, propriétés de sûreté). |
+| [`WAMA_MANIFEST_ARCHITECTURE.md`](docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md) | Flux manifeste : extract / ingest / verify / write-back, corpus et registres. |
+| [`WAMA_LLM.md`](docs/construction/ia/WAMA_LLM.md) | Pipeline de prompts centralisée (traduction/enrichissement/fichiers de référence). |
+| [`CARD_DESIGN.md`](docs/construction/ui/CARD_DESIGN.md) | Formalisme de card + UI card-centric (volet droit = inspecteur ; absorbe l'ex-`CARD_CENTRIC_UI.md`). |
+| [`BATCH_FORMAT.md`](docs/construction/ui/BATCH_FORMAT.md) | Format des fichiers d'import batch. |
 
 ---
 
@@ -351,7 +351,7 @@ personne utilisant WAMA **à distance via le réseau** a droit d'en obtenir le c
 
 Les modèles d'IA et composants embarqués conservent **leurs** licences propres, dont
 certaines sont non commerciales ou territorialement restreintes — inventaire vivant sur
-`/common/licenses/`, politique et procédure de dépôt dans [LICENSING.md](LICENSING.md).
+`/common/licenses/`, politique et procédure de dépôt dans [LICENSING.md](docs/construction/exploitation/LICENSING.md).
 
 ---
 

@@ -8,9 +8,9 @@
 > ### 🧭 À propos de ce document
 >
 > Ce document **remplace** la vision v1 (juillet 2026), sa v2 annotée, l'analyse critique et
-> l'état des lieux vision ↔ code — tous archivés : `docs/archive/WAMA_Vision_Complet.md`,
-> `docs/archive/WAMA_Vision_Complet_v2.md`, `docs/archive/VISION_CRITIQUE.md`,
-> `docs/archive/VISION_STATUS.md`. Les 13 correctifs de l'analyse critique, tissés en annotations
+> l'état des lieux vision ↔ code — tous archivés : `docs/construction/archive/WAMA_Vision_Complet.md`,
+> `docs/construction/archive/WAMA_Vision_Complet_v2.md`, `docs/construction/archive/VISION_CRITIQUE.md`,
+> `docs/construction/archive/VISION_STATUS.md`. Les 13 correctifs de l'analyse critique, tissés en annotations
 > dans la v2, sont ici fondus dans le texte de premier rang. La confrontation au réel, qui vivait
 > dans l'ex-VISION_STATUS, vit désormais **dans le corps du document** sous forme de marquage par
 > section.
@@ -265,7 +265,7 @@ de réutilisation : il manque une traçabilité, pas une autorisation.
 
 # Partie 3 — Architecture fondatrice : les manifestes
 
-![Vue d'ensemble de l'architecture WAMA — de l'interface utilisateur aux données et connaissances](arch.png)
+![Vue d'ensemble de l'architecture WAMA — de l'interface utilisateur aux données et connaissances](../../arch.png)
 
 ## 3.1 Le manifeste comme contrat ✅ (formalisme) 🔄 (write-back)
 
@@ -707,7 +707,7 @@ auditabilité), gouvernance des accès (profils, quotas, journalisation).
 
 `Modèles IA → capacités → applications → Studio → données → connaissances → découverte scientifique`
 
-![Trajectoire WAMA en quatre phases cumulatives](traj.png)
+![Trajectoire WAMA en quatre phases cumulatives](../../traj.png)
 
 ---
 

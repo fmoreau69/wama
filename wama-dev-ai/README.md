@@ -79,7 +79,7 @@ posture rend une sortie plausible et fausse.
 
 > L'ancien `AUDIT_FORMAT.md` décrivait une enveloppe `wama_report` et une nomenclature
 > (`audit_YYYY-MM-DD.json`, `model_watch_*`…) que **le code n'a jamais émises** — archivé
-> (`docs/archive/WAMA_DEV_AI_AUDIT_FORMAT.md`). Le réel, produit par `role_utils.py::write_output` :
+> (`docs/construction/archive/WAMA_DEV_AI_AUDIT_FORMAT.md`). Le réel, produit par `role_utils.py::write_output` :
 
 - **Nommage** : `outputs/{role}_{slug}_{AAAA-MM-JJ_HH-MM}.json` (rôles émetteurs : audit,
   codegen, librarian/library, scout, integrator) ; les autosaves d'audit sont en `.md`.

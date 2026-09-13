@@ -13,7 +13,7 @@
 > Marqueurs : ✅ fait · 🔄 en cours · ⏳ à faire. Détails par chantier dans les docs/mémoire référencés.
 >
 > 🔜 **REPRISE session neuve** : le handoff `REPRISE_2026-07-22.md` est **ARCHIVÉ**
-> (`docs/archive/`, 2026-07-25 — plan doc B8) après migration de son vivant : backlog → **§40**,
+> (`docs/construction/archive/`, 2026-07-25 — plan doc B8) après migration de son vivant : backlog → **§40**,
 > duplications → `REMOVAL_LEDGER R18/R19`, discipline git multi-instances → `AGENTS.md`.
 
 ## 0. 🔴 Gardes anti-crash GPU & gouvernance des ressources — portage INCOMPLET (2026-07-29)
@@ -200,7 +200,7 @@
    l'imager (`python manage.py check_app_conformity`, skill `/conformite`).
 
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
-Doc : [`WAMA_LLM.md`](WAMA_LLM.md).
+Doc : [`WAMA_LLM.md`](../ia/WAMA_LLM.md).
 - ✅ A Enrichissement génératif (`prompt_enrichment.py`, OFF par défaut `WAMA_PROMPT_ENRICH`)
 - ✅ B Assistant (kind `intent`, résource-safe)
 - ✅ C Transparence console (🌐 traduit / ✨ enrichi / 📎 référence ; silence si direct)
@@ -272,7 +272,7 @@ Doc : [`WAMA_LLM.md`](WAMA_LLM.md).
   `common/static/common/css/wama-inspector-autofill.css`) : rendu du volet droit piloté par **schéma déclaratif**
   (`renderSections(data, schema)` / `renderActions(data, actions)` ; supporte badges/description/rows/
   kv/code, et actions when/href/onClick/expand). **model_manager rebranché dessus** (1er consommateur).
-  Doc : `WAMA_APP_GENERATION_ROUTE.md` (ex-`COMMON_REFACTORING.md`, archivé `docs/archive/`) +
+  Doc : `WAMA_APP_GENERATION_ROUTE.md` (ex-`COMMON_REFACTORING.md`, archivé `docs/construction/archive/`) +
   `WAMA_APP_CONVENTIONS.md §22` + philosophie dans `AGENTS.md`.
 - ✅ **Inspecteur `/apps/` (2e consommateur de `WamaDetails`)** : catalogue d'apps câblé dans le volet
   droit global — clic carte `.app-item[data-id]` → `WamaInspector` + `WamaDetails` sur les métadonnées
@@ -334,7 +334,7 @@ Doc : [`WAMA_LLM.md`](WAMA_LLM.md).
   **Phase A** (router vers app existante) = faisable, fort ROI ; **Phase B** (faire émerger une app
   depuis un manifeste généré) = **gatée** sur la maturité du runtime manifeste (cf.
   `WAMA_APP_GENERATION_ROUTE.md` + `WAMA_MANIFEST_SPEC.md`, §38 ; ex-`GENERALIZATION_PLAN`
-  archivé `docs/archive/`). Toujours humain-dans-la-boucle, jamais
+  archivé `docs/construction/archive/`). Toujours humain-dans-la-boucle, jamais
   d'auto-application. Cf. `memory/project_queue_solitaire_prospection.md`.
 - ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
@@ -433,8 +433,8 @@ Un seul composant `WamaInspector`, deux catalogues, contenu généré depuis la 
 - ⏳ Calibration sélecteur RAM ; Phase 2 (API WAMA read-only) ; option routage cloud LiteLLM ; Phase 4 MCP (plus tard)
 
 ## 4. Refactoring common (unification) — documenté
-Doc consolidé : [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md) (remplace
-`COMMON_REFACTORING.md`, archivé → `docs/archive/`). Transcriber = référence.
+Doc consolidé : [`WAMA_APP_GENERATION_ROUTE.md`](../architecture/WAMA_APP_GENERATION_ROUTE.md) (remplace
+`COMMON_REFACTORING.md`, archivé → `docs/construction/archive/`). Transcriber = référence.
 - ✅ Briques extraites (wama-app-base, wama-inspector, wama-model-help, partials cards, eta…)
 - ✅ `backend_selector` **annulé/remplacé** par `model_manager/services/model_selector.py::select_model()`
   (cf. §2 — ne pas créer le fichier) ; ⏳ `_settings_modal.html` générique
@@ -463,7 +463,7 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
 > l'utilisateur, jamais un balayage** (`common/memory/index.py:2`). Le balayage a existé
 > (939 fragments écrits sans demande) et a été PURGÉ le jour même sur objection de Fabien, sans
 > perte — un `RagChunk` est re-dérivable. *Le trou serait le balayage, pas son absence.*
-> **Doc de référence UNIQUE du domaine : [`WAMA_MEMORY.md`](WAMA_MEMORY.md)** (mémoire agent +
+> **Doc de référence UNIQUE du domaine : [`WAMA_MEMORY.md`](../ia/WAMA_MEMORY.md)** (mémoire agent +
 > mémoire de travail utilisateur + RAG = **un seul mécanisme**, une seule brique).
 - ⚠ **Le plan « store ChromaDB + module `wama/rag/` » est ABANDONNÉ** — un store séparé ne peut pas
   être filtré par `scoped_visible_q()` (la gouvernance devrait être ré-implémentée en filtres de
@@ -645,7 +645,7 @@ est fini** (P2 éventail, manipulation in/out, esthétique 2 états, nav clavier
 - ⏳ **Restes de pansements** (recompute manuels, duplications) → centraliser.
 - ⏳ **Récap common vs à-globaliser** (inventaire complet) → feuille de route vers 100 % commun
   (`WAMA_APP_GENERATION_ROUTE.md` — consolide COMMON_REFACTORING + GENERALIZATION_PLAN, archivés
-  `docs/archive/`) + **préparation manifeste** (axes restants, code
+  `docs/construction/archive/`) + **préparation manifeste** (axes restants, code
   app-spécifique irréductible = `process()` + pages d'édition).
 - Méthode : passes read-only volumineuses délégables à **wama-dev-ai**, validées par Claude.
 
@@ -656,7 +656,7 @@ d'UI** coexistent : modale `WamaParams.render(item)` [transcriber/converter/read
 hand-built [synthesizer/avatarizer/composer] ; volet `WamaParams.render(panel)` vs `initFromSchema` ;
 capacités→UI `WamaModelCaps` (synthesizer) vs rien (transcriber) vs `show_if` **hardcodé** (anti-pattern
 enhancer). Avant d'uniformiser d'autres apps → **inventorier** (inventaire PRODUIT puis absorbé dans
-`WAMA_APP_GENERATION_ROUTE.md` ; source archivée `docs/archive/UI_MECHANISMS_CONSOLIDATION.md`)
+`WAMA_APP_GENERATION_ROUTE.md` ; source archivée `docs/construction/archive/UI_MECHANISMS_CONSOLIDATION.md`)
 + **plan de convergence**. Référence =
 Transcriber. Contraintes : route existante, **zéro réinvention, zéro hardcoding**. Idéalement en **session
 neuve** (contexte chargé = erreurs). Recoupe et précise §19.
@@ -838,7 +838,7 @@ tous trois), PAS par fichier d'app ; backups `{% comment %}` transcriber purgés
 re-vérifier au prochain passage).
 
 **PROCHAINE APP : READER** (décision 2026-07-06, confirme l'ordre du 07-05 ; ✅ porté depuis,
-cf. §31.7 ; remplaçait le « prochaine bascule = enhancer » de `docs/archive/GENERALIZATION_PLAN.md`) — jumeau de describer, charge déjà
+cf. §31.7 ; remplaçait le « prochaine bascule = enhancer » de `docs/construction/archive/GENERALIZATION_PLAN.md`) — jumeau de describer, charge déjà
 `wama-app-base.js`, recette éprouvée 3× → port le moins cher ; créer les briques transverses
 ci-dessus pendant ce port (4 consommateurs immédiats).
 
@@ -882,7 +882,7 @@ A1-4 (afterCreate batch-import), B4-10 résiduel (URLs composer), B4-13 (ETA cli
 B5-20 (export médiathèque). Restart process WSL2 requis pour le Python.
 
 **AUDIT ROUTE COMMUNE (même jour, après commit du port)** →
-**[`docs/archive/AUDIT_ROUTE_COMMUNE_2026-07-06.md`](docs/archive/AUDIT_ROUTE_COMMUNE_2026-07-06.md)**
+**[`docs/construction/archive/AUDIT_ROUTE_COMMUNE_2026-07-06.md`](../archive/AUDIT_ROUTE_COMMUNE_2026-07-06.md)**
 (archivé 2026-07-23, absorbé par `WAMA_APP_GENERATION_ROUTE.md`) : (1) common SAIN,
 1 doublon critique ffmpeg/ffprobe **corrigé** (video_utils + waveform + converter probe → délèguent
 à ffmpeg_utils, la sélection WSL2-vs-Windows redevient unique) ; describer basculé sur
@@ -899,9 +899,9 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 > Session dédiée à l'**inspecteur contextuel** (mode avancé) + audit des 4 apps portées.
 > Reprise = **porter Converter** puis **combler les trous** listés ci-dessous. Ordre fixé Fabien :
 > **inspecteur d'abord, amincir les cards ENSUITE** (l'inspecteur porte le détail → justifie de
-> maigrir les cards). Docs de référence figés : [`INSPECTOR_DETAIL_FIELDS.md`](INSPECTOR_DETAIL_FIELDS.md),
-> [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md) (cartographie + registre briques +
-> **discipline anti-réinvention** ; ex-COMMON_REFACTORING archivé `docs/archive/`),
+> maigrir les cards). Docs de référence figés : [`INSPECTOR_DETAIL_FIELDS.md`](../ui/INSPECTOR_DETAIL_FIELDS.md),
+> [`WAMA_APP_GENERATION_ROUTE.md`](../architecture/WAMA_APP_GENERATION_ROUTE.md) (cartographie + registre briques +
+> **discipline anti-réinvention** ; ex-COMMON_REFACTORING archivé `docs/construction/archive/`),
 > `CARD_DESIGN §10` (card v2), mémoire `project_inspector_contextual_vision.md`.
 
 ### 21.1 Ce qui a été construit (commun, porté aux 4 apps)
@@ -1138,7 +1138,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 > 7. **(Card, optionnel)** remplacer badge statut + barre écrits à la main (`_generation_card.html:
 >    51-65`) par includes communs `_card_state.html`/`_card_progress.html` (que transcriber inclut) ;
 >    card v2 chips (`chip=True`) = pilote **reader** (pas transcriber), différée.
-> 8. **ETA** encore en `data-*` inline (blocage identifié dans `docs/archive/UI_MECHANISMS_
+> 8. **ETA** encore en `data-*` inline (blocage identifié dans `docs/construction/archive/UI_MECHANISMS_
 >    CONSOLIDATION.md`, repris par `WAMA_APP_GENERATION_ROUTE.md`) → catalogue.
 > 9. **Bouton « ajouter médiathèque »** = spécifique composer → à généraliser en action commune
 >    pilotée par capacité de sortie (APP_CATALOG déclare les output types).
@@ -1146,7 +1146,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 > **Doc autorité uniformisation = `WAMA_APP_GENERATION_ROUTE.md` (2026-07-22, cartographie UNIQUE
 > confrontée au code)** — consolide et remplace `UI_MECHANISMS_CONSOLIDATION.md`,
 > `COMMON_REFACTORING.md`, `GENERALIZATION_PLAN.md` et `BACKEND_CARTOGRAPHY.md`, tous archivés
-> `docs/archive/` (12fdabc). (Historique : UI_MECHANISMS n'était fiable que via ses notes §9 —
+> `docs/construction/archive/` (12fdabc). (Historique : UI_MECHANISMS n'était fiable que via ses notes §9 —
 > tableaux périmés/auto-contradictoires ; COMMON_REFACTORING avait sa roadmap « À faire » périmée.)
 > **La route ne capture pas les bugs de comportement** → dimension conformité smoke à ajouter.
 >
@@ -1186,7 +1186,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 
 > **MAJ 2026-07-20 — dédoublonnage ROADMAP↔PROJECT_STATUS en cours d'exécution** (recommandation
 > 23.2 ; méthode : micro-lectures + vérif code systématique + scripts gardés + archive
-> `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`, rien n'est perdu). **Fait** : §0→PROJECT_STATUS,
+> `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`, rien n'est perdu). **Fait** : §0→PROJECT_STATUS,
 > §1, §2, §3, §4, §6 (cases mises à jour), §8d-P1, §9.1+tables 9.2, §15 (requalifiée LIVRÉE=Studio).
 > Divergences corrigées au passage : import récursif FAIT côté FileManager ;
 > UI_MECHANISMS_CONSOLIDATION.md existe (⏳ « produire » périmé) ; params.py/WamaParams livrés ;
@@ -1209,23 +1209,23 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 
 | Fichier | Lignes | Nature | Verdict |
 |---|---|---|---|
-| ~~AUDIT_GLOBALISATION_T+C_2026-07-03.md~~ | 221 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09, `git mv`, historique préservé) |
-| ~~AUDIT_ROUTE_COMMUNE_2026-07-06.md~~ | 159 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-23, fbdf703 ; §3 absorbé par WAMA_APP_GENERATION_ROUTE) |
-| ~~BACKEND_CARTOGRAPHY.md~~ | 110 | référence | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
+| ~~AUDIT_GLOBALISATION_T+C_2026-07-03.md~~ | 221 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-09, `git mv`, historique préservé) |
+| ~~AUDIT_ROUTE_COMMUNE_2026-07-06.md~~ | 159 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-23, fbdf703 ; §3 absorbé par WAMA_APP_GENERATION_ROUTE) |
+| ~~BACKEND_CARTOGRAPHY.md~~ | 110 | référence | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
 | BATCH_FORMAT.md | 149 | référence vivante | ✅ sain, à jour |
-| ~~BATCH_MODEL_AUDIT.md~~ | 87 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09) |
-| ~~CARD_CENTRIC_UI.md~~ | 162 | décision d'archi | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B1 ; §5bis+§4 migrés dans CARD_DESIGN) |
+| ~~BATCH_MODEL_AUDIT.md~~ | 87 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-09) |
+| ~~CARD_CENTRIC_UI.md~~ | 162 | décision d'archi | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-25, B1 ; §5bis+§4 migrés dans CARD_DESIGN) |
 | CARD_DESIGN.md | 408 | **doc pivot**, le plus à jour | ✅ sain (léger résidu §8.5 déjà coché ci-dessous) |
-| ~~COMMON_REFACTORING.md~~ | 132 | référence, hub | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
-| ~~GENERALIZATION_PLAN.md~~ | 60 | chapeau | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
+| ~~COMMON_REFACTORING.md~~ | 132 | référence, hub | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
+| ~~GENERALIZATION_PLAN.md~~ | 60 | chapeau | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
 | INFRA_WSL_VS_WINDOWS.md | 68 | référence active | ✅ sain (se périmera seul à la bascule full-Linux) |
 | INPUT_MODEL_MATCHING.md | 72 | décision + plan | 🔧 étapes 1-4/6 déjà exécutées (`wama-input-match.js` existe), non cochées |
 | INSPECTOR_DETAIL_FIELDS.md | 65 | référence vivante | ✅ sain |
 | MEDIA_STORAGE_TIERING.md | 88 | décision d'archi (pas implémenté) | 🔧 §B périmé : `EMAIL_BACKEND` déjà configuré (2026-07-02) |
-| ~~MODAL_ACTIONS_AUDIT.md~~ | 89 | audit + cible | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B6 ; §3→CONVENTIONS §6.5, §4→§2bis.3, §5→Bugs) |
-| ~~MODEL_META_UNIFICATION_KICKOFF.md~~ | 192 | kickoff de session | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09 ; R10 confirmé fait dans REMOVAL_LEDGER.md, suivi résiduel = REMOVAL_LEDGER) |
+| ~~MODAL_ACTIONS_AUDIT.md~~ | 89 | audit + cible | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-25, B6 ; §3→CONVENTIONS §6.5, §4→§2bis.3, §5→Bugs) |
+| ~~MODEL_META_UNIFICATION_KICKOFF.md~~ | 192 | kickoff de session | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-09 ; R10 confirmé fait dans REMOVAL_LEDGER.md, suivi résiduel = REMOVAL_LEDGER) |
 | MODES_QUEUE_UX.md | 178 | boussole produit vivante | ✅ **corrigé ce jour** : P1 marqué fait (était en retard sur le code) |
-| ~~NEXT_SESSION_KICKOFF.md~~ | 55 | brief de session | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09 ; livrable produit = `UI_MECHANISMS_CONSOLIDATION.md`) |
+| ~~NEXT_SESSION_KICKOFF.md~~ | 55 | brief de session | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-09 ; livrable produit = `UI_MECHANISMS_CONSOLIDATION.md`) |
 | PROFILES_PERMISSIONS.md | 166 | référence vivante | ✅ sain, vérifié |
 | WAMA_LLM.md | 98 | référence vivante | ✅ **exemplaire** — le plus frais (skills du jour même) |
 | README.md | 269 | point d'entrée | 🔧 table doc ne référence que 8/26 fichiers — désynchronisée |
@@ -1233,7 +1233,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | ROADMAP.md | 1219 | **hétérogène** | 🔨 RESTRUCTURER — ~55-60% de doublon avec PROJECT_STATUS (voir 23.2) |
 | STUDIO_VISION.md | 100 | vision (non stabilisée) | ✅ **corrigé ce jour** : route `/studio/` (était `/common/studio/`) |
 | TRANSCRIBER_REFERENCE_AUDIT.md | 105 | checklist vivante | ✅ sain — ajouter un renvoi croisé vers `WAMA_APP_GENERATION_ROUTE.md` (nuance "référence sémantique, pas cible technique") |
-| ~~UI_MECHANISMS_CONSOLIDATION.md~~ | 412 | pilotage de chantier | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
+| ~~UI_MECHANISMS_CONSOLIDATION.md~~ | 412 | pilotage de chantier | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
 | WAMA_APP_CONVENTIONS.md | 2398 | **référence normative** | 🔨 §15.1 (table conformité) périmée sur plusieurs lignes + double numérotation §15 + §5 dupliqué avec CARD_DESIGN |
 | PROJECT_STATUS.md (ce fichier) | — | tableau de bord vivant | 🔧 **corrigé ce jour** : §9 Media Library disait Phases 2-4 ⏳, en fait faites |
 | WAMA_APP_GENERATION_ROUTE.md | — | cartographie UNIQUE (consolide 4 docs archivés) | ✅ autorité route commune (créé 2026-07-22, 12fdabc) |
@@ -1241,7 +1241,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | WAMA_MANIFEST_ARCHITECTURE.md | — | schéma fonctionnel manifestes/ingest/projection | ✅ vivant (créé 2026-07-21) |
 | WAMA_DATA_FUNCTION_CARDS.md | — | catalogue capability WAMA Data | ✅ vivant (créé 2026-07-20 ; à resynchroniser post-refactoring `data/functions/` par domaine) |
 | WAMA_MEMORY.md | — | référence UNIQUE de la mémoire ET du RAG — ⚠ **deux mécanismes distincts, tous DEUX CONSTRUITS** (corrigé 2026-09-10 ; disait « architecture décidée, non construite ») | ✅ vivant (créé 2026-08-20 ; **périme le plan ChromaDB**) |
-| ~~REPRISE_2026-07-22.md~~ | — | handoff daté | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B8 ; vivant migré §40 + R18/R19 + AGENTS.md) |
+| ~~REPRISE_2026-07-22.md~~ | — | handoff daté | 🗄️ **ARCHIVÉ** → `docs/construction/archive/` (2026-07-25, B8 ; vivant migré §40 + R18/R19 + AGENTS.md) |
 
 ### 23.2 Recouvrements identifiés (pas de vrai doublon strict trouvé)
 
@@ -1264,7 +1264,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
   chaîne d'audits successifs sur le même chantier (port Transcriber/Composer/Describer), chacun
   prolongeant/absorbant le précédent. Le premier est mort, le second a été archivé le 2026-07-23
   (§3 absorbé), le troisième a servi de hub jusqu'au 2026-07-22 puis a été consolidé dans
-  `WAMA_APP_GENERATION_ROUTE.md` (les trois sont archivés `docs/archive/`).
+  `WAMA_APP_GENERATION_ROUTE.md` (les trois sont archivés `docs/construction/archive/`).
 - **NEXT_SESSION_KICKOFF.md → UI_MECHANISMS_CONSOLIDATION.md** : le premier commande le second
   comme livrable ; mission accomplie, le brief n'a plus de raison d'être consulté.
 
@@ -1298,11 +1298,11 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
     params.py est de plus purgée, cf. §31.6).
 
 **Décisions structurelles tranchées (Fabien, 2026-07-09)** :
-- **Archivage → `docs/archive/`** (git mv, historique préservé, pas de suppression). **Exécuté** pour
+- **Archivage → `docs/construction/archive/`** (git mv, historique préservé, pas de suppression). **Exécuté** pour
   les 4 candidats fermes : `AUDIT_GLOBALISATION_T+C_2026-07-03.md`, `BATCH_MODEL_AUDIT.md`,
   `NEXT_SESSION_KICKOFF.md`, `MODEL_META_UNIFICATION_KICKOFF.md` (R10 confirmé clos dans
   REMOVAL_LEDGER.md avant archivage). Aucun lien markdown cassé (vérifié par grep). **Soldé
-  (2026-07-23, fbdf703)** : `AUDIT_ROUTE_COMMUNE_2026-07-06.md` **archivé** → `docs/archive/` ;
+  (2026-07-23, fbdf703)** : `AUDIT_ROUTE_COMMUNE_2026-07-06.md` **archivé** → `docs/construction/archive/` ;
   son §3 (chantiers ordonnés) est absorbé par `WAMA_APP_GENERATION_ROUTE.md`.
 
 **Décisions structurelles encore ouvertes** — chantiers de plus grande ampleur, non exécutés ce jour :
@@ -2210,7 +2210,7 @@ Demande Fabien : montrer la donnée qui transite entre 2 cards pendant un run.
   (style.setProperty, document.cookie/querySelector/createElementNS, fetch headers).
 
 ## 🌍 Architecture en MONDES (doctrine 2026-07-20)
-WAMA = 4 mondes (Médias / Data / Lab / Transversal) qui communiquent via le système de capacités/ports typés, peuplent studio + médiathèque. **Accès sur 3 axes** : tier + rôles métier + **appartenance organisationnelle** (arbre institut/université→département→labo/service→équipe→utilisateur). Cet arbre = **le même que les niveaux d'héritage RAG** → un seul modèle `OrgUnit`, 3 usages (héritage RAG, scopes de partage, gating d'accès), à ne pas dupliquer. ✅ **Points 1-3 faits (35073dd)** : `OrgUnit` (arbre common), médiathèque `UserAsset(ScopedVisibility)` + API promote, `UserFunction` (confidentialité). LDAP/SUPANN remonté au login (6ebeffe). Détail : `docs/WAMA_VISION_COMPLET.md` §Les quatre mondes (docs/ versionné depuis 2026-07-21). Catalogue : `/model-manager/functions/`.
+WAMA = 4 mondes (Médias / Data / Lab / Transversal) qui communiquent via le système de capacités/ports typés, peuplent studio + médiathèque. **Accès sur 3 axes** : tier + rôles métier + **appartenance organisationnelle** (arbre institut/université→département→labo/service→équipe→utilisateur). Cet arbre = **le même que les niveaux d'héritage RAG** → un seul modèle `OrgUnit`, 3 usages (héritage RAG, scopes de partage, gating d'accès), à ne pas dupliquer. ✅ **Points 1-3 faits (35073dd)** : `OrgUnit` (arbre common), médiathèque `UserAsset(ScopedVisibility)` + API promote, `UserFunction` (confidentialité). LDAP/SUPANN remonté au login (6ebeffe). Détail : `docs/construction/mondes/WAMA_VISION_COMPLET.md` §Les quatre mondes (docs/ versionné depuis 2026-07-21). Catalogue : `/model-manager/functions/`.
 
 ## 23. Entrée URL unifiée + ingest média commun + Converter HTML→PDF (session 2026-07-22/23)
 
@@ -3745,7 +3745,7 @@ désormais **une seule fonction** (`manquant()`), avec régression versionnée.
 ### ✅ LIVRÉ — ② LE MONDE DATA SORT DU SUBSTRAT
 
 `wama/common/data/` → **`wama_data/`**, racine sœur de `wama/` et `wama_lab/`. Réalise la cible de
-`ROADMAP §18`, écrite le 27/07 et jamais exécutée. `docs/archive/VISION_STATUS.md` notait même
+`ROADMAP §18`, écrite le 27/07 et jamais exécutée. `docs/construction/archive/VISION_STATUS.md` notait même
 « socle posé (`common/data/`) » comme un état normal — la doctrine était actée, sa traduction en
 arborescence ne l'avait jamais été.
 
@@ -4044,7 +4044,7 @@ son témoin retombait sur `.txt` pour les apps à images.
    **progressive** (mono-image d'abord). **PoC possible SANS l'app detector** : SAM3 → crop → GLB.
 4. **Sens inverse 3D→2D — arbitrage DÉJÀ tranché, ne pas le rouvrir** : rendu = DÉTERMINISTE
    (Blender/three.js) ; seule l'harmonisation justifie un modèle IA, et après mesure.
-5. **Avatars — DÉJÀ prospectés** (`docs/PROSPECTION_AVATARS_2026-08-17.md`) : (a) consignes
+5. **Avatars — DÉJÀ prospectés** (`docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md`) : (a) consignes
    offline, (b) temps réel AI-Assistant (TalkingHead, navigateur). **Jonction 19/08 : même
    moteur three.js que 1. → vendoriser une fois sert preview 3D + rendu 3D→2D + avatar.**
 6. **Brique « insertion dans une scène générée »** = couture PARTAGÉE chaînes 3 et 4 :
@@ -4525,7 +4525,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 >
 > **SUITE (18/08) : ARCHIVAGE DES `REPRISE_*` RACINE (demande Fabien) — pendings repêchés
 > AVANT le mv.** Audit agent ×8 fichiers (pendings « non retrouvés ailleurs » confrontés à
-> STATUS/ROADMAP/mémoire). **Archivés → `docs/archive/`** : 07-29 (restes → ROADMAP §9.0),
+> STATUS/ROADMAP/mémoire). **Archivés → `docs/construction/archive/`** : 07-29 (restes → ROADMAP §9.0),
 > 08-02 et 08-10_SAUVEGARDE (rien d'orphelin), 08-04 (restes → ROADMAP §5b), 08-05, 08-06_IMAGER,
 > 08-11. **GARDÉ à la racine : `REPRISE_2026-08-06.md`** (cam_analyzer volet droit — chantier
 > explicitement NON terminé : Palier B des bascules Vue, Q4 encart chiffré,
@@ -4650,7 +4650,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 > auto-instruite (P3 Speak pilote, P4 — après portage, arbitrage 17/08 inchangé ; test
 > contrat triades #8 à créer) ; réconciliation /apps/ ↔ grille ; prospection PLAQUES ;
 > **pilote TalkingHead** (mode avatar AI-Assistant — session dédiée,
-> `docs/PROSPECTION_AVATARS_2026-08-17.md`).
+> `docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md`).
 > PENDINGS : aucun commit local (poussé 18/08) ; jumelle `converter_01` EN PLACE (jetable :
 > `app_sandbox drop converter_01`) ; ⚠ tout restart la ressert (registre sandbox lu au boot).
 > **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
@@ -4868,7 +4868,7 @@ c'est la carte de profondeur du **cam_analyzer** (`wama_lab/cam_analyzer/utils/d
 `wama_data/functions/geometry/depth_geometry.py`). Il n'était cité que comme **précédent** : la
 taxonomie accepte déjà un type raster non tabulaire, donc y déclarer `image`/`mask` ne serait pas
 un corps étranger. Rien de plus. ⚠ Et c'est exactement le point média↔data signalé comme NON
-TRANCHÉ (cf. `docs/WAMA_VISION_COMPLET.md §2.4`) : ce chantier en est le **premier cas concret**, et le
+TRANCHÉ (cf. `docs/construction/mondes/WAMA_VISION_COMPLET.md §2.4`) : ce chantier en est le **premier cas concret**, et le
 trancher sur un cas réel vaut mieux que sur une spéc abstraite.
 
 ### Addendum 19/08 (soir) — ARBITRAGES D'ARCHITECTURE : mécanisme ≠ plugin, bornage fonction/librairie/plugin, mondes
@@ -4908,7 +4908,7 @@ trancher sur un cas réel vaut mieux que sur une spéc abstraite.
   (`WamaAudioPlayer` — ni vitesse, ni volume, ni skip) ; **rien pour la vidéo**. ⚠ Fait vérifié :
   `wama-shuttle.js` n'est chargé QUE par `cam_analyzer/base.html:924` — le transcriber ne PEUT pas
   l'utiliser et l'a réimplémenté (`edit.js:291-328`), alors que la brique le nomme dans son en-tête.
-- **Mondes — question ouverte, rien d'implémenté** → `docs/WAMA_VISION_COMPLET.md §2.4 (traçabilité
+- **Mondes — question ouverte, rien d'implémenté** → `docs/construction/mondes/WAMA_VISION_COMPLET.md §2.4 (traçabilité
   des mondes)`. Fait mesuré bloquant : `world` est **dérivé du groupe d'UI** (`app.py:202`) →
   describer/reader/transcriber sortent en *data*, converter en *transverse*. Préalable : le
   DÉCLARER. Piste : `origine` (immuable) + `portee` (déclarative), l'écart étant le seul signal
@@ -5682,7 +5682,7 @@ n'a pas produite. Voie envisagée : la médiathèque. **Non tranché, repoussé 
 - **45 modules de `common/` non rattachés** au registre (`wama/common/mecanismes.py`) — backlog
   visible en bas de `WAMA_MECANISMES.md`. Tout n'est pas un mécanisme transversal : il faut
   trancher au cas par cas.
-- `docs/SEGMENTATION_BLUR.md` : **conservé volontairement** (la fonction décrite existe toujours),
+- `docs/construction/archive/SEGMENTATION_BLUR.md` : **conservé volontairement** (la fonction décrite existe toujours),
   mais son chemin d'import est faux (`anonymizer.blur_utils` → `wama/common/utils/blur_utils.py` (remonté au commun le 07/09)).
 - `check_docs` : toujours **2 cassés assumés** (seuil dans `nightly_scenarios.CASSE_ASSUMES` —
   ⚠ renommé `CIBLES_ASSUMEES` le 27/08, et l'unité comparée a changé : cibles distinctes).
@@ -5986,7 +5986,7 @@ publié — c'est le premier rendu qui a livré le faux 100, pas une dérive ult
 
 ## §REPRISE — 2026-08-11 : vérification imager + route §10.1 + brique help_about
 
-> **Handoff complet : [`REPRISE_2026-08-11.md`](docs/archive/REPRISE_2026-08-11.md)** — à lire EN PREMIER par
+> **Handoff complet : [`REPRISE_2026-08-11.md`](../archive/REPRISE_2026-08-11.md)** — à lire EN PREMIER par
 > la prochaine session. Résumé : faux vert `user_settings` imager réparé (écriture à la création,
 > modèle legacy retiré) ; purge index.js −60 % (« Démarrer tout » était inopérant) ; **§10.1 de la
 > route FAIT** (`GENERIC_APPS` dérive ses E/S des ports, `b91f875`) ; **brique help_about**
@@ -6030,7 +6030,7 @@ sur les transcripts, jamais en lisant l'allowlist** — c'est ce qui a fait rate
 > ⚠️ **Deux instances ont travaillé le 2026-08-10 sur des périmètres disjoints** — ne pas confondre
 > avec le §REPRISE « outillage / permissions » ci-dessus.
 >
-> **Handoff complet : [`REPRISE_2026-08-10_SAUVEGARDE.md`](docs/archive/REPRISE_2026-08-10_SAUVEGARDE.md)**
+> **Handoff complet : [`REPRISE_2026-08-10_SAUVEGARDE.md`](../archive/REPRISE_2026-08-10_SAUVEGARDE.md)**
 > — périmètre : `common/services/`, `model_manager/` (backup), `settings.py`, docs, skills.
 > **Aucun fichier d'app touché** : le portage peut reprendre sans rien reprendre d'ici.
 >
@@ -6051,8 +6051,8 @@ sur les transcripts, jamais en lisant l'allowlist** — c'est ce qui a fait rate
 >
 > | Instance | Handoff | Périmètre |
 > |---|---|---|
-> | **cam_analyzer / volet droit** | [`REPRISE_2026-08-06.md`](REPRISE_2026-08-06.md) | `wama_lab/cam_analyzer/**` — chantier NON terminé (Q3/Q4 à valider avant de coder) |
-> | **imager / commun** | [`REPRISE_2026-08-06_IMAGER.md`](docs/archive/REPRISE_2026-08-06_IMAGER.md) | `wama/imager/**` + briques `common/` — **imager 55 % → 77 %** |
+> | **cam_analyzer / volet droit** | [`REPRISE_2026-08-06.md`](../archive/REPRISE_2026-08-06.md) | `wama_lab/cam_analyzer/**` — chantier NON terminé (Q3/Q4 à valider avant de coder) |
+> | **imager / commun** | [`REPRISE_2026-08-06_IMAGER.md`](../archive/REPRISE_2026-08-06_IMAGER.md) | `wama/imager/**` + briques `common/` — **imager 55 % → 77 %** |
 >
 > Côté imager, le point qui commande la suite : le **volet droit (256 lignes écrites à la main)**
 > doit adopter `common/utils/user_settings.py` — brique déjà utilisée par 5 apps portées, qui rend
@@ -6184,7 +6184,7 @@ sur les transcripts, jamais en lisant l'allowlist** — c'est ce qui a fait rate
 
 ## §REPRISE — handoff 2026-07-29
 
-> **Point de départ session neuve : [`REPRISE_2026-07-29.md`](docs/archive/REPRISE_2026-07-29.md)** — à lire EN
+> **Point de départ session neuve : [`REPRISE_2026-07-29.md`](../archive/REPRISE_2026-07-29.md)** — à lire EN
 > ENTIER avant de toucher au code (périmètre multi-instances, pièges, reste à faire priorisé).
 
 Première action au redémarrage : **bande de couverture sous la timeline du cam_analyzer**
@@ -6195,7 +6195,7 @@ Première action au redémarrage : **bande de couverture sous la timeline du cam
 
 ## §REPRISE — session 2026-08-04 (prospection, sélection par qualité, couverture)
 
-> **Handoff complet : [`REPRISE_2026-08-04.md`](docs/archive/REPRISE_2026-08-04.md)** — à lire en premier.
+> **Handoff complet : [`REPRISE_2026-08-04.md`](../archive/REPRISE_2026-08-04.md)** — à lire en premier.
 >
 > **Le piège de la session, à connaître avant tout** : après une modification Python touchant le
 > catalogue, **redémarrer les workers Celery**. Le Beat `model-manager-reconcile` (2 h) tournait
@@ -6472,7 +6472,7 @@ interdit (7 récidives) ; support ≠ adoption (script porté par la brique dés
 
 ## §REPRISE — 2026-08-05 : handoff catalogue/taxonomie
 
-> **Handoff complet : [`REPRISE_2026-08-05.md`](docs/archive/REPRISE_2026-08-05.md)** — 21 commits côté
+> **Handoff complet : [`REPRISE_2026-08-05.md`](../archive/REPRISE_2026-08-05.md)** — 21 commits côté
 > catalogue. À lire avant de reprendre le portage d'apps.
 >
 > **Le point qui commande la suite** : le portage de l'anonymizer est **REVERTÉ** (`2b1a961`) et
@@ -8698,8 +8698,8 @@ model_manager du `tool_api` · MARCHEUR `project`→`requires`→drivers · gén
 1. **Intitulé** : WAMA = Web App for **MULTIMODAL** Automation ; dépôt github renommé `wama`
    (remote local basculé, redirection OK) — `ffa3702d` ; bandeau franc en tête du README public
    (« under active development, Data world en construction, API non stabilisée ») — `7d1fde61`.
-2. **Vision** : `docs/WAMA_VISION_COMPLET.md` = document UNIQUE (absorbe Vision_Complet v1/v2,
-   VISION_CRITIQUE, VISION_STATUS → `docs/archive/`) ; 4 mondes en partie de premier rang,
+2. **Vision** : `docs/construction/mondes/WAMA_VISION_COMPLET.md` = document UNIQUE (absorbe Vision_Complet v1/v2,
+   VISION_CRITIQUE, VISION_STATUS → `docs/construction/archive/`) ; 4 mondes en partie de premier rang,
    sobriété numérique + provenance en piliers (fiche CPER hors dépôt comme guide de ton),
    mémoire/RAG au réel pgvector ; **15 fichiers référents réécrits** dont 8 commentaires de code
    (ancre `§Les quatre mondes`) — `a5bd90a6`+`61d122c7`+`6d687c48`. ⚠ Leçon NTFS (renommage de

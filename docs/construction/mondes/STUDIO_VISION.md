@@ -191,7 +191,7 @@ incrusté dans un décor généré.
   composite** (write-back du kind `pipeline`, maillon restant).
 - Trou propre : **l'avatar dans le décor** — voie par défaut = compositing (matte du buste →
   incrustation sur fond Imager) plutôt qu'un modèle avatar à fond de référence, car mutualisable.
-- **Modèles d'avatars : DÉJÀ PROSPECTÉS, ne pas re-prospecter** — `docs/PROSPECTION_AVATARS_2026-08-17.md`
+- **Modèles d'avatars : DÉJÀ PROSPECTÉS, ne pas re-prospecter** — `docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md`
   (12+ candidats, licences vérifiées AU FICHIER ; ⚠ Hunyuan EXCLUT l'UE). Deux usages distincts,
   tous deux actés (mémoire `project-avatar-talking`) : **(a) consignes offline** avec avatar
   « scientist » (EchoMimicV3-Flash / StableAvatar) = CETTE chaîne ; **(b) mode avatar parlant

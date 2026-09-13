@@ -6,11 +6,11 @@ description: Porter une app WAMA vers le standard schéma-driven (uniformisation
 # /port-app — Portage d'une app vers le standard commun
 
 Objectif : ZÉRO réinvention. Tout ce dont un port a besoin existe déjà en brique commune ; le
-travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION_ROUTE.md` (F1–F8).
+travail est de CONSOMMER, pas de créer. Route d'ensemble : `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (F1–F8).
 
 > ⚠️ **La route n'est PAS auto-suffisante** : chaque domaine a son document de référence, et une
 > facette qui ne pointe pas vers le sien laisse un trou. Vécu le 2026-07-30 : une session a
-> réinventé un vocabulaire de capacités (`t2i`/`t2v`/`i2v`) parce que `INPUT_MODEL_MATCHING.md`
+> réinventé un vocabulaire de capacités (`t2i`/`t2v`/`i2v`) parce que `docs/construction/ui/INPUT_MODEL_MATCHING.md`
 > n'était cité nulle part dans la route. **Si le domaine que tu touches figure ci-dessous, son
 > document se lit AVANT le code — pas la peine de « voir d'abord ».**
 
@@ -29,9 +29,9 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
   Ce qui RESTE vrai : le score compte des **mécanismes détectés dans le code**, jamais des
   fonctionnalités finies. **Ne jamais déclarer un portage terminé sur le score seul** — pour ça,
   c'est l'inventaire de `common/README.md` qui fait foi. Chiffres à jour : `/conformite`.
-- Lire la section de l'app dans `PROJECT_STATUS.md` (§20bis/§21/§31…) + l'état live `/apps/`
+- Lire la section de l'app dans `docs/construction/suivi/PROJECT_STATUS.md` (§20bis/§21/§31…) + l'état live `/apps/`
   (`get_conformity_summary`) — ne PAS se fier aux tables figées.
-- Relire `WAMA_APP_GENERATION_ROUTE.md` pour la facette qu'on touche, et la recette des ports
+- Relire `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` pour la facette qu'on touche, et la recette des ports
   précédents. ⚠ **Les 10 apps sont portées** (97–100 % au 2026-08-26) : un « port » aujourd'hui
   est presque toujours un COMPLÉMENT sur une facette, pas une reprise à zéro. Vérifier ce qui
   manque RÉELLEMENT (`--app <nom> --verbose-ok`) avant d'ouvrir le chantier.
@@ -39,16 +39,16 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
 
   | Tu touches… | Lire AVANT de coder |
   |---|---|
-  | modèles, capacités, tirage, entrées acceptées | **`INPUT_MODEL_MATCHING.md`** + `common/utils/model_capabilities.py::CANONICAL_CAPABILITIES` |
-  | chargement/déchargement d'un modèle, VRAM | `ROADMAP.md` §Gouvernance des ressources + `common/backends/base.py` |
-  | prompts (traduction, enrichissement) | `WAMA_LLM.md` |
-  | manifestes | `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` |
-  | conventions UI / boutons / file | `WAMA_APP_CONVENTIONS.md` |
+  | modèles, capacités, tirage, entrées acceptées | **`docs/construction/ui/INPUT_MODEL_MATCHING.md`** + `common/utils/model_capabilities.py::CANONICAL_CAPABILITIES` |
+  | chargement/déchargement d'un modèle, VRAM | `docs/construction/suivi/ROADMAP.md` §Gouvernance des ressources + `common/backends/base.py` |
+  | prompts (traduction, enrichissement) | `docs/construction/ia/WAMA_LLM.md` |
+  | manifestes | `docs/construction/architecture/WAMA_MANIFEST_SPEC.md` + `docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md` |
+  | conventions UI / boutons / file | `docs/construction/architecture/WAMA_APP_CONVENTIONS.md` |
 
 - **Briques JS communes — les chercher, pas les réécrire.** ⚠ **Ne pas se fier à une liste
   recopiée** : celle qui figurait ici annonçait « 24 » en n'en nommant que 23, et il y en avait
   30 au 2026-08-26. La lister prend une seconde — `ls wama/common/static/common/js/` — et
-  `WAMA_MECANISMES.md` dit lesquelles sont MORTES (`⚠ 0` consommateur), ce qu'aucune liste de
+  `docs/construction/architecture/WAMA_MECANISMES.md` dit lesquelles sont MORTES (`⚠ 0` consommateur), ce qu'aucune liste de
   noms ne dit.
   ⚠️ Avoir la brique ne suffit pas — **support ≠ adoption** : mesuré le 2026-08-26, **12 apps
   incluent `_new_item_card.html` et 8 chargent `wama-input-match.js`** (c'était 8 / 1 le 30/07 —
@@ -125,7 +125,7 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
     file mais qui 404 au clic est pire que pas de partage.
 12. **Prompt (si l'app en a un)** : hériter de `PromptScoped` + déclarer
     `'model': '<app>.<Modèle>'` dans `PROMPT_TARGETS` + `apply_prompt_state()` dans la vue de
-    sauvegarde = 3 lignes, le reste est générique (`WAMA_LLM.md`).
+    sauvegarde = 3 lignes, le reste est générique (`docs/construction/ia/WAMA_LLM.md`).
 13. **Triade tool_api (`start_<app>`/`get_<app>_status`)** : entrée déclarative **`TRIAD_SPECS`**
     dans `tool_api.py` (A4, 2026-08-12 — fonctions CONSTRUITES à l'import par
     `_register_triads()`), pas de squelette recopié ; `add_to_<app>` reste de la glu. Une triade
@@ -140,7 +140,7 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
 - Ne PAS adapter le studio à l'app : finir le port, pas écrire de colle (contrat uniforme).
 
 ## 3. Clôture
-- Checklist de fin d'app : `TRANSCRIBER_REFERENCE_AUDIT.md §6` (le compte vit là-bas) + vérif `/apps/`.
+- Checklist de fin d'app : `docs/construction/architecture/TRANSCRIBER_REFERENCE_AUDIT.md §6` (le compte vit là-bas) + vérif `/apps/`.
 - Validation empirique : `manage.py check` (venv WSL), page 200, endpoints unifiés ; si Playwright
   MCP disponible → `/smoke` sur les parcours de l'app.
 - Consigner via `/palier` (PROJECT_STATUS + ROUTE si une facette a bougé).

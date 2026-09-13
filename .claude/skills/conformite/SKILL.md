@@ -23,7 +23,7 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 - Apps mesurées : **10** ; dénominateur par app : **74 à 89** (un critère **non applicable** sort du calcul)
 <!-- /WAMA:FAITS(conformite) -->
 
-> Les 8 facettes de `WAMA_APP_GENERATION_ROUTE.md` sont **toutes** couvertes depuis le 30/07 —
+> Les 8 facettes de `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` sont **toutes** couvertes depuis le 30/07 —
 > avant cet élargissement la grille ne voyait que F1–F5 et était **aveugle** au contrat
 > `BaseModelBackend`, à la déclaration VRAM, au tirage `select_model`, aux capacités canoniques,
 > à l'appariement entrée↔modèle, aux prompts, aux permissions et au nœud studio.

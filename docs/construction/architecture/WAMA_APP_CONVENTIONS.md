@@ -2363,7 +2363,7 @@ Rappel du modèle de file **universel** (cf. mémoire « Synthesizer — Unified
 > **hand-built** (enhancer : modale portée sur `WamaParams` le 2026-07-01). Idem capacités→UI :
 > `WamaModelCaps` (synthesizer) vs `show_if` **hardcodé** (anti-pattern). **Avant d'uniformiser d'autres
 > apps**, consulter l'inventaire de convergence — PRODUIT puis consolidé dans
-> `WAMA_APP_GENERATION_ROUTE.md` (source archivée `docs/archive/UI_MECHANISMS_CONSOLIDATION.md` ;
+> `WAMA_APP_GENERATION_ROUTE.md` (source archivée `docs/construction/archive/UI_MECHANISMS_CONSOLIDATION.md` ;
 > spec : `memory/project_ui_mechanisms_consolidation.md`, suivi `PROJECT_STATUS.md §20`). Le registre de modèles,
 > lui, est **déjà unique** (`ModelRegistry`+`ModelInfo`+`capabilities`). Contraintes : route existante,
 > **zéro réinvention, zéro hardcoding**.
@@ -2411,7 +2411,7 @@ WamaInspector.init({ cardSelector:'.model-item', highlightClass:'…',
 
 Toute valeur vide masque sa ligne (et sa section si toutes vides). Charger les deux scripts + le CSS
 `common/css/wama-inspector-autofill.css` AVANT le JS de l'app. Référence : **model_manager** (premier
-consommateur). Détails brique : `WAMA_APP_GENERATION_ROUTE.md` (ex-`COMMON_REFACTORING.md`, archivé `docs/archive/`).
+consommateur). Détails brique : `WAMA_APP_GENERATION_ROUTE.md` (ex-`COMMON_REFACTORING.md`, archivé `docs/construction/archive/`).
 
 ### Conséquence pour la création d'app
 

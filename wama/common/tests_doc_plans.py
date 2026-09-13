@@ -89,7 +89,7 @@ class PiloteTest(TestCase):
         texte = build(doc)
         self.assertTrue(texte.startswith(HEADER.format(key='dev-registres')))
         self.assertIn('## Quand une chose mérite un registre', texte)
-        self.assertIn('*Source : [WAMA_DATA_WORLD.md', texte)
+        self.assertIn('*Source : [docs/construction/mondes/WAMA_DATA_WORLD.md', texte)
         self.assertEqual([k for k in REGISTRIES if f"`{k}`" not in texte], [])
 
     def test_le_fichier_versionne_est_ce_que_le_plan_produit(self):

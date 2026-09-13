@@ -17,7 +17,7 @@ Règle AGENTS.md : tout code utilisé par plus d'une app va dans `wama/common/`.
 
 ```bash
 ls -d wama/common/*/ ; ls wama/common/utils/ wama/common/services/ wama/common/static/common/js/
-grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F concernée
+grep -nE "^#{2,3} " docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F concernée
 ```
 
 > ⚠ Le `ls -d wama/common/*/` n'est pas décoratif : les briques ne vivent PAS toutes dans
@@ -31,12 +31,12 @@ grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F 
 > `catalog/`, présent. Une étape de découverte qui envoie chercher dans un dossier disparu
 > rejoue exactement l'erreur que ce déport a corrigée. Lire la sortie, pas le souvenir.
 
-- **Lire d'abord la carte des mécanismes `WAMA_MECANISMES.md`** (table GÉNÉRÉE depuis le
+- **Lire d'abord la carte des mécanismes `docs/construction/architecture/WAMA_MECANISMES.md`** (table GÉNÉRÉE depuis le
   registre `wama/common/mecanismes.py`) : elle dit quels mécanismes existent, où ils habitent,
   et lesquels sont des **briques mortes (`⚠ 0` consommateur)** — une brique à 0 consommateur
   s'ADOPTE, elle ne se réinvente pas (vécu : `couvrir_classes` 8 jours morte, `qc.py`).
 - Grep `wama/common/utils/`, `templates/common/`, `static/common/js/` + l'index
-  `WAMA_APP_CONVENTIONS §12.2` + `WAMA_APP_GENERATION_ROUTE.md` (facette concernée).
+  `WAMA_APP_CONVENTIONS §12.2` + `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (facette concernée).
 - Grep `app_registry.py` avant toute nouvelle taxonomie (piège récidivé 3× : MEDIA_CATEGORIES,
   normalize_types existaient déjà).
 - Ne pas réveiller le code DORMANT (`AI-models/manager.py`, registry.json).
@@ -68,13 +68,13 @@ grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F 
   l'uniformité, à justifier explicitement auprès de Fabien.
 - Recâbler l'app source + au moins un 2e consommateur dans la même passe si possible.
 - Supprimer le code local remplacé (pas de double chemin) ; si la suppression doit attendre une
-  validation navigateur → l'inscrire dans `REMOVAL_LEDGER.md` (R*).
+  validation navigateur → l'inscrire dans `docs/construction/suivi/REMOVAL_LEDGER.md` (R*).
 - JS/CSS modifiés → copier vers `staticfiles/<app>/` ; Python → restart WSL2 à signaler.
 
 ## 4. Tracer
 - **Mécanisme transversal créé/déplacé → entrée dans le registre `wama/common/mecanismes.py`**
-  (jamais une ligne à la main dans `WAMA_MECANISMES.md` — la table est générée), puis
+  (jamais une ligne à la main dans `docs/construction/architecture/WAMA_MECANISMES.md` — la table est générée), puis
   `python manage.py doc_facts` pour régénérer et `doc_facts --check` pour vérifier.
-- La brique + son taux d'adoption → `WAMA_APP_GENERATION_ROUTE.md` (facette F1-F8 concernée).
+- La brique + son taux d'adoption → `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (facette F1-F8 concernée).
 - Si mesurable → ajouter/ajuster le critère dans `conformity_checker.py` (cf. /conformite §3).
 - Palier → `/palier` (PROJECT_STATUS + commit par chemins explicites).

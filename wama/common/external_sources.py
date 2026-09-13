@@ -114,7 +114,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         'ollama', 'Ollama (hôte)', 'http://127.0.0.1:11434',
         "Moteur LLM local — assistant, describer, reader, prospection de modèles",
         kind='service', scope=LOCAL, setting='OLLAMA_HOST', env='OLLAMA_HOST',
-        doc='INFRA_WSL_VS_WINDOWS.md'),
+        doc='docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md'),
     ExternalSource(
         'tts_service', 'Service TTS WAMA', 'http://localhost:8001',
         "Vocalisation hors du process web (évite de charger un modèle dans gunicorn)",
@@ -192,7 +192,7 @@ SOURCES: tuple[ExternalSource, ...] = (
     ExternalSource(
         'osv', 'OSV (Open Source Vulnerabilities)', 'https://api.osv.dev/v1',
         "Audit de vulnérabilités des dépendances (contrôle nocturne)",
-        kind='audit', doc='PROJECT_STATUS.md'),
+        kind='audit', doc='docs/construction/suivi/PROJECT_STATUS.md'),
     ExternalSource(
         'duckduckgo', 'DuckDuckGo (HTML)', 'https://html.duckduckgo.com/html/',
         "Recherche web de l'assistant — point d'entrée sans clé", kind='recherche'),

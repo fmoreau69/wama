@@ -285,7 +285,7 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 |---|---|
 | `7327b19` | Lissage EMA de la distance top-down (mitigation du « ramassis ») |
 | `6509cc2` | Passage au positionnement pinhole en vue de dessus (cause racine identifiée par l'audit du 2026-07-15 : latéral bruité) |
-| `dbeb939` | Audit complet dégradation vue de dessus (`docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`) |
+| `dbeb939` | Audit complet dégradation vue de dessus (`docs/construction/archive/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`) |
 | `c469867`, `9961a4c` | Étapes antérieures du chantier vue de dessus (voir audit) |
 
 ## Procédure de non-régression (à chaque modification)

@@ -98,4 +98,4 @@ settings pour le détail par frame.
 ---
 
 *Ce README a absorbé l'ex-`INSTALLATION.md` le 2026-08-27 (archivé
-`docs/archive/FACE_ANALYZER_INSTALLATION.md`) — un domaine = un fichier.*
+`docs/construction/archive/FACE_ANALYZER_INSTALLATION.md`) — un domaine = un fichier.*

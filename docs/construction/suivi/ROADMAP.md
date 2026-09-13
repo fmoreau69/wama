@@ -8,12 +8,12 @@
 ## Horizons — boussole de priorités (2026-07-20)
 
 > Hiérarchise TOUT le document par horizon pour ne pas s'éparpiller. Vision + statut vision ↔ code :
-> `docs/WAMA_VISION_COMPLET.md` (document unique depuis 2026-08-27 ; marquage ✅/🔄/⏳ par section,
+> `docs/construction/mondes/WAMA_VISION_COMPLET.md` (document unique depuis 2026-08-27 ; marquage ✅/🔄/⏳ par section,
 > non-objectifs en Partie 13). En cas de conflit avec une priorité plus ancienne citée ailleurs dans ce
 > fichier, CETTE section fait foi.
 >
 > **Rôles des documents de suivi (contrat 2026-07-20, amendé 2026-08-27)** — chaque info vit à UN
-> seul niveau, les autres pointent : **Vision** (`docs/WAMA_VISION_COMPLET.md`) = le cap, horizon
+> seul niveau, les autres pointent : **Vision** (`docs/construction/mondes/WAMA_VISION_COMPLET.md`) = le cap, horizon
 > années, avec un marquage d'état GROSSIER par section (l'ex-VISION_STATUS, fusionné) ; **ROADMAP**
 > (ce fichier) = les chantiers macro et leur ordre, horizon trimestres ; **PROJECT_STATUS** = l'état
 > d'avancement au jour le jour (fait/en cours/détails). Le dédoublonnage à venir = redescendre au
@@ -111,7 +111,7 @@
 - **Avatars parlants interactifs type Praktika** (prospection agent 2026-08-17, licences vérifiées
   AU FICHIER LICENSE des repos — demande Fabien : consignes avec avatar « scientist » + mode avatar
   parlant de l'AI-Assistant ; PAS l'apprentissage de langues). **Rapport COMPLET (12+ candidats,
-  URLs, VRAM, pièges) : [`docs/PROSPECTION_AVATARS_2026-08-17.md`](docs/PROSPECTION_AVATARS_2026-08-17.md).**
+  URLs, VRAM, pièges) : [`docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md`](../archive/PROSPECTION_AVATARS_2026-08-17.md).**
   Deux cas, deux podiums :
   - **(a) consignes OFFLINE** : ① **EchoMimicV3(-Flash)** (Ant, Apache-2.0, 01/2026, conçu 24 Go,
     12 Go quantifié, tête+corps, prompt-guidé — successeur naturel de MuseTalk) ; ② **StableAvatar**
@@ -172,7 +172,7 @@
 ## 0. Dysfonctionnements connus — À corriger en priorité
 
 > Niveau statut → suivi déplacé dans `PROJECT_STATUS.md` § « Bugs / dettes connus »
-> (contrat des niveaux, 2026-07-20). Contenu d'origine archivé : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
+> (contrat des niveaux, 2026-07-20). Contenu d'origine archivé : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ## 1. Conformité UI — WAMA App Conventions
 
@@ -181,7 +181,7 @@
 ### 1.1 Bouton Dupliquer
 
 ✅ Toutes les apps (vérifié ; Composer confirmé 2026-07-03). Table figée archivée :
-`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md` — source vivante : `/apps/`.
+`docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md` — source vivante : `/apps/`.
 
 ### 1.2 Features transversales manquantes
 | Feature | Statut | Apps concernées |
@@ -189,10 +189,10 @@
 | Import dossier récursif | 🔄 | ✅ Upload de dossier FileManager (webkitdirectory, filemanager.js:1516) + montages locaux/distants (fix CIFS 2026-07-20). **Architecture cible (Fabien 2026-07-20)** : monter un dossier (local ou serveur) puis « Envoyer vers » une app AVEC sous-dossiers depuis le filemanager — pas de zone de dépôt par app ; le studio doit pouvoir consommer ces dossiers. Reste : « Envoyer vers » récursif (dossier entier), et (moins prioritaire) drag & drop de dossier |
 | **Zone de staging (« À valider »)** | ⛔ **SUPPRIMÉE** | Décision 2026-06-29 (CARD_DESIGN §8.5) : PAS de staging — la card « nouveau » remplace ce besoin. Cette ligne annonçait à tort une généralisation à 9 apps (corrigé 2026-07-11). |
 | **Transcriber — correction manuelle assistée IA** (éditeur onde + heatmap) | 🔄 Phase 1 LIVRÉE | Référence : **`wama/transcriber/TRANSCRIBER_CORRECTION.md`** (inspiré Whispurge/Sonal). Livré : page `/transcriber/edit/<pk>/` + save_correction/save_meta/suggest_speakers/waveform_peaks (`urls.py:29-33`), champs `corrected_segments_json`+`correction_status` (migration 0010), cohérence par segment pour la heatmap. Reste : Phase 2 heatmap (cf. doc de référence). **Fait aussi** : défaut ASR VibeVoice→**Whisper large-v3** (artefact d'ordre, pas benchmark ; diarisation=pyannote ; 10<16 GB) + **word_timestamps** conservés en mémoire/segment (non persistés — pas de `words_json`, cf. §8 Phase 1). À évaluer : WhisperX/Canary-Qwen-2.5B/Granite 3.3 ; réparer Qwen3-ASR. Mener le transcriber au bout avant généralisation. |
-| **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_DESIGN.md`** (§1quinquies preview 3 niveaux + §8.6 zones de dépôt — absorbe `CARD_CENTRIC_UI.md`, archivé `docs/archive/` 2026-07-25). Livré depuis : preview 3 niveaux (1ᵉʳ consommateur transcriber), volet=inspecteur généralisé (5 apps portées, PROJECT_STATUS §21). **Reste** : preview complète dans le volet, sélection en-têtes batch, généralisation aux 5 apps non portées. |
+| **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_DESIGN.md`** (§1quinquies preview 3 niveaux + §8.6 zones de dépôt — absorbe `CARD_CENTRIC_UI.md`, archivé `docs/construction/archive/` 2026-07-25). Livré depuis : preview 3 niveaux (1ᵉʳ consommateur transcriber), volet=inspecteur généralisé (5 apps portées, PROJECT_STATUS §21). **Reste** : preview complète dans le volet, sélection en-têtes batch, généralisation aux 5 apps non portées. |
 | **Drag & drop appartenance batch** (entrer/sortir une carte d'un batch) | ✅ **2026-09-04** | Brique COMMUNE `wama-queue-dnd.js` (4 gestes + multi-sélection Ctrl/Maj), héritée par les 12 apps. ⚠ **« reste l'UI » était FAUX** : il manquait aussi l'ordre de niveau supérieur — colonne comprise (`QueueOrderMixin.queue_index`, 13 migrations, 6ᵉ tri « Manuel »), un 5ᵉ endpoint (`reorder_queue`), un 6ᵉ (`merge`, fusion STRICTE ≠ `consolidate` qui RANGE par nature), l'exposition des URLs au DOM, l'id de lot des cards unitaires, et l'adoption de la fabrique par l'anonymizer. *Un backend complet pour le geste A ne dit rien du geste B* — cf. `CARD_DESIGN §3bis`. SortableJS écarté (motifs consignés) |
 
-> Lignes ✅ archivées : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md` — conformité vivante : `/apps/` (`get_conformity_summary`).
+> Lignes ✅ archivées : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md` — conformité vivante : `/apps/` (`get_conformity_summary`).
 
 ---
 
@@ -205,8 +205,8 @@
 | `keep_loaded` singleton pattern | ⏳ | Généraliser depuis Reader (olmOCR) | Describer, Enhancer (Transcriber sorti de la liste : délégué à `select_model()` depuis 2026-07-24) |
 
 
-> Briques ✅ archivées (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`) — registre vivant :
-> `WAMA_APP_GENERATION_ROUTE.md` (l'ancien `COMMON_REFACTORING.md` y est consolidé, archivé `docs/archive/`).
+> Briques ✅ archivées (`docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`) — registre vivant :
+> `WAMA_APP_GENERATION_ROUTE.md` (l'ancien `COMMON_REFACTORING.md` y est consolidé, archivé `docs/construction/archive/`).
 ### Templating générique — paramètres & composition (discuté 2026-06-16)
 
 > Constat : l'affichage des paramètres est **hardcodé par app ET par template**
@@ -237,8 +237,8 @@ composition par capacités. Voir aussi §10.B (Translator) et §5b (sélection/d
 prévues sont **réelles** → il faut les inventorier avant d'en porter d'autres :
 ### État des mécanismes d'UI — voir PROJECT_STATUS §20 (source vivante)
 
-Bloc d'état 2026-07-11 archivé (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`). Corrections vérifiées 2026-07-20 :
-- `UI_MECHANISMS_CONSOLIDATION.md` archivé (`docs/archive/`, 2026-07-22) — consolidé dans
+Bloc d'état 2026-07-11 archivé (`docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`). Corrections vérifiées 2026-07-20 :
+- `UI_MECHANISMS_CONSOLIDATION.md` archivé (`docs/construction/archive/`, 2026-07-22) — consolidé dans
   `WAMA_APP_GENERATION_ROUTE.md` (facettes F1–F8). Reste = **dérouler** cette route (= H1.1 des Horizons).
 - Plan « templating générique » (décision 2026-06-16 ci-dessus) : le volet **A est LIVRÉ**
   (`params.py` par app + `wama-params.js`/`WamaParams` + `initFromSchema` — vérifié 2026-07-20,
@@ -254,7 +254,7 @@ Bloc d'état 2026-07-11 archivé (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`).
 
 > ✅ Phases 1-4 + connecteurs providers **livrés** — état vivant : `PROJECT_STATUS.md §9`
 > (NB divergence corrigée : Pexels/Openverse marqués ⏳ ici étaient livrés, vérifié 2026-07-09).
-> Détail d'implémentation archivé : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`. Reste ouvert (repris tel quel) :
+> Détail d'implémentation archivé : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`. Reste ouvert (repris tel quel) :
 
 ### Phase 5 — Connecteurs avancés (restants) ⏳
 - Unsplash · ccMixter (musique CC) · Mozilla Data Collective (voix, si API stable)
@@ -267,7 +267,7 @@ Bloc d'état 2026-07-11 archivé (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`).
 ## 4. Intégrations modèles AI — Ollama
 
 > ✅ **Livré** (modèles installés, sélection par tier, wama-dev-ai opérationnel) — état vivant :
-> `PROJECT_STATUS.md §2/§3`. Détail archivé : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
+> `PROJECT_STATUS.md §2/§3`. Détail archivé : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ## 5. Model Manager — Phase 2 : Veille automatique modèles
 
@@ -323,7 +323,7 @@ Celery beat : 0 2 * * *
 > Décidé 2026-06-16. **Le catalogue est la source de vérité ; s'il ment, il trompe
 > l'utilisateur (page de gestion).** model_manager = cerveau/données ; common = glu.
 
-> **Restes repêchés du handoff `REPRISE_2026-08-04`** (archivé 2026-08-18, `docs/archive/`) —
+> **Restes repêchés du handoff `REPRISE_2026-08-04`** (archivé 2026-08-18, `docs/construction/archive/`) —
 > jamais repris ailleurs : ① `_PLAFOND_TIER` (plafonds VRAM des tiers LLM) reste EN DUR dans
 > `common/utils/llm_utils.py`, calibré pour CE PC — à sortir en constantes/configuration ;
 > ② `vram_gb` des modèles Ollama devrait se lire depuis `ollama list` plutôt que `/api/show`
@@ -661,7 +661,7 @@ dépendants au `change` du modèle. Lié à [[project-assistant-vision]] (TTS au
 - [x] Premier audit complet avec `write_report` appelé — **FAIT 2026-07-17** : campagne « état des
   lieux vision », 6 audits ciblés avec rapports écrits + contre-vérification Claude (fiabilité
   mesurée : positifs cités ~100 % exacts, affirmations d'absence fausses 4/6 → protocole consigné
-  dans `docs/archive/VISION_STATUS.md` annexe + mémoire projet)
+  dans `docs/construction/archive/VISION_STATUS.md` annexe + mémoire projet)
 - [ ] Cron nightly : `0 2 * * *`
 
 ### Phase 1b — Schémas d'architecture WAMA (read-only, tâche de fond) ⏳
@@ -1033,7 +1033,7 @@ session de travail Q&A + génération de contenu depuis ces sources.
 ### Phase 1 — Couche d'abstraction locale ✅ (2026-04-14)
 
 ✅ Livrée : `llm_chat()` (`wama/common/utils/llm_utils.py`), `LITELLM_PROVIDER='ollama'`
-par défaut, zéro breaking change. Détail archivé : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
+par défaut, zéro breaking change. Détail archivé : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ### Phase 2 — Mode hybride utilisateur ⏳
 
@@ -1121,7 +1121,7 @@ Stack : `mcp` Python SDK (officiel Anthropic) + `uvicorn` SSE server (port dédi
 
 ## 9. cam_analyzer (wama_lab)
 
-### 9.0 Restes repêchés du handoff `REPRISE_2026-07-29` (archivé 2026-08-18, `docs/archive/`)
+### 9.0 Restes repêchés du handoff `REPRISE_2026-07-29` (archivé 2026-08-18, `docs/construction/archive/`)
 
 > Pendings du handoff ortho/recalage qui n'étaient repris NULLE PART ailleurs (audit d'archivage
 > 18/08) — consignés ici avant archivage du fichier. Détail complet dans l'archive.
@@ -1138,7 +1138,7 @@ Stack : `mcp` Python SDK (officiel Anthropic) + `uvicorn` SSE server (port dédi
   `Complet_…` ; **validation navigateur** du rendu correction + z-order `bringToBack`.
 
 ✅ Livré — état vivant : `PROJECT_STATUS.md §5` (Cam Analyzer). Détail archivé :
-`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
+`docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ### 9.2 Pipeline conflit / voie navette / vitesse-distance
 
@@ -1154,7 +1154,7 @@ que pour drivable+lanes.
 | **7** | Trottoirs (optionnel) : SAM3 prompt "sidewalk" en parallèle des marquages ; si insuffisant → mmseg + bdd100k-sem-seg en backend isolé | 💡 |
 
 
-> Phases ✅ archivées : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md` — état vivant : `PROJECT_STATUS.md §5`.
+> Phases ✅ archivées : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md` — état vivant : `PROJECT_STATUS.md §5`.
 
 ### 9.2.ter Modularité incrémentale (Propositions A→F, 2026-05-14)
 
@@ -1553,7 +1553,7 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 > 2026-07-20 : aucune lib React Flow/Rete/LiteGraph), pas de réutilisation de lib node-graph.
 > Restes ouverts (repris en Horizons H1.3) : runners restants, sorties → dossier studio,
 > appliquer une chaîne à une file (batch), entrée « contexte » (gatée RAG §8c).
-> Spec d'origine archivée : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
+> Spec d'origine archivée : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ## 16. Grappe IA de DEV + orchestrateur cloud/local (chantier infra — à cadrer)
 
@@ -2332,7 +2332,7 @@ Le retour 3D→2D se décompose en DEUX étapes que rien n'oblige à traiter par
 modèle 2D→3D → GLB. Partie GPU : **avec Fabien uniquement** (règle crashs hôte).
 
 **AVATARS — deux usages déjà prospectés (ne pas re-prospecter)** : la veille complète est
-`docs/PROSPECTION_AVATARS_2026-08-17.md` (12+ candidats, licences vérifiées au fichier ;
+`docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md` (12+ candidats, licences vérifiées au fichier ;
 ⚠ Hunyuan EXCLUT l'UE). (a) **consignes offline** avec avatar « scientist » → EchoMimicV3-Flash
 / StableAvatar ; (b) **mode avatar temps réel de l'AI-Assistant** → 1ʳᵉ voie **TalkingHead**
 (MIT, rendu NAVIGATEUR three.js, zéro VRAM serveur, visèmes FR). **Le lien avec le 3D est
@@ -2993,7 +2993,7 @@ RÉFUTÉ** (test demandé par Fabien, 3 appels identiques sur le même dépôt) 
 
 ## 20. Dépôt officiel de WAMA + licence du dépôt — OUVERT le 2026-08-21
 
-> **Doc de référence du domaine : [`LICENSING.md`](LICENSING.md)** (politique, licences
+> **Doc de référence du domaine : [`LICENSING.md`](../exploitation/LICENSING.md)** (politique, licences
 > traversées, code vendorisé, procédure de dépôt, §7 = décisions en attente). Cette section
 > ne porte que **l'état du chantier** — ne pas y recopier la politique, elle divergerait.
 > La vue **mesurée** reste la page `/common/licenses/` (`common/services/license_audit.py`).
@@ -3394,7 +3394,7 @@ l'enhancer (mêmes gestes). À traiter avec la maquette v4.
 > jamais le code** — dont deux dans la boussole des Horizons, qui se déclare pourtant « fait foi ».
 >
 > **Ce document ne remplace rien** : `PROJECT_STATUS §REPRISE` garde le récit jour par jour,
-> `docs/WAMA_VISION_COMPLET.md` garde le cap. Le §24 est la **photo transversale** qui manquait.
+> `docs/construction/mondes/WAMA_VISION_COMPLET.md` garde le cap. Le §24 est la **photo transversale** qui manquait.
 
 ### 24.1 La plateforme est SAINE — les 8 contrôles, mesurés le 2026-09-10
 
@@ -3613,7 +3613,7 @@ portage, et non « 5 apps à porter » :
 
 ### 24.6 Avancement par rapport à la VISION — la DISTRIBUTION, pas un pourcentage
 
-`docs/WAMA_VISION_COMPLET.md` porte déjà un marquage d'état par section. Relevé automatiquement
+`docs/construction/mondes/WAMA_VISION_COMPLET.md` porte déjà un marquage d'état par section. Relevé automatiquement
 sur ses **50 sections** (2026-09-10) :
 
 | état | sections | lecture |
@@ -3674,7 +3674,7 @@ cette forme**, et l'ensemble est à faire **APRÈS la refonte doc** (`§25`), pa
    info vit à UN seul niveau »*. Ce n'était pas un arbitrage coût/bénéfice : c'était une option
    qui contredit le contrat.
 2. **Le fait `vision` doit ATTENDRE `§25`.** Il écrirait un bloc dans
-   `docs/WAMA_VISION_COMPLET.md`, que la refonte va **trier en sous-dossiers** — or la table
+   `docs/construction/mondes/WAMA_VISION_COMPLET.md`, que la refonte va **trier en sous-dossiers** — or la table
    `doc_facts.FAITS` associe un fait à un CHEMIN. Écrire le fait maintenant, c'est livrer une
    entrée dont la cible bouge la semaine suivante, dans un fichier (`doc_facts.py`) que
    l'instance doc édite. Le coût d'attendre est ≈ nul : une vision à horizon années ne change
@@ -3816,5 +3816,13 @@ registre (⑤), la confrontation dans les deux sens.
   **Méthode** : `git mv` (historique conservé), skill `/renommage-api` (grep exhaustif des
   citations), `check_docs` en filet — ⚠ après avoir levé son exclusion de `docs/` dans l'index des
   noms, sans quoi toute citation par nom nu casserait. À faire AVANT la révision de fond §25.2.
+  ✅ **FAIT le 2026-09-14** (session dédiée, seule active). **Palier A** `8fc9fde5` : la carte lit
+  ce que git suit ; 8 docs de module déclarés. **Palier B** : 71 fichiers déplacés par `git mv`,
+  citations recalées par un moteur à cinq règles — une par FORME de citation — lancé à blanc
+  puis relu diff par diff. Deux formes n'ont été vues qu'en cours de route, et c'est la leçon :
+  les COMMANDES écrites dans les skills (`git show HEAD:…`) et les champs `doc` suivis d'une
+  ANCRE (`'…md §3'`, révélés par 46 échecs de test). Les noms nus en commentaire restent valides :
+  les noms sont uniques, et `check_docs` indexe désormais `docs/`.
+  ⏳ **Palier C** : le `README.md` racine — arborescence et liens GÉNÉRÉS depuis le catalogue.
 - **Langue** : la doc reste en FRANÇAIS pour l'instant. Plus tard : l'harmoniser en anglais et la
   faire entrer dans l'i18n (`§10`) pour la traduction complète de WAMA.

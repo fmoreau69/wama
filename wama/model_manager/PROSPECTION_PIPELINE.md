@@ -34,7 +34,7 @@
 | 3 | ✅ | **SUBSUMÉ par la couche manifestes** (2026-08-02) : le kind `library` (SPEC §7.4-3) porte dépôt/licence/version/`install.pip`, extrait mécaniquement par `extract_library()` ; la « passe LLM » est le rôle wama-dev-ai « librarian » (§7.4-4, `run_librarian.py`). Reste à **brancher** sur la prospection, plus à écrire |
 | 4 | 🟡 | Capacités d'apps déclarées (`APP_CATALOG`, `app_registry`) ; le matching besoin↔capacité est à écrire |
 | 5 | ✅ | `install_from_spec()` (descripteur déclaratif, ce commit) + drivers `pull_ollama_model` / `pull_hf_model` / `pull_yolo_weights` / `pip_install_packages` + `register_after_install` |
-| 6 | 🔄 | = chantier « manifests → génération LLM » DÉJÀ priorisé (voir **`WAMA_APP_GENERATION_ROUTE.md`** — `UI_MECHANISMS_CONSOLIDATION.md` est archivé dans `docs/archive/` — et `WAMA_MANIFEST_SPEC.md`) — la vision s'y branche, ne pas dupliquer. Avancé depuis : 7 kinds, enveloppe `requires`, ingest, corpus |
+| 6 | 🔄 | = chantier « manifests → génération LLM » DÉJÀ priorisé (voir **`WAMA_APP_GENERATION_ROUTE.md`** — `UI_MECHANISMS_CONSOLIDATION.md` est archivé dans `docs/construction/archive/` — et `WAMA_MANIFEST_SPEC.md`) — la vision s'y branche, ne pas dupliquer. Avancé depuis : 7 kinds, enveloppe `requires`, ingest, corpus |
 
 ## Garde-fous (non négociables)
 
@@ -340,7 +340,7 @@ Catalogue réel : 95 modèles installés (49 vision, 12 llm, 10 speech, 9 diffus
    spec `yolo`) mais pas de VEILLE auto (releases ultralytics + `search` HF ciblé).
 3. **Beat hebdo** : aucune prospection périodique — tout est au clic.
 4. **lipsync/avatars** : hors périmètre HF (pas de pipeline_tag) — chantier séparé
-   (docs/PROSPECTION_AVATARS_2026-08-17.md, pilote TalkingHead).
+   (docs/construction/archive/PROSPECTION_AVATARS_2026-08-17.md, pilote TalkingHead).
 5. ~~Candidats legacy `synthesizer:*` (SpeedySpeech/Tacotron2/VITS, seed 2026-06, conf 0.9
    figée)~~ — **SOLDÉ le 2026-08-28** (`REMOVAL_LEDGER` R32). Ils n'ont pas été « rejetés »
    comme candidats mais RETIRÉS de bout en bout (vocabulaire, catalogue, moteur, front, corpus)

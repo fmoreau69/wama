@@ -89,9 +89,20 @@ def _lien_doc(doc) -> str:
 
 
 def _lien_ref(ref: str) -> str:
-    """Un champ `doc` de registre (« AGENTS.md §Trois docs ») en lien vers son fichier."""
+    """Un champ `doc` de registre (« AGENTS.md §Trois docs ») en lien vers son fichier.
+
+    Un NOM NU (« ROADMAP.md §25 ») se résout par le catalogue : depuis le déménagement de la doc
+    (2026-09-13) la plupart des docs ne sont plus à la racine, et un lien écrit depuis la racine
+    pointerait dans le vide. Un nom qui ne se résout pas UNE seule fois reste tel quel."""
     cible = ref.split()[0] if ref else ''
-    return f"[{ref}]({cible})" if cible.endswith('.md') else ref
+    if not cible.endswith('.md'):
+        return ref
+    if '/' not in cible:
+        from .docs_catalog import BY_PATH
+        trouves = [p for p in BY_PATH if p == cible or p.endswith('/' + cible)]
+        if len(trouves) == 1:
+            cible = trouves[0]
+    return f"[{ref}]({cible})"
 
 
 def _cellule(texte) -> str:

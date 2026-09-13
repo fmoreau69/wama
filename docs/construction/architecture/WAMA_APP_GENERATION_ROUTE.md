@@ -2,7 +2,7 @@
 
 > **CE DOCUMENT EST LA RÉFÉRENCE UNIQUE** de toute la chaîne menant à l'auto-génération d'apps
 > généralistes (le côté « mécanismes réels » du tunnel). Il **remplace et consolide** 4 anciens docs,
-> désormais dans `docs/archive/` : `UI_MECHANISMS_CONSOLIDATION.md`, `COMMON_REFACTORING.md`,
+> désormais dans `docs/construction/archive/` : `UI_MECHANISMS_CONSOLIDATION.md`, `COMMON_REFACTORING.md`,
 > `GENERALIZATION_PLAN.md`, `BACKEND_CARTOGRAPHY.md`. Ne plus créer de `.md` concurrent sur ce sujet
 > (règle AGENTS.md) — compléter CELUI-CI.
 >
@@ -194,7 +194,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   capacité `during_preview/streaming`, profil ETA (unit + a-priori load/per_unit).
 
 ### F4 — Modèles IA  ⟷ `SPEC §F4`
-- 🔴 **AVANT DE TOUCHER AUX CAPACITÉS OU AU TIRAGE — lire [`INPUT_MODEL_MATCHING.md`](INPUT_MODEL_MATCHING.md)**
+- 🔴 **AVANT DE TOUCHER AUX CAPACITÉS OU AU TIRAGE — lire [`INPUT_MODEL_MATCHING.md`](../ui/INPUT_MODEL_MATCHING.md)**
   (appariement entrée↔modèle : vocabulaire canonique, `inputs_required`/`inputs_optional`, grisage UI
   `WamaInputMatch`). Ce document était **orphelin du graphe** jusqu'au 2026-07-30 : cité nulle part ici,
   alors que le skill `/port-app` annonce cette route comme « référence unique ». Conséquence vécue le
@@ -258,7 +258,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   Adoptée par **avatarizer** (MuseTalk + CodeFormer en `subprocess`) ; reste le **service TTS**, dont la
   déclaration doit venir de l'intérieur du service. Cf. `PROJECT_STATUS.md` §0 (3quinquies).
 - **⚠ À réintégrer depuis l'archive** : le détail par backend (ex-`BACKEND_CARTOGRAPHY.md`) n'a pas été
-  re-tracé en profondeur ici — pointeur `docs/archive/BACKEND_CARTOGRAPHY.md` en attendant sa fusion en F4.
+  re-tracé en profondeur ici — pointeur `docs/construction/archive/BACKEND_CARTOGRAPHY.md` en attendant sa fusion en F4.
 
 #### 🔴 F4b — La DERNIÈRE JAMBE manquante : les OPTIONS du select ne viennent pas du catalogue (mesuré 2026-08-31)
 
@@ -286,7 +286,7 @@ n'a qu'UN consommateur applicatif** (vérifié par grep exhaustif). Elle existe,
 n'est pas câblée.
 
 **La PREUVE que c'est bien la jambe qui manque, et pas un défaut de conception** : les
-« re-clés par app » de [`INPUT_MODEL_MATCHING.md §5`](INPUT_MODEL_MATCHING.md) — synthesizer
+« re-clés par app » de [`INPUT_MODEL_MATCHING.md §5`](../ui/INPUT_MODEL_MATCHING.md) — synthesizer
 `ENGINE_CATALOG_KEYS` (xtts_v2↔coqui-xtts), enhancer suffixe `_fp16`, transcriber
 `_backend_for_model_key`, anonymizer double clé `type/fichier`. **Ces tables de traduction
 n'existent QUE parce que les valeurs d'option ne sont pas les clés du catalogue.** Si les options
@@ -2447,7 +2447,7 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 
 ## 12. Renvois & archive
 
-- **Remplace** (archivés `docs/archive/`, consultables) : `UI_MECHANISMS_CONSOLIDATION.md` (mécanismes UI),
+- **Remplace** (archivés `docs/construction/archive/`, consultables) : `UI_MECHANISMS_CONSOLIDATION.md` (mécanismes UI),
   `COMMON_REFACTORING.md` (briques communes), `GENERALIZATION_PLAN.md` (9 axes A→I), `BACKEND_CARTOGRAPHY.md`
   (contrat `BaseModelBackend`), `AUDIT_ROUTE_COMMUNE_2026-07-06.md` (audit prédécesseur route manifeste→app).
 - **À réintégrer ici** (non re-tracé en profondeur par la cartographie du 2026-07-22) : le contrat

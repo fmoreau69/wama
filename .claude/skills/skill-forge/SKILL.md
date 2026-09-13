@@ -8,7 +8,7 @@ description: Distiller un geste RÉSOLU en skill versionné (.claude/skills/) ou
 > ⚠ CANDIDAT (n=1, 2026-08-28) — écrit depuis la doctrine et UNE naissance vécue (`/crash-residus`) ;
 > sera promu à la première distillation qu'il aura lui-même guidée de bout en bout.
 
-Doctrine d'origine : décision Hermes (`ROADMAP.md` §16.7) — le runtime est écarté, la
+Doctrine d'origine : décision Hermes (`docs/construction/suivi/ROADMAP.md` §16.7) — le runtime est écarté, la
 **mémoire procédurale** est retenue : « ce qui manque n'est pas le dossier mais l'écrivain ».
 Ce skill EST cet écrivain, pour la partie dev (`.claude/skills/`) uniquement — voir §6.
 
@@ -29,7 +29,7 @@ distiller (un gabarit vide au mieux, de la doctrine inventée au pire).
   le **COMPLÉTER**. **Un domaine = un skill** ; jamais de skill « bis » (c'est la maladie
   des `.md` concurrents, version skills — et un skill-écrivain automatique est précisément
   le mécanisme qui peut la réintroduire en masse).
-- Vérifier si la demande ressemble à une résolution passée : handoffs `PROJECT_STATUS.md`
+- Vérifier si la demande ressemble à une résolution passée : handoffs `docs/construction/suivi/PROJECT_STATUS.md`
   §REPRISE + index `MEMORY.md` (c'est la trace cross-sessions — pas besoin d'un journal de
   requêtes). Si oui et qu'un skill **candidat** existe déjà → §4, c'est une promotion.
 
@@ -50,7 +50,7 @@ distiller (un gabarit vide au mieux, de la doctrine inventée au pire).
 - [ ] gestes destructifs ou irréversibles → marqués « validation utilisateur » / « arbitrage
       Fabien », jamais auto-exécutables
 - [ ] si le skill s'appuie sur une brique du repo → la citer par son domicile
-      (`WAMA_MECANISMES.md` pour la trouver), ne jamais paraphraser son comportement
+      (`docs/construction/architecture/WAMA_MECANISMES.md` pour la trouver), ne jamais paraphraser son comportement
 
 ## 3. Naissance à n=1 : le statut CANDIDAT
 
@@ -71,7 +71,7 @@ puis retirer la marque CANDIDAT. C'est le signal de retour minimal côté dev �
 `RunOutcome` du runtime n'existe pas encore (§6).
 
 Un candidat qui dort sans 2ᵉ occurrence pendant des mois est un candidat à la **fusion ou au
-retrait** — le signaler à l'utilisateur, ne jamais le supprimer seul (`REMOVAL_LEDGER.md` si
+retrait** — le signaler à l'utilisateur, ne jamais le supprimer seul (`docs/construction/suivi/REMOVAL_LEDGER.md` si
 retrait acté).
 
 ## 5. Avant de livrer
@@ -92,4 +92,4 @@ Les phases suivantes ont un autre écrivain et d'autres préalables :
 - **skills runtime WAMA** (`wama/common/prompt_skills/`) : l'écrivain sera un rôle LLM —
   donc une passe LLM automatique → **GOUVERNÉE obligatoirement** (leçon prospection +
   crashs d'août : c'est ce type de passe qui tombait l'hôte), et préalable `RunOutcome`
-  (`ROADMAP.md` §16.7). Rien de tout cela ne se lance depuis ici.
+  (`docs/construction/suivi/ROADMAP.md` §16.7). Rien de tout cela ne se lance depuis ici.

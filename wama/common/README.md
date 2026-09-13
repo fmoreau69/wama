@@ -3,7 +3,7 @@
 > **Ce document est LA référence du workflow d'auto-génération des applications généralistes.**
 > Objectif final : une app = des **déclarations** (manifeste) → l'UI et les comportements sont
 > **générés** par les briques communes — zéro hardcode par app, zéro divergence possible entre
-> surfaces. Mis à jour le 2026-07-02 (audit empirique — cf. `docs/archive/UI_MECHANISMS_CONSOLIDATION.md`,
+> surfaces. Mis à jour le 2026-07-02 (audit empirique — cf. `docs/construction/archive/UI_MECHANISMS_CONSOLIDATION.md`,
 > consolidé depuis dans `WAMA_APP_GENERATION_ROUTE.md`).
 >
 > **Règles cardinales (Fabien)** :
@@ -158,8 +158,8 @@ elle lit le **catalogue**.
 
 ## 5. Références détaillées
 `WAMA_APP_GENERATION_ROUTE.md` (sources de vérité + état par app + trajectoire manifeste — consolide
-les ex-UI_MECHANISMS_CONSOLIDATION, COMMON_REFACTORING et GENERALIZATION_PLAN, archivés `docs/archive/`) ·
+les ex-UI_MECHANISMS_CONSOLIDATION, COMMON_REFACTORING et GENERALIZATION_PLAN, archivés `docs/construction/archive/`) ·
 `REMOVAL_LEDGER.md` (résidus/corrections tracés R*/F*) · `WAMA_APP_CONVENTIONS.md §6.5` (pied de modale)
 (conventions boutons) · `WAMA_APP_CONVENTIONS.md` (checklist app) ·
 `MODES_QUEUE_UX.md` (doctrine modes/file/cards) · `CARD_DESIGN.md` · `WAMA_LLM.md` ·
-`docs/archive/MODEL_META_UNIFICATION_KICKOFF.md` (méta-modèles, historique).
+`docs/construction/archive/MODEL_META_UNIFICATION_KICKOFF.md` (méta-modèles, historique).
