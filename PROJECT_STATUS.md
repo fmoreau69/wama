@@ -13771,3 +13771,40 @@ autorise-t-il ? » mais) : le gabarit vit-il sur **`PortSpec.produced_fields`** 
 (`produced_fields_template`) qui laisse `produced_fields` strictement littéral ? La 2ᵉ voie
 évite d'ambiguïser 143 manifestes existants ; la 1ʳᵉ évite un 2ᵉ champ à lire partout.
 ⚠ Et à décider **avec** le diagnostic de chaînage (②), pas avant.
+
+## §CLÔTURE — 2026-09-12 → 09-13, instance « MÉDIATHÈQUE : NATURES A′ + VOIX AU COMMUN » — ✅ CLOSE — 🔚 REDÉMARRAGE DÛ + 6 DÉCISIONS
+
+> **Domicile du détail : `MEDIA_STORAGE_TIERING.md §9`** (les 9 décisions à ne plus reposer, le
+> 3D mesuré, la construction A′, les 7 marches et leur bilan). Ce bloc n'est que le POINT
+> D'ENTRÉE. Commits : `6dedd161` (plan consigné) → `bd6f3230` (A′) → `6a7be900` (capacité
+> décide, service sans dossier) → `c736d311` (voix en médiathèque) → `497de9d6` (voix↔langue).
+
+**Ce qui est LIVRÉ, mesuré** : `media_library/natures.py` — une nature d'asset = une entrée,
+`attributes` JSON sur `SystemAsset`/`UserAsset` (migration 0014), tout en dérive (3 tables
+Python + 3 tables JS qui étaient recopiées, sans `object3d`) ; `speaker_wav_for` = LA porte des
+workers, décidée par la CAPACITÉ du moteur ; `tts_service.py` ne connaît plus aucun dossier ;
+**28 voix versées en médiathèque** (`ingest_voice_refs`), `voice_references/` + `default_voices/`
++ `synthesizer/` retirés → **2 fichiers hors domicile dans tout `media/`** (les deux
+`WAMA_Presentation*.wav`) ; menu des voix dérivé d'une requête, **empreinte identique** (23
+options / 10 groupes, 28/28 anciens ids résolvent, même taille) ; voix↔langue en ⚠ (jamais
+masqué). Suite complète **2288 `OK`** (WSL2) ; HEAD en worktree 112/112 ; nocturne synthesizer
+13/14 · avatarizer 8/14, **0 échec** ; `check_docs` 0/0 sur 1697.
+
+**⚠⚠⚠ Trouvé en mesurant la page SERVIE** : `avatarizer/index.html` ne chargeait NI
+`wama-model-caps.js` NI `wama-input-match.js` — le bloc d'appariement (28/08, « porté » le
+12/09) était gardé par `if (window.WamaModelCaps)`, donc **MORT sans signal**. Corrigé ; sonde
+double sens avatarizer 10/10. *Un bloc gardé par « si la brique existe » se tait quand elle
+manque.* Même famille : `tts_model == 'coqui-xtts'` était mort (clé entière en base) — le
+SERVICE résolvait la voix à la place de Django ; `chunk_limits` ne matchait jamais.
+
+**⚠⚠ Sondes fautives avant la juste (3)** : ORM dans le contexte Playwright ; un motif qui
+matchait aussi la forme NEUVE (`ALLOWED_EXT = {`) ; une lecture DOM là où l'app injecte un
+JSON local à une IIFE. *Une sonde se corrige avant le code qu'elle accuse.*
+
+**🔚 BLOQUANT (Fabien)** : **redémarrer WAMA** — les workers Celery et le service TTS
+(processus séparés) servent l'ANCIEN code, qui cherche des fichiers de voix qui ne sont plus
+là ; gunicorn seul a été rechargé. **🔚 DÉCISIONS (`§9.6`)** : retirer `choices=VOICE_PRESET_CHOICES`
+(2 apps) ; licence des échantillons XTTS-v2 ; `UserAsset #9` (`asset_type='audio'`, fixture) ;
+`auto` grisé par une voix clonée ; provenance des 28 voix (`download_voice_refs --force` la
+poserait, au prix de voix différentes) ; réalignement des ids plats stockés. **🔚 3D** : trous
+2-6 du `ROADMAP §17ter` intacts — A′ leur donne leur déclaration, rien d'autre n'a bougé.
