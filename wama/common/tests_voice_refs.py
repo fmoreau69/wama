@@ -39,6 +39,26 @@ class LaCapaciteDecideTest(TestCase):
             self.assertEqual(voice_refs.speaker_wav_for('synthesizer:???', 'default'), '/x/d.wav')
 
 
+class LesDeuxModelesLibellentParLaBriqueTest(TestCase):
+    """`voice_preset` n'a plus de `choices` (décision Fabien 13/09) : Django ne génère plus
+    `get_voice_preset_display`, les deux modèles le portent EXPLICITEMENT et délèguent à
+    `describe_voice` — une valeur `sa_`/`ua_` inconnue de l'ancienne liste se libelle quand même."""
+
+    def test_synthesizer_et_avatarizer_delegue_a_describe_voice(self):
+        from unittest.mock import patch
+        from django.contrib.auth import get_user_model
+        from wama.avatarizer.models import AvatarJob
+        from wama.synthesizer.models import VoiceSynthesis
+        u = get_user_model().objects.create_user('libelle_voix', password='x')
+        for modele in (VoiceSynthesis, AvatarJob):
+            self.assertFalse(modele._meta.get_field('voice_preset').choices,
+                             f'{modele.__name__}.voice_preset porte encore des choices')
+            obj = modele(voice_preset='sa_42', user=u)
+            with patch.object(voice_refs, 'describe_voice', return_value='Français — Adulte — Homme 1') as d:
+                self.assertEqual(obj.get_voice_preset_display(), 'Français — Adulte — Homme 1')
+            self.assertEqual(d.call_args[0][0], 'sa_42')
+
+
 class PredicatDeClonageServeurTest(TestCase):
     def test_ua_et_cv_sont_des_clonages_sa_et_les_plats_non(self):
         self.assertTrue(voice_refs.is_cloned_voice('ua_3'))

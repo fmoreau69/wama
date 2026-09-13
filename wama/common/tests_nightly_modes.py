@@ -113,3 +113,18 @@ class DeclarationVramTest(SimpleTestCase):
         muets = [s.id for s in REGISTRY if s.stage == 'model_loaded' and not (s.vram_gb or 0)]
         self.assertEqual([], muets,
                          f"étage `model_loaded` sans vram_gb — jouerait en mode sans GPU : {muets}")
+
+    def test_les_gestes_verses_du_bloc_notes_le_13_09_sont_bien_au_registre(self):
+        """Les sondes de session qui ont trouvé le bloc d'appariement MORT de l'avatarizer,
+        « auto » grisé par une voix clonée et `three.core.js` absent (13/09) vivent désormais
+        dans `ui_smoke_matching` — et un module de scénarios qu'on oublie d'ENREGISTRER est
+        exactement une sonde qui meurt avec sa session, en plus discret."""
+        from wama.common.services.nightly_tests import REGISTRY, register_examples
+        register_examples()
+        ids = {s.id: s for s in REGISTRY}
+        for attendu, app in (('synthesizer.voice_language_matching', 'synthesizer'),
+                             ('avatarizer.voice_language_matching', 'avatarizer'),
+                             ('media_library.natures_3d', 'media_library')):
+            self.assertIn(attendu, ids, f'{attendu} absent du registre nocturne')
+            self.assertEqual(ids[attendu].app, app)
+            self.assertEqual(ids[attendu].stage, 'ui')
