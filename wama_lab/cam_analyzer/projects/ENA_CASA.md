@@ -15,7 +15,7 @@
 > projet**, et la config vit sur `AnalysisSession.config` / `AnalysisProfile` / `CameraView`.
 >
 > **Ne PAS mettre ici** ce qui est générique (formules, chaîne, méthode) → cela va dans
-> `CHAINE_TRAITEMENT.md`. Ici : uniquement des **valeurs et faits propres à ENA_CASA**.
+> `CAM_ANALYZER_CHAINE_TRAITEMENT.md`. Ici : uniquement des **valeurs et faits propres à ENA_CASA**.
 
 Dernière mise à jour : 2026-07-21.
 
@@ -92,7 +92,7 @@ Dernière mise à jour : 2026-07-21.
 ## §2 — Calibration & rig (PAS encore de kind manifeste)
 
 > Ces valeurs vivent aujourd'hui sur `AnalysisSession.config` / `AnalysisProfile` /
-> `CameraView.ground_homography` (cf. table de calibration dans `CHAINE_TRAITEMENT.md`). Elles sont
+> `CameraView.ground_homography` (cf. table de calibration dans `CAM_ANALYZER_CHAINE_TRAITEMENT.md`). Elles sont
 > consignées ici **au titre du projet** : ce sont des mètres-étalons du run ENA_CASA, pas de la
 > méthode générique. **Graine d'un futur kind `calibration`** (ou extension du body `project`).
 

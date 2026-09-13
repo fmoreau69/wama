@@ -292,3 +292,29 @@ class LienRelatifTests(SimpleTestCase):
     def test_un_voisin_absent_reste_signale(self):
         r = self._rapport_doc("Voir [l'absent](ABSENT_XYZ.md).\n")
         self.assertIn('lien .md mort → ABSENT_XYZ.md', r)
+
+
+class CarteTests(SimpleTestCase):
+    """`check_docs --carte` — l'inventaire des .md SUIVIS PAR GIT (2026-09-12/13)."""
+
+    def _carte(self):
+        sortie = StringIO()
+        call_command('check_docs', '--carte', stdout=sortie)
+        return sortie.getvalue()
+
+    def test_la_carte_lit_ce_que_git_suit_et_compte_ce_qu_elle_ecarte(self):
+        r = self._carte()
+        self.assertIn('CARTE DES .md SUIVIS PAR GIT', r)
+        self.assertIn('hors carte — archives', r)
+        self.assertIn('AGENTS.md', r)
+
+    def test_les_regles_hors_carte_ne_touchent_que_leur_famille(self):
+        from wama.common.management.commands.check_docs import Command
+        regles = Command.HORS_CARTE
+        self.assertTrue(regles['archives']('docs/archive/X.md'))
+        self.assertTrue(regles['archives']('wama_lab/cam_analyzer/archive/Y.md'))
+        self.assertFalse(regles['archives']('docs/archivage.md'))
+        self.assertTrue(regles['skills de prompt (registre `skills`)'](
+            'wama/common/prompt_skills/imager-image.md'))
+        self.assertFalse(any(r('AGENTS.md') for r in regles.values()))
+        self.assertFalse(any(r('wama/common/README.md') for r in regles.values()))
