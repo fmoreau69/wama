@@ -456,3 +456,212 @@ Position : **pas comme remplacement de la copie — comme sa COMPLÉMENTAIRE, et
 - Le vrai gisement de volume n'est pas la copie de travail : c'est **le temp jamais purgé et les 5 apps hors rétention** (D9) — soldable sans changer le modèle.
 
 **Ce qui doit être TESTÉ avant d'aller plus loin** (demande Fabien : *« compléter les tests pour ne pas laisser passer des trous »*) — la matrice 8.2 EST la liste des cases : chaque case C/R doit avoir son scénario dans `WAMA_VERIFICATION §3` (geste 1 et geste 14 couvrent déjà clic/drop, dossier, URL, « Envoyer vers », lot ; **manquent** : médiathèque → card, drag jstree → card, montage → app, N fichiers = 1 lot, `-o`/`-r` de lot, `server_path`, conversion rapide, et le geste inverse app → médiathèque).
+
+## 9. LA MÉDIATHÈQUE PORTE LES NATURES D'ASSETS — construction A′ et plan COMPLET (consigné 2026-09-13)
+
+> **Pourquoi cette section existe.** Demande de Fabien le 13/09 : *« On consigne le plan complet
+> en détail pour être sûr de ne pas se reposer à nouveau les mêmes questions. »* Les décisions
+> ci-dessous ont été prises en trois tours (12/09 soir, 13/09 matin) ; sans ce bloc, la
+> prochaine session repartirait de « où mettre langue/âge/genre ? » — question déjà tranchée.
+> **Tout ce qui est marqué DÉCIDÉ ne se rediscute pas ; on l'EXÉCUTE.** Ce qui reste ouvert
+> est listé à part (§9.6), et n'est ouvert que parce qu'il appartient à Fabien.
+
+### 9.1 Les DÉCISIONS (ne plus les reposer)
+
+| # | décision | par qui, quand | ce qu'elle exclut |
+|---|---|---|---|
+| D1 | **Les voix sont des médias ; les médias communs vont dans la médiathèque par défaut** → chaque voix de référence devient une ligne `SystemAsset(asset_type='voice')` | Fabien, 12/09 | garder les voix dans `synthesizer/` (*« ça n'a pas de sens de laisser les voix dans le synthesizer »*) ; un modèle `VoiceReference` à part |
+| D2 | **Pas de dossier par niveau hiérarchique** — `visibility` est mutable, le chemin ne l'est pas ; une zone physique par DÉTENTEUR DE CLÉ (§8bis ci-dessus) | Fabien + mesure, 12/09 | `media_library/unit/…`, `media_library/public/…` |
+| D3 | **La taxonomie devient des CHAMPS — sous la forme A′** : une colonne JSON `attributes` sur `SystemAsset` ET `UserAsset` + un vocabulaire déclaratif `ASSET_NATURES` | Fabien, 13/09 (*« Ok, ça m'a l'air bien »*) | **A** (quatre colonnes `language/age/gender/variant`, nulles hors voix — explose à la 2ᵉ nature) ; **B** (une table par nature — multiplie) ; **`tags` en texte** (jugé « ni interrogeable ni fiable » par le modèle lui-même, `media_library/models.py:88-93`) |
+| D4 | **Il n'y a PAS de registre d'assets à créer : c'est la médiathèque.** `SystemAsset` = registre des assets communs, `UserAsset` = registre des assets personnels. Ce qui manque est un registre de **NATURES** (un vocabulaire en code), pas un second registre d'instances | 13/09 | tout modèle `AssetRegistry`, toute table de « catalogue d'assets » à côté de la médiathèque |
+| D5 | **Identifiants** : les nouvelles voix se désignent `sa_<id>` (SystemAsset), comme `ua_<id>` ; les identifiants STOCKÉS (`female_1` ×78, `default` ×18, `cv_1` ×1 — mesuré 13/09, `VoiceSynthesis.voice_preset` ; `AvatarJob` : `default` ×5) **continuent de résoudre tels quels** — frontière des données. Deux formes coexistent jusqu'à une décision de réalignement, comme pour les chemins | 12/09, signalé à Fabien, non contesté | convertir les lignes en base ; casser `_LEGACY_IDS` |
+| D6 | **Ordre d'exécution** : (1) le worker résout TOUTE voix en chemin côté Django et le passe au service → (2) le service cesse de chercher dans un dossier → (3) le stockage bouge. C'est ce qui fait que `tts_service.py` SUIT au lieu de casser. `tts_service.py:34` et `VOICE_REFS_SUBDIR` suivent ensemble ou pas du tout | 12/09 | déplacer les fichiers d'abord |
+| D7 | **C'est la CAPACITÉ qui décide** (`supports_cloning`, dérivé du moteur — `apply_engine_flags`), jamais `tts_model == 'coqui-xtts'` | Fabien, 12/09 (*« selon la capacité de clonage »*) | tout `if tts_model == …` dans un worker |
+| D8 | **Universel, au commun** : la résolution des voix est une brique de `common/tts/`, pas une spécificité d'app — quatre consommateurs (synthesizer, avatarizer, l'assistant `wama/views.py:348`, `tts_service.py`) | Fabien, 12/09 | *« conserver des spécificités d'une application »* |
+| D9 | **3D — rien de nouveau à décider** : pivot GLB, catégorie `'3d'`, type `object3d`, *collecte en médiathèque D'ABORD*, viewer three.js **vendorisé** (pas de CDN), port studio `object_3d` APRÈS — c'est `ROADMAP §17ter` (18/08), inchangé. A′ lui donne seulement sa déclaration de nature (`attributes` : format, rigged, units, scale, polygons, animations) | Fabien, 18/08 + 13/09 | rouvrir le choix du pivot ou de l'ordre |
+
+### 9.2 Ce qui est MESURÉ au 13/09 — les objets 3D « intégrés » le sont dans le VOCABULAIRE seul
+
+Question de Fabien : *« on les a intégrés, mais je ne sais pas de quelle façon »*. Réponse par la
+ligne :
+
+| couche | ce qui existe | ligne |
+|---|---|---|
+| vocabulaire média | `OBJECT3D_EXTENSIONS` (9 ext. : glb gltf obj fbx stl ply usd usdz dae), catégorie `'3d'` dans `MEDIA_CATEGORIES`, `category_of_path` en dérive | `common/app_registry.py:57`, `:72`, `:86` |
+| médiathèque — type | `('object3d', 'Objet 3D')` ; `ALLOWED_EXTENSIONS['object3d']` (7 ext. — `.usd`/`.dae` absents, « ⊂ » assumé) ; `ASSET_TYPE_CATEGORY['object3d'] = '3d'` → `TYPE_GROUPS['3d'] = ['object3d']` **par dérivation** ; migration 0013 | `media_library/models.py:21`, `:32`, `:49`, `:60-64` |
+| médiathèque — geste « ranger » | `candidate_asset_types('scene.glb') == ['object3d']` (testé) | `media_library/services.py:30-41` ; `tests_export_service.py:52` |
+| médiathèque — page | l'onglet « Objet 3D » EXISTE par dérivation (`asset_types` = `ASSET_TYPES`) ; la card tombe dans la branche icône générique (`fa-file` : `TYPE_ICONS` n'a pas d'entrée `object3d`) ; **`assetToPreviewData` n'a AUCUNE branche 3D** → mime vide, la modale d'aperçu ne sait rien montrer | `views.py:77` ; `index.html:206` ; `media-library.js:29-37`, `:299-303`, `:376-390` |
+| studio | le puits « Média final » accepte `'3d'` | `studio/static/studio/js/wama-studio.js:40` |
+| assistant | rôle `object3d` valide pour « ranger en médiathèque » | `tool_api.py:1763` |
+| codegen | témoin `'3d': '.glb'` ; et **`.glb` sert de témoin HORS-VOCABULAIRE** des lots (le converter ne déclare pas `3d`) — il devra changer quand le converter le déclarera (prévu par son docstring) | `views_gen.py:895` ; `tests_codegen_lot.py:579-590` |
+| moteur de rendu | **three 0.180.0 vendorisé** (`wama/static/vendors/three-0.180.0/`, 12 fichiers suivis — le `build/` l'est depuis la négation `.gitignore:152-153` du 12/09, décision Fabien ; le trou « clone frais sans cœur 3D » d'`AGENTS.md` est SOLDÉ) ; importmap COMMUNE `common/_three_importmap.html`, qui annonce *« preview `.glb` de la médiathèque »* — **c'est une INTENTION** | seul consommateur vivant : `wama-avatar.js:83-84` (TalkingHead, `home.html:262` → `vendors/avatars/brunette.glb`) |
+| monde Data | **aucun `DataType` 3D** (`GEO_TRACK` … `DEPTH_MAP`) — le port `object_3d` du §17ter n'existe pas | `common/catalog/data_types.py:11-45` |
+| converter | rien (aucune conversion 3D, « formats à définir » — §17ter) | — |
+| données | **0 ligne** `object3d` (SystemAsset : 9 `avatar` ; UserAsset : 9 lignes, 7 types) ; **0 fichier 3D sous `media/`** | `manage.py shell`, 13/09 |
+
+**Verdict** : le 3D est **déclaré une fois** (`OBJECT3D_EXTENSIONS`) et trois consommateurs en
+DÉRIVENT sans une ligne de code (onglet médiathèque, puits studio, geste « ranger ») — c'est le
+trou 1 du §17ter, et il est propre. **Rien n'ingère, rien ne rend, rien ne type un port** : les
+trous 2 à 6 sont intacts. La construction A′ ne les comble pas — elle garantit que, quand on les
+comblera, un objet 3D portera ses attributs SANS migration ni colonne.
+
+⚠ Défaut trouvé en mesurant : **`UserAsset #9` porte `asset_type='audio'`** — une valeur qui n'est
+PAS dans `ASSET_TYPES` (Django ne vérifie `choices` qu'en `full_clean`, jamais au `save()`).
+Fichier : `users/1/media_library/assets/WAMA_Presentation_1785677131.mp3`, nom
+`smoke-0802-studio-conv` — une fixture de smoke du 02/08, versée par le puits studio avec l'ALIAS
+de catégorie au lieu d'un type. À corriger avec la normalisation à la sauvegarde de §9.3 (elle
+refusera un alias) ; la ligne elle-même est à re-typer (`audio_music` ou retrait — c'est une
+fixture).
+
+### 9.3 La construction A′ — ce qu'on écrit, où, et pourquoi cette forme
+
+**Le précédent que ça copie** : `AIModel.capabilities` (`model_manager/models.py:395`, JSON,
+*« source UNIQUE consommée par : filtrage UI, sélection par tâche, méta-app, description »*) +
+`CANONICAL_CAPABILITIES` (`common/utils/model_capabilities.py:30`, *« un modèle ne déclare que
+les clés pertinentes pour son type »*) + helpers de lecture, normalisation à l'entrée, audit
+(`is_canonical_key`). Une table pour des natures sans attribut commun, et pourtant
+`WamaModelCaps`, `lang_routing`, `model_selector` filtrent dessus. **116 modèles en font la
+preuve.** A′ applique la même forme aux assets.
+
+```
+SystemAsset / UserAsset
+  asset_type   'voice' | 'object3d' | 'audio_music' | 'avatar' | …    ← discriminant (EXISTE)
+  attributes   JSONField(default=dict, blank=True)                     ← UNE colonne, à ajouter (2 migrations, no-op sur l'existant)
+
+ASSET_NATURES  — wama/media_library/natures.py, module PUR (importable sans Django, comme data_types.py)
+  'voice':       Nature(label='Voix',     category='audio', pivot='wav', icon='fa-microphone',
+                        extensions=('wav','mp3','flac','ogg','m4a'),
+                        attributes={'language': 'str — code ISO', 'age': "'child'|'adult'|'elderly'",
+                                    'gender': "'male'|'female'", 'variant': 'int — 1 par défaut'})
+  'object3d':    Nature(label='Objet 3D', category='3d',    pivot='glb', icon='fa-cube',
+                        extensions=…,   # = ALLOWED_EXTENSIONS['object3d'] d'aujourd'hui
+                        attributes={'format': 'str', 'rigged': 'bool', 'units': "'m'|'cm'|…", 'scale': 'float',
+                                    'polygons': 'int', 'animations': 'list[str]'},
+                        data_type='object_3d')   # lien inter-mondes DÉCLARÉ (§17ter trou 3), facultatif
+  'audio_music': Nature(…, attributes={'bpm': 'int', 'key': 'str'})
+  … (avatar, image, video, document, audio_sfx : attributs vides pour l'instant — une nature = une entrée)
+```
+
+**Ce qui en DÉRIVE (et cesse d'être écrit à la main)** — `models.py` importe `natures.py` :
+`ASSET_TYPES = [(k, n.label) …]`, `ALLOWED_EXTENSIONS = {k: list(n.extensions)}`,
+`ASSET_TYPE_CATEGORY = {k: n.category}`, donc `TYPE_GROUPS` (déjà dérivé) et
+`candidate_asset_types` (déjà dérivé) suivent ; `TYPE_ICONS` (`media-library.js:29-37`, recopié
+en dur côté client) se sert depuis le serveur, comme `AUDIO_TYPES` l'est déjà (`index.html:439`).
+`category` DOIT être une valeur de `MEDIA_CATEGORIES` — vérifié à l'import, comme
+`register_category_extensions` le fait (`app_registry.py:104`). Le vocabulaire des CATÉGORIES
+reste dans `app_registry.py` (*« LE domicile des vocabulaires média »*, `check_redundancy.py:59`) ;
+`natures.py` est le vocabulaire des TYPES FINS de la médiathèque — un domaine, un fichier.
+
+**Les helpers (miroir de `model_capabilities`)** :
+- `normalize_attributes(asset_type, attrs)` — appelé au `save()` des deux modèles : clés
+  inconnues **conservées** (jamais perdues), clés héritées mappées, types coercés
+  (`variant='1'` → `1`), et **un `asset_type` hors vocabulaire est REFUSÉ** (c'est le défaut de
+  §9.2) ;
+- `attribute_schema(asset_type)` — le schéma d'attributs d'une nature, pour que le formulaire
+  d'édition de la médiathèque se **rende depuis la déclaration** (même geste que `param_schema`
+  → `WamaParams` pour les réglages d'app) ;
+- `is_canonical_attribute(asset_type, key)` — audit, comme `is_canonical_key` ;
+- **UNE porte de compatibilité**, `asset_accepts(spec, asset)` : la CATÉGORIE d'abord
+  (`ASSET_TYPE_CATEGORY`, existe), puis un prédicat sur `attributes` ; trois états — compatible /
+  compatible avec avertissement / incompatible **avec raison, jamais caché** — exactement les
+  trois états que `langSlot` a installés (`INPUT_MODEL_MATCHING §6.7`). C'est le jumeau serveur du
+  crochet `accepts(caps, el)` de `WamaInputMatch`. Un nœud « insérer un objet dans la scène »
+  déclare *object3d, units='m', non riggé* ; un moteur TTS déclare `languages` et la voix porte
+  `attributes.language` : **même règle pour toute nature**. Le monde Data fait déjà cela pour ses
+  types (`data_types.is_compatible:106`, *« point de passage unique de l'appariement »*).
+
+**Ce qu'on n'y met PAS (décidé)** : pas de colonne par nature, pas de table par nature, pas de
+contrainte SQL sur `attributes` (validation en code, comme `capabilities`), pas de `Registry`
+(registre des registres) pour `ASSET_NATURES` — c'est un VOCABULAIRE (famille de `INPUT_TYPES`,
+`CANONICAL_CAPABILITIES`, `MEDIA_CATEGORIES`), pas une page catalogue avec nature d'actualisation
+(`registries.py:121-152`). S'il mérite un jour une page ou une balise `WAMA:FAIT`, une entrée
+DÉRIVÉE (`refresh=None`) suffira.
+
+### 9.4 Étape 5 — les voix, PREMIÈRE nature versée : le plan geste par geste
+
+**État de départ (mesuré 13/09)** — `media/synthesizer/voice_references/` : **28 wav + README** =
+23 fichiers de taxonomie (`<langue>/<âge>/<genre>_<âge>[_<n>]_<iso>.wav` : english 8, french 8,
+german 2, italian 2, spanish 2, portuguese 1) + 5 plats (`default`, `male_1`, `male_2`,
+`female_1`, `female_2`). `default_voices/` ne contient plus que son README (ménage du 12/09).
+**Aucune ligne** ne stocke un id en forme chemin (`french/adult/…`) ; toutes les lignes portent un
+id plat ou `cv_1` (D5).
+
+**Qui lit ce dossier aujourd'hui** (à porter, TOUS — un relevé par `grep` du symbole ET de la
+chaîne `voice_references`) :
+
+| lecteur | ligne | devient |
+|---|---|---|
+| `get_voice_refs_dir()` — `'synthesizer'/'voice_references'` **en dur** (ne lit même pas `VOICE_REFS_SUBDIR`) | `common/tts/voice_refs.py:71-74` | **meurt** |
+| `scan_voice_refs()` — parcourt l'arborescence, groupe par `<langue> — <âge>` | `voice_refs.py:124-190` | **meurt** ; `get_voice_groups` dérive les groupes d'une REQUÊTE (`attributes__language`, `attributes__age` — Postgres l'indexe) |
+| `resolve_voice_preset()` — forme chemin / `_LEGACY_IDS` / repli `default_voices/` / `default.wav` | `voice_refs.py:232-282` | **meurt** ; la résolution est `resolve_speaker_wav` seule |
+| `resolve_speaker_wav()` — `ua_`/`cv_`/sinon | `voice_refs.py:197-229` | **LA brique** : `sa_<id>` → `SystemAsset.file.path` ; `ua_<id>` → `UserAsset` (restreint à `user`) ; `cv_<id>` → `CustomVoice` (hérité, conservé) ; **id plat hérité** → `SystemAsset(asset_type='voice', name=<id>)` ; repli → `SystemAsset 'default'` |
+| `VOICE_DOWNLOAD_CATALOG` + `download_missing_voice_refs` + `needs_voice_download` | `voice_refs.py:305`, `:593`, `:586` | **retargetés** : le catalogue est clé par (nom, attributs), le téléchargement CRÉE une ligne `SystemAsset` (jamais un fichier nu), « manque » = catalogue − lignes. Commande `download_voice_refs` et tâche Celery `workers.py:87-98` conservées telles quelles (elles n'appellent que la brique) |
+| `get_voice_label()` | `voice_refs.py:646` ; consommé `synthesizer/models.py:256` | lit `SystemAsset.name` + `attributes` ; `VoiceSynthesis.voice_display` (`models.py:238-262`) délègue à **une** fonction `describe_voice(preset, user)` pour `sa_`/`ua_`/`cv_`/plat — au lieu de quatre branches |
+| `_get_default_speaker_wav()` — résolution → samples du paquet TTS → **téléchargement LJSpeech** | `synthesizer/workers.py:35-84` | **meurt** (3ᵉ copie du repli LJSpeech) |
+| bloc de résolution du worker — recopie `ua_`/`cv_` de la brique + **`elif tts_model == 'coqui-xtts'`** | `workers.py:259-279` | **une ligne** : `speaker_wav = resolve_speaker_wav(preset, user) if supports_cloning(model) else None` — D7 |
+| `tts_service._get_speaker_wav` + `DEFAULT_VOICES_DIR`/`_LEGACY_VOICES_DIR` + son `legacy_mapping` LJSpeech | `tts_service.py:34-36`, `:188-242`, `:324` | **meurent** : `req.speaker_wav` est TOUJOURS fourni par Django quand le moteur clone ; le service ne connaît plus aucun dossier (D6). ⚠ `patches/apply_patches.py` #3 « vérification seulement » : contrôler qu'aucune de ses sondes ne cite ces lignes |
+| assistant — `voice_preset = 'male_1' if is_male else 'default'` | `wama/views.py:348` | inchangé (ids hérités résolus par D5) ; Kokoro ne clone pas, `speaker_wav` n'est pas requis |
+| `voice_options._HERITAGE` (repli statique si scan vide) | `common/utils/voice_options.py:32`, `:57` | **meurt** — le repli d'un catalogue vide est un groupe vide + `needs_voice_download` |
+| `VOICE_REFS_SUBDIR` | `common/tts/constants.py:169` | **0 consommateur mesuré le 13/09** — déjà mort ; retiré dans le même geste que `tts_service.py:34` (D6) |
+| `PRESET_DOWNLOAD_MAPPING` | `constants.py:185-190` | **0 consommateur mesuré** — mort ; absorbé par le catalogue |
+| `VOICE_PRESET_CHOICES` (`choices=` du champ `voice_preset` des DEUX apps) | `constants.py:73-99` ; `synthesizer/models.py:119` ; `avatarizer/models.py:82` | ⚠ `choices` sur un champ dont les valeurs vivantes (`ua_`, `sa_`) ne sont PAS dans la liste : `full_clean` les refuserait. Retirer `choices=` (la liste reste pour AFFICHER les hérités, via `describe_voice`) — décision à confirmer par Fabien, §9.6 |
+| `check_media_integrity` — motif légitime `synthesizer/(…|voice_references)/` | `check_media_integrity.py:69` | le motif perd `voice_references` (plus rien de légitime hors domicile) |
+| docs/commandes citant le dossier | `migrate_media_to_user_home.py:38,143` ; `download_voice_refs.py:20` ; `voice_refs.py:25-29` ; `constants.py:164-166` | prose réalignée |
+
+**L'ordre (D6), avec le filet à chaque marche** :
+
+1. **A′ d'abord** : `natures.py` + `attributes` (2 migrations, WSL2) + helpers + normalisation au
+   `save()` + dérivations dans `models.py`. Filet : suite `media_library`, `check_templates`,
+   la page médiathèque inchangée à l'écran (mêmes onglets, mêmes compteurs).
+2. **Worker → brique** : `workers.py:259-279` réduit à la ligne D7 ; `_get_default_speaker_wav`
+   retiré ; `resolve_speaker_wav` étendu (`sa_`, plat → médiathèque). ⚠ À ce stade la médiathèque
+   ne contient pas encore les voix : la brique garde un **repli disque transitoire** vers
+   `voice_references/` (une fonction, marquée à retirer à la marche 4). Filet : empreinte
+   fonctionnelle `chaine_voix.py` (28 presets → même fichier résolu qu'avant, octet pour octet).
+3. **Service court-circuité** : `tts_service.py:324` → `req.speaker_wav` seul ; `_get_speaker_wav`
+   et les deux `*_VOICES_DIR` retirés ; **redémarrage du service TTS** (process séparé, il sert
+   l'ancien code sinon — leçon Celery du 12/09). Filet : une synthèse XTTS réelle avec voix
+   `sa_`, une avec `ua_1`, une Kokoro (aucun `speaker_wav`) — avec Fabien (règle GPU).
+4. **Ingest** : commande `ingest_voice_refs` (jumelle d'`ingest_gallery_assets` — PLAN puis
+   `--apply`, ligne AVANT déplacement, idempotente) : une ligne par wav, `name` = l'id actuel
+   (`french/adult/male_adult_1_fr`, `default`, `female_1`…) pour que libellés et hérités restent
+   stables, `attributes` parsés par `_FILE_PATTERN` (`voice_refs.py:107`) + `_LANG_DIR_TO_CODE`
+   (`:81`) ; `source_url`/`license`/`author` depuis le catalogue quand connus (LJSpeech = domaine
+   public ; échantillons XTTS-v2 : **licence à confirmer, laissée VIDE et signalée** plutôt
+   qu'inventée) ; fichier sous `media_library/system/` par `upload_to`, l'original retiré une fois
+   la ligne posée. Puis le repli transitoire de la marche 2 est retiré, `voice_references/` et
+   `default_voices/` supprimés, `check_media_integrity` réaligné → **0 fichier hors domicile**.
+5. **Menu et libellés** : `get_voice_groups` par requête, valeurs `sa_<id>` ; `describe_voice` ;
+   `_HERITAGE` retiré. ⚠ L'empreinte serveur change DE FORME (les ids des options) mais pas de
+   CONTENU : le filet compare l'ensemble des (groupe, libellé, langue, âge, genre), **pas** les ids
+   — un test qui figerait « 13 optgroups / 35 options » par leurs ids se périmerait à raison.
+6. **Branchement des filtres** : les options de voix portent `data-language` (depuis
+   `attributes`) ; `WamaInputMatch.voiceSlot`/`langSlot` et `WamaModelCaps.langFilter` peuvent
+   alors croiser voix ↔ langue du moteur (voix française sur un moteur sans français = état
+   « avertissement », jamais caché). C'est la promesse de `INPUT_MODEL_MATCHING §6.7` (*« ce qui
+   permet aux deux filtres de s'y brancher sans rien connaître du TTS »*) ; sonde
+   `sonde_double_sens.py` re-jouée (14/14 attendus, plus le geste voix↔langue).
+7. **Clôture** : `check_docs` 0 cible ; suite complète `OK` depuis WSL2 ; nocturne synthesizer +
+   avatarizer ; vérification SUR HEAD en worktree ; `INPUT_MODEL_MATCHING §6.7` « ce qui reste »
+   vidé ; §8bis ci-dessus (« 45 fichiers d'app sans identifiant ») réécrit à **0**.
+
+### 9.5 Ce que A′ donne ensuite, sans nouvelle question
+
+- **Objets 3D** (§17ter trous 2-3) : ingérer = une ligne `object3d` + `attributes` ; l'aperçu =
+  une branche `'3d'` dans `assetToPreviewData` + un module viewer sur l'importmap déjà en place ;
+  le port studio = `DataType.OBJECT_3D` + `data_type='object_3d'` sur la nature (lien
+  inter-mondes déclaré). Aucune migration.
+- **Musiques/bruitages** (`bpm`, `key`) : idem — une entrée.
+- **Galerie d'avatars** : déjà `SystemAsset(avatar)` depuis le 12/09 ; A′ n'y change rien.
+
+### 9.6 Ce qui reste OUVERT — et n'est ouvert que parce que c'est à Fabien
+
+| question | éléments |
+|---|---|
+| retirer `choices=VOICE_PRESET_CHOICES` des champs `voice_preset` (2 apps) | les valeurs vivantes n'y sont pas ; la liste garde un rôle d'AFFICHAGE des hérités. Position Claude : retirer (une `choices` qui ne contient pas les valeurs réelles n'est qu'un piège de `full_clean`) |
+| licence des échantillons XTTS-v2 (`coqui/XTTS-v2/…/samples`) | ingest les pose `license=''` + signale ; à renseigner ou à remplacer par des voix sous licence connue (`LICENSING.md`) |
+| `UserAsset #9` (`asset_type='audio'`, fixture de smoke) | re-typer `audio_music` ou retirer |
+| `media/WAMA_Presentation.wav` partagé par deux utilisateurs (#50 → 1, #51/#55 → 21) | §8bis point 3 — arbitrage, pas portage |
+| miroir de sauvegarde (7,5 Go recopiés après le domicile unique) | §③ ci-dessus |
+| `describer.result_file` (champ mort) | chantier « code mort par app » |
+| réalignement des ids plats stockés (`female_1` ×78…) vers `sa_<id>` | D5 : pas maintenant ; le jour venu, même geste que `migrate_media_to_user_home` (plan, réécriture, filet) |
