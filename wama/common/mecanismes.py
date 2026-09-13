@@ -912,10 +912,15 @@ MECANISMES = (
                        'wama/common/templates/common/_inspector_actions.html',
                        'wama/common/templates/common/_inspector_banner.html')),
     Mecanisme('preview', 'Preview unifiée',
-              "Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps",
+              "Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; "
+              "un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three "
+              "vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement "
+              "(2026-09-13, §17ter trou 2)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
-                       'wama/common/static/common/js/media-preview.js')),
+                       'wama/common/static/common/js/media-preview.js',
+                       'wama/common/static/common/js/wama-3d-viewer.js',
+                       'wama/common/templates/common/_three_importmap.html')),
     Mecanisme('card_gear', 'data-* du gear ⚙ des cards',
               "data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui lit "
               "la RACINE de card PUIS le bouton) — schéma en objets Param OU en dicts "
@@ -1195,8 +1200,46 @@ MECANISMES = (
                        'wama/common/manifests/codegen/templates_gen.py',
                        'wama/common/manifests/codegen/views_gen.py')),
     Mecanisme('media_probe', 'Sonde média',
-              "Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils)",
-              'wama/common/utils/media_probe.py', ''),
+              "Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) ; "
+              "depuis le 2026-09-13, un OBJET 3D livre sa table des matières glTF sans décodage "
+              "(`probe_object3d` : format, faces, rig, animations) sous la clé `attributes` — ce "
+              "que la médiathèque pose à l'ingest sur la nature `object3d` (A′)",
+              'wama/common/utils/media_probe.py', 'ROADMAP.md §17ter'),
+    Mecanisme('asset_natures', "Natures d'assets de la médiathèque (A′)",
+              "UNE déclaration par nature (`ASSET_NATURES` : libellé, catégorie ∈ MEDIA_CATEGORIES, "
+              "extensions, icône, pivot, schéma d'attributs, `data_type` inter-mondes) dont "
+              "`ASSET_TYPES`/`ALLOWED_EXTENSIONS`/`ASSET_TYPE_CATEGORY`/`TYPE_GROUPS` et les trois "
+              "tables JS de la page DÉRIVENT ; `attributes` JSON sur SystemAsset/UserAsset "
+              "normalisé au `save()` (alias de catégorie REFUSÉ, `resolve_asset_type` pour les "
+              "puits qui ne disent qu'une catégorie) ; UNE porte de compatibilité `asset_accepts` "
+              "à trois états. Précédent copié : `AIModel.capabilities` + CANONICAL_CAPABILITIES. "
+              "Décision Fabien 2026-09-13 — ni colonnes ni table par nature, ni `tags`",
+              'wama/media_library/natures.py', 'MEDIA_STORAGE_TIERING.md §9',
+              annexes=('wama/media_library/models.py',
+                       'wama/media_library/services.py',
+                       'wama/media_library/tests_natures.py')),
+    Mecanisme('voice_refs', 'Voix de référence (médiathèque) et voix de clonage',
+              "LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, "
+              "jamais par un nom de moteur), `resolve_speaker_wav` (sa_/ua_/cv_/nom d'avant), "
+              "`describe_voice`, `voice_reference_groups` (optgroups dérivés d'une REQUÊTE sur "
+              "`SystemAsset(voice)` + `attributes`), `ingest_voice_file` (le seul point d'entrée, "
+              "ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le "
+              "2026-09-13 (28 versées, dossier `voice_references/` retiré) ; `tts_service.py` "
+              "ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, "
+              "`voice_options` (menus), assistant",
+              'wama/common/tts/voice_refs.py', 'MEDIA_STORAGE_TIERING.md §9.4',
+              annexes=('wama/common/utils/voice_options.py',
+                       'wama/media_library/management/commands/ingest_voice_refs.py',
+                       'wama/common/tests_voice_refs.py')),
+    Mecanisme('test_media_isolation', 'Médias de test isolés',
+              "Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossier "
+              "SŒUR de `media/`, jamais dedans (servi, sauvegardé, miré) ; les exécutions "
+              "orphelines (vides ou > 24 h, teardown jamais joué) se balaient à l'entrée de la "
+              "suivante. Le nocturne, lui, écrit chez les COMPTES DE TEST dans `media/` (serveur "
+              "vivant) et se balaie par NOM (`wama_temoin_*`, dossier temporaire compris). "
+              "Question Fabien 2026-09-13 : « on ne change rien pour ça »",
+              'wama/common/runners.py', 'MEDIA_STORAGE_TIERING.md §①bis',
+              annexes=('wama/common/tests_media_tests_hygiene.py',)),
     Mecanisme('video_utils', 'Utilitaires vidéo',
               "Extraction audio des vidéos + téléchargement YouTube/yt-dlp",
               'wama/common/utils/video_utils.py', ''),

@@ -323,16 +323,12 @@
               "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
-                "choices": {
-                  "expr": "[('default', 'Voix par défaut'), ('male_1', 'Voix masculine 1'), ('male_2', 'Voix masculine 2'), ('female_1', 'Voix féminine 1'), ('female_2', 'Voix féminine 2'), ('bark_v2_en_0', 'Bark EN Speaker 0'), ('bark_v2_en_1', 'Bark EN Speaker 1'), ('bark_v2_en_2', 'Bark EN Speaker 2'), ('bark_v2_en_3', 'Bark EN Speaker 3'), ('bark_v2_en_4', 'Bark EN Speaker 4'), ('bark_v2_en_5', 'Bark EN Speaker 5'), ('bark_v2_fr_0', 'Bark FR Speaker 0'), ('bark_v2_fr_1', 'Bark FR Speaker 1'), ('bark_v2_es_0', 'Bark ES Speaker 0'), ('bark_v2_de_0', 'Bark DE Speaker 0')]",
-                  "imports": []
-                },
                 "default": {
                   "expr": "'default'",
                   "imports": []
                 },
                 "help_text": {
-                  "expr": "'Preset de voix'",
+                  "expr": "'Voix : `default`, preset plat, `sa_<id>` (référence), `ua_<id>` (clonage), Bark'",
                   "imports": []
                 },
                 "max_length": {
@@ -1362,68 +1358,7 @@
             "advanced": false,
             "chip": true,
             "chip_label": "",
-            "choices": [
-              [
-                "default",
-                "Voix par défaut"
-              ],
-              [
-                "male_1",
-                "Voix masculine 1"
-              ],
-              [
-                "male_2",
-                "Voix masculine 2"
-              ],
-              [
-                "female_1",
-                "Voix féminine 1"
-              ],
-              [
-                "female_2",
-                "Voix féminine 2"
-              ],
-              [
-                "bark_v2_en_0",
-                "Bark EN Speaker 0"
-              ],
-              [
-                "bark_v2_en_1",
-                "Bark EN Speaker 1"
-              ],
-              [
-                "bark_v2_en_2",
-                "Bark EN Speaker 2"
-              ],
-              [
-                "bark_v2_en_3",
-                "Bark EN Speaker 3"
-              ],
-              [
-                "bark_v2_en_4",
-                "Bark EN Speaker 4"
-              ],
-              [
-                "bark_v2_en_5",
-                "Bark EN Speaker 5"
-              ],
-              [
-                "bark_v2_fr_0",
-                "Bark FR Speaker 0"
-              ],
-              [
-                "bark_v2_fr_1",
-                "Bark FR Speaker 1"
-              ],
-              [
-                "bark_v2_es_0",
-                "Bark ES Speaker 0"
-              ],
-              [
-                "bark_v2_de_0",
-                "Bark DE Speaker 0"
-              ]
-            ],
+            "choices": null,
             "contexts": [
               "item",
               "batch",
@@ -1436,7 +1371,7 @@
               "panel": "voice_preset"
             },
             "group": "",
-            "help": "Preset de voix",
+            "help": "Voix : `default`, preset plat, `sa_<id>` (référence), `ua_<id>` (clonage), Bark",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1970,7 +1905,7 @@
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
             "text": "str (requis)",
             "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",
-            "voice_preset": "select — Preset de voix (choix : default | male_1 | male_2 | female_1 | female_2 | bark_v2_en_0 | bark_v2_en_1 | bark_v2_en_2 …) (défaut : 'default')"
+            "voice_preset": "select — Voix : `default`, preset plat, `sa_<id>` (référence), `ua_<id>` (clonage), Bark (défaut : 'default')"
           },
           "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…)) et renvoie son item_id."
         },
