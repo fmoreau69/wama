@@ -7,9 +7,6 @@ MIME `model/…`. Trou 3 : la nature déclare son `DataType` inter-mondes, et il
 Le témoin est un CUBE glTF 2.0 fabriqué ici, octet par octet (aucune dépendance) : 8 sommets,
 12 triangles, 1 maillage, 0 rig, 0 animation — des nombres qu'on peut vérifier à la main.
 """
-import json
-import struct
-
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
@@ -19,35 +16,10 @@ from wama.common.utils.media_probe import probe_media, probe_object3d
 
 
 def cube_glb(animated: bool = False) -> bytes:
-    """Un GLB minimal et VALIDE : cube unitaire indexé (12 triangles)."""
-    verts = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
-    idx = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1,
-           2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3]
-    vbuf = b''.join(struct.pack('<fff', *v) for v in verts)
-    ibuf = b''.join(struct.pack('<H', i) for i in idx)
-    ibuf += b'\0' * (-len(ibuf) % 4)
-    bin_chunk = vbuf + ibuf
-    doc = {
-        'asset': {'version': '2.0', 'generator': 'wama-tests'},
-        'buffers': [{'byteLength': len(bin_chunk)}],
-        'bufferViews': [{'buffer': 0, 'byteOffset': 0, 'byteLength': len(vbuf)},
-                        {'buffer': 0, 'byteOffset': len(vbuf), 'byteLength': len(idx) * 2}],
-        'accessors': [{'bufferView': 0, 'componentType': 5126, 'count': 8, 'type': 'VEC3',
-                       'min': [0, 0, 0], 'max': [1, 1, 1]},
-                      {'bufferView': 1, 'componentType': 5123, 'count': len(idx), 'type': 'SCALAR'}],
-        'meshes': [{'name': 'cube', 'primitives': [{'attributes': {'POSITION': 0}, 'indices': 1}]}],
-        'nodes': [{'mesh': 0, 'name': 'cube'}],
-        'scenes': [{'nodes': [0]}], 'scene': 0,
-    }
-    if animated:
-        doc['animations'] = [{'name': 'tourne', 'channels': [], 'samplers': []}]
-        doc['skins'] = [{'joints': [0]}]
-    jbytes = json.dumps(doc, separators=(',', ':')).encode('utf-8')
-    jbytes += b' ' * (-len(jbytes) % 4)
-    total = 12 + 8 + len(jbytes) + 8 + len(bin_chunk)
-    return (struct.pack('<4sII', b'glTF', 2, total)
-            + struct.pack('<I4s', len(jbytes), b'JSON') + jbytes
-            + struct.pack('<I4s', len(bin_chunk), b'BIN\0') + bin_chunk)
+    """Le cube témoin vit UNE fois, dans la brique nocturne (`ui_smoke._glb_temoin`) — le
+    nocturne et ces tests fabriquent le même octet par octet."""
+    from wama.common.services.ui_smoke_matching import _glb_temoin
+    return _glb_temoin(animated=animated)
 
 
 class LaSondeLitLaTableDesMatieresTest(TestCase):

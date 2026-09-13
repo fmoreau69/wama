@@ -410,7 +410,14 @@ try:
                                                register_ui_scenarios,
                                                register_url_import_scenarios,
                                                register_volet_scenarios)
+    from wama.common.services.ui_smoke_matching import (register_media_library_scenarios,
+                                                        register_voice_language_scenarios)
     register_ui_scenarios()
+    # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
+    # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
+    # (avatarizer, mesuré le 13/09). D'où ces gestes dans le navigateur, versés du bloc-notes.
+    register_voice_language_scenarios()
+    register_media_library_scenarios()
     # `<app>.ui` mesure la SANTÉ de la page (200, 0 erreur console) ; `<app>.import` mesure
     # son COMPORTEMENT. Les deux sont nécessaires : converter_01 satisfaisait le premier tout
     # en étant inerte — aucun script chargé, donc rien à planter (mesuré 2026-08-22).

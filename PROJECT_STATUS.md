@@ -13808,3 +13808,34 @@ là ; gunicorn seul a été rechargé. **🔚 DÉCISIONS (`§9.6`)** : retirer `
 `auto` grisé par une voix clonée ; provenance des 28 voix (`download_voice_refs --force` la
 poserait, au prix de voix différentes) ; réalignement des ids plats stockés. **🔚 3D** : trous
 2-6 du `ROADMAP §17ter` intacts — A′ leur donne leur déclaration, rien d'autre n'a bougé.
+
+### Addendum 13/09 (soir) — même instance, après le §CLÔTURE ci-dessus
+
+Quatre gestes de plus, tous consignés à leur domicile ; ce bloc ne fait que les POINTER :
+1. **Médias de test** (question Fabien : « réincorporer `media_tests` dans `media` ? ») — **non,
+   c'est écrit dans le code** (`runners.py:59`) ; `MEDIA_STORAGE_TIERING §①bis` mesure où va
+   chaque famille (suite → `media_tests/run-*` ; nocturne → domicile des comptes de test ;
+   fixture studio relocalisée), et ce qui a été balayé (134 runs, 8 orphelins, 3 témoins `/tmp`).
+   Trouvé : le puits `studio_output` écrivait une CATÉGORIE comme `asset_type` → `resolve_asset_type`.
+   Fabien : « on ne change rien pour ça ».
+2. **Décisions 1 et 2 de §9.6 SOLDÉES** (Fabien « Ok pour 1 et 2 ») : `voice_preset` sans
+   `choices` ; « auto » compatible avec une voix clonée, la contrainte portée AU TIRAGE
+   (`requires=['supports_cloning']`, `voice_refs.is_cloned_voice`).
+3. **3D, trous 2-3 du `ROADMAP §17ter` FAITS** : ingest + aperçu (visionneuse commune
+   `wama-3d-viewer.js`, sonde glTF `probe_object3d`, MIME `model/…`), `DataType.OBJECT_3D`.
+   ⚠⚠ **`three.core.js` MANQUAIT depuis le vendoring du 21/08** — tout `import 'three'`
+   (TalkingHead compris) était en 404 ; la garde ne demandait que la façade. Récupéré (npm,
+   0.180.0 vérifié), LICENSE versionnée, `update_vendors.sh` et `VendoringTest` complétés.
+4. **Trou 4 ÉCRIT, NON EXÉCUTÉ** (TripoSR : catalogue, backend sous contrat, fonction
+   `studio.image_to_3d`, tâche GPU sur la file `gpu`, l'exécuteur passe les fichiers de l'amont
+   par port — 9 tests) : **premier run GPU avec Fabien**, après `tools/setup_triposr.sh` et
+   `install_library trimesh` / `PyMCubes` (`--allow --apply`, décision humaine). Point à
+   vérifier au premier maillage : l'orientation des faces (PyMCubes vs torchmcubes).
+
+Le registre des mécanismes gagne `asset_natures`, `voice_refs`, `test_media_isolation` ; le
+`REMOVAL_LEDGER` R51-R60 ; `LICENSING §3` three (LICENSE) + TripoSR. Les sondes navigateur de
+la journée (double sens ×2, voix servies, natures, 3D) entrent au nocturne
+(`ui_smoke.register_voice_language_scenarios` / `register_media_library_scenarios`).
+**Restent à Fabien** : provenance/licence des 28 voix, `WAMA_Presentation.wav` (Fabien + un
+smoke), réalignement des ids plats, miroir 7,5 Go, `describer.result_file`, le **push** ; et un
+tag Ollama mort relevé par `check_model_declarations` (`qwen3.5:9b`, hors de cette instance).
