@@ -25,12 +25,23 @@ _EXT_MIME_FALLBACK = {
     '.opus': 'audio/opus', '.weba': 'audio/webm',
 }
 
+# Objets 3D (ROADMAP §17ter) — la stdlib n'en connaît AUCUN (mesuré 13/09 : `.obj` rend même
+# `application/octet-stream`, un « connu » qui ne dit rien). Ces types PRIMENT donc sur la
+# stdlib : c'est `model/…` que `media-preview.js` reconnaît pour ouvrir la visionneuse.
+_EXT_MIME_3D = {
+    '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.obj': 'model/obj',
+    '.stl': 'model/stl', '.ply': 'model/ply', '.fbx': 'model/fbx',
+    '.usd': 'model/vnd.usd', '.usdz': 'model/vnd.usdz+zip', '.dae': 'model/vnd.collada+xml',
+}
+
 
 def guess_mime_type(path_or_name: str) -> str:
     """MIME type robuste pour un chemin/nom de fichier. '' si vraiment inconnu (jamais None)."""
+    from pathlib import Path
+    ext = Path(path_or_name).suffix.lower()
+    if ext in _EXT_MIME_3D:
+        return _EXT_MIME_3D[ext]
     guessed, _ = mimetypes.guess_type(path_or_name)
     if guessed:
         return guessed
-    from pathlib import Path
-    ext = Path(path_or_name).suffix.lower()
     return _EXT_MIME_FALLBACK.get(ext, '')

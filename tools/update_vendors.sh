@@ -87,7 +87,14 @@ THREE_ADDONS=(
   curves/NURBSUtils.js
 )
 mkdir -p "$V/three-$THREE_VER/build"
+# ⚠ DEUX fichiers de build depuis r170 : `three.module.js` n'est qu'une FAÇADE qui fait
+# `import './three.core.js'`. Ce script n'en tirait qu'un ; le cœur a manqué du 21/08 au
+# 13/09 — tout import de `three` (TalkingHead, aperçu 3D) tombait en 404 dans le navigateur,
+# et la garde de vendoring ne demandait que la façade. La fermeture transitive vaut aussi
+# pour le BUILD, pas seulement pour les addons.
 dl "https://cdn.jsdelivr.net/npm/three@$THREE_VER/build/three.module.js" "$V/three-$THREE_VER/build/three.module.js"
+dl "https://cdn.jsdelivr.net/npm/three@$THREE_VER/build/three.core.js"   "$V/three-$THREE_VER/build/three.core.js"
+dl "https://cdn.jsdelivr.net/npm/three@$THREE_VER/LICENSE"               "$V/three-$THREE_VER/LICENSE"
 for a in "${THREE_ADDONS[@]}"; do
   mkdir -p "$V/three-$THREE_VER/addons/$(dirname "$a")"
   dl "https://cdn.jsdelivr.net/npm/three@$THREE_VER/examples/jsm/$a" "$V/three-$THREE_VER/addons/$a"

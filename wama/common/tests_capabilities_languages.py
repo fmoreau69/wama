@@ -286,8 +286,15 @@ class VendoringTest(TestCase):
 
         from django.conf import settings
         base = Path(settings.BASE_DIR) / 'wama' / 'static' / 'vendors'
+        # ⚠ `three.core.js` : depuis r170 le build est SCINDÉ — `three.module.js` n'est qu'une
+        # façade qui fait `import './three.core.js'`. Il manquait sur disque du 21/08 au 13/09 :
+        # TOUT import de `three` (TalkingHead, visionneuse 3D) tombait en 404 sur ce fichier, et
+        # cette garde, qui ne demandait que la façade, disait vert. Mesuré en montant l'aperçu 3D.
         for rel in ('three-0.180.0/build/three.module.js',
+                    'three-0.180.0/build/three.core.js',
                     'three-0.180.0/addons/loaders/GLTFLoader.js',
+                    'three-0.180.0/addons/loaders/FBXLoader.js',
+                    'three-0.180.0/addons/controls/OrbitControls.js',
                     'three-0.180.0/addons/libs/fflate.module.js',   # dépendance TRANSITIVE
                     'talkinghead-1.7/talkinghead.mjs',
                     'talkinghead-1.7/lipsync-fr.mjs',

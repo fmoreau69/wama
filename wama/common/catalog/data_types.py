@@ -43,6 +43,13 @@ class DataType:
     ROAD_MAP = 'road_map'        # polylignes routières de référence (geometry, id[, type])
     DETECTIONS = 'detections'    # objets détectés par frame (frame, bbox, class, track_id…)
     DEPTH_MAP = 'depth_map'      # raster HxW de profondeur métrique (mètres) — non tabulaire
+    # ── Objet 3D (maillage texturé, pivot GLB) — ROADMAP §17ter trou 3, déclaré le 2026-09-13.
+    # Non tabulaire, comme `DEPTH_MAP`. C'est le TYPE que la nature d'asset `object3d`
+    # (`media_library/natures.py`, `data_type='object_3d'`) déclare comme lien inter-mondes :
+    # un port studio qui l'attend accepte un objet 3D de la médiathèque, un nœud « image→3D »
+    # (trou 4) le produira. Déclaré ici AVANT le premier producteur, à dessein : le port existe
+    # pour que la chaîne detector → 2D→3D → médiathèque se câble par déclaration, pas par glu.
+    OBJECT_3D = 'object_3d'
 
 
 # Relation « est-un » : type → ses super-types directs. Un geo_track EST une timeseries
@@ -58,6 +65,7 @@ _SUPERTYPES = {
     DataType.SCALAR: [],
     DataType.ROAD_MAP: [],
     DataType.DEPTH_MAP: [],   # raster : pas un sous-type de table
+    DataType.OBJECT_3D: [],   # maillage : pas un sous-type de table
     DataType.TABLE: [],
 }
 

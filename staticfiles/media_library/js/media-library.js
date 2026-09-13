@@ -371,6 +371,11 @@
             const ext = (asset.name || '').split('.').pop().toLowerCase();
             const m = { pdf: 'application/pdf', txt: 'text/plain', md: 'text/plain', csv: 'text/plain' };
             mime = m[ext] || 'application/octet-stream';
+        } else if (assetType === 'object3d') {
+            // Le serveur pose le MIME (`model/…`, guess_mime_type) à l'ingest ; sinon on le
+            // déduit de l'extension du FICHIER (le nom d'asset peut ne pas en porter).
+            const ext = ((asset.file_url || asset.name || '').split('?')[0].split('.').pop() || '').toLowerCase();
+            mime = asset.mime_type || ({ glb: 'model/gltf-binary', gltf: 'model/gltf+json', fbx: 'model/fbx' }[ext]) || 'model/unknown';
         }
         return {
             url:        asset.file_url || '',
