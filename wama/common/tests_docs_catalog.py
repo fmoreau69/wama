@@ -89,6 +89,18 @@ class DeclarationTest(SimpleTestCase):
     def test_le_parcours_ne_cite_que_des_docs_declares(self):
         self.assertEqual([k for k in PARCOURS if k not in BY_KEY], [])
 
+    def test_le_readme_porte_l_arborescence_generee_de_tous_les_docs(self):
+        # Palier C du déménagement (2026-09-14) : l'index de la doc est un bloc GÉNÉRÉ du README.
+        # La table à la main d'avant citait 11 docs quand le catalogue en déclarait plus de 40.
+        texte = (BASE / 'README.md').read_text(encoding='utf-8')
+        debut = texte.index('<!-- WAMA:FAITS(arborescence_docs)')
+        fin = texte.index('<!-- /WAMA:FAITS(arborescence_docs) -->')
+        bloc = texte[debut:fin]
+        absents = [d.path for d in FICHIERS if d.path != 'README.md'
+                   and f"]({d.path})" not in bloc]
+        self.assertEqual(absents, [], "docs déclarés absents de l'arborescence du README : "
+                                      "lancer `python manage.py doc_facts`")
+
 
 class RenduTest(SimpleTestCase):
 

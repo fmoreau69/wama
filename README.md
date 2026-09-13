@@ -211,12 +211,12 @@ python patches/apply_patches.py
 
 | # | Target file | Issue | Fix |
 |---|-------------|-------|-----|
-| 1 | `boson_multimodal/.../modeling_higgs_audio.py` | `transformers 4.57+` API breaks (attention unpacking, inference_mode, cache_position…) | 7 targeted search-replace patches |
-| 2 | `df/io.py` (deepfilternet) | `torchaudio.backend.common.AudioMetaData` removed in torchaudio 2.x | `try/except` + dataclass stub |
+| 1 | `site-packages/boson_multimodal/.../modeling_higgs_audio.py` | `transformers 4.57+` API breaks (attention unpacking, inference_mode, cache_position…) | 7 targeted search-replace patches |
+| 2 | `site-packages/df/io.py` (deepfilternet) | `torchaudio.backend.common.AudioMetaData` removed in torchaudio 2.x | `try/except` + dataclass stub |
 | 3 | `tts_service.py` | In-repo patches (usage dict, temperature, CUDA graphs, audio trim) | Verified, not re-applied |
 | 4 | `start_wama_prod.sh` | `HIGGS_DISABLE_CUDA_GRAPHS=1` must be exported | Verified, not re-applied |
-| 5 | `xformers/ops/seqpar.py` | `GroupName` removed from `torch.distributed` in torch 2.9.x | `try/except` fallback import |
-| 6 | `vibevoice/.../modeling_vibevoice_asr.py` | `lm_head` int32 GEMM overflow on long audio (CUDA `cudaErrorUnknown`) | logits computed on last token only |
+| 5 | `site-packages/xformers/ops/seqpar.py` | `GroupName` removed from `torch.distributed` in torch 2.9.x | `try/except` fallback import |
+| 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | `lm_head` int32 GEMM overflow on long audio (CUDA `cudaErrorUnknown`) | logits computed on last token only |
 
 > **Adding a new patch:** use `apply_patch(path, search, replace, description)` in `patches/apply_patches.py`.
 > Every manual fix applied to a file in `venv_linux/` must be recorded here so it survives future `pip upgrade`.
@@ -324,18 +324,74 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 
 ## Developer conventions & documentation
 
-| Document | Contenu |
-|----------|---------|
-| [`AGENTS.md`](AGENTS.md) | Règles d'intégration des modèles AI, centralisation `common/`, collaboration wama-dev-ai. |
-| [`WAMA_APP_CONVENTIONS.md`](docs/construction/architecture/WAMA_APP_CONVENTIONS.md) | Conventions UI/architecture, checklist de création d'app, ordre des boutons, composants de file, table de conformité. |
-| [`PROJECT_STATUS.md`](docs/construction/suivi/PROJECT_STATUS.md) | Point d'étape des chantiers en cours (✅/🔄/⏳) + ordre de reprise. |
-| [`ROADMAP.md`](docs/construction/suivi/ROADMAP.md) | Feuille de route détaillée (numérotée par section). |
-| [`WAMA_APP_GENERATION_ROUTE.md`](docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md) | Route F1–F8 vers l'auto-génération d'apps : briques communes, adoption, write-back, trous priorisés. |
-| [`WAMA_MANIFEST_SPEC.md`](docs/construction/architecture/WAMA_MANIFEST_SPEC.md) | Formalisme des manifestes (7 kinds, enveloppe, composition `requires`, propriétés de sûreté). |
-| [`WAMA_MANIFEST_ARCHITECTURE.md`](docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md) | Flux manifeste : extract / ingest / verify / write-back, corpus et registres. |
-| [`WAMA_LLM.md`](docs/construction/ia/WAMA_LLM.md) | Pipeline de prompts centralisée (traduction/enrichissement/fichiers de référence). |
-| [`CARD_DESIGN.md`](docs/construction/ui/CARD_DESIGN.md) | Formalisme de card + UI card-centric (volet droit = inspecteur ; absorbe l'ex-`CARD_CENTRIC_UI.md`). |
-| [`BATCH_FORMAT.md`](docs/construction/ui/BATCH_FORMAT.md) | Format des fichiers d'import batch. |
+The documentation is written in French for now (English and full i18n come later). It serves
+three audiences: **construction** — the hand-written source, tracing what WAMA is and why —,
+**developer** and **user**, both *generated* from it and from the registries. It is also readable
+inside WAMA (`/common/docs/`, administrators).
+
+The tree below is **generated** from the documentation catalogue (`wama/common/docs_catalog.py`)
+by `python manage.py doc_facts` — do not edit it by hand; declare a document in the catalogue.
+
+<!-- WAMA:FAITS(arborescence_docs) — généré par « python manage.py doc_facts », ne pas éditer -->
+- **À la racine** — la doctrine, lue par tout agent et par un humain
+  - [AGENTS — la doctrine](AGENTS.md) — Source unique des règles de développement : philosophie, règles obligatoires, conventions, table des fichiers de référence. Lue par tout agent et par un humain.
+  - [CLAUDE — le harnais Claude Code](CLAUDE.md) — Les seules règles propres au harnais Claude Code (permissions, hooks). Importe AGENTS.md et n'en recopie rien.
+- **`docs/construction/`** — la doc de CONSTRUCTION, écrite à la main : la source des deux autres
+  - **`architecture/`** — Architecture & génération
+    - [Carte des mécanismes](docs/construction/architecture/WAMA_MECANISMES.md) — Index des briques transversales : où vit quoi, qui l'utilise. Sa table est générée depuis le registre des mécanismes.
+    - [Route d'auto-génération des apps](docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md) — Facettes F1–F8, briques communes, chaîne dépôt → app, et ce qu'une génération ne doit plus redécouvrir. À lire avant de créer ou modifier une app.
+    - [Conventions d'app](docs/construction/architecture/WAMA_APP_CONVENTIONS.md) — Conventions UI et architecture de toutes les apps, capacités d'app, checklist de création.
+    - [Manifestes — formalisme](docs/construction/architecture/WAMA_MANIFEST_SPEC.md) — Le formalisme des sept kinds de manifestes : app, library, model, function, pipeline, project, dataset.
+    - [Manifestes — flux et schéma](docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md) — Comment circulent les manifestes : extraction, composition, projection vers les registres.
+    - [Audit de l'app de référence](docs/construction/architecture/TRANSCRIBER_REFERENCE_AUDIT.md) — Le Transcriber comme étalon : audit de conformité et checklist de fin d'app.
+    - [Vérification](docs/construction/architecture/WAMA_VERIFICATION.md) — Comment on sait que ça marche : grille d'adoption contre grille fonctionnelle, catalogue des gestes, couverture.
+  - **`ui/`** — Interface & file
+    - [Formalisme de card](docs/construction/ui/CARD_DESIGN.md) — Anatomie des cards, trois densités, lots.
+    - [File et modes applicatifs](docs/construction/ui/MODES_QUEUE_UX.md) — UX de la file d'attente et des modes d'app.
+    - [Volets gauche et droit](docs/construction/ui/WAMA_VOLETS.md) — Ossature des volets, états contextuels, mode simplifié, repli — état mesuré des pages.
+    - [Champs de l'inspecteur](docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md) — Schéma canonique des champs de détail affichés par l'inspecteur.
+    - [Appariement entrée ↔ modèle](docs/construction/ui/INPUT_MODEL_MATCHING.md) — Quel modèle accepte quelle entrée, et comment l'interface le montre.
+    - [Format des fichiers de lot](docs/construction/ui/BATCH_FORMAT.md) — Le format des fichiers batch (txt, csv, pdf, docx).
+  - **`ia/`** — Couche IA
+    - [Couche LLM](docs/construction/ia/WAMA_LLM.md) — Prompts, skills, traduction et enrichissement, routage de modèle, surfaces de l'assistant.
+    - [Mémoire & RAG](docs/construction/ia/WAMA_MEMORY.md) — Mémoire d'agent, mémoire de travail et RAG comme un seul mécanisme, plus le journal utilisateur.
+    - [Apprentissage (ML/DL)](docs/construction/ia/WAMA_APPRENTISSAGE.md) — Modèles appris, couche statistique, MLflow — WAMA déclare, déclenche et réingère ; il n'entraîne pas.
+  - **`mondes/`** — Mondes & apps
+    - [Vision d'ensemble](docs/construction/mondes/WAMA_VISION_COMPLET.md) — La vision produit, unique, confrontée au réel section par section.
+    - [Studio & production AV](docs/construction/mondes/STUDIO_VISION.md) — Vision du studio et de la production audiovisuelle.
+    - [Monde Data](docs/construction/mondes/WAMA_DATA_WORLD.md) — Périmètre du monde Data et cartographie de corpus.
+    - [Fonctions Data — catalogue](docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md) — Le catalogue des fonctions de traitement du monde Data.
+  - **`exploitation/`** — Infra, droits & données
+    - [Profils, permissions, rétention](docs/construction/exploitation/PROFILES_PERMISSIONS.md) — Profils, droits d'accès, notifications, rétention.
+    - [Infra WSL2 ↔ Windows](docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md) — Ce qui tourne où, entre WSL2 et Windows.
+    - [Médias : stockage et import](docs/construction/exploitation/MEDIA_STORAGE_TIERING.md) — Stockage, tiering, intégrité et voies d'import des médias.
+    - [Licences & dépôt](docs/construction/exploitation/LICENSING.md) — Licence du dépôt, politique, code vendorisé, dépôt officiel.
+  - **`suivi/`** — Suivi des chantiers
+    - [Point d'étape des chantiers](docs/construction/suivi/PROJECT_STATUS.md) — Photo des chantiers et handoffs de session. Journal daté : ce qui y est écrit était vrai à sa date.
+    - [Roadmap](docs/construction/suivi/ROADMAP.md) — Les chantiers ouverts et leur ordre.
+    - [Registre des retraits](docs/construction/suivi/REMOVAL_LEDGER.md) — Ce qui a été retiré, et pourquoi.
+  - **`archive/`** — 44 documents archivés, consultables pour retrouver un oubli ; jamais déclarés ni réécrits
+- **`docs/dev/`** — la doc DÉVELOPPEUR, GÉNÉRÉE depuis la doc de construction et les registres : ne pas éditer
+  - [Les registres de WAMA](docs/dev/registres.md) — Quand une chose mérite un registre, les natures d'actualisation, et chaque registre de WAMA — dérivé de la doc de construction et des registres eux-mêmes.
+  - *et, calculées à la lecture dans WAMA :* Parcours d'entrée · Briques communes — API
+- **`docs/utilisateur/`** — la doc UTILISATEUR, générée elle aussi : à venir
+- **Docs de module** — ils restent à côté de leur code
+  - [Briques communes — carte](wama/common/README.md) — Carte d'entrée du dossier des briques communes.
+  - [Prospection de modèles](wama/model_manager/PROSPECTION_PIPELINE.md) — Veille et prospection de modèles : la chaîne et ses juges.
+  - [Cam Analyzer — chaîne de traitement](wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md) — La chaîne de traitement de Cam Analyzer et sa conception.
+  - [Cam Analyzer — historique](wama_lab/cam_analyzer/CAM_ANALYZER_CHANGELOG.md) — Journal des évolutions de Cam Analyzer.
+  - [Cam Analyzer — carte](wama_lab/cam_analyzer/README.md) — Carte d'entrée de l'app Lab.
+  - [Transcriber — correction assistée](wama/transcriber/TRANSCRIBER_CORRECTION.md) — La page de correction manuelle assistée par IA.
+  - [Enhancer](wama/enhancer/README.md) — Upscaling image et vidéo, et branche audio.
+  - [Patches de compatibilité des venvs](patches/README.md) — Les correctifs des librairies tierces à réappliquer après une installation propre du venv, et leur registre.
+  - [AI-models — le dossier des poids](AI-models/README.md) — Où vivent les poids des modèles de WAMA, et comment le dossier s'organise.
+  - [AI-models — arborescence par domaine](AI-models/models/README.md) — L'arborescence des modèles, rangés par domaine.
+  - [Moteurs vendorisés](wama/common/backends/vendor/README.md) — Les moteurs livrés en code source (dépôts tiers clonés à l'installation, exécutés en sous-processus) — rien n'y est du code WAMA.
+  - [wama-dev-ai — agent de développement local](wama-dev-ai/README.md) — L'agent local (Ollama) : audits en lecture seule, génération bornée, rôles producteurs de manifestes. Claude réfléchit, wama-dev-ai exécute, l'humain valide.
+  - [Imager](wama/imager/README.md) — Génération d'images et de vidéos : backends interchangeables, fichiers de référence, mots-clés imposés, enrichissement de prompt.
+  - [Face Analyzer](wama_lab/face_analyzer/README.md) — Analyse faciale en vidéo expérimentale (monde Lab) : variables comportementales et physiologiques, croisables avec les autres données du laboratoire.
+  - [Cam Analyzer — un projet (ENA_CASA)](wama_lab/cam_analyzer/projects/ENA_CASA.md) — Les spécificités d'un projet cam_analyzer : données, calibration, rig. Une configuration de l'app, pas une propriété — façonné comme le futur manifeste.
+<!-- /WAMA:FAITS(arborescence_docs) -->
 
 ---
 
