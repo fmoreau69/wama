@@ -242,6 +242,15 @@ def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
     return _system_voice_path(voice_preset) or _system_voice_path('default')
 
 
+def is_cloned_voice(voice_preset: str) -> bool:
+    """Cette voix est-elle un CLONAGE (`ua_<id>` médiathèque de l'utilisateur, `cv_<id>` hérité) ?
+    Jumeau SERVEUR de `WamaModelCaps.isClonedVoice` — même prédicat, deux langages ; c'est ce
+    que le tirage automatique lit pour exiger `supports_cloning` (décision Fabien 13/09).
+    ⚠ Une voix de RÉFÉRENCE (`sa_<id>`) n'est pas un clonage au sens de l'UI : tout moteur la
+    reçoit comme `speaker_wav` s'il clone, l'ignore sinon."""
+    return str(voice_preset or '').startswith(('ua_', 'cv_'))
+
+
 def model_supports_cloning(model_key: str) -> Optional[bool]:
     """Le moteur du modèle `model_key` CLONE-t-il ? — `True`/`False` si quelque chose le dit,
     `None` si rien ne le dit.

@@ -79,7 +79,14 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
         from wama.common.tts.ui_meta import tts_engine_label
         return tts_engine_label(self.tts_model)
     language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='fr')
-    voice_preset = models.CharField(max_length=50, choices=VOICE_PRESET_CHOICES, default='default')
+    # Sans `choices=` (décision Fabien, 2026-09-13) — même raison que `VoiceSynthesis.voice_preset` :
+    # les valeurs vivantes (`ua_`, `sa_`, `cv_`) n'y sont pas ; la liste ne sert qu'aux libellés.
+    voice_preset = models.CharField(max_length=50, default='default')
+
+    def get_voice_preset_display(self):
+        """Le libellé de la voix, par LA brique commune — `choices` ne le génère plus."""
+        from wama.common.tts.voice_refs import describe_voice
+        return describe_voice(self.voice_preset, self.user)
 
     # Standalone : audio uploadé (ou récupéré depuis source_url via ensure_local_input)
     source_url = models.CharField(max_length=1000, blank=True)

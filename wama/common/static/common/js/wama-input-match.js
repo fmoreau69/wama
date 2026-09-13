@@ -60,6 +60,10 @@
     // 2026-09-12 : la langue n'était filtrée que modèle→langue (langFilter) ; choisir une
     // langue d'abord ne désactivait AUCUN modèle — la voix, elle, l'était dans les deux sens.
     function slotAccepts(sid, mid) {
+      // « auto » n'est pas un moteur : c'est le TIRAGE, qui reçoit la contrainte au lancement
+      // (`resolve_model_choice(requires=…)` — une voix clonée exige `supports_cloning`). Le
+      // griser excluait « auto » et « ma voix » l'un l'autre (observé 13/09, décision Fabien).
+      if (mid === 'auto') return true;
       const s = slots[sid] || {};
       if (typeof s.accepts === 'function') {
         return !!s.accepts(capsOf(mid), document.getElementById(s.inputId));

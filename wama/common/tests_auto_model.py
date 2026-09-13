@@ -64,6 +64,42 @@ class ResolutionAutoTest(TestCase):
         self.assertEqual(catalog_domain('avatarizer'), {'task': 'text-to-speech'})
 
 
+class UneVoixCloneeExigeUnMoteurQuiCloneTest(TestCase):
+    """Décision Fabien (13/09) : « auto » reste COMPATIBLE avec une voix clonée dans l'UI ;
+    c'est le TIRAGE qui porte la contrainte (`requires=['supports_cloning']`)."""
+
+    def setUp(self):
+        self.muet = _tts('synthesizer:tts-muet', 'TTS sans clonage', 0.5)
+        self.muet.capabilities['supports_cloning'] = False
+        self.muet.save(update_fields=['capabilities'])
+        self.cloneur = _tts('synthesizer:tts-cloneur', 'TTS qui clone', 4.0)
+        self.cloneur.capabilities['supports_cloning'] = True
+        self.cloneur.save(update_fields=['capabilities'])
+
+    def test_sans_exigence_le_tirage_prend_le_leger(self):
+        self.assertEqual(resolve_model_choice('auto', app_id='synthesizer', quality_intent=0,
+                                              fallback='r'), 'synthesizer:tts-muet')
+
+    def test_avec_une_voix_clonee_le_tirage_ne_retient_qu_un_moteur_qui_clone(self):
+        self.assertEqual(resolve_model_choice('auto', app_id='synthesizer', quality_intent=0,
+                                              requires=['supports_cloning'], fallback='r'),
+                         'synthesizer:tts-cloneur')
+
+    def test_les_deux_workers_portent_l_exigence_au_tirage(self):
+        from pathlib import Path
+        from django.conf import settings
+        for rel in ('wama/synthesizer/workers.py', 'wama/avatarizer/workers.py'):
+            src = (Path(settings.BASE_DIR) / rel).read_text(encoding='utf-8')
+            self.assertIn("['supports_cloning'] if is_cloned_voice(", src, rel)
+            self.assertIn('requires=exigences', src, rel)
+
+    def test_auto_n_est_jamais_grise_par_la_brique_d_appariement(self):
+        from pathlib import Path
+        from django.conf import settings
+        js = (Path(settings.BASE_DIR) / 'wama/common/static/common/js/wama-input-match.js').read_text(encoding='utf-8')
+        self.assertIn("if (mid === 'auto') return true;", js)
+
+
 class PrevisionTest(TestCase):
 
     def setUp(self):

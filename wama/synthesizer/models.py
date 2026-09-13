@@ -114,11 +114,14 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
         help_text="Langue de synthèse"
     )
 
+    # ⚠ Sans `choices=` (décision Fabien, 2026-09-13) : les valeurs VIVANTES (`ua_<id>`,
+    # `sa_<id>`, `cv_<id>`) n'ont jamais figuré dans la liste — `full_clean()` les aurait
+    # refusées. La liste `VOICE_PRESET_CHOICES` reste une table de LIBELLÉS (presets plats,
+    # Bark) lue par `describe_voice` ; le libellé d'une voix est `get_voice_preset_display`.
     voice_preset = models.CharField(
         max_length=100,
-        choices=VOICE_PRESET_CHOICES,
         default='default',
-        help_text="Preset de voix"
+        help_text="Voix : `default`, preset plat, `sa_<id>` (référence), `ua_<id>` (clonage), Bark"
     )
 
     # Paramètres audio

@@ -722,12 +722,12 @@ décisions. **Redémarrage de WAMA dû** (Celery + service TTS sur l'ancien code
 
 | question | éléments |
 |---|---|
-| retirer `choices=VOICE_PRESET_CHOICES` des champs `voice_preset` (2 apps) | les valeurs vivantes n'y sont pas ; la liste garde un rôle d'AFFICHAGE des hérités. Position Claude : retirer (une `choices` qui ne contient pas les valeurs réelles n'est qu'un piège de `full_clean`) |
+| ~~retirer `choices=VOICE_PRESET_CHOICES` des champs `voice_preset` (2 apps)~~ | **SOLDÉ 13/09 (décision Fabien)** : `choices=` retiré (migrations synthesizer 0026 / avatarizer 0018, SQL no-op) ; la liste reste une table de LIBELLÉS lue par `describe_voice`, et `get_voice_preset_display` est explicite sur les deux modèles |
 | licence des échantillons XTTS-v2 (`coqui/XTTS-v2/…/samples`) | ingest les pose `license=''` + signale ; à renseigner ou à remplacer par des voix sous licence connue (`LICENSING.md`) |
 | ~~`UserAsset #9` (`asset_type='audio'`, fixture de smoke)~~ | **SOLDÉ 13/09** : retypée `audio_music` ; la cause (puits studio écrivant une catégorie) corrigée par `resolve_asset_type` (§①bis) |
 | `media/WAMA_Presentation.wav` partagé par deux comptes (#50 → Fabien, #51/#55 → **`pw_smoke`, compte de test**) | §8bis point 3 — c'est un smoke qui le partage, pas un utilisateur : le rapatrier chez Fabien et laisser les jobs du smoke pointer dans le vide (ou les supprimer) est une décision, mais plus un arbitrage entre deux personnes |
 | miroir de sauvegarde (7,5 Go recopiés après le domicile unique) | §③ ci-dessus |
 | `describer.result_file` (champ mort) | chantier « code mort par app » |
 | réalignement des ids plats stockés (`female_1` ×78…) vers `sa_<id>` | D5 : pas maintenant ; le jour venu, même geste que `migrate_media_to_user_home` (plan, réécriture, filet) |
-| une voix clonée grise l'option **`auto`** du moteur (observé 13/09 sur les deux apps) | `auto` ne porte pas `supports_cloning` ; faut-il le laisser compatible et faire exiger un moteur cloneur au tirage (`resolve_model_choice`) ? Position Claude : oui — sinon « auto » et « ma voix » s'excluent |
+| ~~une voix clonée grise l'option **`auto`** du moteur~~ | **SOLDÉ 13/09 (décision Fabien)** : `auto` n'est jamais grisé par l'appariement (`WamaInputMatch.slotAccepts`) ; la contrainte est portée AU TIRAGE — les deux workers passent `requires=['supports_cloning']` quand `is_cloned_voice(preset)` (jumeau serveur du prédicat, `voice_refs`). Attesté : tirage 2/2, sondes 15/15 et 11/11 |
 | provenance des 28 voix versées | `source_url`/`license` VIDES (non traçables par fichier) ; `download_voice_refs --force` les re-téléchargerait AVEC provenance — au prix de voix différentes (VoxPopuli tire un autre locuteur) |

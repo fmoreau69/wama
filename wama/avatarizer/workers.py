@@ -145,8 +145,12 @@ def generate_avatar(self, job_id: int):
             from wama.common.utils.auto_model import is_auto, read_quality_intent, resolve_model_choice
             if is_auto(job.tts_model):
                 quality = read_quality_intent(getattr(job, 'quality_intent', None))
+                # Voix clonée ⇒ le tirage exige `supports_cloning` (même règle que le synthesizer).
+                from wama.common.tts.voice_refs import is_cloned_voice
+                exigences = ['supports_cloning'] if is_cloned_voice(job.voice_preset) else None
                 job.tts_model = resolve_model_choice(
                     job.tts_model, app_id='avatarizer', quality_intent=quality,
+                    requires=exigences,
                     fallback=AvatarJob._meta.get_field('tts_model').get_default())
                 job.save(update_fields=['tts_model'])
                 _console(job.user_id,

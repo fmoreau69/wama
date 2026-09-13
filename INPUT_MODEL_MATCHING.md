@@ -283,6 +283,10 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
   signalait. Corrigé (les deux `<script>`), attesté par une sonde double sens sur l'avatarizer :
   10/10. *Un bloc gardé par « si la brique existe » se tait quand elle manque — la garde à
   poser est l'inverse : signaler son absence.*
-- 🔚 observation, non tranchée : une voix clonée grise aussi l'option **`auto`** (le choix
-  automatique ne porte pas `supports_cloning`) — à décider : `auto` devrait-il rester
-  compatible et laisser le tirage exiger un moteur qui clone ?
+- ✅ **`auto` et une voix clonée ne s'excluent plus (13/09, décision Fabien)** : « auto » n'est
+  pas un moteur, c'est le TIRAGE — l'appariement ne le grise jamais
+  (`WamaInputMatch.slotAccepts`), et la contrainte est portée au lancement :
+  `resolve_model_choice(requires=['supports_cloning'])` quand `voice_refs.is_cloned_voice`
+  (jumeau serveur de `WamaModelCaps.isClonedVoice`) le dit, dans les deux workers. Un moteur
+  sans clonage ne peut donc plus être tiré pour une voix clonée. Attesté : tirage 2/2 en test,
+  sondes navigateur 15/15 (synthesizer) et 11/11 (avatarizer).

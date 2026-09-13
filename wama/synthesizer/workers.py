@@ -179,8 +179,13 @@ def synthesize_voice(self, synthesis_id: int):
         from wama.common.utils.auto_model import is_auto, read_quality_intent, resolve_model_choice
         if is_auto(synthesis.tts_model):
             quality = read_quality_intent(getattr(synthesis, 'quality_intent', None))
+            # Une voix CLONÉE exige un moteur qui clone : « auto » reste compatible dans
+            # l'UI (jamais grisé), la contrainte est portée ICI, au tirage (Fabien, 13/09).
+            from wama.common.tts.voice_refs import is_cloned_voice
+            exigences = ['supports_cloning'] if is_cloned_voice(synthesis.voice_preset) else None
             synthesis.tts_model = resolve_model_choice(
                 synthesis.tts_model, app_id='synthesizer', quality_intent=quality,
+                requires=exigences,
                 fallback=VoiceSynthesis._meta.get_field('tts_model').get_default())
             synthesis.save(update_fields=['tts_model'])
             _console(synthesis.user_id,
