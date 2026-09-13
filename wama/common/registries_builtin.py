@@ -71,7 +71,7 @@ register(Registry(
     refresh=_refresh_apps, count=_count_apps, entries=_entries_apps,
     url_name='common:apps_catalog', manifest_kind='app',
     periodic='nightly-consistency',
-    doc='WAMA_APP_CONVENTIONS.md',
+    doc='docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
     # ⚠ Cette description disait « 72 critères » : la grille en compte 89 (relevé du 2026-09-11).
     # Trouvé par la 1ʳᵉ doc dérivée (`docs/dev/registres.md`), qui la publie telle quelle — un
     # chiffre figé dans une chaîne ne se confronte à rien. Il sort ; le compte vit dans la grille.
@@ -183,7 +183,7 @@ register(Registry(
     source="`apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…",
     refresh=_refresh_functions, count=_count_functions, entries=_entries_functions,
     url_name='model_manager:functions_catalog', manifest_kind='function',
-    doc='WAMA_DATA_FUNCTION_CARDS.md',
+    doc='docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md',
     description="Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les "
                 "fonctions ajoutées pendant que le serveur tourne, sans redémarrage.",
 ))
@@ -224,7 +224,7 @@ register(Registry(
     # Sa page, enfin (27/08). Il était le seul registre de la carte à n'en désigner aucune :
     # le catalogue n'était lisible que par l'assistant et wama-dev-ai.
     url_name='common:skills_catalog',
-    doc='WAMA_LLM.md',
+    doc='docs/construction/ia/WAMA_LLM.md',
     description="Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans "
                 "redémarrage. Sans effet de bord partagé, donc ouvert à tout compte connecté.",
 ))
@@ -271,7 +271,7 @@ register(Registry(
     refresh=_refresh_external_sources, count=_count_external_sources,
     entries=_entries_external_sources,
     url_name='common:sources_catalog',
-    doc='WAMA_MECANISMES.md',
+    doc='docs/construction/architecture/WAMA_MECANISMES.md',
     description="Sonde chaque source déclarée : clé d'API posée ? adresse joignable (proxy UGE "
                 "compris) ? La déclaration, elle, ne s'actualise pas — elle vit en code. "
                 "Réservé au staff : la sonde émet des requêtes sortantes et écrit un rapport.",
@@ -292,7 +292,7 @@ register(Registry(
     source="Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`",
     count=_count_libraries,
     url_name='model_manager:libraries_catalog', manifest_kind='library',
-    doc='LICENSING.md',
+    doc='docs/construction/exploitation/LICENSING.md',
     description="La page mesure l'installation réelle à CHAQUE affichage et compare au déclaré : "
                 "l'écart affiché ne peut pas être périmé. Le registre lui-même s'alimente par la "
                 "projection des manifestes, pas par un scan.",
@@ -303,7 +303,7 @@ register(Registry(
     key='licences', label='Licences', nature=DERIVED,
     source="Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app",
     url_name='common:licenses_catalog',
-    doc='LICENSING.md',
+    doc='docs/construction/exploitation/LICENSING.md',
     description="Vue transversale sans registre propre — « une page qui DÉRIVE ne peut pas "
                 "diverger de ses sources ». Un bouton d'actualisation y serait un mensonge : "
                 "actualiser les licences, c'est actualiser modèles et librairies.",
@@ -314,7 +314,7 @@ register(Registry(
     key='rag', label='Mon RAG', nature=DERIVED,
     source="Ce que l'utilisateur a confié au RAG (`common/memory/`, Postgres + pgvector)",
     url_name='common:rag', permission='auth',
-    doc='WAMA_MEMORY.md',
+    doc='docs/construction/ia/WAMA_MEMORY.md',
     description="Liste ce que CE compte a ajouté, lu en base à chaque affichage. L'entrée au RAG "
                 "est un geste explicite : rien ne s'y ajoute par balayage, donc rien à réconcilier.",
 ))
@@ -341,7 +341,7 @@ register(Registry(
     key='memories', label='Mes souvenirs', nature=DERIVED,
     source="`MemoryItem` (`common/memory/`, Postgres + pgvector) — le jumeau du fragment RAG",
     url_name='common:memories', permission='auth',
-    doc='WAMA_MEMORY.md',
+    doc='docs/construction/ia/WAMA_MEMORY.md',
     description="Ce que WAMA retient : faits, événements, procédures. Lu en base à chaque "
                 "affichage — rien à actualiser. La liste ACTIVE est exactement ce que `recall()` "
                 "peut rendre (même requête, jamais une seconde vérité) ; la FILE DE REVUE des "
@@ -377,7 +377,7 @@ register(Registry(
            "avec son KIND, son modèle cible et son domaine",
     count=_count_prompt_targets,
     url_name='common:skills_catalog', permission='auth',
-    doc='WAMA_LLM.md',
+    doc='docs/construction/ia/WAMA_LLM.md',
     description="La DÉCLARATION que la pipeline de prompts consomme : quel champ est un prompt, "
                 "de quel KIND, vers quel modèle. Figé dans le code, donc toujours à jour. Partage "
                 "sa page avec les skills : c'est le même écran qui montre la déclaration, la "
@@ -413,7 +413,7 @@ register(Registry(
            "au catalogue `AIModel` (source, backend_ref, composition.runtime.engine)",
     count=_count_backends,
     url_name='common:backends_catalog', permission='auth',
-    doc='WAMA_APP_GENERATION_ROUTE.md',
+    doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
     description="Le VIVIER des BACKENDS — la méthode qui appelle un moteur, jamais le moteur "
                 "lui-même : le MODÈLE porte son moteur, le backend s'en DÉRIVE, et un moteur "
                 "est une LIBRAIRIE. On y lit ce que chaque app sait exécuter, la nature "

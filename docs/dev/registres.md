@@ -25,7 +25,7 @@ déjà déclaré et **gardé mécaniquement** (`check_redundancy.py` : « `app_r
 des vocabulaires média »). Le monde Médias n'a rien à changer. C'est le contre-exemple utile :
 la réponse n'est pas « tout en registre ».
 
-*Source : [WAMA_DATA_WORLD.md — 9quinquies.2 LE CRITÈRE — trois questions, dans cet ordre](../../WAMA_DATA_WORLD.md#9quinquies2-le-critère--trois-questions-dans-cet-ordre)*
+*Source : [docs/construction/mondes/WAMA_DATA_WORLD.md — 9quinquies.2 LE CRITÈRE — trois questions, dans cet ordre](../construction/mondes/WAMA_DATA_WORLD.md#9quinquies2-le-critère--trois-questions-dans-cet-ordre)*
 
 ## Les natures d'actualisation
 
@@ -45,7 +45,7 @@ la réponse n'est pas « tout en registre ».
 - **Clé** : `apps` — Calcul qui produit un rapport écrit
 - **Source** : `APP_CATALOG` (déclaré en code) + grille de conformité MESURÉE depuis le code réel
 - **Page dans WAMA** : `/common/apps/`
-- **Doc** : [WAMA_APP_CONVENTIONS.md](../../WAMA_APP_CONVENTIONS.md)
+- **Doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Kind de manifeste** : `app`
 - **Citable dans une doc** : `WAMA:FAIT(apps/<clé>/<champ>)`
 
@@ -56,7 +56,7 @@ Le catalogue lui-même est déclaré en code — rien à y actualiser. Ce qui s'
 - **Clé** : `backends` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Déclarations des paquets `wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + classes BaseModelBackend : ENGINE, ISOLATION, REQUIRED_PACKAGES, VRAM) recoupées au catalogue `AIModel` (source, backend_ref, composition.runtime.engine)
 - **Page dans WAMA** : `/common/backends/`
-- **Doc** : [WAMA_APP_GENERATION_ROUTE.md](../../WAMA_APP_GENERATION_ROUTE.md)
+- **Doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
 Le VIVIER des BACKENDS — la méthode qui appelle un moteur, jamais le moteur lui-même : le MODÈLE porte son moteur, le backend s'en DÉRIVE, et un moteur est une LIBRAIRIE. On y lit ce que chaque app sait exécuter, la nature d'entrée qui y mène, la SAVEUR de sortie (fichier/texte), les paquets requis, la VRAM et les modèles servis. Dit aussi l'ENVIRONNEMENT d'exécution : le défaut est un venv unique, et un backend qui tourne ailleurs le déclare (`ISOLATION`) — sans quoi le verdict de disponibilité confondrait « paquet absent » et « backend qui vit ailleurs ». Deux usages : la vision d'ensemble, et le voisinage dont le LLM de la marche B a besoin pour s'inspirer du backend le plus approchant. Dérivé à chaque affichage — un backend ajouté y apparaît sans qu'on déclare rien ici.
 
@@ -75,7 +75,7 @@ La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de CO
 - **Clé** : `fonctions` — Registre en mémoire, peuplé par import
 - **Source** : `apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…
 - **Page dans WAMA** : `/model-manager/functions/`
-- **Doc** : [WAMA_DATA_FUNCTION_CARDS.md](../../WAMA_DATA_FUNCTION_CARDS.md)
+- **Doc** : [docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md](../construction/mondes/WAMA_DATA_FUNCTION_CARDS.md)
 - **Kind de manifeste** : `function`
 - **Citable dans une doc** : `WAMA:FAIT(fonctions/<clé>/<champ>)`
 
@@ -85,7 +85,7 @@ Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les foncti
 
 - **Clé** : `lecteurs_data` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/sources/` — un lecteur par format, inscrit à l'import
-- **Doc** : [WAMA_DATA_WORLD.md §6.6, §9quinquies](../../WAMA_DATA_WORLD.md)
+- **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §6.6, §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 - **Kind de manifeste** : `dataset`
 
 Recharge les lecteurs de sources. Ajouter un format d'import ou de connexion = déposer un lecteur, jamais éditer le moteur — l'Importer et le Connector partagent ce registre.
@@ -94,7 +94,7 @@ Recharge les lecteurs de sources. Ajouter un format d'import ou de connexion = d
 
 - **Clé** : `formats_export_data` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/core/export.py` — `register_format()`, plus les écrivains fournis par les adaptateurs
-- **Doc** : [WAMA_DATA_WORLD.md §9ter.6 C, §9quinquies](../../WAMA_DATA_WORLD.md)
+- **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9ter.6 C, §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 
 Formats que l'Exporter sait NOMMER, et parmi eux ceux qu'il sait ÉCRIRE — l'écart entre les deux est la dette, et elle est mesurée.
 
@@ -103,7 +103,7 @@ Formats que l'Exporter sait NOMMER, et parmi eux ceux qu'il sait ÉCRIRE — l'�
 - **Clé** : `librairies` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`
 - **Page dans WAMA** : `/model-manager/libraries/`
-- **Doc** : [LICENSING.md](../../LICENSING.md)
+- **Doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
 - **Kind de manifeste** : `library`
 
 La page mesure l'installation réelle à CHAQUE affichage et compare au déclaré : l'écart affiché ne peut pas être périmé. Le registre lui-même s'alimente par la projection des manifestes, pas par un scan.
@@ -113,7 +113,7 @@ La page mesure l'installation réelle à CHAQUE affichage et compare au déclar�
 - **Clé** : `licences` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app
 - **Page dans WAMA** : `/common/licenses/`
-- **Doc** : [LICENSING.md](../../LICENSING.md)
+- **Doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
 
 Vue transversale sans registre propre — « une page qui DÉRIVE ne peut pas diverger de ses sources ». Un bouton d'actualisation y serait un mensonge : actualiser les licences, c'est actualiser modèles et librairies.
 
@@ -122,7 +122,7 @@ Vue transversale sans registre propre — « une page qui DÉRIVE ne peut pas di
 - **Clé** : `memories` — Dérivé à chaque affichage — toujours à jour
 - **Source** : `MemoryItem` (`common/memory/`, Postgres + pgvector) — le jumeau du fragment RAG
 - **Page dans WAMA** : `/common/memories/`
-- **Doc** : [WAMA_MEMORY.md](../../WAMA_MEMORY.md)
+- **Doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 
 Ce que WAMA retient : faits, événements, procédures. Lu en base à chaque affichage — rien à actualiser. La liste ACTIVE est exactement ce que `recall()` peut rendre (même requête, jamais une seconde vérité) ; la FILE DE REVUE des souvenirs non approuvés est réservée au staff.
 
@@ -140,7 +140,7 @@ Réconcilie le catalogue avec ce qui est réellement présent sur le disque. Une
 - **Clé** : `rag` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Ce que l'utilisateur a confié au RAG (`common/memory/`, Postgres + pgvector)
 - **Page dans WAMA** : `/common/rag/`
-- **Doc** : [WAMA_MEMORY.md](../../WAMA_MEMORY.md)
+- **Doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 
 Liste ce que CE compte a ajouté, lu en base à chaque affichage. L'entrée au RAG est un geste explicite : rien ne s'y ajoute par balayage, donc rien à réconcilier.
 
@@ -149,7 +149,7 @@ Liste ce que CE compte a ajouté, lu en base à chaque affichage. L'entrée au R
 - **Clé** : `prompts` — Dérivé à chaque affichage — toujours à jour
 - **Source** : `PROMPT_TARGETS` (`common/utils/app_metadata.py`) — un champ-prompt déclaré par app, avec son KIND, son modèle cible et son domaine
 - **Page dans WAMA** : `/common/skills/`
-- **Doc** : [WAMA_LLM.md](../../WAMA_LLM.md)
+- **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 
 La DÉCLARATION que la pipeline de prompts consomme : quel champ est un prompt, de quel KIND, vers quel modèle. Figé dans le code, donc toujours à jour. Partage sa page avec les skills : c'est le même écran qui montre la déclaration, la consigne, et le lien calculé entre les deux.
 
@@ -157,7 +157,7 @@ La DÉCLARATION que la pipeline de prompts consomme : quel champ est un prompt, 
 
 - **Clé** : `conteneurs_data` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/containers/` — un schéma par format de sortie, inscrit à l'import
-- **Doc** : [WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies](../../WAMA_DATA_WORLD.md)
+- **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 
 Conteneurs que WAMA Data sait ÉCRIRE : `.wdat` natif et `.trip` pour la compatibilité BIND. Un moteur, N schémas — ajouter un format = déposer un module, jamais éditer le moteur (G1).
 
@@ -166,7 +166,7 @@ Conteneurs que WAMA Data sait ÉCRIRE : `.wdat` natif et `.trip` pour la compati
 - **Clé** : `skills` — Registre en mémoire, peuplé par import
 - **Source** : Fichiers `wama/common/prompt_skills/*.md`
 - **Page dans WAMA** : `/common/skills/`
-- **Doc** : [WAMA_LLM.md](../../WAMA_LLM.md)
+- **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 
 Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans redémarrage. Sans effet de bord partagé, donc ouvert à tout compte connecté.
 
@@ -175,7 +175,7 @@ Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans
 - **Clé** : `sources_externes` — Calcul qui produit un rapport écrit
 - **Source** : Registre déclaratif `common/external_sources.py` + sonde réseau (clé, joignabilité)
 - **Page dans WAMA** : `/common/sources/`
-- **Doc** : [WAMA_MECANISMES.md](../../WAMA_MECANISMES.md)
+- **Doc** : [docs/construction/architecture/WAMA_MECANISMES.md](../construction/architecture/WAMA_MECANISMES.md)
 - **Citable dans une doc** : `WAMA:FAIT(sources_externes/<clé>/<champ>)`
 
 Sonde chaque source déclarée : clé d'API posée ? adresse joignable (proxy UGE compris) ? La déclaration, elle, ne s'actualise pas — elle vit en code. Réservé au staff : la sonde émet des requêtes sortantes et écrit un rapport.

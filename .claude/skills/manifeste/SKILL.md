@@ -9,8 +9,8 @@ Le manifeste est **le formalisme** de WAMA : il décrit ce qu'une chose EST, de 
 déclarative. Il ne décrit JAMAIS l'état runtime de cette installation.
 
 > **Docs de référence — un domaine, un fichier (ne pas en créer un « bis »)**
-> `WAMA_MANIFEST_SPEC.md` (formalisme, §7 composition) · `WAMA_MANIFEST_ARCHITECTURE.md`
-> (flux/schéma, §5 auto-génération, §7 projection) · `ROADMAP.md` §16.7 (décision Hermes) ·
+> `docs/construction/architecture/WAMA_MANIFEST_SPEC.md` (formalisme, §7 composition) · `docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md`
+> (flux/schéma, §5 auto-génération, §7 projection) · `docs/construction/suivi/ROADMAP.md` §16.7 (décision Hermes) ·
 > `wama/model_manager/PROSPECTION_PIPELINE.md` (chaîne prospect→install→app).
 
 ## 1. Où est quoi
@@ -137,11 +137,11 @@ Un round-trip qui diverge sur un champ **déclaratif** est un bug ; sur un champ
    registre existe pour l'accueillir) puis `register_kind(ManifestKind(...))`.
 2. L'importer dans `builtin/__init__.py` (sinon il n'est jamais enregistré).
 3. Semer 1-2 exemples au corpus et lancer `manifest_roundtrip --all`.
-4. Mettre à jour `WAMA_MANIFEST_SPEC.md` (formalisme) **et** `WAMA_MANIFEST_ARCHITECTURE.md`
+4. Mettre à jour `docs/construction/architecture/WAMA_MANIFEST_SPEC.md` (formalisme) **et** `docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md`
    (tableau des kinds) — les deux dérivent vite.
 
 ## 6. Coordination
 
 `wama/common/manifests/**` est un chemin **partagé entre instances Claude** : vérifier le handoff
-(`PROJECT_STATUS.md` §REPRISE) avant d'y toucher, et commiter par chemins explicites.
+(`docs/construction/suivi/PROJECT_STATUS.md` §REPRISE) avant d'y toucher, et commiter par chemins explicites.
 Clôture du chantier : skill `/palier`.

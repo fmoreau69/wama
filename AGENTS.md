@@ -37,7 +37,7 @@
 4. **Spécificités déclarées, pas codées en dur partout.** L'homogénéité ne doit PAS écraser les
    spécificités légitimes (ex. Transcriber : temps réel « Speak » + page de correction manuelle
    assistée IA). On les **déclare précisément** (capacités d'app, méta-infos, schémas) plutôt que de
-   les disperser. Voir `WAMA_APP_CONVENTIONS.md` (capacités d'app + §22 volet droit auto-généré).
+   les disperser. Voir `docs/construction/architecture/WAMA_APP_CONVENTIONS.md` (capacités d'app + §22 volet droit auto-généré).
 
 5. **L'IA est dans la chaîne, pas à côté.** Traduction/enrichissement de prompts, correction assistée,
    sélection de modèle VRAM-aware, auto-maintenance (libs, modèles, audits) : centralisés et
@@ -48,7 +48,7 @@
    peut opter pour des niveaux plus globaux. Tout élément descriptible héritera du RAG.
 
 > En cas de doute sur « où mettre le code » ou « comment présenter une UI » : relire ces 6 points,
-> puis `WAMA_APP_CONVENTIONS.md` et `WAMA_APP_GENERATION_ROUTE.md`.
+> puis `docs/construction/architecture/WAMA_APP_CONVENTIONS.md` et `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md`.
 
 ---
 
@@ -65,8 +65,8 @@
 
 | ce qu'on cherche | où | pourquoi celle-là |
 |---|---|---|
-| la brique existe-t-elle déjà ? | `WAMA_MECANISMES.md` — table **GÉNÉRÉE** depuis `wama/common/mecanismes.py` | seul index exhaustif du substrat. ⚠ **Y compris les mécanismes qu'on a écrits soi-même** : c'est le cas vécu le 07/09, un mécanisme rédigé trois jours plus tôt et non relu |
-| la question est-elle déjà tranchée ? | `WAMA_APP_GENERATION_ROUTE.md` **§S** (« ce qu'une génération ne doit plus redécouvrir ») et **§10.5** (chaîne dépôt→app + briques à ne PAS réécrire) | ces deux blocs n'existent que **parce que** des sessions ont reproposé de l'existant. Les ignorer, c'est refaire exactement ce qu'ils documentent |
+| la brique existe-t-elle déjà ? | `docs/construction/architecture/WAMA_MECANISMES.md` — table **GÉNÉRÉE** depuis `wama/common/mecanismes.py` | seul index exhaustif du substrat. ⚠ **Y compris les mécanismes qu'on a écrits soi-même** : c'est le cas vécu le 07/09, un mécanisme rédigé trois jours plus tôt et non relu |
+| la question est-elle déjà tranchée ? | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` **§S** (« ce qu'une génération ne doit plus redécouvrir ») et **§10.5** (chaîne dépôt→app + briques à ne PAS réécrire) | ces deux blocs n'existent que **parce que** des sessions ont reproposé de l'existant. Les ignorer, c'est refaire exactement ce qu'ils documentent |
 | l'objet a-t-il déjà un registre ? | `wama/common/registries.py` → `overview()` (nature comprise : mesure / dérivé / redéclaration / scan) | un registre dit ce que WAMA sait NOMMER, et sa `description` dit la RELATION entre ses objets — ex. `backends` : *le modèle porte son moteur, le backend s'en dérive, un moteur est une librairie*. Chercher un lieu pour une famille sans registre, c'est en inventer une |
 | est-ce cohérent entre les MONDES ? | la règle « un monde n'est pas un sous-dossier du substrat » (plus bas) | la cohérence visée est INTER-mondes — substrat ↔ Médias ↔ Data ↔ Lab —, pas la propreté d'une app |
 
@@ -205,7 +205,7 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
 - **Partitionner** le travail par sous-système (deux instances ne touchent jamais le même fichier) ;
   la partition se déclare dans le handoff (`PROJECT_STATUS` §REPRISE).
 - Travail parallèle lourd → **un `git worktree` par instance** (index isolé, merge maîtrisé vers dev).
-- `PROJECT_STATUS.md` est édité en concurrence → petits blocs, relire avant chaque édition.
+- `docs/construction/suivi/PROJECT_STATUS.md` est édité en concurrence → petits blocs, relire avant chaque édition.
 
 ---
 
@@ -310,7 +310,7 @@ apply_patch(
 
 > ⚠ **Cette règle ne dit RIEN des chaînes AFFICHÉES.** Un identifiant anglais affiche un libellé
 > français — c'est la cible, pas une incohérence. La langue de l'interface est un autre chantier,
-> consigné en **`ROADMAP.md §10.A`** (état mesuré + la décision qui le bloque : la langue des
+> consigné en **`docs/construction/suivi/ROADMAP.md §10.A`** (état mesuré + la décision qui le bloque : la langue des
 > `msgid`). Ne pas renommer du code au motif d'une question de traduction, ni l'inverse.
 
 ### Le JS aussi (ajouté le 2026-08-29 — le trou que la lettre de la règle laissait)
@@ -337,7 +337,7 @@ apply_patch(
 
 ## 🔴 RÈGLE OBLIGATOIRE : UN MONDE N'EST PAS UN SOUS-DOSSIER DU SUBSTRAT
 
-> Doctrine des MONDES actée le 2026-07-20 (`docs/WAMA_VISION_COMPLET.md §Les quatre mondes`), traduite
+> Doctrine des MONDES actée le 2026-07-20 (`docs/construction/mondes/WAMA_VISION_COMPLET.md §Les quatre mondes`), traduite
 > en arborescence le 2026-08-22. WAMA Data avait grandi sous `wama/common/data/` jusqu'à devenir une
 > chaîne de traitement de 10 modules — c'est-à-dire un monde logé dans le substrat.
 
@@ -372,7 +372,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 1. **Avant de créer un `.md`** — chercher le fichier existant qui couvre le sujet et le
    **COMPLÉTER / METTRE À JOUR**. Ne JAMAIS créer un second fichier « bis » sur un domaine déjà tracé.
 2. **Créer un nouveau `.md` est l'EXCEPTION** — uniquement si aucun existant ne couvre le domaine. Dans
-   ce cas, l'ajouter à l'index (`PROJECT_STATUS.md`) et le déclarer comme LA référence du domaine.
+   ce cas, l'ajouter à l'index (`docs/construction/suivi/PROJECT_STATUS.md`) et le déclarer comme LA référence du domaine.
 3. **Confronter au RÉEL avant de consigner** — pas de recopie d'intentions périmées ; vérifier contre le
    code (la grille de conformité et les statuts SURESTIMENT souvent l'avancement — ce sont des cibles).
 4. **Un domaine = un fichier de référence.** Si deux fichiers tracent le même sujet, les **fusionner**
@@ -383,37 +383,37 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | Domaine | Fichier de référence unique |
 |---|---|
 | **Doctrine de développement** (philosophie, règles obligatoires, conventions) — lue par tout agent ET par un humain | **`AGENTS.md`** — ce fichier. ⚠ Le **harnais Claude Code** (matcher de permissions, hooks `.claude/`) vit à part dans `CLAUDE.md`, qui importe celui-ci : ce n'est PAS un second fichier concurrent, c'est la même règle « un domaine = un fichier » appliquée à deux domaines distincts (la doctrine / l'outil). Ne jamais recopier une règle de doctrine dans `CLAUDE.md` |
-| **Carte des mécanismes transversaux** (où vit quoi, qui l'utilise, qu'ai-je oublié) | **`WAMA_MECANISMES.md`** — INDEX, jamais de prose dupliquée. Sa table est **générée** depuis le registre déclaratif `wama/common/mecanismes.py` (`doc_facts`, fait `mecanismes`) : **ajouter un mécanisme = ajouter une entrée au registre**, pas une ligne au `.md`. Signale les briques sans consommateur et les modules `common/` non rattachés. |
-| Route complète vers l'auto-génération d'apps (mécanismes) | **`WAMA_APP_GENERATION_ROUTE.md`** (consolide UI_MECHANISMS_CONSOLIDATION / COMMON_REFACTORING / GENERALIZATION_PLAN / BACKEND_CARTOGRAPHY, tous archivés dans `docs/archive/`) |
-| Manifestes — formalisme | `WAMA_MANIFEST_SPEC.md` |
-| Manifestes — flux/schéma | `WAMA_MANIFEST_ARCHITECTURE.md` |
-| Avancement des chantiers | `PROJECT_STATUS.md` + `ROADMAP.md` |
-| Conventions d'app | `WAMA_APP_CONVENTIONS.md` |
+| **Carte des mécanismes transversaux** (où vit quoi, qui l'utilise, qu'ai-je oublié) | **`docs/construction/architecture/WAMA_MECANISMES.md`** — INDEX, jamais de prose dupliquée. Sa table est **générée** depuis le registre déclaratif `wama/common/mecanismes.py` (`doc_facts`, fait `mecanismes`) : **ajouter un mécanisme = ajouter une entrée au registre**, pas une ligne au `.md`. Signale les briques sans consommateur et les modules `common/` non rattachés. |
+| Route complète vers l'auto-génération d'apps (mécanismes) | **`docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md`** (consolide UI_MECHANISMS_CONSOLIDATION / COMMON_REFACTORING / GENERALIZATION_PLAN / BACKEND_CARTOGRAPHY, tous archivés dans `docs/construction/archive/`) |
+| Manifestes — formalisme | `docs/construction/architecture/WAMA_MANIFEST_SPEC.md` |
+| Manifestes — flux/schéma | `docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md` |
+| Avancement des chantiers | `docs/construction/suivi/PROJECT_STATUS.md` + `docs/construction/suivi/ROADMAP.md` |
+| Conventions d'app | `docs/construction/architecture/WAMA_APP_CONVENTIONS.md` |
 | Cam Analyzer | `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne+conception) + `CAM_ANALYZER_CHANGELOG.md` (historique) + `README.md` (carte) — l'ancien `CAM_ANALYZER_TOPDOWN_STATUS.md` est archivé (`wama_lab/cam_analyzer/archive/`) |
-| **Couche LLM** — prompts, skills, traduction/enrichissement, RAG, mémoire, routage de modèle, surfaces de l'assistant | **`WAMA_LLM.md`** — ⚠ renommé le 2026-08-25 (ex-`WAMA_IA_TRANSVERSE.md`, ex-`PROMPT_PIPELINE.md`) : « IA transverse » était devenu ambigu, les modèles APPRIS l'étant aussi. **Ne couvre PAS** l'apprentissage → `WAMA_APPRENTISSAGE.md` |
-| **Apprentissage** — modèles APPRIS (ML/DL), couche statistique, connecteur MLflow, boucle de simulation, complémentarité DAR | **`WAMA_APPRENTISSAGE.md`** — ⚠ **cadre, PAS un chantier ouvert** ; de son §3, A1/A5 sont LIVRÉES (plan d'expérience `axes[]` au kind `dataset`, 26/08), restent A2/A3/A4. Règle : **WAMA n'entraîne pas, il DÉCLARE / DÉCLENCHE / RÉINGÈRE** |
-| **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`WAMA_MEMORY.md`** — jalons 1-11 et 13-14 LIVRÉS (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`, surfaces RAG par GESTE), reste le seul jalon 12 (outillage assistant list/detail). Le plan ChromaDB est MORT ; `docs/WAMA_VISION_COMPLET.md §5.5` reflète le substrat réel. |
+| **Couche LLM** — prompts, skills, traduction/enrichissement, RAG, mémoire, routage de modèle, surfaces de l'assistant | **`docs/construction/ia/WAMA_LLM.md`** — ⚠ renommé le 2026-08-25 (ex-`WAMA_IA_TRANSVERSE.md`, ex-`PROMPT_PIPELINE.md`) : « IA transverse » était devenu ambigu, les modèles APPRIS l'étant aussi. **Ne couvre PAS** l'apprentissage → `docs/construction/ia/WAMA_APPRENTISSAGE.md` |
+| **Apprentissage** — modèles APPRIS (ML/DL), couche statistique, connecteur MLflow, boucle de simulation, complémentarité DAR | **`docs/construction/ia/WAMA_APPRENTISSAGE.md`** — ⚠ **cadre, PAS un chantier ouvert** ; de son §3, A1/A5 sont LIVRÉES (plan d'expérience `axes[]` au kind `dataset`, 26/08), restent A2/A3/A4. Règle : **WAMA n'entraîne pas, il DÉCLARE / DÉCLENCHE / RÉINGÈRE** |
+| **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`docs/construction/ia/WAMA_MEMORY.md`** — jalons 1-11 et 13-14 LIVRÉS (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`, surfaces RAG par GESTE), reste le seul jalon 12 (outillage assistant list/detail). Le plan ChromaDB est MORT ; `docs/construction/mondes/WAMA_VISION_COMPLET.md §5.5` reflète le substrat réel. |
 | Transcriber — correction assistée | `wama/transcriber/TRANSCRIBER_CORRECTION.md` |
 | Enhancer (upscaling image/vidéo + branche audio) | `wama/enhancer/README.md` — promu référence du domaine le 2026-08-27 (a absorbé les ex-docs/ENHANCER_APP et ENHANCER_AUTO_DOWNLOAD, archivés — l'Enhancer était le seul domaine sans ligne ici, et 4 docs divergents avaient poussé dans le trou) |
-| Formalisme de card (anatomie, 3 densités v1/v2/v3, batchs) | `CARD_DESIGN.md` |
-| UX de la file / modes applicatifs | `MODES_QUEUE_UX.md` |
-| Inspecteur — champs de détail (schéma canonique) | `INSPECTOR_DETAIL_FIELDS.md` |
-| **Volets gauche et droit** (ossature, états contextuels, mode simplifié, repli) | `WAMA_VOLETS.md` — état des lieux MESURÉ des 35 pages ; `INSPECTOR_DETAIL_FIELDS.md` reste le schéma des CHAMPS, pas la structure |
-| **Vérification — « comment sait-on que ça marche »** (grille d'ADOPTION vs grille FONCTIONNELLE, catalogue des gestes, couverture) | `WAMA_VERIFICATION.md` — **un critère de grille atteste une ADOPTION, jamais un FONCTIONNEMENT** ; les compteurs de couverture vivent dans son §3 (la copie du 22/08 ici avait déjà divergé au 27/08 — un chiffre ne vit qu'à UN endroit) |
-| Studio & production AV | `STUDIO_VISION.md` |
-| Monde Data (périmètre, cartographie de corpus) | `WAMA_DATA_WORLD.md` + `WAMA_DATA_FUNCTION_CARDS.md` (catalogue) |
-| Vision produit d'ensemble | `docs/WAMA_VISION_COMPLET.md` — document UNIQUE depuis le 2026-08-27 (remplace Vision_Complet v1/v2, VISION_CRITIQUE et VISION_STATUS, archivés `docs/archive/`) ; la confrontation au réel vit DANS le doc (marquage ✅/🔄/⏳ daté par section) |
+| Formalisme de card (anatomie, 3 densités v1/v2/v3, batchs) | `docs/construction/ui/CARD_DESIGN.md` |
+| UX de la file / modes applicatifs | `docs/construction/ui/MODES_QUEUE_UX.md` |
+| Inspecteur — champs de détail (schéma canonique) | `docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md` |
+| **Volets gauche et droit** (ossature, états contextuels, mode simplifié, repli) | `docs/construction/ui/WAMA_VOLETS.md` — état des lieux MESURÉ des 35 pages ; `docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md` reste le schéma des CHAMPS, pas la structure |
+| **Vérification — « comment sait-on que ça marche »** (grille d'ADOPTION vs grille FONCTIONNELLE, catalogue des gestes, couverture) | `docs/construction/architecture/WAMA_VERIFICATION.md` — **un critère de grille atteste une ADOPTION, jamais un FONCTIONNEMENT** ; les compteurs de couverture vivent dans son §3 (la copie du 22/08 ici avait déjà divergé au 27/08 — un chiffre ne vit qu'à UN endroit) |
+| Studio & production AV | `docs/construction/mondes/STUDIO_VISION.md` |
+| Monde Data (périmètre, cartographie de corpus) | `docs/construction/mondes/WAMA_DATA_WORLD.md` + `docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md` (catalogue) |
+| Vision produit d'ensemble | `docs/construction/mondes/WAMA_VISION_COMPLET.md` — document UNIQUE depuis le 2026-08-27 (remplace Vision_Complet v1/v2, VISION_CRITIQUE et VISION_STATUS, archivés `docs/construction/archive/`) ; la confrontation au réel vit DANS le doc (marquage ✅/🔄/⏳ daté par section) |
 | Prospection & veille de modèles | `wama/model_manager/PROSPECTION_PIPELINE.md` |
-| Profils, permissions, notifications, rétention | `PROFILES_PERMISSIONS.md` |
-| Infra WSL2 ↔ Windows | `INFRA_WSL_VS_WINDOWS.md` |
-| Appariement entrée ↔ modèle | `INPUT_MODEL_MATCHING.md` |
-| **Médias : stockage, tiering, ce que `media/` contient, intégrité, et VOIES D'IMPORT** (matrice voie × app, copie vs pointeur, dédup) | `MEDIA_STORAGE_TIERING.md` — §8 depuis le 2026-09-05 (le titre du fichier est historique ; le domaine s'est élargi au cycle de vie des fichiers d'entrée). `BATCH_FORMAT.md` = le FORMAT de lot seul ; `WAMA_VERIFICATION §3` = les GESTES exécutables |
-| Format des fichiers batch | `BATCH_FORMAT.md` |
-| Retraits / dette soldée (registre) | `REMOVAL_LEDGER.md` |
-| **Licences & dépôt officiel** (licence du dépôt, politique, code vendorisé, dépôt APP/HAL/marque) | `LICENSING.md` — la vue MESURÉE reste `/common/licenses/` (`license_audit.py`) |
+| Profils, permissions, notifications, rétention | `docs/construction/exploitation/PROFILES_PERMISSIONS.md` |
+| Infra WSL2 ↔ Windows | `docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` |
+| Appariement entrée ↔ modèle | `docs/construction/ui/INPUT_MODEL_MATCHING.md` |
+| **Médias : stockage, tiering, ce que `media/` contient, intégrité, et VOIES D'IMPORT** (matrice voie × app, copie vs pointeur, dédup) | `docs/construction/exploitation/MEDIA_STORAGE_TIERING.md` — §8 depuis le 2026-09-05 (le titre du fichier est historique ; le domaine s'est élargi au cycle de vie des fichiers d'entrée). `docs/construction/ui/BATCH_FORMAT.md` = le FORMAT de lot seul ; `WAMA_VERIFICATION §3` = les GESTES exécutables |
+| Format des fichiers batch | `docs/construction/ui/BATCH_FORMAT.md` |
+| Retraits / dette soldée (registre) | `docs/construction/suivi/REMOVAL_LEDGER.md` |
+| **Licences & dépôt officiel** (licence du dépôt, politique, code vendorisé, dépôt APP/HAL/marque) | `docs/construction/exploitation/LICENSING.md` — la vue MESURÉE reste `/common/licenses/` (`license_audit.py`) |
 | Briques communes — carte d'entrée du dossier | `wama/common/README.md` |
 
-> ⚠ Cette table n'est **PAS** générée — contrairement à celle de `WAMA_MECANISMES.md`. Elle dérive
+> ⚠ Cette table n'est **PAS** générée — contrairement à celle de `docs/construction/architecture/WAMA_MECANISMES.md`. Elle dérive
 > donc si on ne l'entretient pas : elle ne couvrait que 10 domaines pour ~25 documents de référence
 > réels au 2026-08-20 (relevé à la demande de Fabien). **Créer un `.md` de référence = ajouter sa
 > ligne ici dans le même commit**, sinon le suivant ne le trouvera pas et en écrira un concurrent —
@@ -434,7 +434,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | audience | ce que c'est | état |
 |---|---|---|
 | **construction** | les `.md` de la table ci-dessus : trace, doctrine, décisions, vision — vivants | ✅ existe ; lisible depuis WAMA (`/common/docs/`, admins) |
-| **développeur** | comment ÉTENDRE WAMA — **DÉRIVÉE** de la doc de construction, faits tirés des registres | 🔄 amorçage du 2026-09-11 : 3 pages calculées à la lecture (`wama/common/dev_docs.py`), à reverser en `.md` dérivés (`ROADMAP.md §25`) |
+| **développeur** | comment ÉTENDRE WAMA — **DÉRIVÉE** de la doc de construction, faits tirés des registres | 🔄 amorçage du 2026-09-11 : 3 pages calculées à la lecture (`wama/common/dev_docs.py`), à reverser en `.md` dérivés (`docs/construction/suivi/ROADMAP.md §25`) |
 | **utilisateur** | comment se SERVIR de WAMA — **DÉRIVÉE** de la doc de construction ; un fragment n'y entre que si le registre confirme ce qu'il décrit | 🔄 germe : onglets À-propos/Aide (`AppAboutView`/`AppHelpView`, auto-remplis d'`APP_CATALOG`) |
 
 **La règle (recadrée par Fabien le 2026-09-11)** : une seule source de vérité, qui tient par
@@ -446,7 +446,7 @@ exhaustive), la **doc de construction à jour** (intentions, décisions, pourquo
 seuls — un registre dit ce qui existe, pas pourquoi ni comment s'en servir — et jamais rédigées
 en parallèle. **Toutes sont des `.md`**, lisibles depuis le dépôt ET depuis WAMA
 (`/common/docs/`), rangées par audience puis par sous-catégorie. Mécanique et ordre de
-construction : `ROADMAP.md §25`.
+construction : `docs/construction/suivi/ROADMAP.md §25`.
 *(Cette règle disait le matin même « une doc destinée à un public est une PROJECTION générée des
 registres » : trop court, et c'est Fabien qui l'a relevé.)*
 
@@ -512,9 +512,9 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 
 ### Roadmap refactoring (à faire, dans l'ordre)
 
-> **Document de référence : [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md)** — route
+> **Document de référence : [`docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md`](docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md)** — route
 > complète (mécanismes réels par facette F1–F8, adoption, trous), consolide l'ancien `COMMON_REFACTORING.md`
-> (archivé `docs/archive/`). **À lire avant de créer/modifier une app.** Historique : `memory/project_refactoring_common.md`.
+> (archivé `docs/construction/archive/`). **À lire avant de créer/modifier une app.** Historique : `memory/project_refactoring_common.md`.
 
 1. ~~`common/utils/backend_selector.py`~~ — REMPLACÉ : `select_model()` (model_manager) existe et
    couvre VRAM + singleton (vérifié 2026-07-20) ; reste = adoption par les apps (étape 3, PROJECT_STATUS §2)
@@ -528,14 +528,14 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 
 ### Pipeline de prompts commune
 
-> **Document de référence : [`WAMA_LLM.md`](WAMA_LLM.md)** — traitement centralisé
+> **Document de référence : [`docs/construction/ia/WAMA_LLM.md`](docs/construction/ia/WAMA_LLM.md)** — traitement centralisé
 > métadonnée-driven des prompts (traduction/enrichissement/fichiers de référence ; RAG à venir).
 > Déclarer les champs-prompt dans `common/utils/app_metadata.py::PROMPT_TARGETS` — ne JAMAIS patcher
 > la traduction/l'enrichissement par app.
 
 ### Point d'étape des chantiers
 
-> **[`PROJECT_STATUS.md`](PROJECT_STATUS.md)** — photo des chantiers en cours (✅/🔄/⏳) + ordre de
+> **[`docs/construction/suivi/PROJECT_STATUS.md`](docs/construction/suivi/PROJECT_STATUS.md)** — photo des chantiers en cours (✅/🔄/⏳) + ordre de
 > reprise recommandé. À consulter en début de session et à mettre à jour aux paliers.
 
 ---
@@ -669,7 +669,7 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 
 ## ⚠️ CONVENTIONS UI & ARCHITECTURE — TOUTES LES APPLICATIONS
 
-> **Document de référence complet : [`WAMA_APP_CONVENTIONS.md`](WAMA_APP_CONVENTIONS.md)**
+> **Document de référence complet : [`docs/construction/architecture/WAMA_APP_CONVENTIONS.md`](docs/construction/architecture/WAMA_APP_CONVENTIONS.md)**
 > Ce fichier contient les conventions détaillées, les patterns de code, la checklist
 > de création d'app, et la table de conformité par application.
 > **Le lire avant de créer ou modifier une application.**
@@ -717,7 +717,7 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
   La source vivante est `logs/conformity_report.json` / `/apps/` — et un vert d'ADOPTION ne dit
   toujours rien du FONCTIONNEMENT : `filemanager_import` était vert **10/10** pendant que le menu
   « Envoyer vers… » proposait trois apps que le serveur refusait (`WAMA_VERIFICATION §Geste 14`).
-- Checklist de fin d'app : `TRANSCRIBER_REFERENCE_AUDIT.md §6` (le compte vit là-bas — « 18 points » recopié ici était devenu faux, 19 lignes mesurées le 27/08)
+- Checklist de fin d'app : `docs/construction/architecture/TRANSCRIBER_REFERENCE_AUDIT.md §6` (le compte vit là-bas — « 18 points » recopié ici était devenu faux, 19 lignes mesurées le 27/08)
 
 **✅ Vérifier systématiquement** à chaque création d'une nouvelle application.
 
@@ -767,7 +767,7 @@ au codebase WAMA. Il travaille en complément de Claude (Anthropic).
 - l'offload **préserve le contexte/quota** de la session principale (le vrai gain) ;
 - un modèle stable est disponible (sur cet hôte 24 Go partagé : **`gemma4:e4b` non-thinking** est le
   choix fiable ; `qwen3-coder:30b` — jugé trop lourd pour l'agentique — a été RETIRÉ du parc le
-  2026-08-26 avec 4 autres, cf. `REMOVAL_LEDGER.md` ; voir `wama-dev-ai/run_audit.py`).
+  2026-08-26 avec 4 autres, cf. `docs/construction/suivi/REMOVAL_LEDGER.md` ; voir `wama-dev-ai/run_audit.py`).
 
 **Toujours :** tâches **étroites et ciblées** (les tâches larges le font dériver) ; **valider** la
 sortie (hallucination possible) ; **jamais d'auto-application**. Règle **suggérée, pas obligatoire**

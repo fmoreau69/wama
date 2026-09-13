@@ -61,7 +61,7 @@ le RENDU RÉEL, pas la structure du code.
   lancement de génération lourde GPU sans accord. Le user id=1 est le compte réel de Fabien.
 
 ## 1. Sources des points à valider
-- `PROJECT_STATUS.md` : chercher « valider navigateur » / « validation navigateur » (sections
+- `docs/construction/suivi/PROJECT_STATUS.md` : chercher « valider navigateur » / « validation navigateur » (sections
   20bis, 21, 23…) — c'est la liste de dette visuelle accumulée.
 - Le chantier du jour : chaque élément UI touché.
 

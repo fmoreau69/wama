@@ -21,9 +21,9 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
 - Smoke test réel quand c'est transverse (charger la page, appeler l'endpoint) — pas seulement `check`.
 
 ## 2. Consignation (exhaustive, pas lossy)
-- `PROJECT_STATUS.md` : mettre à jour la/les sections du chantier (✅/🔄/⏳, date, ce qui RESTE — y compris « validation navigateur en attente » si on n'a pas pu cliquer).
+- `docs/construction/suivi/PROJECT_STATUS.md` : mettre à jour la/les sections du chantier (✅/🔄/⏳, date, ce qui RESTE — y compris « validation navigateur en attente » si on n'a pas pu cliquer).
 - Le doc de référence du domaine (cf. table AGENTS.md) : consigner décision + pourquoi + implications + ce que ça remplace.
-- Mécanisme transversal créé/déplacé/supprimé → entrée du registre `wama/common/mecanismes.py` puis `python manage.py doc_facts` (la table de `WAMA_MECANISMES.md` est GÉNÉRÉE, ne jamais l'éditer à la main).
+- Mécanisme transversal créé/déplacé/supprimé → entrée du registre `wama/common/mecanismes.py` puis `python manage.py doc_facts` (la table de `docs/construction/architecture/WAMA_MECANISMES.md` est GÉNÉRÉE, ne jamais l'éditer à la main).
 - Un registre déclaratif a bougé (params, capacités, tool_api, modèles…) → `python manage.py manifest_export` puis `manifest_export --check` **depuis WSL2** (la vue venv_win donne de faux « périmés » sur les libraries — dépendances de wheel différentes).
 - Cam Analyzer : entrée `CAM_ANALYZER_CHANGELOG.md` obligatoire si le comportement a changé.
 - Mémoire persistante : seulement le non-dérivable du code (décisions, pièges, feedback).
@@ -35,7 +35,7 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
   le geste que AGENTS.md interdit depuis le 22/08, et il rate dans les deux sens — il emporte
   tout l'index d'une autre instance, ET il laisse derrière ce qui est modifié sans être stagé
   (HEAD cassé le 22/08 alors que l'arbre de travail passait 245 tests).
-- 🔴 **Relire `git diff <fichier>` AVANT de commiter un fichier co-édité** (`PROJECT_STATUS.md`,
+- 🔴 **Relire `git diff <fichier>` AVANT de commiter un fichier co-édité** (`docs/construction/suivi/PROJECT_STATUS.md`,
   `mecanismes.py`, `manifests/**`). Si le diff contient des lignes que tu n'as pas écrites,
   **soit tu l'annonces dans ton message, soit tu attends — jamais en silence.** Vécu deux fois :
   12 fichiers balayés, puis 14 lignes de `mecanismes.py` le 2026-08-26.
@@ -46,8 +46,8 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
 
 ## 4. Handoff si la session s'arrête là
 - Validations en attente (navigateur, restart WSL2) → section **`§REPRISE <date>` de
-  `PROJECT_STATUS.md`**, qui est LE domicile des handoffs.
-  ⚠ **Ne plus créer de `REPRISE_<date>.md`** : un seul subsiste (`REPRISE_2026-08-06.md`,
+  `docs/construction/suivi/PROJECT_STATUS.md`**, qui est LE domicile des handoffs.
+  ⚠ **Ne plus créer de `REPRISE_<date>.md`** : un seul subsiste (`docs/construction/archive/REPRISE_2026-08-06.md`,
   historique), et les suivants ont tous été absorbés dans `PROJECT_STATUS`. En créer un nouveau
   rouvre la règle « un domaine = un fichier » qu'ils avaient justement fini par enfreindre.
 - Session entière qui se termine → skill `/cloture` (plus complet : tests, registres, balayage

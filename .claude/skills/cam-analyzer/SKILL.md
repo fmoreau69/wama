@@ -7,7 +7,7 @@ description: Travailler sur WAMA Lab Cam Analyzer — tracking 360°, projection
 
 ## 1. Avant de toucher au code
 - Lire `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne + conception) et le handoff le plus récent —
-  ⚠ **`PROJECT_STATUS.md §REPRISE <date>`**, PAS un `REPRISE_*.md` : il n'en existe aucun dans
+  ⚠ **`docs/construction/suivi/PROJECT_STATUS.md §REPRISE <date>`**, PAS un `REPRISE_*.md` : il n'en existe aucun dans
   `wama_lab/cam_analyzer/` (vérifié 2026-08-26), le seul du dépôt est à la racine et date du 06/08.
 - 🔴 **LIRE LE `CAM_ANALYZER_CHANGELOG.md` EN ENTIER** avant de toucher à un mécanisme — pas
   seulement l'en-tête et la dernière entrée. C'est **l'état vivant** (la doc de chaîne décrit

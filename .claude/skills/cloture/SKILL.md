@@ -15,7 +15,7 @@ retrouve-t-elle TOUT ? »*
   consignation partagée (PROJECT_STATUS), vérifier qu'elle est dans HEAD (`git show HEAD:…`).
 - ⚠⚠ **LA RÈGLE DES CHEMINS EXPLICITES NE PROTÈGE PAS D'UN FICHIER CO-ÉDITÉ.**
   `git commit <chemin>` prend l'état **COMPLET** du fichier dans l'arbre, pas seulement tes
-  modifications — `PROJECT_STATUS.md`, `WAMA_DATA_WORLD.md`, `MEMORY.md` sont co-écrits en
+  modifications — `docs/construction/suivi/PROJECT_STATUS.md`, `docs/construction/mondes/WAMA_DATA_WORLD.md`, `MEMORY.md` sont co-écrits en
   permanence. **Seule discipline qui tienne : relire `git diff <fichier>` JUSTE AVANT de
   commiter, et vérifier que tout ce qu'on y voit est de soi.** Un `git status` dit que le
   fichier est modifié, **pas PAR QUI**.
@@ -263,7 +263,7 @@ en dur les satisfaisait toutes en cassant la sélection par catalogue.
   d'une autre session, on ne « fusionne » pas les 🔚 : /reprise lit TOUS les 🔚 du jour.
   Mécanique éprouvée (13/08, 2 instances) : petits blocs + relire avant chaque édition
   (le fichier bouge sous tes pieds) + si le commit de l'autre instance a absorbé ton bloc,
-  vérifier `git show HEAD:PROJECT_STATUS.md | grep <ton ancre>` — contenu > attribution.
+  vérifier `git show HEAD:docs/construction/suivi/PROJECT_STATUS.md | grep <ton ancre>` — contenu > attribution.
 - `REPRISE_<date>.md` séparé UNIQUEMENT si le volume le justifie (sinon §REPRISE suffit).
 - « Contrôles attendus au prochain /reprise » : donner les CHIFFRES (corpus N, check_docs
   — **cibles distinctes** et références —, tests de ton périmètre, roundtrip, scores de grille).

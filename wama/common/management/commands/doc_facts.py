@@ -413,11 +413,11 @@ def _fait_conformite():
 # d'autre n'est requis. Ouvert aux skills le 2026-08-27 — c'est là que les chiffres périmés
 # coûtent le plus cher, puisqu'on leur OBÉIT au lieu de les lire.
 FAITS = {
-    'outils': ('WAMA_APP_GENERATION_ROUTE.md', _fait_outils),
-    'modeles': ('WAMA_MANIFEST_SPEC.md', _fait_modeles),
-    'roundtrip': ('WAMA_MANIFEST_ARCHITECTURE.md', _fait_roundtrip),
-    'mecanismes': ('WAMA_MECANISMES.md', _fait_mecanismes),
-    'wama_data': ('WAMA_DATA_WORLD.md', _fait_wama_data),
+    'outils': ('docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md', _fait_outils),
+    'modeles': ('docs/construction/architecture/WAMA_MANIFEST_SPEC.md', _fait_modeles),
+    'roundtrip': ('docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md', _fait_roundtrip),
+    'mecanismes': ('docs/construction/architecture/WAMA_MECANISMES.md', _fait_mecanismes),
+    'wama_data': ('docs/construction/mondes/WAMA_DATA_WORLD.md', _fait_wama_data),
     'conformite': ('.claude/skills/conformite/SKILL.md', _fait_conformite),
 }
 

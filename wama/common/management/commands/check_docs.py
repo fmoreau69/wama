@@ -244,8 +244,12 @@ class Command(BaseCommand):
         # Élagage NOMINATIF à la racine seulement : exclure tout dossier nommé « manifests »
         # aurait aussi masqué `wama/common/manifests/` — c'est le bug qui faisait passer
         # `manifests/projection.py` pour une référence morte.
+        # ⚠ `docs` RETIRÉ de cette liste le 2026-09-13, au déménagement de la doc dans
+        # `docs/construction/` (ROADMAP §25.4) : les docs de référence vivent désormais là, et
+        # tout ce qui les cite par leur NOM NU (commentaires, skills, champs `doc=`) ne se
+        # résoudrait plus. Les archives y sont indexées aussi : leurs noms sont distincts.
         exclus_racine = {'venv_linux', 'venv_win', 'node_modules', 'staticfiles', 'AI-models',
-                         'media', 'logs', 'docs', 'manifests', 'htmlcov'}
+                         'media', 'logs', 'manifests', 'htmlcov'}
         # `.md` indexé depuis le 2026-08-27 : sans lui, un doc cité par son seul nom
         # (`CAM_ANALYZER_CHANGELOG.md`, qui vit dans `wama_lab/cam_analyzer/`) passait pour mort.
         exts = ('.py', '.js', '.html', '.css', '.sh', '.json', '.md')
@@ -356,7 +360,7 @@ class Command(BaseCommand):
                 # PROJECT_STATUS:1040, dont le « SUPPRIMÉ » est en 1041).
                 #
                 # La fenêtre était ±1 ; élargie en arrière à la PUCE ENTIÈRE le 2026-08-27. Une
-                # puce qui énumère cinq documents archivés porte son « (archivés `docs/archive/`) »
+                # puce qui énumère cinq documents archivés porte son « (archivés `docs/construction/archive/`) »
                 # en tête : au 5ᵉ, trois lignes plus bas, le qualificatif était hors fenêtre et le
                 # contrôle criait au loup (vécu : WAMA_APP_GENERATION_ROUTE:1007). Un qualificatif
                 # vaut pour l'ÉNONCÉ, pas pour la ligne physique où le retour à la ligne est tombé.

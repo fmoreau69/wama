@@ -328,7 +328,7 @@ Solitaire §3ter), le **dé** comme symbole de lancement (déjà utilisé dans l
 **clins d'œil ludiques** disséminés — **purement esthétiques**, jamais au détriment de la lisibilité ni
 de la fonction. Donne une identité fraîche et cohérente à l'UI.
 
-Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `WAMA_APP_GENERATION_ROUTE.md` (consolide les ex-GENERALIZATION_PLAN et COMMON_REFACTORING, archivés `docs/archive/`), `MODES_QUEUE_UX.md`.
+Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `WAMA_APP_GENERATION_ROUTE.md` (consolide les ex-GENERALIZATION_PLAN et COMMON_REFACTORING, archivés `docs/construction/archive/`), `MODES_QUEUE_UX.md`.
 
 ---
 
@@ -572,7 +572,7 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
 > grille, les couleurs relevées du réel, l'anatomie des 5 sections, les comportements décrits.
 > L'implémentation part des briques EXISTANTES (_batch_card, card_chips, _cycle_button,
 > _card_progress, preview_utils, wama-queue…) — traduire, jamais recopier la maquette.
-> Maquette de référence : [docs/card_designs/card_v3.5_maquette.html](docs/card_designs/card_v3.5_maquette.html) — archivée dans le dépôt le 2026-08-21 (v3.5 ; les arbitrages du 2026-08-01 y sont intégrés). ⚠ v3.4 : l exemple de card en ÉCHEC (barre figée) manque encore dans la maquette — à ajouter. Fusion
+> Maquette de référence : [docs/card_designs/card_v3.5_maquette.html](../../card_designs/card_v3.5_maquette.html) — archivée dans le dépôt le 2026-08-21 (v3.5 ; les arbitrages du 2026-08-01 y sont intégrés). ⚠ v3.4 : l exemple de card en ÉCHEC (barre figée) manque encore dans la maquette — à ajouter. Fusion
 > v1 Transcriber (sections nommées) × v2 chips (compacité). RIEN de nouveau côté mécanismes :
 > déclaratif → briques → UI. Pilote de portage : **SYNTHESIZER** (décision 2026-08-01 —
 > pas le Transcriber), puis composer.

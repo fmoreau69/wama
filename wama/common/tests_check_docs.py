@@ -76,7 +76,7 @@ class ChecksDocsSkillsTests(SimpleTestCase):
     def test_un_qualificatif_en_tete_de_puce_couvre_toute_la_puce(self):
         # Fenêtre élargie le 2026-08-27 : « archivés » ouvrait une puce de trois lignes et le
         # 3e fichier, hors fenêtre ±1, était signalé à tort.
-        r = self._lancer('essai', "- Remplacés (archivés `docs/archive/`) : `a/un_xyz.py`,\n"
+        r = self._lancer('essai', "- Remplacés (archivés `docs/construction/archive/`) : `a/un_xyz.py`,\n"
                                   "  `a/deux_xyz.py`,\n"
                                   "  `a/trois_xyz.py`.")
         self.assertIn('Aucune référence cassée', r)
@@ -166,7 +166,7 @@ class HorsDepotTests(SimpleTestCase):
             self.assertTrue(_hors_depot(c), c)
 
     def test_un_doc_du_depot_reste_dans_le_perimetre(self):
-        for c in ('AGENTS.md', 'WAMA_LLM.md', 'wama/common/README.md', 'ROADMAP.md'):
+        for c in ('AGENTS.md', 'docs/construction/ia/WAMA_LLM.md', 'wama/common/README.md', 'docs/construction/suivi/ROADMAP.md'):
             self.assertFalse(_hors_depot(c), c)
 
 
@@ -257,11 +257,11 @@ class JournauxTests(SimpleTestCase):
     """Un journal consigne ce qui était vrai à une date : ses renvois .md ne se corrigent pas."""
 
     def test_le_statut_projet_est_declare_journal(self):
-        self.assertIn('PROJECT_STATUS.md', JOURNAUX)
+        self.assertIn('docs/construction/suivi/PROJECT_STATUS.md', JOURNAUX)
 
     def test_les_docs_de_doctrine_ne_sont_pas_des_journaux(self):
         # L'exemption doit rester ÉTROITE : elle vaut pour l'archive datée, pas pour la doctrine.
-        for d in ('AGENTS.md', 'WAMA_APP_CONVENTIONS.md', 'WAMA_MECANISMES.md'):
+        for d in ('AGENTS.md', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md', 'docs/construction/architecture/WAMA_MECANISMES.md'):
             self.assertNotIn(d, JOURNAUX)
 
 

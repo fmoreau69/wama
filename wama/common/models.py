@@ -149,7 +149,7 @@ class BatchMixin:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Appartenance organisationnelle + visibilité par scope (MONDES / partage / RAG)
-# Voir docs/WAMA_VISION_COMPLET.md §Les quatre mondes, memory/project_wama_mondes.md.
+# Voir docs/construction/mondes/WAMA_VISION_COMPLET.md §Les quatre mondes, memory/project_wama_mondes.md.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Autorité « maison » — celle de l'établissement qui héberge cette instance. Volontairement la

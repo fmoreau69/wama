@@ -3084,7 +3084,7 @@ cadrées ailleurs, et **aucune n'est un chantier ouvert** :
 - **boucle de simulation Unreal** — rejouer un profil à la place d'un conducteur pour évaluer le
   réalisme, puis générer des données.
 
-> 📄 **Document de référence : [`WAMA_APPRENTISSAGE.md`](WAMA_APPRENTISSAGE.md)**
+> 📄 **Document de référence : [`WAMA_APPRENTISSAGE.md`](../ia/WAMA_APPRENTISSAGE.md)**
 
 **Ce qui touche CE document et doit être traité avec lui** — son §3 : cinq déclarations gratuites
 aujourd'hui et non rattrapables ensuite, dont trois portent sur des kinds que le monde Data
@@ -4410,7 +4410,7 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
 - **2026-08-22** — **le monde sort du substrat.** WAMA Data quitte `wama/common/data/` pour une
   racine `wama_data/`, sœur de `wama/` et `wama_lab/` — cible déjà écrite dans `ROADMAP §18` (« un
   monde = un package frère »), jamais exécutée. La doctrine des MONDES était actée depuis le
-  2026-07-20 ; `docs/archive/VISION_STATUS.md` notait même « socle posé (`common/data/`) » comme un état
+  2026-07-20 ; `docs/construction/archive/VISION_STATUS.md` notait même « socle posé (`common/data/`) » comme un état
   normal, ce qui laissait croire que la traduction en arborescence avait été faite.
   - **Où passe la frontière** — seule vraie décision : le registre de fonctions et la taxonomie de
     types RESTENT dans `wama/common/catalog/`. Mesuré, pas déduit : `cam_analyzer/function_specs.py`

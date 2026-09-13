@@ -6,7 +6,7 @@
 > **Voir aussi** : [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) (traçabilité +
 > **État courant & RESTE À FAIRE** en tête), [`projects/ENA_CASA.md`](projects/ENA_CASA.md)
 > (spécificités **projet** : données, calibration, rig — hors app générique),
-> `docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md` (audit fondateur).
+> `docs/construction/archive/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md` (audit fondateur).
 > Le raisonnement de conception (ex-`DISTANCE_DESIGN`) est désormais **absorbé** ci-dessous
 > (§ Conception & justification) ; l'ancien doc est dans `archive/`.
 
@@ -1250,7 +1250,7 @@ comportement glissé dans un commit de refactor ne laisse aucune trace là où o
 > « décalage des pas de temps » **0**, « voie perpendiculaire » **0**. ⚠ *Ce relevé portait
 > sur MES formulations* : en cherchant ensuite les CONCEPTS, deux chantiers adjacents se sont
 > révélés déjà pendants dans `ROADMAP §9.0` (voir la table en fin de §). **L'intention, elle,
-> reste absente partout** — vérifié aussi dans `docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`
+> reste absente partout** — vérifié aussi dans `docs/construction/archive/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`
 > (0 sur « prédite », « correction de trajectoire », « criticité », « décalage »).
 > La conséquence s'est vue le jour même :
 > une médiane de PET à 0,2 s a d'abord été lue comme un défaut possible, alors que c'est le

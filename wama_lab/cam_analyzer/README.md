@@ -191,7 +191,7 @@ tâches sur la queue Celery `gpu`. App enregistrée dans `wama/settings.py` (INS
 
 > Docs **archivés** (`archive/`, contenu vivant absorbé — provenance seulement) : `CAM_ANALYZER_DISTANCE_DESIGN.md`
 > (→ CHAINE § Conception), `CAM_ANALYZER_TOPDOWN_STATUS.md` (→ CHANGELOG § État courant), `CONTEXT.md`
-> (→ projects/ENA_CASA.md + CHANGELOG). Audit fondateur : `docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`.
+> (→ projects/ENA_CASA.md + CHANGELOG). Audit fondateur : `docs/construction/archive/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`.
 
 ## Voir aussi
 - **ROADMAP.md §9** — phases détaillées et règles d'événements.

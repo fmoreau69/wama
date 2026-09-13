@@ -9,7 +9,7 @@ une sous-classe qui déclare ses dépendances et implémente le cycle de vie ; *
 dérivent (anonymizer, avatarizer, composer, enhancer, imager, reader, transcriber, et depuis le
 14/08 le synthesizer — dont les backends sont chargés par le service TTS, un process séparé : le
 registre Redis du gouverneur étant cross-process, la comptabilité reste juste). La cartographie
-est consolidée dans `WAMA_APP_GENERATION_ROUTE.md` (l'ancien fichier est archivé sous `docs/archive/`).
+est consolidée dans `WAMA_APP_GENERATION_ROUTE.md` (l'ancien fichier est archivé sous `docs/construction/archive/`).
 
 Ce module est aussi **l'alimentation de la route de suivi des modèles** : `__init_subclass__`
 enveloppe `load`/`unload`/`process` à N'IMPORTE QUELLE profondeur d'héritage, et c'est par là que

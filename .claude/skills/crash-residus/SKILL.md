@@ -7,7 +7,7 @@ description: Après un crash hôte (Kernel-Power 41) — inventorier puis libér
 
 > ⚠ CANDIDAT (n=1, 2026-08-28) — distillé d'une résolution unique, non confronté à une 2ᵉ occurrence.
 
-Le mécanisme a son domicile : **`INFRA_WSL_VS_WINDOWS.md` §« Chaque crash hôte FUITE jusqu'à
+Le mécanisme a son domicile : **`docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` §« Chaque crash hôte FUITE jusqu'à
 8 Go dans `%TEMP%` »** (2026-08-25) + §Inventaire disque. Ce skill est le geste REJOUABLE ;
 les chiffres vivent là-bas et dans la sortie du scan — jamais recopiés ici.
 
@@ -29,7 +29,7 @@ Ordre de grandeur (mesuré 2026-08-28, à ne pas croire sans re-scanner) : ~8 Go
 | famille | critère | traitement |
 |---|---|---|
 | `swap.vhdx` orphelin | **le VERROU, ni la date ni la taille** (le vivant a déjà fait 36 Mo, un orphelin 8 Go) | supprimable → §3 |
-| dumps (MEMORY.DMP, Minidump, WER…) | ce sont des **PREUVES** — l'enquête crashs est OUVERTE (`INFRA_WSL_VS_WINDOWS.md §2026-08-28`) | inventorier, **ne jamais supprimer sans arbitrage Fabien**. NB : une coupure franche n'écrit en général AUCUN dump — un scan vide est normal |
+| dumps (MEMORY.DMP, Minidump, WER…) | ce sont des **PREUVES** — l'enquête crashs est OUVERTE (`docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md §2026-08-28`) | inventorier, **ne jamais supprimer sans arbitrage Fabien**. NB : une coupure franche n'écrit en général AUCUN dump — un scan vide est normal |
 | clichés VSS sur D: | 1 par redémarrage + 1/4 h → chaque crash en ajoute | **arbitrage Fabien** (§4) |
 
 ⚠ **Ne JAMAIS purger `%TEMP%` en bloc** : le swap VIVANT, des DLL en usage et le scratchpad de
@@ -64,7 +64,7 @@ de conclure) ; et le swap VIVANT regrossit vers ses 8 Go configurés — ce n'es
 - **VSS C: et D:** — mesurer : `vssadmin list shadowstorage` (admin ; `/for=C:` ou `/for=D:`).
   D: est plafonné à 10 Go depuis le 28/08. ⚠ **Sur C:, le resize est BLOQUÉ par SentinelOne**
   (vécu 29/08 en console admin : VSS 12289, `DeviceIoControl 0x80070005 Accès refusé` — la
-  protection anti-ransomware des clichés ; détail : `INFRA_WSL_VS_WINDOWS.md §2026-08-29`).
+  protection anti-ransomware des clichés ; détail : `docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md §2026-08-29`).
   Ne pas s'acharner ni tenter de contourner l'EDR : la voie de sortie est **le service info**
   (console S1). En attendant, le poste est BORNÉ à ~10 % du volume — pas une fuite.
   Rappel : les points C: sont éphémères de toute façon (volsnap purge ~1/jour ; le point utile
@@ -80,5 +80,5 @@ de conclure) ; et le swap VIVANT regrossit vers ses 8 Go configurés — ce n'es
    `reconcile_orphaned_running`) **ne mord pas**. Normaliser à la main via `stop_instance()`.
 3. **Pilote NVIDIA changé depuis le dernier démarrage WSL ?** → `wsl --shutdown` puis relance
    de la stack, sinon TOUTE tâche CUDA échoue (`nvidia-smi` sans `libnvidia-ml.so`).
-4. Un crash de plus = une ligne de plus dans la série d'`INFRA_WSL_VS_WINDOWS.md` (signature
+4. Un crash de plus = une ligne de plus dans la série d'`docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` (signature
    montée VRAM vs repos) — consigner LÀ-BAS, pas ici.

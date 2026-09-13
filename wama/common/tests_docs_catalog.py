@@ -100,7 +100,7 @@ class RenduTest(SimpleTestCase):
         self.assertIn('&lt;script&gt;', html)
 
     def test_un_lien_vers_un_doc_declare_mene_au_lecteur(self):
-        html = render_markdown("[llm](WAMA_LLM.md#skills)", 'AGENTS.md')['html']
+        html = render_markdown("[llm](docs/construction/ia/WAMA_LLM.md#skills)", 'AGENTS.md')['html']
         self.assertIn(f'href="{reverse("common:doc_read", args=["llm"])}#skills"', html)
 
     def test_un_lien_relatif_se_resout_depuis_le_dossier_du_doc(self):

@@ -31,7 +31,7 @@ d'autres skills.
 - **VRAM libre** : la garde RAM écarte silencieusement qwen3.8 (19 Go) si de la VRAM traîne, et
   descend la chaîne jusqu'à un modèle plus petit — on obtiendrait une cartographie médiocre SANS
   aucun signal. Si WAMA tourne, le service TTS tient kokoro : arrêter WAMA (WSL2) avant.
-- Le document de destination existe et déclare son tableau des passes (ex. `WAMA_DATA_WORLD.md §9`).
+- Le document de destination existe et déclare son tableau des passes (ex. `docs/construction/mondes/WAMA_DATA_WORLD.md §9`).
 
 ## 2. Découpage en passes
 

@@ -13,8 +13,8 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 
 ## 2. Handoff & statut
 - Chercher un `REPRISE_*.md` à la racine plus récent que le dernier connu (Glob `REPRISE_*.md`). Le lire s'il existe.
-- Lire l'en-tête + les sections pertinentes de `PROJECT_STATUS.md` (ne pas tout relire : cibler le chantier demandé + « Ordre de reprise recommandé »).
-- Pour un chantier UI/apps : relire la section correspondante de `WAMA_APP_GENERATION_ROUTE.md` (facettes F1–F8) avant de coder.
+- Lire l'en-tête + les sections pertinentes de `docs/construction/suivi/PROJECT_STATUS.md` (ne pas tout relire : cibler le chantier demandé + « Ordre de reprise recommandé »).
+- Pour un chantier UI/apps : relire la section correspondante de `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (facettes F1–F8) avant de coder.
 
 ## 3. Confrontation au réel (obligatoire)
 
@@ -109,7 +109,7 @@ recouvrir un échec qui remplace un autre :
   ne déclarent pas les dépendances nvidia-*/triton du wheel Linux). Le corpus reflète
   venv_linux = le runtime réel.
 - Comparer les chiffres au bloc « Contrôles attendus au prochain /reprise » du **dernier
-  §REPRISE** de `PROJECT_STATUS.md` (corpus N manifestes, roundtrip, scores de grille) — c'est
+  §REPRISE** de `docs/construction/suivi/PROJECT_STATUS.md` (corpus N manifestes, roundtrip, scores de grille) — c'est
   lui qui porte les valeurs à jour, pas ce skill.
 - 🔴 **LE CRITÈRE EST LE NOMBRE DE CIBLES DISTINCTES — attendu = 0** (resserré le 2026-09-07 :
   la dernière cible due a été créée). Toute cible distincte est désormais une dérive.
@@ -170,10 +170,10 @@ recouvrir un échec qui remplace un autre :
    | chantier | à lire AVANT |
    |---|---|
    | cache HF, emplacement/catégories des modèles | **`ROADMAP §5b`** (+ la règle « nouveau modèle » de `AGENTS.md`) |
-   | modèles, capacités, tirage, entrées acceptées | `INPUT_MODEL_MATCHING.md` + `WAMA_APP_GENERATION_ROUTE §F4b` |
-   | génération d'app, jumelle, gabarits | `WAMA_APP_GENERATION_ROUTE.md` (dont **§S 🔒**) |
-   | manifestes | `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` |
-   | prompts, assistant, RAG | `WAMA_LLM.md` · mémoire : `WAMA_MEMORY.md` |
+   | modèles, capacités, tirage, entrées acceptées | `docs/construction/ui/INPUT_MODEL_MATCHING.md` + `WAMA_APP_GENERATION_ROUTE §F4b` |
+   | génération d'app, jumelle, gabarits | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (dont **§S 🔒**) |
+   | manifestes | `docs/construction/architecture/WAMA_MANIFEST_SPEC.md` + `docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md` |
+   | prompts, assistant, RAG | `docs/construction/ia/WAMA_LLM.md` · mémoire : `docs/construction/ia/WAMA_MEMORY.md` |
    | registres/catalogues | `common/registries.py` + `PROJECT_STATUS §registres` |
 
 2. **Chercher la décision AVANT la solution** : `grep -n "décid\|acté\|validé" <doc>` — si le
@@ -193,7 +193,7 @@ recouvrir un échec qui remplace un autre :
 - Jamais de `cd` en préfixe de commande shell.
 - Commits par chemins explicites (jamais `git add -A`), au palier ; push = demander.
 - Pas de tests destructifs (`delete()` en masse) ; user id=1 = compte réel.
-- **Avant toute nouvelle brique** : lire la facette F concernée dans `WAMA_APP_GENERATION_ROUTE.md`
+- **Avant toute nouvelle brique** : lire la facette F concernée dans `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md`
   puis `ls wama/common/{utils,services}` et les JS communs (cf. `/brique §1`). Sauté le 31/07 →
   briques de batch ratées et câblage à refaire.
 - **Une seule base de données depuis le 2026-07-31** : `settings._resolve_db_host()` fait pointer
