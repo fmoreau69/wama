@@ -2260,20 +2260,33 @@ approfondir en testant jusqu'où on peut aller (multi-vues, fidélité au véhic
    déclarées dans `common/app_registry.py` — `normalize_types`/`category_of_path`/ports studio/
    `TYPE_GROUPS` médiathèque en dérivent (validé : `glb→['3d']`) ; type d'asset `object3d`
    déclaré dans `media_library/models.py` (migration 0013, no-op SQL, appliquée WSL2).
-2. **Médiathèque** : ingest + preview des objets 3D (viewer three.js **vendorisé local**, règle
-   pas-de-CDN) ; collecte dans la médiathèque D'ABORD.
-   **État MESURÉ le 2026-09-13** (`MEDIA_STORAGE_TIERING.md §9.2`, ligne par ligne) : three
-   0.180.0 EST vendorisé et suivi (`build/` négation `.gitignore:152-153` du 12/09) et
-   l'importmap commune `_three_importmap.html` existe — mais son seul consommateur est
-   TalkingHead (`wama-avatar.js`) ; l'onglet « Objet 3D » de la médiathèque existe PAR DÉRIVATION
-   du vocabulaire, la card tombe sur l'icône générique et `assetToPreviewData` n'a **aucune
-   branche 3D**. 0 ligne `object3d`, 0 fichier 3D sous `media/`. **Rien n'ingère, rien ne
-   rend.** Les attributs d'un objet 3D (format, rigged, units, scale, polygons, animations)
-   sont DÉCLARÉS par la construction A′ (`ASSET_NATURES` + `attributes` JSON, décision Fabien
-   13/09) : ce trou se comble sans migration ni colonne, après les voix (1ʳᵉ nature versée).
-3. **Port studio `object_3d`** (DataType) pour câbler detector → 2D→3D → médiathèque.
-   (Mesuré 13/09 : aucun `DataType` 3D dans `data_types.py` — la nature `object3d` d'A′ portera
-   `data_type='object_3d'`, lien inter-mondes déclaré.)
+2. ✅ **Médiathèque : ingest + aperçu des objets 3D — FAIT le 2026-09-13 (soir)**, sur A′ :
+   - **ingest** : un `.glb`/`.gltf` déposé (ou rangé depuis une sortie d'app) reçoit ses
+     `attributes` LUS du fichier par la sonde commune (`media_probe.probe_object3d` — table
+     des matières glTF, sans décoder : format, faces, rig, animations) et un MIME `model/…`
+     (`mime_utils`, qui PRIME sur la stdlib — elle ne connaît aucun format 3D) ; ce que
+     l'utilisateur saisit prime sur la sonde (`services.enrich_asset_from_file`, posé sur les
+     deux chemins d'entrée) ;
+   - **aperçu** : `media-preview.js` ouvre pour `model/…` la visionneuse commune
+     `common/js/wama-3d-viewer.js` (module ES, three vendorisé : GLTF/GLB et FBX, cadrage sur la
+     boîte englobante, orbite, grille, 1ʳᵉ animation jouée, contexte WebGL libéré à la
+     fermeture), chargée À LA DEMANDE par l'importmap — une page sans importmap retombe sur le
+     téléchargement sans erreur. La médiathèque inclut l'importmap ; obj/stl/ply/usd sont
+     acceptés à l'ingest mais restent au téléchargement (aucun loader vendorisé) ;
+   - **attesté** : cube GLB fabriqué octet par octet (tests) → 12 faces, riggé, 1 animation
+     lus ; dans le navigateur : card `fa-cube`, `<canvas>` WebGL monté dans la modale, méta
+     « GLB • 1 maillage • 1 animation », canvas retiré à la fermeture, 0 erreur console (8/8).
+   - ⚠ **TROUVÉ EN CHEMIN : `three.core.js` MANQUAIT sur disque depuis le vendoring du 21/08**
+     (le build est scindé depuis r170, `three.module.js` n'est qu'une façade qui l'importe) :
+     TOUT import de `three` — TalkingHead compris — tombait en 404 dans le navigateur, et la
+     garde `VendoringTest` ne demandait que la façade. Récupéré depuis npm (0.180.0, façade
+     vérifiée identique), versionné avec la LICENSE (MIT), `update_vendors.sh` et la garde
+     complétés.
+3. ✅ **Port studio `object_3d` — DÉCLARÉ le 2026-09-13** : `DataType.OBJECT_3D`
+   (`data_types.py`, non tabulaire comme `DEPTH_MAP`), et la nature `object3d` le porte en
+   `data_type` (lien inter-mondes vérifié par test : toute nature qui déclare un type le
+   déclare dans le vocabulaire Data). Le premier PRODUCTEUR est le trou 4 ; le premier
+   consommateur, un `PortSpec('object', DataType.OBJECT_3D)` d'un nœud d'insertion (trou 6).
 4. **Manifeste `function` « image→3D »** + backend (contrat `BaseModelBackend`).
 5. **Passerelle virtualib** : APRÈS collecte en médiathèque ; **IMPORT ET EXPORT (décision
    Fabien 18/08)**, export d'abord ; lien inter-mondes déclaré (manifeste), pas de glu ad hoc.
