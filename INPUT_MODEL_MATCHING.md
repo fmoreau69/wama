@@ -268,3 +268,9 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
   brancher sans rien connaître du TTS. ⚠ `tts_service.py:34` (processus séparé) et
   `VOICE_REFS_SUBDIR` (commun) sont les deux endroits qui décident du dossier : ils suivent
   ensemble ou pas du tout.
+  **Le plan COMPLET est consigné le 13/09 dans `MEDIA_STORAGE_TIERING.md §9`** — la
+  construction A′ (`attributes` JSON + vocabulaire `ASSET_NATURES`, validée par Fabien), les
+  9 décisions à ne plus reposer, le relevé ligne par ligne des lecteurs du dossier de voix et
+  l'ordre des 7 marches. Le branchement voix ↔ langue des filtres est sa marche 6 : les options
+  de voix porteront `data-language` depuis `attributes`, et `voiceSlot`/`langSlot` croiseront
+  les deux axes (état « avertissement », jamais caché).

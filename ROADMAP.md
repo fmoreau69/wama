@@ -2262,7 +2262,18 @@ approfondir en testant jusqu'où on peut aller (multi-vues, fidélité au véhic
    déclaré dans `media_library/models.py` (migration 0013, no-op SQL, appliquée WSL2).
 2. **Médiathèque** : ingest + preview des objets 3D (viewer three.js **vendorisé local**, règle
    pas-de-CDN) ; collecte dans la médiathèque D'ABORD.
+   **État MESURÉ le 2026-09-13** (`MEDIA_STORAGE_TIERING.md §9.2`, ligne par ligne) : three
+   0.180.0 EST vendorisé et suivi (`build/` négation `.gitignore:152-153` du 12/09) et
+   l'importmap commune `_three_importmap.html` existe — mais son seul consommateur est
+   TalkingHead (`wama-avatar.js`) ; l'onglet « Objet 3D » de la médiathèque existe PAR DÉRIVATION
+   du vocabulaire, la card tombe sur l'icône générique et `assetToPreviewData` n'a **aucune
+   branche 3D**. 0 ligne `object3d`, 0 fichier 3D sous `media/`. **Rien n'ingère, rien ne
+   rend.** Les attributs d'un objet 3D (format, rigged, units, scale, polygons, animations)
+   sont DÉCLARÉS par la construction A′ (`ASSET_NATURES` + `attributes` JSON, décision Fabien
+   13/09) : ce trou se comble sans migration ni colonne, après les voix (1ʳᵉ nature versée).
 3. **Port studio `object_3d`** (DataType) pour câbler detector → 2D→3D → médiathèque.
+   (Mesuré 13/09 : aucun `DataType` 3D dans `data_types.py` — la nature `object3d` d'A′ portera
+   `data_type='object_3d'`, lien inter-mondes déclaré.)
 4. **Manifeste `function` « image→3D »** + backend (contrat `BaseModelBackend`).
 5. **Passerelle virtualib** : APRÈS collecte en médiathèque ; **IMPORT ET EXPORT (décision
    Fabien 18/08)**, export d'abord ; lien inter-mondes déclaré (manifeste), pas de glu ad hoc.
