@@ -35,6 +35,8 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from wama.common.file_cache import FileCache
+
 logger = logging.getLogger(__name__)
 
 #: Saveurs de sortie déclarées par `backends/__init__.RESULT` (marche B1) — ce que le
@@ -139,7 +141,15 @@ class AppBackends:
 
 def _init_declarations(chemin) -> dict:
     """Déclarations LITTÉRALES du `backends/__init__.py` (ROUTES/RESULT/NATURE_FIELD),
-    lues sans import — même raison que `_classe_backends` : lire ne doit rien exécuter."""
+    lues sans import — même raison que `_classe_backends` : lire ne doit rien exécuter.
+    Gardées sur l'empreinte du fichier (`_INITS`)."""
+    try:
+        return _INITS.get(chemin, _read_init_declarations)
+    except OSError:
+        return {}
+
+
+def _read_init_declarations(chemin) -> dict:
     out = {}
     try:
         arbre = ast.parse(chemin.read_text(encoding='utf-8'))
@@ -208,6 +218,59 @@ def _literal_value(noeud):
         return None
 
 
+#: Lecture AST PAR FICHIER, gardée sur l'empreinte du fichier (`common/file_cache.py`). La
+#: résolution appelle l'inventaire en boucle (une fois par modèle) : sans ce cache, chaque appel
+#: ré-analysait tous les paquets `backends/` — 6 237 `ast.parse` pour UNE extraction de
+#: manifeste (mesuré le 2026-09-14). Un fichier modifié est relu : rien n'est servi périmé.
+_FICHIERS_BACKENDS = FileCache()
+_INITS = FileCache()
+
+
+def _file_classes(f) -> tuple:
+    """(classes d'UN fichier, erreur) — sa lecture AST, sans import ; valeur mise en cache."""
+    classes = {}
+    try:
+        arbre = ast.parse(f.read_text(encoding='utf-8'))
+    except (OSError, SyntaxError) as e:
+        return {}, f'{f.stem} ({type(e).__name__})'
+    # ⚠ Au niveau MODULE : c'est là que les backends imager posent `SUPPORTED_MODELS`
+    # (vérifié sur les 8). Le lire dans le corps de classe seul le raterait entièrement.
+    # On l'attribue à toute classe du fichier : un fichier de backend en déclare une, et
+    # une déclaration de module vaut pour son module.
+    supported = []
+    for n in arbre.body:
+        if isinstance(n, ast.Assign) and len(n.targets) == 1                     and getattr(n.targets[0], 'id', '') == 'SUPPORTED_MODELS':
+            valeur = _literal_value(n.value)
+            if isinstance(valeur, dict):
+                supported = [str(k) for k in valeur]
+
+    for n in arbre.body:
+        if not isinstance(n, ast.ClassDef):
+            continue
+        bases = {b.id if isinstance(b, ast.Name) else getattr(b, 'attr', '')
+                 for b in n.bases}
+        attrs, propres_abstraites, definies = {}, set(), set()
+        for s in n.body:
+            if isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
+                attrs[s.targets[0].id] = _literal_value(s.value)
+            elif isinstance(s, ast.AnnAssign) and isinstance(s.target, ast.Name) and s.value is not None:
+                attrs[s.target.id] = _literal_value(s.value)
+            elif isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if any(getattr(d, 'id', getattr(d, 'attr', '')) == 'abstractmethod'
+                       for d in s.decorator_list):
+                    propres_abstraites.add(s.name)
+                else:
+                    definies.add(s.name)
+            elif isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
+                definies.add(s.targets[0].id)     # alias de méthode (load_model = load)
+        classes[n.name] = {
+            'nom': n.name, 'bases': frozenset(bases),
+            'fichier': f.stem, 'attrs': attrs, 'supported': tuple(supported),
+            'propres_abstraites': frozenset(propres_abstraites),
+            'definies': frozenset(definies)}
+    return classes, ''
+
+
 def _class_backends(paquet_dir, prefixe: str) -> tuple:
     """(classes, illisibles) — backends du paquet, lus par AST : AUCUN IMPORT.
 
@@ -233,44 +296,14 @@ def _class_backends(paquet_dir, prefixe: str) -> tuple:
     classes_par_nom, unreadable = {}, []
     for f in fichiers:
         try:
-            arbre = ast.parse(f.read_text(encoding='utf-8'))
-        except (OSError, SyntaxError) as e:
-            unreadable.append(f'{f.stem} ({type(e).__name__})')
+            classes, erreur = _FICHIERS_BACKENDS.get(f, _file_classes)
+        except OSError as e:
+            classes, erreur = {}, f'{f.stem} ({type(e).__name__})'
+        if erreur:
+            unreadable.append(erreur)
             continue
-        # ⚠ Au niveau MODULE : c'est là que les backends imager posent `SUPPORTED_MODELS`
-        # (vérifié sur les 8). Le lire dans le corps de classe seul le raterait entièrement.
-        # On l'attribue à toute classe du fichier : un fichier de backend en déclare une, et
-        # une déclaration de module vaut pour son module.
-        supported = []
-        for n in arbre.body:
-            if isinstance(n, ast.Assign) and len(n.targets) == 1                     and getattr(n.targets[0], 'id', '') == 'SUPPORTED_MODELS':
-                valeur = _literal_value(n.value)
-                if isinstance(valeur, dict):
-                    supported = [str(k) for k in valeur]
-
-        for n in arbre.body:
-            if not isinstance(n, ast.ClassDef):
-                continue
-            bases = {b.id if isinstance(b, ast.Name) else getattr(b, 'attr', '')
-                     for b in n.bases}
-            attrs, propres_abstraites, definies = {}, set(), set()
-            for s in n.body:
-                if isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
-                    attrs[s.targets[0].id] = _literal_value(s.value)
-                elif isinstance(s, ast.AnnAssign) and isinstance(s.target, ast.Name) and s.value is not None:
-                    attrs[s.target.id] = _literal_value(s.value)
-                elif isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if any(getattr(d, 'id', getattr(d, 'attr', '')) == 'abstractmethod'
-                           for d in s.decorator_list):
-                        propres_abstraites.add(s.name)
-                    else:
-                        definies.add(s.name)
-                elif isinstance(s, ast.Assign) and len(s.targets) == 1 and isinstance(s.targets[0], ast.Name):
-                    definies.add(s.targets[0].id)     # alias de méthode (load_model = load)
-            classes_par_nom[n.name] = {
-                'nom': n.name, 'bases': bases, 'module': f'{prefixe}.{f.stem}',
-                'fichier': f.stem, 'attrs': attrs, 'supported': supported,
-                'propres_abstraites': propres_abstraites, 'definies': definies}
+        for nom, info in classes.items():
+            classes_par_nom[nom] = dict(info, module=f'{prefixe}.{f.stem}')
 
     # Fermeture transitive depuis le contrat commun (les bases métier sont dans le paquet).
     backends, bougé = {'BaseModelBackend'}, True
@@ -600,6 +633,14 @@ def orphelins(entrees, servis) -> tuple:
     return ([e for e in classes if not e.deprecated],
             [e for e in classes if e.deprecated])
 
+
+def resolvable_entries() -> List[BackendEntry]:
+    """Le vivier que la résolution consulte — jumelles de bac à sable exclues. Un appelant qui
+    résout EN SÉRIE le lit une fois et le passe en `entries=` : sans cela, chaque résolution
+    relit l'inventaire — 48 fois pour les 48 modèles de l'anonymizer (mesuré le 2026-09-14)."""
+    return [e for a in inventory() if not a.generated_from for e in a.entries]
+
+
 def resolve_entry(engine: str, model_id: str = '', entries=None) -> Optional[BackendEntry]:
     """ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
     rien n'est importé, c'est la moitié « décision » de `resolve_backend`, séparée le
@@ -623,7 +664,7 @@ def resolve_entry(engine: str, model_id: str = '', entries=None) -> Optional[Bac
     if not engine:
         return None
     if entries is None:
-        entries = [e for a in inventory() if not a.generated_from for e in a.entries]
+        entries = resolvable_entries()
     candidats = [e for e in entries if e.engine == engine]
     if not candidats:
         return None
@@ -647,10 +688,11 @@ def resolve_entry(engine: str, model_id: str = '', entries=None) -> Optional[Bac
     return None
 
 
-def resolve_backend(engine: str, model_id: str = ''):
+def resolve_backend(engine: str, model_id: str = '', entries=None):
     """Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
-    La DÉCISION est `resolve_entry` (statique) ; ici on ne fait qu'importer ce qu'elle a choisi."""
-    entree = resolve_entry(engine, model_id)
+    La DÉCISION est `resolve_entry` (statique) ; ici on ne fait qu'importer ce qu'elle a choisi.
+    `entries` : le vivier déjà lu (`resolvable_entries()`), pour une résolution en série."""
+    entree = resolve_entry(engine, model_id, entries)
     return _resoudre_classe(entree) if entree is not None else None
 
 
@@ -668,7 +710,7 @@ def app_backend_entries(app: str) -> List[BackendEntry]:
     modeles = _models_by_app().get(app) or []
     if not modeles:
         return []
-    entries = [e for a in inventory() if not a.generated_from for e in a.entries]
+    entries = resolvable_entries()
     par_module = {}
     for cle, _ref, engine in modeles:
         e = resolve_entry(engine, cle.rsplit(':', 1)[-1] if cle else '', entries)

@@ -53,6 +53,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import unquote
 
+from .file_cache import FileCache, file_stamp
+
 #: ⚠ Les VALEURS sont un vocabulaire de DONNÉE (filtres `data-f-*`, futures déclarations) : elles
 #: ne se renomment pas avec les identifiants (AGENTS.md §nommage, règle 3).
 CONSTRUCTION = 'construction'
@@ -323,15 +325,15 @@ def file_of(doc: Doc) -> Path:
 # Fiches (catalogue) et rendu (lecteur) — DÉRIVÉS du disque, mis en cache sur (mtime, taille)
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-#: {chemin → ((mtime_ns, taille), valeur)}. Le cache ne change pas la nature DÉRIVÉE du
-#: registre : la clé est l'empreinte du fichier, un `.md` modifié est relu au rendu suivant.
-_LINES: Dict[str, tuple] = {}
-_RENDERED: Dict[str, tuple] = {}
+#: Le cache ne change pas la nature DÉRIVÉE du registre : la clé est l'empreinte du fichier
+#: (`common/file_cache.py`), un `.md` modifié est relu au rendu suivant.
+_LINES = FileCache()
+_RENDERED = FileCache()
 
 
-def _stamp(f: Path) -> tuple:
-    st = f.stat()
-    return (st.st_mtime_ns, st.st_size)
+def _count_lines(f: Path) -> int:
+    data = f.read_bytes()
+    return data.count(b'\n') + (1 if data and not data.endswith(b'\n') else 0)
 
 
 def entry(doc: Doc) -> dict:
@@ -345,17 +347,13 @@ def entry(doc: Doc) -> dict:
         'exists': False, 'lines': 0, 'modified': None,
     }
     f = file_of(doc)
+    stamp = file_stamp(f)
+    if stamp is None:
+        return out
     try:
-        stamp = _stamp(f)
+        lines = _LINES.get(f, _count_lines)
     except OSError:
         return out
-    hit = _LINES.get(doc.path)
-    if hit and hit[0] == stamp:
-        lines = hit[1]
-    else:
-        data = f.read_bytes()
-        lines = data.count(b'\n') + (1 if data and not data.endswith(b'\n') else 0)
-        _LINES[doc.path] = (stamp, lines)
     out.update(exists=True, lines=lines, modified=datetime.fromtimestamp(stamp[0] / 1e9))
     return out
 
@@ -367,16 +365,10 @@ def entries() -> List[dict]:
 def render_doc(doc: Doc, admin: bool = True) -> dict:
     """`{'html', 'toc'}` du doc, tel que le lit un administrateur ou non — les liens vers une doc
     qu'il ne peut pas lire deviennent du texte. Lève `FileNotFoundError` si le fichier manque."""
-    f = file_of(doc)
-    stamp = _stamp(f)
-    cle = (doc.path, admin)
-    hit = _RENDERED.get(cle)
-    if hit and hit[0] == stamp:
-        return hit[1]
-    out = render_markdown(f.read_text(encoding='utf-8', errors='replace'), doc.path,
-                          visible=lambda d: visible_to(d, admin))
-    _RENDERED[cle] = (stamp, out)
-    return out
+    def _rendre(f: Path) -> dict:
+        return render_markdown(f.read_text(encoding='utf-8', errors='replace'), doc.path,
+                               visible=lambda d: visible_to(d, admin))
+    return _RENDERED.get(file_of(doc), _rendre, key=(doc.path, admin))
 
 
 _SCHEME = re.compile(r'^[a-z][a-z0-9+.\-]*:', re.I)
