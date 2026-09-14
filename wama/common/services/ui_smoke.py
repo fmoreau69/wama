@@ -992,17 +992,22 @@ def check_app_send_to(app: str, url_path: str):
                                    "du dossier temporaire, ou ne s'est pas rafraîchi")
 
                 page.click(cible, button='right')
+                # Depuis le 2026-09-14 le menu de l'arbre est la brique COMMUNE `WamaCardMenu`
+                # (c'était le `vakata-context` de jsTree). Son sous-menu s'ouvre en CASCADE, au
+                # survol, à côté du menu parent qui reste ouvert : le geste mesuré reste donc
+                # « survoler « Envoyer vers… » puis cliquer l'app ».
+                menu = '.wama-card-menu'
                 try:
-                    page.wait_for_selector('.vakata-context:visible', timeout=8000)
+                    page.wait_for_selector(f'{menu}:visible', timeout=8000)
                 except Exception:
                     return False, "le clic droit sur un fichier n'ouvre aucun menu contextuel"
 
-                entree = page.query_selector('.vakata-context a:has-text("Envoyer vers")')
+                entree = page.query_selector(f'{menu} .wama-cm-item:has-text("Envoyer vers")')
                 if not entree:
                     if not recevable:
                         raise SkipScenario(DETTE)
                     libelles = page.evaluate(
-                        "() => [...document.querySelectorAll('.vakata-context a')]"
+                        "() => [...document.querySelectorAll('.wama-card-menu .wama-cm-item')]"
                         ".map(a => a.textContent.trim()).filter(Boolean).slice(0, 12)")
                     return False, ("le menu contextuel n'offre pas « Envoyer vers… » sur un "
                                    f"fichier {temoin.suffix} que l'app DÉCLARE accepter "
@@ -1010,8 +1015,10 @@ def check_app_send_to(app: str, url_path: str):
                 entree.hover()
                 page.wait_for_timeout(600)
 
-                # Le sous-menu porte le LIBELLÉ de l'app (APP_CATALOG.label), pas son id.
-                choix = page.query_selector(f'.vakata-context a:text-is("{libelle}")')
+                # Le sous-menu porte le LIBELLÉ de l'app (APP_CATALOG.label), pas son id. On vise
+                # le `<span>` du libellé : `:text-is` retient le plus PETIT élément porteur du
+                # texte, donc jamais le bouton qui l'enveloppe avec son icône.
+                choix = page.query_selector(f'{menu} .wama-cm-item > span:text-is("{libelle}")')
                 if not recevable:
                     # Le contrôle INVERSE, et c'est lui qui garde la porte fermée : une app que
                     # le serveur ne sait pas remplir ne doit PAS être proposée. Le mesurer ici
@@ -1025,7 +1032,7 @@ def check_app_send_to(app: str, url_path: str):
                     raise SkipScenario(DETTE)
                 if not choix:
                     offerts = page.evaluate(
-                        "() => [...document.querySelectorAll('.vakata-context ul a')]"
+                        "() => [...document.querySelectorAll('.wama-card-menu .wama-cm-item')]"
                         ".map(a => a.textContent.trim()).filter(Boolean)")
                     return False, (f"« Envoyer vers… » n'offre pas {libelle} alors que l'app "
                                    f"DÉCLARE accepter {temoin.suffix} — offert : {offerts}")

@@ -4,9 +4,9 @@
    Demande de Fabien (2026-09-08) : « j'aimerais qu'on améliore l'esthétique du menu contextuel,
    car celui du filemanager est vraiment peu esthétique. »
 
-   Ce menu-là n'est PAS celui du filemanager : le sien est le `vakata-context` de jsTree,
-   rhabillé par des `!important` (`filemanager.css:545-559`) — un composant tiers dont on ne
-   maîtrise ni la structure ni les états. Celui-ci est à nous, et le filemanager pourra y migrer.
+   Le filemanager avait le `vakata-context` de jsTree, rhabillé par des `!important` — un
+   composant tiers dont on ne maîtrisait ni la structure ni les états. Celui-ci est à nous, et
+   l'arbre de fichiers l'utilise aussi depuis le 2026-09-14 : UN menu contextuel dans WAMA.
 
    Langue de design : on reprend les tokens DÉJÀ posés dans WAMA plutôt que d'en inventer —
    fond `#2b3035` (celui de la barre de filtrage), accent cyan `#0dcaf0` (famille de lot,
@@ -102,8 +102,8 @@
 }
 .wama-cm-item:disabled:hover { background: none; color: inherit; }
 
-/* DANGER — même rouge que les entrées destructrices du filemanager, pour que « supprimer »
-   se reconnaisse d'un menu à l'autre. */
+/* DANGER — le rouge que les entrées destructrices du filemanager portaient déjà avant de
+   rejoindre ce menu : « supprimer » garde la couleur qu'on lui connaissait. */
 .wama-cm-danger { color: #f87171; }
 .wama-cm-danger > i:first-child { color: #f87171; }
 .wama-cm-danger:hover,
@@ -137,6 +137,15 @@
     color: #6c757d;
 }
 .wama-cm-item:hover .wama-cm-fleche { color: #0dcaf0; }
+
+/* Entrée dont le sous-menu est OUVERT (cascade, 2026-09-14) : elle reste allumée pendant qu'on
+   parcourt le sous-menu — sinon l'œil perd le lien entre le parent et l'enfant. */
+.wama-cm-item.wama-cm-ouvert {
+    background: rgba(13, 202, 240, .14);
+    color: #fff;
+}
+.wama-cm-item.wama-cm-ouvert > i:first-child,
+.wama-cm-item.wama-cm-ouvert .wama-cm-fleche { color: #0dcaf0; }
 
 /* ── Rangée d'actions : le bouton « … » et le surplus masqué ─────────────────────────────
    Les boutons au-delà du nominal (6, bouton édition compris — décision Fabien) sont retirés de

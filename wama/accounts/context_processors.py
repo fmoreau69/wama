@@ -148,8 +148,9 @@ def user_role(request):
             if _entries or _links:
                 nav_apps_grouped.append({'id': _cid, 'meta': _meta, 'apps': _entries, 'links': _links})
         if _sandbox_entries:
-            # `submenu` : rendu REPLIÉ par le gabarit (demande Fabien 03/09) — à une jumelle
-            # par app portée, un groupe à plat doublerait la hauteur du menu. Le drapeau est
+            # `submenu` : rendu en SOUS-MENU EN CASCADE par le gabarit (demande Fabien 03/09,
+            # accordéon remplacé le 14/09) — à une jumelle par app portée, un groupe à plat
+            # doublerait la hauteur du menu. Le drapeau est
             # porté par la DONNÉE : le gabarit ne connaît aucun nom de groupe en dur.
             nav_apps_grouped.append({'id': 'sandbox', 'submenu': True,
                                      'meta': {'label': 'Bac à sable', 'icon': '🧪'},

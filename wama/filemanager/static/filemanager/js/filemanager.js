@@ -203,7 +203,9 @@
                 },
                 'multiple': true
             },
-            'plugins': ['contextmenu', 'search', 'wholerow', 'dnd', 'types', 'state'],
+            // ⚠ PAS de plugin 'contextmenu' (retiré le 2026-09-14) : le clic droit ouvre le menu
+            // COMMUN de WAMA (`WamaCardMenu`), câblé plus bas par `bindContextMenu`.
+            'plugins': ['search', 'wholerow', 'dnd', 'types', 'state'],
             // Persistance de l'état plié/déplié (gère le lazy-loading nativement,
             // contrairement à l'ancienne restauration manuelle). La section
             // "Mes fichiers" conserve ainsi son état entre apps et rafraîchissements.
@@ -238,11 +240,6 @@
                 'section': { 'icon': 'fa fa-home text-secondary' },
                 'error':   { 'icon': 'fa fa-exclamation-triangle text-warning' },
             },
-            'contextmenu': {
-                'items': contextMenuItems,
-                'select_node': true,
-                'show_at_node': true
-            },
             'search': {
                 'show_only_matches': true,
                 'show_only_matches_children': true
@@ -271,6 +268,7 @@
         console.log('[FileManager] jstree initialized, plugins:', tree.settings.plugins);
 
         // Event handlers
+        bindContextMenu(treeContainer);
         $(treeContainer).on('dblclick.jstree', '.jstree-anchor', handleDoubleClick);
         $(treeContainer).on('loaded.jstree', handleTreeLoaded);
         $(treeContainer).on('refresh.jstree', handleTreeRefreshed);
@@ -623,6 +621,70 @@
             }
             jst.refresh();  // fallback: full refresh
         } catch (_) { /* non-fatal */ }
+    }
+
+    // ── Clic droit : le menu COMMUN de WAMA (2026-09-14) ────────────────────────────────────
+    //
+    // Le menu de l'arbre était le `vakata-context` de jsTree, rhabillé par des `!important`
+    // dans `filemanager.css` : un composant tiers qui ne pouvait pas ressembler au menu des
+    // cards (`wama-card-menu.js`, 2026-09-08 — qui annonçait déjà cette migration). L'arbre
+    // délègue désormais son clic droit à `WamaCardMenu.ouvrir` : même rendu et mêmes gestes
+    // que sur une card (sous-menu ouvert au CLIC, titre « N éléments sélectionnés », fermeture
+    // par Échap, clic extérieur ou défilement).
+    //
+    // ⚠ DEUX cibles, pas une. Le plugin `wholerow` peint la ligne par-dessus l'ancre et ne
+    // RELAIE le clic droit vers elle que si le plugin `contextmenu` est chargé
+    // (`this._data.contextmenu`, jstree.min.js) : écouter la seule ancre laisserait mort un
+    // clic droit posé sur la marge de la ligne.
+    function bindContextMenu(container) {
+        $(container).on('contextmenu', '.jstree-anchor, .jstree-wholerow', function (ev) {
+            const nodeEl = ev.currentTarget.closest('.jstree-node');
+            const node = nodeEl ? tree.get_node(nodeEl.id) : null;
+            if (!node) return;
+            ev.preventDefault();
+            if (!window.WamaCardMenu) {
+                console.error('[FileManager] WamaCardMenu absent : menu contextuel indisponible');
+                return;
+            }
+            // Même règle que l'ancien plugin (`select_node: true`) : un clic droit HORS de la
+            // sélection la remplace par le nœud visé ; DANS la sélection, il la conserve.
+            if (!tree.is_selected(node)) tree.activate_node(node, ev);
+            const entries = toCardMenuEntries(contextMenuItems(node));
+            if (!entries.length) return;
+            let x = ev.clientX, y = ev.clientY;
+            if (!x && !y) {   // touche « menu » du clavier : pas de pointeur, on ancre au nœud
+                const r = (nodeEl.querySelector('.jstree-anchor') || nodeEl).getBoundingClientRect();
+                x = r.left; y = r.bottom;
+            }
+            const n = tree.get_selected().length;
+            WamaCardMenu.ouvrir(x, y, entries, n > 1 ? n + ' éléments sélectionnés' : null);
+        });
+    }
+
+    // Les nœuds décrivent toujours leurs actions dans l'ancien format d'entrée (`label`, `icon`,
+    // `action`, `_class`, `separator_before`, `submenu`) : la logique PAR NŒUD de
+    // `contextMenuItems` n'a pas bougé d'une ligne à la migration. Seule sa TRADUCTION vers les
+    // entrées de la brique commune est neuve — un seul endroit, donc un seul où elle peut dériver.
+    function toCardMenuEntries(items) {
+        const entries = [];
+        Object.keys(items || {}).forEach(function (key) {
+            const it = items[key];
+            if (!it) return;
+            const entry = {
+                icone: it.icon || 'fa fa-circle',
+                libelle: it.label,
+                danger: /danger/.test(it._class || ''),
+            };
+            if (it.submenu) {
+                entry.sous = toCardMenuEntries(it.submenu);
+                if (!entry.sous.length) return;   // un sous-menu vide ne s'offre pas
+            } else {
+                entry.agir = it.action;
+            }
+            if (it.separator_before && entries.length) entries.push({ separateur: true });
+            entries.push(entry);
+        });
+        return entries;
     }
 
     function contextMenuItems(node) {

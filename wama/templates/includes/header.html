@@ -14,27 +14,27 @@
                     {# ici : ajouter une app = l'ajouter au catalogue (décision 2026-07-05). #}
                     {% for group in nav_apps_grouped %}
                     {% if group.submenu %}
-                    {% comment %}SOUS-MENU (bac à sable, 03/09 — demande Fabien) : à une jumelle par
-                    app portée, un groupe à plat doublerait la hauteur du menu. Repli natif Bootstrap
-                    (pas de dépendance) : le clic bascule le `.collapse` qui porte les entrées.{% endcomment %}
+                    {% comment %}SOUS-MENU en CASCADE (bac à sable). 03/09, demande Fabien : à une jumelle
+                    par app portée, un groupe à plat doublerait la hauteur du menu. 14/09, retour de
+                    Fabien : l'accordéon `.collapse` d'origine REFERMAIT le menu au clic (il fallait
+                    rouvrir « Applications » pour voir le groupe déplié) → sous-menu déroulant À CÔTÉ,
+                    au survol ou au clic, comme le menu contextuel commun. Comportement : le script en
+                    bas de ce gabarit ; mise en page : `base.html` (`.wama-nav-sous-menu`).{% endcomment %}
                     <li><hr class="dropdown-divider"></li>
-                    <li>
+                    <li class="wama-nav-sous" data-wama-nav-sous>
                         <a class="dropdown-item d-flex align-items-center justify-content-between"
-                           data-bs-toggle="collapse" href="#navSousMenu{{ group.id }}" role="button"
-                           aria-expanded="false" aria-controls="navSousMenu{{ group.id }}">
+                           href="#" role="button" aria-haspopup="true" aria-expanded="false">
                             <span>{{ group.meta.icon }} {{ group.meta.label }}
                                 <span class="badge bg-secondary ms-1">{{ group.apps|length }}</span></span>
-                            <i class="fas fa-chevron-down small ms-2"></i>
+                            <i class="fas fa-chevron-right small ms-2"></i>
                         </a>
-                        <div class="collapse" id="navSousMenu{{ group.id }}">
-                            <ul class="list-unstyled mb-0 ps-3">
-                                {% for a in group.apps %}<li>
-                                    <a class="dropdown-item d-flex align-items-center {% if a.name in request.path %}active{% endif %}" href="{{ a.url }}">
-                                        <i class="{{ a.icon }} me-2"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
-                                    </a>
-                                </li>{% endfor %}
-                            </ul>
-                        </div>
+                        <ul class="dropdown-menu dropdown-menu-dark wama-nav-sous-menu" id="navSousMenu{{ group.id }}">
+                            {% for a in group.apps %}<li>
+                                <a class="dropdown-item d-flex align-items-center {% if a.name in request.path %}active{% endif %}" href="{{ a.url }}">
+                                    <i class="{{ a.icon }} me-2"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
+                                </a>
+                            </li>{% endfor %}
+                        </ul>
                     </li>
                     {% else %}
                     {% if not forloop.first %}<li><hr class="dropdown-divider"></li>{% endif %}
@@ -66,6 +66,55 @@
                     </li>
                 </ul>
             </div>
+            <script>
+            /* Sous-menu en CASCADE du menu « Applications » (2026-09-14, retour de Fabien).
+               ⚠ Le sous-menu est DÉPLACÉ sous <body> à sa première ouverture : laissé dans le menu,
+               il serait ROGNÉ par l'`overflow-y: auto` qui fait défiler « Applications » quand il
+               dépasse la fenêtre (base.html). Et le clic sur le déclencheur ne remonte PAS au
+               document : Bootstrap y referme ses menus — c'est le défaut de l'ancien accordéon. */
+            (function () {
+                var DELAI = 160;             // ms : laisse traverser l'écart entre menu et sous-menu
+                document.querySelectorAll('[data-wama-nav-sous]').forEach(function (li) {
+                    var declencheur = li.querySelector(':scope > .dropdown-item');
+                    var sous = li.querySelector(':scope > .wama-nav-sous-menu');
+                    if (!declencheur || !sous) return;
+                    var minuteur = null;
+                    function montrer() {
+                        clearTimeout(minuteur);
+                        if (sous.parentNode !== document.body) document.body.appendChild(sous);
+                        sous.classList.add('show');
+                        var r = declencheur.getBoundingClientRect();
+                        var w = sous.offsetWidth, h = sous.offsetHeight;
+                        var x = (r.right + w > window.innerWidth - 8) ? r.left - w : r.right;
+                        sous.style.left = Math.max(8, x) + 'px';
+                        sous.style.top = Math.max(8, Math.min(r.top - 8, window.innerHeight - h - 8)) + 'px';
+                        declencheur.classList.add('wama-nav-sous-ouvert');
+                        declencheur.setAttribute('aria-expanded', 'true');
+                    }
+                    function cacher() {
+                        clearTimeout(minuteur);
+                        sous.classList.remove('show');
+                        declencheur.classList.remove('wama-nav-sous-ouvert');
+                        declencheur.setAttribute('aria-expanded', 'false');
+                    }
+                    function cacherBientot() { clearTimeout(minuteur); minuteur = setTimeout(cacher, DELAI); }
+                    li.addEventListener('mouseenter', montrer);
+                    li.addEventListener('mouseleave', cacherBientot);
+                    sous.addEventListener('mouseenter', function () { clearTimeout(minuteur); });
+                    sous.addEventListener('mouseleave', cacherBientot);
+                    declencheur.addEventListener('click', function (ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        // Le clic OUVRE, il ne bascule pas : on survole « Bac à sable » (déjà
+                        // ouvert) puis on clique par habitude — un basculement le refermerait
+                        // sous le doigt. On le quitte pour le fermer, comme le menu contextuel.
+                        montrer();
+                    });
+                    var menu = li.closest('.dropdown');
+                    if (menu) menu.addEventListener('hide.bs.dropdown', cacher);
+                });
+            })();
+            </script>
         </div>
 
         <!-- Logo WAMA (centré absolument) -->

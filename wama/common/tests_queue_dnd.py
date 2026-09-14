@@ -7,6 +7,7 @@ Trois familles :
 """
 
 import ast
+import re
 from pathlib import Path
 
 from django.conf import settings
@@ -597,6 +598,36 @@ class MenuContextuelDeCardTest(TestCase):
               / 'wama-card-menu.js').read_text(encoding='utf-8')
         self.assertIn("classList.contains('wama-cm-plus')", js)
 
+    def _code_de_la_brique(self):
+        """Le JS de la brique SANS ses commentaires : un commentaire ne câble rien."""
+        js = (RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
+              / 'wama-card-menu.js').read_text(encoding='utf-8')
+        js = re.sub(r'/\*.*?\*/', '', js, flags=re.S)
+        return re.sub(r'(^|[^:\'"\\])//[^\n]*', r'\1', js)
+
+    def test_un_defilement_programmatique_ne_referme_pas_le_menu(self):
+        """Mesuré le 2026-09-14 (pile d'appels du retrait) : un clic droit dans l'arbre de fichiers
+        met le FOCUS sur l'ancre, son conteneur défile de lui-même, et l'écouteur `scroll`
+        refermait le menu 7 ms après son ouverture — « aucun menu » pour l'utilisateur. Seul un
+        geste de l'UTILISATEUR hors du menu le referme (bouton enfoncé, molette, glissé tactile)."""
+        code = self._code_de_la_brique()
+        self.assertNotRegex(code, r"addEventListener\(\s*'scroll'",
+                            "la brique se referme encore sur n'importe quel défilement")
+        for geste in ('mousedown', 'wheel', 'touchmove'):
+            with self.subTest(geste=geste):
+                self.assertIn(f"'{geste}'", code)
+
+    def test_un_sous_menu_s_ouvre_en_cascade_sans_fermer_son_parent(self):
+        """Retour de Fabien (2026-09-14) : le sous-menu s'ouvrait au CLIC et REMPLAÇAIT son parent
+        (`ouvrir()` commence par tout fermer). Il s'ouvre désormais à côté, au survol et au clic,
+        par `ouvrirSous` — qui ne referme que les niveaux au-delà du sien."""
+        code = self._code_de_la_brique()
+        self.assertIn("addEventListener('mouseenter'", code, "plus d'ouverture au survol")
+        corps_ouvrir_sous = code[code.index('function ouvrirSous('):code.index('function remplir(')]
+        self.assertNotIn('fermer()', corps_ouvrir_sous,
+                         "ouvrir un sous-menu referme tout — le parent disparaît de nouveau")
+        self.assertIn('fermerDepuis(niveau)', corps_ouvrir_sous)
+
     def test_staticfiles_sert_la_meme_brique(self):
         """`staticfiles/` est le dossier SERVI : un correctif non resynchronisé est invisible."""
         for rel in ('common/js/wama-card-menu.js', 'common/css/wama-card-menu.css'):
@@ -607,6 +638,37 @@ class MenuContextuelDeCardTest(TestCase):
                 self.assertEqual(source.read_text(encoding='utf-8'),
                                  servi.read_text(encoding='utf-8'),
                                  f"{rel} : staticfiles/ diverge de la source")
+
+
+class MenuApplicationsEnCascadeTest(TestCase):
+    """Le groupe « Bac à sable » du menu « Applications » est un SOUS-MENU EN CASCADE.
+
+    Retour de Fabien (2026-09-14) : l'accordéon `.collapse` refermait le menu au clic — il fallait
+    rouvrir « Applications » pour voir le groupe déplié. Même famille de défaut que le sous-menu
+    du menu contextuel, même réponse : un sous-menu À CÔTÉ, au survol ou au clic.
+    """
+
+    def _header(self):
+        return (RACINE / 'wama' / 'templates' / 'includes' / 'header.html').read_text(encoding='utf-8')
+
+    def test_le_sous_menu_n_est_plus_un_accordeon(self):
+        header = self._header()
+        self.assertNotIn('data-bs-toggle="collapse"', header,
+                         "un accordéon est revenu dans l'en-tête : il referme le menu au clic")
+        self.assertIn('data-wama-nav-sous', header)
+        self.assertIn('wama-nav-sous-menu', header)
+
+    def test_le_clic_sur_le_declencheur_ne_remonte_pas_au_document(self):
+        """Bootstrap referme ses menus sur un clic qui atteint le document : c'est exactement ce
+        qui refermait « Applications » quand on cliquait « Bac à sable »."""
+        self.assertIn('ev.stopPropagation()', self._header())
+
+    def test_le_sous_menu_echappe_au_rognage_du_menu_qui_defile(self):
+        """Le menu « Applications » défile (`overflow-y: auto`) : un sous-menu laissé DEDANS y
+        serait rogné. Il est posé sous `<body>` et positionné en `fixed`."""
+        self.assertIn('document.body.appendChild(sous)', self._header())
+        base = (RACINE / 'wama' / 'templates' / 'base.html').read_text(encoding='utf-8')
+        self.assertRegex(base, r'\.dropdown-menu\.wama-nav-sous-menu\s*\{[^}]*position:\s*fixed')
 
 
 def _urls_de_manipulation_par_file():
