@@ -1643,6 +1643,39 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 - **LM Studio** : redondant avec Ollama pour le service ; à garder comme **bac à sable** d'exploration manuelle, pas comme composant servi.
 - **MemPalace** : promesses contestées publiquement (« +34 % recall » = filtrage métadonnées classique ; « 30x sans perte » = ~12 % de perte de récupération mesurée). = **confort** (mémoire inter-sessions), pas brique critique ; Headroom couvre déjà ce besoin.
 
+#### llmfit — confrontation au banc de modèles (2026-09-14, demande de Fabien)
+> `github.com/AlexsJones/llmfit`, Rust MIT, binaire seul (le paquet PyPI n'embarque que le
+> binaire). Adéquation matériel↔LLM : fit mémoire par taux de remplissage (60/85/98 %),
+> estimation tok/s par bande passante (`bandwidth / taille × 0,55`), banc réel Ollama (3 passes,
+> `num_predict` 300, temps natifs `eval_duration`), **provenance de chaque chiffre**
+> (`measured_local > measured_community > calibrated > estimated`), rubrique qualité par rôle
+> (YAML de regex, score 0-10) et partage communautaire par PR GitHub.
+- ❌ **Non intégré** — redondant ou incompatible : fit mémoire (le curseur continu de
+  `model_selector` + le gouverneur font mieux qu'un verdict à 4 crans) ; qualité par famille
+  curée (WAMA a un banc tiers MESURÉ, `benchmark_sync`) ; catalogue scrappé HF (`AIModel` +
+  prospection) ; **composite qualité×vitesse `(q×2 + tps/3)/3`** — contraire à « jamais deux
+  échelles mélangées » et à « le rang, pas le score » ; partage par PR (dépôt public, labo).
+- ✅ **Trou 1 comblé le jour même** : WAMA ne mesurait AUCUN débit LLM — `ModelRuntimeStat`
+  portait une unité `token` a priori (0,03 s/jeton) et zéro enregistrement, aucune app LLM
+  n'appelant `record_run`. → protocole `text-generation` dans `bench.py` (`_bench_generation`,
+  repris du geste llmfit : chauffe + N passes, temps natifs Ollama, saturation au plafond),
+  qui **persiste des durées** dans la boucle d'ETA existante, jamais une qualité ; respecte
+  `WAMA_GPU_SAFE_MODE` (jumeau du triage VLM et du describer). Commande :
+  `manage.py bench --task text-generation --media prompt.txt --models <un seul>`.
+  ⚠ **Aucune mesure réelle prise par Claude** : le protocole charge un LLM sur l'Ollama hôte,
+  la rampe qui tue l'hôte (règle du 31/08). Première passe = Fabien, un modèle à la fois.
+  Au passage : `_bench_description` (légendage) lisait un dict comme une chaîne → chaque
+  modèle sortait « en erreur » depuis sa création ; corrigé, testé.
+- ⏳ **Trou 2, non fait (décision de conception)** : l'échelle des signaux qualifie la
+  provenance de la QUALITÉ (a priori < banc tiers < mesure), pas celle du COÛT — le terme
+  légèreté de `_best_by_vram` lit `vram_gb` quelle que soit son origine, et
+  `extra_info['vram_estimated']` ne se lève jamais (gouverneur, 03/09). L'enum
+  `estimate_confidence` de llmfit est le marqueur manquant, à poser sur VRAM **et** débit.
+- ⏳ **Idée 3, à arbitrer (Fabien)** : la rubrique regex par rôle est un juge DÉTERMINISTE,
+  autorisé par le garde-fou 1 du §16.5 là où `qc.py` (juge LLM, zéro appelant) n'est pas
+  calibré. Pourrait remplir l'étage « mesure interne » des LLM. Réserves : prompts à réécrire
+  en français, signal RELATIF, jamais un composite.
+
 ### 16.3 Questions ouvertes — à trancher prochainement
 1. **Routeur local/cloud pour modèles NON-LLM** (le vrai besoin reformulé par Fabien) : LiteLLM reste le routeur du cerveau LLM ; pour les modèles non-LLM, choisir entre (a) exposition standardisée OpenAI-compatible via **LocalAI** (couvre Whisper/SD/Flux/Llava + désormais visages/détection), (b) garder les apps WAMA comme couche de service et n'ajouter qu'un routeur local/cloud par-dessus. → décider après le test LocalAI/Transcriber.
 2. **Privacy texte avant cloud** : **Presidio** (MS, NER + règles, masquage configurable) vs **openai/privacy-filter** (HF) — à comparer (couverture FR, perf, licence, intégration) comme pièce texte de la règle « anonymiser avant cloud », en complément de l'Anonymizer média.
