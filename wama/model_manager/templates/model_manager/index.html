@@ -1461,6 +1461,12 @@ document.addEventListener('DOMContentLoaded', function() {
         ] },
         { section: 'Ressources', rows: [
             { k: 'VRAM', field: 'vram_gb', suffix: ' Go' },
+            { k: 'VRAM mesurée', get: function (m) {
+                // Empreinte au CHARGEMENT mesurée par l'allocateur torch et rendue au catalogue par
+                // le gouverneur (2026-09-14) — distincte de `vram_gb`, déclarée ou estimée.
+                const v = (m.extra_info || {}).vram_measured;
+                return v ? (v.max_gb + ' Go max · ' + v.n + ' relevé(s) · dernier ' + v.last_gb + ' Go') : '';
+            } },
             { k: 'RAM', field: 'ram_gb', suffix: ' Go' },
             { k: 'Disque', field: 'disk_gb', suffix: ' Go' },
         ] },

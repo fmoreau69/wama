@@ -503,6 +503,77 @@ def mark_used(owner: str) -> bool:
         return False
 
 
+#: Empreintes MESURÉES au chargement, en attente d'être rendues au catalogue : owner → "go:ts"
+#: (2026-09-14). Hash SÉPARÉ et HORS `_SIDE_KEYS` : une mesure SURVIT à la libération de sa
+#: réservation — un modèle peut être déchargé bien avant le passage de
+#: `model_manager.persist_measured_vram` (toutes les 10 min).
+_MEASURED_KEY = "wama:vram:measured"
+MEASURED_TTL_S = 24 * 3600
+
+
+def record_measured_vram(owner: str, gb: float) -> bool:
+    """Consigne une empreinte MESURÉE par l'allocateur torch au chargement de `owner`.
+
+    Appelé par `_wrap_load` seulement pour une mesure FRAÎCHE et concluante — jamais pour une
+    valeur déclarée. La clé catalogue se résout plus tard, à la persistance (process Django) :
+    le service TTS, qui mesure aussi, n'a pas d'ORM.
+    """
+    client = _redis()
+    if client is None:
+        return False
+    try:
+        client.hset(_MEASURED_KEY, owner, f"{gb:.3f}:{_now():.0f}")
+        client.expire(_MEASURED_KEY, MEASURED_TTL_S)
+        return True
+    except Exception as exc:
+        logger.debug(f"[ResourceGovernor] record_measured_vram({owner}) : {exc}")
+        return False
+
+
+def measured_vram() -> dict[str, tuple[float, float]]:
+    """Mesures en attente de persistance : owner → (Go, horodatage). Lignes illisibles ignorées."""
+    client = _redis()
+    if client is None:
+        return {}
+    try:
+        raw = client.hgetall(_MEASURED_KEY) or {}
+    except Exception:
+        return {}
+    out: dict[str, tuple[float, float]] = {}
+    for k, v in raw.items():
+        owner = k.decode() if isinstance(k, bytes) else str(k)
+        text = v.decode() if isinstance(v, bytes) else str(v)
+        try:
+            gb_text, stamp_text = text.split(":", 1)
+            out[owner] = (float(gb_text), float(stamp_text))
+        except ValueError:
+            continue
+    return out
+
+
+def forget_measured_vram(rendues: dict) -> int:
+    """Oublie les mesures RENDUES au catalogue — `rendues` : owner → horodatage lu.
+
+    Une ligne dont l'horodatage a changé entre la lecture et l'oubli (nouveau chargement mesuré
+    entre-temps) est GARDÉE : elle sera rendue au passage suivant au lieu d'être perdue.
+    """
+    client = _redis()
+    if client is None or not rendues:
+        return 0
+    oubliees = 0
+    for owner, stamp in rendues.items():
+        try:
+            cur = client.hget(_MEASURED_KEY, owner)
+            if cur is None:
+                continue
+            text = cur.decode() if isinstance(cur, bytes) else str(cur)
+            if float(text.split(":", 1)[1]) == float(stamp):
+                oubliees += client.hdel(_MEASURED_KEY, owner)
+        except Exception:
+            continue
+    return oubliees
+
+
 def idle_models(idle_threshold_s: int = 300) -> list[dict]:
     """
     Modèles RÉSIDENTS inactifs depuis plus de `idle_threshold_s`, tous process confondus.

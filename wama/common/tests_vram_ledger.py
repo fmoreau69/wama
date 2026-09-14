@@ -51,6 +51,9 @@ class _FauxRedis:
     def hgetall(self, key):
         return dict(self.h.get(key, {}))
 
+    def hget(self, key, field):
+        return self.h.get(key, {}).get(field)
+
     def expire(self, key, ttl):
         return True
 
@@ -333,6 +336,51 @@ class EnveloppeTest(_AvecRegistre):
         MemoryManager.release_vram(exclude={'anonymizer'})
         self.assertTrue(self.b.is_loaded)
         self.assertFalse(autre.is_loaded)
+
+    # ── La MESURE rendue au catalogue (2026-09-14) ──────────────────────────────────────
+
+    def test_une_mesure_FRAICHE_est_consignee_pour_le_catalogue(self):
+        self._charger(0, 8.0, model='m')
+        [(owner, (gb, _))] = gov.measured_vram().items()
+        self.assertTrue(owner.endswith('#@m'), owner)
+        self.assertEqual(gb, 8.0)
+
+    def test_un_rechargement_IDEMPOTENT_ne_consigne_pas_une_seconde_mesure(self):
+        """Il republie la valeur GARDÉE, pas une mesure : la compter gonflerait les relevés."""
+        self._charger(0, 8.0, model='m')
+        self.redis.h.pop(gov._MEASURED_KEY, None)
+        self._charger(0, 0.0, model='m')
+        self.assertEqual(gov.measured_vram(), {})
+
+    def test_une_valeur_DECLAREE_n_est_jamais_une_mesure(self):
+        self.b.device = 'cuda'
+        self._charger(0, 0.0)
+        self.assertEqual(gov.measured_vram(), {})
+
+
+class RegistreDesMesuresTest(_AvecRegistre):
+    """Le gouverneur GARDE les mesures jusqu'à ce que le catalogue les ait rendues."""
+
+    def test_une_mesure_survit_au_dechargement_de_son_modele(self):
+        """Le modèle peut être déchargé bien avant le passage de la persistance (10 min)."""
+        gov.reserve_vram('b.B:1#@m', 8.0, allocated=True)
+        gov.record_measured_vram('b.B:1#@m', 8.0)
+        gov.release_reservation('b.B:1#@m')
+        self.assertIn('b.B:1#@m', gov.measured_vram())
+
+    def test_oublier_ce_qui_a_ete_rendu(self):
+        gov.record_measured_vram('b.B:1#@m', 8.0)
+        [(owner, (_, stamp))] = gov.measured_vram().items()
+        self.assertEqual(gov.forget_measured_vram({owner: stamp}), 1)
+        self.assertEqual(gov.measured_vram(), {})
+
+    def test_une_mesure_PLUS_RECENTE_que_la_lecture_n_est_pas_perdue(self):
+        gov.record_measured_vram('b.B:1#@m', 8.0)
+        [(owner, (_, lue))] = gov.measured_vram().items()
+        self.t += 30
+        gov.record_measured_vram(owner, 9.0)          # nouveau chargement entre lecture et oubli
+        self.assertEqual(gov.forget_measured_vram({owner: lue}), 0)
+        self.assertEqual(gov.measured_vram()[owner][0], 9.0)
 
 
 #: Chemin de classe tel que le publie l'owner (`<module>.<Classe>:<pid>#…`).
