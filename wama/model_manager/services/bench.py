@@ -99,14 +99,21 @@ def _bench_depth(modele: AIModel, echantillon: str, **_) -> dict:
     from PIL import Image
     import torch
     from transformers import AutoImageProcessor, AutoModelForDepthEstimation
+    # Le dossier de FAMILLE est celui du moteur (`depth_engine.DEPTH_MODEL_DIR`, seul
+    # domicile) : un candidat chargé par identifiant Hub sans `cache_dir=` atterrissait dans le
+    # cache PARTAGÉ — la règle « le modèle principal par `cache_dir=` » (AGENTS.md) vaut pour
+    # un candidat de banc comme pour le modèle retenu. Relevé par Fabien le 2026-09-14.
+    from wama.common.backends.depth_engine import DEPTH_MODEL_DIR
 
     src = modele.local_path or modele.hf_id
+    cache = str(DEPTH_MODEL_DIR)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     debut = time.perf_counter()
-    processor = AutoImageProcessor.from_pretrained(src)
+    processor = AutoImageProcessor.from_pretrained(src, cache_dir=cache)
     model = AutoModelForDepthEstimation.from_pretrained(
-        src, torch_dtype=torch.float16 if device == 'cuda' else torch.float32).to(device).eval()
+        src, cache_dir=cache,
+        torch_dtype=torch.float16 if device == 'cuda' else torch.float32).to(device).eval()
     charge = time.perf_counter() - debut
 
     image = Image.open(echantillon).convert('RGB')
