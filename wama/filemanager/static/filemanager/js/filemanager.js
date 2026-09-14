@@ -339,56 +339,14 @@
         setupExternalDragDrop(treeContainer);
     }
 
-    // Extension → compatible app list — built from server-injected WAMA_APP_CATALOG
-    // Falls back to empty (no "send to" menu) if catalog unavailable
+    // « ENVOYER VERS… » — plus AUCUN calcul de destinations ici (2026-09-14).
     //
-    // DEUX conditions, pas une. Le catalogue dit ce qu'une app ACCEPTE ; il ne dit RIEN de la
-    // capacité du gestionnaire de fichiers à la REMPLIR — celle-là vit dans le registre serveur
-    // `filemanager.views.IMPORTERS`, publié ici par `sidebar.html`. Bâtir le menu sur le seul
-    // catalogue le faisait proposer 13 apps quand le serveur n'en recevait que 10 : avatarizer,
-    // composer et converter_01 étaient offerts puis refusés (400 « Invalid app »), sans autre
-    // trace qu'un toast rouge (mesuré le 2026-08-28 par le scénario `<app>.send_to`).
-    const _catalog = window.WAMA_APP_CATALOG || {};
-    const _receivable = new Set(window.WAMA_FILEMANAGER_IMPORTERS || []);
-    const APP_EXTENSIONS = {};
-    const APP_LABELS = {};
-    Object.keys(_catalog).forEach(app => {
-        if (!_receivable.has(app)) return;   // offerte sans être recevable = menu menteur
-        const spec = _catalog[app];
-        APP_EXTENSIONS[app] = new Set(spec.input_extensions || []);
-        APP_LABELS[app] = { icon: spec.icon || 'fa fa-cube', label: spec.label || app };
-    });
-
-    function buildSendToSubmenu(node, ext) {
-        const filePath = node.data && node.data.path;
-        if (!filePath || !ext) return {};
-        const submenu = {};
-        Object.keys(APP_EXTENSIONS).forEach(app => {
-            if (APP_EXTENSIONS[app].has(ext)) {
-                const meta = APP_LABELS[app];
-                submenu[app] = {
-                    label: meta.label,
-                    icon: meta.icon,
-                    action: function() {
-                        importToApp(filePath, app)
-                            .then(result => {
-                                if (result.imported) {
-                                    showToast(`"${node.text}" envoyé vers ${meta.label}`, 'success');
-                                    document.dispatchEvent(new CustomEvent('wama:fileimported', {
-                                        detail: result
-                                    }));
-                                } else {
-                                    // JAMAIS d'échec silencieux (ex. Access denied)
-                                    showToast(`Envoi vers ${meta.label} refusé : ` + (result.error || 'fichier non accepté'), 'danger');
-                                }
-                            })
-                            .catch(err => showToast('Erreur : ' + err.message, 'danger'));
-                    }
-                };
-            }
-        });
-        return submenu;
-    }
+    // L'arbre croisait `WAMA_APP_CATALOG` (ce qu'une app ACCEPTE) et `WAMA_FILEMANAGER_IMPORTERS`
+    // (ce que le serveur sait REMPLIR) chez le client, pendant que la card demandait les siennes au
+    // serveur (`common/services/send_to.py`) : deux dérivations des mêmes conditions — et celle-ci
+    // ne vérifiait pas l'ACCÈS à l'app. Le sous-menu interroge désormais le MÊME résolveur
+    // (`WamaSendTo.entreesPourChemins` / `entreesPourDossier`). Historique de la leçon qui fonde
+    // ces conditions : `WAMA_VERIFICATION §Geste 14` (apps offertes puis refusées, 2026-08-28).
 
     // ── Converter quick-convert from FileManager ─────────────────────────────
 
@@ -675,7 +633,13 @@
                 libelle: it.label,
                 danger: /danger/.test(it._class || ''),
             };
-            if (it.submenu) {
+            if (typeof it.charger === 'function') {
+                // Sous-menu DIFFÉRÉ (résolu au serveur) : la brique l'ouvre sur « Recherche… »
+                // puis le remplit, et DIT une liste vide au lieu d'un sous-menu creux.
+                entry.sous = [{ chargement: true }];
+                entry.charger = it.charger;
+                entry.videLibelle = it.videLibelle;
+            } else if (it.submenu) {
                 entry.sous = toCardMenuEntries(it.submenu);
                 if (!entry.sous.length) return;   // un sous-menu vide ne s'offre pas
             } else {
@@ -745,66 +709,22 @@
                 };
             }
 
-            // "Envoyer vers…" — UN SEUL bouton, contextuel à la sélection :
+            // "Envoyer vers…" — UN SEUL bouton, contextuel à la sélection, résolu au SERVEUR
+            // (`WamaSendTo`, même résolveur que les cards, 2026-09-14) :
             //   • 1 fichier  → envoi simple
-            //   • N fichiers → envoi groupé (batch) vers chaque app compatible
-            if (!isMultiSelect) {
-                const sendToSubmenu = buildSendToSubmenu(node, ext);
-                if (sendToSubmenu && Object.keys(sendToSubmenu).length > 0) {
-                    items.sendTo = {
-                        label: 'Envoyer vers…',
-                        icon: 'fa fa-share-square',
-                        separator_before: true,
-                        submenu: sendToSubmenu,
-                    };
-                }
-            }
-
-            // Multi-selection: "Envoyer X fichier(s) vers..."
-            if (isMultiSelect) {
-                const filePaths = selectedNodes
-                    .filter(n => n.type === 'file')
-                    .map(n => n.data && n.data.path)
-                    .filter(Boolean);
-
-                if (filePaths.length > 0) {
-                    const multiSendSubmenu = {};
-                    Object.keys(APP_EXTENSIONS).forEach(app => {
-                        const compatPaths = filePaths.filter(fp => {
-                            const fExt = fp.split('.').pop().toLowerCase();
-                            return APP_EXTENSIONS[app].has(fExt);
-                        });
-                        if (compatPaths.length > 0) {
-                            const meta = APP_LABELS[app];
-                            multiSendSubmenu[app] = {
-                                label: `${meta.label} (${compatPaths.length} fichier(s))`,
-                                icon: meta.icon,
-                                action: function() {
-                                    importMultipleToApp(compatPaths, app)
-                                        .then(result => {
-                                            const count = result.count || (result.imported ? 1 : 0);
-                                            showToast(`${count} fichier(s) envoyé(s) vers ${meta.label}`, 'success');
-                                            compatPaths.forEach(p => {
-                                                document.dispatchEvent(new CustomEvent('wama:fileimported', {
-                                                    detail: { imported: true, app: app, path: p }
-                                                }));
-                                            });
-                                        })
-                                        .catch(err => showToast(`Erreur : ${err.message}`, 'danger'));
-                                },
-                            };
-                        }
-                    });
-
-                    if (Object.keys(multiSendSubmenu).length > 0) {
-                        items.sendToMultiple = {
-                            label: `Envoyer ${filePaths.length} fichier(s) vers…`,
-                            icon: 'fa fa-share-square',
-                            separator_before: true,
-                            submenu: multiSendSubmenu,
-                        };
-                    }
-                }
+            //   • N fichiers → envoi groupé ; chaque app DIT combien de fichiers elle en prend
+            const cheminsEnvoyables = isMultiSelect
+                ? selectedNodes.filter(n => n.type === 'file').map(n => n.data && n.data.path).filter(Boolean)
+                : (filePath ? [filePath] : []);
+            if (cheminsEnvoyables.length && window.WamaSendTo) {
+                items.sendTo = {
+                    label: isMultiSelect ? `Envoyer ${cheminsEnvoyables.length} fichier(s) vers…`
+                                         : 'Envoyer vers…',
+                    icon: 'fa fa-share-square',
+                    separator_before: true,
+                    charger: () => WamaSendTo.entreesPourChemins(cheminsEnvoyables),
+                    videLibelle: 'Aucune app ne prend ce format',
+                };
             }
 
             if (!isMount) {
@@ -860,49 +780,19 @@
                 action: function() { tree.close_all(node); }
             };
 
-            // "Envoyer dossier vers..." — sends all compatible files in folder to an app
+            // "Envoyer dossier vers…" — destinations résolues au SERVEUR (`WamaSendTo`, 2026-09-14).
+            // L'expansion RÉCURSIVE et le filtre d'extensions restent à l'import (2026-08-13) :
+            // l'ancienne collecte `children_d` lisait un arbre jstree PARESSEUX — un dossier jamais
+            // déplié n'envoyait que ses nœuds déjà chargés. « Aucun fichier compatible » est dit à
+            // l'envoi, et un événement `wama:fileimported` part par fichier reçu.
             const folderPath = node.data && node.data.path;
-            if (folderPath) {
-                const folderSendSubmenu = {};
-                Object.keys(APP_LABELS).forEach(app => {
-                    const meta = APP_LABELS[app];
-                    folderSendSubmenu[app] = {
-                        label: meta.label,
-                        icon: meta.icon,
-                        action: function() {
-                            // Expansion RÉCURSIVE CÔTÉ SERVEUR (2026-08-13) : l'ancienne
-                            // collecte `children_d` lisait un arbre jstree PARESSEUX — un
-                            // dossier jamais déplié n'envoyait que ses nœuds déjà chargés.
-                            importFolderToApp(folderPath, app)
-                                .then(result => {
-                                    const count = result.count !== undefined
-                                        ? result.count : (result.imported ? 1 : 0);
-                                    if (!count) {
-                                        showToast(`Aucun fichier compatible dans ce dossier pour ${meta.label}`, 'warning');
-                                        return;
-                                    }
-                                    showToast(`${count} fichier(s) du dossier envoyé(s) vers ${meta.label}`, 'success');
-                                    // Les chemins importés viennent de la RÉPONSE (le client
-                                    // ne connaît pas la liste) → un événement par fichier.
-                                    const imported = result.results || (result.path ? [result] : []);
-                                    imported.forEach(r => {
-                                        if (r.path) {
-                                            document.dispatchEvent(new CustomEvent('wama:fileimported', {
-                                                detail: { imported: true, app: app, path: r.path, id: r.id }
-                                            }));
-                                        }
-                                    });
-                                })
-                                .catch(err => showToast(`Erreur : ${err.message}`, 'danger'));
-                        },
-                    };
-                });
-
+            if (folderPath && window.WamaSendTo) {
                 items.sendFolderTo = {
                     label: 'Envoyer dossier vers…',
                     icon: 'fa fa-share-square',
                     separator_before: true,
-                    submenu: folderSendSubmenu,
+                    charger: () => WamaSendTo.entreesPourDossier(folderPath),
+                    videLibelle: 'Aucune app ne sait recevoir un dossier',
                 };
             }
 
@@ -2329,25 +2219,8 @@
         return response.json();
     }
 
-    /**
-     * Envoi d'un DOSSIER entier vers une app — l'expansion récursive et le filtre
-     * d'extensions se font CÔTÉ SERVEUR (api_import_to_app, paramètre `folder`).
-     */
-    async function importFolderToApp(folderPath, targetApp) {
-        const response = await fetch(config.apiImportUrl || '/filemanager/api/import/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': config.csrfToken || csrfToken,
-            },
-            body: JSON.stringify({ folder: folderPath, app: targetApp }),
-        });
-        if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || `HTTP ${response.status}`);
-        }
-        return response.json();
-    }
+    // (`importFolderToApp` retiré le 2026-09-14 : l'envoi d'un DOSSIER passe par
+    // `WamaSendTo.entreesPourDossier`, qui poste le même `{folder}` sur l'endpoint d'import.)
 
     /**
      * Create a new subfolder inside the user's temp directory.

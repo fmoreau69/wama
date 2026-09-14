@@ -100,6 +100,14 @@ class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
                                   help_text="Auteur à créditer (obligatoire pour les licences à attribution).")
     source_url = models.URLField(blank=True, max_length=1000,
                                  help_text="Page d'origine — la citation complète l'exige aussi.")
+    # ── Provenance d'une SORTIE D'APP rangée (2026-09-14, demande de Fabien) ────────
+    # L'élément d'app dont cet asset est la sortie (`services.export_item_to_library`). C'est ce
+    # qui permet au menu « … » de la card de DIRE « déjà dans la médiathèque » (une coche) et
+    # d'offrir le RETRAIT sans aller dans la médiathèque. Le nom ne le permettait pas : il est
+    # renommable, et deux éléments peuvent rendre un fichier de même nom. Vide pour un dépôt
+    # direct ou un import de fournisseur.
+    source_app = models.CharField(max_length=50, blank=True, default='')
+    source_pk  = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -111,6 +119,7 @@ class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
         indexes = [
             models.Index(fields=['user', 'asset_type']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['user', 'source_app', 'source_pk']),
         ]
 
     def __str__(self):

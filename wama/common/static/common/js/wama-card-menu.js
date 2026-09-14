@@ -156,9 +156,27 @@
      * Passe par la route COMMUNE — une seule pour toutes les apps, la brique lit le résultat au
      * schéma canonique. Aucune connaissance d'app ici, donc rien à ajouter par app.
      */
-    function rangerEnMediatheque(co, role) {
-        var url = '/media-library/api/export/' + encodeURIComponent(co.surface)
+    function urlMediatheque(co) {
+        return '/media-library/api/export/' + encodeURIComponent(co.surface)
             + '/' + encodeURIComponent(co.pk) + '/';
+    }
+
+    /**
+     * Retire de la médiathèque ce qui y a été rangé depuis cet élément, sous ce rôle (2026-09-14).
+     * MÊME route que le rangement (`action=remove`) : un geste et son inverse ne divergent pas.
+     * Seule la COPIE rangée disparaît — la sortie de l'app reste intacte, et la confirmation le dit.
+     */
+    function retirerDeMediatheque(co, role, nom) {
+        if (!window.confirm('Retirer « ' + (nom || 'cet asset') + ' » de la médiathèque ?\n'
+                            + 'Le résultat de l\'application n\'est pas touché.')) return;
+        poster(urlMediatheque(co), { action: 'remove', asset_type: role }).then(function (res) {
+            if (res && res.success) dire('Retiré de la médiathèque : ' + (nom || ''), 'ok');
+            else dire('Retrait impossible — ' + ((res && res.error) || 'refusé'), 'error');
+        });
+    }
+
+    function rangerEnMediatheque(co, role) {
+        var url = urlMediatheque(co);
         poster(url, { asset_type: role }).then(function (res) {
             if (res && res.success) dire('Ajouté à la médiathèque : ' + (res.name || ''), 'ok');
             // Le motif du refus est DIT : « précisez le rôle », « existe déjà »… Un geste qui
@@ -298,22 +316,37 @@
                 && global.WamaShare && WamaShare.coordonnees(card)) {
             var co = WamaShare.coordonnees(card);
 
-            // MÉDIATHÈQUE — sous-menu des RÔLES, chargé au clic. Le rôle n'est pas dérivable du
-            // fichier (un .mp3 peut être une voix, une musique ou un bruitage) : le serveur
+            // MÉDIATHÈQUE — sous-menu des RÔLES, chargé à l'ouverture. Le rôle n'est pas dérivable
+            // du fichier (un .mp3 peut être une voix, une musique ou un bruitage) : le serveur
             // rend les rôles admissibles, on ne propose donc jamais ce qu'il refuserait.
+            // ÉTAT PERSISTÉ (2026-09-14, demande de Fabien) : le serveur rend aussi les rôles sous
+            // lesquels la sortie est DÉJÀ rangée (provenance de l'asset). Ceux-là portent une
+            // COCHE, et leur clic RETIRE l'asset — sans aller dans la médiathèque.
             entrees.push({
                 icone: 'fas fa-photo-film', libelle: 'Ajouter à la médiathèque…',
                 sous: [{ chargement: true }],
                 videLibelle: 'Rien à ranger (pas encore de résultat)',
                 charger: function () {
-                    var base = '/media-library/api/export/' + encodeURIComponent(co.surface)
-                        + '/' + encodeURIComponent(co.pk) + '/';
-                    return fetch(base, { credentials: 'same-origin' })
+                    return fetch(urlMediatheque(co), { credentials: 'same-origin' })
                         .then(function (r) { return r.json(); })
                         .then(function (d) {
-                            return (d.candidates || []).map(function (role) {
+                            var deja = d.in_library || {};
+                            var roles = (d.candidates || []).slice();
+                            // Un rôle déjà rangé reste retirable même si le résultat a changé de
+                            // format depuis : on ne le fait pas disparaître du menu.
+                            Object.keys(deja).forEach(function (r) {
+                                if (roles.indexOf(r) === -1) roles.push(r);
+                            });
+                            return roles.map(function (role) {
+                                var libelle = (d.labels || {})[role] || role;
+                                if (deja[role]) {
+                                    return {
+                                        icone: 'fas fa-check wama-cm-coche', libelle: libelle,
+                                        agir: function () { retirerDeMediatheque(co, role, deja[role].name); },
+                                    };
+                                }
                                 return {
-                                    icone: 'fas fa-plus', libelle: (d.labels || {})[role] || role,
+                                    icone: 'fas fa-plus', libelle: libelle,
                                     agir: function () { rangerEnMediatheque(co, role); },
                                 };
                             });
@@ -375,6 +408,8 @@
     // s'ouvre au SURVOL, après un court délai d'intention, et aussi au CLIC (tactile, clavier).
     var pile = [];
     var minuteur = null;
+    //: L'élément focalisé AVANT l'ouverture du menu — Échap lui rend le focus (clavier, 2026-09-14).
+    var retourFocus = null;
     //: Délai d'intention au survol (ms) : rejoindre un sous-menu en diagonale fait traverser
     //: une entrée voisine, qui ne doit pas basculer sur SON sous-menu au passage.
     var DELAI_SURVOL = 140;
@@ -423,6 +458,9 @@
         var el = document.createElement('div');
         el.className = 'wama-card-menu' + (niveau ? ' wama-cm-sous' : '');
         el.setAttribute('role', 'menu');
+        // Focalisable SANS entrer dans l'ordre de tabulation : c'est ce qui rend les flèches
+        // utilisables dès l'ouverture, avant qu'aucune entrée n'ait le focus (2026-09-14).
+        el.tabIndex = -1;
         document.body.appendChild(el);
         // Arriver dans un menu annule la bascule qu'a pu programmer l'entrée traversée en chemin.
         el.addEventListener('mouseenter', function () { clearTimeout(minuteur); });
@@ -438,6 +476,8 @@
      * menu. C'est le défaut classique des menus contextuels — on ne l'introduit pas.
      */
     function ouvrir(x, y, entrees, titre) {
+        // L'élément qui avait le focus AVANT le menu : Échap le lui rend (on ne perd pas sa place).
+        if (!pile.length) retourFocus = document.activeElement;
         fermer();
         if (!entrees.length) return;
         var el = creer(0);
@@ -448,6 +488,7 @@
         var r = el.getBoundingClientRect();
         el.style.left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8)) + 'px';
         el.style.top = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
+        el.focus({ preventScroll: true });
         return el;
     }
 
@@ -466,16 +507,33 @@
         el.style.top = Math.max(8, Math.min(rb.top - 6, window.innerHeight - r.height - 8)) + 'px';
     }
 
-    /** Ouvre, au niveau donné, le sous-menu de l'entrée `e` portée par `bouton`. */
-    function ouvrirSous(bouton, e, niveau) {
+    /** Les entrées ACTIONNABLES d'un menu (ni séparateur, ni « Recherche… », ni désactivée). */
+    function entreesActives(menu) {
+        return $$('button.wama-cm-item', menu).filter(function (b) { return !b.disabled; });
+    }
+
+    function premiereEntree(menu) {
+        var b = entreesActives(menu)[0];
+        (b || menu).focus({ preventScroll: true });
+    }
+
+    /**
+     * Ouvre, au niveau donné, le sous-menu de l'entrée `e` portée par `bouton`.
+     * `parClavier` : le focus ENTRE dans le sous-menu (→, Entrée) — à la souris il reste où il est.
+     */
+    function ouvrirSous(bouton, e, niveau, parClavier) {
         clearTimeout(minuteur);
-        if (pile[niveau] && pile[niveau]._wamaDepuis === bouton) return;   // déjà le sien
+        if (pile[niveau] && pile[niveau]._wamaDepuis === bouton) {       // déjà le sien
+            if (parClavier) premiereEntree(pile[niveau]);
+            return;
+        }
         fermerDepuis(niveau);
         bouton.classList.add('wama-cm-ouvert');
         var el = creer(niveau);
         el._wamaDepuis = bouton;
         remplir(el, e.sous, null, niveau);
         placerSous(el, bouton);
+        if (parClavier) premiereEntree(el);
 
         // SOUS-MENU DIFFÉRÉ : `charger()` rend une promesse d'entrées. Le sous-menu s'ouvre TOUT
         // DE SUITE sur « Recherche… » puis se remplit — un menu qui attend le réseau avant de
@@ -485,6 +543,7 @@
             // Le sous-menu a pu être refermé (ou remplacé) entre-temps : on ne réécrit que CELUI
             // qu'on a ouvert.
             if (pile[niveau] !== el) return;
+            var avaitLeFocus = el.contains(document.activeElement);
             // ⚠ Le message de vide était FIGÉ à « Aucune app ne prend ce format » — le
             // vocabulaire d'UN appelant (« Envoyer vers… ») dans la brique commune. Dès le 2ᵉ
             // sous-menu (médiathèque, 2026-09-11) il devenait faux. L'appelant le dit désormais ;
@@ -493,6 +552,9 @@
                 : [{ vide: true, libelle: e.videLibelle || "Aucune app ne prend ce format" }];
             remplir(el, liste, null, niveau);
             placerSous(el, bouton);          // la taille a changé : on replace
+            // Le focus était sur « Recherche… » (ouverture au clavier) : il passe à la 1ʳᵉ entrée
+            // réelle, sinon le rendu l'aurait détruit avec l'ancien contenu.
+            if (avaitLeFocus) premiereEntree(el);
         }).catch(function () {
             if (pile[niveau] !== el) return;
             remplir(el, [{ vide: true, libelle: 'Indisponible' }], null, niveau);
@@ -513,9 +575,14 @@
         $$('.wama-cm-item', el).forEach(function (b) {
             var e = entrees[parseInt(b.dataset.i, 10)];
             if (!e) return;
+            b._wamaEntree = e;          // lu par la navigation au clavier (→ ouvre son sous-menu)
+            b.tabIndex = -1;            // on se déplace aux FLÈCHES, pas à la tabulation
             // SURVOL : après le délai d'intention, ouvre le sous-menu de cette entrée — ou
             // referme celui qu'une entrée voisine avait ouvert.
             b.addEventListener('mouseenter', function () {
+                // Pointeur et clavier partagent UNE position : survoler une entrée y met le focus,
+                // et les flèches repartent de là.
+                if (!b.disabled) b.focus({ preventScroll: true });
                 clearTimeout(minuteur);
                 minuteur = setTimeout(function () {
                     if (e.sous && !b.disabled) ouvrirSous(b, e, niveau + 1);
@@ -523,10 +590,11 @@
                 }, DELAI_SURVOL);
             });
             if (e.sous) {
-                // CLIC : même effet, immédiat — le tactile et le clavier n'ont pas de survol.
+                // CLIC : même effet, immédiat — le tactile n'a pas de survol. `detail` 0 = clic
+                // produit par Entrée/Espace : le focus ENTRE alors dans le sous-menu.
                 b.addEventListener('click', function (ev) {
                     ev.stopPropagation();
-                    ouvrirSous(b, e, niveau + 1);
+                    ouvrirSous(b, e, niveau + 1, ev.detail === 0);
                 });
                 return;
             }
@@ -629,7 +697,63 @@
             if (pile.length && !dansUnMenu(ev.target)) fermer();
         }, { capture: true, passive: true });
     });
-    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fermer(); });
+    // CLAVIER (2026-09-14, demande de Fabien) : ↑ ↓ Début Fin parcourent le menu où est le focus,
+    // → (ou Entrée) ouvre le sous-menu et y entre, ← remonte au parent, Échap remonte d'un niveau
+    // puis ferme en rendant le focus à qui l'avait, Tab ferme. Entrée/Espace sur une action = le
+    // clic natif du bouton : rien à réécrire.
+    function menuCourant() {
+        for (var i = pile.length - 1; i >= 0; i--) {
+            if (pile[i].contains(document.activeElement)) return i;
+        }
+        return pile.length - 1;
+    }
+
+    function fermerEtRendreLeFocus() {
+        var retour = retourFocus;
+        fermer();
+        retourFocus = null;
+        if (retour && retour.focus && document.contains(retour)) retour.focus({ preventScroll: true });
+    }
+
+    function clavier(ev) {
+        if (!pile.length) return;
+        var niveau = menuCourant();
+        var menu = pile[niveau];
+        var items = entreesActives(menu);
+        var i = items.indexOf(document.activeElement);
+        var cible = null;
+        switch (ev.key) {
+        case 'ArrowDown': cible = items[(i + 1) % items.length]; break;
+        case 'ArrowUp':   cible = items[(i <= 0 ? items.length : i) - 1]; break;
+        case 'Home':      cible = items[0]; break;
+        case 'End':       cible = items[items.length - 1]; break;
+        case 'ArrowRight':
+            var b = document.activeElement;
+            if (b && b._wamaEntree && b._wamaEntree.sous && menu.contains(b)) {
+                ouvrirSous(b, b._wamaEntree, niveau + 1, true);
+            }
+            break;
+        case 'ArrowLeft':
+        case 'Escape':
+            if (niveau > 0) {
+                var parent = pile[niveau]._wamaDepuis;
+                fermerDepuis(niveau);
+                if (parent) parent.focus({ preventScroll: true });
+            } else if (ev.key === 'Escape') {
+                fermerEtRendreLeFocus();
+            }
+            break;
+        case 'Tab':
+            fermerEtRendreLeFocus();
+            return;                     // on laisse la tabulation suivre son cours
+        default:
+            return;
+        }
+        ev.preventDefault();
+        if (cible) cible.focus({ preventScroll: true });
+    }
+
+    document.addEventListener('keydown', clavier);
     window.addEventListener('resize', fermer);
 
     global.WamaCardMenu = {

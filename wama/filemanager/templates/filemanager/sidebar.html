@@ -1,10 +1,9 @@
-{% load static filemanager_tags %}
+{% load static %}
 {% comment %}
-  Ce que le SERVEUR sait recevoir (registre `views.IMPORTERS`) — à ne pas confondre avec ce
-  qu'une app ACCEPTE (`WAMA_APP_CATALOG.input_extensions`). Le sous-menu « Envoyer vers… »
-  croise les deux : sans ça, il proposait des apps que l'import refusait ensuite (400).
+  « Envoyer vers… » ne se calcule plus chez le client (2026-09-14) : le sous-menu interroge le
+  résolveur SERVEUR (`common:api_envoyer_vers_chemins`, `common/services/send_to.py`), le même que
+  celui des cards. La liste `WAMA_FILEMANAGER_IMPORTERS` publiée ici n'a donc plus de lecteur.
 {% endcomment %}
-<script>window.WAMA_FILEMANAGER_IMPORTERS = {% filemanager_importers_json %};</script>
 <!-- FileManager Sidebar - Always Visible -->
 <aside id="filemanager-sidebar">
     <!-- Header -->

@@ -48,14 +48,37 @@
             });
     }
 
-    function envoyer(endpoint, chemins, app, libelle) {
+    /**
+     * Résout les destinations de CHEMINS du gestionnaire de fichiers (2026-09-14) : le MÊME
+     * résolveur serveur que pour une card, entré par `{paths}` ou `{folder}`. L'arbre ne calcule
+     * plus rien chez le client.
+     */
+    function resoudreChemins(corps) {
+        return fetch('/common/api/envoyer-vers/chemins/', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+            body: JSON.stringify(corps),
+        }).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        });
+    }
+
+    /**
+     * Envoie vers `app`. `charge` : une LISTE de chemins, ou `{folder}` pour un dossier entier.
+     * Émet `wama:fileimported` par fichier reçu — l'app de destination ouverte met sa file à jour
+     * sans rechargement (contrat `WAMA_APP_CONVENTIONS` « Import depuis le filemanager »).
+     */
+    function envoyer(endpoint, charge, app, libelle) {
+        // `paths` (pluriel) : l'endpoint le gère depuis toujours, et une génération d'imager
+        // rend N images. Envoyer le premier fichier seul serait un chaînage tronqué.
+        var corps = Array.isArray(charge) ? { paths: charge, app: app }
+                                          : Object.assign({ app: app }, charge);
         return fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
             credentials: 'same-origin',
-            // `paths` (pluriel) : l'endpoint le gère depuis toujours, et une génération d'imager
-            // rend N images. Envoyer le premier fichier seul serait un chaînage tronqué.
-            body: JSON.stringify({ paths: chemins, app: app }),
+            body: JSON.stringify(corps),
         }).then(function (r) {
             return r.json().catch(function () { return { success: r.ok }; })
                 .then(function (d) {
@@ -64,15 +87,63 @@
                         // succès (même règle que le glisser-déposer et le partage).
                         throw new Error((d && (d.error || d.reason)) || ('HTTP ' + r.status));
                     }
+                    // Un fichier SEUL refusé répond 200 `{imported:false, error}` : c'est un échec.
+                    if (d && d.imported === false && d.error) throw new Error(d.error);
                     return d;
                 });
         }).then(function (d) {
-            var n = (d && (d.imported || d.count)) || chemins.length;
+            // Un dossier sans fichier compatible : une RÉPONSE, dite comme telle.
+            if (d && d.count === 0 && !d.imported) {
+                dire((d.message || 'Aucun fichier compatible') + ' — ' + libelle, 'warning');
+                return d;
+            }
+            var recus = (d && d.results) || (d && (d.id || d.path) ? [d] : []);
+            var n = recus.length || (d && d.count) || (Array.isArray(charge) ? charge.length : 0);
             dire(n + ' fichier(s) envoyé(s) vers ' + libelle, 'success');
+            recus.forEach(function (res) {
+                document.dispatchEvent(new CustomEvent('wama:fileimported', {
+                    detail: Object.assign({ imported: true, app: app }, res),
+                }));
+            });
+            if (d && d.errors && d.errors.length) {
+                dire(d.errors.length + ' fichier(s) refusé(s) par ' + libelle, 'warning');
+            }
             return d;
         }).catch(function (err) {
             dire('Envoi impossible — ' + err.message, 'error');
             throw err;
+        });
+    }
+
+    /** Sous-menu pour des CHEMINS (fichier seul ou sélection) — résolu au serveur. */
+    function entreesPourChemins(chemins) {
+        return resoudreChemins({ paths: chemins }).then(function (d) {
+            var total = (d.chemins || []).length;
+            return (d.destinations || []).map(function (dest) {
+                var acceptes = dest.acceptes || d.chemins;
+                return {
+                    icone: dest.icone || 'fas fa-cube',
+                    // Sélection : le NOMBRE de fichiers que l'app prend est dit dans le libellé —
+                    // c'est ce qui rend un envoi partiel annoncé plutôt que silencieux.
+                    libelle: total > 1
+                        ? dest.libelle + ' (' + acceptes.length + '/' + total + ' fichiers)'
+                        : dest.libelle,
+                    agir: function () { envoyer(d.endpoint, acceptes, dest.app, dest.libelle); },
+                };
+            });
+        });
+    }
+
+    /** Sous-menu pour un DOSSIER entier — l'expansion et le filtre d'extensions sont à l'import. */
+    function entreesPourDossier(dossier) {
+        return resoudreChemins({ folder: dossier }).then(function (d) {
+            return (d.destinations || []).map(function (dest) {
+                return {
+                    icone: dest.icone || 'fas fa-cube',
+                    libelle: dest.libelle,
+                    agir: function () { envoyer(d.endpoint, { folder: d.folder }, dest.app, dest.libelle); },
+                };
+            });
         });
     }
 
@@ -100,5 +171,8 @@
     }
 
     global.WamaSendTo = { entrees: entrees, coordonnees: coordonnees,
-                          resoudre: resoudre, envoyer: envoyer };
+                          resoudre: resoudre, envoyer: envoyer,
+                          resoudreChemins: resoudreChemins,
+                          entreesPourChemins: entreesPourChemins,
+                          entreesPourDossier: entreesPourDossier };
 })(window);

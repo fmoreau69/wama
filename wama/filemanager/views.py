@@ -1840,8 +1840,9 @@ def import_to_cam_analyzer(source_path, user, app_label='cam_analyzer'):
 #
 # Le registre ci-dessous EST le dispatch : on ne peut plus déclarer une app recevable sans
 # lui donner sa fonction, ni écrire une fonction qui ne soit pas atteinte. Et `receivable_apps()`
-# alimente le menu (`sidebar.html` → `window.WAMA_FILEMANAGER_IMPORTERS`), donc le menu ne peut
-# plus proposer ce que le serveur refuse : une app sans importeur n'apparaît tout simplement pas.
+# alimente le résolveur SERVEUR de « Envoyer vers… » (`common/services/send_to.py` — cards ET
+# arbre de fichiers depuis le 2026-09-14), donc le menu ne peut plus proposer ce que le serveur
+# refuse : une app sans importeur n'apparaît tout simplement pas.
 #
 # ⏳ Reste dû : avatarizer et composer n'ont toujours PAS d'importeur — ils ne mentent
 # plus, c'est tout. Tous deux sont prompt-primaires (le fichier y est une RÉFÉRENCE : voix à

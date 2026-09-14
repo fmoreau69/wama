@@ -129,7 +129,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 |---|---|---|
 | Partager… | 2026-09-08 | modale ; une card à la fois |
 | Envoyer vers… | 2026-09-08 | sous-menu **chargé à l'ouverture** |
-| **Ajouter à la médiathèque…** | **2026-09-11** | sous-menu des **RÔLES** admissibles |
+| **Ajouter à la médiathèque…** | **2026-09-11** | sous-menu des **RÔLES** admissibles — ✓ = déjà rangé, clic = retrait (2026-09-14) |
 | **Ajouter au RAG** | **2026-09-11** | action directe |
 
 - ⚠ **Un sous-menu ne DEVINE pas.** Le rôle d'un asset n'est pas dérivable du fichier (un `.mp3`
@@ -150,6 +150,17 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   d'appels du retrait : le clic droit dans l'arbre donne le focus à l'ancre, son conteneur défile de
   lui-même, et l'écouteur `scroll` refermait le menu **7 ms** après son ouverture. Un `scroll` ne dit
   pas QUI a défilé : la brique écoute `mousedown` hors menu, `wheel`, `touchmove`, Échap, `resize`.
+- ⭐ **Au CLAVIER** (2026-09-14, demande de Fabien) : le menu prend le focus à l'ouverture ; ↑ ↓
+  Début Fin parcourent, → (ou Entrée) ouvre un sous-menu ET y entre, ← remonte, Échap remonte d'un
+  niveau puis ferme en rendant le focus à qui l'avait. Même jeu de touches dans le sous-menu
+  « Bac à sable » du menu « Applications ».
+- ⭐ **État PERSISTÉ de la médiathèque** (2026-09-14) : le sous-menu « Ajouter à la médiathèque… »
+  porte une **coche** sur un rôle sous lequel la sortie est déjà rangée, et son clic la **retire**
+  (confirmation ; seule la copie rangée part, jamais le résultat de l'app). L'état vient de la
+  PROVENANCE de l'asset (`UserAsset.source_app` / `source_pk`), jamais de son nom.
+- ⭐ **« Envoyer vers… » : UNE source, au serveur** (2026-09-14) : l'arbre de fichiers et la card
+  interrogent le même résolveur (`common/services/send_to.py`). Une sortie de card reste en
+  tout-ou-rien ; une sélection mêlée de l'arbre est en **partiel annoncé** (« Imager (1/2 fichiers) »).
 - ⚠ **Le message de sous-menu vide appartient à l'APPELANT** (`videLibelle`). Il était figé à
   « Aucune app ne prend ce format » — le vocabulaire d'« Envoyer vers… » dans la brique commune,
   qui devenait faux dès le 2ᵉ sous-menu.

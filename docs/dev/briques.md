@@ -112,7 +112,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
 
 ### Import « Envoyer vers » (registre + dérivation jumelles)
 
-Le registre `IMPORTERS` EST le dispatch ET la source du menu client (une seule liste — plus d'app offerte-puis-refusée) ; une JUMELLE de bac à sable n'y écrit jamais sa ligne : son importeur est DÉRIVÉ de sa source (`importer_for`, via `generated_from` + paramètre `app_label` — re-ciblé sur SES tables, jamais celles de la source), et la CONSOLIDATION en lots de l'import groupé suit la même voie (2026-08-30/31, constats Fabien : jumelle absente du menu, puis cards unitaires). ⏳ avatarizer/composer sans importeur : leur fichier est une RÉFÉRENCE — attend le contrat d'import PAR RÔLE (CARD_DESIGN §11.8)
+Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « Envoyer vers » (`common/services/send_to.py` — cards ET arbre de fichiers depuis le 2026-09-14, qui calculait avant ses destinations chez le client ; une seule liste — plus d'app offerte-puis-refusée) ; une JUMELLE de bac à sable n'y écrit jamais sa ligne : son importeur est DÉRIVÉ de sa source (`importer_for`, via `generated_from` + paramètre `app_label` — re-ciblé sur SES tables, jamais celles de la source), et la CONSOLIDATION en lots de l'import groupé suit la même voie (2026-08-30/31, constats Fabien : jumelle absente du menu, puis cards unitaires). ⏳ avatarizer/composer sans importeur : leur fichier est une RÉFÉRENCE — attend le contrat d'import PAR RÔLE (CARD_DESIGN §11.8)
 
 - **Domicile** : `wama/filemanager/views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §S2bis](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : FileManager views - API for file browsing and management.
@@ -493,9 +493,10 @@ La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studi
 
 - **Domicile** : `wama/common/services/send_to.py` · **doc** : [docs/construction/architecture/WAMA_VERIFICATION.md](../construction/architecture/WAMA_VERIFICATION.md)
 - **Module** : ENVOYER VERS — la sortie d'une card devient l'entrée d'une autre app.
-- **API publique** (2) :
+- **API publique** (3) :
   - `sorties_de(surface: str, instance) -> list` — Chemins RELATIFS à `media/` des sorties DÉCLARÉES de cet élément.
-  - `destinations(user, chemins) -> list` — Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
+  - `destinations(user, chemins, partiel: bool=False) -> list` — Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
+  - `destinations_dossier(user) -> list` — Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
 
 ### Faits en ligne (balises de registre)
 
@@ -567,7 +568,7 @@ Une balise `WAMA:SECTION(audience=…; type=…; nature=…; etat=…)` sous un 
 
 ### Menu contextuel de card/lot + débordement « … »
 
-Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus DIFFÉRÉS (le menu s'ouvre sur « Recherche… » puis se remplit : il n'attend pas le réseau). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait
+Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait
 
 - **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -646,10 +647,13 @@ Range le RÉSULTAT d'un élément comme asset, lu au schéma canonique du détai
 
 - **Domicile** : `wama/media_library/services.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §2bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Le GESTE « ranger une sortie d'app dans ma médiathèque » — brique COMMUNE.
-- **API publique** (6) :
+- **API publique** (9) :
   - `enrich_asset_from_file(asset) -> None` — Ce que le FICHIER dit de l'asset — MIME, taille, et les `attributes` que la sonde commune
   - `candidate_asset_types(nom_fichier: str) -> list` — Rôles d'asset admissibles pour cette extension, dans l'ordre de `ASSET_TYPES`.
   - `export_item_to_library(user, app: str, pk: int, asset_type: str='', name: str='') -> dict` — Range le RÉSULTAT d'un élément d'app dans la médiathèque de son propriétaire.
+  - `assets_of_item(user, app: str, pk: int)` — Les assets de `user` rangés depuis l'élément `app#pk` — par la PROVENANCE, jamais par le nom
+  - `delete_asset(asset) -> None` — Supprime un asset ET son fichier. Ce fichier est la COPIE rangée : la sortie de l'app, elle,
+  - `remove_item_from_library(user, app: str, pk: int, asset_type: str='') -> dict` — Retire de la médiathèque ce qui a été rangé depuis `app#pk` (un rôle, ou tous).
   - `gallery_assets()` — Les avatars de la galerie partagée, actifs, dans l'ordre d'affichage.
   - `gallery_entries() -> list` — `[{'name', 'url'}]` — ce dont les gabarits ont besoin, sans composer d'URL.
   - `gallery_path(name: str)` — Chemin ABSOLU de l'avatar nommé, ou `None` s'il n'existe pas (le worker en a besoin).

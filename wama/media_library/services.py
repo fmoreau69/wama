@@ -154,6 +154,13 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
 
     from .models import UserAsset
 
+    # Déjà rangé depuis CET élément sous ce rôle ? La PROVENANCE tranche, pas le nom — sinon un
+    # second clic créerait une copie sous un autre nom, et la coche du menu mentirait.
+    deja = assets_of_item(user, app, pk).filter(asset_type=asset_type).first()
+    if deja is not None:
+        return {'error': f"Cet élément est déjà dans la médiathèque (« {deja.name} »).",
+                'asset_id': deja.id}
+
     nom = (name or '').strip() or chemin.stem
     if UserAsset.objects.filter(user=user, name=nom, asset_type=asset_type).exists():
         return {'error': f'Un asset « {nom} » de ce type existe déjà.'}
@@ -161,7 +168,8 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
     # Traçabilité : d'où vient cet asset. `ia-généré` est la convention déjà posée par composer.
     etiquettes = [t for t in (app, 'ia-généré', (detail or {}).get('engine_effective')
                               or (detail or {}).get('engine')) if t]
-    asset = UserAsset(user=user, name=nom, asset_type=asset_type, tags=','.join(map(str, etiquettes)))
+    asset = UserAsset(user=user, name=nom, asset_type=asset_type, tags=','.join(map(str, etiquettes)),
+                      source_app=app, source_pk=pk)
     try:
         with open(chemin, 'rb') as f:
             # ⭐ AUCUN chemin construit ici : `upload_to` (UploadToUserPath) décide du domicile.
@@ -179,6 +187,56 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
 
     logger.info(f"[media_library] {app}#{pk} → asset #{asset.id} ({asset_type}) pour {user}")
     return {'asset_id': asset.id, 'name': asset.name, 'asset_type': asset.asset_type}
+
+
+def assets_of_item(user, app: str, pk: int):
+    """Les assets de `user` rangés depuis l'élément `app#pk` — par la PROVENANCE, jamais par le nom
+    (renommable, et deux éléments peuvent rendre un fichier de même nom)."""
+    from .models import UserAsset
+    return UserAsset.objects.filter(user=user, source_app=app, source_pk=pk)
+
+
+def delete_asset(asset) -> None:
+    """Supprime un asset ET son fichier. Ce fichier est la COPIE rangée : la sortie de l'app, elle,
+    n'est jamais touchée — `export_item_to_library` copie, il ne déplace pas."""
+    asset.file.delete(save=False)
+    asset.delete()
+
+
+def remove_item_from_library(user, app: str, pk: int, asset_type: str = '') -> dict:
+    """Retire de la médiathèque ce qui a été rangé depuis `app#pk` (un rôle, ou tous).
+
+    Le geste inverse d'`export_item_to_library`, pour le menu « … » (2026-09-14). Ne touche QUE
+    les assets de `user` : même avec le pk d'un élément étranger, on n'atteint pas la médiathèque
+    d'autrui. Rend `{'removed': n}` ou `{'error': …}` ; ne lève jamais.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Médiathèque réservée aux utilisateurs identifiés."}
+    cibles = assets_of_item(user, app, pk)
+    if asset_type:
+        cibles = cibles.filter(asset_type=asset_type)
+    retires = 0
+    for asset in list(cibles):
+        try:
+            delete_asset(asset)
+            retires += 1
+        except Exception as e:
+            logger.warning(f"[media_library] retrait {app}#{pk} asset #{asset.pk} : {e}")
+    if not retires:
+        return {'error': "Rien de cet élément n'est dans la médiathèque."}
+
+    # Drapeau d'app (composer) : plus rien de rangé depuis cet élément → il redevient exportable.
+    # Symétrique de la pose dans `export_item_to_library`, et SANS l'exiger des autres apps.
+    if not assets_of_item(user, app, pk).exists():
+        from wama.common.utils.detail_registry import DetailRegistry
+        entree = DetailRegistry.get(app)
+        instance = entree['model'].objects.filter(pk=pk).first() if entree else None
+        if instance is not None and getattr(instance, 'exported_to_library', False):
+            instance.exported_to_library = False
+            instance.save(update_fields=['exported_to_library'])
+
+    logger.info(f"[media_library] {app}#{pk} : {retires} asset(s) retiré(s) pour {user}")
+    return {'removed': retires}
 
 
 # ── Galerie d'avatars PARTAGÉE — domicile unique d'une ressource d'application ──────────

@@ -72,42 +72,71 @@ def sorties_de(surface: str, instance) -> list:
     return chemins
 
 
-def destinations(user, chemins) -> list:
-    """Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
-
-    ① un IMPORTEUR existe (`importer_for` — il couvre aussi les jumelles de bac à sable, qui
-       dérivent celui de leur source) ;
-    ② l'extension est DÉCLARÉE acceptée (`APP_CATALOG.input_extensions`) — la même source que
-       le menu du gestionnaire de fichiers et que sa validation de dossier ;
-    ③ l'utilisateur a ACCÈS à l'app (`accessible`) — le menu ne va jamais un cran plus loin que
-       le portier de la page.
-
-    Rien n'est offert pour une extension qu'aucune app ne prend : la liste vide est une réponse,
-    et l'UI doit la dire au lieu d'ouvrir un sous-menu creux.
-    """
+def _apps_receveuses(user):
+    """`(app, spec)` des apps que CET utilisateur peut remplir : ① un IMPORTEUR existe
+    (`importer_for` — il couvre aussi les jumelles de bac à sable, qui dérivent celui de leur
+    source) et ③ il a ACCÈS à l'app (`accessible`) — le menu ne va jamais un cran plus loin que le
+    portier de la page. La condition ② (extensions) dépend de ce qu'on envoie : aux appelants."""
     from wama.accounts.permissions import accessible
     from wama.common.app_registry import APP_CATALOG
     from wama.filemanager.views import importer_for, receivable_apps
 
-    extensions = {PurePosixPath(c).suffix.lower() for c in (chemins or []) if c}
-    extensions.discard('')
-    if not extensions:
-        return []
-
-    sortie = []
     for app in receivable_apps(user):
         if importer_for(app) is None:
             continue
-        spec = APP_CATALOG.get(app) or {}
-        acceptees = {e.lower() if e.startswith('.') else '.' + e.lower()
-                     for e in (spec.get('input_extensions') or ())}
-        if not acceptees or not extensions <= acceptees:
-            # `<=` et non une intersection : on n'offre une app que si elle prend TOUT ce qu'on
-            # envoie. Une app qui n'en prendrait qu'une partie produirait un envoi partiel
-            # silencieux — l'utilisateur croirait avoir transmis son résultat entier.
-            continue
         if not accessible(user, 'app', app):
             continue
-        sortie.append({'app': app, 'libelle': spec.get('label') or spec.get('name') or app,
-                       'icone': spec.get('icon') or 'fas fa-cube'})
+        yield app, (APP_CATALOG.get(app) or {})
+
+
+def _destination(app, spec, **extra) -> dict:
+    return {'app': app, 'libelle': spec.get('label') or spec.get('name') or app,
+            'icone': spec.get('icon') or 'fas fa-cube', **extra}
+
+
+def destinations(user, chemins, partiel: bool = False) -> list:
+    """Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
+
+    ① un IMPORTEUR existe et ③ l'utilisateur a ACCÈS à l'app (`_apps_receveuses`) ;
+    ② l'extension est DÉCLARÉE acceptée (`APP_CATALOG.input_extensions`) — la même source que
+       la validation de dossier de l'import.
+
+    Chaque destination porte `acceptes` : les chemins qu'elle prend.
+    `partiel=False` (une SORTIE de card) : une app n'est offerte que si elle prend TOUT — un envoi
+    partiel silencieux ferait croire le résultat entier transmis. `partiel=True` (une SÉLECTION
+    de l'arbre de fichiers, 2026-09-14) : une app qui en prend une partie est offerte, et le menu
+    DIT combien — un envoi partiel ANNONCÉ n'est plus silencieux.
+
+    Rien n'est offert pour une extension qu'aucune app ne prend : la liste vide est une réponse,
+    et l'UI doit la dire au lieu d'ouvrir un sous-menu creux.
+    """
+    avec_extension = [c for c in (chemins or []) if c and PurePosixPath(c).suffix]
+    if not avec_extension:
+        return []
+
+    sortie = []
+    for app, spec in _apps_receveuses(user):
+        acceptees = {e.lower() if e.startswith('.') else '.' + e.lower()
+                     for e in (spec.get('input_extensions') or ())}
+        acceptes = [c for c in avec_extension if PurePosixPath(c).suffix.lower() in acceptees]
+        if not acceptes:
+            continue
+        if not partiel and len(acceptes) < len(avec_extension):
+            continue
+        sortie.append(_destination(app, spec, acceptes=acceptes))
     return sortie
+
+
+def destinations_dossier(user) -> list:
+    """Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
+
+    L'extension d'un fichier précis ne se juge PAS ici : l'import étend le dossier et filtre par
+    `input_extensions` côté serveur, puis DIT « aucun fichier compatible ». Parcourir récursivement
+    un dossier — un montage réseau, parfois — pour construire un menu coûterait plus que le geste.
+
+    ⚠ Mais une app qui ne DÉCLARE aucune extension n'est pas offerte : son import ne retiendrait
+    jamais rien. Mesuré à la sonde du 2026-09-14 — `cam_analyzer` et `face_analyzer` (importeur,
+    aucune `input_extensions`) apparaissaient au sous-menu, sous leur nom brut.
+    """
+    return [_destination(app, spec) for app, spec in _apps_receveuses(user)
+            if spec.get('input_extensions')]

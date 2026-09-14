@@ -252,8 +252,8 @@ def api_delete(request, pk: int):
     except UserAsset.DoesNotExist:
         return JsonResponse({'error': 'Asset introuvable'}, status=404)
 
-    asset.file.delete(save=False)
-    asset.delete()
+    from .services import delete_asset
+    delete_asset(asset)          # même brique que le retrait depuis le menu « … » d'une card
     return JsonResponse({'deleted': pk})
 
 
@@ -660,7 +660,17 @@ def api_export_item(request, app: str, pk: int):
     (composer, sa jumelle, synthesizer) restent en place pour l'instant — leur retrait est un
     geste de dépréciation à part, consigné.
     """
-    from .services import candidate_asset_types, export_item_to_library
+    from .services import (assets_of_item, candidate_asset_types, export_item_to_library,
+                           remove_item_from_library)
+
+    if request.method == 'POST' and (request.POST.get('action') or '') == 'remove':
+        # RETRAIT depuis le menu (2026-09-14) : ne touche QUE les assets de l'utilisateur rangés
+        # depuis cet élément — un pk étranger ne peut rien retirer de la médiathèque d'autrui.
+        resultat = remove_item_from_library(
+            request.user, app, pk, asset_type=(request.POST.get('asset_type') or '').strip())
+        if 'error' in resultat:
+            return JsonResponse(resultat, status=400)
+        return JsonResponse({'success': True, **resultat})
 
     if request.method == 'POST':
         resultat = export_item_to_library(
@@ -688,14 +698,20 @@ def api_export_item(request, app: str, pk: int):
     proprietaire = getattr(instance, 'user', None)
     if proprietaire is not None and proprietaire != request.user and not request.user.is_staff:
         return JsonResponse({'error': 'forbidden'}, status=403)
+    # ÉTAT PERSISTÉ : sous quels rôles la sortie est DÉJÀ rangée (provenance). Rendu dans les deux
+    # réponses — un asset reste retirable même si l'élément n'a plus de résultat lisible.
+    libelles = dict(ASSET_TYPES)
+    deja = {a.asset_type: {'asset_id': a.id, 'name': a.name}
+            for a in assets_of_item(request.user, app, pk)}
     try:
         detail = entree['adapter'](instance)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
     chemin, souci = _fichier_resultat(detail)
     if souci:
-        return JsonResponse({'error': souci, 'candidates': []}, status=400)
+        return JsonResponse({'error': souci, 'candidates': [], 'in_library': deja,
+                             'labels': {t: libelles.get(t, t) for t in deja}}, status=400)
     candidats = candidate_asset_types(chemin.name)
-    libelles = dict(ASSET_TYPES)
     return JsonResponse({'candidates': candidats,
-                         'labels': {t: libelles.get(t, t) for t in candidats}})
+                         'labels': {t: libelles.get(t, t) for t in set(candidats) | set(deja)},
+                         'in_library': deja})

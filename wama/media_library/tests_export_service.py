@@ -191,6 +191,81 @@ class VueExportTest(TestCase):
         self.assertIn(r.status_code, (302, 403))
 
 
+class ProvenanceEtRetraitTest(TestCase):
+    """L'état « déjà dans la médiathèque » et le RETRAIT depuis le menu « … » (2026-09-14).
+
+    Demande de Fabien : que le sous-menu dise qu'une sortie est déjà rangée (une coche) et permette
+    de la retirer sans aller dans la médiathèque. Ce qui se garde : l'état vient de la PROVENANCE
+    (jamais du nom), le retrait ne touche que la COPIE rangée et que les assets de l'appelant.
+    """
+
+    def setUp(self):
+        self.moi = _utilisateur('prov1')
+        self.autre = _utilisateur('prov2')
+        self.client.force_login(self.moi)
+        self.gen = _generation(self.moi)
+
+    def _url(self, pk=None):
+        from django.urls import reverse
+        return reverse('media_library:api_export_item', args=['composer', pk or self.gen.pk])
+
+    def test_le_rangement_pose_la_PROVENANCE(self):
+        out = export_item_to_library(self.moi, 'composer', self.gen.pk, asset_type='audio_music')
+        asset = UserAsset.objects.get(pk=out['asset_id'])
+        self.assertEqual((asset.source_app, asset.source_pk), ('composer', self.gen.pk))
+
+    def test_une_sortie_deja_rangee_sous_ce_role_est_REFUSEE_meme_sous_un_autre_nom(self):
+        """Sans la provenance, un second rangement sous un autre nom passait : deux copies, et la
+        coche du menu n'aurait su dire laquelle retirer."""
+        from wama.composer.models import ComposerGeneration
+        export_item_to_library(self.moi, 'composer', self.gen.pk, asset_type='audio_music')
+        ComposerGeneration.objects.filter(pk=self.gen.pk).update(exported_to_library=False)
+        out = export_item_to_library(self.moi, 'composer', self.gen.pk,
+                                     asset_type='audio_music', name='un autre nom')
+        self.assertIn('error', out)
+        self.assertEqual(UserAsset.objects.filter(user=self.moi).count(), 1)
+
+    def test_GET_dit_sous_quels_roles_la_sortie_est_DEJA_rangee(self):
+        self.assertEqual(self.client.get(self._url()).json()['in_library'], {})
+        out = export_item_to_library(self.moi, 'composer', self.gen.pk, asset_type='audio_music')
+        d = self.client.get(self._url()).json()
+        self.assertEqual(d['in_library']['audio_music']['asset_id'], out['asset_id'])
+        self.assertIn('audio_music', d['labels'])
+
+    def test_le_RETRAIT_supprime_la_copie_et_JAMAIS_la_sortie_de_l_app(self):
+        from pathlib import Path
+        out = export_item_to_library(self.moi, 'composer', self.gen.pk, asset_type='audio_music')
+        copie = Path(UserAsset.objects.get(pk=out['asset_id']).file.path)
+        sortie = Path(self.gen.audio_output.path)
+        r = self.client.post(self._url(), {'action': 'remove', 'asset_type': 'audio_music'})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['removed'], 1)
+        self.assertFalse(UserAsset.objects.filter(pk=out['asset_id']).exists())
+        self.assertFalse(copie.exists(), "la copie rangée doit partir avec l'asset")
+        self.assertTrue(sortie.exists(), "le résultat de l'app ne doit JAMAIS être touché")
+
+    def test_le_retrait_rend_l_element_de_nouveau_exportable(self):
+        """Le drapeau d'app (composer) suit : sinon sa route refuserait « Déjà exporté » à vie."""
+        export_item_to_library(self.moi, 'composer', self.gen.pk, asset_type='audio_music')
+        self.client.post(self._url(), {'action': 'remove', 'asset_type': 'audio_music'})
+        self.gen.refresh_from_db()
+        self.assertFalse(self.gen.exported_to_library)
+        self.assertNotIn('error', export_item_to_library(self.moi, 'composer', self.gen.pk,
+                                                         asset_type='audio_music'))
+
+    def test_le_retrait_ne_touche_JAMAIS_la_mediatheque_d_autrui(self):
+        gen_autre = _generation(self.autre)
+        out = export_item_to_library(self.autre, 'composer', gen_autre.pk, asset_type='audio_music')
+        r = self.client.post(self._url(pk=gen_autre.pk), {'action': 'remove'})
+        self.assertEqual(r.status_code, 400)
+        self.assertTrue(UserAsset.objects.filter(pk=out['asset_id']).exists())
+
+    def test_retirer_ce_qui_n_est_pas_range_le_DIT(self):
+        r = self.client.post(self._url(), {'action': 'remove', 'asset_type': 'audio_music'})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('error', r.json())
+
+
 class DeprecationDesCopiesTest(TestCase):
     """Les 2 copies manuelles du geste (composer + sa jumelle) DÉLÈGUENT désormais à la brique
     (2026-09-12). Ce qui se garde ici n'est pas « ça marche » mais **que rien n'a changé pour
