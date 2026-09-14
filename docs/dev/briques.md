@@ -43,9 +43,10 @@ Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur (enve
 
 - **Domicile** : `wama/common/backends/base.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Contrat de backend de modèle COMMUN à WAMA — extrait de l'app de référence (Transcriber).
-- **API publique** (3) :
+- **API publique** (4) :
   - `unload_app_backends(app: str) -> bool` — Décharge les backends résidents de `app`. True si quelque chose a été libéré.
   - `refresh_live_reservations() -> int` — Rafraîchit le TTL de la ligne de registre de chaque backend résident de CE process.
+  - `start_reservation_heartbeat() -> bool` — Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
   - `class BaseModelBackend(ABC)` — Backend de modèle local (chargement/déchargement + traitement).
 
 ### ETA auto-apprenante
@@ -83,19 +84,21 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (18) :
+- **API publique** (20) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU.
-  - `reserve_vram(owner: str, gb: float) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
+  - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
   - `release_reservation(owner: str) -> bool` — Libère la RÉSERVATION de `owner` dans le registre Redis. Sans effet s'il n'en avait pas.
   - `vram_reservation(owner: str, gb: float)` — Réserve `gb` pour la DURÉE d'un bloc, puis libère — y compris si le bloc lève.
   - `reservations(exclude: str | None=None) -> dict[str, float]` — Réservations VIVANTES (Go par owner). Les lignes plus vieilles que
-  - `reserved_gb(exclude: str | None=None) -> float` — Total réservé par les AUTRES détenteurs (tous process confondus).
+  - `reserved_gb(exclude: str | None=None) -> float` — Total BRUT réservé, tous détenteurs et process confondus (sauf `exclude`).
   - `resident_models() -> dict[str, float]` — Modèles actuellement RÉSIDENTS en VRAM — `AIModel.model_key` → Go — tous process
   - `model_key_of(owner: str) -> str | None` — Clé catalogue portée par une clé d'owner, ou None si elle n'en porte pas.
+  - `ollama_host_owner(name: str) -> str` — Clé d'owner de la résidence du modèle Ollama `name`.
+  - `unseen_reserved_gb(probe: str='driver', exclude: str | None=None) -> float` — VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
   - `mark_used(owner: str) -> bool` — Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
   - `idle_models(idle_threshold_s: int=300) -> list[dict]` — Modèles RÉSIDENTS inactifs depuis plus de `idle_threshold_s`, tous process confondus.
-  - `effective_free_gb(exclude: str | None=None) -> float` — VRAM réellement disponible = ce que le pilote annonce libre, MOINS ce que
+  - `effective_free_gb(exclude: str | None=None) -> float` — VRAM réellement disponible = ce que le pilote annonce libre, MOINS ce que des
   - `gpu_safe_mode() -> bool` — Vrai si le mode dépannage GPU est actif (settings/env `WAMA_GPU_SAFE_MODE`).
   - `pipeline_keep_alive() -> str | None` — `keep_alive` à passer aux appels Ollama de la pipeline de prompts : '0' en mode
   - `wait_for_free_vram(needed_gb: float, *, timeout_s: float=180.0, poll_s: float=5.0, exclude: str | None=None, console=None) -> tuple[bool, float]` — Attend que `effective_free_gb()` atteigne `needed_gb`, puis rend (True, mesure).
@@ -886,9 +889,10 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 
 - **Domicile** : `wama/common/backends/base.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Contrat de backend de modèle COMMUN à WAMA — extrait de l'app de référence (Transcriber).
-- **API publique** (3) :
+- **API publique** (4) :
   - `unload_app_backends(app: str) -> bool` — Décharge les backends résidents de `app`. True si quelque chose a été libéré.
   - `refresh_live_reservations() -> int` — Rafraîchit le TTL de la ligne de registre de chaque backend résident de CE process.
+  - `start_reservation_heartbeat() -> bool` — Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
   - `class BaseModelBackend(ABC)` — Backend de modèle local (chargement/déchargement + traitement).
 
 ### Formats de sortie

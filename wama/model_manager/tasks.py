@@ -95,6 +95,20 @@ def sync_ollama_models():
         return {'error': str(e), 'synced': 0}
 
 
+@shared_task(name='model_manager.refresh_ollama_residency')
+def refresh_ollama_residency_task():
+    """
+    Rafraîchit au gouverneur la résidence de l'OLLAMA HÔTE (`/api/ps` → registre VRAM).
+
+    POURQUOI UNE TÂCHE À PART (2026-09-14) : cette résidence n'était actualisée que par la
+    synchro du catalogue, planifiée toutes les 2 h, alors qu'une ligne du registre expire au
+    bout d'1 h. Un modèle gardé par Ollama plus d'une heure redevenait invisible, et un modèle
+    chargé entre deux synchros ne l'était jamais. Lecture HTTP seule — aucun chargement.
+    """
+    from .services.model_registry import ModelRegistry
+    return {'residents': ModelRegistry.refresh_ollama_residency()}
+
+
 #: Clé de cache partagée entre la tâche (écrit l'avancement) et la vue de progression
 #: (le lit). Passer par le cache plutôt que par l'AsyncResult permet de retrouver un
 #: backup en cours après un simple F5 sur la page — le navigateur n'a plus le task_id.

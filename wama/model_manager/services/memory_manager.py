@@ -336,19 +336,20 @@ class MemoryManager:
 
     @staticmethod
     def _free_vram_gb(info) -> float:
-        """VRAM libre vue par le pilote, MOINS les réservations des autres process."""
-        driver_free = info['free_gb'] if info else 0.0
-        try:
-            from wama.common.services.resource_governor import reserved_gb
-            return max(0.0, driver_free - reserved_gb(exclude=MemoryManager.vram_owner()))
-        except Exception:
-            return driver_free  # gouverneur/Redis indisponible → comportement d'avant
+        """VRAM libre selon la sonde de CE process (`get_gpu_memory_info` : total − alloué ici),
+        MOINS ce que cette sonde ne voit pas encore — réservations des autres process, annonces
+        de celui-ci.
 
-    @staticmethod
-    def vram_owner() -> str:
-        """Identité de CE process dans le registre VRAM partagé."""
-        import os
-        return f"celery-gpu:{os.getpid()}"
+        ⚠ Corrigé le 2026-09-14 : on retranchait `reserved_gb(exclude='celery-gpu:<pid>')`, une
+        clé qu'AUCUN code ne publie (les lignes sont `<Backend>:<pid>#<clé>`). Les résidents de
+        ce process étaient donc retranchés alors que `memory_allocated` les avait déjà ôtés du
+        libre : chacun comptait deux fois, et `ensure_free_vram` déchargeait pour rien."""
+        libre = info['free_gb'] if info else 0.0
+        try:
+            from wama.common.services.resource_governor import unseen_reserved_gb
+            return max(0.0, libre - unseen_reserved_gb('process'))
+        except Exception:
+            return libre  # gouverneur/Redis indisponible → comportement d'avant
 
     @staticmethod
     def get_gpu_memory_info() -> Optional[Dict]:
@@ -470,6 +471,14 @@ class MemoryManager:
                                       **ollama_kwargs(timeout=30))
                     r.raise_for_status()
                     logger.info(f"[MemoryManager] Ollama a déchargé {nom}")
+                    # La ligne de résidence part avec le modèle (2026-09-14) : sans ce
+                    # retrait, le gouverneur le croyait résident jusqu'à la synchro suivante.
+                    try:
+                        from wama.common.services.resource_governor import (
+                            ollama_host_owner, release_reservation)
+                        release_reservation(ollama_host_owner(nom))
+                    except Exception:
+                        pass
                     return True
                 except Exception as exc:
                     logger.warning(f"[MemoryManager] déchargement Ollama de {nom} échoué : {exc}")

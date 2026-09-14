@@ -112,19 +112,9 @@ def _backend(engine: str):
 # ici est le BATTEMENT : une réservation expire (TTL 1 h, garde-fou anti process
 # mort) alors que Kokoro est résident SANS LIMITE de durée — sans rafraîchissement,
 # sa ligne disparaîtrait et le gouverneur recroirait cette VRAM libre.
-_GOVERNOR_HEARTBEAT_S = 600          # < RESERVATION_TTL_S (3600)
-
-
-def _governor_heartbeat():
-    """Rafraîchit les réservations des backends résidents de ce process (TTL)."""
-    import time
-    from wama.common.backends.base import refresh_live_reservations
-    while True:
-        time.sleep(_GOVERNOR_HEARTBEAT_S)
-        try:
-            refresh_live_reservations()
-        except Exception:
-            logger.debug("[TTS] rafraîchissement gouverneur ignoré", exc_info=True)
+# Depuis le 2026-09-14 le battement est la brique COMMUNE
+# `base.start_reservation_heartbeat` : les workers Celery, qui n'en avaient pas, la
+# partagent (leurs résidents sortaient du registre au bout d'une heure).
 
 
 def _keep_resident(engine: str) -> bool:
@@ -358,8 +348,8 @@ async def startup():
         # celle du contrat de backend (une ligne par modèle, mesurée au chargement).
         # Le battement maintient ces lignes vivantes malgré le TTL — sans quoi un
         # modèle résident redeviendrait invisible au bout d'une heure.
-        threading.Thread(target=_governor_heartbeat, daemon=True,
-                         name="tts-governor-heartbeat").start()
+        from wama.common.backends.base import start_reservation_heartbeat
+        start_reservation_heartbeat()
     except Exception as exc:
         logger.warning(f"[TTS] gouverneur de ressources non initialisé : {exc}")
 

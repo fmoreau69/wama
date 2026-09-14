@@ -53,6 +53,11 @@ KEEP_ALIVE = '0'
 #: rappel recharge le modèle (~5 s au lieu de ~300 ms) : lent, jamais concurrent.
 RESIDENCE_RAPPEL = '5m'
 
+#: La même, en secondes, pour que la RÉSERVATION expire avec la résidence qu'elle déclare.
+#: Sans elle, la ligne survivait une heure (TTL du registre) à un modèle qu'Ollama décharge au
+#: bout de 5 min — et aucun appelant du rappel ne la libérait (mesuré le 2026-09-14).
+RESIDENCE_RAPPEL_S = 300
+
 
 def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S, resident: bool = False):
     """
@@ -70,7 +75,7 @@ def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S, reside
     if resident:
         autorisee, _ = residency_allowed()
         if autorisee:
-            reserve()
+            reserve(expires_in_s=RESIDENCE_RAPPEL_S)
             keep_alive = RESIDENCE_RAPPEL
     vectors = embed_batch([text], model=model, timeout=timeout, keep_alive=keep_alive)
     return vectors[0] if vectors else None
@@ -168,12 +173,15 @@ def residency_allowed(gb: float = VRAM_GB) -> tuple[bool, str]:
     return True, f'{libre:.1f} Go libres'
 
 
-def reserve(gb: float = VRAM_GB) -> bool:
-    """Déclare la résidence au gouverneur, pour que les AUTRES process la voient."""
+def reserve(gb: float = VRAM_GB, *, expires_in_s: float = None) -> bool:
+    """Déclare la résidence au gouverneur, pour que les AUTRES process la voient.
+
+    `expires_in_s` : la ligne expire avec la résidence qu'elle déclare (rappel : 5 min, sans
+    libération explicite). Le réindex, lui, la libère en fin d'opération (`release`)."""
     try:
         from ..services.resource_governor import mark_used, reserve_vram
 
-        ok = reserve_vram(OWNER, gb)
+        ok = reserve_vram(OWNER, gb, expires_in_s=expires_in_s)
         mark_used(OWNER)          # horodate : `idle_models()` peut réclamer la place plus tard
         return ok
     except Exception:

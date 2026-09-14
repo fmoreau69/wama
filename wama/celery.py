@@ -51,6 +51,14 @@ def _wama_configure_worker_resources(**_kwargs):
         configure_cuda_process()
     except Exception:  # jamais bloquant pour le démarrage d'un worker
         pass
+    # Battement des réservations (2026-09-14) : un modèle résident d'un worker voyait sa
+    # ligne de registre expirer au bout du TTL (1 h) — seul le service TTS la rafraîchissait.
+    # Il redevenait invisible du gouverneur tout en occupant la VRAM. Même brique que le TTS.
+    try:
+        from wama.common.backends.base import start_reservation_heartbeat
+        start_reservation_heartbeat()
+    except Exception:
+        pass
 
 @app.task(bind=True)
 def debug_task(self):
