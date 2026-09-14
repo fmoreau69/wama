@@ -157,6 +157,10 @@ MECANISMES = (
               "— sans lui les 11 scénarios d'une jumelle skippent (mesuré 2026-08-30)",
               'wama/common/services/nightly_tests.py', 'docs/construction/suivi/PROJECT_STATUS.md §Tests fonctionnels nocturnes',
               annexes=('wama/common/services/ui_smoke.py',
+                       # Familles de scénarios sorties d'`ui_smoke.py` (5 300 lignes) : leurs
+                       # registreurs sont appelés par `register_examples` (2026-09-13 / 09-14).
+                       'wama/common/services/ui_smoke_matching.py',
+                       'wama/common/services/ui_smoke_menus.py',
                        'wama/common/services/rights_matrix.py',
                        'wama/common/nightly_scenarios.py')),
     Mecanisme('filemanager_importers', "Import « Envoyer vers » (registre + dérivation jumelles)",
