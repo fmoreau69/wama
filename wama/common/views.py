@@ -618,30 +618,22 @@ def backends_catalog_view(request):
     })
 
 
-def _admin_required(view):
-    """`accounts.views.admin_required`, résolu À L'APPEL — même usage que les autres vues de ce
-    module, qui importent `wama.accounts` paresseusement. C'est le prédicat du menu (`is_admin`,
-    fourni par le context processor) : le lien et la vue ne peuvent pas dire deux choses."""
-    from functools import wraps
-
-    @wraps(view)
-    def wrapper(request, *args, **kwargs):
-        from wama.accounts.views import admin_required
-        return admin_required(view)(request, *args, **kwargs)
-    return wrapper
-
-
-@_admin_required
+@login_required
 def docs_catalog_view(request):
     """
     Page du registre `docs` (15ᵉ, 2026-09-11) — la doc de WAMA en lecture seule, depuis WAMA.
 
     DÉRIVÉE : la liste vient de `docs_catalog.py` (la déclaration que `check_docs` lit aussi),
-    chaque fiche est relue sur le disque. Réservée aux administrateurs (décision de Fabien).
+    chaque fiche est relue sur le disque. QUI LIT QUOI (`docs_catalog.visible_to`) : la doc
+    UTILISATEUR, tout compte connecté (Fabien, 2026-09-14) ; le reste, les administrateurs
+    (11/09). Un compte ne voit que les fiches qu'il peut ouvrir — pas de carte vers un refus.
     """
-    from .docs_catalog import AUDIENCES, FAMILIES, entries
+    from wama.accounts.views import is_admin
 
-    docs = entries()
+    from .docs_catalog import AUDIENCES, DOCS, FAMILIES, entry, visible_to
+
+    admin = is_admin(request.user)
+    docs = [entry(d) for d in DOCS if visible_to(d, admin)]
     familles = {d['family'] for d in docs}
     audiences = {d['audience'] for d in docs}
     facettes = [{'cle': 'famille', 'label': 'Famille', 'tous': 'Toutes les familles',
@@ -663,19 +655,23 @@ def docs_catalog_view(request):
     })
 
 
-@_admin_required
+@login_required
 def doc_read_view(request, key):
     """Lecteur d'UN doc déclaré. La clé est cherchée dans le catalogue : ce qui n'y est pas
-    n'existe pas pour cette vue (404), quel que soit le contenu du disque."""
+    n'existe pas pour cette vue (404), quel que soit le contenu du disque. Une doc que ce compte
+    ne peut pas lire rend AUSSI 404 : un refus confirmerait qu'elle existe."""
     from django.http import Http404
 
-    from .docs_catalog import entry, get, render_doc
+    from wama.accounts.views import is_admin
 
+    from .docs_catalog import entry, get, render_doc, visible_to
+
+    admin = is_admin(request.user)
     doc = get(key)
-    if doc is None:
+    if doc is None or not visible_to(doc, admin):
         raise Http404("document non déclaré")
     try:
-        rendu = render_doc(doc)
+        rendu = render_doc(doc, admin=admin)
     except FileNotFoundError:
         raise Http404("document déclaré mais absent du disque")
     return render(request, 'common/doc_read.html', {

@@ -423,18 +423,19 @@ Déclare les docs de référence (famille, AUDIENCE, journal) et les rend lisibl
 
 - **Domicile** : `wama/common/docs_catalog.py` · **doc** : [AGENTS.md §Trois docs, trois publics](../../AGENTS.md)
 - **Module** : Catalogue des DOCS — les documents de WAMA, déclarés UNE fois, lisibles depuis WAMA.
-- **API publique** (11) :
+- **API publique** (12) :
   - `class Excerpt` — Une section de la doc de construction, marquée pour le public de la doc dérivée.
   - `class Facts` — Un bloc calculé depuis les registres : `module:fonction` qui rend du markdown.
   - `class Doc`
   - `get(key: str) -> Optional[Doc]`
+  - `visible_to(doc: Doc, admin: bool) -> bool` — Un compte connecté lit la doc utilisateur ; un administrateur lit tout.
   - `checked_paths() -> List[str]` — Les cibles de `check_docs` : les docs ÉCRITS À LA MAIN, dans l'ordre de déclaration.
   - `journal_paths() -> set`
   - `file_of(doc: Doc) -> Path`
   - `entry(doc: Doc) -> dict` — La fiche d'un doc pour sa card : déclaration + ce que le disque dit de lui.
   - `entries() -> List[dict]`
-  - `render_doc(doc: Doc) -> dict` — `{'html', 'toc'}` du doc. Lève `FileNotFoundError` si le fichier déclaré manque.
-  - `render_markdown(text: str, source_path: str='') -> dict` — Markdown → `{'html', 'toc'}`. `source_path` sert à résoudre les liens relatifs.
+  - `render_doc(doc: Doc, admin: bool=True) -> dict` — `{'html', 'toc'}` du doc, tel que le lit un administrateur ou non — les liens vers une doc
+  - `render_markdown(text: str, source_path: str='', visible=None) -> dict` — Markdown → `{'html', 'toc'}`. `source_path` sert à résoudre les liens relatifs ;
 
 ### Contrôle qualité de sortie
 

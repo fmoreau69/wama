@@ -17,11 +17,13 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
+from django.shortcuts import resolve_url
 from django.urls import reverse
 
 from .dev_docs import PARCOURS, module_api
-from .docs_catalog import (AUDIENCES, BY_KEY, BY_PATH, CONSTRUCTION, DEVELOPER, DOCS, FAMILIES,
-                           checked_paths, file_of, journal_paths, render_doc, render_markdown)
+from .docs_catalog import (AUDIENCES, BY_KEY, BY_PATH, CONSTRUCTION, DOCS, FAMILIES, USER,
+                           checked_paths, file_of, journal_paths, render_doc, render_markdown,
+                           visible_to)
 
 BASE = Path(settings.BASE_DIR)
 DERIVEES = [d for d in DOCS if d.plan]
@@ -121,6 +123,12 @@ class RenduTest(SimpleTestCase):
         html = render_markdown("[llm](docs/construction/ia/WAMA_LLM.md#skills)",
                                'AGENTS.md')['html']
         self.assertIn(f'href="{reverse("common:doc_read", args=["llm"])}#skills"', html)
+
+    def test_un_lien_vers_une_doc_que_le_lecteur_ne_peut_pas_lire_reste_du_texte(self):
+        texte = "[agents](AGENTS.md) et [guide](docs/utilisateur/transcriber-correction.md)"
+        html = render_markdown(texte, 'README.md', visible=lambda d: visible_to(d, False))['html']
+        self.assertNotIn(reverse('common:doc_read', args=['agents']), html)
+        self.assertIn(reverse('common:doc_read', args=['user-transcriber-correction']), html)
 
     def test_un_lien_relatif_se_resout_depuis_le_dossier_du_doc(self):
         html = render_markdown("[carte](README.md)",
@@ -241,12 +249,43 @@ class PageTest(TestCase):
     def test_un_anonyme_est_envoye_se_connecter(self):
         r = self.client.get(reverse('common:docs_catalog'))
         self.assertEqual(r.status_code, 302)
-        self.assertIn(reverse('accounts:login'), r.url)
+        # `@login_required` : la redirection de connexion COMMUNE à WAMA (`LOGIN_URL`).
+        self.assertTrue(r.url.startswith(resolve_url(settings.LOGIN_URL)), r.url)
 
-    def test_un_compte_non_admin_est_refuse_sur_les_deux_pages(self):
+    def test_un_anonyme_ne_lit_pas_meme_la_doc_utilisateur(self):
+        cle = next(d.key for d in DOCS if d.audience == USER)
+        r = self.client.get(reverse('common:doc_read', args=[cle]))
+        self.assertEqual(r.status_code, 302)
+        # `@login_required` : la redirection de connexion COMMUNE à WAMA (`LOGIN_URL`).
+        self.assertTrue(r.url.startswith(resolve_url(settings.LOGIN_URL)), r.url)
+
+    def test_un_compte_non_admin_ne_voit_que_la_doc_utilisateur(self):
+        # Décision de Fabien, 2026-09-14.
         self.client.force_login(self.compte)
-        for url in (reverse('common:docs_catalog'), reverse('common:doc_read', args=['agents'])):
-            self.assertEqual(self.client.get(url).status_code, 302, url)
+        r = self.client.get(reverse('common:docs_catalog'))
+        self.assertEqual(r.status_code, 200)
+        vues = {d['key'] for d in r.context['docs']}
+        attendues = {d.key for d in DOCS if d.audience == USER}
+        self.assertTrue(attendues, "aucune doc utilisateur : le test ne mesurerait rien")
+        self.assertEqual(vues, attendues)
+        self.assertNotContains(r, reverse('common:doc_read', args=['agents']))
+
+    def test_un_compte_non_admin_lit_la_doc_utilisateur_et_rien_d_autre(self):
+        self.client.force_login(self.compte)
+        cle = next(d.key for d in DOCS if d.audience == USER)
+        r = self.client.get(reverse('common:doc_read', args=[cle]))
+        self.assertEqual(r.status_code, 200)
+        # Son pied « Source » vise la doc de construction : du texte, jamais un lien vers un 404.
+        self.assertNotContains(r, reverse('common:doc_read', args=['transcriber-correction']))
+        for autre in ('agents', 'dev-briques'):
+            self.assertEqual(
+                self.client.get(reverse('common:doc_read', args=[autre])).status_code, 404, autre)
+
+    def test_l_admin_suit_le_lien_source_d_une_doc_utilisateur(self):
+        self.client.force_login(self.admin)
+        cle = next(d.key for d in DOCS if d.audience == USER)
+        r = self.client.get(reverse('common:doc_read', args=[cle]))
+        self.assertContains(r, reverse('common:doc_read', args=['transcriber-correction']))
 
     def test_l_admin_lit_le_catalogue_puis_un_doc(self):
         self.client.force_login(self.admin)
@@ -269,12 +308,11 @@ class PageTest(TestCase):
         self.assertEqual(
             self.client.get(reverse('common:doc_read', args=['inconnu'])).status_code, 404)
 
-    def test_le_menu_montre_la_doc_a_l_admin_seulement(self):
+    def test_le_menu_montre_la_doc_a_tout_compte_connecte(self):
         cible = reverse('common:docs_catalog')
-        self.client.force_login(self.admin)
-        self.assertContains(self.client.get(reverse('accounts:profile')), cible)
-        self.client.force_login(self.compte)
-        self.assertNotContains(self.client.get(reverse('accounts:profile')), cible)
+        for compte in (self.admin, self.compte):
+            self.client.force_login(compte)
+            self.assertContains(self.client.get(reverse('accounts:profile')), cible)
 
 
 class RegistreTest(SimpleTestCase):
