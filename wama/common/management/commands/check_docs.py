@@ -316,7 +316,7 @@ class Command(BaseCommand):
             # double vérification nature × état (un constat est ✅, une intention 🔄/⏳). Une
             # balise qu'on ne sait pas lire ferait sortir la section des docs dérivées EN SILENCE.
             if 'WAMA:SECTION(' in texte:
-                from wama.common.doc_plans import porte_invalide
+                from wama.common.doc_plans import gate_unverifiable
                 from wama.common.doc_sections import sections as _sections
                 verifies += 1
                 _secs, _errs = _sections(texte)
@@ -327,7 +327,7 @@ class Command(BaseCommand):
                 for _s in _secs:
                     if not _s.inherited:
                         for _p in _s.attrs.get('porte', ()):
-                            _m = porte_invalide(_p)
+                            _m = gate_unverifiable(_p)
                             if _m:
                                 casses.append((nom, _s.line, f"section : {_m}"))
 

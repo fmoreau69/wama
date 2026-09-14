@@ -120,7 +120,7 @@ SOURCE_USER = "\n".join([
 ]) + "\n"
 
 
-def _porte_de_test(chemin):
+def _test_gate(chemin):
     return None if chemin == 'apps/x' else 'absent du registre'
 
 
@@ -129,7 +129,7 @@ class PorteTest(TestCase):
 
     def _extrait(self, section, audience=USER):
         return '\n'.join(excerpt_markdown(SOURCE_USER, section, audience, 'SRC.md',
-                                          'docs/utilisateur/X.md', porte=_porte_de_test))
+                                          'docs/utilisateur/X.md', gate=_test_gate))
 
     def test_porte_ouverte_le_fragment_entre_sans_ce_qui_est_retenu(self):
         t = self._extrait('U')
@@ -156,16 +156,16 @@ class PorteTest(TestCase):
             excerpt_markdown(SOURCE_USER, 'U', USER, 's.md', 'd.md')
 
     def test_la_vraie_porte_lit_le_registre(self):
-        from .doc_plans import porte_fermee
+        from .doc_plans import gate_closed
         from .registries import REGISTRIES
-        self.assertIsNone(porte_fermee('apps/transcriber'))
-        self.assertIsNone(porte_fermee('apps/transcriber/has_batch'))
-        self.assertIn('absent', porte_fermee('apps/app_qui_n_existe_pas'))
+        self.assertIsNone(gate_closed('apps/transcriber'))
+        self.assertIsNone(gate_closed('apps/transcriber/has_batch'))
+        self.assertIn('absent', gate_closed('apps/app_qui_n_existe_pas'))
         sans_fiches = next(k for k, r in REGISTRIES.items() if r.entries is None)
         for invérifiable in ('registre_bidon/x', f'{sans_fiches}/x',
                              'apps/transcriber/champ_qui_n_existe_pas'):
             with self.assertRaises(PlanError, msg=invérifiable):
-                porte_fermee(invérifiable)
+                gate_closed(invérifiable)
 
 
 class PiloteTest(TestCase):

@@ -35,7 +35,7 @@ from typing import Dict
 
 #: Ordre de lecture pour ÉTENDRE WAMA — des CLÉS de `docs_catalog`, rien d'autre : le pourquoi de
 #: chaque étape est la description que le document déclare déjà dans le catalogue.
-PARCOURS = ('agents', 'common-readme', 'mecanismes', 'generation-route', 'app-conventions',
+READING_PATH = ('agents', 'common-readme', 'mecanismes', 'generation-route', 'app-conventions',
             'manifest-spec', 'verification', 'llm')
 
 _SIG_MAX = 160
@@ -112,12 +112,12 @@ def _cellule(texte) -> str:
 # Faits pour les PLANS (fichiers versionnés) — ni nombre lu en base, ni lien de site
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def parcours_etapes() -> str:
+def reading_path() -> str:
     """L'ordre de lecture pour étendre WAMA, puis les autres pages développeur."""
     from .docs_catalog import BY_KEY, DEVELOPER, DOCS
 
     out = ["## Lire, dans cet ordre", ""]
-    for i, cle in enumerate(PARCOURS, 1):
+    for i, cle in enumerate(READING_PATH, 1):
         d = BY_KEY[cle]
         out.append(f"{i}. **{_lien_doc(d)}** — {d.description}")
     out += ["", "## Les autres pages développeur", ""]
@@ -127,7 +127,7 @@ def parcours_etapes() -> str:
     return '\n'.join(out) + '\n'
 
 
-def registres_natures() -> str:
+def registry_natures() -> str:
     """Les natures d'actualisation déclarables par un registre, et où chacune s'exécute."""
     from .registries import EXECUTION_BY_NATURE, EXECUTIONS, NATURES
 
@@ -139,7 +139,7 @@ def registres_natures() -> str:
     return '\n'.join(out) + '\n'
 
 
-def registres_fiches() -> str:
+def registry_entries() -> str:
     """Chaque registre de WAMA : clé, nature, source, page, doc, et s'il est citable par balise."""
     from django.urls import NoReverseMatch, reverse
 
@@ -173,7 +173,7 @@ def registres_fiches() -> str:
     return '\n'.join(out) + '\n'
 
 
-def kinds_manifeste() -> str:
+def manifest_kinds() -> str:
     """Les kinds de manifeste, et lesquels écrivent dans les registres."""
     from .manifests import builtin  # noqa: F401 — l'import peuple MANIFEST_KINDS
     from .manifests.kinds import MANIFEST_KINDS
@@ -192,7 +192,7 @@ def kinds_manifeste() -> str:
 _BRIQUES: Dict[str, object] = {}
 
 
-def briques_api() -> str:
+def bricks_api() -> str:
     """Chaque mécanisme transversal, par domaine, avec l'API publique de son domicile."""
     from django.conf import settings
 

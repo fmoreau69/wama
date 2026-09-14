@@ -260,21 +260,21 @@ DOCS: Tuple[Doc, ...] = (
         "L'ordre dans lequel lire la doc pour étendre WAMA ; chaque étape reprend la description "
         "que le document déclare.",
         audience=DEVELOPER,
-        plan=(Facts('wama.common.dev_docs:parcours_etapes'),)),
+        plan=(Facts('wama.common.dev_docs:reading_path'),)),
     Doc('dev-registres', 'docs/dev/registres.md', 'Les registres de WAMA', 'architecture',
         "Quand une chose mérite un registre, les natures d'actualisation, et chaque registre de "
         "WAMA — dérivé de la doc de construction et des registres eux-mêmes.",
         audience=DEVELOPER,
         plan=(Excerpt('data-world', '9quinquies.2 LE CRITÈRE — trois questions, dans cet ordre',
                       title='Quand une chose mérite un registre'),
-              Facts('wama.common.dev_docs:registres_natures'),
-              Facts('wama.common.dev_docs:registres_fiches'),
-              Facts('wama.common.dev_docs:kinds_manifeste'))),
+              Facts('wama.common.dev_docs:registry_natures'),
+              Facts('wama.common.dev_docs:registry_entries'),
+              Facts('wama.common.dev_docs:manifest_kinds'))),
     Doc('dev-briques', 'docs/dev/briques.md', 'Briques communes — API', 'architecture',
         "Chaque mécanisme transversal avec l'API publique de son module : signatures et "
         "docstrings lues dans le code.",
         audience=DEVELOPER,
-        plan=(Facts('wama.common.dev_docs:briques_api'),)),
+        plan=(Facts('wama.common.dev_docs:bricks_api'),)),
     # ── UTILISATEUR — DÉRIVÉE par plan, filtrée par la PORTE registre (ROADMAP §25.1 ⑤) ──
     Doc('user-transcriber-correction', 'docs/utilisateur/transcriber-correction.md',
         'Transcriber — corriger une transcription', 'mondes',
