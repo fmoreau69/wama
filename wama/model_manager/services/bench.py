@@ -14,9 +14,17 @@ sorties, confiance moyenne. Ce ne sont pas des notes de qualite. Compter des boi
 si elles sont justes — un modele qui sature a `max_det` en produit 300 sans rien valoir. Sans
 verite terrain, le banc classe des candidats a essayer ; **le juge final reste humain**, meme
 precaution que la commande qu'il remplace.
+
+Place dans l'echelle des signaux (`model_selector._quality_scalars`) : ce banc est le 3e etage,
+la MESURE INTERNE — mais il ne mesure que des COUTS (latence, debit, chargement). Le seul
+protocole qui persiste est celui de la generation de texte, et il persiste des DUREES
+(`ModelRuntimeStat`, la boucle d'ETA), jamais une valeur de qualite : le tri par qualite reste
+au banc tiers confronte (`benchmark_sync`) et a l'a priori (`model_quality`).
 """
 import logging
+import os
 import time
+from pathlib import Path
 from typing import Callable, Optional
 
 from wama.model_manager.models import AIModel, ModelTask
@@ -26,6 +34,17 @@ logger = logging.getLogger(__name__)
 # Ultralytics plafonne les detections a 300 par defaut. Un compte EXACTEMENT egal a cette valeur
 # est une saturation, pas une performance : on le signale au lieu de le presenter comme un score.
 PLAFOND_DETECTIONS = 300
+
+# Generation de texte : plafond de jetons produits par passe (`num_predict`). Meme lecture que
+# PLAFOND_DETECTIONS — un modele qui atteint le plafond est SATURE, pas « prolixe ». La valeur
+# est celle du banc llmfit (`bench.rs`, 2026-09-14) : assez longue pour que le debit se
+# stabilise apres le prefill, assez courte pour qu'un lot de 3 passes tienne en une minute.
+PLAFOND_TOKENS = 300
+PASSES_GENERATION = 3
+# Chargement a froid : en dessous de ce seuil, `load_duration` d'Ollama mesure un modele DEJA
+# resident (quelques ms de re-attachement), pas un chargement — on ne l'apprend pas comme tel.
+# Borne posee, pas mesuree : un chargement reel de poids se compte en secondes.
+SEUIL_CHARGEMENT_FROID_S = 1.0
 
 
 def models_for_task(tache: str, *, installes_seulement: bool = True):
@@ -127,9 +146,15 @@ def _bench_description(modele: AIModel, echantillon: str, **_) -> dict:
     from wama.model_manager.services.vision_probe import describe_image_ollama
 
     debut = time.perf_counter()
-    texte = describe_image_ollama(echantillon, model=modele.name)
+    reponse = describe_image_ollama(echantillon, model=modele.name)
     duree = time.perf_counter() - debut
-    texte = (texte or '').strip()
+    # `describe_image_ollama` rend un dict {'ok', 'description'|'error'} — ce protocole le lisait
+    # comme une chaine (`.strip()` sur un dict → AttributeError avale par `run_bench`, donc CHAQUE
+    # modele de legendage sortait « en erreur »). Corrige le 2026-09-14 en ecrivant le protocole
+    # voisin ; un echec de la sonde est un RESULTAT et se rapporte comme tel.
+    if not reponse.get('ok'):
+        raise RuntimeError(reponse.get('error') or 'sonde vision muette')
+    texte = (reponse.get('description') or '').strip()
     return {
         'sorties': len(texte.split()) if texte else 0,
         'confiance_moyenne': None,
@@ -137,6 +162,115 @@ def _bench_description(modele: AIModel, echantillon: str, **_) -> dict:
         'inference_s': round(duree, 2),
         'sature': False,
         'texte': texte,
+    }
+
+
+def _lire_prompt(echantillon: str) -> str:
+    """L'echantillon d'un banc de generation est un PROMPT : un fichier texte (chemin) ou la
+    chaine elle-meme. Le fichier est la forme de la commande (`--media`), la chaine celle des
+    appels programmatiques."""
+    if echantillon and os.path.isfile(echantillon):
+        return Path(echantillon).read_text(encoding='utf-8').strip()
+    return (echantillon or '').strip()
+
+
+def _ollama_generate(model: str, prompt: str, num_predict: int, timeout: int = 300) -> dict:
+    """
+    UN appel `POST /api/generate` non streame, rendu BRUT : c'est la reponse d'Ollama qui porte
+    les temps natifs en nanosecondes (`eval_count`/`eval_duration` = generation,
+    `prompt_eval_count`/`prompt_eval_duration` = prefill, `load_duration` = chargement,
+    `total_duration`). On ne chronometre pas au mur : le mur ajoute le reseau et la
+    serialisation, que le modele n'a pas a payer. Seul point HTTP du protocole — c'est lui
+    que les tests remplacent.
+    """
+    import requests
+    from wama.common.utils.ollama_host import ollama_base
+
+    payload = {'model': model, 'prompt': prompt, 'stream': False,
+               'options': {'num_predict': int(num_predict)}}
+    # `trust_env=False` : Ollama est LOCAL — meme precaution que `vision_probe`/`llm_utils`.
+    with requests.Session() as s:
+        s.trust_env = False
+        r = s.post(f"{ollama_base()}/api/generate", json=payload, timeout=timeout)
+    r.raise_for_status()
+    return r.json()
+
+
+def _ns_en_s(valeur) -> float:
+    try:
+        return round(float(valeur or 0) / 1e9, 3)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _bench_generation(modele: AIModel, echantillon: str, *, runs: int = PASSES_GENERATION,
+                      num_predict: int = PLAFOND_TOKENS, **_) -> dict:
+    """
+    Generation de texte servie par Ollama — le DEBIT (jetons/s), le prefill et le chargement.
+
+    Ce que ce protocole mesure : le COUT d'un LLM sur ce materiel, la seule grandeur que WAMA
+    ne mesurait pas encore pour cette famille (constate le 2026-09-14 en confrontant llmfit :
+    `ModelRuntimeStat` avait une unite `token` a priori et AUCUN enregistrement). Il ne dit
+    RIEN de la qualite des reponses — meme reserve que les autres protocoles : le banc tiers
+    confronte (`benchmark_sync`) porte la qualite, ici on ne classe que des couts.
+
+    Deroulement (repris du banc llmfit, `bench.rs`) : une passe de CHAUFFE, non comptee, qui
+    charge le modele et dont `load_duration` donne le chargement a froid ; puis `runs` passes
+    sur LE MEME prompt, `num_predict` jetons au plus. Un modele qui atteint le plafond a
+    CHAQUE passe est marque sature — son `sorties` ne compare plus rien.
+
+    Ce qu'il PERSISTE, et pourquoi c'est ici : chaque passe est une execution reelle
+    → `eta_estimator.record_run(unit='token')`, bucketise par empreinte materielle. C'est la
+    boucle d'ETA existante (les 8 apps media la nourrissent deja) ; les LLM y entrent par ce
+    banc parce qu'aucune app LLM ne l'appelle. Rien d'autre n'est ecrit : ni `vram_gb`, ni
+    un indice de qualite.
+
+    ⚠ Ce protocole CHARGE un modele sur l'Ollama hote — la rampe VRAM qui a tue l'hote
+    plusieurs fois (INFRA §crashs). Il respecte `WAMA_GPU_SAFE_MODE` comme ses jumeaux
+    (triage VLM du smoke, describer) et refuse EN LE DISANT.
+    """
+    from wama.common.services.resource_governor import gpu_safe_mode
+    from wama.model_manager.services.eta_estimator import record_run
+
+    if gpu_safe_mode():
+        raise RuntimeError("WAMA_GPU_SAFE_MODE actif : chargement d'un LLM hote refuse")
+    if modele.source != 'ollama':
+        raise ValueError(f"protocole Ollama seulement (source={modele.source!r})")
+    prompt = _lire_prompt(echantillon)
+    if not prompt:
+        raise ValueError("prompt vide")
+
+    chauffe = _ollama_generate(modele.name, 'Réponds simplement « ok ».', 8)
+    chargement = _ns_en_s(chauffe.get('load_duration'))
+    a_froid = chargement >= SEUIL_CHARGEMENT_FROID_S
+
+    passes = []
+    for i in range(max(int(runs), 1)):
+        d = _ollama_generate(modele.name, prompt, num_predict)
+        jetons = int(d.get('eval_count') or 0)
+        duree = _ns_en_s(d.get('eval_duration'))
+        passe = {
+            'jetons': jetons,
+            'generation_s': duree,
+            'tokens_par_s': round(jetons / duree, 1) if jetons and duree else None,
+            'prefill_ms': round(float(d.get('prompt_eval_duration') or 0) / 1e6, 1),
+            'prompt_jetons': int(d.get('prompt_eval_count') or 0),
+        }
+        passes.append(passe)
+        if jetons and duree:
+            record_run(modele.model_key, size=jetons, unit='token', process_seconds=duree,
+                       load_seconds=chargement if (a_froid and i == 0) else None)
+
+    debits = [p['tokens_par_s'] for p in passes if p['tokens_par_s']]
+    return {
+        'sorties': round(sum(p['jetons'] for p in passes) / len(passes)),
+        'confiance_moyenne': None,
+        'chargement_s': chargement if a_froid else None,
+        'inference_s': round(sum(p['generation_s'] for p in passes) / len(passes), 3),
+        'sature': all(p['jetons'] >= num_predict for p in passes),
+        'tokens_par_s': round(sum(debits) / len(debits), 1) if debits else None,
+        'prefill_ms': round(sum(p['prefill_ms'] for p in passes) / len(passes), 1),
+        'passes': passes,
     }
 
 
@@ -150,6 +284,7 @@ PROTOCOLES: dict[str, Callable] = {
     ModelTask.CLASSIFY.value: _bench_detection,
     ModelTask.CAPTIONING.value: _bench_description,
     ModelTask.DEPTH_ESTIMATION.value: _bench_depth,
+    ModelTask.TEXT_GENERATION.value: _bench_generation,
 }
 
 

@@ -23,7 +23,7 @@ CE QUE CES TESTS PROTÈGENT, ET POURQUOI ILS EXISTENT
 from pathlib import Path
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from .models import AIModel
 from .services.model_registry import ModelRegistry
@@ -1669,3 +1669,130 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
         self.assertEqual(bge.benchmark_meta['alias_declare'], 'BAAI/bge-m3')
         self.assertEqual(bge.benchmark_meta['rang_centile'], 50.0)
         self.assertIn('proposed:ollama:qwen3-embedding:latest [embedding]', r['non_apparies'])
+
+
+@override_settings(WAMA_GPU_SAFE_MODE=False)
+class BancDeGenerationTest(TestCase):
+    """
+    Protocole `text-generation` du banc (2026-09-14, confrontation llmfit) : le DÉBIT d'un LLM
+    Ollama, lu dans les temps natifs de `/api/generate` — et persisté comme DURÉE dans la boucle
+    d'ETA (`ModelRuntimeStat`, unité `token`), jamais comme qualité.
+
+    CE QUE CES TESTS PROTÈGENT : avant ce protocole, `ModelRuntimeStat` portait une unité
+    `token` a priori (0,03 s/jeton) et AUCUN enregistrement — aucune app LLM n'appelle
+    `record_run`. Le banc est le seul point d'entrée des LLM dans cette boucle ; s'il cesse de
+    l'appeler, l'ETA des LLM redevient une constante inventée, sans que rien ne casse.
+
+    ⚠ `WAMA_GPU_SAFE_MODE` est ACTIF sur l'hôte de développement (mesuré au 1ᵉʳ run de ces
+    tests : 4 erreurs « chargement refusé »). Le nominal est donc forcé à False ici, et le refus
+    est testé à part avec True — sans quoi la suite mesurerait le réglage de la machine, pas le
+    protocole.
+    """
+
+    def setUp(self):
+        self.m = AIModel.objects.create(
+            model_key='ollama:qwen3.5:4b', name='qwen3.5:4b', model_type='llm', source='ollama',
+            is_downloaded=True, vram_gb=3.4, capabilities={'task': 'text-generation'})
+
+    @staticmethod
+    def _reponse(jetons, generation_ns, prefill_ns=200_000_000, load_ns=0, prompt_jetons=12):
+        return {'response': 'x' * jetons, 'eval_count': jetons, 'eval_duration': generation_ns,
+                'prompt_eval_count': prompt_jetons, 'prompt_eval_duration': prefill_ns,
+                'load_duration': load_ns, 'total_duration': load_ns + prefill_ns + generation_ns}
+
+    def test_le_debit_vient_des_temps_natifs_et_chaque_passe_nourrit_l_eta(self):
+        from .services import bench, eta_estimator
+        # chauffe (chargement à froid 4,2 s) puis 3 passes : 150 jetons en 1,5 s = 100 jetons/s
+        reponses = ([self._reponse(3, 30_000_000, load_ns=4_200_000_000)]
+                    + [self._reponse(150, 1_500_000_000)] * 3)
+        appels = []
+        with patch.object(bench, '_ollama_generate', side_effect=reponses) as http, \
+             patch.object(eta_estimator, 'record_run',
+                          side_effect=lambda *a, **k: appels.append((a, k))):
+            mesure = bench._bench_generation(self.m, 'Explique la photosynthèse en trois phrases.')
+        self.assertEqual(http.call_count, 4)                          # 1 chauffe + 3 passes
+        self.assertEqual(http.call_args_list[0].args[2], 8)           # la chauffe est courte…
+        self.assertEqual(http.call_args_list[1].args[2], bench.PLAFOND_TOKENS)  # …les passes, non
+        self.assertEqual(mesure['tokens_par_s'], 100.0)
+        self.assertEqual(mesure['sorties'], 150)
+        self.assertEqual(mesure['inference_s'], 1.5)
+        self.assertEqual(mesure['prefill_ms'], 200.0)
+        self.assertEqual(mesure['chargement_s'], 4.2)
+        self.assertFalse(mesure['sature'])
+        self.assertIsNone(mesure['confiance_moyenne'])                # jamais une qualité
+        # 3 exécutions réelles → 3 enregistrements, unité `token`, taille = jetons produits ;
+        # le chargement à froid n'est appris QU'UNE fois (les passes suivantes sont résidentes).
+        self.assertEqual(len(appels), 3)
+        for (args, kw) in appels:
+            self.assertEqual(args[0], 'ollama:qwen3.5:4b')
+            self.assertEqual(kw['unit'], 'token')
+            self.assertEqual(kw['size'], 150)
+            self.assertEqual(kw['process_seconds'], 1.5)
+        self.assertEqual([kw['load_seconds'] for _, kw in appels], [4.2, None, None])
+
+    def test_un_modele_deja_resident_n_apprend_pas_de_chargement(self):
+        from .services import bench, eta_estimator
+        reponses = ([self._reponse(3, 30_000_000, load_ns=12_000_000)]
+                    + [self._reponse(100, 1_000_000_000)] * 3)
+        appels = []
+        with patch.object(bench, '_ollama_generate', side_effect=reponses), \
+             patch.object(eta_estimator, 'record_run', side_effect=lambda *a, **k: appels.append(k)):
+            mesure = bench._bench_generation(self.m, 'prompt')
+        self.assertIsNone(mesure['chargement_s'])                     # 12 ms = ré-attachement
+        self.assertTrue(all(k['load_seconds'] is None for k in appels))
+
+    def test_atteindre_le_plafond_a_chaque_passe_est_une_saturation(self):
+        from .services import bench, eta_estimator
+        reponses = ([self._reponse(3, 30_000_000)]
+                    + [self._reponse(bench.PLAFOND_TOKENS, 2_000_000_000)] * 3)
+        with patch.object(bench, '_ollama_generate', side_effect=reponses), \
+             patch.object(eta_estimator, 'record_run'):
+            mesure = bench._bench_generation(self.m, 'prompt')
+        self.assertTrue(mesure['sature'])
+        self.assertEqual(mesure['tokens_par_s'], 150.0)               # le débit reste valide
+
+    def test_le_prompt_peut_etre_un_fichier_texte(self):
+        import tempfile
+        from .services import bench, eta_estimator
+        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            f.write("  Décris le cycle de l'eau.\n")
+        reponses = [self._reponse(3, 30_000_000)] + [self._reponse(50, 500_000_000)] * 3
+        with patch.object(bench, '_ollama_generate', side_effect=reponses) as http, \
+             patch.object(eta_estimator, 'record_run'):
+            bench._bench_generation(self.m, f.name)
+        self.assertEqual(http.call_args_list[1].args[1], "Décris le cycle de l'eau.")
+
+    def test_un_modele_hors_ollama_est_un_resultat_en_erreur_pas_une_casse(self):
+        from .services import bench
+        AIModel.objects.create(
+            model_key='huggingface:org/llm', name='org/llm', model_type='llm', source='huggingface',
+            is_downloaded=True, capabilities={'task': 'text-generation'})
+        with patch.object(bench, '_ollama_generate') as http:
+            mesures = bench.run_bench('text-generation', 'prompt', modeles=['org/llm'])
+        http.assert_not_called()
+        self.assertEqual(len(mesures), 1)
+        self.assertIn('Ollama seulement', mesures[0]['erreur'])
+
+    def test_en_mode_depannage_gpu_le_protocole_refuse_avant_tout_appel(self):
+        from .services import bench
+        with override_settings(WAMA_GPU_SAFE_MODE=True), \
+             patch.object(bench, '_ollama_generate') as http:
+            with self.assertRaises(RuntimeError) as cm:
+                bench._bench_generation(self.m, 'prompt')
+        http.assert_not_called()
+        self.assertIn('WAMA_GPU_SAFE_MODE', str(cm.exception))
+
+    def test_le_legendage_lit_le_dict_de_la_sonde_et_rapporte_son_echec(self):
+        # Régression corrigée le 14/09 : `_bench_description` appelait `.strip()` sur le dict
+        # rendu par `describe_image_ollama` → chaque modèle de légendage sortait « en erreur ».
+        from .services import bench, vision_probe
+        with patch.object(vision_probe, 'describe_image_ollama',
+                          return_value={'ok': True, 'description': 'un chat sur un mur'}):
+            mesure = bench._bench_description(self.m, 'image.jpg')
+        self.assertEqual(mesure['sorties'], 5)
+        self.assertEqual(mesure['texte'], 'un chat sur un mur')
+        with patch.object(vision_probe, 'describe_image_ollama',
+                          return_value={'ok': False, 'error': 'image introuvable : image.jpg'}):
+            with self.assertRaises(RuntimeError) as cm:
+                bench._bench_description(self.m, 'image.jpg')
+        self.assertIn('introuvable', str(cm.exception))
