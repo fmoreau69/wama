@@ -8,6 +8,11 @@ aurait fait deux.
 
     python manage.py bench --task detect --media media/anonymizer/1/input/Faces_01.jpg
     python manage.py bench --task captioning --media une_image.jpg --models gemma4:12b,gemma4:e4b
+    python manage.py bench --task text-generation --media prompt.txt --models qwen3.5:4b --runs 3
+
+Pour `text-generation`, l'echantillon est un fichier TEXTE : le prompt. Le protocole CHARGE
+chaque modele sur l'Ollama hote (rampe VRAM — cf. INFRA §crashs) : lancer un modele a la fois,
+machine sous les yeux ; refuse sous WAMA_GPU_SAFE_MODE.
 """
 import os
 
@@ -27,6 +32,9 @@ class Command(BaseCommand):
                             help="Restreint a ces modeles (noms ou cles, separes par des virgules).")
         parser.add_argument('--conf', type=float, default=0.25,
                             help="Seuil de confiance des familles de detection (defaut 0.25).")
+        parser.add_argument('--runs', type=int, default=3,
+                            help="Generation de texte : passes mesurees par modele (defaut 3, "
+                                 "apres une passe de chauffe non comptee).")
 
     def handle(self, *args, **options):
         tache, media = options['task'], options['media']
@@ -42,7 +50,9 @@ class Command(BaseCommand):
         self.stdout.write(f"Tache '{tache}' — {len(candidats)} modele(s) — echantillon {media}\n")
 
         options_protocole = {}
-        if tache != 'captioning':
+        if tache == 'text-generation':
+            options_protocole['runs'] = options['runs']
+        elif tache != 'captioning':
             options_protocole['conf'] = options['conf']
 
         try:
@@ -52,10 +62,20 @@ class Command(BaseCommand):
         except ValueError as e:
             raise CommandError(str(e))
 
+        # Generation : le debit est la colonne qui compare, et c'est lui qui ordonne.
+        generation = tache == 'text-generation'
         entete = f"  {'modele':46s} {'sorties':>8s} {'conf.moy':>9s} {'inference':>10s} {'VRAM':>6s}"
+        if generation:
+            entete += f" {'jetons/s':>9s} {'prefill':>9s} {'charg.':>7s}"
         self.stdout.write(entete)
         self.stdout.write("  " + "-" * (len(entete) - 2))
-        for m in sorted(mesures, key=lambda x: (x['erreur'] is not None, -(x['sorties'] or 0))):
+
+        def _ordre(x):
+            if generation:
+                return (x['erreur'] is not None, -(x.get('tokens_par_s') or 0))
+            return (x['erreur'] is not None, -(x['sorties'] or 0))
+
+        for m in sorted(mesures, key=_ordre):
             if m['erreur']:
                 self.stdout.write(self.style.ERROR(f"  {m['modele']:46s} {m['erreur'][:44]}"))
                 continue
@@ -63,6 +83,11 @@ class Command(BaseCommand):
                      f"{str(m['confiance_moyenne'] or '—'):>9s} "
                      f"{str(m['inference_s']) + ' s':>10s} "
                      f"{str(m['vram_gb'] or '—'):>6s}")
+            if generation:
+                charg = m.get('chargement_s')
+                ligne += (f" {str(m.get('tokens_par_s') or '—'):>9s} "
+                          f"{str(m.get('prefill_ms')) + ' ms':>9s} "
+                          f"{(str(charg) + ' s') if charg else 'résid.':>7s}")
             self.stdout.write(self.style.WARNING(ligne + "  ⚠ saturé") if m['sature'] else ligne)
 
         self.stdout.write(self.style.NOTICE(
