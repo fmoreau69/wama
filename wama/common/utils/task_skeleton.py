@@ -213,10 +213,22 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
     ctx = TaskContext(app_id, model, item, progress_fn=progress_fn)
 
     # ── Ressources AVANT de se déclarer en cours (2026-09-01) ────────────────────────────
-    # Placé ICI, avant `ctx.progress(0)` qui bascule l'item en RUNNING : un item différé ne
-    # doit jamais avoir été « en cours ». `vram_needed` est OPTIONNEL — une app qui ne le
-    # déclare pas garde exactement le comportement d'avant (aucune des 10 ne bouge tant
-    # qu'elle ne l'a pas déclaré).
+    # Placé ICI, avant tout geste de traitement : un item différé ne doit jamais avoir été
+    # « en cours ». `vram_needed` est OPTIONNEL — une app qui ne le déclare pas garde
+    # exactement le comportement d'avant (aucune des 10 ne bouge tant qu'elle ne l'a pas
+    # déclaré).
+    # ⚠ Corrigé le 2026-09-14 : ce commentaire disait « avant `ctx.progress(0)` qui bascule
+    # l'item en RUNNING » — faux, `TaskContext.progress` n'écrit que le cache et `progress`.
+    # RUNNING est posé par les VUES de lancement, avant `.delay()`.
+    from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING
+    essais = int(getattr(getattr(task, 'request', None), 'retries', 0) or 0)
+    if essais and getattr(item, 'status', None) not in (JOB_AWAITING_RESOURCES, JOB_RUNNING):
+        # RE-LIVRAISON d'un report (`task.retry`, seul retry du squelette) alors que l'item
+        # n'attend plus : l'utilisateur l'a annulé, supprimé de la file ou relancé autrement
+        # entre-temps. Le traiter quand même ferait tourner ce qu'il a arrêté.
+        logger.info("[%s] item #%s : report abandonné (statut %s, plus en attente de ressources)",
+                    app_id, item_id, getattr(item, 'status', None))
+        return
     if vram_needed is not None:
         try:
             besoin = vram_needed(item) if callable(vram_needed) else float(vram_needed)
@@ -227,6 +239,13 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         if besoin and _differer_faute_de_vram(task, ctx, item, model, item_id, app_id,
                                               float(besoin), error_field):
             return
+
+    # Un item RE-LIVRÉ après un report ne repasse par aucune vue de lancement : sans ce geste,
+    # il resterait affiché « En attente de ressources » pendant tout son traitement. Seul ce
+    # cas bascule — un item PENDING n'est jamais mis en cours ici.
+    if getattr(item, 'status', None) == JOB_AWAITING_RESOURCES:
+        model.objects.filter(pk=item_id, status=JOB_AWAITING_RESOURCES).update(status=JOB_RUNNING)
+        item.status = JOB_RUNNING
 
     ctx.progress(0)
 
