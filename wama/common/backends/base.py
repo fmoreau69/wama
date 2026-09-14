@@ -67,27 +67,52 @@ _MEASURE_FLOOR_GB = 0.1
 # l'enveloppe `load` (donc à n'importe quelle profondeur d'héritage, cf. classe intermédiaire),
 # purgé par l'enveloppe `unload`, et en WeakSet pour ne jamais maintenir un modèle en vie.
 #
-# ⚠ Il rend l'unloader d'une app AUTOMATIQUE : plus rien à déclarer app par app tant que ses
-# backends dérivent de BaseModelBackend. Une app hors contrat (modèle en variable de module)
-# doit encore appeler `register_vram_unloader` dans son `apps.py::ready()`.
-_LIVE_BACKENDS: "dict[str, weakref.WeakSet]" = {}
+# ⚠ Il rend le reclaim AUTOMATIQUE : plus rien à déclarer tant que les backends dérivent de
+# BaseModelBackend. Un modèle hors contrat (variable de module) doit encore appeler
+# `register_vram_unloader` dans son `apps.py::ready()`.
+#
+# ⚠ 2026-09-14 — le registre était RANGÉ PAR APP, l'app étant déduite du CHEMIN du module.
+# Depuis que les backends vivent sous `wama/common/backends/` (08/09), toutes les instances
+# tombaient dans le seau `common` : décharger « un modèle inactif » vidait tout le process, et
+# l'exclusion du propriétaire (`reessayer_apres_liberation`) ne protégeait plus rien. Le
+# registre est désormais PLAT et le reclaim vise un MODÈLE DU CATALOGUE, résolu par la règle
+# partagée — le modèle déclare son moteur, le backend déclare ce qu'il sert.
+_LIVE_BACKENDS: "weakref.WeakSet" = weakref.WeakSet()
 
 
-def _app_of(instance) -> str:
-    """App propriétaire d'un backend, déduite de son module (`wama.<app>.…`)."""
-    parts = type(instance).__module__.split('.')
-    return parts[1] if len(parts) > 1 and parts[0] == 'wama' else parts[0]
+def _catalog_keys_of_instance(instance) -> list:
+    """Clés catalogue du modèle que tient `instance` — [] si inconnues (hors Django, non résolu)."""
+    owner = getattr(instance, _GOV_KEY, None) or _governor_owner(instance)
+    try:
+        from wama.common.backends.manager import catalog_keys_for_owner
+        return catalog_keys_for_owner(owner)
+    except Exception:
+        return []
 
 
-def unload_app_backends(app: str) -> bool:
-    """Décharge les backends résidents de `app`. True si quelque chose a été libéré."""
-    freed = False
-    for instance in list(_LIVE_BACKENDS.get(app) or ()):
+def unload_live_backends(model_key: Optional[str] = None, exclude_sources=None) -> int:
+    """Décharge les backends résidents de CE process ; rend le nombre d'instances déchargées.
+
+    `model_key` : seulement ceux qui tiennent ce modèle du catalogue.
+    `exclude_sources` : épargne ceux dont une clé porte l'une de ces sources (`anonymizer`…) —
+    le propriétaire d'une inférence en cours ne se décharge pas lui-même.
+    Une instance dont la clé n'est pas résolue n'est ni visée par `model_key` (on ne décharge
+    pas au hasard) ni épargnée par `exclude_sources` (rien ne dit qu'elle est au propriétaire).
+    """
+    exclude = set(exclude_sources or ())
+    freed = 0
+    for instance in list(_LIVE_BACKENDS):
         try:
             if not getattr(instance, 'is_loaded', True):
                 continue
+            if model_key is not None or exclude:
+                keys = _catalog_keys_of_instance(instance)
+                if model_key is not None and model_key not in keys:
+                    continue
+                if exclude and any(k.split(':', 1)[0] in exclude for k in keys):
+                    continue
             instance.unload()
-            freed = True
+            freed += 1
         except Exception:
             logger.warning("Déchargement de %s échoué", type(instance).__name__, exc_info=True)
     return freed
@@ -104,19 +129,18 @@ def refresh_live_reservations() -> int:
     (`_GOV_GB`), pas une re-mesure. Retourne le nombre de lignes rafraîchies.
     """
     refreshed = 0
-    for bucket in _LIVE_BACKENDS.values():
-        for instance in list(bucket):
-            owner = getattr(instance, _GOV_KEY, None)
-            gb = getattr(instance, _GOV_GB, None)
-            if not owner or not gb:
-                continue
-            try:
-                from wama.common.services.resource_governor import reserve_vram
-                reserve_vram(owner, float(gb),
-                             allocated=bool(getattr(instance, _GOV_ALLOC, False)))
-                refreshed += 1
-            except Exception:
-                logger.debug("Rafraîchissement de %s ignoré", owner, exc_info=True)
+    for instance in list(_LIVE_BACKENDS):
+        owner = getattr(instance, _GOV_KEY, None)
+        gb = getattr(instance, _GOV_GB, None)
+        if not owner or not gb:
+            continue
+        try:
+            from wama.common.services.resource_governor import reserve_vram
+            reserve_vram(owner, float(gb),
+                         allocated=bool(getattr(instance, _GOV_ALLOC, False)))
+            refreshed += 1
+        except Exception:
+            logger.debug("Rafraîchissement de %s ignoré", owner, exc_info=True)
     return refreshed
 
 
@@ -156,24 +180,13 @@ def start_reservation_heartbeat() -> bool:
 
 
 def _track_live(instance) -> None:
-    app = _app_of(instance)
-    bucket = _LIVE_BACKENDS.get(app)
-    if bucket is None:
-        bucket = _LIVE_BACKENDS[app] = weakref.WeakSet()
-        # Enregistrement à la PREMIÈRE résidence réelle, pas à l'import : le registre
-        # ne contient donc que des apps ayant effectivement chargé un modèle.
-        try:
-            from wama.model_manager.services.memory_manager import register_vram_unloader
-            register_vram_unloader(app, functools.partial(unload_app_backends, app))
-        except Exception:
-            logger.debug("Enregistrement de l'unloader %s ignoré", app, exc_info=True)
-    bucket.add(instance)
+    # Plus d'unloader inscrit par app (2026-09-14) : `MemoryManager.release_vram` /
+    # `unload_model` interrogent ce registre directement, au grain du modèle.
+    _LIVE_BACKENDS.add(instance)
 
 
 def _untrack_live(instance) -> None:
-    bucket = _LIVE_BACKENDS.get(_app_of(instance))
-    if bucket is not None:
-        bucket.discard(instance)
+    _LIVE_BACKENDS.discard(instance)
 
 
 def _footprint_to_publish(instance, before, owner):
@@ -325,12 +338,18 @@ GOVERNOR_MODEL_SEP = '#'
 
 
 def _backend_model_key(instance, model=None) -> Optional[str]:
-    """Clé CATALOGUE du modèle porté par ce backend, ou None s'il ne l'expose pas.
+    """Suffixe d'owner désignant le modèle porté par ce backend — `@<nom local>` — ou None
+    s'il n'en expose pas.
 
-    `AIModel.model_key` vaut `<source>:<model_id>` et les backends nomment leur
-    modèle courant `_current_model` (= le `model_id`) — convention déjà lue par
-    `model_registry._discover_imager_models`. La clé se reconstitue donc exactement,
-    sans table de correspondance à tenir.
+    Le backend publie ce qu'IL sait : le nom qu'il sert (`_current_model`, `current_model`,
+    `model_name`). La clé CATALOGUE se résout à la LECTURE (`resource_governor.model_keys_of`
+    → `backends.manager.catalog_keys_for_owner`), dans un process qui a le catalogue : le
+    service TTS, qui publie lui aussi, n'a pas d'ORM.
+
+    ⚠ Corrigé le 2026-09-14. Cette fonction reconstituait `<source>:<model_id>` en déduisant la
+    source du CHEMIN du module (`wama.<app>.…`) — vrai tant que les backends vivaient dans les
+    apps. Depuis leur déménagement sous `wama/common/backends/` (08/09) elle rendait
+    `common:<id>` : 0 clé juste sur les 101 modèles résolus (mesuré), sans que rien ne le dise.
     """
     name = model
     if name is None:
@@ -340,7 +359,8 @@ def _backend_model_key(instance, model=None) -> Optional[str]:
                 break
     if not name:
         return None
-    return f"{_app_of(instance)}:{name}"
+    from wama.common.services.resource_governor import OWNER_LOCAL_NAME_PREFIX
+    return f"{OWNER_LOCAL_NAME_PREFIX}{name}"
 
 
 def _governor_owner(instance, model=None) -> str:

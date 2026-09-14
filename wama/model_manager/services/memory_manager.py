@@ -216,17 +216,30 @@ class MemoryManager:
     @staticmethod
     def release_vram(exclude: "Optional[set]" = None) -> int:
         """
-        Décharge tous les modèles enregistrés (sauf `exclude`) pour récupérer la
-        VRAM. Renvoie le nombre d'unloaders ayant effectivement libéré qqch.
+        Décharge les modèles résidents de CE process (sauf `exclude`) pour récupérer la
+        VRAM. Renvoie le nombre de libérations effectives.
 
-        Ne casse pas les chemins hérités : les unloaders imager/describer codés
-        en dur restent appelés par `clear_gpu_memory()`. Ce registre est le
-        chemin NEUF que les apps adoptent progressivement.
+        `exclude` : SOURCES du catalogue à épargner (`anonymizer`…) — les backends du contrat
+        dont une clé porte cette source, et les unloaders nommés `<source>` ou `<source>-…`.
+
+        ⚠ 2026-09-14 : les backends du contrat ne passent plus par `_VRAM_UNLOADERS`. Ils s'y
+        inscrivaient sous le nom de leur app déduit du chemin du module — `common` pour tous
+        depuis le 08/09, si bien que l'exclusion du propriétaire ne protégeait plus rien. Ils
+        sont déchargés par `base.unload_live_backends`, qui résout leur clé catalogue ; le
+        registre ne garde que les modèles HORS contrat (pipeline pyannote en variable de module).
         """
-        exclude = exclude or set()
+        exclude = set(exclude or ())
         freed = 0
+        try:
+            from wama.common.backends.base import unload_live_backends
+            n = unload_live_backends(exclude_sources=exclude)
+            if n:
+                freed += n
+                logger.info(f"[MemoryManager] Released VRAM: {n} backend(s) du contrat")
+        except Exception as e:
+            logger.warning(f"[MemoryManager] backends du contrat non déchargés : {e}")
         for name, fn in list(_VRAM_UNLOADERS.items()):
-            if name in exclude:
+            if name in exclude or name.split('-', 1)[0] in exclude:
                 continue
             try:
                 if fn():
@@ -442,16 +455,18 @@ class MemoryManager:
     @staticmethod
     def unload_model(model_id: str) -> bool:
         """
-        Décharge les modèles résidents de l'app portée par `model_id` (`<app>:<modèle>`).
+        Décharge, dans CE process, le modèle du catalogue `model_id` (`<source>:<modèle>`).
 
         Routait auparavant vers une méthode `_unload_<app>_model` par app. Trois d'entre
         elles (anonymizer, synthesizer, enhancer) étaient des stubs qui faisaient un
         `gc.collect()` et retournaient **True** : l'appelant croyait la VRAM libérée alors
         que rien ne l'était — pire qu'un échec, puisque indétectable. On interroge
-        désormais le registre, et l'absence d'unloader se dit `False`.
+        désormais le registre, et l'absence de libération se dit `False`.
 
-        La granularité reste l'APP, pas le modèle : les backends d'une même app partagent
-        le contexte CUDA du process, il n'y a rien à libérer sélectivement.
+        Granularité : le MODÈLE (2026-09-14) pour les backends du contrat — ses tenseurs se
+        libèrent, les autres modèles du process restent chargés ; la SOURCE pour les unloaders
+        nommés hors contrat. Cette docstring disait « la granularité reste l'APP » : depuis que
+        l'app se déduisait du chemin du module, elle valait `common` pour tous.
         """
         app = (model_id.split(':', 1)[0] or '').strip()
         try:
@@ -483,25 +498,32 @@ class MemoryManager:
                 except Exception as exc:
                     logger.warning(f"[MemoryManager] déchargement Ollama de {nom} échoué : {exc}")
                     return False
-            # Une app peut enregistrer PLUSIEURS unloaders : l'automatique sous son nom
-            # (`transcriber`) et un explicite pour ce qui échappe au contrat de backend
-            # (`transcriber-diarizer`, pipeline caché en variable de module). On les
-            # appelle tous — décharger l'ASR sans la diarisation ne libère rien d'utile.
+            # Backends du CONTRAT : ceux de CE process qui tiennent CE modèle — clé catalogue
+            # résolue par la règle partagée (2026-09-14). Avant, tout backend s'inscrivait sous
+            # `common` : `unload_model('transcriber:whisper')` n'en trouvait plus aucun, et une
+            # ligne inactive `common:…` aurait vidé tout le process.
+            freed = False
+            try:
+                from wama.common.backends.base import unload_live_backends
+                freed = unload_live_backends(model_key=model_id) > 0
+            except Exception as exc:
+                logger.warning(f"[MemoryManager] backends du contrat non déchargés : {exc}")
+            # Unloaders NOMMÉS, pour ce qui échappe au contrat (`transcriber-diarizer`, pipeline
+            # caché en variable de module) : appelés pour toute clé de leur source — décharger
+            # l'ASR sans la diarisation ne libère rien d'utile.
             matched = [(name, fn) for name, fn in list(_VRAM_UNLOADERS.items())
                        if name == app or name.startswith(f'{app}-')]
-            if not matched:
-                logger.warning(
-                    f"Aucun unloader VRAM enregistré pour '{app}' ({model_id}) : rien à libérer. "
-                    "Une app dont les backends dérivent de BaseModelBackend s'enregistre seule "
-                    "au premier load ; sinon, la déclarer dans son apps.py::ready().")
-                return False
-            freed = False
             for name, fn in matched:
                 try:
                     if fn():
                         freed = True
                 except Exception as exc:
                     logger.warning(f"[MemoryManager] Unloader '{name}' failed: {exc}")
+            if not freed:
+                logger.warning(
+                    f"Rien à libérer pour {model_id} dans ce process : aucun backend résident ne "
+                    "tient ce modèle, aucun unloader nommé ne couvre sa source. ⚠ Le "
+                    "déchargement est IN-PROCESS — depuis gunicorn, il n'atteint pas un worker.")
             return freed
         except Exception as e:
             logger.error(f"Error unloading model {model_id}: {e}")

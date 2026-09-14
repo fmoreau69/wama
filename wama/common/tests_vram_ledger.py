@@ -221,14 +221,14 @@ class EnveloppeTest(_AvecRegistre):
         super().setUp()
         from wama.model_manager.services import memory_manager
         unloaders = dict(memory_manager._VRAM_UNLOADERS)
-        vivants = {k: set(v) for k, v in base._LIVE_BACKENDS.items()}
+        vivants = set(base._LIVE_BACKENDS)
 
         def restaurer():
             memory_manager._VRAM_UNLOADERS.clear()
             memory_manager._VRAM_UNLOADERS.update(unloaders)
-            for k in list(base._LIVE_BACKENDS):
-                if k not in vivants:
-                    del base._LIVE_BACKENDS[k]
+            for instance in list(base._LIVE_BACKENDS):
+                if instance not in vivants:
+                    base._LIVE_BACKENDS.discard(instance)
         self.addCleanup(restaurer)
         self.b = _FauxBackend()
 
@@ -272,7 +272,7 @@ class EnveloppeTest(_AvecRegistre):
     def test_un_chargement_REFUSE_ne_rend_pas_le_backend_resident(self):
         self.b.refus = True
         self.assertFalse(self._charger(0, 0.0))
-        self.assertNotIn(self.b, set(base._LIVE_BACKENDS.get('common', ())))
+        self.assertNotIn(self.b, set(base._LIVE_BACKENDS))
 
     def test_le_battement_republie_le_marqueur_alloue(self):
         self._charger(0, 8.0)
@@ -288,3 +288,128 @@ class EnveloppeTest(_AvecRegistre):
         self.assertEqual(self._ligne(), {})
         self.assertEqual(self.annexe(gov._ALLOC_KEY), {})
         self.assertFalse(getattr(self.b, base._GOV_ALLOC))
+
+    # ── La CLÉ publiée (2026-09-14) ─────────────────────────────────────────────────────
+
+    def _indexer(self):
+        """Catalogue simulé : la classe de test exécute deux modèles de deux SOURCES."""
+        p = mock.patch('wama.common.backends.manager._catalog_index', return_value={
+            CLASSE_FAUX: [('anonymizer:m', ''), ('imager:n', '')]})
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _second_backend(self, nom, gb):
+        autre = _FauxBackend()
+        with mock.patch.object(base, '_vram_snapshot', return_value=0), \
+                mock.patch.object(base, '_measured_vram_gb', return_value=gb):
+            autre.load(model=nom)
+        return autre
+
+    def test_l_owner_publie_le_NOM_LOCAL_et_non_une_source_devinee(self):
+        """Avant : `_app_of` déduisait la source du chemin du module → `#common:m`."""
+        self._charger(0, 8.0, model='m')
+        [owner] = self._ligne()
+        self.assertTrue(owner.endswith('#@m'), owner)
+        self.assertNotIn('#common:', owner)
+
+    def test_decharger_UN_modele_ne_vide_que_le_backend_qui_le_tient(self):
+        """Avant : tous les backends s'inscrivaient sous `common` — `unload_model('transcriber:…')`
+        n'en trouvait aucun, et une ligne inactive `common:…` aurait vidé tout le process."""
+        from wama.model_manager.services.memory_manager import MemoryManager
+        self._indexer()
+        self._charger(0, 8.0, model='m')
+        autre = self._second_backend('n', 4.0)
+        self.assertTrue(MemoryManager.unload_model('imager:n'))
+        self.assertFalse(autre.is_loaded)
+        self.assertTrue(self.b.is_loaded)
+
+    def test_le_reclaim_EPARGNE_le_proprietaire_d_une_inference_en_cours(self):
+        """`reessayer_apres_liberation(proprietaire='anonymizer')` : l'exclusion portait sur un nom
+        d'app que plus aucun backend ne portait — le propriétaire se déchargeait lui-même."""
+        from wama.model_manager.services.memory_manager import MemoryManager
+        self._indexer()
+        self._charger(0, 8.0, model='m')
+        autre = self._second_backend('n', 4.0)
+        MemoryManager.release_vram(exclude={'anonymizer'})
+        self.assertTrue(self.b.is_loaded)
+        self.assertFalse(autre.is_loaded)
+
+
+#: Chemin de classe tel que le publie l'owner (`<module>.<Classe>:<pid>#…`).
+CLASSE_FAUX = f"{_FauxBackend.__module__}.{_FauxBackend.__name__}"
+
+
+class ResolutionDeLaCleTest(SimpleTestCase):
+    """La clé CATALOGUE se résout à la lecture, par la règle partagée — jamais par le chemin."""
+
+    YOLO = [('anonymizer:yolo:yolov8n.pt', ''), ('anonymizer:yolo:yolo11n.pt', '')]
+    WHISPER = [('describer:whisper', 'openai/whisper-base'),
+               ('transcriber:whisper', 'openai/whisper-large-v3')]
+
+    def setUp(self):
+        from wama.common.backends import manager
+        self.m = manager
+
+    def test_le_dernier_segment_designe_le_modele(self):
+        self.assertEqual(self.m.match_local_name(self.YOLO, 'yolov8n.pt'),
+                         ['anonymizer:yolo:yolov8n.pt'])
+
+    def test_le_hf_id_designe_le_modele(self):
+        rows = [('transcriber:qwen3-asr-0.6b', 'Qwen/Qwen3-ASR-0.6B'),
+                ('transcriber:qwen3-asr-1.7b', 'Qwen/Qwen3-ASR-1.7B')]
+        self.assertEqual(self.m.match_local_name(rows, 'Qwen/Qwen3-ASR-1.7B'),
+                         ['transcriber:qwen3-asr-1.7b'])
+
+    def test_whisper_se_resout_par_la_fin_de_son_hf_id(self):
+        self.assertEqual(self.m.match_local_name(self.WHISPER, 'large-v3'), ['transcriber:whisper'])
+        self.assertEqual(self.m.match_local_name(self.WHISPER, 'base'), ['describer:whisper'])
+
+    def test_une_classe_a_UN_modele_le_designe_quel_que_soit_le_nom(self):
+        rows = [('huggingface:onnx-community/Kokoro-82M-v1.0-ONNX',
+                 'onnx-community/Kokoro-82M-v1.0-ONNX')]
+        self.assertEqual(self.m.match_local_name(rows, 'kokoro-onnx'), [rows[0][0]])
+
+    def test_entre_plusieurs_modeles_on_ne_devine_pas(self):
+        self.assertEqual(self.m.match_local_name(self.YOLO, 'inconnu.pt'), [])
+
+    def test_la_ligne_VIVANTE_mesuree_le_14_09_se_resout(self):
+        """Registre Redis du 2026-09-14 : `…KokoroOnnxBackend:9777#common:kokoro-onnx` ne
+        rejoignait aucune clé. Publiée sous la forme neuve, elle rejoint sa ligne de catalogue."""
+        classe = 'wama.common.backends.kokoro_onnx_backend.KokoroOnnxBackend'
+        cle = 'huggingface:onnx-community/Kokoro-82M-v1.0-ONNX'
+        with mock.patch.object(self.m, '_catalog_index',
+                               return_value={classe: [(cle, 'onnx-community/Kokoro-82M-v1.0-ONNX')]}):
+            self.assertEqual(self.m.catalog_keys_for_owner(f'{classe}:9777#@kokoro-onnx'), [cle])
+
+    def test_un_suffixe_qui_EST_une_cle_passe_tel_quel(self):
+        self.assertEqual(self.m.catalog_keys_for_owner('ollama-host#ollama:gemma3:4b'),
+                         ['ollama:gemma3:4b'])
+
+    def test_un_catalogue_illisible_ne_rend_rien_et_ne_leve_pas(self):
+        with mock.patch.object(self.m, '_catalog_index', side_effect=RuntimeError('pas de base')):
+            self.assertEqual(self.m.catalog_keys_for_owner('a.B:1#@m'), [])
+
+
+class ResidenceResolueTest(_AvecRegistre):
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch('wama.common.backends.manager._catalog_index', return_value={
+            CLASSE_FAUX: [('app:m', ''), ('app:n', '')]})
+        p.start()
+        self.addCleanup(p.stop)
+        self.owner = f'{CLASSE_FAUX}:1#@m'
+
+    def test_un_residant_publie_par_son_nom_apparait_sous_sa_cle_catalogue(self):
+        gov.reserve_vram(self.owner, 8.0, allocated=True)
+        self.assertEqual(gov.resident_models(), {'app:m': 8.0})
+
+    def test_l_inactivite_se_lit_sous_la_cle_catalogue(self):
+        gov.reserve_vram(self.owner, 8.0)
+        self.t += 400
+        self.assertEqual([r['model_key'] for r in gov.idle_models(300)], ['app:m'])
+
+    def test_un_nom_NON_resolu_n_est_pas_un_residant_mais_reste_compte(self):
+        gov.reserve_vram(f'{CLASSE_FAUX}:1#@zzz', 8.0)
+        self.assertEqual(gov.resident_models(), {})
+        self.assertEqual(gov.unseen_reserved_gb('driver'), 8.0)

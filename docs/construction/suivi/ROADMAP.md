@@ -523,7 +523,14 @@ fichier, pas dans les 11 apps.
   `common`, donc « décharger un modèle inactif » décharge TOUS les backends du process.
   ⚠ Le lien modèle → backend est sain (`backend_for_model` : moteur déclaré + `SUPPORTED_MODELS`) ;
   c'est le chemin INVERSE — la publication au registre — qui n'a pas suivi le déménagement.
-  ⏳ Correctif global à concevoir (la clé doit venir du catalogue, pas du chemin), non fait.
+  ✅ **Corrigé le 2026-09-14 (soir, GO Fabien).** Le backend publie ce qu'il sait — sa classe (déjà
+  dans l'owner) et `@<nom local>` — et la clé se résout à la LECTURE
+  (`backends.manager.catalog_keys_for_owner`) : le service TTS publie mais n'a pas d'ORM, tous les
+  lecteurs de résidence en ont un. Règle = la moitié inverse du lien de `backend_for_model` : parmi
+  les modèles que la classe exécute, celui que le nom désigne (identifiant, dernier segment,
+  `hf_id`, fin de `hf_id`) ; une classe à un seul modèle le désigne d'office (23 classes sur 34).
+  Le reclaim passe au grain du MODÈLE (`unload_live_backends`) : `release_vram(exclude=…)` épargne
+  de nouveau le propriétaire. Détail : `PROJECT_STATUS §PALIER 2026-09-14 (soir) « CLÉ »`.
 - `resident_models()` → `model_key` → Go, et `idle_models(seuil)` via `mark_used()` émis par
   `_wrap_process` (hash Redis **séparé** `wama:vram:last_used` : un 3ᵉ champ dans la ligne de
   réservation aurait été lu comme illisible → périmé → **purgé**, effaçant une réservation vivante).
@@ -604,8 +611,9 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
   ancienne logique `_wrap_load` 4) — la contre-épreuve a d'ailleurs révélé deux tests qui
   bouclaient sur la constante du code testé, corrigés.
 - 🔴 **NOMMÉ, NON CORRIGÉ** :
-  ① **clé de modèle publiée** `common:<id>` pour les 101 modèles résolus (constat ci-dessus) —
-    correctif GLOBAL : la clé doit venir du catalogue, pas du chemin du module ;
+  ① ~~**clé de modèle publiée** `common:<id>` pour les 101 modèles résolus (constat ci-dessus) —
+    correctif GLOBAL : la clé doit venir du catalogue, pas du chemin du module~~ ✅ **corrigé le
+    même soir** (résolution à la lecture, reclaim au grain du modèle — constat ci-dessus) ;
   ② le squelette ne pose jamais RUNNING (le commentaire « `progress(0)` bascule l'item en
     RUNNING » de `task_skeleton.py` est faux : `TaskContext.progress` n'écrit que cache et
     `progress`) — un item différé resterait affiché `AWAITING_RESOURCES` pendant son exécution ;

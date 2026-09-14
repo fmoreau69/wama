@@ -372,19 +372,49 @@ def resident_models() -> dict[str, float]:
     """
     par_modele: dict[str, float] = {}
     for owner, gb in reservations().items():
-        cle = model_key_of(owner)
-        if cle:
+        for cle in model_keys_of(owner):
             # Somme : le même modèle peut être résident dans PLUSIEURS process
             # (deux workers GPU), et chacun en occupe sa propre empreinte.
             par_modele[cle] = par_modele.get(cle, 0.0) + gb
     return par_modele
 
 
-def model_key_of(owner: str) -> str | None:
-    """Clé catalogue portée par une clé d'owner, ou None si elle n'en porte pas."""
+#: Préfixe d'un suffixe d'owner qui porte le NOM LOCAL du modèle (celui que le backend
+#: connaît), et non sa clé catalogue — résolu à la LECTURE (2026-09-14).
+OWNER_LOCAL_NAME_PREFIX = '@'
+
+
+def model_keys_of(owner: str) -> list[str]:
+    """Clés catalogue du modèle porté par une clé d'owner — [] s'il n'en porte pas, ou si le
+    nom ne se résout pas.
+
+    Deux formes de suffixe :
+    - une clé catalogue (`ollama-host#ollama:gemma3:4b`, `memory-embed#ollama:bge-m3:latest`) ;
+    - `@<nom local>`, publié par le contrat de backend : le process qui charge (service TTS
+      compris, SANS ORM) ne sait que sa classe et le nom qu'il sert ; la clé se résout ici, dans
+      un process Django (`backends.manager.catalog_keys_for_owner`). Jusqu'au 2026-09-14 la
+      source se déduisait du chemin du module : `common:<id>` pour 101 modèles, 0 juste.
+    Un nom qui désigne plusieurs clés (Whisper, servi pour describer ET transcriber) les rend
+    toutes.
+    """
     if OWNER_MODEL_SEP not in owner:
-        return None
-    return owner.split(OWNER_MODEL_SEP, 1)[1].strip() or None
+        return []
+    suffixe = owner.split(OWNER_MODEL_SEP, 1)[1].strip()
+    if not suffixe:
+        return []
+    if not suffixe.startswith(OWNER_LOCAL_NAME_PREFIX):
+        return [suffixe]
+    try:
+        from wama.common.backends.manager import catalog_keys_for_owner
+        return list(catalog_keys_for_owner(owner))
+    except Exception:
+        return []
+
+
+def model_key_of(owner: str) -> str | None:
+    """Première clé de `model_keys_of` — pour un appelant qui n'en attend qu'une."""
+    cles = model_keys_of(owner)
+    return cles[0] if cles else None
 
 
 #: Détenteur des lignes de résidence de l'OLLAMA HÔTE (service séparé, lu par `/api/ps`).
@@ -498,23 +528,24 @@ def idle_models(idle_threshold_s: int = 300) -> list[dict]:
 
     now, out = _now(), []
     for owner, (gb, pose_le) in _reservations_raw().items():
-        cle = model_key_of(owner)
-        if not cle:
-            continue                      # détenteur sans modèle (sous-processus)
+        cles = model_keys_of(owner)
+        if not cles:
+            continue                      # détenteur sans modèle (sous-processus) ou non résolu
         # Dernier usage, sinon le CHARGEMENT — et non l'horodatage de la ligne, que le battement
         # réécrit toutes les 10 min (2026-09-14). La ligne ne sert plus de repli qu'aux lignes
         # posées par un process resté sur l'ancien code, sans `_LOADED_KEY`.
         dernier = usages.get(owner) or charges.get(owner) or pose_le
         inactif = now - dernier
         if inactif >= idle_threshold_s:
-            out.append({
-                'model_key': cle,
-                'owner': owner,
-                'vram_gb': round(gb, 2),
-                'idle_seconds': int(inactif),
-                'idle_minutes': round(inactif / 60, 1),
-                'jamais_utilise': owner not in usages,
-            })
+            for cle in cles:              # un même poids servi sous deux clés : une ligne chacune
+                out.append({
+                    'model_key': cle,
+                    'owner': owner,
+                    'vram_gb': round(gb, 2),
+                    'idle_seconds': int(inactif),
+                    'idle_minutes': round(inactif / 60, 1),
+                    'jamais_utilise': owner not in usages,
+                })
     return sorted(out, key=lambda d: -d['idle_seconds'])
 
 

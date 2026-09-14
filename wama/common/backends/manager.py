@@ -207,6 +207,95 @@ def backend_for_key(model_key: str, entries=None):
     return backend_for_model(ligne, entries) if ligne is not None else None
 
 
+# ── Clé CATALOGUE d'un modèle résident, résolue À LA LECTURE (2026-09-14) ───────────────
+#
+# Le contrat de backend publie au registre VRAM `<module>.<Classe>:<pid>#@<nom local>` : le
+# process qui charge ne connaît que sa classe et le nom qu'il sert — et le service TTS n'a pas
+# d'ORM. La clé se reconstitue ICI, par la moitié inverse du lien que `backend_for_model` suit
+# dans l'autre sens : parmi les modèles du catalogue que cette classe exécute, celui que ce nom
+# désigne. Avant, la source se DÉDUISAIT du chemin du module (`base._app_of`) — juste tant que
+# les backends vivaient dans les apps, faux pour les 101 modèles résolus depuis leur
+# déménagement sous `common/backends/` (8c556100 ; mesuré le 2026-09-14 : 0 clé juste).
+CATALOG_INDEX_TTL_S = 60.0
+_CATALOG_INDEX: dict = {}
+
+
+def invalidate_catalog_index() -> None:
+    """Le prochain `catalog_keys_for_owner` relit le catalogue (après une synchro, un test)."""
+    _CATALOG_INDEX.clear()
+
+
+def _catalog_index() -> dict:
+    """{`module.Classe`: [(clé, hf_id)]} — mémoïsé une minute : le catalogue ne bouge qu'à la
+    synchro, et les lecteurs de résidence (sélecteur, model_manager) l'interrogent souvent."""
+    import time
+    now = time.monotonic()
+    hit = _CATALOG_INDEX.get('index')
+    if hit is not None and now - hit[0] < CATALOG_INDEX_TTL_S:
+        return hit[1]
+    from wama.model_manager.models import AIModel
+    from wama.common.services.backend_inventory import resolvable_entries
+    entries = resolvable_entries()
+    index: dict = {}
+    for ligne in AIModel.objects.only('model_key', 'hf_id', 'composition'):
+        classe = backend_for_model(ligne, entries)
+        if classe is not None:
+            index.setdefault(f"{classe.__module__}.{classe.__name__}", []).append(
+                (ligne.model_key, ligne.hf_id or ''))
+    _CATALOG_INDEX['index'] = (now, index)
+    return index
+
+
+def match_local_name(rows, name: str) -> list:
+    """Clés, parmi les lignes `(clé, hf_id)` d'une classe, que désigne le nom local `name`.
+
+    La première règle qui trouve l'emporte :
+      1. égalité avec la clé, l'identifiant (après la source), le dernier segment ou le `hf_id`
+         (`yolov8n.pt` → `anonymizer:yolo:yolov8n.pt` ; `Qwen/Qwen3-ASR-1.7B`) ;
+      2. dernier composant du `hf_id` égal au nom, ou finissant par `-<nom>` (Whisper :
+         `large-v3` → `openai/whisper-large-v3`, `base` → `openai/whisper-base`) ;
+      3. la classe n'exécute qu'UN modèle du catalogue → c'est lui (Kokoro-onnx, Audio8…).
+    Sinon [] : entre plusieurs modèles, on ne devine pas. Un nom qui en désigne plusieurs les
+    rend tous (mêmes poids servis sous deux clés).
+    """
+    name = (name or '').strip()
+    if not name or not rows:
+        return []
+    exact = [cle for cle, hf in rows
+             if name in (cle, cle.split(':', 1)[-1], cle.rsplit(':', 1)[-1], hf)]
+    if exact:
+        return exact
+    base = name.rstrip('/').rsplit('/', 1)[-1]
+    par_hf = [cle for cle, hf in rows if hf and (
+        hf.rsplit('/', 1)[-1] == base or hf.rsplit('/', 1)[-1].endswith(f'-{base}'))]
+    if par_hf:
+        return par_hf
+    return [rows[0][0]] if len(rows) == 1 else []
+
+
+def catalog_keys_for_owner(owner: str) -> list:
+    """Clés catalogue désignées par une clé d'owner du registre VRAM — [] si rien ne se résout.
+
+    Un suffixe qui n'est pas un nom local (`ollama-host#ollama:gemma3:4b`) EST déjà une clé.
+    """
+    from wama.common.services.resource_governor import OWNER_LOCAL_NAME_PREFIX, OWNER_MODEL_SEP
+    if not owner or OWNER_MODEL_SEP not in owner:
+        return []
+    detenteur, suffixe = owner.split(OWNER_MODEL_SEP, 1)
+    suffixe = suffixe.strip()
+    if not suffixe:
+        return []
+    if not suffixe.startswith(OWNER_LOCAL_NAME_PREFIX):
+        return [suffixe]
+    classe = detenteur.rsplit(':', 1)[0]            # `<module>.<Classe>:<pid>`
+    try:
+        rows = _catalog_index().get(classe, [])
+    except Exception as e:                          # hors Django, base absente : pas de verdict
+        logger.debug('[backends] catalogue illisible pour %s : %s', owner, e)
+        return []
+    return match_local_name(rows, suffixe[len(OWNER_LOCAL_NAME_PREFIX):])
+
+
 def backend_missing(model) -> Optional[str]:
     """Raison si `model` est POSITIVEMENT sans backend, sinon None.
 

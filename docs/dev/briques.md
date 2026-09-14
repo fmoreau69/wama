@@ -44,7 +44,7 @@ Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur (enve
 - **Domicile** : `wama/common/backends/base.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Contrat de backend de modèle COMMUN à WAMA — extrait de l'app de référence (Transcriber).
 - **API publique** (4) :
-  - `unload_app_backends(app: str) -> bool` — Décharge les backends résidents de `app`. True si quelque chose a été libéré.
+  - `unload_live_backends(model_key: Optional[str]=None, exclude_sources=None) -> int` — Décharge les backends résidents de CE process ; rend le nombre d'instances déchargées.
   - `refresh_live_reservations() -> int` — Rafraîchit le TTL de la ligne de registre de chaque backend résident de CE process.
   - `start_reservation_heartbeat() -> bool` — Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
   - `class BaseModelBackend(ABC)` — Backend de modèle local (chargement/déchargement + traitement).
@@ -84,7 +84,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (20) :
+- **API publique** (21) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU.
   - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
@@ -93,7 +93,8 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
   - `reservations(exclude: str | None=None) -> dict[str, float]` — Réservations VIVANTES (Go par owner). Les lignes plus vieilles que
   - `reserved_gb(exclude: str | None=None) -> float` — Total BRUT réservé, tous détenteurs et process confondus (sauf `exclude`).
   - `resident_models() -> dict[str, float]` — Modèles actuellement RÉSIDENTS en VRAM — `AIModel.model_key` → Go — tous process
-  - `model_key_of(owner: str) -> str | None` — Clé catalogue portée par une clé d'owner, ou None si elle n'en porte pas.
+  - `model_keys_of(owner: str) -> list[str]` — Clés catalogue du modèle porté par une clé d'owner — [] s'il n'en porte pas, ou si le
+  - `model_key_of(owner: str) -> str | None` — Première clé de `model_keys_of` — pour un appelant qui n'en attend qu'une.
   - `ollama_host_owner(name: str) -> str` — Clé d'owner de la résidence du modèle Ollama `name`.
   - `unseen_reserved_gb(probe: str='driver', exclude: str | None=None) -> float` — VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
   - `mark_used(owner: str) -> bool` — Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
@@ -890,7 +891,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 - **Domicile** : `wama/common/backends/base.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Contrat de backend de modèle COMMUN à WAMA — extrait de l'app de référence (Transcriber).
 - **API publique** (4) :
-  - `unload_app_backends(app: str) -> bool` — Décharge les backends résidents de `app`. True si quelque chose a été libéré.
+  - `unload_live_backends(model_key: Optional[str]=None, exclude_sources=None) -> int` — Décharge les backends résidents de CE process ; rend le nombre d'instances déchargées.
   - `refresh_live_reservations() -> int` — Rafraîchit le TTL de la ligne de registre de chaque backend résident de CE process.
   - `start_reservation_heartbeat() -> bool` — Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
   - `class BaseModelBackend(ABC)` — Backend de modèle local (chargement/déchargement + traitement).
@@ -973,7 +974,7 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
 
 - **Domicile** : `wama/common/backends/manager.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Manager de backends COMMUN — extrait du pattern Transcriber/Imager.
-- **API publique** (9) :
+- **API publique** (12) :
   - `register_engine_inventory(fn) -> None` — Enregistre un inventaire de moteurs. Le callable rend soit un MAPPING
   - `engine_backends() -> dict` — {moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
@@ -981,6 +982,9 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `backend_for_engine(engine: str, model_id: str='', entries=None)` — Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
   - `backend_for_model(model, entries=None)` — Classe de backend qui sait exécuter `model`, ou None.
   - `backend_for_key(model_key: str, entries=None)` — La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
+  - `invalidate_catalog_index() -> None` — Le prochain `catalog_keys_for_owner` relit le catalogue (après une synchro, un test).
+  - `match_local_name(rows, name: str) -> list` — Clés, parmi les lignes `(clé, hf_id)` d'une classe, que désigne le nom local `name`.
+  - `catalog_keys_for_owner(owner: str) -> list` — Clés catalogue désignées par une clé d'owner du registre VRAM — [] si rien ne se résout.
   - `backend_missing(model) -> Optional[str]` — Raison si `model` est POSITIVEMENT sans backend, sinon None.
   - `class BackendManager` — Registre + cycle de vie de backends `BaseModelBackend` (singletons keep_loaded).
 
