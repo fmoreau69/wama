@@ -13894,3 +13894,103 @@ périmètre **208** (9 modules) → le chiffre à comparer est le NOMBRE DE ROUG
 `check_docs` 0 cassée / 0 périmée sur **1716** ; `manifest_export --check` « corpus à jour
 (204) » ; `doc_facts --check` vert ; `check_skills` 0 défaut franc ; nocturne des trois scénarios
 neufs 3/3 (serveur vivant requis).
+
+
+## §PALIER — 2026-09-14 (après-midi), « GOUVERNEUR : cartographie REVÉRIFIÉE, comptabilité RÉPARÉE » — ✅ LIVRÉ — 🔚 1 CORRECTIF GLOBAL + 3 DÉCISIONS
+
+> Demandes de Fabien : revérifier en profondeur la cartographie de la chaîne de tirage (« il ne
+> faut surtout rien casser et réparer proprement sans rien oublier »), confronter deux points
+> contestés, lancer les corrections INDÉPENDANTES d'un correctif global (défauts 2-3-4 de la
+> carte : double comptage, TTL, `_wrap_load`), consigner, et corriger
+> `INFRA_WSL_VS_WINDOWS.md` au regard de la cible Linux.
+
+### ① Les deux points contestés — tranchés par la MESURE
+- **`AWAITING_RESOURCES`** (« on avait été au bout ») : le MÉCANISME l'est — statut
+  (`common/models.py`), card, filtre, compteur, `_differer_faute_de_vram`, test. L'ACTIVATION non :
+  `vram_needed=` n'apparaît que dans `task_skeleton.py` (`grep -rn`, bacs à sable gitignorés
+  compris). C'est le trou ② du 08/09 (§ « GOUVERNEUR — DEUX TROUS »), inchangé.
+- **Clé de modèle publiée** (« l'appel diffère de l'emplacement du backend ») : le lien
+  modèle → backend est sain (`backend_for_model` : moteur + `SUPPORTED_MODELS`) ; la PUBLICATION au
+  registre ne l'est pas. Script en lecture seule sur la base : 183 modèles, 101 résolvent un
+  backend, `_app_of` rend `common` pour les 101, **0 clé publiée égale à sa clé catalogue**.
+  Registre Redis WSL vivant (lecture brute `redis-cli hgetall`, sans purge) :
+  `wama.common.backends.kokoro_onnx_backend.KokoroOnnxBackend:9777#common:kokoro-onnx`.
+  Origine : `f305e493` (12/08) déduisait la source du CHEMIN du module ; `8c556100` (08/09) a
+  déplacé 30 modules sous `common/backends/` sans toucher cette dérivation. **Non corrigé.**
+
+### ② Affirmations de ma carte RECTIFIÉES
+- « un `Retry` levé devient FAILURE » : faux pour le différement (`task.retry` levé HORS du `try`) ;
+  aucune glue d'app sous squelette ne lève `Retry` (les `self.retry` de synthesizer/avatarizer
+  vivent dans des workers hors squelette).
+- « le squelette ne pose jamais RUNNING » : **confirmé** (`TaskContext.progress` n'écrit que le cache
+  et `progress` ; le commentaire « `progress(0)` bascule l'item en RUNNING » est faux).
+- « "force full GPU" n'existe pas » : à nuancer. Existent, IN-PROCESS : `avoid_offload` (budget au
+  tirage), `try_full_gpu` → `ensure_free_vram` (par composant), `aggressive_cleanup` (nocturne,
+  cam_analyzer avant SAM3, bouton du model_manager — ce dernier tourne dans gunicorn, donc sans
+  effet sur les workers), Ollama `keep_alive: 0`. N'existe pas : décharger TOUT, service TTS
+  compris, à travers les process.
+- « contradiction "ne pas décharger avant" » : c'est une règle du POSTE DE DEV, fondée par le revert
+  `1b1546d9` (24/07 ; cité `6cc37ec` dans des notes, identifiant ABSENT de ce dépôt) — décharger
+  faster-whisper juste avant `pyannote.to(cuda)` = churn free/alloc sous WDDM = gel de l'hôte.
+- « systemd vs Docker Compose » (rapport d'agent) : aucune mention de Docker Compose dans les docs
+  de construction actives — pas une contradiction du dépôt.
+- Citations de l'instance sœur sur la provenance `vram_gb` : exactes sauf `eta_estimator.py` (ne
+  lit jamais `vram_gb`) ; 12 rédacteurs oubliés, dont `model_sync.py:185` qui ÉCRASE `vram_gb` à
+  chaque synchro — écrire une mesure dans `vram_gb` serait donc perdu.
+
+### ③ Réparé — détail : `ROADMAP §Gouvernance des ressources`, bloc « 2026-09-14 »
+- `common/services/resource_governor.py` : hashes `wama:vram:allocated` (owner → pid, posé
+  seulement sur MESURE torch) et `wama:vram:loaded_at` ; `reserve_vram(allocated=, expires_in_s=)` ;
+  libération ET purge emportent usage/marqueur/chargement ; `vram_reservation` bat ;
+  `unseen_reserved_gb(probe)` ; `effective_free_gb` ne retranche que les annonces ; `idle_models`
+  compte depuis le chargement ; `ollama_host_owner` ; en-tête re-daté.
+- `common/backends/base.py` : `_footprint_to_publish` (idempotent garde la mesure, rien sans CUDA
+  ni sur CPU), `load()` refusé non suivi, `start_reservation_heartbeat`.
+- `model_manager/services/memory_manager.py` : `_free_vram_gb` en sonde process, `vram_owner()`
+  retiré, `unload_model('ollama:…')` rend la ligne ; `model_selector.get_free_vram_gb` en sonde
+  process ; `model_registry.refresh_ollama_residency` sur la convention unique ; tâche
+  `model_manager.refresh_ollama_residency` + beat 600 s (`settings.py`).
+- `wama/celery.py` (battement à `worker_process_init`), `tts_service.py` (même brique),
+  `common/memory/embed.py` (réservation du rappel bornée à 5 min), `olmocr_backend.py` (ligne
+  retirée au déchargement d'Ollama).
+- ⚠ **Pris en compte au REDÉMARRAGE** des workers, du beat et du service TTS. Ancien et nouveau code
+  peuvent coexister sur le registre : hashes séparés, format de ligne `"go:ts"` inchangé (un
+  process ancien compte simplement deux fois, comme avant).
+
+### ④ Mesures (aucune charge GPU : `CUDA_VISIBLE_DEVICES=` sur tous les runs)
+- `common.tests_vram_ledger` (22, NEUF — Redis simulé), `model_manager.tests_budget_vram` (+1),
+  `common.tests_gpu_safe_mode`, `common.tests_tts_service` : **43 OK**.
+- Non-vacuité : 3 mutants réinjectant chaque défaut → **7 / 4 / 4 rouges**. La première contre-épreuve
+  a trouvé deux de MES tests qui bouclaient sur `gov._SIDE_KEYS` et restaient verts quand le mutant
+  vidait la constante — corrigés (clés écrites en dur).
+- Suites élargies (`wama.model_manager`, `tests_auto_model`, `tests_memory`, inventaire /
+  conformité / dépréciation des backends, capacités-langues, locate_anything, routage HF,
+  `composer.tests`, `studio.tests_image_to_3d`) : **365 OK**.
+- `check_docs` : 0 cassée / 1778. `doc_facts` : `WAMA_MECANISMES.md` et `docs/dev/briques.md`
+  régénérés (API publique du contrat et du gouverneur, compteurs de consommateurs).
+
+### ⑤ Docs corrigées
+- `INFRA_WSL_VS_WINDOWS.md` : bandeau de portée **[PC de dev] / [cible Linux]** ; carte des services
+  (worker `studio` absent ; `TTS_PRELOAD=kokoro-onnx` au lieu de « précharge XTTS v2 ») ;
+  implications prod §3 (WDDM déborde, Linux lève une OOM franche ; « 38 Go » = allocation au
+  chargement), §4 (piège `OLLAMA_HOST` = passerelle par défaut = routeur sur un serveur), §5 (mode
+  de supervision non tranché, celery-studio), §9 (`mod_wsgi` retiré le 24/08) ; RAM hôte **mesurée
+  96 Go** (3 barrettes, BANK 2 vide — le doc disait 64) ; bloc 14/09 : ② soldé AUTREMENT que la
+  piste `min()`, ① à trancher.
+- `ROADMAP.md` : constat « clé reconstituée sans table » périmé (mesure) ; « 22 / 14 assertions »
+  introuvables ; « reste le service TTS » fait depuis le 12/08 ; bloc daté des réparations.
+
+### 🔚 Reste
+1. **Correctif GLOBAL de la clé** : elle doit venir du catalogue, pas du chemin du module. Touche la
+   granularité des unloaders (`unload_app_backends('common')` décharge tout le process),
+   `prefer_loaded`, le `is_loaded` du model_manager, `idle_models` et le nettoyeur.
+2. Squelette : poser RUNNING (et corriger le commentaire) ; puis la grille (`task_skeleton` ne
+   mesure que la présence du nom, aucun critère `vram_needed`, motif `free_vram` qui classe
+   `ensure_free_vram` en sélecteur) ; puis les portages (7 apps) et `vram_needed`.
+3. **Décisions de Fabien** : libérer avant de différer / décharger le service TTS (contrainte WDDM
+   du poste de dev, question rouverte en Linux natif) ; provenance `vram_gb` (champ MESURÉ séparé
+   recommandé) ; mesurer ce que `mem_get_info` voit des allocations de l'hôte sous WSL2 — tant
+   que non mesuré, Ollama hôte reste compté en annonce.
+4. **Non fait** dans INFRA : les sections « crashs » ne sont pas re-balisées une à une (le bandeau
+   les classe [PC de dev]) ; `.wslconfig` réel non remesuré ; la section « venvs isolés » garde
+   « la chaîne ne libère déjà jamais » (vrai inter-process, faux in-process).
