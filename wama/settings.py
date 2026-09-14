@@ -744,6 +744,13 @@ if ENABLE_CELERY:
             'schedule': 600.0,
             'options': {'queue': 'default'},  # HTTP vers l'hôte, jamais la queue GPU
         },
+        # Empreintes VRAM MESURÉES au chargement → catalogue (`extra_info['vram_measured']`,
+        # 2026-09-14). Lecture Redis + écriture ORM, aucun modèle chargé.
+        'persist-measured-vram': {
+            'task': 'model_manager.persist_measured_vram',
+            'schedule': 600.0,
+            'options': {'queue': 'default'},
+        },
         # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
         'purge-expired-media': {
             'task': 'common.purge_expired_media',

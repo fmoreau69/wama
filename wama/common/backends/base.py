@@ -251,6 +251,13 @@ def _wrap_load(func):
                 try:
                     if gb:
                         reserve_vram(owner, float(gb), allocated=allocated)
+                        # Rendre la MESURE au catalogue (2026-09-14) : seulement une mesure
+                        # FRAÎCHE — ni la valeur gardée d'un rechargement idempotent (même
+                        # détenteur déjà publié), ni une valeur déclarée (`allocated` faux).
+                        if allocated and prev != owner:
+                            from wama.common.services.resource_governor import (
+                                record_measured_vram)
+                            record_measured_vram(owner, float(gb))
                         setattr(self, _GOV_KEY, owner)
                         setattr(self, _GOV_GB, float(gb))
                         setattr(self, _GOV_ALLOC, allocated)

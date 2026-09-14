@@ -103,6 +103,26 @@ class CompletenessTest(TestCase):
         self.assertIn('test:vram-estimee', axes['vram_estimee'])
         self.assertNotIn('test:vram-estimee', axes['vram_absente'])
 
+    def test_une_vram_estimee_puis_MESUREE_sort_de_l_axe_estime(self):
+        """La mesure au chargement est rendue au catalogue depuis le 2026-09-14
+        (`extra_info['vram_measured']`) : un plancher estimé qui a été mesuré n'attend plus de
+        banc — `vram_estimated` ne se levait jamais seul, faute de chemin de retour."""
+        _installe('test:vram-mesuree', vram_gb=3.1, backend_ref='x',
+                  extra_info={'vram_estimated': True,
+                              'vram_measured': {'max_gb': 3.0, 'last_gb': 3.0, 'n': 1}})
+        axes = _rapport()['axes']
+        self.assertNotIn('test:vram-mesuree', axes['vram_estimee'])
+
+    def test_une_mesure_AU_DELA_du_declare_est_relevee(self):
+        """Le défaut du 29/07 : Qwen-Image déclaré 16 Go, 38,1 Go alloués au chargement."""
+        _installe('test:sous-declaree', vram_gb=16, backend_ref='x',
+                  extra_info={'vram_measured': {'max_gb': 38.1, 'last_gb': 38.1, 'n': 1}})
+        _installe('test:conforme', vram_gb=16, backend_ref='x',
+                  extra_info={'vram_measured': {'max_gb': 15.2, 'last_gb': 15.2, 'n': 1}})
+        axes = _rapport()['axes']
+        self.assertIn('test:sous-declaree', axes['vram_sous_declaree'])
+        self.assertNotIn('test:conforme', axes['vram_sous_declaree'])
+
     def test_le_controle_ne_garde_rien_meme_avec_des_trous(self):
         """DÉCISION EXPLICITE, protégée ici parce qu'elle est tentante à « corriger » :
         aucun constat de ce rapport n'est interdit (un backend écrit dont le runtime attend

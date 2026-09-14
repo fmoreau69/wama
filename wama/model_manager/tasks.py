@@ -109,6 +109,20 @@ def refresh_ollama_residency_task():
     return {'residents': ModelRegistry.refresh_ollama_residency()}
 
 
+@shared_task(name='model_manager.persist_measured_vram')
+def persist_measured_vram_task():
+    """
+    Rend au CATALOGUE les empreintes VRAM MESURÉES au chargement (2026-09-14).
+
+    Le gouverneur les recueille dans TOUS les process (`_wrap_load` →
+    `resource_governor.record_measured_vram`), service TTS compris, qui n'a pas d'ORM. Cette
+    tâche les résout vers leur clé catalogue et les écrit dans `AIModel.extra_info['vram_measured']`
+    — SANS toucher `vram_gb`, déclarée ou estimée, que chaque synchro réécrit. Aucun chargement.
+    """
+    from .services.model_sync import get_sync_service
+    return {'persistees': get_sync_service().persist_measured_vram()}
+
+
 #: Clé de cache partagée entre la tâche (écrit l'avancement) et la vue de progression
 #: (le lit). Passer par le cache plutôt que par l'AsyncResult permet de retrouver un
 #: backup en cours après un simple F5 sur la page — le navigateur n'a plus le task_id.

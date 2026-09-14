@@ -279,7 +279,10 @@ class ModelSyncService:
         # `is_available=False` décidé par un humain. Sans elle, la décision survivait mais sa
         # justification était effacée au sync suivant — un modèle écarté sans qu'on sache
         # pourquoi finit par être réactivé « au cas où ».
-        _sticky = ('update_check', 'recommended', 'exclusion')
+        # `vram_measured` (2026-09-14) : l'empreinte MESURÉE au chargement, rendue au catalogue par
+        # `persist_measured_vram`. La découverte n'en sait rien — elle l'effacerait à chaque synchro,
+        # et la mesure redeviendrait l'information « produite à chaque chargement puis jetée ».
+        _sticky = ('update_check', 'recommended', 'exclusion', 'vram_measured')
         _existing = AIModel.objects.filter(model_key=model_key).values_list('extra_info', flat=True).first()
         if _existing:
             _merged = dict(defaults.get('extra_info') or {})
@@ -491,6 +494,57 @@ class ModelSyncService:
         except Exception as e:
             logger.error(f"Error updating loaded status for {model_key}: {e}")
             return False
+
+    def persist_measured_vram(self) -> int:
+        """
+        Rend au CATALOGUE les empreintes VRAM mesurées au chargement (2026-09-14).
+
+        La mesure existait depuis le 29/07 (`_wrap_load` : delta `torch.cuda.memory_allocated`)
+        mais ne servait qu'au registre à TTL du gouverneur, puis était jetée : `vram_gb` restait
+        déclaré ou estimé, et `vram_estimated` ne se levait jamais. Le gouverneur recueille
+        désormais chaque mesure (`record_measured_vram`) dans TOUS les process — service TTS
+        compris, qui n'a pas d'ORM — et ce geste la résout vers sa clé catalogue.
+
+        ⚠ `vram_gb` N'EST PAS TOUCHÉ : il reste la valeur déclarée/estimée que la découverte
+        réécrit et que le tirage lit. La mesure vit à part, en clé collante
+        (`extra_info['vram_measured']` : `last_gb`, `max_gb`, `n` relevés persistés, `at`). C'est
+        une empreinte AU CHARGEMENT, pas un pic d'exécution — un chargement avec offload mesure
+        moins.
+
+        Une mesure dont la clé ne se résout pas reste au gouverneur : nouvel essai au passage
+        suivant, jusqu'à son expiration. Rend le nombre de lignes du catalogue mises à jour.
+        """
+        from datetime import datetime, timezone as dt_timezone
+
+        from wama.common.services.resource_governor import (
+            forget_measured_vram, measured_vram, model_keys_of)
+        from ..models import AIModel
+
+        ecrites, rendues = 0, {}
+        for owner, (gb, stamp) in measured_vram().items():
+            cles = model_keys_of(owner)
+            if not cles:
+                continue
+            for cle in cles:
+                with transaction.atomic():
+                    obj = AIModel.objects.select_for_update().filter(model_key=cle).first()
+                    if obj is None:
+                        continue
+                    info = dict(obj.extra_info or {})
+                    prec = info.get('vram_measured') or {}
+                    info['vram_measured'] = {
+                        'last_gb': round(gb, 2),
+                        'max_gb': round(max(gb, float(prec.get('max_gb') or 0)), 2),
+                        'n': int(prec.get('n') or 0) + 1,
+                        'at': datetime.fromtimestamp(stamp, tz=dt_timezone.utc).isoformat(),
+                    }
+                    AIModel.objects.filter(pk=obj.pk).update(extra_info=info)
+                    ecrites += 1
+            rendues[owner] = stamp
+        # Oublier seulement ce qui a été rendu — et seulement si aucune mesure plus récente n'a
+        # remplacé la ligne entre la lecture et l'écriture (comparaison d'horodatage).
+        forget_measured_vram(rendues)
+        return ecrites
 
     def get_stats(self) -> Dict:
         """Get catalog statistics."""

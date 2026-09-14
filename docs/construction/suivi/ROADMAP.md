@@ -614,6 +614,14 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
   ① ~~**clé de modèle publiée** `common:<id>` pour les 101 modèles résolus (constat ci-dessus) —
     correctif GLOBAL : la clé doit venir du catalogue, pas du chemin du module~~ ✅ **corrigé le
     même soir** (résolution à la lecture, reclaim au grain du modèle — constat ci-dessus) ;
+  ⓟ **provenance de la VRAM — ✅ le même soir (GO Fabien)** : la mesure au chargement est rendue
+    au catalogue dans un champ SÉPARÉ, `extra_info['vram_measured']` (dernière, maximum, nombre
+    de relevés, date ; clé collante de la synchro). `vram_gb` reste la valeur déclarée/estimée
+    que la découverte réécrit et que le tirage lit. Chaîne : `_wrap_load` (mesure FRAÎCHE
+    seulement) → `resource_governor.record_measured_vram` (survit au déchargement) → tâche
+    `model_manager.persist_measured_vram` (10 min) → `ModelSyncService.persist_measured_vram`.
+    Lecteurs : `check_model_completeness` (sort de `vram_estimee`, axe `vram_sous_declaree`),
+    inspecteur du model_manager. Brancher la mesure sur le TIRAGE reste une décision à part ;
   ② le squelette ne pose jamais RUNNING (le commentaire « `progress(0)` bascule l'item en
     RUNNING » de `task_skeleton.py` est faux : `TaskContext.progress` n'écrit que cache et
     `progress`) — un item différé resterait affiché `AWAITING_RESOURCES` pendant son exécution ;

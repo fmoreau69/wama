@@ -84,7 +84,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (21) :
+- **API publique** (24) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU.
   - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
@@ -98,6 +98,9 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
   - `ollama_host_owner(name: str) -> str` — Clé d'owner de la résidence du modèle Ollama `name`.
   - `unseen_reserved_gb(probe: str='driver', exclude: str | None=None) -> float` — VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
   - `mark_used(owner: str) -> bool` — Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
+  - `record_measured_vram(owner: str, gb: float) -> bool` — Consigne une empreinte MESURÉE par l'allocateur torch au chargement de `owner`.
+  - `measured_vram() -> dict[str, tuple[float, float]]` — Mesures en attente de persistance : owner → (Go, horodatage). Lignes illisibles ignorées.
+  - `forget_measured_vram(rendues: dict) -> int` — Oublie les mesures RENDUES au catalogue — `rendues` : owner → horodatage lu.
   - `idle_models(idle_threshold_s: int=300) -> list[dict]` — Modèles RÉSIDENTS inactifs depuis plus de `idle_threshold_s`, tous process confondus.
   - `effective_free_gb(exclude: str | None=None) -> float` — VRAM réellement disponible = ce que le pilote annonce libre, MOINS ce que des
   - `gpu_safe_mode() -> bool` — Vrai si le mode dépannage GPU est actif (settings/env `WAMA_GPU_SAFE_MODE`).

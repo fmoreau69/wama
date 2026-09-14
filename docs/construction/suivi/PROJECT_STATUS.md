@@ -14119,3 +14119,94 @@ tirage par le synthesizer (`workers.py:179-193`), rendu en modale item seulement
 (`params.py:51-54`) ; `/health` du service TTS ne dit rien d'une requête en cours
 (`tts_service.py:218-244`). La séquence complète n'est consignée nulle part avant ce palier —
 seuls ses fragments (question du 03/09, contrainte WDDM, « baisser le curseur »).
+
+
+## §PALIER — 2026-09-14 (soir), « GOUVERNEUR : la VRAM MESURÉE rendue au catalogue » — ✅ LIVRÉ
+
+> GO Fabien (« Ok pour 1 et 3 ») : le trou 2 du bloc « BANC LLM », avec le champ MESURÉ SÉPARÉ
+> recommandé par les deux instances.
+
+**Le trou** : `_wrap_load` mesure l'empreinte réelle à chaque chargement depuis le 29/07, mais la
+mesure ne servait qu'au registre à TTL puis était jetée ; `vram_gb` restait déclaré ou estimé,
+`vram_estimated` ne se levait jamais. Écrire la mesure DANS `vram_gb` était exclu :
+`model_sync.py:185` le réécrit à chaque synchro.
+
+**La chaîne** (le gouverneur recueille, le catalogue persiste) :
+1. `_wrap_load` consigne une mesure FRAÎCHE seulement (ni rechargement idempotent, ni valeur
+   déclarée) → `resource_governor.record_measured_vram` (hash `wama:vram:measured`, hors des
+   annexes de la réservation : une mesure SURVIT au déchargement ; TTL 24 h ; le service TTS mesure
+   aussi, sans ORM) ;
+2. tâche beat `model_manager.persist_measured_vram` (600 s, file default, aucun chargement) →
+   `ModelSyncService.persist_measured_vram` : résout la clé (`model_keys_of`), écrit
+   `extra_info['vram_measured']` = {last_gb, max_gb, n, at} ; `vram_gb` INTACT ;
+3. `vram_measured` rejoint les clés collantes de `_sync_model` ;
+4. `forget_measured_vram` n'oublie que le rendu et garde une mesure plus récente que la lecture ;
+   une mesure non résolue reste pour un autre essai.
+
+**Lecteurs** : `check_model_completeness` (un modèle mesuré sort de `vram_estimee` ; axe neuf
+`vram_sous_declaree` quand la mesure dépasse `max(1,25 × déclarée, déclarée + 1 Go)` — le cas
+Qwen-Image du 29/07) ; inspecteur du model_manager (« VRAM mesurée »). **Le tirage lit toujours
+`vram_gb`** : brancher la mesure sur le budget est une décision à part. ⚠ Empreinte AU CHARGEMENT,
+pas un pic — un chargement avec offload mesure moins, d'où le maximum gardé.
+
+**Mesures** (aucune charge GPU) : `tests_vram_measured` (4, DB) + `tests_completeness` (+2) :
+13 OK ; `tests_vram_ledger` 42 (+6) + budget + dépannage + service TTS : 63 OK ; 3 mutants
+(mesure jamais consignée, oubli aveugle à l'horodatage, mesure effacée avec sa réservation) →
+4 / 1 / 1 rouges ; `check_docs` 0 / 1794 ; `doc_facts` régénéré.
+
+⚠ Effet au redémarrage (workers, service TTS, **beat** pour la nouvelle tâche).
+
+🔚 Suite, même GO : squelette (RUNNING + commentaire faux) → grille → portages → `vram_needed` →
+② attente « toute la VRAM » + curseur + sélection bidirectionnelle (cahier des charges au bloc
+précédent).
+
+
+## §PALIER — 2026-09-14 (soir), « MENU CONTEXTUEL : l'arbre de fichiers sur la brique commune, sous-menus en CASCADE » — ✅ LIVRÉ
+
+> Demande de Fabien : terminer ce qui avait été laissé de côté le 08/09 — « le filemanager pourra y
+> migrer » (`c7b2cc7e`). ⚠ Ce report n'était écrit dans AUCUN `.md` : seulement dans le message de
+> commit et l'en-tête de `wama-card-menu.js`. Puis, retour en cours de route : le sous-menu s'ouvrait
+> au clic et REMPLAÇAIT son parent ; l'accordéon « Bac à sable » refermait le menu « Applications ».
+> Détail du design : `CARD_DESIGN §2bis`.
+
+**Livré**
+- `filemanager.js` : plugin jsTree `contextmenu` retiré ; `bindContextMenu` ouvre `WamaCardMenu.ouvrir`
+  au clic droit sur l'ancre ET sur la ligne `wholerow` (qui ne relaie plus le clic droit sans le
+  plugin, `jstree.min.js`) ; la logique PAR NŒUD est inchangée, traduite en un point
+  (`toCardMenuEntries`). `filemanager.css` : les ~100 lignes de `!important` du `vakata-context` retirées.
+- `wama-card-menu.js` : pile de menus, sous-menu en CASCADE (survol après 140 ms, et clic), parent
+  allumé (`.wama-cm-ouvert`), placé contre le bord du parent ; fermeture sur `mousedown` hors menu,
+  `wheel`, `touchmove`, Échap, `resize` — plus jamais sur `scroll`.
+- `includes/header.html` + `base.html` : « Bac à sable » = sous-menu déroulant (survol ; le clic
+  OUVRE, il ne bascule pas), posé sous `<body>` en `fixed` — le menu « Applications » défile et le
+  rognerait ; clic non propagé (Bootstrap refermait le menu).
+- `ui_smoke.check_app_send_to` : suit la brique (survol d'« Envoyer vers… », puis le `span` du libellé).
+
+**Mesures**
+- Le « aucun menu » (3 `send_to` rouges après la 1ʳᵉ migration, verts le 12/09) établi par la PILE
+  D'APPELS du retrait : focus sur l'ancre → défilement du conteneur → écouteur `scroll` → `fermer`,
+  7 ms après l'ouverture. Défaut de la BRIQUE, pas de l'arbre.
+- Gardes : `filemanager.tests.MenuContextuelDeLArbreTests` (non vacuée : HEAD 5 défauts, disque 0,
+  mutant « ancre seule » 1) ; `tests_queue_dnd` +5 (cascade, fermeture, menu Applications).
+- Tests : 149 OK (filemanager, queue_dnd, send_to, sharing, accounts, subscriptions), 76 OK après la
+  dernière retouche ; `check_templates --strict` 0 / 154.
+- Nocturnes : `send_to` converter / transcriber / converter_01 **OK** + avatarizer skip (= 12/09) ;
+  `batch_extract` converter / imager / transcriber **3/3** (clic droit sur une VRAIE card).
+- Sonde navigateur (gunicorn pour l'arbre ; `runserver` JETABLE :8765 pour l'en-tête) : JS servis
+  parsés ; arbre — 1 menu, 2 au survol, parent allumé, sous-menu à 2 px du bord, refermé au survol
+  voisin et à Échap ; Applications — sous-menu visible, atteignable, « Applications » encore ouvert
+  après le clic ; **0 erreur console**.
+
+⚠ **Effet** : JS/CSS immédiats (fichiers servis) ; `header.html`/`base.html` au **rechargement de
+gunicorn** (gabarits en cache par worker) — **non fait** : un HUP mettrait en production le code non
+commité de l'instance « gouverneur » (`base.py`, `resource_governor.py`…).
+
+**Suite complète du `/reprise`** (WSL2, avant ce palier) : 2384 tests, `FAILED (failures=2)`, deux
+causes hors de ce palier — `tests_catalogues` : le port `image` de `studio.image_to_3d` (fonction
+ajoutée par `07f8ce23`, 13/09) n'est pas un type de la taxonomie ; `tests_doc_plans` :
+`docs/dev/briques.md` périmé par le WIP gouverneur non commité.
+
+🔚 **Restes nommés** : pas de navigation au CLAVIER (flèches) dans les menus WAMA — seul Échap ;
+« Envoyer vers… » a toujours DEUX dérivations client/serveur des mêmes conditions (l'arbre croise
+`WAMA_APP_CATALOG` × `WAMA_FILEMANAGER_IMPORTERS` côté client, la card interroge le résolveur
+`send_to`) — la migration a unifié le RENDU, pas la source.

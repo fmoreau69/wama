@@ -1517,6 +1517,15 @@ pas la découverte. (C'est l'un des 2 « sans tâche » de `check_model_taxonomy
 > chaque synchro : la consignation devra donc soit passer par une clé « collante »
 > d'`extra_info` (le mécanisme existe déjà, `model_sync.py:276`), soit être réappliquée
 > après sync. **Le geste reste à faire ; il est désormais SPÉCIFIÉ.**
+>
+> 🔄 **2026-09-14 (soir) — CONSIGNATION FAITE, « à la place » PAS ENCORE.** La mesure au chargement
+> est rendue au catalogue par la voie « clé collante » ci-dessus : `extra_info['vram_measured']`
+> ({last_gb, max_gb, n, at}), via `resource_governor.record_measured_vram` →
+> `model_manager.persist_measured_vram` (10 min) → `ModelSyncService.persist_measured_vram` ;
+> `vram_gb` n'est pas écrit (la synchro le réécrirait). `check_model_completeness` sort un modèle
+> mesuré de l'axe `vram_estimee` et relève `vram_sous_declaree`. ⏳ **Reste de l'intention** : que la
+> mesure serve À LA PLACE de l'estimation là où `vram_gb` est LU (budget du tirage, coût du curseur,
+> `model_selector.py`) — non branché, décision posée à Fabien le même soir.
 
 Ce qui reste factuel :
 

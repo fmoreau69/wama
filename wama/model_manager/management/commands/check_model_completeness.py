@@ -75,17 +75,24 @@ class Command(BaseCommand):
             'axes': {},
         }
 
-        sans_licence, vram_absente, vram_estimee = [], [], []
+        sans_licence, vram_absente, vram_estimee, vram_sous_declaree = [], [], [], []
         backend_rouge, backend_hors_verdict = [], []
         sans_tache = []
 
         for m in lignes:
             if not (m.license or '').strip():
                 sans_licence.append(m)
+            # Empreinte MESURÉE au chargement, rendue au catalogue depuis le 2026-09-14
+            # (`extra_info['vram_measured']`) — distincte de `vram_gb`, déclarée ou estimée.
+            mesure_max = float(((m.extra_info or {}).get('vram_measured') or {}).get('max_gb') or 0)
             if not m.vram_gb:
                 vram_absente.append(m)
-            elif (m.extra_info or {}).get('vram_estimated'):
+            elif (m.extra_info or {}).get('vram_estimated') and not mesure_max:
                 vram_estimee.append(m)
+            # Une mesure au-delà du déclaré : le cas du 29/07 (Qwen-Image, 16 Go déclarés, 38,1
+            # alloués — le kernel panic). Carte, pas verdict : à regarder, pas à corriger d'office.
+            if m.vram_gb and mesure_max > max(m.vram_gb * 1.25, m.vram_gb + 1.0):
+                vram_sous_declaree.append(m)
             if not (m.capabilities or {}).get('task'):
                 sans_tache.append(m)
 
@@ -101,6 +108,9 @@ class Command(BaseCommand):
              "aucune VRAM déclarée — le modèle échappe à la sélection VRAM-aware"),
             ('vram_estimee', vram_estimee,
              "VRAM ESTIMÉE des poids, jamais mesurée — plancher en attente d'un banc"),
+            ('vram_sous_declaree', vram_sous_declaree,
+             "empreinte MESURÉE au chargement au-delà de la VRAM déclarée — le tirage lit la "
+             "déclarée : à revoir (cas du 29/07, Qwen-Image 16 déclarés / 38,1 alloués)"),
             ('backend_rouge', backend_rouge,
              "moteur DÉCLARÉ qu'aucun inventaire ne sert → grisé, exclu du tirage auto"),
             ('backend_hors_verdict', backend_hors_verdict,
