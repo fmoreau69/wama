@@ -1782,6 +1782,40 @@ class BancDeGenerationTest(TestCase):
         http.assert_not_called()
         self.assertIn('WAMA_GPU_SAFE_MODE', str(cm.exception))
 
+    def test_la_profondeur_charge_un_candidat_hub_dans_le_dossier_de_sa_famille(self):
+        # Relevé par Fabien le 14/09 : `_bench_depth` chargeait par identifiant Hub SANS
+        # `cache_dir=` → un candidat de banc atterrissait dans le cache partagé (AGENTS.md
+        # §Ajout d'un modèle : « le modèle principal par cache_dir= »). Le dossier est celui du
+        # moteur, jamais une constante locale au banc.
+        from unittest.mock import MagicMock
+        import torch
+        from .services import bench
+        from wama.common.backends.depth_engine import DEPTH_MODEL_DIR
+        candidat = AIModel.objects.create(
+            model_key='huggingface:org/depth-candidat', name='org/depth-candidat',
+            model_type='vision', source='huggingface', is_downloaded=True, local_path='',
+            hf_id='org/depth-candidat', capabilities={'task': 'depth-estimation'})
+
+        processor = MagicMock()
+        processor.return_value.to.return_value = {}
+        processor.post_process_depth_estimation.return_value = [
+            {'predicted_depth': torch.ones(4, 4) * 2.5, 'focal_length': torch.tensor([800.0])}]
+        model = MagicMock()
+        model.to.return_value.eval.return_value = model
+        image = MagicMock()
+        image.convert.return_value.size = (4, 4)
+        with patch('transformers.AutoImageProcessor.from_pretrained', return_value=processor) as p, \
+             patch('transformers.AutoModelForDepthEstimation.from_pretrained', return_value=model) as m, \
+             patch('PIL.Image.open', return_value=image), \
+             patch('torch.cuda.is_available', return_value=False):
+            mesure = bench._bench_depth(candidat, 'image.jpg')
+        self.assertEqual(p.call_args.kwargs['cache_dir'], str(DEPTH_MODEL_DIR))
+        self.assertEqual(m.call_args.kwargs['cache_dir'], str(DEPTH_MODEL_DIR))
+        self.assertEqual(p.call_args.args[0], 'org/depth-candidat')
+        self.assertEqual(mesure['mediane_m'], 2.5)
+        self.assertEqual(mesure['focale_px'], 800.0)
+        self.assertEqual(mesure['confiance_moyenne'], 1.0)          # couverture : 16/16 valides
+
     def test_le_legendage_lit_le_dict_de_la_sonde_et_rapporte_son_echec(self):
         # Régression corrigée le 14/09 : `_bench_description` appelait `.strip()` sur le dict
         # rendu par `describe_image_ollama` → chaque modèle de légendage sortait « en erreur ».
