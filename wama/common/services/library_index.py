@@ -22,6 +22,8 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
+from wama.common.file_cache import FileCache, file_stamp
+
 logger = logging.getLogger(__name__)
 
 #: Racines de code WAMA à analyser (relatives à BASE_DIR).
@@ -65,19 +67,51 @@ def _app_de(chemin: Path, base: Path) -> str | None:
     return parts[1] if len(parts) >= 3 and parts[0] in RACINES else None
 
 
-def _modules_du_fichier(chemin: Path) -> set[str]:
+#: Imports par fichier, gardés sur l'empreinte du fichier (`common/file_cache.py`) : la jambe
+#: backends d'`extract_app` relit les modules de backends à CHAQUE extraction.
+_IMPORTS = FileCache()
+
+
+def _modules_du_fichier(chemin: Path) -> frozenset[str]:
     """Modules top-level importés par un fichier (imports globaux ET locaux)."""
+    try:
+        return _IMPORTS.get(chemin, _lire_modules)
+    except OSError:
+        return frozenset()   # un fichier illisible ne doit jamais casser l'inventaire
+
+
+def _lire_modules(chemin: Path) -> frozenset[str]:
     try:
         arbre = ast.parse(chemin.read_text(encoding='utf-8', errors='replace'))
     except (SyntaxError, ValueError, OSError):
-        return set()   # un fichier illisible ne doit jamais casser l'inventaire
+        return frozenset()
     out: set[str] = set()
     for n in ast.walk(arbre):
         if isinstance(n, ast.Import):
             out.update(a.name.split('.')[0] for a in n.names)
         elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module:
             out.add(n.module.split('.')[0])
-    return out
+    return frozenset(out)
+
+
+_DISTRIBUTIONS: tuple = ((), None)
+
+
+def _distributions() -> dict:
+    """`importlib.metadata.packages_distributions()` (module → distributions), mis en cache.
+
+    ~3,8 s par appel ici (76 000 `stat` dans `site-packages`), et il était appelé à CHAQUE
+    extraction de manifeste (mesuré le 2026-09-14). Gardé tant que les dossiers d'installation
+    n'ont pas bougé : installer, mettre à jour ou retirer une distribution y crée ou y efface un
+    `*.dist-info`, ce qui change la date du DOSSIER — l'empreinte le voit.
+    """
+    global _DISTRIBUTIONS
+    import importlib.metadata as im
+    empreinte = tuple((p, file_stamp(p)) for p in sys.path
+                      if p and p.rstrip('\\/').endswith(('site-packages', 'dist-packages')))
+    if _DISTRIBUTIONS[1] is None or _DISTRIBUTIONS[0] != empreinte:
+        _DISTRIBUTIONS = (empreinte, im.packages_distributions())
+    return _DISTRIBUTIONS[1]
 
 
 @lru_cache(maxsize=1)
@@ -103,8 +137,7 @@ def scan_imports() -> dict[str, dict]:
                 if app:
                     par_module[m].add(app)
 
-    import importlib.metadata as im
-    mapping = im.packages_distributions()
+    mapping = _distributions()
 
     resultat: dict[str, dict] = {}
     for module, apps in par_module.items():
@@ -230,13 +263,19 @@ def librairies_des_backends(catalog_keys) -> list[str]:
     nommer), SEMÉE au corpus, hors SOCLE. La résolution est CIBLÉE (un import par backend, à la
     demande) — jamais un balayage.
     """
-    import importlib.metadata as im
     import sys as _sys
     try:
         from wama.common.backends.manager import backend_for_key
+        from wama.common.services.backend_inventory import resolvable_entries
     except Exception:
         return []
-    mapping = im.packages_distributions()
+    mapping = _distributions()
+    # Le vivier lu UNE fois pour toutes les clés : sans lui, chaque `backend_for_key` relisait
+    # l'inventaire — 48 fois pour les 48 modèles de l'anonymizer (mesuré le 2026-09-14).
+    try:
+        vivier = resolvable_entries()
+    except Exception:
+        vivier = None
     # Clé CANONIQUE du corpus par nom normalisé : un `requires` doit citer le manifeste tel qu'il
     # est semé (`pyannote-audio`), jamais la graphie d'un spécificateur pip (`pyannote.audio`) —
     # une référence pendante invalide le manifeste d'app entier (`ingest.valider`).
@@ -245,7 +284,7 @@ def librairies_des_backends(catalog_keys) -> list[str]:
     out, modules_vus = set(), set()
     for cle in catalog_keys or ():
         try:
-            classe = backend_for_key(cle)
+            classe = backend_for_key(cle, entries=vivier)
         except Exception:
             classe = None
         if classe is None:

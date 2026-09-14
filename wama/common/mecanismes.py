@@ -121,6 +121,15 @@ MECANISMES = (
               'wama/common/utils/model_readiness.py', 'docs/construction/suivi/PROJECT_STATUS.md',
               annexes=('wama/common/utils/task_skeleton.py',
                        'wama/common/tests_model_readiness.py')),
+    Mecanisme('file_cache', 'Cache par empreinte de fichier',
+              "Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compte "
+              "de lignes) tant que son empreinte — date de modification, taille — n'a pas "
+              "changé : un fichier modifié est relu, jamais servi périmé. Extrait le 2026-09-14 : "
+              "le catalogue des docs portait le geste en dur, et l'inventaire des backends "
+              "relisait 6 237 fois des fichiers pour UNE extraction de manifeste (48 résolutions "
+              "d'un même vivier). ⚠ Ne convient qu'à ce qui ne dépend QUE du fichier",
+              'wama/common/file_cache.py', '',
+              annexes=('wama/common/tests_file_cache.py',)),
     Mecanisme('task_progress', 'Progression de tâche longue',
               "Avancement d'une tâche Celery HORS file d'items publié dans le cache "
               "(F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; "

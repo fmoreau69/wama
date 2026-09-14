@@ -142,7 +142,7 @@ def known_engines() -> set:
 # est une décision de l'appelant.*
 
 
-def backend_for_engine(engine: str, model_id: str = ''):
+def backend_for_engine(engine: str, model_id: str = '', entries=None):
     """Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
 
     None a plusieurs causes, qui ne se valent pas — `known_engines()` et `engine_backends()`
@@ -151,7 +151,7 @@ def backend_for_engine(engine: str, model_id: str = ''):
     backends candidats sans `SUPPORTED_MODELS` pour trancher ; module illisible.
     """
     from wama.common.services.backend_inventory import resolve_backend
-    classe = resolve_backend(engine, model_id)
+    classe = resolve_backend(engine, model_id, entries)
     # ⚠ GARDE : `engine_backends()` peut rendre un PORTEUR qui n'est pas un backend — le
     # porteur du démon Ollama en est un. Une première version rendait cet objet, qui n'a ni
     # `load` ni `process` : l'appelant aurait cru tenir un backend. On ne rend QUE le contrat.
@@ -160,7 +160,7 @@ def backend_for_engine(engine: str, model_id: str = ''):
     return None
 
 
-def backend_for_model(model):
+def backend_for_model(model, entries=None):
     """Classe de backend qui sait exécuter `model`, ou None.
 
     C'est le point d'entrée que les apps doivent employer : elles connaissent leur MODÈLE
@@ -176,10 +176,10 @@ def backend_for_model(model):
     # `model_key` vaut `<source>:<model_id>` — et parfois `<source>:<famille>:<id>` (yolo).
     # C'est le DERNIER segment qui porte l'identifiant qu'un `SUPPORTED_MODELS` déclarerait.
     cle = getattr(model, 'model_key', '') or ''
-    return backend_for_engine(engine, cle.rsplit(':', 1)[-1] if cle else '')
+    return backend_for_engine(engine, cle.rsplit(':', 1)[-1] if cle else '', entries)
 
 
-def backend_for_key(model_key: str):
+def backend_for_key(model_key: str, entries=None):
     """La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
 
     Pourquoi elle existe (1ᵉʳ adoptant, 2026-09-07 — composer, puis enhancer) : une app ne tient
@@ -190,6 +190,11 @@ def backend_for_key(model_key: str):
     ⚠ Recherche ORM TARDIVE : ce module est importé par des backends SANS Django. Une base
     absente ou une ligne manquante rendent None — l'appelant dit alors POURQUOI il s'arrête,
     il ne devine pas un backend « par défaut » (c'est la règle de `resolve_backend`).
+
+    `entries` (même sens sur les trois portes) : le vivier déjà lu
+    (`backend_inventory.resolvable_entries()`), pour un appelant qui résout EN SÉRIE. Sans lui,
+    chaque appel relit l'inventaire — 48 fois pour les 48 modèles de l'anonymizer à chaque
+    extraction de manifeste (mesuré le 2026-09-14).
     """
     if not model_key:
         return None
@@ -199,7 +204,7 @@ def backend_for_key(model_key: str):
     except Exception as e:                       # hors Django, base absente : pas de verdict
         logger.warning('[backends] catalogue illisible pour %s : %s', model_key, e)
         return None
-    return backend_for_model(ligne) if ligne is not None else None
+    return backend_for_model(ligne, entries) if ligne is not None else None
 
 
 def backend_missing(model) -> Optional[str]:

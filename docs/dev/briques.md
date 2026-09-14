@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**142 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**143 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -15,6 +15,16 @@ Un modèle jamais utilisé télécharge ses poids À LA PREMIÈRE EXÉCUTION (37
 - **Module** : Prévenir l'utilisateur qu'un premier lancement va TÉLÉCHARGER les poids.
 - **API publique** (1) :
   - `annoncer_telechargement(model_key: str, console=None) -> bool` — Prévient (console) si les poids de `model_key` sont absents. Rend True si annoncé.
+
+### Cache par empreinte de fichier
+
+Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compte de lignes) tant que son empreinte — date de modification, taille — n'a pas changé : un fichier modifié est relu, jamais servi périmé. Extrait le 2026-09-14 : le catalogue des docs portait le geste en dur, et l'inventaire des backends relisait 6 237 fois des fichiers pour UNE extraction de manifeste (48 résolutions d'un même vivier). ⚠ Ne convient qu'à ce qui ne dépend QUE du fichier
+
+- **Domicile** : `wama/common/file_cache.py`
+- **Module** : Cache par EMPREINTE de fichier — une valeur calculée depuis un fichier, gardée tant que le fichier n'a pas changé.
+- **API publique** (2) :
+  - `file_stamp(path) -> Optional[tuple]` — `(mtime_ns, taille)` du fichier (ou du dossier), `None` s'il est illisible.
+  - `class FileCache` — `get(chemin, calcul)` : `calcul(chemin)` n'est rappelé que si l'empreinte a changé.
 
 ### Client du service TTS
 
@@ -964,9 +974,9 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `engine_backends() -> dict` — {moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
   - `known_engines() -> set` — Moteurs réellement EXÉCUTABLES — inventaires relus à CHAQUE appel (ré-autorisation
-  - `backend_for_engine(engine: str, model_id: str='')` — Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
-  - `backend_for_model(model)` — Classe de backend qui sait exécuter `model`, ou None.
-  - `backend_for_key(model_key: str)` — La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
+  - `backend_for_engine(engine: str, model_id: str='', entries=None)` — Classe de backend qui pilote `engine` (et sert `model_id` si le moteur est partagé).
+  - `backend_for_model(model, entries=None)` — Classe de backend qui sait exécuter `model`, ou None.
+  - `backend_for_key(model_key: str, entries=None)` — La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
   - `backend_missing(model) -> Optional[str]` — Raison si `model` est POSITIVEMENT sans backend, sinon None.
   - `class BackendManager` — Registre + cycle de vie de backends `BaseModelBackend` (singletons keep_loaded).
 
@@ -976,7 +986,7 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
 
 - **Domicile** : `wama/common/services/backend_inventory.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Registre des BACKENDS — vue DÉRIVÉE du vivier de moteurs de WAMA (demande Fabien 2026-09-03).
-- **API publique** (11) :
+- **API publique** (12) :
   - `class BackendEntry` — UN backend exécutable — la maille que le LLM compare pour trouver « le plus approchant ».
   - `class AppBackends`
   - `inventory() -> List[AppBackends]` — Le vivier, DÉRIVÉ à l'appel. Une app = une entrée ; jamais de nom d'app en dur ici.
@@ -984,8 +994,9 @@ Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations `
   - `declared_engines() -> dict` — {moteur: classe de backend} DÉRIVÉ des déclarations `ENGINE` des backends.
   - `count() -> int` — Total de backends du vivier (apps réelles) — pour le registre des registres.
   - `orphelins(entrees, servis) -> tuple` — (muets, expliqués) — backends qu'AUCUN modèle ne désigne, séparés par la RAISON.
+  - `resolvable_entries() -> List[BackendEntry]` — Le vivier que la résolution consulte — jumelles de bac à sable exclues. Un appelant qui
   - `resolve_entry(engine: str, model_id: str='', entries=None) -> Optional[BackendEntry]` — ENTRÉE du vivier qui sait exécuter `model_id` avec `engine` — ou None. STATIQUE :
-  - `resolve_backend(engine: str, model_id: str='')` — Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
+  - `resolve_backend(engine: str, model_id: str='', entries=None)` — Classe de backend qui sait exécuter `model_id` avec `engine` — ou None.
   - `app_backend_entries(app: str) -> List[BackendEntry]` — Backends que `app` RÉSOUT réellement, par le lien du catalogue — STATIQUE, dédoublonnés
   - `app_backend_paths(app: str) -> List[Path]` — Fichiers source des backends résolus par `app` (cf. `app_backend_entries`), n'existant
 
