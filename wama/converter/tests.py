@@ -263,3 +263,93 @@ class AdoptionDeLaBriqueDEntreeDeFileTest(TestCase):
             self.assertNotIn(recopie, src,
                              f'boucle de file recopiée à la main ({recopie}) : la brique '
                              'la tient déjà')
+
+
+class LancementSansFormatTest(TestCase):
+    """Un job SANS format de sortie ne part pas en tâche (job #27, relevé par Fabien le 2026-09-14).
+
+    Un import par lot ou par fichier crée ses jobs avec `output_format=''`. `batch_start` les
+    sautait déjà ; `start` et `start_all`, non : la tâche descendait jusqu'au backend vidéo, qui
+    répondait « Format vidéo non supporté : » — format VIDE, lu comme un rejet de codec d'entrée.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from wama.converter.models import ConversionJob
+        self.user = get_user_model().objects.create_user('conv_sans_format', password='x')
+        self.client.force_login(self.user)
+        self.sans = ConversionJob.objects.create(
+            user=self.user, input_filename='SEQ08-01.mp4', media_type='video',
+            output_format='', status='PENDING')
+        self.avec = ConversionJob.objects.create(
+            user=self.user, input_filename='b.mp4', media_type='video',
+            output_format='webm', status='PENDING')
+
+    def test_start_REFUSE_un_job_sans_format_et_ne_lance_rien(self):
+        from unittest import mock
+        with mock.patch('wama.converter.tasks.convert_media_task.delay') as delay:
+            r = self.client.post(reverse('converter:start', args=[self.sans.id]))
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Format de sortie non défini', r.json()['error'])
+        delay.assert_not_called()
+        self.sans.refresh_from_db()
+        self.assertEqual(self.sans.status, 'PENDING', 'refusé = reste relançable, jamais RUNNING')
+
+    def test_start_all_SAUTE_le_job_sans_format_et_lance_les_autres(self):
+        from unittest import mock
+        with mock.patch('wama.converter.tasks.convert_media_task.delay') as delay:
+            delay.return_value.id = 'tache-test'
+            d = self.client.post(reverse('converter:start_all')).json()
+        self.assertEqual(d['started'], [self.avec.id])
+        self.assertEqual(d['skipped'], [self.sans.id])
+        self.sans.refresh_from_db()
+        self.assertEqual(self.sans.status, 'PENDING')
+
+    def test_la_tache_dit_FORMAT_NON_DEFINI_et_non_format_non_supporte(self):
+        """Toutes les voies de lancement (gestionnaire de fichiers, API) passent par la glu."""
+        from unittest import mock
+        from wama.converter.tasks import _convert
+        with self.assertRaisesMessage(ValueError, 'Format de sortie non défini'):
+            _convert(self.sans, mock.Mock())
+
+
+class LaCardPasseParEnCoursTest(TestCase):
+    """Le lancement unitaire REDESSINE la card depuis le serveur (relevé par Fabien le 2026-09-14).
+
+    `startJob` écrivait `card.dataset.status = 'RUNNING'` AVANT la requête (depuis avril) ; depuis
+    le portage du 26/07, `pollJob` ne redessine la card qu'à un CHANGEMENT entre ce `data-status`
+    et le statut serveur. Les deux valant déjà RUNNING, « En cours » ne s'affichait jamais : la
+    card sautait d'« En attente » / « Échec » directement au résultat. Aucun vérificateur JS n'est
+    installé : la garde lit le source, et la copie servie (`staticfiles/`).
+    """
+
+    def _source(self, racine='wama/converter/static'):
+        from pathlib import Path
+        from django.conf import settings
+        return (Path(settings.BASE_DIR) / racine / 'converter' / 'js'
+                / 'converter.js').read_text(encoding='utf-8')
+
+    def _fonction(self, nom, suivante):
+        """Corps de la fonction, SANS ses commentaires `//` : la garde porte sur le CODE — le
+        commentaire qui raconte le défaut cite justement la ligne interdite (1er run : rouge sur
+        sa propre explication)."""
+        src = self._source()
+        debut = src.index(f'async function {nom}(')
+        corps = src[debut:src.index(suivante, debut + 1)]
+        return '\n'.join(l for l in corps.splitlines() if not l.strip().startswith('//'))
+
+    def test_le_lancement_ne_pose_plus_RUNNING_a_l_avance_et_redessine_avant_de_suivre(self):
+        corps = self._fonction('startJob', 'async function cancelJob(')
+        self.assertNotIn("dataset.status = 'RUNNING'", corps,
+                         "RUNNING posé côté client : `pollJob` ne verra jamais de transition")
+        self.assertIn('await refreshCard(jobId);', corps)
+        self.assertLess(corps.index('await refreshCard(jobId);'), corps.index('startPolling(jobId);'))
+
+    def test_l_arret_redessine_la_card(self):
+        corps = self._fonction('cancelJob', '// Suppression')
+        self.assertNotIn("dataset.status = 'PENDING'", corps)
+        self.assertIn('await refreshCard(jobId);', corps)
+
+    def test_la_copie_SERVIE_est_celle_du_source(self):
+        """`staticfiles/` est ce que sert la production : une correction non recopiée n'existe pas."""
+        self.assertEqual(self._source('staticfiles'), self._source())

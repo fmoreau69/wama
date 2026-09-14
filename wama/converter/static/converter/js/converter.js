@@ -241,10 +241,16 @@
         if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
             await cancelJob(jobId);
         }
-        if (card) card.dataset.status = 'RUNNING';
         try {
             const resp = await csrfPost(urlFor(APP.urls.start, jobId));
             if (resp.ok) {
+                // Re-rendu SERVEUR tout de suite : la vue a posé RUNNING avant de répondre.
+                // ⚠ 2026-09-14 — on écrivait `card.dataset.status = 'RUNNING'` AVANT la requête
+                // (depuis avril) ; depuis le portage du 26/07, `pollJob` ne redessine la card qu'à
+                // un CHANGEMENT entre ce `data-status` et le statut serveur. Les deux valant déjà
+                // RUNNING, la card n'était jamais redessinée : « En cours » ne s'affichait jamais,
+                // elle sautait d'« En attente »/« Échec » directement au résultat.
+                await refreshCard(jobId);
                 startPolling(jobId);
             } else {
                 const d = await resp.json();
@@ -257,11 +263,12 @@
 
     // ⏹ Stop : annule la conversion en cours (revoke + reset PENDING côté serveur) → relançable.
     async function cancelJob(jobId) {
-        const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
         try {
             await csrfPost(urlFor(APP.urls.cancel, jobId));
-            if (card) card.dataset.status = 'PENDING';   // cancel → PENDING (autoSync repasse en ▶)
             stopPolling(jobId);
+            // cancel → PENDING côté serveur : la card est REDESSINÉE (libellé, point, bouton ▶),
+            // jamais seulement son `data-status` — même défaut que `startJob` (2026-09-14).
+            await refreshCard(jobId);
         } catch (err) {
             /* non-fatal */
         }

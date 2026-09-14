@@ -46,6 +46,13 @@ def _convert(job, ctx):
     ICI (le squelette ne connaît pas les artefacts de la glu)."""
     from django.conf import settings
 
+    # Format ABSENT ≠ format non supporté (2026-09-14) : un job né d'un import sans format
+    # descendait jusqu'au backend, qui répondait « Format vidéo non supporté : » (format vide) —
+    # un faux rejet de codec. Toutes les voies de lancement passent ici : on le dit tel quel.
+    if not job.output_format:
+        raise ValueError("Format de sortie non défini pour ce job — le choisir dans "
+                         "⚙ Paramètres, puis relancer.")
+
     ctx.console(f"Conversion démarrée : {job.input_filename} → .{job.output_format}")
     input_path = job.input_file.path
 

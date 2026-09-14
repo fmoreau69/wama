@@ -14210,3 +14210,38 @@ ajoutée par `07f8ce23`, 13/09) n'est pas un type de la taxonomie ; `tests_doc_p
 « Envoyer vers… » a toujours DEUX dérivations client/serveur des mêmes conditions (l'arbre croise
 `WAMA_APP_CATALOG` × `WAMA_FILEMANAGER_IMPORTERS` côté client, la card interroge le résolveur
 `send_to`) — la migration a unifié le RENDU, pas la source.
+
+
+## §PALIER — 2026-09-14 (soir), « CONVERTER : la card ne passait jamais par « En cours », et un job sans format échouait en faux rejet » — ✅ LIVRÉ
+
+> Deux constats écran de Fabien : « je ne vois jamais le statut En cours » et « la conversion
+> #27 (SEQ08-01.mp4) passe en échec alors que j'ai déjà converti ce fichier ».
+
+**① « En cours » — bug CLIENT, présent depuis le 26/07, sans lien avec le gouverneur.** Le serveur
+était juste (`views.start` pose RUNNING avant `.delay`, `/status` le rend). Mais `startJob`
+(`converter.js`) écrivait `card.dataset.status = 'RUNNING'` AVANT la requête (depuis avril) et,
+depuis le portage du 26/07 (`fe69c3a4`), `pollJob` ne redessine la card qu'à un CHANGEMENT entre
+ce `data-status` et le statut serveur : les deux valant RUNNING, le libellé, le point et l'étape
+restaient ceux d'avant jusqu'au résultat. `cancelJob` avait le défaut symétrique (PENDING posé sans
+redessin). « Tout lancer » et le lot rechargent la page : non touchés. La comparaison fautive
+n'existe que dans le converter (les 4 autres apps qui écrivent `data-status` ne la font pas).
+→ la card est REDESSINÉE depuis le serveur après un lancement accepté et après un arrêt ;
+`staticfiles/` resynchronisé.
+⚠ Rectification de ma part : au palier « GOUVERNEUR », « le squelette ne pose jamais RUNNING » a
+pu se lire comme la cause visible ; les VUES posent RUNNING, le défaut du squelette ne joue qu'en
+cas de report (`AWAITING_RESOURCES`, jamais activé aujourd'hui).
+
+**② Job #27 — pas un rejet de codec : un job SANS FORMAT DE SORTIE.** Base lue : `output_format=''`,
+lot n°6 créé le 03/06, seul job de ce fichier (la conversion réussie était un autre job, supprimé).
+Un import par lot/fichier crée ses jobs sans format ; `batch_start` les sautait, `start` et
+`start_all` non → le backend vidéo répondait « Format vidéo non supporté : » (format VIDE).
+→ `start` refuse (400 « Format de sortie non défini — le choisir dans ⚙ Paramètres ») ; `start_all`
+les saute et les rend dans `skipped` ; la glu lève « format de sortie non défini » pour toute autre
+voie.
+
+**Mesures** : `wama.converter` 15 OK (+6 : refus de `start`, saut de `start_all`, message de la
+glu, `startJob`/`cancelJob` redessinent — garde sur le CODE hors commentaires, le 1ᵉʳ run avait
+rougi sur le commentaire qui cite la ligne interdite —, copie servie identique) ; JS servi analysé
+dans le navigateur (`new Function` : OK, correction présente) ; `check_docs` 0 / 1796.
+⚠ Effet : JS au prochain rechargement de page ; garde serveur au redémarrage de gunicorn et du
+worker `default`.
