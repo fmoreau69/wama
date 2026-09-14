@@ -244,9 +244,9 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
 
 ### Banc de comparaison
 
-Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation)
+Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation) ; `text-generation` mesure le DÉBIT d'un LLM Ollama (jetons/s, prefill, chargement) et nourrit la boucle d'ETA (`ModelRuntimeStat`, unité token) — des coûts, jamais une qualité
 
-- **Domicile** : `wama/model_manager/services/bench.py`
+- **Domicile** : `wama/model_manager/services/bench.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.2](../construction/suivi/ROADMAP.md)
 - **Module** : Banc de comparaison de modeles, indexe sur la TACHE et non sur l'app.
 - **API publique** (3) :
   - `models_for_task(tache: str, *, installes_seulement: bool=True)` — Modeles du catalogue qui declarent cette tache. Le catalogue est la seule source.
@@ -270,11 +270,11 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
   - `rang_centile(valeur, population, cle, sens: str='haut')` — Position de `valeur` dans la population de SON banc, en centiles (0-100), ou None.
   - `synchroniser(dry_run: bool=False, inclure_proposes: bool=True)` — Apparie le catalogue (téléchargés + candidats de prospection `proposed:`) aux deux
 
-### Cache HF scopé
+### Cache HF scopé — dernier recours
 
-Bascule TEMPORAIRE du cache HuggingFace par backend — anti-fuite d'artefacts inter-apps
+Bascule TEMPORAIRE du cache HuggingFace, restaurée en sortie : le levier D de `hf_weights`, réservé à une lib qui n'offre ni `cache_dir=`, ni chemin local, ni variable propre. ⚠ Restaure l'environnement, JAMAIS les fichiers. Aucun emploi aujourd'hui (`RECOURS_ASSUMES` vide, tenu par `tests_hf_cache_routing`)
 
-- **Domicile** : `wama/common/utils/hf_cache.py`
+- **Domicile** : `wama/common/utils/hf_cache.py` · **doc** : [docs/construction/suivi/ROADMAP.md §5b](../construction/suivi/ROADMAP.md)
 - **Module** : Bascule SCOPÉE du cache HuggingFace — LA brique anti-fuite (extraite le 2026-08-12).
 - **API publique** (1) :
   - `hf_cache_scope(cache_dir)` — Pose env + constantes huggingface_hub sur `cache_dir` LE TEMPS du bloc, puis

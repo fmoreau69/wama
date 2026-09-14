@@ -78,8 +78,8 @@ class Command(BaseCommand):
         # Ajouté le 2026-09-08 (demande de Fabien sur les « backends morts »). Ici et pas dans
         # un test : l'état dépend du CATALOGUE, et un invariant qui l'interroge depuis un
         # `TestCase` mesure la base de test — vide. La LOGIQUE (`orphelins`) est testée à part.
-        from wama.common.services.backend_inventory import inventory, orphelins
-        entrees = [e for a in inventory() if not a.generated_from for e in a.entries]
+        from wama.common.services.backend_inventory import orphelins, resolvable_entries
+        entrees = resolvable_entries()
         servis = {c.__name__ for m in reels for c in [backend_for_model(m)] if c}
         muets, expliques = orphelins(entrees, servis)
 

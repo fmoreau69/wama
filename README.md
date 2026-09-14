@@ -47,7 +47,7 @@ The platform is **metadata-driven**: each app declares its identity, ports (type
 
 ### AI assistant & tool API
 
-Every app exposes its actions to the built-in AI assistant through **`wama/tool_api.py`** (46 tools):
+Every app exposes its actions to the built-in AI assistant through **`wama/tool_api.py`** (the live list is served by `GET /api/v1/tools/`):
 a canonical triad per app — `add_to_<app>` / `start_<app>` / `get_<app>_status` — plus primary verbs
 (`create_image`, `compose_music`, `convert_file`, `synthesize_text`, `translate_text`), media-library
 and studio tools. Tools are listed and executed via `GET/POST /api/v1/tools/`, with descriptions
@@ -213,7 +213,7 @@ python patches/apply_patches.py
 |---|-------------|-------|-----|
 | 1 | `site-packages/boson_multimodal/.../modeling_higgs_audio.py` | `transformers 4.57+` API breaks (attention unpacking, inference_mode, cache_position…) | 7 targeted search-replace patches |
 | 2 | `site-packages/df/io.py` (deepfilternet) | `torchaudio.backend.common.AudioMetaData` removed in torchaudio 2.x | `try/except` + dataclass stub |
-| 3 | `tts_service.py` | In-repo patches (usage dict, temperature, CUDA graphs, audio trim) | Verified, not re-applied |
+| 3 | `wama/common/backends/higgs_backend.py` | In-repo safeguards of the Higgs Audio backend (CUDA graphs disabled, temperature, reference-audio trim, generation lock) — moved out of `tts_service.py` when TTS engines joined the common backend contract | Verified, not re-applied |
 | 4 | `start_wama_prod.sh` | `HIGGS_DISABLE_CUDA_GRAPHS=1` must be exported | Verified, not re-applied |
 | 5 | `site-packages/xformers/ops/seqpar.py` | `GroupName` removed from `torch.distributed` in torch 2.9.x | `try/except` fallback import |
 | 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | `lm_head` int32 GEMM overflow on long audio (CUDA `cudaErrorUnknown`) | logits computed on last token only |
@@ -266,7 +266,12 @@ netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 conne
 
 ## AI model management
 
-All models are stored under `AI-models/models/<domain>/<family>/` to avoid storing anything in the default HuggingFace cache. The rule — enforced in `AGENTS.md` — is: **set `HF_HUB_CACHE` before importing `transformers` or `diffusers`**, and always pass `cache_dir` to `from_pretrained()`.
+The rule — `AGENTS.md`, « ajout d'un nouveau modèle AI » — is: **the model by `cache_dir=`, its dependencies by the shared cache, and nothing in the environment.**
+
+- **Models** live under `AI-models/models/<domain>/<family>/`. The main model is filed there by the first lever its library allows, in this order: **A** `cache_dir=` on `from_pretrained()` (most backends); **B** a local path fetched by `poids_locaux` (`wama/common/utils/hf_weights.py`) when the library takes a path; **C** the library's own variable, set once in `wama/settings.py` (`DEEPFACE_HOME`, `AUDIOCRAFT_CACHE_DIR`); **D** only as a declared last resort, the self-restoring `hf_cache_scope` (`wama/common/utils/hf_cache.py`) — it restores the environment but never moves the files downloaded meanwhile.
+- **Sub-dependencies** a library pulls internally (t5, bert, tokenizers, timm backbones…) go to the **shared cache** `AI-models/cache/huggingface/`. That is their place, not a drift: `HF_HOME` / `HF_HUB_CACHE` point there, set **once** at startup in `wama/settings.py`.
+- **Never mutate `HF_HUB_CACHE` / `HF_HOME` in a backend**: they are process-global and drag every later download — sub-dependencies included — into that model's folder. (A subprocess environment is not a mutation: the MuseTalk backend passes its own cache to the child process it launches.)
+- Guarded by `wama/common/tests_hf_cache_routing.py` and `python manage.py check_model_layout` (no foreign snapshot in a family folder).
 
 Download and status are managed via **Model Manager** (`/model-manager/`).
 
@@ -293,7 +298,7 @@ Instrumentation (all read-only):
 ```bash
 python manage.py manifest_export --check   # is the manifest corpus up to date?
 python manage.py manifest_roundtrip --all  # extract → validate → verify → write-back dry-run
-python manage.py check_app_conformity      # measured conformity grid (74 criteria, 8 facets)
+python manage.py check_app_conformity      # measured conformity grid (8 facets; criteria count in logs/conformity_report.json)
 python manage.py check_docs                # doc → code reference integrity
 ```
 
