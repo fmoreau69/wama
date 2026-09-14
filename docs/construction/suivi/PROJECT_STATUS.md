@@ -14245,3 +14245,32 @@ rougi sur le commentaire qui cite la ligne interdite —, copie servie identique
 dans le navigateur (`new Function` : OK, correction présente) ; `check_docs` 0 / 1796.
 ⚠ Effet : JS au prochain rechargement de page ; garde serveur au redémarrage de gunicorn et du
 worker `default`.
+
+
+## §PALIER — 2026-09-14 (soir), « SQUELETTE : la re-livraison d'un report repasse en cours, et respecte une annulation » — ✅ LIVRÉ
+
+> Suite du même GO (squelette → grille → portages → `vram_needed` → attente « toute la VRAM »).
+> Fabien confirme « En cours » et #27 corrigés ; il répond à la cascade VRAM (mesurée → source →
+> estimée) — réserves « jamais sous la source » et « provenance à marquer » posées, en attente.
+
+**Deux défauts de re-livraison**, invisibles tant que `vram_needed` n'est adopté par personne :
+- RUNNING est posé par les VUES avant `.delay()` ; un item re-livré après un report
+  (`_differer_faute_de_vram` → `task.retry`) ne repasse par aucune vue et restait « En attente de
+  ressources » pendant tout son traitement (le commentaire « `progress(0)` bascule en RUNNING »
+  était faux) → bascule conditionnelle `AWAITING_RESOURCES` → RUNNING avant le traitement ;
+- un report ANNULÉ entre-temps était traité à la re-livraison → une re-livraison (`retries > 0`,
+  seul retry du squelette) dont l'item n'est plus en `AWAITING_RESOURCES`/RUNNING est abandonnée.
+La première livraison ne change pas (un PENDING n'est jamais basculé par le squelette).
+
+**Mesures** : `tests_task_skeleton_redelivery` (4, squelette ENTIER, statut relevé par la glu
+PENDANT le traitement) + `tests_gpu_safe_mode` + converter + describer + reader : **38 OK** ;
+contre-épreuve sur l'ancien squelette : **2 rouges attendus**, 2 gardes vertes. ⚠ 1ᵉʳ run : 4
+« connection is closed » (`close_old_connections` en tête du squelette fermait la connexion du
+`TestCase`) — contre-épreuve alors rouge pour la même raison, donc VACUOUS ; neutralisé dans le
+test avant de conclure.
+
+🔚 **Décisions en attente de Fabien** (rappel envoyé le soir même) : A. cascade VRAM + provenance
+marquée chez les rédacteurs ; B. conception de l'attente « toute la VRAM » + assistant vocal
+pendant une libération + premiers adoptants + attente maximale ; C. généralisation du curseur +
+sort du curseur de précision de l'anonymizer ; D. unification des deux Redis, mesure de
+`mem_get_info` sous WSL2.

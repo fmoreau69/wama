@@ -622,9 +622,13 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
     `model_manager.persist_measured_vram` (10 min) → `ModelSyncService.persist_measured_vram`.
     Lecteurs : `check_model_completeness` (sort de `vram_estimee`, axe `vram_sous_declaree`),
     inspecteur du model_manager. Brancher la mesure sur le TIRAGE reste une décision à part ;
-  ② le squelette ne pose jamais RUNNING (le commentaire « `progress(0)` bascule l'item en
+  ② ~~le squelette ne pose jamais RUNNING (le commentaire « `progress(0)` bascule l'item en
     RUNNING » de `task_skeleton.py` est faux : `TaskContext.progress` n'écrit que cache et
-    `progress`) — un item différé resterait affiché `AWAITING_RESOURCES` pendant son exécution ;
+    `progress`) — un item différé resterait affiché `AWAITING_RESOURCES` pendant son exécution~~
+    ✅ **corrigé le même soir** : un item RE-LIVRÉ après un report bascule en RUNNING avant le
+    traitement ; un report ANNULÉ entre-temps (plus en `AWAITING_RESOURCES`) n'est pas traité ;
+    commentaire rectifié. ⚠ RUNNING reste posé par les VUES au premier lancement — c'est ce qui
+    rendait ce défaut invisible sur les cards (`vram_needed` n'étant adopté par personne) ;
   ③ `vram_needed` : 0 appelant — suit le PORTAGE des 7 apps au squelette ;
   ④ « libérer avant de différer » et décharger le service TTS avant une tâche « toute la VRAM » :
     DÉCISIONS, pas réparations. Sur le poste de dev, le revert `1b1546d9` (24/07) a établi que
