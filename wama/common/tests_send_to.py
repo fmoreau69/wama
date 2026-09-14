@@ -226,3 +226,111 @@ class CablageFrontTest(TestCase):
                 self.assertTrue(servi.exists())
                 self.assertEqual(source.read_text(encoding='utf-8'),
                                  servi.read_text(encoding='utf-8'))
+
+
+class DestinationsPourUneSelectionTest(TestCase):
+    """L'arbre de fichiers passe au MÊME résolveur (2026-09-14). Une SÉLECTION mêlée n'est pas une
+    sortie de card : elle est rendue en PARTIEL ANNONCÉ — chaque app dit quels fichiers elle prend."""
+
+    def setUp(self):
+        self.u = _utilisateur('envoi_selection')
+
+    def test_en_partiel_chaque_app_dit_QUELS_fichiers_elle_prend(self):
+        from wama.common.app_registry import APP_CATALOG
+        melange = ['converter/1/output/x.png', 'converter/1/output/y.wav']
+        dests = destinations(self.u, melange, partiel=True)
+        self.assertTrue(dests, "aucune app pour png+wav, même en partiel")
+        for d in dests:
+            exts = {e.lower() for e in (APP_CATALOG.get(d['app']) or {}).get('input_extensions', ())}
+            self.assertTrue(d['acceptes'], d)
+            for chemin in d['acceptes']:
+                self.assertIn(chemin, melange)
+                self.assertIn('.' + chemin.rsplit('.', 1)[-1], exts,
+                              f"{d['app']} annonce {chemin} sans déclarer son extension")
+
+    def test_le_partiel_offre_AU_MOINS_ce_que_le_tout_ou_rien_offre(self):
+        melange = ['converter/1/output/x.png', 'converter/1/output/y.wav']
+        tout = {d['app'] for d in destinations(self.u, melange)}
+        partiel = {d['app'] for d in destinations(self.u, melange, partiel=True)}
+        self.assertLessEqual(tout, partiel)
+
+    def test_un_dossier_n_offre_que_des_apps_a_importeur_ET_accessibles(self):
+        from wama.accounts.permissions import accessible
+        from wama.common.services.send_to import destinations_dossier
+        from wama.filemanager.views import importer_for
+        nu = _utilisateur('envoi_dossier_sans_role', tous_les_roles=False)
+        from wama.common.app_registry import APP_CATALOG
+        for compte in (self.u, nu):
+            for d in destinations_dossier(compte):
+                self.assertIsNotNone(importer_for(d['app']))
+                self.assertTrue(accessible(compte, 'app', d['app']), d)
+                # Mesuré à la sonde : cam_analyzer / face_analyzer étaient offerts sans rien
+                # déclarer — leur import d'un dossier n'aurait jamais rien retenu.
+                self.assertTrue((APP_CATALOG.get(d['app']) or {}).get('input_extensions'),
+                                f"{d['app']} offerte pour un dossier sans déclarer d'extension")
+
+
+class EndpointEnvoyerVersCheminsTest(TestCase):
+    """`common:api_envoyer_vers_chemins` — l'entrée de l'arbre de fichiers dans le résolveur."""
+
+    def setUp(self):
+        from wama.common.utils.media_paths import app_media_dir
+        self.u = _utilisateur('envoi_chemins')
+        self.client.force_login(self.u)
+        self.dossier = app_media_dir('converter', self.u.id, 'output')
+        self.url = reverse('common:api_envoyer_vers_chemins')
+
+    def _post(self, corps):
+        import json
+        return self.client.post(self.url, data=json.dumps(corps), content_type='application/json')
+
+    def test_des_chemins_rendent_destinations_et_endpoint(self):
+        rep = self._post({'paths': [f'{self.dossier}/a.png']})
+        self.assertEqual(200, rep.status_code, rep.content[:200])
+        d = rep.json()
+        self.assertTrue(d['destinations'])
+        self.assertEqual(reverse('filemanager:api_import'), d['endpoint'])
+
+    def test_un_dossier_rend_ses_destinations(self):
+        rep = self._post({'folder': self.dossier})
+        self.assertEqual(200, rep.status_code, rep.content[:200])
+        self.assertEqual(self.dossier, rep.json()['folder'])
+        self.assertTrue(rep.json()['destinations'])
+
+    def test_un_chemin_que_l_IMPORT_refuserait_n_obtient_pas_de_menu(self):
+        """La garde de chemin est CELLE de l'import (`is_path_allowed`), pas une copie."""
+        from wama.common.utils.media_paths import app_media_dir
+        autre = _utilisateur('envoi_chemins_autrui')
+        etranger = f"{app_media_dir('converter', autre.id, 'output')}/b.png"
+        self.assertEqual(403, self._post({'paths': [etranger]}).status_code)
+        self.assertEqual(403, self._post({'folder': app_media_dir('converter', autre.id, 'output')}).status_code)
+
+    def test_sans_chemin_400_et_en_GET_405(self):
+        self.assertEqual(400, self._post({}).status_code)
+        self.assertEqual(405, self.client.get(self.url).status_code)
+
+
+class ArbreSansCalculClientTest(TestCase):
+    """L'arbre ne DÉRIVE plus ses destinations chez le client : deux dérivations des mêmes
+    conditions divergeaient (celle du client ne vérifiait pas l'accès). Garde sur le CODE, sans
+    ses commentaires — un commentaire qui cite l'ancien mécanisme ne le rebranche pas."""
+
+    def _code(self, *rel):
+        import re
+        from django.conf import settings
+        from pathlib import Path
+        texte = (Path(settings.BASE_DIR).joinpath(*rel)).read_text(encoding='utf-8')
+        texte = re.sub(r'/\*.*?\*/', '', texte, flags=re.S)
+        texte = re.sub(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', '', texte, flags=re.S)
+        return re.sub(r'(^|[^:\'"\\])//[^\n]*', r'\1', texte)
+
+    def test_filemanager_js_passe_par_le_resolveur_serveur(self):
+        code = self._code('wama', 'filemanager', 'static', 'filemanager', 'js', 'filemanager.js')
+        for ancien in ('WAMA_FILEMANAGER_IMPORTERS', 'input_extensions', 'buildSendToSubmenu'):
+            self.assertNotIn(ancien, code, f"l'arbre recalcule ses destinations : `{ancien}`")
+        self.assertIn('WamaSendTo.entreesPourChemins', code)
+        self.assertIn('WamaSendTo.entreesPourDossier', code)
+
+    def test_la_liste_client_n_est_plus_publiee(self):
+        code = self._code('wama', 'filemanager', 'templates', 'filemanager', 'sidebar.html')
+        self.assertNotIn('WAMA_FILEMANAGER_IMPORTERS', code)

@@ -1013,7 +1013,16 @@ def check_app_send_to(app: str, url_path: str):
                                    f"fichier {temoin.suffix} que l'app DÉCLARE accepter "
                                    f"({', '.join(exts[:4])}…) — entrées vues : {libelles}")
                 entree.hover()
-                page.wait_for_timeout(600)
+                # Le sous-menu est résolu au SERVEUR depuis le 2026-09-14 (`WamaSendTo`) : on
+                # attend qu'il ait fini de charger (« Recherche… ») plutôt qu'un délai fixe, qui
+                # mesurerait la latence du réseau au lieu du geste.
+                try:
+                    page.wait_for_selector(f'{menu}.wama-cm-sous', timeout=5000)
+                    page.wait_for_function(
+                        "() => !document.querySelector('.wama-cm-sous .fa-spinner')", timeout=15000)
+                except Exception:
+                    return False, ("survoler « Envoyer vers… » n'ouvre pas son sous-menu, ou il ne "
+                                   "finit pas de se charger")
 
                 # Le sous-menu porte le LIBELLÉ de l'app (APP_CATALOG.label), pas son id. On vise
                 # le `<span>` du libellé : `:text-is` retient le plus PETIT élément porteur du

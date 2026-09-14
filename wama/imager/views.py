@@ -1395,10 +1395,16 @@ def delete_generation(request, generation_id):
 
     try:
         generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
+        # Membre d'un LOT ? Relevé AVANT la purge (le lien est cascade-supprimé avec lui). Contrat
+        # commun de `queue-actions.js` : `batch_changed` fait recharger pour rendre le lot recalculé.
+        from wama.common.utils.batch_utils import find_member_batch
+        from .models import GenerationBatchItem
+        parent_batch = find_member_batch(GenerationBatchItem, generation=generation)
         _purger_generation(generation)
         logger.info(f"Deleted generation #{generation_id}")
 
-        return JsonResponse({'success': True, 'message': 'Generation deleted'})
+        return JsonResponse({'success': True, 'message': 'Generation deleted',
+                             'batch_changed': parent_batch is not None})
 
     except Http404:
         raise

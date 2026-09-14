@@ -1298,3 +1298,51 @@ def api_envoyer_vers(request, surface: str, pk: int):
         # d'une autre app, et un changement de route ne casse pas la brique commune.
         'endpoint': reverse('filemanager:api_import'),
     })
+
+
+@login_required
+def api_envoyer_vers_chemins(request):
+    """ENVOYER VERS depuis le GESTIONNAIRE DE FICHIERS — le MÊME résolveur, entré par des CHEMINS.
+
+    Unifié le 2026-09-14 (demande de Fabien). L'arbre calculait ses destinations CHEZ LE CLIENT
+    (`WAMA_APP_CATALOG` × `WAMA_FILEMANAGER_IMPORTERS`) quand la card les demandait AU SERVEUR :
+    deux dérivations des mêmes conditions, qui divergeaient déjà — l'arbre ne vérifiait pas
+    l'ACCÈS à l'app. Une seule source désormais : `send_to.destinations`.
+
+    POST, corps JSON : `{"paths": [...]}` (un fichier ou une sélection) ou `{"folder": "..."}`
+    (dossier entier). Lecture seule — l'envoi reste `filemanager:api_import`, rendu en `endpoint`.
+    """
+    import json
+
+    from django.urls import reverse
+    from wama.common.services.send_to import destinations, destinations_dossier
+    from wama.filemanager.views import is_path_allowed
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST attendu'}, status=405)
+    try:
+        data = json.loads(request.body or b'{}')
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    endpoint = reverse('filemanager:api_import')
+
+    # La garde de CHEMIN est celle de l'import, pas une copie : un chemin que l'import refuserait
+    # n'obtient pas non plus de menu (même mot, même porte).
+    dossier = (data.get('folder') or '').strip() if isinstance(data, dict) else ''
+    if dossier:
+        if not is_path_allowed(dossier, request.user):
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        return JsonResponse({'ok': True, 'folder': dossier, 'chemins': [],
+                             'destinations': destinations_dossier(request.user),
+                             'endpoint': endpoint})
+
+    chemins = [c for c in (data.get('paths') or []) if isinstance(c, str) and c] \
+        if isinstance(data, dict) else []
+    if not chemins:
+        return JsonResponse({'error': 'Aucun chemin fourni'}, status=400)
+    if not all(is_path_allowed(c, request.user) for c in chemins):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    return JsonResponse({'ok': True, 'chemins': chemins,
+                         'destinations': destinations(request.user, chemins,
+                                                      partiel=len(chemins) > 1),
+                         'endpoint': endpoint})

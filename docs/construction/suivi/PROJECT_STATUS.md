@@ -14274,3 +14274,61 @@ marquée chez les rédacteurs ; B. conception de l'attente « toute la VRAM » +
 pendant une libération + premiers adoptants + attente maximale ; C. généralisation du curseur +
 sort du curseur de précision de l'anonymizer ; D. unification des deux Redis, mesure de
 `mem_get_info` sous WSL2.
+
+
+## §PALIER — 2026-09-14 (nuit), « MENUS : médiathèque persistée, clavier, Envoyer vers au serveur, lot réduit » — ✅ LIVRÉ
+
+> Demandes de Fabien, même session que le palier « MENU CONTEXTUEL » ci-dessus : (1) que le
+> sous-menu « Ajouter à la médiathèque » dise qu'une sortie y est déjà (coche) et permette de la
+> RETIRER ; (2) une card supprimée d'un lot de deux ne sortait du lot qu'au rechargement ;
+> (3) les menus WAMA au clavier ; (4) « Envoyer vers » : UNE source, au serveur. Détail du design :
+> `CARD_DESIGN §2bis`. (Le job 27 du converter était déjà corrigé par Fabien, `a8540011`.)
+
+**Livré**
+- **Lot réduit** : `converter:delete` et `imager:delete` répondent enfin `batch_changed` — 8 apps
+  sur 10 le faisaient, la brique `queue-actions.js` ne recharge que sur ce champ. Cause MESURÉE au
+  journal d'accès (`POST /converter/608/delete/` → `200 17`, soit `{"success": true}`). Garde
+  `common.tests_queue_delete_contract` : toute route `<app>:delete` du parc (≥ 10) doit le répondre.
+- **Médiathèque** : provenance `UserAsset.source_app` / `source_pk` (migration `media_library 0015`,
+  appliquée à la base unique) ; `export_item_to_library` la pose et refuse un second rangement de la
+  même sortie sous le même rôle ; `remove_item_from_library` + `delete_asset` (que `api_delete`
+  adopte) ; `api_export_item` : GET rend `in_library`, POST `action=remove`. Menu : ✓ sur le rôle
+  rangé, clic = retrait confirmé (la copie part, jamais le résultat de l'app) ; le drapeau composer
+  `exported_to_library` suit. ⚠ **1 asset antérieur sans provenance** (#29, converter, compte 1) :
+  pas de coche pour lui.
+- **Clavier** : `wama-card-menu.js` — focus à l'ouverture, ↑ ↓ Début Fin, → (ou Entrée) entre dans le
+  sous-menu, ← remonte, Échap remonte puis rend le focus ; `includes/header.html` — même jeu dans
+  « Bac à sable ».
+- **Envoyer vers** : `send_to.destinations(partiel=)` + `destinations_dossier` ; route
+  `common:api_envoyer_vers_chemins` (garde = `is_path_allowed` de l'import, pas une copie) ;
+  `WamaSendTo.entreesPourChemins` / `entreesPourDossier`, et `wama:fileimported` par fichier reçu.
+  L'arbre ne dérive plus rien : retrait de `buildSendToSubmenu`, `APP_EXTENSIONS`/`APP_LABELS`,
+  `importFolderToApp`, de la balise `filemanager_importers_json` et du script de `sidebar.html`.
+  Sortie de card = tout-ou-rien ; sélection de l'arbre = partiel ANNONCÉ (« Imager (1/2 fichiers) »).
+
+**Défauts trouvés par la SONDE, corrigés avant commit**
+- Dossier : `cam_analyzer` / `face_analyzer` offerts sous leur nom brut (importeur, AUCUNE extension
+  déclarée — leur import n'aurait jamais rien retenu) → exclus, et gardé par un test.
+- ↓ dans « Bac à sable » sortait vers « Applications » : Bootstrap écoute le clavier de ses menus en
+  CAPTURE sur le document et prenait ce sous-menu (classe `dropdown-menu`) pour un des siens.
+  ⚠ Ma 1ʳᵉ correction écoutait `window`… en BULLE — le commentaire disait « capture », le code ne la
+  faisait pas. C'est un JOURNAL D'ÉCOUTEURS (ordre + `defaultPrevented` + `focusin`) qui l'a montré,
+  pas une relecture ; le test exige désormais le `true` de la capture.
+
+**Mesures**
+- Tests : 58 `OK` (médiathèque + converter + imager), 229 `OK` (périmètre), 61 `OK` après les
+  correctifs de sonde ; batterie finale : batterie élargie (common, filemanager, médiathèque, converter, imager, comptes) 1321 tests, 2 échecs LUS : port image de studio.image_to_3d hors taxonomie (préexistant, hors palier) et docs/dev/briques.md périmé PAR CE PALIER, régénéré puis tests_doc_plans 16 OK.
+- `check_templates --strict` 0 / 154 · `check_docs` 0 / 1797 · `staticfiles/` identique aux sources.
+- Sonde navigateur sur `runserver` JETABLE :8765 (la nouvelle route et la vue médiathèque n'existent
+  pas pour gunicorn) : A clavier de l'arbre, B « Envoyer vers » (fichier 6 apps, sélection en
+  partiel annoncé, dossier 8 apps), C médiathèque + → ✓ → +, D clavier de « Bac à sable » — tout
+  vert, **0 erreur console**, 0 asset laissé.
+
+⚠ **EFFET — rechargement de gunicorn REQUIS** : le JS est servi tout de suite, mais la route
+`api_envoyer_vers_chemins` et la vue médiathèque ne le sont qu'après rechargement. D'ici là,
+« Envoyer vers… » de l'arbre affiche « Indisponible » et aucune coche n'apparaît. Non fait par cette
+instance : un HUP aurait mis en production le code non commité d'une autre instance
+(`common/utils/task_skeleton.py`).
+
+🔚 **Restes nommés** : rejouer les nocturnes `<app>.send_to` après rechargement (ils visent
+gunicorn, donc le code ancien jusque-là) ; asset #29 sans provenance.

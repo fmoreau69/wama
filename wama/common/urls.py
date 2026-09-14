@@ -74,6 +74,8 @@ urlpatterns = [
     # ENVOYER VERS — résolveur en LECTURE SEULE : sorties de l'élément + apps éligibles +
     # l'endpoint qui reçoit. L'envoi lui-même passe par `filemanager:api_import`, celui qui
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.
+    path('api/envoyer-vers/chemins/', views.api_envoyer_vers_chemins,
+         name='api_envoyer_vers_chemins'),
     path('api/envoyer-vers/<str:surface>/<int:pk>/', views.api_envoyer_vers,
          name='api_envoyer_vers'),
 

@@ -102,14 +102,56 @@
                     li.addEventListener('mouseleave', cacherBientot);
                     sous.addEventListener('mouseenter', function () { clearTimeout(minuteur); });
                     sous.addEventListener('mouseleave', cacherBientot);
+                    function entreesDuSous() {
+                        return Array.prototype.slice.call(sous.querySelectorAll('.dropdown-item'));
+                    }
+                    function montrerEtEntrer() {
+                        montrer();
+                        var premiere = entreesDuSous()[0];
+                        if (premiere) premiere.focus();
+                    }
                     declencheur.addEventListener('click', function (ev) {
                         ev.preventDefault();
                         ev.stopPropagation();
                         // Le clic OUVRE, il ne bascule pas : on survole « Bac à sable » (déjà
                         // ouvert) puis on clique par habitude — un basculement le refermerait
                         // sous le doigt. On le quitte pour le fermer, comme le menu contextuel.
-                        montrer();
+                        // Entrée/Espace au CLAVIER (clic de `detail` 0) : on ENTRE dans le sous-menu.
+                        if (ev.detail === 0) montrerEtEntrer(); else montrer();
                     });
+                    // CLAVIER (2026-09-14) : → ouvre et entre ; dans le sous-menu, ↑ ↓ Début Fin
+                    // parcourent, ← Échap Tab reviennent au déclencheur.
+                    declencheur.addEventListener('keydown', function (ev) {
+                        if (ev.key !== 'ArrowRight') return;
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        montrerEtEntrer();
+                    });
+                    // ⚠ En CAPTURE sur `window`, pas sur le sous-menu (mesuré le 2026-09-14) :
+                    // Bootstrap écoute le clavier de ses menus en CAPTURE sur le document. Il passait
+                    // donc AVANT nous, prenait ce sous-menu (classe `dropdown-menu`) pour un des siens,
+                    // remontait au premier déclencheur du document et déplaçait le focus dans
+                    // « Applications » — ↓ faisait sortir du sous-menu. `window` capture avant lui.
+                    window.addEventListener('keydown', function (ev) {
+                        if (!sous.contains(ev.target)) return;
+                        var items = entreesDuSous(), i = items.indexOf(document.activeElement), cible = null;
+                        switch (ev.key) {
+                        case 'ArrowDown': cible = items[(i + 1) % items.length]; break;
+                        case 'ArrowUp':   cible = items[(i <= 0 ? items.length : i) - 1]; break;
+                        case 'Home':      cible = items[0]; break;
+                        case 'End':       cible = items[items.length - 1]; break;
+                        case 'ArrowLeft': case 'Escape': case 'Tab':
+                            cacher();
+                            declencheur.focus();
+                            break;
+                        default: return;          // Entrée : le lien suit, comme au clic
+                        }
+                        // Bootstrap écoute le clavier de ses menus sur le DOCUMENT : on l'arrête ici,
+                        // sinon il agirait sur « Applications » depuis ce sous-menu posé sous <body>.
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        if (cible) cible.focus();
+                    }, true);   // ← la CAPTURE : sans ce `true`, on passait APRÈS Bootstrap (mesuré)
                     var menu = li.closest('.dropdown');
                     if (menu) menu.addEventListener('hide.bs.dropdown', cacher);
                 });

@@ -529,6 +529,11 @@ def delete(request, pk):
     (Filemanager) — only the DB row is removed, the files are kept.
     """
     job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
+    # Membre d'un LOT ? Relevé AVANT la suppression (FK directe). C'est le contrat commun que lit
+    # `queue-actions.js` : `batch_changed` fait recharger, et le lot recalculé côté serveur (réduit
+    # à une card → card simple) s'affiche. Sans lui, la card partait et le lot restait figé
+    # jusqu'au rechargement manuel (relevé par Fabien le 2026-09-14, `/converter/608/delete/`).
+    parent_batch_id = job.batch_id
 
     # Output : supprimé seulement s'il est dans le dossier média du Converter
     if job.output_file and _is_app_owned(job.output_file, job.user_id):
@@ -540,8 +545,8 @@ def delete(request, pk):
     if _is_app_owned(job.input_file, job.user_id):
         safe_delete_file(job, 'input_file')
 
-    job.delete()
-    return JsonResponse({'success': True})
+    job.delete()   # signal post_delete (batch_sync) : recale le total / supprime le lot vidé
+    return JsonResponse({'success': True, 'batch_changed': parent_batch_id is not None})
 
 
 @login_required

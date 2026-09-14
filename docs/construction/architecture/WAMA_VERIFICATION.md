@@ -651,9 +651,16 @@ qu'un élément apparaisse. Le fichier copié dans le dossier d'entrée est reti
 **Le correctif est remonté d'un cran, comme au geste 5** — `filemanager.views.IMPORTERS` est
 désormais **le dispatch lui-même** (app → fonction) : on ne peut plus déclarer une app recevable
 sans lui donner son importeur, ni écrire un importeur qui ne soit pas atteint. Et
-`receivable_apps()` alimente le menu (`sidebar.html` → `window.WAMA_FILEMANAGER_IMPORTERS`), que
-`filemanager.js` croise avec le catalogue : **le menu ne peut plus proposer ce que le serveur
+`receivable_apps()` alimentait le menu (`sidebar.html` → `window.WAMA_FILEMANAGER_IMPORTERS`), que
+`filemanager.js` croisait avec le catalogue : **le menu ne peut plus proposer ce que le serveur
 refuse.** Les trois listes n'en font plus qu'une.
+
+> ⭐ **2026-09-14 — la dérivation elle-même passe au SERVEUR.** Le croisement vivait chez le client
+> pour l'arbre et chez le serveur pour les cards (`common/services/send_to.py`, 08/09) : deux
+> dérivations des mêmes conditions, et celle du client ne vérifiait pas l'**accès** à l'app. L'arbre
+> interroge désormais le même résolveur (`common:api_envoyer_vers_chemins`) ; la liste publiée par
+> `sidebar.html` et sa balise sont retirées. Une sélection mêlée est rendue en **partiel annoncé**
+> (« Converter (2/3 fichiers) ») ; la sortie d'une card reste en tout-ou-rien.
 
 > ⭐ **Fermer une divergence, c'est aussi la garder fermée.** Le scénario ne se contente pas de
 > sauter les apps sans importeur : il ouvre quand même le menu et vérifie qu'elles en sont

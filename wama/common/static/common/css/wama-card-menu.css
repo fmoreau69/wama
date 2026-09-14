@@ -39,6 +39,10 @@
     to   { opacity: 1; transform: none; }
 }
 
+/* Le menu reçoit le focus à l'ouverture (navigation au clavier) : c'est l'ENTRÉE focalisée qui
+   s'allume (`:focus-visible` plus bas), jamais un contour autour du menu entier. */
+.wama-card-menu:focus { outline: none; }
+
 .wama-card-menu ul {
     list-style: none;
     margin: 0;
@@ -146,6 +150,10 @@
 }
 .wama-cm-item.wama-cm-ouvert > i:first-child,
 .wama-cm-item.wama-cm-ouvert .wama-cm-fleche { color: #0dcaf0; }
+
+/* COCHE « déjà fait » (2026-09-14 — élément déjà rangé en médiathèque) : le vert « succès » que
+   Bootstrap pose en thème sombre (`--bs-success-text-emphasis`), pas une teinte inventée. */
+.wama-cm-item > i.wama-cm-coche:first-child { color: #75b798; }
 
 /* ── Rangée d'actions : le bouton « … » et le surplus masqué ─────────────────────────────
    Les boutons au-delà du nominal (6, bouton édition compris — décision Fabien) sont retirés de

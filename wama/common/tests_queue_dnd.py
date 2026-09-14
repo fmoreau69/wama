@@ -640,6 +640,34 @@ class MenuContextuelDeCardTest(TestCase):
                                  f"{rel} : staticfiles/ diverge de la source")
 
 
+class NavigationAuClavierTest(TestCase):
+    """Les menus WAMA se parcourent au CLAVIER (demande de Fabien, 2026-09-14) : le menu
+    contextuel commun ET le sous-menu « Bac à sable ». Le COMPORTEMENT s'atteste au navigateur ;
+    ceci tient le CÂBLAGE, qu'une réécriture pourrait retirer sans qu'aucune erreur ne paraisse."""
+
+    def test_le_menu_contextuel_se_parcourt_aux_fleches(self):
+        js = (RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
+              / 'wama-card-menu.js').read_text(encoding='utf-8')
+        self.assertIn("addEventListener('keydown', clavier)", js)
+        for touche in ('ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Escape', 'Home', 'End'):
+            with self.subTest(touche=touche):
+                self.assertIn(f"case '{touche}'", js)
+        self.assertIn('el.tabIndex = -1', js, "le menu n'est plus focalisable à l'ouverture")
+
+    def test_le_sous_menu_bac_a_sable_se_parcourt_aux_fleches(self):
+        header = (RACINE / 'wama' / 'templates' / 'includes' / 'header.html').read_text(encoding='utf-8')
+        for fragment in ("'ArrowRight'", "case 'ArrowDown'", "case 'ArrowLeft'", 'ev.detail === 0'):
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, header)
+        # Mesuré le 2026-09-14 : écouté sur le sous-menu, ↓ était intercepté par Bootstrap (qui
+        # capture sur le document) et le focus sortait vers « Applications ». La capture sur
+        # `window` est ce qui passe avant lui.
+        # ⚠ Et en CAPTURE : la 1ʳᵉ version écoutait `window` en BULLE — le commentaire disait
+        # « capture », le code ne la faisait pas, et la sonde a montré ↓ toujours détourné.
+        self.assertRegex(header, r"(?s)window\.addEventListener\('keydown', function \(ev\) \{\s*"
+                                 r"if \(!sous\.contains\(ev\.target\)\) return;.*?\}, true\);")
+
+
 class MenuApplicationsEnCascadeTest(TestCase):
     """Le groupe « Bac à sable » du menu « Applications » est un SOUS-MENU EN CASCADE.
 
