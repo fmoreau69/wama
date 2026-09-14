@@ -452,6 +452,20 @@ les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprim
 > **Reste, dans l'ordre** : ① la brique commune côté CHARGEMENT (11 résolveurs maison
 > coexistent, `model_dir()` ne sert que l'installeur) ; ② les 37 mutations ; ③ le ménage des
 > 5 étrangers, APRÈS le portage de leur backend.
+>
+> ✅ **MESURÉ le 2026-09-14 — ② et ③ sont SOLDÉS** (le bloc ci-dessus est l'état du 03/09) :
+> budget de mutations **0** (`tests_hf_cache_routing`, par AST, jeton compris) ; importer
+> `wan_video_backend`/`hunyuan_video_backend` ne touche plus l'environnement (même test) ;
+> `check_model_layout` : **aucun snapshot étranger**. **① reste** : les résolveurs maison côté
+> chargement — les six `setup_hf_cache_for_*` de l'imager (ils ne rendaient plus qu'un chemin,
+> AUCUN appelant dans le code versionné ; la jumelle `imager_01`, non versionnée, garde sa copie)
+> sont retirés ce jour (`REMOVAL_LEDGER R61`).
+> ⚠ **Relevé, NON corrigé** : `model_manager/services/bench.py:84-89` charge un candidat du banc
+> par `hf_id` SANS `cache_dir=` — un modèle PRINCIPAL qui atterrirait dans le cache partagé
+> (levier A non tenu) ; `model_manager/services/benchmark_sync.py` y tire des JEUX DE DONNÉES
+> de classement (pas des modèles : hors du périmètre de la règle, à confirmer).
+> ⚠ Soldé ≠ mort : les FAMILLES Wan (FastWan 2.2, 23 Go au catalogue) et Hunyuan
+> (HunyuanImage 2.1, 50 Go) sont vivantes ; seules les classes VIDÉO sont `DEPRECATED`.
 
 **Chemins dérivés de la CATÉGORIE** (⏳) : `models/{category}/{family}/` où `category` =
 `ModelType` (source unique, model_manager). Helper unique `model_dir(category, family)` →

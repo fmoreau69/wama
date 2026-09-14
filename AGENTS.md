@@ -242,7 +242,7 @@ apply_patch(
 |---|---------|----------|
 | 1 | `site-packages/boson_multimodal/.../modeling_higgs_audio.py` | transformers 4.57+ (7 patches) |
 | 2 | `site-packages/df/io.py` | torchaudio 2.x — `AudioMetaData` supprimé |
-| 3 | `tts_service.py` | In-repo (vérification seulement) |
+| 3 | `wama/common/backends/higgs_backend.py` | In-repo (vérification seulement) — garde-fous Higgs sortis de `tts_service.py` au passage des moteurs TTS sous contrat commun |
 | 4 | `start_wama_prod.sh` | In-repo (vérification seulement) |
 | 5 | `site-packages/xformers/ops/seqpar.py` | torch 2.9.x — `GroupName` supprimé |
 | 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | lm_head : overflow int32 du GEMM CUDA sur audio long → `cudaErrorUnknown` (logits sur dernier token seulement) |
@@ -613,6 +613,13 @@ def load(self, ...):
 > `manage.py check_model_layout` (aucun snapshot ÉTRANGER dans un dossier de famille).
 >
 > Le portage des sites restants suit le `ROADMAP §5b`.
+>
+> ✅ **État MESURÉ le 2026-09-14** (les trois paragraphes ci-dessus sont l'état du 03/09) :
+> budget de mutations **0** (`tests_hf_cache_routing`, par AST) ; importer `wan_video_backend`
+> et `hunyuan_video_backend` ne redirige plus le cache (même test, en sous-processus) ;
+> `check_model_layout` : **aucun snapshot étranger**. ⚠ Soldé ≠ mort : les FAMILLES Wan et
+> Hunyuan sont vivantes (FastWan 2.2 au catalogue, 23 Go ; HunyuanImage 2.1, 50 Go) — seules
+> les classes VIDÉO `WanVideoBackend`/`HunyuanVideoBackend` sont déclarées `DEPRECATED`.
 
 #### 4. `wama/<app>/utils/model_config.py` — Ajouter le modèle
 ```python

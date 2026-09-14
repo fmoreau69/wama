@@ -23,12 +23,12 @@ from django.conf import settings
 # n'existe pas sur le disque (`REMOVAL_LEDGER R45` : `AI-models/` = `cache`, `models`, `sources`).
 #
 # Le rangement du modèle principal est assuré par `cache_dir=`, passé au `from_pretrained` de
-# ce fichier (vérifié). Le socle est posé une fois au démarrage (`settings.py:165-167`).
+# ce fichier (vérifié). Le socle est posé une fois au démarrage (`settings.py`, `setdefault`).
 def _resoudre_dossier_hunyuan():
     """Dossier des poids Hunyuan. NE TOUCHE PAS à l'environnement — voir le bloc ci-dessus."""
-    # Étape 2 : `setup_hf_cache_for_hunyuan()` ne « prépare » RIEN — elle rend
-    # `str(HUNYUAN_DIR)`, et sa docstring le dit (« Ne touche PLUS à l'environnement »). Le nom
-    # est un vestige de l'époque où elle mutait le cache. Lu à la source, sans import d'app.
+    # Lu à la source (`settings.MODEL_PATHS`), sans import d'app. L'ancien
+    # `setup_hf_cache_for_hunyuan()` de l'imager ne faisait que rendre ce chemin : sans appelant,
+    # il est retiré le 2026-09-14 (`REMOVAL_LEDGER R61`).
     from django.conf import settings
     return str(settings.MODEL_PATHS.get('diffusion', {}).get('hunyuan') or '')
 

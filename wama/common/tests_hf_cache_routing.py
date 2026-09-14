@@ -20,7 +20,7 @@ sous-dépendance, sans tâche ni licence.
 LA CIBLE (`ROADMAP §5b`, design validé le 2026-06-17) : `cache_dir=` explicite pour les
 modèles PRINCIPAUX (la catégorisation est préservée, et c'est thread-safe), `HF_HOME` posé
 **une seule fois au démarrage** pour les sous-dépendances partagées — ce qui est déjà le cas
-(`settings.py:165-167`, en `setdefault`, et rien dans `.env` ni `start_wama_prod.sh` ne le
+(`settings.py`, en `setdefault`, et rien dans `.env` ni `start_wama_prod.sh` ne le
 neutralise : vérifié).
 
 CE QUE CE TEST FAIT — et surtout ce qu'il NE fait PAS. Il compte les sites de mutation
@@ -167,7 +167,7 @@ class RoutageCacheHFTest(unittest.TestCase):
             f"{BUDGET_MUTATIONS} — une au moins a été AJOUTÉE.\n"
             f"Cible, selon la variable :\n"
             f"  • CACHE → `cache_dir=` explicite + `HF_HOME` posé une fois au démarrage\n"
-            f"    (ROADMAP §5b ; `settings.py:165`) ;\n"
+            f"    (ROADMAP §5b ; `settings.py`, bloc « HuggingFace cache ») ;\n"
             f"  • JETON → un seul domicile, `.env` lu par `settings.py` au démarrage. Ne pas\n"
             f"    en poser un second, ni l'écrire dans le `$HOME` de l'utilisateur.\n"
             f"Dans les deux cas le socle est LE domicile — d'où son exclusion du balayage.\n"
@@ -286,7 +286,7 @@ class TroisiemeVoieTest(SimpleTestCase):
 
     ⚠ **Le dossier de famille est un DOSSIER JETABLE, jamais un littéral** (corrigé 2026-09-05).
     Ces trois tests passaient `'/dossier'` en dur, et `poids_locaux` en fait un
-    `mkdir(parents=True)` — donc ils étaient VERTS SOUS WINDOWS EN CRÉANT `D:\dossier\famille`
+    `mkdir(parents=True)` — donc ils étaient VERTS SOUS WINDOWS EN CRÉANT `D:\\dossier\\famille`
     sur le disque réel (mesuré : le dossier y était), et ROUGES SOUS LINUX où `/dossier` est
     la racine système (`PermissionError`). Ils n'ont jamais pu passer sous WSL2 depuis leur
     création (`6595ba6e`) : le chantier les avait validés depuis venv_win seul.

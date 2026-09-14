@@ -218,8 +218,12 @@ MECANISMES = (
               'wama/model_manager/services/benchmark_sync.py', 'docs/construction/suivi/PROJECT_STATUS.md §REPRISE 2026-08-18',
               annexes=('wama/model_manager/management/commands/sync_benchmarks.py',)),
     Mecanisme('bench', 'Banc de comparaison',
-              "Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation)",
-              'wama/model_manager/services/bench.py', ''),
+              "Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation) ; "
+              "`text-generation` mesure le DÉBIT d'un LLM Ollama (jetons/s, prefill, chargement) "
+              "et nourrit la boucle d'ETA (`ModelRuntimeStat`, unité token) — des coûts, jamais "
+              "une qualité",
+              'wama/model_manager/services/bench.py', 'docs/construction/suivi/ROADMAP.md §16.2',
+              annexes=('wama/model_manager/management/commands/bench.py',)),
     Mecanisme('provenance', 'Provenance de modèle',
               "Identité chez l'éditeur (licence, auteur, plateforme), posée VIA le manifeste",
               'wama/model_manager/services/provenance.py', '',
@@ -243,9 +247,12 @@ MECANISMES = (
     Mecanisme('vision_probe', 'Sonde vision',
               "Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence)",
               'wama/model_manager/services/vision_probe.py', ''),
-    Mecanisme('hf_cache', 'Cache HF scopé',
-              "Bascule TEMPORAIRE du cache HuggingFace par backend — anti-fuite d'artefacts inter-apps",
-              'wama/common/utils/hf_cache.py', ''),
+    Mecanisme('hf_cache', 'Cache HF scopé — dernier recours',
+              "Bascule TEMPORAIRE du cache HuggingFace, restaurée en sortie : le levier D de "
+              "`hf_weights`, réservé à une lib qui n'offre ni `cache_dir=`, ni chemin local, ni "
+              "variable propre. ⚠ Restaure l'environnement, JAMAIS les fichiers. Aucun emploi "
+              "aujourd'hui (`RECOURS_ASSUMES` vide, tenu par `tests_hf_cache_routing`)",
+              'wama/common/utils/hf_cache.py', 'docs/construction/suivi/ROADMAP.md §5b'),
 
     )),
 

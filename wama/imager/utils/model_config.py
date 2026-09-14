@@ -18,19 +18,20 @@ Uses the centralized AI-models directory structure from settings.py.
 #         MONMODELE_DIR = MODEL_PATHS.get('diffusion', {}).get('mon_modele',
 #             settings.AI_MODELS_DIR / "models" / "diffusion" / "mon-modele")
 #
-#  3. Dans le backend (backends/*.py), AVANT tout import de transformers /
-#     diffusers / huggingface_hub, ajouter :
-#         os.environ['HF_HUB_CACHE'] = str(MON_MODELE_DIR)
-#         os.environ['HUGGINGFACE_HUB_CACHE'] = str(MON_MODELE_DIR)
-#     ET passer cache_dir=str(MON_MODELE_DIR) à from_pretrained().
+#  3. Dans le backend, passer cache_dir=str(MON_MODELE_DIR) à from_pretrained() — c'est
+#     la SEULE chose à faire. ⚠ NE JAMAIS muter HF_HUB_CACHE / HF_HOME : ils sont posés UNE
+#     FOIS au démarrage (settings.py) vers le cache PARTAGÉ des sous-dépendances.
+#     (Cette étape prescrivait encore la mutation jusqu'au 2026-09-14 : la règle avait été
+#     retirée d'AGENTS.md le 2026-09-03, ce commentaire était resté en retard.)
 #
 #  4. Ajouter l'entrée dans IMAGER_MODELS (ou le groupe approprié) avec
 #     au minimum : model_id, hf_id, type, mode, vram_gb, description.
 #
 #  5. Mettre à jour _discover_imager_models() dans model_registry.py.
 #
-#  Ne jamais laisser un modèle se télécharger dans AI-models/cache/huggingface/
-#  via la mise en cache globale par défaut — chaque modèle a son propre répertoire.
+#  Le modèle PRINCIPAL va dans son répertoire (cache_dir=) ; ses SOUS-DÉPENDANCES (t5, bert,
+#  tokenizers, backbones…) vont au cache partagé AI-models/cache/huggingface/ — c'est leur
+#  place, pas une dérive. Règle complète : AGENTS.md, « ajout d'un nouveau modèle AI ».
 # ════════════════════════════════════════════════════════════════════════
 """
 
@@ -538,44 +539,16 @@ def get_model_defaults(model_id: str) -> dict:
 # dans la suite, `HF_HUB_CACHE` pointant sur `diffusion/wan`.
 #
 # Il n'y avait rien à remplacer : `HF_HOME`/`HF_HUB_CACHE` sont posés UNE FOIS au démarrage
-# (`settings.py:165-167`) vers le cache PARTAGÉ, et les 4 `from_pretrained` des deux backends
+# (`settings.py`, en `setdefault`) vers le cache PARTAGÉ, et les 4 `from_pretrained` des deux backends
 # passent déjà `cache_dir=` — vérifié un par un avant le retrait. Le modèle principal reste
 # donc catégorisé ; ses sous-dépendances vont au cache partagé, qui est leur place.
 #
-# ⚠ Les helpers ne font plus que RENDRE un chemin. Leur nom `setup_…` ment désormais : dette
-# de nommage assumée ici (un renommage traverse leurs appelants → geste `/renommage-api`),
-# consignée au `REMOVAL_LEDGER`.
-# ⚠ Seul `..._hunyuan` a un appelant. Les CINQ autres n'en ont AUCUN (vérifié sur tout le
-# dépôt) : leurs backends respectifs mutent l'environnement eux-mêmes, chacun dans son coin.
-
-def setup_hf_cache_for_hunyuan() -> str:
-    """Dossier de cache des modèles Hunyuan. Ne touche PLUS à l'environnement."""
-    return str(HUNYUAN_DIR)
-
-
-def setup_hf_cache_for_cogvideox() -> str:
-    """Dossier de cache des modèles CogVideoX. Ne touche PLUS à l'environnement."""
-    return str(COGVIDEOX_DIR)
-
-
-def setup_hf_cache_for_ltx() -> str:
-    """Dossier de cache des modèles LTX. Ne touche PLUS à l'environnement."""
-    return str(LTX_DIR)
-
-
-def setup_hf_cache_for_mochi() -> str:
-    """Dossier de cache des modèles Mochi. Ne touche PLUS à l'environnement."""
-    return str(MOCHI_DIR)
-
-
-def setup_hf_cache_for_qwen_image() -> str:
-    """Dossier de cache des modèles Qwen Image. Ne touche PLUS à l'environnement."""
-    return str(QWEN_IMAGE_DIR)
-
-
-def setup_hf_cache_for_flux2_klein() -> str:
-    """Dossier de cache des modèles FLUX.2 Klein. Ne touche PLUS à l'environnement."""
-    return str(FLUX2_KLEIN_DIR)
+# 🔴 LES SIX `setup_hf_cache_for_*` RETIRÉS le 2026-09-14 (`REMOVAL_LEDGER R61`). Depuis le
+# 03/09 ils ne faisaient plus que rendre `str(<FAMILLE>_DIR)`, et n'avaient AUCUN appelant dans
+# le code VERSIONNÉ — `hunyuan_video_backend` compris (il lit `settings.MODEL_PATHS` lui-même).
+# La jumelle de bac à sable `imager_01` (générée, non versionnée) garde sa propre copie. Le chemin d'une famille se lit à sa constante `*_DIR` ci-dessus ; le rangement du
+# modèle passe par `cache_dir=` (AGENTS.md, « ajout d'un nouveau modèle AI »). C'étaient six des
+# « résolveurs maison » côté chargement que `ROADMAP §5b` demande de réduire.
 
 
 # =============================================================================
