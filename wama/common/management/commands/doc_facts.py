@@ -279,7 +279,9 @@ def _fait_mecanismes():
     # écrivent encore leurs data-* à la main. Les mécanismes d'INFRASTRUCTURE (aucune app ne
     # les consomme : bench, mirror_sync, retention…) en sont exclus mécaniquement — un critère
     # par app n'y aurait aucun sens ; c'est ce qui remplace un seuil arbitraire.
-    trous_grille = mecanismes_sans_critere(sources)
+    # La MÊME mesure que `_trous` ci-dessus : la rejouer coûtait une matrice d'adoption entière
+    # de plus (28 s avant le préfiltre de `consommateurs`, mesuré le 2026-09-14).
+    trous_grille = _trous
     orphelins_liaison = criteres_orphelins()
     if orphelins_liaison:
         lignes.append(f"- ❌ **Liaison de critère cassée** (clé absente du registre — la "
