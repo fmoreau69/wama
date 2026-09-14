@@ -108,12 +108,17 @@ def consommateurs(mecanisme, sources: dict[str, str]) -> list[str]:
     un mécanisme logé dans un module partagé (`common/models.py`) héritait sinon du compte de
     tous ses importateurs, quelle que soit la raison de leur import.
     """
+    # ⚠ PRÉFILTRE PAR SOUS-CHAÎNE (2026-09-14) : chaque motif ci-dessous EXIGE un littéral — le
+    # symbole, la feuille du module ou le nom de fichier. Un source qui ne le contient pas ne
+    # peut pas correspondre : le tester d'abord (`in`, C) rend EXACTEMENT le même résultat que
+    # la regex seule. Mesuré sans lui : 940 284 recherches regex sur le texte entier des 1 069
+    # sources, 84 s du fait `mecanismes` de `doc_facts` (et la même matrice rejouée 3 fois).
     siens = {mecanisme.domicile, *mecanisme.annexes}
     par_symbole = set()
     if mecanisme.symbole:
         motif = re.compile(rf'\b{re.escape(mecanisme.symbole)}\b')
         par_symbole = {rel for rel, src in sources.items()
-                       if rel not in siens and motif.search(src)}
+                       if rel not in siens and mecanisme.symbole in src and motif.search(src)}
         # Module PYTHON partagé : le symbole REMPLACE l'import du module (la raison d'être
         # du champ — `ScopedVisibility` dans `common/models.py`, 2026-08-13).
         if mecanisme.domicile.endswith('.py'):
@@ -129,15 +134,18 @@ def consommateurs(mecanisme, sources: dict[str, str]) -> list[str]:
         if chemin.endswith('.py'):
             pointe = chemin[:-3].replace('/', '.')      # wama/common/x.py → wama.common.x
             feuille = chemin.rsplit('/', 1)[-1][:-3]     # → x
-            motifs.append(re.compile(
+            # Les trois alternatives contiennent `feuille` (`pointe` finit par elle).
+            motifs.append((feuille, re.compile(
                 rf'(?:from\s+{re.escape(pointe)}\s+import|import\s+{re.escape(pointe)}\b'
-                rf'|from\s+[.\w]*\.?{re.escape(feuille)}\s+import)'))
+                rf'|from\s+[.\w]*\.?{re.escape(feuille)}\s+import)')))
         else:
             # Brique front (.js/.html) : consommée par la référence de son NOM de fichier
             # (balise <script src=…>, {% include %}, {% static %}).
-            motifs.append(re.compile(re.escape(chemin.rsplit('/', 1)[-1])))
+            nom = chemin.rsplit('/', 1)[-1]
+            motifs.append((nom, re.compile(re.escape(nom))))
     return sorted(par_symbole | {rel for rel, src in sources.items()
-                                 if rel not in siens and any(m.search(src) for m in motifs)})
+                                 if rel not in siens
+                                 and any(lit in src and m.search(src) for lit, m in motifs)})
 
 
 @lru_cache(maxsize=1)
