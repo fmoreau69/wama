@@ -375,7 +375,8 @@ by `python manage.py doc_facts` — do not edit it by hand; declare a document i
   - [Parcours d'entrée](docs/dev/parcours.md) — L'ordre dans lequel lire la doc pour étendre WAMA ; chaque étape reprend la description que le document déclare.
   - [Les registres de WAMA](docs/dev/registres.md) — Quand une chose mérite un registre, les natures d'actualisation, et chaque registre de WAMA — dérivé de la doc de construction et des registres eux-mêmes.
   - [Briques communes — API](docs/dev/briques.md) — Chaque mécanisme transversal avec l'API publique de son module : signatures et docstrings lues dans le code.
-- **`docs/utilisateur/`** — la doc UTILISATEUR, générée elle aussi : à venir
+- **`docs/utilisateur/`** — la doc UTILISATEUR, générée elle aussi et filtrée par la porte registre : n'y entre que ce qui existe
+  - [Transcriber — corriger une transcription](docs/utilisateur/transcriber-correction.md) — L'éditeur de correction : ses deux modes, ses raccourcis, la bande de qualité. N'y entre que ce que le registre des applications confirme — la vision reste dans la spec.
 - **Docs de module** — ils restent à côté de leur code
   - [Briques communes — carte](wama/common/README.md) — Carte d'entrée du dossier des briques communes.
   - [Prospection de modèles](wama/model_manager/PROSPECTION_PIPELINE.md) — Veille et prospection de modèles : la chaîne et ses juges.

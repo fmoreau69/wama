@@ -37,7 +37,7 @@ class LectureTest(SimpleTestCase):
         self.assertEqual(secs[0].attrs['type'], 'guide')
 
     def test_une_sous_section_herite_puis_peut_se_redeclarer(self):
-        autre = "audience=utilisateur; type=explication; nature=intention; etat=⏳"
+        autre = "audience=utilisateur; type=explication; nature=intention; etat=⏳; porte=apps/x"
         secs, erreurs = sections(_doc("# A", f"<!-- WAMA:SECTION({OK}) -->",
                                       "## A.1", "texte",
                                       "## A.2", f"<!-- WAMA:SECTION({autre}) -->",
@@ -52,7 +52,8 @@ class LectureTest(SimpleTestCase):
 
     def test_plusieurs_publics(self):
         attrs, erreurs = parse_attrs(
-            "audience=developpeur,utilisateur; type=reference; nature=constat; etat=✅")
+            "audience=developpeur,utilisateur; type=reference; nature=constat; etat=✅; "
+            "porte=apps/x")
         self.assertEqual(erreurs, [])
         self.assertEqual(attrs['audience'], ('developpeur', 'utilisateur'))
 
@@ -103,12 +104,39 @@ class ErreursTest(SimpleTestCase):
         self.assertEqual(sections(texte)[1], [])
 
 
+class PorteTest(SimpleTestCase):
+    """La porte (⑤) : obligatoire pour l'utilisateur, bien formée, héritée comme le reste."""
+
+    def test_une_section_pour_l_utilisateur_sans_porte_est_refusee(self):
+        erreurs = parse_attrs("audience=utilisateur; type=guide; nature=constat; etat=✅")[1]
+        self.assertTrue(any('sans porte' in e for e in erreurs), erreurs)
+
+    def test_la_porte_est_facultative_pour_le_developpeur(self):
+        self.assertEqual(parse_attrs(OK)[1], [])
+
+    def test_une_porte_se_lit_et_se_verifie_dans_sa_forme(self):
+        attrs, erreurs = parse_attrs(f"{OK}; porte=apps/transcriber, apps/imager/has_batch")
+        self.assertEqual(erreurs, [])
+        self.assertEqual(attrs['porte'], ('apps/transcriber', 'apps/imager/has_batch'))
+        for mauvaise in ('apps', 'apps/a/b/c', 'Apps/x', 'apps/'):
+            self.assertTrue(any('porte' in e for e in parse_attrs(f"{OK}; porte={mauvaise}")[1]),
+                            mauvaise)
+
+    def test_une_sous_section_herite_de_la_porte(self):
+        secs, erreurs = sections(_doc(
+            "# A", "<!-- WAMA:SECTION(audience=utilisateur; type=guide; nature=constat; etat=✅; "
+                   "porte=apps/x) -->", "## A.1", "texte"))
+        self.assertEqual(erreurs, [])
+        self.assertEqual(secs[1].attrs['porte'], ('apps/x',))
+
+
 class ExtractionTest(SimpleTestCase):
 
     def test_extraire_par_public_et_par_type(self):
         texte = _doc("# Dev", f"<!-- WAMA:SECTION({OK}) -->", "pour dev",
                      "# Tous", "<!-- WAMA:SECTION(audience=developpeur,utilisateur; "
-                               "type=explication; nature=constat; etat=✅) -->", "pour tous",
+                               "type=explication; nature=constat; etat=✅; porte=apps/x) -->",
+                     "pour tous",
                      "# Rien", "construction seule")
         self.assertEqual([s.title for s in extract(texte, 'developpeur')], ['Dev', 'Tous'])
         self.assertEqual([s.title for s in extract(texte, 'utilisateur')], ['Tous'])
@@ -135,6 +163,16 @@ class CheckDocsTest(SimpleTestCase):
 
     def test_une_section_coherente_passe(self):
         self.assertNotIn('section :', self._rapport(_doc("# T", f"<!-- WAMA:SECTION({OK}) -->")))
+
+    def test_une_porte_invérifiable_est_cassee(self):
+        from .registries import REGISTRIES
+        sans_fiches = next(k for k, r in REGISTRIES.items() if r.entries is None)
+        for porte, motif in (('registre_bidon/x', 'inconnu'), (f'{sans_fiches}/x', 'fiches')):
+            r = self._rapport(_doc("# T", f"<!-- WAMA:SECTION({OK}; porte={porte}) -->"))
+            self.assertIn('CASSÉ', r, porte)
+            self.assertIn(motif, r, porte)
+        self.assertNotIn('section :', self._rapport(
+            _doc("# T", f"<!-- WAMA:SECTION({OK}; porte=apps/transcriber) -->")))
 
 
 class CorpusTest(SimpleTestCase):

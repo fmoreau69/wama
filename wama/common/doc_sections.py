@@ -22,7 +22,13 @@ le lecteur de doc :
     nature   : constat · intention (AGENTS.md, règle CONSTAT / INTENTION).
     etat     : ✅ · 🔄 · ⏳.
 
-    Les quatre clés sont obligatoires. Une sous-section sans balise HÉRITE de celle de son parent.
+    porte    : registre/clé, ou registre/clé/champ — plusieurs séparées par des virgules. Ce que
+               la section DÉCRIT, tel qu'un registre le confirme (ROADMAP §25.1 ⑤, 2026-09-14).
+               OBLIGATOIRE dès que la section parle à l'utilisateur : `doc_plans` ne l'y fait
+               entrer que porte ouverte (`doc_plans.porte_fermee`).
+
+    Les quatre premières clés sont obligatoires. Une sous-section sans balise HÉRITE de celle de
+    son parent — porte comprise ; une sous-section qui se redéclare redéclare TOUT.
 
 LA DOUBLE VÉRIFICATION (proposition de Fabien, 2026-09-11)
 
@@ -55,6 +61,8 @@ ETATS = {'✅': 'livré', '🔄': 'en cours', '⏳': 'en attente'}
 #: La double vérification : ce que chaque nature admet comme état.
 ETATS_PAR_NATURE = {'constat': {'✅'}, 'intention': {'🔄', '⏳'}}
 CLES = ('audience', 'type', 'nature', 'etat')
+CLES_OPTIONNELLES = ('porte',)
+_PORTE = re.compile(r'^[a-z_]+/[\w.\-]+(?:/[\w.\-]+)?$')
 
 
 @dataclass
@@ -82,8 +90,9 @@ def parse_attrs(raw: str) -> Tuple[Dict[str, object], List[str]]:
         cle, valeur = cle.strip(), valeur.strip()
         if not sep or not valeur:
             erreurs.append(f"« {morceau} » : attendu clé=valeur")
-        elif cle not in CLES:
-            erreurs.append(f"clé « {cle} » inconnue (attendu : {', '.join(CLES)})")
+        elif cle not in CLES + CLES_OPTIONNELLES:
+            erreurs.append(f"clé « {cle} » inconnue (attendu : "
+                           f"{', '.join(CLES + CLES_OPTIONNELLES)})")
         elif cle in attrs:
             erreurs.append(f"clé « {cle} » en double")
         else:
@@ -96,6 +105,18 @@ def parse_attrs(raw: str) -> Tuple[Dict[str, object], List[str]]:
             erreurs.append(f"audience {', '.join(inconnus) or '(vide)'} : attendu "
                            f"{', '.join(AUDIENCES)}")
         attrs['audience'] = publics
+    if 'porte' in attrs:
+        portes = tuple(p.strip() for p in str(attrs['porte']).split(',') if p.strip())
+        mauvaises = [p for p in portes if not _PORTE.match(p)]
+        if mauvaises or not portes:
+            erreurs.append(f"porte {', '.join(mauvaises) or '(vide)'} : attendu registre/clé "
+                           f"ou registre/clé/champ")
+        attrs['porte'] = portes
+    elif 'utilisateur' in attrs.get('audience', ()):
+        # Sans porte, rien ne dit ce que le registre devrait confirmer : le fragment entrerait
+        # chez l'utilisateur sur la seule foi du texte — ce que la porte existe pour empêcher.
+        erreurs.append("section pour l'utilisateur sans porte (porte=registre/clé) : rien ne "
+                       "confirmerait ce qu'elle décrit")
     for cle, vocabulaire in (('type', TYPES), ('nature', NATURES), ('etat', ETATS)):
         if cle in attrs and attrs[cle] not in vocabulaire:
             erreurs.append(f"{cle} « {attrs[cle]} » : attendu {' · '.join(vocabulaire)}")

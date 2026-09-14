@@ -413,7 +413,8 @@ MECANISMES = (
               "Un PLAN déclaré dans le catalogue des docs (extraits de sections marquées + faits "
               "de registre) produit un `.md` versionné, écrit par `doc_facts` ; `--check` refuse "
               "un fichier qui n'est plus ce que son plan produit — la confrontation doc → doc, "
-              "gratuite parce que la dérivation est mécanique",
+              "gratuite parce que la dérivation est mécanique. Pour l'UTILISATEUR, une PORTE "
+              "registre retient les intentions et ce que le registre ne confirme pas",
               'wama/common/doc_plans.py', 'docs/construction/suivi/ROADMAP.md §25',
               annexes=('wama/common/tests_doc_plans.py',)),
     Mecanisme('templates_integrity', 'Intégrité des gabarits',

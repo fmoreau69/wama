@@ -435,7 +435,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 |---|---|---|
 | **construction** | les `.md` de la table ci-dessus : trace, doctrine, décisions, vision — vivants | ✅ existe ; lisible depuis WAMA (`/common/docs/`, admins) |
 | **développeur** | comment ÉTENDRE WAMA — **DÉRIVÉE** de la doc de construction, faits tirés des registres | 🔄 amorcée : 3 docs **dérivées en `.md`** dans `docs/dev/` (parcours d'entrée, registres, API des briques), écrites par `doc_facts` depuis leur plan (`docs/construction/suivi/ROADMAP.md §25`) |
-| **utilisateur** | comment se SERVIR de WAMA — **DÉRIVÉE** de la doc de construction ; un fragment n'y entre que si le registre confirme ce qu'il décrit | 🔄 germe : onglets À-propos/Aide (`AppAboutView`/`AppHelpView`, auto-remplis d'`APP_CATALOG`) |
+| **utilisateur** | comment se SERVIR de WAMA — **DÉRIVÉE** de la doc de construction ; un fragment n'y entre que si le registre confirme ce qu'il décrit | 🔄 germe : onglets À-propos/Aide (`AppAboutView`/`AppHelpView`, auto-remplis d'`APP_CATALOG`) ; 1ʳᵉ doc dérivée le 2026-09-14 (`docs/utilisateur/transcriber-correction.md`), filtrée par la **porte registre** (`docs/construction/suivi/ROADMAP.md §25.1`) |
 
 **La règle (recadrée par Fabien le 2026-09-11)** : une seule source de vérité, qui tient par
 trois appuis — les **registres** (la vérité tenue à jour de ce qu'utilise WAMA, mais pas

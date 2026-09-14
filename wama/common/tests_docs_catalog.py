@@ -212,7 +212,7 @@ class DocDeveloppeurTest(TestCase):
         for d in DERIVEES:
             r = render_doc(d)
             self.assertTrue(r['toc'], f"{d.key} : page sans titre")
-            self.assertEqual(d.audience, DEVELOPER, d.key)
+            self.assertNotEqual(d.audience, CONSTRUCTION, d.key)
 
     def test_les_registres_sont_tous_projetes(self):
         from .dev_docs import registres_fiches
