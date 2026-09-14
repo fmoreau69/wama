@@ -268,10 +268,12 @@ fi
 # faisait un return AVANT tout préchargement → Kokoro n'était JAMAIS chaud en prod,
 # et le warm écrit dans tts_service.py était du code mort.
 #
-# ⚠ --workers 1 est STRUCTURANT, pas un réglage de performance : le préchargement
-# n'est sûr que dans un process unique. Le même warm côté Django (multi-worker
-# gunicorn) avait causé une course d'imports accelerate + un dump de modèles par
-# mutation concurrente de HF_HUB_CACHE (cf. wama/views.py, note sous _get_kokoro).
+# ⚠ --workers 1 est STRUCTURANT, pas un réglage de performance (raisons re-vérifiées
+# le 2026-09-14, cf. tts_service.py, bloc « Préchargement SÉLECTIF ») : le « moteur
+# courant » et sa bascule n'existent qu'à l'intérieur d'UN process — N workers
+# pourraient tenir N moteurs lourds sur la même carte ; Kokoro serait préchargé N fois ;
+# et les verrous de bascule/génération ne sérialisent rien entre process. La cause
+# autrefois citée ici (mutation concurrente de HF_HUB_CACHE) n'existe plus.
 if ! pgrep -f "uvicorn tts_service" > /dev/null; then
     echo "=== Starting TTS Service (port 8001) ==="
     # --fast = redémarrage de développement : on ne veut RIEN charger sur le GPU.
