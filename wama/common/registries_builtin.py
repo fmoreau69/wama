@@ -456,7 +456,9 @@ register(Registry(
     source="Déclaration `common/docs_catalog.py` (docs de référence d'AGENTS.md), lus sur le "
            "disque à chaque affichage",
     count=_count_docs, entries=_entries_docs,
-    url_name='common:docs_catalog', permission='staff',
+    # 'auth' depuis le 2026-09-14 : la page s'ouvre à tout compte connecté (doc utilisateur), et
+    # un registre DÉRIVÉ n'a aucune actualisation à réserver. Qui lit QUOI : `visible_to`.
+    url_name='common:docs_catalog', permission='auth',
     doc='AGENTS.md',
     description="La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de "
                 "CONSTRUCTION (doctrine, décisions, vision, chantiers) est écrite à la main ; la "

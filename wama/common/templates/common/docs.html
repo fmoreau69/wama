@@ -9,8 +9,9 @@
   La liste vient de `wama/common/docs_catalog.py` (déclarée une fois ; `check_docs` en dérive
   aussi). Toutes les docs sont des FICHIERS `.md`, relus sur le disque à chaque affichage : la doc
   de construction écrite à la main, et les docs DÉRIVÉES écrites par `doc_facts` depuis leur plan.
-  Rien n'est stocké, donc aucun bouton d'actualisation. Réservée aux administrateurs (décision
-  de Fabien, 11/09).
+  Rien n'est stocké, donc aucun bouton d'actualisation. Un compte connecté y voit la doc
+  UTILISATEUR (Fabien, 14/09) ; un administrateur voit tout (`docs_catalog.visible_to`, appliqué
+  par la vue — le gabarit ne filtre rien, il adapte seulement le texte).
 {% endcomment %}
 
 {% block extra_css %}
@@ -38,14 +39,15 @@
 
   <div class="wama-cat-stats">
     <span class="wama-cat-stat"><b>{{ docs|length }}</b> documents</span>
-    <span class="wama-cat-stat"><b>{{ nb_generees }}</b> dérivés, écrits par <code>doc_facts</code></span>
+    {% if is_admin %}<span class="wama-cat-stat"><b>{{ nb_generees }}</b> dérivés, écrits par <code>doc_facts</code></span>{% endif %}
     <span class="wama-cat-stat"><b>{{ nb_familles }}</b> familles</span>
     <span class="wama-cat-stat"><b>{{ nb_lignes }}</b> lignes</span>
     {% if nb_absents %}<span class="wama-cat-stat doc-absent"><b>{{ nb_absents }}</b> déclaré(s) mais absent(s) du disque</span>{% endif %}
   </div>
 
   <div class="wama-cat-hero">
-    <h3>La doc de WAMA — construction et développement</h3>
+    {% if is_admin %}
+    <h3>La doc de WAMA — construction, développement, utilisation</h3>
     <p>La doc de <b>construction</b> garde la trace de ce qu'est WAMA et de pourquoi il l'est&nbsp;:
        doctrine, décisions, vision, chantiers. Elle évolue au fil des idées et des
        développements. ⚠ Un statut qui y est écrit est une trace <b>datée</b>, pas une
@@ -55,9 +57,18 @@
        construction et des registres, et <code>doc_facts</code> l'écrit depuis son plan. Chaque
        nuit, <code>doc_facts --check</code> signale un fichier dérivé qui n'est plus ce que ses
        sources produisent.</p>
+    <p>La doc <b>utilisateur</b> dérive de la même façon, mais n'y entre que ce que les registres
+       confirment exister — jamais une intention. C'est la seule que voient les comptes non
+       administrateurs.</p>
     <p>Tout est en <code>.md</code>, lisible depuis le dépôt comme ici. La liste est déclarée une
        seule fois (<code>wama/common/docs_catalog.py</code>)&nbsp;; le contrôle d'intégrité
        <code>check_docs</code> en dérive. Lecture seule.</p>
+    {% else %}
+    <h3>Se servir de WAMA</h3>
+    <p>Des guides pour utiliser les applications de WAMA. Ils ne décrivent que ce qui existe
+       vraiment aujourd'hui&nbsp;: une fonction encore en projet n'y apparaît qu'une fois
+       disponible.</p>
+    {% endif %}
   </div>
 
   {% include 'common/_filter_bar.html' with facettes=facettes_docs cible='.wama-cat-card' mode='client' placeholder='Filtrer (titre, domaine, chemin…)' %}
@@ -78,9 +89,9 @@
         {% if not d.exists %}<span class="wama-cat-badge doc-absent">absent du disque</span>{% endif %}
       </h4>
       <div class="wama-cat-desc">{{ d.description }}</div>
-      <div class="doc-chemin"><code>{{ d.path }}</code></div>
+      {% if is_admin %}<div class="doc-chemin"><code>{{ d.path }}</code></div>{% endif %}
       {% if d.exists %}
-      <div class="wama-cat-meta">{{ d.lines }} lignes · modifié le {{ d.modified|date:"d/m/Y H:i" }}{% if d.generated %} · écrite par <code>doc_facts</code> depuis son plan{% endif %}</div>
+      <div class="wama-cat-meta">{% if is_admin %}{{ d.lines }} lignes · {% endif %}modifié le {{ d.modified|date:"d/m/Y H:i" }}{% if d.generated and is_admin %} · écrite par <code>doc_facts</code> depuis son plan{% endif %}</div>
       <a class="btn btn-sm btn-outline-info mt-2" href="{% url 'common:doc_read' d.key %}">
         <i class="fas fa-book-open me-1"></i> Lire</a>
       {% endif %}

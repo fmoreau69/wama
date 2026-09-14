@@ -26,8 +26,11 @@
 > le code a tort par défaut — mesurer, corriger, dater.*
 
 ### H1 — Maintenant (finir avant d'ouvrir quoi que ce soit)
-1. ~~port schéma-driven des 5 apps restantes (enhancer, anonymizer, synthesizer, imager,
-   avatarizer)~~ — ✅ **FAUX depuis des semaines, mesuré le 2026-09-10** : les cinq sont portées
+1. **Consolidation des mécanismes d'UI** 🔄 — intention GARDÉE : sa route est
+   `WAMA_APP_GENERATION_ROUTE.md`, son reste mesuré au §24. *(Retirée de cette ligne le 2026-09-10
+   avec le constat faux qui l'accompagnait, restaurée le 2026-09-14 — une intention ne se retire
+   que par décision.)* Le constat, lui : ~~port schéma-driven des 5 apps restantes (enhancer,
+   anonymizer, synthesizer, imager, avatarizer)~~ — ✅ **FAUX depuis des semaines, mesuré le 2026-09-10** : les cinq sont portées
    (`check_app_conformity` : enhancer 95 %, synthesizer 95 %, anonymizer 94 %, avatarizer 94 %,
    imager 92 % ; converter et describer à **100 %**). Ce n'est plus un goulot. **Ce qui RESTE
    de cette ligne** est nommé au §24 : trois critères rouges reviennent sur presque toutes les
@@ -35,6 +38,8 @@
 2. Transcriber gold standard — ⚠ **95 %, pas 100 %** (mesuré 2026-09-10). Restent 3 rouges dont
    un de fond : `model_options_catalog` — la liste de modèles est **écrite en dur**
    (`transcriber/params.py:39`), donc un modèle installé n'apparaîtra jamais.
+   **Extraction des dernières briques communes** 🔄 — intention GARDÉE, non re-mesurée ici.
+   *(Même retrait du 2026-09-10, même restauration du 2026-09-14.)*
 3. Studio — suites V1 : sorties → filemanager studio, specs montage/mixage (runners : 10/10 apps
    génériques sur le runner générique depuis 2026-07-13, cf. PROJECT_STATUS §37.10 ; restent les
    apps wama_lab).
@@ -54,6 +59,10 @@
    **Ce qui reste vraiment** : la bascule d'embedder vers `qwen3-embedding:4b` et le réindex
    (aujourd'hui **`bge-m3`**, `memory/embed.py:32` — choisi CONTRE `nomic`, anglo-centré, parce
    que le corpus du Lescot est francophone) ; jalon 12 (outillage assistant list/detail).
+   **La hiérarchie université → labo → équipe**, qui devait « attendre la preuve d'usage »,
+   n'est pas perdue : elle est HÉRITÉE d'`OrgUnit` + `ScopedVisibility` (`WAMA_MEMORY.md`, qui
+   déplace la prudence sur l'USAGE — et y suit l'état de l'arbre `OrgUnit`). *(Phrase retirée
+   le 2026-09-10 avec le constat voisin, restaurée le 2026-09-14.)*
 2. Traduction de sortie (`translate_output` existe mais n'est appelé nulle part) + i18n statique.
 3. Manifeste formel 🔄 — socle LIVRÉ et en avance sur ce fichier : enveloppe + 6 kinds + ingest
    idempotent + 1ʳᵉ projection write-back réelle (access → AppAccessPolicy, 2026-07-23) ; docs de
@@ -3790,6 +3799,17 @@ réécriture), l'adaptation des skills `/reprise` et `/cloture`, la déclaration
    `PROJECT_STATUS` du 2026-09-10 (`§24.8`, confrontation au code). La règle constat/intention
    n'était pas écrite ce jour-là : relire ses corrections une à une, en particulier les « reste
    à faire » retirés, et remettre — marqué ⏳ — ce qui était une intention et non un constat.
+   ✅ **Fait le 2026-09-14.** Relus : les 3 commits du balayage (`4601ea9a`, `5bd106c0`,
+   `80e40f1a`) et tout `.md` amputé du 10 au 12/09 (`c30c00c6`, `db67d3d8`, `14fbdcf3`,
+   `ca9f48bb`, `9b92356e`). Le balayage de `PROJECT_STATUS` n'a **rien perdu** : il barre et
+   corrige en place, et garde les intentions (hook RAG, geste d'indexation, P2/P3 des cards —
+   l'extraction de `_batch_card` visait la déduplication, tenue : 10 apps sur `_queue_entry.html`).
+   **La perte était dans la boussole de ce fichier** (`c30c00c6`) : trois intentions retirées
+   avec le constat faux voisin — consolidation des mécanismes d'UI, extraction des dernières
+   briques communes, hiérarchie du RAG — **restaurées** en tête (H1, H2). L'archive supprimée
+   par `9b92356e` était un doublon créé par la même session (contenu dans `archive/CONTEXT.md §5`).
+   ⚠ **Reste une décision à Fabien** : le verbe `settings` de l'API a été écarté **sur mesure**
+   (`§24.4① quater`, « route `update` sur 2 apps sur 15 ») — une intention sortie sans décision.
 2. **Puis la révision de fond**, sur les seuls docs qui portent la connaissance (pas
    `PROJECT_STATUS`, pas les changelogs) : marquer audience × type par section, séparer
    constats et intentions, remplacer chaque chiffre recopié par une balise ①.

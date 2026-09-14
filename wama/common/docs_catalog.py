@@ -29,6 +29,12 @@ SÉCURITÉ — on ne lit que ce qui est DÉCLARÉ
     `../.env`. Le HTML brut des `.md` est échappé, et un lien vers un fichier non déclaré est
     rendu en texte — la page ne sert pas de navigateur du dépôt.
 
+QUI LIT QUOI (`visible_to`)
+
+    La doc UTILISATEUR : tout compte connecté (Fabien, 2026-09-14). La doc de construction et la
+    doc développeur : les administrateurs (11/09). Pour un compte qui ne peut pas la lire, une doc
+    N'EXISTE PAS — absente du catalogue, 404 au lecteur, et un lien qui la vise rendu en texte.
+
 RENDU — markdown-it-py, pas Python-Markdown
 
     Les deux sont installés (le premier via `rich`, le second via `tensorboard`), aucun n'était
@@ -287,6 +293,11 @@ def get(key: str) -> Optional[Doc]:
     return BY_KEY.get(key)
 
 
+def visible_to(doc: Doc, admin: bool) -> bool:
+    """Un compte connecté lit la doc utilisateur ; un administrateur lit tout."""
+    return admin or doc.audience == USER
+
+
 def checked_paths() -> List[str]:
     """Les cibles de `check_docs` : les docs ÉCRITS À LA MAIN, dans l'ordre de déclaration.
 
@@ -353,15 +364,18 @@ def entries() -> List[dict]:
     return [entry(d) for d in DOCS]
 
 
-def render_doc(doc: Doc) -> dict:
-    """`{'html', 'toc'}` du doc. Lève `FileNotFoundError` si le fichier déclaré manque."""
+def render_doc(doc: Doc, admin: bool = True) -> dict:
+    """`{'html', 'toc'}` du doc, tel que le lit un administrateur ou non — les liens vers une doc
+    qu'il ne peut pas lire deviennent du texte. Lève `FileNotFoundError` si le fichier manque."""
     f = file_of(doc)
     stamp = _stamp(f)
-    hit = _RENDERED.get(doc.path)
+    cle = (doc.path, admin)
+    hit = _RENDERED.get(cle)
     if hit and hit[0] == stamp:
         return hit[1]
-    out = render_markdown(f.read_text(encoding='utf-8', errors='replace'), doc.path)
-    _RENDERED[doc.path] = (stamp, out)
+    out = render_markdown(f.read_text(encoding='utf-8', errors='replace'), doc.path,
+                          visible=lambda d: visible_to(d, admin))
+    _RENDERED[cle] = (stamp, out)
     return out
 
 
@@ -384,9 +398,10 @@ def _inline_text(tok) -> str:
                    if c.type in ('text', 'code_inline')).strip()
 
 
-def _target(href: str, source_path: str) -> Optional[str]:
+def _target(href: str, source_path: str, visible=None) -> Optional[str]:
     """Où mène un lien. `None` = lien externe gardé tel quel ; `''` = PAS de lien (fichier non
-    déclaré) ; sinon l'URL du lecteur, ancre comprise."""
+    déclaré, ou doc que le lecteur ne peut pas lire — `visible`) ; sinon l'URL du lecteur, ancre
+    comprise."""
     if href.startswith('#'):
         return href
     if _SCHEME.match(href):
@@ -396,7 +411,7 @@ def _target(href: str, source_path: str) -> Optional[str]:
         return href
     rel = posixpath.normpath(posixpath.join(posixpath.dirname(source_path), unquote(chemin)))
     doc = BY_PATH.get(rel.lstrip('/'))
-    if doc is None:
+    if doc is None or (visible is not None and not visible(doc)):
         return ''
     from django.urls import reverse
     return reverse('common:doc_read', args=[doc.key]) + (f'#{ancre}' if ancre else '')
@@ -409,12 +424,12 @@ def _raw(content: str):
     return t
 
 
-def _rewrite_links(children: list, source_path: str) -> list:
+def _rewrite_links(children: list, source_path: str, visible=None) -> list:
     out, ouverts = [], []
     for c in children:
         if c.type == 'link_open':
             href = str(c.attrGet('href') or '')
-            cible = _target(href, source_path)
+            cible = _target(href, source_path, visible)
             if cible is None:
                 c.attrSet('target', '_blank')
                 c.attrSet('rel', 'noopener noreferrer')
@@ -462,8 +477,9 @@ def _neutralize_html(tok) -> None:
                              else _html.escape(c.content))
 
 
-def render_markdown(text: str, source_path: str = '') -> dict:
-    """Markdown → `{'html', 'toc'}`. `source_path` sert à résoudre les liens relatifs."""
+def render_markdown(text: str, source_path: str = '', visible=None) -> dict:
+    """Markdown → `{'html', 'toc'}`. `source_path` sert à résoudre les liens relatifs ;
+    `visible(doc)` dit si le lecteur peut suivre un lien vers ce doc (tous, par défaut)."""
     from markdown_it import MarkdownIt
 
     # `html=True` pour que le HTML soit RECONNU, puis neutralisé token par token (voir
@@ -482,5 +498,5 @@ def render_markdown(text: str, source_path: str = '') -> dict:
             if niveau <= 3:
                 toc.append({'level': niveau, 'text': titre, 'id': ident})
         elif tok.type == 'inline' and tok.children:
-            tok.children = _rewrite_links(tok.children, source_path)
+            tok.children = _rewrite_links(tok.children, source_path, visible)
     return {'html': md.renderer.render(tokens, md.options, {}), 'toc': toc}
