@@ -93,7 +93,7 @@ elle lit le **catalogue**.
 ### Reclaim VRAM (une SEULE mécanique — 2026-07-31)
 | Brique | Fichier | Rôle |
 |---|---|---|
-| Registre d'instances RÉSIDENTES | `backends/base.py` (`_LIVE_BACKENDS`, `unload_app_backends`) | `BaseModelBackend` enveloppe déjà `load`/`unload` à **toute profondeur d'héritage** : il tient donc un `WeakSet` des backends chargés et **enregistre l'unloader de l'app à la première résidence réelle**. Une app sous contrat n'a **rien à déclarer**. |
+| Registre d'instances RÉSIDENTES | `backends/base.py` (`_LIVE_BACKENDS`, `unload_live_backends`) | `BaseModelBackend` enveloppe déjà `load`/`unload` à **toute profondeur d'héritage** : il tient donc un `WeakSet` des backends chargés, que `MemoryManager.release_vram` / `unload_model` déchargent **au grain du MODÈLE** (clé catalogue résolue par `backends.manager.catalog_keys_for_owner`). Une app sous contrat n'a **rien à déclarer**. ⚠ Jusqu'au 2026-09-14 il inscrivait un unloader PAR APP, l'app étant déduite du chemin du module — `common` pour tous depuis le déménagement des backends. |
 | `register_vram_unloader(name, fn)` | `model_manager/services/memory_manager.py` | déclaration EXPLICITE, réservée à ce qui échappe au contrat de backend : modèle en variable de module (describer/BLIP), pipeline caché (transcriber/pyannote). Plusieurs unloaders par app admis (`<app>` + `<app>-suffixe`). |
 | `vram_reservation(owner, gb)` | `common/services/resource_governor.py` | modèles **HORS PROCESS** (sous-processus) — l'héritage ne s'y applique pas, rien n'est résident dans le worker. Adopté : avatarizer. |
 

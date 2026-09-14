@@ -14065,3 +14065,57 @@ contraire à « jamais deux échelles mélangées » ; partage par PR GitHub éc
    jamais un composite. Non commencé.
 4. Rien à pousser sans demande ; 3 commits locaux + ce bloc + 2 skills. Aucun effet de bord
    d'infra : aucun worker recyclé, aucun réglage posé, aucune charge GPU.
+
+
+## §PALIER — 2026-09-14 (soir), « GOUVERNEUR : la CLÉ publiée rejoint le catalogue » — ✅ LIVRÉ
+
+> GO Fabien (« Ok pour 1 et 3 », puis « surtout attention à ne rien casser ») : le correctif
+> GLOBAL de la clé nommé au palier « GOUVERNEUR » de l'après-midi. Le trou 2 du bloc ci-dessus
+> (provenance du coût `vram_gb`) est celui que cette instance reprend ensuite.
+
+**Mesuré AVANT d'écrire**
+- Le service TTS publie au registre mais n'a pas d'ORM : la ligne vivante venait du process 9777
+  = `uvicorn tts_service`, et `synthesizer/backends/__init__.py` écrit « le service TTS
+  n'initialise pas Django ». La clé ne peut donc pas se résoudre À LA PUBLICATION dans tous les
+  process ; tous les LECTEURS de résidence (sélecteur, model_manager, synchro, nettoyeur) sont,
+  eux, des process Django.
+- Carte classe → clés catalogue (lecture seule) : 34 classes, 101 modèles. **23 classes
+  n'exécutent qu'un modèle** ; les 11 autres se départagent par le nom que pose le backend
+  (identifiant, dernier segment, `hf_id`, fin de `hf_id` — Whisper `large-v3` →
+  `openai/whisper-large-v3`, `base` → `openai/whisper-base`).
+
+**Retenu** : le backend publie ce qu'il SAIT — sa classe (déjà dans l'owner) et `@<nom local>` ;
+la clé se résout à la LECTURE (`backends.manager.catalog_keys_for_owner`, index mémoïsé 60 s),
+par la moitié inverse du lien que `backend_for_model` suit — le modèle déclare son moteur, le
+backend ce qu'il sert. Un suffixe qui EST une clé (Ollama, embedder) passe tel quel ; un nom non
+résolu n'est pas un résident mais reste compté dans le registre.
+
+**Reclaim au grain du MODÈLE** : registre d'instances PLAT ; `base.unload_live_backends(model_key=,
+exclude_sources=)` ; `MemoryManager.unload_model` ne vide que le backend qui tient la clé (plus
+les unloaders nommés de sa source, `transcriber-diarizer`) ; `release_vram(exclude={'anonymizer'})`
+épargne réellement le propriétaire — depuis le 08/09 l'exclusion visait un nom d'app que plus
+aucun backend ne portait. `_app_of` et `unload_app_backends` retirés ; `wama/common/README.md`
+suit.
+
+**Mesures** (aucune charge GPU) : `tests_vram_ledger` 36 (+14) ; 3 mutants de la clé (clé déduite
+du chemin, exclusion ignorée, déchargement non ciblé) → 3 / 1 / 1 rouges ; périmètre gouverneur
+57 OK ; suites élargies (model_manager, auto_model, memory, backends, capacités, locate_anything,
+routage HF, composer, studio 3D, transcriber, reader, anonymizer, synthesizer, describer,
+enhancer, imager, avatarizer) **412 OK** ; `check_docs` 0 / 1790 ; `doc_facts` régénéré — ce qui
+solde aussi le « mécanismes PÉRIMÉ » relevé par le bloc ci-dessus (compteurs de consommateurs).
+
+⚠ **Effet au redémarrage** : une ligne `#common:<id>` d'un process non relancé ne se résout pas
+(comme avant) ; relancés, workers et service TTS publient `#@<nom>`.
+
+🔚 Suite, même GO : ③ provenance de `vram_gb` (en cours) → squelette → grille → portages →
+`vram_needed` → ② l'attente « toute la VRAM ». **Cahier des charges de Fabien reçu le soir même** :
+une tâche qui exige toute la VRAM n'est pas bloquée — elle attend en `AWAITING_RESOURCES`
+qu'aucune tâche ne tourne ni que le service TTS ne serve, puis on décharge tout (TTS compris), on
+exécute, on relance le TTS ; **le gouverneur décide, tous les chemins passent par lui** ; l'utilisateur
+est informé par le curseur rapide/qualité (le baisser pour lancer tout de suite). À mener AVEC
+l'achèvement du curseur et de la sélection bidirectionnelle (entrées, modèles, langues, voix).
+Cartographie reçue le même soir, trois citations déjà confirmées au code : curseur transmis au
+tirage par le synthesizer (`workers.py:179-193`), rendu en modale item seulement par l'avatarizer
+(`params.py:51-54`) ; `/health` du service TTS ne dit rien d'une requête en cours
+(`tts_service.py:218-244`). La séquence complète n'est consignée nulle part avant ce palier —
+seuls ses fragments (question du 03/09, contrainte WDDM, « baisser le curseur »).
