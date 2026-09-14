@@ -512,6 +512,18 @@ fichier, pas dans les 11 apps.
   que « tel backend détient 8 Go dans tel process ». La clé catalogue se reconstitue sans table de
   correspondance (`AIModel.model_key` = `<source>:<model_id>`, `_app_of()` + `_current_model`).
   Séparateur `#` car les clés catalogue contiennent des `:` (`anonymizer:yolo:yolo11n.pt`).
+  🔴 **CONSTAT PÉRIMÉ depuis le 2026-09-08 — MESURÉ le 2026-09-14.** `_app_of()` déduit la source
+  du CHEMIN du module (`common/backends/base.py`) ; depuis `8c556100` (« 11/11 au substrat ») tous
+  les backends vivent sous `wama/common/backends/`. Mesure en lecture seule sur la base : **les
+  101 modèles qui résolvent un backend publient `common:<id>`, 0 rejoint sa clé catalogue** ; le
+  registre vivant portait `…KokoroOnnxBackend:9777#common:kokoro-onnx` quand le catalogue connaît
+  `synthesizer:kokoro` et `huggingface:onnx-community/Kokoro-82M-v1.0-ONNX` (source ET identifiant
+  divergent). Effets : `prefer_loaded`, le `is_loaded` rabattu du model_manager et
+  `_overlay_residency` ne voient plus aucun backend du contrat ; l'unloader s'enregistre sous
+  `common`, donc « décharger un modèle inactif » décharge TOUS les backends du process.
+  ⚠ Le lien modèle → backend est sain (`backend_for_model` : moteur déclaré + `SUPPORTED_MODELS`) ;
+  c'est le chemin INVERSE — la publication au registre — qui n'a pas suivi le déménagement.
+  ⏳ Correctif global à concevoir (la clé doit venir du catalogue, pas du chemin), non fait.
 - `resident_models()` → `model_key` → Go, et `idle_models(seuil)` via `mark_used()` émis par
   `_wrap_process` (hash Redis **séparé** `wama:vram:last_used` : un 3ᵉ champ dans la ligne de
   réservation aurait été lu comme illisible → périmé → **purgé**, effaçant une réservation vivante).
@@ -551,6 +563,59 @@ fichier, pas dans les 11 apps.
 - 22 assertions (registre multi-process, non-double-comptage au rafraîchissement, purge des
   périmées, tolérance aux lignes corrompues, idempotence, enveloppe des backends, héritage à
   2 niveaux, chargement en échec).
+  🔴 **INTROUVABLES le 2026-09-14** : aucun `tests*.py` versionné n'appelle `reserve_vram`, ne lit
+  `wama:vram:*` ni n'enveloppe un backend pour observer le registre. Même constat pour les
+  « 14 assertions » du routage ci-dessous. Première garde versionnée du registre :
+  `wama/common/tests_vram_ledger.py` (2026-09-14).
+
+**✅ Revérifié et réparé 2026-09-14 — la COMPTABILITÉ** (cartographie approfondie demandée par
+Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PALIER 2026-09-14
+« GOUVERNEUR »`)
+- **Double comptage soldé.** Le registre ne distinguait pas une ANNONCE (posée avant d'allouer :
+  sous-processus, juge de prospection, embedder) d'une empreinte MESURÉE après chargement
+  (`_wrap_load`). `effective_free_gb`, `MemoryManager._free_vram_gb` et `get_free_vram_gb`
+  retranchaient tout, résidents compris, alors que leurs sondes les voyaient déjà. Désormais le
+  hash séparé `wama:vram:allocated` (owner → pid) marque les empreintes mesurées par l'allocateur
+  torch, et `unseen_reserved_gb(probe)` ne rend à chaque sonde que ce qu'elle ne voit pas :
+  `'driver'` → les annonces ; `'process'` → tout sauf les empreintes de ce process. Ollama hôte,
+  sous-processus et valeurs déclarées restent des annonces (prudence : sous WSL2, ce que
+  `mem_get_info` voit des allocations de l'hôte n'est pas mesuré). L'exclusion
+  `celery-gpu:<pid>` (clé jamais publiée) et `MemoryManager.vram_owner()` sont retirées. La piste
+  `min(libre pilote, total − réservé)` notée le matin même a été ÉCARTÉE : elle surestimait le
+  libre dès qu'une annonce coexistait avec une occupation hors registre.
+- **TTL : un détenteur vivant ne perd plus sa ligne.** Battement commun
+  `base.start_reservation_heartbeat` — service TTS ET `worker_process_init` des workers Celery,
+  qui n'en avaient pas ; `vram_reservation` rafraîchit sa ligne tant que le bloc dure (audio.cpp
+  dépassait le TTL) ; la réservation du rappel mémoire expire avec la résidence Ollama
+  (`expires_in_s`, 5 min) au lieu de survivre une heure ; `MemoryManager.unload_model('ollama:…')`
+  et olmOCR retirent la ligne du modèle qu'ils déchargent (convention unique `ollama_host_owner`) ;
+  la résidence Ollama est rafraîchie toutes les 10 min (tâche `model_manager.refresh_ollama_residency`,
+  beat) — la synchro du catalogue seule tournait toutes les 2 h, au-delà du TTL.
+- **Inactivité.** Libérer ou purger une ligne emporte usage, marqueur et chargement : un modèle
+  rechargé n'hérite plus de l'inactivité de sa vie antérieure ; un modèle jamais utilisé compte son
+  inactivité depuis son CHARGEMENT (`wama:vram:loaded_at`), plus depuis l'horodatage que le
+  battement réécrit.
+- **`_wrap_load`.** Un rechargement idempotent garde la valeur mesurée (la déclarée l'écrasait) ;
+  rien n'est réservé dans un process sans CUDA ni pour un backend qui se déclare sur CPU ; un
+  `load()` refusé ne rend plus le backend résident. Un `unload()` qui lève GARDE sa ligne — voulu :
+  rien ne prouve la VRAM rendue.
+- **Gardes** : `wama/common/tests_vram_ledger.py` (22 tests, sans GPU). Non-vacuité prouvée par
+  3 mutants réinjectant chaque défaut (double comptage 7 rouges, libération sans annexes 4,
+  ancienne logique `_wrap_load` 4) — la contre-épreuve a d'ailleurs révélé deux tests qui
+  bouclaient sur la constante du code testé, corrigés.
+- 🔴 **NOMMÉ, NON CORRIGÉ** :
+  ① **clé de modèle publiée** `common:<id>` pour les 101 modèles résolus (constat ci-dessus) —
+    correctif GLOBAL : la clé doit venir du catalogue, pas du chemin du module ;
+  ② le squelette ne pose jamais RUNNING (le commentaire « `progress(0)` bascule l'item en
+    RUNNING » de `task_skeleton.py` est faux : `TaskContext.progress` n'écrit que cache et
+    `progress`) — un item différé resterait affiché `AWAITING_RESOURCES` pendant son exécution ;
+  ③ `vram_needed` : 0 appelant — suit le PORTAGE des 7 apps au squelette ;
+  ④ « libérer avant de différer » et décharger le service TTS avant une tâche « toute la VRAM » :
+    DÉCISIONS, pas réparations. Sur le poste de dev, le revert `1b1546d9` (24/07) a établi que
+    décharger JUSTE avant une grosse allocation CUDA (churn sous WDDM) gelait l'hôte ; le service
+    TTS n'a aucun endpoint de déchargement et garde Kokoro résident par déclaration
+    (`keep_resident`). En Linux natif (la cible), la contrainte WDDM disparaît et la question se
+    repose.
 
 **⏳ Reste — à ajouter ICI, jamais dans les apps**
 1. ~~Câbler les priorités dans le routage Celery~~ ✅ 2026-07-29 (ci-dessus, 14 assertions).
@@ -571,9 +636,10 @@ fichier, pas dans les 11 apps.
    **L'héritage ne couvre pas tout** : un modèle chargé dans un **sous-processus** ou un
    **service séparé** n'est résident dans aucun objet Python du worker. Pour ceux-là, la brique
    est `vram_reservation(owner, gb)` (contextmanager, réserve/libère autour du bloc) — adoptée
-   par **avatarizer** (MuseTalk, CodeFormer) ✅ 29/07. Reste le **service TTS**, dont la
-   déclaration doit venir de l'intérieur du service (son modèle reste résident entre deux
-   appels). Cf. `PROJECT_STATUS.md` §0 (3bis → 3quinquies).
+   par **avatarizer** (MuseTalk, CodeFormer) ✅ 29/07. ~~Reste le **service TTS**, dont la
+   déclaration doit venir de l'intérieur du service~~ ✅ **fait le 12/08** (contrat de backend
+   DANS le service + battement, cf. ci-dessus — la phrase n'avait pas suivi, relevé le
+   2026-09-14). Cf. `PROJECT_STATUS.md` §0 (3bis → 3quinquies).
 
 ### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
 > But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**
