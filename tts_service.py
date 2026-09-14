@@ -85,6 +85,17 @@ _current_model_name = None    # e.g. "xtts_v2", "bark", "higgs_audio", "kokoro"
 _service_ready = False
 _service_ready_lock = threading.Lock()
 
+#: Verrou des MOTEURS (2026-09-14) — il englobe BASCULE + SYNTHÈSE. `/tts` est une fonction
+#: synchrone qu'uvicorn exécute dans un pool de threads : sans lui, une requête qui basculait de
+#: moteur déchargeait celui qu'une autre requête était en train d'utiliser (XTTS vidé en pleine
+#: synthèse par une vocalisation de l'assistant — `_unload_current` ne garde que les résidents).
+#: ⚠ Un moteur RÉSIDENT (temps réel, Kokoro) ne doit pas ATTENDRE derrière une longue synthèse
+#: lourde : le client expirerait et Django retomberait sur son Kokoro en-process. S'il trouve le
+#: verrou pris, il est servi SANS toucher au moteur courant ; s'il le trouve libre, il le prend
+#: et garde le comportement historique (la bascule décharge le moteur lourd, la VRAM est rendue).
+#: RLock : `_switch_model` peut être rappelé sous le verrou.
+_engine_lock = threading.RLock()
+
 
 def _backend(engine: str):
     """Instance singleton du backend d'un moteur (BackendManager commun)."""
@@ -243,6 +254,24 @@ def health():
     }
 
 
+def _synthesize(be, req: "TTSRequest") -> str:
+    """Contrat d'appel uniforme : chaque backend consomme ce qui le concerne. La voix de
+    référence vient RÉSOLUE de Django (voir l'en-tête) ; Bark n'en consomme pas — son mapping
+    preset → locuteur est dans son backend."""
+    return be.synthesize(
+        text=req.text,
+        # Nom LOCAL, comme au chargement — `CoquiBackend.process` réindexe
+        # `COQUI_MODEL_MAPPING` avec cette valeur.
+        model=local_model_name(req.model),
+        language=req.language,
+        voice_preset=req.voice_preset,
+        speaker_wav=req.speaker_wav or None,
+        multi_speaker=req.multi_speaker,
+        scene_description=req.scene_description,
+        options=req.options,
+    )
+
+
 @app.post("/tts")
 def tts_endpoint(req: TTSRequest):
     """Generate audio from text. Returns raw WAV bytes."""
@@ -258,26 +287,22 @@ def tts_endpoint(req: TTSRequest):
         )
 
     try:
-        # Switch model if needed
-        _switch_model(req.model, req.engine)
-
-        # La voix de référence vient RÉSOLUE de Django (voir l'en-tête) ; Bark n'en
-        # consomme pas — son mapping preset → locuteur est dans son backend.
-        speaker_wav = req.speaker_wav or None
-
-        # Contrat d'appel uniforme : chaque backend consomme ce qui le concerne.
-        wav_path = _backend(_current_engine).synthesize(
-            text=req.text,
-            # Nom LOCAL, comme au chargement — `CoquiBackend.process` réindexe
-            # `COQUI_MODEL_MAPPING` avec cette valeur.
-            model=local_model_name(req.model),
-            language=req.language,
-            voice_preset=req.voice_preset,
-            speaker_wav=speaker_wav,
-            multi_speaker=req.multi_speaker,
-            scene_description=req.scene_description,
-            options=req.options,
-        )
+        engine = engine_for_model(req.model, req.engine)
+        # Un moteur lourd ATTEND le verrou ; un résident le prend seulement s'il est libre.
+        tient = _engine_lock.acquire(blocking=not _keep_resident(engine))
+        if tient:
+            try:
+                _switch_model(req.model, req.engine)
+                wav_path = _synthesize(_backend(_current_engine), req)
+            finally:
+                _engine_lock.release()
+        else:
+            # Synthèse lourde en cours : le temps réel est servi sans bascule ni déchargement.
+            be = _backend(engine)
+            if not be.is_loaded:
+                be.load(local_model_name(req.model))
+            logger.info(f"{engine} servi pendant une synthèse lourde — moteur courant intact")
+            wav_path = _synthesize(be, req)
 
         # Read and return WAV bytes
         with open(wav_path, "rb") as f:
@@ -300,7 +325,8 @@ def tts_endpoint(req: TTSRequest):
 def load_model_endpoint(req: LoadModelRequest):
     """Pre-load a model (for warming up)."""
     try:
-        _switch_model(req.model, req.engine)
+        with _engine_lock:
+            _switch_model(req.model, req.engine)
         return {
             "status": "loaded",
             "model": _current_model_name,
@@ -353,9 +379,13 @@ async def startup():
     # TTS_SKIP_PRELOAD=1 reste honoré (== TTS_PRELOAD=none) pour le développement.
     #
     # ⚠ Ce préchargement n'a sa place ICI que parce que ce service est un process
-    # UNIQUE (uvicorn --workers 1). Le même warm tenté côté Django avait provoqué une
-    # course d'imports accelerate et un dump de modèles (HF_HUB_CACHE global muté en
-    # concurrence entre workers gunicorn) — cf. wama/views.py, note sous _get_kokoro.
+    # UNIQUE (uvicorn --workers 1). Raisons RE-VÉRIFIÉES le 2026-09-14 : N workers
+    # préchargeraient N fois, le « moteur courant » et sa bascule n'existent qu'à l'intérieur
+    # d'un process (N moteurs lourds possibles sur la même carte), et les verrous
+    # (`_engine_lock`, génération Higgs) ne sérialisent rien entre process. La cause autrefois
+    # citée ici — `HF_HUB_CACHE` muté en concurrence — n'existe plus (0 mutation,
+    # `wama/common/tests_hf_cache_routing.py`) ; la course d'imports `accelerate` venait d'un
+    # thread lancé dans Django (cf. wama/views.py, note sous _get_kokoro), pas de ce service.
     # Ne pas réintroduire de préchargement dans un process multi-worker.
     if os.environ.get("TTS_SKIP_PRELOAD", "0") == "1":
         preload = []
@@ -381,7 +411,8 @@ async def startup():
                     _backend(name).load()
                     logger.info(f"{name} préchargé et résident")
                 else:
-                    _switch_model(name)
+                    with _engine_lock:
+                        _switch_model(name)
                     logger.info(f"{name} préchargé")
             except Exception as e:
                 logger.warning(
