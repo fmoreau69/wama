@@ -328,6 +328,12 @@ def start(request, pk):
         )
         if job.status == 'RUNNING':
             return JsonResponse({'error': 'Conversion déjà en cours'}, status=400)
+        # Un job importé par lot ou par fichier NAÎT sans format (`output_format=''`) ; le lot le
+        # saute déjà (`batch_start`). Lancé seul, il partait en tâche et tombait sur « Format
+        # vidéo non supporté : » (format VIDE) — lu comme un rejet de codec (job #27, 2026-09-14).
+        if not job.output_format:
+            return JsonResponse({'error': "Format de sortie non défini — le choisir dans "
+                                          "⚙ Paramètres avant de lancer."}, status=400)
 
         # Revoke previous task if any
         if job.task_id:
@@ -635,8 +641,13 @@ def start_all(request):
     from .tasks import convert_media_task
 
     jobs = ConversionJob.objects.filter(user=request.user, status='PENDING')
-    started = []
+    started, skipped = [], []
     for job in jobs:
+        # Même règle que `batch_start` : un job sans format de sortie n'est pas lancé (il
+        # échouerait sur un faux « format non supporté »). Il reste en attente, relançable.
+        if not job.output_format:
+            skipped.append(job.id)
+            continue
         try:
             with transaction.atomic():
                 job_locked = ConversionJob.objects.select_for_update().get(pk=job.pk, status='PENDING')
@@ -651,7 +662,7 @@ def start_all(request):
         except Exception as e:
             logger.exception(f"start_all error for job #{job.id}: {e}")
 
-    return JsonResponse({'success': True, 'started': started})
+    return JsonResponse({'success': True, 'started': started, 'skipped': skipped})
 
 
 @login_required
