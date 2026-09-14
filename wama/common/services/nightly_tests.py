@@ -412,12 +412,17 @@ try:
                                                register_volet_scenarios)
     from wama.common.services.ui_smoke_matching import (register_media_library_scenarios,
                                                         register_voice_language_scenarios)
+    from wama.common.services.ui_smoke_menus import register_menu_scenarios
     register_ui_scenarios()
     # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
     # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
     # (avatarizer, mesuré le 13/09). D'où ces gestes dans le navigateur, versés du bloc-notes.
     register_voice_language_scenarios()
     register_media_library_scenarios()
+    # 2026-09-14 — les MENUS (cascade, clavier, « Envoyer vers » serveur, état médiathèque) :
+    # même raison, et versés de la sonde de session le jour même. Un menu refermé 7 ms après son
+    # ouverture, ↓ détourné par Bootstrap : aucun des deux ne lève d'erreur.
+    register_menu_scenarios()
     # `<app>.ui` mesure la SANTÉ de la page (200, 0 erreur console) ; `<app>.import` mesure
     # son COMPORTEMENT. Les deux sont nécessaires : converter_01 satisfaisait le premier tout
     # en étant inerte — aucun script chargé, donc rien à planter (mesuré 2026-08-22).

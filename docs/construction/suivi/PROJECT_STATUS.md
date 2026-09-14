@@ -14332,3 +14332,46 @@ instance : un HUP aurait mis en production le code non commité d'une autre inst
 
 🔚 **Restes nommés** : rejouer les nocturnes `<app>.send_to` après rechargement (ils visent
 gunicorn, donc le code ancien jusque-là) ; asset #29 sans provenance.
+
+
+### Addendum 14/09 (nuit) — les MENUS entrent au NOCTURNE, et une affirmation de ce palier est RETIRÉE
+
+> Question de Fabien : « tu as ajouté tous les tests nécessaires, y compris pour les menus
+> contextuels ? ». Réponse mesurée : **non**. Les tests Python tenaient le serveur (provenance,
+> retrait, résolveur, contrat de suppression) et le CÂBLAGE du front (gardes sur le code) — mais le
+> COMPORTEMENT des menus n'était attesté que par une sonde de bloc-notes, qui meurt avec la session.
+
+**Versé** : `common/services/ui_smoke_menus.py` (module à part, comme `ui_smoke_matching`), enregistré
+par `register_examples`, tenu par `tests_nightly_modes` et annexé au mécanisme `nightly_tests`
+(`ui_smoke_matching.py` y est annexé au passage — il figurait parmi les modules non rattachés) :
+
+| scénario | ce qu'il rejoue |
+|---|---|
+| `common.tree_menu_keyboard` | focus à l'ouverture, ↓, → entre, ← remonte, Échap rend le focus |
+| `common.tree_send_to_menus` | fichier / sélection (partiel annoncé) / dossier — le menu comparé à `send_to` calculé AVANT le navigateur |
+| `media_library.card_menu_state` | + → rangé → ✓ → retrait ; en base : copie retirée, sortie intacte |
+| `common.nav_sandbox_keyboard` | « Bac à sable » au clavier, ↓ non détourné par Bootstrap |
+
+**Mesures — et la contre-épreuve**
+- WAMA relancé par Fabien : **10/11 `OK` + le skip attendu** (4 menus, `send_to` converter /
+  transcriber / converter_01, `batch_extract` converter / imager / transcriber ; avatarizer skip =
+  contrôle inverse).
+- **Contre-épreuve sur l'ANCIEN code** (worktree de `2b7d1bac` servi en `runserver` :8766, la route
+  neuve y rend 404 — c'est ce qui prouve qu'on parle au bon serveur) : `tree_send_to_menus` ROUGE
+  (libellés « (2 fichier(s)) » du calcul client), `card_menu_state` ROUGE (aucune coche),
+  `tree_menu_keyboard` ROUGE. ⚠ `nav_sandbox_keyboard` **SKIP** : les jumelles ne sont pas
+  versionnées, un worktree n'en a aucune — sa non-vacuité ne repose que sur la SONDE de session,
+  rouge contre la version fautive (écoute en bulle).
+- ⚠⚠ **Gunicorn n'est PAS un témoin de contre-épreuve** : ses workers se recyclent — mesuré
+  12 appels à la route neuve → `302 … 404 … 302` (deux versions servies en même temps). Deux
+  « verts sur l'ancien code » obtenus contre lui ont été JETÉS.
+- La 1ʳᵉ tentative de worktree ne démarrait pas (`NodeNotFoundError`, migrations non versionnées —
+  le piège d'`AGENTS.md`) : ses 4 « rouges » étaient des CONNEXIONS REFUSÉES, pas une contre-épreuve.
+  La boucle d'attente sort désormais en erreur si le serveur ne répond pas.
+
+**🔴 RETIRÉ — une affirmation de ce palier et du précédent était FAUSSE** : « `header.html` /
+`base.html` au rechargement de gunicorn (gabarits en cache par worker) ». Jamais mesurée, et
+démentie : des workers démarrés ~3 h 30 AVANT la correction de l'en-tête servaient déjà le script
+corrigé. Les gabarits sont relus ; **seuls les modules PYTHON (routes, vues) attendent un
+rechargement.** L'avertissement du palier précédent sur « Envoyer vers… » (« Indisponible » jusqu'au
+rechargement) reste vrai, et WAMA a été relancé depuis.

@@ -128,3 +128,20 @@ class DeclarationVramTest(SimpleTestCase):
             self.assertIn(attendu, ids, f'{attendu} absent du registre nocturne')
             self.assertEqual(ids[attendu].app, app)
             self.assertEqual(ids[attendu].stage, 'ui')
+
+    def test_les_gestes_de_MENU_verses_le_14_09_sont_bien_au_registre(self):
+        """Question de Fabien (14/09) : « tu as ajouté tous les tests nécessaires, y compris pour
+        les menus contextuels ? » — le comportement n'était attesté que par une sonde de session.
+        Versés dans `ui_smoke_menus` ; un module qu'on oublie d'ENREGISTRER les ferait mourir en
+        silence, comme la sonde qu'ils remplacent."""
+        from wama.common.services.nightly_tests import REGISTRY, register_examples
+        register_examples()
+        ids = {s.id: s for s in REGISTRY}
+        for attendu, app in (('common.tree_menu_keyboard', 'common'),
+                             ('common.tree_send_to_menus', 'common'),
+                             ('media_library.card_menu_state', 'media_library'),
+                             ('common.nav_sandbox_keyboard', 'common')):
+            self.assertIn(attendu, ids, f'{attendu} absent du registre nocturne')
+            self.assertEqual(ids[attendu].app, app)
+            self.assertEqual(ids[attendu].stage, 'ui')
+            self.assertFalse(ids[attendu].vram_gb, f'{attendu} ne charge aucun modèle')
