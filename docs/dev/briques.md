@@ -465,9 +465,9 @@ Un PLAN déclaré dans le catalogue des docs (extraits de sections marquées + f
 - **Module** : Les docs DÉRIVÉES, construites par PLAN (ROADMAP.md §25.1 ③).
 - **API publique** (5) :
   - `class PlanError(ValueError)` — Un plan qui ne se construit pas — cassé, jamais approximé.
-  - `porte_invalide(chemin: str) -> Optional[str]` — Pourquoi une porte ne peut pas être VÉRIFIÉE (registre inconnu, ou sans fiches) ; `None`
-  - `porte_fermee(chemin: str) -> Optional[str]` — Pourquoi le registre ne confirme PAS ce que la porte désigne ; `None` si elle est ouverte.
-  - `excerpt_markdown(texte: str, section: str, audience: str, source_path: str, target_path: str, title: str='', porte: Optional[Callable[[str], Optional[str]]]=No…` — Les lignes markdown d'UN extrait : la section (et ses sous-sections destinées au même
+  - `gate_unverifiable(chemin: str) -> Optional[str]` — Pourquoi une porte ne peut pas être VÉRIFIÉE (registre inconnu, ou sans fiches) ; `None`
+  - `gate_closed(chemin: str) -> Optional[str]` — Pourquoi le registre ne confirme PAS ce que la porte désigne ; `None` si elle est ouverte.
+  - `excerpt_markdown(texte: str, section: str, audience: str, source_path: str, target_path: str, title: str='', gate: Optional[Callable[[str], Optional[str]]]=Non…` — Les lignes markdown d'UN extrait : la section (et ses sous-sections destinées au même
   - `build(doc) -> str` — Le `.md` complet d'une doc dérivée, tel que son plan le produit AUJOURD'HUI.
 
 ### Envoyer vers (chaînage progressif, hors studio)

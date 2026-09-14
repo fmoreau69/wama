@@ -20,7 +20,7 @@ from django.test import SimpleTestCase, TestCase
 from django.shortcuts import resolve_url
 from django.urls import reverse
 
-from .dev_docs import PARCOURS, module_api
+from .dev_docs import READING_PATH, module_api
 from .docs_catalog import (AUDIENCES, BY_KEY, BY_PATH, CONSTRUCTION, DOCS, FAMILIES, USER,
                            checked_paths, file_of, journal_paths, render_doc, render_markdown,
                            visible_to)
@@ -96,7 +96,7 @@ class DeclarationTest(SimpleTestCase):
         self.assertEqual([d.path for d in DERIVEES if d.path in CIBLES], [])
 
     def test_le_parcours_ne_cite_que_des_docs_declares(self):
-        self.assertEqual([k for k in PARCOURS if k not in BY_KEY], [])
+        self.assertEqual([k for k in READING_PATH if k not in BY_KEY], [])
 
     def test_le_readme_porte_l_arborescence_generee_de_tous_les_docs(self):
         # Palier C du déménagement (2026-09-14) : l'index de la doc est un bloc GÉNÉRÉ du README.
@@ -223,9 +223,9 @@ class DocDeveloppeurTest(TestCase):
             self.assertNotEqual(d.audience, CONSTRUCTION, d.key)
 
     def test_les_registres_sont_tous_projetes(self):
-        from .dev_docs import registres_fiches
+        from .dev_docs import registry_entries
         from .registries import REGISTRIES
-        texte = registres_fiches()
+        texte = registry_entries()
         manquants = [k for k in REGISTRIES if f"`{k}`" not in texte]
         self.assertEqual(manquants, [])
 
@@ -236,7 +236,7 @@ class DocDeveloppeurTest(TestCase):
 
     def test_le_parcours_mene_au_lecteur(self):
         html = render_doc(BY_KEY['dev-parcours'])['html']
-        for cle in PARCOURS:
+        for cle in READING_PATH:
             self.assertIn(reverse('common:doc_read', args=[cle]), html, cle)
 
 

@@ -40,19 +40,19 @@ import re
 from typing import Callable, List, Optional
 
 from .doc_sections import _TAG as _TAG_SECTION
-from .doc_sections import ETATS, sections
+from .doc_sections import STATES, sections
 
 HEADER = ("<!-- WAMA:GENERE({key}) — généré par « python manage.py doc_facts » depuis le plan "
           "de wama/common/docs_catalog.py ; ne pas éditer -->")
 #: Trace d'un fragment RETENU par la porte, laissée dans le fichier produit (invisible à la lecture).
-PORTE_FERMEE = "<!-- WAMA:PORTE-FERMEE({ou}) : {raison} -->"
+GATE_CLOSED_MARK = "<!-- WAMA:PORTE-FERMEE({ou}) : {raison} -->"
 #: = `docs_catalog.USER` — valeur de DONNÉE, écrite dans les balises des docs.
 USER = 'utilisateur'
 
 _LIEN = re.compile(r'(\]\()([^)\s#]+)((?:#[^)\s]*)?\))')
 #: Le numéro d'une section de la doc de construction (« 9.1 », « 9quinquies.2 ») : un repère de
 #: la SOURCE, qui ne numérote rien dans la doc dérivée.
-_NUMERO = re.compile(r'^\d+[a-z]*(?:\.\d+[a-z]*)*\.?\s+')
+_SECTION_NUMBER = re.compile(r'^\d+[a-z]*(?:\.\d+[a-z]*)*\.?\s+')
 _SCHEME = re.compile(r'^[a-z][a-z0-9+.\-]*:', re.I)
 
 
@@ -60,7 +60,7 @@ class PlanError(ValueError):
     """Un plan qui ne se construit pas — cassé, jamais approximé."""
 
 
-def porte_invalide(chemin: str) -> Optional[str]:
+def gate_unverifiable(chemin: str) -> Optional[str]:
     """Pourquoi une porte ne peut pas être VÉRIFIÉE (registre inconnu, ou sans fiches) ; `None`
     sinon. Ne lit aucune fiche : `check_docs` l'appelle sur tout le corpus."""
     from .registries import REGISTRIES
@@ -74,11 +74,11 @@ def porte_invalide(chemin: str) -> Optional[str]:
     return None
 
 
-def porte_fermee(chemin: str) -> Optional[str]:
+def gate_closed(chemin: str) -> Optional[str]:
     """Pourquoi le registre ne confirme PAS ce que la porte désigne ; `None` si elle est ouverte.
     Lève `PlanError` si la porte est invérifiable."""
     from .fact_tags import FactError, entries
-    invalide = porte_invalide(chemin)
+    invalide = gate_unverifiable(chemin)
     if invalide:
         raise PlanError(invalide)
     registre, cle, *champ = chemin.split('/')
@@ -112,11 +112,11 @@ def _relink(ligne: str, source_path: str, target_path: str) -> str:
 
 def excerpt_markdown(texte: str, section: str, audience: str, source_path: str,
                      target_path: str, title: str = '',
-                     porte: Optional[Callable[[str], Optional[str]]] = None) -> List[str]:
+                     gate: Optional[Callable[[str], Optional[str]]] = None) -> List[str]:
     """Les lignes markdown d'UN extrait : la section (et ses sous-sections destinées au même
     public), titres ramenés au niveau 2, balises retirées, liens recalés, source citée en pied.
 
-    `porte` : `chemin → raison de fermeture ou None` (`porte_fermee` en vrai, une fonction de
+    `gate` : `chemin → raison de fermeture ou None` (`gate_closed` en vrai, une fonction de
     test sinon). Requise dès que l'extrait est destiné à l'utilisateur."""
     secs, erreurs = sections(texte)
     if erreurs:
@@ -132,24 +132,24 @@ def excerpt_markdown(texte: str, section: str, audience: str, source_path: str,
     if audience not in s.attrs.get('audience', ()):
         raise PlanError(f"section « {section} » ({source_path}) non marquée pour « {audience} »")
 
-    def _retenue(attrs) -> Optional[str]:
+    def _withheld(attrs) -> Optional[str]:
         """Pourquoi un fragment n'entre PAS dans la doc utilisateur ; `None` s'il y entre."""
         if audience != USER:
             return None
         if attrs.get('nature') == 'intention':
             return (f"intention {attrs.get('etat', '')} — n'arrive chez l'utilisateur qu'une "
                     f"fois implémentée")
-        if porte is None:
+        if gate is None:
             raise PlanError("extrait pour l'utilisateur sans résolveur de porte")
         for chemin in attrs.get('porte', ()):
-            raison = porte(chemin)
+            raison = gate(chemin)
             if raison:
                 return f"porte {chemin} fermée — {raison}"
         return None
 
-    raison = _retenue(s.attrs)
+    raison = _withheld(s.attrs)
     if raison:
-        return [PORTE_FERMEE.format(ou=f"{source_path} — {s.title}", raison=raison), ""]
+        return [GATE_CLOSED_MARK.format(ou=f"{source_path} — {s.title}", raison=raison), ""]
 
     lignes = texte.splitlines()
     idx = secs.index(s)
@@ -161,10 +161,10 @@ def excerpt_markdown(texte: str, section: str, audience: str, source_path: str,
             continue                                   # déjà sortie avec un parent
         if audience in t.attrs.get('audience', ()):
             # Une sous-section qui HÉRITE partage le verdict de son parent, déjà rendu.
-            raison = None if t.inherited else _retenue(t.attrs)
+            raison = None if t.inherited else _withheld(t.attrs)
             if raison is None:
                 continue
-            retenues[t.line] = PORTE_FERMEE.format(ou=f"{source_path} — {t.title}", raison=raison)
+            retenues[t.line] = GATE_CLOSED_MARK.format(ou=f"{source_path} — {t.title}", raison=raison)
         # Sortie de l'extrait, avec ses propres sous-sections : marquée pour un AUTRE public, ou
         # retenue par la porte.
         fin_t = next((u.line for u in enfants[k + 1:] if u.level <= t.level), fin)
@@ -175,7 +175,7 @@ def excerpt_markdown(texte: str, section: str, audience: str, source_path: str,
     out = [f"## {title or s.title}", ""]
     if s.attrs.get('nature') == 'intention':
         etat = s.attrs.get('etat', '')
-        out += [f"> {etat} **Intention** ({ETATS.get(etat, '')}) — ce que décrit cette section "
+        out += [f"> {etat} **Intention** ({STATES.get(etat, '')}) — ce que décrit cette section "
                 f"n'est pas encore implémenté.", ""]
     corps = []
     dans_note = False
@@ -197,7 +197,7 @@ def excerpt_markdown(texte: str, section: str, audience: str, source_path: str,
         if n in titres:
             t = titres[n]
             ligne = ('#' * max(2, min(6, t.level + decalage)) + ' '
-                     + (_NUMERO.sub('', t.title) or t.title))
+                     + (_SECTION_NUMBER.sub('', t.title) or t.title))
         corps.append(_relink(ligne, source_path, target_path))
     out += ['\n'.join(corps).strip('\n'), ""]
 
@@ -228,7 +228,7 @@ def build(doc) -> str:
             except OSError as e:
                 raise PlanError(f"{source.path} illisible : {e}")
             out += excerpt_markdown(texte, etape.section, doc.audience, source.path, doc.path,
-                                    etape.title, porte=porte_fermee)
+                                    etape.title, gate=gate_closed)
         elif isinstance(etape, Facts):
             module, _, fonction = etape.generator.partition(':')
             try:

@@ -25,7 +25,7 @@ le lecteur de doc :
     porte    : registre/clé, ou registre/clé/champ — plusieurs séparées par des virgules. Ce que
                la section DÉCRIT, tel qu'un registre le confirme (ROADMAP §25.1 ⑤, 2026-09-14).
                OBLIGATOIRE dès que la section parle à l'utilisateur : `doc_plans` ne l'y fait
-               entrer que porte ouverte (`doc_plans.porte_fermee`).
+               entrer que porte ouverte (`doc_plans.gate_closed`).
 
     Les quatre premières clés sont obligatoires. Une sous-section sans balise HÉRITE de celle de
     son parent — porte comprise ; une sous-section qui se redéclare redéclare TOUT.
@@ -57,12 +57,12 @@ TYPES = {
     'explication': "faire comprendre le pourquoi",
 }
 NATURES = {'constat': "affirme l'état présent", 'intention': "vise une implémentation future"}
-ETATS = {'✅': 'livré', '🔄': 'en cours', '⏳': 'en attente'}
+STATES = {'✅': 'livré', '🔄': 'en cours', '⏳': 'en attente'}
 #: La double vérification : ce que chaque nature admet comme état.
-ETATS_PAR_NATURE = {'constat': {'✅'}, 'intention': {'🔄', '⏳'}}
-CLES = ('audience', 'type', 'nature', 'etat')
-CLES_OPTIONNELLES = ('porte',)
-_PORTE = re.compile(r'^[a-z_]+/[\w.\-]+(?:/[\w.\-]+)?$')
+STATES_BY_NATURE = {'constat': {'✅'}, 'intention': {'🔄', '⏳'}}
+KEYS = ('audience', 'type', 'nature', 'etat')
+OPTIONAL_KEYS = ('porte',)
+_GATE = re.compile(r'^[a-z_]+/[\w.\-]+(?:/[\w.\-]+)?$')
 
 
 @dataclass
@@ -90,9 +90,9 @@ def parse_attrs(raw: str) -> Tuple[Dict[str, object], List[str]]:
         cle, valeur = cle.strip(), valeur.strip()
         if not sep or not valeur:
             erreurs.append(f"« {morceau} » : attendu clé=valeur")
-        elif cle not in CLES + CLES_OPTIONNELLES:
+        elif cle not in KEYS + OPTIONAL_KEYS:
             erreurs.append(f"clé « {cle} » inconnue (attendu : "
-                           f"{', '.join(CLES + CLES_OPTIONNELLES)})")
+                           f"{', '.join(KEYS + OPTIONAL_KEYS)})")
         elif cle in attrs:
             erreurs.append(f"clé « {cle} » en double")
         else:
@@ -107,7 +107,7 @@ def parse_attrs(raw: str) -> Tuple[Dict[str, object], List[str]]:
         attrs['audience'] = publics
     if 'porte' in attrs:
         portes = tuple(p.strip() for p in str(attrs['porte']).split(',') if p.strip())
-        mauvaises = [p for p in portes if not _PORTE.match(p)]
+        mauvaises = [p for p in portes if not _GATE.match(p)]
         if mauvaises or not portes:
             erreurs.append(f"porte {', '.join(mauvaises) or '(vide)'} : attendu registre/clé "
                            f"ou registre/clé/champ")
@@ -117,15 +117,15 @@ def parse_attrs(raw: str) -> Tuple[Dict[str, object], List[str]]:
         # chez l'utilisateur sur la seule foi du texte — ce que la porte existe pour empêcher.
         erreurs.append("section pour l'utilisateur sans porte (porte=registre/clé) : rien ne "
                        "confirmerait ce qu'elle décrit")
-    for cle, vocabulaire in (('type', TYPES), ('nature', NATURES), ('etat', ETATS)):
+    for cle, vocabulaire in (('type', TYPES), ('nature', NATURES), ('etat', STATES)):
         if cle in attrs and attrs[cle] not in vocabulaire:
             erreurs.append(f"{cle} « {attrs[cle]} » : attendu {' · '.join(vocabulaire)}")
-    manquantes = [c for c in CLES if c not in attrs]
+    manquantes = [c for c in KEYS if c not in attrs]
     if manquantes:
         erreurs.append(f"clé(s) manquante(s) : {', '.join(manquantes)}")
 
     nature, etat = attrs.get('nature'), attrs.get('etat')
-    if nature in ETATS_PAR_NATURE and etat in ETATS and etat not in ETATS_PAR_NATURE[nature]:
+    if nature in STATES_BY_NATURE and etat in STATES and etat not in STATES_BY_NATURE[nature]:
         if nature == 'constat':
             erreurs.append(f"constat {etat} : un constat affirme l'état PRÉSENT — il est ✅, "
                            f"ou c'est une intention")
