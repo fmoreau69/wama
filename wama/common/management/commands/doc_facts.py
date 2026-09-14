@@ -442,7 +442,9 @@ def _fait_arborescence_docs():
     lignes.append("- **`docs/dev/`** — la doc DÉVELOPPEUR, GÉNÉRÉE depuis la doc de construction "
                   "et les registres : ne pas éditer")
     lignes += ["  " + _item(d) for d in DOCS if d.path.startswith('docs/dev/')]
-    lignes.append("- **`docs/utilisateur/`** — la doc UTILISATEUR, générée elle aussi : à venir")
+    lignes.append("- **`docs/utilisateur/`** — la doc UTILISATEUR, générée elle aussi et filtrée par "
+                  "la porte registre : n'y entre que ce qui existe")
+    lignes += ["  " + _item(d) for d in DOCS if d.path.startswith('docs/utilisateur/')]
     lignes.append("- **Docs de module** — ils restent à côté de leur code")
     lignes += ["  " + _item(d) for d in DOCS
                if d.path and '/' in d.path and not d.path.startswith('docs/')]
@@ -527,6 +529,11 @@ class Command(BaseCommand):
                     perimes.append((d.key, d.path, 'plan cassé'))
                     self.stdout.write(self.style.ERROR(f"doc {d.key} ({d.path}) : CASSÉ — {e}"))
                     continue
+                # Un fragment retenu par la porte n'est pas un défaut : il attend son
+                # implémentation. On le dit, pour qu'il ne passe pas inaperçu.
+                retenus = frais.count('<!-- WAMA:PORTE-FERMEE(')
+                if retenus:
+                    self.stdout.write(f"doc {d.key}: {retenus} fragment(s) retenu(s) par la porte")
                 courant = (chemin.read_text(encoding='utf-8').replace('\r\n', '\n')
                            if chemin.is_file() else None)
                 if courant == frais:

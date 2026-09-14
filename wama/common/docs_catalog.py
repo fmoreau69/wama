@@ -269,6 +269,14 @@ DOCS: Tuple[Doc, ...] = (
         "docstrings lues dans le code.",
         audience=DEVELOPER,
         plan=(Facts('wama.common.dev_docs:briques_api'),)),
+    # ── UTILISATEUR — DÉRIVÉE par plan, filtrée par la PORTE registre (ROADMAP §25.1 ⑤) ──
+    Doc('user-transcriber-correction', 'docs/utilisateur/transcriber-correction.md',
+        'Transcriber — corriger une transcription', 'mondes',
+        "L'éditeur de correction : ses deux modes, ses raccourcis, la bande de qualité. N'y "
+        "entre que ce que le registre des applications confirme — la vision reste dans la spec.",
+        audience=USER,
+        plan=(Excerpt('transcriber-correction', '9. Corriger une transcription — le guide',
+                      title='Corriger une transcription'),)),
 )
 
 BY_KEY: Dict[str, Doc] = {d.key: d for d in DOCS}

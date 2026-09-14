@@ -458,13 +458,15 @@ Désaccord entre deux sorties du même travail — signal objectif, sans avis de
 
 ### Docs dérivées par plan
 
-Un PLAN déclaré dans le catalogue des docs (extraits de sections marquées + faits de registre) produit un `.md` versionné, écrit par `doc_facts` ; `--check` refuse un fichier qui n'est plus ce que son plan produit — la confrontation doc → doc, gratuite parce que la dérivation est mécanique
+Un PLAN déclaré dans le catalogue des docs (extraits de sections marquées + faits de registre) produit un `.md` versionné, écrit par `doc_facts` ; `--check` refuse un fichier qui n'est plus ce que son plan produit — la confrontation doc → doc, gratuite parce que la dérivation est mécanique. Pour l'UTILISATEUR, une PORTE registre retient les intentions et ce que le registre ne confirme pas
 
 - **Domicile** : `wama/common/doc_plans.py` · **doc** : [docs/construction/suivi/ROADMAP.md §25](../construction/suivi/ROADMAP.md)
 - **Module** : Les docs DÉRIVÉES, construites par PLAN (ROADMAP.md §25.1 ③).
-- **API publique** (3) :
+- **API publique** (5) :
   - `class PlanError(ValueError)` — Un plan qui ne se construit pas — cassé, jamais approximé.
-  - `excerpt_markdown(texte: str, section: str, audience: str, source_path: str, target_path: str, title: str='') -> List[str]` — Les lignes markdown d'UN extrait : la section (et ses sous-sections destinées au même
+  - `porte_invalide(chemin: str) -> Optional[str]` — Pourquoi une porte ne peut pas être VÉRIFIÉE (registre inconnu, ou sans fiches) ; `None`
+  - `porte_fermee(chemin: str) -> Optional[str]` — Pourquoi le registre ne confirme PAS ce que la porte désigne ; `None` si elle est ouverte.
+  - `excerpt_markdown(texte: str, section: str, audience: str, source_path: str, target_path: str, title: str='', porte: Optional[Callable[[str], Optional[str]]]=No…` — Les lignes markdown d'UN extrait : la section (et ses sous-sections destinées au même
   - `build(doc) -> str` — Le `.md` complet d'une doc dérivée, tel que son plan le produit AUJOURD'HUI.
 
 ### Envoyer vers (chaînage progressif, hors studio)

@@ -24,7 +24,7 @@ SOURCE = "\n".join([
     "hérité",
     "",
     "### A.2",
-    "<!-- WAMA:SECTION(audience=utilisateur; type=guide; nature=constat; etat=✅) -->",
+    "<!-- WAMA:SECTION(audience=utilisateur; type=guide; nature=constat; etat=✅; porte=apps/x) -->",
     "pour l'utilisateur seulement",
     "",
     "## B",
@@ -63,6 +63,20 @@ class ExtraitTest(SimpleTestCase):
     def test_une_intention_est_annoncee(self):
         self.assertIn('⏳ **Intention**', self._extrait('B'))
 
+    def test_notes_de_construction_et_numeros_ne_passent_pas(self):
+        source = "\n".join([
+            "## 4. Sujet", f"<!-- WAMA:SECTION({DEV}) -->",
+            "<!-- vérifié le 2026-09-14 contre", "     wama/x.py -->",
+            "Il y a <!-- WAMA:FAIT(registres) -->15<!-- /WAMA:FAIT --> registres.",
+            "<!-- WAMA:FAIT(registres) -->15<!-- /WAMA:FAIT --> en tête de ligne.",
+            "### 4.1 Détail", "texte", "### 9quinquies.2 LE CRITÈRE", "texte"]) + "\n"
+        t = '\n'.join(excerpt_markdown(source, '4. Sujet', DEVELOPER, 's.md', 'd.md'))
+        self.assertNotIn('vérifié', t)
+        self.assertNotIn('wama/x.py', t)
+        self.assertEqual(t.count('WAMA:FAIT(registres)'), 2, "une balise de fait passe")
+        self.assertIn('\n### Détail\n', t)
+        self.assertIn('\n### LE CRITÈRE\n', t)
+
     def test_le_titre_peut_etre_remplace(self):
         self.assertTrue(self._extrait('A', title='Autre titre').startswith('## Autre titre\n'))
 
@@ -78,6 +92,80 @@ class ExtraitTest(SimpleTestCase):
         with self.assertRaises(PlanError):
             excerpt_markdown("# T\n<!-- WAMA:SECTION(audience=developpeur) -->\n", 'T',
                              DEVELOPER, 's.md', 'd.md')                          # marquage invalide
+
+
+USR = "audience=utilisateur; type=guide; nature={nature}; etat={etat}; porte={porte}"
+SOURCE_USER = "\n".join([
+    "# Guide",
+    "",
+    "## U",
+    f"<!-- WAMA:SECTION({USR.format(nature='constat', etat='✅', porte='apps/x')}) -->",
+    "Texte U.",
+    "",
+    "### U.1",
+    "hérité",
+    "",
+    "### U.2",
+    f"<!-- WAMA:SECTION({USR.format(nature='intention', etat='⏳', porte='apps/x')}) -->",
+    "pas encore",
+    "",
+    "### U.3",
+    f"<!-- WAMA:SECTION({USR.format(nature='constat', etat='✅', porte='apps/y')}) -->",
+    "le registre ne le connaît pas",
+    "",
+    "## V",
+    "<!-- WAMA:SECTION(audience=utilisateur,developpeur; type=explication; nature=intention; "
+    "etat=🔄; porte=apps/x) -->",
+    "une vision",
+]) + "\n"
+
+
+def _porte_de_test(chemin):
+    return None if chemin == 'apps/x' else 'absent du registre'
+
+
+class PorteTest(TestCase):
+    """⑤ — n'entre chez l'utilisateur que ce que le registre confirme, et jamais une intention."""
+
+    def _extrait(self, section, audience=USER):
+        return '\n'.join(excerpt_markdown(SOURCE_USER, section, audience, 'SRC.md',
+                                          'docs/utilisateur/X.md', porte=_porte_de_test))
+
+    def test_porte_ouverte_le_fragment_entre_sans_ce_qui_est_retenu(self):
+        t = self._extrait('U')
+        self.assertIn('Texte U.', t)
+        self.assertIn('hérité', t)
+        self.assertNotIn('pas encore', t, "une intention n'arrive pas chez l'utilisateur")
+        self.assertNotIn('le registre ne le connaît pas', t, "porte fermée")
+        self.assertEqual(t.count('WAMA:PORTE-FERMEE('), 2, "chaque retenue laisse sa trace")
+
+    def test_une_intention_est_retenue_pour_l_utilisateur_et_annoncee_au_developpeur(self):
+        pour_user = self._extrait('V')
+        self.assertNotIn('une vision', pour_user)
+        self.assertIn('WAMA:PORTE-FERMEE(SRC.md — V) : intention', pour_user)
+        pour_dev = self._extrait('V', audience=DEVELOPER)
+        self.assertIn('une vision', pour_dev)
+        self.assertIn('**Intention**', pour_dev)
+
+    def test_la_trace_est_invisible_a_la_lecture(self):
+        from .docs_catalog import render_markdown
+        self.assertNotIn('PORTE-FERMEE', render_markdown(self._extrait('U'))['html'])
+
+    def test_sans_resolveur_un_extrait_utilisateur_est_refuse(self):
+        with self.assertRaises(PlanError):
+            excerpt_markdown(SOURCE_USER, 'U', USER, 's.md', 'd.md')
+
+    def test_la_vraie_porte_lit_le_registre(self):
+        from .doc_plans import porte_fermee
+        from .registries import REGISTRIES
+        self.assertIsNone(porte_fermee('apps/transcriber'))
+        self.assertIsNone(porte_fermee('apps/transcriber/has_batch'))
+        self.assertIn('absent', porte_fermee('apps/app_qui_n_existe_pas'))
+        sans_fiches = next(k for k, r in REGISTRIES.items() if r.entries is None)
+        for invérifiable in ('registre_bidon/x', f'{sans_fiches}/x',
+                             'apps/transcriber/champ_qui_n_existe_pas'):
+            with self.assertRaises(PlanError, msg=invérifiable):
+                porte_fermee(invérifiable)
 
 
 class PiloteTest(TestCase):
@@ -102,6 +190,13 @@ class PiloteTest(TestCase):
         for doc in derivees:
             sur_disque = file_of(doc).read_text(encoding='utf-8').replace('\r\n', '\n')
             self.assertEqual(sur_disque, build(doc), doc.path)
+
+    def test_le_pilote_utilisateur_retient_la_vision_de_guidage(self):
+        texte = build(BY_KEY['user-transcriber-correction'])
+        self.assertIn('## Corriger une transcription', texte)
+        self.assertIn('`Ctrl+Entrée`', texte)
+        self.assertNotIn('barre de guidage', texte, "intention : elle reste dans la spec")
+        self.assertIn('WAMA:PORTE-FERMEE(', texte)
 
     def test_un_plan_casse_est_refuse(self):
         for plan in ((Excerpt('inconnu', 'x'),),

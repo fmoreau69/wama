@@ -316,10 +316,20 @@ class Command(BaseCommand):
             # double vérification nature × état (un constat est ✅, une intention 🔄/⏳). Une
             # balise qu'on ne sait pas lire ferait sortir la section des docs dérivées EN SILENCE.
             if 'WAMA:SECTION(' in texte:
+                from wama.common.doc_plans import porte_invalide
                 from wama.common.doc_sections import sections as _sections
                 verifies += 1
-                for num, msg in _sections(texte)[1]:
+                _secs, _errs = _sections(texte)
+                for num, msg in _errs:
                     casses.append((nom, num, f"section : {msg}"))
+                # Une PORTE (⑤, 2026-09-14) qui vise un registre inconnu ou sans fiches ne
+                # confirmera jamais rien : le fragment resterait retenu sans qu'on sache pourquoi.
+                for _s in _secs:
+                    if not _s.inherited:
+                        for _p in _s.attrs.get('porte', ()):
+                            _m = porte_invalide(_p)
+                            if _m:
+                                casses.append((nom, _s.line, f"section : {_m}"))
 
             # Lignes NEUTRALISÉES pour la famille « chiffre » : un bloc de code montre une
             # commande (ses chiffres sont des arguments), un bloc `WAMA:FAITS` est généré donc

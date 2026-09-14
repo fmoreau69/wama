@@ -15,31 +15,86 @@ LA CONFRONTATION DOC → DOC EST GRATUITE ICI (④)
     La dérivation est MÉCANIQUE : une source modifiée change le résultat, donc `--check` le voit.
     Une empreinte des sources ne servirait que si un humain ou un modèle réécrivait le texte.
 
+LA PORTE REGISTRE — ce qui entre dans une doc UTILISATEUR (⑤, 2026-09-14)
+
+    La doc de construction porte la vision ENTIÈRE ; l'utilisateur ne doit lire que ce qui existe.
+    Une section destinée à l'utilisateur déclare donc sa porte (`porte=registre/clé`, ou
+    `registre/clé/champ` pour un champ qui doit être vrai) : le fragment n'entre dans la doc
+    utilisateur que si le registre confirme ce qu'il décrit — et jamais s'il est une INTENTION.
+    Retenu n'est pas cassé : le fragment attend son implémentation, et le fichier produit le dit
+    en commentaire (`WAMA:PORTE-FERMEE`), invisible à la lecture. Une porte INVÉRIFIABLE —
+    registre inconnu, ou qui ne déclare pas ses fiches — est cassée, elle. Le développeur lit les
+    intentions, annoncées comme telles : la porte ne filtre que la doc utilisateur.
+
 CE QUI EST REFUSÉ — une doc dérivée ne se construit jamais « à peu près »
 
     Doc source inconnu, section introuvable ou ambiguë, section non marquée pour ce public,
-    marquage invalide dans la source, générateur de faits introuvable : `PlanError`, que
-    `doc_facts` compte comme CASSÉ.
+    marquage invalide dans la source, générateur de faits introuvable, porte invérifiable :
+    `PlanError`, que `doc_facts` compte comme CASSÉ.
 """
 from __future__ import annotations
 
 import importlib
 import posixpath
 import re
-from typing import List
+from typing import Callable, List, Optional
 
 from .doc_sections import _TAG as _TAG_SECTION
 from .doc_sections import ETATS, sections
 
 HEADER = ("<!-- WAMA:GENERE({key}) — généré par « python manage.py doc_facts » depuis le plan "
           "de wama/common/docs_catalog.py ; ne pas éditer -->")
+#: Trace d'un fragment RETENU par la porte, laissée dans le fichier produit (invisible à la lecture).
+PORTE_FERMEE = "<!-- WAMA:PORTE-FERMEE({ou}) : {raison} -->"
+#: = `docs_catalog.USER` — valeur de DONNÉE, écrite dans les balises des docs.
+USER = 'utilisateur'
 
 _LIEN = re.compile(r'(\]\()([^)\s#]+)((?:#[^)\s]*)?\))')
+#: Le numéro d'une section de la doc de construction (« 9.1 », « 9quinquies.2 ») : un repère de
+#: la SOURCE, qui ne numérote rien dans la doc dérivée.
+_NUMERO = re.compile(r'^\d+[a-z]*(?:\.\d+[a-z]*)*\.?\s+')
 _SCHEME = re.compile(r'^[a-z][a-z0-9+.\-]*:', re.I)
 
 
 class PlanError(ValueError):
     """Un plan qui ne se construit pas — cassé, jamais approximé."""
+
+
+def porte_invalide(chemin: str) -> Optional[str]:
+    """Pourquoi une porte ne peut pas être VÉRIFIÉE (registre inconnu, ou sans fiches) ; `None`
+    sinon. Ne lit aucune fiche : `check_docs` l'appelle sur tout le corpus."""
+    from .registries import REGISTRIES
+    registre = chemin.split('/')[0]
+    r = REGISTRIES.get(registre)
+    if r is None:
+        return f"porte « {chemin} » : registre « {registre} » inconnu"
+    if r.entries is None:
+        return (f"porte « {chemin} » : le registre « {registre} » ne déclare pas ses fiches "
+                f"(`Registry.entries`) — il ne peut rien confirmer")
+    return None
+
+
+def porte_fermee(chemin: str) -> Optional[str]:
+    """Pourquoi le registre ne confirme PAS ce que la porte désigne ; `None` si elle est ouverte.
+    Lève `PlanError` si la porte est invérifiable."""
+    from .fact_tags import FactError, entries
+    invalide = porte_invalide(chemin)
+    if invalide:
+        raise PlanError(invalide)
+    registre, cle, *champ = chemin.split('/')
+    try:
+        fiches = entries(registre)
+    except FactError as e:
+        raise PlanError(f"porte « {chemin} » : {e}")
+    if cle not in fiches:
+        return f"« {cle} » absent du registre « {registre} »"
+    if champ:
+        fiche = fiches[cle]
+        if champ[0] not in fiche:
+            raise PlanError(f"porte « {chemin} » : champ « {champ[0]} » absent de la fiche")
+        if not fiche[champ[0]]:
+            return f"{chemin} est faux"
+    return None
 
 
 def _relink(ligne: str, source_path: str, target_path: str) -> str:
@@ -56,9 +111,13 @@ def _relink(ligne: str, source_path: str, target_path: str) -> str:
 
 
 def excerpt_markdown(texte: str, section: str, audience: str, source_path: str,
-                     target_path: str, title: str = '') -> List[str]:
+                     target_path: str, title: str = '',
+                     porte: Optional[Callable[[str], Optional[str]]] = None) -> List[str]:
     """Les lignes markdown d'UN extrait : la section (et ses sous-sections destinées au même
-    public), titres ramenés au niveau 2, balises retirées, liens recalés, source citée en pied."""
+    public), titres ramenés au niveau 2, balises retirées, liens recalés, source citée en pied.
+
+    `porte` : `chemin → raison de fermeture ou None` (`porte_fermee` en vrai, une fonction de
+    test sinon). Requise dès que l'extrait est destiné à l'utilisateur."""
     secs, erreurs = sections(texte)
     if erreurs:
         raise PlanError(f"{source_path} : marquage invalide ligne {erreurs[0][0]} — "
@@ -73,16 +132,43 @@ def excerpt_markdown(texte: str, section: str, audience: str, source_path: str,
     if audience not in s.attrs.get('audience', ()):
         raise PlanError(f"section « {section} » ({source_path}) non marquée pour « {audience} »")
 
+    def _retenue(attrs) -> Optional[str]:
+        """Pourquoi un fragment n'entre PAS dans la doc utilisateur ; `None` s'il y entre."""
+        if audience != USER:
+            return None
+        if attrs.get('nature') == 'intention':
+            return (f"intention {attrs.get('etat', '')} — n'arrive chez l'utilisateur qu'une "
+                    f"fois implémentée")
+        if porte is None:
+            raise PlanError("extrait pour l'utilisateur sans résolveur de porte")
+        for chemin in attrs.get('porte', ()):
+            raison = porte(chemin)
+            if raison:
+                return f"porte {chemin} fermée — {raison}"
+        return None
+
+    raison = _retenue(s.attrs)
+    if raison:
+        return [PORTE_FERMEE.format(ou=f"{source_path} — {s.title}", raison=raison), ""]
+
     lignes = texte.splitlines()
     idx = secs.index(s)
     fin = next((t.line for t in secs[idx + 1:] if t.level <= s.level), len(lignes) + 1)
     enfants = [t for t in secs[idx + 1:] if t.line < fin]
-    exclues = set()
+    exclues, retenues = set(), {}
     for k, t in enumerate(enfants):
-        if audience not in t.attrs.get('audience', ()):
-            # Une sous-section marquée pour un AUTRE public sort de l'extrait, avec les siennes.
-            fin_t = next((u.line for u in enfants[k + 1:] if u.level <= t.level), fin)
-            exclues.update(range(t.line, fin_t))
+        if t.line in exclues:
+            continue                                   # déjà sortie avec un parent
+        if audience in t.attrs.get('audience', ()):
+            # Une sous-section qui HÉRITE partage le verdict de son parent, déjà rendu.
+            raison = None if t.inherited else _retenue(t.attrs)
+            if raison is None:
+                continue
+            retenues[t.line] = PORTE_FERMEE.format(ou=f"{source_path} — {t.title}", raison=raison)
+        # Sortie de l'extrait, avec ses propres sous-sections : marquée pour un AUTRE public, ou
+        # retenue par la porte.
+        fin_t = next((u.line for u in enfants[k + 1:] if u.level <= t.level), fin)
+        exclues.update(range(t.line, fin_t))
     decalage = 2 - s.level
     titres = {t.line: t for t in enfants}
 
@@ -92,15 +178,26 @@ def excerpt_markdown(texte: str, section: str, audience: str, source_path: str,
         out += [f"> {etat} **Intention** ({ETATS.get(etat, '')}) — ce que décrit cette section "
                 f"n'est pas encore implémenté.", ""]
     corps = []
+    dans_note = False
     for n in range(s.line + 1, fin):
         if n in exclues:
+            if n in retenues:
+                corps.append(retenues[n])
             continue
         ligne = lignes[n - 1]
         if _TAG_SECTION.match(ligne):
             continue
+        # Un commentaire HTML de la source est une NOTE DE CONSTRUCTION (vérifié quand, contre
+        # quel fichier) : invisible partout, il ne concerne pas les publics. Les balises `WAMA:`
+        # (faits, blocs générés) passent, elles portent du contenu.
+        nue = ligne.lstrip()
+        if dans_note or (nue.startswith('<!--') and not nue.startswith('<!-- WAMA:')):
+            dans_note = '-->' not in ligne
+            continue
         if n in titres:
             t = titres[n]
-            ligne = '#' * max(2, min(6, t.level + decalage)) + ' ' + t.title
+            ligne = ('#' * max(2, min(6, t.level + decalage)) + ' '
+                     + (_NUMERO.sub('', t.title) or t.title))
         corps.append(_relink(ligne, source_path, target_path))
     out += ['\n'.join(corps).strip('\n'), ""]
 
@@ -131,7 +228,7 @@ def build(doc) -> str:
             except OSError as e:
                 raise PlanError(f"{source.path} illisible : {e}")
             out += excerpt_markdown(texte, etape.section, doc.audience, source.path, doc.path,
-                                    etape.title)
+                                    etape.title, porte=porte_fermee)
         elif isinstance(etape, Facts):
             module, _, fonction = etape.generator.partition(':')
             try:
