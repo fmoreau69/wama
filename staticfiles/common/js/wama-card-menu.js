@@ -22,12 +22,13 @@
  *     l'entrée n'apparaît pas — même contrat de non-collision que le glisser-déposer :
  *     *ce qui n'est pas déclaré n'existe pas.*
  *
- * ⚠ POURQUOI PAS UN MENU TIERS. Celui du gestionnaire de fichiers est le `vakata-context` de
- * jsTree, rhabillé par des `!important` (`filemanager.css`) — il ne peut pas s'uniformiser
- * parce que ce n'est pas un composant WAMA. Celui-ci en est un ; le filemanager pourra y
- * migrer (jsTree sait déléguer son `contextmenu`).
+ * ⚠ POURQUOI PAS UN MENU TIERS. Celui du gestionnaire de fichiers était le `vakata-context` de
+ * jsTree, rhabillé par des `!important` — il ne pouvait pas s'uniformiser parce que ce n'était
+ * pas un composant WAMA. ✅ Migré le 2026-09-14 : l'arbre a quitté le plugin `contextmenu` de
+ * jsTree et ouvre CE menu par `WamaCardMenu.ouvrir` (`filemanager.js:bindContextMenu`).
  *
- * Montage AUTOMATIQUE sur les files `[data-wama-dnd]`. Aucune page n'écrit de JS.
+ * Montage AUTOMATIQUE sur les files `[data-wama-dnd]`. Aucune page n'écrit de JS. Toute autre
+ * surface (l'arbre de fichiers) appelle `ouvrir(x, y, entrees, titre)` avec ses propres entrées.
  */
 (function (global) {
     'use strict';
@@ -367,12 +368,33 @@
     }
 
     // ── Rendu du menu ────────────────────────────────────────────────────────────────────
-    var ouvert = null;
+    //
+    // Une PILE de menus : [racine, sous-menu, sous-sous-menu…]. Un sous-menu s'ouvre À CÔTÉ de
+    // son parent, qui RESTE ouvert (retour de Fabien, 2026-09-14 : le sous-menu s'ouvrait au
+    // clic et REMPLAÇAIT son parent — « il apparaît après fermeture du menu contextuel »). Il
+    // s'ouvre au SURVOL, après un court délai d'intention, et aussi au CLIC (tactile, clavier).
+    var pile = [];
+    var minuteur = null;
+    //: Délai d'intention au survol (ms) : rejoindre un sous-menu en diagonale fait traverser
+    //: une entrée voisine, qui ne doit pas basculer sur SON sous-menu au passage.
+    var DELAI_SURVOL = 140;
 
-    function fermer() {
-        if (!ouvert) return;
-        if (ouvert.parentNode) ouvert.parentNode.removeChild(ouvert);
-        ouvert = null;
+    /** Referme les menus à partir de ce niveau (0 = tout) et éteint l'entrée qui les portait. */
+    function fermerDepuis(niveau) {
+        clearTimeout(minuteur);
+        pile.splice(niveau).forEach(function (m) {
+            if (m.parentNode) m.parentNode.removeChild(m);
+        });
+        var parent = pile[niveau - 1];
+        if (parent) {
+            $$('.wama-cm-ouvert', parent).forEach(function (b) { b.classList.remove('wama-cm-ouvert'); });
+        }
+    }
+
+    function fermer() { fermerDepuis(0); }
+
+    function dansUnMenu(noeud) {
+        return pile.some(function (m) { return m.contains(noeud); });
     }
 
     function ligne(e, i) {
@@ -396,8 +418,20 @@
             + '</button></li>';
     }
 
+    /** Crée l'élément d'un menu de ce niveau, sur `document.body`, et l'inscrit dans la pile. */
+    function creer(niveau) {
+        var el = document.createElement('div');
+        el.className = 'wama-card-menu' + (niveau ? ' wama-cm-sous' : '');
+        el.setAttribute('role', 'menu');
+        document.body.appendChild(el);
+        // Arriver dans un menu annule la bascule qu'a pu programmer l'entrée traversée en chemin.
+        el.addEventListener('mouseenter', function () { clearTimeout(minuteur); });
+        pile[niveau] = el;
+        return el;
+    }
+
     /**
-     * Ouvre un menu aux coordonnées données. `entrees` peut contenir des `sous` (un niveau).
+     * Ouvre un menu aux coordonnées données. `entrees` peut contenir des `sous`.
      *
      * Le menu est posé sur `document.body` et non dans la card : une card peut vivre dans un
      * conteneur à `overflow` (la file en mosaïque, le `.collapse` d'un lot), qui rognerait le
@@ -406,21 +440,64 @@
     function ouvrir(x, y, entrees, titre) {
         fermer();
         if (!entrees.length) return;
-        var el = document.createElement('div');
-        el.className = 'wama-card-menu';
-        el.setAttribute('role', 'menu');
-        document.body.appendChild(el);
-        remplir(el, entrees, titre);
+        var el = creer(0);
+        remplir(el, entrees, titre, 0);
 
         // Placement : on corrige APRÈS insertion, quand la taille réelle est connue — un menu
         // dimensionné à l'aveugle sort de l'écran en bas de page.
         var r = el.getBoundingClientRect();
-        var gx = Math.min(x, window.innerWidth - r.width - 8);
-        var gy = Math.min(y, window.innerHeight - r.height - 8);
-        el.style.left = Math.max(8, gx) + 'px';
-        el.style.top = Math.max(8, gy) + 'px';
-        ouvert = el;
+        el.style.left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8)) + 'px';
+        el.style.top = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
         return el;
+    }
+
+    /**
+     * Place un sous-menu contre le BORD de son menu parent — à droite, ou à gauche s'il n'y a pas
+     * la place —, à hauteur de l'entrée qui le porte. Ancré sur le bord du MENU et non sur celui
+     * de l'entrée : sinon il chevauche la marge intérieure du parent (5 px mesurés le 2026-09-14).
+     */
+    function placerSous(el, bouton) {
+        var rb = bouton.getBoundingClientRect();
+        var rp = (bouton.closest('.wama-card-menu') || bouton).getBoundingClientRect();
+        var r = el.getBoundingClientRect();
+        var x = rp.right + 2;
+        if (x + r.width > window.innerWidth - 8) x = rp.left - r.width - 2;
+        el.style.left = Math.max(8, x) + 'px';
+        el.style.top = Math.max(8, Math.min(rb.top - 6, window.innerHeight - r.height - 8)) + 'px';
+    }
+
+    /** Ouvre, au niveau donné, le sous-menu de l'entrée `e` portée par `bouton`. */
+    function ouvrirSous(bouton, e, niveau) {
+        clearTimeout(minuteur);
+        if (pile[niveau] && pile[niveau]._wamaDepuis === bouton) return;   // déjà le sien
+        fermerDepuis(niveau);
+        bouton.classList.add('wama-cm-ouvert');
+        var el = creer(niveau);
+        el._wamaDepuis = bouton;
+        remplir(el, e.sous, null, niveau);
+        placerSous(el, bouton);
+
+        // SOUS-MENU DIFFÉRÉ : `charger()` rend une promesse d'entrées. Le sous-menu s'ouvre TOUT
+        // DE SUITE sur « Recherche… » puis se remplit — un menu qui attend le réseau avant de
+        // s'afficher se lit comme un geste perdu.
+        if (typeof e.charger !== 'function') return;
+        e.charger().then(function (entrees) {
+            // Le sous-menu a pu être refermé (ou remplacé) entre-temps : on ne réécrit que CELUI
+            // qu'on a ouvert.
+            if (pile[niveau] !== el) return;
+            // ⚠ Le message de vide était FIGÉ à « Aucune app ne prend ce format » — le
+            // vocabulaire d'UN appelant (« Envoyer vers… ») dans la brique commune. Dès le 2ᵉ
+            // sous-menu (médiathèque, 2026-09-11) il devenait faux. L'appelant le dit désormais ;
+            // le repli garde l'existant intact.
+            var liste = entrees && entrees.length ? entrees
+                : [{ vide: true, libelle: e.videLibelle || "Aucune app ne prend ce format" }];
+            remplir(el, liste, null, niveau);
+            placerSous(el, bouton);          // la taille a changé : on replace
+        }).catch(function () {
+            if (pile[niveau] !== el) return;
+            remplir(el, [{ vide: true, libelle: 'Indisponible' }], null, niveau);
+            placerSous(el, bouton);
+        });
     }
 
     /**
@@ -429,39 +506,27 @@
      * Extrait d'`ouvrir` pour que le remplissage DIFFÉRÉ d'un sous-menu passe par le même code :
      * deux rendus auraient divergé au premier ajout de type d'entrée.
      */
-    function remplir(el, entrees, titre) {
+    function remplir(el, entrees, titre, niveau) {
         el.innerHTML = (titre ? '<div class="wama-cm-titre">' + echapper(titre) + '</div>' : '')
             + '<ul>' + entrees.map(ligne).join('') + '</ul>';
 
         $$('.wama-cm-item', el).forEach(function (b) {
             var e = entrees[parseInt(b.dataset.i, 10)];
             if (!e) return;
+            // SURVOL : après le délai d'intention, ouvre le sous-menu de cette entrée — ou
+            // referme celui qu'une entrée voisine avait ouvert.
+            b.addEventListener('mouseenter', function () {
+                clearTimeout(minuteur);
+                minuteur = setTimeout(function () {
+                    if (e.sous && !b.disabled) ouvrirSous(b, e, niveau + 1);
+                    else fermerDepuis(niveau + 1);
+                }, DELAI_SURVOL);
+            });
             if (e.sous) {
+                // CLIC : même effet, immédiat — le tactile et le clavier n'ont pas de survol.
                 b.addEventListener('click', function (ev) {
                     ev.stopPropagation();
-                    var rb = b.getBoundingClientRect();
-                    var sousMenu = ouvrir(rb.right - 4, rb.top, e.sous, e.libelle);
-                    // SOUS-MENU DIFFÉRÉ : `charger()` rend une promesse d'entrées. Le menu
-                    // s'ouvre TOUT DE SUITE sur « Recherche… » puis se remplit — un menu qui
-                    // attend le réseau avant de s'afficher se lit comme un clic perdu.
-                    if (typeof e.charger !== 'function' || !sousMenu) return;
-                    var pourCeMenu = sousMenu;
-                    e.charger().then(function (entrees) {
-                        // Le menu a pu être refermé (ou remplacé) entre-temps : on ne réécrit
-                        // que CELUI qu'on a ouvert.
-                        if (ouvert !== pourCeMenu || !pourCeMenu.parentNode) return;
-                        // ⚠ Le message de vide était FIGÉ à « Aucune app ne prend ce format » —
-                        // le vocabulaire d'UN appelant (« Envoyer vers… ») dans la brique
-                        // commune. Dès le 2ᵉ sous-menu (médiathèque, 2026-09-11) il devenait
-                        // faux. L'appelant le dit désormais ; le repli garde l'existant intact.
-                        var liste = entrees && entrees.length ? entrees
-                            : [{ vide: true,
-                                 libelle: e.videLibelle || "Aucune app ne prend ce format" }];
-                        remplir(pourCeMenu, liste, e.libelle);
-                    }).catch(function () {
-                        if (ouvert !== pourCeMenu || !pourCeMenu.parentNode) return;
-                        remplir(pourCeMenu, [{ vide: true, libelle: 'Indisponible' }], e.libelle);
-                    });
+                    ouvrirSous(b, e, niveau + 1);
                 });
                 return;
             }
@@ -549,13 +614,23 @@
         $$('[data-wama-dnd]').forEach(monter);
     }
 
-    document.addEventListener('click', function (ev) {
-        if (ouvert && !ouvert.contains(ev.target)) fermer();
+    // FERMETURE — sur un geste de l'UTILISATEUR hors des menus, jamais sur un simple défilement.
+    //
+    // ⚠ La brique écoutait `scroll` (en capture). Mesuré le 2026-09-14 par la pile d'appels du
+    // retrait : un clic droit dans l'arbre de fichiers donne le FOCUS à l'ancre, son conteneur
+    // défile de lui-même pour la montrer, et ce défilement PROGRAMMATIQUE refermait le menu 7 ms
+    // après son ouverture. Un `scroll` ne dit pas QUI a défilé ; `wheel` et `touchmove`, si.
+    // `mousedown` (et non `click`) : un menu se ferme quand on appuie ailleurs, comme partout.
+    document.addEventListener('mousedown', function (ev) {
+        if (pile.length && !dansUnMenu(ev.target)) fermer();
+    }, true);
+    ['wheel', 'touchmove'].forEach(function (type) {
+        window.addEventListener(type, function (ev) {
+            if (pile.length && !dansUnMenu(ev.target)) fermer();
+        }, { capture: true, passive: true });
     });
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fermer(); });
     window.addEventListener('resize', fermer);
-    // `capture` : un défilement DANS la file ne remonte pas jusqu'à window en bubbling.
-    window.addEventListener('scroll', fermer, true);
 
     global.WamaCardMenu = {
         autoInit: autoInit, ouvrir: ouvrir, fermer: fermer,

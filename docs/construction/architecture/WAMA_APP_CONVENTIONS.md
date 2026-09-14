@@ -2084,7 +2084,10 @@ Résultat : le volet droit devient **Import + Paramètres + Actions**, toujours 
 
 ### Import depuis le filemanager (menu contextuel)
 
-Le filemanager dispose d'un menu contextuel "Envoyer vers…" (submenu jstree).
+Le filemanager dispose d'un menu contextuel "Envoyer vers…". Depuis le 2026-09-14 c'est le menu
+COMMUN de WAMA (`WamaCardMenu`, `wama-card-menu.js`) — plus le `vakata-context` de jsTree : l'arbre
+n'a plus de plugin `contextmenu`, `filemanager.js:bindContextMenu` ouvre la brique au clic droit
+(sur l'ancre ET sur la ligne `wholerow`), et le sous-menu s'ouvre en cascade, au survol.
 Après import réussi, `filemanager.js` dispatche :
 
 ```javascript

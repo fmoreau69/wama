@@ -23,14 +23,17 @@
 
       /* Menu « Applications » : DÉFILE au lieu de déborder (constat Fabien 2026-09-03 —
          « s'il devient trop long, il n'y a pas de slider et les éléments risquent d'être
-         masqués »). Borné à la hauteur de la fenêtre moins le bandeau ; le sous-menu du bac
-         à sable reste replié par défaut, donc le cas nominal ne défile même pas. */
+         masqués »). Borné à la hauteur de la fenêtre moins le bandeau ; le bac à sable est
+         un sous-menu en CASCADE (14/09), donc sa longueur n'allonge pas ce menu. */
       .wama-apps-menu { max-height: calc(100vh - 70px); overflow-y: auto; overscroll-behavior: contain; }
       .wama-apps-menu::-webkit-scrollbar { width: 8px; }
       .wama-apps-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 4px; }
-      /* Chevron du sous-menu : suit l'état d'ouverture (aucune ligne de JS). */
-      .wama-apps-menu [data-bs-toggle="collapse"][aria-expanded="true"] .fa-chevron-down { transform: rotate(180deg); }
-      .wama-apps-menu [data-bs-toggle="collapse"] .fa-chevron-down { transition: transform .15s ease; }
+      /* Sous-menu en cascade : posé sous <body> par le script de `includes/header.html`, en
+         `fixed` — c'est ce qui le soustrait au rognage du menu qui défile. */
+      .dropdown-menu.wama-nav-sous-menu { position: fixed; margin: 0; z-index: 1085;
+                                          max-height: calc(100vh - 16px); overflow-y: auto; }
+      .wama-nav-sous > .dropdown-item.wama-nav-sous-ouvert { background-color: var(--bs-dropdown-link-hover-bg);
+                                                            color: var(--bs-dropdown-link-hover-color); }
     </style>
     <link href="{% static_v 'common/css/app_modern.css' %}" rel="stylesheet">
     <link href="{% static_v 'common/css/media-preview.css' %}" rel="stylesheet">

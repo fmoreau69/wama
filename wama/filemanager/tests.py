@@ -13,6 +13,7 @@ dans les applications mais pas dans le converter_01 »)
       - une source NON paramétrable ne dérive rien (refus nommé plutôt qu'un import dévié) ;
       - le menu suit le même portier que la page de la jumelle (dev-only).
 """
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -28,6 +29,69 @@ def _catalogue_avec_jumelle(source):
     return {**APP_CATALOG,
             'jumelle_99': {'label': 'Jumelle 99', 'generated_from': source,
                            'input_extensions': ('.txt',)}}
+
+
+# ── Le menu contextuel de l'ARBRE est la brique commune (2026-09-14) ──────────────────────
+#
+# Reporté le 2026-09-08 (« le filemanager pourra y migrer », `wama-card-menu.js`), fait le
+# 2026-09-14. Ce qui est tenu ici, et pourquoi chaque point : sans lui la migration se défait
+# sans erreur visible.
+REPO = Path(__file__).resolve().parents[2]
+FM_STATIC = ('filemanager/js/filemanager.js', 'filemanager/css/filemanager.css')
+
+
+def _sans_commentaires(texte):
+    """Retire `/* … */` et `// …` : un commentaire ne câble rien (il cite, il ne branche pas)."""
+    texte = re.sub(r'/\*.*?\*/', '', texte, flags=re.S)
+    return re.sub(r'(^|[^:\'"\\])//[^\n]*', r'\1', texte)
+
+
+def defauts_menu_de_l_arbre(js, css, smoke):
+    """Les écarts à « un seul menu contextuel dans WAMA » — [] si la migration tient.
+
+    Fonction de module et non méthode : la contre-épreuve la rejoue sur les fichiers de HEAD
+    d'avant la migration (elle doit y trouver des défauts, sinon elle ne garde rien).
+    """
+    defauts = []
+    code = _sans_commentaires(js)
+    plugins = re.search(r"'plugins'\s*:\s*\[([^\]]*)\]", code)
+    if not plugins:
+        defauts.append("liste des plugins jsTree introuvable dans filemanager.js")
+    elif 'contextmenu' in plugins.group(1):
+        defauts.append("le plugin jsTree 'contextmenu' est chargé : c'est lui qui rend le "
+                       "menu `vakata-context`, étranger au menu commun")
+    if 'WamaCardMenu.ouvrir(' not in code:
+        defauts.append("l'arbre n'ouvre pas le menu commun (`WamaCardMenu.ouvrir`)")
+    # Sans le plugin, `wholerow` ne relaie PLUS le clic droit de la ligne vers l'ancre : écouter
+    # l'ancre seule laisserait mort un clic droit posé sur la marge de la ligne.
+    if not re.search(r"on\(\s*'contextmenu'\s*,\s*'[^']*jstree-anchor[^']*jstree-wholerow"
+                     r"|on\(\s*'contextmenu'\s*,\s*'[^']*jstree-wholerow[^']*jstree-anchor", code):
+        defauts.append("le clic droit n'écoute pas les DEUX cibles (ancre ET ligne `wholerow`)")
+    if 'vakata-context' in re.sub(r'/\*.*?\*/', '', css, flags=re.S):
+        defauts.append("filemanager.css habille encore le menu `vakata-context`")
+    smoke_code = '\n'.join(ligne.split('#', 1)[0] for ligne in smoke.splitlines())
+    if 'vakata-context' in smoke_code:
+        defauts.append("le scénario nocturne `<app>.send_to` cherche encore le menu jsTree : "
+                       "il conclurait « aucun menu » sur un menu bien ouvert")
+    return defauts
+
+
+class MenuContextuelDeLArbreTests(SimpleTestCase):
+
+    def test_le_clic_droit_de_l_arbre_ouvre_le_menu_commun(self):
+        lire = lambda rel: (REPO / rel).read_text(encoding='utf-8')
+        self.assertEqual([], defauts_menu_de_l_arbre(
+            lire('wama/filemanager/static/' + FM_STATIC[0]),
+            lire('wama/filemanager/static/' + FM_STATIC[1]),
+            lire('wama/common/services/ui_smoke.py')))
+
+    def test_le_fichier_servi_est_celui_de_la_source(self):
+        # C'est `staticfiles/` qui est servi : une source corrigée et une copie périmée
+        # rendraient l'ancien menu sans que rien ne le dise.
+        for rel in FM_STATIC:
+            with self.subTest(rel=rel):
+                self.assertEqual((REPO / 'wama/filemanager/static' / rel).read_bytes(),
+                                 (REPO / 'staticfiles' / rel).read_bytes())
 
 
 class ImporteurDeriveTests(TestCase):

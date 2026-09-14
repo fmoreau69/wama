@@ -128,7 +128,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 | geste | depuis | forme |
 |---|---|---|
 | Partager… | 2026-09-08 | modale ; une card à la fois |
-| Envoyer vers… | 2026-09-08 | sous-menu **chargé au clic** |
+| Envoyer vers… | 2026-09-08 | sous-menu **chargé à l'ouverture** |
 | **Ajouter à la médiathèque…** | **2026-09-11** | sous-menu des **RÔLES** admissibles |
 | **Ajouter au RAG** | **2026-09-11** | action directe |
 
@@ -140,6 +140,16 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   RAG : il fallait ouvrir le volet pour le trouver. Les deux surfaces coexistent volontairement
   et appellent **le même endpoint** — l'inspecteur garde l'avantage de dire l'ÉTAT (« 3 fragments
   · en attente de vectorisation »), le menu celui d'être à un clic.
+- ⭐ **UN menu contextuel dans WAMA, en CASCADE** (2026-09-14, retour de Fabien). Un sous-menu
+  s'ouvre **à côté** de son parent, au survol (délai d'intention de 140 ms) et au clic ; le parent
+  reste ouvert et allumé. Il s'ouvrait au clic et **remplaçait** son parent. L'arbre de fichiers a
+  quitté le `vakata-context` de jsTree pour la même brique, et le groupe « Bac à sable » du menu
+  « Applications » est devenu un sous-menu déroulant du même comportement (plus d'accordéon qui
+  refermait le menu au clic).
+- ⚠ **Un menu se ferme sur un geste de l'UTILISATEUR, jamais sur un `scroll`.** Mesuré par la pile
+  d'appels du retrait : le clic droit dans l'arbre donne le focus à l'ancre, son conteneur défile de
+  lui-même, et l'écouteur `scroll` refermait le menu **7 ms** après son ouverture. Un `scroll` ne dit
+  pas QUI a défilé : la brique écoute `mousedown` hors menu, `wheel`, `touchmove`, Échap, `resize`.
 - ⚠ **Le message de sous-menu vide appartient à l'APPELANT** (`videLibelle`). Il était figé à
   « Aucune app ne prend ce format » — le vocabulaire d'« Envoyer vers… » dans la brique commune,
   qui devenait faux dès le 2ᵉ sous-menu.

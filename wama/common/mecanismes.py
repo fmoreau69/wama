@@ -311,10 +311,13 @@ MECANISMES = (
               "actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de "
               "`cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), "
               "les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une "
-              "route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus "
-              "DIFFÉRÉS (le menu s'ouvre sur « Recherche… » puis se remplit : il n'attend pas le "
-              "réseau). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur "
-              "à `overflow` qui le rognerait",
+              "route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en "
+              "CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS "
+              "(« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de "
+              "l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le "
+              "refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis "
+              "`filemanager.js`, 2026-09-14). ⚠ Le menu est posé sur `document.body` : une card "
+              "vit dans un conteneur à `overflow` qui le rognerait",
               'wama/common/static/common/js/wama-card-menu.js', 'docs/construction/ui/CARD_DESIGN.md',
               symbole='WamaCardMenu'),
     Mecanisme('partage_element', "Partage d'un élément ou d'un lot (1ʳᵉ interface)",
