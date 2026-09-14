@@ -12,8 +12,15 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 - Si la branche n'est pas `dev`, le signaler avant toute chose.
 
 ## 2. Handoff & statut
-- Chercher un `REPRISE_*.md` à la racine plus récent que le dernier connu (Glob `REPRISE_*.md`). Le lire s'il existe.
-- Lire l'en-tête + les sections pertinentes de `docs/construction/suivi/PROJECT_STATUS.md` (ne pas tout relire : cibler le chantier demandé + « Ordre de reprise recommandé »).
+- **Les handoffs vivent en FIN de `docs/construction/suivi/PROJECT_STATUS.md`** (corrigé le
+  2026-09-14, après le déménagement de la doc) : un bloc par session ou par palier, en
+  **append-only**, titré `## §REPRISE | §CLÔTURE | §PALIER — <date>, « PÉRIMÈTRE » — état — 🔚 …`.
+  Lire **tous les 🔚 du jour** (plusieurs instances = plusieurs blocs), en partant de la fin :
+  `grep -n "^## §" docs/construction/suivi/PROJECT_STATUS.md | tail -8`.
+  ⚠ Ne plus chercher de `REPRISE_<date>.md` : il n'en existe plus (le dernier est archivé sous
+  `docs/construction/archive/`), et un `.md` nouveau doit être déclaré à `wama/common/docs_catalog.py`
+  — `PROJECT_STATUS` y est déclaré `journal` : *ce qui y est écrit était vrai à sa date*.
+- Lire l'en-tête + les sections pertinentes de `docs/construction/suivi/PROJECT_STATUS.md` (ne pas tout relire : cibler le chantier demandé + « Ordre de reprise recommandé »). ⚠ Le fichier dépasse 1 Mo : lire par `offset`/`limit` ou par `grep -n`, jamais en entier.
 - Pour un chantier UI/apps : relire la section correspondante de `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (facettes F1–F8) avant de coder.
 
 ## 3. Confrontation au réel (obligatoire)

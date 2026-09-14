@@ -13994,3 +13994,74 @@ neufs 3/3 (serveur vivant requis).
 4. **Non fait** dans INFRA : les sections « crashs » ne sont pas re-balisées une à une (le bandeau
    les classe [PC de dev]) ; `.wslconfig` réel non remesuré ; la section « venvs isolés » garde
    « la chaîne ne libère déjà jamais » (vrai inter-process, faux in-process).
+
+## §PALIER — 2026-09-14 (soir), « BANC LLM : llmfit confronté, le DÉBIT entre dans l'ETA » — ✅ LIVRÉ — 🔚 1ʳᵉ MESURE RÉELLE = FABIEN + 1 ARBITRAGE
+
+> Demande de Fabien : regarder `github.com/AlexsJones/llmfit` « pour l'amélioration du benchmark
+> des modèles, en tenant bien compte de ce qui est déjà en place ». Périmètre tenu :
+> `wama/model_manager/services/bench.py`, sa commande, `model_manager/tests.py`, `ROADMAP §16.2`,
+> la ligne `bench` du registre `mecanismes`. Une autre instance travaillait le gouverneur en
+> parallèle (`base.py`, `resource_governor.py`, `mecanismes.py`) : aucun fichier partagé n'a été
+> commité en entier — mes hunks seuls, les siens vérifiés dans HEAD après SON commit.
+
+### ① Cartographie (lecture directe du clone, pas de passe wama-dev-ai)
+Le corpus n'a PAS été déclaré à `wama-dev-ai/corpus.py` et aucune passe déléguée n'a tourné :
+un dépôt Rust de 63 k lignes dont 5 fichiers décident (`bench.rs`, `quality.rs`, `fit.rs`,
+`benchmarks.rs`, `hwprofile.rs`), lus en entier — déléguer aurait coûté un chargement Ollama hôte
+pour rien, et la règle du 31/08 l'interdit. Le clone vit dans le scratchpad de session, jetable.
+Verdict et confrontation : **`ROADMAP §16.2 « llmfit »`** (non intégré ; composite qualité×vitesse
+contraire à « jamais deux échelles mélangées » ; partage par PR GitHub écarté).
+
+### ② Livré (`5cdc2a6c`, `6598049a`, `840a947b`)
+- **`_bench_generation`** : chauffe non comptée + `runs` passes sur le même prompt, `num_predict`
+  300, temps natifs Ollama (`eval_duration`, `prompt_eval_duration`, `load_duration`) ; saturation =
+  plafond atteint à CHAQUE passe ; chaque passe → `eta_estimator.record_run(unit='token')`. Des
+  DURÉES, jamais une qualité (docstring de module mise à jour : le banc est le 3ᵉ étage de
+  l'échelle des signaux, mais côté COÛT seulement). Garde `WAMA_GPU_SAFE_MODE`, jumelle du triage
+  VLM du smoke et du describer. Commande : `--task text-generation --media prompt.txt --runs N`.
+- **Régression corrigée** : `_bench_description` lisait le dict de `describe_image_ollama` comme
+  une chaîne → `AttributeError` avalée par `run_bench`, **chaque modèle de légendage sortait « en
+  erreur » depuis la création du protocole** (personne ne l'a vu : `bench` n'a qu'un consommateur).
+- **`_bench_depth` passe `cache_dir=`** (relevé par Fabien via l'instance sœur) : dossier de
+  famille du moteur (`depth_engine.DEPTH_MODEL_DIR`), pas une constante locale au banc.
+
+### ③ Mesures
+- `model_manager.tests.BancDeGenerationTest` : **8 OK** (HTTP remplacé, `record_run` remplacé),
+  mesurés APRÈS la dernière écriture de code. Une garde par livrable : débit/ETA (2 tests), saturation,
+  prompt-fichier, hors-Ollama = résultat en erreur, refus sous SAFE_MODE, légendage (dict + échec),
+  profondeur (`cache_dir` sur les DEUX `from_pretrained`).
+- ⚠ **`WAMA_GPU_SAFE_MODE` est ACTIF sur l'hôte** — découvert par 4 refus au 1ᵉʳ run des tests ; le
+  nominal est forcé à False dans la classe de test, le refus testé à part. Aucun réglage touché.
+- `doc_facts --check` (mecanismes) : **PÉRIMÉ à la fin de session, PAS de mon fait** — le WIP non
+  commité de l'instance gouverneur (`base.py`, `resource_governor.py`, `manager.py`…) déplace les
+  compteurs de consommateurs. Non régénéré (régénérer figerait son WIP). Ma ligne `bench` est dans
+  HEAD (`git show HEAD:wama/common/mecanismes.py | grep text-generation` → 1, idem pour la carte).
+- Commande `bench --help` exercée ; le tableau `text-generation` **jamais rendu sur une sortie
+  réelle** (voir 🔚).
+
+### ④ Skills corrigés (demande de Fabien : « le fonctionnement a changé depuis la mise à jour de la doc »)
+- `/reprise §2` cherchait encore un `REPRISE_<date>.md` à la racine → lit désormais les blocs
+  `§REPRISE | §CLÔTURE | §PALIER` en FIN de `PROJECT_STATUS` (append-only, tous les 🔚 du jour), et
+  rappelle que tout `.md` nouveau se déclare au catalogue (`PROJECT_STATUS` y est `journal`).
+- `/cloture §4` autorisait encore un `REPRISE_<date>.md` « si le volume le justifie » → interdit,
+  aligné sur `/palier §4`.
+
+### 🔚 Reste
+1. **1ʳᵉ MESURE RÉELLE = Fabien, un modèle à la fois, machine sous les yeux** :
+   `manage.py bench --task text-generation --media <prompt.txt> --models qwen3.5:4b` (3,4 Go, le
+   plus petit installé ; 7 LLM Ollama installés, aucun résident au relevé, `ModelRuntimeStat`
+   unité `token` vide). Nécessite `WAMA_GPU_SAFE_MODE=0` le temps du run. Depuis venv_win ou
+   venv_linux indifféremment : l'appel est HTTP, le GPU est celui d'Ollama hôte ; l'empreinte
+   matérielle du bucket vient de `torch.cuda` du process appelant (les deux venvs ont cu128).
+2. **Trou 2 (provenance du COÛT : `vram_gb` écrit par 4 natures, lu sans distinction) — TRANSFÉRÉ
+   par Fabien à une instance sœur.** Proposition transmise : champ `vram_provenance`
+   (measured/declared/estimated/unknown), retour de la mesure de `_wrap_load` au catalogue (mesure
+   de CHARGEMENT, pas de pic), « en lecture, pas en indicateur » en phase 1, même geste sur
+   `eta_estimator.estimate()`. ⚠ L'instance gouverneur a relevé (§PALIER précédent, ②) que
+   `model_sync.py:185` ÉCRASE `vram_gb` à chaque synchro : une mesure écrite dans `vram_gb` serait
+   perdue — champ MESURÉ séparé recommandé par elle aussi.
+3. **Arbitrage Fabien — idée 3** : rubrique déterministe par rôle (regex, score relatif) comme
+   étage « mesure interne » des LLM ? Autorisée par le garde-fou §16.5 n°1 ; à réécrire en français ;
+   jamais un composite. Non commencé.
+4. Rien à pousser sans demande ; 3 commits locaux + ce bloc + 2 skills. Aucun effet de bord
+   d'infra : aucun worker recyclé, aucun réglage posé, aucune charge GPU.
