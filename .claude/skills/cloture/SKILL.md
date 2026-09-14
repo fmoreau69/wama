@@ -264,7 +264,12 @@ en dur les satisfaisait toutes en cassant la sélection par catalogue.
   Mécanique éprouvée (13/08, 2 instances) : petits blocs + relire avant chaque édition
   (le fichier bouge sous tes pieds) + si le commit de l'autre instance a absorbé ton bloc,
   vérifier `git show HEAD:docs/construction/suivi/PROJECT_STATUS.md | grep <ton ancre>` — contenu > attribution.
-- `REPRISE_<date>.md` séparé UNIQUEMENT si le volume le justifie (sinon §REPRISE suffit).
+- 🔴 **JAMAIS de `REPRISE_<date>.md` séparé** (aligné sur `/palier §4` le 2026-09-14 — cette
+  ligne l'autorisait encore « si le volume le justifie »). Le bloc s'écrit en FIN de
+  `docs/construction/suivi/PROJECT_STATUS.md` (`## §REPRISE | §CLÔTURE | §PALIER — <date>, « PÉRIMÈTRE » — état — 🔚 …`),
+  et tout `.md` nouveau doit être déclaré à `wama/common/docs_catalog.py` (`tests_docs_catalog`
+  échoue sinon) — un handoff séparé serait donc à la fois un doublon et un test rouge.
+  `PROJECT_STATUS` y est déclaré `journal` : une trace DATÉE, jamais une mesure.
 - « Contrôles attendus au prochain /reprise » : donner les CHIFFRES (corpus N, check_docs
   — **cibles distinctes** et références —, tests de ton périmètre, roundtrip, scores de grille).
   C'est ce bloc que /reprise confronte.
