@@ -46,8 +46,11 @@ def get_free_vram_gb() -> Optional[float]:
         logger.debug(f"[model_selector] free VRAM indéterminable : {e}")
         return None
     try:
-        from wama.common.services.resource_governor import reserved_gb
-        reserve = reserved_gb()
+        from wama.common.services.resource_governor import unseen_reserved_gb
+        # Sonde PAR PROCESS (total − alloué de CE process) : on retranche ce qu'elle ne voit pas
+        # encore, mais pas les empreintes que ce process a lui-même allouées — elles sont déjà
+        # hors de `libre`. Jusqu'au 2026-09-14 on retranchait tout, et un résident comptait double.
+        reserve = unseen_reserved_gb('process')
     except Exception as e:      # registre indisponible : on ne DÉGRADE pas, on rend le brut
         logger.debug(f"[model_selector] registre de réservations indisponible : {e}")
         return libre

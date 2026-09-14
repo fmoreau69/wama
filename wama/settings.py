@@ -737,6 +737,13 @@ if ENABLE_CELERY:
             'kwargs': {'clean': False},
             'options': {'queue': 'default'},  # tâche CPU (scan disque), jamais sur la queue GPU
         },
+        # Résidence de l'Ollama HÔTE au gouverneur (2026-09-14) : la synchro ci-dessus tourne
+        # toutes les 2 h, une ligne du registre VRAM expire en 1 h. `/api/ps` seul, aucun modèle.
+        'ollama-residency-refresh': {
+            'task': 'model_manager.refresh_ollama_residency',
+            'schedule': 600.0,
+            'options': {'queue': 'default'},  # HTTP vers l'hôte, jamais la queue GPU
+        },
         # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
         'purge-expired-media': {
             'task': 'common.purge_expired_media',

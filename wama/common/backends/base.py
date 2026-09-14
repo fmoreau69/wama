@@ -50,6 +50,11 @@ _GOV_KEY = "_wama_governor_owner"
 #: chargement (la mesure est un delta autour de `load()`).
 _GOV_GB = "_wama_governor_gb"
 
+#: Attribut d'instance : les Go publiés ont-ils été MESURÉS par l'allocateur torch — donc déjà
+#: alloués dans ce process ? Republié tel quel par le battement : une empreinte mesurée ne
+#: redevient pas une simple annonce parce que son TTL a été rafraîchi.
+_GOV_ALLOC = "_wama_governor_allocated"
+
 # En dessous, la mesure est jugée non concluante (chargement paresseux) et l'on
 # retombe sur `recommended_vram_gb`.
 _MEASURE_FLOOR_GB = 0.1
@@ -107,11 +112,47 @@ def refresh_live_reservations() -> int:
                 continue
             try:
                 from wama.common.services.resource_governor import reserve_vram
-                reserve_vram(owner, float(gb))
+                reserve_vram(owner, float(gb),
+                             allocated=bool(getattr(instance, _GOV_ALLOC, False)))
                 refreshed += 1
             except Exception:
                 logger.debug("Rafraîchissement de %s ignoré", owner, exc_info=True)
     return refreshed
+
+
+_HEARTBEAT = None
+
+
+def start_reservation_heartbeat() -> bool:
+    """Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
+
+    Brique commune du service TTS (`startup`) et des workers Celery (`worker_process_init`,
+    `wama/celery.py`) — jusqu'au 2026-09-14 seul le TTS l'avait, et un modèle résident d'un
+    worker sortait du registre au bout du TTL tout en occupant la VRAM.
+
+    Thread DÉMON, et c'est voulu : il meurt avec le process, si bien qu'une ligne dont le
+    détenteur est mort expire comme avant. Sans résident, un battement ne touche pas Redis.
+    Rend True s'il vient d'être lancé.
+    """
+    global _HEARTBEAT
+    if _HEARTBEAT is not None and _HEARTBEAT.is_alive():
+        return False
+    import threading
+    import time
+
+    from wama.common.services.resource_governor import RESERVATION_HEARTBEAT_S
+
+    def _beat():
+        while True:
+            time.sleep(RESERVATION_HEARTBEAT_S)
+            try:
+                refresh_live_reservations()
+            except Exception:
+                logger.debug("Battement des réservations ignoré", exc_info=True)
+
+    _HEARTBEAT = threading.Thread(target=_beat, daemon=True, name="wama-reservation-heartbeat")
+    _HEARTBEAT.start()
+    return True
 
 
 def _track_live(instance) -> None:
@@ -135,6 +176,40 @@ def _untrack_live(instance) -> None:
         bucket.discard(instance)
 
 
+def _footprint_to_publish(instance, before, owner):
+    """(Go, déjà alloués ?) à publier après un chargement RÉUSSI — (None, False) : rien à réserver.
+
+    Du plus sûr au moins sûr :
+      1. MESURE torch concluante → Go mesurés, marqués ALLOUÉS (les sondes les voient déjà) ;
+      2. rechargement IDEMPOTENT — même détenteur déjà publié, mesure nulle puisque rien n'a
+         bougé → on garde ce qui avait été publié. Jusqu'au 2026-09-14 la valeur DÉCLARÉE
+         écrasait alors la mesure (un modèle mesuré 38 Go repassait à son preset) ;
+      3. pas de CUDA dans ce process → rien : un process sans GPU ne peut pas en occuper ;
+      4. backend qui se déclare sur CPU (`device`) → rien : sa valeur déclarée est celle du GPU ;
+      5. sinon la valeur DÉCLARÉE (`recommended_vram_gb`), publiée comme ANNONCE — mesure nulle
+         faute d'allocateur torch (CTranslate2, onnxruntime) ou chargement paresseux. La compter
+         deux fois est prudent ; l'oublier ne le serait pas. None pour un backend purement CPU.
+    """
+    gb = _measured_vram_gb(before) if before is not None else None
+    if gb is not None and gb >= _MEASURE_FLOOR_GB:
+        return gb, True
+    if getattr(instance, _GOV_KEY, None) == owner and getattr(instance, _GOV_GB, None):
+        return float(getattr(instance, _GOV_GB)), bool(getattr(instance, _GOV_ALLOC, False))
+    if before is None:
+        return None, False
+    if str(getattr(instance, 'device', '') or '').lower().startswith('cpu'):
+        return None, False
+    declared = getattr(instance, 'recommended_vram_gb', None)
+    return (float(declared), False) if declared else (None, False)
+
+
+def _still_loaded(instance) -> bool:
+    try:
+        return bool(getattr(instance, 'is_loaded', False))
+    except Exception:
+        return False
+
+
 def _wrap_load(func):
     """Déclare l'empreinte VRAM au gouverneur après un chargement réussi."""
     if getattr(func, _WRAPPED, False):
@@ -146,37 +221,38 @@ def _wrap_load(func):
         result = func(self, *args, **kwargs)
         try:
             if result is not False:
-                gb = _measured_vram_gb(before) if before is not None else None
-                # Une mesure NULLE n'est pas une preuve d'absence d'empreinte :
-                # chargement paresseux, poids déplacés vers le GPU plus tard, ou
-                # mémoire prise hors de l'allocateur PyTorch. On retombe alors sur
-                # la valeur déclarée — qui vaut None pour un backend purement CPU,
-                # auquel cas on ne réserve rien, ce qui est correct.
-                if gb is None or gb < _MEASURE_FLOOR_GB:
-                    gb = self.recommended_vram_gb
-                if gb:
-                    from wama.common.services.resource_governor import (
-                        release_reservation, reserve_vram,
-                    )
-                    owner = _governor_owner(self)
-                    # La clé porte désormais le modèle : un backend qui BASCULE de modèle
-                    # sans décharger (diffusers, cogvideox…) publierait deux lignes pour un
-                    # seul détenteur, dont une fantôme jusqu'à expiration du TTL. On rend
-                    # donc la précédente. D'où la mémorisation de la clé PUBLIÉE : au
-                    # déchargement, `_current_model` est déjà remis à None et la clé ne
-                    # serait plus reconstituable.
-                    prev = getattr(self, _GOV_KEY, None)
-                    if prev and prev != owner:
-                        release_reservation(prev)
-                    reserve_vram(owner, float(gb))
-                    try:
+                from wama.common.services.resource_governor import (
+                    release_reservation, reserve_vram,
+                )
+                owner = _governor_owner(self)
+                gb, allocated = _footprint_to_publish(self, before, owner)
+                # La clé porte désormais le modèle : un backend qui BASCULE de modèle
+                # sans décharger (diffusers, cogvideox…) publierait deux lignes pour un
+                # seul détenteur, dont une fantôme jusqu'à expiration du TTL. On rend
+                # donc la précédente. D'où la mémorisation de la clé PUBLIÉE : au
+                # déchargement, `_current_model` est déjà remis à None et la clé ne
+                # serait plus reconstituable.
+                prev = getattr(self, _GOV_KEY, None)
+                if prev and prev != owner:
+                    release_reservation(prev)
+                try:
+                    if gb:
+                        reserve_vram(owner, float(gb), allocated=allocated)
                         setattr(self, _GOV_KEY, owner)
                         setattr(self, _GOV_GB, float(gb))
-                    except Exception:
-                        pass
+                        setattr(self, _GOV_ALLOC, allocated)
+                    elif prev:
+                        setattr(self, _GOV_KEY, None)
+                        setattr(self, _GOV_GB, None)
+                        setattr(self, _GOV_ALLOC, False)
+                except Exception:
+                    pass
         except Exception:
             logger.debug("Déclaration VRAM au gouverneur ignorée", exc_info=True)
-        _track_live(self)
+        # Un chargement REFUSÉ (`False`) ne rend pas le backend résident — sauf s'il l'était
+        # déjà (bascule ratée, ancien modèle toujours là) : le reclaim doit voir ce qui occupe.
+        if result is not False or _still_loaded(self):
+            _track_live(self)
         return result
 
     setattr(wrapper, _WRAPPED, True)
@@ -204,10 +280,14 @@ def _wrap_unload(func):
             try:
                 setattr(self, _GOV_KEY, None)
                 setattr(self, _GOV_GB, None)
+                setattr(self, _GOV_ALLOC, False)
             except Exception:
                 pass
         except Exception:
             logger.debug("Libération de la réservation au gouverneur ignorée", exc_info=True)
+        # ⚠ Si `func` LÈVE, rien de ce qui précède ne s'exécute : la ligne reste, le backend reste
+        # suivi, et le battement la garde vivante. C'est VOULU — un déchargement qui échoue ne
+        # prouve pas que la VRAM est rendue ; libérer la ligne ferait croire à de la place libre.
         _untrack_live(self)
         return result
 

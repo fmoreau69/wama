@@ -25,7 +25,9 @@ from django.test import SimpleTestCase
 from wama.model_manager.services.model_selector import get_free_vram_gb
 
 CHEMIN_MONITEUR = 'wama.model_manager.services.memory_monitor.WAMAMemoryMonitor'
-CHEMIN_RESERVE = 'wama.common.services.resource_governor.reserved_gb'
+#: La part du registre que la sonde du moniteur NE VOIT PAS (2026-09-14). Elle remplaçait le
+#: total brut `reserved_gb`, qui retranchait aussi les résidents déjà alloués par ce process.
+CHEMIN_RESERVE = 'wama.common.services.resource_governor.unseen_reserved_gb'
 
 
 def _gpus(*libres):
@@ -52,9 +54,19 @@ class BudgetVramTest(SimpleTestCase):
         self.assertEqual(self._budget(_gpus(24.0), reserve=18.0), 6.0)
 
     def test_le_budget_ne_devient_jamais_NEGATIF(self):
-        """Une réservation supérieure au libre mesuré (résident déjà alloué + réservation)
-        doit donner 0, pas un nombre négatif qui ferait passer toutes les comparaisons."""
+        """Une part non vue du registre supérieure au libre mesuré doit donner 0, pas un
+        nombre négatif qui ferait passer toutes les comparaisons."""
         self.assertEqual(self._budget(_gpus(4.0), reserve=18.0), 0.0)
+
+    def test_le_budget_interroge_la_sonde_PAR_PROCESS(self):
+        """La sonde du moniteur ne voit que CE process (total − son alloué). On lui retranche ce
+        qu'elle ne voit pas — pas les résidents qu'il a lui-même alloués, déjà hors du libre.
+        Jusqu'au 2026-09-14 on retranchait le total brut : chaque résident comptait double."""
+        with patch(CHEMIN_MONITEUR) as Moniteur, patch(CHEMIN_RESERVE) as reserved:
+            Moniteur.return_value.get_gpu_usage.return_value = _gpus(24.0)
+            reserved.return_value = 2.0
+            self.assertEqual(get_free_vram_gb(), 22.0)
+            reserved.assert_called_once_with('process')
 
     def test_le_GPU_LE_PLUS_LIBRE_l_emporte(self):
         self.assertEqual(self._budget(_gpus(3.0, 20.0, 11.0), reserve=5.0), 15.0)

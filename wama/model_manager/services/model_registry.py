@@ -226,16 +226,19 @@ class ModelRegistry:
         (il vient d'ici, `/api/ps`) mais `resident_models()`/`idle_models()` — donc la vue
         « modèles inactifs » et le nettoyeur — étaient AVEUGLES à plusieurs Go occupés.
 
-        Owner `ollama-host#ollama:<nom>` : le préfixe identifie le détenteur (le service),
-        le suffixe porte la clé catalogue (cf. `model_key_of`) pour que le modèle apparaisse
-        nommément dans `resident_models()`. Réservation RAFRAÎCHIE à chaque passage — donc
-        jamais périmée par le TTL tant que le sync tourne, et retirée dès qu'Ollama a
-        déchargé (`OLLAMA_KEEP_ALIVE`, 5 min par défaut).
+        Owner `ollama-host#ollama:<nom>` (`resource_governor.ollama_host_owner`) : le préfixe
+        identifie le détenteur (le service), le suffixe porte la clé catalogue (cf.
+        `model_key_of`) pour que le modèle apparaisse nommément dans `resident_models()`.
+        Réservation RAFRAÎCHIE à chaque passage, retirée dès qu'Ollama a déchargé.
+        ⚠ Rafraîchie par la tâche `model_manager.refresh_ollama_residency` (toutes les 10 min)
+        depuis le 2026-09-14 : la synchro du catalogue seule tournait toutes les 2 h, au-delà
+        du TTL d'1 h — une ligne expirait alors que le modèle restait chargé.
         """
-        from wama.common.services.resource_governor import (OWNER_MODEL_SEP,
+        from wama.common.services.resource_governor import (OLLAMA_HOST_OWNER_PREFIX,
+                                                            ollama_host_owner,
                                                             release_reservation,
                                                             reservations, reserve_vram)
-        prefixe = f"ollama-host{OWNER_MODEL_SEP}"
+        prefixe = OLLAMA_HOST_OWNER_PREFIX
         try:
             charges = ModelRegistry._ollama_charges()
         except Exception:
@@ -244,7 +247,7 @@ class ModelRegistry:
         for nom, go in charges.items():
             if not nom:
                 continue
-            owner = f"{prefixe}ollama:{nom}"
+            owner = ollama_host_owner(nom)
             vivants.add(owner)
             reserve_vram(owner, float(go or 0))
         # Ollama a déchargé (keep_alive écoulé) → la ligne doit disparaître TOUT DE SUITE :

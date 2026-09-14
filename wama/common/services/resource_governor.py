@@ -13,23 +13,27 @@ dans un process séparé — n'était vu par aucun de ces mécanismes.
 Toute logique d'allocation de ressource passe DÉSORMAIS par ici. Si tu cherches
 « où limiter/réserver/prioriser », c'est ce fichier, et nulle part ailleurs.
 
-CE QU'IL COUVRE (état au 2026-07-29)
+CE QU'IL COUVRE (état au 2026-09-14)
 ====================================
   1. `configure_cuda_process()`  — garde niveau PROCESS : plafonne l'allocateur
      CUDA. À appeler une fois par process susceptible de toucher le GPU.
-  2. Registre VRAM PARTAGÉ (Redis) — `reserve_vram` / `release_vram` /
-     `reserved_gb`, visible de TOUS les process (worker GPU, service TTS,
-     workers web), contrairement au registre d'unloaders qui reste local.
-  3. `PRIORITIES` — table DÉCLARATIVE des priorités par app.
+  2. Registre VRAM PARTAGÉ (Redis) — `reserve_vram` / `release_reservation` /
+     `unseen_reserved_gb` / `effective_free_gb`, visible de TOUS les process (worker
+     GPU, service TTS, workers web), contrairement au registre d'unloaders qui reste
+     local. Une ligne est une ANNONCE ou une empreinte DÉJÀ ALLOUÉE : chaque sonde ne
+     retranche que ce qu'elle ne voit pas encore (cf. `unseen_reserved_gb`).
+  3. `APP_TIERS` / `celery_priority_for` — priorités DÉCLARATIVES par app, câblées
+     dans `CELERY_TASK_ROUTES` depuis le 2026-07-29.
 
-CE QU'IL NE COUVRE PAS ENCORE (cf. ROADMAP §Warm-loading VRAM)
-==============================================================
+CE QU'IL NE COUVRE PAS ENCORE (cf. ROADMAP §Gouvernance des ressources)
+======================================================================
   - Admission CPU/RAM sur la file `default` (rien aujourd'hui : `--autoscale=4,1`
     sans conscience mémoire).
   - Équité entre utilisateurs : la file est FIFO strict, un batch de 50 items
     d'un utilisateur affame les autres.
-  - Câblage effectif des priorités dans le routage Celery.
-Ces trois points s'ajoutent ICI, pas dans les apps.
+  - Déchargement INTER-process : le reclaim (`MemoryManager.release_vram`) reste
+    local au process qui l'appelle ; seul Ollama se décharge à distance.
+Ces points s'ajoutent ICI, pas dans les apps.
 
 POURQUOI PAS RAY / SLURM / TRITON
 =================================
@@ -127,10 +131,29 @@ _LEDGER_KEY = "wama:vram:reservations"
 #: été effacée par un process resté sur l'ancien format.
 _USED_KEY = "wama:vram:last_used"
 
+#: Empreintes DÉJÀ ALLOUÉES par l'allocateur torch d'un process : owner → pid (2026-09-14).
+#: Hash SÉPARÉ, même raison que `_USED_KEY`. Sans lui, le registre ne distinguait pas une
+#: ANNONCE (posée avant d'allouer) d'une empreinte MESURÉE après chargement — et les sondes
+#: qui voient déjà cette dernière la retranchaient une seconde fois (cf. `unseen_reserved_gb`).
+_ALLOC_KEY = "wama:vram:allocated"
+
+#: Horodatage du PREMIER dépôt d'une ligne — son chargement : owner → ts (2026-09-14). Le
+#: battement réécrit l'horodatage de la ligne (TTL) ; sans ce hash, un modèle chargé et jamais
+#: utilisé paraissait « actif » à chaque battement, et le nettoyeur ne le voyait jamais inactif.
+_LOADED_KEY = "wama:vram:loaded_at"
+
+#: Ce qui vit et meurt avec une ligne de réservation.
+_SIDE_KEYS = (_USED_KEY, _ALLOC_KEY, _LOADED_KEY)
+
 # Une réservation expire seule : si un process meurt sans libérer (kernel panic,
-# kill -9), sa ligne ne doit pas bloquer le GPU pour toujours. À rafraîchir par
-# les traitements longs via `reserve_vram()` (le même owner écrase sa ligne).
+# kill -9), sa ligne ne doit pas bloquer le GPU pour toujours. Un détenteur VIVANT la
+# rafraîchit (`RESERVATION_HEARTBEAT_S`) : le TTL ne sanctionne que le process mort.
 RESERVATION_TTL_S = 3600
+
+#: Période de rafraîchissement d'une ligne tenue par un process vivant — strictement sous le
+#: TTL. Utilisée par le battement des résidents (`base.start_reservation_heartbeat`) et par
+#: `vram_reservation` pour les blocs plus longs que le TTL (audio.cpp : `1800 + 30 × durée` s).
+RESERVATION_HEARTBEAT_S = 600
 
 
 def _redis():
@@ -152,20 +175,43 @@ def _now() -> float:
     return time.time()
 
 
-def reserve_vram(owner: str, gb: float) -> bool:
+def reserve_vram(owner: str, gb: float, *, allocated: bool = False,
+                 expires_in_s: float | None = None) -> bool:
     """
     Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
     owner (donc sert aussi de rafraîchissement de TTL).
 
-    `owner` doit être STABLE et identifier le détenteur réel, pas la tâche :
-    p. ex. "tts-service", f"celery-gpu:{pid}", "imager:qwen-image-2".
+    `owner` doit être STABLE et identifier le détenteur réel, pas la tâche. Formes publiées :
+    `<module>.<Classe>:<pid>#<clé>` (contrat de backend), `composer.audiocpp:<pid>`
+    (sous-processus), `ollama-host#ollama:<nom>` (`ollama_host_owner`).
+
+    `allocated=True` : l'empreinte est DÉJÀ prise par l'allocateur torch de CE process (mesure
+    de `_wrap_load`). Les sondes qui la voient déjà ne la retranchent plus
+    (`unseen_reserved_gb`). Par défaut une ligne est une ANNONCE — et republier en annonce
+    retire le marqueur.
+
+    `expires_in_s` : durée de vie plus courte que `RESERVATION_TTL_S`, pour une résidence
+    bornée connue d'avance (rappel mémoire : Ollama garde l'embedder 5 min). Posée en
+    ANTIDATANT l'horodatage de la ligne : le format `"<go>:<ts>"` reste lisible des process
+    restés sur l'ancien code, qui la purgent au même instant.
     """
     client = _redis()
     if client is None:
         return False
     try:
-        client.hset(_LEDGER_KEY, owner, f"{gb:.3f}:{_now():.0f}")
-        client.expire(_LEDGER_KEY, RESERVATION_TTL_S * 2)
+        now = _now()
+        stamp = now
+        if expires_in_s is not None:
+            stamp = now - (RESERVATION_TTL_S - max(0.0, min(float(expires_in_s),
+                                                              float(RESERVATION_TTL_S))))
+        client.hset(_LEDGER_KEY, owner, f"{gb:.3f}:{stamp:.0f}")
+        client.hsetnx(_LOADED_KEY, owner, f"{now:.0f}")
+        if allocated:
+            client.hset(_ALLOC_KEY, owner, str(os.getpid()))
+        else:
+            client.hdel(_ALLOC_KEY, owner)
+        for key in (_LEDGER_KEY, _ALLOC_KEY, _LOADED_KEY):
+            client.expire(key, RESERVATION_TTL_S * 2)
         return True
     except Exception as exc:
         logger.debug(f"[ResourceGovernor] reserve_vram({owner}) : {exc}")
@@ -187,7 +233,12 @@ def release_reservation(owner: str) -> bool:
     if client is None:
         return False
     try:
+        # Registre d'abord, annexes ensuite : entre les deux, une ligne absente ne compte pour
+        # rien. L'usage et le chargement partent avec elle (2026-09-14) : un modèle rechargé
+        # plus tard par le même détenteur n'hérite plus de l'inactivité de sa vie antérieure.
         client.hdel(_LEDGER_KEY, owner)
+        for key in _SIDE_KEYS:
+            client.hdel(key, owner)
         return True
     except Exception as exc:
         logger.debug(f"[ResourceGovernor] release_reservation({owner}) : {exc}")
@@ -211,17 +262,32 @@ def vram_reservation(owner: str, gb: float):
     la VRAM libre et laisse démarrer une autre tâche GPU par-dessus. C'est exactement le
     scénario qui a produit les kernel panics du 29/07.
 
-    ⚠️ Une réservation expire après `RESERVATION_TTL_S` (1 h) — garde-fou pour qu'un process
-    mort ne gèle pas le registre. Ne pas envelopper un bloc plus long sans rafraîchissement
-    (les appelants actuels sont bornés par un `timeout` de 10 et 30 min).
+    La ligne est RAFRAÎCHIE toutes les `RESERVATION_HEARTBEAT_S` tant que le bloc dure
+    (2026-09-14). Cette docstring disait « appelants bornés à 10 et 30 min » : audio.cpp,
+    arrivé depuis, attend jusqu'à `1800 + 30 × durée` s — sa réservation expirait en pleine
+    génération. Le TTL ne protège plus que du process MORT, qui n'a plus de battement.
 
         with vram_reservation(f"avatarizer.musetalk:{os.getpid()}", 8.0):
             subprocess.run([...], timeout=600)
     """
+    import threading
+
+    stop = threading.Event()
+
+    def _beat():
+        while not stop.wait(RESERVATION_HEARTBEAT_S):
+            reserve_vram(owner, gb)
+
     reserve_vram(owner, gb)
+    battement = threading.Thread(target=_beat, daemon=True, name=f"vram-reservation:{owner}")
+    battement.start()
     try:
         yield
     finally:
+        # Arrêter le battement AVANT de libérer : sinon une republication tardive recréerait
+        # une ligne fantôme pour une heure. Le délai couvre un appel Redis bloqué (2 s × 2).
+        stop.set()
+        battement.join(timeout=10)
         release_reservation(owner)
 
 
@@ -268,7 +334,8 @@ def _reservations_raw(exclude: str | None = None) -> dict[str, tuple[float, floa
     if stale:
         try:
             client.hdel(_LEDGER_KEY, *stale)
-            client.hdel(_USED_KEY, *stale)   # l'horodatage d'usage suit sa réservation
+            for key in _SIDE_KEYS:           # usage, marqueur alloué, chargement : suivent leur ligne
+                client.hdel(key, *stale)
             logger.info(f"[ResourceGovernor] réservations périmées purgées : {stale}")
         except Exception:
             pass
@@ -276,7 +343,10 @@ def _reservations_raw(exclude: str | None = None) -> dict[str, tuple[float, floa
 
 
 def reserved_gb(exclude: str | None = None) -> float:
-    """Total réservé par les AUTRES détenteurs (tous process confondus)."""
+    """Total BRUT réservé, tous détenteurs et process confondus (sauf `exclude`).
+
+    ⚠ Ne pas le retrancher d'une sonde : il contient aussi les empreintes que la sonde voit déjà.
+    Pour « combien retrancher », c'est `unseen_reserved_gb(probe)` (2026-09-14)."""
     return sum(reservations(exclude=exclude).values())
 
 
@@ -317,6 +387,73 @@ def model_key_of(owner: str) -> str | None:
     return owner.split(OWNER_MODEL_SEP, 1)[1].strip() or None
 
 
+#: Détenteur des lignes de résidence de l'OLLAMA HÔTE (service séparé, lu par `/api/ps`).
+OLLAMA_HOST_OWNER_PREFIX = f"ollama-host{OWNER_MODEL_SEP}"
+
+
+def ollama_host_owner(name: str) -> str:
+    """Clé d'owner de la résidence du modèle Ollama `name`.
+
+    La convention ne s'écrit qu'ICI (2026-09-14) : la synchro du catalogue la pose, et les
+    deux voies qui déchargent Ollama (`MemoryManager.unload_model`, olmOCR) la retirent —
+    elles l'ignoraient jusque-là, laissant une ligne fantôme jusqu'à la synchro suivante.
+    """
+    return f"{OLLAMA_HOST_OWNER_PREFIX}ollama:{name}"
+
+
+def _allocated_by() -> dict[str, int]:
+    """owner → pid dont l'allocateur torch tient DÉJÀ l'empreinte (cf. `_ALLOC_KEY`)."""
+    client = _redis()
+    if client is None:
+        return {}
+    try:
+        raw = client.hgetall(_ALLOC_KEY) or {}
+    except Exception:
+        return {}
+    out: dict[str, int] = {}
+    for k, v in raw.items():
+        try:
+            out[k.decode() if isinstance(k, bytes) else str(k)] = int(
+                v.decode() if isinstance(v, bytes) else v)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def unseen_reserved_gb(probe: str = 'driver', exclude: str | None = None) -> float:
+    """
+    VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
+
+    Une ligne du registre est soit une ANNONCE (sous-processus, juge de prospection, embedder :
+    posée AVANT d'allouer), soit une empreinte DÉJÀ ALLOUÉE (`_wrap_load` publie APRÈS la mesure).
+    Retrancher la seconde d'une sonde qui la voit déjà la compte deux fois : c'est le défaut
+    mesuré le 2026-09-14 — `effective_free_gb`, `MemoryManager._free_vram_gb` et
+    `get_free_vram_gb` retranchaient tout le registre, résidents compris.
+
+    - `probe='driver'` — `torch.cuda.mem_get_info`, toute la machine : voit toute empreinte
+      allouée, on ne retranche que les annonces ;
+    - `probe='process'` — total − `memory_allocated` de CE process : ne voit que ce que ce
+      process a alloué, on retranche tout sauf les empreintes allouées ici même.
+
+    ⚠ Seule une empreinte MESURÉE par l'allocateur torch est marquée allouée. Valeurs déclarées
+    (CTranslate2, onnxruntime), Ollama hôte et sous-processus restent des annonces : les compter
+    deux fois est prudent, les oublier ne l'est pas. En particulier, que `mem_get_info` sous
+    WSL2 voie les allocations de l'hôte Windows (Ollama) n'est PAS mesuré — d'où ce choix.
+    """
+    if probe not in ('driver', 'process'):
+        raise ValueError(f"sonde inconnue : {probe!r} (attendu 'driver' ou 'process')")
+    # Marqueurs lus AVANT les lignes : une ligne publiée entre les deux lectures est comptée
+    # comme annonce (prudent), jamais l'inverse.
+    alloues = _allocated_by()
+    pid = os.getpid()
+    total = 0.0
+    for owner, gb in reservations(exclude=exclude).items():
+        detenteur = alloues.get(owner)
+        if detenteur is None or (probe == 'process' and detenteur != pid):
+            total += gb
+    return total
+
+
 def mark_used(owner: str) -> bool:
     """Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
 
@@ -346,23 +483,28 @@ def idle_models(idle_threshold_s: int = 300) -> list[dict]:
     """
     client = _redis()
     usages: dict[str, float] = {}
+    charges: dict[str, float] = {}
     if client is not None:
-        try:
-            for k, v in (client.hgetall(_USED_KEY) or {}).items():
-                owner = k.decode() if isinstance(k, bytes) else str(k)
-                try:
-                    usages[owner] = float(v.decode() if isinstance(v, bytes) else v)
-                except (TypeError, ValueError):
-                    continue
-        except Exception:
-            pass
+        for cible, key in ((usages, _USED_KEY), (charges, _LOADED_KEY)):
+            try:
+                for k, v in (client.hgetall(key) or {}).items():
+                    owner = k.decode() if isinstance(k, bytes) else str(k)
+                    try:
+                        cible[owner] = float(v.decode() if isinstance(v, bytes) else v)
+                    except (TypeError, ValueError):
+                        continue
+            except Exception:
+                pass
 
     now, out = _now(), []
     for owner, (gb, pose_le) in _reservations_raw().items():
         cle = model_key_of(owner)
         if not cle:
             continue                      # détenteur sans modèle (sous-processus)
-        dernier = usages.get(owner, pose_le)
+        # Dernier usage, sinon le CHARGEMENT — et non l'horodatage de la ligne, que le battement
+        # réécrit toutes les 10 min (2026-09-14). La ligne ne sert plus de repli qu'aux lignes
+        # posées par un process resté sur l'ancien code, sans `_LOADED_KEY`.
+        dernier = usages.get(owner) or charges.get(owner) or pose_le
         inactif = now - dernier
         if inactif >= idle_threshold_s:
             out.append({
@@ -378,11 +520,15 @@ def idle_models(idle_threshold_s: int = 300) -> list[dict]:
 
 def effective_free_gb(exclude: str | None = None) -> float:
     """
-    VRAM réellement disponible = ce que le pilote annonce libre, MOINS ce que
-    d'autres process ont réservé sans l'avoir encore alloué.
+    VRAM réellement disponible = ce que le pilote annonce libre, MOINS ce que des
+    process ont ANNONCÉ sans l'avoir encore alloué (`unseen_reserved_gb('driver')`).
 
     C'est la mesure qui manquait : `torch.cuda.mem_get_info()` ne voit que le
     présent et ignore qu'un autre process s'apprête à prendre 18 Go.
+
+    ⚠ Corrigé le 2026-09-14 : on retranchait TOUTES les réservations, y compris les modèles
+    résidents dont le pilote a déjà ôté l'empreinte de son libre — chaque résident comptait
+    deux fois (la docstring disait déjà « sans l'avoir encore alloué », le code non).
     """
     try:
         import torch
@@ -392,7 +538,7 @@ def effective_free_gb(exclude: str | None = None) -> float:
         driver_free_gb = torch.cuda.mem_get_info()[0] / (1024 ** 3)
     except Exception:
         return 0.0
-    return max(0.0, driver_free_gb - reserved_gb(exclude=exclude))
+    return max(0.0, driver_free_gb - unseen_reserved_gb('driver', exclude=exclude))
 
 
 # ---------------------------------------------------------------------------

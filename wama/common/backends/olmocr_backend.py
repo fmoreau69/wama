@@ -72,13 +72,22 @@ class OlmOCRBackend(BaseModelBackend):
                 for m in r.json().get('models', []):
                     name = m.get('name', '')
                     if name:
-                        httpx.post(
+                        resp = httpx.post(
                             f'{host}/api/generate',
                             json={'model': name, 'keep_alive': 0},
                             timeout=10.0,
                             trust_env=False,
                         )
                         logger.info(f"[olmOCR] Ollama déchargé : {name}")
+                        # La ligne de résidence part avec le modèle (2026-09-14) : sans ce
+                        # retrait, le gouverneur croyait ces Go occupés jusqu'à la synchro.
+                        if resp.status_code == 200:
+                            try:
+                                from wama.common.services.resource_governor import (
+                                    ollama_host_owner, release_reservation)
+                                release_reservation(ollama_host_owner(name))
+                            except Exception:
+                                pass
         except Exception as e:
             logger.debug(f"[olmOCR] Ollama unload skipped : {e}")
 
