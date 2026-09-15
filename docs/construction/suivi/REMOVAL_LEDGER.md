@@ -74,6 +74,11 @@
 ---
 
 ## Journal
+- **2026-09-15** — **Ajout R62 et R63, soldées le jour même** (section « Supprimer une card de lot
+  sans rechargement de la page ») : `batch_changed` et `find_member_batch`, remplacés au commun par
+  `batch_common.batch_state` / `batch_snapshot`. ⚠ Le retrait corrige aussi ma propre entrée du
+  14/09 (`PROJECT_STATUS §PALIER 2026-09-14 nuit`) : j'avais AJOUTÉ `batch_changed` dans deux vues
+  de plus et une garde qui l'exigeait partout — un correctif app par app d'un trou de la ROUTE.
 - **2026-08-28** — **Ajout R32, soldée le jour même** : retrait des 3 moteurs TTS historiques
   (`vits`/`tacotron2`/`speedy-speech`) sur les 8 surfaces + 3 lignes de catalogue, à la demande de
   Fabien. **R14 est ANNULÉE** : sa décision de 2026-07-02 (« les labéliser proposés pour qu'ils ne
@@ -258,3 +263,10 @@
 | # | Élément | Emplacement | Pourquoi résidu | Prérequis avant suppression | Statut |
 |---|---|---|---|---|---|
 | R61 | les six `setup_hf_cache_for_{hunyuan,cogvideox,ltx,mochi,qwen_image,flux2_klein}()` | `imager/utils/model_config.py` | depuis le 2026-09-03 ils ne faisaient plus que rendre `str(<FAMILLE>_DIR)` ; leur nom annonçait une mutation qui n'existait plus. Le commentaire du fichier disait « seul `…_hunyuan` a un appelant » : FAUX au 14/09, `hunyuan_video_backend` lit `settings.MODEL_PATHS` lui-même | ✅ mesuré : **0 appelant dans le code VERSIONNÉ** (code, gabarits, docs hors journaux) ; budget de mutations HF à 0 et `check_model_layout` sans étranger AVANT le retrait. ⚠ La jumelle de bac à sable `wama/imager_01` (générée, NON versionnée — `.gitignore:136`) garde SA copie des six helpers et de l'appelant Hunyuan : elle importe la sienne, vérifiée intacte après retrait. *Mon 1er relevé l'avait manquée : l'outil de recherche respecte le `.gitignore` — un périmètre caché, pas une absence.* | ✅ |
+
+## Supprimer une card de lot sans rechargement de la page — 2026-09-15 (trou de la route, correction au commun validée par Fabien)
+
+| # | Élément | Emplacement | Pourquoi résidu | Prérequis avant suppression | Statut |
+|---|---|---|---|---|---|
+| R62 | clé de réponse `batch_changed` (« l'élément était dans un lot ») + son lecteur `if (data.batch_changed) location.reload()` | les 11 vues de suppression (10 apps + `enhancer:audio_delete`), le gabarit `views_gen`, `queue-actions.js` | un drapeau écrit à la main dans chaque vue (8 apps sur 10 le portaient) dont la brique ne savait tirer qu'un RECHARGEMENT — et que rien ne vérifiait : son absence dans converter et imager laissait un lot réduit à une card affiché en lot (`ROUTE §10.2`, bloc du 15/09) | ✅ remplaçant en place et mesuré : `batch_common.batch_state` (la vue dit ce que DEVIENT le lot) + `queue-actions.js::applyBatchState` ; `tests_queue_delete_contract` vue par vue (11 surfaces) ; geste `<app>.delete_from_batch` vert sur converter, imager, composer, avatarizer. Grep outil natif après retrait : 0 lecteur, 0 écrivain hors jumelles COPIÉES (`describer_01`, `composer_01`, `imager_01` — copies figées, non régénérées) | ✅ |
+| R63 | `find_member_batch(batch_item_model, **member_filter)` | `common/utils/batch_utils.py` | chaque appelant NOMMAIT son modèle de liaison et son champ (`find_member_batch(BatchSynthesisItem, synthesis=s)`) — 4 vues l'appelaient, 5 autres recopiaient `x.batch_item.batch` à la main, le converter lisait `batch_id` | ✅ remplacé par `batch_common.batch_of` / `batch_snapshot`, DÉRIVÉS des métadonnées Django pour les deux formes de rattachement ; 0 appelant mesuré (outil natif, `*.py` + `*.md`) avant retrait | ✅ |

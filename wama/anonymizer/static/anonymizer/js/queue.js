@@ -135,8 +135,8 @@
   // l'ancienne (`clear_media/` + `media_id` en champ de formulaire) ne pouvait pas être servie
   // par la brique, qui poste un corps JSON vide. L'appartenance à un LOT était en outre devinée
   // ICI en inspectant le DOM (`card.closest('.batch-group')`) faute que le serveur la dise ; la
-  // nouvelle vue répond `batch_changed`, et c'est la brique qui tranche — comme pour les 9
-  // autres apps.
+  // nouvelle vue répond l'état du lot (`batch`, brique `batch_common.batch_state`), et c'est la
+  // brique qui met la file à jour — comme pour les 9 autres apps.
   WamaQueueActions.onDeleted(function (id) {
     stopPolling(parseInt(id, 10));
     const badge = document.getElementById('queueCount');

@@ -18,7 +18,10 @@
  *
  * Hooks optionnels (une spécificité se DÉCLARE) — tous acceptent `{domain: '…'}` (ou `within`)
  * pour être scopés, la déclaration sans scope servant de défaut :
- *   WamaQueueActions.onDeleted((id, data, btn) => …)      suite après suppression, au lieu du reload
+ *   WamaQueueActions.onDeleted((id, data, btn) => …)      résidu d'app après suppression (la file,
+ *                                                         lot compris, se met à jour sans
+ *                                                         rechargement de la page — 2026-09-15)
+ *   WamaQueueActions.applyBatchState(group, batch, id)    ce que devient un lot quitté par une card
  *   …onBatchStarted((data, id, btn) => …)                 suite du ▶ de LOT
  *   …onBatchStartBody((btn) => ({…}))                     corps du POST du ▶ de LOT
  *   …onQueueStarted((data, btn) => …)                     suite du ▶ de FILE
@@ -231,16 +234,103 @@
 
     // Séquence STANDARD — le DOM commun suffit à la conduire : `.wama-card[data-id]` est porté
     // par les 11 cards du dépôt (vérifié le 2026-08-23), `.batch-group` par tous les lots.
-    // Retourne true si la page se recharge (l'appelant n'a alors plus rien à faire).
-    function standardFollowUp(id, btn) {
+    //
+    // ⚠ SANS RECHARGEMENT DE LA PAGE (2026-09-15, demande de Fabien : un rechargement ramène
+    // l'utilisateur en haut de la file, et il doit retrouver où il en était). Jusque-là la brique
+    // rechargeait dès que la réponse portait `batch_changed` — et deux apps qui ne le portaient
+    // pas (converter, imager) laissaient un lot réduit à une card affiché comme un lot. C'était
+    // un trou de la route elle-même : le 2026-08-23, le rechargement systématique était devenu
+    // conditionnel à un champ que rien ne vérifiait. La vue dit maintenant ce que DEVIENT le lot
+    // (`batch`, brique serveur `batch_common.batch_state`) et la file se met à jour ici.
+    function standardFollowUp(id, btn, batch) {
         const card = document.querySelector('.wama-card[data-id="' + id + '"]')
                   || (btn && btn.closest('.wama-card'));
         const group = card && card.closest('.batch-group');
+        const entry = card && card.closest('.wama-queue-entry');
         if (card) card.remove();
-        // Un lot vidé de ses enfants n'a plus d'objet : le laisser afficherait un groupe fantôme.
-        if (group && !group.querySelector('.wama-card[data-id]')) group.remove();
+        // Card unitaire : son enrobage d'entrée (`data-entry-batch-id`, `_queue_entry.html`) ne
+        // désigne plus rien une fois vide — le laisser garderait dans la file une entrée morte.
+        if (entry && !entry.querySelector('.wama-card[data-id]')) entry.remove();
+        if (group) applyBatchState(group, batch, id);
         if (window.WamaEta && WamaEta.reset) WamaEta.reset(id);
         notifyFileManager();
+    }
+
+    // Ce que devient un LOT après le retrait d'une de ses cards. `batch` est la réponse du
+    // serveur : `{id, total, success_count, running_count, failure_count, has_success}`.
+    //   total 0 → le lot a disparu · 1 → il redevient une card simple · au-delà → sa card mère
+    //   change ses compteurs.
+    // Sans `batch` (vue qui ne dit pas le lot — une jumelle de bac à sable copiée avant le
+    // 2026-09-15), seul le lot vidé part : on ne devine rien.
+    function applyBatchState(group, batch, removedId) {
+        const children = group.querySelectorAll('.wama-card[data-id]');
+        if (!children.length || (batch && batch.total === 0)) { group.remove(); return; }
+        if (!batch) return;
+        // Le DOM et le serveur ne comptent pas pareil (la file a changé ailleurs — autre onglet,
+        // traitement en cours) : seul le rendu serveur de la page est juste.
+        if (batch.total !== children.length) { location.reload(); return; }
+        if (batch.total === 1) { unwrapBatch(group, children[0]); return; }
+        updateBatchHeader(group, batch, removedId);
+    }
+
+    // Lot réduit à UNE card : il redevient une entrée UNITAIRE, exactement comme la file la rend
+    // — enrobage `.wama-queue-entry[data-entry-batch-id]` (jumeau de `_queue_entry.html`, gardé
+    // par `tests_queue_delete_contract`) et card REDEMANDÉE au serveur, qui la rend cette fois
+    // hors lot (`in_batch` faux). Le JS ne retouche pas la card : sa forme de fille (marge,
+    // titres, lecteur masqué) est une décision du gabarit d'app, pas une classe à retirer.
+    function unwrapBatch(group, card) {
+        const url = group.dataset.cardUrl;
+        if (!url || !(window.WamaApp && WamaApp.fetchCard)) { location.reload(); return; }
+        WamaApp.fetchCard(url, card.dataset.id).then(function (fresh) {
+            if (!fresh) { location.reload(); return; }
+            const entry = document.createElement('div');
+            entry.className = 'wama-queue-entry';
+            entry.style.display = 'contents';
+            entry.dataset.entryBatchId = group.dataset.batchId;
+            entry.dataset.cardUrl = url;
+            entry.appendChild(fresh);
+            group.replaceWith(entry);
+        });
+    }
+
+    // Card mère d'un lot qui garde plusieurs cards : ses compteurs, repérés dans
+    // `_batch_card.html` par `data-batch-field` (valeur) et `data-batch-show` (visible si > 0).
+    function updateBatchHeader(group, batch, removedId) {
+        const header = group.querySelector('.batch-group-header');
+        if (!header) return;
+        const total = batch.total;
+        const counts = {
+            success_count: batch.success_count || 0,
+            running_count: batch.running_count || 0,
+            failure_count: batch.failure_count || 0,
+        };
+        header.dataset.batchTotal = total;
+        header.dataset.batchSuccess = counts.success_count;
+        header.dataset.batchRunning = counts.running_count;
+        header.dataset.batchFailure = counts.failure_count;
+        function setField(field, text) {
+            header.querySelectorAll('[data-batch-field="' + field + '"]')
+                  .forEach(function (el) { el.textContent = text; });
+        }
+        setField('total', total);
+        setField('total_label', total + ' élément' + (total > 1 ? 's' : ''));
+        Object.keys(counts).forEach(function (key) {
+            setField(key, counts[key]);
+            header.querySelectorAll('[data-batch-show="' + key + '"]')
+                  .forEach(function (el) { el.hidden = !counts[key]; });
+        });
+        header.querySelectorAll('[data-batch-field="progress"]').forEach(function (el) {
+            el.style.width = Math.round(100 * counts.success_count / total) + '%';
+        });
+        // Plus aucune sortie : le ZIP du lot n'a plus rien à télécharger.
+        if (!batch.has_success) {
+            header.querySelectorAll('[data-batch-zip]').forEach(function (el) { el.remove(); });
+        }
+        header.querySelectorAll('.wama-eta[data-eta-ids]').forEach(function (el) {
+            el.dataset.etaIds = el.dataset.etaIds.split(',')
+                .filter(function (x) { return x.trim() && x.trim() !== String(removedId); })
+                .join(',');
+        });
     }
 
     document.addEventListener('click', function (e) {
@@ -270,12 +360,8 @@
         .then(function (data) {
             if (data.deleted || data.success || data.status === 'deleted') {
                 const id = btn.dataset.id;
-                // Élément issu d'un LOT : le total et l'affichage de la card mère sont recalculés
-                // côté serveur (un lot réduit à 1 redevient une card simple) — seul un
-                // rechargement rend cet état correctement. Les 9 apps faisaient déjà exactement
-                // ce test, à l'identique.
-                if (data.batch_changed) { notifyFileManager(); location.reload(); return; }
-                standardFollowUp(id, btn);
+                // Sans rechargement de la page, lot compris : `data.batch` dit ce qu'il devient.
+                standardFollowUp(id, btn, data.batch);
                 // Résidu déclaré par l'app (arrêt du polling, compteur d'en-tête) — voir plus haut
                 // pourquoi ce n'est pas une spécificité mais un mécanisme commun non encore adopté.
                 const followUp = pickFollowUp(btn);
@@ -570,6 +656,7 @@
                    notifyFiles: true });
 
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
+                                applyBatchState: applyBatchState,
                                 onBatchSettings: onBatchSettings,
                                 onBatchStarted: onBatchStarted,
                                 onBatchStartBody: onBatchStartBody,

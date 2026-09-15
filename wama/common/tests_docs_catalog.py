@@ -230,9 +230,9 @@ class DocDeveloppeurTest(TestCase):
         self.assertEqual(manquants, [])
 
     def test_chaque_mecanisme_a_sa_section(self):
-        from .mecanismes import MECANISMES
+        from .mecanismes import MECHANISMS
         toc = render_doc(BY_KEY['dev-briques'])['toc']
-        self.assertEqual(sum(1 for h in toc if h['level'] == 3), len(MECANISMES))
+        self.assertEqual(sum(1 for h in toc if h['level'] == 3), len(MECHANISMS))
 
     def test_le_parcours_mene_au_lecteur(self):
         html = render_doc(BY_KEY['dev-parcours'])['html']

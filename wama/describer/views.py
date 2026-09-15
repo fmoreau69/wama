@@ -495,9 +495,10 @@ def card_html(request, pk):
     # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
     from wama.common.utils.scoping import visible_or_404
     desc = visible_or_404(Description, user, pk=pk)
-    in_batch = BatchDescriptionItem.objects.filter(description=desc, batch__total__gt=1).exists()
+    from wama.common.utils.batch_common import is_batch_child
     html = render_to_string('describer/_description_card.html',
-                            {'elem': _decorate_desc(desc), 'in_batch': in_batch}, request=request)
+                            {'elem': _decorate_desc(desc), 'in_batch': is_batch_child(desc)},
+                            request=request)
     return HttpResponse(html)
 
 
@@ -652,10 +653,9 @@ def delete(request, pk):
     user = get_user(request)
     description = get_object_or_404(Description, pk=pk, user=user)
 
-    # Le membre était-il dans un batch ? (uniquement pour le flag UI ; total/cleanup = signal batch_sync)
-    from .models import BatchDescriptionItem
-    from wama.common.utils.batch_utils import find_member_batch
-    parent_batch = find_member_batch(BatchDescriptionItem, description=description)
+    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(description)
 
     # Delete files
     if description.input_file and os.path.exists(description.input_file.path):
@@ -672,7 +672,7 @@ def delete(request, pk):
 
     description.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
-    return JsonResponse({'deleted': True, 'id': pk, 'batch_changed': parent_batch is not None})
+    return JsonResponse({'deleted': True, 'id': pk, 'batch': batch_state(snapshot, Description)})
 
 
 @require_GET

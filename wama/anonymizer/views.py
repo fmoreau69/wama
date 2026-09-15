@@ -701,10 +701,9 @@ def card_html(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     media = visible_or_404(Media, user, pk=pk)
     _decorate_card(media)
-    item = BatchAnonymizerItem.objects.filter(media=media).select_related('batch').first()
-    in_batch = bool(item and item.batch.total > 1)
+    from wama.common.utils.batch_common import is_batch_child
     return render(request, 'anonymizer/_media_card.html',
-                  {'elem': media, 'in_batch': in_batch, 'user': user})
+                  {'elem': media, 'in_batch': is_batch_child(media), 'user': user})
 
 
 def _reset_for_relaunch(media):
@@ -1326,7 +1325,7 @@ def delete(request, pk: int):
     POURQUOI CETTE VUE EXISTE, ALORS QUE LA SUPPRESSION MARCHAIT DÉJÀ. Le bouton de
     l'anonymizer supprimait bien : il postait `media_id` en champ de formulaire vers
     `clear_media/`. Ce qui n'était pas conforme, c'est la FORME de la route — les neuf autres
-    apps exposent `delete/<pk>/` et répondent `batch_changed`. Tant que l'anonymizer divergeait,
+    apps exposent `delete/<pk>/` et disent le LOT de l'élément. Tant que l'anonymizer divergeait,
     la brique commune `queue-actions.js` ne pouvait pas le servir : elle poste un corps JSON
     vide vers `data-delete-url`, donc `media_id` serait arrivé VIDE — et une suppression sans
     cible est précisément ce qu'on ne veut pas laisser partir au hasard.
@@ -1336,23 +1335,21 @@ def delete(request, pk: int):
          N'IMPORTE QUEL utilisateur. Toutes les autres apps écrivent
          `get_object_or_404(Model, pk=pk, user=user)` ; l'anonymizer était le seul à ne pas le
          faire, sur des médias que l'app est faite pour anonymiser.
-      2. **`batch_changed` absent de la réponse** — le JS devait deviner l'appartenance à un lot
-         en inspectant le DOM. Le serveur sait ; il le dit désormais, comme partout ailleurs.
+      2. **L'appartenance à un lot absente de la réponse** — le JS devait la deviner en
+         inspectant le DOM. Le serveur sait ; il le dit, comme partout ailleurs (depuis le
+         2026-09-15 : l'état du lot après suppression, `batch_state`).
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     media = get_object_or_404(Media, pk=pk, user=user)
 
-    # Capturé AVANT la cascade : la suppression emporte le BatchAnonymizerItem.
-    parent_batch = None
-    try:
-        parent_batch = media.batch_item.batch
-    except Exception:
-        pass
+    # Lot de l'élément, relevé AVANT la cascade — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(media)
 
     _supprimer_media(media, user)
     # batch.total / suppression du lot vidé : gérés par le signal batch_sync.
     return JsonResponse({'success': True, 'deleted': pk,
-                         'batch_changed': parent_batch is not None})
+                         'batch': batch_state(snapshot, Media)})
 
 
 def _supprimer_media(media, user):

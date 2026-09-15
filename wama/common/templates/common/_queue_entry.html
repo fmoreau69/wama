@@ -58,11 +58,23 @@ Il est posé sur un enrobage et non sur la card : les 12 cards d'app sont des ga
 et poser un attribut commun dessus aurait voulu dire 12 modifications à retenir à chaque
 nouvelle app. `display:contents` laisse la card se disposer EXACTEMENT comme avant dans la
 grille/liste de la file — l'enrobage n'existe que pour porter la donnée.{% endcomment %}
+{% comment %}`data-card-url` (2026-09-15) — URL de la vue `card_html` de l'app, id factice `/0/`.
+Posé sur l'entrée (unitaire comme lot) pour que les briques COMMUNES redemandent une card au
+serveur sans connaître aucune app : c'est ce qui permet à `queue-actions.js` de rendre un lot
+réduit à une card comme une card simple, sans rechargement de la page. Route DÉRIVÉE du nom
+d'app et du domaine déclaré (`audio` → `enhancer:audio_card_html`), jamais écrite ici ; une
+route absente n'émet pas l'attribut (`{% templatetag openblock %} url … as {% templatetag closeblock %}` ne lève pas) et la
+brique retombe alors sur le rechargement.
+⚠ JUMEAU côté JS : `queue-actions.js::unwrapBatch` recrée l'enrobage unitaire ci-dessous
+(classe, `display:contents`, `data-entry-batch-id`, `data-card-url`) — les deux vont ensemble.{% endcomment %}
+{% load wama_actions %}
+{% domain_route_prefix app domain as card_route_prefix %}
+{% url app|add:':'|add:card_route_prefix|add:'card_html' 0 as card_url %}
 {% if batch_info.obj.is_unitary %}
   {% for item in batch_info.items %}{% if item.elem %}
     {% with elem=item.elem card_label=item.output_filename in_batch=False %}
       <div class="wama-queue-entry" style="display:contents"
-           data-entry-batch-id="{{ batch_info.obj.id }}">{% include card_template %}</div>
+           data-entry-batch-id="{{ batch_info.obj.id }}"{% if card_url %} data-card-url="{{ card_url }}"{% endif %}>{% include card_template %}</div>
     {% endwith %}
   {% endif %}{% endfor %}
 {% else %}
@@ -77,7 +89,7 @@ grille/liste de la file — l'enrobage n'existe que pour porter la donnée.{% en
   modèle de lot du dépôt qui groupe par nature (`ConversionBatch`, + sa jumelle de bac à
   sable) — les 9 autres n'ont pas le champ et ne rendent donc aucun attribut. La brique
   surface ce que le modèle DÉCLARE ; elle ne connaît aucune app.{% endcomment %}
-  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}"{% if batch_info.obj.media_type %} data-media-type="{{ batch_info.obj.media_type }}"{% endif %}>
+  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}"{% if batch_info.obj.media_type %} data-media-type="{{ batch_info.obj.media_type }}"{% endif %}{% if card_url %} data-card-url="{{ card_url }}"{% endif %}>
     {% include 'common/_batch_card.html' %}
     <div class="collapse" id="{{ collapse_prefix|default:'batchItems' }}{{ batch_info.obj.id }}"
          data-wama-batch-key="{{ batch_key|default:app }}_{{ batch_info.obj.id }}"

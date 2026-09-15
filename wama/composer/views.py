@@ -610,12 +610,9 @@ def delete(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
 
-    # Capture parent batch before cascade
-    parent_batch = None
-    try:
-        parent_batch = gen.batch_item.batch
-    except Exception:
-        pass
+    # Lot de l'élément, relevé AVANT la cascade — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(gen)
 
     # Delete output unconditionally
     if gen.audio_output:
@@ -631,7 +628,7 @@ def delete(request, pk):
     gen.delete()
 
     # batch.total / suppression du batch vidé (+ fichier batch) : gérés par le signal batch_sync.
-    return JsonResponse({'success': True, 'batch_changed': parent_batch is not None})
+    return JsonResponse({'success': True, 'batch': batch_state(snapshot, ComposerGeneration)})
 
 
 # ---------------------------------------------------------------------------
@@ -942,8 +939,10 @@ def card_html(request, pk):
         label = gen.batch_item.output_filename
     except ComposerBatchItem.DoesNotExist:
         label = ''
+    from wama.common.utils.batch_common import is_batch_child
     html = render_to_string('composer/_generation_card.html',
-                            {'elem': _decorate_generation(gen), 'card_label': label}, request=request)
+                            {'elem': _decorate_generation(gen), 'card_label': label,
+                             'in_batch': is_batch_child(gen)}, request=request)
     return HttpResponse(html)
 
 

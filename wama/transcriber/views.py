@@ -905,10 +905,10 @@ def card_html(request, pk: int):
     from django.template.loader import render_to_string
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
-    in_batch = BatchTranscriptItem.objects.filter(transcript=t, batch__total__gt=1).exists()
+    from wama.common.utils.batch_common import is_batch_child
     _decorate_card(t)
     html = render_to_string('transcriber/_transcript_card.html',
-                            {'elem': t, 'in_batch': in_batch}, request=request)
+                            {'elem': t, 'in_batch': is_batch_child(t)}, request=request)
     return HttpResponse(html)
 
 
@@ -1161,16 +1161,16 @@ def enrich(request, pk: int):
 def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
-    # Le membre était-il dans un batch ? (uniquement pour signaler au front qu'il faut re-render)
-    from wama.common.utils.batch_utils import find_member_batch
-    parent_batch = find_member_batch(BatchTranscriptItem, transcript=t)
+    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(t)
     # Output files are unique to this transcript — always delete
     _cleanup_output_files(t, user.id)
     # Audio file may be shared with a duplicate — only delete if no other row references it
     safe_delete_file(t, 'audio')
     t.delete()  # signal post_delete (batch_sync) : recale total / supprime le batch vidé
     cache.delete(f"transcriber_progress_{pk}")
-    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
+    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, Transcript)})
 
 
 @require_POST

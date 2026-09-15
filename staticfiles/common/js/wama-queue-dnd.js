@@ -554,9 +554,10 @@
             }).then(function (refusal) {
                 if (refusal) return fail(refusal);
                 // Sortir RECOMPOSE la file côté serveur : le lot d'origine peut disparaître,
-                // un batch-of-1 naît, la card mère change de compte. Aucun réarrangement DOM
-                // ne rend cet état fidèlement — on recharge, comme `queue-actions.js` le fait
-                // sur `batch_changed`.
+                // un batch-of-1 naît, la card mère change de compte. On recharge encore ici.
+                // ⏳ La suppression d'une card de lot s'en passe depuis le 2026-09-15
+                // (`queue-actions.js`, `WamaQueueActions.applyBatchState`) : ce geste est le
+                // suivant de l'inventaire des rechargements (ROUTE §10.2).
                 succeed(toDetach.length + " élément(s) sorti(s) du lot");
             });
         }

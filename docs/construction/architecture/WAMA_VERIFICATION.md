@@ -65,6 +65,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 3b | Dupliquer un **lot** (`.batch-duplicate-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
 | 4 | Supprimer un **élément** (`.delete-btn`) | ✅ `<app>.duplicate_delete` | non |
 | 4b | Supprimer un **lot** (`.batch-delete-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
+| 4c | Supprimer les cards d'un **lot** une à une — card mère à jour, lot redevenu card simple, **sans rechargement de la page** | ✅ `<app>.delete_from_batch` (15/09 ; mesuré converter, imager, composer, avatarizer) | non |
 | 5 | Tout effacer | ✅ `<app>.clear_all` (28/08) — **10 OK / 4 skips**, borné au compte de TEST ; mesure l'écran juste après le clic **et** le serveur après rechargement, **plus la base** (le lot vidé ne rend aucune card) | non |
 | 6 | Sélectionner une card → l'inspecteur se remplit | ✅ **ENTIER** — `<app>.inspector_actions` (28/08) : remplissage du volet Actions **et** refermeture par le ✕, sur les deux portées (card **et** card mère de lot), **20 chemins / 20** sur 10 apps | non |
 | 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | **oui sauf imager** — mesuré 27/08 : composer expédie la tâche DANS sa vue de création (`composer/views.py:235`) et avatarizer enchaîne `createJob()` puis `startJob()` (`avatarizer/js/index.js:253-254`) |
@@ -1129,7 +1130,8 @@ jour où on montera d'un étage, pas un chantier neuf.
 
 Demande de Fabien (2026-08-22) : « mettre à jour la grille de conformité pour qu'elle reflète
 tous les mécanismes ». Ce n'est pas à estimer — **c'est mesuré** par
-`mecanismes_scan.mecanismes_sans_critere()`, qui exploite le champ `mecanisme` des critères.
+`mecanismes_scan.mechanisms_without_criterion()`, qui exploite le champ `mechanism` des critères
+(ex-`mecanismes_sans_critere()` / `mecanisme`, identifiants passés en anglais le 2026-09-15).
 
 **Relevé du 2026-08-22 : 20 mécanismes ne sont vérifiés par AUCUN critère**, et 0 critère
 orphelin (aucune liaison morte — le point positif).

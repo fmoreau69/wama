@@ -646,17 +646,22 @@ def _decorate_synthesis(s):
     return s
 
 
-def synthesis_card_html(request, pk: int):
+def card_html(request, pk: int):
     """
     Renders a single synthesis card as HTML fragment.
     Used by the polling loop to update a card in-place on completion (no full page reload).
+
+    ⚠ Nom et route alignés sur les 9 autres apps le 2026-09-15 (ex-`synthesis_card_html`,
+    `synthesis/<pk>/card/`) : une brique commune résout la route `<app>:card_html`.
     """
     from django.template.loader import render_to_string
     from django.http import HttpResponse
+    from wama.common.utils.batch_common import is_batch_child
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
     html = render_to_string('synthesizer/_synthesis_card.html',
-                            {'elem': _decorate_synthesis(synthesis)}, request=request)
+                            {'elem': _decorate_synthesis(synthesis),
+                             'in_batch': is_batch_child(synthesis)}, request=request)
     return HttpResponse(html)
 
 
@@ -788,12 +793,9 @@ def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
-    # Capture parent batch before deletion (cascade will remove the BatchSynthesisItem)
-    parent_batch = None
-    try:
-        parent_batch = synthesis.batch_item.batch
-    except Exception:
-        pass
+    # Lot de l'élément, relevé AVANT la cascade — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(synthesis)
 
     # Révoquer la tâche Celery si elle est en file ou en cours (libère le worker GPU)
     if synthesis.task_id:
@@ -818,7 +820,7 @@ def delete(request, pk: int):
     cache.delete(f"synthesizer_progress_{pk}")
 
     # batch.total / suppression du batch vidé : gérés centralement par le signal batch_sync (post_delete).
-    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
+    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, VoiceSynthesis)})
 
 
 @require_POST

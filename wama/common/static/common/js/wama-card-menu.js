@@ -665,6 +665,23 @@
             poserDebordement(card);
         });
 
+        // Cards INSÉRÉES ou REMPLACÉES après le montage (2026-09-15). Une card redemandée au
+        // serveur — `refreshCard` des apps, lot réduit à une card par `queue-actions.js` — arrivait
+        // SANS son « … » : le clic droit, délégué sur la file, la voyait déjà ; le débordement,
+        // posé card par card au montage, non. `poserDebordement` est idempotent (garde sur
+        // `.wama-cm-plus`), et le bouton qu'il ajoute n'est pas une card : pas de boucle.
+        if (global.MutationObserver) {
+            new MutationObserver(function (mutations) {
+                mutations.forEach(function (m) {
+                    Array.prototype.forEach.call(m.addedNodes, function (n) {
+                        if (n.nodeType !== 1) return;
+                        var cards = (n.matches && n.matches(SEL_CARD)) ? [n] : [];
+                        cards.concat($$(SEL_CARD, n)).forEach(poserDebordement);
+                    });
+                });
+            }).observe(q, { childList: true, subtree: true });
+        }
+
         // CLIC DROIT — sur la card visée. Si elle fait partie d'une sélection multiple, le menu
         // agit sur TOUTE la sélection : c'est ce qui rend le geste utile à plusieurs cards.
         q.addEventListener('contextmenu', function (ev) {

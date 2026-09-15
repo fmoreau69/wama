@@ -156,7 +156,7 @@ def _fait_mecanismes():
     import re
     from django.conf import settings
 
-    from wama.common.mecanismes import ASSUMES_LOCAUX, MECANISMES
+    from wama.common.mecanismes import ASSUMED_LOCAL, MECHANISMS
 
     base = Path(settings.BASE_DIR)
     # Balayage d'adoption : la logique vivait ICI en closure, elle a un 2ᵉ consommateur depuis
@@ -166,15 +166,15 @@ def _fait_mecanismes():
     # Le détecteur de consommateurs cherche `from <module> import` / `import <module>` — la
     # forme `from wama.common.services import mecanismes_scan` lui ÉCHAPPE, et le module
     # apparaissait « sans consommateur » alors que cette ligne l'utilise (mesuré 19/08).
-    from wama.common.services.mecanismes_scan import (charger_sources, consommateurs,
-                                                      criteres_orphelins,
-                                                      mecanismes_sans_critere, modules_python)
+    from wama.common.services.mecanismes_scan import (load_sources, consumers,
+                                                      orphan_criteria,
+                                                      mechanisms_without_criterion, python_modules)
 
-    modules = list(modules_python(base))
-    sources = charger_sources(base)
+    modules = list(python_modules(base))
+    sources = load_sources(base)
 
-    def _consommateurs(mecanisme):
-        return consommateurs(mecanisme, sources)
+    def _consumers(mechanism):
+        return consumers(mechanism, sources)
 
     # Une sous-table par DOMAINE (ordre du registre) : un tableau unique de 60+ lignes ne se
     # lit pas — demande Fabien du 2026-08-13 en intégrant la couche UI générée.
@@ -182,31 +182,31 @@ def _fait_mecanismes():
     orphelins = []
     absents = []
     domaines = []
-    for m in MECANISMES:
-        if m.domaine not in domaines:
-            domaines.append(m.domaine)
+    for m in MECHANISMS:
+        if m.domain not in domaines:
+            domaines.append(m.domain)
     for dom in domaines:
-        du_domaine = sorted((m for m in MECANISMES if m.domaine == dom), key=lambda x: x.nom)
+        du_domaine = sorted((m for m in MECHANISMS if m.domain == dom), key=lambda x: x.name)
         lignes.append(f"\n#### {dom or 'Sans domaine'} ({len(du_domaine)})\n")
         lignes.append("| Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |")
         lignes.append("|---|---|---|---|---|")
         for m in du_domaine:
-            existe = (base / m.domicile).exists()
+            existe = (base / m.home).exists()
             if not existe:
-                absents.append(f"{m.cle} → {m.domicile}")
-            conso = _consommateurs(m) if existe else []
+                absents.append(f"{m.key} → {m.home}")
+            conso = _consumers(m) if existe else []
             if existe and not conso:
-                orphelins.append(f"`{m.cle}` ({m.domicile})")
+                orphelins.append(f"`{m.key}` ({m.home})")
             doc = f"`{m.doc}`" if m.doc else "—"
             etat = str(len(conso)) if conso else ("⚠ **0**" if existe else "❌ absent")
-            lignes.append(f"| **{m.nom}** | {m.role} | `{m.domicile}` | {doc} | {etat} |")
+            lignes.append(f"| **{m.name}** | {m.role} | `{m.home}` | {doc} | {etat} |")
 
     # Modules de `common/` non rattachés : la réponse mécanique à « qu'ai-je oublié de tracer ».
-    # ASSUMES_LOCAUX en est soustrait (assumer est un acte DÉCLARÉ avec raison, pas un oubli) —
+    # ASSUMED_LOCAL en est soustrait (assumer est un acte DÉCLARÉ avec raison, pas un oubli) —
     # sans cette soustraction la liste ne pouvait jamais converger et cessait d'être lue (45
     # noms au 2026-08-13). Deux gardes d'honnêteté : un module à la fois assumé ET déclaré est
     # une contradiction ; un assumé dont le fichier a disparu est une entrée périmée.
-    declares = {m.domicile for m in MECANISMES} | {a for m in MECANISMES for a in m.annexes}
+    declares = {m.home for m in MECHANISMS} | {a for m in MECHANISMS for a in m.annexes}
     # `wama/common/backends/` ajouté le 2026-08-13 : il manquait, et c'est ce qui a rendu
     # INVISIBLE de la carte la brique qui ALIMENTE tout le suivi des modèles
     # (`BaseModelBackend` et ses trois enveloppes). Un dossier hors balayage ne produit
@@ -248,23 +248,23 @@ def _fait_mecanismes():
         rel for rel in balayables
         if rel.startswith(dossiers_balayes)
         and not rel.endswith('__init__.py') and rel not in declares
-        and rel not in ASSUMES_LOCAUX
+        and rel not in ASSUMED_LOCAL
     )
-    contradictions = sorted(set(ASSUMES_LOCAUX) & declares)
-    assumes_perimes = sorted(p for p in ASSUMES_LOCAUX if not (base / p).exists())
+    contradictions = sorted(set(ASSUMED_LOCAL) & declares)
+    assumes_perimes = sorted(p for p in ASSUMED_LOCAL if not (base / p).exists())
 
     lignes.append("")
-    _trous = mecanismes_sans_critere(sources)
-    lignes.append(f"**Mécanismes déclarés : {len(MECANISMES)}** · "
+    _trous = mechanisms_without_criterion(sources)
+    lignes.append(f"**Mécanismes déclarés : {len(MECHANISMS)}** · "
                   f"domiciles absents : {len(absents)} · sans consommateur : {len(orphelins)} · "
-                  f"assumés locaux : {len(ASSUMES_LOCAUX)} · "
+                  f"assumés locaux : {len(ASSUMED_LOCAL)} · "
                   f"modules balayés non rattachés : {len(candidats)} · "
                   f"**de niveau app sans critère de grille : {len(_trous)}**")
     if contradictions:
         lignes.append(f"- ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : "
                       + ', '.join(f"`{c}`" for c in contradictions))
     if assumes_perimes:
-        lignes.append(f"- ❌ **Assumé dont le fichier a disparu** (entrée périmée d'ASSUMES_LOCAUX) : "
+        lignes.append(f"- ❌ **Assumé dont le fichier a disparu** (entrée périmée d'ASSUMED_LOCAL) : "
                       + ', '.join(f"`{c}`" for c in assumes_perimes))
     if absents:
         lignes.append(f"- ❌ **Domicile introuvable** : {', '.join(absents)}")
@@ -282,7 +282,7 @@ def _fait_mecanismes():
     # La MÊME mesure que `_trous` ci-dessus : la rejouer coûtait une matrice d'adoption entière
     # de plus (28 s avant le préfiltre de `consommateurs`, mesuré le 2026-09-14).
     trous_grille = _trous
-    orphelins_liaison = criteres_orphelins()
+    orphelins_liaison = orphan_criteria()
     if orphelins_liaison:
         lignes.append(f"- ❌ **Liaison de critère cassée** (clé absente du registre — la "
                       f"jonction est inerte) : "
@@ -290,13 +290,13 @@ def _fait_mecanismes():
     if trous_grille:
         lignes.append(f"\n<details><summary>⚠ <b>{len(trous_grille)} mécanisme(s) de niveau "
                       f"app SANS critère de grille</b> — adoptés par des apps, vérifiés par "
-                      f"aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir "
+                      f"aucun critère (<code>Criterion.mechanism</code>) : une app peut sortir "
                       f"à 100 % sans les avoir adoptés</summary>\n")
         lignes.append("| Mécanisme | Adopté par | Domicile |")
         lignes.append("|---|---|---|")
         for m, apps in trous_grille:
-            lignes.append(f"| `{m.cle}` — {m.nom} | **{len(apps)}** app(s) : "
-                          f"{', '.join(apps)} | `{m.domicile}` |")
+            lignes.append(f"| `{m.key}` — {m.name} | **{len(apps)}** app(s) : "
+                          f"{', '.join(apps)} | `{m.home}` |")
         lignes.append("\n</details>")
     if candidats:
         # Rendu en liste par dossier plutôt qu'en paragraphe : c'est un BACKLOG à traiter, pas
@@ -311,11 +311,11 @@ def _fait_mecanismes():
                 lignes.append(f"\n`{dossier}` ({len(noms)}) — "
                               + ' · '.join(f"`{n}`" for n in noms))
         lignes.append("\n</details>")
-    if ASSUMES_LOCAUX:
+    if ASSUMED_LOCAL:
         lignes.append(f"\n<details><summary>Assumés utilitaires locaux : "
-                      f"{len(ASSUMES_LOCAUX)} (chacun avec sa raison — "
-                      f"<code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>\n")
-        for chemin, raison in sorted(ASSUMES_LOCAUX.items()):
+                      f"{len(ASSUMED_LOCAL)} (chacun avec sa raison — "
+                      f"<code>ASSUMED_LOCAL</code>, wama/common/mecanismes.py)</summary>\n")
+        for chemin, raison in sorted(ASSUMED_LOCAL.items()):
             lignes.append(f"- `{chemin.split('/')[-1]}` — {raison}")
         lignes.append("\n</details>")
     return '\n'.join(lignes)

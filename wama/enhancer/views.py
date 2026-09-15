@@ -560,10 +560,9 @@ def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
 
-    # Le membre était-il dans un batch ? (flag UI ; total/cleanup = signal batch_sync)
-    from .models import BatchEnhancementItem
-    from wama.common.utils.batch_utils import find_member_batch
-    parent_batch = find_member_batch(BatchEnhancementItem, enhancement=enhancement)
+    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(enhancement)
 
     # Input file may be shared with a duplicate — only delete if no other row references it
     safe_delete_file(enhancement, 'input_file')
@@ -578,7 +577,7 @@ def delete(request, pk: int):
     enhancement.delete()  # signal batch_sync : recale total / supprime le batch vidé
     cache.delete(f"enhancer_progress_{pk}")
 
-    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
+    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, Enhancement)})
 
 
 @require_POST
@@ -1304,12 +1303,9 @@ def audio_delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
 
-    # Capture parent batch before deletion
-    parent_batch = None
-    try:
-        parent_batch = ae.batch_item.batch
-    except Exception:
-        pass
+    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(ae)
 
     # Input may be shared with a duplicate — only delete if no other row references it
     safe_delete_file(ae, 'input_file')
@@ -1324,7 +1320,7 @@ def audio_delete(request, pk: int):
     ae.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ fichier batch)
     cache.delete(f"audio_enhancer_progress_{pk}")
 
-    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
+    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, AudioEnhancement)})
 
 
 @require_POST
@@ -1799,16 +1795,20 @@ def card_html(request, pk):
     """Card média = partial serveur UNIQUE (source du markup, remplace appendRow JS)."""
     e = get_object_or_404(Enhancement, pk=pk, user=_req_user(request))
     _decorate_media_card(e)  # chips du schéma — même décoration que l'IndexView
-    in_batch = BatchEnhancementItem.objects.filter(enhancement=e).exists()
-    return render(request, 'enhancer/_enhancement_card.html', {'elem': e, 'in_batch': in_batch})
+    # `in_batch` : position dans la file, brique commune. L'ancien `.exists()` valait True pour
+    # un lot UNITAIRE (toute card est enveloppée dans son lot) → card seule rendue en fille.
+    from wama.common.utils.batch_common import is_batch_child
+    return render(request, 'enhancer/_enhancement_card.html',
+                  {'elem': e, 'in_batch': is_batch_child(e)})
 
 
 def audio_card_html(request, pk):
     """Card audio = partial serveur UNIQUE (remplace appendAudioRow JS)."""
     ae = get_object_or_404(AudioEnhancement, pk=pk, user=_req_user(request))
     _decorate_audio_card(ae)  # chips du schéma — même décoration que l'IndexView
-    in_batch = BatchAudioEnhancementItem.objects.filter(audio_enhancement=ae).exists()
-    return render(request, 'enhancer/_audio_card.html', {'elem': ae, 'in_batch': in_batch})
+    from wama.common.utils.batch_common import is_batch_child
+    return render(request, 'enhancer/_audio_card.html',
+                  {'elem': ae, 'in_batch': is_batch_child(ae)})
 
 
 

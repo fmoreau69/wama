@@ -229,10 +229,10 @@ class Criterion:
     #: critère vérifie 0 ou 1 mécanisme, un mécanisme peut être couvert par plusieurs critères
     #: (`param_schema` en a 4). '' = critère qui ne vérifie aucune brique commune (convention
     #: de gabarit, champ de modèle…) — c'est légitime, et ça reste lisible.
-    #: LU PAR `mecanismes_scan.mecanismes_sans_critere()` (mécanisme de niveau app que RIEN ne
-    #: vérifie) et `criteres_orphelins()` (clé mal orthographiée = liaison silencieusement
+    #: LU PAR `mecanismes_scan.mechanisms_without_criterion()` (mécanisme de niveau app que RIEN ne
+    #: vérifie) et `orphan_criteria()` (clé mal orthographiée = liaison silencieusement
     #: inerte, le pire des deux mondes).
-    mecanisme: str = ''
+    mechanism: str = ''
 
 
 def _present(f: _AppFiles, patterns, regex, label_ok=None):
@@ -625,7 +625,7 @@ def _delete_wiring(f: _AppFiles):
     ⚠ POURQUOI IL N'EXISTAIT PAS AVANT, et ce que ça dit de la grille (question de Fabien).
     La duplication avait son critère depuis longtemps ; la suppression n'en avait aucun, non
     par oubli mais parce qu'il n'y avait **pas de brique** : le registre des mécanismes recense
-    ce qui EXISTE, donc `mecanismes_sans_critere()` ne pouvait rien signaler d'absent. Le point
+    ce qui EXISTE, donc `mechanisms_without_criterion()` ne pouvait rien signaler d'absent. Le point
     aveugle de la grille n'est pas « un mécanisme sans critère » — celui-là est détecté — c'est
     **« un geste sans brique »** : 10 apps faisant la même chose de 6 façons, sans domicile
     commun, et aucun instrument n'avait de nom pour ça. C'est le scénario fonctionnel
@@ -700,6 +700,86 @@ def _settings_wiring(f: _AppFiles):
     if declare:
         return 'partial', f"{declare} (ouvreur déclaré, mais le gabarit ne rend pas .settings-btn[data-id])"
     return False, None
+
+
+def _delete_batch_state(f: _AppFiles):
+    """La suppression d'un élément dit ce que DEVIENT son lot, par la brique (2026-09-15).
+
+    ⚠ LE TROU QUE `_delete_wiring` LAISSAIT. Il atteste le BOUTON et la délégation, jamais la
+    RÉPONSE de la vue. Le 2026-08-23 la brique `queue-actions.js` a rendu son rechargement
+    conditionnel à un champ `batch_changed` que chaque vue écrivait à la main ; converter et
+    imager ne l'écrivaient pas, et un lot réduit à une card restait affiché en lot — pendant que
+    `delete_wiring` était vert 10/10 (constat Fabien le 14/09 ; `ROUTE §10.2`, bloc du 15/09).
+    *Un critère sur le déclencheur ne dit rien de ce que le geste produit.*
+
+    Mesure : la vue RELÈVE le lot par la brique avant la suppression (`batch_snapshot`) ET le
+    RÉPOND (`batch_state`) — c'est ce que `queue-actions.js` lit pour mettre la file à jour sans
+    rechargement de la page. Les deux formes écrites à la main retirées le 15/09
+    (`batch_changed`, `find_member_batch` — REMOVAL_LEDGER R62/R63) sont une RÉGRESSION.
+    """
+    if not f.find_code(URLS, r"name=['\"]delete['\"]"):
+        return None, None
+    main = f.find_code(VIEWS, r'batch_changed|find_member_batch')
+    releve = f.find_code(VIEWS, r'\bbatch_snapshot\(')
+    etat = f.find_code(VIEWS, r'\bbatch_state\(')
+    if main:
+        return False, (f"lot de l'élément écrit À LA MAIN ({main}) — brique "
+                       "`batch_common.batch_snapshot` / `batch_state`")
+    if releve and etat:
+        return True, f"{releve} + {etat}"
+    if releve or etat:
+        return 'partial', (f"{releve or etat} (il faut les DEUX : relever le lot avant la "
+                           "suppression, et le répondre)")
+    return False, None
+
+
+def _card_in_batch(f: _AppFiles):
+    """La card rendue SEULE (`card_html`) connaît sa position dans la file (2026-09-15).
+
+    `in_batch` décide de la forme d'une card de fille de lot (marge, titres, lecteur masqué).
+    Au rendu de la file, `common/_queue_entry.html` le pose d'après `is_unitary` ; mais la vue
+    `card_html` — celle qui redemande une card sans rechargement de la page — le recalculait
+    à la main. Mesuré le 2026-09-15 sur les 11 vues : cinq variantes, dont une FAUSSE
+    (`.exists()` de l'enhancer : un lot unitaire rendait une card de fille) et quatre ABSENTES
+    (la fille rafraîchie perdait son apparence de fille). La brique est `is_batch_child`.
+    """
+    if not f.find_code(URLS, r'card_html'):
+        return None, None
+    brique = f.find_code(VIEWS, r'\bis_batch_child\(')
+    main = f.find_code(VIEWS, r'batch__total__gt|\bin_batch\s*=\s*(?!is_batch_child\b)[\w(]')
+    if brique and not main:
+        return True, brique
+    if brique:
+        return 'partial', f"{brique} + calcul À LA MAIN restant ({main})"
+    if main:
+        return False, f"`in_batch` calculé À LA MAIN ({main}) — brique `batch_common.is_batch_child`"
+    return False, ("`card_html` sans `in_batch` — une fille de lot redemandée au serveur perd son "
+                   "apparence de fille")
+
+
+def _card_refresh_common(f: _AppFiles):
+    """Une card se redemande au serveur par la brique `WamaApp.fetchCard` (2026-09-15).
+
+    Le rendu d'une card est serveur (`card_html`, CARD_DESIGN §3) ; le REDEMANDER était recopié
+    dans chaque app, sous CINQ noms mesurés ce jour (`refreshCard` ×7, `upsertCard`,
+    `insertRenderedCard`, `fetchCardHtml`, `refreshAudioCard`) et une copie en ligne dans la
+    boucle de polling du synthesizer — et avec deux formes de réponse (HTML, JSON pour l'imager).
+    Un critère sur un NOM de fonction en aurait manqué la moitié : le signal commun est la
+    référence du JS à la route de card (`cardHtml`, `card_html`…), casse ignorée, hors
+    commentaires. Une app qui passe cette URL à la brique (`WamaApp.fetchCard(APP.urls.cardHtml,
+    id)`) est portée ; un `fetch(` direct sur elle reste une copie.
+    """
+    brique = f.find_code(JS + TEMPLATES, r'WamaApp\.fetchCard\(')
+    fetch_local = f.find_code(JS, r'(?i)fetch\([^;\n]*card_?html')
+    mention = f.find_code(JS, r'(?i)card_?html')
+    if brique and fetch_local:
+        return 'partial', f"{brique} + copie locale restante ({fetch_local})"
+    if brique:
+        return True, brique
+    if mention:
+        return False, (f"copie locale du rafraîchissement de card ({mention}) — à porter sur "
+                       "`WamaApp.fetchCard`")
+    return None, None
 
 
 def _output_naming(f: _AppFiles):
@@ -818,6 +898,25 @@ def _params_modal(f: _AppFiles):
     if (f.root / 'params.py').is_file():
         return False, "params.py existe mais WamaParams.render jamais appelé"
     return False, None
+
+
+def _settings_modal_cycle(f: _AppFiles):
+    """Le CYCLE complet de la modale d'élément passe par la brique `WamaParams.settingsModal`.
+
+    Ajouté le 2026-09-15 (demande de Fabien : « s'il manque des critères dans la grille il faut
+    les rajouter »). `settings_modal_item` mesure le CONTENU de la modale — généré du schéma par
+    `WamaParams.render`, 10/10. Le CYCLE — ouvrir → rendre → enregistrer → fermer — restait
+    réécrit à la main dans 8 apps sans qu'aucun critère le voie (`ROUTE §F3`, adoption 2/10
+    mesurée le 2026-08-31). Applicable dès que l'app déclare un ouvreur de réglages.
+    """
+    if not f.find_code(TEMPLATES + JS, r'WamaQueueActions\.onSettings'):
+        return None, None
+    cycle = f.find_code(TEMPLATES + JS, r'WamaParams\.settingsModal\(')
+    if cycle:
+        return True, cycle
+    render = f.find_code(TEMPLATES + JS, r'WamaParams\.render\(')
+    return False, (f"cycle de modale écrit à la main ({render}) — brique `WamaParams.settingsModal`"
+                   if render else "ouvreur déclaré, mais aucun cycle de modale par la brique")
 
 
 def _console(f: _AppFiles):
@@ -1508,9 +1607,9 @@ def _studio_params(f: _AppFiles):
 CRITERIA: list[Criterion] = [
     # ── F1 identité / intégration transverse ──
     Criterion('tool_api', 'F1', 'Triade tool_api (add_to/start/get_status) au TOOL_REGISTRY', _tool_api_triad,
-              mecanisme='tool_api'),
+              mechanism='tool_api'),
     Criterion('console', 'F1', 'Console app (bloc + endpoint)', _console,
-              mecanisme='console'),
+              mechanism='console'),
     Criterion('help_about', 'F1', 'Aide / À-propos (brique commune AppAboutView/AppHelpView)',
               _help_about),
     Criterion('catalog_entry', 'F1', "Identité APP_CATALOG (E/S typées + input_extensions)",
@@ -1518,20 +1617,20 @@ CRITERIA: list[Criterion] = [
     # ── F2 entrée ──
     Criterion('new_item_card', 'F2', "Card d'entrée commune _new_item_card",
               lambda f: _present(f, TEMPLATES, r"common/_new_item_card\.html"),
-              mecanisme='new_item_card'),
+              mechanism='new_item_card'),
     Criterion('queue_entry', 'F2', 'Entrée de file commune (_queue_entry : card seule OU lot)',
-              _queue_entry, mecanisme='queue_entry'),
+              _queue_entry, mechanism='queue_entry'),
     Criterion('drag_drop', 'F2', 'Zone drag & drop',
               lambda f: _present(f, TEMPLATES + JS, r'drop_zone_id|drop-zone|dragover')),
     Criterion('url_ingest', 'F2', 'Import URL déclaratif (WAMA_INGEST + ensure_local_input)', _url_ingest,
-              mecanisme='source_ingest'),
+              mechanism='source_ingest'),
     Criterion('batch_import', 'F2', 'Import batch unifié (batch-import.js + batch_parsers)', _batch_import,
-              mecanisme='batch'),
+              mechanism='batch'),
     Criterion('media_library_slot', 'F2', 'Slot médiathèque sur la card d’entrée',
               lambda f: _present(f, TEMPLATES, r'show_media_library')),
     Criterion('input_card_collapsed', 'F2', "Card d'entrée REPLIABLE (collapsible)",
               lambda f: _present(f, TEMPLATES, r'collapsible=True|collapsible=1'),
-              mecanisme='new_item_card'),
+              mechanism='new_item_card'),
     # Grisage des MODÈLES par entrée : sans moteur IA il n'y a rien à griser (verdict
     # Fabien 13/08 — converter ffmpeg/pandoc → non applicable, même garde que F4) ; et sans
     # SÉLECTEUR il n'y a pas d'hôte (verdict Fabien 17/08 — describer routage auto,
@@ -1539,14 +1638,14 @@ CRITERIA: list[Criterion] = [
     Criterion('input_match_ui', 'F2', 'Grisage des modèles incompatibles (WamaInputMatch)',
               lambda f: _present(f, TEMPLATES + JS, r'wama-input-match|WamaInputMatch')
               if _uses_models(f) and _has_engine_select(f) else (None, None),
-              mecanisme='model_capabilities'),
+              mechanism='model_capabilities'),
     Criterion('filemanager_import', 'F2', 'Réception « Envoyer vers app » (wama:fileimported)',
               _filemanager_import),
     # Depuis 2026-08-13 la traversée vit dans la brique commune WamaFolderImport (extraite du
     # filemanager) : l'adoption se lit par `folder_input_id=` (card commune) ou l'appel direct.
     Criterion('recursive_import', 'F2', 'Import de DOSSIER récursif (brique WamaFolderImport)',
               _recursive_import,
-              mecanisme='folder_import'),
+              mechanism='folder_import'),
     # Trou #26 (route §11) : le seul critère qui regarde si le markup d'entrée est ÉCOUTÉ.
     # Les autres critères d'import constatent une présence ; celui-ci constate un chargement.
     Criterion('import_wired', 'F2', 'Voie d’import CHARGÉE par le gabarit (dépôt non inerte)',
@@ -1555,106 +1654,116 @@ CRITERIA: list[Criterion] = [
     # brique commune WamaImport, pas une boucle upload maison. Jonction avec `import_front`.
     Criterion('import_front', 'F2', 'Voie d’import = brique commune WamaImport (front)',
               _import_front,
-              mecanisme='import_front'),
+              mechanism='import_front'),
     # ── F3 UI / params / inspecteur ──
     Criterion('settings_modal_item', 'F3', 'Modale paramètres générée (WamaParams.render)', _params_modal,
-              mecanisme='param_schema'),
+              mechanism='param_schema'),
+    # 2026-09-15 : le CONTENU de la modale est mesuré juste au-dessus ; son CYCLE ne l'était pas.
+    Criterion('settings_modal_cycle', 'F3', 'Cycle de la modale par la brique (WamaParams.settingsModal)',
+              _settings_modal_cycle, mechanism='param_schema'),
+    # `init_from_schema` et `inspector_actions` RATTACHÉS à `inspector` le 2026-09-15 (ex-
+    # `detail_registry`) : `initFromSchema` et `_inspector_actions.html` sont la brique
+    # `wama-inspector.js` et son annexe — le registre de détail reste couvert par
+    # `inspector_detail_wired` et `detail_spec`. Rattachés à côté, l'inspecteur figurait parmi les
+    # mécanismes « sans critère » alors que trois critères le mesuraient.
     Criterion('init_from_schema', 'F3', 'Volet droit initFromSchema',
               lambda f: _present(f, TEMPLATES + JS, r'initFromSchema'),
-              mecanisme='detail_registry'),
+              mechanism='inspector'),
     Criterion('inspector_adapters', 'F3', 'Adapters preview + detail (apps.py)', _inspector_adapters,
-              mecanisme='preview'),
+              mechanism='preview'),
     Criterion('inspector_actions', 'F3', 'Actions clonées dans le volet (_inspector_actions)',
               lambda f: _present(f, TEMPLATES, r"common/_inspector_actions\.html"),
-              mecanisme='detail_registry'),
+              mechanism='inspector'),
     Criterion('settings_modal_footer', 'F3', 'Pied de modale commun (_settings_modal_footer)',
               lambda f: _present(f, TEMPLATES, r"common/_settings_modal_footer\.html"),
-              mecanisme='param_schema'),
+              mechanism='param_schema'),
     Criterion('model_help', 'F3', 'Descriptif moteur (wama-model-help)', _model_help,
-              mecanisme='model_capabilities'),
+              mechanism='model_capabilities'),
     Criterion('params_schema', 'F3', 'Schéma de paramètres déclaratif (params.py → PARAMS_JSON)',
               lambda f: _present(f, PARAMS, r'schema_to_dicts\(|derive_from_model\(|Param\('),
-              mecanisme='param_schema'),
+              mechanism='param_schema'),
     Criterion('params_modal_batch', 'F3', 'Modale BATCH générée par WamaParams', _params_modal_batch,
-              mecanisme='param_schema'),
+              mechanism='param_schema'),
     Criterion('card_chips', 'F3', 'Chips métadonnée sur la card (card_chips)',
               lambda f: _present(f, VIEWS + TEMPLATES, r'card_chips|_card_chips\.html'),
-              mecanisme='card_chips'),
+              mechanism='card_chips'),
     # ── Les 3 briques livrées le 18/08 et que RIEN ne mesurait (jonction 19/08) ──────────
     Criterion('card_gear', 'F3', 'data-* du gear ⚙ dérivés du schéma (brique card_gear)',
-              _card_gear, mecanisme='card_gear'),
+              _card_gear, mechanism='card_gear'),
     Criterion('card_preview_hydratee', 'F3',
               'Aperçu de résultat dans la card par le mécanisme commun (data-card-preview)',
-              _card_preview_hydratee, mecanisme='preview'),
+              _card_preview_hydratee, mechanism='preview'),
     Criterion('inspector_detail_wired', 'F3',
               'Volet reflétant la card (data-preview-url + adapter detail enregistré)',
-              _inspector_detail_wired, mecanisme='detail_registry'),
+              _inspector_detail_wired, mechanism='detail_registry'),
     # show_if des capacités-MODÈLE : sans moteur IA il n'y a pas de capacités à dériver
     # (verdict Fabien 13/08 — même garde _uses_models que F4) ; sans SÉLECTEUR, pas d'hôte
     # (verdict Fabien 17/08 — gate commun _has_engine_select, comme model_help).
     Criterion('model_caps_ui', 'F3', 'show_if dérivé des capacités-modèle (WamaModelCaps)',
               lambda f: _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')
               if _uses_models(f) and _has_engine_select(f) else (None, None),
-              mecanisme='model_capabilities'),
+              mechanism='model_capabilities'),
     Criterion('modes', 'F3', 'Modes déclarés (APP_MODES) rendus par WamaModes', _modes_declared,
-              mecanisme='app_modes'),
+              mechanism='app_modes'),
     Criterion('layout', 'F3', 'Bascule Ligne / Mosaïque (card_layout)',
               lambda f: _present(f, TEMPLATES + JS + VIEWS, r'card_layout|data-layout'),
-              mecanisme='card_system'),
+              mechanism='card_system'),
     Criterion('during_preview', 'F3', 'Aperçu « PENDANT » (émission backend + consommation front)',
               _during_preview,
-              mecanisme='preview'),
+              mechanism='preview'),
     Criterion('detail_spec', 'F3', 'Détail du volet en SPEC-donnée (register_app_detail_spec, A3a)',
               _detail_spec,
-              mecanisme='detail_registry'),
+              mechanism='detail_registry'),
+    # RATTACHÉ à `result_tabs` le 2026-09-15 (ex-`detail_registry`) : le mécanisme de même nom
+    # (`_result_tabs.html`) figurait « sans critère » alors que celui-ci le mesure.
     Criterion('result_tabs', 'F3', 'Onglets de résultat TEXTE déclarés + partial commun (R18)',
               _result_tabs,
-              mecanisme='detail_registry'),
+              mechanism='result_tabs'),
     # ── F4 modèles ──
     Criterion('eta_seeded', 'F4', 'ETA seedée auto-apprenante (record_run + estimate)', _eta_seeded,
-              mecanisme='eta'),
+              mechanism='eta'),
     Criterion('model_config', 'F4', 'Modèles déclarés par l’app (utils/model_config.py)',
               _f4(lambda f: _present(f, ['utils/model_config.py'], r'_MODELS\s*[:=]|_DIR\s*='))),
     Criterion('model_discovery', 'F4', 'Découverte au catalogue AIModel (_discover_<app>_models)',
               _f4(_model_discovery),
-              mecanisme='model_registry_discovery'),
+              mechanism='model_registry_discovery'),
     Criterion('backend_contract', 'F4', 'Backends dérivés de BaseModelBackend (contrat commun)',
               _f4(_backend_contract),
-              mecanisme='backend_contract'),
+              mechanism='backend_contract'),
     Criterion('backend_packages', 'F4', 'Dépendances déclaratives (REQUIRED_PACKAGES)',
               _f4(_backend_packages)),
     Criterion('model_caps_canonical', 'F4', 'Entrée au catalogue en capacités CANONIQUES',
               _f4(_model_caps_canonical),
-              mecanisme='model_capabilities'),
+              mechanism='model_capabilities'),
     Criterion('select_model', 'F4', 'Sélection auto confiée à la brique commune (select_model)',
               _f4(_select_model),
-              mecanisme='model_selector'),
+              mechanism='model_selector'),
     Criterion('model_options_catalog', 'F4',
               'Options du select DÉRIVÉES du catalogue (jamais une liste en dur)',
               _f4(_model_options_from_catalog),
-              mecanisme='model_selector'),
+              mechanism='model_selector'),
     Criterion('vram_unloader', 'F4', 'Reclaim VRAM cross-app (unloader auto, explicite ou réservation)',
               _f4(_vram_unloader),
-              mecanisme='memory_manager'),
+              mechanism='memory_manager'),
     Criterion('hf_cache_isolation', 'F4',
               'Modèle routé EXPLICITEMENT (cache_dir= / poids_locaux), env jamais muté',
               _f4(_hf_cache_routing),
-              mecanisme='hf_cache'),
+              mechanism='hf_cache'),
     # ── F5 cycle de vie ──
     # ⚠ backend_routes et task_skeleton ne sont PAS enveloppés _f4 : la composition du corps
     # de tâche vaut pour toute app (le converter — sans modèle IA — est le pilote des deux).
     Criterion('backend_routes', 'F5', 'Routage nature → backend déclaré (backends/__init__.ROUTES, B1)',
               _backend_routes,
-              mecanisme='codegen'),
+              mechanism='codegen'),
     Criterion('task_skeleton', 'F5', "Tâche d'item par la brique commune (run_item_task, A2a)",
               _task_skeleton,
-              mecanisme='task_skeleton'),
+              mechanism='task_skeleton'),
     Criterion('anti_race', 'F5', 'Verrou anti-race sur TOUTES les vues de démarrage', _anti_race),
     Criterion('reconcile_orphans', 'F5', 'Réconciliation RUNNING orphelins (IndexView)',
               lambda f: _present(f, VIEWS, r'reconcile_orphaned_running')),
     Criterion('auto_wrap_orphans', 'F5', 'Auto-wrap des items hors batch',
               lambda f: _present(f, VIEWS, r'auto_wrap_orphans'),
-              mecanisme='batch'),
+              mechanism='batch'),
     Criterion('processing_time', 'F5', 'ProcessingTimeMixin (temps réel persisté)',
               lambda f: _present(f, MODELS, r'ProcessingTimeMixin')),
     #: ⚠ DEUX graphies acceptées depuis le 2026-09-01 : les statuts ont pris un DOMICILE
@@ -1667,10 +1776,10 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, MODELS, r"'SUCCESS'|JOB_STATUS_CHOICES")),
     Criterion('cycle_button', 'F5', 'Bouton de cycle commun (_cycle_button)',
               lambda f: _present(f, TEMPLATES, r"common/_cycle_button\.html"),
-              mecanisme='cycle_button'),
+              mechanism='cycle_button'),
     Criterion('card_html_endpoint', 'F5', 'Card = partial serveur + endpoint card_html',
               lambda f: _present(f, URLS, r'card_html'),
-              mecanisme='card_system'),
+              mechanism='card_system'),
     #: ⚠ DEUX graphies acceptees, et c'est deliberé : depuis le 2026-08-25 l'include de la card
     #: mere a migre dans `_queue_entry.html` (brique commune). Ne chercher que `_batch_card` dans
     #: le gabarit d'app ferait passer au ROUGE les 8 apps qui viennent de l'adopter — un critere
@@ -1679,17 +1788,17 @@ CRITERIA: list[Criterion] = [
     #: telecharger a rejoint le partial commun (2026-08-23).
     Criterion('batch_card_common', 'F5', 'Card mère de batch commune (_batch_card, direct ou via _queue_entry)',
               lambda f: _present(f, TEMPLATES, r"common/_(batch_card|queue_entry)\.html"),
-              mecanisme='queue_front'),
+              mechanism='queue_front'),
     Criterion('build_batches_list', 'F5', 'Agrégats de file communs (build_batches_list)',
               lambda f: _present(f, VIEWS, r'build_batches_list'),
-              mecanisme='batch'),
+              mechanism='batch'),
     Criterion('queue_manipulation', 'F5', 'Manipulation directe (fabrique 4 vues)', _queue_manipulation,
-              mecanisme='queue_manipulation'),
+              mechanism='queue_manipulation'),
     Criterion('queue_toolbar', 'F5', 'Tri/filtre communs (queue_view + _queue_toolbar)', _queue_toolbar,
-              mecanisme='queue_view'),
+              mechanism='queue_view'),
     Criterion('wama_card', 'F5', 'Contrat CSS .wama-card sur la card',
               lambda f: _present(f, CARD_TPL, r'wama-card'),
-              mecanisme='card_system'),
+              mechanism='card_system'),
     # La card v3 (CARD_DESIGN §11, pilote reader) INTÈGRE état + barre (wama-status-dot +
     # wcv3-bar/wama-progress-track) : elle satisfait le critère SANS les includes v2 —
     # le check retardait sur le formalisme et sanctionnait les cards les plus récentes
@@ -1698,44 +1807,64 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, TEMPLATES,
                                  r"common/_card_progress\.html|common/_card_state\.html"
                                  r"|wcv3-bar|wama-progress-track"),
-              mecanisme='progress_ui'),
+              mechanism='progress_ui'),
     Criterion('eta_individual', 'F5', 'ETA affichée par card (.wama-eta)',
               lambda f: _present(f, TEMPLATES, r'wama-eta'),
-              mecanisme='progress_ui'),
+              mechanism='progress_ui'),
     Criterion('eta_queue', 'F5', 'Barre globale (_global_progress)',
               lambda f: _present(f, TEMPLATES, r"common/_global_progress\.html"),
-              mecanisme='progress_ui'),
+              mechanism='progress_ui'),
     Criterion('toast', 'F5', 'WamaApp.toast (zéro alert())', _toast,
-              mecanisme='app_base_js'),
+              mechanism='app_base_js'),
     Criterion('duplicate_wiring', 'F5', 'Duplication via la brique (handler UNIQUE)', _duplicate_wiring,
-              mecanisme='queue_duplication'),
+              mechanism='queue_duplication'),
     # Jumeau du précédent, ajouté le 2026-08-22 EN MÊME TEMPS que la brique de suppression :
     # tant qu'aucun domicile commun n'existait, il n'y avait rien à mesurer (cf. `_delete_wiring`).
     Criterion('delete_wiring', 'F5', 'Suppression via la brique (handler UNIQUE)', _delete_wiring,
-              mecanisme='queue_front'),
+              mechanism='queue_front'),
     # Troisième jumeau (2026-08-23) : la brique ⚙ a rejoint queue-actions.js. Les trois actions
     # de card qui SONT des comportements (dupliquer, supprimer, paramétrer) ont désormais chacune
     # leur critère — c'est la réponse à la « maille trop grossière » du §5 de WAMA_VERIFICATION :
     # on note des ACTIONS, pas un mécanisme fourre-tout qui passe au vert dès qu'un seul de ses
     # cinq comportements est vérifié.
     Criterion('settings_wiring', 'F5', 'Paramètres via la brique (bouton + ouvreur déclaré)',
-              _settings_wiring, mecanisme='queue_front'),
+              _settings_wiring, mechanism='queue_front'),
+    # 2026-09-15 — ce que `delete_wiring` laissait passer (il atteste le BOUTON, pas la RÉPONSE)
+    # et les briques de la suppression d'une card de lot sans rechargement de la page
+    # (`ROUTE §10.2`). Ajoutés à la demande de Fabien : « s'il manque des critères dans la
+    # grille il faut les rajouter ».
+    Criterion('delete_batch_state', 'F5', "Suppression : la vue dit l'état du LOT (batch_state)",
+              _delete_batch_state, mechanism='queue_entry'),
+    Criterion('card_in_batch', 'F5', 'Card seule : position dans la file par la brique (is_batch_child)',
+              _card_in_batch, mechanism='queue_entry'),
+    Criterion('card_refresh_common', 'F5', 'Card redemandée au serveur par la brique (WamaApp.fetchCard)',
+              _card_refresh_common, mechanism='app_base_js'),
+    # Les deux contrats COMMUNS du modèle de lot. `batch_semantics` porte `is_unitary`, que lisent
+    # `_queue_entry.html` ET `is_batch_child` — son absence (jumelle `converter_01`, 15/09) rendait
+    # tout lot en lot de plusieurs cards, sans erreur. `queue_order` : le mécanisme de même nom
+    # n'avait AUCUN critère (`mechanisms_without_criterion`, relevé ce jour).
+    Criterion('batch_semantics', 'F5', 'Modèle de lot : BatchMixin (is_unitary, fichier de lot)',
+              lambda f: _present(f, MODELS, r'class\s+\w+\([^)]*\bBatchMixin\b'),
+              mechanism='queue_entry'),
+    Criterion('queue_order', 'F5', 'Modèle de lot : ordre manuel de la file (QueueOrderMixin)',
+              lambda f: _present(f, MODELS, r'class\s+\w+\([^)]*\bQueueOrderMixin\b'),
+              mechanism='queue_order'),
     # Quatrième jumeau (2026-08-23) : les QUATRE actions de card qui ont un domicile commun ont
     # chacune leur critère. ⬇ est rattaché à `param_schema` et non à `queue_front` : sa forme est
     # dictée par une DÉCLARATION du catalogue (`export_formats`/`export_binding`), pas par le
     # comportement de la file.
     Criterion('download_wiring', 'F3', 'Téléchargement via la brique (forme dérivée de la déclaration)',
-              _download_wiring, mecanisme='param_schema'),
+              _download_wiring, mechanism='param_schema'),
     Criterion('output_naming', 'F3', 'Nom de sortie par la brique (process + modèle + id)',
-              _output_naming, mecanisme='output_naming'),
+              _output_naming, mechanism='output_naming'),
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
-              mecanisme='queue_duplication'),
+              mechanism='queue_duplication'),
     Criterion('safe_delete', 'F5', 'safe_delete_file() (fichiers partagés)',
               lambda f: _present(f, VIEWS, r'safe_delete_file'),
-              mecanisme='queue_duplication'),
+              mechanism='queue_duplication'),
     Criterion('user_settings', 'F5', 'Réglages user persistés (brique user_settings)', _user_settings,
-              mecanisme='user_settings'),
+              mechanism='user_settings'),
     Criterion('start_all', 'F5', 'Vue start_all',
               lambda f: _present(f, URLS, r'start_all|start-all')),
     Criterion('clear_all', 'F5', 'Vue clear_all',
@@ -1748,7 +1877,7 @@ CRITERIA: list[Criterion] = [
     Criterion('crash_redelivery_guard', 'F5', 'Garde anti-BOUCLE-de-crash (refuse_crash_redelivery)',
               # la brique task_skeleton (A2) porte la garde pour toute tâche qui l'adopte
               lambda f: _present(f, TASKS, r'refuse_crash_redelivery|run_item_task'),
-              mecanisme='process_control'),
+              mechanism='process_control'),
     Criterion('error_message_field', 'F5', 'Champ error_message sur le modèle d’item',
               lambda f: _present(f, MODELS, r'error_message\s*=\s*models\.')),
     # ── F6 prompts & tool_api ──
@@ -1758,41 +1887,41 @@ CRITERIA: list[Criterion] = [
                   f"common/utils/app_metadata.py PROMPT_TARGETS['{f.app}']"
                   if f.app in _registry_keys('PROMPT_TARGETS', 'common/utils/app_metadata.py')
                   else "champ prompt non déclaré → ni traduction ni enrichissement")),
-              mecanisme='prompt_pipeline'),
+              mechanism='prompt_pipeline'),
     Criterion('prompt_pipeline', 'F6', 'Pipeline commune appelée (process_prompt_for)',
               _f6_prompt(lambda f: _present(f, TASKS + VIEWS, r'process_prompt_for')),
-              mecanisme='prompt_pipeline'),
+              mechanism='prompt_pipeline'),
     Criterion('prompt_skill', 'F6', 'Skill de prompt dédiée (common/prompt_skills/<app>-*.md)',
               _f6_prompt(_prompt_skill)),
     Criterion('prompt_enrich_ui', 'F6', 'Champ prompt à deux états (wama-prompt-enrich)',
               _f6_prompt(lambda f: _present(f, TEMPLATES + JS, r'wama-prompt-enrich|WamaPromptEnrich')),
-              mecanisme='prompt_pipeline'),
+              mechanism='prompt_pipeline'),
     Criterion('triad_specs', 'F6', 'Triade construite de la déclaration (TRIAD_SPECS, A4)',
               _triad_specs,
-              mecanisme='tool_api'),
+              mechanism='tool_api'),
     Criterion('tool_api_item_id', 'F6', "Contrat de retour add_to_<app> → 'item_id'", _tool_api_item_id,
-              mecanisme='tool_api'),
+              mechanism='tool_api'),
     # ── F7 permissions & scope données ──
     Criterion('access_policy', 'F7', "Gating d'app déclaré (DEFAULT_APP_ACCESS)", _access_policy),
     Criterion('app_access_view', 'F7', 'Décorateur @app_access sur les vues (défense en profondeur)',
               lambda f: _present(f, VIEWS, r'@app_access')),
     Criterion('user_scope', 'F7', 'Requêtes filtrées par utilisateur (scope données)',
               lambda f: _present(f, VIEWS, r'user\s*=\s*(request\.user|self\.request\.user|user)\b'),
-              mecanisme='scoping'),
+              mechanism='scoping'),
     Criterion('shareable_models', 'F7', 'Cards ET batchs partageables (ScopedVisibility)',
               _shareable_models,
-              mecanisme='scoped_visibility'),
+              mechanism='scoped_visibility'),
     Criterion('scoped_reads', 'F7', 'Lectures via les accès nommés (visible_or_404/visible_to)',
               _scoped_reads,
-              mecanisme='scoping'),
+              mechanism='scoping'),
     # ── F8 studio ──
     Criterion('studio_runnable', 'F8', 'Nœud studio câblé (GENERIC_APPS)',
               lambda f: (f.app in _registry_keys('GENERIC_APPS', GENERIC_RUNNER_PY),
                          f"{GENERIC_RUNNER_PY} GENERIC_APPS['{f.app}']"
                          if f.app in _registry_keys('GENERIC_APPS', GENERIC_RUNNER_PY) else None),
-              mecanisme='generic_runner'),
+              mechanism='generic_runner'),
     Criterion('studio_params_module', 'F8', 'Params du nœud tirés du schéma de l’app', _studio_params,
-              mecanisme='param_schema'),
+              mechanism='param_schema'),
 ]
 
 

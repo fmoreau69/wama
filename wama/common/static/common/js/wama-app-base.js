@@ -424,6 +424,26 @@
     return true;
   }
 
+  /** Card rendue par le SERVEUR (vue `card_html` de l'app), prête à insérer — ou null.
+   *
+   *  Source unique du markup (CARD_DESIGN §3) : le JS ne reconstruit jamais une card, il la
+   *  redemande. `urlTemplate` porte l'id factice « /0/ » (`{% url '<app>:card_html' 0 %}`) ; les
+   *  gabarits communs l'émettent sur l'entrée de file (`data-card-url`, `_queue_entry.html`).
+   *  Les 10 vues `card_html` répondent du HTML depuis le 2026-09-15 (l'imager répondait du JSON).
+   *  Écrite pour la suppression d'une card de lot sans rechargement de la page ; les copies
+   *  locales de `refreshCard` (8 apps) sont à porter dessus. */
+  function fetchCard(urlTemplate, id) {
+    if (!urlTemplate || id == null) return Promise.resolve(null);
+    return fetch(getUrl(urlTemplate, id), { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (html) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = (html || '').trim();
+        return tpl.content.firstElementChild;
+      })
+      .catch(function () { return null; });
+  }
+
   global.WamaApp = {
     escapeHtml: escapeHtml,
     getUrl: getUrl,
@@ -435,6 +455,7 @@
     toast: toast,
     filesFromServerPaths: filesFromServerPaths,
     injectFiles: injectFiles,
+    fetchCard: fetchCard,
     initUrlImport: initUrlImport,
     pauseDomMedia: pauseDomMedia,
     claimAudioChannel: claimAudioChannel,

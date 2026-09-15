@@ -197,36 +197,36 @@ def bricks_api() -> str:
     from django.conf import settings
 
     from .docs_catalog import BY_KEY
-    from .mecanismes import MECANISMES
+    from .mecanismes import MECHANISMS
 
     base = Path(settings.BASE_DIR)
     empreinte = []
-    for m in MECANISMES:
+    for m in MECHANISMS:
         try:
-            empreinte.append((m.cle, (base / m.domicile).stat().st_mtime_ns))
+            empreinte.append((m.key, (base / m.home).stat().st_mtime_ns))
         except OSError:
-            empreinte.append((m.cle, None))
+            empreinte.append((m.key, None))
     empreinte = tuple(empreinte)
     if _BRIQUES.get('empreinte') == empreinte:
         return _BRIQUES['texte']
 
-    domaines = list(dict.fromkeys(m.domaine for m in MECANISMES))
+    domaines = list(dict.fromkeys(m.domain for m in MECHANISMS))
     carte = BY_KEY['mecanismes']
-    out = [f"**{len(MECANISMES)} mécanismes** en {len(domaines)} domaines. Ce qu'une brique FAIT "
+    out = [f"**{len(MECHANISMS)} mécanismes** en {len(domaines)} domaines. Ce qu'une brique FAIT "
            f"est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que "
            f"son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la "
            f"[{carte.label.lower()}]({carte.path}).", ""]
     for dom in domaines:
-        du = sorted((m for m in MECANISMES if m.domaine == dom), key=lambda x: x.nom.lower())
+        du = sorted((m for m in MECHANISMS if m.domain == dom), key=lambda x: x.name.lower())
         out += [f"## {dom or 'Sans domaine'}", ""]
         for m in du:
-            out += [f"### {m.nom}", "", m.role, ""]
-            ligne = f"- **Domicile** : `{m.domicile}`"
+            out += [f"### {m.name}", "", m.role, ""]
+            ligne = f"- **Domicile** : `{m.home}`"
             if m.doc:
                 ligne += f" · **doc** : {_lien_ref(m.doc)}"
             out.append(ligne)
-            if m.domicile.endswith('.py'):
-                api = module_api(base / m.domicile)
+            if m.home.endswith('.py'):
+                api = module_api(base / m.home)
                 if not api['lisible']:
                     out.append("- ⚠ module illisible (absent, ou syntaxe invalide)")
                 else:

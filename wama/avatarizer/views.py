@@ -411,10 +411,9 @@ def delete(request, pk):
     user = _get_user(request)
     job = get_object_or_404(AvatarJob, pk=pk, user=user)
 
-    # Le membre était-il dans un batch ? (flag UI ; total/cleanup = signal batch_sync)
-    from .models import BatchAvatarJobItem
-    from wama.common.utils.batch_utils import find_member_batch
-    parent_batch = find_member_batch(BatchAvatarJobItem, job=job)
+    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(job)
 
     # safe_delete_file (brique commune) : ne supprime le fichier physique que s'il
     # n'est référencé par aucune autre instance (fichiers partagés par duplication).
@@ -438,7 +437,7 @@ def delete(request, pk):
         logger.info("[avatarizer] job_%s : %.1f Mo de fichiers de job libérés", job.pk, libere / 1048576)
 
     job.delete()  # signal batch_sync : recale total / supprime le batch vidé
-    return JsonResponse({'status': 'deleted', 'batch_changed': parent_batch is not None})
+    return JsonResponse({'status': 'deleted', 'batch': batch_state(snapshot, AvatarJob)})
 
 
 @require_POST
@@ -481,8 +480,10 @@ def card_html(request, pk):
     # `build_batches_list` et qu'attend `common/_queue_entry.html`. ⚠ Cette vue ne passe PAS
     # par l'index : une card rendue avec une variable inexistante ne lève AUCUNE erreur côté
     # Django — elle sortirait simplement vide, et seul le polling s'en apercevrait.
+    from wama.common.utils.batch_common import is_batch_child
     html = render_to_string('avatarizer/_avatar_card.html',
-                            {'elem': job, 'media_url': dj_settings.MEDIA_URL}, request=request)
+                            {'elem': job, 'media_url': dj_settings.MEDIA_URL,
+                             'in_batch': is_batch_child(job)}, request=request)
     return HttpResponse(html)
 
 

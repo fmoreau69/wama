@@ -1,5 +1,5 @@
 """
-CONFORMITÉ des trois autres registres déclaratifs — `MECANISMES`, `MANIFEST_KINDS`, `APP_CATALOG`.
+CONFORMITÉ des trois autres registres déclaratifs — `MECHANISMS` (ex-`MECANISMES`, renommé le 2026-09-15), `MANIFEST_KINDS`, `APP_CATALOG`.
 
 POURQUOI CE FICHIER (pending #6 du §REPRISE 2026-08-22 « WAMA DATA → MONDES → REGISTRES »)
 
@@ -70,8 +70,8 @@ class MecanismesConformiteTest(TestCase):
     """
 
     def _chaque(self):
-        from wama.common.mecanismes import MECANISMES
-        return sorted(MECANISMES, key=lambda m: m.cle)
+        from wama.common.mecanismes import MECHANISMS
+        return sorted(MECHANISMS, key=lambda m: m.key)
 
     def test_le_registre_est_peuple(self):
         # Garde anti-« vert sur du vide » : sans elle, un import cassé rendrait toute la classe
@@ -79,38 +79,38 @@ class MecanismesConformiteTest(TestCase):
         self.assertGreaterEqual(len(self._chaque()), 80)
 
     def test_cle_unique(self):
-        cles = [m.cle for m in self._chaque()]
+        cles = [m.key for m in self._chaque()]
         doublons = sorted({c for c in cles if cles.count(c) > 1})
         self.assertEqual(doublons, [], f"clés déclarées deux fois : {doublons}")
 
     def test_identite_declaree(self):
         # `nom` et `role` sont le texte de la carte : vides, la ligne existe sans rien dire.
         for m in self._chaque():
-            with self.subTest(mecanisme=m.cle):
-                self.assertTrue(m.cle.strip(), "clé vide")
-                self.assertTrue(m.nom.strip(), "nom non déclaré")
+            with self.subTest(mecanisme=m.key):
+                self.assertTrue(m.key.strip(), "clé vide")
+                self.assertTrue(m.name.strip(), "nom non déclaré")
                 self.assertTrue(m.role.strip(), "rôle non déclaré")
 
     def test_domaine_pose_sur_chaque_entree(self):
-        """Le domaine est posé par `_domaine()` sur un GROUPE — une entrée hors groupe le perd.
+        """Le domaine est posé par `_domain()` sur un GROUPE — une entrée hors groupe le perd.
 
         Elle disparaît alors de toutes les sous-tables de la carte : la ligne n'est pas fausse,
         elle est invisible. C'est le défaut trouvé sur `app_sandbox` en écrivant ce test.
         """
         for m in self._chaque():
-            with self.subTest(mecanisme=m.cle):
-                self.assertTrue(m.domaine, "domaine vide — entrée déclarée hors d'un _domaine()")
+            with self.subTest(mecanisme=m.key):
+                self.assertTrue(m.domain, "domaine vide — entrée déclarée hors d'un _domaine()")
 
     def test_domicile_existe(self):
         for m in self._chaque():
-            with self.subTest(mecanisme=m.cle):
-                self.assertTrue((_base() / m.domicile).exists(),
-                                f"domicile introuvable : {m.domicile}")
+            with self.subTest(mecanisme=m.key):
+                self.assertTrue((_base() / m.home).exists(),
+                                f"domicile introuvable : {m.home}")
 
     def test_annexes_existent(self):
         for m in self._chaque():
             for annexe in m.annexes:
-                with self.subTest(mecanisme=m.cle, annexe=annexe):
+                with self.subTest(mecanisme=m.key, annexe=annexe):
                     self.assertTrue((_base() / annexe).exists(), f"annexe introuvable : {annexe}")
 
     def test_doc_designe_un_document_DU_DEPOT(self):
@@ -123,7 +123,7 @@ class MecanismesConformiteTest(TestCase):
         for m in self._chaque():
             if not m.doc:
                 continue
-            with self.subTest(mecanisme=m.cle):
+            with self.subTest(mecanisme=m.key):
                 fichier = _fichier_du_doc(m.doc)
                 self.assertTrue(fichier.endswith('.md'),
                                 f"doc={m.doc!r} ne désigne pas un document du dépôt")
@@ -132,28 +132,28 @@ class MecanismesConformiteTest(TestCase):
     def test_symbole_appartient_au_mecanisme(self):
         """⚠ Le contrat exact vient de l'ACCESSEUR, pas de l'intuition.
 
-        `mecanismes_scan.consommateurs()` cherche le symbole PARTOUT SAUF dans le domicile et les
+        `mecanismes_scan.consumers()` cherche le symbole PARTOUT SAUF dans le domicile et les
         annexes — un symbole absent du domicile n'est donc pas fautif (`api_v1` est un namespace
         d'URL déclaré dans `urls.py`, l'annexe). Ce qui serait fautif, c'est un symbole que le
         mécanisme ne possède nulle part : le compte porterait alors sur le bien d'autrui.
         """
         for m in self._chaque():
-            if not m.symbole:
+            if not m.symbol:
                 continue
-            with self.subTest(mecanisme=m.cle):
-                siens = [m.domicile, *m.annexes]
+            with self.subTest(mecanisme=m.key):
+                siens = [m.home, *m.annexes]
                 present = any(
                     (_base() / rel).exists()
-                    and m.symbole in (_base() / rel).read_text(encoding='utf-8', errors='ignore')
+                    and m.symbol in (_base() / rel).read_text(encoding='utf-8', errors='ignore')
                     for rel in siens
                 )
                 self.assertTrue(present,
-                                f"symbole '{m.symbole}' absent des fichiers du mécanisme {siens}")
+                                f"symbole '{m.symbol}' absent des fichiers du mécanisme {siens}")
 
     def test_un_fichier_de_harnais_ne_rend_pas_une_app_ADOPTANTE(self):
         """MESURER un mécanisme n'est pas l'ADOPTER (corrigé le 2026-09-08).
 
-        `apps_consommatrices` alimente le contrôle de jonction, dont la phrase est « mécanismes
+        `consuming_apps` alimente le contrôle de jonction, dont la phrase est « mécanismes
         de niveau app SANS critère de grille — **adoptés par des apps** ». Un `tests*.py` y
         entrait comme n'importe quel fichier : un test ajouté à `wama/imager/tests.py`, qui
         appelle `queue_dnd_attrs` pour construire l'URL que le gabarit émet (c'est le BON test),
@@ -168,7 +168,7 @@ class MecanismesConformiteTest(TestCase):
         ⚠ La colonne « consommateurs » de la carte n'est PAS touchée : un test importe
         réellement le domicile, ce compte ne mentait pas.
         """
-        from wama.common.services.mecanismes_scan import _est_harnais, apps_consommatrices
+        from wama.common.services.mecanismes_scan import _is_harness, consuming_apps
 
         for rel, attendu in (('wama/imager/tests.py', True),
                              ('wama/common/tests_queue_dnd.py', True),
@@ -179,12 +179,12 @@ class MecanismesConformiteTest(TestCase):
                              # Piège : le nom CONTIENT « test » sans être un harnais.
                              ('wama/common/utils/latest_tests.py', False)):
             with self.subTest(fichier=rel):
-                self.assertEqual(attendu, _est_harnais(rel))
+                self.assertEqual(attendu, _is_harness(rel))
 
         # Contre-épreuve fonctionnelle : un mécanisme dont le SEUL consommateur d'app est un
         # harnais ne doit produire AUCUNE app adoptante.
-        faux = type('M', (), {'domicile': 'wama/common/x.py', 'annexes': (), 'symbole': ''})()
-        self.assertEqual([], apps_consommatrices(faux, {}, ['wama/imager/tests.py']))
+        faux = type('M', (), {'home': 'wama/common/x.py', 'annexes': (), 'symbol': ''})()
+        self.assertEqual([], consuming_apps(faux, {}, ['wama/imager/tests.py']))
 
 
 class ManifestKindsConformiteTest(TestCase):

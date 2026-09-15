@@ -161,6 +161,14 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - ⭐ **« Envoyer vers… » : UNE source, au serveur** (2026-09-14) : l'arbre de fichiers et la card
   interrogent le même résolveur (`common/services/send_to.py`). Une sortie de card reste en
   tout-ou-rien ; une sélection mêlée de l'arbre est en **partiel annoncé** (« Imager (1/2 fichiers) »).
+- ⚠ **Le « … » suit les cards insérées ou remplacées** (2026-09-15). Il n'était posé qu'au chargement de la
+  page : une card redemandée au serveur (lot réduit à une card, `refreshCard` d'une app) arrivait sans lui,
+  alors que le clic droit — délégué sur la file — la voyait. La brique observe désormais la file. **Il reste
+  posé en JS, pas dans le HTML** (Fabien) : son contenu dépend de la page (partage, URLs de lot, sélection).
+  ⚠ Précision : le COMPORTEMENT des boutons est commun (`queue-actions.js`, `wama-cycle-button.js`), ▶ et ⬇
+  sont des briques de gabarit (`_cycle_button.html`, `download_button`), et la rangée de la card MÈRE est un
+  partial commun (`_batch_card.html`) ; seul le HTML de ⚙ ⧉ 🗑 de la card d'ÉLÉMENT est écrit dans le gabarit
+  de card de chaque app (mesuré 11 gabarits, 2026-09-15). Poser le « … » en HTML l'y ajouterait onze fois.
 - ⚠ **Le message de sous-menu vide appartient à l'APPELANT** (`videLibelle`). Il était figé à
   « Aucune app ne prend ce format » — le vocabulaire d'« Envoyer vers… » dans la brique commune,
   qui devenait faux dès le 2ᵉ sous-menu.
@@ -182,6 +190,12 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   multiples, double-fire.)
 - **Délégation par `data-action`** (un seul handler `[data-action]` par file) plutôt que N handlers par
   classe → supprime la classe de bugs « double-fire ».
+- **Supprimer une card, lot compris, ne recharge pas la page** (2026-09-15, demande de Fabien — un
+  rechargement ramène l'utilisateur en haut de la file). La vue rend l'état du lot
+  (`batch_common.batch_state`) ; `queue-actions.js` retire la card, met la card mère à jour (repères
+  `data-batch-field` / `data-batch-show` de `_batch_card.html`) ou, lot réduit à une card, redemande
+  la card au SERVEUR (`WamaApp.fetchCard` sur `data-card-url`, posé par `_queue_entry.html`) : la règle
+  ci-dessus tient, le JS ne reconstruit jamais une card. Détail et trou fermé : `ROUTE §10.2`.
 
 ## 3ter. Apparence des batchs : card EMPILÉE (style Solitaire) + désempilage au clic
 

@@ -2662,8 +2662,12 @@ def _monter_par_la_voie_de_lot(page, pourquoi: str, app: str = ''):
         raise SkipScenario(f"{pourquoi} ; repli par le FICHIER DE LOT : {exc}")
 
 
-def _monter_un_lot(page, app: str = ''):
-    """Dépose deux fichiers témoins pour obtenir un LOT en file ; renvoie ses ids.
+def _monter_un_lot(page, app: str = '', n: int = 2):
+    """Dépose `n` fichiers témoins (deux par défaut) pour obtenir un LOT en file ; renvoie ses ids.
+
+    `n` (2026-09-15) : `delete_from_batch` en dépose TROIS — retirer une card d'un lot de trois
+    est le seul cas où la card mère SUBSISTE avec des compteurs à mettre à jour. La voie du
+    fichier de lot, elle, crée ce que le gabarit publié par l'app contient : `n` ne la gouverne pas.
 
     ⚠ DEUX fichiers, pas un. Mesuré le 2026-08-24 sur converter : un dépôt simple crée une
     card ORDINAIRE, sans card mère (`is-batch` absent du DOM) — `_queue_entry.html` ne pose
@@ -2692,21 +2696,20 @@ def _monter_un_lot(page, app: str = ''):
                   "aucun champ d'import au contrat de la card commune")
         return _monter_par_la_voie_de_lot(page, raison, app)
     accept = champ.get_attribute('accept') or ''
-    t1, t2 = _fichier_temoin(accept), _fichier_temoin(accept)
+    temoins = [_fichier_temoin(accept) for _ in range(max(2, n))]
     try:
         if champ.get_attribute('multiple') is not None:
-            champ.set_input_files([str(t1), str(t2)])
-            page.wait_for_timeout(6000)
+            champ.set_input_files([str(t) for t in temoins])
+            page.wait_for_timeout(6000 + 1500 * (len(temoins) - 2))
         else:
-            champ.set_input_files(str(t1))
-            page.wait_for_timeout(4000)
-            champ = page.query_selector(
-                f'[data-wama-nic] input[type=file]:not({exclus})') or champ
-            champ.set_input_files(str(t2))
-            page.wait_for_timeout(4000)
+            for t in temoins:
+                champ = page.query_selector(
+                    f'[data-wama-nic] input[type=file]:not({exclus})') or champ
+                champ.set_input_files(str(t))
+                page.wait_for_timeout(4000)
         lots = page.evaluate(_LOTS_EN_FILE)
     finally:
-        for _t in (t1, t2):
+        for _t in temoins:
             try:
                 _t.unlink()
             except OSError:
@@ -3053,6 +3056,181 @@ def register_batch_actions_scenarios():
             id=f"{label}.batch_actions", app=label, stage="ui",
             description=f"File {label} : ⧉ puis 🗑 sur la card MÈRE d'un lot (brique commune)",
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_actions(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )
+
+
+# ── Geste : SUPPRIMER les cards d'un LOT, sans rechargement de la page (2026-09-15) ───────────
+#
+# Relevé par Fabien le 2026-09-14 : supprimer une card d'un lot de deux « marchait », mais le lot
+# restait affiché jusqu'au rechargement manuel. Corrigé AU COMMUN le 2026-09-15 — la vue dit ce
+# que devient le lot (`batch_common.batch_state`) et `queue-actions.js` met la file à jour sans
+# rechargement de la page (un rechargement ramenait l'utilisateur en haut de la file).
+# Aucun test Python ne voit un rechargement ni un lot resté à l'écran : c'est ici qu'ils se mesurent.
+
+_ETAT_DU_LOT_JS = """(args) => { const bid = args[0], restant = args[1];
+    const groupe = document.querySelector('.batch-group[data-batch-id="' + bid + '"]');
+    const entree = document.querySelector('.wama-queue-entry[data-entry-batch-id="' + bid + '"]');
+    const card = (restant && entree) ? entree.querySelector('.wama-card[data-id="' + restant + '"]') : null;
+    const tete = groupe && groupe.querySelector('.batch-group-header');
+    const libelle = tete && tete.querySelector('[data-batch-field="total_label"]');
+    return {groupe: !!groupe, entree: !!entree, cardDansEntree: !!card,
+            fille: !!(card && card.classList.contains('wcv3--batch-child')),
+            plus: !!(card && card.querySelector('.wama-cm-plus')),
+            plusAilleurs: document.querySelectorAll('.wama-card[data-id] .wama-cm-plus').length,
+            cartes: groupe ? Array.from(groupe.querySelectorAll('.wama-card[data-id]')).map(c => c.dataset.id) : [],
+            total: tete ? tete.dataset.batchTotal : null,
+            libelle: libelle ? libelle.textContent.trim() : null,
+            y: Math.round(window.scrollY),
+            memePage: window.__wamaDeleteFromBatch === 'meme-page'}; }"""
+
+
+def check_app_delete_from_batch(app: str, url_path: str):
+    """Supprimer les cards d'un lot une à une met-il la file à jour SANS recharger la page ? (ok, detail).
+
+    Sur un lot monté pour l'occasion (jamais un lot de l'utilisateur, identifié par différence
+    d'ids), de TROIS cards quand l'app le permet :
+      1. N → N-1 (tant qu'il en reste plus de deux) : la card part, la card mère affiche le
+         nouveau compte ;
+      2. 2 → 1 : le lot redevient une card SIMPLE — plus de `.batch-group`, la card restante vit
+         dans l'enrobage unitaire `.wama-queue-entry[data-entry-batch-id]`, rendue hors lot ;
+      3. 1 → 0 : l'entrée disparaît.
+    À chaque pas, un témoin posé dans `window` doit survivre : un rechargement l'efface. Un lot
+    monté à deux cards seulement n'exerce pas le pas 1, et le détail le DIT.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _test_session_key(app)
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+
+    detail = ''
+    with _garde_de_montage(app, 'delete_from_batch') as _nettoyes:
+      with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1500, 'height': 900})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            page.on('dialog', lambda d: d.accept())   # 🗑 confirme (confirm() natif)
+            echecs = []
+            page.on('response', lambda r: (
+                echecs.append(f"{r.status} {r.url.split('?')[0]}")
+                if r.status >= 400 and '/delete' in r.url or '/card' in r.url and r.status >= 400
+                else None))
+
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            mauvaise_page = _exiger_la_page(page, resp, url)
+            if mauvaise_page:
+                return mauvaise_page
+            page.wait_for_timeout(1200)
+
+            lots_avant = set(page.evaluate(_LOTS_EN_FILE) or [])
+            nouveaux = [b for b in (_monter_un_lot(page, app, n=3) or []) if b not in lots_avant]
+            if not nouveaux:
+                raise SkipScenario("aucun lot NEUF en file après le montage — on ne supprime "
+                                   "jamais dans un lot de l'utilisateur")
+            bid = nouveaux[0]
+
+            def etat(restant=None):
+                return page.evaluate(_ETAT_DU_LOT_JS, [bid, restant])
+
+            def supprimer(conteneur, card_id):
+                """Clic 🗑 sur la card, puis attente de son DÉPART (pas d'une durée)."""
+                sel = f'{conteneur} .wama-card[data-id="{card_id}"] .delete-btn[data-delete-url]'
+                _deplier_autour(page, sel)
+                page.locator(f'{sel}:visible').first.click(timeout=15000)
+                page.wait_for_function(
+                    "(sel) => !document.querySelector(sel)", arg=sel, timeout=15000)
+                page.wait_for_timeout(1500)   # une card simple est redemandée au serveur
+
+            cartes = etat()['cartes']
+            if len(cartes) < 2:
+                return False, f"lot #{bid} monté mais son groupe porte {len(cartes)} card(s)"
+            # Le témoin de page : un rechargement l'efface. Défilement vers le lot : c'est la
+            # position qu'un rechargement faisait perdre à l'utilisateur.
+            page.evaluate("() => { window.__wamaDeleteFromBatch = 'meme-page'; }")
+            page.locator(f'.batch-group[data-batch-id="{bid}"]').first.scroll_into_view_if_needed()
+            y0 = etat()['y']
+            groupe = f'.batch-group[data-batch-id="{bid}"]'
+            pas = []
+            try:
+                if len(cartes) == 2:
+                    pas.append("lot monté à 2 cards : la mise à jour de la card mère n'est PAS "
+                               "exercée ici")
+                while len(cartes) > 2:
+                    supprimer(groupe, cartes[0])
+                    e = etat()
+                    if not e['memePage']:
+                        return False, f"{len(cartes)} → {len(cartes) - 1} : la page s'est RECHARGÉE"
+                    if not e['groupe'] or e['total'] != str(len(cartes) - 1):
+                        return False, (f"{len(cartes)} → {len(cartes) - 1} : la card mère n'est pas "
+                                       f"à jour (data-batch-total={e['total']}, « {e['libelle']} »)"
+                                       + (f" ; {echecs[0]}" if echecs else ''))
+                    pas.append(f"{len(cartes)} → {len(cartes) - 1} : card mère « {e['libelle']} »")
+                    cartes = e['cartes']
+
+                partant, restant = cartes[0], cartes[1]
+                supprimer(groupe, partant)
+                try:
+                    page.wait_for_function("(sel) => !document.querySelector(sel)",
+                                           arg=groupe, timeout=10000)
+                except PlaywrightTimeout:
+                    pass                                   # l'état ci-dessous dit ce qui reste
+                e = etat(restant)
+                if not e['memePage']:
+                    return False, "2 → 1 : la page s'est RECHARGÉE"
+                if e['groupe']:
+                    return False, ("2 → 1 : le lot réduit à une card est TOUJOURS affiché comme un "
+                                   "lot — le défaut relevé le 2026-09-14"
+                                   + (f" ; {echecs[0]}" if echecs else ''))
+                if not e['cardDansEntree']:
+                    return False, ("2 → 1 : la card restante n'est pas dans une entrée unitaire "
+                                   "`.wama-queue-entry[data-entry-batch-id]`")
+                if e['fille']:
+                    return False, "2 → 1 : la card restante est encore rendue EN FILLE de lot"
+                # Le « … » est posé par `wama-card-menu.js` : une card redemandée au serveur
+                # l'avait perdu (défaut du 2026-09-15). Exigé seulement si la page en porte ailleurs
+                # — une app sans action transverse n'en affiche nulle part.
+                if e['plusAilleurs'] and not e['plus']:
+                    return False, "2 → 1 : la card redevenue simple n'a pas son bouton « … »"
+                pas.append("2 → 1 : card simple")
+
+                supprimer(f'.wama-queue-entry[data-entry-batch-id="{bid}"]', restant)
+                e = etat()
+                if not e['memePage']:
+                    return False, "1 → 0 : la page s'est RECHARGÉE"
+                if e['entree'] or e['groupe']:
+                    return False, "1 → 0 : l'entrée du lot est toujours dans la file"
+                pas.append("1 → 0 : entrée retirée")
+            except PlaywrightTimeout as exc:
+                e = etat()
+                return False, (f"geste bloqué ({str(exc)[:80]}) — état : groupe={e['groupe']}, "
+                               f"entrée={e['entree']}, même page={e['memePage']}"
+                               + (f" ; {echecs[0]}" if echecs else ''))
+            detail = (f"lot #{bid}, sans rechargement de la page : " + " · ".join(pas)
+                      + f" (défilement {y0} → {e['y']} px)")
+        finally:
+            navigateur.close()
+    if _nettoyes:
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de montage nettoyé(s)"
+    return True, detail
+
+
+def register_delete_from_batch_scenarios():
+    """Enregistre un scénario `<app>.delete_from_batch` par app disposant d'une page d'index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.delete_from_batch", app=label, stage="ui",
+            description=(f"File {label} : supprimer les cards d'un lot une à une — card mère à "
+                         f"jour, lot redevenu card simple, sans rechargement de la page"),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_delete_from_batch(a, p)))(),
             timeout_s=240, vram_gb=0.0,
         )
 

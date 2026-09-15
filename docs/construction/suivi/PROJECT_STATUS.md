@@ -14285,10 +14285,12 @@ sort du curseur de précision de l'anonymizer ; D. unification des deux Redis, m
 > `CARD_DESIGN §2bis`. (Le job 27 du converter était déjà corrigé par Fabien, `a8540011`.)
 
 **Livré**
-- **Lot réduit** : `converter:delete` et `imager:delete` répondent enfin `batch_changed` — 8 apps
-  sur 10 le faisaient, la brique `queue-actions.js` ne recharge que sur ce champ. Cause MESURÉE au
-  journal d'accès (`POST /converter/608/delete/` → `200 17`, soit `{"success": true}`). Garde
-  `common.tests_queue_delete_contract` : toute route `<app>:delete` du parc (≥ 10) doit le répondre.
+- **Lot réduit** : ~~`converter:delete` et `imager:delete` répondent enfin `batch_changed`~~ —
+  ⚠ **CORRIGÉ le 2026-09-15 : c'était un correctif APP PAR APP d'un trou de la ROUTE** (le
+  rechargement rendu conditionnel à un champ que rien ne vérifiait, `145e738f` du 23/08), et sa
+  garde exigeait la clé écrite à la main dans chaque vue — elle protégeait la duplication, pas le
+  comportement. Refait AU COMMUN et sans rechargement de la page : `ROUTE §10.2` (bloc du 15/09).
+  Cause mesurée inchangée (`POST /converter/608/delete/` → `200 17`, soit `{"success": true}`).
 - **Médiathèque** : provenance `UserAsset.source_app` / `source_pk` (migration `media_library 0015`,
   appliquée à la base unique) ; `export_item_to_library` la pose et refuse un second rangement de la
   même sortie sous le même rôle ; `remove_item_from_library` + `delete_asset` (que `api_delete`
@@ -14375,3 +14377,117 @@ démentie : des workers démarrés ~3 h 30 AVANT la correction de l'en-tête ser
 corrigé. Les gabarits sont relus ; **seuls les modules PYTHON (routes, vues) attendent un
 rechargement.** L'avertissement du palier précédent sur « Envoyer vers… » (« Indisponible » jusqu'au
 rechargement) reste vrai, et WAMA a été relancé depuis.
+
+## §PALIER — 2026-09-15 (nuit), « SUPPRIMER UNE CARD DE LOT SANS RECHARGEMENT DE LA PAGE : un trou de la ROUTE fermé au commun » — ✅ FAIT, COMMITÉ le 15/09 (sauf le lot du 14/09)
+
+> Constat de Fabien le 14/09 : une card supprimée d'un lot de deux n'en sortait qu'au
+> rechargement. Ma correction du 14/09 était APP PAR APP (`batch_changed` ajouté au converter et à
+> l'imager) — recadrage : « Il n'y a aucun patch à faire ». Plan validé le 15/09 : corriger au
+> commun, porter aux apps, sans rechargement de la page (« quand on peut éviter de recharger la
+> page, on évite »), avec les tests utilisateurs ; puis « s'il manque des critères dans la grille
+> il faut les rajouter ». Détail : `ROUTE §10.2` (bloc du 15/09).
+
+**Cause mesurée** — `145e738f` (23/08) a rendu le rechargement après 🗑 conditionnel à `batch_changed` ;
+converter et imager ne l'écrivaient pas et n'avaient pas de suite propre (vérifié dans `145e738f^`).
+
+**Livré (commun, porté aux apps)**
+- serveur : `batch_common.batch_snapshot` / `batch_state` / `is_batch_child` + `status_counts` sorti
+  de `build_batches_list` ; 11 vues de suppression et 11 vues `card_html` portées ; `views_gen` ;
+  `imager:card_html` en HTML ; `synthesizer:card_html` (ex-`synthesis_card_html`) + manifeste régénéré ;
+- navigateur : `queue-actions.js` (`applyBatchState`, `unwrapBatch`, `updateBatchHeader`),
+  `WamaApp.fetchCard`, `data-card-url` (`_queue_entry.html`), repères de compteurs (`_batch_card.html`) ;
+- jumelle `converter_01` : vues régénérées (`app_sandbox substitute … views`), `BatchMixin` sur son lot ;
+- grille : 5 critères F5 (`delete_batch_state`, `card_in_batch`, `batch_semantics`, `queue_order` —
+  10/10 ; `card_refresh_common` — 0/10) + 3 critères rattachés à leur mécanisme ;
+- retirés : R62 `batch_changed`, R63 `find_member_batch` ; geste 4c au catalogue de vérification.
+
+**Mesures**
+- `tests_queue_delete_contract` (réécrit : comportement vue par vue, 11 surfaces, jumeau gabarit↔JS,
+  critères de grille sur apps fictives) + `tests_codegen_lot` + `tests_conformity_backends` : OK.
+- **Suite complète (WSL2) : 2471 tests, 1 échec** — `tests_catalogues…test_tout_port_porte_un_type_DE_LA_TAXONOMIE`
+  (`studio.image_to_3d`, port `image`), PRÉEXISTANT et hors palier (déjà lu au palier du 14/09 nuit).
+- Geste navigateur `<app>.delete_from_batch` (serveur jetable :8765) : converter 3→2→1→0, imager
+  2→1→0, composer 3→2→1→0, avatarizer 2→1→0, converter_01 3→2→1→0 — **5/5 OK**. ⚠ Le 1ᵉʳ passage
+  était ROUGE sur converter ET imager (« 2 → 1 : la page s'est RECHARGÉE ») : `WamaApp.fetchCard`
+  écrit mais NON EXPORTÉ, la brique retombait sur son rechargement de repli — trouvé par les clés
+  de `WamaApp` relevées dans la page, corrigé, rejoué vert : le scénario est DISCRIMINANT.
+  Non joués au navigateur : transcriber, describer, synthesizer, reader, anonymizer, enhancer (leur
+  dépôt peut lancer un traitement GPU) — au nocturne.
+- Grille : converter et describer 100 → 98 %, les 8 autres −1 point, par le seul `card_refresh_common`.
+- `check_docs` 0 / 1803 ; `manifest_export` 1 écrit (synthesizer) ; `makemigrations converter_01` : aucun changement.
+- ⚠ `doc_facts` : le bloc `mecanismes` et `docs/dev/briques.md` régénérés portent AUSSI des lignes
+  d'autres travaux (lot 1 non validé, autre instance) — à ne commiter que par écart.
+
+**🔚 Restes / décisions**
+- **Jumelles COPIÉES** (`describer_01`, `composer_01`, `imager_01`) : leurs vues figées ne disent pas
+  l'état du lot → la card part, le lot reste affiché. Les re-copier (`app_sandbox drop/create`) efface
+  leurs données de jumelle : décision Fabien.
+- **Générateur** : le rendu depuis la facette `data` ne porte pas les bases COMMUNES sans champ
+  (`BatchMixin`) — trou à fermer dans `models_gen`, sinon toute nouvelle jumelle rejoue le défaut.
+- **Portage** : 12 copies locales de rafraîchissement de card → `WamaApp.fetchCard` (critère 0/10).
+- ⏳ **Inventaire des rechargements de page** (`ROUTE §10.2`), demandé par Fabien.
+- **Grille** : `mechanisms_without_criterion` liste encore des mécanismes utilisés par les apps sans
+  critère — tri à faire (contrat d'app mesurable, ou simple import sans convention à tenir).
+
+### Suite du 15/09 — registre en anglais, « … » des cards insérées, cycle de modale, inventaire des actions (COMMITÉ, sauf le lot du 14/09)
+
+**Fait (GO Fabien à chaque étape)**
+- **Registre des mécanismes en anglais** : `Mechanism` / `MECHANISMS` / `by_key` / `ASSUMED_LOCAL` / `_domain` ;
+  champs `key`, `name`, `home`, `symbol`, `domain` ; `mecanismes_scan` (`consumers`, `consuming_apps`,
+  `adoption_matrix`, `mechanisms_without_criterion`, `orphan_criteria`…) ; `Criterion.mechanism` ; les 10 clés
+  françaises (`tts_vocabulary`, `item_sharing`, `send_to`, `input_provenance`, `toolbar_registry`,
+  `rag_gesture`, `mechanisms_scan`, `data_view`, `data_naming`, `subscription`). Noms de FICHIERS gardés
+  (cités par chemin dans la doc et ses traces). Nouveau champ **`depends_on`** — décision Fabien (option B) :
+  un fichier appartient à UN mécanisme ; la relation entre mécanismes se déclare, jamais par annexe croisée.
+- **« … » des cards insérées ou remplacées** : `wama-card-menu.js` ne le posait qu'au chargement de la page ;
+  une card redemandée au serveur (lot réduit à une card, `refreshCard` des apps) arrivait sans lui. Correctif
+  dans la brique (observation de la file). Reste en JS (Fabien : pas de HTML en plus dans les gabarits d'app).
+  Le geste `<app>.delete_from_batch` l'exige désormais.
+- **Grille** : critère F3 `settings_modal_cycle` (cycle de modale par `WamaParams.settingsModal`) — **2/10**
+  (anonymizer, imager) ; le reste est du PORTAGE. 3 critères rattachés à leur vrai mécanisme
+  (`init_from_schema`, `inspector_actions` → `inspector` ; `result_tabs` → `result_tabs`).
+
+**Mesures** — suite complète APRÈS le renommage : **2525 tests, 1 échec préexistant** (`studio.image_to_3d`) ;
+grille aux mêmes scores ; `check_docs` 0 cassée ; `doc_facts --check` à jour. Après le correctif « … » et le
+critère : 117 tests OK (même échec préexistant), `delete_from_batch` vert sur converter et imager.
+
+**Inventaire des actions de card (agent + vérification ligne à ligne) — trous de PORTAGE, pas du commun cassé**
+- **reader** : chaque action de LOT part deux fois — `bindBatchGroupActions()` (`reader.js:610-623`) en plus de
+  la brique (`actions_communes=True`).
+- **converter** : 🗑 sans `data-id` (`_job_card.html:135-137`) — la brique lit `btn.dataset.id`.
+- **transcriber** : cycle câblé card par card au démarrage (`index.js:1212`), perdu au rafraîchissement (`:276`).
+- **Barre de file** : 0/12 passent `start_url`/`clear_url` au partial commun ; « Télécharger tout » rendu
+  désactivé et jamais réactivé (converter vérifié ; anonymizer, avatarizer, imager, synthesizer d'après l'agent).
+- Non vérifiés ligne à ligne (agent) : réglages de lot en handler local (avatarizer, enhancer, imager),
+  sélecteurs morts, `renderItemActions` recopié dans les 10 apps, doubles inclusions de JS (déjà `ROUTE §11 #25`).
+
+**Jumelles — mesuré par la marque `[manifest-gen]`** : `converter_01` 8 fichiers conventionnels générés ;
+`describer_01` 4 ; `composer_01` 1 ; `imager_01` 0. Cause : `views_gen` v1 ne rend que la forme à FK directe
+(`ROUTE:1175-1176`), 9 apps sur 10 ont un modèle de LIAISON. Aligner = apprendre cette forme au générateur,
+pas retoucher les jumelles. (Le converter RÉEL ne porte aucune marque : ses fichiers ne sont pas la sortie du
+générateur — à confronter à ce que Fabien entend par « régénéré plusieurs fois ».)
+
+**🔚 Décisions en attente (NE PAS reposer, reprendre ici)**
+1. **Rangement des 18 fichiers portés par plusieurs mécanismes** (tri proposé : 13 retraits d'annexe +
+   `depends_on`, 2 modules partagés départagés par `symbol`, 2 à trancher) — non appliqué. Méthode Fabien :
+   vérifier que le CODE est sain d'abord, puis reporter dans les déclarations.
+2. **Mémoire ≠ RAG ?** Fabien hésite ; `AGENTS.md` consigne « mémoire agent + mémoire de travail + RAG = UN
+   mécanisme ». Le bouton RAG vit dans le menu « … » ET l'inspecteur (même endpoint, deux copies JS du POST) ;
+   `common/views.py` n'est pas un domicile. À rediscuter.
+3. **`wama_actions.py`** : 4 balises de 4 briques (⬇, préfixe de route, glisser-déposer, slots d'entrée) sous un
+   en-tête qui ne parle que de ⬇ ; préfixe de route calculé 2 fois ; table famille→`accept` recopiée avec
+   `templates_gen.py:425`. Fabien : « ça n'a aucun sens » → assainir le CODE puis découper, générateur compris.
+4. **Lot 1 de la session (14/09), NON VALIDÉ** : clavier `wama-card-menu.js` (écoute en capture sur `window`),
+   `wama-send-to.js` (`refused`, détail `imported`), `reader.js` (`result.batch`), `_release_app_flag`
+   (médiathèque), gardes `tests_queue_dnd`. À relire contre la route avant tout commit.
+5. **Portage** : reprendre sur session fraîche (Fabien) — la grille de la page apps fait foi.
+6. **Rangée d'actions de la card d'ÉLÉMENT rendue par le commun** (proposition du 15/09, question de Fabien :
+   « quasiment 0 ligne de HTML, juste l'emballage »). Aujourd'hui le COMPORTEMENT est commun (`queue-actions.js`,
+   `wama-card-menu.js`) et la card MÈRE rend sa rangée dans `_batch_card.html:109-151` ; la card d'élément écrit
+   encore ⚙ ⧉ 🗑 dans ses 11 gabarits en assemblant des pièces communes (`_cycle_button.html`,
+   `{% download_button %}`) — ex. `converter/_job_card.html:103-139`, d'où le `data-id` oublié sur 🗑.
+   Proposition : UNE balise commune rendue côté SERVEUR (même forme que `_batch_card.html`) qui produit toute la
+   rangée ⚙ ▶ ⬇ ⧉ 🗑 depuis les déclarations de l'app (routes `<app>:download/duplicate/delete`, `gear_data`,
+   statut) → plus aucune ligne de bouton dans les gabarits d'app ni dans le générateur ; card seule, fille et
+   mère lisent la même source. Serveur et non JS (`CARD_DESIGN §3` : une card ne se reconstruit pas en JS) ;
+   le JS garde le comportement et le « … ». Domicile de la balise à trancher avec la décision 3 avant de coder.

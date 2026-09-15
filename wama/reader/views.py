@@ -397,13 +397,13 @@ def start(request, pk: int):
 
 def card_html(request, pk: int):
     """Card RENDUE serveur — source UNIQUE du markup v3 (partial _item_card.html ;
-    CARD_DESIGN §3, update JS en place). Le flag in_batch est déduit du batch parent."""
+    CARD_DESIGN §3, update JS en place). `in_batch` : position dans la file, brique commune."""
+    from wama.common.utils.batch_common import is_batch_child
     from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
     item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
     _decorate_card(item)
-    link = BatchReadingItemLink.objects.filter(reading=item).select_related('batch').first()
-    in_batch = bool(link and link.batch.total > 1)
-    return render(request, 'reader/_item_card.html', {'elem': item, 'in_batch': in_batch})
+    return render(request, 'reader/_item_card.html',
+                  {'elem': item, 'in_batch': is_batch_child(item)})
 
 
 def progress(request, pk: int):
@@ -498,17 +498,13 @@ def download(request, pk: int):
 def delete(request, pk: int):
     """Delete an item and its input file (if not shared). Also removes parent batch-of-1."""
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
-    # Capture parent batch before deletion
-    parent_batch = None
-    try:
-        link = item.batch_item
-        parent_batch = link.batch
-    except Exception:
-        pass
+    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(item)
     safe_delete_file(item, 'input_file')
     cache.delete(f'reader_progress_{pk}')
     item.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ son fichier batch)
-    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
+    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, ReadingItem)})
 
 
 @require_POST
