@@ -863,8 +863,13 @@ OLLAMA_MODELS_DIR = os.environ.get('OLLAMA_MODELS_DIR', '')
 
 # LiteLLM — Unified LLM provider (Phase 1: local Ollama only)
 # Phase 2 (hybrid mode): set per-user via UserProviderConfig; 'ollama' = local-only default.
-# Supported values: 'ollama' | 'openai' | 'anthropic' | 'grok' | 'mistral'
+# Supported values: 'ollama' | 'albert' | 'openai' | 'anthropic' | 'grok' | 'mistral'
 LITELLM_PROVIDER = os.environ.get('LITELLM_PROVIDER', 'ollama')
+
+# Albert API (DINUM) — fournisseur compatible OpenAI, routé par `llm_chat(provider='albert')`.
+# Adresse et variable de clé déclarées dans `common/external_sources.py` (clé `albert`) ; la
+# clé vit dans `.env` (`ALBERT_API_KEY`). Vide = `llm_utils.CLOUD_DEFAULT_MODELS['albert']`.
+ALBERT_MODEL = os.environ.get('ALBERT_MODEL', '')
 
 # Enrichissement de prompt génératif (« upsampling ») — PromptPipeline hook A (ROADMAP §16.6).
 # Une passe LLM locale étoffe les prompts courts de génération (champs `enrich=True` dans

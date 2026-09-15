@@ -215,7 +215,11 @@ def ollama_chat(
     # qui n'impose rien enverrait `"model": ""` à Ollama.
     model = model or modele_par_defaut()
 
-    options: dict = {"temperature": 0.3, "num_predict": num_predict}
+    options: dict = {"temperature": 0.3}
+    # `None` = pas de plafond (défaut d'Ollama) — même contrat que la branche cloud de
+    # `llm_chat`, où `None` n'envoie pas `max_tokens`.
+    if num_predict is not None:
+        options["num_predict"] = num_predict
     if num_ctx is not None:
         options["num_ctx"] = num_ctx
 
@@ -245,6 +249,38 @@ def ollama_chat(
         return None, str(e)
 
 
+#: Modèle par défaut de chaque fournisseur cloud, quand l'appelant n'en impose aucun.
+#: ⚠ Ces noms vieillissent (un fournisseur retire ses modèles) : un réglage les surcharge
+#: quand il est déclaré (`_DEFAULT_MODEL_SETTINGS`), et `default_cloud_model` est leur SEUL
+#: lecteur.
+CLOUD_DEFAULT_MODELS = {
+    'openai':    'gpt-4o',
+    'anthropic': 'claude-sonnet-4-6',
+    'grok':      'grok-3',
+    'xai':       'grok-3',
+    'gemini':    'gemini-2.0-flash',
+    'mistral':   'mistral-large-latest',
+    'groq':      'llama-3.3-70b-versatile',
+    'deepseek':  'deepseek-chat',
+    'albert':    'openai/gpt-oss-120b',
+}
+
+#: Fournisseurs qui parlent le protocole OpenAI depuis une AUTRE adresse que celle d'OpenAI.
+#: Valeur = clé du registre `external_sources`, qui porte l'adresse et la variable de clé.
+OPENAI_COMPATIBLE_PROVIDERS = {'albert': 'albert'}
+
+#: Réglage Django qui surcharge le modèle par défaut d'un fournisseur.
+_DEFAULT_MODEL_SETTINGS = {'albert': 'ALBERT_MODEL'}
+
+
+def default_cloud_model(provider: str) -> str:
+    """Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon `CLOUD_DEFAULT_MODELS`."""
+    from django.conf import settings
+    setting_name = _DEFAULT_MODEL_SETTINGS.get(provider)
+    configured = getattr(settings, setting_name, '') if setting_name else ''
+    return configured or CLOUD_DEFAULT_MODELS.get(provider, 'gpt-4o')
+
+
 def llm_chat(
     messages: list,
     model: str = None,
@@ -256,6 +292,7 @@ def llm_chat(
     api_key: Optional[str] = None,
     api_base: Optional[str] = None,
     keep_alive: Optional[str] = None,
+    temperature: Optional[float] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Unified LLM chat function — provider-agnostic entry point.
@@ -268,9 +305,12 @@ def llm_chat(
         messages:   List of {"role": ..., "content": ...} dicts.
         model:      Model name without provider prefix (e.g. 'qwen3.5:9b', 'gpt-4o').
                     If None, falls back to provider-specific default.
-        provider:   'ollama' (default) | 'openai' | 'anthropic' | 'grok' | 'mistral'.
+        provider:   'ollama' (default) | 'albert' | 'openai' | 'anthropic' | 'grok' | 'mistral'.
                     If None, reads settings.LITELLM_PROVIDER (default: 'ollama').
-        num_predict: Max tokens to generate (Ollama) / max_tokens (cloud).
+                    'albert' (and any key of OPENAI_COMPATIBLE_PROVIDERS) is routed as
+                    `openai/<model>` with the address and key of `external_sources`.
+        num_predict: Max tokens to generate (Ollama) / max_tokens (cloud). None = no cap.
+        temperature: Sampling temperature (cloud only; None = provider default).
         num_ctx:    KV cache size in tokens (Ollama only, ignored for cloud).
         think:      Qwen3 thinking mode (Ollama only, ignored for cloud).
         keep_alive: Résidence VRAM après réponse (Ollama only, ignoré pour le cloud).
@@ -310,35 +350,44 @@ def llm_chat(
 
     # Build the LiteLLM model string: "provider/model_name"
     if model is None:
-        # Provider-specific defaults
-        _defaults = {
-            'openai':    'gpt-4o',
-            'anthropic': 'claude-sonnet-4-6',
-            'grok':      'grok-3',
-            'xai':       'grok-3',
-            'gemini':    'gemini-2.0-flash',
-            'mistral':   'mistral-large-latest',
-            'groq':      'llama-3.3-70b-versatile',
-            'deepseek':  'deepseek-chat',
-        }
-        model = _defaults.get(provider, 'gpt-4o')
+        model = default_cloud_model(provider)
 
-    # Map du nom de fournisseur WAMA → préfixe attendu par LiteLLM (ex. grok → xai/).
-    _LITELLM_PREFIX = {'grok': 'xai', 'google': 'gemini'}
-    prefix = _LITELLM_PREFIX.get(provider, provider)
-    litellm_model = model if '/' in model else f"{prefix}/{model}"
+    source = OPENAI_COMPATIBLE_PROVIDERS.get(provider)
+    if source:
+        # Fournisseur compatible OpenAI hébergé AILLEURS qu'OpenAI (Albert) : préfixe `openai/`
+        # TOUJOURS posé — ses identifiants portent eux-mêmes un « / » (`mistralai/Mistral-…`),
+        # que la règle `'/' in model` ci-dessous prendrait pour un préfixe de fournisseur.
+        # Adresse et clé viennent du registre, jamais de `OPENAI_API_BASE` : global au
+        # processus, il détournerait aussi les appels destinés à OpenAI.
+        from wama.common import external_sources
+        litellm_model = f"openai/{model}"
+        api_base = api_base or external_sources.base_url(source)
+        api_key = api_key or external_sources.api_key(source)
+        if not api_key:
+            variable = external_sources.get(source).api_key_env
+            return None, f"clé absente pour « {provider} » : définir {variable} dans .env"
+    else:
+        # Map du nom de fournisseur WAMA → préfixe attendu par LiteLLM (ex. grok → xai/).
+        _LITELLM_PREFIX = {'grok': 'xai', 'google': 'gemini'}
+        prefix = _LITELLM_PREFIX.get(provider, provider)
+        litellm_model = model if '/' in model else f"{prefix}/{model}"
 
-    # Ollama routé via LiteLLM (cas rare : provider='ollama' explicite) → api_base local par défaut.
-    if prefix == 'ollama' and not api_base:
-        from wama.common.utils.ollama_host import ollama_base
-        api_base = ollama_base()
+        # Ollama routé via LiteLLM (cas rare : provider='ollama' explicite) → api_base local par défaut.
+        if prefix == 'ollama' and not api_base:
+            from wama.common.utils.ollama_host import ollama_base
+            api_base = ollama_base()
 
     kwargs: dict = {
         'model':      litellm_model,
         'messages':   messages,
         'timeout':    timeout,
-        'max_tokens': num_predict,
     }
+    # `None` = pas de plafond : un manifeste ou une glu de code dépassent vite 2 048 jetons, et
+    # un modèle de raisonnement (gpt-oss) prend sa réflexion sur le même budget.
+    if num_predict is not None:
+        kwargs['max_tokens'] = num_predict
+    if temperature is not None:
+        kwargs['temperature'] = temperature
     if api_key:
         kwargs['api_key'] = api_key
     if api_base:

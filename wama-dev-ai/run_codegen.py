@@ -8,7 +8,8 @@ d'auto-application) :
      fichier mince rendu par le gabarit A2b (le trou à remplir, nom imposé), manifeste de
      l'app + manifestes RÉSOLUS de ses `requires` (modèles + librairies), 2 glus RÉELLES en
      few-shot (converter `_convert`, reader `_read` — extraites par AST, jamais recopiées) ;
-  2. un seul appel Ollama (rôle `codegen`, chaîne de repli dans config.py) ;
+  2. un seul appel LLM (rôle `codegen` : chaîne de repli de config.py en local, ou
+     `--provider albert`) ;
   3. la sortie est contrôlée MÉCANIQUEMENT : compile(), fonction au nom imposé de signature
      (item, ctx), drapeaux d'interdits (écriture de statut/progress, import HF avant
      HF_HUB_CACHE, imports lourds en tête de bloc) ;
@@ -20,6 +21,7 @@ Usage (racine du repo) :
     python wama-dev-ai/run_codegen.py --app converter --task convert_media_task \
         --truth wama.converter.tasks:_convert          # banc : vérité terrain jointe
     python wama-dev-ai/run_codegen.py --app reader --task read_document_task --model qwen3.8:latest
+    python wama-dev-ai/run_codegen.py --app reader --task read_document_task --provider albert
 """
 import argparse
 import ast
@@ -37,11 +39,11 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
 
-from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 # Helpers COMMUNS aux rôles — adoptés le 2026-09-07 (audit « la route est-elle unique ? »).
 # Ce fichier portait sa PROPRE copie de `ollama_host`, `_OPENER_DIRECT`, `call_ollama` et de
 # l'écriture de sortie : 4 rôles sur 5 adoptaient déjà `role_utils`, celui-ci non.
-from role_utils import call_ollama, consigne_role, write_output  # noqa: E402
+from role_utils import (  # noqa: E402
+    add_llm_arguments, call_llm, consigne_role, resolve_model, write_output)
 
 # ⚠ Ce chemin était ÉCRIT EN DUR ici — la 3ᵉ lecture du même dossier, et la seule qui ne
 # passait même pas par `config.PROMPTS_DIR`. Même défaut que les copies de `ollama_host` et
@@ -228,7 +230,7 @@ def main():
     ap.add_argument('--app', required=True, help="App cible (ex. converter).")
     ap.add_argument('--task', default=None,
                     help='Fonction de tâche lifecycle (défaut : la seule déclarée).')
-    ap.add_argument('--model', default=None, help='Modèle Ollama (défaut : rôle codegen).')
+    add_llm_arguments(ap, role='codegen')
     ap.add_argument('--truth', default=None,
                     help="Vérité terrain jointe à la revue : 'module.dotted:fonction'.")
     args = ap.parse_args()
@@ -276,10 +278,10 @@ def main():
         f'Écris la fonction `{nom_impose}(item, ctx)` qui remplit ce trou '
         f'(bloc ```python seul).')[:MAX_MATTER_CHARS]
 
-    model = args.model or select_model_for_role('codegen')[1].ollama_id
-    print(f'[codegen] modèle : {model} | app : {args.app} | glu : {nom_impose}')
-    reponse = call_ollama(model, PROMPT, user_msg, num_ctx=CODEGEN_NUM_CTX,
-                          temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
+    model = resolve_model(args.provider, 'codegen', args.model)
+    print(f'[codegen] {args.provider} / {model} | app : {args.app} | glu : {nom_impose}')
+    reponse = call_llm(args.provider, model, PROMPT, user_msg, num_ctx=CODEGEN_NUM_CTX,
+                       temperature=CODEGEN_TEMPERATURE, timeout=CODEGEN_TIMEOUT)
     code = extract_code(reponse)
     verif = controles(code, nom_impose, args.app)
 
@@ -293,6 +295,7 @@ def main():
     # `{role}_{slug}_{horodatage}.json`, donc `codegen_{app}_{task}_{horodatage}.json` avec
     # ce slug, et l'enveloppe pose les mêmes `status`/`role` en tête. Vérifié avant bascule.
     sortie = write_output('codegen', f'{args.app}_{task}', {
+        'provider': args.provider,
         'model': model,
         'app': args.app, 'task': task, 'function': nom_impose,
         'checks': verif,

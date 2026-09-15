@@ -47,6 +47,13 @@ def validate_library_body(body: dict) -> list[str]:
         v = body.get(cle)
         if v is not None and not isinstance(v, dict):
             errs.append(f"{cle} doit être un dict")
+    # `constraints.pip` (2026-09-15) : versions du venv que l'installation ne doit pas déplacer,
+    # passées à pip par `-c`. Le verrou « nom==version » s'applique à l'installation
+    # (`model_installer.pip_constraint_errors`) ; ici on ne garde que la FORME.
+    pins = (body.get('constraints') or {}).get('pip') if isinstance(body.get('constraints'), dict) else None
+    if pins is not None and (not isinstance(pins, list)
+                             or not all(isinstance(p, str) for p in pins)):
+        errs.append("constraints.pip doit être une liste de spécificateurs « nom==version »")
     deps = body.get('dependencies')
     if deps is not None and not isinstance(deps, list):
         errs.append("dependencies doit être une liste")

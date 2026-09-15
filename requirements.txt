@@ -19,6 +19,12 @@ more-itertools>=10.7.0
 numpy>=2.3.3
 ollama>=0.4.0
 litellm>=1.0.0
+# MCP (ROADMAP §8d Phase 3, 2026-09-15) — WAMA serveur d'outils pour tout client MCP (Claude
+# Code, IDE, moteur de l'assistant). Installé par la route `library` (manifests/libraries/mcp.json).
+# starlette<0.47 : borne de fastapi 0.115 (gradio, vibevoice, inference, imaginAIry) ; sans elle,
+# sse-starlette récent ferait monter starlette en 1.x — mesuré par `pip install --dry-run`.
+mcp==1.30.0
+starlette<0.47
 opencv_python>=4.11.0.86
 pillow>=11.2.1
 pint>=0.25  # conversion d'unités à l'AFFICHAGE seul (D27, WAMA_DATA_WORLD §10) — la donnée reste dans SON unité

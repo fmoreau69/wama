@@ -3583,21 +3583,113 @@ def tool_descriptions():
     for name, fn in TOOL_REGISTRY.items():
         app_id = app_id_for_tool(name)
         index = {p['name']: p for p in (schema_for_app(app_id) if app_id else [])}
-        sig = _tool_signature(fn)
-        params = dict(sig.parameters) if sig else {}
-        ouvert = any(p.kind == p.VAR_KEYWORD for p in params.values())
-
-        noms = [n for n, p in params.items()
-                if n != 'user' and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)]
-        if ouvert:
-            # L'outil accepte tout ce que le schéma déclare (cf. sanitize_tool_args).
-            noms += [n for n in index if n not in noms]
-
+        noms, params = _tool_arg_names(fn, index)
         out[name] = {
             'description': _tool_sentence(name, fn),
             'args': {n: _arg_text(index.get(n), params.get(n)) for n in noms},
         }
     return out
+
+
+def _tool_arg_names(fn, index) -> tuple:
+    """(noms d'arguments annoncés, paramètres de la signature) d'un outil.
+
+    Surface = paramètres explicites (hors `user`) ∪, pour un outil `**params`, tout ce que le
+    schéma de l'app déclare — la même que `sanitize_tool_args` accepte. Domicile UNIQUE depuis
+    qu'elle a deux lecteurs : la description texte (`tool_descriptions`) et le schéma JSON
+    (`tool_input_schema`, serveur MCP). Deux copies annonceraient deux surfaces.
+    """
+    sig = _tool_signature(fn)
+    params = dict(sig.parameters) if sig else {}
+    noms = [n for n, p in params.items()
+            if n != 'user' and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)]
+    if any(p.kind == p.VAR_KEYWORD for p in params.values()):
+        noms += [n for n in index if n not in noms]
+    return noms, params
+
+
+# ── Schéma JSON des arguments — le pendant TYPÉ de `tool_descriptions` (2026-09-15) ──────
+# Un client MCP (Claude Code, IDE, moteur de l'assistant) lit un JSON Schema, pas une phrase.
+# Même source que la description texte : le schéma de l'app (`params.py`) puis la signature.
+# ⚠ PERMISSIF par construction — la porte qui fait foi reste `execute_tool` (coercition,
+# bornes, choix). Un schéma plus strict qu'elle refuserait côté client ce que WAMA accepte
+# (`"3"` pour un nombre, que la coercition rend 3) : pas d'`additionalProperties: false`, et
+# un `enum` seulement pour un select dont les choix sont FIGÉS au schéma.
+
+#: Type JSON par type de champ du schéma d'app (`param_schema.Param.type`).
+_PARAM_JSON_TYPES = {'toggle': 'boolean', 'number': 'number', 'range': 'number',
+                     'select': 'string', 'radio': 'string', 'text': 'string',
+                     'textarea': 'string'}
+#: Type JSON par annotation de signature, quand le schéma d'app ne dit rien.
+_ANNOTATION_JSON_TYPES = {int: 'integer', float: 'number', bool: 'boolean', str: 'string',
+                          list: 'array', dict: 'object'}
+
+
+def _json_property(entry, sig_param) -> dict:
+    """Propriété JSON Schema d'UN argument. La description est la ligne que lit l'assistant
+    interne (`_arg_text`) : tous les cerveaux reçoivent la même information."""
+    import inspect
+    prop = {'description': _arg_text(entry, sig_param)}
+    default = None
+    if entry:
+        json_type = _PARAM_JSON_TYPES.get(entry.get('type') or '')
+        if json_type:
+            prop['type'] = json_type
+        if entry.get('type') in ('select', 'radio'):
+            values = [str(c[0] if isinstance(c, (list, tuple)) else c)
+                      for c in (entry.get('choices') or [])]
+            values = [v for v in values if v != '']      # '' = « défaut », jamais un choix
+            if values:
+                prop['enum'] = values
+        if json_type == 'number':
+            if entry.get('min') is not None:
+                prop['minimum'] = entry['min']
+            if entry.get('max') is not None:
+                prop['maximum'] = entry['max']
+        default = entry.get('default')
+    if sig_param is not None:
+        annotation = sig_param.annotation
+        try:
+            annotated = _ANNOTATION_JSON_TYPES.get(annotation)
+        except TypeError:                                # annotation non hachable
+            annotated = None
+        if 'type' not in prop and annotated:
+            prop['type'] = annotated
+        if default is None and sig_param.default is not inspect.Parameter.empty:
+            default = sig_param.default
+    if default not in (None, ''):
+        # Un membre TextChoices se rend par sa VALEUR (même règle que `_arg_text`).
+        default = str(default) if isinstance(default, str) else default
+        try:
+            json.dumps(default)
+            prop['default'] = default
+        except (TypeError, ValueError):
+            pass
+    return prop
+
+
+def tool_input_schema(tool_name: str) -> dict:
+    """Schéma JSON (`type: object`) des arguments d'un outil du registre — DÉRIVÉ, jamais écrit.
+
+    `user` n'y figure jamais : l'identité vient de la session (jeton), pas d'un argument. Un
+    argument est requis quand la FONCTION n'a pas de défaut — c'est la signature qui le dit.
+    """
+    import inspect
+    from wama.common.utils.param_schema import schema_for_app
+
+    fn = TOOL_REGISTRY.get(tool_name)
+    if fn is None:
+        raise KeyError(f"outil inconnu : {tool_name!r}")
+    app_id = app_id_for_tool(tool_name)
+    index = {p['name']: p for p in (schema_for_app(app_id) if app_id else [])}
+    names, params = _tool_arg_names(fn, index)
+    schema = {'type': 'object',
+              'properties': {n: _json_property(index.get(n), params.get(n)) for n in names}}
+    required = [n for n in names
+                if n in params and params[n].default is inspect.Parameter.empty]
+    if required:
+        schema['required'] = required
+    return schema
 
 
 def _tool_signature(fn):

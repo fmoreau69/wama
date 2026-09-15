@@ -50,6 +50,67 @@ class VerrousPipTest(TestCase):
         self.assertIn('refusé', res['error'])
 
 
+class ContraintesPipTest(TestCase):
+    """`constraints.pip` (2026-09-15) : ce que l'installation ne doit pas déplacer, passé par `-c`.
+
+    On lit ce qui PART vers pip (arguments + contenu du fichier au moment de l'appel) — pas un
+    comportement de pip, qu'aucun test ne doit exécuter.
+    """
+
+    def _capture(self):
+        from unittest.mock import MagicMock
+        vu = {}
+
+        def run(cmd, **kwargs):
+            vu['cmd'] = list(cmd)
+            if '-c' in cmd:
+                chemin = cmd[cmd.index('-c') + 1]
+                vu['chemin'] = chemin
+                with open(chemin, encoding='utf-8') as f:
+                    vu['contenu'] = f.read()
+            return MagicMock(returncode=0, stdout='Would install paquet-1.0', stderr='')
+        return vu, run
+
+    def test_une_contrainte_non_pinnee_est_refusee_avant_pip(self):
+        res = pip_install_packages(['nimporte==1.0'], constraints=['starlette>=0.4'])
+        self.assertFalse(res['ok'])
+        self.assertIn('refusé', res['error'])
+
+    def test_l_installation_passe_les_pins_par_c_et_supprime_le_fichier(self):
+        from unittest.mock import patch
+        vu, run = self._capture()
+        with patch('subprocess.run', side_effect=run):
+            res = pip_install_packages(['mcp==1.30.0'], constraints=['starlette==0.46.2'])
+        self.assertTrue(res['ok'])
+        self.assertIn('-c', vu['cmd'])
+        self.assertEqual('starlette==0.46.2\n', vu['contenu'])
+        self.assertFalse(os.path.exists(vu['chemin']), "fichier de contraintes laissé derrière")
+
+    def test_sans_contrainte_aucun_c_n_est_passe(self):
+        from unittest.mock import patch
+        vu, run = self._capture()
+        with patch('subprocess.run', side_effect=run):
+            pip_install_packages(['mcp==1.30.0'])
+        self.assertNotIn('-c', vu['cmd'])
+
+    def test_la_simulation_porte_les_memes_contraintes(self):
+        from unittest.mock import patch
+        from wama.model_manager.services.model_installer import simuler_installation
+        vu, run = self._capture()
+        with patch('subprocess.run', side_effect=run):
+            res = simuler_installation('mcp==1.30.0', constraints=['starlette==0.46.2'])
+        self.assertTrue(res['ok'])
+        self.assertIn('--dry-run', vu['cmd'])
+        self.assertEqual('starlette==0.46.2\n', vu['contenu'])
+        self.assertFalse(os.path.exists(vu['chemin']))
+
+    def test_le_manifeste_refuse_une_forme_de_contrainte_invalide(self):
+        from wama.common.manifests.builtin.library import validate_library_body
+        corps = {'identity': {'version': '1.0'}, 'install': {'pip': 'x==1.0'}}
+        self.assertEqual([], validate_library_body(dict(corps, constraints={'pip': ['a==1']})))
+        self.assertTrue(validate_library_body(dict(corps, constraints={'pip': 'a==1'})))
+
+
 class InstallLibraryTest(TestCase):
     def _lib(self, **surcharges):
         champs = dict(key='kokoro-onnx', name='kokoro-onnx',
@@ -82,6 +143,23 @@ class InstallLibraryTest(TestCase):
         self.assertIn('venv_win', res['plan'])        # le venv non traité est SIGNALÉ
         lib = Library.objects.get(key='kokoro-onnx')
         self.assertFalse(lib.is_installed)            # aucun effet
+
+    def test_une_contrainte_non_pinnee_est_refusee_avant_pip(self):
+        self._lib(is_allowed=True, constraints={'pip': ['starlette<0.47']})
+        res = install_library('kokoro-onnx', apply=True)
+        self.assertFalse(res['ok'])
+        self.assertIn('refusé', res['error'])
+
+    def test_le_plan_expose_et_simule_avec_les_contraintes(self):
+        """Une simulation SANS les contraintes annoncerait une montée que l'installation ne
+        ferait pas (cas mesuré : `mcp` → starlette 1.6.0 sans le pin, rien avec)."""
+        from unittest.mock import patch
+        self._lib(is_allowed=True, constraints={'pip': ['starlette==0.46.2']})
+        with patch('wama.model_manager.services.model_installer.simuler_installation',
+                   return_value={'ok': True}) as simulation:
+            res = install_library('kokoro-onnx')
+        self.assertEqual(['starlette==0.46.2'], res['plan']['constraints'])
+        self.assertEqual(['starlette==0.46.2'], simulation.call_args.kwargs['constraints'])
 
     def test_deja_satisfaite_ne_reinstalle_pas(self):
         # `django` est forcément présent dans le venv de test : version constatée = cible.

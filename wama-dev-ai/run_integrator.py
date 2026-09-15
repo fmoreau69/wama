@@ -34,7 +34,8 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
 
-from role_utils import REPO_ROOT, call_ollama, extract_json, write_output  # noqa: E402
+from role_utils import (  # noqa: E402
+    REPO_ROOT, add_llm_arguments, call_llm, extract_json, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'integrator.txt').read_text(encoding='utf-8')
 
@@ -68,7 +69,7 @@ def main():
     ap.add_argument('--manifest', required=True,
                     help='Manifeste model (corpus manifests/models/ ou sortie du scout)')
     ap.add_argument('--besoin', default='', help="Besoin utilisateur (texte libre, optionnel)")
-    ap.add_argument('--model', default=None, help='Modèle Ollama (défaut : rôle dev)')
+    add_llm_arguments(ap, role='dev')
     ap.add_argument('--dry-run', action='store_true',
                     help='Contexte seulement, AUCUN appel LLM (test sans GPU)')
     args = ap.parse_args()
@@ -95,10 +96,9 @@ def main():
         print(f'[integrator] contexte total : {len(user_msg)} caractères')
         return
 
-    from config import select_model_for_role
-    model = args.model or select_model_for_role('dev')[1].ollama_id
-    print(f'[integrator] modèle : {model} | manifeste : {args.manifest}')
-    verdict = extract_json(call_ollama(model, PROMPT, user_msg))
+    model = resolve_model(args.provider, 'dev', args.model)
+    print(f'[integrator] {args.provider} / {model} | manifeste : {args.manifest}')
+    verdict = extract_json(call_llm(args.provider, model, PROMPT, user_msg))
 
     # ── Contrôles MÉCANIQUES : jamais d'app imaginée, new_app = route existante.
     from wama.common.app_registry import APP_CATALOG
@@ -111,7 +111,8 @@ def main():
                          "sur validation humaine uniquement")
 
     sortie = write_output('integrator', manifeste.get('key', 'inconnu'), {
-        'model': model, 'manifest_source': str(args.manifest), 'besoin': args.besoin,
+        'provider': args.provider, 'model': model,
+        'manifest_source': str(args.manifest), 'besoin': args.besoin,
         'mechanical_checks': controles, 'verdict': verdict,
     })
     print(f'[integrator] → {sortie.relative_to(REPO_ROOT)}')
