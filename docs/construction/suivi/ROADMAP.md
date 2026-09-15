@@ -1404,6 +1404,17 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    utilisateur (volet droit), curseur rapide/qualité → cloud. Reprend les tables Albert écrites à
    la main le 15/09 (`llm_utils.CLOUD_DEFAULT_MODELS`/`OPENAI_COMPATIBLE_PROVIDERS`, option de
    `home.html`).
+4c. ⏳ **L'assistant devient une APP TRANSVERSALE du catalogue** (décision de Fabien, 15/09) —
+   déclenché par un constat : Discord partait toujours en local faute de choix de fournisseur, et
+   un correctif par surface a été refusé (« il ne faut pas faire de cas par cas : centraliser,
+   universaliser, uniformiser »). L'assistant n'est déclaré nulle part comme app, d'où ses
+   mécanismes à part. Cible : entrée au catalogue d'apps (TRANSVERSALE — « on veut pouvoir
+   l'utiliser n'importe où et n'importe quand dans WAMA »), sélecteur de modèle COMMUN (auto en
+   tête + curseur + choix manuel, qui coexistent — rien à remplacer ; les rôles de dev restent
+   atteignables depuis l'accueil), modèle choisi = user setting persistant (brique `user_settings`
+   rendue durable, §23.3bis) lu par TOUTES les surfaces, réglages dans le composant assistant là
+   où il s'affiche. Préalable demandé : cartographie exhaustive assistant + wama-dev-ai, pour ne
+   rien perdre des mécanismes en place.
 5. ⏳ **Moteur de l'assistant client MCP** — même chemin pour Ollama, Albert et Claude Code
    (`--mcp-config`) ; sélecteurs UI, API et Discord lus du catalogue (Discord est aujourd'hui figé
    sur `wama-dev-ai`, `gateway/core.py:208`). Ouvre aussi l'autre sens : WAMA CLIENT de serveurs
@@ -3684,7 +3695,10 @@ aligner malgré tout (homogène, sans risque pour les jobs) · **rendre la briqu
 d'abord** (un modèle commun `{user, app, nom, valeur JSON}`, unicité sur les trois premiers,
 mêmes signatures publiques donc zéro ligne changée dans les 11 apps, cache conservé en lecture
 devant, 430 clés recopiées) · ne rien faire (variante assumée, ce que la ligne ci-dessus
-autorise déjà). ⚠ Dans tous les cas, la table de l'anonymizer demande un **TRI** : 8 champs
+autorise déjà). ✅ **TRANCHÉ par Fabien le 2026-09-15 : la brique devient DURABLE** (« les
+réglages de cards sont bien persistés en base par utilisateur, mais les réglages globaux
+utilisateur ne le sont pas ») — déclenché par le choix de modèle de l'assistant, qui doit être
+une préférence persistante lue par toutes les surfaces (§8d Phase 3). ⚠ Dans tous les cas, la table de l'anonymizer demande un **TRI** : 8 champs
 sont des préférences d'affichage (console, aperçu, boîtes, étiquettes) dont le domicile est
 `UserProfile`, 8 autres sont du pré-remplissage (floutage, seuil, précision, invite SAM3).
 **Précédent utile : l'imager a fait ce portage le 2026-08-11** — sa table a été supprimée par

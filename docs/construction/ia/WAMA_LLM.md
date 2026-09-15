@@ -757,6 +757,98 @@ crashs), nocturne plutôt qu'au fil de l'eau, et JAMAIS de rétroaction automati
 paramètres sans métrique validée (un juge non calibré qui pilote une boucle DÉRIVE).
 Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte.
 
+## Cartographie de l'assistant et de wama-dev-ai — préalable à l'app TRANSVERSALE (MESURÉE 2026-09-15)
+
+> Demandée par Fabien avant d'aligner l'assistant sur le commun (`ROADMAP §8d Phase 3, 4c`) :
+> « pour être sûr de ne rien perdre de mécanismes déjà en place, mais de les lui passer par le
+> commun ». Relevé par 4 lectures du code, chaque ligne citée ouverte. Ce qui suit est un INDEX
+> (où vit quoi, état) — le détail vit dans le code cité. Décisions prises le même jour : l'assistant
+> devient une app **transversale** ; la brique `user_settings` devient **durable** (§23.3bis).
+
+### A. Le moteur et ses surfaces
+
+| mécanisme | où | état au 15/09 |
+|---|---|---|
+| tour sans état `run_assistant_turn` (garde abonnement, résolution du modèle, prompt, boucle d'outils ≤ 5) | `common/services/assistant_engine.py:562-743` | complet |
+| tour avec historique SERVEUR `conversation_turn` (best-effort sur le stockage, jamais sur la réponse) | `assistant_engine.py:522-559` ; store `conversation_store.py`, `Conversation`/`ConversationTurn` `common/models.py:950-1026` | complet, **adopté par Discord seul** ; `conversations_of`/`clear` sans vue ; `api`/`matrix` sans producteur |
+| routage `_llm_call` (local / abonnement / distant), clé personnelle + `cloud_refusal` + modèle ouvert par la clé | `assistant_engine.py:418-474` | ⚠ **trou** : un fournisseur SANS source déclarée (`openai`, `mistral`…) n'a ni garde ni clé personnelle (`:447`) — atteignable par l'API v1 et un POST forgé |
+| rôles `_ROLE_TIER` → tier → `llm_utils.modele_par_tier` ; bascule de contexte long `_route_model_by_context` | `assistant_engine.py:102-109`, `:177-188`, `:261-287` | complet ; `debug` absent de l'UI (`views.py:52-58`) |
+| appel Ollama `_ollama_call` | `assistant_engine.py:294-360` | complet, mais **4ᵉ implémentation** d'un chat Ollama (cf. §C) |
+| prompt d'outils `WAMA_TOOLS_PROMPT`, contexte `_build_wama_context` | `assistant_engine.py:66-89`, `:222-258` | partiel : phrases FR et liste de 8 apps en dur |
+| skills de rôle, annonce, `charger_competence`, rappel labo | `assistant_skills.py:84,100,123` ; `tool_api.py:2493` | complet — le DOMAINE est choisi par l'assistant, jamais déduit du canal |
+| routage de langue `process_prompt_for('assistant')` | `assistant_engine.py:676-683` | local seulement |
+| fournisseurs du sélecteur `chat_provider_choices` + `PROVIDER_SOURCES` | `assistant_engine.py:129-174` | web seulement ; dernière table à la main |
+| surface WEB `ai_chat` → `run_assistant_turn` ; historique **localStorage** (60 gardés, 20 envoyés) ; choix de modèle **jamais mémorisé** | `views.py:157-200` ; `home.html:98-121,152-168,769-801` | complet mais propre au navigateur |
+| voix (Kokoro/service TTS, `WamaApp.Speech`), avatar, micro, étapes d'outil, `switch_mode`, accueil déclaré + mot d'attente | `views.py:207-445` ; `home.html:212-331,334-389,565` ; `assistant_skills.py:205-239` | complet, **web seulement** ; accueil déclaré seulement après « Effacer » (`home.html:138-146`) ; JS du chat inline (§19.6② : à sortir) |
+| surface API v1 `AssistantChatView` → `run_assistant_turn`, historique fourni par le client | `api/v1/views.py:86-135` | complet ; aucun test |
+| passerelle : appariement `ChannelLink`, `!lier/!delier/!code/!aide`, pièces jointes → espace WAMA, fichiers produits joints, réponses privées | `gateway/models.py`, `services.py`, `core.py:101-325`, `adapters/discord_bot.py` | complet ; **n'envoie ni fournisseur ni modèle** (`core.py:208`) ; Matrix, slash, rate-limit, notifications : ⏳ |
+| `tool_api` : porte unique `execute_tool`, `tool_accessible`, `TOOL_APP_OVERRIDE` (None = transverse) | `tool_api.py:3224-3268,3770-3825` | complet |
+| MCP : surface `wama` (outils) et `wama-dev` (process séparé) ; **n'expose pas le tour d'assistant** | `common/services/mcp_server.py`, `dev_tools.py` | complet ; non supervisé ; moteur client MCP ⏳ (étape 5) |
+| Claude Code (abonnement) : env explicite sans `ANTHROPIC_API_KEY`, jeton personnel, `cloud_refusal`, lecture seule par défaut | `common/services/claude_code.py:102-237` | complet ; chemin CLI en dur (`:94`) |
+
+**Divergences entre surfaces (à résorber par le commun)** : historique (web navigateur / API client /
+Discord base / MCP rien) ; point d'entrée (`run_assistant_turn` vs `conversation_turn`) ; choix du
+modèle (web limité, API libre, Discord figé) ; domaine (API seule) ; fichiers entrants et produits
+(Discord seul) ; commandes (Discord seul) ; coût affiché (`!code` seul) ; voix/avatar/étapes (web
+seul) ; validation de `history` (API seule) ; découpage de longueur (Discord seul).
+
+### B. Mémoire, RAG, prompts — ce que l'assistant consomme
+
+- Substrat mémoire LIVRÉ (jalons 1-14 de `WAMA_MEMORY.md §10`, dont le 12 : `tool_api.py:2611,2660`).
+  **L'assistant ne fait que LIRE** : aucun producteur `PROV_ASSISTANT` (`common/models.py:810`),
+  projection conversation → souvenir ⏳ (`ROADMAP §19.5`), approbation sans outil, Hook B RAG jamais
+  activé (`prompt_pipeline.py:178`), bascule d'embedder et index vectoriel ⏳.
+- Préférences qu'il lit : `UserProfile.preferred_language`, `cloud_policy`, `rag_niveaux_rappel` ;
+  `prompt_enrich` sans case dans l'UI.
+
+### C. wama-dev-ai — ce qui recouvre le commun
+
+- **L'assistant n'exécute AUCUN code de wama-dev-ai** : « wama-dev-ai » n'y est que le nom du
+  fournisseur Ollama local (`assistant_engine.py:112,436-437`). Les vrais ponts : surface MCP `wama-dev`
+  (rôles en sous-processus), import unique `memory.json` → `MemoryItem` (25 souvenirs non approuvés,
+  `user=NULL`), catalogue de skills, `check_model_declarations`, et `role_utils` qui appelle
+  `ollama_base`/`llm_chat`/`prompt_skills`.
+- **Doublons à faire passer par le commun** : sélection (`config.py` `MODELS` + `MODEL_FALLBACK_CHAINS`
+  + `select_model_for_role` vs `select_model` — adoption déjà décidée, ROADMAP l.1192-1195) ; **quatre**
+  chats Ollama (`llm_utils.ollama_chat`, `_ollama_call`, `role_utils.call_ollama`, `core/llm.LLMClient`) ;
+  deux mesures de VRAM copiées (`config.py:575`, `run_audit.py:341`) ; historique `core/history.py` vs
+  `conversation_store` ; RAG en mémoire vive (`core/files.py`, `core/tools.py`) vs `recall()` ;
+  `memory.json`/`write_memory` (écrit SANS approbation) vs `remember`/`approve` ; deux formats d'appel
+  d'outils et trois boucles d'agent (5, 25, 80 tours).
+- **Deux systèmes de RÔLES aux mêmes noms, résolus différemment** (dev, coder, architect, debug, fast,
+  ultra_fast — noms décalés d'un cran pour fast/ultra_fast). wama-dev-ai a en plus audit, codegen,
+  vision, prompt, translate, orchestrator, embed.
+- **À ne pas perdre** : température par appel et réglages codegen (32 768 / 0,2 / 900 s) ;
+  `num_predict=None` ; chaînes de repli qui résument une MESURE (audit sans Qwen, codegen) ; savoir-faire
+  de l'audit (détection du « thinking » par `/api/show`, `num_ctx` selon VRAM, `keep_alive` + déchargement
+  en `finally`, retries EOF) ; coopération du rôle `model` avec le gouverneur (à généraliser) ; principe
+  des pilotes (faits calculés, `ingest.validate`, contrôle AST, `PENDING_HUMAN_VALIDATION`) ; `corpus.py`.
+- **Dette à NE PAS reprendre** : la règle « muter `HF_HUB_CACHE` » encore dans `memory.json:33` (injectée
+  au prompt d'audit) et dans le contrôle de `run_codegen.py:219-224` — interdite par `AGENTS.md` depuis le
+  03/09 ; CLI interactive qui écrit sur disque (hors doctrine).
+
+### D. Les mécanismes communs qui recevront l'assistant — et leurs frictions mesurées
+
+| brique | où | friction pour l'assistant |
+|---|---|---|
+| catalogue d'apps | `app_registry.py:596-1100` ; régime transversal = `extra_links` à `gate` (`:509-517,552-558`) | ⚠ le code dit « transversal = HORS `APP_CATALOG` » (contrat d'app de fichiers) ; une entrée sans `input_extensions`/`has_batch` vide le catalogue JS de TOUTES les apps (`accounts/context_processors.py:58-59,69-70`) ; aide par défaut écrite pour une file (`app_modern_base.html:236-244`) |
+| accès | `permissions.py` `DEFAULT_APP_ACCESS`, `accessible`, `app_id_for_path` | ⚠ la garde par app ne voit que le 1ᵉʳ segment d'URL : `/api/ai-chat/`, API v1 et Discord y échappent (`:181`) ; app non déclarée = commune (`:275-276`) |
+| schéma de réglages | `param_schema.py` (`derive_from_model` accepte un champ sans modèle Django `:166-167` ; `schema_for_app` exige `wama.<app_id>.params` `:355`) | défauts de volet non dérivés en commun (`applicable_defaults` = contexte `item` seul `:236`) |
+| sélecteur de modèle | `wama-params.js` source `catalog` + `options_auto` + type `intent` ; `api_model_options` `model_manager/views.py:1172-1252` ; `auto_model.resolve_model_choice` | ⚠ l'endpoint n'a ni utilisateur ni `cloud_keys` (`:1205-1206`) : aucun modèle distant listé ni prévu ; la source `catalog` REMPLACE tout le select (`wama-params.js:511`) ; tirage sans source = `model_key` entier (`model_selector.py:575`) vs moteur `(provider, model)` |
+| réglages utilisateur | `user_settings.py` (cache 30 j, 3 fonctions) — appelants : transcriber, avatarizer, synthesizer, converter (clé dynamique), composer, describer, imager, reader + générateur | bascule durable : garder `timeout=`, `None` écrit tel quel, clés à recopier (noms d'app avec `_`) ; `anonymizer.UserSettings` influence la TÂCHE (`anonymizer/tasks.py:192-240`) — pas un simple confort |
+| volet droit | `volet.py`, `base.html:179-259` | un contenu dans `right_panel_top` est écrasé par la page qui surcharge le bloc ; pages `VOLET_AUCUN` sans aside ; mode simplifié masque les volets (`WAMA_VOLETS.md §7-§9`) |
+
+### E. Constats périmés relevés (à corriger au fil du portage)
+
+`WAMA_MEMORY.md:3-4`, `AGENTS.md` (ligne « Mémoire & RAG »), `ROADMAP §24.5.7`, `PROJECT_STATUS §6` : le
+jalon 12 est LIVRÉ · `WAMA_MEMORY §5/§6.4/§7/§7ter` (`approve`, `expire`, HNSW, `indexer`) · ce document :
+l.65 (enrichissement « OFF » — faux, `settings.py:884`), l.89-93/256/358-360 (pont wama-dev-ai → skills :
+en place), l.255 (5 domaines avec `investigation`), l.406-409 (option `home.html` désormais dynamique,
+registre des fournisseurs abandonné) · `ROADMAP §19.0/19.1/19.3/19.6④/19.7`, l.1432 (69 outils) · `AGENTS.md`
+§Collaboration et `ROADMAP §6` (phases de wama-dev-ai) · `WAMA_VISION_COMPLET §12.3/§5.7` · docstrings
+`assistant_engine.py:20-24`, `api/v1/views.py:96-99` (persistance « différée »), `conversation_store.py:4-8`,
+`gateway/core.py:197`, `mecanismes.py:530` (« même store que la page web » — faux côté web).
+
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
 - `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
