@@ -88,21 +88,20 @@ class AssistantChatView(APIView):
     POST /api/v1/assistant/chat/
     Body: {"message": "...", "provider": "wama-dev-ai"?, "model": "fast"?, "history": [...]?}
 
-    UN tour de conversation avec l'assistant WAMA — le MÊME moteur que la surface web
-    (`assistant_engine.run_assistant_turn`, boucle agentique + outils tool_api), mais
-    derrière l'auth token : c'est la porte des canaux tiers (bot Matrix/Tchap, Discord —
-    chantier « passerelle de canaux », étape 0 du 2026-08-20).
+    UN tour de conversation avec l'assistant WAMA — le MÊME moteur que la surface web,
+    derrière l'auth token : c'est la porte des scripts et des canaux tiers.
 
-    Persistance de conversation DIFFÉRÉE (décision Fabien 2026-08-20, jonction avec la
-    brique mémoire/RAG en cours ailleurs) : `history` est fourni par le client à chaque
-    tour, comme le fait la page web (localStorage) — et assaini par le moteur (rôles
-    user/assistant seulement, pas d'injection de tour system par un client token).
+    Historique (2026-09-15, aligné sur la page web et Discord) : par défaut, le fil est tenu
+    CÔTÉ SERVEUR (`conversation_turn`, surface `api`, fil nommé par `thread_key`, facultatif).
+    Un client qui fournit `history` garde le chemin SANS ÉTAT (`run_assistant_turn`) : il tient
+    lui-même sa trace — cas légitime et documenté du moteur (script, harnais). Dans les deux cas
+    l'historique est assaini par le moteur (rôles user/assistant seulement).
     """
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from wama.common.services.assistant_engine import run_assistant_turn
+        from wama.common.services.assistant_engine import conversation_turn, run_assistant_turn
 
         message = (request.data.get("message") or "").strip()
         if not message:
@@ -111,23 +110,26 @@ class AssistantChatView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        history = request.data.get("history") or []
-        if not isinstance(history, list):
+        history = request.data.get("history")
+        if history is not None and not isinstance(history, list):
             return Response(
                 {"error": "Champ 'history' doit être une liste de tours {role, content}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        result = run_assistant_turn(
-            request.user,
-            message,
+        common = dict(
             provider=request.data.get("provider", "wama-dev-ai"),
             model=request.data.get("model", "fast"),
-            history=history,
             # Domaine d'intervention (`assistant_skills.DOMAINES`) : détermine le skill de
             # rôle et, pour les domaines qui le déclarent, le rappel du contexte de labo.
             domain=request.data.get("domain"),
         )
+        if history is not None:
+            result = run_assistant_turn(request.user, message, history=history, **common)
+        else:
+            result = conversation_turn(request.user, message, surface='api',
+                                       thread_key=str(request.data.get("thread_key") or ''),
+                                       **common)
 
         if "error" in result:
             return Response(result, status=result.pop("status", 500))

@@ -78,6 +78,16 @@ def _chat_model_options():
     return options
 
 
+def _chat_thread(user) -> list:
+    """Entrées d'affichage du fil `web` de `user` (vide sans compte ou sans fil)."""
+    if not getattr(user, 'is_authenticated', False):
+        return []
+    from wama.common.models import Conversation
+    from wama.common.services import conversation_store
+    fil = Conversation.objects.filter(user=user, surface='web', thread_key='').first()
+    return conversation_store.display_entries(fil)
+
+
 def home(request):
     """Home page view with admin check for AI chat."""
     # ⚠ NE PAS re-poser `is_admin` dans le contexte de cette vue — c'était le cas jusqu'au
@@ -129,6 +139,9 @@ def home(request):
         # Modèles par fournisseur, lus par le JS du sélecteur (json_script).
         'chat_catalog': {'wama-dev-ai': local_models,
                          **{p['provider']: p['models'] for p in providers}},
+        # Fil `web` de l'utilisateur, relu du store SERVEUR (plus du localStorage) : la même
+        # conversation se retrouve sur tout appareil.
+        'chat_thread': _chat_thread(request.user),
         'voix_assistant': choix_voix(langue),
         # Volet = l'AVATAR SEUL, en bloc de tête (`right_panel_top`, home.html). Les trois
         # sections restaient rendues SOUS lui — « Sélectionnez un fichier pour l'aperçu » sur
@@ -169,7 +182,8 @@ def ai_chat(request):
         message = data.get('message', '').strip()
         provider = data.get('provider', 'wama-dev-ai')  # Default to local
         model = data.get('model', 'fast')  # Default Ollama model
-        history = data.get('history', [])  # Prior conversation turns
+        # L'historique n'est PLUS fourni par le navigateur (2026-09-15) : il est tenu côté
+        # SERVEUR, comme pour Discord et l'API (`conversation_turn`, fil `web` de l'utilisateur).
         # Domaine d'intervention (`assistant_skills.DOMAINES`). Facultatif : sans lui,
         # l'assistant part en `general` et charge lui-même la compétence dont il a besoin
         # via l'outil `charger_competence`. Le passer ne sert qu'à l'AMORCER dans un
@@ -182,9 +196,10 @@ def ai_chat(request):
             return JsonResponse({'error': 'Message is required'}, status=400)
 
         # Moteur commun (assistant_engine) : cette vue n'est plus qu'une surface
-        # cliente parmi N — même boucle à outils pour local ET cloud.
-        result = run_assistant_turn(request.user, message, provider=provider,
-                                    model=model, history=history, domain=domain)
+        # cliente parmi N — même boucle à outils pour local ET cloud, même store.
+        from wama.common.services.assistant_engine import conversation_turn
+        result = conversation_turn(request.user, message, surface='web', provider=provider,
+                                   model=model, domain=domain)
 
         # Check for errors
         if 'error' in result:
@@ -198,6 +213,19 @@ def ai_chat(request):
     except Exception as e:
         logger.error(f"AI Chat error: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@csrf_protect
+def ai_chat_clear(request):
+    """« Effacer » du chat web : supprime le fil `web` de l'utilisateur (store commun)."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    from wama.common.models import Conversation
+    from wama.common.services import conversation_store
+    fil = Conversation.objects.filter(user=request.user, surface='web', thread_key='').first()
+    cleared = conversation_store.clear(request.user, fil.pk) if fil else False
+    return JsonResponse({'success': True, 'cleared': cleared})
 
 
 # ---------------------------------------------------------------------------
