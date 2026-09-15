@@ -7,6 +7,11 @@ en mémoire du process côté passerelle (perdu à chaque redémarrage, non part
 process). Un même utilisateur ne pouvait donc ni reprendre une conversation ailleurs, ni
 en tenir plusieurs de front. Cf. `ROADMAP.md` §19.5.
 
+⚠ Livré le 20/08 mais adopté par la seule passerelle Discord jusqu'au 2026-09-15 : la page web
+gardait son `localStorage` et l'API son historique fourni par le client (mesuré par la
+cartographie de l'assistant, `WAMA_LLM.md`). Depuis, le web (surface `web`) et l'API (surface `api`,
+sauf client qui fournit son `history`) passent par `conversation_turn`.
+
 CE QUI NE CHANGE PAS — et c'est délibéré. `run_assistant_turn` continue d'accepter un
 `history` explicite : le moteur reste une fonction sans état, testable sans base de
 données, et les clients qui gèrent eux-mêmes leur historique (un script, un harnais) ne
@@ -78,6 +83,26 @@ def record_exchange(conversation, message: str, resultat: dict) -> None:
     # `updated_at` porte l'ordre d'affichage de la liste des conversations : le toucher
     # explicitement, car créer des tours ne modifie pas le fil lui-même.
     conversation.save(update_fields=['updated_at'])
+
+
+def display_entries(conversation, limite: int = 60) -> list:
+    """Les derniers tours du fil au format d'AFFICHAGE d'une surface : les étapes d'outils
+    précèdent la réponse, comme au moment où elle a été reçue.
+
+    [{'type': 'user'|'assistant'|'tool_steps', 'content'?, 'steps'?, 'model'?}]
+    """
+    if conversation is None:
+        return []
+    entries = []
+    derniers = list(conversation.turns.order_by('-created_at', '-pk')[:limite])
+    for t in reversed(derniers):
+        if t.role == 'assistant' and t.tool_steps:
+            entries.append({'type': 'tool_steps', 'steps': t.tool_steps})
+        entry = {'type': t.role, 'content': t.content}
+        if t.role == 'assistant' and t.model:
+            entry['model'] = t.model
+        entries.append(entry)
+    return entries
 
 
 def conversations_of(user, limite: int = 50) -> list:

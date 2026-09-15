@@ -94,10 +94,10 @@
       const modelSelect = document.getElementById('ai-model');
       const modelContainer = document.getElementById('model-container');
 
-      // localStorage key scoped to current user
-      const STORAGE_KEY = 'wama_chat_{{ request.user.username }}';
-      const MAX_HISTORY = 60; // max entries kept in storage
-      let chatHistory = [];   // [{type, content?, steps?, model?}]
+      // Historique tenu CÔTÉ SERVEUR depuis le 2026-09-15 (store de conversation commun, comme
+      // Discord et l'API) : le navigateur ne fait plus que l'AFFICHER. L'ancienne copie du
+      // localStorage n'a plus de lecteur — elle est effacée.
+      try { localStorage.removeItem('wama_chat_{{ request.user.username }}'); } catch(e) {}
 
       // ── Voice / TTS state ─────────────────────────────────────────────────
       const VOICE_LANG = '{{ preferred_language|default:"fr" }}';
@@ -108,17 +108,12 @@
       const voiceSelect = document.getElementById('ai-voice-select');
       const micBtn = document.getElementById('ai-mic-btn');
 
-      // ── Persistence ──────────────────────────────────────────────────────
-      function saveChatHistory() {
+      // ── « Effacer » : supprime le fil côté serveur, puis réaffiche l'accueil ──────────
+      async function clearChatHistory() {
         try {
-          const slice = chatHistory.slice(-MAX_HISTORY);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(slice));
-        } catch(e) { /* storage full – silently ignore */ }
-      }
-
-      function clearChatHistory() {
-        chatHistory = [];
-        localStorage.removeItem(STORAGE_KEY);
+          await fetch("{% url 'ai_chat_clear' %}",
+                      { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } });
+        } catch(e) { /* écran vidé quand même ; le fil réapparaîtra au prochain chargement */ }
         {% comment %}Accueil DÉCLARÉ côté serveur (assistant_skills.greeting) et non écrit ici :
         il VARIE selon l'état de connexion — un visiteur non identifié doit toujours s'entendre
         dire le parcours (s'identifier, puis attendre la modération), ce qu'un texte figé dans le
@@ -437,27 +432,19 @@
       }
 
       // ── Public DOM mutators ───────────────────────────────────────────────
-      function addToolSteps(steps, save = true) {
+      function addToolSteps(steps) {
         if (!steps || steps.length === 0) return;
         const placeholder = chatMessages.querySelector('.text-center');
         if (placeholder) placeholder.remove();
         chatMessages.appendChild(renderToolSteps(steps));
         chatMessages.scrollTop = chatMessages.scrollHeight;
-        if (save) {
-          chatHistory.push({ type: 'tool_steps', steps });
-          saveChatHistory();
-        }
       }
 
-      function addMessage(content, isUser = false, isError = false, modelInfo = null, save = true) {
+      function addMessage(content, isUser = false, isError = false, modelInfo = null) {
         const placeholder = chatMessages.querySelector('.text-center');
         if (placeholder) placeholder.remove();
         chatMessages.appendChild(renderMessage(content, isUser, isError, modelInfo));
         chatMessages.scrollTop = chatMessages.scrollHeight;
-        if (save) {
-          chatHistory.push({ type: isUser ? 'user' : isError ? 'error' : 'assistant', content, model: modelInfo });
-          saveChatHistory();
-        }
         // Auto-play assistant response if voice is enabled
         if (!isUser && !isError && voiceEnabled) {
           speakText(content);
@@ -493,12 +480,11 @@
         if (loading) loading.remove();
       }
 
-      // ── Restore history on page load ──────────────────────────────────────
+      // ── Fil relu du SERVEUR au chargement (views.home → chat_thread) ──────────────
       function loadChatHistory() {
         try {
-          const saved = localStorage.getItem(STORAGE_KEY);
-          if (!saved) return;
-          chatHistory = JSON.parse(saved);
+          const threadEl = document.getElementById('ai-chat-thread');
+          const chatHistory = threadEl ? JSON.parse(threadEl.textContent) : [];
           if (!chatHistory.length) return;
           // Clear placeholder
           chatMessages.innerHTML = '';
@@ -514,25 +500,12 @@
             }
           });
           chatMessages.scrollTop = chatMessages.scrollHeight;
-        } catch(e) {
-          localStorage.removeItem(STORAGE_KEY);
-        }
+        } catch(e) { /* fil illisible : l'accueil reste affiché */ }
       }
       loadChatHistory();
 
       // ── Clear button ──────────────────────────────────────────────────────
       document.getElementById('ai-chat-clear').addEventListener('click', clearChatHistory);
-
-      // ── Build Ollama-format history from local chatHistory ────────────────
-      function buildHistory() {
-        const hist = [];
-        for (const entry of chatHistory) {
-          if (entry.type === 'user')      hist.push({ role: 'user',      content: entry.content });
-          else if (entry.type === 'assistant') hist.push({ role: 'assistant', content: entry.content });
-          // skip tool_steps and error entries — not useful as LLM context
-        }
-        return hist.slice(-20); // cap to last 10 exchanges
-      }
 
       // ── Submit handler ────────────────────────────────────────────────────
       chatForm.addEventListener('submit', async function(e) {
@@ -547,7 +520,8 @@
         chatSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         addLoadingIndicator();
 
-        const requestBody = { message, provider: providerSelect.value, history: buildHistory() };
+        // Pas d'historique envoyé : le serveur tient le fil (store de conversation commun).
+        const requestBody = { message, provider: providerSelect.value };
         if (modelContainer.style.display !== 'none') requestBody.model = modelSelect.value;
 
         try {
@@ -799,6 +773,7 @@
                   {% endfor %}
                 </select>
                 {{ chat_catalog|json_script:"ai-chat-catalog" }}
+                {{ chat_thread|json_script:"ai-chat-thread" }}
               </div>
             </div>
             <!-- Chat Messages Container -->

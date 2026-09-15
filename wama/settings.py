@@ -315,6 +315,14 @@ CACHES = {
     }
 }
 
+# Tests : cache SÉPARÉ, en mémoire du process (2026-09-15). Les tests écrivaient dans le VRAI
+# cache Redis — mesuré : des clés de réglages pour 217 comptes de test (pk 114 à 43 902), dont
+# les identifiants recouvrent ceux des comptes réels. Depuis que `user_settings` lit le cache
+# DEVANT la base, un test pouvait masquer le réglage d'un vrai compte pendant 30 jours.
+import sys as _sys
+if len(_sys.argv) > 1 and _sys.argv[1] == 'test':
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+
 # Configuration LDAP
 if ENABLE_LDAP:
     import ldap

@@ -445,6 +445,14 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None) -
     api_key = None
     # Fournisseur DÉCLARÉ (source `llm` : Albert, API Anthropic…) → clé personnelle exigée.
     source = external_sources.by_key().get(llm_provider)
+    # ⚠ Un fournisseur NON déclaré (`openai`, `mistral`…) n'a ni clé personnelle ni garde « 100 %
+    # local » : pour un utilisateur, LiteLLM se serait replié sur la clé d'instance de
+    # l'environnement (trou mesuré par la cartographie du 15/09, atteignable par l'API v1). Il est
+    # refusé ; sans utilisateur (rôles en ligne de commande), le chemin d'instance reste ouvert.
+    if (user is not None and getattr(user, 'is_authenticated', False)
+            and (source is None or source.kind != 'llm')):
+        return None, {'error': f"Fournisseur « {provider} » non déclaré dans WAMA : choisissez un "
+                               "fournisseur proposé par le sélecteur.", 'status': 400}
     if (source and source.kind == 'llm' and user is not None
             and getattr(user, 'is_authenticated', False)):
         from wama.accounts.api_keys import key_for

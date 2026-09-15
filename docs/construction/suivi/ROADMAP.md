@@ -1414,7 +1414,35 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    atteignables depuis l'accueil), modèle choisi = user setting persistant (brique `user_settings`
    rendue durable, §23.3bis) lu par TOUTES les surfaces, réglages dans le composant assistant là
    où il s'affiche. Préalable demandé : cartographie exhaustive assistant + wama-dev-ai, pour ne
-   rien perdre des mécanismes en place.
+   rien perdre des mécanismes en place — ✅ FAITE (`WAMA_LLM.md §Cartographie de l'assistant`), et
+   brique `user_settings` rendue durable (commit `d75b405d`).
+   **Réponses de Fabien sur la cartographie (15/09)** :
+   ① déclaration : UNIFORMISER la déclaration des apps au catalogue et les CLASSER PAR MONDE —
+   ⚠ chantier mené dans une AUTRE session : ne pas recouvrir ; les frictions mesurées (§D de la
+   cartographie : régime transversal hors `APP_CATALOG`, catalogue JS vidé par une entrée
+   incomplète, aide écrite pour une file, garde par app aveugle aux surfaces de l'assistant) lui
+   sont transmises. ② RÔLES : le geste utilisateur reste « auto » ou un modèle ; le rôle est
+   aujourd'hui affiché entre parenthèses derrière le modèle. Piste de Fabien : les rôles PORTÉS PAR
+   LES MODÈLES (un modèle peut en porter plusieurs), avec un lien entre le registre des skills /
+   prompts et les modèles ; les skills se chargent automatiquement par analyse de la requête (comme
+   Claude — `charger_competence` en est déjà l'embryon). Les WORKFLOWS (rôles wama-dev-ai : librarian,
+   scout, integrator, codegen, audit) restent en DEV ; à terme un kind de manifeste `workflow`
+   (séquence d'actions LLM) ou leur entrée dans le kind `pipeline` s'il est compatible — ⚠ chantier
+   mené dans une AUTRE session : ne pas recouvrir. ③ historique : un seul, en base, pour toutes les
+   surfaces — Fabien pensait l'assistant web déjà branché ; MESURÉ : non, le web garde l'historique
+   dans le `localStorage` du navigateur (`home.html:98-121`) et le renvoie à chaque tour
+   (`views.ai_chat` → `run_assistant_turn`, sans store) ; seul Discord passe par `conversation_turn`.
+   ④ TESTS des GESTES de l'assistant (aucun test de `ai_chat`, `AssistantChatView`, `kokoro_tts`) : à
+   écrire dans le même temps.
+   **Fait le 15/09 (après accord de Fabien, « schéma-driven, sans chemin parallèle »)** : historique en
+   base pour le web (fil `web`, relu à l'accueil, « Effacer » = `conversation_store.clear`) et l'API
+   (surface `api` ; `history` fourni = chemin sans état conservé) ; garde des fournisseurs non
+   déclarés ; tests dans un cache séparé ; `tests_assistant_surfaces`. ⏳ Reste, dans cet ordre : le
+   modèle choisi en réglage durable lu par toutes les surfaces + sélecteur COMMUN (schéma, source
+   `catalog`, « auto » + curseur + manuel) + rôles CALCULÉS depuis les modèles, livrés ENSEMBLE (le
+   geste « modèle (Dev) » ne doit pas disparaître entre deux) ; gestes nocturnes de l'assistant
+   déclarés au harnais `ui_smoke` (envoyer = charge Ollama → `vram_gb` déclaré, écarté du passage
+   sans GPU).
 5. ⏳ **Moteur de l'assistant client MCP** — même chemin pour Ollama, Albert et Claude Code
    (`--mcp-config`) ; sélecteurs UI, API et Discord lus du catalogue (Discord est aujourd'hui figé
    sur `wama-dev-ai`, `gateway/core.py:208`). Ouvre aussi l'autre sens : WAMA CLIENT de serveurs
