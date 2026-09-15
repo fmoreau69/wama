@@ -1387,8 +1387,17 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    suit la règle des clés : `claude_code.demander(user=…)` exige le jeton PERSONNEL et refuse avant
    de lancer le CLI, qui sinon retomberait sur les identifiants de la machine — l'abonnement d'une
    autre personne. Identifiants machine et jeton du `.env` : appels SANS utilisateur seulement.
-   ⚠ Non mesuré : la liste des modèles avec un jeton OAuth (en-tête bêta) — un refus revient comme
-   erreur de découverte lisible, sans empêcher le CLI de fonctionner.
+   MESURÉ avec les clés de Fabien : API Anthropic → 11 modèles découverts ; le jeton d'abonnement
+   est REFUSÉ par `GET /v1/models` (401) mais fait tourner le CLI (appel réel « OK », 0,50 $
+   d'équivalent API à froid) — l'abonnement n'a donc pas de liste (`UNLISTABLE_PROTOCOLS`).
+   **Sélecteur de l'assistant BRANCHÉ (15/09)** : les fournisseurs distants ne sont plus écrits
+   dans `home.html` ; `assistant_engine.chat_provider_choices(user)` les lit du profil (niveau
+   cloud, clés, prédicat développeur pour l'abonnement) et du catalogue (modèles ouverts à la clé,
+   capables de conversation, plus « par défaut »). Garde serveur (web, API v1, Discord) :
+   `cloud_models.cloud_refusal` — « 100 % local » refuse tout distant, `ask_claude_code` et `!code`
+   compris — et un modèle nommé doit être ouvert par la clé. Reste la seule table à la main :
+   `PROVIDER_SOURCES` (noms historiques de la surface → source). ⏳ Discord part toujours sur le
+   fournisseur local (`gateway/core.py:208`) ; les apps ne passent pas encore `cloud_keys`.
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par

@@ -17,7 +17,7 @@ Aucun réseau, aucun CLI : `demander()` est remplacé par un double.
 from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from wama.common.services.assistant_engine import run_assistant_turn
 from wama.common.services.claude_code import subscription_allowed
@@ -84,6 +84,7 @@ class LaGardeEstAuPassageObligeTests(TestCase):
         self.assertIn('et ses tests ?', prompt)
 
 
+@override_settings(SECRET_KEY='k' * 50, SECRET_KEY_FALLBACKS=[])
 class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
     """
     ⚠ Le défaut que ces tests empêchent de revenir (trouvé le 2026-08-31 en écrivant la
@@ -91,13 +92,26 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
     — un TROISIÈME vocabulaire de rôle, différent de la garde. Gater l'option dessus aurait
     fait diverger l'écran de la garde DANS LES DEUX SENS : un membre du groupe `dev`
     autorisé par le moteur sans jamais voir l'option, et un compte `is_staff` voyant une
-    option refusée. (La vue ne repose plus la clé ; le context processor la fournit.)
+    option refusée.
 
     « Deux mesures qui ne répondent pas à la même question ne divergent pas » : ici, elles
-    doivent répondre à la MÊME — d'où `abonnement_visible`, calculé par le prédicat unique.
+    doivent répondre à la MÊME — la liste des fournisseurs (`chat_provider_choices`) applique
+    le prédicat unique de la garde.
+
+    2026-09-15 : l'option exige en plus le jeton PERSONNEL et un niveau cloud qui l'autorise
+    (même règle que les clés d'API). Les profils ci-dessous les posent donc, pour que la seule
+    variable mesurée reste le RÔLE.
     """
 
     OPTION = 'value="claude-abo"'
+
+    def _ouvrir(self, user, jeton=True, niveau='cloud_allowed'):
+        from wama.accounts.models import UserApiKey
+        user.profile.cloud_policy = niveau
+        user.profile.save()
+        if jeton:
+            UserApiKey.objects.create(user=user, source='claude_code', api_key='jeton')
+        return user
 
     def _page(self, user):
         self.client.force_login(user)
@@ -107,11 +121,17 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
         user = User.objects.create_user('devguy', password='x')
         user.groups.add(Group.objects.get_or_create(name='dev')[0])
         self.assertFalse(user.is_staff, "prérequis du test : ce compte n'est PAS staff")
-        self.assertIn(self.OPTION, self._page(user))
+        self.assertIn(self.OPTION, self._page(self._ouvrir(user)))
 
     def test_un_utilisateur_ordinaire_ne_voit_pas_l_option(self):
         self.assertNotIn(self.OPTION, self._page(
-            User.objects.create_user('alice', password='x')))
+            self._ouvrir(User.objects.create_user('alice', password='x'))))
+
+    def test_sans_jeton_ou_en_local_un_developpeur_ne_voit_pas_l_option(self):
+        sans_jeton = User.objects.create_user('dev_sans_jeton', password='x', is_superuser=True)
+        self.assertNotIn(self.OPTION, self._page(self._ouvrir(sans_jeton, jeton=False)))
+        en_local = User.objects.create_user('dev_local', password='x', is_superuser=True)
+        self.assertNotIn(self.OPTION, self._page(self._ouvrir(en_local, niveau='local_only')))
 
     def test_tout_compte_qui_voit_l_option_est_bien_autorise_par_la_garde(self):
         """L'invariant, énoncé dans les deux sens sur un échantillon de profils."""
@@ -126,6 +146,6 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
             user = User.objects.create_user(nom, password='x', **attributs)
             if groupe:
                 user.groups.add(Group.objects.get_or_create(name=groupe)[0])
-            visible = self.OPTION in self._page(user)
+            visible = self.OPTION in self._page(self._ouvrir(user))
             self.assertEqual(visible, subscription_allowed(user),
                              f"écran et garde divergent pour « {nom} »")

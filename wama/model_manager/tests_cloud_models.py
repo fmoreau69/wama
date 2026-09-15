@@ -122,10 +122,16 @@ class ProtocolesTest(TestCase):
         self.assertNotIn('Authorization', entetes)
         self.assertEqual(('image-text-to-text', 'Claude X'), (modeles[0]['type'], modeles[0]['name']))
 
-    def test_abonnement_jeton_oauth(self):
-        entetes, _ = self._appel('claude_code', [])
-        self.assertEqual('Bearer secret', entetes['Authorization'])
-        self.assertIn('anthropic-beta', entetes)
+    @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+    def test_l_abonnement_n_a_pas_de_liste_et_ne_s_en_plaint_pas(self):
+        """Mesuré le 15/09 : le jeton d'abonnement est refusé par `/v1/models` mais fait tourner
+        le CLI. Aucun appel, aucune erreur affichée au profil."""
+        from wama.accounts.models import UserApiKey
+        user = get_user_model().objects.create_user('abo_liste', password='x')
+        row = UserApiKey.objects.create(user=user, source='claude_code', api_key='jeton')
+        with mock.patch('requests.get') as get:
+            self.assertEqual((0, ''), cloud_models.refresh_key(row))
+        get.assert_not_called()
 
 
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
@@ -134,6 +140,39 @@ class AbonnementPersonnelTest(TestCase):
 
     def setUp(self):
         self.dev = get_user_model().objects.create_user('dev_abo', password='x', is_superuser=True)
+        self.dev.profile.cloud_policy = 'cloud_allowed'
+        self.dev.profile.save()
+
+    def test_en_100_pour_cent_local_l_abonnement_n_est_pas_lance(self):
+        from wama.accounts.models import UserApiKey
+        from wama.common.services import claude_code
+        UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='jeton-perso')
+        self.dev.profile.cloud_policy = 'local_only'
+        self.dev.profile.save()
+        with mock.patch('subprocess.run') as run:
+            res = claude_code.demander('bonjour', user=self.dev)
+        self.assertIn('100 % local', res['error'])
+        run.assert_not_called()
+
+    def test_le_selecteur_du_chat_liste_les_modeles_ouverts_qui_conversent(self):
+        from wama.accounts.models import UserApiKey
+        from wama.common.services.assistant_engine import chat_provider_choices
+        AIModel.objects.create(model_key='albert:chat', name='chat', model_type='llm',
+                               source='albert', execution='cloud',
+                               capabilities={'completion': True})
+        AIModel.objects.create(model_key='albert:emb', name='emb', model_type='embedding',
+                               source='albert', execution='cloud', capabilities={})
+        UserApiKey.objects.create(user=self.dev, source='albert', api_key='sk',
+                                  open_models=['albert:chat', 'albert:emb'])
+        UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='jeton')
+        choix = {c['provider']: c for c in chat_provider_choices(self.dev)}
+        self.assertEqual(['', 'chat'], [m['value'] for m in choix['albert']['models']])
+        self.assertIn('souverain', choix['albert']['label'])
+        self.assertEqual([], choix['claude-abo']['models'])
+        self.assertNotIn('claude', choix, "aucune clé Anthropic posée")
+        self.dev.profile.cloud_policy = 'local_only'
+        self.dev.profile.save()
+        self.assertEqual([], chat_provider_choices(self.dev))
 
     def test_le_jeton_n_est_propose_qu_aux_developpeurs(self):
         from wama.accounts.api_keys import llm_sources
@@ -211,6 +250,31 @@ class CleDeLAssistantTest(TestCase):
 
     def setUp(self):
         self.user = get_user_model().objects.create_user('assistant_cle', password='x')
+        self.user.profile.cloud_policy = 'cloud_allowed'
+        self.user.profile.save()
+
+    def test_en_100_pour_cent_local_le_distant_est_refuse_meme_avec_une_cle(self):
+        from wama.accounts.models import UserApiKey
+        from wama.common.services import assistant_engine
+        UserApiKey.objects.create(user=self.user, source='albert', api_key='sk-perso')
+        self.user.profile.cloud_policy = 'local_only'
+        self.user.profile.save()
+        with mock.patch('wama.common.utils.llm_utils.llm_chat') as chat:
+            text, err = assistant_engine._llm_call([], None, 'albert', user=self.user)
+        self.assertEqual((None, 403), (text, err['status']))
+        chat.assert_not_called()
+
+    def test_un_modele_que_la_cle_n_ouvre_pas_est_refuse(self):
+        from wama.accounts.models import UserApiKey
+        from wama.common.services import assistant_engine
+        UserApiKey.objects.create(user=self.user, source='albert', api_key='sk-perso',
+                                  open_models=['albert:ouvert'])
+        with mock.patch('wama.common.utils.llm_utils.llm_chat', return_value=('ok', None)) as chat:
+            _, err = assistant_engine._llm_call([], 'ferme', 'albert', user=self.user)
+            self.assertEqual(403, err['status'])
+            text, _ = assistant_engine._llm_call([], 'ouvert', 'albert', user=self.user)
+        self.assertEqual('ok', text)
+        self.assertEqual(1, chat.call_count)
 
     def test_sans_cle_personnelle_l_assistant_refuse_sans_se_replier_sur_le_env(self):
         from wama.common.services import assistant_engine

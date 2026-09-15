@@ -112,14 +112,23 @@ def home(request):
     # droit aussi). La visibilité se calcule donc avec le MÊME prédicat que la garde serveur
     # (`claude_code.subscription_allowed`, domicile unique), sans quoi l'écran et la garde
     # divergeraient dans les deux sens — un test verrouille l'invariant sur 5 profils.
-    from wama.common.services.claude_code import subscription_allowed
+    # 2026-09-15 : les fournisseurs DISTANTS du sélecteur (Albert, API Claude, abonnement) ne
+    # sont plus écrits dans le gabarit. Ils sont lus du profil (niveau cloud, clés) et du
+    # catalogue (modèles ouverts à la clé) — `assistant_engine.chat_provider_choices`, qui
+    # applique pour l'abonnement le MÊME prédicat que la garde serveur.
+    from wama.common.services.assistant_engine import chat_provider_choices
+    providers = chat_provider_choices(request.user)
+    local_models = _chat_model_options() if est_admin else []
     context = {
         # `is_admin` VOLONTAIREMENT ABSENT : il vient du context processor (cf. plus haut).
-        'abonnement_visible': subscription_allowed(request.user),
         'accueil_assistant': greeting(request.user),
         # Résolution catalogue à chaque rendu : 5 requêtes DB, uniquement pour l'admin
         # qui voit la surface chat.
-        'chat_model_options': _chat_model_options() if est_admin else [],
+        'chat_model_options': local_models,
+        'chat_providers': providers,
+        # Modèles par fournisseur, lus par le JS du sélecteur (json_script).
+        'chat_catalog': {'wama-dev-ai': local_models,
+                         **{p['provider']: p['models'] for p in providers}},
         'voix_assistant': choix_voix(langue),
         # Volet = l'AVATAR SEUL, en bloc de tête (`right_panel_top`, home.html). Les trois
         # sections restaient rendues SOUS lui — « Sélectionnez un fichier pour l'aperçu » sur

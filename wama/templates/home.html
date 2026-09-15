@@ -149,9 +149,20 @@
           </div>`;
       }
 
-      // ── Show/hide model selector based on provider ────────────────────────
+      // ── Modèles du fournisseur choisi — lus du catalogue (views.home → chat_catalog) ──
+      const chatCatalogEl = document.getElementById('ai-chat-catalog');
+      const chatCatalog = chatCatalogEl ? JSON.parse(chatCatalogEl.textContent) : {};
       function updateModelVisibility() {
-        modelContainer.style.display = providerSelect.value === 'wama-dev-ai' ? 'block' : 'none';
+        const models = chatCatalog[providerSelect.value] || [];
+        modelSelect.innerHTML = '';
+        models.forEach((m, i) => {
+          const opt = document.createElement('option');
+          opt.value = m.value;
+          opt.textContent = m.label;
+          if (i === 0) opt.selected = true;
+          modelSelect.appendChild(opt);
+        });
+        modelContainer.style.display = models.length ? 'block' : 'none';
       }
       providerSelect.addEventListener('change', updateModelVisibility);
       updateModelVisibility();
@@ -456,7 +467,7 @@
       function addLoadingIndicator() {
         const placeholder = chatMessages.querySelector('.text-center');
         if (placeholder) placeholder.remove();
-        const providerName = { 'albert': 'Albert', 'claude': 'Claude', 'claude-abo': 'Claude Code' }[providerSelect.value]
+        const providerName = providerSelect.options[providerSelect.selectedIndex]?.dataset.short
                              || 'wama-dev-ai';
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'ai-loading';
@@ -537,7 +548,7 @@
         addLoadingIndicator();
 
         const requestBody = { message, provider: providerSelect.value, history: buildHistory() };
-        if (providerSelect.value === 'wama-dev-ai') requestBody.model = modelSelect.value;
+        if (modelContainer.style.display !== 'none') requestBody.model = modelSelect.value;
 
         try {
           const response = await fetch('/api/ai-chat/', {
@@ -756,28 +767,26 @@
               <div class="col-md-6">
                 <label class="form-label small">Provider</label>
                 <select id="ai-provider" class="form-select form-select-sm" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
-                  <option value="wama-dev-ai" selected>wama-dev-ai (Local/Ollama)</option>
-                  <option value="albert">Albert (API de l'État — DINUM)</option>
-                  <option value="claude">Claude (Anthropic API — facturé au token)</option>
+                  <option value="wama-dev-ai" data-short="wama-dev-ai" selected>wama-dev-ai (Local/Ollama)</option>
                   {% comment %}
-                    Fournisseur ABONNEMENT — visible pour les seuls admins/devs (garde
-                    RÉELLE côté serveur : `run_assistant_turn`, passage obligé des 3
-                    surfaces ; ce test ne fait que cacher, il ne protège rien).
-                    ⚠ `abonnement_visible` et NON `is_admin` : l'abonnement est ouvert plus
-                    LARGEMENT que l'administration (groupes dev/developpeur, tiers de
-                    profil). Utiliser `is_admin` ferait diverger l'écran de la garde dans
-                    les deux sens ; la visibilité vient donc du prédicat de la garde.
-                    ⚠ Les DEUX libellés Claude disent leur FACTURATION : c'est tout ce qui
-                    les distingue à l'écran, et les confondre coûte soit de l'argent réel,
-                    soit du crédit mensuel. Le libellé disait « ~1 $/message » jusqu'à la
-                    MESURE du 31/08, qui l'a corrigé : le cache de prompt traverse les
-                    invocations (~0,03 $ à chaud, ~0,54 $ à froid). Annoncer le pire cas
-                    comme le cas courant dissuadait d'un chemin en réalité peu coûteux.
+                    Fournisseurs DISTANTS — lus du profil et du catalogue depuis le 2026-09-15
+                    (`assistant_engine.chat_provider_choices`) : un fournisseur n'apparaît que
+                    si le niveau cloud l'autorise ET que la clé est posée ; l'abonnement, en
+                    plus, pour les seuls développeurs (MÊME prédicat que la garde serveur, pour
+                    que l'écran et la garde ne divergent pas). La garde RÉELLE reste côté
+                    serveur : cacher une option ne protège rien.
+                    ⚠ Le libellé dit HÉBERGEMENT et COÛT : c'est ce qui distingue l'API Claude
+                    (facturée à l'usage) de l'abonnement (crédit mensuel) — les confondre coûte
+                    de l'argent réel ou du crédit.
                   {% endcomment %}
-                  {% if abonnement_visible %}
-                  <option value="claude-abo">Claude Code (abonnement — accès dépôt, coût variable)</option>
-                  {% endif %}
+                  {% for p in chat_providers %}
+                  <option value="{{ p.provider }}" data-short="{{ p.short }}">{{ p.label }}</option>
+                  {% endfor %}
                 </select>
+                {% if not chat_providers %}
+                <div class="form-text small">Fournisseurs distants : choisissez un niveau cloud et
+                  ajoutez vos clés dans votre <a href="{% url 'accounts:profile' %}">profil</a>.</div>
+                {% endif %}
               </div>
               <div class="col-md-6" id="model-container">
                 <label class="form-label small">Model</label>
@@ -789,6 +798,7 @@
                   <option value="{{ opt.value }}"{% if forloop.first %} selected{% endif %}>{{ opt.label }}</option>
                   {% endfor %}
                 </select>
+                {{ chat_catalog|json_script:"ai-chat-catalog" }}
               </div>
             </div>
             <!-- Chat Messages Container -->

@@ -58,6 +58,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+#: Hébergement d'un fournisseur LLM (champ `hosting`) → libellé court affiché aux utilisateurs.
+HOSTING = {'sovereign': 'souverain', 'third_party': 'hébergeur tiers'}
+
 #: Portées. `LOCAL` = service tournant sur la machine (ou l'hôte) : le proxy doit être
 #: NEUTRALISÉ, sans quoi il répond sa page d'erreur HTML à la place du service (incident
 #: mesuré le 2026-08-31 sur le TTS : 90 s de repli en-process et de la VRAM prise côté web,
