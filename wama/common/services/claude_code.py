@@ -56,6 +56,12 @@ RELATIF, et il est remonté à l'appelant pour ça.
 
 ⚠ La garde admin (`subscription_allowed`) reste justifiée — mais par l'ACCÈS AU DÉPÔT et le
 crédit partagé, pas par un « 1 $ le message » qui n'est vrai qu'à froid.
+
+⭐ JETON PERSONNEL (2026-09-15, même règle que les clés d'API — Fabien) : un utilisateur connecté
+utilise SON abonnement, par le jeton `claude setup-token` enregistré au profil (source
+`claude_code`, chiffré). Sans jeton, `demander()` REFUSE avant de lancer le CLI : sinon le CLI
+retomberait sur les identifiants de la machine, c'est-à-dire l'abonnement d'une autre personne.
+Le jeton du `.env` et les identifiants de la machine ne servent qu'aux appels SANS utilisateur.
 """
 from __future__ import annotations
 
@@ -137,7 +143,11 @@ def chemin_cli() -> str:
     )
 
 
-def _environnement() -> dict:
+#: Source `external_sources` du jeton d'abonnement personnel (clé du profil).
+SUBSCRIPTION_SOURCE = 'claude_code'
+
+
+def _environnement(oauth_token: str | None = None) -> dict:
     """
     Environnement MINIMAL et EXPLICITE du sous-processus.
 
@@ -146,15 +156,16 @@ def _environnement() -> dict:
          l'abonnement — silencieusement ;
       2. l'interop WSL→Windows échoue avec l'environnement complet hérité.
 
-    `CLAUDE_CODE_OAUTH_TOKEN` est transmis s'il existe (jeton `claude setup-token`) ; sinon
-    le CLI retombe sur les identifiants d'abonnement déjà présents sur la machine.
+    `oauth_token` : jeton PERSONNEL de l'utilisateur (profil). Sans utilisateur (`None`),
+    `CLAUDE_CODE_OAUTH_TOKEN` de l'environnement est transmis s'il existe ; sinon le CLI retombe
+    sur les identifiants d'abonnement déjà présents sur la machine.
     """
     env = {
         'PATH': os.environ.get('PATH_CLAUDE_CODE', '/usr/local/bin:/usr/bin:/bin'),
         'HOME': os.environ.get('HOME', '/root'),
         'LANG': 'C.UTF-8',
     }
-    jeton = os.environ.get('CLAUDE_CODE_OAUTH_TOKEN')
+    jeton = oauth_token if oauth_token is not None else os.environ.get('CLAUDE_CODE_OAUTH_TOKEN')
     if jeton:
         env['CLAUDE_CODE_OAUTH_TOKEN'] = jeton
     # ⚠ NE JAMAIS ajouter ANTHROPIC_API_KEY ici. Voir l'en-tête du module.
@@ -162,7 +173,7 @@ def _environnement() -> dict:
 
 
 def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
-             outils=OUTILS_LECTURE, ecriture: bool = False) -> dict:
+             outils=OUTILS_LECTURE, ecriture: bool = False, user=None) -> dict:
     """
     Soumet UNE tâche à Claude Code et rend son résultat.
 
@@ -173,11 +184,22 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
         outils:   outils autorisés ; par défaut LECTURE SEULE.
         ecriture: True lève la restriction d'outils. ⚠ À n'accorder que sur une intention
                   explicite : Claude Code peut alors modifier le dépôt.
+        user:     l'utilisateur pour qui l'appel est fait — son jeton personnel est EXIGÉ
+                  (cf. l'en-tête du module). `None` = appel sans utilisateur.
 
     Returns:
         {'success': True, 'texte': str, 'cout_usd': float|None, 'duree_ms': int|None}
         {'success': False, 'error': str}
     """
+    oauth_token = None
+    if user is not None and getattr(user, 'is_authenticated', False):
+        from wama.accounts.api_keys import key_for
+        oauth_token = key_for(user, SUBSCRIPTION_SOURCE)
+        if not oauth_token:
+            return {'success': False,
+                    'error': "Aucun jeton d'abonnement Claude dans votre profil : générez-le avec "
+                             "`claude setup-token`, puis collez-le dans le volet « Clés d'API » "
+                             "de la page Profil."}
     cli = chemin_cli()
     racine = str(cwd or settings.BASE_DIR)
     delai = max(10, min(int(delai or DELAI_DEFAUT), DELAI_MAX))
@@ -193,7 +215,7 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
 
     try:
         acheve = subprocess.run(
-            commande, cwd=racine, env=_environnement(),
+            commande, cwd=racine, env=_environnement(oauth_token),
             capture_output=True, text=True, timeout=delai,
         )
     except subprocess.TimeoutExpired:

@@ -100,6 +100,67 @@ class DecouverteTest(TestCase):
         self.assertEqual(4, len(cloud_models.allowed_cloud_keys(self.user)))
 
 
+class ProtocolesTest(TestCase):
+    """Chaque fournisseur parle SON protocole — déclaré sur la source, jamais deviné."""
+
+    def _appel(self, source, data):
+        reponse = mock.Mock(status_code=200, ok=True, json=mock.Mock(return_value={'data': data}))
+        with mock.patch('requests.get', return_value=reponse) as get:
+            modeles = cloud_models.list_remote_models(source, 'secret')
+        return get.call_args.kwargs['headers'], modeles
+
+    def test_albert_bearer_et_type_annonce(self):
+        entetes, modeles = self._appel('albert', [{'id': 'm', 'type': 'text-generation'}])
+        self.assertEqual('Bearer secret', entetes['Authorization'])
+        self.assertEqual('text-generation', modeles[0]['type'])
+
+    def test_anthropic_x_api_key_et_type_declare_par_la_source(self):
+        entetes, modeles = self._appel('anthropic', [
+            {'id': 'claude-x', 'type': 'model', 'display_name': 'Claude X'}])
+        self.assertEqual('secret', entetes['x-api-key'])
+        self.assertIn('anthropic-version', entetes)
+        self.assertNotIn('Authorization', entetes)
+        self.assertEqual(('image-text-to-text', 'Claude X'), (modeles[0]['type'], modeles[0]['name']))
+
+    def test_abonnement_jeton_oauth(self):
+        entetes, _ = self._appel('claude_code', [])
+        self.assertEqual('Bearer secret', entetes['Authorization'])
+        self.assertIn('anthropic-beta', entetes)
+
+
+@override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
+class AbonnementPersonnelTest(TestCase):
+    """Un utilisateur consomme SON abonnement : jamais celui de la machine."""
+
+    def setUp(self):
+        self.dev = get_user_model().objects.create_user('dev_abo', password='x', is_superuser=True)
+
+    def test_le_jeton_n_est_propose_qu_aux_developpeurs(self):
+        from wama.accounts.api_keys import llm_sources
+        ordinaire = get_user_model().objects.create_user('ordinaire_abo', password='x')
+        self.assertNotIn('claude_code', [s.key for s in llm_sources(ordinaire)])
+        self.assertIn('claude_code', [s.key for s in llm_sources(self.dev)])
+        self.assertIn('anthropic', [s.key for s in llm_sources(ordinaire)])
+
+    def test_sans_jeton_personnel_le_cli_n_est_pas_lance(self):
+        from wama.common.services import claude_code
+        with mock.patch('subprocess.run') as run:
+            res = claude_code.demander('bonjour', user=self.dev)
+        self.assertFalse(res['success'])
+        run.assert_not_called()
+
+    def test_le_jeton_personnel_est_transmis_au_cli_et_pas_celui_du_env(self):
+        from wama.accounts.models import UserApiKey
+        from wama.common.services import claude_code
+        UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='jeton-perso')
+        fini = mock.Mock(returncode=0, stdout='{"result": "ok"}', stderr='')
+        with mock.patch.object(claude_code, 'chemin_cli', return_value='/bin/claude'), \
+             mock.patch('subprocess.run', return_value=fini) as run, \
+             mock.patch.dict('os.environ', {'CLAUDE_CODE_OAUTH_TOKEN': 'jeton-machine'}):
+            claude_code.demander('bonjour', user=self.dev)
+        self.assertEqual('jeton-perso', run.call_args.kwargs['env']['CLAUDE_CODE_OAUTH_TOKEN'])
+
+
 class NonRegressionTest(TestCase):
     """Sans autorisation, un modèle distant bien mieux noté ne change RIEN."""
 
@@ -159,6 +220,15 @@ class CleDeLAssistantTest(TestCase):
         self.assertIsNone(text)
         self.assertEqual(400, err['status'])
         chat.assert_not_called()
+
+    def test_le_fournisseur_claude_prend_la_cle_anthropic_du_profil(self):
+        from wama.accounts.models import UserApiKey
+        from wama.common.services import assistant_engine
+        UserApiKey.objects.create(user=self.user, source='anthropic', api_key='sk-ant-perso')
+        with mock.patch('wama.common.utils.llm_utils.llm_chat', return_value=('ok', None)) as chat:
+            assistant_engine._llm_call([], None, 'claude', user=self.user)
+        self.assertEqual('sk-ant-perso', chat.call_args.kwargs['api_key'])
+        self.assertEqual('anthropic', chat.call_args.kwargs['provider'])
 
     def test_avec_cle_personnelle_l_assistant_l_utilise(self):
         from wama.accounts.models import UserApiKey

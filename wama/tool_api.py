@@ -2570,7 +2570,7 @@ def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300) ->
     from wama.common.services.claude_code import ClaudeCodeIndisponible, demander
 
     try:
-        resultat = demander(tache, delai=timeout, ecriture=bool(write))
+        resultat = demander(tache, delai=timeout, ecriture=bool(write), user=user)
     except ClaudeCodeIndisponible as e:
         return {"error": str(e)}
 

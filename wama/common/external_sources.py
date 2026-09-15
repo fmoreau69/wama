@@ -109,6 +109,15 @@ class ExternalSource:
     hosting: str = ''
     #: Fournisseur LLM : coût de ses modèles (valeurs de `AIModel.cost_tier`).
     cost_tier: str = ''
+    #: Fournisseur LLM : protocole de sa liste de modèles — 'openai' (Albert), 'anthropic' (API
+    #: Anthropic, clé `x-api-key`), 'claude_cli' (jeton OAuth d'abonnement).
+    protocol: str = ''
+    #: Type des modèles quand le fournisseur ne le dit pas (tag de tâche HuggingFace).
+    default_remote_type: str = ''
+    #: Libellé du champ de saisie au profil ('' = « Clé d'API »).
+    api_key_label: str = ''
+    #: Réservé aux développeurs (abonnement Claude Code : accès au dépôt).
+    developer_only: bool = False
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
@@ -158,8 +167,28 @@ SOURCES: tuple[ExternalSource, ...] = (
         "codegen) via llm_chat", kind='llm', env='ALBERT_API_BASE',
         api_key_env='ALBERT_API_KEY',
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
-        hosting='sovereign', cost_tier='free',
+        hosting='sovereign', cost_tier='free', protocol='openai',
         doc='docs/construction/ia/WAMA_LLM.md'),
+    # 2026-09-15 : l'API Anthropic (fournisseur « claude » de l'assistant) et l'ABONNEMENT Claude
+    # Code — deux canaux de facturation opposés vers les mêmes modèles (cf. `claude_code.py`).
+    # Chacun porte la clé PERSONNELLE de l'utilisateur, au profil ; le `.env` ne sert qu'aux usages
+    # sans utilisateur. Type par défaut : tous les modèles Claude lisent texte ET image, et leur
+    # liste (`GET /v1/models`) ne porte pas de tâche.
+    ExternalSource(
+        'anthropic', 'API Anthropic (Claude)', 'https://api.anthropic.com/v1',
+        "Modèles Claude facturés à la requête — fournisseur « claude » de l'assistant, via llm_chat",
+        kind='llm', api_key_env='ANTHROPIC_API_KEY',
+        api_key_help_url='https://console.anthropic.com/settings/keys',
+        hosting='third_party', cost_tier='metered', protocol='anthropic',
+        default_remote_type='image-text-to-text', doc='docs/construction/ia/WAMA_LLM.md'),
+    ExternalSource(
+        'claude_code', 'Claude Code (abonnement)', 'https://api.anthropic.com/v1',
+        "Abonnement Claude PERSONNEL — CLI headless (outil ask_claude_code, fournisseur "
+        "« claude-abo », geste !code) ; réservé aux développeurs", kind='llm',
+        api_key_env='CLAUDE_CODE_OAUTH_TOKEN', api_key_label='Jeton « claude setup-token »',
+        hosting='third_party', cost_tier='subscription', protocol='claude_cli',
+        default_remote_type='image-text-to-text', developer_only=True,
+        doc='docs/construction/suivi/ROADMAP.md'),
 
     # ── Catalogues de modèles ───────────────────────────────────────────────────────────
     ExternalSource(

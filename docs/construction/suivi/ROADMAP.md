@@ -1380,6 +1380,15 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    sélecteur de l'assistant liste toujours ses fournisseurs à la main) ; redécouverte périodique ;
    coût distant dans `_best_by_vram` (VRAM 0 = pire coût aujourd'hui) ; le signal de saturation du
    niveau « cloud si WAMA est saturé » ; OpenRouter (types absents du `/models` OpenAI standard).
+   **Étendu à Claude le même jour (demande de Fabien)** : sources `anthropic` (API facturée,
+   fournisseur « claude » de l'assistant) et `claude_code` (abonnement, réservée aux développeurs,
+   « clé » = jeton `claude setup-token`), protocole de liste de modèles DÉCLARÉ sur la source
+   (`protocol`, `default_remote_type` — la liste d'Anthropic ne porte pas de tâche). L'abonnement
+   suit la règle des clés : `claude_code.demander(user=…)` exige le jeton PERSONNEL et refuse avant
+   de lancer le CLI, qui sinon retomberait sur les identifiants de la machine — l'abonnement d'une
+   autre personne. Identifiants machine et jeton du `.env` : appels SANS utilisateur seulement.
+   ⚠ Non mesuré : la liste des modèles avec un jeton OAuth (en-tête bêta) — un refus revient comme
+   erreur de découverte lisible, sans empêcher le CLI de fonctionner.
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par

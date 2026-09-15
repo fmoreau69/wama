@@ -309,7 +309,7 @@ def _ollama_call(messages: list, ollama_model: str) -> tuple:
         return None, {'error': f'Ollama error: {e}', 'status': 500}
 
 
-def _claude_code_call(messages: list) -> tuple:
+def _claude_code_call(messages: list, user=None) -> tuple:
     """
     Un tour SUR L'ABONNEMENT, via le CLI Claude Code headless.
 
@@ -350,7 +350,7 @@ def _claude_code_call(messages: list) -> tuple:
             morceaux.append(f"[Utilisateur] {contenu}")
 
     try:
-        resultat = demander('\n\n'.join(morceaux))
+        resultat = demander('\n\n'.join(morceaux), user=user)
     except ClaudeCodeIndisponible as e:
         return None, {'error': str(e), 'status': 503}
 
@@ -373,10 +373,11 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None) -
     vient de `llm_chat` (jamais figé ici). L'usage n'est pas remonté par `llm_chat` (contrat
     (text, err)) → compté à 0, assumé tant que le besoin ne l'exige pas.
 
-    Clé d'un fournisseur déclaré dans `external_sources` (Albert…) : celle de l'UTILISATEUR,
-    jamais la clé d'instance du `.env` (décision de Fabien du 15/09 — quotas répartis). Sans
-    utilisateur (`user=None`), la clé d'instance sert. Les autres fournisseurs (API Anthropic…)
-    lisent encore l'environnement : ils n'ont pas de source déclarée.
+    Clé d'un fournisseur déclaré dans `external_sources` (Albert, API Anthropic) : celle de
+    l'UTILISATEUR, jamais la clé d'instance du `.env` (décision de Fabien du 15/09 — quotas
+    répartis) ; l'abonnement suit la même règle (jeton personnel, `claude_code.demander`). Sans
+    utilisateur (`user=None`), la clé d'instance sert. Les fournisseurs sans source déclarée
+    (OpenAI…) lisent encore l'environnement.
 
     Returns:
         (text, usage_dict) on success · (None, error_dict) on failure
@@ -385,23 +386,26 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None) -
         return _ollama_call(messages, llm_model)
 
     if provider in _SUBSCRIPTION_PROVIDERS:
-        return _claude_code_call(messages)
+        return _claude_code_call(messages, user=user)
 
-    from wama.common.utils.llm_utils import OPENAI_COMPATIBLE_PROVIDERS, llm_chat
+    from wama.common import external_sources
+    from wama.common.utils.llm_utils import llm_chat
+    llm_provider = _PROVIDER_ALIAS.get(provider, provider)
     api_key = None
-    source = OPENAI_COMPATIBLE_PROVIDERS.get(provider)
-    if source and user is not None and getattr(user, 'is_authenticated', False):
+    # Fournisseur DÉCLARÉ (source `llm` : Albert, API Anthropic…) → clé personnelle exigée.
+    source = external_sources.by_key().get(llm_provider)
+    if (source and source.kind == 'llm' and user is not None
+            and getattr(user, 'is_authenticated', False)):
         from wama.accounts.api_keys import key_for
-        from wama.common import external_sources
-        api_key = key_for(user, source)
+        api_key = key_for(user, source.key)
         if not api_key:
-            return None, {'error': f"Aucune clé d'API {external_sources.get(source).label} dans "
-                                   "votre profil : ajoutez-la dans le volet « Clés d'API » de la "
-                                   "page Profil.", 'status': 400}
+            return None, {'error': f"Aucune clé d'API {source.label} dans votre profil : "
+                                   "ajoutez-la dans le volet « Clés d'API » de la page Profil.",
+                          'status': 400}
     text, err = llm_chat(
         messages,
         model=llm_model,
-        provider=_PROVIDER_ALIAS.get(provider, provider),
+        provider=llm_provider,
         num_predict=4096,
         timeout=180.0,
         api_key=api_key,
