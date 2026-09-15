@@ -363,6 +363,35 @@ class ElementPreference(models.Model):
         return f'{self.user} · {self.kind}:{self.element_id} ({etat})'
 
 
+class UserAppSetting(models.Model):
+    """RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
+
+    Décision de Fabien du 2026-09-15 (`ROADMAP §23.3bis`) : « les réglages de cards sont bien
+    persistés en base par utilisateur, mais les réglages globaux utilisateur ne le sont pas ».
+    Ils vivaient dans le cache Redis, expirés au bout de 30 jours et perdus à un redémarrage sans
+    instantané. Déclenché par le modèle choisi de l'assistant, qui doit être une préférence
+    persistante lue par toutes les surfaces.
+
+    Ce n'est PAS l'endroit des réglages d'un élément (colonnes de la table de l'app), ni des
+    préférences d'interface (`accounts.UserProfile`), ni des profils nommés : c'est le
+    pré-remplissage et les choix globaux par app. Forme reprise d'`ElementPreference`.
+    """
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                             related_name='app_settings')
+    app = models.CharField(max_length=64, db_index=True)
+    name = models.CharField(max_length=128)
+    value = models.JSONField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('user', 'app', 'name')]
+        verbose_name = "Réglage utilisateur d'app"
+        verbose_name_plural = "Réglages utilisateur d'app"
+
+    def __str__(self):
+        return f'{self.user} · {self.app}.{self.name}'
+
+
 class ScopedVisibility(models.Model):
     """Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
     - `unit` + `scope_org_unit` : partagé avec l'unité ET ses sous-unités (labo→équipes) ;
