@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django import forms
 
 from wama.common.tts.constants import LANGUAGE_CHOICES
+from wama.common.utils.secret_crypto import EncryptedTextField
 from wama.accounts.permissions import TIER_CHOICES
 
 
@@ -78,6 +79,19 @@ class UserProfile(models.Model):
     prompt_enrich = models.BooleanField(
         default=True,
         verbose_name="Enrichir automatiquement mes prompts de génération",
+    )
+    # Usage des modèles CLOUD (ROADMAP §8d Phase 3, décision de Fabien du 2026-09-15). 100 % local
+    # par DÉFAUT : le cloud est un choix explicite. Le niveau gouverne le tirage AUTOMATIQUE
+    # (jamais / quand WAMA est saturé / normalement) ; le choix manuel dans l'app s'ouvre dès le
+    # 2ᵉ niveau. Sans clé d'API personnelle utilisable, les niveaux 2 et 3 n'ouvrent rien.
+    CLOUD_POLICIES = [
+        ('local_only', '100 % local'),
+        ('cloud_when_saturated', 'Cloud si WAMA est saturé'),
+        ('cloud_allowed', 'Cloud autorisé'),
+    ]
+    cloud_policy = models.CharField(
+        max_length=24, choices=CLOUD_POLICIES, default='local_only',
+        verbose_name="Usage des modèles cloud",
     )
     # ── Défauts de NIVEAUX du RAG (jalon 14, WAMA_MEMORY.md §7ter) ────────────────────
     # DEUX préférences, et non une : le niveau auquel MES ajouts partent, et les niveaux
@@ -216,6 +230,31 @@ class AppAccessPolicy(models.Model):
 
     def __str__(self):
         return f"AppAccessPolicy({self.app_id})"
+
+
+class UserApiKey(models.Model):
+    """Clé d'API PERSONNELLE d'un utilisateur pour une source externe (fournisseur LLM…).
+
+    `source` est une clé d'`external_sources` : adresse, variable d'instance et page d'aide vivent
+    là-bas, rien n'est recopié ici. Chiffrée au repos (`secret_crypto.EncryptedTextField`).
+
+    Pourquoi par utilisateur (Fabien, 2026-09-15) : les quotas se RÉPARTISSENT — une clé partagée
+    (10 requêtes/min chez Albert sur certains modèles) serait épuisée par quelques personnes d'un
+    même labo. La clé d'instance du `.env` ne sert qu'aux usages SANS utilisateur.
+    Forme reprise de `media_library.UserProviderConfig` (clés des connecteurs de la médiathèque).
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_keys')
+    source = models.CharField(max_length=64, verbose_name='Source externe')
+    api_key = EncryptedTextField(blank=True, default='', verbose_name="Clé d'API")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Clé d'API utilisateur"
+        verbose_name_plural = "Clés d'API utilisateurs"
+        unique_together = [['user', 'source']]
+
+    def __str__(self):
+        return f"{self.user.username} — {self.source}"
 
 
 @receiver(post_save, sender=User)

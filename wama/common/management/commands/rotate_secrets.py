@@ -240,10 +240,30 @@ class Command(BaseCommand):
             rotated.append('db_password')
 
         # ── écriture .env (ou impression si absent) ───────────────────────────
+        # Clés d'API des utilisateurs (`secret_crypto`) : chiffrées avec une clé DÉRIVÉE de
+        # SECRET_KEY. Les fallbacks n'en gardent que 3 : sans rechiffrement, une clé stockée
+        # deviendrait illisible à la 4ᵉ rotation, sans erreur. Rechiffrement et écriture du `.env`
+        # dans la MÊME transaction : si la nouvelle clé n'est pas écrite, les jetons ne bougent pas.
         if env_path.exists():
-            _env_upsert(env_path, updates)
+            from django.db import transaction
+            from wama.common.utils.secret_crypto import reencrypt_stored_secrets
+            with transaction.atomic():
+                if do_key:
+                    old_keys = [settings.SECRET_KEY, *getattr(settings, 'SECRET_KEY_FALLBACKS', [])]
+                    report = reencrypt_stored_secrets(updates['DJANGO_SECRET_KEY'], old_keys)
+                    self.stdout.write(f"→ clés d'API utilisateur rechiffrées : {report['reencrypted']}")
+                    if report['unreadable']:
+                        self.stderr.write(self.style.WARNING(
+                            f"  {len(report['unreadable'])} clé(s) DÉJÀ illisible(s), laissée(s) telle(s) "
+                            f"quelle(s) — à ressaisir par leurs utilisateurs : {report['unreadable']}"))
+                _env_upsert(env_path, updates)
             self.stdout.write(self.style.SUCCESS(f"\n.env mis à jour ({env_path})."))
         else:
+            if do_key:
+                self.stderr.write(self.style.WARNING(
+                    "\nClés d'API utilisateur NON rechiffrées (.env absent : la nouvelle clé n'est pas "
+                    "appliquée par cette commande). Elles restent lisibles tant que l'ancienne clé "
+                    "figure dans les fallbacks (3 rotations)."))
             self.stdout.write(self.style.WARNING(
                 "\n.env absent → à injecter par ton mécanisme d'env (systemd/docker/vault) :"))
             for k, v in updates.items():

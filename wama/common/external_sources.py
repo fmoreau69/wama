@@ -102,6 +102,8 @@ class ExternalSource:
     env: str = ''
     #: Variable d'environnement portant la clé d'API. '' = source anonyme.
     api_key_env: str = ''
+    #: Page où l'on obtient une clé — affichée à côté du champ de saisie du profil.
+    api_key_help_url: str = ''
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
@@ -149,7 +151,9 @@ SOURCES: tuple[ExternalSource, ...] = (
         'albert', 'Albert API (DINUM)', 'https://albert.api.etalab.gouv.fr/v1',
         "LLM de l'État compatible OpenAI — assistant et rôles wama-dev-ai (manifestes, "
         "codegen) via llm_chat", kind='llm', env='ALBERT_API_BASE',
-        api_key_env='ALBERT_API_KEY', doc='docs/construction/ia/WAMA_LLM.md'),
+        api_key_env='ALBERT_API_KEY',
+        api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
+        doc='docs/construction/ia/WAMA_LLM.md'),
 
     # ── Catalogues de modèles ───────────────────────────────────────────────────────────
     ExternalSource(

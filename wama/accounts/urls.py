@@ -23,6 +23,10 @@ urlpatterns = [
     path('profile/retention/', views.retention_update, name='profile-retention'),
     path('profile/layout/', views.layout_update, name='profile-layout'),
     path('profile/inspector-autoplay/', views.inspector_autoplay_update, name='profile-inspector-autoplay'),
+    path('profile/cloud-policy/', views.cloud_policy_update, name='profile-cloud-policy'),
+    # Clés d'API personnelles des fournisseurs LLM (chiffrées) — ROADMAP §8d Phase 3, étape 4a.
+    path('profile/api-keys/', views.api_keys_list, name='profile-api-keys'),
+    path('profile/api-keys/<slug:slug>/', views.api_key_save, name='profile-api-key-save'),
     path('manage/app-access/', views.app_access_matrix, name='app-access-matrix'),
     path('manage/app-access/toggle/', views.app_access_toggle, name='app-access-toggle'),
     path('profile/token/regenerate/', views.token_regenerate, name='token-regenerate'),

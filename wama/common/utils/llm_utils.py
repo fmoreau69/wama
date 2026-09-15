@@ -299,7 +299,7 @@ def llm_chat(
 
     Phase 1 (local only): provider defaults to 'ollama' → delegates to ollama_chat().
     Phase 2 (hybrid): provider can be 'openai', 'anthropic', 'grok', 'mistral', etc.
-      Routes via LiteLLM with the user's API key from UserProviderConfig.
+      Routes via LiteLLM; the caller passes the key (per-user keys: `accounts.api_keys.key_for`).
 
     Args:
         messages:   List of {"role": ..., "content": ...} dicts.

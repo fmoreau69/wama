@@ -65,6 +65,12 @@ catalogue de fonctions · catalogue de librairies · profil · préférences (×
 utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription ·
 **face_analyzer (×3)**.
 
+> ⚠ **Constat daté du 22/08, qui a bougé depuis.** Le 2026-09-09, licences, Mon RAG et Registres
+> ont RÉCUPÉRÉ un volet pour l'inspecteur de détail. Le 2026-09-15, le **profil** aussi
+> (consigne de Fabien) : `volet(medias=False, actions=False)`, et sa section Paramètres porte
+> tout ce qui touche aux clés — jeton d'API, clés des fournisseurs LLM, connecteurs de la
+> médiathèque. L'invariant gardé par `tests_volet.py` reste le même : aucun cadre VIDE.
+
 ### Le mécanisme existe, c'est l'ADOPTION qui manque
 
 | Option de `WamaInspector` | Adoption |
