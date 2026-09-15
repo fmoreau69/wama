@@ -1249,6 +1249,36 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   (`UserProviderConfig`) stocke en CLAIR (`media_library/models.py:234`) et WAMA n'a aucune brique
   de chiffrement : reprendre sa FORME (`requires_api_key`, `api_key_label`, `api_key_help_url`),
   pas son stockage. UI : dans le VOLET DROIT de la page profil, pour ne pas l'allonger.
+  **Clé de chiffrement = DÉRIVÉE de `SECRET_KEY`** (Fabien, 15/09 — pas de clé de plus dans
+  `.env`), avec une étiquette d'usage propre ; déchiffrement par la clé courante PUIS les
+  `SECRET_KEY_FALLBACKS` ; ⚠ `rotate_secrets` ne garde que 3 fallbacks (`rotate_secrets.py:199`) :
+  il doit RECHIFFRER les clés stockées à chaque rotation, sinon une clé sortie des fallbacks rend
+  les données illisibles en silence. Refus d'enregistrer une clé si `SECRET_KEY` est le
+  placeholder de dev. (Précision : la rotation est À LA DEMANDE, aucun planificateur ne la lance
+  — `INFRA_WSL_VS_WINDOWS.md:128`.) Réglage de profil à **3 niveaux** : « 100 % local » (défaut),
+  « cloud si WAMA est saturé », « cloud autorisé ».
+- **Découverte des modèles cloud PAR LES CLÉS DES UTILISATEURS** (Fabien, 15/09) : à
+  l'enregistrement d'une clé, puis périodiquement, WAMA lit les modèles ouverts à CE compte
+  (`GET /v1/models`) et les garde avec la clé ; le catalogue porte l'union, chaque utilisateur ne
+  choisit que ce que sa clé ouvre (mesuré : `mistral-medium` fermé au compte de Fabien). La
+  synchro du disque ne supprime JAMAIS une ligne cloud : seule la découverte cloud réconcilie les
+  siennes (sinon `delete_missing` les effacerait, ou un échec réseau suspendrait la réconciliation
+  de TOUT le catalogue, `model_sync.py:112-128`).
+- **Clé d'instance (`.env`) : PAS de repli pour les utilisateurs** (Fabien, 15/09) — quotas
+  répartis. Elle ne sert qu'aux usages SANS utilisateur (rôles wama-dev-ai en ligne de commande,
+  tâches planifiées) ; lancé par le serveur MCP dev, un rôle utilise la clé du développeur qui le
+  lance.
+- ⚠ **Constat du 15/09 qui corrige une croyance** : le curseur rapide/qualité ne signale PAS
+  aujourd'hui la saturation VRAM — la prévision ne rend que le modèle prévu
+  (`model_manager/views.py:1229-1252`), `_best_by_vram` rend le plus léger en silence quand rien ne
+  tient (`model_selector.py:242-243`), et `AWAITING_RESOURCES` n'est déclenché par aucune app (aucun
+  appel ne passe `vram_needed`). Seules synthesizer et avatarizer le résolvent au lancement. Les
+  modèles cloud d'aujourd'hui ne servent que le TEXTE.
+- **Curseur rapide/qualité → cloud MÊME SANS saturation** (Fabien, 15/09 : « sinon je ne peux pas
+  l'utiliser pour éviter les crashs PC ») : le choix cloud est proposé dès que le profil n'est pas
+  « 100 % local » et qu'une clé utilisable existe ; la saturation le MET EN AVANT. Les 3 niveaux
+  gouvernent le tirage AUTOMATIQUE (jamais / sur saturation / normalement) ; le choix manuel reste
+  ouvert dès le 2ᵉ niveau.
 - **Claude Code = un FOURNISSEUR comme les autres** : il consomme les outils WAMA par MCP
   (`--mcp-config`). `ask_claude_code` reste l'outil de délégation d'une tâche au dépôt.
 - **Le moteur de l'assistant devient CLIENT MCP pour tous les cerveaux** (outils prod ET dev).
