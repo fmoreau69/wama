@@ -5,7 +5,8 @@ Rôle « librarian » — projet GitHub / paquet Python → manifeste `library` 
 Pilote BORNÉ (leçons wama-dev-ai : tâche étroite, one-shot, jamais d'auto-application) :
   1. rassemble les SOURCES (README + pyproject d'un dépôt GitHub, ou métadonnées du
      paquet installé) ;
-  2. un seul appel Ollama, avec le corpus `manifests/libraries/` en exemple ;
+  2. un seul appel LLM (Ollama local, ou `--provider albert`), avec le corpus
+     `manifests/libraries/` en exemple ;
   3. la sortie est validée MÉCANIQUEMENT (`ingest.validate`) et, si la lib est installée,
      diffée contre la vérité terrain (`extract_library`) ;
   4. écrit dans `outputs/` avec PENDING_HUMAN_VALIDATION — n'ingère JAMAIS en base.
@@ -29,9 +30,9 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
 
-from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 # Helpers COMMUNS aux rôles (extraits d'ici le 2026-08-27 à la naissance de scout/integrator).
-from role_utils import call_ollama, extract_json, fetch as _fetch  # noqa: E402
+from role_utils import (  # noqa: E402
+    add_llm_arguments, call_llm, extract_json, fetch as _fetch, resolve_model)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'librarian.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'libraries'
@@ -84,7 +85,7 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument('--repo', help='Dépôt GitHub owner/name')
     g.add_argument('--dist', help='Distribution Python installée')
-    ap.add_argument('--model', default=None, help='Modèle Ollama (défaut : rôle dev)')
+    add_llm_arguments(ap, role='dev')
     args = ap.parse_args()
 
     provenance, matiere = (sources_repo(args.repo) if args.repo
@@ -93,13 +94,13 @@ def main():
 
     exemples = '\n\n'.join(f.read_text(encoding='utf-8')
                            for f in sorted(EXEMPLES_DIR.glob('*.json'))[:2])
-    model = args.model or select_model_for_role('dev')[1].ollama_id
-    print(f'[librarian] modèle : {model} | provenance : {provenance}')
+    model = resolve_model(args.provider, 'dev', args.model)
+    print(f'[librarian] {args.provider} / {model} | provenance : {provenance}')
 
     user_msg = (f'EXEMPLE(S) de manifeste `library` valide :\n{exemples}\n\n'
                 f'SOURCES du projet à traduire :\n{matiere}\n\n'
                 f'Produis le manifeste `library` de ce projet (JSON seul).')
-    reponse = call_ollama(model, PROMPT, user_msg)
+    reponse = call_llm(args.provider, model, PROMPT, user_msg)
     manifest = extract_json(reponse)
 
     # ── Contrôles MÉCANIQUES (le LLM propose, la chaîne d'ingest juge) ──────────
@@ -129,6 +130,7 @@ def main():
     sortie.write_text(json.dumps({
         'status': 'PENDING_HUMAN_VALIDATION',
         'role': 'librarian',
+        'provider': args.provider,
         'model': model,
         'provenance': provenance,
         'validation_errors': erreurs,

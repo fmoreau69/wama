@@ -501,7 +501,7 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     Args:
         user:     Django User (requis pour l'exécution d'outils ; None = chat sans outils)
         message:  Message utilisateur
-        provider: 'wama-dev-ai' (défaut, local) | 'claude'/'anthropic' | 'openai' | …
+        provider: 'wama-dev-ai' (défaut, local) | 'albert' | 'claude'/'anthropic' | 'openai' | …
         model:    Rôle de chat (`_ROLE_TIER` : 'fast', 'dev'…) ou nom de modèle complet.
                   Pour un fournisseur cloud, un rôle de chat est ignoré (défaut fournisseur).
         history:  Tours précédents [{role, content}] — fournis par le client ; assainis ici.

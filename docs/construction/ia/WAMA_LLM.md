@@ -394,6 +394,32 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   fournisseurs **cloud** via `llm_chat` (LiteLLM, ROADMAP §8d — livré). Le CATALOGUE est
   exposé à l'assistant en lecture par deux outils transverses : `list_ai_models` /
   `get_ai_model` (§1).
+- **Albert API (DINUM) — branchée le 2026-09-15** : `llm_chat(provider='albert')`. Albert parle
+  le protocole OpenAI depuis sa propre adresse ; `llm_utils.OPENAI_COMPATIBLE_PROVIDERS` le route
+  en `openai/<modèle>` (préfixe TOUJOURS posé : ses identifiants contiennent un « / ») avec
+  l'adresse et la clé du registre `external_sources` (clé `albert`, `ALBERT_API_KEY` dans `.env`)
+  — jamais `OPENAI_API_BASE`, qui détournerait aussi OpenAI. Modèle par défaut : `ALBERT_MODEL`,
+  sinon `CLOUD_DEFAULT_MODELS['albert']`. Deux consommateurs : l'**assistant** (option « Albert »
+  de `home.html` ; l'API v1 la reçoit par `provider` — ⚠ **PAS Discord**, figé sur `wama-dev-ai`
+  par `gateway/core.py:208` ; affirmé à tort ici le matin même, corrigé le 15/09) et les **rôles
+  wama-dev-ai** (`role_utils.call_llm` : `--provider albert`, ou `WAMA_DEV_AI_PROVIDER=albert`).
+  ⚠ **Cadre en cours de REPRISE** : ces tables écrites à la main (`CLOUD_DEFAULT_MODELS`,
+  `OPENAI_COMPATIBLE_PROVIDERS`, l'option de `home.html`) contredisent le métadonnée-driven. Elles
+  seront remplacées par le REGISTRE DES FOURNISSEURS (ROADMAP §8d Phase 3, étape 4, décidé le
+  15/09) — le serveur MCP (étape 2, livrée) donne à tous les cerveaux les mêmes outils.
+  Preuve outillée : `manage.py llm_gateway_check --provider albert`. Gardes :
+  `tests_llm_providers`, `tests_dev_ai_bridge.FournisseurDesRolesTest`.
+  ✅ **Mesuré le 2026-09-15, clé réelle** : passerelle → `'OK'` (`openai/gpt-oss-120b`) ; rôle
+  librarian `--dist requests --provider albert` → manifeste VALIDE, 0 divergence avec
+  l'extraction mécanique, 1 min 08 ; tour d'assistant sans outils → réponse correcte.
+  `GET /v1/models` : l'**id** à passer est la 1ʳᵉ colonne (`openai/gpt-oss-120b`,
+  `qwen3-coder-30b-A3b-instruct`, `mistral-small-3-2-24b-instruct-2506`, `gemma-4-31b-it`,
+  `deepseek-v4-flash-0731`…), les noms HF sont des alias ; `mistral-medium` (listé par la doc)
+  n'est PAS ouvert à ce compte. Limites du compte : `GET /v1/me/info` (par modèle, RPM 10 à 500).
+  ⚠ **Chat seulement** : whisper, bge-m3, rerank et OCR d'Albert ne passent pas par `llm_chat`.
+  ⚠ **Choix EXPLICITE uniquement** : `select_model()` ignore toujours le cloud (ROADMAP §8d, 2ᵉ
+  verrou) ; et Albert (SecNumCloud, sans conservation) compte-t-il comme local pour les données
+  sensibles ? Non tranché (§8d ③).
 - **Apps** : `select_model()` (model_manager) — VRAM-aware, `prefer_loaded`, capacités requises ;
   les tiers de `llm_utils` s'appuient dessus.
 - **Cible non atteinte** (§15 + ROADMAP §8d) : croiser **intention + fichiers d'entrée +

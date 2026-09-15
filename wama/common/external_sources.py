@@ -72,6 +72,7 @@ OUTBOUND = 'outbound'
 #: facette perdue pour l'écran. Clé = valeur de `data-f-type` ; libellé = option du select.
 KINDS = {
     'service':   'Service local',
+    'llm':       'Fournisseur LLM',
     'catalogue': 'Catalogue de modèles',
     'banc':      'Banc de performance',
     'poids':     'Outillage et poids',
@@ -123,6 +124,25 @@ SOURCES: tuple[ExternalSource, ...] = (
         'wama_self', 'WAMA (cette instance)', 'http://127.0.0.1:8000',
         "WAMA s'interroge lui-même : smoke navigateur, matrice de droits",
         kind='service', scope=LOCAL, env='WAMA_UI_SMOKE_BASE'),
+    # 2026-09-15 : WAMA SERVEUR d'outils MCP (ROADMAP §8d Phase 3). Process à part
+    # (`manage.py run_mcp_server`), comme le service TTS : son adresse vit ici, pas chez ses
+    # clients (Claude Code, IDE, moteur de l'assistant).
+    ExternalSource(
+        'wama_mcp', 'Serveur MCP WAMA', 'http://127.0.0.1:8770',
+        "Les outils tool_api exposés en MCP — même contrat pour tout client (Claude Code, IDE, "
+        "assistant)", kind='service', scope=LOCAL, env='WAMA_MCP_URL',
+        doc='docs/construction/suivi/ROADMAP.md'),
+
+    # ── Fournisseurs LLM distants ───────────────────────────────────────────────────────
+    # 2026-09-15 : Albert API (DINUM) parle le protocole OpenAI depuis sa propre adresse.
+    # `llm_utils.llm_chat(provider='albert')` lit ICI son adresse et sa clé. Hébergement
+    # SecNumCloud sans conservation des conversations (doc DINUM) — ce qui n'en fait PAS un
+    # service local : le traitement des données sensibles reste à trancher (ROADMAP §8d ③).
+    ExternalSource(
+        'albert', 'Albert API (DINUM)', 'https://albert.api.etalab.gouv.fr/v1',
+        "LLM de l'État compatible OpenAI — assistant et rôles wama-dev-ai (manifestes, "
+        "codegen) via llm_chat", kind='llm', env='ALBERT_API_BASE',
+        api_key_env='ALBERT_API_KEY', doc='docs/construction/ia/WAMA_LLM.md'),
 
     # ── Catalogues de modèles ───────────────────────────────────────────────────────────
     ExternalSource(

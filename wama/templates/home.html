@@ -456,7 +456,7 @@
       function addLoadingIndicator() {
         const placeholder = chatMessages.querySelector('.text-center');
         if (placeholder) placeholder.remove();
-        const providerName = { 'claude': 'Claude', 'claude-abo': 'Claude Code' }[providerSelect.value]
+        const providerName = { 'albert': 'Albert', 'claude': 'Claude', 'claude-abo': 'Claude Code' }[providerSelect.value]
                              || 'wama-dev-ai';
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'ai-loading';
@@ -757,6 +757,7 @@
                 <label class="form-label small">Provider</label>
                 <select id="ai-provider" class="form-select form-select-sm" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
                   <option value="wama-dev-ai" selected>wama-dev-ai (Local/Ollama)</option>
+                  <option value="albert">Albert (API de l'État — DINUM)</option>
                   <option value="claude">Claude (Anthropic API — facturé au token)</option>
                   {% comment %}
                     Fournisseur ABONNEMENT — visible pour les seuls admins/devs (garde

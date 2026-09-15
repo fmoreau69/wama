@@ -127,3 +127,64 @@ class CheckSkillsTest(SimpleTestCase):
             self._sortie('--strict')
         except SystemExit as e:  # pragma: no cover — ne doit pas arriver sur un corpus sain
             self.fail(f"`--strict` a échoué sur un corpus sans défaut franc : {e}")
+
+
+class FournisseurDesRolesTest(SimpleTestCase):
+    """`role_utils.call_llm` (2026-09-15, Albert API) : les rôles choisissent leur fournisseur.
+
+    ⚠ Le chemin `ollama` doit rester `call_ollama` à l'identique — keep_alive compris, c'est la
+    parade du mode dépannage GPU. Le chemin distant doit passer par `llm_chat`, seule brique
+    qui sait router vers Albert : une seconde construction d'appel ici divergerait.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def test_ollama_reste_call_ollama_a_l_identique(self):
+        from unittest.mock import patch
+        with patch.object(self.role_utils, 'call_ollama', return_value='OK') as direct:
+            self.role_utils.call_llm('ollama', 'gemma4:e4b', 'sys', 'msg', keep_alive='0')
+        direct.assert_called_once()
+        self.assertEqual('0', direct.call_args.kwargs['keep_alive'])
+
+    def test_un_fournisseur_distant_passe_par_llm_chat_sans_plafond(self):
+        from unittest.mock import patch
+        with patch('wama.common.utils.llm_utils.llm_chat', return_value=('OK', None)) as chat, \
+                patch.object(self.role_utils, 'call_ollama') as direct:
+            self.assertEqual('OK', self.role_utils.call_llm('albert', 'm', 'sys', 'msg'))
+        self.assertFalse(direct.called)
+        kwargs = chat.call_args.kwargs
+        self.assertEqual('albert', kwargs['provider'])
+        self.assertIsNone(kwargs['num_predict'], "un manifeste tronqué à 2 048 jetons est illisible")
+        self.assertEqual(['system', 'user'], [m['role'] for m in chat.call_args.args[0]])
+
+    def test_un_echec_distant_LEVE_comme_un_echec_ollama(self):
+        """Les pilotes font `extract_json(call_llm(...))` : un None avalé deviendrait
+        « aucun JSON dans la réponse », qui accuse le modèle au lieu de la clé absente."""
+        from unittest.mock import patch
+        with patch('wama.common.utils.llm_utils.llm_chat',
+                   return_value=(None, 'clé absente : ALBERT_API_KEY')):
+            with self.assertRaises(RuntimeError) as ctx:
+                self.role_utils.call_llm('albert', 'm', 'sys', 'msg')
+        self.assertIn('ALBERT_API_KEY', str(ctx.exception))
+
+    def test_le_modele_distant_par_defaut_est_nomme_pour_le_rapport(self):
+        from wama.common.utils.llm_utils import default_cloud_model
+        self.assertEqual(default_cloud_model('albert'),
+                         self.role_utils.resolve_model('albert', 'codegen'))
+        self.assertEqual('choisi', self.role_utils.resolve_model('albert', 'codegen', 'choisi'))
+
+    def test_la_variable_d_environnement_bascule_tous_les_roles(self):
+        import argparse
+        from unittest.mock import patch
+        with patch.dict('os.environ', {'WAMA_DEV_AI_PROVIDER': 'albert'}):
+            parser = argparse.ArgumentParser()
+            self.role_utils.add_llm_arguments(parser)
+            self.assertEqual('albert', parser.parse_args([]).provider)
+        with patch.dict('os.environ', {}, clear=True):
+            parser = argparse.ArgumentParser()
+            self.role_utils.add_llm_arguments(parser)
+            self.assertEqual('ollama', parser.parse_args([]).provider,
+                             "sans variable, les rôles restent en local comme avant")

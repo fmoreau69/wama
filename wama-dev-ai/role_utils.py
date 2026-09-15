@@ -7,6 +7,7 @@ Tout est BORNÉ (leçons wama-dev-ai) : un appel Ollama one-shot, sorties dans o
 PENDING_HUMAN_VALIDATION, jamais d'auto-application.
 """
 import json
+import os
 import re
 import urllib.request
 from pathlib import Path
@@ -133,6 +134,69 @@ def call_ollama(model, system, user_msg, num_ctx=16384, keep_alive=None,
         headers={'Content-Type': 'application/json'})
     with _OPENER_DIRECT.open(req, timeout=timeout) as r:
         return json.loads(r.read())['message']['content']
+
+
+#: Variable d'environnement qui choisit le fournisseur de TOUS les rôles quand la ligne de
+#: commande n'en impose aucun. Absente = `ollama`, le comportement d'avant à l'octet.
+PROVIDER_ENV = 'WAMA_DEV_AI_PROVIDER'
+
+
+def add_llm_arguments(parser, role='dev'):
+    """Options `--provider` et `--model` des rôles — UNE définition pour les cinq pilotes.
+
+    Posée le 2026-09-15 avec Albert API : chaque pilote déclarait à la main son `--model`
+    « Modèle Ollama ». Ajouter un fournisseur aurait voulu dire l'ajouter cinq fois.
+    """
+    parser.add_argument(
+        '--provider', default=os.environ.get(PROVIDER_ENV) or 'ollama',
+        help=f"ollama (local) ou un fournisseur de llm_chat : albert, anthropic… "
+             f"(défaut : ${PROVIDER_ENV}, sinon ollama)")
+    parser.add_argument(
+        '--model', default=None,
+        help=f"Modèle (défaut : chaîne du rôle {role} en local, modèle par défaut du "
+             f"fournisseur sinon)")
+
+
+def resolve_model(provider, role, model=None):
+    """Modèle effectif d'un rôle.
+
+    Local : chaîne de repli RAM-aware de `config.py`. Distant : modèle par défaut du
+    fournisseur (`llm_utils.default_cloud_model`) — la VRAM de l'hôte ne dit rien d'un modèle
+    qui tourne ailleurs. Résolu ICI plutôt que laissé à `llm_chat` pour que le rapport de
+    sortie nomme le modèle réellement employé.
+    """
+    if model:
+        return model
+    if provider == 'ollama':
+        from config import select_model_for_role
+        return select_model_for_role(role)[1].ollama_id
+    from wama.common.utils.llm_utils import default_cloud_model
+    return default_cloud_model(provider)
+
+
+def call_llm(provider, model, system, user_msg, num_ctx=16384, keep_alive=None,
+             temperature=0.1, timeout=600):
+    """Appel one-shot d'un rôle, quel que soit le fournisseur.
+
+    `ollama` → `call_ollama` inchangé (keep_alive et num_ctx compris). Tout autre fournisseur
+    → `llm_chat`, la passerelle LiteLLM commune à l'assistant : un seul endroit sait router
+    vers Albert. `num_ctx` et `keep_alive` n'y ont pas de sens (fenêtre et résidence sont
+    gérées par le fournisseur) ; `num_predict=None` ne plafonne pas la réponse, comme Ollama.
+
+    Lève `RuntimeError` en cas d'échec, comme `call_ollama` lève sur une erreur HTTP : les
+    pilotes n'ont pas à distinguer les deux chemins.
+    """
+    if provider == 'ollama':
+        return call_ollama(model, system, user_msg, num_ctx=num_ctx, keep_alive=keep_alive,
+                           temperature=temperature, timeout=timeout)
+    from wama.common.utils.llm_utils import llm_chat
+    text, error = llm_chat(
+        [{'role': 'system', 'content': system}, {'role': 'user', 'content': user_msg}],
+        model=model or None, provider=provider, num_predict=None,
+        temperature=temperature, timeout=timeout)
+    if text is None:
+        raise RuntimeError(f'{provider} : {error}')
+    return text
 
 
 def extract_json(text):

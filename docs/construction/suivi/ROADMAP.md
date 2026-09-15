@@ -1204,11 +1204,62 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
   avec un crédit mensuel dédié. Ce n'est PAS un provider LiteLLM et ça ne remplace pas une
   clé API — c'est la brique du canal développeur (§19.3). Ne pas confondre les deux dans l'UI.
 
-### Phase 3 — MCP Server WAMA 💡 (long terme)
+### Phase 3 — MCP Server WAMA 🔄 (ouvert le 2026-09-15 — « faire le MCP maintenant », Fabien)
 
 **Concept :** Exposer les outils WAMA comme serveur MCP pour clients compatibles
 (Claude Code, Claude Desktop, IDEs). Distincts de LiteLLM — MCP = protocole d'outils,
 pas un routeur LLM.
+
+**Pourquoi maintenant** : interagir avec WAMA de la MÊME manière quel que soit le cerveau —
+Ollama local, Claude Code sur abonnement, Albert (DINUM) ou tout cloud ajouté. L'assistant avait
+UN moteur et UN registre d'outils, mais chaque cerveau y accédait à sa façon (boucle JSON en
+prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un contrat unique.
+
+**Décisions du 2026-09-15** (Fabien, sur questions posées) :
+- **MCP = OUTILS** (`tool_api`, cadre §16) ; la SÉLECTION de modèle n'y passe pas —
+  `select_model_for_role` adopte la brique commune (cf. ci-dessus). ⚠ Pas de contradiction avec
+  `AGENTS.md` : wama-dev-ai est en phase 4, seul MCP restait à faire (précision Fabien).
+- **Fournisseurs LLM déclarés dans un REGISTRE DÉDIÉ** (protocole d'appel, coût, confidentialité,
+  modèle par défaut), qui renvoie à `external_sources` pour l'adresse et la clé — la limite écrite
+  de ce module (« le client ne se déclare pas ici ») est respectée.
+- **Claude Code = un FOURNISSEUR comme les autres** : il consomme les outils WAMA par MCP
+  (`--mcp-config`). `ask_claude_code` reste l'outil de délégation d'une tâche au dépôt.
+- **Le moteur de l'assistant devient CLIENT MCP pour tous les cerveaux** (outils prod ET dev).
+- **Outils de dev ouverts à l'assistant** : rôles wama-dev-ai (propositions en attente de
+  validation) ET bac à sable (`app_sandbox`, `app_regen_check`), dans le serveur SÉPARÉ.
+
+**Étapes :**
+1. ✅ **Installation propre du SDK** (15/09) — `mcp==1.30.0` par la route `library`
+   (`manifests/libraries/mcp.json`). La route n'acceptait qu'UN spécificateur : `mcp` y aurait
+   monté `starlette` 0.46.2 → 1.6.0 (via `sse-starlette`) et cassé `fastapi` 0.115 (`<0.47`, qui
+   porte gradio/vibevoice/inference/imaginAIry). D'où `constraints.pip` du manifeste — champ
+   projeté au registre depuis toujours et lu par PERSONNE — passé à pip par `-c`, en simulation
+   comme à l'installation (`model_installer.pip_constraint_errors`,
+   `tests_library_install.ContraintesPipTest`). Mesuré : 3 paquets ajoutés, 0 version déplacée.
+   ⚠ `apply_manifests --kind library --apply` aurait EFFACÉ 4 licences enrichies à la main au
+   registre (kokoro-onnx, pyannote-audio, torchaudio, vibevoice — le corpus les porte vides) :
+   la projection a été faite pour `mcp` SEUL. Écart signalé, non traité.
+2. ✅ **Serveur « wama »** (15/09) — `common/services/mcp_server.py` + `manage.py run_mcp_server`
+   (HTTP streamable à l'adresse `external_sources['wama_mcp']`, ou stdio avec `WAMA_MCP_TOKEN`).
+   `tools/list` = `TOOL_REGISTRY` filtré par `tool_accessible` ; `tools/call` = `execute_tool`
+   (validation d'entrée du SDK COUPÉE : la porte fait foi) ; identité = jeton d'API DRF ;
+   arguments = `tool_api.tool_input_schema` (JSON Schema dérivé du schéma d'app et de la
+   signature, pendant typé de `tool_descriptions`). ⚠ La protection DNS rebinding est DÉSACTIVÉE
+   par défaut dans le SDK : activée ici. Gardes : `tests_mcp_server` (protocole réel en mémoire).
+   Smoke RÉEL (vrai process, vrai client, vrai jeton) : 69 outils, appel OK, outil inconnu →
+   `isError`, sans jeton → 401.
+3. ⏳ **Serveur « wama-dev »**, process SÉPARÉ (§16) — rôles wama-dev-ai + bac à sable, réservés
+   dev/admin, sorties en attente de validation humaine.
+4. ⏳ **Moteur de l'assistant client MCP + registre des fournisseurs** — même chemin pour
+   Ollama, Albert et Claude Code ; sélecteurs UI, API et Discord générés du registre (Discord est
+   aujourd'hui figé sur `wama-dev-ai`, `gateway/core.py:208`). Les tables Albert écrites à la main
+   le 15/09 (`llm_utils.CLOUD_DEFAULT_MODELS`/`OPENAI_COMPATIBLE_PROVIDERS`, option de
+   `home.html`) sont reprises ici.
+5. ⏳ **Modèles cloud au catalogue** (§8d ①②) — par découverte (`GET /v1/models` pour Albert),
+   filtres VRAM/`is_downloaded` réservés aux modèles locaux.
+- Restent aussi : supervision dans `start_wama_prod.sh` ; config Claude Code du projet ;
+  déclaration au registre des mécanismes — REPORTÉE, `mecanismes.py` étant en cours de
+  modification par une autre instance le 15/09.
 
 > ⚠ **Ce que MCP ne résout PAS** (question tranchée le 2026-08-20) : « lancer une requête à
 > Claude Code depuis l'AI-Assistant » ne passe **pas** par MCP. `claude mcp serve` n'expose que
@@ -1218,13 +1269,12 @@ pas un routeur LLM.
 > d'outils pour des clients tiers — l'inverse du besoin ci-dessus, et complémentaire de
 > `/api/v1/tools/` qui expose déjà les mêmes 48 outils en HTTP+token.
 
-Exemples d'outils exposables :
-- `wama_transcribe(file_path)` → lance une transcription WAMA
-- `wama_describe(file_path, format)` → description d'un fichier via le Describer
-- `wama_search_media(query)` → recherche dans la Médiathèque
-- `wama_rag_query(question, collection)` → Q&A RAG sur un corpus WAMA
+~~Exemples d'outils exposables : `wama_transcribe`, `wama_describe`, `wama_search_media`,
+`wama_rag_query`.~~ **Dépassé par la décision du 15/09** : ce n'est pas une liste choisie qui est
+exposée, c'est TOUT `TOOL_REGISTRY` — sinon MCP deviendrait une seconde surface qui dérive.
 
-Stack : `mcp` Python SDK (officiel Anthropic) + `uvicorn` SSE server (port dédié)
+Stack : `mcp` Python SDK **1.30.0** (officiel Anthropic) + `uvicorn`, transport **HTTP
+streamable** (port déclaré dans `external_sources`) ou **stdio**.
 
 ---
 
@@ -3733,11 +3783,12 @@ portage, et non « 5 apps à porter » :
 5. **API — monde MÉDIA + TRANSVERSAL** (24.4① *quater*), dans cet ordre. ⚠ **Les mondes Lab et
    Data n'en font PAS partie** (cadrage Fabien 2026-09-10) : ils viendront après, quand il y
    aura moins de chantiers ouverts. Ne pas les rouvrir en croyant « compléter l'API ».
-6. **MCP server** — cadre écrit (`§16` : 3 couches, réutiliser LiteLLM/MCP/Headroom, outils
-   dev/admin en **process séparé**). ⚠ **Trancher d'abord la contradiction** : `AGENTS.md
-   §Collaboration wama-dev-ai` dit « ne pas précipiter, découplés jusqu'à Phase 4 », `§8d` dit
-   « c'est à lui d'adopter la brique, plus simple que MCP ». Et porter les chaînes de repli
-   **RAM-aware** avant d'adopter la brique VRAM-aware, sinon on PERD une capacité.
+6. **MCP server** — 🔄 **OUVERT le 2026-09-15** (`§8d Phase 3` : étapes 1-2 livrées et mesurées,
+   3-5 ⏳). Cadre `§16` appliqué (réutiliser MCP, outils dev/admin en **process séparé**).
+   ~~Trancher d'abord la contradiction `AGENTS.md` / `§8d`~~ — **LEVÉE par Fabien le 15/09** :
+   wama-dev-ai est en phase 4, seul MCP restait ; MCP = OUTILS, la sélection reste la brique.
+   Reste valable : porter les chaînes de repli **RAM-aware** avant que `select_model_for_role`
+   adopte la brique VRAM-aware, sinon on PERD une capacité.
 7. **Mémoire & RAG — DEUX mécanismes, tous DEUX implémentés** (rectification Fabien 2026-09-10).
    ⚠ **Ne pas relire « 0 `RagChunk` » comme un manque** : l'entrée au RAG est un **GESTE de
    l'utilisateur, jamais un balayage** (`memory/index.py:2`). Une 1ʳᵉ version balayait les sorties

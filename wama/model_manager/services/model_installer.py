@@ -608,7 +608,47 @@ def pip_spec_error(spec: str):
     return None
 
 
-def pip_install_packages(packages, timeout: int = 1800, no_deps: bool = False) -> dict:
+# ── CONTRAINTES d'installation : ce que l'installation ne doit PAS déplacer ──────────────
+#
+# POURQUOI (2026-09-15, installation du SDK `mcp`) : la simulation de `mcp==1.30.0` voulait
+# monter `starlette` 0.46.2 → 1.6.0 (via `sse-starlette`), alors que `fastapi` 0.115 exige
+# `starlette<0.47` — et `fastapi` porte `gradio`, `vibevoice`, `inference`, `imaginAIry`.
+# Épingler `starlette==0.46.2` suffit : pip retient alors `sse-starlette` 3.0.3, sans autre
+# effet. Mais ce pin n'avait AUCUN chemin : la route n'acceptait qu'UN spécificateur, et le
+# champ `constraints` du manifeste — projeté au registre — n'était lu par personne.
+#
+# Les contraintes passent les MÊMES verrous qu'un spécificateur (nom PyPI, pin exact) et sont
+# données à pip par `-c` : une contrainte n'INSTALLE rien, elle borne ce que la résolution a
+# le droit de choisir. C'est la forme exacte de « le venv est la référence ».
+
+def pip_constraint_errors(constraints) -> list:
+    """Motifs de refus des contraintes pip — mêmes verrous qu'un spécificateur."""
+    return [e for e in (pip_spec_error(c) for c in (constraints or [])) if e]
+
+
+def _write_constraints_file(constraints):
+    """Chemin d'un fichier de contraintes temporaire pour `pip -c`, ou None sans contrainte.
+    L'appelant le supprime (`_remove_file`)."""
+    pins = [c.strip() for c in (constraints or []) if c and c.strip()]
+    if not pins:
+        return None
+    import tempfile
+    fd, path = tempfile.mkstemp(prefix='wama-pip-constraints-', suffix='.txt')
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(pins) + '\n')
+    return path
+
+
+def _remove_file(path) -> None:
+    if path:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def pip_install_packages(packages, timeout: int = 1800, no_deps: bool = False,
+                         constraints=None) -> dict:
     """
     Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un
     nouveau modèle exige de nouvelles libs (jonction avec le contrat BaseModelBackend).
@@ -627,9 +667,10 @@ def pip_install_packages(packages, timeout: int = 1800, no_deps: bool = False) -
     if os.environ.get(PIP_KILL_SWITCH_ENV):
         return {'ok': False, 'installed': [],
                 'error': f"installations pip désactivées ({PIP_KILL_SWITCH_ENV} posé)"}
-    refus = [e for e in (pip_spec_error(p) for p in pkgs) if e]
+    refus = [e for e in (pip_spec_error(p) for p in pkgs) if e] + pip_constraint_errors(constraints)
     if refus:
         return {'ok': False, 'installed': [], 'error': ' ; '.join(refus)}
+    constraints_path = None
     try:
         # `--no-deps` (2026-09-03) : un pin AMONT trop serré ne doit pas rétrograder une
         # dépendance PARTAGÉE du venv. Cas d'école mesuré — `qwen-tts==0.1.1` épingle
@@ -639,6 +680,9 @@ def pip_install_packages(packages, timeout: int = 1800, no_deps: bool = False) -
         # hors venv). Le prix est explicite : en `--no-deps`, le backend déclare ses
         # paquets EXHAUSTIVEMENT (`PIP_PACKAGES`), pip ne comble plus les oublis.
         options = ['--no-deps'] if no_deps else []
+        constraints_path = _write_constraints_file(constraints)
+        if constraints_path:
+            options += ['-c', constraints_path]
         proc = subprocess.run(
             [sys.executable, '-m', 'pip', 'install', *options, *pkgs],
             capture_output=True, text=True, timeout=timeout,
@@ -657,6 +701,8 @@ def pip_install_packages(packages, timeout: int = 1800, no_deps: bool = False) -
         return {'ok': False, 'installed': [], 'error': (proc.stderr or '')[-2000:]}
     except Exception as e:
         return {'ok': False, 'installed': [], 'error': f"{type(e).__name__}: {e}"}
+    finally:
+        _remove_file(constraints_path)
 
 
 def ensure_backend_deps(backend_cls, timeout: int = 1800) -> dict:
@@ -703,7 +749,7 @@ def _replay_patches() -> dict:
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
 
-def simuler_installation(spec: str, timeout: int = 300) -> dict:
+def simuler_installation(spec: str, timeout: int = 300, constraints=None) -> dict:
     """Ce qu'une installation ENTRAÎNERAIT — `pip install --dry-run`, LECTURE SEULE.
 
     POURQUOI (2026-09-07, recadrage Fabien : « l'intérêt est de vérifier si une librairie peut
@@ -731,15 +777,21 @@ def simuler_installation(spec: str, timeout: int = 300) -> dict:
 
     import importlib.metadata as im
 
-    err = pip_spec_error(spec)
+    err = pip_spec_error(spec) or ' ; '.join(pip_constraint_errors(constraints))
     if err:
         return {'ok': False, 'error': err}
+    # La simulation porte les MÊMES contraintes que l'installation : simuler sans elles
+    # annoncerait une montée que l'installation, elle, ne ferait pas — un plan qui ment.
+    constraints_path = _write_constraints_file(constraints)
     try:
         proc = subprocess.run(
-            [sys.executable, '-m', 'pip', 'install', '--dry-run', spec],
+            [sys.executable, '-m', 'pip', 'install', '--dry-run', spec,
+             *(['-c', constraints_path] if constraints_path else [])],
             capture_output=True, text=True, timeout=timeout)
     except Exception as e:
         return {'ok': False, 'error': f'simulation impossible : {e}'}
+    finally:
+        _remove_file(constraints_path)
     if proc.returncode != 0:
         return {'ok': False, 'error': (proc.stderr or proc.stdout or '').strip()[:800]}
 
@@ -789,7 +841,10 @@ def install_library(key: str, apply: bool = False) -> dict:
                 'error': "librairie absente du registre — ingérer son manifeste d'abord "
                          "(write_back_library)"}
     spec = (lib.pip_spec or '').strip()
-    err = pip_spec_error(spec)
+    # `constraints.pip` : versions du venv que CETTE installation ne doit pas déplacer
+    # (cf. `pip_constraint_errors`). Déclarées au manifeste, projetées au registre, et enfin LUES.
+    constraints = list((lib.constraints or {}).get('pip') or [])
+    err = pip_spec_error(spec) or ' ; '.join(pip_constraint_errors(constraints))
     if err:
         return {'ok': False, 'library': key, 'error': err}
 
@@ -801,6 +856,7 @@ def install_library(key: str, apply: bool = False) -> dict:
         constat = None
     plan = {'library': key, 'spec': spec, 'installed_version': constat,
             'already_satisfied': constat == version_cible,
+            'constraints': constraints,
             'allowed': lib.is_allowed,
             'venv': sys.executable,
             'venv_win': "non traité (venv historique/temporaire — prod cible full-Linux)",
@@ -812,7 +868,7 @@ def install_library(key: str, apply: bool = False) -> dict:
         # la seule façon de voir ce que l'installation traînerait avec elle (cf.
         # `simuler_installation`). Une simulation qui échoue ne condamne pas le plan — elle
         # est REPORTÉE telle quelle, l'appelant décide.
-        plan['simulation'] = simuler_installation(spec)
+        plan['simulation'] = simuler_installation(spec, constraints=constraints)
         return {'ok': True, 'plan': plan, 'would_install': constat != version_cible}
 
     if not lib.is_allowed:
@@ -823,7 +879,7 @@ def install_library(key: str, apply: bool = False) -> dict:
 
     patches = None
     if constat != version_cible:
-        res = pip_install_packages([spec])
+        res = pip_install_packages([spec], constraints=constraints)
         if not res.get('ok'):
             return {'ok': False, 'library': key, 'error': res.get('error'), 'plan': plan}
         patches = _replay_patches()

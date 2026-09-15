@@ -15,7 +15,8 @@ Pilote BORNÉ (mêmes leçons que librarian) :
      contrôle du §3 ne prouverait plus rien ;
   2. sert les VOCABULAIRES depuis le code (tâches, clés canoniques, ModelType/ModelSource,
      moteurs déjà servis) — l'agent ne les invente pas, il choisit dedans ;
-  3. un seul appel Ollama, avec le corpus `manifests/models/` en exemple (un COMPOSÉ + un
+  3. un seul appel LLM (Ollama local, ou `--provider albert` — la garde GPU ci-dessous ne
+     vaut alors plus), avec le corpus `manifests/models/` en exemple (un COMPOSÉ + un
      simple, choisis mécaniquement) ;
   4. sortie validée MÉCANIQUEMENT (`ingest.validate`) puis DIFFÉE contre la vérité terrain
      (`extract_model`) sur les seuls champs que la découverte MESURE ;
@@ -53,7 +54,8 @@ import django  # noqa: E402
 django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
-from role_utils import call_ollama, extract_json, fetch as _fetch, write_output  # noqa: E402
+from role_utils import (  # noqa: E402
+    add_llm_arguments, call_llm, extract_json, fetch as _fetch, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'model.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -179,7 +181,7 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument('--catalog', help='Clé AIModel d\'un modèle INSTALLÉ (huggingface:org/nom)')
     g.add_argument('--hf', help='Dépôt HuggingFace org/nom (non installé)')
-    ap.add_argument('--model', default=None, help='Modèle Ollama (défaut : rôle dev)')
+    add_llm_arguments(ap, role='dev')
     ap.add_argument('--force', action='store_true',
                     help="Sauter l'ATTENTE de VRAM libre (GO explicite ; le keep_alive reste)")
     ap.add_argument('--attente-max', type=float, default=300.0,
@@ -190,35 +192,44 @@ def main():
                            else sources_hf(args.hf))
     matiere = matiere[:MAX_SOURCE_CHARS]
 
-    cfg = select_model_for_role('dev')[1]
-    model = args.model or cfg.ollama_id
-    print(f'[model] modèle : {model} | provenance : {provenance}')
+    # En local, `cfg` sert AUSSI au besoin en VRAM plus bas : le modèle et ce besoin doivent venir
+    # de la MÊME sélection — deux appels à `select_model_for_role` pourraient choisir deux modèles
+    # différents si la VRAM libre bouge entre les deux.
+    cfg = select_model_for_role('dev')[1] if args.provider == 'ollama' else None
+    model = args.model or (cfg.ollama_id if cfg else resolve_model(args.provider, 'dev'))
+    print(f'[model] {args.provider} / {model} | provenance : {provenance}')
 
-    # ── Coopération avec le mode dépannage GPU (cf. docstring) ──────────────────
-    from wama.common.services.resource_governor import (
-        effective_free_gb, gpu_safe_mode, pipeline_keep_alive, wait_for_free_vram)
-    keep_alive = pipeline_keep_alive()
-    besoin = float(getattr(cfg, 'ram_required_gb', 8.0) or 8.0)
-    if gpu_safe_mode() and not args.force:
-        ok, libre = wait_for_free_vram(besoin, timeout_s=args.attente_max,
-                                       console=lambda m: print(f'[model] {m}'))
-        if not ok:
-            # Refus DIT, jamais un défaut silencieux (contrat de wait_for_free_vram).
-            raise SystemExit(
-                f"[model] REFUS : {libre:.1f} Go libres < {besoin:.1f} Go requis pour "
-                f"{model} après {args.attente_max:.0f}s d'attente (mode dépannage GPU). "
-                "Réessayer plus tard, ou --force sur GO explicite.")
-        print(f'[model] VRAM libre {libre:.1f} Go ≥ {besoin:.1f} Go requis — '
-              f"appel avec keep_alive={keep_alive!r} (déchargement immédiat)")
+    keep_alive = None
+    if args.provider != 'ollama':
+        # Le modèle tourne chez le fournisseur : rien ne se charge sur le GPU de l'hôte, la
+        # garde du mode dépannage n'a donc rien à protéger ici.
+        print('[model] fournisseur distant — aucune charge GPU locale, pas d\'attente de VRAM')
     else:
-        print(f'[model] VRAM libre {effective_free_gb():.1f} Go | '
-              f'keep_alive={keep_alive!r}')
+        # ── Coopération avec le mode dépannage GPU (cf. docstring) ──────────────
+        from wama.common.services.resource_governor import (
+            effective_free_gb, gpu_safe_mode, pipeline_keep_alive, wait_for_free_vram)
+        keep_alive = pipeline_keep_alive()
+        besoin = float(getattr(cfg, 'ram_required_gb', 8.0) or 8.0)
+        if gpu_safe_mode() and not args.force:
+            ok, libre = wait_for_free_vram(besoin, timeout_s=args.attente_max,
+                                           console=lambda m: print(f'[model] {m}'))
+            if not ok:
+                # Refus DIT, jamais un défaut silencieux (contrat de wait_for_free_vram).
+                raise SystemExit(
+                    f"[model] REFUS : {libre:.1f} Go libres < {besoin:.1f} Go requis pour "
+                    f"{model} après {args.attente_max:.0f}s d'attente (mode dépannage GPU). "
+                    "Réessayer plus tard, ou --force sur GO explicite.")
+            print(f'[model] VRAM libre {libre:.1f} Go ≥ {besoin:.1f} Go requis — '
+                  f"appel avec keep_alive={keep_alive!r} (déchargement immédiat)")
+        else:
+            print(f'[model] VRAM libre {effective_free_gb():.1f} Go | '
+                  f'keep_alive={keep_alive!r}')
 
     user_msg = (f'EXEMPLES de manifestes `model` valides :\n{exemples()}\n\n'
                 f'VOCABULAIRES AUTORISÉS (choisir dedans, ne rien inventer) :\n{vocabulaires()}\n\n'
                 f'SOURCES du modèle à traduire :\n{matiere}\n\n'
                 f'Produis le manifeste `model` de ce modèle (JSON seul).')
-    reponse = call_ollama(model, PROMPT, user_msg, keep_alive=keep_alive)
+    reponse = call_llm(args.provider, model, PROMPT, user_msg, keep_alive=keep_alive)
     manifest = extract_json(reponse)
 
     from wama.common.manifests.ingest import validate
@@ -238,6 +249,7 @@ def main():
                 divergences['.'.join(chemin)] = {'llm': a, 'mecanique': b}
 
     sortie = write_output('model', cle or 'inconnu', {
+        'provider': args.provider,
         'model': model,
         'provenance': provenance,
         'validation_errors': erreurs,

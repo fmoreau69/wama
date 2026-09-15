@@ -23,6 +23,7 @@ _PROVIDER_ENV = {
     'groq':       'GROQ_API_KEY',
     'deepseek':   'DEEPSEEK_API_KEY',
     'openrouter': 'OPENROUTER_API_KEY',
+    'albert':     'ALBERT_API_KEY',       # DINUM — compatible OpenAI, adresse dans external_sources
 }
 
 
@@ -31,7 +32,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--provider', default='ollama',
-                            help="ollama (défaut, LOCAL) ou un cloud : xai, gemini, openai, mistral, groq, deepseek, openrouter.")
+                            help="ollama (défaut, LOCAL) ou un cloud : albert, xai, gemini, openai, mistral, groq, deepseek, openrouter.")
         parser.add_argument('--model', default='',
                             help="Nom du modèle (défaut : résolu par le catalogue, "
                                  "modele_par_defaut — plus de nom en dur, retrait qwen3.5:9b 26/08).")
@@ -62,25 +63,36 @@ class Command(BaseCommand):
             from wama.common.utils.ollama_host import ollama_base
             base = ollama_base()
             litellm_model = f"ollama/{model}"
-            kwargs = {'model': litellm_model, 'api_base': base}
             self.stdout.write(f"\nTest passerelle → {litellm_model}  (LOCAL {base}) …")
-        else:
-            env = _PROVIDER_ENV.get(provider)
-            if env and not os.environ.get(env):
+            try:
+                resp = litellm.completion(
+                    messages=[{"role": "user", "content": "Réponds uniquement : OK"}],
+                    timeout=options['timeout'], max_tokens=16,
+                    model=litellm_model, api_base=base)
+                text = (resp.choices[0].message.content or '').strip()
+                self.stdout.write(self.style.SUCCESS(f"✓ Passerelle OK — réponse : {text[:80]!r}"))
+            except Exception as e:
                 self.stderr.write(self.style.ERROR(
-                    f"Clé absente pour '{provider}' (définir {env}). Test cloud annulé."))
-                return
-            litellm_model = model if '/' in model else f"{provider}/{model}"
-            kwargs = {'model': litellm_model}
-            self.stdout.write(f"\nTest passerelle → {litellm_model}  (CLOUD) …")
+                    f"✗ Échec passerelle : {type(e).__name__}: {str(e)[:200]}"))
+            return
 
-        # 3) Appel.
-        try:
-            resp = litellm.completion(
-                messages=[{"role": "user", "content": "Réponds uniquement : OK"}],
-                timeout=options['timeout'], max_tokens=16, **kwargs)
-            text = (resp.choices[0].message.content or '').strip()
-            self.stdout.write(self.style.SUCCESS(f"✓ Passerelle OK — réponse : {text[:80]!r}"))
-        except Exception as e:
+        env = _PROVIDER_ENV.get(provider)
+        if env and not os.environ.get(env):
             self.stderr.write(self.style.ERROR(
-                f"✗ Échec passerelle : {type(e).__name__}: {str(e)[:200]}"))
+                f"Clé absente pour '{provider}' (définir {env}). Test cloud annulé."))
+            return
+        # 3) Appel CLOUD par `llm_chat` — le chemin qu'emploient réellement l'assistant et les
+        # rôles wama-dev-ai. Construire l'appel LiteLLM ici validerait une construction que
+        # personne n'utilise (et ne connaîtrait ni l'adresse d'Albert ni son préfixe `openai/`).
+        # `num_predict` large : un modèle de raisonnement (gpt-oss) prend sa réflexion sur le
+        # même budget, et 16 jetons rendraient une réponse vide sur un fournisseur sain.
+        from wama.common.utils.llm_utils import default_cloud_model, llm_chat
+        model = model or default_cloud_model(provider)
+        self.stdout.write(f"\nTest passerelle → {provider} / {model}  (CLOUD) …")
+        text, err = llm_chat(
+            [{"role": "user", "content": "Réponds uniquement : OK"}],
+            model=model, provider=provider, num_predict=512, timeout=options['timeout'])
+        if text is None:
+            self.stderr.write(self.style.ERROR(f"✗ Échec passerelle : {str(err)[:300]}"))
+        else:
+            self.stdout.write(self.style.SUCCESS(f"✓ Passerelle OK — réponse : {text[:80]!r}"))

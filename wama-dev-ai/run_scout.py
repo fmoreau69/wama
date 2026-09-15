@@ -35,7 +35,8 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
 
-from role_utils import REPO_ROOT, call_ollama, extract_json, fetch, write_output  # noqa: E402
+from role_utils import (  # noqa: E402
+    REPO_ROOT, add_llm_arguments, call_llm, extract_json, fetch, resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'scout.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -119,7 +120,7 @@ def _readme(hf_id: str, limit: int = 8000) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--hf', required=True, help='Dépôt HuggingFace org/nom')
-    ap.add_argument('--model', default=None, help='Modèle Ollama (défaut : rôle dev)')
+    add_llm_arguments(ap, role='dev')
     ap.add_argument('--dry-run', action='store_true',
                     help='Squelette + contexte seulement, AUCUN appel LLM (test sans GPU)')
     args = ap.parse_args()
@@ -146,10 +147,9 @@ def main():
         print(inventaire)
         return
 
-    from config import select_model_for_role
-    model = args.model or select_model_for_role('dev')[1].ollama_id
-    print(f'[scout] modèle : {model} | dépôt : {args.hf}')
-    reponse = extract_json(call_ollama(model, PROMPT, user_msg))
+    model = resolve_model(args.provider, 'dev', args.model)
+    print(f'[scout] {args.provider} / {model} | dépôt : {args.hf}')
+    reponse = extract_json(call_llm(args.provider, model, PROMPT, user_msg))
     manifest = reponse.get('manifest') or {}
     concerns = reponse.get('concerns') or []
 
@@ -172,7 +172,7 @@ def main():
     erreurs = list(validate(manifest) or [])
 
     sortie = write_output('scout', args.hf, {
-        'model': model, 'provenance': f'huggingface:{args.hf}',
+        'provider': args.provider, 'model': model, 'provenance': f'huggingface:{args.hf}',
         'validation_errors': erreurs, 'concerns': concerns, 'manifest': manifest,
     })
     print(f'[scout] → {sortie.relative_to(REPO_ROOT)}')

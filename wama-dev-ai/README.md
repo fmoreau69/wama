@@ -31,6 +31,14 @@ python wama-dev-ai/run_scout.py …         # prospection de modèles (fiches ca
 python wama-dev-ai/run_integrator.py …    # propositions d'intégration
 ```
 
+**Fournisseur des rôles** (2026-09-15) : les cinq rôles ci-dessus (codegen, librarian, model,
+scout, integrator) acceptent `--provider`. Défaut `ollama` (local, comportement d'avant).
+`--provider albert` fait passer l'appel par `llm_chat` vers Albert API (DINUM) : clé
+`ALBERT_API_KEY` dans `.env`, modèle par `--model` ou `ALBERT_MODEL`. Poser
+`WAMA_DEV_AI_PROVIDER=albert` dans `.env` bascule TOUS les rôles sans changer les commandes. Un
+fournisseur distant ne charge rien sur le GPU : `run_model_manifest.py` saute alors l'attente de
+VRAM. `run.py` et `run_audit.py` ne passent pas par `role_utils` et restent sur Ollama.
+
 ⚠ `run_model_manifest.py` **coopère** avec `WAMA_GPU_SAFE_MODE` au lieu de s'y dérober : le
 mode dépannage réduit la SUPERPOSITION de charges, il n'interdit pas de charger. Le rôle
 emploie donc ses deux parades — `wait_for_free_vram()` avant l'appel (pas d'empilement) et
