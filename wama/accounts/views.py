@@ -484,13 +484,18 @@ def _champ(request, name: str) -> str:
     La page de profil poste en JSON (helper `postJson`) ; un client en ligne de commande
     postera plus volontiers un formulaire. Accepter les deux évite le « ça marche dans le
     navigateur mais pas au curl » — et coûte trois lignes.
+
+    ⚠ Le corps lisait `nom` alors que la signature déclare `name` (renommage partiel du
+    2026-08-30) : chaque appel levait une NameError, donc la confirmation d'appariement de
+    canal et la déliaison répondaient 500. Aucun test n'appelait ces vues — corrigé et gardé
+    le 2026-09-15 (`accounts/tests_channel_views.py`).
     """
     if request.content_type and 'application/json' in request.content_type:
         try:
-            return (json.loads(request.body or '{}').get(nom) or '').strip()
+            return (json.loads(request.body or '{}').get(name) or '').strip()
         except (json.JSONDecodeError, AttributeError):
             return ''
-    return (request.POST.get(nom) or '').strip()
+    return (request.POST.get(name) or '').strip()
 
 
 @login_required
