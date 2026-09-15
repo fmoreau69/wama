@@ -110,16 +110,11 @@ def subscription_allowed(user) -> bool:
     vocabulaire produirait un refus incompréhensible pour un compte légitimement
     développeur. On accepte donc les deux — et ce commentaire vit ici, pas en trois copies.
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return False
-
-    from wama.accounts.views import is_admin, is_dev
-
-    return bool(
-        is_dev(user) or is_admin(user)
-        or user.groups.filter(name='developpeur').exists()
-        or getattr(getattr(user, 'profile', None), 'tier', '') in ('developpeur', 'admin')
-    )
+    # Délègue depuis le 2026-09-15 au prédicat DOMICILE (`accounts.permissions.is_developer`),
+    # qui a un second consommateur (outils MCP de développement). L'extraction a corrigé la
+    # branche tier, qui lisait `profile.tier` — attribut inexistant (le champ est `account_tier`).
+    from wama.accounts.permissions import is_developer
+    return is_developer(user)
 
 
 def chemin_cli() -> str:
