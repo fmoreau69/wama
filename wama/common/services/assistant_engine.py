@@ -364,15 +364,19 @@ def _claude_code_call(messages: list) -> tuple:
                                        'cost_usd': resultat.get('cout_usd')}
 
 
-def _llm_call(messages: list, llm_model: str | None, provider: str) -> tuple:
+def _llm_call(messages: list, llm_model: str | None, provider: str, user=None) -> tuple:
     """
     Un tour de LLM, quel que soit le fournisseur.
 
     Chemin local (`wama-dev-ai`/`ollama`) : `_ollama_call` INCHANGÉ — usage tokens compris.
-    Chemin cloud : `llm_chat()` (LiteLLM, brique commune) — les clés API viennent de
-    l'environnement, le modèle par défaut du fournisseur vient de `llm_chat` (jamais figé
-    ici). L'usage n'est pas remonté par `llm_chat` (contrat (text, err)) → compté à 0,
-    assumé tant que le besoin ne l'exige pas.
+    Chemin cloud : `llm_chat()` (LiteLLM, brique commune) — le modèle par défaut du fournisseur
+    vient de `llm_chat` (jamais figé ici). L'usage n'est pas remonté par `llm_chat` (contrat
+    (text, err)) → compté à 0, assumé tant que le besoin ne l'exige pas.
+
+    Clé d'un fournisseur déclaré dans `external_sources` (Albert…) : celle de l'UTILISATEUR,
+    jamais la clé d'instance du `.env` (décision de Fabien du 15/09 — quotas répartis). Sans
+    utilisateur (`user=None`), la clé d'instance sert. Les autres fournisseurs (API Anthropic…)
+    lisent encore l'environnement : ils n'ont pas de source déclarée.
 
     Returns:
         (text, usage_dict) on success · (None, error_dict) on failure
@@ -383,13 +387,24 @@ def _llm_call(messages: list, llm_model: str | None, provider: str) -> tuple:
     if provider in _SUBSCRIPTION_PROVIDERS:
         return _claude_code_call(messages)
 
-    from wama.common.utils.llm_utils import llm_chat
+    from wama.common.utils.llm_utils import OPENAI_COMPATIBLE_PROVIDERS, llm_chat
+    api_key = None
+    source = OPENAI_COMPATIBLE_PROVIDERS.get(provider)
+    if source and user is not None and getattr(user, 'is_authenticated', False):
+        from wama.accounts.api_keys import key_for
+        from wama.common import external_sources
+        api_key = key_for(user, source)
+        if not api_key:
+            return None, {'error': f"Aucune clé d'API {external_sources.get(source).label} dans "
+                                   "votre profil : ajoutez-la dans le volet « Clés d'API » de la "
+                                   "page Profil.", 'status': 400}
     text, err = llm_chat(
         messages,
         model=llm_model,
         provider=_PROVIDER_ALIAS.get(provider, provider),
         num_predict=4096,
         timeout=180.0,
+        api_key=api_key,
     )
     if text is None:
         return None, {'error': err or 'LLM error', 'status': 502}
@@ -614,7 +629,7 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     MAX_TOOL_ITERATIONS = 5
 
     for _ in range(MAX_TOOL_ITERATIONS):
-        text, result = _llm_call(messages, llm_model, provider)
+        text, result = _llm_call(messages, llm_model, provider, user=user)
         if text is None:
             return result  # error dict
 

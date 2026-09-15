@@ -1279,8 +1279,11 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   `_best_by_vram` rend le plus léger en silence (`model_selector.py:242-243`), aucune app ne passe
   `vram_needed` (portages en retard). Décisions en attente de Fabien (§PALIER « SQUELETTE ») :
   B. conception de l'attente « toute la VRAM », C. généralisation du curseur. **L'option cloud du
-  curseur rejoint CE chantier**, elle ne s'écrit pas à part. Les modèles cloud branchés au 15/09
-  (Albert) ne servent que le TEXTE — le multimodal passerait par un fournisseur comme OpenRouter.
+  curseur rejoint CE chantier**, elle ne s'écrit pas à part. ~~Les modèles cloud branchés au 15/09
+  (Albert) ne servent que le TEXTE~~ — FAUX, mesuré le même jour (`GET /v1/models`, 11 modèles) :
+  Albert sert aussi la vision (`image-text-to-text` : gemma-4-31b, mistral-small-3.2, ministral-3,
+  lightonocr), la transcription (`whisper-large-v3`), les embeddings (bge-m3, qwen3-vl-embedding)
+  et le reranking. OpenRouter reste l'option pour la GÉNÉRATION multimodale (image, voix, vidéo).
   **Comportement, dans les mots de Fabien (15/09 — ma formulation « libérer avant de différer »
   était FAUSSE)** : quand la tâche ne tient pas dans la VRAM, soit l'utilisateur BAISSE LA QUALITÉ
   pour tenir dans la VRAM disponible, soit il ATTEND que les process en cours se terminent pour
@@ -1361,6 +1364,22 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    connecteurs dans la section Paramètres du volet droit (`volet(medias=False, actions=False)`),
    un seul rendu JS pour les deux listes. Gardes : `accounts/tests_api_keys` (chiffrement en base,
    pas de repli, 503 sur clé serveur non sûre, rechiffrement à la rotation, rendu dans le volet).
+4b. 🔄 **Verrou du catalogue levé — premier palier** (15/09) : `ModelSource.ALBERT`, champs
+   `AIModel.execution` (local/cloud) et `cost_tier` ; hébergement et coût déclarés sur la source
+   (`external_sources`, Albert = `sovereign`/`free`). DÉCOUVERTE par la clé de l'utilisateur
+   (`model_manager/services/cloud_models.py`, appelée à l'enregistrement de la clé) : une ligne
+   `albert:<id>` par modèle rangeable, moteur = la source (inventaire
+   `external_sources.llm_engine_inventory`), liste gardée avec la clé (`UserApiKey.open_models`) ;
+   les types sans catégorie (reranking) n'entrent pas. `select_model`/`get_registry_models` :
+   paramètre `cloud_keys` — SANS lui, aucun distant n'entre (tirage et listes identiques) ;
+   `allowed_cloud_keys(user, automatic)` le calcule d'après les 3 niveaux. La synchro du disque ne
+   supprime ni ne désactive jamais un distant ; la désinstallation le refuse. Assistant : Albert
+   avec la clé de l'UTILISATEUR (refus lisible sans elle), clé d'instance seulement sans
+   utilisateur. Gardes : `model_manager/tests_cloud_models` (dont la contre-épreuve de
+   non-régression). ⏳ Reste : les apps et l'assistant ne PASSENT pas encore `cloud_keys` (le
+   sélecteur de l'assistant liste toujours ses fournisseurs à la main) ; redécouverte périodique ;
+   coût distant dans `_best_by_vram` (VRAM 0 = pire coût aujourd'hui) ; le signal de saturation du
+   niveau « cloud si WAMA est saturé » ; OpenRouter (types absents du `/models` OpenAI standard).
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par

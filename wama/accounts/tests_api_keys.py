@@ -43,6 +43,11 @@ class ClesLlmTest(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user('cles_llm', password='x')
         self.client.force_login(self.user)
+        # Aucun appel réseau : la découverte des modèles est testée dans model_manager.
+        decouverte = mock.patch('wama.model_manager.services.cloud_models.list_remote_models',
+                                return_value=[])
+        decouverte.start()
+        self.addCleanup(decouverte.stop)
 
     def _enregistrer(self, slug='albert', cle=CLAIR):
         return self.client.post(reverse('accounts:profile-api-key-save', args=[slug]),

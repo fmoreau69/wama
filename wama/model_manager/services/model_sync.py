@@ -65,7 +65,7 @@ class ModelSyncService:
         Returns:
             SyncResult with counts and any errors
         """
-        from ..models import AIModel, ModelSyncLog
+        from ..models import AIModel, EXECUTION_CLOUD, ModelSyncLog
 
         log = ModelSyncLog.objects.create(sync_type='full')
         result = SyncResult(success=True)
@@ -121,7 +121,10 @@ class ModelSyncService:
                     # Delete models that no longer exist on disk.
                     # NB : exclure les candidats de prospection (is_proposed) — ils ne sont
                     # pas sur disque par nature et ne doivent pas être réconciliés.
-                    missing_models = AIModel.objects.exclude(model_key__in=seen_keys).exclude(is_proposed=True)
+                    # Idem pour les modèles DISTANTS (2026-09-15) : ils ne sont jamais sur ce
+                    # disque, et seule leur découverte par clé d'utilisateur les réconcilie.
+                    missing_models = (AIModel.objects.exclude(model_key__in=seen_keys)
+                                      .exclude(is_proposed=True).exclude(execution=EXECUTION_CLOUD))
                     removed_count = missing_models.count()
                     if removed_count > 0:
                         deleted_keys = list(missing_models.values_list('model_key', flat=True))
@@ -132,7 +135,8 @@ class ModelSyncService:
                     # Just mark as unavailable (legacy behavior)
                     removed_count = AIModel.objects.exclude(
                         model_key__in=seen_keys
-                    ).exclude(is_proposed=True).update(is_available=False)
+                    ).exclude(is_proposed=True).exclude(
+                        execution=EXECUTION_CLOUD).update(is_available=False)
                     result.removed = removed_count
 
             log.status = 'completed'
@@ -359,7 +363,7 @@ class ModelSyncService:
         Returns:
             True if sync was successful
         """
-        from ..models import AIModel, ModelSyncLog
+        from ..models import AIModel, EXECUTION_CLOUD, ModelSyncLog
 
         try:
             if source is None:

@@ -236,7 +236,10 @@ class CurseurDeQualiteTest(TestCase):
         # `ollama` est un DÉMON. Leur déclaration passe donc par un inventaire enregistré à la
         # main (`register_engine_inventory`), seule voie possible pour eux. Les lister ici n'est
         # pas une dérogation : c'est dire que la 2ᵉ voie de déclaration existe et laquelle.
-        HORS_PROCESSUS = {'audio-cpp', 'ollama'}
+        # 2026-09-15 : les fournisseurs LLM DISTANTS (Albert…) sont de même nature — un service
+        # qu'on appelle, déclaré par sa source `external_sources` (lue ici, jamais recopiée).
+        from wama.common.external_sources import llm_engine_inventory
+        HORS_PROCESSUS = {'audio-cpp', 'ollama'} | set(llm_engine_inventory())
         self.assertTrue(connus <= declares | set(ENGINE_BACKENDS) | HORS_PROCESSUS,
                         f"moteurs annoncés sans déclaration : "
                         f"{sorted(connus - declares - set(ENGINE_BACKENDS) - HORS_PROCESSUS)}")
