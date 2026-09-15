@@ -1219,9 +1219,36 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
 - **MCP = OUTILS** (`tool_api`, cadre §16) ; la SÉLECTION de modèle n'y passe pas —
   `select_model_for_role` adopte la brique commune (cf. ci-dessus). ⚠ Pas de contradiction avec
   `AGENTS.md` : wama-dev-ai est en phase 4, seul MCP restait à faire (précision Fabien).
-- **Fournisseurs LLM déclarés dans un REGISTRE DÉDIÉ** (protocole d'appel, coût, confidentialité,
-  modèle par défaut), qui renvoie à `external_sources` pour l'adresse et la clé — la limite écrite
-  de ce module (« le client ne se déclare pas ici ») est respectée.
+- ~~Fournisseurs LLM déclarés dans un REGISTRE DÉDIÉ~~ — **REVU LE MÊME JOUR par Fabien : pas de
+  nouveau registre, on LÈVE LE VERROU du catalogue (§8d ①②).** Ma question n'offrait que « registre
+  dédié » ou « tout dans `external_sources` » et OMETTAIT l'option conforme à la doctrine des
+  backends (« le MODÈLE porte son moteur, le backend s'en DÉRIVE ») : un modèle cloud entre dans
+  `AIModel` par DÉCOUVERTE (`GET /v1/models`, comme `/api/tags` pour Ollama), porte son moteur
+  (`composition.runtime.engine`) ; le moteur s'inscrit à l'inventaire des moteurs (exécutable =
+  clé posée + service joignable, patron `ollama_host._MoteurOllama`) ; la façon d'appeler est un
+  backend ; adresse et clé restent dans `external_sources`. Le « fournisseur » se DÉRIVE.
+  Champs §8d ① : `execution` (local/cloud), valeurs cloud de `ModelSource`, `cost_tier`
+  (free/metered/subscription) — + proposé : où partent les données (local / cloud souverain /
+  cloud tiers). **Albert = DISTANT SOUVERAIN** (Fabien : une clé d'API suffit à le rendre distant).
+- **Politique d'usage du cloud** (Fabien, 15/09 — conforme à §16 « plein local par défaut, mixte
+  cloud opt-in » et à la vision « choix explicite ») : **100 % local par défaut** ; choix GLOBAL
+  sur la page profil (patron `UserProfile.prompt_enrich`, `accounts/models.py:74-81`) + choix
+  PONCTUEL dans l'app par le sélecteur de modèle EXISTANT (modèles cloud grisés avec la raison) ;
+  tâches sensibles déclarées « local uniquement » dans les métadonnées d'app — pas un champ par
+  app. ⚠ **Garde de non-régression** : un modèle cloud n'entre dans le tirage automatique
+  (`select_model`) que si l'utilisateur l'autorise ET que la tâche le permet ; sans autorisation,
+  le tirage est IDENTIQUE à aujourd'hui. Sans cette garde, les scores de banc des grands modèles
+  cloud gagneraient tout le tirage en silence.
+- **Le curseur rapide/qualité s'y aligne** (remarque de Fabien) : il informe déjà de la saturation
+  VRAM ; il proposera « baisser la qualité » OU « passer en cloud » — l'escalade par capacité de
+  §8d ③, trou ouvert depuis longtemps.
+- **Clés d'API PAR UTILISATEUR, en base, CHIFFRÉES au repos** (Fabien) : sort les clés du `.env`,
+  et RÉPARTIT les quotas — une clé Albert partagée (10 req/min sur certains modèles) serait
+  épuisée par quelques utilisateurs d'un même labo. Tranche la question laissée ouverte par
+  `PROJECT_STATUS` (« chiffre-t-on les jetons au repos ? » → oui). ⚠ Le patron médiathèque
+  (`UserProviderConfig`) stocke en CLAIR (`media_library/models.py:234`) et WAMA n'a aucune brique
+  de chiffrement : reprendre sa FORME (`requires_api_key`, `api_key_label`, `api_key_help_url`),
+  pas son stockage. UI : dans le VOLET DROIT de la page profil, pour ne pas l'allonger.
 - **Claude Code = un FOURNISSEUR comme les autres** : il consomme les outils WAMA par MCP
   (`--mcp-config`). `ask_claude_code` reste l'outil de délégation d'une tâche au dépôt.
 - **Le moteur de l'assistant devient CLIENT MCP pour tous les cerveaux** (outils prod ET dev).
@@ -1248,15 +1275,31 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    par défaut dans le SDK : activée ici. Gardes : `tests_mcp_server` (protocole réel en mémoire).
    Smoke RÉEL (vrai process, vrai client, vrai jeton) : 69 outils, appel OK, outil inconnu →
    `isError`, sans jeton → 401.
-3. ⏳ **Serveur « wama-dev »**, process SÉPARÉ (§16) — rôles wama-dev-ai + bac à sable, réservés
-   dev/admin, sorties en attente de validation humaine.
-4. ⏳ **Moteur de l'assistant client MCP + registre des fournisseurs** — même chemin pour
-   Ollama, Albert et Claude Code ; sélecteurs UI, API et Discord générés du registre (Discord est
-   aujourd'hui figé sur `wama-dev-ai`, `gateway/core.py:208`). Les tables Albert écrites à la main
-   le 15/09 (`llm_utils.CLOUD_DEFAULT_MODELS`/`OPENAI_COMPATIBLE_PROVIDERS`, option de
-   `home.html`) sont reprises ici.
-5. ⏳ **Modèles cloud au catalogue** (§8d ①②) — par découverte (`GET /v1/models` pour Albert),
-   filtres VRAM/`is_downloaded` réservés aux modèles locaux.
+3. ✅ **Serveur « wama-dev »** (15/09), process SÉPARÉ (§16) — `common/services/dev_tools.py`,
+   servi par `run_mcp_server --surface dev` (adresse `external_sources['wama_mcp_dev']`). 7 outils :
+   `dev_run_role` (librarian/model/scout/integrator/codegen — arguments ADMIS déclarés par rôle,
+   valeur commençant par `-` ou multiligne refusée), `dev_sandbox` (create/substitute/revert/drop/
+   list, le demandeur est le créateur de la jumelle), `dev_regen_check` (JAMAIS `--force` : sa
+   garde dev/main reste entière), `dev_reload_web` (HUP gunicorn), `dev_job_status`,
+   `dev_list_jobs`, `dev_read_output` (lecture confinée à `wama-dev-ai/outputs/`). Chaque
+   lancement est une TÂCHE détachée (`logs/dev_jobs/`), qui survit au redémarrage du serveur.
+   Droits vérifiés à CHAQUE appel : `accounts.permissions.is_developer`, domicile UNIQUE extrait
+   de `claude_code.subscription_allowed` — ⚠ l'extraction a corrigé une branche MORTE : le tier
+   était lu dans `profile.tier`, attribut inexistant (le champ est `account_tier`), donc un compte
+   développeur par son seul tier était refusé en silence ; aucun test ne couvrait le tier.
+   `mcp_server` n'importe `dev_tools` que pour la surface dev — prouvé dans un process NEUF.
+   Gardes : `tests_mcp_dev_tools`. Smoke RÉEL : 7 outils, `dev_sandbox list` lancé et suivi
+   jusqu'à `done rc=0`, `--force` injecté refusé.
+4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
+   au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
+   pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par
+   utilisateur (volet droit), curseur rapide/qualité → cloud. Reprend les tables Albert écrites à
+   la main le 15/09 (`llm_utils.CLOUD_DEFAULT_MODELS`/`OPENAI_COMPATIBLE_PROVIDERS`, option de
+   `home.html`).
+5. ⏳ **Moteur de l'assistant client MCP** — même chemin pour Ollama, Albert et Claude Code
+   (`--mcp-config`) ; sélecteurs UI, API et Discord lus du catalogue (Discord est aujourd'hui figé
+   sur `wama-dev-ai`, `gateway/core.py:208`). Ouvre aussi l'autre sens : WAMA CLIENT de serveurs
+   MCP externes (mail, messagerie, dépôts…), chacun étant une question de confiance à trancher.
 - Restent aussi : supervision dans `start_wama_prod.sh` ; config Claude Code du projet ;
   déclaration au registre des mécanismes — REPORTÉE, `mecanismes.py` étant en cours de
   modification par une autre instance le 15/09.

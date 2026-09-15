@@ -201,6 +201,32 @@ def tool_accessible(user, tool_name):
     return True if app_id is None else accessible(user, 'app', app_id)
 
 
+#: Groupes Django qui font un développeur. `developpeur` est un groupe HOMONYME du tier — les
+#: deux vocabulaires coexistent en base (mesuré le 2026-08-21), on accepte les deux.
+DEVELOPER_GROUPS = ('dev', 'admin', 'developpeur')
+
+
+def is_developer(user):
+    """
+    Développeur ou administrateur — DOMICILE UNIQUE du prédicat (2026-09-15).
+
+    Réunit les deux vocabulaires de rôle : le TIER de profil (`BYPASS_TIERS`, lu par
+    `user_tier`, superutilisateur compris) et les GROUPES Django (`DEVELOPER_GROUPS`).
+    Consommateurs : l'abonnement Claude Code (`claude_code.subscription_allowed`), les outils MCP
+    de développement (`common/services/dev_tools.py`).
+
+    ⚠ DÉFAUT CORRIGÉ en l'extrayant de `subscription_allowed` : sa branche tier lisait
+    `profile.tier`, un attribut qui N'EXISTE PAS — le champ est `account_tier`
+    (`accounts/models.py:116`). Un compte promu développeur PAR SON TIER, sans groupe, était donc
+    refusé en silence, et aucun test ne le voyait : ils ne construisaient que des groupes.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    if user_tier(user) in BYPASS_TIERS:
+        return True
+    return user.groups.filter(name__in=DEVELOPER_GROUPS).exists()
+
+
 def all_gated_apps():
     """Ensemble des app_ids soumis au contrôle d'accès (pour calculer accessible_apps)."""
     return set(DEFAULT_APP_ACCESS.keys())

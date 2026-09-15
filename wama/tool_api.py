@@ -3681,7 +3681,15 @@ def tool_input_schema(tool_name: str) -> dict:
     if fn is None:
         raise KeyError(f"outil inconnu : {tool_name!r}")
     app_id = app_id_for_tool(tool_name)
-    index = {p['name']: p for p in (schema_for_app(app_id) if app_id else [])}
+    return input_schema_for(fn, {p['name']: p for p in (schema_for_app(app_id) if app_id else [])})
+
+
+def input_schema_for(fn, index=None) -> dict:
+    """Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma
+    d'app `index` quand il y en a un. Pour un outil hors `TOOL_REGISTRY` (outils MCP de
+    développement), la signature seule — même dérivation, jamais une seconde écriture."""
+    import inspect
+    index = index or {}
     names, params = _tool_arg_names(fn, index)
     schema = {'type': 'object',
               'properties': {n: _json_property(index.get(n), params.get(n)) for n in names}}

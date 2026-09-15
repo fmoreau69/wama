@@ -17,12 +17,14 @@ CE QUI ÉTAIT DÉJÀ TRANCHÉ, ET QUE CE MODULE APPLIQUE (ne pas le redécouvrir
   • REPRISE du 2026-08-04 : « adaptateur mince sur TOOL_REGISTRY, dont `tool_descriptions()`
     dérive déjà nom/description/schéma ».
 
-CE QU'IL FAIT, ET RIEN D'AUTRE :
-  • `tools/list` → `TOOL_REGISTRY` filtré par `tool_accessible` (le filtre de `/api/v1/tools/`),
-    description = `tool_descriptions()`, arguments = `tool_input_schema()` ;
-  • `tools/call` → `execute_tool`, LA porte unique (gating F7, coercition, bornes de choix) ;
-  • identité → le jeton d'API DRF du compte (le même que `/api/v1/`, affiché sur la page de
-    profil). Un client MCP agit pour UN compte, exactement comme un script qui appelle l'API.
+DEUX SURFACES, DEUX PROCESS (étape 3, 2026-09-15) :
+  • `wama`     — les outils de `tool_api` ; `tools/list` → le registre filtré par
+                 `tool_accessible`, `tools/call` → `execute_tool` (LA porte unique) ;
+  • `wama-dev` — les outils de développement (`common/services/dev_tools.py` : rôles
+                 wama-dev-ai, bac à sable). Le module n'est importé QUE pour cette surface :
+                 lancer la surface `wama` ne le charge jamais (§16, gardé par un test).
+Identité, dans les deux cas : le jeton d'API DRF du compte (le même que `/api/v1/`, affiché sur
+la page de profil). Un client MCP agit pour UN compte, comme un script qui appelle l'API.
 
 ⚠ AUCUNE validation ni aucun gating n'est recopié ici. La validation d'entrée du SDK est même
 COUPÉE (`validate_input=False`) : elle refuserait `"3"` pour un nombre, que `execute_tool`
@@ -37,22 +39,36 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
-#: Nom du serveur « prod » : les outils de `tool_api`. Les outils de dev/admin sont un AUTRE
-#: serveur, dans un autre process (ROADMAP §16) — jamais une option de celui-ci.
-SERVER_NAME = 'wama'
-#: Portée posée sur un jeton vérifié. Un seul niveau : le compte, avec ses droits d'app.
+#: Surface « prod » : les outils de `tool_api`.
+SURFACE_WAMA = 'wama'
+#: Surface « développement » : un AUTRE process (ROADMAP §16), jamais une option du premier.
+SURFACE_DEV = 'wama-dev'
+SURFACES = (SURFACE_WAMA, SURFACE_DEV)
+#: Clé du registre `external_sources` portant l'adresse de chaque surface.
+_ADDRESS_SOURCE = {SURFACE_WAMA: 'wama_mcp', SURFACE_DEV: 'wama_mcp_dev'}
+
+#: Portée posée sur un jeton vérifié. Un seul niveau : le compte, avec ses droits.
 SCOPE = 'wama'
 #: Chemin de l'endpoint HTTP streamable.
 MCP_PATH = '/mcp'
 #: Variable portant le jeton d'API en transport stdio (le client lance le process lui-même).
 TOKEN_ENV = 'WAMA_MCP_TOKEN'
 
-INSTRUCTIONS = (
-    "Outils de WAMA, la plateforme média/IA du laboratoire : déposer un fichier dans une app, "
-    "lancer un traitement, suivre sa progression, lire un résultat, interroger le catalogue de "
-    "modèles et la mémoire. Chaque outil agit pour le compte dont le jeton a ouvert la session, "
-    "avec ses droits."
-)
+INSTRUCTIONS = {
+    SURFACE_WAMA: (
+        "Outils de WAMA, la plateforme média/IA du laboratoire : déposer un fichier dans une app, "
+        "lancer un traitement, suivre sa progression, lire un résultat, interroger le catalogue "
+        "de modèles et la mémoire. Chaque outil agit pour le compte dont le jeton a ouvert la "
+        "session, avec ses droits."),
+    SURFACE_DEV: (
+        "Outils de DÉVELOPPEMENT de WAMA, réservés aux développeurs : lancer un rôle wama-dev-ai "
+        "(il écrit une proposition en attente de validation humaine, il n'applique rien), gérer "
+        "le bac à sable d'apps (jumelles), lancer le harnais de régénération. Les lancements sont "
+        "des tâches de fond : suivre avec dev_job_status."),
+}
+
+# Compatibilité des lecteurs de la 1ʳᵉ version (surface unique).
+SERVER_NAME = SURFACE_WAMA
 
 
 # ── Exécution synchrone (ORM Django) hors de la boucle asyncio ──────────────────────────────
@@ -111,7 +127,7 @@ class WamaTokenVerifier:
                            scopes=[SCOPE], subject=str(user.pk))
 
 
-# ── Les deux opérations, en synchrone : ce que le protocole appelle ─────────────────────────
+# ── Surface `wama` : les deux opérations, en synchrone ──────────────────────────────────────
 
 def tools_for(user) -> list:
     """Outils MCP visibles par `user` — le registre filtré par ses droits, comme `/api/v1/tools/`.
@@ -134,6 +150,17 @@ def call(user, name: str, arguments) -> dict:
     return execute_tool(name, dict(arguments or {}), user)
 
 
+def _toolset(surface: str) -> tuple:
+    """(lister, appeler) d'une surface. ⚠ Le module de développement n'est importé QU'ICI, et
+    seulement pour sa surface : c'est ce qui le tient hors du process de prod (§16)."""
+    if surface == SURFACE_DEV:
+        from wama.common.services import dev_tools
+        return dev_tools.tools_for, dev_tools.call
+    if surface == SURFACE_WAMA:
+        return tools_for, call
+    raise ValueError(f"surface MCP inconnue : {surface!r} (connues : {', '.join(SURFACES)})")
+
+
 def _as_call_result(result):
     """Résultat d'outil → `CallToolResult`. Le dict voyage deux fois : en texte JSON (tout client
     sait le lire) et en contenu structuré ; `isError` suit la convention de `tool_api`, où une
@@ -148,15 +175,16 @@ def _as_call_result(result):
 
 # ── Le serveur ───────────────────────────────────────────────────────────────────────────────
 
-def build_server(fixed_user=None):
-    """Serveur MCP « wama ».
+def build_server(fixed_user=None, surface: str = SURFACE_WAMA):
+    """Serveur MCP d'une surface (`wama` ou `wama-dev`).
 
     `fixed_user` : compte de la session en stdio (le client lance le process avec son jeton).
     Sans lui, le compte est lu PAR REQUÊTE depuis l'authentification HTTP.
     """
     from mcp.server.lowlevel import Server
 
-    server = Server(SERVER_NAME, instructions=INSTRUCTIONS)
+    list_for, call_as = _toolset(surface)
+    server = Server(surface, instructions=INSTRUCTIONS[surface])
 
     async def current_user():
         if fixed_user is not None:
@@ -176,39 +204,39 @@ def build_server(fixed_user=None):
         user = await current_user()
         if user is None:
             return []
-        return await _run_sync(lambda: tools_for(user))
+        return await _run_sync(lambda: list_for(user))
 
-    # `validate_input=False` : la validation qui fait foi est `execute_tool` (cf. en-tête).
+    # `validate_input=False` : la validation qui fait foi est celle de la surface (cf. en-tête).
     @server.call_tool(validate_input=False)
     async def call_tool(name, arguments):
         user = await current_user()
         if user is None:
             return _as_call_result({'error': 'unauthenticated',
                                     'detail': "Jeton d'API WAMA requis."})
-        return _as_call_result(await _run_sync(lambda: call(user, name, arguments)))
+        return _as_call_result(await _run_sync(lambda: call_as(user, name, arguments)))
 
     return server
 
 
-async def serve_stdio(user) -> None:
+async def serve_stdio(user, surface: str = SURFACE_WAMA) -> None:
     """Transport stdio : un process par client, compte fixé au lancement.
 
     ⚠ stdout EST le canal du protocole : rien d'autre ne doit y écrire (journaux sur stderr).
     """
     from mcp.server.stdio import stdio_server
-    server = build_server(fixed_user=user)
+    server = build_server(fixed_user=user, surface=surface)
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
 
 
-def http_address(host: str = '', port: int = 0) -> tuple:
-    """(hôte, port) d'écoute — le registre des sources externes par défaut (`wama_mcp`)."""
+def http_address(host: str = '', port: int = 0, surface: str = SURFACE_WAMA) -> tuple:
+    """(hôte, port) d'écoute — le registre des sources externes par défaut."""
     from wama.common.external_sources import base_url
-    declared = urlparse(base_url('wama_mcp'))
-    return host or declared.hostname or '127.0.0.1', port or declared.port or 8770
+    declared = urlparse(base_url(_ADDRESS_SOURCE[surface]))
+    return host or declared.hostname or '127.0.0.1', port or declared.port
 
 
-def build_http_app(host: str, port: int):
+def build_http_app(host: str, port: int, surface: str = SURFACE_WAMA):
     """Application ASGI : HTTP streamable, authentifiée par jeton, protégée du DNS rebinding.
 
     ⚠ La protection DNS rebinding est DÉSACTIVÉE par défaut dans le SDK (compatibilité) : un site
@@ -225,7 +253,7 @@ def build_http_app(host: str, port: int):
 
     hosts = sorted({host, '127.0.0.1', 'localhost'})
     manager = StreamableHTTPSessionManager(
-        app=build_server(),
+        app=build_server(surface=surface),
         security_settings=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=[f'{h}:{port}' for h in hosts],
