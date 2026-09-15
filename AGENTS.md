@@ -300,8 +300,13 @@ apply_patch(
   1. **anglais OBLIGATOIRE pour tout identifiant importé, MÊME dans une couche encore française**
      — l'idiome local ne prime jamais sur ce critère (c'est l'imitation de l'idiome local qui a
      créé la dette) ;
-  2. **drapeaux/sous-commandes CLI = surface opérateur → français toléré** (`--poser`,
-     `--ecrire` : tapés au terminal, jamais importés — même logique que les noms de tests) ;
+  2. ~~drapeaux/sous-commandes CLI = surface opérateur → français toléré~~ — **RETIRÉ le
+     2026-09-14 (décision Fabien) : les options de ligne de commande sont du code, donc en
+     anglais.** La règle vaut désormais pour **tout identifiant de code** (fonctions, variables,
+     classes, clés d'objets formant une API entre briques JS, noms de fichiers, options CLI),
+     **sauf les noms de tests pour le moment**. Les **commentaires, docstrings et textes
+     affichés restent en français**. Déclenché par une API JS créée en IMITANT l'idiome
+     français d'une brique (`WamaSendTo.entreesPourDossier`) — la faute que la règle 1 nomme ;
   3. frontière des DONNÉES : **ce qui est stocké/déclaré reste** (clés `extra_info`, valeurs de
      vocabulaire), **ce qui est calculé se renomme** (payloads éphémères) ;
   4. un renommage se fait TOKENISÉ avec grep exhaustif des consommateurs — y compris les
