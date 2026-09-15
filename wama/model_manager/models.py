@@ -288,9 +288,21 @@ class ModelSource(models.TextChoices):
     # 1,1 Go de poids DeepFace hors catalogue. Le champ `source` porte le nom d'app, pas le
     # monde — c'est la même clé que `APP_CATALOG`, il ne faut pas la préfixer.
     WAMA_FACE_ANALYZER = 'face_analyzer', 'WAMA Lab — Face Analyzer'
+    # Fournisseurs DISTANTS (2026-09-15, ROADMAP §8d Phase 3, étape 4b — verrou ① levé). La valeur
+    # est la clé de la source `external_sources` (adresse, variable de clé, hébergement). Un modèle
+    # distant entre au catalogue par DÉCOUVERTE, avec la clé d'un utilisateur ; son moteur se lit
+    # dans `composition.runtime.engine`, comme pour tout modèle : le fournisseur se DÉRIVE.
+    ALBERT = 'albert', 'Albert API (DINUM)'
     OLLAMA = 'ollama', 'Ollama'
     HUGGINGFACE = 'huggingface', 'HuggingFace'
     CUSTOM = 'custom', 'Custom'
+
+
+EXECUTION_LOCAL = 'local'
+EXECUTION_CLOUD = 'cloud'
+EXECUTION_CHOICES = [(EXECUTION_LOCAL, 'Local'), (EXECUTION_CLOUD, 'Distant')]
+COST_TIER_CHOICES = [('free', 'Gratuit (quota)'), ('metered', "Facturé à l'usage"),
+                     ('subscription', 'Abonnement')]
 
 
 class AIModel(models.Model):
@@ -357,6 +369,21 @@ class AIModel(models.Model):
         default=True,
         db_index=True,
         help_text="Model is available for use (not deprecated/removed)"
+    )
+
+    # ── Exécution LOCALE ou DISTANTE (verrou §8d ① levé le 2026-09-15) ────────────────────
+    # Un modèle distant n'a ni poids ni VRAM ici (`is_downloaded` reste faux, `vram_gb` à 0) :
+    # sa disponibilité est une clé d'API ouverte à l'utilisateur. ⚠ NON-RÉGRESSION : la
+    # sélection automatique l'écarte tant que l'appelant ne fournit pas les modèles distants
+    # AUTORISÉS (`select_model(cloud_keys=…)`) — sans autorisation, le tirage est inchangé.
+    execution = models.CharField(
+        max_length=8, choices=EXECUTION_CHOICES, default=EXECUTION_LOCAL, db_index=True,
+        help_text="local = poids sur cette machine ; cloud = appel à un fournisseur distant",
+    )
+    #: Coût d'un modèle distant — vide pour un modèle local.
+    cost_tier = models.CharField(
+        max_length=16, blank=True, default='', choices=COST_TIER_CHOICES,
+        help_text="Distant seulement : gratuit (quota), facturé à l'usage, ou abonnement",
     )
 
     # File paths and format
@@ -693,6 +720,8 @@ class AIModel(models.Model):
             'is_downloaded': self.is_downloaded,
             'is_loaded': self.is_loaded,
             'is_available': self.is_available,
+            'execution': self.execution,
+            'cost_tier': self.cost_tier,
             'local_path': self.local_path,
             'format': self.format,
             'preferred_format': self.preferred_format,

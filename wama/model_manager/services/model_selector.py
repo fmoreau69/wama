@@ -271,6 +271,7 @@ def select_model(
     benchmark_domain: Optional[str] = None,
     specialization: Optional[str] = None,
     quality_intent=None,
+    cloud_keys=None,
 ):
     """
     Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
@@ -308,11 +309,18 @@ def select_model(
                          budget et préférence au RÉSIDENT s'effacent (un petit modèle
                          déjà chargé ne vole pas le tirage quand la qualité prime).
                          Positions nommées tolérées ('fast'/'balanced'/'quality').
+        cloud_keys:      `model_key` des modèles DISTANTS que l'appelant AUTORISE (clés de
+                         l'utilisateur × son niveau cloud — `cloud_models.allowed_cloud_keys`).
+                         ⚠ NON-RÉGRESSION (ROADMAP §8d) : sans elle, aucun modèle distant
+                         n'entre au tirage, qui est donc IDENTIQUE à celui d'avant le verrou
+                         levé — sinon les scores de banc des grands modèles distants
+                         gagneraient tout, en silence.
 
     Returns:
         AIModel | None.
     """
-    from ..models import AIModel
+    from django.db.models import Q
+    from ..models import AIModel, EXECUTION_CLOUD, EXECUTION_LOCAL
 
     # `source=None` (2026-08-31) : sélection PAR CAPACITÉ, tous producteurs confondus —
     # symétrique de `get_registry_models`. C'est le mode des surfaces qui ne sont pas des
@@ -326,12 +334,18 @@ def select_model(
             "select_model : préciser `source` (une app) ou `model_type` (une catégorie). "
             "Une sélection sans borne piocherait dans tout le catalogue.")
     qs = AIModel.objects.filter(is_available=True)
+    # Distant : seulement ce que l'appelant autorise (cf. `cloud_keys`). Un modèle distant n'a
+    # pas de poids ici : « téléchargé » ne le concerne pas, l'autorisation en tient lieu.
+    if cloud_keys:
+        qs = qs.filter(Q(execution=EXECUTION_LOCAL) | Q(model_key__in=list(cloud_keys)))
+    else:
+        qs = qs.exclude(execution=EXECUTION_CLOUD)
     if source:
         qs = qs.filter(source=source)
     else:
         qs = qs.filter(is_proposed=False)   # un candidat de prospection n'a pas de poids
     if downloaded_only:
-        qs = qs.filter(is_downloaded=True)
+        qs = qs.filter(Q(is_downloaded=True) | Q(execution=EXECUTION_CLOUD))
     if model_type:
         qs = qs.filter(model_type=model_type)
     if candidates:
@@ -521,7 +535,8 @@ def select_model_id(source: Optional[str] = None, requires=None,
             ids = [d['id'] for d in get_registry_models(
                 source, modality=modality, task=task,
                 available_inputs=available_inputs, consumes=consumes,
-                model_type=kwargs.get('model_type'))[1]]
+                model_type=kwargs.get('model_type'),
+                cloud_keys=kwargs.get('cloud_keys'))[1]]
             cand = [i for i in cand if i in ids] if cand else ids
             # Sans source, `get_registry_models` rend déjà des clés ENTIÈRES : ne pas
             # préfixer (on fabriquerait « None:kokoro »).
@@ -564,9 +579,12 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
                         downloaded_only: bool = False,
                         requires=None, modality: Optional[str] = None,
                         task: Optional[str] = None, available_inputs=None, consumes=None,
-                        model_type: Optional[str] = None):
+                        model_type: Optional[str] = None, cloud_keys=None):
     """
     (choices, info) pour le <select> d'une app, PILOTÉ par le registre AIModel (verrou n°1).
+
+    `cloud_keys` : modèles DISTANTS autorisés (même contrat que `select_model`) — sans elle,
+    aucun modèle distant n'est listé, comme avant le verrou levé.
 
     - choices : [(model_id, nom)]  — model_id = model_key sans le préfixe "source:"
     - info    : [{id, name, description, vram, capabilities, downloaded}]
@@ -600,6 +618,12 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
     # requête ne trouve rien et le repli ci-dessous sert toute la catégorie, en silence.
     task = canonical_task(task)
     qs = AIModel.objects.filter(is_available=True)
+    from django.db.models import Q
+    from ..models import EXECUTION_CLOUD, EXECUTION_LOCAL
+    if cloud_keys:
+        qs = qs.filter(Q(execution=EXECUTION_LOCAL) | Q(model_key__in=list(cloud_keys)))
+    else:
+        qs = qs.exclude(execution=EXECUTION_CLOUD)
     # ⚠ Un `model_type` EXPLICITE borne le domaine dans les DEUX modes (2026-09-08). Il ne
     # jouait que dans la branche sans `source` : un appelant qui combinait les deux — ce que
     # l'endpoint `api/models/options/` documente pourtant comme deux paramètres de domaine —
@@ -647,7 +671,7 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         if mt:
             qs = qs.filter(model_type=mt)
     if downloaded_only:
-        qs = qs.filter(is_downloaded=True)
+        qs = qs.filter(Q(is_downloaded=True) | Q(execution=EXECUTION_CLOUD))
     qs = qs.order_by('-vram_gb', 'name')
     models = [m for m in qs
               if _supports(m, requires, None)

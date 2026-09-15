@@ -104,6 +104,11 @@ class ExternalSource:
     api_key_env: str = ''
     #: Page où l'on obtient une clé — affichée à côté du champ de saisie du profil.
     api_key_help_url: str = ''
+    #: Fournisseur LLM : où partent les données — 'sovereign' (hébergement de l'État) ou
+    #: 'third_party'. Une clé d'API suffit à faire d'une source un service DISTANT (Fabien, 15/09).
+    hosting: str = ''
+    #: Fournisseur LLM : coût de ses modèles (valeurs de `AIModel.cost_tier`).
+    cost_tier: str = ''
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
@@ -153,6 +158,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         "codegen) via llm_chat", kind='llm', env='ALBERT_API_BASE',
         api_key_env='ALBERT_API_KEY',
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
+        hosting='sovereign', cost_tier='free',
         doc='docs/construction/ia/WAMA_LLM.md'),
 
     # ── Catalogues de modèles ───────────────────────────────────────────────────────────
@@ -247,6 +253,30 @@ MTEB_RESULTS_REPO = 'embeddings-benchmark/results'
 
 def by_key() -> dict[str, ExternalSource]:
     return {s.key: s for s in SOURCES}
+
+
+class _RemoteEngine:
+    """Porteur d'inventaire d'un fournisseur DISTANT — pas un backend Python (patron
+    `ollama_host._MoteurOllama` : un moteur qui n'est pas du code qu'on charge).
+
+    `missing_packages()` rend toujours [] : ce qui manque vraiment pour appeler un modèle distant
+    — une clé ouverte à CET utilisateur — est une disponibilité PAR UTILISATEUR, que l'inventaire
+    (global) ne sait pas dire ; la sélection la reçoit à part (`select_model(cloud_keys=…)`).
+    """
+
+    __slots__ = ()
+
+    @classmethod
+    def missing_packages(cls):
+        return []
+
+    def __repr__(self):
+        return '<moteur distant>'
+
+
+def llm_engine_inventory() -> dict:
+    """{moteur: porteur} des fournisseurs LLM distants — un par source `llm` (2026-09-15)."""
+    return {s.key: _RemoteEngine for s in SOURCES if s.kind == 'llm'}
 
 
 _BY_KEY = by_key()

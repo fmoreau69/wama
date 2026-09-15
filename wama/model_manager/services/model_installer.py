@@ -386,6 +386,9 @@ def uninstall_model(model_key: str) -> dict:
     if model.is_proposed:
         return {'ok': False, 'error': "un candidat de prospection ne se désinstalle pas — "
                                       "il se rejette (bouton Rejeter)."}
+    if model.execution == 'cloud':
+        return {'ok': False, 'error': "un modèle distant n'a aucun poids sur cette machine — il "
+                                      "disparaît de vos choix en retirant la clé d'API du profil."}
     if model.is_loaded:
         return {'ok': False, 'error': f"« {model.name} » est chargé en mémoire — "
                                       "le décharger avant de le désinstaller."}

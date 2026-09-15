@@ -87,7 +87,7 @@ class InjectionDansLeMoteurTests(TestCase):
     def _prompt_systeme(self, **kw):
         capture = {}
 
-        def _faux_llm(messages, llm_model, provider):
+        def _faux_llm(messages, llm_model, provider, user=None):
             capture['system'] = messages[0]['content']
             return 'ok', {'input_tokens': 0, 'output_tokens': 0}
 
@@ -164,7 +164,7 @@ class ChargementParLAssistantTests(TestCase):
         """Sans annonce, l'assistant ignore que ces compétences existent."""
         capture = {}
 
-        def _faux_llm(messages, llm_model, provider):
+        def _faux_llm(messages, llm_model, provider, user=None):
             capture['system'] = messages[0]['content']
             return 'ok', {'input_tokens': 0, 'output_tokens': 0}
 
@@ -177,7 +177,7 @@ class ChargementParLAssistantTests(TestCase):
     def test_le_domaine_actif_n_est_pas_re_annonce(self):
         capture = {}
 
-        def _faux_llm(messages, llm_model, provider):
+        def _faux_llm(messages, llm_model, provider, user=None):
             capture['system'] = messages[0]['content']
             return 'ok', {'input_tokens': 0, 'output_tokens': 0}
 

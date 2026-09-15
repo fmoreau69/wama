@@ -295,7 +295,12 @@ def api_key_save(request, slug):
         row.save(update_fields=['api_key', 'updated_at'])
     except SecretStorageUnavailable as exc:
         return JsonResponse({'error': str(exc)}, status=503)
-    return JsonResponse({'success': True, 'has_key': True})
+    # Découverte des modèles ouverts à CETTE clé (ROADMAP §8d, 4b). Un échec ne défait pas
+    # l'enregistrement : il est rendu lisible, et la clé reste posée.
+    from wama.model_manager.services.cloud_models import refresh_key
+    count, error = refresh_key(row)
+    return JsonResponse({'success': True, 'has_key': True, 'models_count': count,
+                         'discovery_error': error})
 
 
 @login_required

@@ -247,6 +247,14 @@ class UserApiKey(models.Model):
     source = models.CharField(max_length=64, verbose_name='Source externe')
     api_key = EncryptedTextField(blank=True, default='', verbose_name="Clé d'API")
     updated_at = models.DateTimeField(auto_now=True)
+    # DÉCOUVERTE par la clé (Fabien, 15/09) : les modèles que CETTE clé ouvre, lus chez le
+    # fournisseur (`GET /models`). Le catalogue porte l'union ; chaque utilisateur ne choisit que
+    # ce que sa clé ouvre (mesuré : un modèle fermé à un compte existe pour un autre).
+    # ⚠ Pas `models` : dans le corps de la classe, ce nom masquerait le module `models`.
+    open_models = models.JSONField(default=list, blank=True,
+                                   verbose_name='Modèles ouverts à cette clé (model_key)')
+    discovered_at = models.DateTimeField(null=True, blank=True)
+    discovery_error = models.CharField(max_length=255, blank=True, default='')
 
     class Meta:
         verbose_name = "Clé d'API utilisateur"

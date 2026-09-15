@@ -777,7 +777,11 @@ async function sendKey(group, slug, key) {
         }
         // Rendu à neuf : le badge et le bouton de suppression suivent l'état réel du serveur.
         await loadKeys(group);
-        showMsg(document.getElementById(`msg-${id}`), key ? '✓ Clé enregistrée' : '✓ Clé supprimée');
+        const msg = document.getElementById(`msg-${id}`);
+        if (!key) showMsg(msg, '✓ Clé supprimée');
+        else if (data.discovery_error) showMsg(msg, `Clé enregistrée, modèles non lus : ${data.discovery_error}`, true);
+        else if (data.models_count !== undefined) showMsg(msg, `✓ Clé enregistrée — ${data.models_count} modèle(s) ouvert(s)`);
+        else showMsg(msg, '✓ Clé enregistrée');
     } catch(e) {
         showMsg(document.getElementById(`msg-${id}`), 'Erreur réseau', true);
     }

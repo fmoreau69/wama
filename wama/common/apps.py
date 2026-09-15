@@ -25,6 +25,10 @@ class CommonConfig(AppConfig):
             # Ollama n'en a pas, et n'en aura pas : ce n'est pas du code Python qu'on charge.
             from wama.common.utils.ollama_host import ollama_engine_inventory
             register_engine_inventory(ollama_engine_inventory)
+            # Fournisseurs LLM DISTANTS (Albert…) : leurs modèles nomment leur moteur comme les
+            # autres ; sans cet inventaire, ils seraient jugés « moteur sans backend installé ».
+            from wama.common.external_sources import llm_engine_inventory
+            register_engine_inventory(llm_engine_inventory)
         except Exception:
             pass
 
