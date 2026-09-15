@@ -643,7 +643,10 @@ def {nom}(request, pk):
     # Clé `elem` (2026-09-09) — jumeau PAR CHAÎNE du renommage de `_generic_card.html` :
     # rendre ce partial avec l'ancienne clé sortirait une card complète et TOTALEMENT VIDE,
     # sans lever quoi que ce soit.
-    return render(request, '{app}/_generic_card.html', {{'elem': _decorer(item)}})'''
+    # `in_batch` (2026-09-15) : position dans la file — brique commune.
+    from wama.common.utils.batch_common import is_batch_child
+    return render(request, '{app}/_generic_card.html',
+                  {{'elem': _decorer(item), 'in_batch': is_batch_child(item)}})'''
 
     corps_status = f'''    data = {{'id': item.id, 'status': item.status, 'progress': item.progress,
             'error_message': item.error_message}}
@@ -667,6 +670,11 @@ def {nom}(request, pk):
 def delete(request, pk):
     user = _user(request)
     item = get_object_or_404({item}, pk=pk, user=user)
+    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`). La
+    # réponse dit ce que devient le lot ; `queue-actions.js` met la file à jour sans
+    # rechargement de la page (2026-09-15).
+    from wama.common.utils.batch_common import batch_snapshot, batch_state
+    snapshot = batch_snapshot(item)
     for _champ in {champs_fichiers!r}:
         if _fichier_de_l_app(item, _champ):
             safe_delete_file(item, _champ)
@@ -681,7 +689,7 @@ def delete(request, pk):
     # Mesuré le 2026-09-09 sur `converter_01` (`converter_01.duplicate_delete` rouge, doublon
     # toujours présent après clic). L'app RÉELLE de référence ne fait rien de tel non plus :
     # `converter/views.py::delete` se contente de `job.delete()` et laisse le signal faire.
-    return JsonResponse({{'deleted': True}})'''
+    return JsonResponse({{'deleted': True, 'batch': batch_state(snapshot, {item})}})'''
 
     vues['duplicate'] = f'''@require_POST
 def duplicate(request, pk):

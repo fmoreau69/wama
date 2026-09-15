@@ -26,11 +26,12 @@
     function refreshCard(id) {
         const tpl = (window.IMAGER_CARD && IMAGER_CARD.urls.cardHtml) || '';
         if (!tpl) return Promise.resolve();
+        // La vue répond du HTML depuis le 2026-09-15 (ex-JSON `{html, status}`), comme les 9 autres.
         return fetch(WamaApp.getUrl(tpl, id))
-            .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
-            .then(function (data) {
+            .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+            .then(function (html) {
                 const el = cardEl(id);
-                if (el && data.html) el.outerHTML = data.html;
+                if (el && html.trim()) el.outerHTML = html;
                 sync();          // la card remplacée peut avoir changé d'état
             })
             .catch(() => {});

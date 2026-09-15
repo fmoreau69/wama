@@ -849,6 +849,45 @@ DÉLÉGATION ; le CONTENU des modales est déjà schéma-driven partout (`WamaPa
 schema, {context:'item'})`), ce qui reste à porter est l'ORCHESTRATEUR `WamaParams.settingsModal()`
 (2/10) — deux couches distinctes qu'un raccourci de lecture confond facilement.
 
+**⚠ TROU DE LA ROUTE, fermé le 2026-09-15 — supprimer une card de LOT.** Le portage du 23/08
+(`145e738f`) a rendu le rechargement après 🗑 CONDITIONNEL à un champ `batch_changed` que chaque
+vue écrivait à la main (8 apps sur 10) et que rien ne mesurait : `delete_wiring` atteste le bouton,
+pas la réponse. Converter et imager ne l'écrivaient pas → un lot réduit à une card restait affiché
+en lot jusqu'au rechargement manuel (constat Fabien, 14/09). ⚠ La 1ʳᵉ correction (14/09) ajoutait
+le champ dans ces deux vues : un correctif APP PAR APP, retiré. Correction AU COMMUN, validée par
+Fabien le 15/09 :
+- serveur — `batch_common.batch_snapshot` / `batch_state` : la vue dit ce que DEVIENT le lot (les
+  11 vues de suppression + `views_gen`, plus aucune recherche du lot écrite à la main) ;
+  `is_batch_child` : l'`in_batch` des 11 vues `card_html`, où cinq variantes coexistaient (dont
+  une fausse, `.exists()` de l'enhancer, et quatre absentes) ;
+- navigateur — `queue-actions.js` met la file à jour SANS RECHARGEMENT DE LA PAGE : lot vidé
+  retiré · lot réduit à une card redevenu card simple, redemandée au serveur (`WamaApp.fetchCard`,
+  `data-card-url` posé par `_queue_entry.html`) · card mère aux compteurs à jour
+  (`data-batch-field` de `_batch_card.html`) ;
+- alignements : `imager:card_html` répond du HTML (seule vue en JSON) ; `synthesizer:card_html`
+  (ex-`synthesis_card_html`, route `card/<pk>/html/` de `urls_gen`) ; la jumelle `converter_01`
+  reçoit `BatchMixin` (glue commune invisible au rendu depuis la facette `data`) ;
+- retirés : `batch_changed`, `batch_utils.find_member_batch` (REMOVAL_LEDGER).
+Tenu par `common/tests_queue_delete_contract.py` (vue par vue, 11 surfaces + le jumeau
+gabarit↔JS de l'entrée unitaire) et le geste navigateur `<app>.delete_from_batch`.
+**Et par la GRILLE** (demande de Fabien : « s'il manque des critères dans la grille il faut les
+rajouter ») — `delete_wiring` attestait le bouton, jamais la réponse : 5 critères F5 ajoutés,
+`delete_batch_state`, `card_in_batch`, `batch_semantics`, `queue_order` (verts 10/10) et
+`card_refresh_common` (**0/10** : les copies locales du rafraîchissement de card, 12 sites sous
+5 noms, sont le portage restant vers `WamaApp.fetchCard`). Au passage, 3 critères existants
+rattachés à leur vrai mécanisme (`init_from_schema`, `inspector_actions` → `inspector` ;
+`result_tabs` → `result_tabs`), que `mechanisms_without_criterion` (ex-`mecanismes_sans_critere`)
+déclarait non vérifiés.
+
+**⏳ PROCHAIN CHANTIER (demande de Fabien, 2026-09-15) : l'inventaire des RECHARGEMENTS DE PAGE.**
+Un rechargement ramène l'utilisateur en haut de la file : « quand on peut éviter de recharger la
+page, on évite ». Relevé le 2026-09-15 dans le seul JS commun (`location.reload`, hors apps) :
+⧉ Dupliquer (`queue-actions.js`), actions de LOT (`groupAction`), sortie de lot au glisser-déposer
+(`wama-queue-dnd.js::succeed`), menu « … » (`wama-card-menu.js`, 3 sites), inspecteur
+(`wama-inspector.js`, 2), import (`wama-import.js`, et `wama-app-base.js` sur `wama:fileimported`),
+lot par fichier (`batch-import.js`), catalogue (`wama-catalog-refresh.js`). Les rechargements
+propres aux apps restent à relever. `applyBatchState` et `fetchCard` sont la base commune.
+
 **Prochaine brique sous-adoptée, MESURÉE le 2026-08-23 : `WamaApp.Poller` — 4 apps sur 10**
 (transcriber, enhancer, imager, reader). C'est ce que le portage des actions a rendu visible :
 le résidu que chaque app garde après une suppression (« arrêter le polling ») n'est pas une
@@ -2442,6 +2481,9 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 | 26 | **Aucun critère ne voit une zone de dépôt que rien n'écoute** : la grille mesure la présence du markup, pas l'existence d'un écouteur. C'est ce qui a laissé converter_01 inerte sans qu'aucune mesure ne baisse. Critère à écrire : une app qui rend `[data-wama-nic]`/dropzone sans charger de voie d'import échoue. ~~Confirmé OUVERT le 2026-08-22~~ → ✅ **LE CRITÈRE EXISTE (constaté à l'audit du 31/08)** : `Criterion('import_wired', 'F2', « Voie d'import CHARGÉE par le gabarit (dépôt non inerte) »)`, `conformity_checker.py` — avec exactement les subtilités réclamées ici (`data-wama-depot`, exemption « aucune card d'entrée »). La ligne « confirmé ouvert » a survécu à l'écriture du critère qu'elle spécifiait — le réécrire aurait fait un doublon pur. Reste vrai le corollaire : ⚠ Devenu plus facile à écrire depuis : la card d'entrée commune porte `data-wama-depot` (`cree`\|`attache`), donc le critère peut distinguer « rien n'écoute » (défaut) de « le dépôt joint, le bouton primaire crée » (conception légitime d'avatarizer/imager) — distinction qu'aucune heuristique de DOM ne savait faire, et qui est la raison pour laquelle ce critère n'avait pas été écrit. **⚠ Le PATRON existe désormais (2026-08-23) : `settings_wiring`** mesure exactement cette forme — le markup ET l'écouteur, en exigeant les DEUX (`.settings-btn[data-id]` dans le gabarit + `WamaQueueActions.onSettings` déclaré), et rend `partial` quand un seul des deux est là (« bouton au contrat, mais AUCUN ouvreur déclaré — clic inerte »). Le critère de dépôt se calque dessus. Corollaire appris le même jour : un critère de ce genre est passé **vert 10/10 le jour de son écriture** — il faut donc l'accompagner d'un scénario qui CLIQUE, sinon il atteste une adoption qu'on prendra pour un fonctionnement. | F3 | grille |
 | 27 | **`compact_preview` (reader) orphelin + 3e copie** : le filtre templatetag n'a plus d'appelant depuis le portage du 22/08 (le commun rend l'extrait), et la MÊME logique existe une troisième fois dans `reader/views.py::_compact_preview`, toujours utilisée pour la charge d'API. Candidat REMOVAL_LEDGER. Idem `imager` : `openImagePreview`/`openVideoPreview` sans appelant depuis le portage du mécanisme n°30. | F3 | dette |
 | 28 | **La boucle codegen exige un REDÉMARRAGE** : `gunicorn_conf.py` n'a ni `reload` ni `preload_app`, donc aucune modification Python (`apps.py`, `views.py`, briques communes) n'est prise sans relance. Trois diagnostics de la session du 22/08 s'y sont heurtés — **un QUATRIÈME le 2026-08-23**, et sous une forme plus traître : `max_requests = 1000` recycle les workers **un par un**, donc la pile se retrouve MIXTE (mesuré : 2 workers sur 4 dataient d'avant la modification). Une route Python ajoutée existait donc pour la moitié des requêtes seulement, et un gabarit qui la référence rendait `NoReverseMatch` → **500 INTERMITTENT**. Coût : un A/B complet contre HEAD pour écarter une fausse régression. ⚠ **Une hypothèse « workers périmés » avait d'abord été REJETÉE à tort sur 6 sondes toutes vertes** — il en fallait 30 pour voir les 2/30 en 404 : sur un parc mixte, un petit échantillon ne décide rien. **Remède mesuré : `kill -HUP <maître>`** — sans `preload_app`, les workers réimportent l'application, le socket n'est pas lâché, et c'est instantané ; inutile de relancer la pile. ~~Les gabarits, eux, se relisent à chaque requête~~ ⚠ **FAUX, mesuré le 2026-09-05** : en production Django met le **loader de gabarits en cache PAR WORKER** (`DEBUG=False`, `APP_DIRS=True` → `cached.Loader` implicite). Après `app_sandbox substitute converter_01 templates`, **5 requêtes sur 6** servaient le gabarit régénéré et **1 sur 6** l'ancien — 4 workers d'âges 37 782 s / 26 344 s / 3 667 s / 311 s. Trois gestes nocturnes (`url_import`, `folder_import`, `batch_import`) tombaient sur la jumelle **au hasard du worker touché**, avec des symptômes qui accusaient le gabarit précédent — j'ai d'abord cherché la cause dans le code. **Un gabarit régénéré exige le même `kill -HUP <maître>` qu'une modification Python.** Après HUP : 6/6 à jour, 4/4 gestes verts. À écrire dans la recette de génération — et à trancher : `reload = True` en dev ? | — | outillage |
+| 29 | **Actions de card et barre de file : trous de PORTAGE relevés le 2026-09-15** (inventaire des 10 apps, vérifié ligne à ligne) — reader : actions de lot déclenchées DEUX fois (`reader.js:610-623` + `actions_communes=True`) ; converter : 🗑 sans `data-id` (`_job_card.html:135-137`) ; transcriber : cycle perdu au rafraîchissement d'une card (`index.js:1212`, `:276`) ; barre de file : **0/12** passent `start_url`/`clear_url` au partial commun, « Télécharger tout » désactivé à vie sur plusieurs apps. ⚠ Les critères `delete_wiring`/`settings_wiring` restent VERTS sur ces défauts : ils mesurent l'adoption du bouton, pas l'absence d'écouteur local ni le rafraîchissement — gestes navigateur à écrire avec le portage. Détail : `PROJECT_STATUS §PALIER 2026-09-15`, suite. | F5 | portage |
+| 30 | **Jumelles incomplètement générées** (mesuré par la marque `[manifest-gen]`, 2026-09-15) : `converter_01` 8 fichiers conventionnels, `describer_01` 4, `composer_01` 1, `imager_01` 0. Bloquant commun : `views_gen` v1 = forme FK-DIRECTE seule ; la forme à modèle de LIAISON (9 apps sur 10) est le trou déclaré plus haut. Tant qu'il n'est pas comblé, ces jumelles gardent le code de départ et ne suivent pas le commun (ex. l'état du lot après suppression). | codegen | génération |
+| 31 | **Registre des mécanismes : 18 fichiers portés par plusieurs mécanismes** (mesuré 2026-09-15) — relation cachée dans des annexes croisées, consommateurs comptés deux fois. Décision Fabien : champ `depends_on` (posé), un fichier = un mécanisme. Rangement NON appliqué ; `wama_actions.py` (4 balises de 4 briques) et mémoire/RAG à trancher d'abord. | — | registre |
 
 ---
 

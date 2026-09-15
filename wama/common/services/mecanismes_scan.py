@@ -20,6 +20,10 @@ fichier pour une brique front) : « la brique est là ». Elle ne dit RIEN de la
 l'intégration — c'est le rôle du critère de grille, qui interroge le registre runtime quand il
 existe. Les deux couches sont complémentaires : celle-ci est globale et pas chère, l'autre est
 stricte et par app.
+
+⚠ Identifiants passés en ANGLAIS le 2026-09-15 (règle « tout le code en anglais », GO Fabien),
+avec le registre lui-même (`Mechanism`, `MECHANISMS`). Le NOM DE FICHIER reste `mecanismes_scan`
+— il est cité par chemin dans la doc et ses traces datées, que `check_docs` vérifie.
 """
 from __future__ import annotations
 
@@ -30,7 +34,7 @@ from pathlib import Path
 
 #: Dossiers jamais parcourus (code vendored, artefacts, arbre de dépendances). Sans cet élagage
 #: le balayage part sur des dizaines de milliers de fichiers — la leçon `/mnt/d` de `check_docs`.
-DOSSIERS_EXCLUS = {
+EXCLUDED_DIRS = {
     'venv_win', 'venv_linux', 'node_modules', '.git', 'migrations', 'staticfiles',
     'static', 'media', 'logs', 'AI-models', '__pycache__', 'wama-dev-ai', 'patches',
     'musetalk', 'codeformer',   # vendored upstream
@@ -50,23 +54,23 @@ DOSSIERS_EXCLUS = {
 #: accusait **précisément le monde qu'il ne regardait pas**. Un zéro produit par une absence de
 #: mesure est indiscernable d'un zéro mesuré — c'est ce qui l'a rendu crédible pendant deux jours.
 #: Ajouter un monde à WAMA = ajouter sa racine ici, dans le même commit que le déport.
-RACINES = ('wama', 'wama_lab', 'wama_data')
+ROOTS = ('wama', 'wama_lab', 'wama_data')
 
 
-def modules_python(base: Path):
+def python_modules(base: Path):
     """Chemins .py de notre code (relatifs à base), vendored et artefacts élagués."""
-    for racine in RACINES:
-        depart = base / racine
-        if not depart.is_dir():
+    for root in ROOTS:
+        start = base / root
+        if not start.is_dir():
             continue
-        for dossier, sous, fichiers in os.walk(depart):
-            sous[:] = [d for d in sous if d not in DOSSIERS_EXCLUS]
-            for f in fichiers:
+        for folder, subdirs, files in os.walk(start):
+            subdirs[:] = [d for d in subdirs if d not in EXCLUDED_DIRS]
+            for f in files:
                 if f.endswith('.py'):
-                    yield Path(dossier, f).relative_to(base).as_posix()
+                    yield Path(folder, f).relative_to(base).as_posix()
 
 
-def sources_front(base: Path):
+def front_sources(base: Path):
     """Chemins .html/.js de notre front (templates + static d'app), relatifs à base.
 
     Corpus des CONSOMMATEURS des briques front : une brique est consommée par la balise
@@ -74,25 +78,25 @@ def sources_front(base: Path):
     collectées) reste élagué — compter une copie mentirait — et `vendors/` (libs tierces)
     aussi ; `static` est réadmis, c'est là que vit le front.
     """
-    exclus = (DOSSIERS_EXCLUS - {'static'}) | {'vendors'}
-    for racine in RACINES:
-        depart = base / racine
-        if not depart.is_dir():
+    excluded = (EXCLUDED_DIRS - {'static'}) | {'vendors'}
+    for root in ROOTS:
+        start = base / root
+        if not start.is_dir():
             continue
-        for dossier, sous, fichiers in os.walk(depart):
-            sous[:] = [d for d in sous if d not in exclus]
-            for f in fichiers:
+        for folder, subdirs, files in os.walk(start):
+            subdirs[:] = [d for d in subdirs if d not in excluded]
+            for f in files:
                 if f.endswith(('.html', '.js')):
-                    yield Path(dossier, f).relative_to(base).as_posix()
+                    yield Path(folder, f).relative_to(base).as_posix()
 
 
-def charger_sources(base: Path | None = None) -> dict[str, str]:
+def load_sources(base: Path | None = None) -> dict[str, str]:
     """{chemin relatif: contenu} pour tout le corpus balayé. Coûteux : à charger UNE fois."""
     if base is None:
         from django.conf import settings
         base = Path(settings.BASE_DIR)
     sources = {}
-    for rel in list(modules_python(base)) + list(sources_front(base)):
+    for rel in list(python_modules(base)) + list(front_sources(base)):
         try:
             sources[rel] = (base / rel).read_text(encoding='utf-8', errors='ignore')
         except OSError:
@@ -100,11 +104,11 @@ def charger_sources(base: Path | None = None) -> dict[str, str]:
     return sources
 
 
-def consommateurs(mecanisme, sources: dict[str, str]) -> list[str]:
+def consumers(mechanism, sources: dict[str, str]) -> list[str]:
     """
     Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même.
 
-    Quand `symbole` est renseigné, on compte les importateurs de CE symbole et non du module :
+    Quand `symbol` est renseigné, on compte les importateurs de CE symbole et non du module :
     un mécanisme logé dans un module partagé (`common/models.py`) héritait sinon du compte de
     tous ses importateurs, quelle que soit la raison de leur import.
     """
@@ -113,43 +117,43 @@ def consommateurs(mecanisme, sources: dict[str, str]) -> list[str]:
     # peut pas correspondre : le tester d'abord (`in`, C) rend EXACTEMENT le même résultat que
     # la regex seule. Mesuré sans lui : 940 284 recherches regex sur le texte entier des 1 069
     # sources, 84 s du fait `mecanismes` de `doc_facts` (et la même matrice rejouée 3 fois).
-    siens = {mecanisme.domicile, *mecanisme.annexes}
-    par_symbole = set()
-    if mecanisme.symbole:
-        motif = re.compile(rf'\b{re.escape(mecanisme.symbole)}\b')
-        par_symbole = {rel for rel, src in sources.items()
-                       if rel not in siens and mecanisme.symbole in src and motif.search(src)}
+    own = {mechanism.home, *mechanism.annexes}
+    by_symbol = set()
+    if mechanism.symbol:
+        pattern = re.compile(rf'\b{re.escape(mechanism.symbol)}\b')
+        by_symbol = {rel for rel, src in sources.items()
+                     if rel not in own and mechanism.symbol in src and pattern.search(src)}
         # Module PYTHON partagé : le symbole REMPLACE l'import du module (la raison d'être
         # du champ — `ScopedVisibility` dans `common/models.py`, 2026-08-13).
-        if mecanisme.domicile.endswith('.py'):
-            return sorted(par_symbole)
+        if mechanism.home.endswith('.py'):
+            return sorted(by_symbol)
         # Brique FRONT (2026-09-06) : le symbole S'AJOUTE au nom. Une brique chargée par
         # `base.html` s'adopte par son GLOBAL (`WamaFolderImport.collect` — jamais par son
         # fichier, que seul base.html cite : 2 consommateurs comptés pour 9 apps), mais aussi
         # par l'inclusion d'une ANNEXE (`_filter_bar.html`, `_queue_toolbar.html`). Mesuré en
         # posant les symboles : le remplacement faisait tomber la barre de filtrage de 14 à 2
         # et la file de 81 à 2 — vrai d'un côté, faux de l'autre. Les deux sont des adoptions.
-    motifs = []
-    for chemin in siens:
-        if chemin.endswith('.py'):
-            pointe = chemin[:-3].replace('/', '.')      # wama/common/x.py → wama.common.x
-            feuille = chemin.rsplit('/', 1)[-1][:-3]     # → x
-            # Les trois alternatives contiennent `feuille` (`pointe` finit par elle).
-            motifs.append((feuille, re.compile(
-                rf'(?:from\s+{re.escape(pointe)}\s+import|import\s+{re.escape(pointe)}\b'
-                rf'|from\s+[.\w]*\.?{re.escape(feuille)}\s+import)')))
+    patterns = []
+    for path in own:
+        if path.endswith('.py'):
+            dotted = path[:-3].replace('/', '.')       # wama/common/x.py → wama.common.x
+            leaf = path.rsplit('/', 1)[-1][:-3]        # → x
+            # Les trois alternatives contiennent `leaf` (`dotted` finit par elle).
+            patterns.append((leaf, re.compile(
+                rf'(?:from\s+{re.escape(dotted)}\s+import|import\s+{re.escape(dotted)}\b'
+                rf'|from\s+[.\w]*\.?{re.escape(leaf)}\s+import)')))
         else:
             # Brique front (.js/.html) : consommée par la référence de son NOM de fichier
             # (balise <script src=…>, {% include %}, {% static %}).
-            nom = chemin.rsplit('/', 1)[-1]
-            motifs.append((nom, re.compile(re.escape(nom))))
-    return sorted(par_symbole | {rel for rel, src in sources.items()
-                                 if rel not in siens
-                                 and any(lit in src and m.search(src) for lit, m in motifs)})
+            name = path.rsplit('/', 1)[-1]
+            patterns.append((name, re.compile(re.escape(name))))
+    return sorted(by_symbol | {rel for rel, src in sources.items()
+                               if rel not in own
+                               and any(lit in src and p.search(src) for lit, p in patterns)})
 
 
 @lru_cache(maxsize=1)
-def _apps_notees() -> tuple:
+def _scored_apps() -> tuple:
     """Apps du catalogue effectivement NOTÉES par la grille (les jumelles sandbox sont hors)."""
     try:
         from wama.common.app_registry import APP_CATALOG
@@ -170,70 +174,71 @@ def _apps_notees() -> tuple:
 #: queue_entry 40) — donc autant de lignes d'adoption gonflées.
 #: Même règle, même raison que `conformity_checker._AppFiles.code_paths()`, qui écarte déjà
 #: `tests*`/`nightly_*` : *une preuve qui pointe un test dit qu'on a regardé au mauvais endroit.*
-PREFIXES_DE_HARNAIS = ('tests', 'test_', 'nightly_')
+HARNESS_PREFIXES = ('tests', 'test_', 'nightly_')
 
 
-def _est_harnais(rel: str) -> bool:
-    return Path(rel).name.startswith(PREFIXES_DE_HARNAIS)
+def _is_harness(rel: str) -> bool:
+    return Path(rel).name.startswith(HARNESS_PREFIXES)
 
 
-def apps_consommatrices(mecanisme, sources: dict[str, str], consos=None) -> list[str]:
+def consuming_apps(mechanism, sources: dict[str, str], found=None) -> list[str]:
     """Apps du catalogue dont au moins un fichier NON-HARNAIS consomme le mécanisme.
 
-    Cf. `PREFIXES_DE_HARNAIS` : mesurer un mécanisme n'est pas l'adopter.
+    Cf. `HARNESS_PREFIXES` : mesurer un mécanisme n'est pas l'adopter.
     """
-    consos = consommateurs(mecanisme, sources) if consos is None else consos
-    utiles = [rel for rel in consos if not _est_harnais(rel)]
-    return [a for a in _apps_notees()
-            if any(rel.startswith(f'wama/{a}/') for rel in utiles)]
+    found = consumers(mechanism, sources) if found is None else found
+    useful = [rel for rel in found if not _is_harness(rel)]
+    return [a for a in _scored_apps()
+            if any(rel.startswith(f'wama/{a}/') for rel in useful)]
 
 
-def matrice_adoption(sources: dict[str, str] | None = None) -> dict:
+def adoption_matrix(sources: dict[str, str] | None = None) -> dict:
     """
-    Mesure complète, UNE passe : {cle: {'consommateurs': [...], 'apps': [...], 'niveau_app': bool}}.
+    Mesure complète, UNE passe : {key: {'consommateurs': [...], 'apps': [...], 'niveau_app': bool}}.
 
     C'est la matière commune du rendu de la carte, du contrôle de jonction et (à venir) de la
-    page développeur : une seule définition de l'adoption, pas trois.
+    page développeur : une seule définition de l'adoption, pas trois. ⚠ Les CLÉS du dict
+    rendu restent en français : c'est une donnée lue par ses consommateurs, pas un identifiant.
     """
-    from wama.common.mecanismes import MECANISMES
+    from wama.common.mecanismes import MECHANISMS
 
-    sources = charger_sources() if sources is None else sources
-    mesure = {}
-    for m in MECANISMES:
-        consos = consommateurs(m, sources)
-        apps = apps_consommatrices(m, sources, consos)
-        mesure[m.cle] = {'consommateurs': consos, 'apps': apps, 'niveau_app': bool(apps)}
-    return mesure
+    sources = load_sources() if sources is None else sources
+    measure = {}
+    for m in MECHANISMS:
+        found = consumers(m, sources)
+        apps = consuming_apps(m, sources, found)
+        measure[m.key] = {'consommateurs': found, 'apps': apps, 'niveau_app': bool(apps)}
+    return measure
 
 
-def mecanismes_sans_critere(sources: dict[str, str] | None = None) -> list[tuple]:
+def mechanisms_without_criterion(sources: dict[str, str] | None = None) -> list[tuple]:
     """
     LE contrôle de jonction : mécanismes de NIVEAU APP qu'AUCUN critère de grille ne vérifie.
 
-    Retourne [(mecanisme, apps_qui_l_adoptent)] trié par adoption décroissante — les plus
+    Retourne [(mechanism, apps_qui_l_adoptent)] trié par adoption décroissante — les plus
     répandus d'abord, ce sont les trous les plus coûteux. Une brique adoptée par 10 apps et
     vérifiée nulle part est exactement le cas qui a laissé `card_gear` diverger sans signal.
     """
-    from wama.common.mecanismes import MECANISMES, par_cle
+    from wama.common.mecanismes import MECHANISMS
     from wama.common.services.conformity_checker import CRITERIA
 
-    couverts = {c.mecanisme for c in CRITERIA if getattr(c, 'mecanisme', '')}
-    mesure = matrice_adoption(sources)
-    trous = [(m, mesure[m.cle]['apps']) for m in MECANISMES
-             if mesure[m.cle]['niveau_app'] and m.cle not in couverts]
-    return sorted(trous, key=lambda t: (-len(t[1]), t[0].cle))
+    covered = {c.mechanism for c in CRITERIA if getattr(c, 'mechanism', '')}
+    measure = adoption_matrix(sources)
+    gaps = [(m, measure[m.key]['apps']) for m in MECHANISMS
+            if measure[m.key]['niveau_app'] and m.key not in covered]
+    return sorted(gaps, key=lambda t: (-len(t[1]), t[0].key))
 
 
-def criteres_orphelins() -> list[str]:
+def orphan_criteria() -> list[str]:
     """
-    Garde-fou SYMÉTRIQUE : critère dont le `mecanisme=` ne correspond à aucune clé du registre.
+    Garde-fou SYMÉTRIQUE : critère dont le `mechanism=` ne correspond à aucune clé du registre.
 
     Sans lui, une faute de frappe dans la liaison la rendrait silencieusement inerte — le
     critère se croirait rattaché et le contrôle ci-dessus continuerait de signaler le trou.
     """
-    from wama.common.mecanismes import par_cle
+    from wama.common.mecanismes import by_key
     from wama.common.services.conformity_checker import CRITERIA
 
-    connues = par_cle()
-    return sorted({c.mecanisme for c in CRITERIA
-                   if getattr(c, 'mecanisme', '') and c.mecanisme not in connues})
+    known = by_key()
+    return sorted({c.mechanism for c in CRITERIA
+                   if getattr(c, 'mechanism', '') and c.mechanism not in known})

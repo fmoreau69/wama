@@ -223,6 +223,39 @@ def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
     return wrapped
 
 
+#: Vocabulaires de statut variables selon les apps (reader : DONE/ERROR…) —
+#: même tolérance que _cycle_button.html / wama-cycle-button.js stateFor().
+STATUS_ALIASES = {'DONE': 'SUCCESS', 'COMPLETED': 'SUCCESS', 'ERROR': 'FAILURE',
+                  'FAILED': 'FAILURE', 'PROCESSING': 'RUNNING', 'STARTED': 'RUNNING'}
+
+
+def normalized_statuses(works):
+    """Statuts des éléments ramenés au vocabulaire commun (SUCCESS/RUNNING/FAILURE…)."""
+    return [STATUS_ALIASES.get((w.status or '').upper(), (w.status or '').upper()) for w in works]
+
+
+def status_counts(works):
+    """Compteurs d'un lot tels que les affiche sa card mère (`_batch_card.html`).
+
+    Sortis de `build_batches_list` le 2026-09-15 : la suppression d'une card de lot sans
+    rechargement de la page doit rendre à la brique JS les MÊMES compteurs que le rendu de la
+    file — deux calculs auraient fini par diverger.
+    """
+    statuses = normalized_statuses(works)
+    counts = {
+        'success_count': statuses.count('SUCCESS'),
+        'running_count': statuses.count('RUNNING'),
+        'failure_count': statuses.count('FAILURE'),
+        # AWAITING_RESOURCES (02/09) : compté À PART de l'attente ordinaire — le filtre
+        # de file « En attente de ressources » repose dessus, et le ranger dans le
+        # brouillon rendrait l'état invisible (c'est un état qui appelle un GESTE :
+        # baisser le curseur de qualité, ou attendre — cf. common/models.py).
+        'awaiting_count': statuses.count('AWAITING_RESOURCES'),
+    }
+    counts['has_success'] = counts['success_count'] > 0
+    return counts
+
+
 def build_batches_list(user, *, batch_model, work_attr, items_related='items',
                        order_by='-id', has_output=None, extra=None):
     """Agrégats de file pour le template — contrat de la toolbar commune (``queue_view.py``).
@@ -277,28 +310,11 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         for _it in items:
             _it.elem = getattr(_it, work_attr, None)
         works = [it.elem for it in items if it.elem]
-        # Vocabulaires de statut variables selon les apps (reader : DONE/ERROR…) —
-        # même tolérance que _cycle_button.html / wama-cycle-button.js stateFor().
-        _ALIAS = {'DONE': 'SUCCESS', 'COMPLETED': 'SUCCESS', 'ERROR': 'FAILURE',
-                  'FAILED': 'FAILURE', 'PROCESSING': 'RUNNING', 'STARTED': 'RUNNING'}
-        statuses = [_ALIAS.get((w.status or '').upper(), (w.status or '').upper()) for w in works]
-        row = {
-            'obj': batch,
-            'items': items,
-            'success_count': statuses.count('SUCCESS'),
-            'running_count': statuses.count('RUNNING'),
-            'failure_count': statuses.count('FAILURE'),
-            # AWAITING_RESOURCES (02/09) : compté À PART de l'attente ordinaire — le filtre
-            # de file « En attente de ressources » repose dessus, et le ranger dans le
-            # brouillon rendrait l'état invisible (c'est un état qui appelle un GESTE :
-            # baisser le curseur de qualité, ou attendre — cf. common/models.py).
-            'awaiting_count': statuses.count('AWAITING_RESOURCES'),
-        }
+        statuses = normalized_statuses(works)
+        row = {'obj': batch, 'items': items, **status_counts(works)}
         if has_output is not None:
             row['has_success'] = any(s == 'SUCCESS' and has_output(w)
                                      for s, w in zip(statuses, works))
-        else:
-            row['has_success'] = row['success_count'] > 0
         if extra is not None:
             row.update(extra(batch, items, works) or {})
         result.append(row)
@@ -433,6 +449,60 @@ def elements_du_lot(lot, modele_element):
                 sortie.append(valeur)
             break
     return sortie
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Position d'un élément dans la file — pour les rendus HORS de la page d'index
+# ─────────────────────────────────────────────────────────────────────────────
+
+def is_batch_child(element):
+    """L'élément s'affiche-t-il comme FILLE d'un lot (lot de plusieurs cards) ?
+
+    C'est la valeur `in_batch` que reçoivent les cards d'app. Au rendu de la file,
+    `common/_queue_entry.html` la pose d'après `is_unitary` — c'est une propriété de la
+    POSITION dans la file, pas de l'app. Mais les vues `card_html`, qui rendent une card
+    SEULE (rafraîchissement, suppression sans rechargement de la page), la recalculaient
+    chacune à la main. Mesuré le 2026-09-15 sur les 11 vues : cinq variantes, dont une
+    fausse (`.exists()` de l'enhancer — un lot unitaire rendait une card de fille) et quatre
+    absentes (converter, synthesizer, avatarizer, imager — la fille rafraîchie perdait son
+    apparence de fille). Même décision que le gabarit : un lot existe et n'est pas unitaire.
+    """
+    batch = batch_of(element)
+    return bool(batch is not None and not batch.is_unitary)
+
+
+def batch_snapshot(element):
+    """Référence `(modèle de lot, id)` du lot de l'élément, ou None — à relever AVANT sa suppression.
+
+    Après, la liaison est partie avec l'élément (cascade) et `batch_of` ne trouverait plus
+    rien. On garde une RÉFÉRENCE et non l'instance : sur la forme à FK directe, l'instance est
+    celle-là même que le signal `batch_sync` supprime quand le lot se vide — sa clé primaire
+    passe alors à None et elle ne désigne plus rien.
+    """
+    batch = batch_of(element)
+    return None if batch is None else (type(batch), batch.pk)
+
+
+def batch_state(snapshot, element_model):
+    """État du lot APRÈS le retrait d'un élément — ce que la brique `queue-actions.js` affiche.
+
+    Rend None si l'élément n'était dans aucun lot, sinon ``{'id', 'total', **status_counts}``.
+    ``total == 0`` : le lot a disparu (`batch_sync` supprime un lot vidé) ; ``1`` : il
+    redevient une card simple ; au-delà, la card mère change ses compteurs.
+
+    Remplace le drapeau `batch_changed` (2026-09-15) : il ne disait que « il y avait un lot »,
+    et la brique ne savait qu'en faire une chose — recharger la page, ce qui ramène
+    l'utilisateur en haut de la file. Le serveur dit maintenant CE QUE DEVIENT le lot, et la
+    brique met la file à jour sans rechargement de la page.
+    """
+    if snapshot is None:
+        return None
+    batch_model, batch_id = snapshot
+    batch = batch_model.objects.filter(pk=batch_id).first()
+    if batch is None:
+        return {'id': batch_id, 'total': 0}
+    return {'id': batch_id, 'total': batch.total,
+            **status_counts(elements_du_lot(batch, element_model))}
 
 
 def batch_model_for_app(app_name):

@@ -299,6 +299,27 @@ class CheminDeLotTest(SimpleTestCase):
                              f'la vue delete générée reduplique le nettoyage de lot ({motif}) '
                              f'— `batch_sync` le fait déjà, et le doublon rend un 500')
 
+    def test_la_vue_delete_generee_passe_par_la_brique_commune_du_lot(self):
+        """Une app GÉNÉRÉE répond l'état du lot comme les apps réelles : `batch_snapshot` AVANT la
+        suppression, `batch_state` dans la réponse (2026-09-15 — c'est ce qui permet à
+        `queue-actions.js` de mettre la file à jour sans rechargement de la page). Lu par AST : un
+        commentaire qui cite les noms ne compte pas, et l'ORDRE est vérifié — relevé après la
+        suppression, la liaison est déjà partie et le lot introuvable."""
+        import ast
+        from wama.common.manifests.codegen.views_gen import render_views
+        from wama.common.manifests.ingest import extract
+        src, raison = render_views(extract('app', SOURCE))
+        self.assertIsNotNone(src, raison)
+        fonction = next(n for n in ast.walk(ast.parse(src))
+                        if isinstance(n, ast.FunctionDef) and n.name == 'delete')
+        appels = [(n.lineno, getattr(n.func, 'id', None) or getattr(n.func, 'attr', None))
+                  for n in ast.walk(fonction) if isinstance(n, ast.Call)]
+        ligne = {nom: l for l, nom in sorted(appels, reverse=True)}
+        for nom in ('batch_snapshot', 'batch_state', 'delete'):
+            self.assertIn(nom, ligne, f'appel `{nom}` absent de la vue delete générée')
+        self.assertLess(ligne['batch_snapshot'], ligne['delete'],
+                        'le lot doit être relevé AVANT la suppression')
+
     def test_sans_conteneur_json_aucun_routage_invente(self):
         # Discriminant : un modèle SANS champ `options` ne doit recevoir aucun bloc _extras —
         # écrire dans un attribut inexistant serait le défaut silencieux type.

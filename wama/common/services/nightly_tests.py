@@ -395,6 +395,7 @@ try:
     from wama.common.services.ui_smoke import (register_batch_actions_scenarios,
                                                register_batch_import_scenarios,
                                                register_clear_all_scenarios,
+                                               register_delete_from_batch_scenarios,
                                                register_duplicate_delete_scenarios,
                                                register_folder_import_scenarios,
                                                register_import_scenarios,
@@ -443,6 +444,10 @@ try:
     # d'être portés à la brique commune sur 5 apps. Un portage non exercé est un portage supposé ;
     # celui-ci commence par dire si l'app est portée (URLs émises) avant de mesurer le geste.
     register_batch_actions_scenarios()
+    # 2026-09-15 — SUPPRIMER les cards d'un lot, sans rechargement de la page. Relevé par
+    # Fabien le 14/09 (lot réduit à une card resté affiché en lot) et corrigé AU COMMUN : ni un
+    # rechargement ni un lot figé ne lèvent d'erreur, seul le navigateur les voit.
+    register_delete_from_batch_scenarios()
     # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
     # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
     register_volet_scenarios()

@@ -407,7 +407,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // (a full reload interrupts audio preview and reloads the slow FileManager)
                 if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                     try {
-                        const cardResp = await fetch(URLS.cardHtml + id + '/card/');
+                        const cardResp = await fetch(WamaApp.getUrl(URLS.cardHtml, id));
                         if (cardResp.ok) {
                             const html = await cardResp.text();
                             const temp = document.createElement('div');

@@ -1652,6 +1652,7 @@
         "batch_status",
         "batch_template",
         "batch_update_settings",
+        "card_html",
         "clear_all",
         "console",
         "consolidate",
@@ -1678,7 +1679,6 @@
         "start",
         "start_all",
         "stop",
-        "synthesis_card_html",
         "text_preview",
         "update_options",
         "upload",
@@ -1734,11 +1734,6 @@
           "name": "progress",
           "pattern": "progress/<int:pk>/",
           "view": "views.progress"
-        },
-        {
-          "name": "synthesis_card_html",
-          "pattern": "synthesis/<int:pk>/card/",
-          "view": "views.synthesis_card_html"
         },
         {
           "name": "global_progress",

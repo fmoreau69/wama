@@ -325,7 +325,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (18) :
+- **API publique** (19) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -339,9 +339,10 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
   - `install_from_spec(spec: dict) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
   - `pip_spec_error(spec: str)` — Motif de refus d'un spécificateur pip, ou None s'il passe les verrous syntaxiques.
-  - `pip_install_packages(packages, timeout: int=1800, no_deps: bool=False) -> dict` — Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un
+  - `pip_constraint_errors(constraints) -> list` — Motifs de refus des contraintes pip — mêmes verrous qu'un spécificateur.
+  - `pip_install_packages(packages, timeout: int=1800, no_deps: bool=False, constraints=None) -> dict` — Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un
   - `ensure_backend_deps(backend_cls, timeout: int=1800) -> dict` — Installe les paquets manquants d'un backend (classe `BaseModelBackend`) si nécessaire.
-  - `simuler_installation(spec: str, timeout: int=300) -> dict` — Ce qu'une installation ENTRAÎNERAIT — `pip install --dry-run`, LECTURE SEULE.
+  - `simuler_installation(spec: str, timeout: int=300, constraints=None) -> dict` — Ce qu'une installation ENTRAÎNERAIT — `pip install --dry-run`, LECTURE SEULE.
   - `install_library(key: str, apply: bool=False) -> dict` — Installe UNE librairie depuis son registre (`common.models.Library`) — la JONCTION
   - `install_requirements(app_key: str, apply: bool=False) -> dict` — Le MARCHEUR d'app (« application = modèles + librairies », reste ③ de la route
 
@@ -421,7 +422,7 @@ UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de
 
 ### Barre de filtrage
 
-Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre (`toolbar_registre`), donc la même dans les registres et dans les 12 files. Masquage PAR CLASSE (`.wama-f-hors-filtre`) et non par `style.display` : une cible à `display` inline (l'entrée unitaire de file est en `display:contents`) ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans quoi deux files sur une même page se filtreraient l'une l'autre
+Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server). Depuis le 2026-09-08 la recherche est un OUTIL du registre de barre (`toolbar_registry`), donc la même dans les registres et dans les 12 files. Masquage PAR CLASSE (`.wama-f-hors-filtre`) et non par `style.display` : une cible à `display` inline (l'entrée unitaire de file est en `display:contents`) ne survivait pas à la restauration. `data-cible-dans` BORNE la recherche — sans quoi deux files sur une même page se filtreraient l'une l'autre
 
 - **Domicile** : `wama/common/static/common/js/wama-filter-bar.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -568,7 +569,7 @@ Une balise `WAMA:SECTION(audience=…; type=…; nature=…; etat=…)` sous un 
 
 ### Menu contextuel de card/lot + débordement « … »
 
-Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait
+Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)
 
 - **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -678,11 +679,12 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
 
 - **Domicile** : `wama/common/utils/llm_utils.py`
 - **Module** : WAMA Common — LLM utilities Shared Ollama client for use in Celery workers (transcriber, describer, ...).
-- **API publique** (11) :
+- **API publique** (12) :
   - `get_describer_model(content_type: str, output_style: str) -> str` — Return the Ollama model name to use for a given (content_type, output_style) pair.
   - `modele_par_defaut() -> str` — Modèle LLM à utiliser quand l'appelant n'en impose aucun — résolu, jamais figé.
   - `modele_par_tier(tier: str='default', exige=None, priority=None, prefer_loaded: bool=True) -> str` — Résolution PUBLIQUE d'un tier (`heavy`/`default`/`fast`) — même mécanique que
   - `ollama_chat(messages: list, model: str='', num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, keep_alive: Optional[str…` — Send a chat request to the local Ollama server.
+  - `default_cloud_model(provider: str) -> str` — Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon `CLOUD_DEFAULT_MODELS`.
   - `llm_chat(messages: list, model: str=None, provider: str=None, num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, api_k…` — Unified LLM chat function — provider-agnostic entry point.
   - `extract_json_from_llm(text: str) -> Optional[dict]` — Extract the first valid JSON object from an LLM response.
   - `generate_meeting_summary(text: str, language: str='fr', speakers: Optional[list]=None, model: str='', provider: Optional[str]=None) -> str` — Generate a structured meeting summary (compte-rendu de réunion).
@@ -842,14 +844,14 @@ Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jo
 - **Domicile** : `wama/common/services/mecanismes_scan.py` · **doc** : [docs/construction/architecture/WAMA_MECANISMES.md](../construction/architecture/WAMA_MECANISMES.md)
 - **Module** : Balayage d'ADOPTION des mécanismes : qui consomme quoi, et à quel niveau.
 - **API publique** (8) :
-  - `modules_python(base: Path)` — Chemins .py de notre code (relatifs à base), vendored et artefacts élagués.
-  - `sources_front(base: Path)` — Chemins .html/.js de notre front (templates + static d'app), relatifs à base.
-  - `charger_sources(base: Path | None=None) -> dict[str, str]` — {chemin relatif: contenu} pour tout le corpus balayé. Coûteux : à charger UNE fois.
-  - `consommateurs(mecanisme, sources: dict[str, str]) -> list[str]` — Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même.
-  - `apps_consommatrices(mecanisme, sources: dict[str, str], consos=None) -> list[str]` — Apps du catalogue dont au moins un fichier NON-HARNAIS consomme le mécanisme.
-  - `matrice_adoption(sources: dict[str, str] | None=None) -> dict` — Mesure complète, UNE passe : {cle: {'consommateurs': [...], 'apps': [...], 'niveau_app': bool}}.
-  - `mecanismes_sans_critere(sources: dict[str, str] | None=None) -> list[tuple]` — LE contrôle de jonction : mécanismes de NIVEAU APP qu'AUCUN critère de grille ne vérifie.
-  - `criteres_orphelins() -> list[str]` — Garde-fou SYMÉTRIQUE : critère dont le `mecanisme=` ne correspond à aucune clé du registre.
+  - `python_modules(base: Path)` — Chemins .py de notre code (relatifs à base), vendored et artefacts élagués.
+  - `front_sources(base: Path)` — Chemins .html/.js de notre front (templates + static d'app), relatifs à base.
+  - `load_sources(base: Path | None=None) -> dict[str, str]` — {chemin relatif: contenu} pour tout le corpus balayé. Coûteux : à charger UNE fois.
+  - `consumers(mechanism, sources: dict[str, str]) -> list[str]` — Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même.
+  - `consuming_apps(mechanism, sources: dict[str, str], found=None) -> list[str]` — Apps du catalogue dont au moins un fichier NON-HARNAIS consomme le mécanisme.
+  - `adoption_matrix(sources: dict[str, str] | None=None) -> dict` — Mesure complète, UNE passe : {key: {'consommateurs': [...], 'apps': [...], 'niveau_app': bool}}.
+  - `mechanisms_without_criterion(sources: dict[str, str] | None=None) -> list[tuple]` — LE contrôle de jonction : mécanismes de NIVEAU APP qu'AUCUN critère de grille ne vérifie.
+  - `orphan_criteria() -> list[str]` — Garde-fou SYMÉTRIQUE : critère dont le `mechanism=` ne correspond à aucune clé du registre.
 
 ### Application du corpus de manifestes
 
@@ -1049,7 +1051,7 @@ duplicate_instance() et safe_delete_file() — fichiers partagés entre items
 
 ### Entrée de file (card seule OU lot)
 
-Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans les gabarits d'app (10 au dernier compte — le partial fait foi) ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives
+Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans les gabarits d'app (10 au dernier compte — le partial fait foi) ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives. Depuis le 2026-09-15 l'entrée porte `data-card-url` : quand une suppression réduit un lot à une card, `queue-actions.js` la redemande au serveur et la file se met à jour sans rechargement de la page (la vue dit l'état du lot : `batch_common.batch_state` ; la position d'une card seule : `is_batch_child`)
 
 - **Domicile** : `wama/common/templates/common/_queue_entry.html` · **doc** : [docs/construction/ui/CARD_DESIGN.md §11.2](../construction/ui/CARD_DESIGN.md)
 
@@ -1410,10 +1412,11 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (10) :
+- **API publique** (11) :
   - `app_group(app_id)`
   - `app_id_for_path(path)` — app_id gardé correspondant à un chemin de requête, ou None.
   - `tool_accessible(user, tool_name)` — Un user peut-il exécuter cet outil `tool_api` ? MÊME décision que `accessible()` : la
+  - `is_developer(user)` — Développeur ou administrateur — DOMICILE UNIQUE du prédicat (2026-09-15).
   - `all_gated_apps()` — Ensemble des app_ids soumis au contrôle d'accès (pour calculer accessible_apps).
   - `tier_rank(tier)`
   - `user_tier(user)`
@@ -1860,7 +1863,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (80) :
+- **API publique** (82) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `add_to_anonymizer(user, file_path: str, use_sam3: bool=False, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
@@ -1927,6 +1930,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `tool_role(tool_name)` — Rôle d'un outil dans la triade : 'add' | 'start' | 'status', sinon None.
   - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.
   - `tool_descriptions()` — Descriptions de TOUS les outils du registre, dérivées à la volée.
+  - `tool_input_schema(tool_name: str) -> dict` — Schéma JSON (`type: object`) des arguments d'un outil du registre — DÉRIVÉ, jamais écrit.
+  - `input_schema_for(fn, index=None) -> dict` — Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma
   - `primary_arg_name(tool_name: str)` — Nom du 1er paramètre « utile » d'un outil (celui qui suit `user`), ou None.
   - `sanitize_tool_args(tool_name: str, args: dict)` — Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis
   - `execute_tool(tool_name: str, args: dict, user) -> dict` — Dispatch a tool call from the agentic loop.

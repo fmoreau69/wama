@@ -404,7 +404,7 @@ depuis le volet compose (source serveur unique, optgroups aplatis).{% endcomment
             batchDuplicate: "/synthesizer/batch/",
             batchSettings: "/synthesizer/batch/",
             importIndividualFromPath: "{% url 'synthesizer:import_individual_from_path' %}",
-            cardHtml: "/synthesizer/synthesis/"
+            cardHtml: "{% url 'synthesizer:card_html' 0 %}"
         },
         csrfToken: "{{ csrf_token }}"
     };

@@ -1395,16 +1395,14 @@ def delete_generation(request, generation_id):
 
     try:
         generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
-        # Membre d'un LOT ? Relevé AVANT la purge (le lien est cascade-supprimé avec lui). Contrat
-        # commun de `queue-actions.js` : `batch_changed` fait recharger pour rendre le lot recalculé.
-        from wama.common.utils.batch_utils import find_member_batch
-        from .models import GenerationBatchItem
-        parent_batch = find_member_batch(GenerationBatchItem, generation=generation)
+        # Lot de l'élément, relevé AVANT la purge — brique commune (`batch_common`).
+        from wama.common.utils.batch_common import batch_snapshot, batch_state
+        snapshot = batch_snapshot(generation)
         _purger_generation(generation)
         logger.info(f"Deleted generation #{generation_id}")
 
         return JsonResponse({'success': True, 'message': 'Generation deleted',
-                             'batch_changed': parent_batch is not None})
+                             'batch': batch_state(snapshot, ImageGeneration)})
 
     except Http404:
         raise
@@ -1432,15 +1430,23 @@ def _decorate_card(gen):
 
 def card_html(request, generation_id):
     """Partial d'UNE card (contrat card_html/refreshCard) — même rendu que la boucle de file,
-    consommé par queue.js sur transition de statut (remplace le repaint DOM manuel)."""
+    consommé par queue.js sur transition de statut (remplace le repaint DOM manuel).
+
+    ⚠ Répond du HTML, comme les 9 autres vues `card_html` (2026-09-15). L'imager était seul à
+    répondre `{'html', 'status'}` en JSON : une brique commune qui rend une card sans
+    rechargement de la page ne pouvait donc pas le servir sans une lecture à part pour lui —
+    et `status` n'avait aucun lecteur (`queue.js` ne lisait que `html`)."""
+    from django.http import HttpResponse
     from django.template.loader import render_to_string
+    from wama.common.utils.batch_common import is_batch_child
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     generation = visible_or_404(ImageGeneration, user, id=generation_id)   # LECTURE
     _decorate_card(generation)
     domain = 'video' if generation.is_video_generation else 'image'
     html = render_to_string('imager/_generation_card.html',
-                            {'elem': generation, 'domain': domain}, request=request)
-    return JsonResponse({'html': html, 'status': generation.status})
+                            {'elem': generation, 'domain': domain,
+                             'in_batch': is_batch_child(generation)}, request=request)
+    return HttpResponse(html)
 
 
 @require_http_methods(["POST"])
