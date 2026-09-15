@@ -271,7 +271,7 @@ def api_key_save(request, slug):
     from .models import UserApiKey
     from wama.common.utils.secret_crypto import SecretStorageUnavailable
 
-    if not is_llm_source(slug):
+    if not is_llm_source(slug, request.user):
         return JsonResponse({'error': 'Fournisseur introuvable'}, status=404)
     try:
         data = json.loads(request.body)

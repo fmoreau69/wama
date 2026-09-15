@@ -293,6 +293,8 @@ class ModelSource(models.TextChoices):
     # distant entre au catalogue par DÉCOUVERTE, avec la clé d'un utilisateur ; son moteur se lit
     # dans `composition.runtime.engine`, comme pour tout modèle : le fournisseur se DÉRIVE.
     ALBERT = 'albert', 'Albert API (DINUM)'
+    ANTHROPIC = 'anthropic', 'API Anthropic (Claude)'
+    CLAUDE_CODE = 'claude_code', 'Claude Code (abonnement)'
     OLLAMA = 'ollama', 'Ollama'
     HUGGINGFACE = 'huggingface', 'HuggingFace'
     CUSTOM = 'custom', 'Custom'

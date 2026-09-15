@@ -35,6 +35,24 @@ _TASK_ABILITIES = {
 }
 
 
+#: Version d'API qu'Anthropic exige sur chaque requête.
+ANTHROPIC_VERSION = '2023-06-01'
+#: En-tête bêta qu'un jeton OAuth d'ABONNEMENT exige sur l'API Anthropic. ⚠ NON MESURÉ au
+#: 2026-09-15 (aucun jeton personnel enregistré) : un refus revient comme erreur de découverte
+#: lisible, et la clé reste posée — le CLI, lui, n'a pas besoin de cette liste pour fonctionner.
+ANTHROPIC_OAUTH_BETA = 'oauth-2025-04-20'
+
+
+def _auth_headers(src, api_key: str) -> dict:
+    """En-têtes d'authentification de la liste de modèles, selon le protocole DÉCLARÉ."""
+    if src.protocol == 'anthropic':
+        return {'x-api-key': api_key, 'anthropic-version': ANTHROPIC_VERSION}
+    if src.protocol == 'claude_cli':
+        return {'Authorization': f'Bearer {api_key}', 'anthropic-version': ANTHROPIC_VERSION,
+                'anthropic-beta': ANTHROPIC_OAUTH_BETA}
+    return {'Authorization': f'Bearer {api_key}'}
+
+
 class CloudDiscoveryError(RuntimeError):
     """Découverte impossible — message lisible par l'utilisateur, jamais la clé."""
 
@@ -58,13 +76,15 @@ def task_and_type(remote_type: str):
 
 
 def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list:
-    """Modèles ouverts à `api_key` chez `source` : [{id, type, aliases}]."""
+    """Modèles ouverts à `api_key` chez `source` : [{id, name, type, aliases}]."""
     import requests
 
-    label = external_sources.get(source).label
+    src = external_sources.get(source)
+    label = src.label
+    params = {'limit': 1000} if src.protocol in ('anthropic', 'claude_cli') else None
     try:
         r = requests.get(f"{external_sources.base_url(source)}/models",
-                         headers={'Authorization': f'Bearer {api_key}'},
+                         headers=_auth_headers(src, api_key), params=params,
                          proxies=external_sources.proxies_for(source), timeout=timeout)
     except requests.RequestException as exc:
         raise CloudDiscoveryError(f"{label} injoignable ({type(exc).__name__})") from exc
@@ -72,8 +92,16 @@ def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list
         raise CloudDiscoveryError(f"clé refusée par {label} (HTTP {r.status_code})")
     if not r.ok:
         raise CloudDiscoveryError(f"{label} : HTTP {r.status_code}")
-    return [{'id': m['id'], 'type': m.get('type') or '', 'aliases': m.get('aliases') or []}
-            for m in (r.json().get('data') or []) if m.get('id')]
+    out = []
+    for m in (r.json().get('data') or []):
+        if not m.get('id'):
+            continue
+        # Protocole OpenAI (Albert) : `type` est une tâche. Chez Anthropic, `type` vaut « model »
+        # (la nature de l'objet), pas une tâche : on prend alors le type DÉCLARÉ par la source.
+        remote_type = (m.get('type') if src.protocol == 'openai' else '') or src.default_remote_type
+        out.append({'id': m['id'], 'name': m.get('display_name') or m['id'],
+                    'type': remote_type or '', 'aliases': m.get('aliases') or []})
+    return out
 
 
 def upsert_catalog(source: str, remote: list) -> list:
@@ -88,7 +116,7 @@ def upsert_catalog(source: str, remote: list) -> list:
             continue
         key = f"{source}:{m['id']}"
         AIModel.objects.update_or_create(model_key=key, defaults={
-            'name': m['id'],
+            'name': m.get('name') or m['id'],
             'model_type': model_type,
             'source': source,
             'execution': EXECUTION_CLOUD,
