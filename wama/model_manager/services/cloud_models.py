@@ -37,19 +37,17 @@ _TASK_ABILITIES = {
 
 #: Version d'API qu'Anthropic exige sur chaque requête.
 ANTHROPIC_VERSION = '2023-06-01'
-#: En-tête bêta qu'un jeton OAuth d'ABONNEMENT exige sur l'API Anthropic. ⚠ NON MESURÉ au
-#: 2026-09-15 (aucun jeton personnel enregistré) : un refus revient comme erreur de découverte
-#: lisible, et la clé reste posée — le CLI, lui, n'a pas besoin de cette liste pour fonctionner.
-ANTHROPIC_OAUTH_BETA = 'oauth-2025-04-20'
+#: Protocoles SANS liste de modèles. ⚠ MESURÉ le 2026-09-15 : le jeton `claude setup-token` est
+#: REFUSÉ (HTTP 401) par `GET /v1/models`, alors qu'il fait tourner le CLI (appel réel OK). Le
+#: CLI choisit lui-même son modèle : il n'y a donc rien à découvrir, et un « refus » affiché au
+#: profil aurait laissé croire que le jeton ne marche pas.
+UNLISTABLE_PROTOCOLS = ('claude_cli',)
 
 
 def _auth_headers(src, api_key: str) -> dict:
     """En-têtes d'authentification de la liste de modèles, selon le protocole DÉCLARÉ."""
     if src.protocol == 'anthropic':
         return {'x-api-key': api_key, 'anthropic-version': ANTHROPIC_VERSION}
-    if src.protocol == 'claude_cli':
-        return {'Authorization': f'Bearer {api_key}', 'anthropic-version': ANTHROPIC_VERSION,
-                'anthropic-beta': ANTHROPIC_OAUTH_BETA}
     return {'Authorization': f'Bearer {api_key}'}
 
 
@@ -81,7 +79,7 @@ def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list
 
     src = external_sources.get(source)
     label = src.label
-    params = {'limit': 1000} if src.protocol in ('anthropic', 'claude_cli') else None
+    params = {'limit': 1000} if src.protocol == 'anthropic' else None
     try:
         r = requests.get(f"{external_sources.base_url(source)}/models",
                          headers=_auth_headers(src, api_key), params=params,
@@ -145,6 +143,10 @@ def refresh_key(row) -> tuple:
     """
     from django.utils import timezone
 
+    if external_sources.get(row.source).protocol in UNLISTABLE_PROTOCOLS:
+        row.open_models, row.discovered_at, row.discovery_error = [], timezone.now(), ''
+        row.save(update_fields=['open_models', 'discovered_at', 'discovery_error'])
+        return 0, ''
     try:
         remote = list_remote_models(row.source, row.api_key)
     except CloudDiscoveryError as exc:
@@ -157,6 +159,20 @@ def refresh_key(row) -> tuple:
     row.discovery_error = ''
     row.save(update_fields=['open_models', 'discovered_at', 'discovery_error'])
     return len(row.open_models), ''
+
+
+def cloud_refusal(user) -> str:
+    """Motif de refus si `user` est en « 100 % local », sinon ''. Sans utilisateur : ''.
+
+    Domicile UNIQUE de la garde : l'appel LLM de l'assistant et `claude_code.demander` (outil
+    `ask_claude_code`, fournisseur abonnement, geste `!code`) la lisent tous deux.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return ''
+    if getattr(getattr(user, 'profile', None), 'cloud_policy', 'local_only') == 'local_only':
+        return ("Votre profil est en « 100 % local » : pour utiliser un fournisseur distant, "
+                "choisissez un autre niveau dans la carte « Modèles cloud » de la page Profil.")
+    return ''
 
 
 def allowed_cloud_keys(user, automatic: bool = True) -> set:

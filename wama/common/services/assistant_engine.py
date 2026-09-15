@@ -122,6 +122,57 @@ _PROVIDER_ALIAS = {'claude': 'anthropic'}
 #: session du 31/08 a dû lever, et le libellé d'UI doit la lever aussi.
 _SUBSCRIPTION_PROVIDERS = ('claude-abo',)
 
+#: Fournisseur DISTANT de la surface chat → source `external_sources` qui porte sa clé
+#: (2026-09-15). C'est la seule table à la main qui reste : elle traduit les noms historiques
+#: de la surface ; tout le reste (libellé, hébergement, coût, modèles) se lit de la source et
+#: du catalogue.
+PROVIDER_SOURCES = {'albert': 'albert', 'claude': 'anthropic', 'claude-abo': 'claude_code'}
+
+
+def chat_provider_choices(user) -> list:
+    """Fournisseurs DISTANTS du sélecteur du chat pour `user` — lus du profil et du catalogue.
+
+    Un fournisseur n'apparaît que si le niveau cloud n'est pas « 100 % local », que la clé est
+    posée et, pour l'abonnement, que l'utilisateur est développeur (même prédicat que la garde).
+    Ses modèles : « par défaut », puis ceux que SA clé ouvre et qui savent converser. Un
+    fournisseur sans liste de modèles (abonnement : le CLI choisit) n'en propose aucun.
+
+    Rend [{'provider', 'short', 'label', 'models': [{'value', 'label'}]}].
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return []
+    from wama.accounts.api_keys import configured_sources, llm_sources
+    from wama.common import external_sources
+    from wama.common.utils.llm_utils import default_cloud_model
+    from wama.model_manager.models import AIModel, COST_TIER_CHOICES
+    from wama.model_manager.services.cloud_models import (
+        UNLISTABLE_PROTOCOLS, allowed_cloud_keys, cloud_refusal,
+    )
+    if cloud_refusal(user):
+        return []
+    sources = {s.key: s for s in llm_sources(user)}
+    configured = configured_sources(user)
+    opened = allowed_cloud_keys(user, automatic=False)
+    costs = dict(COST_TIER_CHOICES)
+    choices = []
+    for provider, key in PROVIDER_SOURCES.items():
+        src = sources.get(key)
+        if src is None or key not in configured:
+            continue
+        models = []
+        if src.protocol not in UNLISTABLE_PROTOCOLS:
+            default = default_cloud_model(_PROVIDER_ALIAS.get(provider, provider))
+            models.append({'value': '', 'label': f"Par défaut ({default})"})
+            rows = (AIModel.objects.filter(model_key__in=opened, source=key,
+                                           model_type__in=('llm', 'vlm')).order_by('name'))
+            models += [{'value': m.model_id, 'label': m.name} for m in rows
+                       if (m.capabilities or {}).get('completion')]
+        details = ', '.join(d for d in (external_sources.HOSTING.get(src.hosting, ''),
+                                        costs.get(src.cost_tier, '')) if d)
+        choices.append({'provider': provider, 'short': src.label, 'models': models,
+                        'label': f"{src.label} — {details}" if details else src.label})
+    return choices
+
 
 def resolve_chat_model(key: str) -> str:
     """Rôle de chat ('dev', 'fast'…) → tag Ollama résolu par le catalogue (source unique) ;
@@ -397,6 +448,14 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None) -
     if (source and source.kind == 'llm' and user is not None
             and getattr(user, 'is_authenticated', False)):
         from wama.accounts.api_keys import key_for
+        from wama.model_manager.services.cloud_models import allowed_cloud_keys, cloud_refusal
+        refus = cloud_refusal(user)
+        if refus:
+            return None, {'error': refus, 'status': 403}
+        # Un modèle NOMMÉ doit être ouvert par la clé de CET utilisateur (découverte).
+        if llm_model and f"{source.key}:{llm_model}" not in allowed_cloud_keys(user, automatic=False):
+            return None, {'error': f"Le modèle « {llm_model} » n'est pas ouvert par votre clé "
+                                   f"{source.label}.", 'status': 403}
         api_key = key_for(user, source.key)
         if not api_key:
             return None, {'error': f"Aucune clé d'API {source.label} dans votre profil : "
