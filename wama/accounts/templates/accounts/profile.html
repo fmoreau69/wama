@@ -7,7 +7,83 @@
     .card.bg-dark .label-col { color: #9ca3af; }
     .card.bg-dark .value-col { color: #e5e7eb; }
     #tokenInput { font-family: monospace; letter-spacing: 0.05em; }
+    .profile-keys h6 { color: #e5e7eb; font-size: .85rem; font-weight: 600; margin: 1rem 0 .4rem; }
+    .profile-keys h6:first-child { margin-top: 0; }
+    .profile-keys .key-row { border-bottom: 1px solid #2d2d4e; padding: .5rem 0; }
 </style>
+{% endblock %}
+
+{% comment %}
+  VOLET DROIT (2026-09-15, consigne de Fabien) : TOUT ce qui touche aux clés vit ici — le jeton
+  d'API WAMA, les clés des fournisseurs LLM et celles des connecteurs de la médiathèque. Mécanisme
+  commun du volet (`common/utils/volet.py` + blocs de `base.html`) : la vue déclare
+  `volet(medias=False, actions=False)` et la page REMPLIT la section Paramètres.
+  Les deux listes de clés ont la même forme JSON et se rendent avec le même code (plus bas).
+{% endcomment %}
+{% block right_panel_settings_title %}<i class="fas fa-key me-1"></i> Clés d'API{% endblock %}
+{% block right_panel_settings %}
+<div class="profile-keys">
+    {% if not secret_storage_available %}
+    <div class="alert alert-warning small py-2">
+        <i class="fas fa-triangle-exclamation me-1"></i>
+        Enregistrement des clés indisponible : <code>DJANGO_SECRET_KEY</code> n'est pas définie
+        sur ce serveur.
+    </div>
+    {% endif %}
+
+    <h6><i class="fas fa-code me-1"></i>Token API WAMA</h6>
+    {% comment %}
+      ⚠ Ce texte disait « depuis des scripts OU UN BOT DISCORD ». Trompeur depuis la passerelle
+      (2026-08-21) : le bot WAMA n'utilise PAS ce token — il identifie chaque personne par
+      l'appariement de canal. Question posée par Fabien le 22/08 (« pourquoi les deux ? ») : si
+      l'UI la suscite, elle doit y répondre.
+    {% endcomment %}
+    <p class="text-white-50 small mb-2">
+        Pour appeler l'API WAMA depuis <strong>vos propres scripts</strong>, qui agissent alors
+        en votre nom : <code class="text-light">Authorization: Token &lt;votre-token&gt;</code>
+    </p>
+    <p class="text-white-50 small mb-2">
+        <i class="fas fa-circle-info me-1"></i>
+        Secret <strong>permanent</strong> : ne le collez jamais dans une messagerie. Pour Discord
+        ou Tchap, utilisez l'appariement de canal.
+    </p>
+    <div class="input-group input-group-sm mb-2">
+        <input type="password" id="tokenInput"
+               class="form-control bg-dark text-light border-secondary"
+               value="{{ token }}" readonly>
+        <button class="btn btn-outline-secondary" type="button" id="toggleTokenBtn"
+                title="Afficher / masquer">
+            <i class="fas fa-eye" id="toggleTokenIcon"></i>
+        </button>
+        <button class="btn btn-outline-secondary" type="button" id="copyTokenBtn"
+                title="Copier dans le presse-papier">
+            <i class="fas fa-copy"></i>
+        </button>
+    </div>
+    <button id="regenTokenBtn" class="btn btn-outline-danger btn-sm">
+        <i class="fas fa-sync-alt me-1"></i> Regénérer le token
+    </button>
+    <div id="tokenMsg" class="mt-2" style="display:none;"></div>
+
+    <h6><i class="fas fa-robot me-1"></i>Fournisseurs d'IA</h6>
+    <p class="text-white-50 small mb-1">
+        Votre clé personnelle, chiffrée en base et jamais réaffichée.
+    </p>
+    <div id="llmKeysList">
+        <div class="text-white-50 small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement…</div>
+    </div>
+
+    <h6>
+        <i class="fas fa-plug me-1"></i>Connecteurs Médiathèque
+        <a href="{% url 'media_library:index' %}?tab=search"
+           class="btn btn-outline-secondary btn-sm ms-1 py-0" title="Rechercher des médias">
+            <i class="fas fa-search"></i>
+        </a>
+    </h6>
+    <div id="providersList">
+        <div class="text-white-50 small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement…</div>
+    </div>
+</div>
 {% endblock %}
 
 {% block content %}
@@ -250,50 +326,30 @@
                 </div>
             </div>
 
-            <!-- ── Token API ────────────────────────────────────────────── -->
+            <!-- ── Modèles cloud (ROADMAP §8d Phase 3) ──────────────────── -->
             <div class="card bg-dark border-secondary mb-4">
                 <div class="card-header border-secondary">
-                    <h5 class="mb-0"><i class="fas fa-key me-2"></i>Token API</h5>
+                    <h5 class="mb-0"><i class="fas fa-cloud me-2"></i>Modèles cloud</h5>
                 </div>
                 <div class="card-body">
-                    {% comment %}
-                      ⚠ Ce texte disait « depuis des scripts OU UN BOT DISCORD ». Trompeur
-                      depuis la passerelle (2026-08-21) : le bot WAMA n'utilise PAS ce token —
-                      il identifie chaque personne par l'appariement de canal (encart plus
-                      bas). Question posée par Fabien le 22/08 (« pourquoi les deux ? ») :
-                      si l'UI la suscite, elle doit y répondre.
-                    {% endcomment %}
-                    <p class="text-muted small mb-3">
-                        Utilisez ce token pour appeler l'API WAMA depuis <strong>vos propres
-                        scripts</strong>, qui agissent alors en votre nom :
-                        <code class="text-light">Authorization: Token &lt;votre-token&gt;</code>
+                    <p class="text-white-50 small mb-3">
+                        Par défaut, WAMA n'utilise que ses modèles locaux. Autoriser le cloud
+                        permet de passer par un fournisseur distant avec <strong>votre</strong>
+                        clé d'API, à renseigner dans le volet de droite.
                     </p>
-                    <p class="text-muted small mb-3">
-                        <i class="fas fa-circle-info me-1"></i>
-                        Ce token est un secret <strong>permanent</strong> : ne le collez jamais
-                        dans une messagerie. Pour discuter avec WAMA depuis Discord ou Tchap,
-                        utilisez l'appariement de canal ci-dessous — il n'expose que des codes
-                        temporaires.
-                    </p>
-                    <div class="input-group mb-3">
-                        <input type="password" id="tokenInput"
-                               class="form-control bg-dark text-light border-secondary"
-                               value="{{ token }}" readonly>
-                        <button class="btn btn-outline-secondary" type="button" id="toggleTokenBtn"
-                                title="Afficher / masquer">
-                            <i class="fas fa-eye" id="toggleTokenIcon"></i>
-                        </button>
-                        <button class="btn btn-outline-secondary" type="button" id="copyTokenBtn"
-                                title="Copier dans le presse-papier">
-                            <i class="fas fa-copy"></i>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="cloudPolicySelect"
+                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                style="max-width: 260px;">
+                            {% for value, label in cloud_policies %}
+                            <option value="{{ value }}" {% if value == profile.cloud_policy %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <button id="saveCloudPolicyBtn" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-save me-1"></i> Enregistrer
                         </button>
                     </div>
-
-                    <!-- Regenerate -->
-                    <button id="regenTokenBtn" class="btn btn-outline-danger btn-sm">
-                        <i class="fas fa-sync-alt me-1"></i> Regénérer le token
-                    </button>
-                    <div id="tokenMsg" class="mt-2" style="display:none;"></div>
+                    <div id="cloudPolicyMsg" class="mt-2" style="display:none;"></div>
                 </div>
             </div>
 
@@ -402,26 +458,6 @@
             </div>
             {% endif %}
 
-            <!-- ── Connecteurs & Clés API ────────────────────────────── -->
-            <div class="card bg-dark border-secondary mb-4">
-                <div class="card-header border-secondary">
-                    <h5 class="mb-0">
-                        <i class="fas fa-plug me-2"></i>Connecteurs Médiathèque
-                        <a href="{% url 'media_library:index' %}?tab=search"
-                           class="btn btn-outline-secondary btn-sm ms-2">
-                            <i class="fas fa-search me-1"></i>Rechercher des médias
-                        </a>
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <div id="providersList" class="list-group list-group-flush">
-                        <div class="text-muted text-center p-3 small">
-                            <i class="fas fa-spinner fa-spin me-1"></i>Chargement…
-                        </div>
-                    </div>
-                </div>
-            </div>
-
         </div>
     </div>
 </div>
@@ -466,6 +502,9 @@ const CHANNEL_LINK_URL   = "{% url 'accounts:channel-link' %}";
 const CHANNEL_UNLINK_URL = "{% url 'accounts:channel-unlink' %}";
 const PROVIDER_KEYS_URL = "{% url 'media_library:api_provider_keys' %}";
 const PROVIDER_KEY_SAVE_URL = "{% url 'media_library:api_provider_key_save' slug='SLUG' %}";
+const LLM_KEYS_URL = "{% url 'accounts:profile-api-keys' %}";
+const LLM_KEY_SAVE_URL = "{% url 'accounts:profile-api-key-save' slug='SLUG' %}";
+const CLOUD_POLICY_URL = "{% url 'accounts:profile-cloud-policy' %}";
 const CSRF_TOKEN      = "{{ csrf_token }}";
 
 // ── Helper ──────────────────────────────────────────────────────────────────
@@ -657,108 +696,114 @@ document.getElementById('confirmRegenBtn').addEventListener('click', async () =>
     }
 });
 
-// ── Connecteurs (providers) ──────────────────────────────────────────────────
-
-async function loadProviders() {
-    const container = document.getElementById('providersList');
+// ── Modèles cloud : niveau d'usage ───────────────────────────────────────────
+document.getElementById('saveCloudPolicyBtn').addEventListener('click', async () => {
+    const cloud_policy = document.getElementById('cloudPolicySelect').value;
+    const msg = document.getElementById('cloudPolicyMsg');
     try {
-        const data = await (await fetch(PROVIDER_KEYS_URL)).json();
+        const data = await postJson(CLOUD_POLICY_URL, { cloud_policy });
+        if (data.success) showMsg(msg, '✓ Préférence enregistrée');
+        else showMsg(msg, data.error || 'Erreur', true);
+    } catch(e) { showMsg(msg, 'Erreur réseau', true); }
+});
+
+// ── Clés d'API du volet : fournisseurs d'IA ET connecteurs de la médiathèque ────
+// Les deux listes ont la MÊME forme JSON ({slug, name, api_key_label, api_key_help_url, has_key}) :
+// un seul rendu, seules les adresses diffèrent. La clé ne revient jamais du serveur.
+const KEY_GROUPS = {
+    llm:   { list: LLM_KEYS_URL,      save: LLM_KEY_SAVE_URL,      container: 'llmKeysList',   empty: 'Aucun fournisseur disponible.' },
+    media: { list: PROVIDER_KEYS_URL, save: PROVIDER_KEY_SAVE_URL, container: 'providersList', empty: 'Aucun connecteur disponible.' },
+};
+
+async function loadKeys(group) {
+    const cfg = KEY_GROUPS[group];
+    const container = document.getElementById(cfg.container);
+    try {
+        const data = await (await fetch(cfg.list)).json();
         const providers = data.providers || [];
         if (providers.length === 0) {
-            container.innerHTML = '<div class="text-muted text-center p-3 small">Aucun connecteur disponible.</div>';
+            container.innerHTML = `<div class="text-white-50 small">${cfg.empty}</div>`;
             return;
         }
-        container.innerHTML = providers.map(p => `
-            <div class="list-group-item bg-dark border-secondary px-3 py-3" id="provider-${p.slug}">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <span class="fw-semibold text-light">${p.name}</span>
-                        <span class="ms-2 badge ${p.has_key ? 'bg-success' : 'bg-secondary'} small"
-                              id="badge-${p.slug}">
+        container.innerHTML = providers.map(p => {
+            const id = `${group}-${p.slug}`;
+            const act = (action) => `data-key-action="${action}" data-group="${group}" data-slug="${p.slug}"`;
+            return `
+            <div class="key-row">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small text-light">
+                        ${p.name}
+                        <span class="ms-1 badge ${p.has_key ? 'bg-success' : 'bg-secondary'}">
                             ${p.has_key ? '✓ Configuré' : 'Non configuré'}
                         </span>
-                    </div>
+                    </span>
                     ${p.api_key_help_url ? `
                     <a href="${p.api_key_help_url}" target="_blank" rel="noopener"
-                       class="btn btn-outline-secondary btn-sm ms-2" title="Obtenir une clé API">
+                       class="btn btn-outline-secondary btn-sm py-0" title="Obtenir une clé">
                         <i class="fas fa-external-link-alt"></i>
                     </a>` : ''}
                 </div>
                 <div class="input-group input-group-sm">
-                    <input type="password" id="key-${p.slug}"
+                    <input type="password" id="key-${id}"
                            class="form-control bg-dark text-light border-secondary"
-                           placeholder="${p.has_key ? '••••••••••••••••' : p.api_key_label || 'Clé API'}"
+                           placeholder="${p.has_key ? '••••••••••••' : (p.api_key_label || 'Clé API')}"
                            autocomplete="off">
-                    <button class="btn btn-outline-secondary" type="button"
-                            onclick="toggleKeyVisibility('${p.slug}')" title="Afficher / masquer">
-                        <i class="fas fa-eye" id="eye-${p.slug}"></i>
+                    <button class="btn btn-outline-secondary" type="button" ${act('toggle')} title="Afficher / masquer">
+                        <i class="fas fa-eye" id="eye-${id}"></i>
                     </button>
-                    <button class="btn btn-outline-primary" type="button"
-                            onclick="saveKey('${p.slug}')">
-                        <i class="fas fa-save me-1"></i>Enregistrer
+                    <button class="btn btn-outline-primary" type="button" ${act('save')} title="Enregistrer">
+                        <i class="fas fa-save"></i>
                     </button>
                     ${p.has_key ? `
-                    <button class="btn btn-outline-danger" type="button"
-                            onclick="deleteKey('${p.slug}')" title="Supprimer la clé">
+                    <button class="btn btn-outline-danger" type="button" ${act('delete')} title="Supprimer la clé">
                         <i class="fas fa-times"></i>
                     </button>` : ''}
                 </div>
-                <div id="msg-${p.slug}" class="mt-1" style="display:none;"></div>
-            </div>
-        `).join('');
+                <div id="msg-${id}" class="mt-1" style="display:none;"></div>
+            </div>`;
+        }).join('');
     } catch(e) {
-        container.innerHTML = '<div class="text-danger p-3 small">Erreur chargement des connecteurs.</div>';
+        container.innerHTML = '<div class="text-danger small">Erreur de chargement.</div>';
     }
 }
 
-function toggleKeyVisibility(slug) {
-    const input = document.getElementById(`key-${slug}`);
-    const icon  = document.getElementById(`eye-${slug}`);
-    if (input.type === 'password') {
-        input.type = 'text';
-        icon.className = 'fas fa-eye-slash';
-    } else {
-        input.type = 'password';
-        icon.className = 'fas fa-eye';
-    }
-}
-
-async function saveKey(slug) {
-    const input = document.getElementById(`key-${slug}`);
-    const msg   = document.getElementById(`msg-${slug}`);
-    const key   = input.value.trim();
+async function sendKey(group, slug, key) {
+    const id = `${group}-${slug}`;
     try {
-        const data = await postJson(PROVIDER_KEY_SAVE_URL.replace('SLUG', slug), { api_key: key });
-        if (data.success) {
-            showMsg(msg, `✓ Clé ${key ? 'enregistrée' : 'supprimée'}`);
-            const badge = document.getElementById(`badge-${slug}`);
-            badge.textContent = data.has_key ? '✓ Configuré' : 'Non configuré';
-            badge.className   = `ms-2 badge ${data.has_key ? 'bg-success' : 'bg-secondary'} small`;
-            input.value = '';
-            input.placeholder = data.has_key ? '••••••••••••••••' : 'Clé API';
-        } else {
-            showMsg(msg, data.error || 'Erreur', true);
+        const data = await postJson(KEY_GROUPS[group].save.replace('SLUG', slug), { api_key: key });
+        if (!data.success) {
+            showMsg(document.getElementById(`msg-${id}`), data.error || 'Erreur', true);
+            return;
         }
+        // Rendu à neuf : le badge et le bouton de suppression suivent l'état réel du serveur.
+        await loadKeys(group);
+        showMsg(document.getElementById(`msg-${id}`), key ? '✓ Clé enregistrée' : '✓ Clé supprimée');
     } catch(e) {
-        showMsg(msg, 'Erreur réseau', true);
+        showMsg(document.getElementById(`msg-${id}`), 'Erreur réseau', true);
     }
 }
 
-async function deleteKey(slug) {
-    if (!confirm('Supprimer la clé API ?')) return;
-    const msg = document.getElementById(`msg-${slug}`);
-    try {
-        const data = await postJson(PROVIDER_KEY_SAVE_URL.replace('SLUG', slug), { api_key: '' });
-        if (data.success) {
-            showMsg(msg, '✓ Clé supprimée');
-            await loadProviders();  // refresh to remove delete btn
-        }
-    } catch(e) {
-        showMsg(msg, 'Erreur réseau', true);
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-key-action]');
+    if (!btn) return;
+    const { keyAction, group, slug } = btn.dataset;
+    const id = `${group}-${slug}`;
+    const input = document.getElementById(`key-${id}`);
+    if (keyAction === 'toggle') {
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        document.getElementById(`eye-${id}`).className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
+    } else if (keyAction === 'save') {
+        const key = input.value.trim();
+        if (!key) { showMsg(document.getElementById(`msg-${id}`), 'Saisissez une clé.', true); return; }
+        sendKey(group, slug, key);
+    } else if (keyAction === 'delete') {
+        if (confirm('Supprimer la clé ?')) sendKey(group, slug, '');
     }
-}
+});
 
-loadProviders();
+loadKeys('llm');
+loadKeys('media');
 
 {% if not is_ldap %}
 // ── Changement de mot de passe ──────────────────────────────────────────────

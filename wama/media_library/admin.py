@@ -31,3 +31,5 @@ class UserProviderConfigAdmin(admin.ModelAdmin):
     list_filter   = ['provider', 'is_active']
     search_fields = ['user__username']
     readonly_fields = ['updated_at']
+    # La clé est chiffrée en base ; l'afficher en clair dans un formulaire d'admin la ressortirait.
+    exclude = ['api_key']

@@ -1268,12 +1268,42 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   répartis. Elle ne sert qu'aux usages SANS utilisateur (rôles wama-dev-ai en ligne de commande,
   tâches planifiées) ; lancé par le serveur MCP dev, un rôle utilise la clé du développeur qui le
   lance.
-- ⚠ **Constat du 15/09 qui corrige une croyance** : le curseur rapide/qualité ne signale PAS
-  aujourd'hui la saturation VRAM — la prévision ne rend que le modèle prévu
-  (`model_manager/views.py:1229-1252`), `_best_by_vram` rend le plus léger en silence quand rien ne
-  tient (`model_selector.py:242-243`), et `AWAITING_RESOURCES` n'est déclenché par aucune app (aucun
-  appel ne passe `vram_needed`). Seules synthesizer et avatarizer le résolvent au lancement. Les
-  modèles cloud d'aujourd'hui ne servent que le TEXTE.
+- ⏳ **Curseur « informe de la saturation » = INTENTION ACTÉE, pas encore construite** (corrigé le
+  15/09 : je l'avais d'abord écrit « croyance corrigée », à tort). Le cahier des charges de Fabien
+  du 14/09 soir (`PROJECT_STATUS` §PALIER « GOUVERNEUR : la CLÉ publiée rejoint le catalogue ») :
+  une tâche qui exige toute la VRAM attend en `AWAITING_RESOURCES` qu'aucune tâche ne tourne ni que
+  le service TTS ne serve, puis on décharge tout, on exécute, on relance le TTS ; le gouverneur
+  décide ; **l'utilisateur est informé par le curseur** (le baisser pour lancer tout de suite) ; à
+  mener avec l'achèvement du curseur et de la sélection bidirectionnelle. ÉTAT MESURÉ du code au
+  15/09 : la prévision ne rend que le modèle prévu (`model_manager/views.py:1229-1252`),
+  `_best_by_vram` rend le plus léger en silence (`model_selector.py:242-243`), aucune app ne passe
+  `vram_needed` (portages en retard). Décisions en attente de Fabien (§PALIER « SQUELETTE ») :
+  B. conception de l'attente « toute la VRAM », C. généralisation du curseur. **L'option cloud du
+  curseur rejoint CE chantier**, elle ne s'écrit pas à part. Les modèles cloud branchés au 15/09
+  (Albert) ne servent que le TEXTE — le multimodal passerait par un fournisseur comme OpenRouter.
+  **Comportement, dans les mots de Fabien (15/09 — ma formulation « libérer avant de différer »
+  était FAUSSE)** : quand la tâche ne tient pas dans la VRAM, soit l'utilisateur BAISSE LA QUALITÉ
+  pour tenir dans la VRAM disponible, soit il ATTEND que les process en cours se terminent pour
+  que sa tâche se lance — et, si nécessaire, le service TTS est déchargé LE TEMPS DE LA TÂCHE, sinon
+  elle ne passerait jamais (et désormais : soit il passe en CLOUD). ⚠ Comportement DÉGRADÉ du PC de
+  dev (VRAM très limitée) : **en prod, le service TTS et l'assistant restent TOUJOURS actifs.**
+  **C — TRANCHÉE (Fabien, 15/09)** : le curseur se GÉNÉRALISE (déjà décidé) ; le curseur de précision
+  de l'anonymizer garde son fonctionnement mais REMONTE AU COMMUN avec sa spécificité VISION,
+  réutilisable par d'autres apps (future app Detector…).
+  **B — réponses (Fabien, 15/09)** : ① ce n'est pas qu'une question de voix — quand la tâche libère
+  TOUS les modèles de la VRAM, l'assistant MET L'UTILISATEUR EN ATTENTE avec un message d'attente.
+  ÉTAT MESURÉ : un mot d'attente GÉNÉRIQUE existe, affiché après un délai sur l'accueil seulement
+  (`assistant_skills.py:220-237` → `home.html:467-476`) ; Discord n'a que l'indicateur « écrit… »
+  (`discord_bot.py:132`). Rien ne relie ce message au déchargement décidé par le gouverneur ⏳.
+  ② toutes les apps passent au squelette de tâche commun, de toute façon : l'attente s'active avec
+  ce portage. ③ une tâche NON DÉMARRÉE ne consomme aucun délai : le délai ne court qu'une fois le job
+  démarré, et ne sert qu'à vérifier qu'il n'a pas échoué (pour ne pas rester bloqué). ⚠ Écart avec
+  le code : `DIFFEREMENTS_MAX = 40` × `DIFFEREMENT_DELAI_S = 45` (`task_skeleton.py:118-123`) passe
+  en FAILURE, au bout de ~30 min, une tâche qui n'a JAMAIS démarré ⏳ à corriger dans ce chantier.
+  Reste ouvert : en prod (service TTS jamais déchargé), que devient une tâche qui ne tiendra jamais ?
+  **4a — consigne (Fabien, 15/09)** : TOUT ce qui touche aux clés (fournisseurs LLM ET connecteurs
+  de la médiathèque) va dans le VOLET DROIT de la page profil, par le mécanisme commun du volet
+  (`common/utils/volet.py`, blocs `right_panel_*` de `base.html`) — on ne réinvente rien.
 - **Curseur rapide/qualité → cloud MÊME SANS saturation** (Fabien, 15/09 : « sinon je ne peux pas
   l'utiliser pour éviter les crashs PC ») : le choix cloud est proposé dès que le profil n'est pas
   « 100 % local » et qu'une clé utilisable existe ; la saturation le MET EN AVANT. Les 3 niveaux
@@ -1320,6 +1350,17 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    `mcp_server` n'importe `dev_tools` que pour la surface dev — prouvé dans un process NEUF.
    Gardes : `tests_mcp_dev_tools`. Smoke RÉEL : 7 outils, `dev_sandbox list` lancé et suivi
    jusqu'à `done rc=0`, `--force` injecté refusé.
+4a. ✅ **Clés d'API personnelles + niveau cloud** (15/09) — `secret_crypto.EncryptedTextField`
+   (chiffré au repos, clé dérivée de `SECRET_KEY`) ; `accounts.UserApiKey` (fournisseurs LLM =
+   sources `external_sources` de type `llm`) et `accounts/api_keys.key_for` (un utilisateur n'a
+   QUE sa clé ; la clé d'instance sert aux usages sans utilisateur) ; clés des connecteurs de la
+   médiathèque CHIFFRÉES (elles étaient en clair — migration `media_library 0016` en SQL brut) ;
+   `rotate_secrets` rechiffre toutes les clés stockées dans la même transaction que l'écriture du
+   `.env` (`reencrypt_stored_secrets`, SQL brut) ; `UserProfile.cloud_policy` à 3 niveaux, défaut
+   « 100 % local » — STOCKÉ, pas encore lu par la sélection (4b). Profil : jeton d'API, clés LLM et
+   connecteurs dans la section Paramètres du volet droit (`volet(medias=False, actions=False)`),
+   un seul rendu JS pour les deux listes. Gardes : `accounts/tests_api_keys` (chiffrement en base,
+   pas de repli, 503 sur clé serveur non sûre, rechiffrement à la rotation, rendu dans le volet).
 4. ⏳ **Lever le verrou du catalogue** (§8d ①②, ordre fixé par Fabien le 15/09) — modèles cloud
    au catalogue par découverte, moteurs cloud à l'inventaire, `select_model` (VRAM/`is_downloaded`
    pour les locaux seulement, cloud seulement autorisé), réglage de profil, clés chiffrées par

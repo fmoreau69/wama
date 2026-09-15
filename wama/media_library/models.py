@@ -7,6 +7,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import UploadToUserPath
+from wama.common.utils.secret_crypto import EncryptedTextField
 
 User = get_user_model()
 
@@ -231,7 +232,9 @@ class UserProviderConfig(models.Model):
     """Clé API personnelle d'un utilisateur pour un provider donné."""
     user     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='provider_configs')
     provider = models.ForeignKey(MediaProvider, on_delete=models.CASCADE, related_name='user_configs')
-    api_key  = models.CharField(max_length=500, blank=True)
+    # Chiffrée au repos depuis le 2026-09-15 (elle l'était en CLAIR). Les vues lisent toujours
+    # `cfg.api_key` en clair : le champ déchiffre. Aucune recherche sur la valeur, sauf le vide.
+    api_key  = EncryptedTextField(blank=True)
     is_active   = models.BooleanField(default=True)
     updated_at  = models.DateTimeField(auto_now=True)
 

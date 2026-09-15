@@ -587,12 +587,21 @@ def api_provider_key_save(request, slug: str):
         return JsonResponse({'error': 'JSON invalide'}, status=400)
 
     api_key = data.get('api_key', '').strip()
+    if len(api_key) > 500:
+        return JsonResponse({'error': 'Clé trop longue (500 caractères au plus)'}, status=400)
+    from wama.common.utils.secret_crypto import SecretStorageUnavailable, storage_available
+    if api_key and not storage_available():
+        return JsonResponse({'error': "Enregistrement des clés indisponible : DJANGO_SECRET_KEY "
+                                      "n'est pas définie sur ce serveur."}, status=503)
     cfg, _ = UserProviderConfig.objects.get_or_create(
         user=request.user, provider=provider_obj,
     )
     cfg.api_key  = api_key
     cfg.is_active = True
-    cfg.save(update_fields=['api_key', 'is_active', 'updated_at'])
+    try:
+        cfg.save(update_fields=['api_key', 'is_active', 'updated_at'])
+    except SecretStorageUnavailable as exc:
+        return JsonResponse({'error': str(exc)}, status=503)
 
     return JsonResponse({'success': True, 'has_key': bool(api_key)})
 

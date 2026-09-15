@@ -862,7 +862,7 @@ OLLAMA_HOST = os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')
 OLLAMA_MODELS_DIR = os.environ.get('OLLAMA_MODELS_DIR', '')
 
 # LiteLLM — Unified LLM provider (Phase 1: local Ollama only)
-# Phase 2 (hybrid mode): set per-user via UserProviderConfig; 'ollama' = local-only default.
+# Clés personnelles : `accounts.UserApiKey` (chiffrées) ; 'ollama' = défaut 100 % local.
 # Supported values: 'ollama' | 'albert' | 'openai' | 'anthropic' | 'grok' | 'mistral'
 LITELLM_PROVIDER = os.environ.get('LITELLM_PROVIDER', 'ollama')
 

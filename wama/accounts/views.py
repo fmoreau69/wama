@@ -14,9 +14,10 @@ from django.views.decorators.http import require_POST
 from functools import wraps
 
 from .models import LoginForm, UserRegistrationForm, UserProfile
+from ..common.utils.secret_crypto import storage_available
 from ..anonymizer.forms import UserSettingsEdit
 from ..anonymizer.models import UserSettings
-from ..common.utils.volet import VOLET_AUCUN
+from ..common.utils.volet import VOLET_AUCUN, volet
 
 
 def admin_required(view_func):
@@ -246,8 +247,72 @@ def profile_view(request):
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
-        'volet': VOLET_AUCUN,                   # page de compte, cf. login_view
+        'cloud_policies': UserProfile.CLOUD_POLICIES,
+        'secret_storage_available': storage_available(),
+        # 2026-09-15 (Fabien) : TOUT ce qui touche aux clés — jeton d'API, fournisseurs LLM,
+        # connecteurs de la médiathèque — vit dans la section Paramètres du volet droit, pour ne
+        # pas allonger la page. Médias et Actions n'y ont rien à montrer.
+        'volet': volet(medias=False, actions=False),
     })
+
+
+@login_required
+def api_keys_list(request):
+    """GET : fournisseurs LLM et présence d'une clé personnelle — jamais la clé elle-même."""
+    from .api_keys import listing
+    return JsonResponse({'providers': listing(request.user)})
+
+
+@login_required
+@require_POST
+def api_key_save(request, slug):
+    """POST {api_key} : enregistre (chiffrée) ou efface (vide) la clé personnelle d'un fournisseur."""
+    from .api_keys import is_llm_source
+    from .models import UserApiKey
+    from wama.common.utils.secret_crypto import SecretStorageUnavailable
+
+    if not is_llm_source(slug):
+        return JsonResponse({'error': 'Fournisseur introuvable'}, status=404)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    api_key = (data.get('api_key') or '').strip()
+    if len(api_key) > 500:
+        return JsonResponse({'error': 'Clé trop longue (500 caractères au plus)'}, status=400)
+
+    if not api_key:
+        UserApiKey.objects.filter(user=request.user, source=slug).delete()
+        return JsonResponse({'success': True, 'has_key': False})
+    # Refus AVANT toute écriture : levée pendant un `save()`, l'exception marquerait la
+    # transaction en cours comme cassée. Celle du champ reste le filet de sécurité.
+    if not storage_available():
+        return JsonResponse({'error': "Enregistrement des clés indisponible : DJANGO_SECRET_KEY "
+                                      "n'est pas définie sur ce serveur."}, status=503)
+    row, _ = UserApiKey.objects.get_or_create(user=request.user, source=slug)
+    row.api_key = api_key
+    try:
+        row.save(update_fields=['api_key', 'updated_at'])
+    except SecretStorageUnavailable as exc:
+        return JsonResponse({'error': str(exc)}, status=503)
+    return JsonResponse({'success': True, 'has_key': True})
+
+
+@login_required
+@require_POST
+def cloud_policy_update(request):
+    """AJAX : enregistre le niveau d'usage des modèles cloud (100 % local par défaut)."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    policy = data.get('cloud_policy', '')
+    if policy not in dict(UserProfile.CLOUD_POLICIES):
+        return JsonResponse({'error': f"Niveau invalide : '{policy}'"}, status=400)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.cloud_policy = policy
+    profile.save(update_fields=['cloud_policy'])
+    return JsonResponse({'success': True, 'cloud_policy': policy})
 
 
 def rattachement_institutionnel(profile):
