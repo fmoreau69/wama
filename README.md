@@ -361,6 +361,7 @@ by `python manage.py doc_facts` — do not edit it by hand; declare a document i
     - [Couche LLM](docs/construction/ia/WAMA_LLM.md) — Prompts, skills, traduction et enrichissement, routage de modèle, surfaces de l'assistant.
     - [Mémoire & RAG](docs/construction/ia/WAMA_MEMORY.md) — Mémoire d'agent, mémoire de travail et RAG comme un seul mécanisme, plus le journal utilisateur.
     - [Apprentissage (ML/DL)](docs/construction/ia/WAMA_APPRENTISSAGE.md) — Modèles appris, couche statistique, MLflow — WAMA déclare, déclenche et réingère ; il n'entraîne pas.
+    - [Qualité des modèles](docs/construction/ia/WAMA_QUALITE.md) — La boucle qualité : méthodes de confrontation par tâche, mesure interne, auto-amélioration des leviers, et la voie finetuning depuis WAMA.
   - **`mondes/`** — Mondes & apps
     - [Vision d'ensemble](docs/construction/mondes/WAMA_VISION_COMPLET.md) — La vision produit, unique, confrontée au réel section par section.
     - [Studio & production AV](docs/construction/mondes/STUDIO_VISION.md) — Vision du studio et de la production audiovisuelle.
