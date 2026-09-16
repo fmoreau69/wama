@@ -45,10 +45,21 @@ _CHAT_MULTIMODAL = ('image-text-to-text',)
 #: `model_registry.FAMILLES_OLLAMA`, et même règle : déclaration HUMAINE, jamais devinée d'un nom.
 #: Mesuré le 2026-09-16 : Albert sert `lightonocr-2-1b` en `image-text-to-text`, c'est-à-dire
 #: « modèle de chat qui voit » — or c'est un OCR, et il entrait donc au menu de l'assistant.
-#: Clé = clé de catalogue `<source>:<id>` ; valeur = tâche de NOTRE vocabulaire (`ModelTask`).
+#: Clé = `<source>:<préfixe de FAMILLE>` (pas un identifiant complet : épingler `lightonocr-2-1b`
+#: raterait `lightonocr-3` en silence, et un fournisseur renomme ses versions plus souvent qu'il ne
+#: change de famille — même règle de préfixe que `FAMILLES_OLLAMA`).
+#: Valeur = tâche de NOTRE vocabulaire (`ModelTask`).
 FAMILLES_DISTANTES = {
-    'albert:lightonocr-2-1b': 'ocr',
+    'albert:lightonocr': 'ocr',
 }
+
+
+def _tache_declaree(model_key: str):
+    """Tâche DÉCLARÉE pour la famille de `model_key`, ou None."""
+    for prefixe, tache in FAMILLES_DISTANTES.items():
+        if model_key.startswith(prefixe):
+            return tache
+    return None
 
 
 #: Version d'API qu'Anthropic exige sur chaque requête.
@@ -134,7 +145,7 @@ def upsert_catalog(source: str, remote: list) -> list:
             continue
         key = f"{source}:{m['id']}"
         # La tâche DÉCLARÉE prime sur celle qu'annonce le fournisseur, et la CATÉGORIE en dérive.
-        declaree = FAMILLES_DISTANTES.get(key)
+        declaree = _tache_declaree(key)
         if declaree:
             task = declaree
             model_type = model_type_for_task(task) or model_type

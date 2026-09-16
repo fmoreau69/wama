@@ -19,6 +19,9 @@ from wama.model_manager.services.model_selector import get_registry_models, sele
 
 CLE_A = 'a' * 50
 
+#: Échantillon de ce que rend le FOURNISSEUR (`GET /v1/models` d'Albert) — pas une déclaration
+#: WAMA. Un test qui vérifie la lecture d'un protocole tiers doit fixer la forme qu'il lit ; ces
+#: identifiants imitent une API, ils ne décrivent rien du catalogue.
 ALBERT_MODELS = [
     {'id': 'openai/gpt-oss-120b', 'type': 'text-generation', 'aliases': ['openweight-large']},
     {'id': 'gemma-4-31b-it', 'type': 'image-text-to-text', 'aliases': ['google/gemma-4-31B-it']},
@@ -74,14 +77,18 @@ class DecouverteTest(TestCase):
     def test_une_famille_distante_declaree_impose_sa_tache(self):
         """Albert sert `lightonocr` en `image-text-to-text` (« chat qui voit ») — c'est un OCR.
         Même règle que pour Ollama : la tâche est DÉCLARÉE, et la catégorie en dérive."""
+        # La déclaration porte sur la FAMILLE : une version que WAMA n'a jamais vue doit être
+        # reconnue, sinon la table serait à retoucher à chaque publication du fournisseur.
         annonces = [
             {'id': 'lightonocr-2-1b', 'type': 'image-text-to-text', 'aliases': []},
+            {'id': 'lightonocr-9-42b-inedit', 'type': 'image-text-to-text', 'aliases': []},
             {'id': 'gemma-4-31b-it', 'type': 'image-text-to-text', 'aliases': []},
         ]
         with mock.patch.object(cloud_models, 'list_remote_models', return_value=annonces):
             cloud_models.refresh_key(self.row)
-        ocr = AIModel.objects.get(model_key='albert:lightonocr-2-1b')
-        self.assertEqual(('ocr', 'ocr'), (ocr.model_type, ocr.capabilities['task']))
+        for cle in ('albert:lightonocr-2-1b', 'albert:lightonocr-9-42b-inedit'):
+            ocr = AIModel.objects.get(model_key=cle)
+            self.assertEqual(('ocr', 'ocr'), (ocr.model_type, ocr.capabilities['task']), cle)
         chat = AIModel.objects.get(model_key='albert:gemma-4-31b-it')
         self.assertEqual(('llm', True), (chat.model_type, chat.capabilities.get('vision')))
 
