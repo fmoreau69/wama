@@ -14060,7 +14060,7 @@ contraire à « jamais deux échelles mélangées » ; partage par PR GitHub éc
    `eta_estimator.estimate()`. ⚠ L'instance gouverneur a relevé (§PALIER précédent, ②) que
    `model_sync.py:185` ÉCRASE `vram_gb` à chaque synchro : une mesure écrite dans `vram_gb` serait
    perdue — champ MESURÉ séparé recommandé par elle aussi.
-3. **Arbitrage Fabien — idée 3** : rubrique déterministe par rôle (regex, score relatif) comme
+3. ~~**Arbitrage Fabien — idée 3** : rubrique déterministe par rôle (regex, score relatif) comme
    étage « mesure interne » des LLM ? Autorisée par le garde-fou §16.5 n°1 ; à réécrire en français ;
    jamais un composite. Non commencé.~~ **RETIRÉE le 16/09** (Fabien : le trou est bien plus large
    que les LLM ; le français n'est pas la langue de WAMA ; lire `ROUTE §F4b`) → remplacée par la
@@ -14566,3 +14566,147 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    relance de la transcription. Le socle est bon (ASR immuable, correction à part), `STALE` nommera l'état
    périmé sans rien écraser, mais **la fusion correction ↔ nouvelle génération reste un chantier propre au
    transcriber** — consigné dans `TRANSCRIBER_CORRECTION.md §4` et `§10.6` point 4.3.
+
+---
+
+## PALIER 2026-09-16 — FastWan 2.2 EN SERVICE dans l'imager (T2V + I2V), et le vocabulaire des types de port
+
+> Question de Fabien : *« maintenant que FastWan a son backend, pourquoi n'est-il pas sélectionnable dans
+> l'Imager vidéo ? »* **La prémisse était fausse, et c'est la mesure qui l'a dit** : la session du 14/09
+> (`22ce0744`) n'avait livré qu'une SONDE (`manage.py probe_fastwan`, 231 lignes) — `SUPPORTED_MODELS` du
+> backend Wan était inchangé, et aucune app ne déclarait le modèle. Vérifié sur toutes les branches, les
+> stashs, les worktrees et l'arbre : rien d'autre n'existait. *Un backend écrit à moitié se lit comme un
+> backend, jusqu'à ce qu'on ouvre sa liste de modèles.*
+
+**Livré (t2v puis i2v, mesures avant câblage)**
+- **Backend Wan** — FastWan dans `SUPPORTED_MODELS` + un `MODEL_PROFILES` qui porte ce qui le distingue
+  (dossier des poids, preset mémoire, pas DMD, guidage). Le scheduler DMD et le pas de débruitage ont
+  QUITTÉ la sonde pour le backend : la sonde les IMPORTE, donc elle teste ce que l'imager exécute.
+  `DEPRECATED` retiré (il disait « aucun modèle installé »). Résolution alignée sur la grille du modèle
+  (720 → 704 : VAE ×16, patch 2).
+- **🔴 Risque de crash ÉCARTÉ** : le backend choisissait sa stratégie mémoire sous le preset `wan-t2v`
+  (14 Go) — pour ~23 Go de poids, cela tentait FULL_GPU, donc un débordement WDDM. Preset `fastwan` = 23
+  (somme des composants comptés par la sonde), d'où MODEL_OFFLOAD sur 24 Go. Test + contre-épreuve.
+- **Image→vidéo, MESURÉE et non supposée** (question de Fabien : « il est indiqué TI2V »). Le
+  `model_index.json` du dépôt déclare **`expand_timesteps = True`** : la branche de diffusers qui
+  conditionne par la PREMIÈRE IMAGE encodée au VAE (branche `expand_timesteps` du pipeline image→vidéo
+  de diffusers, dans le venv — chemin volontairement NON écrit : `check_docs` le compterait comme une
+  cible manquante, cf. `/cloture §2c`), d'où un transformer à 48
+  canaux pour 48 canaux latents ; l'encodeur d'image CLIP, absent du dépôt, y est OPTIONNEL. La vraie
+  cause du « t2v seul » était le backend : son chemin I2V visait EN DUR `Wan2.2-I2V-A14B` (absent du
+  disque, ~25 Go qui se seraient téléchargés en pleine tâche) → `i2v_model_id()`, un TI2V sert les deux
+  métiers avec son propre dépôt. `tasks = t2v+i2v`, l'image est une entrée OPTIONNELLE.
+- **Imager** : déclaration complète (24 i/s, 121 images max, 3 pas, guidage 1,0, 1280×704) ; la tâche lit
+  la cadence et la durée max DÉCLARÉES ; dossier dans `MODEL_PATHS` (donc la famille sort du balayage
+  générique) ; manifestes `imager` + `imager:fastwan-2.2-ti2v-5b` exportés.
+- **Ligne de catalogue en DOUBLE retirée** (question de Fabien : « j'ai 2 fastwan ready »). Ce n'étaient
+  pas deux modèles : le balayage générique du 02/09 (`huggingface:…`, VRAM estimée 29) et la déclaration
+  du 15/09 (`imager:…`, 23) désignaient le MÊME dépôt. Suppression contrôlée (refus si les `hf_id`
+  diffèrent), manifeste `huggingface__…json` retiré. *`sync_models` sans `--clean` ne retire jamais rien.*
+
+**⏳ CE QUI RESTE — le test GPU (Fabien, machine sous les yeux)** : aucune vidéo n'a été générée. Le pas
+DMD (sigma = t/1000, x0 = x_t − sigma·v) reste une **HYPOTHÈSE**. `probe_fastwan --generate --confirm-gpu
+--out …`, ou directement une génération dans l'imager.
+
+**Le modèle est-il le bon choix ? (question de Fabien) — OUI, mesuré.** Plus léger existe chez FastVideo
+(`FastWan2.1-T2V-1.3B`), mais son modèle de base porte **le MÊME encodeur de texte de 5,68 Md**
+(22,7 Go fp32 sur le Hub, ~11,4 Go en bf16) : avec le déchargement, c'est lui qui fixe le pic, donc le
+gain porterait sur le disque et le calcul, pas sur la VRAM — et on perdrait l'i2v, le 24 i/s et le
+1280×704. Le plus léger déjà installé qui fait les deux métiers reste LTX fp8 (8 Go).
+
+### Le vocabulaire des types de PORT — trou PRÉEXISTANT refermé (revue demandée par Fabien)
+
+`tests_catalogues` n'admettait aux ports que les types de DONNÉE et rendait donc ROUGE
+`studio.image_to_3d` (entrée `image`, écrite le 13/09) — **échec déjà présent sur HEAD**, hors de ce
+palier. La revue de fond (demandée par Fabien : « vérifie que tu n'as rien réinventé ») a corrigé DEUX
+défauts de ma 1ʳᵉ correction :
+1. **6ᵉ copie** de l'énumération de `DataType` → accesseur `data_types.known_types()`, et les **5 copies**
+   existantes le lisent (`manifests/builtin/dataset.py`, `studio/views.py` ×2, `studio/tasks.py`,
+   `media_library/tests_object3d.py`).
+2. **Mauvais domicile** : j'avais logé l'union dans `common/catalog/`, qui est la **glu INTER-MONDES** et
+   ne doit dépendre d'aucun monde (`catalog/__init__.py`) — un import tardif évite le cycle, pas la
+   doctrine. Le vocabulaire admis aux ports vit désormais chez les natures :
+   `app_registry.known_port_types()` = natures média + **`ROLE_TOKENS`** (que j'avais oubliés : un port
+   `prompt` aurait été refusé alors que `studio_node_ports` en pose) + types de donnée.
+⚠ **SIGNALÉ, PAS TRANCHÉ** : `ROUTE §S2bis.6bis` réserve l'axe commun des deux taxonomies à un geste
+dédié (⛔ « ne pas le trancher au fil d'un autre chantier »). Rien n'est fusionné ici — la note y est
+posée, et la question « l'item B rend-il ce vocabulaire unique ? » attend une DÉCISION.
+
+**Contrôles** : `tests_wan_video_backend` **13 OK** (venv_linux — l'assertion `expand_timesteps` s'exécute
+là ; 13 dont 1 ignoré depuis venv_win, le snapshot posé par WSL2 ne s'y ouvre pas) ; catalogues + studio +
+médiathèque + manifestes **230 OK** ; sonde à blanc OK sous WSL ; `check_docs --strict` **0 cassée / 2004**
+(1 périmée, `TRANSCRIBER_CORRECTION.md:53`, hors périmètre) ; corpus de manifestes à jour.
+
+#### Revérification en profondeur (demande de Fabien : « tous les consommateurs ? les tests ? »)
+
+- **Consommateurs — relevé exhaustif** : plus aucune réécriture de la compréhension hors du domicile
+  (`vars(DataType)` : 2 occurrences, toutes deux dans `data_types.py`, dont sa docstring). Le canvas ne
+  recopie pas la taxonomie, il la REÇOIT (`wama-studio.js:51`, `:785`). Et **aucun autre validateur de
+  type de port n'existe** : le kind `function` ne contrôle pas `data_type`, l'ingestion d'une
+  `UserFunction` non plus, le JS apparie par intersection. Pas de seconde liste qui divergerait.
+- **Gardes AJOUTÉES** — `wama/common/tests_port_types.py`, **10 tests** : l'accesseur = les constantes ;
+  les deux prédicats qui coexistaient donnent le même ensemble (ce test rougira le jour où la classe
+  portera autre chose) ; **garde AST contre une 6ᵉ copie** ; le vocabulaire des ports = exactement
+  l'union des trois ; il refuse une extension ; **les deux taxonomies gardent une intersection VIDE** ;
+  et les consommateurs en vocabulaire DONNÉE n'ont pas été élargis — le manifeste `dataset` refuse
+  toujours `image`, `/studio/api/nodes/` ne sert que des types de donnée (tests de COMPORTEMENT).
+- 🔴 **RÉGRESSION DE CE PALIER, attrapée par une garde et corrigée** : la sonde importait
+  `WanVideoBackend` par son chemin (budget d'adoption 0, `ROUTE §10.3`). Elle résout désormais son
+  backend par le catalogue (`backend_for_key('imager:fastwan-2.2-ti2v-5b')`) ; garde verte, sonde à
+  blanc rejouée OK. *Le budget a fait exactement son travail.*
+- ⚠⚠⚠ **DEUX fois dans la session, mon commit par chemins a emporté le travail d'une autre instance**
+  (`model_registry.py` : 10 hunks Ollama, retiré par `reset --soft` + re-commit ; `memory_manager.py` :
+  son correctif `get_strategy_for_model` → `preset_vram_gb`, parti dans `9a9463ea`, l'autre instance
+  l'a constaté et a commité ses gardes ensuite — 4/4 vertes, rien de perdu).
+  **Règle : relire les hunks fichier par fichier JUSTE AVANT le commit.** Une vérification faite dix
+  minutes plus tôt ne vaut rien quand plusieurs instances écrivent le même arbre.
+- **Suite complète** : 2612 tests, 6 échecs — 2 étaient la régression ci-dessus (corrigée), 1 est la doc
+  dérivée `docs/dev/briques.md` (périmée pour DEUX raisons mêlées : mes 2 fonctions publiques et le
+  travail assistant d'une autre instance qui édite déjà ce fichier → **régénération NON faite**, à
+  reprendre par elle ou après son commit), 3 sont hors périmètre et non investigués
+  (`accounts.tests_api_keys`, `tests_mcp_dev_tools` ×2 — fichiers non modifiés dans l'arbre).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Jouer la génération GPU de FastWan** (`probe_fastwan --generate --confirm-gpu --out …`, ou directement
+une génération vidéo dans l'imager) : tout le reste est en service, seul le pas DMD reste une hypothèse.
+
+**File des chantiers ouverts de ce périmètre**
+1. 🔴 **BLOQUANT (décision de Fabien)** — *item B* : l'axe commun des deux taxonomies (types de donnée /
+   natures média) doit-il rendre le vocabulaire des ports UNIQUE, ou garde-t-on les trois listes admises
+   côte à côte ? Rien ne peut être unifié avant. Note posée `ROUTE §S2bis.6bis`.
+2. **Gouvernance des FORMATS côté Médias — question ouverte, instruite le 16/09.** Mesuré : les 15
+   registres comptent **3 registres de formats, tous du monde Data** (`lecteurs_data`,
+   `formats_export_data`, `conteneurs_data`, poussés par `wama_data/apps.py`) et **aucun côté Médias**.
+   ⚠ La doc a DÉJÀ tranché que `MEDIA_CATEGORIES` reste une TAXONOMIE (`WAMA_DATA_WORLD §9quinquies.2`
+   + `docs/dev/registres.md` : « Le monde Médias n'a rien à changer ») — ce point ne rouvre PAS cela.
+   Ce qui n'a jamais été examiné, c'est (a) la question ④ (« l'utilisateur doit-il en voir l'état ? »)
+   pour les vocabulaires média, et (b) `SUPPORTED_CONVERSIONS` du converter, absent du relevé des six
+   vocabulaires du 23/08 alors qu'il déclare des CAPACITÉS d'écriture — deux natures sur sept
+   (`dataset`, `3d`) n'ont d'ailleurs aucun format de sortie. Proposition à arbitrer : 3 entrées
+   `DERIVED` (`refresh=None`), sans changer aucun domicile. ⚠ `MEDIA_STORAGE_TIERING §9` a écrit
+   « pas de `Registry` pour `ASSET_NATURES` » **et** sa porte de sortie (« une entrée DÉRIVÉE
+   suffira ») : c'est cette porte qui serait empruntée, pas une décision retournée.
+3. **`docs/dev/briques.md` périmée** — mes 2 fonctions publiques n'y sont pas ; fichier déjà en cours
+   d'édition par une autre instance → régénération laissée à elle.
+4. **Corpus de manifestes : 11/11 apps périmées** en fin de session (cause PARTAGÉE, postérieure à mon
+   export d'`imager`) — ne pas régénérer sans vérifier à qui appartient la dérive.
+
+**Pendings système**
+- Catalogue SYNCHRONISÉ depuis WSL2 (venv_linux) : +1 modèle (`imager:fastwan-2.2-ti2v-5b`), ligne
+  `huggingface:` du même dépôt SUPPRIMÉE avec son manifeste. Aucun poids touché.
+- **2 commits locaux NON POUSSÉS** de ce périmètre (`9a9463ea`, `b579d756`).
+- Aucun worker recyclé, aucun flag d'environnement posé, **aucune charge GPU**.
+- Base de test partagée utilisée en `--keepdb` uniquement. Scripts de mesure (catalogue, sonde I2V,
+  statistiques de VRAM) laissés dans le scratchpad de session — jetables, aucun chemin à retenir.
+
+**Contrôles attendus au prochain `/reprise`** (tous MESURÉS ce jour)
+
+| contrôle | valeur |
+|---|---|
+| tests du périmètre | **415 OK** (2 skipped) — imager, model_manager, studio, médiathèque, catalogues, backends, ports |
+| suite complète | 2612 tests, **3 rouges restants hors périmètre** (`accounts.tests_api_keys`, `tests_mcp_dev_tools` ×2) + `tests_doc_plans` (doc dérivée, ci-dessus) |
+| `check_docs --strict` | **0 cassée**, 1 périmée (`TRANSCRIBER_CORRECTION.md:53`, hors périmètre) sur 2011 références |
+| `check_redundancy` | 33 trouvailles, **aucune dans le périmètre** (toutes préexistantes) |
+| corpus de manifestes | **11 apps périmées** (cause partagée, voir ci-dessus) |
+| catalogue | 139 modèles, 112 téléchargés ; 1 seule ligne pour les poids FastWan |
