@@ -14062,7 +14062,10 @@ contraire à « jamais deux échelles mélangées » ; partage par PR GitHub éc
    perdue — champ MESURÉ séparé recommandé par elle aussi.
 3. **Arbitrage Fabien — idée 3** : rubrique déterministe par rôle (regex, score relatif) comme
    étage « mesure interne » des LLM ? Autorisée par le garde-fou §16.5 n°1 ; à réécrire en français ;
-   jamais un composite. Non commencé.
+   jamais un composite. Non commencé.~~ **RETIRÉE le 16/09** (Fabien : le trou est bien plus large
+   que les LLM ; le français n'est pas la langue de WAMA ; lire `ROUTE §F4b`) → remplacée par la
+   cartographie complète **`docs/construction/ia/WAMA_QUALITE.md`** (méthodes, matrice, chaîne,
+   décisions Q1-Q9, paliers) — voir la SUITE du 16/09 ci-dessous.
 4. Rien à pousser sans demande ; 3 commits locaux + ce bloc + 2 skills. Aucun effet de bord
    d'infra : aucun worker recyclé, aucun réglage posé, aucune charge GPU.
 
@@ -14078,6 +14081,37 @@ contraire à « jamais deux échelles mélangées » ; partage par PR GitHub éc
   le WIP non commité d'une autre instance (46 fichiers) dont `wama/urls.py` cite une vue absente
   (`ai_chat_clear`) — la suite ne charge plus depuis l'arbre principal tant que ce n'est pas
   commité ou retiré. Pas à moi ; signalé, pas touché.
+
+#### SUITE — 2026-09-16 : l'idée 3 RETIRÉE, la DÉMARCHE écrite — `WAMA_QUALITE.md` (référence du domaine, rien de lancé)
+- Fabien : *« le trou sur la mesure de qualité interne est bien plus large que les LLM ; rien non
+  plus pour les modèles vision ; ce que j'imaginais, c'est des comparaisons de résultats de
+  descriptions, transcriptions… ; l'idée dans WAMA est l'AUTO-AMÉLIORATION (prompts
+  d'enrichissement, skills), pas seulement la confrontation ; voie complémentaire = finetuning
+  hors WAMA, contrôlé depuis WAMA ; il manque une cartographie complète des méthodes par type de
+  tâche et toute la démarche, sans oublier de chaînon »*. Et : le français n'est PAS la langue de
+  WAMA (anglais + i18n) — mon « prompts à réécrire en français » était faux.
+- ⚠ **Je n'avais pas lu `ROUTE §F4b`** (le plan acté du 02/09 : qualification nocturne
+  COMPARATIVE, toutes tâches, sorties confrontées, réingestion en indice) — j'avais cité `§16.5`
+  et proposé un cas étroit. *Le plan acté vivait dans la ROUTE, pas dans le ROADMAP.*
+- **Créé `docs/construction/ia/WAMA_QUALITE.md`** — le domaine n'avait pas de fichier (plan dans
+  la ROUTE, garde-fous dans le ROADMAP, divergence dans `TRANSCRIBER_CORRECTION §8`, récit dans
+  ces §REPRISE). Contenu : vocabulaire (confrontation / vérité terrain / métrique / juge / indice ;
+  4 sources de vérité par confiance décroissante) ; **10 méthodes M1-M10** définies avec état au
+  code (M1 divergence ✅, M7 gestes ✅, M5 juge présent sans appelant, M2/M3/M4/M6/M8/M9/M10 ⏳) ;
+  **matrice `ModelTask` × méthode** (vérité accessible, confrontation sans vérité, juge, banc
+  tiers, levier, état) ; les deux consommateurs (indice interne avec échelle/sens/population/
+  version ; auto-amélioration par levier — skills, rôles, contrats, glossaire, RAG, paramètres,
+  profils — avec gouvernance proposée) ; la voie finetuning (`WAMA_APPRENTISSAGE §2`, A2-A4) ;
+  **12 chaînons** ①→⑫ et leur état ; contraintes (aucun GPU ici) ; **9 décisions Q1-Q9** ;
+  **6 paliers** P0-P6 dont P0-P3 sans GPU. Déclaré au catalogue (`qualite`), ligne AGENTS.md,
+  arborescence README régénérée.
+- **Trois lectures de la matrice** : 4 tâches ont une vérité GRATUITE par construction (upscale,
+  denoise, OCR par rendu, TTS par aller-retour) ; la transcription porte la SEULE vérité humaine
+  (corpus = 1 cas au 13/08, corpus externe sans porte) ; la détection n'a AUCUN banc tiers.
+- 🔚 **Le premier geste rentable = Q6** : la porte d'entrée du corpus de Fabien (audio +
+  transcription tierce + correction manuelle) — débloque WER, calibration de M1 et du juge,
+  finetuning ASR. Puis P1 (M2/M6/M9 en calcul pur, persistance des sorties du banc), sans GPU.
+- Rien d'implémenté. Décisions Q1-Q9 à trancher par Fabien avant toute ligne.
 
 
 ## §PALIER — 2026-09-14 (soir), « GOUVERNEUR : la CLÉ publiée rejoint le catalogue » — ✅ LIVRÉ

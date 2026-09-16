@@ -187,6 +187,9 @@ DOCS: Tuple[Doc, ...] = (
         "n'entraîne pas."),
     Doc('prospection', 'wama/model_manager/PROSPECTION_PIPELINE.md', 'Prospection de modèles',
         'ia', "Veille et prospection de modèles : la chaîne et ses juges."),
+    Doc('qualite', 'docs/construction/ia/WAMA_QUALITE.md', 'Qualité des modèles', 'ia',
+        "La boucle qualité : méthodes de confrontation par tâche, mesure interne, "
+        "auto-amélioration des leviers, et la voie finetuning depuis WAMA."),
     # ── mondes & apps ──
     Doc('vision', 'docs/construction/mondes/WAMA_VISION_COMPLET.md', "Vision d'ensemble", 'mondes',
         "La vision produit, unique, confrontée au réel section par section."),

@@ -1997,10 +1997,12 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
   légèreté de `_best_by_vram` lit `vram_gb` quelle que soit son origine, et
   `extra_info['vram_estimated']` ne se lève jamais (gouverneur, 03/09). L'enum
   `estimate_confidence` de llmfit est le marqueur manquant, à poser sur VRAM **et** débit.
-- ⏳ **Idée 3, à arbitrer (Fabien)** : la rubrique regex par rôle est un juge DÉTERMINISTE,
-  autorisé par le garde-fou 1 du §16.5 là où `qc.py` (juge LLM, zéro appelant) n'est pas
-  calibré. Pourrait remplir l'étage « mesure interne » des LLM. Réserves : prompts à réécrire
-  en français, signal RELATIF, jamais un composite.
+- ❌ **« Idée 3 » RETIRÉE le 2026-09-16** (une rubrique regex par rôle pour les seuls LLM) :
+  trop étroite et à côté de la route actée (`ROUTE §F4b` : qualification comparative de TOUTES
+  les tâches, sorties confrontées, réingestion en indice) — et « à réécrire en français » était
+  faux (l'anglais est le pivot des consignes, §10.B). La démarche complète vit désormais dans
+  **`docs/construction/ia/WAMA_QUALITE.md`** (méthodes M1-M10, matrice tâche × méthode, chaîne
+  en 12 chaînons, décisions Q1-Q9) ; la rubrique y survit comme UNE métrique objective (M3).
 
 ### 16.3 Questions ouvertes — à trancher prochainement
 1. **Routeur local/cloud pour modèles NON-LLM** (le vrai besoin reformulé par Fabien) : LiteLLM reste le routeur du cerveau LLM ; pour les modèles non-LLM, choisir entre (a) exposition standardisée OpenAI-compatible via **LocalAI** (couvre Whisper/SD/Flux/Llava + désormais visages/détection), (b) garder les apps WAMA comme couche de service et n'ajouter qu'un routeur local/cloud par-dessus. → décider après le test LocalAI/Transcriber.
