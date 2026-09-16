@@ -25,6 +25,10 @@
 > `tool_api` est le pivot d'exécution partagé assistant⟷studio.** La convergence = faire du **manifeste
 > `app` la source unique dont chacun (App Manager, studio, nav, assistant) tire ce dont il a besoin**, et
 > des registres actuels des **projections** re-synchronisables.
+>
+> *Précisé le 2026-09-15 : `tool_api` est le pivot des process d'**app** ; l'exécution d'un pipeline
+> (apps, fonctions, sous-pipelines) relève du **moteur commun** décrit en §10.6, où une card porte
+> une instance de pipeline dans tous les mondes.*
 
 Ce n'est donc PAS « deux sources qui se contredisent » : c'est **une source riche (APP_CATALOG + briques
 communes) et des vues partielles/simplifiées (GENERIC_APPS, modales hand-built) à régénérer depuis elle**.
@@ -664,7 +668,11 @@ le passé.*
   fait, mais **noms divergents** (`input_file` vs `audio`) et **`error_message` absent de transcriber**.
 - **Statuts NON uniformes** [dette réelle] : converter contraint (`STATUS_CHOICES`) / transcriber **libre** /
   reader `DONE/ERROR` → réconciliés à l'affichage par **3 tables d'alias dupliquées** (`detail_registry.
-  normalize_status`, `batch_common._ALIAS`, `wama-cycle-button.js stateFor`). Pas d'enum commune.
+  normalize_status`, `batch_common._ALIAS`, `wama-cycle-button.js stateFor`). ~~Pas d'enum commune.~~
+  *(corrigé le 2026-09-15 : l'enum commune EXISTE — `JOB_STATUS_CHOICES`, 5 états dont
+  `AWAITING_RESOURCES`, `common/models.py:41-61` ; les tables d'alias sont à RE-MESURER. Le studio
+  (littéraux) et cam_analyzer (`pending/…/stale`) ont chacun LEUR vocabulaire. Cible : un vocabulaire
+  commun + `STALE`, et une ligne d'exécution PAR PROCESS — §10.6 point 4.)*
 - **Task Celery** : `@shared_task`, **dual-write progress** (cache + `.update`), seeding ETA `record_run`.
 - **Reprise après crash worker** : `process_control.reconcile_orphaned_running()` (93329c4 puis
   32df89c = bascule en échec sur **preuve positive de mort** du worker propriétaire seulement) —
@@ -812,6 +820,9 @@ le passé.*
 - **Graphe** : `StudioPipeline.graph` (nodes/links JSON) + `StudioRun.node_states`. Un nœud référence l'app
   **par string**. `run_pipeline_task` : `topo_order()` DAG, nœuds source (`text_input`/`media_import`) et sink
   (`studio_output`→`UserAsset` médiathèque).
+  *(précisé le 2026-09-15) : depuis le 2026-09-09, nœuds `function` (`function:<clé>`) et source
+  `dataset_input` ; type de nœud `pipeline` décidé le 15/09, non implémenté. `node_states` (un JSON par
+  run) sera remplacé par une ligne d'exécution PAR PROCESS — §10.6 point 4.1.*
 - **Trou** : `renderNodeParams` appauvri (cf. F3). **Cible : E/S du nœud DÉRIVÉES des ports**, pas re-saisies.
 - **Manifeste** : `studio.{runnable, primary_input, input_kwarg, fixed_kwargs, auto_start}` — ports/output_type
   **lus depuis `ports`** (fin de la double saisie).
@@ -1056,7 +1067,8 @@ outillé avant d'ouvrir cette marche.
   Translator sur LibreTranslate** (librarian `--repo` = pilote 2 ; `translate_text` reste le
   verbe tool_api générique, LibreTranslate = backend dédié ; modes realtime + batch dans le
   schéma existant ; le PDF-mise-en-forme = pipeline STUDIO d'abord, app one-click ensuite si
-  besoin) — après fin de la route + finalisation du portage.
+  besoin — *précisé le 2026-09-15 : un pipeline n'appartient pas au studio ; composable au studio,
+  lançable depuis une file, §10.6*) — après fin de la route + finalisation du portage.
   Micro-marche AVANT B ✅ LIVRÉE (2026-08-12, question Fabien) : `model` ajouté aux DOSSIERS
   de `manifest_export` — les modèles sont DÉRIVÉS des `requires` des apps (∪ refresh des déjà
   exportés, même logique que les libraries sans semis manuel) → **91 manifestes modèle écrits,
@@ -2328,9 +2340,9 @@ complexité d'app — c'est elle qui lève l'incohérence « tout chaînage = st
 
 | Espèce | Définition | Exemple | Domicile |
 |---|---|---|---|
-| **Agrément** | étape optionnelle qui ne change pas l'identité de l'app | denoise avant transcription | case à cocher DANS l'app, capacité HÉRITÉE d'ailleurs |
-| **Métier** | la chaîne EST l'identité de l'app (UI dédiée) | transcription → diarisation → vérification → correction | dans l'app (l'éditeur de correction ne sera jamais un nœud studio) |
-| **Production** | assemblage inter-apps, topologie variable, choix utilisateur | TTS → avatar | studio (précédent avatarizer : mode TTS RETIRÉ de l'app, le studio chaîne) |
+| **Agrément** | étape optionnelle qui ne change pas l'identité de l'app | denoise avant transcription | case à cocher DANS l'app, capacité HÉRITÉE d'ailleurs — *précisé le 2026-09-15 : = un process `optional` du pipeline de la card, avec sa propre ligne d'exécution (§10.6)* |
+| **Métier** | la chaîne EST l'identité de l'app (UI dédiée) | transcription → diarisation → vérification → correction | dans l'app (l'éditeur de correction ne sera jamais un nœud studio) — *précisé le 2026-09-15 : « dans l'app » = DÉCLARÉE par l'app (process `required`/`optional` de son pipeline) et EXÉCUTÉE par le moteur commun ; seule la page d'édition reste propre à l'app (§10.6)* |
+| **Production** | assemblage inter-apps, topologie variable, choix utilisateur | TTS → avatar | studio — *composition de pipelines (§10.6)*. ~~précédent avatarizer : mode TTS RETIRÉ de l'app, le studio chaîne~~ (corrigé le 2026-09-15 : **périmé depuis le 2026-08-28** — TTS→avatar est redevenu un workflow DÉRIVÉ dans l'app, `MODES_QUEUE_UX.md:93-100` ; la composition studio reste valable pour l'orchestration visible) |
 
 **Le mécanisme — déclarer, pas coder** (presque toute la tuyauterie existe) :
 1. **Capacités canoniques côté APPS** : le vocabulaire indexé sur la TÂCHE existe côté modèles
@@ -2342,6 +2354,11 @@ complexité d'app — c'est elle qui lève l'incohérence « tout chaînage = st
 3. **Réalisation par le PIVOT EXISTANT** : une capacité héritée = micro-pipeline (2 nœuds)
    exécuté par `launch_graph`/`execute_tool` — **le studio comme BIBLIOTHÈQUE, pas comme UI**.
    Aucun nouveau moteur (rappel : pas de Ray/Slurm — gouverneur + Celery).
+   *Précisé le 2026-09-15 (§10.6) : ce n'est plus « un micro-pipeline studio de 2 nœuds » mais un
+   **process `optional` inséré dans le pipeline de la card**, dont le nœud est le pipeline (ou le
+   process) de l'app fournisseuse, exécuté par le **moteur commun** — qui réunit l'exécuteur du
+   studio, le squelette de tâche et le suivi de passes. « Aucun nouveau moteur » reste vrai : on
+   réunit, on n'en écrit pas un quatrième.*
 4. **Articulation avec les hooks de triade (débat A4)** : le hook `pre_start` n'est PAS de la
    glu libre — c'est un **shim DÉRIVÉ de l'arête `uses`** (« appelle la capacité héritée »).
    Le 2ᵉ consommateur du vocabulaire de hooks est le système de capacités lui-même — ce qui
@@ -2349,6 +2366,9 @@ complexité d'app — c'est elle qui lève l'incohérence « tout chaînage = st
 5. **Interop wama-lab ↔ studio** : une `StudioPipeline` SAUVEGARDÉE référencée par une app
    comme capacité composite (construire dans le studio → enregistrer → intégrer dans l'app).
    Le maillon = **write-back du kind `pipeline`** (extract existe, projection à faire).
+   *Précisé le 2026-09-15 : l'extract lit DEUX sources (canvas `StudioPipeline` ET registres de
+   code, `register_pipeline_source`, cam_analyzer depuis le 2026-09-09) ; ce qui manque pour
+   composer est aussi le **type de nœud `pipeline`** (§10.6 3.1).*
 
 **Pilote désigné** : `preprocess_audio` du transcriber → capacité `denoise_audio` héritée de
 l'enhancer. ⚠ PAS gratuit : le preprocessing fenêtré disque→disque a été construit contre un
@@ -2435,6 +2455,453 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 > Corrigé — l'outil expose désormais `roles` et `gap`. *Un planificateur qui ignore les outils
 > disponibles fait refaire à la main du travail déjà outillé.*
 
+### §10.6 — LE PIPELINE, PORTEUR UNIVERSEL DES PROCESS : une card = une instance de pipeline, dans TOUS les mondes (ACTÉ 2026-09-15)
+
+> **Statut : ACTÉ avec Fabien le 2026-09-15 — modèle de CONCEPTION, aucun code écrit.** Cette
+> section est le **domicile unique** du modèle ; les autres documents y RENVOIENT (liste des
+> consignations corrigées le même jour au point 12). Elle n'invente rien de ce qui existe : elle
+> RELIE des décisions déjà prises (process d'app = pipeline, 30/08, `WAMA_MANIFEST_ARCHITECTURE §8` ;
+> D13, 24/08 → codée 09/09, `WAMA_DATA_WORLD §9undecies.2` ; Data Analyzer = app-file, 25/08,
+> `WAMA_DATA_WORLD §11.8` ; 3 espèces de chaînage, 12/08, §10.4 ; contrat uniforme du studio, 12/07,
+> `STUDIO_VISION` principe directeur) et elle NOMME ce qui manque.
+>
+> **Pourquoi cette section existe.** Le 15/09, trois exécutions de « suite de traitements » ont été
+> relevées côte à côte, écrites trois fois, avec **trois vocabulaires d'états** :
+> le squelette de tâche (`common/utils/task_skeleton.py:185`, un process, un statut), l'exécuteur du
+> studio (`studio/tasks.py:323`, un état par nœud en JSON, états en littéraux) et le suivi de passes
+> de cam_analyzer (`AnalysisPass`, `wama_lab/cam_analyzer/models.py:424-492`, états en minuscules
+> dont `stale`). Et une doctrine répétée partout — « un nœud = une app », « la file = une méta-app à
+> une app » — qui ne décrit plus le code depuis le 09/09. *Trois moteurs qui font la même chose
+> finissent par diverger ; un vocabulaire qui ment fait reproposer ce qui existe.*
+
+#### 1. Vocabulaire — UN nom par chose (à employer tel quel dans le code, les docs et l'UI)
+
+| terme | ce que c'est | ce que ce n'est PAS |
+|---|---|---|
+| **process** | UN traitement : une transcription, une diarisation, une passe de cam_analyzer, un calcul par segment, une conversion | ni une app, ni une card |
+| **pipeline** | ce qui PORTE les process : **entrées + 0..N process chaînés (avec branches) + sorties**. Un pipeline à un seul process est **normal**, pas un cas dégénéré. Un pipeline est une **capacité** : il s'enregistre, se chaîne à d'autres, et un chaînage s'enregistre comme un nouveau pipeline | pas une propriété du studio |
+| **nœud** | une card posée sur le **canvas du studio**, quel que soit son type : entrée, sortie, app, fonction, **pipeline** | pas « une app » |
+| **card** | l'**UI qui porte UNE instance de pipeline** dans la file d'une app, dans tous les mondes | pas un job : le serveur exécute des process, la card les porte |
+| **`elem`** | nom de l'objet affiché par une card dans les gabarits (décision du 24/08, `common/utils/batch_common.py:302-307`) — **inchangé** : l'élément porte désormais une instance de pipeline | — |
+| **lot** | **N instances du MÊME pipeline** sur des entrées différentes (surcharge possible par fille) | pas un pipeline différent par fille |
+| **file** | la liste des cards et lots d'une app | pas « une méta-app à une app » |
+| **app** | une file + ses DÉCLARATIONS : pipeline(s) proposé(s), entrées acceptées, sorties, pages d'édition, monde | pas un process |
+| **monde** | la finalité d'une app : `media`, `data`, `lab`, `transverse` (`common/manifests/envelope.py:18`) | pas une frontière de réutilisation |
+| **module (Data)** | un rôle du monde Data (`wama_data/modules.py`) : Importer/Connector (entrées), Segmenter/Calculator (process), Exporter (sorties), Explorer/Visualizer (**surfaces**), Analyzer (**l'app**) | pas une app, pas un onglet (`WAMA_DATA_WORLD §11.8 ①`) |
+| **surface** | une modale ou une page dédiée ouverte depuis une card (Explorer, Visualizer, éditeur de correction du transcriber) : on y REGARDE et on y FAIT des gestes ; elle n'a **pas d'état d'exécution** | pas un process |
+
+#### 2. Le principe
+
+1. **Une card porte UN pipeline**, et l'app ne fait plus que le DÉCLARER. Ce qui distingue les apps
+   n'est plus du code d'enchaînement, c'est le pipeline qu'elles proposent, leurs entrées, leurs
+   sorties et leurs surfaces.
+2. **Le studio est l'éditeur en graphe du MÊME objet** — et c'est ce qui impose l'uniformité : tout ce
+   qui s'exécute dans une file doit pouvoir s'ouvrir, se composer et s'exécuter au studio, et
+   inversement. Une app qui ne s'y plie pas n'est pas finie de porter (règle du 12/07 : on finit le
+   port, jamais de colle côté studio).
+3. **Trois façons pour une card d'obtenir son pipeline** : ① celui que **l'app déclare** par défaut
+   (monde Médias, Lab) ; ② un pipeline **chargé** (composé au studio, généré par l'assistant, reçu
+   d'un collègue — le manifeste est une modalité de la card d'entrée, `WAMA_MANIFEST_ARCHITECTURE §8`) ;
+   ③ un pipeline **composé pas à pas** depuis la card (monde Data exploratoire, point 6.3 B).
+4. **Une seule exécution** : un moteur commun, une ligne d'exécution par process, un vocabulaire
+   d'états, une règle d'agrégation card → lot → file.
+
+#### 3. Couche 1 — la DÉFINITION : le manifeste `pipeline` (existe) et ce qui lui manque
+
+**3.1 Forme.** Le kind `pipeline` existe : nœuds `source | sink | app | function`
+(`common/manifests/builtin/pipeline.py:29-31`), liens `from/to/to_port`, graphe ACYCLIQUE (cycle
+refusé par `studio/tasks.py::topo_order` ; une rétroaction se DÉROULE en nœuds successifs,
+`STUDIO_VISION §2bis`). Deux sources d'extraction : le canvas (`StudioPipeline`) et les registres de
+code (`register_pipeline_source`, 1er cas `cam_analyzer.PASSES` → `manifests/pipelines/cam_analyzer.json`,
+13 process, 18 liens, avec branches et jonctions).
+**À ajouter : le type de nœud `pipeline`** — un nœud qui RÉFÉRENCE un pipeline enregistré (clé +
+version), sans le recopier. C'est le sous-graphe de ComfyUI, en plus simple : pas de « groupe »
+visuel à part, un pipeline est un nœud comme un autre. Pas de nouveau KIND de manifeste (décision du
+30/08 maintenue) : un nouveau TYPE DE NŒUD dans le kind existant.
+
+**3.2 Le degré de liberté de chaque process** (champ à ajouter au nœud) :
+
+| degré | sens | exemple |
+|---|---|---|
+| `required` | exécuté quand on lance le pipeline | la transcription du transcriber |
+| `optional` (+ `default: on/off`) | l'utilisateur l'active ou non — c'est une **option** d'aujourd'hui | diarisation, résumé, cohérence (`transcriber/models.py:32,64-69,75`) |
+| `open` (+ catalogue autorisé) | une **place à composer** : l'utilisateur y ajoute des process choisis dans un catalogue filtré (types, capacités, modules) | le traitement d'une card du Data Analyzer, vide au départ |
+
+Une app Médias = `required` + `optional` ; ajouter ou retirer une étape à une app = **modifier son
+pipeline**, pas son code. Une app Lab = `required` (éventuellement par étages). Le Data Analyzer =
+une place `open`. **Un seul formalisme, trois degrés de liberté.**
+
+**3.3 Réglages et péremption.** Chaque process porte le schéma de SES réglages (le `params.py` de
+l'app pour un process d'app, `FunctionSpec` pour une fonction) et la liste des réglages qu'il
+**surveille** (`watched`, repris de `cam_analyzer/utils/pass_tracking.py:35-37`). Un réglage non
+surveillé ne rend rien périmé : c'est voulu (yolo ne surveille pas `target_classes`, le filtre est à
+la lecture).
+
+**3.4 Étages = sous-pipelines.** Le champ `stage` de cam_analyzer (`analyse` / `calcul`,
+`cam_analyzer.json` lignes 105 et 195) devient une STRUCTURE : deux pipelines (« analyse d'image »,
+« calculs ») chaînés et enregistrés comme un pipeline complet. Lancer un étage = lancer un
+sous-pipeline.
+
+**3.5 Où vivent les pipelines.** Dans le code (registre, pour ceux qu'une app propose), en base
+(`StudioPipeline`, ceux d'un utilisateur), au corpus (`manifests/pipelines/`). Une app DÉCLARE son ou
+ses pipelines proposés — facette du manifeste `app` à formaliser dans `WAMA_MANIFEST_SPEC` (décision
+ouverte n°11).
+
+**3.6 Entrées et sorties.**
+- **Entrées** — Médias : les modalités de la card d'entrée (dépôt, URL, médiathèque, lot, dossier,
+  live, manifeste). Data : le **registre des lecteurs** (`wama_data/sources/__init__.py:181-236` :
+  `tabular`, `trip`, `rtmaps`, `wdat`), selon trois gestes — **connecter** une source sans la copier,
+  **importer** dans un nouveau `.wdat`, **ouvrir** un `.wdat` existant. ⚠ La différence entre
+  connecter et importer n'est pas une capacité de lecture mais un GESTE non encore décidé
+  (`wama_data/modules.py:103-107`) — décision ouverte n°5.
+- **Sorties** — un pipeline peut avoir **plusieurs nœuds de sortie**, chacun avec SA déclaration.
+  Médias : fichier(s) + formats de téléchargement (`export_binding`). Data : **l'Exporter est un nœud
+  de sortie qui porte une `Declaration`** (`wama_data/core/export.py:198-211` : nom, colonnes
+  ordonnées, identité, décimation, format) — N exports (tables de données, événements, situations)
+  = N nœuds de sortie. La finesse de configuration vit dans la déclaration, pas dans le pipeline, qui
+  n'a donc aucune limite à ce sujet.
+- **Un pipeline SANS process (entrée → sortie) est valide** : c'est l'export sans traitement
+  (« je connecte une base et j'en extrais les tables de situations »). ⚠ **Aujourd'hui refusé** :
+  `studio/services/launch.py:172-174` exige au moins un nœud app ou fonction — à changer (§11 #35).
+
+#### 4. Couche 2 — l'EXÉCUTION : une ligne par process, un vocabulaire d'états, un moteur
+
+**4.1 La ligne d'exécution d'un process** — généralisation d'`AnalysisPass`
+(`cam_analyzer/models.py:458-482`), qui remplace aussi `StudioRun.node_states` et le couple
+`status`/`progress` porté aujourd'hui par chaque modèle d'item :
+instance de pipeline (la card) · identifiant du nœud · process référencé (type + clé + version) ·
+**clé d'instance** (généralise la colonne `camera` : un process exécuté N fois dans la même card,
+une fois par caméra, par fichier…) · état · **photo des réglages surveillés au lancement** · sortie
+(pointeur persisté + résumé) · début, fin, durée · erreur · identifiant de tâche.
+Nom anglais de l'objet : décision ouverte n°1.
+
+**4.2 Les états — UN vocabulaire, au commun** (`common/models.py:41-61`, étendu) :
+
+| état | sens | posé par |
+|---|---|---|
+| `PENDING` | pas encore lancé, ou son tour n'est pas venu | création, remise à zéro |
+| `AWAITING_RESOURCES` | son tour est venu, la VRAM libre ne suffit pas (décision du 01/09) | gouverneur |
+| `RUNNING` | ça tourne | moteur |
+| `SUCCESS` | résultat produit et valide | moteur |
+| `FAILURE` | a échoué — le message est dans la ligne | moteur |
+| **`STALE`** | **résultat produit, mais plus à jour** (4.3) | calcul de péremption |
+
+Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sans
+`AWAITING_RESOURCES`), son JS (3 couleurs, `wama-studio.js:653-655`) et cam_analyzer
+(`pending/running/completed/failed/stale`, `models.py:451-456`) s'alignent sur ce vocabulaire.
+
+**4.3 `STALE` — ce que c'est exactement** (repris de cam_analyzer, décision du 07/05,
+`ROADMAP §9.2.bis` ; code `pass_tracking.py:250-302`).
+Un process est `STALE` quand il a **réussi**, mais qu'une de ses conditions a changé depuis :
+1. **un réglage qu'il surveille a changé** — la photo prise au lancement ne correspond plus aux
+   réglages courants ;
+2. **son amont n'est plus valide** — un process en amont est lui-même `STALE`, `FAILURE`, absent ou
+   a été relancé : la péremption se **propage en cascade** vers l'aval ;
+3. **son entrée a été remplacée** (geste « remplacer les entrées », `CARD_DESIGN §11.8` exigence 7).
+
+Ce que `STALE` n'est pas : un échec. **Le résultat reste lisible et téléchargeable** ; l'UI dit
+seulement « ce résultat ne correspond plus à tes réglages » et propose de relancer **uniquement ce
+qui est périmé** (geste « compléter manquant + périmé », 4.5), au lieu de tout relancer.
+⚠ **4ᵉ cas, à traiter dès la conception : le résultat CORRIGÉ À LA MAIN** (relevé par Fabien le
+2026-09-16 ; le transcriber en porte déjà le précédent, à généraliser). Aujourd'hui l'ASR brut est
+**immuable** et la correction vit à part (`corrected_segments_json` + `correction_status`,
+`transcriber/models.py:83-84`, décision de `TRANSCRIBER_CORRECTION §4`) ; l'éditeur lit la
+correction si elle existe, sinon l'ASR (`transcriber/views.py:589-609`) ; et quand une nouvelle
+génération existe, il propose « charger la dernière transcription », **en remplaçant la correction**
+(`transcriber/views.py:653-663`, `templates/transcriber/edit.html:232-236`). Relancer la
+transcription ne détruit donc rien (`_reset_for_relaunch`, `views.py:50-60`, ne touche pas la
+correction), mais **l'utilisateur n'a que deux issues : garder sa correction périmée, ou la perdre**.
+Dans le modèle : la correction est un **process** (« correction manuelle ») dont l'amont est
+l'ASR ; relancer l'ASR le rend `STALE`, ce qui **NOMME** l'état au lieu de forcer le choix, et la
+règle « rien n'est altéré sans validation » (même §4) interdit l'écrasement automatique.
+Réconcilier les deux versions (report des corrections sur la nouvelle génération) est un **chantier
+propre au transcriber**, hors de ce modèle : `STALE` en règle la moitié — savoir QUE c'est périmé et
+sur quoi — pas la fusion. À ne pas engager sans décision (Fabien, 16/09).
+
+Exemples : *transcriber* — on change le type de résumé : seul le résumé devient `STALE`, la
+transcription reste valide ; on relance la diarisation : résumé et cohérence, en aval, deviennent
+`STALE`. *cam_analyzer* — on change le modèle YOLO du profil : `yolo_detect` et tout son aval
+(profondeur, événements de voie, distances, indicateurs, conflits) deviennent `STALE`, l'extraction
+non. *Data* — on change les offsets d'une segmentation : les indicateurs par segment calculés dessus
+et les exports qui les contiennent deviennent `STALE`.
+
+**4.4 Agrégation — l'état d'une card se DÉDUIT de ses process**, comme l'état d'un lot se déduit de
+ses cards (`common/utils/batch_common.py::status_counts`, écrit le 15/09). UNE brique d'agrégation,
+appliquée à tous les étages (process → card → lot → file). Règle proposée, **à valider à
+l'implémentation** (décision ouverte n°4) : un process `RUNNING` → card `RUNNING` ; sinon un
+`AWAITING_RESOURCES` → `AWAITING_RESOURCES` ; un process `required` en `FAILURE` → `FAILURE` ; tous
+les `required` et `optional` activés en `SUCCESS` → `SUCCESS` ; au moins un `STALE` → `STALE` ;
+une place `open` vide → `PENDING` (« à composer ») ; les `optional` désactivés sont ignorés.
+
+**4.5 Le moteur commun** — il RÉUNIT trois pièces existantes, il n'en écrit pas une quatrième :
+- **de l'exécuteur du studio** (`studio/tasks.py`, `studio/services/launch.py`) : validation avant
+  lancement, ordre topologique, dispatch sur le type de nœud (app = job de file lancé puis suivi ;
+  fonction `pure` = transformation synchrone ; fonction liée à une app = tâche lancée puis suivie ;
+  **pipeline = même moteur, récursivement**) ;
+- **du squelette de tâche** (`common/utils/task_skeleton.py`) : gardes (`refuse_crash_redelivery`,
+  anti-race), ingest, progression, chrono, ETA (`record_run`), console, notification ;
+- **du suivi de passes** (`cam_analyzer/utils/pass_tracking.py`) : photo des réglages, péremption,
+  cascade, lancement ciblé.
+
+Il ajoute ce que le commun sait déjà faire ailleurs : attente de ressources (gouverneur), ETA **par
+process** (clé ETA du process, pas de l'app), signal `RunOutcome` par process, annulation.
+**Gestes de lancement** : un process · un étage (sous-pipeline) · tout · **compléter manquant +
+périmé** (les deux boutons de `ROADMAP §9.2.bis`, généralisés).
+
+**4.6 Sorties intermédiaires.** Relancer un process seul suppose que son amont soit disponible. La
+sortie d'un process qui alimente un autre est donc **persistée** ou **recalculable à la demande**
+(le monde Data a déjà posé « on persiste la DÉCLARATION, les valeurs sont un cache »,
+`WAMA_DATA_WORLD.md:1529-1538`). Aujourd'hui un `TypedFrame` ne vit qu'en mémoire entre deux nœuds
+fonction d'un même run (`studio/tasks.py:17`) et l'anonymizer ne garde aucune détection
+(`common/backends/anonymize.py:749-843`). Choix par process : décision ouverte n°2.
+
+**4.7 Les enrichissements deviennent des process optionnels.** Le résumé à la demande du
+transcriber (`enrich_transcript`) et l'analyse du reader sont aujourd'hui **hors contrat** du
+squelette, parce qu'ils corrompraient l'état de l'item (`task_skeleton.py:30-32`). Avec une ligne par
+process et un état de card DÉDUIT, cette corruption n'existe plus : ce sont des process `optional`
+comme les autres.
+
+**4.8 La leçon à ne pas refaire.** Les étapes vivent DANS le moteur commun, jamais dans une chaîne
+posée à côté. L'anonymizer a eu une vraie chaîne Celery (détection × N → floutage), supprimée le
+13/08 : elle avait perdu l'interpolation, le format de sortie, le statut RUNNING, l'ETA, la
+notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks.py:289-296`).
+
+#### 5. Couche 3 — l'UI : la card affiche son pipeline, le studio affiche le même objet en graphe
+
+**5.1 Anatomie de la card** (même ordre que `CARD_DESIGN §11.8` : Entrée / Réglages / Sortie) :
+**Entrées** (modalités de la card d'entrée) · **Process** — une ligne par process : état, ▶ (le
+lancer seul), ⚙ (réglages générés de son schéma), case à cocher s'il est `optional`, résumé de sa
+sortie ; pour une place `open`, le bouton « ajouter un process » ouvrant le catalogue filtré ·
+**Sorties** (onglets de résultat, téléchargement, exports). En tête : ▶ tout / compléter manquant +
+périmé, et la rangée d'actions commune (décision 6 du `PROJECT_STATUS §PALIER 2026-09-15`), dont le
+bouton de cycle lit l'état AGRÉGÉ par un adaptateur unique, jamais `item.status` en dur.
+**5.2 Générée**, jamais écrite par app : de la définition du pipeline + des schémas de réglages.
+Objectif : les gabarits d'app ne portent que l'emballage.
+**5.3 Lot** : le pipeline se règle sur la mère ; une fille peut le surcharger ; **promouvoir ↑ /
+réaligner ↓** (`MODES_QUEUE_UX §5ter`) — la charge utile promue EST le pipeline (les réglages Médias
+en sont un cas), avec le garde-fou Data « entrées requises ⊆ ∩ des catalogues des filles », refus
+qui DIT quelle fille manque de quoi (`WAMA_DATA_WORLD.md:2913-2916`).
+**5.4 Studio.** Le canvas édite le même objet. Trois corrections relevées le 15/09 :
+- le **catalogue** de gauche s'intitule « Apps » (`studio/templates/studio/index.html:47`) → le
+  renommer **« Catalogue »** (pas « Library » : ce mot désigne déjà les paquets pip, modèle `Library`
+  `common/models.py:593` et route `library`), en **sections repliables** (Entrées · Sorties ·
+  Pipelines — mes pipelines et ceux des apps · Apps · Fonctions par catégorie · Modules Data) ;
+- les **pipelines sauvegardés** n'y apparaissent pas : la palette ne lit que les apps et les fonctions
+  (`studio/views.py:18-70`), les pipelines passent par une autre API (`api_pipelines`, `:131`) ;
+- l'ajout se fait **au clic** (`wama-studio.js:93`) et empile les nœuds à `40 + (n % 5) × 30`
+  (`:122-123`) → **glisser-déposer** à l'endroit voulu.
+
+#### 6. Les mondes
+
+**6.1 Chaque app DÉCLARE son monde** (décision du 15/09 — c'était le « préalable n°1 » de
+`WAMA_VISION_COMPLET §2.4`). Le vocabulaire existe (`envelope.py:18` : `media | data | lab |
+transverse`) ; ce qui manque est la DÉCLARATION. Aujourd'hui le monde d'une app est **déduit** du
+groupe de la matrice d'accès (`GROUP_TO_WORLD`, `manifests/builtin/app.py:36-44`), avec des valeurs
+fausses mesurées dans le corpus : transcriber, reader et describer en `data`, converter en
+`transverse` (`manifests/apps/*.json`). Cible :
+- une clé `world` sur chaque entrée d'`APP_CATALOG` ; les surfaces hors catalogue la déclarent dans
+  leur `AppConfig.ready()` (règle « le monde pousse, le substrat ne connaît pas ses producteurs »,
+  `AGENTS.md`) ; le monde d'une fonction se déduit de son app (fin du `'data'` en dur,
+  `builtin/function.py:55`) ;
+- `category` ne garde que Comprendre / Créer / Transformer, **sous-groupes à l'intérieur d'un monde** ;
+  `data`, `lab`, `platform` d'`APP_CATEGORIES` (`app_registry.py:531-560`) étaient des mondes ;
+- **dérivent de la déclaration** : menu Applications (`accounts/context_processors.py`), accueil
+  (blocs Studio et Lab écrits en dur, `home.html:863-946`), page `/apps/` et sa grille, catalogue du
+  studio, journal (`common/services/journal.py:31-41`, qui force les apps en `media`), explorateur de
+  fichiers — **son arborescence d'apps est écrite EN DUR, app par app** (`filemanager/views.py`,
+  la liste `app_folders_config` : un bloc par app avec ses libellés, icônes et sous-dossiers, et le
+  nœud `wama_lab` en catégorie, `:100-191`), avec ses jumeaux JS (`filemanager.js:1004-1039`) —,
+  matrice d'accès, futur accès par monde.
+  ⚠ Cette arborescence est donc bien DANS le périmètre (question de Fabien, 16/09) : une fois le
+  monde déclaré, l'arbre se dérive du catalogue (monde → app → ses dossiers d'entrée/sortie
+  déclarés), au lieu d'être maintenu à la main à chaque app ajoutée.
+- **Le Data Analyzer entre dans `APP_CATALOG`, monde `data`** (arbitrage F de
+  `WAMA_DATA_WORLD.md:4539`, tranché voie (a) le 15/09). ⚠ Les apps Lab entrent-elles aussi au
+  catalogue ? La raison écrite de leur exclusion (`app_registry.py:509-517` : `APP_CATALOG` est le
+  CONTRAT d'une app générique de traitement de fichiers, une surface au contrat presque tout N/A
+  fausserait le dénominateur de conformité) est à reconfronter au modèle pipeline, qui redéfinit ce
+  contrat — décision ouverte n°8.
+
+**6.2 Le pipeline dans chaque monde**
+
+| monde | forme du pipeline | exemples mesurés |
+|---|---|---|
+| **Médias** | `required` + `optional` | transcriber : transcription → diarisation → résumé → cohérence, aujourd'hui des blocs `if` dans une fonction (`transcriber/workers.py:402-592`) dont les échecs optionnels sont avalés et l'item passe `SUCCESS` (`:484`, `:551`, `:567`, `:592`, `:601`) ; anonymizer : détection/segmentation → floutage, aujourd'hui fusionnés en mémoire ; avatarizer : TTS (optionnel, dérivé du texte, `MODES_QUEUE_UX.md:93-100`) → animation → amélioration (optionnelle) |
+| **Lab** | `required`, par étages | cam_analyzer : 13 process, étages analyse / calcul, clé d'instance = caméra |
+| **Data** | place `open` (+ entrées et sorties déclarées) | Data Analyzer : la card porte une source (`.wdat`, `.trip`, dossier d'expérimentation…) et un pipeline composé de modules |
+| **Studio** (transverse) | tout, en graphe | compose et enregistre des pipelines de tous les mondes |
+
+⚠ Deux points de granularité à ranger : la diarisation déjà fournie par certains moteurs du
+transcriber (`workers.py:472`, « VibeVoice has its own ») = un process optionnel parfois satisfait par
+le modèle ; le « par caméra » de cam_analyzer = la clé d'instance (4.1).
+
+**6.3 Le monde Data — deux façons de travailler (Fabien, 15/09), un seul objet à la fin**
+
+**A. On sait ce qu'on veut.** L'utilisateur donne à l'AI-Assistant un document en langage naturel
+(protocole, avec le RAG du labo) ; l'assistant **propose** le manifeste `pipeline` (et `dataset` si
+le corpus n'est pas décrit) ; l'utilisateur **connecte ses entrées** (dossier de stockage d'une
+expérimentation, `.trip`, `.wdat` existant, import dans un nouveau `.wdat`…) et **définit ses
+sorties** (déclarations d'export) ; les cards naissent `PENDING`, rien ne se lance seul.
+Existant : la doctrine « le LLM propose, la machine dispose » et la place exacte de l'IA
+(`WAMA_DATA_WORLD §9bis.4`, lignes 957-971) ; le contrôle `verify` ; la validation structurelle du
+kind. **Manques** : aucun rôle ne produit de manifeste `pipeline` ni `dataset` (les 6 rôles de §10.5
+n'en ont pas), aucun lien RAG → génération de pipeline n'est écrit, et un manifeste reconnu par
+l'intake ne peut pas encore être ingéré (`common/utils/intake.py:112-114`).
+
+**B. On explore.** La card naît avec **ses entrées et un pipeline vide** (place `open`). Chaque geste
+fait dans une surface **AJOUTE un process déclaré** au pipeline de la card :
+- une **sélection** dans le graphe ou le tableur de l'Explorer = un process « sélection » dont les
+  réglages SONT la sélection (intervalles, occurrences) — rejouable sur cette card ; une curation par
+  fichier ne se promeut pas au lot (`WAMA_DATA_WORLD.md:3052-3053`) ;
+- une **segmentation** (Segmenter : autour d'un événement, jonction, chaîne de conditions, états,
+  codage) = un process de la famille `segment_*` du catalogue ;
+- un **calcul** (Calculator : colonne dérivée ou indicateur par segment, `calc_*`) = un process ;
+- un **script utilisateur** (Python ou MATLAB écrit dans un champ du Calculator) = un process de type
+  « script » à ports typés, appliqué à la card puis promu au lot.
+⚠ **Règle : aucun geste d'exploration ne modifie les données sans devenir un process déclaré.** Sinon
+le résultat n'est plus rejouable et « une représentation, deux éditeurs » (D13,
+`WAMA_DATA_WORLD.md:2931-2934`) tombe. C'est le « protocole accumulé sur la card »
+(`WAMA_DATA_WORLD.md:2925-2927`), rendu concret.
+**Le process « script utilisateur » (spécifié ici pour la première fois — Fabien, 15-16/09 : ce
+n'était pas encore dans les docs).** L'utilisateur écrit un traitement en **Python ou MATLAB** dans
+un champ du Calculator, l'applique à SA card, puis le promeut au lot.
+- **C'est un process comme un autre** : il a des ports typés (entrée = flux/table/segments du
+  pipeline amont ; sortie = le type qu'il déclare), des réglages, une ligne d'exécution, un état, une
+  photo de réglages — donc `STALE` quand son amont bouge, et rejouable.
+- **Ce qui le distingue** : son « réglage » EST du code. Il se range donc avec le vocabulaire des
+  fonctions utilisateur : `UserFunction` existe (`common/models.py:488-525`, scopé et partageable par
+  `ScopedVisibility`) mais son `impl` est « à venir » (`:503`) et le catalogue ne connaît que `pure`
+  et `app` (`function_catalog.py:187-191`) — le troisième binding (`user`) n'est pas exécutable.
+- **Promotion au lot** : même geste et même garde-fou que les autres process (5.3) — les entrées
+  requises doivent exister chez chaque fille, et le refus dit laquelle manque de quoi.
+- **Décision ouverte n°7** : où et comment on l'exécute (bac à sable Python, runtime MATLAB, droits,
+  quotas, dépendances autorisées), et si le script vit dans le pipeline (recopié) ou dans une
+  `UserFunction` référencée (partageable, versionnable) — la seconde forme est celle qui se promeut
+  et se rejoue le mieux.
+
+**A et B convergent** : dans les deux cas, la card porte un manifeste `pipeline` — rejouable,
+promouvable au lot, téléchargeable avec ses résultats, partageable, ouvrable au studio.
+L'**export** est un nœud de sortie par déclaration (3.6) : multiple, entièrement configurable, et
+possible **sans aucun process**.
+
+#### 7. Articulation avec la doctrine existante — ce qui reste, ce qui est précisé
+
+- **Les 3 espèces de chaînage (§10.4) restent**, précisées : *agrément* = un process `optional` ;
+  *métier* = une chaîne **déclarée par l'app et exécutée par le moteur commun** (plus « codée dans
+  l'app ») — seule la page d'édition reste propre à l'app ; *production* = une composition de
+  pipelines (studio).
+- **Arête `uses` (`WAMA_MANIFEST_SPEC §7.5`)** = insérer dans le pipeline d'une app un process
+  `optional` dont le nœud est un pipeline (ou un process) d'une autre app. Ce n'est plus « un
+  micro-pipeline studio de 2 nœuds ».
+- **« Un process d'application EST un pipeline à 1 nœud » (30/08)** reste vrai et devient : une card
+  porte un pipeline de 0..N process ; 1 est un cas normal.
+- **D13** reste intacte (un seul kind `pipeline`) ; elle gagne le nœud `pipeline`.
+- **`WAMA_DATA_WORLD §11.8`** reste intacte : l'Analyzer est l'app-file du monde Data, **pas le
+  moteur** (la ligne « Orchestre les modules » de `wama_data/modules.py` est corrigée le 15/09).
+- **Le contrat uniforme du studio** est renforcé : il s'étend de « l'app est orchestrable » à « l'app
+  déclare son pipeline ».
+- **`elem`** ne change pas.
+
+#### 8. Décisions actées le 2026-09-15 (Fabien)
+
+1. Vocabulaire du point 1 ; **une card = une instance de pipeline** dans tous les mondes.
+2. Un pipeline porte 0..N process ; il est une capacité ; il se chaîne et s'enregistre ; **un
+   pipeline peut être un nœud**.
+3. Chaque process déclare son degré de liberté : `required` / `optional` / place `open`.
+4. **Un vocabulaire d'états commun, `STALE` compris**, au commun ; état de card déduit des process.
+5. **Un moteur commun**, réunion de l'exécuteur du studio, du squelette de tâche et du suivi de passes.
+6. Porter au commun la gestion de pipeline de cam_analyzer.
+7. **Le Data Analyzer est l'app-file du monde Data et entre dans `APP_CATALOG`** (arbitrage F voie a).
+8. **Chaque app déclare son monde** ; menus, accueil, pages et catalogues en dérivent.
+9. Data : deux façons de travailler (6.3 A et B) ; export multiple et configurable, possible sans
+   process ; composition exploratoire à partir d'un pipeline vide.
+10. Studio : catalogue renommé « Catalogue », sections repliables, pipelines sauvegardés visibles,
+    glisser-déposer.
+11. Le chantier est **primordial pour l'homogénéité de WAMA** ; le studio, point commun à tous les
+    mondes, en impose l'uniformité.
+
+#### 9. Décisions OUVERTES (à trancher avant le code qui en dépend)
+
+1. Nom anglais de la ligne d'exécution et de l'instance de pipeline.
+2. Sorties intermédiaires : persistées ou recalculées, par type de process (4.6).
+3. Forme de la clé d'instance (caméra, fichier…) dans la ligne d'exécution.
+4. Règle d'agrégation exacte (4.4), et affichage de `STALE` sur la card et le bouton de cycle.
+5. Data : « connecter » ou « importer » — que fait-on d'une source qui change sous la card
+   (`wama_data/modules.py:103-107`) ?
+6. Forme du nœud d'export : nœud de sortie à déclaration (proposé ici) — l'abstention actuelle de
+   l'Exporter au catalogue de fonctions (`wama_data/functions/io/export.py:8-31`, verrouillée par
+   `functions/io/tests_export.py:112-126`) a été écrite « tant que D13 n'est pas tranchée » et doit
+   être relue.
+7. Script utilisateur : bac à sable Python, runtime MATLAB, droits.
+8. Les apps Lab entrent-elles dans `APP_CATALOG` (6.1) ?
+9. Monde du studio (`transverse` dans `WORLDS` ; le journal invente un monde `studio`).
+10. Rôle assistant produisant `pipeline` / `dataset` (où, avec quel RAG).
+11. Facette « pipelines proposés » du manifeste `app` (`WAMA_MANIFEST_SPEC`).
+
+#### 10. Pièges relevés — à ne pas refaire
+
+- Poser une chaîne d'étapes À CÔTÉ du moteur commun (4.8).
+- Déduire le monde d'un libellé de navigation (`GROUP_TO_WORLD`) : un renommage déplace une app de
+  monde en silence.
+- Écrire « un nœud = une app » ou « la file = une méta-app à une app » : faux depuis le 09/09.
+- Garder trois vocabulaires d'états.
+- Traiter une surface (Explorer, Visualizer) comme un process.
+- Laisser un geste d'exploration modifier des données sans process déclaré.
+- Exiger un process pour exporter (`launch.py:172-174`).
+- Appeler « library » le catalogue du studio.
+- Qualifier de « pipeline » l'exécution multi-modèles de l'anonymizer : c'est une tâche unique depuis
+  le 13/08.
+
+#### 11. Ordre du chantier — et le portage des apps Médias EN PARALLÈLE
+
+| marche | contenu | dépend de |
+|---|---|---|
+| **P0** ✅ 15/09 | consigner le modèle (cette section) + corriger les consignations (point 12) | — |
+| **P1** | déclarer le monde (`world`) et dériver menus/accueil/pages/catalogues | — (indépendant, petit) |
+| **P2** | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés | — |
+| **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
+| **P4** | pilote Médias : **transcriber** en 4 process (étapes déjà numérotées, résultats déjà rangés à part) — A/B objectif (qualité, VRAM, durée) | P3 |
+| **P5** | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) | P3 (le renommage et le glisser-déposer : à tout moment) |
+| **P6** | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les 7 apps qui ne l'ont pas | P4 |
+| **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script | P3, P5, décisions 5-7 |
+| **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
+
+**Le portage des apps Médias continue EN PARALLÈLE** sur tout ce qui ne dépend pas de la façon dont
+une tâche s'exécute (classement des critères rouges de la grille au 15/09,
+`logs/conformity_report.json`, fonctions de `common/services/conformity_checker.py`) :
+- **à faire maintenant** : `card_refresh_common` (10 apps), `settings_modal_cycle` (8), rangée
+  d'actions commune (décision 6, avec l'adaptateur d'état du bouton de cycle), défauts du trou #29,
+  `_app_scripts.html` (#25), code mort (#27), `model_caps_ui` (3), `model_options_catalog` (4),
+  `recursive_import` (2), `user_settings` (2), `detail_spec` (7), lecture front de `during_preview`,
+  partie vues de #30 ;
+- **à mettre en attente de P3** : `task_skeleton` (7 apps, `conformity_checker.py:1758`),
+  `backend_routes` (8, `:1755`), `triad_specs` pour `start`/`get_status` (7 partiels, `:1899`),
+  harmonisation des statuts (#6), émission de `during_preview`, partie `tasks_gen` de #30 — le moteur
+  commun les redéfinit ; les porter maintenant serait les faire deux fois ;
+- **au cas par cas** : `output_naming` et `select_model` de l'anonymizer.
+
+⏳ **Nuance PROPOSÉE le 15/09, à confirmer par Fabien (coordination avec l'instance « squelette / VRAM »,
+commit `9d3104a5`)** : l'attente ci-dessus vaut pour les apps dont le traitement a PLUSIEURS étapes
+(transcriber, anonymizer, avatarizer, enhancer vidéo) — leur glu sera redécoupée en process. Une app à
+**un seul process** (le composer : une seule tâche, `composer/tasks.py:29-30`) peut adopter
+`run_item_task` **dès maintenant sans travail perdu**, À CONDITION que le moteur commun garde
+`process(item, ctx)` (`task_skeleton.py:14-29`) comme contrat d'un process d'app — ce que la présente
+section recommande (4.5 : on RÉUNIT les pièces, on n'en réécrit pas). Même règle pour `vram_needed` :
+à déclarer au grain du **process** (4.5, ETA et attente de ressources par process), ce qui coïncide
+avec l'app tant qu'elle n'a qu'un process.
+
+#### 12. Consignations corrigées ou précisées le 2026-09-15 (elles renvoient ici)
+
+Cette route (§0, F5, F8, §10.4, §11 #6 et #32-#35) ; `WAMA_MANIFEST_ARCHITECTURE §8` ;
+`WAMA_MANIFEST_SPEC` (kind `pipeline`, statuts, composition, §7.5) ; `STUDIO_VISION` ;
+`WAMA_DATA_WORLD` (§7, §9bis, §11.8, table de compatibilité et plan de convergence) ;
+`WAMA_DATA_FUNCTION_CARDS` ; `WAMA_VISION_COMPLET` (§2.4, §4, §6.1, §8, §10.1) ; `MODES_QUEUE_UX`
+(§5bis, §6) ; `CARD_DESIGN §11.8` ; `ROADMAP` (§9.2.bis, §15, reprise) ; `PROJECT_STATUS` ;
+`AGENTS.md` (table des domaines) ; en-têtes de code (`wama_data/modules.py`,
+`common/manifests/builtin/pipeline.py`, `studio/tasks.py`, `studio/views.py`,
+`studio/services/launch.py`, `wama-studio.js`, `studio/models.py`, `common/utils/task_skeleton.py`,
+`cam_analyzer/utils/pass_tracking.py`, `cam_analyzer/models.py`) ; notes mémoire.
+
 ---
 
 ## 11. Trous prioritaires (liste actionnable, confrontée au code)
@@ -2458,7 +2925,7 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 | 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10) | F3b | adoption, pas frontend |
 | 5 | `select_model()` : composer, transcriber, imager, **reader** (2026-07-31, `61a666f`). Reclaim VRAM ✅ **unifié** (cf. F4). Ce qui restait n'était PAS un trou : enhancer/avatarizer/synthesizer n'ont **aucune sélection automatique à faire** (l'utilisateur désigne, ou le modèle vit hors process) ; describer = unification différée par AGENTS.md (Phase 4) ; anonymizer = `select_best_models()` couvre un **jeu de classes avec plusieurs modèles** là où la brique n'en choisit qu'un, et lit déjà le catalogue → sur-ensemble légitime | F4 | ✅ pour l'essentiel |
 | 5b | **Capacités canoniques** ✅ (2026-07-31, `8ffac24`) : `inputs_required/optional` n'était produit que par **2 découvertes sur 9** → `WamaInputMatch` n'avait rien à comparer (c'est la cause de `input_match_ui` 9/10 KO, pas un défaut d'UI). Les 98 modèles portent désormais `task` + `modalities` + `inputs_*`, zéro clé hors `CANONICAL_CAPABILITIES`. ⚠ La canonicalisation se fait **à la DÉCOUVERTE**, pas dans les `model_config` d'app : frontière **délibérée** (l'app déclare en son vocabulaire, le catalogue est la source unique) | F4 | ✅ |
-| 6 | **statuts non uniformes** → 3 tables d'alias | F5 | dette de schéma |
+| 6 | **statuts non uniformes** → 3 tables d'alias. *Précisé le 2026-09-15 : l'enum commune existe (`common/models.py:41-61`) ; s'y ajoutent les vocabulaires propres du studio et de cam_analyzer. Traité par la marche **P2** de §10.6 (vocabulaire commun + `STALE` + agrégation) — ne pas le traiter isolément avant* | F5 | dette de schéma → §10.6 P2 |
 | 7 | ✅ **clos (2026-08-01)** — gating ré-appliqué **par nœud** au RUN (`studio/tasks.py:181`) ET sur toute la surface outils (`tool_accessible`, cf. F7). Le trou était plus large que décrit : `/api/v1/tools/run/` n'était gardé par RIEN (middleware aveugle à `/api/v1/`, auth DRF postérieure au middleware) et `tools/list` annonçait 43 outils à tous. Mesuré après correctif : 22/43 annoncés à un compte `recherche` seul, `create_image` → 403 | F7 | ✅ |
 | 8 | **pas de test de contrat** sur la triade tool_api | F6 | robustesse |
 | 9 | imager : ✅ résolu — alias `add_to_imager` (`tool_api.py:2042`, `functools.wraps(create_image)` + remap `generation_id`→`item_id`) | F6 | clos |
@@ -2484,6 +2951,10 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 | 29 | **Actions de card et barre de file : trous de PORTAGE relevés le 2026-09-15** (inventaire des 10 apps, vérifié ligne à ligne) — reader : actions de lot déclenchées DEUX fois (`reader.js:610-623` + `actions_communes=True`) ; converter : 🗑 sans `data-id` (`_job_card.html:135-137`) ; transcriber : cycle perdu au rafraîchissement d'une card (`index.js:1212`, `:276`) ; barre de file : **0/12** passent `start_url`/`clear_url` au partial commun, « Télécharger tout » désactivé à vie sur plusieurs apps. ⚠ Les critères `delete_wiring`/`settings_wiring` restent VERTS sur ces défauts : ils mesurent l'adoption du bouton, pas l'absence d'écouteur local ni le rafraîchissement — gestes navigateur à écrire avec le portage. Détail : `PROJECT_STATUS §PALIER 2026-09-15`, suite. | F5 | portage |
 | 30 | **Jumelles incomplètement générées** (mesuré par la marque `[manifest-gen]`, 2026-09-15) : `converter_01` 8 fichiers conventionnels, `describer_01` 4, `composer_01` 1, `imager_01` 0. Bloquant commun : `views_gen` v1 = forme FK-DIRECTE seule ; la forme à modèle de LIAISON (9 apps sur 10) est le trou déclaré plus haut. Tant qu'il n'est pas comblé, ces jumelles gardent le code de départ et ne suivent pas le commun (ex. l'état du lot après suppression). | codegen | génération |
 | 31 | **Registre des mécanismes : 18 fichiers portés par plusieurs mécanismes** (mesuré 2026-09-15) — relation cachée dans des annexes croisées, consommateurs comptés deux fois. Décision Fabien : champ `depends_on` (posé), un fichier = un mécanisme. Rangement NON appliqué ; `wama_actions.py` (4 balises de 4 briques) et mémoire/RAG à trancher d'abord. | — | registre |
+| 32 | **Trois exécutions de « suite de traitements », trois vocabulaires d'états** (mesuré 2026-09-15) : squelette de tâche (`task_skeleton.py:185`, un process), exécuteur du studio (`studio/tasks.py:323`, littéraux, sans `AWAITING_RESOURCES`), suivi de passes cam_analyzer (`AnalysisPass`, `pending/…/stale`). Aucune ne connaît les deux autres ; le moteur commun et la ligne d'exécution par process ne sont pas enregistrés au registre des mécanismes (`mecanismes.py` n'a d'entrée ni pour l'exécuteur du studio ni pour `pass_tracking`). Chantier : **§10.6 marches P2-P6** | F5/F8 | moteur commun |
+| 33 | **Le monde d'une app n'est pas déclaré, il est DÉDUIT** du groupe de la matrice d'accès (`GROUP_TO_WORLD`, `manifests/builtin/app.py:36-44`) → corpus faux : transcriber, reader, describer en `data`, converter en `transverse` ; menus/accueil/`/apps/` regroupent par `category` (qui mêle nature d'opération et pseudo-mondes), blocs Studio et Lab écrits en dur (`home.html:863-946`), journal qui force `media`. Décision du 15/09 : chaque app déclare son monde, tout en dérive — **§10.6 point 6.1, marche P1** | F1 | déclaration |
+| 34 | **Catalogue du studio** : titre « Apps » (`studio/templates/studio/index.html:47`), pipelines sauvegardés absents (`studio/views.py:18-70` ne lit que apps + fonctions), ajout au clic avec empilement (`wama-studio.js:93`, `:122-123`), aucune section repliable. Décisions du 15/09 : « Catalogue », sections repliables, pipelines sauvegardés, glisser-déposer — **§10.6 point 5.4** (le renommage et le glisser-déposer ne dépendent de rien) | F8 | UX studio |
+| 35 | **Un pipeline sans process est refusé** : `studio/services/launch.py:172-174` exige au moins un nœud app ou fonction → l'export seul (entrée → sortie, ex. extraire les tables de situations d'une base connectée) est impossible, alors qu'il est valide dans le modèle du 15/09 — **§10.6 point 3.6** | F8 | moteur |
 
 ---
 

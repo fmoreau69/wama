@@ -104,7 +104,9 @@ MODULES: Tuple[ModuleData, ...] = (
                    "natif, socle SQLite partagé). ⚠ Ce qui le sépare encore de l'Importer n'est "
                    "PAS une capacité de lecture mais un GESTE : brancher une base sans la copier "
                    "suppose de décider ce qu'on fait d'une source qui bouge sous les pieds — "
-                   "question jamais posée, et c'est elle le vrai reste",
+                   "question jamais posée, et c'est elle le vrai reste (consignée le 2026-09-15 "
+                   "comme décision ouverte 5 de `WAMA_APP_GENERATION_ROUTE §10.6` : connecter, "
+                   "importer dans un nouveau `.wdat` ou ouvrir un `.wdat` existant)",
     ),
     ModuleData(
         'explorer', 'Explorer', "Explore un dataset en table et en graphe — c'est aussi "
@@ -204,8 +206,14 @@ MODULES: Tuple[ModuleData, ...] = (
                    "`function`). Ce n'est donc plus une décision qu'on attend, c'est une "
                    "IMPLÉMENTATION qui manque, et l'abstention de `functions/io/export.py` — "
                    "écrite « tant que D13 n'est pas tranchée » — doit être relue à cette lumière. "
-                   "Restent : le nœud `function` dans le kind, les formats `xlsx`/`mat` (refusés "
-                   "explicitement, pas écrits), et l'app qui le pilote",
+                   "Le nœud `function` du kind est CODÉ depuis le 2026-09-09 (corrigé le "
+                   "2026-09-15). Forme PROPOSÉE le 2026-09-15 : l'export est un NŒUD DE SORTIE "
+                   "qui porte sa `Declaration` — N exports (tables, événements, situations) = N "
+                   "nœuds de sortie — et un pipeline SANS process (entrée → sortie) doit être "
+                   "accepté, ce que `studio/services/launch.py` refuse encore "
+                   "(`WAMA_APP_GENERATION_ROUTE §10.6` point 3.6, décision ouverte 6). Restent : "
+                   "les formats `xlsx`/`mat` (refusés explicitement, pas écrits), et l'app qui le "
+                   "pilote (l'Analyzer)",
     ),
     ModuleData(
         'recorder', 'Recorder', "Enregistre depuis une source temps réel",
@@ -214,17 +222,23 @@ MODULES: Tuple[ModuleData, ...] = (
         bloque_par="périmètre v1 non tranché (D5)",
     ),
     ModuleData(
-        'analyzer', 'Analyzer', "Orchestre les modules selon un manifeste `pipeline`",
-        "manifeste `pipeline` → exécution",
-        doc='§9bis.2',
+        # ⚠ Précisé le 2026-09-15 (Fabien) : l'Analyzer n'est PAS le moteur d'exécution — c'est
+        # l'APP-FILE du monde Data (WAMA_DATA_WORLD §11.8), qui entre dans APP_CATALOG sous le
+        # monde `data`. L'exécution est celle du moteur COMMUN (WAMA_APP_GENERATION_ROUTE §10.6).
+        'analyzer', 'Analyzer', "L'app-file du monde Data : ses cards (unitaires ou lots) portent "
+                                "chacune un pipeline — entrées, process, sorties",
+        "card (source + manifeste `pipeline`, vide ou composé) → process exécutés par le moteur commun",
+        doc='§11.8, §9bis.2',
         bloque_par="D13 TRANCHÉE le 2026-08-24 (§9undecies.2) et CODÉE le 2026-09-09 : le kind "
                    "`pipeline` accepte le nœud `function`, l'exécuteur du Studio "
                    "(`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, "
                    "fonction pure = transformation typée synchrone, fonction app-bound = `impl` "
                    "pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste "
-                   "`pipeline` (`manifests/pipelines/`). Ce qui manque encore à l'Analyzer : une "
-                   "SURFACE Data (le Studio est aujourd'hui le seul éditeur/exécuteur) et la porte "
-                   "d'ingestion d'un manifeste de process (marche E)",
+                   "`pipeline` (`manifests/pipelines/`). Ce qui manque à l'Analyzer : l'APP-FILE "
+                   "elle-même (entrée au catalogue sous le monde `data`, décidée le 2026-09-15), "
+                   "le moteur commun d'exécution de pipeline dont le Studio n'a qu'une pièce, et "
+                   "la porte d'ingestion d'un manifeste de pipeline (marche E) — séquence : "
+                   "`WAMA_APP_GENERATION_ROUTE §10.6` marche P7",
     ),
 )
 

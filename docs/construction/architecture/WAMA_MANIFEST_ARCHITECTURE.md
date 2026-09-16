@@ -548,6 +548,12 @@ humaine, **ré-exécution d'`apply_patches.py` en post-étape obligatoire**, et 
 
 ## 8. PROPOSITION (Fabien, 2026-08-30) — manifeste de PROCESS : la card reproductible par DESCRIPTION
 
+> ⚠ **Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`** (vocabulaire acté avec Fabien) :
+> un **process** est UN traitement ; la **card porte un PIPELINE** de 0..N process (entrées + process +
+> sorties). Le « manifeste de process » de cette section est donc **le manifeste `pipeline` d'une
+> instance de card**. Sur le canvas du studio, les éléments sont des **nœuds** ; dans une file, ce sont
+> des **cards**. La décision et les contrats ci-dessous restent valables ; seul le vocabulaire est précisé.
+
 > Venu de la session card v3.5, par comparaison avec le monde Data : *« comme on a un manifeste
 > de pipeline dans le monde Data pour reproduire un process sur un dataset […] chaque card ou
 > batch devrait avoir sa description de process avec ce que contient la card. On a déjà tout,
@@ -580,12 +586,17 @@ réglages, entrées PAR RÔLE, format de sortie. Trois usages :
   fichier batch décrit déjà un process par rôles ; le manifeste en est la forme structurée ;
 - le kind `pipeline` (studio) couvre le multi-nœuds ; le process mono-app en est le cas
   dégénéré — ✅ **TRANCHÉ (Fabien, 2026-08-30) : un process d'application EST un pipeline à
-  1 nœud.** Pas de kind nouveau ;
+  1 nœud.** Pas de kind nouveau ; ⏳ **précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`** :
+  un pipeline à 1 process est un cas **NORMAL** (pas dégénéré) ; une card d'app porte souvent **N**
+  process (ses options : diarisation, résumé… sont des process `optional`) ; toujours pas de nouveau
+  KIND, mais un nouveau **TYPE DE NŒUD `pipeline`** (un pipeline enregistré réutilisé comme nœud) ;
 - côté monde Data, le manifeste de pipeline joue déjà exactement ce rôle sur les datasets.
 
 **La boucle que ce choix referme (vision Fabien, même message)** : dans le studio, on compose
 une card d'entrée + une card d'application + une card de sortie → on génère un **pipeline
-importable comme CARD dans une file** de n'importe quel monde (Médias, Data, Lab). Les mondes
+importable comme CARD dans une file** de n'importe quel monde (Médias, Data, Lab) (⏳ précisé le
+2026-09-15 → ROUTE §10.6 : sur le canvas ce sont des **nœuds** — entrée, app/fonction/pipeline,
+sortie — ; le pipeline obtenu se CHARGE dans une **card** de file). Les mondes
 gardent des fonctionnements de file identiques, tous compatibles studio — et **le studio trouve
 sa place d'application TRANSVERSALE** (cf. `STUDIO_VISION.md`). Diagnostic partagé : l'essentiel
 existe (kind `pipeline`, files homogènes, ports déclarés, capacités héritées « le studio est
@@ -607,6 +618,8 @@ dépôt, détection structurelle du contenu, aperçu avant création — le mani
   card PENDING pré-remplie, il ne LANCE rien ;
 - le manifeste cite l'app par son id de catalogue → une jumelle de bac à sable peut rejouer
   le process de sa source (même mécanique `generated_from` que l'importeur filemanager).
+  ⏳ Précisé le 2026-09-15 (ROUTE §10.6) : il cite **chaque process** par son identifiant (app,
+  fonction, sous-pipeline) — un pipeline peut en contenir plusieurs, ou aucun (export seul).
 
 **Extension (Fabien, 2026-08-30, même session) — un fichier BATCH de manifestes = une FILE
 D'ATTENTE exportable/partageable.** Une fois le manifeste accepté comme modalité de card, un

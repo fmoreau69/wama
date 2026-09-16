@@ -1,14 +1,20 @@
 /*
- * WamaStudio — méta-app (squelette).
- * Canvas où chaque nœud = une app (métadonnées + ports typés via /studio/api/nodes/).
- * Ports typés : ENTRÉE = input_types (vert), SORTIE = output_types (bleu).
- * Une connexion n'est valide que si output_types(source) ∩ input_types(cible) ≠ ∅
- * → « typage par connexion ». Pas d'exécution : on valide card + connecteurs sur du réel.
+ * WamaStudio — canvas du studio : éditeur en graphe d'un PIPELINE (corrigé le 2026-09-15).
+ * Nœuds de tous types (métadonnées + ports typés via /studio/api/nodes/) : entrées
+ * (Texte / Médiathèque / Jeu de données), apps, fonctions du catalogue (`function:<clé>`,
+ * depuis le 2026-09-09) et sortie. Ports typés : ENTRÉE = input_types (vert), SORTIE =
+ * output_types (bleu). Une connexion n'est valide que si output_types(source) ∩
+ * input_types(cible) ≠ ∅ → « typage par connexion ».
+ * Persistance (pipelines sauvegardés) et EXÉCUTION RÉELLE (moteur topologique côté serveur,
+ * `studio/tasks.py`) livrées depuis le 2026-07-11 — l'ancienne mention « pas d'exécution »
+ * et « la file = méta-app dégénérée à 1 app » sont PÉRIMÉES.
  *
- * Volontairement minimal et autonome (vanilla + SVG). Évolutions prévues :
- *  - ports prompt/référence/url distincts (cf. INPUT_TYPES app_modes),
- *  - réutilisation du composant card pour les éléments qui circulent,
- *  - persistance + exécution (la file = méta-app dégénérée à 1 app).
+ * Volontairement minimal et autonome (vanilla + SVG). Décidé le 2026-09-15, non implémenté
+ * (vocabulaire process / pipeline / nœud / card → WAMA_APP_GENERATION_ROUTE.md §10.6) :
+ *  - ajout d'un nœud au CLIC aujourd'hui (empilé) → glisser-déposer à l'endroit voulu,
+ *  - palette « Apps » → « Catalogue » en sections repliables, pipelines sauvegardés inclus,
+ *  - type de nœud `pipeline` (un pipeline enregistré réutilisé comme nœud),
+ *  - états d'exécution alignés sur le vocabulaire commun (5 états JOB_* + STALE).
  */
 (function (global) {
     'use strict';

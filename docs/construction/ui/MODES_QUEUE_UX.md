@@ -198,8 +198,10 @@ sur briques communes)* ; tout le reste se génère.
 > (`app_modes.py` les déclare `'modes': []`, avec le pourquoi commenté ligne à ligne — « quatre
 > ancres qui n'existent plus dans le DOM », « backend/langue sont des PARAMS, pas des modes »).
 > **Lire la déclaration, pas une copie.** Seule information sans source machine, conservée :
-> l'axe *Workflow → méta-app* — synthesizer/transcriber sont pipeline-ready ; le pipeline de
-> l'avatarizer (TTS→lip-sync) **est** la méta-app (studio), pas un mode.
+> l'axe *Workflow → méta-app* — synthesizer/transcriber sont pipeline-ready ; ~~le pipeline de
+> l'avatarizer (TTS→lip-sync) **est** la méta-app (studio), pas un mode.~~ **Corrigé le 2026-09-15** :
+> cette phrase contredisait §2bis (lignes 93-100, validé par Fabien le 2026-08-28) — TTS→lip-sync est
+> un WORKFLOW DÉRIVÉ dans l'avatarizer (pas un mode, pas une composition studio obligatoire).
 >
 > ⚠ Tension ouverte (relevée 27/08, non tranchée) : `app_modes.py` déclare encore un mode
 > `realtime` pour synthesizer/transcriber alors que §5 le requalifie en **affordance
@@ -217,6 +219,9 @@ sur briques communes)* ; tout le reste se génère.
 **temps réel** (mode) = Synthesizer/Transcriber/Avatarizer ; axe **pipeline/standalone** = transversal
 (via tool_api) = le **workflow méta-app**, à NE PAS modéliser en domaine. → valide les **3 axes distincts**
 (domaine / mode / workflow).
+*Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`* : le « workflow » = les process
+`optional` du **pipeline porté par la card** (ex. diarisation/résumé/cohérence du transcriber, TTS de
+l'avatarizer) — toujours pas un domaine ni un mode.
 
 ## 5ter. Promotion fille ↔ mère des réglages (décidé 2026-08-25 — venu du monde Data, bénéfice COMMUN) ⏳
 
@@ -235,11 +240,25 @@ sur briques communes)* ; tout le reste se génère.
 - ⚠ **Charge utile DÉCLARÉE, pas codée en dur** : monde Médias = le dict de paramètres ; monde
   Data = le **protocole** accumulé sur la card (`WAMA_DATA_WORLD §9undecies`), qui subsume les
   paramètres. Même geste, deux payloads — une capacité d'app, pas deux mécanismes.
+  *Précisé le 2026-09-15 → ROUTE §10.6 point 5.3* : la charge utile promue EST le pipeline de la card
+  (Médias : ses réglages ; Data : son protocole) — les deux payloads sont deux cas du même objet.
 - ⚠ **Garde-fou à la promotion (Data)** : promouvoir exige que chaque fille porte les données
   requises (entrées typées de la fonction ⊆ ∩ des catalogues des filles) — et le refus **dit
   quelle fille manque de quoi**, jamais un grisage muet.
 
 ## 6. Unification avec la MÉTA-APP (chaînage graphique) — anticiper dès maintenant
+
+> ⚠ **PRÉCISÉ LE 2026-09-15 — lire d'abord `WAMA_APP_GENERATION_ROUTE.md §10.6`.** Cette section
+> reste la trace de l'intuition (card = composant universel, un seul composant pour la file et le
+> canvas) ; son vocabulaire est remplacé :
+> - **card = l'UI d'une instance de pipeline** (entrées + 0..N process + sorties), dans tous les
+>   mondes — et non « la file = une méta-app à UNE app » ;
+> - **file** = la liste des cards d'une app ; **lot** = N instances du MÊME pipeline ;
+> - **nœud** = une card posée sur le canvas du studio, de TOUT type (entrée, sortie, app, fonction,
+>   pipeline) — pas seulement « nœud-app » ;
+> - le **rôle** d'une entrée vient du PORT où elle se branche ; unitaire/lot est une propriété de
+>   l'instance, pas un rôle (la règle « card batch → travail ; card unitaire → référence » ci-dessous
+>   est donc une heuristique d'époque, pas une règle).
 
 > **Insight magique** : **la card est un composant universel ; la FILE = une méta-app à UNE app, rendue
 > en liste.** On construit la card (unitaire ↔ batch-empilé, concis↔étendu, feux tricolores, actions) +

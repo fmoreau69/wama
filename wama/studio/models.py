@@ -1,14 +1,21 @@
 """
-Studio (méta-app) — persistance des pipelines et des exécutions.
+Studio — persistance des pipelines et des exécutions.
 
 Le GRAPHE est un JSON auto-porteur (nodes + links), sérialisé par wama-studio.js :
     {"nodes": [{"id", "app", "x", "y", "params": {...}}],
      "links": [{"from": "<nodeId>", "to": "<nodeId>", "to_port": "<group>"}]}
+`app` porte l'identifiant de palette : une app, un nœud d'entrée/sortie, ou `function:<clé>` pour
+une fonction du catalogue (depuis le 2026-09-09, lu par `manifests.builtin.pipeline.node_kind`).
 
 `StudioRun.node_states` trace l'exécution nœud par nœud :
     {"<nodeId>": {"status": "PENDING|RUNNING|SUCCESS|FAILURE",
                   "item_id": <id de l'objet créé dans l'app>,
                   "output": "<chemin MEDIA relatif>", "error": ""}}
+
+⏳ Précisé le 2026-09-15 → WAMA_APP_GENERATION_ROUTE.md §10.6 (4.1, 4.2) : ces états s'aligneront
+sur le vocabulaire COMMUN (les 5 états JOB_* de `wama.common.models`, dont AWAITING_RESOURCES,
++ STALE) ; la cible remplace `node_states` par UNE LIGNE D'EXÉCUTION PAR PROCESS (généralisation
+d'`AnalysisPass` de cam_analyzer), commune à tous les mondes.
 """
 from django.contrib.auth import get_user_model
 from django.db import models

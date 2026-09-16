@@ -429,8 +429,12 @@ class AnalysisPass(models.Model):
     changed since the pass was run), and lets the orchestrator decide what
     to re-run incrementally.
 
-    Granularity: ONE row per (session, pass_type). Per-camera / per-class
-    detail goes into output_summary JSON.
+    Granularity: ONE row per (session, pass_type, camera) — camera is null for
+    session-wide passes (corrigé le 2026-09-15 : cf. la UniqueConstraint
+    ci-dessous ; l'ancienne mention « per (session, pass_type) » était périmée).
+    Per-class detail goes into output_summary JSON.
+    Statuts en minuscules (pending/running/completed/failed/stale) : à aligner
+    sur le vocabulaire commun JOB_* + STALE (WAMA_APP_GENERATION_ROUTE.md §10.6 4.2).
     """
 
     class PassType(models.TextChoices):

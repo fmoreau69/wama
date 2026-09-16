@@ -1550,6 +1550,10 @@ Décision (2026-05-07) : tracer chaque traitement comme un `AnalysisPass`
 distinct pour permettre l'analyse incrémentale, l'invalidation en cascade
 (STALE) et un panneau pipeline UI clair.
 
+> *Précisé le 2026-09-15* : ce modèle est **généralisé au commun** (ligne d'exécution par process,
+> état `STALE` commun, cascade) — `WAMA_APP_GENERATION_ROUTE.md §10.6`. Granularité réelle du code :
+> session × passe × **caméra** (colonne `camera`), et non « 1 row par session × pass_type » ci-dessous.
+
 - **Storage YOLO toutes classes** : inférence à `confidence=0.10` au lieu du
   user setting, filtrage côté lecture par `target_classes` + `confidence`.
   Ajouter une classe = 0 re-inférence ; descendre conf < 0.10 = re-run.
@@ -1902,6 +1906,11 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 > 2026-07-20 : aucune lib React Flow/Rete/LiteGraph), pas de réutilisation de lib node-graph.
 > Restes ouverts (repris en Horizons H1.3) : runners restants, sorties → dossier studio,
 > appliquer une chaîne à une file (batch), entrée « contexte » (gatée RAG §8c).
+> *Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`* : les nœuds ne sont plus seulement
+> des « nœuds-app » (fonctions et source `dataset_input` depuis le 09-09, type `pipeline` prévu) ;
+> « appliquer une chaîne à une file » devient **charger un pipeline dans une card de file** (card =
+> instance de pipeline) ; restes ajoutés : catalogue renommé « Catalogue » en sections repliables,
+> pipelines sauvegardés visibles au catalogue, glisser-déposer (§10.6 point 5.4).
 > Spec d'origine archivée : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ## 16. Grappe IA de DEV + orchestrateur cloud/local (chantier infra — à cadrer)
@@ -3972,8 +3981,10 @@ portage, et non « 5 apps à porter » :
 3. **Studio** — exécuter un pipeline de fonctions **depuis le bouton ▶** (jamais fait) ;
    **marche E** : recharger un manifeste `pipeline` DANS le canvas (l'export existe, l'import
    non) ; batch orchestré et fan-out parallèle. ⚠ Aucun harnais JS n'existe : la seule
-   attestation du JS Studio est le smoke navigateur.
-4. **Monde Data** — **Data Analyzer** (24.4②) ; D16/D18/D19 ; audit SQLite→HDF5 (🔴 bloque `.wds`) ;
+   attestation du JS Studio est le smoke navigateur. **+ (15/09)** moteur commun et card = instance
+   de pipeline (`WAMA_APP_GENERATION_ROUTE.md §10.6`, marches P2-P5).
+4. **Monde Data** — **Data Analyzer** (24.4② ; décision du 15/09 : app-file entrant dans
+   `APP_CATALOG`, monde `data`) ; D16/D18/D19 ; audit SQLite→HDF5 (🔴 bloque `.wds`) ;
    2ᵉ manifeste + A2/A3/A4 du plan d'expérience.
 5. **API — monde MÉDIA + TRANSVERSAL** (24.4① *quater*), dans cet ordre. ⚠ **Les mondes Lab et
    Data n'en font PAS partie** (cadrage Fabien 2026-09-10) : ils viendront après, quand il y

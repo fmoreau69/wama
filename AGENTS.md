@@ -389,7 +389,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 |---|---|
 | **Doctrine de développement** (philosophie, règles obligatoires, conventions) — lue par tout agent ET par un humain | **`AGENTS.md`** — ce fichier. ⚠ Le **harnais Claude Code** (matcher de permissions, hooks `.claude/`) vit à part dans `CLAUDE.md`, qui importe celui-ci : ce n'est PAS un second fichier concurrent, c'est la même règle « un domaine = un fichier » appliquée à deux domaines distincts (la doctrine / l'outil). Ne jamais recopier une règle de doctrine dans `CLAUDE.md` |
 | **Carte des mécanismes transversaux** (où vit quoi, qui l'utilise, qu'ai-je oublié) | **`docs/construction/architecture/WAMA_MECANISMES.md`** — INDEX, jamais de prose dupliquée. Sa table est **générée** depuis le registre déclaratif `wama/common/mecanismes.py` (`doc_facts`, fait `mecanismes`) : **ajouter un mécanisme = ajouter une entrée au registre**, pas une ligne au `.md`. Signale les briques sans consommateur et les modules `common/` non rattachés. |
-| Route complète vers l'auto-génération d'apps (mécanismes) | **`docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md`** (consolide UI_MECHANISMS_CONSOLIDATION / COMMON_REFACTORING / GENERALIZATION_PLAN / BACKEND_CARTOGRAPHY, tous archivés dans `docs/construction/archive/`) |
+| Route complète vers l'auto-génération d'apps (mécanismes) | **`docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md`** (consolide UI_MECHANISMS_CONSOLIDATION / COMMON_REFACTORING / GENERALIZATION_PLAN / BACKEND_CARTOGRAPHY, tous archivés dans `docs/construction/archive/`) — dont **§10.6 = le modèle PIPELINE commun à tous les mondes** (vocabulaire process / pipeline / nœud / card, états communs dont `STALE`, moteur commun, mondes déclarés ; acté 2026-09-15) : domicile unique, les docs Studio/Data/UI y renvoient |
 | Manifestes — formalisme | `docs/construction/architecture/WAMA_MANIFEST_SPEC.md` |
 | Manifestes — flux/schéma | `docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md` |
 | Avancement des chantiers | `docs/construction/suivi/PROJECT_STATUS.md` + `docs/construction/suivi/ROADMAP.md` |
@@ -849,6 +849,7 @@ WAMA utilise une sélection simplifiée par tier (`llm_utils.py : get_describer_
 | mochi-1-preview | 22GB | `diffusion/mochi/` |
 | ltx-video-13b-0.9.8-distilled (+ variante fp8) | 6GB | `diffusion/ltx/` |
 | cogvideox-5b-i2v | 5GB | `diffusion/cogvideox/` |
+| fastwan-2.2-ti2v-5b | 23GB (somme des composants, déchargement CPU) | `diffusion/FastWan2.2-TI2V-5B-FullAttn-Diffusers/` — T2V seul, DMD 3 pas ; génération GPU pas encore validée |
 
 ### Supprimés (obsolètes/redondants)
 - OpenJourney v4 (obsolète 2022)

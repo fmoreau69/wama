@@ -30,12 +30,18 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
   Hors contrat (volontaire) : les tâches d'ENRICHISSEMENT à la demande (reader `analyze`,
   transcriber `enrich`) — elles ne pilotent PAS le cycle de vie de l'item (ni statut ni
   progress) ; les faire passer ici corromprait l'état (FAILURE sur un item déjà SUCCESS).
+  ⏳ Précisé le 2026-09-15 (WAMA_APP_GENERATION_ROUTE.md §10.6 4.7) : ces enrichissements
+  deviendront des process `optional` avec leur propre ligne d'exécution — l'état de la card
+  étant DÉDUIT de ses process, ils ne corrompront plus rien.
 
 Le squelette pose, dans l'ordre de la convention : `close_old_connections`, chargement de
 l'item (`select_related('user')`), `refuse_crash_redelivery` (garde anti-boucle-de-crash),
 progress 0, `ensure_local_input` (no-op sans `WAMA_INGEST`), chrono, puis au succès
 SUCCESS + progress 100 + `processing_seconds` (si le modèle les porte), `record_run` et
 `notify_job` en best-effort. Vocabulaire de statuts canonique : SUCCESS / FAILURE.
+(Précisé le 2026-09-15 → WAMA_APP_GENERATION_ROUTE.md §10.6 4.2 : vocabulaire commun = les 5 états
+JOB_* de `wama.common.models`, AWAITING_RESOURCES compris, + STALE ; ce squelette devient une pièce
+du moteur commun de pipeline, 4.5.)
 """
 import logging
 import time

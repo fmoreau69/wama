@@ -204,7 +204,10 @@ universelle de formats).
 physiologiques, oculométrie, comportement, trajectoires, données véhicule. Son socle est réel
 (voir Partie 8) : couche temporelle universelle, lecteurs de formats d'acquisition, catalogue de
 fonctions typées, manifeste de dataset exécutable. Son UI et son application généraliste
-(Data Analyzer) restent à construire.
+(Data Analyzer) restent à construire. *Précisé le 2026-09-15* : le Data Analyzer est l'**app-file du
+monde Data** (même file que les apps Médias, `WAMA_DATA_WORLD §11.8`) et **entre dans `APP_CATALOG`
+sous le monde `data`** — ses cards portent des pipelines composés de modules
+(`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.3).
 
 **Monde Lab 🔄** : les applications scientifiques spécifiques, là où se concentre l'expertise
 difficilement automatisable (voir Partie 7). Sa trajectoire est la décomposition progressive en
@@ -260,6 +263,13 @@ vocabulaire (déjà survenue autour de « librairie »), taxonomies de types qui
 hypothèses média cachées réutilisées en data, gate d'accès par monde impossible, grille de
 conformité média appliquée à tort à une app data. ⚠ Ne jamais faire du monde une **frontière**
 de réutilisation : il manque une traçabilité, pas une autorisation.
+
+✅ **DÉCIDÉ le 2026-09-15 (Fabien) : chaque app DÉCLARE son monde** ; menus, accueil, pages d'app et
+catalogues en dérivent (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.1). ⏳ **Non implémenté** —
+mesuré le même jour : le monde est encore déduit de `GROUP_TO_WORLD`
+(`wama/common/manifests/builtin/app.py:36-44`), d'où transcriber, reader et describer rangés `data`
+et converter `transverse` dans `manifests/apps/`. La piste `origine`/`portee` ci-dessus reste une
+proposition non actée.
 
 ---
 
@@ -339,16 +349,21 @@ par programmation graphique — graphes, nœuds, connexions, paramètres, workfl
 L'inspiration ComfyUI s'arrête au principe : là où ComfyUI orchestre des pipelines de génération
 visuelle, WAMA orchestre **l'IA, les données, les applications métier, les médias et les
 workflows scientifiques**.
+*Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`* : le Studio est l'**éditeur en graphe
+des pipelines** — le même objet que porte chaque card de file ; l'**exécution est commune** à toutes
+les files (un moteur, une ligne par process), pas propre au Studio.
 
 État réel : canvas, persistance et **exécution réelle** (moteur d'exécution topologique via l'API
-d'outils, suivi par nœud, cards d'entrée/sortie reliées à la médiathèque) sont livrés ; la
-couverture des runners par application est partielle, le batch orchestré et le fan-out parallèle
-restent à faire.
+d'outils, suivi par nœud, cards d'entrée/sortie reliées à la médiathèque) sont livrés ;
+~~la couverture des runners par application est partielle~~ (corrigé le 2026-09-15 : les 10 apps
+génériques passent par le runner générique, et les fonctions du catalogue sont des nœuds exécutables
+depuis le 2026-09-09) ; le batch orchestré et le fan-out parallèle restent à faire.
 
 ## 4.2 Le graphe de capacités ✅🔄
 
 Un nœud n'est pas seulement un appel de modèle : il peut représenter une application complète,
-une analyse scientifique, un traitement data, une source de données. Les **ports typés** sont
+une analyse scientifique, un traitement data, une source de données — et un **pipeline enregistré**
+(type de nœud prévu, précisé le 2026-09-15, ROUTE §10.6 point 3.1). Les **ports typés** sont
 dérivés des déclarations du catalogue (pas d'adaptateurs écrits à la main côté Studio — c'est le
 **contrat uniforme** : quand une app ne s'y conforme pas, on finit le port de l'app, on n'écrit
 pas d'adaptateur). Les types scientifiques (DataFrame, signaux, embeddings) rejoindront le typage
@@ -450,7 +465,10 @@ L'Imager (génération d'images et vidéos : fichiers de référence, mots-clés
 de prompts, catalogue de modèles actifs), le Composer (génération musicale — dont le premier
 **backend composé** générique chargeant un modèle par son anatomie déclarée, cf. §3.2), le
 Synthesizer (TTS multi-moteurs, clonage), l'Avatarizer (synchronisation labiale) constituent la
-chaîne générative. La chaîne `texte → TTS → avatar` **est** déjà une composition Studio.
+chaîne générative. ~~La chaîne `texte → TTS → avatar` **est** déjà une composition Studio.~~
+**Corrigé le 2026-09-15** : la chaîne `texte → TTS → avatar` existe **dans l'Avatarizer** (TTS
+optionnel, dérivé du texte fourni, depuis le 2026-08-28 — `MODES_QUEUE_UX.md §2bis`) et reste
+composable au Studio.
 
 L'objectif n'est jamais « générer une image » mais une **création contrôlée et reproductible** :
 références, contraintes, provenance conservée. Cohérence de personnages inter-scènes et direction
@@ -520,8 +538,11 @@ existants du laboratoire), segmentation, conditions, codage, calcul, export ; de
 par format d'acquisition (fichiers de campagne, enregistrements RTMaps, tabulaire, format natif
 `.wdat`) ; un **catalogue de fonctions typées** (déclarées par capacités d'entrée/sortie, glu
 commune cf. §2.2) ; et le **manifeste de dataset exécutable** — un corpus se décrit, et cette
-description s'exécute. Restent le Calculator, l'UI des modules et l'application généraliste
-(Data Analyzer : exploration, DataFrames, statistiques, visualisations, rapports).
+description s'exécute. Restent ~~le Calculator,~~ l'UI des modules et l'application généraliste
+(Data Analyzer : exploration, DataFrames, statistiques, visualisations, rapports). *(Corrigé le
+2026-09-15 : le moteur du Calculator est écrit et testé, `wama_data/modules.py:163-171` — reste son
+emploi sur un corpus réel. Précisé le même jour : le Data Analyzer est l'app-file du monde Data,
+entrant dans `APP_CATALOG`, ROUTE §10.6 point 6.3.)*
 
 Principe de manifeste : **il déclare ce que le corpus EST, jamais ce qu'une analyse en fera.**
 
@@ -640,6 +661,9 @@ discussion devient moins basée sur la reconstruction du passé, davantage sur l
 Import batch unifié multi-formats, file d'attente commune, suivi par lot (total auto-réparé,
 progression, ETA). Visé : le batch **orchestré** depuis le Studio
 (`1000 vidéos → Cam Analyzer → extraction d'événements → analyse → rapport`).
+*Précisé le 2026-09-15 → ROUTE §10.6* : un lot = **N instances du même pipeline** sur des entrées
+différentes, lançable depuis n'importe quelle file (le Studio compose le pipeline, il n'est pas le
+seul lieu d'où le lancer).
 
 ## 10.2 Auto-maintenance et vérification 🔄
 

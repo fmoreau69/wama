@@ -1,7 +1,8 @@
 # STUDIO_VISION.md — Le studio comme pipeline de production AV assisté par IA
 
 > **Statut : VISION (vague, en cours de maturation).** Capture l'intention de Fabien (2026-06-25)
-> pour faire du **studio méta-app** un environnement de **production audiovisuelle assistée par IA** :
+> pour faire du **studio** (éditeur de pipelines — ex-« méta-app », vocabulaire précisé le 2026-09-15 →
+> `WAMA_APP_GENERATION_ROUTE.md §10.6`) un environnement de **production audiovisuelle assistée par IA** :
 > constitution de rushs, **montage vidéo automatisé**, **mixage/mastering audio** assisté.
 > Les **specs d'outils détaillées** (montage, mixage/mastering) seront fournies plus tard par Fabien.
 > Le mixage/mastering est explicitement un **PoC** (aucun outil équivalent n'existe à ce jour).
@@ -11,10 +12,17 @@
 > migrée de `common` — corrigé 2026-07-09, l'app studio existe et est montée à la racine des URLs).
 
 ## Idée maîtresse
-Le **studio** (canvas méta-app : nœuds-app + connecteurs typés) n'est pas qu'un orchestrateur de
+Le **studio** (canvas de nœuds — entrée, sortie, app, fonction, pipeline — + connecteurs typés ;
+~~canvas méta-app : nœuds-app~~, vocabulaire précisé le 2026-09-15) n'est pas qu'un orchestrateur de
 tâches : c'est l'endroit où l'on **assemble une production**. On y **constitue ses ressources**
 (rushs vidéo, pistes audio) puis on les **monte / mixe / masterise** via des apps dédiées,
 réutilisées comme nœuds. Le **typage par connexion** (sortie ∩ entrée) garde le tout cohérent.
+
+> ⚠ **Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`** : le studio est l'**éditeur en
+> graphe du MÊME objet que les cards** — une card porte une instance de pipeline (0..N process) dans
+> TOUS les mondes ; le studio est donc leur point commun et en impose l'uniformité. Son catalogue de
+> gauche est à renommer « Catalogue » (sections repliables, pipelines sauvegardés visibles,
+> glisser-déposer au lieu du clic) — §10.6 point 5.4.
 
 ## Le studio est AUSSI une bibliothèque (acté 2026-08-12 — marche D de la route)
 Deux extensions actées, **domicile de la doctrine = `WAMA_APP_GENERATION_ROUTE.md §10.4`**
@@ -23,16 +31,25 @@ Deux extensions actées, **domicile de la doctrine = `WAMA_APP_GENERATION_ROUTE.
   `denoise_audio` de l'enhancer) via l'arête `uses` du manifeste (SPEC §7.5) ; l'utilisateur
   voit une case à cocher, le runtime exécute un micro-pipeline par le MÊME pivot
   (`launch_graph`/`execute_tool`) — le studio comme bibliothèque, pas comme UI.
+  *Précisé le 2026-09-15 → ROUTE §10.6 point 7* : l'option = un process `optional` inséré dans le
+  pipeline de la card, exécuté par le moteur commun (plus « un micro-pipeline studio de 2 nœuds »).
 - **Pipeline sauvegardé = capacité composite** : une `StudioPipeline` enregistrée peut être
   référencée par une app (interop wama-lab ↔ studio ; maillon = write-back du kind
-  `pipeline`). Le précédent avatarizer (mode TTS retiré, le studio chaîne TTS → avatar) reste
-  la règle pour le chaînage de PRODUCTION.
+  `pipeline`). ~~Le précédent avatarizer (mode TTS retiré, le studio chaîne TTS → avatar) reste
+  la règle pour le chaînage de PRODUCTION.~~ **Corrigé le 2026-09-15** : ce précédent est périmé
+  depuis le 2026-08-28 — TTS → avatar est redevenu un **workflow dérivé DANS l'avatarizer** (le texte
+  déclenche le TTS, l'audio fourni prime, `MODES_QUEUE_UX.md §2bis`, lignes 93-100) ; la composition
+  studio Synthesizer → Avatarizer reste possible mais facultative. Le chaînage de PRODUCTION reste
+  l'assemblage entre apps (ROUTE §10.4), sans ce précédent pour exemple.
 
 ## Décision d'architecture (Fabien, 2026-06-25) — apps dédiées, pas sous-modules du studio
 Le **montage automatisé** et le **mixage/mastering** sont des **apps WAMA dédiées**, **pas** des
 sous-modules du studio. Raison : dans WAMA, **une app traite** (entrées → `process()` → sortie, avec
 modes/capacités/**page d'édition dédiée**) ; **le studio orchestre** (canvas qui câble des apps). Le
 montage prend N rushs + audio → produit un montage = travail d'app.
+*Précisé le 2026-09-15 → ROUTE §10.6* : la décision « apps dédiées » tient ; le studio COMPOSE des
+pipelines (apps, fonctions, sous-pipelines) et le **moteur commun** les exécute, depuis le studio
+comme depuis n'importe quelle file.
 
 Conséquences :
 - L'app **« Monteur »** est **automatiquement un nœud du studio** (via `APP_CATALOG`/`studio-nodes`)
@@ -116,6 +133,9 @@ décors et des personnages** d'un plan à l'autre.
   la forme « prompts + fichiers de référence » de l'étape 2 — **rien à inventer**.
 - **La composition app↔app est le fonctionnement normal du studio** : un nœud = une app, les liens
   portent `to_port`. Le Movie Director n'est donc pas un cas spécial, c'est une app de plus.
+  *(Corrigé le 2026-09-15 : « un nœud = une app » était vrai à la mesure du 09-04 ; depuis le 09-09
+  un nœud peut aussi être une fonction ou la source `dataset_input`, et le type `pipeline` est prévu
+  — ROUTE §10.6 point 3.1.)*
 
 #### Ce que le pipeline REFUSE aujourd'hui — et pourquoi ce n'est pas bloquant
 
@@ -158,7 +178,9 @@ décors et des personnages** d'un plan à l'autre.
 
 Le studio n'a besoin d'**aucune notion de « film »** : le Movie Director est une app comme les
 autres, ses documents sont des médias, sa bible est un artefact déclaré, et le séquencement est un
-graphe. **La seule évolution du moteur qu'elle réclame est la sortie multiple** — le reste est du
+graphe. **La seule évolution du moteur propre à cette chaîne est la sortie multiple** (précisé le
+2026-09-15 : le chantier du moteur commun — ligne par process, états, `STALE`, nœud `pipeline` — est
+distinct, ROUTE §10.6) — le reste est du
 développement d'apps. C'est le meilleur signe que le découpage app/studio tient : une ambition
 aussi grosse qu'un générateur de films n'ajoute qu'un port.
 
@@ -185,8 +207,10 @@ texturé) → objet 3D collecté dans la **médiathèque WAMA**, puis **passerel
 **Cas d'usage** : chaîner **Synthesizer (TTS) → Avatarizer → Imager (décor)** pour produire des
 **consignes animées** présentées à des participants d'expérimentation (SHS) — un avatar parlant,
 incrusté dans un décor généré.
-- C'est le prolongement DIRECT du précédent de référence (mode TTS retiré de l'avatarizer, le
-  studio chaîne TTS → avatar, ROUTE §10.4 espèce « production ») : **cas de validation de bout en
+- C'est le prolongement DIRECT du précédent de référence (~~mode TTS retiré de l'avatarizer, le
+  studio chaîne TTS → avatar~~ — **corrigé le 2026-09-15** : depuis le 2026-08-28 le TTS est un
+  workflow dérivé DANS l'avatarizer, `MODES_QUEUE_UX.md:93-100` ; la composition studio reste
+  possible, ROUTE §10.4 espèce « production ») : **cas de validation de bout en
   bout** du studio, et candidat naturel au premier **`StudioPipeline` sauvegardé = capacité
   composite** (write-back du kind `pipeline`, maillon restant).
 - Trou propre : **l'avatar dans le décor** — voie par défaut = compositing (matte du buste →
@@ -208,7 +232,7 @@ première chaîne qui l'implémente le fait dans son app ; la seconde déclenche
 `common/`. La couture est notée ici pour que ce jour-là ce soit une heure, pas une redécouverte.
 
 ## Pourquoi ça colle au modèle studio
-- Chaque étape = un **nœud-app** à **ports typés** (vidéo in/out, audio in/out, **stems**, **prompt**,
+- Chaque étape = un **nœud** (app, fonction ou pipeline — précisé le 2026-09-15, ROUTE §10.6) à **ports typés** (vidéo in/out, audio in/out, **stems**, **prompt**,
   référence). Le montage = nœud à **entrées multiples** (N rushs + audio). Le mixage = nœud agrégeant
   **pistes/stems**. Le master = nœud final.
 - Renforce le besoin déjà identifié de **ports plus riches** dans le studio : **multi-entrées**,
@@ -227,7 +251,9 @@ première chaîne qui l'implémente le fait dans son app ; la seconde déclenche
 1. Ports **multi-entrées** + types **travail/référence/prompt/url** sur les nœuds.
 2. **Card batch de prompts** comme nœud-source branché sur l'Imager vidéo.
 3. Réutiliser le **composant card** pour les éléments qui circulent.
-4. **Persistance** du graphe puis **exécution** (la file = méta-app à 1 app).
+4. ~~**Persistance** du graphe puis **exécution** (la file = méta-app à 1 app).~~ ✅ livré le
+   2026-07-11 (corrigé le 2026-09-15) ; la formule « file = méta-app à 1 app » est remplacée par
+   **card = instance de pipeline** (`WAMA_APP_GENERATION_ROUTE.md §10.6`).
 
 ---
 

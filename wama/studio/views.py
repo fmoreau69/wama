@@ -1,7 +1,9 @@
 """
-Studio — méta-app : canvas où chaque nœud = une app (ports typés depuis APP_CATALOG + app_modes),
-les connexions étant validées par compatibilité de types (« typage par connexion »).
-Voir STUDIO_VISION.md / MODES_QUEUE_UX.md (§ méta-app).
+Studio — canvas d'édition de PIPELINES (corrigé le 2026-09-15) : nœuds de tous types — entrées,
+apps (ports typés depuis APP_CATALOG + app_modes), fonctions du catalogue (depuis le 2026-09-09),
+sortie — les connexions étant validées par compatibilité de types (« typage par connexion »).
+L'ancienne formule « chaque nœud = une app » est périmée. Vocabulaire process / pipeline / nœud /
+card : WAMA_APP_GENERATION_ROUTE.md §10.6 ; vision : STUDIO_VISION.md.
 """
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -10,16 +12,21 @@ from django.shortcuts import render
 
 @login_required
 def index(request):
-    """Canvas du studio. Pas d'exécution à ce stade — valide card + connecteurs sur du réel."""
+    """Canvas du studio. (Corrigé le 2026-09-15 : l'exécution réelle existe depuis le
+    2026-07-11 — `api_run` → `services/launch.launch_graph` → `tasks.run_pipeline_task`.)"""
     return render(request, 'studio/index.html')
 
 
 @login_required
 def api_nodes(request):
     """
-    Catalogue des nœuds-app du studio (métadonnée-driven) : label/icône/couleur + description + PORTS
-    typés (entrée travail/prompt/référence, sortie) dérivés d'APP_CATALOG + app_modes. Vocabulaire
-    unifié en catégories média → « typage par connexion » cohérent côté JS. Filtré par accès.
+    Catalogue des nœuds du studio (métadonnée-driven) : label/icône/couleur + description + PORTS
+    typés (entrée travail/prompt/référence, sortie) — nœuds APP dérivés d'APP_CATALOG + app_modes,
+    et nœuds FONCTION du catalogue de fonctions (depuis le 2026-09-09, bloc D13 ci-dessous).
+    Vocabulaire unifié en catégories média → « typage par connexion » cohérent côté JS. Filtré par
+    accès. ⚠ (précisé le 2026-09-15 → WAMA_APP_GENERATION_ROUTE.md §10.6 5.4) : les pipelines
+    SAUVEGARDÉS n'y figurent pas (ils passent par `api_pipelines`) ; cible = un « Catalogue » en
+    sections qui les inclut.
     """
     from wama.common.app_registry import APP_CATALOG, studio_node_ports
     try:

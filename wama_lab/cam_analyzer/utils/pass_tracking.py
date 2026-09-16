@@ -24,8 +24,11 @@ logger = logging.getLogger(__name__)
 # des valeurs persistées ; `tests_pass_registry` atteste que les deux ensembles coïncident.
 #
 # C'est aussi la marche ① vers D13 (`WAMA_DATA_WORLD §9undecies.2`, tranchée le 24/08) : les
-# passes sont déjà des `FunctionSpec` app-bound (`function_specs.py`) ; ce registre est ce qui
-# s'exportera en manifeste `pipeline` à nœuds `function` quand le kind les acceptera.
+# passes sont déjà des `FunctionSpec` app-bound (`function_specs.py`) ; ce registre S'EXPORTE en
+# manifeste `pipeline` à nœuds `function` depuis le 2026-09-09 (`pipeline_manifest()` ci-dessous —
+# corrigé le 2026-09-15, la mention « quand le kind les acceptera » était périmée).
+# ⏳ Ce registre et `AnalysisPass` sont le MODÈLE du moteur commun de pipeline (photo des réglages,
+# péremption STALE, cascade, lancement ciblé) — WAMA_APP_GENERATION_ROUTE.md §10.6, marche P3.
 #
 # Champs :
 #   stage       'analyse' (perception : REGARDE les images, GPU) | 'calcul' (DÉRIVE des données

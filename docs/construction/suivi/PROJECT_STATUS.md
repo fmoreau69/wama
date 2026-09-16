@@ -14538,3 +14538,31 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    statut) → plus aucune ligne de bouton dans les gabarits d'app ni dans le générateur ; card seule, fille et
    mère lisent la même source. Serveur et non JS (`CARD_DESIGN §3` : une card ne se reconstruit pas en JS) ;
    le JS garde le comportement et le « … ». Domicile de la balise à trancher avec la décision 3 avant de coder.
+   ⚠ Précisé le même jour : la balise lit l'état du bouton de cycle par UN adaptateur (état agrégé), jamais
+   `item.status` en dur — sinon le moteur commun (7.) la ferait refaire.
+7. ✅ **ACTÉ (Fabien, 15/09, fin de journée) — LE PIPELINE, PORTEUR UNIVERSEL DES PROCESS.** Une card = une
+   instance de pipeline (entrées + 0..N process + sorties) dans TOUS les mondes ; un pipeline est une capacité,
+   chaînable, enregistrable, et peut être un nœud ; process `required` / `optional` / place `open` ; un
+   vocabulaire d'états commun + `STALE` ; état de card déduit de ses process ; un moteur commun (exécuteur du
+   studio + squelette de tâche + suivi de passes de cam_analyzer) ; chaque app DÉCLARE son monde ; le Data
+   Analyzer entre dans `APP_CATALOG` (monde `data`) ; studio : « Catalogue » repliable, pipelines sauvegardés,
+   glisser-déposer. **Domicile unique : `WAMA_APP_GENERATION_ROUTE.md §10.6`** (vocabulaire, 3 couches, `STALE`,
+   monde Data A/B, 11 décisions ouvertes, pièges, marches P0-P8) + trous `§11 #32-#35`. Consignations
+   corrigées le même jour dans la route, les docs manifestes/Studio/Data/UI/vision/ROADMAP, les en-têtes de code
+   concernés et la mémoire.
+   **Portage Médias EN PARALLÈLE** : oui pour tout ce qui ne dépend pas de l'exécution (`card_refresh_common`,
+   `settings_modal_cycle`, rangée d'actions, #29, #25, #27, `model_caps_ui`, `model_options_catalog`,
+   `recursive_import`, `user_settings`, `detail_spec`) ; **EN ATTENTE du moteur commun (P3)** : `task_skeleton`
+   (7 apps), `backend_routes` (8), `triad_specs` start/status, statuts (#6), émission `during_preview`.
+   Relevé au passage (non corrigé, hors périmètre) : `wama_data/functions/io/export.py:42` — `__all__` cite
+   `'ecrire'` alors que la fonction s'appelle `write` (`:75`) : un `import *` lèverait.
+   **GO de Fabien le 16/09** : ① le **composer** part vers `run_item_task` dans l'instance « squelette / VRAM »
+   (une seule tâche : rien ne sera refait, à condition que le moteur commun garde `process(item, ctx)` comme
+   contrat d'un process d'app — §10.6 point 11) ; ② l'arborescence d'apps du **filemanager**, écrite en dur
+   app par app (`filemanager/views.py:100-191`), entre dans le périmètre de la marche P1 (elle se dérivera du
+   monde déclaré) ; ③ le **script utilisateur Python/MATLAB** du Calculator est spécifié (§10.6 6.3 B) —
+   il n'existait dans aucune doc avant le 15/09, confirmé par Fabien.
+   ⚠ **Signalé par Fabien le 16/09, NON engagé** : la correction manuelle du transcriber face à une
+   relance de la transcription. Le socle est bon (ASR immuable, correction à part), `STALE` nommera l'état
+   périmé sans rien écraser, mais **la fusion correction ↔ nouvelle génération reste un chantier propre au
+   transcriber** — consigné dans `TRANSCRIBER_CORRECTION.md §4` et `§10.6` point 4.3.

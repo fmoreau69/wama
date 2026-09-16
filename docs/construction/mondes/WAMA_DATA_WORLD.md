@@ -47,20 +47,20 @@
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
 | **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 4/0 | §9ter.5, §9ter.6 C |
 | **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
-| **Analyzer** | Orchestre les modules selon un manifeste `pipeline` | manifeste `pipeline` → exécution | ⏳ | — | — | — | §9bis.2 |
+| **Analyzer** | L'app-file du monde Data : ses cards (unitaires ou lots) portent chacune un pipeline — entrées, process, sorties | card (source + manifeste `pipeline`, vide ou composé) → process exécutés par le moteur commun | ⏳ | — | — | — | §11.8, §9bis.2 |
 
 <details><summary>⚠ <b>10 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; ⚠ le lecteur `.rec` EXISTE depuis le 2026-08-24 (`sources/rtmaps.py`, inventaire par le `.idy`, vérifié sur les DEUX grammaires RTMaps et contre l'export CSV de RTMaps lui-même) — reste la couche SÉMANTIQUE par famille de flux (le `data_parser/` de pynd : `clé=valeur` à virgule française, JSON, colonnes tabulées), la charge étant aujourd'hui rendue telle quelle ; `functions/io/rtmaps_rec.py` demeure un utilitaire du Lab, non migré à dessein. ⚠ « l'ÉCRITURE du conteneur natif `.wdat` reste à écrire — aucune ligne n'écrit encore de SQLite » a été RETIRÉ le 2026-08-24 : l'écrivain (`containers/`, un moteur et deux schémas) ET le lecteur (`sources/wdat.py`) sont livrés, l'aller-retour est éprouvé et la compatibilité BIND attestée par contre-épreuve (§9duodecies, §9terdecies). ⚠ « `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) » a été RETIRÉ de cette liste le 2026-08-24 : c'était une glose fausse à deux titres (§9decies). G1 dit « le moteur ne cite aucun format » — vrai défaut, corrigé, testé. Et `source.type` (PROVENANCE) n'a pas à coïncider avec un format de lecteur (CAPACITÉ) : le kind réclame un reader source-AGNOSTIQUE
 - **Référentiel temporel** — ⚠ Son blocage « AUCUN consommateur » est LEVÉ le 2026-08-23 : il n'en avait aucun parce que rien ne pouvait convertir sa sortie en `TypedFrame` — c'est désormais `frames.py`. Un flux chargé traverse une fonction du catalogue et revient au référentiel (34 tests). Reste : la fenêtre/résolution comme DÉCLARATION sérialisable (le view-model de l'Explorer)
-- **Connector** — Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wdat` natif, socle SQLite partagé). ⚠ Ce qui le sépare encore de l'Importer n'est PAS une capacité de lecture mais un GESTE : brancher une base sans la copier suppose de décider ce qu'on fait d'une source qui bouge sous les pieds — question jamais posée, et c'est elle le vrai reste
+- **Connector** — Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wdat` natif, socle SQLite partagé). ⚠ Ce qui le sépare encore de l'Importer n'est PAS une capacité de lecture mais un GESTE : brancher une base sans la copier suppose de décider ce qu'on fait d'une source qui bouge sous les pieds — question jamais posée, et c'est elle le vrai reste (consignée le 2026-09-15 comme décision ouverte 5 de `WAMA_APP_GENERATION_ROUTE §10.6` : connecter, importer dans un nouveau `.wdat` ou ouvrir un `.wdat` existant)
 - **Explorer** — CŒUR LIVRÉ le 2026-08-23 — le PONT (`frames.py`, 34 tests) et le VIEW-MODEL (`view.py`, 31 tests) : une `View` déclare flux/fenêtre/résolution/colonnes dérivées, est sérialisable en JSON, et rend la règle de §9quater.4 EXÉCUTABLE en la dérivant de la `FunctionCategory`. Reste l'UI, et elle seule : `wama_data` n'a encore AUCUNE surface Django (ni views, ni urls, ni templates) et aucune bibliothèque de graphe n'est vendorée — deux décisions cadrées par §9quater.7 (« une lib qui DESSINE oui, une lib qui décide de la MISE EN PAGE non »)
 - **Segmenter** — MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le 2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE de colonne LUE dans la donnée, offsets et « répéter » de la jonction, second port `masque → events`). Restent DEUX manques de §9ter.6 A, tous deux d'INTERFACE et non de moteur : le filtrage manuel occurrence par occurrence (= la file de cards + l'inspecteur, mécanisme existant, zéro code) et l'interface de codage, qui doit se GÉNÉRER du protocole — elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
 - **Calculator** — MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — sans flux aligné, il n'y a rien à calculer
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
-- **Exporter** — MOTEUR écrit et éprouvé le 2026-08-23 (49 tests — 37 sur le cœur pur, 12 sur la frontière pandas) sur le modèle RÉEL cette fois : une DÉCLARATION sérialisable, DEUX axes de regroupement au lieu des quatre branches recopiées, l'aperçu qui EST l'export borné. ⚠ Il n'est PAS au catalogue de fonctions et ce n'est pas un oubli : un puits n'a pas de `FunctionCategory` honnête. ⚠ MAIS SON BLOCAGE A CHANGÉ DE NATURE le 2026-08-24 : **D13 est TRANCHÉE** (§9undecies.2 — un seul kind `pipeline`, étendu d'un nœud `function`). Ce n'est donc plus une décision qu'on attend, c'est une IMPLÉMENTATION qui manque, et l'abstention de `functions/io/export.py` — écrite « tant que D13 n'est pas tranchée » — doit être relue à cette lumière. Restent : le nœud `function` dans le kind, les formats `xlsx`/`mat` (refusés explicitement, pas écrits), et l'app qui le pilote
+- **Exporter** — MOTEUR écrit et éprouvé le 2026-08-23 (49 tests — 37 sur le cœur pur, 12 sur la frontière pandas) sur le modèle RÉEL cette fois : une DÉCLARATION sérialisable, DEUX axes de regroupement au lieu des quatre branches recopiées, l'aperçu qui EST l'export borné. ⚠ Il n'est PAS au catalogue de fonctions et ce n'est pas un oubli : un puits n'a pas de `FunctionCategory` honnête. ⚠ MAIS SON BLOCAGE A CHANGÉ DE NATURE le 2026-08-24 : **D13 est TRANCHÉE** (§9undecies.2 — un seul kind `pipeline`, étendu d'un nœud `function`). Ce n'est donc plus une décision qu'on attend, c'est une IMPLÉMENTATION qui manque, et l'abstention de `functions/io/export.py` — écrite « tant que D13 n'est pas tranchée » — doit être relue à cette lumière. Le nœud `function` du kind est CODÉ depuis le 2026-09-09 (corrigé le 2026-09-15). Forme PROPOSÉE le 2026-09-15 : l'export est un NŒUD DE SORTIE qui porte sa `Declaration` — N exports (tables, événements, situations) = N nœuds de sortie — et un pipeline SANS process (entrée → sortie) doit être accepté, ce que `studio/services/launch.py` refuse encore (`WAMA_APP_GENERATION_ROUTE §10.6` point 3.6, décision ouverte 6). Restent : les formats `xlsx`/`mat` (refusés explicitement, pas écrits), et l'app qui le pilote (l'Analyzer)
 - **Recorder** — périmètre v1 non tranché (D5)
-- **Analyzer** — D13 TRANCHÉE le 2026-08-24 (§9undecies.2) et CODÉE le 2026-09-09 : le kind `pipeline` accepte le nœud `function`, l'exécuteur du Studio (`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, fonction pure = transformation typée synchrone, fonction app-bound = `impl` pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste `pipeline` (`manifests/pipelines/`). Ce qui manque encore à l'Analyzer : une SURFACE Data (le Studio est aujourd'hui le seul éditeur/exécuteur) et la porte d'ingestion d'un manifeste de process (marche E)
+- **Analyzer** — D13 TRANCHÉE le 2026-08-24 (§9undecies.2) et CODÉE le 2026-09-09 : le kind `pipeline` accepte le nœud `function`, l'exécuteur du Studio (`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, fonction pure = transformation typée synchrone, fonction app-bound = `impl` pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste `pipeline` (`manifests/pipelines/`). Ce qui manque à l'Analyzer : l'APP-FILE elle-même (entrée au catalogue sous le monde `data`, décidée le 2026-09-15), le moteur commun d'exécution de pipeline dont le Studio n'a qu'une pièce, et la porte d'ingestion d'un manifeste de pipeline (marche E) — séquence : `WAMA_APP_GENERATION_ROUTE §10.6` marche P7
 
 </details>
 <!-- /WAMA:FAITS(wama_data) -->
@@ -750,7 +750,7 @@ Enfin, les vidéos sont bien rattachées avec un **offset négatif sub-seconde**
 | **Segmenter** | segmentation temporelle simple/double, conditionnelle (connecteurs de conditions), codage vidéo, filtrage | BIND_GUI (implémenté) |
 | **Calculator** | transformation de colonnes (dérivée, fenêtrage, fixations oculaires, rythme cardiaque…), indicateurs par situation (moyenne, min, max, écart-type…) | BIND_GUI (**non implémenté**) |
 | **Visualizer** | lancement des plugins graphiques | BIND_GUI |
-| **Analyzer** | équivalent BIND_GUI — intègre tous les modules d'exploitation | BIND_GUI |
+| **Analyzer** | équivalent BIND_GUI — intègre tous les modules d'exploitation · **= l'app-file du monde Data** (§11.8) ; ses cards portent un pipeline (précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`) | BIND_GUI |
 
 **Transversal — sauvegarde de l'environnement de travail** : presets de configurations trips/plugins,
 paramètres de process.
@@ -904,12 +904,20 @@ conteneur de vues détachables — après F.
 | **Recorder** | flux temps réel → `dataset` | ⏳ (LSL/RTMaps/ROS) | app — **D5, différable** |
 | **Importer** | fichiers + `dataset` → référentiel | ✅ `data/sources/` (registre) | app |
 | **Connector** | base existante → référentiel | ✅ lecteur `.trip` (cas particulier) | module |
-| **Explorer** | référentiel → vues table/graphe | ⏳ | app |
+| **Explorer** | référentiel → vues table/graphe | ~~⏳~~ 🔶 cœur livré (`frames.py`, `view.py`), UI absente (corrigé le 2026-09-15) | app |
 | **Segmenter** | signal/events → `segments`/`events` (5 modes) | 🔶 moteur, cf. §9ter.6 pour les manques | app |
 | **Calculator** | colonnes dérivées · indicateurs par segment | 🔶 écrit (49 tests) | app |
 | **Visualizer** | référentiel → plugins synchronisés | ⏳ | app |
-| **Exporter** | TOUT le contenu d'un trip (données, méta, events, situations) → fichiers | ⏳ cf. §9ter.6 | module |
-| **Analyzer** | orchestre les précédents | ⏳ | app |
+| **Exporter** | TOUT le contenu d'un trip (données, méta, events, situations) → fichiers | ~~⏳~~ 🔶 moteur écrit (`core/export.py`), UI absente (corrigé le 2026-09-15) · cf. §9ter.6 | module |
+| **Analyzer** | ~~orchestre les précédents~~ **app-file du monde Data** : ses cards portent un pipeline de modules (précisé le 2026-09-15) | ⏳ | app |
+
+> ⚠ **Précisé le 2026-09-15** (`WAMA_APP_GENERATION_ROUTE.md §10.6`) — la colonne « app/UI »
+> ci-dessus date du 2026-08-22 et est **dépassée par §11.8 ①** (25/08) : les modules ne sont **ni
+> des apps, ni des onglets**. Une seule app — **l'Analyzer, app-file du monde Data** (et non un
+> orchestrateur : l'exécution relève du moteur commun). Les modules se rangent dans le pipeline
+> porté par ses cards : Importer/Connector (Recorder) = **entrées** ; Segmenter, Calculator =
+> **process** ; Exporter = **nœuds de sortie** ; Explorer, Visualizer = **surfaces** (page dédiée),
+> sans état d'exécution.
 
 **Le découpage brique/app est le même que côté média** : le traitement vit dans `wama_data/`, l'app
 n'est qu'une surface. Un module qui code sa logique dans son app est hors-route.
@@ -921,8 +929,11 @@ Les pièces existent et il faut **les relier, pas les refaire** :
 - **`FunctionSpec` + `FUNCTION_CATALOG`** : toute étape de traitement est une fonction à ports typés.
   Règle §7bis déjà posée : *tout traitement se déclare*.
 - **Kind `pipeline`** : il **existe déjà** et porte exactement ce qu'il faut — `{nodes, links}` avec
-  la **présentation (`layout`) séparée du fonctionnel**. Il ne connaît que `source|sink|app` : il
-  faut y ajouter le nœud **fonction**. C'est une extension, pas un nouveau kind.
+  la **présentation (`layout`) séparée du fonctionnel**. ~~Il ne connaît que `source|sink|app` : il
+  faut y ajouter le nœud **fonction**.~~ ✅ **FAIT le 2026-09-09** (D13 codée : `source|sink|app|function`,
+  `common/manifests/builtin/pipeline.py:29-31` — corrigé le 2026-09-15). C'est une extension, pas un
+  nouveau kind. Le trou suivant, décidé le 2026-09-15, est le type de nœud **`pipeline`** (un pipeline
+  enregistré utilisé comme nœud) → `WAMA_APP_GENERATION_ROUTE.md §10.6` point 3.1.
 - **Canvas studio** : le chaînage se dessine là. ⚠ **Ne JAMAIS créer un second canvas** — l'héritage
   de capacités est déjà acté (§7ter) : une fonction déclarée apparaît au canvas sans code studio.
 
@@ -1042,7 +1053,7 @@ Chaque source apporte ce que les autres n'ont pas :
 | 4 | « présent dans » est une **opération ensembliste sur segments** (inclusion stricte), réutilisée **aussi à l'export** — donc une fonction du catalogue, pas un bout de Segmenter | ✅ `present_dans()` / `chevauche()`, déclarées |
 | 5 | `Signal` doit accepter une **fin `None`** = segment ouvert (D15) | ✅ `OUVERT = None` — **pas** de sentinelle numérique |
 | 6 | le **codage** (manuel ou IA) produit des segments comme les autres modes — même sortie, origine tracée | ✅ `coding.py` — le `codeur` est le SEUL champ qui les distingue |
-| 7 | une segmentation **se sauvegarde et se rejoue** → c'est un manifeste `pipeline`, pas un réglage d'écran | 🔄 protocole sérialisable des deux sens ; kind `protocol` pas encore enregistré |
+| 7 | une segmentation **se sauvegarde et se rejoue** → c'est un manifeste `pipeline`, pas un réglage d'écran | 🔄 protocole sérialisable des deux sens ; ~~kind `protocol` pas encore enregistré~~ (corrigé le 2026-09-15 : pas de kind `protocol` — le protocole EST un manifeste `pipeline`, D13 §9undecies.2) |
 
 > **Ne pas réinventer** : les concepts sont posés depuis des années et éprouvés sur de vraies
 > campagnes. Le travail est de les **traduire** dans le vocabulaire typé de WAMA — pas de les
@@ -1568,7 +1579,8 @@ déclaratifs, et se rangent avec le protocole, pas avec le conteneur.
 #### ⚠ Conséquence : D13 n'est PAS une question de côté
 
 Le protocole de traitement est un manifeste **`pipeline`** (§9bis : « le kind existe déjà, aucun
-nouveau kind à créer »). Mais **il lui manque le nœud fonction — c'est D13**.
+nouveau kind à créer »). Mais **il lui manque le nœud fonction — c'est D13** *(codé le 2026-09-09 —
+note du 2026-09-15 : la précondition ci-dessous est levée côté schéma ; reste la régénération exercée)*.
 
 Or sans ce nœud, le protocole n'est pas exprimable. Sans protocole exprimable, le fichier de
 travail **n'est pas régénérable**. Et alors y écrire n'est plus une commodité, c'est un **risque** :
@@ -1985,7 +1997,7 @@ même à l'identique, échoue. La brique **n'a aucune dépendance** — conditio
 | # | point |
 |---|---|
 | 1 | **Deux fonctions `valider`** exportées (`core.conditions`, `vue`) → collision à l'import. Non traité : les renommer touche des appelants, et la collision n'a encore mordu personne |
-| 2 | **Aucun rattachement manifeste** pour les trois déclarations, alors que §7 tranche « c'est un manifeste, pas un dump de session ». Le kind `pipeline` est le candidat (§9bis : « aucun nouveau kind à créer »), mais il lui manque le nœud fonction — **D13** |
+| 2 | **Aucun rattachement manifeste** pour les trois déclarations, alors que §7 tranche « c'est un manifeste, pas un dump de session ». Le kind `pipeline` est le candidat (§9bis : « aucun nouveau kind à créer »), mais il lui manque le nœud fonction — **D13** *(nœud codé le 2026-09-09 ; le rattachement des trois déclarations reste à faire — note du 2026-09-15)* |
 | 3 | **Rien ne câble Vue → export** : la composition marche, elle n'est ni exposée ni testée hors de l'audit. Une composition qui marche par accident se casse au premier changement |
 
 `wama_data` : **411 → 437 tests**.
@@ -2420,6 +2432,12 @@ que de créer un kind `data_process` :
 (asynchrone, produit des fichiers) ; un nœud `function` est une **transformation typée**
 (synchrone, produit un `TypedFrame`). Ce n'est pas une raison de séparer le kind — c'est une raison
 de **dispatcher sur `kind`**, ce que l'exécuteur fait déjà.
+
+> **Codé le 2026-09-09** (`common/manifests/builtin/pipeline.py:29-57`, `studio/tasks.py`) — les deux
+> premières lignes de cette section décrivent l'état d'AVANT. **Précisé le 2026-09-15**
+> (`WAMA_APP_GENERATION_ROUTE.md §10.6`) : un nœud `app` et un nœud `function` sont **deux PROCESS** —
+> chacun a sa ligne d'exécution et son état dans le moteur commun ; seul le mode d'exécution diffère
+> (job suivi ou transformation synchrone). Prochaine extension du kind : le type de nœud `pipeline`.
 
 ### 9undecies.3 Le script généré : clé en main, et la borne n'est PAS où je l'avais mise
 
@@ -2931,7 +2949,9 @@ réglage de la référence devient celui du lot.
 **④ Le studio = second éditeur du MÊME protocole.** Deux chemins de construction du pipeline
 coexistent (promotion depuis une card ; canvas du studio) — règle : **UNE représentation** (le
 manifeste `pipeline` étendu, D13), **DEUX éditeurs**. Sinon deux formats de pipeline divergent.
-Cf. `MODES_QUEUE_UX §6` (« la file = une méta-app à une app »).
+~~Cf. `MODES_QUEUE_UX §6` (« la file = une méta-app à une app »).~~ Précisé le 2026-09-15 : **la card
+porte une instance de pipeline** (et le lot, N instances du même pipeline) —
+`WAMA_APP_GENERATION_ROUTE.md §10.6`.
 
 **⑤ Afficher le contenu d'un `.wdat` — trois niveaux, et l'inspecteur NE CHANGE PAS de rôle.**
 L'inspecteur reste infos/pipeline/actions de la card, comme au monde Médias — pas d'arbre de
@@ -2961,6 +2981,27 @@ cliquant son dossier** dans l'explorateur. → consignées au domaine : **`WAMA_
 
 **⑧ Le bundle corpus `.wds`** s'exporte **depuis la card mère du batch** et se réimporte **en
 batch** — voir **D26** (§10).
+
+**⑨ Précisé le 2026-09-15 (Fabien) — la card du Data Analyzer porte un PIPELINE.** Le modèle commun à
+tous les mondes vit dans **`WAMA_APP_GENERATION_ROUTE.md §10.6`** ; il ne remplace rien de ① à ⑧, il
+dit ce que la card PORTE. Une card (unitaire ou lot) = **entrées + 0..N process + sorties** :
+- **entrées** = Importer / Connector (Recorder) — connecter une source, importer dans un nouveau
+  `.wdat`, ouvrir un `.wdat` existant (la différence connecter/importer reste à décider, décision
+  ouverte 5 de §10.6) ;
+- **process** = Segmenter, Calculator (fonctions `segment_*`, `calc_*` du catalogue), script utilisateur ;
+- **sorties** = Exporter, sous forme de **nœuds de sortie portant chacun sa `Declaration`** — exports
+  multiples (tables de données, événements, situations) et entièrement configurables ; un pipeline
+  **sans aucun process** (entrée → sortie) est valide : c'est l'export sans traitement ;
+- **surfaces** = Explorer, Visualizer (pages dédiées de ①) — on y regarde et on y fait des gestes,
+  elles n'ont pas d'état d'exécution.
+
+**Deux façons de travailler, un seul objet à la fin** (§10.6 point 6.3) : **A** — le pipeline est
+connu : un document en langage naturel (+ RAG) donné à l'AI-Assistant, qui PROPOSE le manifeste
+`pipeline` (le LLM propose, la machine dispose, §9bis.4) ; l'utilisateur connecte ses entrées et définit
+ses sorties. **B** — on explore : la card naît avec ses entrées et un **pipeline vide** (place `open`) ;
+chaque geste fait dans l'Explorer (sélection), le Segmenter ou le Calculator **ajoute un process
+déclaré** au pipeline de la card — jamais une modification de données non tracée. C'est le « protocole
+accumulé sur la card » de ③, rendu concret ; la promotion ↑ vers la mère l'applique au lot.
 
 ### 11.9 SEGMENTER — les 4 écrans confrontés au code (2026-08-26)
 
@@ -4523,18 +4564,18 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
 | # | axe | verdict | fait décisif |
 |---|---|---|---|
 | 1 | taxonomie nature×rôle | **ALIGNÉ** | DEUX taxonomies parallèles d'intersection VIDE (`data_types.py` 11 types de donnée vs `MEDIA_CATEGORIES` 7 natures) ; `text` ABSENT de Data (0 hit taxonomique) → le retrait de `text` est un chantier 100 % `wama/` (la ligne contraire de `ROUTE §S2bis.6bis` pt 3 est RECTIFIÉE). ⚠ `.trip/.wdat` ne sont dans AUCUNE taxonomie de fichier : `category_of_path` les classe `document` ; seule la SONDE d'intake (`wama_data/apps.py:39-53`) sait dire « monde Data » |
-| 2 | rôles/ports | **ÉCART structurel** | `PortSpec` (function_catalog) n'a AUCUN rôle (mais a champs requis + optionnalité, que Médias n'a pas — aucun n'est sous-ensemble de l'autre) ; `studio_node_ports` ne connaît aucun type Data ; le validateur du kind `pipeline` REFUSE un nœud `function` ; studio↔Data = 0 référence croisée |
+| 2 | rôles/ports | **ÉCART structurel** | `PortSpec` (function_catalog) n'a AUCUN rôle (mais a champs requis + optionnalité, que Médias n'a pas — aucun n'est sous-ensemble de l'autre) ; `studio_node_ports` ne connaît aucun type Data ; ~~le validateur du kind `pipeline` REFUSE un nœud `function` ; studio↔Data = 0 référence croisée~~ (corrigé le 2026-09-15 : nœud `function` codé le 2026-09-09, marche D ci-dessous ; `PortSpec` a gagné `group` à la marche C) |
 | 3 | files (UI Data) | **TROU total** | Segmenter/Exporter/Explorer sont des MODULES-MOTEURS, pas des apps UI — `wama_data/` n'a AUCUNE surface Django (0 views/urls/templates, écrit dans `modules.py` même). Briques de file : Médias 10/10 · Lab 0 (6356 lignes d'UI propre) · Data 0 |
-| 4 | reproductibilité | **ALIGNÉ papier / TROU code** | UN seul formalisme voulu — D13 (close 24/08) l'avait décidé AVANT nous : « UNE représentation (pipeline étendu d'un nœud `function`), DEUX éditeurs » ; le `.wdat` embarque déjà son protocole estampillé. Le nœud `function` n'est pas écrit. Process Médias = params plats, process Data = suite ordonnée → le 1-nœud est bien le cas DÉGÉNÉRÉ, pas la forme cible |
+| 4 | reproductibilité | **ALIGNÉ papier / TROU code** | UN seul formalisme voulu — D13 (close 24/08) l'avait décidé AVANT nous : « UNE représentation (pipeline étendu d'un nœud `function`), DEUX éditeurs » ; le `.wdat` embarque déjà son protocole estampillé. ~~Le nœud `function` n'est pas écrit.~~ (corrigé le 2026-09-15 : codé le 2026-09-09.) Process Médias = params plats, process Data = suite ordonnée → ~~le 1-nœud est bien le cas DÉGÉNÉRÉ, pas la forme cible~~ précisé le 2026-09-15 (`WAMA_APP_GENERATION_ROUTE.md §10.6`) : une card porte un pipeline de **0..N process** — un seul process est un cas NORMAL, et une card Data peut démarrer avec un pipeline **VIDE** (place `open`) qu'on compose au fil de l'exploration |
 | 5 | entrées/médiathèque | **ÉCART** | la médiathèque est média-only PAR VALIDATEUR (un `.trip` uploadé lève ValidationError ; `TYPE_GROUPS` dérivé de `MEDIA_CATEGORIES`) ; datasets référencés PAR CHEMIN (1 seul manifeste dataset au corpus) ; 0 `ScopedVisibility` dans `wama_data/` → une file Data partagée est TOUJOURS une file-modèle sans entrées (cas nominal, pas dégradé) |
 | 6 | batch | **TROU sans divergence** | 0 usage du formalisme batch côté Data ; son entrée groupée = group-by sur AXES du plan d'expérience (spécifiée §9, non câblée). Aucun format concurrent à réconcilier |
-| 7 | apps Data au catalogue | **TROU délibéré** | catégorie `data` VIDE dans `APP_CATALOG`, exclusion motivée (contrat d'app générique ≠ brique transversale) → la card v4 générée des ports ne couvre pas Data ; le substitut naturel est `FunctionSpec.to_dict()` (« card + ports + modale », la promesse est déjà écrite dans `WAMA_DATA_FUNCTION_CARDS`) |
+| 7 | apps Data au catalogue | **TROU délibéré** → ✅ **arbitrage TRANCHÉ le 2026-09-15 (Fabien) : voie (a)** — le Data Analyzer entre dans `APP_CATALOG` sous le monde `data` ; chaque app déclare son monde (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.1). Constat d'origine : catégorie `data` VIDE dans `APP_CATALOG`, exclusion motivée (contrat d'app générique ≠ brique transversale) → la card v4 générée des ports ne couvre pas Data ; le substitut naturel est `FunctionSpec.to_dict()` (« card + ports + modale », la promesse est déjà écrite dans `WAMA_DATA_FUNCTION_CARDS`) |
 
 **Plan de convergence (ordonné par dépendance — détail dans le rapport de vérification du 30/08) :**
 - **A (fait le 30/08, coût nul)** : ① `modules.py` corrigé (`vue.py`→`view.py`, `valeurs.py`→`values.py` — les briques déclarées avaient dérivé au renommage D28, Explorer/Calculator s'affichaient partiels à tort ; bloc doc_facts régénéré) ; ② rectification `ROUTE §S2bis.6bis` pt 3. ⏳ Reste de A : une garde « brique déclarée introuvable = ÉCHEC » dans `measure()` (sinon récidive au prochain renommage) ;
 - **B — le pivot** : une nature `dataset` dans `MEDIA_CATEGORIES` + `_CAT_OF` alimenté par la SONDE des lecteurs Data, **dans le même geste que le retrait de `text`** (le rayon taxonomie ne se paie qu'une fois) → `TYPE_GROUPS` médiathèque et l'intake suivent PAR DÉRIVATION ;
 - **C** ✅ **FAIT le 2026-09-09** (GO Fabien, avec la facette estimateur ⑤b du cam_analyzer — les deux modèlent `PortSpec`, décidées ensemble) : `group` (rôle) sur `PortSpec` — vocabulaire emprunté à `INPUT_TYPES`, jamais un 3ᵉ enum ; références de fait requalifiées (`track`/`road_map` du cam_analyzer, `road_map` du map-matching) ; accesseur `function_catalog.function_node_ports()` rendant la MÊME forme que `studio_node_ports` (test de forme dans `FunctionCatalogConformiteTest`) → la card v4 couvre Data sans une ligne par consommateur. Détail : `CAM_ANALYZER_CHANGELOG 2026-09-09`, `WAMA_DATA_FUNCTION_CARDS §2` ;
 - **D** ✅ **FAIT le 2026-09-09** (GO Fabien « C + D, Studio inclus ») : le nœud `function` du kind pipeline (D13) — `pipeline.node_kind()`/`function_key()` sont les deux seuls lecteurs de la convention de palette `function:<clé>` ; dispatch dans l'EXÉCUTEUR `studio/tasks.py::run_pipeline_task` (app = job de file async ; fonction `pure` = `spec.fn(TypedFrame, ports suivants par nom, **params)` SYNCHRONE dans le process, la facette estimateur du port posée sur `meta['estimate']` ; fonction `app`-bound = `impl` lancée avec les params du nœud puis POLLÉE, arguments requis par introspection), jamais dans le schéma ; palette `api_nodes` = fonctions par `function_node_ports` + `data_types` ; nœud-source `dataset_input` (CSV → `TypedFrame` du type DIT) ; la Sortie range un `TypedFrame` en CSV. **Et ③** : `cam_analyzer.pass_tracking.PASSES` s'exporte en manifeste `pipeline` à 13 nœuds `function` (`register_pipeline_source`, `manifests/pipelines/cam_analyzer.json`) — « une représentation, deux éditeurs ». 9 tests `studio/tests_function_nodes` (chaîne pure exécutée en process, bout en bout, jusqu'à la médiathèque) + 3 `tests_pass_registry`. ⚠ Aucun nœud fonction n'a été exécuté depuis le NAVIGATEUR (smoke : palette servie, 0 erreur JS) ;
-- **E** : émetteur card→manifeste de process (2ᵉ source d'`extract_pipeline`) + importeur = la PORTE d'ingestion que `intake._sniff_manifest` attend déjà (« `ingest()` sans appelant ») + `-i` batch pointant un manifeste (réutiliser `_UNIFIED_FLAG_MAP`, pas de 2ᵉ format) ;
-- **F** : les DEUX files manquantes — surface Django `wama_data` née SUR les briques communes (le Lab montre le coût inverse : 6356 lignes à reprendre) ; 🔴 **arbitrage Fabien préalable** : comment Data entre au catalogue — (a) `APP_CATALOG` avec conventions largement N/A, ou (b) un CONTRAT Data distinct mesuré par la grille. À trancher AVANT le premier gabarit Data ;
+- **E** : émetteur card→manifeste de ~~process~~ **pipeline** (vocabulaire précisé le 2026-09-15, `WAMA_APP_GENERATION_ROUTE.md §10.6`) (2ᵉ source d'`extract_pipeline`) + importeur = la PORTE d'ingestion que `intake._sniff_manifest` attend déjà (« `ingest()` sans appelant ») + `-i` batch pointant un manifeste (réutiliser `_UNIFIED_FLAG_MAP`, pas de 2ᵉ format) ;
+- **F** : les DEUX files manquantes — surface Django `wama_data` née SUR les briques communes (le Lab montre le coût inverse : 6356 lignes à reprendre) ; ~~🔴 **arbitrage Fabien préalable**~~ : comment Data entre au catalogue — (a) `APP_CATALOG` avec conventions largement N/A, ou (b) un CONTRAT Data distinct mesuré par la grille. ✅ **TRANCHÉ le 2026-09-15 (Fabien) : voie (a)** — le Data Analyzer entre dans `APP_CATALOG` sous le monde `data` ; chaque app déclare son monde (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.1, marches P1 et P7). Le contrat mesuré par la grille reste à adapter aux spécificités Data déclarées ;
 - **G** : la bibliothèque des fichiers Data (3 options : médiathèque étendue / bibliothèque propre scopée / assumer file-modèle) — G7 n'en tranche aucune.

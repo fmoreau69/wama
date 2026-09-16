@@ -1,10 +1,15 @@
 # WAMA Data — Fonctions comme cards génériques par capacités
 
 > **Statut : IMPLÉMENTÉ (MAJ 2026-07-25).** Taxonomie (`common/catalog/data_types.py`) + catalogue
-> (`function_catalog.py`) + **19 fonctions** enregistrées au démarrage + page catalogue
-> `/model-manager/functions/` (cards, tri/filtre, projet, confidentialité). **Reste** : l'UI de
-> chaînage (canvas) + exposition `tool_api`. Ce document fixe le cap capability-first pour toute
-> nouvelle fonction. **Centralisation : `wama/common/` (comme le reste).**
+> (`function_catalog.py`) + ~~**19 fonctions**~~ fonctions enregistrées au démarrage (compte
+> VIVANT : `FUNCTION_CATALOG` après `load_all()` — inventaire au §2, 58 mesurées le 2026-09-07) +
+> page catalogue `/model-manager/functions/` (cards, tri/filtre, projet, confidentialité).
+> **Reste** : ~~l'UI de chaînage (canvas)~~ (corrigé le 2026-09-15 : les fonctions sont des nœuds de
+> la palette du studio depuis le 2026-09-09, exécutables par `studio/tasks.py`) + exposition
+> `tool_api`. Ce document fixe le cap capability-first pour toute nouvelle fonction.
+> **Centralisation : `wama/common/` (comme le reste).**
+> Précisé le 2026-09-15 : une fonction est un **process** d'un pipeline porté par une card —
+> vocabulaire process / pipeline / nœud / card → `WAMA_APP_GENERATION_ROUTE.md §10.6`.
 
 ---
 
@@ -30,6 +35,10 @@ Chaîne cible :
  + tri / filtre / sélection    (params en modale)            (typée par l'entrée acceptée)
  → port de sortie typé         ports typés E/S               port d'entrée typé
 ```
+
+> Précisé le 2026-09-15 (`WAMA_APP_GENERATION_ROUTE.md §10.6`, vocabulaire) : sur le **canvas du
+> studio**, ce sont des **nœuds** (entrée → fonction → sortie) ; la **card** est l'UI qui porte UNE
+> instance de ce pipeline dans la file d'une app (pour le monde Data : le Data Analyzer).
 
 ---
 
@@ -198,8 +207,10 @@ Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 - **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour
   toute nouvelle fonction. Ex. les 4 fonctions de conduite portées (`wama_data/functions/driving/`).
 - **`app`** — couplée à une app (lit/écrit la session/BDD via une passe Celery). **Cataloguée** (capacités
-  déclarées, `impl` = chemin d'implémentation) mais **pas encore chaînable** ; à porter vers `pure` au cas
-  par cas via un adaptateur de ports quand on veut la mettre dans une chaîne.
+  déclarées, `impl` = chemin d'implémentation) ~~mais **pas encore chaînable**~~ — **chaînable depuis le
+  2026-09-09** (corrigé le 2026-09-15) : c'est un nœud exécutable du studio, dont `impl` est lancée avec
+  les réglages du nœud puis suivie comme un job (`studio/tasks.py`, dispatch sur le kind). Le portage
+  vers `pure` reste une option au cas par cas (via un adaptateur de ports), plus une condition du chaînage.
 
 **Inventaire — SOURCE VIVANTE, pas de liste figée ici.** `FUNCTION_CATALOG` après `load_all()`,
 ou la page `/model-manager/functions/`. **Mesuré le 2026-09-07 : 58 fonctions (20 app-bound)** —
@@ -359,8 +370,11 @@ qu'APRÈS 10 apps réelles. Écrire 2-3 plugins d'abord, extraire ensuite (règl
 - ✅ TRANCHÉ (2026-07-20, c3b009c) — représentation runtime : wrapper **`TypedFrame`**
   (DataFrame + `data_type` + `meta`), cf. `common/catalog/data_types.py:69`, consommé par les
   fonctions (`placement_metrics` retourne un `TypedFrame(DataType.SCALAR)`).
-- Persistance des chaînes (comme les graphes studio) + exécution (réutiliser Celery + le scheduling
-  par `cost`).
+- ~~Persistance des chaînes (comme les graphes studio) + exécution (réutiliser Celery + le scheduling
+  par `cost`).~~ ✅ **TRANCHÉ** (corrigé le 2026-09-15) : une chaîne est un manifeste `pipeline` (D13,
+  nœud `function` codé le 2026-09-09) ; l'exécution est celle du **moteur commun** de pipeline
+  (réunion de l'exécuteur du studio, du squelette de tâche et du suivi de passes) —
+  `WAMA_APP_GENERATION_ROUTE.md §10.6` point 4.5.
 - Registre : exposé via la page catalogue `/model-manager/functions/` + le kind manifeste
   `function` (repli `UserFunction`). **Reste ouvert** : exposition `tool_api` pour que
   l'assistant IA propose/enchaîne des fonctions.
