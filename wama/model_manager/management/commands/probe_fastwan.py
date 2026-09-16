@@ -40,6 +40,10 @@ from django.core.management.base import BaseCommand, CommandError
 #: scheduler et le dossier des poids vivent désormais dans `wan_video_backend` : la sonde les
 #: IMPORTE, pour tester exactement ce que l'imager exécutera.
 MODEL_ID = 'fastwan-2.2-ti2v-5b'
+#: Clé de CATALOGUE du même modèle : la sonde résout son backend par elle
+#: (`backend_for_key`), elle n'importe aucune classe par son chemin — budget `ROUTE §10.3`,
+#: tenu par `tests_backend_adoption`. Le MODÈLE porte son moteur, le backend s'en dérive.
+CATALOG_KEY = f'imager:{MODEL_ID}'
 #: Prompt négatif du README (il n'agit qu'avec du CFG ; gardé pour la comparaison).
 NEGATIF = ("Bright tones, overexposed, static, blurred details, subtitles, style, works, "
            "paintings, images, static, overall gray, worst quality, low quality, JPEG compression "
@@ -69,10 +73,13 @@ class Command(BaseCommand):
     def _snapshot(self) -> Path:
         # Même résolution que le backend (dossier du profil + dépôt déclaré) : la sonde teste
         # les poids que l'imager chargera, pas une ligne de catalogue.
-        from wama.common.backends.wan_video_backend import WanVideoBackend
-        hf_id = WanVideoBackend.SUPPORTED_MODELS[MODEL_ID][1]
-        racine = (Path(WanVideoBackend.cache_dir_for(MODEL_ID))
-                  / f"models--{hf_id.replace('/', '--')}")
+        from wama.common.backends.manager import backend_for_key
+        backend = backend_for_key(CATALOG_KEY)
+        if backend is None:
+            raise CommandError(f"{CATALOG_KEY} : aucun backend résolu par le catalogue "
+                               f"(modèle absent, sans moteur déclaré, ou base indisponible)")
+        hf_id = backend.SUPPORTED_MODELS[MODEL_ID][1]
+        racine = Path(backend.cache_dir_for(MODEL_ID)) / f"models--{hf_id.replace('/', '--')}"
         snaps = sorted((racine / 'snapshots').glob('*'))
         if not snaps:
             raise CommandError(f"aucun snapshot sous {racine}")
