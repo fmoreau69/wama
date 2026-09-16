@@ -41,41 +41,7 @@ def _admin_api(view_func):
 # UN cerveau pour N surfaces — cette vue web, l'API v1 token
 # (/api/v1/assistant/chat/), et les adaptateurs de canaux à venir.
 # ---------------------------------------------------------------------------
-from wama.common.services.assistant_engine import (  # noqa: E402
-    resolve_chat_model,
-    run_assistant_turn,
-)
-
-
-#: Intitulés des rôles de la surface chat (le RÔLE est la valeur stable ; le nom du
-#: modèle est résolu au rendu — cf. `_chat_model_options`).
-_ROLE_LIBELLES = (
-    ('fast', 'Fast'),
-    ('ultra_fast', 'Ultra Fast'),
-    ('dev', 'Dev'),
-    ('coder', 'Coder'),
-    ('architect', 'Architect'),
-)
-
-
-def _chat_model_options():
-    """
-    Options du sélecteur de modèle du chat — libellés RÉSOLUS PAR LE CATALOGUE au rendu.
-
-    Remplace les libellés codés en dur du gabarit (2026-08-18) : « Qwen3.5 35B-A3B (Dev) »
-    affichait un modèle REMPLACÉ depuis le 2026-08-12 (qwen3.6:35b) alors que la value
-    (le rôle) était, elle, correctement résolue par `resolve_chat_model` — l'UI mentait
-    sur ce que le backend faisait. Même leçon que `_safe_char_limit` : un nom figé
-    meurt au premier remplacement de modèle par la prospection.
-    """
-    options = []
-    for role, libelle in _ROLE_LIBELLES:
-        try:
-            nom = resolve_chat_model(role)
-        except Exception:
-            nom = None
-        options.append({'value': role, 'label': f"{nom or '?'} ({libelle})"})
-    return options
+from wama.common.services.assistant_engine import run_assistant_turn  # noqa: E402
 
 
 def _chat_thread(user) -> list:
@@ -122,23 +88,20 @@ def home(request):
     # droit aussi). La visibilité se calcule donc avec le MÊME prédicat que la garde serveur
     # (`claude_code.subscription_allowed`, domicile unique), sans quoi l'écran et la garde
     # divergeraient dans les deux sens — un test verrouille l'invariant sur 5 profils.
-    # 2026-09-15 : les fournisseurs DISTANTS du sélecteur (Albert, API Claude, abonnement) ne
-    # sont plus écrits dans le gabarit. Ils sont lus du profil (niveau cloud, clés) et du
-    # catalogue (modèles ouverts à la clé) — `assistant_engine.chat_provider_choices`, qui
-    # applique pour l'abonnement le MÊME prédicat que la garde serveur.
-    from wama.common.services.assistant_engine import chat_provider_choices
-    providers = chat_provider_choices(request.user)
-    local_models = _chat_model_options() if est_admin else []
+    # 2026-09-16 : le sélecteur de l'assistant est celui des APPS. Son schéma déclare le champ
+    # `model` (source `catalog`, « auto » + modèles distants ouverts par les clés) et le curseur
+    # Rapide ↔ Qualité ; les valeurs viennent du réglage DURABLE de l'utilisateur. Plus aucune
+    # liste de fournisseurs ni de rôles dans le gabarit : le fournisseur se dérive du modèle.
+    from wama.assistant.params import PARAMS_JSON as CHAT_PARAMS
+    from wama.common.services.assistant_engine import assistant_settings
     context = {
         # `is_admin` VOLONTAIREMENT ABSENT : il vient du context processor (cf. plus haut).
         'accueil_assistant': greeting(request.user),
         # Résolution catalogue à chaque rendu : 5 requêtes DB, uniquement pour l'admin
         # qui voit la surface chat.
-        'chat_model_options': local_models,
-        'chat_providers': providers,
-        # Modèles par fournisseur, lus par le JS du sélecteur (json_script).
-        'chat_catalog': {'wama-dev-ai': local_models,
-                         **{p['provider']: p['models'] for p in providers}},
+        # Schéma + valeurs du sélecteur, rendus par la brique commune `WamaParams` (json_script).
+        'chat_params': CHAT_PARAMS,
+        'chat_values': assistant_settings(request.user),
         # Fil `web` de l'utilisateur, relu du store SERVEUR (plus du localStorage) : la même
         # conversation se retrouve sur tout appareil.
         'chat_thread': _chat_thread(request.user),
@@ -180,8 +143,10 @@ def ai_chat(request):
     try:
         data = json.loads(request.body)
         message = data.get('message', '').strip()
-        provider = data.get('provider', 'wama-dev-ai')  # Default to local
-        model = data.get('model', 'fast')  # Default Ollama model
+        # Rien d'imposé par la surface : le fournisseur et le modèle se résolvent par le réglage
+        # durable de l'utilisateur, puis par le tirage « auto » commun (`resolve_turn_model`).
+        provider = data.get('provider') or None
+        model = data.get('model') or None
         # L'historique n'est PLUS fourni par le navigateur (2026-09-15) : il est tenu côté
         # SERVEUR, comme pour Discord et l'API (`conversation_turn`, fil `web` de l'utilisateur).
         # Domaine d'intervention (`assistant_skills.DOMAINES`). Facultatif : sans lui,
@@ -213,6 +178,56 @@ def ai_chat(request):
     except Exception as e:
         logger.error(f"AI Chat error: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@csrf_protect
+def ai_chat_settings(request):
+    """Réglages de l'assistant (modèle, curseur) — enregistrés par la brique commune.
+
+    Même chemin que les apps : les valeurs sont bornées par le SCHÉMA (`coerce_params`) et
+    persistées par `user_settings` (app `assistant`). Elles valent alors pour TOUTES les
+    surfaces, la passerelle comprise.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    from wama.assistant.params import PARAMS_JSON, USER_SETTINGS_DEFAULTS
+    from wama.common.utils.auto_model import is_auto, read_quality_intent
+    from wama.common.utils.param_schema import coerce_params
+    from wama.common.utils.user_settings import save_user_app_settings
+
+    # Les numériques sont bornés par le SCHÉMA ; le curseur de qualité a son helper commun
+    # (`read_quality_intent` : type `intent`, hors du champ de `coerce_params`) ; le modèle est
+    # validé à part, contre le catalogue et les clés de l'utilisateur.
+    valeurs = {k: v for k, v in coerce_params(PARAMS_JSON, data).items()
+               if k in USER_SETTINGS_DEFAULTS}
+    if 'quality_intent' in data:
+        valeurs['quality_intent'] = read_quality_intent(data.get('quality_intent'))
+    if 'model' in data:
+        modele = (data.get('model') or '').strip()
+        if not is_auto(modele):
+            from wama.model_manager.models import AIModel
+            from wama.model_manager.services.cloud_models import allowed_cloud_keys
+            ligne = AIModel.objects.filter(model_key=modele, is_available=True).first()
+            if ligne is None:
+                return JsonResponse({'error': f"Modèle inconnu du catalogue : {modele}"}, status=400)
+            # Un modèle DISTANT doit être ouvert par les clés de CET utilisateur : le refuser ici
+            # évite d'enregistrer un choix que chaque tour refuserait ensuite.
+            if ligne.execution == 'cloud' and modele not in allowed_cloud_keys(request.user,
+                                                                              automatic=False):
+                return JsonResponse({'error': "Ce modèle distant n'est pas ouvert par vos clés "
+                                              "d'API, ou votre profil est en « 100 % local »."},
+                                    status=403)
+        valeurs['model'] = modele or USER_SETTINGS_DEFAULTS['model']
+    if not valeurs:
+        return JsonResponse({'error': 'Aucun réglage connu dans la requête'}, status=400)
+    save_user_app_settings(request.user, 'assistant', valeurs)
+    return JsonResponse({'success': True, 'settings': valeurs})
 
 
 @require_http_methods(["POST"])

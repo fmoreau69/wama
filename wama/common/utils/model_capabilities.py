@@ -53,7 +53,7 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "embedding":           "bool — produit des vecteurs, PAS du texte",
     "abilities":           "list[str] — capacités BRUTES telles que déclarées par Ollama",
     #: Ce POUR QUOI le modèle est fait, quand ce n'est pas « tout » — 3e axe, DÉCLARÉ par un
-    #: humain (`model_registry.SPECIALISATIONS_OLLAMA`), jamais découvert. Un modèle qui le
+    #: humain (`model_registry.FAMILLES_OLLAMA`), jamais découvert. Un modèle qui le
     #: porte sort du pool généraliste sauf demande explicite.
     "specialisation":      "str — domaine de spécialité (ex. 'translation') ; exclut du pool généraliste",
     # Capacités booléennes (préfixe supports_ — ALIGNÉ sur les flags backend)

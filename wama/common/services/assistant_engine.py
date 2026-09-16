@@ -99,14 +99,11 @@ File search strategy:
 # 2026-08-12, cf. check_model_declarations). `priority` exprime une préférence nominale
 # (jamais un tag épinglé) ; prefer_loaded=False = intention de GABARIT explicite (le rôle
 # 'dev' veut le tier heavy, pas le petit modèle déjà en mémoire).
-_ROLE_TIER = {
-    'dev':        {'tier': 'heavy', 'prefer_loaded': False},
-    'coder':      {'tier': 'heavy', 'prefer_loaded': False},
-    'architect':  {'tier': 'heavy', 'prefer_loaded': False},
-    'debug':      {'tier': 'heavy', 'priority': ['coder'], 'prefer_loaded': False},
-    'fast':       {'tier': 'default'},
-    'ultra_fast': {'tier': 'fast'},
-}
+#: Anciens RÔLES de chat. Ils désignaient un GABARIT de modèle (`_ROLE_TIER`) — ce que le curseur
+#: commun Rapide ↔ Qualité exprime désormais, sur une échelle continue au lieu de six paliers
+#: nommés. Un client qui en envoie encore un est traité comme « auto » : le prendre pour un nom de
+#: modèle enverrait « fast » à Ollama, qui n'a pas ce modèle.
+_LEGACY_ROLES = ('fast', 'ultra_fast', 'dev', 'coder', 'architect', 'debug')
 
 #: Fournisseurs traités par le chemin LOCAL (Ollama direct, usage tokens compris).
 _LOCAL_PROVIDERS = ('wama-dev-ai', 'ollama')
@@ -128,64 +125,57 @@ _SUBSCRIPTION_PROVIDERS = ('claude-abo',)
 #: du catalogue.
 PROVIDER_SOURCES = {'albert': 'albert', 'claude': 'anthropic', 'claude-abo': 'claude_code'}
 
+#: Source du CATALOGUE → fournisseur du moteur. Inverse de la table ci-dessus, plus Ollama : c'est
+#: ce qui permet de ne choisir qu'un MODÈLE et d'en dériver le fournisseur.
+SOURCE_PROVIDERS = {'ollama': 'ollama',
+                    **{source: provider for provider, source in PROVIDER_SOURCES.items()}}
 
-def chat_provider_choices(user) -> list:
-    """Fournisseurs DISTANTS du sélecteur du chat pour `user` — lus du profil et du catalogue.
 
-    Un fournisseur n'apparaît que si le niveau cloud n'est pas « 100 % local », que la clé est
-    posée et, pour l'abonnement, que l'utilisateur est développeur (même prédicat que la garde).
-    Ses modèles : « par défaut », puis ceux que SA clé ouvre et qui savent converser. Un
-    fournisseur sans liste de modèles (abonnement : le CLI choisit) n'en propose aucun.
 
-    Rend [{'provider', 'short', 'label', 'models': [{'value', 'label'}]}].
-    """
+
+def assistant_settings(user) -> dict:
+    """Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
+    `assistant`), complétés par les défauts DÉRIVÉS de son schéma."""
+    from wama.assistant.params import USER_SETTINGS_DEFAULTS
+    from wama.common.utils.user_settings import get_user_app_settings
     if user is None or not getattr(user, 'is_authenticated', False):
-        return []
-    from wama.accounts.api_keys import configured_sources, llm_sources
-    from wama.common import external_sources
-    from wama.common.utils.llm_utils import default_cloud_model
-    from wama.model_manager.models import AIModel, COST_TIER_CHOICES
-    from wama.model_manager.services.cloud_models import (
-        UNLISTABLE_PROTOCOLS, allowed_cloud_keys, cloud_refusal,
-    )
-    if cloud_refusal(user):
-        return []
-    sources = {s.key: s for s in llm_sources(user)}
-    configured = configured_sources(user)
-    opened = allowed_cloud_keys(user, automatic=False)
-    costs = dict(COST_TIER_CHOICES)
-    choices = []
-    for provider, key in PROVIDER_SOURCES.items():
-        src = sources.get(key)
-        if src is None or key not in configured:
-            continue
-        models = []
-        if src.protocol not in UNLISTABLE_PROTOCOLS:
-            default = default_cloud_model(_PROVIDER_ALIAS.get(provider, provider))
-            models.append({'value': '', 'label': f"Par défaut ({default})"})
-            rows = (AIModel.objects.filter(model_key__in=opened, source=key,
-                                           model_type__in=('llm', 'vlm')).order_by('name'))
-            models += [{'value': m.model_id, 'label': m.name} for m in rows
-                       if (m.capabilities or {}).get('completion')]
-        details = ', '.join(d for d in (external_sources.HOSTING.get(src.hosting, ''),
-                                        costs.get(src.cost_tier, '')) if d)
-        choices.append({'provider': provider, 'short': src.label, 'models': models,
-                        'label': f"{src.label} — {details}" if details else src.label})
-    return choices
+        return dict(USER_SETTINGS_DEFAULTS)
+    return get_user_app_settings(user, 'assistant', USER_SETTINGS_DEFAULTS)
 
 
-def resolve_chat_model(key: str) -> str:
-    """Rôle de chat ('dev', 'fast'…) → tag Ollama résolu par le catalogue (source unique) ;
-    un tag complet ('gemma4:12b') passe tel quel."""
-    regle = _ROLE_TIER.get(key)
-    if regle is None:
-        return key
-    try:
-        from wama.common.utils.llm_utils import modele_par_tier
-        return modele_par_tier(**regle) or key
-    except Exception:
-        logger.debug('[ai_chat] résolution du modèle par tier indisponible', exc_info=True)
-        return key
+def resolve_turn_model(user, provider=None, model=None) -> tuple:
+    """(fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
+    ailleurs dans WAMA (« le MODÈLE porte son moteur »).
+
+    Ordre : ce que la SURFACE impose (API, test) > le RÉGLAGE durable de l'utilisateur > le
+    TIRAGE « auto » commun (`auto_model.resolve_model_choice` : domaine déclaré par le schéma de
+    l'assistant, curseur de qualité, VRAM libre, modèles distants que SES clés ouvrent).
+
+    Catalogue muet (première installation, model_manager indisponible) : repli sur le chemin
+    local historique, jamais une erreur — un assistant qui ne répond plus vaut moins qu'un
+    assistant qui répond avec le modèle par défaut d'Ollama.
+    """
+    from wama.common.utils.auto_model import AUTO, is_auto, resolve_model_choice
+
+    if model in _LEGACY_ROLES:
+        model = None
+    if provider:
+        return provider, model
+    reglages = assistant_settings(user)
+    cle = model or reglages.get('model') or AUTO
+    if is_auto(cle):
+        try:
+            from wama.model_manager.services.cloud_models import allowed_cloud_keys
+            cle = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
+                                       quality_intent=reglages.get('quality_intent'),
+                                       cloud_keys=allowed_cloud_keys(user)) or ''
+        except Exception:
+            logger.debug('[ai_chat] tirage automatique indisponible', exc_info=True)
+            cle = ''
+    if not cle:
+        return 'wama-dev-ai', None
+    source, _, model_id = str(cle).partition(':')
+    return SOURCE_PROVIDERS.get(source, 'wama-dev-ai'), (model_id or None)
 
 
 # Safe context limits per model (chars, not tokens — ~4 chars/token estimate)
@@ -587,9 +577,10 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     Args:
         user:     Django User (requis pour l'exécution d'outils ; None = chat sans outils)
         message:  Message utilisateur
-        provider: 'wama-dev-ai' (défaut, local) | 'albert' | 'claude'/'anthropic' | 'openai' | …
-        model:    Rôle de chat (`_ROLE_TIER` : 'fast', 'dev'…) ou nom de modèle complet.
-                  Pour un fournisseur cloud, un rôle de chat est ignoré (défaut fournisseur).
+        provider: imposé par la surface ('albert', 'claude', 'claude-abo'…) ou None — dans ce cas
+                  il se DÉRIVE du modèle choisi (réglage de l'utilisateur, sinon tirage « auto »).
+        model:    modèle du fournisseur, ou None. Un ancien rôle de chat ('fast', 'dev'…) vaut
+                  « auto » (`_LEGACY_ROLES`).
         history:  Tours précédents [{role, content}] — fournis par le client ; assainis ici.
         domain:   Domaine d'intervention (`assistant_skills.DOMAINES` : 'general', 'science',
                   'design', 'dev'). Détermine le skill de RÔLE injecté au prompt système et,
@@ -601,7 +592,10 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     """
     from wama.tool_api import execute_tool, build_tools_list
 
-    provider = provider or 'wama-dev-ai'
+    # Le fournisseur se DÉRIVE du modèle (réglage durable de l'utilisateur, sinon tirage « auto »)
+    # quand la surface n'impose rien : c'est ce qui donne le MÊME choix au web, à l'API et aux
+    # canaux, sans qu'aucune surface ne porte de réglage propre.
+    provider, llm_model = resolve_turn_model(user, provider, model)
 
     # ⚠ GARDE DE L'ABONNEMENT — posée ICI, et pas dans la vue de chat. `run_assistant_turn`
     # est le passage OBLIGÉ des TROIS surfaces (web `views.ai_chat`, `/api/v1/assistant/`,
@@ -615,13 +609,6 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
                              "et développeurs.", 'status': 403}
 
     local = provider in _LOCAL_PROVIDERS
-
-    # Résolution du modèle : rôle→tag par le catalogue en local ; en cloud, un rôle de chat
-    # n'a pas de sens → None (le défaut du fournisseur est résolu par llm_chat, jamais ici).
-    if local:
-        llm_model = resolve_chat_model(model)
-    else:
-        llm_model = None if (not model or model in _ROLE_TIER) else model
 
     # Inject current WAMA queue state into system prompt (when user is known)
     wama_context = _build_wama_context(user) if user else ""

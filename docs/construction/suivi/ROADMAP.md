@@ -1439,10 +1439,50 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    (surface `api` ; `history` fourni = chemin sans état conservé) ; garde des fournisseurs non
    déclarés ; tests dans un cache séparé ; `tests_assistant_surfaces`. ⏳ Reste, dans cet ordre : le
    modèle choisi en réglage durable lu par toutes les surfaces + sélecteur COMMUN (schéma, source
-   `catalog`, « auto » + curseur + manuel) + rôles CALCULÉS depuis les modèles, livrés ENSEMBLE (le
-   geste « modèle (Dev) » ne doit pas disparaître entre deux) ; gestes nocturnes de l'assistant
+   `catalog`, « auto » + curseur + manuel) — ✅ FAIT le 16/09 : `wama/assistant/params.py` (domaine
+   `llm`), réglage durable
+   `user_settings` app `assistant`, `resolve_turn_model` (surface > réglage > tirage « auto »), le
+   FOURNISSEUR se dérive du modèle (`SOURCE_PROVIDERS`), `_ROLE_TIER` retiré (un ancien rôle vaut
+   « auto »), accueil rendu par `WamaParams`, endpoint commun étendu (`cloud=1` comme `auto=1`,
+   `model_type` multiple), abonnement Claude Code = ligne DÉCLARÉE du catalogue. ⚠ Garde corrigée au
+   passage : `allowed_cloud_keys` ne retenait pas les sources OUVERTES à l'utilisateur — un compte
+   ordinaire voyait le modèle d'abonnement.
+   ⭐ **CORRECTION DE FOND au passage (Fabien, 16/09 : « pas un pansement — le problème est
+   l'imprécision des catégories et des tâches »)**. Le smoke a montré le tirage « auto » retenant
+   `ollama:glm-ocr:latest` (OCR) pour une conversation. Cause MESURÉE : la découverte Ollama
+   écrivait `task='text-generation'` pour TOUT ce qui n'est pas un embedding et en déduisait
+   `model_type='llm'` — un OCR déclarait donc la même chose qu'un modèle de chat, alors que WAMA le
+   décrit précisément ailleurs (`reader:glm-ocr`, tâche `ocr`). Corrigé À LA SOURCE : table déclarée
+   par famille `FAMILLES_OLLAMA` (tâche + spécialité), et **la CATÉGORIE se DÉRIVE de la TÂCHE**
+   (`model_type_for_task`) dans les DEUX chemins de découverte, au lieu d'être posée à la main.
+   Typage des modèles distants aligné sur la convention locale : un modèle de chat qui voit est
+   `llm` + `vision` (comme `ollama:gemma4:12b`), plus `vlm`/`captioning`. Impact mesuré : 1 ligne
+   sur 139 change (`ollama:glm-ocr:latest` → `ocr`) ; consommateurs de `model_type='llm'` : 4,
+   tous voulus. ⚠ Défaut trouvé par le smoke et corrigé : `model_type_for_task` rend une CHAÎNE là
+   où `ModelInfo` attend un membre `ModelType` — 2 modèles échouaient au sync en silence
+   (`_type_ollama`, gardes `tests_taxonomie_ollama`). ⏳ Restent : rôles CALCULÉS depuis les modèles (le
+   libellé « (Dev) » n'existe plus, les aptitudes viendront des bancs et des capacités) ; gestes nocturnes de l'assistant
    déclarés au harnais `ui_smoke` (envoyer = charge Ollama → `vram_gb` déclaré, écarté du passage
    sans GPU).
+   **Question de Fabien (15/09) : le choix automatique du modèle change-t-il la chaîne LLM ?**
+   MESURÉ — non, sauf UN point. Enrichissement : sans objet pour l'assistant (il ne s'applique qu'au
+   kind `generative`, `prompt_pipeline.py:145`, et la cible de l'assistant est `intent`,
+   `app_metadata.py:69`). Hook B RAG de la chaîne : opt-in `rag=True` que `process_prompt_for` ne
+   passe jamais (`app_metadata.py:150-155`) — aucune app ne l'active. Skills et rappel du labo :
+   indépendants du modèle (domaine → skill ; `laboratory_context` sur la question). **Le seul
+   couplage** : le ROUTAGE DE LANGUE lit les langues déclarées par le modèle RÉSOLU
+   (`process_prompt_for(..., model_id=llm_model)`, `assistant_engine.py:676-683`) et ne tourne que
+   sur le chemin LOCAL — changer le modèle peut donc changer la décision de traduire. À conserver
+   quand la sélection passera au commun.
+   **Chargement automatique des skills : CÂBLÉ, mais son déclenchement n'est pas mesuré.**
+   L'annonce des compétences est injectée au prompt système (`assistant_engine.py:657`, garde
+   `tests_assistant_skills.py:174`) ; l'outil `charger_competence` existe (`tool_api.py:3159`) et
+   rend consigne de rôle + contexte du labo calculé sur la QUESTION (`tool_api.py:2533`,
+   `tests_intake.py:165`). MAIS c'est le MODÈLE qui décide d'appeler l'outil, et aucun test ne
+   montre qu'un modèle le fait réellement ; le domaine par défaut est `general`, déclaré `rag=False`
+   (`assistant_skills.py:51-52`), donc sans appel de l'outil il n'y a AUCUN rappel du labo sur le
+   web ni sur Discord. ⏳ À ajouter avec les tests des gestes : un tour de bout en bout où un faux
+   LLM émet l'appel d'outil, pour prouver que la boucle charge bien le skill.
 5. ⏳ **Moteur de l'assistant client MCP** — même chemin pour Ollama, Albert et Claude Code
    (`--mcp-config`) ; sélecteurs UI, API et Discord lus du catalogue (Discord est aujourd'hui figé
    sur `wama-dev-ai`, `gateway/core.py:208`). Ouvre aussi l'autre sens : WAMA CLIENT de serveurs

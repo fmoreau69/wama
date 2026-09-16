@@ -487,6 +487,10 @@
       // retenu. Hors de `options_query` À DESSEIN : c'est un drapeau d'UI, pas une borne de
       // domaine — les consommateurs serveur du domaine (chips de card…) ne doivent pas le voir.
       if (p.options_auto) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'auto=1';
+      // `options_cloud` (2026-09-16) : même nature que `options_auto` — un drapeau d'UI, pas une
+      // borne de domaine. Le serveur ajoute alors les modèles DISTANTS que les clés de CET
+      // utilisateur ouvrent, selon son niveau cloud.
+      if (p.options_cloud) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'cloud=1';
       // Curseur d'INTENTION du même contexte : la prévision arbitre comme le tirage
       // arbitrera. L'intention entre dans l'URL — donc dans la clé de cache — et son
       // changement RAFRAÎCHIT la prévision (sans re-remplir le select : seule la note bouge).

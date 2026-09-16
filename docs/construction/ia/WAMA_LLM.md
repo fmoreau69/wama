@@ -838,6 +838,32 @@ seul) ; validation de `history` (API seule) ; découpage de longueur (Discord se
 | réglages utilisateur | `user_settings.py` (cache 30 j, 3 fonctions) — appelants : transcriber, avatarizer, synthesizer, converter (clé dynamique), composer, describer, imager, reader + générateur | bascule durable : garder `timeout=`, `None` écrit tel quel, clés à recopier (noms d'app avec `_`) ; `anonymizer.UserSettings` influence la TÂCHE (`anonymizer/tasks.py:192-240`) — pas un simple confort |
 | volet droit | `volet.py`, `base.html:179-259` | un contenu dans `right_panel_top` est écrasé par la page qui surcharge le bloc ; pages `VOLET_AUCUN` sans aside ; mode simplifié masque les volets (`WAMA_VOLETS.md §7-§9`) |
 
+### D-bis. La TAXONOMIE des modèles était imprécise — corrigée à la source (2026-09-16)
+
+Trouvé par le smoke du sélecteur commun : le tirage « auto » retenait `ollama:glm-ocr:latest` (OCR)
+pour une conversation, et la liste proposait `describer:blip` (légendage, `completion=False`).
+**Cause mesurée, et ce n'était pas le sélecteur** : la découverte Ollama écrivait
+`task='text-generation'` pour TOUT ce qui n'est pas un embedding (`model_registry:1942`) et en
+déduisait `model_type='llm'` à la main — un OCR déclarait donc la même chose qu'un modèle de chat,
+alors que WAMA le décrit précisément ailleurs (`reader:glm-ocr`, tâche `ocr`). Côté distant, mon
+mappage rangeait en `vlm`/`captioning` des modèles de chat multimodaux qu'Ollama range, lui, en
+`llm` + `vision`.
+
+Corrigé à la source, même règle des deux côtés : **la TÂCHE est déclarée quand la source est
+imprécise** (`model_registry.FAMILLES_OLLAMA`, `cloud_models.FAMILLES_DISTANTES` — déclaration
+humaine, jamais devinée d'un nom) et **la CATÉGORIE s'en DÉRIVE** (`model_type_for_task`), dans les
+deux chemins de découverte Ollama comme à l'écriture des lignes distantes. Impact mesuré : 1 ligne
+sur 139 change (`ollama:glm-ocr:latest` → `ocr`), plus `albert:lightonocr-2-1b` → `ocr` ;
+consommateurs de `model_type='llm'` : 4 (`llm_utils:152`, `assistant_engine:267`, schéma de
+l'assistant, prospection), tous voulus. ⚠ Défaut trouvé et corrigé dans le même geste :
+`model_type_for_task` rend une CHAÎNE là où `ModelInfo` attend un membre `ModelType` (le sync lit
+`.value`) — deux modèles échouaient au sync en silence. Gardes : `tests_taxonomie_ollama`.
+
+⏳ Ce qui reste du même défaut (dette ANCIENNE, `models.py:31-34`) : `ModelType` mélange encore
+famille, modalité et tâche (`upscaling`, `lipsync`, `ocr` y sont des tâches) ; 12 modèles à
+re-typer. Et `check_model_taxonomy` signale 4 tâches non déclarées (`diarization`, `face-analysis`,
+`face-restoration`, `image-to-3d`) plus 1 modèle sans tâche — constat ANTÉRIEUR à ce geste.
+
 ### E. Constats périmés relevés (à corriger au fil du portage)
 
 `WAMA_MEMORY.md:3-4`, `AGENTS.md` (ligne « Mémoire & RAG »), `ROADMAP §24.5.7`, `PROJECT_STATUS §6` : le

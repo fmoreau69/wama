@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {# `load` ne s'hérite PAS de base.html : sans cette ligne, tout {% templatetag openblock %}% static %{% templatetag closeblock %} d'ici casse le rendu. #}
 {% load static %}
+{% load wama_static %}
 
 {% comment %}
   ── Avatar parlant de l'assistant (pilote) ────────────────────────────────────
@@ -70,6 +71,9 @@
 
 {% block javascript %}
 {{ block.super }}
+{% comment %}`wama-params.js` n'est PAS une brique globale de `base.html` (cf. `_app_scripts.html`) :
+chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2026-09-16.{% endcomment %}
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script>
   window.WAMA_IS_HOME = true;
 
@@ -90,9 +94,7 @@
       const chatInput = document.getElementById('ai-chat-input');
       const chatMessages = document.getElementById('ai-chat-messages');
       const chatSubmit = document.getElementById('ai-chat-submit');
-      const providerSelect = document.getElementById('ai-provider');
-      const modelSelect = document.getElementById('ai-model');
-      const modelContainer = document.getElementById('model-container');
+      const settingsBox = document.getElementById('ai-settings');
 
       // Historique tenu CÔTÉ SERVEUR depuis le 2026-09-15 (store de conversation commun, comme
       // Discord et l'API) : le navigateur ne fait plus que l'AFFICHER. L'ancienne copie du
@@ -144,23 +146,26 @@
           </div>`;
       }
 
-      // ── Modèles du fournisseur choisi — lus du catalogue (views.home → chat_catalog) ──
-      const chatCatalogEl = document.getElementById('ai-chat-catalog');
-      const chatCatalog = chatCatalogEl ? JSON.parse(chatCatalogEl.textContent) : {};
-      function updateModelVisibility() {
-        const models = chatCatalog[providerSelect.value] || [];
-        modelSelect.innerHTML = '';
-        models.forEach((m, i) => {
-          const opt = document.createElement('option');
-          opt.value = m.value;
-          opt.textContent = m.label;
-          if (i === 0) opt.selected = true;
-          modelSelect.appendChild(opt);
-        });
-        modelContainer.style.display = models.length ? 'block' : 'none';
+      // ── Réglages : rendus du SCHÉMA par la brique commune, et mémorisés côté serveur ──────
+      // Le menu de modèles est peuplé par `options_source: 'catalog'` (route commune), « auto »
+      // et la prévision par `options_auto`, les modèles distants par `options_cloud`. Ce que
+      // l'utilisateur choisit vaut pour TOUTES ses surfaces : on l'enregistre au changement.
+      function lireReglages() {
+        const val = (id) => (document.getElementById(id) || {}).value;
+        return { model: val('ai-model'), quality_intent: val('ai-quality') };
       }
-      providerSelect.addEventListener('change', updateModelVisibility);
-      updateModelVisibility();
+      if (settingsBox && window.WamaParams) {
+        const schema = JSON.parse(document.getElementById('ai-chat-params').textContent);
+        const valeurs = JSON.parse(document.getElementById('ai-chat-values').textContent);
+        window.WamaParams.render(settingsBox, schema, { context: 'panel', values: valeurs });
+        settingsBox.addEventListener('change', function () {
+          fetch("{% url 'ai_chat_settings' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify(lireReglages()),
+          }).catch(function () { /* le tour suivant relira le dernier réglage enregistré */ });
+        });
+      }
 
       // ── Voice toggle UI ───────────────────────────────────────────────────
       function updateVoiceToggleUI() {
@@ -454,8 +459,10 @@
       function addLoadingIndicator() {
         const placeholder = chatMessages.querySelector('.text-center');
         if (placeholder) placeholder.remove();
-        const providerName = providerSelect.options[providerSelect.selectedIndex]?.dataset.short
-                             || 'wama-dev-ai';
+        const choix = document.getElementById('ai-model');
+        const providerName = (choix && choix.selectedIndex >= 0
+                              && choix.options[choix.selectedIndex].textContent.trim())
+                             || 'WAMA';
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'ai-loading';
         loadingDiv.className = 'mb-3';
@@ -520,9 +527,9 @@
         chatSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         addLoadingIndicator();
 
-        // Pas d'historique envoyé : le serveur tient le fil (store de conversation commun).
-        const requestBody = { message, provider: providerSelect.value };
-        if (modelContainer.style.display !== 'none') requestBody.model = modelSelect.value;
+        // Ni historique ni fournisseur : le serveur tient le fil (store commun) et résout le
+        // modèle par le réglage durable de l'utilisateur, puis par le tirage « auto ».
+        const requestBody = { message };
 
         try {
           const response = await fetch('/api/ai-chat/', {
@@ -736,46 +743,21 @@
         </div>
         <div class="card" style="background: #212529; border: 1px solid #495057;">
           <div class="card-body">
-            <!-- Provider Selection -->
+            {% comment %}
+              RÉGLAGES DE L'ASSISTANT — rendus par la brique COMMUNE `WamaParams` depuis le
+              2026-09-16, à partir du schéma `wama/assistant/params.py` (comme une app) :
+              le menu « Modèle » vient du CATALOGUE (« auto » en tête, prévision du modèle
+              retenu, modèles distants que VOS clés ouvrent) et le curseur Rapide ↔ Qualité
+              guide le tirage automatique. Plus de liste de fournisseurs ni de rôles écrits
+              ici : le fournisseur se DÉRIVE du modèle choisi, et le choix est mémorisé pour
+              toutes les surfaces (web, API, Discord).
+            {% endcomment %}
             <div class="row mb-3">
-              <div class="col-md-6">
-                <label class="form-label small">Provider</label>
-                <select id="ai-provider" class="form-select form-select-sm" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
-                  <option value="wama-dev-ai" data-short="wama-dev-ai" selected>wama-dev-ai (Local/Ollama)</option>
-                  {% comment %}
-                    Fournisseurs DISTANTS — lus du profil et du catalogue depuis le 2026-09-15
-                    (`assistant_engine.chat_provider_choices`) : un fournisseur n'apparaît que
-                    si le niveau cloud l'autorise ET que la clé est posée ; l'abonnement, en
-                    plus, pour les seuls développeurs (MÊME prédicat que la garde serveur, pour
-                    que l'écran et la garde ne divergent pas). La garde RÉELLE reste côté
-                    serveur : cacher une option ne protège rien.
-                    ⚠ Le libellé dit HÉBERGEMENT et COÛT : c'est ce qui distingue l'API Claude
-                    (facturée à l'usage) de l'abonnement (crédit mensuel) — les confondre coûte
-                    de l'argent réel ou du crédit.
-                  {% endcomment %}
-                  {% for p in chat_providers %}
-                  <option value="{{ p.provider }}" data-short="{{ p.short }}">{{ p.label }}</option>
-                  {% endfor %}
-                </select>
-                {% if not chat_providers %}
-                <div class="form-text small">Fournisseurs distants : choisissez un niveau cloud et
-                  ajoutez vos clés dans votre <a href="{% url 'accounts:profile' %}">profil</a>.</div>
-                {% endif %}
-              </div>
-              <div class="col-md-6" id="model-container">
-                <label class="form-label small">Model</label>
-                {% comment %} Libellés RÉSOLUS PAR LE CATALOGUE (views._chat_model_options,
-                2026-08-18) : les noms codés en dur ici affichaient encore Qwen3.5 après son
-                remplacement par la prospection. La value reste le RÔLE (stable). {% endcomment %}
-                <select id="ai-model" class="form-select form-select-sm" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
-                  {% for opt in chat_model_options %}
-                  <option value="{{ opt.value }}"{% if forloop.first %} selected{% endif %}>{{ opt.label }}</option>
-                  {% endfor %}
-                </select>
-                {{ chat_catalog|json_script:"ai-chat-catalog" }}
-                {{ chat_thread|json_script:"ai-chat-thread" }}
-              </div>
+              <div class="col-12" id="ai-settings"></div>
             </div>
+            {{ chat_params|json_script:"ai-chat-params" }}
+            {{ chat_values|json_script:"ai-chat-values" }}
+            {{ chat_thread|json_script:"ai-chat-thread" }}
             <!-- Chat Messages Container -->
             <div id="ai-chat-messages" class="mb-3" style="max-height: 400px; overflow-y: auto; min-height: 100px; background: #1a1d21; border-radius: 8px; padding: 15px;">
               <div class="text-center py-4">

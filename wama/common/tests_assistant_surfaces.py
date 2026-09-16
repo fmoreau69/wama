@@ -118,6 +118,67 @@ class FournisseurNonDeclareTest(TestCase):
         chat.assert_called_once()
 
 
+class ChoixDuModeleTest(TestCase):
+    """Le fournisseur se DÉRIVE du modèle, et le modèle vient du réglage durable de l'utilisateur."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('choix_modele', password='x')
+        self.client.force_login(self.user)
+
+    def _regler(self, **valeurs):
+        return self.client.post(reverse('ai_chat_settings'), data=json.dumps(valeurs),
+                                content_type='application/json')
+
+    def test_un_modele_local_choisi_donne_le_chemin_local(self):
+        from wama.common.services.assistant_engine import resolve_turn_model
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='ollama:qwen:4b', name='qwen', model_type='llm',
+                               source='ollama', is_downloaded=True,
+                               capabilities={'completion': True})
+        self.assertEqual(200, self._regler(model='ollama:qwen:4b').status_code)
+        self.assertEqual(('ollama', 'qwen:4b'), resolve_turn_model(self.user))
+
+    def test_un_modele_distant_choisi_donne_son_fournisseur(self):
+        from wama.accounts.models import UserApiKey
+        from wama.common.services.assistant_engine import resolve_turn_model
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='anthropic:claude-x', name='Claude X', model_type='vlm',
+                               source='anthropic', execution='cloud',
+                               capabilities={'completion': True})
+        self.user.profile.cloud_policy = 'cloud_allowed'
+        self.user.profile.save()
+        with mock.patch('wama.common.utils.secret_crypto.storage_available', return_value=True):
+            UserApiKey.objects.create(user=self.user, source='anthropic', api_key='sk',
+                                      open_models=['anthropic:claude-x'])
+        self.assertEqual(200, self._regler(model='anthropic:claude-x').status_code)
+        self.assertEqual(('claude', 'claude-x'), resolve_turn_model(self.user))
+
+    def test_un_modele_distant_non_ouvert_est_refuse_a_l_enregistrement(self):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='albert:ferme', name='fermé', model_type='llm',
+                               source='albert', execution='cloud',
+                               capabilities={'completion': True})
+        self.assertEqual(403, self._regler(model='albert:ferme').status_code)
+
+    def test_un_modele_inconnu_du_catalogue_est_refuse(self):
+        self.assertEqual(400, self._regler(model='ollama:fantome').status_code)
+
+    def test_un_ancien_role_vaut_auto_et_ne_part_jamais_comme_nom_de_modele(self):
+        from wama.common.services.assistant_engine import resolve_turn_model
+        provider, modele = resolve_turn_model(self.user, model='dev')
+        self.assertIn(provider, ('wama-dev-ai', 'ollama'))
+        self.assertNotEqual('dev', modele)
+
+    def test_ce_que_la_surface_impose_prime(self):
+        from wama.common.services.assistant_engine import resolve_turn_model
+        self.assertEqual(('claude-abo', None), resolve_turn_model(self.user, provider='claude-abo'))
+
+    def test_le_curseur_est_borne_par_le_schema(self):
+        from wama.common.services.assistant_engine import assistant_settings
+        self._regler(quality_intent=140)
+        self.assertEqual(100, assistant_settings(self.user)['quality_intent'])
+
+
 class CacheDesTestsTest(TestCase):
 
     def test_les_tests_n_ecrivent_pas_dans_le_vrai_cache(self):

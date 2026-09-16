@@ -39,7 +39,9 @@ class TypesDistantsTest(TestCase):
     def test_chaque_type_d_albert_trouve_sa_categorie_ou_n_entre_pas(self):
         attendu = {
             'text-generation': ('text-generation', 'llm'),
-            'image-text-to-text': ('captioning', 'vlm'),
+            # Un modèle de chat qui accepte des images est rangé comme Ollama range les siens :
+            # `llm` + `vision`, jamais `captioning` (mesuré le 16/09 — cf. `_CHAT_MULTIMODAL`).
+            'image-text-to-text': ('text-generation', 'llm'),
             'automatic-speech-recognition': ('transcription', 'speech'),
             'text-embeddings-inference': ('feature-extraction', 'embedding'),
             'text-classification': (None, None),
@@ -68,6 +70,20 @@ class DecouverteTest(TestCase):
         self.assertEqual({'engine': 'albert'}, m.composition['runtime'])
         self.assertTrue(m.capabilities.get('completion'))
         self.assertFalse(AIModel.objects.filter(model_key='albert:bge-reranker-v2-m3').exists())
+
+    def test_une_famille_distante_declaree_impose_sa_tache(self):
+        """Albert sert `lightonocr` en `image-text-to-text` (« chat qui voit ») — c'est un OCR.
+        Même règle que pour Ollama : la tâche est DÉCLARÉE, et la catégorie en dérive."""
+        annonces = [
+            {'id': 'lightonocr-2-1b', 'type': 'image-text-to-text', 'aliases': []},
+            {'id': 'gemma-4-31b-it', 'type': 'image-text-to-text', 'aliases': []},
+        ]
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=annonces):
+            cloud_models.refresh_key(self.row)
+        ocr = AIModel.objects.get(model_key='albert:lightonocr-2-1b')
+        self.assertEqual(('ocr', 'ocr'), (ocr.model_type, ocr.capabilities['task']))
+        chat = AIModel.objects.get(model_key='albert:gemma-4-31b-it')
+        self.assertEqual(('llm', True), (chat.model_type, chat.capabilities.get('vision')))
 
     def test_le_moteur_distant_n_est_pas_juge_sans_backend(self):
         from wama.common.backends.manager import backend_missing
@@ -130,8 +146,15 @@ class ProtocolesTest(TestCase):
         user = get_user_model().objects.create_user('abo_liste', password='x')
         row = UserApiKey.objects.create(user=user, source='claude_code', api_key='jeton')
         with mock.patch('requests.get') as get:
-            self.assertEqual((0, ''), cloud_models.refresh_key(row))
+            self.assertEqual((1, ''), cloud_models.refresh_key(row))
         get.assert_not_called()
+        # Une ligne DÉCLARÉE entre au catalogue : sans elle, l'abonnement n'existerait pas pour
+        # le sélecteur commun et demanderait un chemin à part.
+        row.refresh_from_db()
+        self.assertEqual(['claude_code:default'], row.open_models)
+        declaree = AIModel.objects.get(model_key='claude_code:default')
+        self.assertEqual(('cloud', 'subscription', True),
+                         (declaree.execution, declaree.cost_tier, declaree.extra_info['declared']))
 
 
 @override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[])
@@ -154,25 +177,37 @@ class AbonnementPersonnelTest(TestCase):
         self.assertIn('100 % local', res['error'])
         run.assert_not_called()
 
-    def test_le_selecteur_du_chat_liste_les_modeles_ouverts_qui_conversent(self):
+    OPTIONS = '/model-manager/api/models/options/?model_type=llm,vlm&cloud=1'
+
+    def _options(self, user):
+        self.client.force_login(user)
+        groupes = self.client.get(self.OPTIONS).json()['groups'][0]['options']
+        return [(o[0] if isinstance(o, list) else o['value']) for o in groupes]
+
+    def test_le_selecteur_commun_propose_les_modeles_ouverts_et_pas_ceux_des_autres(self):
+        """Le sélecteur de l'assistant est celui des apps : c'est l'ENDPOINT commun qui décide,
+        avec les clés de CET utilisateur et son niveau cloud."""
         from wama.accounts.models import UserApiKey
-        from wama.common.services.assistant_engine import chat_provider_choices
+        AIModel.objects.create(model_key='ollama:local', name='local', model_type='llm',
+                               source='ollama', is_downloaded=True,
+                               capabilities={'completion': True})
         AIModel.objects.create(model_key='albert:chat', name='chat', model_type='llm',
                                source='albert', execution='cloud',
                                capabilities={'completion': True})
-        AIModel.objects.create(model_key='albert:emb', name='emb', model_type='embedding',
-                               source='albert', execution='cloud', capabilities={})
         UserApiKey.objects.create(user=self.dev, source='albert', api_key='sk',
-                                  open_models=['albert:chat', 'albert:emb'])
-        UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='jeton')
-        choix = {c['provider']: c for c in chat_provider_choices(self.dev)}
-        self.assertEqual(['', 'chat'], [m['value'] for m in choix['albert']['models']])
-        self.assertIn('souverain', choix['albert']['label'])
-        self.assertEqual([], choix['claude-abo']['models'])
-        self.assertNotIn('claude', choix, "aucune clé Anthropic posée")
+                                  open_models=['albert:chat'])
+        ids = self._options(self.dev)
+        self.assertIn('albert:chat', ids)
+        self.assertIn('ollama:local', ids)
+        # Un autre compte, sans clé : le distant n'existe pas pour lui.
+        autre = get_user_model().objects.create_user('sans_cle', password='x')
+        autre.profile.cloud_policy = 'cloud_allowed'
+        autre.profile.save()
+        self.assertNotIn('albert:chat', self._options(autre))
+        # En « 100 % local », il disparaît aussi pour son propriétaire.
         self.dev.profile.cloud_policy = 'local_only'
         self.dev.profile.save()
-        self.assertEqual([], chat_provider_choices(self.dev))
+        self.assertNotIn('albert:chat', self._options(self.dev))
 
     def test_le_jeton_n_est_propose_qu_aux_developpeurs(self):
         from wama.accounts.api_keys import llm_sources

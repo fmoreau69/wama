@@ -103,37 +103,46 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
     variable mesurée reste le RÔLE.
     """
 
-    OPTION = 'value="claude-abo"'
+    #: 2026-09-16 : l'abonnement n'est plus une option écrite dans le gabarit — c'est une ligne
+    #: DÉCLARÉE du catalogue, servie par le sélecteur COMMUN. L'écran se mesure donc là où il se
+    #: remplit : l'endpoint d'options, avec les clés de l'utilisateur.
+    OPTIONS = '/model-manager/api/models/options/?model_type=llm,vlm&cloud=1'
+    MODELE = 'claude_code:default'
 
     def _ouvrir(self, user, jeton=True, niveau='cloud_allowed'):
         from wama.accounts.models import UserApiKey
+        from wama.model_manager.services.cloud_models import refresh_key
         user.profile.cloud_policy = niveau
         user.profile.save()
         if jeton:
-            UserApiKey.objects.create(user=user, source='claude_code', api_key='jeton')
+            refresh_key(UserApiKey.objects.create(user=user, source='claude_code',
+                                                  api_key='jeton'))
         return user
 
-    def _page(self, user):
+    def _options(self, user):
         self.client.force_login(user)
-        return self.client.get('/').content.decode()
+        groupes = self.client.get(self.OPTIONS).json()['groups'][0]['options']
+        return [(o[0] if isinstance(o, list) else o['value']) for o in groupes]
 
-    def test_un_membre_du_groupe_dev_voit_l_option_bien_que_non_staff(self):
+    def test_un_membre_du_groupe_dev_voit_l_abonnement_bien_que_non_staff(self):
         user = User.objects.create_user('devguy', password='x')
         user.groups.add(Group.objects.get_or_create(name='dev')[0])
         self.assertFalse(user.is_staff, "prérequis du test : ce compte n'est PAS staff")
-        self.assertIn(self.OPTION, self._page(self._ouvrir(user)))
+        self.assertIn(self.MODELE, self._options(self._ouvrir(user)))
 
-    def test_un_utilisateur_ordinaire_ne_voit_pas_l_option(self):
-        self.assertNotIn(self.OPTION, self._page(
-            self._ouvrir(User.objects.create_user('alice', password='x'))))
+    def test_un_utilisateur_ordinaire_ne_voit_pas_l_abonnement(self):
+        # Le jeton d'un autre ne lui ouvre rien : la liste suit SES clés.
+        self._ouvrir(User.objects.create_user('proprietaire', password='x', is_superuser=True))
+        alice = self._ouvrir(User.objects.create_user('alice', password='x'), jeton=False)
+        self.assertNotIn(self.MODELE, self._options(alice))
 
-    def test_sans_jeton_ou_en_local_un_developpeur_ne_voit_pas_l_option(self):
+    def test_sans_jeton_ou_en_local_un_developpeur_ne_voit_pas_l_abonnement(self):
         sans_jeton = User.objects.create_user('dev_sans_jeton', password='x', is_superuser=True)
-        self.assertNotIn(self.OPTION, self._page(self._ouvrir(sans_jeton, jeton=False)))
+        self.assertNotIn(self.MODELE, self._options(self._ouvrir(sans_jeton, jeton=False)))
         en_local = User.objects.create_user('dev_local', password='x', is_superuser=True)
-        self.assertNotIn(self.OPTION, self._page(self._ouvrir(en_local, niveau='local_only')))
+        self.assertNotIn(self.MODELE, self._options(self._ouvrir(en_local, niveau='local_only')))
 
-    def test_tout_compte_qui_voit_l_option_est_bien_autorise_par_la_garde(self):
+    def test_tout_compte_qui_voit_l_abonnement_est_bien_autorise_par_la_garde(self):
         """L'invariant, énoncé dans les deux sens sur un échantillon de profils."""
         profils = [
             ('ordinaire', {}, None),
@@ -146,6 +155,6 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
             user = User.objects.create_user(nom, password='x', **attributs)
             if groupe:
                 user.groups.add(Group.objects.get_or_create(name=groupe)[0])
-            visible = self.OPTION in self._page(self._ouvrir(user))
+            visible = self.MODELE in self._options(self._ouvrir(user))
             self.assertEqual(visible, subscription_allowed(user),
                              f"écran et garde divergent pour « {nom} »")
