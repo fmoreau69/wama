@@ -14066,6 +14066,19 @@ contraire à « jamais deux échelles mélangées » ; partage par PR GitHub éc
 4. Rien à pousser sans demande ; 3 commits locaux + ce bloc + 2 skills. Aucun effet de bord
    d'infra : aucun worker recyclé, aucun réglage posé, aucune charge GPU.
 
+#### SUITE — 2026-09-15 : le 🔚 n°1 est IMPOSSIBLE sur cet hôte → attestation sans GPU
+- Fabien : « je ne peux pas lancer de tâche GPU, sinon on crash systématiquement ». La 1ʳᵉ
+  mesure réelle n'est donc possible pour personne ici. Remplacée par l'attestation maximale
+  atteignable : **test de bout en bout contre un FAUX Ollama** (serveur HTTP local qui rend les
+  champs natifs) — couche HTTP réelle, commande appelée telle quelle, table rendue, persistance
+  `ModelRuntimeStat` (unité `token`, 2 passes, EMA), relecture par `eta_estimator.estimate`.
+  `BancDeGenerationTest` : **9 OK**. Ce que ça n'atteste PAS : les chiffres d'un vrai modèle —
+  à mesurer sur une machine où le GPU ne tue pas l'hôte (R760xa).
+- ⚠ Joué dans un **worktree de HEAD**, `CUDA_VISIBLE_DEVICES` vide : l'arbre principal portait
+  le WIP non commité d'une autre instance (46 fichiers) dont `wama/urls.py` cite une vue absente
+  (`ai_chat_clear`) — la suite ne charge plus depuis l'arbre principal tant que ce n'est pas
+  commité ou retiré. Pas à moi ; signalé, pas touché.
+
 
 ## §PALIER — 2026-09-14 (soir), « GOUVERNEUR : la CLÉ publiée rejoint le catalogue » — ✅ LIVRÉ
 
