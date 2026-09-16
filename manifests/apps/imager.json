@@ -1118,6 +1118,7 @@
     "models": {
       "catalog_keys": [
         "imager:cogvideox-5b-i2v",
+        "imager:fastwan-2.2-ti2v-5b",
         "imager:flux-1-dev",
         "imager:flux-lora-logo-design",
         "imager:flux2-klein-4b",
@@ -2472,6 +2473,10 @@
   "requires": [
     {
       "key": "imager:cogvideox-5b-i2v",
+      "kind": "model"
+    },
+    {
+      "key": "imager:fastwan-2.2-ti2v-5b",
       "kind": "model"
     },
     {

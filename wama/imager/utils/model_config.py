@@ -78,9 +78,12 @@ QWEN_IMAGE_DIR = MODEL_PATHS.get('diffusion', {}).get('qwen_image',
 FLUX2_KLEIN_DIR = MODEL_PATHS.get('diffusion', {}).get('flux2_klein',
     settings.AI_MODELS_DIR / "models" / "diffusion" / "flux2-klein")
 
+FASTWAN_DIR = MODEL_PATHS.get('diffusion', {}).get('fastwan',
+    settings.AI_MODELS_DIR / "models" / "diffusion" / "FastWan2.2-TI2V-5B-FullAttn-Diffusers")
+
 # Ensure directories exist
 for dir_path in [HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR,
-                 MOCHI_DIR, FLUX_DIR, LOGO_DIR, QWEN_IMAGE_DIR, FLUX2_KLEIN_DIR]:
+                 MOCHI_DIR, FLUX_DIR, LOGO_DIR, QWEN_IMAGE_DIR, FLUX2_KLEIN_DIR, FASTWAN_DIR]:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
@@ -182,6 +185,40 @@ MOCHI_MODELS = {
         'description_long': "Mochi-1 Preview (Genmo) : génération vidéo haute fidélité à 30 "
                             "images/s, mouvements naturels et bonne adhérence au prompt. Le plus "
                             "gourmand des modèles vidéo — à réserver aux rendus soignés.",
+    },
+}
+
+# ─── Wan (Alibaba) — servi par `wan_video_backend` ────────────────────────────
+# FastWan 2.2 TI2V 5B (FastVideo) : Wan 2.2 TI2V 5B distillé DMD, 3 pas sans CFG. Réglages du
+# README du dépôt : 1280×704, 121 images, 24 i/s.
+# `tasks` = t2v+i2v — le TI2V de son nom est MESURÉ, pas supposé (2026-09-16) : son
+# `model_index.json` déclare `expand_timesteps = True`, la branche de diffusers qui conditionne
+# par la PREMIÈRE IMAGE encodée au VAE (`pipeline_wan_i2v.py:425`) au lieu de canaux
+# supplémentaires — d'où un transformer à 48 canaux pour 48 canaux latents. L'encodeur d'image
+# CLIP, absent du dépôt, est un composant OPTIONNEL de ce pipeline : rien ne manque.
+# ⚠ `vram_gb` = SOMME des composants comptés par la sonde (~22,8 Go bf16), pas un pic : le
+# text_encoder ne sert qu'une fois, le backend tourne en MODEL_OFFLOAD (preset `fastwan`).
+# ⚠ Aucune génération GPU encore jouée : le pas DMD reste une hypothèse (`probe_fastwan`).
+WAN_MODELS = {
+    'fastwan-2.2-ti2v-5b': {
+        'model_id': 'fastwan-2.2-ti2v-5b',
+        'engine': 'diffusers',
+        'hf_id': 'FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers',
+        'type': 'video',
+        'tasks': 't2v+i2v',
+        'vram_gb': 23,
+        'disk_gb': 24,
+        'fps': 24,
+        'max_frames': 121,
+        'resolution': '1280x704',
+        'default_steps': 3,
+        'default_guidance_scale': 1.0,
+        'license': 'apache-2.0',
+        'description': 'FastWan 2.2 TI2V 5B — distillé 3 pas, 24 fps',
+        'description_long': "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de "
+                            "débruitage, pour générer une vidéo à partir d'un texte beaucoup plus "
+                            "vite que les modèles non distillés. Le nombre de pas et le guidage "
+                            "sont imposés par la distillation.",
     },
 }
 
@@ -407,6 +444,7 @@ IMAGER_MODELS = {
     **COGVIDEOX_MODELS,
     **LTX_MODELS,
     **MOCHI_MODELS,
+    **WAN_MODELS,
     **STABLE_DIFFUSION_MODELS,
     **QWEN_IMAGE_MODELS,
     **FLUX_MODELS,
@@ -578,6 +616,8 @@ def get_model_info(model_name: str) -> dict:
         info['cache_dir'] = str(LTX_DIR)
     elif model_name in MOCHI_MODELS:
         info['cache_dir'] = str(MOCHI_DIR)
+    elif model_name in WAN_MODELS:
+        info['cache_dir'] = str(FASTWAN_DIR)
     elif model_name in QWEN_IMAGE_MODELS:
         info['cache_dir'] = str(QWEN_IMAGE_DIR)
     elif model_name in FLUX_MODELS:
@@ -599,6 +639,7 @@ def list_available_models() -> dict:
         'cogvideox': COGVIDEOX_MODELS,
         'ltx': LTX_MODELS,
         'mochi': MOCHI_MODELS,
+        'wan': WAN_MODELS,
         'stable_diffusion': STABLE_DIFFUSION_MODELS,
         'qwen_image': QWEN_IMAGE_MODELS,
         'flux2_klein': FLUX2_KLEIN_MODELS,
@@ -612,6 +653,7 @@ def get_video_models() -> dict:
         **COGVIDEOX_MODELS,
         **LTX_MODELS,
         **MOCHI_MODELS,
+        **WAN_MODELS,
     }
 
 

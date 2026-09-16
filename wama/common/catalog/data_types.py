@@ -94,6 +94,23 @@ LEGACY_TYPE_ALIASES = {
 }
 
 
+def known_types() -> set:
+    """Les valeurs de `DataType` — le vocabulaire des types de DONNÉE, en un seul endroit.
+
+    Pourquoi cet accesseur (2026-09-16) : la même compréhension
+    `{v for k, v in vars(DataType).items() …}` était recopiée dans 5 modules (manifeste
+    `dataset`, nœud source du studio, ses deux vues, une garde de la médiathèque) parce que
+    `DataType` est une classe de CONSTANTES et ne s'itère donc pas. Cinq copies d'une même
+    compréhension, c'est cinq endroits qui dérivent le jour où la classe change de forme.
+
+    ⚠ Ne rend QUE les types de donnée. Un PORT peut aussi parler une catégorie média ou un
+    jeton de rôle : ce vocabulaire-là est plus large et vit dans le monde Médias
+    (`app_registry.known_port_types`) — ce paquet est la glu inter-mondes et ne dépend
+    d'aucun monde (cf. l'en-tête du paquet).
+    """
+    return {v for k, v in vars(DataType).items() if k.isupper() and isinstance(v, str)}
+
+
 def normalize_type(data_type):
     """Ramène une valeur éventuellement héritée au vocabulaire courant. Idempotent."""
     return LEGACY_TYPE_ALIASES.get(data_type, data_type)

@@ -721,8 +721,23 @@ def generate_video_task(self, generation_id):
                 fps=MOCHI_FPS,
             )
         else:
-            # Wan backend
-            export_fps = generation.video_fps
+            # Wan backend — cadence et durée maximale DÉCLARÉES par le modèle quand il les porte
+            # (FastWan 2.2 : 24 i/s natifs, 121 images) ; sinon les réglages de la génération.
+            # La grille de résolution (multiple de 16 ou 32 selon le VAE) est alignée par le
+            # backend, qui seul connaît son pipeline.
+            from wama.common.utils.model_declarations import declaration
+            wan_declaration = declaration('imager', generation.model) or {}
+            export_fps = int(wan_declaration.get('fps') or generation.video_fps)
+            if wan_declaration.get('fps'):
+                raw_wan = int(generation.video_duration * export_fps)
+                num_frames = 4 * max(1, round((raw_wan - 1) / 4)) + 1
+                max_frames = wan_declaration.get('max_frames')
+                if max_frames and num_frames > int(max_frames):
+                    num_frames = 4 * ((int(max_frames) - 1) // 4) + 1
+                    _console(user_id,
+                        f"[Imager Video] Durée réduite à {num_frames / export_fps:.1f}s "
+                        f"({num_frames} frames, max déclaré pour ce modèle)", level='warning')
+                _console(user_id, f"[Imager Video] Wan: {num_frames} frames à {export_fps}fps = {num_frames / export_fps:.1f}s")
             params = params_class(
                 prompt=_prompt,
                 negative_prompt=_negative,

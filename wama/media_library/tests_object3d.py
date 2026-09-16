@@ -81,9 +81,9 @@ class UnDepotDeGlbEstUnAssetObject3dTest(TestCase):
 
 class LaNatureDeclareSonTypeInterMondesTest(TestCase):
     def test_object3d_pointe_un_DataType_qui_existe(self):
-        from wama.common.catalog.data_types import DataType, ancestors
+        from wama.common.catalog.data_types import DataType, ancestors, known_types
         from wama.media_library.natures import ASSET_NATURES
-        types = {v for k, v in vars(DataType).items() if k.isupper()}
+        types = known_types()      # accesseur unique (2026-09-16)
         for k, n in ASSET_NATURES.items():
             if n.data_type:
                 self.assertIn(n.data_type, types, f'{k} déclare un data_type inconnu du monde Data')

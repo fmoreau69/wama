@@ -113,6 +113,9 @@ MODEL_PATHS = {
         'logo': AI_MODELS_DIR / "models" / "diffusion" / "logo",
         'qwen_image': AI_MODELS_DIR / "models" / "diffusion" / "qwen-image",
         'flux2_klein': AI_MODELS_DIR / "models" / "diffusion" / "flux2-klein",
+        # FastWan 2.2 (servi par le backend Wan, 2026-09-15). Dossier posé tel quel par
+        # `install_from_spec` le 2026-09-02 (~23 Go) — déclaré ici plutôt que déplacé.
+        'fastwan': AI_MODELS_DIR / "models" / "diffusion" / "FastWan2.2-TI2V-5B-FullAttn-Diffusers",
     },
     # Vision-Language models (BLIP, LLaVA, etc.)
     # VLM (vision-language) — dossier = catégorie ModelType. Clé legacy 'vision_language'

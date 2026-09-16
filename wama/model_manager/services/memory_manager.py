@@ -119,6 +119,14 @@ MODEL_SIZE_PRESETS = {
     'mochi': 22.0,        # Mochi-1 Preview bf16 ~22 GB
     'wan-t2v': 14.0,
     'wan-i2v': 28.0,
+    # FastWan 2.2 TI2V 5B (DMD 3 pas) — paramètres COMPTÉS sur le périphérique `meta` par
+    # `manage.py probe_fastwan` (2026-09-14) : transformer 5,00 Md (~10 Go bf16) + text_encoder
+    # UMT5 5,68 Md (~11,4 Go) + VAE 0,70 Md (~1,4 Go) = ~22,8 Go. NON MESURÉ au GPU.
+    # ⚠ Comme CogVideoX, c'est une SOMME DE COMPOSANTS : le text_encoder ne sert qu'une fois ;
+    # en MODEL_OFFLOAD le jeu de travail du débruitage est le transformer seul. 23 + 4 de marge
+    # > 24 Go → MODEL_OFFLOAD sur une 4090 ; ne PAS le faire passer sous le preset `wan-t2v`
+    # (14 Go), qui ferait tenter FULL_GPU pour ~23 Go de poids.
+    'fastwan': 23.0,
 
     # ── Vision (detection / segmentation) ───────────────────────────────────
     'yolo-nano': 0.5,
@@ -607,7 +615,14 @@ class MemoryManager:
         Returns:
             MemoryStrategy for the model
         """
-        model_size = MODEL_SIZE_PRESETS.get(model_type.lower(), 4.0)  # Default 4GB
+        # `preset_vram_gb` et NON `MODEL_SIZE_PRESETS.get` (2026-09-16) : les deux lectures de la
+        # MÊME table divergeaient — ici le nom EXACT, là la clé la plus SPÉCIFIQUE qui matche.
+        # Un appelant qui passerait un identifiant de modèle (`ltx-video-13b-0.9.8-distilled`)
+        # tombait donc sur le défaut de 4 Go, et faisait tenter FULL_GPU à un modèle de 14 à
+        # 23 Go — le débordement WDDM du 29/07. Aujourd'hui tous les appelants passent une clé de
+        # preset (`flux`, `cogvideox`, `sdxl`…) : le piège était LATENT, il se ferme avant qu'un
+        # appelant n'y tombe. Une seule règle de lecture, celle de `preset_vram_gb`.
+        model_size = preset_vram_gb(model_type) or 4.0  # inconnu → 4 Go, comme avant
         return MemoryManager.get_memory_strategy(model_size, headroom_gb)
 
     @staticmethod

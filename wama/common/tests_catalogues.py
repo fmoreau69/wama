@@ -760,12 +760,24 @@ class FunctionCatalogConformiteTest(TestCase):
                 self.assertEqual(cle, spec.key)
 
     def test_tout_port_porte_un_type_DE_LA_TAXONOMIE(self):
-        """Étendre la taxonomie AVANT d'inventer un type (checklist §7bis)."""
-        from wama.common.catalog.data_types import DataType
-        # `DataType` est une classe de CONSTANTES, pas un `Enum` : elle ne s'itère pas.
-        connus = {v for k, v in vars(DataType).items()
-                  if not k.startswith('_') and isinstance(v, str)}
+        """Étendre la taxonomie AVANT d'inventer un type (checklist §7bis).
+
+        ⚠ TROIS vocabulaires, pas un (corrigé le 2026-09-16) : un port nomme une DONNÉE
+        (`DataType`), une NATURE média (`MEDIA_CATEGORIES`) ou une SAISIE (`ROLE_TOKENS`) —
+        c'est le couple (nature, rôle) du recadrage du 2026-08-30. Ce test n'admettait que le
+        premier et rendait donc ROUGE le premier port média du catalogue, `studio.image_to_3d`
+        (entrée `image`, écrite telle quelle le 13/09), alors que sa spec DIT qu'elle attend
+        une catégorie média. Le vocabulaire est déclaré une fois, chez les natures
+        (`app_registry.known_port_types`) — le lire ici évite une 7ᵉ copie qui dériverait.
+        ⚠ Il ne FUSIONNE pas les deux taxonomies : leur axe commun reste un geste à part
+        (`WAMA_APP_GENERATION_ROUTE §S2bis.6bis`, item B).
+        """
+        from wama.common.app_registry import known_port_types
+        connus = known_port_types()
         self.assertIn('table', connus, "relevé des types vide → le contrôle serait muet")
+        self.assertIn('image', connus, "les natures média ne sont plus admises aux ports")
+        self.assertIn('prompt', connus, "un port de SAISIE serait refusé alors que le canvas "
+                                        "en pose déjà (`studio_node_ports`)")
         for cle, spec in self.catalogue.items():
             for sens, ports in (('entrée', spec.inputs), ('sortie', spec.outputs)):
                 for p in ports:

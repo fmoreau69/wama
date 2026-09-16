@@ -53,7 +53,7 @@ def api_nodes(request):
     # de palette : `function:<clé>` (lu par `pipeline.node_kind`/`function_key`, nulle part
     # ailleurs). Fonctions `pure` ET `app`-bound ; une privée ne sort pas (visibilité).
     from wama.common.catalog import function_catalog as fc
-    from wama.common.catalog.data_types import DataType
+    from wama.common.catalog.data_types import known_types      # accesseur unique (2026-09-16)
     from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
     fc.load_all()
     for key, spec in sorted(fc.FUNCTION_CATALOG.items()):
@@ -72,9 +72,7 @@ def api_nodes(request):
             'app': spec.app,
             'category': spec.category,
         }
-    data_types = sorted(v for k, v in vars(DataType).items()
-                        if not k.startswith('_') and isinstance(v, str))
-    return JsonResponse({'nodes': nodes, 'data_types': data_types})
+    return JsonResponse({'nodes': nodes, 'data_types': sorted(known_types())})
 
 
 _FUNCTION_ICONS = {
@@ -187,12 +185,11 @@ def api_run_options(request):
     specs['media_import'] = [
         {'name': 'asset_path', 'label': 'Média (médiathèque)', 'type': 'media_picker'},
     ]
-    from wama.common.catalog.data_types import DataType
+    from wama.common.catalog.data_types import DataType, known_types
     specs['dataset_input'] = [
         {'name': 'asset_path', 'label': 'Fichier tabulaire (médiathèque)', 'type': 'media_picker'},
         {'name': 'data_type', 'label': 'Type de donnée', 'type': 'select',
-         'options': sorted(v for k, v in vars(DataType).items()
-                           if not k.startswith('_') and isinstance(v, str)),
+         'options': sorted(known_types()),
          'default': DataType.TABLE},
     ]
     specs.update(function_node_params_specs())   # D13 : nœuds fonction

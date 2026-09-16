@@ -55,8 +55,10 @@ _FACTOR_ONLY = ('contains', 'crosses', 'levels', 'manipulated', 'counterbalanced
 
 
 def _valid_data_types() -> set:
-    from wama.common.catalog.data_types import DataType
-    return {v for k, v in vars(DataType).items() if k.isupper() and isinstance(v, str)}
+    # Accesseur PUBLIC depuis le 2026-09-16 : cette compréhension vivait ici et dans 4 autres
+    # modules (studio ×3, garde de la médiathèque, test du catalogue de fonctions).
+    from wama.common.catalog.data_types import known_types
+    return known_types()
 
 
 def _validate_axes(axes, reference_tables: dict, errs: list) -> None:

@@ -46,6 +46,11 @@ class ParamSpec:
 #: routier, trace ego…) sans être transformé.
 PORT_GROUPS = ('travail', 'reference')
 
+#: ⚠ Le vocabulaire ADMIS pour le `data_type` d'un port ne vit PAS ici : un port peut nommer une
+#: nature média ou un jeton de rôle autant qu'un type de donnée, et ce vocabulaire-là appartient
+#: au monde Médias → `app_registry.known_port_types()`. Ce paquet est la glu inter-mondes : il ne
+#: dépend d'aucun monde (`catalog/__init__.py`). Les types de DONNÉE seuls : `data_types.known_types()`.
+
 #: FACETTE ESTIMATEUR d'un port de SORTIE (⑤b, forme validée par Fabien le 2026-09-09 —
 #: `CAM_ANALYZER_CHAINE_TRAITEMENT §INVENTAIRE E`). Un levier de correction devient un MODÈLE DE
 #: MESURE : « j'estime G (`estimates`), je vaux ±σ (`uncertainty`), à partir de telle donnée
