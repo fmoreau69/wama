@@ -1816,6 +1816,90 @@ class BancDeGenerationTest(TestCase):
         self.assertEqual(mesure['focale_px'], 800.0)
         self.assertEqual(mesure['confiance_moyenne'], 1.0)          # couverture : 16/16 valides
 
+    def test_de_bout_en_bout_contre_un_faux_ollama_la_commande_rend_la_table_et_persiste_l_eta(self):
+        """
+        Le seul test qui traverse la couche HTTP RÉELLE du protocole (payload, `trust_env`,
+        lecture des champs natifs) et la commande jusqu'à la table rendue — SANS GPU, contre un
+        serveur local qui imite `/api/generate`. Écrit le 2026-09-15 parce qu'aucune mesure réelle
+        n'est possible sur cet hôte (Fabien : « je ne peux pas lancer de tâche GPU, ça crashe
+        systématiquement ») : c'est l'attestation maximale atteignable ici. Ce qu'il n'atteste
+        PAS : les chiffres d'un vrai modèle.
+        """
+        import io
+        import json
+        import tempfile
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from django.core.management import call_command
+        from wama.common.utils import ollama_host
+        from .models import ModelRuntimeStat
+        from .services import eta_estimator
+
+        recus = []
+
+        class FauxOllama(BaseHTTPRequestHandler):
+            def do_POST(self):
+                corps = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                recus.append((self.path, corps))
+                courte = corps['options']['num_predict'] <= 8          # la chauffe
+                reponse = {
+                    'model': corps['model'], 'response': 'ok' if courte else 'x' * 120,
+                    'done': True,
+                    'load_duration': 3_200_000_000 if len(recus) == 1 else 9_000_000,
+                    'prompt_eval_count': 12, 'prompt_eval_duration': 150_000_000,
+                    'eval_count': 3 if courte else 120,
+                    'eval_duration': 30_000_000 if courte else 1_200_000_000,
+                    'total_duration': 1_400_000_000,
+                }
+                data = json.dumps(reponse).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *a):        # silence
+                pass
+
+        serveur = ThreadingHTTPServer(('127.0.0.1', 0), FauxOllama)
+        fil = threading.Thread(target=serveur.serve_forever, daemon=True)
+        fil.start()
+        base = f"http://127.0.0.1:{serveur.server_address[1]}"
+        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            f.write("Explique la photosynthèse en trois phrases.")
+        sortie = io.StringIO()
+        try:
+            with patch.object(ollama_host, 'ollama_base', return_value=base), \
+                 patch.object(eta_estimator, 'hardware_fingerprint', return_value='faux-gpu|0GB'):
+                call_command('bench', task='text-generation', media=f.name,
+                             models='qwen3.5:4b', runs=2, stdout=sortie)
+        finally:
+            serveur.shutdown()
+            serveur.server_close()
+
+        # La couche HTTP : le bon chemin, un payload non streamé, le bon plafond de jetons.
+        self.assertEqual([p for p, _ in recus], ['/api/generate'] * 3)       # chauffe + 2 passes
+        self.assertTrue(all(c['stream'] is False and c['model'] == 'qwen3.5:4b' for _, c in recus))
+        self.assertEqual([c['options']['num_predict'] for _, c in recus], [8, 300, 300])
+        self.assertEqual(recus[1][1]['prompt'], "Explique la photosynthèse en trois phrases.")
+        # La table : la colonne qui compare, et la valeur lue dans les champs natifs.
+        texte = sortie.getvalue()
+        self.assertIn('jetons/s', texte)
+        self.assertIn('100.0', texte)                                        # 120 jetons / 1,2 s
+        self.assertIn('3.2 s', texte)                                        # chargement à froid
+        self.assertNotIn('saturé', texte)
+        # La persistance : la boucle d'ETA a appris 2 passes, bucketisées par matériel.
+        stat = ModelRuntimeStat.objects.get(model_key='ollama:qwen3.5:4b',
+                                            hardware_fingerprint='faux-gpu|0GB')
+        self.assertEqual(stat.unit, 'token')
+        self.assertEqual(stat.samples, 2)
+        self.assertAlmostEqual(stat.per_unit_ema_seconds, 1.2 / 120, places=6)
+        self.assertAlmostEqual(stat.load_ema_seconds, 3.2, places=3)
+        # …et l'estimateur la RELIT : 600 jetons → 6 s de génération + 3,2 s de chargement.
+        with patch.object(eta_estimator, 'hardware_fingerprint', return_value='faux-gpu|0GB'):
+            self.assertAlmostEqual(
+                eta_estimator.estimate('ollama:qwen3.5:4b', size=600, unit='token'), 9.2, places=2)
+
     def test_le_legendage_lit_le_dict_de_la_sonde_et_rapporte_son_echec(self):
         # Régression corrigée le 14/09 : `_bench_description` appelait `.strip()` sur le dict
         # rendu par `describe_image_ollama` → chaque modèle de légendage sortait « en erreur ».
