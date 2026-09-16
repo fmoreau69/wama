@@ -38,10 +38,15 @@ body: { ... }                 # spécifique au kind (voir §3 pour app)
 
 Kinds prévus : **`app`** (§3), **`function`** (= `FunctionSpec`, déjà fait, `WAMA_DATA_FUNCTION_CARDS.md`),
 **`dataset`** (style modèle tiers : channels/signals/reference_tables), **`model`** (= `AIModel`), **`pipeline`**
-(= `StudioPipeline.graph`), **`project`** (= `Project`, déjà fait).
+(= `StudioPipeline.graph` **OU un registre de code** — `register_pipeline_source`, 1er cas `cam_analyzer.PASSES`,
+2026-09-09 ; précisé le 2026-09-15), **`project`** (= `Project`, déjà fait).
+> ⏳ **Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`** : le kind `pipeline` porte les nœuds
+> `source | sink | app | function` (`function` codé le 2026-09-09) et gagnera un TYPE DE NŒUD `pipeline`
+> (un pipeline enregistré réutilisé comme nœud) — pas de nouveau kind. Une card porte une instance de
+> pipeline dans tous les mondes.
 
 > **Distinction EXTRAIT vs AUTORÉ** (dégagée en construisant `dataset`) : deux familles de kinds.
-> - **Extraits** (`app`, `model`, `pipeline`) : l'objet existe DÉJÀ dans le code/DB → le kind fournit
+> - **Extraits** (`app`, `model`, `pipeline` — ce dernier depuis le canvas en DB OU un registre de code) : l'objet existe DÉJÀ dans le code/DB → le kind fournit
 >   `extract(key)` qui LIT les registres et produit le manifeste. Le round-trip (extract → régénère →
 >   diff) est leur test de fidélité.
 > - **Autorés** (`dataset`, `project`, `function`-user) : le manifeste EST l'origine (pas de code à
@@ -221,6 +226,8 @@ body:                                   # (sous l'enveloppe commune)
   # F5 TRAITEMENT          [models.py + tasks.py + urls.py — pattern répété, À DÉCLARER]
   processing:
     item_model, statuses:[PENDING,RUNNING,SUCCESS,FAILURE],
+    # ⏳ précisé le 2026-09-15 : vocabulaire commun = les 5 états JOB_* (AWAITING_RESOURCES existe,
+    # common/models.py:41-61) + STALE cible — WAMA_APP_GENERATION_ROUTE.md §10.6 4.2
     result_fields:[output_file|result_text, used_backend, used_model],
     batch: {strategy: fk|through, nature_of},
     task, endpoints: STANDARD_ENDPOINTS                        # = ['index','upload','start','status',
@@ -312,6 +319,7 @@ Formule retenue, calquée sur les marketplaces (pytest `entry_points`, VSCode `c
 
 **Composition attendue** (rien de neuf, `requires` existant) :
 `plugin` → `library` (ses dépendances) + `function`(s) (ses traitements) ; `pipeline` → `plugin`(s) ;
+`pipeline` → `pipeline`(s) (type de nœud `pipeline`, décidé le 2026-09-15, `WAMA_APP_GENERATION_ROUTE.md §10.6`) ;
 `project` → `pipeline`(s). **Règle** : un plugin RÉFÉRENCE ses traitements, il ne les CONTIENT pas —
 sinon il devient une boîte noire et l'héritage de capacités par le studio tombe.
 
@@ -534,6 +542,13 @@ une app pourra déclarer des arêtes de CAPACITÉ :
   "optional": true}, …]` — capacités HÉRITÉES d'une autre app, réalisées au runtime par le
   pivot d'exécution existant (`launch_graph`/`execute_tool`), l'UI (case à cocher) étant
   auto-générée de la déclaration.
+
+> ⏳ **Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6` (points 3.2, 4.5, 7)** : une capacité
+> héritée n'est plus « un micro-pipeline exécuté par `launch_graph` » : c'est un **process `optional`
+> inséré dans le pipeline de la card**, dont le nœud est le process ou le pipeline de l'app fournisseuse,
+> exécuté par le **moteur commun**. Restent à formaliser ICI : le **degré de liberté** d'un process
+> (`required` / `optional` / place `open`, décision ouverte n°3 de §10.6) et la facette « **pipelines
+> proposés** » du manifeste `app` (décision ouverte n°11).
 
 Différence de nature : `requires` se résout à l'INGEST (le manifeste cible doit exister) ;
 `uses` se résout au RUNTIME par le routage capacité→app (l'app fournisseuse est

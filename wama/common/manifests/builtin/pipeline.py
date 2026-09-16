@@ -8,14 +8,16 @@ Le graphe brut = {"nodes":[{id,app,x,y,params}], "links":[{from,to,to_port}]}. D
 canvas) rangée sous `layout` — cosmétique, préservée pour régénérer le canvas mais hors du cœur du graphe.
 
 Un nœud dont `app` ∈ {text_input, media_import, dataset_input, studio_output} n'est pas une app
-mais une SOURCE/SINK (cf. studio_node_ports / GENERIC_APPS) → classé `kind` = source|sink|app.
+mais une SOURCE/SINK (cf. studio_node_ports / GENERIC_APPS) → classé `kind` = source|sink|app|function
+(corrigé le 2026-09-15 : `function` existe depuis le 2026-09-09, cf. D13 ci-dessous).
 
 D13 (`WAMA_DATA_WORLD §9undecies.2`, tranchée le 2026-08-24, CODÉE le 2026-09-09) : UN seul kind
 `pipeline`, étendu d'un nœud **`function`** — une fonction du catalogue (`FUNCTION_CATALOG`,
 `FunctionSpec` pure ou app-bound) est un nœud au même titre qu'une app, parce qu'un protocole
 réel TRAVERSE les mondes (« transcris la vidéo, puis segmente autour des mots-clés »). La
 différence app / fonction (job de file asynchrone vs transformation typée synchrone) se traite
-dans l'EXÉCUTEUR (`studio/tasks.py`), qui dispatche sur `kind` — jamais dans le schéma. Sur le
+dans l'EXÉCUTEUR (`studio/tasks.py` — pièce du futur moteur commun, précisé le 2026-09-15 →
+WAMA_APP_GENERATION_ROUTE.md §10.6), qui dispatche sur `kind` — jamais dans le schéma. Sur le
 canvas, un nœud fonction porte `app = 'function:<clé>'` (le JS ne connaît qu'un identifiant
 de palette) ; `node_kind()` / `function_key()` sont les DEUX seuls lecteurs de cette convention.
 """
@@ -28,6 +30,8 @@ from ..kinds import ManifestKind, register_kind
 
 SOURCE_NODES = {'text_input', 'media_import', 'dataset_input'}
 SINK_NODES = {'studio_output'}
+# ⏳ Type de nœud `pipeline` (un pipeline enregistré réutilisé comme nœud, sous-graphe) décidé le
+# 2026-09-15, NON implémenté — WAMA_APP_GENERATION_ROUTE.md §10.6 3.1.
 NODE_KINDS = ('source', 'sink', 'app', 'function')
 #: Préfixe d'identifiant de palette d'un nœud fonction (`app` du graphe canvas).
 FUNCTION_NODE_PREFIX = 'function:'
@@ -177,7 +181,7 @@ def extract_pipeline(key: str) -> Optional[dict]:
         'schema_version': '1.0',
         'name': p.name,
         'description': '',
-        'world': 'transverse',       # orchestration studio
+        'world': 'transverse',       # pipeline transverse
         'owner': p.user.get_username() if p.user_id else None,
         'visibility': 'private',     # un pipeline utilisateur est privé par défaut
         'projects': [],

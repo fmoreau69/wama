@@ -1,11 +1,13 @@
 """
 Studio — orchestration d'un pipeline (tâche Celery).
 
-Exécution V1 : ordre TOPOLOGIQUE d'un graphe acyclique ; chaque nœud-app est traité par
-son runner (studio/services/runners.py) : create → start → poll (le traitement lui-même
-tourne dans le Celery de l'app cible — le studio ne fait qu'orchestrer et chaîner les
-sorties). Les nœuds-source intégrés (prompt_batch, media_import) ne sont pas exécutables
-en V1 : les entrées initiales viennent des params de nœud (ex. « Texte » du synthesizer).
+Exécution : ordre TOPOLOGIQUE d'un graphe acyclique (corrigé le 2026-09-15). Chaque nœud
+`app` est traité par son runner — `studio/services/runners.py` n'est plus qu'une façade de
+`generic_runner.py` (`GENERIC_APPS`) : create → start → poll (le traitement lui-même tourne
+dans le Celery de l'app cible). Les nœuds-SOURCE `text_input`, `media_import` et
+`dataset_input` SONT exécutés, par `SOURCE_HANDLERS` (ci-dessous) ; le nœud-sortie
+`studio_output` range le résultat. (L'ancienne mention « nœuds-source non exécutables en V1 »
+et le nœud `prompt_batch`, qui n'existe pas, étaient périmés.)
 
 D13 — nœud `function` (2026-09-09, `WAMA_DATA_WORLD §9undecies.2`) : le dispatch se fait
 ICI, sur le kind du nœud (`manifests.builtin.pipeline.node_kind`), jamais dans le schéma :
@@ -18,6 +20,12 @@ Un `TypedFrame` circule EN MÉMOIRE entre deux nœuds fonction d'un même run ; 
 n'en garde qu'un résumé (type, lignes, colonnes). La porte d'ingestion d'un fichier Data vers
 un nœud fonction est le nœud-source `dataset_input` (marche E : l'importeur de manifeste
 de process en sera la seconde entrée).
+
+⏳ Précisé le 2026-09-15 → WAMA_APP_GENERATION_ROUTE.md §10.6 (4.2, 4.5) : les états écrits ici
+en littéraux ('RUNNING', 'SUCCESS', 'FAILURE', sans AWAITING_RESOURCES) s'aligneront sur le
+vocabulaire COMMUN (5 états JOB_* + STALE) ; cet exécuteur devient une pièce du MOTEUR COMMUN
+(avec le squelette de tâche et le suivi de passes de cam_analyzer), qui exécutera le pipeline
+porté par une card dans n'importe quelle file.
 """
 import time
 

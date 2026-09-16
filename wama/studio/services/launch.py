@@ -127,11 +127,13 @@ def diagnostiquer_chainage(graph) -> list:
 def launch_graph(user, graph, *, pipeline_id=None):
     """Valide puis lance un graphe studio. Retourne (run, None) ou (None, message_d_erreur).
 
-    Validation AVANT dispatch (contrat historique d'`api_run`) :
+    Validation AVANT dispatch (contrat historique d'`api_run`, aligné sur le code le 2026-09-15) :
       - graphe non vide et ACYCLIQUE (`topo_order`) ;
-      - tout nœud CONNECTÉ doit être exécutable (app du runner générique, source
-        Texte/Médiathèque, ou sortie `studio_output`) ;
-      - au moins un nœud-app exécutable dans le graphe.
+      - tout nœud CONNECTÉ doit être exécutable (app du runner générique, fonction du
+        catalogue, source Texte/Médiathèque/Jeu de données, ou sortie `studio_output`) ;
+      - au moins un nœud app OU fonction exécutable dans le graphe.
+    ⚠ Un pipeline SANS process (entrée → sortie, export seul) est donc refusé ici, alors qu'il
+    est valide dans le modèle du 2026-09-15 (WAMA_APP_GENERATION_ROUTE.md §10.6 3.6, §11 #35).
     """
     from wama.studio.models import StudioRun
     from wama.studio.services.runners import runner_for

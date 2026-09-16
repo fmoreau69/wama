@@ -914,7 +914,8 @@ Trois pièges, tous rencontrés :
    l'entrée est un paramètre du process comme les autres** — remplaçable par les mêmes zones de
    rôle que la card d'entrée (drop / médiathèque / filemanager sur la zone concernée) ; après
    exécution, « remplacer l'entrée » = une NOUVELLE passe → c'est la duplication (qui gagne
-   donc ses deux directions) ou le manifeste de PROCESS (`WAMA_MANIFEST_ARCHITECTURE`,
+   donc ses deux directions) ou le manifeste de pipeline (ex-« de PROCESS », précisé le 2026-09-15,
+   `WAMA_APP_GENERATION_ROUTE.md §10.6` ; `WAMA_MANIFEST_ARCHITECTURE`,
    proposition du même jour — la duplication PAR DESCRIPTION, où remplacer les entrées est
    l'usage nominal). Le domicile UI du remplacement est la section Entrée de l'exigence 8.
 8. **Modale ⚙ et inspecteur : sections EXPLICITES Entrée / Réglages / Sortie** (même message),
@@ -925,12 +926,15 @@ Trois pièges, tous rencontrés :
    10 apps héritent d'un coup, aucune modale à réécrire par app. La section Entrée est aussi le
    domicile du remplacement de fichiers (exigence 7) — même anatomie partout : card, modale,
    inspecteur disent Entrée/Réglages/Sortie dans le même ordre.
+   *Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6` point 5.1* : la card porte une
+   instance de pipeline — la zone Réglages devient **une ligne par process** (état, ▶ pour le lancer
+   seul, ⚙ généré de son schéma, case s'il est optionnel), générée de la définition du pipeline.
 
 #### Les charges à absorber — ce que les 12 cards portent DÉJÀ
 
 | # | Charge | État mesuré | Ancres |
 |---|---|---|---|
-| 1 | **Modalités d'entrée** : dépôt/clic · dossier récursif (8/12) · URL (avec ou sans bouton) · médiathèque (`MediaPicker`) · lot · live/Speak (transcriber seul) · slot référence typé (3/12) · **manifeste de PROCESS** (à venir — l'importeur du pipeline à 1 nœud est une modalité de la card, précision Fabien 30/08, `WAMA_MANIFEST_ARCHITECTURE.md §8` ; même geste que le fichier de lot : dépôt + détection structurelle + aperçu) | brique commune, la v3.5 change leur PRÉSENTATION (mini-onglets) | `wama/common/templates/common/_new_item_card.html` |
+| 1 | **Modalités d'entrée** : dépôt/clic · dossier récursif (8/12) · URL (avec ou sans bouton) · médiathèque (`MediaPicker`) · lot · live/Speak (transcriber seul) · slot référence typé (3/12) · **manifeste de pipeline** (à venir — ex-« manifeste de PROCESS » ; précisé le 2026-09-15 : un pipeline de 0..N process, vide compris, `WAMA_APP_GENERATION_ROUTE.md §10.6` ; l'importeur est une modalité de la card, précision Fabien 30/08, `WAMA_MANIFEST_ARCHITECTURE.md §8` ; même geste que le fichier de lot : dépôt + détection structurelle + aperçu) | brique commune, la v3.5 change leur PRÉSENTATION (mini-onglets) | `wama/common/templates/common/_new_item_card.html` |
 | 2 | **Prompt** primaire (5/12 : composer, synthesizer, avatarizer, imager ×2) + compteur de mots et zone droppable (avatarizer seul) + **prompt négatif** (imager, en zone d'extension) | doctrine écrite : « dans la CARD, pas dans le volet » | `_new_item_card.html:76-77` |
 | 3 | **Réglages inline** : voix/vitesse/titre + **aperçu SSE de la voix** (synthesizer) ; **sélecteur de modèle avec Auto** + aide `WamaModelHelp` (imager ×2) | via `extra_zone_template`, sans contrat — 2 apps ont DÉJÀ des réglages dans la card, sans ⚙ | `wama/synthesizer/templates/synthesizer/_new_item_extra.html` ; `wama/imager/templates/imager/_model_zone.html` |
 | 4 | **Sélection visuelle d'actif** : galerie d'avatars (grille cliquable) | seul cas du parc | `wama/avatarizer/templates/avatarizer/_new_item_extra.html` |
