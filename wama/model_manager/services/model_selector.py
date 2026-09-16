@@ -66,7 +66,7 @@ def _specialization_ok(model, requested) -> bool:
     l'appelant demande sa spécialité — sinon il concourt à armes inégales dans un pool
     généraliste (cas `translategemma:12b`, spécialiste traduction que rien ne distinguait :
     Ollama lui rend `completion, vision` comme à un généraliste). Réciproquement, demander
-    une spécialité ne retient QUE les modèles qui la portent. Cf. `SPECIALISATIONS_OLLAMA`.
+    une spécialité ne retient QUE les modèles qui la portent. Cf. `FAMILLES_OLLAMA`.
     """
     # ⚠ `'specialisation'` reste tel quel : c'est une CLÉ DE DONNÉES stockée en base
     # (frontière de la règle de nommage — ce qui est stocké reste, ce qui est calculé
@@ -209,6 +209,19 @@ def _minmax(valeurs: dict) -> dict:
     return {k: (v - lo) / (hi - lo) for k, v in valeurs.items()}
 
 
+def _type_filter(model_type) -> dict:
+    """Filtre de CATÉGORIE, une ou plusieurs séparées par des virgules.
+
+    Une surface peut couvrir deux catégories sans que ce soit un fourre-tout : l'assistant
+    converse avec des `llm` ET des `vlm` (les modèles Claude et les modèles vision d'Albert
+    répondent en texte). Le domaine reste DÉCLARÉ au schéma — ce n'est pas une absence de borne.
+    """
+    types = [t.strip() for t in str(model_type or '').split(',') if t.strip()]
+    if not types:
+        return {}
+    return {'model_type__in': types} if len(types) > 1 else {'model_type': types[0]}
+
+
 def _best_by_vram(models, budget_gb: Optional[float], domain=None, quality_intent=None):
     """
     Parmi `models`, le meilleur compromis QUALITÉ/COÛT au poids du CURSEUR (0-100) :
@@ -347,7 +360,7 @@ def select_model(
     if downloaded_only:
         qs = qs.filter(Q(is_downloaded=True) | Q(execution=EXECUTION_CLOUD))
     if model_type:
-        qs = qs.filter(model_type=model_type)
+        qs = qs.filter(**_type_filter(model_type))
     if candidates:
         qs = qs.filter(model_key__in=candidates)
 
@@ -634,7 +647,7 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
     # L'INFÉRENCE `task` → `model_type`, elle, reste réservée au mode SANS source : là-bas
     # elle est l'ancrage de catégorie qui rend le permissif sûr ; ici la source ancre déjà.
     if model_type:
-        qs = qs.filter(model_type=model_type)
+        qs = qs.filter(**_type_filter(model_type))
     if source:
         qs = qs.filter(source=source)
     else:
@@ -669,7 +682,7 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
             from ..models import model_type_for_task
             mt = model_type_for_task(task)
         if mt:
-            qs = qs.filter(model_type=mt)
+            qs = qs.filter(**_type_filter(mt))
     if downloaded_only:
         qs = qs.filter(Q(is_downloaded=True) | Q(execution=EXECUTION_CLOUD))
     qs = qs.order_by('-vram_gb', 'name')

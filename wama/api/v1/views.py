@@ -118,8 +118,10 @@ class AssistantChatView(APIView):
             )
 
         common = dict(
-            provider=request.data.get("provider", "wama-dev-ai"),
-            model=request.data.get("model", "fast"),
+            # Rien d'imposé par défaut : le fournisseur et le modèle se résolvent alors par le
+            # réglage durable de l'utilisateur, puis par le tirage « auto » commun.
+            provider=request.data.get("provider") or None,
+            model=request.data.get("model") or None,
             # Domaine d'intervention (`assistant_skills.DOMAINES`) : détermine le skill de
             # rôle et, pour les domaines qui le déclarent, le rappel du contexte de labo.
             domain=request.data.get("domain"),

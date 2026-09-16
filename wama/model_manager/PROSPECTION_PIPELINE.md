@@ -259,7 +259,8 @@ en bout. La chaîne a abouti, mais en révélant trois trous, tous comblés dans
 
 Bonus (même session) : le sélecteur de modèle du chat assistant (home.html) affichait des
 libellés FIGÉS (« Qwen3.5 35B-A3B (Dev) ») alors que la value (rôle) était résolue par le
-catalogue — libellés désormais résolus au rendu (`views._chat_model_options`).
+catalogue — depuis le 2026-09-16, le sélecteur de l'assistant est le sélecteur COMMUN des apps
+(schéma `wama/assistant/params.py`, source `catalog`), donc les libellés viennent du catalogue.
 
 Leçon opératoire : un pull refusé par un démon Ollama trop ancien pour le modèle sort en
 erreur générique — vérifier la version d'Ollama avant de diagnostiquer plus loin.

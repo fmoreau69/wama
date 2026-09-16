@@ -70,6 +70,12 @@ class Param:
                                                 # lancement résout « auto » (brique commune
                                                 # `common/utils/auto_model.py`) — sinon la valeur
                                                 # stockée arriverait brute au dispatch.
+    options_cloud: bool = False                 # select `catalog` : proposer AUSSI les modèles
+                                                # DISTANTS que les clés d'API de l'utilisateur
+                                                # ouvrent (`cloud=1` de l'endpoint). OPT-IN, comme
+                                                # `options_auto` : une app dont le backend est
+                                                # LOCAL ne doit pas proposer un modèle distant
+                                                # qu'elle ne saurait pas exécuter.
     show_if: Any = None                         # visibilité conditionnelle. string = nom d'un champ
                                                 # (visible si « truthy » : toggle coché / valeur non vide).
                                                 # dict = condition par VALEUR : {"field": "media_type",

@@ -1201,9 +1201,16 @@ def api_model_options(request):
              'error': "préciser au moins `task`, `model_type` ou `source` — "
                       "un select sans domaine listerait tout le catalogue"},
             status=400)
+    # `cloud=1` (drapeau d'UI déclaré au schéma, comme `auto`) : le select propose AUSSI les
+    # modèles DISTANTS que la clé de CET utilisateur ouvre, selon son niveau cloud. Sans le
+    # drapeau, aucun distant — une app dont le backend est local ne doit pas en proposer.
+    cloud_keys = None
+    if request.GET.get('cloud') in ('1', 'true'):
+        from .services.cloud_models import allowed_cloud_keys
+        cloud_keys = allowed_cloud_keys(request.user, automatic=False)
     try:
         choices, info = get_registry_models(
-            source, task=task, model_type=model_type, modality=modality)
+            source, task=task, model_type=model_type, modality=modality, cloud_keys=cloud_keys)
     except Exception as e:
         logger.warning("api_model_options: %s", e, exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
@@ -1243,6 +1250,9 @@ def api_model_options(request):
             preview = predict_model_choice(
                 {'task': task, 'model_type': model_type,
                  'modality': modality, 'source': source,
+                 # La prévision arbitre sur le MÊME lot que le select : sinon elle annoncerait
+                 # un modèle local là où le tirage réel peut retenir un distant autorisé.
+                 **({'cloud_keys': list(cloud_keys)} if cloud_keys else {}),
                  **({'quality_intent': quality_intent} if quality_intent else {})})
         except Exception as e:                      # la prévision ne casse jamais la liste
             logger.debug("api_model_options: prévision indisponible (%s)", e)

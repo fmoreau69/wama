@@ -30,9 +30,36 @@ logger = logging.getLogger(__name__)
 #: (et son absence des benchmarks tiers y rendait l'étage de mesure inerte).
 #: Déclaration HUMAINE, jamais devinée ; un modèle spécialisé n'est retenu que si l'appelant
 #: demande sa spécialité (`select_model(specialisation='translation')`).
-SPECIALISATIONS_OLLAMA = {
-    'translategemma': 'translation',   # Google, variante Gemma dédiée à la traduction
+#: ⚠ REMPLACE `SPECIALISATIONS_OLLAMA` le 2026-09-16 : la spécialité ne suffisait pas, c'est la
+#: TÂCHE qui manquait. La découverte écrivait `task='text-generation'` pour TOUT ce qui n'est pas
+#: un embedding, et en déduisait `model_type='llm'` — mesuré : `glm-ocr` (OCR) déclarait donc
+#: exactement la même chose que `qwen3.8` (chat), et il a été TIRÉ pour une conversation parce
+#: qu'il était le plus léger du lot. Le même modèle est pourtant décrit PRÉCISÉMENT ailleurs dans
+#: WAMA (`reader:glm-ocr`, tâche `ocr`) : c'est la règle de découverte qui était imprécise, pas la
+#: taxonomie.
+#: `task` : vocabulaire `ModelTask`. La CATÉGORIE s'en DÉRIVE (`model_type_for_task`) — jamais
+#: posée à la main. `specialisation` : écarte du pool généraliste tant qu'on ne la demande pas.
+FAMILLES_OLLAMA = {
+    'translategemma': {'task': 'text-generation', 'specialisation': 'translation'},
+    'glm-ocr':        {'task': 'ocr'},
 }
+
+
+def _type_ollama(task: str):
+    """CATÉGORIE d'un modèle Ollama, DÉRIVÉE de sa tâche — membre `ModelType`, jamais une chaîne.
+
+    `model_type_for_task` rend la valeur textuelle ; le contrat de `ModelInfo` est le membre
+    (`model_sync` lit `.value`). ⚠ Mesuré le 2026-09-16 : sans cette conversion, deux modèles
+    échouaient au sync avec « 'str' object has no attribute 'value' » — et la ligne restait telle
+    quelle, donc l'erreur ne se voyait que dans le compte-rendu.
+    Tâche inconnue ou absente → `LLM`, le comportement d'avant.
+    """
+    from ..models import model_type_for_task
+    valeur = model_type_for_task(task) if task else None
+    try:
+        return ModelType(valeur) if valeur else ModelType.LLM
+    except ValueError:
+        return ModelType.LLM
 
 
 def _check_hf_model_downloaded(cache_dir: Path, hf_id: str) -> bool:
@@ -320,9 +347,9 @@ class ModelRegistry:
         dans son `SUPPORTED_MODELS`. Les deux déclarations sont les deux moitiés d'UN lien, pas
         deux chemins — la résolution rend `None` plutôt que de deviner (`resolve_backend`).
         ⚠ La classe de pipeline lue est CONSIGNÉE (`extra_info['pipeline_class']`) sans être
-        interprétée : `WanDMDPipeline` (FastWan) n'existe pas dans diffusers 0.37 — le dépôt est
-        « diffusers » sans être servable par le backend Wan. On dit ce qu'on lit, pas ce qu'on
-        espère.
+        interprétée : `WanDMDPipeline` (FastWan) n'existe pas dans diffusers 0.37. On dit ce
+        qu'on lit, pas ce qu'on espère — FastWan n'est devenu servable (2026-09-15) que par une
+        DÉCLARATION (imager + `SUPPORTED_MODELS` du backend Wan), jamais par cette dérivation.
 
         ⚠⚠ **UNE DÉRIVATION N'ÉCRASE JAMAIS UNE DÉCLARATION** — et le risque a été MESURÉ avant
         d'être écrit (mise en garde de Fabien : « attention à ne pas créer deux chemins parallèles
@@ -1924,7 +1951,7 @@ class ModelRegistry:
         `requires=` de `select_model()` teste des clés TRUTHY : on expose donc des drapeaux
         positifs (`completion`, `vision`, `audio`, `tools`, `embedding`) plutôt qu'une
         négation, qu'il ne saurait pas exprimer. `nom_modele` sert à la SPÉCIALISATION
-        déclarée (cf. `SPECIALISATIONS_OLLAMA`), que la découverte ne peut pas deviner.
+        déclarée (cf. `FAMILLES_OLLAMA`), que la découverte ne peut pas deviner.
         """
         embarque = 'embedding' in brutes
         # `audio` (ENTRÉE audio native) était JETÉ : absent de la liste blanche et des
@@ -1940,13 +1967,15 @@ class ModelRegistry:
         for drapeau in ('completion', 'vision', 'audio', 'tools', 'thinking', 'embedding'):
             if drapeau in brutes:
                 caps[drapeau] = True
-        # Spécialisation DÉCLARÉE (humaine) : elle ne se découvre pas — Ollama rend
-        # `completion, vision` pour translategemma comme pour un généraliste. Déclarée ICI
+        # TÂCHE et SPÉCIALITÉ déclarées (humaines) : elles ne se découvrent pas — Ollama rend
+        # `completion, tools, vision` pour glm-ocr comme pour un généraliste. Déclarées ICI
         # parce que la découverte réécrit `capabilities` EN ENTIER à chaque sync (une valeur
         # posée en base serait effacée au passage suivant — leçon `audio_enhance`, 05/08).
-        for prefixe, domaine in SPECIALISATIONS_OLLAMA.items():
+        for prefixe, declaration in FAMILLES_OLLAMA.items():
             if nom_modele and nom_modele.split(':')[0].lower().startswith(prefixe):
-                caps['specialisation'] = domaine
+                caps['task'] = declaration.get('task') or caps['task']
+                if declaration.get('specialisation'):
+                    caps['specialisation'] = declaration['specialisation']
                 break
         # Un modèle sans capacité déclarée (Ollama ancien, ou API injoignable) est traité comme
         # un modèle de complétion : c'est le comportement d'avant, on ne régresse pas.
@@ -2027,8 +2056,17 @@ class ModelRegistry:
                             # il se déclenche quand la VRAM manque, donc au pire moment.
                             _caps_ollama = (capacites.get(model_name, set())
                                             | (fiche.get('capabilities') or set()))
-                            _type = (ModelType.EMBEDDING if 'embedding' in _caps_ollama
-                                     else ModelType.LLM)
+                            # ⭐ CATÉGORIE DÉRIVÉE DE LA TÂCHE (2026-09-16), par la table commune
+                            # `model_type_for_task` — celle que tout WAMA utilise déjà. Avant, elle
+                            # était posée ici à la main : « embedding, sinon llm ». Un modèle d'OCR
+                            # servi par Ollama devenait donc un `llm` de génération de texte, et
+                            # entrait dans le tirage d'une conversation.
+                            # ⚠ `model_type_for_task` rend une CHAÎNE ; le contrat de `ModelInfo`
+                            # est un membre `ModelType` (le sync lit `.value`). Mesuré le 16/09 :
+                            # sans cette conversion, 2 modèles ont échoué au sync en silence.
+                            from ..models import model_type_for_task
+                            _caps_declarees = self._capacites_canoniques(_caps_ollama, model_name)
+                            _type = _type_ollama(_caps_declarees.get('task'))
 
                             self._models[f"ollama:{model_name}"] = ModelInfo(
                                 id=f"ollama:{model_name}",
@@ -2067,10 +2105,9 @@ class ModelRegistry:
                                     # UNION tags ∪ show : `/api/tags` rend un SOUS-ENSEMBLE
                                     # (pas d'`audio`), `/api/show` la liste complète — la
                                     # fiche est déjà chargée, donc gratuit (mesuré 19/08).
-                                    self._capacites_canoniques(
-                                        capacites.get(model_name, set())
-                                        | (fiche.get('capabilities') or set()),
-                                        model_name),
+                                    # Calculées UNE fois plus haut : la CATÉGORIE en dérive, et
+                                    # deux calculs pourraient diverger.
+                                    _caps_declarees,
                                     # L'ensemble BRUT d'Ollama, conservé tel quel : `tools` et
                                     # `thinking` n'ont d'équivalent dans aucune autre taxonomie, et
                                     # ce sont eux qui disent si un modèle peut servir l'assistant.
@@ -2169,12 +2206,13 @@ class ModelRegistry:
                                     # portée — la seule différence est qu'elle peut être vide si
                                     # `/api/tags` n'a pas répondu, auquel cas on retombe sur LLM
                                     # comme avant.
+                                    _caps_repli = self._capacites_canoniques(
+                                        capacites.get(full_name, set()), full_name)
                                     self._models[f"ollama:{full_name}"] = ModelInfo(
                                         id=f"ollama:{full_name}",
                                         name=full_name,
-                                        model_type=(ModelType.EMBEDDING
-                                                    if 'embedding' in capacites.get(full_name, set())
-                                                    else ModelType.LLM),
+                                        model_type=_type_ollama(_caps_repli.get('task')),
+                                        capabilities=_caps_repli,
                                         source=ModelSource.OLLAMA,
                                         description=f"Ollama LLM ({size_gb:.1f}GB)" if size_gb > 0 else "Ollama LLM",
                                         ram_gb=round(size_gb, 1),

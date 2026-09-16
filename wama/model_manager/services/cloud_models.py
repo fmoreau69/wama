@@ -34,6 +34,22 @@ _TASK_ABILITIES = {
     'captioning': {'completion': True, 'vision': True},
 }
 
+#: Types distants qui désignent un modèle de CHAT acceptant des images (Claude, gemma-4 et
+#: mistral-small chez Albert). MESURÉ le 2026-09-16 : les ranger en `captioning`/`vlm` les sortait
+#: du domaine de l'assistant, alors qu'Ollama range exactement les mêmes modèles en `llm` avec
+#: `vision=True` (`ollama:gemma4:12b`). On suit la convention LOCALE : une seule façon de dire
+#: « modèle de conversation qui voit », sinon le même modèle se lit différemment selon d'où il vient.
+_CHAT_MULTIMODAL = ('image-text-to-text',)
+
+#: Familles DISTANTES dont le type annoncé par le FOURNISSEUR est imprécis — même nature que
+#: `model_registry.FAMILLES_OLLAMA`, et même règle : déclaration HUMAINE, jamais devinée d'un nom.
+#: Mesuré le 2026-09-16 : Albert sert `lightonocr-2-1b` en `image-text-to-text`, c'est-à-dire
+#: « modèle de chat qui voit » — or c'est un OCR, et il entrait donc au menu de l'assistant.
+#: Clé = clé de catalogue `<source>:<id>` ; valeur = tâche de NOTRE vocabulaire (`ModelTask`).
+FAMILLES_DISTANTES = {
+    'albert:lightonocr-2-1b': 'ocr',
+}
+
 
 #: Version d'API qu'Anthropic exige sur chaque requête.
 ANTHROPIC_VERSION = '2023-06-01'
@@ -64,6 +80,8 @@ def task_and_type(remote_type: str):
     from wama.model_manager.models import canonical_task, model_type_for_task
     from .prospector import hf_task_to_wama
 
+    if remote_type in _CHAT_MULTIMODAL:
+        return 'text-generation', 'llm'
     tag = _PROVIDER_TYPE_TO_HF_TAG.get(remote_type, remote_type or '')
     task = canonical_task(tag)
     model_type = model_type_for_task(task)
@@ -106,6 +124,8 @@ def upsert_catalog(source: str, remote: list) -> list:
     """Écrit (ou met à jour) une ligne de catalogue par modèle distant rangeable ; rend leurs clés."""
     from wama.model_manager.models import AIModel, EXECUTION_CLOUD
 
+    from wama.model_manager.models import model_type_for_task
+
     src = external_sources.get(source)
     keys = []
     for m in remote:
@@ -113,6 +133,11 @@ def upsert_catalog(source: str, remote: list) -> list:
         if not model_type:
             continue
         key = f"{source}:{m['id']}"
+        # La tâche DÉCLARÉE prime sur celle qu'annonce le fournisseur, et la CATÉGORIE en dérive.
+        declaree = FAMILLES_DISTANTES.get(key)
+        if declaree:
+            task = declaree
+            model_type = model_type_for_task(task) or model_type
         AIModel.objects.update_or_create(model_key=key, defaults={
             'name': m.get('name') or m['id'],
             'model_type': model_type,
@@ -127,12 +152,44 @@ def upsert_catalog(source: str, remote: list) -> list:
             'backend_ref': source,
             # Le MOTEUR est le fournisseur (inventaire `external_sources.llm_engine_inventory`).
             'composition': {'runtime': {'engine': source}},
-            'capabilities': {'task': task, **_TASK_ABILITIES.get(task, {})},
+            'capabilities': {'task': task, **_TASK_ABILITIES.get(task, {}),
+                             **({'vision': True} if m['type'] in _CHAT_MULTIMODAL else {})},
             'extra_info': {'remote_type': m['type'], 'aliases': m['aliases'],
                            'hosting': src.hosting},
         })
         keys.append(key)
     return keys
+
+
+def declare_unlistable(source: str) -> list:
+    """Ligne de catalogue DÉCLARÉE d'un fournisseur sans liste de modèles (abonnement Claude Code :
+    le CLI choisit lui-même). Rend [clé].
+
+    Sans elle, ce fournisseur n'existerait pas pour le sélecteur commun et il faudrait lui tailler
+    un chemin à part — exactement ce qu'on cherche à supprimer. La ligne est DÉCLARÉE, jamais
+    découverte : son nom le dit, et `extra_info['declared']` le garde lisible en base.
+    """
+    from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+
+    src = external_sources.get(source)
+    task, model_type = task_and_type(src.default_remote_type)
+    key = f'{source}:default'
+    AIModel.objects.update_or_create(model_key=key, defaults={
+        'name': src.label,
+        'model_type': model_type or 'llm',
+        'source': source,
+        'execution': EXECUTION_CLOUD,
+        'cost_tier': src.cost_tier,
+        'description': f"{src.label} — le modèle est choisi par le fournisseur",
+        'is_downloaded': False,
+        'is_available': True,
+        'vram_gb': 0,
+        'backend_ref': source,
+        'composition': {'runtime': {'engine': source}},
+        'capabilities': {'task': task, **_TASK_ABILITIES.get(task, {})},
+        'extra_info': {'declared': True, 'hosting': src.hosting},
+    })
+    return [key]
 
 
 def refresh_key(row) -> tuple:
@@ -144,9 +201,10 @@ def refresh_key(row) -> tuple:
     from django.utils import timezone
 
     if external_sources.get(row.source).protocol in UNLISTABLE_PROTOCOLS:
-        row.open_models, row.discovered_at, row.discovery_error = [], timezone.now(), ''
+        row.open_models = declare_unlistable(row.source)
+        row.discovered_at, row.discovery_error = timezone.now(), ''
         row.save(update_fields=['open_models', 'discovered_at', 'discovery_error'])
-        return 0, ''
+        return len(row.open_models), ''
     try:
         remote = list_remote_models(row.source, row.api_key)
     except CloudDiscoveryError as exc:
@@ -189,10 +247,16 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     policy = getattr(getattr(user, 'profile', None), 'cloud_policy', 'local_only')
     if policy == 'local_only' or (automatic and policy != 'cloud_allowed'):
         return set()
+    from wama.accounts.api_keys import llm_sources
     from wama.accounts.models import UserApiKey
+    # ⚠ Les SOURCES que CET utilisateur a le droit d'utiliser, pas seulement celles dont une ligne
+    # de clé existe : l'abonnement Claude Code est `developer_only`. Mesuré le 2026-09-16 — sans ce
+    # filtre, un compte ordinaire portant une ligne `claude_code` voyait le modèle d'abonnement
+    # dans le sélecteur commun, alors que la garde du moteur le lui refuse.
+    ouvertes = {s.key for s in llm_sources(user)}
     keys = set()
     # `values_list` : les modèles seuls, sans déchiffrer la clé.
-    for opened in (UserApiKey.objects.filter(user=user).exclude(api_key='')
+    for opened in (UserApiKey.objects.filter(user=user, source__in=ouvertes).exclude(api_key='')
                    .values_list('open_models', flat=True)):
         keys.update(opened or [])
     return keys
