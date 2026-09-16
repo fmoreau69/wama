@@ -36,51 +36,16 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-CLE_CATALOGUE = 'huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers'
-#: Pas de débruitage DMD du README du dépôt (`--dmd-denoising-steps "1000,757,522"`).
-PAS_DMD = (1000, 757, 522)
+#: Identifiant du modèle dans l'imager ET dans le backend Wan (2026-09-15). Le pas DMD, son
+#: scheduler et le dossier des poids vivent désormais dans `wan_video_backend` : la sonde les
+#: IMPORTE, pour tester exactement ce que l'imager exécutera.
+MODEL_ID = 'fastwan-2.2-ti2v-5b'
 #: Prompt négatif du README (il n'agit qu'avec du CFG ; gardé pour la comparaison).
 NEGATIF = ("Bright tones, overexposed, static, blurred details, subtitles, style, works, "
            "paintings, images, static, overall gray, worst quality, low quality, JPEG compression "
            "residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, "
            "deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, "
            "three legs, many people in the background, walking backwards")
-
-
-def pas_dmd(v, echantillon, t, t_suivant, bruit=None):
-    """UN pas DMD sur une prédiction de flux (hypothèse, cf. docstring du module)."""
-    sigma = float(t) / 1000.0
-    x0 = echantillon - sigma * v.to(echantillon.dtype)
-    if t_suivant is None:
-        return x0
-    s2 = float(t_suivant) / 1000.0
-    return (1.0 - s2) * x0 + s2 * bruit
-
-
-def scheduler_dmd(generateur=None):
-    """Scheduler minimal pour la boucle de `WanPipeline` : elle n'emploie que `set_timesteps`,
-    `timesteps`, `order`, `config.num_train_timesteps` et `step(..., return_dict=False)[0]`."""
-    import torch
-    from diffusers import FlowMatchEulerDiscreteScheduler
-
-    class SchedulerDMD(FlowMatchEulerDiscreteScheduler):
-        order = 1
-
-        def set_timesteps(self, num_inference_steps=None, device=None, **kwargs):
-            self.timesteps = torch.tensor(PAS_DMD, dtype=torch.float32, device=device)
-
-        def step(self, model_output, timestep, sample, return_dict=True, **kwargs):
-            t = float(timestep)
-            i = min(range(len(PAS_DMD)), key=lambda k: abs(PAS_DMD[k] - t))
-            suivant = PAS_DMD[i + 1] if i + 1 < len(PAS_DMD) else None
-            bruit = None
-            if suivant is not None:
-                bruit = torch.randn(sample.shape, generator=generateur,
-                                    dtype=sample.dtype).to(sample.device)
-            x = pas_dmd(model_output, sample, t, suivant, bruit)
-            return (x,) if not return_dict else type('Sortie', (), {'prev_sample': x})()
-
-    return SchedulerDMD()
 
 
 class Command(BaseCommand):
@@ -102,11 +67,12 @@ class Command(BaseCommand):
 
     # ── commun ──────────────────────────────────────────────────────────────────────────────
     def _snapshot(self) -> Path:
-        from wama.model_manager.models import AIModel
-        m = AIModel.objects.filter(model_key=CLE_CATALOGUE).first()
-        if m is None:
-            raise CommandError(f"{CLE_CATALOGUE} absent du catalogue")
-        racine = Path((m.extra_info or {}).get('path') or m.local_path or '')
+        # Même résolution que le backend (dossier du profil + dépôt déclaré) : la sonde teste
+        # les poids que l'imager chargera, pas une ligne de catalogue.
+        from wama.common.backends.wan_video_backend import WanVideoBackend
+        hf_id = WanVideoBackend.SUPPORTED_MODELS[MODEL_ID][1]
+        racine = (Path(WanVideoBackend.cache_dir_for(MODEL_ID))
+                  / f"models--{hf_id.replace('/', '--')}")
         snaps = sorted((racine / 'snapshots').glob('*'))
         if not snaps:
             raise CommandError(f"aucun snapshot sous {racine}")
@@ -129,6 +95,8 @@ class Command(BaseCommand):
         import torch
         from accelerate import init_empty_weights
         from diffusers import WanPipeline
+        from wama.common.backends.wan_video_backend import (
+            FASTWAN_DMD_TIMESTEPS, dmd_step, make_dmd_scheduler)
 
         snap = self._snapshot()
         self.stdout.write(f"Snapshot : {snap}")
@@ -181,15 +149,15 @@ class Command(BaseCommand):
         s = 757 / 1000
         x_t = (1 - s) * x0 + s * bruit
         v = bruit - x0
-        final = pas_dmd(v, x_t, 757, None)
+        final = dmd_step(v, x_t, 757, None)
         neuf = torch.randn(x0.shape, generator=g)
-        suite = pas_dmd(v, x_t, 757, 522, neuf)
+        suite = dmd_step(v, x_t, 757, 522, neuf)
         bilan.append(self._ok(torch.allclose(final, x0, atol=1e-5)
                               and torch.allclose(suite, 0.478 * x0 + 0.522 * neuf, atol=1e-5),
                               "pas DMD : x0 retrouvé, re-bruitage au pas suivant cohérent"))
-        sch = scheduler_dmd(torch.Generator().manual_seed(0))
+        sch = make_dmd_scheduler(generator=torch.Generator().manual_seed(0))
         sch.set_timesteps(3)
-        bilan.append(self._ok([int(t) for t in sch.timesteps] == list(PAS_DMD)
+        bilan.append(self._ok([int(t) for t in sch.timesteps] == list(FASTWAN_DMD_TIMESTEPS)
                               and sch.config.num_train_timesteps == 1000,
                               f"scheduler DMD : pas {[int(t) for t in sch.timesteps]}"))
 
@@ -213,10 +181,13 @@ class Command(BaseCommand):
         import torch
         from diffusers import WanPipeline
         from diffusers.utils import export_to_video
+        from wama.common.backends.wan_video_backend import (
+            FASTWAN_DMD_TIMESTEPS, make_dmd_scheduler)
 
         snap = self._snapshot()
         generateur = torch.Generator('cpu').manual_seed(o['seed'])
-        extra = {'scheduler': scheduler_dmd(generateur)} if o['sampler'] == 'dmd' else {}
+        extra = ({'scheduler': make_dmd_scheduler(generator=generateur)}
+                 if o['sampler'] == 'dmd' else {})
         debut = time.monotonic()
         pipe = WanPipeline.from_pretrained(str(snap), torch_dtype=torch.bfloat16, **extra)
         pipe.enable_model_cpu_offload()
@@ -224,7 +195,7 @@ class Command(BaseCommand):
 
         debut = time.monotonic()
         video = pipe(prompt=o['prompt'], negative_prompt=NEGATIF, height=o['height'],
-                     width=o['width'], num_frames=o['frames'], num_inference_steps=len(PAS_DMD),
+                     width=o['width'], num_frames=o['frames'], num_inference_steps=len(FASTWAN_DMD_TIMESTEPS),
                      guidance_scale=1.0, generator=generateur).frames[0]
         export_to_video(video, o['out'], fps=o['fps'])
         self.stdout.write(self.style.SUCCESS(

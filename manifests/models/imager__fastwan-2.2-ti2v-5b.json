@@ -1,0 +1,68 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [
+        "work_image"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "video"
+      ],
+      "task": "text-to-video",
+      "tasks": [
+        "text-to-video",
+        "image-to-video"
+      ]
+    },
+    "composition": {
+      "runtime": {
+        "engine": "diffusers"
+      }
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "FastWan 2.2 TI2V 5B — distillé 3 pas, 24 fps",
+      "hf_id": "FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": null,
+      "source": "imager"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 23.0
+    }
+  },
+  "description": "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de débruitage, pour générer une vidéo à partir d'un texte beaucoup plus vite que les modèles non distillés. Le nombre de pas et le guidage sont imposés par la distillation.",
+  "key": "imager:fastwan-2.2-ti2v-5b",
+  "manifest_kind": "model",
+  "name": "FastWan 2.2 TI2V 5B — distillé 3 pas, 24 fps",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:fastwan-2.2-ti2v-5b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -4,7 +4,14 @@ WAMA Imager - Wan Video Backend
 Video generation using Wan 2.2 models via Hugging Face Diffusers.
 Supports Text-to-Video and Image-to-Video generation.
 
-Models are stored in AI-models/imager/wan/ for centralized management.
+Poids : `AI-models/models/diffusion/wan/` pour les Wan 2.2 officiels ; un modèle de la famille
+qui a son propre dossier le déclare dans `MODEL_PROFILES` (`paths_key` de `settings.MODEL_PATHS`).
+
+FastWan 2.2 TI2V 5B (2026-09-15) : son dépôt déclare `WanDMDPipeline` (paquet `fastvideo`, dont
+l'installation est REFUSÉE par le verrou du venv), mais tous ses composants sont standard et
+`WanPipeline` prend exactement les clés de son `model_index.json` (sonde à blanc du 2026-09-14,
+`manage.py probe_fastwan`). Il est donc servi ici par `WanPipeline` + un scheduler DMD à 3 pas.
+⚠ Le pas DMD est une HYPOTHÈSE tant que la première génération GPU ne l'a pas validé.
 """
 
 import gc
@@ -86,6 +93,60 @@ class VideoGenerationResult:
     error: Optional[str] = None
 
 
+#: Pas de débruitage DMD de FastWan 2.2 (README du dépôt : `--dmd-denoising-steps "1000,757,522"`).
+FASTWAN_DMD_TIMESTEPS = (1000, 757, 522)
+
+
+def dmd_step(velocity, sample, timestep, next_timestep, noise=None):
+    """UN pas DMD sur une prédiction de flux.
+
+    ⚠ HYPOTHÈSE À VALIDER AU GPU : sigma = t / 1000 (flow matching), prédiction v = bruit − x0,
+    donc x0 = x_t − sigma·v ; au pas suivant x = (1 − sigma')·x0 + sigma'·bruit NEUF. Sans CFG
+    (modèle distillé). Cohérence vérifiée sur CPU par `manage.py probe_fastwan` (2026-09-14).
+    """
+    sigma = float(timestep) / 1000.0
+    x0 = sample - sigma * velocity.to(sample.dtype)
+    if next_timestep is None:
+        return x0
+    next_sigma = float(next_timestep) / 1000.0
+    return (1.0 - next_sigma) * x0 + next_sigma * noise
+
+
+def make_dmd_scheduler(timesteps=FASTWAN_DMD_TIMESTEPS, generator=None):
+    """Scheduler minimal pour la boucle de `WanPipeline`.
+
+    Elle n'emploie du scheduler que `set_timesteps`, `timesteps`, `order`,
+    `config.num_train_timesteps` et `step(..., return_dict=False)[0]` (lu dans diffusers 0.37).
+    `generator` sert au re-bruitage entre deux pas ; il se REPOSE à chaque génération
+    (`scheduler.generator = …`) pour que la graine de l'utilisateur gouverne tout le tirage.
+    """
+    import torch
+    from diffusers import FlowMatchEulerDiscreteScheduler
+
+    steps = tuple(int(t) for t in timesteps)
+
+    class DMDScheduler(FlowMatchEulerDiscreteScheduler):
+        order = 1
+
+        def set_timesteps(self, num_inference_steps=None, device=None, **kwargs):
+            self.timesteps = torch.tensor(steps, dtype=torch.float32, device=device)
+
+        def step(self, model_output, timestep, sample, return_dict=True, **kwargs):
+            t = float(timestep)
+            i = min(range(len(steps)), key=lambda k: abs(steps[k] - t))
+            next_t = steps[i + 1] if i + 1 < len(steps) else None
+            noise = None
+            if next_t is not None:
+                noise = torch.randn(sample.shape, generator=self.generator,
+                                    dtype=sample.dtype).to(sample.device)
+            x = dmd_step(model_output, sample, t, next_t, noise)
+            return (x,) if not return_dict else type('SchedulerOutput', (), {'prev_sample': x})()
+
+    scheduler = DMDScheduler()
+    scheduler.generator = generator
+    return scheduler
+
+
 class WanVideoBackend(ImageGenerationBackend):
     """
     Video generation backend using Wan 2.2 models.
@@ -106,16 +167,9 @@ class WanVideoBackend(ImageGenerationBackend):
     ENGINE = 'diffusers'
     #: Classe de PARAMÈTRES déclarée par le backend (2026-09-07) — lue sur la classe RÉSOLUE.
     PARAMS = VideoGenerationParams
-    DEPRECATED = ("aucun des modèles de SES `SUPPORTED_MODELS` (Wan 2.2 officiels) n'est "
-                  "installé — poids partis du disque depuis 2026-01 (3 jobs SUCCESS à "
-                  "l'époque) ; conservé comme EXEMPLE de backend vidéo multi-pipeline (T2V + "
-                  "I2V, VAE dédié, dtype selon VRAM) : un backend ne coûte rien et sert de "
-                  "modèle au même moteur (Fabien, 2026-09-14). ⚠ La FAMILLE Wan reste au "
-                  "catalogue : FastWan 2.2 (23 Go), que ce backend ne sert PAS — son dépôt "
-                  "déclare `WanDMDPipeline` (paquet `fastvideo`, installation REFUSÉE par le "
-                  "verrou : torch 2.12, transformers 5.x). Piste SANS fastvideo : `WanPipeline` "
-                  "+ pas DMD — sonde à blanc OK le 2026-09-14 (`manage.py probe_fastwan`), "
-                  "test GPU à jouer (Fabien).")
+    # `DEPRECATED` RETIRÉ le 2026-09-15 : il disait « aucun modèle installé » — ce backend sert
+    # désormais FastWan 2.2 (23 Go sur disque, déclaré par l'imager). Les trois Wan 2.2
+    # officiels restent déclarés sans poids (partis du disque en 2026-01).
     REQUIRED_PACKAGES = ['torch', 'diffusers', 'numpy']
     name = "wan_video"
     display_name = "Wan Video (Hugging Face)"
@@ -134,7 +188,40 @@ class WanVideoBackend(ImageGenerationBackend):
             "Wan 2.2 I2V 14B (~24GB)",
             "Wan-AI/Wan2.2-I2V-A14B-Diffusers"
         ),
+        "fastwan-2.2-ti2v-5b": (
+            "FastWan 2.2 TI2V 5B — DMD 3 pas (~23GB de poids)",
+            "FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers"
+        ),
     }
+
+    #: Ce qui distingue un modèle de la famille au chargement et à la génération. Un modèle
+    #: absent garde le comportement Wan 2.2 d'origine (dossier `diffusion/wan`, preset
+    #: `wan-t2v`, pas et guidage de la génération).
+    MODEL_PROFILES = {
+        "fastwan-2.2-ti2v-5b": {
+            # dossier des poids : clé de `settings.MODEL_PATHS['diffusion']`
+            "paths_key": "fastwan",
+            # preset de `MODEL_SIZE_PRESETS` qui choisit la stratégie mémoire
+            "memory_preset": "fastwan",
+            # distillé DMD : pas imposés, sans CFG (guidage 1,0 = CFG désactivé dans WanPipeline)
+            "dmd_timesteps": FASTWAN_DMD_TIMESTEPS,
+            "guidance_scale": 1.0,
+            # image→vidéo par le MÊME dépôt (TI2V) : `expand_timesteps=True` au model_index,
+            # donc conditionnement par la première image encodée au VAE — aucun encodeur
+            # d'image requis (composant optionnel du pipeline). Mesuré le 2026-09-16.
+            "img2vid": True,
+        },
+    }
+
+    @classmethod
+    def cache_dir_for(cls, model_name: str) -> str:
+        """Dossier des poids de `model_name` : celui de son profil, sinon `diffusion/wan`."""
+        key = (cls.MODEL_PROFILES.get(model_name) or {}).get("paths_key")
+        if key:
+            path = (getattr(settings, 'MODEL_PATHS', {}).get('diffusion') or {}).get(key)
+            if path:
+                return str(path)
+        return get_wan_models_dir()
 
     # Resolution presets
     RESOLUTION_PRESETS = {
@@ -240,8 +327,9 @@ class WanVideoBackend(ImageGenerationBackend):
             self._torch = torch
             self._device = self._get_device()
 
-            # Get cache directory for models
-            cache_dir = get_wan_models_dir()
+            # Dossier des poids et réglages propres au modèle (FastWan : dossier, preset, DMD)
+            profile = self.MODEL_PROFILES.get(model_name) or {}
+            cache_dir = self.cache_dir_for(model_name)
             logger.info(f"[Wan] ========================================")
             logger.info(f"[Wan] Models cache directory: {cache_dir}")
             logger.info(f"[Wan] Directory exists: {os.path.exists(cache_dir)}")
@@ -276,11 +364,17 @@ class WanVideoBackend(ImageGenerationBackend):
 
             # Load T2V pipeline
             logger.info("[Wan] Loading T2V pipeline (WanPipeline)... This may take several minutes on first run.")
+            # Modèle distillé DMD : son scheduler REMPLACE celui que déclare le dépôt (UniPC).
+            pipe_kwargs = {}
+            if profile.get("dmd_timesteps"):
+                pipe_kwargs["scheduler"] = make_dmd_scheduler(profile["dmd_timesteps"])
+                logger.info(f"[Wan] Scheduler DMD : pas {list(profile['dmd_timesteps'])}")
             self._pipe_t2v = WanPipeline.from_pretrained(
                 model_id,
                 vae=self._vae,
                 torch_dtype=torch.bfloat16,
-                cache_dir=cache_dir
+                cache_dir=cache_dir,
+                **pipe_kwargs
             )
             logger.info("[Wan] T2V pipeline loaded")
 
@@ -298,7 +392,8 @@ class WanVideoBackend(ImageGenerationBackend):
                 from wama.model_manager.services.memory_manager import MemoryManager
                 self._pipe_t2v = MemoryManager.apply_strategy_for_model(
                     pipeline=self._pipe_t2v,
-                    model_type='wan-t2v',
+                    # ⚠ le preset du MODÈLE : FastWan (~23 Go) sous `wan-t2v` (14) tenterait FULL_GPU
+                    model_type=profile.get("memory_preset", "wan-t2v"),
                     device=self._device,
                     headroom_gb=4.0  # Video generation needs more headroom
                 )
@@ -347,7 +442,21 @@ class WanVideoBackend(ImageGenerationBackend):
             self._loaded = False
             return False
 
-    def _load_i2v_pipeline(self) -> bool:
+    @classmethod
+    def i2v_model_id(cls, model_name: str) -> str:
+        """Dépôt qui sert l'image→vidéo de `model_name`.
+
+        Un modèle TI2V fait les deux métiers avec SON dépôt (FastWan : `expand_timesteps`).
+        Les Wan 2.2 officiels ont un dépôt I2V dédié — c'est lui que servait la constante en
+        dur qui vivait ici, et elle envoyait TOUT modèle vers un A14B absent du disque.
+        """
+        if (cls.MODEL_PROFILES.get(model_name) or {}).get("img2vid"):
+            profile_model = cls.SUPPORTED_MODELS.get(model_name)
+            if profile_model:
+                return profile_model[1]
+        return "Wan-AI/Wan2.2-I2V-A14B-Diffusers"
+
+    def _load_i2v_pipeline(self, model_name: str = None) -> bool:
         """Load Image-to-Video pipeline if needed."""
         if self._pipe_i2v is not None:
             logger.info("[Wan I2V] Pipeline already loaded, skipping")
@@ -357,11 +466,9 @@ class WanVideoBackend(ImageGenerationBackend):
             import torch
             from diffusers import WanImageToVideoPipeline
 
-            # Use the correct I2V model
-            model_id = "Wan-AI/Wan2.2-I2V-A14B-Diffusers"
-
-            # Get cache directory for models
-            cache_dir = get_wan_models_dir()
+            profile = self.MODEL_PROFILES.get(model_name) or {}
+            model_id = self.i2v_model_id(model_name)
+            cache_dir = self.cache_dir_for(model_name)
             logger.info(f"[Wan I2V] ========================================")
             logger.info(f"[Wan I2V] Models cache directory: {cache_dir}")
             logger.info(f"[Wan I2V] Directory exists: {os.path.exists(cache_dir)}")
@@ -373,10 +480,15 @@ class WanVideoBackend(ImageGenerationBackend):
 
             # Load pipeline directly (simpler approach, handles all components)
             logger.info("[Wan I2V] Loading WanImageToVideoPipeline... This may take several minutes.")
+            pipe_kwargs = {}
+            if profile.get("dmd_timesteps"):
+                pipe_kwargs["scheduler"] = make_dmd_scheduler(profile["dmd_timesteps"])
+                logger.info(f"[Wan I2V] Scheduler DMD : pas {list(profile['dmd_timesteps'])}")
             self._pipe_i2v = WanImageToVideoPipeline.from_pretrained(
                 model_id,
                 torch_dtype=torch.bfloat16,
-                cache_dir=cache_dir
+                cache_dir=cache_dir,
+                **pipe_kwargs
             )
             logger.info("[Wan I2V] Pipeline loaded")
 
@@ -385,7 +497,9 @@ class WanVideoBackend(ImageGenerationBackend):
                 from wama.model_manager.services.memory_manager import MemoryManager
                 self._pipe_i2v = MemoryManager.apply_strategy_for_model(
                     pipeline=self._pipe_i2v,
-                    model_type='wan-i2v',
+                    # ⚠ le preset du MODÈLE (cf. `load`) : le 5B distillé n'a pas l'empreinte
+                    # du A14B, et l'inverse ferait tenter un plein GPU de ~23 Go.
+                    model_type=profile.get("memory_preset", "wan-i2v"),
                     device=self._device,
                     headroom_gb=4.0  # I2V needs extra headroom for image processing
                 )
@@ -481,6 +595,18 @@ class WanVideoBackend(ImageGenerationBackend):
         Returns:
             VideoGenerationResult with video frames.
         """
+        # AVANT tout chargement : l'I2V de ce backend charge Wan 2.2 I2V A14B (absent du
+        # disque, ~25 Go à télécharger) — un modèle dont le profil l'exclut s'arrête en le disant.
+        profile = self.MODEL_PROFILES.get(params.model) or {}
+        if (params.generation_mode == 'img2vid' and params.reference_image
+                and profile.get("img2vid") is False):
+            return VideoGenerationResult(
+                success=False,
+                video_frames=[],
+                error=f"{params.model} : la génération image→vidéo n'est pas prise en charge "
+                      f"(texte→vidéo uniquement)."
+            )
+
         if not self._loaded:
             if not self.load(params.model):
                 return VideoGenerationResult(
@@ -530,6 +656,30 @@ class WanVideoBackend(ImageGenerationBackend):
 
             generator = torch.Generator(device="cpu").manual_seed(seed_used)
 
+            # Modèle distillé DMD : pas et guidage IMPOSÉS par la distillation — les réglages de
+            # la génération (30 pas, guidage 5 par défaut) le feraient diverger. Le re-bruitage
+            # entre deux pas suit la graine de l'utilisateur.
+            profile = self.MODEL_PROFILES.get(params.model) or {}
+            num_steps = params.num_inference_steps
+            guidance_scale = params.guidance_scale
+            if profile.get("dmd_timesteps"):
+                num_steps = len(profile["dmd_timesteps"])
+                guidance_scale = profile.get("guidance_scale", 1.0)
+                self._pipe_t2v.scheduler.generator = generator
+                logger.info(f"[Wan T2V] DMD : {num_steps} pas imposés, guidage {guidance_scale}")
+
+            # Grille latente : le VAE réduit de `vae_scale_factor_spatial` et le transformer
+            # découpe en patchs — 16 pour Wan 2.2 A14B, 32 pour le 5B (720 → 704).
+            try:
+                grid = int(self._pipe_t2v.vae_scale_factor_spatial
+                           * self._pipe_t2v.transformer.config.patch_size[1])
+            except Exception:
+                grid = 16
+            width = max(grid, params.width // grid * grid)
+            height = max(grid, params.height // grid * grid)
+            if (width, height) != (params.width, params.height):
+                logger.info(f"[Wan T2V] Résolution alignée sur la grille {grid} : {width}x{height}")
+
             # Build prompts
             prompt = params.prompt
             negative_prompt = params.negative_prompt or self.DEFAULT_NEGATIVE_PROMPT
@@ -542,13 +692,13 @@ class WanVideoBackend(ImageGenerationBackend):
             def step_callback(pipe, step_index, timestep, callback_kwargs):
                 nonlocal last_log_time
                 current_time = time.time()
+                progress = int((step_index / num_steps) * 100)
                 if progress_callback:
-                    progress = int((step_index / params.num_inference_steps) * 100)
                     progress_callback(progress)
                 # Log every 10 steps or every 30 seconds
                 if step_index % 10 == 0 or (current_time - last_log_time) > 30:
                     elapsed = current_time - start_time
-                    logger.info(f"[Wan T2V] Step {step_index}/{params.num_inference_steps} ({progress}%) - Elapsed: {elapsed:.1f}s")
+                    logger.info(f"[Wan T2V] Step {step_index}/{num_steps} ({progress}%) - Elapsed: {elapsed:.1f}s")
                     last_log_time = current_time
                 return callback_kwargs
 
@@ -565,11 +715,11 @@ class WanVideoBackend(ImageGenerationBackend):
                 output = self._pipe_t2v(
                     prompt=prompt,
                     negative_prompt=negative_prompt,
-                    height=params.height,
-                    width=params.width,
+                    height=height,
+                    width=width,
                     num_frames=params.num_frames,
-                    num_inference_steps=params.num_inference_steps,
-                    guidance_scale=params.guidance_scale,
+                    num_inference_steps=num_steps,
+                    guidance_scale=guidance_scale,
                     generator=generator,
                     callback_on_step_end=step_callback,
                 )
@@ -619,7 +769,7 @@ class WanVideoBackend(ImageGenerationBackend):
             # Load I2V pipeline if needed
             if self._pipe_i2v is None:
                 logger.info("[Wan I2V] Pipeline not loaded, loading now...")
-                if not self._load_i2v_pipeline():
+                if not self._load_i2v_pipeline(params.model):
                     return VideoGenerationResult(
                         success=False,
                         video_frames=[],
@@ -676,6 +826,15 @@ class WanVideoBackend(ImageGenerationBackend):
 
             # Use recommended guidance scale for I2V (3.5 is recommended)
             guidance_scale = params.guidance_scale if params.guidance_scale else 3.5
+            num_steps = params.num_inference_steps
+
+            # Modèle distillé DMD : mêmes réglages imposés qu'en texte→vidéo (cf. `_generate_txt2vid`)
+            profile = self.MODEL_PROFILES.get(params.model) or {}
+            if profile.get("dmd_timesteps"):
+                num_steps = len(profile["dmd_timesteps"])
+                guidance_scale = profile.get("guidance_scale", 1.0)
+                self._pipe_i2v.scheduler.generator = generator
+                logger.info(f"[Wan I2V] DMD : {num_steps} pas imposés, guidage {guidance_scale}")
             logger.info(f"[Wan I2V] Guidance scale: {guidance_scale}")
 
             start_time = time.time()
@@ -685,13 +844,13 @@ class WanVideoBackend(ImageGenerationBackend):
             def step_callback(pipe, step_index, timestep, callback_kwargs):
                 nonlocal last_log_time
                 current_time = time.time()
+                progress = int((step_index / num_steps) * 100)
                 if progress_callback:
-                    progress = int((step_index / params.num_inference_steps) * 100)
                     progress_callback(progress)
                 # Log every 10 steps or every 30 seconds
                 if step_index % 10 == 0 or (current_time - last_log_time) > 30:
                     elapsed = current_time - start_time
-                    logger.info(f"[Wan I2V] Step {step_index}/{params.num_inference_steps} ({progress}%) - Elapsed: {elapsed:.1f}s")
+                    logger.info(f"[Wan I2V] Step {step_index}/{num_steps} ({progress}%) - Elapsed: {elapsed:.1f}s")
                     last_log_time = current_time
                 return callback_kwargs
 
@@ -705,7 +864,7 @@ class WanVideoBackend(ImageGenerationBackend):
                     height=height,
                     width=width,
                     num_frames=params.num_frames,
-                    num_inference_steps=params.num_inference_steps,
+                    num_inference_steps=num_steps,
                     guidance_scale=guidance_scale,
                     generator=generator,
                     callback_on_step_end=step_callback,

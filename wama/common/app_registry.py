@@ -136,6 +136,32 @@ def normalize_types(types):
     return out
 
 
+def known_port_types():
+    """Vocabulaire ADMIS pour le type d'un port — natures média + jetons de rôle + types de DONNÉE.
+
+    Un port dit ce qui CIRCULE, et il circule trois choses dans WAMA :
+      • un FICHIER MÉDIA → une nature de `MEDIA_CATEGORIES` (ce que `studio_node_ports` et
+        `normalize_types` rendent déjà pour les apps, et ce que `category_of_path` lit d'un chemin) ;
+      • une SAISIE → un jeton de `ROLE_TOKENS` (`prompt`) ;
+      • une DONNÉE du monde Data → une valeur de `DataType` (`catalog/data_types.py`).
+
+    Écrit ici, et pas dans `common/catalog/`, parce que ce paquet-là est la glu INTER-MONDES et
+    ne doit dépendre d'aucun monde (`catalog/__init__.py`) : un monde peut lire la glu, jamais
+    l'inverse. C'est aussi ici que vit déjà « le vocabulaire admis à côté des natures »
+    (`normalize_types`).
+
+    ⚠ CE N'EST PAS l'axe commun des deux taxonomies. Elles restent parallèles et d'intersection
+    vide ; leur convergence est un geste à part (`WAMA_APP_GENERATION_ROUTE.md §S2bis.6bis`,
+    item B du plan de compatibilité — ⛔ « ne pas le trancher au fil d'un autre chantier »).
+    Cette fonction ne fusionne rien : elle CONSTATE qu'un port peut nommer l'un ou l'autre, ce
+    que le recadrage du 2026-08-30 pose déjà — « toute entrée d'un process est un couple
+    (nature, rôle) », l'axe du type étant celui de la NATURE. Le premier cas réel est
+    `studio.image_to_3d` (entrée `image`, sortie `object_3d`), écrit le 13/09.
+    """
+    from wama.common.catalog.data_types import known_types
+    return set(MEDIA_CATEGORIES) | set(ROLE_TOKENS) | known_types()
+
+
 def app_capabilities(app_id):
     """Capacités déclarées d'une app = les drapeaux `conventions` d'APP_CATALOG, retournés à plat.
 

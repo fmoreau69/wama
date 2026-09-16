@@ -129,7 +129,8 @@ def _source_dataset(user, params):
     if not os.path.exists(path):
         raise ValueError(f"Nœud « Jeu de données » : fichier introuvable ({rel}).")
     dtype = normalize_type((params.get('data_type') or DataType.TABLE).strip())
-    connus = {v for k, v in vars(DataType).items() if not k.startswith('_') and isinstance(v, str)}
+    from wama.common.catalog.data_types import known_types      # accesseur unique (2026-09-16)
+    connus = known_types()
     if dtype not in connus:
         raise ValueError(f"Nœud « Jeu de données » : type '{dtype}' inconnu de la taxonomie.")
     import pandas as pd

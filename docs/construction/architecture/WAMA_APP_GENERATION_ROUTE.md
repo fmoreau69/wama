@@ -1675,6 +1675,17 @@ au code.
    `text` est un chantier 100 % monde Médias**. Deux taxonomies parallèles coexistent (natures
    média / types de donnée) ; leur éventuel axe commun est l'item B du plan de compatibilité.
 
+> ⚠ **SIGNALÉ le 2026-09-16, PAS TRANCHÉ — l'axe a été EFFLEURÉ, par un port.** Le contrôle des
+> types de port n'admettait que les types de DONNÉE et rendait donc rouge `studio.image_to_3d`
+> (entrée `image`, écrite le 13/09 — échec PRÉEXISTANT sur HEAD). Corrigé en déclarant le
+> vocabulaire ADMIS aux ports — natures média + jetons de rôle + types de donnée — dans
+> `app_registry.known_port_types()`, c'est-à-dire **chez les natures, jamais dans la glu
+> inter-mondes** (`common/catalog/` ne dépend d'aucun monde). Les deux taxonomies restent
+> séparées et d'intersection vide : rien n'est fusionné, aucun type n'est ajouté à l'une ou à
+> l'autre. C'est le couple (nature, rôle) du recadrage ci-dessous, appliqué au type d'un port.
+> **Ce qui reste à trancher par une DÉCISION** : faut-il que l'item B rende ce vocabulaire
+> unique, ou garder ces trois listes admises côte à côte ?
+
 ⛔ **Ne pas le trancher au fil d'un autre chantier** — et ne pas le confondre avec (b) ci-dessus,
 qui est réparable sans lui : donner des entrées PAR SLOT au générateur ne demande pas de choisir
 le sens de `text`, seulement de ne plus mélanger les slots.

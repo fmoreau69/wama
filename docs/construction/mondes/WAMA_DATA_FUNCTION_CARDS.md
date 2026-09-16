@@ -61,7 +61,9 @@ FunctionSpec:
 
 PortSpec:
     key:             str        # nom du créneau, ex. "track"
-    data_type:       str        # type de la taxonomie DONNÉE (voir §3)
+    data_type:       str        # ce qui CIRCULE : un type de DONNÉE (§3), une NATURE média
+                                # ou un jeton de RÔLE — vocabulaire admis :
+                                # `app_registry.known_port_types()` (précisé le 2026-09-16)
     required_fields: list[str]  # champs PRÉCIS exigés si spécifique, ex. ["lat","lon","heading"]
     produced_fields: list[str]  # (sortie) champs ajoutés/produits, ex. ["section_id","direction"]
     cardinality:     "one"|"many"
@@ -226,7 +228,13 @@ et le corpus `manifests/functions/` en porte autant depuis `e1c2cd6a`.
 1. Écrire un `FunctionSpec` (key, name, description, category, tags, inputs/outputs typés, params).
 2. `binding='pure'` si possible (impl dans `wama_data/`), sinon `'app'` + `impl` + `app`.
 3. `register(spec)` (import chargé via l'`apps.py::ready` de l'app) → il apparaît au catalogue.
-4. Types d'E/S pris dans la taxonomie `data_types` ; étendre la taxonomie AVANT d'inventer un type.
+4. Types d'E/S pris dans le vocabulaire admis (`app_registry.known_port_types()`) ; étendre une
+   taxonomie AVANT d'inventer un type. ⚠ **Ce vocabulaire en réunit TROIS** (précisé le
+   2026-09-16, après un test qui n'en admettait qu'un et rendait rouge le port `image` de
+   `studio.image_to_3d`) : les types de DONNÉE (`data_types.known_types()`, §3), les NATURES
+   média (`MEDIA_CATEGORIES`) et les jetons de RÔLE (`ROLE_TOKENS`, ex. `prompt`). C'est le
+   couple (nature, rôle) du recadrage du 2026-08-30 — pas une fusion des taxonomies, qui
+   reste un geste à part (`WAMA_APP_GENERATION_ROUTE §S2bis.6bis`, item B).
 5. **Une fonction `pure` qui déclare un port d'ENTRÉE s'écrit en DEUX ÉTAGES** — patron
    `geometry/placement_metrics.py`, repris par `geometry/ego_rotation.py` :
    - un **noyau** sur structures Python ordinaires (listes, tuples, dicts) — testable et
