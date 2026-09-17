@@ -305,7 +305,7 @@ class ProvenanceDeclareeTest(TestCase):
 
 class GardeAuteurTest(TestCase):
     """Un auteur curé SURVIT aux rafraîchissements automatiques (défaut vécu le 2026-08-27 :
-    la boucle --licences du backfill a écrasé 6 auteurs curés par le slug d'organisation de
+    la boucle --licenses du backfill a écrasé 6 auteurs curés par le slug d'organisation de
     la carte HF — « Tencent Hunyuan » devenait « hunyuanvideo-community », l'org MIROIR).
     Même doctrine que le placeholder `other` pour la licence : la carte COMPLÈTE un champ
     vide, elle n'écrase jamais une valeur posée."""
@@ -322,7 +322,7 @@ class GardeAuteurTest(TestCase):
                  'platform_ref': 'huggingface:org/depot', 'hf_id': 'org/depot'}
         with patch('wama.model_manager.services.provenance.huggingface_identity',
                    return_value=ident):
-            call_command('backfill_platform_refs', '--licences', '--ecrire')
+            call_command('backfill_platform_refs', '--licenses', '--ecrire')
         cure.refresh_from_db()
         vide.refresh_from_db()
         self.assertEqual(cure.author, 'Auteur Curé', "l'auteur posé ne doit pas être écrasé")

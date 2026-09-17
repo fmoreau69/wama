@@ -81,11 +81,20 @@ class UnDepotDeGlbEstUnAssetObject3dTest(TestCase):
 
 class LaNatureDeclareSonTypeInterMondesTest(TestCase):
     def test_object3d_pointe_un_DataType_qui_existe(self):
-        from wama.common.catalog.data_types import DataType, ancestors, known_types
+        from wama.common.app_registry import MEDIA_CATEGORIES
+        from wama.common.catalog.data_types import known_types
         from wama.media_library.natures import ASSET_NATURES
         types = known_types()      # accesseur unique (2026-09-16)
         for k, n in ASSET_NATURES.items():
             if n.data_type:
                 self.assertIn(n.data_type, types, f'{k} déclare un data_type inconnu du monde Data')
-        self.assertEqual(ASSET_NATURES['object3d'].data_type, DataType.OBJECT_3D)
-        self.assertEqual(ancestors(DataType.OBJECT_3D), {DataType.OBJECT_3D})   # non tabulaire
+        # ⚠ 2026-09-17 : `object3d` ne déclare PLUS de type de donnée. Un objet 3D est un fichier
+        # MÉDIA — sa nature est `3d`. Le `data_type` d'une nature reste réservé à ce qui porte
+        # vraiment une donnée du monde Data ; il ne sert jamais à créer un jumeau.
+        # ⚠ Le défaut du champ est la chaîne VIDE, pas `None` (mesuré : mon `assertIsNone`
+        # échouait sur `''`). Ce qui compte est « cette nature ne déclare AUCUN type de donnée ».
+        self.assertFalse(ASSET_NATURES['object3d'].data_type,
+                         'un objet 3D est un fichier média : il n’a pas de jumeau côté données')
+        self.assertEqual(ASSET_NATURES['object3d'].category, '3d')
+        self.assertIn('3d', MEDIA_CATEGORIES)
+        self.assertNotIn('object_3d', types, 'le jumeau est revenu dans la taxonomie Data')

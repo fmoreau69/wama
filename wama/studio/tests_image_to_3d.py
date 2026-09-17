@@ -21,12 +21,17 @@ class LaFonctionEstDeclareeTest(TestCase):
         self.fc = fc
 
     def test_studio_image_to_3d_est_au_catalogue_avec_ses_ports(self):
-        from wama.common.catalog.data_types import DataType
+        """⚠ Les DEUX ports parlent NATURE média (2026-09-17) : une image entre, un objet 3d
+        sort. La sortie a porté `DataType.OBJECT_3D` quatre jours — un jumeau du même objet
+        dans la taxonomie Data, retiré sur décision de Fabien."""
+        from wama.common.catalog.data_types import known_types
         spec = self.fc.get('studio.image_to_3d')
         self.assertIsNotNone(spec)
         self.assertEqual(spec.binding, self.fc.Binding.APP)
         self.assertEqual([(p.key, p.data_type) for p in spec.inputs], [('image', 'image')])
-        self.assertEqual(spec.outputs[0].data_type, DataType.OBJECT_3D)
+        self.assertEqual(spec.outputs[0].data_type, '3d')
+        self.assertNotIn('object_3d', known_types(),
+                         'le jumeau est revenu dans la taxonomie du monde Data')
         self.assertIn('plausible', spec.tags)                  # §17ter : déclaré, pas en mémoire
 
     def test_son_impl_se_resout_et_exige_l_image_et_l_utilisateur(self):

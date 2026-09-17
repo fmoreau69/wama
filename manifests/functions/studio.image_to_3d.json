@@ -24,7 +24,7 @@
     "outputs": [
       {
         "cardinality": "one",
-        "data_type": "object_3d",
+        "data_type": "3d",
         "description": "Maillage GLB coloré par sommet, rangé chez l’utilisateur (`users/<uid>/studio/output/`).",
         "key": "object",
         "optional": false,

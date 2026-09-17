@@ -172,7 +172,8 @@ def known_port_types():
     Cette fonction ne fusionne rien : elle CONSTATE qu'un port peut nommer l'un ou l'autre, ce
     que le recadrage du 2026-08-30 pose déjà — « toute entrée d'un process est un couple
     (nature, rôle) », l'axe du type étant celui de la NATURE. Le premier cas réel est
-    `studio.image_to_3d` (entrée `image`, sortie `object_3d`), écrit le 13/09.
+    `studio.image_to_3d`, écrit le 13/09 : ses DEUX ports parlent nature média (`image` → `3d`)
+    depuis le 2026-09-17, le type de donnée jumeau ayant été retiré (cf. `data_types.py`).
     """
     from wama.common.catalog.data_types import known_types
     return set(MEDIA_CATEGORIES) | set(ROLE_TOKENS) | known_types()

@@ -94,8 +94,10 @@ ASSET_NATURES: Dict[str, Nature] = {
         extensions=('jpg', 'jpeg', 'png', 'webp'),
     ),
     # Chaîne objets 3D (ROADMAP §17ter) — pivot GLB. Extensions ⊂ `app_registry.OBJECT3D_EXTENSIONS`
-    # (`.usd`/`.dae` non admis à l'ingest, assumé). `data_type` : le port studio n'existe pas
-    # encore (mesuré 13/09) — la nature le DÉCLARE, le monde Data le créera sous ce nom.
+    # (`.usd`/`.dae` non admis à l'ingest, assumé). ⚠ Cette nature a porté `data_type='object_3d'`
+    # du 13/09 au 17/09 : le monde Data avait créé un type sous ce nom pour que le port studio
+    # ait une sortie. Retiré (décision de Fabien) — un objet 3D est un fichier MÉDIA, il n'a pas
+    # de jumeau côté données ; le port nomme la nature.
     'object3d': Nature(
         label='Objet 3D', category='3d', icon='fa-cube', pivot='glb',
         extensions=('glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'usdz'),
@@ -107,7 +109,9 @@ ASSET_NATURES: Dict[str, Nature] = {
             'polygons':   Attr('int', 'nombre de faces (indicatif)'),
             'animations': Attr('list', "noms des animations embarquées"),
         },
-        data_type='object_3d',
+        # ⚠ PAS de `data_type` (retiré le 2026-09-17) : un objet 3D est un fichier MÉDIA, sa
+        # nature est `3d`. Le champ reste pour les natures qui portent VRAIMENT une donnée du
+        # monde Data (un `.csv` rangé en médiathèque → `table`), jamais pour créer un jumeau.
     ),
 }
 
