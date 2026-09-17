@@ -46,7 +46,11 @@ la réponse n'est pas « tout en registre ».
 >
 > ⚠ Reste ouvert, et non tranché ici : `SUPPORTED_CONVERSIONS` (converter) déclare des CAPACITÉS
 > d'écriture et n'a jamais été passé au crible de ①②③ — il est absent du relevé des six ci-dessus.
-> Deux natures sur sept (`dataset`, `3d`) n'ont d'ailleurs aucun format de sortie.
+> Deux NATURES MÉDIA sur sept n'ont d'ailleurs aucun format de sortie : `3d`, et `dataset`.
+> ⚠ **Homonymie à ne pas télescoper** (relevée par Fabien le 2026-09-17) : `dataset` désigne ici
+> la **nature média** des fichiers du monde Data (`.trip`, `.wdat`, `.rec` — entrée dans
+> `MEDIA_CATEGORIES` le 30/08, extensions poussées par `wama_data`), et **non** le kind de
+> manifeste `dataset`. Deux sens, deux registres, un seul mot.
 
 *Source : [docs/construction/mondes/WAMA_DATA_WORLD.md — 9quinquies.2 LE CRITÈRE — trois questions, dans cet ordre](../construction/mondes/WAMA_DATA_WORLD.md#9quinquies2-le-critère--trois-questions-dans-cet-ordre)*
 
