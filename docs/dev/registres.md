@@ -25,6 +25,29 @@ déjà déclaré et **gardé mécaniquement** (`check_redundancy.py` : « `app_r
 des vocabulaires média »). Le monde Médias n'a rien à changer. C'est le contre-exemple utile :
 la réponse n'est pas « tout en registre ».
 
+> ✅ **COMPLÉTÉ le 2026-09-17 (Fabien) — ③ reste NON, mais ④ n'avait jamais été posée aux médias.**
+> Constat de Fabien : la carte des registres affichait « Formats d'entrée » et « Formats de sortie »
+> pour le monde Data et **rien** pour les médias, ce qui se lit comme « le monde Médias ne gouverne
+> pas ses formats ». C'est faux, et c'est cette fausseté qui est corrigée — pas la nature du
+> vocabulaire. Livré : le registre **`media_formats`** (DÉRIVÉ, aucun rafraîchisseur) + sa page
+> `common:media_formats_catalog`, alimentés par l'accesseur `app_registry.media_extensions()`, qui
+> lit la carte **à l'appel** (donc les extensions qu'un monde POUSSE au démarrage y sont).
+>
+> **Deux précisions de Fabien, qui sont la vraie réponse à « pourquoi pas un registre » :**
+> 1. **Les natures média S'ALLONGENT** (`3d` n'existait pas au départ), et de nouveaux formats
+>    arriveront. Ce n'est donc pas une liste figée — mais l'ajout n'apporte pas de COMPORTEMENT :
+>    côté Médias on ajoute **la librairie** qui sait lire le format, puis on rattache son extension
+>    à sa nature ; côté Data, un format exige **son propre lecteur**, c'est-à-dire du code qui sait
+>    faire. C'est cette asymétrie — et elle seule — qui justifie registre d'un côté, taxonomie de
+>    l'autre. *La réponse à ③ n'était pas « la liste est fermée », c'était « l'ajout est direct ».*
+> 2. **Pas de distinction entrée/sortie côté médias** : un fichier a la même nature des deux côtés.
+>    Ce que le converter sait ÉCRIRE est montré comme une facette de la nature, jamais comme un
+>    second registre.
+>
+> ⚠ Reste ouvert, et non tranché ici : `SUPPORTED_CONVERSIONS` (converter) déclare des CAPACITÉS
+> d'écriture et n'a jamais été passé au crible de ①②③ — il est absent du relevé des six ci-dessus.
+> Deux natures sur sept (`dataset`, `3d`) n'ont d'ailleurs aucun format de sortie.
+
 *Source : [docs/construction/mondes/WAMA_DATA_WORLD.md — 9quinquies.2 LE CRITÈRE — trois questions, dans cet ordre](../construction/mondes/WAMA_DATA_WORLD.md#9quinquies2-le-critère--trois-questions-dans-cet-ordre)*
 
 ## Les natures d'actualisation
@@ -38,7 +61,7 @@ la réponse n'est pas « tout en registre ».
 
 ## Les registres, un par un
 
-**15 registres**, par ordre alphabétique de libellé.
+**16 registres**, par ordre alphabétique de libellé.
 
 ### Applications
 
@@ -72,18 +95,18 @@ La doc de WAMA en lecture seule. Chaque doc déclare son AUDIENCE : la doc de CO
 
 ### Fonctions de traitement
 
-- **Clé** : `fonctions` — Registre en mémoire, peuplé par import
+- **Clé** : `functions` — Registre en mémoire, peuplé par import
 - **Source** : `apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…
 - **Page dans WAMA** : `/model-manager/functions/`
 - **Doc** : [docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md](../construction/mondes/WAMA_DATA_FUNCTION_CARDS.md)
 - **Kind de manifeste** : `function`
-- **Citable dans une doc** : `WAMA:FAIT(fonctions/<clé>/<champ>)`
+- **Citable dans une doc** : `WAMA:FAIT(functions/<clé>/<champ>)`
 
 Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les fonctions ajoutées pendant que le serveur tourne, sans redémarrage.
 
 ### Formats d'entrée (WAMA Data)
 
-- **Clé** : `lecteurs_data` — Registre en mémoire, peuplé par import
+- **Clé** : `data_readers` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/sources/` — un lecteur par format, inscrit à l'import
 - **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §6.6, §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 - **Kind de manifeste** : `dataset`
@@ -92,15 +115,25 @@ Recharge les lecteurs de sources. Ajouter un format d'import ou de connexion = d
 
 ### Formats de sortie (WAMA Data)
 
-- **Clé** : `formats_export_data` — Registre en mémoire, peuplé par import
+- **Clé** : `data_export_formats` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/core/export.py` — `register_format()`, plus les écrivains fournis par les adaptateurs
 - **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9ter.6 C, §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 
 Formats que l'Exporter sait NOMMER, et parmi eux ceux qu'il sait ÉCRIRE — l'écart entre les deux est la dette, et elle est mesurée.
 
+### Formats médias
+
+- **Clé** : `media_formats` — Dérivé à chaque affichage — toujours à jour
+- **Source** : `app_registry` — natures (`MEDIA_CATEGORIES`) et extensions, y compris celles qu'un MONDE pousse au démarrage (`register_category_extensions`)
+- **Page dans WAMA** : `/common/media-formats/`
+- **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
+- **Citable dans une doc** : `WAMA:FAIT(media_formats/<clé>/<champ>)`
+
+Ce que WAMA sait RECONNAÎTRE, en entrée comme en sortie — la distinction n'aurait pas de sens : un fichier a la même nature des deux côtés. La page dérive du code à chaque affichage, donc elle ne peut pas être périmée ; elle rend CONSULTABLE un vocabulaire qui reste une taxonomie, sans changer son domicile.
+
 ### Librairies externes
 
-- **Clé** : `librairies` — Dérivé à chaque affichage — toujours à jour
+- **Clé** : `libraries` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`
 - **Page dans WAMA** : `/model-manager/libraries/`
 - **Doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
@@ -110,7 +143,7 @@ La page mesure l'installation réelle à CHAQUE affichage et compare au déclar�
 
 ### Licences
 
-- **Clé** : `licences` — Dérivé à chaque affichage — toujours à jour
+- **Clé** : `licenses` — Dérivé à chaque affichage — toujours à jour
 - **Source** : Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app
 - **Page dans WAMA** : `/common/licenses/`
 - **Doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
@@ -128,7 +161,7 @@ Ce que WAMA retient : faits, événements, procédures. Lu en base à chaque aff
 
 ### Modèles IA
 
-- **Clé** : `modeles` — Scan d'une source externe vers un registre persistant
+- **Clé** : `models` — Scan d'une source externe vers un registre persistant
 - **Source** : Fichiers de `AI-models/` + déclarations `model_config` des apps
 - **Page dans WAMA** : `/model-manager/`
 - **Kind de manifeste** : `model`
@@ -155,7 +188,7 @@ La DÉCLARATION que la pipeline de prompts consomme : quel champ est un prompt, 
 
 ### Schémas de conteneur (WAMA Data)
 
-- **Clé** : `conteneurs_data` — Registre en mémoire, peuplé par import
+- **Clé** : `data_containers` — Registre en mémoire, peuplé par import
 - **Source** : `wama_data/containers/` — un schéma par format de sortie, inscrit à l'import
 - **Doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies](../construction/mondes/WAMA_DATA_WORLD.md)
 
@@ -172,11 +205,11 @@ Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans
 
 ### Sources externes
 
-- **Clé** : `sources_externes` — Calcul qui produit un rapport écrit
+- **Clé** : `external_sources` — Calcul qui produit un rapport écrit
 - **Source** : Registre déclaratif `common/external_sources.py` + sonde réseau (clé, joignabilité)
 - **Page dans WAMA** : `/common/sources/`
 - **Doc** : [docs/construction/architecture/WAMA_MECANISMES.md](../construction/architecture/WAMA_MECANISMES.md)
-- **Citable dans une doc** : `WAMA:FAIT(sources_externes/<clé>/<champ>)`
+- **Citable dans une doc** : `WAMA:FAIT(external_sources/<clé>/<champ>)`
 
 Sonde chaque source déclarée : clé d'API posée ? adresse joignable (proxy UGE compris) ? La déclaration, elle, ne s'actualise pas — elle vit en code. Réservé au staff : la sonde émet des requêtes sortantes et écrit un rapport.
 

@@ -32,7 +32,7 @@ def _count_models() -> int:
 
 
 register(Registry(
-    key='modeles', label='Modèles IA', nature=SCAN,
+    key='models', label='Modèles IA', nature=SCAN,
     source="Fichiers de `AI-models/` + déclarations `model_config` des apps",
     refresh=_refresh_models, count=_count_models,
     url_name='model_manager:index', manifest_kind='model',
@@ -179,7 +179,7 @@ def _entries_functions() -> dict:
 
 
 register(Registry(
-    key='fonctions', label='Fonctions de traitement', nature=REDECLARATION,
+    key='functions', label='Fonctions de traitement', nature=REDECLARATION,
     source="`apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…",
     refresh=_refresh_functions, count=_count_functions, entries=_entries_functions,
     url_name='model_manager:functions_catalog', manifest_kind='function',
@@ -266,7 +266,7 @@ def _entries_external_sources() -> dict:
 
 
 register(Registry(
-    key='sources_externes', label='Sources externes', nature=MEASURE,
+    key='external_sources', label='Sources externes', nature=MEASURE,
     source="Registre déclaratif `common/external_sources.py` + sonde réseau (clé, joignabilité)",
     refresh=_refresh_external_sources, count=_count_external_sources,
     entries=_entries_external_sources,
@@ -288,7 +288,7 @@ def _count_libraries() -> int:
 
 
 register(Registry(
-    key='librairies', label='Librairies externes', nature=DERIVED,
+    key='libraries', label='Librairies externes', nature=DERIVED,
     source="Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`",
     count=_count_libraries,
     url_name='model_manager:libraries_catalog', manifest_kind='library',
@@ -345,7 +345,7 @@ register(Registry(
 
 
 register(Registry(
-    key='licences', label='Licences', nature=DERIVED,
+    key='licenses', label='Licences', nature=DERIVED,
     source="Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app",
     url_name='common:licenses_catalog',
     doc='docs/construction/exploitation/LICENSING.md',

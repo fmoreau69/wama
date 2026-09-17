@@ -187,7 +187,7 @@ class RegistreSondeTest(TestCase):
 
     def test_declare_en_nature_mesure_et_execute_en_celery(self):
         from wama.common.registries import CELERY, MEASURE, execution_of, get
-        r = get('sources_externes')
+        r = get('external_sources')
         self.assertEqual(r.nature, MEASURE)
         self.assertEqual(execution_of(r), CELERY)
         self.assertEqual(r.permission, 'staff', "la sonde émet des requêtes sortantes")
@@ -199,7 +199,7 @@ class RegistreSondeTest(TestCase):
             import tempfile
             with tempfile.TemporaryDirectory() as tmp:
                 rp.return_value = Path(tmp) / 'rapport.json'
-                res = refresh('sources_externes')
+                res = refresh('external_sources')
         self.assertTrue(res.ok)
         self.assertEqual(res.total, len(es.SOURCES))
         self.assertIn('injoignable', ' '.join(res.messages))
@@ -237,7 +237,7 @@ class RegistreSondeTest(TestCase):
 
     def test_le_registre_designe_bien_cette_page(self):
         from wama.common.registries import overview
-        entree = next(r for r in overview() if r['key'] == 'sources_externes')
+        entree = next(r for r in overview() if r['key'] == 'external_sources')
         self.assertEqual(entree['url_name'], 'common:sources_catalog')
         self.assertTrue(reverse(entree['url_name']))
 

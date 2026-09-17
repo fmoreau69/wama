@@ -3,7 +3,7 @@
  *
  * Une page catalogue ne déclare que la clé de son registre :
  *
- *     <button data-wama-refresh="fonctions">…</button>
+ *     <button data-wama-refresh="functions">…</button>
  *
  * et hérite du reste — appel, état d'attente, compte-rendu, rechargement. Avant cette brique,
  * deux pages seulement avaient un bouton, chacune avec son script recopié dans son template :

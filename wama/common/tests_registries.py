@@ -62,7 +62,7 @@ class ContratTest(TestCase):
     def test_cle_inconnue_nomme_les_cles_connues(self):
         with self.assertRaises(KeyError) as ctx:
             get('inexistant')
-        self.assertIn('modeles', str(ctx.exception))
+        self.assertIn('models', str(ctx.exception))
 
     def test_une_exception_est_RAPPORTEE_pas_propagee(self):
         # Une actualisation qui plante ne doit pas emporter la page qu'elle sert.
@@ -81,7 +81,7 @@ class DeclarationsTest(TestCase):
     def test_les_registres_attendus_sont_declares(self):
         # Un PLANCHER, pas un inventaire : le nom ne fige plus de compte (« les sept » mentait
         # dès le huitième), et la couverture des nouveaux est le travail de `ConformiteTest`.
-        for key in ('modeles', 'apps', 'fonctions', 'skills', 'librairies', 'licences', 'rag'):
+        for key in ('models', 'apps', 'functions', 'skills', 'libraries', 'licenses', 'rag'):
             self.assertIn(key, REGISTRIES)
 
     def test_un_derive_n_a_pas_de_rafraichisseur(self):
@@ -91,15 +91,15 @@ class DeclarationsTest(TestCase):
             self.assertIsNone(r.refresh, f"{r.key} : un dérivé n'a rien à actualiser")
 
     def test_un_derive_le_DIT_au_lieu_de_faire_semblant(self):
-        res = refresh('licences')
+        res = refresh('licenses')
         self.assertTrue(res.ok)
         self.assertIn('rien à actualiser', ' '.join(res.messages))
 
     def test_l_etat_expose_ce_qui_est_actualisable(self):
         par_cle = {e['key']: e for e in overview()}
-        self.assertTrue(par_cle['fonctions']['refreshable'])
-        self.assertFalse(par_cle['licences']['refreshable'])
-        self.assertEqual(par_cle['modeles']['periodic'], 'model-manager-reconcile')
+        self.assertTrue(par_cle['functions']['refreshable'])
+        self.assertFalse(par_cle['licenses']['refreshable'])
+        self.assertEqual(par_cle['models']['periodic'], 'model-manager-reconcile')
 
     def test_tous_les_kinds_declares_existent(self):
         # ⚠ Cette assertion affirmait l'ensemble EXACT {modeles, apps, fonctions, librairies}.
@@ -315,7 +315,7 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
     def tearDown(self):
         self.SONDE.unlink(missing_ok=True)
         self.INIT.write_bytes(self.init_orig)
-        refresh('fonctions')
+        refresh('functions')
 
     def _ajouter_import(self):
         self.INIT.write_bytes(self.init_orig + b'\nfrom . import _sonde_test  # noqa\n')
@@ -326,7 +326,7 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
 
     def test_actualisation_a_vide_laisse_le_catalogue_INTACT(self):
         avant = len(self._catalogue())
-        res = refresh('fonctions')
+        res = refresh('functions')
         self.assertTrue(res.ok)
         self.assertEqual(len(self._catalogue()), avant)
         self.assertEqual(res.total, avant)
@@ -341,7 +341,7 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
         self.assertNotIn('_sonde_test', self._catalogue(),
                          "load_all() ne peut PAS voir la nouveauté — c'est le défaut corrigé")
 
-        res = refresh('fonctions')
+        res = refresh('functions')
         self.assertIn('_sonde_test', self._catalogue())
         self.assertEqual(res.added, 1)
         self.assertEqual(res.total, avant + 1)
@@ -353,12 +353,12 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
         avant = len(self._catalogue())
         self.SONDE.write_text(self.SOURCE, encoding='utf-8')
         self._ajouter_import()
-        refresh('fonctions')
+        refresh('functions')
         self.assertIn('_sonde_test', self._catalogue())
 
         self.SONDE.unlink()
         self.INIT.write_bytes(self.init_orig)
-        res = refresh('fonctions')
+        res = refresh('functions')
         self.assertTrue(res.ok, f"l'actualisation ne doit pas échouer : {res.messages}")
         self.assertNotIn('_sonde_test', self._catalogue())
         self.assertEqual(len(self._catalogue()), avant)
@@ -376,13 +376,13 @@ class ExecutionTest(TestCase):
         REGISTRIES.pop('_t_exec', None)
 
     def test_un_etat_PARTAGE_part_en_celery(self):
-        self.assertEqual(execution_of(get('modeles')), CELERY)
+        self.assertEqual(execution_of(get('models')), CELERY)
         self.assertEqual(execution_of(get('apps')), CELERY)
 
     def test_un_registre_en_MEMOIRE_reste_dans_le_process(self):
         # Le faire en Celery rechargerait les modules du worker Celery, pas ceux des processus
         # qui servent les pages : l'actualisation n'aurait aucun effet visible.
-        self.assertEqual(execution_of(get('fonctions')), PROCESS)
+        self.assertEqual(execution_of(get('functions')), PROCESS)
         self.assertEqual(execution_of(get('skills')), PROCESS)
 
     def test_memoire_plus_celery_est_REFUSE(self):
@@ -415,29 +415,29 @@ class PropagationTest(TestCase):
         cache = _cache()
         if cache is None:
             self.skipTest("cache indisponible — la propagation est facultative")
-        avant = int(cache.get(_version_key('fonctions')) or 0)
-        mark_refreshed('fonctions')
-        self.assertEqual(int(cache.get(_version_key('fonctions')) or 0), avant + 1)
+        avant = int(cache.get(_version_key('functions')) or 0)
+        mark_refreshed('functions')
+        self.assertEqual(int(cache.get(_version_key('functions')) or 0), avant + 1)
 
     def test_un_processus_en_retard_se_resynchronise(self):
         if _cache() is None:
             self.skipTest("cache indisponible")
-        mark_refreshed('fonctions')
-        vue = _SEEN_VERSIONS['fonctions']
-        _SEEN_VERSIONS['fonctions'] = vue - 1          # simule un AUTRE worker
-        self.assertTrue(synchronize('fonctions'))
-        self.assertEqual(_SEEN_VERSIONS['fonctions'], vue)
+        mark_refreshed('functions')
+        vue = _SEEN_VERSIONS['functions']
+        _SEEN_VERSIONS['functions'] = vue - 1          # simule un AUTRE worker
+        self.assertTrue(synchronize('functions'))
+        self.assertEqual(_SEEN_VERSIONS['functions'], vue)
 
     def test_a_jour_il_ne_recharge_PAS(self):
         if _cache() is None:
             self.skipTest("cache indisponible")
-        mark_refreshed('fonctions')
-        self.assertFalse(synchronize('fonctions'), "le coût d'un passage doit être une lecture")
+        mark_refreshed('functions')
+        self.assertFalse(synchronize('functions'), "le coût d'un passage doit être une lecture")
 
     def test_rien_a_propager_pour_les_autres_natures(self):
         # Un état partagé (base, rapport) est déjà commun à tous les processus.
-        self.assertFalse(synchronize('modeles'))
-        self.assertFalse(synchronize('licences'))
+        self.assertFalse(synchronize('models'))
+        self.assertFalse(synchronize('licenses'))
 
 
 class CouvertureTest(TestCase):
@@ -465,8 +465,8 @@ class CouvertureTest(TestCase):
         # `fonctions` est le registre le plus éprouvé du lot (rechargement à chaud, propagation) :
         # si la mesure ne le voyait pas, c'est le rattachement qui serait cassé.
         detail = {d['key']: d for d in self._resume()['detail']}
-        self.assertGreater(detail['fonctions']['nb_specifiques'], 2)
-        self.assertIn('test_fonction_ajoutee_a_chaud', detail['fonctions']['specifiques'])
+        self.assertGreater(detail['functions']['nb_specifiques'], 2)
+        self.assertIn('test_fonction_ajoutee_a_chaud', detail['functions']['specifiques'])
 
     def test_etat_ne_calcule_la_couverture_QUE_si_on_la_demande(self):
         # Le calcul lit et analyse des fichiers : il n'a rien à faire dans un appel qui ne veut
