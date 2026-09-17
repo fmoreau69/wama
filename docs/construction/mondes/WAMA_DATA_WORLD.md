@@ -1872,8 +1872,9 @@ son `apps.py:ready()`**. `DATASET_SOURCES` devient alors la vue de ce registre, 
   (§9ter.5) donc une déclaration a le droit de les nommer, mais leur écrivain demande une
   bibliothèque et vit dans l'adaptateur. **L'écart entre déclaré et écrivable EST la dette, et il
   est mesurable** au lieu d'être supposé.
-- **Les deux capacités du monde entrent au registre des registres** — `lecteurs_data` (partagé par
-  l'Importer ET le Connector) et `formats_export_data`. ⚠ **Déclarés depuis `wama_data/apps.py`,
+- **Les deux capacités du monde entrent au registre des registres** — `data_readers` (partagé par
+  l'Importer ET le Connector) et `data_export_formats` (clés ANGLICISÉES le 2026-09-17 : une clé de
+  registre est un identifiant de code ; les LIBELLÉS restent en français). ⚠ **Déclarés depuis `wama_data/apps.py`,
   jamais depuis `common/registries_builtin.py`** : le monde POUSSE, le substrat ne tire jamais.
   Un test vérifie par AST que le substrat n'importe aucun monde.
 

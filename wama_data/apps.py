@@ -93,7 +93,7 @@ class WamaDataConfig(AppConfig):
                                        'lecture')
 
         register(Registry(
-            key='lecteurs_data', label="Formats d'entrée (WAMA Data)", nature=REDECLARATION,
+            key='data_readers', label="Formats d'entrée (WAMA Data)", nature=REDECLARATION,
             source="`wama_data/sources/` — un lecteur par format, inscrit à l'import",
             refresh=_refresh_readers, count=_count_readers,
             manifest_kind='dataset', doc='docs/construction/mondes/WAMA_DATA_WORLD.md §6.6, §9quinquies',
@@ -108,7 +108,7 @@ class WamaDataConfig(AppConfig):
             return len(FORMATS)
 
         register(Registry(
-            key='formats_export_data', label='Formats de sortie (WAMA Data)', nature=REDECLARATION,
+            key='data_export_formats', label='Formats de sortie (WAMA Data)', nature=REDECLARATION,
             source="`wama_data/core/export.py` — `register_format()`, plus les écrivains "
                    "fournis par les adaptateurs",
             count=_count_formats,
@@ -129,7 +129,7 @@ class WamaDataConfig(AppConfig):
                                        containers.schema_modules(), 'schéma')
 
         register(Registry(
-            key='conteneurs_data', label='Schémas de conteneur (WAMA Data)', nature=REDECLARATION,
+            key='data_containers', label='Schémas de conteneur (WAMA Data)', nature=REDECLARATION,
             source="`wama_data/containers/` — un schéma par format de sortie, inscrit à l'import",
             refresh=_refresh_containers, count=_count_containers,
             doc='docs/construction/mondes/WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies',

@@ -14765,3 +14765,44 @@ français** (`lecteurs_data`, `formats_export_data`, `conteneurs_data`, et 9 aut
 aucune persistance en base, mais 15 clés citées dans des gabarits, des balises de doc
 `WAMA:FAIT(...)` et la doc dérivée. Renommage possible, à faire en UNE passe, jamais au fil d'un
 chantier (un demi-vocabulaire serait pire). La clé neuve de ce jour est déjà en anglais.
+
+---
+
+## SUITE 2026-09-17 (2) — les CLÉS DE REGISTRE en anglais, et le test GPU de FastWan BLOQUÉ
+
+**Renommage fait** (Fabien : « faisons-le maintenant, les autres instances sont en pause »),
+par le skill `/renommage-api`. 8 clés, **68 occurrences, 12 fichiers** :
+`modeles→models` · `fonctions→functions` · `sources_externes→external_sources` ·
+`librairies→libraries` · `licences→licenses` · `lecteurs_data→data_readers` ·
+`formats_export_data→data_export_formats` · `conteneurs_data→data_containers`.
+
+⭐ **Ce qui décidait de la faisabilité, mesuré AVANT d'écrire** : aucune clé n'est PERSISTÉE.
+`ElementPreference.kind` — la seule colonne qui aurait pu en contenir — ne connaît que `'app'`
+(`services/subscriptions.KINDS`). Les clés vivent dans des compteurs de cache transitoires, des
+littéraux de gabarits, et une URL d'actualisation construite à l'exécution depuis un attribut de
+DOM. **Aucune migration de données.**
+
+⚠⚠ **Le piège de ce renommage était l'HOMONYMIE, pas le renommage.** `modeles` existe dans DEUX
+espaces de noms (clé de registre / nom de fait `doc_facts` pointant le manifeste), et
+`'modeles'`/`'fonctions'`/`'licences'` sont aussi des clés de PAYLOAD dans cinq modules. Classés
+un par un avant écriture ; le grep de preuve après application ne laisse que ces **14 occurrences
+protégées**. *Un moteur tokenisé sans liste de fichiers explicite les aurait toutes emportées.*
+
+**Restes assumés** : le drapeau CLI `--licences` de `backfill_platform_refs` (hors périmètre) ;
+les journaux gardent les anciens noms — c'est de l'histoire.
+
+**Contrôles** : py_compile · **129 tests OK** (registres, doc dérivée, balises de fait, sources
+externes, WAMA Data) · `check_docs --strict` **0 cassée / 2060** · les 2 copies du JS partagent le
+même blob · `docs/dev/registres.md` RÉGÉNÉRÉE (elle est générée, jamais éditée).
+⚠ **NON COMMITÉS à dessein** : `WAMA_MECANISMES.md` et `docs/dev/briques.md` — déjà modifiés par
+une autre instance AVANT ma régénération, leur diff mélange les deux.
+
+### 🔴 Le test GPU de FastWan est BLOQUÉ, pas « en attente »
+
+Fabien, 2026-09-17 : *« je ne peux pas, ça fait crasher le PC. »* Le point d'entrée écrit hier
+(« jouer la génération GPU ») **ne peut donc pas être tenu sur cette machine**. FastWan reste
+déclaré, sélectionnable et gardé ; **le pas DMD reste une HYPOTHÈSE non validée**, et le seul
+chemin de validation connu est une carte qui ne fait pas paniquer l'hôte — le R760xa, ou un
+retour des crashs sous contrôle (`reference_wsl_gpu_windows_update_regression`).
+**Ne pas reproposer ce test comme point d'entrée** : ce n'est pas une tâche en attente, c'est une
+tâche empêchée.

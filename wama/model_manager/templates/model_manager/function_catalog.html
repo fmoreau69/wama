@@ -24,12 +24,12 @@
 
 {% block content %}
 <div class="wama-cat-wrap">
-  {% include 'common/_catalog_header.html' with titre='Catalogue des fonctions' icone='fa-project-diagram' registre='fonctions' %}
+  {% include 'common/_catalog_header.html' with titre='Catalogue des fonctions' icone='fa-project-diagram' registre='functions' %}
   <p class="text-secondary small mb-3">Tous les traitements WAMA déclarés par leurs capacités
      (entrées/sorties typées). <b>Pures</b> = chaînables ; <b>app</b> = couplées à une app (cataloguées).</p>
 
   <div class="wama-cat-stats">
-    <div class="wama-cat-stat"><b data-refresh-count="fonctions">{{ stats.total }}</b> fonctions</div>
+    <div class="wama-cat-stat"><b data-refresh-count="functions">{{ stats.total }}</b> fonctions</div>
     <div class="wama-cat-stat"><b>{{ stats.pure }}</b> pures</div>
     <div class="wama-cat-stat"><b>{{ stats.app }}</b> app-bound</div>
     <div class="wama-cat-stat"><b>{{ stats.categories|length }}</b> catégories</div>
