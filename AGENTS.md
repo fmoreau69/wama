@@ -331,10 +331,22 @@ apply_patch(
 - **Ce qui NE se renomme PAS** : les attributs `data-*` du DOM et les clés de payload serveur —
   c'est la frontière des DONNÉES (règle 3 ci-dessus). Un demi-vocabulaire est pire que l'ancien :
   `data-abo-*` et `data-f-<facette>` (6 gabarits, 2 JS) se traiteront **ensemble ou pas du tout**.
-- **Un `.js` ne casse jamais à la compilation, il casse dans le navigateur.** Aucun vérificateur
-  de syntaxe JS n'est installé (ni `node` Windows, ni WSL) : après tout renommage JS, la SEULE
-  attestation est un smoke navigateur — parser le fichier servi (`new Function(texte)`) et
-  vérifier que le global attendu existe et que l'ancien a disparu.
+- **Un `.js` ne casse jamais à la compilation, il casse dans le navigateur** — il lui faut donc
+  une attestation À PART, que ni `py_compile` ni les tests Python ne donnent.
+  ⚠⚠ **Cette ligne a dit jusqu'au 2026-09-17 qu'« aucun vérificateur de syntaxe JS n'est installé
+  (ni `node` Windows, ni WSL) » et que « la SEULE attestation est un smoke navigateur ». Le
+  premier point reste vrai — `node` est bien absent des deux côtés, revérifié — mais la
+  conclusion était FAUSSE : le venv porte `esprima` (parseur JS) et `py_mini_racer` (V8
+  embarqué).** Un constat périmé promu en consigne fait *renoncer à une preuve qui était à
+  portée — et le navigateur Playwright, lui, est parfois tenu par une autre instance.*
+  ✅ **Attestation, sans navigateur** : lire le fichier dans `staticfiles/` (le dossier SERVI),
+  `esprima.parseScript` pour la validité ; si la brique ne touche pas au DOM, l'exécuter dans
+  MiniRacer avec un faux `window` et appeler ses fonctions — parse + global créé + comportement.
+  Y joindre une **contre-épreuve** (un cas voisin qui ne doit PAS changer). Recette détaillée :
+  skill `renommage-api` §4bis.
+  ⚠ **Ce que cela ne remplace pas** : ce qui touche au DOM (un module qui lit `document` au
+  chargement ne s'exécute qu'en navigateur — on se limite alors au parse) et la vérification
+  qu'un ANCIEN chemin sort en **404**, qui reste une requête HTTP.
 - **Resynchroniser `staticfiles/`** dans le même geste (copie ET suppression de l'ancien nom) :
   c'est ce dossier qui est servi.
 

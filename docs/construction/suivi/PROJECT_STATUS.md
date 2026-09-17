@@ -14951,3 +14951,50 @@ par Fabien (`#fd7e14`, 01/09). Seconde moitié de la même décision : la règle
 suites codegen = **121 tests, `OK`** ; `py_compile` sur les 5 fichiers Python touchés ; diff
 intégral relu avant commit (il a rattrapé deux défauts de ma main : un commentaire inséré **sans
 ses accents** par le script, et une fonction collée à la constante suivante).
+→ commit **`ab18e9db`** (8 fichiers).
+
+## SUITE 2026-09-17 (5) — P2, 4ᵉ pièce : le FRONT connaît `STALE` (décision n°4 tranchée)
+
+> Fabien tranche la **décision ouverte n°4** de `ROUTE §10.6` : `STALE` en **violet `#9b59b6`**,
+> bouton de cycle à l'action ↻ d'un terminé mais au **libellé distinct** (« Recalculer ce qui est
+> périmé »), **règle d'agrégation de 4.4 validée telle quelle**.
+
+**⑩ HUIT surfaces, pas deux.** Ce que la route — et mon propre bloc de ce matin — appelait « deux
+écritures » (`wama-cycle-button.js::stateFor` + son jumeau de gabarit) en comptait **huit** à la
+mesure, toutes déjà payées six semaines plus tôt pour `AWAITING_RESOURCES` : racine des **11**
+gabarits de card (passe tokenisée, 11/11, **une seule ligne modifiée par fichier** — diff relu),
+`_card_state.html`, `_card_progress.html`, les deux maps de `wama-app-base.js`, trois règles de
+`app_modern.css`, la pastille de `wama-inspector.css` (violet PLEIN, **sans pulsation** : la
+pulsation dit « vivant », l'appliquer ferait croire à un traitement en cours), `batch_common`
+(`stale_count`), `queue_view` (filtre) et son option de barre — plus la resynchro de
+`staticfiles/`. *Compter les surfaces AVANT d'annoncer un reste.*
+
+**⑪ Le bouton.** `STALE` tombait dans le repli ▶ « Démarrer », qui dit que rien n'a jamais tourné.
+Il propose désormais ↻ « Recalculer ce qui est périmé » — même endpoint qu'un terminé, libellé
+distinct, dans les DEUX écritures (gabarit serveur au chargement, `stateFor` au poll).
+
+**⑫ Gardes** — `common/tests_status_ui.py` porte maintenant deux familles SYMÉTRIQUES (attente de
+ressources / périmé), la seconde se lisant comme la **liste de contrôle du prochain état**. Dont
+une **contre-épreuve** : un `SUCCESS` doit continuer de dire « Relancer », sans quoi un libellé
+changé partout passerait le test en cassant le sens.
+
+**⚠⚠ UNE AFFIRMATION DE LA DOCTRINE ÉTAIT FAUSSE, et elle m'aurait fait renoncer à une preuve.**
+`AGENTS.md`, le skill `renommage-api` §4bis et un test de l'imager disaient tous trois qu'« aucun
+vérificateur de syntaxe JS n'est installé » et que « la SEULE attestation est un smoke
+navigateur ». Mesuré le 17/09 : `node` est bien absent (Windows ET WSL), **mais le venv porte
+`esprima` et `py_mini_racer` (V8)**. Le navigateur Playwright étant par ailleurs **tenu par une
+autre instance**, j'allais déclarer l'attestation impossible. Elle ne l'était pas :
+✅ **parse des deux fichiers SERVIS + exécution de l'IIFE dans MiniRacer avec un faux `window` +
+appel de `stateFor` sur 6 cas** — `STALE`→↻ « Recalculer… », `SUCCESS`/`FAILURE`→↻ « Relancer »
+(contre-épreuve), `RUNNING`→⏹, `PENDING`→▶, et `stale` **en minuscules**, forme sous laquelle le
+Lab stocke réellement l'état. Les trois sites sont corrigés, sans surjouer : cela ne remplace ni
+le DOM (`wama-app-base.js` n'est que parsé) ni la vérification qu'un ancien chemin sort en 404.
+
+**Contrôles** : `tests_status_ui` + `tests_process_states` + `tests_codegen_templates` + converter
++ reader = **97 tests `OK`** (1 skip) ; `check_templates` **0 défaut sur 155 gabarits** ; les 4
+fichiers statiques resynchronisés (blobs identiques) et ce que le **serveur livre** est
+octet pour octet ma source (md5 comparés sur les deux JS, HTTP 200).
+
+⏳ **RESTE de P2 — un seul morceau** : la brique d'agrégation (« l'état d'une card se déduit de
+ses process », 4.4). Sa règle est validée ; elle s'appuie sur la ligne d'exécution PAR PROCESS que
+**P3** apporte. C'est donc P3 qui suit.

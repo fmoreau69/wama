@@ -46,6 +46,11 @@ def apply_queue_sort_filter(request, batches_list, *, name_of):
         # commune (compteur absent) ne fait pas tomber la file.
         if f == 'awaiting':
             return b.get('awaiting_count', 0) > 0
+        # STALE (2026-09-17) : même raison — un résultat périmé appelle un geste (relancer),
+        # et il est invisible s'il se confond avec les terminés. `.get()` pour la même raison
+        # qu'au-dessus : un batch construit hors de la brique commune ne fait pas tomber la file.
+        if f == 'stale':
+            return b.get('stale_count', 0) > 0
         if f == 'draft':
             return (b['success_count'] + b['running_count'] + b['failure_count']) < b['obj'].total
         return True  # 'all'

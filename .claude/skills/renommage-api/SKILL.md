@@ -56,10 +56,19 @@ description: Renommer une API française (ou tout renommage d'identifiants multi
 > Le reste du skill tient tel quel. Ce qui change est l'ATTESTATION : un `.py` mal renommé
 > casse à l'import, un `.js` mal renommé **casse dans le navigateur, en silence**.
 
-- **Aucun vérificateur de syntaxe JS n'est installé ici** (ni `node` sous Windows, ni sous
-  WSL) → la seule preuve qu'un fichier renommé est encore VALIDE est un smoke qui récupère
-  le fichier **SERVI** et le parse (`new Function(texte)`), puis vérifie que le nouveau
-  global existe, que l'ancien a disparu, et que l'ancien chemin sort en **404**.
+- **Attester un `.js` SANS navigateur — corrigé le 2026-09-17, la ligne d'avant était FAUSSE.**
+  Elle disait « aucun vérificateur de syntaxe JS n'est installé ici » ; c'est vrai de `node`
+  (absent sous Windows ET sous WSL, revérifié le 17/09), mais **le venv porte `esprima` (parseur
+  JS) et `py_mini_racer` (V8 embarqué)**. Un constat périmé faisait déclarer « attestation
+  impossible » là où elle était à portée — d'autant que le navigateur Playwright est parfois
+  **tenu par une autre instance**.
+  ✅ **Le geste** : lire le fichier dans `staticfiles/` (le dossier SERVI), `esprima.parseScript`
+  pour la validité, puis, si la brique est SANS DOM, l'exécuter dans MiniRacer avec un faux
+  `window` et appeler ses fonctions — parse + global créé + comportement, c'est-à-dire la
+  substance du smoke. Y joindre une **contre-épreuve** (un cas voisin qui ne doit PAS changer).
+  ⚠ **Ce que ça ne remplace pas** : tout ce qui touche au DOM (un module qui lit `document` au
+  chargement ne s'exécute que dans un navigateur — on se limite alors au parse), et la
+  vérification qu'un ANCIEN chemin sort en **404**, qui reste une requête HTTP.
 - **`staticfiles/` se resynchronise dans le MÊME geste**, suppression de l'ancien nom
   comprise — c'est ce dossier qui est servi. Contrôle : les deux copies doivent partager le
   même blob (`git hash-object`).

@@ -12,7 +12,7 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
   L'ancien .status-badge n'existe plus : les transitions SUCCESS/FAILURE re-rendent la card
   côté serveur (refreshCard), l'update en place ne garde que barre/%/ETA/preview.
 {% endcomment %}
-<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% endif %}"
+<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% elif elem.status == 'STALE' %}stale{% endif %}"
      data-id="{{ elem.id }}" data-status="{{ elem.status }}"
      data-preview-url="{% url 'common:unified_preview' 'describer' elem.id %}">
 <div class="card-body py-2">

@@ -158,6 +158,10 @@
 .wama-status-dot[data-s="AWAITING_RESOURCES"] {
   background: #fd7e14; animation: wamaDotPulse 2.4s ease-in-out infinite;
 }
+/* Périmé : violet PLEIN, sans pulsation — rien ne tourne, le résultat est là mais il a vieilli.
+   La pulsation dit « vivant » (RUNNING vite, attente de ressources lentement) ; l'appliquer ici
+   ferait croire à un traitement en cours. */
+.wama-status-dot[data-s="STALE"] { background: #9b59b6; }
 @keyframes wamaDotPulse { 50% { opacity: .35; } }
 
 /* ── Preview entrée/sortie + slider comparatif (2026-07-12, STUDIO_VISION) ── */

@@ -242,9 +242,12 @@ class ImageAttacheeAUnInputQuiEXISTETest(TestCase):
     Mesuré au navigateur le 2026-09-11 — imager (v3) rendait `imgRefInput` + `imgFileInput`,
     imager_01 (v4) `imgFileInput` seul.
 
-    ⚠ Un `.js` ne casse pas à la compilation, il casse dans le navigateur, et aucun
-    vérificateur de syntaxe JS n'est installé ici. Ce test tient donc le CONTRAT en texte —
-    l'attestation de validité, elle, reste le smoke qui parse le fichier SERVI.
+    ⚠ Un `.js` ne casse pas à la compilation, il casse dans le navigateur : ce test tient donc
+    le CONTRAT en texte. ⚠⚠ La phrase « aucun vérificateur de syntaxe JS n'est installé ici »
+    qui figurait ici est FAUSSE depuis le 2026-09-17 (mesure) : `node` est bien absent, mais le
+    venv porte `esprima` et `py_mini_racer`. La validité d'un `.js` s'atteste donc hors
+    navigateur — parse du fichier SERVI, et exécution si la brique ne touche pas au DOM
+    (recette dans le skill `renommage-api` §4bis).
     """
 
     def _js(self, chemin):

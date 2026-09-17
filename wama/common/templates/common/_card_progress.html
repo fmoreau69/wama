@@ -4,7 +4,7 @@ Badge de statut coloré + barre de progression + % + ETA (rempli par wama-eta.js
 + temps écoulé affiché une fois terminé.
 
 Variables :
-  status   — 'PENDING' | 'AWAITING_RESOURCES' | 'RUNNING' | 'SUCCESS' | 'FAILURE'
+  status   — 'PENDING' | 'AWAITING_RESOURCES' | 'RUNNING' | 'SUCCESS' | 'FAILURE' | 'STALE'
   progress — 0–100
   elapsed  — (optionnel) durée de traitement formatée, affichée sur SUCCESS
   label    — (optionnel) libellé du badge (obj.get_status_display) ; sans lui, la VALEUR
@@ -27,6 +27,7 @@ Usage :
     {% elif status == 'RUNNING' %}bg-warning
     {% elif status == 'SUCCESS' %}bg-success
     {% elif status == 'FAILURE' %}bg-danger
+    {% elif status == 'STALE' %}bg-stale
     {% endif %}">{{ label|default:status }}</span>{% endif %}
 {% if not no_bar %}<div class="wama-progress-track mt-2">
     <div class="wama-progress-fill {% if status == 'RUNNING' %}active{% endif %}" style="width: {{ progress|default:0 }}%"></div>
