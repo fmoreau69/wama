@@ -26,6 +26,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from wama.common.models import PROCESS_STATUS_CHOICES
+
 logger = logging.getLogger(__name__)
 
 MONDE_MEDIA = 'media'
@@ -61,8 +63,11 @@ _MOIS_FR = ('janvier', 'février', 'mars', 'avril', 'mai', 'juin',
 #: (ex. `enhancer/_enhancement_card.html:73`) — c'est une duplication réelle, à extraire au
 #: prochain passage sur les cards. On ne l'aggrave pas ici : le libellé est calculé UNE fois, en
 #: Python, et le gabarit n'en sait rien.
-_ETATS_FR = {'PENDING': 'En attente', 'RUNNING': 'En cours',
-             'SUCCESS': 'Terminé', 'FAILURE': 'Échec'}
+#: ⚠ Complété le 2026-09-17 (marche P2) : il manquait DEUX des six états du vocabulaire commun —
+#: `AWAITING_RESOURCES` (existant depuis le 01/09) et `STALE`. Un état absent de cette table
+#: tombait sur `s.capitalize()`, donc « Awaiting_resources » à l'écran. Les libellés viennent du
+#: vocabulaire commun (`PROCESS_STATUS_CHOICES`), ils ne sont plus écrits deux fois.
+_ETATS_FR = dict(PROCESS_STATUS_CHOICES)
 
 
 @dataclass(frozen=True)

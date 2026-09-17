@@ -2628,6 +2628,26 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > ne sait produire ferait naître 13 migrations pour rien (les files le recevront à **P6**) — et il
 > n'est **ni « pas commencé » ni « terminal »** : il a produit un résultat, mais il appelle une
 > relance ; l'agrégation le traite à part (4.4).
+> ✅ **P2, 2ᵉ pièce LIVRÉE le 2026-09-17 — les TROIS tables d'alias convergent.** La dette nommée
+> plus haut (`§10.3` : « 3 tables d'alias dupliquées ») est soldée côté Python : la table vit au
+> domicile du vocabulaire (`common/models.JOB_STATUS_ALIASES` + `normalize_job_status`), et les
+> deux portes publiques la consomment sans changer de signature — `detail_registry.normalize_status`
+> (journal, générateur de vues) et `batch_common.normalized_statuses` (lots).
+> ⚠ **Ce que la mesure a révélé** : les deux tables DIVERGEAIENT. Celle de `detail_registry` — la
+> plus consommée — n'avait que `DONE` et `ERROR` : un état du monde **Lab** (`completed`, `failed`)
+> lu par le journal ressortait donc BRUT à l'écran, et aucune des trois ne connaissait `stale`.
+> **Aucune n'était couverte par un test** (grep : zéro). Le journal, lui, ne libellait que 4 états
+> sur 6 — `AWAITING_RESOURCES` s'affichait « Awaiting_resources ».
+> 🔴 **On TRADUIT, on ne renomme pas** : mesuré le jour même, le Lab a **72 lignes** en base
+> (`completed` 57, `stale` 13, `pending` 2) et le studio **13 runs** dont les états vivent aussi
+> dans un JSON persisté. C'est la frontière des DONNÉES, déjà tranchée deux fois ailleurs
+> (`data_types.LEGACY_TYPE_ALIASES`, `content_analyzer`).
+> ⏳ **RESTE de P2, nommément** : le FRONT porte encore deux écritures du même fait —
+> `wama-cycle-button.js::stateFor` et son jumeau `_cycle_button.html` — et ni l'un ni l'autre ne
+> connaît `STALE` ; puis l'alignement effectif des littéraux de `studio/tasks.py` et la brique
+> d'agrégation (décision ouverte n°4). **Non touchés à dessein** : ce sont deux surfaces de plus,
+> qui se portent ensemble ou pas du tout.
+>
 > ⚠ Renommés au passage, deux relevés de Fabien le même jour : `JOB_STATUS_EN_ATTENTE`/`_FINAUX`
 > (français) → `JOB_STATUS_NOT_STARTED`/`JOB_STATUS_TERMINAL`. Et **pas** `WAITING` : un ensemble
 > nommé ainsi CONTIENDRAIT `AWAITING_RESOURCES` — deux noms de la même racine pour deux choses
