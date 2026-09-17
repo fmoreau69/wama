@@ -426,11 +426,13 @@
         if (!card) return;
         card.dataset.status = status;   // pilote le bouton de cycle (WamaCycleButton.autoSync)
 
-        // Border
-        ['border-warning', 'border-success', 'border-danger', 'border-secondary',
-         'processing', 'success', 'error'].forEach(c => card.classList.remove(c));
-        const borderMap = { RUNNING: ['border-warning', 'processing'], SUCCESS: ['border-success', 'success'],
-                            FAILURE: ['border-danger', 'error'], PENDING: ['border-secondary'] };
+        // Border — les classes d'ÉTAT (processing/success/error) ne sont plus posées ici : le CSS
+        // les lit sur `data-status`, écrit juste au-dessus (2026-09-18). Restent les bordures
+        // Bootstrap, qui sont une AUTRE famille — la couleur de bord de la card, pas l'état.
+        ['border-warning', 'border-success', 'border-danger', 'border-secondary']
+            .forEach(c => card.classList.remove(c));
+        const borderMap = { RUNNING: ['border-warning'], SUCCESS: ['border-success'],
+                            FAILURE: ['border-danger'], PENDING: ['border-secondary'] };
         (borderMap[status] || ['border-secondary']).forEach(c => card.classList.add(c));
 
         // Progress bar (cartes composer = .wama-progress-fill, pas .progress-bar Bootstrap)

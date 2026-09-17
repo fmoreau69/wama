@@ -339,10 +339,17 @@ apply_patch(
   conclusion était FAUSSE : le venv porte `esprima` (parseur JS) et `py_mini_racer` (V8
   embarqué).** Un constat périmé promu en consigne fait *renoncer à une preuve qui était à
   portée — et le navigateur Playwright, lui, est parfois tenu par une autre instance.*
-  ✅ **Attestation, sans navigateur** : lire le fichier dans `staticfiles/` (le dossier SERVI),
-  `esprima.parseScript` pour la validité ; si la brique ne touche pas au DOM, l'exécuter dans
-  MiniRacer avec un faux `window` et appeler ses fonctions — parse + global créé + comportement.
-  Y joindre une **contre-épreuve** (un cas voisin qui ne doit PAS changer). Recette détaillée :
+  ✅ **Attestation, sans navigateur** : lire le fichier dans `staticfiles/` (le dossier SERVI) et
+  le parser avec **MiniRacer** — `ctx.eval('(function(){' + src + '})')` parse **sans exécuter**,
+  ce qui vaut donc même pour un module qui touche au DOM. Si la brique n'y touche pas, l'exécuter
+  ensuite avec un faux `window` et appeler ses fonctions : parse + global créé + comportement.
+  Y joindre une **contre-épreuve** (un cas voisin qui ne doit PAS changer).
+  ⚠⚠ **`esprima` NE SUFFIT PAS** — corrigé le 2026-09-18, le LENDEMAIN de la ligne ci-dessus qui
+  en faisait le parseur de référence. Il s'arrête à ES2017 et échoue sur notre syntaxe réelle :
+  mesuré sur `wama/composer/static/composer/js/index.js:8` (chaînage optionnel `?.`), qui échoue
+  **aussi sur HEAD** — la contre-épreuve l'a établi, donc l'outil est en cause, pas le fichier.
+  *Un constat trop large est un constat faux : il aurait fait déclarer « cassé » un fichier sain.*
+  **V8 fait foi** ; `esprima` ne vaut que pour un fichier qu'il accepte. Recette détaillée :
   skill `renommage-api` §4bis.
   ⚠ **Ce que cela ne remplace pas** : ce qui touche au DOM (un module qui lit `document` au
   chargement ne s'exécute qu'en navigateur — on se limite alors au parse) et la vérification

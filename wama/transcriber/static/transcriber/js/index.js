@@ -216,10 +216,10 @@ document.addEventListener('DOMContentLoaded', function () {
     //     l'écran après suppression.
     // Le diagnostic consigné le 22/08 disait « suspecter mon test avant l'app » : le test avait
     // bien deux défauts (handle détaché, lot replié), mais celui-ci était dans l'app.
-    ['processing', 'success', 'error'].forEach(c => card.classList.remove(c));
-    const _etat = { RUNNING: 'processing', SUCCESS: 'success', FAILURE: 'error' }[status];
-    if (_etat) card.classList.add(_etat);
     card.classList.add('synthesis-card', 'wama-card');   // filet : cards bâties avant ce correctif
+    // `data-status` pilote la COULEUR d'état (CSS sur l'attribut) et le bouton de cycle : les
+    // classes processing/success/error posées ici recopiaient l'information — retirées le
+    // 2026-09-18. ⚠ Le filet ci-dessus reste : il concerne `wama-card`, pas l'état.
     card.dataset.status = status;
 
     // Propriétés fichier (codec • kHz • canaux) : la ligne n'est remplie qu'à la création de card et
@@ -356,10 +356,17 @@ document.addEventListener('DOMContentLoaded', function () {
           // `classList` et non `className =` : voir le correctif du 2026-08-23 plus haut —
           // réassigner la classe entière effaçait `wama-card`, que la brique de suppression
           // et les scénarios utilisent pour identifier une card.
-          ['success', 'error'].forEach(c => card.classList.remove(c));
-          card.classList.add('synthesis-card', 'wama-card', 'processing');
+          card.classList.add('synthesis-card', 'wama-card');
           const badge = card.querySelector('.status-badge');
-          if (badge) { badge.textContent = 'RUNNING'; badge.className = 'badge status-badge bg-warning'; }
+          if (badge) {
+            // Libellé et classe VIENNENT des maps communes : « RUNNING » et `bg-warning` écrits
+            // en dur affichaient la valeur BRUTE à l'utilisateur et redéclaraient une 3ᵉ fois la
+            // table de présentation des états (2026-09-18).
+            const A = window.WamaApp || {};
+            badge.textContent = (A.STATUS_LABEL && A.STATUS_LABEL.RUNNING) || 'En cours';
+            badge.className = 'badge status-badge ' + ((A.STATUS_BADGE && A.STATUS_BADGE.RUNNING)
+                                                       || 'bg-warning text-dark');
+          }
           const bar = card.querySelector('.wama-progress-fill');
           if (bar) { bar.style.width = '0%'; bar.classList.add('active'); }
           const pt = card.querySelector('.progress-text');

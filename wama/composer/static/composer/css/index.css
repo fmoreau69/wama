@@ -9,16 +9,20 @@
     border: 1px solid #a78bfa;
     background: transparent;
 }
-.generation-card.processing {
-    animation: pulse-border 2s infinite;
-}
 @keyframes pulse-border {
     0%   { border-color: #ffc107 !important; }
     50%  { border-color: #fd7e14 !important; }
     100% { border-color: #ffc107 !important; }
 }
-.generation-card.success  { border-color: #198754 !important; }
-.generation-card.error    { border-color: #dc3545 !important; }
+
+/* ── BASCULE VERS `data-status` (2026-09-17) — transition, les deux jeux COEXISTENT ──────────
+   ⚠ Ce bord COMPLET animé est l'identité visuelle du composer (cf. `app_modern.css`, qui le
+   nomme). Sans ces trois règles, retirer la classe d'état des gabarits l'éteindrait — en
+   silence, puisqu'aucune erreur ne se produit. C'est le même élément qui porte `data-status`,
+   donc la traduction est exacte. */
+.generation-card[data-status="RUNNING"] { animation: pulse-border 2s infinite; }
+.generation-card[data-status="SUCCESS"] { border-color: #198754 !important; }
+.generation-card[data-status="FAILURE"] { border-color: #dc3545 !important; }
 
 /* Batch group header */
 .batch-header:hover {

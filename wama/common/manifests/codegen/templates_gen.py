@@ -629,7 +629,7 @@ _processing_time, unified_preview, queue-actions) ; seuls l'app id, les routes (
 manifeste) et les noms de champs varient — et chaque champ ABSENT du modèle généré dégrade en
 silence (Django rend '' sur un attribut manquant : la card reste juste, jamais cassée).
 On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et on RÉGÉNÈRE.{{% endcomment %}}
-<div class="job-card card bg-dark border-secondary wama-card {{% if in_batch %}}mb-1 wcv3--batch-child{{% else %}}mb-2{{% endif %}} {{% if elem.status == 'RUNNING' %}}processing{{% elif elem.status == 'SUCCESS' %}}success{{% elif elem.status == 'FAILURE' %}}error{{% endif %}}"
+<div class="job-card card bg-dark border-secondary wama-card {{% if in_batch %}}mb-1 wcv3--batch-child{{% else %}}mb-2{{% endif %}}"
      data-id="{{{{ elem.id }}}}" data-status="{{{{ elem.status }}}}"
      data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}"{attrs_params}>
   <div class="card-body py-2">
@@ -674,7 +674,7 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
         <span class="wcv3-lbl">État</span>
         <div class="wcv3-state">
           <span class="wcv3-state-line"><span class="wama-status-dot" data-s="{{{{ elem.status }}}}"></span>
-            <span>{{% if elem.status == 'PENDING' %}}En attente{{% elif elem.status == 'RUNNING' %}}En cours{{% elif elem.status == 'SUCCESS' %}}Terminé{{% elif elem.status == 'FAILURE' %}}Échec{{% else %}}{{{{ elem.status }}}}{{% endif %}}</span></span>
+            <span>{{{{ elem.get_status_display }}}}</span></span>
           {{% if elem.status == 'RUNNING' %}}<span class="wama-eta" data-eta-ids="{{{{ elem.id }}}}"></span>{{% endif %}}
           {{% if elem.status == 'SUCCESS' and elem.processing_display %}}{{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}}{{% endif %}}
         </div>

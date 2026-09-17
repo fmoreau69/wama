@@ -62,10 +62,16 @@ description: Renommer une API française (ou tout renommage d'identifiants multi
   JS) et `py_mini_racer` (V8 embarqué)**. Un constat périmé faisait déclarer « attestation
   impossible » là où elle était à portée — d'autant que le navigateur Playwright est parfois
   **tenu par une autre instance**.
-  ✅ **Le geste** : lire le fichier dans `staticfiles/` (le dossier SERVI), `esprima.parseScript`
-  pour la validité, puis, si la brique est SANS DOM, l'exécuter dans MiniRacer avec un faux
-  `window` et appeler ses fonctions — parse + global créé + comportement, c'est-à-dire la
-  substance du smoke. Y joindre une **contre-épreuve** (un cas voisin qui ne doit PAS changer).
+  ✅ **Le geste** : lire le fichier dans `staticfiles/` (le dossier SERVI) et le parser avec
+  **MiniRacer** — `ctx.eval('(function(){' + src + chr(10) + '}); 1')` parse **sans exécuter**,
+  donc vaut aussi pour un module qui touche au DOM. Puis, si la brique est SANS DOM, l'exécuter
+  avec un faux `window` et appeler ses fonctions — parse + global créé + comportement, c'est-à-dire
+  la substance du smoke. Y joindre une **contre-épreuve** (un cas voisin qui ne doit PAS changer).
+  ⚠⚠ **Ne pas s'appuyer sur `esprima` seul** (corrigé le 2026-09-18, au lendemain de la ligne qui
+  le prescrivait) : il s'arrête à **ES2017** et échoue sur notre syntaxe réelle — mesuré sur
+  `wama/composer/static/composer/js/index.js:8` (chaînage optionnel), qui échoue **aussi sur
+  HEAD**. Sans la contre-épreuve sur HEAD, on lit cet échec comme une casse de son propre travail
+  et on « corrige » du code sain.
   ⚠ **Ce que ça ne remplace pas** : tout ce qui touche au DOM (un module qui lit `document` au
   chargement ne s'exécute que dans un navigateur — on se limite alors au parse), et la
   vérification qu'un ANCIEN chemin sort en **404**, qui reste une requête HTTP.

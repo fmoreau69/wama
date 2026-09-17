@@ -245,9 +245,10 @@ class ImageAttacheeAUnInputQuiEXISTETest(TestCase):
     ⚠ Un `.js` ne casse pas à la compilation, il casse dans le navigateur : ce test tient donc
     le CONTRAT en texte. ⚠⚠ La phrase « aucun vérificateur de syntaxe JS n'est installé ici »
     qui figurait ici est FAUSSE depuis le 2026-09-17 (mesure) : `node` est bien absent, mais le
-    venv porte `esprima` et `py_mini_racer`. La validité d'un `.js` s'atteste donc hors
-    navigateur — parse du fichier SERVI, et exécution si la brique ne touche pas au DOM
-    (recette dans le skill `renommage-api` §4bis).
+    venv porte `py_mini_racer` (V8) et `esprima`. La validité d'un `.js` s'atteste donc hors
+    navigateur — parse du fichier SERVI par **V8**, et exécution si la brique ne touche pas au
+    DOM. ⚠ `esprima` seul ne suffit pas : il s'arrête à ES2017 (mesuré le 18/09 sur du chaînage
+    optionnel). Recette : skill `renommage-api` §4bis.
     """
 
     def _js(self, chemin):

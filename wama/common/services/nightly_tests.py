@@ -414,6 +414,7 @@ try:
     from wama.common.services.ui_smoke_matching import (register_media_library_scenarios,
                                                         register_voice_language_scenarios)
     from wama.common.services.ui_smoke_menus import register_menu_scenarios
+    from wama.common.services.ui_smoke_states import register_state_color_scenarios
     register_ui_scenarios()
     # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
     # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
@@ -485,6 +486,13 @@ try:
     # studio ne persiste qu'en localStorage. Le scénario mesure les DEUX moitiés — le câblage
     # du consommateur ET la sémantique de la brique — parce qu'aucune ne se déduit de l'autre.
     register_history_scenarios()
+    # 2026-09-18 — la COULEUR D'ÉTAT d'une card, telle que le navigateur la rend. La bascule du
+    # jour a retiré la classe d'état de 11 gabarits, du générateur et de 4 sites JS : le CSS lit
+    # désormais `data-status`, que la card portait déjà. Aucun test Python ne voit ce
+    # changement — ils lisent des sources, pas un rendu —, et une règle qui ne gagne pas
+    # (spécificité, `!important` de Bootstrap) ne lève AUCUNE erreur : c'est exactement ainsi
+    # que le bord d'état était resté GRIS jusqu'au 02/09, trouvé au `getComputedStyle` seul.
+    register_state_color_scenarios()
     # 2026-09-06 — gestes 8/9/10/12 : DÉMARRER → PROGRESSER → RÉUSSIR → TÉLÉCHARGER. Le
     # premier scénario du harnais qui va jusqu'au RÉSULTAT sur une app de file. Sa VRAM est
     # DÉRIVÉE du catalogue (`AIModel.source`), donc le mode sans GPU l'écarte partout où l'app
