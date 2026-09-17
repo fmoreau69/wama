@@ -55,6 +55,10 @@ urlpatterns = [
     # Licences : vue TRANSVERSALE (modèles + librairies + médias + traversée par app).
     # Domiciliée dans `common` et non `model_manager` : elle recoupe quatre registres,
     # aucun ne la contient.
+    # Formats médias : la contrepartie des registres de formats du monde Data (2026-09-17).
+    # Chemin ANGLAIS pluriel, comme la norme posée plus haut pour les pages de registres.
+    path('media-formats/', views.media_formats_view, name='media_formats_catalog'),
+
     path('licenses/', views.licenses_catalog_view, name='licenses_catalog'),
     path('licences/', RedirectView.as_view(pattern_name='common:licenses_catalog', permanent=True)),
 

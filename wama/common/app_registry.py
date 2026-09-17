@@ -107,6 +107,22 @@ def register_category_extensions(category, extensions):
         _CAT_OF.setdefault(str(e).lstrip('.').lower(), category)
 
 
+def media_extensions() -> dict:
+    """Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
+
+    ⚠ LU À L'APPEL, jamais capturé : `_CAT_OF` est muté au `ready()` des mondes
+    (`register_category_extensions` — aujourd'hui `dataset`, poussé par WAMA Data). Une capture
+    à l'import manquerait précisément les natures qui s'ajoutent, c'est-à-dire l'inverse du but.
+
+    Rend TOUTES les natures de `MEDIA_CATEGORIES`, y compris celles sans aucune extension : une
+    nature vide est une information (personne ne l'a encore outillée), pas un trou à cacher.
+    """
+    par_nature = {c: [] for c in MEDIA_CATEGORIES}
+    for ext, cat in _CAT_OF.items():
+        par_nature.setdefault(cat, []).append(ext)
+    return {cat: sorted(exts) for cat, exts in par_nature.items()}
+
+
 def category_of_path(path):
     """Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
     d'après son extension. Source UNIQUE (studio, previews, etc.) — défaut 'document'.

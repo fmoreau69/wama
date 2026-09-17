@@ -14710,3 +14710,42 @@ une génération vidéo dans l'imager) : tout le reste est en service, seul le p
 | `check_redundancy` | 33 trouvailles, **aucune dans le périmètre** (toutes préexistantes) |
 | corpus de manifestes | **11 apps périmées** (cause partagée, voir ci-dessus) |
 | catalogue | 139 modèles, 112 téléchargés ; 1 seule ligne pour les poids FastWan |
+
+---
+
+## SUITE 2026-09-17 — les FORMATS MÉDIAS entrent au registre des registres (demande de Fabien)
+
+**Le constat de Fabien** : la carte des registres montrait « Formats d'entrée » et « Formats de
+sortie » pour le monde Data et **rien** côté médias — ce qui se lit comme une absence de
+gouvernance. Mesuré la veille : sur 15 registres, **3 de formats, tous du monde Data**.
+
+**Ce qui est livré** — registre **`media_formats`** (DÉRIVÉ : rien à actualiser, la page recalcule)
++ page `common:media_formats_catalog` + entrée de menu (même motif que Backends le 03/09 : une page
+atteignable seulement depuis la carte des registres ne l'est pas) + accesseur public
+`app_registry.media_extensions()`, qui lit la carte **à l'appel** — une capture à l'import
+manquerait justement les extensions qu'un monde POUSSE au `ready()`.
+
+**Ce que la décision ne change PAS** : `MEDIA_CATEGORIES` reste une TAXONOMIE (`WAMA_DATA_WORLD
+§9quinquies.2`). Fabien a donné le critère qui manquait à cette ligne : les natures média
+S'ALLONGENT bel et bien (`3d` est arrivé après coup), mais **ajouter un format média = ajouter la
+LIBRAIRIE qui le lit**, là où le monde Data exige **un LECTEUR** — un ajout direct contre un ajout
+de comportement. Et **pas de distinction entrée/sortie** côté médias : un fichier a la même nature
+des deux côtés ; ce que le converter sait écrire est une FACETTE de la nature.
+
+**⚠ Une garde m'a rattrapé au passage** : `tests_registries.NormeUrlsTest` impose
+`<pluriel anglais>_catalog` pour le nom d'une page de registre — mon `common:media_formats` a été
+refusé, renommé `media_formats_catalog`. *La norme du 01/09 tient toute seule, un an après.*
+
+**Gardes ajoutées** — `wama/common/tests_media_formats.py` (11) : toutes les natures rendues même
+vides · extensions sans point et triées · **la carte est lue à l'appel** (poussée d'une extension
+après import, puis état restauré) · nature inconnue refusée à la poussée · registre DÉRIVÉ sans
+rafraîchisseur · **clé en ANGLAIS**, libellé en français · compte et fiches par nature · page 200
+montrant chaque nature. **68 tests OK** (formats médias + registres + types de port).
+
+**⏳ RESTE OUVERT (non tranché)** : `SUPPORTED_CONVERSIONS` du converter déclare des CAPACITÉS
+d'écriture et n'a jamais été passé au crible du critère ①②③ ; deux natures sur sept (`dataset`,
+`3d`) n'ont aucun format de sortie. Et la question de Fabien sur les **clés de registre en
+français** (`lecteurs_data`, `formats_export_data`, `conteneurs_data`, et 9 autres) : mesuré —
+aucune persistance en base, mais 15 clés citées dans des gabarits, des balises de doc
+`WAMA:FAIT(...)` et la doc dérivée. Renommage possible, à faire en UNE passe, jamais au fil d'un
+chantier (un demi-vocabulaire serait pire). La clé neuve de ce jour est déjà en anglais.

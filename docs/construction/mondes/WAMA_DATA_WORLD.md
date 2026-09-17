@@ -1813,6 +1813,29 @@ déjà déclaré et **gardé mécaniquement** (`check_redundancy.py` : « `app_r
 des vocabulaires média »). Le monde Médias n'a rien à changer. C'est le contre-exemple utile :
 la réponse n'est pas « tout en registre ».
 
+> ✅ **COMPLÉTÉ le 2026-09-17 (Fabien) — ③ reste NON, mais ④ n'avait jamais été posée aux médias.**
+> Constat de Fabien : la carte des registres affichait « Formats d'entrée » et « Formats de sortie »
+> pour le monde Data et **rien** pour les médias, ce qui se lit comme « le monde Médias ne gouverne
+> pas ses formats ». C'est faux, et c'est cette fausseté qui est corrigée — pas la nature du
+> vocabulaire. Livré : le registre **`media_formats`** (DÉRIVÉ, aucun rafraîchisseur) + sa page
+> `common:media_formats_catalog`, alimentés par l'accesseur `app_registry.media_extensions()`, qui
+> lit la carte **à l'appel** (donc les extensions qu'un monde POUSSE au démarrage y sont).
+>
+> **Deux précisions de Fabien, qui sont la vraie réponse à « pourquoi pas un registre » :**
+> 1. **Les natures média S'ALLONGENT** (`3d` n'existait pas au départ), et de nouveaux formats
+>    arriveront. Ce n'est donc pas une liste figée — mais l'ajout n'apporte pas de COMPORTEMENT :
+>    côté Médias on ajoute **la librairie** qui sait lire le format, puis on rattache son extension
+>    à sa nature ; côté Data, un format exige **son propre lecteur**, c'est-à-dire du code qui sait
+>    faire. C'est cette asymétrie — et elle seule — qui justifie registre d'un côté, taxonomie de
+>    l'autre. *La réponse à ③ n'était pas « la liste est fermée », c'était « l'ajout est direct ».*
+> 2. **Pas de distinction entrée/sortie côté médias** : un fichier a la même nature des deux côtés.
+>    Ce que le converter sait ÉCRIRE est montré comme une facette de la nature, jamais comme un
+>    second registre.
+>
+> ⚠ Reste ouvert, et non tranché ici : `SUPPORTED_CONVERSIONS` (converter) déclare des CAPACITÉS
+> d'écriture et n'a jamais été passé au crible de ①②③ — il est absent du relevé des six ci-dessus.
+> Deux natures sur sept (`dataset`, `3d`) n'ont d'ailleurs aucun format de sortie.
+
 ### 9quinquies.3 Faut-il un KIND DE MANIFESTE par famille de capacité ? **NON**
 
 Trois raisons, toutes déjà mesurées ailleurs dans le dépôt :
