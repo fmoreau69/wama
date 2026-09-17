@@ -2642,17 +2642,39 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > (`completed` 57, `stale` 13, `pending` 2) et le studio **13 runs** dont les états vivent aussi
 > dans un JSON persisté. C'est la frontière des DONNÉES, déjà tranchée deux fois ailleurs
 > (`data_types.LEGACY_TYPE_ALIASES`, `content_analyzer`).
-> ⏳ **RESTE de P2, nommément** : le FRONT porte encore deux écritures du même fait —
-> `wama-cycle-button.js::stateFor` et son jumeau `_cycle_button.html` — et ni l'un ni l'autre ne
-> connaît `STALE` ; puis l'alignement effectif des littéraux de `studio/tasks.py` et la brique
-> d'agrégation (décision ouverte n°4). **Non touchés à dessein** : ce sont deux surfaces de plus,
-> qui se portent ensemble ou pas du tout.
+> ✅ **P2, 3ᵉ pièce LIVRÉE le 2026-09-17 — l'exécuteur du studio ET la CHAÎNE DE GÉNÉRATION
+> parlent le vocabulaire commun.** `studio/tasks.py` n'écrit plus aucun état en littéral (17 sites)
+> et **TRADUIT** l'état rendu par le runner de l'app cible (`normalize_job_status`) au lieu de
+> comparer une chaîne brute. ⚠ Défaut latent fermé au passage : une app répondant `DONE`/`ERROR`
+> — le vocabulaire de trois apps historiques, que la table d'alias connaît — ne satisfaisait
+> AUCUNE des deux comparaisons, et la boucle tournait **jusqu'au délai de 30 minutes** avant de
+> lever « délai dépassé » : un symptôme qui accuse la lenteur du modèle, jamais la lecture de
+> l'état. Les VALEURS sont inchangées — `node_states` est un JSON persisté, donc une donnée : on
+> la source, on ne la renomme pas.
+> ⚠⚠ **La mesure a trouvé DEUX écritures de plus que les trois que `§10.3` comptait**, toutes deux
+> dans la chaîne de GÉNÉRATION et toutes deux figées à **QUATRE** états — écrites avant
+> `AWAITING_RESOURCES` (02/09) et jamais suivies : `manifests/builtin/app.py::STATUS_VOCAB` et le
+> repli codé en dur de `codegen/views_gen.py`. La première tenait **deux rôles à la fois** — ce que
+> chaque manifeste DÉCLARE *et* ce que le validateur ACCEPTE : un manifeste énonçant l'état du
+> gouverneur de ressources aurait été **rejeté « hors vocabulaire canonique »**, et une app
+> RÉGÉNÉRÉE déclarait moins d'états que son propre modèle réel. Les deux lisent désormais
+> `common/models.job_status_values()`. **Garde** : les DEUX chemins de `render_models`
+> (introspection et squelette A5) sont éprouvés ENSEMBLE — c'est par leur divergence que
+> `WAMA_INGEST` s'était déjà perdu une fois (`tests_codegen_lot`).
+> ⏳ **RESTE de P2 — le FRONT, et il est GELÉ.** Ce n'est pas « deux écritures » comme écrit ici le
+> matin même : la mesure en compte **huit surfaces**, et le précédent `AWAITING_RESOURCES` (02/09)
+> les a toutes payées — classe de racine des 11 gabarits de card, `_card_state.html`,
+> `_card_progress.html`, les deux maps de `wama-app-base.js`, trois règles de `app_modern.css`, une
+> de `wama-inspector.css`, le compteur de lot, le filtre de file et son option de barre, plus la
+> resynchro de `staticfiles/`. **La décision ouverte n°4 le gèle** : elle nomme littéralement
+> « l'affichage de `STALE` sur la card et le bouton de cycle », et il y faut une **COULEUR** —
+> `AWAITING_RESOURCES` avait eu la sienne par décision de Fabien (`#fd7e14`, 01/09). Puis la brique
+> d'agrégation, seconde moitié de la même décision.
 >
 > ⚠ Renommés au passage, deux relevés de Fabien le même jour : `JOB_STATUS_EN_ATTENTE`/`_FINAUX`
 > (français) → `JOB_STATUS_NOT_STARTED`/`JOB_STATUS_TERMINAL`. Et **pas** `WAITING` : un ensemble
 > nommé ainsi CONTIENDRAIT `AWAITING_RESOURCES` — deux noms de la même racine pour deux choses
-> différentes. **Reste de P2** : l'alignement effectif du studio, de son JS et du Lab, puis la
-> brique d'agrégation (décision ouverte n°4).
+> différentes.
 
 **4.3 `STALE` — ce que c'est exactement** (repris de cam_analyzer, décision du 07/05,
 `ROADMAP §9.2.bis` ; code `pass_tracking.py:250-302`).

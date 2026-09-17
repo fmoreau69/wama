@@ -12,7 +12,10 @@ fait : c'est ce que P2 ferme, et P3 (le moteur commun) en dépend.
   • il n'est NI « en attente » NI « final » : il a produit un résultat, mais il appelle une
     relance. Le compter comme terminé dirait « tout est à jour », ce qui est faux.
 """
-from django.test import SimpleTestCase
+import ast
+from unittest import mock
+
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_PENDING,
                                 JOB_RUNNING, JOB_STALE, JOB_STATUS_CHOICES,
@@ -128,3 +131,135 @@ class AlignementDuMondeLabTest(SimpleTestCase):
                           f'{etat_lab} (Lab) sans correspondant au vocabulaire commun')
         self.assertEqual(len(AnalysisPass.Status.choices), 5,
                          "le Lab a gagné un état : l'alignement est à refaire")
+
+
+def _generated_status_choices(src: str):
+    """La valeur ÉVALUÉE des états du modèle généré — pas une sous-chaîne.
+
+    (Idiome du dépôt, cf. `tests_codegen_lot._types_entree` : chercher le texte attesterait
+    de la mise en forme du gabarit, pas de ce que l'app naissante déclarera.)
+
+    ⚠ `models_gen` assemble par DEUX chemins, et ils n'écrivent pas la même forme : la
+    fabrique à partir d'un modèle existant rend `choices=[…]` en ligne, celle qui part du
+    manifeste seul rend une constante `STATUS_CHOICES` relue par le champ. Une garde qui n'en
+    lit qu'une atteste d'un seul chemin — c'est le défaut que `tests_codegen_lot` documente
+    (`WAMA_INGEST` perdu par un seul des deux rendus). On lit donc les deux.
+    """
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Assign) and node.targets
+                and getattr(node.targets[0], 'id', '') == 'STATUS_CHOICES'):
+            return ast.literal_eval(node.value)
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Assign) and node.targets
+                and getattr(node.targets[0], 'id', '') == 'status'
+                and isinstance(node.value, ast.Call)):
+            for kw in node.value.keywords:
+                if kw.arg == 'choices':
+                    try:
+                        return ast.literal_eval(kw.value)
+                    except ValueError:      # `choices=STATUS_CHOICES` — déjà traité plus haut
+                        return None
+    return None
+
+
+class UneAppGENEREEParleLeVocabulaireCommunTest(SimpleTestCase):
+    """La génération portait une HUITIÈME écriture des libellés d'état (`models_gen.py:27`).
+
+    Mesuré le 2026-09-17 : cette table n'avait que QUATRE états — une app neuve naissait donc
+    incapable d'afficher `AWAITING_RESOURCES`, l'état que pose le gouverneur de ressources — et
+    libellait `FAILURE` « Erreur » quand les 13 files du monde Médias affichent « Échec ».
+    """
+
+    def test_les_libelles_de_la_generation_VIENNENT_du_vocabulaire_commun(self):
+        from wama.common.manifests.codegen.models_gen import _status_labels
+        from wama.common.models import JOB_STATUS_CHOICES
+        self.assertEqual(_status_labels(), dict(JOB_STATUS_CHOICES),
+                         "la génération réécrit ses propres libellés d'état")
+
+    def test_les_DEUX_chemins_de_generation_rendent_les_CINQ_etats_de_file(self):
+        """Le juge est la sortie RENDUE : c'est elle qui devient le `models.py` de l'app.
+
+        `render_models` dispatche sur la présence d'un modèle EXISTANT : une app déjà là est
+        rendue par INTROSPECTION (`choices=[…]` recopiés en ligne), une app créée DE ZÉRO par
+        le squelette A5 (constante `STATUS_CHOICES`, seul chemin qui lise les libellés de la
+        génération). Les deux doivent rendre le MÊME vocabulaire — sinon régénérer une app et
+        en créer une neuve ne donnent pas la même app. C'est le piège que `tests_codegen_lot`
+        a déjà payé une fois sur `WAMA_INGEST`, perdu par un seul des deux rendus.
+        """
+        import copy
+
+        from wama.common.manifests.codegen.models_gen import render_models
+        from wama.common.manifests.ingest import extract
+        from wama.common.models import JOB_AWAITING_RESOURCES, JOB_STATUS_CHOICES
+        manifest = extract('app', 'converter')
+        if not manifest:
+            self.skipTest('manifeste de converter inextricable')
+        from_scratch = copy.deepcopy(manifest)
+        from_scratch.get('body', {}).pop('data', None)   # force le squelette « création de zéro »
+        for path, payload in (('introspecté', manifest), ('squelette A5', from_scratch)):
+            with self.subTest(chemin=path):
+                src, reason = render_models(payload)
+                if not src:
+                    self.skipTest(f'models non générés ({path}) : {reason}')
+                choices = _generated_status_choices(src)
+                self.assertIsNotNone(choices, f'{path} : aucun état déclaré dans le modèle rendu')
+                self.assertEqual(choices, list(JOB_STATUS_CHOICES), path)
+                self.assertIn(JOB_AWAITING_RESOURCES, [v for v, _ in choices],
+                              f"{path} : l'app ne saurait pas afficher l'état du gouverneur")
+                self.assertEqual(dict(choices)['FAILURE'], 'Échec',
+                                 f'{path} : libellé divergent de celui des files (« Erreur »)')
+
+
+class LExecuteurDuStudioParleLeVocabulaireCommunTest(TestCase):
+    """L'exécuteur écrivait ses états en littéraux et COMPARAIT des chaînes brutes (§10.6 4.2).
+
+    ⚠ La garde qui compte est la seconde : elle tient un défaut qui ne se voit PAS à
+    l'exécution locale. Les runners du studio rendent aujourd'hui le vocabulaire commun, donc
+    tout passe ; une app qui répondrait `DONE` ou `ERROR` — deux valeurs que la table d'alias
+    connaît et que trois apps historiques emploient — ne satisfaisait aucune des deux
+    comparaisons, et la boucle tournait jusqu'au délai de 30 MINUTES avant de lever « délai
+    dépassé ». Un symptôme qui accuse la lenteur du modèle, jamais la lecture de l'état.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        self.user = get_user_model().objects.create_user('studio_etats', password='x')
+
+    def test_l_executeur_n_ecrit_plus_aucun_etat_en_LITTERAL(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        src = (Path(settings.BASE_DIR) / 'wama/studio/tasks.py').read_text(encoding='utf-8')
+        for literal in ("status='RUNNING'", "status='SUCCESS'", "status='FAILURE'",
+                        "run.status = 'RUNNING'", "run.status = 'SUCCESS'"):
+            self.assertNotIn(literal, src,
+                             f"{literal} réintroduit : l'exécuteur se remet à écrire un "
+                             f"vocabulaire à lui")
+
+    def test_un_runner_qui_repond_DONE_termine_le_noeud_au_lieu_d_attendre_le_delai(self):
+        from wama.common.models import JOB_SUCCESS
+        from wama.studio.models import StudioRun
+        from wama.studio.tasks import run_pipeline_task
+
+        fake_runner = {
+            'create': lambda user, inputs, params: 4242,
+            'start': lambda user, item_id: None,
+            # `DONE` : le vocabulaire d'une app historique, connu de la table d'alias.
+            'poll': lambda user, item_id: {'status': 'DONE', 'progress': 100,
+                                           'output': 'studio/output.txt'},
+            'output_type': 'document',
+        }
+        run = StudioRun.objects.create(
+            user=self.user,
+            graph={'nodes': [{'id': 'n1', 'app': 'converter'}], 'links': []})
+        # ⚠ Délai de nœud à ZÉRO : sans lui, une régression ne se manifesterait qu'au bout de
+        # 30 min. Avec lui, elle échoue en une seconde — et sur le bon message.
+        with mock.patch('wama.studio.services.runners.runner_for', return_value=fake_runner), \
+                mock.patch('wama.studio.tasks.POLL_INTERVAL_S', 0), \
+                mock.patch('wama.studio.tasks.NODE_TIMEOUT_S', 0):
+            run_pipeline_task(run.pk)
+        run.refresh_from_db()
+        self.assertEqual(run.status, JOB_SUCCESS, run.error_message)
+        self.assertEqual(run.node_states['n1']['status'], JOB_SUCCESS)
+        self.assertEqual(run.node_states['n1']['output'], 'studio/output.txt')

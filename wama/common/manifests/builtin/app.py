@@ -57,7 +57,20 @@ APP_FACETS = ('identity', 'ports', 'capabilities', 'modes', 'params', 'data', 'i
 # (codegen/urls_gen.app_routes) — la vraie convention mesurée vit dans ROUTE_TABLE.
 STANDARD_ENDPOINTS = ['index', 'upload', 'start', 'status', 'download', 'delete', 'duplicate',
                       'update', 'start_all', 'clear_all', 'download_all', 'global_progress']
-STATUS_VOCAB = ['PENDING', 'RUNNING', 'SUCCESS', 'FAILURE']
+
+
+def _status_vocab() -> list:
+    """Le vocabulaire d'états canonique d'un manifeste d'app — il VIENT du commun.
+
+    ⚠ C'était une liste écrite ICI, figée à QUATRE états (avant `AWAITING_RESOURCES`,
+    2026-09-02, et jamais suivie). Elle tenait DEUX rôles à la fois : ce que `_processing`
+    DÉCLARE dans chaque manifeste, et ce que le validateur ci-dessous ACCEPTE — si bien qu'un
+    manifeste énonçant l'état du gouverneur de ressources aurait été rejeté « hors vocabulaire
+    canonique », et qu'une app régénérée déclarait moins d'états que son modèle réel.
+    Import paresseux : ce module est chargé tôt et ne doit pas dépendre du cycle des apps.
+    """
+    from wama.common.models import job_status_values
+    return job_status_values()
 
 
 # ── Validation du body ──────────────────────────────────────────────────────────
@@ -99,8 +112,9 @@ def validate_app_body(body: dict) -> list[str]:
     proc = body.get('processing') or {}
     if proc and isinstance(proc, dict):
         st = proc.get('statuses')
-        if st and any(s not in STATUS_VOCAB for s in st):
-            errs.append(f"processing.statuses hors vocabulaire canonique {STATUS_VOCAB} : {st}")
+        vocab = _status_vocab()
+        if st and any(s not in vocab for s in st):
+            errs.append(f"processing.statuses hors vocabulaire canonique {vocab} : {st}")
         # extra_routes (A1) : le corpus est du matériel d'apprentissage LLM — une entrée
         # malformée doit être rejetée à l'ingest, pas découverte au write-back. `view: None`
         # est LÉGAL (route déclarée non-régénérable : elle empoisonne la couverture).
@@ -460,7 +474,7 @@ def _models(app_id):
 def _processing(cat: dict, app_id: str) -> dict:
     conv = _to_dict(cat.get('conventions')) if cat.get('conventions') is not None else {}
     out = {
-        'statuses': STATUS_VOCAB if conv.get('status_vocab') else None,
+        'statuses': _status_vocab() if conv.get('status_vocab') else None,
         'processing_time': bool(conv.get('processing_time')),
         'anti_race': conv.get('anti_race'),
         'ingest': _ingest(app_id),         # F5/trou #14 : projette vers WAMA_INGEST (source_ingest.py)

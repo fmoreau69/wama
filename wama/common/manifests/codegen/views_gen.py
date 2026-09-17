@@ -51,6 +51,8 @@ def _donnees(manifest: dict) -> dict:
     if item not in data_models:
         return {'_raison': f'facette data sans le modèle {item}'}
 
+    from wama.common.models import job_status_values
+
     d = {
         'app_id': manifest.get('key'),
         'item': item,
@@ -59,7 +61,8 @@ def _donnees(manifest: dict) -> dict:
         'extras': [str(e.get('view', '')).split('.')[-1]
                    for e in (proc.get('extra_routes') or []) if e.get('view')],
         'tasks': [t.get('function') for t in (proc.get('tasks') or []) if t.get('function')],
-        'statuses': list(proc.get('statuses') or ['PENDING', 'RUNNING', 'SUCCESS', 'FAILURE']),
+        # Repli : le vocabulaire COMMUN (cette ligne en portait une copie figée à 4 états).
+        'statuses': list(proc.get('statuses') or job_status_values()),
         'params_fields': list(spec.get('params_fields') or []),
     }
 

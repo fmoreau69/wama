@@ -101,6 +101,24 @@ JOB_STALE = 'STALE'
 PROCESS_STATUS_CHOICES = JOB_STATUS_CHOICES + [(JOB_STALE, 'Périmé')]
 
 
+def job_status_values() -> list:
+    """Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
+
+    Pour les couches qui manipulent des états SANS leurs libellés — au premier rang la chaîne
+    de GÉNÉRATION, qui en portait deux copies à elle (ex-`STATUS_VOCAB`, retirée de
+    `manifests/builtin/app.py` le 2026-09-17 au profit de cet accesseur — elle servait AUSSI
+    qui sert AUSSI de vocabulaire au validateur de manifeste, et le repli de
+    `codegen/views_gen.py`). Mesuré le 2026-09-17 : toutes deux figées à QUATRE états, écrites
+    avant l'arrivée d'`AWAITING_RESOURCES` (2026-09-02) et jamais suivies — si bien qu'une app
+    RÉGÉNÉRÉE déclarait moins d'états que son propre modèle réel, et qu'un manifeste énonçant
+    la vérité aurait été rejeté « hors vocabulaire canonique ».
+
+    Un accesseur plutôt qu'une constante : ces modules sont volontairement légers (`pathlib`
+    seul pour la codegen) et ne doivent pas dépendre du cycle de chargement des apps Django.
+    """
+    return [v for v, _ in JOB_STATUS_CHOICES]
+
+
 # ── LA TABLE D'ALIAS, AU DOMICILE DU VOCABULAIRE (2026-09-17, suite de P2) ────────────────────
 #
 # ⚠ ELLE N'EST PAS NEUVE : le dépôt en portait DÉJÀ TROIS, et elles DIVERGEAIENT (c'est la dette

@@ -24,8 +24,20 @@ from __future__ import annotations
 from pathlib import Path
 
 # Libellés canoniques du vocabulaire de statuts (contrat F5) — une app neuve part de là.
-_STATUS_LABELS = {'PENDING': 'En attente', 'RUNNING': 'En cours',
-                  'SUCCESS': 'Terminé', 'FAILURE': 'Erreur'}
+# ⚠ Ils ne s'écrivent plus ICI : ils VIENNENT du vocabulaire commun (`common/models.py`),
+# sinon chaque app générée naît avec un vocabulaire à elle. Mesuré le 2026-09-17 (marche P2,
+# `ROUTE §10.6 4.2`) : cette table portait QUATRE états et ignorait `AWAITING_RESOURCES` — une
+# app neuve ne pouvait donc pas afficher l'état que pose le gouverneur de ressources — et
+# libellait `FAILURE` « Erreur » quand les 13 files du monde Médias affichent « Échec ».
+# Import PARESSEUX : ce module est volontairement léger (`pathlib` seul) et la génération
+# ne doit pas dépendre du cycle de chargement des apps Django.
+
+
+def _status_labels() -> dict:
+    from wama.common.models import JOB_STATUS_CHOICES
+    return dict(JOB_STATUS_CHOICES)
+
+
 # Champs posés par le spine : une entrée params homonyme serait un doublon, jamais rendue.
 _SPINE_FIELDS = {'user', 'created_at', 'task_id', 'status', 'progress', 'error_message'}
 
@@ -177,7 +189,8 @@ def render_models(manifest: dict) -> tuple:
     input_field = item.get('input_field') or ingest.get('target') or 'input_file'
     name_field = ingest.get('name_field')
     source_field = ingest.get('source')
-    statuses = proc.get('statuses') or list(_STATUS_LABELS)
+    status_labels = _status_labels()
+    statuses = proc.get('statuses') or list(status_labels)
     ordering = item.get('ordering') or ['-created_at']
     nom_item = item['name']
 
@@ -225,7 +238,7 @@ def render_models(manifest: dict) -> tuple:
     l += ['    # État de traitement (spine F5)',
           "    task_id = models.CharField(max_length=255, blank=True, default='')",
           '    STATUS_CHOICES = [']
-    l += [f"        ('{s}', '{_STATUS_LABELS.get(s, s.title())}')," for s in statuses]
+    l += [f"        ('{s}', '{status_labels.get(s, s.title())}')," for s in statuses]
     l += ["    ]",
           "    status = models.CharField(max_length=16, choices=STATUS_CHOICES, "
           "default='PENDING')",
