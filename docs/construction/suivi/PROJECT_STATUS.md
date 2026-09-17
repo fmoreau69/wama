@@ -14567,7 +14567,9 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    périmé sans rien écraser, mais **la fusion correction ↔ nouvelle génération reste un chantier propre au
    transcriber** — consigné dans `TRANSCRIBER_CORRECTION.md §4` et `§10.6` point 4.3.
 8. ✅ **ACTÉ (Fabien, 17/09) — PARTAGE UNIFIÉ pour tout élément partageable de WAMA.** Domicile :
-   **`PROFILES_PERMISSIONS.md §7.7`**. On garde les branches `private`/`unit`/`project`/`public` (seul cumul :
+   **`WAMA_COLLABORATION.md`** (créé le même jour ; ex-`PROFILES_PERMISSIONS §7.7`, déplacé avec les ex-§2 et
+   ex-§7 — décision de Fabien : partage, notifications et travail à plusieurs forment un domaine à part, sous le
+   principe « une finesse élevée, un usage simple »). On garde les branches `private`/`unit`/`project`/`public` (seul cumul :
    l'arbre `OrgUnit` ascendant) ; une brique, deux chemins (`visible_to` / `owned_by`), un geste commun, un
    vocabulaire ; on porte l'existant sans câbler l'immature — **les sessions Lab attendent** (cible : card
    portant un pipeline, UI par « Éditer ») ; seul le propriétaire partage ; **le destinataire est prévenu** ;

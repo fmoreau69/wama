@@ -410,7 +410,8 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | Monde Data (périmètre, cartographie de corpus) | `docs/construction/mondes/WAMA_DATA_WORLD.md` + `docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md` (catalogue) |
 | Vision produit d'ensemble | `docs/construction/mondes/WAMA_VISION_COMPLET.md` — document UNIQUE depuis le 2026-08-27 (remplace Vision_Complet v1/v2, VISION_CRITIQUE et VISION_STATUS, archivés `docs/construction/archive/`) ; la confrontation au réel vit DANS le doc (marquage ✅/🔄/⏳ daté par section) |
 | Prospection & veille de modèles | `wama/model_manager/PROSPECTION_PIPELINE.md` |
-| Profils, permissions, notifications, rétention | `docs/construction/exploitation/PROFILES_PERMISSIONS.md` |
+| Profils, permissions d'accès aux apps, rétention | `docs/construction/exploitation/PROFILES_PERMISSIONS.md` |
+| **Collaboration** — partage de TOUT élément, notifications, suivi des modifications de chacun, versions et variantes | **`docs/construction/exploitation/WAMA_COLLABORATION.md`** — créé le 2026-09-17 (décision de Fabien) ; les ex-§2 (notifications) et ex-§7 (partage d'objets) de `PROFILES_PERMISSIONS` y ont été DÉPLACÉS mot pour mot (correspondance au §10) ; principe directeur : une finesse élevée, un usage simple |
 | Infra WSL2 ↔ Windows | `docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` |
 | Appariement entrée ↔ modèle | `docs/construction/ui/INPUT_MODEL_MATCHING.md` |
 | **Médias : stockage, tiering, ce que `media/` contient, intégrité, et VOIES D'IMPORT** (matrice voie × app, copie vs pointeur, dédup) | `docs/construction/exploitation/MEDIA_STORAGE_TIERING.md` — §8 depuis le 2026-09-05 (le titre du fichier est historique ; le domaine s'est élargi au cycle de vie des fichiers d'entrée). `docs/construction/ui/BATCH_FORMAT.md` = le FORMAT de lot seul ; `WAMA_VERIFICATION §3` = les GESTES exécutables |
