@@ -42,11 +42,36 @@ def _lire(chemin: str) -> str:
 
 class CardsStatutAwaitingTest(SimpleTestCase):
 
-    def test_chaque_gabarit_de_card_pose_la_classe_awaiting(self):
+    def test_chaque_gabarit_de_card_porte_data_status(self):
+        """Le CONTRAT est l'ATTRIBUT, plus la classe (bascule du 2026-09-18).
+
+        Les 11 gabarits recopiaient une chaîne `{% if elem.status == … %}` pour poser une classe
+        d'état — sur la balise même qui portait déjà `data-status`. Le CSS lit désormais
+        l'attribut : la classe n'apportait aucune information, et elle coûtait 11 copies, celle
+        du générateur, et 4 sites JS. Ce qui doit être tenu, c'est l'attribut : sans lui la card
+        n'a plus AUCUNE couleur d'état.
+        """
         for chemin in GABARITS_DE_CARD:
-            self.assertIn("AWAITING_RESOURCES' %}awaiting", _lire(chemin),
-                          f"{chemin} : la racine de card ne pose pas la classe `awaiting` "
-                          f"pour AWAITING_RESOURCES — la card resterait sans couleur d'état")
+            self.assertIn('data-status="{{ elem.status }}"', _lire(chemin),
+                          f"{chemin} : la racine de card ne porte pas `data-status`")
+
+    def test_aucune_chaine_de_classe_d_etat_nulle_part_LE_GENERATEUR_COMPRIS(self):
+        """⚠ Cette garde couvre le GÉNÉRATEUR, et c'est tout son intérêt.
+
+        Celle d'avant lisait une liste FIGÉE de 11 chemins : `templates_gen.py` lui échappait et
+        continuait d'émettre une chaîne à TROIS états (ni `AWAITING_RESOURCES`, ni `STALE`) plus
+        une table de libellés en dur dont le repli affichait la valeur BRUTE à l'écran. Corriger
+        onze gabarits pendant que la machine en fabrique de faux n'est pas une correction.
+        """
+        surveilles = GABARITS_DE_CARD + ['wama/common/manifests/codegen/templates_gen.py']
+        for chemin in surveilles:
+            src = _lire(chemin)
+            self.assertNotIn('%}processing', src,
+                             f"{chemin} : chaîne de CLASSE d'état réintroduite — le CSS lit "
+                             f"`data-status`, cette classe serait une copie de plus")
+            self.assertNotIn("'PENDING' %}En attente", src,
+                             f"{chemin} : table de LIBELLÉS en dur réintroduite — le libellé "
+                             f"vient de `get_status_display` (les choices du modèle)")
 
     def test_plus_aucune_chaine_de_libelles_de_statut_en_dur_dans_les_cards(self):
         """Le libellé vient de `get_status_display` (choices communs) : une chaîne
@@ -73,7 +98,8 @@ class CardsStatutAwaitingTest(SimpleTestCase):
         self.assertIn("AWAITING_RESOURCES: 'bg-awaiting'", js)
         self.assertIn("AWAITING_RESOURCES: 'En attente de ressources'", js)
         moderne = _lire('wama/common/static/common/css/app_modern.css')
-        for classe in ('.wama-card.awaiting', '.bg-awaiting', '.text-awaiting'):
+        for classe in ('.wama-card[data-status="AWAITING_RESOURCES"]', '.bg-awaiting',
+                       '.text-awaiting'):
             self.assertIn(classe, moderne)
         self.assertIn('[data-s="AWAITING_RESOURCES"]',
                       _lire('wama/common/static/common/css/wama-inspector.css'))
@@ -128,11 +154,12 @@ class CardsStatutStaleTest(SimpleTestCase):
     téléchargeable) — d'où une couleur propre, #9b59b6.
     """
 
-    def test_chaque_gabarit_de_card_pose_la_classe_stale(self):
-        for chemin in GABARITS_DE_CARD:
-            self.assertIn("'STALE' %}stale", _lire(chemin),
-                          f"{chemin} : la racine de card ne pose pas la classe `stale` — "
-                          f"une card périmée resterait sans couleur d'état")
+    def test_la_couleur_du_perime_se_lit_sur_data_status(self):
+        """Depuis la bascule du 2026-09-18 la couleur ne dépend plus d'une classe recopiée par
+        onze gabarits : le CSS lit l'attribut que la card porte déjà."""
+        moderne = _lire('wama/common/static/common/css/app_modern.css')
+        self.assertIn('.wama-card[data-status="STALE"]', moderne)
+        self.assertIn('#9b59b6', moderne)
 
     def test_les_partials_communs_connaissent_l_etat_perime(self):
         etat = _lire('wama/common/templates/common/_card_state.html')
@@ -145,7 +172,7 @@ class CardsStatutStaleTest(SimpleTestCase):
         self.assertIn("STALE: 'bg-stale'", js)
         self.assertIn("STALE: 'Périmé'", js)
         moderne = _lire('wama/common/static/common/css/app_modern.css')
-        for classe in ('.wama-card.stale', '.bg-stale', '.text-stale'):
+        for classe in ('.wama-card[data-status="STALE"]', '.bg-stale', '.text-stale'):
             self.assertIn(classe, moderne)
         self.assertIn('[data-s="STALE"]',
                       _lire('wama/common/static/common/css/wama-inspector.css'))

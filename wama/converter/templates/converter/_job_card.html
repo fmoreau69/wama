@@ -28,7 +28,7 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
   .progress-text (:370), .btn-group-actions (clonage inspecteur), .settings-btn[data-id],
   .job-delete-btn, .duplicate-btn[data-duplicate-url], .preview-media-link.
 {% endcomment %}
-<div class="job-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% elif elem.status == 'STALE' %}stale{% endif %}"
+<div class="job-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-job-id="{{ elem.id }}" data-id="{{ elem.id }}" data-status="{{ elem.status }}"
      data-preview-url="{% url 'common:unified_preview' 'converter' elem.id %}">
 <div class="card-body py-2">

@@ -171,9 +171,9 @@ tr[data-status="FAILURE"] .status {
     }
 }
 
-.processing {
-    animation: pulse 2s ease-in-out infinite;
-}
+/* La règle `.processing` qui vivait ici est RETIRÉE (2026-09-18) : plus aucun gabarit ni aucun
+   JS ne pose cette classe — la card en traitement se reconnaît à `data-status="RUNNING"`, et sa
+   pulsation vient du commun (`app_modern.css`). Elle doublait déjà la règle commune. */
 
 /* Responsive */
 @media (max-width: 768px) {

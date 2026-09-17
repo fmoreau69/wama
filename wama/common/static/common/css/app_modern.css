@@ -418,24 +418,14 @@ textarea {
    `border-secondary` (Bootstrap), dont la couleur est `!important` — sans lui, le bord
    d'état restait GRIS (4px gris mesuré au getComputedStyle : la largeur passait, la
    couleur jamais). Les règles legacy sans !important ne gagnaient donc JAMAIS sur ces
-   cards. Composer garde en plus son bord COMPLET animé (identité d'app, index.css). */
-.wama-card.processing {
-    border-left: 4px solid #ffc107 !important;
-}
-
-.wama-card.success {
-    border-left: 4px solid #28a745 !important;
-}
-
-.wama-card.error {
-    border-left: 4px solid #dc3545 !important;
-}
+   cards. Composer garde en plus son bord COMPLET animé (identité d'app, index.css).
+   ⚠ Les règles elles-mêmes vivent PLUS BAS, sur `[data-status]` (voir « BASCULE ») : les classes
+   `.wama-card.processing/.success/.error/.awaiting/.stale` ont été retirées le 2026-09-18, plus
+   aucun gabarit ni aucun JS ne les pose. */
 
 /* AWAITING_RESOURCES (2026-09-02, décision Fabien 01/09) : card ORANGE — l'item attend
-   que des ressources se libèrent. #fd7e14 (orange plein), distinct de l'ambre RUNNING. */
-.wama-card.awaiting {
-    border-left: 4px solid #fd7e14 !important;
-}
+   que des ressources se libèrent. #fd7e14 (orange plein), distinct de l'ambre RUNNING.
+   (Le bord de card est plus bas, sur `[data-status="AWAITING_RESOURCES"]`.) */
 
 /* Badge du même état (partial _card_progress + STATUS_BADGE de wama-app-base.js). */
 .bg-awaiting {
@@ -452,10 +442,8 @@ textarea {
    process a RÉUSSI, mais une de ses conditions a changé : le résultat reste lisible et
    téléchargeable, et pourtant il appelle une relance. Ce n'est donc ni le vert du terminé ni le
    rouge de l'échec — d'où une 5ᵉ couleur franche, #9b59b6, distincte de l'orange #fd7e14 de
-   l'attente de ressources comme de l'ambre du traitement. */
-.wama-card.stale {
-    border-left: 4px solid #9b59b6 !important;
-}
+   l'attente de ressources comme de l'ambre du traitement.
+   (Le bord de card est plus bas, sur `[data-status="STALE"]`.) */
 
 /* Badge du même état (partial _card_progress + STATUS_BADGE de wama-app-base.js). */
 .bg-stale {
@@ -466,6 +454,38 @@ textarea {
 /* Texte du même état (partial _card_state). */
 .text-stale {
     color: #9b59b6;
+}
+
+/* ── BASCULE VERS `data-status` (2026-09-17) — transition, les deux jeux COEXISTENT ──────────
+   Chaque card porte DÉJÀ `data-status="{{ elem.status }}"` sur la racine même qui reçoit la
+   classe d'état : celle-ci n'apporte donc aucune information. Les 11 gabarits, le générateur et
+   4 sites JS recopient pourtant la même chaîne `{% if status == … %}` — c'est la duplication
+   que cette bascule ferme, et c'est le générateur qui la FABRIQUAIT (il ne connaissait même pas
+   `AWAITING_RESOURCES`).
+   ⚠ Ces règles sont ajoutées À CÔTÉ des règles de classe ci-dessus, pas à leur place : mêmes
+   déclarations, donc aucun changement visuel possible tant que les deux existent. Les classes
+   se retirent ENSUITE, gabarit par gabarit, sans fenêtre où la couleur disparaîtrait.
+   ⚠ `!important` conservé pour la même raison mesurée qu'au-dessus (`border-secondary` de
+   Bootstrap est lui-même `!important` : sans lui le bord d'état reste GRIS). */
+.wama-card[data-status="RUNNING"] {
+    border-left: 4px solid #ffc107 !important;
+    animation: pulse 2s ease-in-out infinite;   /* reprend la règle NUE `.processing` (l. 715) */
+}
+
+.wama-card[data-status="SUCCESS"] {
+    border-left: 4px solid #28a745 !important;
+}
+
+.wama-card[data-status="FAILURE"] {
+    border-left: 4px solid #dc3545 !important;
+}
+
+.wama-card[data-status="AWAITING_RESOURCES"] {
+    border-left: 4px solid #fd7e14 !important;
+}
+
+.wama-card[data-status="STALE"] {
+    border-left: 4px solid #9b59b6 !important;
 }
 
 /*  === TABLES === */

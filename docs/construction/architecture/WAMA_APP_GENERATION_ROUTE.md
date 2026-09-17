@@ -2677,6 +2677,33 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > l'attente de ressources et celle du périmé —, la seconde se lisant comme la liste de contrôle du
 > prochain état. Dont une **contre-épreuve** : un `SUCCESS` doit continuer de dire « Relancer »,
 > sans quoi un libellé changé partout passerait le test en cassant le sens.
+> ✅ **P2, 5ᵉ pièce LIVRÉE le 2026-09-18 — la PRÉSENTATION d'un état dérive au lieu d'être
+> recopiée** (question de Fabien : « on ne peut pas refactoriser ça pour éviter les duplications
+> d'écriture ? À minima, dériver plutôt que réécrire »).
+> ⚠⚠ **Le générateur FABRIQUAIT la duplication, et en version périmée** — c'est le trou, pas la
+> propreté : `templates_gen.py` émettait la chaîne de classe d'état **à trois états** (ni
+> `AWAITING_RESOURCES` ni `STALE`) et **sa propre table de libellés** dont le repli affichait la
+> valeur BRUTE. Toute app générée naissait donc aveugle à l'état du gouverneur. Le test qui
+> interdit les libellés en dur ne l'attrapait pas : il lisait une **liste figée de 11 chemins**.
+> ⭐ **Ce que la mesure a renversé** : la classe d'état était **redondante**, pas dupliquée — les
+> 11 cards portent `data-status` sur la balise MÊME qui recevait la classe. Il ne fallait donc
+> pas « dériver » cette chaîne mais la **supprimer**. Retirés : 11 chaînes de gabarit, celle du
+> générateur, 4 sites JS (composer, transcriber ×2, describer) et 9 règles CSS de classe
+> réparties sur 3 feuilles ; le CSS lit `[data-status]`. Le libellé vient de
+> `get_status_display`. ⚠ Ordre tenu pour ne rien éteindre : règles d'attribut ajoutées **à
+> côté** des règles de classe d'abord (déclarations identiques, donc aucune fenêtre sans
+> couleur), retraits ensuite, anciennes règles en dernier.
+> ⚠ Deux pièges trouvés en chemin, qui auraient cassé en silence : le **bord animé du composer**
+> (identité d'app, `index.css`) et deux règles `.processing` **nues** portant la pulsation —
+> migrées, pas supprimées. Et `transcriber/index.js` écrivait « RUNNING » en dur dans un badge :
+> il lit désormais les maps communes.
+> **Attestation** : gardes de source retournées (le contrat est l'ATTRIBUT) et étendues **au
+> générateur** ; plus un **geste nocturne** (`common.card_state_color`, `ui_smoke_states.py`) qui
+> mesure au `getComputedStyle`, dans un vrai navigateur, les 5 couleurs sur une card semée, leur
+> **distinction**, et — contre-épreuve — que l'ancienne classe ne colore PLUS. Vert : 8/8.
+> *Aucun test Python ne voit une règle CSS qui ne gagne pas : c'est ainsi que le bord d'état
+> était resté GRIS jusqu'au 02/09.*
+>
 > ⏳ **RESTE de P2 — DEUX morceaux, tous deux suspendus à P3** (rectifié le 17/09 au soir : la
 > première rédaction disait « la brique d'agrégation seule », ce qui omettait le second) :
 > 1. la **brique d'agrégation** (« l'état d'une card se déduit de ses process », 4.4) — sa règle est

@@ -11,7 +11,7 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
   .preview-text-btn[data-id], .duplicate-btn[data-duplicate-url],
   .wama-progress-fill (:492), .progress-text (:493), .wama-eta (:499).
 {% endcomment %}
-<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% elif elem.status == 'STALE' %}stale{% endif %}"
+<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-id="{{ elem.id }}" data-status="{{ elem.status }}"
      data-preview-url="{% url 'common:unified_preview' 'synthesizer' elem.id %}">
 <div class="card-body py-2">

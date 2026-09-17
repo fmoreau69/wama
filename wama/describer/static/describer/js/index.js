@@ -497,17 +497,11 @@ document.addEventListener('DOMContentLoaded', function() {
                            }));
         }
 
-        // Update card class + statut (data-status pilote le bouton de cycle via WamaCycleButton.autoSync).
+        // `data-status` pilote TOUT : la couleur d'état (CSS sur l'attribut) et le bouton de
+        // cycle (WamaCycleButton.autoSync, qui passe en ⏹ Stop sans qu'on retire de bouton).
+        // Les classes processing/success/error posées ici recopiaient l'information — retirées
+        // le 2026-09-18.
         card.dataset.status = status;
-        card.classList.remove('processing', 'success', 'error');
-        switch (status) {
-            case 'RUNNING':
-                card.classList.add('processing');
-                // (le bouton de cycle passe en ⏹ Stop via autoSync ; on ne retire plus aucun bouton)
-                break;
-            case 'SUCCESS': card.classList.add('success'); break;
-            case 'FAILURE': card.classList.add('error'); break;
-        }
     }
 
     // Card RENDUE SERVEUR — source unique : partial _description_card.html via

@@ -15005,3 +15005,72 @@ octet pour octet ma source (md5 comparés sur les deux JS, HTTP 200).
    que rien ne peut atteindre aujourd'hui.
 
 **C'est donc P3 (le moteur commun) qui suit** : il débloque les deux.
+
+## SUITE 2026-09-18 — la PRÉSENTATION d'un état DÉRIVE, et le générateur cesse d'en fabriquer de fausses
+
+> Fabien : *« Pourquoi 8 écritures et 5 tables d'alias ? On ne peut pas refactoriser ça pour
+> éviter les duplications d'écriture ? À minima, dériver plutôt que réécrire. »* Puis : *« il faut
+> faire ça méticuleusement et en profondeur pour être sûr de ne rien casser »*, et *« on fait des
+> tests utilisateurs avec Playwright… c'est le seul moyen de s'assurer du comportement réel »*.
+
+**⑬ LE TROU : le générateur fabriquait la duplication, en version périmée.** `templates_gen.py`
+émettait la chaîne de classe d'état **à trois états** (ni `AWAITING_RESOURCES` ni `STALE`) **et sa
+propre table de libellés**, dont le repli affichait la **valeur brute** à l'écran. Toute app
+générée naissait aveugle à l'état du gouverneur. ⚠ Le test qui interdit les libellés en dur ne
+l'attrapait pas : il lisait une **liste figée de 11 chemins**. *Corriger onze gabarits pendant que
+la machine en fabrique de faux n'est pas une correction.*
+
+**⑭ Ce que la mesure a RENVERSÉ** : la classe d'état n'était pas dupliquée mais **redondante** —
+les 11 cards portent `data-status` sur la balise MÊME qui recevait la classe. Il ne fallait donc
+pas « dériver » cette chaîne mais la **supprimer**. Retirés : 11 chaînes de gabarit, celle du
+générateur, **4 sites JS** (composer, transcriber ×2, describer) et **9 règles CSS** de classe sur
+3 feuilles. Le CSS lit `[data-status]` ; le libellé vient de `get_status_display`.
+
+**⑮ L'ordre, et c'est lui qui garantit qu'on n'a rien éteint** : règles d'attribut ajoutées **à
+côté** des règles de classe (déclarations identiques → aucune fenêtre sans couleur) → retrait des
+chaînes → retrait des anciennes règles, avec resynchro `staticfiles/` à chaque étape.
+
+**⑯ Deux pièges qui auraient cassé EN SILENCE**, trouvés avant de toucher : le **bord animé du
+composer** (`index.css`) est son identité d'app — retirer la classe sans migrer ses 3 règles
+l'éteignait ; et deux règles `.processing` **nues** (commun + enhancer) portaient la **pulsation**
+de la card en cours. Migrées, pas supprimées. Au passage, `transcriber/index.js` écrivait
+« RUNNING » et `bg-warning` **en dur** dans un badge — valeur brute affichée, 3ᵉ redéclaration de
+la table de présentation ; il lit désormais les maps communes.
+
+**⑰ Les gardes** — les deux assertions périmées sont **retournées** (le contrat est l'ATTRIBUT, et
+la chaîne n'est **nulle part** — garde étendue **au générateur**), et surtout : **geste nocturne
+neuf** `common.card_state_color` (`services/ui_smoke_states.py`, module frère d'`ui_smoke_menus`,
+même convention, enregistré dans `register_examples`). Vrai Chromium, serveur vivant, card réelle
+**semée** par la voie de lot, les 5 couleurs mesurées au `getComputedStyle`, leur **distinction**,
+et en **contre-épreuve** que l'ancienne classe ne colore plus. **Joué : 8/8, 1 semé, 2 nettoyés.**
+⭐ *Aucun test Python ne voit une règle CSS qui ne gagne pas — c'est ainsi que le bord d'état était
+resté GRIS jusqu'au 02/09.*
+
+**⚠⚠ DOCTRINE CORRIGÉE — contre moi-même, au lendemain.** J'avais écrit le 17/09 qu'`esprima`
+atteste la validité d'un `.js`. Mesuré : il s'arrête à **ES2017** et échoue sur notre syntaxe
+réelle (chaînage optionnel, `composer/…/index.js:8`) — qui échoue **aussi sur HEAD**, contre-épreuve
+faite. *Un constat trop large est un constat faux : il aurait fait déclarer « cassé » un fichier
+sain.* **V8 (`py_mini_racer`) fait foi**, et `ctx.eval('(function(){…})')` parse **sans exécuter**,
+donc vaut même pour un module qui touche au DOM. Corrigé aux 3 sites.
+
+**⑱ LES ALIAS — réponse mesurée à « les 5 termes devraient être uniques ».** Sur les 18 modèles
+portant un `status`, quatre familles : **① un seul alias structurel** — `STARTED` vient de
+**Celery** (`task_progress.py:44`), vocabulaire qu'on ne possède pas (et notre table ignore ses
+`RETRY`/`REVOKED`) ; **② deux alias de DONNÉES** — `COMPLETED`/`FAILED`, vivants dans 4 modèles
+(cam_analyzer ×2, face_analyzer, `ModelSyncLog`) : une migration, pas une fatalité ; **③ deux
+alias MORTS** — `DONE`/`ERROR`, **zéro ligne en base**, les deux apps concernées ayant déjà migré
+(`converter/0005`, `reader/0008`) ; **④ un synonyme de façade** — `PROCESSING`, sans producteur
+Python. ⚠ Et un **4ᵉ dialecte** que personne n'avait compté : `ModelSyncLog` stocke
+`started`/`completed`/`failed` en minuscules. **Décision à prendre (Fabien)** : supprimer les deux
+morts + migrer les quatre modèles ne laisserait qu'**un** alias légitime, celui de Celery.
+
+**Contrôles** : 111 puis 83 tests OK (états, codegen, converter, reader, describer) ;
+`tests_nightly_modes` 8 OK ; `check_templates` 0/155 ; `check_docs` 0 cassée sur **2071** ;
+`check_skills` 0 défaut franc ; 5 fichiers statiques resynchronisés (blobs identiques) ; JS servis
+parsés sous V8 ; scénario navigateur **8/8**.
+
+⚠ **NON JOUÉ, DÉCLARÉ** : `app_regen_check` — le juge de la régénération — exige un arbre git
+**propre** et une branche ≠ `dev`, et fait un `git checkout` des fichiers touchés : inconcevable
+avec le WIP de trois autres instances. À passer **en worktree**. Conséquence assumée : la jumelle
+`converter_01` est désormais **en retard** sur le générateur (aucun test ne les compare, donc rien
+n'est rouge) — une régénération à faire, pas un oubli.
