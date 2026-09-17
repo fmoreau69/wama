@@ -512,7 +512,7 @@ textarea {
 }
 
 .table-dark tbody tr[data-status="FAILURE"],
-.table-dark tbody tr[data-status="ERROR"] {
+.table-dark tbody tr[data-status="failed"] {
     background-color: rgba(220, 53, 69, 0.1);
 }
 
@@ -541,8 +541,10 @@ tr[data-status="COMPLETED"] .status {
     color: #198754;
 }
 
+/* `ERROR` retiré le 2026-09-18 (aucune ligne en base) et remplacé par `failed`, la valeur que
+   les tables de ce thème affichent RÉELLEMENT (journal de synchronisation du model_manager). */
 tr[data-status="FAILURE"] .status,
-tr[data-status="ERROR"] .status {
+tr[data-status="failed"] .status {
     color: #dc3545;
 }
 

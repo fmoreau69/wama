@@ -78,13 +78,31 @@ class TableDAliasUNIQUETest(SimpleTestCase):
         for stocke, commun in attendu.items():
             self.assertEqual(normalize_job_status(stocke), commun, stocke)
 
-    def test_les_litteraux_du_studio_et_des_apps_historiques_se_traduisent(self):
+    def test_les_litteraux_du_studio_et_le_vocabulaire_de_CELERY_se_traduisent(self):
+        """⚠ `DONE`/`ERROR` ont quitté la table le 2026-09-18 : ils ne traduisaient plus RIEN.
+        Restent les littéraux du studio et ceux de **Celery** — le seul vocabulaire étranger que
+        WAMA ne possède pas, donc le seul alias qui restera toujours."""
         from wama.common.models import normalize_job_status
         for brut, commun in (('RUNNING', JOB_RUNNING), ('SUCCESS', JOB_SUCCESS),
-                             ('FAILURE', JOB_FAILURE), ('DONE', JOB_SUCCESS),
-                             ('ERROR', JOB_FAILURE), ('PROCESSING', JOB_RUNNING),
+                             ('FAILURE', JOB_FAILURE), ('PROCESSING', JOB_RUNNING),
                              ('STARTED', JOB_RUNNING)):
             self.assertEqual(normalize_job_status(brut), commun, brut)
+
+    def test_les_alias_MORTS_ne_reviennent_pas(self):
+        """`DONE`/`ERROR` retirés sur décision de Fabien (« ils dupliquent sans raison »), APRÈS
+        mesure : **zéro ligne** sur les 18 modèles portant un `status`, les deux apps concernées
+        ayant déjà migré (`converter/0005`, `reader/0008`).
+
+        ⚠ Le `filemanager` emploie ces deux mots pour SES opérations de fichiers
+        (`filemanager.js:480-489`) : c'est un homonyme, pas une raison de les remettre ICI. Un
+        alias qui ne traduit rien fait croire à une compatibilité qu'il n'y a plus à tenir.
+        """
+        from wama.common.models import JOB_STATUS_ALIASES, normalize_job_status
+        for mort in ('DONE', 'ERROR'):
+            self.assertNotIn(mort, JOB_STATUS_ALIASES, f'{mort} réintroduit au vocabulaire')
+        # Contre-épreuve : ils ne sont pas traduits en douce ailleurs — ils ressortent TELS QUELS.
+        self.assertEqual(normalize_job_status('DONE'), 'DONE')
+        self.assertEqual(normalize_job_status('ERROR'), 'ERROR')
 
     def test_une_valeur_INCONNUE_revient_telle_quelle_en_majuscules(self):
         """Non-régression : c'est le comportement des trois tables remplacées. Inventer un état
@@ -101,7 +119,7 @@ class TableDAliasUNIQUETest(SimpleTestCase):
         from types import SimpleNamespace
         from wama.common.utils.batch_common import normalized_statuses
         from wama.common.utils.detail_registry import normalize_status
-        for brut in ('completed', 'stale', 'DONE', 'PROCESSING', 'inconnu'):
+        for brut in ('completed', 'stale', 'COMPLETED', 'PROCESSING', 'inconnu'):
             self.assertEqual(normalize_status(brut),
                              normalized_statuses([SimpleNamespace(status=brut)])[0], brut)
 
@@ -216,8 +234,8 @@ class LExecuteurDuStudioParleLeVocabulaireCommunTest(TestCase):
 
     ⚠ La garde qui compte est la seconde : elle tient un défaut qui ne se voit PAS à
     l'exécution locale. Les runners du studio rendent aujourd'hui le vocabulaire commun, donc
-    tout passe ; une app qui répondrait `DONE` ou `ERROR` — deux valeurs que la table d'alias
-    connaît et que trois apps historiques emploient — ne satisfaisait aucune des deux
+    tout passe ; une app qui répondrait `completed` — le vocabulaire du monde LAB, vivant en base
+    (72 lignes) et connu de la table d'alias — ne satisfaisait aucune des deux
     comparaisons, et la boucle tournait jusqu'au délai de 30 MINUTES avant de lever « délai
     dépassé ». Un symptôme qui accuse la lenteur du modèle, jamais la lecture de l'état.
     """
@@ -237,7 +255,7 @@ class LExecuteurDuStudioParleLeVocabulaireCommunTest(TestCase):
                              f"{literal} réintroduit : l'exécuteur se remet à écrire un "
                              f"vocabulaire à lui")
 
-    def test_un_runner_qui_repond_DONE_termine_le_noeud_au_lieu_d_attendre_le_delai(self):
+    def test_un_runner_au_vocabulaire_ETRANGER_termine_le_noeud_au_lieu_d_attendre_le_delai(self):
         from wama.common.models import JOB_SUCCESS
         from wama.studio.models import StudioRun
         from wama.studio.tasks import run_pipeline_task
@@ -245,8 +263,11 @@ class LExecuteurDuStudioParleLeVocabulaireCommunTest(TestCase):
         fake_runner = {
             'create': lambda user, inputs, params: 4242,
             'start': lambda user, item_id: None,
-            # `DONE` : le vocabulaire d'une app historique, connu de la table d'alias.
-            'poll': lambda user, item_id: {'status': 'DONE', 'progress': 100,
+            # `completed` : le vocabulaire du monde LAB — VIVANT (72 lignes en base) et en
+            # minuscules, ce qui éprouve aussi l'insensibilité à la casse. ⚠ Ce test employait
+            # `DONE` jusqu'au 2026-09-18 ; cet alias ayant été retiré (il ne traduisait plus
+            # rien), le garder aurait VIDÉ la garde de son objet sans la faire échouer.
+            'poll': lambda user, item_id: {'status': 'completed', 'progress': 100,
                                            'output': 'studio/output.txt'},
             'output_type': 'document',
         }

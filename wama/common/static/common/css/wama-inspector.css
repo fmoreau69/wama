@@ -151,8 +151,10 @@
 .wama-status-dot[data-s="RUNNING"], .wama-status-dot[data-s="PROCESSING"] {
   background: #ffc107; animation: wamaDotPulse 1.2s ease-in-out infinite;
 }
-.wama-status-dot[data-s="SUCCESS"], .wama-status-dot[data-s="DONE"] { background: #198754; }
-.wama-status-dot[data-s="FAILURE"], .wama-status-dot[data-s="ERROR"] { background: #dc3545; }
+/* `DONE`/`ERROR` retirés le 2026-09-18 (aucune ligne en base) ; `COMPLETED`/`FAILED` — le
+   vocabulaire VIVANT du Lab — n'avaient jamais été déclarés ici : ils le sont désormais. */
+.wama-status-dot[data-s="SUCCESS"], .wama-status-dot[data-s="COMPLETED"] { background: #198754; }
+.wama-status-dot[data-s="FAILURE"], .wama-status-dot[data-s="FAILED"] { background: #dc3545; }
 /* Attente de ressources : orange plein, pulsation LENTE (vivant mais bloqué — RUNNING pulse
    à 1.2s, la différence de rythme se lit avant la nuance de couleur). */
 .wama-status-dot[data-s="AWAITING_RESOURCES"] {

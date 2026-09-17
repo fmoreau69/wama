@@ -139,9 +139,14 @@ def job_status_values() -> list:
 JOB_STATUS_ALIASES = {
     # monde LAB (`AnalysisPass.Status`, minuscules) — `stale` est celui d'où vient `STALE`
     'COMPLETED': JOB_SUCCESS, 'FAILED': JOB_FAILURE, 'STALE': JOB_STALE,
-    # apps aux vocabulaires historiques (reader : DONE/ERROR ; Celery : PROCESSING/STARTED)
-    'DONE': JOB_SUCCESS, 'ERROR': JOB_FAILURE,
-    'PROCESSING': JOB_RUNNING, 'STARTED': JOB_RUNNING,
+    # ⚠ `DONE`/`ERROR` RETIRÉS le 2026-09-18 (décision de Fabien : « ils dupliquent sans raison »).
+    # Mesuré AVANT de retirer : **zéro ligne** en base sur les 18 modèles portant un `status`, les
+    # deux apps qui les employaient ayant déjà migré (`converter/0005`, `reader/0008`). Ils ne
+    # survivaient plus que dans du code défensif — et un alias qui ne traduit rien fait croire à
+    # une compatibilité qu'il n'y a plus à tenir.
+    # ⚠ NE PAS les réintroduire au motif du `filemanager` : il emploie ces deux mots pour SES
+    # opérations de fichiers (`filemanager.js:480-489`), jamais pour un état de file.
+    'PROCESSING': JOB_RUNNING, 'STARTED': JOB_RUNNING,   # Celery — un vocabulaire qu'on ne POSSÈDE pas
 }
 
 

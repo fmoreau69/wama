@@ -17,7 +17,10 @@
   // Statut applicatif → action effective + icône + libellé. Bouton toujours vert.
   // Vocabulaires de statut variables selon les apps (SUCCESS/DONE/COMPLETED, FAILURE/ERROR/FAILED…).
   var RUNNING_STATES = ['RUNNING', 'PROCESSING', 'STARTED'];
-  var DONE_STATES = ['SUCCESS', 'FAILURE', 'DONE', 'ERROR', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELED'];
+  // `DONE`/`ERROR` RETIRÉS le 2026-09-18 (décision Fabien) : zéro ligne en base sur les 18
+  // modèles à `status`, les deux apps qui les employaient ayant migré. `COMPLETED`/`FAILED`
+  // restent — c'est le vocabulaire VIVANT du monde Lab.
+  var DONE_STATES = ['SUCCESS', 'FAILURE', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELED'];
   function stateFor(status) {
     var s = (status || 'PENDING').toUpperCase();
     if (RUNNING_STATES.indexOf(s) !== -1) return { action: 'stop', icon: 'fa-stop', title: 'Arrêter' };

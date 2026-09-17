@@ -254,7 +254,9 @@ def check_card_menu_library_state():
     jeton, uid = _test_session_key('converter'), _test_account_id('converter')
     if not (jeton and uid):
         raise SkipScenario('aucun compte de test disponible')
-    fini = next(c for c, _ in JOB_STATUS_CHOICES if c in ('SUCCESS', 'COMPLETED', 'DONE'))
+    # `JOB_STATUS_CHOICES` ne porte que `SUCCESS` : les deux autres branches étaient une
+    # défensive sans objet, et `DONE` a été retiré du vocabulaire le 2026-09-18.
+    fini = next(c for c, _ in JOB_STATUS_CHOICES if c == 'SUCCESS')
     rel_sortie = f"{app_media_dir('converter', uid, 'output')}/wama_temoin_menu_mediatheque.png"
     sortie = Path(settings.MEDIA_ROOT) / rel_sortie
     sortie.parent.mkdir(parents=True, exist_ok=True)
