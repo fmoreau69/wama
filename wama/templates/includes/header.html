@@ -284,6 +284,14 @@
                                 <i class="fas fa-gears me-2 text-info"></i> Backends
                             </a>
                         </li>
+                        {% comment %}Formats médias (2026-09-17, demande Fabien) : même motif que
+                        Backends ci-dessus — une page atteignable seulement par la carte des
+                        registres n'est pas atteignable.{% endcomment %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:media_formats_catalog' %}">
+                                <i class="fas fa-photo-film me-2 text-primary"></i> Formats médias
+                            </a>
+                        </li>
                         {% comment %}Registres = la CARTE des catalogues, désormais navigable
                         (chaque card y porte « Ouvrir ») — c'est le hub de cette section.{% endcomment %}
                         <li>

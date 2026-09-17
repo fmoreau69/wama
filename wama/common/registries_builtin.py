@@ -299,6 +299,51 @@ register(Registry(
 ))
 
 
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# FORMATS MÉDIAS — la contrepartie qui manquait aux trois registres de formats du monde Data
+# (demande de Fabien, 2026-09-17 : « ne faut-il pas une page pour consulter tous les formats
+# médias pris en charge ? »).
+#
+# ⚠ CE N'EST PAS UN REVIREMENT SUR LA NATURE DU VOCABULAIRE. `WAMA_DATA_WORLD §9quinquies.2` a
+# tranché que `MEDIA_CATEGORIES` reste une TAXONOMIE et non un registre extensible par dépôt de
+# greffon — et c'est toujours vrai : côté Médias, ajouter un format, c'est ajouter la LIBRAIRIE
+# qui sait le lire, puis son extension à la nature ; côté Data, c'est déposer un LECTEUR, donc du
+# code qui sait faire. Ce qui change ici est la QUATRIÈME question du même critère (« l'utilisateur
+# doit-il en voir l'état ? »), qui n'avait jamais été posée aux vocabulaires média. C'est la porte
+# de sortie que `MEDIA_STORAGE_TIERING §9` avait elle-même écrite : « une entrée DÉRIVÉE suffira ».
+#
+# ⚠ PAS de distinction entrée/sortie (arbitrage Fabien) : un `.mp4` est un `.mp4` des deux côtés.
+# Ce que le CONVERTER sait écrire est une facette de la nature, pas un second registre.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def _count_media_formats() -> int:
+    from .app_registry import media_extensions
+    return sum(len(exts) for exts in media_extensions().values())
+
+
+def _entries_media_formats() -> dict:
+    """Une fiche par NATURE — adressable par une balise de doc (`fact_tags`)."""
+    from .app_registry import CONVERTER_OUTPUT_FORMATS, media_extensions
+    return {nature: {'extensions': exts,
+                     'nombre': len(exts),
+                     'sorties_converter': sorted(CONVERTER_OUTPUT_FORMATS.get(nature, []))}
+            for nature, exts in media_extensions().items()}
+
+
+register(Registry(
+    key='media_formats', label='Formats médias', nature=DERIVED,
+    source="`app_registry` — natures (`MEDIA_CATEGORIES`) et extensions, y compris celles qu'un "
+           "MONDE pousse au démarrage (`register_category_extensions`)",
+    count=_count_media_formats, entries=_entries_media_formats,
+    url_name='common:media_formats_catalog',
+    doc='docs/construction/mondes/WAMA_DATA_WORLD.md §9quinquies',
+    description="Ce que WAMA sait RECONNAÎTRE, en entrée comme en sortie — la distinction n'aurait "
+                "pas de sens : un fichier a la même nature des deux côtés. La page dérive du code à "
+                "chaque affichage, donc elle ne peut pas être périmée ; elle rend CONSULTABLE un "
+                "vocabulaire qui reste une taxonomie, sans changer son domicile.",
+))
+
+
 register(Registry(
     key='licences', label='Licences', nature=DERIVED,
     source="Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app",

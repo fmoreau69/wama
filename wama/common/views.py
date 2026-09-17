@@ -516,6 +516,45 @@ def licenses_catalog_view(request):
                    'volet': volet(medias=False, actions=False)})
 
 
+def media_formats_view(request):
+    """
+    Page du registre `media_formats` — tout ce que WAMA sait reconnaître, par nature.
+
+    POURQUOI ELLE EXISTE (demande de Fabien, 2026-09-17). La carte des registres affichait
+    « Formats d'entrée » et « Formats de sortie » pour le monde Data et RIEN pour les médias :
+    on pouvait en conclure que le monde Médias ne gouverne pas ses formats. C'est faux — le
+    vocabulaire est déclaré, à domicile unique et gardé mécaniquement — mais il n'était
+    consultable nulle part.
+
+    ⚠ Pas de colonne entrée/sortie : un fichier a la MÊME nature des deux côtés. Ce que le
+    converter sait ÉCRIRE est montré comme une facette de la nature, pas comme un second
+    vocabulaire.
+
+    La page DÉRIVE du code à chaque affichage (natures + extensions lues à l'appel, donc les
+    extensions poussées par un monde au démarrage y sont) : elle ne peut pas être périmée, et
+    n'a donc pas de bouton d'actualisation — `refresh_button` le décide seul de la nature.
+    """
+    from .app_registry import CONVERTER_OUTPUT_FORMATS, MEDIA_CATEGORIES, media_extensions
+
+    par_nature = media_extensions()
+    lignes = []
+    for nature in MEDIA_CATEGORIES:
+        exts = par_nature.get(nature, [])
+        lignes.append({
+            'nature': nature,
+            'extensions': exts,
+            'nombre': len(exts),
+            'sorties': sorted(CONVERTER_OUTPUT_FORMATS.get(nature, [])),
+        })
+
+    return render(request, 'common/media_formats.html', {
+        'lignes': lignes,
+        'total_extensions': sum(l['nombre'] for l in lignes),
+        'nb_natures': len(lignes),
+        'nb_sans_sortie': sum(1 for l in lignes if not l['sorties']),
+    })
+
+
 def external_sources_view(request):
     """
     Page du registre `sources_externes` — à quoi WAMA se connecte, et est-ce que ça répond.

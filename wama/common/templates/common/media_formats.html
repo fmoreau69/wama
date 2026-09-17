@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load wama_catalog %}
+{% block title %}Formats médias — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Page du registre `media_formats` (2026-09-17). Squelette = brique COMMUNE `wama-catalog.css`,
+  en-tête commun, et le bouton d'actualisation vient de `refresh_button` — qui décide SEUL de son
+  rendu depuis la nature déclarée : ce registre est DÉRIVÉ, il affichera donc « toujours à jour »
+  et aucun bouton. Rien n'est recopié ici : les natures et les extensions viennent de la vue,
+  qui les lit du code à chaque affichage.
+{% endcomment %}
+
+{% block extra_css %}
+<style>
+  .mf-ext { display: inline-block; margin: 2px 4px 2px 0; padding: 1px 7px; border-radius: 10px;
+            background: rgba(255,255,255,.07); font-size: .78rem; font-family: monospace; }
+  .mf-out { background: #0d47a1; color: #bbdefb; }
+  .mf-vide { color: #90a4ae; font-size: .82rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wama-cat-wrap">
+
+  {% include 'common/_catalog_header.html' with titre='Formats médias' icone='fa-photo-film' registre='media_formats' %}
+
+  <div class="wama-cat-stats">
+    <span class="wama-cat-stat"><b>{{ total_extensions }}</b> extension{{ total_extensions|pluralize }} reconnue{{ total_extensions|pluralize }}</span>
+    <span class="wama-cat-stat"><b>{{ nb_natures }}</b> nature{{ nb_natures|pluralize }}</span>
+    {% if nb_sans_sortie %}
+      <span class="wama-cat-stat">{{ nb_sans_sortie }} nature{{ nb_sans_sortie|pluralize }} sans conversion de sortie</span>
+    {% endif %}
+  </div>
+
+  <div class="wama-cat-hero">
+    <h3>Ce que WAMA sait reconnaître</h3>
+    <p>Une <b>nature</b> dit ce qu'un fichier EST ; les extensions sont ce que WAMA rattache à
+       cette nature. <b>Aucune distinction entrée/sortie</b> : un fichier a la même nature des
+       deux côtés. Les pastilles bleues signalent, en plus, ce que le <b>converter</b> sait
+       produire dans cette nature.</p>
+    <p>La liste <b>dérive du code</b> à chaque affichage — extensions déclarées au substrat, plus
+       celles qu'un monde <b>pousse</b> au démarrage (c'est ainsi que les formats de WAMA Data
+       rejoignent la nature <code>dataset</code>). Elle ne peut donc pas être périmée.</p>
+    <p>⚠ Ajouter un format média, ce n'est pas remplir un formulaire&nbsp;: c'est ajouter la
+       <b>librairie</b> qui sait le lire, puis rattacher son extension à sa nature. C'est la
+       différence avec le monde Data, où un format demande son propre <b>lecteur</b>.</p>
+  </div>
+
+  <div class="wama-cat-grid" style="--cat-card-min: 320px;">
+    {% for l in lignes %}
+    <div class="wama-cat-card" data-id="{{ l.nature }}">
+      <h4>
+        <code>{{ l.nature }}</code>
+        <span class="wama-cat-badge rg-total">{{ l.nombre }}</span>
+      </h4>
+      <div class="wama-cat-desc">
+        {% for e in l.extensions %}<span class="mf-ext">.{{ e }}</span>{% empty %}
+        <span class="mf-vide">aucune extension rattachée — la nature existe, rien ne l'outille encore</span>
+        {% endfor %}
+      </div>
+      {% if l.sorties %}
+      <div class="wama-cat-meta">Le converter sait écrire :
+        {% for s in l.sorties %}<span class="mf-ext mf-out">{{ s }}</span>{% endfor %}
+      </div>
+      {% else %}
+      <div class="wama-cat-meta mf-vide">Aucune conversion de sortie déclarée pour cette nature.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
