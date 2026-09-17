@@ -143,7 +143,7 @@ def assistant_settings(user) -> dict:
     return get_user_app_settings(user, 'assistant', USER_SETTINGS_DEFAULTS)
 
 
-def resolve_turn_model(user, provider=None, model=None) -> tuple:
+def resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple:
     """(fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
     ailleurs dans WAMA (« le MODÈLE porte son moteur »).
 
@@ -165,9 +165,14 @@ def resolve_turn_model(user, provider=None, model=None) -> tuple:
     cle = model or reglages.get('model') or AUTO
     if is_auto(cle):
         try:
+            from wama.common.utils.assistant_skills import resolve_domain
             from wama.model_manager.services.cloud_models import allowed_cloud_keys
+            # Le DOMAINE d'intervention déclare la compétence à privilégier (dev → 'coding') :
+            # le tirage classe alors sur CE sous-indice de banc quand tout le lot le porte.
+            competence = resolve_domain(domain).benchmark_domain or None
             cle = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
                                        quality_intent=reglages.get('quality_intent'),
+                                       benchmark_domain=competence,
                                        cloud_keys=allowed_cloud_keys(user)) or ''
         except Exception:
             logger.debug('[ai_chat] tirage automatique indisponible', exc_info=True)
@@ -595,7 +600,7 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     # Le fournisseur se DÉRIVE du modèle (réglage durable de l'utilisateur, sinon tirage « auto »)
     # quand la surface n'impose rien : c'est ce qui donne le MÊME choix au web, à l'API et aux
     # canaux, sans qu'aucune surface ne porte de réglage propre.
-    provider, llm_model = resolve_turn_model(user, provider, model)
+    provider, llm_model = resolve_turn_model(user, provider, model, domain=domain)
 
     # ⚠ GARDE DE L'ABONNEMENT — posée ICI, et pas dans la vue de chat. `run_assistant_turn`
     # est le passage OBLIGÉ des TROIS surfaces (web `views.ai_chat`, `/api/v1/assistant/`,

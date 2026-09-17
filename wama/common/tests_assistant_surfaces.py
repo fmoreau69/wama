@@ -173,6 +173,17 @@ class ChoixDuModeleTest(TestCase):
         from wama.common.services.assistant_engine import resolve_turn_model
         self.assertEqual(('claude-abo', None), resolve_turn_model(self.user, provider='claude-abo'))
 
+    def test_le_domaine_dev_declare_la_competence_que_le_tirage_privilegie(self):
+        """`benchmark_domain` existait dans `select_model` depuis août sans aucun appelant ; les
+        anciens rôles Dev/Coder disaient la même chose par une sous-chaîne de nom de modèle."""
+        from wama.common.services import assistant_engine
+        with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                        return_value='ollama:x') as tirage:
+            assistant_engine.resolve_turn_model(self.user, domain='dev')
+            self.assertEqual('coding', tirage.call_args.kwargs['benchmark_domain'])
+            assistant_engine.resolve_turn_model(self.user, domain='general')
+            self.assertIsNone(tirage.call_args.kwargs['benchmark_domain'])
+
     def test_le_curseur_est_borne_par_le_schema(self):
         from wama.common.services.assistant_engine import assistant_settings
         self._regler(quality_intent=140)

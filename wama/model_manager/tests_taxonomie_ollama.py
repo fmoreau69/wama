@@ -76,8 +76,12 @@ class AptitudesAffichees(TestCase):
                 (o[1] if isinstance(o, list) else o['label']) for o in groupes}
 
     def test_les_aptitudes_declarees_suivent_le_nom_du_modele(self):
+        from wama.model_manager.models import ModelAbility
         libelles = self._libelles('&aptitudes=1')
-        self.assertEqual('outillé (Vision, Outils, Raisonnement)', libelles['ollama:outille:8b'])
+        # Les libellés sont CEUX de `ModelAbility`, le vocabulaire existant — pas une table à part.
+        attendu = ', '.join(str(a.label) for a in (ModelAbility.VISION, ModelAbility.TOOLS,
+                                                   ModelAbility.THINKING))
+        self.assertEqual(f'outillé ({attendu})', libelles['ollama:outille:8b'])
         self.assertEqual('nu', libelles['ollama:nu:4b'], "rien de déclaré, rien d'affiché")
 
     def test_un_select_qui_ne_les_declare_pas_garde_le_nom_nu(self):
@@ -103,7 +107,7 @@ class AptitudesAffichees(TestCase):
         modele = AIModel.objects.create(
             model_key='ollama:traducteur:12b', name='traducteur', model_type='llm',
             source='ollama', capabilities={'completion': True, 'specialisation': 'translation'})
-        self.assertEqual(['Translation'], aptitudes_of(modele))
+        self.assertEqual(['spécialité : translation'], aptitudes_of(modele))
 
 
 class TirageDeConversationTest(TestCase):

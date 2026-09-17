@@ -209,22 +209,26 @@ def _minmax(valeurs: dict) -> dict:
     return {k: (v - lo) / (hi - lo) for k, v in valeurs.items()}
 
 
-#: Capacités DÉCLARÉES → libellé court, affiché derrière le nom d'un modèle. C'est ce que les
-#: « rôles » de l'assistant (Dev, Coder…) disaient à leur façon, en épinglant des noms de modèles
-#: qui vieillissaient : « les rôles peuvent être portés par les modèles » (Fabien, 2026-09-16).
-#: DÉRIVÉ du catalogue, jamais saisi : une capacité absente ne s'invente pas, et un modèle qui en
-#: gagne une l'affiche au sync suivant.
-APTITUDES = (('vision', 'Vision'), ('tools', 'Outils'), ('thinking', 'Raisonnement'),
-             ('audio', 'Audio'))
-
-
 def aptitudes_of(model) -> list:
-    """Libellés des aptitudes déclarées par `model` (+ sa spécialité si elle est déclarée)."""
+    """Libellés des aptitudes déclarées par `model`, lus dans `ModelAbility` (+ sa spécialité).
+
+    ⚠ `ModelAbility` (`models.py`) est LE vocabulaire des aptitudes, écrit le 2026-08-05 — et il
+    n'avait AUCUN consommateur. Le 17/09 j'avais écrit ici une table `APTITUDES` qui le doublait
+    avec d'autres libellés : réinvention relevée par Fabien (« n'a-t-on pas réinventé quelque chose
+    qui était simplement mal exploité ? »). Ce que les « rôles » de l'assistant disaient en
+    épinglant des noms de modèles, le catalogue le dit par ces aptitudes — dérivées, jamais saisies.
+
+    `completion` n'est pas affichée : c'est l'aptitude qui DÉFINIT le domaine d'un select de
+    conversation, tous ses modèles la portent.
+    """
+    from ..models import ModelAbility
+
     caps = getattr(model, 'capabilities', None) or {}
-    libelles = [libelle for cle, libelle in APTITUDES if caps.get(cle)]
+    libelles = [str(a.label) for a in ModelAbility
+                if a is not ModelAbility.COMPLETION and caps.get(a.value)]
     specialite = caps.get('specialisation')
     if specialite:
-        libelles.append(str(specialite).capitalize())
+        libelles.append(f"spécialité : {specialite}")
     return libelles
 
 
