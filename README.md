@@ -368,7 +368,8 @@ by `python manage.py doc_facts` — do not edit it by hand; declare a document i
     - [Monde Data](docs/construction/mondes/WAMA_DATA_WORLD.md) — Périmètre du monde Data et cartographie de corpus.
     - [Fonctions Data — catalogue](docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md) — Le catalogue des fonctions de traitement du monde Data.
   - **`exploitation/`** — Infra, droits & données
-    - [Profils, permissions, rétention](docs/construction/exploitation/PROFILES_PERMISSIONS.md) — Profils, droits d'accès, notifications, rétention.
+    - [Profils, permissions, rétention](docs/construction/exploitation/PROFILES_PERMISSIONS.md) — Profils de compte, rôles, droits d'accès aux apps, rétention des médias.
+    - [Collaboration — partage et notifications](docs/construction/exploitation/WAMA_COLLABORATION.md) — Partager tout élément de WAMA, être prévenu, travailler à plusieurs : droits, notifications, suivi des modifications de chacun, versions et variantes.
     - [Infra WSL2 ↔ Windows](docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md) — Ce qui tourne où, entre WSL2 et Windows.
     - [Médias : stockage et import](docs/construction/exploitation/MEDIA_STORAGE_TIERING.md) — Stockage, tiering, intégrité et voies d'import des médias.
     - [Licences & dépôt](docs/construction/exploitation/LICENSING.md) — Licence du dépôt, politique, code vendorisé, dépôt officiel.

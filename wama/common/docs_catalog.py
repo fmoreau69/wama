@@ -216,7 +216,11 @@ DOCS: Tuple[Doc, ...] = (
     # ── infra, droits & données ──
     Doc('profiles', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
         'Profils, permissions, rétention', 'exploitation',
-        "Profils, droits d'accès, notifications, rétention."),
+        "Profils de compte, rôles, droits d'accès aux apps, rétention des médias."),
+    Doc('collaboration', 'docs/construction/exploitation/WAMA_COLLABORATION.md',
+        'Collaboration — partage et notifications', 'exploitation',
+        "Partager tout élément de WAMA, être prévenu, travailler à plusieurs : droits, "
+        "notifications, suivi des modifications de chacun, versions et variantes."),
     Doc('infra', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md', 'Infra WSL2 ↔ Windows',
         'exploitation', "Ce qui tourne où, entre WSL2 et Windows."),
     Doc('media-storage', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
