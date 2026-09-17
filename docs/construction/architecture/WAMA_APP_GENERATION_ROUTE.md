@@ -2773,22 +2773,33 @@ fait dans une surface **AJOUTE un process déclaré** au pipeline de la card :
 le résultat n'est plus rejouable et « une représentation, deux éditeurs » (D13,
 `WAMA_DATA_WORLD.md:2931-2934`) tombe. C'est le « protocole accumulé sur la card »
 (`WAMA_DATA_WORLD.md:2925-2927`), rendu concret.
-**Le process « script utilisateur » (spécifié ici pour la première fois — Fabien, 15-16/09 : ce
-n'était pas encore dans les docs).** L'utilisateur écrit un traitement en **Python ou MATLAB** dans
-un champ du Calculator, l'applique à SA card, puis le promeut au lot.
-- **C'est un process comme un autre** : il a des ports typés (entrée = flux/table/segments du
-  pipeline amont ; sortie = le type qu'il déclare), des réglages, une ligne d'exécution, un état, une
-  photo de réglages — donc `STALE` quand son amont bouge, et rejouable.
-- **Ce qui le distingue** : son « réglage » EST du code. Il se range donc avec le vocabulaire des
-  fonctions utilisateur : `UserFunction` existe (`common/models.py:488-525`, scopé et partageable par
-  `ScopedVisibility`) mais son `impl` est « à venir » (`:503`) et le catalogue ne connaît que `pure`
-  et `app` (`function_catalog.py:187-191`) — le troisième binding (`user`) n'est pas exécutable.
-- **Promotion au lot** : même geste et même garde-fou que les autres process (5.3) — les entrées
-  requises doivent exister chez chaque fille, et le refus dit laquelle manque de quoi.
-- **Décision ouverte n°7** : où et comment on l'exécute (bac à sable Python, runtime MATLAB, droits,
-  quotas, dépendances autorisées), et si le script vit dans le pipeline (recopié) ou dans une
-  `UserFunction` référencée (partageable, versionnable) — la seconde forme est celle qui se promeut
-  et se rejoue le mieux.
+**Le code écrit par l'utilisateur est une FONCTION, pas un « script »** (précisé par Fabien le
+2026-09-16 — ma première rédaction en faisait un type de process à part, c'était faux).
+- **Rien de neuf dans le formalisme.** L'utilisateur **nomme** sa fonction et n'écrit **que son
+  code** — le champ `impl`. Tout le reste suit le formalisme des fonctions déjà en place : ports
+  typés, `params`, `category`, visibilité et portée (`UserFunction`, `common/models.py:488-525`,
+  scopée par `ScopedVisibility`), kind `function` avec `binding: user` et sa projection
+  manifeste → registre (`manifests/builtin/function.py:112-173`, réversible par le tag
+  `_manifest-gen`). Le code peut être **écrit à la main ou généré par le LLM** : c'est la même
+  voie « le LLM propose, la machine dispose » que les autres manifestes.
+- **Elle est appelable dans un pipeline comme n'importe quelle fonction** du registre — rien à
+  ajouter au modèle : c'est un nœud `function`, donc un process, avec sa ligne d'exécution, son
+  état, sa photo de réglages et sa péremption.
+- **Ce qui est NOUVEAU est l'ÉDITEUR DE CODE dans le Calculator**, ouvert depuis une card du Data
+  Analyzer : on y crée/édite la fonction, on l'applique à sa card, puis on la promeut au lot (même
+  garde-fou qu'en 5.3).
+- **Les trois manques, mesurés le 2026-09-16** (le formalisme est là, le chemin d'exécution non) :
+  ① le code ne connaît que deux bindings — `Binding.PURE` et `Binding.APP`
+  (`common/catalog/function_catalog.py:192-196`) ; ② une `UserFunction` n'est **jamais fusionnée au
+  `FUNCTION_CATALOG`** (ses seuls lecteurs sont l'admin, le kind `function` et la page
+  `/model-manager/functions/` — `model_manager/views.py:2057-2058`), donc l'exécuteur refuse sa clé
+  (« absent du catalogue », `studio/tasks.py:397-399`) ; ③ `impl` est aujourd'hui un **chemin**
+  (`"cam_analyzer.tasks:compute_distance_task"`, `function_catalog.py:208`) et le champ du modèle
+  porte encore « référence/code (à venir) » (`models.py:503`) — pour une fonction utilisateur, `impl`
+  EST le code, et personne ne l'exécute.
+- **Décision ouverte n°7** : comment on exécute ce code (bac à sable Python, runtime MATLAB, droits,
+  quotas, dépendances autorisées) — c'est le seul vrai verrou, et il ne touche ni au formalisme ni au
+  modèle de pipeline.
 
 **A et B convergent** : dans les deux cas, la card porte un manifeste `pipeline` — rejouable,
 promouvable au lot, téléchargeable avec ses résultats, partageable, ouvrable au studio.
@@ -2843,7 +2854,11 @@ possible **sans aucun process**.
    l'Exporter au catalogue de fonctions (`wama_data/functions/io/export.py:8-31`, verrouillée par
    `functions/io/tests_export.py:112-126`) a été écrite « tant que D13 n'est pas tranchée » et doit
    être relue.
-7. Script utilisateur : bac à sable Python, runtime MATLAB, droits.
+7. **Exécution du code d'une fonction utilisateur** (`binding: user`, `impl` = le code) : bac à sable
+   Python, runtime MATLAB, droits, quotas, dépendances autorisées. Prérequis mécaniques, sans
+   décision : `Binding.USER` au catalogue, fusion des `UserFunction` visibles dans le
+   `FUNCTION_CATALOG`, branche d'exécution dans le moteur. L'éditeur de code vit dans le Calculator
+   (monde Data) — cf. `WAMA_DATA_FUNCTION_CARDS.md §8`.
 8. Les apps Lab entrent-elles dans `APP_CATALOG` (6.1) ?
 9. Monde du studio (`transverse` dans `WORLDS` ; le journal invente un monde `studio`).
 10. Rôle assistant produisant `pipeline` / `dataset` (où, avec quel RAG).
