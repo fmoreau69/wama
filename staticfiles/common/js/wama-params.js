@@ -491,6 +491,8 @@
       // borne de domaine. Le serveur ajoute alors les modèles DISTANTS que les clés de CET
       // utilisateur ouvrent, selon son niveau cloud.
       if (p.options_cloud) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'cloud=1';
+      // `options_aptitudes` (2026-09-17) : le libellé porte les capacités déclarées du modèle.
+      if (p.options_aptitudes) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'aptitudes=1';
       // Curseur d'INTENTION du même contexte : la prévision arbitre comme le tirage
       // arbitrera. L'intention entre dans l'URL — donc dans la clé de cache — et son
       // changement RAFRAÎCHIT la prévision (sans re-remplir le select : seule la note bouge).

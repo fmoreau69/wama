@@ -1460,8 +1460,12 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    sur 139 change (`ollama:glm-ocr:latest` → `ocr`) ; consommateurs de `model_type='llm'` : 4,
    tous voulus. ⚠ Défaut trouvé par le smoke et corrigé : `model_type_for_task` rend une CHAÎNE là
    où `ModelInfo` attend un membre `ModelType` — 2 modèles échouaient au sync en silence
-   (`_type_ollama`, gardes `tests_taxonomie_ollama`). ⏳ Restent : rôles CALCULÉS depuis les modèles (le
-   libellé « (Dev) » n'existe plus, les aptitudes viendront des bancs et des capacités) ; gestes nocturnes de l'assistant
+   (`_type_ollama`, gardes `tests_taxonomie_ollama`). ✅ **Rôles PORTÉS PAR LES MODÈLES (17/09)** : le libellé d'une option porte les
+   capacités DÉCLARÉES du modèle — « qwen3.8 (Vision, Outils, Raisonnement) » — et sa spécialité si
+   elle est déclarée. Drapeau de schéma `options_aptitudes`, comme `options_auto` et
+   `options_cloud` ; dérivation dans `model_selector.aptitudes_of`, donc un modèle qui gagne une
+   capacité l'affiche au sync suivant. Les bancs restent HORS du libellé : ils pèsent déjà dans le
+   tirage « auto », les afficher ferait un second vocabulaire. ⏳ Restent : gestes nocturnes de l'assistant
    déclarés au harnais `ui_smoke` (envoyer = charge Ollama → `vram_gb` déclaré, écarté du passage
    sans GPU).
    **Question de Fabien (15/09) : le choix automatique du modèle change-t-il la chaîne LLM ?**

@@ -49,6 +49,63 @@ class TacheDeclareeTest(TestCase):
         self.assertEqual(ModelType.EMBEDDING, _type_ollama(caps['task']))
 
 
+class AptitudesAffichees(TestCase):
+    """Ce que les RÔLES disaient — « (Dev) », « (Coder) » — est désormais DÉRIVÉ du catalogue.
+
+    Les rôles épinglaient des noms de modèles, qui vieillissaient (le sélecteur a affiché Qwen3.5
+    six jours après son remplacement). Les aptitudes, elles, viennent des capacités déclarées : un
+    modèle qui en gagne une l'affiche au sync suivant, sans une ligne de code.
+    """
+    URL = '/model-manager/api/models/options/?model_type=llm'
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        AIModel.objects.create(
+            model_key='ollama:outille:8b', name='outillé', model_type='llm', source='ollama',
+            is_downloaded=True, capabilities={'completion': True, 'task': 'text-generation',
+                                              'tools': True, 'vision': True, 'thinking': True})
+        AIModel.objects.create(
+            model_key='ollama:nu:4b', name='nu', model_type='llm', source='ollama',
+            is_downloaded=True, capabilities={'completion': True, 'task': 'text-generation'})
+        self.user = get_user_model().objects.create_user('aptitudes', password='x')
+        self.client.force_login(self.user)
+
+    def _libelles(self, query=''):
+        groupes = self.client.get(self.URL + query).json()['groups'][0]['options']
+        return {(o[0] if isinstance(o, list) else o['value']):
+                (o[1] if isinstance(o, list) else o['label']) for o in groupes}
+
+    def test_les_aptitudes_declarees_suivent_le_nom_du_modele(self):
+        libelles = self._libelles('&aptitudes=1')
+        self.assertEqual('outillé (Vision, Outils, Raisonnement)', libelles['ollama:outille:8b'])
+        self.assertEqual('nu', libelles['ollama:nu:4b'], "rien de déclaré, rien d'affiché")
+
+    def test_un_select_qui_ne_les_declare_pas_garde_le_nom_nu(self):
+        self.assertEqual('outillé', self._libelles()['ollama:outille:8b'])
+
+    def test_un_modele_distant_n_est_jamais_dit_a_telecharger(self):
+        """Il n'a pas de poids ici : « à télécharger » ne veut rien dire (smoke du 17/09)."""
+        from django.test import override_settings
+
+        from wama.accounts.models import UserApiKey
+        AIModel.objects.create(model_key='albert:distant', name='distant', model_type='llm',
+                               source='albert', execution='cloud', is_downloaded=False,
+                               capabilities={'completion': True, 'task': 'text-generation'})
+        self.user.profile.cloud_policy = 'cloud_allowed'
+        self.user.profile.save()
+        with override_settings(SECRET_KEY='k' * 50, SECRET_KEY_FALLBACKS=[]):
+            UserApiKey.objects.create(user=self.user, source='albert', api_key='sk',
+                                      open_models=['albert:distant'])
+        self.assertEqual('distant', self._libelles('&cloud=1')['albert:distant'])
+
+    def test_une_specialite_declaree_s_affiche_aussi(self):
+        from wama.model_manager.services.model_selector import aptitudes_of
+        modele = AIModel.objects.create(
+            model_key='ollama:traducteur:12b', name='traducteur', model_type='llm',
+            source='ollama', capabilities={'completion': True, 'specialisation': 'translation'})
+        self.assertEqual(['Translation'], aptitudes_of(modele))
+
+
 class TirageDeConversationTest(TestCase):
     """La conséquence qui a déclenché la correction : un modèle d'OCR ne doit pas être tiré
     pour une conversation, même s'il est le plus léger."""

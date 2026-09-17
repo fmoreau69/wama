@@ -179,6 +179,56 @@ class ChoixDuModeleTest(TestCase):
         self.assertEqual(100, assistant_settings(self.user)['quality_intent'])
 
 
+class ChargementDeCompetenceTest(TestCase):
+    """Le chargement AUTOMATIQUE d'une compétence — la boucle, pas seulement l'outil.
+
+    ⚠ POURQUOI CE TEST (question de Fabien, 15/09 : « est-ce que l'ajout automatique de
+    skills/prompts est bien effectif ? »). Les gardes existantes couvraient l'ANNONCE au prompt
+    système et l'OUTIL pris isolément — jamais le tour où le modèle DÉCIDE de l'appeler et où la
+    consigne revient dans la conversation. C'est pourtant là que le mécanisme vit ou meurt.
+    Aucun LLM n'est appelé : un double émet l'appel d'outil, puis répond.
+    """
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('competence', password='x')
+
+    def test_l_assistant_qui_appelle_l_outil_recoit_la_consigne_dans_la_conversation(self):
+        from wama.common.services import assistant_engine
+        from wama.common.utils.assistant_skills import role_instructions
+
+        vus = []
+
+        def _faux_llm(messages, llm_model, provider, user=None):
+            vus.append(list(messages))
+            if len(vus) == 1:
+                return ('{"tool": "charger_competence", "args": {"domaine": "science"}}',
+                        {'input_tokens': 0, 'output_tokens': 0})
+            return 'réponse finale', {'input_tokens': 0, 'output_tokens': 0}
+
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=_faux_llm):
+            resultat = assistant_engine.run_assistant_turn(self.user, 'question de méthode')
+
+        self.assertEqual('réponse finale', resultat['response'])
+        self.assertEqual(['charger_competence'], [p['tool'] for p in resultat['tool_steps']])
+        # La consigne de rôle du domaine demandé est REVENUE dans la conversation.
+        consigne = (role_instructions('science') or '')[:60]
+        self.assertTrue(consigne, "prérequis : le skill de rôle « science » doit exister")
+        injecte = vus[1][-1]['content']
+        self.assertIn('charger_competence', injecte)
+        self.assertIn(consigne[:40], injecte)
+
+    def test_l_annonce_des_competences_est_bien_au_prompt_systeme(self):
+        """L'autre moitié : sans l'annonce, le modèle ne sait pas que l'outil existe."""
+        from wama.common.services import assistant_engine
+
+        def _faux_llm(messages, llm_model, provider, user=None):
+            return messages[0]['content'], {'input_tokens': 0, 'output_tokens': 0}
+
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=_faux_llm):
+            resultat = assistant_engine.run_assistant_turn(self.user, 'bonjour')
+        self.assertIn('charger_competence', resultat['response'])
+
+
 class CacheDesTestsTest(TestCase):
 
     def test_les_tests_n_ecrivent_pas_dans_le_vrai_cache(self):

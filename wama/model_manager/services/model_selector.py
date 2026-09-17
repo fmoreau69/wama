@@ -209,6 +209,25 @@ def _minmax(valeurs: dict) -> dict:
     return {k: (v - lo) / (hi - lo) for k, v in valeurs.items()}
 
 
+#: Capacités DÉCLARÉES → libellé court, affiché derrière le nom d'un modèle. C'est ce que les
+#: « rôles » de l'assistant (Dev, Coder…) disaient à leur façon, en épinglant des noms de modèles
+#: qui vieillissaient : « les rôles peuvent être portés par les modèles » (Fabien, 2026-09-16).
+#: DÉRIVÉ du catalogue, jamais saisi : une capacité absente ne s'invente pas, et un modèle qui en
+#: gagne une l'affiche au sync suivant.
+APTITUDES = (('vision', 'Vision'), ('tools', 'Outils'), ('thinking', 'Raisonnement'),
+             ('audio', 'Audio'))
+
+
+def aptitudes_of(model) -> list:
+    """Libellés des aptitudes déclarées par `model` (+ sa spécialité si elle est déclarée)."""
+    caps = getattr(model, 'capabilities', None) or {}
+    libelles = [libelle for cle, libelle in APTITUDES if caps.get(cle)]
+    specialite = caps.get('specialisation')
+    if specialite:
+        libelles.append(str(specialite).capitalize())
+    return libelles
+
+
 def _type_filter(model_type) -> dict:
     """Filtre de CATÉGORIE, une ou plusieurs séparées par des virgules.
 
@@ -718,6 +737,10 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         info.append({
             'id': mid,
             'name': m.name,
+            # Aptitudes DÉRIVÉES (cf. `aptitudes_of`) : un select les affiche s'il le déclare.
+            'aptitudes': aptitudes_of(m),
+            # DISTANT ou LOCAL : « à télécharger » n'a de sens que pour des poids locaux.
+            'execution': m.execution,
             'description': m.description_short or m.description or '',
             'vram': f"{int(m.vram_gb)}GB" if m.vram_gb else '',
             'capabilities': m.capabilities or {},

@@ -70,6 +70,11 @@ class Param:
                                                 # lancement résout « auto » (brique commune
                                                 # `common/utils/auto_model.py`) — sinon la valeur
                                                 # stockée arriverait brute au dispatch.
+    options_aptitudes: bool = False             # select `catalog` : afficher les capacités
+                                                # DÉCLARÉES derrière le nom (« Vision, Outils ») —
+                                                # ce que les rôles de l'assistant disaient en
+                                                # épinglant des noms de modèles. Dérivé du
+                                                # catalogue (`model_selector.aptitudes_of`).
     options_cloud: bool = False                 # select `catalog` : proposer AUSSI les modèles
                                                 # DISTANTS que les clés d'API de l'utilisateur
                                                 # ouvrent (`cloud=1` de l'endpoint). OPT-IN, comme
