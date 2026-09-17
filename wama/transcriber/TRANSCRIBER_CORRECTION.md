@@ -48,9 +48,9 @@ l'onde, façon diagramme de proximité du cam_analyzer) + options de nettoyage.
 
 ⏳ **Ajout 2026-09-16 (Fabien) — ce que le modèle PIPELINE apportera ici, et ce qu'il n'apportera
 pas.** Le transcriber porte déjà le bon socle : ASR immuable + correction à part, donc relancer la
-transcription **ne détruit pas** la correction (`views.py:50-60`). Ce qui manque est le NOM de l'état
-intermédiaire : quand une nouvelle génération existe, l'éditeur ne propose que « charger la dernière
-transcription (cela remplacera votre correction) » (`views.py:653-663`,
+transcription **ne détruit pas** la correction (`transcriber/views.py:50-60`). Ce qui manque est le
+NOM de l'état intermédiaire : quand une nouvelle génération existe, l'éditeur ne propose que
+« charger la dernière transcription (cela remplacera votre correction) » (`transcriber/views.py:653-663`,
 `templates/transcriber/edit.html:232-236`) — garder une correction périmée, ou la perdre.
 Avec le modèle du 15/09 (`WAMA_APP_GENERATION_ROUTE.md §10.6`), la correction devient un **process**
 dont l'amont est l'ASR : relancer l'ASR la marque **`STALE`** (« ta correction ne correspond plus à

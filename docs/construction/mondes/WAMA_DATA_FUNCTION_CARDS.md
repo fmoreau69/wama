@@ -386,4 +386,30 @@ qu'APRÈS 10 apps réelles. Écrire 2-3 plugins d'abord, extraire ensuite (règl
 - Registre : exposé via la page catalogue `/model-manager/functions/` + le kind manifeste
   `function` (repli `UserFunction`). **Reste ouvert** : exposition `tool_api` pour que
   l'assistant IA propose/enchaîne des fonctions.
+
+## 8bis. L'ÉDITEUR DE CODE du Calculator — une fonction `user`, rien de plus (Fabien, 2026-09-16)
+
+> **Ce qui est nouveau est l'ÉDITEUR, pas le formalisme.** L'utilisateur **nomme** sa fonction et
+> n'écrit **que son code** (le champ `impl`) — à la main ou **généré par le LLM**. Ports typés,
+> `params`, catégorie, visibilité et portée suivent le formalisme de ce document ; la fonction entre
+> au registre (`UserFunction`, `binding: user`), s'exporte et se ré-importe par le kind `function`
+> (`manifests/builtin/function.py:112-173`, tag `_manifest-gen`, réversible), et devient **appelable
+> dans un pipeline comme n'importe quelle fonction**.
+
+- **Où** : dans le **Calculator**, ouvert depuis une card du **Data Analyzer** (surface « page
+  dédiée » de `WAMA_DATA_WORLD §11.8 ①`). On crée/édite, on applique à sa card, puis on promeut au
+  lot (garde-fou : entrées requises ⊆ ∩ des catalogues des filles).
+- **Ce qui manque dans le CODE** (mesuré le 2026-09-16 — le formalisme, lui, est complet) :
+  1. `Binding` ne déclare que `PURE` et `APP` (`common/catalog/function_catalog.py:192-196`) — pas
+     de `USER`, alors que le kind manifeste et `UserFunction.to_dict()` l'emploient déjà ;
+  2. une `UserFunction` n'est **jamais fusionnée au `FUNCTION_CATALOG`** — ses seuls lecteurs sont
+     l'admin, le kind `function` et la page catalogue (`model_manager/views.py:2057-2058`) — donc
+     l'exécuteur de pipeline refuse sa clé (`studio/tasks.py:397-399`). ⚠ La docstring du modèle
+     annonce pourtant « fusionnée au catalogue selon la visibilité » (`common/models.py:492`) : c'est
+     une INTENTION, pas un état ;
+  3. `impl` est un **chemin** pour une fonction d'app (`function_catalog.py:208`) et le champ du
+     modèle porte « référence/code (à venir) » (`common/models.py:503`) : pour une fonction
+     utilisateur, `impl` EST le code, et rien ne l'exécute.
+- **La seule décision à prendre** : comment exécuter ce code (bac à sable Python, runtime MATLAB,
+  droits, quotas, dépendances autorisées) — `WAMA_APP_GENERATION_ROUTE.md §10.6`, décision ouverte n°7.
 - Croisement avec le RAG (fonctions descriptibles → héritage université→labo→équipe→user).
