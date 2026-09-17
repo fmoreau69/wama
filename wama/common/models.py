@@ -60,12 +60,45 @@ JOB_STATUS_CHOICES = [
     (JOB_FAILURE, 'Échec'),
 ]
 
-#: États où l'item attend sans tourner — ni fini, ni en cours. Les compteurs de file et les
+#: États où l'item N'A PAS COMMENCÉ — ni fini, ni en cours. Les compteurs de file et les
 #: garde-fous doivent les traiter ensemble : `AWAITING_RESOURCES` n'est PAS un échec.
-JOB_STATUS_EN_ATTENTE = frozenset({JOB_PENDING, JOB_AWAITING_RESOURCES})
+#: ⚠ Renommés en ANGLAIS le 2026-09-17 (règle du 14/09, relevé de Fabien : ces deux noms étaient
+#: restés en français). Aucun consommateur hors ce module et ses gardes — vérifié avant renommage.
+#: ⚠⚠ Et NOT_STARTED, pas `WAITING` (2ᵉ relevé de Fabien le même jour) : un ensemble nommé
+#: « waiting » qui CONTIENT l'état `AWAITING_RESOURCES` fait deux noms de la même racine pour deux
+#: choses différentes — l'ensemble dit « pas commencé », l'état dit « ça ne rentre pas en VRAM ».
+JOB_STATUS_NOT_STARTED = frozenset({JOB_PENDING, JOB_AWAITING_RESOURCES})
 
 #: États où l'item n'est plus en mouvement — utile aux compteurs de file et aux garde-fous.
-JOB_STATUS_FINAUX = frozenset({JOB_SUCCESS, JOB_FAILURE})
+JOB_STATUS_TERMINAL = frozenset({JOB_SUCCESS, JOB_FAILURE})
+
+
+# ── STALE — le 6ᵉ état, celui d'un PROCESS (2026-09-17, marche P2 de `ROUTE §10.6`) ───────────
+#
+# Le vocabulaire de §10.6 4.2 est ACTÉ depuis le 15/09 et compte SIX états ; les cinq ci-dessus
+# existaient, `STALE` manquait au commun alors que le monde Lab l'avait déjà (`AnalysisPass.Status`,
+# dont la docstring porte la consigne d'alignement). Trois écritures du même fait, c'est ce que
+# P2 vient fermer — P3 (le moteur commun) en dépend.
+#
+# CE QUE `STALE` VEUT DIRE (§10.6 4.3) : le process a RÉUSSI, mais une de ses conditions a changé —
+# un réglage surveillé, un amont redevenu invalide (la péremption se propage en cascade), ou une
+# entrée remplacée. **Ce n'est PAS un échec** : le résultat reste lisible et téléchargeable ; l'UI
+# dit « ce résultat ne correspond plus à tes réglages » et propose de ne relancer QUE le périmé.
+#
+# ⚠ POURQUOI IL N'ENTRE PAS DANS `JOB_STATUS_CHOICES` aujourd'hui : ces `choices` sont ceux des
+# FILES (13 modèles les déclarent). Y ajouter une valeur qu'aucune file ne sait encore produire
+# ferait naître 13 migrations pour rien. `STALE` est d'abord l'état d'un PROCESS ; les files le
+# recevront quand le moteur commun les portera (marche P6).
+#
+# ⚠ ET IL N'EST NI « EN ATTENTE » NI « FINAL » : il a produit un résultat (donc il n'attend pas)
+# mais il appelle une relance (donc le compter comme terminé dirait « tout est à jour », ce qui est
+# faux). La règle d'agrégation le traite à part : « au moins un STALE → card STALE » (§10.6 4.4,
+# décision ouverte n°4 — à valider à l'implémentation du moteur).
+JOB_STALE = 'STALE'
+
+#: Le vocabulaire d'états d'un PROCESS : les cinq états de file + `STALE`. C'est lui que le moteur
+#: commun, le studio et le Lab doivent parler (§10.6 4.2). Les files gardent `JOB_STATUS_CHOICES`.
+PROCESS_STATUS_CHOICES = JOB_STATUS_CHOICES + [(JOB_STALE, 'Périmé')]
 
 
 class ProcessingTimeMixin(models.Model):

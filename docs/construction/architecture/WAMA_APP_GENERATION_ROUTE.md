@@ -2620,6 +2620,20 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 `AWAITING_RESOURCES`), son JS (3 couleurs, `wama-studio.js:653-655`) et cam_analyzer
 (`pending/running/completed/failed/stale`, `models.py:451-456`) s'alignent sur ce vocabulaire.
 
+> ✅ **P2, 1ʳᵉ pièce LIVRÉE le 2026-09-17** — le vocabulaire commun porte enfin les SIX états.
+> `JOB_STALE` + `PROCESS_STATUS_CHOICES` sont déclarés dans `common/models.py` ; gardes dans
+> `common/tests_process_states.py` (dont la correspondance 1-1 avec les cinq états du Lab, d'où
+> `STALE` est repris). **Deux frontières tenues par les tests** : `STALE` n'entre PAS dans les
+> `choices` des FILES — ces `choices` sont ceux de 13 modèles, y ajouter une valeur qu'aucune file
+> ne sait produire ferait naître 13 migrations pour rien (les files le recevront à **P6**) — et il
+> n'est **ni « pas commencé » ni « terminal »** : il a produit un résultat, mais il appelle une
+> relance ; l'agrégation le traite à part (4.4).
+> ⚠ Renommés au passage, deux relevés de Fabien le même jour : `JOB_STATUS_EN_ATTENTE`/`_FINAUX`
+> (français) → `JOB_STATUS_NOT_STARTED`/`JOB_STATUS_TERMINAL`. Et **pas** `WAITING` : un ensemble
+> nommé ainsi CONTIENDRAIT `AWAITING_RESOURCES` — deux noms de la même racine pour deux choses
+> différentes. **Reste de P2** : l'alignement effectif du studio, de son JS et du Lab, puis la
+> brique d'agrégation (décision ouverte n°4).
+
 **4.3 `STALE` — ce que c'est exactement** (repris de cam_analyzer, décision du 07/05,
 `ROADMAP §9.2.bis` ; code `pass_tracking.py:250-302`).
 Un process est `STALE` quand il a **réussi**, mais qu'une de ses conditions a changé depuis :

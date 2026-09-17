@@ -14698,8 +14698,10 @@ une génération vidéo dans l'imager) : tout le reste est en service, seul le p
    + `docs/dev/registres.md` : « Le monde Médias n'a rien à changer ») — ce point ne rouvre PAS cela.
    Ce qui n'a jamais été examiné, c'est (a) la question ④ (« l'utilisateur doit-il en voir l'état ? »)
    pour les vocabulaires média, et (b) `SUPPORTED_CONVERSIONS` du converter, absent du relevé des six
-   vocabulaires du 23/08 alors qu'il déclare des CAPACITÉS d'écriture — deux natures sur sept
-   (`dataset`, `3d`) n'ont d'ailleurs aucun format de sortie. Proposition à arbitrer : 3 entrées
+   vocabulaires du 23/08 alors qu'il déclare des CAPACITÉS d'écriture — deux NATURES MÉDIA sur
+   sept (`dataset`, `3d` — ⚠ `dataset` est ici la nature des fichiers du monde Data, `.trip`/
+   `.wdat`/`.rec`, entrée dans `MEDIA_CATEGORIES` le 30/08 ; **rien à voir avec le kind de
+   manifeste homonyme**) n'ont aucun format de sortie. Proposition à arbitrer : 3 entrées
    `DERIVED` (`refresh=None`), sans changer aucun domicile. ⚠ `MEDIA_STORAGE_TIERING §9` a écrit
    « pas de `Registry` pour `ASSET_NATURES` » **et** sa porte de sortie (« une entrée DÉRIVÉE
    suffira ») : c'est cette porte qui serait empruntée, pas une décision retournée.
@@ -14759,8 +14761,9 @@ rafraîchisseur · **clé en ANGLAIS**, libellé en français · compte et fiche
 montrant chaque nature. **68 tests OK** (formats médias + registres + types de port).
 
 **⏳ RESTE OUVERT (non tranché)** : `SUPPORTED_CONVERSIONS` du converter déclare des CAPACITÉS
-d'écriture et n'a jamais été passé au crible du critère ①②③ ; deux natures sur sept (`dataset`,
-`3d`) n'ont aucun format de sortie. Et la question de Fabien sur les **clés de registre en
+d'écriture et n'a jamais été passé au crible du critère ①②③ ; deux NATURES MÉDIA sur sept
+(`dataset`, `3d`) n'ont aucun format de sortie — ⚠ `dataset` est ici la NATURE des fichiers du
+monde Data, **pas le kind de manifeste homonyme** (précision de Fabien, 17/09). Et la question de Fabien sur les **clés de registre en
 français** (`lecteurs_data`, `formats_export_data`, `conteneurs_data`, et 9 autres) : mesuré —
 aucune persistance en base, mais 15 clés citées dans des gabarits, des balises de doc
 `WAMA:FAIT(...)` et la doc dérivée. Renommage possible, à faire en UNE passe, jamais au fil d'un
@@ -14832,6 +14835,29 @@ Seul le type de donnée jumeau disparaît ; la sortie de la fonction nomme la na
 
 **③ `--licences` → `--licenses`** (`backfill_platform_refs`) : l'option ET sa clé de lecture
 changent ensemble (sinon `KeyError`), plus ses deux citations (page des licences, test).
+
+**④ PREMIÈRE PIÈCE DE P2 LIVRÉE — le vocabulaire commun porte enfin les SIX états.** Demande de
+Fabien : *« il faut qu'on aille au bout de 1 »*. Mesuré d'abord : **P3 (le moteur commun) DÉPEND de
+P2**, et P2 est le vocabulaire d'états. Le tableau des 6 états est ACTÉ depuis le 15/09
+(`§10.6 4.2`) ; le commun n'en portait que 5 — `STALE` manquait, alors que le Lab l'avait déjà et
+que sa propre docstring portait la consigne d'alignement (`cam_analyzer/models.py:436-437`).
+Livré : `JOB_STALE` + `PROCESS_STATUS_CHOICES` (`common/models.py`) et **6 gardes**
+(`common/tests_process_states.py`), dont la correspondance 1-1 avec les cinq états du Lab.
+⚠ **Deux frontières tenues par les tests** : `STALE` n'entre PAS dans les `choices` des FILES
+(13 modèles les déclarent — 13 migrations pour une valeur qu'aucune file ne sait produire ; elles
+le recevront à **P6**), et il n'est **ni « pas commencé » ni « terminal »** — il a produit un
+résultat mais appelle une relance ; l'agrégation le traite à part (4.4, décision ouverte n°4).
+⚠⚠ **Deux relevés de Fabien pendant l'écriture, tous deux justes** : `JOB_STATUS_EN_ATTENTE` /
+`JOB_STATUS_FINAUX` étaient restés en **français** → `JOB_STATUS_NOT_STARTED` /
+`JOB_STATUS_TERMINAL` ; et **pas `WAITING`**, parce qu'un ensemble nommé ainsi CONTIENDRAIT
+`AWAITING_RESOURCES` — deux noms de la même racine pour deux choses différentes.
+**Reste de P2** : aligner effectivement le studio, son JS et le Lab, puis la brique d'agrégation.
+*Aller « au bout de 1 » est un chantier P2 → P3, pas un geste : cette pièce en est la première.*
+
+**⑤ Ambiguïté corrigée (relevé de Fabien)** : j'avais écrit « deux natures sur sept (`dataset`,
+`3d`) sans format de sortie » — `dataset` y désigne la **NATURE MÉDIA** des fichiers du monde Data
+(`.trip`/`.wdat`/`.rec`, entrée dans `MEDIA_CATEGORIES` le 30/08), **pas le kind de manifeste
+homonyme**. Le mot porte deux sens dans WAMA ; les trois consignations sont précisées.
 
 **⭐ Ce que la mesure a appris, et qui vaut au-delà de ce cas** : l'alignement que Fabien demande
 **existe déjà plus qu'on ne le disait**. `manifests/pipelines/cam_analyzer.json` (9 septembre,
