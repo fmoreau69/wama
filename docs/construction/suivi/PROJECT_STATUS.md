@@ -14566,6 +14566,20 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    relance de la transcription. Le socle est bon (ASR immuable, correction à part), `STALE` nommera l'état
    périmé sans rien écraser, mais **la fusion correction ↔ nouvelle génération reste un chantier propre au
    transcriber** — consigné dans `TRANSCRIBER_CORRECTION.md §4` et `§10.6` point 4.3.
+8. ✅ **ACTÉ (Fabien, 17/09) — PARTAGE UNIFIÉ pour tout élément partageable de WAMA.** Domicile :
+   **`PROFILES_PERMISSIONS.md §7.7`**. On garde les branches `private`/`unit`/`project`/`public` (seul cumul :
+   l'arbre `OrgUnit` ascendant) ; une brique, deux chemins (`visible_to` / `owned_by`), un geste commun, un
+   vocabulaire ; on porte l'existant sans câbler l'immature — **les sessions Lab attendent** (cible : card
+   portant un pipeline, UI par « Éditer ») ; seul le propriétaire partage ; **le destinataire est prévenu** ;
+   **le destinataire peut recevoir en ÉDITION** = GO de l'axe écriture (`ObjectGrant`, §7.3), qui levait le
+   « ne pas lancer sans GO explicite » du 08/09. Mesuré le 17/09 : **la médiathèque partage dans le vide**
+   (mixin présent, lectures filtrées par propriétaire, `media_library/views.py:108,136`), cinq vocabulaires,
+   geste limité aux cards, pipelines sans visibilité, mesure F7 limitée aux 10 apps Médias.
+   Plan : ① médiathèque ② vocabulaire ③ geste étendu par natures déclarées ④ pipelines, fonctions,
+   manifestes, jumelles ⑤ mesure ⑥ notification ⑦ édition partagée. **Ouvert avant ⑥-⑦** : N1 (canal et
+   destinataires — pas d'e-mail de masse à une unité), E1-E5 (édition à une branche ou à des personnes,
+   périmètre d'« éditer », relance par un éditeur, éditions concurrentes, retrait), N2 (passer d'une card à
+   l'autre depuis une page d'édition — à mesurer sur un usage réel, aucun nouveau raccourci).
 
 ---
 
