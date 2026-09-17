@@ -101,6 +101,43 @@ JOB_STALE = 'STALE'
 PROCESS_STATUS_CHOICES = JOB_STATUS_CHOICES + [(JOB_STALE, 'Périmé')]
 
 
+# ── LA TABLE D'ALIAS, AU DOMICILE DU VOCABULAIRE (2026-09-17, suite de P2) ────────────────────
+#
+# ⚠ ELLE N'EST PAS NEUVE : le dépôt en portait DÉJÀ TROIS, et elles DIVERGEAIENT (c'est la dette
+# nommée par `ROUTE §10.3` — « 3 tables d'alias dupliquées ») :
+#   • `detail_registry._STATUS_ALIAS` — 2 entrées (DONE, ERROR) : elle ignorait `COMPLETED` et
+#     `FAILED`, donc un état du monde LAB lu par le journal ressortait BRUT à l'écran ;
+#   • `batch_common.STATUS_ALIASES` — 6 entrées, mais appliquée à des OBJETS (`w.status`), donc
+#     inutilisable pour un état lu dans un JSON (`StudioRun.node_states`) ;
+#   • `wama-cycle-button.js::stateFor` + son jumeau `_cycle_button.html` — côté FRONT.
+# Aucune ne connaissait `stale`. Aucune n'était couverte par un test (grep : zéro).
+#
+# 🔴 POURQUOI TRADUIRE ET NON RENOMMER — c'est la frontière des DONNÉES, et elle est MESURÉE :
+# le Lab a **72 lignes** en base (`completed` 57, `stale` 13, `pending` 2) et le studio **13 runs**
+# dont les états vivent aussi dans un JSON persisté. Renommer ces valeurs serait une MIGRATION de
+# données, pas un alignement de code. Le dépôt a déjà tranché ce type de cas deux fois
+# (`data_types.LEGACY_TYPE_ALIASES`, `content_analyzer.LEGACY_DETECTED_TYPE_ALIASES`) : on
+# normalise À LA LECTURE, et la base ne bouge pas.
+JOB_STATUS_ALIASES = {
+    # monde LAB (`AnalysisPass.Status`, minuscules) — `stale` est celui d'où vient `STALE`
+    'COMPLETED': JOB_SUCCESS, 'FAILED': JOB_FAILURE, 'STALE': JOB_STALE,
+    # apps aux vocabulaires historiques (reader : DONE/ERROR ; Celery : PROCESSING/STARTED)
+    'DONE': JOB_SUCCESS, 'ERROR': JOB_FAILURE,
+    'PROCESSING': JOB_RUNNING, 'STARTED': JOB_RUNNING,
+}
+
+
+def normalize_job_status(value) -> str:
+    """Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
+
+    Prend une CHAÎNE, pas un objet : c'est ce qui la rend utilisable sur un état lu dans un
+    JSON de nœud autant que sur un `item.status`. Une valeur inconnue revient en majuscules,
+    inchangée — le comportement des tables qu'elle remplace, pour ne rien régresser.
+    """
+    s = str(value or '').upper()
+    return JOB_STATUS_ALIASES.get(s, s)
+
+
 class ProcessingTimeMixin(models.Model):
     """Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
     ETA via record_run) ; on la PERSISTE ici pour qu'elle reste affichée après rechargement

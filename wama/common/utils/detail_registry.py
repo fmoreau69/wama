@@ -13,8 +13,12 @@ Chaque app enregistre un adapter dans son apps.py :
 L'adapter reçoit l'instance et renvoie le dict canonique (via build_detail).
 """
 
-# Statuts hétérogènes → normalisation d'AFFICHAGE (base inchangée) : DONE→SUCCESS, ERROR→FAILURE.
-_STATUS_ALIAS = {'DONE': 'SUCCESS', 'ERROR': 'FAILURE'}
+# Statuts hétérogènes → normalisation d'AFFICHAGE (base inchangée).
+# ⚠ La table vit désormais au DOMICILE DU VOCABULAIRE (`common/models.JOB_STATUS_ALIASES`,
+# 2026-09-17, marche P2). Celle qui était écrite ici n'avait que deux entrées (DONE, ERROR) :
+# elle ignorait `COMPLETED`/`FAILED`, donc un état du monde LAB lu par le journal ressortait BRUT
+# à l'écran. Cette fonction garde son nom et sa signature — elle a des consommateurs (journal,
+# générateur de vues) —, elle ne porte simplement plus sa propre table.
 
 # Icône de `source_properties` dérivée du type de média (jamais la vague audio par défaut).
 _PROPS_ICON = {
@@ -31,8 +35,9 @@ def props_icon_for(media_type: str) -> str:
 
 
 def normalize_status(status: str) -> str:
-    s = (status or '').upper()
-    return _STATUS_ALIAS.get(s, s)
+    """Un statut d'app → le vocabulaire commun. Délègue au domicile (`common/models.py`)."""
+    from wama.common.models import normalize_job_status
+    return normalize_job_status(status)
 
 
 class DetailRegistry:

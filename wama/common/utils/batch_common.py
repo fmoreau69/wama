@@ -223,15 +223,21 @@ def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
     return wrapped
 
 
-#: Vocabulaires de statut variables selon les apps (reader : DONE/ERROR…) —
-#: même tolérance que _cycle_button.html / wama-cycle-button.js stateFor().
-STATUS_ALIASES = {'DONE': 'SUCCESS', 'COMPLETED': 'SUCCESS', 'ERROR': 'FAILURE',
-                  'FAILED': 'FAILURE', 'PROCESSING': 'RUNNING', 'STARTED': 'RUNNING'}
+#: ⚠ La table d'alias vit au DOMICILE DU VOCABULAIRE depuis le 2026-09-17 (marche P2) :
+#: `common/models.JOB_STATUS_ALIASES`. Celle qui était écrite ici en dupliquait une autre, à deux
+#: entrées près — et aucune des deux ne connaissait `stale` (monde Lab). Nom conservé comme ALIAS
+#: de transition : il a des lecteurs hors de ce module.
+from wama.common.models import JOB_STATUS_ALIASES as STATUS_ALIASES  # noqa: F401  (ré-export)
 
 
 def normalized_statuses(works):
-    """Statuts des éléments ramenés au vocabulaire commun (SUCCESS/RUNNING/FAILURE…)."""
-    return [STATUS_ALIASES.get((w.status or '').upper(), (w.status or '').upper()) for w in works]
+    """Statuts des éléments ramenés au vocabulaire commun (SUCCESS/RUNNING/FAILURE/STALE…).
+
+    Commodité OBJET ; pour un état isolé (JSON de nœud, littéral), appeler directement
+    `common.models.normalize_job_status`.
+    """
+    from wama.common.models import normalize_job_status
+    return [normalize_job_status(w.status) for w in works]
 
 
 def status_counts(works):

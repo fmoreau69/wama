@@ -14854,6 +14854,27 @@ résultat mais appelle une relance ; l'agrégation le traite à part (4.4, déci
 **Reste de P2** : aligner effectivement le studio, son JS et le Lab, puis la brique d'agrégation.
 *Aller « au bout de 1 » est un chantier P2 → P3, pas un geste : cette pièce en est la première.*
 
+**④bis P2, 2ᵉ PIÈCE — les TROIS tables d'alias convergent.** La dette que la route nommait
+(`§10.3` : « 3 tables d'alias dupliquées ») est soldée **côté Python**. ⚠ La mesure a montré
+qu'elles **divergeaient** : `detail_registry._STATUS_ALIAS` — la plus consommée (journal,
+générateur de vues) — n'avait que `DONE`/`ERROR`, donc un état du **Lab** (`completed`, `failed`)
+lu par le journal ressortait **BRUT à l'écran** ; `batch_common` en avait 6 mais ne s'appliquait
+qu'à des OBJETS, donc inutilisable sur un état lu dans un JSON de nœud ; **aucune ne connaissait
+`stale`** ; **aucune n'avait de test** ; et le journal ne libellait que 4 états sur 6
+(`AWAITING_RESOURCES` s'affichait « Awaiting_resources »).
+Livré : `JOB_STATUS_ALIASES` + `normalize_job_status(value)` au domicile du vocabulaire — une
+**chaîne** en entrée, pas un objet, ce qui la rend utilisable sur un JSON de nœud autant que sur
+un `item.status` — consommée par les deux portes publiques **sans changer leurs signatures** ;
+libellés du journal dérivés du vocabulaire ; **5 gardes de plus**, dont l'égalité des verdicts des
+deux portes. ⚠ **Le journal n'avait aucun fichier de tests** : ces gardes sont sa première
+couverture sur les libellés.
+🔴 **On TRADUIT, on ne renomme pas** — frontière des DONNÉES mesurée avant d'écrire : 72 lignes au
+Lab (`completed` 57, `stale` 13, `pending` 2) et 13 runs studio, états aussi dans un JSON persisté.
+⏳ **Reste de P2, non touché à dessein** : le FRONT porte encore deux écritures du même fait
+(`wama-cycle-button.js::stateFor` + `_cycle_button.html`), ni l'une ni l'autre ne connaissant
+`STALE` — elles se portent ensemble ou pas du tout ; puis les littéraux de `studio/tasks.py` et la
+brique d'agrégation (décision ouverte n°4).
+
 **⑤ Ambiguïté corrigée (relevé de Fabien)** : j'avais écrit « deux natures sur sept (`dataset`,
 `3d`) sans format de sortie » — `dataset` y désigne la **NATURE MÉDIA** des fichiers du monde Data
 (`.trip`/`.wdat`/`.rec`, entrée dans `MEDIA_CATEGORIES` le 30/08), **pas le kind de manifeste

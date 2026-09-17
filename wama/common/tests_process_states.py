@@ -57,6 +57,59 @@ class VocabulaireDeProcessTest(SimpleTestCase):
         self.assertNotEqual(JOB_STALE, JOB_FAILURE)
 
 
+class TableDAliasUNIQUETest(SimpleTestCase):
+    """Le dépôt portait TROIS tables d'alias divergentes (`ROUTE §10.3`) et aucun test.
+
+    La convergence du 2026-09-17 les ramène à une seule, au domicile du vocabulaire. Ces gardes
+    tiennent ce qui n'était tenu par personne : la traduction des états du monde LAB (dont la
+    table la plus consommée ignorait `COMPLETED`/`FAILED`), celle de `stale`, et le fait qu'une
+    valeur inconnue ne soit PAS inventée.
+    """
+
+    def test_les_etats_STOCKES_du_Lab_se_traduisent_tous(self):
+        """⚠ Ce sont des DONNÉES : 72 lignes en base au 17/09 (`completed` 57, `stale` 13,
+        `pending` 2). On les TRADUIT à la lecture, on ne les renomme pas."""
+        from wama.common.models import normalize_job_status
+        attendu = {'pending': JOB_PENDING, 'running': JOB_RUNNING, 'completed': JOB_SUCCESS,
+                   'failed': JOB_FAILURE, 'stale': JOB_STALE}
+        for stocke, commun in attendu.items():
+            self.assertEqual(normalize_job_status(stocke), commun, stocke)
+
+    def test_les_litteraux_du_studio_et_des_apps_historiques_se_traduisent(self):
+        from wama.common.models import normalize_job_status
+        for brut, commun in (('RUNNING', JOB_RUNNING), ('SUCCESS', JOB_SUCCESS),
+                             ('FAILURE', JOB_FAILURE), ('DONE', JOB_SUCCESS),
+                             ('ERROR', JOB_FAILURE), ('PROCESSING', JOB_RUNNING),
+                             ('STARTED', JOB_RUNNING)):
+            self.assertEqual(normalize_job_status(brut), commun, brut)
+
+    def test_une_valeur_INCONNUE_revient_telle_quelle_en_majuscules(self):
+        """Non-régression : c'est le comportement des trois tables remplacées. Inventer un état
+        serait pire que n'en pas connaître un."""
+        from wama.common.models import normalize_job_status
+        self.assertEqual(normalize_job_status('draft'), 'DRAFT')
+        self.assertEqual(normalize_job_status(''), '')
+        self.assertEqual(normalize_job_status(None), '')
+
+    def test_les_DEUX_portes_publiques_donnent_le_meme_verdict(self):
+        """`detail_registry.normalize_status` (journal, générateur de vues) et
+        `batch_common.normalized_statuses` (lots) doivent lire la MÊME table — c'est
+        précisément ce qui manquait : la première ignorait les états du Lab."""
+        from types import SimpleNamespace
+        from wama.common.utils.batch_common import normalized_statuses
+        from wama.common.utils.detail_registry import normalize_status
+        for brut in ('completed', 'stale', 'DONE', 'PROCESSING', 'inconnu'):
+            self.assertEqual(normalize_status(brut),
+                             normalized_statuses([SimpleNamespace(status=brut)])[0], brut)
+
+    def test_le_journal_sait_LIBELLER_les_six_etats(self):
+        """Un état absent de sa table tombait sur `capitalize()` — « Awaiting_resources » à
+        l'écran. Les libellés viennent désormais du vocabulaire, écrits une seule fois."""
+        from wama.common.services.journal import _ETATS_FR
+        for etat in SIX_ETATS:
+            self.assertTrue(_ETATS_FR.get(etat), f'{etat} sans libellé au journal')
+
+
 class AlignementDuMondeLabTest(SimpleTestCase):
     """Le Lab avait `stale` AVANT le commun — c'est de lui que le modèle le reprend (§10.6 4.3)."""
 
