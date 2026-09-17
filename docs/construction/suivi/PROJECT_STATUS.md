@@ -15118,3 +15118,47 @@ Celery — le seul qu'on ne possède pas.
 de cycle **servi** exécuté sous V8, 9 états vérifiés un à un ; geste navigateur
 `common.card_state_color` **rejoué après le retrait : 8/8** ; 3 fichiers statiques resynchronisés
 (blobs identiques) ; relevé résiduel de `DONE`/`ERROR` = exactement les familles épargnées.
+
+## SUITE 2026-09-18 (3) — la présentation d'un état est DÉCLARÉE une fois, et elle atteint le client
+
+> Troisième et dernière étape du plan approuvé : *« dériver plutôt que réécrire »*. Puis, sur le
+> Lab : *« si c'est trop complexe, il vaut peut-être mieux laisser wama_lab de côté en attendant
+> de l'aligner sur le fonctionnement commun des apps »* — c'est ce qui a été fait, et pour une
+> raison plus solide que la difficulté (voir ㉕).
+
+**㉒ La brique.** `common/utils/state_presentation.py` porte l'APPARENCE (classe de badge, de
+texte, icône) et **importe** le vocabulaire au lieu de le réécrire. ⚠ Pas dans `common/models.py` :
+la couche MODÈLE n'a pas à connaître `bg-warning` ni `fa-spinner`. Et les **couleurs** restent dans
+le CSS — ici on nomme des classes, pas des teintes, sinon Python déciderait du thème.
+
+**㉓ Le pont serveur → client, par le mécanisme DÉJÀ en place.** Le processeur de contexte global
+sérialise la charge, `base.html` la rend en `window.WAMA_STATES` — exactement comme
+`WAMA_APP_CATALOG` depuis toujours ; aucun mécanisme parallèle inventé. `WamaApp` gagne
+`normalizeStatus`, **le jumeau client de `normalize_job_status`** : sans lui le navigateur ne
+savait pas lire un `completed` du monde Lab, et chaque surface réécrivait sa table.
+
+**㉔ La 5ᵉ écriture était DANS le commun.** `wama-inspector.js` refaisait sa mise en majuscules
+**et** son propre ternaire de classe — qui ne connaissait que **4 états sur 7**. Il consomme
+désormais les accesseurs. ⚠ **Piège mesuré en le branchant** : sa ligne composait
+`'badge bg-' + cls` alors que l'accesseur rend la classe COMPLÈTE — préfixer aurait donné
+`bg-bg-success`, une classe inexistante, donc un badge **GRIS sans la moindre erreur**.
+⚠ `DRAFT` n'appartient à aucun des deux vocabulaires mais les maps JS l'affichaient : dériver
+naïvement l'aurait fait **disparaître**. Déclaré comme état d'AFFICHAGE, distinction tenue par un
+test. Les maps JS restent en **repli** — un filet, pas une seconde source : elles ne portent
+volontairement pas les alias.
+
+**㉕ Le Lab est laissé de côté, et c'est raisonné.** Trois tables y subsistent
+(`face_analyzer/index.html:205`, `cam_analyzer/js/index.js:826` et `:4839`). Les y câbler ce soir
+serait du travail **à refaire** : `wama_lab/cam_analyzer/static/cam_analyzer/js/index.js` fait plus
+de 4 800 lignes avec son propre
+rendu, c'est le territoire d'une autre instance, et **P3 refera cette surface** quand le Lab
+adoptera le fonctionnement commun. La brique existant désormais, leur adoption sera **une ligne
+par site**. ⏳ S'y ajoute `reader/js/reader.js:34` — 6 entrées, dont `DONE`/`ERROR` annotées
+« tolérance ancien vocabulaire », soit les deux alias retirés le jour même : fichier **modifié par
+une autre instance**, déclaré et non édité.
+
+**Contrôles** : 57 tests OK ; 4 gardes Python neuves (les libellés VIENNENT du vocabulaire ;
+`DRAFT` ne disparaît pas ; la charge porte les alias ; le câblage existe de bout en bout) ; le
+geste navigateur passe de 8 à **12 verdicts, 12/12** — la charge atteint le client, `completed`
+s'y lit « Terminé », `stale` rend `bg-stale`, un inconnu ressort brut ; les 2 JS servis parsés
+sous V8 et leurs accesseurs exercés état par état ; 2 fichiers statiques resynchronisés.

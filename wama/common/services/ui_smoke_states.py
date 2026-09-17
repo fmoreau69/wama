@@ -131,6 +131,30 @@ def check_card_state_colors():
                                  f"{mort.get('avecClasses')} vs {mort.get('neutre')} sans elles "
                                  f"— elles doivent être SANS effet"))
 
+                # ④ La DÉCLARATION unique atteint-elle le client ? C'est la seule preuve qui
+                #    vaille : un `json_script` oublié dans `base.html` ne lève aucune erreur,
+                #    et le repli des maps JS masquerait l'absence — sauf sur un état du Lab,
+                #    que seul l'alias poussé par le serveur permet de lire.
+                pont = page.evaluate("""() => {
+                    const A = window.WamaApp || {};
+                    return {
+                        charge: !!window.WAMA_STATES,
+                        lab: A.statusLabel ? A.statusLabel('completed') : null,
+                        badgeStale: A.statusBadge ? A.statusBadge('stale') : null,
+                        inconnu: A.statusLabel ? A.statusLabel('zzz') : null,
+                    };
+                }""") or {}
+                verdicts.append((pont.get('charge'),
+                                 'la charge WAMA_STATES atteint le client'))
+                verdicts.append((pont.get('lab') == 'Terminé',
+                                 f"un état du monde LAB se lit côté CLIENT : "
+                                 f"completed → {pont.get('lab')!r} (attendu 'Terminé')"))
+                verdicts.append((pont.get('badgeStale') == 'bg-stale',
+                                 f"le périmé en minuscules rend sa classe : {pont.get('badgeStale')!r}"))
+                verdicts.append((pont.get('inconnu') == 'ZZZ',
+                                 f"un état INCONNU ressort tel quel, jamais inventé : "
+                                 f"{pont.get('inconnu')!r}"))
+
                 garde = [x for x in erreurs if not any(t in x for t in IGNORED_CONSOLE)]
                 verdicts.append((not garde, f'console : {len(garde)} erreur(s) {garde[:1]}'))
             finally:

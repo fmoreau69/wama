@@ -319,12 +319,21 @@
     return inner ? '<div class="wama-insp-sec"><span class="wama-insp-sec-lbl">' + label + '</span>' + inner + '</div>' : '';
   }
   function renderDetailChips(d, ctx) {
-    var st = (d.status || '').toUpperCase();
-    var stCls = st === 'SUCCESS' ? 'success' : st === 'FAILURE' ? 'danger' : st === 'RUNNING' ? 'warning text-dark' : 'secondary';
-    var stLbl = (global.WamaApp && WamaApp.STATUS_LABEL && WamaApp.STATUS_LABEL[st]) || st;
+    // Libellé ET classe viennent de la DÉCLARATION UNIQUE (2026-09-18). Ce bloc portait sa
+    // propre mise en majuscules, son PROPRE ternaire de classe — qui ne connaissait que 4 états
+    // sur 7 (ni l'attente de ressources, ni le périmé, ni le brouillon) — et lisait la map en
+    // direct : la 5ᵉ écriture du même fait, et elle était DANS le commun. `normalizeStatus` lui
+    // donne en prime les états du monde Lab, qu'il ne savait pas lire.
+    var A = global.WamaApp || {};
+    var st = A.normalizeStatus ? A.normalizeStatus(d.status) : String(d.status || '').toUpperCase();
+    var stCls = A.statusBadge ? A.statusBadge(d.status) : 'bg-secondary';
+    var stLbl = A.statusLabel ? A.statusLabel(d.status) : st;
     var head = '<div class="d-flex align-items-center gap-2 flex-wrap mb-1">';
     if (d.id != null) head += '<strong class="text-light">#' + escapeHtml(d.id) + '</strong>';
-    if (st) head += '<span class="badge bg-' + stCls + '">' + escapeHtml(stLbl) + '</span>';
+    // ⚠ `stCls` est la classe COMPLÈTE (`bg-success`, `bg-stale`), plus un suffixe : préfixer
+    // par `bg-` produirait `bg-bg-success`, une classe inexistante — donc un badge GRIS, sans
+    // la moindre erreur. Piège mesuré au moment de brancher la déclaration unique.
+    if (st) head += '<span class="badge ' + stCls + '">' + escapeHtml(stLbl) + '</span>';
     if (d.created_at) head += '<small class="text-white-50"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(d.created_at) + '</small>';
     if (d.processing_time_display) head += '<small class="text-white-50" title="Temps de traitement"><i class="fas fa-stopwatch"></i> ' + escapeHtml(d.processing_time_display) + '</small>';
     head += '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button>';

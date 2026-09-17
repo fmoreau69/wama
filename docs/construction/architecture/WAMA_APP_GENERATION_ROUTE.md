@@ -2704,6 +2704,33 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > *Aucun test Python ne voit une règle CSS qui ne gagne pas : c'est ainsi que le bord d'état
 > était resté GRIS jusqu'au 02/09.*
 >
+> ✅ **P2, 6ᵉ pièce LIVRÉE le 2026-09-18 — la présentation d'un état est DÉCLARÉE une fois, et
+> elle atteint le client.** `common/utils/state_presentation.py` (l'apparence : classe de badge,
+> de texte, icône) IMPORTE le vocabulaire et ne le réécrit pas ; le processeur de contexte global
+> la sérialise et `base.html` la rend en `window.WAMA_STATES`, **par le mécanisme déjà en place**
+> (`WAMA_APP_CATALOG`). `WamaApp` gagne `normalizeStatus` — **le jumeau client de
+> `normalize_job_status`**, sans lequel le navigateur ne savait pas lire un `completed` du monde
+> Lab — plus `statusLabel` et `statusBadge`.
+> ⚠ **La 5ᵉ écriture était DANS le commun** : `wama-inspector.js` refaisait sa mise en majuscules
+> et son propre ternaire, qui ne connaissait que **4 états sur 7**. Il consomme désormais les
+> accesseurs. ⚠ Piège mesuré en le branchant : sa ligne composait `'badge bg-' + cls`, alors que
+> l'accesseur rend la classe COMPLÈTE — préfixer aurait produit `bg-bg-success`, donc un badge
+> **gris sans aucune erreur**.
+> ⚠ `DRAFT` n'appartient à aucun des deux vocabulaires mais les maps JS l'affichaient : dériver
+> naïvement l'aurait fait DISPARAÎTRE. Il est déclaré comme état d'AFFICHAGE, et un test tient la
+> distinction. Les maps JS restent en REPLI (un filet, pas une seconde source : elles ne portent
+> pas les alias).
+> **Attestation** : 4 gardes Python + le geste nocturne passé de 8 à **12 verdicts** — la charge
+> atteint le client, `completed` s'y lit « Terminé », `stale` rend `bg-stale`, un état inconnu
+> ressort brut.
+> ⏳ **Restent DEUX écritures, déclarées** : `reader/js/reader.js:34` (6 entrées, dont `DONE`/
+> `ERROR` annotées « tolérance ancien vocabulaire » — alias retirés le jour même) — fichier
+> **modifié par une autre instance**, donc non touché ; et les **trois tables du Lab**
+> (`face_analyzer/index.html:205`, `cam_analyzer/js/index.js:826` et `:4839`), laissées à dessein
+> (décision de Fabien) : le Lab s'alignera quand il adoptera le fonctionnement commun, à **P3** —
+> les y câbler ce soir serait du travail à refaire. La brique existe : leur adoption sera une
+> ligne par site.
+>
 > ⏳ **RESTE de P2 — DEUX morceaux, tous deux suspendus à P3** (rectifié le 17/09 au soir : la
 > première rédaction disait « la brique d'agrégation seule », ce qui omettait le second) :
 > 1. la **brique d'agrégation** (« l'état d'une card se déduit de ses process », 4.4) — sa règle est
