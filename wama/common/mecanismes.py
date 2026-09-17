@@ -169,9 +169,14 @@ MECHANISMS = (
               'wama/common/services/nightly_tests.py', 'docs/construction/suivi/PROJECT_STATUS.md §Tests fonctionnels nocturnes',
               annexes=('wama/common/services/ui_smoke.py',
                        # Familles de scénarios sorties d'`ui_smoke.py` (5 300 lignes) : leurs
-                       # registreurs sont appelés par `register_examples` (2026-09-13 / 09-14).
+                       # registreurs sont appelés par `register_examples` (2026-09-13 / 09-14 /
+                       # 09-18). ⚠ Une famille neuve se RATTACHE ici, jamais en `Mechanism` à
+                       # elle : un fichier appartient à UN seul mécanisme (décision du 15/09),
+                       # et un module de scénarios non rattaché ressort en « non rattaché » —
+                       # c'est ainsi que `ui_smoke_states.py` a été repéré le jour même.
                        'wama/common/services/ui_smoke_matching.py',
                        'wama/common/services/ui_smoke_menus.py',
+                       'wama/common/services/ui_smoke_states.py',
                        'wama/common/services/rights_matrix.py',
                        'wama/common/nightly_scenarios.py')),
     Mechanism('filemanager_importers', "Import « Envoyer vers » (registre + dérivation jumelles)",
@@ -1012,6 +1017,19 @@ MECHANISMS = (
               "Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides",
               'wama/common/static/common/js/wama-app-base.js', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='WamaApp'),            # global de base.html : compté par son symbole
+    Mechanism('state_presentation', "Présentation des états",
+              "L'APPARENCE d'un état (libellé, classe de badge, classe de texte, icône) déclarée "
+              "UNE fois et poussée au client (`window.WAMA_STATES`, par le processeur de contexte "
+              "global — le mécanisme qui sert déjà `WAMA_APP_CATALOG`) : gabarits, maps JS et "
+              "inspecteur en DÉRIVENT au lieu de la recopier. Mesuré le 2026-09-18 : CINQ "
+              "écritures du même fait, dont une DANS le commun (le ternaire de `wama-inspector.js`, "
+              "qui ne connaissait que 4 états sur 7). ⚠ Le VOCABULAIRE (valeurs, libellés, alias) "
+              "reste au domicile du modèle : ce module l'IMPORTE et n'ajoute que l'UI — la couche "
+              "modèle n'a pas à connaître `bg-warning`. Les couleurs, elles, restent au CSS",
+              'wama/common/utils/state_presentation.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              annexes=('wama/common/tests_status_ui.py',),
+              depends_on=('app_base_js',)),
     # ── Briques d'INTERFACE communes (⚠ PAS des plugins — voir « rendu résolu » ci-dessus) ──
     # Déclarées le 2026-08-19 : elles vivaient dans `common/` sans être au registre — invisibles
     # de la carte, donc de la jonction avec la grille (le balayage ne regardait pas
