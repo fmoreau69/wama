@@ -141,6 +141,52 @@ class CardsStatutAwaitingTest(SimpleTestCase):
                              f"{servi} diverge de sa source — resynchroniser staticfiles/")
 
 
+class LaPresentationDUnEtatEstDECLAREEUneFoisTest(SimpleTestCase):
+    """La 3ᵉ étape : l'APPARENCE d'un état dérive, elle ne se recopie plus (2026-09-18).
+
+    Le vocabulaire (valeurs, libellés, alias) n'avait jamais été dupliqué — il vit dans
+    `common/models.py`. C'est son APPARENCE qui l'était : classe de badge, classe de texte,
+    icône, réécrites dans `wama-app-base.js`, les deux partials, le ternaire de
+    `wama-inspector.js` et jusque dans des gabarits d'app. **Cinq écritures du même fait.**
+    """
+
+    def test_les_libelles_de_la_charge_VIENNENT_du_vocabulaire(self):
+        """Le libellé ne se réécrit pas dans la présentation : il en est TIRÉ. Sinon on aurait
+        simplement déplacé la copie."""
+        from wama.common.models import PROCESS_STATUS_CHOICES
+        from wama.common.utils.state_presentation import js_payload
+        labels = js_payload()['labels']
+        for valeur, libelle in PROCESS_STATUS_CHOICES:
+            self.assertEqual(labels.get(valeur), str(libelle), valeur)
+
+    def test_DRAFT_est_declare_a_part_et_ne_disparait_pas(self):
+        """⚠ `DRAFT` n'est dans AUCUN des deux vocabulaires, mais les maps JS l'affichaient :
+        dériver naïvement l'aurait fait disparaître de l'écran. Il est déclaré comme état
+        d'AFFICHAGE — la distinction est le piège que ce test tient."""
+        from wama.common.models import PROCESS_STATUS_CHOICES
+        from wama.common.utils.state_presentation import js_payload
+        charge = js_payload()
+        self.assertIn('DRAFT', charge['labels'])
+        self.assertEqual(charge['labels']['DRAFT'], 'Brouillon')
+        self.assertNotIn('DRAFT', [v for v, _ in PROCESS_STATUS_CHOICES],
+                         "DRAFT a rejoint le vocabulaire : le déclarer à part n'a plus lieu d'être")
+
+    def test_la_charge_porte_les_ALIAS_sinon_le_client_ne_sait_pas_lire_le_Lab(self):
+        from wama.common.models import JOB_STATUS_ALIASES
+        from wama.common.utils.state_presentation import js_payload
+        self.assertEqual(js_payload()['aliases'], dict(JOB_STATUS_ALIASES))
+        self.assertEqual(js_payload()['aliases'].get('completed'.upper()), 'SUCCESS')
+
+    def test_le_CABLAGE_serveur_vers_client_existe(self):
+        """Une charge que personne ne pousse n'atteint aucun écran : les deux maillons se
+        tiennent ensemble — le processeur de contexte la calcule, `base.html` la rend."""
+        self.assertIn("'wama_states_json'", _lire('wama/accounts/context_processors.py'))
+        self.assertIn('window.WAMA_STATES', _lire('wama/templates/base.html'))
+        js = _lire('wama/common/static/common/js/wama-app-base.js')
+        for accesseur in ('normalizeStatus', 'statusLabel', 'statusBadge'):
+            self.assertIn(accesseur + ':', js, f'{accesseur} non exporté par WamaApp')
+
+
 class CardsStatutStaleTest(SimpleTestCase):
     """Contrat d'UI de l'état `STALE` — marche P2, décision de Fabien du 2026-09-17.
 

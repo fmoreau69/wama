@@ -223,6 +223,33 @@
     STALE: 'Périmé',
   };
 
+  // ── Les états VIENNENT DU SERVEUR (2026-09-18) ─────────────────────────────────────────────
+  // `window.WAMA_STATES` est poussé par `base.html` depuis `common/utils/state_presentation.py`
+  // — la MÊME source que les gabarits et que le vocabulaire Python. Les deux maps ci-dessus
+  // restent en REPLI : une page qui ne recevrait pas la charge continue d'afficher juste, au
+  // lieu de n'afficher rien. (Elles ne portent PAS les alias : c'est voulu, le repli est un
+  // filet, pas une seconde source.)
+  function _states() { return global.WAMA_STATES || null; }
+
+  // Jumeau client de `normalize_job_status` : traduit un état QUELCONQUE (minuscules du monde
+  // Lab, vocabulaire Celery…) vers le vocabulaire commun. Sans lui, le navigateur ne sait pas
+  // lire un `completed`, et chaque app réécrivait sa table — 5 copies mesurées.
+  function normalizeStatus(value) {
+    var s = String(value == null ? '' : value).toUpperCase();
+    var srv = _states();
+    return ((srv && srv.aliases) || {})[s] || s;
+  }
+
+  function statusLabel(value) {
+    var s = normalizeStatus(value), srv = _states();
+    return ((srv && srv.labels) || STATUS_LABEL)[s] || s;
+  }
+
+  function statusBadge(value) {
+    var s = normalizeStatus(value), srv = _states();
+    return ((srv && srv.badges) || STATUS_BADGE)[s] || 'bg-secondary';
+  }
+
   // ── Réception « Envoyer vers app » du filemanager (source UNIQUE) ────────────────
   // Le filemanager émet `wama:fileimported` avec {app, ...} après avoir créé l'item dans
   // l'app cible. Chaque app recopiait le MÊME listener de 3 lignes dans son propre JS
@@ -464,5 +491,8 @@
     Speech: Speech,
     STATUS_BADGE: STATUS_BADGE,
     STATUS_LABEL: STATUS_LABEL,
+    normalizeStatus: normalizeStatus,
+    statusLabel: statusLabel,
+    statusBadge: statusBadge,
   };
 })(window);

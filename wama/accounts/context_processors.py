@@ -75,6 +75,16 @@ def user_role(request):
     except Exception:
         converter_output_formats_json = '{}'
 
+    # États + APPARENCE + table d'alias, poussés au client (2026-09-18). Même source que les
+    # gabarits (`common/utils/state_presentation.py`) : il n'y a donc rien à resynchroniser entre
+    # le serveur et le JS. Avant cette ligne, chaque app recopiait sa table de badges — 5
+    # écritures mesurées, dont une DANS le commun (`wama-inspector.js`).
+    try:
+        from wama.common.utils.state_presentation import js_payload as _states_payload
+        wama_states_json = _json.dumps(_states_payload())
+    except Exception:
+        wama_states_json = '{}'
+
     # Accès par profil/rôles (axe A tier + axe B rôles métier) — exposé pour filtrer la nav.
     # Non bloquant ici : c'est la nav/les vues qui décideront d'utiliser `accessible_apps`.
     try:
@@ -191,6 +201,7 @@ def user_role(request):
         'current_app_color': current_app_color,
         'current_app_spec': current_app_spec,
         'converter_output_formats_json': converter_output_formats_json,
+        'wama_states_json': wama_states_json,
         'account_tier': account_tier,
         'user_roles_set': roles_set,
         'accessible_apps': accessible_apps,
