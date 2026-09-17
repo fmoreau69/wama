@@ -2738,7 +2738,7 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 | monde | forme du pipeline | exemples mesurés |
 |---|---|---|
 | **Médias** | `required` + `optional` | transcriber : transcription → diarisation → résumé → cohérence, aujourd'hui des blocs `if` dans une fonction (`transcriber/workers.py:402-592`) dont les échecs optionnels sont avalés et l'item passe `SUCCESS` (`:484`, `:551`, `:567`, `:592`, `:601`) ; anonymizer : détection/segmentation → floutage, aujourd'hui fusionnés en mémoire ; avatarizer : TTS (optionnel, dérivé du texte, `MODES_QUEUE_UX.md:93-100`) → animation → amélioration (optionnelle) |
-| **Lab** | `required`, par étages | cam_analyzer : 13 process, étages analyse / calcul, clé d'instance = caméra |
+| **Lab** | `required`, par étages | cam_analyzer : 13 process, étages analyse / calcul, clé d'instance = caméra. **Cible (Fabien, 17/09)** : la SESSION Lab devient une **card qui porte le pipeline**, l'UI de l'app s'ouvre par « Éditer » comme dans Médias — **non câblé tant que le Lab n'est pas aligné** sur les autres mondes (y compris pour le partage, `PROFILES_PERMISSIONS §7.7`) |
 | **Data** | place `open` (+ entrées et sorties déclarées) | Data Analyzer : la card porte une source (`.wdat`, `.trip`, dossier d'expérimentation…) et un pipeline composé de modules |
 | **Studio** (transverse) | tout, en graphe | compose et enregistre des pipelines de tous les mondes |
 
