@@ -214,11 +214,13 @@
     DRAFT: 'bg-secondary', PENDING: 'bg-secondary', RUNNING: 'bg-warning text-dark',
     AWAITING_RESOURCES: 'bg-awaiting',
     SUCCESS: 'bg-success', FAILURE: 'bg-danger',
+    STALE: 'bg-stale',
   };
   const STATUS_LABEL = {
     DRAFT: 'Brouillon', PENDING: 'En attente', RUNNING: 'En cours',
     AWAITING_RESOURCES: 'En attente de ressources',
     SUCCESS: 'Terminé', FAILURE: 'Échec',
+    STALE: 'Périmé',
   };
 
   // ── Réception « Envoyer vers app » du filemanager (source UNIQUE) ────────────────

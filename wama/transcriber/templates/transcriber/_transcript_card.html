@@ -8,7 +8,7 @@ Rendue : (1) au chargement (index.html, cards autonomes ET filles de batch) ;
 La copie batch historique avait dérivé (pas de data-status, ni badge temps réel,
 ni badges brouillon/corrigé) — l'unification lui redonne tout.
 {% endcomment %}
-            <div class="synthesis-card wama-card {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% endif %}"
+            <div class="synthesis-card wama-card {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% elif elem.status == 'AWAITING_RESOURCES' %}awaiting{% elif elem.status == 'STALE' %}stale{% endif %}"
                  data-id="{{ elem.id }}" data-status="{{ elem.status }}"
                  {% comment %}L'URL d'aperçu est portée par la CARD, pas seulement par le bouton de
                  nom de fichier : la brique commune en DÉRIVE l'URL de détail (`fillDetail`,

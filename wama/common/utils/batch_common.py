@@ -257,6 +257,10 @@ def status_counts(works):
         # brouillon rendrait l'état invisible (c'est un état qui appelle un GESTE :
         # baisser le curseur de qualité, ou attendre — cf. common/models.py).
         'awaiting_count': statuses.count('AWAITING_RESOURCES'),
+        # STALE (2026-09-17, marche P2) : compté À PART de SUCCESS — le process a réussi, mais
+        # son résultat n'est plus à jour. Le ranger avec les terminés dirait « tout est à jour »,
+        # ce qui est faux, et ferait disparaître le seul geste qui reste à poser : relancer.
+        'stale_count': statuses.count('STALE'),
     }
     counts['has_success'] = counts['success_count'] > 0
     return counts
@@ -268,7 +272,7 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
 
     Returns:
         [{'obj', 'items', 'success_count', 'running_count', 'failure_count',
-          'awaiting_count', 'has_success' [, **extra(batch, items, works)]}, …]
+          'awaiting_count', 'stale_count', 'has_success' [, **extra(batch, items, works)]}, …]
 
     Args:
         work_attr  : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).

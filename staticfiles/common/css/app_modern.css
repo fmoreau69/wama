@@ -448,6 +448,26 @@ textarea {
     color: #fd7e14;
 }
 
+/* STALE (2026-09-17, décision Fabien — marche P2 de `ROUTE §10.6 4.3`) : card VIOLETTE. Le
+   process a RÉUSSI, mais une de ses conditions a changé : le résultat reste lisible et
+   téléchargeable, et pourtant il appelle une relance. Ce n'est donc ni le vert du terminé ni le
+   rouge de l'échec — d'où une 5ᵉ couleur franche, #9b59b6, distincte de l'orange #fd7e14 de
+   l'attente de ressources comme de l'ambre du traitement. */
+.wama-card.stale {
+    border-left: 4px solid #9b59b6 !important;
+}
+
+/* Badge du même état (partial _card_progress + STATUS_BADGE de wama-app-base.js). */
+.bg-stale {
+    background-color: #9b59b6;
+    color: #fff;
+}
+
+/* Texte du même état (partial _card_state). */
+.text-stale {
+    color: #9b59b6;
+}
+
 /*  === TABLES === */
 .table-dark thead {
     background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;

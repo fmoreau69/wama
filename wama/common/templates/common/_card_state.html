@@ -3,7 +3,7 @@ WAMA — État textuel d'une card de file (élément `.card-state`, mis à jour 
 de l'app pendant le traitement). Commun à toutes les apps.
 
 Variables :
-  status — 'PENDING' | 'AWAITING_RESOURCES' | 'RUNNING' | 'SUCCESS' | 'FAILURE'
+  status — 'PENDING' | 'AWAITING_RESOURCES' | 'RUNNING' | 'SUCCESS' | 'FAILURE' | 'STALE'
   text   — (optionnel) aperçu texte affiché tant que non terminé
 
 Usage :
@@ -17,6 +17,12 @@ Usage :
 <small class="card-state text-awaiting"><i class="fas fa-hourglass-half"></i> En attente de ressources</small>
 {% elif status == 'FAILURE' %}
 <small class="card-state text-danger"><i class="fas fa-triangle-exclamation"></i> Échec</small>
+{% comment %}STALE (décision Fabien, 2026-09-17) : le process a RÉUSSI mais une de ses conditions a
+changé. Ce n'est PAS un échec — le résultat reste lisible et téléchargeable —, d'où l'icône de
+relance et non un triangle. ⚠ Doit passer AVANT le repli `text` ci-dessous, qui attraperait
+n'importe quel état non terminé.{% endcomment %}
+{% elif status == 'STALE' %}
+<small class="card-state text-stale"><i class="fas fa-rotate-right"></i> Périmé</small>
 {% elif status != 'SUCCESS' and text %}
 <small class="card-state text-light result-preview" style="max-height:60px; overflow:hidden; display:block;">{{ text|truncatechars:120 }}</small>
 {% else %}

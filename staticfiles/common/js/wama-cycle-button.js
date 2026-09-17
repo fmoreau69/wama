@@ -21,6 +21,11 @@
   function stateFor(status) {
     var s = (status || 'PENDING').toUpperCase();
     if (RUNNING_STATES.indexOf(s) !== -1) return { action: 'stop', icon: 'fa-stop', title: 'Arrêter' };
+    // STALE (décision Fabien, 2026-09-17) : MÊME geste et même endpoint qu'un terminé, mais un
+    // libellé distinct — « Relancer » laisserait croire qu'on refait tout, alors qu'il s'agit de
+    // remettre à jour un résultat qui existe déjà et reste téléchargeable. Sans cette branche,
+    // STALE tombait dans le repli ▶ « Démarrer », qui dit que rien n'a jamais tourné.
+    if (s === 'STALE') return { action: 'restart', icon: 'fa-rotate-right', title: 'Recalculer ce qui est périmé' };
     if (DONE_STATES.indexOf(s) !== -1) return { action: 'restart', icon: 'fa-rotate-right', title: 'Relancer' };
     return { action: 'start', icon: 'fa-play', title: 'Démarrer' };  // PENDING / DRAFT / neuf
   }

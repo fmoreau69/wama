@@ -7,10 +7,14 @@ Usage : {% include 'common/_cycle_button.html' with id=item.id status=item.statu
 La card englobante doit porter data-status="{{ item.status }}" pour l'auto-sync.
 {% endcomment %}
 {% comment %}Vocabulaires de statut variables : RUNNING/PROCESSING/STARTED = en cours ;
-SUCCESS/DONE/COMPLETED/FAILURE/ERROR/FAILED/CANCELLED = terminé (→ ↻). Doit suivre stateFor() du JS.{% endcomment %}
+SUCCESS/DONE/COMPLETED/FAILURE/ERROR/FAILED/CANCELLED = terminé (→ ↻). Doit suivre stateFor() du JS.
+STALE (2026-09-17) = même action que terminé, libellé distinct : le résultat existe et reste
+téléchargeable, il est seulement périmé. Sa branche passe AVANT celle des terminés.{% endcomment %}
 {% with s=status|upper %}
 {% if s == 'RUNNING' or s == 'PROCESSING' or s == 'STARTED' %}
 <button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn" data-cycle-action="stop" data-id="{{ id }}" title="Arrêter"><i class="fas fa-stop"></i></button>
+{% elif s == 'STALE' %}
+<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn" data-cycle-action="restart" data-id="{{ id }}" title="{{ restart_title|default:'Recalculer ce qui est périmé' }}"><i class="fas {{ restart_icon|default:'fa-rotate-right' }}"></i></button>
 {% elif s == 'SUCCESS' or s == 'DONE' or s == 'COMPLETED' or s == 'FAILURE' or s == 'ERROR' or s == 'FAILED' or s == 'CANCELLED' or s == 'CANCELED' %}
 {% comment %}restart_title/restart_icon : overrides optionnels d'app (ex. transcriber temps réel :
 « Re-transcrire via le pipeline complet » + fa-rotate).{% endcomment %}

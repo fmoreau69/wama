@@ -2661,15 +2661,25 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > `common/models.job_status_values()`. **Garde** : les DEUX chemins de `render_models`
 > (introspection et squelette A5) sont éprouvés ENSEMBLE — c'est par leur divergence que
 > `WAMA_INGEST` s'était déjà perdu une fois (`tests_codegen_lot`).
-> ⏳ **RESTE de P2 — le FRONT, et il est GELÉ.** Ce n'est pas « deux écritures » comme écrit ici le
-> matin même : la mesure en compte **huit surfaces**, et le précédent `AWAITING_RESOURCES` (02/09)
-> les a toutes payées — classe de racine des 11 gabarits de card, `_card_state.html`,
+> ✅ **P2, 4ᵉ pièce LIVRÉE le 2026-09-17 — le FRONT connaît `STALE`**, la décision ouverte n°4 ayant
+> été tranchée par Fabien le jour même : **violet `#9b59b6`** (5ᵉ couleur franche, distincte de
+> l'orange `#fd7e14` de l'attente de ressources), bouton de cycle à l'action ↻ d'un terminé mais au
+> **libellé distinct** — « Recalculer ce qui est périmé », parce que « Relancer » laisserait croire
+> qu'on refait tout alors que le résultat existe et reste téléchargeable.
+> ⚠⚠ **Ce n'était pas « deux écritures »** comme écrit ici le matin même : la mesure en compte
+> **HUIT surfaces**, et le précédent `AWAITING_RESOURCES` (02/09) les avait déjà toutes payées,
+> ligne pour ligne — classe de racine des **11** gabarits de card, `_card_state.html`,
 > `_card_progress.html`, les deux maps de `wama-app-base.js`, trois règles de `app_modern.css`, une
 > de `wama-inspector.css`, le compteur de lot, le filtre de file et son option de barre, plus la
-> resynchro de `staticfiles/`. **La décision ouverte n°4 le gèle** : elle nomme littéralement
-> « l'affichage de `STALE` sur la card et le bouton de cycle », et il y faut une **COULEUR** —
-> `AWAITING_RESOURCES` avait eu la sienne par décision de Fabien (`#fd7e14`, 01/09). Puis la brique
-> d'agrégation, seconde moitié de la même décision.
+> resynchro de `staticfiles/` (le dossier réellement SERVI). *Compter les surfaces AVANT d'annoncer
+> un reste : c'est le même relevé qui avait fait dire « deux » là où il y en avait huit.*
+> **Gardes** : `common/tests_status_ui.py` porte désormais deux familles SYMÉTRIQUES — celle de
+> l'attente de ressources et celle du périmé —, la seconde se lisant comme la liste de contrôle du
+> prochain état. Dont une **contre-épreuve** : un `SUCCESS` doit continuer de dire « Relancer »,
+> sans quoi un libellé changé partout passerait le test en cassant le sens.
+> ⏳ **RESTE de P2** : la brique d'agrégation seule (« l'état d'une card se déduit de ses process »,
+> 4.4). Sa règle est **validée telle quelle** depuis le 17/09 ; il reste à l'écrire, et elle
+> s'appuie sur la ligne d'exécution PAR PROCESS que P3 apporte.
 >
 > ⚠ Renommés au passage, deux relevés de Fabien le même jour : `JOB_STATUS_EN_ATTENTE`/`_FINAUX`
 > (français) → `JOB_STATUS_NOT_STARTED`/`JOB_STATUS_TERMINAL`. Et **pas** `WAITING` : un ensemble
@@ -2922,7 +2932,12 @@ possible **sans aucun process**.
 1. Nom anglais de la ligne d'exécution et de l'instance de pipeline.
 2. Sorties intermédiaires : persistées ou recalculées, par type de process (4.6).
 3. Forme de la clé d'instance (caméra, fichier…) dans la ligne d'exécution.
-4. Règle d'agrégation exacte (4.4), et affichage de `STALE` sur la card et le bouton de cycle.
+4. ~~Règle d'agrégation exacte (4.4), et affichage de `STALE` sur la card et le bouton de cycle.~~
+   ✅ **TRANCHÉE le 2026-09-17 (Fabien).** `STALE` s'affiche en **violet `#9b59b6`** ; le bouton de
+   cycle garde l'action ↻ d'un terminé avec un **libellé distinct** (« Recalculer ce qui est
+   périmé ») ; la **règle d'agrégation de 4.4 est validée telle quelle**. L'AFFICHAGE est livré le
+   jour même (8 surfaces, gardes dans `common/tests_status_ui.py`) ; la brique d'agrégation reste
+   à écrire — c'est le dernier morceau de P2.
 5. Data : « connecter » ou « importer » — que fait-on d'une source qui change sous la card
    (`wama_data/modules.py:103-107`) ?
 6. Forme du nœud d'export : nœud de sortie à déclaration (proposé ici) — l'abstention actuelle de
