@@ -21,16 +21,25 @@ n'en garde qu'un résumé (type, lignes, colonnes). La porte d'ingestion d'un fi
 un nœud fonction est le nœud-source `dataset_input` (marche E : l'importeur de manifeste
 de process en sera la seconde entrée).
 
-⏳ Précisé le 2026-09-15 → WAMA_APP_GENERATION_ROUTE.md §10.6 (4.2, 4.5) : les états écrits ici
-en littéraux ('RUNNING', 'SUCCESS', 'FAILURE', sans AWAITING_RESOURCES) s'aligneront sur le
-vocabulaire COMMUN (5 états JOB_* + STALE) ; cet exécuteur devient une pièce du MOTEUR COMMUN
-(avec le squelette de tâche et le suivi de passes de cam_analyzer), qui exécutera le pipeline
-porté par une card dans n'importe quelle file.
+ÉTATS (marche P2 de `WAMA_APP_GENERATION_ROUTE.md §10.6 4.2`) — ✅ fait le 2026-09-17 : les états
+ne s'écrivent plus ici en littéraux, ils VIENNENT du vocabulaire commun (`common/models.py`), et
+l'état rendu par le runner de l'app cible est TRADUIT par la table d'alias unique
+(`normalize_job_status`) au lieu d'être comparé à une chaîne brute. Les VALEURS sont inchangées —
+`node_states` est un JSON persisté, donc une donnée : on la source, on ne la renomme pas.
+
+⏳ Ce qui RESTE, et qui n'est pas un oubli : cet exécuteur ne PRODUIT toujours ni
+`AWAITING_RESOURCES` (il faudrait passer par le gouverneur de ressources — marche P3) ni `STALE`
+(il faudrait la règle de péremption du suivi de passes — 4.3). L'agrégation « état de la card
+déduit de ses process » est la décision OUVERTE n°4. Cet exécuteur devient alors une pièce du
+MOTEUR COMMUN (avec le squelette de tâche et le suivi de passes de cam_analyzer), qui exécutera
+le pipeline porté par une card dans n'importe quelle file (4.5).
 """
 import time
 
 from celery import shared_task
 
+from wama.common.models import (JOB_FAILURE, JOB_RUNNING, JOB_SUCCESS,
+                                normalize_job_status)
 from wama.common.utils.console_utils import push_console_line
 
 POLL_INTERVAL_S = 3
@@ -338,7 +347,7 @@ def run_pipeline_task(self, run_id):
     run = StudioRun.objects.get(pk=run_id)
     user = run.user
     t0 = time.time()
-    run.status = 'RUNNING'
+    run.status = JOB_RUNNING
     run.save(update_fields=['status'])
     _console(user.id, f"Studio run #{run.pk} : démarrage")
 
@@ -361,17 +370,17 @@ def run_pipeline_task(self, run_id):
 
             # Nœud SOURCE (card d'entrée) : produit sa valeur depuis ses params.
             if app in SOURCE_HANDLERS:
-                _save_state(nid, status='RUNNING')
+                _save_state(nid, status=JOB_RUNNING)
                 out_type, value = SOURCE_HANDLERS[app](user, node.get('params') or {})
                 is_frame = hasattr(value, 'df') and hasattr(value, 'data_type')
                 outputs[nid] = {'type': out_type, 'value': value, 'is_frame': is_frame}
-                _save_state(nid, status='SUCCESS',
+                _save_state(nid, status=JOB_SUCCESS,
                             output=_frame_summary(value) if is_frame else value)
                 continue
 
             # Nœud de SORTIE (card de sortie) : range la valeur reçue de l'amont.
             if app == 'studio_output':
-                _save_state(nid, status='RUNNING')
+                _save_state(nid, status=JOB_RUNNING)
                 incoming = [outputs[l['from']] for l in links
                             if l['to'] == nid and l['from'] in outputs]
                 if not incoming:
@@ -384,7 +393,7 @@ def run_pipeline_task(self, run_id):
                                                        node.get('params') or {}, run.pk)
                 else:
                     note = _sink_media_library(user, incoming[0]['value'], node.get('params') or {})
-                _save_state(nid, status='SUCCESS', output=note)
+                _save_state(nid, status=JOB_SUCCESS, output=note)
                 _console(user.id, f"Studio run #{run.pk} : sortie rangée — {note}")
                 continue
 
@@ -397,7 +406,7 @@ def run_pipeline_task(self, run_id):
                 spec = fc.get(key)
                 if spec is None:
                     raise ValueError(f"Nœud fonction « {key} » : absent du catalogue.")
-                _save_state(nid, status='RUNNING', progress=0)
+                _save_state(nid, status=JOB_RUNNING, progress=0)
                 _console(user.id, f"Studio run #{run.pk} : fonction {key} ({spec.binding})")
                 if spec.binding == fc.Binding.PURE:
                     frames = {}
@@ -437,7 +446,7 @@ def run_pipeline_task(self, run_id):
                         if facet and 'estimate' not in result.meta:
                             result.meta['estimate'] = {**facet, 'name': key}
                     outputs[nid] = {'type': result.data_type, 'value': result, 'is_frame': True}
-                    _save_state(nid, status='SUCCESS', progress=100, output=_frame_summary(result))
+                    _save_state(nid, status=JOB_SUCCESS, progress=100, output=_frame_summary(result))
                     _console(user.id, f"Studio run #{run.pk} : fonction {key} ✔ → {_frame_summary(result)}")
                 else:
                     # Les FICHIERS de l'amont, par port (une fonction média — image→3D — les
@@ -472,7 +481,7 @@ def run_pipeline_task(self, run_id):
                         outputs[nid] = {'type': otype, 'value': res}
                     else:
                         outputs[nid] = {'type': otype, 'value': str(res)[:2000], 'is_text': True}
-                    _save_state(nid, status='SUCCESS', progress=100, output=str(res)[:2000])
+                    _save_state(nid, status=JOB_SUCCESS, progress=100, output=str(res)[:2000])
                     _console(user.id, f"Studio run #{run.pk} : fonction {key} ✔ (job)")
                 continue
 
@@ -484,7 +493,7 @@ def run_pipeline_task(self, run_id):
                 # Nœud non exécutable : toléré s'il n'a PAS d'amont — sinon erreur claire.
                 if any(l['to'] == nid for l in links):
                     raise ValueError(f"Nœud « {app} » : app non exécutable dans un pipeline (V1).")
-                _save_state(nid, status='SUCCESS', note='source non exécutée (V1)')
+                _save_state(nid, status=JOB_SUCCESS, note='source non exécutée (V1)')
                 continue
 
             # Entrées = sorties des nœuds amont, indexées par type de port
@@ -495,7 +504,7 @@ def run_pipeline_task(self, run_id):
                     inputs[l.get('to_port') or up['type']] = up['value']
                     inputs[up['type']] = up['value']
 
-            _save_state(nid, status='RUNNING', progress=0)
+            _save_state(nid, status=JOB_RUNNING, progress=0)
             _console(user.id, f"Studio run #{run.pk} : nœud {app} — création")
             item_id = runner['create'](user, inputs, node.get('params') or {})
             _save_state(nid, item_id=item_id)
@@ -506,7 +515,12 @@ def run_pipeline_task(self, run_id):
                 time.sleep(POLL_INTERVAL_S)
                 st = runner['poll'](user, item_id)
                 _save_state(nid, progress=st.get('progress', 0))
-                if st['status'] == 'SUCCESS':
+                # Le runner rend l'état de l'app CIBLE : on le TRADUIT par la table unique
+                # (`normalize_job_status`, 2ᵉ pièce de P2) au lieu de comparer une chaîne
+                # brute — une app qui répondrait `DONE`/`ERROR` faisait tourner cette boucle
+                # jusqu'au délai de 30 min sans que rien ne le dise.
+                state = normalize_job_status(st.get('status'))
+                if state == JOB_SUCCESS:
                     if not st.get('output'):
                         raise ValueError(f"Nœud {app} : terminé mais aucune sortie.")
                     otype = runner.get('output_type')
@@ -518,15 +532,15 @@ def run_pipeline_task(self, run_id):
                             otype = category_of_path(st['output'])
                     outputs[nid] = {'type': otype, 'value': st['output'],
                                     'is_text': bool(st.get('is_text'))}
-                    _save_state(nid, status='SUCCESS', progress=100, output=st['output'])
+                    _save_state(nid, status=JOB_SUCCESS, progress=100, output=st['output'])
                     _console(user.id, f"Studio run #{run.pk} : nœud {app} ✔ → {st['output']}")
                     break
-                if st['status'] == 'FAILURE':
+                if state == JOB_FAILURE:
                     raise ValueError(f"Nœud {app} : échec — {st.get('error') or 'sans détail'}")
                 if time.time() > deadline:
                     raise ValueError(f"Nœud {app} : délai dépassé ({NODE_TIMEOUT_S // 60} min).")
 
-        run.status = 'SUCCESS'
+        run.status = JOB_SUCCESS
         run.processing_seconds = time.time() - t0
         run.save(update_fields=['status', 'processing_seconds', 'node_states'])
         _console(user.id, f"Studio run #{run.pk} : pipeline terminé ✔")
@@ -535,10 +549,10 @@ def run_pipeline_task(self, run_id):
             notify_job(user, 'Studio', f"pipeline #{run.pk}", True)
         except Exception:
             pass
-        return {'run': run.pk, 'status': 'SUCCESS'}
+        return {'run': run.pk, 'status': JOB_SUCCESS}
 
     except Exception as exc:
-        run.status = 'FAILURE'
+        run.status = JOB_FAILURE
         run.error_message = str(exc)[:2000]
         run.processing_seconds = time.time() - t0
         run.save(update_fields=['status', 'error_message', 'processing_seconds', 'node_states'])
@@ -548,4 +562,4 @@ def run_pipeline_task(self, run_id):
             notify_job(user, 'Studio', f"pipeline #{run.pk}", False, detail=str(exc))
         except Exception:
             pass
-        return {'run': run.pk, 'status': 'FAILURE', 'error': str(exc)}
+        return {'run': run.pk, 'status': JOB_FAILURE, 'error': str(exc)}

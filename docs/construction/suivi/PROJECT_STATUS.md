@@ -14886,3 +14886,68 @@ homonyme**. Le mot porte deux sens dans WAMA ; les trois consignations sont pré
 monde MÉDIA — et **7 `stage: calcul`** qui dérivent des données stockées. La division
 analyse/calcul est donc déjà dans le kind `pipeline` extrait. Ce qui manque n'est pas la
 terminologie : ce sont les **trois exécuteurs** qui coexistent (marche **P3 de §10.6**).
+
+## SUITE 2026-09-17 (4) — P2, 3ᵉ pièce : le studio et la CHAÎNE DE GÉNÉRATION parlent le vocabulaire commun
+
+> Demande de Fabien : *« on poursuit P2 »*. ⚠ Le « reste de P2 » écrit au bloc ④bis ce matin est
+> PÉRIMÉ par ce bloc-ci — il n'est pas réécrit : `PROJECT_STATUS` est un *journal*, une trace
+> datée. C'est ce bloc qui fait foi sur l'état du 17/09 au soir.
+
+**⑥ L'exécuteur du studio.** `studio/tasks.py` n'écrit plus aucun état en littéral (**17 sites**,
+passe tokenisée à comptes vérifiés) et **TRADUIT** l'état rendu par le runner de l'app cible
+(`normalize_job_status`, la table livrée à la 2ᵉ pièce) au lieu de comparer une chaîne brute.
+⚠ **Défaut latent fermé** : une app répondant `DONE`/`ERROR` — vocabulaire de trois apps
+historiques, connu de la table d'alias — ne satisfaisait **aucune** des deux comparaisons ; la
+boucle tournait alors **jusqu'au délai de 30 minutes** avant de lever « délai dépassé ». Un
+symptôme qui accuse la lenteur du modèle et jamais la lecture de l'état — c'est-à-dire le genre de
+défaut qui ne se trouve pas à l'exécution locale. **Les VALEURS ne bougent pas** : `node_states`
+est un JSON persisté, donc une donnée — on la SOURCE, on ne la renomme pas.
+
+**⑦ Deux écritures de PLUS que ce que la route comptait, et c'est la trouvaille du jour.**
+`§10.3` disait « 3 tables d'alias » ; la mesure en trouve **deux autres**, toutes deux dans la
+chaîne de GÉNÉRATION et toutes deux figées à **QUATRE** états — écrites avant l'arrivée
+d'`AWAITING_RESOURCES` (02/09) et jamais suivies : `manifests/builtin/app.py::STATUS_VOCAB`,
+`codegen/models_gen.py::_STATUS_LABELS` (qui libellait en outre `FAILURE` « Erreur » quand les 13
+files affichent « Échec ») et le repli codé en dur de `codegen/views_gen.py`.
+🔴 **La première tenait DEUX rôles à la fois** : ce que chaque manifeste DÉCLARE *et* ce que le
+**validateur ACCEPTE**. Conséquence mesurée : un manifeste énonçant l'état du gouverneur de
+ressources aurait été **rejeté « hors vocabulaire canonique »**, et une app RÉGÉNÉRÉE déclarait
+moins d'états que son propre modèle réel. Les trois lisent désormais
+`common/models.job_status_values()` — un accesseur, pas une constante, parce que ces modules sont
+volontairement légers et ne doivent pas dépendre du cycle de chargement des apps.
+**Garde** : les **DEUX** chemins de `render_models` (introspection / squelette A5) sont éprouvés
+ENSEMBLE — c'est par leur divergence que `WAMA_INGEST` s'était déjà perdu une fois.
+*C'est ma garde qui a fait sortir ce défaut : écrite pour attester ma propre correction, elle a
+échoué sur un chemin que je n'avais pas mesuré.*
+
+**⑧ Ce qui est GARDÉ** (règle « tout livrable est gardé ou déclaré ») — 4 gardes neuves dans
+`common/tests_process_states.py` : les libellés de génération viennent du commun ; les deux
+chemins de rendu déclarent les cinq états ; l'exécuteur n'écrit plus de littéral ; **et un runner
+qui répond `DONE` termine le nœud** — celle-ci patche le délai de nœud à **zéro**, pour qu'une
+régression échoue en une seconde au lieu de faire tourner la boucle une demi-heure.
+
+**⑨ Ce qui RESTE de P2 — le FRONT, et il est GELÉ par la décision ouverte n°4.** Ce n'est pas
+« deux écritures » : la mesure compte **huit surfaces**, toutes payées une fois déjà pour
+`AWAITING_RESOURCES` le 02/09 — racine des 11 gabarits de card, `_card_state.html`,
+`_card_progress.html`, les deux maps de `wama-app-base.js`, trois règles de `app_modern.css`, une
+de `wama-inspector.css`, compteur de lot, filtre de file et son option de barre, plus la resynchro
+`staticfiles/`. La décision n°4 nomme littéralement « l'affichage de `STALE` sur la card et le
+bouton de cycle » : **il y faut une COULEUR**, et celle d'`AWAITING_RESOURCES` avait été choisie
+par Fabien (`#fd7e14`, 01/09). Seconde moitié de la même décision : la règle d'agrégation.
+
+**⚠ ROUGES ET PÉRIMÉS — établis, pas devinés (aucun n'est à moi).**
+- `common.tests_mcp_dev_tools` : **2 échecs** (`test_une_tache_en_echec_le_dit`,
+  `test_une_tache_reussie_rend_son_journal` — « la tâche n'a pas fini »). Rejoués **en isolé**
+  (rouges) **puis mes six fichiers mis de côté** (`git stash` ciblé) : **rouges de la même façon
+  sans moi**. Ils PRÉEXISTENT ; dernier commit du fichier `aa6c1acf` (15/09, chantier MCP).
+- **Corpus de manifestes : 11 périmés — AVANT comme APRÈS mes modifications** (mesuré dans la même
+  fenêtre, depuis WSL2). Je m'apprêtais à m'en attribuer la cause : **la mesure l'a réfuté**. Mon
+  changement y ajoute un écart réel (les `statuses` passent de 4 à 5), il n'est pas à l'origine du
+  périmé. **Rien n'a été régénéré** — le geste figerait le WIP d'une autre instance.
+- ⚠ Un **3ᵉ échec** de `wama.common` (1325 tests) reste **À NOMMER** : il était hors de ma fenêtre
+  de sortie, relance lancée au moment d'écrire.
+
+**Contrôles mesurés dans cette session** : ciblé `tests_process_states` + `studio` + les deux
+suites codegen = **121 tests, `OK`** ; `py_compile` sur les 5 fichiers Python touchés ; diff
+intégral relu avant commit (il a rattrapé deux défauts de ma main : un commentaire inséré **sans
+ses accents** par le script, et une fonction collée à la constante suivante).
