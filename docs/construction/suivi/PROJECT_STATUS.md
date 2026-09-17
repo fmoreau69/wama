@@ -15074,3 +15074,47 @@ parsés sous V8 ; scénario navigateur **8/8**.
 avec le WIP de trois autres instances. À passer **en worktree**. Conséquence assumée : la jumelle
 `converter_01` est désormais **en retard** sur le générateur (aucun test ne les compare, donc rien
 n'est rouge) — une régénération à faire, pas un oubli.
+
+## SUITE 2026-09-18 (2) — `DONE` et `ERROR` quittent le vocabulaire ; la migration passe de QUATRE modèles à TROIS
+
+> Fabien : *« On peut supprimer DONE et ERROR, ils dupliquent sans raison. »* Et, sur la
+> migration : *« en minuscules ? Le texte s'affichera toujours en majuscule ? »*
+
+**⑲ Les deux alias morts sont retirés.** Mesuré avant : **zéro ligne** sur les 18 modèles portant
+un `status`. Sept sites : le domicile (`JOB_STATUS_ALIASES`), `wama-cycle-button.js::DONE_STATES`
+et son jumeau de gabarit, les pastilles `[data-s="DONE"|"ERROR"]` de `wama-inspector.css`
+(remplacées par `COMPLETED`/`FAILED`, le vocabulaire **vivant** du Lab, qui n'y avait jamais été
+déclaré), deux règles de ligne de table dans `app_modern.css` (`ERROR` → `failed`, la valeur que
+ces tables affichent réellement), `assistant_engine.py:240` et `ui_smoke_menus.py:257`.
+**Épargnés, et c'est mesuré** : le `filemanager` emploie ces deux mots pour SES opérations de
+fichiers (homonymes) ; les migrations les citent — c'est de l'histoire ; et `reader.js:403` porte
+un sélecteur mort mais **appartient au WIP d'une autre instance** — déclaré, pas édité.
+⚠ **Conséquence visible, assumée** : le bouton de cycle rend désormais ▶ « Démarrer » sur
+`DONE`/`ERROR`. Sans effet — rien ne les produit ; le seul retour en arrière serait l'INVERSE
+d'une de ces deux migrations.
+
+**⑳ La garde du studio a failli se vider sans échouer.** Elle faisait répondre `DONE` à un faux
+runner pour prouver qu'un vocabulaire ÉTRANGER est compris. En retirant l'alias, la garder ainsi
+l'aurait rendue **vacuue tout en restant verte** — le pire des deux. Elle bascule sur `completed`
+(Lab, 72 lignes en base, minuscules : elle éprouve en prime la casse). Et une garde NEUVE tient la
+décision : `test_les_alias_MORTS_ne_reviennent_pas` — absents de la table, et ressortant **tels
+quels** de `normalize_job_status` (contre-épreuve : rien ne les traduit en douce).
+
+**㉑ CORRECTION de mon bloc ⑱ : TROIS modèles à migrer, pas quatre.** Mesuré depuis :
+- les **trois du Lab** (`cam_analyzer.AnalysisPass`, `cam_analyzer.AnalysisSession`,
+  `face_analyzer.AnalysisSession`) sont des `models.TextChoices` — **la minuscule est l'idiome
+  Django**, pas un choix : `COMPLETED = 'completed', 'Terminé'`. Ils **déclarent leurs libellés**,
+  donc l'écran montre « Terminé », jamais la valeur : **la migration y serait invisible**.
+  `AnalysisPass` porte même la consigne d'alignement dans sa docstring depuis un moment ;
+- **`ModelSyncLog` est EXCLU** : ce n'est pas un état de process mais le **journal d'une
+  synchronisation** (`started/completed/failed`), déclaré par une liste simple, et son `__str__`
+  affiche la **valeur brute** — visible dans l'admin, dans la charge JSON d'`api_sync_logs` et
+  dans la sortie CLI de `sync_models`. Le migrer se verrait, pour un objet qui n'appartient même
+  pas à ce vocabulaire.
+**Décision restant à prendre** : migrer les trois du Lab ne laisserait qu'**un** alias, celui de
+Celery — le seul qu'on ne possède pas.
+
+**Contrôles** : 99 tests OK (états, status_ui, codegen, converter, reader, describer) ; le bouton
+de cycle **servi** exécuté sous V8, 9 états vérifiés un à un ; geste navigateur
+`common.card_state_color` **rejoué après le retrait : 8/8** ; 3 fichiers statiques resynchronisés
+(blobs identiques) ; relevé résiduel de `DONE`/`ERROR` = exactement les familles épargnées.

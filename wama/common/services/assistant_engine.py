@@ -237,7 +237,9 @@ def _build_wama_context(user) -> str:
                 model = django_apps.get_model(f'wama.{app_label}', model_name)
                 pending = model.objects.filter(user=user, status='PENDING').count()
                 running = model.objects.filter(user=user, status__in=['RUNNING', 'processing']).count()
-                failed  = model.objects.filter(user=user, status__in=['FAILURE', 'ERROR', 'error']).count()
+                # `ERROR`/`error` retirés le 2026-09-18 : mesuré à zéro ligne sur les 18 modèles
+                # portant un `status`. `failed` reste — c'est le vocabulaire vivant du Lab.
+                failed  = model.objects.filter(user=user, status__in=['FAILURE', 'failed']).count()
                 if pending or running or failed:
                     parts = []
                     if pending: parts.append(f"{pending} en attente")
