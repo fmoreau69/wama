@@ -14995,6 +14995,13 @@ le DOM (`wama-app-base.js` n'est que parsé) ni la vérification qu'un ancien ch
 fichiers statiques resynchronisés (blobs identiques) et ce que le **serveur livre** est
 octet pour octet ma source (md5 comparés sur les deux JS, HTTP 200).
 
-⏳ **RESTE de P2 — un seul morceau** : la brique d'agrégation (« l'état d'une card se déduit de
-ses process », 4.4). Sa règle est validée ; elle s'appuie sur la ligne d'exécution PAR PROCESS que
-**P3** apporte. C'est donc P3 qui suit.
+⏳ **RESTE de P2 — DEUX morceaux, tous deux suspendus à P3.** *(Rectifié dans la foulée : j'avais
+écrit « un seul », ce qui omettait le second — il est pourtant nommé dès le début de `§10.6 4.2`.)*
+1. la **brique d'agrégation** (« l'état d'une card se déduit de ses process », 4.4) — règle validée
+   le 17/09, reste à écrire, s'appuie sur la ligne d'exécution PAR PROCESS qu'apporte P3 ;
+2. le **JS du canvas studio** (`wama-studio.js::setNodeRunState`, 3 couleurs de nœud). ⚠ Différé
+   POUR UNE RAISON, pas par oubli : l'exécuteur ne PRODUIT ni `AWAITING_RESOURCES` (il faudrait le
+   gouverneur) ni `STALE` (il faudrait la règle de péremption) — colorier ces états serait du code
+   que rien ne peut atteindre aujourd'hui.
+
+**C'est donc P3 (le moteur commun) qui suit** : il débloque les deux.

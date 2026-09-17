@@ -2677,9 +2677,16 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > l'attente de ressources et celle du périmé —, la seconde se lisant comme la liste de contrôle du
 > prochain état. Dont une **contre-épreuve** : un `SUCCESS` doit continuer de dire « Relancer »,
 > sans quoi un libellé changé partout passerait le test en cassant le sens.
-> ⏳ **RESTE de P2** : la brique d'agrégation seule (« l'état d'une card se déduit de ses process »,
-> 4.4). Sa règle est **validée telle quelle** depuis le 17/09 ; il reste à l'écrire, et elle
-> s'appuie sur la ligne d'exécution PAR PROCESS que P3 apporte.
+> ⏳ **RESTE de P2 — DEUX morceaux, tous deux suspendus à P3** (rectifié le 17/09 au soir : la
+> première rédaction disait « la brique d'agrégation seule », ce qui omettait le second) :
+> 1. la **brique d'agrégation** (« l'état d'une card se déduit de ses process », 4.4) — sa règle est
+>    **validée telle quelle** depuis le 17/09, il reste à l'écrire, et elle s'appuie sur la ligne
+>    d'exécution PAR PROCESS que P3 apporte ;
+> 2. le **JS du canvas studio** (`wama-studio.js::setNodeRunState`, 3 couleurs de nœud), que le
+>    début de ce §4.2 nomme parmi ce qui doit s'aligner. ⚠ Différé POUR UNE RAISON, pas par oubli :
+>    l'exécuteur ne PRODUIT aujourd'hui ni `AWAITING_RESOURCES` (il faudrait le gouverneur) ni
+>    `STALE` (il faudrait la règle de péremption) — colorier ces deux états serait du code que rien
+>    ne peut atteindre. Il s'aligne quand P3 les lui donne.
 >
 > ⚠ Renommés au passage, deux relevés de Fabien le même jour : `JOB_STATUS_EN_ATTENTE`/`_FINAUX`
 > (français) → `JOB_STATUS_NOT_STARTED`/`JOB_STATUS_TERMINAL`. Et **pas** `WAITING` : un ensemble
