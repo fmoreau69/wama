@@ -1683,8 +1683,27 @@ au code.
 > inter-mondes** (`common/catalog/` ne dépend d'aucun monde). Les deux taxonomies restent
 > séparées et d'intersection vide : rien n'est fusionné, aucun type n'est ajouté à l'une ou à
 > l'autre. C'est le couple (nature, rôle) du recadrage ci-dessous, appliqué au type d'un port.
-> **Ce qui reste à trancher par une DÉCISION** : faut-il que l'item B rende ce vocabulaire
-> unique, ou garder ces trois listes admises côte à côte ?
+> ✅ **TRANCHÉ le 2026-09-17 (Fabien) — l'item B est CLOS, et il l'est par la NÉGATIVE.**
+> *« Les types de fichiers du monde média et data n'ont globalement pas de lien. C'est dans le
+> FONCTIONNEMENT que je veux une cohérence et un alignement, pas dans la terminologie des
+> entrées médias et data, ce qui n'a pas de sens. »* Il n'y aura donc **pas d'axe commun de
+> vocabulaire** : les trois listes admises aux ports restent côte à côte.
+>
+> **LA RÈGLE, à appliquer partout** : un port nomme **ce qui CIRCULE**, dans le vocabulaire du
+> monde d'où la chose vient — un port qui porte un fichier nomme une **nature média**, un port
+> qui porte une donnée nomme un **type de donnée**. **On ne crée JAMAIS un jumeau dans l'autre
+> taxonomie** pour faire correspondre les deux. Premier (et seul) jumeau du dépôt, retiré le
+> jour même : `DataType.OBJECT_3D`, créé le 13/09 pour donner une sortie au port studio
+> image→3D — 1 producteur, 0 consommateur, et un champ `Nature.data_type` que seul un test
+> lisait. La sortie nomme désormais la nature `3d`.
+>
+> **Ce qui reste ouvert n'est donc PAS la terminologie, c'est le MOTEUR** : trois exécuteurs
+> font encore la même chose (squelette de tâche, exécuteur du studio, suivi de passes de
+> cam_analyzer) — c'est la marche **P3 de §10.6**, et c'est là que l'alignement se joue. Le
+> kind `pipeline` porte déjà le cas mixte : `manifests/pipelines/cam_analyzer.json` (13 process,
+> 6 `stage: analyse` qui regardent les pixels avec des modèles du monde MÉDIA, 7 `stage:
+> calcul` qui dérivent des données) — la division analyse/calcul que Fabien décrit **existe
+> déjà dans le manifeste extrait**.
 
 ⛔ **Ne pas le trancher au fil d'un autre chantier** — et ne pas le confondre avec (b) ci-dessus,
 qui est réparable sans lui : donner des entrées PAR SLOT au générateur ne demande pas de choisir

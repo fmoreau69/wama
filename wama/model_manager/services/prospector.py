@@ -862,7 +862,7 @@ def apply_recommendations(candidates, source: str, task: str):
                 'model_type': mt,
                 'hf_id': hf_id,
                 # La prospection LIT déjà la licence sur la carte HF (prospect_hf) : la jeter ici
-                # obligeait à repasser par backfill_platform_refs --licences pour la retrouver.
+                # obligeait à repasser par backfill_platform_refs --licenses pour la retrouver.
                 # `platform_ref` se dérive du même fait, sans requête supplémentaire.
                 'license': str(c.get('license') or '')[:64],
                 'platform_ref': f"huggingface:{hf_id}",

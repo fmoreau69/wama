@@ -14806,3 +14806,36 @@ chemin de validation connu est une carte qui ne fait pas paniquer l'hôte — le
 retour des crashs sous contrôle (`reference_wsl_gpu_windows_update_regression`).
 **Ne pas reproposer ce test comme point d'entrée** : ce n'est pas une tâche en attente, c'est une
 tâche empêchée.
+
+---
+
+## SUITE 2026-09-17 (3) — l'item B CLOS par la négative, le seul JUMEAU retiré, `--licenses`
+
+> Demande de Fabien : *« fais les 3 »* puis *« peut-on résoudre ça ensuite… il faut terminer les
+> choses pour débloquer ailleurs »* (des sessions sœurs travaillent sur des sujets voisins).
+
+**① L'item B est CLOS — par la NÉGATIVE.** *« Les types de fichiers du monde média et data n'ont
+globalement pas de lien. C'est dans le FONCTIONNEMENT que je veux une cohérence, pas dans la
+terminologie des entrées médias et data. »* Pas d'axe commun de vocabulaire ; les trois listes
+admises aux ports restent côte à côte. Domicile de la règle : `ROUTE §S2bis.6bis`.
+
+**② Le seul JUMEAU du dépôt est retiré.** `DataType.OBJECT_3D` avait été créé le 13/09 pour
+donner un type de sortie au port studio image→3D. Mesuré AVANT de toucher quoi que ce soit :
+**1 producteur** (`studio.image_to_3d`), **AUCUN consommateur** (la ROADMAP le disait elle-même,
+trou 6), **zéro occurrence dans `wama_lab/`** (motif `object_3d|object3d|OBJECT_3D|glb|glTF`), et
+`Nature.data_type` lu par **un test seulement**. ⚠ L'hypothèse de Fabien (« est-ce pour les
+bâtiments de la vue de dessus ? ») est **RÉFUTÉE par la mesure** : `ign_buildings` sort une
+`table` (emprises lon/lat + hauteur), son seul consommateur est `sky_mask`.
+✅ **Le vocabulaire média est INTACT** (consigne de Fabien : « on garde object_3d dans le monde
+média ») — nature d'asset `object3d`, catégorie `3d`, extensions, sonde glTF : rien n'a bougé.
+Seul le type de donnée jumeau disparaît ; la sortie de la fonction nomme la nature `3d`.
+
+**③ `--licences` → `--licenses`** (`backfill_platform_refs`) : l'option ET sa clé de lecture
+changent ensemble (sinon `KeyError`), plus ses deux citations (page des licences, test).
+
+**⭐ Ce que la mesure a appris, et qui vaut au-delà de ce cas** : l'alignement que Fabien demande
+**existe déjà plus qu'on ne le disait**. `manifests/pipelines/cam_analyzer.json` (9 septembre,
+13 process) porte **6 nœuds `stage: analyse`** — qui regardent les pixels avec des modèles du
+monde MÉDIA — et **7 `stage: calcul`** qui dérivent des données stockées. La division
+analyse/calcul est donc déjà dans le kind `pipeline` extrait. Ce qui manque n'est pas la
+terminologie : ce sont les **trois exécuteurs** qui coexistent (marche **P3 de §10.6**).

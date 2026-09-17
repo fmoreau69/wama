@@ -2719,11 +2719,18 @@ approfondir en testant jusqu'où on peut aller (multi-vues, fidélité au véhic
      garde `VendoringTest` ne demandait que la façade. Récupéré depuis npm (0.180.0, façade
      vérifiée identique), versionné avec la LICENSE (MIT), `update_vendors.sh` et la garde
      complétés.
-3. ✅ **Port studio `object_3d` — DÉCLARÉ le 2026-09-13** : `DataType.OBJECT_3D`
-   (`data_types.py`, non tabulaire comme `DEPTH_MAP`), et la nature `object3d` le porte en
-   `data_type` (lien inter-mondes vérifié par test : toute nature qui déclare un type le
-   déclare dans le vocabulaire Data). Le premier PRODUCTEUR est le trou 4 ; le premier
-   consommateur, un `PortSpec('object', DataType.OBJECT_3D)` d'un nœud d'insertion (trou 6).
+3. ✅ **Port studio 3D — le port existe, mais il nomme une NATURE MÉDIA** (rectifié le
+   2026-09-17, décision de Fabien : *« on garde object_3d dans le monde média »*).
+   ⚠ Ce point disait, du 13/09 au 17/09 : « `DataType.OBJECT_3D` déclaré, et la nature
+   `object3d` le porte en `data_type` ». **Ce type était un JUMEAU** — la même chose nommée
+   deux fois, une par monde — et le SEUL du dépôt. Mesuré avant retrait : **1 producteur**
+   (`studio.image_to_3d`), **aucun consommateur**, **zéro occurrence dans le Lab**, et
+   `Nature.data_type` n'était lu que par un test.
+   **Ce qui tient désormais** : un objet 3D est un FICHIER média, sa nature est `3d`
+   (`MEDIA_CATEGORIES`) ; le port de sortie de la fonction nomme cette nature, et le
+   vocabulaire admis aux ports accepte déjà les natures média
+   (`app_registry.known_port_types`) sans fusionner les deux taxonomies. Le futur nœud
+   d'insertion (trou 6) attendra donc un port `3d`, pas un type de donnée.
 4. 🔄 **Manifeste `function` « image→3D » + backend — ÉCRIT le 2026-09-13, NON EXÉCUTÉ**
    (le premier run GPU se fait avec Fabien — règle crashs hôte) :
    - **modèle** : `huggingface:triposr` au catalogue (`_discover_image_to_3d_models`, poids
@@ -2734,8 +2741,9 @@ approfondir en testant jusqu'où on peut aller (multi-vues, fidélité au véhic
      `triposr`, résolu par `backend_for_key`) sur le code VENDORISÉ (`tools/setup_triposr.sh` :
      clone épinglé + marching cubes → PyMCubes + `rembg` paresseux) ; poids par
      `hf_hub_download(cache_dir=…)`, jamais d'env ;
-   - **fonction** `studio.image_to_3d` (`studio/function_specs.py`, ports `image` →
-     `OBJECT_3D`, tâche GPU `studio.gpu_tasks:image_to_3d_task` routée sur la file `gpu`, pas
+   - **fonction** `studio.image_to_3d` (`studio/function_specs.py`, ports `image` → `3d` —
+     DEUX natures média depuis le 2026-09-17, cf. point 3 ci-dessus ; `OBJECT_3D` jusque-là,
+     tâche GPU `studio.gpu_tasks:image_to_3d_task` routée sur la file `gpu`, pas
      `studio`) ; **l'exécuteur passe désormais les FICHIERS de l'amont par port** à une fonction
      app-bound, et reconnaît un résultat-fichier (le nœud « Sortie » le range en médiathèque avec
      ses attributs lus) ;

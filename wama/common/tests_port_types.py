@@ -89,7 +89,7 @@ class VocabulaireDesPortsTest(SimpleTestCase):
         et `studio_node_ports` pose des ports `prompt` que le canvas apparie déjà."""
         self.assertIn('image', known_port_types())
         self.assertIn('prompt', known_port_types())
-        self.assertIn('object_3d', known_port_types())
+        self.assertIn('3d', known_port_types())
 
     def test_il_n_admet_PAS_une_extension_de_fichier(self):
         """Une extension n'est pas une nature : `normalize_types` la TRADUIT, elle ne la

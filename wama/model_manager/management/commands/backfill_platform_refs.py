@@ -13,7 +13,7 @@ distantes ; passer --ecrire pour appliquer.
 TROIS SOURCES DE FAIT, par ordre de cout croissant -- aucune ne DEDUIT quoi que ce soit :
   1. `--depuis-poids` : la licence ecrite DANS le fichier de poids (hors ligne, aucune requete).
      Couvre les modeles decouverts par scan disque, qui n'ont pas d'identite de plateforme.
-  2. `--licences`     : la carte HuggingFace, pour les modeles portant deja un `hf_id`.
+  2. `--licenses`     : la carte HuggingFace, pour les modeles portant deja un `hf_id`.
   3. `--poser`        : une provenance VERIFIEE par un humain (appariement nom+taille d'octets
      contre le depot amont). C'est la porte d'entree qui manquait : le rattachement des 70
      modeles indetermines etait impossible, faute d'un endroit ou deposer le fait etabli.
@@ -34,7 +34,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--ecrire', action='store_true',
                             help="Applique les changements (sans ca, on n'affiche que le bilan).")
-        parser.add_argument('--licences', action='store_true',
+        parser.add_argument('--licenses', action='store_true',
                             help="Interroge HuggingFace pour renseigner la licence (une requete par modele).")
         parser.add_argument('--depuis-poids', action='store_true',
                             help="Lit la licence DANS les fichiers de poids (.pt/.onnx). Hors ligne.")
@@ -84,7 +84,7 @@ class Command(BaseCommand):
         # declare AGPL dans ses poids alors que Panoramax le publie en Licence Ouverte Etalab 2.0.
         # La declaration de l'editeur fait foi ; les poids ne sont le RECOURS que pour les modeles
         # sans identite de plateforme (les 63 issus du scan disque).
-        if options['licences']:
+        if options['licenses']:
             self._licenses(ecrire)
 
         if options['depuis_poids']:
@@ -133,7 +133,7 @@ class Command(BaseCommand):
 
             champs = {'platform_ref': ref}
             # `hf_id` est le champ historique : le renseigner rend le modele visible a
-            # `--licences` et au filtre « deja chez nous » de la prospection.
+            # `--licenses` et au filtre « deja chez nous » de la prospection.
             if plateforme == 'huggingface':
                 champs['hf_id'] = identifiant
             avant = {c: getattr(m, c) for c in champs}

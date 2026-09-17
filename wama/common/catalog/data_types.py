@@ -43,13 +43,16 @@ class DataType:
     ROAD_MAP = 'road_map'        # polylignes routières de référence (geometry, id[, type])
     DETECTIONS = 'detections'    # objets détectés par frame (frame, bbox, class, track_id…)
     DEPTH_MAP = 'depth_map'      # raster HxW de profondeur métrique (mètres) — non tabulaire
-    # ── Objet 3D (maillage texturé, pivot GLB) — ROADMAP §17ter trou 3, déclaré le 2026-09-13.
-    # Non tabulaire, comme `DEPTH_MAP`. C'est le TYPE que la nature d'asset `object3d`
-    # (`media_library/natures.py`, `data_type='object_3d'`) déclare comme lien inter-mondes :
-    # un port studio qui l'attend accepte un objet 3D de la médiathèque, un nœud « image→3D »
-    # (trou 4) le produira. Déclaré ici AVANT le premier producteur, à dessein : le port existe
-    # pour que la chaîne detector → 2D→3D → médiathèque se câble par déclaration, pas par glu.
-    OBJECT_3D = 'object_3d'
+    # 🔴 `OBJECT_3D` RETIRÉ le 2026-09-17 (décision de Fabien). Il avait été déclaré le 13/09 pour
+    # donner un type de sortie au nœud studio « image→3D » et permettre à la nature d'asset
+    # `object3d` de pointer un type de donnée. C'était un JUMEAU : la même chose nommée deux fois,
+    # une par monde (nature média `3d` ↔ type de donnée `object_3d`) — le seul du dépôt.
+    # Mesuré avant retrait : 1 producteur (`studio.image_to_3d`), AUCUN consommateur, zéro
+    # occurrence dans le Lab, et `Nature.data_type` n'était lu que par un test.
+    # La règle qui remplace ce jumeau : **un port nomme ce qui CIRCULE, dans le vocabulaire du
+    # monde d'où la chose vient** — un fichier média nomme sa NATURE (`3d`), une donnée nomme son
+    # type. Le vocabulaire admis aux ports réunit déjà les deux (`app_registry.known_port_types`),
+    # sans les fusionner. On ne crée jamais un jumeau pour faire correspondre deux taxonomies.
 
 
 # Relation « est-un » : type → ses super-types directs. Un geo_track EST une timeseries
@@ -65,7 +68,6 @@ _SUPERTYPES = {
     DataType.SCALAR: [],
     DataType.ROAD_MAP: [],
     DataType.DEPTH_MAP: [],   # raster : pas un sous-type de table
-    DataType.OBJECT_3D: [],   # maillage : pas un sous-type de table
     DataType.TABLE: [],
 }
 
