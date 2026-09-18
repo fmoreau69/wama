@@ -253,6 +253,14 @@ class UserApiKey(models.Model):
     # ⚠ Pas `models` : dans le corps de la classe, ce nom masquerait le module `models`.
     open_models = models.JSONField(default=list, blank=True,
                                    verbose_name='Modèles ouverts à cette clé (model_key)')
+    # La LISTE telle que le fournisseur la rend (`[{id, name, type, aliases}]`), gardée pour que
+    # la découverte du registre (`ModelRegistry._discover_cloud_models`) reconstruise les lignes
+    # de catalogue SANS requête réseau — comme la découverte Ollama relit `/api/tags`, celle-ci
+    # relit ce que la dernière lecture chez le fournisseur a rapporté (2026-09-18). Avant, les
+    # lignes distantes étaient écrites à part (`upsert_catalog`), hors de la synchronisation
+    # commune : un identifiant renommé par le fournisseur laissait un doublon que rien ne retirait.
+    remote_listing = models.JSONField(default=list, blank=True,
+                                      verbose_name='Liste rendue par le fournisseur')
     discovered_at = models.DateTimeField(null=True, blank=True)
     discovery_error = models.CharField(max_length=255, blank=True, default='')
 

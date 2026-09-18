@@ -11,6 +11,7 @@
       "audio": true,
       "completion": true,
       "context_length": 262144,
+      "embedding": false,
       "inputs_required": [
         "prompt"
       ],

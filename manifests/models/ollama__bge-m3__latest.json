@@ -4,6 +4,8 @@
       "abilities": [
         "embedding"
       ],
+      "audio": false,
+      "completion": false,
       "context_length": 8192,
       "embedding": true,
       "inputs_required": [
@@ -14,7 +16,10 @@
       ],
       "params_active_b": 0.5667000000000001,
       "params_total_b": 0.5667000000000001,
-      "task": "feature-extraction"
+      "task": "feature-extraction",
+      "thinking": false,
+      "tools": false,
+      "vision": false
     },
     "composition": {
       "runtime": {

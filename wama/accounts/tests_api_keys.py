@@ -48,6 +48,10 @@ class ClesLlmTest(TestCase):
                                 return_value=[])
         decouverte.start()
         self.addCleanup(decouverte.stop)
+        # Et aucune découverte du disque : `refresh_key` passe par la synchronisation commune
+        # (2026-09-18) — on la réduit à sa source cloud, comme dans les tests du model_manager.
+        from wama.model_manager.tests_cloud_models import _sync_cloud_seul
+        _sync_cloud_seul(self)
 
     def _enregistrer(self, slug='albert', cle=CLAIR):
         return self.client.post(reverse('accounts:profile-api-key-save', args=[slug]),

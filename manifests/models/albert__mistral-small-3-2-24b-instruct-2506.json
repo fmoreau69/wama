@@ -1,0 +1,64 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "albert"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+        "openweight-medium"
+      ],
+      "hosting": "sovereign",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+      "hf_id": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": "huggingface:mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "source": "albert"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "albert",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+  "key": "albert:mistral-small-3-2-24b-instruct-2506",
+  "manifest_kind": "model",
+  "name": "mistral-small-3-2-24b-instruct-2506",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:albert:mistral-small-3-2-24b-instruct-2506",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
