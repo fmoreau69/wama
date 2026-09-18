@@ -327,14 +327,12 @@ def install_candidate(cand, progress=None) -> dict:
     if not res.get('ok'):
         return {'ok': False, 'error': res.get('error', 'pull échoué')}
 
-    # Re-synchronise pour que le modèle réel apparaisse, puis retire le candidat.
+    # Re-synchronise pour que le modèle réel apparaisse, pose sa provenance (manifeste au
+    # corpus — cette branche l'oubliait jusqu'au 2026-09-18 : aucune ligne `ollama:*` n'avait
+    # de manifeste), puis retire le candidat.
     if progress:
         progress("enregistrement au catalogue…")
-    try:
-        register_after_install()
-    except Exception:
-        logger.warning("register_after_install a échoué (le sync périodique rattrapera)",
-                       exc_info=True)
+    record_provenance({'kind': 'ollama', 'ref': cand.name}, {})
 
     # RÉCONCILIER LE REMPLACÉ. `register_after_install()` → `full_sync()` n'enlève rien :
     # c'est voulu (une indisponibilité passagère ne doit pas purger le catalogue), mais ici
@@ -561,28 +559,38 @@ def install_from_spec(spec: dict) -> dict:
             res['ok'] = False
             res['error'] = "modèle téléchargé mais dépendances pip en échec (voir 'pip')"
     if res.get('ok'):
-        sync = None
-        try:
-            sync = register_after_install()
-        except Exception:
-            logger.warning("register_after_install a échoué (le sync périodique rattrapera)",
-                           exc_info=True)
-        if sync is not None:
-            # Le sync ne pose QUE les faits de découverte (chemin, format, classes, taille) : il
-            # ne sait rien de la licence ni de l'auteur. Sans cette étape, un modèle ajouté par
-            # URL depuis l'assistant arrivait au catalogue aussi anonyme que ceux trouvés par
-            # scan disque — et le corpus déclaratif n'en portait aucune trace.
-            # `added_keys` vient du sync lui-même : c'est LUI qui sait ce qu'il vient de créer.
-            # Best-effort : une provenance manquée (réseau, dépôt privé) ne doit jamais faire
-            # échouer une installation qui, elle, a réussi.
-            try:
-                from .provenance import record_after_install
-                res['provenance'] = record_after_install(
-                    spec, getattr(sync, 'added_keys', None) or [])
-            except Exception as e:
-                logger.warning("provenance non enregistrée après installation : %s", e,
-                               exc_info=True)
-                res['provenance'] = {'erreur': f"{type(e).__name__}: {e}"}
+        record_provenance(spec, res)
+    return res
+
+
+def record_provenance(spec: dict, res: dict) -> dict:
+    """Après un téléchargement réussi : sync du catalogue, puis provenance des lignes apparues.
+
+    Le sync ne pose QUE les faits de découverte (chemin, format, classes, taille) : il ne sait
+    rien de la licence ni de l'auteur. Sans la provenance, un modèle ajouté par URL depuis
+    l'assistant arrivait au catalogue aussi anonyme que ceux trouvés par scan disque — et le
+    corpus déclaratif n'en portait aucune trace. `added_keys` vient du sync lui-même : c'est
+    LUI qui sait ce qu'il vient de créer.
+
+    Corps UNIQUE des deux chemins d'installation (`install_from_spec` et la branche Ollama de
+    `install_candidate`, 2026-09-18). Best-effort des deux côtés : une provenance manquée
+    (réseau, dépôt privé) ne doit jamais faire échouer une installation qui, elle, a réussi.
+    Écrit `res['provenance']` et le rend.
+    """
+    sync = None
+    try:
+        sync = register_after_install()
+    except Exception:
+        logger.warning("register_after_install a échoué (le sync périodique rattrapera)",
+                       exc_info=True)
+    if sync is None:
+        return res
+    try:
+        from .provenance import record_after_install
+        res['provenance'] = record_after_install(spec, getattr(sync, 'added_keys', None) or [])
+    except Exception as e:
+        logger.warning("provenance non enregistrée après installation : %s", e, exc_info=True)
+        res['provenance'] = {'erreur': f"{type(e).__name__}: {e}"}
     return res
 
 

@@ -169,7 +169,7 @@ def declared_engine_flag(cls, flag: str):
 def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     """Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
 
-    Règle, dans le vocabulaire du dépôt (`_capabilities_projectable`, 2026-08-31) : *« c'est la
+    Règle, dans le vocabulaire du dépôt (`merged_capabilities`, ex-`_capabilities_projectable`, 2026-08-31) : *« c'est la
     DÉCOUVERTE qui fait autorité — elle lit les flags sur les classes de backend ; on ne comble
     qu'un vide, on ne conteste jamais un fait »*. Le FAIT, quand il existe, est la déclaration
     du moteur ; le manifeste ne garde autorité que là où aucune classe ne se résout.

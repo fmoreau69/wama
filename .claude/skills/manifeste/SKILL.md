@@ -104,14 +104,17 @@ Un round-trip qui diverge sur un champ **déclaratif** est un bug ; sur un champ
   - `project_model` ne **crée jamais** de ligne — un `AIModel` né d'un manifeste serait un modèle
     fantôme, sans poids sur le disque, que la sélection pourrait pourtant retenir. Cible absente →
     on le dit, on ne fait rien (« lancer `sync_models` d'abord »).
-  - Le manifeste n'a autorité que sur les champs **déclaratifs** : `license`, `platform_ref`. Rien
-    d'autre. `is_downloaded`, `is_loaded`, `local_path`, `vram_gb`, `capabilities` appartiennent à
-    la découverte.
-  - ⚠ **La découverte réécrit `capabilities` EN ENTIER à chaque `sync_models`.** Toute valeur posée
-    en dehors d'elle est effacée au passage suivant. Vécu deux fois le 2026-08-05 : `audio_enhance`
-    corrigé en base puis réécrit par le beat une heure plus tard, et 11 `abilities` renseignées par
-    une commande de rattrapage puis ramenées à 0 par un sync. **Corriger dans `model_registry`,
-    jamais seulement en base.**
+  - Le manifeste a autorité sur les champs **déclaratifs** (`license`, `author`, `platform_ref`,
+    `hf_id`, `prompts.contract`, `composition`, `gated` s'il est déclaré) et projette
+    `capabilities` par **fusion clé par clé** (`merged_capabilities`, 2026-09-18) : ligne servie
+    par une app → la découverte garde ses valeurs, le manifeste comble ; ligne orpheline → le
+    manifeste tranche clé par clé. `is_downloaded`, `is_loaded`, `local_path`, `vram_gb` restent
+    des faits mesurés, jamais projetés.
+  - ⚠ Le sync n'efface plus un fait par une absence (`{}` de découverte, 31/08) — mais quand la
+    découverte SAIT (une app déclare le modèle), elle écrit et fait autorité. Vécu le 2026-08-05 :
+    `audio_enhance` corrigé en base puis réécrit par le beat une heure plus tard. **Une capacité
+    d'un modèle déclaré par une app se corrige dans `model_registry`, jamais seulement en base ;
+    celle d'un modèle orphelin se corrige dans son manifeste, puis `write_back`.**
 - **Un contrôle vert juste après un correctif de catalogue ne prouve rien** : le beat
   `model-manager-reconcile` tourne toutes les 2 h avec le code chargé en mémoire. Redémarrer les
   workers, puis re-mesurer. Vérifier l'âge des process : `ps -eo pid,etimes,cmd | grep celery`.

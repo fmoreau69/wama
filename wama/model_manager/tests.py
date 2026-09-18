@@ -811,39 +811,179 @@ class TacheHeriteeALInstallationTest(TestCase):
     arrivé au catalogue SANS tâche alors que son candidat portait `detect` — le balayage
     générique d'un snapshot HF ne sait pas ce qu'un modèle fait. Le spec porte la tâche, la
     provenance la pose ; une tâche déjà établie par la découverte n'est jamais écrasée.
+
+    Depuis le 2026-09-18 la tâche entre PAR LE MANIFESTE (`set_identity`), donc avant sa
+    projection et son export au corpus. Mesuré avant : 8 modèles installés depuis le 02/09
+    n'avaient que `task` — la tâche, écrite en base APRÈS l'export, fermait la porte des
+    capacités derrière elle, et le manifeste du corpus naissait sans tâche.
     """
 
-    def test_la_tache_du_spec_est_posee_sur_la_ligne_installee(self):
-        from .services import provenance as pv
-        vierge = AIModel.objects.create(
+    IDENTITE = {'hf_id': 'Org/Detecteur', 'platform_ref': 'huggingface:Org/Detecteur'}
+
+    def _vierge(self):
+        return AIModel.objects.create(
             model_key='huggingface:Org/Detecteur', name='Detecteur', model_type='vision',
             source='huggingface', is_downloaded=True, hf_id='Org/Detecteur', capabilities={})
+
+    def test_la_tache_du_spec_entre_par_le_manifeste_avant_l_export(self):
+        """La chaîne RÉELLE (extract → validate → write_back) tourne ; seuls le réseau (identité
+        HF) et l'écriture du corpus sont remplacés — et l'export voit la tâche déjà posée."""
+        from .services import provenance as pv
+        vierge = self._vierge()
+        vues_a_l_export = []
+
+        def _export(*args, **kwargs):
+            vues_a_l_export.append(AIModel.objects.get(pk=vierge.pk).capabilities.get('task'))
+
+        spec = {'kind': 'hf', 'ref': 'Org/Detecteur', 'category': 'vision', 'task': 'detect'}
+        with patch.object(pv, 'identity_for_spec', return_value=dict(self.IDENTITE)), \
+                patch('django.core.management.call_command', side_effect=_export):
+            r = pv.record_after_install(spec, ['huggingface:Org/Detecteur'])
+        vierge.refresh_from_db()
+        self.assertEqual(vierge.capabilities.get('task'), 'detect')
+        self.assertEqual(r.get('tache'), 'detect')
+        self.assertIn('capabilities.task', r['modeles'][0]['poses'])
+        self.assertEqual(vues_a_l_export, ['detect'],
+                         "le corpus doit être écrit APRÈS la pose de la tâche, pas avant")
+
+    def test_un_spec_sans_tache_ne_touche_a_rien(self):
+        """Ancien candidat, ou installation par l'assistant sans tâche : rien n'est inventé."""
+        from .services import provenance as pv
+        vierge = self._vierge()
+        with patch.object(pv, 'identity_for_spec', return_value=dict(self.IDENTITE)), \
+                patch('django.core.management.call_command'):
+            r = pv.record_after_install({'kind': 'hf', 'ref': 'Org/Detecteur'},
+                                        ['huggingface:Org/Detecteur'])
+        vierge.refresh_from_db()
+        self.assertNotIn('tache', r)
+        self.assertNotIn('task', vierge.capabilities)
+
+    def test_une_tache_etablie_n_est_jamais_ecrasee_par_celle_du_spec(self):
+        from .services import provenance as pv
         etabli = AIModel.objects.create(
             model_key='huggingface:Org/Segmenteur', name='Segmenteur', model_type='vision',
             source='huggingface', is_downloaded=True, hf_id='Org/Segmenteur',
             capabilities={'task': 'segment'})
-        spec = {'kind': 'hf', 'ref': 'Org/Detecteur', 'category': 'vision', 'task': 'detect'}
-        # Ni réseau (identité HF) ni corpus (manifeste) : seule la pose de la tâche est testée.
-        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Detecteur',
-                                                                 'platform_ref': 'huggingface:Org/Detecteur'}), \
-                patch.object(pv, 'set_identity', return_value={'applique': True}):
-            r = pv.record_after_install(spec, ['huggingface:Org/Detecteur'])
-            # Un spec SANS tâche (ancien candidat, ou install par l'assistant) ne touche à rien.
-            r2 = pv.record_after_install({k: v for k, v in spec.items() if k != 'task'},
-                                         ['huggingface:Org/Detecteur'])
-        vierge.refresh_from_db()
-        etabli.refresh_from_db()
-        self.assertEqual(vierge.capabilities.get('task'), 'detect')
-        self.assertEqual(r.get('tache'), 'detect')
-        self.assertNotIn('tache', r2)
-        # La garde de concordance écarte une ligne d'un AUTRE hf_id ; et une tâche établie
-        # ne s'écrase pas même quand la ligne est ciblée.
         with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Segmenteur'}), \
-                patch.object(pv, 'set_identity', return_value={'applique': True}):
-            pv.record_after_install({'kind': 'hf', 'ref': 'Org/Segmenteur', 'task': 'detect'},
-                                    ['huggingface:Org/Segmenteur'])
+                patch('django.core.management.call_command'):
+            r = pv.record_after_install({'kind': 'hf', 'ref': 'Org/Segmenteur', 'task': 'detect'},
+                                        ['huggingface:Org/Segmenteur'])
         etabli.refresh_from_db()
         self.assertEqual(etabli.capabilities.get('task'), 'segment')
+        self.assertNotIn('capabilities.task', r['modeles'][0].get('poses', ()))
+
+
+class FusionDesCapacitesTest(TestCase):
+    """`write_back_model` projette `capabilities` par FUSION clé par clé (2026-09-18).
+
+    Avant : « tout ou rien », sur une ligne orpheline ENCORE VIDE seulement. Une porte à usage
+    unique : la première clé posée (la tâche du spec) interdisait toutes les suivantes.
+    """
+
+    def _projeter(self, cle, caps):
+        from wama.common.manifests.builtin.model import write_back_model
+        return write_back_model({'manifest_kind': 'model', 'key': cle,
+                                 'body': {'capabilities': caps}}, apply=True)
+
+    def test_sur_une_ligne_orpheline_le_manifeste_tranche_cle_par_cle(self):
+        """La tâche déjà posée n'interdit plus les modalités ; et une clé que le manifeste
+        déclare autrement est corrigée — personne d'autre ne produit ces capacités."""
+        AIModel.objects.create(model_key='huggingface:Org/Orphelin', name='O', model_type='vision',
+                               source='huggingface', capabilities={'task': 'detect',
+                                                                   'classes': ['face']})
+        r = self._projeter('huggingface:Org/Orphelin',
+                           {'task': 'segment', 'modalities': ['image']})
+        m = AIModel.objects.get(model_key='huggingface:Org/Orphelin')
+        self.assertEqual(m.capabilities, {'task': 'segment', 'modalities': ['image'],
+                                          'classes': ['face']})
+        self.assertIn('capabilities', r['changed'])
+
+    def test_sur_une_ligne_servie_par_une_app_le_manifeste_comble_sans_contester(self):
+        """La découverte lit les flags sur la classe de backend : sa valeur reste, le manifeste
+        n'ajoute que ce qu'elle n'a pas écrit (cas Audio8 : `supports_cloning=False` déclaré
+        par le moteur, `True` dans un manifeste antérieur — le moteur a raison)."""
+        AIModel.objects.create(model_key='synthesizer:servi', name='S', model_type='speech',
+                               source='synthesizer', backend_ref='synthesizer',
+                               capabilities={'task': 'text-to-speech', 'supports_cloning': False})
+        self._projeter('synthesizer:servi', {'supports_cloning': True, 'languages': ['fr']})
+        m = AIModel.objects.get(model_key='synthesizer:servi')
+        self.assertEqual(m.capabilities, {'task': 'text-to-speech', 'supports_cloning': False,
+                                          'languages': ['fr']})
+
+    def test_un_manifeste_muet_ne_touche_pas_aux_capacites(self):
+        AIModel.objects.create(model_key='huggingface:Org/Muet', name='M', model_type='vision',
+                               source='huggingface', capabilities={'task': 'detect'})
+        r = self._projeter('huggingface:Org/Muet', {})
+        self.assertIn('capabilities', r['preserved'])
+        self.assertNotIn('capabilities', r['changed'])
+        self.assertEqual(AIModel.objects.get(model_key='huggingface:Org/Muet').capabilities,
+                         {'task': 'detect'})
+
+
+class ProvenanceSurTousLesCheminsTest(TestCase):
+    """Deux chemins d'installation sautaient la provenance (mesuré 2026-09-18) : la branche
+    Ollama de `install_candidate` (aucune des 9 lignes `ollama:*` n'avait de manifeste) et le
+    raccourci YOLO de la vue. Ils passent désormais par le corps unique `record_provenance`.
+    """
+
+    def _sync(self, *cles):
+        from .services.model_sync import SyncResult
+        return SyncResult(success=True, added=len(cles), added_keys=list(cles))
+
+    def test_un_candidat_ollama_installe_recoit_sa_provenance(self):
+        from .services import model_installer as mi
+        cand = AIModel.objects.create(
+            model_key='proposed:ollama:nouveau:latest', name='nouveau:latest', model_type='llm',
+            source='ollama', is_proposed=True, proposal_kind='new')
+        with patch.object(mi, 'pull_ollama_model', return_value={'ok': True}), \
+                patch.object(mi, 'register_after_install',
+                             return_value=self._sync('ollama:nouveau:latest')), \
+                patch('wama.model_manager.services.provenance.record_after_install',
+                      return_value={'identite': {}}) as prov:
+            res = mi.install_candidate(cand)
+        self.assertTrue(res['ok'])
+        prov.assert_called_once_with({'kind': 'ollama', 'ref': 'nouveau:latest'},
+                                     ['ollama:nouveau:latest'])
+        self.assertFalse(AIModel.objects.filter(pk=cand.pk).exists(), "candidat retiré")
+
+    def test_install_from_spec_passe_par_le_meme_corps(self):
+        from .services import model_installer as mi
+        with patch.object(mi, 'pull_hf_model', return_value={'ok': True, 'path': '/p'}), \
+                patch.object(mi, 'register_after_install',
+                             return_value=self._sync('huggingface:Org/X')), \
+                patch('wama.model_manager.services.provenance.record_after_install',
+                      return_value={'identite': {'hf_id': 'Org/X'}}) as prov:
+            res = mi.install_from_spec({'kind': 'hf', 'ref': 'Org/X', 'category': 'vision',
+                                        'task': 'detect'})
+        self.assertTrue(res['ok'])
+        self.assertEqual(res['provenance'], {'identite': {'hf_id': 'Org/X'}})
+        prov.assert_called_once_with({'kind': 'hf', 'ref': 'Org/X', 'category': 'vision',
+                                      'task': 'detect'}, ['huggingface:Org/X'])
+
+    def test_une_provenance_manquee_ne_fait_pas_echouer_l_installation(self):
+        from .services import model_installer as mi
+        with patch.object(mi, 'pull_hf_model', return_value={'ok': True}), \
+                patch.object(mi, 'register_after_install', side_effect=RuntimeError('base')):
+            res = mi.install_from_spec({'kind': 'hf', 'ref': 'Org/Y', 'category': 'vision'})
+        self.assertTrue(res['ok'])
+        self.assertNotIn('provenance', res)
+
+    def test_le_raccourci_yolo_de_la_vue_est_un_spec_comme_les_autres(self):
+        import json as _json
+
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        admin = get_user_model().objects.create_user('admin_yolo', password='x',
+                                                     is_superuser=True)
+        self.client.force_login(admin)
+        with patch('wama.model_manager.services.model_installer.install_from_spec',
+                   return_value={'ok': True, 'path': '/poids/yolo26s-seg.pt'}) as inst:
+            rep = self.client.post(reverse('model_manager:api_prospect_install'),
+                                   data=_json.dumps({'source': 'yolo', 'name': 'yolo26s-seg'}),
+                                   content_type='application/json')
+        self.assertEqual(rep.status_code, 200, rep.content)
+        self.assertEqual(rep.json()['installed'], 'yolo26s-seg')
+        inst.assert_called_once_with({'kind': 'yolo', 'ref': 'yolo26s-seg'})
 
 
 class _SourcesFactices:

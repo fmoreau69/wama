@@ -406,7 +406,7 @@ pas dans les intentions :
 | `app` | `extract_app` | ✅ `write_back_app` — **10 facettes** (`access` DB + `identity`/`ports`/`capabilities` → APP_CATALOG, `studio` → GENERIC_APPS, `modes` → APP_MODES, `prompts` → PROMPT_TARGETS, `params` → params.py, `inspector` → apps.py, `tool_api` → TRIAD_SPECS) + `processing` partiel (gabarits urls/tasks/models) ; reste `models` + marche B (§6quater) |
 | `function` | `extract_function` | ✅ `write_back_function` — binding `user` → `UserFunction` (tag `_manifest-gen`, 2026-08-11) ; `pure`/`app` = catalogue code (code-gen) |
 | `library` | `extract_library` | ✅ `write_back_library` — **crée** la ligne `common.models.Library` |
-| `model` | `extract_model` | ✅ `write_back_model` — `license`/`platform_ref` (ne crée JAMAIS la ligne) |
+| `model` | `extract_model` | ✅ `write_back_model` — `license`/`author`/`platform_ref`/`hf_id`/`prompts.contract`/`composition`, `gated` si déclaré, et `capabilities` par **fusion clé par clé** (2026-09-18 ; ne crée JAMAIS la ligne) |
 | `pipeline` | `extract_pipeline` | ❌ |
 | `project` | `extract_project` | ❌ |
 | `dataset` | `None` — *le manifeste est l'origine* | ❌ |

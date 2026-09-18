@@ -108,20 +108,29 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
     return None
 
 
-def set_identity(model_key: str, identite: dict, *, apply: bool = True,
-                   exporter: bool = True) -> dict:
+def set_identity(model_key: str, identite: dict, *, capabilities: dict = None,
+                   apply: bool = True, exporter: bool = True) -> dict:
     """
-    Pose l'identité sur un modèle DU CATALOGUE, en passant par son manifeste.
+    Pose l'identité — et les capacités DÉCLARÉES — sur un modèle DU CATALOGUE, en passant
+    par son manifeste.
 
-    Retourne un compte rendu : `{model, applique, projete, corpus, erreur?}`.
+    `capabilities` : clés déclarées par l'amont (la tâche du spec d'installation, demain les
+    modalités et entrées). Même règle que l'identité : elles COMPLÈTENT le manifeste extrait,
+    elles n'écrasent jamais une clé déjà établie. Jusqu'au 2026-09-18 la tâche était écrite
+    directement en base APRÈS l'export (`record_after_install`) : le manifeste du corpus
+    naissait sans tâche, et la porte des capacités se refermait derrière elle.
+
+    Retourne un compte rendu : `{model, applique, poses, projete, corpus, erreur?}`.
     Ne lève pas — une provenance manquée ne doit pas faire échouer une installation réussie.
     """
     # API PUBLIQUE de la couche manifeste (`ingest`), pas le builtin du kind : c'est elle qui
     # porte le contrat extract → validate → write_back, et qui dispatche par kind.
     from wama.common.manifests.ingest import extract, validate, write_back
 
-    if not identite:
+    capabilities = dict(capabilities or {})
+    if not identite and not capabilities:
         return {'model': model_key, 'applique': False, 'erreur': 'aucune identité à poser'}
+    identite = identite or {}
 
     try:
         manifeste = extract('model', model_key)
@@ -146,6 +155,13 @@ def set_identity(model_key: str, identite: dict, *, apply: bool = True,
         if valeur and ident.get(champ) != valeur:
             ident[champ] = valeur
             poses.append(champ)
+    # Capacités déclarées : on ne comble qu'un VIDE (une tâche établie par la découverte, ou
+    # par un manifeste antérieur, prime sur celle du spec — règle inchangée depuis le 02/09).
+    caps = manifeste['body'].setdefault('capabilities', {})
+    for cle, valeur in capabilities.items():
+        if valeur not in (None, '', [], {}) and not caps.get(cle):
+            caps[cle] = valeur
+            poses.append(f'capabilities.{cle}')
 
     # On VALIDE avant de projeter : un `platform_ref` mal formé ou une plateforme inconnue est
     # refusé par le kind (`validate_model_body`), et il vaut mieux le voir ici qu'écrire une
@@ -223,23 +239,13 @@ def record_after_install(spec: dict, cles_apparues) -> dict:
                         "concurrente probable) : %s", len(ecartees), ecartees)
             cibles = [c for c in cibles if c not in ecartees]
 
-    poses = [set_identity(c, identite) for c in cibles]
-
     # La TÂCHE du candidat (2026-09-02). Le balayage générique d'un snapshot HF catalogue un
     # modèle sans savoir ce qu'il FAIT : `table-transformer-detection` est arrivé installé
     # avec `task=None` alors que son candidat portait `detect` — donc hors de toute sélection
-    # par tâche et de tout banc, exactement le défaut que la taxonomie du seeding venait de
-    # corriger côté proposés. Le spec la porte (`spec.task`), on la pose ici, sans jamais
-    # écraser une tâche déjà établie par la découverte (un `{}` ne dit rien, une valeur si).
+    # par tâche et de tout banc. Le spec la porte (`spec.task`) ; elle entre dans le MANIFESTE
+    # avec l'identité (2026-09-18), donc AVANT la projection et l'export au corpus — et jamais
+    # par-dessus une tâche déjà établie (`set_identity` ne comble qu'un vide).
     tache = (spec.get('task') or '').strip()
-    if tache:
-        for c in cibles:
-            m = AIModel.objects.filter(model_key=c).first()
-            if m is None:
-                continue
-            caps = dict(m.capabilities or {})
-            if not caps.get('task'):
-                caps['task'] = tache
-                m.capabilities = caps
-                m.save(update_fields=['capabilities'])
+    declarees = {'task': tache} if tache else {}
+    poses = [set_identity(c, identite, capabilities=declarees) for c in cibles]
     return {'identite': identite, 'modeles': poses, **({'tache': tache} if tache else {})}

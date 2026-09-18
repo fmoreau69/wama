@@ -310,7 +310,7 @@ class ModelSyncService:
     def _reconcile_engine_flags(self, obj) -> bool:
         """Le MOTEUR fait autorité sur ce qu'il DÉCLARE — pour TOUTE ligne dont il se résout.
 
-        La règle existait (`_capabilities_projectable`, 2026-08-31 : *« c'est la DÉCOUVERTE
+        La règle existait (`merged_capabilities`, ex-`_capabilities_projectable`, 2026-08-31 : *« c'est la DÉCOUVERTE
         qui fait autorité — elle lit les flags sur les classes de backend »*), mais elle ne
         s'exerçait que sur les modèles qu'une APP déclare (`_tts_caps`, 4 moteurs). Une ligne
         PROSPECTÉE (`huggingface:…`) recevait ses capacités de son manifeste, puis plus rien
