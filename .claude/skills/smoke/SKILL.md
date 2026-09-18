@@ -12,6 +12,11 @@ le RENDU RÉEL, pas la structure du code.
 - Le serveur doit tourner (WSL2) : vérifier `http://localhost:8000` répond (curl -s -o /dev/null
   -w '%{http_code}'). S'il ne répond pas, DEMANDER à l'utilisateur de le lancer — ne pas le
   démarrer soi-même sans demande.
+  ⚠ **Et il doit servir le code qu'on mesure** (2026-09-18) : un gunicorn non rechargé sert
+  l'ancien Python — une route neuve y rend 404, et le scénario accuserait le code. Le live ne se
+  recharge jamais soi-même ; la mesure se fait alors sur un **serveur de dev jetable, sur un autre
+  port** (recette en fin de skill), qu'on arrête après. C'est la seule exception à « ne pas
+  démarrer soi-même », et elle ne touche pas au live.
 - **Le MCP Playwright existe, mais sa disponibilité VARIE — la vérifier, jamais la supposer.**
   Corrigé le 2026-08-22 : ce skill affirmait « aucun MCP Playwright n'est configuré » (constat du
   31/07). C'est faux — ses outils sont déclarés dans les allowlists (`.claude/settings.json` et
