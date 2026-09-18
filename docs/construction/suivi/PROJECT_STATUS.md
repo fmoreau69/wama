@@ -15269,3 +15269,40 @@ dépôt a déjà payé deux fois. *Déclarer un retard CHIFFRÉ vaut mieux que l
 impossible avec trois instances actives. Tout le reste attend soit **P3**, soit une **décision de
 Fabien** (migration des 3 modèles du Lab · encodage de sortie dans `manage.py` · langue des
 `msgid`).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — 2026-09-18
+
+**Une ligne actionnable : ouvrir P3 (le moteur commun).** P2 est livré en six pièces ; ses deux
+derniers morceaux — la brique d'agrégation et les couleurs de nœud du canvas studio — n'attendent
+que la **ligne d'exécution PAR PROCESS** que P3 apporte. Rien d'autre n'est avançable sans décision
+(mesuré : voir ⇒ ci-dessus).
+
+**⚠ RATTRAPÉ AU BALAYAGE, et dans aucun handoff jusqu'ici** — le document de collaboration créé
+ce soir (`625a8786`) porte **deux questions ouvertes à trancher avant ses marches 6 et 7** :
+- **N1 — notifier QUI et par quel canal.** Seule brique existante : l'e-mail (`notify_user`), sans
+  centre de notifications dans l'app. ⚠ Une portée **unité** HÉRITE aux sous-unités : partager au
+  niveau université notifierait toute l'université ;
+- **E1 — l'édition à QUI** : une branche entière (un projet en écriture) ou des personnes nommées
+  (bénéficiaire `user` d'`ObjectGrant`) ?
+
+**DÉCISIONS QUI ATTENDENT FABIEN** (aucune n'est dans mon périmètre) : ① migrer les **3** modèles du
+Lab vers les valeurs majuscules (invisible à l'écran, ne laisserait qu'un alias — celui de Celery ;
+`ModelSyncLog` EXCLU) ; ② forcer l'encodage de sortie dans `manage.py` — **229 lignes non-ASCII dans
+48 des 67 commandes** cassent en console cp1252 ; fichier partagé par quatre instances ; ③ la langue
+des `msgid` (`ROADMAP §10.A`), non touchée à dessein.
+
+**PENDINGS SYSTÈME (mesurés)** — **26 commits NON POUSSÉS** sur `dev`, dont **15 de cette session**
+(17/09 19:44 → 18/09 15:05) et 11 des sessions précédentes · aucune remise de côté (`git stash`
+vide) · aucun worktree ouvert · aucun worker recyclé, aucun drapeau d'environnement posé.
+
+**ARTEFACTS DE SESSION** — quatre scripts de passe tokenisée (alignement des états du studio, retrait
+de la chaîne de classe, pose de la classe `stale`, smoke JS) et les messages de commit vivent dans
+le **bloc-notes de session** : jetables, ils meurent avec elle. La base de test est **conservée**
+(`--keepdb`). Le geste nocturne `common.card_state_color` a semé puis **nettoyé** de vrais jobs
+converter à trois reprises (1 semé / 2 nettoyés à chaque passage) — rien ne subsiste.
+
+**CONTRÔLES ATTENDUS AU PROCHAIN `/reprise`** : `check_docs` **0 cassée / 0 périmée** (2087
+références, 0 cible distincte) · `check_skills` 0 défaut franc · corpus de manifestes **11 périmés**
+(préexistants, NON de cette session) · grille **863/906** sur **96** critères · suite `wama`
+**1814 tests**, 2 échecs `tests_mcp_dev_tools` **préexistants et établis** — tout autre rouge est
+une dérive.
