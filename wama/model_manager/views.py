@@ -1763,7 +1763,6 @@ def api_prospect_install(request):
     `{'source': 'yolo', 'name': 'yolo26s-seg'}` → poids officiels Ultralytics téléchargés
     dans `AI-models/models/vision/yolo/<task>/` + sync du catalogue."""
     from .models import AIModel
-    from .services.model_installer import pull_yolo_weights, register_after_install
     try:
         data = json.loads(request.body or '{}')
         # ── Install par DESCRIPTEUR (point d'entrée générique — UI/prospection/assistant) ──
@@ -1810,16 +1809,14 @@ def api_prospect_install(request):
             return JsonResponse({'success': True, 'started': True,
                                  'model_id': model.model_key, 'task_id': started.id})
 
-        # ── Raccourci YOLO conservé (équivaut à spec={'kind':'yolo','ref':name}) ──
+        # ── Raccourci YOLO : la même chose qu'un spec, par le même chemin. Il appelait le
+        # driver en direct et sautait la provenance (aucun manifeste, aucune identité
+        # `github:ultralytics/assets`) — corrigé le 2026-09-18.
         if data.get('source') == 'yolo':
-            res = pull_yolo_weights(data.get('name') or '')
+            from .services.model_installer import install_from_spec
+            res = install_from_spec({'kind': 'yolo', 'ref': data.get('name') or ''})
             if not res.get('ok'):
                 return JsonResponse({'success': False, 'error': res.get('error', 'échec')}, status=500)
-            try:
-                register_after_install()
-            except Exception:
-                logger.warning("register_after_install a échoué (le sync périodique rattrapera)",
-                               exc_info=True)
             return JsonResponse({'success': True, 'installed': data.get('name'),
                                  'path': res.get('path')})
         model_id = data.get('model_id')

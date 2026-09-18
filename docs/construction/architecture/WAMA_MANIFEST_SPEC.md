@@ -378,11 +378,17 @@ corriger le jour où une plateforme change son schéma d'adresse.
 
 > ⚠ **Frontière propre au kind `model`, à ne pas calquer sur `library`.**
 > Une librairie se **déclare** ; un modèle se **découvre** — il existe parce que des poids sont sur
-> le disque. Un manifeste n'a donc autorité que sur les champs **déclaratifs** (`license`,
-> `platform_ref`). Tout le reste — `is_downloaded`, `is_loaded`, `local_path`, `vram_gb`,
-> `capabilities` — appartient à la découverte, qui **réécrit `capabilities` en entier à chaque
-> passage** : une valeur posée en dehors d'elle est effacée au sync suivant (constaté le
-> 2026-08-05 — 11 capacités renseignées par une commande de rattrapage, puis 0 après un sync).
+> le disque. Le manifeste ne crée donc jamais de ligne, et n'a pas autorité sur l'état runtime ni
+> sur les FAITS mesurés (`is_downloaded`, `is_loaded`, `local_path`, `vram_gb`).
+>
+> ~~`capabilities` appartient à la découverte, qui la réécrit en entier à chaque passage~~ —
+> **constat du 2026-08-05, dépassé depuis** (relu et corrigé le 2026-09-18). Le sync ne remplace
+> plus un fait par un `{}` (31/08), et `write_back_model` projette `capabilities` par **fusion
+> clé par clé** (`merged_capabilities`, 18/09) : sur une ligne servie par une app, la découverte
+> garde ses valeurs (elle lit les flags sur les classes de backend) et le manifeste comble les
+> clés absentes ; sur une ligne orpheline (snapshot HF générique, Ollama, cloud), le manifeste
+> tranche clé par clé. C'est la route cible de `ROUTE §F4b` : *manifeste (identité, capacités,
+> moteur) → catalogue, la découverte gardant les faits*.
 
 **2026-08-26 — `body.prompts.contract` rejoint les champs déclaratifs projetés** (avec
 `license`/`author`/`platform_ref`/`hf_id`) : le contrat de SORTIE du prompt attendu par le

@@ -280,9 +280,10 @@ def _requires_librairies(body: dict) -> list:
         return []
 
 
-# Champs DECLARATIFS d'un modele — les seuls qu'un manifeste ait autorite a poser.
-# Tout le reste (is_downloaded, is_loaded, local_path, vram_gb, capabilities, quality_index…) est
-# soit de l'etat runtime, soit le produit de la DECOUVERTE : un manifeste n'a pas a en decider.
+# Champs DECLARATIFS d'un modele — projetes tels quels par le manifeste. `capabilities` se
+# projette a part, par FUSION clé par clé (`merged_capabilities`, route F4b). Tout le reste
+# (is_downloaded, is_loaded, local_path, vram_gb, quality_index…) est soit de l'etat runtime,
+# soit un FAIT mesure par la decouverte : un manifeste n'a pas a en decider.
 _CHAMPS_PROJETES = [
     ('license', lambda m, b: (b.get('identity') or {}).get('license') or ''),
     ('author', lambda m, b: (b.get('identity') or {}).get('author') or ''),
@@ -302,36 +303,43 @@ _CHAMPS_PROJETES = [
     ('composition', lambda m, b: b.get('composition') or {}),
 ]
 
-#: Champ projeté SOUS CONDITION — cf. `_capabilities_projectable`.
-_CAPABILITIES_FIELD = ('capabilities', lambda m, b: b.get('capabilities') or {})
+#: Champ projeté PAR FUSION, clé par clé — cf. `merged_capabilities`.
+_CAPABILITIES_FIELD = 'capabilities'
 
 #: Regime d'acces — projete SEULEMENT si le manifeste le DECLARE (2026-09-07).
 #: Il ne peut pas rejoindre `_CHAMPS_PROJETES` : ces lambdas rendent '' quand la cle manque, ce
 #: qui EFFACERAIT un regime connu des qu'un manifeste muet passerait. Or ici le vide n'est pas
 #: une valeur, c'est l'absence de mesure — « je ne sais pas » n'autorise pas a oublier ce qu'on
-#: savait. Meme raison que `_capabilities_projectable`, autre cause.
+#: savait. Meme raison que `merged_capabilities`, autre cause.
 _GATED_FIELD = ('gated', lambda m, b: (b.get('identity') or {}).get('gated') or '')
 
 
-def _capabilities_projectable(target) -> bool:
-    """Le manifeste a-t-il autorité pour poser `capabilities` sur CETTE ligne ?
+def merged_capabilities(target, declared: dict) -> dict:
+    """`capabilities` de la ligne APRÈS projection du manifeste — fusion CLÉ PAR CLÉ.
 
-    OUI seulement si personne d'autre ne les produit : un modèle **orphelin de déclaration**,
-    catalogué par le balayage générique des snapshots HF (aucune app ne le déclare, donc la
-    découverte n'a rien à en dire et sa `capabilities` reste vide).
+    Deux régimes, selon qui produit les capacités de CETTE ligne :
 
-    NON dès qu'une app le déclare : c'est alors la DÉCOUVERTE qui fait autorité — elle lit les
-    flags sur les classes de backend (`supports_cloning`…) et les `languages` du `model_config`.
-    La règle « un modèle se DÉCOUVRE » n'est donc pas entamée : on ne comble qu'un VIDE, on ne
-    conteste jamais un fait.
+      • une app la sert (`backend_ref` posé) : la DÉCOUVERTE fait autorité — elle lit les flags
+        sur les classes de backend (`supports_cloning`…) et les `languages` du `model_config`.
+        Le manifeste ne fait que COMBLER les clés qu'elle n'a pas écrites ; il ne conteste
+        jamais une valeur établie ;
+      • ligne orpheline de déclaration (balayage générique des snapshots HF, Ollama, cloud) :
+        personne d'autre ne les produit, le manifeste fait autorité clé par clé — et les clés
+        qu'il ne nomme pas restent ce qu'elles sont (un manifeste muet n'efface rien).
 
-    Motif (2026-08-31, route F4b) : sans cette porte, un modèle installé par la prospection ne
-    peut JAMAIS acquérir de capacités — donc jamais apparaître dans une app filtrée par capacité.
-    Le sync ne les efface plus (`model_sync` : un `{}` de découverte ne remplace plus un fait).
+    Jusqu'au 2026-09-18 la porte était « tout ou rien » (`_capabilities_projectable`, route F4b
+    du 31/08) : le manifeste ne posait ses capacités que sur une ligne orpheline ENCORE VIDE.
+    Mesuré sur 8 modèles installés depuis le 02/09 : la tâche du spec, écrite directement en
+    base, fermait la porte, et plus aucune capacité (modalités, entrées, langues) ne pouvait
+    ensuite venir du manifeste. Une porte à usage unique n'est pas une règle d'autorité — la
+    fusion par clé, si. Le sync, lui, n'efface toujours rien (`model_sync` : un `{}` de
+    découverte ne remplace pas un fait).
     """
+    actuel = dict(getattr(target, 'capabilities', None) or {})
+    declared = dict(declared or {})
     if getattr(target, 'backend_ref', ''):
-        return False                     # une app le sert : la découverte parle pour lui
-    return not (getattr(target, 'capabilities', None) or {})
+        return {**declared, **actuel}      # la découverte garde ses valeurs, le manifeste comble
+    return {**actuel, **declared}          # ligne orpheline : le manifeste tranche clé par clé
 
 
 def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
@@ -343,9 +351,11 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     AIModel depuis un manifeste fabriquerait un modele fantome, sans fichier, que la selection
     pourrait retenir. Si la cible est absente, on le DIT et on ne fait rien.
 
-    Ne projette que `license` et `platform_ref` : ce sont les deux champs que le catalogue ne
-    sait pas deduire seul (releve le 2026-08-05 — 0/129 modeles portaient une licence, et le lien
-    plateforme etait conditionne a `hf_id`, absent sur les 70 modeles decouverts par scan disque).
+    Projette les champs DECLARATIFS (`_CHAMPS_PROJETES` : licence, auteur, plateforme, hf_id,
+    contrat de prompt, composition), `gated` s'il est declare, et `capabilities` par FUSION clé
+    par clé (`merged_capabilities`). Le releve d'origine (2026-08-05) ne projetait que `license`
+    et `platform_ref` : 0/129 modeles portaient une licence, et le lien plateforme etait
+    conditionne a `hf_id`, absent sur les 70 modeles decouverts par scan disque.
     """
     from django.db import transaction
 
@@ -363,22 +373,24 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
                 'erreur': "aucun AIModel de cette cle — un modele se decouvre, il ne se cree pas "
                           "depuis un manifeste. Lancer `sync_models` d'abord."}
 
-    # Capacités : projetées UNIQUEMENT sur un modèle orphelin de déclaration (cf. la fonction).
-    champs = list(_CHAMPS_PROJETES)
-    if _capabilities_projectable(cible) and (body.get('capabilities') or {}):
+    # Capacités : fusion clé par clé (cf. `merged_capabilities`) — projetée seulement si elle
+    # change quelque chose, pour que `changed`/`preserved` disent la vérité.
+    champs = [c for c, _ in _CHAMPS_PROJETES]
+    fusion = merged_capabilities(cible, body.get('capabilities') or {})
+    if fusion != (cible.capabilities or {}):
         champs.append(_CAPABILITIES_FIELD)
-        voulu[_CAPABILITIES_FIELD[0]] = _CAPABILITIES_FIELD[1](manifest, body)
+        voulu[_CAPABILITIES_FIELD] = fusion
     # Regime d'acces : seulement si DECLARE — sinon la ligne garde ce qu'elle sait (cf. _GATED_FIELD).
     if (body.get('identity') or {}).get('gated'):
-        champs.append(_GATED_FIELD)
+        champs.append(_GATED_FIELD[0])
         voulu[_GATED_FIELD[0]] = _GATED_FIELD[1](manifest, body)
 
-    actuel = {champ: getattr(cible, champ) for champ, _ in champs}
+    actuel = {champ: getattr(cible, champ) for champ in champs}
     deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}
     preserves = ['is_downloaded', 'is_loaded', 'local_path', 'vram_gb']
-    if not any(c == _CAPABILITIES_FIELD[0] for c, _ in champs):
+    if _CAPABILITIES_FIELD not in champs:
         preserves.append('capabilities')
-    if not any(c == _GATED_FIELD[0] for c, _ in champs):
+    if _GATED_FIELD[0] not in champs:
         preserves.append('gated')
 
     if not apply:
