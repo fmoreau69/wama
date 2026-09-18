@@ -53,11 +53,18 @@ class Nature:
 _AGES = ('child', 'adult', 'elderly')
 _GENDERS = ('male', 'female')
 
+#: Les TROIS natures audio acceptent les MÊMES fichiers (2026-09-19, question de Fabien :
+#: « pourquoi un bruitage ne peut-il pas être un .aac ? »). Les listes divergeaient par
+#: héritage d'un littéral (aac pour la musique seule, aiff pour le bruitage seul), pas par
+#: décision : un rôle audio se choisit ou se déclare (`result_role`), il ne se déduit pas de
+#: l'extension — et la conversion universelle du converter rend tout format joignable.
+AUDIO_EXTENSIONS = ('wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff')
+
 #: LE vocabulaire. L'ordre est celui des onglets de la médiathèque (et de `ASSET_TYPES`).
 ASSET_NATURES: Dict[str, Nature] = {
     'voice': Nature(
         label='Voix', category='audio', icon='fa-microphone', pivot='wav',
-        extensions=('wav', 'mp3', 'flac', 'ogg', 'm4a'),  # wama:redondance-ok — politique d'acceptation médiathèque par nature
+        extensions=AUDIO_EXTENSIONS,
         attributes={
             'language': Attr('str', "code ISO 639-1 de la langue parlée ('fr', 'en'…)"),
             'age':      Attr('str', "tranche d'âge de la voix", _AGES),
@@ -67,7 +74,7 @@ ASSET_NATURES: Dict[str, Nature] = {
     ),
     'audio_music': Nature(
         label='Musique', category='audio', icon='fa-music',
-        extensions=('mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'),  # wama:redondance-ok — politique d'acceptation médiathèque par nature
+        extensions=AUDIO_EXTENSIONS,
         attributes={
             'bpm': Attr('int', 'tempo en battements par minute'),
             'key': Attr('str', "tonalité ('C', 'Am'…)"),
@@ -75,7 +82,7 @@ ASSET_NATURES: Dict[str, Nature] = {
     ),
     'audio_sfx': Nature(
         label='Bruitage', category='audio', icon='fa-volume-up',
-        extensions=('mp3', 'wav', 'ogg', 'flac', 'aiff'),  # wama:redondance-ok — politique d'acceptation médiathèque par nature
+        extensions=AUDIO_EXTENSIONS,
     ),
     'image': Nature(
         label='Image', category='image', icon='fa-image',

@@ -648,8 +648,14 @@ class NavigationAuClavierTest(TestCase):
     def test_le_menu_contextuel_se_parcourt_aux_fleches(self):
         js = (RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
               / 'wama-card-menu.js').read_text(encoding='utf-8')
-        self.assertIn("addEventListener('keydown', clavier)", js)
-        for touche in ('ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Escape', 'Home', 'End'):
+        # ⚠ En CAPTURE sur `window`, propagation ARRÊTÉE pour les touches traitées (audit 14/09) :
+        # écouté sur le document en bulle, chaque ↓ changeait la card sélectionnée par l'inspecteur
+        # derrière le menu, et Entrée était ANNULÉE par lui au lieu de déclencher l'entrée.
+        self.assertIn("window.addEventListener('keydown', clavier, true)", js)
+        self.assertNotIn("document.addEventListener('keydown', clavier)", js)
+        self.assertIn('ev.stopPropagation();', js)
+        for touche in ('ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Escape', 'Home', 'End',
+                       'Enter', 'PageDown'):
             with self.subTest(touche=touche):
                 self.assertIn(f"case '{touche}'", js)
         self.assertIn('el.tabIndex = -1', js, "le menu n'est plus focalisable à l'ouverture")
@@ -689,7 +695,10 @@ class MenuApplicationsEnCascadeTest(TestCase):
     def test_le_clic_sur_le_declencheur_ne_remonte_pas_au_document(self):
         """Bootstrap referme ses menus sur un clic qui atteint le document : c'est exactement ce
         qui refermait « Applications » quand on cliquait « Bac à sable »."""
-        self.assertIn('ev.stopPropagation()', self._header())
+        # Cherché DANS le gestionnaire de clic : la chaîne existe aussi dans les écouteurs clavier,
+        # donc un `assertIn` sur tout l'en-tête restait vert sans elle (garde vacuée, audit 14/09).
+        self.assertRegex(self._header(), r"(?s)declencheur\.addEventListener\('click', function \(ev\) \{"
+                                         r"[^}]*?ev\.stopPropagation\(\)")
 
     def test_le_sous_menu_echappe_au_rognage_du_menu_qui_defile(self):
         """Le menu « Applications » défile (`overflow-y: auto`) : un sous-menu laissé DEDANS y
@@ -788,3 +797,208 @@ class SubstitutionDuPkTest(TestCase):
             texte = (js / nom).read_text(encoding='utf-8')
             self.assertIn('WamaApp.getUrl', texte,
                           f"{nom} substitue un pk sans passer par WamaApp.getUrl")
+
+
+# ── La brique de menu EXÉCUTÉE sous V8 (2026-09-18) ──────────────────────────────────────
+#
+# Un `.js` ne casse pas à la compilation, il casse dans le navigateur — mais le venv porte
+# `py_mini_racer` (V8), et cette brique ne touche au DOM qu'à travers `document`/`window` :
+# un faux DOM minimal suffit à la CHARGER et à appeler ses constructeurs d'entrées. C'est
+# l'attestation que la lecture du fichier ne donne pas : les entrées existent, dans cet ordre,
+# avec ces libellés, et le partage appelle bien la modale commune avec les coordonnées.
+
+_DOM_FACTICE = """
+var window = globalThis;
+window.addEventListener = function () {}; window.innerWidth = 1200; window.innerHeight = 800;
+var document = {
+  readyState: 'complete', cookie: '', activeElement: null,
+  body: { appendChild: function () {} },
+  addEventListener: function () {}, querySelectorAll: function () { return []; },
+  querySelector: function () { return null; }, contains: function () { return false; },
+};
+var __fetch = [];
+var __reponse = { ok: true, surface: 'converter', pk: 7 };
+var fetch = function (url) {
+  __fetch.push(String(url));
+  return Promise.resolve({ ok: true, json: function () { return Promise.resolve(__reponse); } });
+};
+var __ouverts = [];
+var WamaShare = {
+  ouvrir: function (surface, pk, nom, nature) { __ouverts.push([surface, pk, nom, nature]); },
+  coordonnees: function (card) { return (card && card.__co) || null; },
+  coordonneesDuLot: function () { return null; },
+};
+var WamaSendTo = { coordonnees: function (card) { return WamaShare.coordonnees(card); },
+                   entrees: function () { return Promise.resolve([]); } };
+var __file = { dataset: {}, querySelectorAll: function () { return []; } };
+var carteFactice = function (co) { return {
+  __co: co, dataset: { id: String(co.pk) }, textContent: ' ma card ',
+  classList: { contains: function () { return false; } },
+  closest: function (sel) { return sel === '[data-wama-dnd]' ? __file : null; },
+  querySelector: function () { return null; },
+}; };
+"""
+
+
+def brique_menu_sous_v8(prelude=''):
+    """Un contexte V8 où `wama-card-menu.js` (la SOURCE) est chargée sur le faux DOM.
+    Rend `None` si `py_mini_racer` n'est pas installé dans ce venv."""
+    try:
+        from py_mini_racer import MiniRacer
+    except ImportError:
+        return None
+    ctx = MiniRacer()
+    ctx.eval(_DOM_FACTICE + prelude)
+    ctx.eval((RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
+              / 'wama-card-menu.js').read_text(encoding='utf-8'))
+    return ctx
+
+
+def json_v8(ctx, expression):
+    """Une valeur JS lue en Python par `JSON.stringify` (les tableaux V8 ne se lisent pas tels quels)."""
+    import json
+    return json.loads(ctx.eval('JSON.stringify(' + expression + ')'))
+
+
+LIBELLES = "map(function (e) { return e.libelle; })"
+
+
+class MenuDeCardSousV8Test(TestCase):
+    """Les gestes d'ÉLÉMENT du menu « … » sont UNE liste, servie à la card ET à l'arbre."""
+
+    def setUp(self):
+        self.ctx = brique_menu_sous_v8()
+        if self.ctx is None:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+
+    def test_le_menu_d_une_card_garde_ses_quatre_gestes_dans_l_ordre(self):
+        """Contre-épreuve de l'extraction du 18/09 : rien n'a bougé pour la card."""
+        vus = json_v8(self.ctx, "(function () { var c = carteFactice({surface: 'converter', pk: '7'});"
+                                "return WamaCardMenu.entreesCompletes(c, [c])." + LIBELLES + "; })()")
+        self.assertEqual(vus, ['Partager…', 'Envoyer vers…', 'Ajouter à la médiathèque…',
+                               'Ajouter au RAG'])
+
+    def test_les_gestes_d_element_sont_les_MEMES_pour_des_coordonnees_nues(self):
+        """Ce que l'arbre consomme : par coordonnées, sans card — même liste moins « Envoyer
+        vers… », que l'arbre possède déjà par chemin."""
+        vus = json_v8(self.ctx, "WamaCardMenu.entreesPourElement({surface: 'converter', pk: '7'}, 'x.png')."
+                                + LIBELLES)
+        self.assertEqual(vus, ['Partager…', 'Ajouter à la médiathèque…', 'Ajouter au RAG'])
+
+    def test_partager_ouvre_la_modale_commune_avec_les_coordonnees(self):
+        self.ctx.eval("WamaCardMenu.entreesPourElement({surface: 'converter', pk: '7'}, 'x.png')[0].agir()")
+        self.ctx.eval("(function () { var c = carteFactice({surface: 'imager', pk: '3'});"
+                      "WamaCardMenu.entreesCompletes(c, [c])[0].agir(); })()")
+        self.assertEqual(json_v8(self.ctx, '__ouverts'),
+                         [['converter', '7', 'x.png', 'element'], ['imager', '3', 'ma card', 'element']])
+
+    def test_sans_la_brique_de_partage_l_entree_disparait_sans_casser(self):
+        self.ctx.eval('WamaShare = undefined')   # `delete` ne retire pas un `var` : non configurable
+        self.assertEqual(json_v8(self.ctx, "WamaCardMenu.entreesPourElement({surface: 'converter', pk: '7'}, 'x')."
+                                           + LIBELLES),
+                         ['Ajouter à la médiathèque…', 'Ajouter au RAG'])
+
+    def test_par_chemin_le_serveur_est_interroge_puis_les_entrees_sont_celles_de_l_element(self):
+        """`entreesPourChemin` : UN appel au résolveur (URL encodée), puis la même liste. V8 vide
+        ses microtâches en fin d'`eval` : la promesse est résolue quand on relit `__vus`."""
+        self.ctx.eval("var __vus = null; WamaCardMenu.entreesPourChemin('users/1/converter/output/x y.png', 'x y.png')"
+                      ".then(function (l) { __vus = l." + LIBELLES + "; })")
+        self.assertEqual(json_v8(self.ctx, '__vus'),
+                         ['Partager…', 'Ajouter à la médiathèque…', 'Ajouter au RAG'])
+        self.assertEqual(json_v8(self.ctx, '__fetch'),
+                         ['/common/api/element-pour-chemin/?path=users%2F1%2Fconverter%2Foutput%2Fx%20y.png'])
+
+    def test_un_chemin_qui_n_est_la_sortie_de_rien_rend_une_liste_VIDE(self):
+        """Une liste vide est une RÉPONSE : l'entrée différée disparaît du menu, elle n'affiche
+        pas un vide. Même règle qu'« Envoyer vers… »."""
+        self.ctx.eval("__reponse = { ok: true, surface: null, pk: null };"
+                      "var __vus = null; WamaCardMenu.entreesPourChemin('users/1/temp/x.png', 'x.png')"
+                      ".then(function (l) { __vus = l; })")
+        self.assertEqual(json_v8(self.ctx, '__vus'), [])
+
+    def test_un_serveur_qui_refuse_rend_aussi_une_liste_vide_sans_lever(self):
+        self.ctx.eval("fetch = function () { return Promise.resolve({ ok: false, json: function () { throw new Error('x'); } }); };"
+                      "var __vus = null; WamaCardMenu.entreesPourChemin('users/2/converter/output/x.png', 'x.png')"
+                      ".then(function (l) { __vus = l; })")
+        self.assertEqual(json_v8(self.ctx, '__vus'), [])
+
+    def test_la_copie_SERVIE_de_la_brique_est_la_source(self):
+        src = RACINE / 'wama' / 'common' / 'static' / 'common' / 'js' / 'wama-card-menu.js'
+        self.assertEqual(src.read_bytes(), (RACINE / 'staticfiles' / 'common' / 'js'
+                                            / 'wama-card-menu.js').read_bytes())
+
+    def test_une_entree_differee_a_la_racine_est_lancee_au_rendu(self):
+        """Le contrat de `{chargement: true, charger}` au niveau du menu : `remplir` lance
+        `charger` — tenu sur le CODE (le rendu lui-même exige un vrai DOM : scénario nocturne
+        `common.tree_item_menu`)."""
+        js = (RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
+              / 'wama-card-menu.js').read_text(encoding='utf-8')
+        self.assertIn('function chargerDifferee(', js)
+        self.assertIn("e.chargement && typeof e.charger === 'function'", js)
+        self.assertIn('entreesPourChemin: entreesPourChemin', js)
+
+
+class SousMenuMediathequeSousV8Test(TestCase):
+    """Le sous-menu « Ajouter à la médiathèque… » POSTE ce que le serveur décrit (`choices`) —
+    un rôle (early) ou un format (late) — et retire par la même clé. Exécuté sous V8 avec un
+    faux `fetch`/`FormData` : c'est le contrat entre la brique et la route commune."""
+
+    PRELUDE = """
+    var __posts = [];
+    var FormData = function () { this.d = {}; };
+    FormData.prototype.append = function (k, v) { this.d[k] = String(v); };
+    var __reponseGET = null;
+    fetch = function (url, init) {
+      if (init && init.method === 'POST') { __posts.push({ url: String(url), champs: init.body.d });
+        return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ success: true, name: 'x' }); } }); }
+      return Promise.resolve({ ok: true, json: function () { return Promise.resolve(__reponseGET); } });
+    };
+    window.confirm = function () { return true; };
+    """
+
+    def setUp(self):
+        self.ctx = brique_menu_sous_v8(self.PRELUDE)
+        if self.ctx is None:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+
+    def _sous_menu(self, reponse):
+        import json
+        self.ctx.eval('__reponseGET = ' + json.dumps(reponse) + ';'
+                      "var __sous = null; WamaCardMenu.entreesPourElement({surface: 's', pk: '1'}, 'n')"
+                      "[1].charger().then(function (l) { __sous = l; });")
+        return json_v8(self.ctx, "__sous.map(function (e) { return [e.libelle, e.icone]; })")
+
+    def test_un_format_late_binding_est_poste_comme_document_avec_son_format(self):
+        vus = self._sous_menu({'candidates': ['pdf'], 'labels': {'pdf': 'Document · PDF'},
+                               'choices': {'pdf': {'asset_type': 'document', 'format': 'pdf'}},
+                               'in_library': {}})
+        self.assertEqual(vus, [['Document · PDF', 'fas fa-plus']])
+        self.ctx.eval('__sous[0].agir()')
+        self.assertEqual(json_v8(self.ctx, '__posts[0].champs'),
+                         {'asset_type': 'document', 'output_format': 'pdf'})
+
+    def test_une_cle_deja_rangee_porte_la_coche_et_son_clic_retire_par_la_meme_cle(self):
+        vus = self._sous_menu({'candidates': ['txt', 'pdf'],
+                               'labels': {'txt': 'Document · TXT', 'pdf': 'Document · PDF'},
+                               'choices': {'txt': {'asset_type': 'document', 'format': 'txt'},
+                                           'pdf': {'asset_type': 'document', 'format': 'pdf'}},
+                               'in_library': {'pdf': {'asset_id': 3, 'name': 'r (PDF)'}}})
+        self.assertEqual(vus, [['Document · TXT', 'fas fa-plus'], ['Document · PDF', 'fas fa-check wama-cm-coche']])
+        self.ctx.eval('__sous[1].agir()')
+        self.assertEqual(json_v8(self.ctx, '__posts[0].champs'),
+                         {'asset_type': 'document', 'output_format': 'pdf', 'action': 'remove'})
+
+    def test_un_role_early_binding_est_poste_sans_format(self):
+        self._sous_menu({'candidates': ['audio_music'], 'labels': {'audio_music': 'Musique'},
+                         'choices': {'audio_music': {'asset_type': 'audio_music', 'format': ''}},
+                         'in_library': {}})
+        self.ctx.eval('__sous[0].agir()')
+        self.assertEqual(json_v8(self.ctx, '__posts[0].champs'),
+                         {'asset_type': 'audio_music', 'output_format': ''})
+
+    def test_un_serveur_sans_choices_est_lu_comme_des_roles(self):
+        """Le contrat d'avant le 18/09 (`candidates` + `labels` seuls) reste compris."""
+        self._sous_menu({'candidates': ['image'], 'labels': {'image': 'Image'}, 'in_library': {}})
+        self.ctx.eval('__sous[0].agir()')
+        self.assertEqual(json_v8(self.ctx, '__posts[0].champs'),
+                         {'asset_type': 'image', 'output_format': ''})

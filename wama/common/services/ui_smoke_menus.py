@@ -79,6 +79,32 @@ def _fermer_menus(page):
     page.wait_for_timeout(150)
 
 
+def _sortie_converter(uid, nom):
+    """Un job converter TERMINÉ dont la sortie est un VRAI fichier sous le dossier de sortie de
+    l'app — la forme que l'arbre liste et que l'adapter déclare. Rend `(job, chemin_absolu)`.
+    Partagé par les scénarios C et E (2026-09-18) : deux semis divergents auraient mesuré deux
+    formes de sortie. ⚠ ORM : à appeler HORS du contexte Playwright."""
+    from wama.common.models import JOB_STATUS_CHOICES
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.converter.models import ConversionJob
+
+    # `JOB_STATUS_CHOICES` ne porte que `SUCCESS` : les deux autres branches étaient une
+    # défensive sans objet, et `DONE` a été retiré du vocabulaire le 2026-09-18.
+    fini = next(c for c, _ in JOB_STATUS_CHOICES if c == 'SUCCESS')
+    rel = f"{app_media_dir('converter', uid, 'output')}/{nom}"
+    sortie = Path(settings.MEDIA_ROOT) / rel
+    sortie.parent.mkdir(parents=True, exist_ok=True)
+    source = _fichier_temoin(sortie.suffix)
+    sortie.write_bytes(source.read_bytes())
+    source.unlink(missing_ok=True)
+    job = ConversionJob.objects.create(user_id=uid, input_filename=nom, media_type='image',
+                                       output_format=sortie.suffix.lstrip('.'), status=fini,
+                                       progress=100)
+    job.output_file.name = rel
+    job.save(update_fields=['output_file'])
+    return job, sortie
+
+
 # ═══════════════════════════════════════════════════════════════════════════════════════════
 # A. CLAVIER dans le menu contextuel (brique commune, surface : l'arbre de fichiers)
 # ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -245,28 +271,14 @@ def check_card_menu_library_state():
     en base que la copie a disparu et que la sortie de l'app est intacte. Nettoie tout.
     """
     from playwright.sync_api import sync_playwright
-    from wama.common.models import JOB_STATUS_CHOICES
     from wama.common.services.nightly_tests import SkipScenario
-    from wama.common.utils.media_paths import app_media_dir
     from wama.converter.models import ConversionJob
     from wama.media_library.models import UserAsset
 
     jeton, uid = _test_session_key('converter'), _test_account_id('converter')
     if not (jeton and uid):
         raise SkipScenario('aucun compte de test disponible')
-    # `JOB_STATUS_CHOICES` ne porte que `SUCCESS` : les deux autres branches étaient une
-    # défensive sans objet, et `DONE` a été retiré du vocabulaire le 2026-09-18.
-    fini = next(c for c, _ in JOB_STATUS_CHOICES if c == 'SUCCESS')
-    rel_sortie = f"{app_media_dir('converter', uid, 'output')}/wama_temoin_menu_mediatheque.png"
-    sortie = Path(settings.MEDIA_ROOT) / rel_sortie
-    sortie.parent.mkdir(parents=True, exist_ok=True)
-    source = _fichier_temoin('.png')
-    sortie.write_bytes(source.read_bytes())
-    source.unlink(missing_ok=True)
-    job = ConversionJob.objects.create(user_id=uid, input_filename=sortie.name, media_type='image',
-                                       output_format='png', status=fini, progress=100)
-    job.output_file.name = rel_sortie
-    job.save(update_fields=['output_file'])
+    job, sortie = _sortie_converter(uid, 'wama_temoin_menu_mediatheque.png')
     assets_avant = set(UserAsset.objects.filter(user_id=uid).values_list('id', flat=True))
     carte = f'.wama-card[data-id="{job.id}"]:not(.is-batch)'
     avant, verdicts = _session_keys(), []
@@ -278,37 +290,7 @@ def check_card_menu_library_state():
                 arrivee = _exiger_la_page(page, resp, PAGE)
                 if arrivee:
                     return arrivee
-                page.wait_for_selector(carte, timeout=20000)
-
-                def sous_menu():
-                    page.click(carte, button='right')
-                    page.hover('.wama-card-menu .wama-cm-item:has-text("Ajouter à la médiathèque")')
-                    _attendre_sous(page)
-                    return page.evaluate(JS_SOUS)
-
-                e1 = sous_menu()
-                plus = [lib for lib, ic in e1 if 'fa-plus' in ic]
-                verdicts.append((bool(plus) and not any('fa-check' in ic for _, ic in e1),
-                                 f'avant : aucun rôle coché {e1}'))
-                if plus:
-                    page.click(f'.wama-cm-sous .wama-cm-item:has-text("{plus[0]}")')
-                    page.wait_for_timeout(1500)
-                    e2 = sous_menu()
-                    coche = page.query_selector('.wama-cm-sous .wama-cm-item:has(i.fa-check)')
-                    verdicts.append((coche is not None and any(lib == plus[0] and 'fa-check' in ic
-                                                              for lib, ic in e2),
-                                     f'après rangement : « {plus[0]} » est COCHÉ {e2}'))
-                    # Sans coche, pas de retrait à cliquer : on le DIT au lieu d'attendre 30 s un
-                    # sélecteur absent (la contre-épreuve sur un serveur ancien finissait en délai).
-                    if coche is not None:
-                        coche.click()
-                        page.wait_for_timeout(1500)
-                        e3 = sous_menu()
-                        verdicts.append((not any('fa-check' in ic for _, ic in e3),
-                                         f'après retrait (confirmé) : plus de coche {e3}'))
-                    else:
-                        verdicts.append((False, 'retrait non jouable : aucune coche à cliquer'))
-                    _fermer_menus(page)
+                verdicts += _cycle_mediatheque(page, carte, attendus=None)
                 verdicts.append(_console(erreurs))
             finally:
                 nav.close()
@@ -322,6 +304,205 @@ def check_card_menu_library_state():
             _retirer(asset)
         ConversionJob.objects.filter(pk=job.pk).delete()
         sortie.unlink(missing_ok=True)
+    return _bilan(verdicts)
+
+
+def _cycle_mediatheque(page, carte, attendus=None):
+    """Le CYCLE du sous-menu « Ajouter à la médiathèque… » d'une card : + → rangé → ✓ → retrait.
+    Partagé par le scénario C (converter, rôles) et F (transcriber, formats — 2026-09-18) : le
+    menu ne sait rien de l'archétype, le cycle non plus. `attendus` : libellés que le sous-menu
+    doit montrer AVANT tout rangement (None = seulement « au moins un + »). Rend des verdicts."""
+    verdicts = []
+    page.wait_for_selector(carte, timeout=20000)
+
+    def sous_menu():
+        page.click(carte, button='right')
+        page.hover('.wama-card-menu .wama-cm-item:has-text("Ajouter à la médiathèque")')
+        _attendre_sous(page)
+        return page.evaluate(JS_SOUS)
+
+    e1 = sous_menu()
+    plus = [lib for lib, ic in e1 if 'fa-plus' in ic]
+    verdicts.append((bool(plus) and not any('fa-check' in ic for _, ic in e1),
+                     f'avant : aucune entrée cochée {e1}'))
+    if attendus is not None:
+        verdicts.append((plus == list(attendus), f'entrées offertes {plus} / attendu {list(attendus)}'))
+    if plus:
+        page.click(f'.wama-cm-sous .wama-cm-item:has-text("{plus[0]}")')
+        page.wait_for_timeout(1500)
+        e2 = sous_menu()
+        coche = page.query_selector('.wama-cm-sous .wama-cm-item:has(i.fa-check)')
+        verdicts.append((coche is not None and any(lib == plus[0] and 'fa-check' in ic
+                                                  for lib, ic in e2),
+                         f'après rangement : « {plus[0]} » est COCHÉ {e2}'))
+        # Sans coche, pas de retrait à cliquer : on le DIT au lieu d'attendre 30 s un
+        # sélecteur absent (la contre-épreuve sur un serveur ancien finissait en délai).
+        if coche is not None:
+            coche.click()
+            page.wait_for_timeout(1500)
+            e3 = sous_menu()
+            verdicts.append((not any('fa-check' in ic for _, ic in e3),
+                             f'après retrait (confirmé) : plus de coche {e3}'))
+        else:
+            verdicts.append((False, 'retrait non jouable : aucune coche à cliquer'))
+        _fermer_menus(page)
+    return verdicts
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# F. MÉDIATHÈQUE d'une app LATE-BINDING (transcriber) : les FORMATS du ⬇, rendus à la demande
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+
+def check_card_menu_library_late_binding():
+    """Sur une card transcriber, le sous-menu médiathèque offre les FORMATS du bouton ⬇ (document),
+    range un rendu, coche, retire — et l'asset rangé est bien le rendu du builder. (ok, detail)
+
+    2026-09-18 (relevé de Fabien : « il y a les apps early et late binding »). Avant : « Rien à
+    ranger » sur un transcript terminé. L'attendu vient d'`export_choices`, pas d'une liste.
+    """
+    from playwright.sync_api import sync_playwright
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.media_library.models import UserAsset
+    from wama.media_library.services import export_choices
+    from wama.transcriber.models import Transcript
+
+    page_app = '/transcriber/'
+    jeton, uid = _test_session_key('transcriber'), _test_account_id('transcriber')
+    if not (jeton and uid):
+        raise SkipScenario('aucun compte de test disponible')
+    t = Transcript.objects.create(user_id=uid, text='Témoin de menu médiathèque late-binding.',
+                                  status='SUCCESS')
+    attendus = [c['label'] for c in export_choices('transcriber', {'result_text': t.text})]
+    assets_avant = set(UserAsset.objects.filter(user_id=uid).values_list('id', flat=True))
+    carte = f'.wama-card[data-id="{t.id}"]:not(.is-batch)'
+    avant, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, erreurs = _ouvrir(p, jeton)
+            try:
+                resp = page.goto(BASE_URL + page_app, wait_until='networkidle', timeout=60000)
+                arrivee = _exiger_la_page(page, resp, page_app)
+                if arrivee:
+                    return arrivee
+                verdicts += _cycle_mediatheque(page, carte, attendus=attendus)
+                verdicts.append(_console(erreurs))
+            finally:
+                nav.close()
+        restants = UserAsset.objects.filter(source_app='transcriber', source_pk=t.pk).count()
+        verdicts.append((restants == 0, f'base : {restants} asset(s) encore rangé(s) depuis le transcript'))
+    finally:
+        _drop_new_sessions(avant)
+        for asset in UserAsset.objects.filter(user_id=uid).exclude(id__in=assets_avant):
+            _retirer(asset)
+        Transcript.objects.filter(pk=t.pk).delete()
+    return _bilan(verdicts)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# E. GESTES D'ÉLÉMENT dans l'ARBRE : sur un fichier de SORTIE, les mêmes que sur la card
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+
+JS_RACINE = """() => [...document.querySelectorAll('.wama-card-menu:not(.wama-cm-sous) .wama-cm-item')]
+    .map(b => b.textContent.trim())"""
+JS_ATTENTE = "() => !!document.querySelector('.wama-card-menu:not(.wama-cm-sous) .wama-cm-attente')"
+GESTES_D_ELEMENT = ('Partager…', 'Ajouter à la médiathèque…', 'Ajouter au RAG')
+
+
+def check_tree_item_menu():
+    """L'arbre offre, sur un fichier de SORTIE, les gestes d'élément du menu « … » — et rien de
+    tel sur un dépôt temporaire. (ok, detail)
+
+    2026-09-18 (demande de Fabien). L'attendu n'est pas recopié : il est RELEVÉ sur la card du
+    même job, sur la même page — l'arbre doit montrer la même liste (moins « Envoyer vers… »,
+    qu'il possède déjà par chemin), résolue au serveur APRÈS l'ouverture du menu.
+    """
+    from playwright.sync_api import sync_playwright
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.converter.models import ConversionJob
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.media_library.models import ASSET_TYPES
+    from wama.media_library.services import admissible_roles
+
+    jeton, uid = _test_session_key('converter'), _test_account_id('converter')
+    if not (jeton and uid):
+        raise SkipScenario('aucun compte de test disponible')
+    job, sortie = _sortie_converter(uid, 'wama_temoin_menu_element.png')
+    dossier_temp = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
+    dossier_temp.mkdir(parents=True, exist_ok=True)
+    temoin_temp = _temoin(dossier_temp, 'wama_temoin_menu_temp.png', '.png')
+    carte = f'.wama-card[data-id="{job.id}"]:not(.is-batch)'
+    libelles = dict(ASSET_TYPES)
+    # Extension PUIS rôle déclaré par l'app (converter déclare « image ») — la MÊME fonction
+    # que la route, pas une liste recopiée.
+    detail = DetailRegistry.get('converter')['adapter'](job)
+    roles_attendus = [libelles.get(t, t) for t in admissible_roles(detail, sortie.name)]
+    avant, verdicts = _session_keys(), []
+    try:
+        with sync_playwright() as p:
+            nav, page, erreurs = _ouvrir(p, jeton)
+            try:
+                resp = page.goto(BASE_URL + PAGE, wait_until='networkidle', timeout=60000)
+                arrivee = _exiger_la_page(page, resp, PAGE)
+                if arrivee:
+                    return arrivee
+
+                # ① L'attendu, relevé sur la CARD du même job (même page, même brique).
+                page.wait_for_selector(carte, timeout=20000)
+                page.click(carte, button='right')
+                page.wait_for_timeout(300)
+                sur_card = page.evaluate(JS_RACINE)
+                _fermer_menus(page)
+                attendu = [e for e in sur_card if e in GESTES_D_ELEMENT]
+                verdicts.append((attendu == list(GESTES_D_ELEMENT),
+                                 f'la card offre les 3 gestes d’élément : {sur_card}'))
+
+                # ② L'arbre : le fichier de sortie, dans Converter › Output (chargé à la demande).
+                _arbre_pret(page, [temoin_temp.name])
+                page.evaluate("""() => { const t = jQuery('#filemanager-tree').jstree(true);
+                    t.open_node('converter', () => t.open_node('converter_output')); }""")
+                ancre = f'{ARBRE} .jstree-anchor:text-is("{sortie.name}")'
+                page.wait_for_selector(ancre, timeout=20000)
+                page.wait_for_timeout(400)
+                page.click(ancre, button='right')
+                page.wait_for_selector('.wama-card-menu', timeout=5000)
+                verdicts.append((page.evaluate(JS_ATTENTE),
+                                 'le menu s’ouvre TOUT DE SUITE, sur « Recherche… » pour les gestes d’élément'))
+                page.wait_for_function(
+                    "() => !document.querySelector('.wama-card-menu:not(.wama-cm-sous) .fa-spinner')",
+                    timeout=15000)
+                page.wait_for_timeout(200)
+                sur_arbre = page.evaluate(JS_RACINE)
+                verdicts.append(([e for e in sur_arbre if e in GESTES_D_ELEMENT] == attendu,
+                                 f'arbre (sortie) : {sur_arbre} — mêmes gestes que la card {attendu}'))
+                i_envoi = next((i for i, e in enumerate(sur_arbre) if e.startswith('Envoyer vers')), -1)
+                i_part = sur_arbre.index('Partager…') if 'Partager…' in sur_arbre else -1
+                verdicts.append((0 <= i_envoi < i_part,
+                                 f'« Envoyer vers… » (déjà là) garde sa place, les gestes d’élément suivent ({i_envoi} < {i_part})'))
+
+                # ③ Le sous-menu médiathèque de l'arbre = les rôles que le serveur admet pour CE fichier.
+                page.hover('.wama-card-menu .wama-cm-item:has-text("Ajouter à la médiathèque")')
+                _attendre_sous(page)
+                roles = [lib for lib, _ in page.evaluate(JS_SOUS)]
+                verdicts.append((roles == roles_attendus,
+                                 f'rôles du sous-menu {roles} / serveur {roles_attendus}'))
+                _fermer_menus(page)
+
+                # ④ Contre-épreuve : un dépôt TEMPORAIRE n'a ni « Recherche… » ni geste d'élément.
+                page.click(f'{ARBRE} .jstree-anchor:text-is("{temoin_temp.name}")', button='right')
+                page.wait_for_timeout(500)
+                sur_temp = page.evaluate(JS_RACINE)
+                verdicts.append((not page.evaluate(JS_ATTENTE)
+                                 and not any(e in GESTES_D_ELEMENT for e in sur_temp),
+                                 f'temp : ni attente ni geste d’élément {sur_temp}'))
+                _fermer_menus(page)
+                verdicts.append(_console(erreurs))
+            finally:
+                nav.close()
+    finally:
+        _drop_new_sessions(avant)
+        ConversionJob.objects.filter(pk=job.pk).delete()
+        sortie.unlink(missing_ok=True)
+        temoin_temp.unlink(missing_ok=True)
     return _bilan(verdicts)
 
 
@@ -394,6 +575,15 @@ def register_menu_scenarios():
              description='Menu « … » d\'une card : état médiathèque PERSISTÉ (+ → ✓) et retrait, '
                          'copie retirée, sortie intacte',
              run=lambda ctx: check_card_menu_library_state(), timeout_s=240)
+    register(id='media_library.card_menu_late_binding', app='media_library', stage='ui',
+             description='Menu « … » d\'une card LATE-BINDING (transcriber) : les FORMATS du ⬇ '
+                         'en médiathèque, rendu → ✓ → retrait',
+             run=lambda ctx: check_card_menu_library_late_binding(), timeout_s=240)
+    register(id='common.tree_item_menu', app='common', stage='ui',
+             description="Arbre : gestes d'élément du menu « … » (partager, médiathèque, RAG) sur un "
+                         "fichier de SORTIE — mêmes entrées que la card, résolues au serveur après "
+                         "l'ouverture ; rien de tel sur un dépôt temporaire",
+             run=lambda ctx: check_tree_item_menu(), timeout_s=240)
     register(id='common.nav_sandbox_keyboard', app='common', stage='ui',
              description='Sous-menu « Bac à sable » au CLAVIER, sans détournement par Bootstrap',
              run=lambda ctx: check_nav_sandbox_keyboard(), timeout_s=180)

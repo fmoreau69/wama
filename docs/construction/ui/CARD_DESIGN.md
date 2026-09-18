@@ -172,15 +172,62 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - ⚠ **Le message de sous-menu vide appartient à l'APPELANT** (`videLibelle`). Il était figé à
   « Aucune app ne prend ce format » — le vocabulaire d'« Envoyer vers… » dans la brique commune,
   qui devenait faux dès le 2ᵉ sous-menu.
-- ⭐ **TROIS surfaces, UNE brique** (2026-09-12) : le geste médiathèque est le même depuis le
-  menu « … », depuis la route d'app (`composer:export_to_library`, conservée pour son front) et
-  depuis l'assistant (`add_item_to_media_library`). Aucune n'est une variante — elles appellent
+- ⭐ **TROIS surfaces, UNE brique** (2026-09-12 ; surfaces relevées au 2026-09-18) : le geste
+  médiathèque est le même depuis le menu « … » d'une card, depuis le même menu dans l'arbre de
+  fichiers (sur un fichier de sortie) et depuis l'assistant (`add_item_to_media_library`) — la
+  route d'app du composer, qui en était la 2ᵉ surface jusqu'au 18/09, est retirée (R65). Aucune
+  n'est une variante — elles appellent
   toutes `media_library/services.py::export_item_to_library`, donc elles ont les **mêmes refus**
   (ownership, rôle non deviné). *Trois surfaces d'un geste ne sont une dette que si chacune a
   son propre chemin serveur.*
   Un **gardien AST** refuse qu'une vue d'app recopie la copie de fichier
   (`media_library/tests_export_service.py`) — par AST et non par grep, parce qu'une 1ʳᵉ version
   par motif accusait la docstring qui explique la correction.
+- ⚠ **Le bouton DÉDIÉ du composer est retiré** (2026-09-18, demande de Fabien). La card composer
+  portait encore, dans sa rangée, un bouton « Exporter vers médiathèque » (`.export-btn`, plus une
+  coche « Déjà exporté ») — la seule app du parc à le faire, mesuré : il **dupliquait** l'entrée
+  du menu « … » sans en connaître l'état persisté ni le retrait, et faisait de la rangée composer
+  la seule à six places. Retiré du gabarit, du JS (handler + `exportUrlTemplate`) et de la CSS ;
+  la rangée revient à `[⚙][▶][⬇][⧉][🗑]`. **La fonctionnalité reste**, par le menu. La route
+  `composer:export_to_library` — seconde porte du même geste — est **retirée le même jour**
+  (`REMOVAL_LEDGER R65`, décision Fabien) : le seul savoir qu'elle portait, « musique ou
+  bruitage », est désormais **déclaré au commun par l'app** (`result_role` du détail canonique,
+  `INSPECTOR_DETAIL_FIELDS`) et le sous-menu « Ajouter à la médiathèque… » **filtre par rôle
+  déclaré, pour toutes les apps** (`admissible_roles` : extension, puis rôle ; une déclaration
+  non admise est ignorée, une app qui ne déclare rien laisse le choix).
+  ⭐ **Le geste suit les DEUX archétypes de sortie** (`WAMA_APP_CONVENTIONS §6.4`, relevé de
+  Fabien le 18/09 : « il y a les apps early et late binding et les conversions de sortie
+  réutilisant le converter ») — **early-binding** : le fichier est déjà rendu
+  (`apply_inline_conversion` l'a converti à la génération), le choix est le RÔLE ;
+  **late-binding** (transcriber, describer, reader) : le master est un texte, le fichier n'existe
+  qu'une fois rendu, le choix est le FORMAT — ceux du bouton ⬇ acceptés par la nature `document`
+  (srt/vtt/json exclus), rendus par le **même builder que le téléchargement**, déclaré par l'app
+  (`register_export_builder`, `export_formats.py`), l'asset est un `document`, la coche et le
+  retrait sont par format. Mesuré avant : « rien à ranger » sur un transcript terminé — le geste
+  était mort pour trois apps sur dix. Le sous-menu ne sait rien de l'archétype : le serveur décrit
+  chaque clé (`choices` : `asset_type` + `format`) et le menu poste ce qu'il a lu. ⚠ La jumelle
+  `composer_01` (bac à sable, non versionnée) garde sa copie du gabarit : elle se régénère, on ne
+  la corrige pas (rituel du 30/08). Gardes : `BoutonDedieRetireTest`.
+- ⭐ **L'ARBRE DE FICHIERS offre les mêmes gestes d'élément** (2026-09-18, demande de Fabien :
+  « les options des "…" au filemanager, en réutilisant l'existant »). Partager, ranger en
+  médiathèque et indexer au RAG sont définis sur un ÉLÉMENT `(surface, pk)`, jamais sur un
+  chemin ; un fichier de l'arbre ne les obtient qu'en remontant à l'élément dont il est la
+  **sortie déclarée** — inverse de « Envoyer vers » (`send_to.item_for_output_path`, candidats par
+  requête puis **confirmation par l'adapter** ; une entrée d'élément n'est pas une sortie). Les
+  entrées sont alors **celles de la card**, sorties de `wama-card-menu.js` en une fonction
+  (`entreesPourElement`) que la card et l'arbre appellent — aucune entrée n'est écrite dans
+  `filemanager.js`, et les endpoints sont les mêmes (partage, route commune de la médiathèque
+  avec coche et retrait, RAG). Posées en **entrée différée à la racine du menu** (nouveau contrat
+  `{chargement, charger}`, même idée que le sous-menu différé) : le menu s'ouvre tout de suite,
+  « Recherche… » se remplace, et disparaît si le fichier n'est la sortie de rien. Dépôts
+  temporaires et montages ne sont pas interrogés (ils ne sont la sortie de rien) ; un fichier
+  seul, comme sur les cards. « Envoyer vers… » de l'arbre, qui existait déjà par chemin, n'a pas
+  bougé. ⏳ **Frontière voulue, pas un trou** : un fichier qui n'est PAS une sortie d'app (dépôt
+  temporaire, entrée) n'a ni élément à partager ni texte au RAG ; le ranger en médiathèque par
+  chemin est possible mais sans état persisté (aucune provenance par chemin sur `UserAsset`) —
+  ce serait un demi-vocabulaire (coche sur les sorties, rien sur les dépôts) : décision de Fabien
+  si le besoin se présente. Gardes : `ElementPourCheminTest`, `MenuDeCardSousV8Test`,
+  `GestesDElementDansLArbreTests`, scénario nocturne `common.tree_item_menu`.
 
 ## 3. Rendu : server-side (partial) + update en place — PAS de rebuild JS
 

@@ -997,7 +997,7 @@ def _srt_ts(s):
     return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
 
 
-def _build_transcript_bytes(t: Transcript, fmt: str):
+def build_transcript_bytes(t: Transcript, fmt: str):
     """Return (ext, bytes) for a transcript in `fmt` (txt/srt/pdf/docx), or None.
 
     Shared by single download and batch ZIP so format options stay in sync.
@@ -1280,7 +1280,7 @@ def download_all(request):
         for transcript in transcripts:
             stem = _output_stem(transcript)
             try:
-                result = _build_transcript_bytes(transcript, fmt)
+                result = build_transcript_bytes(transcript, fmt)
             except Exception as e:
                 logger.warning(f"[Transcriber] download_all: {fmt} failed for #{transcript.pk} ({e}); falling back to txt")
                 result = None
@@ -1503,7 +1503,7 @@ def batch_download(request, pk):
                 stem = _output_stem(t) if t.audio else (
                     os.path.splitext(t.source_url.split('/')[-1])[0] or f'transcript_{t.id}'
                 )
-                built = _build_transcript_bytes(t, fmt)
+                built = build_transcript_bytes(t, fmt)
                 if built:
                     ext, data = built
                     archive.writestr(f'{stem}.{ext}', data)

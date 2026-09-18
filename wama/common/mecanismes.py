@@ -309,9 +309,19 @@ MECHANISMS = (
               "⚠ NE CONSTRUIT AUCUN CHEMIN — `upload_to` décide du domicile, donc le geste suit "
               "la refonte des dossiers utilisateur (chiffrement) au lieu de la figer. Les 2 "
               "copies manuelles (composer + sa jumelle) DÉLÈGUENT depuis le 2026-09-12, et un "
-              "gardien AST refuse qu'une vue d'app recopie le geste. TROIS surfaces, une brique "
-              "(menu « … », route d'app, outil d'assistant). ⚠ `synthesizer` n'était PAS une "
-              "copie : son écriture d'asset est l'UPLOAD d'une voix, un autre geste.",
+              "gardien AST refuse qu'une vue d'app recopie le geste. Surfaces : le menu « … » / "
+              "clic droit des cards, le MÊME menu dans l'arbre de fichiers sur un fichier de "
+              "SORTIE (2026-09-18), l'outil d'assistant. Le bouton dédié du composer et sa "
+              "route d'app (seconde porte du même geste) sont RETIRÉS le 2026-09-18 (R64, "
+              "R65) : le RÔLE se DÉCLARE au commun par l'app (`result_role` du détail "
+              "canonique) et `admissible_roles` filtre — extension, puis rôle déclaré, pour "
+              "les 10 apps ; non déclaré = l'utilisateur choisit. DEUX archétypes (§6.4), un "
+              "geste : early-binding = le fichier déjà rendu, le choix est le rôle ; "
+              "late-binding (transcriber, describer, reader) = le master texte est RENDU au "
+              "format choisi par le builder du ⬇ (`register_export_builder`), asset "
+              "`document`, coche et retrait par format (`export_choices`). ⚠ `synthesizer` "
+              "n'était PAS une copie : son écriture d'asset est l'UPLOAD d'une voix, un autre "
+              "geste.",
               'wama/media_library/services.py', 'docs/construction/ui/CARD_DESIGN.md §2bis',
               symbol='export_item_to_library'),
     Mechanism('filter_bar', 'Barre de filtrage',
@@ -337,7 +347,13 @@ MECHANISMS = (
               "(« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de "
               "l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le "
               "refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis "
-              "`filemanager.js`, 2026-09-14). ⚠ Le menu est posé sur `document.body` : une card "
+              "`filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes "
+              "d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier "
+              "de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément "
+              "(`send_to.item_for_output_path`), les entrées sont CELLES de la card "
+              "(`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine "
+              "du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu "
+              "n'attend pas le réseau). ⚠ Le menu est posé sur `document.body` : une card "
               "vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES "
               "ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)",
               'wama/common/static/common/js/wama-card-menu.js', 'docs/construction/ui/CARD_DESIGN.md',
@@ -363,7 +379,10 @@ MECHANISMS = (
               "extension déclarée, accès) et jamais listées : c'est la leçon du Geste 14, où le "
               "menu offrait trois apps que le serveur refusait. Une app qui ne prendrait qu'une "
               "PARTIE des fichiers n'est pas offerte — un envoi partiel silencieux ferait croire "
-              "le résultat entier transmis",
+              "le résultat entier transmis. Porte aussi l'INVERSE (2026-09-18) : "
+              "`item_for_output_path` — de quel élément un chemin de `media/` est la SORTIE "
+              "(candidats par requête, CONFIRMATION par l'adapter), route "
+              "`api/element-pour-chemin/` — ce qui donne à l'arbre les gestes d'élément",
               'wama/common/services/send_to.py', 'docs/construction/architecture/WAMA_VERIFICATION.md',
               annexes=('wama/common/static/common/js/wama-send-to.js',)),
     Mechanism('input_provenance', "Provenance d'une entrée (source ⟷ copie de travail)",
@@ -1000,7 +1019,10 @@ MECHANISMS = (
     Mechanism('export_formats', 'Formats de téléchargement (⬇ late-binding)',
               "Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, "
               "groupe) + split-button dérivé de la déclaration export_binding — pendant "
-              "late-binding d'output_formats ; 6ᵉ action de card",
+              "late-binding d'output_formats ; 6ᵉ action de card. Depuis le 2026-09-18, porte "
+              "aussi le REGISTRE des builders de rendu (`register_export_builder`, un par app "
+              "late-binding, chemin pointé résolu à l'usage) : c'est ce qui permet au geste "
+              "médiathèque de rendre le format choisi par LE MÊME code que le ⬇",
               'wama/common/utils/export_formats.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3',
               annexes=('wama/common/templates/common/_download_button.html',
                        'wama/common/templatetags/wama_actions.py')),

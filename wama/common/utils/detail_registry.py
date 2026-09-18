@@ -82,6 +82,11 @@ def register_app_detail_spec(app_name, model_class, spec):
        'source_type': 'media_type' | {'const': 'document'},
        'engine': 'backend', 'engine_effective': 'used_backend',
        'result_file': 'output_file', 'result_text': 'result_text', 'source_text': …,
+       # RÔLE d'asset de la sortie (2026-09-18, décision Fabien : « filtrer par rôle, au
+       # commun, pour toutes les apps ») — ce que la médiathèque en ferait. Const, champ, ou
+       # champ TRADUIT : {'field': 'media_type', 'map': MEDIA_CATEGORY_ROLE}. Non déclaré =
+       # le geste commun laisse choisir parmi les rôles admissibles pour l'extension.
+       'result_role': {'field': 'media_type', 'map': MEDIA_CATEGORY_ROLE},
        'extra': [{'label': 'Langue', 'field': 'language'},
                  {'label': 'Mode', 'field': 'mode', 'display': True}],   # get_<f>_display()
        'extra_from_params': 'options' | True,   # labels du SCHÉMA (schema_for_app) ; str =
@@ -126,6 +131,11 @@ def detail_from_spec(instance, spec, app_name):
         if not f:
             return None
         if isinstance(f, dict):
+            # `{'field': 'media_type', 'map': {...}}` (2026-09-18) : la valeur d'un champ
+            # TRADUITE par une table — né pour `result_role` (la catégorie d'un média n'est
+            # pas un rôle d'asset). Sinon `{'const': …}`.
+            if 'map' in f:
+                return (f['map'] or {}).get(getattr(instance, f.get('field', ''), None))
             return f.get('const')
         return getattr(instance, f, None)
 
@@ -165,6 +175,7 @@ def detail_from_spec(instance, spec, app_name):
         engine=_val('engine'),
         engine_effective=_val('engine_effective'),
         result_file=_val('result_file'),
+        result_role=_val('result_role'),
         result_text=_val('result_text') or None,
         source_text=_val('source_text'),
         extra=extra or None,
@@ -200,16 +211,28 @@ def _short_error(err: str, limit: int = 280) -> str:
     return summary
 
 
+#: Catégorie de média → rôle d'asset, pour les apps dont la sortie est « un média de la même
+#: catégorie que l'entrée » (anonymizer, enhancer, converter). Deux absences VOULUES : `audio`
+#: (voix, musique ou bruitage — le rôle n'est pas dérivable de la catégorie, l'app le dit ou
+#: l'utilisateur choisit) et `avatar` (jamais une sortie générique : c'est une nature d'usage).
+MEDIA_CATEGORY_ROLE = {'image': 'image', 'video': 'video', 'document': 'document'}
+
+
 def build_detail(instance, *, source_file=None, source_type=None, engine=None,
                  engine_effective=None, result_file=None, result_files=None,
-                 result_text=None, source_text=None, extra=None):
+                 result_role=None, result_text=None, source_text=None, extra=None):
     """Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES
     (la ligne disparaît côté WamaDetails). `extra` = réglages spécifiques d'app {label: valeur}.
 
     Arguments = valeurs DÉJÀ résolues par l'adapter (il connaît les noms de champs de son modèle) :
       source_file (FieldFile|str), source_type (str), engine, engine_effective, result_file,
       result_text (str — clé canonique AJOUTÉE 2026-07-13 pour les apps à sortie TEXTE :
-      transcriber/describer/reader ; consommée par le runner générique du studio).
+      transcriber/describer/reader ; consommée par le runner générique du studio),
+      result_role (str — clé canonique AJOUTÉE 2026-09-18 : le RÔLE d'asset de la sortie, dans
+      le vocabulaire `media_library.natures.ASSET_NATURES` ; consommée par le geste commun
+      « ranger en médiathèque », qui ne propose alors que ce rôle. L'app DÉCLARE ce qu'elle
+      produit — le composer sait qu'une génération `music` est une musique — au lieu de le
+      savoir dans une route à elle ; non déclaré = l'utilisateur choisit).
     Les champs communs (id/created_at/status/…) sont lus directement sur l'instance.
     """
     def _url(f):
@@ -282,6 +305,12 @@ def build_detail(instance, *, source_file=None, source_type=None, engine=None,
     urls = [u for u in (_url(f) for f in (result_files or [])) if u]
     if len(urls) > 1:
         d['result_files'] = urls
+
+    # Rôle DÉCLARÉ de la sortie (2026-09-18). Une chaîne nue : la validation contre le
+    # vocabulaire des natures appartient au consommateur (`media_library.services`), le
+    # substrat ne dépend pas d'une app.
+    if result_role and (res or urls):
+        d['result_role'] = str(result_role)
 
     if result_text:
         d['result_text'] = result_text

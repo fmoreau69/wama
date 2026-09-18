@@ -587,8 +587,9 @@
     // dans `filemanager.css` : un composant tiers qui ne pouvait pas ressembler au menu des
     // cards (`wama-card-menu.js`, 2026-09-08 — qui annonçait déjà cette migration). L'arbre
     // délègue désormais son clic droit à `WamaCardMenu.ouvrir` : même rendu et mêmes gestes
-    // que sur une card (sous-menu ouvert au CLIC, titre « N éléments sélectionnés », fermeture
-    // par Échap, clic extérieur ou défilement).
+    // que sur une card (sous-menus en cascade au survol ou au clic, titre « N éléments
+    // sélectionnés », clavier, fermeture par Échap ou par un geste de l'utilisateur hors du menu
+    // — jamais par un simple défilement).
     //
     // ⚠ DEUX cibles, pas une. Le plugin `wholerow` peint la ligne par-dessus l'ancre et ne
     // RELAIE le clic droit vers elle que si le plugin `contextmenu` est chargé
@@ -633,7 +634,12 @@
                 libelle: it.label,
                 danger: /danger/.test(it._class || ''),
             };
-            if (typeof it.charger === 'function') {
+            if (typeof it.charger === 'function' && it.differe) {
+                // GROUPE DIFFÉRÉ au niveau du menu (2026-09-18) : la brique rend « Recherche… »
+                // à sa place, puis les entrées obtenues — ou rien, si la liste est vide.
+                entry.chargement = true;
+                entry.charger = it.charger;
+            } else if (typeof it.charger === 'function') {
                 // Sous-menu DIFFÉRÉ (résolu au serveur) : la brique l'ouvre sur « Recherche… »
                 // puis le remplit, et DIT une liste vide au lieu d'un sous-menu creux.
                 entry.sous = [{ chargement: true }];
@@ -724,6 +730,27 @@
                     separator_before: true,
                     charger: () => WamaSendTo.entreesPourChemins(cheminsEnvoyables),
                     videLibelle: 'Aucune app ne prend ce format',
+                };
+            }
+
+            // LES GESTES D'ÉLÉMENT du menu « … » des cards — Partager…, Ajouter à la
+            // médiathèque…, Ajouter au RAG (2026-09-18, demande de Fabien : « les options des
+            // "…" au filemanager, en réutilisant l'existant »). Un fichier de l'arbre n'est pas un
+            // élément : c'est le serveur qui dit de quel élément il est la SORTIE (inverse du
+            // résolveur « Envoyer vers »), et les entrées sont alors EXACTEMENT celles de la card
+            // (`WamaCardMenu.entreesPourChemin` → `entreesPourElement`) — zéro entrée écrite ici.
+            // Différé : le menu s'ouvre tout de suite, la ligne « Recherche… » se remplace.
+            //   • un fichier seul (partager N éléments exigerait N portées, comme sur les cards) ;
+            //   • jamais un dépôt temporaire ni un montage : ils ne sont la sortie de rien, on
+            //     n'interroge pas le serveur pour l'entendre dire (même forme que `is_path_allowed`).
+            const peutEtreUneSortie = filePath && !filePath.startsWith('mounts/')
+                && !/^users\/\d+\/temp(\/|$)/.test(filePath);
+            if (!isMultiSelect && peutEtreUneSortie && window.WamaCardMenu
+                    && WamaCardMenu.entreesPourChemin) {
+                items.element = {
+                    separator_before: true,
+                    differe: true,
+                    charger: () => WamaCardMenu.entreesPourChemin(filePath, node.text),
                 };
             }
 

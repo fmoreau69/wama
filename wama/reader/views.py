@@ -851,7 +851,7 @@ def batch_status(request, pk):
     })
 
 
-def _build_reading_bytes(item, fmt):
+def build_reading_bytes(item, fmt):
     """Return (ext, bytes) for an OCR result in `fmt` (txt/md/pdf/docx/json), or None.
 
     Shared format builder for the batch ZIP dropdown (WAMA_APP_CONVENTIONS §9.10).
@@ -902,7 +902,7 @@ def batch_download(request, pk):
                 stem = os.path.splitext(compose_output_name(
                     app='reader', source_name=r.filename or f'item_{r.id}',
                     item_id=r.id))[0]
-                built = _build_reading_bytes(r, fmt)
+                built = build_reading_bytes(r, fmt)
                 if built:
                     ext, data = built
                     archive.writestr(f'{stem}.{ext}', data)

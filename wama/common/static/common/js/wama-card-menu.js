@@ -28,7 +28,10 @@
  * jsTree et ouvre CE menu par `WamaCardMenu.ouvrir` (`filemanager.js:bindContextMenu`).
  *
  * Montage AUTOMATIQUE sur les files `[data-wama-dnd]`. Aucune page n'écrit de JS. Toute autre
- * surface (l'arbre de fichiers) appelle `ouvrir(x, y, entrees, titre)` avec ses propres entrées.
+ * surface (l'arbre de fichiers) appelle `ouvrir(x, y, entrees, titre)` avec ses propres entrées
+ * — et, depuis le 2026-09-18, obtient les gestes d'ÉLÉMENT (Partager…, Ajouter à la
+ * médiathèque…, Ajouter au RAG) par `entreesPourChemin(chemin, nom)` : le serveur dit de quel
+ * élément le fichier est la SORTIE, et les entrées sont EXACTEMENT celles de la card.
  */
 (function (global) {
     'use strict';
@@ -166,18 +169,31 @@
      * MÊME route que le rangement (`action=remove`) : un geste et son inverse ne divergent pas.
      * Seule la COPIE rangée disparaît — la sortie de l'app reste intacte, et la confirmation le dit.
      */
-    function retirerDeMediatheque(co, role, nom) {
+    /**
+     * Un CHOIX du sous-menu médiathèque = `{asset_type, format}` — un RÔLE (app early-binding :
+     * le fichier est déjà rendu) ou un FORMAT rendu à la demande (app late-binding : le master
+     * est un texte, l'asset un document). Le serveur décrit chaque clé (`choices`) ; le menu
+     * n'a rien à savoir de l'archétype de l'app.
+     */
+    function champsDuChoix(choix) {
+        return { asset_type: (choix && choix.asset_type) || '',
+                 output_format: (choix && choix.format) || '' };
+    }
+
+    function retirerDeMediatheque(co, choix, nom) {
         if (!window.confirm('Retirer « ' + (nom || 'cet asset') + ' » de la médiathèque ?\n'
                             + 'Le résultat de l\'application n\'est pas touché.')) return;
-        poster(urlMediatheque(co), { action: 'remove', asset_type: role }).then(function (res) {
+        var champs = champsDuChoix(choix);
+        champs.action = 'remove';
+        poster(urlMediatheque(co), champs).then(function (res) {
             if (res && res.success) dire('Retiré de la médiathèque : ' + (nom || ''), 'ok');
             else dire('Retrait impossible — ' + ((res && res.error) || 'refusé'), 'error');
         });
     }
 
-    function rangerEnMediatheque(co, role) {
+    function rangerEnMediatheque(co, choix) {
         var url = urlMediatheque(co);
-        poster(url, { asset_type: role }).then(function (res) {
+        poster(url, champsDuChoix(choix)).then(function (res) {
             if (res && res.success) dire('Ajouté à la médiathèque : ' + (res.name || ''), 'ok');
             // Le motif du refus est DIT : « précisez le rôle », « existe déjà »… Un geste qui
             // échoue en silence se re-tente à l'identique.
@@ -201,6 +217,114 @@
             dire(res.fragments + ' fragment' + (res.fragments > 1 ? 's' : '')
                 + ' au RAG · ' + (res.niveau || '') + ' · en attente de vectorisation', 'ok');
         });
+    }
+
+    // ── Les gestes d'ÉLÉMENT, pour des coordonnées `{surface, pk}` ─────────────────────
+    //
+    // Sortis d'`actionsTransverses` le 2026-09-18 (demande de Fabien : « on ne duplique pas le
+    // code, on le réutilise ») pour que l'ARBRE DE FICHIERS les offre sur un fichier qui est la
+    // SORTIE d'un élément — sans réécrire une ligne. Deux surfaces, UNE liste d'entrées, donc un
+    // seul endroit où elle peut dériver ; et les mêmes endpoints serveur (partage, route commune
+    // de la médiathèque, RAG), donc les mêmes refus.
+
+    /** « Partager… » d'un ÉLÉMENT (pas d'un lot — le lot est le cas propre à la card). */
+    function entreePartager(co, nom) {
+        if (!global.WamaShare) return null;
+        return {
+            icone: 'fas fa-share-nodes', libelle: 'Partager…',
+            agir: function () { WamaShare.ouvrir(co.surface, co.pk, nom, 'element'); },
+        };
+    }
+
+    /**
+     * Les DEUX « sorties complémentaires » (décision Fabien, 2026-09-11) : ranger dans la
+     * MÉDIATHÈQUE et ajouter au RAG — deux façons de garder une sortie. Elles vont dans le « … »
+     * et PAS dans la rangée : celle-ci est figée à cinq actions par les conventions
+     * (`[⚙][▶][⬇][⧉][🗑]`), et l'arbitrage du 2026-09-08 dit déjà que « les sorties manquantes
+     * vont dans les "..." ».
+     *
+     * ⚠ « Ajouter au RAG » EXISTAIT DÉJÀ, mais seulement dans l'inspecteur, dans sa section
+     * RAG (`wama-inspector.js:374`). Il fallait donc ouvrir le volet pour le trouver. Les
+     * deux surfaces coexistent volontairement — c'est le MÊME endpoint, et l'inspecteur
+     * garde l'avantage de dire l'état (« 3 fragments · en attente de vectorisation »).
+     */
+    function entreesGarder(co) {
+        return [
+            // MÉDIATHÈQUE — sous-menu des CHOIX, chargé à l'ouverture : des RÔLES (app
+            // early-binding — le serveur ne rend que les rôles admissibles pour l'extension, et
+            // UN SEUL quand l'app déclare ce qu'elle produit, 2026-09-18) ou des FORMATS (app
+            // late-binding — ceux du bouton ⬇, rendus à la demande, 2026-09-18). On ne propose
+            // donc jamais ce que le serveur refuserait.
+            // ÉTAT PERSISTÉ (2026-09-14, demande de Fabien) : le serveur rend aussi les clés sous
+            // lesquelles la sortie est DÉJÀ rangée (provenance de l'asset). Celles-là portent une
+            // COCHE, et leur clic RETIRE l'asset — sans aller dans la médiathèque.
+            {
+                icone: 'fas fa-photo-film', libelle: 'Ajouter à la médiathèque…',
+                sous: [{ chargement: true }],
+                videLibelle: 'Rien à ranger (pas encore de résultat)',
+                charger: function () {
+                    return fetch(urlMediatheque(co), { credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (d) {
+                            var deja = d.in_library || {};
+                            var choix = d.choices || {};
+                            var cles = (d.candidates || []).slice();
+                            // Une clé déjà rangée reste retirable même si le résultat a changé de
+                            // format depuis : on ne la fait pas disparaître du menu.
+                            Object.keys(deja).forEach(function (k) {
+                                if (cles.indexOf(k) === -1) cles.push(k);
+                            });
+                            return cles.map(function (cle) {
+                                var libelle = (d.labels || {})[cle] || cle;
+                                // Repli : un serveur sans `choices` décrit des rôles (contrat d'avant).
+                                var c = choix[cle] || { asset_type: cle, format: '' };
+                                if (deja[cle]) {
+                                    return {
+                                        icone: 'fas fa-check wama-cm-coche', libelle: libelle,
+                                        agir: function () { retirerDeMediatheque(co, c, deja[cle].name); },
+                                    };
+                                }
+                                return {
+                                    icone: 'fas fa-plus', libelle: libelle,
+                                    agir: function () { rangerEnMediatheque(co, c); },
+                                };
+                            });
+                        });
+                },
+            },
+            {
+                icone: 'fas fa-book-open-reader', libelle: 'Ajouter au RAG',
+                agir: function () { ajouterAuRag(co); },
+            },
+        ];
+    }
+
+    /**
+     * TOUS les gestes d'élément pour des coordonnées — Partager…, Ajouter à la médiathèque…,
+     * Ajouter au RAG — dans l'ordre du menu de card. C'est ce que l'arbre de fichiers consomme
+     * (« Envoyer vers… », lui, y existe déjà par chemin, résolu au serveur). `nom` : ce que la
+     * modale de partage affiche.
+     */
+    function entreesPourElement(co, nom) {
+        return [entreePartager(co, nom)].filter(Boolean).concat(entreesGarder(co));
+    }
+
+    /**
+     * Les gestes d'élément pour un CHEMIN de `media/` (2026-09-18) : le serveur dit de quel
+     * élément ce fichier est la SORTIE (`/common/api/element-pour-chemin/`, inverse du résolveur
+     * « Envoyer vers »), puis ce sont exactement les entrées ci-dessus. Un fichier qui n'est la
+     * sortie de rien (dépôt temporaire, entrée d'app, montage) rend une liste VIDE — l'entrée
+     * différée disparaît alors du menu, elle n'affiche pas un vide.
+     */
+    function entreesPourChemin(chemin, nom) {
+        return fetch('/common/api/element-pour-chemin/?path=' + encodeURIComponent(chemin),
+                     { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+                if (!d || !d.surface || !d.pk) return [];
+                return entreesPourElement({ surface: d.surface, pk: String(d.pk) }, nom);
+            })
+            .catch(function () { return []; });
     }
 
     function actionsTransverses(card, cibles) {
@@ -271,16 +395,15 @@
         if (cibles.length === 1 && global.WamaShare) {
             var estMere = card.classList.contains('is-batch');
             var dispo = estMere ? WamaShare.coordonneesDuLot(card) : WamaShare.coordonnees(card);
-            if (dispo) {
+            var nom = (card.textContent || '').trim().slice(0, 70);
+            if (dispo && estMere) {
                 entrees.push({
-                    icone: 'fas fa-share-nodes',
-                    libelle: estMere ? 'Partager le lot…' : 'Partager…',
-                    agir: function () {
-                        var nom = (card.textContent || '').trim().slice(0, 70);
-                        if (estMere) WamaShare.ouvrirPourLot(card, nom);
-                        else WamaShare.ouvrirPourCard(card, nom);
-                    },
+                    icone: 'fas fa-share-nodes', libelle: 'Partager le lot…',
+                    agir: function () { WamaShare.ouvrirPourLot(card, nom); },
                 });
+            } else if (dispo) {
+                // L'entrée COMMUNE (celle de l'arbre aussi) : mêmes coordonnées, même modale.
+                entrees.push(entreePartager(dispo, nom));
             }
         }
 
@@ -301,63 +424,12 @@
             });
         }
 
-        // ── LES DEUX « SORTIES COMPLÉMENTAIRES » (décision Fabien, 2026-09-11) ───────────────
-        //
-        // Ranger dans la MÉDIATHÈQUE et ajouter au RAG sont deux façons de garder une sortie.
-        // Elles vont dans le « … » et PAS dans la rangée : celle-ci est figée à cinq actions
-        // par les conventions (`[⚙][▶][⬇][⧉][🗑]`), et l'arbitrage du 2026-09-08 ci-dessus dit
-        // déjà que « les sorties manquantes vont dans les "..." ».
-        //
-        // ⚠ « Ajouter au RAG » EXISTAIT DÉJÀ, mais seulement dans l'inspecteur, dans sa section
-        // RAG (`wama-inspector.js:374`). Il fallait donc ouvrir le volet pour le trouver. Les
-        // deux surfaces coexistent volontairement — c'est le MÊME endpoint, et l'inspecteur
-        // garde l'avantage de dire l'état (« 3 fragments · en attente de vectorisation »).
+        // ── LES DEUX « SORTIES COMPLÉMENTAIRES » : médiathèque + RAG (`entreesGarder`) ───────
+        // Une card UNITAIRE qui porte ses coordonnées. Le bloc lui-même vit plus haut, partagé
+        // avec l'arbre de fichiers (2026-09-18).
         if (cibles.length === 1 && !card.classList.contains('is-batch')
                 && global.WamaShare && WamaShare.coordonnees(card)) {
-            var co = WamaShare.coordonnees(card);
-
-            // MÉDIATHÈQUE — sous-menu des RÔLES, chargé à l'ouverture. Le rôle n'est pas dérivable
-            // du fichier (un .mp3 peut être une voix, une musique ou un bruitage) : le serveur
-            // rend les rôles admissibles, on ne propose donc jamais ce qu'il refuserait.
-            // ÉTAT PERSISTÉ (2026-09-14, demande de Fabien) : le serveur rend aussi les rôles sous
-            // lesquels la sortie est DÉJÀ rangée (provenance de l'asset). Ceux-là portent une
-            // COCHE, et leur clic RETIRE l'asset — sans aller dans la médiathèque.
-            entrees.push({
-                icone: 'fas fa-photo-film', libelle: 'Ajouter à la médiathèque…',
-                sous: [{ chargement: true }],
-                videLibelle: 'Rien à ranger (pas encore de résultat)',
-                charger: function () {
-                    return fetch(urlMediatheque(co), { credentials: 'same-origin' })
-                        .then(function (r) { return r.json(); })
-                        .then(function (d) {
-                            var deja = d.in_library || {};
-                            var roles = (d.candidates || []).slice();
-                            // Un rôle déjà rangé reste retirable même si le résultat a changé de
-                            // format depuis : on ne le fait pas disparaître du menu.
-                            Object.keys(deja).forEach(function (r) {
-                                if (roles.indexOf(r) === -1) roles.push(r);
-                            });
-                            return roles.map(function (role) {
-                                var libelle = (d.labels || {})[role] || role;
-                                if (deja[role]) {
-                                    return {
-                                        icone: 'fas fa-check wama-cm-coche', libelle: libelle,
-                                        agir: function () { retirerDeMediatheque(co, role, deja[role].name); },
-                                    };
-                                }
-                                return {
-                                    icone: 'fas fa-plus', libelle: libelle,
-                                    agir: function () { rangerEnMediatheque(co, role); },
-                                };
-                            });
-                        });
-                },
-            });
-
-            entrees.push({
-                icone: 'fas fa-book-open-reader', libelle: 'Ajouter au RAG',
-                agir: function () { ajouterAuRag(co); },
-            });
+            entrees.push.apply(entrees, entreesGarder(WamaShare.coordonnees(card)));
         }
 
         // « Ajouter à un lot » — n'a de sens que s'il EXISTE un lot d'accueil autre que le sien.
@@ -481,15 +553,73 @@
         fermer();
         if (!entrees.length) return;
         var el = creer(0);
+        el._wamaAncre = { x: x, y: y };      // relu si une entrée différée change la taille
         remplir(el, entrees, titre, 0);
-
-        // Placement : on corrige APRÈS insertion, quand la taille réelle est connue — un menu
-        // dimensionné à l'aveugle sort de l'écran en bas de page.
-        var r = el.getBoundingClientRect();
-        el.style.left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8)) + 'px';
-        el.style.top = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
+        placerRacine(el);
         el.focus({ preventScroll: true });
         return el;
+    }
+
+    /**
+     * Placement du menu RACINE à son ancre : corrigé APRÈS insertion, quand la taille réelle
+     * est connue — un menu dimensionné à l'aveugle sort de l'écran en bas de page. Rejoué quand
+     * une entrée différée le remplit (sa hauteur change).
+     */
+    function placerRacine(el) {
+        var a = el._wamaAncre || { x: 0, y: 0 };
+        var r = el.getBoundingClientRect();
+        el.style.left = Math.max(8, Math.min(a.x, window.innerWidth - r.width - 8)) + 'px';
+        el.style.top = Math.max(8, Math.min(a.y, window.innerHeight - r.height - 8)) + 'px';
+    }
+
+    /**
+     * ENTRÉE DIFFÉRÉE au niveau du menu lui-même (2026-09-18) : `{chargement: true, charger}`.
+     *
+     * Même contrat que le sous-menu différé, un cran plus haut : le menu s'ouvre TOUT DE SUITE
+     * sur « Recherche… » à la place de l'entrée, et quand `charger()` rend ses entrées elles
+     * REMPLACENT la ligne d'attente — aucune si la liste est vide (l'entrée disparaît, avec le
+     * séparateur qui la précédait si plus rien ne le suit). Né pour l'arbre de fichiers : savoir
+     * si un fichier est la SORTIE d'un élément exige un appel serveur, et un menu ne doit pas
+     * attendre le réseau pour s'ouvrir.
+     *
+     * ⚠ Le FOCUS survit au remplissage : le re-rendu détruit les boutons, on rend le focus à
+     * l'entrée qui l'avait (les objets d'entrée sont conservés, seul le DOM change).
+     */
+    function chargerDifferee(el, entrees, e, titre, niveau) {
+        if (e._wamaLancee) return;            // un re-rendu ne relance pas un appel en vol
+        e._wamaLancee = true;
+        Promise.resolve().then(function () { return e.charger(); }).then(function (obtenues) {
+            return obtenues || [];
+        }, function () {
+            return [];
+        }).then(function (obtenues) {
+            if (pile[niveau] !== el) return;          // le menu a été refermé entre-temps
+            var i = entrees.indexOf(e);
+            if (i === -1) return;
+            var args = [i, 1].concat(obtenues);
+            entrees.splice.apply(entrees, args);
+            if (!obtenues.length) {
+                // Un séparateur qui ne sépare plus rien (fin de liste, ou deux d'affilée) s'en va.
+                var j = i - 1;
+                if (j >= 0 && entrees[j] && entrees[j].separateur
+                        && (i >= entrees.length || (entrees[i] && entrees[i].separateur))) {
+                    entrees.splice(j, 1);
+                }
+            }
+            var active = document.activeElement;
+            var entreeActive = active && el.contains(active) ? active._wamaEntree : null;
+            var menuAvaitLeFocus = active === el;
+            remplir(el, entrees, titre, niveau);
+            if (niveau === 0) placerRacine(el);
+            else if (el._wamaDepuis) placerSous(el, el._wamaDepuis);
+            if (entreeActive) {
+                var b = $$('.wama-cm-item', el).filter(function (x) { return x._wamaEntree === entreeActive; })[0];
+                if (b) b.focus({ preventScroll: true });
+                else el.focus({ preventScroll: true });
+            } else if (menuAvaitLeFocus || (active && !document.contains(active))) {
+                el.focus({ preventScroll: true });
+            }
+        });
     }
 
     /**
@@ -571,6 +701,13 @@
     function remplir(el, entrees, titre, niveau) {
         el.innerHTML = (titre ? '<div class="wama-cm-titre">' + echapper(titre) + '</div>' : '')
             + '<ul>' + entrees.map(ligne).join('') + '</ul>';
+
+        // Entrées DIFFÉRÉES de ce niveau : lancées au rendu, elles se remplacent elles-mêmes.
+        entrees.forEach(function (e) {
+            if (e && e.chargement && typeof e.charger === 'function') {
+                chargerDifferee(el, entrees, e, titre, niveau);
+            }
+        });
 
         $$('.wama-cm-item', el).forEach(function (b) {
             var e = entrees[parseInt(b.dataset.i, 10)];
@@ -716,8 +853,14 @@
     });
     // CLAVIER (2026-09-14, demande de Fabien) : ↑ ↓ Début Fin parcourent le menu où est le focus,
     // → (ou Entrée) ouvre le sous-menu et y entre, ← remonte au parent, Échap remonte d'un niveau
-    // puis ferme en rendant le focus à qui l'avait, Tab ferme. Entrée/Espace sur une action = le
-    // clic natif du bouton : rien à réécrire.
+    // puis ferme en rendant le focus à qui l'avait, Tab ferme, PageUp/PageDown ferment (la page
+    // défile : le menu ne resterait pas affiché loin de sa card).
+    //
+    // ⚠ EN CAPTURE sur `window`, et la propagation des touches TRAITÉES est arrêtée (audit du
+    // 14/09). L'inspecteur (`wama-inspector.js`) et la file empilée (`wama-queue.js`) écoutent
+    // aussi ↑ ↓ Entrée Espace Échap sur le document : en écoutant après eux, chaque ↓ changeait
+    // la card sélectionnée derrière le menu, et Entrée était ANNULÉE par l'inspecteur au lieu de
+    // déclencher l'entrée. Rien n'est intercepté quand le focus n'est pas dans un menu.
     function menuCourant() {
         for (var i = pile.length - 1; i >= 0; i--) {
             if (pile[i].contains(document.activeElement)) return i;
@@ -733,11 +876,13 @@
     }
 
     function clavier(ev) {
-        if (!pile.length) return;
+        // Seulement quand le focus est DANS un menu : ailleurs, le clavier reste à la page.
+        if (!pile.length || !dansUnMenu(document.activeElement)) return;
         var niveau = menuCourant();
         var menu = pile[niveau];
         var items = entreesActives(menu);
-        var i = items.indexOf(document.activeElement);
+        var active = document.activeElement;
+        var i = items.indexOf(active);
         var cible = null;
         switch (ev.key) {
         case 'ArrowDown': cible = items[(i + 1) % items.length]; break;
@@ -745,10 +890,16 @@
         case 'Home':      cible = items[0]; break;
         case 'End':       cible = items[items.length - 1]; break;
         case 'ArrowRight':
-            var b = document.activeElement;
-            if (b && b._wamaEntree && b._wamaEntree.sous && menu.contains(b)) {
-                ouvrirSous(b, b._wamaEntree, niveau + 1, true);
+            if (active && active._wamaEntree && active._wamaEntree.sous && menu.contains(active)) {
+                ouvrirSous(active, active._wamaEntree, niveau + 1, true);
             }
+            break;
+        case 'Enter':
+        case ' ':
+            // Déclenché ICI, pas laissé au clic natif : l'inspecteur annule Entrée/Espace sur le
+            // document dès qu'une card est sélectionnée. `click()` rend `detail` 0 → une entrée à
+            // sous-menu y fait entrer le focus, comme →.
+            if (active && active.classList.contains('wama-cm-item') && !active.disabled) active.click();
             break;
         case 'ArrowLeft':
         case 'Escape':
@@ -763,19 +914,28 @@
         case 'Tab':
             fermerEtRendreLeFocus();
             return;                     // on laisse la tabulation suivre son cours
+        case 'PageUp':
+        case 'PageDown':
+            fermer();
+            return;                     // la page défile ; le menu ne reste pas loin de sa card
         default:
             return;
         }
         ev.preventDefault();
+        ev.stopPropagation();           // l'inspecteur et la file ne rejouent pas la même touche
         if (cible) cible.focus({ preventScroll: true });
     }
 
-    document.addEventListener('keydown', clavier);
+    // CAPTURE sur `window` : passe avant les écouteurs du document (inspecteur, file empilée).
+    window.addEventListener('keydown', clavier, true);
     window.addEventListener('resize', fermer);
 
     global.WamaCardMenu = {
         autoInit: autoInit, ouvrir: ouvrir, fermer: fermer,
         entreesCompletes: entreesCompletes, entreesDeDebordement: entreesDeDebordement,
+        // Les gestes d'ÉLÉMENT pour d'autres surfaces que la card (l'arbre de fichiers) :
+        // par coordonnées, ou par chemin de `media/` résolu au serveur (2026-09-18).
+        entreesPourElement: entreesPourElement, entreesPourChemin: entreesPourChemin,
         NOMINAL: NOMINAL,
     };
 

@@ -21,9 +21,12 @@ ASSET_TYPES_AVANT = [
     ('avatar', 'Avatar'), ('object3d', 'Objet 3D'),
 ]
 ALLOWED_AVANT = {  # empreinte FIGÉE de l'ancien littéral — c'est la recopie qui est le test
-    'voice':       ['wav', 'mp3', 'flac', 'ogg', 'm4a'],  # wama:redondance-ok — empreinte figée (test)
-    'audio_music': ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'],  # wama:redondance-ok — empreinte figée (test)
-    'audio_sfx':   ['mp3', 'wav', 'ogg', 'flac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
+    # ⚠ Les trois natures AUDIO ont quitté l'empreinte le 2026-09-19 (décision Fabien : « pourquoi
+    # un bruitage ne peut-il pas être un .aac ? ») : elles acceptent désormais le MÊME jeu, l'union
+    # des trois anciens — le rôle se choisit ou se déclare, il ne se déduit plus de l'extension.
+    'voice':       ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
+    'audio_music': ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
+    'audio_sfx':   ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'aiff'],  # wama:redondance-ok — empreinte figée (test)
     'image':       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],  # wama:redondance-ok — empreinte figée (test)
     'video':       ['mp4', 'webm', 'mov', 'avi', 'mkv'],  # wama:redondance-ok — empreinte figée (test)
     'document':    ['pdf', 'txt', 'docx', 'md', 'csv'],  # wama:redondance-ok — empreinte figée (test)
@@ -77,8 +80,9 @@ class ResolutionDUneCategorieTest(TestCase):
 
     def test_l_extension_departage_dans_la_categorie_le_defaut_en_tete(self):
         self.assertEqual(natures.resolve_asset_type('audio', 'x.mp3'), 'audio_music')
-        self.assertEqual(natures.resolve_asset_type('audio', 'x.aiff'), 'audio_sfx')   # seul à l'admettre
-        self.assertEqual(natures.resolve_asset_type('image', 'x.gif'), 'image')
+        # Depuis le 2026-09-19 l'extension ne départage PLUS l'audio (jeu commun) : le défaut.
+        self.assertEqual(natures.resolve_asset_type('audio', 'x.aiff'), 'audio_music')
+        self.assertEqual(natures.resolve_asset_type('image', 'x.gif'), 'image')   # avatar ne l'admet pas
 
     def test_ni_nature_ni_categorie_est_refuse_avec_le_vocabulaire(self):
         with self.assertRaisesRegex(ValueError, 'audio_music'):

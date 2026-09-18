@@ -59,6 +59,9 @@ class ImagerConfig(AppConfig):
                 # navigation de la visionneuse. Toujours via l'ACCESSEUR `output_images` (URL
                 # MEDIA), jamais `generated_images` qui contient des chemins ABSOLUS de disque.
                 result_files=(g.output_images or None),
+                # Rôle d'asset de la sortie (2026-09-18) : une vidéo ou une IMAGE — jamais un
+                # « avatar », qui est une nature d'usage, pas une sortie générique.
+                result_role='video' if g.is_video_generation else 'image',
                 # App PROMPT-PRIMAIRE : le prompt est l'ENTRÉE (anatomie card v3 §11) —
                 # clé CANONIQUE `source_text`, comme composer/synthesizer. Sans elle, la
                 # section Entrée du volet resterait vide quand il n'y a pas d'image source.

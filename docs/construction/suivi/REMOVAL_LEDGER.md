@@ -233,6 +233,13 @@
 `converter.js` (ce qui manque à la jumelle, pas un mort) · dblclick propre de reader/describer
 (convergence `wama:card-expand` = chantier, pas suppression).
 
+## Bouton dédié « Exporter vers médiathèque » et route d'app du composer — 2026-09-18 (décision Fabien : le rôle se déclare au COMMUN, pour toutes les apps)
+
+| # | Élément | Emplacement | Pourquoi résidu | Prérequis avant suppression | Statut |
+|---|---|---|---|---|---|
+| R64 | bouton `.export-btn` + coche « Déjà exporté » (gabarit), handler `.export-btn` + `exportUrlTemplate` (JS/config), règle CSS | `composer/_generation_card.html`, `composer/js/index.js`, `composer/css/index.css`, `composer/index.html` | DUPLIQUAIT l'entrée « Ajouter à la médiathèque… » du menu « … » commun, sans état persisté ni retrait ; seule rangée du parc à six places | menu commun avec coche + retrait (14/09) | ✅ retiré |
+| R65 | route `composer:export_to_library` (`export/<pk>/`) + vue + ses 3 tests de contrat (`DeprecationDesCopiesTest`) | `composer/urls.py`, `composer/views.py`, `media_library/tests_export_service.py` | seconde PORTE du geste commun (déléguait déjà à la brique) ; 0 front, 0 outil d'assistant, sans GET des rôles ni retrait ; refus du double export redondant avec la provenance | le savoir « music → musique, sinon bruitage » DÉCLARÉ dans le détail canonique (`result_role`, `composer/apps.py`) et lu par `admissible_roles` — même mécanisme pour anonymizer, enhancer, avatarizer, imager, converter | ✅ retiré ; manifeste `apps/composer.json` régénéré |
+
 ## Routage des caches HF + sélection VRAM — 2026-09-03 (investigation demandée par Fabien)
 
 | # | Élément | Emplacement | Pourquoi résidu | Prérequis avant suppression | Statut |

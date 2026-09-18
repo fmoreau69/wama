@@ -334,3 +334,128 @@ class ArbreSansCalculClientTest(TestCase):
     def test_la_liste_client_n_est_plus_publiee(self):
         code = self._code('wama', 'filemanager', 'templates', 'filemanager', 'sidebar.html')
         self.assertNotIn('WAMA_FILEMANAGER_IMPORTERS', code)
+
+
+class ElementPourCheminTest(TestCase):
+    """`item_for_output_path` — l'INVERSE de `sorties_de`, pour l'arbre de fichiers (2026-09-18).
+
+    Les gestes du menu « … » (partager, médiathèque, RAG) sont définis sur un ÉLÉMENT ; un
+    fichier de l'arbre ne les obtient qu'en remontant à l'élément dont il est la SORTIE. Ce
+    que ces tests tiennent : c'est l'ADAPTER qui confirme (une entrée d'élément n'est pas une
+    sortie), le périmètre est celui de l'utilisateur, et l'encodage d'URL ne fait pas rater.
+    """
+
+    def setUp(self):
+        self.u = _utilisateur('chemin_elem')
+        self.autre = _utilisateur('chemin_autre')
+
+    def _job(self, user, sortie='a.webp', entree=''):
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.converter.models import ConversionJob
+        job = ConversionJob.objects.create(user=user, input_filename='a.png')
+        if sortie:
+            job.output_file.name = f"{app_media_dir('converter', user.id, 'output')}/{sortie}"
+        if entree:
+            job.input_file.name = f"{app_media_dir('converter', user.id, 'input')}/{entree}"
+        job.save()
+        return job
+
+    def test_la_sortie_declaree_remonte_a_son_element(self):
+        from wama.common.services.send_to import item_for_output_path
+        job = self._job(self.u)
+        surface, element = item_for_output_path(self.u, job.output_file.name)
+        self.assertEqual((surface, element), ('converter', job))
+
+    def test_la_surface_rendue_est_celle_que_porte_une_card(self):
+        """Partage, médiathèque et RAG lisent `data-preview-url` : la surface doit être connue
+        du registre de PREVIEW avec le MÊME modèle, sinon les gestes tomberaient en 404."""
+        from wama.common.services.send_to import item_for_output_path
+        from wama.common.utils.preview_registry import PreviewRegistry
+        job = self._job(self.u)
+        surface, element = item_for_output_path(self.u, job.output_file.name)
+        self.assertIs(PreviewRegistry.get_model(surface), type(element))
+
+    def test_une_ENTREE_d_element_n_est_pas_une_sortie(self):
+        """Le `FileField` d'entrée référence le chemin, mais l'adapter ne le DÉCLARE pas comme
+        résultat : partager « ce fichier » ouvrirait le partage d'un élément dont il n'est pas
+        le résultat. C'est la confirmation par `sorties_de` qui l'écarte."""
+        from wama.common.services.send_to import item_for_output_path
+        job = self._job(self.u, sortie='b.webp', entree='b.png')
+        self.assertEqual((None, None), item_for_output_path(self.u, job.input_file.name))
+        self.assertEqual(('converter', job), item_for_output_path(self.u, job.output_file.name))
+
+    def test_l_element_d_un_autre_utilisateur_n_est_JAMAIS_rendu(self):
+        from wama.common.services.send_to import item_for_output_path
+        job = self._job(self.autre)
+        self.assertEqual((None, None), item_for_output_path(self.u, job.output_file.name))
+        self.assertEqual(('converter', job), item_for_output_path(self.autre, job.output_file.name))
+
+    def test_un_nom_encode_dans_l_URL_se_resout_quand_meme(self):
+        """L'adapter rend l'URL d'un `FieldFile` (percent-encodée) ; le chemin de l'arbre est
+        brut. Sans `unquote`, un fichier avec une espace ne remonterait jamais."""
+        from wama.common.services.send_to import item_for_output_path, sorties_de
+        job = self._job(self.u, sortie='mon fichier é.webp')
+        self.assertIn('%20', sorties_de('converter', job)[0], 'le cas ne teste rien si rien n’est encodé')
+        self.assertEqual(('converter', job), item_for_output_path(self.u, job.output_file.name))
+
+    def test_les_sorties_en_JSON_de_l_imager_se_resolvent_aussi(self):
+        """L'imager ne range pas ses images dans un `FileField` mais dans un JSON de chemins
+        ABSOLUS (`generated_images`) : la sélection des candidats passe par le nom de fichier,
+        et c'est `output_images` (l'accesseur) qui confirme via l'adapter."""
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.services.send_to import item_for_output_path
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.imager.models import ImageGeneration
+        rel = f"{app_media_dir('imager', self.u.id, 'output')}/img_test_chemin.png"
+        absolu = Path(settings.MEDIA_ROOT) / rel
+        absolu.parent.mkdir(parents=True, exist_ok=True)
+        absolu.write_bytes(b'\x89PNG')
+        try:
+            g = ImageGeneration.objects.create(user=self.u, prompt='x', generated_images=[str(absolu)])
+            self.assertEqual(('imager', g), item_for_output_path(self.u, rel))
+        finally:
+            absolu.unlink(missing_ok=True)
+
+    def test_un_chemin_inconnu_ou_un_anonyme_rendent_None_sans_lever(self):
+        from django.contrib.auth.models import AnonymousUser
+        from wama.common.services.send_to import item_for_output_path
+        self.assertEqual((None, None), item_for_output_path(self.u, f'users/{self.u.id}/temp/x.png'))
+        self.assertEqual((None, None), item_for_output_path(self.u, ''))
+        self.assertEqual((None, None), item_for_output_path(AnonymousUser(), 'users/1/converter/output/a.webp'))
+
+
+class ApiElementPourCheminTest(TestCase):
+    """L'endpoint du menu de l'arbre : même garde de chemin que l'import, coordonnées ou nulls."""
+
+    def setUp(self):
+        self.u = _utilisateur('chemin_api')
+        self.client.force_login(self.u)
+        self.url = reverse('common:api_item_for_path')
+
+    def test_sans_chemin_400(self):
+        self.assertEqual(self.client.get(self.url).status_code, 400)
+
+    def test_un_chemin_hors_perimetre_est_REFUSE_par_la_garde_d_import(self):
+        r = self.client.get(self.url, {'path': 'users/999999/converter/output/x.png'})
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.client.get(self.url, {'path': '../settings.py'}).status_code, 403)
+
+    def test_un_fichier_qui_n_est_la_sortie_de_rien_rend_des_nulls(self):
+        r = self.client.get(self.url, {'path': f'users/{self.u.id}/temp/x.png'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.json()['surface'], r.json()['pk']), (None, None))
+
+    def test_une_sortie_rend_les_coordonnees_de_sa_card(self):
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.converter.models import ConversionJob
+        job = ConversionJob.objects.create(user=self.u, input_filename='a.png')
+        job.output_file.name = f"{app_media_dir('converter', self.u.id, 'output')}/a.webp"
+        job.save(update_fields=['output_file'])
+        r = self.client.get(self.url, {'path': job.output_file.name})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual((r.json()['surface'], r.json()['pk']), ('converter', job.pk))
+
+    def test_anonyme_refuse(self):
+        self.client.logout()
+        self.assertIn(self.client.get(self.url, {'path': 'users/1/temp/x.png'}).status_code, (302, 403))

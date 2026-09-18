@@ -298,35 +298,17 @@
     }
 
     // ---------------------------------------------------------------------------
-    // Card actions (event delegation)
+    // Card actions
     // ---------------------------------------------------------------------------
-
-    document.addEventListener('click', function (e) {
-
-        // 🗑 item : plus de branche ici — brique commune queue-actions.js (portage 2026-08-23).
-        // La suite est déclarée par `onDeleted`, plus bas. Les actions de LOT restent locales
-        // tant que la brique ne les porte pas.
-        // Actions de LOT (▶ ⧉ 🗑 ⚙) : brique commune queue-actions.js (portage 2026-08-23).
-        // Les URLs viennent du partial `_batch_card.html` ; ▶ garde sa suite déclarée
-        // (insertion + polling) parce qu'elle DIFFÈRE réellement — mesuré, cf. la brique.
-
-        const exportBtn = e.target.closest('.export-btn');
-        if (exportBtn) {
-            const id = exportBtn.dataset.id;
-            fetch(WamaApp.getUrl(APP.exportUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(r => r.json())
-                .then(d => {
-                    if (d.success) {
-                        exportBtn.outerHTML = '<span class="btn btn-sm btn-outline-secondary disabled" title="Exporté"><i class="fas fa-check"></i></span>';
-                        showToast('Exporté vers la médiathèque', 'success');
-                    } else {
-                        WamaApp.toast('Erreur export : ' + (d.error || 'inconnue'), 'error');
-                    }
-                });
-            return;
-        }
-
-    });
+    //
+    // Plus AUCUN gestionnaire de clic local sur les actions de card :
+    //   • 🗑 item et actions de LOT (▶ ⧉ 🗑 ⚙) : brique commune queue-actions.js (portage
+    //     2026-08-23) — la suite de 🗑 est déclarée par `onDeleted`, plus bas, et ▶ de lot garde
+    //     sa suite déclarée (insertion + polling) parce qu'elle DIFFÈRE réellement ;
+    //   • médiathèque : le bouton dédié `.export-btn` et son handler sont RETIRÉS le 2026-09-18
+    //     (demande de Fabien). Le geste est celui du menu « … » / clic droit, commun aux 10 apps
+    //     (`wama-card-menu.js` → route commune `media_library:api_export_item`), avec l'état
+    //     persisté (coche) et le retrait. Ce handler ne savait ni l'un ni l'autre.
 
     // Settings save — pied CONFORME : « Enregistrer » (sans relance) / « Enregistrer et relancer ».
     // Sauvegarde BATCH (modale dédiée) : champs lus GÉNÉRIQUEMENT (WamaParams.read) — un param

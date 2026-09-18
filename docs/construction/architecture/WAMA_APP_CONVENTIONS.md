@@ -680,9 +680,16 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
 - **App master-based** (`export_binding='late'`) → sélecteur de format à **CHAQUE** téléchargement,
   y compris **« Télécharger tout »** (dropdown multi-format, cf. §6.3). Le format n'est jamais figé en amont.
   *Réf. transcriber : `download_all?format=`, dropdown construit dans `index.js`, génération via le
-  helper partagé `_build_transcript_bytes(t, fmt)` (zéro duplication avec `batch_download`).*
+  helper partagé `build_transcript_bytes(t, fmt)` (zéro duplication avec `batch_download`).*
 - **App render-based** (`export_binding='early'`) → format choisi à la génération ; le téléchargement
   sert le fichier produit tel quel. Reformatage ultérieur = Converter.
+
+- **Le geste « ranger en médiathèque » suit le même archétype** (2026-09-18, `CARD_DESIGN §2bis`) :
+  early-binding → le fichier rendu est copié, le choix est le RÔLE d'asset (déclaré par l'app,
+  `result_role`) ; late-binding → le format est choisi dans le sous-menu, rendu par **le même
+  builder que le ⬇** (`register_export_builder` dans `apps.py`, chemin pointé vers
+  `build_*_bytes`), l'asset est un `document`. Un builder qui n'est pas déclaré rend le geste
+  muet pour l'app : la déclaration fait partie du contrat late-binding.
 
 **Anonymizer = cas hybride** (à faire) : la détection produit un master (boîtes/masques + source) et
 le floutage est une 2ᵉ passe peu coûteuse → migrable vers late-binding (réviser/cliquer les détections

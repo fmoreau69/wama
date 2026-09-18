@@ -3,12 +3,8 @@
     transition: border-color 0.3s ease;
     background: #1e2124;  /* ex-style inline du partial (B2-7) */
 }
-/* Bouton « Exporter vers médiathèque » (violet identité composer — ex-styles inline ×2) */
-.export-btn {
-    color: #a78bfa;
-    border: 1px solid #a78bfa;
-    background: transparent;
-}
+/* Le bouton dédié « Exporter vers médiathèque » (`.export-btn`, violet) est RETIRÉ le
+   2026-09-18 : le geste vit dans le menu « … » commun (wama-card-menu.js). */
 @keyframes pulse-border {
     0%   { border-color: #ffc107 !important; }
     50%  { border-color: #fd7e14 !important; }

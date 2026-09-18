@@ -53,7 +53,7 @@
 
 ### Sorties
 - **Export LATE-binding multi-format** (`download` txt/srt/vtt/json, `download_srt`,
-  `_build_transcript_bytes`/`_srt_ts` : le master est stocké, le format se choisit AU
+  `build_transcript_bytes`/`_srt_ts` : le master est stocké, le format se choisit AU
   téléchargement) ; `save_meta` (titre/locuteurs).
 
 ### Éditeur dédié (`edit.html` — bespoke LÉGITIME sur briques)

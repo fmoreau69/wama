@@ -23,6 +23,11 @@ doivent toutes tenir — un importeur existe, l'extension est déclarée accept�
 accès à l'app. Ce qu'on n'offre pas ne peut pas décevoir.
 """
 from pathlib import PurePosixPath
+from urllib.parse import unquote
+
+#: Candidats relus par élément quand une requête en rend plusieurs (un même nom de fichier
+#: peut apparaître dans le JSON de N générations) — borne, jamais un balayage de la table.
+_CANDIDATS_MAX = 20
 
 
 def sorties_de(surface: str, instance) -> list:
@@ -70,6 +75,81 @@ def sorties_de(surface: str, instance) -> list:
         vus.add(rel)
         chemins.append(rel)
     return chemins
+
+
+def _requete_candidats(model, chemin: str):
+    """La requête qui SÉLECTIONNE les candidats sans connaître l'app : un `FileField` égal au
+    chemin (9 apps sur 10 rangent leur sortie ainsi), ou un `JSONField` qui CONTIENT le nom du
+    fichier (l'imager garde ses images en JSON, sous forme de chemins absolus). `None` si le
+    modèle ne porte aucun des deux — il n'a alors pas de sortie fichier à retrouver."""
+    from django.db.models import FileField, JSONField, Q
+
+    nom = PurePosixPath(chemin).name
+    q = None
+    for f in model._meta.get_fields():
+        if isinstance(f, FileField):
+            clause = Q(**{f.name: chemin})
+        elif isinstance(f, JSONField) and nom:
+            clause = Q(**{f'{f.name}__icontains': nom})
+        else:
+            continue
+        q = clause if q is None else (q | clause)
+    return q
+
+
+def item_for_output_path(user, chemin: str):
+    """L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
+    instance)`, ou `(None, None)`.
+
+    L'INVERSE de `sorties_de`, pour l'arbre de fichiers (2026-09-18, demande de Fabien : les
+    gestes du menu « … » — partager, ranger en médiathèque, ajouter au RAG — sur un fichier de
+    l'arbre). Ces gestes sont définis sur un ÉLÉMENT, jamais sur un chemin : un fichier de
+    l'arbre ne les obtient donc qu'en remontant à l'élément qui l'a produit, et c'est alors
+    EXACTEMENT le menu de sa card qui s'ouvre — mêmes endpoints, mêmes refus.
+
+    Deux temps, et c'est le second qui fait foi :
+      ① CANDIDATS par requête (`_requete_candidats`), sans connaissance d'app ;
+      ② CONFIRMATION par `sorties_de` — l'adapter de détail, la seule source qui dise ce qu'un
+         élément DÉCLARE comme sortie. Un fichier qui n'est qu'une ENTRÉE d'élément (même
+         référencé par un `FileField`) n'est pas rendu : partager « ce fichier » ouvrirait alors
+         le partage d'un élément dont il n'est pas le résultat.
+
+    ⚠ Périmètre de l'UTILISATEUR : on ne cherche que parmi SES éléments (un modèle sans champ
+    `user` est ignoré — il n'a pas de propriétaire à qui offrir le geste). Un chemin étranger
+    rend donc `(None, None)`, comme `api_partage` rend 404 et non 403.
+    ⚠ Une surface n'est rendue que si les DEUX registres la connaissent (détail ET preview) :
+    ce sont les coordonnées qu'une card porte (`data-preview-url`), celles que partage,
+    médiathèque et RAG consomment. `sorties_de` rend des URL DÉCODÉES ici (`unquote`) : le
+    chemin de l'arbre est brut, l'URL d'un `FieldFile` est percent-encodée.
+    """
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    chemin = (chemin or '').replace('\\', '/').lstrip('/')
+    if not chemin or user is None or not getattr(user, 'is_authenticated', False):
+        return None, None
+
+    for surface in DetailRegistry.registered_apps():
+        entree = DetailRegistry.get(surface) or {}
+        model = entree.get('model')
+        if model is None or PreviewRegistry.get_model(surface) is not model:
+            continue
+        try:
+            model._meta.get_field('user')
+        except Exception:
+            continue
+        q = _requete_candidats(model, chemin)
+        if q is None:
+            continue
+        try:
+            candidats = list(model._default_manager.filter(q, user=user)
+                             .order_by('-pk')[:_CANDIDATS_MAX])
+        except Exception:
+            continue
+        for instance in candidats:
+            if chemin in {unquote(s) for s in sorties_de(surface, instance)}:
+                return surface, instance
+    return None, None
 
 
 def _apps_receveuses(user):

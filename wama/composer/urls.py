@@ -20,7 +20,6 @@ urlpatterns = [
     path('settings/<int:pk>/', views.update_settings, name='update_settings'),
     path('start/<int:pk>/', views.start, name='start'),
     path('stop/<int:pk>/', views.stop, name='stop'),
-    path('export/<int:pk>/', views.export_to_library, name='export_to_library'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
     path('download-all/', views.download_all, name='download_all'),
     path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),

@@ -661,43 +661,14 @@ def batch_delete(request, pk):
 
 
 # ---------------------------------------------------------------------------
-# Export to media library
+# Export to media library — RETIRÉ (2026-09-18, décision Fabien ; `REMOVAL_LEDGER R64`)
 # ---------------------------------------------------------------------------
-
-@require_POST
-def export_to_library(request, pk):
-    """Range la sortie en médiathèque — DÉLÈGUE à la brique commune (2026-09-12).
-
-    ⚠ Cette vue CONSTRUISAIT son chemin de stockage à la main (`media_library/<uid>/audio`,
-    `os.makedirs` + `shutil.copy2`), donc elle figeait la FORME du domicile dans une app : la
-    refonte du domicile par utilisateur (et le chiffrement à venir) l'aurait laissée derrière.
-    La brique, elle, assigne un `File` et laisse `UserAsset.file.upload_to` décider.
-    Le geste est désormais le MÊME que celui du menu « … », pour les 10 apps.
-
-    La ROUTE et le CONTRAT DE RÉPONSE (`{success}` / `{error}`) sont conservés : le front de
-    cette app les consomme (`composer/js/index.js:316`). On déprécie l'implémentation, pas la
-    porte — retirer la route aurait cassé un bouton qui marche.
-    Ce qui reste ICI et n'appartient à personne d'autre : le RÔLE d'asset dérivé du
-    `generation_type` (musique vs bruitage), que la brique refuse de deviner, et le refus du
-    double export (`exported_to_library`), que la brique ne connaît pas.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
-
-    if gen.exported_to_library:
-        return JsonResponse({'error': 'Déjà exporté'}, status=400)
-
-    from wama.media_library.services import export_item_to_library
-    resultat = export_item_to_library(
-        user, 'composer', gen.pk,
-        # Le composer SAIT ce qu'il produit : il fournit le rôle au lieu de le laisser deviner.
-        asset_type='audio_music' if gen.generation_type == 'music' else 'audio_sfx',
-    )
-    if 'error' in resultat:
-        code = 403 if resultat.get('error') == 'forbidden' else 400
-        return JsonResponse({'error': resultat['error']}, status=code)
-    # `exported_to_library` est posé par la brique (elle le fait quand le champ existe).
-    return JsonResponse({'success': True, **resultat})
+# La route `export/<pk>/` était une SECONDE PORTE du geste commun (elle déléguait déjà à
+# `media_library.services.export_item_to_library` depuis le 12/09) : plus de front depuis le
+# retrait du bouton dédié, GET des rôles/état et retrait absents, et un refus du double export
+# que la brique fait déjà par provenance. Le seul savoir qu'elle portait — une génération
+# `music` est une musique, le reste un bruitage — est DÉCLARÉ dans le détail canonique
+# (`apps.py`, `result_role`) et lu par le geste commun, pour toutes les apps.
 
 
 # ---------------------------------------------------------------------------

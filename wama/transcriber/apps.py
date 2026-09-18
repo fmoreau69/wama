@@ -70,6 +70,12 @@ class TranscriberConfig(AppConfig):
             user_field='user'
         )
 
+        # Rendu des formats de sortie (late-binding, §6.4) — le MÊME que celui des trois
+        # téléchargements ; déclaré pour que le geste commun « ranger en médiathèque » le
+        # rende (2026-09-18). Chemin pointé : les vues ne s'importent pas au boot.
+        from wama.common.utils.export_formats import register_export_builder
+        register_export_builder('transcriber', 'wama.transcriber.views:build_transcript_bytes')
+
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
         from wama.common.utils.detail_registry import register_app_detail, build_detail
 
