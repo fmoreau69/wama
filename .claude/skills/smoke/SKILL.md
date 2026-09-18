@@ -140,3 +140,18 @@ le RENDU RÉEL, pas la structure du code.
   `wama_temoin_`) d'anciens harnais échappent aussi au motif — déclaré, pas nettoyé (pas
   les miens) ; le jour où on élargit le motif, vérifier sur échantillon qu'aucun fichier
   utilisateur ne matche (même prudence que la note du §3quater de WAMA_VERIFICATION).
+
+## Jouer un scénario sur du code Python NEUF sans toucher au gunicorn (recette du 2026-09-18)
+
+- Le serveur live (`127.0.0.1:8000`) sert l'ANCIEN Python tant que le gunicorn WSL2 n'est pas
+  rechargé — et `/palier` interdit de le recharger soi-même. Symptôme : une route neuve rend
+  **404** pendant que sa voisine rend 302 ; le scénario conclurait à un code cassé.
+- ✅ **Le geste** : `venv_win/Scripts/python.exe manage.py runserver 127.0.0.1:8011 --noreload`
+  en tâche de fond (même Postgres WSL2, même `media/`, `DEBUG=True` donc les statics viennent des
+  sources), puis un script qui pose `os.environ['WAMA_UI_SMOKE_BASE'] = 'http://127.0.0.1:8011'`
+  **avant** `django.setup()` — l'adresse `wama_self` d'`external_sources` est lue à l'import
+  d'`ui_smoke` — et appelle les `check_…()` d'`ui_smoke_menus` (ou d'`ui_smoke`). Playwright et
+  Chromium sont dans venv_win. Attendre que la route neuve réponde 302 avant de jouer.
+- ⚠ Arrêter le serveur 8011 en fin de mesure ; ne JAMAIS déclencher de tâche Celery depuis
+  venv_win (deux Redis). Les scénarios sèment sous le compte de test nocturne et nettoient.
+- Mesuré : C 6/6, E 7/7, F 6/6 sur le chantier médiathèque du 18/09, contre un live en 404.
