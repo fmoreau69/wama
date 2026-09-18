@@ -153,8 +153,17 @@ class RotationRechiffreTest(TestCase):
                 with mock.patch.dict(os.environ, {'DJANGO_SECRET_KEY': CLE_A,
                                                   'DJANGO_SECRET_KEY_FALLBACKS': ''}), \
                      mock.patch('wama.common.management.commands.rotate_secrets._log_rotation'):
+                    # ⚠ `encoding='utf-8'` OBLIGATOIRE, mesuré le 2026-09-18 : sous Windows,
+                    # `open(chemin, 'w')` ouvre en mode texte avec l'encodage de la LOCALE
+                    # (cp1252 ici), pas en UTF-8. Rediriger vers `devnull` ne protégeait donc de
+                    # rien — `rotate_secrets` écrit des accents et une flèche `→`, et le test
+                    # mourait en `UnicodeEncodeError` DANS la suite complète (1814 tests), là où
+                    # il passe en isolé sur une console qui, elle, tolère. Les 14 autres appels
+                    # de `call_command` du dépôt passent un `StringIO()` : immunisés par
+                    # construction, puisqu'un flux mémoire n'encode rien.
                     call_command('rotate_secrets', secret_key=True, yes=True, env_file=str(env),
-                                 stdout=open(os.devnull, 'w'), stderr=open(os.devnull, 'w'))
+                                 stdout=open(os.devnull, 'w', encoding='utf-8'),
+                                 stderr=open(os.devnull, 'w', encoding='utf-8'))
                 ligne = next(l for l in env.read_text(encoding='utf-8').splitlines()
                              if l.startswith('DJANGO_SECRET_KEY='))
                 nouvelle = ligne.split('=', 1)[1].strip("'")

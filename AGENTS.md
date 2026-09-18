@@ -732,17 +732,27 @@ ne plus recopier de listes figées ici (elles dérivent — la ligne « Composer
 manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 
 > ⚠ Depuis 2026-07-25 la grille est **MESURÉE** : `python manage.py check_app_conformity`
-> (**89 critères** couvrant les 8 facettes — F1:4 F2:12 F3:19 F4:10 F5:31 F6:6 F7:5 F8:2, **relevé
-> le 2026-09-07 depuis `logs/conformity_report.json`** ; elle valait 40 critères le 2026-07-30 —
-> F1–F5 seules — puis 72, puis 82 au 26/08, 87 au 03/09 ; les 4 du 03/09 mesurent la CHAÎNE DE GÉNÉRATION
-> côté app : `backend_routes`, `task_skeleton`, `detail_spec`, `triad_specs` ; les 2 du 07/09 sont
-> `result_tabs` (F3, R18) et `import_front` (F2, adoption de `WamaImport`) — par analyse du code réel,
-> `common/services/conformity_checker.py`) écrit `logs/conformity_report.json` qui **écrase les
-> booléens déclarés** de `_conv(...)`. Ne plus éditer ces booléens à la main pour les critères
-> mesurés ; re-lancer la commande après un palier de portage (skill `/conformite`).
-> Le dénominateur varie par app (**72–88**, mesuré 2026-09-07) : un critère peut être **non applicable** (état `None`)
-> et sortir du calcul — ex. le F4 enveloppé `_f4` pour le converter (ffmpeg/pandoc, aucun modèle
-> IA — mais `backend_routes`/`task_skeleton`, hors enveloppe, s'y appliquent : c'est le pilote).
+> (**96 critères** couvrant les 8 facettes — F1:4 F2:12 F3:21 F4:10 F5:36 F6:6 F7:5 F8:2, **relevé
+> le 2026-09-18 depuis `logs/conformity_report.json`** ; elle valait 40 critères le 2026-07-30 —
+> F1–F5 seules — puis 72, puis 82 au 26/08, 87 au 03/09, 89 au 07/09 ; les 4 du 03/09 mesurent la
+> CHAÎNE DE GÉNÉRATION côté app : `backend_routes`, `task_skeleton`, `detail_spec`, `triad_specs` ;
+> les 2 du 07/09 sont `result_tabs` (F3, R18) et `import_front` (F2, adoption de `WamaImport`) —
+> par analyse du code réel, `common/services/conformity_checker.py`) écrit
+> `logs/conformity_report.json` qui **écrase les booléens déclarés** de `_conv(...)`. Ne plus
+> éditer ces booléens à la main pour les critères mesurés ; re-lancer la commande après un palier
+> de portage (skill `/conformite`).
+> ⚠ **Ce paragraphe annonçait 89 critères et « 72–88 » jusqu'au 2026-09-18** — périmé, corrigé à la
+> mesure lors d'une revérification de session. Les 7 critères gagnés depuis le 07/09 sont en **F3
+> (+2)** et **F5 (+5)** ; ils ne sont pas nommés ici, faute d'avoir la liste du 07/09 sous la main
+> — inventer les noms aurait été une précision fausse. *Un chiffre daté qu'on ne remesure pas
+> devient un constat faux, et il se cite avec l'assurance de celui qui a lu la doc.*
+> Le dénominateur varie par app (**80–95**, mesuré 2026-09-18 : converter 80, anonymizer et imager
+> 95) : un critère peut être **non applicable** (état `None`) et sortir du calcul — ex. le F4
+> enveloppé `_f4` pour le converter (ffmpeg/pandoc, aucun modèle IA — mais
+> `backend_routes`/`task_skeleton`, hors enveloppe, s'y appliquent : c'est le pilote).
+> ⚠ Mesuré le 18/09 : **aucun critère n'est non applicable aujourd'hui**, converter compris
+> (80/80). Le mécanisme `None` existe toujours — ce relevé dit seulement que rien ne l'emprunte à
+> cette date. **Total mesuré : 863/906.**
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,

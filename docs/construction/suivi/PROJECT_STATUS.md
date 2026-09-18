@@ -15212,3 +15212,32 @@ poussée — ce n'est pas une brique morte.
 | `WAMA_MECANISMES.md`, `docs/dev/briques.md` | régénérés dans l'arbre, **non commités** : ils décrivent du code absent de HEAD (WIP d'autres instances) |
 | 2 rouges `tests_mcp_dev_tools` | **préexistants**, établis par `git stash` ciblé — chantier MCP d'une autre session |
 | **Test GPU FastWan** | BLOQUÉ par Fabien (« ça fait crasher le PC ») — pas en attente, empêché |
+
+**㉖ SUITE LARGE — le chiffre manquait, il est mesuré : `wama` = 1814 tests, `FAILED (failures=2,
+errors=1, skipped=11)` en 650 s.** Les 2 échecs sont ceux de `tests_mcp_dev_tools`, **préexistants**
+(établis cette nuit par `git stash` ciblé). L'**erreur, elle, était nouvelle** — et elle m'a fait
+corriger deux fois mon propre diagnostic :
+- `accounts.tests_api_keys.RotationRechiffreTest` mourait en `UnicodeEncodeError` : `rotate_secrets`
+  écrit une flèche `→` et des accents, la sortie était en **cp1252** ;
+- ⚠ j'ai d'abord conclu à un **trou de harnais** (48 des 67 commandes écrivent du non-ASCII,
+  **229 lignes** ; rien ne force UTF-8 dans `manage.py`/`settings.py`/le runner). **Faux sur le
+  remède** : le test CAPTURE déjà sa sortie — mais par `open(os.devnull, 'w')`, qui sous Windows
+  ouvre en mode texte avec l'encodage de la **locale**. Le défaut tenait en un mot manquant.
+- ✅ **Corrigé** : `encoding='utf-8'` aux deux ouvertures. Relevé des sites frères : **2 dans tout
+  le dépôt**, les deux corrigés — pas de famille. Les 14 autres `call_command` du dépôt passent un
+  `StringIO()`, immunisés par construction. `wama.accounts` : **49 tests OK**.
+- ⏳ **Ce qui RESTE entier** : les 229 lignes non-ASCII des 48 commandes cassent toujours en
+  **console interactive** cp1252. Ce n'est pas ce rouge, et le remède (forcer l'encodage de sortie
+  dans `manage.py`) engage les quatre instances — **décision de Fabien**, non prise ici.
+*Deux fois de suite, ma première explication était trop large. La trace nommait le fichier ; c'est
+la LECTURE de l'appel (ligne 157) qui a donné la cause.*
+
+**㉗ GRILLE DE CONFORMITÉ remesurée — et `AGENTS.md` était périmé.** Elle annonçait **89 critères**
+« relevé le 07/09 » et des dénominateurs « 72–88 ». Mesuré le 18/09 : **96 critères**
+(F1:4 F2:12 F3:21 F4:10 F5:36 F6:6 F7:5 F8:2 — soit **F3 +2** et **F5 +5**), dénominateurs
+**80–95**, total **863/906**. Corrigé et daté dans la doctrine ; les 7 critères gagnés ne sont pas
+NOMMÉS, faute d'avoir la liste du 07/09 — inventer les noms aurait été une précision fausse.
+⚠ Mesuré aussi : **aucun critère non applicable** aujourd'hui, converter compris (80/80) — le
+mécanisme `None` existe toujours, ce relevé dit seulement que rien ne l'emprunte. Aucun échec de
+grille ne touche le vocabulaire d'états : tous relèvent du **portage des apps**
+(`backend_routes`, `task_skeleton`, `card_refresh_common`, `triad_specs`).
