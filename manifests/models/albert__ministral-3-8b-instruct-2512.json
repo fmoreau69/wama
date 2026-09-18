@@ -1,0 +1,64 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "albert"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "mistralai/Ministral-3-8B-Instruct-2512",
+        "openweight-small"
+      ],
+      "hosting": "sovereign",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+      "hf_id": "mistralai/Ministral-3-8B-Instruct-2512",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": "huggingface:mistralai/Ministral-3-8B-Instruct-2512",
+      "source": "albert"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "albert",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+  "key": "albert:ministral-3-8b-instruct-2512",
+  "manifest_kind": "model",
+  "name": "ministral-3-8b-instruct-2512",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:albert:ministral-3-8b-instruct-2512",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

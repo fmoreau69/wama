@@ -154,6 +154,11 @@ class ModelInfo:
     #: ⚠ Ce champ ne REDÉCLARE rien : `_discover_synthesizer_models` le remplit depuis
     #: `SYNTHESIZER_MODELS[*]['engine']`, la déclaration d'app qui existe depuis toujours.
     composition: Dict = field(default_factory=dict)
+    #: OÙ le modèle s'exécute (`AIModel.EXECUTION_*`) et ce qu'il COÛTE (`AIModel.cost_tier`) :
+    #: un modèle distant (Albert, Anthropic) est découvert comme les autres depuis le 2026-09-18
+    #: (`_discover_cloud_models`), il doit donc pouvoir le dire. Défaut : local, sans coût.
+    execution: str = 'local'
+    cost_tier: str = ''
 
 
 class ModelRegistry:
@@ -220,6 +225,11 @@ class ModelRegistry:
         # couvre que ce qu'AUCUNE app ne déclare (dédup par hf_id) — l'entrée déclarée
         # reste toujours l'autorité.
         self._discover_installed_hf_snapshots()
+
+        # APRÈS le balayage des snapshots : celui-ci dédoublonne par `hf_id`, et un modèle
+        # distant porte l'`hf_id` du dépôt que le fournisseur sert — passé avant, il aurait fait
+        # taire le snapshot local du même modèle.
+        self._discover_cloud_models()
 
         self._overlay_declared_engines()
         self._overlay_residency()
@@ -1964,9 +1974,13 @@ class ModelRegistry:
             'task': 'feature-extraction' if embarque else 'text-generation',
             'inputs_required': ['prompt'],
         }
-        for drapeau in ('completion', 'vision', 'audio', 'tools', 'thinking', 'embedding'):
-            if drapeau in brutes:
-                caps[drapeau] = True
+        # Les SIX drapeaux sont écrits, vrais ou faux, dès qu'Ollama a répondu (2026-09-18) : la
+        # synchronisation fusionne désormais `capabilities` clé par clé, et un drapeau absent
+        # laisserait survivre une valeur d'un sync antérieur — un modèle qui perd `vision` à une
+        # mise à jour resterait « voyant ». Écrire `False` est un fait ; ne rien écrire n'en est pas un.
+        if brutes:
+            for drapeau in ('completion', 'vision', 'audio', 'tools', 'thinking', 'embedding'):
+                caps[drapeau] = drapeau in brutes
         # TÂCHE et SPÉCIALITÉ déclarées (humaines) : elles ne se découvrent pas — Ollama rend
         # `completion, tools, vision` pour glm-ocr comme pour un généraliste. Déclarées ICI
         # parce que la découverte réécrit `capabilities` EN ENTIER à chaque sync (une valeur
@@ -1982,6 +1996,25 @@ class ModelRegistry:
         if not brutes:
             caps['completion'] = True
         return caps
+
+    def _discover_cloud_models(self):
+        """Modèles DISTANTS (Albert, Anthropic, abonnement Claude Code) ouverts par les clés d'API
+        des utilisateurs — la liste rendue par le fournisseur est GARDÉE sur la clé
+        (`accounts.UserApiKey.remote_listing`, relue par `cloud_models.refresh_key`) : ici on lit
+        la base, jamais le réseau. Une source de découverte comme Ollama, avec les mêmes règles
+        de fusion au sync ; avant le 2026-09-18 ces lignes étaient écrites à part, hors de la
+        synchronisation commune.
+        """
+        try:
+            from .cloud_models import cloud_model_infos
+            infos = cloud_model_infos()
+        except Exception as e:
+            logger.warning("[ModelRegistry] découverte cloud en échec : %s", e, exc_info=True)
+            self.discovery_errors.append(f"cloud : {type(e).__name__}: {e}")
+            return
+        self._models.update(infos)
+        if infos:
+            logger.info("[ModelRegistry] Found %d cloud model(s)", len(infos))
 
     def _discover_ollama_models(self):
         """Discover Ollama models (with short timeout to avoid blocking)."""

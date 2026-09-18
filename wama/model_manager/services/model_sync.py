@@ -65,7 +65,7 @@ class ModelSyncService:
         Returns:
             SyncResult with counts and any errors
         """
-        from ..models import AIModel, EXECUTION_CLOUD, ModelSyncLog
+        from ..models import AIModel, ModelSyncLog
 
         log = ModelSyncLog.objects.create(sync_type='full')
         result = SyncResult(success=True)
@@ -121,10 +121,12 @@ class ModelSyncService:
                     # Delete models that no longer exist on disk.
                     # NB : exclure les candidats de prospection (is_proposed) — ils ne sont
                     # pas sur disque par nature et ne doivent pas être réconciliés.
-                    # Idem pour les modèles DISTANTS (2026-09-15) : ils ne sont jamais sur ce
-                    # disque, et seule leur découverte par clé d'utilisateur les réconcilie.
+                    # Les modèles DISTANTS, eux, sont réconciliés comme les autres depuis le
+                    # 2026-09-18 : la découverte cloud les relit depuis les clés d'API
+                    # (`_discover_cloud_models`), donc « absent de la découverte » veut dire
+                    # « plus aucune clé ne l'ouvre ».
                     missing_models = (AIModel.objects.exclude(model_key__in=seen_keys)
-                                      .exclude(is_proposed=True).exclude(execution=EXECUTION_CLOUD))
+                                      .exclude(is_proposed=True))
                     removed_count = missing_models.count()
                     if removed_count > 0:
                         deleted_keys = list(missing_models.values_list('model_key', flat=True))
@@ -135,8 +137,7 @@ class ModelSyncService:
                     # Just mark as unavailable (legacy behavior)
                     removed_count = AIModel.objects.exclude(
                         model_key__in=seen_keys
-                    ).exclude(is_proposed=True).exclude(
-                        execution=EXECUTION_CLOUD).update(is_available=False)
+                    ).exclude(is_proposed=True).update(is_available=False)
                     result.removed = removed_count
 
             log.status = 'completed'
@@ -169,7 +170,7 @@ class ModelSyncService:
         Returns:
             Tuple of (created, updated)
         """
-        from ..models import AIModel
+        from ..models import AIModel, EXECUTION_LOCAL
 
         # Description courte : explicite si fournie, sinon dérivée du long (1re phrase,
         # tronquée à 200c) → le catalogue a toujours un court exploitable pour l'UI.
@@ -201,6 +202,10 @@ class ModelSyncService:
             'preferred_format': model_info.preferred_format or '',
             'can_convert_to': model_info.can_convert_to or [],
             'backend_ref': model_info.backend_ref or '',
+            # Où il s'exécute et ce qu'il coûte : dits par la découverte depuis que les modèles
+            # distants sont découverts comme les autres (2026-09-18) ; local et gratuit par défaut.
+            'execution': getattr(model_info, 'execution', '') or EXECUTION_LOCAL,
+            'cost_tier': getattr(model_info, 'cost_tier', '') or '',
             'extra_info': model_info.extra_info or {},
             # Canonicalisation CENTRALISÉE des capacités (vocabulaire unique) au point d'entrée du
             # catalogue : dérive `languages`/`supports_*`, mappe les clés legacy (native_diarization→
@@ -238,9 +243,16 @@ class ModelSyncService:
         # modèle), elle écrit et fait autorité — c'est elle qui connaît les flags des backends.
         # Ce qui change : un `{}` ne veut pas dire « aucune capacité », il veut dire « je n'en
         # sais rien » — et on n'efface pas un fait sur une absence de savoir.
+        # Et depuis le 2026-09-18 la découverte n'écrase plus que les CLÉS qu'elle émet : ce qu'un
+        # manifeste a posé (modalités, langues, entrées d'un modèle orphelin) survit au sync, comme
+        # `composition` ou `license`. Sur ses propres clés, elle fait autorité — d'où les drapeaux
+        # Ollama écrits vrais OU faux (`_capacites_canoniques`), pour qu'une capacité perdue ne
+        # survive pas par absence.
         _caps = normalize_capabilities(getattr(model_info, 'capabilities', None) or {})
         if _caps:
-            defaults['capabilities'] = _caps
+            _prior = (AIModel.objects.filter(model_key=model_key)
+                      .values_list('capabilities', flat=True).first()) or {}
+            defaults['capabilities'] = {**_prior, **_caps}
         # `composition` : MÊME RÈGLE, et pour la même raison (2026-09-01). La découverte sait
         # désormais dire le moteur d'exécution d'un modèle déclaré par une app
         # (`SYNTHESIZER_MODELS[*]['engine']` → `runtime.engine`), mais elle n'en sait toujours
@@ -363,7 +375,7 @@ class ModelSyncService:
         Returns:
             True if sync was successful
         """
-        from ..models import AIModel, EXECUTION_CLOUD, ModelSyncLog
+        from ..models import AIModel, ModelSyncLog
 
         try:
             if source is None:

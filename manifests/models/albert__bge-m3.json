@@ -1,0 +1,63 @@
+{
+  "body": {
+    "capabilities": {
+      "embedding": true,
+      "task": "feature-extraction"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "albert"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "BAAI/bge-m3",
+        "openweight-embeddings"
+      ],
+      "hosting": "sovereign",
+      "remote_type": "text-embeddings-inference"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Albert API (DINUM) — modèle distant (text-embeddings-inference)",
+      "hf_id": "BAAI/bge-m3",
+      "license": null,
+      "model_type": "embedding",
+      "platform_ref": "huggingface:BAAI/bge-m3",
+      "source": "albert"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "albert",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Albert API (DINUM) — modèle distant (text-embeddings-inference)",
+  "key": "albert:bge-m3",
+  "manifest_kind": "model",
+  "name": "bge-m3",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:albert:bge-m3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

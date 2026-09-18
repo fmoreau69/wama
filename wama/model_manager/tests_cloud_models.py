@@ -37,6 +37,25 @@ def _local_llm(key='ollama:petit:4b', quality=10.0):
                                   capabilities={'completion': True})
 
 
+def _decouverte_cloud_seule(self):
+    """La découverte du registre réduite à sa source CLOUD : ni disque, ni Ollama, ni apps.
+    Remplace `ModelRegistry.discover_all_models` dans les tests qui passent par la
+    synchronisation commune (`refresh_key` → `register_after_install`)."""
+    self._models = {}
+    self.discovery_errors = []
+    self._discover_cloud_models()
+    return self._models
+
+
+def _sync_cloud_seul(test):
+    """Branche la découverte cloud seule et neutralise l'écriture du corpus pour la durée du test."""
+    from wama.model_manager.services.model_registry import ModelRegistry
+    for p in (mock.patch.object(ModelRegistry, 'discover_all_models', _decouverte_cloud_seule),
+              mock.patch('django.core.management.call_command')):
+        p.start()
+        test.addCleanup(p.stop)
+
+
 class TypesDistantsTest(TestCase):
 
     def test_chaque_type_d_albert_trouve_sa_categorie_ou_n_entre_pas(self):
@@ -60,19 +79,75 @@ class DecouverteTest(TestCase):
         from wama.accounts.models import UserApiKey
         self.user = get_user_model().objects.create_user('decouverte_cloud', password='x')
         self.row = UserApiKey.objects.create(user=self.user, source='albert', api_key='sk-test')
+        _sync_cloud_seul(self)
 
-    @mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS)
-    def test_la_cle_ouvre_les_modeles_rangeables_et_les_garde(self, _):
-        count, error = cloud_models.refresh_key(self.row)
+    def _relire(self, annonces, row=None):
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=annonces):
+            return cloud_models.refresh_key(row or self.row)
+
+    def test_la_cle_ouvre_les_modeles_rangeables_et_les_garde(self):
+        count, error = self._relire(ALBERT_MODELS)
         self.assertEqual((4, ''), (count, error))
         self.row.refresh_from_db()
         self.assertEqual(4, len(self.row.open_models))
+        self.assertEqual(ALBERT_MODELS, self.row.remote_listing,
+                         "la liste du fournisseur est GARDÉE : la découverte du registre la relit")
         m = AIModel.objects.get(model_key='albert:openai/gpt-oss-120b')
         self.assertEqual(('cloud', False, 0, 'albert', 'free'),
                          (m.execution, m.is_downloaded, m.vram_gb, m.source, m.cost_tier))
         self.assertEqual({'engine': 'albert'}, m.composition['runtime'])
         self.assertTrue(m.capabilities.get('completion'))
         self.assertFalse(AIModel.objects.filter(model_key='albert:bge-reranker-v2-m3').exists())
+
+    def test_la_ligne_distante_passe_par_la_synchronisation_commune(self):
+        """Plus d'écriture à part : c'est `_sync_model` qui crée la ligne, donc les mêmes règles
+        de fusion que pour un modèle Ollama (une capacité posée par un manifeste survit)."""
+        self._relire(ALBERT_MODELS)
+        m = AIModel.objects.get(model_key='albert:gemma-4-31b-it')
+        m.capabilities = {**m.capabilities, 'languages': ['fr', 'en']}
+        m.save(update_fields=['capabilities'])
+        self._relire(ALBERT_MODELS)
+        m.refresh_from_db()
+        self.assertEqual(['fr', 'en'], m.capabilities.get('languages'))
+        self.assertTrue(m.capabilities.get('vision'))
+
+    def test_un_embedding_distant_porte_le_drapeau_embedding_et_son_depot(self):
+        """`requires=['embedding']` doit voir `albert:bge-m3` comme il voit `ollama:bge-m3`
+        (mesuré le 18/09 : le drapeau manquait). Et le dépôt servi devient son identité, par
+        la provenance — la même que celle d'une installation."""
+        self._relire(ALBERT_MODELS)
+        m = AIModel.objects.get(model_key='albert:bge-m3')
+        self.assertTrue(m.capabilities.get('embedding'))
+        self.assertNotIn('completion', m.capabilities)
+        self.assertEqual(('BAAI/bge-m3', 'huggingface:BAAI/bge-m3'), (m.hf_id, m.platform_ref))
+
+    def test_un_identifiant_renomme_retire_l_ancienne_ligne_sans_la_supprimer(self):
+        """Albert a renommé `openai/gpt-oss-120b` en `gpt-oss-120b` (18/09) : la ligne d'avant
+        est MARQUÉE indisponible (elle porte l'historique), la nouvelle prend sa place — et si
+        le fournisseur re-liste l'ancien identifiant, la ligne redevient disponible."""
+        self._relire(ALBERT_MODELS)
+        renommee = [dict(ALBERT_MODELS[0], id='gpt-oss-120b')] + ALBERT_MODELS[1:]
+        self._relire(renommee)
+        ancienne = AIModel.objects.get(model_key='albert:openai/gpt-oss-120b')
+        self.assertFalse(ancienne.is_available)
+        self.assertTrue(AIModel.objects.get(model_key='albert:gpt-oss-120b').is_available)
+        self.row.refresh_from_db()
+        self.assertNotIn('albert:openai/gpt-oss-120b', self.row.open_models)
+        self._relire(ALBERT_MODELS)
+        ancienne.refresh_from_db()
+        self.assertTrue(ancienne.is_available)
+
+    def test_une_ligne_reste_ouverte_tant_qu_une_autre_cle_l_ouvre(self):
+        """L'union se fait sur TOUTES les clés de la source : une clé qui n'ouvre pas un modèle
+        ne prouve pas que le fournisseur l'a retiré."""
+        from wama.accounts.models import UserApiKey
+        autre = get_user_model().objects.create_user('autre_cle', password='x')
+        row2 = UserApiKey.objects.create(user=autre, source='albert', api_key='sk-2')
+        self._relire(ALBERT_MODELS, row2)
+        self._relire(ALBERT_MODELS[1:])            # cette clé n'ouvre pas gpt-oss
+        self.assertTrue(AIModel.objects.get(model_key='albert:openai/gpt-oss-120b').is_available)
+        self.row.refresh_from_db()
+        self.assertNotIn('albert:openai/gpt-oss-120b', self.row.open_models)
 
     def test_une_famille_distante_declaree_impose_sa_tache(self):
         """Albert sert `lightonocr` en `image-text-to-text` (« chat qui voit ») — c'est un OCR.
@@ -152,6 +227,7 @@ class ProtocolesTest(TestCase):
         from wama.accounts.models import UserApiKey
         user = get_user_model().objects.create_user('abo_liste', password='x')
         row = UserApiKey.objects.create(user=user, source='claude_code', api_key='jeton')
+        _sync_cloud_seul(self)
         with mock.patch('requests.get') as get:
             self.assertEqual((1, ''), cloud_models.refresh_key(row))
         get.assert_not_called()
@@ -271,15 +347,26 @@ class NonRegressionTest(TestCase):
                                                     cloud_keys={self.cloud.model_key})[1]]
         self.assertIn(self.cloud.model_key, ids)
 
-    def test_la_synchronisation_du_disque_ne_supprime_pas_le_distant(self):
+    def test_la_synchronisation_reconcilie_le_distant_comme_le_local(self):
+        """Depuis le 18/09 la découverte cloud relit les clés d'API : une ligne qu'une clé
+        ouvre survit à la réconciliation, une ligne que plus aucune clé n'ouvre est traitée
+        comme un local absent du disque — une seule règle, pas deux."""
+        from wama.accounts.models import UserApiKey
         from wama.model_manager.services.model_sync import ModelSyncService
-        service = ModelSyncService()
-        service._registry = mock.Mock(_models={}, discovery_errors=[],
-                                      discover_all_models=mock.Mock(return_value={}))
-        service.full_sync(delete_missing=True)
+        _sync_cloud_seul(self)
+        with override_settings(SECRET_KEY=CLE_A, SECRET_KEY_FALLBACKS=[]):
+            cle = UserApiKey.objects.create(
+                user=get_user_model().objects.create_user('cle_sync', password='x'),
+                source='albert', api_key='sk',
+                remote_listing=[{'id': 'grand', 'type': 'text-generation', 'aliases': []}])
+        ModelSyncService().full_sync(delete_missing=True)
         self.assertFalse(AIModel.objects.filter(pk=self.local.pk).exists(),
                          "contre-épreuve : un local absent du disque est bien supprimé")
         self.assertTrue(AIModel.objects.filter(pk=self.cloud.pk).exists())
+        cle.delete()
+        ModelSyncService().full_sync(delete_missing=True)
+        self.assertFalse(AIModel.objects.filter(pk=self.cloud.pk).exists(),
+                         "plus aucune clé ne l'ouvre : réconcilié comme un local disparu")
 
     def test_un_distant_ne_se_desinstalle_pas(self):
         from wama.model_manager.services.model_installer import uninstall_model

@@ -90,6 +90,18 @@ def ollama_identity(nom: str) -> Optional[dict]:
     return {'platform_ref': f"ollama:{famille}"}
 
 
+def cloud_identity(item: dict) -> Optional[dict]:
+    """Identité d'un modèle DISTANT : le dépôt HuggingFace que le fournisseur sert, quand il le
+    nomme (alias `org/nom` chez Albert) — même forme que `huggingface_identity`, sans requête.
+    None quand aucun dépôt n'est nommé (Anthropic). C'est ce `platform_ref` qui relie
+    `albert:bge-m3` à `ollama:bge-m3` ou à un snapshot local du même modèle.
+    """
+    hf_id = next((str(a) for a in ((item or {}).get('aliases') or []) if '/' in str(a)), '')
+    if not hf_id:
+        return None
+    return {'platform_ref': f'huggingface:{hf_id}', 'hf_id': hf_id}
+
+
 def identity_for_spec(spec: dict) -> Optional[dict]:
     """Identité déductible du descripteur d'installation (`install_from_spec`)."""
     spec = spec or {}

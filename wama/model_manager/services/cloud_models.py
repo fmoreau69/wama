@@ -27,12 +27,24 @@ logger = logging.getLogger(__name__)
 #: vocabulaire commun (`canonical_task`) prend le relais.
 _PROVIDER_TYPE_TO_HF_TAG = {'text-embeddings-inference': 'feature-extraction'}
 
-#: Capacités qu'une TÂCHE distante garantit — celles que la sélection exige (`requires`).
-#: `completion` : ce que `llm_utils._llm_par_catalogue` demande à un modèle de chat.
-_TASK_ABILITIES = {
-    'text-generation': {'completion': True},
-    'captioning': {'completion': True, 'vision': True},
-}
+def abilities_for(task: str, remote_type: str = '') -> dict:
+    """Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
+    exige (`completion` pour un chat, `embedding` pour un vecteur).
+
+    Lus dans la colonne Ollama de `TASK_TO_PLATFORM_TAGS` — le seul référentiel qui parle en
+    capacités, et la table que la découverte Ollama utilise déjà. Jusqu'au 2026-09-18 une table
+    locale (`_TASK_ABILITIES`) redisait deux lignes de cette colonne et oubliait la troisième :
+    les embeddings d'Albert n'avaient pas `embedding=True`, donc un `requires=['embedding']` ne
+    les voyait jamais, alors que `ollama:bge-m3` le portait.
+    """
+    from wama.model_manager.models import platform_tag
+    flags = {}
+    ability = platform_tag(task, 'ollama')
+    if ability:
+        flags[ability] = True
+    if remote_type in _CHAT_MULTIMODAL:
+        flags['vision'] = True
+    return flags
 
 #: Types distants qui désignent un modèle de CHAT acceptant des images (Claude, gemma-4 et
 #: mistral-small chez Albert). MESURÉ le 2026-09-16 : les ranger en `captioning`/`vlm` les sortait
@@ -131,80 +143,128 @@ def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list
     return out
 
 
-def upsert_catalog(source: str, remote: list) -> list:
-    """Écrit (ou met à jour) une ligne de catalogue par modèle distant rangeable ; rend leurs clés."""
-    from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+def declared_listing(source: str) -> list:
+    """Liste DÉCLARÉE d'un fournisseur sans liste de modèles (abonnement Claude Code : le CLI
+    choisit lui-même) — même forme que ce que `list_remote_models` rend, un seul modèle `default`.
 
-    from wama.model_manager.models import model_type_for_task
-
-    src = external_sources.get(source)
-    keys = []
-    for m in remote:
-        task, model_type = task_and_type(m['type'])
-        if not model_type:
-            continue
-        key = f"{source}:{m['id']}"
-        # La tâche DÉCLARÉE prime sur celle qu'annonce le fournisseur, et la CATÉGORIE en dérive.
-        declaree = _tache_declaree(key)
-        if declaree:
-            task = declaree
-            model_type = model_type_for_task(task) or model_type
-        AIModel.objects.update_or_create(model_key=key, defaults={
-            'name': m.get('name') or m['id'],
-            'model_type': model_type,
-            'source': source,
-            'execution': EXECUTION_CLOUD,
-            'cost_tier': src.cost_tier,
-            'description': f"{src.label} — modèle distant ({m['type']})",
-            'hf_id': next((a for a in m['aliases'] if '/' in a), ''),
-            'is_downloaded': False,
-            'is_available': True,
-            'vram_gb': 0,
-            'backend_ref': source,
-            # Le MOTEUR est le fournisseur (inventaire `external_sources.llm_engine_inventory`).
-            'composition': {'runtime': {'engine': source}},
-            'capabilities': {'task': task, **_TASK_ABILITIES.get(task, {}),
-                             **({'vision': True} if m['type'] in _CHAT_MULTIMODAL else {})},
-            'extra_info': {'remote_type': m['type'], 'aliases': m['aliases'],
-                           'hosting': src.hosting},
-        })
-        keys.append(key)
-    return keys
-
-
-def declare_unlistable(source: str) -> list:
-    """Ligne de catalogue DÉCLARÉE d'un fournisseur sans liste de modèles (abonnement Claude Code :
-    le CLI choisit lui-même). Rend [clé].
-
-    Sans elle, ce fournisseur n'existerait pas pour le sélecteur commun et il faudrait lui tailler
-    un chemin à part — exactement ce qu'on cherche à supprimer. La ligne est DÉCLARÉE, jamais
-    découverte : son nom le dit, et `extra_info['declared']` le garde lisible en base.
+    Sans cette ligne, l'abonnement n'existerait pas pour le sélecteur commun et il faudrait lui
+    tailler un chemin à part — exactement ce qu'on cherche à supprimer. `declared` reste lisible
+    en base (`extra_info['declared']`) : la ligne est déclarée, jamais découverte chez le fournisseur.
     """
-    from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+    src = external_sources.get(source)
+    return [{'id': 'default', 'name': src.label, 'type': src.default_remote_type or '',
+             'aliases': [], 'declared': True}]
+
+
+def model_info_for(source: str, item: dict):
+    """`ModelInfo` d'un modèle distant rangeable, ou None si aucun vocabulaire ne sait le ranger.
+
+    La ligne de catalogue n'est plus écrite ici (2026-09-18) : elle passe par la synchronisation
+    commune (`ModelSyncService._sync_model`), avec les mêmes règles de fusion que tout modèle
+    découvert. Ce qui se déclare ici est ce que la découverte SAIT d'un modèle distant : sa tâche
+    (traduite du type annoncé), ses drapeaux, son moteur (le fournisseur), son coût, et qu'il ne
+    s'exécute pas ici. `platform_ref` n'est PAS posé par la découverte — comme pour tout modèle,
+    c'est la provenance (`set_identity`) qui le porte, par le manifeste (cf. `refresh_key`).
+    """
+    from wama.model_manager.models import (EXECUTION_CLOUD, ModelSource, ModelType,
+                                           model_type_for_task)
+    from .model_registry import ModelInfo
 
     src = external_sources.get(source)
-    task, model_type = task_and_type(src.default_remote_type)
-    key = f'{source}:default'
-    AIModel.objects.update_or_create(model_key=key, defaults={
-        'name': src.label,
-        'model_type': model_type or 'llm',
-        'source': source,
-        'execution': EXECUTION_CLOUD,
-        'cost_tier': src.cost_tier,
-        'description': f"{src.label} — le modèle est choisi par le fournisseur",
-        'is_downloaded': False,
-        'is_available': True,
-        'vram_gb': 0,
-        'backend_ref': source,
-        'composition': {'runtime': {'engine': source}},
-        'capabilities': {'task': task, **_TASK_ABILITIES.get(task, {})},
-        'extra_info': {'declared': True, 'hosting': src.hosting},
-    })
-    return [key]
+    remote_type = item.get('type') or ''
+    task, model_type = task_and_type(remote_type)
+    if not model_type:
+        return None
+    key = f"{source}:{item['id']}"
+    # La tâche DÉCLARÉE prime sur celle qu'annonce le fournisseur, et la CATÉGORIE en dérive.
+    declaree = _tache_declaree(key)
+    if declaree:
+        task = declaree
+        model_type = model_type_for_task(task) or model_type
+    hf_id = next((a for a in (item.get('aliases') or []) if '/' in str(a)), '')
+    declared = bool(item.get('declared'))
+    return ModelInfo(
+        id=item['id'], name=item.get('name') or item['id'],
+        model_type=ModelType(model_type), source=ModelSource(source),
+        description=(f"{src.label} — le modèle est choisi par le fournisseur" if declared
+                     else f"{src.label} — modèle distant ({remote_type})"),
+        hf_id=hf_id or None, vram_gb=0, ram_gb=0, is_downloaded=False,
+        backend_ref=source, execution=EXECUTION_CLOUD, cost_tier=src.cost_tier,
+        # Le MOTEUR est le fournisseur (inventaire `external_sources.llm_engine_inventory`).
+        composition={'runtime': {'engine': source}},
+        capabilities={'task': task, **abilities_for(task, remote_type)},
+        extra_info={'remote_type': remote_type, 'aliases': list(item.get('aliases') or []),
+                    'hosting': src.hosting, **({'declared': True} if declared else {})},
+    )
+
+
+def cloud_model_infos() -> dict:
+    """`{model_key: ModelInfo}` de TOUS les modèles distants qu'une clé d'utilisateur ouvre —
+    la découverte CLOUD du registre (`ModelRegistry._discover_cloud_models`).
+
+    Lecture de la base seule (`UserApiKey.remote_listing`), jamais du réseau : la liste est relue
+    chez le fournisseur par `refresh_key`, sur le geste du profil. L'union se fait sur toutes les
+    clés d'une source — une clé qui n'ouvre pas un modèle ne prouve pas que le fournisseur l'a
+    retiré.
+    """
+    from wama.accounts.models import UserApiKey
+
+    infos = {}
+    for source, listing in (UserApiKey.objects.exclude(api_key='').exclude(remote_listing=[])
+                            .values_list('source', 'remote_listing')):
+        try:
+            external_sources.get(source)
+        except KeyError:
+            continue                                  # source retirée du registre : ligne muette
+        for item in listing or []:
+            if not isinstance(item, dict) or not item.get('id'):
+                continue
+            key = f"{source}:{item['id']}"
+            if key in infos:
+                continue
+            info = model_info_for(source, item)
+            if info is not None:
+                infos[key] = info
+    return infos
+
+
+def keys_for(source: str, listing: list) -> list:
+    """Clés de catalogue des modèles rangeables d'une liste — ce que `UserApiKey.open_models` garde."""
+    return [f"{source}:{item['id']}" for item in listing
+            if item.get('id') and model_info_for(source, item) is not None]
+
+
+def retire_unlisted(source: str) -> int:
+    """Marque indisponibles les lignes distantes de `source` qu'AUCUNE clé n'ouvre plus, et remet
+    disponibles celles qu'une clé ouvre à nouveau. Rend le nombre de lignes retirées.
+
+    Un fournisseur renomme ses identifiants (mesuré le 2026-09-18 chez Albert :
+    `openai/gpt-oss-120b` devenu `gpt-oss-120b`, `…-A3b-…` devenu `…-a3b-…`) : la découverte
+    AJOUTAIT la nouvelle ligne sans jamais retirer l'ancienne, et le sélecteur proposait deux fois
+    le même modèle, dont une version que personne ne pouvait plus appeler.
+
+    Même idiome que le remplacement d'un modèle Ollama (`install_candidate`) : la synchronisation
+    commune n'enlève rien (`full_sync()` sans `remove_missing`, et le beat tourne `clean=False`),
+    c'est l'ACTEUR qui sait qu'un retrait a eu lieu qui marque les lignes. MARQUÉES, jamais
+    supprimées — doctrine de `uninstall_model` : la ligne porte l'historique, et `select_model`
+    l'ignore tant qu'elle est indisponible. Re-listée par le fournisseur, elle redevient disponible.
+    """
+    from wama.accounts.models import UserApiKey
+    from wama.model_manager.models import AIModel, EXECUTION_CLOUD
+
+    ouvertes = set()
+    for liste in UserApiKey.objects.filter(source=source).values_list('open_models', flat=True):
+        ouvertes.update(liste or [])
+    lignes = AIModel.objects.filter(source=source, execution=EXECUTION_CLOUD, is_proposed=False)
+    retirees = lignes.exclude(model_key__in=ouvertes).filter(is_available=True).update(is_available=False)
+    lignes.filter(model_key__in=ouvertes, is_available=False).update(is_available=True)
+    return retirees
 
 
 def refresh_key(row) -> tuple:
-    """Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`).
+    """Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
+    passe par la MÊME chaîne qu'une installation : synchronisation du catalogue (la découverte
+    cloud lit la liste gardée sur la clé), provenance par le manifeste, corpus.
 
     Rend (nombre de modèles, message d'erreur ou ''). Une erreur est GARDÉE sur la ligne et la
     liste précédente conservée : un fournisseur injoignable ne ferme rien à l'utilisateur.
@@ -212,21 +272,39 @@ def refresh_key(row) -> tuple:
     from django.utils import timezone
 
     if external_sources.get(row.source).protocol in UNLISTABLE_PROTOCOLS:
-        row.open_models = declare_unlistable(row.source)
-        row.discovered_at, row.discovery_error = timezone.now(), ''
-        row.save(update_fields=['open_models', 'discovered_at', 'discovery_error'])
-        return len(row.open_models), ''
+        listing = declared_listing(row.source)
+    else:
+        try:
+            listing = list_remote_models(row.source, row.api_key)
+        except CloudDiscoveryError as exc:
+            row.discovery_error = str(exc)[:255]
+            row.save(update_fields=['discovery_error'])
+            logger.warning("[cloud_models] découverte %s pour %s : %s", row.source, row.user_id, exc)
+            return 0, row.discovery_error
+    row.remote_listing = listing
+    row.open_models = keys_for(row.source, listing)
+    row.discovered_at, row.discovery_error = timezone.now(), ''
+    row.save(update_fields=['remote_listing', 'open_models', 'discovered_at', 'discovery_error'])
+
+    # Synchronisation COMMUNE (celle d'une installation), puis retrait de ce que plus aucune clé
+    # n'ouvre, puis provenance : l'identité d'éditeur (dépôt HuggingFace servi) entre par le
+    # manifeste et le corpus reçoit la ligne — exactement `record_after_install`, sans spec.
+    from .model_installer import register_after_install
+    from .provenance import cloud_identity, set_identity
     try:
-        remote = list_remote_models(row.source, row.api_key)
-    except CloudDiscoveryError as exc:
-        row.discovery_error = str(exc)[:255]
-        row.save(update_fields=['discovery_error'])
-        logger.warning("[cloud_models] découverte %s pour %s : %s", row.source, row.user_id, exc)
-        return 0, row.discovery_error
-    row.open_models = upsert_catalog(row.source, remote)
-    row.discovered_at = timezone.now()
-    row.discovery_error = ''
-    row.save(update_fields=['open_models', 'discovered_at', 'discovery_error'])
+        register_after_install()
+    except Exception:
+        logger.warning("register_after_install a échoué après la découverte %s (le sync "
+                       "périodique rattrapera)", row.source, exc_info=True)
+    retire_unlisted(row.source)
+    for item in listing:
+        identite = cloud_identity(item)
+        key = f"{row.source}:{item['id']}"
+        if identite and key in row.open_models:
+            try:
+                set_identity(key, identite)
+            except Exception:
+                logger.warning("provenance non enregistrée pour %s", key, exc_info=True)
     return len(row.open_models), ''
 
 
