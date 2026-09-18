@@ -186,6 +186,23 @@ class LaPresentationDUnEtatEstDECLAREEUneFoisTest(SimpleTestCase):
         for accesseur in ('normalizeStatus', 'statusLabel', 'statusBadge'):
             self.assertIn(accesseur + ':', js, f'{accesseur} non exporté par WamaApp')
 
+    def test_l_inspecteur_CONSOMME_les_accesseurs_et_ne_REPREFIXE_pas(self):
+        """La 5ᵉ écriture était DANS le commun — et rien ne l'attestait jusqu'au 18/09 au soir.
+
+        `wama-inspector.js` refaisait sa mise en majuscules et son PROPRE ternaire de classe, qui
+        ne connaissait que 4 états sur 7. ⚠ Le piège mesuré en le branchant : sa ligne composait
+        `'badge bg-' + cls`, alors que l'accesseur rend la classe COMPLÈTE — préfixer donnait
+        `bg-bg-success`, une classe inexistante, donc un badge **GRIS sans aucune erreur**. C'est
+        le genre de défaut qu'aucun test Python ne voit et qu'aucune console ne signale.
+        """
+        js = _lire('wama/common/static/common/js/wama-inspector.js')
+        for accesseur in ('normalizeStatus', 'statusBadge', 'statusLabel'):
+            self.assertIn('A.' + accesseur, js,
+                          f"l'inspecteur ne consomme pas `{accesseur}` — il réécrit sa table")
+        self.assertNotIn("'badge bg-' +", js,
+                         'préfixe `bg-` réintroduit : la classe deviendrait `bg-bg-…`, donc un '
+                         'badge GRIS, et rien ne le signalerait')
+
 
 class CardsStatutStaleTest(SimpleTestCase):
     """Contrat d'UI de l'état `STALE` — marche P2, décision de Fabien du 2026-09-17.

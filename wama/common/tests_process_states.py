@@ -228,6 +228,24 @@ class UneAppGENEREEParleLeVocabulaireCommunTest(SimpleTestCase):
                 self.assertEqual(dict(choices)['FAILURE'], 'Échec',
                                  f'{path} : libellé divergent de celui des files (« Erreur »)')
 
+    def test_le_VALIDATEUR_de_manifeste_accepte_les_CINQ_etats(self):
+        """⚠ LE CŒUR du défaut trouvé le 2026-09-18, et il n'était gardé par rien.
+
+        `STATUS_VOCAB` servait À LA FOIS de liste déclarée par `_processing` ET de vocabulaire au
+        validateur — figé à QUATRE états. Un manifeste énonçant l'état du gouverneur de ressources
+        était donc **rejeté « hors vocabulaire canonique »** : le contrôle censé garder la vérité
+        la refusait. Cette garde tient les deux sens — la vérité passe, l'erreur est toujours vue.
+        """
+        from wama.common.manifests.builtin.app import validate_app_body
+        from wama.common.models import job_status_values
+        errs = validate_app_body({'processing': {'statuses': job_status_values()}})
+        self.assertEqual([e for e in errs if 'statuses' in e], [],
+                         "le vocabulaire commun est refusé par le validateur de manifeste")
+        # CONTRE-ÉPREUVE : sans elle, un validateur qui n'interdit plus RIEN passerait ce test.
+        errs = validate_app_body({'processing': {'statuses': ['PENDING', 'ZZZ']}})
+        self.assertTrue([e for e in errs if 'statuses' in e],
+                        "une valeur hors vocabulaire n'est plus refusée : le contrôle est vide")
+
 
 class LExecuteurDuStudioParleLeVocabulaireCommunTest(TestCase):
     """L'exécuteur écrivait ses états en littéraux et COMPARAIT des chaînes brutes (§10.6 4.2).
