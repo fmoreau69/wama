@@ -1,0 +1,75 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "completion",
+        "vision"
+      ],
+      "completion": true,
+      "context_length": 131072,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "params_active_b": 12.2,
+      "params_total_b": 12.2,
+      "specialisation": "translation",
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "disk_gb": 8.1,
+      "ollama_id": "c2f9a9ca1ec7"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": "Google",
+      "description_short": "Ollama LLM (8.1 GB)",
+      "hf_id": null,
+      "license": "gemma-terms",
+      "model_type": "llm",
+      "platform_ref": "ollama:translategemma",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 8.1,
+      "ram_gb": 8.1,
+      "vram_gb": 8.1
+    }
+  },
+  "description": "Ollama LLM (8.1 GB)",
+  "key": "ollama:translategemma:12b",
+  "manifest_kind": "model",
+  "name": "translategemma:12b",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:translategemma:12b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

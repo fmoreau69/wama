@@ -1,0 +1,78 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "completion",
+        "thinking",
+        "tools",
+        "vision"
+      ],
+      "completion": true,
+      "context_length": 262144,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "params_active_b": 1.12,
+      "params_total_b": 36.0,
+      "task": "text-generation",
+      "thinking": true,
+      "tools": true,
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "disk_gb": 23.0,
+      "ollama_id": "07d35212591f"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": "Qwen team, Alibaba",
+      "description_short": "Ollama LLM (23 GB)",
+      "hf_id": null,
+      "license": "apache-2.0",
+      "model_type": "llm",
+      "platform_ref": "ollama:qwen3.6",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 23.0,
+      "ram_gb": 23.0,
+      "vram_gb": 23.0
+    }
+  },
+  "description": "Ollama LLM (23 GB)",
+  "key": "ollama:qwen3.6:35b",
+  "manifest_kind": "model",
+  "name": "qwen3.6:35b",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:qwen3.6:35b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,76 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "completion",
+        "tools",
+        "vision"
+      ],
+      "completion": true,
+      "context_length": 131072,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "params_active_b": 1.1,
+      "params_total_b": 1.1,
+      "task": "ocr",
+      "tools": true,
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "disk_gb": 2.2,
+      "ollama_id": "6effedd0dc8a"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Ollama LLM (2.2 GB)",
+      "hf_id": null,
+      "license": null,
+      "model_type": "ocr",
+      "platform_ref": "ollama:glm-ocr",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 2.2,
+      "ram_gb": 2.2,
+      "vram_gb": 2.2
+    }
+  },
+  "description": "Ollama LLM (2.2 GB)",
+  "key": "ollama:glm-ocr:latest",
+  "manifest_kind": "model",
+  "name": "glm-ocr:latest",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:glm-ocr:latest",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

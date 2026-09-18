@@ -1,0 +1,73 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "embedding",
+        "tools"
+      ],
+      "context_length": 40960,
+      "embedding": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params_active_b": 4.0,
+      "params_total_b": 4.0,
+      "task": "feature-extraction",
+      "tools": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "disk_gb": 2.5,
+      "ollama_id": "df5bd2e3c74c"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Ollama LLM (2.5 GB)",
+      "hf_id": null,
+      "license": null,
+      "model_type": "embedding",
+      "platform_ref": "ollama:qwen3-embedding",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 2.5,
+      "ram_gb": 2.5,
+      "vram_gb": 2.5
+    }
+  },
+  "description": "Ollama LLM (2.5 GB)",
+  "key": "ollama:qwen3-embedding:4b",
+  "manifest_kind": "model",
+  "name": "qwen3-embedding:4b",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:qwen3-embedding:4b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
