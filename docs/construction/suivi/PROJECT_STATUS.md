@@ -15360,7 +15360,7 @@ et conversions de sortie par le converter » ; ⑤ « pourquoi un bruitage ne pe
 | groupe `differe` de l'arbre, anti-duplication | `filemanager/tests.GestesDElementDansLArbreTests` |
 | retrait bouton composer (gabarit, JS, CSS, config, rendu serveur, copie servie) | `tests_export_service.BoutonDedieRetireTest` |
 | `result_role`, forme `map`, `MEDIA_CATEGORY_ROLE`, `admissible_roles` | `RoleDeclareParLAppTest` (composer, converter par la spec, audio_enhancer sans déclaration, AST des rôles déclarés) |
-| déclarations d'imager / anonymizer / enhancer / avatarizer | ⚠ **non gardées PAR APP** — seul le vocabulaire est attesté (AST) ; une valeur inversée (image ↔ vidéo) passerait. Raison : un test par app exigerait une sortie réelle par modèle ; à poser au premier défaut |
+| déclarations d'imager / anonymizer / enhancer / avatarizer / composer | `RolesDeclaresParChaqueAppTest` (5 tests, valeur par valeur sur de vrais éléments avec sortie ; sans sortie = pas de rôle) — **comblé à la clôture**, sur question de Fabien « tous les tests nécessaires existent ? » : c'était le seul livrable déclaré non gardé |
 | `register_export_builder`, `export_builder_for`, `is_late_binding`, `export_choices`, `in_library_by_choice`, export/retrait late, `tool_api.output_format` | `LateBindingTest` (7 tests, rendu PDF/DOCX réel) + scénario `media_library.card_menu_late_binding` |
 | contrat JS `choices` (POST rôle/format, retrait par clé, repli ancien contrat) | `tests_queue_dnd.SousMenuMediathequeSousV8Test` (faux `fetch`/`FormData`) |
 | route composer retirée | `test_la_route_d_app_du_composer_n_existe_PLUS` |
@@ -15407,8 +15407,10 @@ Jetables. Les scénarios C/E/F ont semé puis nettoyé un job converter, un tran
 
 **Une ligne actionnable : redémarrer le gunicorn WSL2, pousser, puis laisser tourner la nuit** —
 deux scénarios nocturnes neufs (`common.tree_item_menu`, `media_library.card_menu_late_binding`)
-attesteront le geste sur le live. Ensuite, si Fabien le veut : la garde PAR APP des rôles
-déclarés (imager/anonymizer/enhancer/avatarizer), seul livrable déclaré non gardé.
+attesteront le geste sur le live. Aucun livrable de la session n'est laissé sans garde (la garde
+par app des rôles déclarés a été posée à la clôture). ⚠ Vécu à cette clôture : `Path.write_text`
+sous Windows a réécrit deux fichiers LF en CRLF (skill smoke, ledger) — invisible dans git
+(normalisation), visible dans tout diff d'octets ; remis en LF, piège consigné en mémoire.
 
 **CONTRÔLES ATTENDUS AU PROCHAIN `/reprise`** : `check_docs` **0 / 0 sur 2096** · `check_skills`
 0 défaut franc · corpus de manifestes **17 périmés** (9 apps + mcp + 7 ollama — voir ⚠ ci-dessus ;

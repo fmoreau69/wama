@@ -669,3 +669,72 @@ class LateBindingTest(TestCase):
         self.assertEqual(d['candidates'], ['audio_music'])
         self.assertEqual(d['choices']['audio_music']['format'], '')
         self.assertEqual(d['choices']['audio_music']['asset_type'], 'audio_music')
+
+
+class RolesDeclaresParChaqueAppTest(TestCase):
+    """Le rôle DÉCLARÉ par chaque app early-binding, VALEUR PAR VALEUR — la garde déclarée
+    manquante à la clôture du 19/09 (jusque-là seul le vocabulaire était attesté, par AST : une
+    déclaration inversée image ↔ vidéo serait passée). Chaque cas construit un vrai élément avec
+    une sortie et lit `result_role` par l'adapter enregistré, comme le geste commun."""
+
+    def setUp(self):
+        self.moi = _utilisateur('roles_apps')
+
+    def _role(self, app, instance):
+        from wama.common.utils.detail_registry import DetailRegistry
+        return DetailRegistry.get(app)['adapter'](instance).get('result_role')
+
+    def test_anonymizer_suit_la_categorie_du_media(self):
+        from wama.anonymizer.models import Media
+        for media_type, attendu in (('image', 'image'), ('video', 'video')):
+            m = Media.objects.create(user=self.moi, media_type=media_type)
+            m.output_file = f'anonymizer/out.{ "png" if media_type == "image" else "mp4" }'
+            m.save()
+            self.assertEqual(self._role('anonymizer', m), attendu, media_type)
+
+    def test_enhancer_suit_la_categorie_et_sa_branche_audio_ne_declare_rien(self):
+        from wama.enhancer.models import AudioEnhancement, Enhancement
+        for media_type, attendu in (('image', 'image'), ('video', 'video')):
+            e = Enhancement.objects.create(user=self.moi, media_type=media_type)
+            e.output_file.save(f'e.{media_type}', ContentFile(b'x'), save=True)
+            self.assertEqual(self._role('enhancer', e), attendu, media_type)
+        ae = AudioEnhancement.objects.create(user=self.moi)
+        ae.output_file.save('a.wav', ContentFile(b'x'), save=True)
+        self.assertIsNone(self._role('audio_enhancer', ae))
+
+    def test_avatarizer_declare_toujours_une_video(self):
+        from wama.avatarizer.models import AvatarJob
+        job = AvatarJob.objects.create(user=self.moi)
+        self.assertIsNone(self._role('avatarizer', job), 'sans sortie, pas de rôle')
+        job.output_video.save('av.mp4', ContentFile(b'x'), save=True)
+        self.assertEqual(self._role('avatarizer', job), 'video')
+
+    def test_imager_declare_image_ou_video_selon_la_generation(self):
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.imager.models import ImageGeneration
+        rel = f"{app_media_dir('imager', self.moi.id, 'output')}/role_test.png"
+        absolu = Path(settings.MEDIA_ROOT) / rel
+        absolu.parent.mkdir(parents=True, exist_ok=True)
+        absolu.write_bytes(b'\x89PNG')
+        try:
+            g = ImageGeneration.objects.create(user=self.moi, prompt='x', generated_images=[str(absolu)])
+            self.assertFalse(g.is_video_generation)
+            self.assertEqual(self._role('imager', g), 'image')
+        finally:
+            absolu.unlink(missing_ok=True)
+        v = ImageGeneration.objects.create(user=self.moi, prompt='x')
+        v.output_video.save('v.mp4', ContentFile(b'x'), save=True)
+        attendu = 'video' if v.is_video_generation else 'image'
+        self.assertEqual(self._role('imager', v), attendu)
+
+    def test_composer_declare_selon_le_type_de_generation(self):
+        from wama.composer.models import ComposerGeneration
+        for type_gen, attendu in (('music', 'audio_music'), ('sfx', 'audio_sfx')):
+            gen = _generation(self.moi, f'{type_gen}.wav')
+            ComposerGeneration.objects.filter(pk=gen.pk).update(generation_type=type_gen)
+            gen.refresh_from_db()
+            self.assertEqual(self._role('composer', gen), attendu)
+        sans = _generation(self.moi, avec_sortie=False)
+        self.assertIsNone(self._role('composer', sans), 'sans sortie, pas de rôle')
