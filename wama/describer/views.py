@@ -1037,7 +1037,7 @@ def batch_status(request, pk):
     })
 
 
-def _build_description_bytes(d, fmt):
+def build_description_bytes(d, fmt):
     """Return (ext, bytes) for a description in `fmt` (txt/pdf/docx), or None.
 
     Shared format builder for the batch ZIP dropdown (WAMA_APP_CONVENTIONS §9.10).
@@ -1087,7 +1087,7 @@ def batch_download(request, pk):
                 stem = os.path.splitext(compose_output_name(
                     app='describer', source_name=d.filename or f'desc_{d.id}',
                     item_id=d.id))[0]
-                built = _build_description_bytes(d, fmt)
+                built = build_description_bytes(d, fmt)
                 if built:
                     ext, data = built
                     archive.writestr(f'{stem}.{ext}', data)

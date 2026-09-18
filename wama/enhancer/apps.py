@@ -44,7 +44,8 @@ class EnhancerConfig(AppConfig):
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
         # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
-        from wama.common.utils.detail_registry import register_app_detail, build_detail
+        from wama.common.utils.detail_registry import (MEDIA_CATEGORY_ROLE, build_detail,
+                                                       register_app_detail)
 
         def _extra_from_params(obj, params):
             return {p.label: getattr(obj, p.name, None) for p in params
@@ -58,6 +59,9 @@ class EnhancerConfig(AppConfig):
                 source_type=e.media_type,
                 engine=e.ai_model,
                 result_file=e.output_file,
+                # Même catégorie que l'entrée (table COMMUNE) ; la branche AUDIO ne déclare
+                # rien : un audio amélioré peut être une voix, une musique ou un bruitage.
+                result_role=MEDIA_CATEGORY_ROLE.get(e.media_type),
                 extra=_extra_from_params(e, MEDIA_PARAMS),
             )
 

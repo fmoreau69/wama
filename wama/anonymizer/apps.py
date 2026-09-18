@@ -30,7 +30,8 @@ class AnonymizerConfig(AppConfig):
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
         # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
-        from wama.common.utils.detail_registry import register_app_detail, build_detail
+        from wama.common.utils.detail_registry import (MEDIA_CATEGORY_ROLE, build_detail,
+                                                       register_app_detail)
 
         def settings_media_url(rel):
             from django.conf import settings
@@ -46,6 +47,8 @@ class AnonymizerConfig(AppConfig):
                 source_type=m.media_type,
                 engine=getattr(m, 'model_to_use', None),
                 result_file=(settings_media_url(m.output_file) if m.output_file else None),
+                # Même catégorie que l'entrée (image → image, vidéo → vidéo) — table COMMUNE.
+                result_role=MEDIA_CATEGORY_ROLE.get(m.media_type),
                 extra=extra,
             )
             if getattr(m, 'output_quality', None):

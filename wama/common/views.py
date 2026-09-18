@@ -1340,6 +1340,32 @@ def api_envoyer_vers(request, surface: str, pk: int):
 
 
 @login_required
+def api_item_for_path(request):
+    """L'ÉLÉMENT dont un fichier de `media/` est la SORTIE — pour le menu de l'arbre (2026-09-18).
+
+    GET `?path=<relatif à MEDIA_ROOT>` → `{ok, surface, pk}` ; `surface` et `pk` sont `null`
+    quand le fichier n'est la sortie déclarée d'aucun élément de l'utilisateur (dépôt
+    temporaire, entrée d'app, montage). Lecture seule : les gestes eux-mêmes (partage,
+    médiathèque, RAG) passent ensuite par LEURS endpoints, ceux que le menu d'une card appelle
+    déjà — ce résolveur ne fait que rendre les coordonnées qu'une card porte dans son HTML.
+
+    La garde de CHEMIN est celle de l'import (`is_path_allowed`), pas une copie — même règle
+    que `api_envoyer_vers_chemins`.
+    """
+    from wama.common.services.send_to import item_for_output_path
+    from wama.filemanager.views import is_path_allowed
+
+    chemin = (request.GET.get('path') or '').replace('\\', '/').lstrip('/')
+    if not chemin:
+        return JsonResponse({'error': 'Aucun chemin fourni'}, status=400)
+    if not is_path_allowed(chemin, request.user):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    surface, element = item_for_output_path(request.user, chemin)
+    return JsonResponse({'ok': True, 'path': chemin, 'surface': surface,
+                         'pk': element.pk if element is not None else None})
+
+
+@login_required
 def api_envoyer_vers_chemins(request):
     """ENVOYER VERS depuis le GESTIONNAIRE DE FICHIERS — le MÊME résolveur, entré par des CHEMINS.
 

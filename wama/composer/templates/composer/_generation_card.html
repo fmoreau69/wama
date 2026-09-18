@@ -7,11 +7,16 @@ Contexte : elem (décorée .chips), card_label = nom de sortie (optionnel).
 App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
 
 ⚠ Contrats JS (index.js) : .generation-card[data-id][data-status][data-estimated-seconds],
-  .settings-btn + data-*, .export-btn[data-id], .delete-btn[data-id], .wama-progress-fill
+  .settings-btn + data-*, .delete-btn[data-id], .wama-progress-fill
   (:476), .progress-text (:483), .wama-eta (:504), .estimated-time. Le point d'état +
   libellé sont mis à jour en place par updateCard (dot v3 — le badge v2 n'existe plus).
   Duplication : brique commune queue-actions.js (14/08 — le handler local d'index.js est
   SUPPRIMÉ, porter = remplacer).
+⚠ Le bouton dédié « Exporter vers médiathèque » (`.export-btn`, + la coche « Déjà exporté »)
+  est RETIRÉ le 2026-09-18 (demande de Fabien) : le geste vit dans le menu « … » / clic droit
+  de la card, COMMUN aux 10 apps (`wama-card-menu.js`, « Ajouter à la médiathèque… », avec
+  l'état persisté et le retrait). Le composer était la seule app à le porter deux fois — la
+  rangée reste close à cinq (`CARD_DESIGN §2bis`).
 {% endcomment %}
 <div class="generation-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %}"
      data-id="{{ elem.id }}"
@@ -81,7 +86,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
       </div>
     </div>
 
-    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ 🖼 ⧉ 🗑 (classes/données index.js) ──────── #}
+    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ ⧉ 🗑 (classes/données index.js) ─────────── #}
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
@@ -97,17 +102,6 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
         {% url 'composer:download' elem.id as url_dl %}
         {% download_button 'composer' url_dl elem.audio_output %}
-        {% if elem.audio_output %}
-        {% if not elem.exported_to_library %}
-        <button class="btn btn-sm export-btn" data-id="{{ elem.id }}" title="Exporter vers médiathèque">
-          <i class="fas fa-photo-film"></i>
-        </button>
-        {% else %}
-        <span class="btn btn-sm btn-outline-secondary disabled" title="Déjà exporté">
-          <i class="fas fa-check"></i>
-        </span>
-        {% endif %}
-        {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-id="{{ elem.id }}"
                 data-duplicate-url="{% url 'composer:duplicate' elem.id %}" title="Dupliquer">

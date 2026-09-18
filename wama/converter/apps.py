@@ -27,11 +27,15 @@ class ConverterConfig(AppConfig):
         # (A3a) : les réglages viennent des labels du schéma (source unique, champ JSON
         # `options`), `quality_preset` s'aligne sur la clé canonique ; pas de moteur IA
         # (Pillow/FFmpeg/Pandoc) donc pas d'`engine`.
-        from wama.common.utils.detail_registry import register_app_detail_spec
+        from wama.common.utils.detail_registry import MEDIA_CATEGORY_ROLE, register_app_detail_spec
         register_app_detail_spec('converter', ConversionJob, {
             'source_file': 'input_file',
             'source_type': 'media_type',
             'result_file': 'output_file',
+            # Rôle d'asset de la sortie = catégorie du média converti (table COMMUNE ; l'audio
+            # reste au choix). Une conversion qui changerait de catégorie rend un rôle non admis
+            # pour l'extension, que le geste commun IGNORE (l'utilisateur choisit).
+            'result_role': {'field': 'media_type', 'map': MEDIA_CATEGORY_ROLE},
             'extra_from_params': 'options',
             'aliases': {'quality_preset': 'output_quality'},
         })

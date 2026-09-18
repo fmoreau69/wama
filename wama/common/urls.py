@@ -82,6 +82,10 @@ urlpatterns = [
          name='api_envoyer_vers_chemins'),
     path('api/envoyer-vers/<str:surface>/<int:pk>/', views.api_envoyer_vers,
          name='api_envoyer_vers'),
+    # L'INVERSE : de quel élément un fichier de l'arbre est-il la SORTIE ? Rend les coordonnées
+    # `(surface, pk)` — celles qu'une card porte — pour que l'arbre offre les MÊMES gestes
+    # d'élément que le menu « … » (partager, médiathèque, RAG), par les MÊMES endpoints (2026-09-18).
+    path('api/element-pour-chemin/', views.api_item_for_path, name='api_item_for_path'),
 
     # Skills de prompt : la PAGE du registre `skills`, qui existait sans elle (seul registre
     # de la carte sans `url_name`). Elle DÉRIVE des fichiers + PROMPT_TARGETS + DOMAINES, et

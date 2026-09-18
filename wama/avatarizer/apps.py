@@ -44,6 +44,7 @@ class AvatarizerConfig(AppConfig):
                 source_type='video',
                 engine='musetalk',
                 result_file=job.output_video or None,
+                result_role='video',       # la sortie est toujours une vidéo parlante
                 extra=extra,
             )
 

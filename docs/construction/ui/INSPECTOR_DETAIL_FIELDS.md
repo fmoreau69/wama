@@ -153,6 +153,21 @@ Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader 
 
 ## Ajout au schéma canonique (2026-08-22)
 
+- **`result_role`** (2026-09-18, décision Fabien) — le RÔLE d'asset de la sortie, dans le
+  vocabulaire des natures de la médiathèque (`voice`, `audio_music`, `audio_sfx`, `image`,
+  `video`, `document`, `avatar`, `object3d`). L'app DÉCLARE ce qu'elle produit ; le geste commun
+  « ranger en médiathèque » (`media_library.services.admissible_roles`) ne propose alors que ce
+  rôle, après le filtre par extension — et l'ignore s'il n'est pas admis pour l'extension (une
+  déclaration fausse ne bloque rien). Non déclaré = l'utilisateur choisit. Formes en spec :
+  const, champ, ou champ traduit `{'field': 'media_type', 'map': MEDIA_CATEGORY_ROLE}` (table
+  commune image/vidéo/document ; l'audio en est ABSENT à dessein). Déclaré par composer (musique
+  ou bruitage selon `generation_type`), imager, avatarizer, anonymizer, enhancer (branche média),
+  converter ; pas par la branche audio de l'enhancer ni le synthesizer (une voix synthétisée
+  n'est pas une voix de référence). Émis seulement avec une sortie. C'est ce qui a permis de
+  retirer la route d'app `composer:export_to_library` (`REMOVAL_LEDGER R65`). ⚠ Ne concerne que
+  les apps **early-binding** : pour une app late-binding (`result_text`, pas de `result_file`) le
+  geste médiathèque rend un `document` au format choisi, par le builder du ⬇ — il ne lit pas
+  `result_role`.
 - **`result_files`** — la COLLECTION des sorties d'un même traitement, quand il en produit
   plusieurs (imager : N images par génération). Liste d'URL.
 

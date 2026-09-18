@@ -98,3 +98,47 @@ def entries_for_app(app_name: str, available=None) -> list[dict]:
     except Exception:
         return []
     return entries(conv.get('export_formats') or (), available)
+
+
+def is_late_binding(app_name: str) -> bool:
+    """L'app choisit-elle son format AU TÉLÉCHARGEMENT (`export_binding='late'`, §6.4) ?
+    Le master est alors un texte structuré ; le fichier n'existe qu'une fois RENDU."""
+    try:
+        from wama.common.app_registry import APP_CATALOG
+        conv = (APP_CATALOG.get(app_name, {}) or {}).get('conventions', {}) or {}
+    except Exception:
+        return False
+    return conv.get('export_binding') == 'late' or bool(conv.get('multi_format_download'))
+
+
+# ── Le RENDU d'un format, par app (2026-09-18) ──────────────────────────────────────────────
+#
+# Les apps late-binding rendent leur master dans un format par UNE fonction, déjà partagée par
+# leurs trois téléchargements (unitaire, lot, « tout ») : `build_transcript_bytes(t, fmt)`,
+# `build_description_bytes(d, fmt)`, `build_reading_bytes(item, fmt)` → `(ext, bytes)` ou
+# `None`. Elle vivait sans registre : seul le JS de l'app savait l'appeler, via `?format=`.
+# Le geste « ranger en médiathèque » en avait besoin — sans lui il disait « rien à ranger »
+# sur un transcript terminé. Chaque app DÉCLARE son rendu ici, par chemin pointé (résolu au
+# premier usage : `apps.ready()` n'importe pas ses vues au boot), et le commun l'appelle.
+_BUILDERS: dict = {}
+
+
+def register_export_builder(app_name: str, builder) -> None:
+    """`builder` : callable `(instance, fmt) -> (ext, bytes) | None`, ou son chemin pointé
+    `'wama.<app>.views:build_x_bytes'` (résolu paresseusement)."""
+    _BUILDERS[app_name] = builder
+
+
+def export_builder_for(app_name: str):
+    """Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
+    fichier est déjà rendu (`apply_inline_conversion` l'a converti à la génération)."""
+    b = _BUILDERS.get(app_name)
+    if isinstance(b, str):
+        from importlib import import_module
+        module, _, attr = b.partition(':')
+        try:
+            b = getattr(import_module(module), attr)
+        except Exception:
+            return None
+        _BUILDERS[app_name] = b
+    return b if callable(b) else None

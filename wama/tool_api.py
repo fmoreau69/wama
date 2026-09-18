@@ -2973,31 +2973,37 @@ def clear_my_queue(user, app: str, confirm: bool = False) -> dict:
 
 
 def add_item_to_media_library(user, app: str, pk: int, asset_type: str = '',
-                              name: str = '') -> dict:
+                              name: str = '', output_format: str = '') -> dict:
     """
     Keep the RESULT of one of the user's items in their media library, so it can be reused as
-    an input later (a voice, a music bed, an image, a 3D object…).
+    an input later (a voice, a music bed, an image, a 3D object, a document…).
 
     Prefer this over `add_to_media_library` when the file came out of a WAMA app: you pass the
     app and the item id, and the result file is found for you — no path to guess.
 
-    The role is asked, never guessed: if several roles fit the file (a .mp3 can be a voice, a
-    music track or a sound effect), the answer lists `candidates` and nothing is written. Ask
-    the user which one, then call again with `asset_type`.
+    The role is never guessed: apps that know what they produce declare it (a composer track
+    is a music bed), otherwise the answer lists `candidates` and nothing is written. Ask the
+    user which one, then call again with `asset_type`.
+
+    Text apps (transcriber, describer, reader) keep a structured master and render it on
+    demand: for them the choice is the FORMAT (`candidates` = txt/md/pdf/docx, same as the
+    download button), passed as `output_format`; the asset is always a `document`.
 
     Args:
-        app:        app id the item belongs to (as returned by `list_my_items`).
-        pk:         item id.
-        asset_type: the role; omit it to be told the admissible ones.
-        name:       display name (defaults to the file name).
+        app:           app id the item belongs to (as returned by `list_my_items`).
+        pk:            item id.
+        asset_type:    the role; omit it to be told the admissible ones.
+        name:          display name (defaults to the file name).
+        output_format: for text apps, the rendered format ('pdf', 'docx', 'txt', 'md').
 
     Returns:
         {"asset_id","name","asset_type"} or {"error", "candidates": [...]}
     """
-    # MÊME brique que le menu « … » et que la route d'app (`CARD_DESIGN §2bis`) : trois surfaces,
-    # un seul geste. L'ownership et le refus de deviner le rôle vivent DANS la brique.
+    # MÊME brique que le menu « … » (`CARD_DESIGN §2bis`) : deux surfaces, un seul geste.
+    # L'ownership, le rôle déclaré par l'app et le rendu late-binding vivent DANS la brique.
     from wama.media_library.services import export_item_to_library
-    return export_item_to_library(user, app, pk, asset_type=asset_type, name=name)
+    return export_item_to_library(user, app, pk, asset_type=asset_type, name=name,
+                                  output_format=output_format)
 
 
 def list_registries(user) -> dict:

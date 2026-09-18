@@ -51,6 +51,12 @@ class ComposerConfig(AppConfig):
                 }
                 return build_detail(item, source_file=None, source_type=None,
                                     engine=item.model, result_file=item.audio_output,
+                                    # Le composer SAIT ce qu'il produit : une génération `music`
+                                    # est une musique, le reste un bruitage. DÉCLARÉ ici (schéma
+                                    # canonique, 2026-09-18) et non plus dans une route à lui —
+                                    # c'est le geste commun « ranger en médiathèque » qui le lit.
+                                    result_role='audio_music' if item.generation_type == 'music'
+                                    else 'audio_sfx',
                                     source_text=item.prompt, extra=extra)
 
             register_app_detail('composer', ComposerGeneration, _composer_detail)

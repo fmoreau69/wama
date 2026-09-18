@@ -744,7 +744,9 @@
             "min_label": "",
             "name": "prompt",
             "option_groups": null,
+            "options_aptitudes": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -827,7 +829,9 @@
                 ]
               ]
             ],
+            "options_aptitudes": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -868,7 +872,9 @@
             "min_label": "10s",
             "name": "duration",
             "option_groups": null,
+            "options_aptitudes": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -942,7 +948,9 @@
             "min_label": "",
             "name": "output_format",
             "option_groups": null,
+            "options_aptitudes": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -996,7 +1004,9 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_aptitudes": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1063,7 +1073,6 @@
         "download",
         "download_all",
         "duplicate",
-        "export_to_library",
         "generate",
         "global_progress",
         "help",
@@ -1120,11 +1129,6 @@
           "name": "stop",
           "pattern": "stop/<int:pk>/",
           "view": "views.stop"
-        },
-        {
-          "name": "export_to_library",
-          "pattern": "export/<int:pk>/",
-          "view": "views.export_to_library"
         },
         {
           "name": "duplicate",
@@ -1184,6 +1188,7 @@
       "processing_time": true,
       "statuses": [
         "PENDING",
+        "AWAITING_RESOURCES",
         "RUNNING",
         "SUCCESS",
         "FAILURE"

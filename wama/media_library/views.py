@@ -659,24 +659,29 @@ def api_export_item(request, app: str, pk: int):
     """
     Le GESTE commun « ranger la sortie de cet élément dans ma médiathèque » (2026-09-11).
 
-    GET  → `{'candidates': [...], 'labels': {...}}` : les rôles admissibles pour CE fichier.
-           C'est ce qui remplit le sous-menu « … » — on ne propose donc jamais un rôle que le
-           serveur refuserait ensuite.
-    POST → range, et rend `{'asset_id', 'name', 'asset_type'}`.
+    GET  → `{'candidates': [clés], 'labels': {clé: libellé}, 'choices': {clé: {asset_type,
+           format, label}}, 'in_library': {clé: {asset_id, name}}}` : les CHOIX offerts pour
+           CETTE sortie — des RÔLES pour une app early-binding (extension, puis rôle déclaré
+           `result_role`), des FORMATS rendus à la demande pour une app late-binding (ceux du
+           bouton ⬇, asset `document`). C'est ce qui remplit le sous-menu « … » — on ne propose
+           donc jamais un choix que le serveur refuserait ensuite.
+    POST → range (`asset_type`, `output_format`), et rend `{'asset_id', 'name', 'asset_type'}` ;
+           `action=remove` retire (mêmes clés).
 
     ⚠ Une SEULE route pour toutes les apps : la brique lit le résultat au schéma canonique
-    (`detail_registry`), jamais un champ propre à une app. Les trois copies existantes
-    (composer, sa jumelle, synthesizer) restent en place pour l'instant — leur retrait est un
-    geste de dépréciation à part, consigné.
+    (`detail_registry`), jamais un champ propre à une app ; la route d'app du composer, seconde
+    porte du même geste, est retirée (`REMOVAL_LEDGER R65`, 2026-09-18).
     """
-    from .services import (assets_of_item, candidate_asset_types, export_item_to_library,
+    from .services import (export_choices, export_item_to_library, in_library_by_choice,
                            remove_item_from_library)
 
     if request.method == 'POST' and (request.POST.get('action') or '') == 'remove':
         # RETRAIT depuis le menu (2026-09-14) : ne touche QUE les assets de l'utilisateur rangés
         # depuis cet élément — un pk étranger ne peut rien retirer de la médiathèque d'autrui.
         resultat = remove_item_from_library(
-            request.user, app, pk, asset_type=(request.POST.get('asset_type') or '').strip())
+            request.user, app, pk,
+            asset_type=(request.POST.get('asset_type') or '').strip(),
+            output_format=(request.POST.get('output_format') or '').strip())
         if 'error' in resultat:
             return JsonResponse(resultat, status=400)
         return JsonResponse({'success': True, **resultat})
@@ -686,6 +691,7 @@ def api_export_item(request, app: str, pk: int):
             request.user, app, pk,
             asset_type=(request.POST.get('asset_type') or '').strip(),
             name=(request.POST.get('name') or '').strip(),
+            output_format=(request.POST.get('output_format') or '').strip(),
         )
         if 'error' in resultat:
             # 403 pour un refus de propriété, 400 pour tout le reste : un menu doit pouvoir
@@ -694,9 +700,9 @@ def api_export_item(request, app: str, pk: int):
             return JsonResponse(resultat, status=code)
         return JsonResponse({'success': True, **resultat})
 
-    # GET — les rôles possibles, dérivés du RÉSULTAT réel de l'élément.
+    # GET — les CHOIX possibles, dérivés du RÉSULTAT réel de l'élément.
     from wama.common.utils.detail_registry import DetailRegistry
-    from .services import _fichier_resultat
+    from wama.common.utils.export_formats import VOCABULARY, is_late_binding
 
     entree = DetailRegistry.get(app)
     if not entree:
@@ -707,20 +713,32 @@ def api_export_item(request, app: str, pk: int):
     proprietaire = getattr(instance, 'user', None)
     if proprietaire is not None and proprietaire != request.user and not request.user.is_staff:
         return JsonResponse({'error': 'forbidden'}, status=403)
-    # ÉTAT PERSISTÉ : sous quels rôles la sortie est DÉJÀ rangée (provenance). Rendu dans les deux
-    # réponses — un asset reste retirable même si l'élément n'a plus de résultat lisible.
+    # ÉTAT PERSISTÉ : sous quelles CLÉS la sortie est DÉJÀ rangée (provenance). Rendu dans les
+    # deux réponses — un asset reste retirable même si l'élément n'a plus de résultat lisible.
     libelles = dict(ASSET_TYPES)
-    deja = {a.asset_type: {'asset_id': a.id, 'name': a.name}
-            for a in assets_of_item(request.user, app, pk)}
+    deja = in_library_by_choice(request.user, app, pk)
     try:
         detail = entree['adapter'](instance)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
-    chemin, souci = _fichier_resultat(detail)
-    if souci:
-        return JsonResponse({'error': souci, 'candidates': [], 'in_library': deja,
-                             'labels': {t: libelles.get(t, t) for t in deja}}, status=400)
-    candidats = candidate_asset_types(chemin.name)
-    return JsonResponse({'candidates': candidats,
-                         'labels': {t: libelles.get(t, t) for t in set(candidats) | set(deja)},
-                         'in_library': deja})
+    choix = {c['key']: c for c in export_choices(app, detail)}
+    # Une clé DÉJÀ rangée reste retirable même si le résultat a changé de format depuis :
+    # elle garde un libellé, dans le vocabulaire de son archétype.
+    if is_late_binding(app):
+        for cle in deja:
+            choix.setdefault(cle, {'key': cle, 'asset_type': 'document', 'format': cle,
+                                   'label': f"{libelles.get('document', 'Document')} · "
+                                            f"{(VOCABULARY.get(cle) or {}).get('label', cle.upper())}"})
+    else:
+        for cle in deja:
+            choix.setdefault(cle, {'key': cle, 'asset_type': cle, 'format': '',
+                                   'label': libelles.get(cle, cle)})
+    candidats = [c['key'] for c in export_choices(app, detail)]
+    reponse = {'candidates': candidats,
+               'labels': {k: c['label'] for k, c in choix.items()},
+               'choices': choix,
+               'in_library': deja}
+    if not candidats and not deja:
+        return JsonResponse({'error': "cet élément n'a pas encore de résultat à ranger",
+                             **reponse}, status=400)
+    return JsonResponse(reponse)

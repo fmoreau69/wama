@@ -270,3 +270,49 @@ class DepotAvecArborescenceTests(TestCase):
                          'le contenu du premier dépôt doit survivre au second')
         self.assertTrue(p2.startswith(f'users/{self.user.id}/temp/dossier/'),
                         'le renommage doit rester DANS le sous-dossier demandé')
+
+
+class GestesDElementDansLArbreTests(SimpleTestCase):
+    """Les gestes du menu « … » des cards — Partager…, Ajouter à la médiathèque…, Ajouter au RAG
+    — dans l'arbre (2026-09-18, demande de Fabien : « en réutilisant au mieux l'existant, sans
+    rien réinventer »). Ce qui est tenu : l'arbre n'ÉCRIT aucune de ces entrées (il appelle la
+    brique commune par CHEMIN), il ne les demande que là où un fichier peut être une sortie, et
+    « Envoyer vers… » — qui existait déjà — n'a pas bougé.
+    """
+
+    def _code(self):
+        return _sans_commentaires((REPO / 'wama/filemanager/static' / FM_STATIC[0]).read_text(encoding='utf-8'))
+
+    def test_l_arbre_appelle_la_brique_commune_par_chemin(self):
+        code = self._code()
+        self.assertIn('WamaCardMenu.entreesPourChemin(', code)
+        self.assertIn('differe: true', code, "l'entrée doit être DIFFÉRÉE : le menu ne doit pas attendre le serveur")
+
+    def test_l_arbre_n_ecrit_AUCUNE_des_entrees_ni_leurs_endpoints(self):
+        """L'anti-duplication : les libellés et les routes des gestes vivent dans la brique, et
+        nulle part ailleurs — sinon l'arbre dériverait de la card au premier changement."""
+        code = self._code()
+        for interdit in ('Partager…', 'Ajouter à la médiathèque', 'Ajouter au RAG',
+                         '/media-library/api/export', '/common/api/rag', '/common/api/partage',
+                         '/common/api/element-pour-chemin'):
+            self.assertNotIn(interdit, code, f"l'arbre réécrit un geste de la brique : `{interdit}`")
+
+    def test_les_depots_temporaires_et_les_montages_ne_sont_pas_interroges(self):
+        code = self._code()
+        i = code.index('WamaCardMenu.entreesPourChemin(')
+        bloc = code[max(0, i - 900):i]
+        self.assertIn("startsWith('mounts/')", bloc)
+        self.assertIn(r'/^users\/\d+\/temp(\/|$)/', bloc)
+        self.assertIn('!isMultiSelect', bloc, 'un fichier seul, comme sur les cards')
+
+    def test_envoyer_vers_n_a_pas_bouge(self):
+        code = self._code()
+        self.assertIn('WamaSendTo.entreesPourChemins(cheminsEnvoyables)', code)
+        self.assertIn('WamaSendTo.entreesPourDossier(folderPath)', code)
+
+    def test_la_brique_traduit_le_groupe_differe_de_l_arbre(self):
+        """`toCardMenuEntries` : `differe` + `charger` → `{chargement, charger}` au niveau du
+        menu, jamais un sous-menu."""
+        code = self._code()
+        self.assertIn("typeof it.charger === 'function' && it.differe", code)
+        self.assertIn('entry.chargement = true', code)
