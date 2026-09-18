@@ -15306,3 +15306,111 @@ références, 0 cible distincte) · `check_skills` 0 défaut franc · corpus de 
 (préexistants, NON de cette session) · grille **863/906** sur **96** critères · suite `wama`
 **1814 tests**, 2 échecs `tests_mcp_dev_tools` **préexistants et établis** — tout autre rouge est
 une dérive.
+
+
+## §CLÔTURE — 2026-09-19 (nuit, session 18→19/09), « MÉDIATHÈQUE : un geste, deux archétypes de sortie — bouton et route du composer retirés, gestes d'élément dans l'arbre, rôle déclaré au commun » — ✅ LIVRÉ, commit `35a07834` (non poussé)
+
+**Périmètre** (partition : médiathèque, menu contextuel commun, arbre de fichiers, détail canonique,
+adapters d'app). Demandes de Fabien dans l'ordre : ① le bouton « Exporter vers médiathèque » de la
+card composer duplique le menu « … » — le retirer sans casser ; ② les options du « … » dans le
+filemanager, en réutilisant l'existant ; ③ la route d'app est-elle une duplication ? — oui, la
+retirer, et **filtrer par rôle AU COMMUN pour toutes les apps** ; ④ « attention, early/late binding
+et conversions de sortie par le converter » ; ⑤ « pourquoi un bruitage ne peut-il pas être un
+.aac ? » ; ⑥ régénérer la jumelle, commiter.
+
+**LIVRÉ** (`35a07834`, 48 fichiers) :
+- **R64/R65** — bouton `.export-btn` + coche retirés (gabarit, JS, CSS, config, copies servies) ;
+  route `composer:export_to_library` et sa vue retirées ; manifeste composer régénéré (WSL2) ;
+  jumelle `composer_01` **drop + create + substitute urls** (état d'avant restauré) — sa card
+  n'a plus le bouton. ⚠ **Exige un redémarrage du gunicorn WSL2** (créée APRÈS le relancement).
+- **Rôle déclaré au commun** — clé canonique `result_role` (`build_detail` ; spec : const / champ /
+  `{'field', 'map'}` — forme `map` NOUVELLE de la grammaire) ; table `MEDIA_CATEGORY_ROLE`
+  (image/vidéo/document — audio absent À DESSEIN). Déclaré par composer (musique/bruitage selon
+  `generation_type`), imager, avatarizer, anonymizer, enhancer (média), converter. Ni synthesizer
+  (une voix synthétisée n'est pas une voix de référence) ni `audio_enhancer` (voix/musique/bruitage
+  indistinguable) : le choix reste. `admissible_roles` = extension PUIS rôle déclaré ; déclaration
+  non admise = IGNORÉE, jamais bloquante.
+- **Late-binding** (transcriber, describer, reader — `§6.4`) — le geste était MORT (« rien à ranger »
+  sur un transcript terminé). Le master texte est rendu au format choisi par LE MÊME builder que le
+  ⬇ : registre `register_export_builder` (`export_formats.py`, chemin pointé résolu à l'usage,
+  déclaré dans les 3 `apps.py`), builders rendus PUBLICS (`build_transcript_bytes`,
+  `build_description_bytes`, `build_reading_bytes` — 8 sites + 3 docs). Choix = formats du ⬇ ∩
+  extensions de la nature `document` (srt/vtt/json exclus), asset `document`, nom = convention du
+  téléchargement + `(PDF)`, coche et retrait PAR FORMAT (`export_choices`, `in_library_by_choice`).
+  Contrat GET : `choices` (clé → `asset_type` + `format`) ; POST `asset_type` + `output_format` ;
+  l'ancien contrat reste compris par le JS. Outil assistant : `output_format`.
+- **Arbre de fichiers** — Partager… / Ajouter à la médiathèque… / Ajouter au RAG sur un fichier de
+  SORTIE : résolveur `send_to.item_for_output_path` (inverse de `sorties_de` — candidats par
+  requête `FileField`=chemin ou `JSONField` contenant le nom, CONFIRMATION par l'adapter ; périmètre
+  utilisateur ; `unquote` des URL ; surface connue des DEUX registres), route
+  `api/element-pour-chemin/`. Entrées EXTRAITES de `wama-card-menu.js` (`entreesPourElement` /
+  `entreesPourChemin` : UNE liste pour la card et l'arbre, zéro entrée dans `filemanager.js`) ;
+  **entrée DIFFÉRÉE à la racine du menu** (`{chargement, charger}`, focus préservé au re-rendu).
+  Temp et montages non interrogés ; un fichier seul. « Envoyer vers… » intact.
+- **Natures audio** — voix, musique, bruitage acceptent le MÊME jeu (`AUDIO_EXTENSIONS`, union des
+  trois anciens). Les listes divergeaient par héritage d'un littéral, pas par décision ; aucun
+  consommateur ne dépendait de l'asymétrie (3 appels de `resolve_asset_type`, défauts document/vidéo).
+
+**GARDES AJOUTÉES — une ligne par livrable** (mesuré symbole par symbole) :
+| livrable | garde |
+|---|---|
+| `item_for_output_path`, `api_item_for_path` | `tests_send_to.ElementPourCheminTest` (sortie, entrée ≠ sortie, autre utilisateur, nom encodé, JSON imager, anonyme) + `ApiElementPourCheminTest` |
+| `entreesPourElement`, `entreesPourChemin`, `entreePartager`, `entreesGarder` | `tests_queue_dnd.MenuDeCardSousV8Test` (brique EXÉCUTÉE sous V8, faux DOM) + scénario nocturne `common.tree_item_menu` |
+| entrée différée racine (`chargerDifferee`) | tenue sur le CODE + scénario `common.tree_item_menu` (rendu réel) — ⚠ pas de test unitaire DOM |
+| groupe `differe` de l'arbre, anti-duplication | `filemanager/tests.GestesDElementDansLArbreTests` |
+| retrait bouton composer (gabarit, JS, CSS, config, rendu serveur, copie servie) | `tests_export_service.BoutonDedieRetireTest` |
+| `result_role`, forme `map`, `MEDIA_CATEGORY_ROLE`, `admissible_roles` | `RoleDeclareParLAppTest` (composer, converter par la spec, audio_enhancer sans déclaration, AST des rôles déclarés) |
+| déclarations d'imager / anonymizer / enhancer / avatarizer | ⚠ **non gardées PAR APP** — seul le vocabulaire est attesté (AST) ; une valeur inversée (image ↔ vidéo) passerait. Raison : un test par app exigerait une sortie réelle par modèle ; à poser au premier défaut |
+| `register_export_builder`, `export_builder_for`, `is_late_binding`, `export_choices`, `in_library_by_choice`, export/retrait late, `tool_api.output_format` | `LateBindingTest` (7 tests, rendu PDF/DOCX réel) + scénario `media_library.card_menu_late_binding` |
+| contrat JS `choices` (POST rôle/format, retrait par clé, repli ancien contrat) | `tests_queue_dnd.SousMenuMediathequeSousV8Test` (faux `fetch`/`FormData`) |
+| route composer retirée | `test_la_route_d_app_du_composer_n_existe_PLUS` |
+| natures audio alignées | `tests_natures` (empreinte datée, `aiff` ne départage plus) |
+| builders publics | leurs appelants (download/batch/all) + `LateBindingTest` par la brique |
+
+**CONTRÔLES MESURÉS dans cette session** : tests du périmètre **234 OK** (paquet `media_library` +
+`tests_send_to` + `tests_queue_dnd` + `filemanager.tests` + `tests_nightly_modes` +
+`tests_docs_catalog`), après la DERNIÈRE écriture de code · `manage.py check` WSL2 propre ·
+`check_docs` **0 cassée / 0 périmée sur 2096** (47 docs, 14 skills) · `check_skills` 0 défaut franc ·
+scénarios navigateur joués contre un serveur de dev éphémère (port 8011, recette versée au skill
+`/smoke`) : **C 6/6, E 7/7, F 6/6**, plus A 6/6 et B 5/5 en contre-épreuve · V8 : parse des 4 JS
+servis OK.
+
+**⚠ CORPUS DE MANIFESTES : 17 périmés, à NE PAS régénérer en bloc.** 9 manifestes d'APP
+(anonymizer → transcriber) sont périmés parce que le WIP non commité d'une autre instance
+(`model_manager`, champs `options_aptitudes`/`options_cloud`) change leur extraction — le
+manifeste composer, régénéré ici, a déjà absorbé ces champs (dit dans le message de commit) ;
+converter l'est AUSSI par `result_role` (mien). Les 8 autres (`mcp`, 7 `ollama:*`) préexistent
+(11 déclarés au handoff du 18/09). Régénérer figerait le WIP d'autrui : attendre son commit.
+
+**Décisions / frontières laissées à Fabien :**
+- **Médiathèque par CHEMIN** pour un fichier qui n'est la sortie de rien (dépôt temporaire, entrée
+  d'app) : possible, mais sans provenance par chemin sur `UserAsset` (pas de coche, pas de retrait)
+  — demi-vocabulaire refusé ; si le besoin vient, c'est un champ de provenance (migration).
+- Le ledger porte un **doublon préexistant `R43`** (deux entrées, pas de cette session) — à
+  renuméroter par son auteur.
+- Un composer converti vers une extension hors nature (ex. `.aac` avant ce soir) est désormais
+  couvert pour l'audio ; les natures image/vidéo gardent leurs listes — pas remesuré.
+
+**PENDINGS SYSTÈME** — **redémarrer le gunicorn WSL2** (jumelle `composer_01` recréée après le
+relancement ; le code de ce commit, lui, est servi depuis le relancement de Fabien) · **4 commits
+non poussés** sur `dev` (dont `35a07834`) · serveur de dev 8011 ARRÊTÉ · base de test conservée
+(`--keepdb`) · aucun stash, un seul worktree · les 7 fichiers encore modifiés dans l'arbre sont
+d'autres instances (mtime 14→18/09 : `wama-send-to.js`, `reader.js`, `ui_smoke.py`,
+`WAMA_DATA_WORLD.md`, `docs/dev/briques.md` et leurs copies servies) — non touchés.
+
+**ARTEFACTS** — dans le bloc-notes de session : le script de parse V8 + exécution de la brique, le
+lanceur de scénarios sur le serveur éphémère, les blocs de tests ajoutés, le message de commit.
+Jetables. Les scénarios C/E/F ont semé puis nettoyé un job converter, un transcript, deux témoins
+`wama_temoin_*` et leurs assets — rien ne subsiste (vérifié en base par les scénarios eux-mêmes).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — 2026-09-19
+
+**Une ligne actionnable : redémarrer le gunicorn WSL2, pousser, puis laisser tourner la nuit** —
+deux scénarios nocturnes neufs (`common.tree_item_menu`, `media_library.card_menu_late_binding`)
+attesteront le geste sur le live. Ensuite, si Fabien le veut : la garde PAR APP des rôles
+déclarés (imager/anonymizer/enhancer/avatarizer), seul livrable déclaré non gardé.
+
+**CONTRÔLES ATTENDUS AU PROCHAIN `/reprise`** : `check_docs` **0 / 0 sur 2096** · `check_skills`
+0 défaut franc · corpus de manifestes **17 périmés** (9 apps + mcp + 7 ollama — voir ⚠ ci-dessus ;
+descendre à 8 dès que l'instance model_manager a commité et régénéré) · tests du périmètre
+**234 OK** · les 2 échecs `tests_mcp_dev_tools` restent préexistants et établis.
