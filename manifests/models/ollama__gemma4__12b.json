@@ -1,0 +1,81 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "audio",
+        "completion",
+        "thinking",
+        "tools",
+        "vision"
+      ],
+      "audio": true,
+      "completion": true,
+      "context_length": 262144,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image",
+        "audio"
+      ],
+      "params_active_b": 11.9,
+      "params_total_b": 11.9,
+      "task": "text-generation",
+      "thinking": true,
+      "tools": true,
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "disk_gb": 7.6,
+      "ollama_id": "4eb23ef187e2"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": "Google DeepMind",
+      "description_short": "Ollama LLM (7.6 GB)",
+      "hf_id": null,
+      "license": "apache-2.0",
+      "model_type": "llm",
+      "platform_ref": "ollama:gemma4",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 7.6,
+      "ram_gb": 7.6,
+      "vram_gb": 7.6
+    }
+  },
+  "description": "Ollama LLM (7.6 GB)",
+  "key": "ollama:gemma4:12b",
+  "manifest_kind": "model",
+  "name": "gemma4:12b",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:gemma4:12b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

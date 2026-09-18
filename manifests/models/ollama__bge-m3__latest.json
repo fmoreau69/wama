@@ -1,0 +1,71 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "embedding"
+      ],
+      "context_length": 8192,
+      "embedding": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params_active_b": 0.5667000000000001,
+      "params_total_b": 0.5667000000000001,
+      "task": "feature-extraction"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "disk_gb": 1.2,
+      "ollama_id": "790764642607"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": "BAAI",
+      "description_short": "Ollama LLM (1.2 GB)",
+      "hf_id": null,
+      "license": "mit",
+      "model_type": "embedding",
+      "platform_ref": "ollama:bge-m3",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 1.2,
+      "ram_gb": 1.2,
+      "vram_gb": 1.2
+    }
+  },
+  "description": "Ollama LLM (1.2 GB)",
+  "key": "ollama:bge-m3:latest",
+  "manifest_kind": "model",
+  "name": "bge-m3:latest",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:bge-m3:latest",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
