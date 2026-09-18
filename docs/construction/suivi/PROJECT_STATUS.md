@@ -15241,3 +15241,31 @@ NOMMÉS, faute d'avoir la liste du 07/09 — inventer les noms aurait été une 
 mécanisme `None` existe toujours, ce relevé dit seulement que rien ne l'emprunte. Aucun échec de
 grille ne touche le vocabulaire d'états : tous relèvent du **portage des apps**
 (`backend_routes`, `task_skeleton`, `card_refresh_common`, `triad_specs`).
+
+**㉘ AUDIT DES GARDES — « a-t-on ajouté tous les tests nécessaires ? » : NON, et deux manquaient
+vraiment.** Mesuré symbole par symbole contre les fichiers de test, pas de mémoire.
+- ✅ **Le VALIDATEUR de manifeste** — *le cœur du défaut*, et rien ne le gardait : `STATUS_VOCAB`
+  était à la fois la liste déclarée et le vocabulaire du contrôle, si bien qu'un manifeste énonçant
+  l'état du gouverneur était **rejeté « hors vocabulaire canonique »**. La garde tient les deux
+  sens — le vocabulaire commun passe, une valeur inventée reste refusée (sans cette contre-épreuve,
+  un validateur devenu vide passerait le test).
+- ✅ **L'INSPECTEUR** — la 5ᵉ écriture, celle qui était DANS le commun : le geste navigateur
+  éprouvait les accesseurs, **rien n'attestait que `wama-inspector.js` les consomme**. La garde
+  vérifie la consommation ET l'absence de repréfixage `bg-` — le piège du badge GRIS muet.
+- ⚠ **DÉCLARÉ non gardé** : `job_status_values()`, attesté seulement **indirectement** (par les
+  libellés que la génération en dérive). Une garde de plus sur un accesseur d'une ligne aurait
+  ajouté du bruit sans rien tenir de neuf — c'est un choix, pas un oubli.
+
+**㉙ LA JUMELLE `converter_01` NE SERA PAS RÉGÉNÉRÉE — la mesure l'interdit.** Rendue en mémoire
+puis comparée au disque, **sans rien écrire** : `_generic_card.html` **+3/-3** (exactement mes deux
+changements) mais `index.html` **+22/-22** — et je n'ai touché à rien qui explique vingt-deux
+lignes. L'écart déborde mon périmètre, et `app_sandbox substitute … templates` est
+**MULTI-FICHIERS** : il réécrit les deux d'un coup. Régénérer ferait entrer le travail d'une autre
+instance dans un commit à mon nom — le piège que la discipline multi-instances interdit, et que ce
+dépôt a déjà payé deux fois. *Déclarer un retard CHIFFRÉ vaut mieux que le combler à l'aveugle.*
+
+**⇒ Après ce constat, la liste « avançable sans le Lab » est VIDE.** Ses deux seuls candidats
+étaient cette régénération — écartée — et `app_regen_check`, qui exige un arbre git propre,
+impossible avec trois instances actives. Tout le reste attend soit **P3**, soit une **décision de
+Fabien** (migration des 3 modèles du Lab · encodage de sortie dans `manage.py` · langue des
+`msgid`).
