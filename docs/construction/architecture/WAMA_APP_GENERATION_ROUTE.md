@@ -2725,8 +2725,12 @@ Le studio (`studio/tasks.py`, littéraux `'RUNNING'`/`'SUCCESS'`/`'FAILURE'`, sa
 > ressort brut.
 > ⏳ **Restent DEUX écritures, déclarées** : `reader/js/reader.js:34` (6 entrées, dont `DONE`/
 > `ERROR` annotées « tolérance ancien vocabulaire » — alias retirés le jour même) — fichier
-> **modifié par une autre instance**, donc non touché ; et les **trois tables du Lab**
-> (`face_analyzer/index.html:205`, `cam_analyzer/js/index.js:826` et `:4839`), laissées à dessein
+> **modifié par une autre instance**, donc non touché ; et les **QUATRE tables du Lab**
+> (recomptées à la revérification du 18/09 — j'en avais annoncé trois) :
+> `wama_lab/cam_analyzer/static/cam_analyzer/js/index.js` en porte **trois** — icônes, libellés
+> courts, badges, chacune à SIX clés dont `never` (« Jamais »), un état d'affichage propre au Lab,
+> jumeau exact de `DRAFT` côté Médias : une dérivation naïve le ferait DISPARAÎTRE — et
+> `wama_lab/face_analyzer/templates/face_analyzer/index.html` une. Laissées à dessein
 > (décision de Fabien) : le Lab s'alignera quand il adoptera le fonctionnement commun, à **P3** —
 > les y câbler ce soir serait du travail à refaire. La brique existe : leur adoption sera une
 > ligne par site.

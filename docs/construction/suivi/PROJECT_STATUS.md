@@ -15162,3 +15162,53 @@ une autre instance**, déclaré et non édité.
 geste navigateur passe de 8 à **12 verdicts, 12/12** — la charge atteint le client, `completed`
 s'y lit « Terminé », `stale` rend `bg-stale`, un inconnu ressort brut ; les 2 JS servis parsés
 sous V8 et leurs accesseurs exercés état par état ; 2 fichiers statiques resynchronisés.
+
+## REVÉRIFICATION 2026-09-18 — ce que la session a fait, ce qu'elle a laissé, et trois constats FAUX corrigés
+
+> Demande de Fabien : *« une revérification complète de ce qui a été fait dans cette session,
+> qu'on n'a rien réinventé, qu'on est aligné, et qu'on consigne ce qui ne l'est pas encore.
+> Qu'a-t-on laissé de côté ? »* — faite à la MESURE, pas de mémoire.
+
+**LA SESSION = 12 commits** (17/09 19:44 → 18/09 01:30), trois vagues : ① `625a8786` doc
+collaboration, `43557bb0` clés de registre en anglais, `599aa3cb` retrait du seul jumeau
+inter-mondes ; ② P2 pièces 1→4 (`135e6e8c`, `e3f612d3`, `ab18e9db`, `0ac7b2b3`, `8836371c`) ;
+③ la déduplication de présentation (`12d7a3ae`, `89d47325`, `3c8943df`, `1d6b517c`).
+
+**RIEN N'A ÉTÉ RÉINVENTÉ — vérifié, pas supposé.** `normalizeStatus` n'a aucun concurrent (les
+`toUpperCase()` des apps sont des comparaisons ponctuelles sur `dataset.status`, pas des tables) ;
+le pont serveur→client emprunte le mécanisme de `WAMA_APP_CATALOG` ; `ui_smoke_states.py` copie la
+convention de ses deux frères ; `state_presentation.py` n'avait aucun équivalent dans
+`common/utils/` (77 modules relevés).
+
+**🔴 TROIS CONSTATS FAUX DE MA MAIN, corrigés ici**
+1. **« trois tables du Lab » → QUATRE.** `cam_analyzer/…/js/index.js` en porte **trois** (icônes,
+   libellés courts, badges), pas une. Corrigé aussi dans `ROUTE §10.6`.
+2. **Un 7ᵉ état d'affichage existe côté Lab : `never` (« Jamais »)**, dans ces mêmes tables. C'est
+   le jumeau exact de `DRAFT` côté Médias — une dérivation naïve le ferait DISPARAÎTRE. À déclarer
+   explicitement le jour où le Lab consommera la brique.
+3. **Les cards ne sont PAS « sans chaîne ».** Mesuré : **94 occurrences de `status ==` dans 13
+   gabarits** (6 à 10 par card). Je n'ai retiré que la chaîne de **CLASSE** ; les autres servent la
+   section Sortie, l'ETA, la barre et le téléchargement. Dire « la duplication est fermée » sans
+   cette précision laisserait croire l'inverse.
+
+**CE QUI N'ÉTAIT PAS CONSIGNÉ, et l'est maintenant** : le **rattachement au registre des
+mécanismes** (`1d6b517c`) ne vivait que dans un message de commit — `state_presentation` est
+déclaré comme mécanisme (famille « UI générée », `depends_on=('app_base_js',)`) et
+`ui_smoke_states.py` est ANNEXE de `nightly_tests`, comme ses deux frères. Preuve par les
+compteurs : **143 → 144** mécanismes, **50 → 48** modules non rattachés. ⚠ Son compteur affiche
+**1 consommateur** : l'instrument compte les IMPORTS Python, or le client consomme par la charge
+poussée — ce n'est pas une brique morte.
+
+**⏳ CE QUE LA SESSION A LAISSÉ DE CÔTÉ** (rien d'oublié : chaque ligne a sa raison)
+| laissé | pourquoi |
+|---|---|
+| Les **4 tables du Lab** | décision de Fabien : le Lab s'alignera à **P3**. Les câbler maintenant = travail à refaire, et `cam_analyzer` est le territoire d'une autre instance |
+| `reader/js/reader.js:34` (6 entrées, dont `DONE`/`ERROR`) | fichier **modifié par une autre instance** — jamais éditer le WIP d'autrui |
+| **Migration des 3 modèles du Lab** (`completed` → `SUCCESS`) | **décision ouverte de Fabien** : invisible à l'écran (libellés déclarés), ne laisserait qu'un alias, celui de Celery. `ModelSyncLog` EXCLU (son `__str__` rend la valeur brute) |
+| **Brique d'agrégation** + **JS du canvas studio** | les deux derniers morceaux de P2, suspendus à **P3** (pas de ligne d'exécution par process aujourd'hui) |
+| `app_regen_check` | exige un arbre git PROPRE et fait un `git checkout` — inconcevable avec 3 instances actives. À passer **en worktree** |
+| Jumelle `converter_01` | en retard sur le générateur depuis `12d7a3ae` — aucun test ne les compare, donc rien n'est rouge : régénération à faire |
+| **Langue des `msgid`** (`ROADMAP §10.A`) | décision bloquante NON touchée, à dessein : les libellés restent français, ce qui est la branche la moins coûteuse et ne préempte rien |
+| `WAMA_MECANISMES.md`, `docs/dev/briques.md` | régénérés dans l'arbre, **non commités** : ils décrivent du code absent de HEAD (WIP d'autres instances) |
+| 2 rouges `tests_mcp_dev_tools` | **préexistants**, établis par `git stash` ciblé — chantier MCP d'une autre session |
+| **Test GPU FastWan** | BLOQUÉ par Fabien (« ça fait crasher le PC ») — pas en attente, empêché |
