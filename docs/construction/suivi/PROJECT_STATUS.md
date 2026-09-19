@@ -14053,13 +14053,16 @@ contraire à « jamais deux échelles mélangées » ; partage par PR GitHub éc
    unité `token` vide). Nécessite `WAMA_GPU_SAFE_MODE=0` le temps du run. Depuis venv_win ou
    venv_linux indifféremment : l'appel est HTTP, le GPU est celui d'Ollama hôte ; l'empreinte
    matérielle du bucket vient de `torch.cuda` du process appelant (les deux venvs ont cu128).
-2. **Trou 2 (provenance du COÛT : `vram_gb` écrit par 4 natures, lu sans distinction) — TRANSFÉRÉ
-   par Fabien à une instance sœur.** Proposition transmise : champ `vram_provenance`
-   (measured/declared/estimated/unknown), retour de la mesure de `_wrap_load` au catalogue (mesure
-   de CHARGEMENT, pas de pic), « en lecture, pas en indicateur » en phase 1, même geste sur
-   `eta_estimator.estimate()`. ⚠ L'instance gouverneur a relevé (§PALIER précédent, ②) que
-   `model_sync.py:185` ÉCRASE `vram_gb` à chaque synchro : une mesure écrite dans `vram_gb` serait
-   perdue — champ MESURÉ séparé recommandé par elle aussi.
+2. ~~**Trou 2 (provenance du COÛT : `vram_gb` écrit par 4 natures, lu sans distinction) — TRANSFÉRÉ
+   par Fabien à une instance sœur.**~~ ✅ **FAIT le soir même par l'instance gouverneur** —
+   `§PALIER 2026-09-14 (soir) « GOUVERNEUR : la VRAM MESURÉE rendue au catalogue »` : mesure fraîche
+   de `_wrap_load` → gouverneur (`record_measured_vram`) → beat 600 s → `extra_info['vram_measured']`
+   {last_gb, max_gb, n, at}, `vram_gb` intact, clé collante, lecteurs = complétude
+   (`vram_sous_declaree`) + inspecteur ; 4 + 2 tests, 3 mutants. **Reste, à part** : le tirage lit
+   toujours `vram_gb` ; pas de vocabulaire de provenance sur `vram_gb` ni de base pour
+   `eta_estimator.estimate()`. ⚠ Constaté le 19/09 seulement : ce 🔚 disait « transféré » alors que
+   le bloc de livraison était trois blocs plus bas — *relire les §PALIER du même soir avant de
+   déclarer un reste.*
 3. ~~**Arbitrage Fabien — idée 3** : rubrique déterministe par rôle (regex, score relatif) comme
    étage « mesure interne » des LLM ? Autorisée par le garde-fou §16.5 n°1 ; à réécrire en français ;
    jamais un composite. Non commencé.~~ **RETIRÉE le 16/09** (Fabien : le trou est bien plus large

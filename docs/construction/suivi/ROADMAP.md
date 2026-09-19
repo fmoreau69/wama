@@ -2045,11 +2045,17 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
   la rampe qui tue l'hôte (règle du 31/08). Première passe = Fabien, un modèle à la fois.
   Au passage : `_bench_description` (légendage) lisait un dict comme une chaîne → chaque
   modèle sortait « en erreur » depuis sa création ; corrigé, testé.
-- ⏳ **Trou 2, non fait (décision de conception)** : l'échelle des signaux qualifie la
-  provenance de la QUALITÉ (a priori < banc tiers < mesure), pas celle du COÛT — le terme
-  légèreté de `_best_by_vram` lit `vram_gb` quelle que soit son origine, et
-  `extra_info['vram_estimated']` ne se lève jamais (gouverneur, 03/09). L'enum
-  `estimate_confidence` de llmfit est le marqueur manquant, à poser sur VRAM **et** débit.
+- ✅ **Trou 2 — FAIT le 14/09 au soir par l'instance gouverneur** (`PROJECT_STATUS §PALIER
+  2026-09-14 « GOUVERNEUR : la VRAM MESURÉE rendue au catalogue »`, GO Fabien, champ MESURÉ
+  SÉPARÉ) : `_wrap_load` consigne une mesure fraîche au gouverneur (`record_measured_vram`), une
+  tâche beat (600 s) l'écrit dans `extra_info['vram_measured']` = {last_gb, max_gb, n, at} ;
+  `vram_gb` INTACT (la synchro le réécrit), clé collante ; lecteurs = `check_model_completeness`
+  (axe `vram_sous_declaree`) et l'inspecteur du model_manager. **Ce qui reste, et n'est pas
+  un manque** : le tirage lit toujours `vram_gb` (brancher la mesure sur le budget = décision à
+  part) ; pas de vocabulaire de PROVENANCE sur `vram_gb` lui-même (déclaré / heuristique / estimé)
+  ni de base exposée pour `eta_estimator.estimate()` — l'enum `estimate_confidence` de llmfit
+  reste la référence si ces deux points s'ouvrent. ⚠ Cette ligne disait « non fait » jusqu'au
+  19/09 : écrite le 16 sans relire le §PALIER du 14 au soir.
 - ❌ **« Idée 3 » RETIRÉE le 2026-09-16** (une rubrique regex par rôle pour les seuls LLM) :
   trop étroite et à côté de la route actée (`ROUTE §F4b` : qualification comparative de TOUTES
   les tâches, sorties confrontées, réingestion en indice) — et « à réécrire en français » était
