@@ -90,6 +90,23 @@ class LocalInventoryTest(SimpleTestCase):
         os.utime(old, (1, 1))
         self.assertEqual(local_inventory(self.root), [('model.safetensors', 10)])
 
+    def test_the_revision_is_the_base_the_inventory_paths_are_relative_to(self):
+        """Un second lecteur (l'en-tête safetensors par composant) rouvre les fichiers de
+        l'inventaire : il lui faut la MÊME base, pas une seconde règle de choix de révision."""
+        from wama.model_manager.services.prospector import local_revision, precision_of_files
+        self._link('model.safetensors', self._blob('v1', 10))
+        self.assertEqual(local_revision(self.root), self.rev)
+        bare = Path(self.tmp.name) / 'bare'
+        bare.mkdir()
+        self.assertEqual(local_revision(bare), bare)
+        self.assertIsNone(local_revision(Path(self.tmp.name) / 'absent'))
+        p = self.rev / 'transformer' / 'w.safetensors'
+        _safetensors(p, {'w': {'dtype': 'F16', 'shape': [3, 4], 'data_offsets': [0, 24]}})
+        found = precision_of_files(self.rev, {'transformer': [('transformer/w.safetensors', 24)],
+                                              'vae': [('vae/x.bin', 5)]})
+        self.assertEqual(found, {'transformer': {'params': 12, 'dtypes': ['F16']}})
+        self.assertEqual(precision_of_files(None, {'a': []}), {})
+
     def test_a_bare_weights_folder_is_read_too(self):
         d = Path(self.tmp.name) / 'poids'
         (d / 'sub').mkdir(parents=True)

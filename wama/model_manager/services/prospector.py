@@ -366,6 +366,25 @@ def _repo_weight_gb(hf_id: str):
     return _poids_total_gb(_siblings(hf_id))
 
 
+def local_revision(snapshot_root):
+    """Le dossier dont les chemins de `local_inventory` sont RELATIFS : la révision la plus
+    récente sous `snapshots/` d'une racine `models--org--nom`, ou le dossier de poids lui-même.
+    None si absent ou sans révision. Nommé à part (2026-09-20) parce qu'un second lecteur —
+    l'en-tête safetensors par composant — doit rouvrir ces mêmes fichiers : il lui faut la même
+    base, pas une seconde règle de choix de révision."""
+    from pathlib import Path
+
+    root = Path(snapshot_root) if snapshot_root else None
+    if root is None or not root.is_dir():
+        return None
+    if not (root / 'snapshots').is_dir():
+        return root
+    revisions = [p for p in (root / 'snapshots').iterdir() if p.is_dir()]
+    if not revisions:
+        return None
+    return max(revisions, key=lambda p: p.stat().st_mtime)
+
+
 def local_inventory(snapshot_root):
     """`[(chemin relatif, taille)]` d'un modèle INSTALLÉ — le jumeau LOCAL de `_siblings`
     (2026-09-19), même forme, pour que `model_installer.components_of_files` pèse un snapshot
@@ -384,17 +403,10 @@ def local_inventory(snapshot_root):
     None = dossier absent (indéterminable), à distinguer d'un dossier VIDE (`[]`).
     """
     import os
-    from pathlib import Path
 
-    root = Path(snapshot_root) if snapshot_root else None
-    if root is None or not root.is_dir():
+    revision = local_revision(snapshot_root)
+    if revision is None:
         return None
-    revision = root
-    if (root / 'snapshots').is_dir():
-        revisions = [p for p in (root / 'snapshots').iterdir() if p.is_dir()]
-        if not revisions:
-            return None
-        revision = max(revisions, key=lambda p: p.stat().st_mtime)
     seen = {}                         # blob réel → (profondeur, chemin relatif, taille)
     for p in revision.rglob('*'):
         if not p.is_file():           # suit les liens ; un lien cassé n'est pas un fichier
@@ -444,6 +456,37 @@ def safetensors_facts(path):
         if tensor.get('dtype'):
             dtypes.add(str(tensor['dtype']))
     return {'params': params, 'dtypes': sorted(dtypes)}
+
+
+def precision_of_files(revision, files_by_role) -> dict:
+    """`{rôle: {'params', 'dtypes'}}` — la PRÉCISION de chaque composant, lue dans les en-têtes
+    safetensors des fichiers que la dérivation a RETENUS (`components_of_files(...)['files']`,
+    2026-09-20 : les chemins par rôle sont rendus précisément pour ça — aucun second tri des
+    jeux, jumeaux ou variantes ici). Les shards d'un rôle s'additionnent ; un rôle sans
+    `.safetensors` lisible (GGUF, ONNX, `.bin`, dépôt frère hors de cette révision) n'apparaît
+    pas — l'absence se lit, elle ne vaut pas zéro. `revision` : la base des chemins
+    (`local_revision`). Aucun tenseur chargé.
+    """
+    from pathlib import Path
+
+    if not revision or not files_by_role:
+        return {}
+    base = Path(revision)
+    out = {}
+    for role, entries in files_by_role.items():
+        params, dtypes = 0, set()
+        for entry in entries or []:
+            rel = entry[0] if isinstance(entry, (tuple, list)) else entry
+            if not str(rel).lower().endswith('.safetensors'):
+                continue
+            facts = safetensors_facts(base / rel)
+            if not facts:
+                continue
+            params += facts['params']
+            dtypes.update(facts['dtypes'])
+        if params:
+            out[role] = {'params': params, 'dtypes': sorted(dtypes)}
+    return out
 
 
 #: Marqueurs de QUANTISATION/repack dans l'id d'un dépôt dérivé. Sous-ensemble de

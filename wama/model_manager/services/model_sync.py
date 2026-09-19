@@ -597,7 +597,8 @@ class ModelSyncService:
         ⚠ `vram_gb` N'EST PAS TOUCHÉ (comme pour la mesure) : `weights` vit à part, en clé
         collante — `components` (Go par rôle), `total_gb` (tout sur la carte), `largest_gb` (le
         déchargement séquentiel n'en tient qu'un à la fois), `source`, `variants`/`unresolved`
-        s'il y a lieu, `at`, `signature`. Marge d'activations et stratégie restent à
+        s'il y a lieu, `precision` ({rôle: {params, dtypes}}, en-têtes safetensors — 2026-09-20),
+        `at`, `signature`. Marge d'activations et stratégie restent à
         `memory_manager` ; la cascade du tirage (mesuré → source → estimé) lira ici.
 
         Pas de réécriture inutile : la `signature` (fichiers, octets, composition) est gardée
@@ -614,7 +615,7 @@ class ModelSyncService:
         from wama.common.utils.model_locations import installed_snapshots
         from ..models import AIModel, EXECUTION_LOCAL
         from .model_installer import components_for_spec
-        from .prospector import local_inventory
+        from .prospector import local_inventory, local_revision, precision_of_files
 
         qs = (AIModel.objects.filter(is_downloaded=True, is_proposed=False, execution=EXECUTION_LOCAL)
               .exclude(hf_id__isnull=True).exclude(hf_id=''))
@@ -635,7 +636,9 @@ class ModelSyncService:
             if not files:
                 continue
             composition = obj.composition or {}
-            signature = '{}:{}:{}'.format(
+            # `v2` (2026-09-20) : la précision par composant rejoint le relevé — un relevé d'avant
+            # se refait une fois, puis se tait de nouveau.
+            signature = 'v2:{}:{}:{}'.format(
                 len(files), sum(s for _, s in files),
                 hashlib.sha1(json.dumps(composition, sort_keys=True).encode()).hexdigest()[:10])
             previous = (obj.extra_info or {}).get('weights') or {}
@@ -645,14 +648,33 @@ class ModelSyncService:
             if composition:
                 spec['composition'] = composition
             derived = components_for_spec(spec, files=files)
+            declared_unmatched = False
+            if not derived and composition:
+                # La déclaration ne désigne AUCUN fichier de ce snapshot — mesuré le 2026-09-20 sur
+                # SDXL : installé en fp16 (`unet/diffusion_pytorch_model.fp16.safetensors`), déclaré
+                # sur les fichiers pleine précision. C'est le cas « variante installée ≠ anatomie
+                # déclarée » ; on pèse par la convention de dépôt et on le DIT, plutôt que de laisser
+                # un relevé périmé ou de se taire.
+                derived = components_for_spec({'kind': 'hf', 'ref': obj.hf_id}, files=files)
+                declared_unmatched = bool(derived)
             if not derived:
                 continue
+            # La PRÉCISION par composant (paramètres, dtypes) lue dans les en-têtes des fichiers
+            # que la dérivation a retenus — c'est ce qui rend le pic par précision calculable
+            # (17,43 Md × 2 octets = 32,5 Go en BF16, 16,2 en 8 bits). Les chemins eux-mêmes ne
+            # sont pas gardés : ils se retrouvent à la demande, le relevé reste compact.
+            record = {k: v for k, v in derived.items() if k != 'files'}
+            if declared_unmatched:
+                record['declared_unmatched'] = True
+            precision = precision_of_files(local_revision(root), derived.get('files'))
+            if precision:
+                record['precision'] = precision
             with transaction.atomic():
                 fresh = AIModel.objects.select_for_update().filter(pk=obj.pk).first()
                 if fresh is None:
                     continue
                 info = dict(fresh.extra_info or {})
-                info['weights'] = {**derived, 'signature': signature, 'root': str(root),
+                info['weights'] = {**record, 'signature': signature, 'root': str(root),
                                    'at': datetime.now(dt_timezone.utc).isoformat()}
                 AIModel.objects.filter(pk=obj.pk).update(extra_info=info)
                 written += 1
