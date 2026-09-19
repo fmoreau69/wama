@@ -64,9 +64,12 @@ class OngletsDeResultatTest(SimpleTestCase):
     def test_une_app_SANS_facettes_ne_rend_RIEN(self):
         """La plupart des apps ont UNE seule lecture de leur résultat — ou plusieurs résultats
         dans une preview (imager). Le partial ne doit rien poser pour elles."""
-        for app in ('converter', 'imager', 'anonymizer'):
-            self.assertEqual(result_tabs_for(app), [])
-            self.assertEqual(_rendu(app).strip(), '')
+        # Parcours du REGISTRE de détail, pas une liste de trois apps (Fabien, 19/09).
+        from wama.common.utils.detail_registry import DetailRegistry
+        sans = [a for a in DetailRegistry.registered_apps() if not result_tabs_for(a)]
+        self.assertGreaterEqual(len(sans), 3, 'parcours vacueux')
+        for app in sans:
+            self.assertEqual(_rendu(app).strip(), '', f'{app} : le partial pose quelque chose sans facette')
 
     def test_les_defauts_sont_appliques_PAR_L_ACCESSEUR_pas_par_le_gabarit(self):
         """Une valeur par défaut posée dans un template se recopie au premier partial qui
@@ -87,11 +90,16 @@ class DeclarationDansLaSpecDeDetailTest(SimpleTestCase):
     """
 
     def test_la_declaration_vient_de_la_spec_du_detail_registry(self):
+        """Pour TOUTE app du registre qui rend des facettes (pas deux apps nommées) : ce que
+        l'accesseur rend est ce que sa SPEC déclare, clé pour clé."""
         from wama.common.utils.detail_registry import DetailRegistry
-        for app in ('describer', 'transcriber'):
+        avec = [a for a in DetailRegistry.registered_apps() if result_tabs_for(a)]
+        self.assertGreaterEqual(len(avec), 2, 'parcours vacueux')
+        for app in avec:
             spec = (DetailRegistry.get(app) or {}).get('spec') or {}
-            self.assertTrue(spec.get('result_tabs'),
-                            f'{app} : facettes absentes de sa spec de détail')
+            self.assertEqual([o['cle'] for o in result_tabs_for(app)],
+                             [o['cle'] for o in spec.get('result_tabs') or []],
+                             f'{app} : facettes rendues sans venir de sa spec de détail')
 
     def test_un_adapter_CODE_peut_porter_une_spec(self):
         """Le transcriber garde son adapter irréductible ET déclare ses facettes : exiger la
