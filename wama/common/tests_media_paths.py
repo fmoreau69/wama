@@ -209,8 +209,15 @@ class FormeDuCheminEnUnSeulEndroitTest(SimpleTestCase):
         Une app ajoutée demain le satisfait sans qu'on ait à ajouter sa ligne ici — c'est la
         différence entre une garde et une liste.
         """
+        from django.apps import apps as django_apps
+        from wama.common.app_registry import APP_CATALOG
         from wama.common.utils.media_paths import app_media_dir
-        for app in ('anonymizer', 'imager', 'reader', 'transcriber', 'converter_01'):
+        # Le CATALOGUE (jumelles comprises) + les apps du Lab installées — jamais une liste
+        # (la docstring le promettait, le corps nommait cinq apps ; relevé par Fabien le 19/09).
+        labo = [c.label for c in django_apps.get_app_configs() if c.name.startswith('wama_lab.')]
+        toutes = sorted(set(APP_CATALOG) | set(labo))
+        self.assertGreaterEqual(len(toutes), 10, 'parcours vacueux')
+        for app in toutes:
             for sub in ('input', 'output'):
                 self.assertTrue(app_media_dir(app, 5, sub).startswith('users/5/'),
                                 f"{app}/{sub} sort du domicile de l'utilisateur")
@@ -339,18 +346,28 @@ class AucuneEcritureNeRecomposeUnCheminDAppTest(SimpleTestCase):
     Garder la première seule laisse l'autre grande ouverte.*
     """
 
-    APPS = ('anonymizer|avatarizer|composer|converter|describer|enhancer|imager|reader|'
-            'synthesizer|transcriber|cam_analyzer|face_analyzer')
+    @staticmethod
+    def _idiome():
+        """`MEDIA_ROOT`, puis un nom d'app en dur, puis une expression d'utilisateur.
 
-    #: `MEDIA_ROOT`, puis un nom d'app en dur, puis une expression d'utilisateur.
-    IDIOME = re.compile(
-        rf"MEDIA_ROOT.{{0,40}}['\"]({APPS})(_\d+)?['\"].{{0,60}}(user|str\(user)")
+        Les noms viennent du CATALOGUE (jumelles comprises) et des apps du Lab installées —
+        jamais d'une liste écrite ici : douze noms y étaient figés, une app ajoutée demain
+        aurait échappé à la garde (relevé par Fabien le 19/09). Les plus longs d'abord, pour
+        qu'une alternance ne s'arrête pas sur un préfixe."""
+        from django.apps import apps as django_apps
+        from wama.common.app_registry import APP_CATALOG
+        labo = [c.label for c in django_apps.get_app_configs() if c.name.startswith('wama_lab.')]
+        noms = sorted(set(APP_CATALOG) | set(labo), key=lambda n: (-len(n), n))
+        return re.compile(
+            rf"MEDIA_ROOT.{{0,40}}['\"]({'|'.join(map(re.escape, noms))})(_\d+)?['\"]"
+            rf".{{0,60}}(user|str\(user)")
 
     #: Les dossiers d'APPLICATION (galerie, voix) n'ont pas d'utilisateur : l'idiome ne les
     #: attrape pas, et c'est voulu — ils n'ont rien à faire dans un domicile.
     def test_aucune_tache_ni_vue_ne_compose_de_chemin_par_utilisateur(self):
         from wama.common.sandbox import LABEL_RE
 
+        idiome = self._idiome()
         fautifs = []
         for racine in ('wama', 'wama_lab'):
             for py in (RACINE_DEPOT / racine).rglob('*.py'):
@@ -363,7 +380,7 @@ class AucuneEcritureNeRecomposeUnCheminDAppTest(SimpleTestCase):
                     continue
                 for no, ligne in enumerate(
                         py.read_text(encoding='utf-8', errors='replace').splitlines(), 1):
-                    if self.IDIOME.search(ligne) and 'app_media_dir' not in ligne:
+                    if idiome.search(ligne) and 'app_media_dir' not in ligne:
                         fautifs.append(f'{rel}:{no}')
         self.assertEqual([], fautifs,
                          'un chemin média par utilisateur est composé à la main — il écrira '

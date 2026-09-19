@@ -176,17 +176,30 @@ class CurseurDeQualiteTest(TestCase):
         self.assertEqual(rapide.get('auto_preview', {}).get('name'), 'TTS léger')
         self.assertEqual(qualite.get('auto_preview', {}).get('name'), 'TTS lourd')
 
-    def test_les_deux_adopteurs_declarent_le_curseur_conditionne_a_auto(self):
+    def test_toute_app_qui_porte_le_curseur_le_declare_conditionne_a_auto(self):
+        """Parcours du CATALOGUE, jamais une liste d'adopteurs (Fabien, 2026-09-19 : « toutes
+        les apps auront le curseur ») : chaque app dont le schéma porte `quality_intent` le
+        déclare en type `intent`, défaut 50, visible seulement quand SON sélecteur de modèle
+        est sur « auto » — le nom du sélecteur est celui de l'app (`tts_model`…), et il doit
+        exister dans le même schéma. Ce test nommait ses deux adopteurs ; une app ralliée
+        demain est gardée sans qu'on l'ajoute ici."""
+        from wama.common.app_registry import APP_CATALOG
         from wama.common.utils.param_schema import schema_for_app
-        for app in ('synthesizer', 'avatarizer'):
-            champ = next((f for f in schema_for_app(app)
-                          if f.get('name') == 'quality_intent'), None)
-            self.assertIsNotNone(champ, f"{app} : quality_intent absent du schéma")
-            self.assertEqual(champ.get('type'), 'intent')
-            self.assertEqual(champ.get('default'), 50)
-            self.assertEqual(champ.get('show_if'),
-                             {'field': 'tts_model', 'equals': 'auto'},
+        adopteurs = []
+        for app in sorted(APP_CATALOG):
+            schema = schema_for_app(app) or []
+            champ = next((f for f in schema if f.get('name') == 'quality_intent'), None)
+            if champ is None:
+                continue
+            adopteurs.append(app)
+            self.assertEqual(champ.get('type'), 'intent', app)
+            self.assertEqual(champ.get('default'), 50, app)
+            condition = champ.get('show_if') or {}
+            self.assertEqual(condition.get('equals'), 'auto',
                              f"{app} : le curseur doit n'apparaître que sur « auto »")
+            self.assertIn(condition.get('field'), {f.get('name') for f in schema},
+                          f"{app} : la condition d'affichage vise un champ absent du schéma")
+        self.assertGreaterEqual(len(adopteurs), 2, 'parcours vacueux : au moins deux adopteurs')
 
     def test_l_anonymizer_est_rallie_au_curseur_commun_avec_son_pas_reel(self):
         """Même FORME utilisateur (type='intent'), déclinaison locale conservée : le champ
