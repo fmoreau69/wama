@@ -107,3 +107,60 @@ def composants_declares(categorie: str, famille: str) -> list:
     except Exception as e:
         logger.debug('[model_locations] composants non dérivables : %s', e)
     return prefixes
+
+
+# =============================================================================
+# OÙ SONT LES POIDS D'UN `hf_id` INSTALLÉ — l'index qu'aucune ligne d'app ne porte
+# =============================================================================
+
+def hf_folder_name(hf_id: str) -> str:
+    """`org/nom` → `models--org--nom` (convention huggingface_hub : `repo_id.replace('/', '--')`)."""
+    return 'models--' + str(hf_id or '').strip().replace('/', '--')
+
+
+def hf_id_of_folder(name: str):
+    """`models--org--nom` → `org/nom`, ou None si ce n'est pas un dossier de dépôt HF. Le
+    séparateur est le DOUBLE tiret : les tirets simples d'un nom restent intacts (règle de
+    `_snapshot_to_model`)."""
+    if not str(name).startswith('models--'):
+        return None
+    parts = str(name)[len('models--'):].split('--')
+    return f"{parts[0]}/{'--'.join(parts[1:])}" if len(parts) >= 2 else None
+
+
+def installed_snapshots() -> dict:
+    """`hf_id` (minuscules) → racine `models--org--nom` INSTALLÉE, en UN parcours (2026-09-19).
+
+    POURQUOI. Une ligne de catalogue ne porte pas son snapshot : seul le composer déclare
+    `extra_info['install_dir']`, l'imager retrouve le sien dans sa propre découverte, le balayage
+    générique pose `local_path`. Pour PESER les poids d'un modèle installé (décision A — le poids
+    par composant lu dans les fichiers), il faut relier un `hf_id` à son dossier sans redemander
+    à chaque app : c'est cet index. Même parcours que `_discover_installed_hf_snapshots`
+    (`<catégorie>/<famille>/models--*` sous `models_root()`), puis le cache HF PARTAGÉ en repli
+    (là où les sous-dépendances vivent — et où un modèle atterrit quand un backend oublie
+    `cache_dir=`). Le chemin canonique PRIME sur le cache partagé. Seul un dossier qui porte
+    `snapshots/` compte : un `models--` sans révision n'est pas un modèle installé.
+
+    ⚠ L'index ne DEVINE pas : un `hf_id` déclaré qui n'est pas le dépôt sur disque (transcriber
+    déclare `openai/whisper-large-v3`, le disque porte `Systran/faster-whisper-large-v3`) reste
+    sans entrée. Hors Django / disque absent : dict vide.
+    """
+    index = {}
+
+    def _take(snap: Path):
+        hf_id = hf_id_of_folder(snap.name)
+        if hf_id and snap.is_dir() and (snap / 'snapshots').is_dir():
+            index.setdefault(hf_id.lower(), snap)
+
+    try:
+        root = models_root()
+        if root.is_dir():
+            for snap in sorted(root.glob('*/*/models--*')):
+                _take(snap)
+        shared = getattr(settings, 'HF_DEFAULT_CACHE', None)
+        if shared and Path(shared).is_dir():
+            for snap in sorted(Path(shared).glob('models--*')):
+                _take(snap)                       # `setdefault` : le canonique reste premier
+    except Exception as e:
+        logger.debug('[model_locations] index des snapshots indisponible : %s', e)
+    return index

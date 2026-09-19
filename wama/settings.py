@@ -762,6 +762,14 @@ if ENABLE_CELERY:
             'schedule': 600.0,
             'options': {'queue': 'default'},
         },
+        # Poids PAR COMPOSANT des modèles installés → catalogue (`extra_info['weights']`,
+        # 2026-09-19, décision A). Lecture disque, aucun modèle chargé ; rien n'est refait tant
+        # que la signature du snapshot ne bouge pas.
+        'persist-weights': {
+            'task': 'model_manager.persist_weights',
+            'schedule': 3600.0,
+            'options': {'queue': 'default'},
+        },
         # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
         'purge-expired-media': {
             'task': 'common.purge_expired_media',
