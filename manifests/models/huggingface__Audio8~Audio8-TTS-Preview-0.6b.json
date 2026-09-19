@@ -42,11 +42,7 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "Audio8-TTS-Preview-0.6b",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/Audio8-TTS-Preview-0.6b/models--Audio8--Audio8-TTS-Preview-0.6b",
-      "size_bytes": 2565537696,
-      "vram_estimated": true
+      "family": "Audio8-TTS-Preview-0.6b"
     },
     "formats": {
       "can_convert_to": [],

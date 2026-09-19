@@ -284,6 +284,29 @@ python manage.py manifest_export --check    # sort en erreur si le corpus est p�
 - **Règle 2 — que du déclaratif.** `_missing_facets` (diagnostic DÉRIVÉ, calculé pour
   `facet_report`) est retiré du fichier et remonté en console : un LLM entraîné dessus
   apprendrait à l'inventer.
+  ⭐ **Étendue à `extra_info` le 2026-09-19** — la règle n'était appliquée qu'aux clés `_*` du
+  `body`, un cran trop haut. Mesuré sur les 141 manifestes de modèles : **`extra_info.path` sur
+  82 d'entre eux, avec le chemin ABSOLU de la machine** (`/mnt/d/WAMA/…`) — dans un dépôt
+  **public** —, plus `size_bytes`, `install_dir`, `installed`/`ready`/`models_cached`,
+  `ollama_id`, `vram_estimated`… Tout cela décrit **l'état de cette machine**, pas le modèle.
+  Retirer ne perd rien : `write_back_model` ne projette **jamais** `extra_info` (il ne touche
+  que `_CHAMPS_PROJETES` + `capabilities` + `gated`, vérifié), et `local_path` — le vrai
+  porteur du chemin — figure parmi les champs **préservés**. Liste NOIRE et non blanche
+  (`manifest_export._EXTRA_INFO_ETAT_MACHINE`) : une app qui déclare demain une méta-info
+  propre doit la voir arriver au corpus sans rien modifier. Tenu par
+  `tests_catalogues.CorpusNePorteQueDuDeclaratifTest` (chemins absolus **et** clés d'état).
+- **Règle 3 — le corpus ÉNUMÈRE, il ne dérive pas seulement** (2026-09-19). Les modèles
+  n'entraient que par dérivation (cités par les `requires` d'une app) ∪ refresh des déjà semés :
+  un modèle qu'**aucune app ne déclare** n'avait donc jamais de manifeste — mesuré, **12 lignes
+  cloud** (11 `anthropic:*` + `claude_code:default`), celles que la découverte cloud apporte
+  sans app propriétaire. `manifest_export --kind model` énumère désormais le catalogue, comme
+  `--kind function`. ⚠ **Les lignes RETIRÉES restent dehors** (`is_available=False` :
+  `retire_unlisted` MARQUE au lieu de supprimer, pour garder l'historique) — et ce n'est pas de
+  la propreté : le 2026-09-18, exporter une ligne périmée a **écrasé le manifeste d'une ligne
+  vivante**, son nom de fichier ne différant que par la CASSE. `_nom_fichier` refuse désormais
+  cette collision, comme il refusait déjà `__`/`~` : *refuser vaut mieux que corrompre en
+  silence.* Le refresh des déjà semés est conservé — sans lui, le manifeste d'une ligne écartée
+  (le YOLO visages exclu le 12/08) fossilise ce que l'export ne produit plus.
 - **JSON trié, indentation stable** → le `git diff` du corpus devient la **revue de ce qui change
   dans la surface déclarée d'une app**. C'est la raison de le versionner malgré son caractère dérivé.
 

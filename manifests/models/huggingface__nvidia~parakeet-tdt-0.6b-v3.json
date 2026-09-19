@@ -43,11 +43,7 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "parakeet-tdt-0.6b-v3",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/parakeet-tdt-0.6b-v3/models--nvidia--parakeet-tdt-0.6b-v3",
-      "size_bytes": 2510537452,
-      "vram_estimated": true
+      "family": "parakeet-tdt-0.6b-v3"
     },
     "formats": {
       "can_convert_to": [],

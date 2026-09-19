@@ -1,0 +1,71 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "face-analysis"
+    },
+    "composition": {
+      "components": [
+        {
+          "repo": "serengil/deepface_models",
+          "role": "facial_expression_model_weights.h5"
+        }
+      ],
+      "runtime": {
+        "engine": "deepface"
+      }
+    },
+    "extra_info": {
+      "model_id": "deepface-expression",
+      "optional": false
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "h5",
+      "preferred_format": "h5"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Reconnaissance d'expressions faciales (7 émotions) — backend DeepFace",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "face_analyzer"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "face_analyzer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.005566880106925964,
+      "ram_gb": 0.0,
+      "vram_gb": 0.3
+    }
+  },
+  "description": "Reconnaissance d'expressions faciales (7 émotions) — backend DeepFace",
+  "key": "face_analyzer:deepface-expression",
+  "manifest_kind": "model",
+  "name": "deepface-expression",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:face_analyzer:deepface-expression",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

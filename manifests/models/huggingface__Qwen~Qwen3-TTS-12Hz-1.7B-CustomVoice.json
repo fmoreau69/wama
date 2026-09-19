@@ -29,11 +29,7 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/Qwen3-TTS-12Hz-1.7B-CustomVoice/models--Qwen--Qwen3-TTS-12Hz-1.7B-CustomVoice",
-      "size_bytes": 4520218951,
-      "vram_estimated": true
+      "family": "Qwen3-TTS-12Hz-1.7B-CustomVoice"
     },
     "formats": {
       "can_convert_to": [],

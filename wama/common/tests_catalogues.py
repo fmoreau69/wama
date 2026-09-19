@@ -289,6 +289,85 @@ class ManifestKindsConformiteTest(TestCase):
             "l'en-tête de `wama/common/manifests/kinds.py` DANS LE MÊME COMMIT")
 
 
+class CorpusNePorteQueDuDeclaratifTest(TestCase):
+    """
+    Le corpus de manifestes est un support d'APPRENTISSAGE (`manifest_export` : « un manifeste
+    invalide exporté enseignerait une erreur »). Il ne doit donc contenir que du DÉCLARATIF —
+    ni chemin de cette machine, ni état d'installation à l'instant T.
+
+    Mesuré le 2026-09-19 avant le filtre : `extra_info.path` sur **82** des 141 manifestes de
+    modèles, avec le chemin ABSOLU de la machine (`/mnt/d/WAMA/…`) — dans un dépôt PUBLIC, et
+    en doublon de `local_path`, que le write-back PRÉSERVE (il ne projette jamais `extra_info`).
+    Un LLM entraîné là-dessus apprendrait à inventer des chemins absolus.
+    """
+
+    def _manifestes(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        base = Path(settings.BASE_DIR)
+        for dossier in ('models', 'apps', 'libraries', 'functions', 'pipelines', 'datasets'):
+            for f in sorted((base / 'manifests' / dossier).glob('*.json')):
+                yield f
+
+    def test_aucun_chemin_absolu_de_cette_machine(self):
+        # Motifs volontairement LARGES : le dépôt est public, et un chemin de dev qui fuite ne
+        # se remarque pas à la relecture d'un diff de 141 fichiers.
+        motifs = ('/mnt/', 'D:\\\\', 'C:\\\\', '/home/', '/Users/')
+        fautifs = []
+        for f in self._manifestes():
+            texte = f.read_text(encoding='utf-8')
+            for motif in motifs:
+                if motif in texte:
+                    fautifs.append(f"{f.name} contient {motif!r}")
+                    break
+        self.assertEqual(fautifs, [], "chemins absolus dans le corpus")
+
+    def test_aucune_cle_d_etat_machine_dans_extra_info(self):
+        """La liste NOIRE est appliquée à l'export : si une de ces clés réapparaît, c'est que
+        le filtre a été contourné (nouveau chemin d'écriture, ou `--force`)."""
+        import json
+
+        from wama.common.management.commands.manifest_export import _EXTRA_INFO_ETAT_MACHINE
+        fautifs = []
+        for f in self._manifestes():
+            try:
+                body = (json.loads(f.read_text(encoding='utf-8')).get('body') or {})
+            except Exception:
+                continue
+            vues = set(body.get('extra_info') or {}) & _EXTRA_INFO_ETAT_MACHINE
+            if vues:
+                fautifs.append(f"{f.name} : {sorted(vues)}")
+        self.assertEqual(fautifs, [], "état machine dans le corpus")
+
+    def test_deux_cles_qui_ne_different_que_par_la_casse_sont_refusees(self):
+        """Sous Windows et macOS elles donneraient UN seul fichier : le 2026-09-18, l'export
+        d'une ligne périmée a ainsi écrasé le manifeste d'une ligne vivante."""
+        from wama.common.management.commands.manifest_export import _nom_fichier
+        lot = ['albert:qwen3-coder-30b-a3b-instruct', 'albert:qwen3-coder-30b-A3b-instruct']
+        self.assertEqual(_nom_fichier(lot[0], []), 'albert__qwen3-coder-30b-a3b-instruct')
+        with self.assertRaises(ValueError):
+            _nom_fichier(lot[1], lot)
+
+    def test_les_modeles_du_catalogue_sont_ENUMERES_pas_seulement_derives(self):
+        """Un modèle qu'aucune app ne déclare n'avait jamais de manifeste : mesuré, 12 lignes
+        cloud (11 `anthropic:*` + `claude_code:default`)."""
+        from wama.common.management.commands.manifest_export import _model_keys
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='anthropic:temoin-enumere', name='Témoin',
+                               model_type='llm', source='anthropic', is_available=True,
+                               execution='cloud')
+        AIModel.objects.create(model_key='anthropic:temoin-retire', name='Retiré',
+                               model_type='llm', source='anthropic', is_available=False,
+                               execution='cloud')
+        cles = _model_keys()
+        self.assertIn('anthropic:temoin-enumere', cles)
+        # Une ligne RETIRÉE reste hors du corpus : `retire_unlisted` la MARQUE au lieu de la
+        # supprimer (elle porte l'historique), et l'exporter risquerait d'écraser le manifeste
+        # d'une clé voisine à la casse près.
+        self.assertNotIn('anthropic:temoin-retire', cles)
+
+
 class ApplyManifestsRendCompteDesREFUSTest(TestCase):
     """`apply_manifests` doit distinguer « sauté » d'« inchangé ».
 

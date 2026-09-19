@@ -16,11 +16,7 @@
     "composition": {},
     "extra_info": {
       "category": "diffusion",
-      "family": "Minimax-h3-Turbo-SLA",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/Minimax-h3-Turbo-SLA/models--lightx2v--Minimax-h3-Turbo-SLA",
-      "size_bytes": 3339876935,
-      "vram_estimated": true
+      "family": "Minimax-h3-Turbo-SLA"
     },
     "formats": {
       "can_convert_to": [],

@@ -26,8 +26,6 @@
         "license_plate"
       ],
       "model_id": "detect/plates/license-plate-finetune-v1x.onnx",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/detect/plates/license-plate-finetune-v1x.onnx",
-      "size_bytes": 227582903,
       "specialty": "plates",
       "yolo_type": "detect"
     },

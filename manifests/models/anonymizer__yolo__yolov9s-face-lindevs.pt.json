@@ -23,8 +23,6 @@
         "face"
       ],
       "model_id": "detect/faces/yolov9s-face-lindevs.pt",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/detect/faces/yolov9s-face-lindevs.pt",
-      "size_bytes": 13314290,
       "specialty": "faces",
       "yolo_type": "detect"
     },

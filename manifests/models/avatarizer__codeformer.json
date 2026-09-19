@@ -31,7 +31,6 @@
     },
     "extra_info": {
       "model_id": "codeformer",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/lipsync/codeformer",
       "pipeline": "codeformer"
     },
     "formats": {

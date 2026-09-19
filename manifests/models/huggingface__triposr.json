@@ -1,0 +1,69 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "reconstruction": "plausible",
+      "task": "image-to-3d"
+    },
+    "composition": {
+      "components": [
+        {
+          "pin": "107cefdc",
+          "repo": "https://github.com/VAST-AI-Research/TripoSR",
+          "role": "code"
+        }
+      ],
+      "runtime": {
+        "engine": "triposr"
+      }
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Reconstruction mono-image → maillage 3D texturé (LRM, ~0,5 s/objet sur GPU), MIT",
+      "hf_id": "stabilityai/TripoSR",
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 6.0
+    }
+  },
+  "description": "Reconstruction mono-image → maillage 3D texturé (LRM, ~0,5 s/objet sur GPU), MIT. ⚠ Reconstruction PLAUSIBLE, pas métrique : les faces occultées sont hallucinées (§17ter) — props de simulation, jamais une mesure.",
+  "key": "huggingface:triposr",
+  "manifest_kind": "model",
+  "name": "TripoSR",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:triposr",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

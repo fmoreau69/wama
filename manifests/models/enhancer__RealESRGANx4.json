@@ -16,10 +16,7 @@
         "engine": "onnxruntime"
       }
     },
-    "extra_info": {
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/RealESRGANx4_fp16.onnx",
-      "size_mb": 32.1854133605957
-    },
+    "extra_info": {},
     "formats": {
       "can_convert_to": [],
       "format": "onnx",

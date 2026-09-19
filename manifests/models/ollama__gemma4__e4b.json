@@ -32,10 +32,7 @@
         "engine": "ollama"
       }
     },
-    "extra_info": {
-      "disk_gb": 9.6,
-      "ollama_id": "c6eb396dbd59"
-    },
+    "extra_info": {},
     "formats": {
       "can_convert_to": [],
       "format": "gguf",

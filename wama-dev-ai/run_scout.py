@@ -41,7 +41,8 @@ import django
 django.setup()
 
 from role_utils import (  # noqa: E402
-    REPO_ROOT, add_llm_arguments, call_llm, extract_json, fetch, resolve_model, write_output)
+    REPO_ROOT, add_llm_arguments, call_llm, extract_json, fetch, manifest_examples,
+    resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'scout.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -138,8 +139,15 @@ def main():
 
     from wama.model_manager.models import ModelType
     taxonomie = ', '.join(sorted(ModelType.values))
-    exemples = '\n\n'.join(f.read_text(encoding='utf-8')
-                           for f in sorted(EXEMPLES_DIR.glob('*.json'))[:1])
+    # Exemple(s) de MÊME NATURE que la cible — un dépôt HuggingFace —, et de forme COMPOSÉE
+    # quand la cible porte plusieurs fichiers de poids : c'est alors `composition` qu'il faut
+    # montrer. Avant le 2026-09-19 c'était `sorted(glob)[:1]`, donc le premier par ordre
+    # ALPHABÉTIQUE : `albert__bge-m3.json`, un modèle CLOUD servi par une API, sans poids, sans
+    # composition et sans moteur — l'exemple le moins ressemblant du corpus.
+    nb_poids = sum(1 for ligne in inventaire.splitlines()
+                   if ligne.strip().lower().endswith(_EXT_POIDS))
+    exemples = manifest_examples(EXEMPLES_DIR, prefer_source='huggingface__',
+                                 want_composed=nb_poids > 1, limit=2)
     user_msg = (f'TAXONOMIE model_type (fermée) : {taxonomie}\n\n'
                 f'EXEMPLE de manifeste `model` valide :\n{exemples}\n\n'
                 f'SQUELETTE mécanique (à COMPLÉTER, jamais contredire) :\n'
@@ -150,6 +158,8 @@ def main():
                 'composition si multi-composants). Réponds {"manifest": …, "concerns": […]}.')
 
     if args.dry_run:
+        print(f"[scout] exemples : {len(exemples)} caractères, forme "
+              f"{'COMPOSÉE' if nb_poids > 1 else 'simple'} ({nb_poids} fichier(s) de poids)")
         print('[scout] DRY-RUN — squelette mécanique :')
         print(json.dumps(base, ensure_ascii=False, indent=2))
         print(f'[scout] contexte LLM : {len(user_msg)} caractères, inventaire :')

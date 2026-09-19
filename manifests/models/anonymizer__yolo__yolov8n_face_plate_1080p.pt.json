@@ -25,8 +25,6 @@
         "face"
       ],
       "model_id": "detect/faces&plates/yolov8n_face_plate_1080p.pt",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/detect/faces&plates/yolov8n_face_plate_1080p.pt",
-      "size_bytes": 6471416,
       "specialty": "faces&plates",
       "yolo_type": "detect"
     },

@@ -27,10 +27,7 @@
         "engine": "ollama"
       }
     },
-    "extra_info": {
-      "disk_gb": 2.5,
-      "ollama_id": "df5bd2e3c74c"
-    },
+    "extra_info": {},
     "formats": {
       "can_convert_to": [],
       "format": "gguf",

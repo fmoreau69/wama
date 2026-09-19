@@ -51,8 +51,6 @@
         "swimming pool"
       ],
       "model_id": "obb/yolo11m-obb.pt",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/obb/yolo11m-obb.pt",
-      "size_bytes": 42415346,
       "specialty": null,
       "yolo_type": "obb"
     },

@@ -222,3 +222,42 @@ def write_output(role, slug, payload):
     sortie.write_text(json.dumps({'status': 'PENDING_HUMAN_VALIDATION', 'role': role,
                                   **payload}, ensure_ascii=False, indent=2), encoding='utf-8')
     return sortie
+
+
+def manifest_examples(dossier, *, prefer_source='', want_composed=None, limit=2) -> str:
+    """
+    Exemples du corpus choisis PAR NATURE — le few-shot d'un rôle, pas le premier fichier venu.
+
+    Pourquoi (2026-09-19) : `run_scout.py` prenait `sorted(glob)[:1]`, c'est-à-dire le premier
+    par ORDRE ALPHABÉTIQUE — `albert__bge-m3.json`, un modèle CLOUD servi par une API, comme
+    unique exemple pour traduire un dépôt HuggingFace LOCAL. Un exemple hors nature enseigne
+    la mauvaise forme : il n'a ni poids, ni composition, ni moteur. `run_model_manifest.py`
+    faisait déjà le choix par nature (un COMPOSÉ + un simple) : ce corps est le sien, déplacé
+    ici pour que les deux rôles le partagent au lieu de le dupliquer.
+
+    `prefer_source` : préfixe de nom de fichier privilégié (`huggingface__`, `ollama__`…) — le
+    corpus assainit `:` en `__`, donc la source d'une clé est son préfixe.
+    `want_composed` : True = privilégier ceux qui déclarent `composition.runtime`, False =
+    l'éviter, None = prendre un de chaque (le défaut, qui montre les deux formes).
+    """
+    fichiers = sorted(Path(dossier).glob('*.json'))
+    if prefer_source:
+        meme_nature = [f for f in fichiers if f.name.startswith(prefer_source)]
+        fichiers = meme_nature + [f for f in fichiers if f not in meme_nature]
+
+    composes, simples = [], []
+    for f in fichiers:
+        try:
+            d = json.loads(f.read_text(encoding='utf-8'))
+        except Exception:
+            continue
+        cible = composes if ((d.get('body') or {}).get('composition') or {}).get('runtime') else simples
+        cible.append(f)
+
+    if want_composed is True:
+        choisis = (composes + simples)[:limit]
+    elif want_composed is False:
+        choisis = (simples + composes)[:limit]
+    else:                      # un de chaque forme, dans l'ordre de préférence de nature
+        choisis = [x for x in (composes[:1] + simples[:1]) if x][:limit]
+    return '\n\n'.join(f.read_text(encoding='utf-8') for f in choisis)

@@ -18,8 +18,6 @@
     },
     "extra_info": {
       "model_id": "segment/yolopv2.pt",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/segment/yolopv2.pt",
-      "size_bytes": 156380200,
       "specialty": null,
       "yolo_type": "segment"
     },

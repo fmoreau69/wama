@@ -45,11 +45,7 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "chatterbox",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/chatterbox/models--ResembleAI--chatterbox",
-      "size_bytes": 13866212931,
-      "vram_estimated": true
+      "family": "chatterbox"
     },
     "formats": {
       "can_convert_to": [],

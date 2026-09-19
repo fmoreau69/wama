@@ -20,11 +20,7 @@
     },
     "extra_info": {
       "category": "vision",
-      "family": "locate-anything",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/locate-anything/models--nvidia--LocateAnything-3B",
-      "size_bytes": 7796037025,
-      "vram_estimated": true
+      "family": "locate-anything"
     },
     "formats": {
       "can_convert_to": [],
