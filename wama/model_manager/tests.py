@@ -1089,11 +1089,14 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
         from .services.model_sync import SyncResult
         return SyncResult(success=True, added=len(cles), added_keys=list(cles))
 
-    def test_un_candidat_ollama_installe_recoit_sa_provenance(self):
+    def test_un_candidat_ollama_installe_recoit_sa_provenance_et_sa_tache(self):
+        """La TÂCHE du candidat voyage avec le descripteur (2026-09-19) : la découverte par
+        rôle la connaît, la découverte générique d'un tag Ollama ne la devine pas."""
         from .services import model_installer as mi
         cand = AIModel.objects.create(
             model_key='proposed:ollama:nouveau:latest', name='nouveau:latest', model_type='llm',
-            source='ollama', is_proposed=True, proposal_kind='new')
+            source='ollama', is_proposed=True, proposal_kind='new',
+            capabilities={'task': 'text-generation'})
         with patch.object(mi, 'pull_ollama_model', return_value={'ok': True}), \
                 patch.object(mi, 'register_after_install',
                              return_value=self._sync('ollama:nouveau:latest')), \
@@ -1101,7 +1104,8 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
                       return_value={'identity': {}}) as prov:
             res = mi.install_candidate(cand)
         self.assertTrue(res['ok'])
-        prov.assert_called_once_with({'kind': 'ollama', 'ref': 'nouveau:latest'},
+        prov.assert_called_once_with({'kind': 'ollama', 'ref': 'nouveau:latest',
+                                      'task': 'text-generation'},
                                      ['ollama:nouveau:latest'])
         self.assertFalse(AIModel.objects.filter(pk=cand.pk).exists(), "candidat retiré")
 
@@ -1127,22 +1131,238 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
         self.assertTrue(res['ok'])
         self.assertNotIn('provenance', res)
 
-    def test_le_raccourci_yolo_de_la_vue_est_un_spec_comme_les_autres(self):
+
+class RouteUniqueDInstallationTest(TestCase):
+    """
+    UNE seule route d'installation depuis l'extérieur (alignement du 2026-09-19).
+
+    Mesure qui l'a motivée : l'endpoint avait DEUX entrées nues — un `spec` complet et un nom
+    de poids YOLO — qui installaient en SYNCHRONE, sans candidat et sans garde d'espace,
+    parce que la garde vivait dans la vue. Aucune des deux n'avait d'appelant (les trois
+    `fetch` de la page envoient `model_id`, `model_id+force` ou `catalog_key`), mais l'outil
+    de l'assistant allait prendre le même chemin — et sauter la même garde.
+    """
+
+    def _admin(self, nom):
+        from django.contrib.auth import get_user_model
+        admin = get_user_model().objects.create_user(nom, password='x', is_superuser=True)
+        self.client.force_login(admin)
+        return admin
+
+    def _poster(self, charge):
         import json as _json
 
-        from django.contrib.auth import get_user_model
         from django.urls import reverse
-        admin = get_user_model().objects.create_user('admin_yolo', password='x',
-                                                     is_superuser=True)
-        self.client.force_login(admin)
-        with patch('wama.model_manager.services.model_installer.install_from_spec',
-                   return_value={'ok': True, 'path': '/poids/yolo26s-seg.pt'}) as inst:
-            rep = self.client.post(reverse('model_manager:api_prospect_install'),
-                                   data=_json.dumps({'source': 'yolo', 'name': 'yolo26s-seg'}),
-                                   content_type='application/json')
+        return self.client.post(reverse('model_manager:api_prospect_install'),
+                                data=_json.dumps(charge), content_type='application/json')
+
+    def _candidat_hf(self, **extra):
+        return AIModel.objects.create(
+            model_key='proposed:hf:Org/Petit', name='Petit', model_type='vision',
+            source='huggingface', is_proposed=True, proposal_kind='new', hf_id='Org/Petit',
+            disk_gb=0.4, extra_info={'prospect': {
+                'spec': {'kind': 'hf', 'ref': 'Org/Petit', 'category': 'vision',
+                         'task': 'detect'}}}, **extra)
+
+    def test_un_descripteur_nu_ne_s_installe_plus(self):
+        """L'entrée `spec` installait sans candidat, sans garde et en synchrone."""
+        self._admin('admin_spec')
+        with patch('wama.model_manager.services.model_installer.install_from_spec') as inst:
+            rep = self._poster({'spec': {'kind': 'hf', 'ref': 'Org/X', 'category': 'vision'}})
+        self.assertEqual(rep.status_code, 400, rep.content)
+        inst.assert_not_called()
+
+    def test_un_candidat_s_installe_par_sa_cle_en_tache_de_fond(self):
+        from .services import model_installer as mi
+        cand = self._candidat_hf()
+        with patch.object(mi, 'disk_space_guard', return_value=None) as garde, \
+                patch('wama.common.utils.task_progress.progression_en_cours',
+                      return_value=None), \
+                patch('wama.model_manager.tasks.install_proposed_task.delay') as delay:
+            delay.return_value = type('T', (), {'id': 'tid-1'})()
+            res = mi.request_install(cand.model_key)
+        self.assertEqual((res['ok'], res['started'], res['task_id']), (True, True, 'tid-1'))
+        delay.assert_called_once_with(cand.model_key)
+        # Le poids relevé à la prospection sert la garde : pas d'interrogation du registre
+        # Ollama pour un dépôt HuggingFace, qu'il ne connaît pas.
+        self.assertEqual(garde.call_args.kwargs['needed_gb'], 0.4)
+
+    def test_la_garde_d_espace_refuse_avant_d_engager_le_telechargement(self):
+        from .services import model_installer as mi
+        cand = self._candidat_hf()
+        refus = {'success': False, 'error': 'Espace insuffisant', 'force_possible': True,
+                 'reason': 'espace_insuffisant', 'needed_gb': 50.0}
+        with patch.object(mi, 'disk_space_guard', return_value=refus), \
+                patch('wama.model_manager.tasks.install_proposed_task.delay') as delay:
+            res = mi.request_install(cand.model_key)
+        self.assertEqual(res['reason'], 'insufficient_storage')
+        self.assertIn('replaces', res['blocked'])
+        delay.assert_not_called()
+
+    def test_la_vue_rend_le_refus_d_espace_en_507_forcable(self):
+        from .services import model_installer as mi
+        cand = self._candidat_hf()
+        refus = {'success': False, 'error': 'Espace insuffisant', 'force_possible': True}
+        with patch.object(mi, 'disk_space_guard', return_value=refus):
+            self._admin('admin_507')
+            rep = self._poster({'model_id': cand.model_key})
+        self.assertEqual(rep.status_code, 507, rep.content)
+        self.assertTrue(rep.json()['force_possible'])
+
+    def test_un_nom_de_poids_yolo_devient_un_candidat_puis_suit_la_meme_route(self):
+        """Le raccourci YOLO n'installe plus en direct : il PROPOSE, puis installe le candidat
+        — donc avec garde d'espace, tâche de fond et provenance, comme tout le reste."""
+        from .services import model_installer as mi
+        self._admin('admin_yolo')
+        with patch.object(mi, 'yolo_asset_gb', return_value=0.02), \
+                patch.object(mi, 'disk_space_guard', return_value=None), \
+                patch('wama.common.utils.task_progress.progression_en_cours',
+                      return_value=None), \
+                patch('wama.model_manager.tasks.install_proposed_task.delay') as delay:
+            delay.return_value = type('T', (), {'id': 'tid-yolo'})()
+            rep = self._poster({'source': 'yolo', 'name': 'yolo26s-seg'})
         self.assertEqual(rep.status_code, 200, rep.content)
-        self.assertEqual(rep.json()['installed'], 'yolo26s-seg')
-        inst.assert_called_once_with({'kind': 'yolo', 'ref': 'yolo26s-seg'})
+        cand = AIModel.objects.get(model_key='proposed:yolo:yolo26s-seg')
+        # La tâche se déduit du suffixe du nom — même fait que le sous-dossier d'installation.
+        self.assertEqual(cand.capabilities['task'], 'segment')
+        self.assertEqual(cand.platform_ref, 'github:ultralytics/assets:yolo26s-seg')
+        self.assertEqual(cand.extra_info['prospect']['spec'],
+                         {'kind': 'yolo', 'ref': 'yolo26s-seg', 'task': 'segment',
+                          'note': 'installation VISION par nom'})
+        delay.assert_called_once_with('proposed:yolo:yolo26s-seg')
+
+    def test_un_nom_de_poids_yolo_invente_est_refuse_sans_rien_ecrire(self):
+        self._admin('admin_yolo_faux')
+        rep = self._poster({'source': 'yolo', 'name': 'https://ailleurs/poids.pt'})
+        self.assertEqual(rep.status_code, 400, rep.content)
+        self.assertFalse(AIModel.objects.filter(is_proposed=True, source='yolo').exists())
+
+    def test_une_cle_inconnue_ne_s_installe_pas(self):
+        from .services import model_installer as mi
+        res = mi.request_install('proposed:hf:Org/Fantome')
+        self.assertEqual(res['reason'], 'not_found')
+
+    def test_un_modele_deja_telecharge_ne_se_reinstalle_pas(self):
+        from .services import model_installer as mi
+        AIModel.objects.create(model_key='imager:deja', name='Déjà', model_type='diffusion',
+                               source='imager', is_downloaded=True)
+        self.assertEqual(mi.request_install('imager:deja')['reason'], 'already_downloaded')
+
+    def test_un_re_clic_rejoint_l_installation_en_cours(self):
+        from .services import model_installer as mi
+        cand = self._candidat_hf()
+        with patch.object(mi, 'disk_space_guard', return_value=None), \
+                patch('wama.common.utils.task_progress.progression_en_cours',
+                      return_value={'state': 'RUNNING', 'status': 'téléchargement…'}), \
+                patch('wama.model_manager.tasks.install_proposed_task.delay') as delay:
+            res = mi.request_install(cand.model_key)
+        self.assertTrue(res['already_running'])
+        delay.assert_not_called()
+
+    def test_l_assistant_installe_par_le_meme_corps_que_le_bouton(self):
+        """« L'assistant prend les mêmes verbes que le bouton » : un seul corps, donc une
+        seule garde d'espace — un outil ne peut pas contourner ce que la vue applique."""
+        from wama import tool_api
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_user('demandeur', password='x')
+        with patch('wama.model_manager.services.model_installer.request_install',
+                   return_value={'ok': True, 'started': True, 'model_key': 'proposed:hf:Org/P',
+                                 'task_id': 'tid-2'}) as req:
+            out = tool_api.install_model(user, 'proposed:hf:Org/P')
+        self.assertEqual(out, {'started': True, 'model_key': 'proposed:hf:Org/P',
+                               'task_id': 'tid-2'})
+        req.assert_called_once_with('proposed:hf:Org/P', force=False, variant_ref='',
+                                    variant_file='')
+
+    def test_l_assistant_rend_les_chiffres_du_refus_d_espace(self):
+        from wama import tool_api
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_user('demandeur2', password='x')
+        blocked = {'success': False, 'error': 'Espace insuffisant', 'needed_gb': 50.0,
+                   'free_gb': 12.0, 'after_gb': -38.0, 'margin_gb': 10.0,
+                   'force_possible': True, 'replaces': None, 'reason': 'espace_insuffisant'}
+        with patch('wama.model_manager.services.model_installer.request_install',
+                   return_value={'ok': False, 'reason': 'insufficient_storage',
+                                 'blocked': blocked}):
+            out = tool_api.install_model(user, 'proposed:hf:Org/Gros')
+        self.assertEqual(out['reason'], 'insufficient_storage')
+        self.assertEqual((out['needed_gb'], out['free_gb']), (50.0, 12.0))
+        self.assertTrue(out['force_possible'])
+
+    def test_l_assistant_cherche_par_le_semeur_de_candidats(self):
+        """`search_models` = le champ « Rechercher un modèle » de la page : il écrit des
+        PROPOSITIONS, il n'installe rien."""
+        from wama import tool_api
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_user('chercheur', password='x')
+        with patch('wama.model_manager.services.prospector.seed_hf_search',
+                   return_value={'ok': True, 'query': 'kokoro', 'created': 2, 'updated': 0,
+                                 'already': 1, 'skipped': 0, 'total': 2,
+                                 'refs': ['a/b', 'c/d']}) as seed:
+            out = tool_api.search_models(user, 'kokoro', limit=12, max_results=3)
+        self.assertEqual(out['refs'], ['a/b', 'c/d'])
+        self.assertNotIn('ok', out)
+        seed.assert_called_once_with('kokoro', limit=12, max_retenus=3)
+
+    def _manifeste_scout(self, **identite):
+        return {'manifest_kind': 'model', 'key': 'huggingface:Org/Juge', 'name': 'Juge',
+                'body': {'identity': {'source': 'huggingface', 'hf_id': 'Org/Juge',
+                                      'model_type': 'speech', 'license': 'mit',
+                                      **identite},
+                         'resources': {'disk_gb': 1.3},
+                         'capabilities': {'task': 'transcription',
+                                          'languages': ['fr', 'en']},
+                         'composition': {'components': [{'pattern': '*.safetensors'}]}}}
+
+    def test_un_manifeste_de_scout_devient_un_candidat_installable(self):
+        """Les capacités JUGÉES par le scout mouraient dans `outputs/` : elles vivent
+        désormais sur le candidat, donc l'installation les retrouve."""
+        from .services.prospector import seed_candidate_from_manifest
+        pose = seed_candidate_from_manifest(self._manifeste_scout())
+        self.assertTrue(pose['ok'])
+        cand = AIModel.objects.get(model_key='proposed:hf:Org/Juge')
+        self.assertTrue(cand.is_proposed)
+        self.assertEqual(cand.capabilities['languages'], ['fr', 'en'])
+        # Ce que la tâche implique est posé SANS écraser ce que le manifeste déclare.
+        self.assertEqual(cand.capabilities['task'], 'transcription')
+        self.assertIn('modalities', cand.capabilities)
+        spec = cand.extra_info['prospect']['spec']
+        self.assertEqual((spec['kind'], spec['ref'], spec['category'], spec['task']),
+                         ('hf', 'Org/Juge', 'speech', 'transcription'))
+        # La COMPOSITION voyage : c'est elle qui fait tirer le jeu de poids cohérent.
+        self.assertEqual(spec['composition'],
+                         {'components': [{'pattern': '*.safetensors'}]})
+        self.assertEqual(cand.disk_gb, 1.3)
+
+    def test_un_manifeste_sans_type_ne_fait_pas_de_candidat(self):
+        """Sans `model_type`, le candidat n'aurait ni catégorie d'installation ni
+        référentiel de concurrence : on refuse au lieu d'écrire une ligne boiteuse."""
+        from .services.prospector import seed_candidate_from_manifest
+        pose = seed_candidate_from_manifest(self._manifeste_scout(model_type=None))
+        self.assertFalse(pose['ok'])
+        self.assertFalse(AIModel.objects.filter(model_key='proposed:hf:Org/Juge').exists())
+
+    def test_un_candidat_du_scout_s_installe_par_la_route_commune(self):
+        """Bout en bout, sans LLM : manifeste jugé → candidat → `request_install`."""
+        from .services import model_installer as mi
+        from .services.prospector import seed_candidate_from_manifest
+        pose = seed_candidate_from_manifest(self._manifeste_scout())
+        with patch.object(mi, 'disk_space_guard', return_value=None), \
+                patch('wama.common.utils.task_progress.progression_en_cours',
+                      return_value=None), \
+                patch('wama.model_manager.tasks.install_proposed_task.delay') as delay:
+            delay.return_value = type('T', (), {'id': 'tid-3'})()
+            res = mi.request_install(pose['model_key'])
+        self.assertTrue(res['started'])
+        delay.assert_called_once_with('proposed:hf:Org/Juge')
+
+    def test_les_deux_verbes_de_modeles_sont_gardes_par_le_model_manager(self):
+        """Ce sont les seuls outils qui écrivent côté modèles : ils suivent le gating de la
+        page (développeurs/admins), pas celui des lectures transverses."""
+        from wama.tool_api import TOOL_APP_OVERRIDE, TOOL_REGISTRY
+        for nom in ('search_models', 'install_model'):
+            self.assertIn(nom, TOOL_REGISTRY)
+            self.assertEqual(TOOL_APP_OVERRIDE.get(nom), 'model_manager', nom)
 
 
 class _SourcesFactices:

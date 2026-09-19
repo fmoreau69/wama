@@ -16,7 +16,13 @@ Pilote BORNÉ :
 
 `--dry-run` : contexte seulement, AUCUN appel LLM (test sans charge sur l'Ollama hôte).
 
+La source du manifeste est soit un FICHIER (`--manifest`), soit une LIGNE de la base
+(`--candidate <clé>`) : un candidat de prospection est déjà un manifeste `model`, et c'est
+lui que le bouton « Installer » installera — juger la ligne plutôt qu'un fichier déposé à
+côté garantit que le jugement porte sur l'objet réel (2026-09-19).
+
 Usage (racine du repo, venv_linux) :
+    python wama-dev-ai/run_integrator.py --candidate proposed:hf:nvidia/canary-1b-v2 --dry-run
     python wama-dev-ai/run_integrator.py --manifest manifests/models/composer__minimax-music3.json --dry-run
     python wama-dev-ai/run_integrator.py --manifest wama-dev-ai/outputs/scout_… .json --besoin "générer des chansons avec paroles"
 """
@@ -66,18 +72,36 @@ def referentiel(model_type: str) -> str:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--manifest', required=True,
-                    help='Manifeste model (corpus manifests/models/ ou sortie du scout)')
+    source = ap.add_mutually_exclusive_group(required=True)
+    source.add_argument('--manifest',
+                        help='Manifeste model (corpus manifests/models/ ou sortie du scout)')
+    source.add_argument('--candidate',
+                        help="Clé d'une ligne du catalogue ou d'un CANDIDAT de prospection "
+                             "(proposed:hf:org/nom) — son manifeste est EXTRAIT de la base")
     ap.add_argument('--besoin', default='', help="Besoin utilisateur (texte libre, optionnel)")
     add_llm_arguments(ap, role='dev')
     ap.add_argument('--dry-run', action='store_true',
                     help='Contexte seulement, AUCUN appel LLM (test sans GPU)')
     args = ap.parse_args()
 
-    brut = json.loads(Path(args.manifest).read_text(encoding='utf-8'))
-    manifeste = brut.get('manifest', brut)     # sortie de scout OU fichier corpus direct
+    # Le candidat de prospection EST DÉJÀ un manifeste `model` (`extract_model` en extrait
+    # identité, capacités et provenance : is_proposed / proposal_kind / confidence). Lire la
+    # LIGNE plutôt qu'un fichier d'`outputs/` (2026-09-19, alignement des routes) : l'objet
+    # jugé est alors le même que celui que le bouton installera — un fichier déposé à côté se
+    # périme dès que le candidat est rafraîchi, réévalué ou rejeté.
+    if args.candidate:
+        from wama.common.manifests.builtin.model import extract_model
+        manifeste = extract_model(args.candidate)
+        if manifeste is None:
+            raise SystemExit(f"{args.candidate} : aucune ligne de catalogue ni candidat "
+                             "de prospection sous cette clé")
+        origine = f"candidate:{args.candidate}"
+    else:
+        brut = json.loads(Path(args.manifest).read_text(encoding='utf-8'))
+        manifeste = brut.get('manifest', brut)   # sortie de scout OU fichier corpus direct
+        origine = str(args.manifest)
     if manifeste.get('manifest_kind') != 'model':
-        raise SystemExit(f"{args.manifest} : kind {manifeste.get('manifest_kind')!r}, "
+        raise SystemExit(f"{origine} : kind {manifeste.get('manifest_kind')!r}, "
                          "attendu 'model'")
     body = manifeste.get('body') or {}
     mtype = (body.get('identity') or {}).get('model_type') or ''
@@ -97,7 +121,7 @@ def main():
         return
 
     model = resolve_model(args.provider, 'dev', args.model)
-    print(f'[integrator] {args.provider} / {model} | manifeste : {args.manifest}')
+    print(f'[integrator] {args.provider} / {model} | manifeste : {origine}')
     verdict = extract_json(call_llm(args.provider, model, PROMPT, user_msg))
 
     # ── Contrôles MÉCANIQUES : jamais d'app imaginée, new_app = route existante.
@@ -112,7 +136,7 @@ def main():
 
     sortie = write_output('integrator', manifeste.get('key', 'inconnu'), {
         'provider': args.provider, 'model': model,
-        'manifest_source': str(args.manifest), 'besoin': args.besoin,
+        'manifest_source': origine, 'besoin': args.besoin,
         'mechanical_checks': controles, 'verdict': verdict,
     })
     print(f'[integrator] → {sortie.relative_to(REPO_ROOT)}')

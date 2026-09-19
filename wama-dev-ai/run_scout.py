@@ -17,9 +17,14 @@ Pilote BORNÉ (leçons wama-dev-ai) :
 charge sur l'Ollama hôte — c'est le mode de test des sessions Claude ; la passe LLM
 réelle se lance sur décision humaine, comme la passe de confiance).
 
+`--seed-candidate` : écrit AUSSI le manifeste en candidat de prospection (`write_candidate`,
+via `prospector.seed_candidate_from_manifest`) — c'est ce qui le rend installable par le
+bouton, avec les capacités jugées ici plutôt que redécouvertes à l'installation. Un candidat
+reste une PROPOSITION : visible sur la page, rejetable d'un clic (2026-09-19).
+
 Usage (racine du repo, venv_linux) :
     python wama-dev-ai/run_scout.py --hf MiniMaxAI/MiniMax-Music3 --dry-run
-    python wama-dev-ai/run_scout.py --hf audio-cpp/MiniMax-Music3-GGUF
+    python wama-dev-ai/run_scout.py --hf audio-cpp/MiniMax-Music3-GGUF --seed-candidate
 """
 import argparse
 import json
@@ -123,6 +128,10 @@ def main():
     add_llm_arguments(ap, role='dev')
     ap.add_argument('--dry-run', action='store_true',
                     help='Squelette + contexte seulement, AUCUN appel LLM (test sans GPU)')
+    ap.add_argument('--seed-candidate', action='store_true',
+                    help="Écrit aussi le manifeste en CANDIDAT de prospection (proposition "
+                         "visible et rejetable) — c'est ce qui le rend installable par le "
+                         "bouton, avec ses capacités jugées")
     args = ap.parse_args()
 
     base, inventaire = squelette(args.hf)
@@ -180,6 +189,20 @@ def main():
           + (f' — {erreurs[:3]}' if erreurs else ' — manifeste VALIDE'))
     if concerns:
         print(f'[scout] concerns : {concerns[:3]}')
+
+    # ── Vers la route commune (2026-09-19) : le manifeste devient un CANDIDAT, donc quelque
+    # chose que le bouton « Installer » sait installer — avec les capacités JUGÉES ici, au
+    # lieu de les laisser mourir dans `outputs/` et de les redécouvrir à l'installation.
+    # Jamais sur un manifeste invalide : un candidat sans catégorie n'est pas installable.
+    if args.seed_candidate:
+        if erreurs:
+            print('[scout] ⚠ candidat NON écrit : le manifeste ne valide pas')
+        else:
+            from wama.model_manager.services.prospector import seed_candidate_from_manifest
+            pose = seed_candidate_from_manifest(manifest)
+            print(f"[scout] candidat : {pose.get('model_key') or pose.get('error')}"
+                  + (' (créé)' if pose.get('created') else ' (rafraîchi)' if pose.get('ok')
+                     else ''))
 
 
 if __name__ == '__main__':

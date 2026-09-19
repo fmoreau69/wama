@@ -29,7 +29,7 @@
 
 | Étape | État | Brique |
 |---|---|---|
-| 1 | 🟡 | AI-Assistant + `tool_api.py` — **un SEUL fichier central `wama/tool_api.py`** (`TOOL_REGISTRY`, `/api/v1/tools/`), pas un par app. Il couvre les 10 apps média et **zéro outil model_manager** : `search_models` / `model_catalog` / `prepare_install_spec` / `install_model` restent à écrire |
+| 1 | ✅ | AI-Assistant + `tool_api.py` — **un SEUL fichier central `wama/tool_api.py`** (`TOOL_REGISTRY`, `/api/v1/tools/`), pas un par app. ~~zéro outil model_manager~~ **LIVRÉS** : lectures `list_ai_models` / `get_ai_model` (2026-09-03), puis les **deux gestes du bouton** le 2026-09-19 — `search_models` (= `seed_hf_search`, écrit des PROPOSITIONS) et `install_model` (= `request_install`, garde d'espace comprise), gardés `model_manager` dans `TOOL_APP_OVERRIDE`. ⚠ `prepare_install_spec` **n'a pas à exister** (décision du 19/09) : le spec est celui du CANDIDAT (`spec_for_choice`) — un outil qui fabriquerait un spec rouvrirait l'entrée nue qu'on vient de fermer |
 | 2 | 🟡 | `services/prospector.py` (HF API : `pipeline_tag`, librairie, downloads, **`--search`, métrique `model-index`, licence, URL** depuis 2026-08-05) + `prospect_agents.py` (évaluation LLM des candidats) — chaîne Ollama-first opérationnelle ; **moitié « HF vision » de l'extension livrée** (cf. §2 bis), reste le beat releases Ultralytics |
 | 3 | ✅ | **SUBSUMÉ par la couche manifestes** (2026-08-02) : le kind `library` (SPEC §7.4-3) porte dépôt/licence/version/`install.pip`, extrait mécaniquement par `extract_library()` ; la « passe LLM » est le rôle wama-dev-ai « librarian » (§7.4-4, `run_librarian.py`). Reste à **brancher** sur la prospection, plus à écrire |
 | 4 | 🟡 | Capacités d'apps déclarées (`APP_CATALOG`, `app_registry`) ; le matching besoin↔capacité est à écrire |
@@ -67,12 +67,21 @@
   refusait est celui que le code a pris ; assumé, le validateur couvre désormais `composition`).
 - **Le kind `model` est « store+verify only »** (pas de `project`, cf. `kinds.py`) : un candidat
   validé ne s'écrit pas en base par la couche manifeste — l'installation reste
-  `api_prospect_install` → `install_from_spec`. Le manifeste DÉCRIT, l'endpoint EXÉCUTE.
+  `api_prospect_install` → `request_install` → tâche Celery → `install_from_spec`. Le manifeste
+  DÉCRIT, l'endpoint EXÉCUTE. ⭐ Et depuis le 2026-09-19, un manifeste `model` de scout ENTRE
+  par la même porte que tout le reste : `prospector.seed_candidate_from_manifest` en fait un
+  CANDIDAT (proposition visible et rejetable), que le bouton installe — les capacités jugées ne
+  meurent plus dans `wama-dev-ai/outputs/`.
 - **Trous ouverts par cette confrontation — TOUS REFERMÉS depuis** (relevé 2026-08-27) :
   (a) ~~pas de `manifests/models/`~~ → **92 manifestes de modèles** dans `manifests/models/` ;
   (b) ~~aucun rôle « scout modèles »~~ → `wama-dev-ai/run_scout.py` + `run_integrator.py` livrés
-  le 27/08 (§rôles plus bas) ; (c) ~~`api_prospect_install` refuse le non-Ollama~~ →
-  `install_from_spec` est branché sur l'endpoint (`views.py::api_prospect_install`, `spec` accepté).
+  le 27/08 (§rôles plus bas) ; (c) ~~`api_prospect_install` refuse le non-Ollama~~ → le
+  non-Ollama s'installe (candidat porteur d'un spec HF → `install_from_spec`).
+  ⚠ **L'entrée `{'spec': …}` de l'endpoint est RETIRÉE le 2026-09-19** (alignement des routes) :
+  elle installait en SYNCHRONE, sans candidat et **sans garde d'espace** — mesuré sans aucun
+  appelant. Une installation part désormais d'une CLÉ (candidat ou ligne de catalogue) et passe
+  par `model_installer.request_install` ; `install_from_spec` reste le pilote INTERNE des deux
+  tâches Celery.
 
 ## Décision — pas de sauvegarde des modèles Ollama (2026-08-04, Fabien)
 
@@ -117,7 +126,7 @@ Il avait **trois causes distinctes**, toutes corrigées, plus deux chantiers ouv
 | `common/utils/ollama_host.py` | Adressage Ollama : passerelle WSL2 + contournement du proxy. Deux pièges qui produisaient un `ReadTimeout` — « Ollama ne répond pas » alors qu'il tournait — et **déclenchaient la purge** des candidats |
 | `model_manager/services/ollama_registry.py` | Découverte déterministe : recherche par capacité, tags, **vérification d'existence au manifeste** avant toute proposition ; successeur de famille (`qwen3.5 → qwen3.6`) avec fenêtre de taille **symétrique** |
 | `prospect_ollama.py` (réécrit) | Seed de 2 modèles codés en dur **supprimé** → rôles déclaratifs ; purge **conditionnée au succès** de chaque source |
-| `views._garde_espace_disque` + `_modele_remplace` | Refus en 507 si le volume saturerait ; séquence désinstallation → installation avec **rattrapage** ; recalage de la ligne remplacée |
+| `model_installer.disk_space_guard` + `replaced_model` (ex-`views._garde_espace_disque` / `_modele_remplace`, déménagés le 18/08 et le **19/09** — la garde est partagée par le bouton ET l'outil de l'assistant) | Refus en 507 si le volume saturerait ; séquence désinstallation → installation avec **rattrapage** ; recalage de la ligne remplacée |
 | `services/model_quality.py` + `AIModel.quality_index` | Sélection par **qualité** sous contrainte VRAM, au lieu de « le plus gros qui tient » |
 
 **Mesures de bout en bout (2026-08-04, cette machine)** — `qwen3.5:35b-a3b` → `qwen3.6:35b`
@@ -773,10 +782,15 @@ jamais d'auto-application) :
   minimax-music3 (catalogue d'apps complet — et l'exercice a révélé une description
   composer PÉRIMÉE, corrigée : elle ignorait Music3).
 
-**Restes de la route après cette session** : ① brancher scout/integrator sur la prospection
-(un candidat retenu → scout → integrator → recommandation sur la card) ; ② outils
-model_manager du `tool_api` (`search_models`/`prepare_install_spec`/`install_model`) pour
-que l'AI-Assistant WAMA porte le workflow ; ③ le MARCHEUR `project`→`requires`→drivers
+**Restes de la route après cette session** : ① ~~brancher scout/integrator sur la prospection
+(un candidat retenu → scout → integrator → recommandation sur la card)~~ **SOLDÉ le 2026-09-19** :
+`run_scout.py --seed-candidate` écrit le candidat (`seed_candidate_from_manifest`) et
+`run_integrator.py --candidate <clé>` juge la LIGNE (manifeste extrait de la base, mesuré :
+`proposed:hf:Lightricks/LTX-2.5` → kind `model`, `provenance.is_proposed=true`) au lieu d'un
+fichier d'`outputs/` qui se périme dès le premier rafraîchissement du candidat ;
+② ~~outils model_manager du `tool_api`~~ **SOLDÉ le 2026-09-19** (`search_models` +
+`install_model` ; `prepare_install_spec` écarté — voir la table des étapes) ;
+③ le MARCHEUR `project`→`requires`→drivers
 (« installer un projet ») ; ④ ~~`hf_id` à DÉCLARER dans les model_config
 transcriber/synthesizer/anonymizer~~ **SOLDÉ le 2026-08-27, session suivante** (voir
 « Restes connus » ② ci-dessus : déclaration à la source + 3 découvertes qui posent
@@ -1578,3 +1592,70 @@ liste. Il en a une.
 (`tests_completeness.py`) — dont un qui protège la décision « ce contrôle ne garde rien » et
 un qui sépare *rouge* (on sait qu'il manque un backend) d'*angle mort* (on ne sait rien) :
 les fondre en un seul compte ferait disparaître le second, le plus coûteux.
+
+## Session du 2026-09-19 : UNE seule route d'installation — la route de l'assistant est celle du bouton
+
+**Demande de Fabien** : *« si la route de l'assistant existe mais ne suit pas la route de
+prospection, peut-être quelque chose à aligner »*, puis validation du plan. Le principe tenu :
+*l'assistant prend les mêmes verbes que le bouton*, et l'enrichissement se fait AVANT
+l'installation, **sur le candidat**, comme le jugement de confiance.
+
+### Ce que la mesure a trouvé (avant de toucher au code)
+
+L'endpoint `api_prospect_install` avait **quatre** entrées, dont deux NUES :
+
+| entrée | garde d'espace | candidat | exécution | appelants MESURÉS |
+|---|---|---|---|---|
+| `model_id` (bouton « Installer ») | ✅ | ✅ | Celery | `index.html` ×2 (dont le forçage) |
+| `catalog_key` (modèle d'app non téléchargé) | ✅ | — (ligne du catalogue) | Celery | `index.html` ×1 |
+| **`spec` (descripteur nu)** | ❌ | ❌ | **SYNCHRONE** | **aucun** |
+| **`source: 'yolo'` (nom de poids)** | ❌ | ❌ | **SYNCHRONE** | **aucun** (1 test) |
+
+Et la garde d'espace vivait **dans la vue** (`views._garde_espace_disque`) : le futur outil de
+l'assistant ne l'aurait pas appelée. *Une garde qui vit dans une vue ne protège que cette vue.*
+
+### Ce qui change
+
+1. **`model_installer.request_install(model_key, force=…, variant_ref=…, variant_file=…)`** —
+   corps UNIQUE du geste « Installer » : choix de variante persisté, garde d'espace,
+   idempotence (un re-clic REJOINT l'installation en cours), dispatch Celery. La vue n'est plus
+   qu'une traduction en HTTP (155 → 64 lignes), et `reason` → code : `not_found` 404,
+   `already_downloaded`/`not_installable`/`unknown_variant`/`no_install_location` 400,
+   `insufficient_storage` **507 forçable**.
+2. **La garde déménage** : `views.MARGE_DISQUE_GO` / `_garde_espace_disque` →
+   `model_installer.DISK_MARGIN_GB` / `disk_space_guard` (corps repris tel quel ; identifiants
+   à l'anglais, clé de payload `raison` → `reason` — aucun consommateur JS ne la lisait, le 507
+   ne lit que `error` et `force_possible`).
+3. **L'entrée `spec` nue DISPARAÎT** (400 avec le motif). `install_from_spec` reste le pilote
+   INTERNE des deux tâches Celery — il n'est plus une porte publique.
+4. **Le raccourci YOLO devient une PROPOSITION** : `prospector.seed_yolo_candidate(name)` écrit
+   un candidat (tâche déduite du suffixe par `yolo_task_of` — `-seg` → `segment`, *le
+   sous-dossier d'installation et la tâche déclarée sont un seul fait*), poids relevé par un
+   HEAD (`yolo_asset_gb`, sinon la garde refuserait « taille indéterminable » un fichier de
+   20 Mo), validation du nom déléguée au driver (`pull_yolo_weights(dry_run=True)`). Puis la
+   route commune.
+5. **Les deux verbes de l'assistant** (`wama/tool_api.py`) : `search_models` = `seed_hf_search`
+   (écrit des PROPOSITIONS), `install_model` = `request_install`. Gardés `model_manager` dans
+   `TOOL_APP_OVERRIDE` — ce que son commentaire annonçait depuis le 11/09 (« une future action
+   d'écriture serait gardée `model_manager` »). ⚠ `prepare_install_spec` **n'a pas à exister** :
+   le spec est celui du candidat ; un outil qui en fabriquerait rouvrirait l'entrée nue.
+6. **Le scout entre par la même porte** : `prospector.seed_candidate_from_manifest(manifest)` +
+   `run_scout.py --seed-candidate`. Ses capacités JUGÉES (model_type, task, composition)
+   mouraient dans `wama-dev-ai/outputs/` et l'installation les redécouvrait depuis la carte.
+   Refus si le manifeste ne valide pas ou n'a pas de `model_type` : un candidat sans catégorie
+   n'est pas installable.
+7. **L'integrator juge la LIGNE** : `run_integrator.py --candidate <clé>` extrait le manifeste
+   de la base (`extract_model`) au lieu de lire un fichier. Mesuré sans LLM :
+   `proposed:hf:Lightricks/LTX-2.5` → kind `model`, `capabilities.task=image-to-video`,
+   `provenance.is_proposed=true, proposal_kind=new`. *Un fichier déposé à côté se périme dès que
+   le candidat est rafraîchi, réévalué ou rejeté ; la ligne est l'objet que le bouton installera.*
+8. **La tâche du candidat Ollama voyage** jusqu'à la provenance (`record_provenance` reçoit
+   `spec.task`) : seule la branche HF en bénéficiait, et la découverte générique d'un tag Ollama
+   ne devine pas ce qu'un modèle FAIT.
+
+**Tests** : 19 dans `RouteUniqueDInstallationTest` — le descripteur nu refusé sans appeler le
+driver, la garde qui refuse AVANT d'engager le téléchargement, le 507 forçable, le nom YOLO qui
+devient un candidat avec sa tâche puis part par la même route, un nom inventé refusé sans rien
+écrire, la clé inconnue, le déjà-téléchargé, le re-clic qui rejoint, les deux verbes de
+l'assistant (mêmes corps, chiffres du refus d'espace, gating `model_manager`), le manifeste de
+scout devenu candidat installable (composition transportée), et le manifeste sans type refusé.

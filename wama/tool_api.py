@@ -2245,6 +2245,94 @@ def get_ai_model(user, model_key: str) -> dict:
     }
 
 
+# ── model_manager : les DEUX gestes du bouton, pour l'assistant ──────────────────────
+#
+# Alignement des routes (2026-09-19, décision validée par Fabien) : « l'assistant prend les
+# mêmes verbes que le bouton ». `search_models` = ce que fait le champ « Rechercher un
+# modèle » de la page (`seed_hf_search`), `install_model` = ce que fait « Installer »
+# (`request_install` : garde d'espace, choix de variante, idempotence, tâche de fond).
+#
+# ⚠ Ce sont les SEULS outils de ce fichier qui ÉCRIVENT quelque chose côté modèles, et la
+# frontière est celle de la route, pas une exception de confort :
+#   • `search_models` écrit des CANDIDATS (`is_proposed=True`) — c'est-à-dire des
+#     PROPOSITIONS visibles sur la page et rejetables d'un clic : exactement la forme que
+#     la doctrine wama-dev-ai appelle « l'agent propose, l'humain valide » ;
+#   • `install_model` n'installe QUE ce qui est déjà proposé ou déjà au catalogue — il n'y a
+#     pas d'entrée par descripteur nu (elle a été retirée de l'endpoint le même jour). Une
+#     phrase en langage naturel ne peut donc pas faire télécharger un dépôt arbitraire.
+# Les deux sont gardés par l'app `model_manager` (développeurs/admins) dans
+# TOOL_APP_OVERRIDE — ce que son commentaire annonçait déjà : « une future action d'écriture
+# (install/unload) serait gardée 'model_manager', pas ces lectures ».
+# Le corpus de manifestes, lui, reste hors de portée : rien ici ne projette ni n'ingère.
+
+def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> dict:
+    """
+    SEARCH HuggingFace for models matching `query` and record them as prospection
+    PROPOSALS (visible on the model manager page, one click to install or reject).
+
+    Same verb as the page's "Rechercher un modèle" field. Nothing is downloaded: each
+    proposal carries its install descriptor, disk weight, licence verdict, task and
+    declared languages, read MECHANICALLY from the model card.
+
+    Args:
+        query: free text matched against repository names (e.g. 'kokoro onnx').
+        limit: how many repositories to fetch from HuggingFace (default 10).
+        max_results: how many proposals to keep at most (default 5).
+
+    Returns:
+        {"query", "created", "updated", "already", "skipped", "total", "refs": [hf_id]}
+    """
+    from wama.model_manager.services.prospector import seed_hf_search
+
+    q = (query or '').strip()
+    if not q:
+        return {'error': "query requis : le nom (même partiel) d'un modèle à chercher."}
+    res = seed_hf_search(q, limit=max(1, min(int(limit or 10), 30)),
+                         max_retenus=max(1, min(int(max_results or 5), 10)))
+    if not res.get('ok'):
+        return {'error': res.get('error', 'recherche HuggingFace indisponible')}
+    return {k: v for k, v in res.items() if k != 'ok'}
+
+
+def install_model(user, model_key: str, force: bool = False,
+                  variant_ref: str = '', variant_file: str = '') -> dict:
+    """
+    INSTALL a model that is already PROPOSED (prospection candidate) or already in the
+    catalogue but not downloaded. Downloads run in the background.
+
+    Same verb as the page's "Installer" button, including the disk-space guard: an install
+    that would saturate the volume is REFUSED with the figures, and only an explicit
+    `force=true` overrides it. A model that is neither proposed nor catalogued cannot be
+    installed from here — use search_models first, so a human sees the proposal.
+
+    Args:
+        model_key: candidate key ('proposed:hf:org/name') or catalogue key — both are shown
+            by list_ai_models (use include_proposed=True for candidates).
+        force: install despite the disk-space refusal (last resort, says so to the user).
+        variant_ref: install a QUANTISED variant repository instead of full weights.
+        variant_file: single weight file inside `variant_ref` (GGUF repositories hold
+            several quantisation levels — installing the repository would pull them all).
+
+    Returns:
+        {"started": true, "model_key", "task_id"}  — follow it with get_ai_model
+        {"already_running": true, "model_key", "progress"}
+        {"error", "reason"}  — 'insufficient_storage' carries `needed_gb`/`free_gb`/`after_gb`
+    """
+    from wama.model_manager.services.model_installer import request_install
+
+    res = request_install((model_key or '').strip(), force=bool(force),
+                          variant_ref=variant_ref or '', variant_file=variant_file or '')
+    if res.get('ok'):
+        return {k: v for k, v in res.items() if k != 'ok'}
+    if res.get('reason') == 'insufficient_storage':
+        blocked = res['blocked']
+        return {'error': blocked.get('error'), 'reason': 'insufficient_storage',
+                **{k: v for k, v in blocked.items()
+                   if k in ('needed_gb', 'free_gb', 'after_gb', 'margin_gb', 'replaces')},
+                'force_possible': bool(blocked.get('force_possible'))}
+    return {'error': res.get('error', 'installation refusée'), 'reason': res.get('reason')}
+
+
 # ── Intégration : les 3 routes, en PLAN (jamais en exécution) ────────────────────────
 #
 # Trou #2 de l'audit d'intégration (2026-09-03, demande Fabien) : un utilisateur peut
@@ -3149,6 +3237,11 @@ TOOL_REGISTRY = {
     # model_manager — LECTURE SEULE (trou #18 : « lister modèles/capacités, utile à l'assistant »)
     'list_ai_models': list_ai_models,
     'get_ai_model':   get_ai_model,
+    # model_manager — les DEUX gestes du bouton (2026-09-19, alignement des routes) : chercher
+    # écrit des PROPOSITIONS, installer ne prend qu'une clé déjà proposée ou cataloguée. Voir
+    # le bloc de commentaire au-dessus de `search_models` pour la frontière exacte.
+    'search_models':  search_models,
+    'install_model':  install_model,
     # Les 3 ROUTES D'INTÉGRATION en PLAN (2026-09-03, trou #2 de l'audit) — librairie pip,
     # modèle, projet GitHub→app. LECTURE SEULE : elles disent l'ÉTAT et le PROCHAIN GESTE
     # HUMAIN, elles n'installent ni n'ingèrent rien (SPEC §2.1 : le write-back est un geste
@@ -3247,6 +3340,10 @@ TOOL_APP_OVERRIDE = {
     # d'écriture (install/unload) serait gardée 'model_manager', pas ces lectures.
     'list_ai_models':      None,
     'get_ai_model':        None,
+    # …et voici l'action d'ÉCRITURE que cette ligne annonçait : gardée `model_manager`, donc
+    # réservée aux développeurs/admins comme la page elle-même (2026-09-19).
+    'search_models':       'model_manager',
+    'install_model':       'model_manager',
     # Médiathèque : RANGER un fichier À SOI y est un geste TRANSVERSE, pas l'usage de l'app
     # `media_library` (décision Fabien, 2026-09-11 : « on rend commun et on porte sur les apps
     # de façon universelle »). Il était gaté sur `media_library` du seul FAIT DE SON NOM — le
