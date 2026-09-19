@@ -264,6 +264,15 @@ class ModelSyncService:
         if _compo:
             defaults['composition'] = _compo
 
+        # PROVENANCE de `vram_gb` (décision A, 16/09) : dite par le rédacteur (`ModelInfo`), écrite
+        # ICI, au point unique par lequel toute découverte passe — 19 rédacteurs, une seule
+        # écriture. Seulement quand un chiffre est posé : « 0 » veut dire inconnu, il n'a pas de
+        # provenance. Un `ModelInfo` d'avant ce champ (jumelles, tests) vaut `declared`.
+        if defaults['vram_gb']:
+            defaults['extra_info'] = {**defaults['extra_info'],
+                                      'vram_provenance': getattr(model_info, 'vram_provenance', '')
+                                      or 'declared'}
+
         # Add local_path if available in extra_info
         if model_info.extra_info and 'path' in model_info.extra_info:
             defaults['local_path'] = str(model_info.extra_info['path'])

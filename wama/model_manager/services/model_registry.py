@@ -132,6 +132,14 @@ class ModelInfo:
     description_short: str = ""   # une ligne pour l'aide sous le sélecteur (sinon dérivé du long)
     hf_id: Optional[str] = None
     vram_gb: float = 0
+    #: D'OÙ vient `vram_gb` (décision A de Fabien, 16/09 — « provenance marquée chez les
+    #: rédacteurs ») : `declared` (l'app ou son manifeste), `heuristic` (2 × la taille d'un poids
+    #: YOLO, taille/500 d'un ONNX, taille GGUF pour Ollama), `estimated` (poids d'un snapshot
+    #: × 1,2). `measured` et `components` ne viennent pas de la découverte : ils vivent dans
+    #: `extra_info['vram_measured']` / `['weights']` (clés collantes) et la CASCADE du lecteur
+    #: (mesuré → source → estimé) les préfère. Écrit en base par `model_sync._sync_model`.
+    #: Défaut `declared` : 15 rédacteurs sur 19 déclarent ; seuls les 4 autres le disent.
+    vram_provenance: str = 'declared'
     ram_gb: float = 0
     #: Indice de qualité a priori (cf. `model_quality.py`). None = inconnu, PAS zéro : le tri
     #: doit pouvoir distinguer « pas mesuré » de « mauvais ».
@@ -846,6 +854,7 @@ class ModelRegistry:
                         # l'origine n'est pas établie, et None vaut mieux qu'une inférence.
                         hf_id=hf_id_for_yolo_weight(model_name) or None,
                         vram_gb=round(size_gb * 2, 1),  # Estimate VRAM as 2x model size
+                        vram_provenance='heuristic',
                         is_downloaded=True,
                         extra_info=extra_info,
                         backend_ref='anonymizer',
@@ -1532,6 +1541,7 @@ class ModelRegistry:
                         description_short=_ENH_DESC.get(model_name, {}).get(
                             'short', f"ONNX upscaling model ({size_mb:.1f}MB)"),
                         vram_gb=round(size_mb / 500, 1),  # Estimate
+                        vram_provenance='heuristic',
                         is_downloaded=True,
                         extra_info={'path': str(onnx_file), 'size_mb': size_mb},
                         backend_ref='enhancer',
@@ -1780,6 +1790,7 @@ class ModelRegistry:
             is_downloaded=not incomplets,
             format=fmt,
             vram_gb=vram_estimee,
+            vram_provenance='estimated',
             extra_info={
                 'path': str(snap),
                 'size_bytes': taille,
@@ -2116,6 +2127,7 @@ class ModelRegistry:
                                 # `select_model()` ne pouvait pas les départager — un 4b et un 35b
                                 # se valaient. Approcher vaut mieux qu'un zéro qui ment.
                                 vram_gb=ram_gb,
+                                vram_provenance='heuristic',
                                 is_loaded=(model_name in charges),
                                 is_downloaded=True,
                                 backend_ref='ollama',
