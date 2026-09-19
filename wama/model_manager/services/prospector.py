@@ -359,6 +359,86 @@ def _repo_weight_gb(hf_id: str):
     return _poids_total_gb(_siblings(hf_id))
 
 
+def local_inventory(snapshot_root):
+    """`[(chemin relatif, taille)]` d'un modèle INSTALLÉ — le jumeau LOCAL de `_siblings`
+    (2026-09-19), même forme, pour que `model_installer.components_of_files` pèse un snapshot
+    sur disque exactement comme un dépôt distant. Aucun réseau, aucun chargement.
+
+    `snapshot_root` : la racine `models--org--nom` du cache HF (on prend la révision la plus
+    récente sous `snapshots/`), ou directement un dossier de poids.
+
+    ⚠ ON PÈSE LES BLOBS, PAS LES LIENS — mesuré le 2026-09-19 sur LTX-Video 13B installé : le
+    snapshot porte `vae/text_encoder/…` et `vae/transformer/…`, liens vers les MÊMES blobs que
+    `text_encoder/…` et `transformer/…` (22 blobs pour 34 liens). Un parcours qui pèse les
+    chemins comptait 86 Go pour ~44 de poids réels. Chaque blob compte donc UNE fois, attribué
+    au chemin le moins profond — la convention `premier segment = composant` reste vraie pour
+    lui. Les tailles sont celles des cibles (les liens eux-mêmes pèsent 79 octets).
+
+    None = dossier absent (indéterminable), à distinguer d'un dossier VIDE (`[]`).
+    """
+    import os
+    from pathlib import Path
+
+    root = Path(snapshot_root) if snapshot_root else None
+    if root is None or not root.is_dir():
+        return None
+    revision = root
+    if (root / 'snapshots').is_dir():
+        revisions = [p for p in (root / 'snapshots').iterdir() if p.is_dir()]
+        if not revisions:
+            return None
+        revision = max(revisions, key=lambda p: p.stat().st_mtime)
+    seen = {}                         # blob réel → (profondeur, chemin relatif, taille)
+    for p in revision.rglob('*'):
+        if not p.is_file():           # suit les liens ; un lien cassé n'est pas un fichier
+            continue
+        try:
+            size = p.stat().st_size
+        except OSError:
+            continue
+        rel = p.relative_to(revision).as_posix()
+        blob = os.path.realpath(p)
+        depth = rel.count('/')
+        current = seen.get(blob)
+        if current is None or depth < current[0]:
+            seen[blob] = (depth, rel, size)
+    return sorted((rel, size) for _, rel, size in seen.values())
+
+
+def safetensors_facts(path):
+    """`{'params': nombre de paramètres, 'dtypes': [...]}` lus dans l'EN-TÊTE seul d'un
+    `.safetensors` (8 octets de longueur + JSON), ou None s'il n'est pas lisible. Aucun tenseur
+    n'est chargé : c'est ce qui rend le pic PAR PRÉCISION calculable sans GPU — 17,43 Md de
+    paramètres en BF16 = 32,5 Go, en 8 bits 17,4, en 4 bits 8,7 (HunyuanImage 2.1, mesuré le
+    2026-09-19, quand son manifeste déclare 16). `components_of_files` pèse des fichiers et ne
+    lit volontairement pas les dtypes ; ceci est le complément, local par nature.
+    """
+    import json
+    import struct
+
+    try:
+        with open(path, 'rb') as fh:
+            length = struct.unpack('<Q', fh.read(8))[0]
+            if not 0 < length <= 256 * 1024 * 1024:
+                return None
+            header = json.loads(fh.read(length))
+    except (OSError, ValueError, struct.error):
+        return None
+    if not isinstance(header, dict):
+        return None
+    params, dtypes = 0, set()
+    for key, tensor in header.items():
+        if key == '__metadata__' or not isinstance(tensor, dict):
+            continue
+        count = 1
+        for dim in tensor.get('shape') or []:
+            count *= int(dim)
+        params += count
+        if tensor.get('dtype'):
+            dtypes.add(str(tensor['dtype']))
+    return {'params': params, 'dtypes': sorted(dtypes)}
+
+
 #: Marqueurs de QUANTISATION/repack dans l'id d'un dépôt dérivé. Sous-ensemble de
 #: `_NOISE_MARKERS` (moins `lora` — un adaptateur n'est pas une variante du modèle — et moins
 #: `coreml`/`mlx`, inchargeables sur l'hôte CUDA), plus les schémas absents du bruit
