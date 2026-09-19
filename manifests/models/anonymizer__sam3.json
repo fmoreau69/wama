@@ -28,18 +28,7 @@
     },
     "extra_info": {
       "version": null,
-      "vram_provenance": "declared",
-      "weights": {
-        "at": "2026-09-19T21:33:16.850929+00:00",
-        "components": {
-          "model": 3.213
-        },
-        "largest_gb": 3.213,
-        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/sam/models--facebook--sam3",
-        "signature": "2:3450088084:19ccfcdd2c",
-        "source": "repo",
-        "total_gb": 3.213
-      }
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [

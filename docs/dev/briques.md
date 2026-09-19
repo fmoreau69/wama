@@ -325,13 +325,15 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (25) :
+- **API publique** (27) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
   - `duplicate_weight_files(files) -> list` — Fichiers de poids à NE PAS tirer parce que leur jumeau `.safetensors` existe — même
   - `format_duplicates(hf_id: str) -> list` — Les jumeaux de format d'un dépôt HF — un appel HTTP, la règle vient de
   - `weight_for_spec(spec: dict)` — Poids en Go de ce qu'un descripteur d'installation va TIRER, ou None si indéterminable.
+  - `components_of_files(files, *, composition=None, allow_patterns=None) -> dict` — Poids PAR COMPOSANT d'un inventaire de fichiers — dérivation PURE, aucun réseau.
+  - `components_for_spec(spec: dict, *, files=None) -> dict` — Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
   - `yolo_task_of(name: str) -> str` — Tâche (`ModelTask`) d'un poids YOLO, déduite du suffixe de son nom — `detect` par défaut.
   - `pull_yolo_weights(name: str, timeout: int=600, dry_run: bool=False)` — Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
   - `register_after_install()` — Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.
@@ -358,10 +360,12 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (12) :
+- **API publique** (14) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
+  - `local_inventory(snapshot_root)` — `[(chemin relatif, taille)]` d'un modèle INSTALLÉ — le jumeau LOCAL de `_siblings`
+  - `safetensors_facts(path)` — `{'params': nombre de paramètres, 'dtypes': [...]}` lus dans l'EN-TÊTE seul d'un
   - `quantized_variants(hf_id: str, limit: int=5) -> list[dict]` — Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
   - `analyze_license(hf_id: str, license_id: str='', base_model=None, _profondeur: int=0)` — Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
   - `install_options(cand) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
@@ -593,7 +597,7 @@ Relève par AST les identifiants de code FRANÇAIS (classes, fonctions, argument
 - **API publique** (8) :
   - `is_french(name: str) -> bool`
   - `is_test_class(kind: str, name: str) -> bool`
-  - `python_files(base: Path)`
+  - `python_files(base: Path)` — Les `.py` du périmètre. Les jumelles bac à sable (`wama/<app>_NN/`, forme
   - `scan_test_names(base: Path)` — (francais, total) parmi les methodes `test_*` — la dette que le budget n'attrape PAS.
   - `roots_of(by_file)` — Radical francais -> nombre d'identifiants qui le portent. C'est l'outil de PILOTAGE :
   - `scan(base: Path, with_test_classes: bool=False)` — (total, par fichier, compteur de noms) — le relevé complet, sans rien écrire.

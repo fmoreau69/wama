@@ -37,20 +37,7 @@
       }
     },
     "extra_info": {
-      "vram_provenance": "declared",
-      "weights": {
-        "at": "2026-09-19T21:36:30.291401+00:00",
-        "components": {
-          "text_encoder": 15.445,
-          "transformer": 38.055,
-          "vae": 0.236
-        },
-        "largest_gb": 38.055,
-        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/qwen-image/models--Qwen--Qwen-Image-2512",
-        "signature": "27:57704574666:46bb47192d",
-        "source": "declared",
-        "total_gb": 53.737
-      }
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

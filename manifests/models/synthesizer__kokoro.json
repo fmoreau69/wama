@@ -58,18 +58,7 @@
     },
     "extra_info": {
       "hf_id": "hexgrad/Kokoro-82M",
-      "vram_provenance": "declared",
-      "weights": {
-        "at": "2026-09-19T21:36:32.083020+00:00",
-        "components": {
-          "voices": 0.001
-        },
-        "largest_gb": 0.001,
-        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/kokoro/models--hexgrad--Kokoro-82M",
-        "signature": "5:655380406:93837a6d15",
-        "source": "declared",
-        "total_gb": 0.001
-      }
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [

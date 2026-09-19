@@ -149,6 +149,16 @@ _EXTRA_INFO_ETAT_MACHINE = frozenset({
     'installed', 'ready', 'models_dir_exists', 'models_cached', 'error', 'hf_authenticated',
     # Empreintes et marqueurs posés par la DÉCOUVERTE
     'ollama_id', 'hf_snapshot', 'vram_estimated', 'update_check', 'declared',
+    # Relevé de poids PAR COMPOSANT du snapshot LOCAL (`model_sync.persist_weights`, 19/09) :
+    # il porte `root` — le chemin ABSOLU de cette machine — plus `signature` et `at`, qui ne
+    # décrivent que cet exemplaire installé. Mesuré le 2026-09-20 : sans cette ligne, un export
+    # a mis `/mnt/d/WAMA/…` dans **15** manifestes d'un dépôt PUBLIC, et
+    # `tests_catalogues.test_aucun_chemin_absolu_de_cette_machine` l'a attrapé.
+    # ⚠ Ce qui est perdu au corpus est le RELEVÉ, pas le FAIT : l'anatomie vit dans
+    # `body.composition.components` (déclaratif, exporté), et le poids se re-dérive d'elle par
+    # `components_for_spec`. *Une clé collante neuve n'est pas automatiquement du déclaratif :
+    # la liste noire ne la connaît pas, et c'est à son auteur de l'y inscrire.*
+    'weights',
 })
 
 

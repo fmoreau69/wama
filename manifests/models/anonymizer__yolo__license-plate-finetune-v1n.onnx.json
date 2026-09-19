@@ -17,12 +17,6 @@
       "task": "detect"
     },
     "composition": {
-      "components": [
-        {
-          "pattern": "license-plate-finetune-v1n.onnx",
-          "role": "model"
-        }
-      ],
       "runtime": {
         "engine": "ultralytics"
       }

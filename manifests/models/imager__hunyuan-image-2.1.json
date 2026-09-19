@@ -41,21 +41,7 @@
       }
     },
     "extra_info": {
-      "vram_provenance": "declared",
-      "weights": {
-        "at": "2026-09-19T21:36:27.780173+00:00",
-        "components": {
-          "text_encoder": 15.445,
-          "text_encoder_2": 0.817,
-          "transformer": 32.458,
-          "vae": 0.755
-        },
-        "largest_gb": 32.458,
-        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/hunyuan/models--hunyuanvideo-community--HunyuanImage-2.1-Diffusers",
-        "signature": "29:53129907925:106dc7ec03",
-        "source": "declared",
-        "total_gb": 49.476
-      }
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

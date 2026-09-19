@@ -41,19 +41,7 @@
     },
     "extra_info": {
       "hf_id": "bosonai/higgs-audio-v2-generation-3B-base",
-      "vram_provenance": "declared",
-      "weights": {
-        "at": "2026-09-19T21:36:31.955181+00:00",
-        "components": {
-          "audio_tokenizer": 0.8,
-          "generation_model": 10.75
-        },
-        "largest_gb": 10.75,
-        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/higgs/models--bosonai--higgs-audio-v2-generation-3B-base",
-        "signature": "9:11559908993:c827f26305",
-        "source": "declared",
-        "total_gb": 11.55
-      }
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],
