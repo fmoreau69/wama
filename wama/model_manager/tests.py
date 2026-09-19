@@ -975,6 +975,108 @@ class RestesTechniquesDuSoirTest(TestCase):
         self.assertEqual(duplicate_weight_files([n for n, _ in couples]), ['pytorch_model.bin'])
         self.assertEqual(duplicate_weight_files(None), [])
 
+    def test_components_split_the_weight_by_role_without_the_network(self):
+        """Les DEUX chiffres de la decision A : la somme (plein GPU) et le plus gros composant
+        (dechargement). Aucun mock de `HfApi` — la derivation est pure."""
+        from .services.model_installer import components_of_files
+        go = 1024 ** 3
+        r = components_of_files([
+            ('model_index.json', 900),
+            ('transformer/diffusion_pytorch_model-00001-of-00002.safetensors', 5 * go),
+            ('transformer/diffusion_pytorch_model-00002-of-00002.safetensors', 5 * go),
+            ('transformer/diffusion_pytorch_model-00001-of-00002.bin', 5 * go),   # jumeau de format
+            ('text_encoder/model.safetensors', 11 * go),
+            ('vae/diffusion_pytorch_model.safetensors', 1 * go),
+        ])
+        self.assertEqual(r['components'], {'text_encoder': 11.0, 'transformer': 10.0, 'vae': 1.0})
+        self.assertEqual(r['total_gb'], 22.0)      # plein GPU : tout coexiste
+        self.assertEqual(r['largest_gb'], 11.0)    # dechargement : un composant a la fois
+        self.assertEqual(r['source'], 'repo')      # borne superieure : rien ne restreint
+        self.assertNotIn('variants', r)
+
+    def test_a_declared_composition_decides_the_roles_and_the_selection(self):
+        """Un depot est un CATALOGUE de fichiers, pas un modele : mesure du 19/09,
+        `Lightricks/LTX-Video` pese 173,8 Go sur sa carte HF (toutes les versions 0.9.x cote a
+        cote). Ce qu'on pese doit etre ce que le chargeur TIRE — donc l'anatomie DECLAREE
+        (`AIModel.composition`), la meme que `patterns_from_composition` transforme en
+        `allow_patterns`. Une declaration, deux lectures."""
+        from .services.model_installer import components_of_files, patterns_from_composition
+        go = 1024 ** 3
+        files = [('model.safetensors', 3 * go),
+                 ('speech_tokenizer/model.safetensors', 1 * go),
+                 ('ltx-video-0.9.0.safetensors', 40 * go),        # version voisine, pas la notre
+                 ('README.md', 400)]
+        compo = {'components': [{'role': 'acoustic_model', 'pattern': 'model.safetensors'},
+                                {'role': 'speech_tokenizer', 'pattern': 'speech_tokenizer/*'}],
+                 'runtime': {'engine': 'qwen3-tts'}}
+        r = components_of_files(files, composition=compo)
+        self.assertEqual(r['components'], {'acoustic_model': 3.0, 'speech_tokenizer': 1.0})
+        self.assertEqual(r['total_gb'], 4.0)       # les 40 Go voisins n'en font PAS partie
+        self.assertEqual(r['source'], 'declared')
+        # la meme declaration sert deja a l'installation : les deux lectures ne divergent pas
+        self.assertIn('model.safetensors', patterns_from_composition(compo))
+        # Sans declaration : l'heuristique garde UN jeu par role — ici le plus lourd des deux
+        # jeux racine (40 Go), l'autre passant en `variants`. Elle ne les additionne donc pas
+        # (44), mais elle designe la mauvaise version : c'est bien une BORNE, pas une empreinte.
+        upper_bound = components_of_files(files)
+        self.assertEqual(upper_bound['components'], {'model': 40.0, 'speech_tokenizer': 1.0})
+        self.assertEqual(upper_bound['total_gb'], 41.0)
+        self.assertEqual(upper_bound['variants'], {'model': 3.0})  # le vrai modele, ecarte a tort
+        self.assertEqual(upper_bound['source'], 'repo')
+        # une restriction explicite du descripteur vaut aussi selection
+        restricted = components_of_files(files, allow_patterns=['speech_tokenizer/*'])
+        self.assertEqual(restricted['components'], {'speech_tokenizer': 1.0})
+        self.assertEqual(restricted['source'], 'allow_patterns')
+
+    def test_a_quantized_variant_is_not_summed_with_the_full_one(self):
+        """Sommer une variante fp8 avec sa version pleine compterait deux fois les memes
+        tenseurs — mais un depot ENTIEREMENT quantise pese bien ce qu'il pese."""
+        from .services.model_installer import components_of_files
+        go = 1024 ** 3
+        mixed = components_of_files([('transformer/model.safetensors', 10 * go),
+                                     ('transformer/model.fp8.safetensors', 5 * go)])
+        self.assertEqual(mixed['components'], {'transformer': 10.0})
+        self.assertEqual(mixed['variants'], {'transformer': 5.0})
+        only_fp8 = components_of_files([('transformer/model.fp8.safetensors', 5 * go)])
+        self.assertEqual(only_fp8['components'], {'transformer': 5.0})
+        self.assertNotIn('variants', only_fp8)
+
+    def test_components_say_nothing_rather_than_zero(self):
+        """Un inventaire sans tailles rend `{}` : `0.0` se lirait « ca ne pese rien »."""
+        from .services.model_installer import components_of_files
+        self.assertEqual(components_of_files(['transformer/model.safetensors']), {})
+        self.assertEqual(components_of_files([('transformer/model.safetensors', 0)]), {})
+        self.assertEqual(components_of_files(None), {})
+        # un modele monobloc : les poids sont a la racine, somme et plus gros se confondent
+        solo = components_of_files([('model.safetensors', 2 * 1024 ** 3)])
+        self.assertEqual(solo, {'components': {'model': 2.0}, 'total_gb': 2.0,
+                                'largest_gb': 2.0, 'source': 'repo'})
+
+    def test_the_component_door_dispatches_by_kind_like_its_twin(self):
+        """`components_for_spec` est le jumeau de `weight_for_spec` : meme descripteur, meme
+        dispatch. Ollama/YOLO ne livrent pas de composition — un seul composant, dit
+        explicitement, jamais `{}` (l'appelant doit pouvoir distinguer « indivisible » de
+        « inconnu »)."""
+        from .services import model_installer as mi
+        with patch.object(mi, 'weight_for_spec', return_value=4.7):
+            r = mi.components_for_spec({'kind': 'ollama', 'ref': 'qwen3:8b'})
+        self.assertEqual(r, {'components': {'model': 4.7}, 'total_gb': 4.7, 'largest_gb': 4.7,
+                             'source': 'registry'})
+        with patch.object(mi, 'weight_for_spec', return_value=None):
+            self.assertEqual(mi.components_for_spec({'kind': 'yolo', 'ref': 'yolo11n.pt'}), {})
+        self.assertEqual(mi.components_for_spec({'kind': 'hf', 'ref': ''}), {})
+        # `files=` : un inventaire deja releve ne se re-telecharge pas (aucun mock reseau ici)
+        self.assertEqual(mi.components_for_spec({'kind': 'hf', 'ref': 'org/x'},
+                                                files=[('vae/model.safetensors', 1024 ** 3)]),
+                         {'components': {'vae': 1.0}, 'total_gb': 1.0, 'largest_gb': 1.0,
+                          'source': 'repo'})
+        # et la restriction du descripteur voyage avec lui, sans que l'appelant la repasse
+        door = mi.components_for_spec(
+            {'kind': 'hf', 'ref': 'org/x', 'allow_patterns': ['vae/*']},
+            files=[('vae/model.safetensors', 1024 ** 3), ('dit/model.safetensors', 90 * 1024 ** 3)])
+        self.assertEqual(door['components'], {'vae': 1.0})
+        self.assertEqual(door['source'], 'allow_patterns')
+
     def test_le_pull_hf_transmet_les_doublons_en_ignore_patterns_sauf_si_le_spec_restreint(self):
         """`pull_hf_model` passe les jumeaux à `snapshot_download(ignore_patterns=…)` ; un spec
         qui restreint déjà (`allow_patterns`, ex. `.nemo` seul) ne déclenche pas le listing."""
