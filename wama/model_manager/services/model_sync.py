@@ -151,6 +151,14 @@ class ModelSyncService:
                 f"Full sync completed: +{result.added}, ~{result.updated}, -{result.removed}"
             )
 
+            # Les poids PAR COMPOSANT des modèles installés (décision A) suivent chaque synchro :
+            # c'est elle qui suit une installation. Signature inchangée = rien n'est refait. Un
+            # échec ici ne défait pas la synchro — le relevé a sa tâche beat pour se rattraper.
+            try:
+                logger.info(f"Weights persisted for {self.persist_weights()} model(s)")
+            except Exception as e:
+                logger.warning(f"persist_weights après synchro : {e}")
+
         except Exception as e:
             logger.error(f"Full sync failed: {e}")
             result.success = False
@@ -307,7 +315,9 @@ class ModelSyncService:
         # `vram_measured` (2026-09-14) : l'empreinte MESURÉE au chargement, rendue au catalogue par
         # `persist_measured_vram`. La découverte n'en sait rien — elle l'effacerait à chaque synchro,
         # et la mesure redeviendrait l'information « produite à chaque chargement puis jetée ».
-        _sticky = ('update_check', 'recommended', 'exclusion', 'vram_measured')
+        # `weights` (2026-09-19, décision A) : le POIDS PAR COMPOSANT lu dans les fichiers installés,
+        # rendu par `persist_weights` — même nature que la mesure : produit hors découverte.
+        _sticky = ('update_check', 'recommended', 'exclusion', 'vram_measured', 'weights')
         _existing = AIModel.objects.filter(model_key=model_key).values_list('extra_info', flat=True).first()
         if _existing:
             _merged = dict(defaults.get('extra_info') or {})
@@ -570,6 +580,83 @@ class ModelSyncService:
         # remplacé la ligne entre la lecture et l'écriture (comparaison d'horodatage).
         forget_measured_vram(rendues)
         return ecrites
+
+    def persist_weights(self, keys=None) -> int:
+        """
+        Rend au CATALOGUE le POIDS PAR COMPOSANT des modèles installés (décision A de Fabien,
+        16/09 : « deux chiffres par modèle — poids par composant lus dans les fichiers sans
+        charger, et pic selon la stratégie »). Ici le PREMIER chiffre, celui des fichiers.
+
+        UN SEUL lecteur des poids, celui de l'installation : `prospector.local_inventory` (les
+        blobs du snapshot, chacun une fois) → `model_installer.components_for_spec` (la
+        composition DÉCLARÉE de la ligne tranche les rôles ; sans elle, la convention de dépôt,
+        marquée `source='repo'` — une borne, pas une empreinte). Ce geste n'ajoute AUCUNE règle
+        de pesée : il relie une ligne à son snapshot (`local_path` s'il en nomme un, sinon
+        `model_locations.installed_snapshots`) et écrit le résultat.
+
+        ⚠ `vram_gb` N'EST PAS TOUCHÉ (comme pour la mesure) : `weights` vit à part, en clé
+        collante — `components` (Go par rôle), `total_gb` (tout sur la carte), `largest_gb` (le
+        déchargement séquentiel n'en tient qu'un à la fois), `source`, `variants`/`unresolved`
+        s'il y a lieu, `at`, `signature`. Marge d'activations et stratégie restent à
+        `memory_manager` ; la cascade du tirage (mesuré → source → estimé) lira ici.
+
+        Pas de réécriture inutile : la `signature` (fichiers, octets, composition) est gardée
+        avec le relevé ; tant qu'elle ne bouge pas, ni la dérivation ni l'écriture ne sont
+        refaites — et les dépôts FRÈRES déclarés (pyannote, codeformer, DeepFace : une requête
+        HF chacun) ne sont interrogés qu'au changement. `keys` : restreindre à ces clés.
+        Rend le nombre de lignes écrites.
+        """
+        import hashlib
+        import json
+        from datetime import datetime, timezone as dt_timezone
+        from pathlib import Path
+
+        from wama.common.utils.model_locations import installed_snapshots
+        from ..models import AIModel, EXECUTION_LOCAL
+        from .model_installer import components_for_spec
+        from .prospector import local_inventory
+
+        qs = (AIModel.objects.filter(is_downloaded=True, is_proposed=False, execution=EXECUTION_LOCAL)
+              .exclude(hf_id__isnull=True).exclude(hf_id=''))
+        if keys is not None:
+            qs = qs.filter(model_key__in=list(keys))
+        rows = list(qs.only('pk', 'model_key', 'hf_id', 'local_path', 'composition', 'extra_info'))
+        if not rows:
+            return 0
+        index = installed_snapshots()
+        written = 0
+        for obj in rows:
+            root = None
+            local = Path(obj.local_path) if obj.local_path else None
+            if local is not None and local.name.startswith('models--') and local.is_dir():
+                root = local
+            root = root or index.get(obj.hf_id.strip().lower())
+            files = local_inventory(root) if root else None
+            if not files:
+                continue
+            composition = obj.composition or {}
+            signature = '{}:{}:{}'.format(
+                len(files), sum(s for _, s in files),
+                hashlib.sha1(json.dumps(composition, sort_keys=True).encode()).hexdigest()[:10])
+            previous = (obj.extra_info or {}).get('weights') or {}
+            if previous.get('signature') == signature:
+                continue
+            spec = {'kind': 'hf', 'ref': obj.hf_id}
+            if composition:
+                spec['composition'] = composition
+            derived = components_for_spec(spec, files=files)
+            if not derived:
+                continue
+            with transaction.atomic():
+                fresh = AIModel.objects.select_for_update().filter(pk=obj.pk).first()
+                if fresh is None:
+                    continue
+                info = dict(fresh.extra_info or {})
+                info['weights'] = {**derived, 'signature': signature, 'root': str(root),
+                                   'at': datetime.now(dt_timezone.utc).isoformat()}
+                AIModel.objects.filter(pk=obj.pk).update(extra_info=info)
+                written += 1
+        return written
 
     def get_stats(self) -> Dict:
         """Get catalog statistics."""

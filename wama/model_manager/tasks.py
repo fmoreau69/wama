@@ -123,6 +123,21 @@ def persist_measured_vram_task():
     return {'persistees': get_sync_service().persist_measured_vram()}
 
 
+@shared_task(name='model_manager.persist_weights')
+def persist_weights_task():
+    """
+    Rend au CATALOGUE le POIDS PAR COMPOSANT des modèles installés (2026-09-19, décision A).
+
+    Lu dans les fichiers du snapshot (`local_inventory` → `components_for_spec`), jamais en
+    chargeant ; écrit dans `AIModel.extra_info['weights']` — SANS toucher `vram_gb`. Le geste
+    suit déjà chaque synchro complète ; la tâche rattrape ce qu'une synchro n'a pas vu (un
+    snapshot complété après coup) et ne refait rien tant que la signature ne bouge pas.
+    Lecture disque + ORM, aucun GPU, aucune requête sauf pour un dépôt frère déclaré qui change.
+    """
+    from .services.model_sync import get_sync_service
+    return {'written': get_sync_service().persist_weights()}
+
+
 #: Clé de cache partagée entre la tâche (écrit l'avancement) et la vue de progression
 #: (le lit). Passer par le cache plutôt que par l'AsyncResult permet de retrouver un
 #: backup en cours après un simple F5 sur la page — le navigateur n'a plus le task_id.
