@@ -13,9 +13,9 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
 from .model_quality import (
-    indice_qualite as _indice_qualite,
-    params_actifs_b as _params_actifs,
-    params_en_milliards as _params_b,
+    active_params_b as _params_actifs,
+    apriori_quality_index as _indice_qualite,
+    params_in_billions as _params_b,
 )
 from enum import Enum
 

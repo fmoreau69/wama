@@ -12,7 +12,7 @@ import sys
 
 from django.core.management.base import BaseCommand
 
-from wama.model_manager.services.benchmark_sync import SourceIndisponible, synchroniser
+from wama.model_manager.services.benchmark_sync import SourceUnavailable, synchronize
 
 
 class Command(BaseCommand):
@@ -24,35 +24,35 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         try:
-            r = synchroniser(dry_run=opts['dry_run'])
-        except SourceIndisponible as e:
+            r = synchronize(dry_run=opts['dry_run'])
+        except SourceUnavailable as e:
             self.stdout.write(f"SKIP : aucune source de benchmark joignable — {e}")
             sys.exit(3)
 
         for src, cats in r['sources'].items():
             detail = ', '.join(f'{c}={n}' for c, n in sorted(cats.items()))
             self.stdout.write(f"source {src} : {detail}")
-        for src, motifs in (r.get('motifs') or {}).items():
-            for cat, motif in motifs.items():
-                self.stdout.write(self.style.WARNING(f"  {src}/{cat} : {motif}"))
-        for src, motif in r['indisponibles'].items():
-            self.stdout.write(self.style.WARNING(f"source {src} INDISPONIBLE : {motif}"))
+        for src, reasons in (r.get('reasons') or {}).items():
+            for cat, reason in reasons.items():
+                self.stdout.write(self.style.WARNING(f"  {src}/{cat} : {reason}"))
+        for src, reason in r['unavailable'].items():
+            self.stdout.write(self.style.WARNING(f"source {src} INDISPONIBLE : {reason}"))
         mode = ' (dry-run, rien écrit)' if opts['dry_run'] else ''
-        self.stdout.write(f"\nAppariés{mode} : {len(r['apparies'])} "
-                          f"(hors catégorie : {r['sans_categorie']})")
-        for cle, cat, val, echelle, elo in r['apparies']:
-            self.stdout.write(f"  {cle:40s} [{cat}] {val:>8} ({echelle})"
+        self.stdout.write(f"\nAppariés{mode} : {len(r['matched'])} "
+                          f"(hors catégorie : {r['without_category']})")
+        for key, cat, val, scale, elo in r['matched']:
+            self.stdout.write(f"  {key:40s} [{cat}] {val:>8} ({scale})"
                               + (f"  Elo={elo}" if elo is not None else ''))
-        if r['non_apparies']:
+        if r['unmatched']:
             self.stdout.write(f"Non appariés (benchmark_index reste NULL) : "
-                              f"{', '.join(r['non_apparies'])}")
-        if r['sans_identite']:
+                              f"{', '.join(r['unmatched'])}")
+        if r['without_identity']:
             # Ces lignes ne tombaient dans AUCUN compteur avant le 2026-09-01 : le total
             # affiché était inférieur au catalogue examiné, sans que rien ne le signale.
             self.stdout.write(f"Sans identité lisible (jamais appariables en l'état) : "
-                              f"{', '.join(r['sans_identite'])}")
+                              f"{', '.join(r['without_identity'])}")
         if r['inversions']:
             self.stdout.write(self.style.WARNING(
                 "⚠ CONFRONTATION — ordres AA et Elo en désaccord (à examiner, pas arbitré) :"))
-            for ligne in r['inversions']:
-                self.stdout.write(f"  {ligne}")
+            for line in r['inversions']:
+                self.stdout.write(f"  {line}")

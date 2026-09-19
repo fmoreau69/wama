@@ -975,14 +975,14 @@ document.addEventListener('DOMContentLoaded', function() {
     function benchBadge(model, extraClass) {
         if (model.benchmark_index == null) return '';
         const meta = model.benchmark_meta || {};
-        const echelle = meta.echelle || meta.categorie || 'échelle non nommée';
-        const bancs = Array.isArray(meta.bancs) ? meta.bancs : [];
+        const echelle = meta.scale || meta.category || 'échelle non nommée';
+        const bancs = Array.isArray(meta.benchmarks) ? meta.benchmarks : [];
         const autres = bancs.length > 1
             ? '\nAutres métiers mesurés : ' + bancs.slice(1)
-                .map(b => `${b.categorie} ${benchVal(b.valeur)} (${b.echelle})`).join(', ')
+                .map(b => `${b.category} ${benchVal(b.value)} (${b.scale})`).join(', ')
             : '';
-        const rang = meta.rang_centile != null
-            ? `\nRang : ${meta.rang_centile}e centile sur ${meta.population || '?'} modèles `
+        const rang = meta.percentile_rank != null
+            ? `\nRang : ${meta.percentile_rank}e centile sur ${meta.population || '?'} modèles `
               + `du banc. C'est la seule lecture comparable D'UN BANC A L'AUTRE — un rang, `
               + `pas une note, et calculé sur une population qui contient des modeles fermés.`
             : '';
@@ -1416,18 +1416,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (m.benchmark_index == null) return '';
                 const meta = m.benchmark_meta || {};
                 return benchVal(m.benchmark_index) + (meta.source ? ' — ' + meta.source : '')
-                    + (meta.sens === 'bas' ? ' (plus bas = mieux)' : '');
+                    + (meta.direction === 'lower' ? ' (plus bas = mieux)' : '');
             } },
             {% comment %} Le NOM TIERS apparié est affiché exprès : c'est le seul moyen pour
             un humain de repérer un mauvais appariement (l'appariement est automatique et
             conservateur, mais pas infaillible). {% endcomment %}
             { k: 'Apparié à', get: function (m) {
                 const meta = m.benchmark_meta || {};
-                return meta.aa_nom || meta.arena_nom || meta.open_asr_nom || '';
+                return meta.aa_name || meta.arena_name || meta.open_asr_name || '';
             } },
             { k: 'Échelle', get: function (m) {
                 const meta = m.benchmark_meta || {};
-                return meta.echelle || meta.categorie || '';
+                return meta.scale || meta.category || '';
             } },
             {% comment %} Le rang est la SEULE lecture comparable entre bancs : les valeurs,
             elles, ne le sont pas (Intelligence Index ~0-70 vs Elo ~1000-1500). Il est
@@ -1436,8 +1436,8 @@ document.addEventListener('DOMContentLoaded', function() {
             D'où la mention explicite de l'effectif. {% endcomment %}
             { k: 'Rang dans son banc', get: function (m) {
                 const meta = m.benchmark_meta || {};
-                if (meta.rang_centile == null) return '';
-                return meta.rang_centile + 'e centile sur ' + (meta.population || '?')
+                if (meta.percentile_rank == null) return '';
+                return meta.percentile_rank + 'e centile sur ' + (meta.population || '?')
                     + ' modèles du banc (rang, pas une note)';
             } },
             {% comment %} Un modèle peut exercer PLUSIEURS métiers et être mesuré sur plusieurs
@@ -1445,10 +1445,10 @@ document.addEventListener('DOMContentLoaded', function() {
             celui du métier principal ; les autres se lisent ici, chacun avec SON échelle —
             jamais agrégés, la moyenne de deux échelles n'existe pas. {% endcomment %}
             { k: 'Autres bancs', get: function (m) {
-                const bancs = (m.benchmark_meta || {}).bancs || [];
+                const bancs = (m.benchmark_meta || {}).benchmarks || [];
                 return bancs.length > 1
                     ? bancs.slice(1).map(function (b) {
-                        return b.categorie + ' ' + benchVal(b.valeur) + ' (' + b.echelle + ')';
+                        return b.category + ' ' + benchVal(b.value) + ' (' + b.scale + ')';
                       }).join(' · ')
                     : '';
             } },
@@ -1456,7 +1456,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return m.quality_index != null ? m.quality_index : '';
             } },
             { k: 'Réserve', get: function (m) {
-                return (m.benchmark_meta || {}).quant_locale || '';
+                return (m.benchmark_meta || {}).local_quant || '';
             } },
         ] },
         { section: 'Ressources', rows: [
@@ -1767,10 +1767,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (btn) btn.disabled = false;
                         if (status) status.textContent = p.skipped
                             ? `Aucune source joignable (${p.raison || 'clé ARTIFICIAL_ANALYSIS_API_KEY ou réseau'}).`
-                            : `Performance : ${p.apparies || 0} modèle(s) apparié(s), `
-                              + `${p.non_apparies || 0} sans banc`
-                              + (p.sans_identite ? `, ${p.sans_identite} sans identité lisible` : '')
-                              + (p.sans_categorie ? `, ${p.sans_categorie} hors catégorie` : '')
+                            : `Performance : ${p.matched || 0} modèle(s) apparié(s), `
+                              + `${p.unmatched || 0} sans banc`
+                              + (p.without_identity ? `, ${p.without_identity} sans identité lisible` : '')
+                              + (p.without_category ? `, ${p.without_category} hors catégorie` : '')
                               + (p.inversions ? ` — ${p.inversions} désaccord(s) AA/Elo à examiner` : '')
                               + '.';
                         loadModels(); return;

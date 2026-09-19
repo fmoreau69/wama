@@ -94,7 +94,7 @@ def _supports(model, requires, classes) -> bool:
     return True
 
 
-def _rank_key(pool, domain=None):
+def _rank_key(pool, family=None):
     """
     Fabrique la clé de tri « (déjà chargé, qualité) » pour CE lot de candidats.
 
@@ -125,7 +125,7 @@ def _rank_key(pool, domain=None):
     # un rôle codegen trie là-dessus) si TOUT le lot le porte, sinon benchmark tiers
     # COMPARABLE (jamais `benchmark_index` nu : un WER se trie à l'envers d'un Elo, seul
     # le module qui écrit l'échelle connaît son sens), sinon a priori, sinon VRAM.
-    scalars, _ = _quality_scalars(pool, domain)
+    scalars, _ = _quality_scalars(pool, family)
 
     def sort_key(m):
         return (m.is_loaded, scalars[id(m)])
@@ -170,7 +170,7 @@ def _quality_weight(value) -> float:
     return max(0.0, min(100.0, v)) / 100.0
 
 
-def _quality_scalars(pool, domain=None):
+def _quality_scalars(pool, family=None):
     """Valeur de QUALITÉ scalaire par modèle — l'ÉCHELLE DES SIGNAUX, en un seul domicile.
 
     Même règle de lot que partout (a priori < benchmark tiers < mesure interne, jamais
@@ -181,32 +181,32 @@ def _quality_scalars(pool, domain=None):
     Retour : ({id(m): valeur}, proxy_vram) — le drapeau dit si la « qualité » n'est que
     la taille (utile aux appelants pour doser leur confiance).
     """
-    def _sub_index(m):
-        return ((getattr(m, 'benchmark_meta', None) or {}).get('sous_indices') or {}).get(domain)
+    def _family_score(m):
+        return ((getattr(m, 'benchmark_meta', None) or {}).get('family_scores') or {}).get(family)
 
-    from .benchmark_sync import benchmarks_comparable, valeur_ordonnable
-    domain_usable = bool(domain) and bool(pool) and all(
-        _sub_index(m) is not None for m in pool)
+    from .benchmark_sync import benchmarks_comparable, orderable_value
+    family_usable = bool(family) and bool(pool) and all(
+        _family_score(m) is not None for m in pool)
     tous_benchmarkes = benchmarks_comparable(pool)
     tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
 
-    if domain_usable:
-        return {id(m): _sub_index(m) for m in pool}, False
+    if family_usable:
+        return {id(m): _family_score(m) for m in pool}, False
     if tous_benchmarkes:
-        return {id(m): valeur_ordonnable(m) for m in pool}, False
+        return {id(m): orderable_value(m) for m in pool}, False
     if tous_qualifies:
         return {id(m): m.quality_index for m in pool}, False
     return {id(m): (m.vram_gb or 0) for m in pool}, True
 
 
-def _minmax(valeurs: dict) -> dict:
+def _minmax(values: dict) -> dict:
     """Normalisation min-max d'un dict {clé: nombre} vers [0,1] (lot constant → 0.5)."""
-    if not valeurs:
+    if not values:
         return {}
-    lo, hi = min(valeurs.values()), max(valeurs.values())
+    lo, hi = min(values.values()), max(values.values())
     if hi == lo:
-        return {k: 0.5 for k in valeurs}
-    return {k: (v - lo) / (hi - lo) for k, v in valeurs.items()}
+        return {k: 0.5 for k in values}
+    return {k: (v - lo) / (hi - lo) for k, v in values.items()}
 
 
 def abilities_of(model) -> list:
@@ -246,7 +246,7 @@ def _type_filter(model_type) -> dict:
     return {'model_type__in': types} if len(types) > 1 else {'model_type': types[0]}
 
 
-def _best_by_vram(models, budget_gb: Optional[float], domain=None, quality_intent=None):
+def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_intent=None):
     """
     Parmi `models`, le meilleur compromis QUALITÉ/COÛT au poids du CURSEUR (0-100) :
 
@@ -280,7 +280,7 @@ def _best_by_vram(models, budget_gb: Optional[float], domain=None, quality_inten
             return min(models, key=lambda m: (m.vram_gb or 0))
         pool = fit
 
-    q = _minmax(_quality_scalars(pool, domain)[0])
+    q = _minmax(_quality_scalars(pool, family)[0])
     # Coût = VRAM MESURÉE, normalisée sur les seuls modèles qui en ont une ; inconnue → 1.0.
     mesures = {id(m): m.vram_gb for m in pool if m.vram_gb}
     c = _minmax(mesures)
@@ -305,7 +305,7 @@ def select_model(
     name_contains: Optional[str] = None,
     priority: Optional[List[str]] = None,
     availability_probe=None,
-    benchmark_domain: Optional[str] = None,
+    benchmark_family: Optional[str] = None,
     specialization: Optional[str] = None,
     quality_intent=None,
     cloud_keys=None,
@@ -334,8 +334,10 @@ def select_model(
                          catalogue (ex. import Python réellement possible). Permet de
                          couvrir les apps « backend-class » sans se fier au seul
                          is_downloaded du catalogue.
-        benchmark_domain: domaine de compétence à privilégier ('coding', 'math' —
-                         `benchmark_meta['sous_indices']`, alimenté par `sync_benchmarks`).
+        benchmark_family: famille d'épreuves du banc tiers à privilégier ('coding', 'math' —
+                         `benchmark_meta['family_scores']`, alimenté par `sync_benchmarks`).
+                         Nommé `benchmark_domain` jusqu'au 2026-09-19 : « domaine » désignait
+                         déjà le workflow d'une app et le thème de l'assistant.
                          Trie sur CE domaine si TOUT le lot le porte, sinon redescend d'un
                          étage. « Le meilleur » dépend de ce qu'on demande : qwen3.8 vaut
                          52,0 en général mais 68,1 en coding.
@@ -451,8 +453,8 @@ def select_model(
         if prefer_loaded and (_w * 100.0) < QUALITY_OFFLOAD_THRESHOLD:
             loaded = [m for m in pool if m.is_loaded or m.model_key in residents]
             if loaded:
-                return _best_by_vram(loaded, budget, benchmark_domain, quality_intent)
-        return _best_by_vram(pool, budget, benchmark_domain, quality_intent)
+                return _best_by_vram(loaded, budget, benchmark_family, quality_intent)
+        return _best_by_vram(pool, budget, benchmark_family, quality_intent)
 
     # Priorité explicite : le 1er palier ayant des candidats l'emporte (domine la VRAM).
     if priority:

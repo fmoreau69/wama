@@ -180,9 +180,9 @@ class ChoixDuModeleTest(TestCase):
         with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
                         return_value='ollama:x') as tirage:
             assistant_engine.resolve_turn_model(self.user, domain='dev')
-            self.assertEqual('coding', tirage.call_args.kwargs['benchmark_domain'])
+            self.assertEqual('coding', tirage.call_args.kwargs['benchmark_family'])
             assistant_engine.resolve_turn_model(self.user, domain='general')
-            self.assertIsNone(tirage.call_args.kwargs['benchmark_domain'])
+            self.assertIsNone(tirage.call_args.kwargs['benchmark_family'])
 
     def test_le_curseur_est_borne_par_le_schema(self):
         from wama.common.services.assistant_engine import assistant_settings

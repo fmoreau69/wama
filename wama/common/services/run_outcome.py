@@ -16,7 +16,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 #: Gestes déjà faits par l'utilisateur, dont on se contente (§16.7 : jamais de geste ajouté).
-SIGNAUX = ('produit', 'echec', 'telecharge', 'corrige', 'relance', 'supprime')
+SIGNALS = ('produit', 'echec', 'telecharge', 'corrige', 'relance', 'supprime')
 
 
 def record(app: str, item, signal: str, *, model_keys=None, detail=None, user=None):
@@ -26,9 +26,9 @@ def record(app: str, item, signal: str, *, model_keys=None, detail=None, user=No
     `item` est l'objet Django concerné (Media, Transcription, ImageGeneration…) : on en tire le
     type et la clé primaire, plus le propriétaire à défaut de `user` explicite.
     """
-    if signal not in SIGNAUX:
+    if signal not in SIGNALS:
         logger.warning("[run_outcome] signal inconnu %r — ignoré (connus : %s)",
-                       signal, ', '.join(SIGNAUX))
+                       signal, ', '.join(SIGNALS))
         return None
     try:
         from wama.common.models import RunOutcome
@@ -49,7 +49,7 @@ def record(app: str, item, signal: str, *, model_keys=None, detail=None, user=No
         return None
 
 
-def correction_magnitude(avant, apres) -> dict:
+def correction_magnitude(before, after) -> dict:
     """
     Mesure une correction humaine sans l'interpréter : combien de segments, quelle distance.
 
@@ -71,36 +71,36 @@ def correction_magnitude(avant, apres) -> dict:
                 out.append(s.strip())
         return out
 
-    t_avant, t_apres = _texts(avant), _texts(apres)
-    if not t_avant or not t_apres:
+    before_texts, after_texts = _texts(before), _texts(after)
+    if not before_texts or not after_texts:
         return {}
 
-    modifies = sum(1 for a, b in zip(t_avant, t_apres) if a != b)
-    modifies += abs(len(t_avant) - len(t_apres))     # segments ajoutés ou retirés
+    modified = sum(1 for a, b in zip(before_texts, after_texts) if a != b)
+    modified += abs(len(before_texts) - len(after_texts))     # segments ajoutés ou retirés
 
-    car_avant = sum(len(t) for t in t_avant)
-    car_apres = sum(len(t) for t in t_apres)
+    before_chars = sum(len(t) for t in before_texts)
+    after_chars = sum(len(t) for t in after_texts)
 
     import difflib
-    similarite = difflib.SequenceMatcher(None, ' '.join(t_avant), ' '.join(t_apres)).ratio()
+    similarity = difflib.SequenceMatcher(None, ' '.join(before_texts), ' '.join(after_texts)).ratio()
 
     return {
-        'segments_avant': len(t_avant),
-        'segments_apres': len(t_apres),
-        'segments_modifies': modifies,
+        'segments_avant': len(before_texts),
+        'segments_apres': len(after_texts),
+        'segments_modifies': modified,
         # Rapportée au plus GRAND des deux découpages, et bornée à 1. La première version
         # divisait par le nombre de segments AVANT : sur le Transcript #48 (5 segments ASR
         # cassés, réécrits en 2 395 à la main) elle rendait `479.0`, ce qui n'est pas une part.
-        'part_modifiee': round(min(1.0, modifies / max(len(t_avant), len(t_apres), 1)), 3),
-        'caracteres_avant': car_avant,
-        'caracteres_apres': car_apres,
+        'part_modifiee': round(min(1.0, modified / max(len(before_texts), len(after_texts), 1)), 3),
+        'caracteres_avant': before_chars,
+        'caracteres_apres': after_chars,
         # 1.0 = texte identique. C'est une DISTANCE, pas une note de qualité : une transcription
         # très corrigée peut l'avoir été pour du style, pas pour des erreurs.
-        'similarite': round(similarite, 4),
+        'similarite': round(similarity, 4),
     }
 
 
-def is_real_correction(mesure: dict) -> bool:
+def is_real_correction(measure: dict) -> bool:
     """
     La correction a-t-elle CHANGÉ quelque chose ? Garde-fou du signal `corrige`.
 
@@ -111,9 +111,9 @@ def is_real_correction(mesure: dict) -> bool:
     précieux de WAMA avec des non-événements, et ferait croire à une correction humaine là où
     l'utilisateur n'a fait qu'ouvrir l'éditeur.
     """
-    if not mesure:
+    if not measure:
         return False
-    return bool(mesure.get('segments_modifies')) or (mesure.get('similarite') or 1.0) < 1.0
+    return bool(measure.get('segments_modifies')) or (measure.get('similarite') or 1.0) < 1.0
 
 
 # ── Lecture (agrégation) ──────────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ def is_real_correction(mesure: dict) -> bool:
 # (§16.7-4) — un agent qui réécrit ses réglages sans métrique mesurée dérive au lieu de
 # s'améliorer.
 
-def count_signals(app: str = '', depuis=None) -> dict:
+def count_signals(app: str = '', since=None) -> dict:
     """Répartition brute des signaux, éventuellement filtrée. Sans interprétation."""
     from django.db.models import Count
 
@@ -131,17 +131,17 @@ def count_signals(app: str = '', depuis=None) -> dict:
     qs = RunOutcome.objects.all()
     if app:
         qs = qs.filter(app=app)
-    if depuis is not None:
-        qs = qs.filter(occurred_at__gte=depuis)
+    if since is not None:
+        qs = qs.filter(occurred_at__gte=since)
     return {r['signal']: r['n']
             for r in qs.values('signal').annotate(n=Count('id')).order_by('-n')}
 
 
-def by_model(signal: str = '', app: str = '', modele_unique: bool = True) -> dict:
+def by_model(signal: str = '', app: str = '', single_model: bool = True) -> dict:
     """
     `{model_key: {signal: n}}` — de quoi ORDONNER des modèles quand le volume le permettra.
 
-    `modele_unique=True` (défaut) n'agrège que les exécutions à UN SEUL modèle : sur une
+    `single_model=True` (défaut) n'agrège que les exécutions à UN SEUL modèle : sur une
     exécution multi-modèles, un signal ne dit pas lequel a démérité, et répartir le crédit à
     parts égales inventerait une information. On préfère un échantillon plus petit et honnête.
     """
@@ -155,10 +155,10 @@ def by_model(signal: str = '', app: str = '', modele_unique: bool = True) -> dic
     if signal:
         qs = qs.filter(signal=signal)
 
-    resultat = defaultdict(lambda: defaultdict(int))
-    for cles, sig in qs.values_list('model_keys', 'signal'):
-        if modele_unique and len(cles or []) != 1:
+    result = defaultdict(lambda: defaultdict(int))
+    for keys, sig in qs.values_list('model_keys', 'signal'):
+        if single_model and len(keys or []) != 1:
             continue
-        for cle in (cles or []):
-            resultat[cle][sig] += 1
-    return {k: dict(v) for k, v in resultat.items()}
+        for key in (keys or []):
+            result[key][sig] += 1
+    return {k: dict(v) for k, v in result.items()}

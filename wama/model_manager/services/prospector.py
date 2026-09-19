@@ -670,7 +670,7 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
                 platform_ref=f"huggingface:{hf_id}",
                 disk_gb=poids or 0.0,     # 0.0 = inconnu → la garde d'espace refusera (forçable)
                 # La TÂCHE écrite sur la ligne : c'est elle qui donne un banc à un candidat
-                # (`benchmark_sync._categories_locales`) — sans elle, « hors catégorie ».
+                # (`benchmark_sync._local_categories`) — sans elle, « hors catégorie ».
                 capabilities={'task': tache_w} if tache_w else {},
             )
             crees += int(cree)

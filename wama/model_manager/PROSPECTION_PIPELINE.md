@@ -433,7 +433,7 @@ sélection diffusion.
 **Deux erreurs d'appariement mesurées et corrigées** (`benchmark_sync.py`) — elles faussaient
 la sélection, qui consomme `benchmark_index` :
 1. **Famille = mot commun.** `qwen-image-2` et `GPT Image 2 (high)` donnaient tous deux la
-   famille « image » → l'imager local héritait de l'indice 1369 de GPT Image 2. `_avec_prefixe`
+   famille « image » → l'imager local héritait de l'indice 1369 de GPT Image 2. `_with_prefix`
    rattache désormais les segments introducteurs (« qwenimage » ≠ « gptimage »), en
    concaténant SANS séparateur pour que les graphies des sources convergent
    (`hunyuan-image-2.1` ↔ `HunyuanImage 2.1` — appariement correct PRÉSERVÉ).
@@ -1061,7 +1061,7 @@ CONSOMME le benchmark dans son prompt, il ne le remplace pas.
 
 Livré : `sync_benchmarks_task` (file `default` — **réseau SEUL** : Artificial Analysis + Arena,
 aucun GPU), endpoints `api/benchmarks/{sync,progress}/`, bouton **« Mesurer la performance »**
-avec des infobulles qui NOMMENT les indicateurs (1/3 et 3/3). `SourceIndisponible` rendu en
+avec des infobulles qui NOMMENT les indicateurs (1/3 et 3/3). `SourceUnavailable` rendu en
 SUCCESS+skipped (même sémantique que le code retour 3 de la commande).
 **Leçon** : *un libellé qui recouvre deux mécanismes finit par en faire accuser un pour
 l'autre* — le badge était distingué à l'affichage depuis le 19/08, c'est le DÉCLENCHEUR qui
@@ -1121,21 +1121,22 @@ aux trous du catalogue : 159 lignes examinées, **117 hors catégorie**, dominé
 
 **Livré** :
 1. `CATEGORIES` gagne `vision` (arène multimodale) et `document` (lecture de documents) — Arena
-   seul, `taille_stricte`. Métiers dérivés : VLM → `['vision', 'llm']` ; LLM Ollama à capacité
+   seul, `strict_size`. Métiers dérivés : VLM → `['vision', 'llm']` ; LLM Ollama à capacité
    `vision` → `vision` en SECONDAIRE de sa tâche. ⚠ **Faux appariement mesuré à la première
    lecture** : `gemma4:12b` prenait l'Elo de `gemma-4-31b` — la règle de taille stricte n'existait
    que pour `llm`, écrite `cat == 'llm'`. Elle est désormais DÉCLARÉE par catégorie.
    Résultat réel : `qwen3.8` (tag réel 27b) porte un 2ᵉ banc `arena_elo_vision` 1279 (79ᵉ
    centile / 125) ; gemma4:12b et les MiniCPM proposés restent « sans banc » (pas de 12B ni de
    v4.x dans l'arène) — null plutôt que plausible.
-2. **3ᵉ source `open_asr`** (`charger_open_asr`, forme des CSV SONDÉE : `avg` publié en anglais,
+2. **3ᵉ source `open_asr`** (`load_open_asr`, forme des CSV SONDÉE : `avg` publié en anglais,
    moyenne des `* WER` calculée en français). Deux catégories pour une tâche
-   (`TACHE_VERS_CATEGORIE` accepte un tuple) : `speech-to-text-fr` PRINCIPAL, `speech-to-text`
+   (`TASK_TO_BENCH_CATEGORY` accepte un tuple) : `speech-to-text-fr` PRINCIPAL, `speech-to-text`
    secondaire. Résultat réel : `whisper` 6,24 % WER FR (population 17) / 5,78 % EN (29) ;
    `qwen3-asr-1.7b` 5,68 % FR / 4,31 % EN. `vibevoice-asr` et `whisper-base` : sans identité.
-3. **Le SENS de l'échelle** (`sens='bas'` déclaré par la source, écrit dans le banc) : lu par
-   `rang_centile`, `_choose_variant` (dernier recours = la valeur la PIRE) et
-   `valeur_ordonnable` — le SEUL point de lecture pour un tri, adopté par `_rank_key` et
+3. **Le SENS de l'échelle** (`direction='lower'` déclaré par la source, écrit dans le banc —
+   clés en anglais depuis le 2026-09-19) : lu par
+   `percentile_rank`, `_choose_variant` (dernier recours = la valeur la PIRE) et
+   `orderable_value` — le SEUL point de lecture pour un tri, adopté par `_rank_key` et
    `best_installed`. *Un WER trié comme un Elo aurait mis le pire transcripteur en tête.*
 4. Registre des sources externes : `open_asr` déclaré (kind `banc`), et un test qui exige que
    les bancs DÉCLARÉS (adresses) et les bancs LUS (`benchmark_sync.SOURCES`) soient les mêmes.
@@ -1236,7 +1237,7 @@ que les prédictions BRUTES par échantillon (13 246 fichiers xlsx/json, figés 
 table. *Une source dont le seul flux est une page web n'est pas une source.* L'arène `vision`
 d'Arena reste le banc des VLM ; Open VLM reviendra si son JSON réapparaît.
 
-**MTEB — branché sans le paquet `mteb`** (`charger_mteb`, source `mteb`, catégorie `embedding`,
+**MTEB — branché sans le paquet `mteb`** (`load_mteb`, source `mteb`, catégorie `embedding`,
 tâche `feature-extraction`). Trois décisions qui font sa forme :
 1. **Le jeu est DÉCLARÉ** (`CATEGORIES['embedding']['mteb']`), et **la première version a été
    RÉFUTÉE PAR LA MESURE** : les 5 tâches du sous-ensemble « MTEB français » (Alloprof, BSARD,

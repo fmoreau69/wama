@@ -43,11 +43,11 @@ class AssistantDomain:
     #: Une ligne pour l'UI.
     help_text: str = ''
     #: Domaine de COMPÉTENCE à privilégier au tirage automatique du modèle — clé des sous-indices
-    #: de banc (`AIModel.benchmark_meta['sous_indices']` : 'coding', 'math'), lue par
-    #: `select_model(benchmark_domain=…)`. DÉCLARÉ ici (2026-09-17) : le mécanisme existait depuis
+    #: de banc (`AIModel.benchmark_meta['family_scores']` : 'coding', 'math'), lue par
+    #: `select_model(benchmark_family=…)`. DÉCLARÉ ici (2026-09-17) : le mécanisme existait depuis
     #: août sans AUCUN appelant, et les anciens rôles Dev/Coder de l'assistant exprimaient la même
     #: intention par une sous-chaîne de nom de modèle (`priority=['coder']`), qui ne matchait plus rien.
-    benchmark_domain: str = ''
+    benchmark_family: str = ''
 
 
 #: Registre DÉCLARATIF des domaines. Ajouter un domaine = ajouter une entrée ici et un
@@ -60,7 +60,7 @@ DOMAINES = (
                      help_text="Questions de méthode et de résultats, avec le contexte du labo."),
     AssistantDomain('design', 'Graphisme', 'assistant-design', rag=True,
                      help_text="Logos, illustrations, visuels — cadrés par l'identité du labo."),
-    AssistantDomain('dev', 'Développement', 'assistant-dev', benchmark_domain='coding',
+    AssistantDomain('dev', 'Développement', 'assistant-dev', benchmark_family='coding',
                      help_text="Code, architecture et conventions de WAMA."),
     # rag=False à dessein : le substrat de ce domaine est EXTERNE (le web), pas le corpus du
     # labo — la fraîcheur vient de la récupération (WAMA_LLM.md §Investigation web).
