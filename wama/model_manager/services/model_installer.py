@@ -457,6 +457,13 @@ def _with_sibling_repos(out: dict, composition) -> dict:
     principal ne porte que des fichiers de configuration. Une composition VALIDE et un relevé
     VIDE : le pire cas, puisque rien ne le signalait.
 
+    ⚠ Sur ces 5 déclarations, cette lecture ne PÈSE toujours rien, et c'est exact : pyannote est
+    GATED (l'API rend 401), `serengil/deepface_models` et TripoSR ne sont pas des dépôts de
+    modèles HF (releases GitHub, URL de dépôt de code). Ce que le correctif change n'est donc pas
+    le chiffre, c'est le DIAGNOSTIC : `unresolved` nomme les rôles impesables au lieu de laisser
+    croire qu'il n'y a rien à peser. *Ma première rédaction annonçait « 5 déclarations servies » —
+    corrigé après mesure : 5 déclarations LUES, 0 pesée, 5 nommées.*
+
     ⚠ `unresolved` est la clé qui sauve l'appelant : un dépôt injoignable ou non-HF (TripoSR
     déclare une URL GitHub) laisse un rôle SANS poids, et une somme incomplète ne doit jamais
     être prise pour une empreinte. Dire lesquels manquent vaut mieux qu'un total optimiste.
@@ -503,6 +510,16 @@ def components_for_spec(spec: dict, *, files=None) -> dict:
 
     `files` : inventaire DÉJÀ relevé (snapshot local, ou `_siblings` gardé d'un appel précédent).
     Le passer évite la requête — un dépôt inventorié une fois n'a pas à l'être deux fois.
+
+    TROIS RÉPONSES À NE PAS CONFONDRE, et c'est la raison de leurs formes :
+      * `{'components': …, 'total_gb': …}` — on a pesé ;
+      * `{'unresolved': [rôles]}` **sans** `total_gb` — on a pesé une PARTIE ; le total manquerait
+        des composants, donc il n'est pas rendu (une somme incomplète prise pour une empreinte
+        est pire qu'un trou déclaré) ;
+      * `{'unreachable': ref}` — on n'a rien pu peser, le dépôt n'a pas répondu ;
+      * `{}` — il n'y a rien à peser (aucun fichier de poids, aucun motif qui matche).
+    Un appelant lit donc `.get('total_gb')`, jamais un `0` : ce chiffre est ABSENT quand il est
+    inconnu, il ne vaut jamais zéro par défaut.
     """
     spec = spec or {}
     restriction = {'composition': spec.get('composition'),
@@ -517,7 +534,17 @@ def components_for_spec(spec: dict, *, files=None) -> dict:
         return _with_sibling_repos({}, restriction['composition'])
     if kind == 'hf':
         from .prospector import _siblings
-        return _with_sibling_repos(components_of_files(_siblings(ref), **restriction),
+        inventory = _siblings(ref)
+        if inventory is None:
+            # ⚠ `_siblings` distingue depuis le 2026-09-07 la PANNE (None) du dépôt VIDE ([]) —
+            # « l'un est une panne, l'autre un fait ». Rendre `{}` dans les deux cas perdrait
+            # cette distinction juste là où elle compte : un appelant lirait « ne pèse rien »
+            # d'un dépôt momentanément injoignable. Vécu le 2026-09-19 sur ma propre
+            # contre-épreuve : 8 déclarations VÉRIFIÉES ont été rapportées « motif sans
+            # fichier » par une salve d'appels HF qui avait échoué en silence.
+            # *Un relevé qui dépend du réseau doit dire quand le réseau a manqué.*
+            return {'unreachable': ref}
+        return _with_sibling_repos(components_of_files(inventory, **restriction),
                                    restriction['composition'])
     # Ollama et YOLO ne livrent PAS de composition : un blob GGUF, un `.pt` — un seul composant,
     # dont le poids est celui du tout. Le dire explicitement vaut mieux que rendre `{}` : le
