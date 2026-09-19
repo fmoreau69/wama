@@ -14,12 +14,6 @@
       "task": "segment"
     },
     "composition": {
-      "components": [
-        {
-          "pattern": "face_yolov8m-seg_60.pt",
-          "role": "model"
-        }
-      ],
       "runtime": {
         "engine": "ultralytics"
       }

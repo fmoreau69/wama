@@ -39,22 +39,7 @@
       }
     },
     "extra_info": {
-      "vram_provenance": "declared",
-      "weights": {
-        "at": "2026-09-19T21:33:35.023979+00:00",
-        "components": {
-          "text_encoder": 0.229,
-          "text_encoder_2": 1.294,
-          "unet": 4.782,
-          "vae": 0.156,
-          "vae_1_0": 0.156
-        },
-        "largest_gb": 4.782,
-        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/stable-diffusion/models--stabilityai--stable-diffusion-xl-base-1.0",
-        "signature": "17:7106938297:97b1eef531",
-        "source": "repo",
-        "total_gb": 6.617
-      }
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

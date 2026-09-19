@@ -31,19 +31,7 @@
       "max_duration": 30,
       "sample_rate": 32000,
       "type": "music",
-      "vram_provenance": "declared",
-      "weights": {
-        "at": "2026-09-19T21:36:19.978290+00:00",
-        "components": {
-          "compression_model": 0.22,
-          "language_model": 3.425
-        },
-        "largest_gb": 3.425,
-        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/musicgen/models--facebook--musicgen-medium",
-        "signature": "2:3913670534:9b5ff0ab50",
-        "source": "declared",
-        "total_gb": 3.645
-      }
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

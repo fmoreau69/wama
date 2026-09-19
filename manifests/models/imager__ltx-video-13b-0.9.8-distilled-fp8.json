@@ -39,20 +39,7 @@
       }
     },
     "extra_info": {
-      "vram_provenance": "declared",
-      "weights": {
-        "at": "2026-09-19T21:36:28.565954+00:00",
-        "components": {
-          "text_encoder": 17.741,
-          "transformer": 24.294,
-          "vae": 2.323
-        },
-        "largest_gb": 24.294,
-        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/ltx/models--Lightricks--LTX-Video-0.9.8-13B-distilled",
-        "signature": "22:47629366835:46bb47192d",
-        "source": "declared",
-        "total_gb": 44.357
-      }
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],
