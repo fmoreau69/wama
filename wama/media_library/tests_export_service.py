@@ -574,14 +574,19 @@ class LateBindingTest(TestCase):
         from django.urls import reverse
         return reverse('media_library:api_export_item', args=[app, pk])
 
-    def test_les_trois_apps_declarent_leur_builder_et_sont_late(self):
+    def test_toute_app_late_binding_declare_son_builder_et_aucune_early(self):
         from wama.common.utils.export_formats import export_builder_for, is_late_binding
-        for app in ('transcriber', 'describer', 'reader'):
+        # Parcours du REGISTRE, jamais une liste d'apps (règle rappelée par Fabien le 19/09) :
+        # toute app late-binding déclare un builder, aucune app early-binding n'en déclare.
+        from wama.common.utils.detail_registry import DetailRegistry
+        lates = [a for a in DetailRegistry.registered_apps() if is_late_binding(a)]
+        self.assertGreaterEqual(len(lates), 3, 'parcours vacueux')
+        for app in lates:
             with self.subTest(app=app):
-                self.assertTrue(is_late_binding(app))
                 self.assertTrue(callable(export_builder_for(app)), f'{app} : builder non résolu')
-        self.assertFalse(is_late_binding('composer'))
-        self.assertIsNone(export_builder_for('composer'))
+        for app in DetailRegistry.registered_apps():
+            if not is_late_binding(app):
+                self.assertIsNone(export_builder_for(app), f'{app} : builder sur une app early-binding')
 
     def test_les_choix_sont_les_formats_du_bouton_telecharger_acceptes_comme_document(self):
         from wama.common.utils.export_formats import entries_for_app
@@ -671,70 +676,142 @@ class LateBindingTest(TestCase):
         self.assertEqual(d['choices']['audio_music']['asset_type'], 'audio_music')
 
 
-class RolesDeclaresParChaqueAppTest(TestCase):
-    """Le rôle DÉCLARÉ par chaque app early-binding, VALEUR PAR VALEUR — la garde déclarée
-    manquante à la clôture du 19/09 (jusque-là seul le vocabulaire était attesté, par AST : une
-    déclaration inversée image ↔ vidéo serait passée). Chaque cas construit un vrai élément avec
-    une sortie et lit `result_role` par l'adapter enregistré, comme le geste commun."""
+class RoleDeclareCoherentPourTOUTESLesAppsTest(TestCase):
+    """Le rôle DÉCLARÉ par une app est cohérent avec ce qu'elle DÉCLARE produire — pour TOUTES
+    les apps enregistrées au détail, sans en nommer une (règle du dépôt, rappelée par Fabien à
+    la clôture du 19/09 : « un test est censé tester toutes les applications, pas une par
+    une », « schéma-driven et descriptif, pas de hardcoding »). Une liste d'apps dans un test
+    dérive ; une app nouvelle n'y entre pas.
 
-    def setUp(self):
-        self.moi = _utilisateur('roles_apps')
+    Le parcours est GÉNÉRIQUE : chaque modèle du registre (liage précoce), chaque champ, chaque
+    catégorie que l'app déclare produire — l'élément est créé avec ses seuls champs requis, une
+    sortie est posée, `media_type` suit quand le modèle en a un, et l'adapter est lu comme le
+    geste commun le lit. Deux passes : les champs FICHIER, puis — si aucun n'a fait émettre de
+    rôle — les champs TEXTE libres reçoivent un chemin (la sortie de certaines apps est un
+    chemin en texte, pas un `FileField`). Les ORACLES sont des DÉCLARATIONS, jamais des valeurs
+    recopiées par app :
+      ① la catégorie du rôle ∈ catégories des `output_types` d'`APP_CATALOG` (ce que l'app dit
+         produire — `normalize_types`, le même accesseur que les ports du studio) ;
+      ② quand l'élément porte un `media_type`, la catégorie du rôle EST celle-là (donnée de
+         l'élément) — c'est ce qui prend une déclaration inversée image ↔ vidéo.
+    Et chaque APP (étiquette du modèle — l'enhancer a deux surfaces pour un `apps.py`) dont
+    l'`apps.py` déclare `result_role` doit avoir été EXERCÉE — sinon la garde serait vide sans
+    le dire.
+    ⚠ Ce parcours a TROUVÉ ce qu'aucune liste n'aurait vu : `describer_01` sans builder
+    (→ les jumelles héritent de leur source), et l'imager qui dérivait son rôle du mode demandé
+    plutôt que de la sortie réelle. Ses propres versions successives ont aussi accusé à tort
+    des champs mono-nature nourris d'une extension étrangère, puis l'enhancer d'un `media_type`
+    qu'il ne produit pas : on ne fabrique que des éléments que l'app PEUT avoir.
+    """
 
-    def _role(self, app, instance):
-        from wama.common.utils.detail_registry import DetailRegistry
-        return DetailRegistry.get(app)['adapter'](instance).get('result_role')
+    FICHIERS = {'image': ('png', b'\x89PNG'), 'video': ('mp4', b'\x00mp4'),
+                'audio': ('wav', b'RIFF'), 'document': ('pdf', b'%PDF')}
 
-    def test_anonymizer_suit_la_categorie_du_media(self):
-        from wama.anonymizer.models import Media
-        for media_type, attendu in (('image', 'image'), ('video', 'video')):
-            m = Media.objects.create(user=self.moi, media_type=media_type)
-            m.output_file = f'anonymizer/out.{ "png" if media_type == "image" else "mp4" }'
-            m.save()
-            self.assertEqual(self._role('anonymizer', m), attendu, media_type)
+    @staticmethod
+    def _champs_requis(model):
+        from django.db.models import CharField, TextField
+        requis = {}
+        for f in model._meta.fields:
+            if f.name in ('id', 'user') or f.null or f.blank or f.has_default() or f.auto_created:
+                continue
+            if isinstance(f, (CharField, TextField)):
+                requis[f.name] = 'x'
+        return requis
 
-    def test_enhancer_suit_la_categorie_et_sa_branche_audio_ne_declare_rien(self):
-        from wama.enhancer.models import AudioEnhancement, Enhancement
-        for media_type, attendu in (('image', 'image'), ('video', 'video')):
-            e = Enhancement.objects.create(user=self.moi, media_type=media_type)
-            e.output_file.save(f'e.{media_type}', ContentFile(b'x'), save=True)
-            self.assertEqual(self._role('enhancer', e), attendu, media_type)
-        ae = AudioEnhancement.objects.create(user=self.moi)
-        ae.output_file.save('a.wav', ContentFile(b'x'), save=True)
-        self.assertIsNone(self._role('audio_enhancer', ae))
-
-    def test_avatarizer_declare_toujours_une_video(self):
-        from wama.avatarizer.models import AvatarJob
-        job = AvatarJob.objects.create(user=self.moi)
-        self.assertIsNone(self._role('avatarizer', job), 'sans sortie, pas de rôle')
-        job.output_video.save('av.mp4', ContentFile(b'x'), save=True)
-        self.assertEqual(self._role('avatarizer', job), 'video')
-
-    def test_imager_declare_image_ou_video_selon_la_generation(self):
-        from pathlib import Path
-        from django.conf import settings
-        from wama.common.utils.media_paths import app_media_dir
-        from wama.imager.models import ImageGeneration
-        rel = f"{app_media_dir('imager', self.moi.id, 'output')}/role_test.png"
-        absolu = Path(settings.MEDIA_ROOT) / rel
-        absolu.parent.mkdir(parents=True, exist_ok=True)
-        absolu.write_bytes(b'\x89PNG')
+    def _exercer(self, ctx, app, entree, model, champ, cat, par_fichier):
+        """Un élément, une sortie posée sur `champ`, l'adapter lu : rend le rôle émis (ou None)
+        et note les écarts aux deux oracles dans `ctx`."""
+        from wama.media_library.natures import ASSET_NATURES
+        ext, octets = self.FICHIERS[cat]
         try:
-            g = ImageGeneration.objects.create(user=self.moi, prompt='x', generated_images=[str(absolu)])
-            self.assertFalse(g.is_video_generation)
-            self.assertEqual(self._role('imager', g), 'image')
-        finally:
-            absolu.unlink(missing_ok=True)
-        v = ImageGeneration.objects.create(user=self.moi, prompt='x')
-        v.output_video.save('v.mp4', ContentFile(b'x'), save=True)
-        attendu = 'video' if v.is_video_generation else 'image'
-        self.assertEqual(self._role('imager', v), attendu)
+            inst = model.objects.create(user=ctx['moi'], **self._champs_requis(model))
+        except Exception as e:
+            ctx['non_instanciables'].append(f'{app}: {type(e).__name__} {str(e)[:80]}')
+            return None
+        if ctx['a_media_type']:
+            inst.media_type = cat
+            inst.save()
+        if par_fichier:
+            getattr(inst, champ.name).save(f'r.{ext}', ContentFile(octets), save=True)
+        else:
+            setattr(inst, champ.name, f'r.{ext}')
+            inst.save()
+        try:
+            detail = entree['adapter'](inst) or {}
+        except Exception as e:
+            ctx['ecarts'].append(f'{app}.{champ.name}[{cat}] : adapter en échec {e}')
+            return None
+        role = detail.get('result_role')
+        if not role:
+            return None
+        ou = f'{app}.{champ.name}[{cat}]'
+        if role not in ASSET_NATURES:
+            ctx['ecarts'].append(f'{ou} : rôle inconnu {role!r}')
+            return role
+        cat_role = ASSET_NATURES[role].category
+        if ctx['produit'] and cat_role not in ctx['produit']:
+            ctx['ecarts'].append(f'{ou} : rôle {role!r} ({cat_role}) hors des output_types '
+                                 f'déclarés {sorted(ctx["produit"])}')
+        if ctx['a_media_type'] and cat_role != cat:
+            ctx['ecarts'].append(f'{ou} : rôle {role!r} ({cat_role}) pour un élément dont '
+                                 f'media_type = {cat}')
+        return role
 
-    def test_composer_declare_selon_le_type_de_generation(self):
-        from wama.composer.models import ComposerGeneration
-        for type_gen, attendu in (('music', 'audio_music'), ('sfx', 'audio_sfx')):
-            gen = _generation(self.moi, f'{type_gen}.wav')
-            ComposerGeneration.objects.filter(pk=gen.pk).update(generation_type=type_gen)
-            gen.refresh_from_db()
-            self.assertEqual(self._role('composer', gen), attendu)
-        sans = _generation(self.moi, avec_sortie=False)
-        self.assertIsNone(self._role('composer', sans), 'sans sortie, pas de rôle')
+    def test_toute_declaration_suit_les_output_types_et_le_media_type_et_toute_app_declarante_est_exercee(self):
+        from pathlib import Path
+        from django.db.models import CharField, FileField, TextField
+        from wama.common.app_registry import APP_CATALOG, normalize_types
+        from wama.common.utils.detail_registry import DetailRegistry
+        from wama.common.utils.export_formats import is_late_binding
+
+        moi = _utilisateur('roles_toutes_apps')
+        racine = Path(__file__).resolve().parent.parent
+        exercees, declarantes, ecarts, non_instanciables = set(), set(), [], []
+        for app in DetailRegistry.registered_apps():
+            if is_late_binding(app):
+                continue                       # le format y remplace le rôle (LateBindingTest)
+            entree = DetailRegistry.get(app)
+            model = entree['model']
+            label = model._meta.app_label
+            apps_py = racine / label / 'apps.py'
+            if apps_py.exists() and 'result_role' in apps_py.read_text(encoding='utf-8'):
+                declarantes.add(label)
+            produit = set(normalize_types((APP_CATALOG.get(label) or {}).get('output_types') or []))
+            ctx = {'moi': moi, 'produit': produit, 'ecarts': ecarts,
+                   'non_instanciables': non_instanciables,
+                   'a_media_type': any(x.name == 'media_type' for x in model._meta.fields)}
+            categories = [c for c in self.FICHIERS if not produit or c in produit]
+            fichiers = [x for x in model._meta.get_fields() if isinstance(x, FileField)]
+            # Champs texte capables de porter un CHEMIN : sans `choices`, et assez longs (un code
+            # de langue à 4 caractères n'en est pas un — mesuré : `DataError` sans ce filtre).
+            textes = [x for x in model._meta.fields if isinstance(x, (CharField, TextField))
+                      and not x.choices and x.name != 'media_type'
+                      and (getattr(x, 'max_length', None) is None or x.max_length >= 32)]
+            for par_fichier, champs in ((True, fichiers), (False, textes)):
+                if not par_fichier and label in exercees:
+                    break
+                for champ in champs:
+                    for cat in categories:
+                        if self._exercer(ctx, app, entree, model, champ, cat, par_fichier):
+                            exercees.add(label)
+        self.assertEqual(non_instanciables, [], 'la fabrique générique ne sait pas créer ces éléments')
+        self.assertEqual(ecarts, [], '\n'.join(ecarts))
+        self.assertEqual(declarantes - exercees, set(),
+                         "ces apps déclarent un rôle que le parcours n'a jamais vu émis : garde vide")
+        self.assertGreaterEqual(len(exercees), 5, 'parcours vacueux')
+
+
+class JumelleLateBindingTest(TestCase):
+    """Une jumelle de bac à sable late-binding HÉRITE du builder de sa source (même dérivation
+    que `importer_for`) : ses vues générées ne déclarent rien, ses éléments ont la forme de la
+    source. Tenu sur un catalogue FACTICE : la propriété ne dépend pas des jumelles installées."""
+
+    def test_la_jumelle_herite_du_builder_de_sa_source(self):
+        from unittest.mock import patch
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.utils.export_formats import export_builder_for
+        factice = {**APP_CATALOG, 'jumelle_99': {'label': 'J', 'generated_from': 'transcriber',
+                                                 'conventions': {'export_binding': 'late'}}}
+        with patch('wama.common.app_registry.APP_CATALOG', factice):
+            self.assertIs(export_builder_for('jumelle_99'), export_builder_for('transcriber'))
+            self.assertIsNone(export_builder_for('jumelle_sans_source'))
