@@ -14,7 +14,7 @@ Un modèle jamais utilisé télécharge ses poids À LA PREMIÈRE EXÉCUTION (37
 - **Domicile** : `wama/common/utils/model_readiness.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Prévenir l'utilisateur qu'un premier lancement va TÉLÉCHARGER les poids.
 - **API publique** (1) :
-  - `annoncer_telechargement(model_key: str, console=None) -> bool` — Prévient (console) si les poids de `model_key` sont absents. Rend True si annoncé.
+  - `warn_if_weights_missing(model_key: str, console=None) -> bool` — Prévient (console) si les poids de `model_key` sont ABSENTS. Rend True si prévenu.
 
 ### Cache par empreinte de fichier
 
@@ -330,7 +330,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
   - `doublons_de_format(hf_id: str) -> list` — Fichiers de poids à NE PAS tirer parce que leur jumeau `.safetensors` existe — même
-  - `yolo_asset_gb(name: str)` — Poids en Go d'un asset YOLO officiel, relevé par un HEAD sur son URL de release
+  - `weight_for_spec(spec: dict)` — Poids en Go de ce qu'un descripteur d'installation va TIRER, ou None si indéterminable.
   - `yolo_task_of(name: str) -> str` — Tâche (`ModelTask`) d'un poids YOLO, déduite du suffixe de son nom — `detect` par défaut.
   - `pull_yolo_weights(name: str, timeout: int=600, dry_run: bool=False)` — Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
   - `register_after_install()` — Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.

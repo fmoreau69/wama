@@ -585,12 +585,12 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
             # `backend_for_key`, 2026-09-07). Les 7 modèles déclarent `onnxruntime` et
             # résolvent tous `AIUpscaler` — mesuré avant la substitution. Aucun repli muet.
             from wama.common.backends.manager import backend_for_key
-            cle_catalogue = f'enhancer:{enhancement.ai_model}'
-            classe = backend_for_key(cle_catalogue)
+            catalog_key = f'enhancer:{enhancement.ai_model}'
+            classe = backend_for_key(catalog_key)
             if classe is None:
                 raise RuntimeError(
                     f"Modèle « {enhancement.ai_model} » : aucun backend résolu depuis le "
-                    f"catalogue ({cle_catalogue} absent, ou sans moteur déclaré)")
+                    f"catalogue ({catalog_key} absent, ou sans moteur déclaré)")
             upscaler = classe(
                 model_name=enhancement.ai_model,
                 tile_size=enhancement.tile_size if enhancement.tile_size > 0 else 512

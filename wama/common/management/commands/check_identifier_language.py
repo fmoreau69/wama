@@ -94,9 +94,12 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 #: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
 #: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
 #: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
-BUDGET_CODE = 2653          # production (1722) + fichiers de tests hors noms (931)
+BUDGET_CODE = 2647          # production + fichiers de tests hors noms
+#: 2653 au 1er releve du 19/09 ; -6 par la 1re passe de renommage du meme jour
+#: (`annoncer_telechargement` -> `warn_if_weights_missing`, `SEUIL_ANNONCE_GO` ->
+#: `SIZE_MENTION_THRESHOLD_GB`, `cle_catalogue` -> `catalog_key` : 39 occurrences).
 BUDGET_TEST_CLASSES = 132   # noms de classes `*Test` (133 avant la 1re bascule)
-BUDGET_TEST_NAMES = 1296    # noms de methodes `test_*` — sur 2777 (46 %)
+BUDGET_TEST_NAMES = 1294    # noms de methodes `test_*` — sur 2792 (46 %)
 #: Ce que coute l'uniformisation complete, pour memoire : 4081 (4084 au 1er releve —
 #: le premier fichier de tests ecrit APRES la bascule a deja rendu 3 noms).
 BUDGET_TOTAL = BUDGET_CODE + BUDGET_TEST_CLASSES + BUDGET_TEST_NAMES

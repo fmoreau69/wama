@@ -263,8 +263,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
     if model_key is not None:
         try:
             cle = model_key(item) if callable(model_key) else str(model_key)
-            from wama.common.utils.model_readiness import annoncer_telechargement
-            annoncer_telechargement(cle, console=ctx.console)
+            from wama.common.utils.model_readiness import warn_if_weights_missing
+            warn_if_weights_missing(cle, console=ctx.console)
         except Exception as exc:      # prévenir est un confort, jamais une condition
             logger.debug('[%s] annonce de téléchargement impossible : %s', app_id, exc)
 

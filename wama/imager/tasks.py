@@ -134,11 +134,11 @@ def generate_image_task(self, generation_id):
         # d'app (ci-dessous, qui porte le repli diffusers/imaginairy). Aucun repli muet.
         if generation.model.startswith(('qwen-image', 'flux2-klein')):
             from wama.common.backends.manager import backend_for_key
-            cle_catalogue = f'imager:{generation.model}'
-            classe = backend_for_key(cle_catalogue)
+            catalog_key = f'imager:{generation.model}'
+            classe = backend_for_key(catalog_key)
             if classe is None:
                 error_msg = (f"Modèle « {generation.model} » : aucun backend résolu depuis le "
-                             f"catalogue ({cle_catalogue} absent, ou sans moteur déclaré)")
+                             f"catalogue ({catalog_key} absent, ou sans moteur déclaré)")
                 logger.error(error_msg)
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
@@ -183,8 +183,8 @@ def generate_image_task(self, generation_id):
         _console(user_id, f"[Imager] Loading model: {generation.model}")
         # Premier lancement d'un modèle jamais téléchargé : le DIRE (brique commune, 2026-09-08).
         # Sans elle, l'utilisateur voit une tâche figée le temps de récupérer des dizaines de Go.
-        from wama.common.utils.model_readiness import annoncer_telechargement
-        annoncer_telechargement(f'imager:{generation.model}',
+        from wama.common.utils.model_readiness import warn_if_weights_missing
+        warn_if_weights_missing(f'imager:{generation.model}',
                                 console=lambda m: _console(user_id, f"[Imager] {m}"))
 
         # Load the model
@@ -516,12 +516,12 @@ def generate_video_task(self, generation_id):
         # envoyait tout inconnu vers Wan) : il s'arrête en le DISANT. Wan et HunyuanVideo n'ont
         # plus ni déclaration ni poids sur disque depuis janvier ; leurs branches étaient mortes.
         from wama.common.backends.manager import backend_for_key
-        cle_catalogue = f'imager:{model_name}'
-        backend_class = backend_for_key(cle_catalogue)
+        catalog_key = f'imager:{model_name}'
+        backend_class = backend_for_key(catalog_key)
         params_class = getattr(backend_class, 'PARAMS', None)
         if backend_class is None or params_class is None:
             error_msg = (f"Modèle vidéo « {model_name} » : aucun backend résolu depuis le catalogue "
-                         f"({cle_catalogue} absent, sans moteur déclaré, ou backend sans PARAMS)")
+                         f"({catalog_key} absent, sans moteur déclaré, ou backend sans PARAMS)")
             logger.error(error_msg)
             generation.status = 'FAILURE'
             generation.error_message = error_msg
@@ -559,8 +559,8 @@ def generate_video_task(self, generation_id):
         # Remplacé par la brique commune (2026-09-08) : elle ne parle QUE si le catalogue dit
         # `is_downloaded=False`, et elle annonce la taille RÉELLE quand elle la connaît.
         # *Un avertissement permanent n'avertit plus de rien.*
-        from wama.common.utils.model_readiness import annoncer_telechargement
-        annoncer_telechargement(f'imager:{generation.model}',
+        from wama.common.utils.model_readiness import warn_if_weights_missing
+        warn_if_weights_missing(f'imager:{generation.model}',
                                 console=lambda m: _console(user_id, f"[Imager Video] ⏳ {m}"))
 
         model_load_start = time.time()

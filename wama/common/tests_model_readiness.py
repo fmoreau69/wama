@@ -14,7 +14,7 @@ l'interroge mesurerait ce vide (défaut vécu deux fois cette session). L'état 
 """
 from django.test import TestCase
 
-from wama.common.utils.model_readiness import SEUIL_ANNONCE_GO, annoncer_telechargement
+from wama.common.utils.model_readiness import SIZE_MENTION_THRESHOLD_GB, warn_if_weights_missing
 
 
 class AnnonceTelechargementTest(TestCase):
@@ -27,7 +27,7 @@ class AnnonceTelechargementTest(TestCase):
 
     def _capter(self, cle):
         vues = []
-        dit = annoncer_telechargement(cle, console=vues.append)
+        dit = warn_if_weights_missing(cle, console=vues.append)
         return dit, vues
 
     def test_poids_absents__on_previent(self):
@@ -64,7 +64,7 @@ class AnnonceTelechargementTest(TestCase):
         self.assertIn('~18 Go', avec[0])
 
     def test_une_taille_negligeable_n_est_pas_annoncee(self):
-        self._semer('imager:minuscule', telecharge=False, disk_gb=SEUIL_ANNONCE_GO / 2)
+        self._semer('imager:minuscule', telecharge=False, disk_gb=SIZE_MENTION_THRESHOLD_GB / 2)
         _, vues = self._capter('imager:minuscule')
         self.assertNotIn('~', vues[0])
 
@@ -75,15 +75,15 @@ class AnnonceTelechargementTest(TestCase):
         def _explose(_):
             raise RuntimeError('console indisponible')
 
-        self.assertTrue(annoncer_telechargement('imager:console-cassee', console=_explose))
+        self.assertTrue(warn_if_weights_missing('imager:console-cassee', console=_explose))
 
     def test_sans_console_on_ne_leve_pas(self):
         self._semer('imager:sans-console', telecharge=False)
-        self.assertTrue(annoncer_telechargement('imager:sans-console'))
+        self.assertTrue(warn_if_weights_missing('imager:sans-console'))
 
     def test_cle_vide_ne_leve_pas(self):
-        self.assertFalse(annoncer_telechargement(''))
-        self.assertFalse(annoncer_telechargement(None))
+        self.assertFalse(warn_if_weights_missing(''))
+        self.assertFalse(warn_if_weights_missing(None))
 
 
 class SqueletteAnnonceTest(TestCase):
