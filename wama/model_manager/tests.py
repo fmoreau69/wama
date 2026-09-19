@@ -955,12 +955,25 @@ class RestesTechniquesDuSoirTest(TestCase):
                     'kokoro-v1_0.pth']                                             # seul → gardé
         with patch('huggingface_hub.HfApi') as api:
             api.return_value.list_repo_files.return_value = fichiers
-            self.assertEqual(mi.doublons_de_format('org/x'),
+            self.assertEqual(mi.format_duplicates('org/x'),
                              ['pytorch_model.bin', 'transformer/diffusion_pytorch_model.bin',
                               'unet/pytorch_model-00001-of-00002.bin',
                               'unet/pytorch_model-00002-of-00002.bin'])
             api.return_value.list_repo_files.side_effect = RuntimeError('hors ligne')
-            self.assertEqual(mi.doublons_de_format('org/x'), [])      # best-effort : rien filtré
+            self.assertEqual(mi.format_duplicates('org/x'), [])      # best-effort : rien filtré
+
+    def test_twin_rule_reads_an_inventory_already_fetched(self):
+        """La règle des jumeaux est une dérivation PURE : elle accepte les couples
+        `(chemin, taille)` de `prospector._siblings`, donc un second lecteur (le poids PAR
+        COMPOSANT) l'applique sans payer un aller-retour HTTP de plus. Aucun réseau ici — le
+        test ne monte AUCUN mock de `HfApi`, c'est ce qui l'atteste."""
+        from .services.model_installer import duplicate_weight_files
+        couples = [('config.json', 12), ('model.safetensors', 4_200_000_000),
+                   ('pytorch_model.bin', 4_200_000_000), ('voices/af_bella.pt', 523_000)]
+        self.assertEqual(duplicate_weight_files(couples), ['pytorch_model.bin'])
+        # même verdict sur la forme « chemins nus » : une seule règle pour les deux inventaires
+        self.assertEqual(duplicate_weight_files([n for n, _ in couples]), ['pytorch_model.bin'])
+        self.assertEqual(duplicate_weight_files(None), [])
 
     def test_le_pull_hf_transmet_les_doublons_en_ignore_patterns_sauf_si_le_spec_restreint(self):
         """`pull_hf_model` passe les jumeaux à `snapshot_download(ignore_patterns=…)` ; un spec
@@ -972,7 +985,7 @@ class RestesTechniquesDuSoirTest(TestCase):
             vus.update(allow=allow_patterns, ignore=ignore_patterns)
             return '/faux/chemin'
         with patch('huggingface_hub.snapshot_download', side_effect=faux_snapshot), \
-                patch.object(mi, 'doublons_de_format', return_value=['pytorch_model.bin']) as dd:
+                patch.object(mi, 'format_duplicates', return_value=['pytorch_model.bin']) as dd:
             r = mi.pull_hf_model('org/x', 'vision', family='x')
             self.assertTrue(r['ok'])
             self.assertEqual(vus['ignore'], ['pytorch_model.bin'])
