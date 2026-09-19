@@ -5,9 +5,10 @@ description: Commiter SES seuls hunks d'un fichier co-édité par une autre inst
 
 # /commit-partiel — ne commiter que ses hunks d'un fichier co-édité
 
-> ⚠ CANDIDAT (né le 2026-09-19 après CINQ résolutions dans une même session, 14→19/09) — le geste
-> est éprouvé, le skill ne l'a encore jamais guidé : il sera promu à sa première exécution
-> guidée de bout en bout.
+> ⚠ CANDIDAT (n=1, 2026-09-19) — une seule session l'a produit, donc `check_skills` suit son âge.
+> ⚠ Mais **le GESTE, lui, a été vécu CINQ fois** dans cette session (14→19/09) : ce qui n'a jamais
+> été éprouvé, c'est le skill. Il sera promu à sa première exécution qu'il aura guidée de bout en
+> bout — pas à la 6ᵉ occurrence du geste.
 
 Doctrine d'origine : `AGENTS.md §DISCIPLINE GIT MULTI-INSTANCES` — *aucun commit ne se fait
 depuis l'index partagé*, et **`git commit <chemin>` prend l'état COMPLET du fichier**, pas

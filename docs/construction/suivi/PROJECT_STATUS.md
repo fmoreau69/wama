@@ -14085,6 +14085,54 @@ contraire à « jamais deux échelles mélangées » ; partage par PR GitHub éc
   (`ai_chat_clear`) — la suite ne charge plus depuis l'arbre principal tant que ce n'est pas
   commité ou retiré. Pas à moi ; signalé, pas touché.
 
+#### CLÔTURE — 2026-09-19 : 3 corrections, 1 skill, 1 consignation — ✅ SESSION CLOSE (10 commits)
+- **Le 🔚 n°2 était FAUX** : le trou 2 (provenance du coût) n'était pas « transféré », il était
+  LIVRÉ le 14/09 au soir par l'instance gouverneur, **trois blocs plus bas dans ce fichier**
+  (`extra_info['vram_measured']`). Corrigé ici et au `ROADMAP §16.2` (`c44a1fc4`).
+  ⭐ *Relire les §PALIER du MÊME SOIR avant de déclarer un reste.*
+- **Skill `/commit-partiel`** (`460b33eb`) — le geste « ne commiter que SES hunks d'un fichier
+  co-édité » était résolu **CINQ fois** dans cette session avec un script de scratchpad, donc
+  perdu à chaque fermeture. Script versé au dossier du skill, six pièges datés, renvois posés
+  depuis `/palier §3` et `/cloture §0` (la règle y était énoncée sans issue).
+  ⚠ Son marqueur disait « né après CINQ résolutions » : `check_skills` ne suivait PAS son âge
+  (motif `CANDIDAT (n=1, date)`). Remis à la forme attendue, la vérité mise à côté — **3 candidats
+  suivis, 0 dormant**. *Un statut écrit hors du motif que le contrôle lit n'est pas un statut.*
+- **YuE2 / ACE-Step consignés** (`c08f2b87`, `ROADMAP §16.2`) : le modèle « à référence » de la
+  question de Fabien est **ACE-Step 1.5**, installé le 02/09 et **inerte** (aucun backend) ;
+  `musicgen-melody` n'est **pas téléchargé** → la génération par référence ne marche nulle part.
+  YuE2 apporte un **plan symbolique éditable** que rien dans WAMA ne fait. **2 décisions
+  DIFFÉRÉES** par Fabien (D-a runtime sans paquet PyPI — partagée, débloque ACE-Step ; D-b
+  artefact intermédiaire éditable → `ROUTE §10.6` le jour venu). ⚠⚠ Trois de mes affirmations
+  corrigées par Fabien, écrites au §16.2 comme pièges : mode reprise présenté comme une perte ;
+  **tableau de COÛTS présenté comme un verdict de QUALITÉ** (le défaut même que `WAMA_QUALITE.md`
+  décrit) ; licence non commerciale invoquée hors de son périmètre (usage INTERNE).
+
+**Contrôles MESURÉS après la dernière écriture** : périmètre **78 OK** (`BancDeGenerationTest` 9
++ `tests_docs_catalog`/`tests_check_docs` 69), **CUDA masqué**, verts APRÈS le renommage en masse
+d'une autre instance (mes tests lisent déjà `TOKEN_CAP`) · `check_docs` **0 cassée / 2112** ·
+`check_skills` 0 défaut franc · `doc_facts --check` **tout à jour** (les 4 blocs périmés du 16/09
+l'étaient par le WIP d'autrui, régénérés depuis par leurs auteurs).
+
+**🔚 RESTE — rien n'est ouvert de mon fait, tout est chez quelqu'un d'autre ou en décision**
+1. **Mesure réelle du débit LLM : EMPÊCHÉE, pas en attente** (même statut que le GPU FastWan) —
+   `ModelRuntimeStat` unité `token` **toujours vide**. Le protocole est attesté de bout en bout
+   contre un faux Ollama ; les chiffres d'un vrai modèle demandent une machine où le GPU ne tue
+   pas l'hôte (R760xa). **Ne pas le reproposer comme point d'entrée.**
+2. **`WAMA_QUALITE.md`** : 9 décisions Q1-Q9, 6 paliers, rien de lancé (autre session, décision
+   de Fabien). Premier geste rentable = **Q6**, la porte d'entrée du corpus audio corrigé.
+3. **D-a / D-b** ci-dessus : décisions de Fabien, différées explicitement.
+4. **Section stable des bancs tiers** (idée de Fabien, non faite) : un bloc `doc_facts` projetant
+   `external_sources` + `benchmark_sync.SOURCES/CATEGORIES` dans `PROSPECTION_PIPELINE.md`, plus
+   les règles qui ne se déduisent pas du code. À qui touchera `benchmark_sync` après le renommage.
+5. ⚠ **Le banc `captioning` n'a JAMAIS rendu une mesure** entre sa création (05/08) et le
+   correctif du 14/09 : `_bench_description` lisait un dict comme une chaîne, chaque modèle
+   sortait « en erreur ». Toute lecture antérieure de ce banc est à refaire.
+
+**Pendings système** : aucun de mon fait — aucun worker recyclé, aucun réglage posé, **aucune
+charge GPU**. Les 7 fichiers modifiés dans l'arbre à ma fermeture sont d'autres instances
+(mtime 14→19/09, vérifiés un par un). Commits de la session : `5cdc2a6c` `6598049a` `840a947b`
+`6be0633c` `2caead27` `8d122a3a` `89ff9ada` `c44a1fc4` `460b33eb` `c08f2b87` — **non poussés**.
+
 #### SUITE — 2026-09-16 : l'idée 3 RETIRÉE, la DÉMARCHE écrite — `WAMA_QUALITE.md` (référence du domaine, rien de lancé)
 - Fabien : *« le trou sur la mesure de qualité interne est bien plus large que les LLM ; rien non
   plus pour les modèles vision ; ce que j'imaginais, c'est des comparaisons de résultats de
