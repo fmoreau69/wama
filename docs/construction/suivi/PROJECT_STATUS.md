@@ -15403,6 +15403,19 @@ lanceur de scénarios sur le serveur éphémère, les blocs de tests ajoutés, l
 Jetables. Les scénarios C/E/F ont semé puis nettoyé un job converter, un transcript, deux témoins
 `wama_temoin_*` et leurs assets — rien ne subsiste (vérifié en base par les scénarios eux-mêmes).
 
+**AUDIT DES TESTS QUI NOMMENT DES APPS (demande Fabien, 19/09 : « un test teste toutes les
+applications ») — relevé sur tout `wama/`, chaque occurrence lue, quatre généralisées, une gardée :**
+- `tests_media_paths` : l'invariant du domicile utilisateur parcourt le catalogue + les apps du Lab
+  installées (il nommait cinq apps sous une docstring qui promettait le contraire) ; l'idiome de la
+  garde anti-recomposition de chemin dérive ses noms du catalogue (douze noms figés) ;
+- `tests_result_tabs` : apps sans facettes et apps avec facettes parcourent le registre de détail,
+  et ce que l'accesseur rend est comparé clé pour clé à la spec ;
+- `tests_auto_model` : le curseur `quality_intent` est vérifié sur TOUTE app dont le schéma le porte
+  (« toutes les apps auront le curseur ») — condition « auto » sur le sélecteur de l'app, lu dans le
+  même schéma ; plancher de deux adopteurs contre la vacuité ;
+- `tests_subscriptions:189` : trois cibles dont une inexistante = spécimens d'un comportement, gardé.
+Mesuré après : 52 tests OK sur les trois modules. Commit `43d8514a`.
+
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — 2026-09-19
 
 **Une ligne actionnable : redémarrer le gunicorn WSL2, pousser, puis laisser tourner la nuit** —
