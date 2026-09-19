@@ -443,6 +443,52 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
     return out
 
 
+#: Un composant peut vivre dans un AUTRE dépôt (`{'role': …, 'repo': 'org/nom'}`) — c'est le
+#: second bras du schéma `composition`, et 5 déclarations du catalogue s'en servent
+#: (pyannote-diarization, codeformer, les 3 DeepFace). Motif : `org/nom`, sans schéma d'URL.
+_HF_REPO_RE = re.compile(r'^[\w.-]+/[\w.-]+$')
+
+
+def _with_sibling_repos(out: dict, composition) -> dict:
+    """Ajoute les composants déclarés par DÉPÔT au relevé — leur poids vit ailleurs.
+
+    Mesuré le 2026-09-19 : sans ça, `transcriber:pyannote-diarization` (deux dépôts frères),
+    `avatarizer:codeformer` et les trois DeepFace rendaient « aucun poids » — leur dépôt
+    principal ne porte que des fichiers de configuration. Une composition VALIDE et un relevé
+    VIDE : le pire cas, puisque rien ne le signalait.
+
+    ⚠ `unresolved` est la clé qui sauve l'appelant : un dépôt injoignable ou non-HF (TripoSR
+    déclare une URL GitHub) laisse un rôle SANS poids, et une somme incomplète ne doit jamais
+    être prise pour une empreinte. Dire lesquels manquent vaut mieux qu'un total optimiste.
+    """
+    repos = [(c.get('role') or _SINGLE_ROLE, c['repo'])
+             for c in ((composition or {}).get('components') or [])
+             if isinstance(c, dict) and c.get('repo') and not c.get('pattern')]
+    if not repos:
+        return out
+    from .prospector import _repo_weight_gb
+
+    parts = dict((out or {}).get('components') or {})
+    unresolved = list((out or {}).get('unresolved') or [])
+    for role, repo in repos:
+        gb = _repo_weight_gb(repo) if _HF_REPO_RE.match(repo) else None
+        if gb:
+            parts[role] = round(parts.get(role, 0.0) + gb, 3)
+        elif role not in parts:
+            unresolved.append(role)
+    if not parts:
+        return {'unresolved': sorted(set(unresolved)), 'source': 'declared'} if unresolved else {}
+    merged = {'components': dict(sorted(parts.items())),
+              'total_gb': round(sum(parts.values()), 3),
+              'largest_gb': round(max(parts.values()), 3),
+              'source': (out or {}).get('source') or 'declared'}
+    if (out or {}).get('variants'):
+        merged['variants'] = out['variants']
+    if unresolved:
+        merged['unresolved'] = sorted(set(unresolved))
+    return merged
+
+
 def components_for_spec(spec: dict, *, files=None) -> dict:
     """Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
 
@@ -462,13 +508,17 @@ def components_for_spec(spec: dict, *, files=None) -> dict:
     restriction = {'composition': spec.get('composition'),
                    'allow_patterns': spec.get('allow_patterns')}
     if files is not None:
-        return components_of_files(files, **restriction)
+        return _with_sibling_repos(components_of_files(files, **restriction),
+                                   restriction['composition'])
     kind, ref = spec.get('kind'), (spec.get('ref') or '').strip()
     if not ref:
-        return {}
+        # Un modèle SANS dépôt principal peut n'exister que par ses dépôts frères — les trois
+        # DeepFace n'ont pas de `hf_id` du tout, leur anatomie est entièrement déportée.
+        return _with_sibling_repos({}, restriction['composition'])
     if kind == 'hf':
         from .prospector import _siblings
-        return components_of_files(_siblings(ref), **restriction)
+        return _with_sibling_repos(components_of_files(_siblings(ref), **restriction),
+                                   restriction['composition'])
     # Ollama et YOLO ne livrent PAS de composition : un blob GGUF, un `.pt` — un seul composant,
     # dont le poids est celui du tout. Le dire explicitement vaut mieux que rendre `{}` : le
     # lecteur a besoin de savoir que « somme » et « plus gros » se confondent ici, pas que
