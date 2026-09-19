@@ -1451,3 +1451,61 @@ class JetonDeTransfertDeStyleTest(TestCase):
         self.assertEqual({'task': 'text-to-video', 'inputs_required': ['prompt'],
                           'inputs_optional': ['work_image'], 'tokens': ['i2v', 't2v']},
                          self._derive('t2v+i2v', is_video=True))
+
+
+class StandaloneMechanismsAreNotDeadCodeTest(TestCase):
+    """
+    « Sans consommateur » recouvrait TROIS natures — remarque de Fabien, 2026-09-19 : *« ce sont
+    des intentions, pas du code mort, et elles sont normalement consignées. Il ne faut pas les
+    considérer comme mortes si elles ne le sont pas. »*
+
+    Mesuré ce jour-là, la carte accusait quatre briques : `dev_tools` (faux positif de mesure —
+    importé sous la forme que le détecteur rate, corrigé à la source), `bench` et `mcp_server`
+    (POINTS D'ENTRÉE : leur seul appelant est leur propre commande, déclarée en annexe donc
+    exclue du comptage) et `qc` (INTENTION consignée, ROADMAP §16.5). Le champ `standalone` dit
+    laquelle des deux dernières natures s'applique, et la carte les sort des morts.
+
+    ⚠ Ces tests existent pour que le champ ne devienne pas une TRAPPE À SILENCE : il ne doit
+    couvrir qu'une brique réellement sans consommateur, et toujours avec une raison écrite.
+    """
+
+    def _mechanisms(self):
+        from wama.common.mecanismes import MECHANISMS
+        return MECHANISMS
+
+    def test_a_standalone_reason_is_never_empty(self):
+        for m in self._mechanisms():
+            if m.standalone:
+                with self.subTest(mechanism=m.key):
+                    self.assertGreater(len(m.standalone.strip()), 40,
+                                       "une raison d'autonomie se RÉDIGE — sinon c'est un silence")
+
+    def test_a_mechanism_with_consumers_is_not_declared_standalone(self):
+        """La trappe à éviter : masquer une brique morte en la déclarant « autonome » alors
+        qu'elle a des consommateurs (ou, pire, la déclarer pour ne plus la voir)."""
+        from pathlib import Path
+
+        from django.conf import settings
+        from wama.common.services.mecanismes_scan import consumers, load_sources
+        base = Path(settings.BASE_DIR)
+        sources = load_sources(base)
+        wrong = [m.key for m in self._mechanisms()
+                 if m.standalone and (base / m.home).exists() and consumers(m, sources)]
+        self.assertEqual(wrong, [],
+                         "déclaré autonome alors qu'il a des consommateurs : retirer `standalone`")
+
+    def test_dev_tools_is_imported_in_a_form_the_scanner_sees(self):
+        """Régression précise : `from wama.common.services import dev_tools` ÉCHAPPE au
+        détecteur (piège documenté dans `doc_facts`), et faisait passer une brique vivante pour
+        morte. La forme `from wama.common.services.dev_tools import …` est celle qui compte."""
+        from pathlib import Path
+
+        from django.conf import settings
+        from wama.common.mecanismes import MECHANISMS
+        from wama.common.services.mecanismes_scan import consumers, load_sources
+        base = Path(settings.BASE_DIR)
+        dev_tools = next(m for m in MECHANISMS if m.key == 'dev_tools')
+        self.assertTrue(consumers(dev_tools, load_sources(base)),
+                        "dev_tools doit compter son consommateur (mcp_server)")
+        self.assertFalse(dev_tools.standalone,
+                         "dev_tools a un consommateur : il ne doit PAS être déclaré autonome")

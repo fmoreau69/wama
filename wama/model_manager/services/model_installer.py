@@ -188,24 +188,51 @@ _YOLO_TASK_DIRS = {'-seg': 'segment', '-obb': 'obb', '-pose': 'pose', '-cls': 'c
 _YOLO_ASSET_URL = "https://github.com/ultralytics/assets/releases/latest/download/{}.pt"
 
 
-def yolo_asset_gb(name: str):
-    """
-    Poids en Go d'un asset YOLO officiel, relevé par un HEAD sur son URL de release
-    (None si injoignable ou taille non annoncée).
-
-    La prospection paie UN appel réseau pour connaître la taille d'un candidat — même idiome
-    que `_repo_weight_gb` côté HuggingFace. Sans ce relevé, la garde d'espace n'a rien à
-    mesurer et refuse « taille indéterminable » un fichier de 20 Mo.
-    """
+def _yolo_asset_gb(name: str):
+    """Poids d'un asset YOLO officiel, par un HEAD sur son URL de release (None si injoignable).
+    Branche YOLO de `weight_for_spec` — pas un point d'entrée."""
     import requests
 
     base = (name or '')[:-3] if (name or '').endswith('.pt') else (name or '')
     try:
         rep = requests.head(_YOLO_ASSET_URL.format(base), timeout=15, allow_redirects=True)
-        taille = int(rep.headers.get('Content-Length') or 0)
+        size = int(rep.headers.get('Content-Length') or 0)
     except Exception:
         return None
-    return round(taille / 1024 ** 3, 3) if taille else None
+    return round(size / 1024 ** 3, 3) if size else None
+
+
+def weight_for_spec(spec: dict):
+    """
+    Poids en Go de ce qu'un descripteur d'installation va TIRER, ou None si indéterminable.
+
+    JUMEAU de `provenance.identity_for_spec` — même descripteur, même dispatch par `kind`, et
+    c'est le motif de la maison (`install_from_spec` dispatche les drivers de la même façon).
+    ⚠ Écrit le 2026-09-19 sur une remarque de Fabien (« pourquoi une fonction spécifique à
+    YOLO ? ») : la réponse à « combien pèse ce que je vais tirer ? » existait en TROIS exemplaires
+    dispersés, chacun appelé à la main par un appelant différent — `_repo_weight_gb` (HF),
+    `ollama_registry.size_gb` (Ollama), et un relevé YOLO que je venais d'ajouter en quatrième.
+    *Trois réponses à une même question ne divergent pas bruyamment : elles se répartissent entre
+    des appelants qui n'en connaissent chacun qu'une.* Ici on ne réécrit RIEN : chaque branche
+    appelle la brique existante de sa source.
+
+    None = indéterminable, et l'appelant doit alors REFUSER d'installer plutôt que de supposer
+    (sur un volume à 96 %, une supposition optimiste remplit le disque).
+    """
+    spec = spec or {}
+    kind, ref = spec.get('kind'), (spec.get('ref') or '').strip()
+    if not ref:
+        return None
+    if kind == 'hf':
+        from .prospector import _repo_weight_gb
+        return _repo_weight_gb(ref)
+    if kind == 'ollama':
+        from .ollama_registry import size_gb
+        name, _, tag = ref.partition(':')
+        return size_gb(name, tag or 'latest')
+    if kind == 'yolo':
+        return _yolo_asset_gb(ref)
+    return None
 
 
 def yolo_task_of(name: str) -> str:
@@ -473,9 +500,13 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
         # on le compte donc dans la garde ; la séquence désinstallation → installation vit
         # dans `install_candidate` (décision 2026-08-04, PROSPECTION_PIPELINE.md).
         replaces, reclaim_gb = replaced_model(cand)
-        # ⚠ Ollama : `needed_gb=None` fait interroger le registre Ollama par la garde (elle
-        # connaît la taille d'un tag) ; un poids HF, lui, est relevé à la prospection.
-        ref, needed = cand.name, (needed_gb if cand.source != 'ollama' else None)
+        # Le poids se demande au DESCRIPTEUR (2026-09-19, remarque de Fabien) : `weight_for_spec`
+        # dispatche par `kind` comme `identity_for_spec`, au lieu que chaque appelant sache quelle
+        # fonction de poids interroger pour SA source. Le relevé de la prospection (`disk_gb`) ou
+        # le choix de variante priment quand ils existent — ils sont déjà mesurés, et pour une
+        # variante quantisée c'est LE poids du choix, que le descripteur canonique ignore.
+        ref = cand.name
+        needed = needed_gb or weight_for_spec(cand_spec or {'kind': 'ollama', 'ref': cand.name})
         task, target = install_proposed_task, cand
     else:
         # LIGNE DE CATALOGUE non téléchargée (2026-08-27) : l'app déclare l'emplacement
@@ -489,8 +520,8 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
             return {'ok': False, 'reason': 'no_install_location',
                     'error': "Ce modèle ne déclare pas d'emplacement d'installation "
                              "(hf_id/install_dir) — il se téléchargera au premier usage."}
-        from .prospector import _repo_weight_gb
-        ref, needed = (row.hf_id or row.name), (row.disk_gb or _repo_weight_gb(row.hf_id))
+        ref = row.hf_id or row.name
+        needed = row.disk_gb or weight_for_spec(spec_for_catalog_row(row))
         task, target = install_catalog_task, row
 
     garde = disk_space_guard(ref, reclaim_gb=reclaim_gb, force=force, needed_gb=needed)

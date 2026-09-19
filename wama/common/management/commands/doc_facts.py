@@ -180,6 +180,10 @@ def _fait_mecanismes():
     # lit pas — demande Fabien du 2026-08-13 en intégrant la couche UI générée.
     lignes = []
     orphelins = []
+    #: Sans consommateur, mais DÉCLARÉ tel (champ `standalone`) : point d'entrée de process ou
+    #: intention consignée. Séparé des orphelins depuis le 2026-09-19 — les mélanger accusait
+    #: `bench`, `mcp_server` et `qc` d'être des briques mortes alors qu'aucun des trois ne l'est.
+    autonomes = []
     absents = []
     domaines = []
     for m in MECHANISMS:
@@ -196,9 +200,11 @@ def _fait_mecanismes():
                 absents.append(f"{m.key} → {m.home}")
             conso = _consumers(m) if existe else []
             if existe and not conso:
-                orphelins.append(f"`{m.key}` ({m.home})")
+                (autonomes if m.standalone else orphelins).append(f"`{m.key}` ({m.home})")
             doc = f"`{m.doc}`" if m.doc else "—"
-            etat = str(len(conso)) if conso else ("⚠ **0**" if existe else "❌ absent")
+            etat = (str(len(conso)) if conso
+                    else ("— *(autonome)*" if m.standalone and existe
+                          else ("⚠ **0**" if existe else "❌ absent")))
             lignes.append(f"| **{m.name}** | {m.role} | `{m.home}` | {doc} | {etat} |")
 
     # Modules de `common/` non rattachés : la réponse mécanique à « qu'ai-je oublié de tracer ».
@@ -256,7 +262,7 @@ def _fait_mecanismes():
     lignes.append("")
     _trous = mechanisms_without_criterion(sources)
     lignes.append(f"**Mécanismes déclarés : {len(MECHANISMS)}** · "
-                  f"domiciles absents : {len(absents)} · sans consommateur : {len(orphelins)} · "
+                  f"domiciles absents : {len(absents)} · sans consommateur : {len(orphelins)} "f"(+ {len(autonomes)} autonomes DÉCLARÉS) · "
                   f"assumés locaux : {len(ASSUMED_LOCAL)} · "
                   f"modules balayés non rattachés : {len(candidats)} · "
                   f"**de niveau app sans critère de grille : {len(_trous)}**")
@@ -271,6 +277,12 @@ def _fait_mecanismes():
     if orphelins:
         lignes.append(f"- ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : "
                       f"{', '.join(orphelins)}")
+    if autonomes:
+        lignes.append("- ℹ️ **Sans consommateur, et c'est DÉCLARÉ** (point d'entrée de process, "
+                      "ou intention consignée — pas du code mort) :")
+        for m in MECHANISMS:
+            if m.standalone and (base / m.home).exists() and not _consumers(m):
+                lignes.append(f"  - `{m.key}` — {m.standalone}")
 
     # 4ᵉ FORME D'OUBLI (jonction mécanismes↔grille, décision Fabien 19/08) : un mécanisme
     # ADOPTÉ PAR DES APPS que la grille de conformité ne vérifie nulle part. C'est le trou qui

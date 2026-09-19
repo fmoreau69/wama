@@ -55,6 +55,18 @@ class Mechanism:
     #: `ScopedVisibility` alors qu'ils importent surtout `Library` ou `BatchMixin` (mesuré le
     #: 2026-08-13). Le chiffre devenait décoratif ; renseigner le symbole le rend vrai.
     symbol: str = ''
+    #: POURQUOI ce mécanisme n'a aucun consommateur qui l'IMPORTE — quand c'est voulu.
+    #: ⚠ Ajouté le 2026-09-19 sur une remarque de Fabien : « ce sont des intentions, pas du code
+    #: mort, et elles sont normalement consignées. Il ne faut pas les considérer comme mortes si
+    #: elles ne le sont pas. » La carte listait quatre briques sous « brique morte ou pas encore
+    #: adoptée » alors que TROIS natures s'y mélangeaient : un faux positif de mesure
+    #: (`dev_tools`, importé sous une forme que le détecteur rate — corrigé à la source), des
+    #: POINTS D'ENTRÉE dont le seul appelant est leur propre commande, déclarée en annexe donc
+    #: exclue du comptage (`bench`, `mcp_server`), et une INTENTION consignée (`qc`, ROADMAP
+    #: §16.5). Renseigner ce champ sort le mécanisme de la liste des morts et affiche sa raison.
+    #: ⚠ Ce n'est PAS une trappe à silence : un mécanisme qui devrait être importé et ne l'est
+    #: pas doit rester dans la liste — d'où une raison ÉCRITE, relue comme le reste du registre.
+    standalone: str = ''
     #: Domaine de rendu de la carte (sous-table). Posé par `_domain()` — jamais entrée par entrée.
     domain: str = ''
     #: Clés des mécanismes sur lesquels celui-ci S'APPUIE — il les appelle pour faire son travail
@@ -249,7 +261,10 @@ MECHANISMS = (
               "et nourrit la boucle d'ETA (`ModelRuntimeStat`, unité token) — des coûts, jamais "
               "une qualité",
               'wama/model_manager/services/bench.py', 'docs/construction/suivi/ROADMAP.md §16.2',
-              annexes=('wama/model_manager/management/commands/bench.py',)),
+              annexes=('wama/model_manager/management/commands/bench.py',),
+              standalone="POINT D'ENTRÉE : son seul appelant est sa propre commande "
+                         "(`manage.py bench`), déclarée en annexe — un banc se LANCE, il ne "
+                         "s'importe pas. 0 consommateur est donc le compte JUSTE"),
     Mechanism('provenance', 'Provenance de modèle',
               "Identité chez l'éditeur (licence, auteur, plateforme), posée VIA le manifeste",
               'wama/model_manager/services/provenance.py', '',
@@ -433,7 +448,10 @@ MECHANISMS = (
               annexes=('wama/common/templates/common/rag.html',)),
     Mechanism('qc', 'Contrôle qualité de sortie',
               "Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine",
-              'wama/common/utils/qc.py', 'docs/construction/suivi/ROADMAP.md §16.5'),
+              'wama/common/utils/qc.py', 'docs/construction/suivi/ROADMAP.md §16.5',
+              standalone="INTENTION CONSIGNÉE, pas une brique morte (ROADMAP §16.5) : le 3ᵉ "
+                         "étage de l'échelle des signaux — la MESURE INTERNE — est vide, et ce "
+                         "juge l'attend. Mesuré le 2026-09-19 : 0 consommateur, bench compris"),
     Mechanism('divergence', 'Divergence inter-systèmes',
               "Désaccord entre deux sorties du même travail — signal objectif, sans avis de modèle",
               'wama/common/services/divergence.py',
@@ -486,7 +504,10 @@ MECHANISMS = (
               'wama/common/services/mcp_server.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/common/management/commands/run_mcp_server.py',
-                       'wama/common/tests_mcp_server.py')),
+                       'wama/common/tests_mcp_server.py'),
+              standalone="POINT D'ENTRÉE DE PROCESS : un serveur MCP se LANCE "
+                         "(`run_mcp_server`, en annexe), il n'est importé par aucune brique de "
+                         "WAMA — et c'est voulu, les clients l'atteignent par le protocole"),
     Mechanism('dev_tools', 'Outils de DÉVELOPPEMENT (surface MCP « wama-dev »)',
               "Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sable "
               "d'apps, exposés à un client MCP. ⚠ JAMAIS chargé dans le process de PRODUCTION "
