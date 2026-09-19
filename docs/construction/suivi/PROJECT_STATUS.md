@@ -15743,3 +15743,21 @@ HunyuanImage 2.1 a-t-elle déjà ABOUTI sur la 4090 (bf16 posé par le chargeur,
 plein GPU tenté puis offload par composant ; le séquentiel n'est atteint que par le repli
 `ImportError`) ? 🔚 **À la sœur** : pesée LOCALE des dépôts frères ; `files` par rôle dans la sortie
 de `components_of_files` (pour `safetensors_facts` par composant → pic par précision). Puis B, C, D.
+
+**⑥ SUITE 20/09 (nuit) — répartition CHANGÉE par Fabien (transmise par la sœur) : le SECOND chiffre
+(rang « source » de `_footprint_to_publish`, les deux nombres à `get_memory_strategy`, filtre du
+tirage sur le pic, migration des presets) est à l'instance sœur — cette instance ne touche plus
+`memory_manager.py`, `model_selector.py`, `base.py` ni la découverte.** Ses deux livraisons
+(`b3160647`) : `files` par rôle dans la dérivation ; pesée LOCALE des dépôts frères (pyannote 0,030,
+plus d'`unresolved`). Livré ici en retour : **la précision par composant** —
+`prospector.local_revision` (base des chemins), `precision_of_files(revision, files)` →
+`weights['precision'] = {rôle: {params, dtypes}}` (en-têtes safetensors des fichiers RETENUS, sommés
+par rôle ; un rôle sans safetensors lisible n'apparaît pas) ; signature `v2:`. Mesuré : Hunyuan
+transformer 17,43 Md BF16 ; Qwen 20,43 ; LTX 13,04 (T5 4,76 Md **F32**) ; FLUX 11,9 ; CogVideoX 5,63.
+⚠ **SDXL = variante en chair et en os** : installé en fp16 (`unet/…fp16.safetensors`, 6,6 Go), déclaré
+sur les fichiers pleine précision → la dérivation rendait `{}` et le rédacteur se taisait ; il retombe
+sur la convention et marque `declared_unmatched` (à lire par le chantier des variantes et par la
+déclaration SDXL de la sœur). ⚠ Budget de langue CODE rouge (2621 > 2614) par des identifiants des
+commits de la sœur d'après mon recalage (`racine`, `cle`, `b3160647`) — signalé, remède chez elle.
+Tests +3 (15 + 10). 🔚 Reste ici : rien d'ouvert sur A hors B/C/D ; imager et Wan hors des deux
+périmètres.
