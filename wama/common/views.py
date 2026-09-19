@@ -393,6 +393,19 @@ def apps_catalog_view(request):
                 cle = 'never' if s['never_run'] else ('skip' if s['skipped']
                                                      else ('ok' if s['ok'] else 'ko'))
                 commun[cle] -= 1
+        # ── Le SUBSTRAT n'est pas une app (2026-09-19, remarque de Fabien). Le stage `suite`
+        # a fait entrer 18 labels dans la grille, dont **10 hors du catalogue d'apps** :
+        # `wama.common`, `wama_data`, `accounts`, `gateway`, `filemanager`, `model_manager`,
+        # `studio`, `media_library` et les deux du Lab. Les afficher dans une table dont la
+        # 1ʳᵉ colonne s'intitule « Application » ferait MENTIR la page — une grille par app
+        # répond à « cette app est-elle conforme et fonctionne-t-elle ? », pas à « le dépôt
+        # est-il sain ? ». Deux questions, deux tables ; même motif que l'extraction des
+        # droits juste au-dessus. ⚠ Une page dédiée reste une DÉCISION différée (le critère
+        # est écrit dans WAMA_VERIFICATION §2) : 18 lignes ne la remplissent pas encore.
+        grille_substrat = {k: v for k, v in grille_fonctionnelle.items()
+                           if k not in APP_CATALOG}
+        for k in grille_substrat:
+            grille_fonctionnelle.pop(k, None)
     except Exception:
         grille_fonctionnelle = {}   # la grille d'adoption reste servie même si celle-ci casse
 
@@ -401,6 +414,7 @@ def apps_catalog_view(request):
                    'conformity_measured_at': measured_at,
                    'facettes_apps': facettes,
                    'grille_fonctionnelle': grille_fonctionnelle,
+                   'grille_substrat': grille_substrat,
                    'grille_droits': grille_droits,
                    'abo': _resume_abo(request.user, 'app', autorisees),
                    'abo_ids': autorisees})

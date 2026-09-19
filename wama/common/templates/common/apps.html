@@ -446,6 +446,60 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
         </table>
     </div>
 
+    {% comment %}Le SUBSTRAT n'est pas une app (2026-09-19, remarque de Fabien). Le stage `suite`
+    a fait entrer la suite Django dans la grille, et 10 de ses 18 labels sont hors du catalogue
+    d'apps : les mettre dans la table ci-dessus, dont la 1ʳᵉ colonne s'intitule « Application »,
+    ferait mentir la page. Même geste que l'extraction des droits juste en dessous.
+    ⚠ Une page dédiée aux tests reste une DÉCISION différée : le critère est écrit dans
+    WAMA_VERIFICATION §2 — 18 lignes ne la remplissent pas encore.{% endcomment %}
+    {% if grille_substrat %}
+    <div class="d-flex align-items-center justify-content-between mb-3 mt-4 flex-wrap gap-2">
+        <h2 class="h5 text-white mb-0"><i class="fas fa-layer-group me-2 text-info"></i>Substrat &amp; mondes (hors apps)</h2>
+        <small class="text-white-50">le dépôt est-il sain — suites Django et scénarios transverses</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-dark table-sm table-hover summary-table align-middle">
+            <thead>
+                <tr>
+                    <th>Module</th>
+                    <th class="text-center" title="scénarios au vert (dernier verdict)">✓ OK</th>
+                    <th class="text-center" title="scénarios en échec (dernier verdict)">✗ Échecs</th>
+                    <th class="text-center" title="dépendance absente au moment du run — ni vert ni rouge">⏭ Skips</th>
+                    <th class="text-center" title="scénarios enregistrés jamais exécutés">∅ Jamais</th>
+                    <th class="text-center">Dernière mesure</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for module, g in grille_substrat.items %}
+                <tr>
+                    <td>{{ module }}</td>
+                    <td class="text-center"><span class="check-ok">{{ g.ok }}</span></td>
+                    <td class="text-center">{% if g.ko %}<span class="badge bg-danger mini-badge">{{ g.ko }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
+                    <td class="text-center">{% if g.skip %}<span class="badge bg-warning text-dark mini-badge">{{ g.skip }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
+                    <td class="text-center">{% if g.never %}<span class="badge bg-secondary mini-badge">{{ g.never }}</span>{% else %}<span class="check-na">0</span>{% endif %}</td>
+                    <td class="text-center"><small class="text-white-50">{{ g.last_at|default:"—" }}</small></td>
+                </tr>
+                {% if g.ko or g.skip or g.never %}
+                <tr><td colspan="6" class="pt-0 border-0">
+                    <details class="small text-white-50 ms-3">
+                        <summary style="cursor:pointer">détail des non-verts</summary>
+                        <ul class="mb-1 mt-1">
+                        {% for sc in g.scenarios %}{% if not sc.ok or sc.skipped or sc.never_run %}
+                            <li><code>{{ sc.id }}</code> —
+                                {% if sc.never_run %}jamais exécuté{% elif sc.skipped %}skip{% else %}<span class="check-fail">échec</span>{% endif %}
+                                {% if sc.detail %} · {{ sc.detail|truncatechars:180 }}{% endif %}
+                                {% if sc.at %} <span class="text-white-50">({{ sc.at }})</span>{% endif %}</li>
+                        {% endif %}{% endfor %}
+                        </ul>
+                    </details>
+                </td></tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
     {% comment %}3ᵉ grille — les DROITS (WAMA_VERIFICATION §3ter, branchée le 2026-09-01).
     Orthogonale aux deux autres : un geste peut marcher parfaitement pour quelqu'un qui
     n'aurait pas dû l'atteindre, et ni l'adoption ni la fonctionnelle ne le verraient.

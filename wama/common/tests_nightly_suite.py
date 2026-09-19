@@ -12,7 +12,7 @@ les tests en anglais »). Le style « phrase qui énonce un comportement » est 
 """
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.nightly_suite import _run_label, test_labels
 from wama.common.services.nightly_tests import SkipScenario
@@ -88,3 +88,37 @@ class NightlySuiteLabelsTest(SimpleTestCase):
         labels = test_labels()
         self.assertIn('wama.common', labels)
         self.assertIn('wama.model_manager', labels)
+
+
+class FunctionalGridSeparatesSubstrateFromAppsTest(TestCase):
+    """
+    Le SUBSTRAT n'est pas une app — remarque de Fabien, 2026-09-19, sur la page `/apps/`.
+
+    Le stage `suite` a fait entrer 18 labels dans la grille fonctionnelle, dont **10 hors du
+    catalogue d'apps** (`wama.common`, `wama_data`, `accounts`, `gateway`, `filemanager`,
+    `model_manager`, `studio`, `media_library`, et les deux du Lab). Les afficher dans une table
+    dont la première colonne s'intitule « Application » ferait MENTIR la page : une grille par app
+    répond à « cette app est-elle conforme et fonctionne-t-elle ? », pas à « le dépôt est-il
+    sain ? ».
+
+    Cette garde existe pour qu'un label transverse ajouté demain ne se range pas tout seul parmi
+    les apps — c'est exactement ainsi que la première version l'a fait.
+    """
+
+    def test_no_non_app_label_is_shown_as_an_app(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from wama.common.app_registry import APP_CATALOG
+        admin = get_user_model().objects.create_user('admin_grids', password='x',
+                                                     is_superuser=True, is_staff=True)
+        self.client.force_login(admin)
+        response = self.client.get(reverse('common:apps_catalog'))
+        self.assertEqual(response.status_code, 200)
+        apps_grid = response.context['grille_fonctionnelle']
+        substrate = response.context['grille_substrat']
+        intruders = [k for k in apps_grid if k not in APP_CATALOG]
+        self.assertEqual(intruders, [], "un module hors catalogue est affiché comme une app")
+        self.assertTrue(all(k not in APP_CATALOG for k in substrate),
+                        "une app est rangée dans le substrat")
+        self.assertFalse(set(apps_grid) & set(substrate), "les deux tables se recoupent")
