@@ -1,0 +1,68 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "claude_code"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "hosting": "third_party",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Claude Code (abonnement) — le modèle est choisi par le fournisseur",
+      "hf_id": null,
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "claude_code"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "claude_code",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Claude Code (abonnement) — le modèle est choisi par le fournisseur",
+  "key": "claude_code:default",
+  "manifest_kind": "model",
+  "name": "Claude Code (abonnement)",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:claude_code:default",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

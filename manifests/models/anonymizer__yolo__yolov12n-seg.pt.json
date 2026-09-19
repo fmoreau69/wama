@@ -181,8 +181,6 @@
         "79"
       ],
       "model_id": "segment/yolov12n-seg.pt",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/segment/yolov12n-seg.pt",
-      "size_bytes": 11835513,
       "specialty": null,
       "yolo_type": "segment"
     },

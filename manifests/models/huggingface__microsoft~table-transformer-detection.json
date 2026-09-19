@@ -17,11 +17,7 @@
     },
     "extra_info": {
       "category": "vision",
-      "family": "table-transformer-detection",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/table-transformer-detection/models--microsoft--table-transformer-detection",
-      "size_bytes": 230714874,
-      "vram_estimated": true
+      "family": "table-transformer-detection"
     },
     "formats": {
       "can_convert_to": [],

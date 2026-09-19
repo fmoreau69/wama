@@ -23,8 +23,6 @@
         "person"
       ],
       "model_id": "pose/yolo11m-pose.pt",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/pose/yolo11m-pose.pt",
-      "size_bytes": 42459307,
       "specialty": null,
       "yolo_type": "pose"
     },

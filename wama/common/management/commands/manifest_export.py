@@ -76,21 +76,86 @@ def _function_keys() -> list:
     return sorted(FUNCTION_CATALOG)
 
 
-def _nom_fichier(cle: str) -> str:
+def _model_keys() -> list:
+    """Clés des modèles du catalogue à porter au corpus — ÉNUMÉRATION, comme les fonctions.
+
+    Pourquoi (2026-09-19, chantier « source unique des capacités ») : les modèles n'entraient
+    que par DÉRIVATION (cités par les `requires` d'une app) ∪ refresh des déjà semés. Un modèle
+    qu'aucune app ne déclare n'avait donc jamais de manifeste : mesuré, **12 lignes cloud**
+    (11 `anthropic:*` + `claude_code:default`) — exactement celles que la découverte cloud
+    apporte sans app propriétaire.
+
+    ⚠ Les lignes RETIRÉES sont exclues, et ce n'est pas un détail de propreté : `retire_unlisted`
+    MARQUE (`is_available=False`) au lieu de supprimer, pour garder l'historique d'une ligne que
+    la source ne liste plus. Deux résidus d'avant la normalisation des clés existent
+    (`albert:openai/gpt-oss-120b`, `albert:qwen3-coder-30b-A3b-instruct`) et c'est l'export de
+    l'un d'eux qui, le 2026-09-18, a ÉCRASÉ un manifeste valide : sous Windows son nom de
+    fichier ne différait que par la casse. *Exporter une ligne morte ne crée pas un fichier de
+    plus, il peut en détruire un vivant.*
+    """
+    from wama.model_manager.models import AIModel
+    return sorted(AIModel.objects.filter(is_proposed=False, is_available=True)
+                  .values_list('model_key', flat=True))
+
+
+def _nom_fichier(cle: str, connues=()) -> str:
     """Nom de fichier assaini : les clés modèle portent `:` (interdit sous Windows) et les
     snapshots HF un `/` d'organisation (`huggingface:Org/Nom`, 2026-08-27) qui créerait un
     SOUS-DOSSIER au corpus — vécu : export en échec FileNotFoundError sur le premier modèle
     installé par la chaîne générique. `~` n'appartient pas à l'alphabet des ids HF ni des
-    clés WAMA : la réversibilité du glob inverse est exacte."""
+    clés WAMA : la réversibilité du glob inverse est exacte.
+
+    `connues` : les autres clés du même lot. Deux clés qui ne diffèrent que par la CASSE
+    donnent le même fichier sur un système insensible à la casse (Windows, macOS) — vécu le
+    2026-09-18 : `albert:qwen3-coder-30b-A3b-instruct` a écrasé le manifeste de
+    `albert:qwen3-coder-30b-a3b-instruct`, restauré par `git checkout`. On refuse, comme pour
+    `__`/`~` : *refuser vaut mieux que corrompre en silence.*
+    """
     if '__' in cle or '~' in cle:   # collision avec l'assainissement → le glob inverse
         raise ValueError(           # rendrait une autre clé ; refuser vaut mieux que
             f"clé {cle!r} : '__' ou '~' entre en collision "  # corrompre en silence.
             "avec l'assainissement de ':' et '/'")
+    jumelles = [k for k in connues if k != cle and k.lower() == cle.lower()]
+    if jumelles:
+        raise ValueError(
+            f"clé {cle!r} : même nom de fichier que {jumelles!r} à la casse près — sur un "
+            "système insensible à la casse, l'un écraserait l'autre")
     return cle.replace(':', '__').replace('/', '~')
 
 
 def _cle_du_stem(stem: str) -> str:
     return stem.replace('__', ':').replace('~', '/')
+
+
+#: Clés d'`extra_info` qui décrivent L'ÉTAT DE CETTE MACHINE, pas le modèle — retirées à
+#: l'export (2026-09-19). Même motif que `_missing_facets` : « le corpus ne doit contenir que du
+#: DÉCLARATIF », un LLM entraîné dessus apprendrait à inventer des chemins et des états.
+#:
+#: Mesuré sur les 141 manifestes avant filtrage : `path` sur **82** d'entre eux, avec le chemin
+#: ABSOLU de cette machine (`/mnt/d/WAMA/…`) — dans un dépôt PUBLIC, et doublon de `local_path`
+#: que le write-back PRÉSERVE déjà (il ne projette jamais `extra_info`, vérifié :
+#: `write_back_model` ne touche que `_CHAMPS_PROJETES` + capabilities + gated). Retirer ne perd
+#: donc rien : ni au registre, ni à la composition (qui résout les requires par extraction LIVE).
+#:
+#: ⚠ Liste NOIRE, jamais blanche : une app qui déclare demain une méta-info propre doit la voir
+#: arriver au corpus sans rien modifier ici — c'est l'ouverture que WAMA vise. On ne retire que
+#: ce dont on a établi la nature.
+_EXTRA_INFO_ETAT_MACHINE = frozenset({
+    # Chemins de CETTE machine
+    'path', 'install_dir', 'models_dir',
+    # Mesures de disque — `resources.disk_gb` porte déjà le fait
+    'size_bytes', 'size_mb', 'disk_gb',
+    # Présence / bon fonctionnement à l'instant T
+    'installed', 'ready', 'models_dir_exists', 'models_cached', 'error', 'hf_authenticated',
+    # Empreintes et marqueurs posés par la DÉCOUVERTE
+    'ollama_id', 'hf_snapshot', 'vram_estimated', 'update_check', 'declared',
+})
+
+
+def _sans_etat_machine(extra_info: dict) -> dict:
+    """`extra_info` débarrassé de l'état machine — cf. `_EXTRA_INFO_ETAT_MACHINE`."""
+    return {k: v for k, v in (extra_info or {}).items()
+            if k not in _EXTRA_INFO_ETAT_MACHINE}
 
 
 class Command(BaseCommand):
@@ -130,6 +195,16 @@ class Command(BaseCommand):
             cibles = [('function', k) for k in _function_keys()]
         elif o['kind'] == 'pipeline':
             cibles = [('pipeline', k) for k in _pipeline_keys()]
+        elif o['kind'] == 'model':
+            # Modèles SEULS, par énumération du catalogue (2026-09-19) : comme `function`, ce
+            # mode ne touche pas aux libraries (venv-dépendantes), donc il est sûr partout.
+            # ∪ REFRESH des déjà semés : une ligne ÉCARTÉE garde son manifeste (le YOLO visages
+            # exclu le 12/08 pour 0 détection sur une scène de rue), et ce manifeste doit être
+            # relu comme les autres — sinon il fossilise ce que l'export ne produit plus
+            # (mesuré : il était le seul à garder un chemin absolu après le filtrage).
+            semes = {_cle_du_stem(f.stem)
+                     for f in (base / DOSSIERS['model']).glob('*.json')}
+            cibles = [('model', k) for k in sorted(set(_model_keys()) | semes)]
         else:
             # Jumelles bac à sable EXCLUES : le corpus décrit les apps RÉELLES — une jumelle
             # est jetable et se COMPARE à sa source (route §10.3 marche S, fuite mesurée
@@ -139,13 +214,17 @@ class Command(BaseCommand):
             cibles += [('library', _cle_du_stem(f.stem))
                        for f in sorted((base / DOSSIERS['library']).glob('*.json'))]
             # Modèles : DÉRIVÉS des requires des apps (composition app → model) ∪ refresh
-            # des déjà exportés — même logique que les libraries, sans semis manuel.
+            # des déjà exportés ∪ ÉNUMÉRATION du catalogue (2026-09-19). La dérivation seule
+            # laissait dehors tout modèle qu'aucune app ne déclare — mesuré : 12 lignes cloud
+            # (11 `anthropic:*` + `claude_code:default`), celles que la découverte cloud
+            # apporte sans app propriétaire. Le refresh des semés reste utile : il rattrape un
+            # modèle retiré du catalogue dont le manifeste, lui, doit être relu et signalé.
             cites = {r['key'] for genre, a in cibles if genre == 'app'
                      for r in ((_extract('app', a) or {}).get('requires') or [])
                      if isinstance(r, dict) and r.get('kind') == 'model' and r.get('key')}
             semes = {_cle_du_stem(f.stem)
                      for f in (base / DOSSIERS['model']).glob('*.json')}
-            cibles += [('model', k) for k in sorted(cites | semes)]
+            cibles += [('model', k) for k in sorted(cites | semes | set(_model_keys()))]
             # Fonctions : ÉNUMÉRÉES depuis le catalogue code (pas de semis, pas de dérivation).
             cibles += [('function', k) for k in _function_keys()]
             # Pipelines déclarés en code (D13, 2026-09-09) : même énumération, même garde.
@@ -153,6 +232,11 @@ class Command(BaseCommand):
 
         w, s, e, warn = self.stdout.write, self.style.SUCCESS, self.style.ERROR, self.style.WARNING
         ecrits, perimes, refuses, inchanges = [], [], [], []
+        #: Les clés du lot, par kind : `_nom_fichier` y voit une collision de CASSE avant
+        #: d'écrire (deux clés → un seul fichier sous Windows, vécu le 2026-09-18).
+        lot = {}
+        for kind, cle in cibles:
+            lot.setdefault(kind, []).append(cle)
 
         for kind, app_id in cibles:
             dossier = base / (o['out'] or DOSSIERS[kind])
@@ -179,12 +263,18 @@ class Command(BaseCommand):
             absentes = list(body.get('_missing_facets') or [])
             manifest = dict(manifest)
             manifest['body'] = {k: v for k, v in body.items() if not k.startswith('_')}
+            # Même règle un cran plus bas : `extra_info` d'un modèle mélange le déclaratif
+            # (aliases, famille, classes, contrat) et l'état de CETTE machine (chemins absolus,
+            # tailles, « installé », empreintes). Seul le déclaratif est un exemple.
+            if 'extra_info' in manifest['body']:
+                manifest['body'] = dict(manifest['body'],
+                                        extra_info=_sans_etat_machine(manifest['body']['extra_info']))
 
             # `sort_keys` + indentation stable : le diff git doit refléter un changement de
             # contenu, jamais un réordonnancement de dict.
             texte = json.dumps(manifest, ensure_ascii=False, indent=2,
                                sort_keys=True, default=str) + '\n'
-            cible = dossier / f"{_nom_fichier(app_id)}.json"
+            cible = dossier / f"{_nom_fichier(app_id, lot.get(kind, ()))}.json"
             actuel = cible.read_text(encoding='utf-8') if cible.exists() else None
 
             if actuel == texte:

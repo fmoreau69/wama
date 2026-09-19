@@ -1,0 +1,68 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "anthropic"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "hosting": "third_party",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "hf_id": null,
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "anthropic"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "anthropic",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "key": "anthropic:claude-opus-4-8",
+  "manifest_kind": "model",
+  "name": "Claude Opus 4.8",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anthropic:claude-opus-4-8",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

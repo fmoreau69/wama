@@ -16,11 +16,7 @@
     },
     "extra_info": {
       "category": "music",
-      "family": "Ace-Step1.5",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/Ace-Step1.5/models--ACE-Step--Ace-Step1.5",
-      "size_bytes": 10087651939,
-      "vram_estimated": true
+      "family": "Ace-Step1.5"
     },
     "formats": {
       "can_convert_to": [],

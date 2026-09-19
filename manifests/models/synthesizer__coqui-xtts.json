@@ -37,9 +37,7 @@
         "engine": "coqui"
       }
     },
-    "extra_info": {
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/coqui/tts/tts_models--multilingual--multi-dataset--xtts_v2/model.pth"
-    },
+    "extra_info": {},
     "formats": {
       "can_convert_to": [
         "safetensors"

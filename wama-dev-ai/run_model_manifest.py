@@ -55,7 +55,8 @@ django.setup()
 
 from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, extract_json, fetch as _fetch, resolve_model, write_output)
+    add_llm_arguments, call_llm, extract_json, fetch as _fetch, manifest_examples,
+    resolve_model, write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'model.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -141,21 +142,13 @@ def vocabulaires() -> str:
 
 
 def exemples() -> str:
-    """Deux manifestes du corpus : un COMPOSÉ (montre `composition`) et un simple."""
-    compose, simple = None, None
-    for f in sorted(EXEMPLES_DIR.glob('*.json')):
-        try:
-            d = json.loads(f.read_text(encoding='utf-8'))
-        except Exception:
-            continue
-        if ((d.get('body') or {}).get('composition') or {}).get('runtime'):
-            compose = compose or f
-        else:
-            simple = simple or f
-        if compose and simple:
-            break
-    choisis = [f for f in (compose, simple) if f]
-    return '\n\n'.join(f.read_text(encoding='utf-8') for f in choisis)
+    """Deux manifestes du corpus : un COMPOSÉ (montre `composition`) et un simple.
+
+    Le choix PAR NATURE vit dans `role_utils.manifest_examples` depuis le 2026-09-19 : le
+    scout en avait besoin aussi (il prenait, lui, le premier fichier par ordre alphabétique),
+    et un few-shot choisi au hasard enseigne la mauvaise forme.
+    """
+    return manifest_examples(EXEMPLES_DIR, limit=2)
 
 
 # ── Contrôles mécaniques (le LLM propose, la chaîne d'ingest juge) ───────────────

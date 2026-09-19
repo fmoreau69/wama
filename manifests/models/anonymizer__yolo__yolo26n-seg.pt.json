@@ -181,8 +181,6 @@
         "toothbrush"
       ],
       "model_id": "segment/yolo26n-seg.pt",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/segment/yolo26n-seg.pt",
-      "size_bytes": 6719965,
       "specialty": null,
       "yolo_type": "segment"
     },

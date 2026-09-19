@@ -30,9 +30,7 @@
         "engine": "bark"
       }
     },
-    "extra_info": {
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/bark/suno/bark_v0"
-    },
+    "extra_info": {},
     "formats": {
       "can_convert_to": [
         "safetensors"

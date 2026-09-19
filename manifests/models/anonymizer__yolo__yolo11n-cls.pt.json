@@ -2021,8 +2021,6 @@
         "n15075141"
       ],
       "model_id": "classify/yolo11n-cls.pt",
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/classify/yolo11n-cls.pt",
-      "size_bytes": 5790624,
       "specialty": null,
       "yolo_type": "classify"
     },

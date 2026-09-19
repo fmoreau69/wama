@@ -1,0 +1,71 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "face-analysis"
+    },
+    "composition": {
+      "components": [
+        {
+          "repo": "serengil/deepface_models",
+          "role": "gender_model_weights.h5"
+        }
+      ],
+      "runtime": {
+        "engine": "deepface"
+      }
+    },
+    "extra_info": {
+      "model_id": "deepface-gender",
+      "optional": true
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "h5",
+      "preferred_format": "h5"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Estimation de genre — chargé seulement si « Âge & Genre » est activé",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "face_analyzer"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "face_analyzer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.5002596974372864,
+      "ram_gb": 0.0,
+      "vram_gb": 1.0
+    }
+  },
+  "description": "Estimation de genre — chargé seulement si « Âge & Genre » est activé",
+  "key": "face_analyzer:deepface-gender",
+  "manifest_kind": "model",
+  "name": "deepface-gender",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:face_analyzer:deepface-gender",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

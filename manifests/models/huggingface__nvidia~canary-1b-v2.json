@@ -43,11 +43,7 @@
     },
     "extra_info": {
       "category": "speech",
-      "family": "canary-1b-v2",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/canary-1b-v2/models--nvidia--canary-1b-v2",
-      "size_bytes": 6361222974,
-      "vram_estimated": true
+      "family": "canary-1b-v2"
     },
     "formats": {
       "can_convert_to": [],

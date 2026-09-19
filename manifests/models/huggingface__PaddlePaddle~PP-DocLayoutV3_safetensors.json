@@ -20,11 +20,7 @@
     },
     "extra_info": {
       "category": "vision",
-      "family": "PP-DocLayoutV3_safetensors",
-      "hf_snapshot": true,
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/PP-DocLayoutV3_safetensors/models--PaddlePaddle--PP-DocLayoutV3_safetensors",
-      "size_bytes": 133289651,
-      "vram_estimated": true
+      "family": "PP-DocLayoutV3_safetensors"
     },
     "formats": {
       "can_convert_to": [],
