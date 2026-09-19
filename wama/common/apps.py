@@ -86,6 +86,14 @@ class CommonConfig(AppConfig):
         except Exception:
             pass
 
+        # Scénarios nocturnes `suite` : la suite Django entre dans la grille fonctionnelle
+        # (2026-09-19). Dérivés des apps installées qui ont des tests — voir nightly_suite.py.
+        try:
+            from .nightly_suite import register_scenarios as register_suite_scenarios
+            register_suite_scenarios()
+        except Exception:
+            pass
+
         try:
             from wama.common.services.resource_governor import configure_cuda_process
             configure_cuda_process()

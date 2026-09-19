@@ -50,6 +50,46 @@ préciser laquelle des trois on cite.
 > parfaitement **pour quelqu'un qui n'aurait pas dû l'atteindre**, et aucune des deux premières
 > grilles ne le verrait. Détail en **§3ter**.
 
+### ⭐ 2026-09-19 — la SUITE DJANGO entre dans la grille fonctionnelle (stage `suite`)
+
+> Question de Fabien : *« faut-il ajouter une page dans WAMA pour accéder aux tests (registre des
+> tests, ou simplement un mécanisme ?) »*, puis sa propre réponse : *« une page présentant les
+> tests de façon exhaustive ne serait sûrement pas pertinente. C'est le résultat des tests qui
+> importe. »* **Exactement** — et c'est ce que la mesure a confirmé.
+
+**Ce qui manquait n'était pas un inventaire, c'était un ÉTAT.** Relevé du 19/09 :
+
+| | mesuré |
+|---|---|
+| scénarios nocturnes déclarés | **300** (270 `ui`, 15 `output`, 10 `consistency`, 5 `wired`) — grille fonctionnelle **déjà** servie sur `/apps/` |
+| suite Django | **2769 méthodes, 680 classes, 149 fichiers** — **aucun** scénario ne la lançait |
+| registres déclarés | 13 — **aucun `tests`**, et il n'en faut pas |
+
+*Une liste des 2769 tests n'apprendrait rien à personne et se périmerait à chaque commit* : ce
+serait une carte qui ment. Le coût réel de l'absence était ailleurs, et il a été payé le jour même —
+deux échecs PRÉEXISTANTS (`AddItemToMediaLibraryTest`, `tests_doc_plans`) qu'il a fallu élucider un
+par un et expliquer à la main dans un handoff, alors qu'un tableau les aurait datés et attribués.
+
+**Livré : un stage, pas un mécanisme de plus.** `common/nightly_suite.py` déclare **un scénario par
+app ayant des tests** (18, DÉRIVÉS des apps installées — les tierces sont écartées par
+`site-packages`, pas par la racine : les venvs vivent DANS le dépôt, et 4 suites Django étaient
+entrées au premier essai). Le verdict rejoint le même rapport JSON que les autres scénarios, donc
+**`functional_grid()` et la page `/apps/` l'affichent sans une ligne de front à écrire**.
+
+⚠⚠ **Le verdict se lit dans la SORTIE, jamais au code retour** — `manage.py test` sort en **0 sans
+avoir rien lancé**. Un scénario qui se fierait au code retour serait VERT sur une base occupée : un
+vert qui n'a rien exécuté éteint la surveillance en silence. Aucun « Ran N tests » ⇒ `SkipScenario`.
+Mesure contraire à l'attente : un **label erroné** n'est PAS silencieux (Django fabrique un
+`_FailedTest`) — le scénario rougit et nomme le module, ce qui est mieux qu'un skip.
+Les rouges sont **NOMMÉS** dans le détail (mesuré : `wama.common.tests_doc_plans : 16 tests en
+1.468s → FAILED (failures=1) — test_chaque_fichier_derive_est_ce_que_son_plan_produit`) : sans les
+noms, il faudrait relancer la suite à la main pour savoir quoi regarder.
+
+Lancement : `manage.py run_nightly_tests --stage suite` (CPU pur, aucun GPU — mais long : ~500 s
+pour `wama.common` seule, d'où un stage à part pour que `--stage ui` reste instantané).
+Tenu par `common/tests_nightly_suite.py` (8 tests : vert, rouge nommé, code retour 0 qui ne fait
+pas un succès, rien-lancé skippé, verdict illisible, timeout, tierces écartées).
+
 ---
 
 ## 3. Catalogue des gestes — il existe déjà, il n'est pas exécutable
