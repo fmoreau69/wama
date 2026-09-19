@@ -15524,3 +15524,86 @@ le même renommage du matin. Le remède est une **régénération** de ce fichie
 palier** (commits médiathèque du 18→19/09 : l'app DÉCLARE désormais le rôle là où le test attend
 une ambiguïté). Bilan de la suite : **1610 tests, 2 échecs + 1 erreur → l'erreur est corrigée, les
 2 échecs sont tracés ci-dessus.**
+
+
+## §PALIER — 2026-09-19, « GOUVERNEUR : lecture unique des empreintes, et les DÉCISIONS A-B-C de Fabien consignées » — ✅ LIVRÉ (code `b9e2c202` + hunk emporté par `9a9463ea`)
+
+> Suite de l'instance gouverneur (14/09). Fabien a recentralisé ici deux diagnostics d'autres
+> sessions (l'estimateur de VRAM ; le GO composer) et rendu ses décisions le 16/09. Consignation
+> différée jusqu'ici : `PROJECT_STATUS`/`ROADMAP` portaient alors du WIP d'une autre session.
+
+**① Le diagnostic « estimateur de VRAM » (autre session) — CONFRONTÉ AU CODE, exact.**
+113 installés : 71 déclarés, 13 estimés (poids × 1,2), 29 sans rien, 0 mesuré (mesure
+`AIModel`, lecture seule). Le MÊME chiffre `vram_gb` sert au FILTRE (`model_selector.py:241`,
+`vram_gb ≤ libre`) et au COÛT du score (`:248`) ; pour les gros modèles vidéo c'est une SOMME
+DE COMPOSANTS (CogVideoX 21 = transformer 10,8 + T5 8,9 + VAE 0,4 ; FastWan 23), que les presets
+disent eux-mêmes (`memory_manager.py:99-110`, `:122-129`). Constat ajouté ici : **la table
+`MODEL_SIZE_PRESETS` ne sert JAMAIS au tirage** — seuls les 7 backends de diffusion la lisent au
+chargement (`apply_strategy_for_model`) et le garde de l'imager ; le tirage lit `AIModel.vram_gb`.
+Deux chiffres qui vivent côte à côte sans se parler.
+⚠ **Rectification (Fabien, 19/09)** : « 21 + 4 > 24 » ne fait PAS écarter le modèle — c'est le
+choix de STRATÉGIE au chargement (déchargement CPU, il tourne). Ce qui l'écarte, c'est le filtre
+du tirage quand la VRAM libre est inférieure à sa somme de composants, alors qu'un modèle de
+21 Go tient sur une 4090 chargé SEUL, et que la libération complète avant chargement est prévue.
+C'est le chantier A.
+
+**② Livré — UNE règle de lecture de la table d'empreintes.** `get_strategy_for_model` lisait le
+nom EXACT (défaut 4 Go), `preset_vram_gb` la clé la plus SPÉCIFIQUE : un identifiant de modèle
+(`cogvideox-5b-i2v`) aurait valu 4 Go, donc un plein GPU tenté sur 21 Go. Piège LATENT (les 7
+appelants passent une clé de preset en dur) — fermé (`preset_vram_gb(model_type) or 4.0`).
+⚠ **Le hunk de code a été emporté par le commit `9a9463ea` d'une autre session** (fichier commité
+en entier pendant que mon hunk y était non commité — la règle AGENTS « un commit prend l'état
+COMPLET du fichier », vécue dans l'autre sens). Le code est dans HEAD ; `b9e2c202` n'ajoute que
+les gardes : `tests_preset_lookup` (4) + non-régression Wan/completeness/mesure/registre **72 OK** ;
+contre-épreuve (ancienne lecture rétablie) : 2 rouges attendus. Deux de mes prémisses de test
+étaient FAUSSES au 1ᵉʳ run (`qwen-image-edit` vaut 38 comme `qwen-image` ; 18 + 4 tient dans 24)
+— corrigées sur la table réelle.
+
+**③ La divergence « modèles chargés ≠ modèles inactifs » (Fabien) — MESURÉE cohérente le 16/09**
+(registre : 1 résident Kokoro-onnx résolu vers sa clé catalogue = 1 inactif = 1 `is_loaded`).
+Deux causes, corrigées le 14/09 : les clés `common:` qui ne rejoignaient pas le catalogue
+(effectif depuis le redémarrage du service TTS — sa ligne est en forme neuve `#@kokoro-onnx`) ; les
+lignes Ollama expirant entre deux synchros (tâche beat 10 min — **effectif au redémarrage du
+beat**, non vérifié).
+
+**④ DÉCISIONS DE FABIEN (16/09) — le cadre des chantiers à venir :**
+- **A. VRAM au tirage** : cascade **mesurée → source → estimée**, du meilleur au moins bon selon ce
+  qu'on a (l'estimation DÉCIDE quand il n'y a rien de mieux ; seule l'ABSENCE vaut « pire coût »),
+  sans jamais descendre sous la valeur de la source (la mesure au chargement est celle d'UNE
+  stratégie : en déchargement elle tombe sous le seuil) ; provenance MARQUÉE chez les rédacteurs de
+  la découverte ; **deux chiffres par modèle** : poids par composant lus dans les fichiers SANS
+  charger, et pic selon la stratégie (somme + activations en plein GPU, plus gros composant +
+  activations en déchargement) — c'est le pic que le filtre compare.
+- **B. Attente « toute la VRAM »** : conception validée, en RÉUTILISANT l'existant (résidents,
+  inactifs, process en cours) ; **universelle** — un service se DÉCLARE (occupé ? décharger ?
+  recharger ?), le TTS n'est pas câblé en dur, la retranscription live de réunion viendra s'y
+  inscrire ; l'assistant reste MUET pendant une libération et envoie un message d'attente
+  automatique (il charge aussi un LLM, pas seulement la voix) ; **le déchargement forcé n'intervient
+  QUE si la VRAM est saturée** — sur un serveur de prod suffisamment doté, ni l'assistant, ni le TTS,
+  ni les tâches en cours ne sont déchargés ; premiers adoptants : imager vidéo, composer ;
+  **deux délais distincts** : l'attente AVANT démarrage devient illimitée (le plafond actuel de
+  30 min = 40 × 45 s porte sur elle), et un contrôle de durée d'UN traitement, NEUF, 30 min par
+  défaut, réglable par utilisateur dans son profil — à l'expiration : arrêt propre + réservation
+  rendue, item en échec relançable. Réserve de l'instance : un défaut PAR TYPE DE TÂCHE (une vidéo
+  longue dépasse 30 min légitimement), surchargeable par le profil.
+- **C. Curseur rapide/qualité** : généralisé à TOUTES les apps média ; le fonctionnement
+  spécifique « vision » de l'anonymizer (précision → tailles de modèle, grisage des classes)
+  REMONTE au commun pour les apps vision à venir.
+- **Modèle dans le preset utilisateur** (Fabien) : oui — « auto » n'y change rien, un modèle
+  explicite y devient une préférence. Aujourd'hui seuls les profils du converter sont des presets
+  nommés (sans modèle : le converter n'en a pas) ; les autres apps persistent par `user_settings`.
+  À faire à la généralisation des profils nommés.
+- **D** (deux Redis, `mem_get_info` sous WSL2) : après A-B-C.
+
+**⑤ Mise à jour du 19/09 (trois jours d'autres sessions)** : mon périmètre n'a pas bougé en
+profondeur — `resource_governor`, `base.py`, `task_skeleton`, `memory_manager` : aucun commit ;
+`model_selector` : renommages anglais (`domain`→`family`) + `abilities_of`/filtre multi-catégories,
+filtre et coût du tirage INCHANGÉS ; `MODEL_SIZE_PRESETS` : seule l'entrée `fastwan` ajoutée.
+Composer PAS ENCORE porté au squelette (`refuse_crash_redelivery` à la main, pas de
+`run_item_task`) — transféré à une autre session par Fabien. WIP non commité d'une autre session
+dans l'arbre sur `task_skeleton.py`/`tests_vram_ledger.py` (renommages anglais, chantier langue) :
+NON commité ici.
+
+🔚 **Suite (cette instance)** : **A** — les deux chiffres (poids par composant, pic par stratégie),
+la provenance marquée, le filtre sur le pic ; périmètre `memory_manager` + `model_selector` +
+catalogue + tests ; l'imager et le backend Wan restent à l'autre session.
