@@ -1072,8 +1072,12 @@ class RestesTechniquesDuSoirTest(TestCase):
         self.assertEqual(components_of_files(None), {})
         # un modele monobloc : les poids sont a la racine, somme et plus gros se confondent
         solo = components_of_files([('model.safetensors', 2 * 1024 ** 3)])
-        self.assertEqual(solo, {'components': {'model': 2.0}, 'total_gb': 2.0,
-                                'largest_gb': 2.0, 'source': 'repo'})
+        self.assertEqual(solo['components'], {'model': 2.0})
+        self.assertEqual((solo['total_gb'], solo['largest_gb'], solo['source']),
+                         (2.0, 2.0, 'repo'))
+        # les FICHIERS retenus voyagent avec le chiffre : le lecteur d'en-têtes safetensors en a
+        # besoin pour le pic par PRÉCISION, et il ne doit pas refaire le tri des jeux
+        self.assertEqual(solo['files'], {'model': [('model.safetensors', 2 * 1024 ** 3)]})
 
     def test_the_component_door_dispatches_by_kind_like_its_twin(self):
         """`components_for_spec` est le jumeau de `weight_for_spec` : meme descripteur, meme
@@ -1089,10 +1093,11 @@ class RestesTechniquesDuSoirTest(TestCase):
             self.assertEqual(mi.components_for_spec({'kind': 'yolo', 'ref': 'yolo11n.pt'}), {})
         self.assertEqual(mi.components_for_spec({'kind': 'hf', 'ref': ''}), {})
         # `files=` : un inventaire deja releve ne se re-telecharge pas (aucun mock reseau ici)
-        self.assertEqual(mi.components_for_spec({'kind': 'hf', 'ref': 'org/x'},
-                                                files=[('vae/model.safetensors', 1024 ** 3)]),
-                         {'components': {'vae': 1.0}, 'total_gb': 1.0, 'largest_gb': 1.0,
-                          'source': 'repo'})
+        door_with_files = mi.components_for_spec(
+            {'kind': 'hf', 'ref': 'org/x'}, files=[('vae/model.safetensors', 1024 ** 3)])
+        self.assertEqual(door_with_files['components'], {'vae': 1.0})
+        self.assertEqual(door_with_files['source'], 'repo')
+        self.assertIn('vae', door_with_files['files'])
         # et la restriction du descripteur voyage avec lui, sans que l'appelant la repasse
         door = mi.components_for_spec(
             {'kind': 'hf', 'ref': 'org/x', 'allow_patterns': ['vae/*']},
@@ -1150,6 +1155,16 @@ class RestesTechniquesDuSoirTest(TestCase):
         with patch('wama.model_manager.services.prospector._siblings', return_value=[]):
             vide = mi.components_for_spec({'kind': 'hf', 'ref': 'org/x'})
         self.assertEqual(vide, {}, "un dépôt VIDE est un fait, pas une panne")
+        # ⚠ et un dépôt principal injoignable ne doit pas MASQUER les composants frères qui,
+        # eux, se pèsent : vécu sur `avatarizer:codeformer`, ma branche `unreachable` rendait la
+        # main trop tôt et le relevé perdait ce qu'il savait.
+        compo = {'components': [{'role': 'tokenizer', 'repo': 'org/tokenizer'}]}
+        with patch('wama.model_manager.services.prospector._siblings', return_value=None), \
+                patch.object(mi, '_local_repo_weight_gb', return_value=0.8):
+            partiel = mi.components_for_spec({'kind': 'hf', 'ref': 'org/x', 'composition': compo})
+        self.assertEqual(partiel['components'], {'tokenizer': 0.8})
+        self.assertEqual(partiel['unreachable'], 'org/x',
+                         "le total est incomplet du dépôt principal : il faut le DIRE")
 
     def test_onnx_counts_as_weight_because_for_some_models_it_IS_the_model(self):
         """`.onnx` manquait aux extensions de poids : la composition de Kokoro-ONNX déclarait

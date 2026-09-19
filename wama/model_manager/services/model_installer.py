@@ -396,6 +396,7 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
 
     # ── 1. Peser chaque JEU de poids, par rôle ───────────────────────────────────────────
     sets = {}                      # (rôle, clé de jeu) → Go
+    members = {}                   # (rôle, clé de jeu) → [(chemin, octets)]
     for path, size in sized:
         if path in twins or not path.lower().endswith(_WEIGHT_EXTS):
             continue
@@ -404,16 +405,18 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
             continue
         key = _weight_set_key(path.rsplit('/', 1)[-1])
         sets[(role, key)] = sets.get((role, key), 0.0) + size / 1024 ** 3
+        members.setdefault((role, key), []).append((path, size))
 
     # ── 2. Un seul jeu par rôle ; les autres sont des alternatives ───────────────────────
     # Une composition DÉCLARÉE a déjà tranché : ses patterns disent ce qui est chargé, on ne
     # « corrige » pas son choix. La sélection d'un jeu ne vaut que pour l'heuristique.
-    full, variants = {}, {}
+    full, variants, kept = {}, {}, {}
     roles = {r for r, _ in sets}
     for role in roles:
         groups = {k: gb for (r, k), gb in sets.items() if r == role}
         if declared:
             full[role] = sum(groups.values())
+            kept[role] = [f for k in groups for f in members[(role, k)]]
             continue
         marked = {k: gb for k, gb in groups.items()
                   if k[2] or k[3] or any(m in k[0].lower() for m in _QUANT_MARKERS)}
@@ -423,6 +426,7 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
         candidates = plain or marked
         winner = max(candidates, key=lambda k: candidates[k])
         full[role] = candidates[winner]
+        kept[role] = list(members[(role, winner)])
         alt = sum(gb for k, gb in groups.items() if k != winner)
         if alt:
             variants[role] = alt
@@ -431,13 +435,20 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
     if not declared and 'model_index.json' in names and len(roles - {_SINGLE_ROLE}) >= 2 \
             and _SINGLE_ROLE in full:
         variants[_SINGLE_ROLE] = variants.get(_SINGLE_ROLE, 0.0) + full.pop(_SINGLE_ROLE)
+        kept.pop(_SINGLE_ROLE, None)
 
     if not full:
         return {}
     out = {'components': {r: round(gb, 3) for r, gb in sorted(full.items())},
            'total_gb': round(sum(full.values()), 3),
            'largest_gb': round(max(full.values()), 3),
-           'source': source}
+           'source': source,
+           # Les FICHIERS retenus par rôle — demande de l'instance qui lit les en-têtes
+           # safetensors (2026-09-20) : le poids d'un fichier ne dit pas sa PRÉCISION, et le pic
+           # réel d'un composant dépend du dtype auquel il sera chargé. Rendre les chemins évite
+           # qu'un second lecteur refasse le tri des jeux, des jumeaux et des variantes pour
+           # retrouver QUELS fichiers composent le chiffre. C'est le même relevé, à deux grains.
+           'files': {r: sorted(kept.get(r) or []) for r in sorted(full)}}
     if variants:
         out['variants'] = {r: round(gb, 3) for r, gb in sorted(variants.items())}
     return out
@@ -447,6 +458,32 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
 #: second bras du schéma `composition`, et 5 déclarations du catalogue s'en servent
 #: (pyannote-diarization, codeformer, les 3 DeepFace). Motif : `org/nom`, sans schéma d'URL.
 _HF_REPO_RE = re.compile(r'^[\w.-]+/[\w.-]+$')
+
+
+def _local_repo_weight_gb(repo: str):
+    """Poids d'un dépôt frère DÉJÀ INSTALLÉ, ou None s'il n'est pas sur ce disque.
+
+    Le disque AVANT le réseau (2026-09-20, signalement de l'instance sœur) : `pyannote-diarization`
+    rendait `unresolved` sur ses DEUX composants alors que les deux dépôts frères sont installés
+    ici — la pesée ne savait aller qu'à distance, et `pyannote/segmentation-3.0` est GATED (l'API
+    rend 401). *Un dépôt qu'on a sous la main n'a pas à être demandé à un serveur qui le refuse.*
+    Réutilise les deux briques existantes : l'index `hf_id → snapshot` et l'inventaire local.
+    """
+    try:
+        from wama.common.utils.model_locations import installed_snapshots
+        from .prospector import local_inventory
+    except Exception:
+        return None
+    try:
+        racine = installed_snapshots().get((repo or '').strip().lower())
+        if racine is None:
+            return None
+        files = local_inventory(racine) or []
+    except Exception as e:
+        logger.debug("[weights] dépôt frère %s illisible en local : %s", repo, e)
+        return None
+    total = sum(t for _, t in files)
+    return round(total / 1024 ** 3, 3) if total else None
 
 
 def _with_sibling_repos(out: dict, composition) -> dict:
@@ -477,22 +514,38 @@ def _with_sibling_repos(out: dict, composition) -> dict:
 
     parts = dict((out or {}).get('components') or {})
     unresolved = list((out or {}).get('unresolved') or [])
+    # ⚠ Un dépôt principal INJOIGNABLE ne doit pas masquer les composants frères qui, eux, sont
+    # pesables — vécu le 2026-09-20 sur `avatarizer:codeformer` : ma branche `unreachable`
+    # rendait la main avant d'arriver ici, et le relevé perdait ce qu'il savait. Le marqueur
+    # voyage avec le résultat au lieu de l'interrompre.
+    unreachable = (out or {}).get('unreachable')
     for role, repo in repos:
-        gb = _repo_weight_gb(repo) if _HF_REPO_RE.match(repo) else None
+        gb = _local_repo_weight_gb(repo)
+        if gb is None and _HF_REPO_RE.match(repo):
+            gb = _repo_weight_gb(repo)
         if gb:
             parts[role] = round(parts.get(role, 0.0) + gb, 3)
         elif role not in parts:
             unresolved.append(role)
     if not parts:
-        return {'unresolved': sorted(set(unresolved)), 'source': 'declared'} if unresolved else {}
+        maigre = {}
+        if unresolved:
+            maigre = {'unresolved': sorted(set(unresolved)), 'source': 'declared'}
+        if unreachable:
+            maigre['unreachable'] = unreachable
+        return maigre
     merged = {'components': dict(sorted(parts.items())),
               'total_gb': round(sum(parts.values()), 3),
               'largest_gb': round(max(parts.values()), 3),
               'source': (out or {}).get('source') or 'declared'}
-    if (out or {}).get('variants'):
-        merged['variants'] = out['variants']
+    for cle in ('variants', 'files'):
+        if (out or {}).get(cle):
+            merged[cle] = out[cle]
     if unresolved:
         merged['unresolved'] = sorted(set(unresolved))
+    if unreachable:
+        # Le total est alors INCOMPLET du dépôt principal : le dire, ne pas le taire.
+        merged['unreachable'] = unreachable
     return merged
 
 
@@ -543,7 +596,7 @@ def components_for_spec(spec: dict, *, files=None) -> dict:
             # contre-épreuve : 8 déclarations VÉRIFIÉES ont été rapportées « motif sans
             # fichier » par une salve d'appels HF qui avait échoué en silence.
             # *Un relevé qui dépend du réseau doit dire quand le réseau a manqué.*
-            return {'unreachable': ref}
+            return _with_sibling_repos({'unreachable': ref}, restriction['composition'])
         return _with_sibling_repos(components_of_files(inventory, **restriction),
                                    restriction['composition'])
     # Ollama et YOLO ne livrent PAS de composition : un blob GGUF, un `.pt` — un seul composant,
