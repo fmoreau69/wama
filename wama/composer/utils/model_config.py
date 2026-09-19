@@ -32,12 +32,50 @@ Path(AUDIOGEN_DIR).mkdir(parents=True, exist_ok=True)
 Path(MINIMAX_MUSIC3_DIR).mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
+# Anatomie déclarée (`composition`) — la forme AUDIOCRAFT, pas la forme transformers
+# ---------------------------------------------------------------------------
+# POURQUOI (2026-09-19, chantier VRAM décision A) : les dépôts `facebook/musicgen-*` et
+# `audiogen-medium` portent DEUX formes des mêmes poids — la forme transformers
+# (`pytorch_model.bin` ou `model*.safetensors`) et la forme audiocraft (`state_dict.bin` +
+# `compression_state_dict.bin`). Sans déclaration, le poids par composant les additionne :
+# mesuré, `musicgen-medium` sortait à 11,1 Go de fichiers pour 7,5 Go de modèle réel, et
+# `musicgen-small` à 5,4 pour 2,2.
+#
+# Et c'est la forme AUDIOCRAFT que WAMA charge, la seule : `audiocraft_backend.py:199`
+# (`MusicGen.get_pretrained`) et `:244` (`AudioGen.get_pretrained`) — la lib tire
+# `compression_state_dict.bin` puis `state_dict.bin` (`audiocraft/models/loaders.py:71` et
+# `:87`). Aucun `MusicgenForConditionalGeneration` n'existe dans WAMA : la forme transformers
+# n'est JAMAIS touchée. *Deux formes dans un dépôt, une seule chargée — et le dépôt ne dit pas
+# laquelle.*
+#
+# ⚠ Ce que la composition ne dit pas : l'encodeur de texte T5 (`t5-base` pour small, `t5-large`
+# pour medium/melody/audiogen) est tiré par transformers dans le cache HF PARTAGÉ, pas dans le
+# dépôt du modèle. C'est sa place (doctrine `AGENTS.md §sous-dépendances partagées`), mais il
+# pèse dans la VRAM sans figurer ici.
+
+
+def _audiocraft_composition() -> dict:
+    """`composition` d'un modèle AudioCraft — mêmes deux fichiers pour toute la famille.
+
+    Rôles nommés comme ceux de `minimax-music3` (`language_model`, `vocoder`…) : un même
+    vocabulaire de rôles à travers le composer, pas un par moteur.
+    """
+    return {
+        'components': [{'role': 'language_model', 'pattern': 'state_dict.bin'},
+                       {'role': 'compression_model', 'pattern': 'compression_state_dict.bin'}],
+        'runtime': {'engine': 'audiocraft'},
+    }
+
+
+# ---------------------------------------------------------------------------
 # Model catalogue
 # ---------------------------------------------------------------------------
 
 COMPOSER_MODELS = {
     'musicgen-small': {
         'engine': 'audiocraft',
+        # Releve 2026-09-19 sur la carte HF : state_dict 0,78 Go + compression 0,22 = 1,0 Go (le depot en porte 5,4).
+        'composition': _audiocraft_composition(),
         'hf_id': 'facebook/musicgen-small',
         'audiocraft_name': 'small',
         'type': 'music',
@@ -57,6 +95,8 @@ COMPOSER_MODELS = {
     },
     'musicgen-medium': {
         'engine': 'audiocraft',
+        # Releve 2026-09-19 sur la carte HF : state_dict 3,43 Go + compression 0,22 = 3,6 Go (le depot en porte 11,1).
+        'composition': _audiocraft_composition(),
         'hf_id': 'facebook/musicgen-medium',
         'audiocraft_name': 'medium',
         'type': 'music',
@@ -74,6 +114,8 @@ COMPOSER_MODELS = {
     },
     'musicgen-melody': {
         'engine': 'audiocraft',
+        # Releve 2026-09-19 sur la carte HF : state_dict 2,58 Go + compression 0,22 = 2,8 Go (le depot en porte 8,6).
+        'composition': _audiocraft_composition(),
         'hf_id': 'facebook/musicgen-melody',
         'audiocraft_name': 'melody',
         'type': 'music',
@@ -115,6 +157,10 @@ COMPOSER_MODELS = {
     },
     'audiogen-medium': {
         'engine': 'audiocraft',
+        # Releve 2026-09-19 : state_dict 3,43 Go + compression 0,22 = 3,65 Go, et ce depot ne
+        # porte QUE la forme audiocraft — il n'y a rien a ecarter ici. La composition n'y sert
+        # donc pas a corriger un poids, mais a dire les deux composants et leur moteur.
+        'composition': _audiocraft_composition(),
         'hf_id': 'facebook/audiogen-medium',
         'audiocraft_name': 'facebook/audiogen-medium',
         'type': 'sfx',
