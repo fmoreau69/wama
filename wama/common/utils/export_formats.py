@@ -131,8 +131,22 @@ def register_export_builder(app_name: str, builder) -> None:
 
 def export_builder_for(app_name: str):
     """Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
-    fichier est déjà rendu (`apply_inline_conversion` l'a converti à la génération)."""
+    fichier est déjà rendu (`apply_inline_conversion` l'a converti à la génération).
+
+    ⚠ Une JUMELLE de bac à sable (`generated_from` au catalogue) HÉRITE du builder de sa source
+    — même dérivation que `importer_for` pour les importeurs : ses vues sont générées et ne
+    déclarent rien, mais ses éléments ont la forme de ceux de la source, et le builder ne lit
+    que l'élément. Trouvé par le parcours de TOUTES les apps du registre (19/09) : `describer_01`
+    répondait « rien à ranger » sur une description terminée.
+    """
     b = _BUILDERS.get(app_name)
+    if b is None:
+        try:
+            from wama.common.app_registry import APP_CATALOG
+            source = (APP_CATALOG.get(app_name) or {}).get('generated_from')
+        except Exception:
+            source = None
+        return export_builder_for(source) if source and source != app_name else None
     if isinstance(b, str):
         from importlib import import_module
         module, _, attr = b.partition(':')
