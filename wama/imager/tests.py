@@ -293,7 +293,7 @@ class DeclaredCompositionTest(TestCase):
     `model_installer.components_for_spec` PÈSE et de ce que `patterns_from_composition` TIRE.
     Une déclaration fausse n'échoue donc pas bruyamment — elle rend deux chiffres plausibles et
     faux. D'où ces gardes, toutes HORS RÉSEAU : le relevé sur les vraies cartes HF vit dans les
-    commentaires de `model_config`, il ne peut pas tourner dans one_model suite de tests.
+    commentaires de `model_config`, il ne peut pas tourner dans une suite de tests.
     """
 
     def _declared(self):
@@ -311,19 +311,28 @@ class DeclaredCompositionTest(TestCase):
                              f"{mid} : composition hors schéma")
 
     def test_a_pattern_names_its_own_role_and_excludes_the_variants(self):
-        """Un weight_pattern doit être ANCRÉ sur le dossier de son rôle : `vae/*` suffirait à faire
+        """Un motif doit être ANCRÉ sur le dossier de son rôle : `vae/*` suffirait à faire
         entrer les 44 Go du pipeline dupliqué sous `vae/` de LTX-distilled, et un `*` nu
         ramasserait les copies `.fp16`, `.bf16`, `.non_ema` et OpenVINO."""
         for mid, composition in self._declared().items():
             for comp in composition['components']:
-                weight_pattern, role = comp['pattern'], comp['role']
-                self.assertTrue(weight_pattern.startswith(role + '/'),
-                                f"{mid}/{role} : le weight_pattern ne commence pas par son rôle")
-                self.assertTrue(weight_pattern.endswith('.safetensors'),
+                pattern, role = comp['pattern'], comp['role']
+                self.assertTrue(pattern.startswith(role + '/'),
+                                f"{mid}/{role} : le motif ne commence pas par son rôle")
+                self.assertTrue(pattern.endswith('.safetensors'),
                                 f"{mid}/{role} : seul le format safetensors est déclaré")
-                for marker in ('.fp16', '.bf16', 'non_ema', 'openvino', 'flax', 'onnx'):
-                    self.assertNotIn(marker, weight_pattern,
-                                     f"{mid}/{role} : {marker} est one_model COPIE, pas un composant")
+                # ⚠ `.fp16`/`.bf16` NE SONT PLUS interdits ici (2026-09-20) : cette assertion
+                # disait « une précision marquée est une COPIE », et la MESURE l'a réfutée —
+                # SDXL n'a QUE ses fichiers `.fp16` sur ce disque, et c'est eux que le backend
+                # demande (`diffusers_backend.py:304`, `variant="fp16"` dès que le dtype est
+                # float16). Un marqueur de précision désigne une copie quand la forme pleine
+                # coexiste, et LE modèle quand elle est seule — un motif ne permet pas de le
+                # savoir, seul le disque le dit. Ce qui reste interdit ne dépend, lui, d'aucun
+                # état : les poids d'ENTRAÎNEMENT et ceux d'un AUTRE moteur ne sont jamais le
+                # modèle que WAMA charge.
+                for marker in ('non_ema', 'openvino', 'flax', 'onnx', 'msgpack'):
+                    self.assertNotIn(marker, pattern,
+                                     f"{mid}/{role} : {marker} n'est pas un composant chargé")
 
     def test_the_discovery_carries_the_declaration_to_the_catalog(self):
         """Le trou fermé le 19/09 : la déclaration existait, la découverte ne la transmettait
@@ -336,8 +345,8 @@ class DeclaredCompositionTest(TestCase):
                   if (info.composition or {}).get('components')}
         self.assertGreaterEqual(len(carried), 12,
                                 "la découverte imager ne transporte pas les compositions")
-        one_model = carried.get('imager:fastwan-2.2-ti2v-5b') or {}
-        self.assertEqual({c['role'] for c in one_model.get('components', [])},
+        fastwan = carried.get('imager:fastwan-2.2-ti2v-5b') or {}
+        self.assertEqual({c['role'] for c in fastwan.get('components', [])},
                          {'transformer', 'text_encoder', 'vae'})
 
     def test_an_adapter_declares_nothing_rather_than_a_misleading_weight(self):
@@ -348,5 +357,5 @@ class DeclaredCompositionTest(TestCase):
         lora = IMAGER_MODELS['flux-lora-logo-design']
         self.assertEqual(lora.get('model_type'), 'lora')
         self.assertNotIn('composition', lora,
-                         "one_model composition ici ferait passer 0,04 Go pour l'empreinte du modèle")
+                         "une composition ici ferait passer 0,04 Go pour l'empreinte du modèle")
         self.assertTrue(lora.get('base_model'), "la dorsale doit rester déclarée")

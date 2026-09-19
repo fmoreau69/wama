@@ -336,12 +336,16 @@ STABLE_DIFFUSION_MODELS = {
         # diffusers_backend._generate_img2img) — nourrit l'appariement entrée↔modèle.
         'tasks': 't2i+i2i',
         'vram_gb': 4,
-        # Relevé 2026-09-19 : unet 3,20 + safety_checker 1,13 + text_encoder 0,46 + vae 0,31
-        # = 5,1 Go de somme, 3,2 de plus gros composant — cohérent avec les 4 Go déclarés.
-        # Le dépôt porte 4 formes de chaque poids (`.bin`, `.fp16.bin`, `.fp16.safetensors`,
-        # `.non_ema.*`) : 32,9 Go au total pour 5,1 Go de modèle.
-        'composition': _pipeline_composition(unet=False, safety_checker=False,
-                                            text_encoder=False, vae=False),
+        # Relevé 2026-09-19, corrigé le 20 : unet 3,20 + text_encoder 0,46 + vae 0,31 = 4,0 Go de
+        # somme, 3,2 de plus gros composant — cohérent avec les 4 Go déclarés. Le dépôt porte 4
+        # formes de chaque poids (`.bin`, `.fp16.bin`, `.fp16.safetensors`, `.non_ema.*`) : 32,9 Go
+        # au total pour 4,0 Go de modèle.
+        # ⚠ `safety_checker` RETIRÉ de la déclaration : son `model_index.json` le DÉCLARE, mais
+        # aucun poids n'est installé pour lui sur ce disque (la dérivation automatique l'a écarté
+        # par la MESURE là où ma liste écrite à la main le gardait, comptant 1,13 Go absent).
+        # Contrairement à SDXL, ce dépôt-ci n'a PAS de variante `.fp16` installée : le `variant`
+        # demandé par le backend n'existe pas, diffusers retombe sur la pleine précision.
+        'composition': _pipeline_composition(unet=False, text_encoder=False, vae=False),
         'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
         'description_long': "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la "
                             "génération d'images, porté par le plus vaste écosystème de LoRA et de "
@@ -356,13 +360,26 @@ STABLE_DIFFUSION_MODELS = {
         # t2i + image de référence OPTIONNELLE (StableDiffusionXLImg2ImgPipeline).
         'tasks': 't2i+i2i',
         'vram_gb': 10,
-        # Relevé 2026-09-19 : unet 9,56 + text_encoder_2 2,59 + text_encoder 0,46 + vae 0,31
-        # = 12,9 Go de somme, 9,6 de plus gros composant — cohérent avec les 10 Go déclarés.
+        # 🔴 CORRIGÉ le 2026-09-20 : la variante FP16, pas la pleine précision. Ma déclaration de
+        # la veille désignait `unet/diffusion_pytorch_model.safetensors` (9,56 Go), écrit depuis la
+        # CARTE HF — or ce que la machine a sur disque et ce que le backend DEMANDE sont les
+        # fichiers `.fp16` : `diffusers_backend.py:304` passe `variant="fp16"` dès que le dtype est
+        # float16, ce qui est le cas sur la 4090. Empreinte réelle : unet 4,78 + text_encoder_2
+        # 1,29 + text_encoder 0,23 + vae 0,16 = 6,5 Go, et non 12,9.
+        # *Le dépôt dit ce qu'on PEUT tirer, le snapshot dit ce qu'on a TIRÉ — et c'est le second
+        # que le chargeur ouvre.* C'est la dérivation automatique (`model_anatomy`) qui a relevé
+        # l'écart, sur les 10 pipelines installés : 9 déclarations identiques, celle-ci fausse.
+        # ⚠ LIMITE ASSUMÉE : l'anatomie décrit la variante que WAMA charge. Changer la politique
+        # de dtype (bf16, fp32 sur une carte plus grande) change les fichiers, donc l'anatomie —
+        # le schéma `composition` ne sait pas dire « fp16 ici, fp32 là ».
         # ⚠ Non déclarés VOLONTAIREMENT : `vae_1_0` (VAE ALTERNATIF, non chargé par défaut) et
-        # les copies OpenVINO (`unet/openvino_model.bin` 9,56 Go, `vae_decoder/`, `vae_encoder/`)
-        # — un autre moteur, pas un composant de plus.
-        'composition': _pipeline_composition(unet=False, text_encoder=False,
-                                            text_encoder_2=False, vae=False),
+        # les copies OpenVINO (`unet/openvino_model.bin`, `vae_decoder/`, `vae_encoder/`) — un
+        # autre moteur, pas un composant de plus.
+        'composition': _pipeline_composition(
+            unet='unet/diffusion_pytorch_model.fp16.safetensors',
+            text_encoder='text_encoder/model.fp16.safetensors',
+            text_encoder_2='text_encoder_2/model.fp16.safetensors',
+            vae='vae/diffusion_pytorch_model.fp16.safetensors'),
         'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
         'description_long': "Stable Diffusion XL (Stability AI) : génération native en 1024 px, "
                             "compositions et anatomies bien plus fiables que SD 1.5, large choix "
