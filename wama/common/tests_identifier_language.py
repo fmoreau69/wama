@@ -79,6 +79,28 @@ class LangueDesIdentifiantsTest(SimpleTestCase):
         self.assertIn(('class', 'TacheDeclareeTest'), seen)
         self.assertTrue(is_test_class('class', 'TacheDeclareeTest'))
 
+    def test_les_noms_de_methodes_test_ne_sont_PAS_dans_le_budget(self):
+        """Question de Fabien (19/09) : « c'est surtout les tests ? ». Réponse mesurée : les
+        noms de méthodes `test_*` sont HORS du budget (doctrine), et ils pèsent 1298 sur 2774.
+        Le relevé existe pour que la bascule se décide sur un chiffre — il ne bloque rien."""
+        from wama.common.management.commands.check_identifier_language import (
+            BUDGET_TEST_NAMES, scan_test_names,
+        )
+        french, total = scan_test_names(Path(settings.BASE_DIR))
+        self.assertGreater(total, 2000, "le parc de tests doit être trouvé")
+        self.assertEqual(len(french), BUDGET_TEST_NAMES,
+                         f"budget des noms de tests à recaler : mesuré {len(french)}")
+
+    def test_le_pilotage_par_RADICAL_dit_ou_porter_la_prochaine_passe(self):
+        """Une passe de renommage par RADICAL solde par tranches nettes : 605 noms distincts
+        seulement, et les 20 premiers radicaux couvrent plus de la moitié de la dette."""
+        from wama.common.management.commands.check_identifier_language import roots_of
+        roots = roots_of(self.by_file)
+        top = roots.most_common(20)
+        self.assertGreaterEqual(sum(n for _, n in top) * 100 // self.total, 50,
+                                "si la dette n'est plus concentrée, le plan par radical tombe")
+        self.assertEqual(top[0][0], 'cle', "le radical le plus rentable a changé : replanifier")
+
     def test_un_accent_est_un_signal_certain(self):
         """Python 3 accepte les accents dans un identifiant : `bougé` était en production."""
         self.assertTrue(is_french('bougé'))
