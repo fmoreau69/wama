@@ -460,6 +460,29 @@ class CompositionTest(TestCase):
         m.refresh_from_db()
         self.assertEqual(m.composition, {})
 
+    def test_a_mute_manifest_does_not_erase_a_known_anatomy(self):
+        """La garde ajoutée le 2026-09-20, calquée sur celle de `gated` : `composition` ne se
+        projette QU'AU DÉCLARÉ. Sans elle, la lambda rendait `{}` dès que la clé manquait, et un
+        `apply_manifests` sur l'un des **131 manifestes de modèle sans `components`** (sur 141)
+        effaçait l'anatomie de la ligne — en silence, juste après qu'on l'ait déclarée.
+        Le vide de ce champ n'est pas une valeur, c'est une absence de mesure."""
+        from wama.common.manifests.builtin.model import un_write_back_model, write_back_model
+        AIModel.objects.create(model_key='huggingface:Org/Muet', name='Muet',
+                               model_type='music', source='huggingface',
+                               composition=self.COMPO)
+        muet = {'manifest_kind': 'model', 'key': 'huggingface:Org/Muet',
+                'body': {'identity': {'license': 'mit'}}}
+        plan = write_back_model(muet)
+        self.assertIn('composition', plan['preserved'])
+        write_back_model(muet, apply=True)
+        m = AIModel.objects.get(model_key='huggingface:Org/Muet')
+        self.assertEqual(m.composition, self.COMPO, "un manifeste muet a effacé l'anatomie")
+        self.assertEqual(m.license, 'mit', "le reste du manifeste doit bien se projeter")
+        # la RÉVOCATION, elle, a le droit d'effacer : c'est le geste délibéré
+        un_write_back_model(muet, apply=True)
+        m.refresh_from_db()
+        self.assertEqual(m.composition, {})
+
     def test_l_installation_derive_ses_allow_patterns_de_la_composition(self):
         """La moitié « installation » du contrat : jeu COHÉRENT dérivé de l'anatomie —
         jamais le dépôt entier d'un repack multi-quantisations."""
