@@ -313,6 +313,37 @@ apply_patch(
      jumeaux PAR CHAÎNE (routes Celery de `settings.py`, noms de tâches) et le DOMICILE
      lui-même (`py_compile` ne voit pas un import cassé).
 
+### ⭐ ET DEPUIS LE 2026-09-19, UN CONTRÔLE LA TIENT — `manage.py check_identifier_language`
+
+> Question de Fabien, le jour même, après avoir relevé `banc` et `lus` **à l'œil** dans un diff :
+> *« Encore des termes en français... Comment arrêter ça ? »* La règle ci-dessus existait depuis le
+> 2026-08-22 et avait été durcie le 14/09. Elle a dérivé quand même — **relevé : 2653 identifiants
+> français dans 358 fichiers** —, et deux fois dans la seule journée du 19/09 du code NEUF en a
+> introduit, chaque fois vu par Fabien APRÈS l'écriture.
+> **Le défaut n'était pas la règle, c'est qu'aucun contrôle ne la tenait :** elle demandait de
+> s'en souvenir. *Une règle qui demande de se souvenir n'est pas un contrôle.*
+
+- **`manage.py check_identifier_language`** relève par **AST** les identifiants DÉFINIS (classes,
+  fonctions, arguments, variables assignées, alias d'import) et les confronte à une liste NOIRE de
+  radicaux français ; un accent est un signal certain. `--detail` donne fichier:ligne, `--json`
+  la sortie machine, `--strict-classes` compte aussi les noms de classes de test.
+- **C'est un BUDGET QUI NE PEUT QUE DESCENDRE** (motif de `tests_hf_cache_routing`, qui a fini à
+  zéro) : il n'exige **aucun** chantier de renommage des 2653 — il rend seulement l'**ajout**
+  impossible. Tenu par `wama/common/tests_identifier_language.py`, donc il tourne dans la suite.
+- 🔴 **Ne JAMAIS relever `BUDGET` pour faire passer un ajout** : le remède est de nommer
+  l'identifiant en anglais. Le **baisser** après une passe de renommage est le geste normal, et le
+  test l'EXIGE (il échoue aussi quand le budget garde de la marge — *une marge est une
+  autorisation d'en ajouter*).
+- **Ce que le contrôle ne couvre pas, délibérément** : les mots ambigus anglais/français
+  (`source`, `type`, `mode`, `page`, `total`, `format`, `instance`, `table`) — les compter ferait
+  un budget bruyant, et un budget bruyant se contourne ; le **JS** (pas d'AST JS ici, cf. §JS
+  ci-dessous) ; les chaînes, commentaires et docstrings, qui restent en français par doctrine.
+- ⚠ **ZONE GRISE à trancher (Fabien)** : les **noms de classes de test** (`*Test`) sont exemptés
+  par défaut. La lettre de la règle les voudrait en anglais — une classe de test EST importable
+  (`manage.py test wama.x.tests.MaClasseTest`) —, mais leur nom énonce un comportement, comme une
+  méthode `test_*`. Les compter ajouterait **133** renommages : `--strict-classes` donne le
+  chiffre exact pour que le choix se prenne sur une mesure.
+
 > ⚠ **Cette règle ne dit RIEN des chaînes AFFICHÉES.** Un identifiant anglais affiche un libellé
 > français — c'est la cible, pas une incohérence. La langue de l'interface est un autre chantier,
 > consigné en **`docs/construction/suivi/ROADMAP.md §10.A`** (état mesuré + la décision qui le bloque : la langue des
