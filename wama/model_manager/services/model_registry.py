@@ -1313,8 +1313,8 @@ class ModelRegistry:
                     caps.setdefault('inputs_optional', ['reference_voice'])
                 return caps
 
-            def _tts_runtime(engine_key):
-                """`composition.runtime` d'un moteur TTS — le MOTEUR qui sait l'exécuter.
+            def _tts_composition(engine_key):
+                """`composition` d'un modèle TTS — ses COMPOSANTS et le moteur qui les exécute.
 
                 Lu sur `SYNTHESIZER_MODELS[*]['engine']`, la déclaration d'app qui porte déjà
                 cette information (`coqui`, `bark`, `higgs`, `kokoro`) et que `ENGINE_BACKENDS`
@@ -1325,9 +1325,19 @@ class ModelRegistry:
                 `runtime.engine` (venu de leur manifeste) là où les 4 déclarés par l'app n'en
                 avaient aucun — le dispatch par `runtime.engine` ne pouvait donc pas être la
                 règle générale. Il l'est à partir d'ici.
+
+                ⚠ Ne rendait QUE le `runtime` jusqu'au 2026-09-19 : les COMPOSANTS déclarés par
+                l'app (`SYNTHESIZER_MODELS[*]['composition']`, posés le même jour) restaient au
+                seuil. C'est le même trou que côté imager — une déclaration que personne ne
+                transporte ne décide de rien. Le moteur reste dérivé de `['engine']` ; on ne le
+                recopie pas dans la composition de l'app.
                 """
-                moteur = (_SYNTH_MODELS.get(engine_key) or {}).get('engine')
-                return {'runtime': {'engine': moteur}} if moteur else {}
+                config = _SYNTH_MODELS.get(engine_key) or {}
+                compo = dict(config.get('composition') or {})
+                moteur = config.get('engine')
+                if moteur:
+                    compo['runtime'] = {**(compo.get('runtime') or {}), 'engine': moteur}
+                return compo
 
             # Get preferred format for speech models
             preferred = self._get_preferred_format(ModelType.SPEECH)
@@ -1380,7 +1390,7 @@ class ModelRegistry:
                     engine_key='coqui-xtts',   # clonage LU sur CoquiBackend
                     languages=_synth_languages('coqui-xtts'),
                 ),
-                composition=_tts_runtime('coqui-xtts'),
+                composition=_tts_composition('coqui-xtts'),
             )
 
             # Check for Bark TTS
@@ -1421,7 +1431,7 @@ class ModelRegistry:
                     engine_key='bark',         # clonage LU sur BarkBackend
                     languages=_synth_languages('bark'),
                 ),
-                composition=_tts_runtime('bark'),
+                composition=_tts_composition('bark'),
             )
 
             # Check for Higgs Audio v2
@@ -1451,7 +1461,7 @@ class ModelRegistry:
                     engine_key='higgs-audio',  # clonage LU sur HiggsAudioBackend
                     languages=_synth_languages('higgs-audio'),
                 ),
-                composition=_tts_runtime('higgs-audio'),
+                composition=_tts_composition('higgs-audio'),
             )
 
             # Check for Kokoro 82M
@@ -1484,7 +1494,7 @@ class ModelRegistry:
                     engine_key='kokoro',       # clonage + HORODATAGE lus sur KokoroBackend
                     languages=_synth_languages('kokoro'),
                 ),
-                composition=_tts_runtime('kokoro'),
+                composition=_tts_composition('kokoro'),
             )
 
             logger.info(
@@ -1658,6 +1668,12 @@ class ModelRegistry:
                         **({'inputs_optional': ['reference_melody']}
                            if model_id == 'musicgen-melody' else {}),
                     },
+                    # Anatomie DÉCLARÉE par l'app (`COMPOSER_MODELS[*]['composition']`) : la forme
+                    # AUDIOCRAFT (`state_dict.bin` + `compression_state_dict.bin`), seule chargée,
+                    # là où les dépôts `facebook/musicgen-*` portent aussi la forme transformers.
+                    # Sans cette ligne, la déclaration ne quittait pas l'app — `minimax-music3`
+                    # n'avait la sienne que parce qu'elle vient de son MANIFESTE, pas d'ici.
+                    composition=config.get('composition') or {},
                 )
                 # Clé de registre = `{source}:{id}` (convention des 7 autres apps) → devient model_key
                 # en base. Sans le préfixe, `_resolve_model` (pilier traduction) ne retrouve pas les

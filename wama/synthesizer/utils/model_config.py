@@ -110,12 +110,33 @@ from wama.common.backends.tts_base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  #
 # donc **celle d'ici n'avait AUCUN consommateur** : elle était fausse sans que rien ne le dise.
 # *Un doublon inerte ne se contente pas de vieillir — il vieillit en silence.* La découverte lit
 # désormais cette table (`_synth_languages`), comme elle le fait déjà pour `hf_id`.
+# ─── Anatomie déclarée des moteurs TTS (2026-09-19, chantier VRAM décision A) ───────────────
+# Chaque dépôt TTS porte PLUS que son modèle, et aucun ne le dit. Les motifs ci-dessous sont
+# ceux que le backend charge RÉELLEMENT, établis en suivant l'appel de chargement jusqu'à la
+# ligne de la lib tierce — trois des quatre m'auraient fait déclarer l'inverse de la vérité :
+#   • bark charge la forme ORIGINALE suno (`text_2.pt` + `coarse_2.pt` + `fine_2.pt`, 12,1 Go)
+#     par `preload_models()` (`bark_backend.py:66` → `bark/generation.py:112-119`), et JAMAIS
+#     `pytorch_model.bin` (4,18 Go) — aucun `BarkModel` de transformers n'existe dans WAMA ;
+#   • coqui-xtts charge `model.pth` + `speakers_xtts.pth` (liste `hf_url` de `TTS/.models.json`
+#     via `TTS(full_id)`, `coqui_backend.py:65`) — `dvae.pth` et `mel_stats.pth` sont des
+#     artefacts d'ENTRAÎNEMENT, jamais demandés ;
+#   • kokoro charge `kokoro-v1_0.pth` (`kokoro_backend.py:110-115`, `KModel.MODEL_NAMES`) et ses
+#     voix UNE PAR UNE, à la demande (`kokoro/pipeline.py:142`, `hf_hub_download` par voix).
+# ⚠ Ce que la composition ne dit pas : les dépendances tirées dans le cache HF PARTAGÉ —
+# `bert-base-multilingual-cased` + EnCodec 24 kHz pour bark, `bosonai/hubert_base` pour higgs.
+# Elles pèsent dans la VRAM sans appartenir au dépôt du modèle (c'est leur place, doctrine
+# `AGENTS.md §sous-dépendances partagées`).
+
 SYNTHESIZER_MODELS = {
     'coqui-xtts': {
         'model_id': 'tts_models/multilingual/multi-dataset/xtts_v2',
         'hf_id': 'coqui/XTTS-v2',
         'type': 'tts',
         'engine': 'coqui',
+        # 1,74 + 0,007 Go. Le dépôt en porte 1,94 : `dvae.pth` (0,196) n'est pas chargé.
+        'composition': {'components': [{'role': 'acoustic_model', 'pattern': 'model.pth'},
+                                       {'role': 'speakers', 'pattern': 'speakers_xtts.pth'}],
+                        'runtime': {'engine': 'coqui'}},
         'multilingual': True,
         'voice_cloning': True,
         'description': 'XTTS v2 - Voice cloning multilingual',
@@ -128,6 +149,14 @@ SYNTHESIZER_MODELS = {
         'hf_id': 'suno/bark',
         'type': 'tts',
         'engine': 'bark',
+        # 4,99 + 3,66 + 3,49 = 12,1 Go. Le dépôt en porte 20,7 : la forme transformers
+        # (`pytorch_model.bin`, 4,18) et les variantes `_small` (`text.pt`/`coarse.pt`/`fine.pt`,
+        # 4,35 à elles trois) ne sont pas chargées — `SUNO_USE_SMALL_MODELS` est posé à False
+        # (`bark_backend.py:60`), ce sont les suffixes `_2` qui servent.
+        'composition': {'components': [{'role': 'text_model', 'pattern': 'text_2.pt'},
+                                       {'role': 'coarse_model', 'pattern': 'coarse_2.pt'},
+                                       {'role': 'fine_model', 'pattern': 'fine_2.pt'}],
+                        'runtime': {'engine': 'bark'}},
         'multilingual': True,
         'voice_cloning': False,
         'description': 'Bark - Natural, emotional TTS with sound effects',
@@ -144,6 +173,16 @@ SYNTHESIZER_MODELS = {
         'tokenizer_id': 'bosonai/higgs-audio-v2-tokenizer',
         'type': 'tts',
         'engine': 'higgs',
+        # DEUX dépôts, et le second était déjà déclaré juste au-dessus (`tokenizer_id`) : la
+        # composition le REPREND comme composant `repo` au lieu d'ouvrir un 3ᵉ lieu de
+        # déclaration. `higgs_backend.py:69-70` télécharge les deux (`poids_locaux`), puis
+        # `serve_engine.py:214/223` charge le modèle et le tokenizer audio (`model.pth`).
+        # `model*.safetensors` couvre les deux formes vues : un fichier unique sur la carte HF,
+        # trois shards `model-0000X-of-00003` sur le disque local.
+        'composition': {'components': [
+            {'role': 'generation_model', 'pattern': 'model*.safetensors'},
+            {'role': 'audio_tokenizer', 'repo': 'bosonai/higgs-audio-v2-tokenizer'}],
+            'runtime': {'engine': 'higgs'}},
         'multilingual': True,
         'voice_cloning': True,
         'multi_speaker': True,
@@ -155,6 +194,14 @@ SYNTHESIZER_MODELS = {
         'hf_id': 'hexgrad/Kokoro-82M',
         'type': 'tts',
         'engine': 'kokoro',
+        # 0,30 Go de modèle + 0,026 Go pour les 54 voix. Les voix sont un composant à part
+        # entière : sans elles, le modèle ne parle pas — et la lib les tire une par une, à la
+        # demande, dans le cache HF partagé (`kokoro/pipeline.py:142`). Les déclarer ici les fait
+        # entrer dans l'installation du modèle au lieu d'apparaître au premier usage.
+        'composition': {'components': [
+            {'role': 'acoustic_model', 'pattern': 'kokoro-v1_0.pth'},
+            {'role': 'voices', 'pattern': 'voices/*.pt'}],
+            'runtime': {'engine': 'kokoro'}},
         'multilingual': True,
         'voice_cloning': False,
         'description': 'Kokoro 82M - Léger, FR/EN/ES/IT/PT/JA/ZH, sans clonage vocal',
