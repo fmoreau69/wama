@@ -687,6 +687,20 @@ class TaxonomieDeProspectionTest(TestCase):
         # Inconnu : pas de tâche inventée, catégorie par défaut
         self.assertEqual(hf_task_to_wama('tabular-classification', [])[0], None)
 
+    def test_un_vlm_qui_tague_la_detection_est_un_detecteur(self):
+        """Cas RÉEL du catalogue (2026-09-19) : `nvidia/LocateAnything-3B` publie
+        `pipeline_tag: image-text-to-text` — c'est un VLM par son architecture — et tague
+        `object-detection` : il LOCALISE des objets décrits en texte. Sans cette branche il
+        entrait en `captioning`/`vlm`, donc mauvais métier, mauvais banc, mauvaise sélection."""
+        from .services.prospector import hf_task_to_wama
+        self.assertEqual(hf_task_to_wama('image-text-to-text', ['object-detection']),
+                         ('detect', 'vision'))
+        self.assertEqual(hf_task_to_wama('image-text-to-text', ['zero-shot-object-detection']),
+                         ('detect', 'vision'))
+        # Un VLM conversationnel ordinaire ne tague pas la détection : il reste du légendage.
+        self.assertEqual(hf_task_to_wama('image-text-to-text', ['conversational']),
+                         ('captioning', 'vlm'))
+
     def test_la_tache_ecrite_est_une_tache_du_catalogue(self):
         """Toute tâche rendue doit être une valeur `ModelTask` : sinon `check_model_taxonomy`
         la refuserait et `_local_categories` ne la trouverait dans aucun banc."""
@@ -698,6 +712,63 @@ class TaxonomieDeProspectionTest(TestCase):
                 t, mt = hf_task_to_wama(tache, tags)
                 with self.subTest(tache=tache, tags=tags):
                     self.assertIn(t, connues)
+
+
+class UneSeuleTableTacheCategorieTest(TestCase):
+    """
+    Tâche → catégorie ne se dit plus qu'à UN endroit (2026-09-19).
+
+    Mesure qui l'a motivée : `prospector` portait deux tables (`_HF_TAG_TASK`,
+    `_TASK_MODEL_TYPE`) que la MÊME brique lisait en parallèle de celles du catalogue —
+    `select_model_id` par l'une, `get_registry_models` par l'autre. Elles ne se
+    contredisaient pas (0 désaccord sur 12 tags), mais celle de la prospection ignorait
+    **20 de nos 26 tâches** : pour elles, la borne par catégorie ne s'activait pas.
+    """
+
+    def test_les_tags_composites_de_plateforme_gardent_leur_reponse(self):
+        """Les 3 tags que seule la table de la prospection connaissait sont désormais des
+        ALIAS déclarés au catalogue — mêmes réponses, un seul domicile."""
+        from .services.prospector import hf_task_to_wama
+        self.assertEqual(hf_task_to_wama('image-text-to-text', []), ('captioning', 'vlm'))
+        self.assertEqual(hf_task_to_wama('image-text-to-video', []), ('image-to-video', 'diffusion'))
+        self.assertEqual(hf_task_to_wama('text-to-audio-video', []), ('text-to-video', 'diffusion'))
+
+    def test_un_alias_se_traduit_aussi_hors_prospection(self):
+        from .models import canonical_task, model_type_for_task, wama_task
+        self.assertEqual(canonical_task('image-text-to-text'), 'captioning')
+        self.assertEqual(model_type_for_task('image-text-to-text'), 'vlm')
+        self.assertEqual(wama_task('image-text-to-text'), 'captioning')
+
+    def test_un_tag_inconnu_ne_devient_pas_une_tache(self):
+        """`canonical_task` rend l'entrée INCHANGÉE quand elle est inconnue ; qui ÉCRIT une
+        tâche a besoin de `wama_task`, sinon un tag d'éditeur non traduit entrerait en base."""
+        from .models import canonical_task, wama_task
+        self.assertEqual(canonical_task('tabular-classification'), 'tabular-classification')
+        self.assertIsNone(wama_task('tabular-classification'))
+        self.assertIsNone(wama_task(''))
+
+    def test_la_categorie_repond_pour_les_taches_que_la_prospection_ignorait(self):
+        from .models import ModelTask, model_type_for_task
+        muettes = [t.value for t in ModelTask if not model_type_for_task(t.value)]
+        self.assertEqual(muettes, [], "toute tâche doit rendre sa catégorie")
+        # Les cas qui ne passaient PAS par la table de la prospection (aucune entrée pour eux) :
+        self.assertEqual(model_type_for_task('transcription'), 'speech')
+        self.assertEqual(model_type_for_task('lip-sync'), 'lipsync')
+        self.assertEqual(model_type_for_task('text-to-music'), 'music')
+
+    def test_la_prospection_ne_garde_aucune_table_parallele(self):
+        """Garde anti-régression : c'est la COEXISTENCE qui était le défaut, pas son contenu."""
+        from .services import prospector
+        for mort in ('_TASK_MODEL_TYPE', '_HF_TAG_TASK'):
+            self.assertFalse(hasattr(prospector, mort),
+                             f"{mort} est revenu : tâche → catégorie se dit dans models.py")
+
+    def test_les_metiers_secondaires_sont_au_vocabulaire_canonique(self):
+        """`tasks` était écrit par la découverte et lu par les bancs sans figurer au
+        vocabulaire qui se dit « source unique »."""
+        from wama.common.utils.model_capabilities import CANONICAL_CAPABILITIES, is_canonical_key
+        self.assertTrue(is_canonical_key('tasks'))
+        self.assertIn('tasks', CANONICAL_CAPABILITIES)
 
 
 class EntreesParDefautDeLaTacheTest(TestCase):

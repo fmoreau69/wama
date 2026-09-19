@@ -6507,7 +6507,7 @@ interdit (7 récidives) ; support ≠ adoption (script porté par la brique dés
 >   `depth-estimation` — une entrée dans `PROTOCOLES` (`model_manager/services/bench.py`),
 >   pas une commande de plus.
 > - ⚠ **Si un modèle de profondeur entre au catalogue** : la tâche `depth-estimation` n'est PAS
->   déclarée dans `ModelTask` (elle figure en `TACHES_CONNUES_NON_PORTEES`).
+>   déclarée dans `ModelTask` (elle figure en `PLATFORM_TASKS_NOT_CARRIED`).
 >   `check_model_taxonomy` sortira en 1. C'est voulu — il faut la déclarer, pas contourner.
 >   Cette déclaration est dans MON périmètre : me la demander plutôt que d'éditer `models.py`.
 >

@@ -26,51 +26,30 @@ APP_TASKS = {
     'enhancer':     'image-to-image',
 }
 
-# Tâche HF → ModelType valide (cf. models.ModelType) — le DÉFAUT par tag de pipeline.
-# ⚠ Deux tags HF sont plus GROSSIERS que notre taxonomie et ne se tranchent pas ici :
-# `image-to-image` couvre l'ÉDITION (Qwen-Image-Edit, FLUX Kontext), l'agrandissement et
-# le débruitage ; `image-to-text` couvre l'OCR et le LÉGENDAGE (BLIP). Jusqu'au 2026-09-02
-# cette table les figeait en `upscaling` / `ocr` : six modèles d'édition s'affichaient en
-# upscalers et BLIP-base en OCR — et aucune ligne proposée ne portait de TÂCHE, donc aucun
-# banc n'était possible. Ce sont les TAGS de la carte qui départagent (`hf_task_to_wama`).
-_TASK_MODEL_TYPE = {
-    'text-to-image':                 'diffusion',
-    'text-to-video':                 'diffusion',
-    'image-to-video':                'diffusion',
-    'image-text-to-video':           'diffusion',
-    'text-to-audio-video':           'diffusion',
-    'image-to-image':                'diffusion',     # édition par défaut ; upscale/denoise par tags
-    'automatic-speech-recognition':  'speech',
-    'text-to-speech':                'speech',
-    'text-to-audio':                 'music',
-    'image-text-to-text':            'vlm',
-    'image-to-text':                 'ocr',           # OCR par défaut ; captioning par tags
-    'object-detection':              'vision',
-}
-
-#: Tag de pipeline HF → NOTRE tâche (`ModelTask`) quand le tag est sans ambiguïté.
-_HF_TAG_TASK = {
-    'text-to-image': 'text-to-image', 'text-to-video': 'text-to-video',
-    'image-to-video': 'image-to-video', 'image-text-to-video': 'image-to-video',
-    'text-to-audio-video': 'text-to-video',
-    'automatic-speech-recognition': 'transcription', 'text-to-speech': 'text-to-speech',
-    'text-to-audio': 'text-to-audio',       # HF ne distingue pas musique / ambiance
-    'image-text-to-text': 'captioning', 'object-detection': 'detect',
-}
-
-
 def hf_task_to_wama(pipeline_tag: str, tags=()):
     """
     (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
     carte. Les tags sont des DONNÉES déclarées par l'auteur — pas une devinette sur le nom,
     qui est la trappe interdite ailleurs (identité de la LoRA logo lue dans « max 768 px »).
 
-    Mesuré le 2026-09-02 sur les proposés du jour : `image-to-image` → FLUX.2-dev et
-    FLUX.2-klein taggés `image-editing`, Qwen-Image-Edit/Kontext sans tag fin mais pipelines
-    d'édition ; aucun des six n'était un upscaler. `image-to-text` → BLIP-base taggé
-    `image-captioning`, manga-ocr et PP-OCRv5 sans ce tag → OCR. Un tag absent retombe sur
-    le défaut de `_TASK_MODEL_TYPE`, jamais sur une supposition.
+    ⚠ Deux tags HF sont plus GROSSIERS que notre taxonomie et se tranchent ICI, par les tags
+    de la carte : `image-to-image` couvre l'ÉDITION (Qwen-Image-Edit, FLUX Kontext),
+    l'agrandissement et le débruitage ; `image-to-text` couvre l'OCR et le LÉGENDAGE (BLIP) ;
+    `text-to-audio` couvre la musique et l'ambiance. Mesuré le 2026-09-02 sur les proposés du
+    jour : FLUX.2-dev et FLUX.2-klein taggés `image-editing`, Qwen-Image-Edit/Kontext sans tag
+    fin mais pipelines d'édition — aucun des six n'était un upscaler ; BLIP-base taggé
+    `image-captioning`, manga-ocr et PP-OCRv5 sans ce tag → OCR.
+
+    HORS de ces cas, la traduction est celle du CATALOGUE (`models.canonical_task` /
+    `model_type_for_task`, alias composites compris) : cette fonction portait deux tables
+    parallèles (`_HF_TAG_TASK`, `_TASK_MODEL_TYPE`) jusqu'au 2026-09-19 — mesuré alors,
+    **0 désaccord** avec celles du catalogue, et 3 tags que seules celles-ci connaissaient.
+    Elles ont donc déménagé dans `models.py` (`PLATFORM_TAG_ALIASES`) au lieu d'être
+    maintenues en double. Un tag inconnu ne donne AUCUNE tâche (jamais le tag brut, qui
+    serait hors `ModelTask`) et retombe sur `diffusion` pour la catégorie, comme avant.
     """
+    from wama.model_manager.models import model_type_for_task, wama_task
+
     t = (pipeline_tag or '').strip().lower()
     bag = {str(x).lower() for x in (tags or [])}
     if t == 'image-to-image':
@@ -83,6 +62,18 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
         if 'image-captioning' in bag:
             return 'captioning', 'vlm'
         return 'ocr', 'ocr'
+    if t == 'image-text-to-text':
+        # 4ᵉ tag plus GROSSIER que nous, mesuré le 2026-09-19 sur une ligne RÉELLE du catalogue :
+        # `nvidia/LocateAnything-3B` publie `pipeline_tag: image-text-to-text` (c'est un VLM par
+        # son architecture) et tague `object-detection` — il LOCALISE des objets décrits en
+        # texte. L'alias seul en faisait du `captioning`/`vlm` : faux métier, donc mauvais banc
+        # et mauvaise sélection. Même règle que les branches ci-dessus : le TAG de la carte
+        # départage ce que le pipeline_tag mélange.
+        # ⚠ La nuance « vocabulaire OUVERT » n'est PAS dite par `detect`
+        # (`zero-shot-object-detection` figure dans `PLATFORM_TASKS_NOT_CARRIED`) — la déclarer
+        # ou non est une décision de taxonomie, consignée dans PROSPECTION_PIPELINE.md.
+        if any(k in bag for k in ('object-detection', 'zero-shot-object-detection')):
+            return 'detect', 'vision'
     if t == 'text-to-audio':
         # HF n'a qu'un tag pour la musique et l'ambiance ; les tags de la carte, eux, le disent
         # (mesuré le 2026-09-19 : ACE-Step 1.5 taggé `music`, `text2music`, catalogué en
@@ -90,7 +81,7 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
         if any(k in bag for k in ('music', 'text2music', 'text-to-music', 'music-generation')):
             return 'text-to-music', 'music'
         return 'text-to-audio', 'music'
-    return _HF_TAG_TASK.get(t), _TASK_MODEL_TYPE.get(t, 'diffusion')
+    return wama_task(t), model_type_for_task(t) or 'diffusion'
 
 
 def card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str = '') -> dict:
@@ -1014,7 +1005,8 @@ def apply_recommendations(candidates, source: str, task: str):
     from datetime import datetime, timezone
     from wama.model_manager.models import AIModel
 
-    mt = _TASK_MODEL_TYPE.get(task, 'llm')
+    from wama.model_manager.models import model_type_for_task
+    mt = model_type_for_task(task) or 'llm'
     now = datetime.now(timezone.utc).isoformat()
     n = 0
     for c in candidates:

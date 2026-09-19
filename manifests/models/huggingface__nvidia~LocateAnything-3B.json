@@ -1,9 +1,17 @@
 {
   "body": {
     "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
       "languages": [
         "en"
-      ]
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "detect"
     },
     "composition": {
       "runtime": {
