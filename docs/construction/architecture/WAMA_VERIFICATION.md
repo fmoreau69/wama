@@ -87,8 +87,34 @@ noms, il faudrait relancer la suite à la main pour savoir quoi regarder.
 
 Lancement : `manage.py run_nightly_tests --stage suite` (CPU pur, aucun GPU — mais long : ~500 s
 pour `wama.common` seule, d'où un stage à part pour que `--stage ui` reste instantané).
-Tenu par `common/tests_nightly_suite.py` (8 tests : vert, rouge nommé, code retour 0 qui ne fait
-pas un succès, rien-lancé skippé, verdict illisible, timeout, tierces écartées).
+Tenu par `common/tests_nightly_suite.py` (9 tests : vert, rouge nommé, code retour 0 qui ne fait
+pas un succès, rien-lancé skippé, verdict illisible, timeout, tierces écartées, substrat séparé).
+
+#### ⚠ Le SUBSTRAT n'est pas une app — et une page dédiée reste une décision DIFFÉRÉE
+
+Remarque de Fabien, le jour même : *« si on généralise les tests à l'existant qui ne traitait que
+les apps, ne vaut-il pas mieux afficher ça sur une autre page dédiée ? »* **La mesure lui donne
+raison sur le fond** : des 18 labels, **10 sont hors du catalogue d'apps** (`wama.common`,
+`wama_data`, `accounts`, `gateway`, `filemanager`, `model_manager`, `studio`, `media_library`, et
+les deux du Lab). Les afficher dans une table dont la première colonne s'intitule « Application »
+ferait **mentir la page** — et le signe que `/apps/` était déjà à l'étroit était visible avant :
+la vue traitait DÉJÀ `common` par exception, pour en extraire les scénarios de droits.
+
+**Fait le 19/09 (minimum juste)** : la vue sépare en **deux tables** sur la même page — « Grille
+fonctionnelle » (les 8 apps) et « Substrat & mondes (hors apps) ». Même motif que l'extraction des
+droits, aucune page créée. Tenu par `FunctionalGridSeparatesSubstrateFromAppsTest` : un label
+transverse ajouté demain ne peut plus se ranger tout seul parmi les apps.
+
+**Critère pour ouvrir une page dédiée** (pas encore atteint) — *une page se justifie quand elle
+répond à une question que l'existante ne pose pas, avec de quoi la remplir* :
+1. la grille du substrat dépasse ce qu'une section peut porter (> ~25 lignes), **ou**
+2. on veut l'HISTORIQUE (rouge depuis quand, à cause de quel commit) et non le dernier verdict —
+   c'est un autre objet, que `nightly_*.json` sait déjà alimenter, **ou**
+3. la page devient un point d'entrée pour des non-développeurs.
+Aujourd'hui : 10 lignes, dernier verdict seulement, lecteurs = admins. *Une page de plus ne
+répondrait à aucune question nouvelle.* ⚠ Et ce que Fabien a écarté lui-même reste écarté : « une
+page présentant les tests de façon exhaustive ne serait sûrement pas pertinente. C'est le résultat
+des tests qui importe. »
 
 ---
 
