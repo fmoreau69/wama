@@ -444,6 +444,21 @@ MECHANISMS = (
               symbol='check_docs'),      # nommée par une CHAÎNE, jamais importée — cf. plus bas
     # 2026-09-11 : la liste des docs de référence vivait en double (table d'AGENTS.md +
     # `check_docs.DOCS`) ; le lecteur de doc en aurait fait une troisième. UNE déclaration.
+    # 2026-09-19 (question de Fabien : « Encore des termes en français... Comment arrêter ça ? »).
+    # La règle de langue existait depuis le 22/08, durcie le 14/09, et elle a dérivé quand même :
+    # elle demandait de s'en SOUVENIR. Ce mécanisme la rend mesurable — et donc opposable.
+    Mechanism('identifier_language', 'Langue des identifiants (budget)',
+              "Relève par AST les identifiants de code FRANÇAIS (classes, fonctions, arguments, "
+              "variables, alias d'import ; accents = signal certain) et les borne par un BUDGET "
+              "QUI NE PEUT QUE DESCENDRE : aucun chantier de renommage exigé, mais l'AJOUT "
+              "devient impossible. Les méthodes `test_*` sont la seule exemption de doctrine ; "
+              "les noms de classes de test le sont par défaut (zone grise, `--strict-classes` "
+              "en donne le chiffre). Le test refuse aussi un budget qui garde de la MARGE — une "
+              "marge est une autorisation d'en ajouter",
+              'wama/common/management/commands/check_identifier_language.py',
+              'AGENTS.md §Langue des identifiants',
+              annexes=('wama/common/tests_identifier_language.py',),
+              symbol='check_identifier_language'),
     Mechanism('docs_catalog', 'Catalogue & lecteur de docs',
               "Déclare les docs de référence (famille, AUDIENCE, journal) et les rend lisibles "
               "depuis WAMA en lecture seule (page `docs`, admins) ; `check_docs` en dérive sa "

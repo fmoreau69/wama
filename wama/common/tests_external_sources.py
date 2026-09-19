@@ -44,14 +44,15 @@ class RegistreTest(SimpleTestCase):
         """Les deux registres (adresses ici, lecture chez `benchmark_sync`) doivent nommer
         les MÊMES plateformes : un banc lu sans être déclaré ici n'aurait ni sonde ni
         attribution ; un banc déclaré sans lecteur serait une carte qui ment."""
-        from wama.model_manager.services.benchmark_sync import SOURCES as BANCS
-        declares = {s.key for s in es.SOURCES if s.kind == 'banc'}
+        from wama.model_manager.services.benchmark_sync import SOURCES as benchmark_sources
+        declared = {s.key for s in es.SOURCES if s.kind == 'banc'}
         # ⚠ `b['key']` depuis le 2026-09-19 (`4d36d9f4`, passage des indices de qualité à
         # l'anglais : la clé `cle` de `benchmark_sync.SOURCES` est devenue `key`). Ce test
         # n'était pas dans la suite lancée à ce renommage — la suite `wama.common` complète l'a
         # trouvé. *Un renommage ne casse pas, il rend FAUX : seule une suite LARGE le voit.*
-        lus = {{'aa': 'artificial_analysis', 'arena': 'arena'}.get(b['key'], b['key']) for b in BANCS}
-        self.assertEqual(declares, lus)
+        read = {{'aa': 'artificial_analysis', 'arena': 'arena'}.get(b['key'], b['key'])
+                for b in benchmark_sources}
+        self.assertEqual(declared, read)
 
     def test_chaque_source_declare_une_adresse_et_un_usage(self):
         for s in es.SOURCES:
