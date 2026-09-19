@@ -89,6 +89,13 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 BUDGET = 2653
 #: Le meme, classes de test COMPRISES (`--strict-classes`) : chiffre de la decision en attente.
 BUDGET_WITH_TEST_CLASSES = 2786
+#: NOMS DE METHODES `test_*` en francais — 1298 sur 2774 (46 %), mesure du 2026-09-19.
+#: ⚠ NON applique par defaut : la doctrine les autorise encore (AGENTS.md : « elle se lit dans un
+#: rapport d'echec, et nulle part ailleurs »). Applique par `--include-test-names`, pour que la
+#: bascule soit UNE OPTION deja outillee le jour ou Fabien tranche — il a dit le 19/09 vouloir
+#: « uniformiser petit a petit en anglais et surtout ne pas reintroduire de termes en francais »,
+#: ce qui pointe vers cette bascule sans la prononcer.
+BUDGET_TEST_NAMES = 1298
 
 
 def _words(name: str):
@@ -155,6 +162,41 @@ def python_files(base: Path):
                 yield path
 
 
+def scan_test_names(base: Path):
+    """(francais, total) parmi les methodes `test_*` — la dette que le budget n'attrape PAS.
+
+    Les noms de tests sont la seule exemption de la doctrine (« il se lit dans un rapport
+    d'echec ») : ils ne sont donc pas dans `scan`. Mais ils EXISTENT, en nombre, et Fabien veut
+    savoir ce que couterait de les uniformiser : ce releve le dit sans rien bloquer.
+    """
+    french, total = [], 0
+    for path in python_files(base):
+        try:
+            tree = ast.parse(path.read_text(encoding='utf-8'))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        rel = path.relative_to(base).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name.startswith('test_'):
+                total += 1
+                if is_french(node.name):
+                    french.append((rel, node.name, node.lineno))
+    return french, total
+
+
+def roots_of(by_file):
+    """Radical francais -> nombre d'identifiants qui le portent. C'est l'outil de PILOTAGE :
+    20 radicaux couvrent 56 % des 2653 (mesure du 2026-09-19, 605 noms distincts), donc une
+    passe PAR RADICAL solde la dette par tranches nettes au lieu de fichier par fichier."""
+    counter = Counter()
+    for found in by_file.values():
+        for _, name, _ in found:
+            for word in _words(name):
+                if word in FRENCH_WORDS:
+                    counter[word] += 1
+    return counter
+
+
 def scan(base: Path, with_test_classes: bool = False):
     """(total, par fichier, compteur de noms) — le relevé complet, sans rien écrire."""
     by_file, names, total = {}, Counter(), 0
@@ -189,6 +231,12 @@ class Command(BaseCommand):
         parser.add_argument('--json', action='store_true', help='Sortie machine.')
         parser.add_argument('--top', type=int, default=15,
                             help='Nombre de fichiers les plus charges a afficher (defaut 15).')
+        parser.add_argument('--by-root', action='store_true',
+                            help="Classement des RADICAUX francais (outil de pilotage : une "
+                                 "passe de renommage par radical, la plus rentable d'abord).")
+        parser.add_argument('--include-test-names', action='store_true',
+                            help="Compte AUSSI les noms de methodes `test_*` et applique leur "
+                                 "budget — la bascule que la doctrine n'a pas encore prononcee.")
 
     def handle(self, *args, **options):
         base = Path(settings.BASE_DIR)
@@ -209,10 +257,33 @@ class Command(BaseCommand):
             for rel, found in sorted(by_file.items(), key=lambda kv: -len(kv[1]))[:options['top']]:
                 echantillon = ', '.join(sorted({n for _, n, _ in found})[:5])
                 self.stdout.write(f"  {len(found):4}  {rel:58} {echantillon}")
+            if options['by_root']:
+                roots = roots_of(by_file)
+                self.stdout.write("\n  radical         porte par   cumul")
+                seen = 0
+                for word, n in roots.most_common(25):
+                    seen += n
+                    self.stdout.write(f"  {word:14} {n:9}   {100 * seen // max(total, 1):4} %")
+                self.stdout.write(f"  ({len(roots)} radicaux pour {len(names)} noms distincts — "
+                                  f"une passe PAR RADICAL solde par tranches nettes)")
             if options['detail']:
                 for rel, found in sorted(by_file.items()):
                     for kind, name, line in found:
                         self.stdout.write(f"{rel}:{line}: {kind} {name}")
+
+        test_names, test_total = scan_test_names(base)
+        share = 100 * len(test_names) // max(test_total, 1)
+        if not options['json']:
+            self.stdout.write(
+                f"\n  noms de methodes `test_*` en francais : {len(test_names)} sur {test_total} "
+                f"({share} %) — budget {BUDGET_TEST_NAMES}, "
+                + ("APPLIQUE" if options['include_test_names'] else
+                   "NON applique (la doctrine les autorise encore ; `--include-test-names` "
+                   "l'applique)"))
+        if options['include_test_names'] and len(test_names) > BUDGET_TEST_NAMES:
+            self.stderr.write(
+                f"\n✗ BUDGET DES NOMS DE TESTS DEPASSE : {len(test_names)} > {BUDGET_TEST_NAMES}")
+            raise SystemExit(1)
 
         if total > budget:
             self.stderr.write(
