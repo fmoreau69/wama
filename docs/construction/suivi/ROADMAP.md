@@ -2078,6 +2078,65 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
   ni de base exposée pour `eta_estimator.estimate()` — l'enum `estimate_confidence` de llmfit
   reste la référence si ces deux points s'ouvrent. ⚠ Cette ligne disait « non fait » jusqu'au
   19/09 : écrite le 16 sans relire le §PALIER du 14 au soir.
+#### YuE2 / ACE-Step 1.5 — musique à RÉFÉRENCE et à PLAN ÉDITABLE (2026-09-19, question de Fabien)
+> *« Il me semblait qu'on avait ajouté un modèle dans Composer pour générer de la musique à partir
+> d'une référence »*, puis `github.com/multimodal-art-projection/YuE`.
+> **Aucune décision prise, rien d'installé, aucun modèle chargé.**
+
+**Ce que le catalogue a déjà** (mesuré ce jour) : `composer:musicgen-melody`, conditionné par une
+mélodie de référence mais **non téléchargé** — la génération par référence ne marche donc nulle
+part aujourd'hui ; `composer:minimax-music3` (chansons avec paroles, GGUF audio.cpp) ;
+musicgen-small/medium ; audiogen-medium ; et **`huggingface:ACE-Step/Ace-Step1.5`**, installé le
+**02/09** par le mécanisme (132 s, 9,4 Go, MIT), `backend_ref` vide, **aucun backend ne le sert**,
+retaggé `text-to-music` le 19/09 (il était catalogué en ambiance). C'est lui, le modèle « à
+référence » de la question : style guidé par un audio, reprise, repeindre une portion.
+
+**Ce que YuE2 apporte et que RIEN dans WAMA ne fait** : un **artefact intermédiaire éditable et
+SYMBOLIQUE** entre la consigne et le son. Trois modes : créer (paroles + style → plan mélodie et
+accords en notation ABC → chanson), reprendre (enregistrement → partition → autre interprétation),
+éditer en conversation (retour musical → révision du plan, du style ou des paroles → nouvel
+enregistrement). Le plan se lit, se corrige et se resoumet. ACE-Step, lui, édite dans le domaine
+AUDIO : ce n'est pas la même chose qu'un plan qu'un humain relit AVANT que le son existe.
+
+⚠⚠ **Trois affirmations FAUSSES de ma première réponse, corrigées par Fabien le jour même** —
+écrites ici parce que chacune est un piège de méthode :
+1. « YuE2 n'a plus de mode référence » : **le mode reprise existe**. J'avais lu le mécanisme
+   correctement et l'ai présenté comme une perte.
+2. J'ai classé ACE-Step devant **sur un tableau de COÛTS** (VRAM, vitesse, licence) présenté comme
+   un verdict de choix, **sans aucune mesure de qualité** — Fabien place YuE2 parmi les meilleurs,
+   devant Suno et ACE-Step. *C'est exactement le défaut que `WAMA_QUALITE.md` décrit : un composite
+   de coût lu comme une note.*
+3. « Licence non commerciale = bloquant » : **hors sujet** pour l'usage visé — outil de
+   communication INTERNE, tests, supports d'induction d'émotions. `docs/construction/exploitation/LICENSING.md`
+   ne s'applique pas ici.
+
+| | YuE v1 (branche) | YuE2 (actuel) | ACE-Step 1.5 |
+|---|---|---|---|
+| référence audio | apprentissage en contexte, 1 ou 2 pistes | reprise par partition | style, reprise, repeindre |
+| **plan éditable** | non | **oui (ABC)** | non (édition audio) |
+| poids | Apache-2.0 | CC BY-NC-4.0 | MIT |
+| VRAM | 24 Go = 2 sections ; 80 Go = morceau entier | 24 Go | < 4 Go possible |
+| vitesse | 360 s pour 30 s sur RTX 4090 | non publiée | < 10 s par morceau sur RTX 3090 |
+| installation | clone git | clone git + `pip install .` | clone git + `uv sync` |
+
+**🔚 DEUX DÉCISIONS, DIFFÉRÉES** (Fabien : *« ça demande une décision que je ne veux pas prendre
+tout de suite »*) :
+
+- **D-a — comment un moteur avec son PROPRE runtime entre dans WAMA.** PARTAGÉE : ni YuE ni
+  ACE-Step n'a de paquet PyPI (`yue2-infer` et `acestep` : 404 tous les deux), et la route
+  `library` refuse **avant pip** tout ce qui n'est pas « nom==version »
+  (`model_installer._PIP_SPEC_RE`, verrous §16.7) — **frontière voulue, pas trou d'outillage.**
+  Trois voies existent dans le dépôt : **vendoriser** (patron `wama/common/backends/vendor/` :
+  musetalk, codeformer), **venv isolé** (doctrine des venvs, seule voie propre retenue pour
+  chatterbox), ou **attendre un paquet**. Tranchée une fois, elle sert les deux modèles — et c'est
+  elle qui débloque ACE-Step, installé et inerte depuis 17 jours.
+- **D-b — un artefact intermédiaire ÉDITABLE dans une app de génération.** Propre à YuE2, et
+  INDÉPENDANTE de D-a. Aucune app ne l'a : partout c'est consigne → sortie, en un coup. La forme
+  existe pourtant ailleurs (transcriber : un master puis une correction humaine qui fait autorité).
+  Ce qu'elle touche : la card et son cycle, l'inspecteur, et la question « ce plan est-il une
+  sortie, une entrée, ou les deux ». Domicile de la question le jour où elle se tranche :
+  `WAMA_APP_GENERATION_ROUTE.md §10.6` (une card = une instance de pipeline) — **pas avant.**
+
 - ❌ **« Idée 3 » RETIRÉE le 2026-09-16** (une rubrique regex par rôle pour les seuls LLM) :
   trop étroite et à côté de la route actée (`ROUTE §F4b` : qualification comparative de TOUTES
   les tâches, sorties confrontées, réingestion en indice) — et « à réécrire en français » était
