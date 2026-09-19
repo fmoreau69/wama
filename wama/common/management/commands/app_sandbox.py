@@ -123,17 +123,56 @@ def _patch_related_names(text: str, label: str) -> str:
     return ''.join(out)
 
 
+#: Ce qui ressemble à un namespace d'URL mais désigne un MODÈLE DU CATALOGUE — et ne se
+#: substitue donc JAMAIS. ⚠ Défaut MESURÉ le 2026-09-19, révélé par le stage `suite` : la règle
+#: « namespaces d'URL » (`'composer:`) attrapait aussi les clés de catalogue, et les jumelles
+#: cherchaient leur modèle sous une clé FANTÔME (`composer_01:minimax-music3`, jamais catalogué)
+#: tout en enregistrant leurs statistiques de runtime dessous. Les deux tests rouges de
+#: `composer_01` n'étaient pas faux : ils étaient le MESSAGER.
+#:
+#: ⭐ LE PRINCIPE : **une jumelle partage les MODÈLES de sa source.** Elle a ses propres tables
+#: (`app_label`, `related_name`, ses URL, ses gabarits), mais pas ses propres poids — il n'y a
+#: qu'un jeu de fichiers sur le disque, catalogué sous la clé de l'app SOURCE. Substituer la clé
+#: fabriquait un second modèle qui n'existe pas.
+#:
+#: Le motif DISCRIMINANT est mesuré, pas supposé : une clé de catalogue est construite par
+#: f-string (`f'composer:{self.model}'` — 5 occurrences dans 2 jumelles) ou écrite en
+#: `model_key='composer:…'` (les tests) ; un namespace d'URL est une chaîne CLOSE sans `f`
+#: (`'composer:generate'`, `{% url "composer:batch_preview" %}`).
+_CATALOG_KEY_PATTERNS = (
+    r'f{q}{src}:',            # f-string : `f'composer:{...}'`, `f'imager:img:{...}'`
+    r'model_key={q}{src}:',   # clé littérale : `model_key='composer:minimax-music3'`
+)
+
+
 def _rename_text(text: str, src: str, dst: str) -> str:
     """Les 4 familles de renommage — quotes simples ET doubles, ordre du plus spécifique
-    au plus général (le `wama.` d'abord, sinon le quoté exact le casserait)."""
-    text = text.replace(f'wama.{src}', f'wama.{dst}')
+    au plus général (le `wama.` d'abord, sinon le quoté exact le casserait).
+
+    ⚠ Les clés de CATALOGUE DE MODÈLES sont MASQUÉES avant substitution et rendues après :
+    voir `_CATALOG_KEY_PATTERNS` — une jumelle partage les modèles de sa source.
+    """
+    # Masquage : chaque clé de catalogue devient un jeton que les `replace` ne peuvent pas voir.
+    frozen, tokens = text, {}
+    for i, raw in enumerate(_CATALOG_KEY_PATTERNS):
+        for q in ("'", '"'):
+            pattern = raw.format(q=re.escape(q), src=re.escape(src))
+            for found in set(re.findall(pattern, frozen)):
+                token = f'\x00CATALOGKEY{i}_{len(tokens)}\x00'
+                tokens[token] = found
+                frozen = frozen.replace(found, token)
+
+    frozen = frozen.replace(f'wama.{src}', f'wama.{dst}')
     for q in ("'", '"'):
-        text = text.replace(f'{q}{src}:', f'{q}{dst}:')      # namespaces d'URL
-        text = text.replace(f'{q}{src}/', f'{q}{dst}/')      # chemins templates/static
-        text = text.replace(f'{q}{src}.', f'{q}{dst}.')      # réfs par app_label ('converter.Model'
-                                                             #  des FK sérialisées — facette data S2)
-        text = re.sub(rf'{q}{re.escape(src)}{q}', f'{q}{dst}{q}', text)  # app id exact
-    return text
+        frozen = frozen.replace(f'{q}{src}:', f'{q}{dst}:')    # namespaces d'URL
+        frozen = frozen.replace(f'{q}{src}/', f'{q}{dst}/')    # chemins templates/static
+        frozen = frozen.replace(f'{q}{src}.', f'{q}{dst}.')    # réfs par app_label ('converter.Model'
+                                                               #  des FK sérialisées — facette data S2)
+        frozen = re.sub(rf'{q}{re.escape(src)}{q}', f'{q}{dst}{q}', frozen)  # app id exact
+
+    for token, original in tokens.items():                     # démasquage à l'identique
+        frozen = frozen.replace(token, original)
+    return frozen
 
 
 def _copy_package(src: str, dst: str) -> list:
