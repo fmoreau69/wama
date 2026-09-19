@@ -47,6 +47,11 @@ TIMEOUT_S = 2400
 RAN = re.compile(r'^Ran (\d+) tests? in ([\d.]+)s', re.MULTILINE)
 VERDICT_OK = re.compile(r'^OK(?: \(.*\))?$', re.MULTILINE)
 VERDICT_FAILED = re.compile(r'^FAILED \((.*)\)$', re.MULTILINE)
+#: Django ecrit ceci au lieu d'`OK` quand il n'a COLLECTE aucun test. Ni succes ni echec : le
+#: module de test existe mais ne contient rien (mesure du 19/09 : `imager_01/tests.py` est le
+#: squelette `startapp` — « Create your tests here. » — quand `composer_01` a ses tests copies).
+#: Sans cette forme, le scenario tombait en « verdict ILLISIBLE », ce qui accuse a tort.
+VERDICT_NO_TESTS = re.compile(r'^NO TESTS RAN$', re.MULTILINE)
 #: Les rouges NOMMÉS : c'est ce qui rend la grille exploitable (quel test, pas juste combien).
 NAMED = re.compile(r'^(?:FAIL|ERROR): (\S+)', re.MULTILINE)
 
@@ -98,6 +103,10 @@ def _run_label(label: str):
             raise SkipScenario(f"{label} : aucun test lancé — {tail[:300]}")
 
         count, seconds = ran.group(1), ran.group(2)
+        if VERDICT_NO_TESTS.search(output) or count == '0':
+            raise SkipScenario(
+                f"{label} : aucun test COLLECTE — le module existe mais ne declare rien "
+                f"(squelette `startapp` ?). Ni vert ni rouge : il n'y a rien a mesurer.")
         failed = VERDICT_FAILED.search(output)
         if failed:
             names = NAMED.findall(output)
