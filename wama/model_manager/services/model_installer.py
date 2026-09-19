@@ -250,6 +250,236 @@ def weight_for_spec(spec: dict):
     return None
 
 
+#: Rôle porté par un poids à la RACINE d'un dépôt (modèle monobloc, sans `model_index.json`) :
+#: un seul composant, donc somme et plus gros composant se confondent.
+_SINGLE_ROLE = 'model'
+
+#: Marqueurs de PRÉCISION dans un nom de fichier de poids. Distincts des `_QUANT_MARKERS` de
+#: `prospector` (qui qualifient un DÉPÔT dérivé, pas un fichier) : `bf16`/`fp16` ne sont pas des
+#: quantisations, ce sont les précisions natives — un dépôt entier en bf16 est la NORME, un
+#: fichier bf16 à côté d'un autre dans le même dossier est une VARIANTE.
+_DTYPE_MARKERS = ('bf16', 'fp16', 'fp32', 'f16', 'f32', 'float16', 'float32', 'half')
+
+#: Marqueurs des poids d'un AUTRE moteur — la même chose, réécrite pour un autre runtime.
+#: ⚠ On ne les écarte que si un jeu PyTorch existe dans le même rôle : WAMA catalogue de vrais
+#: modèles ONNX (`onnx-community/Kokoro-82M-v1.0-ONNX`), pour qui l'ONNX EST le modèle.
+_FOREIGN_ENGINE_MARKERS = ('flax', 'openvino', 'onnx', 'tf_model', 'rust_model', 'msgpack',
+                           'coreml', 'mlx')
+
+#: `nom-00002-of-00005.safetensors` → base `nom`, découpage `5`. Deux jeux de shards concurrents
+#: dans un même dossier ne se distinguent QUE par ce découpage (cas mochi `text_encoder`).
+_SHARD_RE = re.compile(r'^(?P<base>.+?)-\d{4,6}-of-(?P<total>\d{4,6})$')
+
+
+def _weight_set_key(filename: str) -> tuple:
+    """Identifie le JEU de poids auquel un fichier appartient, dans son rôle.
+
+    Deux fichiers du même jeu s'ADDITIONNENT (des shards d'un même tenseur) ; deux jeux
+    différents sont des ALTERNATIVES, dont une seule sera chargée. La clé porte donc : le nom
+    de base (shard retiré), le nombre de shards annoncé, la précision marquée, et le moteur
+    étranger éventuel.
+    """
+    stem = filename.rsplit('.', 1)[0]
+    low = filename.lower()
+    m = _SHARD_RE.match(stem)
+    base, total = (m.group('base'), m.group('total')) if m else (stem, '')
+    dtype = next((d for d in _DTYPE_MARKERS if d in low), '')
+    foreign = next((f for f in _FOREIGN_ENGINE_MARKERS if f in low), '')
+    # Le marqueur de précision fait partie du nom de base : on le retire pour que
+    # `x.bf16-00001-of-00003` et `x-00001-of-00005` portent le même base et se comparent.
+    for d in _DTYPE_MARKERS:
+        base = base.replace('.' + d, '').replace('-' + d, '').replace('_' + d, '')
+    return (base, total, dtype, foreign)
+
+
+def components_of_files(files, *, composition=None, allow_patterns=None) -> dict:
+    """Poids PAR COMPOSANT d'un inventaire de fichiers — dérivation PURE, aucun réseau.
+
+    🔴 **UN DÉPÔT N'EST PAS UN MODÈLE : c'est un CATALOGUE de fichiers.** Mesuré le 2026-09-19
+    sur les cartes HF des modèles RÉELLEMENT catalogués : `genmo/mochi-1-preview` totalise
+    **124,3 Go** de poids, `Lightricks/LTX-Video-0.9.8-13B-distilled` 86,4 Go,
+    `stabilityai/stable-diffusion-xl-base-1.0` 45,7 Go — aucun n'est l'empreinte de son modèle.
+    *La question n'est donc jamais « que contient le dépôt » mais « que va CHARGER le
+    chargeur ».* D'où la restriction ci-dessous, qui n'est pas un filtre de confort : sans elle,
+    les deux chiffres feraient écarter du tirage la moitié du parc.
+
+    ⚠ Et les quatre causes du gonflement sont NOMMÉES, chacune par un cas mesuré — c'est ce
+    que traitent `_WEIGHT_SET_KEY` et les règles plus bas :
+    1. **une copie MONOFICHIER du pipeline entier à la racine**, pour les chargeurs qui ne
+       lisent pas l'arborescence diffusers — `genmo/mochi-1-preview:dit.safetensors` 37,4 Go
+       en plus de `transformer/` ; `FLUX.2-klein-4B:flux-2-klein-4b.safetensors` 7,2 Go, soit
+       EXACTEMENT son `transformer/diffusion_pytorch_model.safetensors` ;
+    2. **des variantes de PRÉCISION dans le même dossier** — `transformer/…bf16-00001-of-00003`
+       à côté du jeu pleine précision (mochi), `unet/…fp16.safetensors` (SDXL) ;
+    3. **les copies d'AUTRES MOTEURS** — `unet/diffusion_flax_model.msgpack`,
+       `unet/openvino_model.bin`, `unet/model.onnx_data`, tous trois de 9,56 Go comme le
+       `.safetensors` qu'ils recopient (SDXL) ;
+    4. **deux jeux de SHARDS concurrents sous le même nom de base** —
+       `text_encoder/model-00001-of-00002` (8,9 Go) ET `…-00001-of-00004` (17,8 Go) dans le
+       même mochi : rien dans le NOM ne les distingue, seul leur découpage le fait.
+    ⚠ Reste un cas que cette dérivation ne sait PAS traiter : un dépôt qui IMBRIQUE un
+    pipeline sous un rôle (`Lightricks/…:vae/transformer/…`, `vae/text_encoder/…` — d'où un
+    « vae » de 44 Go). Le premier segment n'est alors pas le composant, et seule la lecture de
+    `model_index.json` le dirait. C'est pour ces dépôts que la composition DÉCLARÉE est la
+    seule réponse juste.
+
+    `composition` : l'anatomie DÉCLARÉE du modèle (`AIModel.composition`, schéma validé par
+    `manifests.builtin.model._validate_composition`) — `{'components': [{'role', 'pattern'}]}`.
+    Quand elle est là, les rôles et la sélection viennent d'ELLE, pas d'une heuristique : c'est
+    la même déclaration que `patterns_from_composition` transforme en `allow_patterns` pour
+    l'installation. Une anatomie déclarée UNE fois, deux lectures — ce qu'on tire et ce qu'on
+    pèse ne peuvent plus diverger.
+    `allow_patterns` : la restriction du descripteur d'installation, quand elle est explicite
+    (une variante choisie). Même sémantique `fnmatch` que `snapshot_download`.
+
+    Sans l'une ni l'autre, on retombe sur la convention de fait des pipelines composés : le
+    composant est le PREMIER SEGMENT du chemin (`transformer/…`, `text_encoder/…`, `vae/…`),
+    un poids à la racine appartenant au modèle monobloc (`_SINGLE_ROLE`). C'est la convention
+    de `model_index.json` sans avoir à le lire — mais le résultat est alors marqué
+    `source='repo'` : une borne supérieure, pas une empreinte.
+
+    POURQUOI ce chiffre-là (décision A de Fabien, `PROJECT_STATUS §④A` du 16/09) : un modèle
+    composé a **deux** empreintes et non une — la SOMME de ses composants (plein GPU) et son
+    PLUS GROS composant (déchargement séquentiel, où un composant descend quand le suivant
+    monte). Les tenir pour un seul nombre, c'est ce qui a fait écarter du tirage un modèle de
+    21 Go qui tourne très bien sur 24 Go en déchargement, et tenter un plein GPU sur 38 Go.
+    Ici on ne rend que les FAITS (les Go par rôle) : la marge d'activations et le choix de
+    stratégie restent à `memory_manager`, seul endroit qui connaît la carte.
+
+    `files` : `[(chemin, taille)]` ou `[chemin]` — les deux inventaires qui circulent
+    (`prospector._siblings` à distance, un parcours de snapshot en local). Sans taille, on ne
+    peut rien peser : les entrées sans taille sont IGNORÉES, et un inventaire entièrement sans
+    taille rend `{}` plutôt que des zéros (`0.0` se lirait « ça ne pèse rien »).
+
+    Ce que la dérivation ÉCARTE, chacun par une brique existante ou une règle mesurée :
+    - les **jumeaux de format** (`.bin` doublant un `.safetensors`) → `duplicate_weight_files` ;
+    - dans un rôle, **tous les JEUX de poids sauf un** (`_weight_set_key`) : quantisation
+      (`_QUANT_MARKERS`), précision (`_DTYPE_MARKERS`), moteur étranger
+      (`_FOREIGN_ENGINE_MARKERS`), découpage de shards concurrent. On garde le jeu **le plus
+      LOURD parmi les non marqués** — arbitrage déjà écrit dans `MODEL_SIZE_PRESETS`
+      (`memory_manager.py:87-91`) : *sur-estimer coûte de l'offload, sous-estimer fait tenter
+      un plein GPU et déborde en RAM hôte*, ce qui a produit les kernel panics du 29/07 ;
+    - la **copie monofichier à la racine** quand le dépôt est un pipeline (`model_index.json`
+      présent ET des rôles en sous-dossiers).
+    Rien n'est jeté : tout ce qui est écarté se retrouve dans `variants`, pour qu'un choix reste
+    possible en amont et qu'on voie ce que la règle a fait.
+
+    ⚠ Ce qu'elle NE fait PAS : lire les dtypes RÉELS (un nom de fichier n'est pas une preuve de
+    précision — l'en-tête safetensors le dirait, aucune brique ne le lit aujourd'hui), deviner
+    les activations, ni distinguer deux composants qui se partagent des poids. Elle pèse des
+    FICHIERS. Les shards d'un même jeu s'additionnent : ce sont des morceaux d'un tenseur.
+    """
+    import fnmatch
+
+    sized = [(f[0], f[1]) for f in (files or [])
+             if isinstance(f, (tuple, list)) and len(f) > 1 and (f[1] or 0) > 0]
+    if not sized:
+        return {}
+    from .prospector import _QUANT_MARKERS, _WEIGHT_EXTS
+    twins = set(duplicate_weight_files(sized))
+    names = {p for p, _ in sized}
+
+    declared = [(c.get('role') or _SINGLE_ROLE, c['pattern'])
+                for c in ((composition or {}).get('components') or [])
+                if isinstance(c, dict) and c.get('pattern')]
+    source = 'declared' if declared else ('allow_patterns' if allow_patterns else 'repo')
+
+    def role_of(path):
+        """Rôle du fichier, ou None s'il ne fait pas partie de ce qu'on pèse."""
+        if declared:
+            # La déclaration tranche : un fichier qu'aucun composant ne réclame n'est pas
+            # un poids du modèle (fichier de bord, variante non retenue, version voisine).
+            return next((r for r, pat in declared if fnmatch.fnmatch(path, pat)), None)
+        if allow_patterns and not any(fnmatch.fnmatch(path, p) for p in allow_patterns):
+            return None
+        return path.split('/')[0] if '/' in path else _SINGLE_ROLE
+
+    # ── 1. Peser chaque JEU de poids, par rôle ───────────────────────────────────────────
+    sets = {}                      # (rôle, clé de jeu) → Go
+    for path, size in sized:
+        if path in twins or not path.lower().endswith(_WEIGHT_EXTS):
+            continue
+        role = role_of(path)
+        if role is None:
+            continue
+        key = _weight_set_key(path.rsplit('/', 1)[-1])
+        sets[(role, key)] = sets.get((role, key), 0.0) + size / 1024 ** 3
+
+    # ── 2. Un seul jeu par rôle ; les autres sont des alternatives ───────────────────────
+    # Une composition DÉCLARÉE a déjà tranché : ses patterns disent ce qui est chargé, on ne
+    # « corrige » pas son choix. La sélection d'un jeu ne vaut que pour l'heuristique.
+    full, variants = {}, {}
+    roles = {r for r, _ in sets}
+    for role in roles:
+        groups = {k: gb for (r, k), gb in sets.items() if r == role}
+        if declared:
+            full[role] = sum(groups.values())
+            continue
+        marked = {k: gb for k, gb in groups.items()
+                  if k[2] or k[3] or any(m in k[0].lower() for m in _QUANT_MARKERS)}
+        plain = {k: gb for k, gb in groups.items() if k not in marked}
+        # Un rôle qui n'existe QUE marqué (dépôt fp8 entier, vrai modèle ONNX) pèse ce qu'il
+        # pèse : le ranger dans `variants` le ferait disparaître du total.
+        candidates = plain or marked
+        winner = max(candidates, key=lambda k: candidates[k])
+        full[role] = candidates[winner]
+        alt = sum(gb for k, gb in groups.items() if k != winner)
+        if alt:
+            variants[role] = alt
+
+    # ── 3. La copie MONOFICHIER d'un pipeline n'est pas un composant de plus ─────────────
+    if not declared and 'model_index.json' in names and len(roles - {_SINGLE_ROLE}) >= 2 \
+            and _SINGLE_ROLE in full:
+        variants[_SINGLE_ROLE] = variants.get(_SINGLE_ROLE, 0.0) + full.pop(_SINGLE_ROLE)
+
+    if not full:
+        return {}
+    out = {'components': {r: round(gb, 3) for r, gb in sorted(full.items())},
+           'total_gb': round(sum(full.values()), 3),
+           'largest_gb': round(max(full.values()), 3),
+           'source': source}
+    if variants:
+        out['variants'] = {r: round(gb, 3) for r, gb in sorted(variants.items())}
+    return out
+
+
+def components_for_spec(spec: dict, *, files=None) -> dict:
+    """Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
+
+    JUMEAU de `weight_for_spec` (même descripteur, même dispatch par `kind`) : c'est la MÊME
+    question posée un cran plus fin, elle n'a donc pas droit à une seconde porte. `weight_for_spec`
+    rend le total, celle-ci rend le détail ; les deux lisent la brique de leur source, et aucune
+    ne réinvente d'inventaire.
+
+    La SÉLECTION vient du descripteur lui-même — `spec['composition']` (posée par
+    `spec_for_catalog_row`) ou `spec['allow_patterns']` —, donc ce qu'on PÈSE est exactement ce
+    que `install_from_spec` va TIRER. Un seul descripteur pour les deux.
+
+    `files` : inventaire DÉJÀ relevé (snapshot local, ou `_siblings` gardé d'un appel précédent).
+    Le passer évite la requête — un dépôt inventorié une fois n'a pas à l'être deux fois.
+    """
+    spec = spec or {}
+    restriction = {'composition': spec.get('composition'),
+                   'allow_patterns': spec.get('allow_patterns')}
+    if files is not None:
+        return components_of_files(files, **restriction)
+    kind, ref = spec.get('kind'), (spec.get('ref') or '').strip()
+    if not ref:
+        return {}
+    if kind == 'hf':
+        from .prospector import _siblings
+        return components_of_files(_siblings(ref), **restriction)
+    # Ollama et YOLO ne livrent PAS de composition : un blob GGUF, un `.pt` — un seul composant,
+    # dont le poids est celui du tout. Le dire explicitement vaut mieux que rendre `{}` : le
+    # lecteur a besoin de savoir que « somme » et « plus gros » se confondent ici, pas que
+    # l'information manque.
+    gb = weight_for_spec(spec)
+    if gb is None:
+        return {}
+    return {'components': {_SINGLE_ROLE: gb}, 'total_gb': gb, 'largest_gb': gb,
+            'source': 'registry' if kind == 'ollama' else 'asset'}
+
+
 def yolo_task_of(name: str) -> str:
     """Tâche (`ModelTask`) d'un poids YOLO, déduite du suffixe de son nom — `detect` par défaut.
     Accesseur UNIQUE : `pull_yolo_weights` en tire son sous-dossier, la proposition d'un
