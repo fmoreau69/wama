@@ -94,7 +94,7 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 #: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
 #: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
 #: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
-BUDGET_CODE = 2647          # production + fichiers de tests hors noms
+BUDGET_CODE = 2644          # production + fichiers de tests hors noms (2647 avant la regle des jumeaux)
 #: 2653 au 1er releve du 19/09 ; -6 par la 1re passe de renommage du meme jour
 #: (`annoncer_telechargement` -> `warn_if_weights_missing`, `SEUIL_ANNONCE_GO` ->
 #: `SIZE_MENTION_THRESHOLD_GB`, `cle_catalogue` -> `catalog_key` : 39 occurrences).
