@@ -636,6 +636,28 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
     TTS n'a aucun endpoint de déchargement et garde Kokoro résident par déclaration
     (`keep_resident`). En Linux natif (la cible), la contrainte WDDM disparaît et la question se
     repose.
+    ✅ **TRANCHÉ par Fabien le 16/09** (détail `PROJECT_STATUS §PALIER 2026-09-19 « GOUVERNEUR »`) :
+    le déchargement COMPLET (TTS, assistant, résidents des workers) est PERMIS, mais **seulement si
+    la VRAM est saturée** — jamais systématique ; sur un serveur de prod suffisamment doté, rien
+    n'est déchargé. Séquence : attente `AWAITING_RESOURCES` tant qu'une tâche tourne ou qu'un
+    service sert → tout décharger → attendre que le pilote rende la mémoire → exécuter → recharger.
+    **Le gouverneur décide, tous les chemins passent par lui** ; les services se DÉCLARENT (occupé ?
+    décharger ? recharger ?) — rien n'est câblé en dur, un service futur s'inscrit sans le toucher.
+    Deux délais : attente avant démarrage ILLIMITÉE ; contrôle de durée d'un traitement, 30 min par
+    défaut, réglable par utilisateur (et par type de tâche). Curseur rapide/qualité généralisé à
+    toutes les apps média, « vision » (anonymizer) remonté au commun.
+
+**🔴 Constat du 19/09 — le FILTRE du tirage écarte un modèle qui TIENT sur la carte.** Le filtre
+(`model_selector._best_by_vram:241`, `vram_gb ≤ libre`) et le coût (`:248`) lisent le même
+`vram_gb`, qui pour CogVideoX (21), Mochi (22), FastWan (23) est une SOMME DE COMPOSANTS. Dès qu'un
+résident occupe la carte, ces modèles sont écartés — alors qu'un modèle de 21 Go tient sur une 4090
+chargé seul, et tourne en déchargement CPU avec ~11 Go de jeu de travail. La table
+`MODEL_SIZE_PRESETS` (qui SAIT que c'est une somme) ne sert qu'aux backends au chargement, jamais au
+tirage. **Chantier A (décidé)** : deux chiffres par modèle — poids par composant lus dans les
+fichiers sans charger, et pic selon la stratégie — c'est le pic que le filtre compare ; cascade de
+provenance mesurée → source → estimée, jamais sous la source ; provenance marquée à la découverte.
+Fait au passage : une seule règle de lecture de la table d'empreintes (`get_strategy_for_model` →
+`preset_vram_gb`, hunk dans `9a9463ea`, gardes `b9e2c202`).
 
 **⏳ Reste — à ajouter ICI, jamais dans les apps**
 1. ~~Câbler les priorités dans le routage Celery~~ ✅ 2026-07-29 (ci-dessus, 14 assertions).
