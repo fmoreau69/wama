@@ -15493,3 +15493,34 @@ doublons*) · `RunOutcome.signal`/`detail` et `extra_info['prospect']` en franç
 `docs/dev/briques.md` à régénérer · `mecanismes.py` (déclarer `cloud_models`/`secret_crypto`/
 `mcp_server`/`dev_tools` — fichier tenu par une autre instance) · `sync_benchmarks` à relancer pour
 apparier les lignes cloud aux bancs.
+
+### Suite du 19/09 — deux commits de plus, et ce que la suite LARGE a trouvé
+
+- `2c01ed70` **les 22 lignes CLOUD n'entraient dans AUCUN banc, et rien ne le disait.**
+  `synchronize()` bornait son queryset à `is_downloaded=True | is_proposed=True` : un modèle servi
+  par une clé d'API n'a aucun poids ici, donc il n'était ni apparié **ni compté** — invisible des
+  trois listes du rapport. Leur catégorie était pourtant juste depuis toujours (`['llm']`) : le
+  filtre les écartait avant qu'on la calcule. ⭐ *Une ligne exclue du QUERYSET ne disparaît pas
+  d'un compteur : elle disparaît de la question* — c'est le défaut que le garde-fou « les quatre
+  issues sont EXHAUSTIVES » (01/09) visait, un cran plus haut que là où il regardait.
+  **Mesure : 34 → 48 appariés, dont 14 lignes cloud** (8 Claude en `arena_elo_text`, 6 Albert en
+  `aa_intelligence_index`/`mteb_fr_retrieval`/`open_asr`). Les 8 restantes sont attendues : 3
+  modèles trop RÉCENTS pour les leaderboards, `claude_code:default` (le fournisseur choisit — non
+  appariable par nature), 4 sans identité lisible. Une ligne cloud RETIRÉE reste dehors.
+- `7ec1a174` le palier ci-dessus.
+
+**⚠ CE QUE LA SUITE COMPLÈTE A TROUVÉ (1610 tests) — et que ma suite ciblée du matin avait
+manqué** : `tests_external_sources:49` lisait encore `b['cle']` là où `benchmark_sync.SOURCES`
+porte `key` depuis le renommage de `4d36d9f4` (même journée). Corrigé dans `2c01ed70`.
+*Un renommage ne casse pas, il rend FAUX : seule une suite LARGE le voit.* **Leçon de méthode :
+après un renommage, lancer `wama.common` EN ENTIER, pas seulement les modules du périmètre.**
+
+**🔴 UN TEST RESTE ROUGE, ET JE NE PEUX PAS LE FERMER** : `tests_doc_plans.PiloteTest` échoue
+parce que `docs/dev/briques.md` cite encore `run_bench(tache, installes_seulement=)` — périmé par
+le même renommage du matin. Le remède est une **régénération** de ce fichier dérivé, qui est
+**tenu par une autre instance** (38 lignes de WIP dans l'arbre, sans rapport avec `run_bench`).
+À régénérer par qui le tient, ou après son commit.
+**Le 2ᵉ échec de la suite, `tests_tool_api_lectures.AddItemToMediaLibraryTest`, est étranger à ce
+palier** (commits médiathèque du 18→19/09 : l'app DÉCLARE désormais le rôle là où le test attend
+une ambiguïté). Bilan de la suite : **1610 tests, 2 échecs + 1 erreur → l'erreur est corrigée, les
+2 échecs sont tracés ci-dessus.**
