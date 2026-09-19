@@ -54,40 +54,40 @@ def huggingface_identity(hf_id: str) -> Optional[dict]:
         logger.info(f"[provenance] {hf_id} injoignable : {type(e).__name__}")
         return None
 
-    licence = ''
+    license_id = ''
     try:
-        carte = info.card_data
-        licence = (carte.to_dict().get('license') if carte else None) or ''
+        card = info.card_data
+        license_id = (card.to_dict().get('license') if card else None) or ''
     except Exception:
-        licence = ''
+        license_id = ''
     # À défaut du champ `author`, le namespace du dépôt : sur HuggingFace, `org/repo` EST
     # l'éditeur — ce n'est pas une déduction, c'est la façon dont la plateforme nomme.
-    auteur = (getattr(info, 'author', '') or hf_id.partition('/')[0] or '')
+    author = (getattr(info, 'author', '') or hf_id.partition('/')[0] or '')
 
     # Régime d'ACCÈS au dépôt (`AIModel.GATED_*`). HuggingFace rend `False` / 'auto' / 'manual' ;
     # WAMA écrit 'no' pour le libre VÉRIFIÉ, afin que le vide reste disponible pour « inconnu ».
     # Cette réponse ne dit JAMAIS « inconnu » : on vient d'interroger le dépôt.
-    brut = getattr(info, 'gated', None)
-    gated = 'no' if brut in (None, False) else str(brut)[:8]
+    raw = getattr(info, 'gated', None)
+    gated = 'no' if raw in (None, False) else str(raw)[:8]
 
     return {
-        'license': str(licence)[:64],
-        'author': str(auteur)[:200],
+        'license': str(license_id)[:64],
+        'author': str(author)[:200],
         'platform_ref': f"huggingface:{hf_id}",
         'hf_id': hf_id,
         'gated': gated,
     }
 
 
-def ollama_identity(nom: str) -> Optional[dict]:
+def ollama_identity(name: str) -> Optional[dict]:
     """
     Identité d'un modèle Ollama. La plateforme n'expose ni licence ni auteur exploitables par
     l'API locale : on ne pose que ce qui est vrai — l'identité de plateforme.
     """
-    famille = (nom or '').split(':', 1)[0].strip()
-    if not famille:
+    family = (name or '').split(':', 1)[0].strip()
+    if not family:
         return None
-    return {'platform_ref': f"ollama:{famille}"}
+    return {'platform_ref': f"ollama:{family}"}
 
 
 def cloud_identity(item: dict) -> Optional[dict]:
@@ -120,8 +120,8 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
     return None
 
 
-def set_identity(model_key: str, identite: dict, *, capabilities: dict = None,
-                   apply: bool = True, exporter: bool = True) -> dict:
+def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
+                   apply: bool = True, export: bool = True) -> dict:
     """
     Pose l'identité — et les capacités DÉCLARÉES — sur un modèle DU CATALOGUE, en passant
     par son manifeste.
@@ -132,7 +132,8 @@ def set_identity(model_key: str, identite: dict, *, capabilities: dict = None,
     directement en base APRÈS l'export (`record_after_install`) : le manifeste du corpus
     naissait sans tâche, et la porte des capacités se refermait derrière elle.
 
-    Retourne un compte rendu : `{model, applique, poses, projete, corpus, erreur?}`.
+    Retourne un compte rendu : `{model, applied, posed, projected, corpus, error?}` (clés
+    passées en anglais le 2026-09-19).
     Ne lève pas — une provenance manquée ne doit pas faire échouer une installation réussie.
     """
     # API PUBLIQUE de la couche manifeste (`ingest`), pas le builtin du kind : c'est elle qui
@@ -140,57 +141,57 @@ def set_identity(model_key: str, identite: dict, *, capabilities: dict = None,
     from wama.common.manifests.ingest import extract, validate, write_back
 
     capabilities = dict(capabilities or {})
-    if not identite and not capabilities:
-        return {'model': model_key, 'applique': False, 'erreur': 'aucune identité à poser'}
-    identite = identite or {}
+    if not identity and not capabilities:
+        return {'model': model_key, 'applied': False, 'error': 'aucune identité à poser'}
+    identity = identity or {}
 
     try:
-        manifeste = extract('model', model_key)
+        manifest = extract('model', model_key)
     except Exception as e:
-        return {'model': model_key, 'applique': False,
-                'erreur': f"extraction impossible : {type(e).__name__}: {e}"}
-    if not manifeste:
-        return {'model': model_key, 'applique': False,
-                'erreur': "aucun AIModel de cette clé — lancer sync_models d'abord"}
+        return {'model': model_key, 'applied': False,
+                'error': f"extraction impossible : {type(e).__name__}: {e}"}
+    if not manifest:
+        return {'model': model_key, 'applied': False,
+                'error': "aucun AIModel de cette clé — lancer sync_models d'abord"}
 
     # Superposition : l'identité de l'éditeur COMPLÈTE l'extraction, elle ne l'écrase pas quand
     # elle n'a rien à dire (une valeur vide ne doit pas effacer une valeur déjà établie).
     # `author` va plus loin : il ne s'écrase JAMAIS — la carte HF rend un slug d'organisation
     # (parfois l'org miroir), toujours plus pauvre qu'un auteur curé. Il ne fait que remplir
     # un champ vide (défaut vécu le 2026-08-27 : 6 auteurs curés écrasés par un backfill).
-    ident = manifeste.setdefault('body', {}).setdefault('identity', {})
-    poses = []
-    for champ in ('license', 'author', 'platform_ref', 'hf_id'):
-        valeur = (identite.get(champ) or '').strip()
-        if champ == 'author' and ident.get('author'):
+    ident = manifest.setdefault('body', {}).setdefault('identity', {})
+    posed = []
+    for field in ('license', 'author', 'platform_ref', 'hf_id'):
+        value = (identity.get(field) or '').strip()
+        if field == 'author' and ident.get('author'):
             continue
-        if valeur and ident.get(champ) != valeur:
-            ident[champ] = valeur
-            poses.append(champ)
+        if value and ident.get(field) != value:
+            ident[field] = value
+            posed.append(field)
     # Capacités déclarées : on ne comble qu'un VIDE (une tâche établie par la découverte, ou
     # par un manifeste antérieur, prime sur celle du spec — règle inchangée depuis le 02/09).
-    caps = manifeste['body'].setdefault('capabilities', {})
-    for cle, valeur in capabilities.items():
-        if valeur not in (None, '', [], {}) and not caps.get(cle):
-            caps[cle] = valeur
-            poses.append(f'capabilities.{cle}')
+    caps = manifest['body'].setdefault('capabilities', {})
+    for key, value in capabilities.items():
+        if value not in (None, '', [], {}) and not caps.get(key):
+            caps[key] = value
+            posed.append(f'capabilities.{key}')
 
     # On VALIDE avant de projeter : un `platform_ref` mal formé ou une plateforme inconnue est
     # refusé par le kind (`validate_model_body`), et il vaut mieux le voir ici qu'écrire une
     # identité que le corpus rejettera ensuite.
-    erreurs = validate(manifeste)
-    if erreurs:
-        return {'model': model_key, 'applique': False,
-                'erreur': f"manifeste invalide : {'; '.join(erreurs[:3])}"}
+    errors = validate(manifest)
+    if errors:
+        return {'model': model_key, 'applied': False,
+                'error': f"manifeste invalide : {'; '.join(errors[:3])}"}
 
     try:
-        plan = write_back(manifeste, apply=apply)
+        plan = write_back(manifest, apply=apply)
     except Exception as e:
-        return {'model': model_key, 'applique': False,
-                'erreur': f"projection impossible : {type(e).__name__}: {e}"}
+        return {'model': model_key, 'applied': False,
+                'error': f"projection impossible : {type(e).__name__}: {e}"}
 
     corpus = None
-    if apply and exporter:
+    if apply and export:
         try:
             from django.core.management import call_command
             # On passe par la commande plutôt que de réécrire la règle de nommage du corpus
@@ -201,11 +202,11 @@ def set_identity(model_key: str, identite: dict, *, capabilities: dict = None,
         except Exception as e:
             corpus = f"échec : {type(e).__name__}: {e}"
 
-    return {'model': model_key, 'applique': bool(apply), 'poses': poses,
-            'projete': plan, 'corpus': corpus}
+    return {'model': model_key, 'applied': bool(apply), 'posed': posed,
+            'projected': plan, 'corpus': corpus}
 
 
-def record_after_install(spec: dict, cles_apparues) -> dict:
+def record_after_install(spec: dict, appeared_keys) -> dict:
     """
     Après installation + sync : pose l'identité sur les modèles qui viennent d'APPARAÎTRE.
 
@@ -219,19 +220,19 @@ def record_after_install(spec: dict, cles_apparues) -> dict:
     """
     from wama.model_manager.models import AIModel
 
-    identite = identity_for_spec(spec)
-    if not identite:
-        return {'identite': None, 'modeles': [],
+    identity = identity_for_spec(spec)
+    if not identity:
+        return {'identity': None, 'models': [],
                 'note': f"aucune identité déductible pour kind={spec.get('kind')!r}"}
 
-    cibles = sorted(cles_apparues or ())
-    if not cibles:
+    targets = sorted(appeared_keys or ())
+    if not targets:
         # ⚠ `is_proposed=False` OBLIGATOIRE (2026-08-31) : pendant `install_candidate`, la ligne
         # CANDIDATE existe encore (elle n'est supprimée qu'après) et porte le même platform_ref —
         # sans ce filtre, l'identité se posait aussi sur elle et son manifeste partait au corpus,
         # orphelin dès la suppression du candidat (2 fichiers `proposed__*` constatés).
-        ref = identite.get('platform_ref') or ''
-        cibles = sorted(AIModel.objects.filter(platform_ref=ref, is_proposed=False)
+        ref = identity.get('platform_ref') or ''
+        targets = sorted(AIModel.objects.filter(platform_ref=ref, is_proposed=False)
                         .values_list('model_key', flat=True)) if ref else []
 
     # ⚠ GARDE DE CONCORDANCE (2026-08-31) : `added_keys` liste ce que LE SYNC vient de créer —
@@ -240,16 +241,16 @@ def record_after_install(spec: dict, cles_apparues) -> dict:
     # son sync a découvert LEURS snapshots partiels (added_keys = les 3), et elle a posé SON
     # identité sur les trois lignes — corpus avec hf_id/author croisés. On ne pose l'identité
     # que sur une ligne qui la revendique déjà (hf_id posé par la découverte) ou qui n'en a pas.
-    hf_attendu = (identite.get('hf_id') or '').lower()
-    if hf_attendu:
-        ecartees = [c for c in cibles
+    expected_hf = (identity.get('hf_id') or '').lower()
+    if expected_hf:
+        discarded = [c for c in targets
                     if (AIModel.objects.filter(model_key=c)
                         .values_list('hf_id', flat=True).first() or '').lower()
-                    not in ('', hf_attendu)]
-        if ecartees:
+                    not in ('', expected_hf)]
+        if discarded:
             logger.info("[provenance] %d ligne(s) écartée(s) (hf_id étranger — install "
-                        "concurrente probable) : %s", len(ecartees), ecartees)
-            cibles = [c for c in cibles if c not in ecartees]
+                        "concurrente probable) : %s", len(discarded), discarded)
+            targets = [c for c in targets if c not in discarded]
 
     # La TÂCHE du candidat (2026-09-02). Le balayage générique d'un snapshot HF catalogue un
     # modèle sans savoir ce qu'il FAIT : `table-transformer-detection` est arrivé installé
@@ -261,7 +262,7 @@ def record_after_install(spec: dict, cles_apparues) -> dict:
     # sans cela un modèle installé sans app restait invisible de l'appariement entrée ↔ modèle.
     # Même règle : on ne comble qu'un vide.
     from wama.model_manager.models import default_inputs_for
-    tache = (spec.get('task') or '').strip()
-    declared = {'task': tache, **default_inputs_for(tache)} if tache else {}
-    poses = [set_identity(c, identite, capabilities=declared) for c in cibles]
-    return {'identite': identite, 'modeles': poses, **({'tache': tache} if tache else {})}
+    task = (spec.get('task') or '').strip()
+    declared = {'task': task, **default_inputs_for(task)} if task else {}
+    posed = [set_identity(c, identity, capabilities=declared) for c in targets]
+    return {'identity': identity, 'models': posed, **({'task': task} if task else {})}

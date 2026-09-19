@@ -763,13 +763,13 @@ class AIModel(models.Model):
         """
         from django.db.models import F
 
-        from .services.benchmark_sync import benchmarks_comparable, valeur_ordonnable
+        from .services.benchmark_sync import benchmarks_comparable, orderable_value
         lot = list(cls.objects.filter(model_type=model_type, is_downloaded=True,
                                       is_proposed=False))
         if benchmarks_comparable(lot):
-            # `valeur_ordonnable`, pas `benchmark_index` : un taux d'erreur (WER) se trie à
-            # l'envers d'un score, et c'est l'échelle qui le dit (`sens`), pas ce code.
-            lot.sort(key=valeur_ordonnable, reverse=True)
+            # `orderable_value`, pas `benchmark_index` : un taux d'erreur (WER) se trie à
+            # l'envers d'un score, et c'est l'échelle qui le dit (`direction`), pas ce code.
+            lot.sort(key=orderable_value, reverse=True)
             return lot[:limit]
         return list(
             cls.objects.filter(model_type=model_type, is_downloaded=True,

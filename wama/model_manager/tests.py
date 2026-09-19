@@ -336,8 +336,8 @@ class GardeAuteurTest(TestCase):
             'composer:cure2',
             {'author': 'slug-org', 'hf_id': 'org/depot',
              'platform_ref': 'huggingface:org/depot'},
-            apply=False, exporter=False)
-        self.assertNotIn('author', resultat.get('poses', ()),
+            apply=False, export=False)
+        self.assertNotIn('author', resultat.get('posed', ()),
                          "set_identity ne doit compléter l'auteur que s'il est vide")
 
 
@@ -689,7 +689,7 @@ class TaxonomieDeProspectionTest(TestCase):
 
     def test_la_tache_ecrite_est_une_tache_du_catalogue(self):
         """Toute tâche rendue doit être une valeur `ModelTask` : sinon `check_model_taxonomy`
-        la refuserait et `_categories_locales` ne la trouverait dans aucun banc."""
+        la refuserait et `_local_categories` ne la trouverait dans aucun banc."""
         from .models import ModelTask
         from .services.prospector import HF_TASKS, hf_task_to_wama
         connues = {t.value for t in ModelTask}
@@ -913,8 +913,8 @@ class TacheHeriteeALInstallationTest(TestCase):
             r = pv.record_after_install(spec, ['huggingface:Org/Detecteur'])
         vierge.refresh_from_db()
         self.assertEqual(vierge.capabilities.get('task'), 'detect')
-        self.assertEqual(r.get('tache'), 'detect')
-        self.assertIn('capabilities.task', r['modeles'][0]['poses'])
+        self.assertEqual(r.get('task'), 'detect')
+        self.assertIn('capabilities.task', r['models'][0]['posed'])
         self.assertEqual(vues_a_l_export, ['detect'],
                          "le corpus doit être écrit APRÈS la pose de la tâche, pas avant")
 
@@ -927,7 +927,7 @@ class TacheHeriteeALInstallationTest(TestCase):
             r = pv.record_after_install({'kind': 'hf', 'ref': 'Org/Detecteur'},
                                         ['huggingface:Org/Detecteur'])
         vierge.refresh_from_db()
-        self.assertNotIn('tache', r)
+        self.assertNotIn('task', r)
         self.assertNotIn('task', vierge.capabilities)
 
     def test_une_tache_etablie_n_est_jamais_ecrasee_par_celle_du_spec(self):
@@ -942,7 +942,7 @@ class TacheHeriteeALInstallationTest(TestCase):
                                         ['huggingface:Org/Segmenteur'])
         etabli.refresh_from_db()
         self.assertEqual(etabli.capabilities.get('task'), 'segment')
-        self.assertNotIn('capabilities.task', r['modeles'][0].get('poses', ()))
+        self.assertNotIn('capabilities.task', r['models'][0].get('posed', ()))
 
 
 class FusionDesCapacitesTest(TestCase):
@@ -1011,7 +1011,7 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
                 patch.object(mi, 'register_after_install',
                              return_value=self._sync('ollama:nouveau:latest')), \
                 patch('wama.model_manager.services.provenance.record_after_install',
-                      return_value={'identite': {}}) as prov:
+                      return_value={'identity': {}}) as prov:
             res = mi.install_candidate(cand)
         self.assertTrue(res['ok'])
         prov.assert_called_once_with({'kind': 'ollama', 'ref': 'nouveau:latest'},
@@ -1024,11 +1024,11 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
                 patch.object(mi, 'register_after_install',
                              return_value=self._sync('huggingface:Org/X')), \
                 patch('wama.model_manager.services.provenance.record_after_install',
-                      return_value={'identite': {'hf_id': 'Org/X'}}) as prov:
+                      return_value={'identity': {'hf_id': 'Org/X'}}) as prov:
             res = mi.install_from_spec({'kind': 'hf', 'ref': 'Org/X', 'category': 'vision',
                                         'task': 'detect'})
         self.assertTrue(res['ok'])
-        self.assertEqual(res['provenance'], {'identite': {'hf_id': 'Org/X'}})
+        self.assertEqual(res['provenance'], {'identity': {'hf_id': 'Org/X'}})
         prov.assert_called_once_with({'kind': 'hf', 'ref': 'Org/X', 'category': 'vision',
                                       'task': 'detect'}, ['huggingface:Org/X'])
 
@@ -1073,22 +1073,22 @@ class _SourcesFactices:
             return dict(par_categorie), {}
 
         def arena():
-            raise bs.SourceIndisponible('arena non sollicitée par ce test')
+            raise bs.SourceUnavailable('arena non sollicitée par ce test')
 
         def open_asr():
-            raise bs.SourceIndisponible('open asr non sollicité par ce test')
+            raise bs.SourceUnavailable('open asr non sollicité par ce test')
 
         def mteb():
-            raise bs.SourceIndisponible('mteb non sollicité par ce test')
+            raise bs.SourceUnavailable('mteb non sollicité par ce test')
 
         # ⚠ TOUTE source du registre se patche ici : une source ajoutée à `SOURCES` sans
         # ligne ici irait au RÉSEAU depuis la suite (c'est ce que le 3ᵉ banc a failli faire).
-        return patch.multiple(bs, charger_aa=aa, charger_arena=arena, charger_open_asr=open_asr,
-                              charger_mteb=mteb)
+        return patch.multiple(bs, load_aa=aa, load_arena=arena, load_open_asr=open_asr,
+                              load_mteb=mteb)
 
     def _entree(self, nom, identite, valeur=42.0, echelle='aa_elo_text_to_image'):
-        return {'nom': nom, 'slug': nom.lower().replace(' ', '-'), 'identite': identite,
-                'valeur': valeur, 'echelle': echelle}
+        return {'name': nom, 'slug': nom.lower().replace(' ', '-'), 'identity': identite,
+                'value': valeur, 'scale': echelle}
 
 
 class ComptageDesBancsTest(_SourcesFactices, TestCase):
@@ -1113,11 +1113,11 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
             source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
         with self._sources({'text-to-image': [self._entree('Autre Chose', ('autre', (1,), None))]}), \
                 patch.dict(bs.ALIAS, {'imager:fantome': 'slug-qui-n-existe-plus'}, clear=True):
-            r = bs.synchroniser(dry_run=True)
+            r = bs.synchronize(dry_run=True)
         # Un ALIAS est une confirmation HUMAINE : démentie par la source, elle se voit parmi
         # les non-appariés — jamais rangée comme une identité manquante.
-        self.assertEqual(r['non_apparies'], ['imager:fantome [text-to-image]'])
-        self.assertEqual(r['sans_identite'], [])
+        self.assertEqual(r['unmatched'], ['imager:fantome [text-to-image]'])
+        self.assertEqual(r['without_identity'], [])
 
     def test_une_identite_illisible_est_comptee_et_distinguee_du_sans_banc(self):
         from .services import benchmark_sync as bs
@@ -1126,9 +1126,9 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
             source='synthesizer', is_downloaded=True,
             capabilities={'task': 'text-to-image'})   # catégorie OK, identité illisible
         with self._sources({'text-to-image': []}):
-            r = bs.synchroniser(dry_run=True)
-        self.assertEqual(r['sans_identite'], ['synthesizer:kokoro [text-to-image]'])
-        self.assertEqual(r['non_apparies'], [])
+            r = bs.synchronize(dry_run=True)
+        self.assertEqual(r['without_identity'], ['synthesizer:kokoro [text-to-image]'])
+        self.assertEqual(r['unmatched'], [])
 
     def test_les_quatre_issues_couvrent_tout_le_catalogue_examine(self):
         """Somme des issues == lignes examinées. C'est CE contrôle qui manquait : sans lui,
@@ -1144,13 +1144,13 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
         AIModel.objects.create(model_key='imager:yolo', name='Yolo 11',
                                capabilities={'task': 'detect'}, **commun)          # hors catégorie
         with self._sources({'text-to-image': [self._entree('Widget 2', ('widget', (2,), None))]}):
-            r = bs.synchroniser(dry_run=True)
-        self.assertEqual(len(r['apparies']), 1)
-        self.assertEqual(len(r['non_apparies']), 1)
-        self.assertEqual(len(r['sans_identite']), 1)
-        self.assertEqual(r['sans_categorie'], 1)
-        total = (len(r['apparies']) + len(r['non_apparies'])
-                 + len(r['sans_identite']) + r['sans_categorie'])
+            r = bs.synchronize(dry_run=True)
+        self.assertEqual(len(r['matched']), 1)
+        self.assertEqual(len(r['unmatched']), 1)
+        self.assertEqual(len(r['without_identity']), 1)
+        self.assertEqual(r['without_category'], 1)
+        total = (len(r['matched']) + len(r['unmatched'])
+                 + len(r['without_identity']) + r['without_category'])
         self.assertEqual(total, AIModel.objects.count())
 
     def test_le_dry_run_n_ecrit_jamais_l_indice(self):
@@ -1160,7 +1160,7 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
             model_key='imager:widget-2', name='Widget 2', model_type='diffusion',
             source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
         with self._sources({'text-to-image': [self._entree('Widget 2', ('widget', (2,), None))]}):
-            bs.synchroniser(dry_run=True)
+            bs.synchronize(dry_run=True)
         m.refresh_from_db()
         self.assertIsNone(m.benchmark_index)
 
@@ -1175,8 +1175,8 @@ class AppariementSansTailleTest(TestCase):
     """
 
     def _compat(self, a, b, nom_local, nom_tiers):
-        from .services.benchmark_sync import _compatibles
-        return _compatibles(a, b, True, nom_local, nom_tiers)
+        from .services.benchmark_sync import _compatible
+        return _compatible(a, b, True, nom_local, nom_tiers)
 
     def test_un_nom_tiers_sans_mot_etranger_est_apparie(self):
         self.assertTrue(self._compat(('mistralmedium', (3, 5), None),
@@ -1204,8 +1204,8 @@ class AppariementSansTailleTest(TestCase):
                                      'nemotron-3.5-lightning:latest', 'Nemotron 3.5 Lightning'))
 
     def test_les_modalites_media_gardent_la_taille_optionnelle(self):
-        from .services.benchmark_sync import _compatibles
-        self.assertTrue(_compatibles(('hunyuanimage', (2, 1), None),
+        from .services.benchmark_sync import _compatible
+        self.assertTrue(_compatible(('hunyuanimage', (2, 1), None),
                                      ('hunyuanimage', (2, 1), None), False))
 
 
@@ -1219,15 +1219,15 @@ class RegistreDesSourcesTest(TestCase):
     """
 
     def _source_fictive(self, priorite):
-        return {'cle': 'panel', 'label': 'Panel Fictif', 'priorite': priorite,
-                'nom_source': 'panel', 'valeur': lambda e: e.get('note'),
-                'echelle': lambda e, cat: 'panel_note_' + cat,
-                'meta': lambda retenu, cands: {'panel_nom': retenu['nom']},
-                'chargeur': lambda: ({'text-to-image': [
-                    {'nom': 'Widget 2', 'slug': 'widget-2', 'note': 7.5,
-                     'identite': ('widget', (2,), None)},
-                    {'nom': 'Autre 1', 'slug': 'autre-1', 'note': 1.0,
-                     'identite': ('autre', (1,), None)}]}, {})}
+        return {'key': 'panel', 'label': 'Panel Fictif', 'priority': priorite,
+                'source_name': 'panel', 'value': lambda e: e.get('note'),
+                'scale': lambda e, cat: 'panel_note_' + cat,
+                'meta': lambda retenu, cands: {'panel_nom': retenu['name']},
+                'loader': lambda: ({'text-to-image': [
+                    {'name': 'Widget 2', 'slug': 'widget-2', 'note': 7.5,
+                     'identity': ('widget', (2,), None)},
+                    {'name': 'Autre 1', 'slug': 'autre-1', 'note': 1.0,
+                     'identity': ('autre', (1,), None)}]}, {})}
 
     def _modele(self):
         return AIModel.objects.create(
@@ -1238,15 +1238,15 @@ class RegistreDesSourcesTest(TestCase):
         from .services import benchmark_sync as bs
         m = self._modele()
         panel = self._source_fictive(priorite=3)
-        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (panel,)):
-            bs.synchroniser(dry_run=False)
+        with patch.object(bs, 'SOURCES_BY_PRIORITY', (panel,)):
+            bs.synchronize(dry_run=False)
         m.refresh_from_db()
         self.assertEqual(m.benchmark_index, 7.5)
-        self.assertEqual(m.benchmark_meta['echelle'], 'panel_note_text-to-image')
+        self.assertEqual(m.benchmark_meta['scale'], 'panel_note_text-to-image')
         self.assertEqual(m.benchmark_meta['source'], 'panel')
         self.assertEqual(m.benchmark_meta['panel_nom'], 'Widget 2')
         # Le rang se calcule sur la population de CETTE source, pas d'une autre.
-        self.assertEqual(m.benchmark_meta['rang_centile'], 50.0)
+        self.assertEqual(m.benchmark_meta['percentile_rank'], 50.0)
         self.assertEqual(m.benchmark_meta['population'], 2)
         # L'attribution est DERIVEE du registre : une source ajoutee s'y cite d'elle-meme.
         self.assertIn('Panel Fictif', m.benchmark_meta['attribution'])
@@ -1260,16 +1260,16 @@ class RegistreDesSourcesTest(TestCase):
 
         def aa():
             return {'text-to-image': [
-                {'nom': 'Widget 2', 'slug': 'widget-2', 'identite': ('widget', (2,), None),
-                 'valeur': 900.0, 'echelle': 'aa_elo_text_to_image'}]}, {}
+                {'name': 'Widget 2', 'slug': 'widget-2', 'identity': ('widget', (2,), None),
+                 'value': 900.0, 'scale': 'aa_elo_text_to_image'}]}, {}
 
-        principale = dict(bs.SOURCES_PAR_PRIORITE[0], chargeur=aa)
+        principale = dict(bs.SOURCES_BY_PRIORITY[0], loader=aa)
         panel = self._source_fictive(priorite=9)     # moins prioritaire
-        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (principale, panel)):
-            bs.synchroniser(dry_run=False)
+        with patch.object(bs, 'SOURCES_BY_PRIORITY', (principale, panel)):
+            bs.synchronize(dry_run=False)
         m.refresh_from_db()
         self.assertEqual(m.benchmark_index, 900.0)                     # la prioritaire
-        self.assertEqual(m.benchmark_meta['echelle'], 'aa_elo_text_to_image')
+        self.assertEqual(m.benchmark_meta['scale'], 'aa_elo_text_to_image')
         self.assertEqual(m.benchmark_meta['panel_nom'], 'Widget 2')    # l'autre a ecrit sa meta
         self.assertNotEqual(m.benchmark_index, 7.5)
 
@@ -1285,27 +1285,27 @@ class RangCentileTest(TestCase):
     """
 
     def _pop(self, *valeurs):
-        return [{'valeur': v} for v in valeurs]
+        return [{'value': v} for v in valeurs]
 
     def test_le_rang_est_le_pourcentage_de_la_population_en_dessous(self):
-        from .services.benchmark_sync import rang_centile
+        from .services.benchmark_sync import percentile_rank
         pop = self._pop(10, 20, 30, 40)
-        self.assertEqual(rang_centile(30, pop, lambda e: e['valeur']), 50.0)
-        self.assertEqual(rang_centile(10, pop, lambda e: e['valeur']), 0.0)
+        self.assertEqual(percentile_rank(30, pop, lambda e: e['value']), 50.0)
+        self.assertEqual(percentile_rank(10, pop, lambda e: e['value']), 0.0)
 
     def test_deux_echelles_incommensurables_donnent_des_rangs_comparables(self):
         """LE point : 42,9 (Intelligence Index) et 919 (Elo TTS) ne se comparent pas ;
         leurs rangs dans leurs bancs respectifs, si."""
-        from .services.benchmark_sync import rang_centile
-        llm = rang_centile(42.9, self._pop(1, 5, 12, 20, 30, 42.9), lambda e: e['valeur'])
-        tts = rang_centile(919, self._pop(919, 1200, 1300), lambda e: e['valeur'])
+        from .services.benchmark_sync import percentile_rank
+        llm = percentile_rank(42.9, self._pop(1, 5, 12, 20, 30, 42.9), lambda e: e['value'])
+        tts = percentile_rank(919, self._pop(919, 1200, 1300), lambda e: e['value'])
         self.assertGreater(llm, tts)
 
     def test_une_population_vide_ou_une_valeur_absente_rend_None(self):
         """Null plutôt que plausible : pas de rang inventé sur une population inconnue."""
-        from .services.benchmark_sync import rang_centile
-        self.assertIsNone(rang_centile(30, [], lambda e: e['valeur']))
-        self.assertIsNone(rang_centile(None, self._pop(1, 2), lambda e: e['valeur']))
+        from .services.benchmark_sync import percentile_rank
+        self.assertIsNone(percentile_rank(30, [], lambda e: e['value']))
+        self.assertIsNone(percentile_rank(None, self._pop(1, 2), lambda e: e['value']))
 
     def test_le_rang_n_ecrase_jamais_la_valeur_mesuree(self):
         """Le centile s'AJOUTE : `benchmark_index` reste la mesure, avec son échelle."""
@@ -1313,23 +1313,23 @@ class RangCentileTest(TestCase):
 
         def aa():
             return {'text-to-image': [
-                {'nom': 'Widget 2', 'slug': 'widget-2', 'identite': ('widget', (2,), None),
-                 'valeur': 900.0, 'echelle': 'aa_elo_text_to_image'},
-                {'nom': 'Autre 1', 'slug': 'autre-1', 'identite': ('autre', (1,), None),
-                 'valeur': 100.0, 'echelle': 'aa_elo_text_to_image'}]}, {}
+                {'name': 'Widget 2', 'slug': 'widget-2', 'identity': ('widget', (2,), None),
+                 'value': 900.0, 'scale': 'aa_elo_text_to_image'},
+                {'name': 'Autre 1', 'slug': 'autre-1', 'identity': ('autre', (1,), None),
+                 'value': 100.0, 'scale': 'aa_elo_text_to_image'}]}, {}
 
         def arena():
-            raise bs.SourceIndisponible('non sollicitée')
+            raise bs.SourceUnavailable('non sollicitée')
 
         m = AIModel.objects.create(
             model_key='imager:widget-2', name='Widget 2', model_type='diffusion',
             source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'})
-        with patch.multiple(bs, charger_aa=aa, charger_arena=arena):
-            bs.synchroniser(dry_run=False)
+        with patch.multiple(bs, load_aa=aa, load_arena=arena):
+            bs.synchronize(dry_run=False)
         m.refresh_from_db()
         self.assertEqual(m.benchmark_index, 900.0)
-        self.assertEqual(m.benchmark_meta['echelle'], 'aa_elo_text_to_image')
-        self.assertEqual(m.benchmark_meta['rang_centile'], 50.0)
+        self.assertEqual(m.benchmark_meta['scale'], 'aa_elo_text_to_image')
+        self.assertEqual(m.benchmark_meta['percentile_rank'], 50.0)
         self.assertEqual(m.benchmark_meta['population'], 2)
 
 
@@ -1365,17 +1365,17 @@ class FamilleSansConditionnementTest(TestCase):
     def test_un_add_on_n_a_jamais_de_banc(self):
         """Une LoRA porte le nom de son modèle de base : rendue lisible, elle en prenait
         l'Elo (flux-lora-logo-design → 1083, mesuré le 02/09). Hors catégorie, par nature."""
-        from .services.benchmark_sync import _categories_locales
+        from .services.benchmark_sync import _local_categories
         lora = AIModel.objects.create(
             model_key='imager:flux-lora-logo-design', name='FLUX LoRA Logo', model_type='diffusion',
             source='imager', is_downloaded=True, hf_id='Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
             capabilities={'task': 'text-to-image'})
-        self.assertEqual(_categories_locales(lora), [])
+        self.assertEqual(_local_categories(lora), [])
         plein = AIModel.objects.create(
             model_key='imager:flux-1-dev', name='FLUX.1 dev', model_type='diffusion',
             source='imager', is_downloaded=True, hf_id='black-forest-labs/FLUX.1-dev',
             capabilities={'task': 'text-to-image'})
-        self.assertEqual(_categories_locales(plein), ['text-to-image'])
+        self.assertEqual(_local_categories(plein), ['text-to-image'])
 
 
 class BancsMultiMetiersTest(_SourcesFactices, TestCase):
@@ -1401,12 +1401,12 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
         with self._sources({'text-to-video': [
                 self._entree('LTX Video v0.9.8 13B', ('ltxvideo', (0, 9, 8), 13.0), valeur=900.0,
                              echelle='aa_elo_text_to_video')]}):
-            bs.synchroniser(dry_run=False)
+            bs.synchronize(dry_run=False)
         m.refresh_from_db()
         self.assertEqual(m.benchmark_index, 900.0)
-        self.assertEqual(m.benchmark_meta['echelle'], 'aa_elo_text_to_video')
-        self.assertEqual(m.benchmark_meta['categorie'], 'text-to-video')
-        self.assertEqual(len(m.benchmark_meta['bancs']), 1)
+        self.assertEqual(m.benchmark_meta['scale'], 'aa_elo_text_to_video')
+        self.assertEqual(m.benchmark_meta['category'], 'text-to-video')
+        self.assertEqual(len(m.benchmark_meta['benchmarks']), 1)
 
     def test_deux_metiers_donnent_deux_bancs_l_index_restant_sur_le_principal(self):
         from .services import benchmark_sync as bs
@@ -1416,22 +1416,22 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
                                                valeur=900.0, echelle='aa_elo_text_to_video')],
                 'image-to-video': [self._entree('LTX Video v0.9.8 13B', ('ltxvideo', (0, 9, 8), 13.0),
                                                 valeur=1180.0, echelle='aa_elo_image_to_video')]}):
-            bs.synchroniser(dry_run=False)
+            bs.synchronize(dry_run=False)
         m.refresh_from_db()
-        bancs = m.benchmark_meta['bancs']
-        self.assertEqual([b['categorie'] for b in bancs], ['text-to-video', 'image-to-video'])
-        self.assertEqual([b['valeur'] for b in bancs], [900.0, 1180.0])
+        bancs = m.benchmark_meta['benchmarks']
+        self.assertEqual([b['category'] for b in bancs], ['text-to-video', 'image-to-video'])
+        self.assertEqual([b['value'] for b in bancs], [900.0, 1180.0])
         # L'index porté reste celui du métier PRINCIPAL — le second banc, mieux noté, ne
         # doit pas s'y substituer : 1180 et 900 ne sont pas sur la même échelle.
         self.assertEqual(m.benchmark_index, 900.0)
-        self.assertEqual(m.benchmark_meta['echelle'], 'aa_elo_text_to_video')
+        self.assertEqual(m.benchmark_meta['scale'], 'aa_elo_text_to_video')
 
     def test_un_metier_ecrit_dans_le_vocabulaire_d_une_plateforme_est_traduit(self):
         """`canonical_task` est le résolveur EXISTANT : une tâche en vocabulaire HF ne doit
         pas rester sans catégorie (leçon du 31/08 — deux vocabulaires se rejoignent sur un
         repli qui a l'air de marcher)."""
         from .services import benchmark_sync as bs
-        self.assertEqual(bs._categories_locales(self._ltx(['text-to-video'])), ['text-to-video'])
+        self.assertEqual(bs._local_categories(self._ltx(['text-to-video'])), ['text-to-video'])
         m = AIModel.objects.create(
             model_key='transcriber:whisper', name='Whisper', model_type='speech',
             source='transcriber', is_downloaded=True,
@@ -1439,9 +1439,9 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
         # Jusqu'au 02/09 l'ASR n'avait aucun banc tiers et ce test attendait `[]` — la
         # TRADUCTION est ce qu'il protège : le vocabulaire HF doit aboutir au même banc
         # que le nôtre (`transcription`), jamais à un repli hasardeux.
-        self.assertEqual(bs._categories_locales(m), ['speech-to-text-fr', 'speech-to-text'])
+        self.assertEqual(bs._local_categories(m), ['speech-to-text-fr', 'speech-to-text'])
         m.capabilities = {'task': 'transcription'}
-        self.assertEqual(bs._categories_locales(m), ['speech-to-text-fr', 'speech-to-text'])
+        self.assertEqual(bs._local_categories(m), ['speech-to-text-fr', 'speech-to-text'])
 
     def test_un_embedding_propose_sans_capacites_ne_tombe_pas_dans_le_banc_llm(self):
         """Promesse du 01/09 : le `model_type` (posé par la prospection) fait foi quand la
@@ -1457,17 +1457,17 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
 
         # Le matin du 02/09 un embedding proposé n'avait AUCUN banc (`[]`) ; le soir MTEB lui
         # en donne un — mais toujours pas le banc llm, ce que ce test protège.
-        self.assertEqual(bs._categories_locales(_propose('qwen3-embedding', 'embedding')), ['embedding'])
+        self.assertEqual(bs._local_categories(_propose('qwen3-embedding', 'embedding')), ['embedding'])
         # Un VLM reste éligible au banc texte — et depuis l'après-midi du 02/09 l'arène
         # `vision` est son banc PRINCIPAL (cf. `TroisiemeBancEtSensTest`).
-        self.assertEqual(bs._categories_locales(_propose('minicpm-v4.6', 'vlm')), ['vision', 'llm'])
-        self.assertEqual(bs._categories_locales(_propose('qwen3-coder', 'llm')), ['llm'])
+        self.assertEqual(bs._local_categories(_propose('minicpm-v4.6', 'vlm')), ['vision', 'llm'])
+        self.assertEqual(bs._local_categories(_propose('qwen3-coder', 'llm')), ['llm'])
         # Et l'INSTALLÉ, dont la découverte a écrit les capacités : `completion` fait foi
         # avant le type — le comportement du 19/08 (bge-m3) est inchangé.
         m = AIModel.objects.create(
             model_key='ollama:bge-m3:latest', name='bge-m3', model_type='embedding',
             source='ollama', is_downloaded=True, capabilities={'completion': False})
-        self.assertEqual(bs._categories_locales(m), [])
+        self.assertEqual(bs._local_categories(m), [])
 
 
 class EchellesComparablesTest(_SourcesFactices, TestCase):
@@ -1484,7 +1484,7 @@ class EchellesComparablesTest(_SourcesFactices, TestCase):
         return AIModel.objects.create(
             model_key=cle, name=cle, model_type='diffusion', source='imager',
             is_downloaded=True, is_proposed=False, quality_index=quality,
-            benchmark_index=index, benchmark_meta={'echelle': echelle} if echelle else {})
+            benchmark_index=index, benchmark_meta={'scale': echelle} if echelle else {})
 
     def test_deux_echelles_dans_le_lot_ne_sont_pas_comparables(self):
         from .services.benchmark_sync import benchmarks_comparable
@@ -1568,15 +1568,15 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         pire transcripteur en tête : le SENS voyage désormais avec la valeur.
     """
 
-    def _panel(self, cats, sens=None, priorite=3):
-        """Source fictive rendant `cats` = {catégorie: [entrées {'nom','identite','note'}]}."""
-        d = {'cle': 'panel', 'label': 'Panel Fictif', 'priorite': priorite,
-             'nom_source': 'panel', 'valeur': lambda e: e.get('note'),
-             'echelle': lambda e, cat: 'panel_note_' + cat,
-             'meta': lambda retenu, cands: {'panel_nom': retenu['nom']},
-             'chargeur': lambda: (dict(cats), {})}
-        if sens:
-            d['sens'] = sens
+    def _panel(self, cats, direction=None, priority=3):
+        """Source fictive rendant `cats` = {catégorie: [entrées {'name','identity','note'}]}."""
+        d = {'key': 'panel', 'label': 'Panel Fictif', 'priority': priority,
+             'source_name': 'panel', 'value': lambda e: e.get('note'),
+             'scale': lambda e, cat: 'panel_note_' + cat,
+             'meta': lambda retenu, cands: {'panel_nom': retenu['name']},
+             'loader': lambda: (dict(cats), {})}
+        if direction:
+            d['direction'] = direction
         return d
 
     # ── (1) métiers dérivés et taille stricte ───────────────────────────────────────────
@@ -1594,11 +1594,11 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
             model_key='transcriber:whisper', name='Whisper Large-v3', model_type='speech',
             source='transcriber', is_downloaded=True, capabilities={'task': 'transcription'})
         # LLM à capacité vision : le banc texte reste PRINCIPAL, `vision` s'ajoute.
-        self.assertEqual(bs._categories_locales(llm_vision), ['llm', 'vision'])
+        self.assertEqual(bs._local_categories(llm_vision), ['llm', 'vision'])
         # VLM : l'arène `vision` est son métier principal, le texte secondaire.
-        self.assertEqual(bs._categories_locales(vlm), ['vision', 'llm'])
+        self.assertEqual(bs._local_categories(vlm), ['vision', 'llm'])
         # Transcription : le FRANÇAIS d'abord (ce que le transcriber fait ici), l'anglais après.
-        self.assertEqual(bs._categories_locales(asr), ['speech-to-text-fr', 'speech-to-text'])
+        self.assertEqual(bs._local_categories(asr), ['speech-to-text-fr', 'speech-to-text'])
 
     def test_l_arene_vision_exige_la_taille_comme_le_banc_llm(self):
         """`gemma4:12b` a DEUX identités locales : (gemma,(4,),12) par le tag, (gemma,(4,),None)
@@ -1609,22 +1609,22 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
             is_downloaded=True,
             capabilities={'task': 'text-generation', 'completion': True, 'vision': True})
         panel = self._panel({'vision': [
-            {'nom': 'gemma-4-31b', 'identite': ('gemma', (4,), 31.0), 'note': 1276.0}]})
-        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (panel,)), \
-                patch.object(bs, '_tag_reel', return_value=''):
-            r = bs.synchroniser(dry_run=False)
+            {'name': 'gemma-4-31b', 'identity': ('gemma', (4,), 31.0), 'note': 1276.0}]})
+        with patch.object(bs, 'SOURCES_BY_PRIORITY', (panel,)), \
+                patch.object(bs, '_real_tag', return_value=''):
+            r = bs.synchronize(dry_run=False)
         m.refresh_from_db()
         self.assertIsNone(m.benchmark_index, "12B ne doit pas hériter de l'Elo du 31B")
-        self.assertIn('ollama:gemma4:12b [llm]', r['non_apparies'])
+        self.assertIn('ollama:gemma4:12b [llm]', r['unmatched'])
         # Et la bonne taille, elle, apparie — la règle refuse l'asymétrie, pas la catégorie.
         panel_ok = self._panel({'vision': [
-            {'nom': 'gemma-4-12b', 'identite': ('gemma', (4,), 12.0), 'note': 1200.0}]})
-        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (panel_ok,)), \
-                patch.object(bs, '_tag_reel', return_value=''):
-            bs.synchroniser(dry_run=False)
+            {'name': 'gemma-4-12b', 'identity': ('gemma', (4,), 12.0), 'note': 1200.0}]})
+        with patch.object(bs, 'SOURCES_BY_PRIORITY', (panel_ok,)), \
+                patch.object(bs, '_real_tag', return_value=''):
+            bs.synchronize(dry_run=False)
         m.refresh_from_db()
         self.assertEqual(m.benchmark_index, 1200.0)
-        self.assertEqual(m.benchmark_meta['categorie'], 'vision')
+        self.assertEqual(m.benchmark_meta['category'], 'vision')
 
     def test_charger_aa_ne_requete_pas_les_categories_sans_endpoint(self):
         """`vision`, `document` et l'ASR n'ont pas d'endpoint AA : ni requête, ni motif."""
@@ -1636,8 +1636,8 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
             return {'data': []}
         with patch.object(bs, '_http_json', side_effect=faux_http), \
                 patch.dict('os.environ', {bs.AA_KEY_ENV: 'cle-factice'}):
-            with self.assertRaises(bs.SourceIndisponible):   # réponses vides → indisponible
-                bs.charger_aa()
+            with self.assertRaises(bs.SourceUnavailable):   # réponses vides → indisponible
+                bs.load_aa()
         attendues = sum(1 for spec in bs.CATEGORIES.values() if spec.get('aa'))
         self.assertEqual(len(urls), attendues)
         self.assertFalse(any('None' in u for u in urls))
@@ -1645,24 +1645,24 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
     # ── (2) le sens de l'échelle ────────────────────────────────────────────────────────
 
     def test_un_taux_d_erreur_se_lit_a_l_envers(self):
-        from .services.benchmark_sync import _choose_variant, rang_centile, valeur_ordonnable
+        from .services.benchmark_sync import _choose_variant, percentile_rank, orderable_value
         pop = [{'v': x} for x in (2.0, 4.0, 6.0, 8.0)]
         # 5 % de WER bat les 6 et 8 : 50ᵉ centile — pas 25ᵉ comme pour un score.
-        self.assertEqual(rang_centile(5.0, pop, lambda e: e['v'], sens='bas'), 50.0)
-        self.assertEqual(rang_centile(5.0, pop, lambda e: e['v']), 50.0)
-        self.assertEqual(rang_centile(2.0, pop, lambda e: e['v'], sens='bas'), 75.0)
+        self.assertEqual(percentile_rank(5.0, pop, lambda e: e['v'], direction='lower'), 50.0)
+        self.assertEqual(percentile_rank(5.0, pop, lambda e: e['v']), 50.0)
+        self.assertEqual(percentile_rank(2.0, pop, lambda e: e['v'], direction='lower'), 75.0)
         # Dernier recours de `_choose_variant` : la valeur la PIRE — la plus haute en WER.
-        cands = [{'nom': 'x a', 'v': 3.0}, {'nom': 'x b', 'v': 9.0}]
-        self.assertEqual(_choose_variant('x', cands, lambda e: e['v'], sens='bas')['v'], 9.0)
+        cands = [{'name': 'x a', 'v': 3.0}, {'name': 'x b', 'v': 9.0}]
+        self.assertEqual(_choose_variant('x', cands, lambda e: e['v'], direction='lower')['v'], 9.0)
         self.assertEqual(_choose_variant('x', cands, lambda e: e['v'])['v'], 3.0)
-        # `valeur_ordonnable` : plus grand = meilleur, quel que soit le sens.
-        m_wer = AIModel(model_key='a', benchmark_index=5.0, benchmark_meta={'sens': 'bas'})
-        m_elo = AIModel(model_key='b', benchmark_index=5.0, benchmark_meta={'sens': 'haut'})
+        # `orderable_value` : plus grand = meilleur, quel que soit le sens.
+        m_wer = AIModel(model_key='a', benchmark_index=5.0, benchmark_meta={'direction': 'lower'})
+        m_elo = AIModel(model_key='b', benchmark_index=5.0, benchmark_meta={'direction': 'higher'})
         m_nu = AIModel(model_key='c', benchmark_index=5.0, benchmark_meta={})
-        self.assertEqual(valeur_ordonnable(m_wer), -5.0)
-        self.assertEqual(valeur_ordonnable(m_elo), 5.0)
-        self.assertEqual(valeur_ordonnable(m_nu), 5.0)
-        self.assertIsNone(valeur_ordonnable(AIModel(model_key='d')))
+        self.assertEqual(orderable_value(m_wer), -5.0)
+        self.assertEqual(orderable_value(m_elo), 5.0)
+        self.assertEqual(orderable_value(m_nu), 5.0)
+        self.assertIsNone(orderable_value(AIModel(model_key='d')))
 
     def test_un_banc_a_sens_bas_traverse_la_chaine_et_ordonne_a_l_endroit(self):
         from .services import benchmark_sync as bs
@@ -1673,19 +1673,19 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
             model_key='transcriber:moyen-2', name='Moyen 2', model_type='speech',
             source='transcriber', is_downloaded=True, capabilities={'task': 'transcription'})
         panel = self._panel({'speech-to-text-fr': [
-            {'nom': 'org/bon-2', 'identite': ('bon', (2,), None), 'note': 4.0},
-            {'nom': 'org/moyen-2', 'identite': ('moyen', (2,), None), 'note': 8.0},
-            {'nom': 'org/pire-2', 'identite': ('pire', (2,), None), 'note': 20.0}]}, sens='bas')
-        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (panel,)):
-            bs.synchroniser(dry_run=False)
+            {'name': 'org/bon-2', 'identity': ('bon', (2,), None), 'note': 4.0},
+            {'name': 'org/moyen-2', 'identity': ('moyen', (2,), None), 'note': 8.0},
+            {'name': 'org/pire-2', 'identity': ('pire', (2,), None), 'note': 20.0}]}, direction='lower')
+        with patch.object(bs, 'SOURCES_BY_PRIORITY', (panel,)):
+            bs.synchronize(dry_run=False)
         bon.refresh_from_db()
         moyen.refresh_from_db()
         self.assertEqual(bon.benchmark_index, 4.0)
-        self.assertEqual(bon.benchmark_meta['sens'], 'bas')
-        self.assertEqual(bon.benchmark_meta['echelle'], 'panel_note_speech-to-text-fr')
+        self.assertEqual(bon.benchmark_meta['direction'], 'lower')
+        self.assertEqual(bon.benchmark_meta['scale'], 'panel_note_speech-to-text-fr')
         # Centile INVERSÉ : 4 % de WER bat 8 et 20 → 66,7ᵉ ; 8 ne bat que 20 → 33,3ᵉ.
-        self.assertEqual(bon.benchmark_meta['rang_centile'], 66.7)
-        self.assertEqual(moyen.benchmark_meta['rang_centile'], 33.3)
+        self.assertEqual(bon.benchmark_meta['percentile_rank'], 66.7)
+        self.assertEqual(moyen.benchmark_meta['percentile_rank'], 33.3)
         # Et le classement des installés met le WER le plus BAS en tête.
         self.assertEqual([m.model_key for m in AIModel.best_installed('speech')],
                          ['transcriber:bon-2', 'transcriber:moyen-2'])
@@ -1714,20 +1714,20 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
                     'multilingual_fr': ('depot/fr', 'multilingual_fr.csv')}), \
                     patch('huggingface_hub.hf_hub_download',
                           side_effect=lambda repo, fn, repo_type: chemins[fn]):
-                par_cat, motifs = bs.charger_open_asr()
+                par_cat, motifs = bs.load_open_asr()
         self.assertEqual(motifs, {})
-        en_entrees = {e['nom']: e for e in par_cat['speech-to-text']}
-        fr_entrees = {e['nom']: e for e in par_cat['speech-to-text-fr']}
+        en_entrees = {e['name']: e for e in par_cat['speech-to-text']}
+        fr_entrees = {e['name']: e for e in par_cat['speech-to-text-fr']}
         # parakeet : version APRÈS la taille → pas d'identité lisible → sauté (null > plausible)
         self.assertEqual(set(en_entrees), {'openai/whisper-large-v3', 'Qwen/Qwen3-ASR-1.7B-hf'})
         w = en_entrees['openai/whisper-large-v3']
         self.assertEqual(w['wer'], 5.78)                       # colonne `avg` telle quelle
-        self.assertEqual(w['identite'], ('whisperlarge', (3,), None))
+        self.assertEqual(w['identity'], ('whisperlarge', (3,), None))
         self.assertEqual(w['rtfx'], 120.5)
-        self.assertEqual(w['licence'], 'apache-2.0')
-        self.assertEqual(w['jeux'], {'LS Clean': 1.56, 'AMI': 14.86})
+        self.assertEqual(w['license'], 'apache-2.0')
+        self.assertEqual(w['datasets'], {'LS Clean': 1.56, 'AMI': 14.86})
         q = fr_entrees['Qwen/Qwen3-ASR-1.7B-hf']
-        self.assertEqual(q['identite'], ('qwen', (3,), 1.7))
+        self.assertEqual(q['identity'], ('qwen', (3,), 1.7))
         self.assertEqual(q['wer'], round((4.06 + 7.84) / 2, 3))   # MLS absent → moyenne des 2
         self.assertIsNone(q['rtfx'])                                # -1 = non mesuré
         self.assertEqual(fr_entrees['openai/whisper-large-v3']['wer'],
@@ -1791,10 +1791,10 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
         from .services import benchmark_sync as bs
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.object(bs, '_mteb_index', side_effect=self._faux_index), \
-                patch.object(bs, '_mteb_marqueurs', return_value=set()), \
+                patch.object(bs, '_mteb_markers', return_value=set()), \
                 patch.object(bs, '_mteb_cache_path', return_value=Path(tmp) / 'c.json'), \
                 patch('requests.get', side_effect=self._faux_get):
-            par_cat, motifs = bs.charger_mteb()
+            par_cat, motifs = bs.load_mteb()
             # 2ᵉ passe : les modèles LUS viennent du cache — aucune requête pour eux ; seul
             # `reseau-4` (échec passager, jamais mis en cache) est retenté.
             def relecture(url, **kw):
@@ -1802,14 +1802,14 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
                     raise AssertionError('réseau interdit pour un modèle déjà lu : ' + url)
                 return self._faux_get(url)
             with patch('requests.get', side_effect=relecture):
-                par_cat2, _ = bs.charger_mteb()
-        noms = {e['nom']: e for e in par_cat['embedding']}
+                par_cat2, _ = bs.load_mteb()
+        noms = {e['name']: e for e in par_cat['embedding']}
         self.assertEqual(set(noms), {'BAAI/bge-m3', 'Qwen/Qwen3-Embedding-0.6B',
                                      'intfloat/multilingual-e5-small'})
         self.assertEqual(noms['BAAI/bge-m3']['score'], 60.0)
-        self.assertEqual(len(noms['BAAI/bge-m3']['taches']), 4)
-        self.assertEqual(noms['Qwen/Qwen3-Embedding-0.6B']['identite'], ('qwen', (3,), 0.6))
-        self.assertIsNone(noms['BAAI/bge-m3']['identite'])              # d'où l'ALIAS
+        self.assertEqual(len(noms['BAAI/bge-m3']['tasks']), 4)
+        self.assertEqual(noms['Qwen/Qwen3-Embedding-0.6B']['identity'], ('qwen', (3,), 0.6))
+        self.assertIsNone(noms['BAAI/bge-m3']['identity'])              # d'où l'ALIAS
         self.assertIn('1 modèle(s) non lus', motifs['embedding'])
         self.assertEqual(par_cat2['embedding'], par_cat['embedding'])
 
@@ -1865,22 +1865,22 @@ class QuatriemeBancMtebTest(_SourcesFactices, TestCase):
         propose = AIModel.objects.create(
             model_key='proposed:ollama:qwen3-embedding:latest', name='qwen3-embedding:latest',
             model_type='embedding', source='ollama', is_proposed=True, capabilities={})
-        self.assertEqual(bs._categories_locales(bge), ['embedding'])
-        self.assertEqual(bs._categories_locales(propose), ['embedding'])
-        mteb = next(s for s in bs.SOURCES if s['cle'] == 'mteb')
-        entrees = [{'nom': 'BAAI/bge-m3', 'slug': 'BAAI/bge-m3', 'identite': None, 'score': 61.2,
-                    'taches': {}, 'revision': 'r'},
-                   {'nom': 'intfloat/multilingual-e5-small', 'slug': 'intfloat/multilingual-e5-small',
-                    'identite': ('multilinguale', (5,), None), 'score': 50.0, 'taches': {}, 'revision': 'r'}]
-        src = dict(mteb, chargeur=lambda: ({'embedding': entrees}, {}))
-        with patch.object(bs, 'SOURCES_PAR_PRIORITE', (src,)):
-            r = bs.synchroniser(dry_run=False)
+        self.assertEqual(bs._local_categories(bge), ['embedding'])
+        self.assertEqual(bs._local_categories(propose), ['embedding'])
+        mteb = next(s for s in bs.SOURCES if s['key'] == 'mteb')
+        entrees = [{'name': 'BAAI/bge-m3', 'slug': 'BAAI/bge-m3', 'identity': None, 'score': 61.2,
+                    'tasks': {}, 'revision': 'r'},
+                   {'name': 'intfloat/multilingual-e5-small', 'slug': 'intfloat/multilingual-e5-small',
+                    'identity': ('multilinguale', (5,), None), 'score': 50.0, 'tasks': {}, 'revision': 'r'}]
+        src = dict(mteb, loader=lambda: ({'embedding': entrees}, {}))
+        with patch.object(bs, 'SOURCES_BY_PRIORITY', (src,)):
+            r = bs.synchronize(dry_run=False)
         bge.refresh_from_db()
         self.assertEqual(bge.benchmark_index, 61.2)
-        self.assertEqual(bge.benchmark_meta['echelle'], 'mteb_fr_retrieval')
-        self.assertEqual(bge.benchmark_meta['alias_declare'], 'BAAI/bge-m3')
-        self.assertEqual(bge.benchmark_meta['rang_centile'], 50.0)
-        self.assertIn('proposed:ollama:qwen3-embedding:latest [embedding]', r['non_apparies'])
+        self.assertEqual(bge.benchmark_meta['scale'], 'mteb_fr_retrieval')
+        self.assertEqual(bge.benchmark_meta['declared_alias'], 'BAAI/bge-m3')
+        self.assertEqual(bge.benchmark_meta['percentile_rank'], 50.0)
+        self.assertIn('proposed:ollama:qwen3-embedding:latest [embedding]', r['unmatched'])
 
 
 @override_settings(WAMA_GPU_SAFE_MODE=False)
@@ -1924,14 +1924,14 @@ class BancDeGenerationTest(TestCase):
             mesure = bench._bench_generation(self.m, 'Explique la photosynthèse en trois phrases.')
         self.assertEqual(http.call_count, 4)                          # 1 chauffe + 3 passes
         self.assertEqual(http.call_args_list[0].args[2], 8)           # la chauffe est courte…
-        self.assertEqual(http.call_args_list[1].args[2], bench.PLAFOND_TOKENS)  # …les passes, non
-        self.assertEqual(mesure['tokens_par_s'], 100.0)
-        self.assertEqual(mesure['sorties'], 150)
+        self.assertEqual(http.call_args_list[1].args[2], bench.TOKEN_CAP)  # …les passes, non
+        self.assertEqual(mesure['tokens_per_s'], 100.0)
+        self.assertEqual(mesure['outputs'], 150)
         self.assertEqual(mesure['inference_s'], 1.5)
         self.assertEqual(mesure['prefill_ms'], 200.0)
-        self.assertEqual(mesure['chargement_s'], 4.2)
-        self.assertFalse(mesure['sature'])
-        self.assertIsNone(mesure['confiance_moyenne'])                # jamais une qualité
+        self.assertEqual(mesure['load_s'], 4.2)
+        self.assertFalse(mesure['saturated'])
+        self.assertIsNone(mesure['mean_confidence'])                # jamais une qualité
         # 3 exécutions réelles → 3 enregistrements, unité `token`, taille = jetons produits ;
         # le chargement à froid n'est appris QU'UNE fois (les passes suivantes sont résidentes).
         self.assertEqual(len(appels), 3)
@@ -1950,18 +1950,18 @@ class BancDeGenerationTest(TestCase):
         with patch.object(bench, '_ollama_generate', side_effect=reponses), \
              patch.object(eta_estimator, 'record_run', side_effect=lambda *a, **k: appels.append(k)):
             mesure = bench._bench_generation(self.m, 'prompt')
-        self.assertIsNone(mesure['chargement_s'])                     # 12 ms = ré-attachement
+        self.assertIsNone(mesure['load_s'])                     # 12 ms = ré-attachement
         self.assertTrue(all(k['load_seconds'] is None for k in appels))
 
     def test_atteindre_le_plafond_a_chaque_passe_est_une_saturation(self):
         from .services import bench, eta_estimator
         reponses = ([self._reponse(3, 30_000_000)]
-                    + [self._reponse(bench.PLAFOND_TOKENS, 2_000_000_000)] * 3)
+                    + [self._reponse(bench.TOKEN_CAP, 2_000_000_000)] * 3)
         with patch.object(bench, '_ollama_generate', side_effect=reponses), \
              patch.object(eta_estimator, 'record_run'):
             mesure = bench._bench_generation(self.m, 'prompt')
-        self.assertTrue(mesure['sature'])
-        self.assertEqual(mesure['tokens_par_s'], 150.0)               # le débit reste valide
+        self.assertTrue(mesure['saturated'])
+        self.assertEqual(mesure['tokens_per_s'], 150.0)               # le débit reste valide
 
     def test_le_prompt_peut_etre_un_fichier_texte(self):
         import tempfile
@@ -1980,10 +1980,10 @@ class BancDeGenerationTest(TestCase):
             model_key='huggingface:org/llm', name='org/llm', model_type='llm', source='huggingface',
             is_downloaded=True, capabilities={'task': 'text-generation'})
         with patch.object(bench, '_ollama_generate') as http:
-            mesures = bench.run_bench('text-generation', 'prompt', modeles=['org/llm'])
+            mesures = bench.run_bench('text-generation', 'prompt', models=['org/llm'])
         http.assert_not_called()
         self.assertEqual(len(mesures), 1)
-        self.assertIn('Ollama seulement', mesures[0]['erreur'])
+        self.assertIn('Ollama seulement', mesures[0]['error'])
 
     def test_en_mode_depannage_gpu_le_protocole_refuse_avant_tout_appel(self):
         from .services import bench
@@ -2024,9 +2024,9 @@ class BancDeGenerationTest(TestCase):
         self.assertEqual(p.call_args.kwargs['cache_dir'], str(DEPTH_MODEL_DIR))
         self.assertEqual(m.call_args.kwargs['cache_dir'], str(DEPTH_MODEL_DIR))
         self.assertEqual(p.call_args.args[0], 'org/depth-candidat')
-        self.assertEqual(mesure['mediane_m'], 2.5)
-        self.assertEqual(mesure['focale_px'], 800.0)
-        self.assertEqual(mesure['confiance_moyenne'], 1.0)          # couverture : 16/16 valides
+        self.assertEqual(mesure['median_m'], 2.5)
+        self.assertEqual(mesure['focal_px'], 800.0)
+        self.assertEqual(mesure['mean_confidence'], 1.0)          # couverture : 16/16 valides
 
     def test_de_bout_en_bout_contre_un_faux_ollama_la_commande_rend_la_table_et_persiste_l_eta(self):
         """
@@ -2119,8 +2119,8 @@ class BancDeGenerationTest(TestCase):
         with patch.object(vision_probe, 'describe_image_ollama',
                           return_value={'ok': True, 'description': 'un chat sur un mur'}):
             mesure = bench._bench_description(self.m, 'image.jpg')
-        self.assertEqual(mesure['sorties'], 5)
-        self.assertEqual(mesure['texte'], 'un chat sur un mur')
+        self.assertEqual(mesure['outputs'], 5)
+        self.assertEqual(mesure['text'], 'un chat sur un mur')
         with patch.object(vision_probe, 'describe_image_ollama',
                           return_value={'ok': False, 'error': 'image introuvable : image.jpg'}):
             with self.assertRaises(RuntimeError) as cm:

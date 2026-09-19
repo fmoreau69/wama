@@ -37,58 +37,58 @@ class Command(BaseCommand):
                                  "apres une passe de chauffe non comptee).")
 
     def handle(self, *args, **options):
-        tache, media = options['task'], options['media']
+        task, media = options['task'], options['media']
         if not os.path.isfile(media):
             raise CommandError(f"Echantillon introuvable : {media}")
 
-        candidats = models_for_task(tache)
-        if not candidats:
+        candidates = models_for_task(task)
+        if not candidates:
             raise CommandError(
-                f"Aucun modele installe ne declare la tache '{tache}'. "
+                f"Aucun modele installe ne declare la tache '{task}'. "
                 f"Verifier avec : python manage.py check_model_taxonomy")
 
-        self.stdout.write(f"Tache '{tache}' — {len(candidats)} modele(s) — echantillon {media}\n")
+        self.stdout.write(f"Tache '{task}' — {len(candidates)} modele(s) — echantillon {media}\n")
 
-        options_protocole = {}
-        if tache == 'text-generation':
-            options_protocole['runs'] = options['runs']
-        elif tache != 'captioning':
-            options_protocole['conf'] = options['conf']
+        protocol_options = {}
+        if task == 'text-generation':
+            protocol_options['runs'] = options['runs']
+        elif task != 'captioning':
+            protocol_options['conf'] = options['conf']
 
         try:
-            mesures = run_bench(tache, media,
-                             modeles=[m for m in options['models'].split(',') if m.strip()] or None,
-                             **options_protocole)
+            measures = run_bench(task, media,
+                             models=[m for m in options['models'].split(',') if m.strip()] or None,
+                             **protocol_options)
         except ValueError as e:
             raise CommandError(str(e))
 
         # Generation : le debit est la colonne qui compare, et c'est lui qui ordonne.
-        generation = tache == 'text-generation'
-        entete = f"  {'modele':46s} {'sorties':>8s} {'conf.moy':>9s} {'inference':>10s} {'VRAM':>6s}"
+        generation = task == 'text-generation'
+        header = f"  {'model':46s} {'outputs':>8s} {'conf.moy':>9s} {'inference':>10s} {'VRAM':>6s}"
         if generation:
-            entete += f" {'jetons/s':>9s} {'prefill':>9s} {'charg.':>7s}"
-        self.stdout.write(entete)
-        self.stdout.write("  " + "-" * (len(entete) - 2))
+            header += f" {'jetons/s':>9s} {'prefill':>9s} {'charg.':>7s}"
+        self.stdout.write(header)
+        self.stdout.write("  " + "-" * (len(header) - 2))
 
-        def _ordre(x):
+        def _order(x):
             if generation:
-                return (x['erreur'] is not None, -(x.get('tokens_par_s') or 0))
-            return (x['erreur'] is not None, -(x['sorties'] or 0))
+                return (x['error'] is not None, -(x.get('tokens_per_s') or 0))
+            return (x['error'] is not None, -(x['outputs'] or 0))
 
-        for m in sorted(mesures, key=_ordre):
-            if m['erreur']:
-                self.stdout.write(self.style.ERROR(f"  {m['modele']:46s} {m['erreur'][:44]}"))
+        for m in sorted(measures, key=_order):
+            if m['error']:
+                self.stdout.write(self.style.ERROR(f"  {m['model']:46s} {m['error'][:44]}"))
                 continue
-            ligne = (f"  {m['modele']:46s} {str(m['sorties']):>8s} "
-                     f"{str(m['confiance_moyenne'] or '—'):>9s} "
+            line = (f"  {m['model']:46s} {str(m['outputs']):>8s} "
+                     f"{str(m['mean_confidence'] or '—'):>9s} "
                      f"{str(m['inference_s']) + ' s':>10s} "
                      f"{str(m['vram_gb'] or '—'):>6s}")
             if generation:
-                charg = m.get('chargement_s')
-                ligne += (f" {str(m.get('tokens_par_s') or '—'):>9s} "
+                load = m.get('load_s')
+                line += (f" {str(m.get('tokens_per_s') or '—'):>9s} "
                           f"{str(m.get('prefill_ms')) + ' ms':>9s} "
-                          f"{(str(charg) + ' s') if charg else 'résid.':>7s}")
-            self.stdout.write(self.style.WARNING(ligne + "  ⚠ saturé") if m['sature'] else ligne)
+                          f"{(str(load) + ' s') if load else 'résid.':>7s}")
+            self.stdout.write(self.style.WARNING(line + "  ⚠ saturé") if m['saturated'] else line)
 
         self.stdout.write(self.style.NOTICE(
             "\nCe sont des mesures COMPARABLES, pas des notes de qualite : compter des sorties ne "

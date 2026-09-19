@@ -316,34 +316,34 @@ def sync_benchmarks_task(self):
     """
     from wama.common.utils.task_progress import publier_progression
 
-    from .services.benchmark_sync import SourceIndisponible, synchroniser
+    from .services.benchmark_sync import SourceUnavailable, synchronize
 
     def publier(state: str, payload: dict):
         publier_progression(BENCH_CACHE_KEY, self.request.id, state, payload, BENCH_TTL)
 
     publier('RUNNING', {'status': 'interrogation des bancs tiers…'})
     try:
-        r = synchroniser(dry_run=False)
-    except SourceIndisponible as exc:
+        r = synchronize(dry_run=False)
+    except SourceUnavailable as exc:
         # Pas un échec : aucune source joignable (clé absente / réseau) — même sémantique
         # que le code retour 3 de la commande, qui vaut SKIP côté nocturne.
         publier('SUCCESS', {'status': 'aucune source joignable', 'skipped': True,
-                            'raison': str(exc)})
-        return {'ok': True, 'skipped': True, 'raison': str(exc)}
+                            'reason': str(exc)})
+        return {'ok': True, 'skipped': True, 'reason': str(exc)}
     except Exception as exc:
         logger.exception("[sync_benchmarks] échec")
         publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}"})
         raise
 
-    resume = {'ok': True, 'apparies': len(r['apparies']),
-              'non_apparies': len(r['non_apparies']),
-              'sans_identite': len(r['sans_identite']),
+    summary = {'ok': True, 'matched': len(r['matched']),
+              'unmatched': len(r['unmatched']),
+              'without_identity': len(r['without_identity']),
               'inversions': len(r['inversions']),
-              'indisponibles': sorted(r['indisponibles']),
-              'sans_categorie': r['sans_categorie']}
-    publier('SUCCESS', resume)
-    logger.info("[sync_benchmarks] %s", resume)
-    return resume
+              'unavailable': sorted(r['unavailable']),
+              'without_category': r['without_category']}
+    publier('SUCCESS', summary)
+    logger.info("[sync_benchmarks] %s", summary)
+    return summary
 
 
 @shared_task(bind=True, name='model_manager.assess_proposed')

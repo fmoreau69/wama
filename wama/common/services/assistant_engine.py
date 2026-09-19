@@ -169,10 +169,10 @@ def resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple:
             from wama.model_manager.services.cloud_models import allowed_cloud_keys
             # Le DOMAINE d'intervention déclare la compétence à privilégier (dev → 'coding') :
             # le tirage classe alors sur CE sous-indice de banc quand tout le lot le porte.
-            competence = resolve_domain(domain).benchmark_domain or None
+            family = resolve_domain(domain).benchmark_family or None
             cle = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
                                        quality_intent=reglages.get('quality_intent'),
-                                       benchmark_domain=competence,
+                                       benchmark_family=family,
                                        cloud_keys=allowed_cloud_keys(user)) or ''
         except Exception:
             logger.debug('[ai_chat] tirage automatique indisponible', exc_info=True)

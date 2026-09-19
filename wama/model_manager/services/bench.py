@@ -33,59 +33,59 @@ logger = logging.getLogger(__name__)
 
 # Ultralytics plafonne les detections a 300 par defaut. Un compte EXACTEMENT egal a cette valeur
 # est une saturation, pas une performance : on le signale au lieu de le presenter comme un score.
-PLAFOND_DETECTIONS = 300
+DETECTION_CAP = 300
 
 # Generation de texte : plafond de jetons produits par passe (`num_predict`). Meme lecture que
-# PLAFOND_DETECTIONS — un modele qui atteint le plafond est SATURE, pas « prolixe ». La valeur
+# DETECTION_CAP — un modele qui atteint le plafond est SATURE, pas « prolixe ». La valeur
 # est celle du banc llmfit (`bench.rs`, 2026-09-14) : assez longue pour que le debit se
 # stabilise apres le prefill, assez courte pour qu'un lot de 3 passes tienne en une minute.
-PLAFOND_TOKENS = 300
-PASSES_GENERATION = 3
+TOKEN_CAP = 300
+GENERATION_RUNS = 3
 # Chargement a froid : en dessous de ce seuil, `load_duration` d'Ollama mesure un modele DEJA
 # resident (quelques ms de re-attachement), pas un chargement — on ne l'apprend pas comme tel.
 # Borne posee, pas mesuree : un chargement reel de poids se compte en secondes.
-SEUIL_CHARGEMENT_FROID_S = 1.0
+COLD_LOAD_THRESHOLD_S = 1.0
 
 
-def models_for_task(tache: str, *, installes_seulement: bool = True):
+def models_for_task(task: str, *, installed_only: bool = True):
     """Modeles du catalogue qui declarent cette tache. Le catalogue est la seule source."""
     qs = AIModel.objects.filter(is_available=True)
-    if installes_seulement:
+    if installed_only:
         qs = qs.filter(is_downloaded=True)
-    return [m for m in qs if (m.capabilities or {}).get('task') == tache]
+    return [m for m in qs if (m.capabilities or {}).get('task') == task]
 
 
-def _bench_detection(modele: AIModel, echantillon: str, *, conf: float = 0.25) -> dict:
+def _bench_detection(entry: AIModel, sample: str, *, conf: float = 0.25) -> dict:
     """Familles vision d'Ultralytics : detect, segment, obb, pose, classify."""
     from ultralytics import YOLO
 
-    debut = time.perf_counter()
-    y = YOLO(modele.local_path)
-    charge = time.perf_counter() - debut
+    start = time.perf_counter()
+    y = YOLO(entry.local_path)
+    load_time = time.perf_counter() - start
 
-    debut = time.perf_counter()
-    resultats = y.predict(echantillon, verbose=False, conf=conf, device=0)
-    inference = time.perf_counter() - debut
+    start = time.perf_counter()
+    results = y.predict(sample, verbose=False, conf=conf, device=0)
+    inference = time.perf_counter() - start
 
-    boites, confiances = 0, []
-    for r in resultats:
+    box_count, confidences = 0, []
+    for r in results:
         for b in (r.boxes or []):
-            boites += 1
+            box_count += 1
             try:
-                confiances.append(float(b.conf))
+                confidences.append(float(b.conf))
             except Exception:
                 pass
 
     return {
-        'sorties': boites,
-        'confiance_moyenne': round(sum(confiances) / len(confiances), 3) if confiances else None,
-        'chargement_s': round(charge, 2),
+        'outputs': box_count,
+        'mean_confidence': round(sum(confidences) / len(confidences), 3) if confidences else None,
+        'load_s': round(load_time, 2),
         'inference_s': round(inference, 3),
-        'sature': boites >= PLAFOND_DETECTIONS,
+        'saturated': box_count >= DETECTION_CAP,
     }
 
 
-def _bench_depth(modele: AIModel, echantillon: str, **_) -> dict:
+def _bench_depth(entry: AIModel, sample: str, **_) -> dict:
     """
     Profondeur monoculaire metrique (Depth Pro et candidats natifs `transformers`).
 
@@ -105,26 +105,26 @@ def _bench_depth(modele: AIModel, echantillon: str, **_) -> dict:
     # un candidat de banc comme pour le modèle retenu. Relevé par Fabien le 2026-09-14.
     from wama.common.backends.depth_engine import DEPTH_MODEL_DIR
 
-    src = modele.local_path or modele.hf_id
+    src = entry.local_path or entry.hf_id
     cache = str(DEPTH_MODEL_DIR)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    debut = time.perf_counter()
+    start = time.perf_counter()
     processor = AutoImageProcessor.from_pretrained(src, cache_dir=cache)
     model = AutoModelForDepthEstimation.from_pretrained(
         src, cache_dir=cache,
         torch_dtype=torch.float16 if device == 'cuda' else torch.float32).to(device).eval()
-    charge = time.perf_counter() - debut
+    load_time = time.perf_counter() - start
 
-    image = Image.open(echantillon).convert('RGB')
+    image = Image.open(sample).convert('RGB')
     w0, h0 = image.size
     inputs = processor(images=image, return_tensors='pt').to(device)
 
-    debut = time.perf_counter()
+    start = time.perf_counter()
     with torch.no_grad():
         outputs = model(**inputs)
     post = processor.post_process_depth_estimation(outputs, target_sizes=[(h0, w0)])[0]
-    inference = time.perf_counter() - debut
+    inference = time.perf_counter() - start
 
     depth = post['predicted_depth'].float().cpu().numpy()
     focal = post.get('focal_length')
@@ -133,52 +133,52 @@ def _bench_depth(modele: AIModel, echantillon: str, **_) -> dict:
             focal = round(float(np.asarray(focal).reshape(-1)[0]), 1)
         except Exception:
             focal = None
-    valide = np.isfinite(depth) & (depth > 0)
-    couverture = round(float(valide.mean()), 3) if depth.size else None
-    mediane = round(float(np.median(depth[valide])), 2) if valide.any() else None
+    valid = np.isfinite(depth) & (depth > 0)
+    coverage = round(float(valid.mean()), 3) if depth.size else None
+    median = round(float(np.median(depth[valid])), 2) if valid.any() else None
 
     return {
-        'sorties': int(valide.sum()),                 # pixels de profondeur valide
-        'confiance_moyenne': couverture,              # couverture [0..1] (reutilise la colonne)
-        'chargement_s': round(charge, 2),
+        'outputs': int(valid.sum()),                 # pixels de profondeur valide
+        'mean_confidence': coverage,              # couverture [0..1] (reutilise la colonne)
+        'load_s': round(load_time, 2),
         'inference_s': round(inference, 3),
-        'sature': False,
-        'mediane_m': mediane,
-        'focale_px': focal,
+        'saturated': False,
+        'median_m': median,
+        'focal_px': focal,
     }
 
 
-def _bench_description(modele: AIModel, echantillon: str, **_) -> dict:
+def _bench_description(entry: AIModel, sample: str, **_) -> dict:
     """Modeles vision-langage servis par Ollama — protocole repris de `bench_describer`."""
     from wama.model_manager.services.vision_probe import describe_image_ollama
 
-    debut = time.perf_counter()
-    reponse = describe_image_ollama(echantillon, model=modele.name)
-    duree = time.perf_counter() - debut
+    start = time.perf_counter()
+    response = describe_image_ollama(sample, model=entry.name)
+    duration = time.perf_counter() - start
     # `describe_image_ollama` rend un dict {'ok', 'description'|'error'} — ce protocole le lisait
     # comme une chaine (`.strip()` sur un dict → AttributeError avale par `run_bench`, donc CHAQUE
     # modele de legendage sortait « en erreur »). Corrige le 2026-09-14 en ecrivant le protocole
     # voisin ; un echec de la sonde est un RESULTAT et se rapporte comme tel.
-    if not reponse.get('ok'):
-        raise RuntimeError(reponse.get('error') or 'sonde vision muette')
-    texte = (reponse.get('description') or '').strip()
+    if not response.get('ok'):
+        raise RuntimeError(response.get('error') or 'sonde vision muette')
+    text = (response.get('description') or '').strip()
     return {
-        'sorties': len(texte.split()) if texte else 0,
-        'confiance_moyenne': None,
-        'chargement_s': None,
-        'inference_s': round(duree, 2),
-        'sature': False,
-        'texte': texte,
+        'outputs': len(text.split()) if text else 0,
+        'mean_confidence': None,
+        'load_s': None,
+        'inference_s': round(duration, 2),
+        'saturated': False,
+        'text': text,
     }
 
 
-def _lire_prompt(echantillon: str) -> str:
+def _read_prompt(sample: str) -> str:
     """L'echantillon d'un banc de generation est un PROMPT : un fichier texte (chemin) ou la
     chaine elle-meme. Le fichier est la forme de la commande (`--media`), la chaine celle des
     appels programmatiques."""
-    if echantillon and os.path.isfile(echantillon):
-        return Path(echantillon).read_text(encoding='utf-8').strip()
-    return (echantillon or '').strip()
+    if sample and os.path.isfile(sample):
+        return Path(sample).read_text(encoding='utf-8').strip()
+    return (sample or '').strip()
 
 
 def _ollama_generate(model: str, prompt: str, num_predict: int, timeout: int = 300) -> dict:
@@ -203,15 +203,15 @@ def _ollama_generate(model: str, prompt: str, num_predict: int, timeout: int = 3
     return r.json()
 
 
-def _ns_en_s(valeur) -> float:
+def _ns_to_s(value) -> float:
     try:
-        return round(float(valeur or 0) / 1e9, 3)
+        return round(float(value or 0) / 1e9, 3)
     except (TypeError, ValueError):
         return 0.0
 
 
-def _bench_generation(modele: AIModel, echantillon: str, *, runs: int = PASSES_GENERATION,
-                      num_predict: int = PLAFOND_TOKENS, **_) -> dict:
+def _bench_generation(entry: AIModel, sample: str, *, runs: int = GENERATION_RUNS,
+                      num_predict: int = TOKEN_CAP, **_) -> dict:
     """
     Generation de texte servie par Ollama — le DEBIT (jetons/s), le prefill et le chargement.
 
@@ -241,49 +241,49 @@ def _bench_generation(modele: AIModel, echantillon: str, *, runs: int = PASSES_G
 
     if gpu_safe_mode():
         raise RuntimeError("WAMA_GPU_SAFE_MODE actif : chargement d'un LLM hote refuse")
-    if modele.source != 'ollama':
-        raise ValueError(f"protocole Ollama seulement (source={modele.source!r})")
-    prompt = _lire_prompt(echantillon)
+    if entry.source != 'ollama':
+        raise ValueError(f"protocole Ollama seulement (source={entry.source!r})")
+    prompt = _read_prompt(sample)
     if not prompt:
         raise ValueError("prompt vide")
 
-    chauffe = _ollama_generate(modele.name, 'Réponds simplement « ok ».', 8)
-    chargement = _ns_en_s(chauffe.get('load_duration'))
-    a_froid = chargement >= SEUIL_CHARGEMENT_FROID_S
+    warmup = _ollama_generate(entry.name, 'Réponds simplement « ok ».', 8)
+    load_s = _ns_to_s(warmup.get('load_duration'))
+    cold = load_s >= COLD_LOAD_THRESHOLD_S
 
-    passes = []
+    run_results = []
     for i in range(max(int(runs), 1)):
-        d = _ollama_generate(modele.name, prompt, num_predict)
-        jetons = int(d.get('eval_count') or 0)
-        duree = _ns_en_s(d.get('eval_duration'))
-        passe = {
-            'jetons': jetons,
-            'generation_s': duree,
-            'tokens_par_s': round(jetons / duree, 1) if jetons and duree else None,
+        d = _ollama_generate(entry.name, prompt, num_predict)
+        tokens = int(d.get('eval_count') or 0)
+        duration = _ns_to_s(d.get('eval_duration'))
+        run_result = {
+            'tokens': tokens,
+            'generation_s': duration,
+            'tokens_per_s': round(tokens / duration, 1) if tokens and duration else None,
             'prefill_ms': round(float(d.get('prompt_eval_duration') or 0) / 1e6, 1),
-            'prompt_jetons': int(d.get('prompt_eval_count') or 0),
+            'prompt_tokens': int(d.get('prompt_eval_count') or 0),
         }
-        passes.append(passe)
-        if jetons and duree:
-            record_run(modele.model_key, size=jetons, unit='token', process_seconds=duree,
-                       load_seconds=chargement if (a_froid and i == 0) else None)
+        run_results.append(run_result)
+        if tokens and duration:
+            record_run(entry.model_key, size=tokens, unit='token', process_seconds=duration,
+                       load_seconds=load_s if (cold and i == 0) else None)
 
-    debits = [p['tokens_par_s'] for p in passes if p['tokens_par_s']]
+    throughputs = [p['tokens_per_s'] for p in run_results if p['tokens_per_s']]
     return {
-        'sorties': round(sum(p['jetons'] for p in passes) / len(passes)),
-        'confiance_moyenne': None,
-        'chargement_s': chargement if a_froid else None,
-        'inference_s': round(sum(p['generation_s'] for p in passes) / len(passes), 3),
-        'sature': all(p['jetons'] >= num_predict for p in passes),
-        'tokens_par_s': round(sum(debits) / len(debits), 1) if debits else None,
-        'prefill_ms': round(sum(p['prefill_ms'] for p in passes) / len(passes), 1),
-        'passes': passes,
+        'outputs': round(sum(p['tokens'] for p in run_results) / len(run_results)),
+        'mean_confidence': None,
+        'load_s': load_s if cold else None,
+        'inference_s': round(sum(p['generation_s'] for p in run_results) / len(run_results), 3),
+        'saturated': all(p['tokens'] >= num_predict for p in run_results),
+        'tokens_per_s': round(sum(throughputs) / len(throughputs), 1) if throughputs else None,
+        'prefill_ms': round(sum(p['prefill_ms'] for p in run_results) / len(run_results), 1),
+        'runs': run_results,
     }
 
 
 # Un protocole par FAMILLE de tache. Ajouter une tache = ajouter une entree ici, jamais une
 # commande de plus.
-PROTOCOLES: dict[str, Callable] = {
+PROTOCOLS: dict[str, Callable] = {
     ModelTask.DETECT.value: _bench_detection,
     ModelTask.SEGMENT.value: _bench_detection,
     ModelTask.OBB.value: _bench_detection,
@@ -297,10 +297,10 @@ PROTOCOLES: dict[str, Callable] = {
 
 def available_tasks() -> list:
     """Taches pour lesquelles un protocole existe — les autres restent a ecrire."""
-    return sorted(PROTOCOLES)
+    return sorted(PROTOCOLS)
 
 
-def run_bench(tache: str, echantillon: str, *, modeles: Optional[list] = None, **options) -> list:
+def run_bench(task: str, sample: str, *, models: Optional[list] = None, **options) -> list:
     """
     Passe chaque modele de `tache` sur `echantillon` et rend des mesures comparables.
 
@@ -308,27 +308,27 @@ def run_bench(tache: str, echantillon: str, *, modeles: Optional[list] = None, *
     illisible (poids TorchScript, format inattendu) est un RESULTAT — c'est ainsi qu'on a
     repere `yolopv2.pt`.
     """
-    protocole = PROTOCOLES.get(tache)
-    if protocole is None:
+    protocol = PROTOCOLS.get(task)
+    if protocol is None:
         raise ValueError(
-            f"Aucun protocole pour la tache '{tache}'. Disponibles : {', '.join(available_tasks())}")
+            f"Aucun protocole pour la tache '{task}'. Disponibles : {', '.join(available_tasks())}")
 
-    candidats = models_for_task(tache)
-    if modeles:
-        voulus = {m.strip() for m in modeles}
-        candidats = [m for m in candidats if m.name in voulus or m.model_key in voulus]
+    candidates = models_for_task(task)
+    if models:
+        wanted = {m.strip() for m in models}
+        candidates = [m for m in candidates if m.name in wanted or m.model_key in wanted]
 
-    mesures = []
-    for m in candidats:
+    measures = []
+    for m in candidates:
         try:
-            mesure = protocole(m, echantillon, **options)
-            mesure['erreur'] = None
+            measure = protocol(m, sample, **options)
+            measure['error'] = None
         except Exception as e:
-            mesure = {'sorties': None, 'confiance_moyenne': None, 'chargement_s': None,
-                      'inference_s': None, 'sature': False, 'erreur': f"{type(e).__name__}: {e}"}
-        mesure['modele'] = m.model_key
-        mesure['nom'] = m.name
-        mesure['vram_gb'] = m.vram_gb
-        mesures.append(mesure)
-        logger.info("[bench:%s] %s -> %s", tache, m.model_key, mesure)
-    return mesures
+            measure = {'outputs': None, 'mean_confidence': None, 'load_s': None,
+                      'inference_s': None, 'saturated': False, 'error': f"{type(e).__name__}: {e}"}
+        measure['model'] = m.model_key
+        measure['name'] = m.name
+        measure['vram_gb'] = m.vram_gb
+        measures.append(measure)
+        logger.info("[bench:%s] %s -> %s", task, m.model_key, measure)
+    return measures

@@ -44,7 +44,7 @@
 (`benchmark_sync.py`, échelles AA / Arena / Open ASR / MTEB) < **mesure interne** (vide aujourd'hui).
 Règle intangible : **on ne compare des valeurs que sur un lot où tout le monde porte la même
 échelle** ; jamais deux échelles mélangées, jamais de min-max qui inventerait une équivalence
-(`benchmark_sync.rang_centile` : le rang, pas le score).
+(`benchmark_sync.percentile_rank` : le rang, pas le score).
 
 **Trois garde-fous non négociables** (`ROADMAP.md §16.5`, repris dans `wama/common/utils/qc.py`) :
 1. **validateur indépendant du générateur** — autre famille de modèle, **ou contrôle
@@ -239,7 +239,7 @@ l'état de la mesure interne aujourd'hui.
 | `transcription` — transcriber | **humaine** : corrections finalisées (`corrected_segments_json`) ; corpus externe de Fabien (audio + auto + manuel, hors WAMA) | **M1** deux ASR (ou M9 deux réglages), heatmap 1ʳᵉ priorité | M5 cohérence LLM, **cantonnée** (bascule de langue, boucle de jeton, segment tronqué — jamais « incohérence sémantique ») | Open ASR **fr** (WER, sens bas) | profils de correction (`§8.4`), paramètres d'écoute, glossaire ; **finetuning ASR** sur les paires corrigées (§4.3) | M1 ✅ · M3 WER ⏳ · corpus ⏳ (chaînon ⑤) |
 | `captioning` — describer, banc, triage smoke | rare ; corrections de description (non captées : le describer n'appelle pas `corrige`) | M6 accord entre VLM (M1 non horodaté), **M10** légende ↔ éléments attendus | M5 VLM d'une autre famille | Arena **vision** (Elo) | consigne au modèle multilingue (langue de sortie), skill de domaine (aucun `PROMPT_TARGET` describer aujourd'hui), contenu RAG (vocabulaire du labo), traduction de sortie (`WAMA_LLM.md §2bis`, non branchée) | ⏳ |
 | `ocr` — reader | **humaine** : texte corrigé ; par construction : rendu d'un document numérique → image → OCR (référence exacte, gratuite) | M1 non horodaté entre moteurs (docTR / olmOCR / glm-ocr) | M5 LLM (correction post-OCR — même risque de réécriture qu'en §8.2) | Arena **document** (LLM frontière ; nos moteurs n'y sont pas) | prétraitement, moteur par type de document, correction LLM bornée | ⏳ |
-| `text-generation` — assistant, enrichissement, résumé/cohérence du transcriber, rôles wama-dev-ai | **par construction** : consignes à réponse vérifiable (rubrique M3, anglais, versionnée) ; humaine : corrections de résumé (non captées) | M6 entre LLM ; **M9** (température) ; M7 (relance, correction) | M5 LLM d'une autre famille (`qc.py`) | AA Intelligence Index, sous-indices par domaine (`benchmark_meta['sous_indices']`), Arena text | **skills** de rôle (`assistant-*.md`) et d'enrichissement (`<app>-<domaine>.md`), `prompt_contract` par modèle, contenu RAG, tier de modèle | ⏳ (débit ✅ depuis le 14/09, coût seulement) |
+| `text-generation` — assistant, enrichissement, résumé/cohérence du transcriber, rôles wama-dev-ai | **par construction** : consignes à réponse vérifiable (rubrique M3, anglais, versionnée) ; humaine : corrections de résumé (non captées) | M6 entre LLM ; **M9** (température) ; M7 (relance, correction) | M5 LLM d'une autre famille (`qc.py`) | AA Intelligence Index, scores par famille d'épreuves (`benchmark_meta['family_scores']`, lus par `select_model(benchmark_family=…)`), Arena text | **skills** de rôle (`assistant-*.md`) et d'enrichissement (`<app>-<domaine>.md`), `prompt_contract` par modèle, contenu RAG, tier de modèle | ⏳ (débit ✅ depuis le 14/09, coût seulement) |
 | `feature-extraction` — embeddings du RAG | **tierce** : jeu français déclaré (MTEB, 4 tâches) ; **interne** : paires question → passage attendues sur le corpus du labo | rappel croisé (deux modèles, mêmes requêtes : recouvrement des k premiers) | — | MTEB `mteb_fr_retrieval` | découpage (`chunking`), niveau de rappel, modèle | banc tiers ✅ · interne ⏳ |
 | spécialisation `translation` — translategemma, `TranslatorService` | humaine (rare) | **M10** aller-retour ; M6 entre modèles multilingues | M5 LLM d'une autre famille | — (AA n'expose pas la traduction) | **glossaire** ne-pas-traduire, découpage, modèle | ⏳ |
 | `text-to-speech` — synthesizer, service TTS | par construction : le texte d'entrée | **M10** voix → ASR qualifié → WER ; M4 intelligibilité | M5 (faible : un juge ne « voit » pas la prosodie) | AA Elo TTS, Arena TTS (XTTS : 919, seul du lot) | voix, moteur, paramètres ; M8 (subjectif) | ⏳ |
@@ -273,7 +273,8 @@ Lecture de la matrice :
 Un indice interne entre dans l'échelle des signaux **comme les bancs tiers y entrent**, avec les
 mêmes règles, écrites dans `benchmark_sync.py` :
 - une **échelle nommée** par (tâche, méthode, version de protocole) — `internal_wer_fr_v1`,
-  `internal_iou_consensus_v1`… — avec son **sens** (`'haut'`/`'bas'`) ; jamais une valeur nue ;
+  `internal_iou_consensus_v1`… — avec sa **direction** (`'higher'`/`'lower'` = plus haut / plus bas est
+  mieux ; clés `benchmark_meta` passées en anglais le 2026-09-19) ; jamais une valeur nue ;
 - une **population** (les modèles mesurés sur le même jeu, dans la même passe) : l'indice n'est
   comparable qu'à l'intérieur d'elle ; le rang centile s'y lit ;
 - une **version de protocole** : changer le jeu, le seuil d'IoU ou la rubrique change l'échelle —
@@ -287,7 +288,7 @@ mêmes règles, écrites dans `benchmark_sync.py` :
 Domicile proposé : `benchmark_meta` porte déjà source, échelle, sens, rang, population — un indice
 interne y trouve sa place sous une source `internal` ; `sync_benchmarks` n'y touche pas (il ne
 réécrit que les sources tierces qu'il connaît). ⚠ À vérifier au code avant d'écrire : ce que
-`synchroniser` fait d'une clé de source inconnue (décision Q8).
+`synchronize` fait d'une clé de source inconnue (décision Q8).
 
 ### 4.2 Auto-amélioration : quand le levier n'est pas le modèle
 
@@ -427,7 +428,7 @@ nouveau. Ce que la boucle qualité y apporte, et rien d'autre :
 | **Q5** | **gouvernance de l'auto-amélioration** : humain toujours pour les consignes ; auto-ajustement borné pour les paramètres numériques ? | ⑪ | oui à la séparation ; l'auto-ajustement borné vient **en dernier**, après que M3/M9 aient prouvé la stabilité de la mesure |
 | **Q6** | **porte d'entrée des corpus externes** (audio + transcription tierce + correction manuelle de Fabien) : médiathèque ? commande d'import ? formats acceptés (SRT, VTT, TXT, DOCX ?) | ⑤, calibration de tout juge | médiathèque (copie), format déclaré par extension, appariement audio ↔ texte par nom ; **c'est le déblocage le plus rentable de toute la chaîne** |
 | **Q7** | **où tourne la nocturne comparative** | ② | R760xa ; l'hôte de dev ne joue plus aucun banc GPU |
-| **Q8** | **domicile de l'indice interne** : `benchmark_meta` source `internal` (vérifier ce que `synchroniser` fait d'une source inconnue) ou champ dédié | ⑧ | `benchmark_meta`, après vérification ; un champ de plus serait une 3ᵉ échelle de plus à ne pas mélanger |
+| **Q8** | **domicile de l'indice interne** : `benchmark_meta` source `internal` (vérifier ce que `synchronize` fait d'une source inconnue) ou champ dédié | ⑧ | `benchmark_meta`, après vérification ; un champ de plus serait une 3ᵉ échelle de plus à ne pas mélanger |
 | **Q9** | **la consistance de lignée** dans M6 : pondérer l'accord par la diversité des familles (deux YOLO ≠ un YOLO + un DETR) — déclarer la famille où ? | M6 | `AIModel.extra_info['family']` existe pour les snapshots HF ; à généraliser, ou ignorer en phase 1 |
 
 ---

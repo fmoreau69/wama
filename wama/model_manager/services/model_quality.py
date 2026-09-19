@@ -51,31 +51,31 @@ import re
 #: Pénalité (points d'indice) par niveau de quantification. À nombre de paramètres égal, une
 #: quantification agressive dégrade la qualité — Q2 est nettement en dessous de Q8, F16 est la
 #: référence non dégradée. Valeurs indicatives, ordonnées : c'est l'ORDRE qui compte, pas l'échelle.
-PENALITE_QUANT = {
+QUANT_PENALTY = {
     'F32': 2.0, 'F16': 2.0, 'BF16': 2.0,
     'Q8': 0.0, 'Q6': -1.0, 'Q5': -2.0, 'Q4': -3.0, 'Q3': -5.0, 'Q2': -8.0,
 }
 
 #: Contexte de référence (tokens) au-delà duquel on accorde un bonus logarithmique.
-CONTEXTE_REFERENCE = 8192
+REFERENCE_CONTEXT = 8192
 
 
-def _niveau_quant(libelle: str) -> str:
+def _quant_level(label: str) -> str:
     """'Q4_K_M' → 'Q4' · 'F16' → 'F16' · inconnu → ''."""
-    m = re.match(r'^(F32|BF16|F16|Q\d)', (libelle or '').upper())
+    m = re.match(r'^(F32|BF16|F16|Q\d)', (label or '').upper())
     return m.group(1) if m else ''
 
 
-def params_en_milliards(libelle: str) -> float | None:
+def params_in_billions(label: str) -> float | None:
     """'36.0B' → 36.0 · '8.0B' → 8.0 · '' → None. Tolère 'M' (millions)."""
-    m = re.match(r'^\s*([\d.]+)\s*([BM])', (libelle or '').upper())
+    m = re.match(r'^\s*([\d.]+)\s*([BM])', (label or '').upper())
     if not m:
         return None
     val = float(m.group(1))
     return val if m.group(2) == 'B' else val / 1000.0
 
 
-def indice_qualite(*, params_b: float | None, context_length: int | None = None,
+def apriori_quality_index(*, params_b: float | None, context_length: int | None = None,
                    quantization: str = '', params_active_b: float | None = None) -> float | None:
     """
     Indice a priori, croissant avec la capacité. None si le signal principal manque.
@@ -93,17 +93,17 @@ def indice_qualite(*, params_b: float | None, context_length: int | None = None,
     """
     if not params_b or params_b <= 0:
         return None
-    effectifs = params_b
+    effective = params_b
     if params_active_b and 0 < params_active_b < params_b:
-        effectifs = math.sqrt(params_b * params_active_b)
-    score = 10.0 * math.log2(effectifs)
-    if context_length and context_length > CONTEXTE_REFERENCE:
-        score += 2.0 * math.log2(context_length / CONTEXTE_REFERENCE)
-    score += PENALITE_QUANT.get(_niveau_quant(quantization), 0.0)
+        effective = math.sqrt(params_b * params_active_b)
+    score = 10.0 * math.log2(effective)
+    if context_length and context_length > REFERENCE_CONTEXT:
+        score += 2.0 * math.log2(context_length / REFERENCE_CONTEXT)
+    score += QUANT_PENALTY.get(_quant_level(quantization), 0.0)
     return round(score, 2)
 
 
-def params_actifs_b(params_b: float | None, experts_total, experts_actifs) -> float | None:
+def active_params_b(params_b: float | None, total_experts, active_experts) -> float | None:
     """
     Paramètres réellement activés par jeton, en milliards — axe de COÛT, pas de qualité.
 
@@ -115,9 +115,9 @@ def params_actifs_b(params_b: float | None, experts_total, experts_actifs) -> fl
     if not params_b:
         return None
     try:
-        total, actifs = int(experts_total or 0), int(experts_actifs or 0)
+        total, active = int(total_experts or 0), int(active_experts or 0)
     except (TypeError, ValueError):
         return params_b
-    if total <= 0 or actifs <= 0 or actifs >= total:
+    if total <= 0 or active <= 0 or active >= total:
         return params_b
-    return round(params_b * (actifs / total), 2)
+    return round(params_b * (active / total), 2)

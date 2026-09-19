@@ -212,8 +212,8 @@ class Command(BaseCommand):
             self.stdout.write(f"  ✓ {cle:52s} -> github:ultralytics/assets (nom+octets)")
             if ecrire:
                 res = set_identity(cle, {'platform_ref': 'github:ultralytics/assets'})
-                if not res.get('applique'):
-                    self.stderr.write(self.style.ERROR(f"    pose en echec : {res.get('erreur')}"))
+                if not res.get('applied'):
+                    self.stderr.write(self.style.ERROR(f"    pose en echec : {res.get('error')}"))
         for cle, octets, attendues in ecarts:
             self.stdout.write(self.style.WARNING(
                 f"  ≠ {cle} : {octets} octets locaux, attendus {attendues} — laisse vide "
