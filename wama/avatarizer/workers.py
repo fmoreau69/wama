@@ -37,16 +37,16 @@ from wama.common.utils.console_utils import push_console_line
 _backends_resolus: dict = {}
 
 
-def _backend(cle_catalogue: str):
-    """Instance (singleton) du backend que le catalogue désigne pour `cle_catalogue`."""
-    if cle_catalogue not in _backends_resolus:
+def _backend(catalog_key: str):
+    """Instance (singleton) du backend que le catalogue désigne pour `catalog_key`."""
+    if catalog_key not in _backends_resolus:
         from wama.common.backends.manager import backend_for_key
-        classe = backend_for_key(cle_catalogue)
+        classe = backend_for_key(catalog_key)
         if classe is None:
-            raise RuntimeError(f"{cle_catalogue} : aucun backend résolu depuis le catalogue "
+            raise RuntimeError(f"{catalog_key} : aucun backend résolu depuis le catalogue "
                                "(ligne absente, ou sans moteur déclaré)")
-        _backends_resolus[cle_catalogue] = classe()
-    return _backends_resolus[cle_catalogue]
+        _backends_resolus[catalog_key] = classe()
+    return _backends_resolus[catalog_key]
 
 logger = logging.getLogger(__name__)
 

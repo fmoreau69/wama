@@ -26,12 +26,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-#: En-dessous, le téléchargement est imperceptible et l'annonce serait du bruit.
-SEUIL_ANNONCE_GO = 0.5
+#: En-dessous, on ne MENTIONNE PAS le volume : l'avertissement a lieu de toute façon
+#: (`volume = '' if taille < seuil`). ⚠ L'ancien libellé disait « l'annonce serait du
+#: bruit » — un constat FAUX, que l'ancien nom `SEUIL_ANNONCE_GO` transportait.
+SIZE_MENTION_THRESHOLD_GB = 0.5
 
 
-def annoncer_telechargement(model_key: str, console=None) -> bool:
-    """Prévient (console) si les poids de `model_key` sont absents. Rend True si annoncé.
+def warn_if_weights_missing(model_key: str, console=None) -> bool:
+    """Prévient (console) si les poids de `model_key` sont ABSENTS. Rend True si prévenu.
+
+    ⚠ Le nom dit la CONDITION, pas un téléchargement : cette brique ne télécharge rien
+    (cf. l'entête). Elle s'appelait `annoncer_telechargement` jusqu'au 2026-09-19 —
+    remarque de Fabien : « la terminologie n'est pas correcte ». *Traduire ne suffit
+    pas : le nom anglais doit encore dire ce que la chose EST.*
 
     `model_key` : clé de catalogue (`<source>:<id>`) — la même que celle qui résout le backend
     (`backend_for_key`), pour que l'annonce et l'exécution parlent du MÊME modèle.
@@ -55,7 +62,7 @@ def annoncer_telechargement(model_key: str, console=None) -> bool:
     taille = float(ligne.disk_gb or 0)
     # `disk_gb` vaut 0 tant que le modèle n'a jamais été téléchargé (il se remplit au balayage) :
     # on ne prétend donc pas connaître le volume quand on ne l'a jamais mesuré.
-    volume = f' (~{taille:.0f} Go)' if taille >= SEUIL_ANNONCE_GO else ''
+    volume = f' (~{taille:.0f} Go)' if taille >= SIZE_MENTION_THRESHOLD_GB else ''
     message = (f"Premier lancement de « {nom} » : téléchargement des poids{volume} en cours — "
                f"cela peut prendre plusieurs minutes. Les lancements suivants seront immédiats.")
     logger.info('[readiness] %s : poids absents, annonce faite', model_key)

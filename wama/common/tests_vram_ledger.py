@@ -448,11 +448,11 @@ class ResidenceResolueTest(_AvecRegistre):
         self.addCleanup(p.stop)
         self.owner = f'{CLASSE_FAUX}:1#@m'
 
-    def test_un_residant_publie_par_son_nom_apparait_sous_sa_cle_catalogue(self):
+    def test_a_resident_published_by_name_appears_under_its_catalog_key(self):
         gov.reserve_vram(self.owner, 8.0, allocated=True)
         self.assertEqual(gov.resident_models(), {'app:m': 8.0})
 
-    def test_l_inactivite_se_lit_sous_la_cle_catalogue(self):
+    def test_idleness_is_read_under_the_catalog_key(self):
         gov.reserve_vram(self.owner, 8.0)
         self.t += 400
         self.assertEqual([r['model_key'] for r in gov.idle_models(300)], ['app:m'])
