@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 Confronte la LANGUE des identifiants de code a la doctrine (AGENTS.md : « tout identifiant de
-code en ANGLAIS, sauf les noms de tests ; commentaires, docstrings et textes affiches restent en
-francais »).
+code en ANGLAIS — les tests COMPRIS depuis le 2026-09-19 ; commentaires, docstrings et textes
+affiches restent en francais »).
 
 RAISON D'ETRE (question de Fabien, 2026-09-19 : « Encore des termes en francais... Comment
 arreter ca ? »). La regle existait depuis le 2026-08-22, elle a ete durcie le 14/09 — et elle a
-DERIVE quand meme : releve du 19/09, **2653 identifiants francais dans 358 fichiers**
-(2786 dans 366 si l'on compte les noms de classes de test). Le defaut
+DERIVE quand meme : releve du 19/09, **2653 identifiants francais dans 358 fichiers**, plus
+133 noms de classes de test et 1298 noms de methodes de test — **4084 en tout**. Le defaut
 n'est pas la regle, c'est qu'AUCUN CONTROLE ne la tenait : elle demandait de s'en souvenir.
 *Une regle qui demande de se souvenir n'est pas un controle.*
 
@@ -24,14 +24,17 @@ PERIMETRE (ce que la doctrine appelle « identifiant de code ») : classes, fonc
 variables assignees, alias d'import. EXCLUS : les chaines, les commentaires, les docstrings, les
 cles de DONNEES (frontiere des donnees, regle 3 du 29/08) et les migrations (generees).
 
-EXEMPTIONS ECRITES :
-  * les methodes `test_*` — seule exception de la doctrine : « elle se lit dans un rapport
-    d'echec, et nulle part ailleurs » ;
-  * les NOMS DE CLASSES de test (`*Test`, `*Tests`) — meme nature qu'une methode de test, mais
-    ⚠ ZONE GRISE de doctrine : une classe de test EST importable (`manage.py test
-    wama.x.tests.MaClasseTest`), donc la lettre de la regle la voudrait en anglais. Exemptee ici
-    pour ne pas transformer un controle d'hygiene en chantier de 143 renommages ; a trancher par
-    Fabien. `--strict-classes` les compte, pour que le choix soit MESURABLE avant d'etre pris.
+PLUS AUCUNE EXEMPTION depuis le 2026-09-19 (decision de Fabien : « on bascule tout le code y
+compris les tests en anglais »). L'exemption des noms de tests, ecrite le 22/08 (« il se lit dans
+un rapport d'echec, et nulle part ailleurs »), est LEVEE : elle defendait en realite le STYLE
+— une phrase qui enonce un COMPORTEMENT plutot qu'un nom de cible — et ce style se garde en
+anglais (`test_refreshing_twice_changes_nothing_the_second_time`).
+
+TROIS COMPTES SEPARES, tous appliques, parce qu'ils se soldent differemment :
+  * le CODE (2653) a des consommateurs : un renommage y rend FAUX (jumeaux par chaine, cles de
+    payload, docs) — il se fait par passes tokenisees, radical par radical (`--by-root`) ;
+  * les noms de CLASSES de test (133) et de METHODES de test (1298) n'ont aucun appelant : sans
+    risque, mais 1431 renommages qui noieraient tout autre diff — donc app par app, en dernier.
 
 Ne modifie RIEN. Sort en code 1 si le budget est depasse, pour servir en CI.
 """
@@ -81,21 +84,22 @@ ALLOWED = frozenset({'liste_id'})
 #: Un accent est un signal CERTAIN (Python 3 les accepte dans les identifiants).
 ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖÙÛÜŸÇ]')
 
-#: BUDGET — mesure EXACTE du 2026-09-19 sur les 4 racines, classes de test exemptees.
-#: Cale au releve, sans marge : une marge est une autorisation d'en ajouter.
-#: ⚠ IL NE PEUT QUE DESCENDRE. Ne JAMAIS le relever pour faire passer un ajout : le remede est
-#: de nommer l'identifiant en anglais. Le baisser apres une passe de renommage est le geste
-#: normal — c'est ainsi que la dette se solde sans chantier dedie.
-BUDGET = 2653
-#: Le meme, classes de test COMPRISES (`--strict-classes`) : chiffre de la decision en attente.
-BUDGET_WITH_TEST_CLASSES = 2786
-#: NOMS DE METHODES `test_*` en francais — 1298 sur 2774 (46 %), mesure du 2026-09-19.
-#: ⚠ NON applique par defaut : la doctrine les autorise encore (AGENTS.md : « elle se lit dans un
-#: rapport d'echec, et nulle part ailleurs »). Applique par `--include-test-names`, pour que la
-#: bascule soit UNE OPTION deja outillee le jour ou Fabien tranche — il a dit le 19/09 vouloir
-#: « uniformiser petit a petit en anglais et surtout ne pas reintroduire de termes en francais »,
-#: ce qui pointe vers cette bascule sans la prononcer.
-BUDGET_TEST_NAMES = 1298
+#: TROIS BUDGETS ADDITIFS, mesures EXACTEMENT le 2026-09-19, TOUS APPLIQUES.
+#: Cales au releve, sans marge : une marge est une autorisation d'en ajouter.
+#: ⚠ ILS NE PEUVENT QUE DESCENDRE. Ne JAMAIS en relever un pour faire passer un ajout : le
+#: remede est de nommer l'identifiant en anglais. Les baisser apres une passe de renommage est
+#: le geste normal — c'est ainsi que la dette se solde sans chantier dedie.
+#:
+#: DECISION DE FABIEN, 2026-09-19 : « on bascule tout le code y compris les tests en anglais ».
+#: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
+#: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
+#: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
+BUDGET_CODE = 2653          # production (1722) + fichiers de tests hors noms (931)
+BUDGET_TEST_CLASSES = 132   # noms de classes `*Test` (133 avant la 1re bascule)
+BUDGET_TEST_NAMES = 1296    # noms de methodes `test_*` — sur 2777 (46 %)
+#: Ce que coute l'uniformisation complete, pour memoire : 4081 (4084 au 1er releve —
+#: le premier fichier de tests ecrit APRES la bascule a deja rendu 3 noms).
+BUDGET_TOTAL = BUDGET_CODE + BUDGET_TEST_CLASSES + BUDGET_TEST_NAMES
 
 
 def _words(name: str):
@@ -218,82 +222,98 @@ def scan(base: Path, with_test_classes: bool = False):
     return total, by_file, names
 
 
+def counts(base: Path) -> dict:
+    """Les TROIS comptes, additifs — c'est la seule lecture dont la commande et le test ont
+    besoin, et elle evite de rescanner trois fois dans trois endroits differents."""
+    code, by_file, names = scan(base, with_test_classes=False)
+    with_classes, _, _ = scan(base, with_test_classes=True)
+    test_names, test_methods = scan_test_names(base)
+    return {'code': code, 'test_classes': with_classes - code,
+            'test_names': len(test_names), 'test_methods': test_methods,
+            'total': with_classes + len(test_names),
+            'by_file': by_file, 'names': names, 'test_name_hits': test_names}
+
+
 class Command(BaseCommand):
-    help = ("Compte les identifiants de code en francais (budget qui ne peut que DESCENDRE). "
-            "Sort en 1 si le budget est depasse.")
+    help = ("Compte les identifiants de code en francais — TROIS budgets qui ne peuvent que "
+            "DESCENDRE (code, classes de test, noms de tests). Sort en 1 si l'un est depasse.")
 
     def add_arguments(self, parser):
         parser.add_argument('--detail', action='store_true',
                             help='Liste fichier:ligne de chaque identifiant releve.')
-        parser.add_argument('--strict-classes', action='store_true',
-                            help="Compte AUSSI les noms de classes de test (`*Test`) — la zone "
-                                 "grise de doctrine, a trancher.")
         parser.add_argument('--json', action='store_true', help='Sortie machine.')
         parser.add_argument('--top', type=int, default=15,
                             help='Nombre de fichiers les plus charges a afficher (defaut 15).')
         parser.add_argument('--by-root', action='store_true',
                             help="Classement des RADICAUX francais (outil de pilotage : une "
                                  "passe de renommage par radical, la plus rentable d'abord).")
-        parser.add_argument('--include-test-names', action='store_true',
-                            help="Compte AUSSI les noms de methodes `test_*` et applique leur "
-                                 "budget — la bascule que la doctrine n'a pas encore prononcee.")
+        parser.add_argument('--test-names', action='store_true',
+                            help='Liste les noms de methodes `test_*` en francais (fichier:ligne).')
 
     def handle(self, *args, **options):
         base = Path(settings.BASE_DIR)
-        strict = options['strict_classes']
-        budget = BUDGET_WITH_TEST_CLASSES if strict else BUDGET
-        total, by_file, names = scan(base, with_test_classes=strict)
+        measured = counts(base)
+        by_file, names = measured['by_file'], measured['names']
+        #: (libelle, mesure, budget) — les trois s'additionnent, et chacun se solde a son rythme.
+        lines = (('code (production + tests hors noms)', measured['code'], BUDGET_CODE),
+                 ('noms de classes `*Test`', measured['test_classes'], BUDGET_TEST_CLASSES),
+                 ('noms de methodes `test_*`', measured['test_names'], BUDGET_TEST_NAMES))
 
         if options['json']:
             self.stdout.write(json.dumps(
-                {'total': total, 'budget': budget, 'files': len(by_file),
-                 'with_test_classes': strict,
+                {'code': measured['code'], 'test_classes': measured['test_classes'],
+                 'test_names': measured['test_names'], 'total': measured['total'],
+                 'budgets': {'code': BUDGET_CODE, 'test_classes': BUDGET_TEST_CLASSES,
+                             'test_names': BUDGET_TEST_NAMES, 'total': BUDGET_TOTAL},
+                 'test_methods': measured['test_methods'], 'files': len(by_file),
                  'by_file': {f: len(v) for f, v in by_file.items()},
                  'names': names.most_common(40)}, ensure_ascii=False, indent=2))
         else:
-            etiquette = 'classes de test COMPRISES' if strict else 'classes de test exemptees'
-            self.stdout.write(f"{total} identifiant(s) de code en francais dans "
-                              f"{len(by_file)} fichier(s) ({etiquette}) — budget {budget}")
+            self.stdout.write(f"{measured['total']} identifiant(s) de code en francais "
+                              f"(budget {BUDGET_TOTAL}) :")
+            for label, seen, budget in lines:
+                verdict = '✓' if seen <= budget else '✗'
+                self.stdout.write(f"  {verdict} {label:38} {seen:5} / {budget}")
+            share = 100 * measured['test_names'] // max(measured['test_methods'], 1)
+            self.stdout.write(f"    ({measured['test_methods']} methodes de test au total, "
+                              f"{share} % nommees en francais)")
+            self.stdout.write(f"\n  {len(by_file)} fichier(s) portent du code francais :")
             for rel, found in sorted(by_file.items(), key=lambda kv: -len(kv[1]))[:options['top']]:
-                echantillon = ', '.join(sorted({n for _, n, _ in found})[:5])
-                self.stdout.write(f"  {len(found):4}  {rel:58} {echantillon}")
+                sample = ', '.join(sorted({n for _, n, _ in found})[:5])
+                self.stdout.write(f"  {len(found):4}  {rel:58} {sample}")
             if options['by_root']:
                 roots = roots_of(by_file)
                 self.stdout.write("\n  radical         porte par   cumul")
-                seen = 0
+                seen_total = 0
                 for word, n in roots.most_common(25):
-                    seen += n
-                    self.stdout.write(f"  {word:14} {n:9}   {100 * seen // max(total, 1):4} %")
+                    seen_total += n
+                    self.stdout.write(
+                        f"  {word:14} {n:9}   {100 * seen_total // max(measured['code'], 1):4} %")
                 self.stdout.write(f"  ({len(roots)} radicaux pour {len(names)} noms distincts — "
                                   f"une passe PAR RADICAL solde par tranches nettes)")
             if options['detail']:
                 for rel, found in sorted(by_file.items()):
                     for kind, name, line in found:
                         self.stdout.write(f"{rel}:{line}: {kind} {name}")
+            if options['test_names']:
+                for rel, name, line in measured['test_name_hits']:
+                    self.stdout.write(f"{rel}:{line}: test {name}")
 
-        test_names, test_total = scan_test_names(base)
-        share = 100 * len(test_names) // max(test_total, 1)
-        if not options['json']:
-            self.stdout.write(
-                f"\n  noms de methodes `test_*` en francais : {len(test_names)} sur {test_total} "
-                f"({share} %) — budget {BUDGET_TEST_NAMES}, "
-                + ("APPLIQUE" if options['include_test_names'] else
-                   "NON applique (la doctrine les autorise encore ; `--include-test-names` "
-                   "l'applique)"))
-        if options['include_test_names'] and len(test_names) > BUDGET_TEST_NAMES:
+        over = [(label, seen, budget) for label, seen, budget in lines if seen > budget]
+        if over:
+            for label, seen, budget in over:
+                self.stderr.write(f"\n✗ BUDGET DEPASSE — {label} : {seen} > {budget}")
             self.stderr.write(
-                f"\n✗ BUDGET DES NOMS DE TESTS DEPASSE : {len(test_names)} > {BUDGET_TEST_NAMES}")
+                "Un identifiant de code se nomme en ANGLAIS (AGENTS.md, decision du 2026-09-19 : "
+                "les tests aussi) — le remede est de renommer, JAMAIS de relever un budget. "
+                "`--detail` / `--test-names` disent lesquels ; `git diff` dit lesquels sont de vous.")
             raise SystemExit(1)
 
-        if total > budget:
-            self.stderr.write(
-                f"\n✗ BUDGET DEPASSE : {total} > {budget}. Un identifiant de code se nomme en "
-                f"ANGLAIS (AGENTS.md) — le remede est de renommer, JAMAIS de relever le budget. "
-                f"`--detail` dit lesquels, `git diff` dit lesquels sont de vous.")
-            raise SystemExit(1)
-        if total < budget:
-            self.stdout.write(self.style.SUCCESS(
-                f"✓ sous le budget de {budget - total} — descendre `BUDGET` a {total} "
-                f"dans {Path(__file__).name} verrouille ce gain."))
+        slack = [(label, budget - seen) for label, seen, budget in lines if seen < budget]
+        if slack:
+            for label, gain in slack:
+                self.stdout.write(self.style.SUCCESS(
+                    f"✓ {label} : {gain} sous le budget — le descendre verrouille ce gain "
+                    f"({Path(__file__).name})"))
         else:
-            self.stdout.write(self.style.SUCCESS("✓ budget tenu (a l'unite pres)"))
+            self.stdout.write(self.style.SUCCESS("✓ les trois budgets sont tenus, sans marge"))

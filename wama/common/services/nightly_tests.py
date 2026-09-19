@@ -48,7 +48,11 @@ TEST_DEV_USERNAME = "wama_nightly_dev"   # surfaces dev-gated (jumelles) — cf.
 # `consistency` est à part aussi : contrôles DÉCLARATIFS (docs↔code, corpus de manifestes,
 # faits générés, redondances) — CPU pur, aucun média. Le runner nocturne est le SEUL
 # ordonnanceur de ces contrôles : ne pas leur créer de cron concurrent (§16.9).
-STAGES = ("wired", "ui", "consistency", "model_loaded", "output")
+# `suite` (2026-09-19) : la SUITE DJANGO elle-meme, un scenario par label d'app. CPU pur, mais
+# LONG (~500 s pour `wama.common`) — d'ou un stage a part : `--stage ui` doit rester instantane,
+# et `--stage suite` se lance quand on a le temps. Demande de Fabien : « c'est le resultat des
+# tests qui importe » — il n'etait visible que dans un terminal (cf. `common/nightly_suite.py`).
+STAGES = ("wired", "ui", "consistency", "suite", "model_loaded", "output")
 
 
 class SkipScenario(Exception):

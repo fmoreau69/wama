@@ -282,7 +282,7 @@ apply_patch(
 | identifiant | importé ? | langue | pourquoi |
 |---|---|---|---|
 | module, classe, fonction, champ de modèle | **oui** — il se lit dans un `import`, une signature, un gabarit | **anglais** | c'est une API ; 97 % du dépôt l'est déjà |
-| méthode `test_*` | **jamais** | **français** | elle se lit dans un **rapport d'échec**, et nulle part ailleurs |
+| méthode `test_*` | **jamais** | ~~français~~ → **anglais depuis le 2026-09-19** | l'argument « elle se lit dans un rapport d'échec » défendait en réalité le **STYLE** (une phrase qui énonce un COMPORTEMENT, pas un nom de cible) — et ce style se garde en anglais : `test_refreshing_twice_changes_nothing_the_second_time`. Décision de Fabien : « on bascule tout le code y compris les tests en anglais ». ⚠ Les 1296 noms français restants se soldent app par app, **en dernier** (aucun appelant, donc aucun risque — mais un diff qui noierait tout le reste) |
 | **fichier `.js` / global `window.Wama*`** | **oui** — il se lit dans un `<script src>` et dans les gabarits | **anglais** | même nature qu'un module importé (ajouté le 2026-08-29) |
 | **identifiant privé d'un IIFE `.js`** | non, au sens strict | **anglais quand même** | voir ci-dessous |
 
@@ -304,8 +304,9 @@ apply_patch(
      2026-09-14 (décision Fabien) : les options de ligne de commande sont du code, donc en
      anglais.** La règle vaut désormais pour **tout identifiant de code** (fonctions, variables,
      classes, clés d'objets formant une API entre briques JS, noms de fichiers, options CLI),
-     **sauf les noms de tests pour le moment**. Les **commentaires, docstrings et textes
-     affichés restent en français**. Déclenché par une API JS créée en IMITANT l'idiome
+     ~~sauf les noms de tests pour le moment~~ — **PLUS D'EXCEPTION depuis le 2026-09-19**
+     (décision de Fabien ; cf. la table ci-dessus et le contrôle ci-dessous). Les
+     **commentaires, docstrings et textes affichés restent en français**. Déclenché par une API JS créée en IMITANT l'idiome
      français d'une brique (`WamaSendTo.entreesPourDossier`) — la faute que la règle 1 nomme ;
   3. frontière des DONNÉES : **ce qui est stocké/déclaré reste** (clés `extra_info`, valeurs de
      vocabulaire), **ce qui est calculé se renomme** (payloads éphémères) ;
@@ -327,9 +328,16 @@ apply_patch(
   fonctions, arguments, variables assignées, alias d'import) et les confronte à une liste NOIRE de
   radicaux français ; un accent est un signal certain. `--detail` donne fichier:ligne, `--json`
   la sortie machine, `--strict-classes` compte aussi les noms de classes de test.
-- **C'est un BUDGET QUI NE PEUT QUE DESCENDRE** (motif de `tests_hf_cache_routing`, qui a fini à
-  zéro) : il n'exige **aucun** chantier de renommage des 2653 — il rend seulement l'**ajout**
-  impossible. Tenu par `wama/common/tests_identifier_language.py`, donc il tourne dans la suite.
+- **TROIS BUDGETS QUI NE PEUVENT QUE DESCENDRE** (motif de `tests_hf_cache_routing`, qui a fini à
+  zéro), tous appliqués depuis la décision du 19/09 — **code 2653**, **noms de classes de test
+  132**, **noms de méthodes de test 1296**, soit **4081**. Ils n'exigent **aucun** chantier de
+  renommage : ils rendent l'**ajout** impossible. Tenus par
+  `wama/common/tests_identifier_language.py`, donc ils tournent dans la suite.
+- **Où porter les passes, dans cet ordre** — `--by-root` le dit : la dette de code est
+  CONCENTRÉE (141 radicaux, 605 noms distincts ; les 20 premiers radicaux = **56 %**). D'abord
+  `cle`→`key` (176), `chemin`→`path` (153), `modele`→`model` (102), `cible`→`target` (88),
+  `ligne(s)`→`line(s)` (174) : ~26 % en cinq passes tokenisées (`/renommage-api`). Les noms de
+  tests viennent **en dernier**, app par app.
 - 🔴 **Ne JAMAIS relever `BUDGET` pour faire passer un ajout** : le remède est de nommer
   l'identifiant en anglais. Le **baisser** après une passe de renommage est le geste normal, et le
   test l'EXIGE (il échoue aussi quand le budget garde de la marge — *une marge est une
@@ -338,11 +346,11 @@ apply_patch(
   (`source`, `type`, `mode`, `page`, `total`, `format`, `instance`, `table`) — les compter ferait
   un budget bruyant, et un budget bruyant se contourne ; le **JS** (pas d'AST JS ici, cf. §JS
   ci-dessous) ; les chaînes, commentaires et docstrings, qui restent en français par doctrine.
-- ⚠ **ZONE GRISE à trancher (Fabien)** : les **noms de classes de test** (`*Test`) sont exemptés
-  par défaut. La lettre de la règle les voudrait en anglais — une classe de test EST importable
-  (`manage.py test wama.x.tests.MaClasseTest`) —, mais leur nom énonce un comportement, comme une
-  méthode `test_*`. Les compter ajouterait **133** renommages : `--strict-classes` donne le
-  chiffre exact pour que le choix se prenne sur une mesure.
+- ⭐ **La zone grise est TRANCHÉE (Fabien, 2026-09-19)** : les noms de classes de test comme
+  ceux des méthodes entrent dans un budget. `check_identifier_language` n'a donc plus de drapeau
+  d'attente — `--detail` et `--test-names` listent, `--by-root` pilote. *Le premier fichier de
+  tests écrit après la bascule (`tests_identifier_language.py`) est en anglais, et les budgets
+  ont baissé de 3 dans le même geste.*
 
 > ⚠ **Cette règle ne dit RIEN des chaînes AFFICHÉES.** Un identifiant anglais affiche un libellé
 > français — c'est la cible, pas une incohérence. La langue de l'interface est un autre chantier,

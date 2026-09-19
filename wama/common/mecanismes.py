@@ -161,7 +161,11 @@ MECHANISMS = (
               "Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel",
               'wama/model_manager/services/eta_estimator.py', 'docs/construction/suivi/PROJECT_STATUS.md §10'),
     Mechanism('nightly_tests', 'Tests nocturnes',
-              "Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…). "
+              "Registre déclaratif de scénarios + runner sérialisé VRAM-aware "
+              "(wired/ui/consistency/suite/model_loaded/output). Le stage `suite` (2026-09-19) fait "
+              "entrer LA SUITE DJANGO dans la grille fonctionnelle : un scénario par app ayant des "
+              "tests, DÉRIVÉ des apps installées ; verdict lu dans la SORTIE de `manage.py test` "
+              "(jamais au code retour, qui sort en 0 sans rien lancer) et rouges NOMMÉS. "
               "DEUX comptes de test déclaratifs : le standard (rôles métier, SANS tier dev — c'est "
               "LUI que la matrice de droits mesure) et `get_test_dev_user` pour les surfaces "
               "dev-gated (jumelles de bac à sable), routé par `ui_smoke._test_session_key(app)` "
@@ -178,7 +182,8 @@ MECHANISMS = (
                        'wama/common/services/ui_smoke_menus.py',
                        'wama/common/services/ui_smoke_states.py',
                        'wama/common/services/rights_matrix.py',
-                       'wama/common/nightly_scenarios.py')),
+                       'wama/common/nightly_scenarios.py',
+                       'wama/common/nightly_suite.py')),
     Mechanism('filemanager_importers', "Import « Envoyer vers » (registre + dérivation jumelles)",
               "Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR "
               "« Envoyer vers » (`common/services/send_to.py` — cards ET arbre de fichiers depuis "
