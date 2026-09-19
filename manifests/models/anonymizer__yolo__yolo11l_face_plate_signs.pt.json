@@ -16,6 +16,12 @@
       "task": "detect"
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "yolo11l_face_plate_signs.pt",
+          "role": "model"
+        }
+      ],
       "runtime": {
         "engine": "ultralytics"
       }
@@ -28,6 +34,7 @@
       ],
       "model_id": "detect/faces&plates/yolo11l_face_plate_signs.pt",
       "specialty": "faces&plates",
+      "vram_provenance": "heuristic",
       "yolo_type": "detect"
     },
     "formats": {

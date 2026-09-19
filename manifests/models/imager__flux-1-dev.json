@@ -17,11 +17,45 @@
       ]
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "transformer/diffusion_pytorch_model-*.safetensors",
+          "role": "transformer"
+        },
+        {
+          "pattern": "text_encoder_2/model-*.safetensors",
+          "role": "text_encoder_2"
+        },
+        {
+          "pattern": "text_encoder/model.safetensors",
+          "role": "text_encoder"
+        },
+        {
+          "pattern": "vae/diffusion_pytorch_model.safetensors",
+          "role": "vae"
+        }
+      ],
       "runtime": {
         "engine": "diffusers"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "vram_provenance": "declared",
+      "weights": {
+        "at": "2026-09-19T21:36:26.416060+00:00",
+        "components": {
+          "text_encoder": 0.229,
+          "text_encoder_2": 8.871,
+          "transformer": 22.168,
+          "vae": 0.156
+        },
+        "largest_gb": 22.168,
+        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/flux/models--black-forest-labs--FLUX.1-dev",
+        "signature": "23:33746383552:ba92cff9a9",
+        "source": "declared",
+        "total_gb": 31.424
+      }
+    },
     "formats": {
       "can_convert_to": [],
       "format": "safetensors",

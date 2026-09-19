@@ -17,11 +17,27 @@
       ]
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "transformer/diffusion_pytorch_model-*.safetensors",
+          "role": "transformer"
+        },
+        {
+          "pattern": "text_encoder/model-*-of-00004.safetensors",
+          "role": "text_encoder"
+        },
+        {
+          "pattern": "vae/diffusion_pytorch_model.safetensors",
+          "role": "vae"
+        }
+      ],
       "runtime": {
         "engine": "diffusers"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "vram_provenance": "declared"
+    },
     "formats": {
       "can_convert_to": [],
       "format": "safetensors",
