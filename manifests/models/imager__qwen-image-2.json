@@ -5,6 +5,10 @@
       "inputs_required": [
         "prompt"
       ],
+      "languages": [
+        "en",
+        "zh"
+      ],
       "modalities": [
         "image"
       ],

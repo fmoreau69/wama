@@ -7,6 +7,31 @@
       "inputs_required": [
         "prompt"
       ],
+      "languages": [
+        "ar",
+        "da",
+        "de",
+        "el",
+        "en",
+        "es",
+        "fi",
+        "fr",
+        "he",
+        "hi",
+        "it",
+        "ja",
+        "ko",
+        "ms",
+        "nl",
+        "no",
+        "pl",
+        "pt",
+        "ru",
+        "sv",
+        "sw",
+        "tr",
+        "zh"
+      ],
       "modalities": [
         "audio"
       ],

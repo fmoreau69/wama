@@ -4,6 +4,9 @@
       "inputs_required": [
         "work_file"
       ],
+      "languages": [
+        "*"
+      ],
       "modalities": [
         "image",
         "video"

@@ -7,7 +7,7 @@
       "modalities": [
         "audio"
       ],
-      "task": "text-to-audio"
+      "task": "text-to-music"
     },
     "composition": {
       "runtime": {

@@ -5,6 +5,9 @@
         "work_file",
         "prompt"
       ],
+      "languages": [
+        "en"
+      ],
       "modalities": [
         "image",
         "video"

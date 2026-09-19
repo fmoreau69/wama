@@ -70,12 +70,22 @@ def huggingface_identity(hf_id: str) -> Optional[dict]:
     raw = getattr(info, 'gated', None)
     gated = 'no' if raw in (None, False) else str(raw)[:8]
 
+    # Ce que la carte DÉCLARE d'autre, traduit mécaniquement (`prospector.card_facts`,
+    # 2026-09-19) : tâche (pipeline + tags), langues, moteur. La chaîne relisait cette carte
+    # à l'installation et n'en gardait que l'identité — 25 langues de canary jetées, ACE-Step
+    # rangé en ambiance alors que ses tags disent musique. Sous `declared`, pour que les
+    # lecteurs de l'identité (`set_identity`, `backfill_platform_refs`) n'y voient rien.
+    from .prospector import card_facts
+    facts = card_facts(getattr(info, 'pipeline_tag', None), getattr(info, 'tags', None) or (),
+                       card, getattr(info, 'library_name', None) or '')
+
     return {
         'license': str(license_id)[:64],
         'author': str(author)[:200],
         'platform_ref': f"huggingface:{hf_id}",
         'hf_id': hf_id,
         'gated': gated,
+        'declared': {'capabilities': facts['capabilities'], 'engine': facts['engine']},
     }
 
 
@@ -121,16 +131,20 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
 
 
 def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
-                   apply: bool = True, export: bool = True) -> dict:
+                   engine: str = None, apply: bool = True, export: bool = True) -> dict:
     """
     Pose l'identité — et les capacités DÉCLARÉES — sur un modèle DU CATALOGUE, en passant
     par son manifeste.
 
-    `capabilities` : clés déclarées par l'amont (la tâche du spec d'installation, demain les
-    modalités et entrées). Même règle que l'identité : elles COMPLÈTENT le manifeste extrait,
-    elles n'écrasent jamais une clé déjà établie. Jusqu'au 2026-09-18 la tâche était écrite
-    directement en base APRÈS l'export (`record_after_install`) : le manifeste du corpus
-    naissait sans tâche, et la porte des capacités se refermait derrière elle.
+    `capabilities` : clés déclarées par l'amont (la tâche du spec d'installation, les
+    modalités et entrées qu'elle implique, les langues de la carte). Même règle que
+    l'identité : elles COMPLÈTENT le manifeste extrait, elles n'écrasent jamais une clé déjà
+    établie. Jusqu'au 2026-09-18 la tâche était écrite directement en base APRÈS l'export
+    (`record_after_install`) : le manifeste du corpus naissait sans tâche, et la porte des
+    capacités se refermait derrière elle.
+    `engine` : le moteur déclaré par la carte (`library_name` reconnu par un backend), posé
+    dans `composition.runtime.engine` seulement s'il n'y en a pas — c'est ce que
+    `plan_model_integration` réclamait à la main (« aucun moteur déclaré »).
 
     Retourne un compte rendu : `{model, applied, posed, projected, corpus, error?}` (clés
     passées en anglais le 2026-09-19).
@@ -141,7 +155,7 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
     from wama.common.manifests.ingest import extract, validate, write_back
 
     capabilities = dict(capabilities or {})
-    if not identity and not capabilities:
+    if not identity and not capabilities and not engine:
         return {'model': model_key, 'applied': False, 'error': 'aucune identité à poser'}
     identity = identity or {}
 
@@ -175,6 +189,15 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
         if value not in (None, '', [], {}) and not caps.get(key):
             caps[key] = value
             posed.append(f'capabilities.{key}')
+    # Moteur déclaré : même règle, on ne comble qu'un vide (le manifeste d'un modèle composé,
+    # ou la déclaration d'une app, priment sur ce que la carte laisse deviner).
+    if engine:
+        composition = manifest['body'].setdefault('composition', {}) or {}
+        manifest['body']['composition'] = composition
+        runtime = composition.setdefault('runtime', {})
+        if not runtime.get('engine'):
+            runtime['engine'] = engine
+            posed.append('composition.runtime.engine')
 
     # On VALIDE avant de projeter : un `platform_ref` mal formé ou une plateforme inconnue est
     # refusé par le kind (`validate_model_body`), et il vaut mieux le voir ici qu'écrire une
@@ -261,8 +284,14 @@ def record_after_install(spec: dict, appeared_keys) -> dict:
     # Et ce que la tâche IMPLIQUE (modalités, entrées — `TASK_DEFAULT_INPUTS`, 2026-09-19) :
     # sans cela un modèle installé sans app restait invisible de l'appariement entrée ↔ modèle.
     # Même règle : on ne comble qu'un vide.
+    # Et ce que la CARTE déclare (2026-09-19, `huggingface_identity` → `declared`) : tâche
+    # quand le spec n'en porte pas, langues, moteur. La tâche du spec (candidat jugé) prime.
     from wama.model_manager.models import default_inputs_for
-    task = (spec.get('task') or '').strip()
-    declared = {'task': task, **default_inputs_for(task)} if task else {}
-    posed = [set_identity(c, identity, capabilities=declared) for c in targets]
+    card = identity.pop('declared', None) or {}
+    task = (spec.get('task') or '').strip() or (card.get('capabilities') or {}).get('task') or ''
+    declared = dict(card.get('capabilities') or {})
+    if task:
+        declared.update({'task': task, **default_inputs_for(task)})
+    posed = [set_identity(c, identity, capabilities=declared, engine=card.get('engine'))
+             for c in targets]
     return {'identity': identity, 'models': posed, **({'task': task} if task else {})}

@@ -5,6 +5,8 @@
         "embedding",
         "tools"
       ],
+      "audio": false,
+      "completion": false,
       "context_length": 40960,
       "embedding": true,
       "inputs_required": [
@@ -16,7 +18,9 @@
       "params_active_b": 4.0,
       "params_total_b": 4.0,
       "task": "feature-extraction",
-      "tools": true
+      "thinking": false,
+      "tools": true,
+      "vision": false
     },
     "composition": {
       "runtime": {

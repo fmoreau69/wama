@@ -4,6 +4,19 @@
       "inputs_required": [
         "work_file"
       ],
+      "languages": [
+        "en",
+        "fr",
+        "de",
+        "es",
+        "it",
+        "nl",
+        "pt",
+        "sv",
+        "da",
+        "zh",
+        "ja"
+      ],
       "modalities": [
         "image",
         "document"

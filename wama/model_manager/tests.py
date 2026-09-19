@@ -772,6 +772,93 @@ class EntreesParDefautDeLaTacheTest(TestCase):
                           'inputs_required': ['work_audio']}, asr.capabilities)
 
 
+class FaitsDeLaCarteTest(TestCase):
+    """La carte HuggingFace est lue MÉCANIQUEMENT (2026-09-19) : tâche par pipeline + tags,
+    langues déclarées, moteur reconnu. Mesuré avant : la chaîne relisait la carte à
+    l'installation et n'en gardait que l'identité — canary publie 25 langues, le catalogue n'en
+    avait aucune ; ACE-Step taggé `music` était rangé en ambiance.
+    """
+
+    def test_les_tags_de_musique_separent_musique_et_ambiance(self):
+        from .services.prospector import hf_task_to_wama
+        self.assertEqual(('text-to-music', 'music'), hf_task_to_wama('text-to-audio', ['music', 'text2music']))
+        self.assertEqual(('text-to-audio', 'music'), hf_task_to_wama('text-to-audio', ['audio']))
+
+    def test_la_carte_donne_les_langues_et_le_moteur_sans_rien_inventer(self):
+        from .services.prospector import card_facts
+        facts = card_facts('automatic-speech-recognition', ['audio', 'bg', 'cs'],
+                           {'language': ['bg', 'cs', 'da'], 'license': 'cc-by-4.0'}, 'nemo')
+        self.assertEqual({'task': 'transcription', 'languages': ['bg', 'cs', 'da']},
+                         facts['capabilities'])
+        self.assertIsNone(facts['engine'], "`nemo` n'est servi par aucun backend : rien de posé")
+        self.assertEqual('transformers',
+                         card_facts('object-detection', [], {}, 'transformers')['engine'])
+        self.assertEqual(['en'], card_facts('text-to-image', [], {'language': 'en'})['capabilities']['languages'])
+        self.assertEqual(['*'], card_facts('text-to-speech', [], {'language': 'multilingual'})['capabilities']['languages'])
+        self.assertNotIn('languages', card_facts('text-to-speech', [], {})['capabilities'])
+
+    def _card(self, **attrs):
+        class _Card:
+            def __init__(self, d):
+                self._d = d
+
+            def to_dict(self):
+                return dict(self._d)
+
+        class _Info:
+            pipeline_tag = attrs.get('pipeline_tag')
+            tags = attrs.get('tags', [])
+            library_name = attrs.get('library_name')
+            author = attrs.get('author', 'Org')
+            gated = False
+            card_data = _Card(attrs.get('card', {}))
+        return _Info()
+
+    def test_l_identite_huggingface_rapporte_aussi_ce_que_la_carte_declare(self):
+        from .services import provenance as pv
+        info = self._card(pipeline_tag='text-to-audio', tags=['music'], library_name='transformers',
+                          card={'license': 'mit', 'language': 'en'})
+        with patch('huggingface_hub.HfApi') as api:
+            api.return_value.model_info.return_value = info
+            ident = pv.huggingface_identity('Org/Musique')
+        self.assertEqual(('mit', 'huggingface:Org/Musique'), (ident['license'], ident['platform_ref']))
+        self.assertEqual({'capabilities': {'task': 'text-to-music', 'languages': ['en']},
+                          'engine': 'transformers'}, ident['declared'])
+
+    def test_l_installation_pose_les_faits_de_la_carte_sans_ecraser_ni_le_spec_ni_l_existant(self):
+        from .services import provenance as pv
+        blank = AIModel.objects.create(
+            model_key='huggingface:Org/Asr', name='Asr', model_type='speech', source='huggingface',
+            is_downloaded=True, hf_id='Org/Asr', capabilities={})
+        rich = AIModel.objects.create(
+            model_key='huggingface:Org/Tts', name='Tts', model_type='speech', source='huggingface',
+            is_downloaded=True, hf_id='Org/Tts', capabilities={'task': 'text-to-speech',
+                                                              'languages': ['fr']},
+            composition={'runtime': {'engine': 'qwen3-tts'}})
+        declared = {'capabilities': {'task': 'transcription', 'languages': ['en', 'de']},
+                    'engine': 'transformers'}
+        with patch.object(pv, 'identity_for_spec',
+                          return_value={'hf_id': 'Org/Asr', 'declared': dict(declared)}), \
+                patch('django.core.management.call_command'):
+            r = pv.record_after_install({'kind': 'hf', 'ref': 'Org/Asr'}, ['huggingface:Org/Asr'])
+        blank.refresh_from_db()
+        self.assertEqual('transcription', r['task'], "sans tâche au spec, celle de la carte sert")
+        self.assertEqual({'task': 'transcription', 'languages': ['en', 'de'],
+                          'modalities': ['audio'], 'inputs_required': ['work_audio']},
+                         blank.capabilities)
+        self.assertEqual('transformers', blank.composition['runtime']['engine'])
+        # Le spec (candidat jugé) prime sur la carte ; l'existant prime sur les deux.
+        with patch.object(pv, 'identity_for_spec',
+                          return_value={'hf_id': 'Org/Tts', 'declared': dict(declared)}), \
+                patch('django.core.management.call_command'):
+            pv.record_after_install({'kind': 'hf', 'ref': 'Org/Tts', 'task': 'text-to-speech'},
+                                    ['huggingface:Org/Tts'])
+        rich.refresh_from_db()
+        self.assertEqual(['fr'], rich.capabilities['languages'])
+        self.assertEqual('text-to-speech', rich.capabilities['task'])
+        self.assertEqual('qwen3-tts', rich.composition['runtime']['engine'])
+
+
 class RestesTechniquesDuSoirTest(TestCase):
     """Trois restes du 02/09, chacun mesuré avant d'être corrigé."""
 

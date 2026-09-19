@@ -5,6 +5,9 @@
         "work_image",
         "work_audio"
       ],
+      "languages": [
+        "en"
+      ],
       "modalities": [
         "image",
         "audio",
