@@ -284,3 +284,69 @@ class ImageAttacheeAUnInputQuiEXISTETest(TestCase):
         self.assertEqual(hashlib.sha256(a.encode()).hexdigest(),
                          hashlib.sha256(b.encode()).hexdigest(),
                          'staticfiles/ n’a pas été resynchronisé — le navigateur sert l’ancien')
+
+
+class DeclaredCompositionTest(TestCase):
+    """L'anatomie déclarée des modèles imager (2026-09-19, chantier VRAM décision A).
+
+    Ces déclarations ne servent pas qu'à décrire : elles décident de ce que
+    `model_installer.components_for_spec` PÈSE et de ce que `patterns_from_composition` TIRE.
+    Une déclaration fausse n'échoue donc pas bruyamment — elle rend deux chiffres plausibles et
+    faux. D'où ces gardes, toutes HORS RÉSEAU : le relevé sur les vraies cartes HF vit dans les
+    commentaires de `model_config`, il ne peut pas tourner dans one_model suite de tests.
+    """
+
+    def _declared(self):
+        from wama.imager.utils.model_config import IMAGER_MODELS
+        return {mid: cfg['composition'] for mid, cfg in IMAGER_MODELS.items()
+                if cfg.get('composition')}
+
+    def test_every_declaration_passes_the_manifest_schema(self):
+        """Le schéma est celui des manifestes — pas un second formalisme pour l'imager."""
+        from wama.common.manifests.builtin.model import _validate_composition
+        declarations = self._declared()
+        self.assertGreaterEqual(len(declarations), 12, "les compositions imager ont disparu")
+        for mid, composition in declarations.items():
+            self.assertEqual(_validate_composition(composition), [],
+                             f"{mid} : composition hors schéma")
+
+    def test_a_pattern_names_its_own_role_and_excludes_the_variants(self):
+        """Un weight_pattern doit être ANCRÉ sur le dossier de son rôle : `vae/*` suffirait à faire
+        entrer les 44 Go du pipeline dupliqué sous `vae/` de LTX-distilled, et un `*` nu
+        ramasserait les copies `.fp16`, `.bf16`, `.non_ema` et OpenVINO."""
+        for mid, composition in self._declared().items():
+            for comp in composition['components']:
+                weight_pattern, role = comp['pattern'], comp['role']
+                self.assertTrue(weight_pattern.startswith(role + '/'),
+                                f"{mid}/{role} : le weight_pattern ne commence pas par son rôle")
+                self.assertTrue(weight_pattern.endswith('.safetensors'),
+                                f"{mid}/{role} : seul le format safetensors est déclaré")
+                for marker in ('.fp16', '.bf16', 'non_ema', 'openvino', 'flax', 'onnx'):
+                    self.assertNotIn(marker, weight_pattern,
+                                     f"{mid}/{role} : {marker} est one_model COPIE, pas un composant")
+
+    def test_the_discovery_carries_the_declaration_to_the_catalog(self):
+        """Le trou fermé le 19/09 : la déclaration existait, la découverte ne la transmettait
+        pas — `ModelInfo` naissait sans `composition`, donc les composants n'atteignaient jamais
+        le catalogue. Une déclaration que personne ne transporte ne décide de rien."""
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        registry._discover_imager_models()
+        carried = {key: info.composition for key, info in registry._models.items()
+                  if (info.composition or {}).get('components')}
+        self.assertGreaterEqual(len(carried), 12,
+                                "la découverte imager ne transporte pas les compositions")
+        one_model = carried.get('imager:fastwan-2.2-ti2v-5b') or {}
+        self.assertEqual({c['role'] for c in one_model.get('components', [])},
+                         {'transformer', 'text_encoder', 'vae'})
+
+    def test_an_adapter_declares_nothing_rather_than_a_misleading_weight(self):
+        """La LoRA logo ne pèse que 0,04 Go de fichier, mais son empreinte est celle de sa
+        dorsale FLUX.1-dev. Declarer sa composition ferait répondre « 0,04 Go » — exact sur les
+        fichiers, faux sur l'empreinte. Mieux vaut indéterminable qu'un chiffre trompeur."""
+        from wama.imager.utils.model_config import IMAGER_MODELS
+        lora = IMAGER_MODELS['flux-lora-logo-design']
+        self.assertEqual(lora.get('model_type'), 'lora')
+        self.assertNotIn('composition', lora,
+                         "one_model composition ici ferait passer 0,04 Go pour l'empreinte du modèle")
+        self.assertTrue(lora.get('base_model'), "la dorsale doit rester déclarée")
