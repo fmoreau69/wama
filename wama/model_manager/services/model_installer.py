@@ -475,10 +475,10 @@ def _local_repo_weight_gb(repo: str):
     except Exception:
         return None
     try:
-        racine = installed_snapshots().get((repo or '').strip().lower())
-        if racine is None:
+        root_path = installed_snapshots().get((repo or '').strip().lower())
+        if root_path is None:
             return None
-        files = local_inventory(racine) or []
+        files = local_inventory(root_path) or []
     except Exception as e:
         logger.debug("[weights] dépôt frère %s illisible en local : %s", repo, e)
         return None
@@ -528,19 +528,19 @@ def _with_sibling_repos(out: dict, composition) -> dict:
         elif role not in parts:
             unresolved.append(role)
     if not parts:
-        maigre = {}
+        partial = {}
         if unresolved:
-            maigre = {'unresolved': sorted(set(unresolved)), 'source': 'declared'}
+            partial = {'unresolved': sorted(set(unresolved)), 'source': 'declared'}
         if unreachable:
-            maigre['unreachable'] = unreachable
-        return maigre
+            partial['unreachable'] = unreachable
+        return partial
     merged = {'components': dict(sorted(parts.items())),
               'total_gb': round(sum(parts.values()), 3),
               'largest_gb': round(max(parts.values()), 3),
               'source': (out or {}).get('source') or 'declared'}
-    for cle in ('variants', 'files'):
-        if (out or {}).get(cle):
-            merged[cle] = out[cle]
+    for carried in ('variants', 'files'):
+        if (out or {}).get(carried):
+            merged[carried] = out[carried]
     if unresolved:
         merged['unresolved'] = sorted(set(unresolved))
     if unreachable:

@@ -342,6 +342,58 @@ class ModelRegistry:
             info.composition = composition
 
         self._overlay_engines_derived_from_disk()
+        self._overlay_components_derived_from_disk()
+
+    def _overlay_components_derived_from_disk(self):
+        """Complète les COMPOSANTS d'un modèle composé — depuis son snapshot, sans réseau.
+
+        POURQUOI (2026-09-20, demande de Fabien : « il faut que ce soit fonctionnel sans passer
+        par Claude, a minima avec un petit LLM local »). L'anatomie était écrite À LA MAIN — 28
+        déclarations posées le 19/09 dans les `model_config` des apps. Pour un pipeline diffusers
+        elle est entièrement DÉRIVABLE, et la passe voisine ouvrait déjà le fichier qui la porte
+        (`model_index.json`) pour n'y prendre que `_class_name`.
+        *Une déclaration manuelle qu'une mesure peut produire est une dette, pas une information.*
+
+        Passe SÉPARÉE de la dérivation du moteur, et non un ajout dans sa boucle : celle-ci saute
+        toute ligne dont le moteur est déjà connu (`deja_declares`, `runtime.engine`), ce qui est
+        juste POUR LE MOTEUR et faux pour les composants — une ligne peut avoir son moteur et pas
+        son anatomie. Deux questions, deux gardes.
+
+        ⚠ NE COMBLE QUE LE VIDE : une composition qui porte déjà des `components` est l'AUTORITÉ.
+        Elle seule peut trancher ce que les fichiers ne disent pas — deux jeux de shards
+        concurrents sous le même nom (cas `genmo/mochi-1-preview`, dont l'`index.json` désigne le
+        jeu `-of-00004`), ou le choix d'une variante de précision.
+        """
+        from wama.common.utils.model_anatomy import components_from_snapshot
+        from wama.common.utils.model_locations import installed_snapshots
+
+        # ⚠ `extra_info['path']` n'existe QUE sur les lignes nées du balayage générique
+        # (`_snapshot_to_model`) : une ligne déclarée par une app n'en porte pas. Mesuré le
+        # 2026-09-20 — sans l'index `hf_id → snapshot`, la dérivation ne couvrait que 1 modèle
+        # sur les 81 installés. C'est le même mur que `model_sync.persist_weights`, et la même
+        # brique qui le franchit : on ne réécrit pas une seconde résolution.
+        try:
+            index = installed_snapshots()
+        except Exception as e:
+            logger.debug('[anatomie] index des snapshots indisponible : %s', e)
+            index = {}
+
+        for key, info in list(self._models.items()):
+            compo = getattr(info, 'composition', None) or {}
+            if compo.get('components'):
+                continue                                  # déjà déclaré : on ne touche pas
+            path = (getattr(info, 'extra_info', None) or {}).get('path') or ''
+            if not path:
+                root = index.get((getattr(info, 'hf_id', '') or '').strip().lower())
+                path = str(root) if root else ''
+            if not path:
+                continue
+            parts = components_from_snapshot(path)
+            if not parts:
+                continue                                  # monobloc, ou rien de pesable : on se tait
+            info.composition = {**compo, 'components': parts}
+            logger.info("[anatomie] %s : %d composant(s) dérivé(s) du snapshot (%s)", key,
+                        len(parts), ', '.join(c['role'] for c in parts))
 
     def _overlay_engines_derived_from_disk(self):
         """Complète le moteur des modèles qu'AUCUNE app ne déclare — depuis leur SNAPSHOT.
