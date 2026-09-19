@@ -46,7 +46,11 @@ class RegistreTest(SimpleTestCase):
         attribution ; un banc déclaré sans lecteur serait une carte qui ment."""
         from wama.model_manager.services.benchmark_sync import SOURCES as BANCS
         declares = {s.key for s in es.SOURCES if s.kind == 'banc'}
-        lus = {{'aa': 'artificial_analysis', 'arena': 'arena'}.get(b['cle'], b['cle']) for b in BANCS}
+        # ⚠ `b['key']` depuis le 2026-09-19 (`4d36d9f4`, passage des indices de qualité à
+        # l'anglais : la clé `cle` de `benchmark_sync.SOURCES` est devenue `key`). Ce test
+        # n'était pas dans la suite lancée à ce renommage — la suite `wama.common` complète l'a
+        # trouvé. *Un renommage ne casse pas, il rend FAUX : seule une suite LARGE le voit.*
+        lus = {{'aa': 'artificial_analysis', 'arena': 'arena'}.get(b['key'], b['key']) for b in BANCS}
         self.assertEqual(declares, lus)
 
     def test_chaque_source_declare_une_adresse_et_un_usage(self):

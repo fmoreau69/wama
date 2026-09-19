@@ -1703,3 +1703,38 @@ ouvert**) est listé dans `PLATFORM_TASKS_NOT_CARRIED`, donc `LocateAnything-3B`
 catalogué — n'a **aucune** tâche, et sort de toute sélection comme de tout banc. Deux voies : le
 ranger en `detect` (il détecte, mais on perd « le vocabulaire est ouvert », qui est justement son
 intérêt pour le detector), ou déclarer la tâche. Rien n'est tranché ici.
+
+### Même jour — les 22 lignes CLOUD n'entraient dans AUCUN banc (et rien ne le disait)
+
+Reste consigné « relancer `sync_benchmarks` pour apparier les lignes cloud ». **Le relancer ne
+suffisait pas** : mesuré après une passe complète, **0 des 22 lignes cloud** portait un
+`benchmark_index`, et aucune n'apparaissait dans les trois listes du rapport (appariées /
+non appariées / sans identité). Elles n'étaient pas *mal* classées : elles n'étaient pas
+**examinées**.
+
+**Cause** — `synchronize()` bornait son queryset à `is_downloaded=True | is_proposed=True`.
+`is_downloaded` voulait dire « utilisable ici », ce qui était vrai tant que tout était local ;
+depuis que le **cloud est une source de découverte du registre** (`3b62c309`, ce chantier), un
+modèle servi par une clé d'API est utilisable **sans aucun poids sur cette machine**. Leur
+catégorie de banc, elle, était correcte depuis toujours (`_local_categories` rend `['llm']` pour
+`anthropic:*` comme pour `albert:*`) — le filtre les écartait avant qu'on la calcule.
+⭐ *Une ligne exclue du queryset ne disparaît pas d'un compteur : elle disparaît de la question.*
+C'est le défaut que le garde-fou « les quatre issues sont EXHAUSTIVES » (01/09) visait, un cran
+plus haut que là où il regardait.
+
+**Corrigé** : `Q(is_downloaded=True) | Q(execution='cloud', is_available=True) | Q(is_proposed=True)`.
+Une ligne cloud **retirée** (`is_available=False` — `retire_unlisted` la MARQUE pour garder son
+historique) reste dehors : la noter reviendrait à classer un modèle qu'on ne peut plus appeler.
+
+**Mesure après, sur le catalogue réel** : **34 → 48 appariés**, dont **14 lignes cloud** —
+8 Claude (`arena_elo_text` : opus-4-6 à 1497,5, fable-5 à 1492,6, sonnet-4-6 à 1458,3…) et
+6 Albert (`aa_intelligence_index` pour gemma-4-31b 15,4 et ministral-3-8b 5,5 ;
+`mteb_fr_retrieval` 69,37 pour qwen3-vl-embedding ; `open_asr_wer_multilingual_fr` 6,237 pour
+whisper-large-v3). Les 8 restantes sont attendues : 3 modèles **trop récents** pour les
+leaderboards (fable-5-1, opus-5, sonnet-5), `claude_code:default` (le fournisseur choisit le
+modèle — jamais appariable par nature), et 4 dont l'identité n'est pas lisible.
+**Effet sur le tirage** : jusqu'ici la sélection d'un modèle cloud ne reposait que sur l'a priori
+(`quality_index`) ; l'étage « banc tiers » de l'échelle des signaux lui répond enfin.
+
+**Tests** : 2 dans `ComptageDesBancsTest` — un modèle cloud non téléchargé est examiné ET noté ;
+un modèle cloud retiré reste hors de la passe.

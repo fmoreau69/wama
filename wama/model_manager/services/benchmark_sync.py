@@ -1084,8 +1084,18 @@ def synchronize(dry_run: bool = False, include_proposed: bool = True):
                'matched': [], 'unmatched': [], 'without_identity': [],
                'without_category': 0, 'inversions': []}
 
-    qs = AIModel.objects.filter(Q(is_downloaded=True) | Q(is_proposed=True)) \
-        if include_proposed else AIModel.objects.filter(is_downloaded=True)
+    # ⚠ UN MODÈLE CLOUD N'EST PAS TÉLÉCHARGÉ, et il est utilisable quand même (2026-09-19).
+    # `is_downloaded=True` voulait dire « utilisable ici » — vrai tant que tout était local.
+    # Depuis que le cloud est une source de découverte du registre, les 22 lignes servies par
+    # une clé d'API (Albert, Anthropic, abonnement) ont `is_downloaded=False` : elles n'étaient
+    # donc NI appariées, NI comptées dans `without_category` — invisibles du rapport, alors
+    # que ce sont les modèles les mieux couverts par les leaderboards publics (gpt-oss-120b,
+    # deepseek, mistral, gemma, claude). Mesuré avant correction : 0/22 avec un banc.
+    # C'est le défaut que le commentaire ci-dessus dénonce, d'un cran plus haut : une ligne
+    # exclue du QUERYSET ne disparaît pas d'un compteur, elle disparaît de la question.
+    servi_sans_poids = Q(execution='cloud', is_available=True)
+    qs = AIModel.objects.filter(Q(is_downloaded=True) | servi_sans_poids | Q(is_proposed=True)) \
+        if include_proposed else AIModel.objects.filter(Q(is_downloaded=True) | servi_sans_poids)
     by_scale = {}    # échelle → [(model, valeur, elo)] pour la confrontation
 
     for m in qs:
