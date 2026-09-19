@@ -39,6 +39,9 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
   `mecanismes.py`, `manifests/**`). Si le diff contient des lignes que tu n'as pas écrites,
   **soit tu l'annonces dans ton message, soit tu attends — jamais en silence.** Vécu deux fois :
   12 fichiers balayés, puis 14 lignes de `mecanismes.py` le 2026-08-26.
+  ✅ **Troisième voie depuis le 2026-09-19 : `/commit-partiel`** — l'index se construit avec MES
+  seuls hunks du fichier co-édité (patch `-U0` + `git apply --cached`), se vérifie, puis se
+  commite ; le WIP d'autrui reste dans l'arbre.
 - Un commit par palier logique, message conventionnel français (`feat(app): …`, `fix: …`, `docs: …`).
 - ⚠ **Message long → `-F <fichier>`, jamais `-m`** : les backticks d'un `-m` sont interprétés par
   le shell et des fragments s'évaporent en silence (récidivé 23/08 puis 26/08).

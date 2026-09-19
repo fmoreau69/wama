@@ -22,6 +22,8 @@ retrouve-t-elle TOUT ? »*
   Si le diff contient du travail d'autrui : soit on l'annonce **dans le message**, soit on
   attend — jamais en silence. (Vécu 23/08 : 2 lignes emportées. Vécu 26/08 : 14 lignes
   emportées dans `mecanismes.py`, découvertes APRÈS le commit.)
+  ✅ **Ou l'on ne commite que SES hunks : `/commit-partiel`** (né le 2026-09-19 après cinq
+  résolutions en une session) — index construit hunk par hunk, vérifié, puis commité.
 - 🔴 **UN RESTE EST VIEUX, UN WIP EST CHAUD — le critère est la DATE, pas l'apparence du
   `git status`** (ajouté le 2026-09-12). Cas vécu : demande de « remettre l'arbre au propre,
   toutes les autres instances ont commité ». Le `git status` montrait 11 fichiers modifiés, tous
