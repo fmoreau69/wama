@@ -452,6 +452,51 @@ MECHANISMS = (
     # 2026-09-19 (question de Fabien : « Encore des termes en français... Comment arrêter ça ? »).
     # La règle de langue existait depuis le 22/08, durcie le 14/09, et elle a dérivé quand même :
     # elle demandait de s'en SOUVENIR. Ce mécanisme la rend mesurable — et donc opposable.
+    # Quatre briques livrées les 15-18/09 et restées HORS de la carte — relevé listé comme reste
+    # depuis plusieurs sessions, fermé le 2026-09-19. Elles étaient invisibles à qui cherche
+    # « qu'est-ce qui sert les modèles cloud ? » ou « où vit le chiffrement des clés ? », et c'est
+    # exactement le trou que ce registre existe pour fermer (cf. l'entrée `docs_integrity`).
+    Mechanism('cloud_models', 'Modèles DISTANTS au catalogue',
+              "Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne "
+              "`<source>:<id>`, `execution='cloud'`, le modèle porte son moteur et le fournisseur "
+              "s'en DÉRIVE) : découverte par la clé de CHAQUE utilisateur (`GET /models` à "
+              "l'enregistrement), le catalogue porte l'UNION, et `retire_unlisted` MARQUE ce que la "
+              "source ne liste plus au lieu de le supprimer — une clé qui ne voit plus un modèle ne "
+              "prouve pas qu'il a disparu. Ces lignes n'entrent au tirage que par "
+              "`select_model(cloud_keys=…)`",
+              'wama/model_manager/services/cloud_models.py',
+              'docs/construction/suivi/ROADMAP.md §8d',
+              annexes=('wama/model_manager/tests_cloud_models.py',)),
+    Mechanism('secret_crypto', "Chiffrement RÉVERSIBLE des secrets d'utilisateur",
+              "Les clés d'API de fournisseurs cloud sont chiffrées en base, pas hachées : WAMA doit "
+              "les RELIRE pour appeler le fournisseur à la place de l'utilisateur. Clé DÉRIVÉE de "
+              "`SECRET_KEY` par HKDF avec une étiquette d'usage (décision Fabien : pas de clé de "
+              "plus dans `.env`) — on ne chiffre pas avec la valeur qui signe les sessions. "
+              "⚠ La rotation de `SECRET_KEY` est le piège : le déchiffrement essaie la courante "
+              "puis les `SECRET_KEY_FALLBACKS`, dont `rotate_secrets` ne garde que TROIS",
+              'wama/common/utils/secret_crypto.py',
+              'docs/construction/suivi/ROADMAP.md §8d',
+              annexes=('wama/accounts/tests_api_keys.py',)),
+    Mechanism('mcp_server', 'Serveur MCP (adaptateur mince sur tool_api)',
+              "Un seul contrat d'outils pour TOUS les cerveaux (Ollama, Claude Code, Albert, un "
+              "IDE) : `tools/list` = le registre filtré par `tool_accessible`, `tools/call` = "
+              "`execute_tool` — LA porte unique. Adaptateur MINCE : aucun protocole maison, "
+              "`tool_descriptions()` dérive déjà nom/description/schéma. DEUX surfaces, DEUX "
+              "process : `wama` (prod) et `wama-dev`, jamais chargés ensemble",
+              'wama/common/services/mcp_server.py',
+              'docs/construction/suivi/ROADMAP.md §8d',
+              annexes=('wama/common/management/commands/run_mcp_server.py',
+                       'wama/common/tests_mcp_server.py')),
+    Mechanism('dev_tools', 'Outils de DÉVELOPPEMENT (surface MCP « wama-dev »)',
+              "Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sable "
+              "d'apps, exposés à un client MCP. ⚠ JAMAIS chargé dans le process de PRODUCTION "
+              "(ROADMAP §16 : défense en profondeur > scope de jeton) — ni dans `TOOL_REGISTRY` ni "
+              "importé par `tool_api` ; seul `run_mcp_server --surface dev` l'importe, et "
+              "`tests_mcp_dev_tools` le garde. Les rôles écrivent une PROPOSITION dans "
+              "`wama-dev-ai/outputs/` et n'appliquent rien",
+              'wama/common/services/dev_tools.py',
+              'docs/construction/suivi/ROADMAP.md §8d',
+              annexes=('wama/common/tests_mcp_dev_tools.py',)),
     Mechanism('identifier_language', 'Langue des identifiants (budget)',
               "Relève par AST les identifiants de code FRANÇAIS (classes, fonctions, arguments, "
               "variables, alias d'import ; accents = signal certain) et les borne par un BUDGET "
