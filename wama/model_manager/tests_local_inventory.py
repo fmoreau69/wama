@@ -11,8 +11,10 @@ Le second complément local est l'en-tête safetensors : nombre de paramètres e
 fichier distant ne dit pas et dont le pic PAR PRÉCISION a besoin (17,43 Md × 2 octets = 32,5 Go
 en BF16 pour HunyuanImage 2.1, déclaré 16).
 
-Aucun GPU, aucun réseau : un faux cache HF dans un dossier temporaire (liens symboliques —
-la suite tourne sous WSL2, où ils existent), un faux safetensors écrit à la main.
+Aucun GPU, aucun réseau : un faux cache HF dans un dossier temporaire (liens symboliques — la
+suite tourne sous WSL2, où ils existent ; sous Windows sans le privilège de création de lien,
+`WinError 1314`, les cas à liens se SAUTENT au lieu de rougir, mesuré par l'instance sœur le
+19/09), un faux safetensors écrit à la main.
 """
 import json
 import os
@@ -34,7 +36,18 @@ def _safetensors(path: Path, tensors: dict):
         fh.write(header)
 
 
-class InventaireLocalTest(SimpleTestCase):
+def _symlink(case: SimpleTestCase, blob: Path, target: Path):
+    """Lien RELATIF `target → blob`, comme dans un cache HF. Là où le système refuse les liens
+    (Windows sans `SeCreateSymbolicLinkPrivilege`), le cas testé n'existe pas : on saute — on ne
+    fabrique pas un faux cache sans liens, qui ne testerait plus la déduplication."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.symlink(os.path.relpath(blob, target.parent), target)
+    except OSError as exc:                       # WinError 1314 : privilège absent
+        case.skipTest(f"liens symboliques indisponibles ici ({exc})")
+
+
+class LocalInventoryTest(SimpleTestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -51,11 +64,9 @@ class InventaireLocalTest(SimpleTestCase):
         return p
 
     def _link(self, rel: str, blob: Path):
-        target = self.rev / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        os.symlink(os.path.relpath(blob, target.parent), target)
+        _symlink(self, blob, self.rev / rel)
 
-    def test_un_blob_atteint_par_deux_chemins_ne_compte_qu_une_fois_au_moins_profond(self):
+    def test_a_blob_reached_by_two_paths_counts_once_at_the_shallowest(self):
         """Le cas LTX : `vae/transformer/…` lie les MÊMES blobs que `transformer/…`."""
         b = self._blob('aaa', 3000)
         self._link('transformer/diffusion_pytorch_model.safetensors', b)
@@ -67,26 +78,26 @@ class InventaireLocalTest(SimpleTestCase):
                                ('transformer/diffusion_pytorch_model.safetensors', 3000),
                                ('vae/diffusion_pytorch_model.safetensors', 500)])
 
-    def test_la_taille_est_celle_du_blob_pas_du_lien(self):
+    def test_the_size_is_the_blob_s_not_the_link_s(self):
         self._link('model.safetensors', self._blob('big', 12_345))
         self.assertEqual(local_inventory(self.root), [('model.safetensors', 12_345)])
 
-    def test_la_revision_la_plus_recente_est_prise(self):
+    def test_the_most_recent_revision_is_taken(self):
         self._link('model.safetensors', self._blob('v1', 10))
         old = self.root / 'snapshots' / 'old000'
         old.mkdir()
-        os.symlink(os.path.relpath(self._blob('v0', 5), old), old / 'model.safetensors')
+        _symlink(self, self._blob('v0', 5), old / 'model.safetensors')
         os.utime(old, (1, 1))
         self.assertEqual(local_inventory(self.root), [('model.safetensors', 10)])
 
-    def test_un_dossier_de_poids_direct_se_lit_aussi(self):
+    def test_a_bare_weights_folder_is_read_too(self):
         d = Path(self.tmp.name) / 'poids'
         (d / 'sub').mkdir(parents=True)
         (d / 'a.gguf').write_bytes(b'\0' * 7)
         (d / 'sub' / 'b.bin').write_bytes(b'\0' * 3)
         self.assertEqual(local_inventory(d), [('a.gguf', 7), ('sub/b.bin', 3)])
 
-    def test_absent_rend_None_et_vide_rend_une_liste_vide(self):
+    def test_absent_yields_None_and_empty_yields_an_empty_list(self):
         """Indéterminable ≠ vide : la même distinction que `_siblings`."""
         self.assertIsNone(local_inventory(Path(self.tmp.name) / 'nulle-part'))
         self.assertIsNone(local_inventory(None))
@@ -94,7 +105,7 @@ class InventaireLocalTest(SimpleTestCase):
         vide.mkdir()
         self.assertEqual(local_inventory(vide), [])
 
-    def test_l_inventaire_local_se_pese_par_la_MEME_derivation_que_le_distant(self):
+    def test_the_local_inventory_is_weighed_by_the_SAME_derivation_as_the_remote(self):
         """Le point de la jumelle : aucune seconde règle de pesée — celle de la sœur."""
         try:
             from wama.model_manager.services.model_installer import components_of_files
@@ -116,14 +127,14 @@ class InventaireLocalTest(SimpleTestCase):
         self.assertEqual(r['largest_gb'], 2.0)
 
 
-class EnTeteSafetensorsTest(SimpleTestCase):
+class SafetensorsHeaderTest(SimpleTestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.dir = Path(self.tmp.name)
 
-    def test_parametres_et_dtypes_sont_lus_dans_l_en_tete_seul(self):
+    def test_params_and_dtypes_are_read_from_the_header_alone(self):
         p = self.dir / 'model.safetensors'
         _safetensors(p, {'__metadata__': {'format': 'pt'},
                          'a.weight': {'dtype': 'BF16', 'shape': [4, 8], 'data_offsets': [0, 64]},
@@ -131,13 +142,13 @@ class EnTeteSafetensorsTest(SimpleTestCase):
                          'b': {'dtype': 'F32', 'shape': [2, 2, 2], 'data_offsets': [80, 112]}})
         self.assertEqual(safetensors_facts(p), {'params': 32 + 8 + 8, 'dtypes': ['BF16', 'F32']})
 
-    def test_un_fichier_illisible_rend_None_sans_lever(self):
+    def test_an_unreadable_file_yields_None_without_raising(self):
         p = self.dir / 'pas-un.safetensors'
         p.write_bytes(b'\x01\x02')
         self.assertIsNone(safetensors_facts(p))
         self.assertIsNone(safetensors_facts(self.dir / 'absent.safetensors'))
 
-    def test_une_longueur_d_en_tete_absurde_est_refusee(self):
+    def test_an_absurd_header_length_is_refused(self):
         """Un en-tête annoncé à 1 To ne se lit pas en mémoire : on rend None, on ne tente pas."""
         p = self.dir / 'louche.safetensors'
         with open(p, 'wb') as fh:

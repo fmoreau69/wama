@@ -80,7 +80,13 @@ FRENCH_WORDS = frozenset({
     'volet', 'volets',
 })
 #: Identifiants ACCEPTES malgre un mot de la liste : homonymes anglais, ou API tierce imposee.
-ALLOWED = frozenset({'liste_id'})
+#: ⚠ `declare`/`declares` ne se retirent PAS de la liste bien qu'anglais aussi : mesuré le
+#: 19/09, ils portent seuls 105 identifiants français (participe sans accent, `modele_declare`).
+#: Un nom anglais qu'ils attrapent se met ICI, en entier.
+ALLOWED = frozenset({
+    'liste_id',
+    'test_an_adapter_declares_nothing_rather_than_a_misleading_weight',   # verbe anglais
+})
 #: Un accent est un signal CERTAIN (Python 3 les accepte dans les identifiants).
 ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖÙÛÜŸÇ]')
 
@@ -94,13 +100,15 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 #: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
 #: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
 #: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
-BUDGET_CODE = 2644          # production + fichiers de tests hors noms (2647 avant la regle des jumeaux)
+BUDGET_CODE = 2614          # production + fichiers de tests hors noms (2644 avant l'exclusion des jumelles)
 #: 2653 au 1er releve du 19/09 ; -6 par la 1re passe de renommage du meme jour
 #: (`annoncer_telechargement` -> `warn_if_weights_missing`, `SEUIL_ANNONCE_GO` ->
-#: `SIZE_MENTION_THRESHOLD_GB`, `cle_catalogue` -> `catalog_key` : 39 occurrences).
+#: `SIZE_MENTION_THRESHOLD_GB`, `cle_catalogue` -> `catalog_key` : 39 occurrences) ; -3 par la
+#: regle des jumeaux ; -30 le soir meme, quand les jumelles bac a sable (code GENERE, gitignore)
+#: sont sorties du perimetre — le compte doit etre le MEME sur un clone que sur ce disque.
 BUDGET_TEST_CLASSES = 132   # noms de classes `*Test` (133 avant la 1re bascule)
-BUDGET_TEST_NAMES = 1294    # noms de methodes `test_*` — sur 2792 (46 %)
-#: Ce que coute l'uniformisation complete, pour memoire : 4081 (4084 au 1er releve —
+BUDGET_TEST_NAMES = 1287    # noms de methodes `test_*` — sur 2807 (46 %) ; 1294 avec les jumelles
+#: Ce que coute l'uniformisation complete, pour memoire : 4033 (4084 au 1er releve —
 #: le premier fichier de tests ecrit APRES la bascule a deja rendu 3 noms).
 BUDGET_TOTAL = BUDGET_CODE + BUDGET_TEST_CLASSES + BUDGET_TEST_NAMES
 
@@ -160,13 +168,22 @@ class _Collector(ast.NodeVisitor):
 
 
 def python_files(base: Path):
+    """Les `.py` du périmètre. Les jumelles bac à sable (`wama/<app>_NN/`, forme
+    `sandbox.LABEL_RE`, gitignorées) en sont EXCLUES comme partout ailleurs (grille, export,
+    `doc_facts`) : du code GÉNÉRÉ, copie d'une app déjà comptée — et absent d'un clone. Mesuré
+    le 19/09 : 4 jumelles sur ce disque pesaient 7 noms de tests dans le budget, qu'un worktree
+    de HEAD ne retrouvait pas (1287 contre 1294) — un budget doit se mesurer pareil partout."""
+    from wama.common.sandbox import LABEL_RE
     for root in ROOTS:
         folder = base / root
         if not folder.is_dir():
             continue
         for path in sorted(folder.rglob('*.py')):
-            if not any(part in SKIPPED for part in path.parts):
-                yield path
+            if any(part in SKIPPED for part in path.parts):
+                continue
+            if LABEL_RE.match(path.relative_to(folder).parts[0]):
+                continue
+            yield path
 
 
 def scan_test_names(base: Path):
