@@ -177,6 +177,43 @@ class PersistWeightsTest(_FakeModelsRoot):
         self.assertEqual(ModelSyncService().persist_weights(keys=['imager:a']), 1)
         self.assertIsNone(self._weights('imager:b'))
 
+    def test_precision_is_read_from_the_headers_of_the_retained_files_per_role(self):
+        """Le pic par précision a besoin des PARAMÈTRES et du dtype de chaque composant : lus
+        dans l'en-tête des fichiers que la dérivation a retenus. Un rôle sans safetensors lisible
+        (`.bin`) n'apparaît pas — l'absence se lit, elle ne vaut pas zéro."""
+        from wama.model_manager.tests_local_inventory import _safetensors
+        root = self.snapshot('Org/Prec', {'vae/diffusion_pytorch_model.bin': 4 * MIB,
+                                          'model_index.json': 400})
+        rev = root / 'snapshots' / 'rev0'
+        for shard in ('00001-of-00002', '00002-of-00002'):
+            p = rev / 'transformer' / f'diffusion_pytorch_model-{shard}.safetensors'
+            _safetensors(p, {'w': {'dtype': 'BF16', 'shape': [1024, 512],
+                                   'data_offsets': [0, 1024 * 512 * 2]}})
+            with open(p, 'r+b') as fh:
+                fh.truncate(8 * MIB)                    # la taille compte, l'en-tête reste intact
+        self._row('imager:prec', 'Org/Prec')
+        self.assertEqual(ModelSyncService().persist_weights(), 1)
+        w = self._weights('imager:prec')
+        self.assertEqual(w['precision'], {'transformer': {'params': 2 * 1024 * 512,
+                                                          'dtypes': ['BF16']}})
+        self.assertNotIn('files', w)
+        self.assertEqual(w['components']['transformer'], 0.016)
+
+    def test_a_declaration_matching_no_installed_file_falls_back_to_the_repo_and_says_so(self):
+        """Le cas SDXL (2026-09-20) : installé en fp16, déclaré sur les fichiers pleine précision.
+        Plutôt que se taire, on pèse par la convention et on marque `declared_unmatched`."""
+        self.snapshot('Org/Fp16', {'unet/diffusion_pytorch_model.fp16.safetensors': 8 * MIB,
+                                   'vae/diffusion_pytorch_model.fp16.safetensors': 4 * MIB,
+                                   'model_index.json': 400})
+        full_only = {'components': [{'role': 'unet', 'pattern': 'unet/diffusion_pytorch_model.safetensors'},
+                                    {'role': 'vae', 'pattern': 'vae/diffusion_pytorch_model.safetensors'}]}
+        self._row('imager:fp16', 'Org/Fp16', composition=full_only)
+        self.assertEqual(ModelSyncService().persist_weights(), 1)
+        w = self._weights('imager:fp16')
+        self.assertTrue(w['declared_unmatched'])
+        self.assertEqual(w['source'], 'repo')
+        self.assertEqual(set(w['components']), {'unet', 'vae'})
+
     def test_weights_survive_the_next_sync_like_the_measure(self):
         self.snapshot('Org/Sticky', _PIPELINE)
         self._row('imager:sticky', 'Org/Sticky', composition=_DECLARED)
