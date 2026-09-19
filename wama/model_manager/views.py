@@ -1608,72 +1608,12 @@ def api_check_disk_space(request):
 
 # ── Prospection (proposés par IA) — Ollama-first ─────────────────────────────
 
-#: Marge à conserver APRÈS installation. Un disque système rempli à ras ne casse pas que le
-#: téléchargement : il casse les journaux, les fichiers temporaires de conversion et Postgres.
-MARGE_DISQUE_GO = 10.0
-
-
 # `_modele_remplace` a déménagé dans `services/model_installer.py::replaced_model`
 # (2026-08-18) : la tâche Celery d'installation en a besoin autant que la garde d'espace.
+# `MARGE_DISQUE_GO` et `_garde_espace_disque` l'ont suivi le 2026-09-19 sous les noms
+# `DISK_MARGIN_GB` et `disk_space_guard` : la garde est partagée par le bouton « Installer »
+# et l'outil de l'AI-Assistant, et une garde qui vit dans une vue ne protège que cette vue.
 
-
-def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = False,
-                         besoin_gb: float | None = None):
-    """
-    Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
-    passer, sinon le dict d'erreur à renvoyer tel quel.
-
-    `reclaim_gb` : espace que la DÉSINSTALLATION préalable de l'ancien modèle rendra. Sans ce
-    paramètre, le garde refusait un REMPLACEMENT pourtant légitime — cas réel mesuré :
-    qwen3.5:35b-a3b (22,2 Go) → qwen3.6:35b (22,3 Go) sur 23,7 Go libres. Le calcul naïf
-    (23,7 − 22,3 = 1,4 Go) refuse ; le calcul juste (23,7 + 22,2 − 22,3 = 23,6 Go) accepte.
-
-    Réutilise `SystemMonitor.get_disk_info()` (brique existante, WSL-aware : elle interroge
-    l'hôte Windows) — aucune mesure de stockage n'est réécrite ici. `AI-models` et
-    `D:\\.ollama\\models` sont sur le MÊME volume, un seul contrôle suffit donc.
-
-    Taille INDÉTERMINABLE = refus, pas passage en force : sur un volume déjà à 96 %, supposer
-    une taille optimiste revient à remplir le disque.
-    """
-    from wama.common.services.system_monitor import SystemMonitor
-    from .services.ollama_registry import size_gb
-
-    # `besoin_gb` fourni (candidat HF : poids `usedStorage` relevé à la prospection) →
-    # pas d'interrogation du registre Ollama, qui ne connaît pas ces modèles.
-    if besoin_gb:
-        besoin = float(besoin_gb)
-    else:
-        nom, _, tag = ref.partition(':')
-        besoin = size_gb(nom, tag or 'latest')
-    disque = SystemMonitor.get_disk_info()
-    if disque is None:
-        return None if force else {
-            'success': False, 'error': "Espace disque non mesurable — installation refusée.",
-            'raison': 'disque_inconnu', 'force_possible': True}
-
-    libre = float(disque.get('free_gb') or 0)
-    if besoin is None:
-        return None if force else {
-            'success': False,
-            'error': (f"Taille de « {ref} » indéterminable (manifeste illisible) ; "
-                      f"{libre:.1f} Go libres. Installation refusée par précaution."),
-            'raison': 'taille_inconnue', 'free_gb': libre, 'force_possible': True}
-
-    reste = libre + float(reclaim_gb or 0) - besoin
-    if reste < MARGE_DISQUE_GO and not force:
-        detail = (f" (après libération de {reclaim_gb:.1f} Go par l'ancien modèle)"
-                  if reclaim_gb else "")
-        return {
-            'success': False,
-            'error': (f"Espace insuffisant : « {ref} » pèse {besoin:.1f} Go, il reste "
-                      f"{libre:.1f} Go sur {disque.get('drive', 'le volume')}{detail} — après "
-                      f"installation il ne resterait que {reste:.1f} Go "
-                      f"(marge requise : {MARGE_DISQUE_GO:.0f} Go)."),
-            'raison': 'espace_insuffisant',
-            'needed_gb': besoin, 'free_gb': libre, 'reclaim_gb': round(float(reclaim_gb or 0), 1),
-            'after_gb': round(reste, 1),
-            'margin_gb': MARGE_DISQUE_GO, 'force_possible': True}
-    return None
 
 @login_required
 @user_passes_test(is_admin_or_dev)
@@ -1758,150 +1698,59 @@ def api_prospect_ollama(request):
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_prospect_install(request):
-    """Installe un candidat proposé (ollama pull) puis le retire de la liste proposée.
-    Accepte aussi une installation VISION directe sans candidat :
-    `{'source': 'yolo', 'name': 'yolo26s-seg'}` → poids officiels Ultralytics téléchargés
-    dans `AI-models/models/vision/yolo/<task>/` + sync du catalogue."""
-    from .models import AIModel
+    """Installe un modèle par sa CLÉ — candidat de prospection (`model_id`) ou ligne de
+    catalogue non téléchargée (`catalog_key`). Accepte aussi un nom de poids YOLO officiels
+    (`{'source': 'yolo', 'name': 'yolo26s-seg'}`) : il devient un CANDIDAT, puis suit la
+    même route que les autres.
+
+    Le corps du geste vit dans `model_installer.request_install` — choix de variante, garde
+    d'espace disque, idempotence, dispatch Celery —, partagé avec l'outil de l'AI-Assistant.
+    Cette vue ne fait plus que traduire le verdict en HTTP.
+
+    ⚠ L'entrée `{'spec': …}` est RETIRÉE (2026-09-19, alignement des routes) : elle installait
+    en SYNCHRONE, sans candidat et sans garde d'espace. Mesuré avant retrait : aucun appelant
+    (les trois `fetch` de la page envoient `model_id`, `model_id+force` ou `catalog_key`).
+    `install_from_spec` reste le pilote INTERNE des deux tâches Celery.
+    """
+    #: Pourquoi l'installation est refusée → code HTTP. Le 507 porte le dialogue de forçage.
+    CODES = {'not_found': 404, 'already_downloaded': 400, 'not_installable': 400,
+             'unknown_variant': 400, 'no_install_location': 400,
+             'insufficient_storage': 507}
+    from .services.model_installer import request_install
+
     try:
         data = json.loads(request.body or '{}')
-        # ── Install par DESCRIPTEUR (point d'entrée générique — UI/prospection/assistant) ──
         if data.get('spec'):
-            from .services.model_installer import install_from_spec
-            res = install_from_spec(data['spec'])
-            if not res.get('ok'):
-                return JsonResponse({'success': False, 'error': res.get('error', 'échec')}, status=500)
-            return JsonResponse({'success': True, 'installed': data['spec'].get('ref'),
-                                 'path': res.get('path')})
-        # ── Install d'un modèle DU CATALOGUE (non proposé, non téléchargé — 2026-08-27) ──
-        # L'app déclare l'emplacement (extra_info.install_dir, posé par sa découverte) ; le
-        # spec se dérive côté serveur, la séquence longue part en Celery (même suivi que les
-        # candidats). Cas d'origine : musicgen-melody « Not downloaded » sans aucun geste.
-        if data.get('catalog_key'):
-            from wama.common.utils.task_progress import progression_en_cours
+            return JsonResponse(
+                {'success': False,
+                 'error': "Un descripteur d'installation ne s'exécute plus directement : la "
+                          "route passe par un candidat de prospection, puis par l'installation "
+                          "de ce candidat (garde d'espace et tâche de fond comprises)."},
+                status=400)
 
-            from .services.model_installer import spec_for_catalog_row
-            from .services.prospector import _repo_weight_gb
-            from .tasks import INSTALL_CACHE_PREFIX, install_catalog_task
-            model = AIModel.objects.filter(model_key=data['catalog_key'],
-                                           is_proposed=False).first()
-            if model is None:
-                return JsonResponse({'success': False, 'error': 'Modèle introuvable'}, status=404)
-            if model.is_downloaded:
-                return JsonResponse({'success': False, 'error': 'Déjà téléchargé'}, status=400)
-            spec = spec_for_catalog_row(model)
-            if spec is None:
-                return JsonResponse(
-                    {'success': False,
-                     'error': "Ce modèle ne déclare pas d'emplacement d'installation "
-                              "(hf_id/install_dir) — il se téléchargera au premier usage."},
-                    status=400)
-            besoin = model.disk_gb or _repo_weight_gb(model.hf_id)
-            garde = _garde_espace_disque(model.hf_id, force=bool(data.get('force')),
-                                         besoin_gb=besoin)
-            if garde is not None:
-                return JsonResponse(garde, status=507)
-            en_cours = progression_en_cours(INSTALL_CACHE_PREFIX + model.model_key)
-            if en_cours:
-                return JsonResponse({'success': True, 'already_running': True,
-                                     'model_id': model.model_key, 'progress': en_cours})
-            started = install_catalog_task.delay(model.model_key)
-            return JsonResponse({'success': True, 'started': True,
-                                 'model_id': model.model_key, 'task_id': started.id})
-
-        # ── Raccourci YOLO : la même chose qu'un spec, par le même chemin. Il appelait le
-        # driver en direct et sautait la provenance (aucun manifeste, aucune identité
-        # `github:ultralytics/assets`) — corrigé le 2026-09-18.
         if data.get('source') == 'yolo':
-            from .services.model_installer import install_from_spec
-            res = install_from_spec({'kind': 'yolo', 'ref': data.get('name') or ''})
-            if not res.get('ok'):
-                return JsonResponse({'success': False, 'error': res.get('error', 'échec')}, status=500)
-            return JsonResponse({'success': True, 'installed': data.get('name'),
-                                 'path': res.get('path')})
-        model_id = data.get('model_id')
-        cand = AIModel.objects.filter(model_key=model_id, is_proposed=True).first()
-        if not cand:
-            return JsonResponse({'success': False, 'error': 'Candidat introuvable'}, status=404)
-        cand_spec = (cand.extra_info or {}).get('prospect', {}).get('spec')
-        if cand.source != 'ollama' and not cand_spec:
-            return JsonResponse({'success': False,
-                                 'error': "Candidat sans spec d'installation (source "
-                                          f"{cand.source}) — non installable."}, status=400)
+            # Poids YOLO demandés par leur nom : la proposition d'abord (elle valide le nom,
+            # pose la tâche et relève le poids), l'installation ensuite — par la route commune.
+            from .services.prospector import seed_yolo_candidate
+            propose = seed_yolo_candidate(data.get('name') or '')
+            if not propose.get('ok'):
+                return JsonResponse({'success': False, 'error': propose['error']}, status=400)
+            key = propose['model_key']
+        else:
+            key = (data.get('model_id') or data.get('catalog_key') or '').strip()
 
-        # ── CHOIX DE VARIANTE (2026-08-27) : le juge évalue la faisabilité VRAM sur les
-        # variantes quantisées, mais l'installation tirait TOUJOURS les poids pleins du
-        # dépôt canonique (vécu MiniMax-Music3 : 54 Go inexploitables sur 24 Go de VRAM).
-        # L'UI propose désormais les options (api_prospect_install_options) ; le choix
-        # validé est PERSISTÉ dans le spec du candidat — la tâche Celery relit le candidat
-        # en base, donc la sélection de l'utilisateur est respectée de bout en bout.
-        besoin_hf = cand.disk_gb or None
-        variant_ref = data.get('variant_ref')
-        variant_file = data.get('variant_file')
-        if variant_ref and cand.source != 'ollama':
-            from .services.prospector import spec_for_choice
-            spec_choisi = spec_for_choice(cand, variant_ref, variant_file)
-            if spec_choisi is None:
-                return JsonResponse({'success': False,
-                                     'error': f"Choix inconnu ({variant_ref}"
-                                              f"{' / ' + variant_file if variant_file else ''}) "
-                                              "— recharger les options."}, status=400)
-            info = dict(cand.extra_info or {})
-            pr = dict(info.get('prospect') or {})
-            pr['spec'] = spec_choisi
-            pr['chosen_variant'] = {'ref': variant_ref, 'file': variant_file}
-            info['prospect'] = pr
-            cand.extra_info = info
-            cand.save(update_fields=['extra_info'])
-            # La garde d'espace se calcule sur le POIDS DU CHOIX, pas sur les poids pleins.
-            variantes = {v['hf_id']: v for v in (pr.get('quant_variants') or [])}
-            if variant_file:
-                tailles = {f['file']: f['gb']
-                           for f in (variantes.get(variant_ref, {}).get('files') or [])}
-                besoin_hf = tailles.get(variant_file) or None
-            elif variant_ref != cand.hf_id:
-                besoin_hf = (variantes.get(variant_ref) or {}).get('disk_gb') or None
-
-        # ── GARDE D'ESPACE DISQUE (SYNCHRONE : le 507/forçage est un dialogue) ──
-        # `ollama pull` n'a AUCUN garde-fou : il télécharge jusqu'à saturer le volume. Mesuré le
-        # 2026-08-04, D: était à 96 % (23,7 Go libres) alors que `qwen3.6:35b` pèse 22,3 Go —
-        # une installation aurait laissé ~1,4 Go. Rien n'est libéré par ailleurs : l'ancien
-        # modèle n'est pas supprimé et les modèles Ollama ne sont pas sauvegardés
-        # (décision 2026-08-04, PROSPECTION_PIPELINE.md).
-        # REMPLACEMENT : un candidat « successeur » connaît le modèle qu'il remplace. L'espace
-        # du nouveau n'est disponible qu'APRÈS retrait de l'ancien — on le compte donc dans le
-        # garde ; la séquence désinstallation → installation vit dans `install_candidate`.
-        from .services.model_installer import replaced_model
-        remplace, reclaim_gb = replaced_model(cand)
-
-        garde = _garde_espace_disque(cand.name, reclaim_gb=reclaim_gb,
-                                     force=bool(data.get('force')),
-                                     # HF : poids du CHOIX validé (variante quantisée : son
-                                     # dépôt/fichier), sinon poids pleins relevés à la
-                                     # prospection ; None = inconnu → refus prudent forçable.
-                                     besoin_gb=besoin_hf
-                                               if cand.source != 'ollama' else None)
-        if garde is not None:
-            garde['replaces'] = remplace
-            return JsonResponse(garde, status=507)   # 507 Insufficient Storage
-
-        # ── SÉQUENCE LONGUE → TÂCHE CELERY (2026-08-18) ─────────────────────
-        # Un pull de 18 Go dans la requête dépassait le timeout du proxy Apache : le
-        # navigateur recevait une page HTML d'erreur pendant que le worker continuait en
-        # aveugle, et un re-clic ouvrait une requête CONCURRENTE. Désormais : réponse
-        # immédiate + avancement pollable ; un re-clic REJOINT l'installation en cours
-        # (même motif d'idempotence que `_mirror_job_start`).
-        from wama.common.utils.task_progress import progression_en_cours
-
-        from .tasks import INSTALL_CACHE_PREFIX, install_proposed_task
-        en_cours = progression_en_cours(INSTALL_CACHE_PREFIX + model_id)
-        if en_cours:
-            return JsonResponse({'success': True, 'already_running': True,
-                                 'model_id': model_id, 'progress': en_cours})
-
-        started = install_proposed_task.delay(model_id)
-        return JsonResponse({'success': True, 'started': True,
-                             'model_id': model_id, 'task_id': started.id})
+        res = request_install(key, force=bool(data.get('force')),
+                              variant_ref=data.get('variant_ref') or '',
+                              variant_file=data.get('variant_file') or '')
+        if not res.get('ok'):
+            if res.get('reason') == 'insufficient_storage':
+                return JsonResponse(res['blocked'], status=507)   # 507 Insufficient Storage
+            return JsonResponse({'success': False, 'error': res.get('error', 'échec')},
+                                status=CODES.get(res.get('reason'), 500))
+        return JsonResponse({'success': True, 'model_id': res['model_key'],
+                             **({'already_running': True, 'progress': res['progress']}
+                                if res.get('already_running')
+                                else {'started': True, 'task_id': res['task_id']})})
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:

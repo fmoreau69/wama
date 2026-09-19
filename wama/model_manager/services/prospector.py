@@ -786,6 +786,117 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
     return resume
 
 
+def seed_candidate_from_manifest(manifest: dict) -> dict:
+    """
+    Écrit/rafraîchit un CANDIDAT de prospection depuis un manifeste `model` — le chemin du
+    rôle `scout` (wama-dev-ai) vers la route commune.
+
+    Pourquoi ici et pas dans le script (2026-09-19, alignement des routes) : le scout
+    déposait son manifeste dans `wama-dev-ai/outputs/`, d'où RIEN ne repartait — ses capacités
+    jugées (model_type, task, composition) mouraient dans un fichier, et l'installation les
+    redécouvrait depuis la carte. L'enrichissement doit se faire AVANT l'installation, sur le
+    CANDIDAT, exactement comme le jugement de confiance : la ligne candidate est déjà un
+    manifeste `model` (`extract_model` l'extrait), c'est donc le même objet des deux côtés.
+
+    Ne décide rien : un candidat est une PROPOSITION, visible sur la page et rejetable d'un
+    clic. La garde de `write_candidate` protège une évaluation LLM déjà payée.
+
+    Retourne {'ok': True, 'model_key', 'created', 'task'} ou {'ok': False, 'error': …}.
+    """
+    from wama.model_manager.models import default_inputs_for
+
+    from .prospect_ollama import PROPOSED_PREFIX, write_candidate
+
+    manifest = manifest or {}
+    if manifest.get('manifest_kind') != 'model':
+        return {'ok': False, 'error': f"kind {manifest.get('manifest_kind')!r}, attendu 'model'"}
+    body = manifest.get('body') or {}
+    identity = body.get('identity') or {}
+    hf_id = (identity.get('hf_id') or '').strip()
+    if not hf_id or identity.get('source') != 'huggingface':
+        return {'ok': False,
+                'error': "seul un manifeste de modèle HuggingFace se propose ainsi "
+                         "(identity.hf_id + source='huggingface')"}
+    model_type = (identity.get('model_type') or '').strip()
+    if not model_type:
+        return {'ok': False, 'error': "identity.model_type manquant : le candidat n'aurait ni "
+                                      "catégorie d'installation ni référentiel de concurrence"}
+
+    caps = dict(body.get('capabilities') or {})
+    task = (caps.get('task') or '').strip()
+    if task:
+        # Ce que la tâche IMPLIQUE, posé sans écraser ce que le manifeste déclare déjà.
+        caps = {**default_inputs_for(task), **caps}
+    cand_key = PROPOSED_PREFIX + f"hf:{hf_id}"
+    created = write_candidate(
+        cand_key, nom=manifest.get('name') or hf_id.split('/')[-1], model_type=model_type,
+        source='huggingface',
+        description=(identity.get('description_short') or manifest.get('description')
+                     or f"[{task or model_type}] Proposé par le rôle scout.")[:500],
+        kind='new', confidence=None,
+        extra={'kind': 'new', 'role': f"scout:{task or model_type}", 'name': hf_id,
+               'reason': "manifeste produit par le rôle scout (wama-dev-ai)",
+               # Le spec porte la COMPOSITION quand le manifeste en déclare une : c'est elle
+               # qui fait tirer le jeu de poids COHÉRENT au lieu du dépôt entier.
+               'spec': {k: v for k, v in (
+                   ('kind', 'hf'), ('ref', hf_id), ('category', model_type),
+                   ('task', task), ('composition', body.get('composition')),
+                   ('note', 'manifeste scout')) if v}},
+        capabilities=caps,
+        hf_id=hf_id, license=str(identity.get('license') or '')[:64],
+        platform_ref=identity.get('platform_ref') or f"huggingface:{hf_id}",
+        disk_gb=float((body.get('resources') or {}).get('disk_gb') or 0.0),
+    )
+    return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}
+
+
+def seed_yolo_candidate(name: str) -> dict:
+    """
+    Candidat de prospection pour des poids YOLO OFFICIELS demandés PAR LEUR NOM.
+
+    L'installation VISION directe (`{'source': 'yolo', 'name': …}` → `install_from_spec`) était
+    la seconde entrée NUE de l'endpoint : elle sautait la garde d'espace ET la tâche de fond,
+    parce qu'elle n'avait pas de candidat où s'accrocher. Alignée sur la route commune
+    (2026-09-19) : un nom demandé devient un CANDIDAT porteur de son spec, de sa tâche et de
+    son poids, que `request_install` installe comme n'importe quel autre.
+
+    Rien n'est réinventé ici : la validation du nom et la cible viennent du driver lui-même
+    (`pull_yolo_weights(dry_run=True)` — un nom arbitraire, une URL ou un chemin sont refusés
+    là-bas), la tâche de `yolo_task_of`, la taille de `yolo_asset_gb`.
+
+    Retourne {'ok': True, 'model_key', 'created', 'task'} ou {'ok': False, 'error': …}.
+    """
+    from wama.model_manager.models import default_inputs_for
+
+    from .model_installer import pull_yolo_weights, yolo_asset_gb, yolo_task_of
+    from .prospect_ollama import PROPOSED_PREFIX, write_candidate
+
+    ref = (name or '').strip()
+    verdict = pull_yolo_weights(ref, dry_run=True)
+    if not verdict.get('ok'):
+        return {'ok': False, 'error': verdict.get('error', 'nom de poids YOLO invalide')}
+
+    base = ref[:-3] if ref.endswith('.pt') else ref
+    task = yolo_task_of(base)
+    cand_key = PROPOSED_PREFIX + f"yolo:{base}"
+    created = write_candidate(
+        cand_key, nom=base, model_type='vision', source='yolo',
+        description=f"[{task}] Poids officiels Ultralytics, demandés par leur nom.",
+        kind='new', confidence=None,
+        extra={'kind': 'new', 'role': f"yolo:{task}", 'name': base,
+               'reason': "poids YOLO officiels — demande explicite",
+               'spec': {'kind': 'yolo', 'ref': base, 'task': task,
+                        'note': 'installation VISION par nom'}},
+        # La tâche se DÉDUIT du suffixe du nom (mécanique, jamais un jugement) et entraîne ses
+        # modalités et entrées par défaut — le candidat porte donc les mêmes faits que la
+        # ligne installée les portera.
+        capabilities={'task': task, **default_inputs_for(task)},
+        platform_ref=f"github:ultralytics/assets:{base}",
+        disk_gb=yolo_asset_gb(base) or 0.0,
+    )
+    return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}
+
+
 def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
     """
     Prospection CIBLÉE : cherche `query` dans les noms de dépôts HF (toutes tâches de

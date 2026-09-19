@@ -177,7 +177,43 @@ def doublons_de_format(hf_id: str) -> list:
 
 
 # Suffixe de nom de poids → sous-dossier de tâche YOLO (AI-models/models/vision/yolo/<task>/).
+# ⚠ Ces valeurs SONT le vocabulaire `ModelTask` (segment/obb/pose/classify/detect) : le
+# sous-dossier et la tâche déclarée d'un YOLO sont un seul fait, pas deux conventions qui se
+# ressemblent — c'est ce qui permet de proposer un candidat YOLO avec sa tâche sans la redeviner.
 _YOLO_TASK_DIRS = {'-seg': 'segment', '-obb': 'obb', '-pose': 'pose', '-cls': 'classify'}
+
+
+#: URL STABLE des poids YOLO officiels (assets GitHub Ultralytics) — un seul domicile : le
+#: téléchargement et le relevé de taille la lisent ici.
+_YOLO_ASSET_URL = "https://github.com/ultralytics/assets/releases/latest/download/{}.pt"
+
+
+def yolo_asset_gb(name: str):
+    """
+    Poids en Go d'un asset YOLO officiel, relevé par un HEAD sur son URL de release
+    (None si injoignable ou taille non annoncée).
+
+    La prospection paie UN appel réseau pour connaître la taille d'un candidat — même idiome
+    que `_repo_weight_gb` côté HuggingFace. Sans ce relevé, la garde d'espace n'a rien à
+    mesurer et refuse « taille indéterminable » un fichier de 20 Mo.
+    """
+    import requests
+
+    base = (name or '')[:-3] if (name or '').endswith('.pt') else (name or '')
+    try:
+        rep = requests.head(_YOLO_ASSET_URL.format(base), timeout=15, allow_redirects=True)
+        taille = int(rep.headers.get('Content-Length') or 0)
+    except Exception:
+        return None
+    return round(taille / 1024 ** 3, 3) if taille else None
+
+
+def yolo_task_of(name: str) -> str:
+    """Tâche (`ModelTask`) d'un poids YOLO, déduite du suffixe de son nom — `detect` par défaut.
+    Accesseur UNIQUE : `pull_yolo_weights` en tire son sous-dossier, la proposition d'un
+    candidat YOLO en tire `capabilities['task']`."""
+    base = (name or '')[:-3] if (name or '').endswith('.pt') else (name or '')
+    return next((d for suf, d in _YOLO_TASK_DIRS.items() if base.endswith(suf)), 'detect')
 
 
 def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
@@ -201,7 +237,7 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
     # Noms officiels uniquement (yolo11s-seg, yolo26x, yolov12n-seg…) — pas d'URL arbitraire.
     if not re.fullmatch(r'yolo[a-z0-9._\-]+', base, re.IGNORECASE):
         return {'ok': False, 'error': f"nom de poids YOLO invalide: {name!r}"}
-    task = next((d for suf, d in _YOLO_TASK_DIRS.items() if base.endswith(suf)), 'detect')
+    task = yolo_task_of(base)
     target_dir = os.path.join(str(settings.AI_MODELS_DIR), 'models', 'vision', 'yolo', task)
     target = os.path.join(target_dir, f"{base}.pt")
     if dry_run:
@@ -210,7 +246,7 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
         return {'ok': True, 'path': target, 'already': True}
 
     os.makedirs(target_dir, exist_ok=True)
-    url = f"https://github.com/ultralytics/assets/releases/latest/download/{base}.pt"
+    url = _YOLO_ASSET_URL.format(base)
     tmp = target + '.part'
     try:
         with requests.get(url, stream=True, timeout=timeout, allow_redirects=True) as r:
@@ -270,12 +306,219 @@ def replaced_model(cand):
     return nom, float(ancien.disk_gb or 0)
 
 
+#: Marge laissée libre sur le volume APRÈS une installation (Go). Déménagée de
+#: `views.MARGE_DISQUE_GO` le 2026-09-19 : la garde d'espace est désormais partagée par la
+#: vue (bouton « Installer ») et l'outil de l'AI-Assistant — un seuil ne vit qu'à UN endroit.
+DISK_MARGIN_GB = 10.0
+
+
+def disk_space_guard(ref: str, *, reclaim_gb: float = 0.0, force: bool = False,
+                     needed_gb: float | None = None):
+    """
+    Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
+    passer, sinon le dict d'erreur à renvoyer tel quel.
+
+    `reclaim_gb` : espace que la DÉSINSTALLATION préalable de l'ancien modèle rendra. Sans ce
+    paramètre, le garde refusait un REMPLACEMENT pourtant légitime — cas réel mesuré :
+    qwen3.5:35b-a3b (22,2 Go) → qwen3.6:35b (22,3 Go) sur 23,7 Go libres. Le calcul naïf
+    (23,7 − 22,3 = 1,4 Go) refuse ; le calcul juste (23,7 + 22,2 − 22,3 = 23,6 Go) accepte.
+
+    Réutilise `SystemMonitor.get_disk_info()` (brique existante, WSL-aware : elle interroge
+    l'hôte Windows) — aucune mesure de stockage n'est réécrite ici. `AI-models` et
+    `D:\\.ollama\\models` sont sur le MÊME volume, un seul contrôle suffit donc.
+
+    Taille INDÉTERMINABLE = refus, pas passage en force : sur un volume déjà à 96 %, supposer
+    une taille optimiste revient à remplir le disque.
+
+    POURQUOI cette garde existe : `ollama pull` n'en a AUCUNE — il télécharge jusqu'à saturer
+    le volume. Mesuré le 2026-08-04 : D: était à 96 % (23,7 Go libres) alors que `qwen3.6:35b`
+    pèse 22,3 Go ; l'installation aurait laissé ~1,4 Go. Et rien n'est libéré par ailleurs —
+    l'ancien modèle n'est pas supprimé et les modèles Ollama ne sont pas sauvegardés (décision
+    2026-08-04, PROSPECTION_PIPELINE.md). Un disque plein ne casse pas que le téléchargement :
+    il casse les journaux, les fichiers temporaires de conversion et Postgres.
+
+    (Corps repris tel quel de `views._garde_espace_disque` le 2026-09-19 — seuls les
+    identifiants passent à l'anglais : `besoin_gb` → `needed_gb`, clé `raison` → `reason`.
+    Aucun consommateur JS ne lisait `raison` : le 507 ne lit que `error` et `force_possible`.)
+    """
+    from wama.common.services.system_monitor import SystemMonitor
+
+    from .ollama_registry import size_gb
+
+    # `needed_gb` fourni (candidat HF : poids `usedStorage` relevé à la prospection) →
+    # pas d'interrogation du registre Ollama, qui ne connaît pas ces modèles.
+    if needed_gb:
+        needed = float(needed_gb)
+    else:
+        nom, _, tag = ref.partition(':')
+        needed = size_gb(nom, tag or 'latest')
+    disque = SystemMonitor.get_disk_info()
+    if disque is None:
+        return None if force else {
+            'success': False, 'error': "Espace disque non mesurable — installation refusée.",
+            'reason': 'disque_inconnu', 'force_possible': True}
+
+    libre = float(disque.get('free_gb') or 0)
+    if needed is None:
+        return None if force else {
+            'success': False,
+            'error': (f"Taille de « {ref} » indéterminable (manifeste illisible) ; "
+                      f"{libre:.1f} Go libres. Installation refusée par précaution."),
+            'reason': 'taille_inconnue', 'free_gb': libre, 'force_possible': True}
+
+    reste = libre + float(reclaim_gb or 0) - needed
+    if reste < DISK_MARGIN_GB and not force:
+        detail = (f" (après libération de {reclaim_gb:.1f} Go par l'ancien modèle)"
+                  if reclaim_gb else "")
+        return {
+            'success': False,
+            'error': (f"Espace insuffisant : « {ref} » pèse {needed:.1f} Go, il reste "
+                      f"{libre:.1f} Go sur {disque.get('drive', 'le volume')}{detail} — après "
+                      f"installation il ne resterait que {reste:.1f} Go "
+                      f"(marge requise : {DISK_MARGIN_GB:.0f} Go)."),
+            'reason': 'espace_insuffisant',
+            'needed_gb': needed, 'free_gb': libre, 'reclaim_gb': round(float(reclaim_gb or 0), 1),
+            'after_gb': round(reste, 1),
+            'margin_gb': DISK_MARGIN_GB, 'force_possible': True}
+    return None
+
+
+def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
+    """
+    Persiste le choix de variante VALIDÉ dans le spec du candidat et rend le poids de CE
+    choix en Go (None = inconnu → la garde refusera, forçable). Rend `False` si le choix
+    est inconnu du candidat.
+
+    Le choix est PERSISTÉ parce que la tâche Celery relit le candidat en base : c'est ce qui
+    fait respecter la sélection de l'utilisateur de bout en bout (2026-08-27 — le juge évalue
+    la faisabilité VRAM sur les variantes quantisées, mais l'installation tirait TOUJOURS les
+    poids pleins du dépôt canonique ; vécu MiniMax-Music3, 54 Go inexploitables sur 24 Go).
+    """
+    from .prospector import spec_for_choice
+
+    spec = spec_for_choice(cand, variant_ref, variant_file)
+    if spec is None:
+        return False
+    info = dict(cand.extra_info or {})
+    prospect = dict(info.get('prospect') or {})
+    prospect['spec'] = spec
+    prospect['chosen_variant'] = {'ref': variant_ref, 'file': variant_file}
+    info['prospect'] = prospect
+    cand.extra_info = info
+    cand.save(update_fields=['extra_info'])
+
+    # La garde d'espace se calcule sur le POIDS DU CHOIX, pas sur les poids pleins.
+    variantes = {v['hf_id']: v for v in (prospect.get('quant_variants') or [])}
+    if variant_file:
+        tailles = {f['file']: f['gb']
+                   for f in (variantes.get(variant_ref, {}).get('files') or [])}
+        return tailles.get(variant_file) or None
+    if variant_ref != cand.hf_id:
+        return (variantes.get(variant_ref) or {}).get('disk_gb') or None
+    return cand.disk_gb or None
+
+
+def request_install(model_key: str, *, force: bool = False, variant_ref: str = '',
+                    variant_file: str = '') -> dict:
+    """
+    DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
+    garde d'espace disque, idempotence, puis dispatch de la séquence longue en Celery.
+
+    UNE SEULE ROUTE d'installation depuis l'extérieur (2026-09-19, alignement des routes) :
+    la vue HTTP (bouton du model_manager) et l'outil de l'AI-Assistant appellent CE corps.
+    Avant, la garde d'espace vivait dans la vue — un second appelant l'aurait donc sautée —
+    et l'endpoint acceptait en plus un `spec` NU : une installation sans candidat, sans
+    garde d'espace et en SYNCHRONE. `install_from_spec` reste le pilote INTERNE (appelé par
+    les deux tâches Celery), il n'est plus une entrée publique.
+
+    `model_key` : candidat de prospection (`proposed:*`) ou ligne de catalogue non téléchargée
+    — c'est la même clé que porte la card, dans les deux cas. Retourne, sans jamais lever :
+      {'ok': True,  'started': True,        'model_key', 'task_id'}
+      {'ok': True,  'already_running': True,'model_key', 'progress'}   # un re-clic REJOINT
+      {'ok': False, 'reason': 'insufficient_storage', 'blocked': {…, 'replaces': …}}
+      {'ok': False, 'reason': 'not_found'|'already_downloaded'|'not_installable'
+                              |'unknown_variant'|'no_install_location', 'error': …}
+    """
+    from wama.common.utils.task_progress import progression_en_cours
+
+    from ..models import AIModel
+    from ..tasks import INSTALL_CACHE_PREFIX, install_catalog_task, install_proposed_task
+
+    key = (model_key or '').strip()
+    if not key:
+        return {'ok': False, 'reason': 'not_found', 'error': 'model_key requis'}
+    cand = AIModel.objects.filter(model_key=key, is_proposed=True).first()
+    row = None if cand else AIModel.objects.filter(model_key=key, is_proposed=False).first()
+    if cand is None and row is None:
+        return {'ok': False, 'reason': 'not_found',
+                'error': f"Ni candidat de prospection ni modèle de catalogue : « {key} »."}
+
+    replaces, reclaim_gb = None, 0.0
+    if cand is not None:
+        cand_spec = ((cand.extra_info or {}).get('prospect') or {}).get('spec')
+        if cand.source != 'ollama' and not cand_spec:
+            return {'ok': False, 'reason': 'not_installable',
+                    'error': f"Candidat sans spec d'installation (source {cand.source}) "
+                             "— non installable."}
+        needed_gb = cand.disk_gb or None
+        if variant_ref and cand.source != 'ollama':
+            choisi = _persist_variant_choice(cand, variant_ref, variant_file)
+            if choisi is False:
+                return {'ok': False, 'reason': 'unknown_variant',
+                        'error': f"Choix inconnu ({variant_ref}"
+                                 f"{' / ' + variant_file if variant_file else ''}) "
+                                 "— recharger les options."}
+            needed_gb = choisi
+        # REMPLACEMENT : l'espace du nouveau n'est disponible qu'APRÈS retrait de l'ancien —
+        # on le compte donc dans la garde ; la séquence désinstallation → installation vit
+        # dans `install_candidate` (décision 2026-08-04, PROSPECTION_PIPELINE.md).
+        replaces, reclaim_gb = replaced_model(cand)
+        # ⚠ Ollama : `needed_gb=None` fait interroger le registre Ollama par la garde (elle
+        # connaît la taille d'un tag) ; un poids HF, lui, est relevé à la prospection.
+        ref, needed = cand.name, (needed_gb if cand.source != 'ollama' else None)
+        task, target = install_proposed_task, cand
+    else:
+        # LIGNE DE CATALOGUE non téléchargée (2026-08-27) : l'app déclare l'emplacement
+        # (`extra_info.install_dir`, posé par sa découverte) et le spec se dérive côté serveur.
+        # Cas d'origine : musicgen-melody affichait « Not downloaded » sans qu'aucun geste ne
+        # permette de le télécharger.
+        if row.is_downloaded:
+            return {'ok': False, 'reason': 'already_downloaded',
+                    'error': f"« {row.name} » est déjà téléchargé."}
+        if spec_for_catalog_row(row) is None:
+            return {'ok': False, 'reason': 'no_install_location',
+                    'error': "Ce modèle ne déclare pas d'emplacement d'installation "
+                             "(hf_id/install_dir) — il se téléchargera au premier usage."}
+        from .prospector import _repo_weight_gb
+        ref, needed = (row.hf_id or row.name), (row.disk_gb or _repo_weight_gb(row.hf_id))
+        task, target = install_catalog_task, row
+
+    garde = disk_space_guard(ref, reclaim_gb=reclaim_gb, force=force, needed_gb=needed)
+    if garde is not None:
+        return {'ok': False, 'reason': 'insufficient_storage',
+                'blocked': dict(garde, replaces=replaces)}
+
+    # ── SÉQUENCE LONGUE → TÂCHE CELERY (2026-08-18) ─────────────────────
+    # Un pull de 18 Go dans la requête dépassait le timeout du proxy Apache : le navigateur
+    # recevait une page HTML d'erreur pendant que le worker continuait en aveugle, et un
+    # re-clic ouvrait une requête CONCURRENTE. Désormais : réponse immédiate + avancement
+    # pollable ; un re-clic REJOINT l'installation en cours (motif de `_mirror_job_start`).
+    en_cours = progression_en_cours(INSTALL_CACHE_PREFIX + target.model_key)
+    if en_cours:
+        return {'ok': True, 'already_running': True, 'model_key': target.model_key,
+                'progress': en_cours}
+    started = task.delay(target.model_key)
+    return {'ok': True, 'started': True, 'model_key': target.model_key,
+            'task_id': started.id}
+
+
 def install_candidate(cand, progress=None) -> dict:
     """
     Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
     la tâche Celery (`install_proposed_task`, chemin normal depuis le 2026-08-18) et
-    réutilisable en synchrone. La GARDE D'ESPACE DISQUE reste chez l'appelant : elle doit
-    répondre AVANT d'engager quoi que ce soit (le 507/forçage est un dialogue utilisateur).
+    réutilisable en synchrone. La GARDE D'ESPACE DISQUE reste chez l'appelant (`request_install`,
+    partagé par la vue et l'assistant) : elle doit répondre AVANT d'engager quoi que ce soit,
+    parce que le 507/forçage est un dialogue utilisateur.
 
     Retourne {'ok': True, 'installed': nom} ou {'ok': False, 'error': …[, 'restored',
     'replaced']}. `progress(status:str)` : avancement du pull (avec pourcentage).
@@ -332,7 +575,13 @@ def install_candidate(cand, progress=None) -> dict:
     # de manifeste), puis retire le candidat.
     if progress:
         progress("enregistrement au catalogue…")
-    record_provenance({'kind': 'ollama', 'ref': cand.name}, {})
+    # La TÂCHE du candidat voyage avec le descripteur (2026-09-19) : c'est `record_after_install`
+    # qui la pose, avec ce qu'elle implique (modalités, entrées par défaut). Le candidat Ollama
+    # la porte depuis sa découverte par RÔLE (`prospect_ollama`, `capabilities={'task': …}`) ;
+    # sans ce transport, seule la branche HF (`spec.task`) en bénéficiait, et un modèle Ollama
+    # installé repartait de ce que la découverte générique sait deviner de son nom.
+    record_provenance({'kind': 'ollama', 'ref': cand.name,
+                       'task': (cand.capabilities or {}).get('task') or ''}, {})
 
     # RÉCONCILIER LE REMPLACÉ. `register_after_install()` → `full_sync()` n'enlève rien :
     # c'est voulu (une indisponibilité passagère ne doit pas purger le catalogue), mais ici
