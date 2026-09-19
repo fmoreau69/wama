@@ -15432,3 +15432,64 @@ sous Windows a réécrit deux fichiers LF en CRLF (skill smoke, ledger) — invi
 0 défaut franc · corpus de manifestes **17 périmés** (9 apps + mcp + 7 ollama — voir ⚠ ci-dessus ;
 descendre à 8 dès que l'instance model_manager a commité et régénéré) · tests du périmètre
 **234 OK** · les 2 échecs `tests_mcp_dev_tools` restent préexistants et établis.
+
+---
+
+## §PALIER — 2026-09-19, « SOURCE UNIQUE DES CAPACITÉS : une seule route d'installation, une seule table tâche→catégorie, un corpus qui n'apprend rien de faux » — ✅ LIVRÉ, 4 commits NON POUSSÉS
+
+> Suite directe du chantier ouvert le 17/09 (`e4fe776e`, `7b292017`, `3b62c309`, `24b07af6`,
+> `4d36d9f4`). Plan validé par Fabien (« Oui je valide le plan ») ; les quatre pièces restantes
+> sont livrées. Domicile du détail : `wama/model_manager/PROSPECTION_PIPELINE.md` (sessions du
+> 19/09) et `WAMA_MANIFEST_ARCHITECTURE.md §6ter` (règles 2 et 3 du corpus).
+
+| commit | pièce |
+|---|---|
+| `371688a0` | la carte HuggingFace lue **mécaniquement** — `prospector.card_facts` (tâche par pipeline ET tags, langues `cardData.language`, moteur si servi), à la prospection comme à l'installation. **29 lignes** ont reçu leurs langues ; ACE-Step corrigé en `text-to-music` |
+| `96ca29b9` | **une seule route d'installation** : `model_installer.request_install` (variante, garde d'espace, idempotence, Celery) partagé par le bouton ET l'assistant ; l'entrée `spec` nue retirée ; le nom YOLO devient un candidat ; `search_models` + `install_model` au `tool_api` ; scout → candidat ; integrator → la LIGNE |
+| `43901aba` | **tâche → catégorie ne se dit plus qu'à un endroit** (les 2 tables du prospector supprimées, `PLATFORM_TAG_ALIASES` + `wama_task`) ; `capabilities['tasks']` entre au vocabulaire canonique et au contrôle |
+| `ad8d6993` | le corpus **ÉNUMÈRE** le catalogue (17 manifestes, dont 12 lignes cloud sans app) et ne porte **que du déclaratif** : 82 chemins absolus de cette machine retirés d'un dépôt public ; collision de CASSE refusée ; exemples few-shot des rôles choisis PAR NATURE |
+
+**Trois mesures qui ont changé une décision** (elles valent plus que le plan) :
+1. l'endpoint d'installation avait **quatre** entrées, dont **deux nues** qui installaient en
+   synchrone **sans candidat ni garde d'espace** — et **aucun appelant** ; la garde vivait dans la
+   vue, donc le futur outil d'assistant l'aurait sautée. *Une garde qui vit dans une vue ne
+   protège que cette vue.*
+2. les deux tables tâche→catégorie **ne se contredisaient pas** (0 désaccord sur 12 tags) : le
+   défaut était la COEXISTENCE, pas le contenu — et celle du prospector **ignorait 20 de nos 26
+   tâches**, pour lesquelles la borne par catégorie de `select_model` ne s'activait pas. Les 3
+   rattachements manquants étaient **déjà écrits** dans `_HF_TAG_TASK` : un déménagement.
+3. `extra_info.path` portait le chemin **absolu** de la machine sur **82 des 141** manifestes de
+   modèles. `write_back_model` ne projette jamais `extra_info` : le retirer ne perd rien.
+
+**Défaut réel trouvé en chemin** : `nvidia/LocateAnything-3B` publie `pipeline_tag:
+image-text-to-text` (VLM par architecture) et tague `object-detection` — il entrait en
+`captioning`/`vlm`. 4ᵉ branche de `hf_task_to_wama` (le TAG départage ce que le pipeline_tag
+mélange), tâche `detect` + modalités posées par le mécanisme, manifeste réexporté.
+
+**Contrôles MESURÉS à ce palier** : `check_model_taxonomy` entièrement vert (dont « métiers
+secondaires : 16 déclarations sur 4 tâches, catégories homogènes ») · `check_docs --strict`
+**0 / 0 sur 2102** · `manifest_export --check` = **11 périmés PRÉEXISTANTS** (10 apps + `mcp`) et
+**0 modèle** · plus **aucun chemin absolu** dans les 6 dossiers du corpus · tests : 349 OK
+(model_manager + catalogues + capacités), 120 OK (catalogues + manifestes), 30 OK sur le périmètre
+neuf. ⚠ `tests_tool_api_lectures.AddItemToMediaLibraryTest` échoue — **préexistant, étranger à ce
+palier** : il vient des commits médiathèque du 18→19/09 (`35a07834`…`be89ef56`), l'app DÉCLARE
+désormais le rôle là où le test attend une ambiguïté.
+
+### 🔚 DEUX DÉCISIONS POUR FABIEN (rien n'est tranché)
+
+1. **`zero-shot-object-detection`** figure dans `PLATFORM_TASKS_NOT_CARRIED`, donc la détection en
+   **vocabulaire ouvert** n'a pas de tâche. `LocateAnything-3B` est rangé en `detect` : il détecte
+   bien, mais on perd « le vocabulaire est ouvert » — c'est-à-dire justement ce qui le distingue
+   pour le detector. Déclarer la tâche, ou l'assumer en `detect` ?
+2. **Deux lignes Albert périmées** (`albert:openai/gpt-oss-120b`,
+   `albert:qwen3-coder-30b-A3b-instruct` — `is_available=False`, `platform_ref` vide) : résidus
+   d'avant la normalisation des clés, et ce sont elles qui ont fait écraser un manifeste valide le
+   18/09 (même nom de fichier à la casse près). Les retirer, ou les garder marquées ? La garde de
+   `_nom_fichier` protège désormais dans les deux cas.
+
+**Restes assumés, inchangés** : ligne doublon `huggingface:FastVideo/FastWan…` (à retirer par
+réconciliation — son manifeste existe maintenant, *le corpus reflète le catalogue, y compris ses
+doublons*) · `RunOutcome.signal`/`detail` et `extra_info['prospect']` en français (données) ·
+`docs/dev/briques.md` à régénérer · `mecanismes.py` (déclarer `cloud_models`/`secret_crypto`/
+`mcp_server`/`dev_tools` — fichier tenu par une autre instance) · `sync_benchmarks` à relancer pour
+apparier les lignes cloud aux bancs.
