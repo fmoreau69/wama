@@ -56,8 +56,16 @@ class ModelTask(models.TextChoices):
     # entrer un modele de ce type au catalogue, et `check_model_taxonomy` refuserait a juste
     # titre une valeur non declaree. Mieux vaut la declarer que voir le garde-fou contourne.
     DEPTH_ESTIMATION = 'depth-estimation', 'Estimation de profondeur'
+    # Quatre taches ECRITES par la decouverte depuis des semaines sans etre declarees (mesure
+    # 2026-09-17 par `check_model_taxonomy` : diarization 1, face-analysis 3, face-restoration 1,
+    # image-to-3d 1). Hors vocabulaire, un modele n'a ni categorie derivable ni entrees par
+    # defaut ; on declare ce que le registre fait deja plutot que de le laisser passer.
+    FACE_ANALYSIS = 'face-analysis', 'Analyse de visage'
+    FACE_RESTORATION = 'face-restoration', 'Restauration de visage'
+    IMAGE_TO_3D = 'image-to-3d', 'Image → 3D'
     # audio / parole
     TRANSCRIPTION = 'transcription', 'Transcription'
+    DIARIZATION = 'diarization', 'Diarisation'
     TEXT_TO_SPEECH = 'text-to-speech', 'Synthèse vocale'
     AUDIO_ENHANCE = 'audio-enhance', 'Débruitage audio'
     DENOISE = 'denoise', 'Débruitage'
@@ -123,7 +131,13 @@ TASK_TO_PLATFORM_TAGS = {
     ModelTask.OBB:                (None,                           'obb',       None,        None),
     ModelTask.OCR:                ('image-to-text',                None,        None,        'OCR'),
     ModelTask.DEPTH_ESTIMATION:   ('depth-estimation',             None,        None,        'Depth Estimation'),
+    # `image-to-3d` est un tag HF (TripoSR le porte) ; la restauration de visage se range avec
+    # les autres image→image ; l'analyse de visage et la diarisation n'ont d'equivalent nulle part.
+    ModelTask.FACE_ANALYSIS:      (None,                           None,        None,        None),
+    ModelTask.FACE_RESTORATION:   ('image-to-image',               None,        None,        None),
+    ModelTask.IMAGE_TO_3D:        ('image-to-3d',                  None,        None,        None),
     ModelTask.TRANSCRIPTION:      ('automatic-speech-recognition', None,        None,        None),
+    ModelTask.DIARIZATION:        (None,                           None,        None,        None),
     ModelTask.TEXT_TO_SPEECH:     ('text-to-speech',               None,        None,        None),
     ModelTask.AUDIO_ENHANCE:      ('audio-to-audio',               None,        None,        None),
     ModelTask.DENOISE:            ('image-to-image',               None,        None,        None),
@@ -161,8 +175,12 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.OBB:                ModelType.VISION,
     ModelTask.POSE:               ModelType.VISION,
     ModelTask.DEPTH_ESTIMATION:   ModelType.VISION,
+    ModelTask.FACE_ANALYSIS:      ModelType.VISION,
+    ModelTask.FACE_RESTORATION:   ModelType.VISION,
+    ModelTask.IMAGE_TO_3D:        ModelType.VISION,
     ModelTask.OCR:                ModelType.OCR,
     ModelTask.TRANSCRIPTION:      ModelType.SPEECH,
+    ModelTask.DIARIZATION:        ModelType.SPEECH,
     ModelTask.TEXT_TO_SPEECH:     ModelType.SPEECH,
     ModelTask.AUDIO_ENHANCE:      ModelType.SPEECH,
     ModelTask.UPSCALE:            ModelType.UPSCALING,
@@ -192,6 +210,65 @@ def model_type_for_task(task: str):
         if tache.value == t:
             return categorie.value
     return None
+
+
+# NOTRE tâche → MODALITÉS et ENTRÉES par défaut (vocabulaire de `INPUT_TYPES`, `app_modes.py`).
+#
+# Pourquoi (2026-09-19, chantier « source unique des capacités ») : `modalities`,
+# `inputs_required` et `inputs_optional` sont ce que lit l'appariement entrée ↔ modèle
+# (`model_selector.matches_inputs`) et ce dont `INPUT_MODEL_MATCHING §6.3` dérive les slots
+# d'une app. Ils étaient écrits EN DUR, app par app, dans `model_registry` (13 sites) — donc
+# jamais pour un modèle qu'aucune app ne déclare : 8 modèles installés par la chaîne générique
+# n'avaient que `task`. Cette table dit ce qu'une tâche IMPLIQUE ; elle est remplie avec
+# exactement ce que le registre écrivait, et elle ne fait que COMBLER (fusion clé par clé —
+# un modèle qui déclare plus, comme SAM3 promptable par texte ou LTX qui accepte une image
+# en option, garde sa déclaration). Le jugement d'un rôle LLM (scout) complète ce que la
+# tâche ne dit pas : langues, clonage, contexte.
+# `check_model_taxonomy` vérifie qu'aucune tâche n'en manque et que les valeurs sont du vocabulaire.
+TASK_DEFAULT_INPUTS = {
+    #                              modalities                      inputs_required            inputs_optional
+    ModelTask.DETECT:             (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.SEGMENT:            (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.CLASSIFY:           (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.OBB:                (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.POSE:               (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.OCR:                (('image', 'document'),          ('work_file',),            ()),
+    ModelTask.DEPTH_ESTIMATION:   (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.FACE_ANALYSIS:      (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.FACE_RESTORATION:   (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.IMAGE_TO_3D:        (('image',),                     ('work_file',),            ()),
+    ModelTask.TRANSCRIPTION:      (('audio',),                     ('work_audio',),           ()),
+    ModelTask.DIARIZATION:        (('audio',),                     ('work_audio',),           ()),
+    ModelTask.TEXT_TO_SPEECH:     (('audio',),                     ('prompt',),               ()),
+    ModelTask.AUDIO_ENHANCE:      (('audio',),                     ('work_audio',),           ()),
+    ModelTask.DENOISE:            (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.UPSCALE:            (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.TEXT_GENERATION:    (('text',),                      ('prompt',),               ()),
+    ModelTask.FEATURE_EXTRACTION: (('text',),                      ('prompt',),               ()),
+    ModelTask.CAPTIONING:         (('image',),                     ('work_file',),            ()),
+    ModelTask.TEXT_TO_IMAGE:      (('image',),                     ('prompt',),               ()),
+    ModelTask.IMAGE_TO_IMAGE:     (('image',),                     ('prompt', 'work_image'),  ()),
+    ModelTask.TEXT_TO_VIDEO:      (('video',),                     ('prompt',),               ()),
+    ModelTask.IMAGE_TO_VIDEO:     (('video',),                     ('prompt', 'work_image'),  ()),
+    ModelTask.TEXT_TO_MUSIC:      (('audio',),                     ('prompt',),               ()),
+    ModelTask.TEXT_TO_AUDIO:      (('audio',),                     ('prompt',),               ()),
+    ModelTask.LIP_SYNC:           (('image', 'audio', 'video'),    ('work_image', 'work_audio'), ()),
+}
+
+
+def default_inputs_for(task: str) -> dict:
+    """`{modalities, inputs_required[, inputs_optional]}` qu'une tâche IMPLIQUE, ou {} si la
+    tâche est inconnue (on ne devine pas). Accepte le vocabulaire d'une plateforme
+    (`canonical_task`). Les listes vides ne sont pas écrites : « rien d'optionnel » n'est pas
+    un fait à poser par-dessus une déclaration."""
+    value = canonical_task(task)
+    for known, (modalities, required, optional) in TASK_DEFAULT_INPUTS.items():
+        if known.value == value:
+            out = {'modalities': list(modalities), 'inputs_required': list(required)}
+            if optional:
+                out['inputs_optional'] = list(optional)
+            return out
+    return {}
 
 
 def platform_tag(task: str, platform: str = 'huggingface'):

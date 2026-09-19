@@ -1,6 +1,13 @@
 {
   "body": {
     "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
       "task": "ocr",
       "vision": true
     },

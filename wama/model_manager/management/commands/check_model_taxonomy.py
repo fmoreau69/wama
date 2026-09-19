@@ -100,6 +100,29 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"✓ ancrage : les {len(TASK_TO_MODEL_TYPE)} taches declarent leur categorie"))
 
+        # ── ENTREES PAR DEFAUT : toute tache dit ce qu'elle implique, dans le vocabulaire ──
+        # (2026-09-19) Sans entree ici, un modele installe sans app n'aurait ni modalite ni
+        # entree, donc resterait invisible de l'appariement entree <-> modele.
+        from wama.common.utils.app_modes import INPUT_TYPES
+        from wama.common.utils.model_capabilities import MODALITIES
+        from wama.model_manager.models import TASK_DEFAULT_INPUTS
+        missing_defaults = sorted(t.value for t in ModelTask if t not in TASK_DEFAULT_INPUTS)
+        outside_vocabulary = []
+        for t, (modalities, required, optional) in TASK_DEFAULT_INPUTS.items():
+            outside_vocabulary += [f"{t.value}: modalite '{m}'" for m in modalities
+                                   if m not in MODALITIES]
+            outside_vocabulary += [f"{t.value}: entree '{e}'" for e in (*required, *optional)
+                                   if e not in INPUT_TYPES]
+        if missing_defaults or outside_vocabulary:
+            self.stdout.write(self.style.ERROR(
+                "✗ entrees par defaut (TASK_DEFAULT_INPUTS) : "
+                + (f"taches sans defaut : {', '.join(missing_defaults)} " if missing_defaults else '')
+                + (f"hors vocabulaire : {'; '.join(outside_vocabulary)}" if outside_vocabulary else '')))
+            raise SystemExit(1)
+        self.stdout.write(self.style.SUCCESS(
+            f"✓ entrees par defaut : les {len(TASK_DEFAULT_INPUTS)} taches disent leurs "
+            f"modalites et entrees, dans le vocabulaire"))
+
         manquantes = sorted(t for t in declares_task
                             if t not in {k.value for k in TASK_TO_PLATFORM_TAGS})
         if manquantes:

@@ -25,6 +25,10 @@ from typing import Any, Dict, List
 # Sentinelle « toutes langues / agnostique » — cohérente avec lang_routing (`'*' in langs`).
 ANY_LANGUAGE = "*"
 
+#: Vocabulaire FERMÉ de `modalities` — il ne vivait que dans la description de la clé ci-dessous
+#: (2026-09-19) ; `check_model_taxonomy` vérifie désormais les défauts par tâche contre lui.
+MODALITIES = ("image", "video", "audio", "document", "text")
+
 # ── Vocabulaire canonique : clé → description (documentation vivante) ──────────
 # Les valeurs indiquent le TYPE attendu. Un modèle ne déclare que les clés pertinentes pour son type.
 CANONICAL_CAPABILITIES: Dict[str, str] = {

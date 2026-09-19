@@ -1,6 +1,12 @@
 {
   "body": {
     "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "audio"
+      ],
       "supports_cloning": false,
       "task": "text-to-speech"
     },

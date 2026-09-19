@@ -700,6 +700,78 @@ class TaxonomieDeProspectionTest(TestCase):
                     self.assertIn(t, connues)
 
 
+class EntreesParDefautDeLaTacheTest(TestCase):
+    """`TASK_DEFAULT_INPUTS` (2026-09-19) : ce qu'une tâche IMPLIQUE — modalités et entrées —
+    pour qu'un modèle installé sans app entre dans l'appariement entrée ↔ modèle. Mesuré avant :
+    8 modèles HF n'avaient que `task`, invisibles de `matches_inputs`.
+    """
+
+    def test_toute_tache_declare_ses_defauts_dans_le_vocabulaire(self):
+        from wama.common.utils.app_modes import INPUT_TYPES
+        from wama.common.utils.model_capabilities import MODALITIES
+        from .models import TASK_DEFAULT_INPUTS, ModelTask
+        for t in ModelTask:
+            with self.subTest(tache=t.value):
+                self.assertIn(t, TASK_DEFAULT_INPUTS)
+                modalites, requises, optionnelles = TASK_DEFAULT_INPUTS[t]
+                self.assertTrue(modalites and requises, "une tâche implique au moins une modalité et une entrée")
+                self.assertTrue(set(modalites) <= set(MODALITIES))
+                self.assertTrue(set(requises) | set(optionnelles) <= set(INPUT_TYPES))
+
+    def test_les_defauts_redisent_ce_que_le_registre_ecrit_en_dur(self):
+        """La table n'invente rien : elle reprend les valeurs des 13 sites de `model_registry`."""
+        from .models import default_inputs_for
+        self.assertEqual({'modalities': ['audio'], 'inputs_required': ['work_audio']},
+                         default_inputs_for('transcription'))
+        self.assertEqual({'modalities': ['image', 'video'], 'inputs_required': ['work_file']},
+                         default_inputs_for('detect'))
+        self.assertEqual({'modalities': ['image', 'document'], 'inputs_required': ['work_file']},
+                         default_inputs_for('ocr'))
+        self.assertEqual({'modalities': ['video'], 'inputs_required': ['prompt', 'work_image']},
+                         default_inputs_for('image-to-video'))
+        # Vocabulaire d'une plateforme accepté ; tâche inconnue : rien d'inventé.
+        self.assertEqual(default_inputs_for('transcription'),
+                         default_inputs_for('automatic-speech-recognition'))
+        self.assertEqual({}, default_inputs_for('tabular-classification'))
+        self.assertEqual({}, default_inputs_for(''))
+
+    def test_l_installation_pose_les_defauts_sans_ecraser_une_declaration(self):
+        """Le spec porte la tâche ; l'installation en déduit modalités et entrées, par le
+        manifeste, et ne touche pas à ce qu'une ligne déclare déjà (SAM3 : `prompt` en plus)."""
+        from .services import provenance as pv
+        nu = AIModel.objects.create(
+            model_key='huggingface:Org/Asr', name='Asr', model_type='speech', source='huggingface',
+            is_downloaded=True, hf_id='Org/Asr', capabilities={})
+        declare = AIModel.objects.create(
+            model_key='huggingface:Org/Seg', name='Seg', model_type='vision', source='huggingface',
+            is_downloaded=True, hf_id='Org/Seg',
+            capabilities={'inputs_required': ['work_file', 'prompt'], 'text_promptable': True})
+        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Asr'}), \
+                patch('django.core.management.call_command'):
+            pv.record_after_install({'kind': 'hf', 'ref': 'Org/Asr', 'task': 'transcription'},
+                                    ['huggingface:Org/Asr'])
+        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Seg'}), \
+                patch('django.core.management.call_command'):
+            pv.record_after_install({'kind': 'hf', 'ref': 'Org/Seg', 'task': 'segment'},
+                                    ['huggingface:Org/Seg'])
+        nu.refresh_from_db()
+        declare.refresh_from_db()
+        self.assertEqual({'task': 'transcription', 'modalities': ['audio'],
+                          'inputs_required': ['work_audio']}, nu.capabilities)
+        self.assertEqual(['work_file', 'prompt'], declare.capabilities['inputs_required'],
+                         "la déclaration plus riche prime sur le défaut")
+        self.assertEqual(['image', 'video'], declare.capabilities['modalities'], "le vide est comblé")
+
+    def test_un_modele_distant_qui_voit_ajoute_l_image_a_ses_modalites(self):
+        from .services.cloud_models import model_info_for
+        chat = model_info_for('albert', {'id': 'g', 'type': 'image-text-to-text', 'aliases': []})
+        self.assertEqual(['text', 'image'], chat.capabilities['modalities'])
+        self.assertEqual(['prompt'], chat.capabilities['inputs_required'])
+        asr = model_info_for('albert', {'id': 'w', 'type': 'automatic-speech-recognition', 'aliases': []})
+        self.assertEqual({'task': 'transcription', 'modalities': ['audio'],
+                          'inputs_required': ['work_audio']}, asr.capabilities)
+
+
 class RestesTechniquesDuSoirTest(TestCase):
     """Trois restes du 02/09, chacun mesuré avant d'être corrigé."""
 

@@ -2,6 +2,12 @@
   "body": {
     "capabilities": {
       "embedding": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
       "task": "feature-extraction"
     },
     "composition": {

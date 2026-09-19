@@ -1,6 +1,12 @@
 {
   "body": {
     "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "audio"
+      ],
       "task": "text-to-audio"
     },
     "composition": {

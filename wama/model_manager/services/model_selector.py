@@ -209,8 +209,9 @@ def _minmax(valeurs: dict) -> dict:
     return {k: (v - lo) / (hi - lo) for k, v in valeurs.items()}
 
 
-def aptitudes_of(model) -> list:
+def abilities_of(model) -> list:
     """Libellés des aptitudes déclarées par `model`, lus dans `ModelAbility` (+ sa spécialité).
+    (Nommée `aptitudes_of` du 17 au 19/09 : identifiant français, corrigé.)
 
     ⚠ `ModelAbility` (`models.py`) est LE vocabulaire des aptitudes, écrit le 2026-08-05 — et il
     n'avait AUCUN consommateur. Le 17/09 j'avais écrit ici une table `APTITUDES` qui le doublait
@@ -224,12 +225,12 @@ def aptitudes_of(model) -> list:
     from ..models import ModelAbility
 
     caps = getattr(model, 'capabilities', None) or {}
-    libelles = [str(a.label) for a in ModelAbility
-                if a is not ModelAbility.COMPLETION and caps.get(a.value)]
-    specialite = caps.get('specialisation')
-    if specialite:
-        libelles.append(f"spécialité : {specialite}")
-    return libelles
+    labels = [str(a.label) for a in ModelAbility
+              if a is not ModelAbility.COMPLETION and caps.get(a.value)]
+    specialisation = caps.get('specialisation')
+    if specialisation:
+        labels.append(f"spécialité : {specialisation}")
+    return labels
 
 
 def _type_filter(model_type) -> dict:
@@ -741,8 +742,8 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         info.append({
             'id': mid,
             'name': m.name,
-            # Aptitudes DÉRIVÉES (cf. `aptitudes_of`) : un select les affiche s'il le déclare.
-            'aptitudes': aptitudes_of(m),
+            # Aptitudes DÉRIVÉES (cf. `abilities_of`) : un select les affiche s'il le déclare.
+            'abilities': abilities_of(m),
             # DISTANT ou LOCAL : « à télécharger » n'a de sens que pour des poids locaux.
             'execution': m.execution,
             'description': m.description_short or m.description or '',
