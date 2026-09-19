@@ -619,6 +619,14 @@ class ModelRegistry:
                     format=model_format,
                     preferred_format=preferred,
                     can_convert_to=convert_options,
+                    # Anatomie DÉCLARÉE par l'app (`IMAGER_MODELS[*]['composition']`, posée le
+                    # 2026-09-19). Sans cette ligne, la déclaration restait lettre morte : la
+                    # découverte construisait un `ModelInfo` sans `composition`, l'overlay
+                    # `_overlay_engines_from_app_declarations` n'y remettait que `runtime.engine`,
+                    # et les COMPOSANTS n'atteignaient jamais le catalogue. C'est d'eux que se
+                    # dérivent les deux empreintes de la décision A (somme / plus gros composant,
+                    # `model_installer.components_for_spec`).
+                    composition=config.get('composition') or {},
                     capabilities={
                         'modalities': ['video'] if _is_video else ['image'],
                         'task': _task,

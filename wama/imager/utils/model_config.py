@@ -87,6 +87,60 @@ for dir_path in [HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR,
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
+# ANATOMIE DÉCLARÉE (`composition`) — ce que le chargeur TIRE, pas ce que le dépôt CONTIENT
+# =============================================================================
+# POURQUOI (2026-09-19, chantier VRAM décision A — `PROJECT_STATUS §④A`) : un modèle composé a
+# DEUX empreintes, la somme de ses composants (plein GPU) et son plus gros composant
+# (déchargement). Les deux se dérivent du poids PAR COMPOSANT
+# (`model_installer.components_for_spec`), qui a besoin de savoir QUELS fichiers comptent.
+#
+# 🔴 Et sans cette déclaration, ils sont FAUX — mesuré sur les cartes HF ce jour-là : le dépôt
+# de Mochi porte 124,3 Go de poids pour un modèle de 56,8, celui de LTX-distilled 86,4 pour
+# 44,3, celui de SDXL 45,7 pour 12,9. Un dépôt HuggingFace est un CATALOGUE : il sert
+# plusieurs chargeurs (copie monofichier `dit.safetensors` à côté de `transformer/`),
+# plusieurs précisions (`…bf16-00001-of-00003`, `…fp16`), plusieurs moteurs (`openvino_model.bin`,
+# `diffusion_flax_model.msgpack`) et parfois un pipeline ENTIER en double
+# (`Lightricks/…:vae/model_index.json` — d'où un « vae » de 44 Go si on somme le dossier).
+#
+# Les motifs ci-dessous désignent le jeu que `from_pretrained()` prend PAR DÉFAUT, c'est-à-dire
+# celui que référence l'`*.index.json` du composant (vérifié fichier par fichier) — sans
+# `variant=`, donc ni `.fp16` ni `.bf16` ni `.non_ema`. La même déclaration sert à
+# l'INSTALLATION (`patterns_from_composition` → `allow_patterns`) : ce qu'on pèse est ce qu'on
+# tire, et ça ne peut plus diverger.
+#
+# ⚠ Ce que la composition NE dit PAS : la précision de CHARGEMENT. `ltx-…-distilled-fp8` est le
+# MÊME dépôt que la version pleine — sa quantisation est faite au chargement (torchao), pas
+# choisie dans les fichiers. Son anatomie est donc identique ; seul son `vram_gb` diffère.
+
+#: Convention diffusers, lue sur les 11 dépôts du parc : un module `transformers` (encodeur de
+#: texte, safety checker) range ses poids sous `model*.safetensors`, un module `diffusers` sous
+#: `diffusion_pytorch_model*.safetensors`.
+_TRANSFORMERS_ROLES = ('text_encoder', 'safety_checker')
+
+
+def _weight_pattern(role: str, sharded: bool) -> str:
+    """Motif des poids d'un composant. `sharded` : le composant est découpé (`-00001-of-0000N`)."""
+    stem = 'model' if role.startswith(_TRANSFORMERS_ROLES) else 'diffusion_pytorch_model'
+    return f"{role}/{stem}{'-*' if sharded else ''}.safetensors"
+
+
+def _pipeline_composition(**roles) -> dict:
+    """`composition` d'un pipeline diffusers, au schéma de `manifests.builtin.model`.
+
+    Un rôle vaut `True` (jeu de shards), `False` (fichier unique), ou un MOTIF explicite quand la
+    convention ne suffit pas à trancher — cas mesuré : `genmo/mochi-1-preview` porte DEUX jeux de
+    shards concurrents dans `text_encoder/` (`-of-00002` et `-of-00004`) que rien dans le nom ne
+    distingue ; son `model.safetensors.index.json` désigne le second.
+    """
+    return {
+        'components': [{'role': role,
+                        'pattern': spec if isinstance(spec, str) else _weight_pattern(role, spec)}
+                       for role, spec in roles.items()],
+        'runtime': {'engine': 'diffusers'},
+    }
+
+
+# =============================================================================
 # MODEL DEFINITIONS
 # =============================================================================
 
@@ -99,6 +153,12 @@ HUNYUAN_MODELS = {
         'type': 'image',
         'tasks': 't2i',
         'vram_gb': 16,
+        # Relevé 2026-09-19 : transformer 32,46 Go + text_encoder 15,45 + text_encoder_2 0,82
+        # + vae 0,76 = 49,5 Go de somme, 32,5 Go de plus gros composant. ⚠ `vram_gb` = 16 est
+        # donc sous-déclaré même pour le SEUL transformer — signalé, pas corrigé ici (changer
+        # ce chiffre change ce que le tirage propose : décision de Fabien).
+        'composition': _pipeline_composition(transformer=True, text_encoder=True,
+                                            text_encoder_2=False, vae=False),
         'description': 'HunyuanImage 2.1 — qualité max, text rendering, 1K-4K',
         'description_long': "HunyuanImage 2.1 (Tencent) : génération d'images haut de gamme, "
                             "excellent rendu du texte dans l'image et résolutions 1K à 4K. "
@@ -121,6 +181,11 @@ COGVIDEOX_MODELS = {
         'tasks': 'i2v',
         'vram_gb': 21,
         'disk_gb': 12,
+        # Relevé 2026-09-19 : transformer 10,48 + text_encoder 8,87 + vae 0,80 = 20,2 Go de
+        # somme (≈ le preset 21, qui EST une somme), 10,5 Go de plus gros composant — ce qui
+        # confirme le « jeu de travail réel ~11 Go en MODEL_OFFLOAD » écrit dans
+        # `memory_manager.MODEL_SIZE_PRESETS`. Le déchargement n'est pas un pis-aller ici.
+        'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
         'fps': 24,
         'resolution': '720x480',
         'description': 'CogVideoX 5B — Image-to-Video, 24 fps',
@@ -143,6 +208,11 @@ LTX_MODELS = {
         'tasks': 't2v+i2v',
         'vram_gb': 14,
         'disk_gb': 18,
+        # Relevé 2026-09-19 : transformer 24,29 + text_encoder 17,74 + vae 2,32 = 44,3 Go de
+        # somme, 24,3 de plus gros composant. ⚠ Ce dépôt porte un pipeline ENTIER en double sous
+        # `vae/` (son propre `vae/model_index.json`, 421 o comme celui de la racine) : sommer le
+        # dossier `vae/` donnerait 44 Go pour le seul VAE. Le motif exact l'évite.
+        'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
         'fps': 24,
         'resolution': '1216x704',
         'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V',
@@ -162,6 +232,11 @@ LTX_MODELS = {
         'fps': 24,
         'resolution': '1216x704',
         'quantization': 'fp8',
+        # MÊME dépôt, donc MÊME anatomie que la version pleine ci-dessus : la quantisation fp8
+        # est faite AU CHARGEMENT (torchao), aucun fichier fp8 n'existe dans le dépôt (vérifié —
+        # 59 fichiers, aucun marqueur fp8). Une composition décrit des FICHIERS ; seul `vram_gb`
+        # porte l'écart de précision.
+        'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
         'description': 'LTX-Video 13B Distilled FP8 — léger, T2V + I2V',
         'description_long': "LTX-Video 13B Distilled en quantification FP8 : mêmes usages que la "
                             "version distillée (T2V + I2V) avec une empreinte mémoire réduite, au "
@@ -179,6 +254,14 @@ MOCHI_MODELS = {
         'tasks': 't2v',
         'vram_gb': 22,
         'disk_gb': 18,
+        # Relevé 2026-09-19 : transformer 37,36 + text_encoder 17,74 + vae 1,71 = 56,8 Go de
+        # somme, 37,4 de plus gros composant. Le dépôt porte, EN PLUS : une copie monofichier du
+        # pipeline (`dit.safetensors` 37,4 + `encoder`/`decoder`), un transformer bf16
+        # (`…index.bf16.json` + 3 shards) et un SECOND jeu de shards de text_encoder
+        # (`-of-00002`, 8,87 Go) — c'est l'`index.json` qui désigne le jeu `-of-00004`, d'où le
+        # motif explicite : la convention seule ne pouvait pas trancher entre les deux.
+        'composition': _pipeline_composition(
+            transformer=True, text_encoder='text_encoder/model-*-of-00004.safetensors', vae=False),
         'fps': 30,
         'resolution': '848x480',
         'description': 'Mochi-1 Preview — haute qualité, 30 fps',
@@ -214,6 +297,13 @@ WAN_MODELS = {
         'default_steps': 3,
         'default_guidance_scale': 1.0,
         'license': 'apache-2.0',
+        # Relevé 2026-09-19 : transformer 9,31 + text_encoder 10,58 + vae 2,63 = 22,5 Go de
+        # somme — à 1,3 % des ~22,8 Go que `probe_fastwan` avait comptés sur le périphérique
+        # `meta`, par une voie entièrement différente (paramètres × 2 octets). Deux mesures
+        # indépendantes qui concordent. Et le plus gros composant n'est que 10,6 Go : en
+        # déchargement, ce modèle tient largement sur une 4090 — c'est l'encodeur de texte, pas
+        # le transformer, qui plafonne.
+        'composition': _pipeline_composition(transformer=False, text_encoder=True, vae=False),
         'description': 'FastWan 2.2 TI2V 5B — distillé 3 pas, 24 fps',
         'description_long': "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de "
                             "débruitage, pour générer une vidéo à partir d'un texte beaucoup plus "
@@ -246,6 +336,12 @@ STABLE_DIFFUSION_MODELS = {
         # diffusers_backend._generate_img2img) — nourrit l'appariement entrée↔modèle.
         'tasks': 't2i+i2i',
         'vram_gb': 4,
+        # Relevé 2026-09-19 : unet 3,20 + safety_checker 1,13 + text_encoder 0,46 + vae 0,31
+        # = 5,1 Go de somme, 3,2 de plus gros composant — cohérent avec les 4 Go déclarés.
+        # Le dépôt porte 4 formes de chaque poids (`.bin`, `.fp16.bin`, `.fp16.safetensors`,
+        # `.non_ema.*`) : 32,9 Go au total pour 5,1 Go de modèle.
+        'composition': _pipeline_composition(unet=False, safety_checker=False,
+                                            text_encoder=False, vae=False),
         'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
         'description_long': "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la "
                             "génération d'images, porté par le plus vaste écosystème de LoRA et de "
@@ -260,6 +356,13 @@ STABLE_DIFFUSION_MODELS = {
         # t2i + image de référence OPTIONNELLE (StableDiffusionXLImg2ImgPipeline).
         'tasks': 't2i+i2i',
         'vram_gb': 10,
+        # Relevé 2026-09-19 : unet 9,56 + text_encoder_2 2,59 + text_encoder 0,46 + vae 0,31
+        # = 12,9 Go de somme, 9,6 de plus gros composant — cohérent avec les 10 Go déclarés.
+        # ⚠ Non déclarés VOLONTAIREMENT : `vae_1_0` (VAE ALTERNATIF, non chargé par défaut) et
+        # les copies OpenVINO (`unet/openvino_model.bin` 9,56 Go, `vae_decoder/`, `vae_encoder/`)
+        # — un autre moteur, pas un composant de plus.
+        'composition': _pipeline_composition(unet=False, text_encoder=False,
+                                            text_encoder_2=False, vae=False),
         'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
         'description_long': "Stable Diffusion XL (Stability AI) : génération native en 1024 px, "
                             "compositions et anatomies bien plus fiables que SD 1.5, large choix "
@@ -294,6 +397,11 @@ QWEN_IMAGE_MODELS = {
         # ⛔ Ne tient PAS sur une RTX 4090 → offload CPU obligatoire (lent, mais fonctionnel).
         'vram_gb': 38,
         'disk_gb': 40,
+        # Relevé 2026-09-19 : transformer 38,05 + text_encoder 15,45 + vae 0,24 = 53,7 Go de
+        # somme, 38,1 de plus gros composant. ⚠ Les 38 déclarés sont donc le PLUS GROS COMPOSANT,
+        # là où le 21 de CogVideoX et le 23 de FastWan sont des SOMMES : les deux définitions
+        # coexistent dans les tables, ce que la décision A vient précisément séparer.
+        'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
         'resolution': 2048,
         # Alignés sur qwen_image_backend.SUPPORTED_MODELS (default_steps / default_true_cfg) :
         # Qwen attend 50 étapes et un true_cfg de 4.0, PAS les 30/7.5 de l'ère SD. Sans ces clés,
@@ -319,6 +427,10 @@ QWEN_IMAGE_MODELS = {
         # sous-estimer fait tenter FULL_GPU et fait tomber l'hôte. À MESURER.
         'vram_gb': 38,
         'disk_gb': 25,
+        # Relevé 2026-09-19 : transformer 38,05 + text_encoder 15,45 + vae 0,24 — EXACTEMENT le
+        # même poids que `qwen-image-2` (même dorsale MMDiT 20B, 5 shards au lieu de 9). La borne
+        # prudente de 38 ci-dessus était donc juste : c'est maintenant MESURÉ, plus supposé.
+        'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
         'resolution': 2048,
         # Idem qwen-image-2 : valeurs du backend Qwen, pas celles de SD.
         'default_steps': 50,
@@ -345,6 +457,11 @@ FLUX2_KLEIN_MODELS = {
         'pipeline': 'flux2_klein',
         'vram_gb': 13,
         'disk_gb': 16,
+        # Relevé 2026-09-19 : transformer 7,22 + text_encoder 7,49 + vae 0,16 = 14,9 Go de somme,
+        # 7,5 de plus gros composant. Le dépôt porte AUSSI `flux-2-klein-4b.safetensors` à la
+        # racine, de 7,22 Go — exactement le poids du `transformer/` : c'est la copie monofichier
+        # pour les chargeurs qui ne lisent pas l'arborescence diffusers, pas un composant.
+        'composition': _pipeline_composition(transformer=False, text_encoder=True, vae=False),
         'resolution': 1024,
         'description': 'FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0',
         'description_long': "FLUX.2 Klein 4B (Black Forest Labs) : version distillée ultra-rapide "
@@ -377,6 +494,13 @@ LOGO_MODELS = {
         # LoRA sur FLUX.1-dev : c'est la DORSALE qui coûte (12B en bf16 ≈ 24 Go), pas la LoRA.
         # 16 sous-estimait la base — d'où le `vram_warning` « max 768 px avec MODEL_OFFLOAD ».
         'vram_gb': 24,
+        # ⚠ PAS de `composition` ici, VOLONTAIREMENT (2026-09-19). Son dépôt ne contient qu'un
+        # fichier de 0,04 Go : une composition le déclarerait, et le poids par composant
+        # répondrait « 0,04 Go » — un chiffre exact sur les FICHIERS et faux sur l'EMPREINTE, qui
+        # est celle de `base_model` (FLUX.1-dev, 31,4 Go de somme / 22,2 de plus gros composant).
+        # Mieux vaut « indéterminable » qu'un chiffre trompeur. Le schéma `composition` n'a pas de
+        # champ pour dire « hérite de la dorsale » — c'est une DÉCISION à prendre (héritage
+        # d'empreinte pour les adaptateurs), pas un trou à boucher à la va-vite.
         'disk_gb': 24,
         'resolution': 768,
         'min_resolution': 512,
@@ -420,6 +544,14 @@ FLUX_MODELS = {
         # 12B en bf16 ≈ 24 Go de poids + encodeur T5. 16 sous-estimait la dorsale.
         'vram_gb': 24,
         'disk_gb': 32,
+        # Relevé 2026-09-19 : transformer 22,17 + text_encoder_2 8,87 (T5) + text_encoder 0,23
+        # (CLIP) + vae 0,16 = 31,4 Go de somme, 22,2 de plus gros composant. Les 24 déclarés sont
+        # la DORSALE seule, comme le dit le commentaire ci-dessus — donc ni la somme (31,4) ni le
+        # pic en déchargement (22,2), mais un troisième chiffre. `disk_gb: 32` est juste.
+        # La racine porte en plus `flux1-dev.safetensors` (22,17 Go, monofichier) et
+        # `ae.safetensors` (le VAE au format original) : deux copies, pas des composants.
+        'composition': _pipeline_composition(transformer=True, text_encoder_2=True,
+                                            text_encoder=False, vae=False),
         'resolution': '1024x1024',
         # FLUX = rectified flow : guidance 3.5, JAMAIS 7.5-20 comme SD (cf. LOGO_MODELS)
         'default_guidance_scale': 3.5,
