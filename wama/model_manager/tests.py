@@ -1531,6 +1531,42 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
                  + len(r['without_identity']) + r['without_category'])
         self.assertEqual(total, AIModel.objects.count())
 
+    def test_un_modele_CLOUD_est_examine_bien_qu_il_ne_soit_pas_telecharge(self):
+        """
+        `is_downloaded=True` voulait dire « utilisable ici » — vrai tant que tout était local.
+        Un modèle servi par une clé d'API n'a AUCUN poids sur cette machine : les 22 lignes
+        cloud n'étaient ni appariées ni comptées, donc invisibles du rapport. Mesuré avant
+        correction : 0/22 avec un banc, alors que ce sont les modèles les mieux couverts par
+        les leaderboards publics (après : 14/22, dont 8 Claude et 6 Albert).
+
+        *Une ligne exclue du QUERYSET ne disparaît pas d'un compteur : elle disparaît de la
+        question.*
+        """
+        from .services import benchmark_sync as bs
+        distant = AIModel.objects.create(
+            model_key='anthropic:widget-2', name='Widget 2', model_type='llm',
+            source='anthropic', execution='cloud', is_downloaded=False, is_available=True,
+            capabilities={'task': 'text-generation', 'completion': True})
+        with self._sources({'llm': [self._entree('Widget 2', ('widget', (2,), None))]}):
+            r = bs.synchronize(dry_run=False)
+        distant.refresh_from_db()
+        self.assertIn('anthropic:widget-2', repr(r['matched']))
+        self.assertIsNotNone(distant.benchmark_index)
+
+    def test_un_modele_cloud_RETIRE_reste_hors_de_la_passe(self):
+        """Une ligne que la source ne liste plus est MARQUÉE (`is_available=False`) et garde son
+        historique : la noter reviendrait à classer un modèle qu'on ne peut plus appeler."""
+        from .services import benchmark_sync as bs
+        retire = AIModel.objects.create(
+            model_key='anthropic:widget-1', name='Widget 1', model_type='llm',
+            source='anthropic', execution='cloud', is_downloaded=False, is_available=False,
+            capabilities={'task': 'text-generation', 'completion': True})
+        with self._sources({'llm': [self._entree('Widget 1', ('widget', (1,), None))]}):
+            r = bs.synchronize(dry_run=False)
+        retire.refresh_from_db()
+        self.assertEqual(r['matched'], [])
+        self.assertIsNone(retire.benchmark_index)
+
     def test_le_dry_run_n_ecrit_jamais_l_indice(self):
         """Garde-fou du mode dry-run : le rapport se lit sans toucher au catalogue."""
         from .services import benchmark_sync as bs
