@@ -154,8 +154,14 @@ def _toolset(surface: str) -> tuple:
     """(lister, appeler) d'une surface. ⚠ Le module de développement n'est importé QU'ICI, et
     seulement pour sa surface : c'est ce qui le tient hors du process de prod (§16)."""
     if surface == SURFACE_DEV:
-        from wama.common.services import dev_tools
-        return dev_tools.tools_for, dev_tools.call
+        # ⚠ FORME D'IMPORT IMPORTANTE (2026-09-19) : `from wama.common.services.dev_tools import …`
+        # et NON `from wama.common.services import dev_tools`. Le détecteur de consommateurs de la
+        # carte cherche `from <module> import` / `import <module>` — la seconde forme lui ÉCHAPPE,
+        # et `dev_tools` ressortait « sans consommateur », donc BRIQUE MORTE, alors que cette ligne
+        # l'utilise. Même piège, même remède que `mecanismes_scan` le 19/08 (cf. `doc_facts`).
+        # L'import reste LOCAL : c'est lui qui tient le module hors du process de prod (§16).
+        from wama.common.services.dev_tools import call as dev_call, tools_for as dev_tools_for
+        return dev_tools_for, dev_call
     if surface == SURFACE_WAMA:
         return tools_for, call
     raise ValueError(f"surface MCP inconnue : {surface!r} (connues : {', '.join(SURFACES)})")

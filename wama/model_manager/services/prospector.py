@@ -853,13 +853,14 @@ def seed_yolo_candidate(name: str) -> dict:
 
     Rien n'est réinventé ici : la validation du nom et la cible viennent du driver lui-même
     (`pull_yolo_weights(dry_run=True)` — un nom arbitraire, une URL ou un chemin sont refusés
-    là-bas), la tâche de `yolo_task_of`, la taille de `yolo_asset_gb`.
+    là-bas), la tâche de `yolo_task_of`, et le poids de `weight_for_spec` — le dispatch COMMUN
+    par `kind`, jumeau de `identity_for_spec`, et non une fonction de poids par source.
 
     Retourne {'ok': True, 'model_key', 'created', 'task'} ou {'ok': False, 'error': …}.
     """
     from wama.model_manager.models import default_inputs_for
 
-    from .model_installer import pull_yolo_weights, yolo_asset_gb, yolo_task_of
+    from .model_installer import pull_yolo_weights, weight_for_spec, yolo_task_of
     from .prospect_ollama import PROPOSED_PREFIX, write_candidate
 
     ref = (name or '').strip()
@@ -870,20 +871,21 @@ def seed_yolo_candidate(name: str) -> dict:
     base = ref[:-3] if ref.endswith('.pt') else ref
     task = yolo_task_of(base)
     cand_key = PROPOSED_PREFIX + f"yolo:{base}"
+    # Le SPEC est écrit UNE fois et sert aux deux : il part sur le candidat, et c'est lui qu'on
+    # pèse. Peser autre chose que ce qu'on va tirer est le défaut que le descripteur évite.
+    spec = {'kind': 'yolo', 'ref': base, 'task': task, 'note': 'installation VISION par nom'}
     created = write_candidate(
         cand_key, nom=base, model_type='vision', source='yolo',
         description=f"[{task}] Poids officiels Ultralytics, demandés par leur nom.",
         kind='new', confidence=None,
         extra={'kind': 'new', 'role': f"yolo:{task}", 'name': base,
-               'reason': "poids YOLO officiels — demande explicite",
-               'spec': {'kind': 'yolo', 'ref': base, 'task': task,
-                        'note': 'installation VISION par nom'}},
+               'reason': "poids YOLO officiels — demande explicite", 'spec': spec},
         # La tâche se DÉDUIT du suffixe du nom (mécanique, jamais un jugement) et entraîne ses
         # modalités et entrées par défaut — le candidat porte donc les mêmes faits que la
         # ligne installée les portera.
         capabilities={'task': task, **default_inputs_for(task)},
         platform_ref=f"github:ultralytics/assets:{base}",
-        disk_gb=yolo_asset_gb(base) or 0.0,
+        disk_gb=weight_for_spec(spec) or 0.0,
     )
     return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}
 

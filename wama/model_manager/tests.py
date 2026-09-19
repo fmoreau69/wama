@@ -1285,7 +1285,7 @@ class RouteUniqueDInstallationTest(TestCase):
         — donc avec garde d'espace, tâche de fond et provenance, comme tout le reste."""
         from .services import model_installer as mi
         self._admin('admin_yolo')
-        with patch.object(mi, 'yolo_asset_gb', return_value=0.02), \
+        with patch.object(mi, 'weight_for_spec', return_value=0.02), \
                 patch.object(mi, 'disk_space_guard', return_value=None), \
                 patch('wama.common.utils.task_progress.progression_en_cours',
                       return_value=None), \
@@ -1307,6 +1307,47 @@ class RouteUniqueDInstallationTest(TestCase):
         rep = self._poster({'source': 'yolo', 'name': 'https://ailleurs/poids.pt'})
         self.assertEqual(rep.status_code, 400, rep.content)
         self.assertFalse(AIModel.objects.filter(is_proposed=True, source='yolo').exists())
+
+    def test_weight_is_asked_of_the_descriptor_like_identity(self):
+        """
+        « Combien pèse ce que je vais tirer ? » a UNE réponse, dispatchée par `kind` —
+        `weight_for_spec`, jumeau de `provenance.identity_for_spec`.
+
+        Remarque de Fabien (2026-09-19) : « pourquoi une fonction spécifique à YOLO ? ». La
+        réponse existait en TROIS exemplaires (`_repo_weight_gb` HF, `ollama_registry.size_gb`,
+        plus un relevé YOLO que je venais d'ajouter en quatrième), chacun appelé à la main par
+        un appelant qui n'en connaissait qu'un. *Trois réponses à une même question ne divergent
+        pas bruyamment : elles se répartissent entre des appelants qui s'ignorent.*
+        """
+        from .services import model_installer as mi
+        with patch('wama.model_manager.services.prospector._repo_weight_gb',
+                   return_value=12.5) as hf:
+            self.assertEqual(mi.weight_for_spec({'kind': 'hf', 'ref': 'Org/X'}), 12.5)
+        hf.assert_called_once_with('Org/X')
+        with patch('wama.model_manager.services.ollama_registry.size_gb',
+                   return_value=4.2) as ollama:
+            self.assertEqual(mi.weight_for_spec({'kind': 'ollama', 'ref': 'qwen3.6:35b'}), 4.2)
+        ollama.assert_called_once_with('qwen3.6', '35b')
+        with patch.object(mi, '_yolo_asset_gb', return_value=0.02) as yolo:
+            self.assertEqual(mi.weight_for_spec({'kind': 'yolo', 'ref': 'yolo26s-seg'}), 0.02)
+        yolo.assert_called_once_with('yolo26s-seg')
+        # Indéterminable = None, jamais une supposition : sur un volume à 96 %, une taille
+        # optimiste remplit le disque (même contrat que `size_gb` et `_repo_weight_gb`).
+        self.assertIsNone(mi.weight_for_spec({'kind': 'inconnu', 'ref': 'x'}))
+        self.assertIsNone(mi.weight_for_spec({'kind': 'hf'}))
+        self.assertIsNone(mi.weight_for_spec(None))
+
+    def test_the_yolo_candidate_is_weighed_on_the_spec_it_carries(self):
+        """Le spec écrit sur le candidat et celui qu'on pèse sont le MÊME objet : peser autre
+        chose que ce qu'on va tirer est précisément ce que le descripteur évite."""
+        from .services import model_installer as mi
+        from .services.prospector import seed_yolo_candidate
+        with patch.object(mi, 'weight_for_spec', return_value=0.021) as peser:
+            pose = seed_yolo_candidate('yolo26s-seg')
+        self.assertTrue(pose['ok'])
+        cand = AIModel.objects.get(model_key=pose['model_key'])
+        self.assertEqual(peser.call_args.args[0], cand.extra_info['prospect']['spec'])
+        self.assertEqual(cand.disk_gb, 0.021)
 
     def test_une_cle_inconnue_ne_s_installe_pas(self):
         from .services import model_installer as mi
