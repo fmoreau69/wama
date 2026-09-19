@@ -27,7 +27,7 @@ PARAMS = [
         default=AUTO, dom_id='ai-model', contexts=('panel',),
         options_source='catalog',
         options_query={'model_type': 'llm'},
-        options_auto=True, options_cloud=True, options_aptitudes=True,
+        options_auto=True, options_cloud=True, options_abilities=True,
         help="« Automatique » choisit au lancement selon le curseur, la mémoire GPU libre et "
              "les clés d'API que vous avez enregistrées.",
     ),

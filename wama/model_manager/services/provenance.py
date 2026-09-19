@@ -257,7 +257,11 @@ def record_after_install(spec: dict, cles_apparues) -> dict:
     # par tâche et de tout banc. Le spec la porte (`spec.task`) ; elle entre dans le MANIFESTE
     # avec l'identité (2026-09-18), donc AVANT la projection et l'export au corpus — et jamais
     # par-dessus une tâche déjà établie (`set_identity` ne comble qu'un vide).
+    # Et ce que la tâche IMPLIQUE (modalités, entrées — `TASK_DEFAULT_INPUTS`, 2026-09-19) :
+    # sans cela un modèle installé sans app restait invisible de l'appariement entrée ↔ modèle.
+    # Même règle : on ne comble qu'un vide.
+    from wama.model_manager.models import default_inputs_for
     tache = (spec.get('task') or '').strip()
-    declarees = {'task': tache} if tache else {}
-    poses = [set_identity(c, identite, capabilities=declarees) for c in cibles]
+    declared = {'task': tache, **default_inputs_for(tache)} if tache else {}
+    poses = [set_identity(c, identite, capabilities=declared) for c in cibles]
     return {'identite': identite, 'modeles': poses, **({'tache': tache} if tache else {})}

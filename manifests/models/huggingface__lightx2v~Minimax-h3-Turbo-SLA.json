@@ -1,6 +1,13 @@
 {
   "body": {
     "capabilities": {
+      "inputs_required": [
+        "prompt",
+        "work_image"
+      ],
+      "modalities": [
+        "video"
+      ],
       "task": "image-to-video"
     },
     "composition": {},

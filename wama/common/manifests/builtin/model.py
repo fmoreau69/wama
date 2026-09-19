@@ -376,10 +376,10 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     # Capacités : fusion clé par clé (cf. `merged_capabilities`) — projetée seulement si elle
     # change quelque chose, pour que `changed`/`preserved` disent la vérité.
     champs = [c for c, _ in _CHAMPS_PROJETES]
-    fusion = merged_capabilities(cible, body.get('capabilities') or {})
-    if fusion != (cible.capabilities or {}):
+    merged = merged_capabilities(cible, body.get('capabilities') or {})
+    if merged != (cible.capabilities or {}):
         champs.append(_CAPABILITIES_FIELD)
-        voulu[_CAPABILITIES_FIELD] = fusion
+        voulu[_CAPABILITIES_FIELD] = merged
     # Regime d'acces : seulement si DECLARE — sinon la ligne garde ce qu'elle sait (cf. _GATED_FIELD).
     if (body.get('identity') or {}).get('gated'):
         champs.append(_GATED_FIELD[0])

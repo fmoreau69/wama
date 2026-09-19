@@ -1963,17 +1963,18 @@ class ModelRegistry:
         négation, qu'il ne saurait pas exprimer. `nom_modele` sert à la SPÉCIALISATION
         déclarée (cf. `FAMILLES_OLLAMA`), que la découverte ne peut pas deviner.
         """
+        from wama.model_manager.models import default_inputs_for
         embarque = 'embedding' in brutes
-        # `audio` (ENTRÉE audio native) était JETÉ : absent de la liste blanche et des
-        # modalités, alors que gemma4:12b et gemma4:e4b le déclarent (mesuré 2026-08-19).
-        # Une capacité réelle du parc restait invisible à `select_model(requires=...)`.
-        modalites = (['text'] + (['image'] if 'vision' in brutes else [])
-                     + (['audio'] if 'audio' in brutes else []))
-        caps = {
-            'modalities': modalites,
-            'task': 'feature-extraction' if embarque else 'text-generation',
-            'inputs_required': ['prompt'],
-        }
+        task = 'feature-extraction' if embarque else 'text-generation'
+        # Modalités et entrées : ce que la tâche IMPLIQUE (`TASK_DEFAULT_INPUTS`, la table
+        # commune à toutes les découvertes depuis le 2026-09-19), puis ce que le modèle
+        # déclare en plus. `audio` (ENTRÉE audio native) était JETÉ : absent de la liste
+        # blanche et des modalités, alors que gemma4:12b et gemma4:e4b le déclarent (mesuré
+        # 2026-08-19). Une capacité réelle du parc restait invisible à `select_model(requires=...)`.
+        caps = {**default_inputs_for(task), 'task': task}
+        caps['modalities'] = (list(caps.get('modalities') or ['text'])
+                              + (['image'] if 'vision' in brutes else [])
+                              + (['audio'] if 'audio' in brutes else []))
         # Les SIX drapeaux sont écrits, vrais ou faux, dès qu'Ollama a répondu (2026-09-18) : la
         # synchronisation fusionne désormais `capabilities` clé par clé, et un drapeau absent
         # laisserait survivre une valeur d'un sync antérieur — un modèle qui perd `vision` à une

@@ -1221,16 +1221,16 @@ def api_model_options(request):
     # reste AFFICHÉ — grisé, avec la raison en title — jamais retiré de la liste (lister
     # n'est pas pouvoir choisir). Le verdict étant relu à chaque service, un backend qui
     # apparaît ré-autorise l'option sans aucun geste.
-    # `aptitudes=1` (drapeau d'UI déclaré au schéma, comme `auto` et `cloud`) : le libellé porte
+    # `abilities=1` (drapeau d'UI déclaré au schéma, comme `auto` et `cloud`) : le libellé porte
     # les capacités DÉCLARÉES du modèle — « qwen3.8 (Vision, Outils, Raisonnement) ». C'est ce que
     # les rôles de l'assistant disaient en épinglant des noms de modèles qui vieillissaient.
-    avec_aptitudes = request.GET.get('aptitudes') in ('1', 'true')
+    with_abilities = request.GET.get('abilities') in ('1', 'true')
     par_id = {d['id']: d for d in info}
     options = []
     for mid, nom in choices:
         d = par_id.get(mid) or {}
-        if avec_aptitudes and d.get('aptitudes'):
-            nom = f"{nom} ({', '.join(d['aptitudes'])})"
+        if with_abilities and d.get('abilities'):
+            nom = f"{nom} ({', '.join(d['abilities'])})"
         # « à télécharger » ne vaut que pour des POIDS LOCAUX : un modèle distant n'en a pas
         # (mesuré au smoke du 17/09 : « Claude Code (abonnement) (à télécharger) »).
         a_tirer = not d.get('downloaded', True) and d.get('execution') != 'cloud'

@@ -77,7 +77,7 @@ class AptitudesAffichees(TestCase):
 
     def test_les_aptitudes_declarees_suivent_le_nom_du_modele(self):
         from wama.model_manager.models import ModelAbility
-        libelles = self._libelles('&aptitudes=1')
+        libelles = self._libelles('&abilities=1')
         # Les libellés sont CEUX de `ModelAbility`, le vocabulaire existant — pas une table à part.
         attendu = ', '.join(str(a.label) for a in (ModelAbility.VISION, ModelAbility.TOOLS,
                                                    ModelAbility.THINKING))
@@ -103,11 +103,11 @@ class AptitudesAffichees(TestCase):
         self.assertEqual('distant', self._libelles('&cloud=1')['albert:distant'])
 
     def test_une_specialite_declaree_s_affiche_aussi(self):
-        from wama.model_manager.services.model_selector import aptitudes_of
+        from wama.model_manager.services.model_selector import abilities_of
         modele = AIModel.objects.create(
             model_key='ollama:traducteur:12b', name='traducteur', model_type='llm',
             source='ollama', capabilities={'completion': True, 'specialisation': 'translation'})
-        self.assertEqual(['spécialité : translation'], aptitudes_of(modele))
+        self.assertEqual(['spécialité : translation'], abilities_of(modele))
 
 
 class TirageDeConversationTest(TestCase):

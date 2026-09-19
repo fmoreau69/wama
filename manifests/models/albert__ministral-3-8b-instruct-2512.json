@@ -2,6 +2,13 @@
   "body": {
     "capabilities": {
       "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
       "task": "text-generation",
       "vision": true
     },

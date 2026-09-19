@@ -167,7 +167,7 @@ def model_info_for(source: str, item: dict):
     c'est la provenance (`set_identity`) qui le porte, par le manifeste (cf. `refresh_key`).
     """
     from wama.model_manager.models import (EXECUTION_CLOUD, ModelSource, ModelType,
-                                           model_type_for_task)
+                                           default_inputs_for, model_type_for_task)
     from .model_registry import ModelInfo
 
     src = external_sources.get(source)
@@ -177,12 +177,18 @@ def model_info_for(source: str, item: dict):
         return None
     key = f"{source}:{item['id']}"
     # La tâche DÉCLARÉE prime sur celle qu'annonce le fournisseur, et la CATÉGORIE en dérive.
-    declaree = _tache_declaree(key)
-    if declaree:
-        task = declaree
+    declared_task = _tache_declaree(key)
+    if declared_task:
+        task = declared_task
         model_type = model_type_for_task(task) or model_type
     hf_id = next((a for a in (item.get('aliases') or []) if '/' in str(a)), '')
     declared = bool(item.get('declared'))
+    # Modalités et entrées : ce que la tâche IMPLIQUE (table commune), plus l'image quand le
+    # modèle VOIT — la même dérivation que la découverte Ollama (`_capacites_canoniques`).
+    abilities = abilities_for(task, remote_type)
+    caps = {**default_inputs_for(task), 'task': task, **abilities}
+    if abilities.get('vision') and 'image' not in caps.get('modalities', []):
+        caps['modalities'] = [*caps.get('modalities', []), 'image']
     return ModelInfo(
         id=item['id'], name=item.get('name') or item['id'],
         model_type=ModelType(model_type), source=ModelSource(source),
@@ -192,7 +198,7 @@ def model_info_for(source: str, item: dict):
         backend_ref=source, execution=EXECUTION_CLOUD, cost_tier=src.cost_tier,
         # Le MOTEUR est le fournisseur (inventaire `external_sources.llm_engine_inventory`).
         composition={'runtime': {'engine': source}},
-        capabilities={'task': task, **abilities_for(task, remote_type)},
+        capabilities=caps,
         extra_info={'remote_type': remote_type, 'aliases': list(item.get('aliases') or []),
                     'hosting': src.hosting, **({'declared': True} if declared else {})},
     )
@@ -252,13 +258,13 @@ def retire_unlisted(source: str) -> int:
     from wama.accounts.models import UserApiKey
     from wama.model_manager.models import AIModel, EXECUTION_CLOUD
 
-    ouvertes = set()
-    for liste in UserApiKey.objects.filter(source=source).values_list('open_models', flat=True):
-        ouvertes.update(liste or [])
-    lignes = AIModel.objects.filter(source=source, execution=EXECUTION_CLOUD, is_proposed=False)
-    retirees = lignes.exclude(model_key__in=ouvertes).filter(is_available=True).update(is_available=False)
-    lignes.filter(model_key__in=ouvertes, is_available=False).update(is_available=True)
-    return retirees
+    opened = set()
+    for keys in UserApiKey.objects.filter(source=source).values_list('open_models', flat=True):
+        opened.update(keys or [])
+    rows = AIModel.objects.filter(source=source, execution=EXECUTION_CLOUD, is_proposed=False)
+    retired = rows.exclude(model_key__in=opened).filter(is_available=True).update(is_available=False)
+    rows.filter(model_key__in=opened, is_available=False).update(is_available=True)
+    return retired
 
 
 def refresh_key(row) -> tuple:
@@ -298,11 +304,11 @@ def refresh_key(row) -> tuple:
                        "périodique rattrapera)", row.source, exc_info=True)
     retire_unlisted(row.source)
     for item in listing:
-        identite = cloud_identity(item)
+        identity = cloud_identity(item)
         key = f"{row.source}:{item['id']}"
-        if identite and key in row.open_models:
+        if identity and key in row.open_models:
             try:
-                set_identity(key, identite)
+                set_identity(key, identity)
             except Exception:
                 logger.warning("provenance non enregistrée pour %s", key, exc_info=True)
     return len(row.open_models), ''

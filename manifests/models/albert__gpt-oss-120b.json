@@ -2,6 +2,12 @@
   "body": {
     "capabilities": {
       "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
       "task": "text-generation"
     },
     "composition": {
