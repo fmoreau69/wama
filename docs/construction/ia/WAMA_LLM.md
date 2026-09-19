@@ -392,8 +392,16 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   tags, elle mourait à chaque remplacement de modèle) + **escalade par taille de contexte**
   (`_route_model_by_context` : conversation trop longue ⇒ modèle à plus grande fenêtre) +
   fournisseurs **cloud** via `llm_chat` (LiteLLM, ROADMAP §8d — livré). Le CATALOGUE est
-  exposé à l'assistant en lecture par deux outils transverses : `list_ai_models` /
-  `get_ai_model` (§1).
+  exposé à l'assistant par **quatre** outils : deux LECTURES transverses (`list_ai_models` /
+  `get_ai_model`, §1) et, depuis le **2026-09-19**, les **deux gestes du bouton** —
+  `search_models` (= `seed_hf_search` : écrit des PROPOSITIONS, visibles et rejetables) et
+  `install_model` (= `model_installer.request_install` : garde d'espace disque, choix de
+  variante, idempotence, tâche de fond). Ces deux-là **écrivent**, donc ils sont gardés par
+  l'app `model_manager` dans `TOOL_APP_OVERRIDE` — et non transverses comme les lectures.
+  ⚠ `install_model` n'installe QUE ce qui est déjà proposé ou déjà au catalogue : l'entrée par
+  descripteur nu a été retirée de l'endpoint le même jour, donc **une phrase en langage naturel
+  ne peut pas faire télécharger un dépôt arbitraire**. `prepare_install_spec` n'existera pas :
+  le spec est celui du candidat (détail : `PROSPECTION_PIPELINE.md`, session du 19/09).
 - **Albert API (DINUM) — branchée le 2026-09-15** : `llm_chat(provider='albert')`. Albert parle
   le protocole OpenAI depuis sa propre adresse ; `llm_utils.OPENAI_COMPATIBLE_PROVIDERS` le route
   en `openai/<modèle>` (préfixe TOUJOURS posé : ses identifiants contiennent un « / ») avec
