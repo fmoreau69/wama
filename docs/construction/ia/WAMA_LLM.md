@@ -884,6 +884,10 @@ registre des fournisseurs abandonné) · `ROADMAP §19.0/19.1/19.3/19.6④/19.7`
 `gateway/core.py:197`, `mecanismes.py:530` (« même store que la page web » — faux côté web).
 
 ## Voir aussi
+- **`WAMA_HARNESS.md`** (2026-09-19) — l'état de l'art des HARNAIS d'agents et les écarts de WAMA,
+  axe par axe. Domaine distinct de celui-ci : ce fichier dit **comment marche notre couche LLM**,
+  l'autre dit **ce que font les autres et ce qui nous manque**. Il cite les lignes d'ici, il ne les
+  recopie pas — notamment §A (divergences entre surfaces) et §2ter (tables de fournisseurs).
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
 - `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
 - `WAMA_APP_GENERATION_ROUTE.md` (briques communes ; remplace `COMMON_REFACTORING.md`, archivé `docs/construction/archive/`).

@@ -190,6 +190,10 @@ DOCS: Tuple[Doc, ...] = (
     Doc('qualite', 'docs/construction/ia/WAMA_QUALITE.md', 'Qualité des modèles', 'ia',
         "La boucle qualité : méthodes de confrontation par tâche, mesure interne, "
         "auto-amélioration des leviers, et la voie finetuning depuis WAMA."),
+    Doc('harness', 'docs/construction/ia/WAMA_HARNESS.md', "Harnais d'agents — état de l'art",
+        'ia',
+        "Ce que font les autres harnais (Codex, Cursor, Claude Code, Hermes, deepagents, "
+        "Cline, Goose…) et ce qui manque à WAMA, axe par axe et mesuré."),
     # ── mondes & apps ──
     Doc('vision', 'docs/construction/mondes/WAMA_VISION_COMPLET.md', "Vision d'ensemble", 'mondes',
         "La vision produit, unique, confrontée au réel section par section."),
