@@ -297,10 +297,6 @@ _CHAMPS_PROJETES = [
     # la découverte ne peut pas le produire, et `capabilities` (réécrit par le sync) ne peut
     # pas le porter. Injecté au system prompt d'enrichissement (prompt_enrichment).
     ('prompt_contract', lambda m, b: (b.get('prompts') or {}).get('contract') or ''),
-    # Anatomie d'un modèle composé (2026-08-27) : même nature déclarée. Consommée par
-    # l'installation (allow_patterns dérivés) et par le backend composé (quoi charger, avec
-    # quel moteur). Vide = modèle mono-fichier.
-    ('composition', lambda m, b: b.get('composition') or {}),
 ]
 
 #: Champ projeté PAR FUSION, clé par clé — cf. `merged_capabilities`.
@@ -312,6 +308,21 @@ _CAPABILITIES_FIELD = 'capabilities'
 #: une valeur, c'est l'absence de mesure — « je ne sais pas » n'autorise pas a oublier ce qu'on
 #: savait. Meme raison que `merged_capabilities`, autre cause.
 _GATED_FIELD = ('gated', lambda m, b: (b.get('identity') or {}).get('gated') or '')
+
+#: Anatomie d'un modèle composé (2026-08-27) — même nature déclarée que `license` : le manifeste
+#: a autorité, la découverte jamais. Consommée par l'installation (`allow_patterns` dérivés), par
+#: le backend composé (quoi charger, avec quel moteur) et, depuis le 2026-09-19, par le poids PAR
+#: COMPOSANT (`components_for_spec`).
+#:
+#: 🔴 SORTIE de `_CHAMPS_PROJETES` le 2026-09-20, pour la RAISON DÉJÀ ÉCRITE au-dessus pour
+#: `gated` : ces lambdas rendent leur vide quand la clé manque, donc un manifeste MUET
+#: EFFAÇAIT l'anatomie de la ligne. Le risque n'était pas théorique — **131 des 141 manifestes
+#: de modèle ne portent aucun `components`** (relevé du 2026-09-20), et l'anatomie de 28 modèles
+#: vient d'y entrer : un seul `apply_manifests` sur un manifeste en retard suffisait à la perdre,
+#: en silence, juste après l'avoir déclarée.
+#: *Un champ dont le VIDE n'est pas une valeur mais une absence de mesure ne se projette qu'au
+#: DÉCLARÉ* — et la révocation délibérée reste la voie pour effacer (`un_write_back_model`).
+_COMPOSITION_FIELD = ('composition', lambda m, b: b.get('composition') or {})
 
 
 def merged_capabilities(target, declared: dict) -> dict:
@@ -352,8 +363,9 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     pourrait retenir. Si la cible est absente, on le DIT et on ne fait rien.
 
     Projette les champs DECLARATIFS (`_CHAMPS_PROJETES` : licence, auteur, plateforme, hf_id,
-    contrat de prompt, composition), `gated` s'il est declare, et `capabilities` par FUSION clé
-    par clé (`merged_capabilities`). Le releve d'origine (2026-08-05) ne projetait que `license`
+    contrat de prompt), `gated` ET `composition` seulement s'ils sont DECLARES (leur vide est une
+    absence de mesure, pas une valeur), et `capabilities` par FUSION clé par clé
+    (`merged_capabilities`). Le releve d'origine (2026-08-05) ne projetait que `license`
     et `platform_ref` : 0/129 modeles portaient une licence, et le lien plateforme etait
     conditionne a `hf_id`, absent sur les 70 modeles decouverts par scan disque.
     """
@@ -384,6 +396,11 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     if (body.get('identity') or {}).get('gated'):
         champs.append(_GATED_FIELD[0])
         voulu[_GATED_FIELD[0]] = _GATED_FIELD[1](manifest, body)
+    # Anatomie : meme regle, et pour la meme raison (cf. _COMPOSITION_FIELD) — un manifeste muet
+    # ne doit pas effacer une composition connue.
+    if body.get('composition'):
+        champs.append(_COMPOSITION_FIELD[0])
+        voulu[_COMPOSITION_FIELD[0]] = _COMPOSITION_FIELD[1](manifest, body)
 
     actuel = {champ: getattr(cible, champ) for champ in champs}
     deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}
@@ -392,6 +409,8 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
         preserves.append('capabilities')
     if _GATED_FIELD[0] not in champs:
         preserves.append('gated')
+    if _COMPOSITION_FIELD[0] not in champs:
+        preserves.append(_COMPOSITION_FIELD[0])
 
     if not apply:
         return {'model': key, 'would_change': sorted(deltas), 'target': voulu,
@@ -420,7 +439,11 @@ def un_write_back_model(manifest: dict, *, apply: bool = False) -> dict:
         return {'model': key, 'absent': True}
 
     # Le « vide » respecte le type du champ : '' pour les textes, {} pour composition (JSON).
-    vides = {champ: ({} if champ == 'composition' else '') for champ, _ in _CHAMPS_PROJETES}
+    # ⚠ `composition` a quitté `_CHAMPS_PROJETES` (elle ne se projette plus qu'au DÉCLARÉ), mais
+    # la RÉVOCATION doit continuer de l'effacer : c'est le geste délibéré, la seule voie qui a le
+    # droit de le faire. L'oublier ici aurait laissé une anatomie derrière une révocation.
+    vides = {champ: '' for champ, _ in _CHAMPS_PROJETES}
+    vides[_COMPOSITION_FIELD[0]] = {}
     portes = sorted(c for c in vides if getattr(cible, c))
     if not apply:
         return {'model': key, 'would_clear': portes, 'preserved': ['la ligne AIModel elle-même']}
