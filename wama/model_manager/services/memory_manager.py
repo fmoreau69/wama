@@ -16,6 +16,43 @@ logger = logging.getLogger(__name__)
 # + fragmentation). En dessous, on abandonne FULL_GPU et on retombe sur MODEL_OFFLOAD.
 FULL_GPU_MIN_FREE_GB = 1.5
 
+#: Marge d'ACTIVATIONS à ajouter au poids des composants pour obtenir un PIC (décision A de
+#: Fabien, 16/09). **Constante, 4 Go, et ce n'est pas un réglage** : ce chiffre a été établi par
+#: un run, pas choisi. Journal du 2026-03-13 (`logs/celery-gpu.log.3`) : CogVideoX chargé en plein
+#: GPU, « 20.34 GiB allocated by PyTorch », puis CUDA out of memory à la génération — il manquait
+#: 570 Mio d'activations. Une marge PROPORTIONNELLE serait une invention sans mesure : elle
+#: donnerait 1 Go à un modèle de 5 Go et 8 Go à un modèle de 40, alors que la grandeur qui la
+#: détermine est la RÉSOLUTION et la durée du rendu, pas la taille des poids.
+ACTIVATION_MARGIN_GB = 4.0
+
+
+def peaks_from_weights(weights: dict) -> dict:
+    """Les DEUX pics d'un modèle, dérivés du poids par composant — `{}` si on ne sait pas.
+
+    C'est la traduction directe de la décision A (`PROJECT_STATUS §④A`, 16/09) : un modèle composé
+    a deux empreintes et non une.
+      * `full` — SOMME des composants + activations : tout coexiste sur la carte ;
+      * `offload` — PLUS GROS composant + activations : en déchargement, un composant descend
+        quand le suivant monte, et c'est lui qui fixe le plafond.
+
+    `weights` est le relevé de `extra_info['weights']` (`{components, total_gb, largest_gb}`),
+    produit par `model_sync.persist_weights` depuis les fichiers du snapshot.
+
+    ⚠ POURQUOI CETTE FONCTION EXISTE : `get_memory_strategy` ne recevait qu'UN nombre et
+    APPROXIMAIT le second avec des pourcentages (« la VRAM peut tenir 60 % du modèle → offload »).
+    Ces 60 % et 30 % étaient un substitut de « le plus gros composant tient ». Avec les deux
+    chiffres, la question devient exacte et les pourcentages disparaissent.
+    Mesuré le 2026-09-19 : CogVideoX pèse 20,2 Go de somme pour 10,5 Go de plus gros composant —
+    son preset (21) est la somme, et il a fait écarter du tirage un modèle qui tient très bien sur
+    24 Go en déchargement. FastWan : 22,5 contre 10,6. Un seul nombre ne peut pas dire les deux.
+    """
+    total = (weights or {}).get('total_gb')
+    largest = (weights or {}).get('largest_gb')
+    if not total or not largest:
+        return {}
+    return {'full': round(float(total) + ACTIVATION_MARGIN_GB, 2),
+            'offload': round(float(largest) + ACTIVATION_MARGIN_GB, 2)}
+
 def _cap_cuda_allocator() -> None:
     """
     Plafond de l'allocateur CUDA — DÉLÉGUÉ au gouverneur de ressources.
@@ -166,6 +203,49 @@ def preset_vram_gb(model_key: str) -> Optional[float]:
     key_lower = model_key.lower()
     matches = [(len(k), v) for k, v in MODEL_SIZE_PRESETS.items() if k in key_lower]
     return max(matches, key=lambda m: m[0])[1] if matches else None
+
+
+def model_footprint_gb(row, *, offload: bool = True) -> tuple:
+    """`(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
+
+    LA CASCADE de la décision A (Fabien, 16/09), et sa subtilité, qui est tout l'intérêt :
+    « mesurée → source → estimée, **sans jamais descendre sous la valeur de la source** ». Ce
+    n'est donc PAS une simple priorité, c'est un `max` entre la mesure et la source — parce que
+    *la mesure au chargement est celle d'UNE stratégie* : en déchargement elle tombe sous le pic,
+    et la prendre pour l'empreinte ferait tenter un plein GPU au chargement suivant.
+    Vérifié dans le code qui l'écrit : `base.py:394` relève
+    `memory_allocated() - before`, c'est-à-dire la RÉSIDENCE finale, et aucun appel à
+    `max_memory_allocated` n'existe dans le dépôt — donc la « mesure » est structurellement un
+    PLANCHER, jamais un pic.
+
+    `offload` : la stratégie que le moteur SAIT appliquer. Vrai → on compare le pic de
+    déchargement (plus gros composant) ; faux → celui du plein GPU (somme). C'est ce qui réadmet
+    au tirage CogVideoX (10,5 au lieu de 20,2), FastWan (10,6 au lieu de 22,5) et Mochi.
+
+    `row` : une ligne `AIModel` (ou tout objet portant `extra_info`, `vram_gb`, `model_key`).
+    Provenances rendues, du plus sûr au moins sûr : `measured+source`, `measured`, `source`,
+    `declared`, `preset`, `unknown`. Le mot `unknown` compte : un appelant ne doit pas conclure
+    « ça tient » d'une absence d'information (même règle que `weight_for_spec` qui rend None).
+    """
+    info = getattr(row, 'extra_info', None) or {}
+    peaks = peaks_from_weights(info.get('weights') or {})
+    source = peaks.get('offload' if offload else 'full')
+    measured = float(((info.get('vram_measured') or {}).get('max_gb')) or 0) or None
+
+    if measured and source:
+        return (round(max(measured, source), 2),
+                'measured+source' if measured >= source else 'source')
+    if measured:
+        return round(measured, 2), 'measured'
+    if source:
+        return source, 'source'
+    declared = float(getattr(row, 'vram_gb', 0) or 0)
+    if declared:
+        return round(declared, 2), 'declared'
+    preset = preset_vram_gb((getattr(row, 'model_key', '') or '').split(':')[-1])
+    if preset:
+        return round(float(preset), 2), 'preset'
+    return None, 'unknown'
 
 
 def fits_full_gpu(model_key: str, total_vram_gb: float, headroom_gb: float = 4.0) -> Optional[bool]:
@@ -546,7 +626,8 @@ class MemoryManager:
     def get_memory_strategy(
         model_size_gb: float,
         headroom_gb: float = 2.0,
-        prefer_speed: bool = True
+        prefer_speed: bool = True,
+        offload_peak_gb: Optional[float] = None,
     ) -> MemoryStrategy:
         """
         Determine the optimal memory strategy based on model size and available VRAM.
@@ -555,9 +636,21 @@ class MemoryManager:
             model_size_gb: Estimated model size in GB
             headroom_gb: Extra VRAM to keep free for activations/inference (default: 2GB)
             prefer_speed: If True, prefer faster strategies when possible
+            offload_peak_gb: pic RÉEL en déchargement (plus gros composant), quand on le connaît
 
         Returns:
             MemoryStrategy enum indicating the recommended strategy
+
+        ⚠ `offload_peak_gb` REMPLACE UNE DEVINETTE (2026-09-20, décision A de Fabien). Sans lui,
+        cette fonction ne reçoit QU'UN nombre et approxime le second par des pourcentages :
+        « la VRAM peut tenir 60 % du modèle → MODEL_OFFLOAD », « 30 % → SEQUENTIAL ». Ces 60 % et
+        30 % sont un SUBSTITUT de « le plus gros composant tient » — la vraie condition du
+        déchargement, puisqu'en déchargement un composant descend quand le suivant monte.
+        Mesuré : CogVideoX pèse 20,2 Go de somme pour 10,5 de plus gros composant (52 %), FastWan
+        22,5 pour 10,6 (47 %), Hunyuan 49,5 pour 32,5 (66 %). Le ratio varie du simple au
+        quart : aucun pourcentage fixe ne pouvait le représenter.
+        Le paramètre est OPTIONNEL et le comportement historique est intact sans lui — les trois
+        appelants actuels passent une clé de preset, donc un seul nombre.
         """
         gpu_info = MemoryManager.get_gpu_memory_info()
 
@@ -584,8 +677,25 @@ class MemoryManager:
             logger.info(f"[MemoryManager] Strategy: MODEL_OFFLOAD (VRAM sufficient after cleanup)")
             return MemoryStrategy.MODEL_OFFLOAD
 
+        elif offload_peak_gb:
+            # Le pic de déchargement est CONNU : plus de pourcentage à deviner. Le plus gros
+            # composant tient-il, avec ses activations ? Oui → MODEL_OFFLOAD, c'est exactement
+            # la condition de cette stratégie. Non → un composant seul ne rentre même pas, il
+            # faut descendre au grain de la COUCHE.
+            if total_vram >= offload_peak_gb + headroom_gb:
+                logger.info("[MemoryManager] Strategy: MODEL_OFFLOAD (pic de déchargement "
+                            f"{offload_peak_gb:.1f} + {headroom_gb:.1f} ≤ {total_vram:.1f} Go)")
+                return MemoryStrategy.MODEL_OFFLOAD
+            logger.info("[MemoryManager] Strategy: SEQUENTIAL_OFFLOAD (le plus gros composant "
+                        f"— {offload_peak_gb:.1f} Go — ne tient pas seul)")
+            return MemoryStrategy.SEQUENTIAL_OFFLOAD
+
         elif total_vram >= model_size_gb * 0.6:
             # VRAM can hold ~60% of model - use model offload
+            # ⚠ APPROXIMATION conservée pour les appelants qui ne passent QU'un nombre (clé de
+            # preset). Ces 60 % devinent « le plus gros composant tient » ; le ratio réel mesuré
+            # sur le parc va de 47 % (FastWan) à 66 % (Hunyuan). Passer `offload_peak_gb` fait
+            # disparaître la devinette — cette branche est le repli, pas la règle.
             logger.info(f"[MemoryManager] Strategy: MODEL_OFFLOAD (VRAM can hold partial model)")
             return MemoryStrategy.MODEL_OFFLOAD
 
