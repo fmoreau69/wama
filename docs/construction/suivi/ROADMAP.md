@@ -658,6 +658,22 @@ fichiers sans charger, et pic selon la stratégie — c'est le pic que le filtre
 provenance mesurée → source → estimée, jamais sous la source ; provenance marquée à la découverte.
 Fait au passage : une seule règle de lecture de la table d'empreintes (`get_strategy_for_model` →
 `preset_vram_gb`, hunk dans `9a9463ea`, gardes `b9e2c202`).
+✅ **Le PREMIER chiffre est au catalogue (19/09 soir, `59ebf543` — détail `PROJECT_STATUS §PALIER
+2026-09-19 (soir) « CHANTIER A »`)** : `extra_info['weights']` {components, total_gb, largest_gb,
+source, variants/unresolved, signature, at} — clé collante, `vram_gb` intact —, écrit par
+`ModelSyncService.persist_weights` après chaque `full_sync` et par la tâche beat
+`model_manager.persist_weights` (1 h). Chaîne : `model_locations.installed_snapshots()` (hf_id →
+snapshot) → `prospector.local_inventory` (blobs, une fois chacun — `4cf3e1a9`) →
+`model_installer.components_for_spec` (UN lecteur des poids, celui de l'installation ; la composition
+DÉCLARÉE tranche, sinon `source='repo'` = borne). Provenance de `vram_gb` marquée à la découverte
+(`3a47eed2`). Mesuré sur le parc : Hunyuan 49,5/32,5 pour 16 déclarés ; LTX 44,4/24,3 pour 14 ;
+Qwen 53,7/38,1 ; CogVideoX 20,2/10,5 ; FastWan 22,5/10,6 ; FLUX 31,4/22,2. ⏳ **Reste** : le SECOND
+chiffre (pic par stratégie et dtype, marge 4 Go, `memory_manager`), la migration des mesures de
+`MODEL_SIZE_PRESETS`, et le filtre du tirage sur le pic (`peak_offload` = admissibilité ;
+`avoid_offload` = vitesse par `peak_full`). ⚠ Ouverts : LoRA sans dorsale déclarée (0,04 Go) ;
+dépôts frères pesés par le réseau seul (`unresolved` bien qu'installés) ; les VARIANTES de précision
+(cartographie vérifiée au même palier : seul LTX est représenté, FLUX seul se réduit automatiquement,
+Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à construire sur `_best_by_vram`.
 
 **⏳ Reste — à ajouter ICI, jamais dans les apps**
 1. ~~Câbler les priorités dans le routage Celery~~ ✅ 2026-07-29 (ci-dessus, 14 assertions).

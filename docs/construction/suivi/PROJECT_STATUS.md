@@ -15655,3 +15655,91 @@ NON commité ici.
 🔚 **Suite (cette instance)** : **A** — les deux chiffres (poids par composant, pic par stratégie),
 la provenance marquée, le filtre sur le pic ; périmètre `memory_manager` + `model_selector` +
 catalogue + tests ; l'imager et le backend Wan restent à l'autre session.
+
+## §PALIER — 2026-09-19 (soir), « CHANTIER A : le PREMIER chiffre est au catalogue — inventaire local, provenance, poids par composant ; cartographie des VARIANTES vérifiée » — ✅ LIVRÉ (`4cf3e1a9`, `3a47eed2`, `ee07db54`, `59ebf543`)
+
+> Répartition confirmée par Fabien : l'instance sœur tient `model_installer` (porte
+> `components_for_spec`, dérivation `components_of_files`, 12 anatomies imager déclarées
+> `90e434f8`) ; ici le LOCAL, la provenance, le rédacteur au catalogue, les tests.
+
+**① Inventaire local (`4cf3e1a9`)** — `prospector.local_inventory(racine)` : `[(chemin, taille)]` d'un
+modèle INSTALLÉ, même forme que `_siblings`, pour que la MÊME dérivation pèse local et distant.
+⚠ On pèse les BLOBS, pas les liens : LTX-Video 13B porte `vae/text_encoder/…`, `vae/transformer/…`,
+liens vers les mêmes blobs que les composants de premier niveau (22 blobs pour 34 liens) — un parcours
+par chemins comptait 86 Go pour 44,4 réels. `safetensors_facts(chemin)` : paramètres et dtypes lus dans
+l'EN-TÊTE seul (HunyuanImage 2.1 : transformer 17,43 Md BF16 = 32,5 Go, déclaré 16 des deux côtés —
+manifeste imager ET preset —, donc le garde `_check_vram_consistency` compare deux déclarations
+d'accord et fausses). Faits disque : LoRA FLUX logo présent DEUX fois (`flux/` et `logo/`) ; SDXL porte
+`vae_1_0` ; MiniMax `*_q4_0.gguf` = liens symboliques vers les Q8 (pas de Q4 réel).
+
+**② Provenance (`3a47eed2`)** — `ModelInfo.vram_provenance` (`declared` par défaut, 15 rédacteurs sur
+19 ; YOLO/ONNX/Ollama `heuristic`, snapshots HF `estimated`), écrite par `_sync_model` dans
+`extra_info['vram_provenance']` quand un chiffre est posé (0 = inconnu, pas de provenance). C'est la
+condition de la cascade « mesuré → source → estimé » (A).
+
+**③ Poids par composant au catalogue (`59ebf543`)** — `ModelSyncService.persist_weights` : `local_path`
+s'il nomme un snapshot, sinon `model_locations.installed_snapshots()` (index `hf_id` → racine
+`models--…`, un parcours `<catégorie>/<famille>/models--*` + cache HF partagé en repli ; une ligne
+d'app ne porte pas son snapshot, seul le composer déclare `install_dir`) → `local_inventory` →
+`components_for_spec(spec, files=…)` avec la composition de la ligne → `extra_info['weights']` =
+{`components`, `total_gb` (tout sur la carte), `largest_gb` (déchargement séquentiel), `source`,
+`variants`/`unresolved`, `signature`, `root`, `at`}. Clé COLLANTE ; `vram_gb` intact. Après chaque
+`full_sync` + beat `model_manager.persist_weights` (1 h, file default). Signature (fichiers, octets,
+composition) : rien n'est redérivé tant qu'elle ne bouge pas — les dépôts frères déclarés (une requête
+HF chacun) ne sont interrogés qu'au changement. **Un seul lecteur des poids** : la dérivation de
+l'installation. Contre-épreuve sur le vrai catalogue : 34 lignes ; Hunyuan 49,5/32,5, LTX 44,4/24,3,
+CogVideoX 20,2/10,5, FastWan 22,5/10,6, FLUX 31,4/22,2, Qwen 53,7/38,1, SDXL 6,6/4,8, SD1.5 4,0/3,2 —
+identiques à la table de la sœur (cartes HF), par deux voies. ⚠ Les lignes imager sortaient `repo` :
+la composition déclarée le soir même n'était PAS ENCORE EN BASE (`{runtime}` seul) ; après
+`full_sync`, `declared` avec les mêmes chiffres (la signature inclut la composition). **Trois faits
+signalés, non traités** : (a) `transcriber:pyannote-diarization` → `unresolved` sur ses deux dépôts
+frères alors qu'ils sont INSTALLÉS (`speech/diarization/`) — `_with_sibling_repos` pèse par le réseau
+seul, à rendre LOCALE d'abord (sœur) ; (b) LoRA logo 0,04 Go : sa dorsale FLUX n'est pas déclarée
+(le schéma `composition` n'a pas « hérite de » — décision) ; (c) les lecteurs testent `total_gb`.
+Tests `tests_vram_weights` (13, sans GPU ni réseau).
+
+**④ Cartographie des VARIANTES — vérifiée au disque et au code** (rapport d'agent corrigé sur 3 points :
+Kokoro ONNX localisé, MiniMax Q4 = liens, lignes `:218`/`:40`). Le chantier antérieur « juge sur
+variantes, installeur canonique » (26-27/08) est complet **côté prospection seulement** : détection
+(`quantized_variants`, 13 marqueurs), juge sur la variante la plus légère, dialogue de choix, spec au
+fichier — **0 choix exercé en base**, rien n'atteint le chargement. Le catalogue ne représente pas la
+précision (`format` = conteneur) ; seul couple plein↔réduit = LTX (2 lignes, même hf_id ; le
+`quantization: 'fp8'` de `imager/utils/model_config.py` n'est pas projeté). Sur disque : Kokoro ONNX
+**8 précisions** sous `speech/Kokoro-82M-v1.0-ONNX/…/onnx/`, 7 inatteignables (`DEFAULT_PATTERNS =
+{'acoustic_model': 'onnx/model.onnx'}`, `kokoro_onnx_backend.py:40`) ; aucune variante réduite pour
+Qwen-Image, Hunyuan, CogVideoX, FastWan, Mochi. Chargement réduit : **FLUX seul** est automatique
+(`_get_flux_strategy` : RAM hôte libre ≥ 27 → pleine ; sinon VRAM totale ≥ 22 → 8 bits, ≥ 16 → 4 bits —
+jamais la VRAM LIBRE) ; LTX fp8 torchao MANUEL par nom ; whisper int8 = CPU seul ; audio.cpp par
+`composition.pattern` ; 15 backends : rien ; la stratégie mémoire ignore la précision. Canal
+utilisateur : `stage_callback` LTX seul. Trois seuils « 24 Go » en dur. Clé morte
+`'ltx-video-fp8'` dans `MODEL_SIZE_PRESETS` (:112) à côté de `'distilled-fp8'` (:118).
+**Proposition — validée par Fabien (« ton plan me semble ok »)** : le mécanisme universel s'appuie sur
+`_best_by_vram` (« le meilleur qui tient, sinon le plus léger » — il sert LTX fp8 par accident, parce
+que c'est une ligne) : (1) poids DISTINCTS (Kokoro q4/fp16, GGUF, repacks) = lignes reliées
+`variant_of` + `precision` projetées par le manifeste ; réduction FABRIQUÉE au chargement (FLUX bnb, LTX
+torchao, whisper int8) = `PRECISIONS` déclarées au contrat commun ; (2) le gouverneur décide (précision,
+stratégie) par candidat depuis les poids lus (paramètres × octets + marge 4 Go), le curseur arbitre, la
+décision passe au `load()` par un `budget_gb` (seul argument manquant au contrat) ; (3) `stage_callback`
+généralisé, prévision qui dit POURQUOI ; (4) seuils en dur → VRAM réelle du gouverneur, clé morte
+retirée avec la migration des mesures des presets ; (5) 1er adoptant Kokoro ONNX (8 niveaux, sans GPU),
+puis LTX et FLUX.
+
+**⑤ Langue (`ee07db54`)** — signalé par la sœur : budget de noms de tests 1305 > 1294. Mesuré sur un
+export du commit qui l'a calé : 10 noms à moi (deux fichiers écrits APRÈS la bascule du 19/09,
+renommés) + 1 FAUX POSITIF sur un nom anglais de la sœur (`declares` ; retirer `declare`/`declares`
+est faux : 105 identifiants français ne tiennent que par eux → `ALLOWED`, le remède conçu). Et le
+budget n'était pas REPRODUCTIBLE : 4 jumelles bac à sable gitignorées entraient dans la mesure (1294
+ici, 1287 sur un worktree de HEAD — le rituel « vérifier sur HEAD » aurait rougi sans faute) →
+exclues par `sandbox.LABEL_RE`, budgets recalés (code 2614, classes 132, tests 1287).
+`tests_local_inventory` : les cas à liens symboliques se SAUTENT sous Windows sans privilège
+(`WinError 1314`) au lieu de rougir.
+
+🔚 **Suite (cette instance)** : le SECOND chiffre — pics par stratégie ET dtype dans `memory_manager`
+(marge fixe 4 Go), stratégie dérivée du modèle ; migration des mesures de `MODEL_SIZE_PRESETS` vers
+`extra_info` (source, date) avant retrait de la devinette par famille ; filtre du tirage : `peak_offload`
+= admissibilité pour les moteurs qui déchargent, `avoid_offload=True` = vitesse par `peak_full`, sinon
+attente (B) ; garde imager déclaration vs composants. 🔚 **Question à Fabien** : une génération
+HunyuanImage 2.1 a-t-elle déjà ABOUTI sur la 4090 (bf16 posé par le chargeur, 32,5 Go de transformer,
+plein GPU tenté puis offload par composant ; le séquentiel n'est atteint que par le repli
+`ImportError`) ? 🔚 **À la sœur** : pesée LOCALE des dépôts frères ; `files` par rôle dans la sortie
+de `components_of_files` (pour `safetensors_facts` par composant → pic par précision). Puis B, C, D.

@@ -1542,6 +1542,15 @@ pas la découverte. (C'est l'un des 2 « sans tâche » de `check_model_taxonomy
 > mesuré de l'axe `vram_estimee` et relève `vram_sous_declaree`. ⏳ **Reste de l'intention** : que la
 > mesure serve À LA PLACE de l'estimation là où `vram_gb` est LU (budget du tirage, coût du curseur,
 > `model_selector.py`) — non branché, décision posée à Fabien le même soir.
+>
+> 🔄 **2026-09-19 (soir) — le POIDS PAR COMPOSANT rejoint la mesure, même voie.** Décision A de
+> Fabien (16/09) : deux chiffres par modèle. Le premier — poids lus dans les FICHIERS, sans charger —
+> est écrit en clé collante `extra_info['weights']` ({components, total_gb, largest_gb, source,
+> variants/unresolved, signature, at}) par `ModelSyncService.persist_weights` (après chaque
+> `full_sync`, beat `model_manager.persist_weights` 1 h) : `installed_snapshots()` → `local_inventory`
+> → `components_for_spec` — le MÊME lecteur que l'installation, la composition déclarée tranchant les
+> rôles. Provenance de `vram_gb` marquée (`vram_provenance`). Cascade « mesuré → source → estimé »
+> au tirage : toujours ⏳ (détail `PROJECT_STATUS §PALIER 2026-09-19 (soir) « CHANTIER A »`).
 
 Ce qui reste factuel :
 
