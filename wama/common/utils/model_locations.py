@@ -103,7 +103,11 @@ def composants_declares(categorie: str, famille: str) -> list:
             for c in ((m.composition or {}).get('components') or []):
                 repo = (c or {}).get('repo')
                 if repo:
-                    prefixes.append('models--' + str(repo).replace('/', '--'))
+                    # `hf_folder_name` est ce geste, 12 lignes plus bas et documenté comme LA
+                    # convention `huggingface_hub` : il était réécrit ici à l'identique
+                    # (relevé le 2026-09-19). Deux écritures de la même convention finissent
+                    # par diverger — celle-ci ne strippait même pas les espaces.
+                    prefixes.append(hf_folder_name(repo))
     except Exception as e:
         logger.debug('[model_locations] composants non dérivables : %s', e)
     return prefixes

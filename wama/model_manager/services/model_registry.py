@@ -870,7 +870,28 @@ class ModelRegistry:
                         # qui charge REELLEMENT ces poids (`YOLO(chemin)`). Les poids sont
                         # balayes sur le disque, pas declares dans un dict : la passe
                         # generique `_overlay_declared_engines` ne peut pas les couvrir.
-                        composition={'runtime': {'engine': 'ultralytics'}},
+                        #
+                        # Anatomie DÉRIVÉE, pas écrite à la main (2026-09-19) : un poids YOLO est
+                        # UN fichier, et son nom de fichier EST son motif. Ces lignes n'ont donc
+                        # pas besoin de 7 déclarations manuelles — le balayage qui les découvre
+                        # sait déjà tout ce qu'il faut. Le composant n'est posé que si un DÉPÔT
+                        # est déclaré : sans dépôt (les ~40 poids ultralytics standards, tirés
+                        # d'une release GitHub), un motif ne désignerait rien.
+                        # ⚠ Ce que ça répare : 5 lignes de catalogue partagent le dépôt
+                        # `morsetechlab/yolov11-license-plate-detection`, qui porte les 5 tailles
+                        # n/s/m/l/x — sans motif, chacune « pesait » le dépôt entier et une
+                        # installation aurait tiré les 5. Vérifié le 19/09 : pour ces 5 plus
+                        # `face_yolov8m-seg_60.pt`, le nom local existe À L'IDENTIQUE dans le
+                        # dépôt, à la MÊME taille.
+                        # ⚠ Le cas qui ne marche PAS, et c'est voulu : `yolo11l_face_plate_signs.pt`
+                        # a été RENOMMÉ au téléchargement (le dépôt Panoramax porte
+                        # `yolo11l_panoramax.pt`, même taille). Son motif ne matchera rien, et le
+                        # relevé dira « indéterminable » — ce qui est exact — au lieu d'inventer.
+                        composition={
+                            **({'components': [{'role': 'model', 'pattern': model_name}]}
+                               if hf_id_for_yolo_weight(model_name) else {}),
+                            'runtime': {'engine': 'ultralytics'},
+                        },
                         format=model_format,
                         preferred_format=preferred,
                         can_convert_to=convert_options,
@@ -908,7 +929,15 @@ class ModelRegistry:
                     extra_info=status,
                     backend_ref='anonymizer',
                     # Moteur : la lib `sam3` elle-meme (cf. `SAM3Processor.ENGINE`).
-                    composition={'runtime': {'engine': 'sam3'}},
+                    # Anatomie : `sam3.pt` — et ce n'est pas une supposition, c'est la
+                    # restriction que le backend s'impose DÉJÀ
+                    # (`sam3_processor.py:198-199`, `poids_locaux(..., patterns=['sam3.pt',
+                    # 'config.json'])`) puis charge (`:200-202`, `checkpoint_path=…/sam3.pt`).
+                    # Le dépôt porte AUSSI `model.safetensors` (3,204 Go), la même chose au
+                    # format transformers, qu'aucun chemin de code ne lit : sans ce motif, le
+                    # poids par composant additionnait les deux.
+                    composition={'components': [{'role': 'model', 'pattern': 'sam3.pt'}],
+                                 'runtime': {'engine': 'sam3'}},
                     format='safetensors',
                     preferred_format=preferred,
                     can_convert_to=['onnx'],

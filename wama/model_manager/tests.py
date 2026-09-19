@@ -1114,6 +1114,20 @@ class RestesTechniquesDuSoirTest(TestCase):
                 'components': [{'role': 'age', 'repo': 'org/deepface_models'}]}})
         self.assertEqual(sans_depot['components'], {'age': 1.0})
 
+    def test_an_unreachable_repo_is_not_a_model_that_weighs_nothing(self):
+        """`_siblings` distingue la PANNE (None) du dépôt VIDE ([]) ; la porte doit propager
+        cette distinction. Vécu le 19/09 sur ma propre contre-épreuve : une salve d'appels HF a
+        échoué en silence et 8 déclarations VÉRIFIÉES ont été rapportées « motif sans fichier ».
+        *Un relevé qui dépend du réseau doit dire quand le réseau a manqué.*"""
+        from .services import model_installer as mi
+        with patch('wama.model_manager.services.prospector._siblings', return_value=None):
+            panne = mi.components_for_spec({'kind': 'hf', 'ref': 'org/x'})
+        self.assertEqual(panne, {'unreachable': 'org/x'})
+        self.assertIsNone(panne.get('total_gb'))
+        with patch('wama.model_manager.services.prospector._siblings', return_value=[]):
+            vide = mi.components_for_spec({'kind': 'hf', 'ref': 'org/x'})
+        self.assertEqual(vide, {}, "un dépôt VIDE est un fait, pas une panne")
+
     def test_onnx_counts_as_weight_because_for_some_models_it_IS_the_model(self):
         """`.onnx` manquait aux extensions de poids : la composition de Kokoro-ONNX déclarait
         son rôle principal sur `onnx/model.onnx` et ce rôle pesait ZÉRO. Une extension absente
