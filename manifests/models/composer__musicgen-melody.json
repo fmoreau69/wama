@@ -16,6 +16,16 @@
       "task": "text-to-music"
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "state_dict.bin",
+          "role": "language_model"
+        },
+        {
+          "pattern": "compression_state_dict.bin",
+          "role": "compression_model"
+        }
+      ],
       "runtime": {
         "engine": "audiocraft"
       }
@@ -23,7 +33,8 @@
     "extra_info": {
       "max_duration": 30,
       "sample_rate": 32000,
-      "type": "music"
+      "type": "music",
+      "vram_provenance": "declared"
     },
     "formats": {
       "can_convert_to": [],

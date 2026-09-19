@@ -26,11 +26,27 @@
       "task": "text-to-speech"
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "text_2.pt",
+          "role": "text_model"
+        },
+        {
+          "pattern": "coarse_2.pt",
+          "role": "coarse_model"
+        },
+        {
+          "pattern": "fine_2.pt",
+          "role": "fine_model"
+        }
+      ],
       "runtime": {
         "engine": "bark"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "vram_provenance": "declared"
+    },
     "formats": {
       "can_convert_to": [
         "safetensors"

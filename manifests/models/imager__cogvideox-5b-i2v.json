@@ -18,11 +18,40 @@
       ]
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "transformer/diffusion_pytorch_model-*.safetensors",
+          "role": "transformer"
+        },
+        {
+          "pattern": "text_encoder/model-*.safetensors",
+          "role": "text_encoder"
+        },
+        {
+          "pattern": "vae/diffusion_pytorch_model.safetensors",
+          "role": "vae"
+        }
+      ],
       "runtime": {
         "engine": "diffusers"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "vram_provenance": "declared",
+      "weights": {
+        "at": "2026-09-19T21:36:25.798799+00:00",
+        "components": {
+          "text_encoder": 8.871,
+          "transformer": 10.478,
+          "vae": 0.803
+        },
+        "largest_gb": 10.478,
+        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/cogvideox/models--THUDM--CogVideoX-5b-I2V",
+        "signature": "17:21638272564:46bb47192d",
+        "source": "declared",
+        "total_gb": 20.151
+      }
+    },
     "formats": {
       "can_convert_to": [],
       "format": "safetensors",

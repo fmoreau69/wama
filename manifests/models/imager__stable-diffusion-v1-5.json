@@ -16,11 +16,44 @@
       ]
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "unet/diffusion_pytorch_model.safetensors",
+          "role": "unet"
+        },
+        {
+          "pattern": "safety_checker/model.safetensors",
+          "role": "safety_checker"
+        },
+        {
+          "pattern": "text_encoder/model.safetensors",
+          "role": "text_encoder"
+        },
+        {
+          "pattern": "vae/diffusion_pytorch_model.safetensors",
+          "role": "vae"
+        }
+      ],
       "runtime": {
         "engine": "diffusers"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "vram_provenance": "declared",
+      "weights": {
+        "at": "2026-09-19T21:36:30.674391+00:00",
+        "components": {
+          "text_encoder": 0.458,
+          "unet": 3.202,
+          "vae": 0.312
+        },
+        "largest_gb": 3.202,
+        "root": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/diffusion/stable-diffusion/models--stable-diffusion-v1-5--stable-diffusion-v1-5",
+        "signature": "13:4266665647:3ad7e744fc",
+        "source": "declared",
+        "total_gb": 3.972
+      }
+    },
     "formats": {
       "can_convert_to": [],
       "format": "safetensors",

@@ -17,6 +17,12 @@
       "task": "detect"
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "license-plate-finetune-v1s.onnx",
+          "role": "model"
+        }
+      ],
       "runtime": {
         "engine": "ultralytics"
       }
@@ -27,6 +33,7 @@
       ],
       "model_id": "detect/plates/license-plate-finetune-v1s.onnx",
       "specialty": "plates",
+      "vram_provenance": "heuristic",
       "yolo_type": "detect"
     },
     "formats": {

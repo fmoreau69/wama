@@ -33,11 +33,23 @@
       "task": "text-to-speech"
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "model.pth",
+          "role": "acoustic_model"
+        },
+        {
+          "pattern": "speakers_xtts.pth",
+          "role": "speakers"
+        }
+      ],
       "runtime": {
         "engine": "coqui"
       }
     },
-    "extra_info": {},
+    "extra_info": {
+      "vram_provenance": "declared"
+    },
     "formats": {
       "can_convert_to": [
         "safetensors"

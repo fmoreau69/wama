@@ -14,6 +14,12 @@
       "task": "segment"
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "face_yolov8m-seg_60.pt",
+          "role": "model"
+        }
+      ],
       "runtime": {
         "engine": "ultralytics"
       }
@@ -30,6 +36,7 @@
       },
       "model_id": "segment/faces/face_yolov8m-seg_60.pt",
       "specialty": "faces",
+      "vram_provenance": "heuristic",
       "yolo_type": "segment"
     },
     "formats": {
