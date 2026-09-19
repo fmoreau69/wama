@@ -6,6 +6,10 @@
         "prompt",
         "work_image"
       ],
+      "languages": [
+        "en",
+        "zh"
+      ],
       "modalities": [
         "image"
       ],

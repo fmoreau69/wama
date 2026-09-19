@@ -7,6 +7,9 @@
       "inputs_required": [
         "prompt"
       ],
+      "languages": [
+        "en"
+      ],
       "modalities": [
         "video"
       ],

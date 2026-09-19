@@ -1,0 +1,63 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "depth-estimation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "apple",
+      "description_short": "Profondeur monoculaire métrique + focale estimée, natif transformers (Apache-2.0)",
+      "gated": "no",
+      "hf_id": "apple/DepthPro-hf",
+      "license": "apple-amlr",
+      "model_type": "vision",
+      "platform_ref": "huggingface:apple/DepthPro-hf",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 8.0
+    }
+  },
+  "description": "Profondeur monoculaire métrique + focale estimée, natif transformers (Apache-2.0). Candidat cam_analyzer (re-calage du plan de sol, §[E]).",
+  "key": "huggingface:depthpro",
+  "manifest_kind": "model",
+  "name": "Apple Depth Pro",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:depthpro",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

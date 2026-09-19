@@ -83,7 +83,54 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
         if 'image-captioning' in bag:
             return 'captioning', 'vlm'
         return 'ocr', 'ocr'
+    if t == 'text-to-audio':
+        # HF n'a qu'un tag pour la musique et l'ambiance ; les tags de la carte, eux, le disent
+        # (mesuré le 2026-09-19 : ACE-Step 1.5 taggé `music`, `text2music`, catalogué en
+        # AMBIANCE). Le composer sépare les deux métiers — on lit ce que l'éditeur déclare.
+        if any(k in bag for k in ('music', 'text2music', 'text-to-music', 'music-generation')):
+            return 'text-to-music', 'music'
+        return 'text-to-audio', 'music'
     return _HF_TAG_TASK.get(t), _TASK_MODEL_TYPE.get(t, 'diffusion')
+
+
+def card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str = '') -> dict:
+    """
+    Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
+    par un LLM (doctrine `PROSPECTION_PIPELINE.md` : « tirer depuis la source est un geste
+    mécanique ; un manifeste doit porter les mêmes faits qu'un candidat prospecté »).
+
+    Rend `{task, model_type, capabilities: {task, languages?}, engine}` :
+      • la tâche, par `hf_task_to_wama` (pipeline ET tags) ;
+      • les LANGUES déclarées (`cardData.language` : code, liste de codes, ou « multilingual »
+        → `['*']`) — le vocabulaire de `capabilities['languages']` que `lang_routing` lit ;
+        mesuré le 2026-09-19 : canary en publie 25, le catalogue n'en avait aucune ;
+      • le MOTEUR, quand `library_name` est un moteur qu'un backend WAMA sait servir
+        (`engine_backends`) — `transformers`, `diffusers`… ; `nemo` n'en est pas un, et on ne
+        pose rien plutôt qu'un moteur plausible.
+    Une carte muette rend des clés absentes, jamais des valeurs inventées.
+    """
+    from wama.common.backends.manager import engine_backends
+
+    task, model_type = hf_task_to_wama(pipeline_tag, tags)
+    caps = {'task': task} if task else {}
+    data = {}
+    if card_data:
+        try:
+            data = card_data.to_dict() if hasattr(card_data, 'to_dict') else dict(card_data)
+        except Exception:
+            data = {}
+    language = data.get('language')
+    if isinstance(language, str):
+        language = [language]
+    if isinstance(language, (list, tuple)):
+        codes = [str(x).strip().lower() for x in language if x and str(x).strip()]
+        if any(c in ('multilingual', 'multi') for c in codes):
+            caps['languages'] = ['*']
+        elif codes:
+            caps['languages'] = codes
+    engine = (library_name or '').strip().lower()
+    engine = engine if engine and engine in engine_backends() else None
+    return {'task': task, 'model_type': model_type, 'capabilities': caps, 'engine': engine}
 
 
 def _metrique_declaree(card_data):
@@ -190,6 +237,7 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
         lm = getattr(m, 'last_modified', None)
         carte = getattr(m, 'card_data', None)
         licence, base_model = None, None
+        language = None
         if carte is not None:
             try:
                 cd = carte.to_dict() if hasattr(carte, 'to_dict') else dict(carte)
@@ -197,9 +245,13 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
                 # Le modèle de BASE déclaré par la carte : c'est lui qui porte la licence
                 # d'un dérivé (cf. `analyze_license`). Chaîne ou liste selon les cartes.
                 base_model = cd.get('base_model')
+                # Les LANGUES déclarées (2026-09-19) — lues ici, dans la MÊME requête, pour que
+                # le candidat les porte (`card_facts`).
+                language = cd.get('language')
             except Exception:
                 licence = None
         candidates.append({
+            'language': language,
             'hf_id': m.id,
             'downloads': dl,
             'likes': getattr(m, 'likes', 0) or 0,
@@ -640,7 +692,9 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             retenus += 1
             # Tâche et catégorie PAR CANDIDAT (tags de la carte), plus par tâche balayée :
             # un balayage `image-to-image` rend surtout des modèles d'ÉDITION.
-            tache_w, model_type = hf_task_to_wama(c.get('pipeline_tag') or tache, c.get('tags'))
+            facts = card_facts(c.get('pipeline_tag') or tache, c.get('tags'),
+                               {'language': c.get('language')})
+            tache_w, model_type = facts['task'], facts['model_type']
             if model_type not in refs_type:
                 # Identité courte : `name` du catalogue porte parfois un descriptif après « — ».
                 refs_type[model_type] = [
@@ -671,7 +725,9 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
                 disk_gb=poids or 0.0,     # 0.0 = inconnu → la garde d'espace refusera (forçable)
                 # La TÂCHE écrite sur la ligne : c'est elle qui donne un banc à un candidat
                 # (`benchmark_sync._local_categories`) — sans elle, « hors catégorie ».
-                capabilities={'task': tache_w} if tache_w else {},
+                # Et les LANGUES de la carte (2026-09-19) : le candidat porte les mêmes facts
+                # que la ligne installée le portera.
+                capabilities=facts['capabilities'],
             )
             crees += int(cree)
             maj += int(not cree)
@@ -799,8 +855,9 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
                 licence, base_model = cd.get('license'), cd.get('base_model')
             except Exception:
                 licence = None
-        tache_w, model_type = hf_task_to_wama(getattr(m, 'pipeline_tag', None) or tache,
-                                              getattr(m, 'tags', None) or ())
+        facts = card_facts(getattr(m, 'pipeline_tag', None) or tache,
+                           getattr(m, 'tags', None) or (), carte)
+        tache_w, model_type = facts['task'], facts['model_type']
         if model_type not in refs_type:
             refs_type[model_type] = [
                 (x.name or '').split('—')[0].strip()
@@ -823,7 +880,7 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
             hf_id=m.id, license=str(licence or '')[:64],
             platform_ref=f"huggingface:{m.id}",
             disk_gb=poids or 0.0,
-            capabilities={'task': tache_w} if tache_w else {},
+            capabilities=facts['capabilities'],
         )
         crees += int(cree)
         maj += int(not cree)

@@ -1,0 +1,65 @@
+{
+  "body": {
+    "capabilities": {
+      "languages": [
+        "en"
+      ]
+    },
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
+    "extra_info": {
+      "category": "vision",
+      "family": "locate-anything",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/locate-anything/models--nvidia--LocateAnything-3B",
+      "size_bytes": 7796037025,
+      "vram_estimated": true
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "nvidia",
+      "description_short": "Snapshot HF LocateAnything-3B — installé, en attente d'intégration",
+      "gated": "no",
+      "hf_id": "nvidia/LocateAnything-3B",
+      "license": "other",
+      "model_type": "vision",
+      "platform_ref": "huggingface:nvidia/LocateAnything-3B",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 7.260625273920596,
+      "ram_gb": 0.0,
+      "vram_gb": 9.4
+    }
+  },
+  "description": "Snapshot HuggingFace installé (vision/locate-anything) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:nvidia/LocateAnything-3B",
+  "manifest_kind": "model",
+  "name": "LocateAnything-3B",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:nvidia/LocateAnything-3B",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

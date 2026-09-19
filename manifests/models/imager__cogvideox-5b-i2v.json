@@ -6,6 +6,9 @@
         "prompt",
         "work_image"
       ],
+      "languages": [
+        "en"
+      ],
       "modalities": [
         "video"
       ],
