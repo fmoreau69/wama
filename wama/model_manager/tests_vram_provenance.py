@@ -22,32 +22,32 @@ def _info(key, **kw):
     return ModelInfo(**base)
 
 
-class ProvenanceDeLaVramTest(TestCase):
+class VramProvenanceTest(TestCase):
 
     def _sync(self, info):
         ModelSyncService()._sync_model(info.id, info)
         return AIModel.objects.get(model_key=info.id).extra_info or {}
 
-    def test_le_defaut_est_DECLARE(self):
+    def test_the_default_is_DECLARED(self):
         self.assertEqual(self._sync(_info('imager:t-declare'))['vram_provenance'], 'declared')
 
-    def test_un_redacteur_heuristique_ou_estime_le_DIT(self):
+    def test_a_heuristic_or_estimated_writer_SAYS_so(self):
         self.assertEqual(self._sync(_info('imager:t-heur', vram_provenance='heuristic'))
                          ['vram_provenance'], 'heuristic')
         self.assertEqual(self._sync(_info('imager:t-est', vram_provenance='estimated'))
                          ['vram_provenance'], 'estimated')
 
-    def test_zero_n_a_pas_de_provenance(self):
+    def test_zero_has_no_provenance(self):
         """`0` veut dire INCONNU — un modèle distant, une ligne sans chiffre : rien à marquer."""
         self.assertNotIn('vram_provenance', self._sync(_info('imager:t-zero', vram_gb=0)))
 
-    def test_un_ModelInfo_sans_le_champ_vaut_declare(self):
+    def test_a_ModelInfo_without_the_field_counts_as_declared(self):
         """Les jumelles et les tests fabriquent des `ModelInfo` d'avant : ni erreur, ni vide."""
         info = _info('imager:t-ancien')
         info.vram_provenance = ''
         self.assertEqual(self._sync(info)['vram_provenance'], 'declared')
 
-    def test_la_provenance_ne_chasse_pas_les_cles_collantes(self):
+    def test_provenance_does_not_evict_the_sticky_keys(self):
         AIModel.objects.create(model_key='imager:t-collant', name='x', model_type='image',
                                source='imager', vram_gb=8.0,
                                extra_info={'vram_measured': {'max_gb': 9.0, 'n': 1}})
