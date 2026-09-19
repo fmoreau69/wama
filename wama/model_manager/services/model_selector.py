@@ -566,8 +566,14 @@ def select_model_id(source: Optional[str] = None, requires=None,
         if not source:
             mt = kwargs.get('model_type')
             if not mt and task:
-                from .prospector import _TASK_MODEL_TYPE
-                mt = _TASK_MODEL_TYPE.get(task)
+                # ⚠ Même table que `get_registry_models` depuis le 2026-09-19 : cette ligne
+                # lisait `prospector._TASK_MODEL_TYPE` pendant que le listage lisait
+                # `models.model_type_for_task` — deux tables pour un seul fait, dans la MÊME
+                # brique. Elles ne se contredisaient pas (mesuré), mais la table de la
+                # prospection ignorait 20 de nos tâches : la borne par catégorie ne
+                # s'activait pas pour elles.
+                from ..models import model_type_for_task
+                mt = model_type_for_task(task)
             if mt:
                 kwargs['model_type'] = mt
         if modality or task or consumes or available_inputs is not None:
@@ -684,7 +690,7 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         # ratée. `model_type` est la TAXONOMIE du catalogue : renseignée sur **101/101**
         # modèles (mesuré), y compris ceux qu'aucune app ne déclare. Elle ne se DEVINE pas :
         # elle vient de la SOURCE elle-même — `pipeline_tag` du dépôt HF ou capacité déclarée
-        # au registre Ollama — traduite par `_TASK_MODEL_TYPE` ; c'est cette même réponse qui
+        # au registre Ollama — traduite par `model_type_for_task` ; c'est cette même réponse qui
         # décide ensuite du dossier d'installation, que le balayage générique relit. Le
         # dossier est donc le dernier maillon d'une chaîne qui commence chez l'éditeur, pas
         # une déduction de rangement. Sans elle, la requête ne s'appuyait que sur

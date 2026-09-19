@@ -287,6 +287,32 @@ def platform_tag(task: str, platform: str = 'huggingface'):
     return None
 
 
+#: Tags de plateforme COMPOSITES qui retombent sur une de NOS tâches. Ce ne sont pas des
+#: secondes valeurs de `TASK_TO_PLATFORM_TAGS` — le tag PRINCIPAL d'une tâche reste unique,
+#: c'est lui que `platform_tag` rend ; ce sont des graphies d'éditeur que la carte d'un dépôt
+#: porte et que nous ne nommons pas plus finement.
+#:
+#: ⚠ Ces trois rattachements ne sont PAS nouveaux : ils vivaient dans
+#: `prospector._HF_TAG_TASK` + `_TASK_MODEL_TYPE`, deux tables que la même brique lisait en
+#: parallèle de celle-ci (`select_model_id` par l'une, `get_registry_models` par l'autre).
+#: Mesuré avant de les fondre (2026-09-19) : **0 désaccord** entre les deux — 9 tags d'accord,
+#: 3 que seule la table de la prospection connaissait, ces trois-ci. Ils déménagent donc ici,
+#: au domicile de la taxonomie, et la prospection les LIT. *Deux vocabulaires pour un même
+#: fait ne divergent pas bruyamment : ils se rejoignent sur un repli qui a l'air de marcher.*
+PLATFORM_TAG_ALIASES = {
+    # VLM conversationnel (image + question → texte) : pour nous c'est du légendage au sens
+    # large — même catégorie `vlm` que `captioning`, dont le tag principal est `image-to-text`.
+    'image-text-to-text':  ModelTask.CAPTIONING,
+    # TI2V : une image ET un prompt → vidéo (cf. FastWan 2.2). Notre `image-to-video` le porte ;
+    # le prompt est une entrée de plus, pas un autre métier.
+    'image-text-to-video': ModelTask.IMAGE_TO_VIDEO,
+    # ⚠ WAMA ne nomme pas encore la sortie audio+vidéo CONJOINTE (le modèle produit les deux).
+    # La catégorie, elle, est bien `diffusion` : on rattache à `text-to-video` sans prétendre
+    # que la piste audio est décrite. À scinder le jour où un tel modèle entre au catalogue.
+    'text-to-audio-video': ModelTask.TEXT_TO_VIDEO,
+}
+
+
 def canonical_task(task: str):
     """Traduit une tâche EXPRIMÉE DANS LE VOCABULAIRE D'UNE PLATEFORME vers le nôtre.
 
@@ -312,13 +338,26 @@ def canonical_task(task: str):
     for t, tags in TASK_TO_PLATFORM_TAGS.items():
         if task in [x for x in tags if x]:
             return t.value
-    return task
+    alias = PLATFORM_TAG_ALIASES.get(task)
+    return alias.value if alias else task
+
+
+def wama_task(task: str):
+    """`task` ramenée à NOTRE vocabulaire, ou None si elle n'en fait pas partie.
+
+    Différence avec `canonical_task`, qui rend l'entrée INCHANGÉE quand elle est inconnue :
+    ici l'inconnu est dit. C'est ce qu'il faut à qui ÉCRIT une tâche en base — poser un tag
+    d'éditeur non traduit dans `capabilities['task']` fabriquerait une valeur hors
+    `ModelTask`, que ni la sélection ni les bancs ne savent lire.
+    """
+    t = canonical_task(task)
+    return t if t in {x.value for x in ModelTask} else None
 
 # Taches portees par des plateformes et ABSENTES de chez nous. Pas un oubli : rien ne les
 # consomme aujourd'hui. Notees pour que la prochaine question << ou est la profondeur ? >> trouve
 # une reponse ecrite. `Gaze Detection` (Roboflow) est a surveiller — un labo qui analyse la
 # conduite finira par en vouloir.
-TACHES_CONNUES_NON_PORTEES = {
+PLATFORM_TASKS_NOT_CARRIED = {
     # (`Depth Estimation` en est SORTIE le 2026-08-05 : declaree dans ModelTask en amont du
     #  chantier cam_analyzer/profondeur.)
     # DEJA UTILISE dans WAMA — wama_lab/face_analyzer (eye_tracking.py), mais l'app a ses propres

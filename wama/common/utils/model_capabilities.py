@@ -41,6 +41,15 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     # vocabulaires ne se comparent JAMAIS par égalité de nom : un port parle en DataType,
     # un modèle parle en task, et la traduction se DÉCLARE dans le binding.
     "task":                "str — identifiant de tâche façon HF (ex. 'text-to-image', 'segment')",
+    #: Les MÉTIERS d'un modèle qui en exerce plusieurs — `task` reste le principal (celui que
+    #: lisent l'appariement et la sélection), `tasks` les énumère TOUS. Écrite par la découverte
+    #: (`model_registry`, depuis le raccourci `tasks` des `model_config.py`) et lue par
+    #: `benchmark_sync._local_categories`, qui donne alors UN BANC PAR MÉTIER au lieu d'un seul.
+    #: ⚠ DÉCLARÉE ICI depuis le 2026-09-19 seulement : elle circulait sur 13 lignes (imager :
+    #: les TI2V, qui font texte→vidéo ET image→vidéo) et était lue par les bancs, sans figurer
+    #: au vocabulaire qui se dit « source unique ». Un audit de capacités ne la reconnaissait
+    #: donc pas — exactement le trou que ce fichier existe pour fermer.
+    "tasks":               "list[str] — tous les métiers exercés (`task` = le principal)",
     "languages":           "list[str] — codes ISO gérés ; ['*'] = agnostique/toutes langues",
     "context_length":      "int — fenêtre de contexte (llm/vlm)",
     # Capacités d'un LLM/VLM — un ENSEMBLE, pas une tâche unique (cf. models.py §ModelTask :

@@ -1659,3 +1659,47 @@ devient un candidat avec sa tâche puis part par la même route, un nom inventé
 écrire, la clé inconnue, le déjà-téléchargé, le re-clic qui rejoint, les deux verbes de
 l'assistant (mêmes corps, chiffres du refus d'espace, gating `model_manager`), le manifeste de
 scout devenu candidat installable (composition transportée), et le manifeste sans type refusé.
+
+### Même jour — tâche → catégorie ne se dit plus qu'à UN endroit (point 4 du chantier)
+
+**Mesure avant** : `prospector` portait DEUX tables (`_HF_TAG_TASK` tag→tâche, `_TASK_MODEL_TYPE`
+tag→catégorie) que la **même brique** lisait en parallèle de celles du catalogue —
+`select_model_id` par `_TASK_MODEL_TYPE` (dans `model_selector`), `get_registry_models` par
+`models.model_type_for_task`. Confrontées avant de toucher à quoi que ce soit :
+
+| | résultat |
+|---|---|
+| tags où les deux tables **s'accordent** | **9 / 12** |
+| tags en **désaccord** | **0** |
+| tags que seule la prospection connaissait | 3 (`image-text-to-text`→vlm, `image-text-to-video`, `text-to-audio-video`→diffusion) |
+| **nos tâches que seule `model_type_for_task` connaissait** | **20 / 26** — pour elles, la borne par catégorie de `select_model` ne s'activait **pas** |
+
+Et `_HF_TAG_TASK` déclarait déjà les rattachements exacts des 3 tags composites
+(`image-text-to-text`→`captioning`, `image-text-to-video`→`image-to-video`,
+`text-to-audio-video`→`text-to-video`). **Rien à inventer : un déménagement.**
+
+**Livré** : `models.PLATFORM_TAG_ALIASES` (les 3 rattachements, avec leur justification et la
+réserve écrite pour `text-to-audio-video` — WAMA ne nomme pas encore la sortie audio+vidéo
+CONJOINTE), lu par `canonical_task` ; nouveau `models.wama_task(tag)` = la tâche NÔTRE ou
+**None** (`canonical_task` rend l'entrée inchangée quand elle est inconnue — ce qu'il ne faut
+pas écrire en base) ; les deux tables du prospector **supprimées**, `hf_task_to_wama` garde ses
+seules branches utiles (les 3 tags HF plus GROSSIERS que nous : `image-to-image`,
+`image-to-text`, `text-to-audio`, départagés par les tags de la carte) ; `model_selector` et
+`apply_recommendations` lisent la table du catalogue.
+
+**Au passage** : `capabilities['tasks']` (les métiers SECONDAIRES) entre au vocabulaire canonique.
+Il était **écrit** par la découverte (13 lignes imager, les TI2V) et **lu** par
+`benchmark_sync._local_categories` — qui donne un banc PAR métier — sans figurer dans
+`CANONICAL_CAPABILITIES` : un audit de capacités ne le reconnaissait pas. `check_model_taxonomy`
+le contrôle désormais comme `task` (même taxonomie) et signale un modèle multi-métiers dont les
+tâches ne retombent **pas** sur la même catégorie — aucun cas aujourd'hui (3 modèles
+multi-tâches, tous `diffusion`), la garde existe pour que le premier soit VU. Relevé vert :
+*16 déclarations sur 4 tâches, catégories homogènes.*
+⚠ Renommé au passage : `TACHES_CONNUES_NON_PORTEES` → `PLATFORM_TASKS_NOT_CARRIED` (identifiant
+de code français préexistant).
+
+**🔚 Décision qui reste à Fabien** : `zero-shot-object-detection` (détection en **vocabulaire
+ouvert**) est listé dans `PLATFORM_TASKS_NOT_CARRIED`, donc `LocateAnything-3B` — installé et
+catalogué — n'a **aucune** tâche, et sort de toute sélection comme de tout banc. Deux voies : le
+ranger en `detect` (il détecte, mais on perd « le vocabulaire est ouvert », qui est justement son
+intérêt pour le detector), ou déclarer la tâche. Rien n'est tranché ici.

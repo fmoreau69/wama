@@ -15,7 +15,9 @@ from collections import Counter
 
 from django.core.management.base import BaseCommand
 
-from wama.model_manager.models import AIModel, ModelType, ModelSource, ModelTask
+from wama.model_manager.models import (
+    AIModel, ModelSource, ModelTask, ModelType, model_type_for_task,
+)
 
 
 class Command(BaseCommand):
@@ -27,21 +29,38 @@ class Command(BaseCommand):
         declares_task = {c[0] for c in ModelTask.choices}
 
         types, sources, taches = Counter(), Counter(), Counter()
-        sans_tache = []
+        sans_tache, secondaires, categories_divergentes = [], Counter(), []
         for m in AIModel.objects.all():
             types[m.model_type] += 1
             sources[m.source] += 1
-            tache = (m.capabilities or {}).get('task')
+            caps = m.capabilities or {}
+            tache = caps.get('task')
             if tache:
                 taches[tache] += 1
             else:
                 sans_tache.append(m.model_key)
+            # Les METIERS SECONDAIRES (`capabilities['tasks']`, 2026-09-19) suivent la meme
+            # taxonomie que `task` : ils donnent un banc par metier (`benchmark_sync`), donc une
+            # valeur hors vocabulaire y coute exactement aussi cher qu'ailleurs.
+            plusieurs = caps.get('tasks')
+            if isinstance(plusieurs, (list, tuple)):
+                for t in plusieurs:
+                    secondaires[t] += 1
+                # Un modele multi-metiers dont les taches ne retombent PAS sur la meme categorie
+                # n'a pas de `model_type` juste : `select_model` borne par UNE categorie. Aucun
+                # cas aujourd'hui (mesure du 19/09 : 3 modeles multi-taches, tous `diffusion`) —
+                # cette garde existe pour que le premier soit VU au lieu d'etre range de travers.
+                cats = {model_type_for_task(t) for t in plusieurs} - {None}
+                if len(cats) > 1:
+                    categories_divergentes.append(
+                        f"{m.model_key} : {list(plusieurs)} -> {sorted(cats)}")
 
         souci = False
         for libelle, vus, declares in (
             ('model_type', types, declares_type),
             ('source', sources, declares_source),
             ("capabilities['task']", taches, declares_task),
+            ("capabilities['tasks']", secondaires, declares_task),
         ):
             inconnus = {v: n for v, n in vus.items() if v and v not in declares}
             inutilises = sorted(declares - set(vus))
@@ -54,6 +73,17 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"✓ {libelle} : toutes les valeurs sont declarees"))
             if inutilises:
                 self.stdout.write(f"    declares sans aucun modele : {', '.join(inutilises)}")
+
+        if categories_divergentes:
+            souci = True
+            self.stdout.write(self.style.ERROR(
+                "✗ modeles multi-metiers dont les taches ne donnent PAS la meme categorie "
+                "(leur `model_type` ne peut pas etre juste pour les deux) :\n    "
+                + '\n    '.join(categories_divergentes)))
+        elif secondaires:
+            self.stdout.write(self.style.SUCCESS(
+                f"✓ metiers secondaires : {sum(secondaires.values())} declaration(s) sur "
+                f"{len(secondaires)} tache(s), categories homogenes"))
 
         if sans_tache:
             self.stdout.write(self.style.WARNING(
