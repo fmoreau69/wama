@@ -314,7 +314,14 @@ _NOISE_MARKERS = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
 #: Extensions de fichiers de POIDS (pour le détail par fichier des dépôts quantisés).
 #: Remontée ici le 2026-09-07 avec la dérivation qui l'emploie — elle vivait 190 lignes plus
 #: bas, à côté de la seule fonction qui la lisait.
-_WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth')
+#: ⚠ `.onnx` AJOUTÉ le 2026-09-19 : son absence faisait peser faux une composition DÉJÀ
+#: déclarée — `huggingface:onnx-community/Kokoro-82M-v1.0-ONNX` déclare le rôle
+#: `acoustic_model` sur `onnx/model.onnx`, et le relevé rendait 0,027 Go (ses seules voix
+#: `.bin`) pour un modèle de 0,3 Go, le rôle principal comptant pour RIEN. WAMA catalogue de
+#: vrais modèles ONNX (ce Kokoro, les 6 YOLO/ONNX de l'anonymizer, les upscalers de l'enhancer) :
+#: pour eux l'ONNX n'est pas la copie d'un autre moteur, c'est LE modèle.
+#: *Une extension absente d'une liste ne produit pas d'erreur — elle produit un zéro.*
+_WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth', '.onnx')
 
 
 def _siblings(hf_id: str):

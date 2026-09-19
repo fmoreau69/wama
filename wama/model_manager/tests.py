@@ -1077,6 +1077,57 @@ class RestesTechniquesDuSoirTest(TestCase):
         self.assertEqual(door['components'], {'vae': 1.0})
         self.assertEqual(door['source'], 'allow_patterns')
 
+    def test_a_component_living_in_another_repo_is_weighed_too(self):
+        """Le second bras du schéma `composition` : `{'role': …, 'repo': 'org/nom'}`. Cinq
+        déclarations du catalogue s'en servent (pyannote-diarization, codeformer, les 3
+        DeepFace) et rendaient « aucun poids » — leur dépôt principal ne porte que des
+        fichiers de configuration. Une composition VALIDE et un relevé VIDE."""
+        from .services import model_installer as mi
+        compo = {'components': [{'role': 'segmentation', 'repo': 'org/segmentation-3.0'},
+                                {'role': 'embedding', 'repo': 'org/wespeaker-resnet34'}],
+                 'runtime': {'engine': 'pyannote'}}
+        with patch('wama.model_manager.services.prospector._repo_weight_gb',
+                   side_effect=[0.006, 0.026]):
+            r = mi.components_for_spec({'kind': 'hf', 'ref': 'org/diarization', 'composition': compo},
+                                       files=[('config.yaml', 900)])
+        self.assertEqual(r['components'], {'embedding': 0.026, 'segmentation': 0.006})
+        self.assertEqual(r['total_gb'], 0.032)
+        self.assertEqual(r['largest_gb'], 0.026)
+        self.assertEqual(r['source'], 'declared')
+
+    def test_an_unweighable_sibling_repo_is_NAMED_never_counted_as_zero(self):
+        """Un dépôt gated (pyannote l'est), injoignable, ou pas HF du tout (TripoSR déclare une
+        URL GitHub) laisse un rôle SANS poids. `unresolved` le NOMME, et aucun `total_gb` n'est
+        rendu : une somme incomplète prise pour une empreinte est pire qu'un trou déclaré."""
+        from .services import model_installer as mi
+        compo = {'components': [{'role': 'code',
+                                 'repo': 'https://github.com/VAST-AI-Research/TripoSR'}]}
+        r = mi.components_for_spec({'kind': 'hf', 'ref': 'stabilityai/TripoSR',
+                                    'composition': compo}, files=[('README.md', 100)])
+        self.assertEqual(r['unresolved'], ['code'])
+        self.assertIsNone(r.get('total_gb'), "un total incomplet ne doit pas être inventé")
+        self.assertNotIn('components', r)
+        # un modèle SANS dépôt principal existe (les 3 DeepFace n'ont pas de `hf_id`) :
+        # son anatomie est entièrement déportée, et la porte doit quand même répondre
+        with patch('wama.model_manager.services.prospector._repo_weight_gb', return_value=1.0):
+            sans_depot = mi.components_for_spec({'kind': 'hf', 'ref': '', 'composition': {
+                'components': [{'role': 'age', 'repo': 'org/deepface_models'}]}})
+        self.assertEqual(sans_depot['components'], {'age': 1.0})
+
+    def test_onnx_counts_as_weight_because_for_some_models_it_IS_the_model(self):
+        """`.onnx` manquait aux extensions de poids : la composition de Kokoro-ONNX déclarait
+        son rôle principal sur `onnx/model.onnx` et ce rôle pesait ZÉRO. Une extension absente
+        d'une liste ne produit pas d'erreur, elle produit un zéro."""
+        from .services.prospector import _WEIGHT_EXTS
+        from .services.model_installer import components_of_files
+        self.assertIn('.onnx', _WEIGHT_EXTS)
+        compo = {'components': [{'role': 'acoustic_model', 'pattern': 'onnx/model.onnx'},
+                                {'role': 'voices', 'pattern': 'voices/*.bin'}]}
+        r = components_of_files([('onnx/model.onnx', 325 * 1024 ** 2),
+                                 ('voices/af.bin', 13 * 1024 ** 2)], composition=compo)
+        self.assertEqual(sorted(r['components']), ['acoustic_model', 'voices'])
+        self.assertGreater(r['components']['acoustic_model'], 0.3)
+
     def test_le_pull_hf_transmet_les_doublons_en_ignore_patterns_sauf_si_le_spec_restreint(self):
         """`pull_hf_model` passe les jumeaux à `snapshot_download(ignore_patterns=…)` ; un spec
         qui restreint déjà (`allow_patterns`, ex. `.nemo` seul) ne déclenche pas le listing."""
