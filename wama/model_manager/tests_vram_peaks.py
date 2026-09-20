@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 from django.test import SimpleTestCase
 
-from wama.model_manager.services.memory_manager import (ACTIVATION_MARGIN_GB, MemoryStrategy,
-                                                        model_footprint_gb, peaks_from_weights)
+from wama.model_manager.services.memory_manager import (MemoryStrategy, model_footprint_gb,
+                                                        peaks_from_weights)
 
 
 def _row(*, weights=None, measured=None, vram_gb=0, key='imager:temoin'):
@@ -25,10 +25,9 @@ class TwoPeaksTest(SimpleTestCase):
         coexiste ; en déchargement un composant descend quand le suivant monte, et c'est le plus
         gros qui fixe le plafond. Un seul nombre ne peut pas dire les deux."""
         pics = peaks_from_weights({'total_gb': 20.15, 'largest_gb': 10.48})
-        self.assertEqual(pics, {'full': 24.15, 'offload': 14.48})
-        self.assertEqual(ACTIVATION_MARGIN_GB, 4.0,
-                         "la marge vient d'un run (CogVideoX, 13/03 : OOM sur 570 Mio manquants), "
-                         "ce n'est pas un réglage")
+        self.assertEqual(pics, {'full': 20.15, 'offload': 10.48},
+                         "un pic est un FAIT du modèle : aucune marge ne s'y ajoute — ce qu'on "
+                         "garde libre est une politique de la MACHINE, donc du gouverneur")
 
     def test_without_the_weights_no_peak_is_invented(self):
         self.assertEqual(peaks_from_weights({}), {})
@@ -49,7 +48,7 @@ class FootprintCascadeTest(SimpleTestCase):
         # mesure BASSE (relevée en déchargement) contre une source plus haute → la source gagne
         gb, prov = model_footprint_gb(_row(weights={'total_gb': 20.15, 'largest_gb': 10.48},
                                           measured=6.0))
-        self.assertEqual((gb, prov), (14.48, 'source'))
+        self.assertEqual((gb, prov), (10.48, 'source'))
         # mesure plus HAUTE que la source → c'est elle qui fait foi, et la provenance le dit
         gb, prov = model_footprint_gb(_row(weights={'total_gb': 20.15, 'largest_gb': 10.48},
                                           measured=18.0))
@@ -59,8 +58,8 @@ class FootprintCascadeTest(SimpleTestCase):
         """« C'est le pic que le filtre compare » — et le pic dépend de ce que le moteur SAIT
         faire. FastWan mesuré : 22,52 de somme, 10,58 de plus gros composant."""
         row = _row(weights={'total_gb': 22.52, 'largest_gb': 10.58})
-        self.assertEqual(model_footprint_gb(row, offload=True), (14.58, 'source'))
-        self.assertEqual(model_footprint_gb(row, offload=False), (26.52, 'source'))
+        self.assertEqual(model_footprint_gb(row, offload=True), (10.58, 'source'))
+        self.assertEqual(model_footprint_gb(row, offload=False), (22.52, 'source'))
 
     def test_each_rung_of_the_cascade_and_the_refusal_to_guess(self):
         self.assertEqual(model_footprint_gb(_row(measured=12.5)), (12.5, 'measured'))
@@ -83,9 +82,9 @@ class StrategyWithoutGuessworkTest(SimpleTestCase):
         from wama.model_manager.services.memory_manager import MemoryManager
         carte = {'total_gb': 24.0, 'free_gb': 2.0, 'allocated_gb': 22.0, 'reserved_gb': 22.0}
         with patch.object(MemoryManager, 'get_gpu_memory_info', return_value=carte):
-            # somme 26,5 : ne tient pas en plein GPU ; pic de déchargement 14,6 : tient
+            # somme 22,5 + 2 de marge : ne tient pas ; plus gros composant 10,6 + 2 : tient
             self.assertEqual(
-                MemoryManager.get_memory_strategy(26.5, headroom_gb=2.0, offload_peak_gb=14.58),
+                MemoryManager.get_memory_strategy(22.52, headroom_gb=2.0, offload_peak_gb=10.58),
                 MemoryStrategy.MODEL_OFFLOAD)
             # un plus gros composant qui ne tient PAS seul : il faut descendre à la couche
             self.assertEqual(
