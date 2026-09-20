@@ -293,49 +293,12 @@ def api_delete(request, pk: int):
     return JsonResponse({'deleted': pk})
 
 
-@require_POST
-def api_promote(request, pk: int):
-    """POST /media-library/api/assets/<pk>/promote/ — change la visibilité d'un asset
-    (privé / unité / public). Body JSON : {visibility, scope_org_unit_code?}.
-    Seul le PROPRIÉTAIRE peut promouvoir ; le partage 'unit' exige une unité qui COUVRE
-    l'utilisateur (labo/dépt/université de son appartenance). Voir §MONDES."""
-    import json
-    from wama.common.models import (OrgUnit, Project, ScopedVisibility,
-                                    user_scope_org_ids, user_projects)
-    user = _get_user(request)
-    try:
-        asset = UserAsset.objects.get(pk=pk, user=user)   # propriété obligatoire
-    except UserAsset.DoesNotExist:
-        return JsonResponse({'error': 'Asset introuvable ou non propriétaire'}, status=404)
-    try:
-        body = json.loads(request.body or '{}')
-    except ValueError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
-    vis = body.get('visibility')
-    if vis not in (ScopedVisibility.VIS_PRIVATE, ScopedVisibility.VIS_PROJECT,
-                   ScopedVisibility.VIS_UNIT, ScopedVisibility.VIS_PUBLIC):
-        return JsonResponse({'error': 'visibility invalide'}, status=400)
-    scope_unit = scope_project = None
-    if vis == ScopedVisibility.VIS_UNIT:
-        try:
-            scope_unit = OrgUnit.objects.get(code=body.get('scope_org_unit_code'))
-        except OrgUnit.DoesNotExist:
-            return JsonResponse({'error': 'unité inconnue'}, status=400)
-        if scope_unit.id not in user_scope_org_ids(user):   # doit couvrir l'utilisateur
-            return JsonResponse({'error': "vous n'appartenez pas à cette unité"}, status=403)
-    elif vis == ScopedVisibility.VIS_PROJECT:
-        try:
-            scope_project = Project.objects.get(code=body.get('scope_project_code'))
-        except Project.DoesNotExist:
-            return JsonResponse({'error': 'projet inconnu'}, status=400)
-        if scope_project.id not in user_projects(user):     # doit être membre du projet
-            return JsonResponse({'error': "vous n'êtes pas membre de ce projet"}, status=403)
-    asset.visibility = vis
-    asset.scope_org_unit = scope_unit
-    asset.scope_project = scope_project
-    asset.save(update_fields=['visibility', 'scope_org_unit', 'scope_project'])
-    return JsonResponse({'id': pk, 'visibility': vis,
-                         'scope': (scope_unit or scope_project).name if (scope_unit or scope_project) else None})
+# `api_promote` RETIRÉ le 2026-09-20 (REMOVAL_LEDGER) : c'était un SECOND chemin d'écriture de
+# la visibilité, sans aucun appelant (ni JS, ni gabarit, ni test — mesuré), qui réimplémentait
+# les gardes du service commun ET parlait un autre dialecte : il prenait des CODES d'unité et de
+# projet là où `sharing.partager()` et `wama-share.js` échangent des IDS. Deux vocabulaires pour
+# un seul geste, c'est exactement la divergence que le partage unifié supprime.
+# Le geste vit désormais dans le commun : `common:api_partage` → `media_library/element/<pk>/`.
 
 
 # ---------------------------------------------------------------------------
