@@ -1533,6 +1533,14 @@ def _quality_intent(f: _AppFiles):
     resolves = f.find_py(r"\b(select_model(_id)?|resolve_model_choice)\(", code=True)
     if declared and passed:
         return True, f"{declared} ; passé : {passed}"
+    if declared and not resolves:
+        # Une app SANS modèle à tirer (converter : le curseur décline en réglages d'encodage)
+        # DÉCLINE le curseur elle-même : déclaré ET lu dans son code = adopté. Sans lecteur, le
+        # curseur est un décor.
+        read = f.find_py(r"\b(read_quality_intent|quality_intent_of)\(|\bquality_intent\b", code=True)
+        if read:
+            return True, f"{declared} ; décliné localement : {read}"
+        return False, f"curseur déclaré ({declared}) mais jamais lu"
     if declared:
         return False, f"curseur déclaré ({declared}) mais jamais passé au tirage"
     if resolves or f.find(PARAMS + ['utils/model_config.py'], r"['\"]auto['\"]"):

@@ -195,9 +195,27 @@ class ReleaseChannelTest(_WithRegistry):
         self.assertTrue(t.is_busy())
 
     def test_the_contract_tenant_unloads_through_the_existing_brick(self):
-        with mock.patch('wama.common.backends.base.unload_live_backends', return_value=3) as m:
+        """`MemoryManager.release_vram` — contrat ET hors-contrat (`_VRAM_UNLOADERS`), pas seulement
+        `unload_live_backends` (1re version, revérifiée le 20/09)."""
+        with mock.patch('wama.model_manager.services.memory_manager.MemoryManager.release_vram',
+                        return_value=3) as m:
             self.assertEqual(gov.contract_tenant('gpu').unload(), 3)
         m.assert_called_once_with()
+
+
+class WorkerRegistersItselfTest(SimpleTestCase):
+
+    def test_the_celery_worker_hook_starts_the_release_listener_as_a_contract_tenant(self):
+        from wama.celery import _wama_configure_worker_resources
+        with mock.patch.object(gov, 'configure_cuda_process', return_value=True), \
+                mock.patch('wama.common.backends.base.start_reservation_heartbeat', return_value=True), \
+                mock.patch.object(gov, 'start_release_listener', return_value=True) as start:
+            _wama_configure_worker_resources()
+        start.assert_called_once()
+        tenant = start.call_args.args[0]
+        self.assertIsInstance(tenant, gov.Tenant)
+        self.assertTrue(tenant.name.startswith('celery:'))
+        self.assertFalse(tenant.is_busy())
 
 
 class ObtainVramTest(_WithRegistry):

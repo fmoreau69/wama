@@ -12,10 +12,15 @@ une découverte disque parallèle au catalogue. En la prenant pour un simple dou
 ici pour être RÉUTILISÉE : cam_analyzer (plusieurs types d'objets), face_analyzer, une future
 détection open-vocab en ont le même besoin.
 
-CE QUI RESTE À L'APP, ET QUI NE DOIT PAS ENTRER ICI : la POLITIQUE. « Précision 100 → préférer
-la segmentation et les gros modèles » est une décision de l'anonymizer ; elle se DÉCLARE en
-paramètres (`preferer_segmentation`, `taille_preferee`), elle ne se code pas dans la brique.
-Sinon on remplace une route parallèle par une brique truffée de `if app == …`.
+CE QUI RESTE À L'APP : ses ARBITRAGES MÉTIER — la stratégie (`specialisation` : deux détecteurs
+dédiés plutôt qu'un 2-en-1, décision Fabien 12/08), les tâches admises, le budget. Ils se
+DÉCLARENT en paramètres, jamais par un `if app == …` ici.
+⚠ La phrase qui vivait ici — « précision 100 → préférer la segmentation et les gros modèles est
+une décision de l'anonymizer, elle ne se code pas dans la brique » — est CADUQUE depuis la
+décision de Fabien du 15/09 (chantier C) : cette déclinaison du curseur commun est une règle
+VISION, pas une règle d'app, et la brique la porte (`size_for_intent`, `segmentation_for_intent`,
+`couvrir_classes(quality_intent=)`) pour l'anonymizer comme pour la future app Detector. Les deux
+préférences explicites restent acceptées et priment.
 
 SOURCE UNIQUE : le catalogue `AIModel` et ses `capabilities['classes']` — renseignées pour 46
 des 48 modèles vision (mesuré le 2026-08-04). Aucun scan disque : c'est précisément la

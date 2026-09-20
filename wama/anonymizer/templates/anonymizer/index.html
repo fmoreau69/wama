@@ -78,8 +78,8 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
         par Fabien le 02/09). step=5 CONSERVÉ (2026-08-19) : le moteur ne distingue que 5
         paliers (n/s/m/l/x aux seuils 20/40/60/80, + seuil binaire 50 pour la segmentation).
         `extra_class='setting-button'` = l'auto-persistance des réglages du volet (update.js).
-        La DÉCLINAISON de la valeur reste locale (get_model_size_from_precision) — c'est la
-        couche d'adaptation prévue par la conception.{% endcomment %}
+        La DÉCLINAISON de la valeur est au COMMUN depuis le 20/09 (chantier C :
+        model_coverage.size_for_intent / segmentation_for_intent), inchangée au cran près.{% endcomment %}
         {% include 'common/_intent_slider.html' with dom_id='user_setting_precision_level' name='precision_level' value=gs_values.precision_level|default:50 step=5 extra_class='setting-button' %}
     </div>
 

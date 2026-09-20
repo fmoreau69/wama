@@ -421,7 +421,11 @@
     {# ── Global UI-mode switch helpers ───────────────────────────────── #}
     <script>
       (function() {
+        // Jeton CSRF : la brique commune (`WamaApp.csrfToken`, wama-app-base.js chargé plus
+        // haut) — le même geste vivait ici en propre (dédoublonné le 2026-09-20) ; repli inline
+        // seulement si la brique manquait.
         function _csrf() {
+          if (window.WamaApp && window.WamaApp.csrfToken) return window.WamaApp.csrfToken();
           var el = document.querySelector('[name=csrfmiddlewaretoken]');
           if (el) return el.value;
           var m = document.cookie.match(/csrftoken=([^;]+)/);
