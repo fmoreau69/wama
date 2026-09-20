@@ -679,15 +679,22 @@ class ModelRegistry:
                     # dérivent les deux empreintes de la décision A (somme / plus gros composant,
                     # `model_installer.components_for_spec`).
                     composition=config.get('composition') or {},
-                    # QUANTIFICATION déclarée par l'app (2026-09-20) — même clé d'`extra_info` que
-                    # celle qu'Ollama pose déjà (`model_registry.py:2062`), pas une seconde.
-                    # Elle ne quittait pas le `model_config` : mesuré, `imager:ltx-…-distilled-fp8`
-                    # arrivait au catalogue sans elle, alors que sa config la déclare
-                    # (`imager/utils/model_config.py:234`). Conséquence : cette ligne et la ligne
-                    # pleine précision partagent le MÊME dépôt, donc le même relevé de fichiers, et
-                    # la fp8 héritait d'un pic de 24,3 Go — celui qu'elle existe pour éviter.
-                    **({'extra_info': {'quantization': config['quantization']}}
-                       if config.get('quantization') else {}),
+                    # QUANTIFICATION et DORSALE déclarées par l'app (2026-09-20/21) — `quantization`
+                    # réutilise la clé d'`extra_info` qu'Ollama pose déjà (`model_registry.py:2062`),
+                    # pas une seconde.
+                    # Aucune des deux ne quittait le `model_config`, et chaque fois le symptôme était
+                    # un chiffre plausible et FAUX : sans `quantization`,
+                    # `imager:ltx-…-distilled-fp8` héritait du pic pleine précision (24,3 Go) de la
+                    # ligne qui partage son dépôt — celui qu'elle existe pour éviter ; sans
+                    # `base_model`, la LoRA logo annonçait 0,04 Go alors qu'elle exige les 22,2 Go de
+                    # sa dorsale FLUX.1-dev. ⚠ `base_model` est le `hf_id` de la dorsale, pas une clé
+                    # de catalogue : c'est au lecteur de la résoudre (l'empreinte d'un adaptateur est
+                    # une décision en attente, cf. `ROADMAP §Gouvernance` item 5).
+                    **({'extra_info': {
+                        **({'quantization': config['quantization']} if config.get('quantization') else {}),
+                        **({'base_model': config['base_model']} if config.get('base_model') else {}),
+                        **({'model_type': config['model_type']} if config.get('model_type') else {}),
+                    }} if any(config.get(k) for k in ('quantization', 'base_model', 'model_type')) else {}),
                     capabilities={
                         'modalities': ['video'] if _is_video else ['image'],
                         'task': _task,

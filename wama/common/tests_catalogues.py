@@ -1509,3 +1509,99 @@ class StandaloneMechanismsAreNotDeadCodeTest(TestCase):
                         "dev_tools doit compter son consommateur (mcp_server)")
         self.assertFalse(dev_tools.standalone,
                          "dev_tools a un consommateur : il ne doit PAS être déclaré autonome")
+
+
+class DeclaredKeysReachTheCatalogTest(TestCase):
+    """Ce qu'une app DÉCLARE doit être TRANSPORTÉ par la découverte — sinon la déclaration est
+    lettre morte, en silence.
+
+    POURQUOI CETTE GARDE (2026-09-21, demande de Fabien : « peux-tu régler ce souci »). Trois fois
+    en deux jours, une déclaration d'app existait et n'atteignait PAS le catalogue, et chaque fois
+    le symptôme a été un chiffre plausible et FAUX :
+      * `composition` — les composants n'arrivaient pas, donc les deux pics de la décision A
+        n'existaient pour aucun modèle imager ;
+      * `quantization` — `imager:ltx-…-distilled-fp8` héritait du pic pleine précision de la ligne
+        qui partage son dépôt (24,3 Go), celui qu'elle existe précisément pour éviter ;
+      * `base_model` — la LoRA logo annonçait 0,04 Go alors qu'elle exige les 22,2 Go de sa dorsale.
+
+    LA CAUSE EST STRUCTURELLE, pas trois oublis : la construction du `ModelInfo` est une LISTE
+    BLANCHE. Toute clé déclarée par une app doit y être nommée, sinon elle reste au seuil — et rien
+    ne le dit. *Une liste blanche sans garde transforme chaque ajout en oubli possible.*
+
+    Cette garde est un TEST et non une commande : une carte de dette (`check_model_completeness`)
+    se lit, un test ÉCHOUE. C'est ce qu'il faut ici, puisque le défaut était le silence.
+    Elle EXÉCUTE la découverte, seule façon de constater le transport (même raison que les gardes
+    voisines de ce fichier : un relevé textuel ne verrait pas une clé perdue en cours de route).
+
+    ⚠ AJOUTER UNE CLÉ ICI EST LE COÛT ASSUMÉ d'une déclaration qui voyage. Le tableau ne prétend
+    pas couvrir toutes les clés des `model_config` : beaucoup sont LOCALES par nature
+    (`cache_dir`, `gen_factor`, `audiocraft_name`, `description_long`…) et n'ont rien à faire au
+    catalogue. Il couvre celles dont la chaîne a besoin en aval.
+    """
+
+    #: (module de config, nom du dict, clé déclarée, où la trouver dans le `ModelInfo`)
+    #: `where` est une fonction pour que le test dise POURQUOI il échoue, pas seulement QUE.
+    CONTRATS = (
+        ('wama.imager.utils.model_config', 'IMAGER_MODELS', 'composition',
+         lambda info: (info.composition or {}).get('components')),
+        ('wama.imager.utils.model_config', 'IMAGER_MODELS', 'quantization',
+         lambda info: (info.extra_info or {}).get('quantization')),
+        ('wama.imager.utils.model_config', 'IMAGER_MODELS', 'base_model',
+         lambda info: (info.extra_info or {}).get('base_model')),
+        ('wama.composer.utils.model_config', 'COMPOSER_MODELS', 'composition',
+         lambda info: (info.composition or {}).get('components')),
+        ('wama.synthesizer.utils.model_config', 'SYNTHESIZER_MODELS', 'composition',
+         lambda info: (info.composition or {}).get('components')),
+        ('wama.synthesizer.utils.model_config', 'SYNTHESIZER_MODELS', 'languages',
+         lambda info: (info.capabilities or {}).get('languages')),
+    )
+    #: Déchecked à exécuter, par préfixe de clé de registre.
+    DISCOVERIES = {'imager': '_discover_imager_models', 'composer': '_discover_composer_models',
+                   'synthesizer': '_discover_synthesizer_models'}
+
+    def _registry(self):
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        for method in self.DISCOVERIES.values():
+            getattr(registry, method)()
+        return registry._models
+
+    def test_every_declared_key_of_the_contract_reaches_the_ModelInfo(self):
+        import importlib
+        models = self._registry()
+        unreached = []
+        checked = 0
+        for module_name, dict_name, key, where in self.CONTRATS:
+            declared = getattr(importlib.import_module(module_name), dict_name)
+            source = next(p for p, m in self.DISCOVERIES.items() if p in module_name)
+            for model_id, config in declared.items():
+                if not config.get(key):
+                    continue                       # rien de déclaré : rien à transporter
+                info = models.get(f"{source}:{model_id}")
+                if info is None:
+                    continue                       # non découvert (poids absents) : hors sujet ici
+                checked += 1
+                if not where(info):
+                    unreached.append(f"{source}:{model_id} déclare `{key}` que la découverte "
+                                      f"ne transporte pas")
+        self.assertEqual(unreached, [], "déclaration(s) restée(s) au seuil de la découverte")
+        self.assertGreater(checked, 20,
+                           "le contrat ne vérifie plus rien — les déclarations ont disparu des "
+                           "`model_config`, ou la découverte n'a rien produit")
+
+    def test_the_guard_would_SEE_a_key_that_stays_at_the_threshold(self):
+        """Contre-épreuve : sans elle, ce test ne prouverait pas qu'il sait échouer. On déclare une
+        clé sur un modèle réel et on vérifie que la garde la réclame."""
+        import importlib
+        models = self._registry()
+        info = models.get('imager:stable-diffusion-xl')
+        self.assertIsNotNone(info, "témoin absent de la découverte")
+        witness = ('wama.imager.utils.model_config', 'IMAGER_MODELS', 'pipeline',
+                  lambda i: (i.extra_info or {}).get('pipeline'))
+        module_name, dict_name, key, where = witness
+        declared = getattr(importlib.import_module(module_name), dict_name)
+        self.assertTrue(declared['stable-diffusion-xl'].get(key),
+                        "le témoin doit être une clé RÉELLEMENT déclarée")
+        self.assertFalse(where(info),
+                         "`pipeline` est déclaré et NON transporté — c'est exactement le cas que "
+                         "la garde doit attraper ; s'il devient transporté, ajoute-le aux CONTRATS")
