@@ -440,6 +440,38 @@ def api_tracked_models(request):
 
 
 @login_required
+@require_POST
+def api_vram_grant(request):
+    """L'utilisateur ACCEPTE que toute la carte soit libérée pour un item qui attend des
+    ressources (B1, 2026-09-20 — reformulation de Fabien : la saturation PROPOSE, elle
+    n'autorise plus ; jamais de déchargement d'office).
+
+    Corps JSON : `{"app": "imager", "item": 7}`. L'accord est enregistré au gouverneur avec
+    l'utilisateur qui l'a donné ; c'est le squelette — qui connaît l'item — qui l'honore
+    seulement s'il vient du propriétaire ou d'un admin. La re-livraison suivante de l'item
+    (≤ 45 s) demande alors aux services de se décharger et lance dès que la sonde le permet.
+    """
+    import json as _json
+
+    from wama.common.services.resource_governor import grant_release
+
+    try:
+        data = _json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'success': False, 'error': 'JSON invalide'}, status=400)
+    app_id = str(data.get('app') or '').strip()
+    item_id = data.get('item')
+    if not app_id or item_id in (None, ''):
+        return JsonResponse({'success': False, 'error': 'app et item requis'}, status=400)
+    ok = grant_release(app_id, item_id, user_id=request.user.pk)
+    return JsonResponse({'success': bool(ok),
+                         'message': ("Accord enregistré : la carte sera libérée pour cet élément "
+                                     "à sa prochaine tentative (moins d'une minute).") if ok
+                         else "Gouverneur indisponible (Redis) — accord non enregistré."},
+                        status=200 if ok else 503)
+
+
+@login_required
 @user_passes_test(is_admin_or_dev)
 @require_GET
 def api_idle_models(request):

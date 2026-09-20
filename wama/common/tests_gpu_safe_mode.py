@@ -123,20 +123,28 @@ class DiffermentFauteDeVramTest(TestCase):
         # ⚠ Ce n'est PAS une erreur : on ne laisse pas de trace d'échec sur une attente.
         self.assertEqual(self.item.error_message, '')
 
-    def test_au_bout_du_compte_on_RENONCE_EN_LE_DISANT(self):
-        """Une attente non bornée est un blocage silencieux, pas de la patience."""
-        from wama.common.utils.task_skeleton import (
-            _differer_faute_de_vram, DIFFEREMENTS_MAX)
-        T, _ = self._task(essais=DIFFEREMENTS_MAX)
+    def test_the_wait_has_no_ceiling_anymore_and_what_never_fits_is_refused_at_once(self):
+        """Décision Fabien (20/09) : l'attente est ILLIMITÉE — le plafond « 40 × 45 s puis échec »
+        rendait un échec pour une charge durable légitime. Ce qui ne tiendra JAMAIS (plus que la
+        carte entière) est refusé d'emblée EN LE DISANT, pas après 30 min pour rien."""
+        from wama.common.utils.task_skeleton import _differer_faute_de_vram
+        T, Retry = self._task(essais=400)
         with mock.patch('wama.common.services.resource_governor.effective_free_gb',
-                        return_value=1.0):
+                        return_value=1.0), \
+                mock.patch('wama.common.services.resource_governor.total_vram_gb',
+                           return_value=24.0), \
+                mock.patch('wama.common.services.resource_governor.holders_summary',
+                           return_value=''):
+            with self.assertRaises(Retry) as cm:
+                _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
+                                        self.item.pk, 'synthesizer', 20.0, 'error_message')
+            self.assertIn("'max_retries': None", str(cm.exception))
             differe = _differer_faute_de_vram(T, self._ctx(), self.item, self.model,
-                                              self.item.pk, 'synthesizer', 24.0,
+                                              self.item.pk, 'synthesizer', 32.5,
                                               'error_message')
         self.assertTrue(differe)
         self.item.refresh_from_db()
         self.assertEqual(self.item.status, 'FAILURE')
-        # Le message DIT la sortie possible — jamais un échec nu, jamais un repli silencieux
-        # vers un modèle plus léger (ce serait décider à la place de l'utilisateur).
-        self.assertIn('24.0 Go requis', self.item.error_message)
+        self.assertIn('32.5 Go', self.item.error_message)
+        self.assertIn('même seul', self.item.error_message)
         self.assertIn('qualité', self.item.error_message)

@@ -121,54 +121,67 @@ def _item_label(item, item_id: int) -> str:
     return f"#{item_id}"
 
 
-#: Combien de fois on re-programme un item faute de VRAM avant de renoncer EN LE DISANT.
-#: Borné à dessein : une attente non bornée est un blocage silencieux, pas de la patience.
-#: 40 essais × 45 s ≈ 30 min — au-delà, ce n'est plus un pic d'occupation, c'est une charge
-#: durable, et l'utilisateur doit pouvoir décider (baisser l'exigence, ou relancer plus tard).
-DIFFEREMENTS_MAX = 40
+#: Délai entre deux re-livraisons d'un item qui attend des ressources. L'attente elle-même est
+#: ILLIMITÉE depuis le 2026-09-20 (décision Fabien : la tâche se lancera quand les ressources
+#: seront là ; ce qui ne tiendra JAMAIS est refusé d'emblée, ce n'est pas une attente). Le
+#: plafond « 40 × 45 s ≈ 30 min puis échec » d'avant est retiré : il rendait un échec pour une
+#: charge durable légitime, alors que la durée max porte sur UN traitement, pas sur l'attente.
 DIFFEREMENT_DELAI_S = 45
+
+
+class TaskTimeLimitExceeded(Exception):
+    """Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`)."""
+
+
+def _grant_honoured(grant, item) -> bool:
+    """Un accord de libération vaut s'il vient du PROPRIÉTAIRE de l'item ou d'un admin — le
+    gouverneur enregistre qui a accordé, le squelette (qui connaît l'item) tranche."""
+    uid = (grant or {}).get('user')
+    if uid is None:
+        return False
+    if uid == getattr(item, 'user_id', None):
+        return True
+    try:
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.filter(pk=uid, is_staff=True).exists()
+    except Exception:
+        return False
 
 
 def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
                             error_field):
-    """Re-programme l'item au lieu d'ATTENDRE dans le worker. Rend True si on a différé.
+    """Trois cas (Fabien, 20/09), jamais un échec muet. Rend True si l'item ne part pas.
+
+    (a) `besoin_gb` ne tient pas sur la carte VIDE → REFUS immédiat et dit : aucune attente ne
+        changera la taille de la carte (le filtre du tirage l'écarte en amont ; ici c'est la garde
+        d'un choix manuel).
+    (b) tient seul, pas maintenant → `AWAITING_RESOURCES`, re-livraison dans
+        `DIFFEREMENT_DELAI_S`, SANS plafond ; la card dit qui tient quoi (`holders_summary`).
+    (c) l'utilisateur a ACCORDÉ la libération de toute la carte (`grant_release`, bouton de la
+        card) → demande aux tenants (`obtain_vram`), et l'item part dès que la sonde le permet ;
+        l'accord sert une fois. Jamais de déchargement d'office.
 
     ⚠ Pourquoi pas `wait_for_free_vram()` ici : elle DORT dans la tâche, donc elle immobilise
-    un worker Celery. Pour un hoquet de 180 s c'est acceptable (son seul appelant de
-    production est le mode dépannage GPU du composer, qui reste inchangé) ; pour « la tâche
-    se lancera quand les ressources seront disponibles », c'est une famine de workers :
-    N items en attente = N workers bloqués, et la file GPU s'arrête — y compris pour les
-    tâches légères qui, elles, passeraient.
-
-    On rend donc le worker : statut `AWAITING_RESOURCES`, message explicite, nouvelle
-    livraison dans `DIFFEREMENT_DELAI_S`. Trois bénéfices d'un coup — le worker reste libre,
-    l'attente devient VISIBLE sur la card, et elle devient annulable (l'utilisateur peut
-    baisser l'exigence de qualité et relancer immédiatement).
-
-    ⚠ Un `retry` Celery publie un NOUVEAU message : il ne porte donc pas le drapeau
-    `redelivered`, et la garde anti-boucle-de-crash (`refuse_crash_redelivery`) ne s'en émeut
-    pas. Vérifié avant d'écrire ceci — c'est exactement le genre d'interaction qui se paie
-    trois semaines plus tard.
+    un worker Celery — N items en attente = N workers bloqués. On rend le worker : l'attente
+    devient VISIBLE sur la card et annulable.
+    ⚠ Un `retry` Celery publie un NOUVEAU message : il ne porte pas le drapeau `redelivered`,
+    la garde anti-boucle-de-crash (`refuse_crash_redelivery`) ne s'en émeut pas (vérifié).
     """
     from wama.common.models import JOB_AWAITING_RESOURCES
-    from wama.common.services.resource_governor import effective_free_gb
+    from wama.common.services import resource_governor as gov
 
     try:
-        libre = effective_free_gb()
+        libre = gov.effective_free_gb()
     except Exception:
         return False                      # sonde indisponible → on tente, comme avant
     if libre >= besoin_gb:
         return False
 
-    essais = int(getattr(getattr(task, 'request', None), 'retries', 0) or 0)
-    if essais >= DIFFEREMENTS_MAX:
-        # On renonce EN LE DISANT — jamais un échec muet, jamais un repli silencieux vers un
-        # modèle plus léger : ce serait décider à la place de l'utilisateur ce qu'il a
-        # justement demandé de ne pas faire en choisissant la qualité.
-        attendu = round(DIFFEREMENTS_MAX * DIFFEREMENT_DELAI_S / 60)
-        msg = (f"Ressources GPU insuffisantes depuis ~{attendu} min "
-               f"({libre:.1f} Go libres, {besoin_gb:.1f} Go requis) — "
-               f"réduire l'exigence de qualité pour lancer maintenant, ou relancer plus tard.")
+    if gov.fits_alone(besoin_gb) is False:
+        total = gov.total_vram_gb()
+        msg = (f"Ce traitement demande {besoin_gb:.1f} Go de VRAM et la carte en a {total:.1f} : "
+               f"il ne tiendra jamais, même seul — choisir un modèle plus léger ou baisser "
+               f"l'exigence de qualité.")
         champs = {'status': 'FAILURE'}
         if _has_field(model, error_field):
             champs[error_field] = msg
@@ -177,15 +190,64 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
         _notify(item, app_id.title(), _item_label(item, item_id), False, detail=msg)
         return True
 
-    msg = (f"En attente de ressources : {libre:.1f} Go libres, {besoin_gb:.1f} Go requis "
-           f"(nouvelle tentative dans {DIFFEREMENT_DELAI_S} s)")
+    grant = gov.release_granted(app_id, item_id)
+    if grant and _grant_honoured(grant, item):
+        ctx.console(f"Libération de la carte accordée : {besoin_gb:.1f} Go requis, "
+                    f"{libre:.1f} libres — demande envoyée aux services…", level='info')
+        ok, libre = gov.obtain_vram(besoin_gb, requester=gov.tenant_id(),
+                                    reason=f"{app_id} #{item_id}", console=ctx.console)
+        gov.revoke_grant(app_id, item_id)
+        if ok:
+            return False
+
+    who = gov.holders_summary()
+    msg = (f"En attente de ressources : {libre:.1f} Go libres, {besoin_gb:.1f} Go requis"
+           + (f" — {who}" if who else '')
+           + f" (nouvelle tentative dans {DIFFEREMENT_DELAI_S} s)")
     champs = {'status': JOB_AWAITING_RESOURCES}
     if _has_field(model, error_field):
         champs[error_field] = ''          # ce n'est pas une erreur : on n'en laisse pas la trace
     model.objects.filter(pk=item_id).update(**champs)
     ctx.console(msg, level='info')
     logger.info("[%s] item #%s différé — %s", app_id, item_id, msg)
-    raise task.retry(countdown=DIFFEREMENT_DELAI_S, max_retries=DIFFEREMENTS_MAX)
+    raise task.retry(countdown=DIFFEREMENT_DELAI_S, max_retries=None)
+
+
+class _time_guard:
+    """Garde-temps d'UN traitement (Fabien, 16/09 : 30 min par défaut, réglable). Mesuré le
+    20/09 : `--pool=solo` n'honore AUCUNE limite Celery (`concurrency/solo.py:29`). La tâche du
+    worker gpu tourne dans le THREAD PRINCIPAL du process : un `SIGALRM` y lève
+    `TaskTimeLimitExceeded` au prochain pas Python — le même geste que prefork dans ses
+    enfants. Hors thread principal ou sans `SIGALRM` (Windows, pool prefork où Celery garde la
+    main) : sans effet, à dessein. Arrêt PROPRE : l'exception remonte dans le squelette, qui
+    pose l'échec relançable, rend la ligne « tâche en cours » et notifie."""
+
+    def __init__(self, limit_s: float):
+        self.limit_s = float(limit_s or 0)
+        self._previous = None
+        self._armed = False
+
+    def __enter__(self):
+        import signal
+        import threading
+        if self.limit_s <= 0 or not hasattr(signal, 'SIGALRM') \
+                or threading.current_thread() is not threading.main_thread():
+            return self
+
+        def _expire(signum, frame):
+            raise TaskTimeLimitExceeded(self.limit_s)
+
+        self._previous = signal.signal(signal.SIGALRM, _expire)
+        signal.setitimer(signal.ITIMER_REAL, self.limit_s)
+        self._armed = True
+        return self
+
+    def __exit__(self, *exc):
+        if self._armed:
+            import signal
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, self._previous or signal.SIG_DFL)
+        return False
 
 
 def run_item_task(task, *, app_id: str, model, item_id: int, process,
@@ -235,6 +297,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         logger.info("[%s] item #%s : report abandonné (statut %s, plus en attente de ressources)",
                     app_id, item_id, getattr(item, 'status', None))
         return
+    besoin = None
     if vram_needed is not None:
         try:
             besoin = vram_needed(item) if callable(vram_needed) else float(vram_needed)
@@ -276,8 +339,15 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
 
     t0 = time.time()
     label_app = notify_label or app_id.title()
+    # La TÂCHE EN COURS se déclare au gouverneur (B1, 2026-09-20) : jusque-là « une tâche GPU
+    # tourne » ne se lisait que dans les statuts RUNNING des tables d'app — invisible du
+    # gouverneur, donc de l'attente des autres. La ligne expire avec la durée max du traitement.
+    from wama.common.services import resource_governor as gov
+    limit_s = gov.task_time_limit_s(app_id, getattr(item, 'user', None))
+    token = gov.task_started(app_id, item_id, besoin or 0.0, max_s=limit_s)
     try:
-        res = process(item, ctx) or {}
+        with _time_guard(limit_s):
+            res = process(item, ctx) or {}
         fields = dict(res.get('fields') or {})
         fields['status'] = 'SUCCESS'
         if _has_field(model, 'progress'):
@@ -307,6 +377,21 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         _signal(item, app_id, 'produit', res.get('models'),
                 {'secondes': round(time.time() - t0, 1)})
         _notify(item, label_app, nom, True)
+    except TaskTimeLimitExceeded:
+        # Arrêt PROPRE à la durée max : échec RELANÇABLE, dit avec la sortie possible (le plafond
+        # se règle dans le profil), rien de classé comme une erreur du modèle.
+        minutes = round(limit_s / 60)
+        msg = (f"Durée maximale atteinte ({minutes} min) : traitement arrêté — relancer, ou "
+               f"relever la durée max dans votre profil.")
+        logger.warning(f"{app_id} task TIME LIMIT | item={item_id}: {minutes} min")
+        fields = {'status': 'FAILURE'}
+        if _has_field(model, error_field):
+            fields[error_field] = msg
+        model.objects.filter(pk=item_id).update(**fields)
+        nom = _item_label(item, item_id)
+        ctx.console(f"✗ {msg}", level='error')
+        _signal(item, app_id, 'echec', None, {'erreur': 'duree_max'})
+        _notify(item, label_app, nom, False, detail=msg)
     except Exception as exc:
         msg = str(exc)[:500]
         logger.exception(f"{app_id} task ERROR | item={item_id}: {exc}")
@@ -320,3 +405,5 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         # un type d'entrée doit finir par se voir. On garde le message tel quel, sans le classer.
         _signal(item, app_id, 'echec', None, {'erreur': msg[:200]})
         _notify(item, label_app, nom, False, detail=msg)
+    finally:
+        gov.task_finished(token)

@@ -35,6 +35,42 @@
     return fetch(url, opts);
   }
 
+  // Jeton CSRF de la page : le champ caché d'un formulaire, sinon le cookie. (Le même geste
+  // vivait en ligne dans base.html ; il est exposé ici pour les briques communes.)
+  function csrfToken() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (el && el.value) return el.value;
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  // ── « Libérer la carte et lancer » (B1, 2026-09-20) ───────────────────────────────────────
+  // Un item EN ATTENTE DE RESSOURCES porte ce lien (`common/_card_state.html`, quand l'app lui
+  // donne `app` et `pk`). C'est l'ACCORD EXPLICITE de l'utilisateur : le gouverneur ne décharge
+  // jamais d'office. Délégué au document : aucune ligne par app, les cards rendues plus tard
+  // sont couvertes. L'accord est consommé par la re-livraison suivante de l'item (≤ 45 s).
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('.vram-grant[data-vram-grant-url]') : null;
+    if (!a) return;
+    e.preventDefault();
+    var ok = global.confirm('Libérer toute la carte graphique pour lancer cet élément ?\n' +
+      'Les modèles résidents (voix de l\'assistant comprise) seront déchargés le temps du ' +
+      'traitement, puis rechargés.');
+    if (!ok) return;
+    csrfFetch(a.dataset.vramGrantUrl, csrfToken(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app: a.dataset.app, item: a.dataset.item }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return [r.ok, d]; }); })
+      .then(function (res) {
+        var d = res[1] || {};
+        toast(d.message || (res[0] ? 'Accord enregistré' : 'Accord non enregistré'),
+              res[0] && d.success ? 'success' : 'error');
+      })
+      .catch(function () { toast('Accord non enregistré', 'error'); });
+  });
+
   function wordCount(text) {
     if (!text || !text.trim()) return 0;
     return text.trim().split(/\s+/).filter(Boolean).length;
@@ -478,6 +514,7 @@
     getUrl: getUrl,
     csrfHeaders: csrfHeaders,
     csrfFetch: csrfFetch,
+    csrfToken: csrfToken,
     wordCount: wordCount,
     Poller: Poller,
     emptyState: emptyState,

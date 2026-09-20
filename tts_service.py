@@ -85,6 +85,86 @@ _current_model_name = None    # e.g. "xtts_v2", "bark", "higgs_audio", "kokoro"
 _service_ready = False
 _service_ready_lock = threading.Lock()
 
+#: Synthèses EN COURS (B1, 2026-09-20) — ce que le service DÉCLARE au gouverneur comme
+#: « occupé » : tant qu'une voix est produite, il ne se décharge pas pour une demande de
+#: libération, il le dit (le requérant attend). Le verrou `_engine_lock` ne suffit pas : un
+#: résident est servi SANS le prendre (cf. `/tts`).
+_synth_depth = 0
+_synth_depth_lock = threading.Lock()
+#: Moteurs préchargés au démarrage — ce que le service RESTAURE après s'être déchargé pour une
+#: demande de libération (mêmes règles que le préchargement : seuls les `keep_resident`).
+_PRELOAD: list = []
+
+
+def _synth_begin():
+    global _synth_depth
+    with _synth_depth_lock:
+        _synth_depth += 1
+    try:
+        from wama.common.services.resource_governor import mark_busy
+        mark_busy()
+    except Exception:
+        pass
+
+
+def _synth_end():
+    global _synth_depth
+    with _synth_depth_lock:
+        _synth_depth = max(0, _synth_depth - 1)
+        idle = _synth_depth == 0
+    if idle:
+        try:
+            from wama.common.services.resource_governor import clear_busy
+            clear_busy()
+        except Exception:
+            pass
+
+
+def _is_busy() -> bool:
+    with _synth_depth_lock:
+        return _synth_depth > 0
+
+
+def _unload_all_engines() -> int:
+    """Se DÉCHARGER pour une demande de libération : TOUS les moteurs, résidents compris —
+    c'est le seul chemin qui passe outre `keep_resident`, et il n'est emprunté que sur l'accord
+    explicite d'un utilisateur transmis par le gouverneur. Rend le nombre de moteurs déchargés."""
+    global _current_engine, _current_model_name
+    from wama.common.backends.base import unload_live_backends
+    with _engine_lock:
+        n = unload_live_backends()
+        _current_engine = None
+        _current_model_name = None
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    return n
+
+
+def _preload_engines(names) -> None:
+    """Précharge `names` (règles du démarrage) — appelé au démarrage ET pour la restauration."""
+    for name in names:
+        try:
+            if _keep_resident(name):
+                # Moteur temps réel : il reste résident (cf. _unload_current) et ne
+                # devient PAS _current_engine — il coexiste avec le moteur courant.
+                _backend(name).load()
+                logger.info(f"{name} préchargé et résident")
+            else:
+                with _engine_lock:
+                    _switch_model(name)
+                logger.info(f"{name} préchargé")
+        except Exception as e:
+            logger.warning(
+                f"Préchargement de {name} échoué — il sera chargé à la 1re demande : {e}",
+                exc_info=True,
+            )
+
+
+def _restore_residents() -> None:
+    """Après une libération : les moteurs temps réel déclarés reviennent (Kokoro pour
+    l'assistant) ; un moteur lourd revient à la prochaine demande, comme d'habitude."""
+    _preload_engines([n for n in _PRELOAD if _keep_resident(n)])
+
 #: Verrou des MOTEURS (2026-09-14) — il englobe BASCULE + SYNTHÈSE. `/tts` est une fonction
 #: synchrone qu'uvicorn exécute dans un pool de threads : sans lui, une requête qui basculait de
 #: moteur déchargeait celui qu'une autre requête était en train d'utiliser (XTTS vidé en pleine
@@ -278,21 +358,25 @@ def tts_endpoint(req: TTSRequest):
 
     try:
         engine = engine_for_model(req.model, req.engine)
-        # Un moteur lourd ATTEND le verrou ; un résident le prend seulement s'il est libre.
-        tient = _engine_lock.acquire(blocking=not _keep_resident(engine))
-        if tient:
-            try:
-                _switch_model(req.model, req.engine)
-                wav_path = _synthesize(_backend(_current_engine), req)
-            finally:
-                _engine_lock.release()
-        else:
-            # Synthèse lourde en cours : le temps réel est servi sans bascule ni déchargement.
-            be = _backend(engine)
-            if not be.is_loaded:
-                be.load(local_model_name(req.model))
-            logger.info(f"{engine} servi pendant une synthèse lourde — moteur courant intact")
-            wav_path = _synthesize(be, req)
+        _synth_begin()                    # occupé, déclaré au gouverneur (B1)
+        try:
+            # Un moteur lourd ATTEND le verrou ; un résident le prend seulement s'il est libre.
+            tient = _engine_lock.acquire(blocking=not _keep_resident(engine))
+            if tient:
+                try:
+                    _switch_model(req.model, req.engine)
+                    wav_path = _synthesize(_backend(_current_engine), req)
+                finally:
+                    _engine_lock.release()
+            else:
+                # Synthèse lourde en cours : le temps réel est servi sans bascule ni déchargement.
+                be = _backend(engine)
+                if not be.is_loaded:
+                    be.load(local_model_name(req.model))
+                logger.info(f"{engine} servi pendant une synthèse lourde — moteur courant intact")
+                wav_path = _synthesize(be, req)
+        finally:
+            _synth_end()
 
         # Read and return WAV bytes
         with open(wav_path, "rb") as f:
@@ -350,6 +434,13 @@ async def startup():
         # modèle résident redeviendrait invisible au bout d'une heure.
         from wama.common.backends.base import start_reservation_heartbeat
         start_reservation_heartbeat()
+        # Le service se DÉCLARE tenant (B1, 2026-09-20) : occupé tant qu'il synthétise, se
+        # décharge — résidents compris — pour une demande de libération accordée par un
+        # utilisateur, restaure ses temps réel une fois la demande close. Le service n'a
+        # toujours aucun endpoint de déchargement : c'est le gouverneur qui parle, par Redis.
+        from wama.common.services.resource_governor import Tenant, start_release_listener
+        start_release_listener(Tenant("tts-service", unload=_unload_all_engines,
+                                      restore=_restore_residents, is_busy=_is_busy))
     except Exception as exc:
         logger.warning(f"[TTS] gouverneur de ressources non initialisé : {exc}")
 
@@ -383,6 +474,7 @@ async def startup():
         raw = os.environ.get("TTS_PRELOAD", "kokoro").strip().lower()
         preload = [] if raw in ("", "none", "0") else [p.strip() for p in raw.split(",") if p.strip()]
 
+    _PRELOAD[:] = preload             # ce que la restauration après libération recharge
     if not preload:
         with _service_ready_lock:
             _service_ready = True
@@ -393,22 +485,7 @@ async def startup():
     # il répond {"status": "loading"} jusqu'à _service_ready = True.
     def _background_preload():
         global _service_ready
-        for name in preload:
-            try:
-                if _keep_resident(name):
-                    # Moteur temps réel : il reste résident (cf. _unload_current) et ne
-                    # devient PAS _current_engine — il coexiste avec le moteur courant.
-                    _backend(name).load()
-                    logger.info(f"{name} préchargé et résident")
-                else:
-                    with _engine_lock:
-                        _switch_model(name)
-                    logger.info(f"{name} préchargé")
-            except Exception as e:
-                logger.warning(
-                    f"Préchargement de {name} échoué — il sera chargé à la 1re demande : {e}",
-                    exc_info=True,
-                )
+        _preload_engines(preload)
         with _service_ready_lock:
             _service_ready = True
         logger.info("Préchargement terminé — service prêt")
