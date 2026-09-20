@@ -734,7 +734,7 @@
     document.addEventListener('wama:fileimported', e => {
         const result = e.detail;
         if (!result || result.app !== 'reader') return;
-        if (result.id) {
+        if (result.id && !result.batch) {
             // Single-file import with known ID: add card dynamically.
             // `handled` désamorce le repli générique de wama-app-base.js (rechargement) :
             // insérer la card est strictement meilleur, on ne veut pas les deux.
@@ -744,7 +744,9 @@
                 .then(item => { upsertCard(item); updateGlobalProgress(); })
                 .catch(() => {});
         }
-        // Multi-file import (no ID in event) → on laisse le repli commun recharger la page.
+        // Import GROUPÉ (`batch` : fichiers reçus ensemble = un LOT côté serveur) ou sans id → on
+        // laisse le repli commun recharger la page. ⚠ Les envois groupés portent des `id` depuis
+        // le 14/09 (`WamaSendTo.envoyer`) : les insérer un par un les montrait sans leur card de lot.
     });
 
     document.addEventListener('DOMContentLoaded', init);

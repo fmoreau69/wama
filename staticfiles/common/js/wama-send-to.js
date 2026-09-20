@@ -92,26 +92,42 @@
                     return d;
                 });
         }).then(function (d) {
-            // Un dossier sans fichier compatible : une RÉPONSE, dite comme telle.
+            var refused = (d && d.errors) || [];
+            // Rien de reçu. Si le serveur a REFUSÉ des fichiers, c'est SON motif qu'on dit (accès,
+            // fichier introuvable…) : « aucun fichier compatible » ne vaut que sans refus
+            // (message trompeur relevé à l'audit du 14/09).
             if (d && d.count === 0 && !d.imported) {
-                dire((d.message || 'Aucun fichier compatible') + ' — ' + libelle, 'warning');
+                if (refused.length) {
+                    dire('Envoi refusé par ' + libelle + ' — ' + (refused[0].error || 'refusé')
+                         + (refused.length > 1 ? ' (+' + (refused.length - 1) + ')' : ''), 'error');
+                } else {
+                    dire((d.message || 'Aucun fichier compatible') + ' — ' + libelle, 'warning');
+                }
                 return d;
             }
-            var recus = (d && d.results) || (d && (d.id || d.path) ? [d] : []);
-            var n = recus.length || (d && d.count) || (Array.isArray(charge) ? charge.length : 0);
+            var received = (d && d.results) || (d && (d.id || d.path) ? [d] : []);
+            var n = received.length || (d && d.count) || (Array.isArray(charge) ? charge.length : 0);
             dire(n + ' fichier(s) envoyé(s) vers ' + libelle, 'success');
-            recus.forEach(function (res) {
+            // `batch` : les fichiers reçus ENSEMBLE forment un LOT côté serveur (consolidation « par
+            // arrivée »). Un écouteur ne doit alors PAS insérer chaque élément comme une card seule —
+            // elle apparaîtrait sans sa card de lot — et laisse le repli commun recharger la page.
+            // Relevé à l'audit du 14/09 : `reader.js` insérait N cards filles orphelines.
+            var inBatch = received.length > 1;
+            received.forEach(function (res) {
                 document.dispatchEvent(new CustomEvent('wama:fileimported', {
-                    detail: Object.assign({ imported: true, app: app }, res),
+                    detail: Object.assign({ imported: true, app: app }, res, { batch: inBatch }),
                 }));
             });
-            if (d && d.errors && d.errors.length) {
-                dire(d.errors.length + ' fichier(s) refusé(s) par ' + libelle, 'warning');
+            if (refused.length) {
+                dire(refused.length + ' fichier(s) refusé(s) par ' + libelle, 'warning');
             }
             return d;
         }).catch(function (err) {
+            // L'échec est DIT à l'utilisateur ; on ne le relance pas. Les appelants (entrées de
+            // menu) ne chaînent rien : relancer ne laissait qu'une « Uncaught (in promise) » en
+            // console à chaque refus (audit du 14/09).
             dire('Envoi impossible — ' + err.message, 'error');
-            throw err;
+            return null;
         });
     }
 
