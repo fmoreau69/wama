@@ -1024,6 +1024,13 @@ def check_app_send_to(app: str, url_path: str):
                     return False, ("survoler « Envoyer vers… » n'ouvre pas son sous-menu, ou il ne "
                                    "finit pas de se charger")
 
+                # Un résolveur serveur EN PANNE rend « Indisponible ». Sans ce contrôle, une app sans
+                # importeur (absente à juste titre) et un serveur cassé donnaient le MÊME skip
+                # attendu — le contrôle inverse ne distinguait plus rien (audit du 14/09).
+                if page.query_selector(f'{menu}.wama-cm-sous .wama-cm-attente:has-text("Indisponible")'):
+                    return False, ("« Envoyer vers… » : le résolveur serveur ne répond pas (sous-menu "
+                                   "« Indisponible ») — ni présence ni absence d'une app ne se mesure")
+
                 # Le sous-menu porte le LIBELLÉ de l'app (APP_CATALOG.label), pas son id. On vise
                 # le `<span>` du libellé : `:text-is` retient le plus PETIT élément porteur du
                 # texte, donc jamais le bouton qui l'enveloppe avec son icône.
