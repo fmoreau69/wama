@@ -15869,6 +15869,29 @@ enhancer — 7 modèles d'upscaling au catalogue mais **pas d'« auto » PAR DÉ
 « l'utilisateur désigne son moteur ») : Fabien veut le curseur → c'est cette décision qui se
 rediscute (auto parmi les upscalers par qualité, le NFE Resemble décliné du curseur), pas un trou.
 
+**⑥ SUITE 20-21/09 — converter RALLIÉ (`631f01d2`), enhancer CADRÉ.** Converter : les trois étapes
+de la ROUTE §F4b ③ exécutées — presets = positions de l'échelle commune (lues chez le sélecteur,
+jamais recopiées), `values_for_intent` interpole les réglages d'encodage entre deux positions (table
+exacte aux positions, monotone entre — garde), `quality_intent` (item + lot + volet) REMPLACE le select
+de préréglage du lot, traces `quality_intent` + `quality_preset`, clés `web/balanced/max` gardées comme
+DONNÉES (filemanager, tool_api, `quick_convert`), `quality` JPEG en `advanced` ; migration 0012
+(gitignorée comme les autres) ; critère : converter VRAI (79/81). Le critère `quality_intent` n'est
+plus enveloppé `_f4` (il rendait « non applicable » toute app sans modèle) et « décliné localement »
+exige une LECTURE (`.get('quality_intent')`), pas une occurrence (la migration « prouvait »).
+**Enhancer, mesuré au code** : image/vidéo — 7 upscalers au catalogue **sans aucun signal de qualité**
+(`quality_index=None`, VRAM 0,0-0,1 : un score serait plat, un « auto » tirerait au hasard) alors que
+l'ordre a priori existe dans les LIBELLÉS (« Rapide » / « Qualité » / « Haute qualité ») et
+`MODELS_INFO` ; et le facteur d'échelle (x2/x4/x1) est un BESOIN, pas une qualité — un auto doit
+filtrer sur `scale` = `upscale_factor` avant de classer. Audio — le curseur aurait un effet réel
+(Resemble 4 Go = qualité / DeepFilterNet 1 Go = rapide ; NFE 32/64/128), mais `engine`/`quality`
+sont posés depuis le POST sur CINQ chemins écrits à la main (`audio_update`, `audio_start`,
+`audio_start_all`, `audio_batch_start`, `audio_upload`), `quality` a un défaut 64 non nul (« posé »
+indiscernable du défaut → migration) et la modale n'est pas au schéma (critère « cycle de modale
+écrit à la main »). **Conclusion** : rallier l'enhancer = son PORTAGE (modale au schéma + un signal
+de qualité a priori déclaré dans `MODELS_INFO` et projeté par la découverte — `model_registry`, tenu
+par la sœur ce soir), pas une ligne. Décision de Fabien : « auto » à l'enhancer = levée de la décision
+`params.py:78` — actée, à exécuter avec le portage.
+
 🔚 **Reste C (adoption, une ligne + un champ chacun)** : imager et composer (autres sessions —
 `resolve_model_choice(..., item=generation)` + `intent_param` au schéma) ; transcriber (question :
 `priority` whisper-first = l'ordre, le curseur arbitre dedans — à trancher) ; converter (③ étapes

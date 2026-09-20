@@ -536,9 +536,18 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   dérive ; l'anonymizer n'a plus que l'appel, comportement inchangé au cran près
   (`tests_intent_vision`). Réutilisable par la future app Detector.
   Le champ garde son nom `precision_level` (frontière des DONNÉES : tasks et
-  model_selector d'app le lisent).
-- **⏳ Converter : PRÊT À CÂBLER — tout le commun est en place, il ne reste que SES
-  fichiers** (occupés par une autre session au 02/09 — ne pas se télescoper). Le geste,
+  model_selector d'app le lisent). Le curseur est devenu CONTRACTUEL le même jour : type
+  `intent` borné par `coerce_params`, cascade unique `auto_model.quality_intent_of` (champ de
+  l'item → réglage d'app durable → 50) lue d'office par `resolve_model_choice(item=)`, critère de
+  grille `quality_intent` (déclaré ET passé dans l'appel). Reader rallié (réglage d'app).
+- **✅ Converter CÂBLÉ le 2026-09-20 (`631f01d2`)** — les trois étapes ci-dessous, exécutées :
+  presets = positions de l'échelle commune lues chez le sélecteur (Rapide 15 / Équilibré 50 /
+  Qualité 85), `values_for_intent` INTERPOLE les réglages d'encodage entre deux positions (table
+  exacte aux positions), `quality_intent` remplace le select de lot (traces `quality_intent` +
+  `quality_preset`, clés `web/balanced/max` conservées comme données pour filemanager/tool_api),
+  `quality` JPEG passe `advanced`. Critère de grille `quality_intent` : converter VRAI.
+  ~~⏳ Converter : PRÊT À CÂBLER — tout le commun est en place, il ne reste que SES
+  fichiers~~ (occupés par une autre session au 02/09 — ne pas se télescoper). Le geste,
   quand le champ sera libre : ① presets de LOT/filemanager `Web (léger)/Équilibré/Maximum`
   → les positions `QUALITY_PRESETS` (15/50/85), relibellés « Rapide (web) / Équilibré /
   Qualité » (arbitrage Fabien : trio canonique, nuance locale en sous-libellé) ;
