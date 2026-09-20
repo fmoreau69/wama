@@ -1455,6 +1455,16 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   **C — TRANCHÉE (Fabien, 15/09)** : le curseur se GÉNÉRALISE (déjà décidé) ; le curseur de précision
   de l'anonymizer garde son fonctionnement mais REMONTE AU COMMUN avec sa spécificité VISION,
   réutilisable par d'autres apps (future app Detector…).
+  ✅ **C LIVRÉ pour le commun le 20/09** (détail `PROJECT_STATUS §PALIER 2026-09-20 « CURSEUR C »`) :
+  type `intent` borné par `coerce_params` ; `auto_model.quality_intent_of` (champ de l'item → réglage
+  d'app durable → 50) lu d'office par `resolve_model_choice(item=)` ; `model_coverage.size_for_intent`
+  / `segmentation_for_intent` (les seuils de l'anonymizer, inchangés au cran près — garde
+  `tests_intent_vision`) et `couvrir_classes(quality_intent=)` ; grisage des classes sur « auto »
+  (union des modèles de détection installés) ; reader rallié (curseur = réglage d'app) ; critère de
+  grille `quality_intent` (97 critères, 846/913). ⏳ **Adoption restante, mesurée par le critère** :
+  imager, composer (une ligne `item=` + le champ au schéma — sessions qui tiennent ces apps),
+  transcriber (question ouverte : `priority` whisper-first reste l'ordre, le curseur arbitre dedans),
+  converter (③ étapes ci-dessous). L'option cloud du curseur = B3.
   **B — réponses (Fabien, 15/09)** : ① ce n'est pas qu'une question de voix — quand la tâche libère
   TOUS les modèles de la VRAM, l'assistant MET L'UTILISATEUR EN ATTENTE avec un message d'attente.
   ÉTAT MESURÉ : un mot d'attente GÉNÉRIQUE existe, affiché après un délai sur l'accueil seulement
