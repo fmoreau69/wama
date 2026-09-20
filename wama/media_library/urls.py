@@ -12,7 +12,9 @@ urlpatterns = [
     path('api/assets/upload/',            views.api_upload,           name='api_upload'),
     path('api/assets/<int:pk>/edit/',     views.api_edit,             name='api_edit'),
     path('api/assets/<int:pk>/delete/',   views.api_delete,           name='api_delete'),
-    path('api/assets/<int:pk>/promote/',  views.api_promote,          name='api_promote'),
+    # `api/assets/<pk>/promote/` RETIRÉ le 2026-09-20 (R66, REMOVAL_LEDGER) : doublon sans appelant
+    # du service commun de partage, qui parlait en CODES là où le commun parle en IDS.
+    # Le geste passe par `common:api_partage` (`media_library/element/<pk>/`).
 
     # Le GESTE commun « ranger la sortie d'un élément d'app ici » (2026-09-11). Une route
     # TRANSVERSE, pas une par app : la brique lit le résultat au schéma canonique, donc les

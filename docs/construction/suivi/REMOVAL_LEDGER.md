@@ -240,6 +240,12 @@
 | R64 | bouton `.export-btn` + coche « Déjà exporté » (gabarit), handler `.export-btn` + `exportUrlTemplate` (JS/config), règle CSS | `composer/_generation_card.html`, `composer/js/index.js`, `composer/css/index.css`, `composer/index.html` | DUPLIQUAIT l'entrée « Ajouter à la médiathèque… » du menu « … » commun, sans état persisté ni retrait ; seule rangée du parc à six places | menu commun avec coche + retrait (14/09) | ✅ retiré |
 | R65 | route `composer:export_to_library` (`export/<pk>/`) + vue + ses 3 tests de contrat (`DeprecationDesCopiesTest`) | `composer/urls.py`, `composer/views.py`, `media_library/tests_export_service.py` | seconde PORTE du geste commun (déléguait déjà à la brique) ; 0 front, 0 outil d'assistant, sans GET des rôles ni retrait ; refus du double export redondant avec la provenance | le savoir « music → musique, sinon bruitage » DÉCLARÉ dans le détail canonique (`result_role`, `composer/apps.py`) et lu par `admissible_roles` — même mécanisme pour anonymizer, enhancer, avatarizer, imager, converter | ✅ retiré ; manifeste `apps/composer.json` régénéré |
 
+## Endpoint de partage propre à la médiathèque — 2026-09-20 (le geste vit au COMMUN)
+
+| # | Élément | Emplacement | Pourquoi résidu | Prérequis avant suppression | Statut |
+|---|---|---|---|---|---|
+| R66 | vue `api_promote` + sa route `api/assets/<pk>/promote/` | `media_library/views.py`, `media_library/urls.py` | SECOND chemin d'écriture de `visibility` sur `UserAsset` : il réimplémentait les gardes du service commun (`sharing._verifier_cible`) et parlait un AUTRE dialecte — des CODES d'unité et de projet là où `partager()` et `wama-share.js` échangent des IDS. Deux vocabulaires pour un seul geste. Mesuré avant retrait : **aucun appelant** — ni JS, ni gabarit, ni test, ni `ML_URLS` | la surface `media_library` au registre d'aperçu, donc `common:api_partage` résout `UserAsset` (`media_library/apps.py`) ; et les lectures passées aux accesseurs nommés, sans quoi le partage restait invisible (le manager manquait depuis des mois) | ✅ retiré |
+
 ## Routage des caches HF + sélection VRAM — 2026-09-03 (investigation demandée par Fabien)
 
 | # | Élément | Emplacement | Pourquoi résidu | Prérequis avant suppression | Statut |

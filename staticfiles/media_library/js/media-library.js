@@ -314,6 +314,9 @@
                 <button class="btn btn-sm btn-dark edit-btn" title="Modifier" data-id="${asset.id}">
                     <i class="fas fa-pen"></i>
                 </button>
+                <button class="btn btn-sm btn-dark share-btn" title="Partager…" data-id="${asset.id}">
+                    <i class="fas fa-share-nodes"></i>
+                </button>
                 <button class="btn btn-sm btn-dark delete-btn" title="Supprimer" data-id="${asset.id}">
                     <i class="fas fa-trash-alt text-danger"></i>
                 </button>` : ''}
@@ -325,14 +328,14 @@
 
         // Un asset PARTAGÉ par quelqu'un d'autre se dit : sans cela, il serait indiscernable du
         // mien alors qu'il n'est ni modifiable ni supprimable (le serveur répondrait 404).
-        const partageHtml = (!isSystem && asset.is_mine === false)
+        const sharedHtml = (!isSystem && asset.is_mine === false)
             ? `<span class="asset-badge-system" title="Partagé avec vous — lecture seule">
                    <i class="fas fa-share-nodes me-1"></i>${esc(asset.owner || 'partagé')}</span>`
             : '';
 
         card.innerHTML = `
             ${isSystem ? '<span class="asset-badge-system"><i class="fas fa-lock me-1"></i>intégré</span>' : ''}
-            ${partageHtml}
+            ${sharedHtml}
             ${actionsHtml}
             ${previewHtml}
             <div class="asset-card-body">
@@ -354,6 +357,14 @@
         card.querySelector('.edit-btn')?.addEventListener('click', () => openEdit(asset, card));
         // Delete
         card.querySelector('.delete-btn')?.addEventListener('click', () => deleteAsset(asset.id, card));
+        // Partage — la MÊME route que les cards de file (`/common/api/partage/<surface>/…`).
+        // `WamaShare.ouvrir` prend des coordonnées explicites : aucun contrat DOM à imiter, et
+        // rien à réécrire ici (la modale, les portées offrables et le POST viennent du commun).
+        card.querySelector('.share-btn')?.addEventListener('click', () => {
+            if (window.WamaShare) {
+                WamaShare.ouvrir('media_library', asset.id, asset.name, 'element');
+            }
+        });
         // Filtre par tag
         card.querySelectorAll('.asset-tag').forEach(tagEl => {
             tagEl.addEventListener('click', () => {
