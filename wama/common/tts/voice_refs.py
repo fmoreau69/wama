@@ -198,6 +198,36 @@ def _system_voice_path(name_or_pk, by_pk: bool = False) -> Optional[str]:
     return row.file.path if row is not None else None
 
 
+def readable_voice_assets(user):
+    """Les voix de médiathèque qu'un utilisateur a le DROIT d'employer : les SIENNES **et celles
+    qui lui sont partagées** (décision de Fabien, 2026-09-21 : *« une voix partagée doit être
+    accessible en fonction des droits de chacun »*).
+
+    ⚠ UN SEUL lecteur pour les DEUX surfaces — le SÉLECTEUR (`utils/voice_options.py`) et la
+    RÉSOLUTION (`resolve_speaker_wav` ci-dessous). C'est tout l'enjeu : jusqu'au 21/09 les deux
+    filtraient `user=user` chacun de son côté, et les ouvrir séparément aurait reproduit le
+    défaut du « Envoyer vers… » (`WAMA_VERIFICATION §Geste 14`) — proposer un choix que le
+    serveur refuse ensuite. Ici le refus serait MUET : `resolve_speaker_wav` replie sur la voix
+    `default`, donc on aurait synthétisé avec la mauvaise voix sans un message d'erreur.
+
+    ⚠ Le compte de service anonyme est une VRAIE ligne `User`, et `scoped_visible_q` pose
+    `Q(visibility='public')` HORS du test d'authentification : sans cette garde, un visiteur
+    hériterait des voix publiques de tout le parc. Même garde qu'`api_list` (médiathèque).
+
+    `user=None` (aucun contexte d'utilisateur — tests, résolution par nom) garde le comportement
+    d'avant : aucune restriction. Les trois appelants réels passent tous un utilisateur.
+    """
+    from wama.accounts.views import ANONYMOUS_USERNAME
+    from wama.media_library.models import UserAsset
+
+    qs = UserAsset.objects.filter(asset_type='voice')
+    if user is None:
+        return qs
+    if getattr(user, 'username', '') == ANONYMOUS_USERNAME:
+        return qs.filter(user=user)
+    return qs.visible_to(user)
+
+
 def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
     """
     Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
@@ -220,11 +250,9 @@ def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
         return _system_voice_path(voice_preset[3:], by_pk=True) or _system_voice_path('default')
     if voice_preset.startswith('ua_'):
         try:
-            from wama.media_library.models import UserAsset
-            qs = UserAsset.objects.filter(pk=int(voice_preset[3:]))
-            if user is not None:
-                qs = qs.filter(user=user)
-            ua = qs.first()
+            # Les voix VISIBLES, pas seulement les miennes (21/09) — mesuré avant de resserrer
+            # sur `asset_type='voice'` : aucune valeur `ua_` n'est stockée en base à ce jour.
+            ua = readable_voice_assets(user).filter(pk=int(voice_preset[3:])).first()
             if ua and ua.file:
                 return ua.file.path
         except Exception:

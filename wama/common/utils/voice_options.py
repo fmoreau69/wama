@@ -10,7 +10,12 @@ Source COMMUNE des options de voix (TTS) — centralise ce qui était rendu en o
                                    médiathèque, groupés par (langue, âge) depuis `attributes`
                                    (depuis le 2026-09-13 — avant : un scan de dossier, et un
                                    repli statique « héritage » quand le dossier était vide)
-  3. Mes voix (clonage)         → UserAsset(asset_type='voice') de l'utilisateur (ua_<id>)
+  3. Mes voix (clonage)         → UserAsset(asset_type='voice') dont je suis propriétaire (ua_<id>)
+  3bis. Voix partagées          → celles qu'on m'a partagées, libellées avec leur propriétaire
+                                  (depuis le 2026-09-21 — avant, le sélecteur ne montrait QUE les
+                                  miennes ; décision de Fabien : « une voix partagée doit être
+                                  accessible en fonction des droits de chacun »). Le groupe
+                                  n'apparaît pas s'il est vide
   4. Bark (presets)             → constantes BARK_PRESETS
 
 Le FILTRAGE par modèle (cacher le clonage ua_/cv_ si supports_cloning=false, restreindre les langues)
@@ -56,17 +61,29 @@ def get_voice_groups(user) -> list[dict]:
             "attributes": {v["id"]: {"language": v["language"]} for v in voices if v.get("language")},
         })
 
-    # 3. Mes voix (clonage) — UserAsset type='voice' ; sa langue si l'utilisateur l'a renseignée.
+    # 3. Les voix de clonage que l'utilisateur a le DROIT d'employer — les siennes ET celles qui
+    # lui sont partagées (Fabien, 2026-09-21). DEUX groupes et non un seul : une voix est une
+    # personne, savoir de QUI elle est n'est pas un détail d'affichage. Le lecteur de droits est
+    # commun aux deux surfaces (`common/tts/voice_refs.readable_voice_assets`) — le sélecteur ne
+    # propose donc jamais ce que la résolution refuserait.
     try:
-        from wama.media_library.models import UserAsset
-        customs = list(UserAsset.objects.filter(user=user, asset_type="voice")
-                       .values("id", "name", "attributes"))
-        groups.append({
-            "group": "Mes voix (clonage)",
-            "options": [(f"ua_{c['id']}", c["name"]) for c in customs],
-            "attributes": {f"ua_{c['id']}": {"language": (c["attributes"] or {}).get("language")}
-                           for c in customs if (c["attributes"] or {}).get("language")},
-        })
+        from wama.common.tts.voice_refs import readable_voice_assets
+        rows = list(readable_voice_assets(user)
+                    .values("id", "name", "attributes", "user_id", "user__username"))
+        mine = [c for c in rows if c["user_id"] == getattr(user, "id", None)]
+        shared = [c for c in rows if c["user_id"] != getattr(user, "id", None)]
+        for libelle, lot, avec_auteur in (("Mes voix (clonage)", mine, False),
+                                          ("Voix partagées", shared, True)):
+            if not lot:
+                continue                       # un groupe vide ne se montre pas
+            groups.append({
+                "group": libelle,
+                "options": [(f"ua_{c['id']}",
+                             f"{c['name']} — {c['user__username']}" if avec_auteur else c["name"])
+                            for c in lot],
+                "attributes": {f"ua_{c['id']}": {"language": (c["attributes"] or {}).get("language")}
+                               for c in lot if (c["attributes"] or {}).get("language")},
+            })
     except Exception:
         pass
 
