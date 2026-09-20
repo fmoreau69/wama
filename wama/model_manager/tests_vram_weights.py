@@ -195,7 +195,8 @@ class PersistWeightsTest(_FakeModelsRoot):
         self.assertEqual(ModelSyncService().persist_weights(), 1)
         w = self._weights('imager:prec')
         self.assertEqual(w['precision'], {'transformer': {'params': 2 * 1024 * 512,
-                                                          'dtypes': ['BF16']}})
+                                                          'dtypes': ['BF16'],
+                                                          'params_by_dtype': {'BF16': 2 * 1024 * 512}}})
         self.assertNotIn('files', w)
         self.assertEqual(w['components']['transformer'], 0.016)
 
