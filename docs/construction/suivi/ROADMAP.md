@@ -646,6 +646,46 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
     Deux délais : attente avant démarrage ILLIMITÉE ; contrôle de durée d'un traitement, 30 min par
     défaut, réglable par utilisateur (et par type de tâche). Curseur rapide/qualité généralisé à
     toutes les apps média, « vision » (anonymizer) remonté au commun.
+    ⭐ **B RESTRUCTURÉ EN TROIS ÉTAGES (Fabien, 2026-09-20) — et le « tout décharger » REFORMULÉ.**
+    Cartographie préalable confrontée aux lignes : le registre partagé sait QUI tient QUOI
+    (`resident_models` :358, `idle_models` :577) ; le déchargement existe mais reste LOCAL au process
+    (`base.unload_live_backends` :93, `release_vram`/`ensure_free_vram`, `aggressive_cleanup`) — le
+    canal inter-process est le trou central ; le service TTS n'a aucun endpoint de déchargement et
+    garde ses `keep_resident` ; `_differer_faute_de_vram` ne libère rien, `vram_needed` a 0 appelant ;
+    aucune limite de durée nulle part (`time_limit` : 0 occurrence) ; `fits_full_gpu` (R46, 0
+    consommateur) porte le test « tiendrait seul ». **Angles morts mesurés** : le repli Kokoro de
+    gunicorn charge `KModel` hors contrat (`wama/views.py:254`, aucune ligne au registre) ; les modèles
+    hors contrat de `_VRAM_UNLOADERS` ; les DEUX Redis du PC de dev (D) ; et le registre connaît les
+    MODÈLES résidents, pas les TÂCHES en cours (lues dans les statuts `RUNNING` des tables d'app).
+    **③ reformulé par Fabien** — trois cas, pas deux : (a) le pic ne tient pas même SEUL (> VRAM
+    totale) → **non sélectionnable** par l'auto-sélection (filtre sur le pic vs total) et **lancement
+    refusé en le disant**, avant tout report ; (b) tient seul, pas maintenant → attente
+    `AWAITING_RESOURCES` **automatique et illimitée**, résidences libérées d'elles-mêmes, la card dit
+    POURQUOI (qui tient combien) ; (c) libérer TOUTE la carte → **sur demande et acceptation
+    EXPLICITES de l'utilisateur** depuis la card en attente (« Libérer la carte et lancer »), jamais
+    d'office — la saturation PROPOSE, elle n'autorise plus ; en prod un réglage d'instance restreint
+    qui a ce bouton. *Le geste qui pouvait couper la voix de l'assistant à un collègue disparaît.*
+    - **B1 — le socle (EN COURS, 20/09)** : registre COMPLET (angles morts + ligne « tâche en cours »
+      posée par le squelette) ; canal de requête inter-process sur Redis, lu dans le battement déjà
+      commun (`start_reservation_heartbeat`, TTS + workers) — un tenant se DÉCLARE en montant le
+      battement (nom, occupé ?, résidents à recharger), aucun service en dur ; « occupé » = usage
+      < N s (`last_used`) ou verrou déclaré (`_engine_lock` du TTS) ; attente illimitée ; libération
+      explicite puis RESTAURATION (le TTS recharge ses `keep_resident`, Ollama/workers au prochain
+      usage) ; assistant MUET par drapeau du gouverneur lu par `ai_chat`/`kokoro_tts` (message
+      d'attente automatique) ; durée max d'UN traitement (table par type de tâche dans le gouverneur,
+      à côté d'`APP_TIERS`, surcharge `UserAppSetting('common', 'max_task_minutes')`, 30 min) —
+      `soft_time_limit` à MESURER avec `--pool=solo` avant de choisir, sinon garde-temps du
+      squelette ; information systématique sur la card. Adoptants imager vidéo + composer :
+      `vram_needed` dépend du pic (sœur) et du portage de ces apps (autres sessions).
+    - **B2 — admission et ordonnancement (À CONCEVOIR ICI avec Fabien avant une ligne)** : le worker
+      GPU est `--pool=solo` = UNE tâche à la fois, tous utilisateurs, FIFO (les paliers réordonnent,
+      n'empilent pas). « Empiler des process en VRAM et jusqu'où », la file de files inter-utilisateurs
+      (équité, reste n° 2), le budget PAR MACHINE, la co-résidence de modèles : plusieurs workers GPU
+      ou pool concurrent, le gouverneur en guichet d'admission.
+    - **B3 — local / cloud** : la brique existe (`select_model(cloud_keys=…)`, distant sans VRAM) ;
+      « local saturé → proposer le distant à qui l'autorise » est une POLITIQUE à décider.
+    Règle des trois étages : *sans registre complet, canal et information, ni B2 ni B3 ne peuvent
+    être justes* — B1 d'abord, jusqu'au bout.
 
 **🔴 Constat du 19/09 — le FILTRE du tirage écarte un modèle qui TIENT sur la carte.** Le filtre
 (`model_selector._best_by_vram:241`, `vram_gb ≤ libre`) et le coût (`:248`) lisent le même
@@ -698,6 +738,85 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    déclaration doit venir de l'intérieur du service~~ ✅ **fait le 12/08** (contrat de backend
    DANS le service + battement, cf. ci-dessus — la phrase n'avait pas suivi, relevé le
    2026-09-14). Cf. `PROJECT_STATUS.md` §0 (3bis → 3quinquies).
+
+5. **ADMISSION D'UN MODÈLE ET CHOIX DE LA RÉDUCTION — le gouverneur décide, personne d'autre**
+   (schéma demandé par Fabien le 2026-09-20 : « le gouverneur doit déterminer automatiquement
+   quelle quantification appliquer », « il faut porter l'information à l'utilisateur pour qu'il ne
+   renonce pas à installer un modèle »). Décision A du 16/09 (`PROJECT_STATUS §④A`) pour les deux
+   chiffres, prolongée ici par la réduction et l'affichage.
+
+   **a. Trois étages, un seul décideur.** Les FAITS du modèle ne décident de rien ; les CAPACITÉS
+   de la machine non plus ; c'est leur rencontre qui décide, et elle a un seul domicile.
+
+   | étage | qui le produit | état au 2026-09-20 |
+   |---|---|---|
+   | poids par composant, deux pics (somme / plus gros) | `model_installer.components_for_spec` → `extra_info['weights']` | ✅ 34 lignes mesurées |
+   | précision par composant (params × octets du dtype) | `prospector.precision_of_files` (en-têtes safetensors) | ✅ livré 20/09 |
+   | empreinte MESURÉE au chargement | `base.py:_wrap_load` → registre + `extra_info['vram_measured']` | ✅ mais c'est une RÉSIDENCE (cf. c) |
+   | capacité de la machine, VRAM libre réelle | `resource_governor` (`total_vram_gb`, `effective_free_gb`, registre partagé) | ✅ depuis le 29/07 |
+   | réductions que le MOTEUR sait appliquer | à DÉCLARER au contrat de backend (cf. d) | ⏳ |
+   | la décision | `resource_governor` | ⏳ **c'est le reste** |
+
+   **b. Ce que le gouverneur doit rendre**, en une réponse et non en un booléen :
+   `{admissible, strategy, precision, reason, alternatives}`.
+   * **admissible** = le pic de la meilleure combinaison (stratégie × précision) que le moteur
+     sait appliquer tient sur la carte ENTIÈRE. Pas « tel quel en fp32 ».
+   * **tient maintenant** = ce pic tient dans la VRAM effectivement LIBRE ; sinon la tâche
+     ATTEND (décision B du 16/09), elle n'est jamais écartée.
+   * **une seule marge.** Il en existe quatre aujourd'hui — `full_gpu_budget_gb(4.0)`,
+     `fits_full_gpu(4.0)`, `get_memory_strategy(2.0)`, `FULL_GPU_MIN_FREE_GB = 1.5` — et une
+     cinquième a failli naître dans le calcul du pic (`ACTIVATION_MARGIN_GB`, retirée le 20/09).
+     🔴 **Une marge est une politique de la MACHINE, pas une propriété du modèle** : elle
+     s'applique UNE fois, chez le gouverneur, jamais dans un chiffre de modèle.
+     ⚠ Et elle ne se justifie PAS par les crashs hôte : le dépôt porte deux hypothèses
+     contradictoires (28/08 « la puissance n'est pas le facteur, la montée VRAM l'est » ; rails
+     instrumentés qui n'innocentent pas le bloc, onduleur pseudo-sinusoïde, alimentation 1000 W
+     commandée). Le seul fait qui parle d'activations est un OOM torch (13/03, 570 Mio manquants
+     après 20,34 Go alloués) — et il dit qu'il faut garder de la place, pas combien.
+
+   **c. Le pic d'EXÉCUTION n'est pas instrumenté** — et c'est le trou qui reste sous la décision
+   « mesure du pic » déjà actée. `base.py` relève `memory_allocated()` avant/après chargement :
+   une RÉSIDENCE. `torch.cuda.max_memory_allocated()` / `reset_peak_memory_stats()` — les deux
+   fonctions qui donnent le PIC réel, activations comprises — **n'apparaissent nulle part dans le
+   dépôt**. La décision existe, l'instrument manque : l'ajouter autour du GESTE (pas du
+   chargement) est le geste minimal, et c'est lui qui rendra la marge mesurable au lieu d'être
+   choisie.
+
+   **d. Les réductions — trois familles à ne pas confondre**, parce qu'elles n'agissent pas sur la
+   même grandeur (pic = résidence + activations) :
+   * **réduire les POIDS** — quantification appliquée LOCALEMENT au chargement (fp8 torchao,
+     int8/int4 bitsandbytes) : aucun téléchargement. Ou poids ALTERNATIFS à installer (AWQ/GPTQ,
+     GGUF, versions distillées, adaptateurs LoRA « lightning » posés sur la dorsale) : un
+     téléchargement, et pour un adaptateur la dorsale reste requise ;
+   * **réduire la RÉSIDENCE** — `MODEL_OFFLOAD`, `SEQUENTIAL_OFFLOAD`, group offload : les poids
+     ne changent pas, ils ne sont pas tous présents en même temps ;
+   * **réduire les ACTIVATIONS** — attention slicing, VAE slicing/tiling, résolution et durée du
+     rendu : ni les poids ni la résidence ne changent.
+   Le gouverneur choisit la combinaison la plus FIDÈLE qui tient (pas de réduction > bf16 > fp8 >
+   int8 > int4 ; plein GPU > déchargement > séquentiel), en ne retenant que ce que le moteur
+   DÉCLARE savoir faire — au contrat de backend, comme `recommended_vram_gb`, jamais deviné.
+
+   **e. L'INFORMATION À L'UTILISATEUR** (le point neuf) : un modèle dont les poids pleins ne
+   tiennent pas mais dont une variante tient ne doit pas s'afficher comme impossible — sans quoi
+   l'utilisateur renonce à l'installer sans savoir. Trois états, DÉRIVÉS (rien à stocker) :
+   ✅ tient tel quel (dire par quelle stratégie) · ⚙ tient EN RÉDUISANT (dire laquelle, son coût
+   en téléchargement, et la perte attendue) · ⛔ ne tient pas même réduit. S'accroche au verdict
+   d'exécutabilité existant (grisage + raison), qui a déjà la règle « sans moteur déclaré = NON
+   condamné ».
+
+   **f. Ordre imposé par la mesure — ne PAS brancher le filtre du tirage avant (c) et (d).**
+   Relevé du 20/09, budget 20 Go : basculer le filtre sur le pic réadmettrait justement FastWan
+   (29 → 14,6), CogVideoX (21 → 14,5) et higgs-audio (24 → 14,8), mais écarterait **à tort**
+   LTX-distilled et sa variante fp8 (28,3 — leur transformer pèse 24,3 Go *en fp32 sur le
+   disque*, la moitié une fois chargé en bf16), et admettrait `flux-lora-logo-design` à **4,04 Go**
+   alors que cette LoRA exige les 26 Go de sa dorsale. Deux défauts neufs contre un défaut connu :
+   la précision (d) et l'héritage d'empreinte d'un adaptateur sont des PRÉALABLES, pas des
+   raffinements.
+
+   **Décisions à prendre par Fabien** : (1) le schéma `composition` n'a aucun moyen de dire
+   « hérite de sa dorsale » — champ à ajouter, ou règle dérivée de `base_model` ? (2) une
+   réduction choisie automatiquement doit-elle être MÉMORISÉE par modèle (préférence
+   utilisateur) ou recalculée à chaque tirage selon l'état de la carte ?
 
 ### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
 > But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**
