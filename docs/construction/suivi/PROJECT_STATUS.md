@@ -15761,3 +15761,60 @@ déclaration SDXL de la sœur). ⚠ Budget de langue CODE rouge (2621 > 2614) pa
 commits de la sœur d'après mon recalage (`racine`, `cle`, `b3160647`) — signalé, remède chez elle.
 Tests +3 (15 + 10). 🔚 Reste ici : rien d'ouvert sur A hors B/C/D ; imager et Wan hors des deux
 périmètres.
+
+## §PALIER — 2026-09-20, « GOUVERNEUR B1 : le canal inter-process, l'attente sans plafond, l'accord EXPLICITE, la tâche déclarée et bornée » — ✅ LIVRÉ (3 commits : socle, branchement, + `61674397` docs)
+
+> B relancé par Fabien le 20/09 et **restructuré en B1/B2/B3** (`ROADMAP §Gouvernance`, bloc daté) ;
+> cartographie préalable confrontée aux lignes (angles morts : repli Kokoro de gunicorn hors contrat
+> `wama/views.py:254`, modèles hors contrat de `_VRAM_UNLOADERS`, les deux Redis du PC de dev, et
+> les TÂCHES en cours invisibles du registre). Le « tout décharger » est REFORMULÉ : la saturation
+> PROPOSE, elle n'autorise plus — trois cas, jamais d'office.
+
+**① Socle (`resource_governor.py`, bloc « 2 ter », hashs Redis neufs à valeurs JSON)** — tâches en
+cours (`task_started`/`task_finished`/`running_tasks`, ligne qui expire avec la durée max du
+traitement) ; occupé (`mark_busy`/`busy_tenants` — lit aussi `last_used` : un résident qui vient de
+servir rend son tenant occupé sans rien déclarer ; `gpu_is_busy`) ; accord explicite
+(`grant_release`/`release_granted` avec l'utilisateur, TTL 1 j) ; **le canal** (`request_release` →
+`serve_release_requests(tenant)` dans chaque process → `acknowledge_release(freed|busy)` →
+`close_release_request` ; `obtain_vram` attend la SONDE, jamais les acquittements, et dit qui est
+resté occupé) ; le tenant se DÉCLARE (`Tenant(name, unload, restore, is_busy)`, `contract_tenant`,
+`start_release_listener` — thread démon, même famille que le battement) ; `fits_alone` ;
+`holders_summary` (qui tient quoi, pour la card) ; `task_time_limit_s` (`TASK_MAX_MINUTES`
+déclaratif + `UserAppSetting('common','max_task_minutes')`). `tests_vram_governance` 18.
+
+**② Squelette (`task_skeleton.py`)** — `_differer_faute_de_vram` : (a) ne tient pas même SEUL →
+refus immédiat et dit ; (b) attente `AWAITING_RESOURCES` **sans plafond** (`max_retries=None`),
+console + card disent qui tient quoi ; (c) accord du propriétaire ou d'un admin → `obtain_vram`,
+accord consommé. Le plafond « 40 × 45 s puis échec » est retiré. Tâche déclarée autour de la glu
+(`finally`). **Garde-temps** : mesuré, `--pool=solo` n'honore AUCUNE limite Celery
+(`celery/concurrency/solo.py:29`, `'timeouts': ()`) → `SIGALRM` dans le thread principal du worker
+(le geste de prefork dans ses enfants) lève `TaskTimeLimitExceeded` ; échec relançable et dit ;
+sans effet hors thread principal. `tests_vram_wait` 14 (dont la garde RÉELLE par SIGALRM).
+
+**③ Tenants branchés** — worker Celery (`celery.py`, `worker_process_init` : `contract_tenant`,
+décharge par `unload_live_backends` existant — pas `base.py`, fichier de la sœur) ; service TTS
+(`tts_service.py` : occupé tant qu'il synthétise `_synth_begin/_end` + `mark_busy` ; se décharge
+RÉSIDENTS COMPRIS pour une demande accordée — seul chemin qui passe outre `keep_resident` ;
+restaure ses temps réel après, `_preload_engines` factorisé du démarrage ; **toujours aucun
+endpoint de déchargement** : le gouverneur parle par Redis) ; assistant (`wama/views.py` :
+pendant une libération `ai_chat` répond un message d'attente automatique sans appeler le moteur,
+`kokoro_tts` rend 503 — ni service, ni repli en-process).
+
+**④ « Libérer la carte et lancer »** — `POST /model-manager/api/vram/grant/` `{app, item}` ; lien
+sur la card en attente (`common/_card_state.html`, quand l'app passe `app` et `pk` à l'include :
+**adoption = une variable d'include**) ; `wama-app-base.js` délégation `.vram-grant`
+(confirmation, POST, toast) + `csrfToken()` ; `staticfiles/` resynchronisé, V8 parse OK.
+
+**⚠ Incidents du palier** : mon commit `61674397` a emporté 119 lignes de ROADMAP de la sœur,
+écrites ENTRE mon comptage de hunks et mon commit — **compter puis commiter n'est pas atomique** :
+sur un doc partagé, TOUJOURS stager le hunk par patch (`/commit-partiel`) ; règle appliquée aux
+commits suivants (index vérifié, `git apply --cached`). Et un Edit a inséré une constante entre
+deux décorateurs et `ai_chat` → `SyntaxError` dans l'arbre partagé quelques minutes (signalé par
+la sœur, réparé) : *une ancre `def f` sans ses décorateurs n'est pas une ancre.*
+
+🔚 **Reste B1 (hors de ce périmètre ou différé)** : `vram_needed` de l'imager vidéo et du composer
+(le pic est le second chiffre de la sœur ; leurs sessions le passent au squelette et donnent
+`app`/`pk` à l'include) ; le champ « durée max » dans le profil (accesseur et défaut posés) ; le
+repli Kokoro de gunicorn hors contrat (angle mort à mesurer : CPU ou GPU ?) ; les modèles hors
+contrat de `_VRAM_UNLOADERS` (pyannote) ne répondent pas au canal. 🔚 **B2/B3** : à concevoir au
+ROADMAP avec Fabien avant une ligne (admission/ordonnancement inter-utilisateurs, local/cloud).
