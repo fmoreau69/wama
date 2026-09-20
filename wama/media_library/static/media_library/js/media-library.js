@@ -79,7 +79,9 @@
 
     async function loadCounts() {
         try {
-            const data = await (await fetch(ML_URLS.counts)).json();
+            // `scope=visible` : la PAGE médiathèque montre aussi ce qui m'est partagé. Le
+            // sélecteur de médias des apps, lui, ne passe rien et reste sur « les miens ».
+            const data = await (await fetch(`${ML_URLS.counts}?scope=visible`)).json();
             Object.entries(data.counts || {}).forEach(([type, n]) => {
                 const badge = document.getElementById(`badge-${type}`);
                 if (badge) badge.textContent = n || '0';
@@ -199,7 +201,8 @@
         }
 
         const q = searchInput.value.trim();
-        const params = new URLSearchParams({ type: currentType, page: currentPage });
+        const params = new URLSearchParams({ type: currentType, page: currentPage,
+                                             scope: 'visible' });
         if (q) params.set('q', q);
 
         try {
@@ -307,7 +310,7 @@
                 <button class="btn btn-sm btn-dark preview-btn" title="Aperçu" data-id="${asset.id}">
                     <i class="fas fa-expand"></i>
                 </button>` : ''}
-                ${!isSystem ? `
+                ${!isSystem && asset.is_mine ? `
                 <button class="btn btn-sm btn-dark edit-btn" title="Modifier" data-id="${asset.id}">
                     <i class="fas fa-pen"></i>
                 </button>
@@ -320,8 +323,16 @@
                 </a>` : ''}
             </div>`;
 
+        // Un asset PARTAGÉ par quelqu'un d'autre se dit : sans cela, il serait indiscernable du
+        // mien alors qu'il n'est ni modifiable ni supprimable (le serveur répondrait 404).
+        const partageHtml = (!isSystem && asset.is_mine === false)
+            ? `<span class="asset-badge-system" title="Partagé avec vous — lecture seule">
+                   <i class="fas fa-share-nodes me-1"></i>${esc(asset.owner || 'partagé')}</span>`
+            : '';
+
         card.innerHTML = `
             ${isSystem ? '<span class="asset-badge-system"><i class="fas fa-lock me-1"></i>intégré</span>' : ''}
+            ${partageHtml}
             ${actionsHtml}
             ${previewHtml}
             <div class="asset-card-body">
