@@ -696,6 +696,407 @@ def wait_for_free_vram(needed_gb: float, *, timeout_s: float = 180.0,
 
 
 # ---------------------------------------------------------------------------
+# 2 ter. TENANTS, TÂCHES EN COURS et DEMANDES DE LIBÉRATION — chantier B1 (2026-09-20)
+# ---------------------------------------------------------------------------
+# Décisions de Fabien (16/09, reformulées le 20/09 — `ROADMAP §Gouvernance`, bloc B1/B2/B3) :
+# une tâche qui ne tient pas dans la VRAM libre ATTEND (illimité) que les résidences se
+# libèrent d'elles-mêmes ; libérer TOUTE la carte n'intervient que sur ACCORD EXPLICITE de
+# l'utilisateur ; un service (TTS, worker, retranscription live à venir) se DÉCLARE au
+# gouverneur — nom, occupé ?, décharger, recharger — rien n'est câblé en dur ; le gouverneur
+# décide, tous les chemins passent par lui.
+#
+# Ce que le registre ne savait pas dire avant ce bloc, mesuré le 20/09 : les TÂCHES en cours
+# (lues jusque-là dans les statuts `RUNNING` des tables d'app, invisibles d'ici) ; « occupé »
+# (un verrou du service TTS n'était visible que de lui) ; et surtout le DÉCHARGEMENT restait
+# LOCAL au process (`base.unload_live_backends`, `MemoryManager.release_vram`) — « canal de
+# requête inter-process : conçu, non implémenté » (ROADMAP :546). Le canal est ci-dessous : une
+# DEMANDE écrite dans Redis, servie par chaque tenant dans son propre process, acquittée ; la
+# vérité finale reste la sonde (`effective_free_gb`), jamais le nombre d'acquittements.
+#
+# Formats : hashs NEUFS, valeurs JSON (la contrainte `"<go>:<ts>"` ne vaut que pour la ligne
+# de réservation, lue par des process restés sur l'ancien code).
+
+_TASKS_KEY = "wama:vram:tasks"          # jeton → {app, item, gb, tenant, ts, ttl}
+_BUSY_KEY = "wama:vram:busy"            # tenant → ts du dernier « occupé » déclaré
+_REQUESTS_KEY = "wama:vram:requests"    # id → {gb, requester, reason, ts}
+_ACKS_KEY = "wama:vram:acks"            # id → {tenant: {freed, busy, ts}}
+_GRANTS_KEY = "wama:vram:grants"        # "app:item" → ts de l'accord explicite de l'utilisateur
+
+#: Un tenant est « occupé » s'il l'a dit, ou si l'un de ses résidents a servi, depuis moins de
+#: cette fenêtre (proposition du 20/09 : un modèle temps réel qui parle est occupé tant qu'il
+#: parle ; passée la minute, il ne l'est plus).
+BUSY_WINDOW_S = 60
+#: Une demande de libération non close meurt seule (requérant mort).
+REQUEST_TTL_S = 15 * 60
+#: Un accord explicite de l'utilisateur vaut pour l'item, un jour — pas pour toujours.
+GRANT_TTL_S = 24 * 3600
+#: Durée par défaut d'UN traitement (Fabien, 16/09 : 30 min, réglable) — c'est aussi le TTL de
+#: la ligne « tâche en cours », qui expire donc avec le traitement au lieu d'un jour entier.
+TASK_DEFAULT_MAX_S = 30 * 60
+
+
+def tenant_id() -> str:
+    """Identité d'un TENANT = un process (le worker gpu, le service TTS, gunicorn…). Les clés
+    d'owner du contrat portent ce pid (`<Classe>:<pid>#…`) : c'est ce qui relie un résident à
+    son tenant sans table."""
+    return str(os.getpid())
+
+
+def tenant_of_owner(owner: str) -> str | None:
+    """Tenant (pid) d'une clé d'owner du contrat, None pour une ligne sans process (Ollama hôte)."""
+    import re
+    m = re.search(r':(\d+)(?:#|$)', owner or '')
+    return m.group(1) if m else None
+
+
+def fits_alone(needed_gb: float) -> bool | None:
+    """`needed_gb` tiendrait-il sur la carte VIDE ? None sans GPU (on ne conclut pas d'une
+    absence). C'est le premier des trois cas de Fabien (20/09) : ce qui ne tient pas même seul
+    ne se sélectionne pas et ne se lance pas — aucune attente ne changera la taille de la carte."""
+    total = total_vram_gb()
+    if total <= 0:
+        return None
+    return float(needed_gb) <= total
+
+
+def _hash_json(key: str) -> dict:
+    client = _redis()
+    if client is None:
+        return {}
+    import json
+    try:
+        raw = client.hgetall(key) or {}
+    except Exception:
+        return {}
+    out = {}
+    for k, v in raw.items():
+        name = k.decode() if isinstance(k, bytes) else str(k)
+        try:
+            out[name] = json.loads(v.decode() if isinstance(v, bytes) else v)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _hset_json(key: str, field: str, value: dict, ttl_s: float = RESERVATION_TTL_S * 2) -> bool:
+    client = _redis()
+    if client is None:
+        return False
+    import json
+    try:
+        client.hset(key, field, json.dumps(value))
+        client.expire(key, int(ttl_s))
+        return True
+    except Exception as exc:
+        logger.debug(f"[ResourceGovernor] {key}[{field}] : {exc}")
+        return False
+
+
+def _hdel(key: str, *fields) -> None:
+    client = _redis()
+    if client is None or not fields:
+        return
+    try:
+        client.hdel(key, *fields)
+    except Exception:
+        pass
+
+
+# ── Tâches en cours ─────────────────────────────────────────────────────────────────────
+
+def task_started(app_id: str, item_id, needed_gb: float = 0.0, *,
+                 max_s: float | None = None) -> str:
+    """Déclare une tâche GPU EN COURS ; rend son jeton. Posé par le squelette commun autour de
+    la glu (`run_item_task`) — un seul point, aucune app. La ligne expire d'elle-même à
+    `max_s` (défaut `TASK_DEFAULT_MAX_S`) : un worker mort ne laisse pas une tâche fantôme."""
+    token = f"{app_id}:{item_id}:{tenant_id()}"
+    _hset_json(_TASKS_KEY, token, {
+        'app': app_id, 'item': item_id, 'gb': round(float(needed_gb or 0.0), 3),
+        'tenant': tenant_id(), 'ts': _now(),
+        'ttl': float(max_s if max_s is not None else TASK_DEFAULT_MAX_S),
+    })
+    return token
+
+
+def task_finished(token: str) -> None:
+    _hdel(_TASKS_KEY, token)
+
+
+def running_tasks() -> list[dict]:
+    """Tâches GPU en cours, tous process confondus — lignes expirées purgées."""
+    now, alive, stale = _now(), [], []
+    for token, line in _hash_json(_TASKS_KEY).items():
+        try:
+            if now - float(line.get('ts', 0)) > float(line.get('ttl') or TASK_DEFAULT_MAX_S):
+                stale.append(token)
+                continue
+        except (TypeError, ValueError):
+            stale.append(token)
+            continue
+        alive.append({'token': token, **line})
+    _hdel(_TASKS_KEY, *stale)
+    return alive
+
+
+# ── Occupé ─────────────────────────────────────────────────────────────────────────────
+
+def mark_busy(tenant: str | None = None) -> bool:
+    """Un tenant se déclare OCCUPÉ (le service TTS quand son verrou de synthèse est pris)."""
+    return _hset_json(_BUSY_KEY, tenant or tenant_id(), {'ts': _now()})
+
+
+def clear_busy(tenant: str | None = None) -> None:
+    _hdel(_BUSY_KEY, tenant or tenant_id())
+
+
+def busy_tenants(window_s: float = BUSY_WINDOW_S) -> set[str]:
+    """Tenants occupés : déclarés depuis moins de `window_s`, ou dont un résident a SERVI depuis
+    moins de `window_s` (`mark_used`, émis à chaque `process()` d'un backend du contrat)."""
+    now, out = _now(), set()
+    for tenant, line in _hash_json(_BUSY_KEY).items():
+        try:
+            if now - float(line.get('ts', 0)) < window_s:
+                out.add(tenant)
+        except (TypeError, ValueError):
+            continue
+    client = _redis()
+    if client is not None:
+        try:
+            for k, v in (client.hgetall(_USED_KEY) or {}).items():
+                owner = k.decode() if isinstance(k, bytes) else str(k)
+                stamp = float(v.decode() if isinstance(v, bytes) else v)
+                tenant = tenant_of_owner(owner)
+                if tenant and now - stamp < window_s:
+                    out.add(tenant)
+        except Exception:
+            pass
+    return out
+
+
+def gpu_is_busy(window_s: float = BUSY_WINDOW_S, *, exclude_tenant: str | None = None) -> bool:
+    """Une tâche tourne, ou un tenant sert — hors `exclude_tenant` (le requérant lui-même)."""
+    me = exclude_tenant
+    if any(t.get('tenant') != me for t in running_tasks()):
+        return True
+    return bool(busy_tenants(window_s) - ({me} if me else set()))
+
+
+# ── Accord explicite de l'utilisateur ──────────────────────────────────────────────────
+
+def _grant_key(app_id: str, item_id) -> str:
+    return f"{app_id}:{item_id}"
+
+
+def grant_release(app_id: str, item_id, user_id=None) -> bool:
+    """L'utilisateur ACCEPTE que toute la carte soit libérée pour CET item (bouton de la card en
+    attente). Sans cet accord, le gouverneur attend ; il ne décharge jamais d'office."""
+    return _hset_json(_GRANTS_KEY, _grant_key(app_id, item_id),
+                      {'ts': _now(), 'user': user_id}, ttl_s=GRANT_TTL_S)
+
+
+def revoke_grant(app_id: str, item_id) -> None:
+    _hdel(_GRANTS_KEY, _grant_key(app_id, item_id))
+
+
+def release_granted(app_id: str, item_id) -> bool:
+    line = _hash_json(_GRANTS_KEY).get(_grant_key(app_id, item_id))
+    try:
+        return bool(line) and _now() - float(line.get('ts', 0)) < GRANT_TTL_S
+    except (TypeError, ValueError):
+        return False
+
+
+# ── Demandes de libération (le canal inter-process) ────────────────────────────────────
+
+def request_release(needed_gb: float, requester: str, reason: str = '') -> str | None:
+    """Écrit une DEMANDE : « libérez ce que vous tenez, il me faut `needed_gb` ». Rend son id.
+    Chaque tenant la sert dans son process (`serve_release_requests`) ; le requérant attend la
+    SONDE, pas les acquittements (`obtain_vram`)."""
+    import uuid
+    request_id = uuid.uuid4().hex[:12]
+    ok = _hset_json(_REQUESTS_KEY, request_id, {
+        'gb': round(float(needed_gb), 3), 'requester': requester, 'reason': reason or '',
+        'ts': _now(),
+    }, ttl_s=REQUEST_TTL_S * 2)
+    return request_id if ok else None
+
+
+def pending_release_requests() -> dict[str, dict]:
+    """Demandes vivantes (id → ligne) ; les périmées sont purgées avec leurs acquittements."""
+    now, alive, stale = _now(), {}, []
+    for request_id, line in _hash_json(_REQUESTS_KEY).items():
+        try:
+            if now - float(line.get('ts', 0)) > REQUEST_TTL_S:
+                stale.append(request_id)
+                continue
+        except (TypeError, ValueError):
+            stale.append(request_id)
+            continue
+        alive[request_id] = line
+    if stale:
+        _hdel(_REQUESTS_KEY, *stale)
+        _hdel(_ACKS_KEY, *stale)
+    return alive
+
+
+def acknowledge_release(request_id: str, tenant: str, *, freed: int = 0,
+                        busy: bool = False) -> bool:
+    """Un tenant dit ce qu'il a fait pour cette demande : `freed` instances déchargées, ou
+    `busy` (il sert, il ne se décharge pas — le requérant attendra)."""
+    acks = _hash_json(_ACKS_KEY).get(request_id) or {}
+    acks[tenant] = {'freed': int(freed), 'busy': bool(busy), 'ts': _now()}
+    return _hset_json(_ACKS_KEY, request_id, acks, ttl_s=REQUEST_TTL_S * 2)
+
+
+def release_acks(request_id: str) -> dict:
+    return _hash_json(_ACKS_KEY).get(request_id) or {}
+
+
+def close_release_request(request_id: str) -> None:
+    """Le requérant a ce qu'il voulait (ou renonce) : la demande disparaît, et les tenants qui
+    s'étaient déchargés POUR elle peuvent restaurer (`serve_release_requests`)."""
+    _hdel(_REQUESTS_KEY, request_id)
+    _hdel(_ACKS_KEY, request_id)
+
+
+def obtain_vram(needed_gb: float, requester: str, *, reason: str = '',
+                timeout_s: float = 120.0, poll_s: float = 2.0, console=None) -> tuple[bool, float]:
+    """Demande la libération, puis ATTEND que la SONDE rende `needed_gb` (bornée : le pilote
+    rend la mémoire en secondes, pas en minutes — au-delà, quelque chose ne libère pas et on le
+    dit). Rend (obtenu, libre mesuré). La demande est close dans tous les cas."""
+    import time
+    request_id = request_release(needed_gb, requester, reason)
+    if request_id is None:
+        return False, effective_free_gb()
+    fin = time.monotonic() + max(0.0, timeout_s)
+    try:
+        while True:
+            libre = effective_free_gb()
+            if libre >= needed_gb:
+                return True, libre
+            if time.monotonic() >= fin:
+                acks = release_acks(request_id)
+                occupes = sorted(t for t, a in acks.items() if a.get('busy'))
+                msg = (f"[ResourceGovernor] {libre:.1f} Go libres après demande de libération "
+                       f"({needed_gb:.1f} requis) — {len(acks)} tenant(s) ont répondu"
+                       + (f", occupés : {occupes}" if occupes else ""))
+                logger.info(msg)
+                if console:
+                    try:
+                        console(msg)
+                    except Exception:
+                        pass
+                return False, libre
+            time.sleep(poll_s)
+    finally:
+        close_release_request(request_id)
+
+
+# ── Le tenant : déclaré, jamais câblé ──────────────────────────────────────────────────
+
+class Tenant:
+    """Ce qu'un process qui tient de la VRAM DÉCLARE au gouverneur : son nom, comment savoir
+    s'il est occupé, comment se décharger, comment se recharger après. Le worker Celery et le
+    service TTS en instancient un ; un service futur aussi — sans toucher au gouverneur.
+
+    `unload()` rend le nombre d'instances déchargées ; `restore()` est appelé une fois la
+    demande CLOSE, seulement si ce tenant s'est déchargé pour elle (le TTS recharge ses
+    `keep_resident`, un worker ne recharge rien : ses modèles reviennent au prochain usage) ;
+    `is_busy()` : True = « je sers, je ne me décharge pas maintenant » (le requérant attend)."""
+
+    def __init__(self, name: str, *, unload, restore=None, is_busy=None):
+        self.name = name
+        self._unload = unload
+        self._restore = restore
+        self._is_busy = is_busy
+        self.unloaded_for: set[str] = set()
+
+    def is_busy(self) -> bool:
+        try:
+            return bool(self._is_busy()) if self._is_busy else False
+        except Exception:
+            return True                  # dans le doute, on ne décharge pas
+
+    def unload(self) -> int:
+        return int(self._unload() or 0)
+
+    def restore(self) -> None:
+        if self._restore:
+            self._restore()
+
+
+def serve_release_requests(tenant: Tenant) -> int:
+    """UN passage : sert les demandes que ce tenant n'a pas encore acquittées, restaure après
+    celles qui sont closes. Rend le nombre d'instances déchargées. Appelé en boucle par le
+    thread de `start_release_listener`, et directement par les tests."""
+    me = tenant_id()
+    pending = pending_release_requests()
+    freed_total = 0
+    for request_id, line in pending.items():
+        if line.get('requester') == me:
+            continue                     # on ne se décharge pas pour sa propre demande
+        if me in release_acks(request_id):
+            continue
+        if tenant.is_busy():
+            acknowledge_release(request_id, me, busy=True)
+            continue
+        try:
+            freed = tenant.unload()
+        except Exception:
+            logger.warning("[ResourceGovernor] %s : déchargement échoué", tenant.name, exc_info=True)
+            freed = 0
+        freed_total += freed
+        if freed:
+            tenant.unloaded_for.add(request_id)
+        acknowledge_release(request_id, me, freed=freed)
+    closed = [r for r in tenant.unloaded_for if r not in pending]
+    if closed:
+        tenant.unloaded_for.difference_update(closed)
+        try:
+            tenant.restore()
+        except Exception:
+            logger.warning("[ResourceGovernor] %s : restauration échouée", tenant.name, exc_info=True)
+    return freed_total
+
+
+_LISTENER = None
+RELEASE_POLL_S = 3.0
+
+
+def start_release_listener(tenant: Tenant, poll_s: float = RELEASE_POLL_S) -> bool:
+    """Lance, une fois par process, le thread démon qui sert les demandes de libération pour
+    `tenant`. Même famille que `base.start_reservation_heartbeat` (qui garde les lignes
+    vivantes) — celui-ci écoute. Rend True s'il vient d'être lancé."""
+    global _LISTENER
+    if _LISTENER is not None and _LISTENER.is_alive():
+        return False
+    import threading
+    import time
+
+    def _loop():
+        while True:
+            time.sleep(poll_s)
+            try:
+                serve_release_requests(tenant)
+            except Exception:
+                logger.debug("[ResourceGovernor] écoute des demandes ignorée", exc_info=True)
+
+    _LISTENER = threading.Thread(target=_loop, daemon=True, name=f"wama-vram-listener:{tenant.name}")
+    _LISTENER.start()
+    return True
+
+
+def contract_tenant(name: str, *, restore=None, is_busy=None) -> Tenant:
+    """Le tenant par défaut d'un process qui héberge des backends du contrat : décharge par
+    `base.unload_live_backends` (existant). Le worker Celery l'emploie tel quel ; le service TTS
+    y ajoute son occupé (verrou) et sa restauration (ses `keep_resident`)."""
+    def _unload() -> int:
+        from wama.common.backends.base import unload_live_backends
+        return unload_live_backends()
+    return Tenant(name, unload=_unload, restore=restore, is_busy=is_busy)
+
+
+# ---------------------------------------------------------------------------
 # 3. Priorités — DÉCLARATIF, pas codé en dur dans les apps
 # ---------------------------------------------------------------------------
 
