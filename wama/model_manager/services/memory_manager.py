@@ -16,42 +16,44 @@ logger = logging.getLogger(__name__)
 # + fragmentation). En dessous, on abandonne FULL_GPU et on retombe sur MODEL_OFFLOAD.
 FULL_GPU_MIN_FREE_GB = 1.5
 
-#: Marge d'ACTIVATIONS à ajouter au poids des composants pour obtenir un PIC (décision A de
-#: Fabien, 16/09). **Constante, 4 Go, et ce n'est pas un réglage** : ce chiffre a été établi par
-#: un run, pas choisi. Journal du 2026-03-13 (`logs/celery-gpu.log.3`) : CogVideoX chargé en plein
-#: GPU, « 20.34 GiB allocated by PyTorch », puis CUDA out of memory à la génération — il manquait
-#: 570 Mio d'activations. Une marge PROPORTIONNELLE serait une invention sans mesure : elle
-#: donnerait 1 Go à un modèle de 5 Go et 8 Go à un modèle de 40, alors que la grandeur qui la
-#: détermine est la RÉSOLUTION et la durée du rendu, pas la taille des poids.
-ACTIVATION_MARGIN_GB = 4.0
-
-
 def peaks_from_weights(weights: dict) -> dict:
     """Les DEUX pics d'un modèle, dérivés du poids par composant — `{}` si on ne sait pas.
 
-    C'est la traduction directe de la décision A (`PROJECT_STATUS §④A`, 16/09) : un modèle composé
-    a deux empreintes et non une.
-      * `full` — SOMME des composants + activations : tout coexiste sur la carte ;
-      * `offload` — PLUS GROS composant + activations : en déchargement, un composant descend
-        quand le suivant monte, et c'est lui qui fixe le plafond.
+    Traduction directe de la décision A (`PROJECT_STATUS §④A`, 16/09) : un modèle composé a deux
+    empreintes et non une.
+      * `full` — SOMME des composants : tout coexiste sur la carte ;
+      * `offload` — PLUS GROS composant : en déchargement, un composant descend quand le suivant
+        monte, et c'est lui qui fixe le plafond.
 
     `weights` est le relevé de `extra_info['weights']` (`{components, total_gb, largest_gb}`),
     produit par `model_sync.persist_weights` depuis les fichiers du snapshot.
 
-    ⚠ POURQUOI CETTE FONCTION EXISTE : `get_memory_strategy` ne recevait qu'UN nombre et
-    APPROXIMAIT le second avec des pourcentages (« la VRAM peut tenir 60 % du modèle → offload »).
-    Ces 60 % et 30 % étaient un substitut de « le plus gros composant tient ». Avec les deux
-    chiffres, la question devient exacte et les pourcentages disparaissent.
-    Mesuré le 2026-09-19 : CogVideoX pèse 20,2 Go de somme pour 10,5 Go de plus gros composant —
-    son preset (21) est la somme, et il a fait écarter du tirage un modèle qui tient très bien sur
-    24 Go en déchargement. FastWan : 22,5 contre 10,6. Un seul nombre ne peut pas dire les deux.
+    🔴 AUCUNE MARGE AJOUTÉE ICI, et c'est une correction (2026-09-20, recadrage de Fabien). Ma
+    première version ajoutait 4 Go d'« activations » à chaque pic, en s'appuyant sur le crash
+    hôte du 29/07. DEUX erreurs dans ce raisonnement :
+      1. le crash hôte n'est pas un argument : le dépôt porte les deux hypothèses (28/08 — « la
+         puissance n'est pas le facteur, la montée VRAM l'est » ; puis rails instrumentés qui
+         n'innocentent pas le bloc, onduleur pseudo-sinusoïde, alimentation 1000 W commandée), et
+         **aucune des deux ne justifie d'ajouter une constante au poids d'un modèle** ;
+      2. surtout, la marge n'appartient pas au MODÈLE. Un pic de poids est un FAIT du modèle ; ce
+         qu'il faut garder libre est une politique de la MACHINE, donc du gouverneur. Il en existe
+         déjà quatre dans ce dépôt — `full_gpu_budget_gb(headroom_gb=4.0)`,
+         `fits_full_gpu(headroom_gb=4.0)`, `get_memory_strategy(headroom_gb=2.0)`,
+         `FULL_GPU_MIN_FREE_GB = 1.5` / `ensure_free_vram(headroom_gb=1.5)`. En ajouter une
+         cinquième, cachée dans le calcul du pic, aurait rendu la marge invisible ET irréconciliable.
+    *Cette fonction rend des faits ; ce qu'on garde libre se décide ailleurs, une seule fois.*
+
+    ⚠ POURQUOI ELLE EXISTE : `get_memory_strategy` ne recevait qu'UN nombre et APPROXIMAIT le
+    second avec des pourcentages (« la VRAM peut tenir 60 % du modèle → offload »). Ces 60 % et
+    30 % étaient un substitut de « le plus gros composant tient ». Mesuré le 2026-09-19 :
+    CogVideoX pèse 20,2 Go de somme pour 10,5 de plus gros composant (52 %), FastWan 22,5 pour
+    10,6 (47 %), Hunyuan 49,5 pour 32,5 (66 %). Aucun pourcentage fixe ne pouvait le représenter.
     """
     total = (weights or {}).get('total_gb')
     largest = (weights or {}).get('largest_gb')
     if not total or not largest:
         return {}
-    return {'full': round(float(total) + ACTIVATION_MARGIN_GB, 2),
-            'offload': round(float(largest) + ACTIVATION_MARGIN_GB, 2)}
+    return {'full': round(float(total), 2), 'offload': round(float(largest), 2)}
 
 def _cap_cuda_allocator() -> None:
     """
