@@ -213,8 +213,13 @@ class FunctionSpec:
     params: list = field(default_factory=list)     # [ParamSpec]
     cost: dict = field(default_factory=dict)       # {vram_gb, cpu_bound, approx_s…}
     projects: list = field(default_factory=list)   # traçabilité : projets utilisant la fonction (ex. ["ENA"])
-    visibility: str = 'public'                     # 'public' | 'private' | 'shared' (confidentialité — à venir)
-    owner: str = ''                                # propriétaire si private/shared (à venir)
+    # Vocabulaire de `ScopedVisibility` (`common/models.py`), et lui seul : 'private' | 'unit' |
+    # 'project' | 'public'. ⚠ Ce champ annonçait `'shared'` jusqu'au 2026-09-21 — un mot qui
+    # n'existe nulle part ailleurs et qui ne dit rien de PARTAGÉ À QUI. Déclaré, jamais filtré à
+    # ce jour (aucun lecteur hors du `to_dict()` ci-dessous) : le jour où il le sera, ce sera par
+    # `scoped_visible_q`, jamais par un second chemin (`WAMA_COLLABORATION §8`, marche 2).
+    visibility: str = 'public'
+    owner: str = ''                                # propriétaire quand la visibilité n'est pas 'public' (à venir)
 
     def to_dict(self):
         """Représentation métadonnée-driven (card + ports + modale)."""
