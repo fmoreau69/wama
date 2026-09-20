@@ -5,16 +5,20 @@ de l'app pendant le traitement). Commun à toutes les apps.
 Variables :
   status — 'PENDING' | 'AWAITING_RESOURCES' | 'RUNNING' | 'SUCCESS' | 'FAILURE' | 'STALE'
   text   — (optionnel) aperçu texte affiché tant que non terminé
+  app, pk — (optionnels, B1 2026-09-20) identité de l'item : quand ils sont donnés, un item en
+            attente de ressources porte le lien « Libérer la carte et lancer » — l'ACCORD
+            EXPLICITE de l'utilisateur (le gouverneur ne décharge jamais d'office). Géré par
+            `wama-app-base.js` (délégation `.vram-grant`), aucune ligne JS par app.
 
 Usage :
-  {% include 'common/_card_state.html' with status=obj.status text=obj.text %}
+  {% include 'common/_card_state.html' with status=obj.status text=obj.text app='imager' pk=obj.pk %}
 {% endcomment %}
 {% if status == 'RUNNING' %}
 <small class="card-state text-warning"><i class="fas fa-spinner fa-spin"></i> Traitement…</small>
 {% elif status == 'PENDING' %}
 <small class="card-state text-white-50">En attente</small>
 {% elif status == 'AWAITING_RESOURCES' %}
-<small class="card-state text-awaiting"><i class="fas fa-hourglass-half"></i> En attente de ressources</small>
+<small class="card-state text-awaiting"><i class="fas fa-hourglass-half"></i> En attente de ressources{% if app and pk %} · <a href="#" class="vram-grant" data-vram-grant-url="{% url 'model_manager:api_vram_grant' %}" data-app="{{ app }}" data-item="{{ pk }}" title="Décharger tous les modèles résidents le temps de ce traitement, puis les recharger">Libérer la carte et lancer</a>{% endif %}</small>
 {% elif status == 'FAILURE' %}
 <small class="card-state text-danger"><i class="fas fa-triangle-exclamation"></i> Échec</small>
 {% comment %}STALE (décision Fabien, 2026-09-17) : le process a RÉUSSI mais une de ses conditions a

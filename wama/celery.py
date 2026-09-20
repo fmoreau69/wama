@@ -59,6 +59,17 @@ def _wama_configure_worker_resources(**_kwargs):
         start_reservation_heartbeat()
     except Exception:
         pass
+    # Le worker se DÉCLARE tenant (B1, 2026-09-20) : il sert les demandes de libération des
+    # autres process — le déchargement ne restait jusque-là possible qu'à l'intérieur du process
+    # qui le demandait. Le tenant par défaut du contrat : décharge ses backends résidents, ne
+    # recharge rien (ils reviennent au prochain usage), n'est jamais « occupé » de lui-même —
+    # sa tâche en cours est déclarée par le squelette, c'est elle qui compte.
+    try:
+        from wama.common.services.resource_governor import (
+            contract_tenant, start_release_listener, tenant_id)
+        start_release_listener(contract_tenant(f"celery:{tenant_id()}"))
+    except Exception:
+        pass
 
 @app.task(bind=True)
 def debug_task(self):

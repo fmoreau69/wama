@@ -130,6 +130,13 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
+#: Ce que l'assistant répond pendant qu'une libération de la carte est en cours — un message
+#: d'attente automatique, jamais un silence ni une erreur nue (l'utilisateur doit savoir).
+_RELEASE_WAIT_MESSAGE = ("Un traitement lourd libère la carte graphique en ce moment : je reste "
+                         "silencieux quelques instants pour ne pas la reprendre. Réessayez dans "
+                         "une minute.")
+
+
 @require_http_methods(["POST"])
 @csrf_protect
 def ai_chat(request):
@@ -159,6 +166,14 @@ def ai_chat(request):
 
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
+
+        # Fenêtre de LIBÉRATION de la carte (B1, 2026-09-20 — décision Fabien du 16/09) :
+        # l'assistant reste MUET et répond un message d'attente automatique. Il charge un LLM
+        # (Ollama) et une voix : répondre maintenant rechargerait ce que le gouverneur vient
+        # de faire rendre pour un traitement qu'un utilisateur a explicitement demandé.
+        from wama.common.services.resource_governor import release_in_progress
+        if release_in_progress():
+            return JsonResponse({'response': _RELEASE_WAIT_MESSAGE, 'busy': True})
 
         # Moteur commun (assistant_engine) : cette vue n'est plus qu'une surface
         # cliente parmi N — même boucle à outils pour local ET cloud, même store.
@@ -440,6 +455,12 @@ def kokoro_tts(request):
         text = _clean_text_for_tts(text)
         if not text:
             return JsonResponse({'error': 'texte vide après nettoyage'}, status=400)
+
+        # Fenêtre de libération de la carte (B1) : pas de voix — ni par le service (qui vient
+        # de se décharger), ni par le repli en-process (qui chargerait Kokoro dans gunicorn).
+        from wama.common.services.resource_governor import release_in_progress
+        if release_in_progress():
+            return JsonResponse({'error': _RELEASE_WAIT_MESSAGE, 'busy': True}, status=503)
 
         # 1) Voie normale : microservice TTS (modèle chaud, hors process Django).
         audio_b64 = _tts_via_service(text, voice)

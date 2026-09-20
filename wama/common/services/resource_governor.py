@@ -898,12 +898,16 @@ def revoke_grant(app_id: str, item_id) -> None:
     _hdel(_GRANTS_KEY, _grant_key(app_id, item_id))
 
 
-def release_granted(app_id: str, item_id) -> bool:
+def release_granted(app_id: str, item_id) -> dict | None:
+    """L'accord vivant pour cet item (`{'ts', 'user'}`), ou None. C'est le squelette — qui connaît
+    l'item — qui vérifie que `user` en est le propriétaire (ou un admin)."""
     line = _hash_json(_GRANTS_KEY).get(_grant_key(app_id, item_id))
     try:
-        return bool(line) and _now() - float(line.get('ts', 0)) < GRANT_TTL_S
+        if line and _now() - float(line.get('ts', 0)) < GRANT_TTL_S:
+            return line
     except (TypeError, ValueError):
-        return False
+        pass
+    return None
 
 
 # ── Demandes de libération (le canal inter-process) ────────────────────────────────────
@@ -990,6 +994,60 @@ def obtain_vram(needed_gb: float, requester: str, *, reason: str = '',
             time.sleep(poll_s)
     finally:
         close_release_request(request_id)
+
+
+def release_in_progress() -> bool:
+    """Une libération est en cours (au moins une demande vivante). L'assistant le lit pour rester
+    MUET et répondre un message d'attente (Fabien, 16/09 : il charge aussi un LLM, pas seulement
+    la voix — le laisser parler pendant une libération, c'est recharger ce qu'on vient de rendre)."""
+    return bool(pending_release_requests())
+
+
+def holders_summary(limit: int = 4) -> str:
+    """Une phrase pour l'utilisateur : QUI tient QUOI — modèles résidents (Go) et tâches en cours.
+    C'est l'information qui manquait à la card « En attente de ressources » : sans elle, l'attente
+    ressemble à une panne et l'utilisateur renonce (Fabien, 20/09)."""
+    parts = []
+    residents = sorted(resident_models().items(), key=lambda kv: -kv[1])
+    if residents:
+        shown = ', '.join(f"{k} ({gb:.1f} Go)" for k, gb in residents[:limit])
+        extra = len(residents) - limit
+        parts.append("résidents : " + shown + (f" +{extra}" if extra > 0 else ''))
+    tasks = running_tasks()
+    if tasks:
+        parts.append("en cours : " + ', '.join(f"{t['app']} #{t['item']}" for t in tasks[:limit]))
+    return ' ; '.join(parts)
+
+
+# ── Durée max d'UN traitement ──────────────────────────────────────────────────────────
+# Décision Fabien (16/09) : 30 min par défaut, réglable par utilisateur dans son profil ; défaut
+# PAR TYPE DE TÂCHE possible (une vidéo longue dépasse 30 min légitimement). Déclaratif, à côté
+# d'`APP_TIERS` — pas dans les apps. ⚠ Mesuré le 20/09 : `--pool=solo` N'HONORE AUCUNE limite
+# Celery (`celery/concurrency/solo.py:29`, `'timeouts': ()`) — la garde est celle du squelette
+# commun (`task_skeleton`), qui lit ce plafond ici.
+
+#: Minutes par app (clé = app_id) ; `_default` pour les autres. Vide = tout au défaut, à dessein :
+#: un défaut par type se pose quand une mesure le justifie, pas d'avance.
+TASK_MAX_MINUTES = {
+    '_default': 30,
+}
+#: Réglage utilisateur (brique `user_settings`, app `common`) : 0 / absent = le défaut de l'app.
+USER_SETTING_MAX_TASK_MINUTES = 'max_task_minutes'
+
+
+def task_time_limit_s(app_id: str, user=None) -> float:
+    """Plafond de durée d'UN traitement, en secondes : le réglage de l'utilisateur s'il en a posé
+    un, sinon le défaut de l'app, sinon `_default`."""
+    minutes = 0
+    if user is not None and getattr(user, 'pk', None):
+        try:
+            from wama.common.utils.user_settings import get_user_app_setting
+            minutes = int(get_user_app_setting(user, 'common', USER_SETTING_MAX_TASK_MINUTES) or 0)
+        except Exception:
+            minutes = 0
+    if minutes <= 0:
+        minutes = int(TASK_MAX_MINUTES.get(app_id) or TASK_MAX_MINUTES['_default'])
+    return float(minutes * 60)
 
 
 # ── Le tenant : déclaré, jamais câblé ──────────────────────────────────────────────────
