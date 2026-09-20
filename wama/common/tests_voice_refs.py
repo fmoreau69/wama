@@ -269,8 +269,8 @@ class SharedVoiceAccessTest(TestCase):
         from django.contrib.auth.models import User
         from wama.common.models import OrgUnit
 
-        cls.owner = User.objects.create_user('voix_proprio', password='x')
-        cls.other = User.objects.create_user('voix_collegue', password='x')
+        cls.owner = User.objects.create_user('voice_owner', password='x')
+        cls.other = User.objects.create_user('voice_colleague', password='x')
         cls.lab = OrgUnit.objects.create(code='LESCOT_V', name='Lescot', unit_type='labo')
         for u in (cls.owner, cls.other):
             profile = u.profile
@@ -302,11 +302,11 @@ class SharedVoiceAccessTest(TestCase):
 
     # ── LE test décisif : proposé ET résolu, par la même lecture de droits ──────────────
     def test_a_voice_shared_with_the_unit_is_both_offered_and_resolved(self):
-        voice = self._voice(self.owner, 'la_voix_du_labo', 'unit')
+        voice = self._voice(self.owner, 'lab_shared_voice', 'unit')
 
         offered = dict(self._options(self.other, 'Voix partagées'))
         self.assertIn(f'ua_{voice.pk}', offered)
-        self.assertIn('voix_proprio', offered[f'ua_{voice.pk}'],
+        self.assertIn('voice_owner', offered[f'ua_{voice.pk}'],
                       "une voix d'autrui doit dire DE QUI elle est")
 
         self.assertEqual(voice.file.path,
@@ -315,13 +315,13 @@ class SharedVoiceAccessTest(TestCase):
                          "SANS message — la synthèse sortirait avec la mauvaise voix")
 
     def test_a_private_voice_of_someone_else_is_neither_offered_nor_resolved(self):
-        voice = self._voice(self.owner, 'la_voix_privee', 'private')
+        voice = self._voice(self.owner, 'private_voice', 'private')
         self.assertNotIn('Voix partagées', self._group_labels(self.other))
         self.assertEqual(self.default_voice.file.path,
                          voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=self.other))
 
     def test_my_own_voices_stay_in_their_own_group(self):
-        mine = self._voice(self.other, 'ma_voix', 'private')
+        mine = self._voice(self.other, 'my_own_voice', 'private')
         self.assertIn(f'ua_{mine.pk}', dict(self._options(self.other, 'Mes voix (clonage)')))
         self.assertNotIn('Voix partagées', self._group_labels(self.other))
 
@@ -330,7 +330,7 @@ class SharedVoiceAccessTest(TestCase):
         `Q(visibility='public')` hors du test d'authentification."""
         from wama.accounts.views import get_or_create_anonymous_user
 
-        voice = self._voice(self.owner, 'la_voix_publique', 'public')
+        voice = self._voice(self.owner, 'public_voice', 'public')
         anonymous = get_or_create_anonymous_user()
         self.assertNotIn('Voix partagées', self._group_labels(anonymous))
         self.assertEqual(self.default_voice.file.path,
