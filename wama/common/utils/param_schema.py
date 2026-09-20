@@ -25,7 +25,9 @@ ALL_CONTEXTS = ("item", "batch", "panel")
 class Param:
     """Description d'UN paramètre, indépendante de la surface de rendu."""
     name: str
-    type: str                                   # toggle|select|radio|text|textarea|number|range
+    type: str                                   # toggle|select|radio|text|textarea|number|range|intent
+                                                # (`intent` = le curseur rapide/qualité commun,
+                                                #  `auto_model.intent_param` ; borné par coerce_params)
     label: str = ""
     icon: str = ""                              # classe FontAwesome optionnelle (ex. "fa-microchip")
     dom_id: Any = ""                            # pont de migration : ID DOM legacy (sinon wp-{ctx}-{name}).
@@ -310,15 +312,23 @@ def coerce_params(schema, data, caps=None):
     Retourne {nom: valeur_coercée} pour chaque paramètre numérique (`range`/`number`) du schéma :
     valeur absente/illisible → `default` du schéma ; sinon clampée à [min, min(max, cap)].
     Les paramètres non numériques (select/toggle/text…) sont ignorés — le caller les valide à part.
+
+    `intent` (le curseur rapide/qualité commun, chantier C 2026-09-20) est numérique lui aussi :
+    borné à [0, 100], défaut 50, rendu en ENTIER — jusque-là il était ignoré ici et chaque vue
+    rappelait `read_quality_intent` à la main (mesuré : `wama/views.py`, synthesizer, avatarizer).
     """
     caps = caps or {}
     out = {}
     for p in schema:
-        if _pget(p, 'type') not in ('range', 'number'):
+        ptype = _pget(p, 'type')
+        if ptype not in ('range', 'number', 'intent'):
             continue
         name = _pget(p, 'name')
         lo = _pget(p, 'min')
         hi = _pget(p, 'max')
+        if ptype == 'intent':
+            lo = 0 if lo is None else lo
+            hi = 100 if hi is None else hi
         cap = caps.get(name)
         if cap is not None:
             hi = cap if hi is None else min(hi, cap)
@@ -332,7 +342,7 @@ def coerce_params(schema, data, caps=None):
             val = max(float(lo), val)
         if hi is not None:
             val = min(float(hi), val)
-        out[name] = val
+        out[name] = int(round(val)) if ptype == 'intent' else val
     return out
 
 

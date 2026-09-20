@@ -103,8 +103,12 @@ def _backend_is_available(model) -> bool:
     return _glm_ocr_available() if getattr(model, 'model_id', '') == 'glm-ocr' else True
 
 
-def _select_best_backend() -> str:
+def _select_best_backend(item=None) -> str:
     """Choisit le moteur OCR via la brique COMMUNE `select_model_id()`.
+
+    `item` (chantier C, 2026-09-20) : d'où lire le curseur rapide/qualité —
+    `quality_intent_of(item, 'reader')` : réglage d'app de l'utilisateur, sinon équilibré.
+    Jusque-là la brique était appelée SANS intention : le curseur n'existait pas au reader.
 
     Cette fonction ré-implémentait la cascade que le sélecteur commun fait déjà :
     préférence au modèle résident, sonde de disponibilité, seuil de VRAM libre, repli.
@@ -119,10 +123,12 @@ def _select_best_backend() -> str:
     intraitable parce que le catalogue n'a pas été synchronisé.
     """
     try:
+        from wama.common.utils.auto_model import quality_intent_of
         from wama.model_manager.services.model_selector import select_model_id
         chosen = select_model_id(
             'reader',
             task='ocr',
+            quality_intent=quality_intent_of(item, 'reader'),
             # `prefer_loaded` couvre le pas 1 de l'ancienne cascade (réutiliser olmOCR
             # déjà résident) sans que l'app ait à inspecter son propre singleton.
             prefer_loaded=True,
@@ -280,8 +286,10 @@ def _read(item, ctx):
         # Select backend
         backend = item.backend
         if backend == 'auto':
-            backend = _select_best_backend()
-            ctx.console(f"[Reader] Backend auto-sélectionné : {backend}")
+            backend = _select_best_backend(item)
+            from wama.common.utils.auto_model import quality_intent_of
+            ctx.console(f"[Reader] Backend auto-sélectionné : {backend} "
+                        f"(curseur qualité {quality_intent_of(item, 'reader')}/100)")
 
         ctx.progress(5, f"Backend : {backend}")
 

@@ -6,6 +6,7 @@ Dérivé du modèle `ReadingItem` (backend/mode = TextChoices du modèle). Rendu
 `WamaParams.render(container, PARAMS_JSON, {context})`. Les `dom_id` reprennent les IDs LEGACY de
 chaque surface → JS existant + apparence préservés. Gabarit : transcriber/params.py.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from wama.reader.models import ReadingItem
 
@@ -14,8 +15,16 @@ PARAMS = derive_from_model(
     # output_format ajouté 2026-08-01 : il était sur le modèle mais absent du schéma, donc
     # NI réglable dans l'inspecteur, NI affiché sur la card. C'est le champ qui décrit ce qui
     # va SORTIR — il alimente la section Sortie de la card v3 via section="output".
-    include=["backend", "mode", "language", "output_format"],
+    # quality_intent (chantier C, 2026-09-20) : le curseur rapide/qualité commun. Hors modèle
+    # (pas de colonne) : le reader n'a pas de choix par item, le curseur est un RÉGLAGE D'APP
+    # de l'utilisateur (brique durable `user_settings`), lu au lancement par
+    # `auto_model.quality_intent_of(item, 'reader')` quand le moteur est sur « auto ».
+    include=["backend", "quality_intent", "mode", "language", "output_format"],
     overrides={
+        "quality_intent": intent_param(
+            dom_id={"panel": "qualityIntent"}, contexts=("panel",),
+            show_if={"field": "backend", "equals": "auto"},
+        ),
         "backend": dict(
             type="select", label="Moteur OCR", icon="fa-microchip", chip=True,
             dom_id={"panel": "backendSelect", "batch": "batchSettingsBackend", "item": "rSettings_backend"},

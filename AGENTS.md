@@ -793,6 +793,11 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > ⚠ Mesuré le 18/09 : **aucun critère n'est non applicable aujourd'hui**, converter compris
 > (80/80). Le mécanisme `None` existe toujours — ce relevé dit seulement que rien ne l'emprunte à
 > cette date. **Total mesuré : 863/906.**
+> ⚠ **97 critères au 2026-09-20** (+1 en F4, `quality_intent` : le curseur rapide/qualité
+> déclaré au schéma ET passé dans l'appel de la brique — chantier C) : **846/913**, converter /
+> describer / enhancer non applicables sur ce critère (rien à arbitrer automatiquement). C'est le
+> premier critère qui distingue « appelle la brique » de « lui passe l'intention » ; `select_model`
+> seul rendait vert imager, composer, reader et transcriber sans qu'aucun ne la passe.
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,

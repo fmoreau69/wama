@@ -97,7 +97,48 @@ def catalog_domain(app_id: str):
     return None
 
 
-def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, **overrides):
+def intent_field_for(app_id: str):
+    """Nom du champ « curseur » déclaré au schéma de l'app (`type='intent'`), ou None.
+
+    Le nom n'est pas imposé : `quality_intent` chez synthesizer/avatarizer/assistant,
+    `precision_level` chez l'anonymizer (frontière des DONNÉES — tasks et sélecteur d'app le
+    lisent). C'est le schéma qui dit lequel, comme il dit le domaine (`catalog_domain`)."""
+    if not app_id:
+        return None
+    from wama.common.utils.param_schema import schema_for_app
+    for field in schema_for_app(app_id) or []:
+        if field.get('type') == 'intent':
+            return field.get('name')
+    return None
+
+
+def quality_intent_of(item=None, app_id=None, user=None) -> int:
+    """La valeur du curseur qui vaut pour CE lancement, en UN endroit (chantier C, 2026-09-20).
+
+    Cascade : le champ de l'item déclaré au schéma (`intent_field_for`) → le réglage d'app
+    de l'utilisateur (brique durable `user_settings`, même nom : une app SANS choix par item —
+    reader, transcriber — porte le curseur là) → `INTENT_DEFAULT`. Bornée, ne lève jamais.
+    """
+    name = intent_field_for(app_id) or 'quality_intent'
+    if item is not None:
+        value = getattr(item, name, None)
+        if value is not None and str(value).strip() != '':
+            return read_quality_intent(value)
+    if user is None and item is not None:
+        user = getattr(item, 'user', None)
+    if user is not None and getattr(user, 'pk', None) and app_id:
+        try:
+            from wama.common.utils.user_settings import get_user_app_setting
+            value = get_user_app_setting(user, app_id, name)
+            if value is not None and str(value).strip() != '':
+                return read_quality_intent(value)
+        except Exception:
+            pass
+    return INTENT_DEFAULT
+
+
+def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, item=None,
+                         user=None, **overrides):
     """Valeur finale du modèle pour un lancement : `requested` explicite, sinon tirage.
 
     Args:
@@ -109,6 +150,9 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, **
                    (imager `_BY_MODE`, composer musique/ambiance).
         fallback:  rendu si le catalogue ne propose rien (première install, catalogue
                    injoignable) — typiquement le défaut du champ de modèle.
+        item, user: (chantier C) d'où lire le CURSEUR quand l'appelant ne passe pas
+                   `quality_intent` lui-même — `quality_intent_of(item, app_id, user)` ; sans
+                   eux ni `quality_intent`, le tirage reste équilibré (50), comme avant.
         overrides: affinages de RÉSOLUTION (`consumes`, `available_inputs`…), permis ici
                    et interdits dans `options_query` (cf. docstring de module).
 
@@ -118,6 +162,8 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, **
     if requested and not is_auto(requested):
         return requested
     domain = dict(spec) if spec is not None else (catalog_domain(app_id) or {})
+    if 'quality_intent' not in overrides and (item is not None or user is not None):
+        overrides['quality_intent'] = quality_intent_of(item, app_id, user)
     domain.update(overrides)
     source = domain.pop('source', None)
     from wama.model_manager.services import select_model_id

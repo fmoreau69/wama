@@ -114,6 +114,45 @@ def _taille_du_nom(nom: str) -> str:
     return ''
 
 
+def size_of_name(name: str) -> str:
+    """Accès PUBLIC à la lecture de taille (chantier C, 2026-09-20) : un appelant qui affiche ou
+    compare des tailles lit la même règle que le départage — pas une seconde regex."""
+    return _taille_du_nom(name)
+
+
+# ── Déclinaison VISION du curseur commun (chantier C — décision Fabien du 15/09) ──────────
+# « Le curseur de précision de l'anonymizer garde son fonctionnement mais REMONTE AU COMMUN avec
+# sa spécificité VISION, réutilisable par d'autres apps (future app Detector…) ». Jusqu'ici la
+# déclinaison vivait dans `anonymizer/utils/model_selector.py` (`get_model_size_from_precision`,
+# `should_use_segmentation`) et cette brique ne recevait que ses deux résultats. Elle est ici
+# telle quelle — mêmes seuils, même sens — et l'anonymizer l'APPELLE. ⚠ Ce sont bien des
+# PRÉFÉRENCES (départage), jamais des filtres : la couverture ne dépend pas du curseur.
+#: Cinq paliers = les cinq tailles ultralytics ; seuils du curseur 0-100 (inclusifs).
+SIZE_STEPS = ((20, 'n'), (40, 's'), (60, 'm'), (80, 'l'))
+SIZE_LARGEST = 'x'
+#: À partir de ce cran, la segmentation (masques) est préférée aux boîtes.
+SEGMENTATION_THRESHOLD = 50
+
+
+def _intent_value(intent) -> int:
+    from wama.common.utils.auto_model import read_quality_intent
+    return read_quality_intent(intent)
+
+
+def size_for_intent(intent) -> str:
+    """Curseur 0-100 → taille préférée ('n' ≤ 20, 's' ≤ 40, 'm' ≤ 60, 'l' ≤ 80, sinon 'x')."""
+    value = _intent_value(intent)
+    for ceiling, size in SIZE_STEPS:
+        if value <= ceiling:
+            return size
+    return SIZE_LARGEST
+
+
+def segmentation_for_intent(intent) -> bool:
+    """Curseur 0-100 → préférer la segmentation (≥ `SEGMENTATION_THRESHOLD`)."""
+    return _intent_value(intent) >= SEGMENTATION_THRESHOLD
+
+
 #: Stratégies de recouvrement. Ce n'est PAS un réglage cosmétique : les deux optimisent des
 #: choses opposées, et le bon choix dépend du métier de l'appelant.
 #:
@@ -135,10 +174,15 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
                     taches_admises=(),
                     preferer_segmentation: bool = False,
                     taille_preferee: str = '',
+                    quality_intent=None,
                     strategie: str = 'couverture',
                     max_modeles: int = 4) -> dict:
     """
     Ensemble MINIMAL de modèles couvrant `classes`, par recouvrement glouton.
+
+    `quality_intent` (chantier C, 2026-09-20) : le curseur commun 0-100 — la brique en DÉRIVE
+    elle-même ses préférences vision (`size_for_intent`, `segmentation_for_intent`) quand
+    l'appelant ne les a pas posées explicitement. Une app vision n'a plus rien à décliner.
 
     À chaque tour on retient le modèle qui couvre le PLUS de classes encore non couvertes ; à
     égalité, le plus qualitatif (`quality_index`, cf. `model_manager/services/model_quality.py`).
@@ -161,6 +205,11 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
     de proposer une installation (cf. la prospection).
     """
     from wama.model_manager.models import AIModel
+
+    prefer_seg, preferred_size = bool(preferer_segmentation), (taille_preferee or '')
+    if quality_intent is not None:
+        prefer_seg = prefer_seg or segmentation_for_intent(quality_intent)
+        preferred_size = preferred_size or size_for_intent(quality_intent)
 
     voulues = {normaliser_classe(c) for c in (classes or []) if c}
     if not voulues:
@@ -193,8 +242,8 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
         """Préférences de l'appelant, puis qualité. Jamais des filtres — seulement un ordre."""
         caps = m.capabilities or {}
         return (
-            preferer_segmentation and caps.get('task') == 'segment',
-            bool(taille_preferee) and _taille_du_nom(m.name) == taille_preferee,
+            prefer_seg and caps.get('task') == 'segment',
+            bool(preferred_size) and _taille_du_nom(m.name) == preferred_size,
             m.quality_index if tous_qualifies else (m.vram_gb or 0),
         )
 

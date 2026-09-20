@@ -1027,11 +1027,22 @@ def _class_coverage_meta():
         from wama.common.services.model_coverage import classes_couvertes
         from wama.model_manager.models import AIModel
         from .utils.yolo_utils import get_all_class_choices
+        from .utils.model_selector import TACHES_DETECTION
         voulues = [c[0] for c in get_all_class_choices()]
         meta = {}
+        # Entrée « auto » (chantier C, 2026-09-20) : sur « auto » rien n'était grisé (caps = null),
+        # alors qu'une classe qu'AUCUN modèle installé ne détecte restait cochable et passait en
+        # silence jusqu'à l'avertissement de la tâche. La couverture ne dépend PAS du curseur
+        # (taille et segmentation sont des préférences de départage, jamais des filtres) : ce que
+        # « auto » peut couvrir = l'union des modèles de détection installés.
+        auto_covered = set()
         for m in AIModel.objects.filter(source='anonymizer', is_proposed=False):
             if (m.capabilities or {}).get('classes'):
-                meta[m.model_key] = {'covered_classes': sorted(classes_couvertes(m, voulues))}
+                covered = classes_couvertes(m, voulues)
+                meta[m.model_key] = {'covered_classes': sorted(covered)}
+                if m.is_downloaded and (m.capabilities or {}).get('task') in TACHES_DETECTION:
+                    auto_covered |= covered
+        meta['auto'] = {'covered_classes': sorted(auto_covered)}
         return _json.dumps(meta)
     except Exception:
         return '{}'
