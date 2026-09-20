@@ -15812,6 +15812,44 @@ commits suivants (index vérifié, `git apply --cached`). Et un Edit a inséré 
 deux décorateurs et `ai_chat` → `SyntaxError` dans l'arbre partagé quelques minutes (signalé par
 la sœur, réparé) : *une ancre `def f` sans ses décorateurs n'est pas une ancre.*
 
+## §PALIER — 2026-09-20, « CURSEUR C : contractuel dans le commun, la VISION de l'anonymizer remontée, le reader rallié, une garde qui mesure » — ✅ LIVRÉ (commun + reader + anonymizer)
+
+> Fabien (20/09) : « on peut passer à C, c'est plus direct, c'est du commun et ça débloque la
+> poursuite du portage » ; « attention à bien conserver le comportement de l'anonymizer ».
+> Cartographie confrontée aux lignes d'abord (rapport d'agent, 12 points ouverts moi-même).
+
+**Ce qui était mesuré** : le commun était prêt (`intent_param`, renderer `type='intent'`, partial,
+score pondéré `_best_by_vram:273-292`) et adopté COMPLÈTEMENT par synthesizer/avatarizer/assistant ;
+l'anonymizer déclinait le curseur par sa voie locale (`get_model_size_from_precision` n/s/m/l/x aux
+seuils 20/40/60/80, segmentation ≥ 50 — `anonymizer/utils/model_selector.py:549-582`) et nourrissait
+déjà `couvrir_classes` de ses deux préférences ; **imager, composer, reader, transcriber appelaient
+la brique SANS lui passer l'intention** ; `coerce_params` ignorait le type `intent` ; sur « auto »,
+**rien n'était grisé** (`index.html:441-444`, caps = null) ; le critère `select_model` rendait vert sur
+la seule présence de l'appel ; le test de parcours ne gardait que les adoptants.
+
+**① Commun** — `coerce_params` borne `intent` ([0,100], défaut 50, entier) ; `intent_field_for(app)`
+(le schéma nomme le champ) ; `quality_intent_of(item, app_id, user)` = UNE cascade (champ de
+l'item → réglage d'app durable → 50) ; `resolve_model_choice(item=, user=)` la lit d'office.
+**② Vision au commun** — `model_coverage.size_for_intent` / `segmentation_for_intent` /
+`size_of_name` ; `couvrir_classes(quality_intent=)` dérive ses préférences (départage, jamais
+filtre — la couverture ne dépend pas du curseur). L'anonymizer ne garde que l'appel sous ses noms
+historiques ; **comportement conservé et prouvé cran par cran** (`tests_intent_vision`, table
+littérale d'avant). Grisage sur « auto » : entrée `auto` = union des modèles de détection
+installés — une classe qu'aucun modèle ne détecte est désactivée et expliquée (avant : cochable,
+avertissement à la tâche seulement) ; le grisage sur un modèle choisi est inchangé.
+**③ Reader rallié** — `quality_intent` hors modèle (réglage d'app), POST/persistance à l'envoi,
+`_select_best_backend(item)` passe l'intention, console qui dit le curseur, JS + staticfiles (V8 OK).
+**④ Gardes** — critère `quality_intent` (F4) : déclaré au schéma ET passé dans l'APPEL de la brique
+(1ʳᵉ version resserrée : elle « prouvait » synthesizer/avatarizer par leur migration) ; mesuré :
+anonymizer/avatarizer/reader/synthesizer VRAI, **composer/imager/transcriber FAUX**, converter/
+describer/enhancer n/a — 97 critères, 846/913 ; test de parcours « toute app qui sert auto porte un
+`intent` ». Budgets de langue tenus (un `taille_preferee` réassigné faisait +1 : locaux anglais).
+
+🔚 **Reste C (adoption, une ligne + un champ chacun)** : imager et composer (autres sessions —
+`resolve_model_choice(..., item=generation)` + `intent_param` au schéma) ; transcriber (question :
+`priority` whisper-first = l'ordre, le curseur arbitre dedans — à trancher) ; converter (③ étapes
+de la ROUTE §F4b). L'option cloud du curseur = B3. Le critère de grille tient le compte.
+
 🔚 **Reste B1 (hors de ce périmètre ou différé)** : `vram_needed` de l'imager vidéo et du composer
 (le pic est le second chiffre de la sœur ; leurs sessions le passent au squelette et donnent
 `app`/`pk` à l'include) ; le champ « durée max » dans le profil (accesseur et défaut posés) ; le
