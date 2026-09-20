@@ -121,6 +121,95 @@ class PreregagesQualiteTest(TestCase):
         self.assertEqual(j.quality, 85, "le défaut du schéma doit être ÉCRIT à la création")
 
 
+class QualityIntentWritesTheColumnsTest(TestCase):
+    """Chantier C (2026-09-20) : le CURSEUR commun est le geste de qualité du converter — même
+    modèle événementiel que les presets (il ÉCRIT les réglages d'encodage, la tâche lit les
+    colonnes), les presets étant ses positions nommées (Rapide 15 / Équilibré 50 / Qualité 85)."""
+
+    def _job(self, **kw):
+        from django.contrib.auth.models import User
+        u, _ = User.objects.get_or_create(username='t_intent')
+        base = dict(user=u, input_filename='x.png', media_type='image',
+                    output_format='jpg', status='PENDING')
+        base.update(kw)
+        from wama.converter.models import ConversionJob
+        return ConversionJob.objects.create(**base)
+
+    def test_at_the_named_positions_the_slider_gives_exactly_the_preset_table(self):
+        from wama.converter.utils.quality_presets import (
+            intent_for_preset, preset_for_intent, preset_values, values_for_intent)
+        for media in ('image', 'video', 'audio'):
+            for key in ('web', 'balanced', 'max'):
+                self.assertEqual(values_for_intent(media, intent_for_preset(key)),
+                                 preset_values(media, key), (media, key))
+        self.assertEqual((preset_for_intent(15), preset_for_intent(50), preset_for_intent(85)),
+                         ('web', 'balanced', 'max'))
+        self.assertEqual(values_for_intent('document', 70), {})
+
+    def test_between_two_positions_every_notch_moves_the_encoding(self):
+        from wama.converter.utils.quality_presets import values_for_intent
+        q = [values_for_intent('image', v)['quality'] for v in (15, 30, 50, 70, 85)]
+        self.assertEqual(q, sorted(q))
+        self.assertEqual((q[0], q[2], q[4]), (80, 90, 98))
+        self.assertTrue(80 < q[1] < 90 and 90 < q[3] < 98)
+        crf = [values_for_intent('video', v)['video_quality'] for v in (15, 50, 85)]
+        self.assertEqual(crf, [23, 20, 16])
+        self.assertEqual(values_for_intent('audio', 67)['audio_bitrate'][-1], 'k')
+        self.assertLess(values_for_intent('image', 0)['quality'], 81)          # sous la 1re position
+        self.assertEqual(values_for_intent('image', 100)['quality'], 98)      # au-delà de la dernière
+        self.assertEqual(values_for_intent('video', 85)['preset'], 'slow')    # non numérique : la plus proche
+
+    def test_moving_the_slider_writes_the_encoding_and_leaves_both_traces(self):
+        from django.test import Client
+        import json as _j
+        j = self._job()
+        c = Client()
+        c.force_login(j.user)
+        r = c.post(f'/converter/{j.id}/update/', {'options_json': _j.dumps({'quality_intent': 85})})
+        self.assertEqual(r.status_code, 200, r.content)
+        j.refresh_from_db()
+        self.assertEqual((j.quality, j.quality_intent, j.quality_preset), (98, 85, 'max'))
+        # Un réglage fin du MÊME envoi prime (le geste fin gagne, comme pour un preset).
+        c.post(f'/converter/{j.id}/update/', {'options_json': _j.dumps({'quality_intent': 15, 'quality': 77})})
+        j.refresh_from_db()
+        self.assertEqual((j.quality, j.quality_intent, j.quality_preset), (77, 15, 'web'))
+
+    def test_a_preset_key_still_works_and_sets_the_slider_position(self):
+        from django.test import Client
+        import json as _j
+        j = self._job()
+        c = Client()
+        c.force_login(j.user)
+        c.post(f'/converter/{j.id}/update/', {'options_json': _j.dumps({'quality_preset': 'balanced'})})
+        j.refresh_from_db()
+        self.assertEqual((j.quality, j.quality_intent, j.quality_preset), (90, 50, 'balanced'))
+
+    def test_the_batch_slider_writes_every_daughter(self):
+        from django.test import Client
+        from wama.converter.models import ConversionBatch
+        j1 = self._job()
+        batch = ConversionBatch.objects.create(user=j1.user, media_type='image')
+        j2 = self._job(batch=batch)
+        j1.batch = batch
+        j1.save(update_fields=['batch'])
+        c = Client()
+        c.force_login(j1.user)
+        r = c.post(f'/converter/batch/{batch.id}/update/', {'quality_intent': '70'})
+        self.assertEqual(r.status_code, 200, r.content)
+        for j in (j1, j2):
+            j.refresh_from_db()
+            self.assertEqual(j.quality_intent, 70)
+            self.assertTrue(90 < j.quality < 98)
+            self.assertEqual(j.quality_preset, 'max')
+
+    def test_the_schema_carries_the_slider_and_no_longer_the_preset_select(self):
+        from wama.converter.params import PARAMS_JSON
+        names = {p['name']: p for p in PARAMS_JSON}
+        self.assertEqual(names['quality_intent']['type'], 'intent')
+        self.assertNotIn('quality_preset', names)
+        self.assertTrue(names['quality'].get('advanced'))
+
+
 class SauverCommeProfilTest(TestCase):
     """Le lecteur de la modale « Sauver comme profil » doit lire ce que WamaParams ÉMET.
 

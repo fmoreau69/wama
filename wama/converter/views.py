@@ -464,15 +464,16 @@ def update_job(request, pk):
             # en profil. La colonne `quality_preset` devient une TRACE (dernier preset
             # appliqué), plus un facteur au lancement. Ordre du POST : les valeurs du preset
             # d'abord, les réglages individuels du même envoi par-dessus (le geste fin prime).
-            preset = (new_opts.get('quality_preset') or '').strip().lower()
-            if preset:
-                from .utils.quality_presets import preset_values
-                job.quality_preset = preset
-                champs_touches.append('quality_preset')
-                etale = preset_values(job.media_type, preset)
+            # Le CURSEUR commun (chantier C, 20/09) est le même geste d'écriture : sa valeur
+            # s'ÉTALE en réglages d'encodage interpolés (`values_for_intent`), sa trace est
+            # `quality_intent` + le preset le plus proche. Un preset par clé (filemanager,
+            # tool_api) reste accepté et pose la trace du curseur à sa position.
+            champs_touches += _apply_quality_gesture(job, new_opts)
+            etale = _quality_spread(job, new_opts)
+            if etale:
                 etale.update({k: v for k, v in new_opts.items() if k in etale})
                 new_opts = {**etale, **{k: v for k, v in new_opts.items()
-                                        if k != 'quality_preset'}}
+                                        if k not in ('quality_preset', 'quality_intent')}}
             # Un réglage = une COLONNE depuis le 2026-09-01 : plus de split à faire ici (le
             # modèle sait à quelle famille appartient chaque nom), et plus de JSON à écrire.
             # `poser_reglages` coerce selon le type du champ et rend les champs touchés.
@@ -482,6 +483,42 @@ def update_job(request, pk):
 
     job.save(update_fields=['output_format'] + champs_touches)
     return JsonResponse({'success': True, 'output_format': job.output_format, 'options': job.options})
+
+
+def _apply_quality_gesture(job, values: dict) -> list:
+    """Pose les TRACES du geste de qualité sur `job` — `quality_intent` (curseur commun) et
+    `quality_preset` (clé la plus proche) — et rend les champs touchés. Le curseur prime sur une
+    clé de preset envoyée en même temps ; une clé seule pose aussi la position du curseur."""
+    from wama.common.utils.auto_model import read_quality_intent
+    from .utils.quality_presets import (PRESET_CHOICES, intent_for_preset, preset_for_intent)
+    touched = []
+    raw = values.get('quality_intent')
+    preset = (values.get('quality_preset') or '').strip().lower()
+    if raw not in (None, ''):
+        job.quality_intent = read_quality_intent(raw)
+        job.quality_preset = preset_for_intent(job.quality_intent)
+        touched += ['quality_intent', 'quality_preset']
+    elif preset in PRESET_CHOICES:
+        job.quality_preset = preset
+        touched.append('quality_preset')
+        position = intent_for_preset(preset)
+        if position is not None:
+            job.quality_intent = position
+            touched.append('quality_intent')
+    return touched
+
+
+def _quality_spread(job, values: dict) -> dict:
+    """Les réglages d'encodage que le geste de qualité ÉCRIT (`values_for_intent` pour le
+    curseur, la table pour une clé de preset) — `{}` si aucun geste dans `values`."""
+    from .utils.quality_presets import PRESET_CHOICES, preset_values, values_for_intent
+    raw = values.get('quality_intent')
+    preset = (values.get('quality_preset') or '').strip().lower()
+    if raw not in (None, ''):
+        return values_for_intent(job.media_type, raw)
+    if preset in PRESET_CHOICES:
+        return preset_values(job.media_type, preset)
+    return {}
 
 
 @require_GET
@@ -851,16 +888,17 @@ def batch_update(request, pk):
     batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
     out_fmt = (request.POST.get('output_format') or '').strip().lower()
     preset  = (request.POST.get('output_quality') or request.POST.get('quality_preset') or '').strip().lower()
+    # Geste de qualité du lot : le CURSEUR commun (chantier C) ou une clé de preset — les deux
+    # écrivent les mêmes colonnes sur les filles, et laissent leurs traces.
+    gesture = {'quality_intent': request.POST.get('quality_intent'), 'quality_preset': preset}
     # CHAMPS_CROSS_APP inclus depuis le 02/09 (décision Fabien : garde « pas de GPU en
     # masse » levée — l'intention de lot est « un seul chargement de modèle »).
     _connus = set(ConversionJob.CHAMPS_OPTIONS) | set(ConversionJob.CHAMPS_CROSS_APP)
     reglages = {k: v for k, v in request.POST.items()
                 if k in _connus and v not in (None, '')}
-    # MODÈLE ÉVÉNEMENTIEL (02/09) : un preset choisi au LOT s'écrit sur les filles —
+    # MODÈLE ÉVÉNEMENTIEL (02/09) : un geste de qualité au LOT s'écrit sur les filles —
     # ses valeurs d'abord, les réglages individuels du même envoi par-dessus.
-    if preset:
-        from .utils.quality_presets import preset_values
-        reglages = {**preset_values(batch.media_type, preset), **reglages}
+    reglages = {**_quality_spread(batch, gesture), **reglages}
 
     if out_fmt and out_fmt not in get_output_formats(batch.media_type):
         return JsonResponse({'error': f"Format invalide pour {batch.media_type} : {out_fmt}"}, status=400)
@@ -870,8 +908,7 @@ def batch_update(request, pk):
         fields = job.poser_reglages(reglages)
         if out_fmt:
             job.output_format = out_fmt; fields.append('output_format')
-        if preset:
-            job.quality_preset = preset; fields.append('quality_preset')
+        fields += _apply_quality_gesture(job, gesture)
         if fields:
             job.save(update_fields=fields); updated += 1
     return JsonResponse({'success': True, 'updated': updated,
@@ -1095,10 +1132,12 @@ def quick_convert(request):
         status='RUNNING',
     )
     # MODÈLE ÉVÉNEMENTIEL (02/09) : la tâche lit les COLONNES — le preset du menu
-    # contextuel Filemanager s'ÉTALE donc à la création (sinon il serait une trace inerte).
+    # contextuel Filemanager s'ÉTALE donc à la création (sinon il serait une trace inerte) ;
+    # et il pose la position du curseur commun (trace, chantier C).
     if preset:
         from .utils.quality_presets import preset_values
         champs = job.poser_reglages(preset_values(media_type, preset))
+        champs += _apply_quality_gesture(job, {'quality_preset': preset})
         if champs:
             job.save(update_fields=champs)
     task = convert_media_task.delay(job.id)

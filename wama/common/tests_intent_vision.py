@@ -108,7 +108,8 @@ class IntentCascadeTest(TestCase):
         from wama.common.utils.user_settings import save_user_app_settings
         self.assertEqual(auto_model.intent_field_for('synthesizer'), 'quality_intent')
         self.assertEqual(auto_model.intent_field_for('anonymizer'), 'precision_level')
-        self.assertIsNone(auto_model.intent_field_for('converter'))
+        self.assertEqual(auto_model.intent_field_for('converter'), 'quality_intent')   # rallié le 20/09
+        self.assertIsNone(auto_model.intent_field_for('describer'))
         u = get_user_model().objects.create_user('c_intent', password='x')
 
         class _Item:

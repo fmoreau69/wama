@@ -195,6 +195,11 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     dest_dir      = models.CharField(max_length=500, blank=True)
     # Quality preset: '', 'web', 'balanced', 'max'.
     quality_preset = models.CharField(max_length=20, blank=True)
+    # Curseur rapide/qualité commun (chantier C, 2026-09-20) — TRACE du dernier geste au
+    # curseur, comme `quality_preset` est la trace du dernier preset : le geste ÉCRIT ses
+    # réglages d'encodage dans les colonnes (`quality_presets.values_for_intent`), la tâche lit
+    # les colonnes. Null = jamais réglé au curseur (les jobs d'avant, ou posés au preset seul).
+    quality_intent = models.IntegerField(null=True, blank=True)
 
     status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     task_id       = models.CharField(max_length=100, blank=True)
