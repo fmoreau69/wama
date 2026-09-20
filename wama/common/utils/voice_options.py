@@ -72,17 +72,17 @@ def get_voice_groups(user) -> list[dict]:
                     .values("id", "name", "attributes", "user_id", "user__username"))
         mine = [c for c in rows if c["user_id"] == getattr(user, "id", None)]
         shared = [c for c in rows if c["user_id"] != getattr(user, "id", None)]
-        for libelle, lot, avec_auteur in (("Mes voix (clonage)", mine, False),
-                                          ("Voix partagées", shared, True)):
-            if not lot:
+        for label, batch, with_owner in (("Mes voix (clonage)", mine, False),
+                                         ("Voix partagées", shared, True)):
+            if not batch:
                 continue                       # un groupe vide ne se montre pas
             groups.append({
-                "group": libelle,
+                "group": label,
                 "options": [(f"ua_{c['id']}",
-                             f"{c['name']} — {c['user__username']}" if avec_auteur else c["name"])
-                            for c in lot],
+                             f"{c['name']} — {c['user__username']}" if with_owner else c["name"])
+                            for c in batch],
                 "attributes": {f"ua_{c['id']}": {"language": (c["attributes"] or {}).get("language")}
-                               for c in lot if (c["attributes"] or {}).get("language")},
+                               for c in batch if (c["attributes"] or {}).get("language")},
             })
     except Exception:
         pass
