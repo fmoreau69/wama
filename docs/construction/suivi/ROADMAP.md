@@ -667,7 +667,10 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
     EXPLICITES de l'utilisateur** depuis la card en attente (« Libérer la carte et lancer »), jamais
     d'office — la saturation PROPOSE, elle n'autorise plus ; en prod un réglage d'instance restreint
     qui a ce bouton. *Le geste qui pouvait couper la voix de l'assistant à un collègue disparaît.*
-    - **B1 — le socle (EN COURS, 20/09)** : registre COMPLET (angles morts + ligne « tâche en cours »
+    - **B1 — le socle (✅ LIVRÉ le 20/09 pour le commun — détail `PROJECT_STATUS §PALIER 2026-09-20
+      « GOUVERNEUR B1 »` ; reste l'ADOPTION : `vram_needed` imager vidéo/composer, `app`/`pk` à
+      l'include de card, champ « durée max » du profil ; angles morts Kokoro-gunicorn et
+      `_VRAM_UNLOADERS`)** : registre COMPLET (angles morts + ligne « tâche en cours »
       posée par le squelette) ; canal de requête inter-process sur Redis, lu dans le battement déjà
       commun (`start_reservation_heartbeat`, TTS + workers) — un tenant se DÉCLARE en montant le
       battement (nom, occupé ?, résidents à recharger), aucun service en dur ; « occupé » = usage
