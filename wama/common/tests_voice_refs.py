@@ -250,3 +250,101 @@ class LaMediathequePorteLesVoixTest(TestCase):
         self.assertEqual(fr['attributes'][fr['options'][0][0]], {'language': 'fr'})
         # le lecteur « paires » ne voit rien de neuf
         self.assertTrue(all(len(p) == 2 for p in voice_display_options(user=None)))
+
+
+class SharedVoiceAccessTest(TestCase):
+    """« Une voix partagée doit être accessible en fonction des droits de chacun » (Fabien,
+    2026-09-21).
+
+    Ce qui se garde ici n'est PAS l'affichage : c'est que le sélecteur et la résolution lisent
+    les MÊMES droits. Les ouvrir séparément aurait produit le pire des retours — le sélecteur
+    propose la voix d'un collègue, la résolution la refuse et replie sur `default`, et la
+    synthèse sort avec la mauvaise voix SANS message d'erreur.
+
+    ⚠ Identifiants en anglais, noms de tests compris ; commentaires et docstrings en français.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import User
+        from wama.common.models import OrgUnit
+
+        cls.owner = User.objects.create_user('voix_proprio', password='x')
+        cls.other = User.objects.create_user('voix_collegue', password='x')
+        cls.lab = OrgUnit.objects.create(code='LESCOT_V', name='Lescot', unit_type='labo')
+        for u in (cls.owner, cls.other):
+            profile = u.profile
+            profile.org_entity_code = 'LESCOT_V'
+            profile.save(update_fields=['org_entity_code'])
+        cls.default_voice = voice_refs.ingest_voice_file(
+            'default', LaMediathequePorteLesVoixTest._temp_wav('default'))
+
+    def _voice(self, user, name, visibility):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from wama.media_library.models import UserAsset
+
+        return UserAsset.objects.create(
+            user=user, name=name, asset_type='voice',
+            file=SimpleUploadedFile(f'{name}.wav', b'RIFF....WAVEfmt '),
+            visibility=visibility, scope_org_unit=self.lab if visibility == 'unit' else None,
+        )
+
+    def _group_labels(self, user):
+        from wama.common.utils.voice_options import get_voice_groups
+        return [g['group'] for g in get_voice_groups(user)]
+
+    def _options(self, user, group):
+        from wama.common.utils.voice_options import get_voice_groups
+        for g in get_voice_groups(user):
+            if g['group'] == group:
+                return g['options']
+        return []
+
+    # ── LE test décisif : proposé ET résolu, par la même lecture de droits ──────────────
+    def test_a_voice_shared_with_the_unit_is_both_offered_and_resolved(self):
+        voice = self._voice(self.owner, 'la_voix_du_labo', 'unit')
+
+        offered = dict(self._options(self.other, 'Voix partagées'))
+        self.assertIn(f'ua_{voice.pk}', offered)
+        self.assertIn('voix_proprio', offered[f'ua_{voice.pk}'],
+                      "une voix d'autrui doit dire DE QUI elle est")
+
+        self.assertEqual(voice.file.path,
+                         voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=self.other),
+                         "proposer une voix que la résolution refuse replierait sur `default` "
+                         "SANS message — la synthèse sortirait avec la mauvaise voix")
+
+    def test_a_private_voice_of_someone_else_is_neither_offered_nor_resolved(self):
+        voice = self._voice(self.owner, 'la_voix_privee', 'private')
+        self.assertNotIn('Voix partagées', self._group_labels(self.other))
+        self.assertEqual(self.default_voice.file.path,
+                         voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=self.other))
+
+    def test_my_own_voices_stay_in_their_own_group(self):
+        mine = self._voice(self.other, 'ma_voix', 'private')
+        self.assertIn(f'ua_{mine.pk}', dict(self._options(self.other, 'Mes voix (clonage)')))
+        self.assertNotIn('Voix partagées', self._group_labels(self.other))
+
+    def test_the_anonymous_service_account_never_inherits_public_voices(self):
+        """⚠ Le compte anonyme est une VRAIE ligne `User` et `scoped_visible_q` pose
+        `Q(visibility='public')` hors du test d'authentification."""
+        from wama.accounts.views import get_or_create_anonymous_user
+
+        voice = self._voice(self.owner, 'la_voix_publique', 'public')
+        anonymous = get_or_create_anonymous_user()
+        self.assertNotIn('Voix partagées', self._group_labels(anonymous))
+        self.assertEqual(self.default_voice.file.path,
+                         voice_refs.resolve_speaker_wav(f'ua_{voice.pk}', user=anonymous))
+
+    def test_the_selector_and_the_resolution_share_one_reader(self):
+        """La garde de non-retour : si l'un des deux se remet à filtrer par propriétaire, il
+        cessera de passer par cette brique — et les deux surfaces divergeront à nouveau."""
+        import inspect
+
+        from wama.common.utils import voice_options
+
+        source = inspect.getsource(voice_options.get_voice_groups)
+        self.assertIn('readable_voice_assets', source)
+        self.assertNotIn('filter(user=user', source)
+        self.assertIn('readable_voice_assets',
+                      inspect.getsource(voice_refs.resolve_speaker_wav))
