@@ -1513,6 +1513,33 @@ def _select_model(f: _AppFiles):
     return False, "option « auto » exposée mais résolue hors de la brique commune"
 
 
+def _quality_intent(f: _AppFiles):
+    """Le curseur rapide/qualité est-il DÉCLARÉ au schéma ET PASSÉ au tirage ?
+
+    Chantier C (Fabien, 15/09 : le curseur se généralise à toutes les apps média). Mesuré le
+    20/09 : `select_model` rend VERT sur la seule présence de l'appel — imager, composer, reader
+    et transcriber appelaient la brique SANS lui passer l'intention, et rien ne le voyait.
+
+    Non applicable quand il n'y a rien à arbitrer : pas d'option « auto » ni de curseur
+    (enhancer désigne son moteur, describer ne choisit aucun modèle).
+    """
+    declared = f.find(PARAMS, r"intent_param\(|type=['\"]intent['\"]")
+    # PASSÉ = dans l'APPEL de la brique (tirage ou couverture), pas n'importe où : une migration
+    # ou un champ de modèle nommé `quality_intent` ne prouve rien (1re version, mesurée :
+    # synthesizer/avatarizer « prouvés » par leur migration). Commentaires neutralisés (code=True)
+    # — les appels s'étalent sur plusieurs lignes commentées, avec des parenthèses dedans.
+    passed = f.find_py(r"(select_model(_id)?|resolve_model_choice|couvrir_classes)\("
+                       r"[^)]*\bquality_intent\s*=", code=True)
+    resolves = f.find_py(r"\b(select_model(_id)?|resolve_model_choice)\(", code=True)
+    if declared and passed:
+        return True, f"{declared} ; passé : {passed}"
+    if declared:
+        return False, f"curseur déclaré ({declared}) mais jamais passé au tirage"
+    if resolves or f.find(PARAMS + ['utils/model_config.py'], r"['\"]auto['\"]"):
+        return False, f"choix automatique ({resolves or 'option « auto »'}) sans curseur rapide/qualité au schéma"
+    return None, None
+
+
 def _model_caps_canonical(f: _AppFiles):
     """Les modèles de l'app entrent-ils au catalogue en vocabulaire CANONIQUE ?
 
@@ -1738,6 +1765,10 @@ CRITERIA: list[Criterion] = [
     Criterion('select_model', 'F4', 'Sélection auto confiée à la brique commune (select_model)',
               _f4(_select_model),
               mechanism='model_selector'),
+    Criterion('quality_intent', 'F4',
+              'Curseur rapide/qualité déclaré au schéma ET passé au tirage (intent_param)',
+              _f4(_quality_intent),
+              mechanism='auto_model'),
     Criterion('model_options_catalog', 'F4',
               'Options du select DÉRIVÉES du catalogue (jamais une liste en dur)',
               _f4(_model_options_from_catalog),

@@ -385,6 +385,8 @@
                 fd.append('mode',          document.getElementById('modeSelect')?.value || 'auto');
                 fd.append('output_format', document.getElementById('outputFormatSelect')?.value || 'txt');
                 fd.append('language',      document.getElementById('languageInput')?.value.trim() || '');
+                // Curseur rapide/qualité (chantier C) : réglage d'app, persisté par le serveur.
+                fd.append('quality_intent', document.getElementById('qualityIntent')?.value || '');
             },
             afterImport:  function (ids, reponses) {
                 const data = reponses[0] || {};

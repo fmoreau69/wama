@@ -296,13 +296,19 @@ def upload(request):
     # sinon DERNIER réglage utilisé (pattern converter). Sert surtout aux créations sans
     # formulaire (tool_api, imports serveur). ⚠ `language` : '' POSTé = auto-détection
     # VOULUE → test de présence, pas `or` (qui écraserait un champ vidé exprès).
+    from wama.common.utils.auto_model import INTENT_DEFAULT, read_quality_intent
     from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
     last = get_user_app_settings(user, 'reader', {
-        'backend': 'auto', 'mode': 'auto', 'output_format': 'txt', 'language': ''})
+        'backend': 'auto', 'mode': 'auto', 'output_format': 'txt', 'language': '',
+        'quality_intent': INTENT_DEFAULT})
     backend       = request.POST.get('backend') or last['backend']
     mode          = request.POST.get('mode') or last['mode']
     output_format = request.POST.get('output_format') or last['output_format']
     language      = request.POST['language'] if 'language' in request.POST else last['language']
+    # Curseur rapide/qualité (chantier C) : réglage d'APP, pas de colonne — lu au lancement par
+    # `quality_intent_of` quand le moteur est sur « auto ». Bornée, ne lève jamais.
+    quality_intent = (read_quality_intent(request.POST.get('quality_intent'))
+                      if request.POST.get('quality_intent', '') != '' else last['quality_intent'])
 
     items_created = []
     created = []
@@ -341,7 +347,8 @@ def upload(request):
     # Re-persiste les choix comme défauts du prochain dépôt.
     save_user_app_settings(user, 'reader', {
         'backend': backend, 'mode': mode,
-        'output_format': output_format, 'language': language})
+        'output_format': output_format, 'language': language,
+        'quality_intent': quality_intent})
 
     if len(items_created) > 1:
         # Multiple files → one multi-item batch

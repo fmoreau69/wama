@@ -433,13 +433,15 @@ if (window.WamaInputMatch) {
 // les checkboxes des classes qu'il ne DÉTECTE PAS (raison en title, jamais cachées).
 // L'appariement d'alias (vocabulaire checkboxes ≠ vocabulaire catalogue) est fait CÔTÉ
 // SERVEUR (meta class_coverage_meta, brique model_coverage) — pas de re-appariement JS.
-// Auto ('') → caps inconnues → tout réactivé.
+// Auto ('') → entrée `auto` de la meta serveur : l'union des modèles de détection installés
+// (chantier C, 2026-09-20 — avant, rien n'était grisé sur auto et une classe qu'aucun modèle
+// ne détecte restait cochable). La couverture ne dépend pas du curseur : préférences ≠ filtres.
 if (window.WamaModelCaps) {
     WamaModelCaps.init({
         source: 'anonymizer',
         modelSelectId: 'user_setting_model_to_use',
         resolveKey: function (v) {
-            if (!v) return '';  // Auto → pas de filtrage
+            if (!v) return 'auto';
             return 'anonymizer:yolo:' + v.split('/').pop();
         },
         meta: {{ class_coverage_meta|safe }},
@@ -449,7 +451,7 @@ if (window.WamaModelCaps) {
                   return Array.isArray(caps.covered_classes)
                          && caps.covered_classes.indexOf(el.value) === -1;
               },
-              reason: 'Classe non détectée par le modèle choisi' },
+              reason: 'Classe non détectée par le modèle choisi (en auto : par aucun modèle installé)' },
         ],
     });
 }

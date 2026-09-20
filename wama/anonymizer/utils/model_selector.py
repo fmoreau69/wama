@@ -548,38 +548,24 @@ def get_download_recommendations(classes_needed: List[str]) -> List[Dict]:
 
 def get_model_size_from_precision(precision_level: int) -> str:
     """
-    Determine model size based on precision level (0-100).
+    Taille de modèle ('n', 's', 'm', 'l', 'x') pour un niveau de précision 0-100.
 
-    Args:
-        precision_level: 0=Quick, 50=Balanced, 100=Precise
-
-    Returns:
-        Model size suffix: 'n', 's', 'm', 'l', or 'x'
+    ⚠ Chantier C (2026-09-20, décision Fabien du 15/09) : la déclinaison VISION du curseur est
+    REMONTÉE AU COMMUN (`model_coverage.size_for_intent`, mêmes seuils 20/40/60/80) — cette
+    fonction ne fait plus que l'appeler, sous son nom historique (tasks, params et gabarit le
+    citent). Le comportement est inchangé au cran près (garde : `tests_intent_vision`).
     """
-    if precision_level <= 20:
-        return 'n'  # Nano - fastest
-    elif precision_level <= 40:
-        return 's'  # Small
-    elif precision_level <= 60:
-        return 'm'  # Medium
-    elif precision_level <= 80:
-        return 'l'  # Large
-    else:
-        return 'x'  # XLarge - most accurate
+    from wama.common.services.model_coverage import size_for_intent
+    return size_for_intent(precision_level)
 
 
 def should_use_segmentation(precision_level: int) -> bool:
     """
-    Determine if segmentation should be used based on precision level.
-
-    Args:
-        precision_level: 0=Quick, 50=Balanced, 100=Precise
-
-    Returns:
-        True if segmentation should be used
+    Segmentation préférée à partir de 50 — même remontée au commun que ci-dessus
+    (`model_coverage.segmentation_for_intent`).
     """
-    # Use segmentation for precision levels at or above 50 (balanced and higher)
-    return precision_level >= 50
+    from wama.common.services.model_coverage import segmentation_for_intent
+    return segmentation_for_intent(precision_level)
 
 
 def select_model_by_precision(classes_to_blur: List[str],
@@ -812,9 +798,9 @@ def select_best_models_by_precision(classes_to_blur: List[str],
         # C'est donc l'inverse de l'objectif « le moins de modèles possible », et ça se
         # DÉCLARE ici parce que c'est un arbitrage métier de l'anonymizer, pas de la brique.
         strategie='specialisation',
-        # Préférences, pas filtres.
-        preferer_segmentation=should_use_segmentation(precision_level),
-        taille_preferee=get_model_size_from_precision(precision_level),
+        # Préférences, pas filtres — DÉRIVÉES par la brique du curseur commun (chantier C) :
+        # la déclinaison n/s/m/l/x + segmentation ≥ 50 vit désormais dans `model_coverage`.
+        quality_intent=precision_level,
     )
 
     # La brique rend des `model_key` de catalogue ; l'anonymizer manipule ses identifiants
