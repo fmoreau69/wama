@@ -15845,6 +15845,30 @@ anonymizer/avatarizer/reader/synthesizer VRAI, **composer/imager/transcriber FAU
 describer/enhancer n/a — 97 critères, 846/913 ; test de parcours « toute app qui sert auto porte un
 `intent` ». Budgets de langue tenus (un `taille_preferee` réassigné faisait +1 : locaux anglais).
 
+**⑤ REVÉRIFICATION (Fabien, 20/09 : « rien réinventé, dupliqué, redondant ? tous les tests ? nettoyer ? »)
+— lue dans le code.** Réinventé, corrigé : mon script de staging doublait le skill
+`/commit-partiel` (jusqu'au même piège CRLF consigné là-bas) — abandonné, le skill sert ; le tenant
+du worker n'appelait que `unload_live_backends` alors que `MemoryManager.release_vram` couvrait
+déjà contrat + hors-contrat (`_VRAM_UNLOADERS`) — c'est elle ; `base.html` recopiait le jeton CSRF
+(→ `WamaApp.csrfToken`). Redondance SIGNALÉE, pas à moi : `model_anatomy.components_from_snapshot`
+(sœur) choisit la révision par ordre alphabétique là où `prospector.local_revision` prend la plus
+récente. Tests ajoutés : meta « auto » du grisage anonymizer, persistance/lecture du curseur reader
+(rôle `recherche`, portier franchi), crochet `worker_process_init`, cinq états du critère
+`quality_intent` sur une app factice ; SANS garde à dessein : le tenant du service TTS (hors process
+de test). Nettoyé : quatre commentaires/docs qui disaient encore « la déclinaison reste locale »
+(params anonymizer, gabarit du volet, `tests_auto_model`, ROUTE §F4b) et l'en-tête de
+`model_coverage` qui l'interdisait au commun (caduc par décision du 15/09). Critère `quality_intent`
+élargi : une app SANS modèle qui déclare ET lit le curseur est adoptée (converter demain).
+**Les trois « non applicables », au code** : converter — aucun modèle, mais des presets
+`web/balanced/max` (`quality_presets.py:10-31`) et un slider `quality` 1-100 local : le curseur
+commun PEUT les remplacer (③ étapes écrites à la ROUTE §F4b :537 — positions `QUALITY_PRESETS`,
+`intent_param`, déclinaison locale en encodage) et le critère le mesurera ; describer — pas de choix
+en UI mais une cascade MAISON côté backend (`_best_ollama_vision_model`, `get_describer_model` par
+tier) : le curseur y suit l'adoption de la brique (reste connu, AGENTS « reste describer ») ;
+enhancer — 7 modèles d'upscaling au catalogue mais **pas d'« auto » PAR DÉCISION** (`params.py:78`,
+« l'utilisateur désigne son moteur ») : Fabien veut le curseur → c'est cette décision qui se
+rediscute (auto parmi les upscalers par qualité, le NFE Resemble décliné du curseur), pas un trou.
+
 🔚 **Reste C (adoption, une ligne + un champ chacun)** : imager et composer (autres sessions —
 `resolve_model_choice(..., item=generation)` + `intent_param` au schéma) ; transcriber (question :
 `priority` whisper-first = l'ordre, le curseur arbitre dedans — à trancher) ; converter (③ étapes
