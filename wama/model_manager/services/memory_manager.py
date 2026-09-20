@@ -6,6 +6,7 @@ Provides centralized VRAM management and CPU offload strategies for all WAMA app
 
 import gc
 import logging
+import re
 from typing import Dict, Optional, Literal
 from enum import Enum
 
@@ -54,6 +55,7 @@ def peaks_from_weights(weights: dict) -> dict:
     if not total or not largest:
         return {}
     return {'full': round(float(total), 2), 'offload': round(float(largest), 2)}
+
 
 def _cap_cuda_allocator() -> None:
     """
@@ -207,6 +209,80 @@ def preset_vram_gb(model_key: str) -> Optional[float]:
     return max(matches, key=lambda m: m[0])[1] if matches else None
 
 
+#: Octets par paramètre, par nom de dtype tel que l'écrit un en-tête safetensors (`prospector.
+#: precision_of_files`) ou une étiquette de quantification (imager `'fp8'`, Ollama `'Q4_K_M'`).
+#: ⚠ `I64`/`I32` ne sont PAS des poids castables : ce sont des index (positions, tokens). Les
+#: compter à la précision cible surestime — d'où la réserve dite dans `peaks_for_precision`.
+_DTYPE_BYTES = {
+    'F64': 8, 'F32': 4, 'FP32': 4, 'FLOAT32': 4,
+    'BF16': 2, 'F16': 2, 'FP16': 2, 'FLOAT16': 2, 'HALF': 2,
+    'F8_E4M3': 1, 'F8_E5M2': 1, 'FP8': 1, 'INT8': 1, 'I8': 1, 'U8': 1,
+    'INT4': 0.5, 'FP4': 0.5, 'NF4': 0.5,
+    'I64': 8, 'I32': 4, 'I16': 2, 'BOOL': 1,
+}
+
+
+def dtype_bytes(label: str):
+    """Octets par paramètre d'une précision — None si le nom est inconnu (on ne devine pas).
+
+    Accepte les noms d'en-tête safetensors (`BF16`, `F32`) et les étiquettes de quantification
+    (`fp8` de l'imager, `Q8_0` / `Q4_K_M` d'Ollama et des GGUF). Pour un `Q<n>`, le chiffre EST
+    le nombre de bits par poids — c'est la convention llama.cpp, pas une interprétation.
+    """
+    if not label:
+        return None
+    up = str(label).strip().upper().replace('-', '_')
+    if up in _DTYPE_BYTES:
+        return _DTYPE_BYTES[up]
+    m = re.match(r'^Q(\d+)', up)
+    return int(m.group(1)) / 8 if m else None
+
+
+def peaks_for_precision(weights: dict, label: str) -> dict:
+    """Les deux pics RECALCULÉS pour une précision de chargement — `{}` si on ne peut pas.
+
+    Le poids d'un FICHIER n'est pas le pic de CHARGEMENT : un composant stocké en F32 chargé en
+    bf16 occupe la moitié, un composant quantisé en fp8 le quart. C'est `params × octets(cible)`,
+    et `params` vient du relevé d'en-têtes safetensors (`weights['precision'][rôle]['params']`,
+    posé par `prospector.precision_of_files`) — aucun poids n'est ouvert, seuls les en-têtes.
+
+    Mesuré le 2026-09-20, et ça a réfuté mon propre diagnostic de la veille : j'avais annoncé que
+    le transformer de LTX-distilled pesait 24,3 Go « en F32 sur le disque, donc la moitié en
+    bf16 ». FAUX — ses 13,04 Md de paramètres sont DÉJÀ en BF16 ; c'est son encodeur de texte T5
+    (4,76 Md) qui est en F32. Le recalcul en bf16 ne change donc rien à son pic de déchargement
+    (le transformer reste le plus gros à 24,3 Go), et ce modèle exige bel et bien une
+    quantification ou un déchargement par COUCHE. *Une hypothèse plausible sur un dtype se vérifie
+    en une mesure, et celle-ci disait le contraire.*
+
+    ⚠ RÉSERVE ASSUMÉE tant que le relevé ne sépare pas les dtypes : `params` est le compte TOTAL
+    du rôle, index entiers compris (`I64` des positions/tokens). Les caster tous à la précision
+    cible SURESTIME légèrement — ce qui est le bon sens de l'erreur. Le relevé `params_by_dtype`
+    (annoncé par l'instance qui lit les en-têtes) permettra de ne caster que les flottants ; cette
+    fonction le lira alors sans changer de signature.
+    """
+    per_param = dtype_bytes(label)
+    by_role = (weights or {}).get('precision') or {}
+    if not per_param or not by_role:
+        return {}
+    sizes = {}
+    for role, entry in by_role.items():
+        # `params_by_dtype` quand il existe : on ne caste QUE les flottants, les index restent
+        # tels quels. Sinon le compte total, avec la réserve ci-dessus.
+        detailed = (entry or {}).get('params_by_dtype') or {}
+        if detailed:
+            gb = sum(n * (per_param if (dtype_bytes(d) or 0) and not d.upper().startswith(('I', 'B'))
+                          else (dtype_bytes(d) or per_param))
+                     for d, n in detailed.items())
+        else:
+            gb = float((entry or {}).get('params') or 0) * per_param
+        if gb:
+            sizes[role] = gb / 1024 ** 3
+    if not sizes:
+        return {}
+    return {'full': round(sum(sizes.values()), 2),
+            'offload': round(max(sizes.values()), 2)}
+
+
 def model_footprint_gb(row, *, offload: bool = True) -> tuple:
     """`(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
 
@@ -230,7 +306,14 @@ def model_footprint_gb(row, *, offload: bool = True) -> tuple:
     « ça tient » d'une absence d'information (même règle que `weight_for_spec` qui rend None).
     """
     info = getattr(row, 'extra_info', None) or {}
-    peaks = peaks_from_weights(info.get('weights') or {})
+    weights = info.get('weights') or {}
+    # Une ligne qui DÉCLARE sa quantification ne pèse pas ses fichiers : elle pèse ce qu'elle
+    # chargera. `imager:ltx-…-distilled-fp8` et `…-distilled` pointent le MÊME dépôt, donc le même
+    # relevé de fichiers — sans ce recalcul, la ligne fp8 héritait du pic pleine précision
+    # (24,3 Go) et se faisait écarter comme elle, alors que c'est précisément elle qui tient.
+    # *Deux lignes de catalogue sur un seul jeu de poids : c'est la quantification qui les sépare.*
+    peaks = peaks_for_precision(weights, info.get('quantization') or '') \
+        or peaks_from_weights(weights)
     source = peaks.get('offload' if offload else 'full')
     measured = float(((info.get('vram_measured') or {}).get('max_gb')) or 0) or None
 

@@ -679,6 +679,15 @@ class ModelRegistry:
                     # dérivent les deux empreintes de la décision A (somme / plus gros composant,
                     # `model_installer.components_for_spec`).
                     composition=config.get('composition') or {},
+                    # QUANTIFICATION déclarée par l'app (2026-09-20) — même clé d'`extra_info` que
+                    # celle qu'Ollama pose déjà (`model_registry.py:2062`), pas une seconde.
+                    # Elle ne quittait pas le `model_config` : mesuré, `imager:ltx-…-distilled-fp8`
+                    # arrivait au catalogue sans elle, alors que sa config la déclare
+                    # (`imager/utils/model_config.py:234`). Conséquence : cette ligne et la ligne
+                    # pleine précision partagent le MÊME dépôt, donc le même relevé de fichiers, et
+                    # la fp8 héritait d'un pic de 24,3 Go — celui qu'elle existe pour éviter.
+                    **({'extra_info': {'quantization': config['quantization']}}
+                       if config.get('quantization') else {}),
                     capabilities={
                         'modalities': ['video'] if _is_video else ['image'],
                         'task': _task,
