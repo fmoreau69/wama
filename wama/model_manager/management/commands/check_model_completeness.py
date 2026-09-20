@@ -11,7 +11,7 @@ déclarée vs mesurée, backend présent — pour lister les TROUS ». Personne 
 La chaîne de contrôle existante s'arrête juste avant :
 
   - `verify_models`            : catalogue ↔ disque (téléchargé ou non) — l'EXISTENCE ;
-  - `check_model_taxonomy`     : types/sources/TÂCHES tous déclarés — le VOCABULAIRE ;
+  - `check_model_taxonomy`     : types/sources/TÂCHES all_rows déclarés — le VOCABULAIRE ;
   - `check_model_declarations` : tags écrits en dur ↔ catalogue — les RENVOIS ;
   - **la complétude par modèle installé : PERSONNE.** Un modèle peut être sur le disque,
     catalogué, de taxonomie juste, et rester inutilisable faute de licence connue, de VRAM
@@ -19,16 +19,16 @@ La chaîne de contrôle existante s'arrête juste avant :
 
 ⚠ La TÂCHE n'est PAS revérifiée ici : `check_model_taxonomy` en est propriétaire (il la
 confronte à l'énumération déclarée, ce qu'un simple test de présence ne ferait pas). Un
-second contrôle de la même chose finirait par en contredire un autre. Ce rapport la
+second contrôle de la même chose finirait par en contredire un autre. Ce report la
 rappelle en une ligne et renvoie.
 
 ⚠⚠ LE VERDICT DE BACKEND EST VENV-DÉPENDANT — mesuré le 2026-09-03. Depuis le raffinement
 `missing_packages()` de l'inventaire (commit 02001d2d : « l'inventaire n'annonce que
-l'EXÉCUTABLE »), `known_engines()` ne rend que les moteurs dont le runtime pip est présent
+l'EXÉCUTABLE »), `known_engines()` ne rend que les engines dont le runtime pip est présent
 DANS LE VENV COURANT. Le même appel a rendu `kokoro-onnx` MANQUANT depuis venv_win et
 PRÉSENT depuis venv_linux — sur le même catalogue, à la même seconde. Le runtime qui fait
 foi est **venv_linux** (les workers y tournent). D'où l'en-tête qui nomme le venv : un
-rapport de grisage sans son venv ne veut rien dire. *Même famille que
+report de grisage sans son venv ne veut rien dire. *Même famille que
 `manifest_export --check`, dont le corpus est extrait par `importlib.metadata`.*
 
 ⚠ CE CONTRÔLE NE GARDE RIEN (exit 0 toujours). Aucun de ses constats n'est « interdit » :
@@ -43,7 +43,7 @@ import json
 from django.core.management.base import BaseCommand
 
 
-def est_yolo(m):
+def is_yolo(m):
     return 'yolo' in f"{m.model_key or ''} {m.name or ''}".lower()
 
 
@@ -53,7 +53,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--json', action='store_true', help="Sortie JSON brute.")
         parser.add_argument('--yolo', action='store_true',
-                            help="Déplie la famille YOLO (repliée par défaut : ~47 lignes de "
+                            help="Déplie la famille YOLO (repliée par défaut : ~47 rows de "
                                  "même forme, déclarées en famille).")
 
     def handle(self, *args, **options):
@@ -62,45 +62,45 @@ class Command(BaseCommand):
         from wama.common.backends.manager import backend_missing, known_engines
 
         qs = AIModel.objects.filter(is_downloaded=True, is_proposed=False).order_by('model_key')
-        tous = list(qs)
-        yolo = [m for m in tous if est_yolo(m)]
-        lignes = tous if options['yolo'] else [m for m in tous if not est_yolo(m)]
+        all_rows = list(qs)
+        yolo = [m for m in all_rows if is_yolo(m)]
+        rows = all_rows if options['yolo'] else [m for m in all_rows if not is_yolo(m)]
 
-        moteurs = sorted(known_engines())
-        rapport = {
+        engines = sorted(known_engines())
+        report = {
             'venv': sys.prefix,
-            'moteurs_inventories': moteurs,
-            'installes': len(tous),
-            'yolo_replies': 0 if options['yolo'] else len(yolo),
+            'engines_inventoried': engines,
+            'installed_count': len(all_rows),
+            'yolo_folded': 0 if options['yolo'] else len(yolo),
             'axes': {},
         }
 
-        sans_licence, vram_absente, vram_estimee, vram_sous_declaree = [], [], [], []
-        backend_rouge, backend_hors_verdict = [], []
-        sans_tache = []
+        license_missing, vram_missing, vram_never_measured, vram_under_declared = [], [], [], []
+        backend_unserved, backend_out_of_scope = [], []
+        task_missing = []
         # Les deux axes du POIDS PAR COMPOSANT (2026-09-20, question de Fabien : « les pics ne
         # devraient-ils pas venir du catalogue ? »). Un test unitaire épingle la FONCTION avec des
         # chiffres fixes — c'est sa place, sinon il mesurerait la base et casserait dès qu'un
         # modèle est désinstallé. Ce qui manquait est un contrôle des DONNÉES, et il a son
-        # domicile ici : une carte des lignes à regarder, pas un verdict.
+        # domicile ici : une carte des rows à regarder, pas un verdict.
         weights_missing, peak_under_declared = [], []
 
-        for m in lignes:
+        for m in rows:
             if not (m.license or '').strip():
-                sans_licence.append(m)
+                license_missing.append(m)
             # Empreinte MESURÉE au chargement, rendue au catalogue depuis le 2026-09-14
             # (`extra_info['vram_measured']`) — distincte de `vram_gb`, déclarée ou estimée.
-            mesure_max = float(((m.extra_info or {}).get('vram_measured') or {}).get('max_gb') or 0)
+            measured_max = float(((m.extra_info or {}).get('vram_measured') or {}).get('max_gb') or 0)
             if not m.vram_gb:
-                vram_absente.append(m)
-            elif (m.extra_info or {}).get('vram_estimated') and not mesure_max:
-                vram_estimee.append(m)
+                vram_missing.append(m)
+            elif (m.extra_info or {}).get('vram_estimated') and not measured_max:
+                vram_never_measured.append(m)
             # Une mesure au-delà du déclaré : le cas du 29/07 (Qwen-Image, 16 Go déclarés, 38,1
             # alloués — le kernel panic). Carte, pas verdict : à regarder, pas à corriger d'office.
-            if m.vram_gb and mesure_max > max(m.vram_gb * 1.25, m.vram_gb + 1.0):
-                vram_sous_declaree.append(m)
+            if m.vram_gb and measured_max > max(m.vram_gb * 1.25, m.vram_gb + 1.0):
+                vram_under_declared.append(m)
             if not (m.capabilities or {}).get('task'):
-                sans_tache.append(m)
+                task_missing.append(m)
 
             # Poids PAR COMPOSANT (`extra_info['weights']`, posé par `persist_weights` depuis les
             # fichiers du snapshot) : c'est le rang « source » de la cascade d'empreinte. Sans
@@ -109,7 +109,7 @@ class Command(BaseCommand):
             largest = float(weights.get('largest_gb') or 0)
             if not weights.get('total_gb'):
                 weights_missing.append(m)
-            # MÊME seuil et MÊME esprit que `vram_sous_declaree` juste au-dessus, mais depuis la
+            # MÊME seuil et MÊME esprit que `vram_under_declared` juste au-dessus, mais depuis la
             # SOURCE au lieu de la MESURE : si le PLUS PETIT des deux pics (le plus gros composant,
             # celui du déchargement) dépasse déjà la VRAM déclarée, la déclaration est fausse quelle
             # que soit la stratégie. Mesuré le 20/09 : hunyuan-image-2.1 déclare 16 Go pour un
@@ -121,58 +121,58 @@ class Command(BaseCommand):
             engine = ((m.composition or {}).get('runtime') or {}).get('engine') or ''
             if m.backend_ref or (engine and not backend_missing(m)):
                 continue
-            (backend_rouge if engine else backend_hors_verdict).append(m)
+            (backend_unserved if engine else backend_out_of_scope).append(m)
 
         axes = (
-            ('sans_licence', sans_licence,
+            ('license_missing', license_missing,
              "licence inconnue — bloque toute décision de diffusion (LICENSING.md)"),
-            ('vram_absente', vram_absente,
+            ('vram_missing', vram_missing,
              "aucune VRAM déclarée — le modèle échappe à la sélection VRAM-aware"),
-            ('vram_estimee', vram_estimee,
+            ('vram_never_measured', vram_never_measured,
              "VRAM ESTIMÉE des poids, jamais mesurée — plancher en attente d'un banc"),
-            ('vram_sous_declaree', vram_sous_declaree,
+            ('vram_under_declared', vram_under_declared,
              "empreinte MESURÉE au chargement au-delà de la VRAM déclarée — le tirage lit la "
              "déclarée : à revoir (cas du 29/07, Qwen-Image 16 déclarés / 38,1 alloués)"),
-            ('poids_absents', weights_missing,
+            ('weights_missing', weights_missing,
              "aucun poids PAR COMPOSANT relevé sur ses fichiers — le rang « source » de la "
              "cascade manque, donc les deux pics (somme / plus gros composant) n'existent pas "
              "pour cette ligne et l'empreinte retombe sur la valeur déclarée"),
-            ('pic_sous_declare', peak_under_declared,
+            ('peak_under_declared', peak_under_declared,
              "le PLUS PETIT des deux pics (plus gros composant, celui du déchargement) dépasse "
              "déjà la VRAM déclarée — la déclaration est fausse quelle que soit la stratégie "
              "(cas hunyuan-image-2.1 : 16 Go déclarés, transformer de 32,5)"),
-            ('backend_rouge', backend_rouge,
+            ('backend_unserved', backend_unserved,
              "moteur DÉCLARÉ qu'aucun inventaire ne sert → grisé, exclu du tirage auto"),
-            ('backend_hors_verdict', backend_hors_verdict,
+            ('backend_out_of_scope', backend_out_of_scope,
              "ni moteur déclaré ni backend_ref → HORS du périmètre du verdict (garde "
              "permissive, voulue). ⚠ N'ÉQUIVAUT PAS À « cassé » : ces modèles sont soit "
              "non rattachés à une app (absents des selects, filtrés par `source`), soit "
              "routés par le gestionnaire de backends propre à leur app"),
         )
-        for cle, items, _ in axes:
-            rapport['axes'][cle] = [m.model_key for m in items]
-        rapport['sans_tache'] = [m.model_key for m in sans_tache]
+        for key, items, _ in axes:
+            report['axes'][key] = [m.model_key for m in items]
+        report['task_missing'] = [m.model_key for m in task_missing]
 
         if options['json']:
-            self.stdout.write(json.dumps(rapport, indent=2, ensure_ascii=False))
+            self.stdout.write(json.dumps(report, indent=2, ensure_ascii=False))
             return
 
         self.stdout.write("=" * 78)
-        self.stdout.write(f"COMPLÉTUDE DES MODÈLES INSTALLÉS — {len(lignes)} ligne(s)")
+        self.stdout.write(f"COMPLÉTUDE DES MODÈLES INSTALLÉS — {len(rows)} ligne(s)")
         if not options['yolo'] and yolo:
             self.stdout.write(f"  (+ {len(yolo)} YOLO repliées — `--yolo` pour les déplier)")
         self.stdout.write(f"  venv     : {sys.prefix}")
-        self.stdout.write(f"  moteurs  : {', '.join(moteurs) or '(aucun inventaire enregistré)'}")
+        self.stdout.write(f"  engines  : {', '.join(engines) or '(aucun inventaire enregistré)'}")
         self.stdout.write("  ⚠ le verdict de backend suit le VENV (cf. docstring) — "
                           "venv_linux fait foi.")
         self.stdout.write("=" * 78)
 
-        for cle, items, pourquoi in axes:
+        for key, items, pourquoi in axes:
             if not items:
-                self.stdout.write(self.style.SUCCESS(f"\n✓ {cle} : aucun"))
+                self.stdout.write(self.style.SUCCESS(f"\n✓ {key} : aucun"))
                 continue
-            style = self.style.ERROR if cle == 'backend_hors_verdict' else self.style.WARNING
-            self.stdout.write(style(f"\n⚠ {cle} : {len(items)}"))
+            style = self.style.ERROR if key == 'backend_out_of_scope' else self.style.WARNING
+            self.stdout.write(style(f"\n⚠ {key} : {len(items)}"))
             self.stdout.write(f"    {pourquoi}")
             for m in items:
                 engine = ((m.composition or {}).get('runtime') or {}).get('engine') or '-'
@@ -180,10 +180,10 @@ class Command(BaseCommand):
                     f"      {m.model_key:<58} vram={m.vram_gb or 0:<6} "
                     f"lic={(m.license or '-')[:22]:<22} moteur={engine}")
 
-        if sans_tache:
+        if task_missing:
             self.stdout.write(self.style.WARNING(
-                f"\n⚠ sans tâche : {len(sans_tache)} — "
-                f"{', '.join(m.model_key for m in sans_tache)}"))
+                f"\n⚠ sans tâche : {len(task_missing)} — "
+                f"{', '.join(m.model_key for m in task_missing)}"))
         self.stdout.write("    (la tâche appartient à `check_model_taxonomy` — rappel, "
                           "pas un second contrôle)")
 

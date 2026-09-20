@@ -7,13 +7,13 @@ la mesure du 03/09 :
   1. **la SÉPARATION des deux situations de backend.** `backend_missing()` est PERMISSIF par
      construction : pas de moteur déclaré ⇒ pas de verdict (décision écrite dans
      `manager.py:32-35`). Le rapport distingue donc « on SAIT qu'il manque un backend »
-     (`backend_rouge`, actionnable — c'est Qwen3-TTS) de « le modèle est hors du périmètre
-     du verdict » (`backend_hors_verdict`). Les fondre en un seul compte ferait disparaître
+     (`backend_unserved`, actionnable — c'est Qwen3-TTS) de « le modèle est hors du périmètre
+     du verdict » (`backend_out_of_scope`). Les fondre en un seul compte ferait disparaître
      la nuance qui décide s'il y a quelque chose à faire ;
   2. **le contrôle NE GARDE RIEN** — un backend écrit dont le runtime attend un GO humain
      est un état légitime. Un gate rouge en permanence se relit comme la normale.
 
-⚠⚠ `backend_hors_verdict` NE VEUT PAS DIRE « cassé » — rectification du 03/09 même (recadrage
+⚠⚠ `backend_out_of_scope` NE VEUT PAS DIRE « cassé » — rectification du 03/09 même (recadrage
 Fabien : « normalement le grisage est effectif de bout en bout ». Il l'EST : `backend_missing`
 → `get_registry_models` → `data-backend-missing` → grisage client → exclusion du tirage,
 chaîne vérifiée maillon par maillon). Décomposition MESURÉE des 16 du jour : **10** sont des
@@ -59,8 +59,8 @@ class CompletenessTest(TestCase):
         l'app elle-même) plutôt que de la découvrir au cas par cas."""
         _installe('test:sans-moteur', composition={})
         axes = _rapport()['axes']
-        self.assertIn('test:sans-moteur', axes['backend_hors_verdict'])
-        self.assertNotIn('test:sans-moteur', axes['backend_rouge'])
+        self.assertIn('test:sans-moteur', axes['backend_out_of_scope'])
+        self.assertNotIn('test:sans-moteur', axes['backend_unserved'])
 
     def test_un_backend_ref_pose_sort_le_modele_du_hors_verdict(self):
         """`backend_ref` = « l'app assume son moteur » (doctrine de `backend_missing`).
@@ -68,8 +68,8 @@ class CompletenessTest(TestCase):
         modèles que le système considère servis."""
         _installe('test:avec-backend-ref', backend_ref='ollama', composition={})
         axes = _rapport()['axes']
-        self.assertNotIn('test:avec-backend-ref', axes['backend_hors_verdict'])
-        self.assertNotIn('test:avec-backend-ref', axes['backend_rouge'])
+        self.assertNotIn('test:avec-backend-ref', axes['backend_out_of_scope'])
+        self.assertNotIn('test:avec-backend-ref', axes['backend_unserved'])
 
     def test_un_moteur_declare_sans_inventaire_est_rouge_pas_hors_verdict(self):
         """Deux situations à ne JAMAIS confondre : « on SAIT qu'il manque un backend »
@@ -80,8 +80,8 @@ class CompletenessTest(TestCase):
         _installe('test:moteur-inconnu',
                   composition={'runtime': {'engine': 'moteur-qui-nexiste-pas'}})
         axes = _rapport()['axes']
-        self.assertIn('test:moteur-inconnu', axes['backend_rouge'])
-        self.assertNotIn('test:moteur-inconnu', axes['backend_hors_verdict'])
+        self.assertIn('test:moteur-inconnu', axes['backend_unserved'])
+        self.assertNotIn('test:moteur-inconnu', axes['backend_out_of_scope'])
 
     def test_licence_et_vram_manquantes_sont_relevees(self):
         """Une licence inconnue bloque toute décision de diffusion (LICENSING.md) et une
@@ -90,8 +90,8 @@ class CompletenessTest(TestCase):
         _installe('test:sans-licence', license='', backend_ref='x')
         _installe('test:sans-vram', vram_gb=0, backend_ref='x')
         axes = _rapport()['axes']
-        self.assertIn('test:sans-licence', axes['sans_licence'])
-        self.assertIn('test:sans-vram', axes['vram_absente'])
+        self.assertIn('test:sans-licence', axes['license_missing'])
+        self.assertIn('test:sans-vram', axes['vram_missing'])
 
     def test_une_vram_estimee_est_distinguee_d_une_vram_absente(self):
         """`vram_estimated` était ÉCRIT par la découverte et relu par personne. Un plancher
@@ -100,8 +100,8 @@ class CompletenessTest(TestCase):
         _installe('test:vram-estimee', vram_gb=3.1, backend_ref='x',
                   extra_info={'vram_estimated': True})
         axes = _rapport()['axes']
-        self.assertIn('test:vram-estimee', axes['vram_estimee'])
-        self.assertNotIn('test:vram-estimee', axes['vram_absente'])
+        self.assertIn('test:vram-estimee', axes['vram_never_measured'])
+        self.assertNotIn('test:vram-estimee', axes['vram_missing'])
 
     def test_une_vram_estimee_puis_MESUREE_sort_de_l_axe_estime(self):
         """La mesure au chargement est rendue au catalogue depuis le 2026-09-14
@@ -111,7 +111,7 @@ class CompletenessTest(TestCase):
                   extra_info={'vram_estimated': True,
                               'vram_measured': {'max_gb': 3.0, 'last_gb': 3.0, 'n': 1}})
         axes = _rapport()['axes']
-        self.assertNotIn('test:vram-mesuree', axes['vram_estimee'])
+        self.assertNotIn('test:vram-mesuree', axes['vram_never_measured'])
 
     def test_une_mesure_AU_DELA_du_declare_est_relevee(self):
         """Le défaut du 29/07 : Qwen-Image déclaré 16 Go, 38,1 Go alloués au chargement."""
@@ -120,8 +120,8 @@ class CompletenessTest(TestCase):
         _installe('test:conforme', vram_gb=16, backend_ref='x',
                   extra_info={'vram_measured': {'max_gb': 15.2, 'last_gb': 15.2, 'n': 1}})
         axes = _rapport()['axes']
-        self.assertIn('test:sous-declaree', axes['vram_sous_declaree'])
-        self.assertNotIn('test:conforme', axes['vram_sous_declaree'])
+        self.assertIn('test:sous-declaree', axes['vram_under_declared'])
+        self.assertNotIn('test:conforme', axes['vram_under_declared'])
 
     def test_le_controle_ne_garde_rien_meme_avec_des_trous(self):
         """DÉCISION EXPLICITE, protégée ici parce qu'elle est tentante à « corriger » :
@@ -138,10 +138,10 @@ class CompletenessTest(TestCase):
         """~47 lignes de même forme, déclarées en famille : les déplier noierait les trous
         réels. `--yolo` reste disponible pour qui veut les voir."""
         _installe('test:yolo11n-seg', composition={})
-        replies = _rapport()['yolo_replies']
+        replies = _rapport()['yolo_folded']
         self.assertGreaterEqual(replies, 1)
-        self.assertNotIn('test:yolo11n-seg', _rapport()['axes']['backend_hors_verdict'])
-        self.assertIn('test:yolo11n-seg', _rapport(yolo=True)['axes']['backend_hors_verdict'])
+        self.assertNotIn('test:yolo11n-seg', _rapport()['axes']['backend_out_of_scope'])
+        self.assertIn('test:yolo11n-seg', _rapport(yolo=True)['axes']['backend_out_of_scope'])
 
 
 class WeightsAxesTest(TestCase):
@@ -160,8 +160,8 @@ class WeightsAxesTest(TestCase):
         l'empreinte retombe sur la valeur déclarée — sans que rien ne le dise."""
         _installe('test:sans-poids', backend_ref='ollama', vram_gb=8)
         axes = _rapport()['axes']
-        self.assertIn('test:sans-poids', axes['poids_absents'])
-        self.assertNotIn('test:sans-poids', axes['pic_sous_declare'])
+        self.assertIn('test:sans-poids', axes['weights_missing'])
+        self.assertNotIn('test:sans-poids', axes['peak_under_declared'])
 
     def test_the_smallest_peak_above_the_declaration_is_a_false_declaration(self):
         """Si le PLUS GROS COMPOSANT (le pic du déchargement, donc le plus petit des deux)
@@ -174,7 +174,7 @@ class WeightsAxesTest(TestCase):
         _installe('test:coherent', backend_ref='ollama', vram_gb=16,
                   extra_info={'weights': {'total_gb': 20.2, 'largest_gb': 10.5}})
         axes = _rapport()['axes']
-        self.assertIn('test:sous-declare', axes['pic_sous_declare'])
-        self.assertNotIn('test:coherent', axes['pic_sous_declare'],
+        self.assertIn('test:sous-declare', axes['peak_under_declared'])
+        self.assertNotIn('test:coherent', axes['peak_under_declared'],
                          "un pic SOUS la déclaration n'est pas un défaut : c'est le cas normal")
-        self.assertNotIn('test:sous-declare', axes['poids_absents'])
+        self.assertNotIn('test:sous-declare', axes['weights_missing'])

@@ -620,7 +620,9 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
     que la découverte réécrit et que le tirage lit. Chaîne : `_wrap_load` (mesure FRAÎCHE
     seulement) → `resource_governor.record_measured_vram` (survit au déchargement) → tâche
     `model_manager.persist_measured_vram` (10 min) → `ModelSyncService.persist_measured_vram`.
-    Lecteurs : `check_model_completeness` (sort de `vram_estimee`, axe `vram_sous_declaree`),
+    Lecteurs : `check_model_completeness` (sort de `vram_never_measured`, axe `vram_under_declared`
+    — les axes portaient des noms français jusqu'au 2026-09-20, traduits en BLOC sur décision de
+    Fabien : « on n'introduit pas de français, on traduit l'ensemble »),
     inspecteur du model_manager. Brancher la mesure sur le TIRAGE reste une décision à part ;
   ② ~~le squelette ne pose jamais RUNNING (le commentaire « `progress(0)` bascule l'item en
     RUNNING » de `task_skeleton.py` est faux : `TaskContext.progress` n'écrit que cache et
@@ -2207,7 +2209,8 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
   SÉPARÉ) : `_wrap_load` consigne une mesure fraîche au gouverneur (`record_measured_vram`), une
   tâche beat (600 s) l'écrit dans `extra_info['vram_measured']` = {last_gb, max_gb, n, at} ;
   `vram_gb` INTACT (la synchro le réécrit), clé collante ; lecteurs = `check_model_completeness`
-  (axe `vram_sous_declaree`) et l'inspecteur du model_manager. **Ce qui reste, et n'est pas
+  (axe `vram_under_declared`, ex-`vram_sous_declaree` — les huit axes ont été traduits en bloc le
+  2026-09-20) et l'inspecteur du model_manager. **Ce qui reste, et n'est pas
   un manque** : le tirage lit toujours `vram_gb` (brancher la mesure sur le budget = décision à
   part) ; pas de vocabulaire de PROVENANCE sur `vram_gb` lui-même (déclaré / heuristique / estimé)
   ni de base exposée pour `eta_estimator.estimate()` — l'enum `estimate_confidence` de llmfit

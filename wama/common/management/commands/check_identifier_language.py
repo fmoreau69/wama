@@ -100,14 +100,20 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 #: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
 #: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
 #: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
-BUDGET_CODE = 2614          # production + fichiers de tests hors noms (2644 avant l'exclusion des jumelles)
+BUDGET_CODE = 2608          # production + fichiers de tests hors noms (2614 avant la traduction des axes)
+#: -6 le 2026-09-20 : les HUIT axes de `check_model_completeness` traduits EN BLOC (decision de
+#: Fabien : « on n'introduit pas de francais, on traduit l'ensemble »). Traduire mes deux axes
+#: neufs seuls aurait laisse un demi-vocabulaire — pire que l'ancien, cf. la regle du JS.
 #: 2653 au 1er releve du 19/09 ; -6 par la 1re passe de renommage du meme jour
 #: (`annoncer_telechargement` -> `warn_if_weights_missing`, `SEUIL_ANNONCE_GO` ->
 #: `SIZE_MENTION_THRESHOLD_GB`, `cle_catalogue` -> `catalog_key` : 39 occurrences) ; -3 par la
 #: regle des jumeaux ; -30 le soir meme, quand les jumelles bac a sable (code GENERE, gitignore)
 #: sont sorties du perimetre — le compte doit etre le MEME sur un clone que sur ce disque.
 BUDGET_TEST_CLASSES = 132   # noms de classes `*Test` (133 avant la 1re bascule)
-BUDGET_TEST_NAMES = 1287    # noms de methodes `test_*` — sur 2807 (46 %) ; 1294 avec les jumelles
+BUDGET_TEST_NAMES = 1286    # noms de methodes `test_*` — sur 2872 (44 %) ; 1294 avec les jumelles
+#: -1 le 2026-09-20, cale a la MESURE. ⚠ Je n'attribue pas ce -1 : plusieurs instances renomment
+#: en parallele ce soir, et mes propres tests neufs sont nommes en anglais (donc ils n'ajoutent
+#: rien). Le budget se cale sur ce qu'on MESURE, pas sur ce qu'on croit avoir fait.
 #: Ce que coute l'uniformisation complete, pour memoire : 4033 (4084 au 1er releve —
 #: le premier fichier de tests ecrit APRES la bascule a deja rendu 3 noms).
 BUDGET_TOTAL = BUDGET_CODE + BUDGET_TEST_CLASSES + BUDGET_TEST_NAMES

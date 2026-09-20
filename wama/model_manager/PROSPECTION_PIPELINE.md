@@ -1539,7 +1539,8 @@ pas la découverte. (C'est l'un des 2 « sans tâche » de `check_model_taxonomy
 > ({last_gb, max_gb, n, at}), via `resource_governor.record_measured_vram` →
 > `model_manager.persist_measured_vram` (10 min) → `ModelSyncService.persist_measured_vram` ;
 > `vram_gb` n'est pas écrit (la synchro le réécrirait). `check_model_completeness` sort un modèle
-> mesuré de l'axe `vram_estimee` et relève `vram_sous_declaree`. ⏳ **Reste de l'intention** : que la
+> mesuré de l'axe `vram_never_measured` et relève `vram_under_declared` (axes traduits en bloc le
+> 2026-09-20). ⏳ **Reste de l'intention** : que la
 > mesure serve À LA PLACE de l'estimation là où `vram_gb` est LU (budget du tirage, coût du curseur,
 > `model_selector.py`) — non branché, décision posée à Fabien le même soir.
 >
