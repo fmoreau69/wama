@@ -78,6 +78,12 @@ class Command(BaseCommand):
         sans_licence, vram_absente, vram_estimee, vram_sous_declaree = [], [], [], []
         backend_rouge, backend_hors_verdict = [], []
         sans_tache = []
+        # Les deux axes du POIDS PAR COMPOSANT (2026-09-20, question de Fabien : « les pics ne
+        # devraient-ils pas venir du catalogue ? »). Un test unitaire épingle la FONCTION avec des
+        # chiffres fixes — c'est sa place, sinon il mesurerait la base et casserait dès qu'un
+        # modèle est désinstallé. Ce qui manquait est un contrôle des DONNÉES, et il a son
+        # domicile ici : une carte des lignes à regarder, pas un verdict.
+        weights_missing, peak_under_declared = [], []
 
         for m in lignes:
             if not (m.license or '').strip():
@@ -96,6 +102,22 @@ class Command(BaseCommand):
             if not (m.capabilities or {}).get('task'):
                 sans_tache.append(m)
 
+            # Poids PAR COMPOSANT (`extra_info['weights']`, posé par `persist_weights` depuis les
+            # fichiers du snapshot) : c'est le rang « source » de la cascade d'empreinte. Sans
+            # lui, les deux pics de la décision A n'existent pas pour cette ligne.
+            weights = (m.extra_info or {}).get('weights') or {}
+            largest = float(weights.get('largest_gb') or 0)
+            if not weights.get('total_gb'):
+                weights_missing.append(m)
+            # MÊME seuil et MÊME esprit que `vram_sous_declaree` juste au-dessus, mais depuis la
+            # SOURCE au lieu de la MESURE : si le PLUS PETIT des deux pics (le plus gros composant,
+            # celui du déchargement) dépasse déjà la VRAM déclarée, la déclaration est fausse quelle
+            # que soit la stratégie. Mesuré le 20/09 : hunyuan-image-2.1 déclare 16 Go pour un
+            # transformer de 32,5 — et le garde de cohérence de l'imager ne pouvait pas le voir,
+            # puisqu'il compare deux TABLES entre elles, jamais aux fichiers.
+            elif m.vram_gb and largest > max(m.vram_gb * 1.25, m.vram_gb + 1.0):
+                peak_under_declared.append(m)
+
             engine = ((m.composition or {}).get('runtime') or {}).get('engine') or ''
             if m.backend_ref or (engine and not backend_missing(m)):
                 continue
@@ -111,6 +133,14 @@ class Command(BaseCommand):
             ('vram_sous_declaree', vram_sous_declaree,
              "empreinte MESURÉE au chargement au-delà de la VRAM déclarée — le tirage lit la "
              "déclarée : à revoir (cas du 29/07, Qwen-Image 16 déclarés / 38,1 alloués)"),
+            ('poids_absents', weights_missing,
+             "aucun poids PAR COMPOSANT relevé sur ses fichiers — le rang « source » de la "
+             "cascade manque, donc les deux pics (somme / plus gros composant) n'existent pas "
+             "pour cette ligne et l'empreinte retombe sur la valeur déclarée"),
+            ('pic_sous_declare', peak_under_declared,
+             "le PLUS PETIT des deux pics (plus gros composant, celui du déchargement) dépasse "
+             "déjà la VRAM déclarée — la déclaration est fausse quelle que soit la stratégie "
+             "(cas hunyuan-image-2.1 : 16 Go déclarés, transformer de 32,5)"),
             ('backend_rouge', backend_rouge,
              "moteur DÉCLARÉ qu'aucun inventaire ne sert → grisé, exclu du tirage auto"),
             ('backend_hors_verdict', backend_hors_verdict,

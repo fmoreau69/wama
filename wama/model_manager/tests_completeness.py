@@ -142,3 +142,39 @@ class CompletenessTest(TestCase):
         self.assertGreaterEqual(replies, 1)
         self.assertNotIn('test:yolo11n-seg', _rapport()['axes']['backend_hors_verdict'])
         self.assertIn('test:yolo11n-seg', _rapport(yolo=True)['axes']['backend_hors_verdict'])
+
+
+class WeightsAxesTest(TestCase):
+    """Les deux axes du POIDS PAR COMPOSANT (2026-09-20, question de Fabien : « les pics ne
+    devraient-ils pas venir du catalogue ? »).
+
+    Sa question portait sur mes tests de `peaks_from_weights`, qui épinglent des chiffres FIXES.
+    C'est la place d'un test unitaire — il tient la FONCTION, et lire la base le ferait casser dès
+    qu'un modèle est désinstallé, sur une autre machine ou dans un clone neuf. Mais il avait
+    raison sur ce qui MANQUAIT : rien ne regardait les DONNÉES. C'est ce que ces axes font, et
+    ils vivent là où les autres cartes de complétude vivent déjà.
+    """
+
+    def test_a_line_without_per_component_weights_is_listed(self):
+        """Sans ce relevé, le rang « source » de la cascade n'existe pas pour cette ligne et
+        l'empreinte retombe sur la valeur déclarée — sans que rien ne le dise."""
+        _installe('test:sans-poids', backend_ref='ollama', vram_gb=8)
+        axes = _rapport()['axes']
+        self.assertIn('test:sans-poids', axes['poids_absents'])
+        self.assertNotIn('test:sans-poids', axes['pic_sous_declare'])
+
+    def test_the_smallest_peak_above_the_declaration_is_a_false_declaration(self):
+        """Si le PLUS GROS COMPOSANT (le pic du déchargement, donc le plus petit des deux)
+        dépasse déjà la VRAM déclarée, la déclaration est fausse quelle que soit la stratégie.
+        Cas réel : hunyuan-image-2.1 déclare 16 Go pour un transformer de 32,5 — et le garde de
+        cohérence de l'imager ne pouvait pas le voir, puisqu'il compare deux TABLES entre elles,
+        jamais aux fichiers."""
+        _installe('test:sous-declare', backend_ref='ollama', vram_gb=16,
+                  extra_info={'weights': {'total_gb': 49.5, 'largest_gb': 32.5}})
+        _installe('test:coherent', backend_ref='ollama', vram_gb=16,
+                  extra_info={'weights': {'total_gb': 20.2, 'largest_gb': 10.5}})
+        axes = _rapport()['axes']
+        self.assertIn('test:sous-declare', axes['pic_sous_declare'])
+        self.assertNotIn('test:coherent', axes['pic_sous_declare'],
+                         "un pic SOUS la déclaration n'est pas un défaut : c'est le cas normal")
+        self.assertNotIn('test:sous-declare', axes['poids_absents'])
