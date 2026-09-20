@@ -74,6 +74,29 @@ def _weight_exts() -> tuple:
         return ('.safetensors', '.bin', '.pt', '.pth', '.gguf', '.onnx')
 
 
+def _revision_of(root):
+    """La révision d'un snapshot — DÉLÉGUÉE à `prospector.local_revision`, jamais recalculée.
+
+    ⚠ Corrigé le 2026-09-21, relevé de l'instance sœur : ma première version prenait
+    `sorted(glob('snapshots/*'))`, donc la révision par ordre ALPHABÉTIQUE d'un hash — tandis que
+    `local_revision` prend la plus RÉCENTE par `mtime`. Deux règles pour un même fait, et la
+    mienne était arbitraire : un sha commençant par `0` aurait gagné contre une révision tirée
+    hier. Sa docstring dit d'ailleurs pourquoi elle est publique — « il lui faut la même base, pas
+    une seconde règle de choix de révision ».
+    *Deux lecteurs du même dossier doivent lire la même révision, sinon ils décrivent deux modèles.*
+    """
+    try:
+        from wama.model_manager.services.prospector import local_revision
+        return local_revision(root)
+    except Exception as e:                               # hors Django, ou import partiel
+        logger.debug('[anatomie] révision non résolue par le prospecteur (%s) : %s', root, e)
+        try:
+            base_dir = Path(root) if root else None
+            return base_dir if base_dir is not None and base_dir.is_dir() else None
+        except (OSError, TypeError):
+            return None
+
+
 def pattern_for_files(role: str, filenames) -> str | None:
     """Motif glob désignant les poids de `role`, DÉRIVÉ de ses vrais fichiers — None si aucun.
 
@@ -113,39 +136,34 @@ def components_from_snapshot(root) -> list:
     L'appelant ne doit donc rien écrire dans ce cas — surtout pas un `{}` qui effacerait une
     anatomie connue.
     """
+    revision = _revision_of(root)
+    if revision is None:
+        return []
+    index = revision / 'model_index.json'
+    if not index.is_file():
+        return []
     try:
-        base_dir = Path(root)
-        revisions = sorted(base_dir.glob('snapshots/*')) or ([base_dir] if base_dir.is_dir() else [])
-    except (OSError, TypeError) as e:
-        logger.debug('[anatomie] racine illisible (%s) : %s', root, e)
+        declared = json.loads(index.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as e:
+        logger.debug('[anatomie] %s illisible : %s', index, e)
         return []
     exts = _weight_exts()
-    for revision in revisions:
-        index = revision / 'model_index.json'
-        if not index.is_file():
+    parts = []
+    for role, value in sorted(declared.items()):
+        if role.startswith('_') or not _is_component_entry(value):
+            continue
+        folder = revision / role
+        if not folder.is_dir():
             continue
         try:
-            declared = json.loads(index.read_text(encoding='utf-8'))
-        except (OSError, ValueError) as e:
-            logger.debug('[anatomie] %s illisible : %s', index, e)
-            return []
-        parts = []
-        for role, value in sorted(declared.items()):
-            if role.startswith('_') or not _is_component_entry(value):
-                continue
-            folder = revision / role
-            if not folder.is_dir():
-                continue
-            try:
-                weights = [p.name for p in folder.iterdir()
-                           if p.is_file() and p.suffix.lower() in exts]
-            except OSError:                              # lien que cet OS ne sait pas suivre
-                continue
-            pattern = pattern_for_files(role, weights)
-            if pattern:
-                parts.append({'role': role, 'pattern': pattern})
-        return parts
-    return []
+            weights = [p.name for p in folder.iterdir()
+                       if p.is_file() and p.suffix.lower() in exts]
+        except OSError:                                  # lien que cet OS ne sait pas suivre
+            continue
+        pattern = pattern_for_files(role, weights)
+        if pattern:
+            parts.append({'role': role, 'pattern': pattern})
+    return parts
 
 
 def model_composition(engine: str, components) -> dict:
