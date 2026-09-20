@@ -1145,12 +1145,16 @@ def start_release_listener(tenant: Tenant, poll_s: float = RELEASE_POLL_S) -> bo
 
 
 def contract_tenant(name: str, *, restore=None, is_busy=None) -> Tenant:
-    """Le tenant par défaut d'un process qui héberge des backends du contrat : décharge par
-    `base.unload_live_backends` (existant). Le worker Celery l'emploie tel quel ; le service TTS
-    y ajoute son occupé (verrou) et sa restauration (ses `keep_resident`)."""
+    """Le tenant par défaut d'un process qui héberge des modèles : décharge par
+    `MemoryManager.release_vram()` (existant) — les backends du contrat (`unload_live_backends`)
+    ET les modèles hors contrat inscrits dans `_VRAM_UNLOADERS` (pipeline pyannote en variable de
+    module), puis `empty_cache`. Revérification du 20/09 : la 1re version n'appelait que
+    `unload_live_backends` et laissait les hors-contrat résidents — le second angle mort nommé au
+    palier B1, fermé ici par la brique qui le couvrait déjà. Le worker Celery l'emploie tel quel ;
+    le service TTS y ajoute son occupé (verrou) et sa restauration (ses `keep_resident`)."""
     def _unload() -> int:
-        from wama.common.backends.base import unload_live_backends
-        return unload_live_backends()
+        from wama.model_manager.services.memory_manager import MemoryManager
+        return MemoryManager.release_vram()
     return Tenant(name, unload=_unload, restore=restore, is_busy=is_busy)
 
 

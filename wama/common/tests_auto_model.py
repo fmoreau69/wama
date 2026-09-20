@@ -202,9 +202,10 @@ class CurseurDeQualiteTest(TestCase):
         self.assertGreaterEqual(len(adopteurs), 2, 'parcours vacueux : au moins deux adopteurs')
 
     def test_l_anonymizer_est_rallie_au_curseur_commun_avec_son_pas_reel(self):
-        """Même FORME utilisateur (type='intent'), déclinaison locale conservée : le champ
-        reste `precision_level` (frontière des données — tasks/model_selector le lisent) et
-        le pas reste 5 (5 paliers moteur réels, leçon du 2026-08-19)."""
+        """Même FORME utilisateur (type='intent') : le champ reste `precision_level` (frontière
+        des données — tasks/model_selector le lisent) et le pas reste 5 (5 paliers moteur réels,
+        leçon du 2026-08-19). La déclinaison, elle, est au commun depuis le 20/09
+        (`tests_intent_vision` la garde cran par cran)."""
         from wama.common.utils.param_schema import schema_for_app
         champ = next((f for f in schema_for_app('anonymizer')
                       if f.get('name') == 'precision_level'), None)

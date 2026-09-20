@@ -150,6 +150,106 @@ class IntentCascadeTest(TestCase):
             self.assertNotIn('quality_intent', seen)      # comme avant : équilibré par défaut
 
 
+class AnonymizerAutoGreyingTest(TestCase):
+    """Sur « auto », la meta serveur porte l'union des modèles de DÉTECTION installés : une classe
+    qu'aucun ne détecte est grisée (désactiver + expliquer) — avant, `caps = null`, rien."""
+
+    def test_the_auto_entry_is_the_union_of_installed_detection_models(self):
+        import json
+
+        from wama.anonymizer.views import _class_coverage_meta
+        from wama.model_manager.models import AIModel
+
+        def row(key, classes, task='detect', downloaded=True):
+            AIModel.objects.create(model_key=key, name=key.split(':')[-1], model_type='vision',
+                                   source='anonymizer', is_downloaded=downloaded,
+                                   capabilities={'classes': classes, 'task': task})
+
+        row('anonymizer:yolo:face.pt', ['face'])
+        row('anonymizer:yolo:plates.onnx', ['license_plate'])
+        row('anonymizer:yolo:cls.pt', ['car'], task='classify')          # classifie, ne localise pas
+        row('anonymizer:yolo:absent.pt', ['person'], downloaded=False)   # pas installé
+        meta = json.loads(_class_coverage_meta())
+        # Les ids sont ceux des CHECKBOXES de l'app (`get_all_class_choices`, casse comprise) :
+        # la meta est faite pour elles, pas pour le vocabulaire du catalogue.
+        self.assertEqual([c.lower() for c in meta['auto']['covered_classes']], ['face', 'plate'])
+        self.assertEqual([c.lower() for c in meta['anonymizer:yolo:face.pt']['covered_classes']],
+                         ['face'])
+        self.assertEqual([c.lower() for c in meta['anonymizer:yolo:absent.pt']['covered_classes']],
+                         ['person'])
+
+
+class ReaderCarriesTheSliderAsAnAppSettingTest(TestCase):
+
+    def test_the_upload_persists_the_slider_and_the_launch_reads_it(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+
+        from django.contrib.auth.models import Group
+
+        from wama.accounts.permissions import GROUP_PREFIX
+        from wama.common.utils.user_settings import get_user_app_setting
+        u = get_user_model().objects.create_user('c_reader', password='x')
+        # `AppAccessMiddleware` redirige (302) tout compte sans le rôle de l'app : le test
+        # franchit le portier, il ne le contourne pas (rôle `recherche`, cf. tests_import_contract).
+        group, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')
+        u.groups.add(group)
+        self.client.force_login(u)
+        png = SimpleUploadedFile('page.png', b'\x89PNG\r\n\x1a\n' + b'\0' * 32, content_type='image/png')
+        r = self.client.post(reverse('wama.reader:upload'),
+                             {'files': png, 'backend': 'auto', 'quality_intent': '88'})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(get_user_app_setting(u, 'reader', 'quality_intent'), 88)
+        item = type('I', (), {'user': u, 'quality_intent': None})()
+        self.assertEqual(auto_model.quality_intent_of(item, 'reader'), 88)
+        png2 = SimpleUploadedFile('page2.png', b'\x89PNG\r\n\x1a\n' + b'\0' * 32, content_type='image/png')
+        self.client.post(reverse('wama.reader:upload'), {'files': png2, 'backend': 'auto'})
+        self.assertEqual(get_user_app_setting(u, 'reader', 'quality_intent'), 88,
+                         'sans POST, le dernier réglage tient')
+
+
+class GridCriterionTest(SimpleTestCase):
+    """Le critère `quality_intent` distingue « appelle la brique » de « lui passe l'intention »."""
+
+    def _app(self, params: str, code: str):
+        import tempfile
+        from pathlib import Path
+
+        from wama.common.services import conformity_checker as cc
+        from wama.common.tests_conformity_backends import _Fichiers
+        root = Path(tempfile.mkdtemp())
+        (root / 'params.py').write_text(params, encoding='utf-8')
+        (root / 'tasks.py').write_text(code, encoding='utf-8')
+        return cc._quality_intent(_Fichiers('fake', [], root=root))
+
+    def test_declared_and_passed_in_the_call_is_adopted(self):
+        state, proof = self._app("x = intent_param(dom_id='q')",
+                                 "chosen = select_model_id('fake', task='ocr',\n"
+                                 "    quality_intent=quality_intent_of(item, 'fake'))")
+        self.assertTrue(state, proof)
+
+    def test_declared_but_not_passed_is_red_and_says_why(self):
+        state, proof = self._app("x = intent_param()", "chosen = resolve_model_choice(v, spec=s)")
+        self.assertIs(state, False)
+        self.assertIn('jamais passé', proof)
+
+    def test_auto_choice_without_a_slider_is_red(self):
+        state, proof = self._app("x = 1", "chosen = resolve_model_choice(v, spec=s)")
+        self.assertIs(state, False)
+        self.assertIn('sans curseur', proof)
+
+    def test_an_app_without_a_model_that_declines_the_slider_itself_is_adopted(self):
+        """Le cas converter : pas de modèle à tirer, le curseur décline en réglages d'encodage."""
+        state, proof = self._app("x = intent_param()", "q = read_quality_intent(request.POST.get('q'))")
+        self.assertTrue(state, proof)
+        state, proof = self._app("x = intent_param()", "y = 1")
+        self.assertIs(state, False)
+        self.assertIn('jamais lu', proof)
+
+    def test_nothing_to_arbitrate_is_not_applicable(self):
+        self.assertEqual(self._app("x = 1", "y = 2"), (None, None))
+
+
 class EveryAutoSelectCarriesTheSliderTest(SimpleTestCase):
 
     def test_every_app_that_serves_auto_carries_an_intent_param(self):

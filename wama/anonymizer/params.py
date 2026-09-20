@@ -106,11 +106,12 @@ PARAMS = derive_from_model(
         # différemment selon la surface. À terme, 5 positions nommées (10/30/50/70/90 =
         # un palier par taille de modèle) diraient la vérité — décision UX à prendre.
         # RALLIÉ au curseur commun (2026-09-02, route F4b) : même FORME utilisateur partout
-        # (type='intent' — zones Rapide/Équilibré/Qualité, tricolore), la DÉCLINAISON reste
-        # locale et inchangée (`get_model_size_from_precision` → n/s/m/l/x aux seuils
-        # 20/40/60/80, seuil binaire 50 pour la segmentation) — c'est la couche d'adaptation
-        # voulue par la conception. `step=5` CONSERVÉ : 5 paliers réels, un pas de 1
-        # afficherait 101 positions pour 5 résultats (leçon du 2026-08-19).
+        # (type='intent' — zones Rapide/Équilibré/Qualité, tricolore). La DÉCLINAISON
+        # (n/s/m/l/x aux seuils 20/40/60/80, seuil binaire 50 pour la segmentation) est
+        # REMONTÉE AU COMMUN le 2026-09-20 (chantier C, décision Fabien du 15/09) :
+        # `model_coverage.size_for_intent` / `segmentation_for_intent`, inchangée au cran près
+        # (`get_model_size_from_precision` n'est plus qu'un alias). `step=5` CONSERVÉ : 5
+        # paliers réels, un pas de 1 afficherait 101 positions pour 5 résultats (2026-08-19).
         "precision_level": intent_param(
             dom_id={"panel": "user_setting_precision_level"}, step=5,
             help="5 paliers effectifs (n/s/m/l/x) ; au-delà de 50, segmentation fine.",

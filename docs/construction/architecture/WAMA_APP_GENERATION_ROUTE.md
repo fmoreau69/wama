@@ -530,8 +530,11 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   commun `type='intent'` (volet = partial commun avec `step=5` — les 5 paliers moteur
   restent la vérité du curseur — et `extra_class='setting-button'` pour l'auto-persistance) ;
   les libellés anglais locaux (Quick/Balanced Quick/…) disparaissent au profit des zones
-  canoniques. La DÉCLINAISON reste locale et intacte (`get_model_size_from_precision`
-  n/s/m/l/x + seuil binaire 50 de segmentation) — c'est la couche d'adaptation voulue.
+  canoniques. ~~La DÉCLINAISON reste locale et intacte~~ — **remontée au commun le 2026-09-20
+  (chantier C, décision Fabien 15/09)** : `model_coverage.size_for_intent` (n/s/m/l/x aux seuils
+  20/40/60/80) et `segmentation_for_intent` (≥ 50), `couvrir_classes(quality_intent=)` les
+  dérive ; l'anonymizer n'a plus que l'appel, comportement inchangé au cran près
+  (`tests_intent_vision`). Réutilisable par la future app Detector.
   Le champ garde son nom `precision_level` (frontière des DONNÉES : tasks et
   model_selector d'app le lisent).
 - **⏳ Converter : PRÊT À CÂBLER — tout le commun est en place, il ne reste que SES
