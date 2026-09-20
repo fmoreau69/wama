@@ -12,6 +12,7 @@ résolu côté JS depuis `FORMATS[media_type].output`).
 Rendu par `WamaParams.render(body, PARAMS_JSON, {context:'item', values, optionsResolver})` dans
 converter.js (remplace l'ancien buildModalFormHTML/readModalForm). Lu par `WamaParams.read(body)`.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import Param, ParamGroup, groups_to_dicts, schema_to_dicts
 
 # ── Descriptif moteur (brique wama-model-help via WamaParams : chip + help_fallback) ──
@@ -72,18 +73,21 @@ PARAMS = [
           options_source="formats", contexts=ITEM_BATCH,
           chip=True, section="output", help_fallback=_FORMAT_HELP),
 
-    # Préréglage de qualité GLOBAL (ffmpeg/pillow) — consommé par batch_update
-    # (quality_preset) ; déclaré au schéma depuis le port batch (03/08) : un champ
-    # consommé mais non déclaré y était invisible (leçon converter).
-    Param(name="quality_preset", group="sortie", type="select", label="Qualité (préréglage)", icon="fa-gem",
-          chip=True,
-          contexts=("batch",),
-          # « — par défaut — » et non « — inchangé — » (Fabien, 02/09) : le vide de CE champ
-          # signifie « aucun préréglage → les défauts du schéma s'appliquent », pas « garder
-          # tel quel ». « inchangé » reste juste pour output_format (garder le format SOURCE) ;
-          # « auto » est réservé au tirage résolu au lancement (options_auto, brique du 02/09).
-          choices=[("", "— par défaut —"), ("web", "Web (léger)"),
-                   ("balanced", "Équilibré"), ("max", "Maximum")]),
+    # ── Le CURSEUR rapide/qualité commun (chantier C, 2026-09-20 — ROUTE §F4b ③) ─────────
+    # Il REMPLACE le select de préréglage « Web / Équilibré / Maximum » (contexte batch, 03/08) :
+    # les trois presets sont ses positions nommées (graduations Rapide / Équilibré / Qualité du
+    # renderer commun), et chaque cran entre deux ÉCRIT ses réglages d'encodage interpolés
+    # dans les colonnes (`quality_presets.values_for_intent`, modèle événementiel du 02/09 —
+    # le geste écrit, la tâche lit les colonnes). Item ET lot : le lot est homogène par nature.
+    # ⚠ Les clés `web/balanced/max` restent DES DONNÉES (filemanager, tool_api, colonne
+    # `quality_preset` = trace) : le serveur les accepte toujours, elles ne sont plus un champ.
+    Param(name="quality_intent", group="sortie",
+          **intent_param(dom_id={"item": "settingsQualityIntent", "batch": "batchSettingsQualityIntent",
+                                 "panel": "panelQualityIntent"},
+                         contexts=ITEM_BATCH,
+                         show_if={"field": "media_type", "in": ["image", "video", "audio"]},
+                         help="Guide les réglages d'encodage : à gauche léger et rapide (web), à "
+                              "droite la meilleure qualité. Les réglages fins restent modifiables.")),
 
     # ── Image ───────────────────────────────────────────────────────────────
     # Réglages de la NATURE en modale de LOT aussi (ITEM_BATCH, 02/09, demande Fabien) : le
@@ -95,9 +99,11 @@ PARAMS = [
     # RÉGLAGES des cards restait vide — seul le format était chippé, en section SORTIE).
     # Convention des pilotes (reader/transcriber : moteur, mode, langue, toggles à chip_label) ;
     # les nombres ambigus (resize, CRF, fps) restent hors chips — un « 23 » nu ne dit rien.
-    Param(name="quality", group="image", type="range", label="Qualité", icon="fa-gauge",
-          min=1, max=100, step=1, default=85, show_if=IMG, contexts=ITEM, chip=True,
-          help="Qualité d'encodage de l'image (1–100)."),
+    # Réglage FIN d'encodage (JPEG/WebP 1-100) — écrit par le curseur commun, retouchable :
+    # `advanced` depuis le 20/09 (le curseur est le geste courant, ceci l'expert).
+    Param(name="quality", group="image", type="range", label="Qualité d'encodage", icon="fa-gauge",
+          min=1, max=100, step=1, default=85, show_if=IMG, contexts=ITEM, chip=True, advanced=True,
+          help="Qualité d'encodage de l'image (1–100) — posée par le curseur, retouchable ici."),
     # ⚠ Le « verrou de proportion » EXISTE déjà, implicitement (image_backend:44) : une seule
     # dimension posée → l'autre suit le RATIO de la source. Le help le dit désormais — il
     # affichait « 0 = inchangé », vrai seulement quand les DEUX sont vides. La refonte de

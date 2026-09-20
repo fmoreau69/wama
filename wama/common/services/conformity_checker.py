@@ -1537,7 +1537,10 @@ def _quality_intent(f: _AppFiles):
         # Une app SANS modèle à tirer (converter : le curseur décline en réglages d'encodage)
         # DÉCLINE le curseur elle-même : déclaré ET lu dans son code = adopté. Sans lecteur, le
         # curseur est un décor.
-        read = f.find_py(r"\b(read_quality_intent|quality_intent_of)\(|\bquality_intent\b", code=True)
+        # Une LECTURE, pas une occurrence : le nom seul se trouve aussi dans une migration ou un
+        # champ de modèle (mesuré : converter « prouvé » par sa migration 0012).
+        read = f.find_py(r"\b(read_quality_intent|quality_intent_of)\(|"
+                         r"\.get\(\s*['\"]quality_intent['\"]", code=True)
         if read:
             return True, f"{declared} ; décliné localement : {read}"
         return False, f"curseur déclaré ({declared}) mais jamais lu"
@@ -1773,9 +1776,12 @@ CRITERIA: list[Criterion] = [
     Criterion('select_model', 'F4', 'Sélection auto confiée à la brique commune (select_model)',
               _f4(_select_model),
               mechanism='model_selector'),
+    # PAS enveloppé `_f4` : le curseur vaut aussi pour une app SANS modèle IA (converter décline
+    # le curseur en réglages d'encodage) — l'enveloppe l'aurait rendue « non applicable » à tort
+    # (mesuré le 20/09). La fonction rend elle-même None quand il n'y a rien à arbitrer.
     Criterion('quality_intent', 'F4',
               'Curseur rapide/qualité déclaré au schéma ET passé au tirage (intent_param)',
-              _f4(_quality_intent),
+              _quality_intent,
               mechanism='auto_model'),
     Criterion('model_options_catalog', 'F4',
               'Options du select DÉRIVÉES du catalogue (jamais une liste en dur)',
