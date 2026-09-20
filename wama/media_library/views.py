@@ -22,7 +22,7 @@ from .models import (UserAsset, SystemAsset, MediaProvider, UserProviderConfig, 
                      ASSET_TYPES, ALLOWED_EXTENSIONS, TYPE_GROUPS)
 from .natures import natures_as_json
 from .providers.registry import get_provider
-from wama.accounts.views import get_or_create_anonymous_user
+from wama.accounts.views import ANONYMOUS_USERNAME, get_or_create_anonymous_user
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +33,40 @@ def _get_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
-def _serialize_user_asset(a):
+#: Portée d'une LECTURE de la médiathèque.
+#:   `mine`    — mes assets. Défaut, et contrat du SÉLECTEUR de médias des apps.
+#:   `visible` — les miens ET ce qui m'est partagé (unité, projet, public) : la page médiathèque.
+#: Le défaut reste `mine` parce que `api_list` sert AUSSI `media-picker.js` (imager, imager_01,
+#: avatarizer) : élargir sans le dire ferait entrer l'asset d'autrui dans leur sélecteur de
+#: fichier, en silence. La portée se DEMANDE, elle ne se devine pas.
+SCOPE_MINE, SCOPE_VISIBLE = 'mine', 'visible'
+
+
+def _readable_assets(request, user):
+    """Queryset des assets LISIBLES selon la portée demandée (`?scope=`).
+
+    ⚠ Le compte de service anonyme est une vraie ligne `User` (`is_authenticated` vaut True) :
+    sans la garde ci-dessous, `scoped_visible_q` lui rendrait TOUS les assets publics du parc —
+    il pose `Q(visibility='public')` HORS du test d'authentification (`common/models.py`).
+    Un visiteur ne voit donc que ce que ce compte porte, comme avant.
+    """
+    scope = request.GET.get('scope') or SCOPE_MINE
+    if scope == SCOPE_VISIBLE and getattr(user, 'username', '') != ANONYMOUS_USERNAME:
+        return UserAsset.objects.visible_to(user)
+    return UserAsset.objects.owned_by(user)
+
+
+def _serialize_user_asset(a, user=None):
+    """⚠ `is_mine` et `owner` ne sont pas décoratifs : depuis qu'une lecture peut rendre l'asset
+    d'un autre, une card sans eux serait indiscernable de la mienne — et l'interface offrirait
+    « Modifier » et « Supprimer » sur un objet que le serveur refusera (404)."""
     return {
         'id':          a.id,
         'name':        a.name,
         'asset_type':  a.asset_type,
+        'visibility':  a.visibility,
+        'is_mine':     bool(user is not None and a.user_id == getattr(user, 'id', None)),
+        'owner':       a.user.username if a.user_id else '',
         'file_url':    a.file.url if a.file else '',
         'file_size':   a.file_size_display,
         'duration':    a.duration_display,
@@ -104,8 +133,10 @@ def index(request):
 def api_counts(request):
     """GET /media-library/api/counts/"""
     user = _get_user(request)
+    # Même portée que la grille : un badge qui compte autre chose que ce que la page affiche
+    # est un mensonge silencieux (`?scope=` est donc lu ici AUSSI).
     user_counts = dict(
-        UserAsset.objects.filter(user=user)
+        _readable_assets(request, user)
         .values('asset_type')
         .annotate(n=Count('id'))
         .values_list('asset_type', 'n')
@@ -133,7 +164,9 @@ def api_list(request):
     q          = request.GET.get('q', '').strip()
     page       = max(1, int(request.GET.get('page', 1)))
 
-    qs = UserAsset.objects.filter(user=user)
+    # `select_related('user')` : le sérialiseur nomme le propriétaire d'un asset partagé — sans
+    # lui, une page de 48 cards ferait 48 requêtes de plus.
+    qs = _readable_assets(request, user).select_related('user')
     if asset_type:
         if asset_type in TYPE_GROUPS:
             group = TYPE_GROUPS[asset_type]      # None ('all') → pas de filtre
@@ -146,7 +179,7 @@ def api_list(request):
 
     total  = qs.count()
     offset = (page - 1) * PAGE_SIZE
-    assets = [_serialize_user_asset(a) for a in qs[offset:offset + PAGE_SIZE]]
+    assets = [_serialize_user_asset(a, user) for a in qs[offset:offset + PAGE_SIZE]]
 
     return JsonResponse({
         'assets':    assets,
@@ -195,7 +228,7 @@ def api_upload(request):
     enrich_asset_from_file(asset)
     asset.save(update_fields=['mime_type', 'file_size', 'attributes', 'duration'])
 
-    return JsonResponse(_serialize_user_asset(asset))
+    return JsonResponse(_serialize_user_asset(asset, user))
 
 
 @require_POST
@@ -203,7 +236,9 @@ def api_edit(request, pk: int):
     """POST /media-library/api/assets/<pk>/edit/  — mise à jour nom/description/tags"""
     user = _get_user(request)
     try:
-        asset = UserAsset.objects.get(pk=pk, user=user)
+        # MUTATION → accesseur POSSÉDÉ. Une card partagée n'est jamais modifiable par son
+        # destinataire : le partage est en lecture seule PAR CONSTRUCTION (`scoping.py`).
+        asset = UserAsset.objects.owned_by(user).get(pk=pk)
     except UserAsset.DoesNotExist:
         return JsonResponse({'error': 'Asset introuvable'}, status=404)
 
@@ -240,7 +275,7 @@ def api_edit(request, pk: int):
         except ValueError as exc:            # valeur hors du vocabulaire de la nature
             return JsonResponse({'error': str(exc)}, status=400)
 
-    return JsonResponse(_serialize_user_asset(asset))
+    return JsonResponse(_serialize_user_asset(asset, user))
 
 
 @require_POST
@@ -248,7 +283,8 @@ def api_delete(request, pk: int):
     """POST /media-library/api/assets/<pk>/delete/"""
     user = _get_user(request)
     try:
-        asset = UserAsset.objects.get(pk=pk, user=user)
+        # MUTATION → accesseur POSSÉDÉ (voir `api_edit`).
+        asset = UserAsset.objects.owned_by(user).get(pk=pk)
     except UserAsset.DoesNotExist:
         return JsonResponse({'error': 'Asset introuvable'}, status=404)
 
@@ -537,7 +573,7 @@ def api_provider_download(request):
     asset.file_size = len(file_bytes)
     asset.save(update_fields=['mime_type', 'file_size'])
 
-    return JsonResponse(_serialize_user_asset(asset))
+    return JsonResponse(_serialize_user_asset(asset, user))
 
 
 # ---------------------------------------------------------------------------

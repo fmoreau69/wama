@@ -65,7 +65,7 @@ for _cat in MEDIA_CATEGORIES:
 del _cat, _members
 
 
-from wama.common.models import ScopedVisibility, scoped_visible_q
+from wama.common.models import ScopedManager, ScopedVisibility
 
 
 class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
@@ -111,6 +111,14 @@ class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
     source_pk  = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # ⚠ Le mixin de visibilité était posé depuis des mois, mais le MANAGER manquait : sans lui,
+    # `UserAsset.objects.visible_to(user)` n'existe pas, et TOUTES les lectures filtraient par
+    # propriétaire. Un partage était donc écrit et jamais lu — il ne montrait rien, sans erreur
+    # (mesuré le 2026-09-20). C'est exactement le mode de panne que les deux chemins nommés de
+    # `common/utils/scoping.py` existent pour rendre impossible. Aucune migration : un manager
+    # n'est pas un champ.
+    objects = ScopedManager()
 
     class Meta:
         verbose_name = 'Asset utilisateur'
