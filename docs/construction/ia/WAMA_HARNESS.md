@@ -21,7 +21,7 @@ beaucoup de sujets déjà domiciliés. **Il cite, il ne recopie pas.**
 | quels COMPOSANTS tiers on adopte ou rejette (Presidio, Docling, pgvector, Langfuse, LocalAI…) | `ROADMAP §16.2` | rien — un composant n'est pas un harnais |
 | la grappe IA de DEV et l'orchestrateur cloud/local | `ROADMAP §16` | ses décisions sont **citées** au §6, jamais recopiées |
 | mémoire, RAG, journal | `docs/construction/ia/WAMA_MEMORY.md` | l'axe « mémoire procédurale », où WAMA est en avance |
-| permissions, profils, partage | `PROFILES_PERMISSIONS.md`, `WAMA_COLLABORATION.md` | la distinction **autorisation ≠ approbation** (§5, E1) |
+| permissions, profils, partage | `PROFILES_PERMISSIONS.md`, `WAMA_COLLABORATION.md` | la distinction **autorisation ≠ approbation** (§5, écart 1) |
 | serveur MCP de WAMA (chantier) | `ROADMAP §8d Phase 3` | l'écart de surface (outils seuls) mesuré au §4 |
 
 ---
@@ -105,25 +105,25 @@ déchargement (*offloading*), isolation, récupération, compaction, cache.
 
 | produit | licence / langue | nature | apport ORIGINAL (ce qu'il fait que les autres ne font pas) | pour WAMA |
 |---|---|---|---|---|
-| **Codex CLI** (OpenAI) | Apache-2.0, Rust | agent de code CLI + IDE + desktop, un cœur, N surfaces | **politique d'approbation ET bac à sable déclarés en configuration**, séparés du code des outils ; providers déclaratifs (`model_providers`) ; config en **3 couches** (drapeaux CLI > profil > config de projet, cette dernière chargée **seulement si le projet est approuvé**) | le motif « 1 cerveau / N surfaces » est **déjà le nôtre** ; l'apport net = **§5 E1** (approbation) et le **verrou de confiance par projet** |
-| **deepagents** (LangChain) | MIT, Python + JS | « harnais tout compris » sur LangGraph | **déchargement du contexte vers un système de fichiers virtuel** : gros résultats d'outils écrits sur disque, et au-delà d'un seuil les anciens arguments d'écriture sont déchargés à leur tour ; **sous-agents à fenêtre isolée** ; interruptions humaines | **E2 et E3**. ⚠ Le runtime est LangGraph — `ROADMAP §16` a déjà tranché : *« n'introduire LangGraph/CrewAI que si réel besoin »*. On prend le **motif**, pas la pile |
-| **Hermes Agent** (Nous Research) | MIT, Python | agent personnel persistant | **skills générés depuis l'expérience** ; **`pre_tool_call` → `block` / `approve`** (veto ou escalade humaine) câblé dans le runtime ; 4 verrous d'auto-installation de dépendances ; ~6 passerelles de messagerie | **déjà évalué en profondeur — §7.1.** L'idée des skills est **livrée** (`/skill-forge`) ; le `pre_tool_call` reste le meilleur modèle connu pour **E1** |
+| **Codex CLI** (OpenAI) | Apache-2.0, Rust | agent de code CLI + IDE + desktop, un cœur, N surfaces | **politique d'approbation ET bac à sable déclarés en configuration**, séparés du code des outils ; providers déclaratifs (`model_providers`) ; config en **3 couches** (drapeaux CLI > profil > config de projet, cette dernière chargée **seulement si le projet est approuvé**) | le motif « 1 cerveau / N surfaces » est **déjà le nôtre** ; l'apport net = **§5 écart 1** (approbation) et le **verrou de confiance par projet** |
+| **deepagents** (LangChain) | MIT, Python + JS | « harnais tout compris » sur LangGraph | **déchargement du contexte vers un système de fichiers virtuel** : gros résultats d'outils écrits sur disque, et au-delà d'un seuil les anciens arguments d'écriture sont déchargés à leur tour ; **sous-agents à fenêtre isolée** ; interruptions humaines | **écart 2 et écart 3**. ⚠ Le runtime est LangGraph — `ROADMAP §16` a déjà tranché : *« n'introduire LangGraph/CrewAI que si réel besoin »*. On prend le **motif**, pas la pile |
+| **Hermes Agent** (Nous Research) | MIT, Python | agent personnel persistant | **skills générés depuis l'expérience** ; **`pre_tool_call` → `block` / `approve`** (veto ou escalade humaine) câblé dans le runtime ; 4 verrous d'auto-installation de dépendances ; ~6 passerelles de messagerie | **déjà évalué en profondeur — §7.1.** L'idée des skills est **livrée** (`/skill-forge`) ; le `pre_tool_call` reste le meilleur modèle connu pour **écart 1** |
 | **DeepSeek Harness / Cordis** | ouvert (noyau Koishi, ~4 ans) | noyau de plugins à effets réversibles | **modification à chaud d'un process vivant** : plugins montés/démontés en session, effets enregistrés donc annulables | **§7.2 — rien à intégrer**, et c'est une décision, pas un renoncement : WAMA a *choisi* de ne pas avoir ce problème |
-| **Aider** | ouverte, Python | agent de code en terminal, l'humain regarde chaque diff | **carte de dépôt** (*repo map*) construite mécaniquement, pas par plongement vectoriel ; formats d'édition explicites (entier / diff) ; **un commit git par changement** | l'idée « **l'index est DÉCLARÉ, pas deviné** » est déjà la nôtre (§4, axe 9). Le *commit par changement* = un modèle pour **E7** (annulation) |
-| **Cline** | Apache-2.0, TypeScript | extension d'éditeur | **modes Plan / Act séparés** (stratégie ≠ exécution) ; flux d'approbation à chaque action ; l'agent **écrit ses propres règles persistantes** (`new_rule` → fichier versionné, rechargé dans les prompts suivants) | **E1** (approbation) et **axe 3** (planification). L'écriture de règles par l'agent = la moitié runtime de ce que `/skill-forge` fait côté dev |
-| **OpenHands** | ouverte, Python | agent autonome qu'on lance et qu'on surveille | **architecture à flux d'événements** : à chaque tour l'agent raisonne → émet une **action** → l'environnement exécute → renvoie une **observation**. ⚠ Il **écarte délibérément** MCP, sous-agents, mode plan et fenêtres d'approbation, qui arrivent par extensions | le **flux d'événements action/observation** est un modèle direct pour **E6** (traces) : la trace n'est pas un journal, c'est le format d'exécution lui-même |
+| **Aider** | ouverte, Python | agent de code en terminal, l'humain regarde chaque diff | **carte de dépôt** (*repo map*) construite mécaniquement, pas par plongement vectoriel ; formats d'édition explicites (entier / diff) ; **un commit git par changement** | l'idée « **l'index est DÉCLARÉ, pas deviné** » est déjà la nôtre (§4, axe 9). Le *commit par changement* = un modèle pour **écart 7** (annulation) |
+| **Cline** | Apache-2.0, TypeScript | extension d'éditeur | **modes Plan / Act séparés** (stratégie ≠ exécution) ; flux d'approbation à chaque action ; l'agent **écrit ses propres règles persistantes** (`new_rule` → fichier versionné, rechargé dans les prompts suivants) | **écart 1** (approbation) et **axe 3** (planification). L'écriture de règles par l'agent = la moitié runtime de ce que `/skill-forge` fait côté dev |
+| **OpenHands** | ouverte, Python | agent autonome qu'on lance et qu'on surveille | **architecture à flux d'événements** : à chaque tour l'agent raisonne → émet une **action** → l'environnement exécute → renvoie une **observation**. ⚠ Il **écarte délibérément** MCP, sous-agents, mode plan et fenêtres d'approbation, qui arrivent par extensions | le **flux d'événements action/observation** est un modèle direct pour **écart 6** (traces) : la trace n'est pas un journal, c'est le format d'exécution lui-même |
 | **Goose** (Block) | Apache-2.0, Rust | agent d'automatisation général (pas que du code) | **70+ extensions via MCP** ; « recettes » (*recipes*) rejouables ; sous-agents ; mode bac à sable ; contrôles de permission | le seul de la liste dont le **domaine dépasse le code** — donc le plus proche de la nature de WAMA. Les *recettes* ≈ nos **pipelines Studio** |
-| **OpenCode** | ouverte, TypeScript | CLI | deux agents commutés au clavier : **Plan** (proposer) / **Build** (faire) ; mode lecture seule | forme minimale de **E1 + axe 3** — coût quasi nul, à regarder avant de concevoir plus lourd |
+| **OpenCode** | ouverte, TypeScript | CLI | deux agents commutés au clavier : **Plan** (proposer) / **Build** (faire) ; mode lecture seule | forme minimale de **écart 1 + axe 3** — coût quasi nul, à regarder avant de concevoir plus lourd |
 | **Qwen Code** | ouverte, TypeScript | CLI | **multi-protocole** natif (OpenAI, Anthropic, Gemini, Qwen) | confirme notre champ `protocol` d'`external_sources` (§4, axe 6) |
-| **Kilo Code** | ouverte, TypeScript | extension d'éditeur (fork de Roo) | ⚠ documente explicitement **l'absence de cache de prompt** comme un défaut coûteux | rappel pour **E9** |
+| **Kilo Code** | ouverte, TypeScript | extension d'éditeur (fork de Roo) | ⚠ documente explicitement **l'absence de cache de prompt** comme un défaut coûteux | rappel pour **écart 9** |
 | **Pi** | ouverte, TypeScript | CLI minimaliste | **4 outils seulement** (lire, écrire, éditer, bash), **pas de MCP** | la borne basse de l'axe 5 : 4 outils contre nos 71. À garder en tête quand on ajoutera le 72ᵉ |
 
 ### 3.2 Harnais FERMÉS (on ne peut lire que le comportement et la doc)
 
 | produit | apport ORIGINAL | pour WAMA |
 |---|---|---|
-| **Cursor** | **points de reprise** (*checkpoints*) : chaque application de modifications en crée un, on revient à cet état d'un clic depuis l'historique · **règles par portée** dans `.cursor/rules/`, chargées **seulement si elles matchent le contexte courant** · **mémoire latérale** : un modèle observateur regarde les sessions et fait remonter le contexte utile plus tard · **index vectoriel** du dépôt (découpage sémantique → plongements) | les **points de reprise** = le meilleur modèle connu pour **E7** · les **règles par portée** valident notre `prompt_skills` résolu par le CODE (WAMA_LLM §0bis) · ⚠ l'**index vectoriel** est justement ce qu'on n'a pas besoin de copier : nos registres déclarent au lieu de deviner (§4, axe 9) |
-| **Claude Code** | **compaction automatique** au-delà de ~95 % de la fenêtre (résumé de toute la trajectoire) · **sous-agents** à contexte isolé · **mode plan** · **crochets** (*hooks*) déclenchés par événement · **skills** choisis par description · reprise (`/rewind`) | **E2** (compaction), **E3** (sous-agents), **E7**. ⚠ C'est le harnais qu'on utilise pour DÉVELOPPER WAMA : on connaît ses gestes de l'intérieur, ce qui rend la transposition tentante — rappel que WAMA n'est **pas** un agent de code (§6) |
+| **Cursor** | **points de reprise** (*checkpoints*) : chaque application de modifications en crée un, on revient à cet état d'un clic depuis l'historique · **règles par portée** dans `.cursor/rules/`, chargées **seulement si elles matchent le contexte courant** · **mémoire latérale** : un modèle observateur regarde les sessions et fait remonter le contexte utile plus tard · **index vectoriel** du dépôt (découpage sémantique → plongements) | les **points de reprise** = le meilleur modèle connu pour **écart 7** · les **règles par portée** valident notre `prompt_skills` résolu par le CODE (WAMA_LLM §0bis) · ⚠ l'**index vectoriel** est justement ce qu'on n'a pas besoin de copier : nos registres déclarent au lieu de deviner (§4, axe 9) |
+| **Claude Code** | **compaction automatique** au-delà de ~95 % de la fenêtre (résumé de toute la trajectoire) · **sous-agents** à contexte isolé · **mode plan** · **crochets** (*hooks*) déclenchés par événement · **skills** choisis par description · reprise (`/rewind`) | **écart 2** (compaction), **écart 3** (sous-agents), **écart 7**. ⚠ C'est le harnais qu'on utilise pour DÉVELOPPER WAMA : on connaît ses gestes de l'intérieur, ce qui rend la transposition tentante — rappel que WAMA n'est **pas** un agent de code (§6) |
 | **Devin / Windsurf (Devin Desktop)** | **Codemaps** (structure du dépôt visualisable et interrogeable) · **mémoires** persistantes · approche par **graphe de connaissance** du dépôt avant d'agir · délégation d'une tâche locale vers une machine distante d'un clic | le **graphe de connaissance avant d'agir** ≈ ce que nos registres + `WAMA_MECANISMES` font déjà, en déclaratif. La **délégation locale → distante** est un motif pour la grappe de dev (`ROADMAP §16`), pas pour la prod |
 | **GitHub Copilot** | consignes de projet (un fichier *copilot-instructions* à la racine) · mode agent conservateur, positionné « sûreté et échelle » | confirme la convergence sur **un fichier de consignes versionné** — que nous avons déjà, et mieux : `AGENTS.md` (doctrine) + `CLAUDE.md` (harnais), séparés |
 
@@ -131,15 +131,15 @@ déchargement (*offloading*), isolation, récupération, compaction, cache.
 
 | produit | primitives | pour WAMA |
 |---|---|---|
-| **OpenAI Agents SDK** | agents · **passations** (*handoffs*) · **garde-fous** (*guardrails*, contrôles d'entrée ET de sortie) · **sessions** · **traçage intégré** (générations, appels d'outils, passations, garde-fous, événements maison) | les **garde-fous de sortie** et le **traçage comme primitive** (pas comme journal) sont les deux motifs à retenir → **E6** |
-| **LangGraph** | graphe explicite · **point de contrôle** (*checkpointer*) → reprise après plantage · **voyage dans le temps** (rejouer depuis un état) | notre équivalent existe déjà, ailleurs et autrement : **Celery + statut en base** pour la reprise, `StudioPipeline` pour le graphe. À citer quand on discutera E7, pas à importer |
-| **CrewAI / AutoGen / smolagents** | rôles, équipes, conversation multi-agents | rien de net pour un assistant **produit** ; le besoin « plusieurs cerveaux » chez nous s'exprime comme **E3** (isolation de contexte), pas comme une équipe d'agents |
+| **OpenAI Agents SDK** | agents · **passations** (*handoffs*) · **garde-fous** (*guardrails*, contrôles d'entrée ET de sortie) · **sessions** · **traçage intégré** (générations, appels d'outils, passations, garde-fous, événements maison) | les **garde-fous de sortie** et le **traçage comme primitive** (pas comme journal) sont les deux motifs à retenir → **écart 6** |
+| **LangGraph** | graphe explicite · **point de contrôle** (*checkpointer*) → reprise après plantage · **voyage dans le temps** (rejouer depuis un état) | notre équivalent existe déjà, ailleurs et autrement : **Celery + statut en base** pour la reprise, `StudioPipeline` pour le graphe. À citer quand on discutera écart 7, pas à importer |
+| **CrewAI / AutoGen / smolagents** | rôles, équipes, conversation multi-agents | rien de net pour un assistant **produit** ; le besoin « plusieurs cerveaux » chez nous s'exprime comme **écart 3** (isolation de contexte), pas comme une équipe d'agents |
 
 ### 3.4 Standards — ce qui compte le plus, et le piège du jour
 
 | standard | état 2026-09 | WAMA |
 |---|---|---|
-| **MCP** | spécification **2026-07-28** : cœur sans état, requêtes multi-allers-retours, routage par en-têtes (`Mcp-Method`, `Mcp-Name`), **résultats de liste cachables** (`ttlMs`, `cacheScope`). Un **serveur** expose `resources`, `prompts`, `tools` ; un **client** expose `sampling`, `roots`, `elicitation` | serveur ✅ **mais outils SEULS** (`list_tools`/`call_tool`, `mcp_server.py:209,217`) — ni `resources` ni `prompts`. Client ⏳ (`ROADMAP §8d Ph3 étape 5`) → **E10** |
+| **MCP** | spécification **2026-07-28** : cœur sans état, requêtes multi-allers-retours, routage par en-têtes (`Mcp-Method`, `Mcp-Name`), **résultats de liste cachables** (`ttlMs`, `cacheScope`). Un **serveur** expose `resources`, `prompts`, `tools` ; un **client** expose `sampling`, `roots`, `elicitation` | serveur ✅ **mais outils SEULS** (`list_tools`/`call_tool`, `mcp_server.py:209,217`) — ni `resources` ni `prompts`. Client ⏳ (`ROADMAP §8d Ph3 étape 5`) → **écart 10** |
 | ⚠ **MCP `sampling`** | **DÉPRÉCIÉ** au 2026-07-28 (SEP-2577) : *les nouvelles implémentations NE DEVRAIENT PAS l'adopter*, les existantes devraient migrer vers un appel direct au fournisseur | **piège évité de justesse** : « le serveur MCP demande une complétion au client » est le genre d'idée qu'on aurait proposée comme moderne. Elle est morte trois semaines avant cette cartographie. *Un fait externe non daté est un fait faux en puissance* |
 | **AGENTS.md** | convention devenue commune à plusieurs harnais (Codex, Copilot, autres) | ✅ **déjà en place, et mieux découpé** : `AGENTS.md` = doctrine lisible par tout agent ; `CLAUDE.md` = le harnais Claude Code seul. Rien à faire |
 | **Agent Skills / règles** | convergence générale : un dossier de consignes versionnées, chargées par description ou par portée | ✅ **en avance** : deux natures distinctes et assumées (`common/prompt_skills/` résolu par le CODE pour un modèle qui ne sait pas choisir ; `.claude/skills/` choisi par l'agent d'après sa description) + un écrivain (`/skill-forge`) + un contrôle (`check_skills`) |
@@ -148,24 +148,31 @@ déchargement (*offloading*), isolation, récupération, compaction, cache.
 
 ## 4. WAMA axe par axe — état MESURÉ le 2026-09-19
 
+> ⚠ **Précision de vocabulaire (Fabien, 2026-09-20)** : **l'assistant est COMMUN et inter-mondes**
+> — son moteur vit dans `wama/common/services/assistant_engine.py` et sert **quatre** surfaces
+> (web, API v1, canaux, et le registre d'outils côté MCP). `home.html` n'est **pas** son domicile,
+> c'est la surface où il s'AFFICHE aujourd'hui. Quand une case ci-dessous cite `home.html`, elle
+> parle donc d'un **défaut de la surface web**, jamais de l'assistant lui-même — et le corriger
+> dans `home.html` ne le corrige pas pour Discord.
+
 > Chaque case « WAMA » cite la ligne qui la fonde. Une case sans citation est une case non mesurée :
 > il n'y en a pas dans cette table.
 
 | # | axe | ce que fait l'état de l'art | WAMA, mesuré | écart |
 |---|---|---|---|---|
 | 1 | **boucle de contrôle** | 11/13 composent plusieurs primitives (ReAct, plan-exécute, générer-tester-réparer, reprise, arbre) | ReAct simple, 5 tours max (`assistant_engine.py:694`), pas de reprise sur échec d'outil : un outil qui rend une erreur repart tel quel au modèle (`:726-734`) | **une seule primitive** |
-| 2 | **approbation humaine** | déclarée hors du code de l'outil : `approval_policy` (Codex), Plan/Act (Cline), interruptions (deepagents), `pre_tool_call` → `block`/`approve` (Hermes) | **autorisation ✅, approbation ✗.** `_refus_app()` répond « cet utilisateur peut-il agir dans cette app » (`tool_api.py:2901`) ; l'exécution est immédiate (`assistant_engine.py:726`), y compris pour `delete_item` / `clear_my_queue` qui POSTent la vue réelle de l'app (`tool_api.py:2928`). `grep -c confirm` sur `home.html` → **0** | **E1 — le plus important** |
+| 2 | **approbation humaine** | déclarée hors du code de l'outil : `approval_policy` (Codex), Plan/Act (Cline), interruptions (deepagents), `pre_tool_call` → `block`/`approve` (Hermes) | **autorisation ✅, approbation ✗** — et il faut séparer deux cas (mesuré 2026-09-20). **Ajouter une capacité** est déjà fermé : `install_model` est gardé `model_manager`, dont `AppAccessPolicy.min_tier` vaut **`developpeur`**. **Agir sur ses propres données** ne l'est pas : `_refus_app()` répond « peut-il agir dans cette app » (`tool_api.py:2901`), puis l'exécution est immédiate (`assistant_engine.py:726`) ; `grep -c confirm` sur `home.html` → **0** | **écart 1** (recadré) |
 | 3 | **planification** | mode plan séparé de l'exécution (Claude Code, Cline, OpenCode) | aucun côté assistant. Le plan EXISTE ailleurs, sous forme déclarative : `StudioPipeline` (nœuds typés, exécution topologique) | l'assistant ne sait pas **proposer** un plan |
-| 4 | **sous-agents** | délégation à fenêtre de contexte **isolée** (deepagents, Goose, Claude Code) | **0 occurrence** de « sous-agent » dans `ROADMAP.md` + `WAMA_LLM.md` | **E3** |
+| 4 | **sous-agents** | délégation à fenêtre de contexte **isolée** (deepagents, Goose, Claude Code) | **0 occurrence** de « sous-agent » dans `ROADMAP.md` + `WAMA_LLM.md` | **écart 3** |
 | 5 | **surface d'outils** | 0 à 37 outils ; Pi en expose 4 | **71** (`len(TOOL_REGISTRY)`, mesuré ce jour ; la doc disait 69 au 12/09, +2 le 19/09) | pas un retard — une **nature** (surface métier). Mais 71 descriptions par prompt système |
-| 6 | **registre de fournisseurs** | entrée déclarative par fournisseur : adresse, clé, protocole, **reprises et délais** | ✅ `external_sources.ExternalSource` porte `base`/`setting`/`env`/`api_key_env`/`hosting`/`cost_tier` **et `protocol`** (= le `wire_api` de Codex) `external_sources.py:91-127`. ✗ mais **deux tables coexistent** : `CLOUD_DEFAULT_MODELS` (9 fournisseurs, dont **8 sans entrée** au registre) et `OPENAI_COMPATIBLE_PROVIDERS = {'albert': 'albert'}` — **dérivable** de `protocol == 'openai'` (`llm_utils.py:256-270`). ✗ aucun délai ni reprise par fournisseur (`timeout=180.0` en signature, `llm_utils.py:291`) | **E5** |
+| 6 | **registre de fournisseurs** | entrée déclarative par fournisseur : adresse, clé, protocole, **reprises et délais** | ✅ `external_sources.ExternalSource` porte `base`/`setting`/`env`/`api_key_env`/`hosting`/`cost_tier` **et `protocol`** (= le `wire_api` de Codex) `external_sources.py:91-127`. ✗ mais **deux tables coexistent** : `CLOUD_DEFAULT_MODELS` (9 fournisseurs, dont **8 sans entrée** au registre) et `OPENAI_COMPATIBLE_PROVIDERS = {'albert': 'albert'}` — **dérivable** de `protocol == 'openai'` (`llm_utils.py:256-270`). ✗ aucun délai ni reprise par fournisseur (`timeout=180.0` en signature, `llm_utils.py:291`) | **écart 5** |
 | 7 | **isolation d'exécution** | point de **convergence** de tous les harnais : bac à sable OS, conteneur, VM | WAMA n'exécute **pas** de code arbitraire pour l'utilisateur : les outils sont des **verbes métier** fermés. Le seul chemin d'exécution large est `ask_claude_code`, gardé développeur **dans son corps** et en lecture seule par défaut (`claude_code.py:102-237`) | **rien à faire — frontière voulue** (§6) |
-| 8 | **standards** | MCP serveur (resources/prompts/tools) + client | serveur = **outils seuls** (`mcp_server.py:209,217`) ; client ⏳ ; `AGENTS.md` ✅ | **E10** |
+| 8 | **standards** | MCP serveur (resources/prompts/tools) + client | serveur = **outils seuls** (`mcp_server.py:209,217`) ; client ⏳ ; `AGENTS.md` ✅ | **écart 10** |
 | 9 | **index du domaine** | plongements vectoriels du dépôt (Cursor), carte mécanique (Aider), graphe (Windsurf) | **15 registres** (`registries.py::overview`), `WAMA_MECANISMES` généré depuis `mecanismes.py`, `doc_facts`, `docs_catalog` — un index **déclaré**, jamais deviné | **en avance conceptuellement** ; l'assistant n'y accède que par `list_registries` |
-| 10 | **contexte** | écrire / choisir / **compresser** / **isoler** ; compaction auto à ~95 % ; déchargement des gros résultats d'outils vers un FS | troncature fixe `[-20:]` (`assistant_engine.py:661`) + **escalade de modèle** `_route_model_by_context` (`:258`) — mais appelée **une seule fois, AVANT la boucle** (`:670`) et **seulement sur le chemin local**, pendant que chaque résultat d'outil est réinjecté **brut** par `json.dumps` (`:733`) | **E2** |
-| 11 | **persistance de session** | format unique repris par toutes les surfaces | brique ✅ complète (`conversation_store.py`, `Conversation`/`ConversationTurn` `models.py:950-1026`) mais **adoptée par Discord seul** ; web = `localStorage`, API = fourni par le client, MCP = rien (`WAMA_LLM.md:781,789,797`) | **E4** (déjà routé `§8d Ph3`) |
-| 12 | **observabilité** | traçage comme **primitive** (Agents SDK) ; flux action/observation (OpenHands) | `tool_steps` persisté par tour (`models.py:1145`) — mais uniquement quand `conversation_turn` est employé, donc **Discord seul** ; `cost_usd` accumulé (`assistant_engine.py:704`). Aucune latence, aucun taux d'échec par outil, aucune vue | **E6** |
-| 13 | **économie / cache** | cache de prompt côté fournisseur ; listes MCP cachables (`ttlMs`) | **0 occurrence** de `cache_control` dans `wama/` ; le prompt système (outils + contexte + skills) est renvoyé entier à chaque tour | **E9** |
+| 10 | **contexte** | écrire / choisir / **compresser** / **isoler** ; compaction auto à ~95 % ; déchargement des gros résultats d'outils vers un FS | troncature fixe `[-20:]` (`assistant_engine.py:661`) + **escalade de modèle** `_route_model_by_context` (`:258`) — mais appelée **une seule fois, AVANT la boucle** (`:670`) et **seulement sur le chemin local**, pendant que chaque résultat d'outil est réinjecté **brut** par `json.dumps` (`:733`) | **écart 2** |
+| 11 | **persistance de session** | format unique repris par toutes les surfaces | ✅ **les trois surfaces partagent le store serveur** (mesuré 2026-09-20) : `views.py:166`, `api/v1/views.py:132`, `gateway/core.py:208` appellent tous `conversation_turn` ; l'historique `localStorage` est mort et effacé (`home.html:101-102`). MCP n'en a pas — il n'exécute aucun tour | **écart 4 REFERMÉ** ⚠ ma 1ʳᵉ version citait la doc, pas le code |
+| 12 | **observabilité** | traçage comme **primitive** (Agents SDK) ; flux action/observation (OpenHands) | `tool_steps` persisté par tour (`models.py:1145`) sur les trois surfaces (cf. axe 11) — mais **rien n'en fait une mesure** : aucune vue, aucun agrégat ; `cost_usd` accumulé (`assistant_engine.py:704`). Aucune latence, aucun taux d'échec par outil, aucune vue | **écart 6** |
+| 13 | **économie / cache** | cache de prompt côté fournisseur ; listes MCP cachables (`ttlMs`) | **0 occurrence** de `cache_control` dans `wama/` ; le prompt système (outils + contexte + skills) est renvoyé entier à chaque tour | **écart 9** |
 | 14 | **mémoire procédurale** | skills par description, règles par portée, règles écrites par l'agent | ✅ **deux natures assumées** (`prompt_skills/` résolu par le code ; `.claude/skills/` choisi par l'agent), **11 skills de prompt** (12 fichiers moins le README), un écrivain (`/skill-forge`) et un contrôle (`check_skills`) | **en avance** — rien à prendre |
 
 **Lecture d'ensemble.** Sur 14 axes : **3 où WAMA est en avance** (9 index déclaré, 14 mémoire
@@ -182,15 +189,36 @@ contrôle sur ce qui existe déjà**.
 > Tri par **conséquence si on ne fait rien**, pas par difficulté. Chaque écart nomme la brique WAMA
 > qui existe déjà et qu'il suffirait d'adopter — c'est presque toujours le cas.
 
-### E1 — L'assistant DÉTRUIT sans approbation ⚠ le plus grave
+### Écart 1 — Autorisation OUI, approbation NON : deux questions à ne pas confondre
 
-**Mesuré** : le modèle émet un appel d'outil (`assistant_engine.py:707`), `execute_tool` s'exécute
-immédiatement (`:726`). `delete_item`, `duplicate_item`, `clear_my_queue` POSTent la vue réelle de
-l'app par une requête synthétique (`tool_api.py:2928-2944`). La seule garde est
-**l'autorisation** — « cet utilisateur a-t-il le droit d'agir dans cette app » (`_refus_app`,
-`tool_api.py:2901`) — jamais **l'approbation de CETTE action-ci**. Côté écran : **0 occurrence** de
-`confirm` dans `home.html`. Et c'est atteignable depuis Discord, où une phrase mal interprétée
-coûte la même chose qu'au clavier.
+> ⚠ **Recadré le 2026-09-20 par Fabien, et il avait raison sur les deux points.** La version du
+> 19/09 disait « l'assistant DÉTRUIT sans approbation, le plus grave » et **mélangeait deux
+> questions de gravités très différentes**. Le relevé ci-dessous les sépare, et **mesure** ce que
+> la première version supposait.
+
+**Deux questions, pas une :**
+
+| | **(a) AJOUTER une capacité** (modèle, librairie, app) | **(b) AGIR sur SES PROPRES données** (`delete_item`, `duplicate_item`, `clear_my_queue`) |
+|---|---|---|
+| état **mesuré** le 2026-09-20 | **déjà fermé** : `search_models` et `install_model` sont gardés sur l'app `model_manager` (`tool_api.py:3345-3346`), et `AppAccessPolicy` donne à `model_manager` **`min_tier='developpeur'`** — relevé en base : c'est l'une des **4 apps** sur 19 à porter ce palier (avec les jumelles de bac à sable `*_01`) | **ouvert** : le modèle émet l'appel (`assistant_engine.py:707`), `execute_tool` s'exécute **immédiatement** (`:726`), la vue réelle de l'app est POSTée par requête synthétique (`tool_api.py:2928-2944`) ; **0 occurrence** de `confirm` dans `home.html` |
+| gravité réelle | **faible aujourd'hui** — un utilisateur ordinaire ne peut pas faire entrer une capacité dans WAMA | **moyenne** — destructif, mais borné à ce que l'utilisateur possède déjà et pourrait supprimer d'un bouton |
+| ce qui reste à faire | **rien tant que c'est dev-only** ; tout le jour où on ouvre (voir ci-dessous) | une confirmation avant exécution |
+
+**⚠ Ce qui garde (a) aujourd'hui est une LIGNE EN BASE, pas une règle de code.** `min_tier` est un
+champ d'`AppAccessPolicy`, **éditable depuis l'admin** : le jour où quelqu'un descend ce palier
+pour dépanner un collègue, l'entrée de capacités s'ouvre **en silence**, sans qu'aucune approbation
+ne prenne le relais. C'est exactement le défaut déjà nommé pour la médiathèque dans
+`WAMA_LLM.md` — *une garde qui dépend d'une politique modifiable ne protège pas ce qu'elle a l'air
+de protéger, elle le rend fragile.* **Le besoin d'approbation n'est donc pas hypothétique : il est
+à un clic d'admin.**
+
+⭐ **Position de Fabien (2026-09-20), à tenir comme cadre** : *« le jour où on permet à un
+utilisateur d'ajouter des capacités dans WAMA, il faut une approbation »*. Donc l'approbation de
+(a) est une **condition d'ouverture**, pas un chantier isolé : elle se construit **avec** la
+première surface qui ouvrira l'ajout de capacité à un non-développeur, jamais après.
+
+**Et (b) vaut aussi depuis Discord**, où une phrase mal interprétée coûte la même chose qu'au
+clavier — sans même le réflexe visuel d'une page.
 
 **Ce que fait l'état de l'art** : Codex sépare `approval_policy` du code de l'outil ; Hermes
 donne au runtime un `pre_tool_call` qui rend `block` (veto) ou `approve` (escalade humaine) ;
@@ -208,7 +236,7 @@ chemin de l'assistant.**
 (installer un modèle, lancer un traitement lourd, partager un objet). Sans elle, chaque nouveau
 verbe rouvre la question.
 
-### E2 — Le contexte n'est pas géré DANS la boucle
+### Écart 2 — Le contexte n'est pas géré DANS la boucle
 
 **Mesuré** : `_route_model_by_context` (`:258`) est appelé **ligne 670**, avant la boucle qui
 commence **ligne 696**, et seulement si `local`. Les résultats d'outils sont ajoutés à `messages`
@@ -223,9 +251,9 @@ Les deux se combinent avec l'escalade, ils ne la remplacent pas.
 
 **Coût chez nous** : borner le résultat d'outil + réévaluer la bascule dans la boucle ≈ 15 lignes.
 Le déchargement vers un fichier est un cran au-dessus et supposerait un espace de travail par
-conversation — à ne pas ouvrir sans E4.
+conversation — à ne pas ouvrir sans écart 4.
 
-### E3 — Pas de sous-agents : 71 outils dans un seul contexte
+### Écart 3 — Pas de sous-agents : 71 outils dans un seul contexte
 
 **Mesuré** : 0 occurrence de la notion dans nos documents ; 71 outils exposés au même prompt.
 Les harnais de l'état de l'art tiennent entre 4 et 37 outils et **isolent** dès que ça dépasse.
@@ -233,16 +261,40 @@ Les harnais de l'état de l'art tiennent entre 4 et 37 outils et **isolent** dè
 **La forme WAMA de cette idée existe déjà à moitié** : le **domaine** est choisi par l'assistant
 (`assistant_skills.py`), et les skills sont chargés par `charger_competence`. Un « sous-agent »
 chez nous ne serait pas une équipe d'agents mais **une délégation par domaine, avec sa propre
-fenêtre et son propre sous-ensemble d'outils** — ce qui répond aussi à E2 (un outil coûteux rend un
+fenêtre et son propre sous-ensemble d'outils** — ce qui répond aussi à écart 2 (un outil coûteux rend un
 résumé au lieu de son JSON). ⚠ Et ça n'exige **pas** LangGraph : la boucle existante suffit.
 
-### E4 — L'historique diverge par surface *(déjà routé)*
+### Écart 4 — ~~L'historique diverge par surface~~ **REFERMÉ, et il l'était déjà quand je l'ai écrit**
 
-Rien à décider : `WAMA_LLM.md:797-801` liste **dix** divergences entre surfaces et le chantier est
-`ROADMAP §8d Phase 3`. Noté ici seulement parce que c'est **le premier écart que les deux analyses
-externes ont pointé**, et qu'elles avaient raison sur le fond — avec un an de retard sur nous.
+> ⚠⚠ **Corrigé le 2026-09-20. C'est une erreur de méthode, pas un détail** : le 19/09 j'ai écrit
+> « web = `localStorage`, API = fourni par le client, Discord = base » en **citant la table §A de
+> `WAMA_LLM.md` (datée du 15/09)** au lieu d'ouvrir le code. La règle du dépôt dit exactement
+> l'inverse — *un constat de la doc qui contredit le code a tort par défaut*. Deuxième fois dans
+> la même passe qu'une source datée me fait écrire un constat faux (l'autre : `wire_api`).
 
-### E5 — Deux tables de fournisseurs coexistent
+**Mesuré le 2026-09-20 — les trois surfaces partagent déjà le même store serveur :**
+
+| surface | appel | ligne |
+|---|---|---|
+| web | `conversation_turn(user, message, surface='web', …)` | `wama/views.py:166` |
+| API v1 | `conversation_turn(request.user, message, surface='api', …)` | `wama/api/v1/views.py:132` |
+| canaux (Discord) | `conversation_turn(user, invite, surface=msg.channel, …)` | `wama/gateway/core.py:208` |
+
+Et l'historique navigateur est **mort et nettoyé**, pas seulement inutilisé :
+`home.html:101-102` — *« localStorage n'a plus de lecteur — elle est effacée »* + un
+`removeItem` de l'ancienne clé. Ce qui reste en `localStorage` est le **seul réglage de voix**
+(`:107,188`), qui est bien une préférence propre au navigateur.
+
+**Reste, et c'est tout** : MCP n'a pas d'historique — mais MCP **n'exécute pas de tour
+d'assistant** (il expose des outils, `mcp_server.py:209,217`), donc ce n'est pas une divergence,
+c'est une absence d'objet. **Cet écart est refermé** ; le chantier `ROADMAP §8d Phase 3` garde les
+autres divergences de la table §A (choix du modèle, fichiers, commandes, voix), pas celle-ci.
+
+⭐ *Ce que ça dit des deux analyses externes : leur premier grief était le plus juste sur le
+principe et le plus périmé sur les faits. Une analyse qui lit nos docs sans lire notre code hérite
+de nos propres retards de doc.*
+
+### Écart 5 — Deux tables de fournisseurs coexistent
 
 **Mesuré** : `external_sources` déclare 3 fournisseurs LLM avec leur `protocol` ;
 `CLOUD_DEFAULT_MODELS` en liste **9**, dont **8 n'ont aucune entrée au registre**
@@ -258,11 +310,16 @@ local et une API souveraine n'ont pas le même profil ; aujourd'hui les deux ont
 ⚠ Et un fait qui invalide une recommandation reçue : chez Codex, `wire_api` **n'a plus qu'une seule
 valeur** (`responses`) — le « `chat` ou `responses` » qu'on nous citait est périmé.
 
-### E6 — Aucune trace exploitable de ce que l'assistant a fait
+### Écart 6 — Aucune trace exploitable de ce que l'assistant a fait
 
-**Mesuré** : `tool_steps` est persisté (`models.py:1145`) **seulement** par `conversation_turn`,
-adopté par Discord seul ; le web n'écrit rien. Pas de latence, pas de taux d'échec par outil, pas
-de vue.
+**Mesuré (corrigé le 2026-09-20)** : `tool_steps` **est** persisté par tour, et sur les trois
+surfaces depuis que toutes passent par `conversation_turn` (cf. écart 4) — `models.py:1145`,
+écriture `conversation_store.py:79`. **La matière première existe donc déjà.** Ce qui manque n'est
+pas l'écriture, c'est **tout ce qui en ferait une mesure** : le pas de temps (aucune durée par
+appel d'outil), le verdict (aucun champ ne dit si l'appel a abouti — l'échec est **dans le corps** du résultat,
+donc illisible sans réinterpréter chaque outil : `assistant_engine.py:727`), et le
+lecteur (aucune vue, aucun agrégat, aucun test). *Un journal qu'on n'interroge pas n'est pas une
+trace — c'est un dépôt.*
 
 **⭐ C'est le même trou que celui identifié en juillet sur l'auto-amélioration** — la brique
 `RunOutcome` / `ResultFeedback`, dont il était déjà écrit que *« toutes les boucles
@@ -273,14 +330,14 @@ c'est une trace de résultats que nous seuls pouvons écrire.** Le motif à copi
 d'OpenHands (action → observation comme **format d'exécution**, pas comme journal) et du traçage du
 SDK d'OpenAI (primitive, pas greffon).
 
-### E7 — Rien n'est annulable
+### Écart 7 — Rien n'est annulable
 
 Ni point de reprise (Cursor en crée un à chaque application de modifications), ni voyage dans le
 temps (LangGraph), ni commit par changement (Aider). Chez nous, une suppression par l'assistant est
-définitive. **Couplé à E1** : tant qu'il n'y a pas d'approbation, l'absence d'annulation est un
+définitive. **Couplé à écart 1** : tant qu'il n'y a pas d'approbation, l'absence d'annulation est un
 risque ; avec l'approbation, ça redevient un confort.
 
-### E8 — Aucun retour en direct
+### Écart 8 — Aucun retour en direct
 
 **Mesuré** : aucune réponse en flux côté assistant (aucun `StreamingHttpResponse` ni
 `text/event-stream` dans `wama/` hors la sonde MCP) ; les étapes d'outils sont affichées **après**
@@ -288,13 +345,13 @@ le tour (`home.html:543-546`). Avec un modèle local et jusqu'à 5 tours d'outil
 attend sans rien voir. Tous les harnais de la carte streament tokens **et** étapes.
 C'est l'écart le moins profond et le plus visible.
 
-### E9 — Aucun cache de prompt
+### Écart 9 — Aucun cache de prompt
 
 **Mesuré** : 0 occurrence de `cache_control`. Le prompt système (71 descriptions d'outils +
 contexte + skills) repart entier à chaque tour, y compris sur les chemins facturés.
 ⚠ À ne pas confondre avec le cache du modèle local (`keep_alive`), qui est autre chose.
 
-### E10 — Le serveur MCP n'expose que des outils
+### Écart 10 — Le serveur MCP n'expose que des outils
 
 **Mesuré** : `list_tools` / `call_tool` seulement (`mcp_server.py:209,217`). La spécification
 2026-07-28 prévoit aussi `resources` et `prompts` côté serveur. Nos **15 registres** et nos docs
@@ -337,7 +394,7 @@ là-bas pour porter le renvoi — le corps ci-dessous est celui de la roadmap, i
 > « Registres — état réel », la couche capacités des librairies, « Boucle ») ne parlent **pas
 > d'Hermes** — c'est l'état du chantier registres/manifestes de WAMA, qui appartient à la ROADMAP.
 > Les découper à la main aurait été **réécrire un déplacement**. Elles voyagent donc telles quelles
-> et **doivent être re-domiciliées** à la prochaine passe (§9, D6). *Signalé plutôt que corrigé en
+> et **doivent être re-domiciliées** à la prochaine passe (§9, décision 6). *Signalé plutôt que corrigé en
 > silence : un déplacement qui trie n'est plus un déplacement.*
 
 **Existence vérifiée** (recherche web) : MIT, sorti fév. 2026, ~46k stars, v0.18.2 en juillet.
@@ -580,8 +637,8 @@ jour où l'aiguillage par mime de `renderInlinePreview` sera un registre et non 
   (manifeste, objets, permissions), pas de harnais.
 - **LiteLLM, pgvector, Headroom, Presidio, Docling, Langfuse, LocalAI, Bifrost…** → `ROADMAP §16.2`.
   Ce sont des **composants**. ⚠ Deux d'entre eux touchent quand même des axes d'ici : **Langfuse**
-  (observabilité, E6) et **Headroom** (compression, E2, aujourd'hui réservé au dev) — les citer
-  depuis E6/E9 le moment venu, ne pas les rapatrier.
+  (observabilité, écart 6) et **Headroom** (compression, écart 2, aujourd'hui réservé au dev) — les citer
+  depuis écart 6/écart 9 le moment venu, ne pas les rapatrier.
 - **llmfit**, **YuE2 / ACE-Step** → `ROADMAP §16.2` également, mais ce sont respectivement un
   outil de mesure et un **modèle** : ils n'ont rien à faire dans une cartographie de harnais.
   *(Leur présence en §16.2 est le signe que cette section est devenue un fourre-tout ; ce n'est pas
@@ -618,21 +675,95 @@ de sa doc), c'est une passe `/cartographie` à part entière, avec son corpus d�
 
 ---
 
-## 9. Décisions à prendre (Fabien)
+## 9. Le plan — cinq chantiers, dans cet ordre
 
-| # | question | ce qui en dépend | recommandation |
-|---|---|---|---|
-| **D1** | **Régime d'approbation des outils d'assistant** (E1) : tout confirmer / confirmer les seules ÉCRITURES / déclarer le régime par outil dans `TOOL_REGISTRY` | tout verbe futur de l'assistant | **par outil, déclaré au registre** — c'est notre idiome (métadonnée-driven), et ça évite de reposer la question à chaque ajout. Défaut : `approval: 'required'` pour toute écriture |
-| **D2** | **Sous-agents** (E3) : ouvre-t-on la délégation par DOMAINE, avec sous-ensemble d'outils et fenêtre propre ? | E2, et le plafond des 71 outils | oui, mais **après** D1 et E2 — un sous-agent qui peut détruire sans approbation aggrave E1 |
-| **D3** | **Retour en direct** (E8) : avant ou après le portage de l'assistant en app transversale (`§8d Ph3`) ? | ressenti utilisateur, surtout en local | **après** — le portage déplace `views.py:157-200`, et streamer d'abord ferait le travail deux fois |
-| **D4** | **Trace de résultats** (E6) : ouvre-t-on `RunOutcome`/`ResultFeedback` maintenant ? | **toute** l'auto-amélioration (§5 E6), et la mesure du harnais lui-même (§1) | oui — c'est le seul écart que personne d'autre ne peut combler à notre place, et le signal perdu ne se rattrape pas |
-| **D5** | **MCP `resources`** (E10) : exposer registres et docs comme ressources plutôt que par des outils dédiés ? | surface offerte aux clients tiers | oui, faible coût, mais **après** le client MCP (`§8d Ph3 étape 5`) — on saura ce qu'on consomme avant de décider ce qu'on offre |
-| **D6** | **Résidu du déplacement** (§7.1) : où re-domicilier les ~60 lignes de §16.7 qui parlent des registres/librairies de WAMA et non d'Hermes ? | lisibilité de la ROADMAP | `ROADMAP §16.7bis` ou `PROSPECTION_PIPELINE`, à faire dans une passe dédiée — pas en même temps qu'un déplacement |
+> ⚠ **Réécrit le 2026-09-20** : la version du 19/09 était une table de six questions, jugée
+> *« encore vaporeuse »* — à raison. Chaque chantier dit maintenant **quoi**, **où** (le fichier),
+> **quel contrat**, **ce qui l'atteste**, et **de quoi il dépend**. Aucun n'est commencé : cette
+> page reste un document de veille, pas un journal de travaux.
+>
+> **Le fil qui les ordonne** : on rend la boucle **correcte** (1), puis **sûre** (2), puis
+> **mesurable** (3), puis **lisible** (4) ; la dette de configuration (5) n'attend personne.
 
----
+### Chantier 1 — Borner le résultat d'outil, et réévaluer la bascule DANS la boucle *(écart 2)*
+
+| | |
+|---|---|
+| **quoi** | deux corrections au même endroit : (a) tout résultat d'outil est **borné** avant d'être réinjecté, et la troncature est **dite au modèle** (« 47 éléments, 5 montrés — rappelle l'outil avec un filtre ») plutôt que silencieuse ; (b) `_route_model_by_context` est appelé **à chaque itération**, pas une fois avant la boucle |
+| **où** | `wama/common/services/assistant_engine.py` — l'injection `:730-734`, l'appel de bascule `:670`, la boucle `:696` |
+| **contrat** | un budget de caractères **unique et déclaré** (pas un par appelant) ; la bordure produit un texte qui reste **actionnable** par le modèle ; la bascule ne redescend jamais de modèle en cours de tour (sinon le tour change de voix au milieu) |
+| **atteste** | un test avec un faux outil rendant 200 ko : le message injecté tient dans le budget, contient la mention de troncature, et la fonction de bascule a été appelée **autant de fois que d'itérations** |
+| **dépend de** | rien. C'est le seul chantier qui peut commencer aujourd'hui |
+| **ne pas faire** | le déchargement vers fichier façon *deepagents* : il suppose un espace de travail par conversation, donc une décision de stockage. **Borner d'abord, décharger peut-être jamais** |
+
+### Chantier 2 — La marque d'ÉCRITURE, et l'approbation qu'elle déclenche *(écart 1b)*
+
+| | |
+|---|---|
+| **quoi** | un outil qui écrit le **déclare sur lui-même** ; la boucle, voyant la marque, **n'exécute pas** : elle rend une action *en attente* que la surface fait confirmer |
+| **où** | déclaration : `wama/tool_api.py` (sur les fonctions `delete_item`, `duplicate_item`, `clear_my_queue`, `add_item_to_media_library`, `search_models`, `install_model`) · effet : la boucle d'`assistant_engine.py:707-734` · surfaces : `wama/views.py` (web) puis `gateway/` |
+| **contrat** | ⚠ **surtout pas une table `TOOL_APPROVAL` à côté de `TOOL_APP_OVERRIDE`** — ce serait exactement la coexistence dénoncée à l'écart 5. La marque vit **sur la fonction** (un petit décorateur posant un attribut), donc un outil ne peut pas exister sans dire sa nature. L'action en attente vit dans le **cache** avec un jeton à usage unique et un TTL — même brique que la progression de file (`common/utils/task_progress.py`), donc **aucune migration** |
+| **atteste** | ① un test qui appelle un verbe destructeur par la boucle et vérifie que **rien n'a bougé en base** tant que la confirmation n'est pas venue ; ② le jeton est **à usage unique** et refusé pour un autre utilisateur ; ③ un test **par AST** — sur le modèle de `tests_hf_cache_routing` — qui échoue si une fonction de `TOOL_REGISTRY` appelle `_poster_vue`/`_refus_app` **sans porter la marque**. C'est ce troisième qui empêche l'oubli : *une règle qui demande de s'en souvenir n'est pas un contrôle* |
+| **dépend de** | rien techniquement, mais **passe après le chantier 1** : confirmer une action dans une boucle dont le contexte déborde, c'est faire approuver une décision prise à l'aveugle |
+| **portée** | ⚠ ce chantier ne traite **que** le cas (b) — agir sur ses propres données. Le cas (a), ajouter une capacité, est **fermé aujourd'hui** par `min_tier='developpeur'` : voir la décision de gouvernance ci-dessous |
+
+### Chantier 3 — Faire de la trace une MESURE *(écart 6 — et la graine de `RunOutcome`)*
+
+| | |
+|---|---|
+| **quoi** | chaque étape d'outil gagne **deux champs** : a-t-elle abouti, et en combien de temps. Puis **un lecteur** : une commande qui agrège par outil (nombre d'appels, taux d'échec, durée médiane) |
+| **où** | écriture `assistant_engine.py:727` et `common/services/conversation_store.py:79` · le champ `ConversationTurn.tool_steps` est un **JSON** (`models.py:1145`) donc **aucune migration** · lecteur : une commande de gestion, à côté de `check_docs`/`check_skills` |
+| **contrat** | l'échec se lit **dans un champ**, jamais en réinterprétant le corps du résultat outil par outil. La trace est **par tour**, déjà scopée à l'utilisateur par la conversation — donc pas un nouveau stockage, pas une nouvelle question de rétention |
+| **atteste** | un outil qui échoue produit une étape marquée comme telle ; la commande d'agrégat la compte ; un tour sans outil ne produit aucune étape |
+| **dépend de** | rien. ⚠ Mais **c'est le chantier à ne pas repousser** : le signal non écrit ne se rattrape pas, et c'est la même brique (`RunOutcome`) qui bloque l'auto-amélioration depuis juillet **et** qui permettrait de mesurer le harnais lui-même (§1) |
+| **frontière** | ce chantier s'arrête à l'assistant. Généraliser à toutes les apps est une **autre** décision (`RunOutcome` au sens large), à ne pas faire passer en contrebande |
+
+### Chantier 4 — Les étapes en DIRECT *(écart 8)*
+
+| | |
+|---|---|
+| **quoi** | pendant un tour, la surface montre ce qui se passe — « j'interroge la file », « je lis l'élément 12 » — au lieu d'un écran figé jusqu'à la réponse complète |
+| **où** | publication depuis `assistant_engine.py` (à chaque étape) · lecture côté web dans le gabarit qui affiche le chat |
+| **contrat** | ⚠ **pas de SSE inventé pour l'occasion** : WAMA a déjà une brique de progression que toutes les files utilisent (`publier_progression`/`progression_en_cours`, `common/utils/task_progress.py`) et un front qui sait l'interroger. Un tour d'assistant est une tâche comme une autre — **réutiliser**, sinon on aura deux mécaniques de progression, et c'est la faute que ce document reproche aux autres |
+| **atteste** | un tour avec deux appels d'outil publie deux étapes **avant** la réponse finale ; la clé expire toute seule ; un tour sans outil ne publie rien |
+| **dépend de** | le chantier 3 (les étapes portent déjà leur verdict et leur durée : autant les publier une fois enrichies) |
+| **question ouverte** | le flux **token par token** est un autre sujet, plus coûteux (il change le contrat de réponse de toutes les surfaces). Les étapes suffisent probablement : ce qui est pénible n'est pas d'attendre, c'est d'attendre **sans savoir** |
+
+### Chantier 5 — Une seule table de fournisseurs, et des délais déclarés *(écart 5)*
+
+| | |
+|---|---|
+| **quoi** | ① `OPENAI_COMPATIBLE_PROVIDERS` **disparaît** au profit d'une dérivation (`protocol == 'openai'` sur `external_sources`) ; ② `CLOUD_DEFAULT_MODELS` devient un **champ du registre** (`default_model`) — ou, pour les 8 fournisseurs sans entrée, la reconnaissance qu'ils ne sont **pas joignables** ; ③ `timeout` et reprises deviennent **déclarés par fournisseur** |
+| **où** | `wama/common/external_sources.py` (les champs) · `wama/common/utils/llm_utils.py:256-291` (les deux tables et la signature) |
+| **contrat** | un fournisseur **existe** s'il est au registre, point. C'est ce qui referme au passage le trou nommé dans `WAMA_LLM.md:782` (un fournisseur non déclaré n'a **ni garde ni clé personnelle**, et reste atteignable par l'API v1) |
+| **atteste** | `tests_llm_providers` gagne une assertion : **tout** fournisseur accepté par `llm_chat` a une entrée `external_sources`. Le test échoue aujourd'hui — c'est le but |
+| **dépend de** | rien, mais **croise** `ROADMAP §8d Phase 3 étape 4` (registre des fournisseurs) : à faire **dans** ce chantier-là, pas à côté |
+
+### Ce qui n'est PAS un chantier — quatre questions et leur déclencheur
+
+| question | on l'ouvre quand… |
+|---|---|
+| **sous-agents** *(écart 3)* | le prompt système devient le poste de coût dominant, **ou** un domaine a besoin d'outils que les autres ne doivent pas voir. Pas avant les chantiers 1 et 2 : un sous-agent qui peut détruire sans confirmation aggrave le problème au lieu de le borner |
+| **annulation** *(écart 7)* | le chantier 2 est livré et une confirmation se révèle insuffisante en usage réel. Tant qu'on confirme avant, annuler après est un confort |
+| **cache de prompt** *(écart 9)* | l'usage cloud devient régulier (aujourd'hui il est explicite et rare). Chiffrer d'abord, câbler ensuite |
+| **MCP `resources`** *(écart 10)* | après le client MCP (`§8d Ph3 étape 5`) : on saura ce qu'on consomme avant de décider ce qu'on offre. ⚠ Et ne rien bâtir sur `sampling`, **déprécié** |
+
+### Deux décisions qui ne sont pas des chantiers
+
+- **Gouvernance de l'ajout de capacité** *(écart 1a — position de Fabien, 2026-09-20)* : l'entrée
+  d'un modèle, d'une librairie ou d'une app est aujourd'hui réservée aux développeurs par
+  `min_tier`, **en base**. La règle posée : *le jour où on l'ouvre à un utilisateur, il faut une
+  approbation.* Donc l'approbation n'est pas un projet à planifier — c'est une **condition
+  d'ouverture**, à construire **dans** la première surface qui ouvrira, et une raison de plus de
+  livrer le chantier 2 avant d'en avoir besoin. ⚠ À écrire aussi là où la décision d'ouvrir se
+  prendra : `PROFILES_PERMISSIONS.md`, pas seulement ici.
+- **Résidu du déplacement** *(§7.1)* : re-domicilier les ~60 lignes de l'ex-`ROADMAP §16.7` qui
+  parlent des registres et des librairies de WAMA, non d'Hermes. Passe dédiée, jamais en même
+  temps qu'autre chose — *un déplacement qui trie n'est plus un déplacement.*
 
 ## 10. Journal
 
 | date | ce qui a été fait |
 |---|---|
-| **2026-09-19** | **Création.** Cartographie de 20+ produits (12 ouverts, 4 fermés, 5 frameworks, 4 standards) sur **14 axes** issus d'une taxonomie de 13 harnais lus dans leur code. État WAMA **mesuré ligne à ligne** le jour même (71 outils, 15 registres, 11 skills de prompt). **6 écarts réels** retenus (E1, E2, E3, E5, E6, E8-E10), **3 axes où WAMA est en avance**, **7 frontières voulues** consignées comme réponses. Hermes **déplacé mot pour mot** depuis `ROADMAP §16.7` ; **Cordis consigné pour la première fois** (décision du 2026-08-20 qui ne vivait qu'en mémoire d'agent). Deux affirmations externes reçues **corrigées par la mesure** : `wire_api` n'a plus qu'une valeur, et `sampling` MCP est **déprécié**. 6 décisions ouvertes (D1-D6). |
+| **2026-09-20** | **Deux constats de la veille CORRIGÉS par la mesure, tous deux relevés par Fabien.** ① *« l'assistant détruit sans approbation »* mélangeait deux questions : **ajouter une capacité** est **déjà fermé** (`install_model` gardé `model_manager`, `AppAccessPolicy.min_tier='developpeur'`, relevé en base — 4 apps sur 19 portent ce palier), seul **agir sur ses propres données** reste sans confirmation. La règle posée en échange : *le jour où on ouvre l'ajout de capacité à un utilisateur, il faut une approbation* — et ce qui garde aujourd'hui est **une ligne en base**, donc à un clic d'admin. ② L'écart « historique » était **déjà refermé** : les trois surfaces passent par `conversation_turn` et le `localStorage` est effacé — je l'avais écrit en citant la **table §A de `WAMA_LLM` (15/09)** au lieu d'ouvrir le code, ce que la doctrine interdit explicitement. ③ Précision de vocabulaire : **l'assistant est commun et inter-mondes**, `home.html` n'est qu'une surface. ④ Les codes `E1`/`D1` deviennent **Écart N / Décision N** (illisibles autrement). ⑤ Le §9, jugé *« vaporeux »*, devient **cinq chantiers explicites** (quoi / où / contrat / ce qui l'atteste / dépendances) + quatre questions avec leur déclencheur. ⚠ *Deuxième fois dans la même passe qu'une source datée me fait écrire un constat faux : une passe de veille doit ouvrir le code, même quand une doc récente semble répondre.* |
+| **2026-09-19** | **Création.** Cartographie de 20+ produits (12 ouverts, 4 fermés, 5 frameworks, 4 standards) sur **14 axes** issus d'une taxonomie de 13 harnais lus dans leur code. État WAMA **mesuré ligne à ligne** le jour même (71 outils, 15 registres, 11 skills de prompt). **6 écarts réels** retenus (écart 1, écart 2, écart 3, écart 5, écart 6, écart 8-écart 10), **3 axes où WAMA est en avance**, **7 frontières voulues** consignées comme réponses. Hermes **déplacé mot pour mot** depuis `ROADMAP §16.7` ; **Cordis consigné pour la première fois** (décision du 2026-08-20 qui ne vivait qu'en mémoire d'agent). Deux affirmations externes reçues **corrigées par la mesure** : `wire_api` n'a plus qu'une valeur, et `sampling` MCP est **déprécié**. 6 décisions ouvertes (décision 1-décision 6). |

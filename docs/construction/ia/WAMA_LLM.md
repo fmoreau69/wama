@@ -778,7 +778,7 @@ Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte.
 | mécanisme | où | état au 15/09 |
 |---|---|---|
 | tour sans état `run_assistant_turn` (garde abonnement, résolution du modèle, prompt, boucle d'outils ≤ 5) | `common/services/assistant_engine.py:562-743` | complet |
-| tour avec historique SERVEUR `conversation_turn` (best-effort sur le stockage, jamais sur la réponse) | `assistant_engine.py:522-559` ; store `conversation_store.py`, `Conversation`/`ConversationTurn` `common/models.py:950-1026` | complet, **adopté par Discord seul** ; `conversations_of`/`clear` sans vue ; `api`/`matrix` sans producteur |
+| tour avec historique SERVEUR `conversation_turn` (best-effort sur le stockage, jamais sur la réponse) | `assistant_engine.py:522-559` ; store `conversation_store.py`, `Conversation`/`ConversationTurn` `common/models.py:950-1026` | ⚠ **périmé au 15/09, corrigé le 2026-09-20 sur MESURE** : adopté par les **trois** surfaces — `views.py:166` (web), `api/v1/views.py:132` (api), `gateway/core.py:208` (canaux). Restent `conversations_of`/`clear` sans vue, et `matrix` sans producteur |
 | routage `_llm_call` (local / abonnement / distant), clé personnelle + `cloud_refusal` + modèle ouvert par la clé | `assistant_engine.py:418-474` | ⚠ **trou** : un fournisseur SANS source déclarée (`openai`, `mistral`…) n'a ni garde ni clé personnelle (`:447`) — atteignable par l'API v1 et un POST forgé |
 | rôles `_ROLE_TIER` → tier → `llm_utils.modele_par_tier` ; bascule de contexte long `_route_model_by_context` | `assistant_engine.py:102-109`, `:177-188`, `:261-287` | complet ; `debug` absent de l'UI (`views.py:52-58`) |
 | appel Ollama `_ollama_call` | `assistant_engine.py:294-360` | complet, mais **4ᵉ implémentation** d'un chat Ollama (cf. §C) |
@@ -786,7 +786,7 @@ Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte.
 | skills de rôle, annonce, `charger_competence`, rappel labo | `assistant_skills.py:84,100,123` ; `tool_api.py:2493` | complet — le DOMAINE est choisi par l'assistant, jamais déduit du canal |
 | routage de langue `process_prompt_for('assistant')` | `assistant_engine.py:676-683` | local seulement |
 | fournisseurs du sélecteur `chat_provider_choices` + `PROVIDER_SOURCES` | `assistant_engine.py:129-174` | web seulement ; dernière table à la main |
-| surface WEB `ai_chat` → `run_assistant_turn` ; historique **localStorage** (60 gardés, 20 envoyés) ; choix de modèle **jamais mémorisé** | `views.py:157-200` ; `home.html:98-121,152-168,769-801` | complet mais propre au navigateur |
+| surface WEB `ai_chat` → **`conversation_turn`** (fil serveur `web`) | `views.py:135-180` ; `home.html` | ⚠ **corrigé le 2026-09-20** : l'historique n'est plus dans le navigateur — `localStorage` est **sans lecteur et effacé** (`home.html:101-102`), seul le réglage de voix y reste (`:107,188`). Le choix de modèle se résout par le réglage durable + tirage auto (`:146-149`) |
 | voix (Kokoro/service TTS, `WamaApp.Speech`), avatar, micro, étapes d'outil, `switch_mode`, accueil déclaré + mot d'attente | `views.py:207-445` ; `home.html:212-331,334-389,565` ; `assistant_skills.py:205-239` | complet, **web seulement** ; accueil déclaré seulement après « Effacer » (`home.html:138-146`) ; JS du chat inline (§19.6② : à sortir) |
 | surface API v1 `AssistantChatView` → `run_assistant_turn`, historique fourni par le client | `api/v1/views.py:86-135` | complet ; aucun test |
 | passerelle : appariement `ChannelLink`, `!lier/!delier/!code/!aide`, pièces jointes → espace WAMA, fichiers produits joints, réponses privées | `gateway/models.py`, `services.py`, `core.py:101-325`, `adapters/discord_bot.py` | complet ; **n'envoie ni fournisseur ni modèle** (`core.py:208`) ; Matrix, slash, rate-limit, notifications : ⏳ |
@@ -794,8 +794,7 @@ Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte.
 | MCP : surface `wama` (outils) et `wama-dev` (process séparé) ; **n'expose pas le tour d'assistant** | `common/services/mcp_server.py`, `dev_tools.py` | complet ; non supervisé ; moteur client MCP ⏳ (étape 5) |
 | Claude Code (abonnement) : env explicite sans `ANTHROPIC_API_KEY`, jeton personnel, `cloud_refusal`, lecture seule par défaut | `common/services/claude_code.py:102-237` | complet ; chemin CLI en dur (`:94`) |
 
-**Divergences entre surfaces (à résorber par le commun)** : historique (web navigateur / API client /
-Discord base / MCP rien) ; point d'entrée (`run_assistant_turn` vs `conversation_turn`) ; choix du
+**Divergences entre surfaces (à résorber par le commun)** : ~~historique~~ **RÉSORBÉ le 15/09, mesuré le 2026-09-20** (les 3 surfaces sur `conversation_turn` ; MCP n'exécute aucun tour, donc sans objet) ; point d'entrée (`run_assistant_turn` vs `conversation_turn`) ; choix du
 modèle (web limité, API libre, Discord figé) ; domaine (API seule) ; fichiers entrants et produits
 (Discord seul) ; commandes (Discord seul) ; coût affiché (`!code` seul) ; voix/avatar/étapes (web
 seul) ; validation de `history` (API seule) ; découpage de longueur (Discord seul).
