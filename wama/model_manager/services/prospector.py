@@ -445,7 +445,7 @@ def safetensors_facts(path):
         return None
     if not isinstance(header, dict):
         return None
-    params, dtypes = 0, set()
+    params, by_dtype = 0, {}
     for key, tensor in header.items():
         if key == '__metadata__' or not isinstance(tensor, dict):
             continue
@@ -453,9 +453,13 @@ def safetensors_facts(path):
         for dim in tensor.get('shape') or []:
             count *= int(dim)
         params += count
-        if tensor.get('dtype'):
-            dtypes.add(str(tensor['dtype']))
-    return {'params': params, 'dtypes': sorted(dtypes)}
+        dtype = str(tensor.get('dtype') or '') or None
+        if dtype:
+            by_dtype[dtype] = by_dtype.get(dtype, 0) + count
+    # `params_by_dtype` (2026-09-20, question de la sœur) : un fichier MÉLANGE les précisions
+    # (normes en F32 à côté de poids BF16, courant) — le pic « tel que stocké » se calcule tenseur
+    # par tenseur (Σ params × octets du dtype), pas sur un dtype « dominant ».
+    return {'params': params, 'dtypes': sorted(by_dtype), 'params_by_dtype': by_dtype}
 
 
 def precision_of_files(revision, files_by_role) -> dict:
@@ -474,7 +478,7 @@ def precision_of_files(revision, files_by_role) -> dict:
     base = Path(revision)
     out = {}
     for role, entries in files_by_role.items():
-        params, dtypes = 0, set()
+        params, by_dtype = 0, {}
         for entry in entries or []:
             rel = entry[0] if isinstance(entry, (tuple, list)) else entry
             if not str(rel).lower().endswith('.safetensors'):
@@ -483,9 +487,12 @@ def precision_of_files(revision, files_by_role) -> dict:
             if not facts:
                 continue
             params += facts['params']
-            dtypes.update(facts['dtypes'])
+            for dtype, n in (facts.get('params_by_dtype') or {}).items():
+                by_dtype[dtype] = by_dtype.get(dtype, 0) + n
         if params:
-            out[role] = {'params': params, 'dtypes': sorted(dtypes)}
+            # Deux termes pour le lecteur du pic : Σ par dtype (tel que stocké) et le total
+            # (casté par le chargeur : total × octets du dtype cible).
+            out[role] = {'params': params, 'dtypes': sorted(by_dtype), 'params_by_dtype': by_dtype}
     return out
 
 
