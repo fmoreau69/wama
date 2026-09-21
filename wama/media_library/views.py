@@ -22,7 +22,7 @@ from .models import (UserAsset, SystemAsset, MediaProvider, UserProviderConfig, 
                      ASSET_TYPES, ALLOWED_EXTENSIONS, TYPE_GROUPS)
 from .natures import natures_as_json
 from .providers.registry import get_provider
-from wama.accounts.views import ANONYMOUS_USERNAME, get_or_create_anonymous_user
+from wama.accounts.views import get_or_create_anonymous_user
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +45,13 @@ SCOPE_MINE, SCOPE_VISIBLE = 'mine', 'visible'
 def _readable_assets(request, user):
     """Queryset des assets LISIBLES selon la portée demandée (`?scope=`).
 
-    ⚠ Le compte de service anonyme est une vraie ligne `User` (`is_authenticated` vaut True) :
-    sans la garde ci-dessous, `scoped_visible_q` lui rendrait TOUS les assets publics du parc —
-    il pose `Q(visibility='public')` HORS du test d'authentification (`common/models.py`).
-    Un visiteur ne voit donc que ce que ce compte porte, comme avant.
+    La garde du compte de service anonyme vit dans `common/utils/scoping.listable_by` depuis le
+    2026-09-22 : elle était recopiée ici et dans les voix de clonage.
     """
+    from wama.common.utils.scoping import listable_by
     scope = request.GET.get('scope') or SCOPE_MINE
-    if scope == SCOPE_VISIBLE and getattr(user, 'username', '') != ANONYMOUS_USERNAME:
-        return UserAsset.objects.visible_to(user)
+    if scope == SCOPE_VISIBLE:
+        return listable_by(UserAsset.objects.all(), user)
     return UserAsset.objects.owned_by(user)
 
 

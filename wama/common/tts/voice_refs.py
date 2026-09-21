@@ -210,22 +210,19 @@ def readable_voice_assets(user):
     serveur refuse ensuite. Ici le refus serait MUET : `resolve_speaker_wav` replie sur la voix
     `default`, donc on aurait synthétisé avec la mauvaise voix sans un message d'erreur.
 
-    ⚠ Le compte de service anonyme est une VRAIE ligne `User`, et `scoped_visible_q` pose
-    `Q(visibility='public')` HORS du test d'authentification : sans cette garde, un visiteur
-    hériterait des voix publiques de tout le parc. Même garde qu'`api_list` (médiathèque).
+    ⚠ Le compte de service anonyme ne liste que ce qu'il possède — règle commune
+    `common/utils/scoping.listable_by` (elle était recopiée ici jusqu'au 2026-09-22).
 
     `user=None` (aucun contexte d'utilisateur — tests, résolution par nom) garde le comportement
     d'avant : aucune restriction. Les trois appelants réels passent tous un utilisateur.
     """
-    from wama.accounts.views import ANONYMOUS_USERNAME
+    from wama.common.utils.scoping import listable_by
     from wama.media_library.models import UserAsset
 
     qs = UserAsset.objects.filter(asset_type='voice')
     if user is None:
         return qs
-    if getattr(user, 'username', '') == ANONYMOUS_USERNAME:
-        return qs.filter(user=user)
-    return qs.visible_to(user)
+    return listable_by(qs, user)
 
 
 def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
@@ -639,6 +636,12 @@ def _measured_gender(arr, sr: int):
         import librosa
         import numpy as np
     except ImportError:
+        # Repli DIT, jamais muet : sans instrument, l'acquisition retombe sur l'étiquette de la
+        # source — celle-là même qui s'est révélée fausse sur 2 clips sur 9. ⚠ `librosa` n'est
+        # déclaré dans aucun `requirements*.txt` (pas plus que `datasets`/`soundfile`, dont
+        # dépend déjà ce téléchargeur) : il est là par transitivité, dans les deux venvs.
+        logger.warning("[voice_refs] librosa absent : genre NON vérifié par la mesure, "
+                       "on s'en tient à l'étiquette de la source")
         return None
     y = np.asarray(arr, dtype=np.float32)
     if y.ndim > 1:
@@ -655,11 +658,6 @@ def _measured_gender(arr, sr: int):
     return ''
 
 
-def _file_digest(path: Path) -> str:
-    import hashlib
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
 def _library_voice_digests(except_name: str = '') -> set:
     """Empreintes des fichiers des AUTRES voix de la médiathèque.
 
@@ -669,12 +667,17 @@ def _library_voice_digests(except_name: str = '') -> set:
     passe les filtres est donc toujours le même ; seule la médiathèque se souvient de ce qui est
     déjà pris.
     """
+    # L'empreinte vient de la brique commune (`provenance.sha256_of` : lecture par blocs, ne lève
+    # jamais) — une version maison l'a réinventée ici quelques heures, relevé à la revérification.
+    from wama.common.utils.provenance import sha256_of
     try:
         from wama.media_library.models import SystemAsset
         rows = SystemAsset.objects.filter(asset_type='voice').exclude(name=except_name)
-        return {_file_digest(r.file.path) for r in rows if r.file and Path(r.file.path).is_file()}
+        digests = {sha256_of(r.file.path) for r in rows if r.file}
     except Exception:
         return set()
+    digests.discard('')             # '' = « non calculée », jamais une empreinte partagée
+    return digests
 
 
 def _try_voxpopuli(target: Path, vp_lang: str, gender: str = '',
@@ -767,7 +770,8 @@ def _try_voxpopuli(target: Path, vp_lang: str, gender: str = '',
                 used.add(speaker)
                 # Déjà la voix d'un AUTRE nom de la médiathèque → clip suivant : deux voix du menu
                 # ne sont jamais la même personne (22/09).
-                if exclude_digests and _file_digest(target) in exclude_digests:
+                from wama.common.utils.provenance import sha256_of
+                if exclude_digests and sha256_of(target) in exclude_digests:
                     target.unlink(missing_ok=True)
                     continue
                 logger.info(f"[voice_refs] VoxPopuli OK : {target.name} "
