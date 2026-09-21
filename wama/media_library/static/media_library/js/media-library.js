@@ -379,25 +379,42 @@
 
     // ── Preview modal ─────────────────────────────────────────────────────────
 
+    // L'extension se lit sur le FICHIER servi, jamais sur le NOM d'asset : un nom est un
+    // libellé et peut n'en porter aucune. Constat du 2026-09-21 : « smoke-0802-desc-text »,
+    // `text/plain` bien posé en base, affichait « Preview not available » parce que l'aperçu
+    // devinait le type depuis le libellé et jetait celui que le serveur envoie.
+    function fileExtension(asset) {
+        const last = (asset.file_url || asset.name || '').split('?')[0].split('/').pop();
+        return last.includes('.') ? last.split('.').pop().toLowerCase() : '';
+    }
+
+    // Le MIME posé par le serveur fait foi ; un MIME absent ou générique n'en est pas un, on
+    // retombe alors sur l'extension du fichier. Mesuré avant d'y toucher : sur les 35 assets
+    // audio/document de la base, ce choix répare les 2 cassés et n'en change aucun autre.
+    function storedMime(asset) {
+        const m = asset.mime_type || '';
+        return (m && m !== 'application/octet-stream') ? m : '';
+    }
+
     function assetToPreviewData(asset) {
         const assetType = asset._assetType || currentType;
+        const ext = fileExtension(asset);
         let mime = '';
         if (AUDIO_TYPES.includes(assetType)) {
-            const ext = (asset.name || '').split('.').pop().toLowerCase();
-            mime = ext === 'mp3' ? 'audio/mpeg' : ext === 'ogg' ? 'audio/ogg' : 'audio/wav';
+            mime = storedMime(asset)
+                || ({ mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav' }[ext]) || 'audio/wav';
         } else if (assetType === 'image' || assetType === 'avatar') {
             mime = 'image/jpeg';
         } else if (assetType === 'video') {
             mime = 'video/mp4';
         } else if (assetType === 'document') {
-            const ext = (asset.name || '').split('.').pop().toLowerCase();
-            const m = { pdf: 'application/pdf', txt: 'text/plain', md: 'text/plain', csv: 'text/plain' };
-            mime = m[ext] || 'application/octet-stream';
+            mime = storedMime(asset)
+                || ({ pdf: 'application/pdf', txt: 'text/plain', md: 'text/plain', csv: 'text/plain' }[ext])
+                || 'application/octet-stream';
         } else if (assetType === 'object3d') {
-            // Le serveur pose le MIME (`model/…`, guess_mime_type) à l'ingest ; sinon on le
-            // déduit de l'extension du FICHIER (le nom d'asset peut ne pas en porter).
-            const ext = ((asset.file_url || asset.name || '').split('?')[0].split('.').pop() || '').toLowerCase();
-            mime = asset.mime_type || ({ glb: 'model/gltf-binary', gltf: 'model/gltf+json', fbx: 'model/fbx' }[ext]) || 'model/unknown';
+            // La branche qui avait déjà la bonne règle — les deux autres l'ont rejointe le 21/09.
+            mime = storedMime(asset)
+                || ({ glb: 'model/gltf-binary', gltf: 'model/gltf+json', fbx: 'model/fbx' }[ext]) || 'model/unknown';
         }
         return {
             url:        asset.file_url || '',
