@@ -81,6 +81,20 @@ MODELS_INFO = {
 }
 
 
+def _default_models_dir() -> str:
+    """Dossier des poids ONNX : `settings.MODEL_PATHS['upscaling']['onnx']` (posé UNE fois au
+    démarrage), repli sur l'ancien chemin historique hors Django."""
+    try:
+        from django.conf import settings
+        d = settings.MODEL_PATHS.get('upscaling', {}).get('onnx')
+        if d:
+            return str(d)
+    except Exception:
+        pass
+    from wama.settings import BASE_DIR
+    return os.path.join(BASE_DIR, 'AI-models', 'enhancer', 'onnx')
+
+
 class AIUpscaler(BaseModelBackend):
     """
     AI-based image upscaler using ONNX Runtime.
@@ -161,8 +175,14 @@ class AIUpscaler(BaseModelBackend):
             if MODEL_CONFIG_AVAILABLE:
                 models_dir = str(get_models_directory())
             else:
-                from wama.settings import BASE_DIR
-                models_dir = os.path.join(BASE_DIR, 'AI-models', 'enhancer', 'onnx')
+                # ⚠ Mesuré le 2026-09-21 : `MODEL_CONFIG_AVAILABLE` est TOUJOURS faux ici —
+                # l'import relatif `.model_config` vise un module qui n'existe pas dans le
+                # substrat (il vit dans l'app, `enhancer/utils/model_config.py`, qu'un backend
+                # ne doit pas importer : tests_backend_inventory). Le repli pointait alors sur
+                # `AI-models/enhancer/onnx` (vide) alors que les poids vivent à
+                # `MODEL_PATHS['upscaling']['onnx']` — la même source que l'app lit. Chemin
+                # par les settings, une fois (règle AGENTS « le modèle par cache_dir=… »).
+                models_dir = _default_models_dir()
 
         self.models_dir = models_dir
         self.model_path = os.path.join(models_dir, self.model_info['file'])
@@ -384,6 +404,7 @@ def upscale_image_file(
     denoise: bool = False,
     blend_factor: float = 0.0,
     progress_callback=None,
+    factory=None,
 ) -> Tuple[int, int]:
     """
     Upscale an image file.
@@ -395,10 +416,14 @@ def upscale_image_file(
         denoise: Apply denoising before upscaling
         blend_factor: Blend factor with original
         progress_callback: Optional callback(progress_percent)
+        factory: callable(model_name) -> upscaler (2026-09-21) — l'app enhancer passe la
+                 classe RÉSOLUE PAR LE CATALOGUE (`backend_for_key`), comme sa voie vidéo ;
+                 sans lui, `AIUpscaler` direct (convention d'appel inline du converter).
 
     Returns:
         Tuple of (output_width, output_height)
     """
+    make = factory or (lambda name: AIUpscaler(model_name=name))
     if progress_callback:
         progress_callback(10)
 
@@ -413,7 +438,7 @@ def upscale_image_file(
     # Apply denoising if requested
     if denoise:
         logger.info("Applying denoising")
-        denoiser = AIUpscaler(model_name='IRCNN_Mx1')
+        denoiser = make('IRCNN_Mx1')
         image = denoiser.upscale_image(image)
         denoiser.close()
 
@@ -422,7 +447,7 @@ def upscale_image_file(
 
     # Upscale
     logger.info(f"Upscaling with {model_name}")
-    upscaler = AIUpscaler(model_name=model_name)
+    upscaler = make(model_name)
     upscaled = upscaler.upscale_image(image, blend_factor=blend_factor)
     upscaler.close()
 
