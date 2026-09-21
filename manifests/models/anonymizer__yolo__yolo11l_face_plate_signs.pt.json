@@ -16,6 +16,12 @@
       "task": "detect"
     },
     "composition": {
+      "components": [
+        {
+          "pattern": "yolo11l_face_plate_signs.pt",
+          "role": "model"
+        }
+      ],
       "runtime": {
         "engine": "ultralytics"
       }

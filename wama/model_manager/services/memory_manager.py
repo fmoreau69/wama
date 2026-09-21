@@ -283,10 +283,53 @@ def peaks_for_precision(weights: dict, label: str) -> dict:
             'offload': round(max(sizes.values()), 2)}
 
 
-def model_footprint_gb(row, *, offload: bool = True) -> tuple:
+def backbone_row(row):
+    """La ligne de catalogue de la DORSALE d'un adaptateur, ou None si ce n'en est pas un.
+
+    Un adaptateur (LoRA) ne s'exécute pas seul : il se pose SUR un modèle complet, et son fichier
+    ne pèse presque rien (la LoRA logo du parc : 0,036 Go pour une dorsale de 22,2). L'app le
+    déclare déjà — `model_type: 'lora'` + `base_model: '<hf_id>'` — et ces deux clés atteignent le
+    catalogue depuis le 2026-09-21.
+
+    ⚠ `base_model` est un `hf_id`, pas une clé de catalogue : la dorsale se RÉSOUT (elle a sa
+    propre ligne, et c'est tout l'intérêt de l'option B retenue par Fabien — pas de duplication du
+    poids). Une dorsale absente du catalogue rend None : on ne fabrique pas une empreinte à partir
+    d'un modèle qu'on n'a pas.
+    ⚠ `flux-1-dev` déclare aussi `base_model`, mais c'est LUI-MÊME : le test exclut ce cas, sinon
+    un modèle de base se compterait deux fois.
+    """
+    info = getattr(row, 'extra_info', None) or {}
+    base = (info.get('base_model') or '').strip()
+    if not base:
+        return None
+    own = (getattr(row, 'hf_id', '') or '').strip()
+    if base == own and info.get('model_type') != 'lora':
+        return None                                      # un modèle de base, pas un adaptateur
+    try:
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.filter(hf_id=base).exclude(
+            model_key=getattr(row, 'model_key', '')).first()
+    except Exception as e:                               # hors Django / base absente
+        logger.debug('[footprint] dorsale %s non résolue : %s', base, e)
+        return None
+
+
+def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True) -> tuple:
     """`(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
 
+    ADAPTATEURS — décision de Fabien (2026-09-21) : **B pour le catalogue, C pour l'exécution.**
+      * B (`count_backbone=True`, le défaut) : l'empreinte NOMINALE d'un adaptateur est celle de sa
+        dorsale PLUS son propre fichier. C'est ce qu'il faut afficher et ce sur quoi juger une
+        installation — sans quoi la LoRA logo annonce 0,04 Go et le tirage la retient alors qu'elle
+        exige 22,2 Go de FLUX.1-dev. La dorsale garde sa propre ligne comme source unique : rien
+        n'est dupliqué, et deux adaptateurs partageant une dorsale ne la déclarent pas deux fois.
+      * C (`count_backbone=False`) : l'empreinte MARGINALE, pour le gouverneur — si la dorsale est
+        DÉJÀ résidente, poser l'adaptateur ne coûte que son fichier. Lui seul sait ce qui est
+        chargé (`resource_governor.resident_models`), donc lui seul passe False.
+    *Les deux ne se contredisent pas : B est le coût nominal, C le coût du moment.*
+
     LA CASCADE de la décision A (Fabien, 16/09), et sa subtilité, qui est tout l'intérêt :
+    (elle s'applique à l'adaptateur comme à tout modèle ; la dorsale s'y AJOUTE ensuite.)
     « mesurée → source → estimée, **sans jamais descendre sous la valeur de la source** ». Ce
     n'est donc PAS une simple priorité, c'est un `max` entre la mesure et la source — parce que
     *la mesure au chargement est celle d'UNE stratégie* : en déchargement elle tombe sous le pic,
@@ -306,6 +349,15 @@ def model_footprint_gb(row, *, offload: bool = True) -> tuple:
     « ça tient » d'une absence d'information (même règle que `weight_for_spec` qui rend None).
     """
     info = getattr(row, 'extra_info', None) or {}
+    # La DORSALE d'abord (option B) : son pic s'ajoute à celui de l'adaptateur. Récursion d'UN seul
+    # cran — `count_backbone=False` sur l'appel interne interdit qu'une chaîne d'adaptateurs
+    # s'empile à l'infini si quelqu'un déclarait un jour une dorsale qui est elle-même un
+    # adaptateur.
+    dorsale = backbone_row(row) if count_backbone else None
+    base_gb = 0.0
+    if dorsale is not None:
+        base_gb = model_footprint_gb(dorsale, offload=offload, count_backbone=False)[0] or 0.0
+
     weights = info.get('weights') or {}
     # Une ligne qui DÉCLARE sa quantification ne pèse pas ses fichiers : elle pèse ce qu'elle
     # chargera. `imager:ltx-…-distilled-fp8` et `…-distilled` pointent le MÊME dépôt, donc le même
@@ -317,15 +369,24 @@ def model_footprint_gb(row, *, offload: bool = True) -> tuple:
     source = peaks.get('offload' if offload else 'full')
     measured = float(((info.get('vram_measured') or {}).get('max_gb')) or 0) or None
 
+    def _rendu(gb, provenance):
+        """Ajoute la dorsale au chiffre de l'adaptateur, et le DIT dans la provenance."""
+        if gb is None or not base_gb:
+            return gb, provenance
+        return round(gb + base_gb, 2), f'{provenance}+backbone'
+
     if measured and source:
-        return (round(max(measured, source), 2),
-                'measured+source' if measured >= source else 'source')
+        return _rendu(round(max(measured, source), 2),
+                      'measured+source' if measured >= source else 'source')
     if measured:
-        return round(measured, 2), 'measured'
+        return _rendu(round(measured, 2), 'measured')
     if source:
-        return source, 'source'
+        return _rendu(source, 'source')
     declared = float(getattr(row, 'vram_gb', 0) or 0)
     if declared:
+        # ⚠ La valeur DÉCLARÉE d'un adaptateur vaut souvent déjà celle de sa dorsale (la LoRA logo
+        # déclare 24 Go « c'est la dorsale qui coûte »). Y rajouter la dorsale la compterait deux
+        # fois : à ce rang de la cascade, on rend la déclaration telle quelle.
         return round(declared, 2), 'declared'
     preset = preset_vram_gb((getattr(row, 'model_key', '') or '').split(':')[-1])
     if preset:

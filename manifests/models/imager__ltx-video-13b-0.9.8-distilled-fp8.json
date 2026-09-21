@@ -39,6 +39,7 @@
       }
     },
     "extra_info": {
+      "quantization": "fp8",
       "vram_provenance": "declared"
     },
     "formats": {
