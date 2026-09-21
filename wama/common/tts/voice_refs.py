@@ -610,6 +610,40 @@ def _normalize_gender(value) -> str:
     return {'m': 'male', 'f': 'female'}.get(v, v if v in ('male', 'female') else '')
 
 
+#: Bornes de F0 médiane sur de la parole adulte. Entre les deux : zone grise, NON tranchée.
+_F0_MALE_BELOW, _F0_FEMALE_ABOVE = 150.0, 180.0
+
+
+def _measured_gender(arr, sr: int):
+    """Le genre que la VOIX fait entendre : 'male' / 'female', '' si non établi (zone grise,
+    trop peu de trames voisées), None si l'instrument manque.
+
+    Pourquoi mesurer alors que VoxPopuli étiquette le genre : mesuré le 2026-09-22, après le
+    retéléchargement filtré sur l'étiquette, **2 clips sur 9 étiquetés « male » sonnaient à 262 et
+    184 Hz** — confirmé par DEUX instruments indépendants (autocorrélation, puis pYIN, robuste aux
+    erreurs d'octave). L'étiquette de la source ne suffit donc pas : on ne pose un genre que si la
+    voix le fait entendre (`MEDIA_STORAGE_TIERING §9.4bis`).
+    """
+    try:
+        import librosa
+        import numpy as np
+    except ImportError:
+        return None
+    y = np.asarray(arr, dtype=np.float32)
+    if y.ndim > 1:
+        y = y.mean(axis=1)
+    f0, voiced, _ = librosa.pyin(y, fmin=65, fmax=400, sr=sr, frame_length=1024)
+    f0 = f0[voiced & ~np.isnan(f0)]
+    if len(f0) < 10:
+        return ''
+    median = float(np.median(f0))
+    if median < _F0_MALE_BELOW:
+        return 'male'
+    if median > _F0_FEMALE_ABOVE:
+        return 'female'
+    return ''
+
+
 def _try_voxpopuli(target: Path, vp_lang: str, gender: str = '') -> bool:
     """
     Télécharge un clip depuis VoxPopuli (Facebook/Meta). Aucune authentification requise.
@@ -687,6 +721,13 @@ def _try_voxpopuli(target: Path, vp_lang: str, gender: str = '') -> bool:
             duration = len(arr) / sr
             if not (_VP_MIN_S <= duration <= _VP_MAX_S):
                 continue
+            # L'étiquette de la source ne suffit pas (2/9 contredites, 22/09) : la voix doit FAIRE
+            # ENTENDRE le genre demandé. Contredite ou zone grise → clip suivant. Instrument absent
+            # (None) → on s'en tient à l'étiquette, faute de mieux.
+            if gender:
+                heard = _measured_gender(arr, sr)
+                if heard is not None and heard != gender:
+                    continue
 
             if _save_audio_array(arr, sr, target):
                 used.add(speaker)
