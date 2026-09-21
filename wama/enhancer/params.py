@@ -8,11 +8,12 @@ Descriptions modèles (courtes + longues) = métadonnée-driven via help_fallbac
 description_long, recommended_vram_gb}} — mécanisme d'aide modèle (WamaModelHelp), pour les modèles hors
 catalogue model_manager. Image/vidéo : dérivées de MODELS_INFO (source unique). Audio : curées.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import (
     get_output_formats, get_output_qualities, output_format_params,
 )
 from wama.common.utils.param_schema import Param, schema_to_dicts
-from wama.enhancer.models import Enhancement
+from wama.enhancer.models import AudioEnhancement, Enhancement
 from wama.common.backends.ai_upscaler import MODELS_INFO
 
 
@@ -75,15 +76,32 @@ MEDIA_PARAMS = [
           # `source` maintient aussi l'ESPACE DE CLÉS : identifiants nus ('BSRGANx4'), ceux
           # que `Enhancement.ai_model` porte et que `tasks.py` recompose en
           # `enhancer:<id>` pour résoudre son backend.
-          # Pas d'`options_auto` : l'enhancer ne RÉSOUT pas « auto » — l'utilisateur désigne
-          # son moteur (c'est aussi pourquoi le critère `select_model` y est non applicable).
           options_source='catalog',
           options_query={'source': 'enhancer', 'model_type': 'upscaling'},
+          # « auto » en 1ʳᵉ option + PRÉVISION (curseur C, 2026-09-21 — décision de Fabien :
+          # la ligne « l'enhancer ne RÉSOUT pas auto, l'utilisateur désigne son moteur » qui
+          # vivait ici est LEVÉE). Le lancement résout dans `utils/auto_model.py` : domaine =
+          # celui-ci, restreint au FACTEUR demandé, classé au poids du curseur.
+          options_auto=True,
           choices=list(Enhancement.AI_MODEL_CHOICES),
           # Catalogue (desc + VRAM) branchable depuis l'ALIGNEMENT des model_key (18/08,
           # artefact _fp16 retiré : clés = valeurs d'option) ; le repli statique reste.
           help_source='enhancer',
           help_fallback=MEDIA_MODEL_HELP),
+    # Le BESOIN que « auto » filtre avant de classer : ×2 et ×4 ne sont pas deux qualités,
+    # ce sont deux résultats (un modèle désigné impose le sien — le champ ne sert qu'à auto).
+    Param(name='upscale_factor', type='select', label="Facteur d'agrandissement", icon='fa-expand',
+          choices=[('2', '×2'), ('4', '×4')], default='4',
+          dom_id={'panel': 'mediaUpscaleFactor', 'item': 'settingsUpscaleFactor'},
+          contexts=('panel', 'item'),
+          show_if={'field': 'ai_model', 'equals': 'auto'}),
+    # Curseur rapide ↔ qualité (chantier C) — visible SEULEMENT sur « auto » : il pèse sur ce
+    # tirage-là et rien d'autre. Rendu/tricolore : renderer commun `type='intent'` ; volet :
+    # partial `common/_intent_slider.html`.
+    Param(name='quality_intent',
+          dom_id={'panel': 'mediaQualityIntent', 'item': 'settingsQualityIntent'},
+          contexts=('panel', 'item'),
+          **intent_param(show_if={'field': 'ai_model', 'equals': 'auto'})),
     Param(name='denoise', type='toggle', label='Débruitage', icon='fa-broom',
           chip=True, chip_label='Débruitage',
           dom_id={'panel': 'defaultDenoise', 'item': 'settingsDenoise'}, contexts=('panel', 'item')),
@@ -104,10 +122,17 @@ AUDIO_PARAMS = [
           # modèles d'upscaling de la même source. Clés nues = valeurs d'`engine`.
           options_source='catalog',
           options_query={'source': 'enhancer', 'task': 'audio-enhance'},
-          choices=[('resemble', 'Resemble Enhance (Recommandé)'),
-                   ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)')],
+          # « auto » (curseur C, 2026-09-21) : DeepFilterNet (léger, rapide) ↔ Resemble
+          # (diffusion, qualité) arbitrés au poids du curseur ; le NFE de Resemble se décline
+          # alors du curseur (`utils/auto_model.audio_nfe`).
+          options_auto=True,
+          choices=list(AudioEnhancement.ENGINE_CHOICES),
           help_source='enhancer',   # moteurs audio au catalogue (déjà alignés) ; repli statique
           help_fallback=AUDIO_ENGINE_HELP),
+    Param(name='quality_intent',
+          dom_id={'panel': 'audioQualityIntent', 'item': 'settingsAudioQualityIntent'},
+          contexts=('panel', 'item'),
+          **intent_param(show_if={'field': 'engine', 'equals': 'auto'})),
     # mode/force/qualité = spécifiques Resemble → affichés seulement si engine=resemble (show_if).
     Param(name='mode', type='select', label='Mode', icon='fa-sliders-h', chip=True,
           dom_id={'panel': 'audioMode', 'item': 'settingsAudioMode'}, contexts=('panel', 'item'),

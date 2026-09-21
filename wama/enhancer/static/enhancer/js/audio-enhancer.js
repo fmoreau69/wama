@@ -31,6 +31,33 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // ── Volet : le curseur du tirage « auto » n'est visible que sur « auto » (curseur C, 21/09) ──
+  // Le volet est rendu serveur (pas de show_if de schéma dessus) : bascule d'une ligne, même
+  // mécanique que le synthesizer. Les réglages Resemble (.resemble-only), eux, sont tenus par
+  // WamaModelCaps (capacités du catalogue — « auto » n'en a pas, donc masqués).
+  function syncAudioAutoOptions() {
+    const sel = document.getElementById('audioEngine');
+    const box = document.getElementById('audioAutoOptions');
+    if (sel && box) box.hidden = (sel.value || 'auto') !== 'auto';
+  }
+  (function initAudioAutoOptions() {
+    const sel = document.getElementById('audioEngine');
+    if (sel) sel.addEventListener('change', syncAudioAutoOptions);
+    syncAudioAutoOptions();
+  })();
+
+  // Ce que le VOLET dit — la surface de réglage vivante de cette file, appliquée à CHAQUE
+  // lancement depuis le volet (▶ de card, « tout démarrer », lot). Un seul lecteur.
+  function panelAudioBody() {
+    return {
+      engine: document.getElementById('audioEngine')?.value || 'auto',
+      mode: document.getElementById('audioMode')?.value || 'both',
+      denoising_strength: parseFloat(document.getElementById('audioDenoisingStrength')?.value || '0.5'),
+      quality: parseInt(document.getElementById('audioQuality')?.value || '64'),
+      quality_intent: document.getElementById('audioQualityIntent')?.value || '',
+    };
+  }
+
   // ── Voie d'import AUDIO : les DEUX briques communes (portage 2026-09-08) ───────────
   //
   // Fabien : « il n'y a rien de maison, c'est encore du portage ». Jusqu'ici cette voie
@@ -54,15 +81,11 @@ document.addEventListener('DOMContentLoaded', function () {
     afterCreate: async function (data, autoStart) {
       if (autoStart && data && data.batch_id && cfg.audioBatchStartUrlTemplate) {
         const startUrl = cfg.audioBatchStartUrlTemplate.replace('/0/', `/${data.batch_id}/`);
-        const engine = document.getElementById('audioEngine')?.value || 'resemble';
-        const mode   = document.getElementById('audioMode')?.value || 'both';
-        const strength = document.getElementById('audioDenoisingStrength')?.value || '0.5';
-        const quality  = document.getElementById('audioQuality')?.value || '64';
         try {
           await fetch(startUrl, {
             method: 'POST',
             headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) }),
+            body: JSON.stringify(panelAudioBody()),
           });
         } catch (_e) { /* la création est faite ; le lancement se rejoue depuis la card */ }
       }
@@ -159,122 +182,37 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // ── Per-row settings modal ───────────────────────────────────────────────
-
-  function createAudioSettingsModal(id, engine, mode, strength, quality, outputFormat, outputQuality) {
-    const existing = document.getElementById(`audioSettingsModal${id}`);
-    if (existing) existing.remove();
-
-    const resembleDisplay = engine === 'resemble' ? '' : 'none';
-
-    const modal = document.createElement('div');
-    modal.className = 'modal fade';
-    modal.id = `audioSettingsModal${id}`;
-    modal.setAttribute('tabindex', '-1');
-    modal.innerHTML = `
-      <div class="modal-dialog">
-        <div class="modal-content bg-dark text-white">
-          <div class="modal-header border-secondary">
-            <h5 class="modal-title"><i class="fas fa-microphone-alt me-2 text-success"></i>Paramètres audio — #${id}</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <!-- Champs GÉNÉRÉS par WamaParams depuis le schéma manifeste (params.py), context:'item'.
-                 show_if engine=resemble gère l'affichage conditionnel mode/force/qualité. -->
-            <div id="wamaAudioFields${id}"></div>
-          </div>
-          <div class="wama-modal-footer-slot" data-id="${id}"></div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    // Pied de modale COMMUN (_settings_modal_footer) : gabarit serveur cloné,
-    // data-id + auto-dismiss pour les handlers délégués .modal-audio-save(-start).
-    const footTpl = document.getElementById('audioSettingsFooterTpl');
-    const footSlot = modal.querySelector('.wama-modal-footer-slot');
-    if (footTpl && footSlot) {
-      const foot = footTpl.content.firstElementChild.cloneNode(true);
-      foot.querySelectorAll('.modal-audio-save, .modal-audio-save-start')
-          .forEach((b) => { b.dataset.id = id; b.setAttribute('data-bs-dismiss', 'modal'); });
-      footSlot.replaceWith(foot);
-    }
-
-    // Modale GÉNÉRÉE depuis le schéma manifeste (WamaParams, context:'item') — pattern Transcriber.
-    // show_if engine=resemble gère l'affichage conditionnel mode/force/qualité ; WamaParams gère aussi
-    // l'affichage de la valeur de la range (plus besoin de listeners manuels engine/strength).
-    if (window.WamaParams && window.ENHANCER_AUDIO_SCHEMA) {
-      WamaParams.render(modal.querySelector('#wamaAudioFields' + id),
-                        window.ENHANCER_AUDIO_SCHEMA,
-                        { context: 'item', values: { engine: engine, mode: mode, strength: strength, quality: quality,
-                                                     output_format: outputFormat || 'original',
-                                                     output_quality: outputQuality || 'balanced' } });
-    }
-
-    // Lecture par name (WamaParams rend name=engine/mode/strength/quality). Fallback null-safe :
-    // les champs Resemble peuvent être masqués (show_if) mais restent dans le DOM avec leur valeur.
-    function readModalSettings() {
-      function v(n, d) { const el = modal.querySelector('[name="' + n + '"]'); return el ? el.value : d; }
-      return {
-        engine:   v('engine', engine),
-        mode:     v('mode', mode),
-        strength: v('strength', strength),
-        quality:  v('quality', quality),
-        output_format:  v('output_format', outputFormat || 'original'),
-        output_quality: v('output_quality', outputQuality || 'balanced'),
-      };
-    }
-
-    function applyToGearBtn(settings) {
-      const gearBtn = document.querySelector(`#audio-enhancer-queue .settings-btn[data-id="${id}"]`);
-      if (gearBtn) {
-        gearBtn.dataset.engine   = settings.engine;
-        gearBtn.dataset.mode     = settings.mode;
-        gearBtn.dataset.strength = settings.strength;
-        gearBtn.dataset.quality  = settings.quality;
-        gearBtn.dataset.outputFormat  = settings.output_format;
-        gearBtn.dataset.outputQuality = settings.output_quality;
-      }
-    }
-
-    modal.querySelector('.modal-audio-save').addEventListener('click', () => {
-      applyToGearBtn(readModalSettings());
+  // ── Per-row settings modal : le CYCLE commun (WamaParams.settingsModal, portage 21/09) ────
+  // Ce qui vivait ici (coquille, pied cloné, lecture par name, recopie sur le gear, relecture
+  // du volet AVANT lancement — et un `updateResembleVisibility()` qui n'existait plus) est
+  // remplacé par la brique : les valeurs sont ENREGISTRÉES (audio/update, la vue les tient),
+  // la card se re-rend, « Sauvegarder et lancer » lance avec les valeurs STOCKÉES de l'item.
+  function valuesFromGear(btn, schema) {
+    const out = {};
+    (schema || []).forEach(function (p) {
+      const camel = p.name.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
+      if (btn && btn.dataset[camel] !== undefined) out[p.name] = btn.dataset[camel];
     });
-
-    modal.querySelector('.modal-audio-save-start').addEventListener('click', () => {
-      const s = readModalSettings();
-      applyToGearBtn(s);
-      // Override right-panel settings then start
-      const engineEl = document.getElementById('audioEngine');
-      const modeEl   = document.getElementById('audioMode');
-      const strEl    = document.getElementById('audioDenoisingStrength');
-      const qualEl   = document.getElementById('audioQuality');
-      const strValEl = document.getElementById('audioStrengthValue');
-      if (engineEl) { engineEl.value = s.engine; updateResembleVisibility(); }
-      if (modeEl)   modeEl.value = s.mode;
-      if (strEl)    strEl.value  = s.strength;
-      if (strValEl) strValEl.textContent = parseFloat(s.strength).toFixed(1);
-      if (qualEl)   qualEl.value = s.quality;
-      startAudio(parseInt(id));
-    });
-
-    // Clean up modal from DOM after hide
-    modal.addEventListener('hidden.bs.modal', () => modal.remove());
-
-    return modal;
+    return out;
   }
 
-  function openAudioSettingsModal(btn) {
-    const id       = btn.dataset.id;
-    const engine   = btn.dataset.engine   || 'resemble';
-    const mode     = btn.dataset.mode     || 'both';
-    const strength = btn.dataset.strength || '0.5';
-    const quality  = btn.dataset.quality  || '64';
-
-    const modal = createAudioSettingsModal(id, engine, mode, strength, quality,
-                                           btn.dataset.outputFormat, btn.dataset.outputQuality);
-    new bootstrap.Modal(modal).show();
+  function openAudioSettingsModal(id, btn) {
+    return WamaParams.settingsModal({
+      id: id,
+      title: 'Paramètres audio — #' + id,
+      titleIcon: 'fa-microphone-alt',
+      schema: window.ENHANCER_AUDIO_SCHEMA || [],
+      values: valuesFromGear(btn, window.ENHANCER_AUDIO_SCHEMA),
+      formClass: 'audio-settings-form',
+      footerTplId: 'audioSettingsFooterTpl',
+      saveUrl: getUrl(cfg.audioUpdateUrlTemplate, id),
+      csrf: csrfToken,
+      onSaved: function (aid, restart) {
+        refreshAudioCard(aid).then(function () {
+          if (restart) startAudio(parseInt(aid, 10), { useStored: true });
+        });
+      },
+    });
   }
 
   // ⏹ Stop : arrête le débruitage audio → item relançable (↻ via autoSync sur data-status).
@@ -302,21 +240,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Start / polling (also called from modal "Save and Start") ────────────
 
-  async function startAudio(id) {
-    const engine = document.getElementById('audioEngine')?.value || 'resemble';
-    const mode = document.getElementById('audioMode')?.value || 'both';
-    const strength = document.getElementById('audioDenoisingStrength')?.value || '0.5';
-    const quality = document.getElementById('audioQuality')?.value || '64';
-    // Format/qualité de SORTIE : PER-ITEM (gear de la card — posé par la modale ; le volet
-    // audio n'a pas ces champs). Défaut : valeurs déjà stockées côté serveur.
-    const gear = document.querySelector(`#audio-enhancer-queue .settings-btn[data-id="${id}"]`);
-    const outFmt  = gear?.dataset.outputFormat;
-    const outQual = gear?.dataset.outputQuality;
-
+  async function startAudio(id, opts) {
+    // ▶ depuis la card / le volet : les réglages du VOLET s'appliquent (surface vivante de
+    // cette file). `useStored` (« Sauvegarder et lancer » de la modale) : corps vide, le
+    // lancement lit les réglages STOCKÉS de l'item que la modale vient d'enregistrer.
+    // Le format de sortie est PER-ITEM et vit désormais en base (audio/update) : plus rien à
+    // relire sur le gear. La card se re-rend du serveur au passage RUNNING (updateRow).
     try {
-      const body = { engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) };
-      if (outFmt)  body.output_format  = outFmt;
-      if (outQual) body.output_quality = outQual;
+      const body = (opts && opts.useStored) ? {} : panelAudioBody();
       const resp = await fetch(getUrl(cfg.audioStartUrlTemplate, id), {
         method: 'POST',
         headers: csrfHeaders({ 'Content-Type': 'application/json' }),
@@ -327,29 +258,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
       updateRow(id, { status: 'RUNNING', progress: 0 });
       pollAudioProgress(id);
-
-      // Update badge labels, properties, and gear button data on the row
-      const row = document.querySelector(`#audio-enhancer-queue [data-id="${id}"]`);
-      if (row) {
-        const engBadge = row.querySelector('.audio-engine-badge');
-        const modeBadge = row.querySelector('.audio-mode-badge');
-        const propsText = row.querySelector('.properties-text');
-        if (engBadge) engBadge.textContent = engine === 'resemble' ? 'Resemble' : 'DeepFilter';
-        if (modeBadge) modeBadge.textContent = mode;
-        if (propsText) {
-          propsText.textContent = engine === 'resemble'
-            ? `Force ${parseFloat(strength).toFixed(1)} / NFE ${quality}`
-            : 'Rapide';
-        }
-        // Persist used settings on the gear button for next time
-        const gearBtn = row.querySelector('.settings-btn');
-        if (gearBtn) {
-          gearBtn.dataset.engine   = engine;
-          gearBtn.dataset.mode     = mode;
-          gearBtn.dataset.strength = strength;
-          gearBtn.dataset.quality  = quality;
-        }
-      }
     } catch (err) {
       WamaApp.toast('Erreur démarrage: ' + err.message);
     }
@@ -413,16 +321,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const startAllBtn = document.getElementById('audio-process-btn');
     if (startAllBtn) {
       startAllBtn.addEventListener('click', async () => {
-        const engine = document.getElementById('audioEngine')?.value || 'resemble';
-        const mode = document.getElementById('audioMode')?.value || 'both';
-        const strength = document.getElementById('audioDenoisingStrength')?.value || '0.5';
-        const quality = document.getElementById('audioQuality')?.value || '64';
-
         try {
           const resp = await fetch(cfg.audioStartAllUrl, {
             method: 'POST',
             headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) }),
+            body: JSON.stringify(panelAudioBody()),
           });
           const data = await resp.json();
           data.started_ids?.forEach(id => {
@@ -488,7 +391,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // (audio ici, amélioration dans index.js) de partager `.settings-btn` sans se marcher
     // dessus : l'ouvreur scopé est évalué avant l'ouvreur par défaut (portage 2026-08-23).
     WamaQueueActions.onSettings(function (id, btn) {
-      openAudioSettingsModal(btn);
+      openAudioSettingsModal(id, btn);
     }, { domain: 'audio' });
 
     // Resume polling for running jobs on page load
@@ -511,14 +414,7 @@ document.addEventListener('DOMContentLoaded', function () {
     //    muette, et incohérente avec le ▶ de la card fille juste à côté ;
     //  • la SUITE — l'audio insère et POLLE (comme la file média), il ne recharge pas.
     if (window.WamaQueueActions) {
-      WamaQueueActions.onBatchStartBody(function () {
-        return {
-          engine: document.getElementById('audioEngine')?.value || 'resemble',
-          mode: document.getElementById('audioMode')?.value || 'both',
-          denoising_strength: parseFloat(document.getElementById('audioDenoisingStrength')?.value || '0.5'),
-          quality: parseInt(document.getElementById('audioQuality')?.value || '64'),
-        };
-      }, { domain: 'audio' });
+      WamaQueueActions.onBatchStartBody(function () { return panelAudioBody(); }, { domain: 'audio' });
 
       WamaQueueActions.onBatchStarted(function (data) {
         (data.started || []).forEach(id => {

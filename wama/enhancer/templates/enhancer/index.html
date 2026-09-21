@@ -31,6 +31,24 @@
         <div id="mediaModelHelp" class="wama-model-help small text-muted mt-1"></div>
         {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) #}
         <small id="mediaMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
+        {% comment %}Réglages du tirage « auto » (curseur C, 21/09) — visibles seulement quand le
+           select est sur « auto » (bascule dans index.js) : le FACTEUR = le besoin que le
+           tirage filtre avant de classer ; le curseur = son poids. Markup du curseur = partial
+           COMMUN, liaison déléguée (wama-params.js) ; son changement rafraîchit la PRÉVISION
+           sous le select. Ids = `dom_id.panel` du schéma (l'inspecteur les reflète).{% endcomment %}
+        <div id="mediaAutoOptions" class="mt-2" hidden>
+            <label for="mediaUpscaleFactor" class="form-label small fw-bold text-light mb-0">
+                <i class="fas fa-expand"></i> Facteur d'agrandissement
+            </label>
+            <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="mediaUpscaleFactor">
+                <option value="2">×2</option>
+                <option value="4" selected>×4</option>
+            </select>
+            <label class="form-label small fw-bold text-light mb-0">
+                <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
+            </label>
+            {% include 'common/_intent_slider.html' with dom_id='mediaQualityIntent' name='quality_intent' value=50 %}
+        </div>
     </div>
     <div class="mb-3">
         <div class="form-check form-switch">
@@ -57,6 +75,7 @@
     <div class="alert alert-info py-2 small" role="alert">
         <i class="fas fa-info-circle"></i> <strong>Modèles:</strong><br>
         <small>
+            • <strong>Automatique</strong>: choisi au lancement (facteur + curseur)<br>
             • <strong>RealESR_Gx4</strong>: Rapide (4x)<br>
             • <strong>BSRGANx2/x4</strong>: Haute qualité<br>
             • <strong>RealESRGANx4</strong>: Max qualité<br>
@@ -72,6 +91,7 @@
             <i class="fas fa-cogs"></i> Moteur
         </label>
         <select class="form-select form-select-sm bg-dark text-white border-secondary" id="audioEngine">
+            <option value="auto" selected>Automatique — choisi au lancement</option>
             <option value="resemble">Resemble Enhance (Recommandé)</option>
             <option value="deepfilternet">DeepFilterNet 3 (Rapide)</option>
         </select>
@@ -79,6 +99,15 @@
         <div id="audioEngineHelp" class="wama-model-help small text-muted mt-1"></div>
         {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) #}
         <small id="audioMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
+        {% comment %}Curseur du tirage « auto » (curseur C, 21/09) — visible sur « auto » seulement
+           (bascule dans audio-enhancer.js) : DeepFilterNet ↔ Resemble à son poids, NFE de
+           Resemble décliné. Partial COMMUN, liaison déléguée.{% endcomment %}
+        <div id="audioAutoOptions" class="mt-2" hidden>
+            <label class="form-label small fw-bold text-light mb-0">
+                <i class="fas fa-gauge-high"></i> Rapide ↔ Qualité
+            </label>
+            {% include 'common/_intent_slider.html' with dom_id='audioQualityIntent' name='quality_intent' value=50 %}
+        </div>
     </div>
 
     <div class="resemble-only">
@@ -301,6 +330,7 @@
       audioCardHtmlUrlTemplate: '{% url "enhancer:audio_card_html" 0 %}',
       audioDeleteUrlTemplate: '{% url "enhancer:audio_delete" 0 %}',
       audioDownloadUrlTemplate: '{% url "enhancer:audio_download" 0 %}',
+      audioUpdateUrlTemplate: '{% url "enhancer:audio_update" 0 %}',
       audioStartAllUrl: '{% url "enhancer:audio_start_all" %}',
       audioClearUrl: '{% url "enhancer:audio_clear_all" %}',
       audioDownloadAllUrl: '{% url "enhancer:audio_download_all" %}',
@@ -351,13 +381,15 @@
 window.ENHANCER_MEDIA_SCHEMA = {{ media_params_json|safe }};
 window.ENHANCER_AUDIO_SCHEMA = {{ audio_params_json|safe }};
 </script>
-{% comment %}Pieds de modale COMMUNS (_settings_modal_footer) — gabarits clonés
-par les modales générées en JS (un par domaine, data-id posé au clonage).{% endcomment %}
+{% comment %}Pieds de modale COMMUNS (_settings_modal_footer) — gabarits greffés par le cycle
+commun `WamaParams.settingsModal` (un par domaine). Les classes sont CELLES que le cycle
+délègue (`save-settings-btn` / `save-and-restart-btn`) : les classes audio maison
+(`modal-audio-save*`) sont parties avec le cycle écrit à la main (portage 21/09).{% endcomment %}
 <template id="mediaSettingsFooterTpl">
     {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Sauvegarder' save_start_class='save-and-restart-btn' save_start_label='Sauvegarder et relancer' %}
 </template>
 <template id="audioSettingsFooterTpl">
-    {% include 'common/_settings_modal_footer.html' with save_class='modal-audio-save' save_label='Sauvegarder' save_start_class='modal-audio-save-start' save_start_label='Sauvegarder et lancer' %}
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Sauvegarder' save_start_class='save-and-restart-btn' save_start_label='Sauvegarder et lancer' %}
 </template>
 
 {% comment %} Modale paramètres de BATCH (média) — contrat reader : champs générés par

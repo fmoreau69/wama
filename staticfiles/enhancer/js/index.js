@@ -57,6 +57,10 @@ document.addEventListener('DOMContentLoaded', function () {
       extraFields:      function (fd) {
         fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
         fd.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
+        // Tirage auto : facteur + curseur du volet voyagent avec le dépôt (curseur C, 21/09).
+        const auto = panelAutoValues();
+        fd.append('upscale_factor', auto.upscale_factor);
+        fd.append('quality_intent', auto.quality_intent);
       },
       afterImport:      function (ids, reponses) {
         if (ids.length !== 1) { location.reload(); return; }
@@ -102,68 +106,39 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  function createSettingsModal(data) {
-    // Remove existing modal if any
-    const existingModal = document.getElementById(`settingsModal${data.id}`);
-    if (existingModal) {
-      existingModal.remove();
-    }
+  // ⚙ item : le CYCLE complet (rendre du schéma → greffer le pied → afficher → lire →
+  // enregistrer → enchaîner) est la brique commune `WamaParams.settingsModal` (portage
+  // 2026-09-21 — `createSettingsModal` + `handleSaveSettings` le recopiaient ici). Les VALEURS
+  // viennent des data-* du bouton ⚙ (brique `card_gear` : tous les params de contexte item),
+  // lues par le NOM du schéma — aucune liste de champs écrite dans ce fichier.
+  function valuesFromGear(btn, schema) {
+    const out = {};
+    (schema || []).forEach(function (p) {
+      const camel = p.name.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
+      if (btn && btn.dataset[camel] !== undefined) out[p.name] = btn.dataset[camel];
+    });
+    return out;
+  }
 
-    // Get AI models from the default dropdown
-    const defaultModelSelect = document.getElementById('defaultAiModel');
-    let modelOptions = '';
-    if (defaultModelSelect) {
-      Array.from(defaultModelSelect.options).forEach(option => {
-        const selected = option.value === data.ai_model ? 'selected' : '';
-        modelOptions += `<option value="${option.value}" ${selected}>${escapeHtml(option.text)}</option>`;
-      });
-    }
-
-    const modal = document.createElement('div');
-    modal.className = 'modal fade';
-    modal.id = `settingsModal${data.id}`;
-    modal.setAttribute('tabindex', '-1');
-    modal.innerHTML = `
-      <div class="modal-dialog">
-        <div class="modal-content bg-dark text-white">
-          <div class="modal-header border-secondary">
-            <h5 class="modal-title">Paramètres - #${data.id}</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <form class="enhancement-settings-form" data-id="${data.id}">
-              <!-- Champs GÉNÉRÉS par WamaParams depuis le schéma manifeste (params.py), context:'item'.
-                   name=ai_model/denoise/blend_factor → le save-settings-btn les lit tel quel. -->
-              <div id="wamaSettingsFields${data.id}"></div>
-            </form>
-          </div>
-          <div class="wama-modal-footer-slot" data-id="${data.id}"></div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    // Pied de modale COMMUN (_settings_modal_footer) : gabarit serveur cloné,
-    // data-id posé pour les handlers délégués .save-settings-btn / .save-and-restart-btn.
-    const footTpl = document.getElementById('mediaSettingsFooterTpl');
-    const footSlot = modal.querySelector('.wama-modal-footer-slot');
-    if (footTpl && footSlot) {
-      const foot = footTpl.content.firstElementChild.cloneNode(true);
-      foot.querySelectorAll('.save-settings-btn, .save-and-restart-btn')
-          .forEach((b) => { b.dataset.id = data.id; });
-      footSlot.replaceWith(foot);
-    }
-
-    // Modale GÉNÉRÉE depuis le schéma manifeste (WamaParams, context:'item') — pattern Transcriber.
-    // name=ai_model/denoise/blend_factor → le save-settings-btn les lit inchangé.
-    if (window.WamaParams && window.ENHANCER_MEDIA_SCHEMA) {
-      WamaParams.render(document.getElementById('wamaSettingsFields' + data.id),
-                        window.ENHANCER_MEDIA_SCHEMA, { context: 'item', values: data });
-    }
-
-    // Bind actions for this modal's buttons
-    bindRowActions(modal);
+  function openSettingsModal(id, btn) {
+    return WamaParams.settingsModal({
+      id: id,
+      title: 'Paramètres - #' + id,
+      titleIcon: 'fa-magic',
+      schema: window.ENHANCER_MEDIA_SCHEMA || [],
+      values: valuesFromGear(btn, window.ENHANCER_MEDIA_SCHEMA),
+      formClass: 'enhancement-settings-form',
+      footerTplId: 'mediaSettingsFooterTpl',
+      saveUrl: getUrl(config.updateSettingsUrlTemplate, id),
+      csrf: csrfToken,
+      onSaved: function (gid, restart) {
+        // La card reflète les réglages enregistrés (chips, gear) ; « Sauvegarder et
+        // relancer » lance ensuite avec les valeurs STOCKÉES (le geste vaut confirmation).
+        refreshCard(gid).then(function () {
+          if (restart) handleRestartEnhancement(gid, { confirmed: true });
+        });
+      },
+    });
   }
 
   // Polling délégué à WamaApp.Poller (brique commune, résilient : retries maxFails).
@@ -259,33 +234,25 @@ document.addEventListener('DOMContentLoaded', function () {
     WamaCycleButton.autoSync({ container: queueTable, cardSelector: '.synthesis-card' });
   }
 
-  function handleRestartEnhancement(id) {
+  function handleRestartEnhancement(id, opts) {
     if (!id) return;
 
     const card = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
     if (!card) return;
 
     const status = (card.dataset.status || '').toUpperCase();
-    if (status === 'SUCCESS' || status === 'RUNNING') {
+    if (!(opts && opts.confirmed) && (status === 'SUCCESS' || status === 'RUNNING')) {
       if (!confirm('Relancer le traitement de ce fichier ?')) {
         return;
       }
     }
 
-    const form = document.querySelector(`.enhancement-settings-form[data-id="${id}"]`);
-    let settings = {};
-    if (form) {
-      settings = {
-        ai_model: form.querySelector('[name="ai_model"]')?.value,
-        denoise: form.querySelector('[name="denoise"]')?.checked,
-        blend_factor: form.querySelector('[name="blend_factor"]')?.value
-      };
-    }
-
+    // Corps VIDE : le lancement lit les réglages STOCKÉS de l'item (modale/volet écrivent
+    // AVANT — modèle événementiel ; l'ancien corps relisait le formulaire d'une modale maison).
     fetch(getUrl(config.startUrlTemplate, id), {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(settings),
+      body: JSON.stringify({}),
     })
       .then((response) => {
         if (!response.ok) {
@@ -316,21 +283,8 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.addEventListener('click', () => handleRestartEnhancement(btn.dataset.id));
     });
 
-    // ⚙ : plus de bind ici non plus — l'ouvreur est déclaré UNE fois à la brique (voir plus bas).
-
-    const saveSettingsButtons = (scope || document).querySelectorAll('.save-settings-btn');
-    saveSettingsButtons.forEach((btn) => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => handleSaveSettings(btn, false));
-    });
-
-    const saveAndRestartButtons = (scope || document).querySelectorAll('.save-and-restart-btn');
-    saveAndRestartButtons.forEach((btn) => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => handleSaveSettings(btn, true));
-    });
+    // ⚙ : plus de bind ici non plus — l'ouvreur est déclaré UNE fois à la brique (voir plus bas) ;
+    // les boutons du pied de modale sont délégués par le cycle commun (WamaParams.settingsModal).
   }
 
   // ⚙ item (card AMÉLIORATION) — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
@@ -338,21 +292,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // `#audio-enhancer-queue`, déclarent le leur avec un `within` (audio-enhancer.js) et sont donc
   // évaluées en premier — deux familles de cards dans une même app, sans une ligne d'app dans la
   // brique (portage 2026-08-23).
-  WamaQueueActions.onSettings(function (id, btn) {
-    const data = {
-      id: id,
-      ai_model: btn.dataset.aiModel,
-      denoise: btn.dataset.denoise === 'true',
-      blend_factor: parseFloat(btn.dataset.blendFactor) || 0,
-      output_format: btn.dataset.outputFormat || 'original',
-      output_quality: btn.dataset.outputQuality || 'balanced'
-    };
-    createSettingsModal(data);
-    const modal = new bootstrap.Modal(document.getElementById(`settingsModal${data.id}`));
-    modal.show();
-    // Re-bind des boutons d'enregistrement de la modale fraîchement créée.
-    bindRowActions(document.getElementById(`settingsModal${data.id}`));
-  });
+  WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(id, btn); });
 
   // 🗑 RÉSIDU de suppression (cards AMÉLIORATION) — la brique fait le reste. Pas de `within` :
   // c'est le résidu par DÉFAUT de la page, celui des cards audio étant scopé (audio-enhancer.js).
@@ -362,36 +302,26 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDownloadAllState();
   });
 
-  function handleSaveSettings(button, restart = false) {
-    const enhancementId = button.dataset.id;
-    const form = document.querySelector(`.enhancement-settings-form[data-id="${enhancementId}"]`);
-
-    if (!form) return;
-
-    const formData = new FormData(form);
-
-    fetch(getUrl(config.updateSettingsUrlTemplate, enhancementId), {
-      method: 'POST',
-      headers: csrfHeaders(),
-      body: formData,
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById(`settingsModal${enhancementId}`));
-        if (modal) modal.hide();
-
-        if (restart) {
-          // Restart enhancement with new settings
-          handleRestartEnhancement(enhancementId);
-        } else {
-          WamaApp.toast('Paramètres sauvegardés !', 'success');
-        }
-      })
-      .catch((error) => {
-        WamaApp.toast('Erreur lors de la sauvegarde: ' + error.message, 'error');
-      });
+  // ── Volet : réglages du tirage « auto » (facteur + curseur) visibles sur « auto » seulement ──
+  // Le volet est rendu serveur (pas de show_if de schéma dessus) : une bascule d'une ligne,
+  // même mécanique que le synthesizer (`intentSliderGroup`).
+  function syncMediaAutoOptions() {
+    const sel = document.getElementById('defaultAiModel');
+    const box = document.getElementById('mediaAutoOptions');
+    if (sel && box) box.hidden = (sel.value || 'auto') !== 'auto';
   }
+  function panelAutoValues() {
+    // Ce que le volet dit du tirage auto — posté avec les autres défauts du volet.
+    return {
+      upscale_factor: document.getElementById('mediaUpscaleFactor')?.value || '4',
+      quality_intent: document.getElementById('mediaQualityIntent')?.value || '',
+    };
+  }
+  (function initMediaAutoOptions() {
+    const sel = document.getElementById('defaultAiModel');
+    if (sel) sel.addEventListener('change', syncMediaAutoOptions);
+    syncMediaAutoOptions();
+  })();
 
   function initExistingRows() {
     if (!queueTable) return;
@@ -433,11 +363,11 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch(config.startAllUrl, {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+      body: JSON.stringify(Object.assign({
         ai_model: defaultAiModel,
         denoise: defaultDenoise,
         blend_factor: defaultBlendFactor
-      }),
+      }, panelAutoValues())),
     })
       .then((response) => {
         if (!response.ok) {
@@ -535,14 +465,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  function escapeHtml(str) {
-    if (window.WamaApp) return WamaApp.escapeHtml(str);
-    return (str || '').replace(/[&<>"']/g, function (match) {
-      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-      return map[match];
-    });
-  }
-
   function updateGlobalProgress() {
     return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
     if (!config.globalProgressUrl) return;
@@ -588,6 +510,15 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Curseur commun remis à l'équilibre : `input` réveille le listener délégué de wama-params.js
+  // (valeur + tricolore), comme un geste de l'utilisateur.
+  function resetIntent(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = '50';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   // Reset button
   const resetBtn = document.getElementById('resetOptions');
   if (resetBtn) {
@@ -597,9 +528,13 @@ document.addEventListener('DOMContentLoaded', function () {
       const audioActive = audioSettings && audioSettings.style.display !== 'none';
 
       if (audioActive) {
-        // Reset audio settings
+        // Reset audio settings (défaut « auto » depuis le curseur C ; `change` réveille la
+        // bascule du curseur et WamaModelCaps).
         const audioEngineEl = document.getElementById('audioEngine');
-        if (audioEngineEl) audioEngineEl.value = 'resemble';
+        if (audioEngineEl) {
+          audioEngineEl.value = 'auto';
+          audioEngineEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
 
         const audioModeEl = document.getElementById('audioMode');
         if (audioModeEl) audioModeEl.value = 'both';
@@ -613,12 +548,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const audioQualityEl = document.getElementById('audioQuality');
         if (audioQualityEl) audioQualityEl.value = '64';
+        resetIntent('audioQualityIntent');
       } else {
         // Reset image/video settings
         const defaultAiModelEl = document.getElementById('defaultAiModel');
         if (defaultAiModelEl && defaultAiModelEl.options.length > 0) {
           defaultAiModelEl.selectedIndex = 0;
+          syncMediaAutoOptions();
         }
+        const factorEl = document.getElementById('mediaUpscaleFactor');
+        if (factorEl) factorEl.value = '4';
+        resetIntent('mediaQualityIntent');
 
         const defaultDenoiseEl = document.getElementById('defaultDenoise');
         if (defaultDenoiseEl) defaultDenoiseEl.checked = false;
