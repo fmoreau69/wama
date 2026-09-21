@@ -68,22 +68,17 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   async function refreshCard(id) {
-    // Card = partial SERVEUR unique (endpoint card_html) — les événements de la
+    // Card = partial SERVEUR unique, REDEMANDÉE par la brique commune (WamaApp.fetchCard,
+    // portage 2026-09-21 — la copie locale du fetch vivait ici) ; les événements de la
     // file sont délégués (document/bindRowActions sur la card fraîche).
-    try {
-      const resp = await fetch(getUrl(config.cardHtmlUrlTemplate, id));
-      if (!resp.ok) return null;
-      const tpl = document.createElement('template');
-      tpl.innerHTML = (await resp.text()).trim();
-      const fresh = tpl.content.firstElementChild;
-      const existing = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
-      if (fresh && existing) {
-        existing.replaceWith(fresh);
-        bindRowActions(fresh);
-        if (typeof initMediaPreview === 'function') initMediaPreview();
-      }
-      return fresh;
-    } catch (_) { return null; }
+    const fresh = await WamaApp.fetchCard(config.cardHtmlUrlTemplate, id);
+    const existing = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
+    if (fresh && existing) {
+      existing.replaceWith(fresh);
+      bindRowActions(fresh);
+      if (typeof initMediaPreview === 'function') initMediaPreview();
+    }
+    return fresh;
   }
 
   async function appendRow(data) {
@@ -92,20 +87,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const empty = queueTable.querySelector('.empty-state');
     if (empty) empty.remove();
 
-    // Card = rendu SERVEUR (plus de markup construit côté JS).
-    try {
-      const resp = await fetch(getUrl(config.cardHtmlUrlTemplate, data.id));
-      if (!resp.ok) throw new Error(resp.status);
-      const tpl = document.createElement('template');
-      tpl.innerHTML = (await resp.text()).trim();
-      const card = tpl.content.firstElementChild;
-      queueTable.prepend(card);
-      createSettingsModal(data);
-      bindRowActions(card);
-    } catch (_) {
+    // Card = rendu SERVEUR (plus de markup construit côté JS), par la brique commune.
+    const card = await WamaApp.fetchCard(config.cardHtmlUrlTemplate, data.id);
+    if (!card) {
       location.reload();   // repli : le rechargement rend les cards serveur
       return;
     }
+    queueTable.prepend(card);
+    bindRowActions(card);
     updateDownloadAllState();
 
     if (typeof initMediaPreview === 'function') {

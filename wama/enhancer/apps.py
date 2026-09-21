@@ -45,26 +45,30 @@ class EnhancerConfig(AppConfig):
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
         # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
         from wama.common.utils.detail_registry import (MEDIA_CATEGORY_ROLE, build_detail,
-                                                       register_app_detail)
+                                                       register_app_detail,
+                                                       register_app_detail_spec)
+
+        # Branche MÉDIA : SPEC déclarative (A3a, portage 2026-09-21) — projetable au manifeste.
+        # `extra_from_params=True` = les champs individuels du schéma principal de l'app
+        # (`schema_for_app('enhancer')` → MEDIA_PARAMS_JSON, le pointeur de GENERIC_APPS).
+        # Même catégorie que l'entrée pour le rôle d'asset (table COMMUNE).
+        register_app_detail_spec('enhancer', Enhancement, {
+            'source_file': 'input_file',
+            'source_type': 'media_type',
+            'engine': 'ai_model',
+            'result_file': 'output_file',
+            'result_role': {'field': 'media_type', 'map': MEDIA_CATEGORY_ROLE},
+            'extra_from_params': True,
+        })
 
         def _extra_from_params(obj, params):
             return {p.label: getattr(obj, p.name, None) for p in params
                     if p.label and getattr(obj, p.name, None) not in (None, '', False)}
 
-        def _enhancer_detail(e):
-            from .params import MEDIA_PARAMS
-            return build_detail(
-                e,
-                source_file=e.input_file,
-                source_type=e.media_type,
-                engine=e.ai_model,
-                result_file=e.output_file,
-                # Même catégorie que l'entrée (table COMMUNE) ; la branche AUDIO ne déclare
-                # rien : un audio amélioré peut être une voix, une musique ou un bruitage.
-                result_role=MEDIA_CATEGORY_ROLE.get(e.media_type),
-                extra=_extra_from_params(e, MEDIA_PARAMS),
-            )
-
+        # Branche AUDIO : adapter CODE, à dessein — la spec ne sait nommer qu'UN schéma par
+        # nom d'app (`schema_for_app`), et celui de l'audio (`AUDIO_PARAMS`) n'est pas le
+        # principal. Rien à déclarer : un audio amélioré peut être une voix, une musique ou
+        # un bruitage (pas de `result_role`).
         def _audio_detail(ae):
             from .params import AUDIO_PARAMS
             return build_detail(
@@ -76,7 +80,6 @@ class EnhancerConfig(AppConfig):
                 extra=_extra_from_params(ae, AUDIO_PARAMS),
             )
 
-        register_app_detail('enhancer', Enhancement, _enhancer_detail)
         register_app_detail('audio_enhancer', AudioEnhancement, _audio_detail)
 
         # Enregistre les scénarios de test nocturne (AVANT le guard RUN_MAIN : doit aussi

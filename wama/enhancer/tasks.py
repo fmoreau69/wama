@@ -1,52 +1,223 @@
 """
 Celery tasks for Enhancer app.
+
+Squelette (gardes, progress, chrono, statuts, ETA, console, notifications, tâche déclarée au
+gouverneur, garde-temps) = brique COMMUNE `common/utils/task_skeleton.run_item_task`
+(portage 2026-09-21, marche A2). Ce fichier ne porte plus que la GLU des deux branches :
+résolution du modèle « auto », nommage et stockage de la sortie, aperçu « pendant » (vidéo),
+conversion de format inline. Les MÉCANISMES (upscale image/vidéo, restauration audio) sont
+les routes déclarées dans `backends/` (ROUTES, contrat commun « fichier »).
+
+Deux modèles d'item, deux identifiants d'app pour le squelette : `enhancer` (Enhancement)
+et `audio_enhancer` (AudioEnhancement) — le même nom que les registres de preview et de
+détail donnent déjà à la branche audio. Sans lui, la ligne « tâche en cours » du gouverneur
+(`app:item:tenant`) et le cache de progression (`<app>_progress_<pk>`) confondraient le
+média #5 et l'audio #5 ; et `audio_enhancer_progress_<pk>` est précisément la clé que les
+vues audio lisent depuis toujours.
 """
 
-import os
-import time
 import logging
-from celery import shared_task
-from django.core.cache import cache
-from django.db import close_old_connections
+import os
+from importlib import import_module
 
-from .models import Enhancement, AudioEnhancement
-from wama.common.utils.console_utils import push_console_line
+from celery import shared_task
+
+from .models import AudioEnhancement, Enhancement
 
 logger = logging.getLogger(__name__)
 
 
-def _set_progress(enhancement_id: int, percent: int) -> None:
-    """Set enhancement progress in cache and database."""
+# ── Tâches : squelette commun ───────────────────────────────────────────────────────────
+
+@shared_task(bind=True)
+def enhance_media(self, enhancement_id: int):
+    """Amélioration image / vidéo (file `gpu`)."""
+    from wama.common.utils.task_skeleton import run_item_task
+    run_item_task(self, app_id='enhancer', model=Enhancement, item_id=enhancement_id,
+                  process=_enhance_media, ingest_derive=_derive_media_type,
+                  model_key=lambda e: f'enhancer:{e.ai_model}',
+                  notify_label='Enhancer')
+
+
+@shared_task(bind=True)
+def enhance_audio(self, audio_enhancement_id: int):
+    """Restauration de parole (Resemble Enhance / DeepFilterNet 3)."""
+    from wama.common.utils.task_skeleton import run_item_task
+    run_item_task(self, app_id='audio_enhancer', model=AudioEnhancement,
+                  item_id=audio_enhancement_id, process=_enhance_audio,
+                  model_key=lambda a: f'enhancer:{a.engine}',
+                  notify_label='Enhancer (audio)')
+
+
+# ── Glu MÉDIA ───────────────────────────────────────────────────────────────────────────
+
+def _derive_media_type(inst, path, fname):
+    """Hook `derive` de l'ingest URL (WAMA_INGEST) : renseigne media_type au téléchargement.
+    CLASSER est le geste du commun (`normalize_types`) ; ce qu'on RETIENT du classement est la
+    politique de l'app — ici image/vidéo, '' pour tout le reste."""
+    if inst.media_type:
+        return []
+    from wama.common.app_registry import normalize_types
+    cat = (normalize_types([os.path.splitext(fname)[1]]) or [''])[0]
+    inst.media_type = cat if cat in ('image', 'video') else ''
+    return ['media_type'] if inst.media_type else []
+
+
+def _route(nature: str):
+    """Le callable déclaré par `backends.ROUTES` pour cette nature — import RELATIF AU PAQUET,
+    la même résolution que le corps composé par `tasks_gen`."""
+    from .backends import ROUTES
+    chemin = ROUTES.get(nature)
+    if not chemin:
+        raise ValueError(f"Type de média non supporté : {nature!r} (aucune route déclarée)")
+    mod, fonc = chemin.rsplit('.', 1)
+    return getattr(import_module('.' + mod, __package__), fonc)
+
+
+def _store_output(item, local_path: str, storage_name: str) -> str:
+    """Range le fichier produit dans le stockage à un nom CONNU (écrasement forcé : l'ancien
+    résultat de l'item et un éventuel orphelin homonyme sont supprimés d'abord). Rend le nom
+    de stockage effectif."""
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
+    if item.output_file:
+        try:
+            item.output_file.delete(save=False)
+        except Exception as exc:
+            logger.warning(f"Could not delete old output file: {exc}")
+    if default_storage.exists(storage_name):
+        try:
+            default_storage.delete(storage_name)
+        except Exception as exc:
+            logger.warning(f"Could not delete existing storage file: {exc}")
+    with open(local_path, 'rb') as f:
+        return default_storage.save(storage_name, ContentFile(f.read()))
+
+
+def _enhance_media(enhancement, ctx):
+    """GLU image/vidéo (contrat task_skeleton) : route par nature, nommage commun, stockage,
+    aperçu « pendant » (vidéo), conversion de sortie inline. Une exception = FAILURE (le
+    squelette pose statut/console/notification) ; l'aperçu partiel est retiré ICI."""
+    from wama.common.utils.output_naming import compose_output_name
+    from wama.common.utils.preview_utils import clear_partial
+    from wama.common.utils.work_dir import work_dir
+
+    nature = (enhancement.media_type or '').strip()
+    route = _route(nature)
+    input_path = enhancement.input_file.path
+    model = enhancement.ai_model
+    output_filename = compose_output_name(app='enhancer', model=model, source_name=input_path)
+    ctx.console(f"Processing {nature}: {enhancement.get_input_filename()} ({model})")
+    ctx.progress(5)
+
+    options = {
+        'ai_model': model,
+        'denoise': bool(enhancement.denoise),
+        'blend_factor': float(enhancement.blend_factor or 0.0),
+        'tile_size': int(enhancement.tile_size or 0),
+    }
+    extra = {}
+    if nature == 'video':
+        extra['frame_callback'] = _during_preview(enhancement)
+
     try:
-        pct = max(0, min(100, int(percent)))
-        cache.set(f"enhancer_progress_{enhancement_id}", pct, timeout=3600)
-        Enhancement.objects.filter(pk=enhancement_id).update(progress=pct)
-    except Exception:
-        pass
+        with work_dir('enhancer') as _work:
+            local = os.path.join(str(_work), output_filename)
+            produced = route(input_path, local, enhancement.output_format,
+                             options=options,
+                             progress_callback=lambda p: ctx.progress(5 + int(p * 0.9)),
+                             **extra) or {}
+            file_size = os.path.getsize(local)
+            saved = _store_output(
+                enhancement, local, f'enhancer/{enhancement.user_id}/output/media/{output_filename}')
+    finally:
+        if nature == 'video':
+            clear_partial('enhancer', enhancement.id)   # la face SORTIE prend le relais
+
+    enhancement.output_file.name = saved
+    _apply_enhancer_output_format(enhancement)          # conversion inline (converter)
+    ctx.progress(95)
+    return {
+        'fields': {
+            'output_file': enhancement.output_file.name,
+            'output_width': int(produced.get('width') or 0),
+            'output_height': int(produced.get('height') or 0),
+            'output_file_size': file_size,
+        },
+        'eta': enhancer_eta_key_size(enhancement),
+        'label': output_filename,
+        'models': [f'enhancer:{model}'],
+    }
 
 
-def _console(user_id: int, message: str, level: str = None) -> None:
-    """Push console message to user."""
-    try:
-        if level is None:
-            msg_lower = message.lower()
-            if any(w in msg_lower for w in ['error', 'failed', '\u2717', 'erreur']):
-                level = 'error'
-            elif any(w in msg_lower for w in ['warning', 'attention']):
-                level = 'warning'
-            elif any(w in msg_lower for w in ['[debug]', '[parallel']):
-                level = 'debug'
-            else:
-                level = 'info'
-        push_console_line(user_id, message, level=level, app='enhancer')
-    except Exception:
-        pass
+def _during_preview(enhancement):
+    """Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame AMÉLIORÉE
+    courante publiée ~toutes les 2 s (la cadence est tenue par la route). Les frames
+    temporaires vivent hors MEDIA : on copie un JPEG partiel sous l'output utilisateur (même
+    patron que l'anonymizer). Rend le `frame_callback` de la route vidéo."""
+    import cv2
+    from django.conf import settings
+    from wama.common.utils.media_paths import get_app_media_path
+    from wama.common.utils.preview_utils import publish_partial
 
+    pdir = os.path.join(str(get_app_media_path('enhancer', enhancement.user_id, 'output')),
+                        'partials')
+    os.makedirs(pdir, exist_ok=True)
+    partial_abs = os.path.join(pdir, f'during_{enhancement.id}.jpg')
+    partial_url = (settings.MEDIA_URL
+                   + os.path.relpath(partial_abs, settings.MEDIA_ROOT).replace('\\', '/'))
+
+    def _publish(frame, index):
+        cv2.imwrite(partial_abs, frame)
+        publish_partial('enhancer', enhancement.id, f'{partial_url}?v={index}')
+
+    return _publish
+
+
+# ── Glu AUDIO ───────────────────────────────────────────────────────────────────────────
+
+def _enhance_audio(ae, ctx):
+    """GLU audio (contrat task_skeleton) : route 'audio', nommage commun (`{base}_enhanced_
+    {moteur}.wav`), stockage, conversion de sortie inline."""
+    from wama.common.utils.output_naming import compose_output_name
+    from wama.common.utils.work_dir import work_dir
+
+    route = _route('audio')
+    input_path = ae.input_file.path
+    engine = ae.engine
+    output_filename = compose_output_name(app='enhancer', model=engine,
+                                          source_name=input_path, ext='.wav')
+    ctx.console(f"Traitement audio: {ae.get_input_filename()} ({ae.get_engine_display()})")
+    ctx.progress(5)
+
+    options = {
+        'engine': engine,
+        'mode': ae.mode,
+        'denoising_strength': float(ae.denoising_strength),
+        'quality': int(ae.quality),
+    }
+    with work_dir('enhancer') as _work:
+        local = os.path.join(str(_work), output_filename)
+        route(input_path, local, ae.output_format, options=options,
+              progress_callback=lambda p: ctx.progress(5 + int(p * 0.9)))
+        saved = _store_output(ae, local, f'enhancer/{ae.user_id}/output/audio/{output_filename}')
+
+    ae.output_file.name = saved
+    _apply_enhancer_output_format(ae)                   # conversion inline (converter)
+    return {
+        'fields': {'output_file': ae.output_file.name},
+        'eta': audio_enhancer_eta_key_size(ae),
+        'label': output_filename,
+        'models': [f'enhancer:{engine}'],
+    }
+
+
+# ── Partagé avec les vues (ETA) et la conversion de sortie ─────────────────────────────
 
 def enhancer_eta_key_size(enhancement) -> tuple[str, float, str]:
     """(model_key, size, unit) pour le seeding ETA d'une Enhancement image/vidéo.
     Image → mégapixels d'entrée ; vidéo → durée. Clé par modèle + facteur d'upscale.
-    Partagé entre `enhance_media` (record) et la vue progress (estimate)."""
+    Partagé entre la glu (record) et la vue progress (estimate)."""
     mt = (getattr(enhancement, 'media_type', '') or '').lower()
     model = getattr(enhancement, 'ai_model', '') or 'auto'
     factor = getattr(enhancement, 'upscale_factor', '') or ''
@@ -81,690 +252,4 @@ def _apply_enhancer_output_format(obj) -> None:
         rel = os.path.relpath(new_path, settings.MEDIA_ROOT).replace('\\', '/')
         obj.output_file.name = rel
     except Exception as exc:
-        logger.warning(f"[enhancer] conversion format sortie \u00e9chou\u00e9e: {exc}")
-
-
-@shared_task(bind=True)
-def enhance_media(self, enhancement_id: int):
-    """
-    Celery task to enhance image or video.
-
-    Args:
-        enhancement_id: ID of the Enhancement object
-    """
-    logger.info(f"========================================")
-    logger.info(f"WORKER: enhance_media START")
-    logger.info(f"Enhancement ID: {enhancement_id}")
-    logger.info(f"Task ID: {self.request.id}")
-    logger.info(f"========================================")
-
-    close_old_connections()
-
-    try:
-        enhancement = Enhancement.objects.get(pk=enhancement_id)
-        logger.info(f"Enhancement loaded: {enhancement.id}")
-        logger.info(f"  - User: {enhancement.user.username} (ID: {enhancement.user_id})")
-        logger.info(f"  - Media type: {enhancement.media_type}")
-        logger.info(f"  - AI model: {enhancement.ai_model}")
-        logger.info(f"  - Input file: {enhancement.input_file.path if enhancement.input_file else 'None'}")
-        logger.info(f"  - Denoise: {enhancement.denoise}")
-        logger.info(f"  - Blend factor: {enhancement.blend_factor}")
-    except Enhancement.DoesNotExist:
-        logger.error(f"Enhancement {enhancement_id} not found in database!")
-        return {'ok': False, 'error': 'Enhancement not found'}
-
-    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
-    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    if refuse_crash_redelivery(self, enhancement, error_field='error_message'):
-        logger.warning(f"[enhancer] Enhancement #{enhancement_id}: reprise après crash refusée — relancer manuellement.")
-        return {'ok': False, 'error': 'crash_redelivery'}
-
-    user_id = enhancement.user_id
-    logger.info(f"Sending console message to user {user_id}")
-    _console(user_id, f"Starting enhancement #{enhancement_id}")
-    _set_progress(enhancement_id, 5)
-    logger.info("Progress set to 5%")
-
-    # ── Ingest URL déclaratif (brique commune, Enhancement.WAMA_INGEST) : si l'item
-    # a une source_url sans fichier local (batch d'URLs), on le matérialise ici.
-    try:
-        from wama.common.utils.source_ingest import ensure_local_input
-
-        def _derive(inst, path, fname):
-            if inst.media_type:
-                return []
-            # CLASSER est le geste du commun (`normalize_types`) ; ce qu'on RETIENT du
-            # classement est la politique de l'app — ici image/vidéo, '' pour tout le reste.
-            from wama.common.app_registry import normalize_types
-            cat = (normalize_types([os.path.splitext(fname)[1]]) or [''])[0]
-            inst.media_type = cat if cat in ('image', 'video') else ''
-            return ['media_type'] if inst.media_type else []
-
-        ensure_local_input(enhancement, console=lambda m: _console(user_id, m), derive=_derive)
-    except Exception as exc:
-        logger.warning(f"[enhancer] ensure_local_input({enhancement_id}) : {exc}")
-
-    start_time = time.time()
-
-    try:
-        logger.info(f"Determining processing path for media_type: {enhancement.media_type}")
-
-        if enhancement.media_type == 'image':
-            logger.info("Calling _enhance_image()")
-            result = _enhance_image(enhancement, user_id)
-        elif enhancement.media_type == 'video':
-            logger.info("Calling _enhance_video()")
-            result = _enhance_video(enhancement, user_id)
-        else:
-            logger.error(f"Unsupported media type: {enhancement.media_type}")
-            raise ValueError(f"Unsupported media type: {enhancement.media_type}")
-
-        logger.info(f"Enhancement processing result: {result}")
-
-        if result['ok']:
-            processing_time = time.time() - start_time
-            logger.info(f"Enhancement SUCCESS in {processing_time:.2f}s")
-            try:
-                enhancement.refresh_from_db()
-                enhancement.status = 'SUCCESS'
-                enhancement.progress = 100
-                enhancement.processing_seconds = processing_time
-                enhancement.save(update_fields=['status', 'progress', 'processing_seconds'])
-                cache.set(f"enhancer_progress_{enhancement_id}", 100, timeout=3600)
-                _console(user_id, f"Enhancement #{enhancement_id} completed ✓")
-                try:
-                    from wama.model_manager.services.eta_estimator import record_run
-                    _k, _s, _u = enhancer_eta_key_size(enhancement)
-                    record_run(_k, size=_s, unit=_u, process_seconds=processing_time, load_seconds=None)
-                except Exception:
-                    pass
-                try:
-                    from wama.common.utils.notifications import notify_job
-                    notify_job(getattr(enhancement, 'user', None), 'Enhancer',
-                               getattr(enhancement, 'name', '') or f"amélioration #{enhancement_id}", True)
-                except Exception:
-                    pass
-            except Enhancement.DoesNotExist:
-                logger.warning(f"Enhancement {enhancement_id} was deleted during processing")
-                return {'ok': False, 'error': 'Enhancement was deleted'}
-        else:
-            error_msg = result.get('error', 'Unknown error')
-            logger.error(f"Enhancement processing returned error: {error_msg}")
-            raise Exception(error_msg)
-
-        logger.info(f"========================================")
-        logger.info(f"WORKER: enhance_media END (SUCCESS)")
-        logger.info(f"========================================")
-        return result
-
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"========================================")
-        logger.error(f"WORKER: enhance_media END (FAILURE)")
-        logger.error(f"Error: {error_msg}")
-        logger.error(f"========================================", exc_info=True)
-
-        try:
-            enhancement.refresh_from_db()
-            enhancement.status = 'FAILURE'
-            enhancement.progress = 0
-            enhancement.error_message = error_msg
-            enhancement.save(update_fields=['status', 'progress', 'error_message'])
-            cache.set(f"enhancer_progress_{enhancement_id}", 0, timeout=3600)
-            _console(user_id, f"Enhancement #{enhancement_id} failed: {error_msg}")
-            try:
-                from wama.common.utils.notifications import notify_job
-                notify_job(getattr(enhancement, 'user', None), 'Enhancer',
-                           getattr(enhancement, 'name', '') or f"amélioration #{enhancement_id}", False, detail=error_msg)
-            except Exception:
-                pass
-        except Enhancement.DoesNotExist:
-            logger.warning(f"Enhancement {enhancement_id} was deleted during processing, cannot save error state")
-
-        return {'ok': False, 'error': error_msg}
-
-
-@shared_task(bind=True)
-def enhance_audio(self, audio_enhancement_id: int):
-    """
-    Celery task to enhance audio with Resemble Enhance or DeepFilterNet 3.
-
-    Args:
-        audio_enhancement_id: ID of the AudioEnhancement object
-    """
-    logger.info(f"WORKER: enhance_audio START  ID={audio_enhancement_id}")
-    close_old_connections()
-
-    try:
-        ae = AudioEnhancement.objects.get(pk=audio_enhancement_id)
-    except AudioEnhancement.DoesNotExist:
-        logger.error(f"AudioEnhancement {audio_enhancement_id} not found!")
-        return {'ok': False, 'error': 'AudioEnhancement not found'}
-
-    # Garde anti-boucle-de-crash (brique COMMUNE) — cf. enhance_media.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    if refuse_crash_redelivery(self, ae, error_field='error_message'):
-        logger.warning(f"[enhancer] AudioEnhancement #{audio_enhancement_id}: reprise après crash refusée.")
-        return {'ok': False, 'error': 'crash_redelivery'}
-
-    user_id = ae.user_id
-    _console(user_id, f"Audio enhancement #{audio_enhancement_id} démarré ({ae.get_engine_display()})")
-    _set_audio_progress(audio_enhancement_id, 5)
-
-    # ── Ingest URL déclaratif (brique commune, AudioEnhancement.WAMA_INGEST).
-    try:
-        from wama.common.utils.source_ingest import ensure_local_input
-        ensure_local_input(ae, console=lambda m: _console(user_id, m))
-    except Exception as exc:
-        logger.warning(f"[enhancer] ensure_local_input(audio {audio_enhancement_id}) : {exc}")
-
-    start_time = time.time()
-
-    try:
-        from wama.common.backends.audio_enhancer import run_audio_enhancement
-        import tempfile
-        from django.core.files.base import ContentFile
-        from django.core.files.storage import default_storage
-
-        input_path = ae.input_file.path
-        # Brique COMMUNE de nommage (2026-08-25) — rendu IDENTIQUE à la graphie historique
-        # `{base}_enhanced_{moteur}.wav` ; le mot « enhanced » est désormais DÉCLARÉ.
-        from wama.common.utils.output_naming import compose_output_name
-        output_filename = compose_output_name(app='enhancer', model=ae.engine,
-                                              source_name=input_path, ext='.wav')
-
-        # Temporary output file
-        temp_fd, temp_output = tempfile.mkstemp(suffix='.wav', prefix='audio_enhanced_')
-        os.close(temp_fd)
-
-        def _progress(pct):
-            mapped = 5 + int(pct * 0.90)
-            _set_audio_progress(audio_enhancement_id, mapped)
-
-        _console(user_id, f"Traitement audio: {ae.get_input_filename()}")
-
-        run_audio_enhancement(
-            input_path=input_path,
-            output_path=temp_output,
-            engine=ae.engine,
-            mode=ae.mode,
-            denoising_strength=ae.denoising_strength,
-            quality=ae.quality,
-            progress_callback=_progress,
-        )
-
-        if not os.path.exists(temp_output) or os.path.getsize(temp_output) == 0:
-            raise FileNotFoundError(f"Output audio file not created at {temp_output}")
-
-        # Save to storage
-        output_storage_path = f'enhancer/{ae.user_id}/output/audio/{output_filename}'
-        if default_storage.exists(output_storage_path):
-            try:
-                default_storage.delete(output_storage_path)
-            except Exception:
-                pass
-
-        with open(temp_output, 'rb') as f:
-            saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
-
-        processing_time = time.time() - start_time
-        ae.refresh_from_db()
-        ae.output_file.name = saved_path
-        _apply_enhancer_output_format(ae)  # Phase 3 — conversion format inline
-        ae.status = 'SUCCESS'
-        ae.progress = 100
-        ae.processing_seconds = processing_time
-        ae.save(update_fields=['output_file', 'status', 'progress', 'processing_seconds'])
-        cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", 100, timeout=3600)
-        try:
-            from wama.model_manager.services.eta_estimator import record_run
-            _k, _s, _u = audio_enhancer_eta_key_size(ae)
-            record_run(_k, size=_s, unit=_u, process_seconds=processing_time, load_seconds=None)
-        except Exception:
-            pass
-
-        _console(user_id, f"Audio enhancement #{audio_enhancement_id} terminé ✓ ({processing_time:.1f}s)")
-        logger.info(f"WORKER: enhance_audio END (SUCCESS)  ID={audio_enhancement_id}")
-        try:
-            from wama.common.utils.notifications import notify_job
-            notify_job(getattr(ae, 'user', None), 'Enhancer (audio)',
-                       getattr(ae, 'name', '') or f"audio #{audio_enhancement_id}", True)
-        except Exception:
-            pass
-        return {'ok': True}
-
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"WORKER: enhance_audio FAILURE  ID={audio_enhancement_id}: {error_msg}", exc_info=True)
-        try:
-            ae.refresh_from_db()
-            ae.status = 'FAILURE'
-            ae.error_message = error_msg
-            ae.save(update_fields=['status', 'error_message'])
-            cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", 0, timeout=3600)
-            _console(user_id, f"Audio enhancement #{audio_enhancement_id} échoué: {error_msg}")
-            try:
-                from wama.common.utils.notifications import notify_job
-                notify_job(getattr(ae, 'user', None), 'Enhancer (audio)',
-                           getattr(ae, 'name', '') or f"audio #{audio_enhancement_id}", False, detail=error_msg)
-            except Exception:
-                pass
-        except AudioEnhancement.DoesNotExist:
-            pass
-        return {'ok': False, 'error': error_msg}
-    finally:
-        try:
-            if 'temp_output' in dir() and os.path.exists(temp_output):
-                os.remove(temp_output)
-        except Exception:
-            pass
-
-
-def _set_audio_progress(audio_enhancement_id: int, percent: int) -> None:
-    try:
-        pct = max(0, min(100, int(percent)))
-        cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", pct, timeout=3600)
-        AudioEnhancement.objects.filter(pk=audio_enhancement_id).update(progress=pct)
-    except Exception:
-        pass
-
-
-def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
-    """
-    Enhance a single image.
-
-    Args:
-        enhancement: Enhancement object
-        user_id: User ID for console messages
-
-    Returns:
-        Result dictionary
-    """
-    logger.info("--- _enhance_image START ---")
-
-    from wama.common.backends.ai_upscaler import upscale_image_file
-    import os
-    from django.core.files.base import ContentFile
-
-    input_filename = enhancement.get_input_filename()
-    logger.info(f"Image filename: {input_filename}")
-
-    _console(user_id, f"Processing image: {input_filename}")
-    _set_progress(enhancement.id, 10)
-    logger.info("Console message sent, progress set to 10%")
-
-    input_path = enhancement.input_file.path
-    logger.info(f"Input file path: {input_path}")
-    logger.info(f"Input file exists: {os.path.exists(input_path)}")
-
-    # Get the base name from the input file (which already has unique name from Django upload)
-    base_name, ext = os.path.splitext(os.path.basename(input_path))
-    from wama.common.utils.output_naming import compose_output_name
-    output_filename = compose_output_name(app='enhancer', model=enhancement.ai_model,
-                                          source_name=input_path)
-    logger.info(f"Output filename will be: {output_filename}")
-
-    # Create temporary file for processing (not in media/ to avoid permission issues)
-    import tempfile
-    temp_fd, output_path = tempfile.mkstemp(suffix=ext, prefix='enhancer_')
-    os.close(temp_fd)  # Close the file descriptor, we'll write with cv2
-    logger.info(f"Temporary output path: {output_path}")
-
-    try:
-        # Progress callback
-        def progress_cb(pct):
-            # Map 0-100 to 10-90
-            mapped = 10 + int(pct * 0.8)
-            _set_progress(enhancement.id, mapped)
-
-        # Upscale image
-        logger.info(f"Starting upscale with model: {enhancement.ai_model}")
-        logger.info(f"  - Denoise: {enhancement.denoise}")
-        logger.info(f"  - Blend factor: {enhancement.blend_factor}")
-
-        width, height = upscale_image_file(
-            input_path=input_path,
-            output_path=output_path,
-            model_name=enhancement.ai_model,
-            denoise=enhancement.denoise,
-            blend_factor=enhancement.blend_factor,
-            progress_callback=progress_cb,
-        )
-
-        logger.info(f"Upscaling completed: {width}x{height}")
-        logger.info(f"Verifying output file exists: {output_path}")
-        if not os.path.exists(output_path):
-            raise FileNotFoundError(f"Upscaler did not create output file at {output_path}")
-
-        # Delete old output file if it exists
-        if enhancement.output_file:
-            try:
-                logger.info(f"Deleting old output file: {enhancement.output_file.name}")
-                enhancement.output_file.delete(save=False)
-            except Exception as e:
-                logger.warning(f"Could not delete old output file: {e}")
-
-        # Save output file directly to storage to force overwrite without Django's uniqueness check
-        from django.core.files.storage import default_storage
-        output_storage_path = f'enhancer/{enhancement.user_id}/output/media/{output_filename}'
-
-        # Force delete if exists (handles orphaned files)
-        if default_storage.exists(output_storage_path):
-            try:
-                logger.info(f"Deleting existing file in storage: {output_storage_path}")
-                default_storage.delete(output_storage_path)
-            except Exception as e:
-                logger.warning(f"Could not delete existing storage file: {e}")
-
-        # Write file directly to storage, then update the FileField with the known path
-        logger.info(f"Saving output file to storage: {output_storage_path}")
-        with open(output_path, 'rb') as f:
-            saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
-
-        logger.info(f"File saved to storage at: {saved_path}")
-
-        # Verify the file exists in storage
-        if default_storage.exists(saved_path):
-            logger.info(f"Verified: File exists in storage at {saved_path}")
-            storage_size = default_storage.size(saved_path)
-            logger.info(f"Storage file size: {storage_size} bytes")
-        else:
-            logger.error(f"ERROR: File was NOT saved to storage at {saved_path}")
-
-        # Update the FileField to point to the saved file
-        file_size = os.path.getsize(output_path)
-        logger.info(f"Temporary file size: {file_size} bytes")
-
-        try:
-            enhancement.refresh_from_db()
-            enhancement.output_file.name = saved_path
-            logger.info(f"Output file field updated: {enhancement.output_file.name}")
-            _apply_enhancer_output_format(enhancement)  # Phase 3 — conversion format inline
-            enhancement.output_width = width
-            enhancement.output_height = height
-            enhancement.output_file_size = file_size
-            enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
-            logger.info("Database updated with output file info")
-        except Enhancement.DoesNotExist:
-            logger.warning(f"Enhancement {enhancement.id} was deleted during processing")
-            raise Exception("Enhancement was deleted during processing")
-
-        _set_progress(enhancement.id, 95)
-
-        logger.info("--- _enhance_image END (SUCCESS) ---")
-        return {'ok': True, 'output_width': width, 'output_height': height}
-
-    except Exception as e:
-        logger.error(f"--- _enhance_image END (FAILURE) ---")
-        logger.error(f"Error during image enhancement: {e}", exc_info=True)
-        raise
-    finally:
-        # Always clean up temp file
-        if os.path.exists(output_path):
-            try:
-                os.remove(output_path)
-                logger.info(f"Temporary file removed: {output_path}")
-            except Exception as cleanup_err:
-                logger.warning(f"Could not remove temp file: {cleanup_err}")
-
-
-def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
-    """
-    Enhance a video (frame by frame).
-
-    Args:
-        enhancement: Enhancement object
-        user_id: User ID for console messages
-
-    Returns:
-        Result dictionary
-    """
-    import subprocess
-    # (`tempfile` et `shutil` retires le 2026-08-26 : leurs SEULS usages ici etaient le mkdtemp
-    #  et les deux rmtree, tous trois absorbes par la brique `work_dir`.)
-    import cv2
-    from django.core.files.base import ContentFile
-
-    _console(user_id, f"Processing video: {enhancement.get_input_filename()}")
-    _set_progress(enhancement.id, 5)
-
-    input_path = enhancement.input_file.path
-    # Get the base name from the input file (which already has unique name from Django upload)
-    base_name, ext = os.path.splitext(os.path.basename(input_path))
-    from wama.common.utils.output_naming import compose_output_name
-    output_filename = compose_output_name(app='enhancer', model=enhancement.ai_model,
-                                          source_name=input_path)
-
-    # Dossier de travail JETABLE — brique commune `work_dir` (2026-08-26).
-    # ⚠ Le nettoyage etait DEJA correct sur les deux chemins (rmtree en succes ET dans le
-    # `except`) — ce port ne corrige donc pas un bug, il rend la garantie STRUCTURELLE.
-    # Le `with` couvre en plus ce que deux appels ne couvraient pas : un `return` anticipe et
-    # les BaseException — dont la `SoftTimeLimitExceeded` de Celery, qui est precisement ce
-    # qui arrive a une tache GPU trop longue, et qui laissait donc le dossier derriere elle.
-    # Il apporte aussi le domicile hors `media/` et l'echappatoire WAMA_GARDER_WORK_DIR.
-    from wama.common.utils.work_dir import work_dir
-    with work_dir('enhancer') as _travail:
-        temp_dir = str(_travail)
-        frames_dir = os.path.join(temp_dir, 'frames')
-        enhanced_dir = os.path.join(temp_dir, 'enhanced')
-        os.makedirs(frames_dir, exist_ok=True)
-        os.makedirs(enhanced_dir, exist_ok=True)
-
-        try:
-            # Step 1: Extract frames with ffmpeg (10%)
-            _console(user_id, "Extracting frames...")
-            _set_progress(enhancement.id, 10)
-
-            frame_pattern = os.path.join(frames_dir, 'frame_%05d.png')
-            logger.info(f"Extracting frames from {input_path} to {frame_pattern}")
-            from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
-            _ff = get_ffmpeg_exe()
-            extract_result = subprocess.run([
-                _ff,
-                '-y',  # Overwrite output files without asking
-                '-i', adapt_path_for_ffmpeg(input_path, _ff),
-                '-qscale:v', '1',
-                adapt_path_for_ffmpeg(frame_pattern, _ff)
-            ], capture_output=True, text=True)
-
-            if extract_result.returncode != 0:
-                logger.error(f"ffmpeg frame extraction failed with return code {extract_result.returncode}")
-                logger.error(f"ffmpeg stderr: {extract_result.stderr}")
-                raise RuntimeError(f"ffmpeg frame extraction failed: {extract_result.stderr}")
-
-            # Count frames
-            frame_files = sorted([f for f in os.listdir(frames_dir) if f.endswith('.png')])
-            total_frames = len(frame_files)
-            _console(user_id, f"Extracted {total_frames} frames")
-
-            # Step 2: Upscale frames (10-80%)
-            _console(user_id, f"Upscaling frames with {enhancement.ai_model}...")
-
-            # Le MODÈLE porte son moteur ; le backend s'en DÉRIVE (2ᵉ adoptant de
-            # `backend_for_key`, 2026-09-07). Les 7 modèles déclarent `onnxruntime` et
-            # résolvent tous `AIUpscaler` — mesuré avant la substitution. Aucun repli muet.
-            from wama.common.backends.manager import backend_for_key
-            catalog_key = f'enhancer:{enhancement.ai_model}'
-            classe = backend_for_key(catalog_key)
-            if classe is None:
-                raise RuntimeError(
-                    f"Modèle « {enhancement.ai_model} » : aucun backend résolu depuis le "
-                    f"catalogue ({catalog_key} absent, ou sans moteur déclaré)")
-            upscaler = classe(
-                model_name=enhancement.ai_model,
-                tile_size=enhancement.tile_size if enhancement.tile_size > 0 else 512
-            )
-
-            output_width = 0
-            output_height = 0
-
-            # Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame
-            # AMÉLIORÉE courante publiée ~toutes les 2 s — les frames temporaires vivent hors
-            # MEDIA, on copie donc un JPEG partiel sous l'output utilisateur (même patron que
-            # l'anonymizer, corrigé en famille 18/08).
-            from django.conf import settings
-            from wama.common.utils.media_paths import get_app_media_path
-            from wama.common.utils.preview_utils import clear_partial, publish_partial
-            _pdir = os.path.join(str(get_app_media_path('enhancer', user_id, 'output')), 'partials')
-            os.makedirs(_pdir, exist_ok=True)
-            _partial_abs = os.path.join(_pdir, f'during_{enhancement.id}.jpg')
-            _partial_url = (settings.MEDIA_URL
-                            + os.path.relpath(_partial_abs, settings.MEDIA_ROOT).replace('\\', '/'))
-            _last_emit = [0.0]
-
-            for i, frame_file in enumerate(frame_files):
-                # Update progress
-                progress = 10 + int((i / total_frames) * 70)
-                _set_progress(enhancement.id, progress)
-
-                # Read frame
-                frame_path = os.path.join(frames_dir, frame_file)
-                frame = cv2.imread(frame_path)
-
-                # Upscale
-                enhanced_frame = upscaler.upscale_image(
-                    frame,
-                    blend_factor=enhancement.blend_factor
-                )
-
-                # Save enhanced frame
-                enhanced_path = os.path.join(enhanced_dir, frame_file)
-                cv2.imwrite(enhanced_path, enhanced_frame)
-
-                # Store dimensions from first frame
-                if i == 0:
-                    output_height, output_width = enhanced_frame.shape[:2]
-
-                _now = time.time()
-                if _now - _last_emit[0] >= 2.0:
-                    _last_emit[0] = _now
-                    try:
-                        cv2.imwrite(_partial_abs, enhanced_frame)
-                        publish_partial('enhancer', enhancement.id, f'{_partial_url}?v={i}')
-                    except Exception:
-                        pass  # best-effort
-
-            upscaler.close()
-            clear_partial('enhancer', enhancement.id)   # la face SORTIE prend le relais
-            try:
-                os.remove(_partial_abs)
-            except OSError:
-                pass
-            _console(user_id, f"Upscaled all frames")
-
-            # Step 3: Encode video (80-95%)
-            _console(user_id, "Encoding video...")
-            _set_progress(enhancement.id, 80)
-
-            # Use temp file for ffmpeg output (not in media/ to avoid conflict with storage deletion)
-            output_path = os.path.join(temp_dir, output_filename)
-
-            enhanced_pattern = os.path.join(enhanced_dir, 'frame_%05d.png')
-
-            # Get original video FPS
-            from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
-            _fp = get_ffprobe_exe()
-            probe_result = subprocess.run([
-                _fp,
-                '-v', 'error',
-                '-select_streams', 'v:0',
-                '-show_entries', 'stream=r_frame_rate',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                adapt_path_for_ffmpeg(input_path, _fp)
-            ], capture_output=True, text=True)
-
-            fps = eval(probe_result.stdout.strip()) if probe_result.stdout.strip() else 30
-
-            # Encode video
-            logger.info(f"Running ffmpeg to encode video to: {output_path}")
-            from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
-            _ffe = get_ffmpeg_exe()
-            encode_result = subprocess.run([
-                _ffe,
-                '-y',  # Overwrite output file without asking
-                '-framerate', str(fps),
-                '-i', adapt_path_for_ffmpeg(enhanced_pattern, _ffe),
-                '-c:v', 'libx264',
-                '-preset', 'medium',
-                '-crf', '18',
-                '-pix_fmt', 'yuv420p',
-                adapt_path_for_ffmpeg(output_path, _ffe)
-            ], capture_output=True, text=True)
-
-            if encode_result.returncode != 0:
-                logger.error(f"ffmpeg encoding failed with return code {encode_result.returncode}")
-                logger.error(f"ffmpeg stderr: {encode_result.stderr}")
-                raise RuntimeError(f"ffmpeg encoding failed: {encode_result.stderr}")
-
-            # Verify output file was created
-            if not os.path.exists(output_path):
-                logger.error(f"ffmpeg did not create output file at {output_path}")
-                logger.error(f"ffmpeg stdout: {encode_result.stdout}")
-                logger.error(f"ffmpeg stderr: {encode_result.stderr}")
-                raise FileNotFoundError(f"ffmpeg did not create output file at {output_path}")
-
-            logger.info(f"Video encoded successfully, file size: {os.path.getsize(output_path)} bytes")
-            _set_progress(enhancement.id, 95)
-
-            # Delete old output file if it exists
-            if enhancement.output_file:
-                try:
-                    logger.info(f"Deleting old output file: {enhancement.output_file.name}")
-                    enhancement.output_file.delete(save=False)
-                except Exception as e:
-                    logger.warning(f"Could not delete old output file: {e}")
-
-            # Save output file directly to storage to force overwrite without Django's uniqueness check
-            from django.core.files.storage import default_storage
-            output_storage_path = f'enhancer/{enhancement.user_id}/output/media/{output_filename}'
-
-            # Force delete if exists (handles orphaned files)
-            if default_storage.exists(output_storage_path):
-                try:
-                    logger.info(f"Deleting existing file in storage: {output_storage_path}")
-                    default_storage.delete(output_storage_path)
-                except Exception as e:
-                    logger.warning(f"Could not delete existing storage file: {e}")
-
-            # Write file directly to storage, then update the FileField with the known path
-            logger.info(f"Saving output file to storage: {output_storage_path}")
-            with open(output_path, 'rb') as f:
-                saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
-
-            logger.info(f"File saved to storage at: {saved_path}")
-
-            # Verify the file exists in storage
-            if default_storage.exists(saved_path):
-                logger.info(f"Verified: File exists in storage at {saved_path}")
-                storage_size = default_storage.size(saved_path)
-                logger.info(f"Storage file size: {storage_size} bytes")
-            else:
-                logger.error(f"ERROR: File was NOT saved to storage at {saved_path}")
-
-            # Update the FileField to point to the saved file
-            try:
-                enhancement.refresh_from_db()
-                enhancement.output_file.name = saved_path
-                logger.info(f"Output file field updated: {enhancement.output_file.name}")
-                enhancement.output_width = output_width
-                enhancement.output_height = output_height
-                enhancement.output_file_size = os.path.getsize(output_path)
-                enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
-            except Enhancement.DoesNotExist:
-                logger.warning(f"Enhancement {enhancement.id} was deleted during processing")
-                raise Exception("Enhancement was deleted during processing")
-
-            _console(user_id, f"Video encoding complete")
-
-            # (plus de `rmtree` ici ni dans l'`except` : le `with work_dir` les porte tous deux.)
-            return {'ok': True, 'output_width': output_width, 'output_height': output_height, 'frames': total_frames}
-
-        except Exception as e:
-            # Clean up on error (aperçu partiel compris — pas de « pendant » obsolète)
-            try:
-                from wama.common.utils.preview_utils import clear_partial
-                clear_partial('enhancer', enhancement.id)
-            except Exception:
-                pass
-            raise
+        logger.warning(f"[enhancer] conversion format sortie échouée: {exc}")

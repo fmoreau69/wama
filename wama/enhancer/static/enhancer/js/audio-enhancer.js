@@ -106,43 +106,29 @@ document.addEventListener('DOMContentLoaded', function () {
     const empty = container.querySelector('.empty-state');
     if (empty) empty.remove();
 
-    // Card = rendu SERVEUR (plus de markup construit côté JS).
-    try {
-      const resp = await fetch(getUrl(cfg.audioCardHtmlUrlTemplate, data.id));
-      if (!resp.ok) throw new Error(resp.status);
-      const tpl = document.createElement('template');
-      tpl.innerHTML = (await resp.text()).trim();
-      const card = tpl.content.firstElementChild;
-      container.prepend(card);
-      createAudioSettingsModal(data.id, data.engine, data.mode, data.denoising_strength, data.quality);
-      if (typeof initMediaPreview === 'function') initMediaPreview();
-    } catch (_) {
+    // Card = rendu SERVEUR (plus de markup construit côté JS), REDEMANDÉE par la brique
+    // commune (WamaApp.fetchCard, portage 2026-09-21 — la copie locale du fetch vivait ici).
+    const card = await WamaApp.fetchCard(cfg.audioCardHtmlUrlTemplate, data.id);
+    if (!card) {
       location.reload();   // repli : le rechargement rend les cards serveur
       return;
     }
+    container.prepend(card);
+    if (typeof initMediaPreview === 'function') initMediaPreview();
     updateAudioGlobalProgress();
-  }
-  function escHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   async function refreshAudioCard(id) {
-    // Card = partial SERVEUR unique (endpoint audio_card_html) ; handlers délégués,
-    // le waveform des cards hors batch est inclus par le partial.
-    try {
-      const resp = await fetch(getUrl(cfg.audioCardHtmlUrlTemplate, id));
-      if (!resp.ok) return null;
-      const tpl = document.createElement('template');
-      tpl.innerHTML = (await resp.text()).trim();
-      const fresh = tpl.content.firstElementChild;
-      const container = document.getElementById('audio-enhancer-queue');
-      const existing = container ? container.querySelector(`[data-id="${id}"]`) : null;
-      if (fresh && existing) {
-        existing.replaceWith(fresh);
-        if (typeof initMediaPreview === 'function') initMediaPreview();
-      }
-      return fresh;
-    } catch (_) { return null; }
+    // Card = partial SERVEUR unique (endpoint audio_card_html), par la brique commune ;
+    // handlers délégués, le waveform des cards hors batch est inclus par le partial.
+    const fresh = await WamaApp.fetchCard(cfg.audioCardHtmlUrlTemplate, id);
+    const container = document.getElementById('audio-enhancer-queue');
+    const existing = container ? container.querySelector(`[data-id="${id}"]`) : null;
+    if (fresh && existing) {
+      existing.replaceWith(fresh);
+      if (typeof initMediaPreview === 'function') initMediaPreview();
+    }
+    return fresh;
   }
 
   async function updateRow(id, data) {
