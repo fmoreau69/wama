@@ -15892,7 +15892,21 @@ de qualité a priori déclaré dans `MODELS_INFO` et projeté par la découverte
 par la sœur ce soir), pas une ligne. Décision de Fabien : « auto » à l'enhancer = levée de la décision
 `params.py:78` — actée, à exécuter avec le portage.
 
-🔚 **Reste C (adoption, une ligne + un champ chacun)** : imager et composer (autres sessions —
+**⑦ SUITE 21/09 — imager et composer RALLIÉS (GO Fabien : « si c'est rapide et efficace »).**
+Colonne `quality_intent` (null = équilibré) sur `ImageGeneration`/`ComposerGeneration`
+(migrations 0022/0011, gitignorées) ; `intent_param` conditionné à « auto » (imager, image et
+vidéo) / « auto-* » (composer, `show_if in`) ; imager : surfaces schéma-driven, le type `intent`
+coercé par `coerce_schema_values`, cinq créations + lot de prompts lisent le POST ; composer :
+curseur rendu dans l'hôte du modèle du volet, POST de génération, `update_settings`,
+`batch_update` ; tirage `resolve_model_choice(..., item=…)` (la cascade fait le reste), console
+« modèle + curseur » au lancement. ⚠ Mesuré en test : la jumelle bac à sable `imager_01`
+(régénérée avant le champ) n'a pas la colonne — `creer_lot_de_prompts` résout le modèle par
+`app_label` et ne pose la clé que si elle existe. Critère `quality_intent` : `item=` vaut
+« intention passée » et le motif tolère une parenthèse imbriquée (les deux étaient « jamais
+passé » à tort) ; **mesuré : anonymizer, avatarizer, composer, converter, imager, reader,
+synthesizer VRAI ; describer, enhancer n/a ; transcriber FAUX (question `priority`)**.
+
+🔚 **Reste C (adoption, une ligne + un champ chacun)** : ~~imager et composer~~ ✅ 21/09 (autres sessions —
 `resolve_model_choice(..., item=generation)` + `intent_param` au schéma) ; transcriber (question :
 `priority` whisper-first = l'ordre, le curseur arbitre dedans — à trancher) ; converter (③ étapes
 de la ROUTE §F4b). L'option cloud du curseur = B3. Le critère de grille tient le compte.

@@ -1461,10 +1461,10 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   / `segmentation_for_intent` (les seuils de l'anonymizer, inchangés au cran près — garde
   `tests_intent_vision`) et `couvrir_classes(quality_intent=)` ; grisage des classes sur « auto »
   (union des modèles de détection installés) ; reader rallié (curseur = réglage d'app) ; critère de
-  grille `quality_intent` (97 critères, 846/913). ⏳ **Adoption restante, mesurée par le critère** :
-  imager, composer (une ligne `item=` + le champ au schéma — sessions qui tiennent ces apps),
-  transcriber (question ouverte : `priority` whisper-first reste l'ordre, le curseur arbitre dedans),
-  converter (③ étapes ci-dessous). L'option cloud du curseur = B3.
+  grille `quality_intent` (97 critères, 846/913). ✅ **21/09 : converter (`631f01d2`), imager et
+  composer ralliés** — mesuré par le critère : 7 apps VRAI, describer/enhancer n/a (enhancer = portage,
+  détail `PROJECT_STATUS §PALIER « CURSEUR C » ⑥`), **transcriber FAUX** — question ouverte :
+  `priority` whisper-first reste l'ordre, le curseur arbitre dedans. L'option cloud du curseur = B3.
   **B — réponses (Fabien, 15/09)** : ① ce n'est pas qu'une question de voix — quand la tâche libère
   TOUS les modèles de la VRAM, l'assistant MET L'UTILISATEUR EN ATTENTE avec un message d'attente.
   ÉTAT MESURÉ : un mot d'attente GÉNÉRIQUE existe, affiché après un délai sur l'accueil seulement
