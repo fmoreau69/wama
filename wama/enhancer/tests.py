@@ -115,6 +115,40 @@ class NfeDeclinesFromTheSliderTest(SimpleTestCase):
         self.assertEqual(am.audio_nfe(auto, 'deepfilternet'), 64)   # sans objet, colonne rendue
 
 
+class VramNeedIsTheCommonFootprintTest(TestCase):
+    """La garde VRAM du squelette lit la cascade COMMUNE (`model_footprint_gb`), jamais un
+    chiffre recopié ; sans ligne de catalogue, pas de garde."""
+
+    def test_the_catalogue_row_s_footprint_is_returned_and_an_unknown_key_gives_none(self):
+        _catalogue_row('enhancer:resemble', 'speech', task='audio-enhance')
+        from wama.model_manager.models import AIModel
+        AIModel.objects.filter(model_key='enhancer:resemble').update(vram_gb=4.0)
+        self.assertEqual(am.vram_needed_gb('enhancer:resemble'), 4.0)
+        self.assertIsNone(am.vram_needed_gb('enhancer:absent'))
+
+
+class MediaRouteHelpersTest(SimpleTestCase):
+
+    def test_ffprobe_frame_rates_are_parsed_and_the_unreadable_falls_back_to_30(self):
+        from wama.enhancer.backends.media_backend import _parse_fps
+        self.assertEqual(_parse_fps('25'), 25.0)
+        self.assertAlmostEqual(_parse_fps('30000/1001'), 29.97, places=2)
+        self.assertEqual(_parse_fps(''), 30)
+        self.assertEqual(_parse_fps('x/y'), 30)
+        self.assertEqual(_parse_fps('1/0'), 30)
+
+    def test_the_ingest_hook_classifies_only_images_and_videos(self):
+        from wama.enhancer.tasks import _derive_media_type
+        item = type('E', (), {'media_type': ''})()
+        self.assertEqual(_derive_media_type(item, '/x/a.mp4', 'a.mp4'), ['media_type'])
+        self.assertEqual(item.media_type, 'video')
+        item2 = type('E', (), {'media_type': ''})()
+        self.assertEqual(_derive_media_type(item2, '/x/a.wav', 'a.wav'), [])
+        self.assertEqual(item2.media_type, '')
+        item3 = type('E', (), {'media_type': 'image'})()
+        self.assertEqual(_derive_media_type(item3, '/x/a.mp4', 'a.mp4'), [])
+
+
 class RoutesContractTest(SimpleTestCase):
     """`backends/__init__.ROUTES` : chemins en chaînes, importables, au contrat « fichier »."""
 

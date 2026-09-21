@@ -484,17 +484,12 @@ def _input_labels():
     return input_labels()
 
 
+# Curseur POSTÉ (chantier C) : lecteur COMMUN — None quand il n'est pas posté. La copie locale
+# (identique chez imager et enhancer) est remontée dans la brique le 2026-09-21.
+from wama.common.utils.auto_model import posted_quality_intent as _intent_posted  # noqa: E402
+
+
 @require_POST
-def _intent_posted(source):
-    """Curseur rapide/qualité POSTÉ (chantier C) — None s'il ne l'est pas (la colonne reste
-    vide : le tirage retombe sur le réglage d'app de l'utilisateur, puis sur 50)."""
-    raw = source.get('quality_intent') if hasattr(source, 'get') else None
-    if raw in (None, ''):
-        return None
-    from wama.common.utils.auto_model import read_quality_intent
-    return read_quality_intent(raw)
-
-
 def update_settings(request, pk):
     """Update model and/or duration on an existing generation, then re-run."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()

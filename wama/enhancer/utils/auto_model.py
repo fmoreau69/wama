@@ -81,12 +81,10 @@ def resolve_audio_engine(ae) -> str:
 
 def nfe_for_intent(intent) -> int:
     """NFE de Resemble décliné du curseur : la position nommée la plus proche (Rapide 32 /
-    Équilibré 64 / Qualité 128) — même règle de proximité que le preset du converter."""
-    from wama.common.utils.auto_model import read_quality_intent
-    from wama.model_manager.services.model_selector import QUALITY_PRESETS
-    v = read_quality_intent(intent)
-    key = min(QUALITY_PRESETS, key=lambda p: (abs(p[2] - v), -p[2]))[0]
-    return NFE_BY_PRESET.get(key, 64)
+    Équilibré 64 / Qualité 128) — la règle de proximité est celle du commun
+    (`auto_model.preset_key_for_intent`), la table NFE est la déclinaison de l'app."""
+    from wama.common.utils.auto_model import preset_key_for_intent
+    return NFE_BY_PRESET.get(preset_key_for_intent(intent), 64)
 
 
 def audio_nfe(ae, engine: str) -> int:
@@ -98,24 +96,21 @@ def audio_nfe(ae, engine: str) -> int:
 
 
 def vram_needed_gb(model_key: str):
-    """Besoin VRAM du modèle RÉSOLU, pour la garde du squelette (`vram_needed`) : la source
-    unique du chiffre (`memory_manager.preset_vram_gb`), sinon la ligne du catalogue, sinon
-    None (pas de garde — jamais un chiffre recopié ici). ⚠ Mesuré le 21/09 : les 7 upscalers
-    n'ont ni preset ni VRAM catalogue autre qu'une heuristique de taille (0,0-0,1 Go) — leur
-    `vram_usage` déclaré dans `model_config` attend d'être PROJETÉ par la découverte
+    """Besoin VRAM du modèle RÉSOLU, pour la garde du squelette (`vram_needed`) : LA cascade
+    commune `memory_manager.model_footprint_gb` (mesurée → source → déclarée → preset), lue sur
+    la ligne de catalogue ; None si la ligne manque ou si personne ne sait (pas de garde —
+    jamais un chiffre recopié ici). `offload=False` : un moteur ONNX ne décharge rien.
+    ⚠ Mesuré le 21/09 : les 7 upscalers n'ont qu'une VRAM heuristique de taille (0,0-0,1 Go)
+    — leur `vram_usage` déclaré dans `model_config` attend d'être PROJETÉ par la découverte
     (`model_registry`, fichier de la session sœur) ; la garde suivra sans une ligne ici."""
     try:
-        from wama.model_manager.services.memory_manager import preset_vram_gb
-        preset = preset_vram_gb(model_key)
-        if preset:
-            return float(preset)
-    except Exception:
-        pass
-    try:
         from wama.model_manager.models import AIModel
+        from wama.model_manager.services.memory_manager import model_footprint_gb
         row = AIModel.objects.filter(model_key=model_key).first()
-        if row and row.vram_gb:
-            return float(row.vram_gb)
-    except Exception:
-        pass
-    return None
+        if row is None:
+            return None
+        gb, _provenance = model_footprint_gb(row, offload=False)
+        return float(gb) if gb else None
+    except Exception as exc:
+        logger.debug('[enhancer] besoin VRAM de %s illisible : %s', model_key, exc)
+        return None
