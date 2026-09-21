@@ -501,9 +501,21 @@ class Command(BaseCommand):
             if o['only'] and fid != o['only']:
                 continue
             chemin = racine / fichier
-            texte = chemin.read_text(encoding='utf-8')
+            # LU et RÉÉCRIT avec les fins de ligne du fichier (`newline=''` des deux côtés) :
+            # `read_text` normalise en `\n` et `write_text` retraduit en `os.linesep`, si bien
+            # qu'un aller-retour BASCULE la forme du fichier entier. Mesuré le 2026-09-21 :
+            # régénérer un bloc de `PROJECT_STATUS.md` produisait un diff de **31 526 lignes pour
+            # ZÉRO changement de contenu** (`git diff --ignore-cr-at-eol` : 0). Sur un dépôt où
+            # plusieurs instances écrivent, un diff fantôme de cette taille se commite sans être
+            # relu et emporte le travail des autres.
+            # *Un générateur qui touche à la forme d'un fichier qu'il n'a pas écrit fabrique un
+            # conflit là où il n'y avait rien à changer.*
+            with chemin.open(encoding='utf-8', newline='') as f:
+                texte = f.read()
             ouvrant, fermant = OUVRANT.format(fid=fid), FERMANT.format(fid=fid)
-            motif = re.compile(re.escape(ouvrant) + r"\n(.*?)" + re.escape(fermant), re.S)
+            # Le bloc peut être délimité en CRLF comme en LF : le motif accepte les deux, sinon un
+            # fichier CRLF ne matche plus du tout et le contrôle annonce « marqueurs absents ».
+            motif = re.compile(re.escape(ouvrant) + r"\r?\n(.*?)" + re.escape(fermant), re.S)
             m = motif.search(texte)
             if not m:
                 perimes.append((fid, fichier, "marqueurs absents"))
@@ -513,7 +525,11 @@ class Command(BaseCommand):
                 continue
 
             frais = calcule().strip()
-            courant = m.group(1).strip()
+            # Comparaison sur une copie NORMALISÉE : le texte est désormais lu avec ses fins de
+            # ligne réelles (pour pouvoir les réécrire à l'identique), donc un bloc CRLF ne serait
+            # JAMAIS égal à un `frais` en LF — le contrôle annoncerait « périmé » à chaque passage,
+            # y compris juste après une régénération. *On compare le CONTENU, on réécrit la FORME.*
+            courant = m.group(1).strip().replace('\r\n', '\n')
             if courant == frais:
                 self.stdout.write(self.style.SUCCESS(f"{fid}: à jour ({fichier})"))
                 continue
@@ -521,8 +537,19 @@ class Command(BaseCommand):
                 perimes.append((fid, fichier, "bloc périmé"))
                 self.stdout.write(self.style.ERROR(f"{fid}: PÉRIMÉ ({fichier})"))
                 continue
-            chemin.write_text(motif.sub(f"{ouvrant}\n{frais}\n{fermant}", texte, count=1),
-                              encoding='utf-8')
+            # Le bloc RÉGÉNÉRÉ prend les fins de ligne du fichier qui l'accueille — sinon on
+            # laisserait un îlot LF dans un fichier CRLF, et le prochain outil rebasculerait tout.
+            # ⚠ Fin de ligne DOMINANTE, pas « il en existe une » : `PROJECT_STATUS.md` est MIXTE
+            # (mesuré : 142 CRLF pour 15 763 LF). Et on NORMALISE avant de convertir — sinon le
+            # `\n` d'un `\r\n` déjà posé se retraduit et produit `\r\r\n` (deux exemplaires
+            # fabriqués par ma première version de ce correctif, le jour même).
+            crlf = texte.count('\r\n')
+            saut = '\r\n' if crlf > (texte.count('\n') - crlf) else '\n'
+            remplacement = f"{ouvrant}\n{frais}\n{fermant}".replace('\r\n', '\n')
+            if saut == '\r\n':
+                remplacement = remplacement.replace('\n', '\r\n')
+            with chemin.open('w', encoding='utf-8', newline='') as f:
+                f.write(motif.sub(lambda _: remplacement, texte, count=1))
             self.stdout.write(self.style.WARNING(f"{fid}: régénéré ({fichier})"))
 
         # ── Docs DÉRIVÉES par plan (2026-09-11, ROADMAP §25.1 ③) ──
