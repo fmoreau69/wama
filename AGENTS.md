@@ -804,6 +804,9 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > describer / enhancer non applicables sur ce critère (rien à arbitrer automatiquement). C'est le
 > premier critère qui distingue « appelle la brique » de « lui passe l'intention » ; `select_model`
 > seul rendait vert imager, composer, reader et transcriber sans qu'aucun ne la passe.
+> ⚠ **Remesuré le 2026-09-21 : 856/916** — `quality_intent` VRAI pour 8 apps (converter, imager,
+> composer et enhancer ralliés dans la journée), FAUX pour transcriber, non applicable au seul
+> describer ; enhancer 98 % (90/92) après son portage (ROUTES, squelette, modales au cycle commun).
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,

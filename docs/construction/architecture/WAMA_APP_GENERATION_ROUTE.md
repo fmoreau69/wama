@@ -546,6 +546,19 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   exacte aux positions), `quality_intent` remplace le select de lot (traces `quality_intent` +
   `quality_preset`, clés `web/balanced/max` conservées comme données pour filemanager/tool_api),
   `quality` JPEG passe `advanced`. Critère de grille `quality_intent` : converter VRAI.
+- **✅ Imager, composer (`49bf2224`) et enhancer (`ef427706` + `3e6d2f3e`) RALLIÉS le
+  2026-09-21** — les deux premiers : colonne + `intent_param` sur « auto » + `item=` au tirage.
+  L'enhancer = son PORTAGE (la décision « l'utilisateur désigne son moteur » est LEVÉE) :
+  `backends/ROUTES` au contrat commun, tâches sur `run_item_task`, modales au cycle
+  `WamaParams.settingsModal`, « auto » + curseur sur les DEUX branches, le facteur ×2/×4 déclaré
+  comme BESOIN (capacité `scale`) filtré AVANT le classement, le NFE de Resemble décliné du
+  curseur quand le moteur est auto. Ce qu'un `utils/auto_model.py` d'app a le droit de porter :
+  des DÉCLARATIONS (domaine par branche — `catalog_domain` ne lit qu'un schéma par app —, filtre
+  de besoin, déclinaison locale), jamais un classement. Lecteurs communs nés de la revérification :
+  `auto_model.posted_quality_intent` (le POST, None si absent — trois copies remontées) et
+  `auto_model.preset_key_for_intent` (position nommée la plus proche — converter et enhancer).
+  ⚠ Le tirage « auto » de l'enhancer image/vidéo reste PLAT tant que la découverte ne projette
+  ni `vram_usage` ni un `quality_index` a priori pour les 7 upscalers.
   ~~⏳ Converter : PRÊT À CÂBLER — tout le commun est en place, il ne reste que SES
   fichiers~~ (occupés par une autre session au 02/09 — ne pas se télescoper). Le geste,
   quand le champ sera libre : ① presets de LOT/filemanager `Web (léger)/Équilibré/Maximum`
