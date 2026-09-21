@@ -5,7 +5,6 @@ Clé API gratuite : https://www.pexels.com/api/
 
 import json
 import urllib.parse
-import urllib.request
 
 from .base import BaseProvider, SearchResult
 
@@ -33,11 +32,10 @@ class PexelsProvider(BaseProvider):
         url      = f"{base_url}?{urllib.parse.urlencode(params)}"
 
         try:
-            req = urllib.request.Request(url, headers={
+            with self.open_url(url, timeout=15, headers={
                 'User-Agent': self._UA,
                 'Authorization': self.api_key,
-            })
-            with urllib.request.urlopen(req, timeout=15) as r:
+            }) as r:
                 data = json.loads(r.read())
         except Exception as exc:
             return {'results': [], 'total': 0, 'has_more': False, 'error': str(exc)}

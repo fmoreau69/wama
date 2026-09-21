@@ -6,7 +6,6 @@ Clé optionnelle (quota plus élevé) : https://api.openverse.org/v1/auth_tokens
 
 import json
 import urllib.parse
-import urllib.request
 
 from .base import BaseProvider, SearchResult
 
@@ -41,8 +40,7 @@ class OpenverseProvider(BaseProvider):
             headers['Authorization'] = f'Bearer {self.api_key}'
 
         try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=15) as r:
+            with self.open_url(url, timeout=15, headers=headers) as r:
                 data = json.loads(r.read())
         except Exception as exc:
             return {'results': [], 'total': 0, 'has_more': False, 'error': str(exc)}

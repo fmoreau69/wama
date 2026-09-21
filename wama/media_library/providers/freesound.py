@@ -5,7 +5,6 @@ Clé API gratuite : https://freesound.org/apiv2/apply/
 
 import json
 import urllib.parse
-import urllib.request
 
 from .base import BaseProvider, SearchResult
 
@@ -40,8 +39,7 @@ class FreesoundProvider(BaseProvider):
         url = f"{self._BASE}/search/text/?{urllib.parse.urlencode(params)}"
 
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': self._UA})
-            with urllib.request.urlopen(req, timeout=15) as r:
+            with self.open_url(url, timeout=15, headers={'User-Agent': self._UA}) as r:
                 data = json.loads(r.read())
         except Exception as exc:
             return {'results': [], 'total': 0, 'has_more': False, 'error': str(exc)}
@@ -57,7 +55,10 @@ class FreesoundProvider(BaseProvider):
                 title        = h.get('name', ''),
                 preview_url  = preview_url,
                 download_url = preview_url,   # preview MP3 = fichier téléchargeable
-                asset_type   = 'voice',
+                # Le rôle DEMANDÉ, pas `'voice'` en dur : la recherche est déjà filtrée par lui
+                # (durée plus courte pour un bruitage), et `supported_types` promet les deux.
+                # Jusqu'au 2026-09-21, un bruitage cherché ici entrait en médiathèque comme VOIX.
+                asset_type   = asset_type,
                 license      = h.get('license', ''),
                 author       = h.get('username', ''),
                 duration     = h.get('duration', 0),
