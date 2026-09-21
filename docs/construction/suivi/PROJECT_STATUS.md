@@ -15817,7 +15817,7 @@ refus immédiat et dit ; (b) attente `AWAITING_RESOURCES` **sans plafond** (`max
 console + card disent qui tient quoi ; (c) accord du propriétaire ou d'un admin → `obtain_vram`,
 accord consommé. Le plafond « 40 × 45 s puis échec » est retiré. Tâche déclarée autour de la glu
 (`finally`). **Garde-temps** : mesuré, `--pool=solo` n'honore AUCUNE limite Celery
-(`solo.py:29` du paquet `celery.concurrency`, dans le venv : `'timeouts': ()`) → `SIGALRM` dans le thread principal du worker
+(ligne 29 de `solo.py`, paquet `celery.concurrency` du venv : `'timeouts': ()`) → `SIGALRM` dans le thread principal du worker
 (le geste de prefork dans ses enfants) lève `TaskTimeLimitExceeded` ; échec relançable et dit ;
 sans effet hors thread principal. `tests_vram_wait` 14 (dont la garde RÉELLE par SIGALRM).
 
