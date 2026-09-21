@@ -644,7 +644,30 @@ def _measured_gender(arr, sr: int):
     return ''
 
 
-def _try_voxpopuli(target: Path, vp_lang: str, gender: str = '') -> bool:
+def _file_digest(path: Path) -> str:
+    import hashlib
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _library_voice_digests(except_name: str = '') -> set:
+    """Empreintes des fichiers des AUTRES voix de la médiathèque.
+
+    Pourquoi : `_used_vp_speakers` ne vit que le temps d'un processus. Mesuré le 2026-09-22 —
+    deux passages successifs ont donné à `male_adult_1_en` et `male_adult_2_en` le MÊME clip :
+    deux voix du menu, une seule personne. Le flux de VoxPopuli est ordonné, le premier clip qui
+    passe les filtres est donc toujours le même ; seule la médiathèque se souvient de ce qui est
+    déjà pris.
+    """
+    try:
+        from wama.media_library.models import SystemAsset
+        rows = SystemAsset.objects.filter(asset_type='voice').exclude(name=except_name)
+        return {_file_digest(r.file.path) for r in rows if r.file and Path(r.file.path).is_file()}
+    except Exception:
+        return set()
+
+
+def _try_voxpopuli(target: Path, vp_lang: str, gender: str = '',
+                   exclude_digests=frozenset()) -> bool:
     """
     Télécharge un clip depuis VoxPopuli (Facebook/Meta). Aucune authentification requise.
 
@@ -731,6 +754,11 @@ def _try_voxpopuli(target: Path, vp_lang: str, gender: str = '') -> bool:
 
             if _save_audio_array(arr, sr, target):
                 used.add(speaker)
+                # Déjà la voix d'un AUTRE nom de la médiathèque → clip suivant : deux voix du menu
+                # ne sont jamais la même personne (22/09).
+                if exclude_digests and _file_digest(target) in exclude_digests:
+                    target.unlink(missing_ok=True)
+                    continue
                 logger.info(f"[voice_refs] VoxPopuli OK : {target.name} "
                             f"({duration:.1f}s, locuteur {speaker})")
                 return True
@@ -828,7 +856,8 @@ def download_missing_voice_refs(force: bool = False, names=None) -> Dict[str, st
             # ── 1. VoxPopuli — filtré par genre ; jamais pour un âge qu'il ne couvre pas ──
             if (name in _VOICE_DATASETS_CATALOG and _VOICE_DATASETS_CATALOG[name]
                     and (not age or age in _SOURCE_AGE_COVERAGE['voxpopuli'])):
-                if _try_voxpopuli(target, _VOICE_DATASETS_CATALOG[name], gender=gender):
+                if _try_voxpopuli(target, _VOICE_DATASETS_CATALOG[name], gender=gender,
+                                  exclude_digests=_library_voice_digests(except_name=name)):
                     source_url = _VOXPOPULI_URL
 
             # ── 2. URLs directes — une source au genre non établi ne remplit aucun créneau genré ──
