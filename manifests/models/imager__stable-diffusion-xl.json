@@ -18,19 +18,19 @@
     "composition": {
       "components": [
         {
-          "pattern": "unet/diffusion_pytorch_model.safetensors",
+          "pattern": "unet/diffusion_pytorch_model.fp16.safetensors",
           "role": "unet"
         },
         {
-          "pattern": "text_encoder/model.safetensors",
+          "pattern": "text_encoder/model.fp16.safetensors",
           "role": "text_encoder"
         },
         {
-          "pattern": "text_encoder_2/model.safetensors",
+          "pattern": "text_encoder_2/model.fp16.safetensors",
           "role": "text_encoder_2"
         },
         {
-          "pattern": "vae/diffusion_pytorch_model.safetensors",
+          "pattern": "vae/diffusion_pytorch_model.fp16.safetensors",
           "role": "vae"
         }
       ],

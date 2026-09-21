@@ -22,10 +22,6 @@
           "role": "unet"
         },
         {
-          "pattern": "safety_checker/model.safetensors",
-          "role": "safety_checker"
-        },
-        {
           "pattern": "text_encoder/model.safetensors",
           "role": "text_encoder"
         },
