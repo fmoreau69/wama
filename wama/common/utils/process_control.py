@@ -251,6 +251,117 @@ def is_task_orphaned(task_id: str, snapshot) -> bool:
     return bool(owner) and owner in snapshot.get('workers', ())
 
 
+#: Au-delà, on ne lit pas une file du broker en entier : incertitude → aucune conclusion.
+_BROKER_SCAN_MAX = 10000
+
+
+def _broker_channel():
+    """Canal kombu du broker Redis (client + `sep` + clé `unacked`), ou None."""
+    from celery import current_app
+    conn = current_app.connection_for_read()
+    try:
+        ch = conn.default_channel
+        return conn, ch
+    except Exception:
+        conn.release()
+        raise
+
+
+def _known_worker_nodes(client, sep: str) -> set | None:
+    """Noms de nœud des workers ENREGISTRÉS auprès du broker (liaisons `pidbox`).
+
+    Chaque worker lie sa file de contrôle `<nœud>.celery.pidbox` : la liste survit à un crash
+    et les noms sont stables (`--hostname=gpu@%h`). Une liaison écrite sous un AUTRE séparateur
+    (configuration antérieure à `sep=':'`) est ignorée — elle ne désigne aucun worker actuel.
+    Une liaison périmée au séparateur courant (hôte renommé) empêche toute conclusion : c'est le
+    sens sûr.
+    """
+    members = client.smembers('_kombu.binding.celery.pidbox')
+    nodes = set()
+    for raw in members or ():
+        value = raw.decode() if isinstance(raw, bytes) else str(raw)
+        parts = value.split(sep)
+        if len(parts) == 3 and parts[2].endswith('.celery.pidbox'):
+            nodes.add(parts[2][:-len('.celery.pidbox')])
+    return nodes or None
+
+
+def _broker_holds(task_id: str):
+    """Le broker détient-il un message de cette tâche ? True / False, ou None si on ne sait pas.
+
+    Parcourt les files (listes Redis, paliers de priorité compris : `gpu`, `gpu:3`…) et la
+    table `unacked` (messages délivrés à un worker, réservés ou à échéance différée).
+    """
+    try:
+        conn, ch = _broker_channel()
+    except Exception:
+        return None
+    try:
+        client = ch.client
+        needle = task_id.encode()
+        for key in client.scan_iter(_type='list', count=500):
+            if client.llen(key) > _BROKER_SCAN_MAX:
+                return None
+            if any(needle in m for m in client.lrange(key, 0, -1)):
+                return True
+        unacked_key = getattr(ch, 'unacked_key', 'unacked')
+        for _field, m in client.hscan_iter(unacked_key, count=500):
+            if needle in m:
+                return True
+        return False
+    except Exception:
+        return None
+    finally:
+        conn.release()
+
+
+def is_task_lost(task_id: str, snapshot) -> bool:
+    """
+    True SEULEMENT si la tâche n'est PLUS NULLE PART : état Celery `PENDING`, aucun message
+    dans le broker (files + `unacked`), et TOUS les workers enregistrés ont répondu à la photo
+    sans l'avoir active ni réservée.
+
+    Le cas couvert — trou consigné le 2026-08-28, vécu le 2026-09-21 (transcription #525) :
+    après un crash de l'HÔTE ENTIER, Redis repart de son dernier instantané et la méta `STARTED`
+    est perdue → l'état retombe `PENDING`, et `is_task_orphaned` (qui exige `STARTED`) ne peut
+    structurellement plus rien prouver. La card restait RUNNING à vie.
+
+    Pourquoi chaque condition est nécessaire :
+      - `PENDING` + absent du broker SEUL serait le signal inversé du 2026-07-25 : un worker
+        `--pool=solo` occupé ne répond pas, et une tâche qu'il exécute a été acquittée (donc
+        hors broker). D'où l'exigence que TOUS les nœuds connus aient répondu : un worker muet
+        est le plus souvent un worker occupé — par cette tâche peut-être.
+      - une tâche en file (non préchargée) est `PENDING` aussi : elle est dans une liste du
+        broker, on la voit.
+      - l'état est relu APRÈS le parcours du broker : une tâche prise entre-temps par un worker
+        est passée `STARTED` (`CELERY_TASK_TRACK_STARTED`).
+    """
+    if not task_id or not snapshot:
+        return False
+    if task_id in snapshot.get('task_ids', ()):
+        return False
+    try:
+        from celery import current_app
+        from celery.result import AsyncResult
+        if AsyncResult(task_id, app=current_app).state != "PENDING":
+            return False
+        conn, ch = _broker_channel()
+        try:
+            nodes = _known_worker_nodes(ch.client, getattr(ch, 'sep', ':'))
+        finally:
+            conn.release()
+    except Exception:
+        return False
+    if not nodes or not nodes <= set(snapshot.get('workers', ())):
+        return False           # un nœud muet → aucune preuve
+    if _broker_holds(task_id) is not False:
+        return False           # présent, ou broker illisible
+    try:
+        return AsyncResult(task_id, app=current_app).state == "PENDING"
+    except Exception:
+        return False
+
+
 def reconcile_orphaned_running(instances, *, snapshot=None,
                                status_field: str = "status", task_field: str = "task_id",
                                running_value: str = "RUNNING", to_status: str = "FAILURE",
@@ -278,7 +389,8 @@ def reconcile_orphaned_running(instances, *, snapshot=None,
         tid = getattr(inst, task_field, "") or ""
         if not tid:
             continue
-        if not (is_task_dead(tid) or is_task_orphaned(tid, snapshot)):
+        if not (is_task_dead(tid) or is_task_orphaned(tid, snapshot)
+                or is_task_lost(tid, snapshot)):
             continue
         # ⚠⚠ UNE TÂCHE QUI A RÉUSSI N'EST PAS UNE TÂCHE MORTE — défaut RÉEL, trouvé le
         # 2026-09-07 par le scénario nocturne `<app>.batch_processing`.

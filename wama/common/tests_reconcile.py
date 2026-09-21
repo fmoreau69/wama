@@ -88,3 +88,96 @@ class TacheReussieTest(TestCase):
             n, Modele = self._reconcilier()
         self.assertEqual(0, n)
         self.assertEqual('RUNNING', Modele.objects.get(pk=self.job.pk).status)
+
+
+class _FakeResult:
+    """`AsyncResult` stand-in whose successive `.state` reads follow a script."""
+    states = []
+
+    def __init__(self, *_a, **_k):
+        pass
+
+    @property
+    def state(self):
+        return _FakeResult.states.pop(0) if len(_FakeResult.states) > 1 else _FakeResult.states[0]
+
+
+class _FakeClient:
+    def __init__(self, lists=None, unacked=None, pidbox=()):
+        self.lists, self.unacked, self.pidbox = lists or {}, unacked or {}, pidbox
+
+    def smembers(self, _key):
+        return {m.encode() for m in self.pidbox}
+
+    def scan_iter(self, _type=None, count=None):
+        return iter(self.lists)
+
+    def llen(self, key):
+        return len(self.lists[key])
+
+    def lrange(self, key, *_):
+        return self.lists[key]
+
+    def hscan_iter(self, _key, count=None):
+        return iter(self.unacked.items())
+
+
+class _FakeConn:
+    def release(self):
+        pass
+
+
+class _FakeChannel:
+    sep, unacked_key = ':', 'unacked'
+
+    def __init__(self, client):
+        self.client = client
+
+
+NODES = ('::gpu@host.celery.pidbox', '::default@host.celery.pidbox',
+         '\x06\x16\x06\x16celery@host.celery.pidbox')   # stale binding, old separator
+ALL_ANSWERED = {'workers': {'gpu@host', 'default@host'}, 'task_ids': set()}
+
+
+class TaskLostAfterHostCrashTest(TestCase):
+    """`is_task_lost` — the host crashed, Redis came back from its last snapshot, the task's
+    `STARTED` meta is gone (state falls back to PENDING): transcription #525, 2026-09-21."""
+
+    def _lost(self, client, states=('PENDING',), snapshot=ALL_ANSWERED):
+        _FakeResult.states = list(states)
+        with patch('celery.result.AsyncResult', _FakeResult), \
+             patch.object(process_control, '_broker_channel',
+                          return_value=(_FakeConn(), _FakeChannel(client))):
+            return process_control.is_task_lost('tid-525', snapshot)
+
+    def test_a_task_found_nowhere_while_every_worker_answered_is_lost(self):
+        self.assertTrue(self._lost(_FakeClient(pidbox=NODES)))
+
+    def test_a_queued_task_is_not_lost(self):
+        """Queued, not prefetched: PENDING too — the broker list gives it away."""
+        client = _FakeClient(pidbox=NODES, lists={b'gpu:3': [b'{"id": "tid-525"}']})
+        self.assertFalse(self._lost(client))
+
+    def test_a_reserved_task_in_unacked_is_not_lost(self):
+        client = _FakeClient(pidbox=NODES, unacked={b'tag': b'[{"id": "tid-525"}]'})
+        self.assertFalse(self._lost(client))
+
+    def test_a_silent_worker_forbids_any_conclusion(self):
+        """The 2026-07-25 inverted signal: a busy solo worker does not answer."""
+        silent_gpu = {'workers': {'default@host'}, 'task_ids': set()}
+        self.assertFalse(self._lost(_FakeClient(pidbox=NODES), snapshot=silent_gpu))
+
+    def test_a_task_picked_up_during_the_scan_is_not_lost(self):
+        """Second state read: the worker started it meanwhile."""
+        self.assertFalse(self._lost(_FakeClient(pidbox=NODES), states=('PENDING', 'STARTED')))
+
+    def test_a_started_task_is_left_to_is_task_orphaned(self):
+        self.assertFalse(self._lost(_FakeClient(pidbox=NODES), states=('STARTED',)))
+
+    def test_an_unreadable_broker_proves_nothing(self):
+        with patch.object(process_control, '_broker_holds', return_value=None):
+            self.assertFalse(self._lost(_FakeClient(pidbox=NODES)))
+
+    def test_known_nodes_ignore_bindings_written_under_another_separator(self):
+        nodes = process_control._known_worker_nodes(_FakeClient(pidbox=NODES), ':')
+        self.assertEqual({'gpu@host', 'default@host'}, nodes)
