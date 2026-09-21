@@ -82,14 +82,15 @@ FRENCH_WORDS = frozenset({
     # NOIRE, donc un mot qu'elle ignore PASSE — et j'en ai introduit quatre le jour meme
     # (`dorsale`, `saut`, `remplacement`, `_rendu`) sans qu'il les voie. Une liste noire ne se
     # contente pas d'exister : elle s'ETEND de ce qu'on trouve, sinon les memes mots reviennent.
-    # ⚠ N'y entrent QUE les mots qui ont cause CE defaut. J'ai mesure l'ajout de six autres
-    # (`texte`, `courant`, `frais`, `perime`, `ouvrant`, `fermant`) : **+191 identifiants de code,
-    # +52 noms de tests** d'un coup — ils sont partout, notamment dans `doc_facts` et les
-    # generateurs. Les inscrire exigerait une CAMPAGNE de renommage, donc une decision, pas une
-    # ligne : la liste des candidats est consignee dans `ROADMAP §10.A` et attend un GO.
-    # *Affuter l'instrument et solder la dette sont deux gestes ; les confondre fait relever un
-    # budget, ce que ce controle interdit.*
+    # Puis, le meme jour, SIX autres mots evidents (`texte`, `courant`, `frais`, `perimee`,
+    # `ouvrant`, `fermant`) — DECISION DE FABIEN : « si le budget augmente car on ameliore la
+    # detection des mots en francais, je ne vois pas le souci ». La regle « un budget ne remonte
+    # jamais » vise l'AJOUT d'identifiants francais, pas l'AFFUTAGE de l'instrument : une dette
+    # qui existait deja devient VISIBLE, elle ne nait pas. Le budget se recale donc a la mesure
+    # DANS LE MEME GESTE que l'extension de la liste, et seulement la.
     'dorsale', 'dorsales', 'saut', 'sauts', 'remplacement', 'remplacements',
+    'texte', 'textes', 'courant', 'courants', 'courante', 'frais', 'perimee', 'perimees',
+    'ouvrant', 'ouvrants', 'fermant', 'fermants',
 })
 #: Identifiants ACCEPTES malgre un mot de la liste : homonymes anglais, ou API tierce imposee.
 #: ⚠ `declare`/`declares` ne se retirent PAS de la liste bien qu'anglais aussi : mesuré le
@@ -112,7 +113,10 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 #: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
 #: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
 #: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
-BUDGET_CODE = 2608          # production + fichiers de tests hors noms (2614 avant la traduction des axes)
+BUDGET_CODE = 2750          # production + fichiers de tests hors noms (2614 avant la traduction des axes)
+#: +142 le 2026-09-21 (et +1 classe, +28 noms de tests) : AFFUTAGE, pas ajout — six mots
+#: evidents inscrits a la liste noire sur decision de Fabien (cf. FRENCH_WORDS). Dette ANCIENNE
+#: rendue visible ; 2608 avant.
 #: -6 le 2026-09-20 : les HUIT axes de `check_model_completeness` traduits EN BLOC (decision de
 #: Fabien : « on n'introduit pas de francais, on traduit l'ensemble »). Traduire mes deux axes
 #: neufs seuls aurait laisse un demi-vocabulaire — pire que l'ancien, cf. la regle du JS.
@@ -121,8 +125,8 @@ BUDGET_CODE = 2608          # production + fichiers de tests hors noms (2614 ava
 #: `SIZE_MENTION_THRESHOLD_GB`, `cle_catalogue` -> `catalog_key` : 39 occurrences) ; -3 par la
 #: regle des jumeaux ; -30 le soir meme, quand les jumelles bac a sable (code GENERE, gitignore)
 #: sont sorties du perimetre — le compte doit etre le MEME sur un clone que sur ce disque.
-BUDGET_TEST_CLASSES = 132   # noms de classes `*Test` (133 avant la 1re bascule)
-BUDGET_TEST_NAMES = 1286    # noms de methodes `test_*` — sur 2872 (44 %) ; 1294 avec les jumelles
+BUDGET_TEST_CLASSES = 133   # noms de classes `*Test` (133 avant la 1re bascule)
+BUDGET_TEST_NAMES = 1314    # noms de methodes `test_*` — sur 2872 (44 %) ; 1294 avec les jumelles
 #: -1 le 2026-09-20, cale a la MESURE. ⚠ Je n'attribue pas ce -1 : plusieurs instances renomment
 #: en parallele ce soir, et mes propres tests neufs sont nommes en anglais (donc ils n'ajoutent
 #: rien). Le budget se cale sur ce qu'on MESURE, pas sur ce qu'on croit avoir fait.

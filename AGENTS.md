@@ -342,6 +342,12 @@ apply_patch(
   l'identifiant en anglais. Le **baisser** après une passe de renommage est le geste normal, et le
   test l'EXIGE (il échoue aussi quand le budget garde de la marge — *une marge est une
   autorisation d'en ajouter*).
+  ⭐ **Une seule exception : AFFÛTER l'instrument** (Fabien, 2026-09-21 — *« si le budget
+  augmente car on améliore la détection, je ne vois pas le souci »*). Inscrire un mot de plus à
+  la liste noire rend VISIBLE une dette qui existait déjà : le budget se recale à la mesure
+  **dans le même commit que l'extension de la liste**, jamais séparément (2608 → 2750 ce
+  jour-là, six mots). La liste s'étend de chaque mot français qu'on trouve à l'œil — une liste
+  noire qui ne grandit pas laisse revenir les mêmes mots.
 - **Ce que le contrôle ne couvre pas, délibérément** : les mots ambigus anglais/français
   (`source`, `type`, `mode`, `page`, `total`, `format`, `instance`, `table`) — les compter ferait
   un budget bruyant, et un budget bruyant se contourne ; le **JS** (pas d'AST JS ici, cf. §JS
