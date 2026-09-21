@@ -770,7 +770,7 @@ le passé.*
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
 - Outils au registre (`TOOL_REGISTRY`) : **71**
 - Outils décrits (`tool_descriptions()`, dérivé) : **71/71**
-- Arguments documentés (types/choix/bornes/défauts) : **241**
+- Arguments documentés (types/choix/bornes/défauts) : **243**
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
   `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points

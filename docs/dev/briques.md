@@ -84,7 +84,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (24) :
+- **API publique** (50) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU.
   - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
@@ -106,6 +106,32 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités
   - `gpu_safe_mode() -> bool` — Vrai si le mode dépannage GPU est actif (settings/env `WAMA_GPU_SAFE_MODE`).
   - `pipeline_keep_alive() -> str | None` — `keep_alive` à passer aux appels Ollama de la pipeline de prompts : '0' en mode
   - `wait_for_free_vram(needed_gb: float, *, timeout_s: float=180.0, poll_s: float=5.0, exclude: str | None=None, console=None) -> tuple[bool, float]` — Attend que `effective_free_gb()` atteigne `needed_gb`, puis rend (True, mesure).
+  - `tenant_id() -> str` — Identité d'un TENANT = un process (le worker gpu, le service TTS, gunicorn…). Les clés
+  - `tenant_of_owner(owner: str) -> str | None` — Tenant (pid) d'une clé d'owner du contrat, None pour une ligne sans process (Ollama hôte).
+  - `fits_alone(needed_gb: float) -> bool | None` — `needed_gb` tiendrait-il sur la carte VIDE ? None sans GPU (on ne conclut pas d'une
+  - `task_started(app_id: str, item_id, needed_gb: float=0.0, *, max_s: float | None=None) -> str` — Déclare une tâche GPU EN COURS ; rend son jeton. Posé par le squelette commun autour de
+  - `task_finished(token: str) -> None`
+  - `running_tasks() -> list[dict]` — Tâches GPU en cours, tous process confondus — lignes expirées purgées.
+  - `mark_busy(tenant: str | None=None) -> bool` — Un tenant se déclare OCCUPÉ (le service TTS quand son verrou de synthèse est pris).
+  - `clear_busy(tenant: str | None=None) -> None`
+  - `busy_tenants(window_s: float=BUSY_WINDOW_S) -> set[str]` — Tenants occupés : déclarés depuis moins de `window_s`, ou dont un résident a SERVI depuis
+  - `gpu_is_busy(window_s: float=BUSY_WINDOW_S, *, exclude_tenant: str | None=None) -> bool` — Une tâche tourne, ou un tenant sert — hors `exclude_tenant` (le requérant lui-même).
+  - `grant_release(app_id: str, item_id, user_id=None) -> bool` — L'utilisateur ACCEPTE que toute la carte soit libérée pour CET item (bouton de la card en
+  - `revoke_grant(app_id: str, item_id) -> None`
+  - `release_granted(app_id: str, item_id) -> dict | None` — L'accord vivant pour cet item (`{'ts', 'user'}`), ou None. C'est le squelette — qui connaît
+  - `request_release(needed_gb: float, requester: str, reason: str='') -> str | None` — Écrit une DEMANDE : « libérez ce que vous tenez, il me faut `needed_gb` ». Rend son id.
+  - `pending_release_requests() -> dict[str, dict]` — Demandes vivantes (id → ligne) ; les périmées sont purgées avec leurs acquittements.
+  - `acknowledge_release(request_id: str, tenant: str, *, freed: int=0, busy: bool=False) -> bool` — Un tenant dit ce qu'il a fait pour cette demande : `freed` instances déchargées, ou
+  - `release_acks(request_id: str) -> dict`
+  - `close_release_request(request_id: str) -> None` — Le requérant a ce qu'il voulait (ou renonce) : la demande disparaît, et les tenants qui
+  - `obtain_vram(needed_gb: float, requester: str, *, reason: str='', timeout_s: float=120.0, poll_s: float=2.0, console=None) -> tuple[bool, float]` — Demande la libération, puis ATTEND que la SONDE rende `needed_gb` (bornée : le pilote
+  - `release_in_progress() -> bool` — Une libération est en cours (au moins une demande vivante). L'assistant le lit pour rester
+  - `holders_summary(limit: int=4) -> str` — Une phrase pour l'utilisateur : QUI tient QUOI — modèles résidents (Go) et tâches en cours.
+  - `task_time_limit_s(app_id: str, user=None) -> float` — Plafond de durée d'UN traitement, en secondes : le réglage de l'utilisateur s'il en a posé
+  - `class Tenant` — Ce qu'un process qui tient de la VRAM DÉCLARE au gouverneur : son nom, comment savoir
+  - `serve_release_requests(tenant: Tenant) -> int` — UN passage : sert les demandes que ce tenant n'a pas encore acquittées, restaure après
+  - `start_release_listener(tenant: Tenant, poll_s: float=RELEASE_POLL_S) -> bool` — Lance, une fois par process, le thread démon qui sert les demandes de libération pour
+  - `contract_tenant(name: str, *, restore=None, is_busy=None) -> Tenant` — Le tenant par défaut d'un process qui héberge des modèles : décharge par
   - `tier_for(app_label: str) -> str` — Palier déclaré d'une app (nom lisible).
   - `celery_priority_for(app_label: str) -> int` — Valeur `priority` à passer à Celery pour cette app, dans la convention du
   - `task_routes() -> dict` — Complète les routes Celery avec la priorité de chaque app.
@@ -175,9 +201,14 @@ Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et ré
 
 - **Domicile** : `wama/model_manager/services/memory_manager.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Memory Manager - GPU/RAM memory utilities for model management.
-- **API publique** (6) :
+- **API publique** (11) :
+  - `peaks_from_weights(weights: dict) -> dict` — Les DEUX pics d'un modèle, dérivés du poids par composant — `{}` si on ne sait pas.
   - `class MemoryStrategy(Enum)` — Memory loading strategies for AI models.
   - `preset_vram_gb(model_key: str) -> Optional[float]` — Empreinte VRAM d'exécution d'un modèle, depuis `MODEL_SIZE_PRESETS`.
+  - `dtype_bytes(label: str)` — Octets par paramètre d'une précision — None si le nom est inconnu (on ne devine pas).
+  - `peaks_for_precision(weights: dict, label: str) -> dict` — Les deux pics RECALCULÉS pour une précision de chargement — `{}` si on ne peut pas.
+  - `backbone_row(row)` — La ligne de catalogue de la DORSALE d'un adaptateur, ou None si ce n'en est pas un.
+  - `model_footprint_gb(row, *, offload: bool=True, count_backbone: bool=True) -> tuple` — `(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
   - `fits_full_gpu(model_key: str, total_vram_gb: float, headroom_gb: float=4.0) -> Optional[bool]` — Ce modèle peut-il tenir ENTIÈREMENT sur la carte (donc tourner en FULL_GPU, sans offload) ?
   - `register_vram_unloader(name: str, fn) -> None` — Déclare un callable qui libère la VRAM d'une app (idempotent par `name`).
   - `unregister_vram_unloader(name: str) -> None`
@@ -199,8 +230,9 @@ Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA
 
 - **Domicile** : `wama/common/utils/task_skeleton.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Squelette COMMUN des tâches Celery d'item (brique F5 — marche A2 de la route §10.3).
-- **API publique** (2) :
+- **API publique** (3) :
   - `class TaskContext` — Poignées offertes à la glu : progress + console. `progress_fn` permet à une app de
+  - `class TaskTimeLimitExceeded(Exception)` — Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`).
   - `run_item_task(task, *, app_id: str, model, item_id: int, process, vram_needed=None, model_key=None, error_field: str='error_message', ingest_derive=None, notif…` — Exécute la glu `process` dans le squelette conventionnel. Voir le contrat en tête de
 
 ### Tests nocturnes
@@ -241,12 +273,14 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
 
 - **Domicile** : `wama/common/utils/auto_model.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Auto-sélection de modèle — brique COMMUNE (valeur « auto » d'un select de modèle).
-- **API publique** (6) :
+- **API publique** (8) :
   - `read_quality_intent(value) -> int` — Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
   - `intent_param(**overrides) -> dict` — Surcouche STANDARD du curseur de qualité pour un schéma d'app (`derive_from_model`).
   - `is_auto(value) -> bool` — Cette valeur demande-t-elle le tirage automatique ? (vide compris).
   - `catalog_domain(app_id: str)` — DOMAINE déclaré au schéma de l'app pour son select de modèle, ou None.
-  - `resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, **overrides)` — Valeur finale du modèle pour un lancement : `requested` explicite, sinon tirage.
+  - `intent_field_for(app_id: str)` — Nom du champ « curseur » déclaré au schéma de l'app (`type='intent'`), ou None.
+  - `quality_intent_of(item=None, app_id=None, user=None) -> int` — La valeur du curseur qui vaut pour CE lancement, en UN endroit (chantier C, 2026-09-20).
+  - `resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, item=None, user=None, **overrides)` — Valeur finale du modèle pour un lancement : `requested` explicite, sinon tirage.
   - `predict_model_choice(spec)` — PRÉVISION : le modèle qui serait retenu MAINTENANT pour ce domaine, ou None.
 
 ### Banc de comparaison
@@ -292,10 +326,13 @@ Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisat
 
 - **Domicile** : `wama/common/services/model_coverage.py`
 - **Module** : Couverture multi-modèles : quelle COMBINAISON de modèles couvre un ensemble de classes.
-- **API publique** (4) :
+- **API publique** (7) :
   - `normaliser_classe(nom: str) -> str` — 'License_Plate' → 'license plate' · 'FACE' → 'face'.
   - `formes_equivalentes(nom: str) -> set` — Toutes les écritures normalisées équivalentes à `nom` (lui-même si aucun alias connu).
   - `classes_couvertes(m, voulues) -> set` — Accès PUBLIC à l'appariement d'alias : sous-ensemble de `voulues` (vocabulaire de
+  - `size_of_name(name: str) -> str` — Accès PUBLIC à la lecture de taille (chantier C, 2026-09-20) : un appelant qui affiche ou
+  - `size_for_intent(intent) -> str` — Curseur 0-100 → taille préférée ('n' ≤ 20, 's' ≤ 40, 'm' ≤ 60, 'l' ≤ 80, sinon 'x').
+  - `segmentation_for_intent(intent) -> bool` — Curseur 0-100 → préférer la segmentation (≥ `SEGMENTATION_THRESHOLD`).
   - `couvrir_classes(classes, *, source: str='', model_type: str='vision', budget_vram_gb: float | None=None, taches_admises=(), preferer_segmentation: bool=False,…` — Ensemble MINIMAL de modèles couvrant `classes`, par recouvrement glouton.
 
 ### Découverte de modèles
@@ -360,12 +397,14 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (14) :
+- **API publique** (16) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
+  - `local_revision(snapshot_root)` — Le dossier dont les chemins de `local_inventory` sont RELATIFS : la révision la plus
   - `local_inventory(snapshot_root)` — `[(chemin relatif, taille)]` d'un modèle INSTALLÉ — le jumeau LOCAL de `_siblings`
   - `safetensors_facts(path)` — `{'params': nombre de paramètres, 'dtypes': [...]}` lus dans l'EN-TÊTE seul d'un
+  - `precision_of_files(revision, files_by_role) -> dict` — `{rôle: {'params', 'dtypes'}}` — la PRÉCISION de chaque composant, lue dans les en-têtes
   - `quantized_variants(hf_id: str, limit: int=5) -> list[dict]` — Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
   - `analyze_license(hf_id: str, license_id: str='', base_model=None, _profondeur: int=0)` — Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
   - `install_options(cand) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
@@ -1940,9 +1979,10 @@ LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur
 
 - **Domicile** : `wama/common/tts/voice_refs.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Voix de RÉFÉRENCE — la brique COMMUNE : résolution d'un preset en fichier, groupes du menu, libellés, téléchargement. Les voix VIVENT EN MÉDIATHÈQUE (`SystemAsset(asset_type='voice')`, `media_library/system/`) depuis le 2026-09-13 — plan `MEDIA_STORAGE_TIERING §9.4`.
-- **API publique** (10) :
+- **API publique** (11) :
   - `attributes_from_voice_id(voice_id: str) -> Dict` — Les `attributes` (nature `voice`) qu'un identifiant de preset PORTE.
   - `voice_reference_groups() -> List[Dict]` — Les optgroups du menu « voix de référence », DÉRIVÉS de la médiathèque :
+  - `readable_voice_assets(user)` — Les voix de médiathèque qu'un utilisateur a le DROIT d'employer : les SIENNES **et celles
   - `resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]` — Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
   - `is_cloned_voice(voice_preset: str) -> bool` — Cette voix est-elle un CLONAGE (`ua_<id>` médiathèque de l'utilisateur, `cv_<id>` hérité) ?
   - `model_supports_cloning(model_key: str) -> Optional[bool]` — Le moteur du modèle `model_key` CLONE-t-il ? — `True`/`False` si quelque chose le dit,
