@@ -11,14 +11,14 @@ from django.test import SimpleTestCase
 from wama.common.utils.url_guard import UrlRefusee, verifier_redirections, verifier_url
 
 
-class _Saut:
+class _Redirect:
     def __init__(self, url):
         self.url = url
 
 
 class _Reponse:
-    def __init__(self, sauts, finale):
-        self.history = [_Saut(u) for u in sauts]
+    def __init__(self, redirects, finale):
+        self.history = [_Redirect(u) for u in redirects]
         self.url = finale
 
 

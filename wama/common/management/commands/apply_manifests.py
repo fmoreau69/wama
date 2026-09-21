@@ -34,7 +34,7 @@ from django.core.management.base import BaseCommand
 KINDS_INITIALISABLES = ('library',)
 
 
-def _raison_du_saut(skipped) -> str:
+def _skip_reason(skipped) -> str:
     """Raison LISIBLE d'un refus de `write_back`, quelle que soit la forme de `skipped`.
 
     Le dépôt en porte DEUX, toutes deux légitimes et antérieures à ce lecteur :
@@ -115,7 +115,7 @@ class Command(BaseCommand):
             # de `{field, reason}` (`write_back_app`) : on teste la véracité, jamais le type,
             # et on rend la raison LISIBLE au lieu de la jeter.
             elif res.get('skipped'):
-                sautes.append(f"{f.stem} : {_raison_du_saut(res['skipped'])}")
+                sautes.append(f"{f.stem} : {_skip_reason(res['skipped'])}")
             else:
                 inchanges += 1
 

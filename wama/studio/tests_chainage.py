@@ -96,12 +96,12 @@ class ChampsApresTest(SimpleTestCase):
                          "prémisse : le maillon du milieu doit LAISSER PASSER")
         self.assertNotIn('section_id', milieu.outputs[0].produced_fields)
 
-        un_saut, _ = can_connect(milieu.outputs[0], aval.inputs[0],
+        one_hop, _ = can_connect(milieu.outputs[0], aval.inputs[0],
                                  available_fields=milieu.outputs[0].produced_fields)
         apres = champs_apres(milieu.outputs[0], 'ego_track_filter',
                              champs_apres(amont.outputs[0], 'gps_map_match', set()))
         accumule, raison = can_connect(milieu.outputs[0], aval.inputs[0], available_fields=apres)
-        self.assertFalse(un_saut, "un seul saut devrait échouer — c'est le défaut à éviter")
+        self.assertFalse(one_hop, "un seul saut devrait échouer — c'est le défaut à éviter")
         self.assertTrue(accumule, f"l'accumulation doit récupérer la connexion : {raison}")
 
 

@@ -78,6 +78,18 @@ FRENCH_WORDS = frozenset({
     'famille', 'familles', 'echelle', 'echelles', 'rang', 'rangs', 'indice', 'indices',
     'niveau', 'niveaux', 'utilisateur', 'utilisateurs', 'alerte', 'alertes', 'journal',
     'volet', 'volets',
+    # AJOUTS du 2026-09-21 (« je vois des mots en francais », Fabien) : le controle est une liste
+    # NOIRE, donc un mot qu'elle ignore PASSE — et j'en ai introduit quatre le jour meme
+    # (`dorsale`, `saut`, `remplacement`, `_rendu`) sans qu'il les voie. Une liste noire ne se
+    # contente pas d'exister : elle s'ETEND de ce qu'on trouve, sinon les memes mots reviennent.
+    # ⚠ N'y entrent QUE les mots qui ont cause CE defaut. J'ai mesure l'ajout de six autres
+    # (`texte`, `courant`, `frais`, `perime`, `ouvrant`, `fermant`) : **+191 identifiants de code,
+    # +52 noms de tests** d'un coup — ils sont partout, notamment dans `doc_facts` et les
+    # generateurs. Les inscrire exigerait une CAMPAGNE de renommage, donc une decision, pas une
+    # ligne : la liste des candidats est consignee dans `ROADMAP §10.A` et attend un GO.
+    # *Affuter l'instrument et solder la dette sont deux gestes ; les confondre fait relever un
+    # budget, ce que ce controle interdit.*
+    'dorsale', 'dorsales', 'saut', 'sauts', 'remplacement', 'remplacements',
 })
 #: Identifiants ACCEPTES malgre un mot de la liste : homonymes anglais, ou API tierce imposee.
 #: ⚠ `declare`/`declares` ne se retirent PAS de la liste bien qu'anglais aussi : mesuré le

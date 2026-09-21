@@ -407,16 +407,16 @@ class ApplyManifestsRendCompteDesREFUSTest(TestCase):
         """`skipped` a deux formes ANTÉRIEURES au lecteur : chaîne (`write_back_function`) et
         liste de `{field, reason}` (`write_back_app`). En inventer une troisième pour
         uniformiser serait le chemin parallèle qu'on refuse."""
-        from wama.common.management.commands.apply_manifests import _raison_du_saut
-        self.assertEqual(_raison_du_saut('binding pure'), 'binding pure')
+        from wama.common.management.commands.apply_manifests import _skip_reason
+        self.assertEqual(_skip_reason('binding pure'), 'binding pure')
         self.assertEqual(
-            _raison_du_saut([{'field': 'access', 'reason': 'écrit main'}]),
+            _skip_reason([{'field': 'access', 'reason': 'écrit main'}]),
             'access : écrit main')
         # Une même raison sur N facettes ne se répète pas N fois.
         self.assertEqual(
-            _raison_du_saut([{'field': 'a', 'reason': 'r'}, {'field': 'a', 'reason': 'r'}]),
+            _skip_reason([{'field': 'a', 'reason': 'r'}, {'field': 'a', 'reason': 'r'}]),
             'a : r')
-        self.assertEqual(_raison_du_saut([]), 'sans raison déclarée')
+        self.assertEqual(_skip_reason([]), 'sans raison déclarée')
 
 
 class AppCatalogConformiteTest(TestCase):
