@@ -15975,3 +15975,64 @@ describer n/a**.
 repli Kokoro de gunicorn hors contrat (angle mort à mesurer : CPU ou GPU ?) ; les modèles hors
 contrat de `_VRAM_UNLOADERS` (pyannote) ne répondent pas au canal. 🔚 **B2/B3** : à concevoir au
 ROADMAP avec Fabien avant une ligne (admission/ordonnancement inter-utilisateurs, local/cloud).
+
+## §CLÔTURE — 2026-09-21 (session 19→21/09), « SOURCE UNIQUE DES CAPACITÉS, chantier A : les deux chiffres de VRAM, l'anatomie des modèles, la langue » — ✅ LIVRÉ, ~30 commits NON POUSSÉS (dernier `106be019`)
+
+**Ce qui est livré (lu dans le code, pas recopié).** ① **L'anatomie** d'un modèle (`AIModel.composition.components`,
+schéma `_validate_composition`) : déclarée pour imager (12), composer (4, audiocraft) et synthesizer (4 — le service
+TTS la lit, rien n'a bougé à son contrat) ; **dérivée** du `model_index.json` pour tout pipeline diffusers
+(`common/utils/model_anatomy.py`, passe `_overlay_components_derived_from_disk` qui ne comble qu'un VIDE) ;
+transportée jusqu'au catalogue par la découverte (`DeclaredKeysReachTheCatalogTest`, 6 contrats — une liste blanche
+sans garde transformait chaque ajout en oubli). ② **Une seule porte pour le poids** : `model_installer.components_for_spec`
+(4 réponses : pesé / non résolu / injoignable / rien), disque avant réseau, dépôts frères (`repo`), doublons de format
+écartés. ③ **Les deux pics** (décision A) : plein = somme, déchargé = plus gros composant ; cascade
+mesuré→source→déclaré→preset ; **plus aucune marge dans un pic** (la marge est une politique de la machine) ;
+pic **par précision** (`peaks_for_precision` — LTX fp8 : 24,29 → 12,15 Go) ; **adaptateur B+C** (catalogue : pic
+dorsale compris, provenance `+backbone` ; exécution : le seul delta). ④ **Langue** : axes de complétude traduits en
+bloc, 4 mots introduits par moi renommés, puis la liste noire **affûtée** de 6 mots sur décision de Fabien (budgets
+recalés 2608→2750 / 132→133 / 1286→1314 ; l'exception est écrite dans `AGENTS.md`). ⑤ `doc_facts` ne réécrit plus
+les fins de ligne (31 526 lignes de diff fantôme).
+
+**Gardes** (§2a bis de `/cloture`) : chaque livrable est nommé par un test — `tests_vram_peaks` (pics, cascade,
+précision, adaptateur, stratégie sans devinette), `tests_model_anatomy` (dérivation, **+ validité de TOUTES les
+compositions déclarées, + la passe qui ne comble que le vide**, ajoutées à la clôture : elles manquaient),
+`model_manager.tests` (porte, doublons, frères), `tests_completeness` (axes `weights_missing`, `peak_under_declared`),
+`tests_catalogues` (transport), `imager.tests` (déclarations). **Mesuré à la clôture : 433 tests OK, 5 skips** sur
+ce périmètre. ⚠ Suite complète du 21/09 (2929 tests) : **8 rouges, aucun à moi**, attribués par nom — `608fc7c0`,
+`a1eaad1c`, `5e34a572` (gouverneur/curseur), `tool_api_lectures`, `mcp_dev_tools` ×2, la jumelle `composer_01`.
+La redondance signalée au ⑤ du palier « CURSEUR C » (révision de snapshot choisie par ordre alphabétique) est
+**réglée** : `model_anatomy._revision_of` délègue à `prospector.local_revision` (`ab061d09`).
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : brancher le **filtre du tirage sur le pic** dans
+`model_selector._best_by_vram` (budget et coût lisent encore `vram_gb` ; le commentaire « VRAM MESURÉE » y est
+faux) — **en coordination avec l'instance du curseur** (même fonction), en réutilisant `model_footprint_gb` et le
+budget déjà rendu par le gouverneur (`get_free_vram_gb`), jamais un second chemin.
+
+**File ouverte, dans l'ordre :**
+1. le filtre ci-dessus ;
+2. **instrumenter le pic d'EXÉCUTION** (`reset_peak_memory_stats` + `max_memory_allocated` autour du geste) — aucun
+   appel dans le dépôt ; sans lui, « mesuré » ne veut dire que « résident au chargement » ;
+3. **le gouverneur choisit la réduction** (précision, déchargement, découpage) et **le dit à l'utilisateur**
+   (✅/⚙/⛔) — schéma consigné `ROADMAP §Gouvernance`, item 5 ; rien de construit ;
+4. **enhancer** (demande de la session sœur, palier « CURSEUR C » SUITE 8) : la découverte doit projeter
+   `ENHANCER_MODELS.vram_usage` et un `quality_index` — sinon « auto » reste PLAT sur 7 upscalers ;
+5. déclarer `model_anatomy` dans `wama/common/mecanismes.py` — **bloqué** tant que `WAMA_MECANISMES.md` porte le WIP
+   d'une autre instance (sauvegardé/restauré à chaque `doc_facts`, jamais commité par moi) ;
+6. la **campagne de renommage** français → anglais (4197 au total) : `--by-root` la pilote, noms de tests en dernier.
+
+**Décisions de Fabien ouvertes :** musetalk v1.0 (entrée morte au catalogue, `workers.py:223` code la v1.5 en dur) ;
+un modèle **plein** téléchargé peut-il être quantifié LOCALEMENT par le gouverneur (famille « poids » de l'item 5) ?
+
+**Pendings système :** redémarrer les **workers Celery** (le beat `sync_models` d'un worker ancien réécrit
+`extra_info` SANS les clés neuves — `composition`, `quantization`, `base_model` — jusqu'au redémarrage) ; **push**
+des commits ; **révoquer la clé Anthropic** vue dans `.env` (nom de variable seul consigné, jamais la valeur).
+Aucune charge GPU lancée par cette session. Aucun artefact hors dépôt à conserver.
+
+**Contrôles attendus au prochain /reprise :** `check_identifier_language` → trois budgets tenus sans marge
+(2750 / 133 / 1314) ; les 433 tests du périmètre verts ; `manifest_export --check` (WSL) sans manifeste `model`
+périmé du fait de ce chantier.
+
+⚠ **Leçons de méthode (récidives de la session)** : un remplacement par motif a abîmé de la prose française trois
+fois et un mock nommé par chaîne une fois — renommer = tokenisé + grep du symbole APRÈS application ; une mesure faite
+sous Windows sur un snapshot WSL lit des liens illisibles (mesurer depuis WSL) ; « la sélection auto marchait déjà
+par le gouverneur » (Fabien) — lire la chaîne existante AVANT d'en proposer une.
