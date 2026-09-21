@@ -215,7 +215,11 @@ def process_video_task(self, session_id: str):
         session.results_summary = convert_numpy_types(_calculate_summary(results))
 
         # Finalize session
-        session.output_file.name = f'face_analyzer/{user_id}/output/{output_filename}'
+        # Le NOM retenu en base doit désigner le dossier où le fichier a été ÉCRIT (plus haut,
+        # par la même brique). La bascule du 2026-09-12 avait porté l'écriture et laissé ce nom
+        # à l'ancienne forme : la prochaine analyse aurait pointé où le fichier n'est pas —
+        # aperçu et téléchargement morts, sans erreur (relevé le 2026-09-22).
+        session.output_file.name = f"{app_media_dir('face_analyzer', user_id, 'output')}/{output_filename}"
         session.status = AnalysisSession.Status.COMPLETED
         session.completed_at = timezone.now()
         session.progress = 100

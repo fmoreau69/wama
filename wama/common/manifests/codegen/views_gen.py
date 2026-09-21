@@ -201,12 +201,17 @@ def _nature(nom):
 
 def _fichier_de_l_app(item, champ):
     """Un fichier n'est supprimable avec sa card QUE s'il vit dans l'arbre de l'app
-    (`{app}/<user_id>/…`) — politique du converter réel, garde muette sinon (le fichier
-    reste, la card part)."""
+    (`users/<user_id>/{app}/…`, rendu par `app_media_dir`) — politique du converter réel,
+    garde muette sinon (le fichier reste, la card part)."""
+    from wama.common.utils.media_paths import app_media_dir
     f = getattr(item, champ, None)
     nom = (getattr(f, 'name', '') or '').replace('\\\\', '/')
-    return nom.startswith(f'{app}/{{item.user_id}}/')
+    return nom.startswith(app_media_dir('{app}', item.user_id, ''))
 '''
+    # ⚠ Ce gabarit émettait `startswith(f'<app>/{item.user_id}/')` — l'ANCIEN domicile — jusqu'au
+    # 2026-09-22 : toute app générée répondait « pas à moi » pour ses propres sorties, et la
+    # suppression d'une card laissait ses fichiers sur le disque. Jumeau de `tasks_gen` : les
+    # deux émettaient la même forme périmée, l'un pour ÉCRIRE, l'autre pour RECONNAÎTRE.
     up_nature = (f"""_avert = ''
     nature = _nature(f.name)
     if nature:

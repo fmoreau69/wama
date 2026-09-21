@@ -35,10 +35,12 @@ POURQUOI (demande Fabien, 2026-09-11)
     d'index INVERSE, pour réécrire les références quand il y en a.
 
 ⚠ CE QUI RESTE VOLONTAIREMENT HORS PÉRIMÈTRE, et pourquoi : un dossier d'app SANS identifiant
-    utilisateur (`avatarizer/gallery`, `synthesizer/voice_references`, `synthesizer/
-    default_voices`) n'appartient à personne — ce sont des ressources d'APPLICATION. Les loger
-    chez un utilisateur serait faux. Ils sont exclus PAR CONSTRUCTION (pas d'identifiant dans le
-    chemin), sans liste à tenir.
+    utilisateur n'appartient à personne — ce sont des ressources d'APPLICATION. Les loger chez un
+    utilisateur serait faux. Ils sont exclus PAR CONSTRUCTION (pas d'identifiant dans le chemin),
+    sans liste à tenir. *(Les trois exemples cités ici — `avatarizer/gallery`,
+    `synthesizer/voice_references`, `synthesizer/default_voices` — sont depuis devenus des
+    `SystemAsset` de la médiathèque, les 12 et 13/09 ; `media/avatarizer/` a été retiré le
+    2026-09-22, vide. La règle, elle, tient.)*
 
 ────────────────────────────────────────────────────────────────────────────────────────────
 CE QUE CETTE VERSION CORRIGE — la première tentative du 2026-09-11 a ÉCHOUÉ EN VOL et il a

@@ -643,12 +643,19 @@ def extract_text(request):
 
 
 def gallery_list(request):
-    """GET : Retourne la liste des avatars disponibles dans la galerie partagée."""
-    images = _gallery_images()
-    gallery_url = settings.MEDIA_URL + 'avatarizer/gallery/'
-    return JsonResponse({
-        'images': [{'name': name, 'url': gallery_url + name} for name in images]
-    })
+    """GET : Retourne la liste des avatars disponibles dans la galerie partagée.
+
+    Contrat inchangé — `{'images': [{'name', 'url'}]}` — mais l'URL vient désormais de la
+    médiathèque, comme pour la page.
+
+    ⚠ Cassé du 2026-09-12 au 2026-09-22 : `_gallery_images()` rend des DICTS depuis le passage
+    de la galerie en `SystemAsset`, et cette vue concaténait encore `MEDIA_URL +
+    'avatarizer/gallery/' + name` → `TypeError` à chaque appel sur la galerie réelle (9
+    entrées). Personne ne l'a vu : la PAGE ne passe pas par ici (elle reçoit `gallery_images`
+    dans son contexte), et aucun gabarit ni JS n'appelle cet endpoint. *Un endpoint sans
+    appelant ne se signale jamais — il faut le tester pour savoir qu'il est mort.*
+    """
+    return JsonResponse({'images': _gallery_images()})
 
 
 # ---------------------------------------------------------------------------

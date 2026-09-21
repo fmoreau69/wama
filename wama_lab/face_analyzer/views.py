@@ -313,7 +313,8 @@ def _process_video_sync(session: AnalysisSession):
         # Calculate summary statistics
         _console(user_id, "Calculating summary statistics...")
         session.results_summary = convert_numpy_types(_calculate_summary(results))
-        session.output_file.name = f'face_analyzer/{user_folder_id}/output/{output_filename}'
+        # Même brique que l'écriture plus haut — cf. le jumeau de `tasks.py`.
+        session.output_file.name = f"{app_media_dir('face_analyzer', user_folder_id, 'output')}/{output_filename}"
         session.status = AnalysisSession.Status.COMPLETED
         session.completed_at = timezone.now()
         session.progress = 100

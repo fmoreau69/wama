@@ -59,7 +59,7 @@ def _convert(job, ctx):
     # Output location:
     #   - dest_dir set (quick convert in-place) → write next to the source,
     #     keep the original stem, add a numeric suffix on collision.
-    #   - otherwise → default converter/output/<user>/ with a timestamped name.
+    #   - otherwise → the user's home, users/<user>/converter/output/, timestamped name.
     in_place = bool(job.dest_dir)
     if in_place:
         output_rel_dir = job.dest_dir if job.dest_dir.endswith('/') else job.dest_dir + '/'
@@ -67,9 +67,14 @@ def _convert(job, ctx):
         output_dir.mkdir(parents=True, exist_ok=True)
         output_name = _build_inplace_name(output_dir, job.input_filename, job.output_format)
     else:
-        # Convention standard {app}/{user_id}/output (cohérent avec UploadToUserPath
-        # et avec l'arbre du Filemanager).
-        output_rel_dir = f"converter/{job.user_id}/output/"
+        # Le domicile de l'utilisateur, décidé par la brique (`app_media_dir`) et nulle part
+        # ailleurs. ⚠ Cette ligne composait `f"converter/{job.user_id}/output/"` à la main et a
+        # survécu à la bascule du 2026-09-12 : chaque conversion recréait `media/converter/` et
+        # y enregistrait sa sortie (jobs 27 et 31, relancés le 14/09 — relevé le 2026-09-22).
+        # Aucune des trois gardes ne la voyait : ni `MEDIA_ROOT` sur la ligne, ni fichier listé,
+        # ni `upload_to` — c'est le NOM enregistré plus bas (`'output_file': …`) qui partait faux.
+        from wama.common.utils.media_paths import app_media_dir
+        output_rel_dir = app_media_dir('converter', job.user_id, 'output') + '/'
         output_dir = settings.MEDIA_ROOT / output_rel_dir
         output_dir.mkdir(parents=True, exist_ok=True)
         output_name = _build_output_name(job.input_filename, job.output_format, item_id=job.id)

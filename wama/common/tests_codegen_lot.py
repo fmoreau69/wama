@@ -226,7 +226,12 @@ class CheminDeLotTest(SimpleTestCase):
         politique du converter réel doit envelopper LES TROIS vues de suppression — une
         garde se pose avec ses jumeaux."""
         self.assertIn('def _fichier_de_l_app(item, champ):', self.src)
-        self.assertIn("startswith(f'converter/{item.user_id}/')", self.src)
+        # ⚠ Cette ligne ATTESTAIT l'ancienne forme (`startswith(f'converter/{item.user_id}/')`)
+        # jusqu'au 2026-09-22 : le test figeait le défaut qu'il aurait dû interdire. Le préfixe
+        # vient désormais de la brique, et l'ancienne forme ne doit plus apparaître du tout.
+        self.assertIn("startswith(app_media_dir(", self.src)
+        self.assertNotIn("{item.user_id}/')", self.src,
+                         'le gabarit réémet un préfixe de propriété à l’ancien domicile')
         for vue in ('delete', 'clear_all', 'batch_delete'):
             corps = _fonction(self.src, vue)
             self.assertIsNotNone(corps, f'{vue} absente')

@@ -22,6 +22,8 @@ from importlib import import_module
 
 from celery import shared_task
 
+from wama.common.utils.media_paths import app_media_dir
+
 from .models import AudioEnhancement, Enhancement
 
 logger = logging.getLogger(__name__)
@@ -160,8 +162,12 @@ def _enhance_media(enhancement, ctx):
                              progress_callback=lambda p: ctx.progress(5 + int(p * 0.9)),
                              **extra) or {}
             file_size = os.path.getsize(local)
+            # Le nom de STOCKAGE vient de la brique : il décide où le fichier atterrit ET ce que
+            # la base retient. Composé à la main (`f'enhancer/{uid}/output/…'`) jusqu'au
+            # 2026-09-22, il aurait recréé l'ancien arbre à la première sortie après la bascule.
             saved = _store_output(
-                enhancement, local, f'enhancer/{enhancement.user_id}/output/media/{output_filename}')
+                enhancement, local,
+                f"{app_media_dir('enhancer', enhancement.user_id, 'output/media')}/{output_filename}")
     finally:
         if nature == 'video':
             clear_partial('enhancer', enhancement.id)   # la face SORTIE prend le relais
@@ -239,7 +245,8 @@ def _enhance_audio(ae, ctx):
         local = os.path.join(str(_work), output_filename)
         route(input_path, local, ae.output_format, options=options,
               progress_callback=lambda p: ctx.progress(5 + int(p * 0.9)))
-        saved = _store_output(ae, local, f'enhancer/{ae.user_id}/output/audio/{output_filename}')
+        saved = _store_output(
+            ae, local, f"{app_media_dir('enhancer', ae.user_id, 'output/audio')}/{output_filename}")
 
     ae.output_file.name = saved
     _apply_enhancer_output_format(ae)                   # conversion inline (converter)

@@ -64,8 +64,10 @@ EMPLACEMENTS_LEGITIMES = (
      re.compile(r'^users/.*$')),
     ("entrées/sorties d'app — la règle de base",
      re.compile(r'^[A-Za-z0-9_]+/\d+/(input|output)/.*$')),
-    ("galerie d'avatars PARTAGÉE (lue par avatarizer.views._gallery_images)",
-     re.compile(r'^avatarizer/gallery/.*$')),
+    # ⚠ La « galerie d'avatars PARTAGÉE » (`^avatarizer/gallery/`) a QUITTÉ ce motif le
+    # 2026-09-22 : elle est un `SystemAsset(avatar)` sous `media_library/system/` depuis le 12/09,
+    # et `_gallery_images` ne lit plus ce dossier. Même raison que les voix ci-dessous : un motif
+    # gardé pour un dossier mort ferait passer pour LÉGITIME un fichier qu'on y déposerait par erreur.
     # ⚠ `default_voices` et `voice_references` ont QUITTÉ ce motif le 2026-09-13 : les voix de
     # référence sont des `SystemAsset(voice)` sous `media_library/system/` (dernier motif).
     # Les garder ici en aurait fait un seuil périmé — voir la note du motif médiathèque.
