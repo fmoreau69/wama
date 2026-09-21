@@ -248,6 +248,111 @@ class SuppressionDansChaqueAppTest(TestCase):
                                  "dernière card : le lot a disparu")
 
 
+class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
+    """Le SORT DU FICHIER, sur chaque app : ce qui vit chez l'app part, ce qui est référencé reste.
+
+    Né le 2026-09-22. Les tests ci-dessus éprouvent l'ÉTAT DU LOT après suppression, jamais ce
+    que devient le fichier — et c'est dans cet angle mort qu'une règle de propriété restée à
+    l'ancien domicile (`<app>/<uid>/…`, avant la bascule du 12/09) a laissé chaque sortie migrée
+    sur le disque, pour toujours, sans une erreur. *Une garde qui refuse à tort ne plante
+    jamais : elle fuit.*
+
+    Deux témoins par app, construits sans rien connaître d'elle :
+      • « possédé » — chaque champ fichier pointe DANS le domicile de l'app (`app_media_dir`) ;
+      • « référencé » — chaque champ pointe dans l'espace de l'utilisateur (`users/<u>/temp/`),
+        comme une source envoyée depuis le gestionnaire de fichiers.
+    Le premier doit disparaître du disque, le second y rester : supprimer TROP serait aussi un
+    défaut, et c'est la moitié du test.
+    """
+
+    _account_for = SuppressionDansChaqueAppTest._compte_pour
+
+    def setUp(self):
+        import shutil
+        import tempfile
+
+        from django.test import override_settings
+
+        self.tmp = tempfile.mkdtemp()
+        setting = override_settings(MEDIA_ROOT=self.tmp)
+        setting.enable()
+        self.addCleanup(setting.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def _witness(self, model, account, folder):
+        """Un élément dont CHAQUE champ fichier désigne un vrai fichier sous `dossier`."""
+        el = _instance(model, account)
+        files = []
+        for f in model._meta.concrete_fields:
+            if not isinstance(f, models.FileField):
+                continue
+            rel = f'{folder}/temoin_{el.pk}_{f.name}.bin'
+            path = Path(self.tmp) / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'x')
+            setattr(el, f.name, rel)
+            files.append(path)
+        el.save()
+        return el, files
+
+    def _delete_card(self, delete_route, el):
+        r = self.client.post(reverse(delete_route, args=[el.pk]),
+                             data='{}', content_type='application/json')
+        self.assertEqual(r.status_code, 200, r.content[:300])
+
+    def _fleet(self):
+        """(surface, route, compte, modèle, domicile de l'app) pour chaque app de file."""
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.common.utils.preview_registry import PreviewRegistry
+        for surface, delete_route, _card_route in _surfaces():
+            account = self._account_for(surface)
+            model = PreviewRegistry.get_model(surface)
+            self.assertIsNotNone(model, f"aucun modèle d'élément déclaré pour {surface}")
+            # Le domicile est celui de l'APP DU MODÈLE — une surface peut en partager un (une
+            # famille de routes d'une app range sous le nom de l'app, pas sous celui de la route).
+            yield (surface, delete_route, account, model,
+                   app_media_dir(model._meta.app_label, account.id, 'output'))
+
+    def test_each_app_removes_the_files_it_owns(self):
+        for surface, route, account, model, app_home in self._fleet():
+            with self.subTest(surface=surface):
+                el, files = self._witness(model, account, app_home)
+                if not files:
+                    continue                      # élément sans fichier : rien à éprouver
+                self._delete_card(route, el)
+                left_over = [p.name for p in files if p.exists()]
+                self.assertEqual([], left_over, 'supprimer la card a laissé les fichiers de l’app '
+                                             'sur le disque — la règle de propriété ne les '
+                                             'reconnaît pas comme siens')
+
+    #: ⚠ DETTE MESURÉE le 2026-09-22 — un BUDGET qui ne peut que DESCENDRE, pas une tolérance.
+    #: Le premier passage de ce test a trouvé que supprimer une card DÉTRUIT un fichier qu'elle ne
+    #: faisait que référencer dans 10 apps sur 11 (seule la règle de propriété du converter, et
+    #: celle qu'émet le générateur, l'interdisent). La plupart des apps COPIENT leur entrée, donc le
+    #: cas y est latent ; mais `MEDIA_STORAGE_TIERING §8` nomme des imports qui POINTENT vers le
+    #: temp de l'utilisateur — là, supprimer la card efface le fichier d'origine. Chaque app
+    #: supprime à la fois par `safe_delete_file` et en direct : la correction n'est pas un geste au
+    #: commun, c'est un chantier (consigné, décision en attente). Ce budget l'empêche de GRANDIR
+    #: d'ici là, et oblige à le baisser dans le même geste que chaque correction.
+    REFERENCED_FILE_DESTROYERS_BUDGET = 10
+
+    def test_no_more_apps_than_the_budget_destroy_a_file_they_only_reference(self):
+        offenders = []
+        for surface, route, account, model, _app_home in self._fleet():
+            el, files = self._witness(model, account, f'users/{account.id}/temp')
+            if not files:
+                continue
+            self._delete_card(route, el)
+            if any(not p.exists() for p in files):
+                offenders.append(surface)
+        self.assertEqual(
+            self.REFERENCED_FILE_DESTROYERS_BUDGET, len(offenders),
+            f'{len(offenders)} app(s) détruisent un fichier seulement RÉFÉRENCÉ (budget '
+            f'{self.REFERENCED_FILE_DESTROYERS_BUDGET}) : {sorted(offenders)}. Au-dessus du budget, '
+            'une app de plus détruit des fichiers d’utilisateur ; en dessous, une correction a '
+            'été faite — baisser le budget dans le même geste.')
+
+
 # ── Le jumeau gabarit ↔ JS ────────────────────────────────────────────────────────────────────
 
 class EnrobageUnitaireJumeauTest(TestCase):

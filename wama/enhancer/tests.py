@@ -215,7 +215,11 @@ class GlueTest(TestCase):
                                return_value='RealESRGANx4'):
                 res = tasks._enhance_media(e, ctx)
         fields = res['fields']
-        self.assertTrue(fields['output_file'].startswith(f'enhancer/{self.user.id}/output/media/'))
+        # ⚠ Attestait l'ANCIEN domicile jusqu'au 2026-09-22 — le test figeait le défaut. Le
+        # préfixe attendu vient de la brique, pas d'une chaîne recopiée ici.
+        from wama.common.utils.media_paths import app_media_dir
+        self.assertTrue(fields['output_file'].startswith(
+            app_media_dir('enhancer', self.user.id, 'output/media') + '/'), fields['output_file'])
         self.assertTrue(os.path.exists(os.path.join(self.tmp, fields['output_file'])))
         self.assertEqual((fields['output_width'], fields['output_height']), (8, 6))
         self.assertEqual(res['models'], ['enhancer:RealESRGANx4'])

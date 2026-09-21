@@ -386,3 +386,88 @@ class AucuneEcritureNeRecomposeUnCheminDAppTest(SimpleTestCase):
                          'un chemin média par utilisateur est composé à la main — il écrira '
                          'dans l’ANCIEN arbre pendant que tout le reste est au domicile, et '
                          'rien ne le signalera : ' + ', '.join(fautifs))
+
+    # ── La troisième route, ajoutée le 2026-09-22 ──────────────────────────────────────────
+    #
+    # ⚠ CETTE MÉTHODE EXISTE PARCE QUE L'IDIOME CI-DESSUS EXIGE `MEDIA_ROOT` SUR LA LIGNE, et que
+    # huit sites passaient à côté sans jamais le nommer : le NOM enregistré en base
+    # (`session.output_file.name = f'face_analyzer/{user_id}/…'`), le nom passé au stockage
+    # (`_store_output(e, local, f'enhancer/{e.user_id}/…')`), le dossier relatif rangé dans
+    # `'output_file'` (converter), et le PRÉFIXE de propriété (`startswith(f'converter/{uid}/')`).
+    # Mesuré le jour même : converter ×2, enhancer ×2, face_analyzer ×2, le GÉNÉRATEUR ×2 (qui les
+    # réémettait dans chaque app générée) — et 13 lignes du détecteur de changements du
+    # gestionnaire de fichiers, restées à l'ancien domicile. Aucun ne cassait : le converter recréait
+    # `media/converter/` à chaque conversion, et sa règle de suppression, restée à l'ancien
+    # préfixe, laissait les sorties migrées sur le disque pour toujours.
+    #
+    # *Un fichier arrive au disque par TROIS routes — le champ de modèle, l'écriture directe, et le
+    # NOM qu'on enregistre ou qu'on compare. Les deux gardes précédentes couvraient les deux
+    # premières.* Celle-ci ne cherche pas un idiome d'écriture : elle cherche la FORME elle-même,
+    # un nom d'app en tête d'une f-string suivi d'une expression (`f'<app>/{…}/'`) — ce qui ne
+    # dépend plus de la façon dont la chaîne est ensuite employée.
+
+    #: Fichier → (nombre de LIGNES tolérées, raison). Un budget, pas une exemption de fichier :
+    #: une ligne de plus dans le même fichier fait échouer le test.
+    #: ⚠ VIDE, et c'est une correction : le premier jet tolérait ici 13 lignes du gestionnaire de
+    #: fichiers sous la raison « arbre historique » — recopiée de la garde voisine SANS lire les
+    #: lignes. Elles étaient toutes dans `api_tree_mtime`, le détecteur de changements : une seconde
+    #: liste de l'arbre restée à l'ancien domicile, qui ne voyait plus aucune sortie d'app. La
+    #: tolérance de la garde voisine vise UNE autre ligne (`_allowed_app_prefixes`, l'accès aux
+    #: orphelins). *Une raison recopiée n'est pas une raison : elle couvrait un défaut.*
+    TOLERATED_COMPOSED = {}
+
+    @staticmethod
+    def _is_code(line):
+        """Une ligne de COMMENTAIRE qui cite l'ancienne forme est de l'histoire, pas du code : le
+        dépôt date ses correctifs en citant ce qu'ils remplacent, et c'est voulu. Mesuré le jour
+        même : sans ce filtre, les deux commentaires qui racontent le correctif le faisaient
+        échouer."""
+        return not line.lstrip().startswith('#')
+
+    @staticmethod
+    def _composed_form():
+        from django.apps import apps as django_apps
+        from wama.common.app_registry import APP_CATALOG
+        lab = [c.label for c in django_apps.get_app_configs() if c.name.startswith('wama_lab.')]
+        names = sorted(set(APP_CATALOG) | set(lab), key=lambda n: (-len(n), n))
+        alternation = '|'.join(map(re.escape, names))
+        return re.compile(rf"""f['"]({alternation})(_\d+)?/\{{[^}}]*\}}/""")
+
+    def test_no_recorded_name_nor_prefix_recomposes_an_app_path(self):
+        from wama.common.sandbox import LABEL_RE
+
+        form = self._composed_form()
+        by_file = {}
+        for root in ('wama', 'wama_lab', 'wama_data'):
+            for py in (RACINE_DEPOT / root).rglob('*.py'):
+                rel = py.relative_to(RACINE_DEPOT).as_posix()
+                if ('migrations' in py.parts or py.name.startswith(('tests_', 'test_'))
+                        or py.name in ('tests.py', 'media_paths.py',
+                                       'migrate_media_to_user_home.py')
+                        or any(LABEL_RE.match(p) for p in py.parts)):
+                    continue
+                lines = [no for no, line in enumerate(
+                    py.read_text(encoding='utf-8', errors='replace').splitlines(), 1)
+                    if self._is_code(line) and form.search(line)]
+                if lines:
+                    by_file[rel] = lines
+
+        offenders = []
+        for rel, lines in sorted(by_file.items()):
+            budget = self.TOLERATED_COMPOSED.get(rel, (0, ''))[0]
+            if len(lines) > budget:
+                offenders.append(f'{rel}:{",".join(map(str, lines))} '
+                               f'({len(lines)} ligne(s), {budget} tolérée(s))')
+        self.assertEqual([], offenders,
+                         'un chemin d’app est composé à la main — nom enregistré, nom de '
+                         'stockage ou préfixe de propriété. Il désignera l’ANCIEN domicile, et '
+                         'rien ne le signalera : passer par `app_media_dir`. ' + ' ; '.join(offenders))
+
+    def test_the_composed_path_budget_has_no_slack(self):
+        """Un budget qui garde de la marge est une autorisation d'en ajouter : s'il descend, on
+        le baisse ici dans le même geste (même règle que `tests_identifier_language`)."""
+        form = self._composed_form()
+        for rel, (budget, _reason) in self.TOLERATED_COMPOSED.items():
+            n = sum(1 for line in (RACINE_DEPOT / rel).read_text(encoding='utf-8').splitlines()
+                    if self._is_code(line) and form.search(line))
+            self.assertEqual(budget, n, f'{rel} : budget {budget}, mesuré {n} — le recaler')

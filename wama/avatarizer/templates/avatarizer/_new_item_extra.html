@@ -30,8 +30,14 @@ partagée). Les ids/classes sont ceux du markup historique — les handlers JS (
     {% else %}
     <p class="text-muted small mb-2">
         <i class="fas fa-info-circle"></i>
-        Aucun avatar dans la galerie. Ajoutez des images dans
-        <code>media/avatarizer/gallery/</code>.
+        {% comment %}
+        ⚠ Ce message disait « Ajoutez des images dans media/avatarizer/gallery/ » jusqu'au
+        2026-09-22 : un administrateur qui l'aurait suivi aurait déposé des fichiers que plus rien
+        ne lit depuis le passage de la galerie en ressources système (12/09) — galerie vide, sans
+        erreur. La consigne dit désormais où la galerie vit réellement.
+        {% endcomment %}
+        Aucun avatar dans la galerie. Un administrateur les ajoute comme ressources système
+        de la médiathèque (type « Avatar »).
     </p>
     {% endif %}
 </div>

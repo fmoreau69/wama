@@ -101,7 +101,7 @@ def render_tasks(manifest: dict) -> tuple:
     # DEUX SAVEURS depuis le 2026-09-03 (2ᵉ app routée : describer), déclarées par
     # `processing.backend_result` (← `backends/__init__.RESULT` de l'app source) :
     #   'file' (défaut — pilote converter) : le backend ÉCRIT output_path, la tâche range le
-    #        chemin dans output_file, sortie à la convention {app}/{user}/output/ ;
+    #        chemin dans output_file, sortie au domicile de l'utilisateur (`app_media_dir`) ;
     #   'text' (describer) : le backend REND le texte, la tâche le persiste dans la colonne
     #        `field` déclarée, et publie l'aperçu PARTIEL (during_preview) au fil de l'eau.
     routes = (proc.get('backend_routes') or {})
@@ -199,7 +199,11 @@ def render_tasks(manifest: dict) -> tuple:
                 '            posees[_n] = _v',
                 f"    opts = effective_settings(_SCH, posees=posees, contexte={{'{nature_champ}': nature}})",
                 '',
-                f"    rel_dir = f\"{app_id}/{{item.user_id}}/output/\"",
+                # Le dossier de sortie vient de la BRIQUE, pas d'une chaîne émise ici : ce gabarit
+                # émettait `f"<app>/{item.user_id}/output/"` et fabriquait donc l'ancien domicile
+                # dans CHAQUE app générée, bascule du 2026-09-12 ou non (relevé le 2026-09-22).
+                '    from wama.common.utils.media_paths import app_media_dir as _amd',
+                f"    rel_dir = _amd({app_id!r}, item.user_id, 'output') + '/'",
                 '    out_dir = _P(_s.MEDIA_ROOT) / rel_dir',
                 '    out_dir.mkdir(parents=True, exist_ok=True)',
                 '    nom = f"{_P(item.input_filename).stem}_{item.id}.{fmt}"',

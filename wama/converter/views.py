@@ -44,22 +44,29 @@ logger = logging.getLogger(__name__)
 
 def _is_app_owned(file_field, user_id) -> bool:
     """True only if the file lives inside the Converter's OWN media tree
-    (``converter/<user_id>/…``).
+    (``users/<user_id>/converter/…``, rendu par `app_media_dir`).
 
     Règle WAMA : supprimer une tâche ne supprime les fichiers QUE s'ils sont
     dans le dossier média de l'application. Les fichiers seulement *référencés*
     ailleurs appartiennent à l'utilisateur et ne doivent jamais être supprimés :
       - "Envoyer vers Converter" (file d'attente) : input = source Filemanager
-        (référencée, pas copiée) → NON supprimable ; output dans converter/<u>/output → supprimable.
+        (référencée, pas copiée) → NON supprimable ; output dans le dossier du converter → supprimable.
       - "Conversion rapide" (in-place) : input ET output dans des dossiers
         utilisateur → NON supprimables.
-      - Upload direct dans la page Converter : input ET output dans
-        converter/<u>/… → supprimables.
+      - Upload direct dans la page Converter : input ET output dans le dossier
+        du converter → supprimables.
+
+    ⚠ Ce préfixe était écrit `converter/<user_id>/` jusqu'au 2026-09-22, donc resté à l'ANCIEN
+    domicile après la bascule du 12/09. Rien ne cassait : la règle répondait simplement « pas
+    à moi » pour TOUT fichier migré — supprimer, tout effacer ou relancer un job laissait sa
+    sortie sur le disque, pour toujours. *Une garde qui refuse à tort ne plante jamais : elle
+    fuit.* Le préfixe vient désormais de la brique, comme le chemin d'écriture de `tasks.py`.
     """
     if not file_field:
         return False
+    from wama.common.utils.media_paths import app_media_dir
     name = (getattr(file_field, 'name', '') or '').replace('\\', '/')
-    return name.startswith(f'converter/{user_id}/')
+    return name.startswith(app_media_dir('converter', user_id, ''))
 
 
 def _wrap_job_in_batch(job):

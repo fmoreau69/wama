@@ -148,8 +148,12 @@ class EndpointEnvoyerVersTest(TestCase):
         self.u = _utilisateur('envoi_endpoint')
         self.client.force_login(self.u)
         from wama.converter.models import ConversionJob
+        from wama.common.utils.media_paths import app_media_dir
         self.job = ConversionJob.objects.create(user=self.u, input_filename='a.png')
-        self.job.output_file.name = f'converter/{self.u.id}/output/a.png'
+        # Jumeau de la fixture du test `sorties_de` plus haut, porté le 12/09 avec la même
+        # remarque — celle-ci avait été oubliée (relevé le 2026-09-22).
+        self.output_name = f"{app_media_dir('converter', self.u.id, 'output')}/a.png"
+        self.job.output_file.name = self.output_name
         self.job.save(update_fields=['output_file'])
 
     def _url(self, surface='converter', pk=None):
@@ -159,7 +163,7 @@ class EndpointEnvoyerVersTest(TestCase):
         rep = self.client.get(self._url())
         self.assertEqual(200, rep.status_code, rep.content[:200])
         d = rep.json()
-        self.assertEqual([f'converter/{self.u.id}/output/a.png'], d['chemins'])
+        self.assertEqual([self.output_name], d['chemins'])
         self.assertTrue(d['destinations'])
         # L'endpoint est RENDU : le front n'écrit pas les routes d'une autre app.
         self.assertEqual(reverse('filemanager:api_import'), d['endpoint'])

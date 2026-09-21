@@ -33,39 +33,23 @@ def get_user_media_root(user):
     return Path(settings.MEDIA_ROOT)
 
 
-def build_file_tree(user):
+def _app_folders_config(user_id):
+    """La DÉCLARATION des dossiers d'app de l'arbre — lue par l'arbre ET par le détecteur de
+    changements (`api_tree_mtime`), pour qu'ils ne puissent plus diverger.
+
+    ⚠ Sortie de `build_file_tree` le 2026-09-22 : le détecteur tenait sa PROPRE liste, restée à
+    l'ancien domicile après la bascule du 12/09 pendant que l'arbre passait par `app_media_dir`.
+    Rien ne cassait : il hachait l'heure de dossiers qui ne recevaient plus rien, et le
+    gestionnaire ne se rafraîchissait plus quand une app produisait une sortie. *Deux listes du
+    même ensemble finissent par en décrire deux.*
+
+    ⚠ Le nœud « Galerie » (`avatarizer/gallery`) en est sorti le même jour : la galerie est une
+    ressource SYSTÈME de la médiathèque (`SystemAsset` de type avatar) depuis le 2026-09-12, et
+    ce nœud montrait un dossier vide que plus rien ne lit.
+
+    Pure déclaration : aucune lecture disque (le détecteur est appelé toutes les 5 s).
     """
-    Build a file tree structure for jstree with two collapsible sections:
-    - Mes fichiers : temp folder + user-mounted folders
-    - Applications : app-specific input/output folders
-    """
-    media_root = Path(settings.MEDIA_ROOT)
-    user_id = user.id
-
-    # ── Section 1 : Mes fichiers ─────────────────────────────────────────
-    user_children = []
-
-    temp_node = build_folder_node({
-        'id': 'temp',
-        'text': 'Temporaires',
-        'icon': 'fa fa-folder text-warning',
-        'path': f'users/{user_id}/temp',
-    }, media_root, user_id)
-    if temp_node:
-        user_children.append(temp_node)
-
-    for mount in MountedFolder.objects.filter(user=user).order_by('name'):
-        user_children.append({
-            'id': f'mount_{mount.id}',
-            'text': mount.name,
-            'icon': 'fa fa-plug text-info',
-            'type': 'mount',
-            'children': True,
-            'data': {'path': f'mounts/{mount.id}', 'mount_id': mount.id},
-        })
-
-    # ── Section 2 : Applications ─────────────────────────────────────────
-    app_folders_config = [
+    return [
         {
             'id': 'anonymizer',
             'text': 'Anonymizer',
@@ -82,7 +66,6 @@ def build_file_tree(user):
             'children': [
                 {'id': 'avatarizer_input', 'text': 'Input', 'path': app_media_dir('avatarizer', user_id, 'input'), 'icon': 'fa fa-folder text-secondary'},
                 {'id': 'avatarizer_output', 'text': 'Output', 'path': app_media_dir('avatarizer', user_id, 'output'), 'icon': 'fa fa-folder text-success'},
-                {'id': 'avatarizer_gallery', 'text': 'Galerie', 'path': 'avatarizer/gallery', 'icon': 'fa fa-images text-info'},
             ]
         },
         {
@@ -189,6 +172,41 @@ def build_file_tree(user):
             ]
         },
     ]
+
+
+def build_file_tree(user):
+    """
+    Build a file tree structure for jstree with two collapsible sections:
+    - Mes fichiers : temp folder + user-mounted folders
+    - Applications : app-specific input/output folders
+    """
+    media_root = Path(settings.MEDIA_ROOT)
+    user_id = user.id
+
+    # ── Section 1 : Mes fichiers ─────────────────────────────────────────
+    user_children = []
+
+    temp_node = build_folder_node({
+        'id': 'temp',
+        'text': 'Temporaires',
+        'icon': 'fa fa-folder text-warning',
+        'path': f'users/{user_id}/temp',
+    }, media_root, user_id)
+    if temp_node:
+        user_children.append(temp_node)
+
+    for mount in MountedFolder.objects.filter(user=user).order_by('name'):
+        user_children.append({
+            'id': f'mount_{mount.id}',
+            'text': mount.name,
+            'icon': 'fa fa-plug text-info',
+            'type': 'mount',
+            'children': True,
+            'data': {'path': f'mounts/{mount.id}', 'mount_id': mount.id},
+        })
+
+    # ── Section 2 : Applications ─────────────────────────────────────────
+    app_folders_config = _app_folders_config(user_id)
 
     app_children = []
     for config in app_folders_config:
@@ -482,23 +500,17 @@ def api_tree_mtime(request):
     media_root = Path(settings.MEDIA_ROOT)
     uid = user.id
 
-    # Flat list of all app leaf folders (same set as build_file_tree)
-    leaf_paths = [
-        f'users/{uid}/temp',
-        f'anonymizer/{uid}/input', f'anonymizer/{uid}/output',
-        f'avatarizer/{uid}/input', f'avatarizer/{uid}/output', 'avatarizer/gallery',
-        f'composer/{uid}/input', f'composer/{uid}/output',
-        f'describer/{uid}/input', f'describer/{uid}/output',
-        f'enhancer/{uid}/input/media', f'enhancer/{uid}/input/audio',
-        f'enhancer/{uid}/output/media', f'enhancer/{uid}/output/audio',
-        f'imager/{uid}/input/prompts', f'imager/{uid}/input/references',
-        f'imager/{uid}/output/image', f'imager/{uid}/output/video',
-        f'reader/{uid}/input', f'reader/{uid}/output',
-        f'synthesizer/{uid}/input', f'synthesizer/{uid}/output', f'synthesizer/{uid}/custom_voices',
-        f'transcriber/{uid}/input', f'transcriber/{uid}/output',
-        f'face_analyzer/{uid}/input', f'face_analyzer/{uid}/output',
-        f'cam_analyzer/{uid}/input', f'cam_analyzer/{uid}/output',
-    ]
+    # Le MÊME ensemble que l'arbre, lu à la MÊME déclaration (`_app_folders_config`) : temp +
+    # chaque dossier-feuille déclaré. Une stat par dossier, aucune récursion sur le disque.
+    def _leaves(nodes):
+        for node in nodes:
+            if node.get('path'):
+                yield node['path']
+            children = node.get('children')
+            if isinstance(children, list):
+                yield from _leaves(children)
+
+    leaf_paths = [f'users/{uid}/temp', *_leaves(_app_folders_config(uid))]
 
     h = hashlib.md5()
     for rel in leaf_paths:
@@ -1186,8 +1198,10 @@ def _allowed_app_prefixes(user_id):
     for app in labels:
         prefixes.add(_paire(app))            # domicile unique — la forme d'aujourd'hui
         prefixes.add(f'{app}/{user_id}/')    # arbre historique — orphelins non migrés
-    # Dossiers partagés (non rattachés à un utilisateur)
-    prefixes.add('avatarizer/gallery/')
+    # ⚠ `avatarizer/gallery/` était autorisé ici comme dossier PARTAGÉ jusqu'au 2026-09-22 : la
+    # galerie est une ressource système de la médiathèque depuis le 12/09 (`SystemAsset`), servie
+    # par elle — ce dossier était vide et n'est plus lu par rien. Une autorisation sur un dossier
+    # mort est une porte ouverte sur ce qu'on y déposerait par erreur.
     return prefixes
 
 
@@ -1198,7 +1212,6 @@ def is_path_allowed(path, user):
     - Their own temp folder: users/{user_id}/temp/
     - Their OWN app media folders — `users/<user_id>/<app>/…` (domicile unique) et l'arbre
       historique `<app>/<user_id>/…`, qui porte encore les orphelins non migrés
-    - Shared folders (avatarizer/gallery)
     - Their mounted folders
     """
     path = path.replace('\\', '/')
