@@ -689,6 +689,13 @@ le passé.*
 - **Reprise après crash worker** : `process_control.reconcile_orphaned_running()` (93329c4 puis
   32df89c = bascule en échec sur **preuve positive de mort** du worker propriétaire seulement) —
   adopté **8/11** (2026-07-29 : + imager ; manquent anonymizer, avatarizer, translator + apps lab).
+  *(2026-09-21 : 2ᵉ preuve `is_task_lost` — crash de l'HÔTE entier, Redis repart de son
+  instantané, la méta `STARTED` est perdue et l'état retombe `PENDING` ; `is_task_orphaned` ne
+  pouvait plus rien prouver (trou consigné le 28/08, vécu sur la transcription #525). Preuve =
+  `PENDING` + absente des files ET d'`unacked` + **tous** les nœuds `pidbox` ont répondu + état
+  relu après le parcours. Dans la brique : aucune app ne bouge.)* ⚠ Le garde-temps de 30 min
+  (`task_skeleton._time_guard`) ne remplace pas cette réconciliation : il vit DANS le process
+  worker et meurt avec lui — et le transcriber, pas encore porté sur `run_item_task`, ne l'a pas.
 - **Garde anti-BOUCLE-de-crash** : `process_control.refuse_crash_redelivery()` — un message
   `redelivered` vient d'un worker mort SANS acquitter (freeze/panic machine) ; le rejouer relance
   l'exécution qui a tué le worker, à CHAQUE démarrage. Distinct de la réconciliation ci-dessus, et
