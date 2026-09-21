@@ -117,3 +117,86 @@ class DerivedAnatomyTest(SimpleTestCase):
         # sans composant : le moteur SEUL, jamais une liste vide (qui serait une anatomie fausse)
         self.assertEqual(model_composition('bark', []), {'runtime': {'engine': 'bark'}})
         self.assertEqual(model_composition('', []), {})
+
+
+class DeclaredCompositionsAreValidTest(SimpleTestCase):
+    """Toute composition DÉCLARÉE par une app passe le schéma du manifeste `model`.
+
+    Ajouté à la clôture du 2026-09-21 : seules les déclarations imager étaient validées
+    (`imager.tests.DeclaredCompositionTest`). Celles de composer (audiocraft) et du synthesizer
+    (bark, coqui, higgs, kokoro — le service TTS les lit) ne l'étaient pas : une clé mal nommée y
+    serait transportée au catalogue, puis REFUSÉE à la projection du manifeste, sans bruit.
+    """
+
+    SOURCES = (('wama.imager.utils.model_config', 'IMAGER_MODELS'),
+               ('wama.composer.utils.model_config', 'COMPOSER_MODELS'),
+               ('wama.synthesizer.utils.model_config', 'SYNTHESIZER_MODELS'))
+
+    def test_every_declared_composition_passes_the_manifest_schema(self):
+        import importlib
+        from wama.common.manifests.builtin.model import _validate_composition
+        seen = 0
+        for module, table in self.SOURCES:
+            models = getattr(importlib.import_module(module), table)
+            for key, cfg in models.items():
+                compo = cfg.get('composition')
+                if not compo:
+                    continue
+                seen += 1
+                with self.subTest(app=table, model=key):
+                    self.assertEqual(_validate_composition(compo), [])
+        # contre-épreuve : le test ne doit pas passer à vide si une table change de nom
+        self.assertGreaterEqual(seen, 20, "moins de compositions déclarées que mesuré le 21/09")
+
+
+class ComponentOverlayFillsOnlyTheVoidTest(SimpleTestCase):
+    """`ModelRegistry._overlay_components_derived_from_disk` — la passe qui DÉRIVE l'anatomie.
+
+    Le contrat qu'aucun autre test ne tenait : elle ne comble qu'un VIDE. Une composition déclarée
+    est l'autorité (mochi : deux jeux de shards que seul l'app sait départager) ; et une ligne
+    déclarée par une app, sans `extra_info['path']`, se résout par l'index des snapshots installés
+    (sans lui, 1 modèle sur 81 était couvert le 2026-09-20).
+    """
+
+    def _registry(self, **models):
+        from types import SimpleNamespace
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry.__new__(ModelRegistry)
+        registry._models = {k: SimpleNamespace(**v) for k, v in models.items()}
+        return registry
+
+    def _run(self, registry, index, derived):
+        from unittest import mock
+        with mock.patch('wama.common.utils.model_locations.installed_snapshots',
+                        return_value=index), \
+             mock.patch('wama.common.utils.model_anatomy.components_from_snapshot',
+                        return_value=derived) as derive:
+            registry._overlay_components_derived_from_disk()
+        return derive
+
+    def test_a_declared_anatomy_is_never_overwritten(self):
+        declared = {'components': [{'role': 'text_encoder', 'pattern': 'te/model-*-of-00004.x'}]}
+        registry = self._registry(m={'composition': dict(declared), 'extra_info': {'path': '/p'},
+                                     'hf_id': 'org/m'})
+        derive = self._run(registry, {}, [{'role': 'vae', 'pattern': 'vae/x'}])
+        self.assertEqual(registry._models['m'].composition, declared)
+        derive.assert_not_called()
+
+    def test_an_app_row_without_path_is_found_through_the_snapshot_index(self):
+        registry = self._registry(m={'composition': {'runtime': {'engine': 'diffusers'}},
+                                     'extra_info': {}, 'hf_id': 'Org/M'})
+        parts = [{'role': 'vae', 'pattern': 'vae/x.safetensors'}]
+        derive = self._run(registry, {'org/m': '/snap/models--org--m'}, parts)
+        derive.assert_called_once_with('/snap/models--org--m')
+        # le moteur déclaré est GARDÉ : on ajoute les composants, on ne remplace pas la composition
+        self.assertEqual(registry._models['m'].composition,
+                         {'runtime': {'engine': 'diffusers'}, 'components': parts})
+
+    def test_nothing_derivable_leaves_the_row_untouched(self):
+        registry = self._registry(m={'composition': {}, 'extra_info': {}, 'hf_id': 'org/absent'})
+        self._run(registry, {}, [{'role': 'vae', 'pattern': 'x'}])
+        self.assertEqual(registry._models['m'].composition, {})
+        registry = self._registry(m={'composition': {}, 'extra_info': {'path': '/mono'},
+                                     'hf_id': 'org/mono'})
+        self._run(registry, {}, [])                    # monobloc : `[]`, jamais `{'components': []}`
+        self.assertEqual(registry._models['m'].composition, {})
