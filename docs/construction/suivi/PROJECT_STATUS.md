@@ -14656,9 +14656,40 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    ⏳ **Relevé le 21/09, NON engagé** : ajouter un document au RAG **depuis la médiathèque** n'existe pas
    (zéro occurrence de RAG dans tout `wama/media_library/`) ; le geste vit dans l'inspecteur et le menu
    « … » des 10 apps. C'était déjà un reste connu du jalon 14 (`WAMA_MEMORY §7ter`). Utile, non urgent.
+   **Verdict du 22/09 : PAS de raccourci, il vient AVEC l'alignement de la médiathèque.** La porte
+   `rag_ajouter` résout l'élément par `DetailRegistry` (`common/views.py:869`), où la médiathèque n'est pas ;
+   et le menu commun porte DÉJÀ le geste pour toute coordonnée `{surface, pk}` (`wama-card-menu.js:211-212`).
+   Un bouton maintenant serait une 3ᵉ entrée écrite à la main dans une card promise au réalignement — le
+   correctif app par app que la doctrine refuse. Une fois la card sur le menu commun : un adaptateur de
+   détail (`source_text`) suffit. ⚠ Texte trivial pour txt/md seulement ; le PDF attend la brique de parsing.
    ⏳ **Relevé le 21/09 (Fabien), à PLANIFIER** : la médiathèque ne suit pas l'ordre commun des boutons de
    card (« Supprimer » avant « Télécharger », ordre imposé = `AGENTS.md §CONVENTIONS`). Plus largement,
    **aligner la médiathèque sur les fonctionnements communs** est un chantier à part entière.
+   ✅ **22/09 — médiathèque, trois défauts** (`ad68315a`) : l'aperçu devinait le MIME depuis le NOM d'asset
+   (« smoke-0802-desc-text », `text/plain` en base, « Preview not available ») — il lit désormais le MIME
+   stocké puis l'extension du FICHIER, mesuré sur les 35 assets : 2 réparés, 0 autre changé ; les 6
+   connecteurs ignoraient `WAMA_OUTBOUND_PROXY` (urllib seul) — ouvreur commun ; freesound posait `voice` en
+   dur, un bruitage entrait comme voix. ⚠ Les deux fichiers `smoke-0802-*` sont des sorties Studio du 02/08
+   rangées sur le compte RÉEL (user 1) : **non supprimés** (données d'un compte réel), et aucun filet ne les
+   attrape (`nightly_tests._MOTIF_TEMOIN` ne vise que `wama_temoin_`, et pas le compte réel).
+   ✅ **22/09 — VOIX : le genre annoncé est enfin le genre entendu** (`1789f9a1`, `4e3cc624`, `19e28392`,
+   `ba75717b`) — détail `MEDIA_STORAGE_TIERING §9.4bis`. **15/15 voix adultes** concordent, mesurées par un
+   instrument indépendant. Cause : le libellé était cassé DANS WAMA (VoxPopuli porte `gender`, une
+   docstring disait le contraire) — puis l'étiquette de la source s'est révélée fausse sur 2 clips sur 9,
+   d'où la vérification PAR LA MESURE. **Décision de Fabien due : les 8 créneaux enfant/âgé** (âge
+   inventé, aucune source ne le fournit) — désactivation proposée.
+   ⏳ **Rouvert le 22/09 — les connecteurs de la médiathèque au registre des sources.** Le motif écrit de
+   leur exclusion (`external_sources.py`, « le registre couvre les sources configurées par l'installation »)
+   est DÉPASSÉ depuis le 15/09 : les fournisseurs LLM y vivent avec une clé PAR UTILISATEUR stockée en base.
+   Proposition de Fabien : les y faire apparaître comme capacité, avec renvoi au profil pour la clé.
+   **L'exclusion tient jusqu'à sa décision.** ⚠ Si oui : deux tables de clés d'utilisateur coexisteraient
+   (`UserApiKey` pour les LLM, `UserProviderConfig` chiffrée pour la médiathèque) — les unifier est une
+   migration de secrets, décision à part.
+   ⚠ **Voix partagées × droits (vérifié 22/09)** : aligné sur `WAMA_COLLABORATION §3` (lecture par
+   `visible_to`, le fichier employé en place, jamais copié, mutations au seul propriétaire). Deux écarts qui
+   ne viennent pas du geste : le destinataire n'est PAS prévenu (les notifications n'existent pas encore,
+   marche 5) ; et un partage RETIRÉ pendant qu'un travail attend fait replier la résolution sur `default` en
+   silence — le retrait en cours d'usage n'est tranché que pour l'ÉDITION (E5), pas pour la lecture.
    **Ouvert avant ⑥-⑦** : N1 (canal et
    destinataires — pas d'e-mail de masse à une unité), E1-E5 (édition à une branche ou à des personnes,
    périmètre d'« éditer », relance par un éditeur, éditions concurrentes, retrait), N2 (passer d'une card à

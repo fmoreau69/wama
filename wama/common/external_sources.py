@@ -44,6 +44,17 @@ saisie et son propre contrat de provider (`media_library/providers/base.py`).
 déguisée en centralisation. Une clé de serveur et une clé d'utilisateur ne se sondent pas, ne
 se posent pas et ne se révoquent pas de la même façon.
 
+⚠⚠ **Ce motif est DÉPASSÉ depuis le 2026-09-15 — relevé le 2026-09-21, décision ROUVERTE.**
+Le constat qui le fonde (« ce registre couvre les sources dont la configuration appartient à
+l'installation ») n'est plus vrai : les fournisseurs LLM de type `llm` (Albert, API Anthropic,
+abonnement Claude Code) y sont déclarés alors que leur clé est PAR UTILISATEUR, stockée en base
+(`accounts/api_keys.py` : « les fournisseurs NE sont PAS déclarés ici : ce sont les sources
+`external_sources` de type `llm` »), saisie au profil (`api_key_help_url`, plus bas), et rendue
+par le MÊME code que les clés de la médiathèque (`api_keys.listing`). Le registre sait donc déjà
+porter une source à clé d'utilisateur. Proposition de Fabien (21/09) : les connecteurs de la
+médiathèque y apparaissent comme capacité, avec renvoi au profil pour la clé. **L'exclusion
+ci-dessus tient jusqu'à sa décision** — une intention ne se retire que par une décision.
+
 ── Registres VOISINS, volontairement distincts ──────────────────────────────────────────────
 
   • `benchmark_sync.SOURCES` déclare comment LIRE un banc (priorité, échelle, méta). Il parle
