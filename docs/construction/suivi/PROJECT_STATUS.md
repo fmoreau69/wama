@@ -15963,6 +15963,32 @@ catalogue 0,0-0,1 heuristique) et ne projette aucun `quality_index` — sans ces
 score des 7 upscalers est PLAT (tirage « auto » = léger à défaut) et la garde VRAM du squelette
 n'a rien à lire ; la déclaration d'un a priori de qualité dans `model_config` reste à écrire.
 
+**⑨ REVÉRIFICATION DE SESSION (Fabien, 21/09 : « rien réinventé ? aligné sur le commun et la
+ROUTE ? tout consigné ? tous les tests ? puis on clôture ») — lue dans le code.** Réinventé,
+corrigé : `_intent_posted` vivait en TROIS copies (imager, composer, enhancer — dont deux de ma
+main le 20-21/09) → `auto_model.posted_quality_intent` (le POST, None si absent), les trois vues
+l'importent ; `valuesFromGear` recopié dans mes deux JS alors que `WamaInspector.gearValues` est
+« LE lecteur unique » des data-* d'une card (wama-inspector.js:1264) → remplacé. Doublé, corrigé :
+la règle « position nommée la plus proche » (converter `preset_for_intent`) réécrite pour le NFE
+→ `auto_model.preset_key_for_intent`, le converter y délègue ; le besoin VRAM du modèle résolu
+recomposait preset→catalogue alors que la sœur venait de livrer LA cascade
+(`memory_manager.model_footprint_gb`, décision Fabien 21/09) → l'enhancer la lit. Aligné :
+`app_modes` déclare `quality_intent` dans les réglages des deux modes enhancer ; ROUTE §F4b porte
+la ligne imager/composer/enhancer et ce qu'un `utils/auto_model.py` d'app a le droit de porter.
+Tests ajoutés (+6) : lecteurs communs (absent/vide/borné ; proximité et égalité ; converter =
+règle commune traduite), besoin VRAM par la cascade commune, `_parse_fps`, hook d'ingest. ⚠ Le
+remplacement dans composer s'est glissé SOUS un `@require_POST` (SyntaxError attrapée à la
+compilation — le piège « une ancre `def f` sans ses décorateurs » consigné la veille, revécu).
+Batterie 347 tests OK, budgets de langue exacts, V8 parse OK, grille réécrite (`logs/`).
+**Non réinventé, vérifié** : `_store_output` (seul `default_storage.save` du dépôt), les
+`ROUTES`/`_route` (même résolution que le corps composé par `tasks_gen`), `media_candidates` (le
+sélecteur n'a pas de filtre « capacité = valeur » — évolution du commun à proposer à la sœur, avec
+`catalog_domain` par branche : les deux rendraient `utils/auto_model.py` presque vide).
+**Hors de ma main, signalé** : `tool_api` n'expose `quality_intent` sur AUCUNE app (l'assistant
+ne peut pas régler le curseur) ; `converter/utils/cross_app._UPSCALE_MODELS` garde une table
+×2/×4 → modèle en dur là où le tirage de l'enhancer sait désormais résoudre ; le worker `gpu`
+doit être relancé pour les tâches portées ; **9 commits de cette session non poussés**.
+
 🔚 **Reste C (adoption, une ligne + un champ chacun)** : ~~imager, composer, enhancer~~ ✅ 21/09 ;
 transcriber (question : `priority` whisper-first = l'ordre, le curseur arbitre dedans — à
 trancher) ; describer (pas de choix en UI, cascade maison — suit l'adoption de la brique). L'option
@@ -16036,3 +16062,33 @@ périmé du fait de ce chantier.
 fois et un mock nommé par chaîne une fois — renommer = tokenisé + grep du symbole APRÈS application ; une mesure faite
 sous Windows sur un snapshot WSL lit des liens illisibles (mesurer depuis WSL) ; « la sélection auto marchait déjà
 par le gouverneur » (Fabien) — lire la chaîne existante AVANT d'en proposer une.
+
+## §NOTE — 2026-09-21 (nuit), « ALIMENTATION REMPLACÉE : la file des travaux GPU rouvre » — info de Fabien, à lire par TOUTE session
+
+**Le fait.** Fabien a remplacé l'alimentation de l'hôte ; **les tâches GPU ne font plus crasher la machine
+jusqu'ici**. C'était la piste « alim en fin de vie » du dossier des crashs hôte (coupures de plus en plus
+précoces, jusqu'à 27 W) — elle est donc très probablement la cause, sans qu'une durée d'observation longue
+l'ait encore confirmée. **Conséquence voulue par Fabien : on peut lancer les tests nocturnes AVEC GPU et solder
+tout ce qui avait été laissé de côté faute de pouvoir utiliser le GPU.**
+
+⚠ **Ce qui ne bascule PAS tout seul** : la variable `WAMA_GPU_SAFE_MODE` vaut toujours 1 dans le `.env` de cet
+hôte (nom seul consigné) — les gardes qui la lisent (triage VLM du smoke, banc des coûts) refuseront tant
+qu'elle n'est pas levée. La lever est un geste de Fabien. Les règles « pas de charge GPU lancée par l'agent »
+écrites dans les mémoires et les skills datent de la panne : elles cèdent à une demande explicite, et un
+premier lancement se fait **seul, surveillé, un modèle à la fois** — si un crash revient, la piste pilote/GPU-PV
+(l'autre signature du dossier, gel au churn VRAM) reste ouverte.
+
+**La file de ce qui attendait le GPU** (chaque ligne renvoie à son bloc d'origine, rien n'est recopié) :
+1. **tests nocturnes avec GPU** — plan des tests nocturnes (runner VRAM-aware déjà écrit ; les gestes
+   « progression / aperçu » exigent un traitement réel) ;
+2. **FastWan 2.2** — génération GPU jamais jouée (`§PALIER 2026-09-16`, sonde `probe_fastwan --generate`) ;
+3. **banc LLM : la mesure réelle** (qualité, pas seulement les coûts) et le banc `captioning` jamais mesuré
+   (`§CLÔTURE 19/09` « BANC LLM ») ;
+4. **cam_analyzer : le recalage ortho 2b** sur GPU (`§REPRISE` 10→12/09) ;
+5. **VRAM, chantier A** : instrumenter le **pic d'exécution** (`max_memory_allocated` autour du geste) et
+   remesurer les modèles dont la provenance est encore `declared`/`preset` — le second chiffre ne vaut que
+   mesuré (`§CLÔTURE 2026-09-21` ci-dessus, file n°2) ;
+6. **gouverneur B1** : le garde-temps et l'accord de libération sont gardés par des tests — reste à les voir sous un vrai
+   chargement concurrent les atteste (`§PALIER 2026-09-20 « GOUVERNEUR B1 »`) ;
+7. les **validations navigateur** qui demandaient un LLM ou un modèle chargé (canaux conversationnels, smoke
+   des apps génératives).
