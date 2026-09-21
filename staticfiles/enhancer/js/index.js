@@ -109,24 +109,17 @@ document.addEventListener('DOMContentLoaded', function () {
   // ⚙ item : le CYCLE complet (rendre du schéma → greffer le pied → afficher → lire →
   // enregistrer → enchaîner) est la brique commune `WamaParams.settingsModal` (portage
   // 2026-09-21 — `createSettingsModal` + `handleSaveSettings` le recopiaient ici). Les VALEURS
-  // viennent des data-* du bouton ⚙ (brique `card_gear` : tous les params de contexte item),
-  // lues par le NOM du schéma — aucune liste de champs écrite dans ce fichier.
-  function valuesFromGear(btn, schema) {
-    const out = {};
-    (schema || []).forEach(function (p) {
-      const camel = p.name.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
-      if (btn && btn.dataset[camel] !== undefined) out[p.name] = btn.dataset[camel];
-    });
-    return out;
-  }
-
+  // viennent des data-* du gear (brique `card_gear`), lues par LE lecteur unique
+  // `WamaInspector.gearValues` (revérification 21/09 : une copie locale vivait ici).
   function openSettingsModal(id, btn) {
+    const schema = window.ENHANCER_MEDIA_SCHEMA || [];
+    const card = (btn && btn.closest('.wama-card')) || btn;
     return WamaParams.settingsModal({
       id: id,
       title: 'Paramètres - #' + id,
       titleIcon: 'fa-magic',
-      schema: window.ENHANCER_MEDIA_SCHEMA || [],
-      values: valuesFromGear(btn, window.ENHANCER_MEDIA_SCHEMA),
+      schema: schema,
+      values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
       formClass: 'enhancement-settings-form',
       footerTplId: 'mediaSettingsFooterTpl',
       saveUrl: getUrl(config.updateSettingsUrlTemplate, id),

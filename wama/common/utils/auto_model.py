@@ -61,6 +61,31 @@ def read_quality_intent(value) -> int:
         return INTENT_DEFAULT
 
 
+def posted_quality_intent(source):
+    """Curseur POSTÉ (POST ou dict JSON) → entier borné, ou **None** s'il n'est pas posté ou
+    posté vide — la colonne de l'item reste vide et la cascade `quality_intent_of` retombe sur
+    le réglage d'app de l'utilisateur, puis 50. Différent de `read_quality_intent`, qui rend 50
+    quand la valeur manque : ici « absent » et « équilibré » ne se confondent pas.
+
+    Revérification du 2026-09-21 : imager, composer et enhancer portaient chacun cette même
+    fonction sous le nom `_intent_posted` — trois copies d'un helper de vue, remontées ici.
+    """
+    raw = source.get('quality_intent') if hasattr(source, 'get') else None
+    if raw is None or str(raw).strip() == '':
+        return None
+    return read_quality_intent(raw)
+
+
+def preset_key_for_intent(intent) -> str:
+    """La POSITION NOMMÉE la plus proche d'une valeur de curseur (`QUALITY_PRESETS` du sélecteur :
+    fast 15 / balanced 50 / quality 85) — à égalité, la position la plus haute. C'est la règle
+    de toute DÉCLINAISON locale à paliers (converter : preset d'encodage ; enhancer : NFE de
+    Resemble) ; elle vivait chez le converter seul jusqu'au 2026-09-21."""
+    from wama.model_manager.services.model_selector import QUALITY_PRESETS
+    v = read_quality_intent(intent)
+    return min(QUALITY_PRESETS, key=lambda p: (abs(p[2] - v), -p[2]))[0]
+
+
 def intent_param(**overrides) -> dict:
     """Surcouche STANDARD du curseur de qualité pour un schéma d'app (`derive_from_model`).
 

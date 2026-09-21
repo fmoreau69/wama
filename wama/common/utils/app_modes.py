@@ -189,8 +189,8 @@ APP_MODES = {
              'variant': 'primary', 'accepts': ('image', 'video'), 'modes': [
                 {'id': 'enhance', 'label': 'Amélioration', 'icon': 'fa-wand-magic-sparkles',
                  'inputs': ['work_file'],
-                 'settings': ['ai_model', 'upscale_factor', 'denoise', 'blend_factor', 'tile_size',
-                              'output_format', 'output_quality']},
+                 'settings': ['ai_model', 'upscale_factor', 'quality_intent', 'denoise',
+                              'blend_factor', 'tile_size', 'output_format', 'output_quality']},
             ]},
             # `route_prefix` — le SEUL cas du dépôt où un domaine a ses PROPRES routes
             # (`audio_batch_delete`, `audio_delete`… face à `batch_delete`, `delete`). Il est
@@ -201,7 +201,7 @@ APP_MODES = {
              'accepts': ('audio',), 'route_prefix': 'audio', 'modes': [
                 {'id': 'enhance_audio', 'label': 'Débruitage / Restauration', 'icon': 'fa-wave-square',
                  'inputs': ['work_audio'],
-                 'settings': ['engine', 'mode', 'denoising_strength', 'quality']},
+                 'settings': ['engine', 'quality_intent', 'mode', 'denoising_strength', 'quality']},
             ]},
         ],
     },

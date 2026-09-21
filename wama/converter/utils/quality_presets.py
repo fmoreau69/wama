@@ -67,11 +67,11 @@ def intent_for_preset(preset: str):
 
 def preset_for_intent(intent) -> str:
     """Le preset le plus PROCHE d'une valeur de curseur — la TRACE (`quality_preset`) d'un geste
-    au curseur, pour les lecteurs qui ne connaissent que les trois clés."""
-    from wama.common.utils.auto_model import read_quality_intent
-    v = read_quality_intent(intent)
-    positions = preset_positions()
-    return min(positions, key=lambda k: (abs(positions[k] - v), -positions[k]))
+    au curseur, pour les lecteurs qui ne connaissent que les trois clés. La règle de proximité
+    est COMMUNE (`auto_model.preset_key_for_intent`, 21/09 — l'enhancer en a besoin pour son
+    NFE) ; ici seulement la traduction en clé locale."""
+    from wama.common.utils.auto_model import preset_key_for_intent
+    return _CANON_TO_PRESET[preset_key_for_intent(intent)]
 
 
 def _blend(a, b, t: float):

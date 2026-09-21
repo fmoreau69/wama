@@ -102,6 +102,34 @@ class IntentIsCoercedLikeAnyNumberTest(SimpleTestCase):
         self.assertIsInstance(coerce_params(schema, {'quality_intent': '42.6'})['quality_intent'], int)
 
 
+class PostedIntentAndNearestPresetTest(SimpleTestCase):
+    """Deux lecteurs COMMUNS nés de la revérification du 21/09 (trois copies de vue, deux
+    règles de proximité)."""
+
+    def test_an_absent_or_blank_post_is_none_and_a_value_is_bounded(self):
+        self.assertIsNone(auto_model.posted_quality_intent({}))
+        self.assertIsNone(auto_model.posted_quality_intent({'quality_intent': ''}))
+        self.assertIsNone(auto_model.posted_quality_intent({'quality_intent': '  '}))
+        self.assertIsNone(auto_model.posted_quality_intent(None))
+        self.assertEqual(auto_model.posted_quality_intent({'quality_intent': '77'}), 77)
+        self.assertEqual(auto_model.posted_quality_intent({'quality_intent': '250'}), 100)
+        self.assertEqual(auto_model.posted_quality_intent({'quality_intent': 'abc'}), 50)
+
+    def test_the_nearest_named_position_wins_and_the_higher_one_on_a_tie(self):
+        self.assertEqual(auto_model.preset_key_for_intent(0), 'fast')
+        self.assertEqual(auto_model.preset_key_for_intent(32), 'fast')
+        self.assertEqual(auto_model.preset_key_for_intent(33), 'balanced')
+        self.assertEqual(auto_model.preset_key_for_intent(67), 'balanced')
+        self.assertEqual(auto_model.preset_key_for_intent(68), 'quality')
+        self.assertEqual(auto_model.preset_key_for_intent(100), 'quality')
+        self.assertEqual(auto_model.preset_key_for_intent(None), 'balanced')
+
+    def test_the_converter_preset_is_the_common_rule_translated_to_its_keys(self):
+        from wama.converter.utils.quality_presets import preset_for_intent
+        for v, key in ((10, 'web'), (50, 'balanced'), (90, 'max')):
+            self.assertEqual(preset_for_intent(v), key)
+
+
 class IntentCascadeTest(TestCase):
 
     def test_the_schema_names_the_field_and_the_cascade_reads_item_then_user_then_default(self):

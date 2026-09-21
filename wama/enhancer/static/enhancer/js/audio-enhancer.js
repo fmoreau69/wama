@@ -187,22 +187,16 @@ document.addEventListener('DOMContentLoaded', function () {
   // du volet AVANT lancement — et un `updateResembleVisibility()` qui n'existait plus) est
   // remplacé par la brique : les valeurs sont ENREGISTRÉES (audio/update, la vue les tient),
   // la card se re-rend, « Sauvegarder et lancer » lance avec les valeurs STOCKÉES de l'item.
-  function valuesFromGear(btn, schema) {
-    const out = {};
-    (schema || []).forEach(function (p) {
-      const camel = p.name.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
-      if (btn && btn.dataset[camel] !== undefined) out[p.name] = btn.dataset[camel];
-    });
-    return out;
-  }
-
+  // Valeurs = data-* du gear lues par LE lecteur unique `WamaInspector.gearValues`.
   function openAudioSettingsModal(id, btn) {
+    const schema = window.ENHANCER_AUDIO_SCHEMA || [];
+    const card = (btn && btn.closest('.wama-card')) || btn;
     return WamaParams.settingsModal({
       id: id,
       title: 'Paramètres audio — #' + id,
       titleIcon: 'fa-microphone-alt',
-      schema: window.ENHANCER_AUDIO_SCHEMA || [],
-      values: valuesFromGear(btn, window.ENHANCER_AUDIO_SCHEMA),
+      schema: schema,
+      values: WamaInspector.gearValues(card, schema.map(function (p) { return p.name; })),
       formClass: 'audio-settings-form',
       footerTplId: 'audioSettingsFooterTpl',
       saveUrl: getUrl(cfg.audioUpdateUrlTemplate, id),
