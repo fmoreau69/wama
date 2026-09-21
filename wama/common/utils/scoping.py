@@ -28,6 +28,24 @@ def visible_or_404(model, user, **kwargs):
     return get_object_or_404(model.objects.visible_to(user), **kwargs)
 
 
+def listable_by(queryset, user):
+    """Ce que `user` a le droit de LISTER : `visible_to`, sauf pour le compte de service anonyme.
+
+    ⚠ Le compte anonyme est une VRAIE ligne `User` (authentifiée : tous les visiteurs non
+    connectés la partagent), et `scoped_visible_q` pose `Q(visibility='public')` pour tout le
+    monde. Sans cette règle, n'importe quel visiteur hériterait des éléments publics de tout le
+    parc, avec leurs chemins de fichier. Le compte anonyme n'est pas une personne : il ne liste
+    que ce qu'il possède.
+
+    Domicile UNIQUE de la règle depuis le 2026-09-22 : elle vivait en deux exemplaires
+    (liste de la médiathèque, voix de clonage), écrits le même jour par la même session.
+    """
+    from wama.accounts.views import ANONYMOUS_USERNAME
+    if getattr(user, 'username', '') == ANONYMOUS_USERNAME:
+        return queryset.filter(user=user)
+    return queryset.visible_to(user)
+
+
 def owned_or_404(model, user, **kwargs):
     """
     Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
