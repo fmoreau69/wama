@@ -284,6 +284,10 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
     seed = models.IntegerField(null=True, blank=True, help_text="Random seed for reproducibility")
     num_images = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(4)],
                                      help_text="Number of images to generate")
+    # Curseur rapide/qualité commun (chantier C, 2026-09-20) : guide le tirage « auto » au
+    # LANCEMENT (`resolve_model_choice(item=…)` → `quality_intent_of`). Null = équilibré (50).
+    quality_intent = models.IntegerField(null=True, blank=True,
+                                         help_text="Curseur rapide/qualité 0-100 du tirage auto")
 
     # Upscaling options
     upscale = models.BooleanField(default=False, help_text="Upscale the generated image")

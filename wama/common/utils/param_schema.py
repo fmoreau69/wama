@@ -531,7 +531,7 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
         # ignoré, et écraserait la valeur par défaut du traitement.
         if only_present and (raw is None or raw == ''):
             continue
-        if ptype in ('range', 'number'):
+        if ptype in ('range', 'number', 'intent'):     # `intent` : entier 0-100 (chantier C)
             val = numeric.get(name)
             if val is not None and float(val).is_integer():
                 val = int(val)          # 3.0 → 3 : les champs entiers n'aiment pas les floats

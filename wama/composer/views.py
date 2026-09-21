@@ -217,6 +217,7 @@ def generate(request):
         generation_type=generation_type,
         prompt=prompt,
         model=model_id,
+        quality_intent=_intent_posted(request.POST),
         duration=duration,
         output_format=request.POST.get('output_format') or last['output_format'],
         output_quality=request.POST.get('output_quality') or last['output_quality'],
@@ -484,6 +485,16 @@ def _input_labels():
 
 
 @require_POST
+def _intent_posted(source):
+    """Curseur rapide/qualité POSTÉ (chantier C) — None s'il ne l'est pas (la colonne reste
+    vide : le tirage retombe sur le réglage d'app de l'utilisateur, puis sur 50)."""
+    raw = source.get('quality_intent') if hasattr(source, 'get') else None
+    if raw in (None, ''):
+        return None
+    from wama.common.utils.auto_model import read_quality_intent
+    return read_quality_intent(raw)
+
+
 def update_settings(request, pk):
     """Update model and/or duration on an existing generation, then re-run."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -508,6 +519,8 @@ def update_settings(request, pk):
     gen.model = model_id
     gen.duration = duration
     gen.generation_type = generation_type
+    if request.POST.get('quality_intent', '') != '':
+        gen.quality_intent = _intent_posted(request.POST)
     # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide.
     prompt = request.POST.get('prompt')
     if prompt is not None and prompt.strip():
@@ -733,6 +746,8 @@ def batch_update(request, pk):
         if model and (model in COMPOSER_MODELS or model in AUTO_MODELS):
             g.model = model
             g.generation_type = _model_type(model)
+        if request.POST.get('quality_intent', '') != '':
+            g.quality_intent = _intent_posted(request.POST)
         if duration:
             try:
                 g.duration = clamp_duration(duration)

@@ -1528,8 +1528,13 @@ def _quality_intent(f: _AppFiles):
     # ou un champ de modèle nommé `quality_intent` ne prouve rien (1re version, mesurée :
     # synthesizer/avatarizer « prouvés » par leur migration). Commentaires neutralisés (code=True)
     # — les appels s'étalent sur plusieurs lignes commentées, avec des parenthèses dedans.
+    # `quality_intent=` explicite, ou `item=` : depuis le 20/09 `resolve_model_choice(item=…)`
+    # lit le curseur de l'item lui-même (`quality_intent_of`) — l'intention voyage sans être nommée.
+    # Un niveau de parenthèses imbriquées toléré : `resolve_model_choice((gen.model or '').strip(),
+    # …, item=generation)` fermait le motif avant `item=` (mesuré : imager et composer « jamais
+    # passé » alors qu'ils passaient).
     passed = f.find_py(r"(select_model(_id)?|resolve_model_choice|couvrir_classes)\("
-                       r"[^)]*\bquality_intent\s*=", code=True)
+                       r"(?:[^()]|\([^()]*\))*\b(quality_intent|item)\s*=", code=True)
     resolves = f.find_py(r"\b(select_model(_id)?|resolve_model_choice)\(", code=True)
     if declared and passed:
         return True, f"{declared} ; passé : {passed}"

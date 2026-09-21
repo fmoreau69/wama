@@ -328,9 +328,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (hostBatch) WamaParams.render(hostBatch, schema, { context: 'batch' });
     // P2 — VOLET : mêmes champs, même source (modèle + format/qualité ; durée/prompt/mélodie
     // restent bespoke ce tour : widgets formatés/conditionnels, cf. REMOVAL_LEDGER P2-bis).
+    // + le curseur rapide/qualité (chantier C) dans le MÊME hôte : son show_if lit le select
+    // de modèle du même conteneur (visible sur auto-*), sans une ligne de JS d'app.
     var hostModel = document.getElementById('composerPanelModelHost');
     if (hostModel) WamaParams.render(hostModel,
-        schema.filter(function (p) { return p.name === 'model'; }), { context: 'panel' });
+        schema.filter(function (p) { return p.name === 'model' || p.name === 'quality_intent'; }),
+        { context: 'panel' });
     var hostDur = document.getElementById('composerPanelDurationHost');
     if (hostDur) WamaParams.render(hostDur,
         schema.filter(function (p) { return p.name === 'duration'; }), { context: 'panel' });

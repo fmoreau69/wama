@@ -6,6 +6,7 @@ de fichier via la BRIQUE COMMUNE** (output_format_params_for_app : domaine audio
 d'APP_CATALOG). On garde les champs compose existants (id=) ; câblage via initFromSchema (panel dom_id-aware).
 cardSettings générique lit les data-model/data-duration de la racine de card.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.composer.utils.model_config import COMPOSER_MODELS
@@ -50,6 +51,13 @@ PARAMS = [
                                          [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
                                           if cfg.get('type') != 'music']),
           ]),
+    # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur « auto-* », lu au
+    # LANCEMENT par le tirage (`resolve_auto_model` → `item=gen`). Rendu par le renderer commun
+    # (volet : même hôte que le modèle ; modale/lot : lu génériquement par WamaParams.read).
+    Param(name="quality_intent", dom_id={"panel": "qualityIntent", "item": "settingsQualityIntent",
+                                          "batch": "batchSettingsQualityIntent"},
+          contexts=PANEL_ITEM_BATCH,
+          **intent_param(show_if={"field": "model", "in": ["auto-music", "auto-sfx"]})),
     Param(name="duration", type="range", label="Durée", icon="fa-clock", min=10, max=600, step=5,
           unit="s", min_label="10s", max_label="10min", chip=True,
           dom_id={"panel": "durationSlider", "item": "settingsDuration",

@@ -39,5 +39,8 @@ def resolve_auto_model(generation) -> str:
     spec = dict(_BY_MODE.get(generation.generation_mode, _DEFAULT_IMAGE))
     fallback = spec.pop('fallback')
     spec['source'] = 'imager'   # valeurs stockées historiquement NUES (espace de clés d'app)
+    # `item=generation` (chantier C, 2026-09-20) : le CURSEUR rapide/qualité de l'item (sinon
+    # le réglage d'app de l'utilisateur, sinon 50) pèse dans le score du tirage — jusque-là la
+    # brique était appelée SANS intention, et le curseur n'existait pas à l'imager.
     return resolve_model_choice((generation.model or '').strip(),
-                                spec=spec, fallback=fallback) or fallback
+                                spec=spec, fallback=fallback, item=generation) or fallback

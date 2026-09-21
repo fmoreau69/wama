@@ -21,6 +21,7 @@ Exceptions app-spécifiques VOLONTAIREMENT hors schéma (widgets bespoke, pas de
 Descriptions de modèle : déjà rendues app-side (`.model-description` + `model-select-with-tooltip`) ;
 `help_source`/`help_fallback` seront branchés au câblage P1 si on unifie sur WamaModelHelp.
 """
+from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.common.utils.param_schema import (
     ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts,
@@ -49,7 +50,7 @@ VIDEO_GROUPS = [
 IMAGE_PARAMS = derive_from_model(
     ImageGeneration,
     include=[
-        "model", "negative_prompt", "num_images",
+        "model", "quality_intent", "negative_prompt", "num_images",
         "steps", "guidance_scale", "seed",
         "image_strength", "upscale",
     ],
@@ -64,6 +65,13 @@ IMAGE_PARAMS = derive_from_model(
             help="Modèle de génération (Auto = tirage VRAM-aware au lancement).",
             # Options peuplées par settings_modal.js depuis les MÊMES groupes de catalogue
             # que la card d'entrée (Images / Logos / Vidéos) — pas de 2ᵉ liste.
+        ),
+        # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur « auto », lu au
+        # LANCEMENT par le tirage (`resolve_auto_model` → `item=generation`). Rendu, liaison et
+        # tricolore = renderer commun ; les surfaces lisent le schéma (rien à câbler par app).
+        "quality_intent": intent_param(
+            dom_id={"item": "settings_quality_intent", "panel": "quality_intent"},
+            group="modele", show_if={"field": "model", "equals": "auto"},
         ),
         "negative_prompt": dict(
             type="textarea", label="Prompt négatif", icon="fa-ban",
@@ -120,7 +128,7 @@ IMAGE_PARAMS = derive_from_model(
 VIDEO_PARAMS = derive_from_model(
     ImageGeneration,
     include=[
-        "model", "negative_prompt",
+        "model", "quality_intent", "negative_prompt",
         "video_resolution", "video_duration", "video_fps", "seed",
         "steps", "guidance_scale",
     ],
@@ -130,6 +138,10 @@ VIDEO_PARAMS = derive_from_model(
             dom_id={"item": "video_settings_model", "panel": "panel_video_model"},
             group="modele",
             help_source="imager",   # descriptif court + VRAM (catalogue), cf. domaine image
+        ),
+        "quality_intent": intent_param(
+            dom_id={"item": "video_settings_quality_intent", "panel": "panel_video_quality_intent"},
+            group="modele", show_if={"field": "model", "equals": "auto"},
         ),
         "negative_prompt": dict(
             type="textarea", label="Prompt négatif", icon="fa-ban",
