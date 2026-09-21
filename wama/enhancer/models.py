@@ -31,7 +31,11 @@ class Enhancement(ProcessingTimeMixin, ScopedVisibility):
 
     #: Vocabulaire COMMUN (wama.common.models) — plus de copie par app.
     STATUS_CHOICES = JOB_STATUS_CHOICES
+    #: « auto » en tête (curseur C, 2026-09-21 — décision de Fabien : l'enhancer RÉSOUT
+    #: désormais un moteur ; la ligne « l'utilisateur désigne son moteur » de params.py est
+    #: levée). La liste reste le REPLI rendu avant le catalogue (`options_source='catalog'`).
     AI_MODEL_CHOICES = [
+        ('auto', 'Automatique — choisi au lancement'),
         ('RealESR_Gx4', 'RealESR-General x4 (Rapide)'),
         ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'),
         ('BSRGANx2', 'BSRGAN x2 (Qualité)'),
@@ -64,12 +68,19 @@ class Enhancement(ProcessingTimeMixin, ScopedVisibility):
     ai_model = models.CharField(
         max_length=32,
         choices=AI_MODEL_CHOICES,
-        default='RealESR_Gx4',
-        help_text='AI model for upscaling'
+        default='auto',
+        help_text="AI model for upscaling ('auto' = résolu au lancement par le catalogue)"
     )
     upscale_factor = models.IntegerField(
         default=4,
-        help_text='Upscaling factor (2x or 4x depending on model)'
+        help_text="Upscaling factor (2x or 4x) — le BESOIN que « auto » filtre avant de "
+                  "classer ; un modèle désigné impose le sien"
+    )
+    # Curseur rapide ↔ qualité (chantier C, 2026-09-21) : vide = équilibré (réglage d'app
+    # de l'utilisateur, puis 50). Pèse sur le tirage « auto » parmi les upscalers.
+    quality_intent = models.IntegerField(
+        null=True, blank=True,
+        help_text='Curseur rapide/qualité 0-100 du tirage automatique (vide = équilibré)'
     )
     denoise = models.BooleanField(
         default=False,
@@ -142,6 +153,7 @@ class AudioEnhancement(ProcessingTimeMixin, ScopedVisibility):
     }
 
     ENGINE_CHOICES = [
+        ('auto',          'Automatique — choisi au lancement'),
         ('resemble',      'Resemble Enhance (Recommandé — 44.1kHz)'),
         ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)'),
     ]
@@ -171,13 +183,20 @@ class AudioEnhancement(ProcessingTimeMixin, ScopedVisibility):
     duration = models.FloatField(default=0, help_text='Duration in seconds')
 
     # Engine / processing settings
-    engine = models.CharField(max_length=20, choices=ENGINE_CHOICES, default='resemble')
+    engine = models.CharField(max_length=20, choices=ENGINE_CHOICES, default='auto')
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='both')
     denoising_strength = models.FloatField(
         default=0.5, help_text='Denoising strength 0.0–1.0 (Resemble only)'
     )
     quality = models.IntegerField(
-        default=64, help_text='NFE quality steps 32/64/128 (Resemble only)'
+        default=64, help_text='NFE quality steps 32/64/128 (Resemble only) — quand le '
+                              'moteur est « auto », le NFE se DÉCLINE du curseur'
+    )
+    # Curseur rapide ↔ qualité (chantier C, 2026-09-21) : arbitre « auto » entre DeepFilterNet
+    # (rapide) et Resemble (qualité), et décline le NFE de Resemble quand le moteur est auto.
+    quality_intent = models.IntegerField(
+        null=True, blank=True,
+        help_text='Curseur rapide/qualité 0-100 du tirage automatique (vide = équilibré)'
     )
 
     # Processing state
@@ -227,7 +246,7 @@ class UserSettings(models.Model):
     default_ai_model = models.CharField(
         max_length=32,
         choices=Enhancement.AI_MODEL_CHOICES,
-        default='RealESR_Gx4'
+        default='auto'
     )
     default_denoise = models.BooleanField(default=False)
     default_blend_factor = models.FloatField(default=0.0)

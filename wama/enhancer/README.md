@@ -9,6 +9,11 @@ Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/Quality
 - Débruitage intelligent
 - Support GPU via DirectML (Windows)
 - Traitement par lots
+- **Choix « Automatique » (2026-09-21)** : le modèle est tiré AU LANCEMENT par la brique commune
+  d'auto-sélection (catalogue + VRAM libre), restreint au **facteur d'agrandissement** demandé
+  (×2 / ×4) et pesé par le **curseur Rapide ↔ Qualité** ; côté audio, « Automatique » arbitre
+  DeepFilterNet (rapide) ↔ Resemble (qualité) et décline le NFE du curseur. Un modèle désigné
+  reste respecté tel quel. Déclarations de l'app : `utils/auto_model.py`.
 
 ## ✨ Fonctionnalités
 
@@ -302,23 +307,28 @@ brew install ffmpeg
 
 ```
 wama/enhancer/
-├── models.py           # Enhancement, UserSettings
-├── views.py            # 10 vues HTTP
+├── models.py           # Enhancement, AudioEnhancement, UserSettings, lots
+├── params.py           # Schémas déclaratifs MEDIA / AUDIO (modales, volets, chips, curseur)
+├── views.py            # Vues HTTP (image/vidéo + audio/*)
 ├── urls.py             # Routing
-├── tasks.py            # Celery tasks
+├── tasks.py            # GLU des tâches — squelette commun `task_skeleton.run_item_task`
+├── backends/           # ROUTES nature → callable au contrat commun « fichier » (2026-09-21)
+│   ├── media_backend.py    # enhance_image / enhance_video (moteur : common/backends/ai_upscaler)
+│   └── audio_backend.py    # enhance_audio (moteur : common/backends/audio_enhancer)
 ├── utils/
-│   ├── ai_upscaler.py      # Intégration QualityScaler
+│   ├── auto_model.py       # Déclarations du tirage « auto » (domaines, facteur, NFE)
+│   ├── model_config.py     # ENHANCER_MODELS (source unique des descriptions)
 │   └── model_downloader.py # Téléchargement automatique
+├── tests.py            # Résolution auto, NFE, contrat des routes, glu, vues
 ├── templates/
 │   └── enhancer/
 │       ├── base.html
 │       └── index.html
 └── static/
     └── enhancer/
-        ├── css/style.css
-        └── js/index.js
+        └── js/index.js, audio-enhancer.js
 
-AI-models/enhancer/onnx/  # Modèles (centralisés)
+AI-models/models/upscaling/onnx/  # Poids ONNX (`settings.MODEL_PATHS['upscaling']['onnx']`)
 ```
 
 ### API Endpoints
@@ -343,10 +353,13 @@ python manage.py shell
 >>> from wama.enhancer.tasks import enhance_media
 >>> enhance_media.delay(1)  # Enhancement ID 1
 
-# Test de l'upscaler
+# Test de l'upscaler (moteur au substrat)
 python manage.py shell
->>> from wama.enhancer.utils.ai_upscaler import upscale_image_file
+>>> from wama.common.backends.ai_upscaler import upscale_image_file
 >>> upscale_image_file('input.jpg', 'output.jpg', model_name='RealESR_Gx4')
+
+# Tests de l'app (CPU)
+python manage.py test wama.enhancer --keepdb
 ```
 
 ## 📝 TODO / Améliorations Futures

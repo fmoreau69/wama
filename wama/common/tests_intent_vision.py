@@ -308,5 +308,5 @@ class EveryAutoSelectCarriesTheSliderTest(SimpleTestCase):
             if any(f.get('options_auto') for f in schema) and \
                     not any(f.get('type') == 'intent' for f in schema):
                 missing.append(app)
-        # Adoption restante (autres sessions : imager, composer) — à retirer d'ici au fur et à mesure.
+        # 21/09 : imager, composer puis enhancer ralliés — la liste est vide, et doit le rester.
         self.assertEqual(missing, [], f"apps qui servent « auto » sans curseur : {missing}")

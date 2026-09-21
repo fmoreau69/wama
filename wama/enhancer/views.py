@@ -26,6 +26,28 @@ from ..common.utils.scoping import visible_or_404
 logger = logging.getLogger(__name__)
 
 
+def _intent_posted(source):
+    """Curseur rapide/qualité POSTÉ (chantier C, 2026-09-21) — None s'il ne l'est pas (la
+    colonne reste vide : le tirage retombe sur le réglage d'app de l'utilisateur, puis 50).
+    `source` : POST ou dict JSON."""
+    raw = source.get('quality_intent') if hasattr(source, 'get') else None
+    if raw is None or str(raw).strip() == '':
+        return None
+    from wama.common.utils.auto_model import read_quality_intent
+    return read_quality_intent(raw)
+
+
+def _factor_posted(source, default=None):
+    """Facteur d'agrandissement POSTÉ (×2 / ×4), `default` sinon — le BESOIN que « auto »
+    filtre avant de classer."""
+    raw = source.get('upscale_factor') if hasattr(source, 'get') else None
+    try:
+        value = int(float(raw))
+    except (TypeError, ValueError):
+        return default
+    return value if value in (2, 4) else default
+
+
 def _wrap_enhancement_in_batch(enhancement):
     """Wrap a standalone Enhancement in a new BatchEnhancement-of-1."""
     batch = BatchEnhancement.objects.create(user=enhancement.user, total=1)
@@ -331,6 +353,8 @@ def upload(request):
                         ai_model=user_settings.default_ai_model,
                         denoise=user_settings.default_denoise,
                         blend_factor=user_settings.default_blend_factor,
+                        upscale_factor=_factor_posted(request.POST, 4),
+                        quality_intent=_intent_posted(request.POST),
                         output_format=request.POST.get('output_format', 'original'),
                         output_quality=request.POST.get('output_quality', 'balanced'),
                     )
@@ -392,6 +416,8 @@ def upload(request):
         ai_model=user_settings.default_ai_model,
         denoise=user_settings.default_denoise,
         blend_factor=user_settings.default_blend_factor,
+        upscale_factor=_factor_posted(request.POST, 4),
+        quality_intent=_intent_posted(request.POST),
         output_format=request.POST.get('output_format', 'original'),
         output_quality=request.POST.get('output_quality', 'balanced'),
     )
@@ -472,6 +498,9 @@ def start(request, pk: int):
         enh.denoise = (denoise_value.lower() in ('1', 'true', 'on')
                        if isinstance(denoise_value, str) else bool(denoise_value))
         enh.blend_factor = float(data.get('blend_factor', enh.blend_factor))
+        enh.upscale_factor = _factor_posted(data, enh.upscale_factor)
+        if 'quality_intent' in data:
+            enh.quality_intent = _intent_posted(data)
         enh.progress = 0
         enh.error_message = ''
 
@@ -655,6 +684,9 @@ def start_all(request):
                 enh.denoise = bool(global_denoise)
         if global_blend_factor is not None:
             enh.blend_factor = float(global_blend_factor)
+        enh.upscale_factor = _factor_posted(data, enh.upscale_factor)
+        if 'quality_intent' in data:
+            enh.quality_intent = _intent_posted(data)
         enh.progress = 0
         enh.error_message = ''
 
@@ -745,6 +777,11 @@ def _apply_enhancement_settings(e, post):
             e.blend_factor = float(blend_factor)
         except (ValueError, TypeError):
             pass
+    # Curseur + facteur (chantier C) : clé ABSENTE = inchangé ; posée vide = curseur effacé
+    # (la cascade retombe sur le réglage d'app, puis 50).
+    e.upscale_factor = _factor_posted(post, e.upscale_factor)
+    if 'quality_intent' in post:
+        e.quality_intent = _intent_posted(post)
     # Format/qualité de sortie (schéma 18/08 — champs de la modale générée).
     if post.get('output_format'):
         e.output_format = post['output_format']
@@ -785,6 +822,8 @@ def update_settings(request, pk: int):
         'ai_model': enhancement.ai_model,
         'denoise': enhancement.denoise,
         'blend_factor': enhancement.blend_factor,
+        'upscale_factor': enhancement.upscale_factor,
+        'quality_intent': enhancement.quality_intent,
     })
 
 
@@ -831,7 +870,7 @@ def batch_create(request):
     from wama.common.app_registry import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ai_model = request.POST.get('ai_model', 'RealESR_Gx4')
+    ai_model = request.POST.get('ai_model') or 'auto'
     denoise_val = request.POST.get('denoise', 'false')
     denoise = denoise_val.lower() in ('1', 'true', 'on')
     try:
@@ -880,6 +919,8 @@ def batch_create(request):
             ai_model=ai_model,
             denoise=denoise,
             blend_factor=blend_factor,
+            upscale_factor=_factor_posted(request.POST, 4),
+            quality_intent=_intent_posted(request.POST),
         )
         BatchEnhancementItem.objects.create(batch=batch, enhancement=enhancement, row_index=i)
         created_ids.append(enhancement.id)
@@ -1126,6 +1167,7 @@ def audio_upload(request):
                     user=user,
                     input_file=django_file,
                     file_size=src.stat().st_size,
+                    quality_intent=_intent_posted(body),
                 )
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
@@ -1153,6 +1195,7 @@ def audio_upload(request):
             user=user,
             input_file=file,
             file_size=file.size,
+            quality_intent=_intent_posted(request.POST),
         )
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -1211,9 +1254,19 @@ def audio_update(request, pk: int):
             ae.quality = int(P['quality'])
         except (TypeError, ValueError):
             pass
+    # Curseur (chantier C) : clé absente = inchangé ; posée vide = effacé. Format/qualité de
+    # sortie : la modale générée les poste désormais ICI (avant : gear → payload de start).
+    if 'quality_intent' in P:
+        ae.quality_intent = _intent_posted(P)
+    if P.get('output_format'):
+        ae.output_format = P['output_format']
+    if P.get('output_quality'):
+        ae.output_quality = P['output_quality']
     ae.save()
     return JsonResponse({'id': ae.id, 'engine': ae.engine, 'mode': ae.mode,
-                         'denoising_strength': ae.denoising_strength, 'quality': ae.quality})
+                         'denoising_strength': ae.denoising_strength, 'quality': ae.quality,
+                         'quality_intent': ae.quality_intent,
+                         'output_format': ae.output_format, 'output_quality': ae.output_quality})
 
 
 @require_POST
@@ -1233,6 +1286,8 @@ def audio_start(request, pk: int):
         a.mode = data.get('mode', a.mode)
         a.denoising_strength = float(data.get('denoising_strength', a.denoising_strength))
         a.quality = int(data.get('quality', a.quality))
+        if 'quality_intent' in data:
+            a.quality_intent = _intent_posted(data)
         # Format/qualité de sortie PER-ITEM (modale → gear → payload, 18/08).
         a.output_format = data.get('output_format', a.output_format)
         a.output_quality = data.get('output_quality', a.output_quality)
@@ -1380,6 +1435,8 @@ def audio_start_all(request):
             ae.denoising_strength = float(global_strength)
         if global_quality is not None:
             ae.quality = int(global_quality)
+        if 'quality_intent' in data:
+            ae.quality_intent = _intent_posted(data)
 
     for ae in pending:
         try:
@@ -1596,6 +1653,8 @@ def audio_batch_start(request, pk):
             ae_locked.denoising_strength = float(data['denoising_strength'])
         if data.get('quality') is not None:
             ae_locked.quality = int(data['quality'])
+        if 'quality_intent' in data:
+            ae_locked.quality_intent = _intent_posted(data)
 
     started = []
     for item in batch.items.select_related('audio_enhancement').all():

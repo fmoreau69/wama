@@ -134,11 +134,13 @@ class DomainesDeclaresParLesAppsTest(TestCase):
         self.assertEqual(self._options(media), ['BSRGANx4'])
         self.assertEqual(self._options(audio), ['deepfilternet', 'resemble'])
 
-    def test_l_enhancer_ne_sert_PAS_auto(self):
-        """Il ne résout rien : l'utilisateur désigne son moteur (critère `select_model` N/A).
-        Servir « auto » enverrait une valeur que le lancement ne sait pas traduire."""
+    def test_the_enhancer_serves_auto_for_media_and_for_audio(self):
+        """INVERSÉ le 2026-09-21 (curseur C, décision de Fabien) : ce test gardait « l'enhancer
+        ne sert PAS auto — l'utilisateur désigne son moteur ». Le lancement résout désormais
+        les deux branches (`enhancer/utils/auto_model.py`) ; servir « auto » sans résolution
+        serait le seul défaut, et c'est ce que `EveryAutoSelectCarriesTheSliderTest` garde."""
         for nom in ('ai_model', 'engine'):
-            self.assertFalse(_champ('enhancer', nom).get('options_auto'))
+            self.assertTrue(_champ('enhancer', nom).get('options_auto'), nom)
 
     def test_les_valeurs_ECRITES_EN_DUR_restent_le_repli_rendu(self):
         """Les `choices` ne sont pas retirés : ils s'affichent avant que la requête réponde,

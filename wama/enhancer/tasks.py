@@ -35,7 +35,8 @@ def enhance_media(self, enhancement_id: int):
     from wama.common.utils.task_skeleton import run_item_task
     run_item_task(self, app_id='enhancer', model=Enhancement, item_id=enhancement_id,
                   process=_enhance_media, ingest_derive=_derive_media_type,
-                  model_key=lambda e: f'enhancer:{e.ai_model}',
+                  vram_needed=lambda e: _vram_needed(f'enhancer:{_media_model(e)}'),
+                  model_key=lambda e: f'enhancer:{_media_model(e)}',
                   notify_label='Enhancer')
 
 
@@ -45,8 +46,34 @@ def enhance_audio(self, audio_enhancement_id: int):
     from wama.common.utils.task_skeleton import run_item_task
     run_item_task(self, app_id='audio_enhancer', model=AudioEnhancement,
                   item_id=audio_enhancement_id, process=_enhance_audio,
-                  model_key=lambda a: f'enhancer:{a.engine}',
+                  vram_needed=lambda a: _vram_needed(f'enhancer:{_audio_engine(a)}'),
+                  model_key=lambda a: f'enhancer:{_audio_engine(a)}',
                   notify_label='Enhancer (audio)')
+
+
+# ── Tirage « auto » AU LANCEMENT (curseur C, 2026-09-21) ──────────────────────────────────
+# Résolu UNE fois par lancement et mémorisé sur l'instance : le squelette interroge le besoin
+# VRAM (`vram_needed`) et la clé des poids (`model_key`) AVANT la glu, qui doit parler du même
+# modèle. L'item GARDE « auto » (une relance ré-arbitre avec la VRAM du moment) ; le modèle
+# retenu vit dans la console, l'ETA et la ligne d'exécution (`models`).
+
+def _media_model(enhancement) -> str:
+    if not getattr(enhancement, '_resolved_model', None):
+        from .utils.auto_model import resolve_media_model
+        enhancement._resolved_model = resolve_media_model(enhancement)
+    return enhancement._resolved_model
+
+
+def _audio_engine(ae) -> str:
+    if not getattr(ae, '_resolved_engine', None):
+        from .utils.auto_model import resolve_audio_engine
+        ae._resolved_engine = resolve_audio_engine(ae)
+    return ae._resolved_engine
+
+
+def _vram_needed(model_key: str):
+    from .utils.auto_model import vram_needed_gb
+    return vram_needed_gb(model_key)
 
 
 # ── Glu MÉDIA ───────────────────────────────────────────────────────────────────────────
@@ -67,11 +94,11 @@ def _route(nature: str):
     """Le callable déclaré par `backends.ROUTES` pour cette nature — import RELATIF AU PAQUET,
     la même résolution que le corps composé par `tasks_gen`."""
     from .backends import ROUTES
-    chemin = ROUTES.get(nature)
-    if not chemin:
+    path = ROUTES.get(nature)
+    if not path:
         raise ValueError(f"Type de média non supporté : {nature!r} (aucune route déclarée)")
-    mod, fonc = chemin.rsplit('.', 1)
-    return getattr(import_module('.' + mod, __package__), fonc)
+    mod, fn = path.rsplit('.', 1)
+    return getattr(import_module('.' + mod, __package__), fn)
 
 
 def _store_output(item, local_path: str, storage_name: str) -> str:
@@ -102,11 +129,16 @@ def _enhance_media(enhancement, ctx):
     from wama.common.utils.preview_utils import clear_partial
     from wama.common.utils.work_dir import work_dir
 
+    from wama.common.utils.auto_model import is_auto, quality_intent_of
+
     nature = (enhancement.media_type or '').strip()
     route = _route(nature)
     input_path = enhancement.input_file.path
-    model = enhancement.ai_model
+    model = _media_model(enhancement)
     output_filename = compose_output_name(app='enhancer', model=model, source_name=input_path)
+    if is_auto(enhancement.ai_model):
+        ctx.console(f"[Enhancer] 🧠 Auto → {model} (×{enhancement.upscale_factor}, VRAM libre au "
+                    f"lancement, curseur qualité {quality_intent_of(enhancement, 'enhancer')}/100)")
     ctx.console(f"Processing {nature}: {enhancement.get_input_filename()} ({model})")
     ctx.progress(5)
 
@@ -144,7 +176,7 @@ def _enhance_media(enhancement, ctx):
             'output_height': int(produced.get('height') or 0),
             'output_file_size': file_size,
         },
-        'eta': enhancer_eta_key_size(enhancement),
+        'eta': enhancer_eta_key_size(enhancement, model=model),
         'label': output_filename,
         'models': [f'enhancer:{model}'],
     }
@@ -179,22 +211,29 @@ def _during_preview(enhancement):
 def _enhance_audio(ae, ctx):
     """GLU audio (contrat task_skeleton) : route 'audio', nommage commun (`{base}_enhanced_
     {moteur}.wav`), stockage, conversion de sortie inline."""
+    from wama.common.utils.auto_model import is_auto, quality_intent_of
     from wama.common.utils.output_naming import compose_output_name
     from wama.common.utils.work_dir import work_dir
+    from .utils.auto_model import audio_nfe
 
     route = _route('audio')
     input_path = ae.input_file.path
-    engine = ae.engine
+    engine = _audio_engine(ae)
+    nfe = audio_nfe(ae, engine)
     output_filename = compose_output_name(app='enhancer', model=engine,
                                           source_name=input_path, ext='.wav')
-    ctx.console(f"Traitement audio: {ae.get_input_filename()} ({ae.get_engine_display()})")
+    if is_auto(ae.engine):
+        ctx.console(f"[Enhancer] 🧠 Auto → {engine} (VRAM libre au lancement, curseur qualité "
+                    f"{quality_intent_of(ae, 'enhancer')}/100"
+                    + (f", NFE {nfe}" if engine == 'resemble' else '') + ')')
+    ctx.console(f"Traitement audio: {ae.get_input_filename()} ({engine})")
     ctx.progress(5)
 
     options = {
         'engine': engine,
         'mode': ae.mode,
         'denoising_strength': float(ae.denoising_strength),
-        'quality': int(ae.quality),
+        'quality': nfe,
     }
     with work_dir('enhancer') as _work:
         local = os.path.join(str(_work), output_filename)
@@ -206,7 +245,7 @@ def _enhance_audio(ae, ctx):
     _apply_enhancer_output_format(ae)                   # conversion inline (converter)
     return {
         'fields': {'output_file': ae.output_file.name},
-        'eta': audio_enhancer_eta_key_size(ae),
+        'eta': audio_enhancer_eta_key_size(ae, engine=engine),
         'label': output_filename,
         'models': [f'enhancer:{engine}'],
     }
@@ -214,12 +253,13 @@ def _enhance_audio(ae, ctx):
 
 # ── Partagé avec les vues (ETA) et la conversion de sortie ─────────────────────────────
 
-def enhancer_eta_key_size(enhancement) -> tuple[str, float, str]:
+def enhancer_eta_key_size(enhancement, model: str = None) -> tuple[str, float, str]:
     """(model_key, size, unit) pour le seeding ETA d'une Enhancement image/vidéo.
     Image → mégapixels d'entrée ; vidéo → durée. Clé par modèle + facteur d'upscale.
-    Partagé entre la glu (record) et la vue progress (estimate)."""
+    Partagé entre la glu (record, qui passe le modèle RÉSOLU) et la vue progress (estimate,
+    qui ne connaît que la colonne — « auto » y est sa propre famille d'estimation)."""
     mt = (getattr(enhancement, 'media_type', '') or '').lower()
-    model = getattr(enhancement, 'ai_model', '') or 'auto'
+    model = model or getattr(enhancement, 'ai_model', '') or 'auto'
     factor = getattr(enhancement, 'upscale_factor', '') or ''
     if mt == 'video':
         return f'enhancer:vid:{model}:x{factor}', float(getattr(enhancement, 'duration', 0) or 0), 'video_sec'
@@ -227,9 +267,9 @@ def enhancer_eta_key_size(enhancement) -> tuple[str, float, str]:
     return f'enhancer:img:{model}:x{factor}', mp, 'megapixel'
 
 
-def audio_enhancer_eta_key_size(ae) -> tuple[str, float, str]:
+def audio_enhancer_eta_key_size(ae, engine: str = None) -> tuple[str, float, str]:
     """(model_key, size, unit) pour le seeding ETA d'une AudioEnhancement (durée audio)."""
-    engine = getattr(ae, 'engine', '') or 'auto'
+    engine = engine or getattr(ae, 'engine', '') or 'auto'
     return f'enhancer:audio:{engine}', float(getattr(ae, 'duration', 0) or 0), 'audio_sec'
 
 
