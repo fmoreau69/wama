@@ -375,13 +375,49 @@ class VoiceAcquisitionTest(SimpleTestCase):
         items = [{'speaker_id': 'a', 'gender': 'male', 'audio': 'A'},
                  {'speaker_id': 'b', 'gender': 'female', 'audio': 'B'}]
         saved = []
+        # L'instrument est écarté (None) : ce test isole le filtre sur l'ÉTIQUETTE de la source.
         with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
+                patch.object(voice_refs, '_measured_gender', return_value=None), \
                 patch.object(voice_refs, '_decode_audio_item',
                              side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)), \
                 patch.object(voice_refs, '_save_audio_array',
                              side_effect=lambda arr, sr, target: saved.append(int(arr[0])) or True):
             self.assertTrue(voice_refs._try_voxpopuli(Path('x.wav'), 'fr', gender='female'))
         self.assertEqual([1], saved, "le premier clip (masculin) ne doit pas remplir un créneau féminin")
+
+    def test_a_clip_labelled_male_but_heard_female_is_skipped(self):
+        """Le cas MESURÉ du 22/09 : deux clips étiquetés « male » par la source sonnaient à 262 et
+        184 Hz. L'étiquette ne suffit plus ; la voix doit faire entendre le genre demandé."""
+        import numpy as np
+        items = [{'speaker_id': 'a', 'gender': 'male', 'audio': 'A'},
+                 {'speaker_id': 'b', 'gender': 'male', 'audio': 'B'}]
+        saved = []
+        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
+                patch.object(voice_refs, '_decode_audio_item',
+                             side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)), \
+                patch.object(voice_refs, '_measured_gender',
+                             side_effect=lambda arr, sr: 'male' if arr[0] else 'female'), \
+                patch.object(voice_refs, '_save_audio_array',
+                             side_effect=lambda arr, sr, target: saved.append(int(arr[0])) or True):
+            self.assertTrue(voice_refs._try_voxpopuli(Path('x.wav'), 'fr', gender='male'))
+        self.assertEqual([1], saved, "un clip qui sonne féminin ne remplit pas un créneau masculin")
+
+    def test_measured_gender_hears_a_low_and_a_high_voice(self):
+        """L'instrument lui-même, sur des voix de synthèse : grave, aiguë, et la zone grise DITE."""
+        try:
+            import librosa  # noqa: F401
+            import numpy as np
+        except ImportError:
+            self.skipTest('librosa absent de ce venv')
+        sr = 16000
+        t = np.arange(3 * sr) / sr
+
+        def tone(hz):
+            return 0.5 * np.sin(2 * np.pi * hz * t)
+
+        self.assertEqual('male', voice_refs._measured_gender(tone(120), sr))
+        self.assertEqual('female', voice_refs._measured_gender(tone(240), sr))
+        self.assertEqual('', voice_refs._measured_gender(tone(165), sr), "zone grise : non tranchée")
 
     def test_voxpopuli_without_a_gender_constraint_behaves_as_before(self):
         """Contre-épreuve : sans genre demandé (`default`, presets plats), le premier clip gagne."""
