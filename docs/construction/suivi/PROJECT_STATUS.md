@@ -14629,7 +14629,37 @@ générateur — à confronter à ce que Fabien entend par « régénéré plusi
    (mixin présent, lectures filtrées par propriétaire, `media_library/views.py:108,136`), cinq vocabulaires,
    geste limité aux cards, pipelines sans visibilité, mesure F7 limitée aux 10 apps Médias.
    Plan : ① médiathèque ② vocabulaire ③ geste étendu par natures déclarées ④ pipelines, fonctions,
-   manifestes, jumelles ⑤ mesure ⑥ notification ⑦ édition partagée. **Ouvert avant ⑥-⑦** : N1 (canal et
+   manifestes, jumelles ⑤ mesure ⑥ notification ⑦ édition partagée.
+   ✅ **① LIVRÉ le 2026-09-20** (`a0cf4983`, `35400cdf`) — et le constat du 17/09 ci-dessus était
+   **incomplet** : la cause n'était pas « des lectures filtrées par propriétaire », c'est que le
+   **`ScopedManager` MANQUAIT** sur `UserAsset`, donc `visible_to()` n'existait pas. Posé ; portée
+   explicite `?scope=` (défaut « les miens » — la même route sert le sélecteur de fichiers de 3 apps) ;
+   mutations par `owned_by` ; garde du compte de service anonyme ; la card dit à qui elle est ;
+   surface au registre d'aperçu ; « Partager… » par la route commune ; `api_promote` retiré (R66).
+   12 tests (`media_library/tests_sharing.py`), dont 4 rouges sur le code d'avant.
+   ✅ **② LIVRÉ le 2026-09-21** (`7573116d`) — **et la marche a FONDU à la mesure : un seul des quatre
+   écarts annoncés en était un.** `'shared'` retiré du catalogue de fonctions (mot inexistant ailleurs,
+   déclaré depuis le 20/07 et jamais filtré). **Le RAG en SORT** : `'user'` n'est pas un synonyme de
+   `private` mais un **AXE différent** — au rappel il filtre `Q(user=user)`, la PROPRIÉTÉ, quand les
+   trois autres niveaux filtrent `visibility=` (`memory/store.py:280-291`) ; le renommer ferait mentir
+   le nom, et la valeur est stockée (`accounts/models.py:100-104`). *Le constat « cinq vocabulaires »
+   du 17/09 était donc faux pour sa moitié — corrigé et daté dans `WAMA_COLLABORATION §4`.*
+   **Restent deux décisions de Fabien** : `is_public` du synthesizer (colonne → migration) et la clé de
+   payload `shared` des mots-clés (frontière des données).
+   ✅ **Décision du 21/09 (Fabien) — « une voix partagée doit être accessible en fonction des droits de
+   chacun »** (`8c93f81c`) : le sélecteur de voix ET la résolution `resolve_speaker_wav` filtraient
+   chacun par propriétaire. Un lecteur commun (`voice_refs.readable_voice_assets`) sert les deux — les
+   ouvrir séparément aurait fait synthétiser avec la MAUVAISE voix sans message, la résolution repliant
+   en silence sur `default`. ⚠ **Reste** : la page du synthesizer écrit ses optgroups à la main
+   (`templates/synthesizer/index.html:106`, assumé par `synthesizer/params.py:64`) — la décision n'y est
+   pas encore en vigueur.
+   ⏳ **Relevé le 21/09, NON engagé** : ajouter un document au RAG **depuis la médiathèque** n'existe pas
+   (zéro occurrence de RAG dans tout `wama/media_library/`) ; le geste vit dans l'inspecteur et le menu
+   « … » des 10 apps. C'était déjà un reste connu du jalon 14 (`WAMA_MEMORY §7ter`). Utile, non urgent.
+   ⏳ **Relevé le 21/09 (Fabien), à PLANIFIER** : la médiathèque ne suit pas l'ordre commun des boutons de
+   card (« Supprimer » avant « Télécharger », ordre imposé = `AGENTS.md §CONVENTIONS`). Plus largement,
+   **aligner la médiathèque sur les fonctionnements communs** est un chantier à part entière.
+   **Ouvert avant ⑥-⑦** : N1 (canal et
    destinataires — pas d'e-mail de masse à une unité), E1-E5 (édition à une branche ou à des personnes,
    périmètre d'« éditer », relance par un éditeur, éditions concurrentes, retrait), N2 (passer d'une card à
    l'autre depuis une page d'édition — à mesurer sur un usage réel, aucun nouveau raccourci).
