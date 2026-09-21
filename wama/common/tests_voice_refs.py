@@ -402,6 +402,32 @@ class VoiceAcquisitionTest(SimpleTestCase):
             self.assertTrue(voice_refs._try_voxpopuli(Path('x.wav'), 'fr', gender='male'))
         self.assertEqual([1], saved, "un clip qui sonne féminin ne remplit pas un créneau masculin")
 
+    def test_a_clip_already_held_by_another_voice_is_skipped(self):
+        """Le cas MESURÉ du 22/09 : deux passages ont donné le même clip à `male_adult_1_en` et
+        `male_adult_2_en`. Deux voix du menu ne sont jamais la même personne."""
+        import hashlib
+        import tempfile
+
+        import numpy as np
+        items = [{'speaker_id': 'a', 'gender': 'male', 'audio': 'A'},
+                 {'speaker_id': 'b', 'gender': 'male', 'audio': 'B'}]
+        taken = hashlib.sha256(b'clip-A').hexdigest()
+
+        def write(arr, sr, target):
+            Path(target).write_bytes(b'clip-B' if arr[0] else b'clip-A')
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'v.wav'
+            with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
+                    patch.object(voice_refs, '_measured_gender', return_value='male'), \
+                    patch.object(voice_refs, '_decode_audio_item',
+                                 side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)), \
+                    patch.object(voice_refs, '_save_audio_array', side_effect=write):
+                self.assertTrue(voice_refs._try_voxpopuli(target, 'en', gender='male',
+                                                          exclude_digests={taken}))
+            self.assertEqual(b'clip-B', target.read_bytes())
+
     def test_measured_gender_hears_a_low_and_a_high_voice(self):
         """L'instrument lui-même, sur des voix de synthèse : grave, aiguë, et la zone grise DITE."""
         try:
@@ -438,6 +464,7 @@ class VoiceAcquisitionTest(SimpleTestCase):
 
     def _download(self, name, voxpopuli_ok=False):
         with patch.object(voice_refs, '_library_voice_names', return_value=set()), \
+                patch.object(voice_refs, '_library_voice_digests', return_value=set()), \
                 patch.object(voice_refs, '_try_voxpopuli', return_value=voxpopuli_ok) as vp, \
                 patch.object(voice_refs, '_try_url_download', return_value=True) as url, \
                 patch.object(voice_refs, 'ingest_voice_file') as ingest:
