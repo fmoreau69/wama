@@ -507,6 +507,32 @@ _used_vp_speakers: Dict[str, set] = {}   # {lang: {speaker_id, ...}}
 _VP_MIN_S, _VP_MAX_S = 5.0, 15.0    # durée acceptable pour la référence vocale
 _VP_MAX_ITER = 10_000                # limite de sécurité pour l'itération streaming
 
+#: Les ÂGES qu'une source peut réellement fournir. VoxPopuli = débats du Parlement européen,
+#: sans champ d'âge : des adultes, et rien d'autre. Un créneau « child » ou « elderly » n'en
+#: reçoit donc JAMAIS de clip — il en recevait un jusqu'au 2026-09-21, sous un âge inventé.
+_SOURCE_AGE_COVERAGE = {'voxpopuli': {'adult'}}
+
+
+def _url_source_gender(url: str) -> str:
+    """Le genre ÉTABLI d'une source URL, ou '' s'il ne l'est pas.
+
+    Une source au genre inconnu ne remplit AUCUN créneau genré : c'est ce qui fermait mal la
+    porte jusqu'au 2026-09-21 — les créneaux masculins anglais retombaient sur LJSpeech, et
+    les trois créneaux français adultes (deux féminins, un masculin) sur le MÊME échantillon.
+      • LJSpeech : une seule locutrice, femme adulte — certifié (voir le catalogue ci-dessus).
+      • XTTS-v2 : MESURÉ le 21/09, F0 médiane sur trames voisées (`MEDIA_STORAGE_TIERING
+        §9.4bis`) — fr 133 Hz et es 125 Hz : hommes ; de 196 Hz et pt 198 Hz : femmes.
+        L'échantillon anglais n'a jamais été téléchargé : son genre n'est pas établi.
+    """
+    if url.startswith(_LJ_BASE):
+        return 'female'
+    return {
+        f"{_XTTS_BASE}/fr_sample.wav": 'male',
+        f"{_XTTS_BASE}/es_sample.wav": 'male',
+        f"{_XTTS_BASE}/de_sample.wav": 'female',
+        f"{_XTTS_BASE}/pt_sample.wav": 'female',
+    }.get(url, '')
+
 
 def _save_audio_array(arr, sr: int, target: Path) -> bool:  # noqa: ANN001
     """Écrit un tableau numpy audio en WAV. Retourne True si succès."""
@@ -578,11 +604,25 @@ def _decode_audio_item(audio) -> tuple:  # noqa: ANN001
     return None, None
 
 
-def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
+def _normalize_gender(value) -> str:
+    """'male' / 'female' / '' — tolère les formes courtes et la casse des jeux de données."""
+    v = str(value or '').strip().lower()
+    return {'m': 'male', 'f': 'female'}.get(v, v if v in ('male', 'female') else '')
+
+
+def _try_voxpopuli(target: Path, vp_lang: str, gender: str = '') -> bool:
     """
-    Télécharge un clip depuis VoxPopuli (Facebook/Meta).
-    Aucune authentification requise. Pas de métadonnées genre/âge.
-    Utilisé en fallback quand Common Voice est inaccessible.
+    Télécharge un clip depuis VoxPopuli (Facebook/Meta). Aucune authentification requise.
+
+    ⚠⚠ Cette docstring disait jusqu'au 2026-09-21 : « Pas de métadonnées genre/âge ». C'était
+    FAUX pour le genre — le schéma du jeu de données porte `gender` et `speaker_id` (lu le
+    21/09 à l'API d'information de HuggingFace). La boucle retenait donc le PREMIER clip d'un
+    locuteur neuf, sans regarder son genre, et le versait sous un nom qui en annonçait un :
+    **12 contradictions sur 25 voix jugeables**, mesurées par F0 (`MEDIA_STORAGE_TIERING
+    §9.4bis`). `gender` filtre désormais ; un clip au genre absent ou différent est SAUTÉ — ce
+    qu'on ne sait pas, on ne le promet pas.
+    ⚠ L'ÂGE, lui, n'y est vraiment pas : ce sont des débats du Parlement européen, des adultes.
+    Aucun créneau « enfant » ni « âgé » ne peut en venir (`_SOURCE_AGE_COVERAGE`).
 
     Retourne True si un clip a été enregistré avec succès.
     """
@@ -637,6 +677,8 @@ def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
 
             speaker = item.get('speaker_id', str(i))
             if speaker in used:
+                continue
+            if gender and _normalize_gender(item.get('gender')) != gender:
                 continue
 
             arr, sr = _decode_audio_item(item.get('audio'))
@@ -699,7 +741,7 @@ def needs_voice_download() -> bool:
 _VOXPOPULI_URL = 'https://huggingface.co/datasets/facebook/voxpopuli'
 
 
-def download_missing_voice_refs(force: bool = False) -> Dict[str, str]:
+def download_missing_voice_refs(force: bool = False, names=None) -> Dict[str, str]:
     """
     Télécharge les voix de référence manquantes et les VERSE en médiathèque.
 
@@ -710,8 +752,14 @@ def download_missing_voice_refs(force: bool = False) -> Dict[str, str]:
     avec sa provenance (`source_url` ; `license` seulement quand elle est CERTAINE — LJSpeech
     est du domaine public ; VoxPopuli et les échantillons XTTS-v2 restent à renseigner).
 
+    ⚠ Le GENRE et l'ÂGE qu'annonce le nom sont des CONTRAINTES, plus des souhaits (21/09) :
+    une source qui ne peut pas les garantir est sautée, et la voix finit en 'failed' plutôt
+    que versée sous un libellé faux. *Un échec dit, plutôt qu'un mensonge muet.*
+
     Args:
         force: re-télécharge même si la voix est déjà en médiathèque (fichier remplacé).
+        names: restreint le passage à ces noms (ex. les voix dont la mesure a contredit le
+               libellé) ; None = tout le catalogue.
 
     Returns:
         dict {name: 'downloaded'|'skipped'|'failed'}
@@ -721,24 +769,36 @@ def download_missing_voice_refs(force: bool = False) -> Dict[str, str]:
 
     results: Dict[str, str] = {}
     presentes = _library_voice_names()
+    wanted_names = set(names) if names is not None else None
     tmp = Path(tempfile.mkdtemp(prefix='wama_voice_refs_'))
     try:
         for name in sorted(_catalogue_names()):
+            if wanted_names is not None and name not in wanted_names:
+                continue
             if name in presentes and not force:
                 results[name] = 'skipped'
                 continue
 
             target = tmp / (name.replace('/', '__') + '.wav')
             source_url, license_ = '', ''
+            attrs = attributes_from_voice_id(name)
+            gender, age = attrs.get('gender', ''), attrs.get('age', '')
 
-            # ── 1. VoxPopuli ──────────────────────────────────────────────────
-            if name in _VOICE_DATASETS_CATALOG and _VOICE_DATASETS_CATALOG[name]:
-                if _try_voxpopuli(target, _VOICE_DATASETS_CATALOG[name]):
+            # ── 1. VoxPopuli — filtré par genre ; jamais pour un âge qu'il ne couvre pas ──
+            if (name in _VOICE_DATASETS_CATALOG and _VOICE_DATASETS_CATALOG[name]
+                    and (not age or age in _SOURCE_AGE_COVERAGE['voxpopuli'])):
+                if _try_voxpopuli(target, _VOICE_DATASETS_CATALOG[name], gender=gender):
                     source_url = _VOXPOPULI_URL
 
-            # ── 2. URLs directes ──────────────────────────────────────────────
+            # ── 2. URLs directes — une source au genre non établi ne remplit aucun créneau genré ──
             if not source_url and name in VOICE_DOWNLOAD_CATALOG:
                 for url, description in VOICE_DOWNLOAD_CATALOG[name]:
+                    if gender and _url_source_gender(url) != gender:
+                        logger.info(f"[voice_refs] {name} : source refusée, genre non établi "
+                                    f"ou contraire ({description})")
+                        continue
+                    if age and age != 'adult':
+                        continue                  # aucune source URL ne documente un âge
                     if _try_url_download(target, [(url, description)]):
                         source_url = url
                         license_ = 'Public domain (LJSpeech)' if 'LJSpeech' in description else ''

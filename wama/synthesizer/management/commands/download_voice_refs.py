@@ -4,6 +4,7 @@ Management command : télécharge les voix de référence manquantes — dans la
 Usage :
     python manage.py download_voice_refs
     python manage.py download_voice_refs --force
+    python manage.py download_voice_refs --force --names french/adult/female_adult_1_fr ...
 
 Depuis le 2026-09-13 (MEDIA_STORAGE_TIERING §9.4), une voix téléchargée devient une ligne
 `SystemAsset(voice)` avec ses attributs (langue/âge/genre) et sa provenance — plus un fichier
@@ -28,9 +29,20 @@ class Command(BaseCommand):
             action='store_true',
             help='Re-télécharge même si la voix est déjà en médiathèque (le fichier est remplacé)',
         )
+        parser.add_argument(
+            '--names', nargs='+', default=None,
+            help="Restreint le passage à ces voix (ex. celles dont la mesure a contredit le "
+                 "libellé, MEDIA_STORAGE_TIERING §9.4bis)",
+        )
 
     def handle(self, *args, **options):
         force = options['force']
+        names = options['names']
+        unknown = sorted(set(names or []) - (set(VOICE_DOWNLOAD_CATALOG) | set(_VOICE_DATASETS_CATALOG)))
+        if unknown:
+            # Un nom mal tapé serait sinon ignoré EN SILENCE : on croirait l'avoir retéléchargé.
+            self.stderr.write(self.style.ERROR(f"Voix absentes du catalogue : {unknown}"))
+            return
         total = len(set(VOICE_DOWNLOAD_CATALOG) | set(_VOICE_DATASETS_CATALOG))
 
         self.stdout.write("Cible : médiathèque — SystemAsset(asset_type='voice')")
@@ -39,7 +51,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("Mode --force : re-téléchargement forcé"))
         self.stdout.write("")
 
-        results = download_missing_voice_refs(force=force)
+        results = download_missing_voice_refs(force=force, names=names)
 
         for name, status in results.items():
             if status == 'downloaded':

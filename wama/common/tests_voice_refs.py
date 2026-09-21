@@ -2,9 +2,10 @@
 (`MEDIA_STORAGE_TIERING §9.4`) : c'est la CAPACITÉ du moteur qui décide d'un `speaker_wav`,
 et les deux workers ne font plus que l'appeler.
 """
+from pathlib import Path
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.tts import voice_refs
 
@@ -348,3 +349,117 @@ class SharedVoiceAccessTest(TestCase):
         self.assertNotIn('filter(user=user', source)
         self.assertIn('readable_voice_assets',
                       inspect.getsource(voice_refs.resolve_speaker_wav))
+
+
+class VoiceAcquisitionTest(SimpleTestCase):
+    """Le genre et l'âge qu'annonce le nom d'une voix sont des CONTRAINTES d'acquisition.
+
+    Mesuré le 2026-09-21 (`MEDIA_STORAGE_TIERING §9.4bis`) : 12 voix sur 25 portaient le genre
+    contraire à leur nom. Deux causes, chacune tenue ici : VoxPopuli était lu sans son champ
+    `gender` ; les replis par URL remplissaient des créneaux d'un genre qu'ils n'avaient pas.
+    Aucun test ne touche le réseau : la source est simulée à sa frontière.
+    """
+
+    def setUp(self):
+        voice_refs._used_vp_speakers.clear()
+
+    def _fake_datasets(self, items):
+        import types
+        module = types.ModuleType('datasets')
+        module.load_dataset = lambda *a, **k: _FakeStream(items)
+        module.Audio = lambda **k: None
+        return module
+
+    def test_voxpopuli_skips_clips_of_the_other_gender(self):
+        import numpy as np
+        items = [{'speaker_id': 'a', 'gender': 'male', 'audio': 'A'},
+                 {'speaker_id': 'b', 'gender': 'female', 'audio': 'B'}]
+        saved = []
+        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
+                patch.object(voice_refs, '_decode_audio_item',
+                             side_effect=lambda audio: (np.zeros(8 * 16000) + (audio == 'B'), 16000)), \
+                patch.object(voice_refs, '_save_audio_array',
+                             side_effect=lambda arr, sr, target: saved.append(int(arr[0])) or True):
+            self.assertTrue(voice_refs._try_voxpopuli(Path('x.wav'), 'fr', gender='female'))
+        self.assertEqual([1], saved, "le premier clip (masculin) ne doit pas remplir un créneau féminin")
+
+    def test_voxpopuli_without_a_gender_constraint_behaves_as_before(self):
+        """Contre-épreuve : sans genre demandé (`default`, presets plats), le premier clip gagne."""
+        import numpy as np
+        items = [{'speaker_id': 'a', 'gender': 'male', 'audio': 'A'}]
+        with patch.dict('sys.modules', {'datasets': self._fake_datasets(items)}), \
+                patch.object(voice_refs, '_decode_audio_item', return_value=(np.zeros(8 * 16000), 16000)), \
+                patch.object(voice_refs, '_save_audio_array', return_value=True):
+            self.assertTrue(voice_refs._try_voxpopuli(Path('x.wav'), 'fr'))
+
+    def test_url_sources_carry_their_established_gender(self):
+        lj = voice_refs.VOICE_DOWNLOAD_CATALOG['english/adult/female_adult_1_en'][0][0]
+        fr = voice_refs.VOICE_DOWNLOAD_CATALOG['french/adult/male_adult_1_fr'][0][0]
+        en = voice_refs.VOICE_DOWNLOAD_CATALOG['english/adult/male_adult_1_en'][0][0]
+        self.assertEqual('female', voice_refs._url_source_gender(lj))
+        self.assertEqual('male', voice_refs._url_source_gender(fr))
+        self.assertEqual('', voice_refs._url_source_gender(en), "jamais téléchargé : genre non établi")
+
+    def _download(self, name, voxpopuli_ok=False):
+        with patch.object(voice_refs, '_library_voice_names', return_value=set()), \
+                patch.object(voice_refs, '_try_voxpopuli', return_value=voxpopuli_ok) as vp, \
+                patch.object(voice_refs, '_try_url_download', return_value=True) as url, \
+                patch.object(voice_refs, 'ingest_voice_file') as ingest:
+            results = voice_refs.download_missing_voice_refs(force=True, names=[name])
+        return results, vp, url, ingest
+
+    def test_a_male_english_slot_is_no_longer_filled_with_ljspeech(self):
+        """Le cas mesuré : `male_adult_1_en` sonnait à 202 Hz, c'était LJSpeech."""
+        results, _, url, ingest = self._download('english/adult/male_adult_1_en')
+        self.assertEqual({'english/adult/male_adult_1_en': 'failed'}, results)
+        url.assert_not_called()
+        ingest.assert_not_called()
+
+    def test_female_french_slots_no_longer_receive_the_male_sample(self):
+        """Le cas mesuré : un seul fichier (133 Hz, masculin) portait trois noms dont deux féminins."""
+        for name in ('french/adult/female_adult_1_fr', 'french/adult/female_adult_2_fr'):
+            results, _, url, _ = self._download(name)
+            self.assertEqual('failed', results[name])
+            url.assert_not_called()
+
+    def test_a_slot_whose_source_gender_matches_is_still_filled(self):
+        """Contre-épreuve : la porte se ferme sur le MENSONGE, pas sur la source."""
+        results, _, url, ingest = self._download('german/adult/female_adult_1_de')
+        self.assertEqual({'german/adult/female_adult_1_de': 'downloaded'}, results)
+        url.assert_called_once()
+        ingest.assert_called_once()
+
+    def test_child_and_elderly_slots_are_never_fed_from_voxpopuli(self):
+        """Débats du Parlement européen : des adultes. Un âge qu'aucune source ne documente ne
+        s'invente plus."""
+        for name in ('french/child/female_child_fr', 'english/elderly/male_elderly_en'):
+            results, vp, _, _ = self._download(name, voxpopuli_ok=True)
+            self.assertEqual('failed', results[name])
+            vp.assert_not_called()
+
+    def test_names_restricts_the_pass(self):
+        results, _, _, _ = self._download('german/adult/female_adult_1_de')
+        self.assertEqual(['german/adult/female_adult_1_de'], list(results))
+
+    def test_the_command_rejects_an_unknown_name_instead_of_ignoring_it(self):
+        import io
+        from django.core.management import call_command
+        err = io.StringIO()
+        with patch('wama.synthesizer.management.commands.download_voice_refs.'
+                   'download_missing_voice_refs') as download:
+            call_command('download_voice_refs', '--names', 'french/adult/typo_fr', stderr=err)
+        download.assert_not_called()
+        self.assertIn('absentes du catalogue', err.getvalue())
+
+
+class _FakeStream:
+    """Un flux de jeu de données minimal : itérable, et `cast_column` sans effet."""
+
+    def __init__(self, items):
+        self.items = items
+
+    def cast_column(self, *args, **kwargs):
+        return self
+
+    def __iter__(self):
+        return iter(self.items)
