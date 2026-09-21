@@ -98,8 +98,10 @@ def generate_image_task(self, generation_id):
         if (generation.model or AUTO).strip() in ('', AUTO):
             generation.model = resolve_auto_model(generation)
             generation.save(update_fields=['model'])
+            from wama.common.utils.auto_model import quality_intent_of
             _console(generation.user_id,
-                     f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement)")
+                     f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement, "
+                     f"curseur qualité {quality_intent_of(generation, 'imager')}/100)")
 
         generation.status = 'RUNNING'
         generation.progress = 0
@@ -461,8 +463,10 @@ def generate_video_task(self, generation_id):
         if (generation.model or AUTO).strip() in ('', AUTO):
             generation.model = resolve_auto_model(generation)
             generation.save(update_fields=['model'])
+            from wama.common.utils.auto_model import quality_intent_of
             _console(generation.user_id,
-                     f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement)")
+                     f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement, "
+                     f"curseur qualité {quality_intent_of(generation, 'imager')}/100)")
 
         generation.status = 'RUNNING'
         generation.progress = 0

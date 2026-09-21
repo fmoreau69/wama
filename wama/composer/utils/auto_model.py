@@ -35,7 +35,9 @@ def resolve_auto_model(gen):
         spec['consumes'] = ['reference_melody']
     else:
         spec['task'] = 'text-to-music' if gen.generation_type == 'music' else 'text-to-audio'
-    return resolve_model_choice(AUTO, spec=spec, fallback=_config_fallback(gen))
+    # `item=gen` (chantier C, 2026-09-20) : le curseur rapide/qualité de l'item (sinon le réglage
+    # d'app de l'utilisateur, sinon 50) pèse dans le score — la brique était appelée SANS intention.
+    return resolve_model_choice(AUTO, spec=spec, fallback=_config_fallback(gen), item=gen)
 
 
 def _config_fallback(gen) -> str:

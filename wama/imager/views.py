@@ -353,6 +353,16 @@ def create_generation(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+def _intent_posted(source):
+    """Curseur rapide/qualité POSTÉ (chantier C) — None s'il ne l'est pas : la colonne reste
+    vide et le tirage retombe sur le réglage d'app de l'utilisateur, puis sur 50."""
+    raw = source.get('quality_intent') if hasattr(source, 'get') else None
+    if raw in (None, ''):
+        return None
+    from wama.common.utils.auto_model import read_quality_intent
+    return read_quality_intent(raw)
+
+
 def handle_txt2img(request, user):
     """Handle standard text-to-image generation"""
     prompt = request.POST.get('prompt', '').strip()
@@ -386,6 +396,7 @@ def handle_txt2img(request, user):
         prompt=prompt,
         negative_prompt=negative_prompt,
         model=model,
+        quality_intent=_intent_posted(request.POST),
         width=width,
         height=height,
         steps=steps,
@@ -453,6 +464,10 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
     r = dict(reglages or {})
     model = r.get('model') or 'auto'
     _def = get_model_defaults(model)
+    # Le curseur rapide/qualité (chantier C) n'existe que sur le modèle RÉEL : une jumelle bac à
+    # sable régénérée avant ce champ n'en a pas — on ne pose la clé que si la colonne existe.
+    _has_intent = any(getattr(f, 'name', None) == 'quality_intent'
+                      for f in ImageGeneration._meta.get_fields())
     width = int(r.get('width', _def['width']))
     height = int(r.get('height', _def['height']))
     steps = int(r.get('steps', _def['steps']))
@@ -478,6 +493,9 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
             prompt=v.get('prompt', ''),
             negative_prompt=v.get('negative_prompt', ''),
             model=v.get('model', model),
+            **({'quality_intent': _intent_posted(
+                {'quality_intent': v.get('quality_intent', r.get('quality_intent'))})}
+               if _has_intent else {}),
             width=v.get('width', width),
             height=v.get('height', height),
             steps=v.get('steps', steps),
@@ -528,7 +546,7 @@ def handle_file2img(request, user):
     # permettre de fichier batch dans le domaine vidéo »). Il est DÉCLARÉ par l'appelant (card
     # vidéo, studio) ; les réglages vidéo suivent le patron de `handle_text_to_video`.
     reglages = {k: request.POST[k] for k in
-                ('model', 'width', 'height', 'steps', 'guidance_scale',
+                ('model', 'quality_intent', 'width', 'height', 'steps', 'guidance_scale',
                  'video_duration', 'video_fps', 'video_resolution')
                 if request.POST.get(k) not in (None, '')}
     domain = request.POST.get('domain') or 'image'
@@ -587,6 +605,7 @@ def handle_describe2img(request, user):
         generation_mode='describe2img',
         prompt='[Generating prompt from image...]',
         model=model,
+        quality_intent=_intent_posted(request.POST),
         width=width,
         height=height,
         steps=steps,
@@ -674,6 +693,7 @@ def handle_img2img(request, user, mode):
         prompt=prompt or '[No prompt - pure img2img]',
         negative_prompt=negative_prompt,
         model=model,
+        quality_intent=_intent_posted(request.POST),
         width=width,
         height=height,
         steps=steps,
@@ -723,6 +743,7 @@ def handle_txt2vid(request, user):
         prompt=prompt,
         negative_prompt=negative_prompt,
         model=model,
+        quality_intent=_intent_posted(request.POST),
         video_duration=video_duration,
         video_fps=video_fps,
         video_resolution=video_resolution,
@@ -772,6 +793,7 @@ def handle_img2vid(request, user):
         prompt=prompt or 'animate this image',
         negative_prompt=negative_prompt,
         model=model,
+        quality_intent=_intent_posted(request.POST),
         video_duration=video_duration,
         video_fps=video_fps,
         video_resolution=video_resolution,

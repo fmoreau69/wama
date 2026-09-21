@@ -61,7 +61,9 @@ def compose_task(self, generation_id: int):
         from wama.composer.utils.auto_model import resolve_auto_model
         gen.model = resolve_auto_model(gen)
         gen.save(update_fields=['model'])
-        _console(user_id, f"[Composer] 🧠 Auto → {gen.model} (capacités + VRAM libre au lancement)")
+        from wama.common.utils.auto_model import quality_intent_of
+        _console(user_id, f"[Composer] 🧠 Auto → {gen.model} (capacités + VRAM libre au lancement, "
+                          f"curseur qualité {quality_intent_of(gen, 'composer')}/100)")
     # Durée plafonnée par la capacité du modèle FINAL (source unique = clamp_duration : schéma +
     # max_duration du modèle). Seul point où le vrai modèle est connu (auto-* résolu ci-dessus).
     from wama.composer.utils.model_config import clamp_duration

@@ -25,6 +25,10 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
     prompt = models.TextField()
     duration = models.FloatField(default=10.0, help_text='Durée en secondes (10–600)')
     model = models.CharField(max_length=64, default='musicgen-small')
+    # Curseur rapide/qualité commun (chantier C, 2026-09-20) : guide le tirage « auto-* » au
+    # LANCEMENT (`resolve_model_choice(item=…)`). Null = équilibré (50).
+    quality_intent = models.IntegerField(null=True, blank=True,
+                                         help_text='Curseur rapide/qualité 0-100 du tirage auto')
 
     # Optional melody reference (MusicGen Melody only)
     melody_reference = models.FileField(

@@ -251,6 +251,49 @@ class GridCriterionTest(SimpleTestCase):
         self.assertEqual(self._app("x = 1", "y = 2"), (None, None))
 
 
+class ImagerAndComposerPassTheSliderTest(TestCase):
+    """Les deux adopteurs historiques de la brique appelaient `resolve_model_choice` SANS
+    intention (mesuré le 20/09) : l'item la porte désormais, et le tirage la reçoit."""
+
+    def test_the_imager_resolution_passes_the_item_s_slider(self):
+        from wama.imager.models import ImageGeneration
+        from wama.imager.utils.auto_model import resolve_auto_model
+        u = get_user_model().objects.create_user('c_imager', password='x')
+        gen = ImageGeneration.objects.create(user=u, prompt='x', model='auto', quality_intent=88)
+        seen = {}
+
+        def fake_select(source, **kw):
+            seen.update(kw)
+            return 'sdxl'
+
+        with mock.patch('wama.model_manager.services.select_model_id', fake_select):
+            self.assertEqual(resolve_auto_model(gen), 'sdxl')
+        self.assertEqual(seen.get('quality_intent'), 88)
+
+    def test_the_composer_resolution_passes_the_item_s_slider(self):
+        from wama.composer.models import ComposerGeneration
+        from wama.composer.utils.auto_model import resolve_auto_model
+        u = get_user_model().objects.create_user('c_composer', password='x')
+        gen = ComposerGeneration.objects.create(user=u, prompt='x', model='auto-music',
+                                                generation_type='music', quality_intent=12)
+        seen = {}
+
+        def fake_select(source, **kw):
+            seen.update(kw)
+            return 'musicgen-small'
+
+        with mock.patch('wama.model_manager.services.select_model_id', fake_select):
+            self.assertEqual(resolve_auto_model(gen), 'musicgen-small')
+        self.assertEqual(seen.get('quality_intent'), 12)
+
+    def test_both_schemas_carry_the_slider_conditioned_on_auto(self):
+        from wama.common.utils.param_schema import schema_for_app
+        for app in ('imager', 'composer'):
+            field = next((f for f in schema_for_app(app) if f.get('name') == 'quality_intent'), None)
+            self.assertIsNotNone(field, app)
+            self.assertEqual(field.get('type'), 'intent', app)
+
+
 class EveryAutoSelectCarriesTheSliderTest(SimpleTestCase):
 
     def test_every_app_that_serves_auto_carries_an_intent_param(self):

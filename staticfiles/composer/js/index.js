@@ -215,6 +215,8 @@
             formData.append('prompt', prompt);
             formData.append('model', modelId);
             formData.append('duration', duration);
+            // Curseur rapide/qualité du volet (chantier C) — lu au lancement si le modèle est auto-*.
+            formData.append('quality_intent', document.getElementById('qualityIntent')?.value || '');
             formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
             formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
 

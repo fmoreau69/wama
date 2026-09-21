@@ -195,8 +195,20 @@ class CurseurDeQualiteTest(TestCase):
             self.assertEqual(champ.get('type'), 'intent', app)
             self.assertEqual(champ.get('default'), 50, app)
             condition = champ.get('show_if') or {}
-            self.assertEqual(condition.get('equals'), 'auto',
-                             f"{app} : le curseur doit n'apparaître que sur « auto »")
+            # Une app qui TIRE un modèle conditionne le curseur à « auto » — nu (imager,
+            # synthesizer…) ou les pseudo-modèles « auto-* » du composer (un « auto » par
+            # optgroup, 2026-07-02) : une valeur `equals`, ou une liste `in`. Une app SANS
+            # modèle (converter : le curseur décline en encodage, conditionné par la NATURE) n'a
+            # pas d'« auto » à surveiller — seule la condition doit viser un champ du schéma.
+            values = [condition.get('equals')] if 'equals' in condition else list(condition.get('in') or [])
+            serves_auto = any(f.get('options_auto') for f in schema) or any(
+                str(v[0] if isinstance(v, (list, tuple)) else v).startswith('auto')
+                for f in schema for v in (f.get('choices') or [])) or any(
+                str(v[0] if isinstance(v, (list, tuple)) else v).startswith('auto')
+                for f in schema for _label, group in (f.get('option_groups') or []) for v in group)
+            if serves_auto:
+                self.assertTrue(values and all(str(v).startswith('auto') for v in values),
+                                f"{app} : le curseur doit n'apparaître que sur « auto » ({condition})")
             self.assertIn(condition.get('field'), {f.get('name') for f in schema},
                           f"{app} : la condition d'affichage vise un champ absent du schéma")
         self.assertGreaterEqual(len(adopteurs), 2, 'parcours vacueux : au moins deux adopteurs')
