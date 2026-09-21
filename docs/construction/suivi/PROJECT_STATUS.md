@@ -16077,6 +16077,11 @@ qu'elle n'est pas levée. La lever est un geste de Fabien. Les règles « pas de
 écrites dans les mémoires et les skills datent de la panne : elles cèdent à une demande explicite, et un
 premier lancement se fait **seul, surveillé, un modèle à la fois** — si un crash revient, la piste pilote/GPU-PV
 (l'autre signature du dossier, gel au churn VRAM) reste ouverte.
+✅ **Levée le 2026-09-22 à la demande de Fabien** : `WAMA_GPU_SAFE_MODE=0` dans `.env`. Lue au démarrage
+seulement (`settings.py`) — **effective après redémarrage de gunicorn et des workers Celery**.
+⚠ Le même jour, les secrets de `.env` ont été retirés des traces locales de Claude Code (journaux clos,
+sauvegardes `file-history`) ; dépôt vérifié propre. Reste : le journal d'une instance encore ouverte à ce
+moment — détail dans la mémoire « secrets ».
 
 **La file de ce qui attendait le GPU** (chaque ligne renvoie à son bloc d'origine, rien n'est recopié) :
 1. **tests nocturnes avec GPU** — plan des tests nocturnes (runner VRAM-aware déjà écrit ; les gestes
