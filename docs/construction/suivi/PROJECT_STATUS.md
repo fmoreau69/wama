@@ -15936,10 +15936,38 @@ curseur rendu dans l'hôte du modèle du volet, POST de génération, `update_se
 passé » à tort) ; **mesuré : anonymizer, avatarizer, composer, converter, imager, reader,
 synthesizer VRAI ; describer, enhancer n/a ; transcriber FAUX (question `priority`)**.
 
-🔚 **Reste C (adoption, une ligne + un champ chacun)** : ~~imager et composer~~ ✅ 21/09 (autres sessions —
-`resolve_model_choice(..., item=generation)` + `intent_param` au schéma) ; transcriber (question :
-`priority` whisper-first = l'ordre, le curseur arbitre dedans — à trancher) ; converter (③ étapes
-de la ROUTE §F4b). L'option cloud du curseur = B3. Le critère de grille tient le compte.
+**⑧ SUITE 21/09 — enhancer PORTÉ puis RALLIÉ (GO Fabien : « puis le portage enhancer »), deux
+commits.** ① Structure (`ef427706`) : `backends/` avec `ROUTES` image/vidéo/audio au contrat commun
+« fichier » (les mécanismes sortent de tasks.py : `media_backend`, `audio_backend` ; classes au
+substrat, résolues par le catalogue) ; les deux tâches sur `run_item_task` (gardes, ETA, console,
+tâche déclarée au gouverneur, garde-temps — la branche audio se déclare `audio_enhancer`, le nom que
+preview/détail lui donnent : sans lui la ligne « tâche en cours » et le cache de progression
+confondraient média #5 et audio #5) ; détail média en SPEC ; cards redemandées par
+`WamaApp.fetchCard`. ⚠ Mesuré : `common/backends/ai_upscaler.py:23` importait un `.model_config`
+inexistant → repli sur `AI-models/enhancer/onnx` (VIDE) alors que les poids vivent à
+`MODEL_PATHS['upscaling']['onnx']` — le dossier se lit des settings. ② Curseur + auto : colonne
+`quality_intent` (null = équilibré) sur les deux modèles, « auto » en tête des choix et DÉFAUT
+(décision `params.py:78` LEVÉE), `options_auto` sur les deux selects, `upscale_factor` au schéma =
+le BESOIN que « auto » filtre (capacité `scale`) avant de classer ; `utils/auto_model.py` = les
+DÉCLARATIONS de l'app (deux domaines — le commun ne lit qu'un schéma par app —, candidats par
+facteur, NFE de Resemble décliné du curseur quand le moteur est auto, repli = `DEFAULT_MODEL`) ;
+résolution AU LANCEMENT, l'item GARDE « auto » ; les deux modales passent au cycle commun
+`WamaParams.settingsModal` (les cycles maison partent, dont un `updateResembleVisibility()` qui
+n'existait plus) ; volets : facteur + curseur visibles sur « auto » ; migration 0016 (gitignorée).
+`tests.py` (1ᵉʳ de l'app, 14) ; `test_l_enhancer_ne_sert_PAS_auto` INVERSÉ. **Grille : enhancer
+98 % (90/92), `quality_intent`, `settings_modal_cycle`, `backend_routes`, `task_skeleton`,
+`card_refresh_common`, `detail_spec` VRAI ; restent 🔶 `user_settings` (table maison) et
+`triad_specs` (deux domaines = vraie logique, écart assumé).** ⚠ Pour la session sœur
+(`model_registry`) : la découverte enhancer ignore `ENHANCER_MODELS.vram_usage` (2,5/0,75/4 Go →
+catalogue 0,0-0,1 heuristique) et ne projette aucun `quality_index` — sans ces deux lignes le
+score des 7 upscalers est PLAT (tirage « auto » = léger à défaut) et la garde VRAM du squelette
+n'a rien à lire ; la déclaration d'un a priori de qualité dans `model_config` reste à écrire.
+
+🔚 **Reste C (adoption, une ligne + un champ chacun)** : ~~imager, composer, enhancer~~ ✅ 21/09 ;
+transcriber (question : `priority` whisper-first = l'ordre, le curseur arbitre dedans — à
+trancher) ; describer (pas de choix en UI, cascade maison — suit l'adoption de la brique). L'option
+cloud du curseur = B3. Le critère de grille tient le compte : **8 apps VRAI, transcriber FAUX,
+describer n/a**.
 
 🔚 **Reste B1 (hors de ce périmètre ou différé)** : `vram_needed` de l'imager vidéo et du composer
 (le pic est le second chiffre de la sœur ; leurs sessions le passent au squelette et donnent
