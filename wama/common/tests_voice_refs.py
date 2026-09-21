@@ -526,3 +526,36 @@ class _FakeStream:
 
     def __iter__(self):
         return iter(self.items)
+
+
+class VoiceReplacementTest(TestCase):
+    """Remplacer une voix, c'est aussi retirer son ancien fichier — et jamais un fichier encore
+    référencé ailleurs. Mesuré le 2026-09-22 : trois passages de retéléchargement avaient laissé
+    14 WAV orphelins. Le runner donne à chaque exécution un MEDIA_ROOT jetable."""
+
+    def _wav(self, tag):
+        import tempfile
+        handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        handle.write(_wav(tag).read())
+        handle.close()
+        return handle.name
+
+    def test_replacing_a_voice_removes_its_old_file(self):
+        first = voice_refs.ingest_voice_file('english/adult/male_adult_9_en', self._wav('a'))
+        old_path = Path(first.file.path)
+        self.assertTrue(old_path.is_file())
+        second = voice_refs.ingest_voice_file('english/adult/male_adult_9_en', self._wav('b'),
+                                              replace=True)
+        self.assertEqual(first.pk, second.pk)
+        self.assertTrue(Path(second.file.path).is_file())
+        self.assertFalse(old_path.exists(), "l'ancien fichier est resté : un orphelin de plus")
+
+    def test_an_old_file_still_referenced_elsewhere_is_kept(self):
+        """Contre-épreuve : la brique commune protège un fichier PARTAGÉ."""
+        from wama.media_library.models import SystemAsset
+        first = voice_refs.ingest_voice_file('english/adult/male_adult_8_en', self._wav('c'))
+        old_path = Path(first.file.path)
+        SystemAsset.objects.create(name='alias_of_the_same_file', asset_type='voice',
+                                   file=first.file.name)
+        voice_refs.ingest_voice_file('english/adult/male_adult_8_en', self._wav('d'), replace=True)
+        self.assertTrue(old_path.is_file(), "un fichier encore référencé ne s'efface jamais")

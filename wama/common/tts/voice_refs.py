@@ -360,6 +360,7 @@ def ingest_voice_file(name: str, path, *, source_url: str = '', license: str = '
         pass
 
     asset = existing or SystemAsset(name=name, asset_type='voice')
+    old_file = asset.file.name if (existing is not None and asset.file) else ''
     asset.attributes = attributes_from_voice_id(name)
     asset.mime_type = 'audio/wav'
     asset.file_size = path.stat().st_size
@@ -374,6 +375,16 @@ def ingest_voice_file(name: str, path, *, source_url: str = '', license: str = '
         # `upload_to` décide du domicile (`media_library/system/`) — on ne compose aucun chemin.
         asset.file.save(path.name, File(fh), save=False)
     asset.save()
+    # REMPLACER, c'est aussi retirer l'ancien fichier — sinon chaque remplacement laisse un
+    # orphelin. Mesuré le 2026-09-22 : 3 passages de retéléchargement avaient laissé 14 WAV que
+    # plus aucune ligne ne référençait. Ordre : la ligne d'abord (posée ci-dessus), le fichier
+    # ensuite ; et jamais s'il est encore référencé ailleurs — c'est la brique commune qui le
+    # vérifie (`safe_delete_file`), appliquée à une instance FANTÔME qui porte l'ancien chemin.
+    if old_file and old_file != asset.file.name:
+        from wama.common.utils.queue_duplication import safe_delete_file
+        ghost = SystemAsset(pk=asset.pk)
+        ghost.file = old_file
+        safe_delete_file(ghost, 'file')
     return asset
 
 
