@@ -153,14 +153,14 @@ class AdapterFootprintTest(TestCase):
     C pour l'exécution**.
 
     Le fait mesuré : la LoRA logo du parc pèse 0,036 Go de fichier et ne peut pas tourner sans sa
-    dorsale FLUX.1-dev (22,2 Go de plus gros composant). Annoncer 0,04 Go, c'est faire retenir par
+    backbone FLUX.1-dev (22,2 Go de plus gros composant). Annoncer 0,04 Go, c'est faire retenir par
     le tirage un modèle qui ne tient pas ; annoncer 22,2 sans dire pourquoi, c'est perdre
-    l'information que la dorsale peut déjà être là.
+    l'information que la backbone peut déjà être là.
     """
 
     def _pair(self):
         from wama.model_manager.models import AIModel
-        dorsale = AIModel.objects.create(
+        backbone = AIModel.objects.create(
             model_key='imager:flux-base', name='FLUX base', model_type='diffusion',
             source='imager', hf_id='org/flux', vram_gb=24,
             extra_info={'weights': {'total_gb': 31.42, 'largest_gb': 22.17},
@@ -170,7 +170,7 @@ class AdapterFootprintTest(TestCase):
             source='imager', hf_id='org/lora',
             extra_info={'weights': {'total_gb': 0.036, 'largest_gb': 0.036},
                         'model_type': 'lora', 'base_model': 'org/flux'})
-        return dorsale, lora
+        return backbone, lora
 
     def test_B_the_nominal_footprint_of_an_adapter_includes_its_backbone(self):
         """Ce qu'on affiche et ce sur quoi on juge une installation : 22,17 + 0,04."""
@@ -178,10 +178,10 @@ class AdapterFootprintTest(TestCase):
         gb, provenance = model_footprint_gb(lora)
         self.assertEqual(gb, 22.21)
         self.assertEqual(provenance, 'source+backbone',
-                         "la provenance doit DIRE que la dorsale est comptée")
+                         "la provenance doit DIRE que la backbone est comptée")
 
     def test_C_the_marginal_footprint_is_the_adapter_alone(self):
-        """Ce que le gouverneur demande quand la dorsale est DÉJÀ résidente : poser l'adaptateur
+        """Ce que le gouverneur demande quand la backbone est DÉJÀ résidente : poser l'adaptateur
         ne coûte alors que son fichier. Lui seul sait ce qui est chargé, donc lui seul passe
         `count_backbone=False`."""
         _, lora = self._pair()
@@ -191,12 +191,12 @@ class AdapterFootprintTest(TestCase):
         """`flux-1-dev` déclare `base_model` = son PROPRE `hf_id`. Sans la garde, un modèle de base
         additionnerait sa propre empreinte."""
         from wama.model_manager.services.memory_manager import backbone_row
-        dorsale, _ = self._pair()
-        self.assertIsNone(backbone_row(dorsale))
-        self.assertEqual(model_footprint_gb(dorsale)[0], 22.17)
+        backbone, _ = self._pair()
+        self.assertIsNone(backbone_row(backbone))
+        self.assertEqual(model_footprint_gb(backbone)[0], 22.17)
 
     def test_an_unresolvable_backbone_is_not_invented(self):
-        """Une dorsale absente du catalogue : on ne fabrique pas son empreinte. L'adaptateur rend
+        """Une backbone absente du catalogue : on ne fabrique pas son empreinte. L'adaptateur rend
         alors son propre poids — faux mais HONNÊTE, et `check_model_completeness` le verra."""
         from wama.model_manager.models import AIModel
         orpheline = AIModel.objects.create(

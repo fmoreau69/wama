@@ -24,7 +24,7 @@ CE QUE LA GARDE COUVRE, ET CE QU'ELLE NE COUVRE PAS.
     HTTP dédié), ce que `yt_dlp` ne permet pas simplement. La garde arrête l'attaque directe et
     évidente, pas un adversaire déterminé — le dire ici plutôt que laisser croire à une immunité ;
   ✗ **redirections** : une cible publique peut rediriger vers une adresse interne. Les appelants
-    qui suivent les redirections doivent re-valider à chaque saut (cf. `verifier_redirections`).
+    qui suivent les redirections doivent re-valider à chaque hop (cf. `verifier_redirections`).
 
 Un environnement de dev peut avoir besoin de cibles locales : `WAMA_URL_GUARD_ALLOW_PRIVATE=1`
 lève le blocage des adresses privées. Jamais en production.
@@ -106,12 +106,12 @@ def verifier_url(url: str) -> str:
 
 
 def verifier_redirections(reponse) -> None:
-    """Re-valide chaque saut d'une réponse `requests` qui a suivi des redirections.
+    """Re-valide chaque hop d'une réponse `requests` qui a suivi des redirections.
 
     Une cible publique peut rediriger vers une adresse interne : valider seulement l'URL
     saisie laisserait passer exactement ce qu'on cherche à empêcher.
     """
-    for saut in list(getattr(reponse, 'history', []) or []) + [reponse]:
-        cible = getattr(saut, 'url', None)
+    for hop in list(getattr(reponse, 'history', []) or []) + [reponse]:
+        cible = getattr(hop, 'url', None)
         if cible:
             verifier_url(cible)

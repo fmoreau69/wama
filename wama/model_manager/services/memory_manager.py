@@ -353,10 +353,10 @@ def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True
     # cran — `count_backbone=False` sur l'appel interne interdit qu'une chaîne d'adaptateurs
     # s'empile à l'infini si quelqu'un déclarait un jour une dorsale qui est elle-même un
     # adaptateur.
-    dorsale = backbone_row(row) if count_backbone else None
+    backbone = backbone_row(row) if count_backbone else None
     base_gb = 0.0
-    if dorsale is not None:
-        base_gb = model_footprint_gb(dorsale, offload=offload, count_backbone=False)[0] or 0.0
+    if backbone is not None:
+        base_gb = model_footprint_gb(backbone, offload=offload, count_backbone=False)[0] or 0.0
 
     weights = info.get('weights') or {}
     # Une ligne qui DÉCLARE sa quantification ne pèse pas ses fichiers : elle pèse ce qu'elle
@@ -369,19 +369,19 @@ def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True
     source = peaks.get('offload' if offload else 'full')
     measured = float(((info.get('vram_measured') or {}).get('max_gb')) or 0) or None
 
-    def _rendu(gb, provenance):
+    def _with_backbone(gb, provenance):
         """Ajoute la dorsale au chiffre de l'adaptateur, et le DIT dans la provenance."""
         if gb is None or not base_gb:
             return gb, provenance
         return round(gb + base_gb, 2), f'{provenance}+backbone'
 
     if measured and source:
-        return _rendu(round(max(measured, source), 2),
+        return _with_backbone(round(max(measured, source), 2),
                       'measured+source' if measured >= source else 'source')
     if measured:
-        return _rendu(round(measured, 2), 'measured')
+        return _with_backbone(round(measured, 2), 'measured')
     if source:
-        return _rendu(source, 'source')
+        return _with_backbone(source, 'source')
     declared = float(getattr(row, 'vram_gb', 0) or 0)
     if declared:
         # ⚠ La valeur DÉCLARÉE d'un adaptateur vaut souvent déjà celle de sa dorsale (la LoRA logo

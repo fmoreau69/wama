@@ -544,12 +544,12 @@ class Command(BaseCommand):
             # `\n` d'un `\r\n` déjà posé se retraduit et produit `\r\r\n` (deux exemplaires
             # fabriqués par ma première version de ce correctif, le jour même).
             crlf = texte.count('\r\n')
-            saut = '\r\n' if crlf > (texte.count('\n') - crlf) else '\n'
-            remplacement = f"{ouvrant}\n{frais}\n{fermant}".replace('\r\n', '\n')
-            if saut == '\r\n':
-                remplacement = remplacement.replace('\n', '\r\n')
+            eol = '\r\n' if crlf > (texte.count('\n') - crlf) else '\n'
+            fresh_block = f"{ouvrant}\n{frais}\n{fermant}".replace('\r\n', '\n')
+            if eol == '\r\n':
+                fresh_block = fresh_block.replace('\n', '\r\n')
             with chemin.open('w', encoding='utf-8', newline='') as f:
-                f.write(motif.sub(lambda _: remplacement, texte, count=1))
+                f.write(motif.sub(lambda _: fresh_block, texte, count=1))
             self.stdout.write(self.style.WARNING(f"{fid}: régénéré ({fichier})"))
 
         # ── Docs DÉRIVÉES par plan (2026-09-11, ROADMAP §25.1 ③) ──

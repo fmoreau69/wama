@@ -896,7 +896,7 @@ Valide toute cible de téléchargement pilotée par une saisie : schéma, identi
 - **API publique** (3) :
   - `class UrlRefusee(ValueError)` — URL rejetée par la garde de sortie. Message destiné à l'utilisateur.
   - `verifier_url(url: str) -> str` — Valide une URL sortante. Rend l'URL normalisée, ou lève `UrlRefusee`.
-  - `verifier_redirections(reponse) -> None` — Re-valide chaque saut d'une réponse `requests` qui a suivi des redirections.
+  - `verifier_redirections(reponse) -> None` — Re-valide chaque hop d'une réponse `requests` qui a suivi des redirections.
 
 ### Générateur de QR codes
 
