@@ -385,6 +385,35 @@ def _reset_for_relaunch(item):
     item.progress = 0
 
 
+# ── Les SIX vues de lot : fabrique COMMUNE (`batch_views.make_batch_views`, portage 2026-09-23,
+# 2ᵉ app réelle — ROUTE §11 #36). Spécificités du reader DÉCLARÉES en kwargs : remise à zéro
+# sous verrou (`_reset_for_relaunch`), cache de progression `reader_progress_<id>` (un dict
+# `{'pct': …}`, lu par `batch_status`, purgé à la suppression), `result_text`/`used_backend`
+# vidés à la duplication, `language` vide = auto-détection (VALEUR, pas absence), gating
+# `@app_access` sur le démarrage. `batch_download` reste LOCAL : multi-format `?fmt=` (§9.10)
+# hors de la convention `output_file` — écart assumé (`batch_views_common` = partiel).
+from wama.common.utils.batch_views import DEFAULT_RESET, make_batch_views
+from wama.reader.params import PARAMS_JSON as _SCHEMA
+
+_bv = make_batch_views(
+    work_model=ReadingItem, batch_model=BatchReadingItem, get_user=_get_user,
+    task=read_document_task,
+    file_fields=('input_file',), output_fields=(),
+    params_fields=('backend', 'mode', 'language'), schema=_SCHEMA,
+    empty_is_value=('language',),
+    item_model=BatchReadingItemLink, fk_name='reading',
+    reset_on_start=_reset_for_relaunch,
+    reset_on_duplicate={**DEFAULT_RESET, 'result_text': '', 'used_backend': ''},
+    progress_of=lambda r: (cache.get(f'reader_progress_{r.id}') or {}).get('pct', r.progress),
+    on_delete=lambda r: cache.delete(f'reader_progress_{r.id}'),
+)
+batch_start = app_access('reader')(_bv['batch_start'])
+batch_update = _bv['batch_update']
+batch_delete = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
+batch_status = _bv['batch_status']
+
+
 @app_access('reader')
 @require_POST   # un GET lançait la lecture (parcours des adresses, 2026-09-22)
 def start(request, pk: int):
@@ -748,13 +777,13 @@ def batch_list(request):
     user = _get_user(request)
     batches = BatchReadingItem.objects.filter(user=user).prefetch_related('items__reading')
 
+    from wama.common.utils.batch_common import batch_elements
     data = []
     for batch in batches:
         counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-        for item in batch.items.all():
-            if item.reading:
-                k = item.reading.status.lower()
-                counts[k] = counts.get(k, 0) + 1
+        for r in batch_elements(batch, ReadingItem):     # lit le cache du prefetch, 0 requête
+            k = r.status.lower()
+            counts[k] = counts.get(k, 0) + 1
 
         total = batch.total
         if total > 0 and counts['success'] == total:
@@ -777,30 +806,6 @@ def batch_list(request):
     return JsonResponse({'batches': data})
 
 
-@require_POST
-@app_access('reader')
-def batch_start(request, pk):
-    """Start all PENDING readings in a batch."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
-
-    from wama.common.utils.process_control import begin_processing
-    started = []
-    for item in batch.items.select_related('reading').all():
-        r = item.reading
-        if not r:
-            continue
-        r, err = begin_processing(ReadingItem, r.pk, user=user, reset=_reset_for_relaunch)
-        if err:
-            continue
-        task = read_document_task.delay(r.id)
-        r.task_id = task.id
-        r.save(update_fields=['task_id'])
-        started.append(r.id)
-
-    return JsonResponse({'started': started, 'count': len(started)})
-
-
 # Manipulation directe de la file (CARD_DESIGN §3bis) — vues GÉNÉRÉES par la brique commune.
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 
@@ -814,49 +819,6 @@ reorder_queue = _qm['reorder_queue']
 merge = _qm['merge']
 move_to_batch = _qm['move_to_batch']
 consolidate = _qm['consolidate']
-
-
-def batch_status(request, pk):
-    """Return status of all items in a batch."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
-
-    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-    items_data = []
-
-    for item in batch.items.select_related('reading').all():
-        r = item.reading
-        if not r:
-            continue
-        key = r.status.lower()
-        counts[key] = counts.get(key, 0) + 1
-        cached = cache.get(f'reader_progress_{r.id}')
-        p = cached.get('pct', r.progress) if cached else r.progress
-        items_data.append({
-            'id': r.id,
-            'filename': r.filename,
-            'status': r.status,
-            'progress': p,
-            'error': r.error_message if r.status == 'FAILURE' else None,
-        })
-
-    total = batch.total
-    if total > 0 and counts['success'] == total:
-        status_str = 'SUCCESS'
-    elif counts['running'] > 0:
-        status_str = 'RUNNING'
-    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
-        status_str = 'FAILURE'
-    else:
-        status_str = 'PENDING'
-
-    return JsonResponse({
-        'batch_id': pk,
-        'status': status_str,
-        'total': total,
-        'counts': counts,
-        'items': items_data,
-    })
 
 
 def build_reading_bytes(item, fmt):
@@ -901,11 +863,11 @@ def batch_download(request, pk):
     if fmt not in ('txt', 'md', 'pdf', 'docx', 'json'):
         fmt = 'txt'
 
+    from wama.common.utils.batch_common import batch_elements
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for item in batch.items.select_related('reading').order_by('row_index'):
-            r = item.reading
-            if r and r.status == 'SUCCESS':
+        for r in batch_elements(batch, ReadingItem):     # brique : ordre des lignes garanti
+            if r.status == 'SUCCESS':
                 from wama.common.utils.output_naming import compose_output_name
                 stem = os.path.splitext(compose_output_name(
                     app='reader', source_name=r.filename or f'item_{r.id}',
@@ -920,82 +882,6 @@ def batch_download(request, pk):
     return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
 
-@require_POST
-def batch_delete(request, pk):
-    """Delete an entire batch: cascade-delete readings, clean up files."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
-
-    readings_to_delete = []
-    for item in batch.items.select_related('reading').all():
-        r = item.reading
-        if not r:
-            continue
-        if r.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(r.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-        readings_to_delete.append(r)
-
-    safe_delete_file(batch, 'batch_file')
-    batch.delete()  # CASCADE deletes BatchReadingItemLinks (not ReadingItem)
-
-    for r in readings_to_delete:
-        safe_delete_file(r, 'input_file')
-        cache.delete(f'reader_progress_{r.id}')
-        r.delete()
-
-    return JsonResponse({'success': True, 'batch_id': pk})
-
-
-@require_POST
-def batch_duplicate(request, pk):
-    """Duplicate an entire batch (shares source files/URLs, results cleared)."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
-
-    new_batch = BatchReadingItem.objects.create(user=user, total=batch.total)
-    for item in batch.items.select_related('reading').order_by('row_index'):
-        r = item.reading
-        if not r:
-            continue
-        new_r = duplicate_instance(r, reset_fields={
-            'status': 'PENDING', 'progress': 0, 'task_id': '',
-            'result_text': '', 'used_backend': '', 'error_message': '',
-        })
-        BatchReadingItemLink.objects.create(batch=new_batch, reading=new_r, row_index=item.row_index)
-
-    return JsonResponse({'success': True, 'batch_id': new_batch.id})
-
-
-@require_POST
-def batch_update(request, pk):
-    """Update backend/mode/language on all non-RUNNING items in a batch."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-
-    backend = data.get('backend', '')
-    mode = data.get('mode', '')
-    language = data.get('language', '')
-
-    updated = 0
-    for item in batch.items.select_related('reading').all():
-        r = item.reading
-        if not r or r.status == 'RUNNING':
-            continue
-        r.backend = backend
-        r.mode = mode
-        r.language = language
-        r.save(update_fields=['backend', 'mode', 'language'])
-        updated += 1
-
-    return JsonResponse({'success': True, 'updated': updated})
 
 
 def console_content(request):

@@ -50,7 +50,7 @@ from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_
 DEFAULT_RESET = {'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}
 
 
-def read_settings_payload(request, schema=None, schema_names=()):
+def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=()):
     """Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
 
     ⚠ `request.body` n'est lu QUE sur un POST JSON : sur un `FormData`, le middleware CSRF a déjà
@@ -58,7 +58,9 @@ def read_settings_payload(request, schema=None, schema_names=()):
     ⚠ COERCER selon le schéma AVANT tout `setattr` (défaut vécu le 02/09) : le FormData d'une
     modale poste TOUTES ses valeurs, VIDES comprises — `''` sur une colonne Integer plante au
     save. `coerce_schema_values` type ('640'→640, 'true'→True) ; un champ du schéma laissé VIDE
-    veut dire « ne pas toucher », jamais « effacer » — il est retiré.
+    veut dire « ne pas toucher », jamais « effacer » — il est retiré… SAUF les champs nommés
+    dans `empty_is_value`, pour qui `''` EST une valeur (reader : `language` vide =
+    auto-détection voulue — « test de présence, jamais `or` », leçon du 17/08).
     """
     if (request.content_type or '').startswith('application/json'):
         try:
@@ -74,7 +76,7 @@ def read_settings_payload(request, schema=None, schema_names=()):
             data = {**data, **coerce_schema_values(schema, data)}
         except Exception:
             pass    # schéma inexploitable : les données brutes restent (comportement d'avant)
-    names = set(schema_names or ())
+    names = set(schema_names or ()) - set(empty_is_value or ())
     return {k: v for k, v in data.items() if not (v == '' and k in names)}
 
 
@@ -117,7 +119,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      item_model=None, fk_name=None, batch_attr='batch',
                      row_field='batch_row_index', items_related='items',
                      batch_extra=None, reset_on_start=None, reset_on_duplicate=None,
-                     zip_name=None, progress_of=None, item_label=None, on_delete=None):
+                     zip_name=None, progress_of=None, item_label=None, on_delete=None,
+                     empty_is_value=(), task_for=None):
     """Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
     'batch_duplicate', 'batch_download', 'batch_status'} (vues Django, `pk` = id du lot).
 
@@ -144,6 +147,13 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         on_delete       : callable(élément) appelé AVANT `item.delete()` dans `batch_delete`
                           (describer : purge du cache de progression). La révocation de la tâche
                           Celery est faite par la fabrique (`terminate=False`, idiome mesuré).
+        empty_is_value  : champs pour lesquels `''` posté EST une valeur à écrire (reader :
+                          `language` vide = auto-détection) — cf. `read_settings_payload`.
+        task_for        : callable(élément)->tâche, quand la tâche dépend de l'élément
+                          (transcriber : avec ou sans pré-traitement selon `preprocess_audio`) ;
+                          prime sur `task`.
+    Les réponses portent `success: True` en plus de leurs compteurs : c'est ce que lisent les
+    fronts des apps réelles (reader : `if (!r.ok || !data.success)`).
     """
     schema_names = tuple(p.get('name') for p in (schema or []) if isinstance(p, dict) and p.get('name'))
     if reset_on_start is None:
@@ -178,7 +188,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def batch_start(request, pk):
         user = get_user(request)
         b = _batch(request, pk)
-        if task is None:
+        if task is None and task_for is None:
             return JsonResponse({'error': 'aucune tâche déclarée pour ce lot'}, status=400)
         started = []
         for item in batch_elements(b, work_model):
@@ -187,7 +197,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             locked, err = begin_processing(work_model, item.pk, user=user, reset=start_reset)
             if err:
                 continue
-            t = task.delay(locked.id)
+            t = (task_for(locked) if task_for is not None else task).delay(locked.id)
             locked.task_id = t.id
             locked.save(update_fields=['task_id'])
             started.append(locked.id)
@@ -196,7 +206,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     @require_POST
     def batch_update(request, pk):
         b = _batch(request, pk)
-        data = read_settings_payload(request, schema, schema_names)
+        data = read_settings_payload(request, schema, schema_names, empty_is_value)
         updated = 0
         for item in batch_elements(b, work_model):
             if getattr(item, 'status', '') == 'RUNNING':
@@ -206,7 +216,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             if touched:
                 item.save(update_fields=touched)
                 updated += 1
-        return JsonResponse({'updated': updated})
+        return JsonResponse({'success': True, 'updated': updated, 'batch_id': pk})
 
     @require_POST
     def batch_delete(request, pk):
@@ -221,7 +231,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         # Le lot VIDÉ est purgé par le signal ; ne reste qu'un lot qui n'avait AUCUN élément —
         # par requête, jamais par l'instance (son id est parti avec le dernier élément).
         batch_model.objects.filter(pk=b.pk, **{f'{items_related}__isnull': True}).delete()
-        return JsonResponse({'deleted': True, 'batch_id': pk})
+        return JsonResponse({'success': True, 'deleted': True, 'batch_id': pk})
 
     @require_POST
     def batch_duplicate(request, pk):

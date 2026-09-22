@@ -60,6 +60,72 @@ def _reset_for_relaunch(t):
     t.used_backend = ''
 
 
+# ── Les SIX vues de lot : fabrique COMMUNE (`batch_views.make_batch_views`, portage 2026-09-23,
+# 3ᵉ app réelle — ROUTE §11 #36). Spécificités du transcriber DÉCLARÉES en kwargs : la tâche
+# se choisit PAR élément (`task_for` : avec ou sans pré-traitement), remise à zéro sous verrou
+# (`_reset_for_relaunch` + cache de progression à 0), cache `transcriber_progress_<id>` lu par
+# `batch_status` et purgé à la suppression avec les sorties TXT/SRT (`_cleanup_output_files`),
+# libellé d'une ligne = nom du fichier ou queue de l'URL, remise à zéro COMPLÈTE à la
+# duplication (texte, langue, segments, enrichissements). `batch_download` reste LOCAL :
+# multi-format `?fmt=txt|srt|pdf|docx` (§9.10), hors de la convention `output_file` — écart
+# assumé (`batch_views_common` = partiel).
+from wama.common.utils.batch_views import (DEFAULT_RESET, apply_item_settings, make_batch_views,
+                                           read_settings_payload)
+from wama.transcriber.params import PARAMS_JSON as _SCHEMA
+
+#: Réglages d'un transcript écrits par la modale et le volet (schéma `params.py`) ; `temperature`
+#: et `max_tokens` sont hors schéma depuis leur retrait des réglages, gardés pour un client qui
+#: les posterait encore (JSON déjà typé).
+SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'enable_diarization',
+                   'generate_summary', 'summary_type', 'verify_coherence',
+                   'temperature', 'max_tokens')
+
+
+def _get_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def _task_for(t):
+    from .workers import transcribe, transcribe_without_preprocessing
+    return transcribe if t.preprocess_audio else transcribe_without_preprocessing
+
+
+def _reset_and_clear_progress(t):
+    _reset_for_relaunch(t)
+    cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
+
+
+def _label_of(t):
+    return t.filename if t.audio else ((t.source_url or '').split('/')[-1] or t.source_url)
+
+
+def _forget_transcript(t):
+    _cleanup_output_files(t, t.user_id)
+    cache.delete(f"transcriber_progress_{t.id}")
+
+
+_bv = make_batch_views(
+    work_model=Transcript, batch_model=BatchTranscript, get_user=_get_user,
+    task_for=_task_for,
+    file_fields=('audio',),
+    output_fields=('segments_json', 'key_points', 'action_items', 'coherence_score'),
+    params_fields=SETTINGS_FIELDS, schema=_SCHEMA,
+    item_model=BatchTranscriptItem, fk_name='transcript',
+    reset_on_start=_reset_and_clear_progress,
+    reset_on_duplicate={**DEFAULT_RESET, 'language': '', 'text': '', 'used_backend': '',
+                        'properties': '', 'duration_seconds': 0, 'duration_display': '',
+                        'summary': '', 'coherence_notes': '', 'coherence_suggestion': ''},
+    progress_of=lambda t: cache.get(f"transcriber_progress_{t.id}", t.progress or 0),
+    item_label=_label_of,
+    on_delete=_forget_transcript,
+)
+batch_start = _bv['batch_start']
+batch_update_settings = _bv['batch_update']      # nom de vue de l'URLconf (`batch/<pk>/update/`)
+batch_delete = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
+batch_status = _bv['batch_status']
+
+
 def _wrap_transcript_in_batch(transcript):
     """Wrap a standalone Transcript in a new BatchTranscript-of-1 (brique commune)."""
     from wama.common.utils.batch_common import wrap_in_batch
@@ -1379,13 +1445,13 @@ def batch_list(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batches = BatchTranscript.objects.filter(user=user).prefetch_related('items__transcript')
 
+    from wama.common.utils.batch_common import batch_elements
     data = []
     for batch in batches:
         counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-        for item in batch.items.all():
-            if item.transcript:
-                k = item.transcript.status.lower()
-                counts[k] = counts.get(k, 0) + 1
+        for t in batch_elements(batch, Transcript):     # lit le cache du prefetch, 0 requête
+            k = t.status.lower()
+            counts[k] = counts.get(k, 0) + 1
 
         total = batch.total
         if total > 0 and counts['success'] == total:
@@ -1408,81 +1474,6 @@ def batch_list(request):
     return JsonResponse({'batches': data})
 
 
-@require_POST
-def batch_start(request, pk):
-    """Start all PENDING transcripts in a batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
-
-    from .workers import transcribe, transcribe_without_preprocessing
-    from wama.common.utils.process_control import begin_processing
-
-    started = []
-    for item in batch.items.select_related('transcript').all():
-        t = item.transcript
-        if not t:
-            continue
-        # Anti-race par item + reset UNIFIÉ (avant 2026-07-06, batch_start ne purgeait
-        # ni texte ni segments → relance avec restes de l'ancienne transcription).
-        t, err = begin_processing(Transcript, t.pk, user=user, reset=_reset_for_relaunch)
-        if err:
-            continue
-        cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
-
-        if t.preprocess_audio:
-            task = transcribe.delay(t.id)
-        else:
-            task = transcribe_without_preprocessing.delay(t.id)
-
-        t.task_id = task.id
-        t.save(update_fields=['task_id'])
-        started.append(t.id)
-
-    return JsonResponse({'started': started, 'count': len(started)})
-
-
-def batch_status(request, pk):
-    """Return status of all items in a batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
-
-    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-    items_data = []
-
-    for item in batch.items.select_related('transcript').all():
-        t = item.transcript
-        if not t:
-            continue
-        key = t.status.lower()
-        counts[key] = counts.get(key, 0) + 1
-        p = int(cache.get(f"transcriber_progress_{t.id}", t.progress or 0))
-        fname = t.filename if t.audio else (t.source_url.split('/')[-1] or t.source_url)
-        items_data.append({
-            'id': t.id,
-            'filename': fname,
-            'status': t.status,
-            'progress': p,
-        })
-
-    total = batch.total
-    if total > 0 and counts['success'] == total:
-        status_str = 'SUCCESS'
-    elif counts['running'] > 0:
-        status_str = 'RUNNING'
-    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
-        status_str = 'FAILURE'
-    else:
-        status_str = 'PENDING'
-
-    return JsonResponse({
-        'batch_id': pk,
-        'status': status_str,
-        'total': total,
-        'counts': counts,
-        'items': items_data,
-    })
-
-
 def batch_download(request, pk):
     """Download a ZIP of all completed transcription results in a batch.
 
@@ -1495,11 +1486,11 @@ def batch_download(request, pk):
     if fmt not in ('txt', 'srt', 'pdf', 'docx'):
         fmt = 'txt'
 
+    from wama.common.utils.batch_common import batch_elements
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for item in batch.items.select_related('transcript').order_by('row_index'):
-            t = item.transcript
-            if t and t.status == 'SUCCESS' and t.text:
+        for t in batch_elements(batch, Transcript):     # brique : ordre des lignes garanti
+            if t.status == 'SUCCESS' and t.text:
                 stem = _output_stem(t) if t.audio else (
                     os.path.splitext(t.source_url.split('/')[-1])[0] or f'transcript_{t.id}'
                 )
@@ -1511,59 +1502,6 @@ def batch_download(request, pk):
     buffer.seek(0)
     zip_name = f"batch_transcriber_{pk}_{fmt}_{datetime.date.today()}.zip"
     return FileResponse(buffer, as_attachment=True, filename=zip_name)
-
-
-@require_POST
-def batch_delete(request, pk):
-    """Delete an entire batch: cascade-delete transcripts, clean up files."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
-
-    transcripts_to_delete = []
-    for item in batch.items.select_related('transcript').all():
-        t = item.transcript
-        if not t:
-            continue
-        if t.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(t.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-        transcripts_to_delete.append(t)
-
-    safe_delete_file(batch, 'batch_file')
-    batch.delete()  # CASCADE deletes BatchTranscriptItems (not Transcripts)
-
-    for t in transcripts_to_delete:
-        _cleanup_output_files(t, user.id)
-        safe_delete_file(t, 'audio')
-        cache.delete(f"transcriber_progress_{t.id}")
-        t.delete()
-
-    return JsonResponse({'success': True, 'batch_id': pk})
-
-
-@require_POST
-def batch_duplicate(request, pk):
-    """Duplicate an entire batch (shares source files, results cleared)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
-
-    new_batch = BatchTranscript.objects.create(user=user, total=batch.total)
-    for item in batch.items.select_related('transcript').order_by('row_index'):
-        t = item.transcript
-        if not t:
-            continue
-        new_t = duplicate_instance(t, reset_fields={
-            'status': 'PENDING', 'progress': 0, 'task_id': '',
-            'language': '', 'text': '', 'used_backend': '',
-            'properties': '', 'duration_seconds': 0, 'duration_display': '',
-            'summary': '', 'coherence_notes': '', 'coherence_suggestion': '',
-        }, clear_fields=['segments_json', 'key_points', 'action_items', 'coherence_score'])
-        BatchTranscriptItem.objects.create(batch=new_batch, transcript=new_t, row_index=item.row_index)
-
-    return JsonResponse({'success': True, 'batch_id': new_batch.id})
 
 
 @require_POST
@@ -1759,81 +1697,20 @@ def download_srt(request, pk: int):
     )
 
 
-def _apply_transcript_settings(t, data):
-    """Applique les paramètres (depuis la modale) à un Transcript (sans save)."""
-    if 'backend' in data:
-        t.backend = data['backend']
-    if 'hotwords' in data:
-        t.hotwords = data['hotwords']
-    if 'enable_diarization' in data:
-        t.enable_diarization = bool(data['enable_diarization'])
-    if 'temperature' in data:
-        t.temperature = float(data['temperature'])
-    if 'max_tokens' in data:
-        t.max_tokens = int(data['max_tokens'])
-    if 'preprocess_audio' in data:
-        t.preprocess_audio = bool(data['preprocess_audio'])
-    if 'generate_summary' in data:
-        t.generate_summary = bool(data['generate_summary'])
-    if 'summary_type' in data:
-        t.summary_type = data['summary_type']
-    if 'verify_coherence' in data:
-        t.verify_coherence = bool(data['verify_coherence'])
-
-
-@require_POST
-def batch_update_settings(request, pk: int):
-    """Applique les paramètres de la modale à TOUS les items non-RUNNING du batch.
-
-    Réutilise la même modale que les réglages individuels (mode batch côté JS).
-    Modèle override+héritage (conventions §9.9) : ici l'application batch écrase
-    les réglages de tous les éléments (application en masse).
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
-
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        data = {}
-
-    updated = 0
-    for item in batch.items.select_related('transcript'):
-        t = item.transcript
-        if not t or t.status == 'RUNNING':
-            continue
-        _apply_transcript_settings(t, data)
-        t.save()
-        updated += 1
-
-    return JsonResponse({'updated': updated, 'batch_id': batch.id})
-
-
 @require_POST
 def save_settings(request, pk: int):
-    """
-    Save transcript settings (backend, hotwords, etc.) before processing.
-
-    Expected JSON body:
-    {
-        "backend": "whisper" | "vibevoice" | "auto",
-        "hotwords": "term1, term2, ...",
-        "enable_diarization": true,
-        "temperature": 0.0,
-        "max_tokens": 32768
-    }
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    """Réglages d'UN transcript — même lecture (coercition par le schéma) et même affectation
+    que `batch_update_settings` de la fabrique : `read_settings_payload` + `apply_item_settings`.
+    L'ancien `_apply_transcript_settings` typait à la main (`bool`, `float`, `int`) ce que le
+    schéma déclare. Corps JSON attendu : backend, hotwords, enable_diarization, preprocess_audio,
+    generate_summary, summary_type, verify_coherence (clés absentes = inchangées)."""
+    user = _get_user(request)
     t = get_object_or_404(Transcript, pk=pk, user=user)
 
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        data = {}
-
-    # Update fields (logique partagée avec batch_update_settings)
-    _apply_transcript_settings(t, data)
-    t.save()
+    data = read_settings_payload(request, _SCHEMA, SETTINGS_FIELDS)
+    touched = apply_item_settings(t, data, params_fields=SETTINGS_FIELDS)
+    if touched:
+        t.save(update_fields=touched)
 
     return JsonResponse({
         'id': t.id,
