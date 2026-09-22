@@ -6,7 +6,7 @@ Gestion centralisée des assets réutilisables cross-apps.
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
-from wama.common.utils.media_paths import UploadToUserPath
+from wama.common.utils.media_paths import UploadToSystemAssetPath, UploadToUserPath
 from wama.common.utils.secret_crypto import EncryptedTextField
 
 User = get_user_model()
@@ -160,7 +160,9 @@ class SystemAsset(_AttributesMixin, models.Model):
 
     name       = models.CharField(max_length=200, unique=True)
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
-    file       = models.FileField(upload_to='media_library/system/')
+    # Rangé par NATURE (`media_library/system/<asset_type>/`) depuis le 2026-09-22 — décision de
+    # Fabien ; le chemin se compose en UN endroit (`media_paths.system_asset_relpath`).
+    file       = models.FileField(upload_to=UploadToSystemAssetPath())
     attributes = models.JSONField(default=dict, blank=True,
                                   help_text="Attributs déclarés par la nature (voir natures.py)")
     mime_type  = models.CharField(max_length=100, blank=True)

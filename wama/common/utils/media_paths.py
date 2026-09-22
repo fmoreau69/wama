@@ -289,6 +289,41 @@ class UploadToUserPath:
         )
 
 
+#: Racine des assets SYSTÈME de la médiathèque — sans propriétaire, gérés par les admins
+#: (`MEDIA_STORAGE_TIERING §8bis`). Rangés par NATURE depuis le 2026-09-22 (décision de Fabien,
+#: ligne D18 du §8.6) : ils étaient à plat, 9 avatars et 28 voix mêlés.
+SYSTEM_ASSET_ROOT = 'media_library/system'
+
+
+def system_asset_relpath(asset_type: str, filename: str) -> str:
+    """Chemin relatif (sous `MEDIA_ROOT`) d'un asset système : un sous-dossier par NATURE.
+
+    Par NATURE seulement — une voix ne devient pas un avatar, le chemin ne ment donc jamais.
+    Jamais par TAXONOMIE (langue, âge, genre vivent dans `attributes`, décision D3) ni par
+    VISIBILITÉ (mutable, décision D2) : le chemin ne porte que ce qui ne change pas.
+    C'est le SEUL endroit qui compose ce chemin — l'`upload_to` et la commande de rangement
+    (`organize_system_assets`) le lisent tous deux ici.
+    """
+    nature = ''.join(c for c in (asset_type or '').strip().lower() if c.isalnum() or c in '_-')
+    return f'{SYSTEM_ASSET_ROOT}/{nature or "other"}/{os.path.basename(filename)}'
+
+
+class UploadToSystemAssetPath:
+    """`upload_to` de `SystemAsset.file` — `media_library/system/<asset_type>/<fichier>`.
+
+    Classe appelable et DÉCONSTRUCTIBLE (sérialisable en migration), sur le patron
+    d'`UploadToUserPath` ci-dessus. Les collisions de nom sont laissées au stockage Django,
+    comme avant (l'ancien `upload_to` était une chaîne fixe).
+    """
+
+    def __call__(self, instance, filename):
+        return system_asset_relpath(getattr(instance, 'asset_type', ''), filename)
+
+    def deconstruct(self):
+        """Required for Django migrations serialization."""
+        return ('wama.common.utils.media_paths.UploadToSystemAssetPath', [], {})
+
+
 def upload_to_user_input(app_name: str):
     """
     Convenience function to create an UploadToUserPath for input folder.
