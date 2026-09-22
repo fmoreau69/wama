@@ -59,6 +59,8 @@
     <link href="{% static_v 'common/css/wama-share.css' %}" rel="stylesheet">
     {# Squelette commun des pages CATALOGUE (stats/hero/grille/cards) — voir wama-catalog.css #}
     <link href="{% static_v 'common/css/wama-catalog.css' %}" rel="stylesheet">
+    {# Assistant dans le volet droit (accordéon avatar + mini-chat) — voir common/_assistant_avatar.html #}
+    <link href="{% static_v 'common/css/wama-assistant-panel.css' %}" rel="stylesheet">
     <link rel="shortcut icon" type="image/png" href="{% static 'images/favicon.png' %}" >
 
     <!-- jstree CSS -->
@@ -368,8 +370,12 @@
     <script src="{% static_v 'common/js/media-picker.js' %}"></script>  {# MediaPicker global : import depuis la médiathèque dispo partout (brique commune) #}
     <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>  {# WamaModelHelp global : desc modèle (court/long+VRAM) sous les selects help_source (WamaParams) #}
     <script src="{% static_v 'common/js/wama-app-base.js' %}"></script>  {# WamaApp global : csrfFetch/getUrl/Poller/toast/maps statut (plomberie JS commune des apps) #}
-    {# WamaAvatarPanel global : avatar de l'assistant en tête du volet (préférence durable, chargement à la demande, repli) — APRÈS wama-app-base (csrfToken) #}
+    {# WamaAssistantVoice global : la voix de l'assistant (phrases, bouton 🔊/🔇/⏹) — AVANT le volet, qui la configure #}
+    <script src="{% static_v 'common/js/wama-assistant-voice.js' %}"></script>
+    {# WamaAvatarPanel global : accordéon Assistant du volet (préférence durable, chargement à la demande, repli) — APRÈS wama-app-base (csrfToken) #}
     <script src="{% static_v 'common/js/wama-avatar-panel.js' %}"></script>
+    {# WamaAssistantChat : mini-chat du volet, auto-monté sur #assistant-chat (absent de l'accueil) #}
+    <script src="{% static_v 'common/js/wama-assistant-chat.js' %}"></script>
     <script src="{% static_v 'common/js/wama-catalog-refresh.js' %}"></script>  {# actualisation des catalogues : la page ne declare que la CLE de son registre (common/registries.py) #}
     <script src="{% static_v 'common/js/wama-cycle-button.js' %}"></script>  {# WamaCycleButton global : bouton de cycle ▶/⏹/↻ (toujours vert, icône selon statut) #}
     <!-- WAMA Audio Waveform Player (Canvas + Web Audio — aucun CDN) -->

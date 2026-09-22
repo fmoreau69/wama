@@ -45,7 +45,11 @@ PARAMS = [
     # le MÊME chemin que le modèle et le curseur (`ai_chat_settings` → `user_settings`).
     Param(name='avatar', type='toggle', label="Avatar parlant", default=True, contexts=(),
           help="Afficher l'avatar 3D de l'assistant en tête du volet droit, sur toutes les pages."),
-    Param(name='avatar_collapsed', type='toggle', label="Avatar replié", default=False, contexts=()),
+    Param(name='avatar_collapsed', type='toggle', label="Assistant replié", default=False, contexts=()),
+    # La VOIX (vocalisation des réponses) — durable elle aussi depuis le 2026-09-22 : elle n'était
+    # qu'une clé de `localStorage` de l'accueil, et le mini-chat du volet (toutes les pages) doit
+    # parler pareil. Surface = le bouton 🔊/🔇/⏹ commun (`wama-assistant-voice.js`).
+    Param(name='voice', type='toggle', label="Voix de l'assistant", default=True, contexts=()),
 ]
 
 #: Défauts des réglages utilisateur — DÉRIVÉS du schéma (patron imager) : aucune seconde liste.

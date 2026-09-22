@@ -28,7 +28,7 @@
 (function (global) {
   'use strict';
 
-  var section = null, canvas = null, status = null, collapseBtn = null;
+  var section = null, canvas = null, status = null, body = null, collapseBtn = null;
   var config = {};
   var state = { enabled: false, collapsed: false };
   var loading = null;      // Promise du chargement du module — un seul chargement par page
@@ -81,14 +81,14 @@
   function render() {
     if (!section) return;
     section.style.display = state.enabled ? '' : 'none';
-    canvas.hidden = state.collapsed;
-    status.hidden = state.collapsed;
+    // L'accordéon replie TOUT le corps (avatar + mini-chat) d'un coup (Fabien, 22/09).
+    body.hidden = state.collapsed;
     var icon = collapseBtn.querySelector('i');
     if (icon) {
       icon.classList.toggle('fa-chevron-up', !state.collapsed);
       icon.classList.toggle('fa-chevron-down', state.collapsed);
     }
-    collapseBtn.title = state.collapsed ? 'Déplier l’avatar' : 'Replier l’avatar';
+    collapseBtn.title = state.collapsed ? 'Déplier l’assistant' : 'Replier l’assistant';
     if (state.enabled && !state.collapsed) loadWhenIdle();
   }
 
@@ -98,6 +98,7 @@
     if (!section) return false;
     canvas = document.getElementById('assistant-avatar');
     status = document.getElementById('avatar-status');
+    body = document.getElementById('assistant-body') || canvas;
     collapseBtn = document.getElementById('avatar-collapse');
     config = {
       moduleUrl: section.dataset.module,
@@ -107,6 +108,11 @@
     };
     state.enabled = section.dataset.enabled === '1';
     state.collapsed = section.dataset.collapsed === '1';
+    // La VOIX (brique commune) part du même réglage durable, rendu ici en data-*.
+    if (global.WamaAssistantVoice) {
+      global.WamaAssistantVoice.configure({ enabled: section.dataset.voice !== '0',
+                                            lang: config.lang, settingsUrl: config.settingsUrl });
+    }
     collapseBtn.addEventListener('click', function () { api.toggleCollapsed(); });
     render();
     return true;

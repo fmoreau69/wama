@@ -17,7 +17,8 @@ def volet_defaut(request):
 
 
 #: Ce que voit un visiteur sans compte : pas d'avatar (la vocalisation exige un compte).
-_AVATAR_ABSENT = {'available': False, 'enabled': False, 'collapsed': False}
+_AVATAR_ABSENT = {'available': False, 'enabled': False, 'collapsed': False, 'voice': False,
+                  'compact_chat': False}
 
 
 def assistant_avatar(request):
@@ -37,8 +38,14 @@ def assistant_avatar(request):
     try:
         from wama.common.services.assistant_engine import assistant_settings
         prefs = assistant_settings(user)
+        # Le mini-chat du volet (22/09) est rendu PARTOUT sauf sur l'accueil, qui porte le chat
+        # complet : deux chats sur la même page se disputeraient le même fil.
+        match = getattr(request, 'resolver_match', None)
+        on_home = bool(match and getattr(match, 'url_name', '') == 'home' and not match.namespace)
         return {'assistant_avatar': {'available': True,
                                      'enabled': bool(prefs.get('avatar', True)),
-                                     'collapsed': bool(prefs.get('avatar_collapsed', False))}}
+                                     'collapsed': bool(prefs.get('avatar_collapsed', False)),
+                                     'voice': bool(prefs.get('voice', True)),
+                                     'compact_chat': not on_home}}
     except Exception:
         return {'assistant_avatar': _AVATAR_ABSENT}

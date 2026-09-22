@@ -93,9 +93,10 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
 
       // ── Voice / TTS state ─────────────────────────────────────────────────
       const VOICE_LANG = '{{ preferred_language|default:"fr" }}';
-      const VOICE_KEY = 'wama_ai_voice_{{ request.user.username }}';
-      let voiceEnabled = localStorage.getItem(VOICE_KEY) === '1';
-      // (l'état de lecture vit désormais dans WamaApp.Speech — canal unique commun)
+      // La VOIX est la brique COMMUNE `WamaAssistantVoice` (base.html) depuis le 2026-09-22 :
+      // « activée / muet » est une préférence DURABLE (`assistant/params.py` : `voice`), plus
+      // une clé de localStorage — on efface l'ancienne, qui n'a plus de lecteur.
+      try { localStorage.removeItem('wama_ai_voice_{{ request.user.username }}'); } catch(e) {}
       const voiceToggleBtn = document.getElementById('ai-voice-toggle');
       const voiceSelect = document.getElementById('ai-voice-select');
       const micBtn = document.getElementById('ai-mic-btn');
@@ -157,116 +158,26 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
         });
       }
 
-      // ── Voice toggle UI ───────────────────────────────────────────────────
-      function updateVoiceToggleUI() {
-        if (voiceEnabled) {
-          voiceToggleBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-          voiceToggleBtn.title = 'Désactiver la vocalisation';
-          voiceToggleBtn.classList.remove('btn-outline-secondary');
-          voiceToggleBtn.classList.add('btn-outline-info');
-          voiceSelect.style.display = 'inline-block';
-        } else {
-          voiceToggleBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
-          voiceToggleBtn.title = 'Activer la vocalisation';
-          voiceToggleBtn.classList.remove('btn-outline-info');
-          voiceToggleBtn.classList.add('btn-outline-secondary');
-          voiceSelect.style.display = 'none';
-        }
-      }
-      voiceToggleBtn.addEventListener('click', function() {
-        voiceEnabled = !voiceEnabled;
-        localStorage.setItem(VOICE_KEY, voiceEnabled ? '1' : '0');
-        updateVoiceToggleUI();
+      // ── Voix : bouton commun 🔊/🔇/⏹ (arrête une lecture en cours, sinon muet/actif) ──
+      // L'état initial (préférence durable) et la langue viennent du volet (base.html) ; cette
+      // page n'ajoute que le CHOIX de la voix Kokoro, qu'elle est seule à proposer.
+      WamaAssistantVoice.configure({ voice: voiceSelect.value, lang: VOICE_LANG });
+      voiceSelect.addEventListener('change', function () {
+        WamaAssistantVoice.configure({ voice: voiceSelect.value });
       });
-      updateVoiceToggleUI();
+      WamaAssistantVoice.onChange(function (state) {
+        voiceSelect.style.display = state.enabled ? 'inline-block' : 'none';
+      });
+      WamaAssistantVoice.bindButton(voiceToggleBtn);
+      voiceSelect.style.display = WamaAssistantVoice.isEnabled() ? 'inline-block' : 'none';
 
-      // ── Strip markdown for TTS readability ────────────────────────────────
-      function stripMarkdownForTTS(text) {
-        return text
-          .replace(/```[\s\S]*?```/g, ' (bloc de code) ')
-          .replace(/`[^`]+`/g, '')
-          .replace(/\*\*(.+?)\*\*/g, '$1')
-          .replace(/\*(.+?)\*/g, '$1')
-          .replace(/#+\s+/g, '')
-          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-          .replace(/^\s*[-*>]\s+/gm, '')
-          .trim();
-      }
-
-      // ── TTS via Kokoro backend ────────────────────────────────────────────
-      // Canal de parole = brique commune WamaApp.Speech : un seul flux à la fois,
-      // et surtout les réponses des requêtes périmées sont jetées. Le code d'ici
-      // se contentait de couper la lecture en cours AVANT le fetch — or au 1er
-      // appel le modèle se charge (plusieurs secondes) : plusieurs clics sur 🔊
-      // partaient en parallèle et TOUTES les réponses se jouaient ensemble.
-      // ── Vocalisation PAR PHRASES (2026-09-22, latence — WAMA_LLM §1bis levier 4) ────
-      // Jusqu'ici la réponse ENTIÈRE partait au service TTS et rien ne se jouait avant que
-      // tout le WAV soit rendu : l'attente était proportionnelle à la longueur du texte. On
-      // découpe en phrases (regroupées pour ne pas hacher : ≥ 60 caractères), on synthétise la
-      // première, et PENDANT qu'elle se joue on demande la suivante. Le canal de parole commun
-      // garde son contrat : un seul tour à la fois, une réponse périmée est jetée.
-      const TTS_CHUNK_MIN_CHARS = 60;
-      function splitSentences(text) {
-        const parts = text.split(/(?<=[.!?…])\s+(?=\S)/);
-        const chunks = [];
-        let current = '';
-        for (const part of parts) {
-          current = current ? current + ' ' + part : part;
-          if (current.length >= TTS_CHUNK_MIN_CHARS) { chunks.push(current); current = ''; }
-        }
-        if (current) chunks.push(current);
-        return chunks;
-      }
-
-      async function fetchSpeech(text, signal) {
-        const resp = await fetch('/api/tts-kokoro/', {
-          method: 'POST',
-          signal: signal,
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-          body: JSON.stringify({ text: text, voice: voiceSelect.value })
-        });
-        const data = await resp.json();
-        if (!data.audio_b64) return null;
-        const binStr = atob(data.audio_b64);
-        const bytes = new Uint8Array(binStr.length);
-        for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-        return new Blob([bytes], { type: 'audio/wav' });
-      }
-
-      // Joue UN morceau et rend la main quand on peut enchaîner. Avatar prêt : IL joue l'audio
-      // (et anime la bouche) — TalkingHead met les morceaux en file, on peut donc lui confier
-      // le suivant sans attendre. Sinon le canal de parole commun joue, et on attend la fin :
-      // la voix n'est JAMAIS perdue, même si three.js/le GLB ont échoué à charger.
-      async function playSpeechChunk(blob, text, turn) {
-        if (window.WamaAvatar && WamaAvatar.estPret()) {
-          if (await WamaAvatar.speak(blob, text, VOICE_LANG)) return;
-        }
-        const audio = turn.play(blob);
-        if (!audio) return;
-        await new Promise(function (resolve) {
-          audio.addEventListener('ended', resolve);
-          audio.addEventListener('error', resolve);
-        });
-      }
-
-      async function speakText(text) {
-        const clean = stripMarkdownForTTS(text);
-        if (!clean) return;
-        const turn = WamaApp.Speech.claim();
-        if (window.WamaAvatar) WamaAvatar.stop();   // l'avatar coupe aussi sa parole en cours
-        const chunks = splitSentences(clean);
-        try {
-          let pending = fetchSpeech(chunks[0], turn.signal);
-          for (let i = 0; i < chunks.length; i++) {
-            const blob = await pending;
-            if (!turn.valid()) return;               // un clic plus récent a pris la main
-            if (i + 1 < chunks.length) pending = fetchSpeech(chunks[i + 1], turn.signal);
-            if (blob) await playSpeechChunk(blob, chunks[i], turn);
-            if (!turn.valid()) return;
-          }
-        } catch(e) {
-          if (e.name !== 'AbortError') console.error('Kokoro TTS error:', e);
-        }
+      // ── Vocalisation : brique COMMUNE `WamaAssistantVoice` (phrases, avatar, arrêt) ───
+      // Le nettoyage du Markdown, le découpage en phrases (la suivante demandée pendant la
+      // lecture), la lecture par l'avatar ou le canal commun vivaient ici ; le mini-chat du
+      // volet en avait besoin à l'identique — extraits le 2026-09-22. `force` = le bouton
+      // « Écouter » d'un message, qui lit même en muet.
+      function speakText(text, force) {
+        return WamaAssistantVoice.speak(text, { force: !!force });
       }
 
       // ── Avatar parlant : brique COMMUNE `WamaAvatarPanel` (base.html) ─────────
@@ -442,7 +353,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
           speakBtn.className = 'btn btn-sm btn-link text-secondary p-0 ms-1 align-top';
           speakBtn.title = 'Écouter';
           speakBtn.innerHTML = '<i class="fas fa-volume-up" style="font-size:0.8em;"></i>';
-          speakBtn.addEventListener('click', () => speakText(content));
+          speakBtn.addEventListener('click', () => speakText(content, true));
           messageDiv.appendChild(speakBtn);
         }
         return messageDiv;
@@ -462,8 +373,8 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
         if (placeholder) placeholder.remove();
         chatMessages.appendChild(renderMessage(content, isUser, isError, modelInfo));
         chatMessages.scrollTop = chatMessages.scrollHeight;
-        // Auto-play assistant response if voice is enabled
-        if (!isUser && !isError && voiceEnabled) {
+        // Lecture automatique de la réponse — si la voix est active (la brique le sait).
+        if (!isUser && !isError) {
           speakText(content);
         }
       }

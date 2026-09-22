@@ -264,9 +264,20 @@ comportement est la brique **`wama-avatar-panel.js`** : chargement à la demande
 rendu de la page (`requestIdleCallback`), **repliable** par le chevron (replié = rien n'est
 chargé), masquable par le bouton de l'assistant. `home.html` ne garde que la voix (`speakText`)
 et ce bouton. L'importmap three.js est devenue globale du même geste (une par document).
-Tenu par `tests_assistant_surfaces.AvatarPersistantTest`. ⚠ Il **parle** toujours depuis la
-seule surface qui a un texte à dire (l'accueil) : ailleurs il est présent et silencieux —
-c'est l'état attendu tant que l'assistant n'a pas de surface transversale (§9 ①).
+Tenu par `tests_assistant_surfaces.AvatarPersistantTest`. ~~⚠ Il **parle** toujours depuis la
+seule surface qui a un texte à dire (l'accueil) : ailleurs il est présent et silencieux.~~
+✅ **Le soir même (22/09, demande de Fabien) : l'assistant SE PARLE depuis toute page.**
+L'accordéon « Assistant » (le chevron replie **tout** d'un coup — préférence `avatar_collapsed`)
+contient l'avatar et, hors accueil, un **mini-chat** (`wama-assistant-chat.js`) : même fil `web`
+que l'accueil (`views.ai_chat_thread`, chargé à la demande), champ d'une ligne qui grandit
+jusqu'à quatre puis défile, fil borné à 180 px, et un **bouton voix unique** 🔊/🔇/⏹ (brique
+commune `wama-assistant-voice.js`, aussi câblé sur l'accueil) : pendant une lecture il
+l'**arrête**, sinon il coupe/rétablit la voix — préférence durable `voice`. **Aucun réglage
+dans le volet** : modèle, curseur et voix choisie se règlent sur l'accueil et valent partout
+(durables) ; le volet n'affiche qu'un rappel en lecture seule de l'étiquette du dernier tour.
+Sur l'accueil le partial ne rend que l'avatar (le chat complet est là). Cadrage mesuré : vue
+buste, caméra rapprochée et relevée, 200 px. Smoke Playwright 8/8 (envoi réel compris).
+Reste (§9 ①) : un seul chat — l'accueil devrait devenir la même brique en mode « complet ».
 ~~Et il s'ajoute au volet sans rien remplacer : les trois cadres inutiles restent
 sous lui.~~ ✅ **Corrigé le 22/08** : l'accueil déclare `tete=True` + les trois sections à
 `False` — le volet reste ouvert pour le seul avatar. C'est le cas d'usage qui a rendu la clé
