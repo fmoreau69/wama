@@ -32,6 +32,15 @@ PARAMS = [
              "les clés d'API que vous avez enregistrées.",
     ),
     Param(name='quality_intent', dom_id='ai-quality', contexts=('panel',), **intent_param()),
+    # L'AVATAR PARLANT est une préférence DURABLE de l'assistant (2026-09-22, demande de Fabien) :
+    # jusque-là « affiché / masqué » n'était qu'un état de la page d'accueil, perdu au premier
+    # changement de page. `contexts=()` : ces deux réglages ne sont rendus dans AUCUN panneau de
+    # paramètres — leur surface est le bouton de l'assistant et le chevron du volet droit
+    # (`wama-avatar-panel.js`) ; ils ne sont déclarés ici que pour être bornés et persistés par
+    # le MÊME chemin que le modèle et le curseur (`ai_chat_settings` → `user_settings`).
+    Param(name='avatar', type='toggle', label="Avatar parlant", default=True, contexts=(),
+          help="Afficher l'avatar 3D de l'assistant en tête du volet droit, sur toutes les pages."),
+    Param(name='avatar_collapsed', type='toggle', label="Avatar replié", default=False, contexts=()),
 ]
 
 #: Défauts des réglages utilisateur — DÉRIVÉS du schéma (patron imager) : aucune seconde liste.

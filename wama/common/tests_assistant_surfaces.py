@@ -190,6 +190,77 @@ class ChoixDuModeleTest(TestCase):
         self.assertEqual(100, assistant_settings(self.user)['quality_intent'])
 
 
+class AvatarPersistantTest(TestCase):
+    """L'avatar parlant est une PRÉFÉRENCE DURABLE de l'assistant (2026-09-22), activée par
+    défaut, mémorisée par le réglage commun, et son conteneur vit dans `base.html` : il est
+    présent sur toute page à volet, replié ou non, et non plus seulement sur l'accueil."""
+
+    SECTION = 'id="assistant-avatar-section"'
+    IMPORTMAP = '<script type="importmap">'
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('avatar_user', password='x')
+        self.client.force_login(self.user)
+
+    def _regler(self, **valeurs):
+        return self.client.post(reverse('ai_chat_settings'), data=json.dumps(valeurs),
+                                content_type='application/json')
+
+    def _reglages(self):
+        from wama.common.services.assistant_engine import assistant_settings
+        return assistant_settings(self.user)
+
+    def test_the_avatar_is_enabled_and_unfolded_by_default(self):
+        self.assertIs(True, self._reglages()['avatar'])
+        self.assertIs(False, self._reglages()['avatar_collapsed'])
+
+    def test_the_preference_is_stored_by_the_common_setting_route(self):
+        self.assertEqual(200, self._regler(avatar=False).status_code)
+        self.assertIs(False, self._reglages()['avatar'])
+        self.assertEqual(200, self._regler(avatar_collapsed=True).status_code)
+        self.assertIs(True, self._reglages()['avatar_collapsed'])
+        # Un réglage absent de la requête n'est PAS remis à zéro (contre-épreuve).
+        self.assertIs(False, self._reglages()['avatar'])
+        # Les graphies de formulaire valent un booléen.
+        self._regler(avatar='false')
+        self.assertIs(False, self._reglages()['avatar'])
+        self._regler(avatar='1')
+        self.assertIs(True, self._reglages()['avatar'])
+
+    def test_the_container_is_rendered_on_a_page_other_than_home(self):
+        html = self.client.get(reverse('accounts:profile')).content.decode()
+        self.assertIn(self.SECTION, html)
+        self.assertIn('data-enabled="1"', html)
+        self.assertIn('data-collapsed="0"', html)
+        self.assertIn('data-settings-url="' + reverse('ai_chat_settings') + '"', html)
+
+    def test_a_disabled_or_folded_preference_is_rendered_as_such(self):
+        self._regler(avatar=False, avatar_collapsed=True)
+        html = self.client.get(reverse('home')).content.decode()
+        self.assertIn('data-enabled="0"', html)
+        self.assertIn('data-collapsed="1"', html)
+
+    def test_without_an_account_there_is_no_avatar(self):
+        self.client.logout()
+        html = self.client.get(reverse('home')).content.decode()
+        self.assertNotIn(self.SECTION, html)
+
+    def test_the_importmap_is_emitted_once_per_page(self):
+        """Une seule importmap par document : elle est globale (base.html) depuis que l'avatar
+        l'est — les pages qui l'incluaient (accueil, médiathèque) ne doivent plus le faire."""
+        for url in (reverse('home'), reverse('accounts:profile'), reverse('media_library:index')):
+            html = self.client.get(url, follow=True).content.decode()
+            self.assertEqual(1, html.count(self.IMPORTMAP), url)
+            self.assertIn('wama-avatar-panel.js', html, url)
+
+    def test_the_avatar_settings_are_not_rendered_in_any_parameter_panel(self):
+        from wama.assistant.params import PARAMS_JSON
+        for p in PARAMS_JSON:
+            if p['name'] in ('avatar', 'avatar_collapsed'):
+                self.assertEqual([], list(p['contexts']), p['name'])
+                self.assertEqual('toggle', p['type'])
+
+
 class ChargementDeCompetenceTest(TestCase):
     """Le chargement AUTOMATIQUE d'une compétence — la boucle, pas seulement l'outil.
 
