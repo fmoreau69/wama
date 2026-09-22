@@ -96,6 +96,13 @@ class CheminDeLotTest(SimpleTestCase):
                        'copy_into_app_input'):
             self.assertIn(brique, corps, f'{brique} : la brique commune n\'est plus utilisée')
 
+    def test_a_copied_batch_line_records_its_provenance(self):
+        """Le lot généré était le dernier site de copie sans trace de provenance (instance
+        des tests de robustesse, 23/09, D20/D21) : après `copy_into_app_input`, la copie se
+        souvient de sa source par la brique `provenance.record_origin`."""
+        corps = _fonction(self.src, 'batch_create') or ''
+        self.assertIn('record_origin(rel, kind=kind_of(_rel_src), ref=_rel_src', corps)
+
     def test_le_gabarit_de_lot_publie_a_une_ligne_d_exemple_deposable(self):
         # Échec mesuré 30/08 : « le gabarit publié par l'app ne contient que des commentaires —
         # aucune ligne d'exemple à déposer ». L'exemple passe par la brique commune, avec une

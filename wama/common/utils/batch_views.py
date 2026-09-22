@@ -120,7 +120,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      row_field='batch_row_index', items_related='items',
                      batch_extra=None, reset_on_start=None, reset_on_duplicate=None,
                      zip_name=None, progress_of=None, item_label=None, on_delete=None,
-                     empty_is_value=(), task_for=None):
+                     empty_is_value=(), task_for=None, start_only_pending=False,
+                     after_update=None, item_extra=None, read_lookup=None):
     """Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
     'batch_duplicate', 'batch_download', 'batch_status'} (vues Django, `pk` = id du lot).
 
@@ -152,6 +153,18 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         task_for        : callable(élément)->tâche, quand la tâche dépend de l'élément
                           (transcriber : avec ou sans pré-traitement selon `preprocess_audio`) ;
                           prime sur `task`.
+        start_only_pending : False (défaut, idiome MESURÉ de describer/reader/transcriber/
+                          avatarizer) = ▶ de lot RELANCE tout ce qui ne tourne pas, échecs et
+                          succès compris (`begin_processing` refuse seul un RUNNING) ; True =
+                          ne lance que les PENDING (composer : « créer ≠ démarrer »).
+        after_update    : callable(élément)->liste de champs DÉRIVÉS touchés, appelé après
+                          `apply_item_settings` (avatarizer : `quality_mode` déduit de
+                          `use_enhancer`) — les champs rendus s'ajoutent au `save(update_fields)`.
+        item_extra      : callable(copie, original)->dict — champs de la LIGNE DE LIAISON créée à
+                          la duplication (composer : `output_filename` recopié de la ligne d'origine).
+        read_lookup     : callable(user, pk)->lot pour les vues de LECTURE (`batch_download`,
+                          `batch_status`) — avatarizer : `visible_or_404` (un lot PARTAGÉ se lit,
+                          ne s'édite pas) ; défaut = le lot de l'utilisateur.
     Les réponses portent `success: True` en plus de leurs compteurs : c'est ce que lisent les
     fronts des apps réelles (reader : `if (!r.ok || !data.success)`).
     """
@@ -184,6 +197,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def _batch(request, pk):
         return get_object_or_404(batch_model, pk=pk, user=get_user(request))
 
+    def _batch_read(request, pk):
+        if read_lookup is not None:
+            return read_lookup(get_user(request), pk)
+        return _batch(request, pk)
+
     @require_POST
     def batch_start(request, pk):
         user = get_user(request)
@@ -192,7 +210,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             return JsonResponse({'error': 'aucune tâche déclarée pour ce lot'}, status=400)
         started = []
         for item in batch_elements(b, work_model):
-            if getattr(item, 'status', '') != 'PENDING':
+            if start_only_pending and getattr(item, 'status', '') != 'PENDING':
                 continue
             locked, err = begin_processing(work_model, item.pk, user=user, reset=start_reset)
             if err:
@@ -213,6 +231,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                 continue
             touched = apply_item_settings(item, data, params_fields=params_fields,
                                           options_field=options_field, extra_names=extra_names)
+            if touched and after_update is not None:
+                touched = list(touched) + [f for f in (after_update(item) or ()) if f not in touched]
             if touched:
                 item.save(update_fields=touched)
                 updated += 1
@@ -245,7 +265,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         for item in batch_elements(src, work_model):
             new = duplicate_instance(instance=item, reset_fields=dup_reset,
                                      clear_fields=list(output_fields))
-            attach_to_batch(new, new_b, idx, **link_kwargs)
+            extra = item_extra(new, item) if item_extra is not None else None
+            attach_to_batch(new, new_b, idx, item_extra=extra or None, **link_kwargs)
             idx += 1
         new_b.total = idx
         new_b.save(update_fields=['total'])
@@ -253,7 +274,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
 
     @require_GET
     def batch_download(request, pk):
-        b = _batch(request, pk)
+        b = _batch_read(request, pk)
         if not any(f.name == output_field for f in work_model._meta.get_fields()):
             return JsonResponse({'error': 'aucune sortie fichier pour ce lot'}, status=404)
         buf = io.BytesIO()
@@ -263,7 +284,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                 if getattr(item, 'status', '') == 'SUCCESS' and out:
                     z.writestr(Path(out.name).name, out.read())
         buf.seek(0)
-        name = zip_name or f"{batch_model._meta.app_label}_batch_{b.id}.zip"
+        name = (zip_name(b) if callable(zip_name) else zip_name) or \
+            f"{batch_model._meta.app_label}_batch_{b.id}.zip"
         return FileResponse(buf, as_attachment=True, filename=name)
 
     @require_GET
@@ -273,7 +295,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         {success, running, pending, failure}, `items` [{id, filename, status, progress, error}],
         `status` global (SUCCESS si tout a réussi ; RUNNING si un tourne ; FAILURE si plus rien
         n'attend et qu'un a échoué ; PENDING sinon)."""
-        b = _batch(request, pk)
+        b = _batch_read(request, pk)
         items = batch_elements(b, work_model)
         counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
         rows = []

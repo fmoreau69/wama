@@ -67,6 +67,50 @@ def _reset_for_relaunch(gen):
     gen.exported_to_library = False
 
 
+# ── Les vues de lot du composer : fabrique COMMUNE (`batch_views.make_batch_views`, portage
+# 2026-09-23, 5ᵉ app réelle — ROUTE §11 #36). Spécificités DÉCLARÉES en kwargs : ▶ de lot ne
+# lance QUE les PENDING (« créer ≠ démarrer », contrat WamaBatchImport) et garde `@app_access` ;
+# `task_id` nullable ; `exported_to_library` remis à False ; la ligne de liaison de la copie
+# reprend l'`output_filename` de l'original (`item_extra`), le lot copié partage le fichier de
+# lot (`batch_extra`) ; cache de progression purgé à la suppression. Restent LOCAUX, écarts
+# assumés (`batch_views_common` = partiel) : `batch_update` (validation du modèle contre le
+# catalogue + `generation_type` dérivé + curseur) et `batch_download` (nom d'archive = celui de
+# la ligne de liaison) — tous deux lisent le lot par `batch_elements`.
+from wama.common.utils.batch_views import make_batch_views
+
+
+def _get_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def _task_for(gen):
+    from .tasks import compose_task
+    return compose_task
+
+
+def _copy_link_extra(new_gen, old_gen):
+    link = getattr(old_gen, 'batch_item', None)
+    name = getattr(link, 'output_filename', '') if link is not None else ''
+    return {'output_filename': name or _batch_item_extra(new_gen)['output_filename']}
+
+
+_bv = make_batch_views(
+    work_model=ComposerGeneration, batch_model=ComposerBatch, get_user=_get_user,
+    task_for=_task_for, start_only_pending=True,
+    file_fields=('melody_reference', 'audio_output'), output_fields=('audio_output',),
+    item_model=ComposerBatchItem, fk_name='generation',
+    reset_on_start=_reset_for_relaunch,
+    reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': None,
+                        'error_message': '', 'exported_to_library': False},
+    item_extra=_copy_link_extra,
+    batch_extra=lambda lot: {'batch_file': lot.batch_file.name} if lot.batch_file else {},
+    on_delete=lambda gen: cache.delete(f'composer_progress_{gen.id}'),
+)
+batch_start = app_access('composer')(_bv['batch_start'])
+batch_delete = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
+
+
 def _decorate_generation(g):
     """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips."""
     from wama.common.utils.card_chips import chips_by_section
@@ -302,33 +346,6 @@ def batch_preview(request):
 
     items = [{'filename': t['output_filename'], 'path': t['prompt']} for t in tasks]
     return JsonResponse({'count': len(items), 'items': items, 'warnings': warnings})
-
-
-@require_POST
-@app_access('composer')
-def batch_start(request, pk):
-    """Lance toutes les générations EN ATTENTE d'un batch (contrat WamaBatchImport :
-    créer ≠ démarrer ; appelé par afterCreate quand « Créer et lancer »)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
-
-    from .tasks import compose_task
-    from wama.common.utils.process_control import begin_processing
-    started = []
-    for item in batch.items.select_related('generation').order_by('row_index'):
-        gen = item.generation
-        if not gen or gen.status != 'PENDING':
-            continue
-        # Anti-race par item (brique commune) : un double-clic ne double-lance plus.
-        gen, err = begin_processing(ComposerGeneration, gen.pk, user=user,
-                                    reset=_reset_for_relaunch)
-        if err:
-            continue
-        celery_task = compose_task.apply_async(args=(gen.id,))
-        gen.task_id = celery_task.id
-        gen.save(update_fields=['task_id'])
-        started.append(gen.id)
-    return JsonResponse({'success': True, 'started': started, 'count': len(started)})
 
 
 @require_POST
@@ -635,23 +652,6 @@ def delete(request, pk):
 # Batch delete
 # ---------------------------------------------------------------------------
 
-@require_POST
-def batch_delete(request, pk):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
-
-    for item in batch.items.select_related('generation'):
-        gen = item.generation
-        safe_delete_file(gen, 'audio_output')
-        if gen.melody_reference:
-            safe_delete_file(gen, 'melody_reference')
-
-    safe_delete_file(batch, 'batch_file')
-
-    batch.delete()  # cascades to items and generations
-    return JsonResponse({'success': True})
-
-
 # ---------------------------------------------------------------------------
 # Export to media library — RETIRÉ (2026-09-18, décision Fabien ; `REMOVAL_LEDGER R64`)
 # ---------------------------------------------------------------------------
@@ -717,10 +717,10 @@ def batch_update(request, pk):
     duration = request.POST.get('duration')
     output_format = request.POST.get('output_format')
     output_quality = request.POST.get('output_quality')
+    from wama.common.utils.batch_common import batch_elements
     updated = 0
-    for item in batch.items.select_related('generation'):
-        g = item.generation
-        if not g or g.status == 'RUNNING':
+    for g in batch_elements(batch, ComposerGeneration):     # brique : ordre des lignes garanti
+        if g.status == 'RUNNING':
             continue
         if model and (model in COMPOSER_MODELS or model in AUTO_MODELS):
             g.model = model
@@ -741,40 +741,6 @@ def batch_update(request, pk):
     return JsonResponse({'success': True, 'updated': updated})
 
 
-@require_POST
-def batch_duplicate(request, pk):
-    """Duplicate a batch with all its items, sharing source files."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
-
-    new_batch = ComposerBatch(user=user, total=batch.total)
-    if batch.batch_file and batch.batch_file.name:
-        new_batch.batch_file = batch.batch_file.name
-    new_batch.save()
-
-    for item in batch.items.select_related('generation').order_by('row_index'):
-        gen = item.generation
-        if not gen:
-            continue
-        new_gen = duplicate_instance(
-            gen,
-            reset_fields={
-                'status': 'PENDING', 'progress': 0,
-                'task_id': None, 'error_message': '',
-                'exported_to_library': False,
-            },
-            clear_fields=['audio_output'],
-        )
-        ComposerBatchItem.objects.create(
-            batch=new_batch,
-            generation=new_gen,
-            output_filename=item.output_filename,
-            row_index=item.row_index,
-        )
-
-    return JsonResponse({'success': True, 'id': new_batch.id})
-
-
 def batch_download(request, pk):
     """Download a ZIP of all completed audio outputs in a batch (mono-format WAV).
 
@@ -787,13 +753,15 @@ def batch_download(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batch = get_object_or_404(ComposerBatch, id=pk, user=user)
 
+    from wama.common.utils.batch_common import batch_elements
     buffer = _io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for item in batch.items.select_related('generation').order_by('row_index'):
-            gen = item.generation
-            if gen and gen.status == 'SUCCESS' and gen.audio_output:
+        for gen in batch_elements(batch, ComposerGeneration):     # brique : ordre des lignes
+            if gen.status == 'SUCCESS' and gen.audio_output:
                 try:
-                    arcname = item.output_filename or os.path.basename(gen.audio_output.name)
+                    link = getattr(gen, 'batch_item', None)
+                    arcname = (getattr(link, 'output_filename', '') if link is not None else '') \
+                        or os.path.basename(gen.audio_output.name)
                     zf.write(gen.audio_output.path, arcname)
                 except Exception:
                     continue

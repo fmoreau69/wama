@@ -16375,3 +16375,26 @@ identifiants viennent du WIP non commité d'autres instances (`anonymizer/views.
 
 🔚 **Suivant** : synthesizer, avatarizer, composer, anonymizer, converter (forme directe), enhancer (deux
 files → deux fabriques), imager (ses routes prennent `batch_id`, pas `pk` → portage des routes d'abord).
+
+## §PALIER — 2026-09-23, « `make_batch_views` : avatarizer et composer portés (5/10) ; le ▶ de lot RELANCE » — ✅ LIVRÉ
+
+**Une correction de la fabrique avant de porter** : ▶ de lot ne lançait que les PENDING (mon premier jet) ;
+l'idiome MESURÉ (describer, reader, transcriber, avatarizer) relance tout ce qui ne tourne pas — échecs et
+succès compris, `begin_processing` refusant seul un RUNNING. Défaut de la fabrique recalé, `start_only_pending`
+pour le composer (« créer ≠ démarrer ») ; les trois apps portées la veille en héritent (elles ne relançaient
+plus un échec depuis mon portage — vu en relisant l'avatarizer, pas par un test : test ajouté).
+Trois autres hooks nés du réel : `after_update` (avatarizer, `quality_mode` dérivé), `item_extra(copie,
+original)` (composer, `output_filename` de la ligne de liaison), `read_lookup` (avatarizer, lot PARTAGÉ
+téléchargeable par `visible_or_404`) ; `zip_name` accepte un callable.
+
+**Avatarizer** : cinq vues par la fabrique (réglages = schéma + héritage pipeline `mode`/`tts_model`/
+`language`/`voice_preset`, tâche importée paresseusement, trois champs fichier, MP4 servi) — plus aucune
+lecture de lot locale : 86/93, `batch_views_common` VRAI. **Composer** : start/delete/duplicate par la
+fabrique ; `batch_update` et `batch_download` restent locaux (assumés), lus par `batch_elements` : 89/97.
+Générateur : `record_origin` après la copie d'une ligne de lot (demande de l'instance 2c, D20/D21).
+Grille **870/935**. Tests : brique 20 ; avatarizer + composer + contrats + adresses : 61 OK.
+
+🔚 **Suivant** : enhancer (deux files → deux fabriques), imager (porter ses routes `<int:batch_id>` sur
+`<int:pk>` d'abord), puis synthesizer / anonymizer / converter dès que leurs `views.py` ne sont plus en WIP
+chez une autre instance ; re-substituer `views` sur les 4 jumelles (provenance) ; un critère par vue.
+⚠ Budget de langue toujours dépassé sur l'arbre par du WIP d'autres instances (voir palier précédent).
