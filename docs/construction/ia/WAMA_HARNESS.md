@@ -696,6 +696,36 @@ de sa doc), c'est une passe `/cartographie` à part entière, avec son corpus d�
 | **dépend de** | rien. C'est le seul chantier qui peut commencer aujourd'hui |
 | **ne pas faire** | le déchargement vers fichier façon *deepagents* : il suppose un espace de travail par conversation, donc une décision de stockage. **Borner d'abord, décharger peut-être jamais** |
 
+**Mesures du 2026-09-22 (base réelle, compte admin, lecture seule) — elles RÉDUISENT la justification
+de départ, et c'est à savoir avant de commencer :**
+
+- **Le débordement n'est PAS un problème aujourd'hui.** Fenêtres du parc installé : 262 144 jetons
+  (`qwen3.6:35b`, `qwen3.8`, `qwen3.5:4b`, `gemma4:12b`) → budget calculé `context_length × 4 × 0,6`
+  = **629 145 caractères** ; 131 072 pour `gemma4:e4b`. C'est un bug LATENT (petite fenêtre : cloud,
+  futur modèle local), pas un incident.
+- **Le coût réel est ailleurs** : `messages` s'accumule et **chaque itération renvoie tout le passé**
+  (`_llm_call(messages…)` dans la boucle, ajouts juste après). Tailles mesurées d'un résultat
+  d'outil : `get_item_detail` sur une transcription **61 642** et 26 442 caractères (médiane de tous
+  les détails : **480**) ; `list_my_items` 14 429 ; `list_ai_models` 14 099 ; `list_registries` 5 980.
+- **Cible précise** : les outils de LISTE se bornent déjà (`list_my_items` a `limite` 1-100 et rend
+  `total`/`returned` ; `list_ai_models` a `limit=50`). Le non borné est le **détail d'un item**.
+
+**Cinq choix — RECOMMANDÉS, pas encore validés par Fabien** (une session qui reprend les pose d'abord) :
+
+| choix | recommandation | pourquoi |
+|---|---|---|
+| valeur et domicile du budget | **8 000 caractères**, une constante nommée dans `assistant_engine` | s'aligne sur la famille existante (`llm_utils` tronque à 8000 ×2, `read_web_page(max_chars=8000)`, `web_search.DEFAULT_MAX_CHARS=12_000`) |
+| local seul ou cloud aussi | **les deux** | le cloud a de grandes fenêtres mais se paie au jeton — c'est là que la borne rapporte le plus |
+| la trace garde-t-elle le résultat complet | **oui** : on borne ce qui part au MODÈLE, jamais `tool_steps` | c'est la trace d'audit et la matière du chantier 3 ; contrepartie : un tour peut stocker ~60 ko de JSON |
+| borner aussi à l'outil | **oui, mais séparément** (deux commits) | la borne de boucle est un FILET pour tout outil futur ; `get_item_detail` mériterait une coupe intelligente (début + fin d'une transcription) |
+| dernière itération | ne pas y toucher dans ce chantier — mais la fin de boucle rend `messages[-2]` (le texte du modèle, pas une réponse construite) : comportement surprenant, signalé | hors périmètre |
+
+Tests prévus (dans `wama/common/tests_assistant_surfaces.py`, qui a déjà l'idiome `mock.patch`) :
+faux outil de 200 ko → le message injecté tient dans le budget ET dit qu'il est tronqué ; un résultat
+de 480 caractères passe **octet pour octet** (contre-épreuve) ; sur un tour à 3 appels d'outil, la
+bascule est appelée **3 fois**, en local et sur un chemin cloud. Ampleur : ~40 lignes, un fichier,
+aucune migration, aucun changement de contrat de surface.
+
 ### Chantier 2 — La marque d'ÉCRITURE, et l'approbation qu'elle déclenche *(écart 1b)*
 
 | | |

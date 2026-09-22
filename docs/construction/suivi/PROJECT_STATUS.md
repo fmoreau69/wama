@@ -16128,3 +16128,31 @@ moment — détail dans la mémoire « secrets ».
    chargement concurrent les atteste (`§PALIER 2026-09-20 « GOUVERNEUR B1 »`) ;
 7. les **validations navigateur** qui demandaient un LLM ou un modèle chargé (canaux conversationnels, smoke
    des apps génératives).
+
+## §PARTITION — 2026-09-22, « TESTS DE ROBUSTESSE » (instance en cours) — à lire par toute session lancée en parallèle
+
+> Déclarée parce que Fabien lance une session de PORTAGE en parallèle (AGENTS.md : *la partition se
+> déclare dans le handoff*). Deux instances ne touchent jamais le même fichier.
+
+**Cette instance possède** : les NOUVEAUX modules `wama/common/tests_*.py` qu'elle crée, et
+`wama/common/tests_queue_delete_contract.py`, `wama/common/tests_media_paths.py`,
+`wama/common/utils/queue_duplication.py`, `wama/common/management/commands/check_media_integrity.py`,
+`wama/common/utils/retention.py`, `docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §8.6`
+(lignes D13-D19 et suivantes).
+
+**Son plan** (détail et raisons : `MEDIA_STORAGE_TIERING §8.6`, fin de D16) — des contrats GÉNÉRIQUES,
+aucune app nommée : **C** chaque adresse de chaque app répond sans 500 (738 adresses) · **E** intégrité
+des médias sous budget (29 « référencés mais absents », ne peut que baisser) · **F** relancer une card ne
+détruit ni une entrée référencée ni le fichier d'une copie · **G** la purge suit la règle de suppression ·
+**H** « Dupliquer » partage l'entrée et vide la sortie · **I** les `upload_to` en chaîne fixe mesurés.
+**D** (déplacer/supprimer depuis le gestionnaire un fichier que des cards désignent) attend une
+DÉCISION de Fabien.
+
+⚠ **Les VUES d'app ne sont PAS à cette instance.** Si un test révèle un défaut dans une app, elle le
+corrige SEULEMENT si l'app n'est pas en cours de portage ; sinon elle le TRANSMET à l'instance de portage
+(message inter-sessions) avec le test qui l'attrape — jamais d'édition croisée.
+
+**Pour une session qui reprend le chantier 1 du harnais** (borner les résultats d'outil de l'assistant) :
+la spécification MESURÉE est dans `docs/construction/ia/WAMA_HARNESS.md §9 Chantier 1` (5 choix
+recommandés, NON validés) ; fichiers `wama/common/services/assistant_engine.py` +
+`wama/common/tests_assistant_surfaces.py` — disjoints de cette instance.
