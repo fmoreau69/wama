@@ -47,6 +47,11 @@ logger = logging.getLogger(__name__)
 #: Score coding minimal au banc tiers (`family_scores['coding']`) pour compter comme modèle de dev.
 DEV_CODING_FLOOR = 40.0
 #: Modèles SANS score coding admis par DÉCLARATION (Fabien, 22/09). Vide dès qu'ils sont mesurés.
+#: ⚠ Pour gpt-oss-120b ce n'est PAS une resynchronisation qui manque (mesuré le 22/09 en
+#: dry-run) : le lecteur d'identité du banc exige « famille + version » et ce nom n'a pas de
+#: numéro de version (identité None → « sans identité lisible »), et aucune des deux sources
+#: chargées (882 entrées AA, 670 Arena) ne porte d'entrée gpt-oss. Il faudrait un ALIAS de
+#: `benchmark_sync` ET une source qui le liste — d'ici là, la déclaration fait foi.
 DEV_UNSCORED_ALLOWED = ('albert:gpt-oss-120b',)
 #: Curseur imposé au travail sur le code : « Qualité », réflexion comprise.
 DEV_QUALITY_INTENT = 100

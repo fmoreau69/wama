@@ -408,6 +408,22 @@ possibles, de façon globale à wama-dev-ai, peut-être Albert avec gpt-oss »).
   wama-dev-ai** (`role_utils.resolve_model` : la chaîne de `config.py` finissait sur
   `fast`/`ultra_fast` dès que la VRAM manquait — plus de repli, une erreur qui dit pourquoi).
 - Tenu par `tests_development_models` (plancher, remplacement, souverain, bascule, fil, refus).
+- ⚠ gpt-oss-120b et le banc : mesuré le 22/09 (dry-run de `sync_benchmarks`), ce n'est pas une
+  resynchronisation qui manque — le lecteur d'identité exige « famille + version » (aucune
+  version dans ce nom → « sans identité lisible ») et aucune des deux sources chargées (882
+  entrées AA, 670 Arena) ne le liste. La déclaration `DEV_UNSCORED_ALLOWED` fait foi.
+
+**Le curseur de l'assistant vaut pour les tâches qu'il lance — ✅ câblé le 22/09** (idée de
+Fabien : « l'utilisateur règle une fois le curseur et demande ses tâches à l'assistant, qui
+applique le niveau demandé, en le rendant explicite »). `tool_api.relay_quality_intent`, appelé
+par la boucle de l'assistant après tout outil `add_to_<app>` : l'élément créé reçoit
+`quality_intent` du réglage de l'assistant, et le résultat porte `quality_intent` +
+`quality_level` (palier), que la règle du prompt fait DIRE au modèle (« niveau Équilibré (55) »).
+Frontière voulue (Fabien) : **seulement les apps dont le champ s'appelle `quality_intent`** —
+l'anonymizer (`precision_level`, ses paliers) n'est pas relayé, et les apps sans champ le
+recevront à leur portage. L'aide du curseur de l'assistant le dit aussi. Le studio et l'API
+d'outils ne sont pas concernés (la boucle de l'assistant seule relaie). Tenu par
+`tests_quality_relay`.
 
 ⏳ **Ce qui manque pour « une page d'édition en bac à sable avec
 un guide de conception et d'intégration »** — trois décisions avant d'écrire :
