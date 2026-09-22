@@ -607,3 +607,32 @@ class DownloadCommandExitTest(SimpleTestCase):
                     patch(self.CMD + '.exit_skipping_native_teardown') as leave:
                 command.handle(force=False, names=['default'])
             leave.assert_called_once_with(code)
+
+
+class VoiceGroupKeysTest(TestCase):
+    """Chaque groupe de voix porte une CLÉ stable, et « Mes voix » est toujours émis.
+
+    La clé devient `data-group-key` sur l'`<optgroup>` (WamaParams, 22/09) : c'est par elle
+    qu'un JS d'app retrouve un groupe, plus par un `id` écrit à la main dans un gabarit.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_user('voice_groups_user', password='x')
+
+    def _groups(self):
+        from wama.common.utils.voice_options import get_voice_groups
+        return get_voice_groups(self.user)
+
+    def test_every_group_carries_a_stable_key(self):
+        keys = [g.get('key') for g in self._groups()]
+        self.assertNotIn(None, keys, "un groupe sans clé est introuvable pour le JS d'app")
+        self.assertEqual(['default', 'mine', 'bark'], [k for k in keys if k != 'reference'])
+
+    def test_the_own_voices_group_is_emitted_even_when_empty(self):
+        """Sans voix clonée, le groupe doit EXISTER : son absence ferait recréer par le JS un
+        groupe au libellé et à la place différents (mesuré le 22/09)."""
+        groups = {g['key']: g for g in self._groups()}
+        self.assertIn('mine', groups)
+        self.assertEqual([], groups['mine']['options'])
+        self.assertNotIn('shared', groups, "un groupe de voix partagées vide ne se montre pas")
