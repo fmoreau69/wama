@@ -874,64 +874,11 @@ def clear_all(request):
     user = _user(request)
     return JsonResponse({{'lines': get_console_lines(user.id, app='{app}')}})'''
 
-    vues['batch_start'] = f'''@require_POST
-def batch_start(request, pk):
-    user = _user(request)
-    b = get_object_or_404({batch}, pk=pk, user=user)
-    started = []
-    for item in batch_elements(b, {item}):
-        if item.status != 'PENDING':
-            continue
-        item.status = 'RUNNING'
-        item.save(update_fields=['status'])
-        t = {task}.delay(item.id)
-        item.task_id = t.id
-        item.save(update_fields=['task_id'])
-        started.append(item.id)
-    return JsonResponse({{'started': started}})'''
-
-    def maj_champs(ind):
-        """Affectation des `params_fields` DÉCLARÉS (+ conteneur JSON dérivé), à l'indentation demandée."""
-        p = ' ' * ind
-        lignes = [f'''{p}if '{c}' in donnees:
-{p}    setattr(item, '{c}', donnees['{c}'])
-{p}    touches.append('{c}')''' for c in d['params_fields']]
-        if conteneur_options:
-            lignes.append(f'''{p}_extras = {{k: donnees[k] for k in {hors_colonnes!r} if k in donnees}}
-{p}if _extras:
-{p}    _opts = dict(item.{conteneur_options} or {{}})
-{p}    _opts.update(_extras)
-{p}    item.{conteneur_options} = _opts
-{p}    touches.append('{conteneur_options}')''')
-        return '\n'.join(lignes)
-
-    lect_donnees = f'''    try:
-        donnees = json.loads(request.body) if request.body else dict(request.POST)
-    except Exception:
-        donnees = dict(request.POST)
-    donnees = {{k: (v[0] if isinstance(v, list) else v) for k, v in donnees.items()}}
-    # ⚠ COERCER selon le schéma AVANT tout setattr (défaut VÉCU le 02/09, 2ᵉ site du même
-    # piège que la cascade du dépôt) : le FormData d'une modale poste TOUTES ses valeurs,
-    # VIDES comprises — appliquer '' sur une colonne Integer plante au save (int('') →
-    # 500)... et SEULEMENT depuis un vrai navigateur : le client de test Django poste en
-    # urlencoded, le défaut lui est invisible (même angle mort que ids_from_request, queue_manipulation).
-    # `coerce_schema_values` type ('640'→640, 'true'→True) et FAIT DISPARAÎTRE les vides —
-    # la sémantique voulue : un champ vide veut dire « ne pas toucher », jamais « effacer ».
-    try:
-        from .params import {schema_symbole} as _sch
-        from wama.common.utils.param_schema import coerce_schema_values
-        donnees = {{**{{k: v for k, v in donnees.items()}},
-                   **coerce_schema_values(_sch, donnees)}}
-        donnees = {{k: v for k, v in donnees.items()
-                   if not (v == '' and k in {_noms_schema!r})}}
-    except Exception:
-        pass  # schéma indisponible : les données brutes restent (comportement d'avant)'''
-
-    # ÉDITION D'UN ÉLÉMENT — l'idiome existait déjà, un cran plus haut (`batch_update`) : mêmes
-    # `params_fields`, même lecture de corps, même garde RUNNING. Seul le niveau changeait, et
-    # l'élément était bouché en 501. C'est ce 501 qui rendait le ⚙ des cards inerte : la brique
-    # commune (`WamaQueueActions.onSettings` + `WamaParams.settingsModal`) n'avait pas d'URL
-    # d'enregistrement à viser. *Un gabarit qui sait faire N n'a aucune raison de boucher 1.*
+    # ÉDITION D'UN ÉLÉMENT — même lecture de corps et même affectation que les vues de LOT :
+    # les deux passent par la brique `batch_views` (`read_settings_payload` coerce selon le
+    # schéma et retire les vides ; `apply_item_settings` pose colonnes déclarées + conteneur
+    # JSON des hors-colonnes, idiome `params_storage`). Jusqu'au 22/09 ces deux idiomes étaient
+    # ÉMIS ici (une vingtaine de lignes par vue) ; la fabrique de lot les a absorbés.
     # Deux noms pour une seule vue : le converter route `update/` vers `views.update_job`.
     def corps_update(nom):
         return f'''@require_POST
@@ -940,9 +887,9 @@ def {nom}(request, pk):
     item = get_object_or_404({item}, pk=pk, user=user)
     if item.status == 'RUNNING':
         return JsonResponse({{'error': 'Impossible de modifier un élément en cours'}}, status=400)
-{lect_donnees}
-    touches = []
-{maj_champs(4)}
+    donnees = read_settings_payload(request, _SCHEMA, {_noms_schema!r})
+    touches = apply_item_settings(item, donnees, params_fields={d['params_fields']!r},
+                                  options_field={conteneur_options!r}, extra_names={hors_colonnes!r})
     if touches:
         item.save(update_fields=touches)
     return JsonResponse({{'success': True, 'id': item.id, 'updated': touches}})'''
@@ -950,69 +897,9 @@ def {nom}(request, pk):
     for _nom in route_variants('update'):
         vues[_nom] = corps_update(_nom)
 
-    maj = maj_champs(8)
-    vues['batch_update'] = f'''@require_POST
-def batch_update(request, pk):
-    user = _user(request)
-    b = get_object_or_404({batch}, pk=pk, user=user)
-{lect_donnees}
-    updated = 0
-    for item in batch_elements(b, {item}):
-        if item.status == 'RUNNING':
-            continue
-        touches = []
-{maj}
-        if touches:
-            item.save(update_fields=touches)
-            updated += 1
-    return JsonResponse({{'updated': updated}})'''
-
-    vues['batch_delete'] = f'''@require_POST
-def batch_delete(request, pk):
-    user = _user(request)
-    b = get_object_or_404({batch}, pk=pk, user=user)
-    for item in batch_elements(b, {item}):
-        for _champ in {champs_fichiers!r}:
-            safe_delete_file(item, _champ)
-        item.delete()
-    # Le lot VIDÉ est purgé par le signal `batch_sync` (branché par l'AppConfig générée) au
-    # dernier `item.delete()` — `b.delete()` sur l'instance encore en mémoire relevait alors une
-    # ligne disparue (500, mesuré sur `converter_01` par le contrat générique de suppression,
-    # 22/09 — même leçon que la vue `delete`, un cran plus haut). Ne reste à purger qu'un lot
-    # qui n'avait AUCUN élément : par requête, jamais par l'instance.
-    {batch}.objects.filter(pk=b.pk, {items_related}__isnull=True).delete()
-    return JsonResponse({{'deleted': True}})'''
-
-    extra_kw = (f", {d['batch_extra']}=src.{d['batch_extra']}" if d['batch_extra'] else '')
-    vues['batch_duplicate'] = f'''@require_POST
-def batch_duplicate(request, pk):
-    user = _user(request)
-    src = get_object_or_404({batch}, pk=pk, user=user)
-    new_b = {batch}.objects.create(user=user, total=0{extra_kw})
-    idx = 0
-    for item in batch_elements(src, {item}):
-        new = duplicate_instance(
-            instance=item,
-            reset_fields={{'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}},
-            clear_fields={champs_sortie!r},
-        )
-        _link_to_batch(new_b, new, idx)
-        idx += 1
-    new_b.total = idx
-    new_b.save(update_fields=['total'])
-    return JsonResponse({{'success': True, 'id': new_b.id}})'''
-
-    vues['batch_download'] = (f'''def batch_download(request, pk):
-    user = _user(request)
-    b = get_object_or_404({batch}, pk=pk, user=user)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w') as z:
-        for item in batch_elements(b, {item}):
-            if item.status == 'SUCCESS' and item.output_file:
-                z.writestr(Path(item.output_file.name).name, item.output_file.read())
-    buf.seek(0)
-    return FileResponse(buf, as_attachment=True, filename=f'{app}_batch_{{b.id}}.zip')'''
-                              if d['a_output'] else stub('batch_download', pk=True))
+    # Les SIX vues de lot viennent de la FABRIQUE COMMUNE `make_batch_views` (bloc `fabrique`
+    # ci-dessous) — extraite de ce gabarit le 2026-09-22 (ROUTE §11 #36) : ce fichier n'émet plus
+    # leurs corps. `batch_download` répond 404 JSON quand l'élément n'a pas de `output_file`.
 
     # Gabarit de lot : par la BRIQUE COMMUNE, avec une LIGNE D'EXEMPLE déposable — un gabarit
     # fait de seuls commentaires n'est pas déposable (mesuré `converter_01.batch_import`,
@@ -1032,6 +919,29 @@ def batch_duplicate(request, pk):
 
     batch_extra_kw = (f"""
     batch_extra=lambda w: {{'{d['batch_extra']}': w.{d['batch_extra']}}},""" if d['batch_extra'] else '')
+    # Fabrique des VUES DE LOT — les kwargs de forme sont ceux de `_link_to_batch` ; le reste
+    # est LU au manifeste (champs fichier de la facette data, params déclarés, schéma).
+    form_kwargs = (f"item_model={link}, fk_name='{link_fk}'" if is_link
+                   else f"batch_attr='{fk}', row_field='{row}'")
+    bv_extra = (f"""
+    batch_extra=lambda lot: {{'{d['batch_extra']}': lot.{d['batch_extra']}}},""" if d['batch_extra'] else '')
+    fabrique_lot = f'''
+
+# Fabrique COMMUNE des VUES DE LOT (`batch_views`, 2026-09-22) : les six actions de lot,
+# paramétrées par le manifeste — champs FICHIER de la facette data, réglages déclarés, schéma.
+_bv = make_batch_views(
+    work_model={item}, batch_model={batch}, get_user=_user, task={task},
+    file_fields={champs_fichiers!r}, output_fields={champs_sortie!r},
+    params_fields={d['params_fields']!r}, schema=_SCHEMA,
+    options_field={conteneur_options!r}, extra_names={hors_colonnes!r},
+    {form_kwargs}, items_related='{items_related}',{bv_extra}
+)
+batch_start     = _bv['batch_start']
+batch_update    = _bv['batch_update']
+batch_delete    = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
+batch_download  = _bv['batch_download']
+batch_status    = _bv['batch_status']'''
     fabrique_link = f'''# Fabrique COMMUNE de manipulation de file (forme à LIAISON — lue au manifeste,
 # `processing.model_spec.batch`) : la meme brique que les 9 apps reelles.
 _qm = make_queue_manipulation_views(
@@ -1051,7 +961,7 @@ _qm = make_queue_manipulation_views_direct(
     # un lot, qu'on y arrive par import groupe ou par glisser-deposer.
     group_key=_nature_de_lot,
 )'''
-    fabrique = (fabrique_link if is_link else fabrique_direct) + f'''
+    fabrique = (fabrique_link if is_link else fabrique_direct) + fabrique_lot + f'''
 reorder           = _qm['reorder']
 reorder_queue     = _qm['reorder_queue']
 # `merge` = fusion STRICTE (geste du drag&drop) — distincte de `consolidate`, qui range
@@ -1088,7 +998,9 @@ consolidate       = _qm['consolidate']'''
     # (cf. plus haut). L'ensemble reste — d'autres routes à `pk` s'y ajouteront.
     stubs_pk = set()
     couverts_fabrique = {'reorder', 'reorder_queue', 'merge', 'move_to_batch',
-                         'remove_from_batch', 'consolidate'}
+                         'remove_from_batch', 'consolidate',
+                         'batch_start', 'batch_update', 'batch_delete', 'batch_duplicate',
+                         'batch_download', 'batch_status'}
     ignores = {'about', 'help'}     # servis par common.views dans le urls généré
     blocs, deja = [], set()
     for ep in d['endpoints']:
@@ -1111,6 +1023,10 @@ consolidate       = _qm['consolidate']'''
     for nom in d['extras']:
         if nom not in deja:
             deja.add(nom)
+            if nom in couverts_fabrique:
+                # `batch_status` (describer, enhancer…) est déclaré en EXTRA : la fabrique le rend,
+                # un bouchon en plus ferait deux définitions (mesuré le 22/09 sur describer).
+                continue
             if nom in vues:
                 blocs.append(vues[nom])
                 continue
@@ -1208,12 +1124,19 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.detail_registry import normalize_status
 from wama.common.utils.process_control import begin_processing, stop_instance
+from wama.common.utils.batch_views import apply_item_settings, make_batch_views, read_settings_payload
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 {imports_forme}
 from wama.common.utils.queue_view import apply_queue_sort_filter
 
 {import_models}
 from .tasks import {task}
+
+# Schéma de réglages de l'app — LU au manifeste (`params.primary`) ; absent → aucun réglage.
+try:
+    from .params import {schema_symbole} as _SCHEMA
+except Exception:
+    _SCHEMA = []
 
 
 def _user(request):

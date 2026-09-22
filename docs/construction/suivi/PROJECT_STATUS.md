@@ -16276,3 +16276,32 @@ verts. Rendu de la forme directe diffé contre l'ancien générateur. Pages rée
 push = demander. ⚠ Leçons de méthode : deux chaînes `app_sandbox` en parallèle s'écrasent (corrigé, mais
 séquentiel quand même) ; une commande de fond plafonne à 10 min → chaînes de ≤ 4 pas ; un `&` dans un
 Bash au premier plan survit sans notification → `until` de fond pour attendre.
+
+## §PALIER — 2026-09-22 (soir), « BAC À SABLE, suite : les six vues de lot en FABRIQUE COMMUNE (`make_batch_views`) » — ✅ LIVRÉ
+
+**Demande de Fabien** : continuer avec `make_batch_views` en brique commune ; vérifier que `batch_elements`
+n'a rien retiré ; vérifier que les cinq sections de card sont gérées et au commun.
+
+**Livré** : `common/utils/batch_views.py` — `make_batch_views` (batch_start par `begin_processing`,
+batch_update, batch_delete, batch_duplicate, batch_download, batch_status), paramétrée comme la fabrique de
+file (les deux formes par `batch_elements`/`attach_to_batch`) + `read_settings_payload`/`apply_item_settings`
+partagés avec la vue `update` d'un élément. EXTRAITE du générateur, qui la consomme (plus aucun corps de lot
+émis ; `_SCHEMA` importé une fois ; `batch_status` déclaré en extra n'est plus bouché en double). Mécanisme
+`batch_views` au registre (`WAMA_MECANISMES.md` NON régénéré : WIP d'une autre instance dans le fichier).
+Grille : critère F5 `batch_views_common` — **99 critères, 865/936**, rouge 10/10 (le portage des apps
+réelles, `ROUTE §11 #36` mis à jour). Tests : `tests_batch_views` (12, converter + imager), `tests_codegen_lot`
+réécrits sur la fabrique, budgets recalés (code **2744**). Jumelles converter_01/describer_01/composer_01
+régénérées sur la fabrique ; contrats génériques suppression + adresses + sandbox + brique : **59 OK**.
+
+**Vérifications demandées** : ① `batch_elements` = `elements_du_lot` + ordre des lignes + `select_related` —
+même détection de la relation (many_to_one/one_to_one non auto-créée visant EXACTEMENT le modèle), même modèle
+exigé, même refus de l'utilisateur (test conservé) ; consommateurs `batch_state` et `partager_lot` indifférents
+à l'ordre. ② Les cinq sections wcv3 (entrée/réglages/sortie/état/actions) sont rendues **10/10** apps et par le
+généré ; au COMMUN : `_card_chips.html` 10/10, mais `_card_state.html`/`_card_progress.html` n'ont qu'un
+adopteur (transcriber) et `_queue_actions.html` aucun — la section actions et l'état sont recopiés par card
+d'app. C'est un portage de CARD, distinct des vues de lot ; non entamé.
+
+🔚 **Suivant** : porter une app réelle sur `make_batch_views` (pilote : describer, forme liaison — ses
+spécificités = cache de progression `describer_progress_*` et `compose_output_name` du ZIP, à passer en
+kwargs ou à assumer comme écart), puis les 9 autres, un critère par vue ; portage de card (`_card_state`,
+`_card_progress`, `_queue_actions`) ; le reste du §PALIER précédent (batterie UI des jumelles, imager).

@@ -79,10 +79,12 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIn("attach_to_batch(obj, lot, idx, batch_attr='batch', row_field='batch_row_index')",
                       _fonction(self.src, '_link_to_batch') or '')
         self.assertNotIn('_batch_elements', self.src, 'lecture du lot réécrite hors de la brique')
-        for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate'):
-            corps = _fonction(self.src, view) or ''
-            self.assertIn('batch_elements(', corps, f'{view} : les éléments du lot se lisent par la brique')
-            self.assertNotIn('.objects.filter(batch=', corps, f'{view} : la forme de file écrite en dur dans la vue')
+        # Les six vues de lot viennent de la FABRIQUE (22/09, ROUTE #36) avec la forme directe.
+        self.assertIn("batch_attr='batch', row_field='batch_row_index', items_related='items'", self.src)
+        for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate',
+                     'batch_download', 'batch_status'):
+            self.assertIsNone(_fonction(self.src, view), f'{view} encore écrite dans le généré')
+            self.assertIn(f"{view:15s} = _bv['{view}']", self.src)
 
     def test_batch_create_est_une_vue_pas_un_bouchon(self):
         corps = _fonction(self.src, 'batch_create')
@@ -144,7 +146,9 @@ class CheminDeLotTest(SimpleTestCase):
         src = self._src_avec_hors_colonnes()
         corps = _fonction(src, 'update')
         self.assertIsNotNone(corps)
-        self.assertIn('_extras', corps, 'update ne route pas les champs hors-colonnes')
+        # Depuis le 22/09 le routage vit dans la brique `apply_item_settings` : la vue générée
+        # lui PASSE le conteneur et les hors-colonnes (elle ne réécrit plus l'idiome).
+        self.assertIn("options_field='options'", corps, 'update ne route pas les champs hors-colonnes')
         self.assertIn("'quality'", corps, 'le champ retiré des colonnes doit être routé')
         deco = _fonction(src, '_decorer')
         self.assertIsNotNone(deco)
@@ -155,8 +159,8 @@ class CheminDeLotTest(SimpleTestCase):
         # les réglages sont des colonnes (son cas depuis le 2026-09-01), il n'y a plus rien
         # à router — émettre l'idiome quand même écrirait dans un conteneur pour rien.
         corps = _fonction(self.src, 'update') or ''
-        self.assertNotIn('_extras', corps,
-                         'le converter n’a plus de réglage hors colonne : aucun routage à émettre')
+        self.assertIn('options_field=None', corps,
+                      'le converter n’a plus de réglage hors colonne : aucun conteneur à viser')
 
     def test_le_depot_deroule_la_cascade_de_reglages_de_l_app_reelle(self):
         """Un élément FRAIS doit naître avec des valeurs — défauts applicables du schéma ←
@@ -247,7 +251,8 @@ class CheminDeLotTest(SimpleTestCase):
         déjà dérivé une fois (ancien domicile des médias). Les TROIS vues appellent la brique."""
         self.assertNotIn('_fichier_de_l_app', self.src, 'la garde redondante est réémise')
         self.assertNotIn('app_media_dir', self.src)
-        for view in ('delete', 'clear_all', 'batch_delete'):
+        # (`batch_delete` vit dans la fabrique `batch_views` depuis le 22/09 — tenue là-bas.)
+        for view in ('delete', 'clear_all'):
             corps = _fonction(self.src, view)
             self.assertIsNotNone(corps, f'{view} absente')
             self.assertIn('safe_delete_file(item, _champ)', corps,
@@ -343,16 +348,21 @@ class CheminDeLotTest(SimpleTestCase):
         signal `batch_sync` a purgé le lot et l'instance en mémoire n'a plus d'id — `b.delete()`
         levait `ValueError: … id attribute is set to None` (converter_01, contrat générique de
         suppression de l'instance sœur). Un lot resté VIDE se purge par requête."""
+        # Le corps vit désormais dans la BRIQUE (`batch_views.make_batch_views`, extraite le
+        # même jour) : on tient la garde à sa source, et le généré ne l'écrit plus.
+        import inspect
+        from wama.common.utils import batch_views
         from wama.common.manifests.codegen.views_gen import render_views
         from wama.common.manifests.ingest import extract
+        source = inspect.getsource(batch_views.make_batch_views)
+        code = '\n'.join(l for l in source.splitlines() if not l.lstrip().startswith('#'))
+        self.assertNotIn('b.delete()', code)
+        self.assertIn("__isnull': True}).delete()", code)
         for app in (SOURCE, SOURCE_LINK):
             with self.subTest(app=app):
                 src, raison = render_views(extract('app', app))
                 self.assertIsNotNone(src, raison)
-                corps = _fonction(src, 'batch_delete') or ''
-                code = '\n'.join(l for l in corps.splitlines() if not l.lstrip().startswith('#'))
-                self.assertNotIn('b.delete()', code)
-                self.assertIn("items__isnull=True).delete()", code)
+                self.assertIsNone(_fonction(src, 'batch_delete'), 'batch_delete encore écrite dans le généré')
 
     def test_la_vue_delete_generee_passe_par_la_brique_commune_du_lot(self):
         """Une app GÉNÉRÉE répond l'état du lot comme les apps réelles : `batch_snapshot` AVANT la
@@ -755,18 +765,20 @@ class LinkFormViewsTest(SimpleTestCase):
         réécrite dans le fichier généré (un `_batch_elements` généré a existé quelques heures :
         chemin parallèle à la brique, retiré sur remarque de Fabien)."""
         self.assertNotIn('_batch_elements', self.src)
-        # (`batch_download` reste un bouchon pour une app sans `output_file` — le describer.)
-        for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate'):
-            corps = self._fonction(view)
-            self.assertIn('batch_elements(', corps, f'{view} ne lit pas le lot par la brique')
-            self.assertNotIn('.objects.filter(batch=', corps)
+        # Les six vues de lot viennent de la FABRIQUE commune, avec la forme à liaison déclarée
+        # et les champs FICHIER lus à la facette data (`result_file` du describer compris).
+        self.assertIn("item_model=BatchDescriptionItem, fk_name='description', items_related='items'", self.src)
+        self.assertIn("file_fields=['input_file', 'result_file'], output_fields=['result_file']", self.src)
+        for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate',
+                     'batch_download', 'batch_status'):
+            self.assertIsNone(self._fonction(view) or None, f'{view} encore écrite dans le généré')
+            self.assertIn(f"{view:15s} = _bv['{view}']", self.src)
 
     def test_linking_goes_through_the_common_brick_in_both_creation_paths(self):
         link = self._fonction('_link_to_batch')
         self.assertIn("attach_to_batch(obj, lot, idx, item_model=BatchDescriptionItem, fk_name='description')", link)
         self.assertNotIn('objects.create', link, 'la ligne de liaison se crée par la brique')
         self.assertIn('link_item=_link_to_batch', self._fonction('batch_create'))
-        self.assertIn('_link_to_batch(new_b, new, idx)', self._fonction('batch_duplicate'))
         # Le dépôt unitaire ENVELOPPE à la création (idiome des apps réelles), par la brique.
         self.assertIn("wrap_in_batch(item, batch_model=BatchDescription, "
                       "item_model=BatchDescriptionItem, fk_name='description')",
