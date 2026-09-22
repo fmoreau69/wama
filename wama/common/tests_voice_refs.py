@@ -550,6 +550,21 @@ class VoiceReplacementTest(TestCase):
         self.assertTrue(Path(second.file.path).is_file())
         self.assertFalse(old_path.exists(), "l'ancien fichier est resté : un orphelin de plus")
 
+    def test_a_replaced_voice_keeps_its_clean_file_name(self):
+        """Constat du 22/09 : un remplacement laissait `male_adult_1_en_HtZSn0F.wav` — le nouveau
+        fichier s'écrit pendant que l'ancien existe, Django suffixe. Le nom propre est repris."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            first, second = Path(a) / 'male_adult_7_en.wav', Path(b) / 'male_adult_7_en.wav'
+            first.write_bytes(b'first-take')
+            second.write_bytes(b'second-take')
+            voice_refs.ingest_voice_file('english/adult/male_adult_7_en', first)
+            asset = voice_refs.ingest_voice_file('english/adult/male_adult_7_en', second,
+                                                 replace=True)
+        asset.refresh_from_db()
+        self.assertEqual('male_adult_7_en.wav', Path(asset.file.name).name)
+        self.assertEqual(b'second-take', Path(asset.file.path).read_bytes())
+
     def test_an_old_file_still_referenced_elsewhere_is_kept(self):
         """Contre-épreuve : la brique commune protège un fichier PARTAGÉ."""
         from wama.media_library.models import SystemAsset

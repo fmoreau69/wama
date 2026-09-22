@@ -375,14 +375,35 @@ def ingest_voice_file(name: str, path, *, source_url: str = '', license: str = '
     # REMPLACER, c'est aussi retirer l'ancien fichier — sinon chaque remplacement laisse un
     # orphelin. Mesuré le 2026-09-22 : 3 passages de retéléchargement avaient laissé 14 WAV que
     # plus aucune ligne ne référençait. Ordre : la ligne d'abord (posée ci-dessus), le fichier
-    # ensuite ; et jamais s'il est encore référencé ailleurs — c'est la brique commune qui le
-    # vérifie (`safe_delete_file`), appliquée à une instance FANTÔME qui porte l'ancien chemin.
-    if old_file and old_file != asset.file.name:
-        from wama.common.utils.queue_duplication import safe_delete_file
-        ghost = SystemAsset(pk=asset.pk)
-        ghost.file = old_file
-        safe_delete_file(ghost, 'file')
+    # ensuite ; et jamais s'il est encore référencé ailleurs.
+    # ⚠ PAS `safe_delete_file` : c'est la brique des CARDS, et depuis le 22/09 (instance sœur) elle
+    # exige aussi la PROPRIÉTÉ — le fichier doit vivre dans `users/<uid>/<app>/`. Un `SystemAsset`
+    # n'a PAS de propriétaire, par conception (`MEDIA_STORAGE_TIERING §8bis`) : elle refuserait
+    # toujours, en silence. Seule la règle de PARTAGE vaut ici. (Cette fonction l'a appelée
+    # quelques heures ; ce sont les tests de remplacement qui ont révélé l'interaction.)
+    if old_file and old_file != asset.file.name \
+            and not SystemAsset.objects.filter(file=old_file).exists():
+        asset.file.storage.delete(old_file)
+    _settle_file_name(asset, path.name)
     return asset
+
+
+def _settle_file_name(asset, wanted: str) -> None:
+    """Rend au fichier son nom propre quand le stockage a dû le suffixer.
+
+    En remplacement, le nouveau fichier s'écrit PENDANT que l'ancien existe encore (la ligne
+    d'abord, le fichier ensuite) : Django évite la collision par un suffixe aléatoire
+    (`male_adult_1_en_HtZSn0F.wav`). Une fois l'ancien retiré, le nom propre est libre : on le
+    reprend. Constat de Fabien, 22/09 : *« les médias sont en vrac »*.
+    """
+    import os
+    current = Path(asset.file.path)
+    target = current.with_name(wanted)
+    if current.name == wanted or target.exists():
+        return
+    os.replace(current, target)
+    asset.file.name = str(Path(asset.file.name).with_name(wanted)).replace('\\', '/')
+    asset.save(update_fields=['file'])
 
 
 # ---------------------------------------------------------------------------
@@ -863,7 +884,10 @@ def download_missing_voice_refs(force: bool = False, names=None) -> Dict[str, st
                 results[name] = 'skipped'
                 continue
 
-            target = tmp / (name.replace('/', '__') + '.wav')
+            # Le nom du fichier est le DERNIER segment de l'identifiant (`male_adult_1_en.wav`),
+            # comme à l'ingest : la taxonomie vit dans `attributes` (décision D3), pas dans le nom
+            # du fichier. Il valait `english__adult__male_adult_1_en.wav` jusqu'au 22/09.
+            target = tmp / (name.rsplit('/', 1)[-1] + '.wav')
             source_url, license_ = '', ''
             attrs = attributes_from_voice_id(name)
             gender, age = attrs.get('gender', ''), attrs.get('age', '')
