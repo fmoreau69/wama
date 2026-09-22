@@ -64,8 +64,43 @@ class DirectFormBatchViewsTest(TestCase):
         self.assertEqual(self.task.calls, [self.b.id, self.a.id], 'ordre des LIGNES, pas des ids')
         self.a.refresh_from_db()
         self.assertEqual((self.a.status, self.a.task_id), ('RUNNING', f'task-{self.a.id}'))
-        # Idempotent : plus rien en PENDING → rien relancé.
+        # Ce qui TOURNE n'est pas relancé (`begin_processing` le refuse) → rien de plus.
         self.assertEqual(json.loads(self._post('batch_start', self.lot.pk).content)['count'], 0)
+
+    def test_batch_start_relaunches_failed_and_finished_items_by_default(self):
+        """Idiome MESURÉ (describer, reader, transcriber, avatarizer) : ▶ de lot relance tout ce
+        qui ne tourne pas — un échec se relance, un succès se refait. `start_only_pending=True`
+        (composer : « créer ≠ démarrer ») ne lance que les PENDING."""
+        from wama.converter.models import ConversionBatch, ConversionJob
+        self.a.status = 'FAILURE'
+        self.a.save(update_fields=['status'])
+        self.b.status = 'SUCCESS'
+        self.b.save(update_fields=['status'])
+        self.assertEqual(json.loads(self._post('batch_start', self.lot.pk).content)['count'], 2)
+        pending_only = make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            task=_FakeTask(), batch_attr='batch', row_field='batch_row_index',
+            start_only_pending=True)
+        for j in (self.a, self.b):
+            j.status = 'FAILURE'
+            j.save(update_fields=['status'])
+        req = self.rf.post('/x/')
+        req.user = self.u
+        self.assertEqual(json.loads(pending_only['batch_start'](req, self.lot.pk).content)['count'], 0)
+
+    def test_batch_update_applies_the_declared_derived_fields_after_the_settings(self):
+        """avatarizer : `quality_mode` se DÉDUIT de `use_enhancer` — déclaré par `after_update`,
+        le champ dérivé est sauvé avec les réglages."""
+        from wama.converter.models import ConversionBatch, ConversionJob
+        views = make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            params_fields=('output_format',), batch_attr='batch', row_field='batch_row_index',
+            after_update=lambda j: [setattr(j, 'error_message', 'derived:' + j.output_format), 'error_message'][1:])
+        req = self.rf.post('/x/', {'output_format': 'ogg'})
+        req.user = self.u
+        views['batch_update'](req, self.lot.pk)
+        self.a.refresh_from_db()
+        self.assertEqual((self.a.output_format, self.a.error_message), ('ogg', 'derived:ogg'))
 
     def test_batch_update_skips_running_items_and_coerces_by_schema(self):
         self.a.status = 'RUNNING'
@@ -194,6 +229,22 @@ class LinkFormBatchViewsTest(TestCase):
         liens = list(GenerationBatchItem.objects.filter(batch=new_b).order_by('row_index'))
         self.assertEqual([l.generation.prompt for l in liens], ['deux', 'un'])
         self.assertEqual(new_b.total, 2)
+
+    def test_duplicate_writes_the_declared_extra_on_each_link_row(self):
+        """composer : `output_filename` de la ligne d'origine recopié sur la ligne de la copie —
+        déclaré par `item_extra(copie, original)`. Mesuré sur un champ de liaison que l'imager
+        n'a pas : on vérifie l'APPEL, la valeur passant par `attach_to_batch`."""
+        from unittest import mock
+        from wama.imager.models import GenerationBatch, GenerationBatchItem, ImageGeneration
+        seen = []
+        views = make_batch_views(
+            work_model=ImageGeneration, batch_model=GenerationBatch, get_user=lambda r: self.u,
+            item_model=GenerationBatchItem, fk_name='generation',
+            item_extra=lambda new, old: seen.append((new.prompt, old.prompt)) or {})
+        req = self.rf.post('/x/')
+        req.user = self.u
+        views['batch_duplicate'](req, self.lot.pk)
+        self.assertEqual(seen, [('deux', 'deux'), ('un', 'un')])
 
     def test_delete_removes_elements_links_and_batch(self):
         from wama.imager.models import GenerationBatch, GenerationBatchItem, ImageGeneration

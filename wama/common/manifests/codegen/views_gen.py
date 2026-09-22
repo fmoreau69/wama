@@ -602,6 +602,10 @@ def {_nom_bc}(request):
                 obj = {item}.objects.create(**kwargs)
                 obj.{d['input_field']}.name = rel
                 obj.save(update_fields=['{d['input_field']}'])
+                # Provenance : la copie se souvient de sa source (brique commune, 2026-09-23 —
+                # le lot généré était le dernier site de copie sans trace, D20/D21).
+                from wama.common.utils.provenance import kind_of, record_origin
+                record_origin(rel, kind=kind_of(_rel_src), ref=_rel_src, source_path=str(absolu))
             crees.append(obj)
         except Exception as e:
             avertissements.append(src + ' : ' + str(e))

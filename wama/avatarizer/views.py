@@ -926,133 +926,46 @@ move_to_batch = _qm['move_to_batch']
 remove_from_batch = _qm['remove_from_batch']
 
 
-def batch_update(request, pk):
-    """Applique les réglages du volet à TOUS les items du lot (édition batch, hors RUNNING)."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
-    # quality_mode n'est plus posté (mode UI mort 2026-08-03) — dérivé après coup.
-    # Champs éditables = le SCHÉMA (domicile unique) + héritage pipeline.
-    from wama.avatarizer.params import PARAMS_JSON
-    fields = [p['name'] for p in PARAMS_JSON]
-    fields += ['mode', 'tts_model', 'language', 'voice_preset']  # wama:redondance-ok — héritage du mode pipeline (TTS relève du synthesizer, standalone-only 2026-07-15)
-    updated = 0
-    for it in batch.items.select_related('job'):
-        job = it.job
-        if not job or job.status == 'RUNNING':
-            continue
-        for f in fields:
-            if f not in request.POST:
-                continue
-            val = request.POST[f]
-            if f == 'use_enhancer':
-                val = val in ('true', '1', 'on', 'True')
-            elif f == 'bbox_shift':
-                try:
-                    val = int(val)
-                except (ValueError, TypeError):
-                    continue
-            setattr(job, f, val)
-        job.quality_mode = 'quality' if job.use_enhancer else 'fast'  # champ dérivé
-        job.save()
-        updated += 1
-    return JsonResponse({'success': True, 'updated': updated})
+# ── Les CINQ vues de lot de l'avatarizer : fabrique COMMUNE (`batch_views.make_batch_views`,
+# portage 2026-09-23, 4ᵉ app réelle — ROUTE §11 #36). Spécificités DÉCLARÉES en kwargs :
+# réglages = le SCHÉMA + l'héritage du mode pipeline (`mode`, `tts_model`, `language`,
+# `voice_preset` — TTS relève du synthesizer, standalone-only 2026-07-15) ; `quality_mode`
+# DÉRIVÉ de `use_enhancer` après application (`after_update` — le mode UI est mort le 03/08) ;
+# trois champs fichier (`audio_input`, `avatar_upload`, `output_video`), la vidéo vidée à la
+# duplication et servie au téléchargement (mono-format MP4, nom `batch_avatarizer_<id>.zip`) ;
+# un lot PARTAGÉ se télécharge (`visible_or_404`, jamais pour écrire) ; cache de progression
+# purgé à la suppression ; tâche importée paresseusement (`_ensure_workers_imported`).
+# ▶ de lot = l'idiome mesuré : tout ce qui ne tourne pas se (re)lance.
+from wama.common.utils.batch_views import make_batch_views
+from wama.avatarizer.params import PARAMS_JSON as _SCHEMA
+
+SETTINGS_FIELDS = tuple(dict.fromkeys(
+    [p['name'] for p in _SCHEMA] + ['mode', 'tts_model', 'language', 'voice_preset']))
 
 
-@require_POST
-def batch_start(request, pk):
-    """POST : Lance tous les jobs non terminés d'un lot."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
+def _task_for(job):
     _ensure_workers_imported()
-
-    from django.db import transaction
-
-    started = 0
-    for it in batch.items.select_related('job').order_by('row_index'):
-        job = it.job
-        if not job:
-            continue
-        # Anti-race (pattern AGENTS.md) : verrou par item — un double-clic sur ▶ batch
-        # ne doit pas mettre deux fois le même job en file Celery.
-        with transaction.atomic():
-            locked = AvatarJob.objects.select_for_update().get(pk=job.pk)
-            if locked.status == 'RUNNING' or (locked.status == 'PENDING' and locked.task_id):
-                continue
-            locked.status = 'PENDING'
-            locked.progress = 0
-            locked.error_message = ''
-            locked.task_id = ''
-            locked.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
-        task = _generate_avatar.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        started += 1
-    return JsonResponse({'status': 'started', 'count': started})
+    return _generate_avatar
 
 
-@require_POST
-def batch_duplicate(request, pk):
-    """POST : Duplique un lot et tous ses jobs (entrées partagées, sorties vidées)."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
-
-    new_batch = BatchAvatarJob.objects.create(user=user, total=batch.total)
-    for it in batch.items.select_related('job').order_by('row_index'):
-        if not it.job:
-            continue
-        copy = duplicate_instance(
-            it.job,
-            reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
-            clear_fields=['output_video'],
-        )
-        BatchAvatarJobItem.objects.create(batch=new_batch, job=copy, row_index=it.row_index)
-    new_batch.total = new_batch.items.count()
-    new_batch.save(update_fields=['total'])
-    return JsonResponse({'status': 'duplicated', 'batch_id': new_batch.id})
+def _derive_quality_mode(job):
+    job.quality_mode = 'quality' if job.use_enhancer else 'fast'
+    return ['quality_mode']
 
 
-def batch_download(request, pk):
-    """GET : ZIP de toutes les vidéos générées d'un lot (mono-format MP4)."""
-    import io
-    import zipfile
-    from django.http import HttpResponse
-    user = _get_user(request)
-    batch = visible_or_404(BatchAvatarJob, user, pk=pk)
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for it in batch.items.select_related('job').order_by('row_index'):
-            job = it.job
-            if job and job.status == 'SUCCESS' and job.output_video:
-                try:
-                    archive.write(job.output_video.path, os.path.basename(job.output_video.name))
-                except Exception:
-                    continue
-    buffer.seek(0)
-    response = HttpResponse(buffer.read(), content_type='application/zip')
-    response['Content-Disposition'] = content_disposition_header(True, f"batch_avatarizer_{pk}.zip")
-    return response
-
-
-@require_POST
-def batch_delete(request, pk):
-    """POST : Supprime un lot, ses jobs et leurs fichiers."""
-    user = _get_user(request)
-    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
-
-    jobs = [it.job for it in batch.items.select_related('job').all() if it.job]
-    for job in jobs:
-        if job.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(job.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-    safe_delete_file(batch, 'batch_file')
-    batch.delete()  # CASCADE supprime les liens
-    for job in jobs:
-        for fld in ('audio_input', 'avatar_upload', 'output_video'):
-            safe_delete_file(job, fld)
-        cache.delete(f"avatarizer_progress_{job.id}")
-        job.delete()
-    return JsonResponse({'status': 'deleted', 'batch_id': pk})
+_bv = make_batch_views(
+    work_model=AvatarJob, batch_model=BatchAvatarJob, get_user=_get_user,
+    task_for=_task_for,
+    file_fields=('audio_input', 'avatar_upload', 'output_video'),
+    output_fields=('output_video',), output_field='output_video',
+    params_fields=SETTINGS_FIELDS, schema=_SCHEMA, after_update=_derive_quality_mode,
+    item_model=BatchAvatarJobItem, fk_name='job',
+    read_lookup=lambda user, pk: visible_or_404(BatchAvatarJob, user, pk=pk),
+    zip_name=lambda b: f"batch_avatarizer_{b.id}.zip",
+    on_delete=lambda job: cache.delete(f"avatarizer_progress_{job.id}"),
+)
+batch_update = _bv['batch_update']
+batch_start = _bv['batch_start']
+batch_duplicate = _bv['batch_duplicate']
+batch_download = _bv['batch_download']
+batch_delete = _bv['batch_delete']
