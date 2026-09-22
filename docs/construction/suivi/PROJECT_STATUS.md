@@ -16325,7 +16325,7 @@ Périmètre : disque C: (infra), sans chantier de code. Détail et chiffres : `I
   « dataset » HuggingFace ≠ kind de manifeste `dataset` (question de Fabien).
 
 ✅ **Arbitrage tranché (Fabien, même jour)** : `.wslconfig` régénéré avec `-MemoryGB 48` — `memory=48GB`
-inchangé, `maxCrashDumpCount=1` ajouté (sauvegarde `.wslconfig.bak`). ⏳ **Relu au prochain
-`wsl.exe --shutdown` seulement** (arrête la stack) : jusque-là, WSL garde encore 10 dumps.
+inchangé, `maxCrashDumpCount=1` ajouté (sauvegarde `.wslconfig.bak`). ✅ **APPLIQUÉ** : fichier écrit à
+17:32:33, VM WSL redémarrée à 17:33:37 par Fabien (`uptime -s`), `free -g` = 47 (plafond 48 relu).
 
-🔚 **Suivant** : `wsl.exe --shutdown` + relance de la stack au moment choisi par Fabien ; rien d'autre d'ouvert.
+🔚 **Suivant** : rien d'ouvert dans ce périmètre.
