@@ -40,7 +40,7 @@ class CommonOpenerTest(SimpleTestCase):
     def test_the_opener_follows_the_wama_outbound_proxy_setting(self):
         """Le cœur du défaut : urllib seul lit l'environnement, jamais le réglage Django."""
         with patch.dict(os.environ, {k: '' for k in PROXY_VARS}):
-            proxies = _explicit_proxies(base.build_opener())
+            proxies = _explicit_proxies(base.build_opener('pixabay'))
         self.assertIn({'http': 'http://proxy.test:3128', 'https': 'http://proxy.test:3128'},
                       proxies)
 
@@ -50,7 +50,7 @@ class CommonOpenerTest(SimpleTestCase):
         exactement son comportement d'avant le 21/09."""
         clean = {k: v for k, v in os.environ.items() if k not in PROXY_VARS}
         with patch.dict(os.environ, clean, clear=True):
-            self.assertEqual([], _explicit_proxies(base.build_opener()))
+            self.assertEqual([], _explicit_proxies(base.build_opener('pixabay')))
 
     def test_every_provider_call_goes_through_the_common_opener(self):
         """La garde de non-retour : un connecteur qui rappellerait `urlopen` lui-même
@@ -68,6 +68,58 @@ class CommonOpenerTest(SimpleTestCase):
                         and node.func.attr in forbidden):
                     offenders.append(f'{path.name}:{node.lineno}')
         self.assertEqual([], offenders)
+
+
+class RegistryBindingTest(SimpleTestCase):
+    """Les connecteurs sont des SOURCES du registre (`external_sources`, famille `media`) depuis
+    la décision de Fabien du 2026-09-22 : adresse, portée et proxy viennent de là ; la clé reste
+    celle de chaque utilisateur."""
+
+    def test_every_provider_is_a_declared_media_source_and_back(self):
+        from wama.common import external_sources as es
+        from wama.media_library.providers.registry import all_slugs
+        declared = {s.key for s in es.SOURCES if s.kind == 'media'}
+        self.assertEqual(set(all_slugs()), declared,
+                         "un connecteur sans source déclarée échappe à la page et à la sonde")
+
+    def test_media_sources_carry_no_instance_key(self):
+        """La clé d'un connecteur est celle de CHACUN : aucune variable d'instance, et
+        `user_key` posé partout où le connecteur en attend une."""
+        from wama.common import external_sources as es
+        from wama.media_library.providers.registry import _REGISTRY
+        for slug, cls in _REGISTRY.items():
+            source = es.get(slug)
+            self.assertEqual('', source.api_key_env, slug)
+            if cls.requires_api_key:
+                self.assertTrue(source.user_key, slug)
+
+    def test_every_provider_builds_its_url_from_the_registry(self):
+        """Les SIX, pas un échantillon : la garde de `tests_external_sources` compare des
+        adresses EXACTES, et pexels/pixabay recopiaient base + chemin (`…/v1/search`) — une
+        recopie qu'elle ne voyait pas. Ici, l'adresse déclarée est remplacée par un témoin : un
+        connecteur qui l'aurait recopiée en dur ne le suivrait pas."""
+        from wama.media_library.providers.registry import _REGISTRY
+        for slug, cls in _REGISTRY.items():
+            provider = cls(api_key='k')
+            with patch('wama.common.external_sources.base_url', return_value='https://mirror.test'), \
+                    patch.object(cls, 'open_url', return_value=_FakeResponse(b'{}')) as opened:
+                provider.search('rain', cls.supported_types[0])
+            self.assertTrue(opened.called, slug)
+            self.assertTrue(opened.call_args[0][0].startswith('https://mirror.test'),
+                            f'{slug} -> {opened.call_args[0][0]}')
+
+    def test_a_local_scope_neutralizes_the_proxy_instead_of_crashing(self):
+        """`proxies_for` rend `{'http': None, 'https': None}` pour une source LOCALE : passé tel
+        quel à urllib, il ferait échouer l'ouverture. L'ouvreur le traduit en `ProxyHandler({})`,
+        qui NEUTRALISE aussi le proxy de l'environnement."""
+        env = {'HTTPS_PROXY': 'http://env.test:3128', 'HTTP_PROXY': 'http://env.test:3128'}
+        with patch.dict(os.environ, env):
+            neutral = base.build_opener('ollama')
+            control = urllib.request.build_opener()
+        # Contre-épreuve : l'ouvreur par défaut d'urllib reprend bien le proxy de l'environnement…
+        self.assertTrue(_explicit_proxies(control), "témoin : l'environnement devrait fuir ici")
+        # … celui d'une source LOCALE, non : `ProxyHandler({})` évince le gestionnaire par défaut.
+        self.assertEqual([], _explicit_proxies(neutral))
 
 
 class _FakeResponse(io.BytesIO):

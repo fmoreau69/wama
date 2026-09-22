@@ -272,8 +272,10 @@ register(Registry(
     entries=_entries_external_sources,
     url_name='common:sources_catalog',
     doc='docs/construction/architecture/WAMA_MECANISMES.md',
-    description="Sonde chaque source déclarée : clé d'API posée ? adresse joignable (proxy UGE "
-                "compris) ? La déclaration, elle, ne s'actualise pas — elle vit en code. "
+    description="Sonde chaque source déclarée : clé d'API de l'instance posée ? adresse "
+                "joignable (proxy UGE compris) ? Une clé de CHAQUE utilisateur (fournisseurs LLM, "
+                "banques de médias) se pose au profil, pas ici. La déclaration, elle, ne "
+                "s'actualise pas — elle vit en code. "
                 "Réservé au staff : la sonde émet des requêtes sortantes et écrit un rapport.",
 ))
 

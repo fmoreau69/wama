@@ -32,28 +32,29 @@ vingtaine**, et surtout le défaut n'était pas seulement la dispersion, c'étai
   • `_LJ_BASE` (échantillons ljspeech) recopié **3 fois** à l'identique.
   • `TTS_SERVICE_URL` et `WAMA_UI_SMOKE_BASE` : défaut redéclaré chez chaque appelant.
 
-── PÉRIMÈTRE : les sources configurées par le SERVEUR ───────────────────────────────────────
+── PÉRIMÈTRE : toute source que WAMA appelle — la CLÉ peut être de l'instance OU de chacun ─────
 
-Ce registre couvre les sources dont la configuration appartient à l'installation (variable
-d'environnement, réglage Django). Il NE couvre PAS les connecteurs de `media_library`
-(wikimedia, pixabay, pexels, openverse, jamendo, freesound) : leur clé est une donnée **par
-utilisateur, stockée en base** (`MediaProvider` + `MediaProviderConfig`), avec sa propre UI de
-saisie et son propre contrat de provider (`media_library/providers/base.py`).
+✅ **DÉCISION de Fabien, 2026-09-22 : les connecteurs de la médiathèque (wikimedia, pixabay,
+pexels, openverse, jamendo, freesound) sont des SOURCES COMMUNES de ce registre — mais chacun y
+pose SA propre clé, exactement comme pour les fournisseurs LLM distants.** Ils y sont déclarés
+en famille `media`, avec `user_key=True` : l'adresse, la portée (donc le proxy) et la sonde
+viennent d'ici ; la clé reste celle de l'utilisateur, saisie au profil.
 
-⚠ Les y rapatrier aurait été **uniformiser ce qui n'est pas pareil** — une perte d'information
-déguisée en centralisation. Une clé de serveur et une clé d'utilisateur ne se sondent pas, ne
-se posent pas et ne se révoquent pas de la même façon.
+L'historique, gardé parce qu'il dit pourquoi la frontière a bougé :
+  • 2026-09-01 — exclusion écrite ici : « ce registre couvre les sources dont la configuration
+    appartient à l'installation » ; la clé d'un connecteur étant « une donnée par utilisateur,
+    stockée en base », les y rapatrier aurait été « uniformiser ce qui n'est pas pareil ».
+  • 2026-09-15 — le CONSTAT qui fondait l'exclusion cesse d'être vrai : les fournisseurs `llm`
+    (Albert, API Anthropic, abonnement Claude Code) entrent ici alors que leur clé est PAR
+    UTILISATEUR, stockée en base (`accounts/api_keys.py`), et rendue au profil par le MÊME code
+    que les clés de la médiathèque (`api_keys.listing`). Le registre porte donc déjà des sources à
+    clé d'utilisateur — relevé le 2026-09-21, décision rouverte, tranchée le 22/09.
+  ⭐ Ce qui sépare vraiment les deux cas n'est pas la SOURCE mais le DÉTENTEUR DE LA CLÉ : c'est
+    ce que dit `user_key`, pas une frontière entre registres.
 
-⚠⚠ **Ce motif est DÉPASSÉ depuis le 2026-09-15 — relevé le 2026-09-21, décision ROUVERTE.**
-Le constat qui le fonde (« ce registre couvre les sources dont la configuration appartient à
-l'installation ») n'est plus vrai : les fournisseurs LLM de type `llm` (Albert, API Anthropic,
-abonnement Claude Code) y sont déclarés alors que leur clé est PAR UTILISATEUR, stockée en base
-(`accounts/api_keys.py` : « les fournisseurs NE sont PAS déclarés ici : ce sont les sources
-`external_sources` de type `llm` »), saisie au profil (`api_key_help_url`, plus bas), et rendue
-par le MÊME code que les clés de la médiathèque (`api_keys.listing`). Le registre sait donc déjà
-porter une source à clé d'utilisateur. Proposition de Fabien (21/09) : les connecteurs de la
-médiathèque y apparaissent comme capacité, avec renvoi au profil pour la clé. **L'exclusion
-ci-dessus tient jusqu'à sa décision** — une intention ne se retire que par une décision.
+⚠ Décision OUVERTE, nommée (non faite) : les clés d'utilisateur vivent dans DEUX tables —
+`accounts.UserApiKey` (fournisseurs `llm`) et `media_library.UserProviderConfig` (connecteurs,
+chiffrée). Les unifier, c'est migrer des secrets : une décision à part, pas un effet de bord.
 
 ── Registres VOISINS, volontairement distincts ──────────────────────────────────────────────
 
@@ -92,6 +93,7 @@ KINDS = {
     'poids':     'Outillage et poids',
     'audit':     'Audit de sécurité',
     'recherche': 'Recherche web',
+    'media':     'Banque de médias',
 }
 
 
@@ -130,6 +132,12 @@ class ExternalSource:
     default_remote_type: str = ''
     #: Libellé du champ de saisie au profil ('' = « Clé d'API »).
     api_key_label: str = ''
+    #: La clé est posée par CHAQUE UTILISATEUR, au profil (2026-09-22). Indépendant de
+    #: `api_key_env`, qui dit la clé de l'INSTANCE : une source `llm` porte les deux (l'instance
+    #: ne sert qu'aux usages sans utilisateur), un connecteur de la médiathèque seulement la
+    #: sienne. Sans ce champ, une source sans `api_key_env` passait pour ANONYME — donc
+    #: « configurée » — alors qu'elle attend la clé de chacun.
+    user_key: bool = False
     #: Réservé aux développeurs (abonnement Claude Code : accès au dépôt).
     developer_only: bool = False
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
@@ -179,7 +187,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         'albert', 'Albert API (DINUM)', 'https://albert.api.etalab.gouv.fr/v1',
         "LLM de l'État compatible OpenAI — assistant et rôles wama-dev-ai (manifestes, "
         "codegen) via llm_chat", kind='llm', env='ALBERT_API_BASE',
-        api_key_env='ALBERT_API_KEY',
+        api_key_env='ALBERT_API_KEY', user_key=True,
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
         hosting='sovereign', cost_tier='free', protocol='openai',
         doc='docs/construction/ia/WAMA_LLM.md'),
@@ -191,7 +199,7 @@ SOURCES: tuple[ExternalSource, ...] = (
     ExternalSource(
         'anthropic', 'API Anthropic (Claude)', 'https://api.anthropic.com/v1',
         "Modèles Claude facturés à la requête — fournisseur « claude » de l'assistant, via llm_chat",
-        kind='llm', api_key_env='ANTHROPIC_API_KEY',
+        kind='llm', api_key_env='ANTHROPIC_API_KEY', user_key=True,
         api_key_help_url='https://console.anthropic.com/settings/keys',
         hosting='third_party', cost_tier='metered', protocol='anthropic',
         default_remote_type='image-text-to-text', doc='docs/construction/ia/WAMA_LLM.md'),
@@ -200,6 +208,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Abonnement Claude PERSONNEL — CLI headless (outil ask_claude_code, fournisseur "
         "« claude-abo », geste !code) ; réservé aux développeurs", kind='llm',
         api_key_env='CLAUDE_CODE_OAUTH_TOKEN', api_key_label='Jeton « claude setup-token »',
+        user_key=True,
         hosting='third_party', cost_tier='subscription', protocol='claude_cli',
         default_remote_type='image-text-to-text', developer_only=True,
         doc='docs/construction/suivi/ROADMAP.md'),
@@ -276,6 +285,43 @@ SOURCES: tuple[ExternalSource, ...] = (
     ExternalSource(
         'duckduckgo', 'DuckDuckGo (HTML)', 'https://html.duckduckgo.com/html/',
         "Recherche web de l'assistant — point d'entrée sans clé", kind='recherche'),
+
+    # ── Banques de médias — les connecteurs de la médiathèque (décision de Fabien, 22/09) ────
+    # Sources COMMUNES, clé de CHACUN (`user_key`) : aucune clé d'instance, donc pas
+    # d'`api_key_env`. L'adresse est la BASE que chaque connecteur complète de son chemin ;
+    # `media_library/providers/*` la lit ici (`base_url`), et son proxy suit la portée déclarée
+    # (`proxies_for`). Libellé et page de la clé repris des lignes `MediaProvider` (migrations
+    # 0005 et 0007) — la saisie, elle, reste au profil.
+    ExternalSource(
+        'wikimedia', 'Wikimedia Commons', 'https://commons.wikimedia.org/w/api.php',
+        "Images et médias libres (CC, domaine public) — recherche de la médiathèque, sans clé",
+        kind='media'),
+    ExternalSource(
+        'pixabay', 'Pixabay', 'https://pixabay.com/api',
+        "Photos et vidéos libres de droits — recherche de la médiathèque",
+        kind='media', user_key=True, api_key_help_url='https://pixabay.com/api/docs/',
+        api_key_label='Clé API Pixabay'),
+    ExternalSource(
+        'pexels', 'Pexels', 'https://api.pexels.com',
+        "Photos et vidéos libres de droits (Pexels License) — recherche de la médiathèque",
+        kind='media', user_key=True, api_key_help_url='https://www.pexels.com/api/',
+        api_key_label='Clé API Pexels'),
+    ExternalSource(
+        'openverse', 'Openverse', 'https://api.openverse.org/v1',
+        "Moteur Creative Commons (images, musiques) — recherche de la médiathèque ; jeton optionnel",
+        kind='media', user_key=True,
+        api_key_help_url='https://api.openverse.org/v1/auth_tokens/register/',
+        api_key_label='Token Openverse (optionnel)'),
+    ExternalSource(
+        'jamendo', 'Jamendo', 'https://api.jamendo.com/v3.0',
+        "Musiques Creative Commons — recherche de la médiathèque",
+        kind='media', user_key=True, api_key_help_url='https://devportal.jamendo.com/',
+        api_key_label='Client ID Jamendo'),
+    ExternalSource(
+        'freesound', 'Freesound', 'https://freesound.org/apiv2',
+        "Voix et bruitages — recherche de la médiathèque",
+        kind='media', user_key=True, api_key_help_url='https://freesound.org/apiv2/apply/',
+        api_key_label='Clé API Freesound'),
 )
 
 #: Le dataset Arena, nommé une fois (ce n'est pas une URL : un identifiant de dataset du Hub).
@@ -379,6 +425,10 @@ def is_configured(key: str) -> bool:
 
     ⚠ Ne dit RIEN de sa joignabilité — sonder appartient à l'étape 3 (page en nature `mesure`).
     Une source anonyme est toujours « configurée » ; cela ne veut pas dire qu'elle répond.
+    ⚠ Ne dit RIEN non plus de la clé d'UN utilisateur (`user_key`) : c'est la configuration de
+    l'INSTANCE. Un connecteur de la médiathèque n'a rien à configurer ici — sa clé se pose au
+    profil de chacun, et c'est son connecteur qui refuse, avec un motif, quand elle manque. La
+    page le dit en toutes lettres (« clé par utilisateur ») au lieu d'un « configurée » trompeur.
     """
     src = get(key)
     return bool(api_key(key)) if src.api_key_env else True

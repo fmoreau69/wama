@@ -47,7 +47,7 @@ smoke.{% endcomment %}
   <div class="wama-cat-stats">
     <span class="wama-cat-stat"><b>{{ lignes|length }}</b> sources déclarées</span>
     <span class="wama-cat-stat"><b>{{ nb_locales }}</b> services locaux</span>
-    <span class="wama-cat-stat"><b>{{ nb_a_cle }}</b> à clé d'API</span>
+    <span class="wama-cat-stat"><b>{{ nb_a_cle }}</b> à clé d'API{% if user_key_count %} (dont <b>{{ user_key_count }}</b> par utilisateur){% endif %}</span>
     {% if rapport_date %}
       <span class="wama-cat-stat">sonde du <b>{{ rapport_date }}</b> —
         {{ compteurs.reachable }} joignable(s)
@@ -87,6 +87,8 @@ smoke.{% endcomment %}
           {% if l.cle_posee %}<span class="wama-cat-badge xs-cle-ok">clé posée</span>
           {% else %}<span class="wama-cat-badge xs-cle-ko">clé absente</span>{% endif %}
         {% endif %}
+        {% comment %}Clé de CHACUN (22/09) : jamais « configurée » ici — elle se pose au profil.{% endcomment %}
+        {% if l.user_key %}<a class="wama-cat-badge xs-type" href="{{ profile_url }}" title="Chaque utilisateur pose sa propre clé, au profil">clé par utilisateur → profil</a>{% endif %}
       </h4>
       <div class="wama-cat-desc">{{ l.usage }}</div>
       <div class="xs-url">{{ l.url }}</div>
@@ -94,6 +96,7 @@ smoke.{% endcomment %}
         {% if l.setting %}réglage <code>{{ l.setting }}</code>{% endif %}
         {% if l.env %}{% if l.setting %} · {% endif %}env <code>{{ l.env }}</code>{% endif %}
         {% if l.api_key_env %}{% if l.setting or l.env %} · {% endif %}clé <code>{{ l.api_key_env }}</code>{% endif %}
+        {% if l.user_key %}{% if l.setting or l.env or l.api_key_env %} · {% endif %}{{ l.api_key_label|default:"Clé d'API" }} au <a href="{{ profile_url }}">profil</a>{% if l.api_key_help_url %} (<a href="{{ l.api_key_help_url }}" target="_blank" rel="noopener">l'obtenir</a>){% endif %}{% endif %}
       </div>
       {% if l.attribution %}<div class="xs-attrib">Attribution : {{ l.attribution }}</div>{% endif %}
       <div class="xs-sonde">
@@ -157,6 +160,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 : '<span class="badge bg-primary">Internet (proxy UGE)</span>'];
             if (s.api_key_env) b.push(s.cle_posee ? '<span class="badge bg-success">clé posée</span>'
                                                    : '<span class="badge bg-danger">clé absente</span>');
+            if (s.user_key) b.push('<span class="badge bg-info">clé par utilisateur (profil)</span>');
             return b;
         } },
         { description: 'usage' },
@@ -165,6 +169,8 @@ document.addEventListener('DOMContentLoaded', function () {
             { k: 'Réglage Django', field: 'setting', code: true },
             { k: "Variable d'environnement", field: 'env', code: true },
             { k: "Clé d'API (variable)", field: 'api_key_env', code: true },
+            { k: "Clé de chaque utilisateur", get: function (s) {
+                return s.user_key ? ((s.api_key_label || "Clé d'API") + ' — au profil') : ''; } },
         ] },
         { section: 'Sonde (dernier rapport)', rows: [
             { k: 'État', get: function (s) {

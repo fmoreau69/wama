@@ -15,8 +15,9 @@ class PixabayProvider(BaseProvider):
     supported_types  = ['image', 'video']
     requires_api_key = True
 
-    _IMAGE_API = 'https://pixabay.com/api/'
-    _VIDEO_API = 'https://pixabay.com/api/videos/'
+    # Chemins sous la base déclarée au registre des sources (`external_sources`, 22/09).
+    _IMAGE_PATH = '/'
+    _VIDEO_PATH = '/videos/'
     _UA        = 'WAMA/1.0 (media library)'
 
     def search(self, query: str, asset_type: str, page: int = 1, per_page: int = 20) -> dict:
@@ -25,7 +26,7 @@ class PixabayProvider(BaseProvider):
                     'error': 'Clé API Pixabay manquante — ajoutez-la dans votre profil'}
 
         if asset_type == 'image':
-            base_url = self._IMAGE_API
+            endpoint = self.base_url() + self._IMAGE_PATH
             params = {
                 'key':        self.api_key,
                 'q':          query,
@@ -35,7 +36,7 @@ class PixabayProvider(BaseProvider):
                 'safesearch': 'true',
             }
         elif asset_type == 'video':
-            base_url = self._VIDEO_API
+            endpoint = self.base_url() + self._VIDEO_PATH
             params = {
                 'key':      self.api_key,
                 'q':        query,
@@ -45,7 +46,7 @@ class PixabayProvider(BaseProvider):
         else:
             return {'results': [], 'total': 0, 'has_more': False}
 
-        url = f"{base_url}?{urllib.parse.urlencode(params)}"
+        url = f"{endpoint}?{urllib.parse.urlencode(params)}"
         try:
             with self.open_url(url, timeout=15, headers={'User-Agent': self._UA}) as r:
                 data = json.loads(r.read())

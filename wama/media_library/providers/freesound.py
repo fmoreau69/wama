@@ -15,7 +15,6 @@ class FreesoundProvider(BaseProvider):
     supported_types  = ['voice', 'audio_sfx']
     requires_api_key = True
 
-    _BASE = 'https://freesound.org/apiv2'
     _UA   = 'WAMA/1.0 (media library)'
 
     def search(self, query: str, asset_type: str, page: int = 1, per_page: int = 20) -> dict:
@@ -36,7 +35,7 @@ class FreesoundProvider(BaseProvider):
             'fields':    'id,name,previews,duration,filesize,license,username,tags',
             'filter':    f'duration:[0.1 TO {max_dur}]',
         }
-        url = f"{self._BASE}/search/text/?{urllib.parse.urlencode(params)}"
+        url = f"{self.base_url()}/search/text/?{urllib.parse.urlencode(params)}"
 
         try:
             with self.open_url(url, timeout=15, headers={'User-Agent': self._UA}) as r:
