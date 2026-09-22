@@ -16398,3 +16398,51 @@ Grille **870/935**. Tests : brique 20 ; avatarizer + composer + contrats + adres
 `<int:pk>` d'abord), puis synthesizer / anonymizer / converter dès que leurs `views.py` ne sont plus en WIP
 chez une autre instance ; re-substituer `views` sur les 4 jumelles (provenance) ; un critère par vue.
 ⚠ Budget de langue toujours dépassé sur l'arbre par du WIP d'autres instances (voir palier précédent).
+
+## §PALIER — 2026-09-23 (session 19→23/09), « Le champ de voix du synthesizer GÉNÉRÉ du schéma — et deux décisions soldées » — ✅ LIVRÉ
+
+**Le défaut n'était pas technique, c'était une phrase.** Le schéma du synthesizer déclarait
+`options_source='voices'` depuis le début, et juste à côté : *« les options sont SERVER-RENDERED, on NE
+remplace donc PAS les champs »*. Cette phrase avait été recopiée dans **deux briques communes**
+(`wama-params.js`, `wama-inspector.js`) pour justifier de ne PAS lier la source `voices` au volet. Elle
+faisait donc refuser, partout, ce qui était déjà déclaré. Les quatre optgroups écrits à la main dans le
+gabarit redisaient ce que `get_voice_groups` sert déjà à la modale d'item, à l'avatarizer et à
+`/common/api/voices/` — et cette copie ne savait pas dire les **voix partagées** (décision du 21/09).
+
+**Livré** (`3c419881`) : hôte `#voicePresetHost` + `WamaParams.render(context:'panel')` dans un script EN
+LIGNE (donc avant le `DOMContentLoaded` d'index.js et avant `WamaModelCaps`/`WamaInputMatch`, qui lisent
+ce select) · vue : `custom_voices`/`voice_refs_groups` → `voice_groups_json(user)` (aide neuve de la
+brique commune) · le groupe « Mes voix » se retrouve par sa **clé** (`data-group-key`), plus par un id de
+gabarit · l'insertion d'une voix clonée annonce `wama:options-filled` (filtres rejoués, miroir de la card
+d'entrée recopié) · le lecteur du volet interroge `[name=]` **et** `[data-param=]` — sans quoi la voix
+cessait SILENCIEUSEMENT d'être enregistrée · aide du champ raccourcie (celle du modèle énumère la forme
+des valeurs : lisible en admin, illisible sous un select — vu au rendu).
+
+**Mesure — le double sens n'a pas bougé.** Le scénario nocturne d'appariement (`ui_smoke_matching`),
+joué contre un serveur de dev éphémère : **9/10 gestes** pour le synthesizer ET pour l'avatarizer. Les
+gestes qui comptent passent : voix clonée OFFERTE, elle grise les moteurs sans clonage, « auto » jamais
+grisé, un moteur sans clonage MASQUE les voix clonées, la langue restreint. L'unique échec est une
+erreur console `talkinghead.mjs` servi en `text/plain` — **artefact du serveur de dev** (contre-épreuve :
+10/10 contre gunicorn ; `.js` y est correct, `.mjs` n'est pas dans la table MIME de Windows). ⇒ **trou
+signalé** : toute validation navigateur sur serveur de dev verra ce faux rouge tant que `.mjs` n'est pas
+déclaré (une ligne `mimetypes.add_type` dans `settings.py` le règlerait — non fait, fichier partagé).
+Tests du périmètre : **190 OK** (synthesizer, avatarizer, voix, options WamaParams, auto_model, codegen,
+catalogue de docs), dont **6 gardes neuves** + un parse V8 de TOUS les scripts en ligne de la page rendue
+(contre-épreuve faite : V8 refuse bien un bloc cassé).
+
+**Décisions de Fabien, état** : ① voix enfant/âgé — toujours ouverte · ② connecteurs au registre des
+sources — **APPLIQUÉE** (`b3bbde6a` : 6 sources `media`, champ `user_key` « source commune, clé de
+chacun ») · ③ `media_library/system/` par nature — **APPLIQUÉE** (`b0c84db7`, vérifiée sur données
+réelles : 37 lignes, aucun fichier manquant ni orphelin) · ④ `is_public` → `visibility` — **SOLDÉE PAR
+RETRAIT** : la colonne portait `VoicePreset`, modèle retiré entre-temps (`c3aae386`, R64-R67) ; il ne
+reste que la ligne de la migration initiale (consigné `WAMA_COLLABORATION §9`) · ⑤ clé de payload
+`shared` des mots-clés — toujours ouverte.
+
+**Rouge ÉTRANGER, établi** (stash de mes seuls fichiers, mesure, restauration) : `tests_identifier_language`
+échoue **sans mes changements** — mesuré 2740 pour un budget déclaré 2744 depuis un commit d'instance sœur
+de 01:11. Le geste manquant est chez elle : *descendre le budget verrouille le gain.* Mon delta est nul.
+
+🔚 **Suivant** : aligner la médiathèque sur les fonctionnements communs (ordre des boutons, menu « … »
+commun — l'entrée au RAG en découle), puis marche 3 du partage (natures déclarées).
+**Pendings système** inchangés (redémarrage WAMA, `librosa`/`datasets`/`soundfile` hors requirements,
+`smoke-0802-*` non supprimés) + les 8 commits de `dev` non poussés.
