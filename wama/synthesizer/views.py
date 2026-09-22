@@ -603,11 +603,7 @@ def _reset_synthesis_for_relaunch(s):
     s.progress = 0
     s.error_message = ''
     # Supprimer l'ancien audio si présent
-    if s.audio_output:
-        try:
-            s.audio_output.delete(save=False)
-        except Exception:
-            pass
+    safe_delete_file(s, 'audio_output')
 
 
 @app_access('synthesizer')
@@ -810,11 +806,7 @@ def delete(request, pk: int):
     safe_delete_file(synthesis, 'voice_reference')
 
     # Output file is always unique to this synthesis — delete unconditionally
-    if synthesis.audio_output:
-        try:
-            synthesis.audio_output.delete(save=False)
-        except Exception:
-            pass
+    safe_delete_file(synthesis, 'audio_output')
 
     synthesis.delete()
     cache.delete(f"synthesizer_progress_{pk}")
@@ -977,11 +969,7 @@ def start_all(request):
             options_changed = True
         if voice_reference:
             # Supprimer l'ancienne référence si elle existe
-            if synthesis.voice_reference:
-                try:
-                    synthesis.voice_reference.delete(save=False)
-                except:
-                    pass
+            safe_delete_file(synthesis, 'voice_reference')
             synthesis.voice_reference = voice_reference
             options_changed = True
         if multi_speaker_raw is not None:
@@ -1037,23 +1025,11 @@ def clear_all(request):
                 pass
 
         # Supprimer les fichiers
-        if synthesis.text_file:
-            try:
-                synthesis.text_file.delete(save=False)
-            except:
-                pass
+        safe_delete_file(synthesis, 'text_file')
 
-        if synthesis.audio_output:
-            try:
-                synthesis.audio_output.delete(save=False)
-            except:
-                pass
+        safe_delete_file(synthesis, 'audio_output')
 
-        if synthesis.voice_reference:
-            try:
-                synthesis.voice_reference.delete(save=False)
-            except:
-                pass
+        safe_delete_file(synthesis, 'voice_reference')
 
         cache.delete(f"synthesizer_progress_{synthesis.id}")
 
@@ -1564,11 +1540,7 @@ def batch_delete(request, pk: int):
         safe_delete_file(s, 'text_file')
         safe_delete_file(s, 'voice_reference')
         # Output file is always unique to this item
-        if s.audio_output:
-            try:
-                s.audio_output.delete(save=False)
-            except Exception:
-                pass
+        safe_delete_file(s, 'audio_output')
         cache.delete(f"synthesizer_progress_{s.id}")
         s.delete()
 

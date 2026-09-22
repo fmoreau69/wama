@@ -658,17 +658,9 @@ def delete(request, pk):
     snapshot = batch_snapshot(description)
 
     # Delete files
-    if description.input_file and os.path.exists(description.input_file.path):
-        try:
-            os.remove(description.input_file.path)
-        except OSError:
-            pass
+    safe_delete_file(description, 'input_file')
 
-    if description.result_file and os.path.exists(description.result_file.path):
-        try:
-            os.remove(description.result_file.path)
-        except OSError:
-            pass
+    safe_delete_file(description, 'result_file')
 
     description.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
@@ -729,16 +721,8 @@ def clear_all(request):
     count = descriptions.count()
 
     for desc in descriptions:
-        if desc.input_file and os.path.exists(desc.input_file.path):
-            try:
-                os.remove(desc.input_file.path)
-            except OSError:
-                pass
-        if desc.result_file and os.path.exists(desc.result_file.path):
-            try:
-                os.remove(desc.result_file.path)
-            except OSError:
-                pass
+        safe_delete_file(desc, 'input_file')
+        safe_delete_file(desc, 'result_file')
 
     descriptions.delete()
 
@@ -1121,11 +1105,7 @@ def batch_delete(request, pk):
 
     for d in descriptions_to_delete:
         safe_delete_file(d, 'input_file')
-        if d.result_file:
-            try:
-                d.result_file.delete(save=False)
-            except Exception:
-                pass
+        safe_delete_file(d, 'result_file')
         cache.delete(f"describer_progress_{d.id}")
         d.delete()
 

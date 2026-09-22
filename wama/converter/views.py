@@ -42,31 +42,11 @@ from wama.common.utils.media_paths import get_relative_media_path
 logger = logging.getLogger(__name__)
 
 
-def _is_app_owned(file_field, user_id) -> bool:
-    """True only if the file lives inside the Converter's OWN media tree
-    (``users/<user_id>/converter/…``, rendu par `app_media_dir`).
-
-    Règle WAMA : supprimer une tâche ne supprime les fichiers QUE s'ils sont
-    dans le dossier média de l'application. Les fichiers seulement *référencés*
-    ailleurs appartiennent à l'utilisateur et ne doivent jamais être supprimés :
-      - "Envoyer vers Converter" (file d'attente) : input = source Filemanager
-        (référencée, pas copiée) → NON supprimable ; output dans le dossier du converter → supprimable.
-      - "Conversion rapide" (in-place) : input ET output dans des dossiers
-        utilisateur → NON supprimables.
-      - Upload direct dans la page Converter : input ET output dans le dossier
-        du converter → supprimables.
-
-    ⚠ Ce préfixe était écrit `converter/<user_id>/` jusqu'au 2026-09-22, donc resté à l'ANCIEN
-    domicile après la bascule du 12/09. Rien ne cassait : la règle répondait simplement « pas
-    à moi » pour TOUT fichier migré — supprimer, tout effacer ou relancer un job laissait sa
-    sortie sur le disque, pour toujours. *Une garde qui refuse à tort ne plante jamais : elle
-    fuit.* Le préfixe vient désormais de la brique, comme le chemin d'écriture de `tasks.py`.
-    """
-    if not file_field:
-        return False
-    from wama.common.utils.media_paths import app_media_dir
-    name = (getattr(file_field, 'name', '') or '').replace('\\', '/')
-    return name.startswith(app_media_dir('converter', user_id, ''))
+# ⚠ `_is_app_owned` vivait ici jusqu'au 2026-09-22 : la règle « ne supprimer que les fichiers
+# du dossier de l'app, jamais ceux qu'on ne fait que RÉFÉRENCER » (envoi depuis le gestionnaire
+# de fichiers, conversion rapide). Elle était JUSTE — mais n'existait que pour cette app, et les
+# 10 autres détruisaient un fichier référencé. Elle vit désormais dans la brique commune
+# (`queue_duplication.owns_file`, appelée par `safe_delete_file`), pour tout le parc.
 
 
 def _wrap_job_in_batch(job):
@@ -350,10 +330,11 @@ def start(request, pk):
             except Exception:
                 pass
 
-        # Clear previous output (only if it lives in the Converter's media tree)
-        if job.output_file and _is_app_owned(job.output_file, job.user_id):
-            safe_delete_file(job, 'output_file')
-            job.output_file = None
+        # L'ancienne sortie : détruite par la brique si elle est au converter et que plus rien ne la
+        # partage (une copie par « Dupliquer » la garde) ; la RÉFÉRENCE part dans tous les cas —
+        # une nouvelle sortie va être produite.
+        safe_delete_file(job, 'output_file')
+        job.output_file = None
 
         job.status        = 'RUNNING'
         job.task_id       = ''
@@ -578,14 +559,9 @@ def delete(request, pk):
     snapshot = batch_snapshot(job)
 
     # Output : supprimé seulement s'il est dans le dossier média du Converter
-    if job.output_file and _is_app_owned(job.output_file, job.user_id):
-        try:
-            Path(job.output_file.path).unlink(missing_ok=True)
-        except Exception:
-            pass
+    safe_delete_file(job, 'output_file')
     # Input : idem — jamais les fichiers utilisateur seulement référencés
-    if _is_app_owned(job.input_file, job.user_id):
-        safe_delete_file(job, 'input_file')
+    safe_delete_file(job, 'input_file')
 
     job.delete()   # signal post_delete (batch_sync) : recale le total / supprime le lot vidé
     return JsonResponse({'success': True, 'batch': batch_state(snapshot, ConversionJob)})
@@ -718,13 +694,8 @@ def clear_all(request):
     """Delete all jobs for the current user."""
     jobs = ConversionJob.objects.filter(user=request.user)
     for job in jobs:
-        if job.output_file and _is_app_owned(job.output_file, job.user_id):
-            try:
-                Path(job.output_file.path).unlink(missing_ok=True)
-            except Exception:
-                pass
-        if _is_app_owned(job.input_file, job.user_id):
-            safe_delete_file(job, 'input_file')
+        safe_delete_file(job, 'output_file')
+        safe_delete_file(job, 'input_file')
     jobs.delete()  # signal batch_sync (apps.py) : recale total / supprime le lot vidé
     return JsonResponse({'success': True})
 
@@ -847,13 +818,8 @@ def batch_create(request):
 
 def _delete_job_files(job):
     """Supprime input/output d'un job s'ils appartiennent au Converter."""
-    if job.output_file and _is_app_owned(job.output_file, job.user_id):
-        try:
-            Path(job.output_file.path).unlink(missing_ok=True)
-        except Exception:
-            pass
-    if _is_app_owned(job.input_file, job.user_id):
-        safe_delete_file(job, 'input_file')
+    safe_delete_file(job, 'output_file')
+    safe_delete_file(job, 'input_file')
 
 
 @login_required

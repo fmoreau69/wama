@@ -18,53 +18,95 @@ Usage across apps
 Design notes
 ------------
 - Files are NEVER copied on duplication. Both rows point to the same relative path.
-- safe_delete_file() checks the DB for other rows referencing the same path before
-  calling FileField.delete(). This prevents orphaning a file still used by a duplicate.
+- safe_delete_file() destroys a file only if it is the card's OWN file (`owns_file`: it lives
+  in the app's home for the card's owner) AND no other row still uses it
+  (`is_shared_elsewhere`). A file the card only references is never destroyed; a file still
+  used by a duplicate is kept.
 - duplicate_instance() fetches a fresh DB copy of the row to avoid mutating the
   caller's in-memory object.
 """
 
 
+def _owner_id(instance):
+    """Propriétaire de la card : `user` direct, ou porté par une relation (`session`, `batch`).
+    `None` si aucun — et alors rien n'est détruit (cf. `owns_file`). Les deux relations sont
+    celles que le parc emploie réellement (`tests_media_paths._chemin_simule` mesure la
+    première) ; en ajouter une par précaution serait deviner."""
+    owner = getattr(instance, 'user_id', None)
+    for relation in ('session', 'batch'):
+        if owner is not None:
+            break
+        owner = getattr(getattr(instance, relation, None), 'user_id', None)
+    return owner
+
+
+def owns_file(instance, file_name: str) -> bool:
+    """Le fichier vit-il dans le DOMICILE de l'app de cette card (`users/<uid>/<app>/…`) ?
+
+    ⚠ La règle « supprimer une card ne détruit jamais un fichier HORS de chez l'app » est née le
+    31/08 pour le seul converter (et, par le générateur, pour les jumelles). Mesuré le 2026-09-22
+    sur tout le parc : les 10 autres apps détruisaient un fichier qu'elles ne faisaient que
+    RÉFÉRENCER — perte réelle pour les deux pointeurs vivants (`text_file` du synthesizer quand on
+    importe un fichier déjà sur le serveur, `audio_input` de l'avatarizer par un lot `-i`) :
+    effacer la card effaçait l'original dans le temp de l'utilisateur. La règle vit désormais ICI,
+    une fois, pour toutes les apps. Le domicile vient de `app_media_dir` — jamais recomposé.
+    """
+    owner = _owner_id(instance)
+    if owner is None or not file_name:
+        return False
+    from wama.common.utils.media_paths import app_media_dir
+    home = app_media_dir(instance._meta.app_label, owner, '')
+    return file_name.replace('\\', '/').startswith(home)
+
+
 def safe_delete_file(instance, field_name: str) -> bool:
     """
-    Delete a FileField's physical file only if no other DB row references the same path.
+    Delete a FileField's physical file only if it is the card's OWN file and no other row
+    still uses it.
 
-    When a queue item has been duplicated, its input file is shared between the original
-    and the duplicate. Calling field.delete() on either row would remove the file and
-    break the other. This function checks first.
+    Two rules, both required:
+      * OWNERSHIP — the file lives in the app's home for the card's owner (`owns_file`). A file
+        the card only REFERENCES (the user's temp, the media library, a mount) is never
+        destroyed: deleting the card removes the link, not the original.
+      * SHARING — no other row of the same model references the same path. `duplicate_instance`
+        shares files by contract: deleting the original must not break its copy.
 
     Args:
         instance:   The model instance that is about to be deleted from the DB.
         field_name: The name of the FileField attribute (e.g. 'audio', 'input_file').
 
     Returns:
-        True  — file was deleted (no other references found).
-        False — file was kept (at least one other row still references it, or the field
-                was empty, or deletion failed silently).
+        True  — file was deleted.
+        False — file was kept (not the app's own file, still shared, empty field, or the
+                deletion failed).
     """
     field = getattr(instance, field_name, None)
     if field is None or not field.name:
         return False
 
     file_name = field.name          # relative path stored in the DB column
-    model_class = type(instance)
+    if not owns_file(instance, file_name) or is_shared_elsewhere(instance, field_name, file_name):
+        return False
+    try:
+        field.delete(save=False)
+        return True
+    except Exception:
+        return False
 
-    # Count rows (excluding the current one) that point to the same file
-    other_refs = (
-        model_class.objects
-        .filter(**{field_name: file_name})
-        .exclude(pk=instance.pk)
-        .count()
-    )
 
-    if other_refs == 0:
-        try:
-            field.delete(save=False)
-            return True
-        except Exception:
-            pass
+def is_shared_elsewhere(instance, field_name: str, file_name: str) -> bool:
+    """Une AUTRE ligne du même modèle désigne-t-elle ce fichier dans le même champ ?
 
-    return False
+    La moitié PARTAGE de `safe_delete_file`, nommée à part le 2026-09-22 à la demande de
+    l'instance qui remplace les voix SYSTÈME : un `SystemAsset` n'a pas de propriétaire, donc la
+    règle de propriété ne s'y applique pas — mais celle du partage, si. Sans ce nom, elle
+    recopiait ces deux lignes. Un appelant hors card emploie CETTE fonction, jamais
+    `safe_delete_file`, dont la règle de propriété refuserait tout fichier sans propriétaire.
+    """
+    return (type(instance).objects
+            .filter(**{field_name: file_name})
+            .exclude(pk=instance.pk)
+            .exists())
 
 
 def duplicate_instance(instance, reset_fields=None, clear_fields=None):
