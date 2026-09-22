@@ -376,14 +376,16 @@ def ingest_voice_file(name: str, path, *, source_url: str = '', license: str = '
     # orphelin. Mesuré le 2026-09-22 : 3 passages de retéléchargement avaient laissé 14 WAV que
     # plus aucune ligne ne référençait. Ordre : la ligne d'abord (posée ci-dessus), le fichier
     # ensuite ; et jamais s'il est encore référencé ailleurs.
-    # ⚠ PAS `safe_delete_file` : c'est la brique des CARDS, et depuis le 22/09 (instance sœur) elle
-    # exige aussi la PROPRIÉTÉ — le fichier doit vivre dans `users/<uid>/<app>/`. Un `SystemAsset`
-    # n'a PAS de propriétaire, par conception (`MEDIA_STORAGE_TIERING §8bis`) : elle refuserait
-    # toujours, en silence. Seule la règle de PARTAGE vaut ici. (Cette fonction l'a appelée
-    # quelques heures ; ce sont les tests de remplacement qui ont révélé l'interaction.)
-    if old_file and old_file != asset.file.name \
-            and not SystemAsset.objects.filter(file=old_file).exists():
-        asset.file.storage.delete(old_file)
+    # ⚠ PAS `safe_delete_file` : c'est la brique des CARDS, et depuis le 22/09 elle exige aussi la
+    # PROPRIÉTÉ — le fichier doit vivre dans `users/<uid>/<app>/`. Un `SystemAsset` n'a PAS de
+    # propriétaire, par conception (`MEDIA_STORAGE_TIERING §8bis`) : elle refuserait toujours, en
+    # silence. Seule la règle de PARTAGE vaut ici — sa moitié nommée à part, `is_shared_elsewhere`,
+    # livrée par l'instance sœur à cette fin (`bd22e20a`) après que les tests de remplacement ont
+    # révélé l'interaction.
+    if old_file and old_file != asset.file.name:
+        from wama.common.utils.queue_duplication import is_shared_elsewhere
+        if not is_shared_elsewhere(asset, 'file', old_file):
+            asset.file.storage.delete(old_file)
     _settle_file_name(asset, path.name)
     return asset
 
