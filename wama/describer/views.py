@@ -453,6 +453,7 @@ def _reset_for_relaunch(description):
 
 
 @app_access('describer')
+@require_POST   # un GET lançait le traitement (parcours des adresses, 2026-09-22)
 def start(request, pk):
     """Start processing a description — anti-race via la brique commune (2026-07-06 :
     l'implémentation inline d'origine a été PROMUE en process_control.begin_processing)."""

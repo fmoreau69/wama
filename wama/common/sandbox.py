@@ -77,6 +77,17 @@ def sandbox_labels() -> list:
             if LABEL_RE.match(e.get('label', '')) and (base / e['label'] / 'apps.py').exists()]
 
 
+def twins_with_copied_views() -> set:
+    """Labels des jumelles dont les VUES sont une COPIE figée de l'app source (non régénérées).
+
+    Elles ne suivent pas le code réel par construction : un contrat qui les exigerait reviendrait
+    à éditer une copie à la main. Les contrats génériques (suppression, parcours des adresses) les
+    écartent donc — nommé ici le 2026-09-22 pour que les deux ne recopient pas la même règle.
+    """
+    return {e['label'] for e in load_registry()
+            if 'views' not in (e.get('substituted') or {})}
+
+
 def sandbox_installed_apps() -> list:
     """Entrées INSTALLED_APPS des jumelles (consommé par settings.py)."""
     return [f'wama.{label}' for label in sandbox_labels()]

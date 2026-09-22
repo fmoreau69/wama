@@ -257,6 +257,7 @@ def stop(request, pk):
     return JsonResponse({'id': job.id, 'status': new_status})
 
 
+@require_POST   # un GET lançait la génération (parcours des adresses, 2026-09-22) ; le JS POSTe désormais
 def start(request, pk):
     """GET : Lance la génération d'un AvatarJob via Celery (queue gpu)."""
     user = _get_user(request)

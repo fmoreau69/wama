@@ -167,6 +167,25 @@ def _run_redundancy(ctx):
     return n <= REDONDANCES_ASSUMEES, f"{n} trouvaille(s) (contrat : ≤{REDONDANCES_ASSUMEES})"
 
 
+def _run_media_integrity(ctx):
+    # Les VRAIES données (base et disque) — hors de portée de la suite de tests, dont la base est
+    # vide : d'où un contrôle nocturne. Budgets qui ne peuvent que descendre, dans la commande
+    # elle-même (`check_media_integrity.BUDGET_*`) ; la mesure est appelée, pas relue dans une
+    # sortie texte.
+    from pathlib import Path
+    from django.conf import settings
+    from wama.common.management.commands import check_media_integrity as integrity
+    racine = Path(settings.MEDIA_ROOT)
+    if not racine.exists():
+        raise SkipScenario(f"MEDIA_ROOT absent : {racine}")
+    counts = integrity.measure(racine)
+    detail = (f"{len(counts['absent'])} absent(s) / budget {integrity.BUDGET_ABSENT}, "
+              f"{len(counts['stray'])} égaré(s) / {integrity.BUDGET_STRAY}, "
+              f"{sum(len(v) for v in counts['test_residue'].values())} résidu(s) de test")
+    depassements = integrity.over_budget(counts)
+    return not depassements, (' ; '.join(depassements) + ' — ' if depassements else '') + detail
+
+
 def _run_dep_vulns(ctx):
     # Les deux commandes sécurité utilisent le code 3 = « dépendance d'outillage/réseau
     # absente » → SKIP (ni succès ni échec), jamais un rouge trompeur.
@@ -476,6 +495,10 @@ def register_scenarios():
     register(id='common.consistency.redundancy', app='common', stage='consistency',
              description='Recopies locales d\'un domicile unique (contrat : ≤5, dette anonymizer)',
              run=_run_redundancy, timeout_s=300)
+    register(id='common.consistency.media_integrity', app='common', stage='consistency',
+             description='Médias : références vers un fichier ABSENT, égarés, résidus de test — '
+                         'sous budgets qui ne peuvent que descendre (MEDIA_STORAGE_TIERING §8.6)',
+             run=_run_media_integrity, timeout_s=300)
     register(id='common.consistency.dep_vulns', app='common', stage='consistency',
              description='CVE des paquets installés vs baseline versionnée (OSV.dev — contrat : 0 nouvelle)',
              run=_run_dep_vulns, timeout_s=300)

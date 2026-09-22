@@ -172,9 +172,9 @@ def _surfaces():
     réel par construction, et les exiger ici reviendrait à les éditer à la main.
     """
     from wama.common.app_registry import APP_CATALOG
-    from wama.common.sandbox import load_registry
+    from wama.common.sandbox import twins_with_copied_views
 
-    copiees = {j['label'] for j in load_registry() if 'views' not in (j.get('substituted') or {})}
+    copiees = twins_with_copied_views()
     sortie = []
     for app in APP_CATALOG:
         if app in copiees:

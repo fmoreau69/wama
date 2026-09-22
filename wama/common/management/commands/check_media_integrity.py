@@ -105,6 +105,48 @@ def _references_vives():
     return refs
 
 
+#: BUDGETS du contrôle nocturne (`nightly_scenarios`, stage `consistency`) — ils ne peuvent que
+#: DESCENDRE. Mesurés le 2026-09-22 : 29 références vers un fichier absent (dette connue, dont les
+#: résidus de tests navigateur `…/pw/…`), 2 égarés (`WAMA_Presentation*.wav`, `§9.6`), 0 résidu.
+#: Un passage AU-DESSUS = une nouvelle dégradation ; EN DESSOUS = une réparation → recaler ici.
+BUDGET_ABSENT = 29
+BUDGET_STRAY = 2
+BUDGET_TEST_RESIDUE = 0
+
+
+def measure(root: Path) -> dict:
+    """Les comptes de l'audit, sans rien afficher — lus par la commande ET par le contrôle
+    nocturne (une seule mesure, deux lecteurs)."""
+    refs = _references_vives()
+    sur_disque = [str(p.relative_to(root)).replace('\\', '/')
+                  for p in root.rglob('*') if p.is_file()]
+    references, orphelins, egares = [], [], []
+    residus = defaultdict(list)
+    for rel in sur_disque:
+        if rel in refs:
+            references.append(rel)
+        else:
+            orphelins.append(rel)
+            for source, motif in PRODUCTEURS_DE_TEST:
+                if motif.match(rel):
+                    residus[source].append(rel)
+                    break
+        if not _est_legitime(rel):
+            egares.append(rel)
+    return {'refs': refs, 'on_disk': sur_disque, 'referenced': references, 'orphans': orphelins,
+            'test_residue': residus, 'stray': egares,
+            'absent': sorted(set(refs) - set(sur_disque))}
+
+
+def over_budget(counts: dict) -> list:
+    """Les dépassements de budget, en phrases ; liste vide = dans les clous."""
+    measures = (('références vers un fichier ABSENT', len(counts['absent']), BUDGET_ABSENT),
+               ('fichiers ÉGARÉS', len(counts['stray']), BUDGET_STRAY),
+               ('résidus de TEST', sum(len(v) for v in counts['test_residue'].values()),
+                BUDGET_TEST_RESIDUE))
+    return [f'{label} : {n} > budget {b}' for label, n, b in measures if n > b]
+
+
 class Command(BaseCommand):
     help = "Audit de media/ : référencé / orphelin / résidu de test / RÉFÉRENCÉ MAIS ABSENT / égaré."
 
@@ -125,26 +167,10 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"MEDIA_ROOT absent : {racine}"))
             return
 
-        refs = _references_vives()
-        sur_disque = [str(p.relative_to(racine)).replace('\\', '/')
-                      for p in racine.rglob('*') if p.is_file()]
-
-        references, orphelins = [], []
-        residus = defaultdict(list)
-        egares = []
-        for rel in sur_disque:
-            if rel in refs:
-                references.append(rel)
-            else:
-                orphelins.append(rel)
-                for source, motif in PRODUCTEURS_DE_TEST:
-                    if motif.match(rel):
-                        residus[source].append(rel)
-                        break
-            if not _est_legitime(rel):
-                egares.append(rel)
-
-        absents = sorted(set(refs) - set(sur_disque))
+        counts = measure(racine)
+        refs, sur_disque = counts['refs'], counts['on_disk']
+        references, orphelins = counts['referenced'], counts['orphans']
+        residus, egares, absents = counts['test_residue'], counts['stray'], counts['absent']
 
         largeur = 78
         self.stdout.write("=" * largeur)

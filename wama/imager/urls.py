@@ -13,7 +13,11 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('about/', AppAboutView.as_view(), name='about'),
     path('help/', AppHelpView.as_view(), name='help'),
-    path('console/', views.console, name='console'),
+    # `console` sert le CONTENU (JSON), comme dans les 9 autres apps. Jusqu'au 2026-09-22 il rendait
+    # `imager/console.html`, un gabarit qui n'existe pas → 500 à chaque appel. Aucun appelant (le
+    # panneau console commun passe par `/common/api/console/`), donc jamais vu : c'est le parcours
+    # des adresses (`tests_endpoints`) qui l'a trouvé.
+    path('console/', views.console_content, name='console'),
 
     # Generation management
     path('create/', views.create_generation, name='create'),

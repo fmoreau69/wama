@@ -386,6 +386,7 @@ def _reset_for_relaunch(item):
 
 
 @app_access('reader')
+@require_POST   # un GET lançait la lecture (parcours des adresses, 2026-09-22)
 def start(request, pk: int):
     """Start OCR processing for a single item — anti-race via la brique commune."""
     user = _get_user(request)

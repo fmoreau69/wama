@@ -1039,12 +1039,13 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
-- **API publique** (10) :
+- **API publique** (11) :
   - `load_registry() -> list` — Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
   - `twin_owner(label: str) -> str` — Username du créateur d'une jumelle ('' si CLI/inconnu) — consommé par la dérogation
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
   - `save_registry(entries: list) -> None`
   - `sandbox_labels() -> list` — Labels des jumelles dont le PACKAGE existe réellement (garde anti-registre orphelin :
+  - `twins_with_copied_views() -> set` — Labels des jumelles dont les VUES sont une COPIE figée de l'app source (non régénérées).
   - `sandbox_installed_apps() -> list` — Entrées INSTALLED_APPS des jumelles (consommé par settings.py).
   - `sandbox_urlpatterns()` — URLconfs des jumelles — préfixe = label (underscore assumé : `/converter_01/` — le
   - `inject_sandbox_access(default_app_access: dict, app_group: dict) -> None` — Gating DEV-ONLY des jumelles (contrat marche S §3) + groupe d'affichage dédié.
@@ -1264,7 +1265,9 @@ Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe d
 
 - **Domicile** : `wama/common/management/commands/check_media_integrity.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Audit MESURÉ de `media/` — les fichiers sont-ils à leur place, et rien n'a-t-il survécu ?
-- **API publique** (1) :
+- **API publique** (3) :
+  - `measure(root: Path) -> dict` — Les comptes de l'audit, sans rien afficher — lus par la commande ET par le contrôle
+  - `over_budget(counts: dict) -> list` — Les dépassements de budget, en phrases ; liste vide = dans les clous.
   - `class Command(BaseCommand)`
 
 ### Manipulation directe de la file

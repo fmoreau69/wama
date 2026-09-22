@@ -275,7 +275,7 @@ class ViewsTest(TestCase):
             text_content="Test content"
         )
 
-        response = self.client.get(
+        response = self.client.post(
             reverse('synthesizer:start', args=[synthesis.id])
         )
 
@@ -329,7 +329,7 @@ class ViewsTest(TestCase):
             text_file=self.text_file
         )
 
-        response = self.client.get(
+        response = self.client.post(
             reverse('synthesizer:start', args=[synthesis.id])
         )
 
@@ -372,7 +372,7 @@ class IntegrationTest(TestCase):
         self.assertEqual(synthesis.status, 'PENDING')
 
         # 3. Démarrer (sans vraiment exécuter Celery en test)
-        response = self.client.get(
+        response = self.client.post(
             reverse('synthesizer:start', args=[synthesis_id])
         )
         self.assertEqual(response.status_code, 200)

@@ -547,11 +547,21 @@ def upload_text(request):
 def text_preview(request, pk: int):
     """
     Récupère le contenu texte d'une synthèse pour prévisualisation.
-    """
-    try:
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-        synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
+    ⚠ `get_object_or_404` vivait DANS le `try/except Exception` ci-dessous jusqu'au 2026-09-22 :
+    `Http404` est une exception, elle était avalée et rendue en **500** — un identifiant inexistant
+    répondait « erreur serveur ». Trouvé par le parcours générique des adresses
+    (`common/tests_endpoints.py`). La recherche est sortie du `try`, et un fichier texte ABSENT du
+    disque (référence morte, cf. `check_media_integrity`) répond 404, pas 500.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    if not synthesis.text_content and not (synthesis.text_file and
+                                           os.path.exists(synthesis.text_file.path)):
+        return JsonResponse({'success': False,
+                             'error': "Le fichier texte de cette synthèse est introuvable."},
+                            status=404)
+    try:
         # Si le contenu texte est déjà extrait, l'utiliser
         if synthesis.text_content:
             text_content = synthesis.text_content
@@ -607,6 +617,7 @@ def _reset_synthesis_for_relaunch(s):
 
 
 @app_access('synthesizer')
+@require_POST   # un GET lançait la synthèse (parcours des adresses, 2026-09-22) ; le JS POSTe désormais
 def start(request, pk: int):
     """
     Démarre la synthèse vocale pour un fichier.
