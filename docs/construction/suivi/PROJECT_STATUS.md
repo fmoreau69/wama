@@ -16351,3 +16351,27 @@ batterie describer + contrats + brique + codegen : 82 OK. Budgets tenus (2744 / 
 remplacer, tests + grille) — reader et transcriber (liaison, cache de progression comme le describer),
 synthesizer, enhancer (deux files → deux fabriques), avatarizer, composer, imager (routes `<int:generation_id>`
 à porter d'abord), anonymizer, converter (forme directe). Puis un critère par vue.
+
+## §PALIER — 2026-09-23, « `make_batch_views` : reader et transcriber portés (3/10) » — ✅ LIVRÉ
+
+**Reader** : cinq vues par la fabrique ; `language` vide = auto-détection → hook `empty_is_value=('language',)`
+(la fabrique retirait les vides du schéma — leçon du 17/08 « test de présence, jamais `or` ») ; cache
+`reader_progress_<id>` = un dict `{'pct'}` (`progress_of`) ; `result_text`/`used_backend` vidés à la
+duplication ; `@app_access` gardé ; `batch_list`/`batch_download` sur `batch_elements`. Le front du reader
+lit `data.success` sur `batch_update` → les réponses de la fabrique portent `success: True`. 90/94.
+**Transcriber** : la tâche se choisit PAR élément (`task_for` : `transcribe` /
+`transcribe_without_preprocessing` selon `preprocess_audio`) ; `_reset_for_relaunch` + cache à 0 sous le
+verrou ; libellé = fichier ou queue d'URL (`item_label`) ; `on_delete` = `_cleanup_output_files` + cache ;
+remise à zéro complète à la duplication (`reset_on_duplicate`, `output_fields` = segments/points
+clés/actions/score) ; `save_settings` sur les deux helpers (l'ancien `_apply_transcript_settings` typait à la
+main) ; `batch_update_settings` = nom de vue de l'URLconf, conservé. 87/95.
+Grille **868/936** ; `tests_batch_views` 17 ; transcriber + reader + brique + contrats génériques + adresses :
+56 OK.
+
+⚠ **Budget de langue DÉPASSÉ sur l'arbre, pas par moi** : 2746 > 2744 (code) et 1313 > 1312 (tests) — les
+identifiants viennent du WIP non commité d'autres instances (`anonymizer/views.py` : `valeurs`, `cible` ;
+`check_media_integrity.py` : `motif`, `modele`, `ligne`…). Mes fichiers n'en portent aucun (mesuré
+`--detail`). À solder par qui commite ces fichiers.
+
+🔚 **Suivant** : synthesizer, avatarizer, composer, anonymizer, converter (forme directe), enhancer (deux
+files → deux fabriques), imager (ses routes prennent `batch_id`, pas `pk` → portage des routes d'abord).

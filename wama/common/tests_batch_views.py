@@ -71,7 +71,8 @@ class DirectFormBatchViewsTest(TestCase):
         self.a.status = 'RUNNING'
         self.a.save(update_fields=['status'])
         r = self._post('batch_update', self.lot.pk, {'output_format': 'webm'})
-        self.assertEqual(json.loads(r.content), {'updated': 1})
+        payload = json.loads(r.content)
+        self.assertEqual((payload['success'], payload['updated']), (True, 1))
         self.b.refresh_from_db()
         self.a.refresh_from_db()
         self.assertEqual(self.b.output_format, 'webm')
@@ -137,6 +138,20 @@ class DirectFormBatchViewsTest(TestCase):
         req.user = self.u
         views['batch_delete'](req, self.lot.pk)
         self.assertEqual(seen, ['b.mp4', 'a.mp4'])
+
+    def test_batch_start_picks_the_task_per_item_when_task_for_is_declared(self):
+        """transcriber : avec ou sans pré-traitement selon `preprocess_audio` — la tâche se
+        choisit PAR élément, déclarée par `task_for` (prime sur `task`)."""
+        from wama.converter.models import ConversionBatch, ConversionJob
+        fast, slow = _FakeTask(), _FakeTask()
+        views = make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            task=fast, task_for=lambda j: slow if j.input_filename == 'a.mp4' else fast,
+            batch_attr='batch', row_field='batch_row_index')
+        req = self.rf.post('/x/')
+        req.user = self.u
+        views['batch_start'](req, self.lot.pk)
+        self.assertEqual((fast.calls, slow.calls), ([self.b.id], [self.a.id]))
 
     def test_batch_start_accepts_a_callable_reset_applied_under_the_lock(self):
         from wama.converter.models import ConversionBatch, ConversionJob
@@ -209,6 +224,14 @@ class SettingsPayloadTest(TestCase):
         self.assertIs(data['upscale'], True)
         self.assertNotIn('note', data, "un champ du schéma laissé vide veut dire « ne pas toucher »")
         self.assertIn('steps2', data, 'un champ HORS schéma passe tel quel')
+
+    def test_a_declared_field_keeps_its_empty_value(self):
+        """reader : `language` vide = auto-détection voulue (leçon du 17/08 : test de présence,
+        jamais `or`) — déclaré par `empty_is_value`, `''` traverse ; les autres vides tombent."""
+        req = RequestFactory().post('/x/', {'language': '', 'note': ''})
+        data = read_settings_payload(req, [{'name': 'language', 'type': 'text'}, {'name': 'note', 'type': 'text'}],
+                                     ('language', 'note'), empty_is_value=('language',))
+        self.assertEqual(data, {'language': ''})
 
     def test_json_payload_is_read_from_the_body(self):
         req = RequestFactory().post('/x/', data=json.dumps({'steps': 5}), content_type='application/json')
