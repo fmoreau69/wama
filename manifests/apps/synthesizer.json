@@ -1240,7 +1240,7 @@
               "panel": "voice_preset"
             },
             "group": "",
-            "help": "Voix : `default`, preset plat, `sa_<id>` (référence), `ua_<id>` (clonage), Bark",
+            "help": "Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1744,7 +1744,7 @@
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
             "text": "str (requis)",
             "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",
-            "voice_preset": "select — Voix : `default`, preset plat, `sa_<id>` (référence), `ua_<id>` (clonage), Bark (défaut : 'default')"
+            "voice_preset": "select — Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark (défaut : 'default')"
           },
           "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…)) et renvoie son item_id."
         },

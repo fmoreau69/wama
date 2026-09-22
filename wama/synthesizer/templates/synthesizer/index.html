@@ -89,38 +89,14 @@
 
 <!-- Voice Preset -->
 <div id="voicePresetGroup" class="mb-3">
-    <label for="voice_preset" class="form-label small fw-bold text-light">
-        <i class="fas fa-microphone"></i> Voix
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="voice_preset" name="voice_preset">
-        <optgroup label="Voix par défaut">
-            <option value="default">Voix par défaut</option>
-        </optgroup>
-        {% for grp in voice_refs_groups %}
-        <optgroup label="{{ grp.group }}">
-            {% for v in grp.voices %}
-            <option value="{{ v.id }}"{% if v.language %} data-language="{{ v.language }}"{% endif %}>{{ v.label }}</option>
-            {% endfor %}
-        </optgroup>
-        {% endfor %}
-        <optgroup label="Mes voix (clonage)" id="customVoicesGroup">
-            {% for cv in custom_voices %}
-            <option value="ua_{{ cv.id }}"{% if cv.attributes.language %} data-language="{{ cv.attributes.language }}"{% endif %}>{{ cv.name }}</option>
-            {% endfor %}
-        </optgroup>
-        <optgroup label="Bark (presets)">
-            <option value="bark_v2_en_0">Bark EN Speaker 0</option>
-            <option value="bark_v2_en_1">Bark EN Speaker 1</option>
-            <option value="bark_v2_en_2">Bark EN Speaker 2</option>
-            <option value="bark_v2_en_3">Bark EN Speaker 3</option>
-            <option value="bark_v2_en_4">Bark EN Speaker 4</option>
-            <option value="bark_v2_en_5">Bark EN Speaker 5</option>
-            <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
-            <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
-            <option value="bark_v2_es_0">Bark ES Speaker 0</option>
-            <option value="bark_v2_de_0">Bark DE Speaker 0</option>
-        </optgroup>
-    </select>
+    {% comment %}Champ GÉNÉRÉ du schéma depuis le 2026-09-23 (params.py, contexte 'panel' →
+    `<select id="voice_preset">`), rendu dans le script du bas. Les quatre optgroups écrits ici
+    à la main redisaient en gabarit ce que `get_voice_groups` rend déjà pour la modale d'item,
+    pour l'avatarizer et pour l'endpoint commun — et cette copie-là ne savait pas dire les voix
+    PARTAGÉES (décision du 21/09) : elle ne listait que `UserAsset.filter(user=user)`.
+    ⚠ Le div ENVELOPPE reste : `voicePresetGroup` est la zone que Higgs masque (index.js) et
+    celle que l'appariement entrée↔modèle désigne (`voiceSlot(zoneId)`).{% endcomment %}
+    <div id="voicePresetHost"></div>
     {% comment %}Chip de l'appariement (WamaInputMatch) : visible quand une voix CLONÉE est
     choisie — le ✕ revient à la voix par défaut et réactive les moteurs grisés.{% endcomment %}
     <span id="voiceChip" class="d-block mt-1" style="display:none"></span>
@@ -423,23 +399,56 @@ depuis le volet compose (source serveur unique, optgroups aplatis).{% endcomment
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'synthesizer:global_progress' %}";</script>
 <script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script>
+// Schéma de paramètres = UNE déclaration pour toute la page (volet, modale d'item, modale de lot).
+window.SYNTH_PARAMS_SCHEMA = {{ params_json|safe }};
+
+// ── Champ VOIX du volet : GÉNÉRÉ du schéma (2026-09-23) ────────────────────────────────────
+// Rendu ICI, et non dans le DOMContentLoaded qui suit : le select doit exister AVANT que le JS
+// d'app (index.js, tout entier dans un DOMContentLoaded) ne le mette en cache, et avant
+// WamaModelCaps / WamaInputMatch qui l'annotent — un script en ligne s'exécute à l'analyse,
+// donc avant l'événement. C'est le seul champ du volet porté pour l'instant : les autres
+// gardent leur markup et leur `name=` (l'inspecteur lit les deux formes).
+(function renderPanelVoiceField() {
+    var host = document.getElementById('voicePresetHost');
+    if (!host || !window.WamaParams) return;
+    {# |default:"[]" : un gabarit ne doit jamais recevoir un JSON invalide — il perdrait TOUT #}
+    {# le script qui suit (même précaution que l'avatarizer). #}
+    var voiceGroups = {{ voice_groups_json|default:"[]"|safe }};
+    // Groupes servis par la vue (brique commune `get_voice_groups`) : le champ est peuplé dès
+    // le PREMIER rendu. `options_source='voices'` le rechargera ensuite depuis
+    // /common/api/voices/ — même inventaire, et la recharge annonce `wama:options-filled`
+    // (les filtres se rejouent, le miroir de la card d'entrée se recopie).
+    WamaParams.render(host, window.SYNTH_PARAMS_SCHEMA.filter(function (p) {
+        return p.name === 'voice_preset';
+    }), {
+        context: 'panel',
+        optionsResolver: function (p) { return p.options_source === 'voices' ? voiceGroups : null; },
+    });
+})();
+
 // Inspecteur CONTEXTUEL (volet droit) : la section params (#synthPanelParams) devient « Réglages de
 // l'élément #N » selon la card sélectionnée, pilotée par le schéma (params.py). Média + boutons de
-// file restent en place. On GARDE les champs existants (voix server-rendered + warning langue) — on
-// câble juste l'inspecteur dessus (ne rien perdre).
+// file restent en place. On GARDE les champs existants (warning langue, options Higgs) — on câble
+// juste l'inspecteur dessus (ne rien perdre).
 document.addEventListener('DOMContentLoaded', function () {
     var q = document.getElementById('synthesisQueue');
     var ph = document.getElementById('synthPanelParams');
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
-    var schema = {{ params_json|safe }};
-    window.SYNTH_PARAMS_SCHEMA = schema;
+    var schema = window.SYNTH_PARAMS_SCHEMA;
     var cfg = window.WAMA_CONFIG || {};
     var U = cfg.urls || {}, csrf = cfg.csrfToken || '';
     // Params per-item (incl. format/qualité = early-binding : réglés avant génération, sauvegardés).
     var keys = ['tts_model', 'quality_intent', 'language', 'voice_preset', 'speed', 'pitch', 'output_format', 'output_quality'];
     function saveItemReq(id) {
         var fd = new FormData();
-        keys.forEach(function (k) { var el = ph.querySelector('[name="' + k + '"]'); if (el) fd.append(k, el.value); });
+        // Les DEUX formes d'identité d'un champ de volet : `name=` (markup écrit à la main) et
+        // `data-param=` (champ GÉNÉRÉ — WamaParams n'émet pas de `name` hors modale, il n'y a
+        // pas de POST de formulaire). Même sélecteur que l'inspecteur commun ; sans la seconde
+        // forme, la voix du volet cesserait SILENCIEUSEMENT d'être enregistrée.
+        keys.forEach(function (k) {
+            var el = ph.querySelector('[name="' + k + '"],[data-param="' + k + '"]');
+            if (el) fd.append(k, el.value);
+        });
         return fetch((U.updateOptions || '/synthesizer/update-options/') + id + '/',
             { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
     }
