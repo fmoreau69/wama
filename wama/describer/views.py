@@ -452,6 +452,48 @@ def _reset_for_relaunch(description):
     description.coherence_suggestion = ''
 
 
+# ── Les SIX vues de lot : fabrique COMMUNE (`batch_views.make_batch_views`, portage 2026-09-22,
+# 1ʳᵉ app réelle après le générateur — ROUTE §11 #36). Les spécificités du describer sont
+# DÉCLARÉES en kwargs : remise à zéro sous verrou (`_reset_for_relaunch` + cache à 0), cache de
+# progression `describer_progress_<id>` lu par `batch_status` et purgé à la suppression,
+# `result_text` vidé à la duplication, gating `@app_access` sur le démarrage. `batch_download`
+# reste LOCAL : multi-format `?fmt=txt|pdf|docx` (WAMA_APP_CONVENTIONS §9.10), hors de la
+# convention `output_file` — écart assumé, la grille le dit (`batch_views_common` = partiel).
+from wama.common.utils.batch_views import (DEFAULT_RESET, apply_item_settings, make_batch_views,
+                                           read_settings_payload)
+from wama.describer.params import PARAMS_JSON as _SCHEMA
+from .workers import describe_content as _describe_content
+
+#: Réglages d'un élément — les colonnes que la modale et le volet écrivent (schéma `params.py`).
+SETTINGS_FIELDS = ('output_style', 'output_language', 'max_length', 'generate_summary',
+                   'verify_coherence')
+
+
+def _reset_and_clear_progress(description):
+    """Remise à zéro AVANT (re)lancement d'une fille de lot — sous le verrou anti-race, comme
+    `start`, plus le cache de progression à 0 (ce que `batch_start` faisait après le verrou)."""
+    _reset_for_relaunch(description)
+    cache.set(f"describer_progress_{description.id}", 0, timeout=3600)
+
+
+_bv = make_batch_views(
+    work_model=Description, batch_model=BatchDescription, get_user=get_user,
+    task=_describe_content,
+    file_fields=('input_file', 'result_file'), output_fields=('result_file',),
+    params_fields=SETTINGS_FIELDS, schema=_SCHEMA,
+    item_model=BatchDescriptionItem, fk_name='description',
+    reset_on_start=_reset_and_clear_progress,
+    reset_on_duplicate={**DEFAULT_RESET, 'result_text': ''},
+    progress_of=lambda d: cache.get(f"describer_progress_{d.id}", d.progress or 0),
+    on_delete=lambda d: cache.delete(f"describer_progress_{d.id}"),
+)
+batch_start = app_access('describer')(_bv['batch_start'])
+batch_update = _bv['batch_update']
+batch_delete = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
+batch_status = _bv['batch_status']
+
+
 @app_access('describer')
 @require_POST   # un GET lançait le traitement (parcours des adresses, 2026-09-22)
 def start(request, pk):
@@ -924,13 +966,13 @@ def batch_list(request):
     user = get_user(request)
     batches = BatchDescription.objects.filter(user=user).prefetch_related('items__description')
 
+    from wama.common.utils.batch_common import batch_elements
     data = []
     for batch in batches:
         counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-        for item in batch.items.all():
-            if item.description:
-                k = item.description.status.lower()
-                counts[k] = counts.get(k, 0) + 1
+        for d in batch_elements(batch, Description):     # lit le cache du prefetch, 0 requête
+            k = d.status.lower()
+            counts[k] = counts.get(k, 0) + 1
 
         total = batch.total
         if total > 0 and counts['success'] == total:
@@ -951,75 +993,6 @@ def batch_list(request):
         })
 
     return JsonResponse({'batches': data})
-
-
-@require_POST
-@app_access('describer')
-def batch_start(request, pk):
-    """Start all PENDING descriptions in a batch."""
-    user = get_user(request)
-    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
-
-    from .workers import describe_content
-    from wama.common.utils.process_control import begin_processing
-
-    started = []
-    for item in batch.items.select_related('description').all():
-        desc = item.description
-        if not desc:
-            continue
-        locked, err = begin_processing(Description, desc.pk, user=user, reset=_reset_for_relaunch)
-        if err:
-            continue
-        cache.set(f"describer_progress_{locked.id}", 0, timeout=3600)
-        task = describe_content.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        started.append(locked.id)
-
-    return JsonResponse({'started': started, 'count': len(started)})
-
-
-def batch_status(request, pk):
-    """Return status of all items in a batch."""
-    user = get_user(request)
-    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
-
-    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-    items_data = []
-
-    for item in batch.items.select_related('description').all():
-        d = item.description
-        if not d:
-            continue
-        key = d.status.lower()
-        counts[key] = counts.get(key, 0) + 1
-        p = int(cache.get(f"describer_progress_{d.id}", d.progress or 0))
-        items_data.append({
-            'id': d.id,
-            'filename': d.filename,
-            'status': d.status,
-            'progress': p,
-            'error': d.error_message if d.status == 'FAILURE' else None,
-        })
-
-    total = batch.total
-    if total > 0 and counts['success'] == total:
-        status_str = 'SUCCESS'
-    elif counts['running'] > 0:
-        status_str = 'RUNNING'
-    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
-        status_str = 'FAILURE'
-    else:
-        status_str = 'PENDING'
-
-    return JsonResponse({
-        'batch_id': pk,
-        'status': status_str,
-        'total': total,
-        'counts': counts,
-        'items': items_data,
-    })
 
 
 def build_description_bytes(d, fmt):
@@ -1063,11 +1036,11 @@ def batch_download(request, pk):
     if fmt not in ('txt', 'pdf', 'docx'):
         fmt = 'txt'
 
+    from wama.common.utils.batch_common import batch_elements
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for item in batch.items.select_related('description').order_by('row_index'):
-            d = item.description
-            if d and d.status == 'SUCCESS':
+        for d in batch_elements(batch, Description):     # brique : ordre des lignes garanti
+            if d.status == 'SUCCESS':
                 from wama.common.utils.output_naming import compose_output_name
                 stem = os.path.splitext(compose_output_name(
                     app='describer', source_name=d.filename or f'desc_{d.id}',
@@ -1081,56 +1054,6 @@ def batch_download(request, pk):
     zip_name = f"batch_describer_{pk}_{fmt}_{datetime.date.today()}.zip"
     return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
-
-@require_POST
-def batch_delete(request, pk):
-    """Delete an entire batch: cascade-delete descriptions, clean up files."""
-    user = get_user(request)
-    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
-
-    descriptions_to_delete = []
-    for item in batch.items.select_related('description').all():
-        d = item.description
-        if not d:
-            continue
-        if d.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(d.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-        descriptions_to_delete.append(d)
-
-    safe_delete_file(batch, 'batch_file')
-    batch.delete()  # CASCADE deletes BatchDescriptionItems (not Description)
-
-    for d in descriptions_to_delete:
-        safe_delete_file(d, 'input_file')
-        safe_delete_file(d, 'result_file')
-        cache.delete(f"describer_progress_{d.id}")
-        d.delete()
-
-    return JsonResponse({'success': True, 'batch_id': pk})
-
-
-@require_POST
-def batch_duplicate(request, pk):
-    """Duplicate an entire batch (shares source files, results cleared)."""
-    user = get_user(request)
-    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
-
-    new_batch = BatchDescription.objects.create(user=user, total=batch.total)
-    for item in batch.items.select_related('description').order_by('row_index'):
-        d = item.description
-        if not d:
-            continue
-        new_d = duplicate_instance(d, reset_fields={
-            'status': 'PENDING', 'progress': 0, 'task_id': '',
-            'result_text': '', 'error_message': '',
-        }, clear_fields=['result_file'])
-        BatchDescriptionItem.objects.create(batch=new_batch, description=new_d, row_index=item.row_index)
-
-    return JsonResponse({'success': True, 'batch_id': new_batch.id})
 
 
 @require_GET
@@ -1176,59 +1099,21 @@ def global_progress(request):
     })
 
 
-def _apply_description_options(description, data):
-    """Applique les options de la modale à une Description (sans save)."""
-    if 'output_style' in data:
-        description.output_style = data['output_style']
-    if 'output_language' in data:
-        description.output_language = data['output_language']
-    if 'max_length' in data:
-        description.max_length = int(data['max_length'])
-    if 'generate_summary' in data:
-        description.generate_summary = bool(data['generate_summary'])
-    if 'verify_coherence' in data:
-        description.verify_coherence = bool(data['verify_coherence'])
-
-
-@require_POST
-def batch_update(request, pk):
-    """Applique les options à TOUS les items non-RUNNING du batch.
-
-    Réutilise la même modale que les réglages individuels (mode batch côté JS).
-    """
-    user = get_user(request)
-    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        data = request.POST
-    updated = 0
-    for item in batch.items.select_related('description'):
-        d = item.description
-        if not d or d.status == 'RUNNING':
-            continue
-        _apply_description_options(d, data)
-        d.save()
-        updated += 1
-    return JsonResponse({'updated': updated, 'batch_id': batch.id})
-
-
 @require_POST
 def update_options(request, pk):
-    """Update description options."""
+    """Réglages d'UN élément — même lecture (coercition par le schéma) et même affectation que
+    `batch_update` de la fabrique : `read_settings_payload` + `apply_item_settings`. L'ancien
+    `_apply_description_options` typait à la main (`int`, `bool`) ce que le schéma déclare."""
     user = get_user(request)
     description = get_object_or_404(Description, pk=pk, user=user)
 
     if description.status == 'RUNNING':
         return JsonResponse({'error': 'Cannot update while running'}, status=400)
 
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        data = request.POST
-
-    _apply_description_options(description, data)
-    description.save()
+    data = read_settings_payload(request, _SCHEMA, SETTINGS_FIELDS)
+    touched = apply_item_settings(description, data, params_fields=SETTINGS_FIELDS)
+    if touched:
+        description.save(update_fields=touched)
 
     return JsonResponse({
         'id': description.id,

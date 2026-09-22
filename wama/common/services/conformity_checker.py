@@ -808,6 +808,28 @@ def _batch_read_common(f: _AppFiles):
     return None, "aucune lecture de lot dans les vues"
 
 
+def _batch_views_common(f: _AppFiles):
+    """Les six vues de lot viennent de la fabrique commune `batch_views.make_batch_views` (2026-09-22).
+
+    VRAI : la fabrique est appelée et plus aucune vue de lot n'est définie à la main ;
+    PARTIEL : fabrique appelée, mais une vue de lot reste locale — soit un reste de portage, soit
+    un écart ASSUMÉ et déclaré (describer : `batch_download` multi-format `?fmt=`, hors de la
+    convention `output_file`) ; FAUX : tout à la main ; N/A : aucune vue de lot.
+    `start_batch` (imager) est une graphie déviante de `batch_start`.
+    """
+    local_re = r'(?m)^def (batch_(start|delete|duplicate|update|download|status)|start_batch)\('
+    brique = f.find_code(VIEWS, r'\bmake_batch_views\(')
+    local = f.find_code(VIEWS, local_re)
+    if brique and local:
+        return 'partial', f"{brique} + vue de lot encore locale ({local})"
+    if brique:
+        return True, brique
+    if local:
+        return False, (f"vues de lot écrites à la main ({local}) — fabrique "
+                       "`batch_views.make_batch_views`")
+    return None, 'aucune vue de lot'
+
+
 def _output_naming(f: _AppFiles):
     """L'app nomme-t-elle ses sorties par la BRIQUE COMMUNE (`compose_output_name`) ?
 
@@ -1924,12 +1946,7 @@ CRITERIA: list[Criterion] = [
     # générateur) — une app qui la consomme n'écrit plus `def batch_start` & co. Vert dès que la
     # fabrique est appelée ; rouge tant que l'app définit ses vues de lot à la main.
     Criterion('batch_views_common', 'F5', 'Vues de lot par la fabrique commune (make_batch_views)',
-              lambda f: ((True, f.find_code(VIEWS, r'\bmake_batch_views\('))
-                         if f.find_code(VIEWS, r'\bmake_batch_views\(')
-                         else (False, f"vues de lot écrites à la main ({f.find_code(VIEWS, r'(?m)^def (batch_(start|delete|duplicate|update|download|status)|start_batch)\(')}) — fabrique `batch_views.make_batch_views`")
-                         if f.find_code(VIEWS, r'(?m)^def (batch_(start|delete|duplicate|update|download|status)|start_batch)\(')
-                         else (None, 'aucune vue de lot')),
-              mechanism='batch_views'),
+              _batch_views_common, mechanism='batch_views'),
     # Les deux contrats COMMUNS du modèle de lot. `batch_semantics` porte `is_unitary`, que lisent
     # `_queue_entry.html` ET `is_batch_child` — son absence (jumelle `converter_01`, 15/09) rendait
     # tout lot en lot de plusieurs cards, sans erreur. `queue_order` : le mécanisme de même nom
