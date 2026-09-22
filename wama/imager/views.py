@@ -1603,11 +1603,6 @@ def download_all(request):
         return HttpResponse(f"Error: {str(e)}", status=500)
 
 
-def console(request):
-    """Console page for monitoring logs"""
-    return render(request, 'imager/console.html')
-
-
 def console_content(request):
     """Return console logs as JSON"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()

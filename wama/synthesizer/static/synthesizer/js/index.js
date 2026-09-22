@@ -15,7 +15,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.WamaCycleButton) {
         WamaCycleButton.wire(document, {
             start: async (id) => {
-                try { await fetch(URLS.start + id + '/', { method: 'GET', headers: { 'X-CSRFToken': csrfToken } }); } catch (e) {}
+                // POST : lancer une synthèse CHANGE l'état — la vue l'exige depuis le 2026-09-22.
+                try { await fetch(URLS.start + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } }); } catch (e) {}
                 window.location.reload();
             },
             stop: async (id) => {

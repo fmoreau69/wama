@@ -342,10 +342,13 @@
     }
 
     // -----------------------------------------------------------------------
-    // Start job (GET /avatarizer/start/<pk>/)
+    // Start job (POST /avatarizer/start/<pk>/)
     // -----------------------------------------------------------------------
     async function startJob(jobId) {
+        // POST : la vue l'exige depuis le 2026-09-22 — un GET (le défaut de `fetch`) lançait la
+        // génération, qu'un préchargement de lien pouvait déclencher sans jeton CSRF.
         const resp = await fetch(`${cfg.urls.start}${jobId}/`, {
+            method: 'POST',
             headers: { 'X-CSRFToken': csrf },
         });
         const data = await resp.json();

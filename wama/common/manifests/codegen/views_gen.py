@@ -223,8 +223,13 @@ def _fichier_de_l_app(item, champ):
                  if nature_champ else "_avert = ''")
 
     def stub(nom, pk=False):
-        arg = ', pk' if pk else ''
-        return (f"def {nom}(request{arg}):\n"
+        # ⚠ Signature OUVERTE (`*args, **kwargs`) depuis le 2026-09-22 : un bouchon n'a rien à
+        # lire, et deviner ses arguments d'après son nom a raté DEUX fois — `batch_preview` le
+        # 22/08 (cf. l'assemblage plus bas), puis `profile_delete`, dont la route passe un `pk`
+        # que le bouchon ne prenait pas : `TypeError` → 500 au lieu du 501 annoncé. Trouvé par le
+        # parcours générique des adresses (`common/tests_endpoints.py`). `pk` reste accepté par
+        # compatibilité des appelants de cette fonction, et n'a plus d'effet.
+        return (f"def {nom}(request, *args, **kwargs):\n"
                 f"    \"\"\"TROU DE GLU {mark} — politique d'app non conventionnelle.\"\"\"\n"
                 f"    return JsonResponse({{'error': {stub_msg!r}}}, status=501)")
 
