@@ -124,6 +124,14 @@
     }
 
     sel.addEventListener('change', render);
+    // Les options d'un select FILTRÉ peuvent être REMPLACÉES après coup — la recharge asynchrone
+    // de WamaParams (`options_source`) les réécrit, puis émet `wama:options-filled`. Sans ce
+    // rejeu, l'état posé ici (voix clonées masquées, ⚠ de langue) était perdu dès que la recharge
+    // arrivait APRÈS ce passage : l'ordre de deux requêtes décidait du résultat (2026-09-22).
+    filters.forEach(function (f) {
+      const target = document.getElementById(f.selectId);
+      if (target) target.addEventListener('wama:options-filled', render);
+    });
     render();  // 1er passage sur la meta serveur (sans attendre le réseau)
 
     // Charge les capacités du catalogue puis applique le filtrage initial.

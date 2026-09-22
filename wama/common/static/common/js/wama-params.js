@@ -47,14 +47,49 @@
     return (p.choices || []).map(function (c) { return { value: c[0], label: c[1] }; });
   }
 
+  // UN SEUL rendu d'<option> et d'<optgroup> pour les DEUX chemins — le rendu SYNCHRONE
+  // (`selectInnerHtml`) et la recharge ASYNCHRONE (`_bindOptionSources`). Jusqu'au 2026-09-22 ils
+  // en avaient chacun un : l'asynchrone savait lire une option en PAIRE `[valeur, libellé]`
+  // (la forme de `get_voice_groups`) et en posait les `data-*` ; le synchrone ne lisait que
+  // `{value, label}` et ignorait les attributs. Mesuré dans V8 sur le fichier servi : des groupes
+  // de voix rendus en synchrone donnaient `<option value="" selected></option>` — valeurs et
+  // libellés VIDES, sans `data-language` —, réparés seulement quand la recharge arrivait. Et les
+  // filtres qui lisent `data-language` (WamaModelCaps) voyaient, entre-temps, des options nues.
+  //   o             : `[valeur, libellé]` OU `{value, label, disabled, title}`
+  //   attrsByValue  : `g.attributes` — ce que l'option PORTE (ex. la langue d'une voix) → `data-*`
+  //   selectedValue : valeur à présélectionner (le chemin synchrone ; l'asynchrone passe `undefined`)
+  function optionHtml(o, attrsByValue, selectedValue) {
+    const isPair = Array.isArray(o);
+    const value = isPair ? o[0] : (o.value !== undefined ? o.value : o[0]);
+    const label = isPair ? o[1] : (o.label !== undefined ? o.label : o[1]);
+    // Grisage AUTOMATIQUE serveur (backend absent, 02/09) : l'option reste AFFICHÉE, non
+    // sélectionnable, la raison en title — et se ré-autorise toute seule au prochain service.
+    // `data-backend-missing` : le VERDICT SERVEUR, que le grisage CLIENT (wama-input-match, qui
+    // réécrit disabled/title à chaque change) doit RESPECTER.
+    const dis = (!isPair && o.disabled) ? ' disabled' : '';
+    const tit = (!isPair && o.title) ? ' title="' + esc(o.title) + '"' : '';
+    const dbm = (!isPair && o.disabled && o.title) ? ' data-backend-missing="' + esc(o.title) + '"' : '';
+    const attrs = (attrsByValue && attrsByValue[value]) || {};
+    const data = Object.keys(attrs).filter(function (k) {
+      return attrs[k] !== null && attrs[k] !== undefined && attrs[k] !== '';
+    }).map(function (k) { return ' data-' + esc(k) + '="' + esc(String(attrs[k])) + '"'; }).join('');
+    const sel = (String(value) === String(selectedValue)) ? ' selected' : '';
+    return '<option value="' + esc(value) + '"' + sel + dis + tit + dbm + data + '>' + esc(label) + '</option>';
+  }
+
+  // `data-group-key` : l'identité STABLE du groupe (`g.key`), le libellé n'étant qu'un texte
+  // affiché. C'est par elle qu'un JS d'app retrouve un groupe (ex. « Mes voix », où le
+  // synthesizer insère la voix qu'on vient de cloner) — plus par un `id` écrit à la main.
+  function groupHtml(g, inner) {
+    const key = g.key ? ' data-group-key="' + esc(g.key) + '"' : '';
+    return '<optgroup label="' + esc(g.group || '') + '"' + key + '>' + inner + '</optgroup>';
+  }
+
   // Contenu d'un <select> : gère le PLAT et les GROUPES (optgroup).
-  // Source des groupes : (1) resolver renvoyant [{group, options:[{value,label}]}] (dynamique,
+  // Source des groupes : (1) resolver renvoyant [{group, key?, options, attributes?}] (dynamique,
   // ex. voix par utilisateur), ou (2) p.option_groups statique [[libellé,[[v,l]]]].
   function selectInnerHtml(p, v, resolver) {
-    function optEl(o) {
-      const sel = (String(o.value) === String(v)) ? ' selected' : '';
-      return '<option value="' + esc(o.value) + '"' + sel + '>' + esc(o.label) + '</option>';
-    }
+    function optEl(o) { return optionHtml(o, null, v); }
     let data = null;
     if (p.options_source && typeof resolver === 'function') {
       try { data = resolver(p); } catch (e) { data = null; }
@@ -70,8 +105,9 @@
     const grouped = Array.isArray(data) && data.length && data[0] && data[0].options;
     if (grouped) {
       return data.map(function (g) {
-        return '<optgroup label="' + esc(g.group || '') + '">' +
-          (g.options || []).map(optEl).join('') + '</optgroup>';
+        return groupHtml(g, (g.options || []).map(function (o) {
+          return optionHtml(o, g.attributes, v);
+        }).join(''));
       }).join('');
     }
     return (data || []).map(optEl).join('');
@@ -514,32 +550,20 @@
       if (!sel) return;
       var fill = function (d) {
         var cur = sel.value;
+        // Même rendu d'option que le chemin synchrone (`optionHtml`/`groupHtml`, ci-dessus).
         sel.innerHTML = (d.groups || []).map(function (g) {
-          var opts = (g.options || []).map(function (o) {
-            var v = Array.isArray(o) ? o[0] : (o.value !== undefined ? o.value : o[0]);
-            var l = Array.isArray(o) ? o[1] : (o.label !== undefined ? o.label : o[1]);
-            // Grisage AUTOMATIQUE serveur (backend absent, 02/09) : l'option reste
-            // AFFICHÉE, non sélectionnable, la raison en title — et se ré-autorise
-            // toute seule au prochain service (le verdict est relu côté serveur).
-            // `data-backend-missing` : le VERDICT SERVEUR, que le grisage CLIENT
-            // (wama-input-match, qui réécrit disabled/title à chaque change) doit
-            // RESPECTER — sans ce marqueur il l'effaçait (mesuré au smoke du 02/09).
-            var dis = (!Array.isArray(o) && o.disabled) ? ' disabled' : '';
-            var tit = (!Array.isArray(o) && o.title) ? ' title="' + esc(o.title) + '"' : '';
-            var dbm = (!Array.isArray(o) && o.disabled && o.title)
-              ? ' data-backend-missing="' + esc(o.title) + '"' : '';
-            // Ce que l'option PORTE (`g.attributes[valeur]`, ex. la langue d'une voix) →
-            // `data-*`, pour que les filtres (WamaModelCaps) le lisent sur le DOM.
-            var attrs = (g.attributes && g.attributes[v]) || {};
-            var data = Object.keys(attrs).filter(function (k) { return attrs[k] !== null && attrs[k] !== undefined && attrs[k] !== ''; })
-              .map(function (k) { return ' data-' + esc(k) + '="' + esc(String(attrs[k])) + '"'; }).join('');
-            return '<option value="' + esc(v) + '"' + dis + tit + dbm + data + '>' + esc(l) + '</option>';
-          }).join('');
-          return g.group ? ('<optgroup label="' + esc(g.group) + '">' + opts + '</optgroup>') : opts;
+          var opts = (g.options || []).map(function (o) { return optionHtml(o, g.attributes); }).join('');
+          return g.group ? groupHtml(g, opts) : opts;
         }).join('');
         if (cur) sel.value = cur;
         _bindAutoPreview(sel, d.auto_preview);
-        sel.dispatchEvent(new Event('change', { bubbles: true }));   // re-déclenche WamaModelCaps/conditionnel
+        // « Options prêtes » (2026-09-22) : les options de CE select viennent d'être REMPLACÉES.
+        // Le `change` ci-dessous ne suffisait pas : les filtres de WamaModelCaps ne se rejouent
+        // que sur un changement du select de MODÈLE — une recharge des VOIX qui arrivait après
+        // eux effaçait en silence les voix masquées et les ⚠ de langue qu'ils avaient posés.
+        // Ceux qui tiennent un état sur ces options (filtres, miroirs d'app) écoutent CE signal.
+        sel.dispatchEvent(new CustomEvent('wama:options-filled', { bubbles: true }));
+        sel.dispatchEvent(new Event('change', { bubbles: true }));   // re-déclenche WamaInputMatch/conditionnel
       };
       // Changement d'intention → seule la PRÉVISION se rafraîchit (les options du domaine
       // ne dépendent pas de l'intention — re-remplir le select perdrait la sélection).
