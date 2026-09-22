@@ -1,11 +1,12 @@
 ---
 name: crash-residus
-description: Après un crash hôte (Kernel-Power 41) — inventorier puis libérer les résidus disque qui s'empilent sur C: et D: (swap.vhdx orphelins de %TEMP%, clichés VSS, dumps), et passer les contrôles post-crash connexes (HWiNFO, cards zombies, pilote/WSL). Utiliser quand l'utilisateur signale un crash, « les disques se remplissent », « résidus de crash », ou en début de session après un Kernel-Power 41.
+description: Après un crash hôte (Kernel-Power 41) — inventorier puis libérer les résidus disque qui s'empilent sur C: et D: (swap.vhdx orphelins de %TEMP%, core dumps WSL de %TEMP%\wsl-crashes, clichés VSS, dumps), et passer les contrôles post-crash connexes (HWiNFO, cards zombies, pilote/WSL). Utiliser quand l'utilisateur signale un crash, « les disques se remplissent », « résidus de crash », ou en début de session après un Kernel-Power 41.
 ---
 
 # /crash-residus — Résidus de crash hôte sur C: et D:
 
-> ⚠ CANDIDAT (n=1, 2026-08-28) — distillé d'une résolution unique, non confronté à une 2ᵉ occurrence.
+> PROMU (n=2 : 2026-08-28 swap orphelins ; 2026-09-22 « C: rempli sans raison », 57,5 Go de
+> core dumps WSL que le scan ne voyait pas — ajoutés au scan, §2).
 
 Le mécanisme a son domicile : **`docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` §« Chaque crash hôte FUITE jusqu'à
 8 Go dans `%TEMP%` »** (2026-08-25) + §Inventaire disque. Ce skill est le geste REJOUABLE ;
@@ -31,6 +32,16 @@ Ordre de grandeur (mesuré 2026-08-28, à ne pas croire sans re-scanner) : ~8 Go
 | `swap.vhdx` orphelin | **le VERROU, ni la date ni la taille** (le vivant a déjà fait 36 Mo, un orphelin 8 Go) | supprimable → §3 |
 | dumps (MEMORY.DMP, Minidump, WER…) | ce sont des **PREUVES** — l'enquête crashs est OUVERTE (`docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md §2026-08-28`) | inventorier, **ne jamais supprimer sans arbitrage Fabien**. NB : une coupure franche n'écrit en général AUCUN dump — un scan vide est normal |
 | clichés VSS sur D: | 1 par redémarrage + 1/4 h → chaque crash en ajoute | **arbitrage Fabien** (§4) |
+| core dumps WSL (`%TEMP%\wsl-crashes`) | un PROCESSUS Linux planté (pas l'hôte) : 5-9 Go chacun, 10 gardés par défaut | établir la cause d'abord (ci-dessous), puis supprimer |
+
+⚠ **Les dumps WSL ont rempli C: le 2026-09-22** (9 × `python3.12`, 57,5 Go ; le scan ne les
+voyait pas encore). Pour les lire sans `gdb` : `core_read.py` (à côté de ce skill, Python pur :
+notes PRSTATUS/NT_FILE → signal, thread fautif, bibliothèques sur sa pile) suffit à nommer le
+coupable — `wsl.exe -e bash -lc "<venv_linux>/bin/python <skill>/core_read.py /mnt/c/.../x.dmp"`. Pour REPRODUIRE sans produire un nouveau dump : `prctl(PR_SET_DUMPABLE, 0)` en tête
+du script (ctypes, option 4). Cas du 22/09 : pyarrow (bibliothèque HuggingFace `datasets`, lecture
+en flux) qui plante à la FERMETURE de Python — insoluble côté Python, parade `os._exit`
+(`download_voice_refs`, commit `8eaa1c64`). Plafond : `maxCrashDumpCount` dans
+`scripts/set_wslconfig.ps1`.
 
 ⚠ **Ne JAMAIS purger `%TEMP%` en bloc** : le swap VIVANT, des DLL en usage et le scratchpad de
 l'agent y vivent. Chaque suppression est ciblée, verrou re-testé juste avant.
@@ -46,6 +57,9 @@ pour validation, avec re-test du verrou dans la même séquence :
 ```
 pwsh -NoProfile -Command "& { $f='<chemin\swap.vhdx du scan>'; try { $s=[IO.File]::Open($f,'Open','ReadWrite','None'); $s.Close() } catch { Write-Output 'VERROUILLE — abandon'; exit 1 }; Remove-Item $f -Force -Confirm:$false; Write-Output 'supprime' }"
 ```
+
+⚠ Proposé via `! pwsh -File <script>` : le `!` passe par **Bash**, qui mange les antislashs
+d'un chemin Windows — écrire le chemin avec des `/` (vécu 22/09).
 
 Puis supprimer le dossier GUID parent s'il est vide, et re-lancer le scan pour constater le gain.
 
