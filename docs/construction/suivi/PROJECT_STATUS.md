@@ -16324,9 +16324,8 @@ Périmètre : disque C: (infra), sans chantier de code. Détail et chiffres : `I
   lecteur de core ELF rangé à côté du skill ; commentaires de `voice_refs.py` et de la commande :
   « dataset » HuggingFace ≠ kind de manifeste `dataset` (question de Fabien).
 
-🔴 **Arbitrage en attente (Fabien)** : appliquer `maxCrashDumpCount=1`. Régénérer `.wslconfig` relève AUSSI
-`memory=` 48 → 80 Go (hôte à 96 Go) — `pwsh -NoProfile -File scripts/set_wslconfig.ps1 -MemoryGB 48` pour ne
-changer que les dumps, puis `wsl.exe --shutdown` (arrête la stack). Tant que ce n'est pas fait, le plafond
-reste 10 dumps (~90 Go possibles).
+✅ **Arbitrage tranché (Fabien, même jour)** : `.wslconfig` régénéré avec `-MemoryGB 48` — `memory=48GB`
+inchangé, `maxCrashDumpCount=1` ajouté (sauvegarde `.wslconfig.bak`). ⏳ **Relu au prochain
+`wsl.exe --shutdown` seulement** (arrête la stack) : jusque-là, WSL garde encore 10 dumps.
 
-🔚 **Suivant** : l'arbitrage ci-dessus ; rien d'autre d'ouvert dans ce périmètre.
+🔚 **Suivant** : `wsl.exe --shutdown` + relance de la stack au moment choisi par Fabien ; rien d'autre d'ouvert.
