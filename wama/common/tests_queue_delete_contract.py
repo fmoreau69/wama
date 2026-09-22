@@ -424,6 +424,77 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
                 self.assertEqual([], left_over, 'la dernière card partie, le fichier est resté')
 
 
+class DuplicatingAndRestartingKeepFilesTest(TestCase):
+    """« Dupliquer » PARTAGE les fichiers ; « Relancer » ne détruit rien qu'il ne possède seul.
+
+    Né le 2026-09-22 (plan de robustesse, H et F). Mêmes témoins, même parc, même lecture des
+    routes (`route_variants`) que le contrat de suppression — rien n'y nomme une app.
+      H — la copie est UNE nouvelle card, qui désigne les fichiers de l'original au lieu de les
+          recopier : aucun fichier ne s'ajoute sur le disque ;
+      F — relancer une card n'efface ni une entrée qu'elle ne fait que RÉFÉRENCER, ni un fichier
+          qu'une copie partage encore. (Les vues de relance effacent l'ancienne sortie : c'est
+          là que se loge le risque.)
+    """
+
+    _account_for = SuppressionDansChaqueAppTest._compte_pour
+    setUp = DeletingACardRemovesTheFilesItOwnsTest.setUp
+    _witness = DeletingACardRemovesTheFilesItOwnsTest._witness
+    _fleet = DeletingACardRemovesTheFilesItOwnsTest._fleet
+    _route_for = DeletingACardRemovesTheFilesItOwnsTest._route_for
+    _post = DeletingACardRemovesTheFilesItOwnsTest._post
+
+    def _files_on_disk(self):
+        return sorted(p for p in Path(self.tmp).rglob('*') if p.is_file())
+
+    def test_duplicating_shares_the_files_instead_of_copying_them(self):
+        for surface, route, account, model, app_home in self._fleet():
+            with self.subTest(surface=surface):
+                original, files = self._witness(model, account, app_home)
+                url = self._route_for(route, 'duplicate', [original.pk])
+                self.assertTrue(url, 'pas de « Dupliquer » — le geste manque à cette app')
+                before_rows = set(model.objects.filter(pk__gt=0).values_list('pk', flat=True))
+                before_disk = self._files_on_disk()
+                self._post(url)
+                new_rows = model.objects.exclude(pk__in=before_rows)
+                self.assertEqual(1, new_rows.count(), 'la duplication doit créer UNE card')
+                copy = new_rows.get()
+                self.assertEqual(before_disk, self._files_on_disk(),
+                                 'la duplication a recopié des fichiers au lieu de les partager')
+                originals = {str(getattr(original, f.name) or '') for f in model._meta.concrete_fields
+                             if isinstance(f, models.FileField)}
+                for f in model._meta.concrete_fields:
+                    name = str(getattr(copy, f.name) or '') if isinstance(f, models.FileField) else ''
+                    if name:
+                        self.assertIn(name, originals, f'la copie désigne un fichier inconnu ({f.name})')
+
+    def test_restarting_never_destroys_a_referenced_input_nor_a_shared_file(self):
+        from unittest import mock
+        from wama.common.utils.queue_duplication import duplicate_instance
+        started = 0
+        with mock.patch('celery.app.task.Task.apply_async',
+                        return_value=mock.Mock(id='tache-de-test')) as dispatch:
+            for surface, route, account, model, app_home in self._fleet():
+                with self.subTest(surface=surface):
+                    # Une card dont les fichiers sont RÉFÉRENCÉS (le temp de l'utilisateur)…
+                    referenced, ref_files = self._witness(model, account,
+                                                          f'users/{account.id}/temp')
+                    # …et une card dont les fichiers sont PARTAGÉS avec une copie.
+                    shared, shared_files = self._witness(model, account, app_home)
+                    duplicate_instance(shared)
+                    for card in (referenced, shared):
+                        url = self._route_for(route, 'start', [card.pk])
+                        self.assertTrue(url, 'pas de « Démarrer » — le geste manque à cette app')
+                        dispatch.reset_mock()
+                        self.client.post(url, data='{}', content_type='application/json')
+                        started += int(dispatch.called)
+                    lost = [p.name for p in ref_files + shared_files if not p.exists()]
+                    self.assertEqual([], lost, 'relancer a détruit un fichier référencé ou partagé')
+        # Non-vacuité : une vue de démarrage peut refuser un témoin minimal (format absent,
+        # prompt vide…) sans rien toucher — le contrat ne mesurerait alors que des refus.
+        self.assertGreater(started, 0, 'aucun démarrage n’a réellement eu lieu : contrat vide')
+        print(f'\n[relance : {started} démarrage(s) réellement lancé(s) sur les témoins]')
+
+
 class SafeDeleteFileContractTest(TestCase):
     """Le contrat de LA brique : `safe_delete_file` ne détruit qu'un fichier de l'app, non partagé.
 
