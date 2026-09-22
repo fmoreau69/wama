@@ -10,7 +10,9 @@ Source COMMUNE des options de voix (TTS) — centralise ce qui était rendu en o
                                    médiathèque, groupés par (langue, âge) depuis `attributes`
                                    (depuis le 2026-09-13 — avant : un scan de dossier, et un
                                    repli statique « héritage » quand le dossier était vide)
-  3. Mes voix (clonage)         → UserAsset(asset_type='voice') dont je suis propriétaire (ua_<id>)
+  3. Mes voix (clonage)         → UserAsset(asset_type='voice') dont je suis propriétaire (ua_<id>) ;
+                                  TOUJOURS émis, même vide (la page du synthesizer y insère la
+                                  voix qu'on vient de cloner)
   3bis. Voix partagées          → celles qu'on m'a partagées, libellées avec leur propriétaire
                                   (depuis le 2026-09-21 — avant, le sélecteur ne montrait QUE les
                                   miennes ; décision de Fabien : « une voix partagée doit être
@@ -38,8 +40,12 @@ BARK_PRESETS = [
 
 def get_voice_groups(user) -> list[dict]:
     """Groupes de voix (optgroups) pour l'utilisateur, format WamaParams option_groups."""
+    # `key` : l'identité STABLE du groupe — le libellé n'est qu'un texte affiché. WamaParams la
+    # rend en `data-group-key` sur l'`<optgroup>` (22/09), et c'est par elle qu'un JS d'app
+    # retrouve un groupe : la page du synthesizer insère dans « Mes voix » la voix qu'on vient de
+    # cloner. Les lecteurs de `group`/`options`/`attributes` n'ont rien à apprendre.
     groups: list[dict] = [
-        {"group": "Voix par défaut", "options": [("default", "Voix par défaut")]},
+        {"key": "default", "group": "Voix par défaut", "options": [("default", "Voix par défaut")]},
     ]
 
     # 2. Voix de référence de la médiathèque. Une médiathèque VIDE donne zéro groupe — plus de
@@ -56,6 +62,7 @@ def get_voice_groups(user) -> list[dict]:
     for grp in refs:
         voices = grp.get("voices", [])
         groups.append({
+            "key": "reference",
             "group": grp.get("group", ""),
             "options": [(v["id"], v["label"]) for v in voices],
             "attributes": {v["id"]: {"language": v["language"]} for v in voices if v.get("language")},
@@ -72,11 +79,15 @@ def get_voice_groups(user) -> list[dict]:
                     .values("id", "name", "attributes", "user_id", "user__username"))
         mine = [c for c in rows if c["user_id"] == getattr(user, "id", None)]
         shared = [c for c in rows if c["user_id"] != getattr(user, "id", None)]
-        for label, batch, with_owner in (("Mes voix (clonage)", mine, False),
-                                         ("Voix partagées", shared, True)):
-            if not batch:
-                continue                       # un groupe vide ne se montre pas
+        for key, label, batch, with_owner in (("mine", "Mes voix (clonage)", mine, False),
+                                              ("shared", "Voix partagées", shared, True)):
+            # « Mes voix » est TOUJOURS émis, même vide — la page du synthesizer y insère la voix
+            # qu'on vient de cloner ; absent, son JS le recréerait sous un autre libellé et à une
+            # autre place. Seul le groupe des voix PARTAGÉES se tait quand il est vide.
+            if key == "shared" and not batch:
+                continue
             groups.append({
+                "key": key,
                 "group": label,
                 "options": [(f"ua_{c['id']}",
                              f"{c['name']} — {c['user__username']}" if with_owner else c["name"])
@@ -88,7 +99,7 @@ def get_voice_groups(user) -> list[dict]:
         pass
 
     # 4. Bark presets.
-    groups.append({"group": "Bark (presets)", "options": list(BARK_PRESETS)})
+    groups.append({"key": "bark", "group": "Bark (presets)", "options": list(BARK_PRESETS)})
     return groups
 
 
