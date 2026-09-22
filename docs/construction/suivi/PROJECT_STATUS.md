@@ -16305,3 +16305,28 @@ d'app. C'est un portage de CARD, distinct des vues de lot ; non entamé.
 spécificités = cache de progression `describer_progress_*` et `compose_output_name` du ZIP, à passer en
 kwargs ou à assumer comme écart), puis les 9 autres, un critère par vue ; portage de card (`_card_state`,
 `_card_progress`, `_queue_actions`) ; le reste du §PALIER précédent (batterie UI des jumelles, imager).
+
+---
+
+## §CLÔTURE — 2026-09-22, « C: REMPLI : CORE DUMPS WSL » — clos, un arbitrage en attente
+
+Périmètre : disque C: (infra), sans chantier de code. Détail et chiffres : `INFRA_WSL_VS_WINDOWS.md`
+§« 2026-09-22 — C: à 9 Go libres ».
+
+- **Constat** : C: à 9 Go libres = **9 core dumps `python3.12` WSL (57,5 Go)** + 1 swap orphelin (8 Go).
+  Aucun crash hôte : des processus qui plantent à la FERMETURE de Python (pyarrow, lecture en flux du
+  corpus VoxPopuli par la bibliothèque HuggingFace `datasets`). Cause établie sur les 9 dumps + repro
+  4/4 sans dump ; insoluble côté Python (3 parades mesurées, toutes 4/4 plantages).
+- **Déjà corrigé ailleurs** : `download_voice_refs` sort par `os._exit` (`8eaa1c64`, autre instance). Celery
+  non exposé (prefork). ⚠ Tout autre script lisant un corpus HuggingFace en flux produit encore un dump.
+- **Fait** : suppression (lancée par Fabien) → C: **104,75 Go libres** ; `scripts/set_wslconfig.ps1
+  -CrashDumpCount` (défaut 1) ; skill `crash-residus` PROMU n=2, scan étendu à `%TEMP%\wsl-crashes`,
+  lecteur de core ELF rangé à côté du skill ; commentaires de `voice_refs.py` et de la commande :
+  « dataset » HuggingFace ≠ kind de manifeste `dataset` (question de Fabien).
+
+🔴 **Arbitrage en attente (Fabien)** : appliquer `maxCrashDumpCount=1`. Régénérer `.wslconfig` relève AUSSI
+`memory=` 48 → 80 Go (hôte à 96 Go) — `pwsh -NoProfile -File scripts/set_wslconfig.ps1 -MemoryGB 48` pour ne
+changer que les dumps, puis `wsl.exe --shutdown` (arrête la stack). Tant que ce n'est pas fait, le plafond
+reste 10 dumps (~90 Go possibles).
+
+🔚 **Suivant** : l'arbitrage ci-dessus ; rien d'autre d'ouvert dans ce périmètre.

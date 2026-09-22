@@ -68,6 +68,19 @@ foreach ($p in $dumpPaths) {
 }
 
 Write-Output ''
+Write-Output '=== 3b. CORE DUMPS WSL (%TEMP%\wsl-crashes) — un PROCESSUS Linux planté, pas l hote ==='
+# Angle mort jusqu'au 2026-09-22 : 9 dumps python3.12, 57,5 Go, C: tombé à 9 Go libres — et ce
+# scan ne les voyait pas. Un dump = TOUTE la mémoire du processus (5-9 Go) ; WSL en garde 10 par
+# défaut (`maxCrashDumpCount`, posé par scripts/set_wslconfig.ps1). Nom : wsl-crash-<epoch>-<pid>-
+# <exe>-<signal>.dmp — le pid se recoupe avec les journaux (ex. `ResourceGovernor pid=`).
+$wslCrash = Join-Path $env:TEMP 'wsl-crashes'
+$dmps = @(Get-ChildItem $wslCrash -File -Filter *.dmp -ErrorAction SilentlyContinue | Sort-Object LastWriteTime)
+foreach ($f in $dmps) {
+    Write-Output ("{0,-60} {1,8:N2} Go  modif {2:yyyy-MM-dd HH:mm}" -f $f.Name, ($f.Length / 1GB), $f.LastWriteTime)
+}
+Write-Output ("TOTAL wsl-crashes : {0} dump(s), {1:N2} Go" -f $dmps.Count, (($dmps | Measure-Object Length -Sum).Sum / 1GB))
+
+Write-Output ''
 Write-Output '=== 4. CLICHES VSS sur D: (1 par redemarrage + 1/4h — purge = ARBITRAGE Fabien) ==='
 try {
     $out = vssadmin list shadowstorage /for=D: 2>&1

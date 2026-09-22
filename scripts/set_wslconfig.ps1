@@ -39,6 +39,15 @@
     l'invite depasse `memory=`, et il sert alors d'amortisseur au lieu d'un
     OOM-kill sec en plein chargement de modele. Un .vhdx inutilise ne coute rien.
 
+.PARAMETER CrashDumpCount
+    Nombre de core dumps que WSL conserve dans %TEMP%\wsl-crashes (sur C:).
+    Defaut 1 ; -1 desactive la collecte. La valeur WSL par defaut (10) est un
+    piege ici : un dump = TOUTE la memoire du processus plante (5 a 9 Go pour
+    un python qui a charge torch/pyarrow). Mesure du 22/09/2026 : 9 dumps,
+    57,5 Go, C: tombe a 9 Go libres -- des plantages a la FERMETURE de scripts
+    lisant un dataset HuggingFace en streaming (pyarrow + CPython 3.12). En
+    garder UN conserve une piece d'enquete sans pouvoir remplir le disque.
+
 .PARAMETER DryRun
     Affiche le fichier qui serait ecrit, sans rien modifier.
 
@@ -52,6 +61,7 @@ param(
     [int]$ReserveGB = 16,
     [int]$MemoryGB = 0,
     [int]$SwapGB = 8,
+    [int]$CrashDumpCount = 1,
     [switch]$DryRun
 )
 
@@ -115,6 +125,8 @@ $content = @"
 [wsl2]
 memory=${wslGB}GB
 swap=${SwapGB}GB
+# Un core dump = toute la memoire du processus (5-9 Go) : 10 par defaut ont rempli C: le 22/09/2026
+maxCrashDumpCount=${CrashDumpCount}
 
 [experimental]
 # Rend progressivement au host le page cache Linux (lectures volumineuses sur /mnt/d)
