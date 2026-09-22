@@ -511,22 +511,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // describer:card_html. Remplace la card si presente, sinon INSERE en tete de file
     // (upload). Re-bind obligatoire : les events sont attaches PAR card (pas de
     // delegation) — le refresh v1 les perdait (corrige 2026-07-05).
+    // Redemandée par la brique commune (WamaApp.fetchCard, portage 2026-09-22 — la copie
+    // locale du fetch + parse vivait ici).
     function refreshCard(id) {
-        fetch(config.urls.cardHtml.replace('/0/', '/' + id + '/'))
-            .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
-            .then(html => {
-                const queue = document.getElementById('descriptionQueue');
-                if (!queue) return;
-                const existing = queue.querySelector(`.wama-card[data-id="${id}"]`);
-                if (existing) existing.outerHTML = html;
-                else {
-                    queue.querySelector('.empty-queue')?.remove();
-                    queue.insertAdjacentHTML('afterbegin', html);
-                }
-                const fresh = queue.querySelector(`.wama-card[data-id="${id}"]`);
-                if (fresh) bindCardEvents(fresh);
-            })
-            .catch(() => {});
+        WamaApp.fetchCard(config.urls.cardHtml, id).then(fresh => {
+            const queue = document.getElementById('descriptionQueue');
+            if (!queue || !fresh) return;
+            const existing = queue.querySelector(`.wama-card[data-id="${id}"]`);
+            if (existing) existing.replaceWith(fresh);
+            else {
+                queue.querySelector('.empty-queue')?.remove();
+                queue.prepend(fresh);
+            }
+            bindCardEvents(fresh);
+        });
     }
 
     // 🗑 RÉSIDU de suppression — la brique commune fait tout le reste (portage 2026-08-23).

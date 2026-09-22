@@ -69,23 +69,18 @@
         // le JS ne reconstruit plus le markup (CARD_DESIGN §3 ; l'ex-buildCard() était
         // une 2ᵉ source qui aurait divergé des chips/du point d'état serveur).
         let card = document.querySelector(`.reader-card[data-id="${item.id}"]`);
-        try {
-            const r = await fetch(urlFor('cardHtml', item.id));
-            if (r.ok) {
-                const tpl = document.createElement('template');
-                tpl.innerHTML = (await r.text()).trim();
-                const fresh = tpl.content.firstElementChild;
-                if (fresh) {
-                    if (card) card.replaceWith(fresh);
-                    else {
-                        const empty = document.getElementById('emptyState');
-                        if (empty) empty.remove();
-                        document.getElementById('queueContainer').prepend(fresh);
-                    }
-                    card = fresh;
-                }
+        // Redemandée par la brique commune (WamaApp.fetchCard, portage 2026-09-22) ; null en cas
+        // de réseau → on garde la card existante, le poll réessaiera.
+        const fresh = await WamaApp.fetchCard(urlFor('cardHtml'), item.id);
+        if (fresh) {
+            if (card) card.replaceWith(fresh);
+            else {
+                const empty = document.getElementById('emptyState');
+                if (empty) empty.remove();
+                document.getElementById('queueContainer').prepend(fresh);
             }
-        } catch (e) { /* réseau : on garde la card existante, le poll réessaiera */ }
+            card = fresh;
+        }
         if (!card) return null;
         if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(item.id, { progress: item.progress, status: item.status, seedSeconds: item.estimated_seconds, modelLoaded: false }));
         bindCardActions(card, item);
