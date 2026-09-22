@@ -254,6 +254,16 @@ def ai_chat_settings(request):
     return JsonResponse({'success': True, 'settings': valeurs})
 
 
+@require_http_methods(["GET"])
+def ai_chat_thread(request):
+    """Le fil `web` de l'utilisateur, au format d'affichage — pour le mini-chat du volet droit
+    (toutes les pages, 2026-09-22) : MÊME fil que l'accueil, chargé à la demande plutôt que rendu
+    dans chaque page."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    return JsonResponse({'entries': _chat_thread(request.user)})
+
+
 @require_http_methods(["POST"])
 @csrf_protect
 def ai_chat_clear(request):

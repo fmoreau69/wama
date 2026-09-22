@@ -261,9 +261,36 @@ class AvatarPersistantTest(TestCase):
     def test_the_avatar_settings_are_not_rendered_in_any_parameter_panel(self):
         from wama.assistant.params import PARAMS_JSON
         for p in PARAMS_JSON:
-            if p['name'] in ('avatar', 'avatar_collapsed'):
+            if p['name'] in ('avatar', 'avatar_collapsed', 'voice'):
                 self.assertEqual([], list(p['contexts']), p['name'])
                 self.assertEqual('toggle', p['type'])
+
+    def test_the_voice_is_a_durable_preference_rendered_in_the_panel(self):
+        self.assertIs(True, self._reglages()['voice'])
+        self.assertIn('data-voice="1"', self.client.get(reverse('accounts:profile')).content.decode())
+        self.assertEqual(200, self._regler(voice=False).status_code)
+        self.assertIs(False, self._reglages()['voice'])
+        self.assertIn('data-voice="0"', self.client.get(reverse('accounts:profile')).content.decode())
+
+    def test_the_compact_chat_is_rendered_everywhere_but_on_home(self):
+        """Le mini-chat du volet vit sur toute page à volet ; l'accueil porte le chat complet."""
+        html = self.client.get(reverse('accounts:profile')).content.decode()
+        self.assertIn('id="assistant-chat"', html)
+        self.assertIn('data-thread-url="' + reverse('ai_chat_thread') + '"', html)
+        self.assertIn('data-assistant-voice', html)
+        self.assertIn('wama-assistant-chat.js', html)
+        home = self.client.get(reverse('home')).content.decode()
+        self.assertNotIn('id="assistant-chat"', home)
+        self.assertIn('wama-assistant-voice.js', home)
+
+    def test_the_thread_endpoint_serves_the_same_web_thread_as_home(self):
+        with mock.patch(MOTEUR, return_value=_reponse('depuis le volet')):
+            self.client.post(reverse('ai_chat'), data=json.dumps({'message': 'salut'}),
+                             content_type='application/json')
+        entries = self.client.get(reverse('ai_chat_thread')).json()['entries']
+        self.assertEqual(['salut', 'depuis le volet'], [e.get('content') for e in entries])
+        self.client.logout()
+        self.assertEqual(401, self.client.get(reverse('ai_chat_thread')).status_code)
 
 
 class LatencyLeversTest(TestCase):

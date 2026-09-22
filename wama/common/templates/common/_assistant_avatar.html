@@ -1,14 +1,22 @@
 {% load static %}
 {% comment %}
-  ── Avatar parlant de l'assistant — section de TÊTE du volet droit, sur TOUTE page ──────────
+  ── L'ASSISTANT dans le volet droit — accordéon « Assistant », sur TOUTE page ─────────────
   Inclus par `base.html` (avant `right_panel_top`) pour tout compte connecté. Jusqu'au
   2026-09-22 ce bloc vivait dans `home.html` seul : l'avatar disparaissait dès qu'on quittait
   l'accueil, et « affiché / masqué » n'était qu'un état de page (`WAMA_VOLETS.md §5`, §8 n°5).
 
-  Ce qui persiste désormais est la PRÉFÉRENCE (brique `user_settings`, app `assistant`, clés
-  `avatar` — activé par défaut — et `avatar_collapsed`), lue sur chaque page par le context
-  processor `assistant_avatar` et rendue ici en `data-*`. Le comportement (chargement à la
-  demande, repli, bascule) est dans la brique `wama-avatar-panel.js`, chargée par `base.html`.
+  UN accordéon (Fabien, 22/09 : « tout ce qui est lié à l'assistant dans le volet droit doit être
+  contenu dans l'accordéon pour pouvoir se replier d'un coup ») : l'avatar (`#assistant-avatar`,
+  rendu par `wama-avatar.js`) et, hors accueil, le MINI-CHAT (`#assistant-chat`,
+  `wama-assistant-chat.js`) — même fil que l'accueil, voix commune (`wama-assistant-voice.js`),
+  réglages de l'accueil (modèle, curseur, voix choisie) inchangés et durables : le volet ne
+  montre qu'un rappel en lecture seule du dernier tour. Sur l'accueil, le chat complet est déjà
+  là : le partial ne rend que l'avatar (`assistant_avatar.compact_chat`).
+
+  Ce qui persiste est la PRÉFÉRENCE (brique `user_settings`, app `assistant`, clés `avatar` —
+  activé par défaut —, `avatar_collapsed` — l'accordéon —, `voice`), lue sur chaque page par le
+  context processor `assistant_avatar` et rendue ici en `data-*`. Le comportement (chargement à
+  la demande, repli, bascule) est dans `wama-avatar-panel.js`, chargée par `base.html`.
 
   ⚠ Rendu même quand la préférence est désactivée (`data-enabled="0"`, masqué) : la page
   d'accueil peut ainsi réactiver l'avatar SANS rechargement. Cela ne coûte rien — le module
@@ -19,6 +27,7 @@
 <div class="right-panel-section" id="assistant-avatar-section"
      data-enabled="{% if assistant_avatar.enabled %}1{% else %}0{% endif %}"
      data-collapsed="{% if assistant_avatar.collapsed %}1{% else %}0{% endif %}"
+     data-voice="{% if assistant_avatar.voice %}1{% else %}0{% endif %}"
      data-lang="{{ preferred_language|default:'fr' }}"
      data-module="{% static 'common/js/wama-avatar.js' %}"
      data-glb="{% static 'vendors/avatars/brunette.glb' %}"
@@ -27,16 +36,35 @@
   <div class="right-panel-section-title">
     <i class="fas fa-user-astronaut me-1"></i> Assistant
     <button type="button" id="avatar-collapse" class="btn btn-sm btn-link p-0 float-end text-secondary"
-            title="{% if assistant_avatar.collapsed %}Déplier l'avatar{% else %}Replier l'avatar{% endif %}">
+            title="{% if assistant_avatar.collapsed %}Déplier l'assistant{% else %}Replier l'assistant{% endif %}">
       <i class="fas {% if assistant_avatar.collapsed %}fa-chevron-down{% else %}fa-chevron-up{% endif %}"></i>
     </button>
   </div>
-  {% comment %}Hauteur explicite : three.js ne rend rien dans un conteneur de hauteur nulle.
-  200 px (et non 260, un carré) avec la caméra rapprochée de `wama-avatar.js` : visage et
-  épaules, sans marge vide — mesuré le 22/09 à la demande de Fabien. ⚠ `{% templatetag openblock %} comment {% templatetag closeblock %}`
-  et non `{ #…# }`, MONO-LIGNE en Django : la version précédente s'affichait dans le volet
-  (piège déjà répertorié, reproduit ici et vu à la capture).{% endcomment %}
-  <div id="assistant-avatar" style="width:100%;height:200px;border-radius:8px;overflow:hidden;background:#15181c;"
-       {% if assistant_avatar.collapsed %}hidden{% endif %}></div>
-  <div id="avatar-status" class="small text-muted mt-1" {% if assistant_avatar.collapsed %}hidden{% endif %}></div>
+  {% comment %}Corps de l'accordéon : tout ce qui se replie d'un coup. Hauteur explicite du
+  canvas : three.js ne rend rien dans un conteneur de hauteur nulle — 200 px (et non 260, un
+  carré) avec la caméra rapprochée de `wama-avatar.js` : visage et épaules, sans marge vide
+  (mesuré le 22/09). ⚠ `{% templatetag openblock %} comment {% templatetag closeblock %}` et non `{ #…# }`, MONO-LIGNE en
+  Django : une version précédente s'affichait dans le volet (piège déjà répertorié).{% endcomment %}
+  <div id="assistant-body" {% if assistant_avatar.collapsed %}hidden{% endif %}>
+    <div id="assistant-avatar" style="width:100%;height:200px;border-radius:8px;overflow:hidden;background:#15181c;"></div>
+    <div id="avatar-status" class="small text-muted mt-1"></div>
+    {% if assistant_avatar.compact_chat %}
+    <div id="assistant-chat"
+         data-chat-url="{% url 'ai_chat' %}"
+         data-thread-url="{% url 'ai_chat_thread' %}"
+         data-greeting="Posez une question ou demandez une tâche — même fil que l'accueil.">
+      <div class="wama-assistant-feed"></div>
+      <div class="wama-assistant-row">
+        <textarea rows="1" placeholder="Votre message…" aria-label="Message à l'assistant"></textarea>
+        <button type="button" class="btn btn-outline-info btn-sm" data-assistant-voice
+                title="Couper la voix (muet)"><i class="fas fa-volume-up"></i></button>
+        <button type="button" class="btn btn-primary btn-sm" data-assistant-send
+                title="Envoyer"><i class="fas fa-paper-plane"></i></button>
+      </div>
+      {% comment %}Rappel en LECTURE SEULE du dernier tour (modèle · niveau) : les réglages se
+      font sur l'accueil et valent partout (durables).{% endcomment %}
+      <div class="wama-assistant-status" title="Réglages (modèle, qualité, voix) : page d'accueil"></div>
+    </div>
+    {% endif %}
+  </div>
 </div>

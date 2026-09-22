@@ -1,0 +1,25 @@
+/* Assistant dans le volet droit — accordéon « Assistant » : avatar + mini-chat (2026-09-22).
+   Compact par construction : le volet fait ~330 px ; le fil est borné, le champ grandit jusqu'à
+   4 lignes puis défile. Couleurs alignées sur le chat de l'accueil (#1a1d21 / secondary). */
+#assistant-chat { margin-top: 6px; }
+#assistant-chat .wama-assistant-feed {
+  max-height: 180px; overflow-y: auto; background: #1a1d21; border-radius: 8px;
+  padding: 8px; font-size: 0.82rem; }
+#assistant-chat .wama-assistant-msg {
+  display: inline-block; max-width: 92%; padding: 5px 8px; border-radius: 10px;
+  margin: 3px 0; word-break: break-word; text-align: left; }
+#assistant-chat .wama-assistant-msg-user { background: #0d6efd; color: #fff; float: right; clear: both; }
+#assistant-chat .wama-assistant-msg-assistant { background: #495057; color: #fff; float: left; clear: both; }
+#assistant-chat .wama-assistant-msg-error { background: #dc3545; color: #fff; float: left; clear: both; }
+#assistant-chat .wama-assistant-msg a { color: #a8d8ff; }
+#assistant-chat .wama-assistant-steps { clear: both; font-size: 0.72rem; color: #6fcf97; padding: 2px 0; }
+#assistant-chat .wama-assistant-empty { color: #6c757d; text-align: center; padding: 6px 0; }
+#assistant-chat .wama-assistant-feed::after { content: ''; display: block; clear: both; }
+#assistant-chat .wama-assistant-row { display: flex; gap: 4px; align-items: flex-end; margin-top: 6px; }
+#assistant-chat textarea {
+  flex: 1; resize: none; min-height: 31px; line-height: 1.3; font-size: 0.82rem;
+  background: #1a1d21; border: 1px solid #495057; color: #fff; border-radius: 6px; padding: 5px 8px; }
+#assistant-chat .wama-assistant-status {
+  font-size: 0.7rem; color: #6c757d; margin-top: 4px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+#assistant-chat .wama-assistant-status a { color: inherit; }

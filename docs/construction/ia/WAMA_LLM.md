@@ -326,8 +326,14 @@ et **`add_to_media_library`** depuis le **2026-09-11**.
 Toutes les surfaces (web, API v1 `/api/v1/assistant/chat/`, canaux
 Discord/Matrix — ROADMAP §19) passent par ce même pivot : ajouter un outil ICI l'offre partout.
 
+**Surface VOLET DROIT (22/09)** : le mini-chat de l'accordéon « Assistant » (`base.html` →
+`common/_assistant_avatar.html`, `wama-assistant-chat.js`) est une 4ᵉ surface CLIENTE du même
+moteur — même vue `ai_chat`, même fil `web` (`ai_chat_thread` le sert), mêmes réglages durables ;
+la voix est la brique commune `wama-assistant-voice.js` (l'accueil l'utilise aussi). Détail et
+état : `WAMA_VOLETS §5`.
+
 ⚠ **Contrat de surface** (ROADMAP §19 ①) : le tour d'assistant ne porte **jamais** d'audio — la
-TTS est une **étape cliente post-réponse** (`home.html` appelle `/api/tts-kokoro/` après coup),
+TTS est une **étape cliente post-réponse** (`wama-assistant-voice.js` appelle `/api/tts-kokoro/` après coup),
 et les visèmes de l'avatar viendront d'un endpoint TTS distinct. C'est la contrepartie de « UN
 cerveau, N surfaces » : le contrat commun ne porte que ce qui vaut pour toutes les surfaces —
 un bot Discord n'a rien à faire d'un WAV en base64.

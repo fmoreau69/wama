@@ -82,9 +82,11 @@ export async function init(node, opts) {
     // z = 4,5) laissait un tiers de vide au-dessus de la tête ; « head » coupe le menton et
     // les épaules. On garde « upper » et on RAPPROCHE la caméra (`cameraDistance` s'ajoute à
     // z : −1,7 → z ≈ 2,8), légèrement relevée : visage et épaules remplissent 200 px de haut.
+    // 2ᵉ mesure (Fabien : « le front est un peu mangé en haut ») : caméra un peu moins proche et
+    // RELEVÉE (`cameraY` négatif = caméra plus haute = avatar plus bas dans le cadre).
     cameraView: 'upper',
-    cameraDistance: -1.7,
-    cameraY: 0.02,
+    cameraDistance: -1.5,
+    cameraY: -0.06,
     avatarMood: (opts && opts.mood) || 'neutral',
   });
   await head.showAvatar({

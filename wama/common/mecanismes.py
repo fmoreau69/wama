@@ -654,8 +654,15 @@ MECHANISMS = (
               # wama-avatar-panel.js + _assistant_avatar.html (2026-09-22) = sa PRÉSENCE : le
               # conteneur en tête du volet de TOUTE page (base.html), la préférence durable
               # (`avatar`/`avatar_collapsed` du schéma assistant/params.py), le repli.
+              # + le 22/09 (soir) : la VOIX commune (`wama-assistant-voice.js` — phrases, bouton
+              # 🔊/🔇/⏹ qui arrête une lecture) et le MINI-CHAT du volet (`wama-assistant-chat.js`,
+              # même fil `web` que l'accueil, servi par `views.ai_chat_thread`) : l'assistant se
+              # parle depuis toute page, dans l'accordéon « Assistant ».
               annexes=('wama/common/static/common/js/wama-avatar.js',
                        'wama/common/static/common/js/wama-avatar-panel.js',
+                       'wama/common/static/common/js/wama-assistant-voice.js',
+                       'wama/common/static/common/js/wama-assistant-chat.js',
+                       'wama/common/static/common/css/wama-assistant-panel.css',
                        'wama/common/templates/common/_assistant_avatar.html'),
               symbol='run_assistant_turn'),
     Mechanism('conversation_store', "Historique de conversation (serveur)",
