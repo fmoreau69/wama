@@ -31,8 +31,12 @@
       <i class="fas {% if assistant_avatar.collapsed %}fa-chevron-down{% else %}fa-chevron-up{% endif %}"></i>
     </button>
   </div>
-  {# Hauteur explicite : three.js ne rend rien dans un conteneur de hauteur nulle. #}
-  <div id="assistant-avatar" style="width:100%;height:260px;border-radius:8px;overflow:hidden;background:#15181c;"
+  {% comment %}Hauteur explicite : three.js ne rend rien dans un conteneur de hauteur nulle.
+  200 px (et non 260, un carré) avec la caméra rapprochée de `wama-avatar.js` : visage et
+  épaules, sans marge vide — mesuré le 22/09 à la demande de Fabien. ⚠ `{% templatetag openblock %} comment {% templatetag closeblock %}`
+  et non `{ #…# }`, MONO-LIGNE en Django : la version précédente s'affichait dans le volet
+  (piège déjà répertorié, reproduit ici et vu à la capture).{% endcomment %}
+  <div id="assistant-avatar" style="width:100%;height:200px;border-radius:8px;overflow:hidden;background:#15181c;"
        {% if assistant_avatar.collapsed %}hidden{% endif %}></div>
   <div id="avatar-status" class="small text-muted mt-1" {% if assistant_avatar.collapsed %}hidden{% endif %}></div>
 </div>

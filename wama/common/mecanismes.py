@@ -504,10 +504,10 @@ MECHANISMS = (
               'wama/common/services/mcp_server.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/common/management/commands/run_mcp_server.py',
-                       'wama/common/tests_mcp_server.py'),
-              standalone="POINT D'ENTRÉE DE PROCESS : un serveur MCP se LANCE "
-                         "(`run_mcp_server`, en annexe), il n'est importé par aucune brique de "
-                         "WAMA — et c'est voulu, les clients l'atteignent par le protocole"),
+                       'wama/common/tests_mcp_server.py')),
+              # Déclaré « autonome » (point d'entrée de process, importé par personne) jusqu'au
+              # 2026-09-22 : depuis, `mcp_client` lui emprunte le chemin d'endpoint (`MCP_PATH`)
+              # — un consommateur, donc plus autonome (garde `tests_catalogues`).
     Mechanism('dev_tools', 'Outils de DÉVELOPPEMENT (surface MCP « wama-dev »)',
               "Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sable "
               "d'apps, exposés à un client MCP. ⚠ JAMAIS chargé dans le process de PRODUCTION "
@@ -518,6 +518,18 @@ MECHANISMS = (
               'wama/common/services/dev_tools.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/common/tests_mcp_dev_tools.py',)),
+    Mechanism('development_models', 'Modèles de NIVEAU DÉVELOPPEMENT (bridage « qualité max »)',
+              "UN domicile pour « quel modèle a le droit de travailler sur le code » : plancher "
+              "sur le score coding du banc tiers (≥ 40) + déclaration explicite pour le seul "
+              "distant non mesuré (albert:gpt-oss-120b), curseur imposé à 100 (réflexion), "
+              "distants SOUVERAINS admis dès « cloud si saturé », et REFUS lisible plutôt qu'un "
+              "petit modèle en repli. Lu par l'assistant (domaine dev, bascule en cours de tour "
+              "dès qu'une compétence dev ou un outil dev_* est appelé, domaine collant au fil) et "
+              "par les rôles wama-dev-ai (`role_utils.resolve_model`) — décision Fabien 22/09 "
+              "après un tour réel où qwen3.5:4b inventait des jumelles",
+              'wama/common/services/development_models.py',
+              'docs/construction/ia/WAMA_LLM.md',
+              annexes=('wama/common/tests_development_models.py',)),
     Mechanism('mcp_client', "L'assistant, CLIENT MCP de la surface de développement",
               "Le moteur de l'assistant RELAIE les outils `dev_*` (rôles wama-dev-ai, bac à "
               "sable) à la surface « wama-dev » par le protocole — process séparé, §16 tenu : "
@@ -892,6 +904,15 @@ MECHANISMS = (
               "La compatibilité n'est pas redéclarée : `group_key` reçoit la MÊME fonction que "
               "le `nature_of` de l'import (vérifié par AST, tests_queue_dnd)",
               'wama/common/utils/queue_manipulation.py', 'docs/construction/ui/CARD_DESIGN.md §3bis'),
+    Mechanism('batch_views', 'Vues de lot (fabrique commune)',
+              "Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, "
+              "batch_update, batch_delete, batch_duplicate, batch_download, batch_status — "
+              "paramétrée comme la fabrique de file (les deux formes de rattachement par "
+              "`batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps "
+              "conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps "
+              "réelles les écrivaient chacune à la main (60 lectures de lot recopiées, "
+              "`ROUTE §11 #36`) et la rallient au fil des portages (critère `batch_views_common`)",
+              'wama/common/utils/batch_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11'),
     Mechanism('queue_dnd', 'Glisser-déposer et sélection multiple de la file',
               "Les QUATRE gestes de manipulation directe, hérités par les 12 apps sans qu'aucune "
               "n'écrive une ligne : déposer SUR une card change l'APPARTENANCE (entrer dans un "

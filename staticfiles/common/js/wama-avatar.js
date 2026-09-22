@@ -77,7 +77,14 @@ export async function init(node, opts) {
     ttsEndpoint: '',
     lipsyncModules: LANGUES_VISEMES,
     lipsyncLang: lang,          // défaut de la lib = 'fi' (finnois) — à écraser explicitement
+    // CADRAGE (Fabien, 2026-09-22 : « beaucoup de marge vide autour de l'avatar ») — mesuré au
+    // navigateur sur un volet de 329 px de large : la vue « upper » par défaut (caméra à
+    // z = 4,5) laissait un tiers de vide au-dessus de la tête ; « head » coupe le menton et
+    // les épaules. On garde « upper » et on RAPPROCHE la caméra (`cameraDistance` s'ajoute à
+    // z : −1,7 → z ≈ 2,8), légèrement relevée : visage et épaules remplissent 200 px de haut.
     cameraView: 'upper',
+    cameraDistance: -1.7,
+    cameraY: 0.02,
     avatarMood: (opts && opts.mood) || 'neutral',
   });
   await head.showAvatar({
@@ -124,4 +131,10 @@ export function stop() {
 
 // Monté en global : le JS de l'assistant est un script CLASSIQUE (pas un module) et ne peut
 // pas `import` ce fichier. Même convention que WamaApp/WamaParams.
-window.WamaAvatar = { init, speak, estPret, stop };
+/** L'instance TalkingHead (null tant que l'avatar n'est pas chargé) — pour le cadrage
+ *  (`setView`) et les sondes de mise au point ; le rendu reste le sien. */
+export function instance() {
+  return head;
+}
+
+window.WamaAvatar = { init, speak, estPret, stop, instance };

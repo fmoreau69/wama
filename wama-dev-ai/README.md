@@ -31,6 +31,12 @@ python wama-dev-ai/run_scout.py …         # prospection de modèles (fiches ca
 python wama-dev-ai/run_integrator.py …    # propositions d'intégration
 ```
 
+**Modèle des rôles — BRIDÉ au niveau développement (2026-09-22, Fabien)** : sans `--model`, un rôle
+en local prend le modèle que rend `wama.common.services.development_models.development_model`
+(plancher sur le score coding du banc, curseur 100, jamais de repli sur un petit modèle) ; sans
+modèle de ce niveau, le rôle **s'arrête en le disant** au lieu de tourner sur `fast`. La chaîne de
+`config.py` ne sert plus qu'au cas « catalogue injoignable ». Détail : `WAMA_LLM.md §1ter`.
+
 **Fournisseur des rôles** (2026-09-15) : les cinq rôles ci-dessus (codegen, librarian, model,
 scout, integrator) acceptent `--provider`. Défaut `ollama` (local, comportement d'avant).
 `--provider albert` fait passer l'appel par `llm_chat` vers Albert API (DINUM) : clé

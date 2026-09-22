@@ -163,6 +163,17 @@ def resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple:
         return provider, model
     reglages = assistant_settings(user)
     cle = model or reglages.get('model') or AUTO
+    # Domaine de DÉVELOPPEMENT : BRIDÉ aux modèles de niveau dev (Fabien, 22/09) — le choix
+    # manuel est respecté s'il a le niveau, remplacé sinon ; rien de disponible → (None, None),
+    # que `run_assistant_turn` transforme en refus lisible, jamais en petit modèle.
+    from wama.common.utils.assistant_skills import resolve_domain
+    if resolve_domain(domain).development and user is not None:
+        from wama.common.services.development_models import development_model
+        key = development_model(user, requested=None if is_auto(cle) else cle)
+        if not key:
+            return None, None
+        source, _, model_id = str(key).partition(':')
+        return SOURCE_PROVIDERS.get(source, 'wama-dev-ai'), (model_id or None)
     if is_auto(cle):
         try:
             from wama.common.utils.assistant_skills import resolve_domain
@@ -572,6 +583,15 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
     try:
         fil = conversation_store.thread(user, surface=surface, thread_key=thread_key)
         historique = conversation_store.history(fil)
+        # Le fil SE SOUVIENT d'un domaine de DÉVELOPPEMENT chargé (bridage, 22/09) : la surface
+        # n'a rien à redire, et le tour suivant reste au niveau dev. Les autres domaines ne
+        # collent pas — leur contexte (RAG) se paie à chaque tour, le modèle le recharge s'il
+        # en a besoin.
+        if domain is None:
+            from wama.common.utils.assistant_skills import resolve_domain
+            remembered = conversation_store.last_loaded_domain(fil)
+            if remembered and resolve_domain(remembered).development:
+                domain = remembered
     except Exception:
         logger.exception("[ai_chat] store de conversation indisponible — tour sans historique")
 
@@ -627,6 +647,12 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # quand la surface n'impose rien : c'est ce qui donne le MÊME choix au web, à l'API et aux
     # canaux, sans qu'aucune surface ne porte de réglage propre.
     provider, llm_model = resolve_turn_model(user, provider, model, domain=domain)
+    from wama.common.utils.assistant_skills import resolve_domain
+    development = resolve_domain(domain).development
+    if provider is None:
+        # Seul cas : domaine de développement sans modèle de niveau dev — on le DIT.
+        from wama.common.services.development_models import development_refusal
+        return {'error': development_refusal(user), 'status': 503}
 
     # ⚠ GARDE DE L'ABONNEMENT — posée ICI, et pas dans la vue de chat. `run_assistant_turn`
     # est le passage OBLIGÉ des TROIS surfaces (web `views.ai_chat`, `/api/v1/assistant/`,
@@ -699,8 +725,17 @@ def run_assistant_turn(user, message: str, provider: str = None,
                      + contexte_labo + wama_context)
 
     # Réflexion du modèle (chemin local) DÉRIVÉE du curseur Rapide ↔ Qualité de l'utilisateur —
-    # le même réglage que le tirage automatique lit (`resolve_turn_model`).
-    think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
+    # le même réglage que le tirage automatique lit (`resolve_turn_model`). En domaine de
+    # développement le curseur vaut 100 (bridage) : réflexion demandée.
+    from wama.common.services.development_models import DEV_QUALITY_INTENT
+    quality = DEV_QUALITY_INTENT if development else assistant_settings(user).get('quality_intent')
+    think = thinking_wanted(quality) if local else None
+
+    def _label(provider, llm_model, local):
+        base_label = f"wama-dev-ai ({llm_model})" if local else f"{provider} ({llm_model or 'défaut'})"
+        # « · dev » : le bridage est VISIBLE — l'utilisateur voit que le tour est passé au
+        # modèle de niveau développement (demande de Fabien : le rendre explicite).
+        return f"{base_label} · dev" if development else base_label
 
     # Build messages: system + prior history (capped) + current user message
     prior = _sanitize_history(history)[-20:]  # keep last 10 exchanges max
@@ -729,7 +764,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         except Exception:
             pass
 
-    etiquette = f"wama-dev-ai ({llm_model})" if local else f"{provider} ({llm_model or 'défaut'})"
+    etiquette = _label(provider, llm_model, local)
     tool_steps = []
     # `cost_usd` accumulé aussi : sans lui, l'équivalent-API rendu par le chemin abonnement
     # était calculé puis JETÉ (mesuré le 31/08 en revérification) — la docstring de
@@ -772,6 +807,27 @@ def run_assistant_turn(user, message: str, provider: str = None,
             tool_result = mcp_client.call_dev_tool(user, tool_name, tool_args)
         else:
             tool_result = execute_tool(tool_name, tool_args, user)
+
+        # BASCULE EN COURS DE TOUR (22/09) : le tour a commencé sur le modèle du curseur, et le
+        # modèle vient de charger la compétence dev ou d'appeler un outil de dev — la SUITE du
+        # tour (et le fil, cf. `conversation_store.last_loaded_domain`) passe au niveau
+        # développement. Sans modèle de ce niveau, l'outil le dit au modèle, qui le dit à
+        # l'utilisateur ; on ne continue jamais « comme si ».
+        from wama.common.services.development_models import (
+            development_model, development_refusal, is_development_step)
+        if (not development and user is not None
+                and is_development_step({'tool': tool_name, 'args': tool_args})):
+            key = development_model(user)
+            if key:
+                source, _, model_id = str(key).partition(':')
+                provider, llm_model = SOURCE_PROVIDERS.get(source, 'wama-dev-ai'), (model_id or None)
+                local = provider in _LOCAL_PROVIDERS
+                development = True
+                think = thinking_wanted(DEV_QUALITY_INTENT) if local else None
+                etiquette = _label(provider, llm_model, local)
+                logger.info("[ai_chat] passage au niveau développement : %s", etiquette)
+            elif isinstance(tool_result, dict):
+                tool_result = dict(tool_result, warning=development_refusal(user))
         tool_steps.append({'tool': tool_name, 'args': tool_args, 'result': tool_result})
 
         # Add assistant tool-call turn + tool result to conversation
