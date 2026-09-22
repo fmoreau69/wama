@@ -31,7 +31,12 @@ PARAMS = [
         help="« Automatique » choisit au lancement selon le curseur, la mémoire GPU libre et "
              "les clés d'API que vous avez enregistrées.",
     ),
-    Param(name='quality_intent', dom_id='ai-quality', contexts=('panel',), **intent_param()),
+    # Le curseur de l'assistant vaut AUSSI pour les tâches qu'il lance (Fabien, 22/09) : dit ici,
+    # dit dans la réponse de l'assistant (`quality_level` du résultat d'outil) — explicite partout.
+    Param(name='quality_intent', dom_id='ai-quality', contexts=('panel',), **intent_param(
+        help="Guide le choix automatique du modèle de l'assistant — et s'applique aux tâches que "
+             "vous lui demandez de lancer (les apps dont le curseur s'appelle « qualité » "
+             "le reçoivent ; l'assistant vous le confirme à chaque lancement).")),
     # L'AVATAR PARLANT est une préférence DURABLE de l'assistant (2026-09-22, demande de Fabien) :
     # jusque-là « affiché / masqué » n'était qu'un état de la page d'accueil, perdu au premier
     # changement de page. `contexts=()` : ces deux réglages ne sont rendus dans AUCUN panneau de

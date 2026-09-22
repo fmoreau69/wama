@@ -3870,6 +3870,49 @@ def sanitize_tool_args(tool_name: str, args: dict):
     return keep, sorted(set(merged) - set(keep))
 
 
+def relay_quality_intent(user, tool_name: str, result: dict) -> dict:
+    """Relaie le curseur Rapide ↔ Qualité de l'ASSISTANT vers l'élément qu'un outil `add_to_<app>`
+    vient de créer (décision Fabien, 2026-09-22 : « l'utilisateur règle une fois le curseur et
+    demande ses tâches à l'assistant, qui applique le niveau demandé — en le rendant explicite »).
+
+    Frontière VOULUE : seulement si l'app déclare son curseur sous le nom `quality_intent`
+    (`intent_field_for`) — l'anonymizer (`precision_level`, ses propres paliers) n'est pas relayé,
+    et les apps qui n'ont pas encore le champ le recevront à leur portage. Rien n'est écrasé
+    qu'une valeur que l'outil vient de poser par défaut : les outils d'ajout n'ont pas
+    d'argument de curseur, la création EST ce geste. Le résultat porte `quality_intent` et
+    `quality_level` (libellé du palier) — c'est ce que le modèle doit dire à l'utilisateur.
+    Appelé par la boucle de l'ASSISTANT seulement (pas par `execute_tool`) : le studio et l'API
+    d'outils gardent leurs propres réglages."""
+    if not isinstance(result, dict) or 'error' in result or result.get('item_id') is None:
+        return result
+    role, app_id = _split_triad(tool_name)
+    if role != 'add' or not app_id:
+        return result
+    from wama.common.utils.auto_model import intent_field_for, preset_key_for_intent, read_quality_intent
+    if intent_field_for(app_id) != 'quality_intent':
+        return result
+    from wama.common.utils.detail_registry import DetailRegistry
+    raw_app = tool_name[len('add_to_'):]
+    entry = DetailRegistry.get(raw_app) or DetailRegistry.get(app_id)
+    if not entry:
+        return result
+    item = entry['model'].objects.filter(pk=result['item_id']).first()
+    if item is None or not hasattr(item, 'quality_intent'):
+        return result
+    owner = getattr(item, 'user', None)
+    if owner is not None and getattr(owner, 'pk', None) != getattr(user, 'pk', None):
+        return result
+    from wama.common.services.assistant_engine import assistant_settings
+    value = read_quality_intent(assistant_settings(user).get('quality_intent'))
+    item.quality_intent = value
+    item.save(update_fields=['quality_intent'])
+    from wama.model_manager.services.model_selector import QUALITY_PRESETS
+    labels = {key: label for key, label, _ in QUALITY_PRESETS}
+    result['quality_intent'] = value
+    result['quality_level'] = labels.get(preset_key_for_intent(value), '')
+    return result
+
+
 def execute_tool(tool_name: str, args: dict, user) -> dict:
     """
     Dispatch a tool call from the agentic loop.

@@ -78,6 +78,7 @@ Rules:
 - Respond in {LANGUE}.
 - COMPLETION NOTIFICATION: After starting a task (start_anonymizer, start_imager, start_enhancer, start_audio_enhancer, start_synthesizer, start_describer, start_transcriber), automatically call the corresponding get_*_status tool. If the task is already SUCCESS/done, immediately report the result with the file URL/preview link. If still RUNNING/PENDING, tell the user "La tâche a démarré — vous serez notifié dès la fin." and explain they can ask "quel est le statut ?" to check progress.
 - OUTPUT LINKS: When a get_*_status result shows status="SUCCESS" or status="done" and contains output_url / audio_url / output_urls / video_url, ALWAYS include these links in your response using Markdown format: [📥 Télécharger](URL) or [🖼️ Voir l'image](URL).
+- QUALITY LEVEL: when an add_* result carries `quality_level`, tell the user the task was queued at that level, e.g. « niveau Équilibré (55) — réglable par le curseur Rapide ↔ Qualité de l'assistant ». It is the user's own slider setting, applied to the task for them.
 
 File search strategy:
 - When the user asks to anonymize a file: check "anon_input" first, then "temp".
@@ -807,6 +808,13 @@ def run_assistant_turn(user, message: str, provider: str = None,
             tool_result = mcp_client.call_dev_tool(user, tool_name, tool_args)
         else:
             tool_result = execute_tool(tool_name, tool_args, user)
+            # Le curseur de l'assistant vaut pour les tâches qu'il lance (Fabien, 22/09) — et
+            # le résultat le DIT (`quality_level`), pour que le modèle le dise à l'utilisateur.
+            try:
+                from wama.tool_api import relay_quality_intent
+                tool_result = relay_quality_intent(user, tool_name, tool_result)
+            except Exception:
+                logger.debug("[ai_chat] relais du curseur impossible", exc_info=True)
 
         # BASCULE EN COURS DE TOUR (22/09) : le tour a commencé sur le modèle du curseur, et le
         # modèle vient de charger la compétence dev ou d'appeler un outil de dev — la SUITE du
