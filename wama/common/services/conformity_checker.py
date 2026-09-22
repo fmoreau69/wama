@@ -782,6 +782,32 @@ def _card_refresh_common(f: _AppFiles):
     return None, None
 
 
+def _batch_read_common(f: _AppFiles):
+    """Les ÉLÉMENTS d'un lot se lisent par la brique `batch_common.batch_elements` (2026-09-22).
+
+    La brique existait depuis le 08/09 (`elements_du_lot`, écrite pour le partage) sans garantir
+    l'ordre des lignes ; elle le garantit désormais, charge l'élément en une requête et sert les
+    DEUX formes de rattachement. Mesuré le jour même : **0 app sur 10** l'appelle depuis ses
+    vues — chacune réécrit `batch.items.select_related('<fk>').order_by('row_index')` (ou
+    `.all()`, ou sans ordre) dans ses vues de lot : 60 sites sous cinq graphies, dont des
+    lectures NON ordonnées là où l'ordre compte (téléchargement de lot, duplication). Les vues
+    GÉNÉRÉES du bac à sable passent par la brique ; ce critère rend visible le portage
+    restant des apps réelles, exactement comme `card_refresh_common` l'a fait pour le JS.
+    Un `.items.` manipulé pour ÉCRIRE (reorder, purge) n'est pas une lecture d'éléments :
+    seuls les itérateurs de lecture comptent.
+    """
+    brique = f.find_code(VIEWS, r'\bbatch_elements\(')
+    local = f.find_code(VIEWS, r'\.items\.(select_related|all|filter|exclude|order_by)\(')
+    if brique and local:
+        return 'partial', f"{brique} + lecture locale restante ({local})"
+    if brique:
+        return True, brique
+    if local:
+        return False, (f"éléments du lot lus à la main ({local}) — à porter sur "
+                       "`batch_common.batch_elements` (ordre des lignes garanti)")
+    return None, "aucune lecture de lot dans les vues"
+
+
 def _output_naming(f: _AppFiles):
     """L'app nomme-t-elle ses sorties par la BRIQUE COMMUNE (`compose_output_name`) ?
 
@@ -1889,6 +1915,11 @@ CRITERIA: list[Criterion] = [
               _card_in_batch, mechanism='queue_entry'),
     Criterion('card_refresh_common', 'F5', 'Card redemandée au serveur par la brique (WamaApp.fetchCard)',
               _card_refresh_common, mechanism='app_base_js'),
+    # 2026-09-22 : la brique de LECTURE d'un lot garantit l'ordre des lignes ; les 10 apps la
+    # réécrivent à la main. Ajouté le jour où le générateur l'a adoptée (demande de Fabien :
+    # la grille et les tests suivent le mécanisme, pas après coup).
+    Criterion('batch_read_common', 'F5', "Éléments d'un lot lus par la brique (batch_elements, ordre des lignes)",
+              _batch_read_common, mechanism='queue_entry'),
     # Les deux contrats COMMUNS du modèle de lot. `batch_semantics` porte `is_unitary`, que lisent
     # `_queue_entry.html` ET `is_batch_child` — son absence (jumelle `converter_01`, 15/09) rendait
     # tout lot en lot de plusieurs cards, sans erreur. `queue_order` : le mécanisme de même nom

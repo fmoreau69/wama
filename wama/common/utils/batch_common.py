@@ -155,11 +155,34 @@ def wrap_in_batch(item, *, batch_model, item_model, fk_name, item_extra=None,
     if batch_extra:
         bkw.update(batch_extra(item) if callable(batch_extra) else dict(batch_extra))
     batch = batch_model.objects.create(**bkw)
-    kwargs = {'batch': batch, 'row_index': 0, fk_name: item}
-    if item_extra:
-        kwargs.update(item_extra(item) if callable(item_extra) else dict(item_extra))
-    item_model.objects.create(**kwargs)
+    attach_to_batch(item, batch, 0, item_model=item_model, fk_name=fk_name, item_extra=item_extra)
     return batch
+
+
+def attach_to_batch(element, batch, row_index, *, item_model=None, fk_name=None,
+                    item_extra=None, batch_attr='batch', row_field='batch_row_index'):
+    """Rattache UN élément à un lot EXISTANT, à la ligne `row_index` — les deux formes du dépôt.
+
+      • par LIAISON (`item_model` donné) : crée la ligne `item_model(batch=…, <fk_name>=élément,
+        row_index=…)` — l'idiome des 9 apps, que `wrap_in_batch`, les fabriques de manipulation
+        et les vues GÉNÉRÉES écrivaient chacun de leur côté (2026-09-22 : trois copies du même
+        `objects.create`, plus une quatrième dans le code généré) ;
+      • à FK DIRECTE (`item_model` absent, converter) : pose `<batch_attr>` et `<row_field>` sur
+        l'élément et le sauve.
+
+    Rend la ligne de liaison créée, ou l'élément lui-même en forme directe.
+    `item_extra` : dict ou callable(élément)->dict — champs supplémentaires de la LIAISON
+    (composer : `output_filename`), comme dans `wrap_in_batch`.
+    """
+    if item_model is not None:
+        kwargs = {batch_attr: batch, 'row_index': row_index, fk_name: element}
+        if item_extra:
+            kwargs.update(item_extra(element) if callable(item_extra) else dict(item_extra))
+        return item_model.objects.create(**kwargs)
+    setattr(element, batch_attr, batch)
+    setattr(element, row_field, row_index)
+    element.save(update_fields=[batch_attr, row_field])
+    return element
 
 
 def load_in_import_order(model, ids, user):
@@ -418,15 +441,21 @@ def batch_of(element):
     return None
 
 
-def elements_du_lot(lot, modele_element):
-    """Les ÉLÉMENTS d'un lot — le pendant DESCENDANT de `batch_of`.
+def batch_elements(lot, element_model):
+    """Les ÉLÉMENTS d'un lot, DANS L'ORDRE DES LIGNES — le pendant DESCENDANT de `batch_of`.
 
     `lot.items` est uniforme sur les deux formes du dépôt (mesuré : le converter, seule app à FK
     directe, nomme AUSSI son `related_name='items'`). Ce que `items` CONTIENT diffère :
-      • FK DIRECTE  : les éléments eux-mêmes ;
-      • par LIAISON : des objets de liaison, qui portent l'élément sur une autre relation.
+      • FK DIRECTE  : les éléments eux-mêmes, ordonnés par `batch_row_index` ;
+      • par LIAISON : des objets de liaison ordonnés par `row_index`, qui portent l'élément sur
+        une autre relation (chargée en une requête : `select_related`).
+    L'ordre est GARANTI ici (2026-09-22) : jusque-là la fonction rendait l'ordre par défaut du
+    modèle, et les vues GÉNÉRÉES avaient réécrit leur propre lecture ordonnée du lot
+    (`_batch_elements`) — un chemin parallèle, retiré au profit de celle-ci. Les vues des apps
+    réelles écrivent encore `batch.items.select_related(fk).order_by('row_index')` à la main :
+    même geste, à porter dessus au fil des passes.
 
-    ⚠ `modele_element` est EXIGÉ, et ce n'est pas de la paresse. Ma première version le devinait
+    ⚠ `element_model` est EXIGÉ, et ce n'est pas de la paresse. Ma première version le devinait
     en suivant « la première relation sortante qui n'est pas `batch` » : sur la forme à FK
     directe, `ConversionJob` porte aussi `user` — elle rendait donc l'UTILISATEUR comme élément.
     Le modèle attendu est une donnée que l'appelant POSSÈDE (il l'a résolu par
@@ -438,27 +467,32 @@ def elements_du_lot(lot, modele_element):
     fonctionne pour les batch ? »). La symétrie est une EXIGENCE, pas une élégance : un lot
     partagé dont les éléments restent privés se montre au destinataire… VIDE. C'est le miroir
     exact du défaut que `batch_of` évite dans l'autre sens.
+    (Nommée `elements_du_lot` jusqu'au 2026-09-22 — un identifiant de code se nomme en anglais.)
     """
-    if lot is None or modele_element is None:
+    if lot is None or element_model is None:
         return []
-    gestionnaire = getattr(lot, 'items', None)
-    if gestionnaire is None:
+    manager = getattr(lot, 'items', None)
+    if manager is None:
         return []
-    sortie = []
-    for item in gestionnaire.all():
-        if isinstance(item, modele_element):
-            sortie.append(item)                      # forme à FK directe
-            continue
-        for f in type(item)._meta.get_fields():       # forme par liaison
-            if not (getattr(f, 'many_to_one', False) or getattr(f, 'one_to_one', False)):
-                continue
-            if getattr(f, 'auto_created', False) or f.related_model is not modele_element:
-                continue
-            valeur = getattr(item, f.name, None)
-            if valeur is not None:
-                sortie.append(valeur)
-            break
-    return sortie
+    member_model = manager.model
+    member_fields = {f.name for f in member_model._meta.get_fields()}
+    if issubclass(member_model, element_model):
+        # Forme à FK DIRECTE : les membres SONT les éléments.
+        row_field = 'batch_row_index' if 'batch_row_index' in member_fields else None
+        qs = manager.all().order_by(row_field) if row_field else manager.all()
+        return list(qs)
+    # Forme par LIAISON : la relation (many_to_one ou one_to_one, non auto-créée) qui vise
+    # exactement le modèle d'élément.
+    element_field = next((f.name for f in member_model._meta.get_fields()
+                          if (getattr(f, 'many_to_one', False) or getattr(f, 'one_to_one', False))
+                          and not getattr(f, 'auto_created', False)
+                          and f.related_model is element_model), None)
+    if element_field is None:
+        return []
+    qs = manager.select_related(element_field)
+    if 'row_index' in member_fields:
+        qs = qs.order_by('row_index')
+    return [e for e in (getattr(link, element_field, None) for link in qs) if e is not None]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -512,7 +546,7 @@ def batch_state(snapshot, element_model):
     if batch is None:
         return {'id': batch_id, 'total': 0}
     return {'id': batch_id, 'total': batch.total,
-            **status_counts(elements_du_lot(batch, element_model))}
+            **status_counts(batch_elements(batch, element_model))}
 
 
 def batch_model_for_app(app_name):

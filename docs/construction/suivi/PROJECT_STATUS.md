@@ -16207,3 +16207,72 @@ de la session soient en service — le JS de l'aperçu, servi depuis `staticfile
 sur les données, non corrigé. `librosa`/`datasets`/`soundfile` absents de tout `requirements*.txt`.
 Les deux fichiers `smoke-0802-*` (sorties Studio du 02/08 sur le compte réel) : NON supprimés, décision à
 Fabien ; aucun filet ne les attrape.
+
+## §PALIER — 2026-09-22, « BAC À SABLE : la forme à LIAISON rendue, trois jumelles régénérées, le commun débarrassé de ses copies » — ✅ LIVRÉ (commit ci-dessous + `b80dbd1c` du matin)
+
+**Cadre (Fabien, 22/09)** : le portage des apps médias = *générer les apps en bac à sable pour les faire
+converger en portant ce qui manque* ; jamais corriger une jumelle à la main, toujours régénérer ; pas de
+chemin parallèle, rien de cassé. Domicile : `ROUTE §10.3` marche S (paragraphe ⑤ réécrit), `§11 #30`
+(levé) et `#36` (nouveau). Mémoire : `project_bac_a_sable_convergence`.
+
+**Livré, lu dans le code**
+1. **`card_refresh_common` VRAI 10/10** (`b80dbd1c`, matin) : 9 JS d'app redemandent leur card par
+   `WamaApp.fetchCard` ; l'avatarizer reçoit son gabarit d'URL par `{% url %}`.
+2. **`views_gen` rend la forme à LIAISON** (9 apps sur 10) — LUE au manifeste
+   (`processing.model_spec.batch`), jamais devinée. Le fichier généré ne porte de sa forme que les kwargs
+   déclarés (`_link_to_batch`) ; tout le reste passe par le COMMUN.
+3. **Le commun** : `batch_common.elements_du_lot` → **`batch_elements`** (anglais, ordre des lignes
+   GARANTI, élément chargé en une requête, les deux formes) ; **`attach_to_batch`** nouvelle (extraite de
+   `wrap_in_batch`), adoptée par les deux fabriques de `queue_manipulation` qui recopiaient le même
+   `create` ; `sharing.py` et ses tests suivent. ⚠ Mon premier jet émettait un helper généré
+   `_batch_elements` À CÔTÉ de la brique — relevé par Fabien, retiré : *un helper émis à côté d'une brique
+   est un chemin parallèle.*
+4. **Le générateur, corrigé en le faisant tourner sur le parc** : vue de CLASSE en extra (`def as_view()`
+   → bouchon de classe) ; `gear_data` @property d'un modèle COPIÉ (`_set_unless_property`) ; champs
+   FICHIER lus à la facette `data` (`result_file`, `audio_output` restaient sur le disque — vu par le
+   contrat générique de suppression de l'instance sœur) ; `b.delete()` sur un lot déjà purgé par le signal
+   (`ValueError: id … None`, converter_01) → purge par requête ; aliases de routes `batch_create/import_batch`,
+   `upload/generate|create`, émis sous chaque orthographe par une règle GÉNÉRALE ; `index` aussi en
+   fonction (imager) ; `_fichier_de_l_app` RETIRÉ (décision Fabien via l'instance 2c — `safe_delete_file`
+   juge propriété et partage).
+5. **L'outil `app_sandbox`** : `tasks` généré retire la copie `workers.py` (Celery autodécouvre les deux
+   noms — même tâche enregistrée deux fois, import mort vers les vues copiées) ; registre écrit par ENTRÉE
+   (`_save_entry` — deux chaînes parallèles s'étaient écrasées) ; cause d'un smoke = dernière ligne de la
+   trace ; **couple views↔templates mesuré par `card_html`** dès qu'il est complet, et un échec des
+   templates ramène AUSSI les vues (`reverted-couple`). `sandbox.twins_with_copied_views` lit le VERDICT.
+6. **Le commun, hors générateur** : `_new_item_card_v4.html` — `default:reference_hint` levait quand
+   l'appelant ne passe pas la variable (`firstof`).
+7. **Grille** : critère F5 **`batch_read_common`** (éléments d'un lot lus par la brique) — rouge 10/10 le
+   jour de son écriture : les six vues de lot sont écrites à la main dans chaque app (`#36`). **98 critères,
+   865/926** (AGENTS.md à jour). Budgets de langue recalés : code **2746**, tests **1312**.
+
+**Jumelles (registre `sandbox_apps.json`, par régénération seule)** : `converter_01` 7/7 ·
+`describer_01` views + templates GÉNÉRÉS (models:revert, marche B) · `composer_01` views + templates
+GÉNÉRÉS (apps refusé : détail en adapter code → `register_app_detail_spec`) · `imager_01` urls + tasks
+GÉNÉRÉS, views/templates REVENUS en couple — routes `<int:generation_id>` + vues `*_generation` hors
+convention, `params.py` porteur de glu (`USER_SETTINGS_DEFAULTS`, `panel_values_by_name`,
+`*_GROUPS_JSON`) : deux chantiers de PORTAGE de l'imager.
+
+**Mesuré** : `tests_codegen_lot` 38 · `tests_sandbox_coherence` 18 · `tests_sharing` · `tests_queue_dnd`
+· converter · describer · `tests_queue_delete_contract` + `tests_endpoints` (47, jumelles générées
+comprises) · `tests_identifier_language` 9 · `tests_catalogues` + `tests_conformity_backends` 111 — tous
+verts. Rendu de la forme directe diffé contre l'ancien générateur. Pages réelles composer/imager/converter 200.
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** — dans l'ordre :
+1. **`make_batch_views`** (`#36`) : extraire de `views_gen` les six vues de lot en brique commune
+   (même forme que la fabrique de file), la faire consommer par le générateur puis par les 10 apps ; un
+   critère par vue.
+2. **Gate des jumelles** : `run_nightly_tests --id describer_01.` / `composer_01.` / `converter_01.`
+   (batterie UI, non lancée ce jour — le smoke Client n'atteste pas les gestes).
+3. **Imager** : porter ses routes sur `<int:pk>` et ses noms de vues sur la convention ; sortir la glu de
+   `params.py` — alors `imager_01` converge par régénération.
+4. Restes du gabarit : nature de lot projetée seulement si la colonne s'appelle `media_type` sur item ET
+   lot (describer : `detected_type`, `kwargs.get('', '')`) ; `download` seulement pour `output_file` ;
+   `models` de describer_01 (champs de résultat hors spine, marche B).
+5. Portage des apps réelles sur `batch_elements`/`attach_to_batch` (60 sites) — visible par
+   `batch_read_common`.
+
+**Pendings système** : gunicorn WSL2 à recharger (`kill -HUP`) pour servir les jumelles régénérées ;
+push = demander. ⚠ Leçons de méthode : deux chaînes `app_sandbox` en parallèle s'écrasent (corrigé, mais
+séquentiel quand même) ; une commande de fond plafonne à 10 min → chaînes de ≤ 4 pas ; un `&` dans un
+Bash au premier plan survit sans notification → `until` de fond pour attendre.

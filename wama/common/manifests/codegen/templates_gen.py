@@ -90,6 +90,14 @@ def render_index(manifest: dict) -> tuple:
     noms_routes = set(proc.get('endpoints') or []) | {
         str(e.get('name') or '') for e in (proc.get('extra_routes') or [])}
     route_stop = resolve_route('stop', noms_routes)
+    # composer nomme la création de lot `import_batch` (alias de `urls_gen.ROUTE_ALIASES`) : le
+    # nom se LIT, sinon `{% url %}` lève NoReverseMatch et l'index généré tombe (22/09).
+    route_batch_create = resolve_route('batch_create', noms_routes) or 'batch_create'
+    route_upload = resolve_route('upload', noms_routes) or 'upload'
+    route_consolidate = resolve_route('consolidate', noms_routes) or 'consolidate'
+    route_batch_preview = resolve_route('batch_preview', noms_routes) or 'batch_preview'
+    route_batch_template = resolve_route('batch_template', noms_routes) or 'batch_template'
+    route_global_progress = resolve_route('global_progress', noms_routes) or 'global_progress'
     route_update = resolve_route('update', noms_routes)
     champs_params = list(((proc.get('model_spec') or {}).get('item') or {})
                          .get('params_fields') or [])
@@ -480,7 +488,7 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
 
     {{% include 'common/_global_progress.html' %}}
 
-    {{% url '{app}:batch_template' as batch_tpl_url %}}
+    {{% url '{app}:{route_batch_template}' as batch_tpl_url %}}
     {{% comment %}}Card d'entrée v4 (CARD_DESIGN §11.11 B) — DÉRIVÉE de la v3, mêmes ids, mêmes
     contrats : onglets = PORTS déclarés (tag `input_slots`), modalités du port actif toutes
     visibles dans la preview, bascule sur les fichiers attachés à hauteur constante. Le
@@ -548,23 +556,23 @@ des briques communes. On ne déclare donc ici que ce qui est propre à l'app —
 {{% block app_scripts %}}
 {{% include 'common/_app_scripts.html' %}}
 <script>
-window.WAMA_GLOBAL_PROGRESS_URL = "{{% url '{app}:global_progress' %}}";
+window.WAMA_GLOBAL_PROGRESS_URL = "{{% url '{app}:{route_global_progress}' %}}";
 
 document.addEventListener('DOMContentLoaded', function () {{
     var CSRF = '{{{{ csrf_token }}}}';
 {routes_js}
     // Fichier de LOT : détection structurelle + aperçu AVANT création (brique commune).
     window._batchImport = WamaBatchImport({{
-        batchPreviewUrl: "{{% url '{app}:batch_preview' %}}",
-        batchCreateUrl:  "{{% url '{app}:batch_create' %}}",
+        batchPreviewUrl: "{{% url '{app}:{route_batch_preview}' %}}",
+        batchCreateUrl:  "{{% url '{app}:{route_batch_create}' %}}",
         csrfToken:       CSRF,
         afterCreate:     function () {{ location.reload(); }},
     }});
 
     // Fichier ORDINAIRE (dépôt, clic, médiathèque) : le maillon qu'aucune brique ne portait.
     window._import = WamaImport({{
-        uploadUrl:      "{{% url '{app}:upload' %}}",
-        consolidateUrl: "{{% url '{app}:consolidate' %}}",
+        uploadUrl:      "{{% url '{app}:{route_upload}' %}}",
+        consolidateUrl: "{{% url '{app}:{route_consolidate}' %}}",
         csrfToken:      CSRF,
         dropZoneId:     '{app}DropZone',
         fileInputId:    '{app}FileInput',

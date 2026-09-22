@@ -84,8 +84,12 @@ def twins_with_copied_views() -> set:
     à éditer une copie à la main. Les contrats génériques (suppression, parcours des adresses) les
     écartent donc — nommé ici le 2026-09-22 pour que les deux ne recopient pas la même règle.
     """
+    # Le VERDICT fait foi, pas la présence de la clé : une substitution qui a échoué
+    # (`revert`, `reverted-manuel`, `reverted-couple`) laisse la COPIE en place — imager_01
+    # (22/09) était compté « généré » sur une clé `views: reverted-couple`, et le contrat de
+    # suppression tombait sur sa copie du 05/09 (`find_member_batch`, retiré le 15/09).
     return {e['label'] for e in load_registry()
-            if 'views' not in (e.get('substituted') or {})}
+            if ((e.get('substituted') or {}).get('views') or {}).get('verdict') != 'ok'}
 
 
 def sandbox_installed_apps() -> list:

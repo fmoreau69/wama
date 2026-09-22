@@ -57,7 +57,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
-from wama.common.utils.batch_common import wrap_in_batch, consolidate_into_batch
+from wama.common.utils.batch_common import attach_to_batch, consolidate_into_batch, wrap_in_batch
 
 
 def ids_from_request(request, field: str = 'ids'):
@@ -231,10 +231,8 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
         if item is not None:
             item.delete()
         next_idx = (target.items.aggregate(m=Max('row_index'))['m'] or -1) + 1
-        kwargs = {'batch': target, 'row_index': next_idx, fk_name: work}
-        if item_extra:
-            kwargs.update(item_extra(work) if callable(item_extra) else dict(item_extra))
-        item_model.objects.create(**kwargs)
+        attach_to_batch(work, target, next_idx, item_model=item_model, fk_name=fk_name,
+                        item_extra=item_extra)
         return JsonResponse({'moved': True})
 
     @require_POST
@@ -265,10 +263,8 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
             return batch_model.objects.create(**kw)
 
         def _link(batch, work, idx):
-            kwargs = {'batch': batch, 'row_index': idx, fk_name: work}
-            if item_extra:
-                kwargs.update(item_extra(work) if callable(item_extra) else dict(item_extra))
-            item_model.objects.create(**kwargs)
+            attach_to_batch(work, batch, idx, item_model=item_model, fk_name=fk_name,
+                            item_extra=item_extra)
 
         def _unwrap(item_ids):
             # Supprime les batch-of-1 créés à l'upload (les objets métier survivent).
@@ -344,9 +340,7 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         if old.total <= 1:
             return JsonResponse({'unwrapped': False, 'reason': 'déjà isolé'})
         new = batch_model.objects.create(**_batch_kwargs(user, work, 1))
-        setattr(work, batch_fk, new)
-        setattr(work, row_field, 0)
-        work.save(update_fields=[batch_fk, row_field])
+        attach_to_batch(work, new, 0, batch_attr=batch_fk, row_field=row_field)
         _recalc(old)
         return JsonResponse({'unwrapped': True})
 
@@ -373,9 +367,7 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         if motif:
             return JsonResponse({'moved': False, 'reason': motif}, status=409)
         next_idx = (target.items.aggregate(m=Max(row_field))['m'] or -1) + 1
-        setattr(work, batch_fk, target)
-        setattr(work, row_field, next_idx)
-        work.save(update_fields=[batch_fk, row_field])
+        attach_to_batch(work, target, next_idx, batch_attr=batch_fk, row_field=row_field)
         _recalc(target)
         _recalc(old)
         return JsonResponse({'moved': True})
@@ -402,9 +394,7 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         old_ids = {getattr(w, f'{batch_fk}_id') for w in works} - {None}
         batch = batch_model.objects.create(**_batch_kwargs(user, works[0], len(works)))
         for idx, w in enumerate(works):
-            setattr(w, batch_fk, batch)
-            setattr(w, row_field, idx)
-            w.save(update_fields=[batch_fk, row_field])
+            attach_to_batch(w, batch, idx, batch_attr=batch_fk, row_field=row_field)
         for old in batch_model.objects.filter(id__in=old_ids):
             _recalc(old)
         return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(works)})

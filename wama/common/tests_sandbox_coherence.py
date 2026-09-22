@@ -212,3 +212,60 @@ class CoupleViewsTemplatesTest(SimpleTestCase):
         message = str(cm.exception).lower()
         self.assertIn('extraction', message, 'la garde de couple a bien été franchie')
         self.assertNotIn('couple', message)
+
+
+class RegistryEntrySaveTest(SimpleTestCase):
+    """Défaut n°4 (2026-09-22) : deux substitutions parallèles sur deux jumelles se sont
+    écrasées, chacune réécrivant la liste ENTIÈRE chargée à son début. On n'écrit que
+    l'entrée mesurée, sur le registre relu à l'instant."""
+
+    def test_saving_one_entry_keeps_what_another_chain_wrote_meanwhile(self):
+        mine = {'label': 'a_01', 'generated_from': 'a', 'substituted': {'views': {'verdict': 'ok'}}}
+        theirs = {'label': 'b_01', 'generated_from': 'b', 'substituted': {'params': {'verdict': 'ok'}}}
+        on_disk = [{'label': 'a_01', 'generated_from': 'a', 'substituted': {}}, theirs]
+        written = []
+        with patch.object(cmd_sandbox, 'load_registry', return_value=on_disk), \
+             patch.object(cmd_sandbox, 'save_registry', side_effect=written.append):
+            cmd_sandbox._save_entry(mine)
+        self.assertEqual(written, [[mine, theirs]])
+
+    def test_an_unknown_label_is_appended(self):
+        written = []
+        with patch.object(cmd_sandbox, 'load_registry', return_value=[]), \
+             patch.object(cmd_sandbox, 'save_registry', side_effect=written.append):
+            cmd_sandbox._save_entry({'label': 'c_01'})
+        self.assertEqual(written, [[{'label': 'c_01'}]])
+
+
+class SupersededTaskModuleTest(SimpleTestCase):
+    """Défaut n°3 (2026-09-22, `describer_01`) : le `tasks.py` GÉNÉRÉ laissait à côté la copie
+    du module de tâches RÉEL (`workers.py`, autodécouvert par Celery au même titre) — même
+    tâche enregistrée deux fois, et un import mort vers les vues copiées qui faisait refuser
+    la substitution de `views` pour un module que plus rien n'appelait."""
+
+    def test_the_manifest_names_the_copied_task_module_the_generated_one_replaces(self):
+        manifest = {'body': {'processing': {'tasks': [
+            {'file': 'workers.py', 'function': 'describe_content'},
+            {'file': 'workers.py', 'function': 'other'},
+            {'file': 'tasks.py', 'function': 'kept'},
+        ]}}}
+        self.assertEqual(cmd_sandbox._superseded_task_modules(manifest, 'tasks.py'), ['workers.py'])
+        self.assertEqual(cmd_sandbox._superseded_task_modules({'body': {}}, 'tasks.py'), [])
+
+    def test_retiring_keeps_a_witness_and_restoring_brings_the_copy_back(self):
+        with TemporaryDirectory() as d:
+            p = Path(d) / 'jumelle_00'
+            p.mkdir()
+            (p / 'workers.py').write_text('COPIE = 1\n', encoding='utf-8')
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                self.assertEqual(cmd_sandbox._withdraw_modules('jumelle_00', ['workers.py', 'absent.py']),
+                                 ['workers.py'])
+                self.assertFalse((p / 'workers.py').exists())
+                self.assertEqual((p / 'workers.py.temoin').read_text(encoding='utf-8'), 'COPIE = 1\n')
+                # Un second retrait ne réécrit pas le témoin (préservé UNE fois, comme les cibles).
+                (p / 'workers.py').write_text('AUTRE = 2\n', encoding='utf-8')
+                cmd_sandbox._withdraw_modules('jumelle_00', ['workers.py'])
+                self.assertEqual((p / 'workers.py.temoin').read_text(encoding='utf-8'), 'COPIE = 1\n')
+                self.assertEqual(cmd_sandbox._restore_retired_modules('jumelle_00', ['workers.py']),
+                                 ['workers.py'])
+                self.assertEqual((p / 'workers.py').read_text(encoding='utf-8'), 'COPIE = 1\n')

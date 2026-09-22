@@ -113,7 +113,7 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 #: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
 #: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
 #: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
-BUDGET_CODE = 2750          # production + fichiers de tests hors noms (2614 avant la traduction des axes)
+BUDGET_CODE = 2746          # production + fichiers de tests hors noms (2750 avant `batch_elements`/`attach_to_batch`, 22/09)
 #: +142 le 2026-09-21 (et +1 classe, +28 noms de tests) : AFFUTAGE, pas ajout — six mots
 #: evidents inscrits a la liste noire sur decision de Fabien (cf. FRENCH_WORDS). Dette ANCIENNE
 #: rendue visible ; 2608 avant.
@@ -126,7 +126,7 @@ BUDGET_CODE = 2750          # production + fichiers de tests hors noms (2614 ava
 #: regle des jumeaux ; -30 le soir meme, quand les jumelles bac a sable (code GENERE, gitignore)
 #: sont sorties du perimetre — le compte doit etre le MEME sur un clone que sur ce disque.
 BUDGET_TEST_CLASSES = 133   # noms de classes `*Test` (133 avant la 1re bascule)
-BUDGET_TEST_NAMES = 1314    # noms de methodes `test_*` — sur 2872 (44 %) ; 1294 avec les jumelles
+BUDGET_TEST_NAMES = 1312    # noms de methodes `test_*` — sur 2872 (44 %) ; 1294 avec les jumelles ; 1314 avant le 22/09
 #: -1 le 2026-09-20, cale a la MESURE. ⚠ Je n'attribue pas ce -1 : plusieurs instances renomment
 #: en parallele ce soir, et mes propres tests neufs sont nommes en anglais (donc ils n'ajoutent
 #: rien). Le budget se cale sur ce qu'on MESURE, pas sur ce qu'on croit avoir fait.

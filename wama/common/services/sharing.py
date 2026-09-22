@@ -183,9 +183,9 @@ def partager_lot(user, lot, modele_element, visibility,
     unite, projet = _verifier_cible(user, visibility, org_unit_id, project_id)
     _poser(lot, visibility, unite, projet)
 
-    from wama.common.utils.batch_common import elements_du_lot
+    from wama.common.utils.batch_common import batch_elements
     touches, non_partageables = 0, 0
-    for element in elements_du_lot(lot, modele_element):
+    for element in batch_elements(lot, modele_element):
         if not _porte_la_visibilite(element):
             non_partageables += 1
             continue
