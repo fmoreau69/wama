@@ -11,6 +11,10 @@ Depuis le 2026-09-13 (MEDIA_STORAGE_TIERING §9.4), une voix téléchargée devi
 nu dans un dossier.
 """
 
+import logging
+import os
+import sys
+
 from django.core.management.base import BaseCommand
 
 from wama.common.tts.voice_refs import (
@@ -18,6 +22,32 @@ from wama.common.tts.voice_refs import (
     _VOICE_DATASETS_CATALOG,
     download_missing_voice_refs,
 )
+
+
+def exit_skipping_native_teardown(code: int) -> None:
+    """Sort du processus SANS la destruction de fin d'interpréteur — après avoir tout rendu.
+
+    ⚠ POURQUOI (bissection du 2026-09-22) : la lecture en flux de VoxPopuli (`datasets`) laisse
+    un fil NATIF (pile pyarrow/aiohttp) qui plante pendant la fermeture de l'interpréteur —
+    `Fatal Python error: PyGILState_Release … finalizing`, sortie 139 ou 134 — alors que le
+    travail est TERMINÉ et écrit. Reproduit par un script minimal (ouvrir le flux, lire un
+    élément, sortir) ; le plantage persiste sans torch, sans le moniteur de tqdm, et après
+    libération explicite du flux : il ne vient d'aucun objet que Python sache fermer.
+    Un code 139 ment sur une commande réussie, et un appelant qui le lit croit à un échec.
+
+    Tout ce que la fermeture normale aurait rendu l'est ici, explicitement : sorties vidées,
+    journaux fermés, connexions à la base closes. Ne sert QU'EN ligne de commande — jamais
+    depuis `call_command` (les tests, un autre appelant) : sortir du processus les tuerait.
+    """
+    from django.db import connections
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except Exception:
+            pass
+    logging.shutdown()
+    connections.close_all()
+    os._exit(code)
 
 
 class Command(BaseCommand):
@@ -72,3 +102,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 "\nPour les voix en échec, déposez un WAV (6-10 s, voix claire) dans la médiathèque "
                 "(type Voix) avec ses attributs langue / âge / genre."))
+
+        # En ligne de commande SEULEMENT (Django pose ce drapeau dans `run_from_argv`, jamais
+        # `call_command`) : sortie sans la destruction native qui plante — voir la fonction.
+        # Le code dit enfin la vérité : 0, ou 1 s'il y a eu des échecs.
+        if getattr(self, '_called_from_command_line', False):
+            exit_skipping_native_teardown(1 if n_fail else 0)

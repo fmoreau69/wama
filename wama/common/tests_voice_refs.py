@@ -574,3 +574,36 @@ class VoiceReplacementTest(TestCase):
                                    file=first.file.name)
         voice_refs.ingest_voice_file('english/adult/male_adult_8_en', self._wav('d'), replace=True)
         self.assertTrue(old_path.is_file(), "un fichier encore référencé ne s'efface jamais")
+
+
+class DownloadCommandExitTest(SimpleTestCase):
+    """`download_voice_refs` sort SANS la destruction native qui plantait (sortie 139/134 après
+    un travail réussi, 22/09) — mais seulement en ligne de commande : sortir du processus depuis
+    `call_command` tuerait les tests et tout autre appelant."""
+
+    CMD = 'wama.synthesizer.management.commands.download_voice_refs'
+
+    def test_the_helper_flushes_then_exits_with_the_given_code(self):
+        from wama.synthesizer.management.commands import download_voice_refs as cmd
+        with patch.object(cmd.os, '_exit') as hard_exit, \
+                patch.object(cmd.logging, 'shutdown') as log_shutdown:
+            cmd.exit_skipping_native_teardown(1)
+        log_shutdown.assert_called_once()
+        hard_exit.assert_called_once_with(1)
+
+    def test_call_command_never_leaves_the_process(self):
+        from django.core.management import call_command
+        with patch(self.CMD + '.download_missing_voice_refs', return_value={'default': 'skipped'}), \
+                patch(self.CMD + '.exit_skipping_native_teardown') as leave:
+            call_command('download_voice_refs', '--names', 'default')
+        leave.assert_not_called()
+
+    def test_from_the_command_line_the_exit_code_tells_the_truth(self):
+        from wama.synthesizer.management.commands.download_voice_refs import Command
+        for results, code in (({'default': 'downloaded'}, 0), ({'default': 'failed'}, 1)):
+            command = Command()
+            command._called_from_command_line = True
+            with patch(self.CMD + '.download_missing_voice_refs', return_value=results), \
+                    patch(self.CMD + '.exit_skipping_native_teardown') as leave:
+                command.handle(force=False, names=['default'])
+            leave.assert_called_once_with(code)
