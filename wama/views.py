@@ -221,6 +221,15 @@ def ai_chat_settings(request):
     # validé à part, contre le catalogue et les clés de l'utilisateur.
     valeurs = {k: v for k, v in coerce_params(PARAMS_JSON, data).items()
                if k in USER_SETTINGS_DEFAULTS}
+    # Les INTERRUPTEURS du schéma (avatar parlant, avatar replié) : `coerce_params` ne borne
+    # que le numérique, un toggle se lit ici — en booléen, quelle que soit la graphie du client
+    # (`false`/`0` d'un formulaire valent False). Seuls ceux PRÉSENTS dans la requête sont
+    # écrits : un réglage absent n'est pas un réglage remis à zéro.
+    for p in PARAMS_JSON:
+        if p.get('type') == 'toggle' and p['name'] in data and p['name'] in USER_SETTINGS_DEFAULTS:
+            raw = data.get(p['name'])
+            valeurs[p['name']] = (raw.strip().lower() not in ('', '0', 'false', 'off', 'no')
+                                  if isinstance(raw, str) else bool(raw))
     if 'quality_intent' in data:
         valeurs['quality_intent'] = read_quality_intent(data.get('quality_intent'))
     if 'model' in data:

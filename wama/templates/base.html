@@ -66,6 +66,11 @@
     <!-- FileManager CSS -->
     <link href="{% static_v 'filemanager/css/filemanager.css' %}" rel="stylesheet">
 
+    {% comment %}Importmap three.js — GLOBALE depuis le 2026-09-22 : l'avatar de l'assistant vit
+    dans le volet droit de TOUTE page (`_assistant_avatar.html`), et une importmap doit précéder
+    tout import de module, y compris dynamique. Une seule par document : les pages qui
+    l'incluaient (accueil, médiathèque) ne doivent PAS la ré-inclure.{% endcomment %}
+    {% include 'common/_three_importmap.html' %}
     {% block extra_css %}{% endblock %}
     <!-- Shims IE<9 (html5shiv/respond) retirés 2026-06-29 : obsolètes + c'étaient des liens CDN. -->
 
@@ -196,6 +201,12 @@
               il ne coûte rien quand il est vide. `volet.tete` ne sert qu'à garder le
               volet OUVERT pour une page qui n'a que lui (accueil et son avatar).
             {% endcomment %}
+            {% comment %}
+              Avatar parlant de l'assistant — EN TÊTE de tout volet, pour tout compte connecté
+              (préférence durable, activée par défaut, repliable ; 2026-09-22). Il vivait dans le
+              `right_panel_top` de la seule page d'accueil : il disparaissait en la quittant.
+            {% endcomment %}
+            {% if assistant_avatar.available %}{% include 'common/_assistant_avatar.html' %}{% endif %}
             {% block right_panel_top %}{% endblock %}
 
             {% if volet.medias %}
@@ -357,6 +368,8 @@
     <script src="{% static_v 'common/js/media-picker.js' %}"></script>  {# MediaPicker global : import depuis la médiathèque dispo partout (brique commune) #}
     <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>  {# WamaModelHelp global : desc modèle (court/long+VRAM) sous les selects help_source (WamaParams) #}
     <script src="{% static_v 'common/js/wama-app-base.js' %}"></script>  {# WamaApp global : csrfFetch/getUrl/Poller/toast/maps statut (plomberie JS commune des apps) #}
+    {# WamaAvatarPanel global : avatar de l'assistant en tête du volet (préférence durable, chargement à la demande, repli) — APRÈS wama-app-base (csrfToken) #}
+    <script src="{% static_v 'common/js/wama-avatar-panel.js' %}"></script>
     <script src="{% static_v 'common/js/wama-catalog-refresh.js' %}"></script>  {# actualisation des catalogues : la page ne declare que la CLE de son registre (common/registries.py) #}
     <script src="{% static_v 'common/js/wama-cycle-button.js' %}"></script>  {# WamaCycleButton global : bouton de cycle ▶/⏹/↻ (toujours vert, icône selon statut) #}
     <!-- WAMA Audio Waveform Player (Canvas + Web Audio — aucun CDN) -->
@@ -442,6 +455,9 @@
           }
           _updateBtn(mode);
           if (window._wamaHomeModeChanged) window._wamaHomeModeChanged(mode);
+          // Le volet droit (et l'avatar avec lui) apparaît/disparaît avec le mode : la brique
+          // ne charge l'avatar qu'une fois le volet visible.
+          if (window.WamaAvatarPanel) window.WamaAvatarPanel.refresh();
           if (persist !== false) {
             fetch('/api/switch-ui-mode/', {
               method: 'POST',

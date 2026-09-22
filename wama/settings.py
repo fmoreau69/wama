@@ -517,6 +517,9 @@ TEMPLATES = [
                 # sections), qu'une vue remplace pour en retirer. Sans ce processor, une page
                 # sans déclaration masquerait tout — cf. wama/common/utils/volet.py.
                 'wama.common.context_processors.volet_defaut',
+                # Avatar de l'assistant sur TOUTE page (conteneur dans base.html) : préférence
+                # durable lue ici, rendue en data-* — cf. common/_assistant_avatar.html.
+                'wama.common.context_processors.assistant_avatar',
             ],
         },
     },

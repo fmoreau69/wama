@@ -251,11 +251,23 @@ masquage automatique **détruirait la carte**. Il devra **déclarer**, jamais h�
 ✅ Ses trois vues déclarent `VOLET_AUCUN` depuis le 2026-08-22 (webcam, graphiques et sessions
 occupent toute la largeur).
 
-**`home.html`** — l'avatar vit en `right_panel_top` (`:14-25`), posé `display:none`, chargé
+**`home.html`** — ~~l'avatar vit en `right_panel_top` (`:14-25`), posé `display:none`, chargé
 par **import dynamique au clic** (~6 Mo, une seule fois). ⚠ **Il n'est PAS persistant** :
 son conteneur n'existe que dans `home.html` (`base.html` ne référence `wama-avatar` nulle
 part), donc il **disparaît dès qu'on quitte l'accueil**. Ce qui persiste est son *état*, pas
-sa présence. ~~Et il s'ajoute au volet sans rien remplacer : les trois cadres inutiles restent
+sa présence.~~ ✅ **LIVRÉ le 2026-09-22 (demande de Fabien)** : le conteneur est dans
+**`base.html`** (`common/_assistant_avatar.html`, en tête de **tout** volet, pour tout compte
+connecté), la préférence est **DURABLE** (`assistant/params.py` : `avatar` — **actif par
+défaut** — et `avatar_collapsed`, persistés par la route commune `ai_chat_settings` → brique
+`user_settings`, lus sur chaque page par le context processor `assistant_avatar`), et le
+comportement est la brique **`wama-avatar-panel.js`** : chargement à la demande **après** le
+rendu de la page (`requestIdleCallback`), **repliable** par le chevron (replié = rien n'est
+chargé), masquable par le bouton de l'assistant. `home.html` ne garde que la voix (`speakText`)
+et ce bouton. L'importmap three.js est devenue globale du même geste (une par document).
+Tenu par `tests_assistant_surfaces.AvatarPersistantTest`. ⚠ Il **parle** toujours depuis la
+seule surface qui a un texte à dire (l'accueil) : ailleurs il est présent et silencieux —
+c'est l'état attendu tant que l'assistant n'a pas de surface transversale (§9 ①).
+~~Et il s'ajoute au volet sans rien remplacer : les trois cadres inutiles restent
 sous lui.~~ ✅ **Corrigé le 22/08** : l'accueil déclare `tete=True` + les trois sections à
 `False` — le volet reste ouvert pour le seul avatar. C'est le cas d'usage qui a rendu la clé
 `tete` nécessaire (un gabarit ne peut pas dire si son bloc libre est vide).
@@ -308,7 +320,7 @@ prioritaire.
 | 2 | ~~**Déclaration des sections**~~ → **✅ LIVRÉ (22/08)** | Défaut inchangé ⇒ zéro régression pour les apps ; **17 pages et 54 cadres** retirés (§3-bis) |
 | 3 | ~~Double instance `enhancer`/`imager`~~ → **✅ FAIT (22/08)** | Traité avec ① : même brique, même passe de validation (§4②) |
 | 4 | **Portage depuis `model_manager`** vers la brique | Bandeau paramétrable · restauration du hint · `detailSchema`/`actionsSchema` · `ids.actionButtons` |
-| 5 | **Assistant dans le volet** (conteneur en `base.html`, préférence au profil) | Rend l'avatar réellement persistant ; ne pas engager avant 2 |
+| 5 | ~~**Assistant dans le volet** (conteneur en `base.html`, préférence au profil)~~ → **✅ LIVRÉ pour l'AVATAR (22/09)** : conteneur en `base.html`, préférence durable dans les réglages de l'assistant (pas au profil : même chemin que le modèle et le curseur), actif par défaut, repliable — voir §5 `home.html` | Rend l'avatar réellement persistant. ⚠ Ce qui reste : la **conversation** transversale (le chat vit encore dans `home.html` seul), et la tension du mode simplifié (§7) |
 | 6 | Hygiène : CSS du volet vers `common/`, retrait du code mort (§6) | Mécanique, sans risque, mais sans valeur d'usage |
 | 7 | **Explorateur : regrouper les apps par MONDE** (`media` / `lab` / `data`) + **changer d'app en cliquant son dossier** | Décidé 2026-08-25 avec l'UI du monde Data (`WAMA_DATA_WORLD.md §11.8 ⑦`) ; la catégorie `media` attend que les UI lab/data existent |
 | 8 | **Tri / filtrage / recherche dans l'explorateur** | Inexistant aujourd'hui ; ⭐ pour le monde Data c'est un filtrage par **AXES du plan d'expérience** (`WAMA_DATA_WORLD.md §13`) — une seule brique pour les deux mondes, pas deux tris |
