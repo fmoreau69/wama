@@ -1529,6 +1529,19 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    `mcp_server` n'importe `dev_tools` que pour la surface dev — prouvé dans un process NEUF.
    Gardes : `tests_mcp_dev_tools`. Smoke RÉEL : 7 outils, `dev_sandbox list` lancé et suivi
    jusqu'à `done rc=0`, `--force` injecté refusé.
+   **→ Étape 5, MOITIÉ DEV, ✅ le 22/09 (demande de Fabien : « améliorer WAMA depuis l'assistant
+   sans forcément passer par Claude, uniquement admins et devs »)** : le moteur de l'assistant est
+   CLIENT MCP de cette surface (`common/services/mcp_client.py`). Pour un développeur, les 7 outils
+   `dev_*` sont annoncés dans son prompt (même forme que `build_tools_list`, précédés des règles :
+   proposition jamais appliquée, jumelles seulement, tâches de fond) et un appel `dev_*` est RELAYÉ
+   par le protocole au serveur dev, avec le jeton d'API du compte — `execute_tool` ne les voit
+   jamais, `dev_tools` n'est toujours pas importé (process neuf gardé par `tests_mcp_client`).
+   Non-développeur : rien d'annoncé, aucune connexion ; serveur dev absent : rien d'annoncé,
+   l'assistant répond. ⚠ Le serveur dev se LANCE à part (`run_mcp_server --surface dev`, port
+   8771) — `start_wama_prod.sh` ne le démarre pas : sans lui l'assistant n'a que ses outils prod.
+   Le skill `assistant-dev` dit désormais au modèle comment s'en servir. ⏳ Reste de l'étape 5 :
+   la moitié PROD (le moteur client de la surface `wama` au lieu de `execute_tool` en direct) et
+   le rôle « améliorer » avec sa page de bac à sable (décisions à prendre, `WAMA_LLM §1ter`).
 4a. ✅ **Clés d'API personnelles + niveau cloud** (15/09) — `secret_crypto.EncryptedTextField`
    (chiffré au repos, clé dérivée de `SECRET_KEY`) ; `accounts.UserApiKey` (fournisseurs LLM =
    sources `external_sources` de type `llm`) et `accounts/api_keys.key_for` (un utilisateur n'a

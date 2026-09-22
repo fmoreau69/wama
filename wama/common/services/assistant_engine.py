@@ -288,9 +288,31 @@ def _route_model_by_context(ollama_model: str, messages: list) -> str:
 # Appels LLM
 # ---------------------------------------------------------------------------
 
-def _ollama_call(messages: list, ollama_model: str) -> tuple:
+#: Position NOMMÉE du curseur Rapide ↔ Qualité à partir de laquelle la RÉFLEXION du modèle
+#: (`think`, Ollama) est demandée — la déclinaison à paliers commune (`preset_key_for_intent` :
+#: fast 15 / balanced 50 / quality 85), pas un seuil de plus. MESURÉ le 2026-09-22 sur
+#: `qwen3.5:4b` chaud, même message : 12,7 s avec réflexion (1 908 jetons dont 7 354 caractères
+#: de « pensée » pour 244 de réponse) contre 2,4 s sans — ×5. Le défaut du curseur (50,
+#: « balanced ») reste donc SANS réflexion ; qui pousse vers « Qualité » la retrouve. Vérifié le
+#: même jour : un modèle SANS la capacité `thinking` (glm-ocr) accepte `think:false` sans erreur.
+THINKING_PRESET = 'quality'
+
+
+def thinking_wanted(quality_intent) -> bool:
+    """La réflexion du modèle est-elle demandée pour ce réglage de curseur ?"""
+    from wama.common.utils.auto_model import preset_key_for_intent
+    try:
+        return preset_key_for_intent(quality_intent) == THINKING_PRESET
+    except Exception:
+        return False
+
+
+def _ollama_call(messages: list, ollama_model: str, think: bool = None) -> tuple:
     """
     Low-level Ollama POST.
+
+    `think` : None = défaut du modèle (réflexion ON pour les modèles qui la portent) ; False la
+    coupe ; True la demande. Dérivé du curseur par `thinking_wanted`, jamais figé ici.
 
     Returns:
         (text: str, usage: dict) on success
@@ -316,17 +338,17 @@ def _ollama_call(messages: list, ollama_model: str) -> tuple:
     ollama_host = (os.environ.get('OLLAMA_HOST') or ollama_base()).rstrip('/')
     ollama_url = f"{ollama_host}/api/chat"
 
+    payload = {
+        "model": ollama_model,
+        "messages": messages,
+        "options": {"temperature": 0.7, "num_predict": 4096},
+        "stream": False,
+    }
+    if think is not None:
+        payload["think"] = bool(think)
     try:
         with httpx.Client(timeout=180.0, trust_env=False) as client:
-            resp = client.post(
-                ollama_url,
-                json={
-                    "model": ollama_model,
-                    "messages": messages,
-                    "options": {"temperature": 0.7, "num_predict": 4096},
-                    "stream": False,
-                },
-            )
+            resp = client.post(ollama_url, json=payload)
         if resp.status_code != 200:
             return None, {'error': f'Ollama error: {resp.text}', 'status': resp.status_code}
 
@@ -412,11 +434,13 @@ def _claude_code_call(messages: list, user=None) -> tuple:
                                        'cost_usd': resultat.get('cout_usd')}
 
 
-def _llm_call(messages: list, llm_model: str | None, provider: str, user=None) -> tuple:
+def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
+              think: bool = None) -> tuple:
     """
     Un tour de LLM, quel que soit le fournisseur.
 
-    Chemin local (`wama-dev-ai`/`ollama`) : `_ollama_call` INCHANGÉ — usage tokens compris.
+    Chemin local (`wama-dev-ai`/`ollama`) : `_ollama_call` — usage tokens compris ; `think`
+    (réflexion du modèle) n'a de sens que là et vient du curseur de l'utilisateur.
     Chemin cloud : `llm_chat()` (LiteLLM, brique commune) — le modèle par défaut du fournisseur
     vient de `llm_chat` (jamais figé ici). L'usage n'est pas remonté par `llm_chat` (contrat
     (text, err)) → compté à 0, assumé tant que le besoin ne l'exige pas.
@@ -431,7 +455,7 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None) -
         (text, usage_dict) on success · (None, error_dict) on failure
     """
     if provider in _LOCAL_PROVIDERS:
-        return _ollama_call(messages, llm_model)
+        return _ollama_call(messages, llm_model, think=think)
 
     if provider in _SUBSCRIPTION_PROVIDERS:
         return _claude_code_call(messages, user=user)
@@ -525,7 +549,7 @@ def _sanitize_history(history) -> list:
 
 
 def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: str = '',
-                         provider: str = 'wama-dev-ai', model: str = 'fast',
+                         provider: str = None, model: str = None,
                          domain: str = None) -> dict:
     """
     UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
@@ -564,8 +588,8 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
     return resultat
 
 
-def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
-                       model: str = 'fast', history: list = None,
+def run_assistant_turn(user, message: str, provider: str = None,
+                       model: str = None, history: list = None,
                        domain: str = None) -> dict:
     """
     UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
@@ -621,7 +645,19 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     wama_context = _build_wama_context(user) if user else ""
     # Liste des outils GÉNÉRÉE depuis le registre tool_api (source unique → exhaustive,
     # avatarizer/composer/converter inclus). Le préambule + règles restent rédigés à la main.
-    tools_prompt = WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()) if user else ""
+    # Outils de DÉVELOPPEMENT (2026-09-22) : annoncés en plus à un développeur, RELAYÉS à la
+    # surface MCP « wama-dev » (process séparé, §16) par `mcp_client` — vide pour tout autre
+    # compte ou sans serveur dev. Le nom est le seul lien : `dev_*` part au relais, le reste à
+    # la porte `execute_tool`. Un nom `dev_*` que personne n'a annoncé arrive à la porte, qui le
+    # refuse comme inconnu : un non-développeur ne peut pas y appeler quoi que ce soit.
+    dev_tools = []
+    if user:
+        from wama.common.services import mcp_client
+        dev_tools = mcp_client.dev_tools_for(user)
+    dev_names = {t['name'] for t in dev_tools}
+    tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()
+                                              + mcp_client.tools_block(dev_tools))
+                    if user else "")
     # Langue de réponse = profil utilisateur (plus de « in French » en dur).
     # ⚠ La consigne est posée sur les DEUX prompts : ils sont concaténés, et le prompt d'outils
     # portait lui aussi un « Respond in French » en dur — un profil `en` recevait donc deux
@@ -652,10 +688,19 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     except Exception:
         logger.debug("[ai_chat] skill de rôle indisponible", exc_info=True)
 
+    # ORDRE : le FIXE d'abord (base, rôle, annonce, outils — ~12 000 caractères identiques d'un
+    # tour à l'autre), le DYNAMIQUE en queue (contexte labo, état des files). Ollama réutilise
+    # le cache KV sur le PRÉFIXE commun des jetons : jusqu'au 2026-09-22 l'état des files
+    # (56 caractères, changeant) précédait le bloc d'outils, et un seul item en plus dans une
+    # file forçait la ré-évaluation de ~3 000 jetons de prompt (mesuré, WAMA_LLM §1bis).
     system_prompt = (WAMA_SYSTEM_PROMPT.replace('{LANGUE}', langue)
                      + (f"\n\n{role}" if role else '')
-                     + contexte_labo + annonce
-                     + wama_context + tools_prompt.replace('{LANGUE}', langue))
+                     + annonce + tools_prompt.replace('{LANGUE}', langue)
+                     + contexte_labo + wama_context)
+
+    # Réflexion du modèle (chemin local) DÉRIVÉE du curseur Rapide ↔ Qualité de l'utilisateur —
+    # le même réglage que le tirage automatique lit (`resolve_turn_model`).
+    think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
 
     # Build messages: system + prior history (capped) + current user message
     prior = _sanitize_history(history)[-20:]  # keep last 10 exchanges max
@@ -694,7 +739,7 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     MAX_TOOL_ITERATIONS = 5
 
     for _ in range(MAX_TOOL_ITERATIONS):
-        text, result = _llm_call(messages, llm_model, provider, user=user)
+        text, result = _llm_call(messages, llm_model, provider, user=user, think=think)
         if text is None:
             return result  # error dict
 
@@ -723,7 +768,10 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
         tool_args  = tool_call.get('args', {})
         logger.info(f"[ai_chat] tool_call: {tool_name}({tool_args})")
 
-        tool_result = execute_tool(tool_name, tool_args, user)
+        if tool_name in dev_names:
+            tool_result = mcp_client.call_dev_tool(user, tool_name, tool_args)
+        else:
+            tool_result = execute_tool(tool_name, tool_args, user)
         tool_steps.append({'tool': tool_name, 'args': tool_args, 'result': tool_result})
 
         # Add assistant tool-call turn + tool result to conversation

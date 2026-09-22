@@ -518,6 +518,15 @@ MECHANISMS = (
               'wama/common/services/dev_tools.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/common/tests_mcp_dev_tools.py',)),
+    Mechanism('mcp_client', "L'assistant, CLIENT MCP de la surface de développement",
+              "Le moteur de l'assistant RELAIE les outils `dev_*` (rôles wama-dev-ai, bac à "
+              "sable) à la surface « wama-dev » par le protocole — process séparé, §16 tenu : "
+              "rien n'est importé, la porte (droits à chaque appel, arguments admis) reste celle "
+              "du serveur. Annoncés aux seuls développeurs/admins ; serveur absent = aucun outil, "
+              "l'assistant répond quand même. Étape 5 de §8d, moitié dev (2026-09-22)",
+              'wama/common/services/mcp_client.py',
+              'docs/construction/suivi/ROADMAP.md §8d',
+              annexes=('wama/common/tests_mcp_client.py',)),
     Mechanism('identifier_language', 'Langue des identifiants (budget)',
               "Relève par AST les identifiants de code FRANÇAIS (classes, fonctions, arguments, "
               "variables, alias d'import ; accents = signal certain) et les borne par un BUDGET "
@@ -630,7 +639,12 @@ MECHANISMS = (
               # wama-avatar.js = le RENDU de l'assistant vocal (avatar 3D navigateur,
               # three.js/TalkingHead, greffé sur WamaApp.Speech — zéro VRAM serveur) : brique
               # FRONT du même mécanisme, donc annexe et pas entrée séparée.
-              annexes=('wama/common/static/common/js/wama-avatar.js',),
+              # wama-avatar-panel.js + _assistant_avatar.html (2026-09-22) = sa PRÉSENCE : le
+              # conteneur en tête du volet de TOUTE page (base.html), la préférence durable
+              # (`avatar`/`avatar_collapsed` du schéma assistant/params.py), le repli.
+              annexes=('wama/common/static/common/js/wama-avatar.js',
+                       'wama/common/static/common/js/wama-avatar-panel.js',
+                       'wama/common/templates/common/_assistant_avatar.html'),
               symbol='run_assistant_turn'),
     Mechanism('conversation_store', "Historique de conversation (serveur)",
               "L'historique de l'assistant côté SERVEUR — remplace le localStorage web et le "
