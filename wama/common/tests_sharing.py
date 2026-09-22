@@ -214,30 +214,39 @@ class PartageDUnLotTest(TestCase):
             prof.org_entity_code = 'LOTLABO_T'
             prof.save(update_fields=['org_entity_code'])
 
-    def test_elements_du_lot_couvre_les_DEUX_formes(self):
-        from wama.common.utils.batch_common import elements_du_lot
+    def test_batch_elements_covers_both_forms_in_row_order(self):
+        from wama.common.utils.batch_common import attach_to_batch, batch_elements
         from wama.converter.models import ConversionJob
-        from wama.imager.models import ImageGeneration
+        from wama.imager.models import GenerationBatchItem, ImageGeneration
 
         lot = _lot_converter(self.u, total=2)
         a, b = _job(self.u, batch=lot, nom='a'), _job(self.u, batch=lot, nom='b')
-        self.assertEqual({a.id, b.id},
-                         {x.id for x in elements_du_lot(lot, ConversionJob)})
+        # Forme à FK DIRECTE : l'ordre est celui des LIGNES, pas des identifiants — `b` d'abord.
+        attach_to_batch(b, lot, 0)
+        attach_to_batch(a, lot, 1)
+        self.assertEqual([b.id, a.id], [x.id for x in batch_elements(lot, ConversionJob)])
 
         gen, lot2 = _generation(self.u)
-        self.assertEqual([gen.id], [x.id for x in elements_du_lot(lot2, ImageGeneration)])
+        self.assertEqual([gen.id], [x.id for x in batch_elements(lot2, ImageGeneration)])
+        # Forme à LIAISON : rattacher un second élément AVANT le premier (ligne 0) — la brique
+        # crée la ligne de liaison, et la lecture suit `row_index`.
+        gen2 = ImageGeneration.objects.create(user=self.u, prompt='second')
+        GenerationBatchItem.objects.filter(batch=lot2).update(row_index=1)
+        lien = attach_to_batch(gen2, lot2, 0, item_model=GenerationBatchItem, fk_name='generation')
+        self.assertIsInstance(lien, GenerationBatchItem)
+        self.assertEqual([gen2.id, gen.id], [x.id for x in batch_elements(lot2, ImageGeneration)])
 
-    def test_elements_du_lot_ne_rend_JAMAIS_l_utilisateur(self):
+    def test_batch_elements_never_returns_the_user(self):
         """⚠ Défaut de ma première version : elle suivait « la première relation qui n'est pas
         `batch` » — et `ConversionJob` porte aussi `user`. Elle rendait donc l'UTILISATEUR
         comme élément du lot, ce qui aurait fait écrire `visibility` sur un compte."""
         from django.contrib.auth.models import User as ModeleUser
-        from wama.common.utils.batch_common import elements_du_lot
+        from wama.common.utils.batch_common import batch_elements
         from wama.converter.models import ConversionJob
 
         lot = _lot_converter(self.u)
         _job(self.u, batch=lot)
-        elements = elements_du_lot(lot, ConversionJob)
+        elements = batch_elements(lot, ConversionJob)
         self.assertTrue(elements)
         self.assertFalse(any(isinstance(x, ModeleUser) for x in elements))
 

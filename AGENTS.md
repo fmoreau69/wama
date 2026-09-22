@@ -807,6 +807,10 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > ⚠ **Remesuré le 2026-09-21 : 856/916** — `quality_intent` VRAI pour 8 apps (converter, imager,
 > composer et enhancer ralliés dans la journée), FAUX pour transcriber, non applicable au seul
 > describer ; enhancer 98 % (90/92) après son portage (ROUTES, squelette, modales au cycle commun).
+> ⚠ **98 critères au 2026-09-22 : 865/926** — `card_refresh_common` passé VRAI 10/10 (portage du
+> matin), et +1 en F5, `batch_read_common` (les éléments d'un lot lus par la brique
+> `batch_elements`, ordre des lignes garanti) : rouge 10/10 le jour de son écriture — c'est le
+> reste de portage des vues de lot, écrites à la main dans chaque app (`ROUTE §11 #36`).
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,

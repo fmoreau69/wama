@@ -27,14 +27,22 @@ gabarit savait déjà faire, et bouchait quand même.
 ne marche pas* — et 501 sur ces deux-là, c'était le ⏹ qui POSTait dans le vide et le ⚙
 sans URL d'enregistrement, donc trois boutons de card morts pour deux corps déjà écrits.
 
-Formes de file : v1 ne rend l'index/fabrique QUE pour la forme FK-DIRECTE (item.batch,
-batch_row_index — converter). La forme à modèle de liaison (transcriber…) est un trou
-déclaré de ce gabarit (raison explicite, jamais de fichier partiel faux).
+Formes de file — LES DEUX sont rendues depuis le 2026-09-22 (trou #30 de la ROUTE) :
+  • FK DIRECTE (converter) : l'item porte `batch` + `batch_row_index` — dérivée de la facette
+    `data` ;
+  • modèle de LIAISON (9 apps sur 10) : `BatchXItem(batch FK, <item> OneToOne, row_index)` —
+    LUE au manifeste, `processing.model_spec.batch` (`link_name`, `link_item_field`,
+    `link_batch_field`, `link_batch_related`), jamais devinée sur un nom de classe.
+Les vues de lot lisent le lot par la BRIQUE (`batch_common.batch_elements`, ordre des lignes
+garanti, les deux formes) et y rattachent par la brique (`attach_to_batch`) : le fichier généré
+ne porte de sa forme que les kwargs déclarés, dans `_link_to_batch`. Un seul corps par vue.
+Jusqu'au 22/09 la seconde forme était un « trou déclaré » : `describer_01`, `composer_01` et
+`imager_01` gardaient leurs vues COPIÉES et ne suivaient plus le commun.
 """
 from __future__ import annotations
 
 from wama.common.app_registry import MEDIA_CATEGORIES
-from wama.common.manifests.codegen.urls_gen import route_variants
+from wama.common.manifests.codegen.urls_gen import ROUTE_ALIASES, route_variants
 
 
 def _donnees(manifest: dict) -> dict:
@@ -58,30 +66,72 @@ def _donnees(manifest: dict) -> dict:
         'item': item,
         'input_field': spec.get('input_field') or 'input_file',
         'endpoints': list(proc.get('endpoints') or []),
-        'extras': [str(e.get('view', '')).split('.')[-1]
-                   for e in (proc.get('extra_routes') or []) if e.get('view')],
         'tasks': [t.get('function') for t in (proc.get('tasks') or []) if t.get('function')],
         # Repli : le vocabulaire COMMUN (cette ligne en portait une copie figée à 4 états).
         'statuses': list(proc.get('statuses') or job_status_values()),
         'params_fields': list(spec.get('params_fields') or []),
     }
 
+    # Routes hors convention : le NOM du callable, et s'il s'agit d'une vue de CLASSE
+    # (`views.ProcessView.as_view()`). Jusqu'au 2026-09-22 le dernier segment de l'expression
+    # était pris tel quel — `as_view()` — et le bouchon émis `def as_view()(request…)` ne
+    # compilait pas : la seule app à vues de classe (anonymizer) tombait à la première ligne.
+    # Un nom qui n'est pas un identifiant n'est pas un callable à définir : on l'écarte.
+    d['extras'], d['extra_classes'] = [], set()
+    for e in (proc.get('extra_routes') or []):
+        expr = str(e.get('view') or '')
+        if not expr:
+            continue
+        is_cbv = expr.endswith('.as_view()')
+        base = expr[:-len('.as_view()')] if is_cbv else expr
+        nom = base.split('.')[-1]
+        if not nom.isidentifier():
+            continue
+        d['extras'].append(nom)
+        if is_cbv:
+            d['extra_classes'].add(nom)
+
     champs = {f['name']: f for f in data_models[item].get('fields') or []}
     d['champ_noms'] = set(champs)
     d['a_output'] = 'output_file' in champs
+    d['file_fields'] = [n for n, f in champs.items()
+                        if str(f.get('class', '')).rsplit('.', 1)[-1] in ('FileField', 'ImageField')]
     d['name_field'] = ('input_filename' if 'input_filename' in champs
                        else 'input_name' if 'input_name' in champs else '')
 
-    # Forme de file : FK de l'item vers un modèle *Batch de la MÊME app (facette data).
+    # Forme de file — la DÉCLARATION d'abord, la dérivation ensuite (2026-09-22).
+    #   • LIAISON : `processing.model_spec.batch` la déclare (`link_name`, `link_item_field`,
+    #     `link_batch_field`, `link_batch_related`) — 9 apps sur 10. On exige que le lot ET la
+    #     liaison soient dans la facette `data` et que la liaison porte `row_index` (la
+    #     colonne qu'ordonnent `wrap_in_batch`/`build_batches_list`) ;
+    #   • FK DIRECTE : l'item porte lui-même sa FK vers un modèle *Batch de la même app +
+    #     `batch_row_index` (converter) — dérivée de la facette `data`.
+    # `batch_fk` ne se pose QUE sur la forme directe : `apps_gen` s'en sert pour brancher
+    # `register_batch_sync(<Item>, direct_fk=True)`, la liaison passant par `batch_link_model`.
     d['batch'], d['batch_fk'], d['row_field'] = '', '', ''
-    for nom, f in champs.items():
-        to = ((f.get('kwargs') or {}).get('to') or {}).get('expr', '')
-        cible = to.strip('\'"').split('.')[-1]
-        for m_name in data_models:
-            if cible.lower() == m_name.lower() and m_name.lower().endswith('batch'):
-                d['batch'], d['batch_fk'] = m_name, nom
-    if d['batch'] and 'batch_row_index' in champs:
-        d['row_field'] = 'batch_row_index'
+    d['form'], d['link'], d['link_fk'], d['link_batch'], d['items_related'] = '', '', '', 'batch', 'items'
+    batch_spec = (proc.get('model_spec') or {}).get('batch') or {}
+    link_name = batch_spec.get('link_name') or ''
+    link_fields = {f['name'] for f in (data_models.get(link_name) or {}).get('fields') or []}
+    if (link_name and batch_spec.get('name') in data_models and link_name in data_models
+            and 'row_index' in link_fields):
+        d['form'] = 'link'
+        d['batch'] = batch_spec['name']
+        d['link'] = link_name
+        d['link_fk'] = batch_spec.get('link_item_field') or item.lower()
+        d['link_batch'] = batch_spec.get('link_batch_field') or 'batch'
+        d['items_related'] = batch_spec.get('link_batch_related') or 'items'
+        d['row_field'] = 'row_index'
+    else:
+        for nom, f in champs.items():
+            to = ((f.get('kwargs') or {}).get('to') or {}).get('expr', '')
+            cible = to.strip('\'"').split('.')[-1]
+            for m_name in data_models:
+                if cible.lower() == m_name.lower() and m_name.lower().endswith('batch'):
+                    d['batch'], d['batch_fk'] = m_name, nom
+        if d['batch'] and 'batch_row_index' in champs:
+            d['row_field'] = 'batch_row_index'
+            d['form'] = 'direct'
     d['batch_extra'] = ('media_type' if (d['batch'] and 'media_type' in champs
                         and 'media_type' in {f['name'] for f in
                                              data_models[d['batch']].get('fields') or []})
@@ -125,13 +175,15 @@ def render_views(manifest: dict) -> tuple:
         return None, d['_raison']
     if not d['tasks']:
         return None, 'processing.tasks vide (aucune tâche à dispatcher)'
-    if not (d['batch'] and d['row_field']):
-        return None, ('forme de file NON directe (pas de FK item→Batch + batch_row_index) — '
-                      'gabarit v1 = forme converter ; la forme à modèle de liaison est un '
-                      'trou déclaré')
+    if not (d['form'] and d['batch'] and d['row_field']):
+        return None, ('forme de file inconnue : ni liaison déclarée '
+                      '(processing.model_spec.batch avec link_name + row_index) ni FK directe '
+                      'item→Batch + batch_row_index')
 
     app, item, batch = d['app_id'], d['item'], d['batch']
     fk, row, task = d['batch_fk'], d['row_field'], d['tasks'][0]
+    is_link, link, link_fk = d['form'] == 'link', d['link'], d['link_fk']
+    link_batch, items_related = d['link_batch'], d['items_related']
     mark = _GEN_MARK.format(app_id=app)
     stub_msg = f'[manifest-gen app:{app}] endpoint non généré (glu — marche B)'
     # Symbole du schéma de params — LU au manifeste (`body.params.primary`), jamais supposé.
@@ -145,7 +197,14 @@ def render_views(manifest: dict) -> tuple:
     # toutes à DEUX arguments — c'est le gabarit seul qui avait deviné la signature.
     # *Une signature de brique se lit ; devinée, elle rend une vue qui plante à l'usage,
     # pas à la génération — donc invisible à `check` comme aux tests de codegen.*
-    champs_fichiers = [d['input_field']] + (['output_file'] if d['a_output'] else [])
+    # TOUS les champs FICHIER de l'item, LUS à la facette `data` (classe `FileField`/`ImageField`),
+    # l'entrée déclarée en tête. Jusqu'au 2026-09-22 le gabarit n'en connaissait que deux noms
+    # (`input_field` + `output_file`) : sur `describer_01` le `result_file` et sur `composer_01`
+    # l'`audio_output` restaient sur le disque après suppression — vu par le contrat GÉNÉRIQUE
+    # `tests_queue_delete_contract` dès que leurs vues ont été générées. Les sorties = les
+    # champs fichier qui ne sont pas l'entrée (c'est ce que « Dupliquer » vide).
+    champs_fichiers = [d['input_field']] + [n for n in d['file_fields'] if n != d['input_field']]
+    champs_sortie = [n for n in champs_fichiers if n != d['input_field']]
     # Nom de fichier pour les propriétés d'ENTRÉE de la card (input_props_for) : le champ
     # nom déclaré, sinon le nom du FileField lui-même.
     nom_pour_props = (f"getattr(item, '{d['name_field']}', '') or ''" if d['name_field']
@@ -188,32 +247,14 @@ def _nature(nom):
 
 ''' if nature_champ else ''
 
-    # ── Garde de PROPRIÉTÉ avant suppression physique (trou A5, audit 31/08) ──
-    # Dérivée de la politique du converter réel (`_is_app_owned`) : on ne supprime un
-    # fichier QUE s'il vit dans l'arbre média de L'APP. Un fichier seulement RÉFÉRENCÉ
-    # (envoi Filemanager, galerie partagée) appartient à l'utilisateur — le supprimer avec
-    # la card détruirait une donnée hors de la juridiction de l'app. ⚠ Depuis le 2026-09-22
-    # `safe_delete_file` porte ELLE-MÊME cette règle (`owns_file`), pour tout le parc : cette
-    # garde générée est donc REDONDANTE — gardée jusqu'à la prochaine passe du générateur, qui
-    # la retirera avec son test et la jumelle, jamais en passant. Conservatrice par
-    # construction : elle protège AUSSI la politique inverse (rattachement par référence,
-    # avatarizer) — l'arbitrage de PLATEFORME reste ouvert (ROUTE §S2ter), cette garde n'en
-    # préjuge pas : elle ne fait qu'interdire de détruire hors de chez soi.
-    bloc_garde = f'''
-
-def _fichier_de_l_app(item, champ):
-    """Un fichier n'est supprimable avec sa card QUE s'il vit dans l'arbre de l'app
-    (`users/<user_id>/{app}/…`, rendu par `app_media_dir`) — politique du converter réel,
-    garde muette sinon (le fichier reste, la card part)."""
-    from wama.common.utils.media_paths import app_media_dir
-    f = getattr(item, champ, None)
-    nom = (getattr(f, 'name', '') or '').replace('\\\\', '/')
-    return nom.startswith(app_media_dir('{app}', item.user_id, ''))
-'''
-    # ⚠ Ce gabarit émettait `startswith(f'<app>/{item.user_id}/')` — l'ANCIEN domicile — jusqu'au
-    # 2026-09-22 : toute app générée répondait « pas à moi » pour ses propres sorties, et la
-    # suppression d'une card laissait ses fichiers sur le disque. Jumeau de `tasks_gen` : les
-    # deux émettaient la même forme périmée, l'un pour ÉCRIRE, l'autre pour RECONNAÎTRE.
+    # ── Suppression physique : la PROPRIÉTÉ et le PARTAGE sont jugés par la brique ──
+    # `safe_delete_file` porte elle-même les deux règles depuis le 2026-09-22 (`owns_file` +
+    # `is_shared_elsewhere`, pour tout le parc). Le gabarit émettait une garde de propriété
+    # `_fichier_de_l_app` (trou A5, audit 31/08, dérivée du converter réel) : REDONDANTE depuis,
+    # et retirée le jour même sur décision de Fabien — une règle ne vit qu'à un endroit, et
+    # une garde générée qui doublait la brique aurait dérivé à la première évolution de celle-ci
+    # (elle l'avait déjà fait : l'ANCIEN domicile `<app>/{item.user_id}/` y a survécu au
+    # déménagement des médias). Les vues de suppression appellent la brique seule.
     up_nature = (f"""_avert = ''
     nature = _nature(f.name)
     if nature:
@@ -232,6 +273,14 @@ def _fichier_de_l_app(item, champ):
         return (f"def {nom}(request, *args, **kwargs):\n"
                 f"    \"\"\"TROU DE GLU {mark} — politique d'app non conventionnelle.\"\"\"\n"
                 f"    return JsonResponse({{'error': {stub_msg!r}}}, status=501)")
+
+    def stub_class(nom):
+        # Vue de CLASSE hors convention (`views.X.as_view()` dans l'URLconf) : le bouchon doit
+        # être une classe à `as_view`, sinon le urls généré ne s'importe pas.
+        return (f"class {nom}(View):\n"
+                f"    \"\"\"TROU DE GLU {mark} — vue de classe non conventionnelle.\"\"\"\n"
+                f"    def dispatch(self, request, *args, **kwargs):\n"
+                f"        return JsonResponse({{'error': {stub_msg!r}}}, status=501)")
 
     # ── Découpage colonnes ↔ conteneur JSON du schéma (idiome params_storage) ──
     # Calculé AVANT les corps de vues : l'upload (cascade de réglages du dépôt), le
@@ -342,7 +391,30 @@ def _reglages_du_depot(user, nature, poste=None):
     # converter, seule app dans ce cas), d'où la boucle explicite plutôt qu'un appel — même
     # forme que `converter/views.py::_auto_wrap_orphans`. Trou consigné : `batch_common` n'a
     # pas de variante FK-directe, et le motif est désormais écrit à 4 endroits.
-    vues['index'] = f'''class IndexView(View):
+    # FORME À LIAISON : la file est construite par la brique commune `build_batches_list`
+    # (contrat de la toolbar, 9 apps réelles) — les entrées sont les LIAISONS, l'élément
+    # voyage sous `elem` (alias posé par la brique) et se décore là. Le `extra` rend ce que
+    # la card MÈRE lit (`eta_ids`, réglages communs) — même assiette que la forme directe.
+    index_link = f'''class IndexView(View):
+    def get(self, request):
+        user = _user(request)
+        _auto_wrap_orphans(user)
+
+        def _extra(b, liens, items):
+            for e in items:
+                _decorer(e){ligne_commun}
+            return {{{cle_commun} 'eta_ids': ','.join(str(e.id) for e in items)}}
+
+        batches_list = build_batches_list(user, batch_model={batch}, work_attr='{link_fk}',
+                                          items_related='{items_related}', order_by='-id',
+                                          extra=_extra)
+        queue_count = sum(len(b['items']) for b in batches_list)
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(
+            request, batches_list,
+            name_of=lambda b: ({name_expr.replace('j.', 'b["items"][0].elem.')}
+                               if b['items'] and b['items'][0].elem else ''))
+        try:'''
+    index_direct = f'''class IndexView(View):
     def get(self, request):
         user = _user(request)
         _auto_wrap_orphans(user)
@@ -364,10 +436,15 @@ def _reglages_du_depot(user, nature, poste=None):
                 'has_success': 'SUCCESS' in statuses,
                 'eta_ids': ','.join(str(j.id) for j in items),
             }})
+        queue_count = len(jobs)
         batches_list, q_sort, q_filter = apply_queue_sort_filter(
             request, batches_list,
             name_of=lambda b: ({name_expr.replace('j.', 'b["items"][0].')} if b['items'] else ''))
-        try:
+        try:'''
+    # `index` existe AUSSI comme FONCTION : l'imager route `path('', views.index)` (pas de
+    # classe) — sans l'alias, le urls généré ne s'importait pas (`AttributeError: no attribute
+    # 'index'`, page en 404, mesuré sur imager_01 le 22/09). Une ligne, pour toutes les apps.
+    vues['index'] = (index_link if is_link else index_direct) + f'''
             from .params import {schema_symbole}
             params_json = json.dumps({schema_symbole})
         except Exception:
@@ -379,11 +456,19 @@ def _reglages_du_depot(user, nature, poste=None):
         # TROU DE GLU {mark} — contexte SPÉCIFIQUE d'app (profils, formats…) non généré :
         # le gabarit ne fournit que le contexte CONVENTIONNEL de file.
         return render(request, '{app}/index.html', {{
-            'batches_list': batches_list, 'queue_count': len(jobs),
+            'batches_list': batches_list, 'queue_count': queue_count,
             'q_sort': q_sort, 'q_filter': q_filter, 'params_json': params_json,
             'panel_defaults': panel_defaults,
-        }})'''
+        }})
 
+
+index = IndexView.as_view()   # la même vue sous forme de FONCTION (route `views.index`)'''
+
+    # Le dépôt ENVELOPPE à la création sur la forme à liaison (idiome des 9 apps réelles :
+    # `wrap_in_batch` après `create`) ; la forme directe laisse `_auto_wrap_orphans` le faire
+    # au chargement de la page (idiome converter).
+    up_wrap = (f"\n    wrap_in_batch(item, batch_model={batch}, item_model={link}, fk_name='{link_fk}')"
+               if is_link else '')
     vues['upload'] = f'''@require_POST
 def upload(request):
     user = _user(request)
@@ -393,7 +478,7 @@ def upload(request):
     kwargs = {{'user': user, '{d['input_field']}': f}}
     {f"kwargs['{d['name_field']}'] = f.name" if d['name_field'] else ''}
     {up_nature}{up_reglages}
-    item = {item}.objects.create(**kwargs)
+    item = {item}.objects.create(**kwargs){up_wrap}
     return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
 
     # APERÇU DE LOT — conventionnel, plus un stub (2026-08-22). Le parsing d'un fichier de lot
@@ -458,8 +543,12 @@ def batch_preview(request):
     `group_key` de la fabrique de manipulation de file (fusion par drag&drop)."""
     return {bc_nature}'''
     bc_nature_kw = (f", **{{'{nature_champ}': nature}}" if nature_champ else "")
-    vues['batch_create'] = f'''@require_POST
-def batch_create(request):
+    # Émis sous CHAQUE orthographe admise (`urls_gen.ROUTE_ALIASES` : composer dit
+    # `import_batch`) — même doctrine que `stop`/`cancel` : le corps est la convention, le nom
+    # est lu au manifeste. L'assemblage plus bas ne retient que le nom déclaré par l'app.
+    for _nom_bc in route_variants('batch_create'):
+        vues[_nom_bc] = f'''@require_POST
+def {_nom_bc}(request):
     """Crée N éléments depuis un fichier de lot, puis les regroupe — briques communes."""
     from pathlib import Path as _Path
     from django.conf import settings as _settings
@@ -522,17 +611,12 @@ def batch_create(request):
     # ce qui a produit les trois derniers défauts de codegen ; le groupement ci-dessous en
     # dépend directement (`nature_of` lisait un champ que personne n'écrivait, donc UN lot
     # fourre-tout au lieu d'un lot par nature).
-    def _lier(lot, obj, idx):
-        setattr(obj, '{fk}', lot)
-        setattr(obj, '{row}', idx)
-        obj.save(update_fields=['{fk}', '{row}'])
-
     lots = group_into_batches_by_nature(
         crees,
         nature_of=_nature_de_lot,
         create_batch=lambda nature, total: {batch}.objects.create(
             user=user, total=total{bc_nature_kw}),
-        link_item=_lier,
+        link_item=_link_to_batch,
     )
     return JsonResponse({{'success': True, 'count': len(crees),
                          'batches': len(lots), 'warnings': avertissements}})'''
@@ -614,7 +698,22 @@ def {nom}(request, pk):
             setattr(item, _k, _opts.get(_k, ''))
     except Exception:
         pass'''
-    decorateur = f'''def _decorer(item):
+    decorateur = f'''def _set_unless_property(item, name, value):
+    """Pose une valeur DÉCORATIVE sur l'instance — sauf si le modèle la calcule déjà.
+
+    Les substitutions se font UNE À UNE : des vues GÉNÉRÉES peuvent servir un `models.py`
+    encore COPIÉ, dont `gear_data` est une @property sans setter (glu de l'app réelle).
+    Mesuré le 2026-09-22 sur `describer_01` : `item.gear_data = …` levait AttributeError au
+    premier rendu de card, page vide 200, page habitée 500. La propriété du modèle réel
+    rend déjà ce que la brique reconstituerait : on la laisse parler.
+    """
+    attr = getattr(type(item), name, None)
+    if isinstance(attr, property) and attr.fset is None:
+        return
+    setattr(item, name, value)
+
+
+def _decorer(item):
     """Chips de card GÉNÉRÉS du schéma (brique commune) — point d'attache unique index/card_html."""{aplat}
     # ⚠ L'aplatissement DOIT précéder les chips : ils lisent les valeurs SUR l'instance —
     # calculés avant, ils voyaient une instance vide (card sans Réglages, constat Fabien
@@ -622,9 +721,9 @@ def {nom}(request, pk):
     try:
         from wama.common.utils.card_chips import chips_by_section
         from .params import {schema_symbole}
-        item.chips = chips_by_section(item, {schema_symbole})
+        _set_unless_property(item, 'chips', chips_by_section(item, {schema_symbole}))
     except Exception:
-        item.chips = {{}}
+        _set_unless_property(item, 'chips', {{}})
     # `gear_data` : le VOLET lit les data-* du bouton ⚙ (pas les data-param-* de la card —
     # deux lecteurs, deux sources). Sur le modèle RÉEL c'est une @property (glu non
     # sérialisée) : la brique commune `card_gear` la reconstitue depuis le schéma + les
@@ -632,23 +731,24 @@ def {nom}(request, pk):
     try:
         from wama.common.utils.card_gear import gear_data
         from .params import {schema_symbole} as _sch
-        item.gear_data = gear_data(item, _sch)
+        _set_unless_property(item, 'gear_data', gear_data(item, _sch))
     except Exception:
-        item.gear_data = {{}}
+        _set_unless_property(item, 'gear_data', {{}})
     # Propriétés RÉELLES du fichier d'entrée (extension, poids) — sous-ligne de la section
     # ENTRÉE (brique commune extraite du pilote reader ; constat Fabien 31/08 : la card ne
     # montrait que la nature).
     try:
         from wama.common.utils.card_chips import input_props_for
-        item.input_props = input_props_for(item, '{d['input_field']}', {nom_pour_props})
+        _set_unless_property(item, 'input_props',
+                             input_props_for(item, '{d['input_field']}', {nom_pour_props}))
     except Exception:
-        item.input_props = []
+        _set_unless_property(item, 'input_props', [])
     # Alias NORMALISÉ `elem` (2026-09-09) : `common/_queue_entry.html` atteint l'élément
-    # métier par `item.elem` — alias que `build_batches_list` pose sur chaque LIAISON. Une
-    # app générée n'a pas de modèle de liaison (FK directe, comme le converter) : liaison et
-    # élément COÏNCIDENT, l'alias pointe donc sur l'item lui-même. Posé dans `_decorer`, point
-    # d'attache UNIQUE des deux chemins de rendu (index et card_html).
-    item.elem = item
+    # métier par `item.elem` — alias que `build_batches_list` pose sur chaque LIAISON. Pour la
+    # card SEULE (`card_html`) comme pour la forme directe, liaison et élément COÏNCIDENT :
+    # l'alias pointe sur l'item lui-même. Posé dans `_decorer`, point d'attache UNIQUE des
+    # deux chemins de rendu (index et card_html).
+    _set_unless_property(item, 'elem', item)
     return item'''
 
     vues['card_html'] = f'''def card_html(request, pk):
@@ -691,8 +791,7 @@ def delete(request, pk):
     from wama.common.utils.batch_common import batch_snapshot, batch_state
     snapshot = batch_snapshot(item)
     for _champ in {champs_fichiers!r}:
-        if _fichier_de_l_app(item, _champ):
-            safe_delete_file(item, _champ)
+        safe_delete_file(item, _champ)   # propriété + partage jugés par la brique
     item.delete()
     # ⚠ NE PAS supprimer le lot vidé ici (retiré le 2026-09-09). C'était une REDUPLICATION du
     # mécanisme commun `batch_sync` — `register_batch_sync(<Item>, direct_fk=True)` est branché
@@ -713,7 +812,7 @@ def duplicate(request, pk):
     new = duplicate_instance(
         instance=item,
         reset_fields={{'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}},
-        clear_fields={['output_file'] if d['a_output'] else []!r},
+        clear_fields={champs_sortie!r},
     )
     return JsonResponse({{'success': True, 'id': new.id}})'''
 
@@ -736,11 +835,10 @@ def clear_all(request):
     n = 0
     for item in {item}.objects.filter(user=user).exclude(status='RUNNING'):
         for _champ in {champs_fichiers!r}:
-            if _fichier_de_l_app(item, _champ):
-                safe_delete_file(item, _champ)
+            safe_delete_file(item, _champ)
         item.delete()
         n += 1
-    {batch}.objects.filter(user=user, items__isnull=True).delete()
+    {batch}.objects.filter(user=user, {items_related}__isnull=True).delete()
     return JsonResponse({{'cleared': n}})'''
 
     vues['download_all'] = (f'''def download_all(request):
@@ -781,7 +879,9 @@ def batch_start(request, pk):
     user = _user(request)
     b = get_object_or_404({batch}, pk=pk, user=user)
     started = []
-    for item in {item}.objects.filter({fk}=b, user=user, status='PENDING').order_by('{row}'):
+    for item in batch_elements(b, {item}):
+        if item.status != 'PENDING':
+            continue
         item.status = 'RUNNING'
         item.save(update_fields=['status'])
         t = {task}.delay(item.id)
@@ -857,7 +957,9 @@ def batch_update(request, pk):
     b = get_object_or_404({batch}, pk=pk, user=user)
 {lect_donnees}
     updated = 0
-    for item in {item}.objects.filter({fk}=b, user=user).exclude(status='RUNNING'):
+    for item in batch_elements(b, {item}):
+        if item.status == 'RUNNING':
+            continue
         touches = []
 {maj}
         if touches:
@@ -869,12 +971,16 @@ def batch_update(request, pk):
 def batch_delete(request, pk):
     user = _user(request)
     b = get_object_or_404({batch}, pk=pk, user=user)
-    for item in {item}.objects.filter({fk}=b, user=user):
+    for item in batch_elements(b, {item}):
         for _champ in {champs_fichiers!r}:
-            if _fichier_de_l_app(item, _champ):
-                safe_delete_file(item, _champ)
+            safe_delete_file(item, _champ)
         item.delete()
-    b.delete()
+    # Le lot VIDÉ est purgé par le signal `batch_sync` (branché par l'AppConfig générée) au
+    # dernier `item.delete()` — `b.delete()` sur l'instance encore en mémoire relevait alors une
+    # ligne disparue (500, mesuré sur `converter_01` par le contrat générique de suppression,
+    # 22/09 — même leçon que la vue `delete`, un cran plus haut). Ne reste à purger qu'un lot
+    # qui n'avait AUCUN élément : par requête, jamais par l'instance.
+    {batch}.objects.filter(pk=b.pk, {items_related}__isnull=True).delete()
     return JsonResponse({{'deleted': True}})'''
 
     extra_kw = (f", {d['batch_extra']}=src.{d['batch_extra']}" if d['batch_extra'] else '')
@@ -884,15 +990,13 @@ def batch_duplicate(request, pk):
     src = get_object_or_404({batch}, pk=pk, user=user)
     new_b = {batch}.objects.create(user=user, total=0{extra_kw})
     idx = 0
-    for item in {item}.objects.filter({fk}=src, user=user).order_by('{row}'):
+    for item in batch_elements(src, {item}):
         new = duplicate_instance(
             instance=item,
             reset_fields={{'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}},
-            clear_fields={['output_file'] if d['a_output'] else []!r},
+            clear_fields={champs_sortie!r},
         )
-        new.{fk} = new_b
-        new.{row} = idx
-        new.save(update_fields=['{fk}', '{row}'])
+        _link_to_batch(new_b, new, idx)
         idx += 1
     new_b.total = idx
     new_b.save(update_fields=['total'])
@@ -903,8 +1007,8 @@ def batch_duplicate(request, pk):
     b = get_object_or_404({batch}, pk=pk, user=user)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w') as z:
-        for item in {item}.objects.filter({fk}=b, user=user, status='SUCCESS'):
-            if item.output_file:
+        for item in batch_elements(b, {item}):
+            if item.status == 'SUCCESS' and item.output_file:
                 z.writestr(Path(item.output_file.name).name, item.output_file.read())
     buf.seek(0)
     return FileResponse(buf, as_attachment=True, filename=f'{app}_batch_{{b.id}}.zip')'''
@@ -926,16 +1030,28 @@ def batch_duplicate(request, pk):
     resp['Content-Disposition'] = 'attachment; filename="{app}_batch_template.txt"'
     return resp'''
 
-    fabrique = f'''# Fabrique COMMUNE de manipulation de file (forme FK-DIRECTE — dérivée de la facette data).
-_qm = make_queue_manipulation_views_direct(
+    batch_extra_kw = (f"""
+    batch_extra=lambda w: {{'{d['batch_extra']}': w.{d['batch_extra']}}},""" if d['batch_extra'] else '')
+    fabrique_link = f'''# Fabrique COMMUNE de manipulation de file (forme à LIAISON — lue au manifeste,
+# `processing.model_spec.batch`) : la meme brique que les 9 apps reelles.
+_qm = make_queue_manipulation_views(
     work_model={item}, batch_model={batch},
-    batch_fk='{fk}', row_field='{row}',
-    get_user=_user,{f"""
-    batch_extra=lambda w: {{'{d['batch_extra']}': w.{d['batch_extra']}}},""" if d['batch_extra'] else ''}
+    item_model={link}, fk_name='{link_fk}',
+    get_user=_user,{batch_extra_kw}
     # JUMEAU du `nature_of` de l'import : la meme regle decide de ce qui peut cohabiter dans
     # un lot, qu'on y arrive par import groupe ou par glisser-deposer.
     group_key=_nature_de_lot,
-)
+)'''
+    fabrique_direct = f'''# Fabrique COMMUNE de manipulation de file (forme FK-DIRECTE — dérivée de la facette data).
+_qm = make_queue_manipulation_views_direct(
+    work_model={item}, batch_model={batch},
+    batch_fk='{fk}', row_field='{row}',
+    get_user=_user,{batch_extra_kw}
+    # JUMEAU du `nature_of` de l'import : la meme regle decide de ce qui peut cohabiter dans
+    # un lot, qu'on y arrive par import groupe ou par glisser-deposer.
+    group_key=_nature_de_lot,
+)'''
+    fabrique = (fabrique_link if is_link else fabrique_direct) + f'''
 reorder           = _qm['reorder']
 reorder_queue     = _qm['reorder_queue']
 # `merge` = fusion STRICTE (geste du drag&drop) — distincte de `consolidate`, qui range
@@ -947,6 +1063,18 @@ remove_from_batch = _qm['remove_from_batch']
 # toujours — quatre clés, trois reprises (2026-08-22). Rien à écrire : le regroupement de
 # N dépôts en un lot était déjà là, dans le fichier même de l'app.
 consolidate       = _qm['consolidate']'''
+
+    # ── Chaque corps conventionnel existe AUSSI sous ses orthographes déclarées ──
+    # `urls_gen.ROUTE_ALIASES` est le propriétaire du vocabulaire : un alias qui y entre est
+    # servi ici sans qu'un gabarit ait à le connaître (stop/cancel et update/update_job avaient
+    # chacun leur boucle ; `upload/generate` du composer a montré le 22/09 qu'il en faudrait une
+    # par alias — donc une règle générale). Le premier `def <canon>(` du corps prend le nom
+    # déclaré ; une classe (index) n'a pas d'alias.
+    for _canon, _alts in ROUTE_ALIASES.items():
+        if _canon in vues:
+            for _alt in _alts:
+                if _alt not in vues:
+                    vues[_alt] = vues[_canon].replace(f'def {_canon}(', f'def {_alt}(', 1)
 
     # ── Assemblage : UNE définition par callable exigé (conventionnel ou stub) ──
     # `batch_preview` RETIRÉ de cet ensemble (2026-08-22) : sa route conventionnelle est
@@ -986,6 +1114,12 @@ consolidate       = _qm['consolidate']'''
             if nom in vues:
                 blocs.append(vues[nom])
                 continue
+            if nom in d['extra_classes']:
+                # `IndexView` est DÉJÀ la classe conventionnelle émise par `vues['index']`
+                # (l'anonymizer route son `upload` sur elle) : la redéfinir écraserait la file.
+                if nom != 'IndexView':
+                    blocs.append(stub_class(nom))
+                continue
             blocs.append(stub(nom, pk=True) if nom not in ('quick_convert', 'batch_preview',
                                                            'batch_create', 'consolidate',
                                                            'profile_list', 'profile_save')
@@ -996,12 +1130,69 @@ consolidate       = _qm['consolidate']'''
     blocs.append(bloc_nature_de_lot)
     blocs.append(fabrique)
 
+    # ── Le helper de forme — tout ce que les vues de lot savent de la forme de file ──
+    # `_link_to_batch(lot, obj, idx)` : rattacher un élément à un lot à la ligne idx, par la
+    # brique. Émis selon la forme ; les corps de vues (batch_start/update/delete/duplicate/
+    # download, batch_create) sont IDENTIQUES d'une forme à l'autre. Une forme = un endroit.
+    # Ce que le fichier généré sait de sa forme tient en UNE ligne : les kwargs de
+    # `attach_to_batch` (brique commune, les deux formes). La lecture d'un lot passe par
+    # `batch_elements(b, <Item>)` (brique, ordre des lignes garanti) — un helper généré
+    # `_batch_elements` a vécu quelques heures le 22/09 : c'était un chemin parallèle.
+    if is_link:
+        helpers_forme = f'''
+
+def _link_to_batch(lot, obj, idx):
+    """Rattache un élément à un lot — brique commune, forme à LIAISON déclarée au manifeste."""
+    return attach_to_batch(obj, lot, idx, item_model={link}, fk_name='{link_fk}')
+
+
+def _auto_wrap_orphans(user):
+    """Chaque item HORS LOT devient son propre lot-de-1 — brique COMMUNE, stratégie par
+    défaut (orphelin → batch-of-1, règle des 10 apps depuis le 2026-08-14)."""
+    auto_wrap_orphans(user, work_model={item}, batch_model={batch},
+                      item_model={link}, fk_name='{link_fk}')
+'''
+        imports_forme = f'''from wama.common.utils.batch_common import (attach_to_batch, auto_wrap_orphans, batch_elements,
+                                            build_batches_list, wrap_in_batch)
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views'''
+        import_models = f'from .models import {batch}, {link}, {item}'
+        forme_doc = f"liaison {link} (FK '{link_fk}' → item, '{link_batch}' → lot)"
+    else:
+        helpers_forme = f'''
+
+def _link_to_batch(lot, obj, idx):
+    """Rattache un élément à un lot — brique commune, forme à FK DIRECTE (idiome converter)."""
+    return attach_to_batch(obj, lot, idx, batch_attr='{fk}', row_field='{row}')
+
+
+def _auto_wrap_orphans(user):
+    """Chaque item HORS LOT devient son propre lot-de-1 — convention commune des 10 apps.
+
+    Non décoratif : `apply_queue_sort_filter` lit `b['obj'].created_at`, et un item sans lot
+    donne `obj = None` → la file entière tombe. La brique `batch_common.auto_wrap_orphans`
+    porte cette règle, mais suppose un modèle de LIAISON ; la FK est ici DIRECTE, d'où la
+    boucle (même forme que converter). Silencieux par item : un orphelin cassé ne doit pas
+    empêcher la page de s'afficher.
+    """
+    orphelins = {item}.objects.filter(user=user, {fk}__isnull=True)
+    for w in orphelins:
+        try:
+            b = {batch}.objects.create(user=user, total=1)
+            _link_to_batch(b, w, 0)
+        except Exception:
+            pass
+'''
+        imports_forme = f'''from wama.common.utils.batch_common import attach_to_batch, batch_elements
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views_direct'''
+        import_models = f'from .models import {batch}, {item}'
+        forme_doc = f"FK directe '{fk}'"
+
     tete = f'''"""
 {mark} — views.py GÉNÉRÉ par le gabarit A (views_gen, marche S2).
 
-CONVENTIONNEL paramétré par le manifeste (item={item}, batch={batch} FK '{fk}',
-tâche {task}) ; les endpoints hors convention sont des STUBS 501 marqués TROU DE GLU
-(marche B) — la page boote, la fonctionnalité manque VISIBLEMENT (détecteur).
+CONVENTIONNEL paramétré par le manifeste (item={item}, batch={batch}, forme de file :
+{forme_doc}, tâche {task}) ; les endpoints hors convention sont des STUBS 501 marqués
+TROU DE GLU (marche B) — la page boote, la fonctionnalité manque VISIBLEMENT (détecteur).
 """
 import io
 import json
@@ -1018,35 +1209,15 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.detail_registry import normalize_status
 from wama.common.utils.process_control import begin_processing, stop_instance
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
-from wama.common.utils.queue_manipulation import make_queue_manipulation_views_direct
+{imports_forme}
 from wama.common.utils.queue_view import apply_queue_sort_filter
 
-from .models import {batch}, {item}
+{import_models}
 from .tasks import {task}
 
 
 def _user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-
-def _auto_wrap_orphans(user):
-    """Chaque item HORS LOT devient son propre lot-de-1 — convention commune des 10 apps.
-
-    Non décoratif : `apply_queue_sort_filter` lit `b['obj'].created_at`, et un item sans lot
-    donne `obj = None` → la file entière tombe. La brique `batch_common.auto_wrap_orphans`
-    porte cette règle, mais suppose un modèle de LIAISON ; la FK est ici DIRECTE, d'où la
-    boucle (même forme que converter). Silencieux par item : un orphelin cassé ne doit pas
-    empêcher la page de s'afficher.
-    """
-    orphelins = {item}.objects.filter(user=user, {fk}__isnull=True)
-    for w in orphelins:
-        try:
-            b = {batch}.objects.create(user=user, total=1)
-            setattr(w, '{fk}', b)
-            setattr(w, '{row}', 0)
-            w.save(update_fields=['{fk}', '{row}'])
-        except Exception:
-            pass
-{bloc_nature}{bloc_garde}{bloc_reglages}
+{helpers_forme}{bloc_nature}{bloc_reglages}
 '''
     return tete + '\n\n\n'.join(blocs) + '\n', None

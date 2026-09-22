@@ -277,6 +277,82 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
     return manquants
 
 
+def _superseded_task_modules(manifest: dict, fname: str = 'tasks.py') -> list:
+    """Modules de tâches COPIÉS que le `tasks.py` GÉNÉRÉ remplace.
+
+    Le manifeste déclare où vit chaque tâche de l'app (`processing.tasks[].file`) : quatre apps
+    la logent dans `workers.py`, et `wama/celery.py` autodécouvre LES DEUX noms (`tasks` et
+    `workers`). Une jumelle qui garde sa copie de `workers.py` à côté du `tasks.py` généré
+    enregistre donc la MÊME tâche deux fois — et sa copie importe des symboles des vues
+    COPIÉES (`detect_type_from_extension`) que les vues GÉNÉRÉES n'exposent pas. Mesuré le
+    2026-09-22 sur `describer_01` : la substitution de `views` était refusée pour un import
+    d'un module que plus rien n'appelait. Porter, c'est REMPLACER : le généré retire la copie.
+    """
+    proc = (manifest.get('body') or {}).get('processing') or {}
+    seen, out = set(), []
+    for t in (proc.get('tasks') or []):
+        f = str((t or {}).get('file') or '').strip()
+        if f and f != fname and f.endswith('.py') and f not in seen:
+            seen.add(f)
+            out.append(f)
+    return out
+
+
+def _withdraw_modules(label: str, files: list) -> list:
+    """Retire de la jumelle les modules `files` (copies remplacées), témoin `.temoin`
+    préservé une fois — le geste inverse est `_restore_retired_modules`. Rend les retirés."""
+    withdrawn = []
+    for f in files:
+        p = WAMA_DIR / label / f
+        if not p.is_file():
+            continue
+        t = p.with_name(p.name + '.temoin')
+        if not t.exists():
+            shutil.copy2(p, t)
+        p.unlink()
+        withdrawn.append(f)
+    return withdrawn
+
+
+def _restore_retired_modules(label: str, files: list) -> list:
+    """Ramène les modules retirés par `_retire_modules` depuis leur témoin. Rend les restaurés."""
+    restaures = []
+    for f in files:
+        p = WAMA_DIR / label / f
+        t = p.with_name(p.name + '.temoin')
+        if t.exists() and not p.exists():
+            shutil.copy2(t, p)
+            restaures.append(f)
+    return restaures
+
+
+def _last_cause(stdout: str, stderr: str, width: int = 200) -> str:
+    """La CAUSE d'un sous-process en échec : sa dernière ligne utile, avertissements de
+    bibliothèques écartés — jamais les premiers caractères du flux."""
+    lines = [l.strip() for l in ((stdout or '') + '\n' + (stderr or '')).splitlines()
+             if l.strip() and 'Warning' not in l and 'import pynvml' not in l]
+    return (lines[-1] if lines else '')[-width:]
+
+
+def _save_entry(entry: dict) -> None:
+    """Réécrit le registre en ne portant que L'ENTRÉE de cette jumelle, relue à l'instant.
+
+    Une substitution dure plusieurs minutes (check + smokes en sous-process) et tenait la
+    liste ENTIÈRE chargée à son début : deux chaînes lancées en parallèle sur deux jumelles
+    se sont écrasées (2026-09-22 — le `views: ok` de `describer_01` remplacé par la copie
+    périmée que la chaîne `composer_01` avait relue avant lui ; disque généré, registre
+    « revert »). Le registre est partagé par le DÉPÔT, pas par la chaîne : on n'y écrit que
+    ce qu'on a mesuré.
+    """
+    current = load_registry()
+    label = entry.get('label')
+    if any(e.get('label') == label for e in current):
+        out = [entry if e.get('label') == label else e for e in current]
+    else:
+        out = current + [entry]
+    save_registry(out)
+
+
 def _manage(args: list) -> subprocess.CompletedProcess:
     """manage.py en SOUS-PROCESS FRAIS : le boot relit sandbox_apps.json — le process
     courant, lui, ne connaît pas (encore/plus) la jumelle (même principe que app_regen_check)."""
@@ -432,6 +508,13 @@ class Command(BaseCommand):
 
         # 3. RE-MESURE : cohérence de paquet + check + (models → makemigrations) + smoke page.
         verdict, details = 'ok', []
+        # `tasks` généré REMPLACE le module de tâches copié que le manifeste déclare sous un
+        # autre nom (`workers.py`) — sinon deux enregistrements Celery de la même tâche, et un
+        # import mort vers les vues copiées (cf. `_superseded_task_modules`). Restauré au revert.
+        withdrawn = (_withdraw_modules(label, _superseded_task_modules(manifest, fname))
+                     if cible == 'tasks' else [])
+        if withdrawn:
+            details.append(f'module de tâches COPIÉ remplacé par le généré, retiré : {withdrawn}')
         # Juge GÉNÉRIQUE avant tout sous-process : chaque symbole intra-paquet importé par
         # les fichiers copiés doit exister chez sa cible (classe du défaut PARAMS, 03/09).
         _non_resolus = _imports_intra_paquet_non_resolus(label)
@@ -464,7 +547,7 @@ class Command(BaseCommand):
                 capture_output=True, text=True, cwd=str(BASE_DIR))
             if smoke.returncode != 0:
                 verdict = 'revert'
-                details.append(f"smoke /{label}/ KO ({(smoke.stdout or smoke.stderr).strip()[:120]})")
+                details.append(f"smoke /{label}/ KO ({_last_cause(smoke.stdout, smoke.stderr)})")
         # ── Smoke « file HABITÉE » (mesuré le 2026-09-03, describer_01/params) : une page à
         # file VIDE ne rend AUCUNE card — un symbole de schéma disparu (`PARAMS`) ne levait
         # qu'au rendu d'une card réelle : 200 au juge, ImportError chez l'utilisateur. On
@@ -472,6 +555,13 @@ class Command(BaseCommand):
         # (contraintes NOT NULL propres à l'app) → NON MESURÉ, dit tel quel — jamais bloquant
         # sur l'incréabilité, toujours bloquant sur un rendu qui lève.
         item_model = ((manifest.get('body') or {}).get('processing') or {}).get('item_model')
+        # La card SEULE (`card_html`) ne se mesure que quand le COUPLE views↔templates est
+        # complet : des vues GÉNÉRÉES rendent le partial généré `_generic_card.html`, que des
+        # templates COPIÉS n'ont pas. Au pas `views` (templates encore copiés, ordre
+        # recommandé) le juge s'en abstient ; au pas `templates` — ou à un `views` rejoué après
+        # — il l'exige. Sans cette règle le couple était un ordre à respecter de mémoire.
+        templates_ok = ((entry.get('substituted') or {}).get('templates') or {}).get('verdict') == 'ok'
+        check_card = cible == 'templates' or templates_ok
         if verdict == 'ok' and item_model:
             habite = subprocess.run(
                 [sys.executable, '-c',
@@ -482,13 +572,27 @@ class Command(BaseCommand):
                  "try:\n    it=M.objects.create(user=u)\n"
                  "except Exception as e:\n    print('temoin increable:',e);raise SystemExit(2)\n"
                  "try:\n    c=Client();c.force_login(u);r=c.get('" + f'/{label}/' + "',follow=True)\n"
-                 "    print(r.status_code)\nfinally:\n    it.delete()\n"
+                 "    print(r.status_code)\n"
+                 # La card SEULE aussi (`card_html`) : des vues GÉNÉRÉES rendent le partial généré
+                 # `_generic_card.html`, que des templates COPIÉS n'ont pas — page 200, mais 🗑/⚙/↻
+                 # (qui redemandent la card) en 500. Mesuré sur composer_01 le 2026-09-22 par le
+                 # contrat générique de suppression, invisible du smoke de page. Route absente
+                 # (app sans card_html) → non mesuré, jamais bloquant.
+                 + ("    from django.urls import reverse, NoReverseMatch\n"
+                    "    try:\n        url=reverse('" + label + ":card_html', args=[it.id])\n"
+                    "    except NoReverseMatch:\n        url=None\n"
+                    "    if url:\n        r2=c.get(url)\n        print('card_html', r2.status_code)\n"
+                    "        r=r2 if r2.status_code!=200 else r\n" if check_card else '') +
+                 "finally:\n    it.delete()\n"
                  "raise SystemExit(0 if r.status_code==200 else 1)"],
                 capture_output=True, text=True, cwd=str(BASE_DIR))
             if habite.returncode == 1:
                 verdict = 'revert'
+                # La CAUSE est la dernière ligne de la trace, jamais la première du flux :
+                # les 160 premiers caractères de stderr étaient un FutureWarning de torch
+                # (mesuré le 2026-09-22 sur describer_01 — verdict illisible).
                 details.append('smoke file HABITÉE KO — le rendu de card lève '
-                               f"({(habite.stdout or habite.stderr).strip()[:160]})")
+                               f"({_last_cause(habite.stdout, habite.stderr)})")
             elif habite.returncode == 2:
                 details.append('file habitée NON MESURÉE (témoin incréable — contraintes app)')
 
@@ -510,6 +614,20 @@ class Command(BaseCommand):
                     shutil.copy2(_t, _cible_path)
                 else:
                     _cible_path.unlink(missing_ok=True)
+            if withdrawn:
+                _restore_retired_modules(label, withdrawn)
+            # Le COUPLE se défait ensemble : des templates qui échouent laissaient des vues
+            # GÉNÉRÉES servir des templates COPIÉS — card_html en 500 (composer_01, 22/09).
+            if cible == 'templates':
+                v_path = WAMA_DIR / label / 'views.py'
+                v_temoin = v_path.with_name('views.py.temoin')
+                if v_temoin.exists() and 'manifest-gen' in v_path.read_text(
+                        encoding='utf-8', errors='replace')[:600]:
+                    shutil.copy2(v_temoin, v_path)
+                    entry.setdefault('substituted', {})['views'] = {
+                        'verdict': 'reverted-couple', 'details': ['templates revenus au témoin'],
+                        'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
+                    details.append('views.py REVENU au témoin avec les templates (couple)')
             # Revert COMPLET côté schéma (défaut mesuré au 1er run : la migration divergente
             # restait APPLIQUÉE avec le modèle revenu au témoin) : désappliquer puis retirer
             # les fichiers de migration créés par CETTE substitution.
@@ -531,7 +649,7 @@ class Command(BaseCommand):
         entry['stage'] = ('S2-partiel'
                           if any(v.get('verdict') == 'ok'
                                  for v in entry['substituted'].values()) else entry['stage'])
-        save_registry(entries)
+        _save_entry(entry)
 
     # ── revert (retour MANUEL au témoin) ─────────────────────────────────────
     def _revert(self, label: str, cible: str):
@@ -562,6 +680,14 @@ class Command(BaseCommand):
             elif 'manifest-gen' in p.read_text(encoding='utf-8', errors='replace')[:600]:
                 p.unlink()
                 retires.append(p.name)
+        if cible == 'tasks':
+            # Les modules de tâches COPIÉS que la substitution avait retirés (`workers.py`)
+            # reviennent avec elle : leur témoin est le seul `.py.temoin` sans `.py` en face.
+            for t in sorted((WAMA_DIR / label).glob('*.py.temoin')):
+                p = t.with_name(t.name[:-len('.temoin')])
+                if p.name != fname and not p.exists():
+                    shutil.copy2(t, p)
+                    restaures.append(p.name)
         if not restaures and not retires:
             raise CommandError(f'{cible} : aucun témoin ni fichier généré — rien à ramener.')
 
@@ -579,7 +705,7 @@ class Command(BaseCommand):
             'verdict': 'reverted-manuel',
             'details': [f'restaurés : {restaures}', f'retirés : {retires}', f'smoke {etat}'],
             'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
-        save_registry(entries)
+        _save_entry(entry)
         style = self.style.SUCCESS if smoke.returncode == 0 else self.style.ERROR
         self.stdout.write(style(
             f'{cible} REVENU au témoin — restaurés {restaures}, retirés {retires}, '

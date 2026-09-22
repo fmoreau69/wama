@@ -172,7 +172,11 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
                             <i class="fas fa-paperclip text-info wama-mod-g"></i>
                             <span>Importer</span>
                             {# Même règle que le port de travail : le JETON dit à quoi il sert. #}
-                            <small>{{ p.description|default:reference_hint|default:'depuis le poste' }}</small>
+                            {# `firstof`, pas `default:reference_hint` : un argument de filtre ABSENT du
+                               contexte lève VariableDoesNotExist — mesuré le 2026-09-22 sur l'index
+                               GÉNÉRÉ de composer_01, qui ne passe pas `reference_hint` (composer et
+                               imager le passent à l'include ; un appelant ne le doit pas). #}
+                            <small>{% firstof p.description reference_hint 'depuis le poste' %}</small>
                             <input type="file" id="{{ rid }}" accept="{{ p.accept }}" style="display:none">
                         </div>
                     </div>

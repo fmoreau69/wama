@@ -21,9 +21,13 @@ from django.urls import NoReverseMatch, reverse
 
 from wama.common.manifests.codegen.views_gen import render_views
 
-#: Apps dont la file est de forme FK-DIRECTE (seule forme rendue par le gabarit v1).
-#: Les autres retournent `(None, raison)` — trou DÉCLARÉ, pas un échec.
+#: App dont la file est de forme FK-DIRECTE (la forme du pilote — l'item porte `batch` +
+#: `batch_row_index`). Depuis le 2026-09-22 le gabarit rend AUSSI la forme à modèle de LIAISON
+#: (9 apps sur 10, trou #30 de la ROUTE) — mesurée plus bas sur `SOURCE_LINK`.
 SOURCE = 'converter'
+#: App dont la file passe par un modèle de LIAISON (`BatchDescriptionItem`), déclaré au
+#: manifeste (`processing.model_spec.batch`).
+SOURCE_LINK = 'describer'
 
 
 def _vues_generees(app):
@@ -65,6 +69,20 @@ class CheminDeLotTest(SimpleTestCase):
     def test_le_fichier_genere_est_du_python_valide(self):
         # Une erreur de syntaxe dans un gabarit ne se voit qu'au chargement de l'app.
         ast.parse(self.src)
+
+    def test_the_direct_form_still_uses_the_direct_factory_and_its_own_helpers(self):
+        """Contre-épreuve du gabarit à deux formes (2026-09-22) : la forme directe n'a pas changé
+        de brique. Ce qui a changé — et qu'on tient — c'est que la forme ne vit plus que dans
+        `_batch_elements` / `_link_to_batch` : aucune vue de lot ne filtre plus la FK à la main."""
+        self.assertIn('make_queue_manipulation_views_direct(', self.src)
+        self.assertNotIn('make_queue_manipulation_views(', self.src)
+        self.assertIn("attach_to_batch(obj, lot, idx, batch_attr='batch', row_field='batch_row_index')",
+                      _fonction(self.src, '_link_to_batch') or '')
+        self.assertNotIn('_batch_elements', self.src, 'lecture du lot réécrite hors de la brique')
+        for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate'):
+            corps = _fonction(self.src, view) or ''
+            self.assertIn('batch_elements(', corps, f'{view} : les éléments du lot se lisent par la brique')
+            self.assertNotIn('.objects.filter(batch=', corps, f'{view} : la forme de file écrite en dur dans la vue')
 
     def test_batch_create_est_une_vue_pas_un_bouchon(self):
         corps = _fonction(self.src, 'batch_create')
@@ -220,26 +238,20 @@ class CheminDeLotTest(SimpleTestCase):
                       'la cascade doit coercer selon le schéma avant de poser sur des '
                       'colonnes typées')
 
-    def test_la_suppression_est_gardee_par_la_propriete_du_fichier(self):
+    def test_deletion_relies_on_the_brick_alone_no_generated_ownership_guard(self):
         """Trou A5 (audit 31/08) : `safe_delete_file` inconditionnel pouvait supprimer un
-        fichier UTILISATEUR seulement référencé (envoi Filemanager). La garde dérivée de la
-        politique du converter réel doit envelopper LES TROIS vues de suppression — une
-        garde se pose avec ses jumeaux."""
-        self.assertIn('def _fichier_de_l_app(item, champ):', self.src)
-        # ⚠ Cette ligne ATTESTAIT l'ancienne forme (`startswith(f'converter/{item.user_id}/')`)
-        # jusqu'au 2026-09-22 : le test figeait le défaut qu'il aurait dû interdire. Le préfixe
-        # vient désormais de la brique, et l'ancienne forme ne doit plus apparaître du tout.
-        self.assertIn("startswith(app_media_dir(", self.src)
-        self.assertNotIn("{item.user_id}/')", self.src,
-                         'le gabarit réémet un préfixe de propriété à l’ancien domicile')
-        for vue in ('delete', 'clear_all', 'batch_delete'):
-            corps = _fonction(self.src, vue)
-            self.assertIsNotNone(corps, f'{vue} absente')
-            self.assertIn('_fichier_de_l_app(item, _champ)', corps,
-                          f'{vue} supprime sans garde de propriété')
-            self.assertNotIn('\n            safe_delete_file' if vue != 'delete' else
-                             '\n        safe_delete_file', corps.replace(
-                                 'if _fichier_de_l_app(item, _champ):\n', ''),)
+        fichier UTILISATEUR seulement référencé. La garde de propriété que le gabarit émettait
+        (`_fichier_de_l_app`) est devenue REDONDANTE le 2026-09-22 — la brique juge propriété
+        ET partage (`owns_file`, `is_shared_elsewhere`) — et retirée le jour même (décision de
+        Fabien). On tient l'ABSENCE : une règle vit à un endroit, et une copie générée avait
+        déjà dérivé une fois (ancien domicile des médias). Les TROIS vues appellent la brique."""
+        self.assertNotIn('_fichier_de_l_app', self.src, 'la garde redondante est réémise')
+        self.assertNotIn('app_media_dir', self.src)
+        for view in ('delete', 'clear_all', 'batch_delete'):
+            corps = _fonction(self.src, view)
+            self.assertIsNotNone(corps, f'{view} absente')
+            self.assertIn('safe_delete_file(item, _champ)', corps,
+                          f'{view} ne passe pas par la brique de suppression')
 
     def test_global_progress_parle_le_contrat_du_composant_commun(self):
         """Trou A3 (audit 31/08) : l'émission renvoyait {running, pending, percent} — la
@@ -262,6 +274,28 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIn("'common_chips': _cc,", self.src)
         self.assertNotIn('if len(_vs) == 1:', self.src,
                          'la règle du pilote ne se réécrit pas inline — brique commune')
+
+    def test_class_based_extra_routes_get_a_class_stub_not_a_broken_def(self):
+        """`views.ProcessView.as_view()` en extra : le bouchon émis était `def as_view()(…)` —
+        une SyntaxError, donc une app entière refusée à la compilation (anonymizer, 22/09).
+        On fabrique le cas sur le manifeste du pilote : une vue de classe hors convention
+        devient une classe à `dispatch` 501 ; une classe déjà émise (`IndexView`) n'est pas
+        redéfinie ; une expression qui n'est pas un identifiant est écartée."""
+        from copy import deepcopy
+        from wama.common.manifests.ingest import extract
+        manifest = deepcopy(extract('app', SOURCE))
+        proc = (manifest.get('body') or {}).setdefault('processing', {})
+        proc.setdefault('extra_routes', []).extend([
+            {'name': 'process', 'pattern': 'process/', 'view': 'views.ProcessView.as_view()'},
+            {'name': 'upload2', 'pattern': 'upload2/', 'view': 'views.IndexView.as_view()'},
+        ])
+        src, raison = render_views(manifest)
+        self.assertIsNotNone(src, raison)
+        arbre = ast.parse(src)     # ne lève plus
+        classes = [n.name for n in arbre.body if isinstance(n, ast.ClassDef)]
+        self.assertIn('ProcessView', classes)
+        self.assertEqual(classes.count('IndexView'), 1, 'IndexView redéfinie par un bouchon')
+        self.assertNotIn('as_view', [n.name for n in arbre.body if isinstance(n, ast.FunctionDef)])
 
     def test_apps_genere_branche_l_invariant_batch_sync_en_fk_directe(self):
         """Trou A4 (audit 31/08) : sans `register_batch_sync(Item, direct_fk=True)`, le lot
@@ -303,6 +337,22 @@ class CheminDeLotTest(SimpleTestCase):
             self.assertNotIn(motif, code,
                              f'la vue delete générée reduplique le nettoyage de lot ({motif}) '
                              f'— `batch_sync` le fait déjà, et le doublon rend un 500')
+
+    def test_batch_delete_never_deletes_the_batch_through_its_stale_instance(self):
+        """Jumeau de la garde ci-dessus pour le LOT (22/09) : après le dernier `item.delete()` le
+        signal `batch_sync` a purgé le lot et l'instance en mémoire n'a plus d'id — `b.delete()`
+        levait `ValueError: … id attribute is set to None` (converter_01, contrat générique de
+        suppression de l'instance sœur). Un lot resté VIDE se purge par requête."""
+        from wama.common.manifests.codegen.views_gen import render_views
+        from wama.common.manifests.ingest import extract
+        for app in (SOURCE, SOURCE_LINK):
+            with self.subTest(app=app):
+                src, raison = render_views(extract('app', app))
+                self.assertIsNotNone(src, raison)
+                corps = _fonction(src, 'batch_delete') or ''
+                code = '\n'.join(l for l in corps.splitlines() if not l.lstrip().startswith('#'))
+                self.assertNotIn('b.delete()', code)
+                self.assertIn("items__isnull=True).delete()", code)
 
     def test_la_vue_delete_generee_passe_par_la_brique_commune_du_lot(self):
         """Une app GÉNÉRÉE répond l'état du lot comme les apps réelles : `batch_snapshot` AVANT la
@@ -663,3 +713,92 @@ class LotBoutEnBoutTest(TestCase):
             self.assertEqual(reponse.json().get('count'), 0,
                              'de la prose a produit des éléments — la détection de lot '
                              'redevient gloutonne (défaut corrigé le 22/08)')
+
+
+class LinkFormViewsTest(SimpleTestCase):
+    """La forme à modèle de LIAISON (9 apps sur 10) est rendue depuis le 2026-09-22.
+
+    Jusque-là `render_views` la refusait (« trou déclaré »), et les jumelles `describer_01`,
+    `composer_01`, `imager_01` gardaient des vues COPIÉES qui ne suivaient plus le commun
+    (ROUTE §11 #30). Ce qui est tenu ici : la forme est LUE au manifeste, les briques sont
+    celles des apps réelles (fabrique liaison, `build_batches_list`, `auto_wrap_orphans`,
+    `wrap_in_batch`), et la forme ne vit que dans les deux helpers émis.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.src, cls.raison = _vues_generees(SOURCE_LINK)
+
+    def setUp(self):
+        if not self.src:
+            self.fail(f'views non générées pour {SOURCE_LINK} : {self.raison}')
+
+    def _fonction(self, nom):
+        return _fonction(self.src, nom) or ''
+
+    def test_the_generated_file_is_valid_python(self):
+        ast.parse(self.src)
+
+    def test_the_link_form_is_read_from_the_manifest_declaration(self):
+        from wama.common.manifests.codegen.views_gen import _donnees
+        from wama.common.manifests.ingest import extract
+        d = _donnees(extract('app', SOURCE_LINK))
+        self.assertEqual(d['form'], 'link')
+        self.assertEqual((d['batch'], d['link'], d['link_fk'], d['row_field']),
+                         ('BatchDescription', 'BatchDescriptionItem', 'description', 'row_index'))
+        self.assertEqual(d['batch_fk'], '', 'batch_fk ne se pose que sur la forme directe '
+                                             '(apps_gen en dérive register_batch_sync direct_fk)')
+
+    def test_every_batch_view_reads_the_lot_through_the_common_brick(self):
+        """`batch_elements` (brique, ordre des lignes garanti) — jamais une lecture du lot
+        réécrite dans le fichier généré (un `_batch_elements` généré a existé quelques heures :
+        chemin parallèle à la brique, retiré sur remarque de Fabien)."""
+        self.assertNotIn('_batch_elements', self.src)
+        # (`batch_download` reste un bouchon pour une app sans `output_file` — le describer.)
+        for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate'):
+            corps = self._fonction(view)
+            self.assertIn('batch_elements(', corps, f'{view} ne lit pas le lot par la brique')
+            self.assertNotIn('.objects.filter(batch=', corps)
+
+    def test_linking_goes_through_the_common_brick_in_both_creation_paths(self):
+        link = self._fonction('_link_to_batch')
+        self.assertIn("attach_to_batch(obj, lot, idx, item_model=BatchDescriptionItem, fk_name='description')", link)
+        self.assertNotIn('objects.create', link, 'la ligne de liaison se crée par la brique')
+        self.assertIn('link_item=_link_to_batch', self._fonction('batch_create'))
+        self.assertIn('_link_to_batch(new_b, new, idx)', self._fonction('batch_duplicate'))
+        # Le dépôt unitaire ENVELOPPE à la création (idiome des apps réelles), par la brique.
+        self.assertIn("wrap_in_batch(item, batch_model=BatchDescription, "
+                      "item_model=BatchDescriptionItem, fk_name='description')",
+                      self._fonction('upload'))
+
+    def test_the_queue_is_built_by_the_common_bricks_of_the_real_apps(self):
+        self.assertIn("auto_wrap_orphans(user, work_model=Description, batch_model=BatchDescription,",
+                      self._fonction('_auto_wrap_orphans'))
+        self.assertIn("build_batches_list(user, batch_model=BatchDescription, work_attr='description',",
+                      self.src)
+        self.assertIn('make_queue_manipulation_views(\n', self.src)
+        self.assertNotIn('make_queue_manipulation_views_direct', self.src)
+        self.assertIn("item_model=BatchDescriptionItem, fk_name='description',", self.src)
+        self.assertIn('from .models import BatchDescription, BatchDescriptionItem, Description', self.src)
+
+    def test_apps_gen_keeps_the_link_batch_sync_for_this_form(self):
+        """Le jumeau : `apps_gen` branche `register_batch_sync(<Liaison>)`, jamais la forme
+        `direct_fk=True` — sinon deux invariants pour une seule table."""
+        from wama.common.manifests.codegen.apps_gen import render_apps
+        from wama.common.manifests.ingest import extract
+        src, raison = render_apps(extract('app', SOURCE_LINK))
+        self.assertIsNotNone(src, raison)
+        self.assertIn('register_batch_sync(BatchDescriptionItem)', src)
+        self.assertNotIn('direct_fk=True', src)
+
+    def test_all_link_form_apps_now_render(self):
+        """Le trou #30 se mesure sur le PARC : chaque app à liaison rend un views.py qui compile.
+        Un refus ou une SyntaxError sur l'une d'elles rouvre le trou pour sa jumelle."""
+        from wama.common.manifests.ingest import extract
+        for app in ('describer', 'composer', 'imager', 'reader', 'avatarizer', 'synthesizer',
+                    'anonymizer', 'enhancer', 'transcriber'):
+            with self.subTest(app=app):
+                src, raison = render_views(extract('app', app))
+                self.assertIsNotNone(src, f'{app} : {raison}')
+                ast.parse(src)

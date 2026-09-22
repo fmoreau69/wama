@@ -77,6 +77,20 @@ ROUTE_ALIASES = {
     # `poll: False`, aucune boucle émise — un gating qui teste le nom canonique en dur
     # refait exactement le défaut que cette table existe pour absorber).
     'progress': ('status',),
+    # composer : la création de lot s'appelle `import_batch` (route `import/`). Sans l'alias,
+    # l'index GÉNÉRÉ de `composer_01` référençait `{% url 'composer_01:batch_create' %}` →
+    # NoReverseMatch, page entière en 500 (mesuré le 2026-09-22 à la substitution des
+    # templates). Même corps conventionnel (parse → création → regroupement), autre nom.
+    'batch_create': ('import_batch',),
+    # composer : la CRÉATION d'un élément s'appelle `generate` (route `generate/`, un prompt
+    # plutôt qu'un fichier). Le corps conventionnel émis sous ce nom crée depuis un FICHIER :
+    # l'écart (création par prompt) est la glu du composer, VISIBLE au diff — la page, elle,
+    # boote au lieu de tomber sur `{% url 'composer_01:upload' %}` (NoReverseMatch, 22/09).
+    # imager : `create` (route `create/`, vue `create_generation`, prompt aussi) — même raison.
+    # ⚠ Les autres routes de l'imager (`start/<int:generation_id>/` → `start_generation`…)
+    # restent des BOUCHONS dans le généré : nom de vue ET kwarg dévient de la convention
+    # (`<int:pk>`) — les harmoniser est un chantier de PORTAGE de l'imager, pas un alias.
+    'upload': ('generate', 'create'),
     # anonymizer nomme ses gestes d'après son modèle (`Media`) : `duplicate_media` et
     # `clear_all_media`. Ajoutés le 2026-09-12 après une erreur de mesure QUI A COÛTÉ UN FAUX
     # CONSTAT : j'avais mesuré `reverse('anonymizer:duplicate')` → NoReverseMatch et conclu
