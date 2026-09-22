@@ -592,11 +592,7 @@ def delete(request, pk: int):
     safe_delete_file(enhancement, 'input_file')
 
     # Output file is unique to this enhancement — delete unconditionally
-    if enhancement.output_file:
-        try:
-            enhancement.output_file.delete(save=False)
-        except Exception:
-            pass
+    safe_delete_file(enhancement, 'output_file')
 
     enhancement.delete()  # signal batch_sync : recale total / supprime le batch vidé
     cache.delete(f"enhancer_progress_{pk}")
@@ -715,16 +711,8 @@ def clear_all(request):
     cleared = []
     for enhancement in enhancements:
         cleared.append(enhancement.id)
-        if enhancement.input_file:
-            try:
-                enhancement.input_file.delete(save=False)
-            except:
-                pass
-        if enhancement.output_file:
-            try:
-                enhancement.output_file.delete(save=False)
-            except:
-                pass
+        safe_delete_file(enhancement, 'input_file')
+        safe_delete_file(enhancement, 'output_file')
         cache.delete(f"enhancer_progress_{enhancement.id}")
 
     enhancements.delete()
@@ -1081,11 +1069,7 @@ def batch_delete(request, pk: int):
 
     for e in enhancements_to_delete:
         safe_delete_file(e, 'input_file')
-        if e.output_file:
-            try:
-                e.output_file.delete(save=False)
-            except Exception:
-                pass
+        safe_delete_file(e, 'output_file')
         cache.delete(f"enhancer_progress_{e.id}")
         e.delete()
 
@@ -1361,11 +1345,7 @@ def audio_delete(request, pk: int):
     safe_delete_file(ae, 'input_file')
 
     # Output is unique — delete unconditionally
-    if ae.output_file:
-        try:
-            ae.output_file.delete(save=False)
-        except Exception:
-            pass
+    safe_delete_file(ae, 'output_file')
 
     ae.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ fichier batch)
     cache.delete(f"audio_enhancer_progress_{pk}")
@@ -1459,11 +1439,7 @@ def audio_clear_all(request):
     for ae in aes:
         cleared.append(ae.id)
         safe_delete_file(ae, 'input_file')
-        if ae.output_file:
-            try:
-                ae.output_file.delete(save=False)
-            except Exception:
-                pass
+        safe_delete_file(ae, 'output_file')
         cache.delete(f"audio_enhancer_progress_{ae.id}")
     aes.delete()
     # Clean up orphan batch containers and their files
@@ -1751,11 +1727,7 @@ def audio_batch_delete(request, pk):
 
     for ae in aes_to_delete:
         safe_delete_file(ae, 'input_file')
-        if ae.output_file:
-            try:
-                ae.output_file.delete(save=False)
-            except Exception:
-                pass
+        safe_delete_file(ae, 'output_file')
         cache.delete(f"audio_enhancer_progress_{ae.id}")
         ae.delete()
 

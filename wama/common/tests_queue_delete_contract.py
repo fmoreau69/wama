@@ -279,9 +279,10 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
         self.addCleanup(setting.disable)
         self.addCleanup(shutil.rmtree, self.tmp, True)
 
-    def _witness(self, model, account, folder):
-        """Un élément dont CHAQUE champ fichier désigne un vrai fichier sous `dossier`."""
-        el = _instance(model, account)
+    def _witness(self, model, account, folder, el=None):
+        """Un élément dont CHAQUE champ fichier désigne un vrai fichier sous `folder` (créé, ou
+        l'élément `el` fourni — celui d'un lot, par exemple)."""
+        el = el or _instance(model, account)
         files = []
         for f in model._meta.concrete_fields:
             if not isinstance(f, models.FileField):
@@ -325,32 +326,179 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
                                              'sur le disque — la règle de propriété ne les '
                                              'reconnaît pas comme siens')
 
-    #: ⚠ DETTE MESURÉE le 2026-09-22 — un BUDGET qui ne peut que DESCENDRE, pas une tolérance.
-    #: Le premier passage de ce test a trouvé que supprimer une card DÉTRUIT un fichier qu'elle ne
-    #: faisait que référencer dans 10 apps sur 11 (seule la règle de propriété du converter, et
-    #: celle qu'émet le générateur, l'interdisent). La plupart des apps COPIENT leur entrée, donc le
-    #: cas y est latent ; mais `MEDIA_STORAGE_TIERING §8` nomme des imports qui POINTENT vers le
-    #: temp de l'utilisateur — là, supprimer la card efface le fichier d'origine. Chaque app
-    #: supprime à la fois par `safe_delete_file` et en direct : la correction n'est pas un geste au
-    #: commun, c'est un chantier (consigné, décision en attente). Ce budget l'empêche de GRANDIR
-    #: d'ici là, et oblige à le baisser dans le même geste que chaque correction.
-    REFERENCED_FILE_DESTROYERS_BUDGET = 10
+    # ── Les TROIS gestes qui suppriment, et ce qu'aucun ne doit détruire ─────────────────────────
+    #
+    # ⚠ Ces tests REMPLACENT, le 2026-09-22, un budget de « 10 apps qui détruisent un fichier
+    # référencé » posé la veille. Revérifié à la demande de Fabien (« ça m'étonne… a-t-on cassé
+    # quelque chose, ou pas été au bout du chantier ? ») : RIEN n'a été cassé. `safe_delete_file`
+    # n'a jamais regardé OÙ vit le fichier — une seule version depuis le 2026-03-10, qui ne compte
+    # que les autres lignes du même modèle. La garde « jamais hors de chez soi » est née le 31/08
+    # d'un audit du SEUL converter (et de sa jumelle, par le générateur) et n'a jamais été portée
+    # aux autres apps. Deux pointeurs vivants en font une perte réelle : `text_file` (synthesizer,
+    # import d'un fichier déjà sur le serveur) et `audio_input` (avatarizer, lot `-i`).
 
-    def test_no_more_apps_than_the_budget_destroy_a_file_they_only_reference(self):
-        offenders = []
-        for surface, route, account, model, _app_home in self._fleet():
-            el, files = self._witness(model, account, f'users/{account.id}/temp')
-            if not files:
+    def _route_for(self, delete_route, canonical, args):
+        """URL du geste `canonical` pour la même app que `delete_route`, '' si l'app ne l'offre pas.
+
+        Les orthographes viennent de `route_variants` (la table qui sert déjà l'API de
+        l'assistant) ; la famille de routes (`audio_`) se lit sur la route de suppression. Rien
+        n'est supposé d'une app en particulier.
+        """
+        from django.urls import NoReverseMatch
+        from wama.common.manifests.codegen.urls_gen import route_variants
+        namespace, name = delete_route.split(':')
+        family = name[:-len('delete')]
+        for variant in route_variants(canonical):
+            try:
+                return reverse(f'{namespace}:{family}{variant}', args=args)
+            except NoReverseMatch:
                 continue
-            self._delete_card(route, el)
-            if any(not p.exists() for p in files):
-                offenders.append(surface)
-        self.assertEqual(
-            self.REFERENCED_FILE_DESTROYERS_BUDGET, len(offenders),
-            f'{len(offenders)} app(s) détruisent un fichier seulement RÉFÉRENCÉ (budget '
-            f'{self.REFERENCED_FILE_DESTROYERS_BUDGET}) : {sorted(offenders)}. Au-dessus du budget, '
-            'une app de plus détruit des fichiers d’utilisateur ; en dessous, une correction a '
-            'été faite — baisser le budget dans le même geste.')
+        return ''
+
+    def _post(self, url):
+        r = self.client.post(url, data='{}', content_type='application/json')
+        self.assertLess(r.status_code, 400, f'{url} : {r.status_code} {r.content[:300]}')
+
+    def _by_gesture(self, surface, route, account, model, folder):
+        """(geste, fichiers témoins) après avoir joué chaque geste de suppression offert."""
+        el, files = self._witness(model, account, folder)
+        if not files:
+            return []
+        self._delete_card(route, el)
+        played = [('delete', files)]
+
+        el, files = self._witness(model, account, folder)
+        url = self._route_for(route, 'clear_all', [])
+        if url:
+            self._post(url)
+            played.append(('clear_all', files))
+
+        batch, (el,) = _lot_de(model, account, 1)
+        el, files = self._witness(model, account, folder, el=el)
+        url = self._route_for(route, 'batch_delete', [batch.pk])
+        if url:
+            self._post(url)
+            played.append(('batch_delete', files))
+        return played
+
+    def test_no_deletion_gesture_destroys_a_file_the_card_only_references(self):
+        for surface, route, account, model, _app_home in self._fleet():
+            for gesture, files in self._by_gesture(surface, route, account, model,
+                                                 f'users/{account.id}/temp'):
+                with self.subTest(surface=surface, gesture=gesture):
+                    lost = [p.name for p in files if not p.exists()]
+                    self.assertEqual([], lost, f'« {gesture} » a détruit des fichiers de '
+                                               'l’utilisateur que la card ne faisait que RÉFÉRENCER')
+
+    def test_every_deletion_gesture_removes_the_files_the_app_owns(self):
+        for surface, route, account, model, app_home in self._fleet():
+            for gesture, files in self._by_gesture(surface, route, account, model, app_home):
+                with self.subTest(surface=surface, gesture=gesture):
+                    left_over = [p.name for p in files if p.exists()]
+                    self.assertEqual([], left_over, f'« {gesture} » a laissé sur le disque des '
+                                                    'fichiers qui appartenaient à l’app')
+
+    def test_every_app_offers_the_three_deletion_gestures(self):
+        """Non-vacuité : un geste introuvable ferait sauter ses sous-tests EN SILENCE."""
+        for surface, route, _account, _model, _app_home in self._fleet():
+            with self.subTest(surface=surface):
+                self.assertTrue(self._route_for(route, 'clear_all', []), 'pas de « tout effacer »')
+                self.assertTrue(self._route_for(route, 'batch_delete', [1]), 'pas de suppression de lot')
+
+    def test_a_file_shared_by_a_duplicate_survives_until_its_last_card_goes(self):
+        """« Dupliquer » PARTAGE le fichier (`duplicate_instance`, par contrat) : supprimer
+        l'original ne doit pas casser la copie, et le fichier part avec la dernière card."""
+        from wama.common.utils.queue_duplication import duplicate_instance
+        for surface, route, account, model, app_home in self._fleet():
+            with self.subTest(surface=surface):
+                original, files = self._witness(model, account, app_home)
+                if not files:
+                    continue
+                duplicate = duplicate_instance(original)
+                self._delete_card(route, original)
+                lost = [p.name for p in files if not p.exists()]
+                self.assertEqual([], lost, 'supprimer l’original a détruit un fichier que sa '
+                                           'COPIE utilise encore')
+                self._delete_card(route, duplicate)
+                left_over = [p.name for p in files if p.exists()]
+                self.assertEqual([], left_over, 'la dernière card partie, le fichier est resté')
+
+
+class SafeDeleteFileContractTest(TestCase):
+    """Le contrat de LA brique : `safe_delete_file` ne détruit qu'un fichier de l'app, non partagé.
+
+    Les tests de parc ci-dessus passent par les VUES (ils attestent que chaque geste emploie la
+    brique) ; ceux-ci fixent la brique elle-même, cas par cas, sur le premier modèle de file du
+    registre — n'importe lequel convient, c'est la règle qu'on éprouve, pas une app.
+    """
+
+    def setUp(self):
+        import shutil
+        import tempfile
+
+        from django.test import override_settings
+        from wama.common.utils.preview_registry import PreviewRegistry
+
+        self.tmp = tempfile.mkdtemp()
+        setting = override_settings(MEDIA_ROOT=self.tmp)
+        setting.enable()
+        self.addCleanup(setting.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.user = User.objects.create_user('brique_suppression', password='x')
+        self.other = User.objects.create_user('brique_suppression_autre', password='x')
+        surface = _surfaces()[0][0]
+        self.model = PreviewRegistry.get_model(surface)
+        self.field = next(f.name for f in self.model._meta.concrete_fields
+                          if isinstance(f, models.FileField))
+
+    def _card(self, rel, owner=None):
+        path = Path(self.tmp) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'x')
+        card = _instance(self.model, owner or self.user)
+        setattr(card, self.field, rel)
+        card.save()
+        return card, path
+
+    def _home(self, user, name):
+        from wama.common.utils.media_paths import app_media_dir
+        return f"{app_media_dir(self.model._meta.app_label, user.id, 'output')}/{name}"
+
+    def test_the_apps_own_unshared_file_is_deleted(self):
+        from wama.common.utils.queue_duplication import safe_delete_file
+        card, path = self._card(self._home(self.user, 'a.bin'))
+        self.assertTrue(safe_delete_file(card, self.field))
+        self.assertFalse(path.exists())
+
+    def test_a_file_in_the_users_own_space_is_never_deleted(self):
+        from wama.common.utils.queue_duplication import safe_delete_file
+        card, path = self._card(f'users/{self.user.id}/temp/a.bin')
+        self.assertFalse(safe_delete_file(card, self.field))
+        self.assertTrue(path.exists())
+
+    def test_a_file_in_another_users_home_is_never_deleted(self):
+        """Même app, autre propriétaire : le chemin est « chez une app », mais pas chez CELLE-CI
+        pour CE compte — le préfixe porte l'identifiant, et c'est lui qui tranche."""
+        from wama.common.utils.queue_duplication import safe_delete_file
+        card, path = self._card(self._home(self.other, 'a.bin'))
+        self.assertFalse(safe_delete_file(card, self.field))
+        self.assertTrue(path.exists())
+
+    def test_a_shared_file_survives_until_its_last_card_goes(self):
+        from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
+        card, path = self._card(self._home(self.user, 'a.bin'))
+        copy = duplicate_instance(card)
+        self.assertFalse(safe_delete_file(card, self.field), 'fichier encore partagé')
+        card.delete()
+        self.assertTrue(path.exists())
+        self.assertTrue(safe_delete_file(copy, self.field))
+        self.assertFalse(path.exists())
+
+    def test_an_empty_field_is_a_no_op(self):
+        from wama.common.utils.queue_duplication import safe_delete_file
+        card = _instance(self.model, self.user)
+        setattr(card, self.field, '')
+        self.assertFalse(safe_delete_file(card, self.field))
 
 
 # ── Le jumeau gabarit ↔ JS ────────────────────────────────────────────────────────────────────

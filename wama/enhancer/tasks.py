@@ -109,11 +109,10 @@ def _store_output(item, local_path: str, storage_name: str) -> str:
     de stockage effectif."""
     from django.core.files.base import ContentFile
     from django.core.files.storage import default_storage
-    if item.output_file:
-        try:
-            item.output_file.delete(save=False)
-        except Exception as exc:
-            logger.warning(f"Could not delete old output file: {exc}")
+    # L'ancien résultat : par la brique (propriété + partage) — une copie faite par « Dupliquer »
+    # peut encore le désigner. La référence est remplacée plus bas dans tous les cas.
+    from wama.common.utils.queue_duplication import safe_delete_file
+    safe_delete_file(item, 'output_file')
     if default_storage.exists(storage_name):
         try:
             default_storage.delete(storage_name)

@@ -60,11 +60,7 @@ def _auto_wrap_orphans(user):
 
 def _reset_for_relaunch(gen):
     """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race (begin_processing)."""
-    if gen.audio_output:
-        try:
-            gen.audio_output.delete(save=False)
-        except Exception:
-            pass
+    safe_delete_file(gen, 'audio_output')
     gen.progress = 0
     gen.audio_output = None
     gen.error_message = None
@@ -623,11 +619,7 @@ def delete(request, pk):
     snapshot = batch_snapshot(gen)
 
     # Delete output unconditionally
-    if gen.audio_output:
-        try:
-            gen.audio_output.delete(save=False)
-        except Exception:
-            pass
+    safe_delete_file(gen, 'audio_output')
 
     # Melody reference: check refs before deleting
     if gen.melody_reference:
@@ -650,19 +642,11 @@ def batch_delete(request, pk):
 
     for item in batch.items.select_related('generation'):
         gen = item.generation
-        if gen.audio_output:
-            try:
-                gen.audio_output.delete(save=False)
-            except Exception:
-                pass
+        safe_delete_file(gen, 'audio_output')
         if gen.melody_reference:
             safe_delete_file(gen, 'melody_reference')
 
-    if batch.batch_file:
-        try:
-            batch.batch_file.delete(save=False)
-        except Exception:
-            pass
+    safe_delete_file(batch, 'batch_file')
 
     batch.delete()  # cascades to items and generations
     return JsonResponse({'success': True})
@@ -883,11 +867,7 @@ def clear_all(request):
 
     gens = ComposerGeneration.objects.filter(user=user).exclude(status='RUNNING')
     for gen in gens:
-        if gen.audio_output:
-            try:
-                gen.audio_output.delete(save=False)
-            except Exception:
-                pass
+        safe_delete_file(gen, 'audio_output')
         if gen.melody_reference:
             safe_delete_file(gen, 'melody_reference')
 

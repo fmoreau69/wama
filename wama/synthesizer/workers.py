@@ -20,6 +20,7 @@ from django.core.files.base import ContentFile
 
 from .models import VoiceSynthesis
 from wama.common.utils.console_utils import push_console_line
+from wama.common.utils.queue_duplication import safe_delete_file
 from .utils.text_extractor import extract_text_from_file
 from .utils.audio_processor import process_audio_output
 
@@ -502,12 +503,9 @@ def cleanup_old_syntheses(days=7):
     count = 0
     for synthesis in old_syntheses:
         # Supprimer les fichiers
-        if synthesis.text_file:
-            synthesis.text_file.delete(save=False)
-        if synthesis.audio_output:
-            synthesis.audio_output.delete(save=False)
-        if synthesis.voice_reference:
-            synthesis.voice_reference.delete(save=False)
+        safe_delete_file(synthesis, 'text_file')
+        safe_delete_file(synthesis, 'audio_output')
+        safe_delete_file(synthesis, 'voice_reference')
 
         synthesis.delete()
         count += 1

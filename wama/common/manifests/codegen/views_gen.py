@@ -192,8 +192,10 @@ def _nature(nom):
     # Dérivée de la politique du converter réel (`_is_app_owned`) : on ne supprime un
     # fichier QUE s'il vit dans l'arbre média de L'APP. Un fichier seulement RÉFÉRENCÉ
     # (envoi Filemanager, galerie partagée) appartient à l'utilisateur — le supprimer avec
-    # la card détruirait une donnée hors de la juridiction de l'app, et `safe_delete_file`
-    # ne teste que les doubles références EN BASE, pas la propriété. Conservatrice par
+    # la card détruirait une donnée hors de la juridiction de l'app. ⚠ Depuis le 2026-09-22
+    # `safe_delete_file` porte ELLE-MÊME cette règle (`owns_file`), pour tout le parc : cette
+    # garde générée est donc REDONDANTE — gardée jusqu'à la prochaine passe du générateur, qui
+    # la retirera avec son test et la jumelle, jamais en passant. Conservatrice par
     # construction : elle protège AUSSI la politique inverse (rattachement par référence,
     # avatarizer) — l'arbitrage de PLATEFORME reste ouvert (ROUTE §S2ter), cette garde n'en
     # préjuge pas : elle ne fait qu'interdire de détruire hors de chez soi.

@@ -544,16 +544,11 @@ def clear_all(request):
                             status=400)
     count = 0
     for job in jobs:
-        # Même nettoyage de fichiers que la vue delete() par item
+        # Même nettoyage que la vue delete() — par la brique : `audio_input` peut POINTER vers
+        # un fichier de l'utilisateur (lot `-i`), et un `os.remove` direct l'effaçait (relevé le
+        # 2026-09-22). La brique ne détruit que ce qui vit chez l'app, et que plus rien ne partage.
         for field_name in ['audio_input', 'avatar_upload', 'output_video']:
-            f = getattr(job, field_name)
-            if f:
-                try:
-                    path = f.path
-                    if os.path.exists(path):
-                        os.remove(path)
-                except Exception:
-                    pass
+            safe_delete_file(job, field_name)
         job.delete()  # signal batch_sync : recale total / supprime le batch vidé
         count += 1
     return JsonResponse({'deleted': count})

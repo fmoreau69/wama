@@ -67,7 +67,7 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines
 
 - **Domicile** : `wama/common/utils/process_control.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Contrôle de process COMMUN — brique transversale (cf. memory project_process_button_lifecycle).
-- **API publique** (9) :
+- **API publique** (10) :
   - `begin_processing(model, pk, *, user=None, reset=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING')` — Démarrage ANTI-RACE d'un item (pattern obligatoire AGENTS.md — généralise describer
   - `stop_instance(instance, *, status_field: str='status', task_field: str='task_id', to_status: str='FAILURE', error_field: str | None=None, error_message: str="I…` — Stoppe le traitement d'un item : révoque la tâche Celery (SIGTERM) et le remet dans un état
   - `is_task_dead(task_id: str) -> bool` — True si la tâche Celery est dans un état terminal (finie/échouée/révoquée). NE classe PAS PENDING
@@ -75,6 +75,7 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines
   - `collect_worker_snapshot(timeout: float=2.0)` — Photo de la flotte Celery en UNE interrogation :
   - `task_owner(task_id: str) -> str | None` — Nom du worker qui exécute la tâche (ex. ``'gpu@fbro-20-026'``), ou None si inconnu.
   - `is_task_orphaned(task_id: str, snapshot) -> bool` — True SEULEMENT si l'on a une PREUVE POSITIVE que la tâche est morte : elle a démarré
+  - `is_task_lost(task_id: str, snapshot) -> bool` — True SEULEMENT si la tâche n'est PLUS NULLE PART : état Celery `PENDING`, aucun message
   - `reconcile_orphaned_running(instances, *, snapshot=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING', to_status: str='FA…` — Réconcilie une liste d'items RUNNING dont la tâche Celery est TERMINÉE (is_task_dead)
   - `refuse_crash_redelivery(task, instance, *, status_field: str='status', task_field: str='task_id', to_status: str='FAILURE', error_field: str | None=None, error…` — Garde ANTI-BOUCLE-DE-CRASH pour les tâches lourdes (GPU) — à appeler EN TÊTE
 
@@ -273,8 +274,10 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
 
 - **Domicile** : `wama/common/utils/auto_model.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Auto-sélection de modèle — brique COMMUNE (valeur « auto » d'un select de modèle).
-- **API publique** (8) :
+- **API publique** (10) :
   - `read_quality_intent(value) -> int` — Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
+  - `posted_quality_intent(source)` — Curseur POSTÉ (POST ou dict JSON) → entier borné, ou **None** s'il n'est pas posté ou
+  - `preset_key_for_intent(intent) -> str` — La POSITION NOMMÉE la plus proche d'une valeur de curseur (`QUALITY_PRESETS` du sélecteur :
   - `intent_param(**overrides) -> dict` — Surcouche STANDARD du curseur de qualité pour un schéma d'app (`derive_from_model`).
   - `is_auto(value) -> bool` — Cette valeur demande-t-elle le tirage automatique ? (vide compris).
   - `catalog_domain(app_id: str)` — DOMAINE déclaré au schéma de l'app pour son select de modèle, ou None.
@@ -1186,7 +1189,7 @@ Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via R
 
 ### Dossier de travail jetable
 
-Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; reste `enhancer/tasks.py:534`, déjà nettoyé sur les deux chemins, dont le portage est une restructuration d'une fonction GPU de 200 lignes. ⚠⚠ L'audit AUTOMATIQUE des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à « si le dossier est vide » qui ne se déclenchait donc jamais, un nettoyage placé APRÈS l'appel qui sautait sur exception, et un `except ImportError` qui empêchait un repli d'exister. Un relevé par motif oriente ; il ne conclut pas. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés
+Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; le dernier site, la boucle vidéo de l'enhancer (ex-`tasks.py:534`), est porté depuis le 26/08 et vit depuis le 21/09 dans sa route `enhancer/backends/media_backend.py:82` (la glu `enhancer/tasks.py:156` en ouvre un second pour ranger la sortie). ⚠⚠ L'audit AUTOMATIQUE des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à « si le dossier est vide » qui ne se déclenchait donc jamais, un nettoyage placé APRÈS l'appel qui sautait sur exception, et un `except ImportError` qui empêchait un repli d'exister. Un relevé par motif oriente ; il ne conclut pas. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés
 
 - **Domicile** : `wama/common/utils/work_dir.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Dossier de TRAVAIL jetable — les fichiers intermédiaires ne vivent pas dans `media/`.
@@ -1200,8 +1203,10 @@ duplicate_instance() et safe_delete_file() — fichiers partagés entre items
 
 - **Domicile** : `wama/common/utils/queue_duplication.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : WAMA — Common utilities for queue item duplication and safe file deletion.
-- **API publique** (2) :
-  - `safe_delete_file(instance, field_name: str) -> bool` — Delete a FileField's physical file only if no other DB row references the same path.
+- **API publique** (4) :
+  - `owns_file(instance, file_name: str) -> bool` — Le fichier vit-il dans le DOMICILE de l'app de cette card (`users/<uid>/<app>/…`) ?
+  - `safe_delete_file(instance, field_name: str) -> bool` — Delete a FileField's physical file only if it is the card's OWN file and no other row
+  - `is_shared_elsewhere(instance, field_name: str, file_name: str) -> bool` — Une AUTRE ligne du même modèle désigne-t-elle ce fichier dans le même champ ?
   - `duplicate_instance(instance, reset_fields=None, clear_fields=None)` — Create a new DB row that shares the same input file(s) as the original.
 
 ### Entrée de file (card seule OU lot)
@@ -1614,8 +1619,9 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
 
 - **Domicile** : `wama/common/utils/scoping.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Accès à un objet partageable depuis une vue — DEUX chemins nommés, et deux seulement.
-- **API publique** (2) :
+- **API publique** (3) :
   - `visible_or_404(model, user, **kwargs)` — Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public).
+  - `listable_by(queryset, user)` — Ce que `user` a le droit de LISTER : `visible_to`, sauf pour le compte de service anonyme.
   - `owned_or_404(model, user, **kwargs)` — Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
 
 ### Actualisation des catalogues
@@ -1989,7 +1995,7 @@ LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur
   - `speaker_wav_for(model_key: str, voice_preset: str, user=None, reference_path: Optional[str]=None) -> Optional[str]` — LA porte des workers et des aperçus : le `speaker_wav` à passer au service TTS.
   - `ingest_voice_file(name: str, path, *, source_url: str='', license: str='', description: str='', replace: bool=False)` — Verse UN fichier de voix dans la médiathèque comme `SystemAsset(voice)` nommé `name`,
   - `needs_voice_download() -> bool` — Vrai si une voix du catalogue n'est pas (encore) en médiathèque.
-  - `download_missing_voice_refs(force: bool=False) -> Dict[str, str]` — Télécharge les voix de référence manquantes et les VERSE en médiathèque.
+  - `download_missing_voice_refs(force: bool=False, names=None) -> Dict[str, str]` — Télécharge les voix de référence manquantes et les VERSE en médiathèque.
   - `describe_voice(preset_value: str, user=None) -> str` — Le libellé d'une valeur de `voice_preset`, quelle que soit sa forme — pour AFFICHER
 
 ### Écrivain de conteneur (WAMA Data)
