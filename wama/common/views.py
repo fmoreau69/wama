@@ -580,6 +580,8 @@ def external_sources_view(request):
       l'écran. La page ne sonde jamais elle-même : quatorze requêtes réseau dans un rendu
       de page seraient le défaut des 31 s des anciens boutons, en pire (réseau externe).
     """
+    from django.urls import reverse
+
     from .external_sources import KINDS, SOURCES, LOCAL, api_key, base_url, last_report
 
     rapport = last_report()
@@ -593,6 +595,9 @@ def external_sources_view(request):
             'setting': s.setting, 'env': s.env,
             'api_key_env': s.api_key_env,
             'cle_posee': bool(api_key(s.key)) if s.api_key_env else None,
+            # Clé posée par CHAQUE utilisateur, au profil (22/09) — jamais « configurée » ici.
+            'user_key': s.user_key,
+            'api_key_label': s.api_key_label, 'api_key_help_url': s.api_key_help_url,
             'attribution': s.attribution,
             'sonde': sondes.get(s.key),
         })
@@ -613,7 +618,9 @@ def external_sources_view(request):
         'rapport_date': (rapport or {}).get('generated_at', ''),
         'compteurs': (rapport or {}).get('counts', {}),
         'nb_locales': sum(1 for l in lignes if l['locale']),
-        'nb_a_cle': sum(1 for l in lignes if l['api_key_env']),
+        'nb_a_cle': sum(1 for l in lignes if l['api_key_env'] or l['user_key']),
+        'user_key_count': sum(1 for l in lignes if l['user_key']),
+        'profile_url': reverse('accounts:profile'),
         'facettes_sources': facettes,
         # Inspecteur au clic sur une carte (volet droit : Paramètres = fiche, Actions =
         # boutons) — même câblage que `/apps/` (`WamaInspector` + `WamaDetails`). Pas de

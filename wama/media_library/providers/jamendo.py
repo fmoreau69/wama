@@ -15,7 +15,6 @@ class JamendoProvider(BaseProvider):
     supported_types  = ['audio_music']
     requires_api_key = True
 
-    _BASE = 'https://api.jamendo.com/v3.0'
     _UA   = 'WAMA/1.0 (media library)'
 
     def search(self, query: str, asset_type: str, page: int = 1, per_page: int = 20) -> dict:
@@ -36,7 +35,7 @@ class JamendoProvider(BaseProvider):
             'imagesize':   '200',
             'audioformat': 'mp31',   # MP3 128 kbps
         }
-        url = f"{self._BASE}/tracks/?{urllib.parse.urlencode(params)}"
+        url = f"{self.base_url()}/tracks/?{urllib.parse.urlencode(params)}"
 
         try:
             with self.open_url(url, timeout=15, headers={'User-Agent': self._UA}) as r:

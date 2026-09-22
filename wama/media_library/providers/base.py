@@ -12,20 +12,28 @@ from dataclasses import dataclass, field
 USER_AGENT = 'WAMA/1.0 (media library; +https://github.com/wama)'
 
 
-def build_opener():
-    """L'ouvreur urllib de TOUS les connecteurs, avec le proxy sortant de WAMA.
+def build_opener(source_key: str):
+    """L'ouvreur urllib d'un connecteur, avec le proxy que la PORTÉE de sa source déclare.
 
     Jusqu'au 2026-09-21, chaque connecteur appelait `urllib.request.urlopen` directement.
     urllib lit bien `HTTP(S)_PROXY` dans l'environnement, mais IGNORE le réglage Django
     `WAMA_OUTBOUND_PROXY` que la brique commune honore (`common/utils/http_proxy.py`) : derrière
     le proxy de l'université, la médiathèque était la seule surface sortante à ne pas le suivre.
-    `outbound_proxies()` résout le réglage puis l'environnement ; quand aucun des deux n'est
-    posé, on ne passe AUCUN gestionnaire et urllib garde exactement son comportement d'avant.
+
+    Depuis le 2026-09-22 les connecteurs sont des sources du registre (`external_sources`,
+    famille `media`) : le choix du proxy vient de `proxies_for(<clé>)`, comme pour toute source,
+    au lieu d'être supposé ici. Traduction vers urllib, qui ne parle pas le format `requests` :
+      • `None` (aucun proxy configuré) → AUCUN gestionnaire : urllib garde son comportement ;
+      • des valeurs toutes `None` (portée LOCALE : proxy NEUTRALISÉ) → `ProxyHandler({})` — un
+        dictionnaire à valeurs `None` passé tel quel ferait échouer urllib ;
+      • sinon → les proxies déclarés.
     """
-    from wama.common.utils.http_proxy import outbound_proxies
-    proxies = outbound_proxies()
-    return urllib.request.build_opener(
-        *([urllib.request.ProxyHandler(proxies)] if proxies else []))
+    from wama.common.external_sources import proxies_for
+    proxies = proxies_for(source_key)
+    if proxies is None:
+        return urllib.request.build_opener()
+    real = {scheme: url for scheme, url in proxies.items() if url}
+    return urllib.request.build_opener(urllib.request.ProxyHandler(real))
 
 
 @dataclass
@@ -94,7 +102,15 @@ class BaseProvider(ABC):
         lui-même contournerait de nouveau le proxy, sans la moindre erreur.
         """
         req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT, **(headers or {})})
-        return build_opener().open(req, timeout=timeout)
+        return build_opener(self.slug).open(req, timeout=timeout)
+
+    def base_url(self) -> str:
+        """L'adresse de base de ce connecteur, lue au REGISTRE des sources (sa clé = son slug).
+
+        Plus de constante d'adresse dans les connecteurs depuis le 2026-09-22 : la garde
+        `tests_external_sources` refuse toute recopie d'une adresse déclarée."""
+        from wama.common.external_sources import base_url
+        return base_url(self.slug)
 
     def download_bytes(self, download_url: str) -> bytes:
         """Télécharge le fichier et retourne ses octets. Override si besoin d'auth."""

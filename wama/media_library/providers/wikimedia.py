@@ -16,7 +16,6 @@ class WikimediaProvider(BaseProvider):
     supported_types  = ['image', 'video']
     requires_api_key = False
 
-    _API = 'https://commons.wikimedia.org/w/api.php'
     _UA  = 'WAMA/1.0 (media library; +https://github.com/wama)'
 
     # MIME types acceptés par type d'asset
@@ -45,7 +44,7 @@ class WikimediaProvider(BaseProvider):
             'iiprop':       'url|size|mime|extmetadata',
             'iiurlwidth':   320,
         }
-        url = f"{self._API}?{urllib.parse.urlencode(params)}"
+        url = f"{self.base_url()}?{urllib.parse.urlencode(params)}"
 
         try:
             with self.open_url(url, timeout=15, headers={'User-Agent': self._UA}) as r:

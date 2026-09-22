@@ -15,8 +15,9 @@ class PexelsProvider(BaseProvider):
     supported_types  = ['image', 'video']
     requires_api_key = True
 
-    _IMAGE_API = 'https://api.pexels.com/v1/search'
-    _VIDEO_API = 'https://api.pexels.com/videos/search'
+    # Chemins sous la base déclarée au registre des sources (`external_sources`, 22/09).
+    _IMAGE_PATH = '/v1/search'
+    _VIDEO_PATH = '/videos/search'
     _UA        = 'WAMA/1.0 (media library)'
 
     def search(self, query: str, asset_type: str, page: int = 1, per_page: int = 20) -> dict:
@@ -27,9 +28,9 @@ class PexelsProvider(BaseProvider):
         if asset_type not in self.supported_types:
             return {'results': [], 'total': 0, 'has_more': False}
 
-        base_url = self._IMAGE_API if asset_type == 'image' else self._VIDEO_API
+        endpoint = self.base_url() + (self._IMAGE_PATH if asset_type == 'image' else self._VIDEO_PATH)
         params   = {'query': query, 'page': page, 'per_page': per_page}
-        url      = f"{base_url}?{urllib.parse.urlencode(params)}"
+        url      = f"{endpoint}?{urllib.parse.urlencode(params)}"
 
         try:
             with self.open_url(url, timeout=15, headers={

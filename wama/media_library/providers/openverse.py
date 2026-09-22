@@ -16,14 +16,13 @@ class OpenverseProvider(BaseProvider):
     supported_types  = ['image', 'audio_music']
     requires_api_key = False
 
-    _BASE = 'https://api.openverse.org/v1'
     _UA   = 'WAMA/1.0 (media library)'
 
     def search(self, query: str, asset_type: str, page: int = 1, per_page: int = 20) -> dict:
         if asset_type == 'image':
-            endpoint = f'{self._BASE}/images/'
+            endpoint = f'{self.base_url()}/images/'
         elif asset_type == 'audio_music':
-            endpoint = f'{self._BASE}/audio/'
+            endpoint = f'{self.base_url()}/audio/'
         else:
             return {'results': [], 'total': 0, 'has_more': False}
 

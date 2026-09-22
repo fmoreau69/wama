@@ -1272,12 +1272,14 @@ MECHANISMS = (
               "DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une "
               "plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa "
               "forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le "
-              "consommateur. ⚠ Ne couvre pas les connecteurs `media_library`, dont la clé est "
-              "une donnée PAR UTILISATEUR en base — les y rapatrier uniformiserait ce qui "
-              "n'est pas pareil",
+              "consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de "
+              "CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) "
+              "les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, "
+              "proxy et sonde d'ici, clé de chaque utilisateur",
               'wama/common/external_sources.py', 'docs/construction/suivi/PROJECT_STATUS.md',
               annexes=('wama/common/utils/http_proxy.py',
-                       'wama/common/utils/ollama_host.py')),
+                       'wama/common/utils/ollama_host.py',
+                       'wama/media_library/providers/base.py')),
     Mechanism('units_display', "Unités d'affichage",
               "Moteur UNIQUE de conversion d'unités pour la PRÉSENTATION (pint) : la donnée "
               "reste dans SON unité (`WamaVariables.unit`, `ParamSpec.unit`), la préférence "

@@ -240,6 +240,26 @@ class RegistreSondeTest(TestCase):
                      'id="inspectorActionButtons"', 'id="sources-data"'):
             self.assertContains(r, hote)
 
+    def test_une_source_a_cle_d_utilisateur_renvoie_au_profil_et_n_est_jamais_dite_configuree(self):
+        """Décision de Fabien (22/09) : les connecteurs de la médiathèque sont des sources
+        COMMUNES, mais chacun y pose SA clé. La page ne peut donc pas répondre « configurée » —
+        elle ne sait pas pour QUI —, elle renvoie au profil, comme pour les fournisseurs LLM."""
+        user = get_user_model().objects.create_user('sources_cle_test', password='x')
+        self.client.force_login(user)
+        with mock.patch.object(es, 'last_report', return_value=None):
+            r = self.client.get(reverse('common:sources_catalog'))
+        rows = {row['key']: row for row in r.context['lignes']}
+        media = [s for s in es.SOURCES if s.kind == 'media']
+        self.assertTrue(media, "aucun connecteur déclaré : la décision du 22/09 n'est pas appliquée")
+        for source in media:
+            row = rows[source.key]
+            self.assertEqual('', source.api_key_env, source.key)
+            # `cle_posee` reste None : une clé d'instance est la seule que la page puisse voir.
+            self.assertIsNone(row['cle_posee'], source.key)
+            if source.user_key:
+                self.assertTrue(row['user_key'], source.key)
+        self.assertContains(r, reverse('accounts:profile'))
+
     def test_le_registre_designe_bien_cette_page(self):
         from wama.common.registries import overview
         entree = next(r for r in overview() if r['key'] == 'external_sources')
