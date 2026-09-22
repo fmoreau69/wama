@@ -85,6 +85,21 @@ def record_exchange(conversation, message: str, resultat: dict) -> None:
     conversation.save(update_fields=['updated_at'])
 
 
+def last_loaded_domain(conversation, limite: int = MAX_TOURS) -> str:
+    """Domaine chargé au cours du fil (`charger_competence`, du plus récent au plus ancien), ou ''.
+
+    Sert au domaine de DÉVELOPPEMENT (2026-09-22) : une fois la compétence dev chargée, les
+    tours suivants du MÊME fil restent bridés aux modèles de niveau dev sans que la surface ait
+    à le redire — le modèle a choisi une fois, le fil s'en souvient."""
+    if conversation is None:
+        return ''
+    for turn in conversation.turns.filter(role='assistant').order_by('-created_at', '-pk')[:limite]:
+        for step in reversed(turn.tool_steps or []):
+            if (step or {}).get('tool') == 'charger_competence':
+                return str(((step or {}).get('args') or {}).get('domaine') or '')
+    return ''
+
+
 def display_entries(conversation, limite: int = 60) -> list:
     """Les derniers tours du fil au format d'AFFICHAGE d'une surface : les étapes d'outils
     précèdent la réponse, comme au moment où elle a été reçue.

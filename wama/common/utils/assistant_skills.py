@@ -48,6 +48,10 @@ class AssistantDomain:
     #: août sans AUCUN appelant, et les anciens rôles Dev/Coder de l'assistant exprimaient la même
     #: intention par une sous-chaîne de nom de modèle (`priority=['coder']`), qui ne matchait plus rien.
     benchmark_family: str = ''
+    #: Domaine de DÉVELOPPEMENT (2026-09-22) : le tour est BRIDÉ aux modèles de niveau dev
+    #: (`common/services/development_models.py` — curseur 100, réflexion, lot restreint, refus
+    #: plutôt qu'un petit modèle), et le domaine reste chargé pour la suite du fil.
+    development: bool = False
 
 
 #: Registre DÉCLARATIF des domaines. Ajouter un domaine = ajouter une entrée ici et un
@@ -61,6 +65,7 @@ DOMAINES = (
     AssistantDomain('design', 'Graphisme', 'assistant-design', rag=True,
                      help_text="Logos, illustrations, visuels — cadrés par l'identité du labo."),
     AssistantDomain('dev', 'Développement', 'assistant-dev', benchmark_family='coding',
+                     development=True,
                      help_text="Code, architecture et conventions de WAMA."),
     # rag=False à dessein : le substrat de ce domaine est EXTERNE (le web), pas le corpus du
     # labo — la fraîcheur vient de la récupération (WAMA_LLM.md §Investigation web).

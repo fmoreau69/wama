@@ -168,8 +168,23 @@ def resolve_model(provider, role, model=None):
     if model:
         return model
     if provider == 'ollama':
-        from config import select_model_for_role
-        return select_model_for_role(role)[1].ollama_id
+        # BRIDAGE « niveau développement » (Fabien, 2026-09-22 — global à wama-dev-ai) : le
+        # tirage passe par le domicile commun `development_models` (plancher sur le score coding
+        # du banc, curseur 100, jamais de repli sur un petit modèle). La chaîne de `config.py`
+        # finissait sur `fast`/`ultra_fast` dès que la VRAM manquait : c'est exactement le
+        # modèle qui invente des imports. Sans catalogue (première installation), la chaîne
+        # historique reste le dernier recours — et le dit.
+        try:
+            from wama.common.services.development_models import (
+                development_model, development_refusal)
+            key = development_model(None)
+        except Exception as e:      # catalogue injoignable : pas une raison de bloquer un rôle
+            print(f"[role_utils] catalogue indisponible ({e}) — chaîne de repli de config.py")
+            from config import select_model_for_role
+            return select_model_for_role(role)[1].ollama_id
+        if not key:
+            raise RuntimeError(development_refusal(None))
+        return key.split(':', 1)[1]
     from wama.common.utils.llm_utils import default_cloud_model
     return default_cloud_model(provider)
 

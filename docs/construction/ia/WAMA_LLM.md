@@ -387,7 +387,29 @@ PROPOSITION, bac à sable sur jumelles, process séparé §16) — que seul un c
 (Claude Code, IDE) pouvait consommer. **Câblé le 22/09** : l'assistant est CLIENT MCP de cette
 surface (`common/services/mcp_client.py`, `ROADMAP §8d étape 5 moitié dev`) — un développeur
 qui converse avec un modèle local voit les outils `dev_*` et peut lancer un rôle ou une jumelle ;
-le serveur dev garde la porte. ⏳ **Ce qui manque pour « une page d'édition en bac à sable avec
+le serveur dev garde la porte.
+
+**Bridage « qualité max » du travail sur le code — ✅ câblé le 22/09** (Fabien, après le test
+réel : le 4b sans réflexion inventait des jumelles ; « brider en qualité max, limiter les modèles
+possibles, de façon globale à wama-dev-ai, peut-être Albert avec gpt-oss »). Domicile UNIQUE :
+`common/services/development_models.py`.
+- **La règle est une mesure** : sous-indice coding du banc tiers ≥ **40** (relevé du parc :
+  qwen3.8 58,2 · albert gemma-4-31b 43,4 · qwen3.6:35b 41,9 | gemma4:12b 31 · qwen3.5:4b 22,6 ·
+  gemma4:e4b 9,4 — le plancher sépare ce que le banc du 13/08 avait confirmé de ce qui fabule).
+  Sans score : exclu, sauf `albert:gpt-oss-120b`, déclaré (à retirer dès qu'il est mesuré).
+- **Ce que ça change** : curseur à 100 (réflexion demandée), lot restreint, choix manuel sous le
+  plancher REMPLACÉ, distants souverains (Albert) admis au tirage automatique dès « cloud si
+  WAMA est saturé » (les tiers gardent la règle commune, « 100 % local » reste local), et sans
+  modèle de niveau dev : **refus lisible**, jamais un petit modèle.
+- **Où ça s'applique** : domaine `dev` de l'assistant (`AssistantDomain.development=True`) ;
+  **bascule en cours de tour** dès que le modèle charge la compétence dev ou appelle un `dev_*`
+  (la suite du tour passe au niveau dev, l'étiquette dit « · dev ») ; le **fil s'en souvient**
+  (`conversation_store.last_loaded_domain`) pour les tours suivants ; et les **rôles
+  wama-dev-ai** (`role_utils.resolve_model` : la chaîne de `config.py` finissait sur
+  `fast`/`ultra_fast` dès que la VRAM manquait — plus de repli, une erreur qui dit pourquoi).
+- Tenu par `tests_development_models` (plancher, remplacement, souverain, bascule, fil, refus).
+
+⏳ **Ce qui manque pour « une page d'édition en bac à sable avec
 un guide de conception et d'intégration »** — trois décisions avant d'écrire :
 1. **le rôle « améliorer »** (`wama-dev-ai/run_improve.py`, patron `run_codegen.py`) : matière =
    les docs de référence du domaine touché (`AGENTS.md`, `WAMA_APP_CONVENTIONS`, `ROUTE`) + le
