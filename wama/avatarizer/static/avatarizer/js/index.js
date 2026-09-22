@@ -376,12 +376,12 @@
     // -----------------------------------------------------------------------
     // Card = partial SERVEUR unique (_avatar_card.html via card_html) — le JS ne fabrique
     // plus de markup : il insere/remplace le fragment rendu par Django.
+    // Redemandée par la brique commune (WamaApp.fetchCard, portage 2026-09-22) : le gabarit
+    // d'URL vient du serveur (`urls.cardHtml`, résolu par {% url %}), plus de chemin recollé.
     async function fetchCardHtml(jobId) {
-        const r = await fetch(`${cfg.urls.card}${jobId}/html/`);
-        if (!r.ok) throw new Error(`card_html ${r.status}`);
-        const tmp = document.createElement('div');
-        tmp.innerHTML = (await r.text()).trim();
-        return tmp.firstElementChild;
+        const fresh = await WamaApp.fetchCard(cfg.urls.cardHtml, jobId);
+        if (!fresh) throw new Error('card_html indisponible');
+        return fresh;
     }
 
     async function addJobCard(jobId) {

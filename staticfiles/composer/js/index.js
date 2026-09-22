@@ -535,18 +535,18 @@
     // composer:card_html ; CARD_DESIGN « partial server-side + update JS en place »).
     // Remplace la reconstruction JS qui divergeait déjà du serveur (barre Bootstrap vs
     // .wama-progress-fill → jamais mise à jour, boutons ⚙/dupliquer absents) — audit B2-4.
+    // Redemandée par la brique commune (WamaApp.fetchCard, portage 2026-09-22) ; un serveur
+    // qui ne répond pas → rechargement, comme avant.
     function insertRenderedCard(id) {
-        fetch(WamaApp.getUrl(APP.cardHtmlUrlTemplate, id))
-            .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
-            .then(html => {
-                const queue = document.getElementById('composerQueue');
-                if (!queue) return;
-                const existing = queue.querySelector(`.generation-card[data-id="${id}"]`);
-                if (existing) existing.outerHTML = html;
-                else queue.insertAdjacentHTML('afterbegin', html);
-                checkEmptyState();
-            })
-            .catch(() => location.reload());
+        WamaApp.fetchCard(APP.cardHtmlUrlTemplate, id).then(fresh => {
+            if (!fresh) { location.reload(); return; }
+            const queue = document.getElementById('composerQueue');
+            if (!queue) return;
+            const existing = queue.querySelector(`.generation-card[data-id="${id}"]`);
+            if (existing) existing.replaceWith(fresh);
+            else queue.prepend(fresh);
+            checkEmptyState();
+        });
     }
 
     // Etat vide : bascule du hint RENDU SERVEUR (source unique dans index.html) — audit B4-11.

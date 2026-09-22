@@ -327,17 +327,12 @@
     }
 
     async function refreshCard(jobId) {
-        // Card = partial serveur unique (endpoint card_html) ; les événements de la
-        // file sont DÉLÉGUÉS sur le conteneur → aucun re-bind nécessaire.
-        try {
-            const resp = await fetch(urlFor(APP.urls.cardHtml, jobId));
-            if (!resp.ok) return;
-            const tpl = document.createElement('template');
-            tpl.innerHTML = (await resp.text()).trim();
-            const fresh = tpl.content.firstElementChild;
-            const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
-            if (fresh && card) card.replaceWith(fresh);
-        } catch (_) { /* ignore */ }
+        // Card = partial serveur unique, REDEMANDÉE par la brique commune (WamaApp.fetchCard,
+        // portage 2026-09-22) ; les événements de la file sont DÉLÉGUÉS sur le conteneur →
+        // aucun re-bind nécessaire.
+        const fresh = await WamaApp.fetchCard(APP.urls.cardHtml, jobId);
+        const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
+        if (fresh && card) card.replaceWith(fresh);
     }
 
     // (updateCard supprimée : le markup vient du serveur via refreshCard — plus de

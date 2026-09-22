@@ -268,15 +268,15 @@ document.addEventListener('DOMContentLoaded', function () {
   // Card RENDUE SERVEUR — source unique : partial _transcript_card.html via
   // transcriber:card_html. Remplace rebuildActions (3e copie du markup d'actions +
   // save/restore manuel de 9 data-attributes) — audit A2-10.
+  // Redemandée par la brique commune (WamaApp.fetchCard, portage 2026-09-22 — la copie locale
+  // du fetch + parse vivait ici).
   function refreshCard(id) {
-    fetch(WamaApp.getUrl(window.TRANSCRIBER_APP.cardHtmlUrlTemplate, id))
-      .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
-      .then(html => {
-        const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
-        if (card) card.outerHTML = html;
-        else document.getElementById('transcriptQueue')?.insertAdjacentHTML('afterbegin', html);
-      })
-      .catch(() => {});
+    WamaApp.fetchCard(window.TRANSCRIBER_APP.cardHtmlUrlTemplate, id).then(fresh => {
+      if (!fresh) return;
+      const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+      if (card) card.replaceWith(fresh);
+      else document.getElementById('transcriptQueue')?.prepend(fresh);
+    });
   }
 
   // ======================================================================

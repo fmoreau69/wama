@@ -24,23 +24,17 @@
 
   // ── Card partial serveur ────────────────────────────────────────────────
   async function refreshCard(id) {
-    try {
-      const resp = await fetch(getUrl(cfg.cardHtmlUrlTemplate, id));
-      if (!resp.ok) return null;
-      const tpl = document.createElement('template');
-      tpl.innerHTML = (await resp.text()).trim();
-      const fresh = tpl.content.firstElementChild;
-      const existing = queue.querySelector('.anon-card[data-id="' + id + '"]');
-      if (fresh && existing) {
-        existing.replaceWith(fresh);
-        // Re-bind par card : l'aperçu commun s'attache par forEach (leçon describer)
-        if (typeof window.initMediaPreview === 'function') window.initMediaPreview();
-        if (window.WamaCycleButton) WamaCycleButton.refresh(fresh);
-      }
-      return fresh;
-    } catch (e) {
-      return null;
+    // Card REDEMANDÉE par la brique commune (WamaApp.fetchCard, portage 2026-09-22 — la copie
+    // locale du fetch + parse vivait ici) ; null si le serveur ne répond pas.
+    const fresh = await WamaApp.fetchCard(cfg.cardHtmlUrlTemplate, id);
+    const existing = queue.querySelector('.anon-card[data-id="' + id + '"]');
+    if (fresh && existing) {
+      existing.replaceWith(fresh);
+      // Re-bind par card : l'aperçu commun s'attache par forEach (leçon describer)
+      if (typeof window.initMediaPreview === 'function') window.initMediaPreview();
+      if (window.WamaCycleButton) WamaCycleButton.refresh(fresh);
     }
+    return fresh;
   }
 
   // ── Polling par card en cours ───────────────────────────────────────────

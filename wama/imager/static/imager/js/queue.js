@@ -26,15 +26,14 @@
     function refreshCard(id) {
         const tpl = (window.IMAGER_CARD && IMAGER_CARD.urls.cardHtml) || '';
         if (!tpl) return Promise.resolve();
-        // La vue répond du HTML depuis le 2026-09-15 (ex-JSON `{html, status}`), comme les 9 autres.
-        return fetch(WamaApp.getUrl(tpl, id))
-            .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
-            .then(function (html) {
-                const el = cardEl(id);
-                if (el && html.trim()) el.outerHTML = html;
-                sync();          // la card remplacée peut avoir changé d'état
-            })
-            .catch(() => {});
+        // Redemandée par la brique commune (WamaApp.fetchCard, portage 2026-09-22) — la vue
+        // répond du HTML depuis le 2026-09-15 (ex-JSON `{html, status}`), comme les 9 autres.
+        return WamaApp.fetchCard(tpl, id).then(function (fresh) {
+            if (!fresh) return;
+            const el = cardEl(id);
+            if (el) el.replaceWith(fresh);
+            sync();          // la card remplacée peut avoir changé d'état
+        });
     }
     window.imagerRefreshCard = refreshCard;   // réutilisable (actions, modales)
 

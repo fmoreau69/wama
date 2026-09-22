@@ -407,18 +407,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update card in-place on completion — no full page reload
                 // (a full reload interrupts audio preview and reloads the slow FileManager)
                 if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-                    try {
-                        const cardResp = await fetch(WamaApp.getUrl(URLS.cardHtml, id));
-                        if (cardResp.ok) {
-                            const html = await cardResp.text();
-                            const temp = document.createElement('div');
-                            temp.innerHTML = html.trim();
-                            const newCard = temp.firstElementChild;
-                            if (newCard) card.replaceWith(newCard);
-                        }
-                    } catch (fetchErr) {
-                        console.error('[Synthesizer] Card refresh error:', fetchErr);
-                    }
+                    // Card redemandée par la brique commune (WamaApp.fetchCard, portage
+                    // 2026-09-22 — la copie en ligne du fetch + parse vivait ici).
+                    const newCard = await WamaApp.fetchCard(URLS.cardHtml, id);
+                    if (newCard) card.replaceWith(newCard);
                     if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
                 }
             } catch (error) {
