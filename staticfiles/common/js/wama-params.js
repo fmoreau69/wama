@@ -505,9 +505,13 @@
   }
 
   // `only` (optionnel) : prédicat de filtrage — permet à un appelant EXTERNE (volet via
-  // WamaInspector.initFromSchema) de ne lier que certaines sources. Le volet ne lie que
-  // `catalog` : les voix y restent rendues SERVEUR (optgroups clonés par le JS d'app —
-  // « NON remplacés », cf. schéma synthesizer), les remplacer casserait ce clonage.
+  // WamaInspector.initFromSchema) de ne lier que certaines sources. Ce qu'il sert : ne pas
+  // lier DEUX FOIS un champ que l'app a déjà rendu elle-même (le champ de voix du volet
+  // synthesizer, généré et donc lié par son propre `render` — une seconde liaison
+  // refetcherait et reconstruirait le select par-dessus).
+  // ⚠ Jusqu'au 2026-09-23 cette ligne justifiait le filtre autrement : « les voix du volet
+  // restent rendues SERVEUR, les remplacer casserait le clonage ». C'était la phrase du
+  // schéma synthesizer, recopiée — elle est fausse depuis que ce volet génère son champ.
   function _bindOptionSources(container, schema, ctx, only) {
     (schema || []).forEach(function (p) {
       if (only && !only(p)) return;

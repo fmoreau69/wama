@@ -549,6 +549,11 @@ document.addEventListener('DOMContentLoaded', function() {
             quickVoice.value = voicePreset.value;
         }
         cloneVoiceOptions();
+        // Le select du volet est GÉNÉRÉ (2026-09-23) : ses options arrivent une 1re fois au
+        // rendu, puis REVIENNENT de /common/api/voices/. Un miroir recopié une seule fois
+        // au chargement serait figé sur l'état d'avant la recharge — la brique commune
+        // annonce chaque remplissage, on se recopie dessus.
+        if (voicePreset) voicePreset.addEventListener('wama:options-filled', cloneVoiceOptions);
         if (quickVoice && voicePreset) {
             quickVoice.addEventListener('change', () => {
                 voicePreset.value = quickVoice.value;
@@ -1081,10 +1086,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = await response.json();
 
                 if (response.ok && data.id) {
-                    // Add option to both dropdowns (ua_ = UserAsset)
-                    const optionHtml = `<option value="ua_${data.id}">${data.name}</option>`;
-                    addCustomVoiceOption('customVoicesGroup', optionHtml, 'voice_preset');
-                    addCustomVoiceOption('settingsCustomVoicesGroup', optionHtml, 'settingsVoicePreset');
+                    // La voix neuve rejoint le groupe « Mes voix » du volet (ua_ = UserAsset).
+                    // ⚠ UN seul appel depuis le 2026-09-23 : la modale d'item est RE-GÉNÉRÉE à
+                    // chaque ouverture en clonant les options du volet — y insérer quoi que ce
+                    // soit maintenant n'écrivait que dans un corps de modale déjà périmé.
+                    addCustomVoiceOption('mine', `<option value="ua_${data.id}">${data.name}</option>`,
+                                         'voice_preset');
 
                     // Select the new voice in the panel dropdown
                     document.getElementById('voice_preset').value = `ua_${data.id}`;
@@ -1103,16 +1110,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function addCustomVoiceOption(groupId, optionHtml, selectId) {
-        let group = document.getElementById(groupId);
+    // Un groupe d'options se retrouve par sa CLÉ (`data-group-key`, posée par WamaParams depuis
+    // les groupes de `get_voice_groups`), jamais par un id de gabarit : le select est généré, et
+    // un libellé n'est qu'un texte affiché. Le groupe « mine » est TOUJOURS émis, même vide,
+    // précisément pour qu'on ait où insérer ici.
+    function addCustomVoiceOption(groupKey, optionHtml, selectId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        let group = select.querySelector('optgroup[data-group-key="' + groupKey + '"]');
         if (!group) {
-            // Create the optgroup if it doesn't exist yet
-            const select = document.getElementById(selectId);
-            if (!select) return;
+            // Repli : serveur d'une version antérieure, ou options pas encore rendues.
             group = document.createElement('optgroup');
-            group.id = groupId;
-            group.label = 'Voix personnalisées (clonage)';
-            // Insert after first optgroup (Voix intégrées)
+            group.setAttribute('data-group-key', groupKey);
+            group.label = 'Mes voix (clonage)';
             const firstGroup = select.querySelector('optgroup');
             if (firstGroup && firstGroup.nextSibling) {
                 select.insertBefore(group, firstGroup.nextSibling);
@@ -1121,6 +1131,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         group.insertAdjacentHTML('beforeend', optionHtml);
+        // Les options ont changé : le dire comme la brique commune le dit (filtres de capacité
+        // rejoués — une voix clonée ne doit pas rester offerte sous un moteur qui ne clone pas —
+        // et miroir de la card d'entrée recopié).
+        select.dispatchEvent(new CustomEvent('wama:options-filled', { bubbles: true }));
     }
 
 }); // Fin DOMContentLoaded

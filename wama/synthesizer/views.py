@@ -180,13 +180,14 @@ class IndexView(View):
             request, batches_list,
             name_of=lambda b: str(b['obj']))
 
-        from wama.media_library.models import UserAsset
-        custom_voices = UserAsset.objects.filter(user=user, asset_type='voice')
-
-        # Voix de référence de la MÉDIATHÈQUE (SystemAsset(voice), groupées par langue/âge
-        # depuis `attributes`) — plus un scan de dossier (2026-09-13, §9.4 marche 4).
-        from wama.common.tts.voice_refs import voice_reference_groups, needs_voice_download
-        voice_refs_groups = voice_reference_groups()
+        # Voix : UN seul inventaire, celui de la brique commune (défaut + références de la
+        # MÉDIATHÈQUE + mes voix + celles qu'on m'a PARTAGÉES + Bark). La page n'en rend plus
+        # le markup : elle passe les groupes au champ GÉNÉRÉ du schéma (2026-09-23) — même
+        # geste que l'avatarizer. Les deux listes d'avant (`custom_voices` = mes UserAsset
+        # seuls, `voice_refs_groups`) disaient une partie de ce que `get_voice_groups` dit en
+        # entier, et la partie manquante était celle des voix partagées.
+        from wama.common.tts.voice_refs import needs_voice_download
+        from wama.common.utils.voice_options import voice_groups_json
 
         # Téléchargement automatique en fond si des voix manquent (une seule fois par heure)
         if needs_voice_download():
@@ -205,14 +206,14 @@ class IndexView(View):
         context = {
             'batches_list': batches_list,
             'queue_count': queue_count,
-            'custom_voices': custom_voices,
+            # Groupes de voix du champ généré (brique commune) — `optionsResolver` du gabarit.
+            'voice_groups_json': voice_groups_json(user),
             # Inventaire des moteurs = le CATALOGUE, plus la liste en dur (route F4b, ②).
             # Ce pré-rendu serveur et le peuplement JS (`options_source="catalog"`) parlent
             # le MÊME vocabulaire de clés — c'est ce qui évite que `sel.value = cur` ne
             # retrouve rien et fasse retomber le select sur sa première option en silence.
             'tts_models': tts_engine_choices(),
             'languages': VoiceSynthesis.LANGUAGE_CHOICES,
-            'voice_refs_groups': voice_refs_groups,
             'params_json': json.dumps(_SYNTH_PARAMS_JSON),
             'tts_model_help_meta': json.dumps(self._tts_model_help_meta()),
             # Appariement entrée↔modèles (brique commune input_match) : une voix CLONÉE

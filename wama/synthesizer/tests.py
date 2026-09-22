@@ -421,3 +421,101 @@ class ConfinementServerPathTest(TestCase):
         rep = self.client.post(reverse('synthesizer:batch_create'),
                                {'server_path': '../manage.py'})
         self.assertEqual(rep.status_code, 403, rep.content[:200])
+
+
+class PanelVoiceFieldIsGeneratedTest(TestCase):
+    """Le champ de voix du VOLET est GÉNÉRÉ du schéma depuis le 2026-09-23.
+
+    Les quatre optgroups écrits dans le gabarit (défaut / références / « Mes voix » / Bark)
+    redisaient à la main ce que `get_voice_groups` sert déjà à la modale d'item, à
+    l'avatarizer et à l'endpoint commun — et cette copie-là ne savait pas dire les voix
+    PARTAGÉES. Ce que ces gardes tiennent, c'est ce qui pouvait casser SANS lever :
+      • le champ n'est plus dans le gabarit → un `<option>` réapparu y serait un retour en
+        arrière muet (la page marcherait, avec deux inventaires qui divergent) ;
+      • un select généré n'a pas de `name=` en contexte 'panel' → un lecteur qui n'interroge
+        que `[name=]` cesse d'enregistrer la voix, sans erreur ni trace ;
+      • le groupe « Mes voix » se retrouve par sa CLÉ, plus par un id de gabarit — sinon la
+        voix qu'on vient de cloner atterrit dans un groupe recréé, ailleurs et autrement
+        libellé.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.user = _utilisateur_autorise('panel_voice_user')
+        self.client.force_login(self.user)
+
+    def _page(self):
+        return self.client.get(reverse('synthesizer:index')).content.decode('utf-8')
+
+    def _template_source(self):
+        from pathlib import Path
+        from django.conf import settings
+        return (Path(settings.BASE_DIR) / 'wama' / 'synthesizer' / 'templates' / 'synthesizer'
+                / 'index.html').read_text(encoding='utf-8')
+
+    def test_the_panel_carries_a_host_instead_of_hand_written_voice_options(self):
+        page = self._page()
+        self.assertIn('id="voicePresetHost"', page)
+        self.assertIn('id="voicePresetGroup"', page,
+                      'la zone enveloppe reste : Higgs la masque, voiceSlot la désigne')
+        # Une seule des dix options Bark suffit à signer la liste écrite à la main.
+        self.assertNotIn('<option value="bark_v2_en_0"', page)
+        self.assertNotIn('id="customVoicesGroup"', page)
+
+    def test_the_page_serves_the_common_voice_groups_with_their_keys(self):
+        import json
+        page = self._page()
+        line = next(text_line for text_line in page.splitlines()
+                    if text_line.strip().startswith('var voiceGroups = '))
+        groups = json.loads(line.split('=', 1)[1].strip().rstrip(';'))
+        keys = [g['key'] for g in groups]
+        # « mine » est TOUJOURS là, même sans voix clonée : c'est là qu'on insère la suivante.
+        self.assertIn('default', keys)
+        self.assertIn('mine', keys)
+        self.assertIn('bark', keys)
+
+    def test_the_generated_field_points_at_the_common_voice_source(self):
+        from wama.synthesizer.params import PARAMS_JSON
+        param = next(p for p in PARAMS_JSON if p['name'] == 'voice_preset')
+        self.assertEqual('voices', param['options_source'])
+        self.assertEqual('voice_preset', param['dom_id']['panel'],
+                         'le JS d\'app lit le select par cet id — il ne doit pas bouger')
+
+    def test_the_panel_saver_reads_generated_fields_too(self):
+        self.assertIn('data-param="\' + k + \'"', self._template_source())
+
+    def test_the_app_js_finds_the_voice_group_by_its_key(self):
+        from pathlib import Path
+        from django.conf import settings
+        base = Path(settings.BASE_DIR)
+        for path in (base / 'wama' / 'synthesizer' / 'static' / 'synthesizer' / 'js' / 'index.js',
+                     base / 'staticfiles' / 'synthesizer' / 'js' / 'index.js'):
+            if not path.exists():
+                continue
+            js = path.read_text(encoding='utf-8')
+            self.assertIn('optgroup[data-group-key="', js, path.name)
+            self.assertNotIn('customVoicesGroup', js, path.name)
+            self.assertIn("addEventListener('wama:options-filled'", js, path.name)
+
+    def test_every_inline_script_of_the_page_parses(self):
+        """Le rendu du champ vit dans un script EN LIGNE du gabarit : une erreur de syntaxe y
+        tuerait tout le bloc — donc le select, les filtres et l'inspecteur — sans qu'aucun
+        test Python ne s'en aperçoive. V8 parse sans exécuter (le DOM n'existe pas ici).
+
+        ⚠ `py_mini_racer` n'est installé que dans venv_win : ce test SKIPPE ailleurs.
+        """
+        import re
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour parser la page')
+        blocks = re.findall(r'<script>(.*?)</script>', self._page(), re.S)
+        self.assertGreaterEqual(len(blocks), 2, 'la page a perdu ses scripts en ligne')
+        # Que le rendu du champ soit bien DANS ce qu'on parse — sans quoi le test attesterait
+        # d'autres blocs et resterait vert pendant que celui-ci serait cassé.
+        self.assertTrue(any('renderPanelVoiceField' in b for b in blocks),
+                        'le rendu du champ de voix n\'est plus dans un script en ligne')
+        ctx = MiniRacer()
+        for i, block in enumerate(blocks):
+            with self.subTest(block=i):
+                ctx.eval('(function(){' + block + '\n})')

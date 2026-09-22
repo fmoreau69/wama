@@ -2,11 +2,17 @@
 Schéma de paramètres Synthesizer — SOURCE UNIQUE pour la modale item, la modale batch et le volet
 contextuel (inspecteur). Cartographie complète des 3 surfaces pour NE RIEN PERDRE.
 
-⚠️ Spécificité Synthesizer : les options du select `voice_preset` (optgroups voix par défaut / groupes
-dynamiques `voice_refs_groups` / héritage / « Mes voix » ua_ / Bark) sont SERVER-RENDERED et recopiées
-par du JS maison (`cloneVoiceOptions`). On NE remplace donc PAS les champs par un rendu WamaParams (ce
-qui perdrait les voix) : on garde les champs existants (mêmes `name=`) et on câble l'inspecteur
-contextuel via `WamaInspector.initFromSchema` qui lit/écrit ces champs (file → défaut, batch, card).
+Le champ `voice_preset` du VOLET est GÉNÉRÉ depuis le 2026-09-23 (gabarit : hôte `#voicePresetHost`
++ `WamaParams.render(context:'panel')`, groupes servis par `get_voice_groups` et rechargés par
+`options_source='voices'`). ⚠ Ce bloc disait l'inverse jusque-là — « les options sont
+SERVER-RENDERED, on NE remplace donc PAS les champs » — et cette phrase, recopiée dans deux briques
+communes, a fait REFUSER pendant trois semaines de peupler le select du volet par la source commune.
+Les quatre optgroups du gabarit redisaient à la main ce que la brique rend déjà pour la modale et
+pour l'avatarizer, sans savoir dire les voix PARTAGÉES.
+
+Les AUTRES champs du volet gardent leur markup écrit à la main : l'inspecteur contextuel
+(`WamaInspector.initFromSchema`) les lit/écrit par `dom_id`, et il accepte les deux formes
+d'identité (`name=` écrit à la main, `data-param=` généré).
 
 `dom_id` par contexte = ponts vers les IDs existants de chaque surface (panel=compose, item=settings*,
 batch=batchSettings*) → JS de voix/clone/submit inchangé. Gabarit : reader/describer params.py.
@@ -61,7 +67,15 @@ PARAMS = derive_from_model(
         "voice_preset": dict(
             type="select", label="Voix", icon="fa-user", chip=True,
             dom_id={"panel": "voice_preset", "item": "settingsVoicePreset", "batch": "batchSettingsVoicePreset"},
-            options_source="voices",   # optgroups server-rendered + clonés par le JS existant — NON remplacés
+            # Source COMMUNE des voix (`get_voice_groups` → endpoint `/common/api/voices/`) :
+            # elle sert les TROIS surfaces — volet généré, modale d'item, modale de lot.
+            options_source="voices",
+            # Aide RACCOURCIE : celle du modèle énumère la forme des valeurs entre accents
+            # graves (« `default`, preset plat, `sa_<id>` (référence)… ») — lisible en base et
+            # en admin, illisible sous un champ. Mesuré au rendu du volet généré : la ligne
+            # d'identifiants s'affichait sous le select. Elle sert aussi de documentation à
+            # `tool_api` : on garde donc les DEUX familles d'identifiants, en une phrase.
+            help="Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark",
         ),
         "speed": dict(
             type="range", label="Vitesse", icon="fa-gauge", min=0.5, max=2.0, step=0.1, default=1.0,

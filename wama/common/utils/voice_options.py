@@ -29,6 +29,8 @@ résout `options_source='voices'` depuis ces groupes. Lève le verrou d'uniformi
 """
 from __future__ import annotations
 
+import json
+
 # Presets Bark statiques (indépendants de l'utilisateur).
 BARK_PRESETS = [
     ("bark_v2_en_0", "Bark EN Speaker 0"), ("bark_v2_en_1", "Bark EN Speaker 1"),
@@ -101,6 +103,21 @@ def get_voice_groups(user) -> list[dict]:
     # 4. Bark presets.
     groups.append({"key": "bark", "group": "Bark (presets)", "options": list(BARK_PRESETS)})
     return groups
+
+
+def voice_groups_json(user) -> str:
+    """Les mêmes groupes, prêts à injecter dans un gabarit (`{{ voice_groups_json|safe }}`).
+
+    Une page qui GÉNÈRE son champ de voix (WamaParams + `options_source='voices'`) passe ces
+    groupes en `optionsResolver` : le champ est peuplé dès le premier rendu, sans attendre
+    l'aller-retour vers `/common/api/voices/` — l'endpoint reste la source qui RECHARGE.
+    Repli `[]` : un gabarit ne doit jamais recevoir un JSON invalide, il perdrait TOUT son
+    script (l'avatarizer s'en protégeait déjà par `|default:"[]"` côté gabarit).
+    """
+    try:
+        return json.dumps(get_voice_groups(user))
+    except Exception:
+        return "[]"
 
 
 def voice_display_options(user) -> list[tuple[str, str]]:
