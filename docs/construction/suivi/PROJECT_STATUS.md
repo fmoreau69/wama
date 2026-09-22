@@ -16446,3 +16446,46 @@ de 01:11. Le geste manquant est chez elle : *descendre le budget verrouille le g
 commun — l'entrée au RAG en découle), puis marche 3 du partage (natures déclarées).
 **Pendings système** inchangés (redémarrage WAMA, `librosa`/`datasets`/`soundfile` hors requirements,
 `smoke-0802-*` non supprimés) + les 8 commits de `dev` non poussés.
+
+## §PALIER — 2026-09-23, « UN FICHIER QUE DES CARDS DÉSIGNENT » (D20/D21 + code mort du synthesizer)
+
+> Décision de Fabien : *« si l'utilisateur déplace un fichier, on met à jour le lien dans la ou les
+> cards, pas besoin de le prévenir. S'il veut le supprimer, il faut le prévenir que son fichier est
+> utilisé par une ou des cards et lui demander s'il est sûr. […] Étant donné qu'il y a une brique
+> commune qui gère ça, je veux juste que tu t'assures qu'elle est bien construite et câblée. »*
+
+**Commit `c3aae386`** (28 fichiers), vérifié sur HEAD en worktree (66 tests). Le détail vit dans
+`MEDIA_STORAGE_TIERING §8.6` D20/D21 et `REMOVAL_LEDGER` R64-R67 — ce bloc ne le recopie pas.
+
+**① La supposition de départ, corrigée par la mesure.** La cible du 12/09 (*« sortir les médias des
+apps et ne faire que les POINTER »*) **n'est pas implémentée** : `reference_or_copy` n'existe nulle
+part, les **11 importeurs COPIENT**, et le pointage ne vit que dans **3 routes**. Ce n'était donc pas
+un reliquat d'anciennes tâches : le code d'aujourd'hui copie encore. Consigné, daté, au §Cible.
+
+**② La brique était CONSTRUITE, pas CÂBLÉE.** `InputProvenance` (11/09) avait ses 10 tests et
+**1 site d'écriture sur 14**, **0 lecteur** en production. ⭐ *Une brique non câblée ne se signale
+pas : elle rend des listes vides.* Câblage au POINT DE PASSAGE (le répartiteur « Envoyer vers »)
+plutôt que dans onze importeurs ; + `ensure_local_input` et les deux lots `-i`. Nouveau `kind` `app`.
+
+**③ Les quatre gestes du gestionnaire ne regardaient AUCUNE card** — c'est ce geste qui fabrique les
+« référencés mais absents ». Brique neuve `common/utils/file_references.py` (`usage`/`repoint`/`detach`,
+déclarée au registre des mécanismes) ; 409 + confirmation à la suppression ; les cards restent,
+détachées. **Même geste que `check_media_integrity --réparer` fait depuis le 25/08**, appliqué au
+moment de la suppression au lieu d'un mois plus tard.
+
+**④ Code mort du synthesizer** (GO Fabien) : `VoicePreset` (0 ligne, 0 appelant, jamais lu par la
+synthèse — solde **D19** et la décision « is_public → visibility »), 2 routes de diagnostic,
+`cleanup_old_syntheses` (planifiée NULLE PART, purgeait à 7 jours hors profil de rétention),
+15 fonctions sans appelant. ⚠ **Les homonymes des autres apps masquaient 5 de ces noms** dans un
+relevé par motif — vérifié import par import ; et deux fonctions n'avaient d'appelant que leurs TESTS.
+
+**Preuves** : `common/tests_file_references.py`, **15 tests génériques** (aucune app nommée, témoins
+fabriqués sur les 12 surfaces) ; **contre-épreuve à blanc des trois câblages** (chacun neutralisé →
+rouge) ; JS attesté par V8 sur la copie SERVIE ; 245 tests verts sur le périmètre touché.
+
+**🔚 Restes nommés** : l'état `STALE` d'une card détachée ne peut pas être STOCKÉ avant **P6**
+(`ROUTE §10.6 4.2`) — le champ vidé le rend DÉRIVABLE, c'est P3 qui l'affichera ; l'upload direct et
+(au moment du commit) le lot `-i` du gabarit généré n'enregistraient pas leur provenance — **a5 l'a
+câblé dans la foulée**. ⚠ Budget de langue dépassé de 13 dans l'arbre : WIP d'instances sœurs, mes
+fichiers n'ajoutent aucun identifiant français. **Chantier 1 du harnais** : Fabien a tranché 2 des
+5 choix (borne appliquée au local ET au cloud ; la trace d'audit garde le résultat complet).
