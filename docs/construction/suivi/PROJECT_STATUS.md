@@ -16137,7 +16137,7 @@ moment — détail dans la mémoire « secrets ».
 **Cette instance possède** : les NOUVEAUX modules `wama/common/tests_*.py` qu'elle crée, et
 `wama/common/tests_queue_delete_contract.py`, `wama/common/tests_media_paths.py`,
 `wama/common/utils/queue_duplication.py`, `wama/common/management/commands/check_media_integrity.py`,
-`wama/common/utils/retention.py`, `docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §8.6`
+`wama/common/services/retention.py`, `docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §8.6`
 (lignes D13-D19 et suivantes).
 
 **Son plan** (détail et raisons : `MEDIA_STORAGE_TIERING §8.6`, fin de D16) — des contrats GÉNÉRIQUES,

@@ -45,6 +45,19 @@ def _delete_path(path):
         logger.debug("retention: échec suppression chemin %s : %s", path, e)
 
 
+def _relative_to_media(path):
+    """Chemin relatif à MEDIA_ROOT (la forme que `owns_file` compare) ; '' s'il est HORS de
+    MEDIA_ROOT — et alors `owns_file` refuse, ce qui est voulu : la purge ne sort jamais de là."""
+    from django.conf import settings
+    if not os.path.isabs(path):
+        return path.replace('\\', '/')
+    root = os.path.abspath(settings.MEDIA_ROOT)
+    absolute = os.path.abspath(path)
+    if os.path.commonpath([root, absolute]) != root:
+        return ''
+    return os.path.relpath(absolute, root).replace('\\', '/')
+
+
 def _purge_instance(obj, path_lists):
     from wama.common.utils.queue_duplication import safe_delete_file
     # 1) FileField/ImageField découverts automatiquement → safe_delete (respecte refs partagées).
@@ -55,12 +68,19 @@ def _purge_instance(obj, path_lists):
                     safe_delete_file(obj, f.name)
             except Exception as e:  # pragma: no cover
                 logger.debug("retention: safe_delete %s.%s a échoué : %s", obj, f.name, e)
-    # 2) Champs de chemins (listes JSON) → suppression disque directe.
+    # 2) Champs de chemins (listes JSON) → suppression disque, mais seulement ce qui vit CHEZ
+    #    l'app (`owns_file`, la même règle que `safe_delete_file`). Jusqu'au 2026-09-22 ces listes
+    #    étaient effacées sans aucune règle : un chemin référencé hors du domicile de l'app y
+    #    passait comme le reste. (Le PARTAGE n'est pas en jeu ici : la duplication vide ces listes,
+    #    vérifié sur `imager._RESET_DUPLICATION`.)
+    from wama.common.utils.queue_duplication import owns_file
     for pl in path_lists or []:
         val = getattr(obj, pl, None)
         if isinstance(val, (list, tuple)):
             for p in val:
-                _delete_path(p if isinstance(p, str) else (p or {}).get('path') if isinstance(p, dict) else None)
+                path = p if isinstance(p, str) else (p or {}).get('path') if isinstance(p, dict) else None
+                if path and owns_file(obj, _relative_to_media(path)):
+                    _delete_path(path)
     # 3) Supprimer l'enregistrement.
     obj.delete()
 

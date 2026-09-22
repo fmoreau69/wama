@@ -471,3 +471,49 @@ class AucuneEcritureNeRecomposeUnCheminDAppTest(SimpleTestCase):
             n = sum(1 for line in (RACINE_DEPOT / rel).read_text(encoding='utf-8').splitlines()
                     if self._is_code(line) and form.search(line))
             self.assertEqual(budget, n, f'{rel} : budget {budget}, mesuré {n} — le recaler')
+
+
+class FixedUploadToOnOwnedModelsTest(SimpleTestCase):
+    """Un modèle qui a un PROPRIÉTAIRE ne range pas ses fichiers à un emplacement FIXE.
+
+    Né le 2026-09-22 (`MEDIA_STORAGE_TIERING §8.6` D19). `ChaqueChampFichierEcritAuDomicileTest`
+    saute les `upload_to` en chaîne fixe (« hors de ce contrat ») ; or une chaîne fixe ne peut PAS
+    porter l'identifiant de l'utilisateur : sur un modèle qui a un propriétaire, elle range ses
+    octets hors de chez lui — hors du chiffrement par utilisateur, hors de sa rétention.
+    Un modèle SANS propriétaire (`SystemAsset`) y a droit : c'est une ressource d'application.
+
+    ⚠ Le propriétaire se reconnaît à TOUTE clé étrangère vers l'utilisateur, pas au seul nom
+    `user` : la première mesure ne cherchait que `user`/`session` et avait déclaré `VoicePreset`
+    « sans propriétaire » — il en a un, `created_by`.
+    """
+
+    #: Budget qui ne peut que DESCENDRE (le test échoue aussi s'il garde de la marge).
+    #: 1 = `synthesizer.VoicePreset.reference_audio` (`synthesizer/presets/`) — latent le
+    #: 2026-09-22 (aucun préréglage enregistré). Sa correction est une migration de modèle, et une
+    #: question : un préréglage `is_public` est-il à son auteur ou à tous ?
+    BUDGET = 1
+
+    @staticmethod
+    def _offenders():
+        from django.apps import apps as django_apps
+        from django.contrib.auth import get_user_model
+        from django.db import models as dj
+        user_model = get_user_model()
+        found = []
+        for model in django_apps.get_models():
+            owned = any(isinstance(f, dj.ForeignKey) and f.related_model is user_model
+                        for f in model._meta.concrete_fields)
+            for field in model._meta.concrete_fields:
+                if owned and isinstance(field, dj.FileField) and not callable(field.upload_to):
+                    found.append(f'{model._meta.label}.{field.name} → {field.upload_to!r}')
+        return found
+
+    def test_no_owned_model_stores_files_at_a_fixed_location(self):
+        offenders = self._offenders()
+        self.assertLessEqual(len(offenders), self.BUDGET,
+                             'un modèle à PROPRIÉTAIRE range ses fichiers à un emplacement fixe, '
+                             'hors du domicile de l’utilisateur : ' + ' ; '.join(offenders))
+
+    def test_the_fixed_location_budget_has_no_slack(self):
+        self.assertEqual(self.BUDGET, len(self._offenders()),
+                         'budget à recaler : une correction a été faite, le baisser ici')
