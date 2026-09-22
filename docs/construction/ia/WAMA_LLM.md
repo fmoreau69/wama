@@ -305,7 +305,9 @@ appartient à CE document : les outils **IA-transverses** (gating `None` — auc
 garde) : `translate_text` (§2bis) · `memory_recall` (§3-4) ·
 `charger_competence` (§0bis) · `list_ai_models`/`get_ai_model` (§2ter) · `list_user_files` ·
 `switch_ui_mode` · `ask_claude_code` (garde développeur écrite DANS son corps, pas dans le
-registre — ne pas « corriger ») · les **6 lectures transverses** et les **3 verbes de cycle**
+registre — ne pas « corriger ») · les outils **`dev_*`** (2026-09-22), qui ne sont PAS dans
+`TOOL_REGISTRY` : annoncés aux seuls développeurs et RELAYÉS par `mcp_client` à la surface MCP
+« wama-dev » (§1ter) · les **6 lectures transverses** et les **3 verbes de cycle**
 du 2026-09-11 (ces derniers gardés par `_refus_app` dans leur corps, cf. le 🔴 ci-dessus) ·
 et **`add_to_media_library`** depuis le **2026-09-11**.
 
@@ -329,6 +331,77 @@ TTS est une **étape cliente post-réponse** (`home.html` appelle `/api/tts-koko
 et les visèmes de l'avatar viendront d'un endpoint TTS distinct. C'est la contrepartie de « UN
 cerveau, N surfaces » : le contrat commun ne porte que ce qui vaut pour toutes les surfaces —
 un bot Discord n'a rien à faire d'un WAV en base64.
+
+#### 1bis. Latence du tour web — MESURÉE le 2026-09-22, leviers identifiés (⏳ rien de câblé)
+
+> Constat de Fabien en testant l'assistant vocal (GPU de nouveau utilisable) : réponse ET
+> vocalisation lentes. La chaîne est **strictement séquentielle** : `ai_chat` (LLM complet,
+> `stream: False`) → affichage → `/api/tts-kokoro/` (WAV complet) → lecture/avatar. Rien ne
+> commence avant que l'étape précédente ait FINI.
+
+| maillon | mesure (`qwen3.5:4b`, modèle chaud, RTX 4090) | source |
+|---|---|---|
+| **réflexion du modèle** | même message : **12,7 s** avec `think` (défaut Ollama : 1 908 jetons dont **7 354 caractères de « pensée »** pour 244 de réponse) contre **2,4 s** sans (`think:false`, 344 jetons, réponse plus complète) | `_ollama_call` n'envoie pas `think` (`assistant_engine.py`) ; `ollama_chat()` de `llm_utils` le sait déjà (`think=False` pour les tâches courtes) |
+| **prompt système** | **14 693 caractères ≈ 3 700 jetons** à chaque tour, dont **12 361** pour le prompt d'outils (71 outils) ; l'état des files (**dynamique**, 56 car.) est concaténé **AVANT** le bloc d'outils (fixe) → le cache de préfixe KV d'Ollama est invalidé dès qu'une file change | `run_assistant_turn` : ordre `base + rôle + labo + annonce + files + outils` |
+| **pas de flux** | l'utilisateur voit la réponse **entière ou rien** ; la TTS ne démarre qu'après, sur le texte **entier** | `stream: False` ; `speakText` appelé dans `addMessage` |
+| **TTS** | service `kokoro-onnx` chaud (port 8001, `read_timeout=30`) : coût ≈ longueur du texte ; un WAV base64 unique | `_tts_via_service` |
+
+**Leviers, du moins coûteux au plus structurant** — 1, 2 et 4 **✅ câblés le 22/09** (décision
+de Fabien : « purement amélioratif ») ; 3 et 5 restent des questions :
+1. ✅ **Réflexion reliée au curseur Rapide ↔ Qualité** : `assistant_engine.thinking_wanted` —
+   la réflexion (`think`) n'est demandée qu'à la position « quality » de la déclinaison commune
+   à paliers (`preset_key_for_intent` : fast 15 / balanced 50 / quality 85) ; le défaut (50) est
+   donc SANS réflexion. Vérifié sur deux tours réels (`qwen3.5:4b`, curseur par défaut) :
+   conversation 5,4 s, tour à OUTIL 1,7 s avec l'appel `list_user_files` intact — le format JSON
+   d'appel survit à `think:false`. Un modèle sans capacité `thinking` accepte l'option (mesuré).
+2. ✅ **Prompt réordonné** : base + rôle + annonce + outils (FIXE) puis contexte labo + état des
+   files (DYNAMIQUE) → le préfixe des jetons est stable d'un tour à l'autre.
+3. ⏳ **Réduire le prompt d'outils** : 71 outils décrits à chaque tour ; ne lister que ceux du
+   domaine chargé (`charger_competence`) ou les résumer — c'est l'écart « sous-agents » de
+   `WAMA_HARNESS §9` (déclencheur : « le prompt système devient le poste de coût dominant »).
+   Coût du levier : un outil non annoncé ne peut plus être appelé — il faut donc un chargement
+   à la demande (le modèle demande « les outils de l'app X »), et un 2ᵉ tour LLM quand il se
+   trompe de domaine. Gain : ~2 600 jetons de prompt par tour, c'est-à-dire du temps d'évaluation
+   de prompt SEULEMENT quand le cache KV est froid (le levier 2 rend ce cas rare).
+4. ✅ **TTS par phrases** (`home.html` : `splitSentences` ≥ 60 caractères, `fetchSpeech`,
+   `playSpeechChunk`) : la première phrase part au service dès la réponse reçue, la suivante est
+   demandée PENDANT la lecture ; l'avatar met les morceaux en file (TalkingHead), le canal commun
+   attend la fin d'un morceau avant le suivant. L'attente avant la première parole ne dépend plus
+   de la longueur de la réponse.
+5. ⏳ **Flux jeton par jeton** (SSE) — le plus coûteux : `ai_chat` rend un JSON complet après la
+   boucle à outils ; streamer suppose un tour qui ÉMET pendant qu'il s'exécute (appels d'outils
+   compris), donc un autre contrat pour les TROIS surfaces (web, API v1, Discord) et pour le
+   store (un tour interrompu à mi-flux). Ce que l'utilisateur gagnerait : voir le texte arriver,
+   et une TTS qui commence à la première phrase émise (levier 4 sur le flux). Ce que le
+   `WAMA_HARNESS §9 chantier 4` propose à la place : publier les ÉTAPES (« j'interroge la
+   file… ») par la brique de progression commune — ce qui est pénible n'est pas d'attendre,
+   c'est d'attendre sans savoir.
+
+#### 1ter. L'assistant agit sur le CODE — pour les développeurs et administrateurs (22/09)
+
+Demande de Fabien : *« utiliser un modèle local ou cloud souverain, performant en code, pour
+améliorer WAMA depuis l'assistant sans passer par Claude, sans trop de risque »*, réservé aux
+rôles admin et dev. **Ce qui existait** : `ask_claude_code` (Claude seul, écriture sur intention
+explicite) et la surface MCP `wama-dev` (`dev_tools.py` : rôles wama-dev-ai qui ÉCRIVENT UNE
+PROPOSITION, bac à sable sur jumelles, process séparé §16) — que seul un client MCP externe
+(Claude Code, IDE) pouvait consommer. **Câblé le 22/09** : l'assistant est CLIENT MCP de cette
+surface (`common/services/mcp_client.py`, `ROADMAP §8d étape 5 moitié dev`) — un développeur
+qui converse avec un modèle local voit les outils `dev_*` et peut lancer un rôle ou une jumelle ;
+le serveur dev garde la porte. ⏳ **Ce qui manque pour « une page d'édition en bac à sable avec
+un guide de conception et d'intégration »** — trois décisions avant d'écrire :
+1. **le rôle « améliorer »** (`wama-dev-ai/run_improve.py`, patron `run_codegen.py`) : matière =
+   les docs de référence du domaine touché (`AGENTS.md`, `WAMA_APP_CONVENTIONS`, `ROUTE`) + le
+   code RÉEL de la jumelle par AST ; sortie = un DIFF proposé dans `outputs/`, contrôlé
+   mécaniquement (compile, imports résolus, `check_identifier_language`) ; **jamais appliqué** ;
+2. **l'application sur la JUMELLE** : un outil `dev_sandbox_apply(proposition)` qui écrit le diff
+   dans `<app>_NN` seulement, avec témoin et `revert` — c'est une ÉCRITURE, donc elle attend la
+   marque d'écriture + confirmation de `WAMA_HARNESS §9 chantier 2` (« le jour où on ouvre
+   l'ajout de capacité à un utilisateur, il faut une approbation ») ;
+3. **la page** : le volet de la jumelle (les jumelles ont déjà leur badge « BAC À SABLE » au
+   catalogue) avec le fil de l'assistant en domaine `dev`, la proposition à côté, les juges du
+   bac à sable (AST, couple views↔templates, smoke habité) comme verdict — ⚠ le bac à sable est
+   en chantier dans une AUTRE session (convergence par régénération, `ROUTE §10.3`) : la page
+   se conçoit avec elle, pas à côté.
 
 ### 2. Apps — au lancement de la tâche Celery
 

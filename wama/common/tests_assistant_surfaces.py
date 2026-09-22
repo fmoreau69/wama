@@ -261,6 +261,68 @@ class AvatarPersistantTest(TestCase):
                 self.assertEqual('toggle', p['type'])
 
 
+class LatencyLeversTest(TestCase):
+    """Les deux leviers de latence câblés le 2026-09-22 (`WAMA_LLM §1bis`) : la réflexion du
+    modèle suit le curseur Rapide ↔ Qualité, et le prompt système met le FIXE avant le DYNAMIQUE
+    pour que le cache de préfixe d'Ollama serve d'un tour à l'autre."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('latency_user', password='x')
+
+    def _turn(self, **settings_values):
+        from wama.common.services import assistant_engine
+        from wama.common.utils.user_settings import save_user_app_settings
+        if settings_values:
+            save_user_app_settings(self.user, 'assistant', settings_values)
+        with mock.patch.object(assistant_engine, '_llm_call',
+                               return_value=('réponse', {'input_tokens': 0, 'output_tokens': 0})) as call:
+            assistant_engine.run_assistant_turn(self.user, 'où en est ma file ?',
+                                                provider='wama-dev-ai', model='x')
+        return call.call_args
+
+    def test_the_default_slider_asks_the_model_not_to_think(self):
+        self.assertIs(False, self._turn().kwargs['think'])
+
+    def test_a_quality_slider_restores_the_model_reflection(self):
+        """Même déclinaison à paliers que le converter et l'enhancer (`preset_key_for_intent`) :
+        seule la position « quality » (85) demande la réflexion."""
+        self.assertIs(True, self._turn(quality_intent=85).kwargs['think'])
+        self.assertIs(True, self._turn(quality_intent=100).kwargs['think'])
+        self.assertIs(False, self._turn(quality_intent=50).kwargs['think'])
+        self.assertIs(False, self._turn(quality_intent=15).kwargs['think'])
+
+    def test_a_cloud_provider_receives_no_thinking_flag(self):
+        from wama.common.services import assistant_engine
+        with mock.patch.object(assistant_engine, '_llm_call',
+                               return_value=('réponse', {'input_tokens': 0, 'output_tokens': 0})) as call:
+            assistant_engine.run_assistant_turn(self.user, 'x', provider='albert', model='m')
+        self.assertIsNone(call.call_args.kwargs['think'])
+
+    def test_the_ollama_payload_carries_the_thinking_flag_only_when_decided(self):
+        from wama.common.services.assistant_engine import _ollama_call
+        seen = []
+
+        class FakeClient:
+            def __init__(self, *a, **k): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def post(self, url, json=None):
+                seen.append(json)
+                return mock.Mock(status_code=200, json=lambda: {'message': {'content': 'ok'}})
+        with mock.patch('httpx.Client', FakeClient):
+            _ollama_call([{'role': 'user', 'content': 'x'}], 'm', think=False)
+            _ollama_call([{'role': 'user', 'content': 'x'}], 'm')
+        self.assertIs(False, seen[0]['think'])
+        self.assertNotIn('think', seen[1])
+
+    def test_the_fixed_tool_block_precedes_the_dynamic_queue_state(self):
+        messages = self._turn().args[0]
+        system = messages[0]['content']
+        tools_at = system.index('Available tools:')
+        queue_at = max(system.find('files WAMA'), system.find('Toutes les files'))
+        self.assertGreater(queue_at, tools_at, "l'état des files (dynamique) doit suivre le bloc d'outils (fixe)")
+
+
 class ChargementDeCompetenceTest(TestCase):
     """Le chargement AUTOMATIQUE d'une compétence — la boucle, pas seulement l'outil.
 
@@ -280,7 +342,7 @@ class ChargementDeCompetenceTest(TestCase):
 
         vus = []
 
-        def _faux_llm(messages, llm_model, provider, user=None):
+        def _faux_llm(messages, llm_model, provider, user=None, think=None):
             vus.append(list(messages))
             if len(vus) == 1:
                 return ('{"tool": "charger_competence", "args": {"domaine": "science"}}',
@@ -303,7 +365,7 @@ class ChargementDeCompetenceTest(TestCase):
         """L'autre moitié : sans l'annonce, le modèle ne sait pas que l'outil existe."""
         from wama.common.services import assistant_engine
 
-        def _faux_llm(messages, llm_model, provider, user=None):
+        def _faux_llm(messages, llm_model, provider, user=None, think=None):
             return messages[0]['content'], {'input_tokens': 0, 'output_tokens': 0}
 
         with mock.patch.object(assistant_engine, '_llm_call', side_effect=_faux_llm):
