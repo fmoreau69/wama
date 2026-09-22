@@ -16156,3 +16156,54 @@ corrige SEULEMENT si l'app n'est pas en cours de portage ; sinon elle le TRANSME
 la spécification MESURÉE est dans `docs/construction/ia/WAMA_HARNESS.md §9 Chantier 1` (5 choix
 recommandés, NON validés) ; fichiers `wama/common/services/assistant_engine.py` +
 `wama/common/tests_assistant_surfaces.py` — disjoints de cette instance.
+
+---
+
+## §CLÔTURE — 2026-09-22 (session 19→22/09), « PARTAGE + VOIX » — ✅ LIVRÉ, 20 commits, POUSSÉS (`origin/dev` = `29ed4c6c`, poussé par une instance sœur)
+
+**Périmètre** : partage unifié marches 1-2 (`WAMA_COLLABORATION §8`), voix partagées, voix de référence
+(`MEDIA_STORAGE_TIERING §9.4bis`), trois défauts de la médiathèque (aperçu, proxy des connecteurs,
+freesound), revérification « aligné sur le commun, rien de réinventé ». Détails aux items 8 et §9.4bis.
+
+**Livré** : M1 médiathèque (`a0cf4983`, `35400cdf`) · M2 vocabulaire, le RAG en sort — autre axe
+(`7573116d`) · voix partagée employable, sélecteur ET résolution sur un lecteur commun (`8c93f81c`) ·
+aperçu par le type du FICHIER, proxy commun des 6 connecteurs, freesound (`ad68315a`, garde `29ed4c6c`) ·
+voix : genre vérifié PAR LA MESURE, dédup, orphelins, noms propres (`1789f9a1` → `155c0c31`, 7 commits) ·
+revérification : garde anonyme en un seul domicile `scoping.listable_by`, `provenance.sha256_of`
+réemployé, repli muet rendu dit (`36fb1437`).
+**Données réelles modifiées (déclarées)** : 10 voix système retéléchargées (lignes + fichiers), 14 WAV
+orphelins retirés, 10 fichiers renommés — `media_library/system/`. Aucun travail ne référençait ces voix.
+
+**Contrôles mesurés à la clôture** : tests du périmètre **324/325** (venv_linux) — le seul rouge,
+`tests_doc_plans`, vient d'un ajout NON commité d'une instance sœur (`common/sandbox.py`,
+`twins_with_copied_views`, 02:22 : `docs/dev/briques.md` à régénérer par elle) ; 4 skips = la garde V8
+de l'aperçu, `py_mini_racer` absent de venv_linux (venv_win : 5/5). `check_docs` : 1 cassée — le
+`retention.py` PRÉVU par la partition d'une instance sœur (intention, pas dérive) ; 1 périmée dans
+`WAMA_MECANISMES.md:209` (fichier de l'instance sœur). `check_identifier_language` : budgets tenus.
+`check_skills` : 0 défaut franc. Registre des retraits : R43 en double, ANTÉRIEUR (connu depuis le 13/09).
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : les 5 DÉCISIONS de Fabien ci-dessous — la 1ʳᵉ débloque le
+dernier reste des voix.
+
+**Décisions de Fabien (aucune n'est bloquante pour le reste du dépôt)** :
+1. Les 8 créneaux voix enfant/âgé : âge inventé, aucune source ne le fournit — désactivation proposée (§9.4bis).
+2. Les connecteurs de la médiathèque au registre des sources : motif d'exclusion DÉPASSÉ depuis le 15/09,
+   décision rouverte (`external_sources.py`, item 8).
+3. `media_library/system/` en sous-dossiers par NATURE (D18 de l'instance sœur, §9.4bis) — §8bis s'y oppose.
+4. `is_public` du synthesizer → `visibility` (colonne, migration).
+5. La clé de payload `shared` des mots-clés (frontière des données).
+Et, ouverte côté collaboration : le retrait d'un partage PENDANT qu'un travail l'emploie replie en silence
+(`WAMA_COLLABORATION §9`, à côté de E5).
+
+**File des chantiers (ordre proposé)** : porter le sélecteur de voix de la page du synthesizer sur la brique
+commune (la décision « voix partagée » n'y est pas en vigueur) → aligner la médiathèque sur les
+fonctionnements communs (ordre des boutons, menu « … » commun — l'entrée au RAG en découle) → marche 3 du
+partage (geste étendu par natures déclarées) → P3 du pipeline universel (revérifier d'abord qui tient
+`task_skeleton.py`).
+
+**Pendings système** : redémarrer WAMA (gunicorn + Celery + service TTS) pour que les correctifs Python
+de la session soient en service — le JS de l'aperçu, servi depuis `staticfiles/`, l'est déjà.
+`download_voice_refs` plante à la FERMETURE de l'interpréteur (sortie 139/134, après son bilan) : sans effet
+sur les données, non corrigé. `librosa`/`datasets`/`soundfile` absents de tout `requirements*.txt`.
+Les deux fichiers `smoke-0802-*` (sorties Studio du 02/08 sur le compte réel) : NON supprimés, décision à
+Fabien ; aucun filet ne les attrape.
