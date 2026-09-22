@@ -1896,6 +1896,9 @@ ci-dessous, jugé « trop étroit » car raisonné sur le cas .txt/.md/.csv) :**
 - **Mesuré** : couverture COMPLÈTE 9/10 apps (converter 27/34 compressées + 7 déclarées ;
   synthesizer = 2 vues inexprimables `voice_preview_diagnostic`/`stream_test`, correctement
   refusées) ; fidélité roundtrip 10/10 OK ; corpus régénéré.
+  ⭐ **Les deux inexprimables ont disparu le 2026-09-23** : c'étaient deux `lambda` de diagnostic
+  du flux vocal, sans aucun appelant — RETIRÉES (`REMOVAL_LEDGER` R65), corpus régénéré. *Ce que
+  le manifeste ne savait pas exprimer était du code mort, pas une limite du formalisme.*
 
 **Palier A2a ✅ LIVRÉ (2026-08-11, 3ᵉ session) — brique `task_skeleton` + 1er adopteur converter** :
 - Constat A0 : le `tasks.py` d'une app existante contient de la GLU réelle → il ne peut pas

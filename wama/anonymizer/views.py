@@ -92,6 +92,7 @@ class IndexView(View):
 
                         if is_url(path):
                             video_path = upload_media_from_url(path, str(user_input_dir))
+                            origin = {'kind': 'url', 'ref': path, 'source_path': None}
                         else:
                             # Confinement (05/09) : ce site lisait N'IMPORTE QUEL chemin serveur
                             # cité dans un .txt — le seul du parc sans garde, alors que le
@@ -99,9 +100,11 @@ class IndexView(View):
                             # partout : un chemin de lot se résout SOUS MEDIA_ROOT, ou est
                             # refusé (`MEDIA_STORAGE_TIERING §8.6` D3).
                             from wama.common.utils.media_paths import copy_into_app_input, resolve_under_media_root
-                            abs_src, _ = resolve_under_media_root(path)   # OutsideMediaRoot / FileNotFoundError → failed[]
+                            from wama.common.utils.provenance import kind_of
+                            abs_src, src_rel = resolve_under_media_root(path)   # OutsideMediaRoot / FileNotFoundError → failed[]
                             dest, _rel = copy_into_app_input(abs_src, 'anonymizer', user.id, 'input')
                             video_path = str(dest)
+                            origin = {'kind': kind_of(src_rel), 'ref': src_rel, 'source_path': abs_src}
                         # Crée Media en DB
                         media = process_media(
                             video_path, user,
@@ -109,6 +112,9 @@ class IndexView(View):
                             output_quality=request.POST.get('output_quality', 'balanced'),
                         )
                         added.append(media)
+                        # Provenance : la copie se souvient de sa ligne de lot (brique commune).
+                        from wama.common.utils.provenance import record_origin, ref_for
+                        record_origin(ref_for(video_path), **origin)
                     except Exception as e:
                         failed.append((path, str(e)))
 

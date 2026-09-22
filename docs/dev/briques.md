@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**149 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**153 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -630,6 +630,19 @@ Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune lign
   - `entrees(user, *, mondes=None, apps=None, depuis=None, jusqu_a=None, limite=50, offset=0, avec_gestes=True, tri='recent', statut='all', q='')` — Rend `(liste d'Entree triée, total)`.
   - `compter_par_app(user, **kwargs)` — Répartition par app — alimente les filtres de la page sans requête supplémentaire côté vue.
 
+### L'assistant, CLIENT MCP de la surface de développement
+
+Le moteur de l'assistant RELAIE les outils `dev_*` (rôles wama-dev-ai, bac à sable) à la surface « wama-dev » par le protocole — process séparé, §16 tenu : rien n'est importé, la porte (droits à chaque appel, arguments admis) reste celle du serveur. Annoncés aux seuls développeurs/admins ; serveur absent = aucun outil, l'assistant répond quand même. Étape 5 de §8d, moitié dev (2026-09-22)
+
+- **Domicile** : `wama/common/services/mcp_client.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
+- **Module** : Client MCP du moteur de l'assistant — la surface « wama-dev » vue DEPUIS l'assistant (ROADMAP §8d Phase 3, étape 5, moitié « outils de dev » ; demande de Fabien du 2026-09-22 : « améliorer WAMA depuis l'assistant, sans forcément passer par Claude, uniquement pour les rôles admin et dev »).
+- **API publique** (5) :
+  - `is_dev_tool(name: str) -> bool`
+  - `dev_surface_url() -> str` — Adresse de l'endpoint MCP de la surface dev — le registre des sources externes fait foi.
+  - `dev_tools_for(user) -> list` — Outils de développement que l'assistant peut ANNONCER à `user` :
+  - `tools_block(tools: list) -> str` — Bloc de prompt des outils de dev — MÊME forme que `tool_api.build_tools_list`
+  - `call_dev_tool(user, name: str, arguments) -> dict` — Relaie UN appel d'outil de dev à la surface, et rend son résultat comme `execute_tool`
+
 ### Langue des identifiants (budget)
 
 Relève par AST les identifiants de code FRANÇAIS (classes, fonctions, arguments, variables, alias d'import ; accents = signal certain) et les borne par un BUDGET QUI NE PEUT QUE DESCENDRE : aucun chantier de renommage exigé, mais l'AJOUT devient impossible. Les méthodes `test_*` sont la seule exemption de doctrine ; les noms de classes de test le sont par défaut (zone grise, `--strict-classes` en donne le chiffre). Le test refuse aussi un budget qui garde de la MARGE — une marge est une autorisation d'en ajouter
@@ -663,6 +676,21 @@ Une balise `WAMA:SECTION(audience=…; type=…; nature=…; etat=…)` sous un 
 Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément (`send_to.item_for_output_path`), les entrées sont CELLES de la card (`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu n'attend pas le réseau). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)
 
 - **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
+
+### Modèles de NIVEAU DÉVELOPPEMENT (bridage « qualité max »)
+
+UN domicile pour « quel modèle a le droit de travailler sur le code » : plancher sur le score coding du banc tiers (≥ 40) + déclaration explicite pour le seul distant non mesuré (albert:gpt-oss-120b), curseur imposé à 100 (réflexion), distants SOUVERAINS admis dès « cloud si saturé », et REFUS lisible plutôt qu'un petit modèle en repli. Lu par l'assistant (domaine dev, bascule en cours de tour dès qu'une compétence dev ou un outil dev_* est appelé, domaine collant au fil) et par les rôles wama-dev-ai (`role_utils.resolve_model`) — décision Fabien 22/09 après un tour réel où qwen3.5:4b inventait des jumelles
+
+- **Domicile** : `wama/common/services/development_models.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+- **Module** : Modèles de NIVEAU DÉVELOPPEMENT — le bridage « qualité max » du travail sur le code (2026-09-22).
+- **API publique** (7) :
+  - `coding_score(model) -> float | None` — Sous-indice coding du banc tiers, ou None s'il n'est pas mesuré.
+  - `is_development_grade(model) -> bool` — Ce modèle a-t-il le niveau développement ? Mesure d'abord, déclaration ensuite.
+  - `dev_cloud_keys(user) -> set` — Modèles distants admis au tirage de DÉVELOPPEMENT pour `user` : la règle commune
+  - `development_candidates(user) -> list` — `model_key` des modèles de conversation de niveau dev que `user` peut lancer : locaux
+  - `development_model(user, requested: str=None) -> str | None` — Le modèle de niveau dev pour ce travail — `model_key` complet (`ollama:…`, `albert:…`), ou
+  - `development_refusal(user=None) -> str` — La raison, lisible, quand aucun modèle de niveau dev n'est disponible.
+  - `is_development_step(step: dict) -> bool` — Une étape d'outil qui fait ENTRER la conversation dans le travail sur le code : la
 
 ### Modèles DISTANTS au catalogue
 
@@ -753,18 +781,34 @@ RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente)
 
 ### Provenance d'une entrée (source ⟷ copie de travail)
 
-D'OÙ vient le fichier qu'une card consomme. La frontière était déjà tracée par le code — la SOURCE de vérité (médiathèque, temp, montage, URL) reste où elle est, l'ENTRÉE d'une card est une copie de travail jetable — mais rien ne reliait les deux. Quatre gestes en dépendaient, tous demandés et tous impossibles : la DÉDUP par provenance (mesuré le 11/09 : chaîner describer → imager → enhancer par « Envoyer vers » produit TROIS copies des mêmes octets), le retour app → médiathèque sans re-copie, savoir qu'une source a BOUGÉ au lieu de le découvrir au lancement, et surtout l'INDEX INVERSE — « qui référence ce fichier ? », la question que le gestionnaire de fichiers doit poser AVANT de supprimer. C'est lui qui lève la seule objection restée debout contre le pointage : on ne bloque pas la suppression, on la rend INFORMÉE (la card survit, l'utilisateur sait que sa source a disparu). ⚠ PAS de `GenericForeignKey` malgré la lettre de la décision du 07/09 : `RunOutcome` avait déjà tranché l'inverse avec sa raison écrite, on suit SA convention (`app`+`object_type`+`object_id`, plus `field` — un élément peut avoir plusieurs entrées). ⚠ ÉCRITE PAR LES BRIQUES SEULES : `copy_into_app_input` enregistre quand on lui donne l'élément, `record_import` est sa moitié pour le motif « copier PUIS créer ». Aucune app n'écrit sa provenance
+D'OÙ vient le fichier qu'une card consomme. La frontière était déjà tracée par le code — la SOURCE de vérité (médiathèque, temp, montage, URL) reste où elle est, l'ENTRÉE d'une card est une copie de travail jetable — mais rien ne reliait les deux. Quatre gestes en dépendaient, tous demandés et tous impossibles : la DÉDUP par provenance (mesuré le 11/09 : chaîner describer → imager → enhancer par « Envoyer vers » produit TROIS copies des mêmes octets), le retour app → médiathèque sans re-copie, savoir qu'une source a BOUGÉ au lieu de le découvrir au lancement, et surtout l'INDEX INVERSE — « qui référence ce fichier ? », la question que le gestionnaire de fichiers doit poser AVANT de supprimer. C'est lui qui lève la seule objection restée debout contre le pointage : on ne bloque pas la suppression, on la rend INFORMÉE (la card survit, l'utilisateur sait que sa source a disparu). ⚠ PAS de `GenericForeignKey` malgré la lettre de la décision du 07/09 : `RunOutcome` avait déjà tranché l'inverse avec sa raison écrite, on suit SA convention (`app`+`object_type`+`object_id`, plus `field` — un élément peut avoir plusieurs entrées). ⚠ ÉCRITE PAR LES BRIQUES SEULES : `copy_into_app_input` enregistre quand on lui donne l'élément, `record_import` est sa moitié pour le motif « copier PUIS créer ». Aucune app n'écrit sa provenance. ⭐ CÂBLÉE le 2026-09-22 (elle ne l'était qu'à UN site sur onze) : le répartiteur « Envoyer vers » enregistre pour tous les importeurs et leurs jumelles (`record_origin`, qui retrouve les cards par le chemin de leur copie), `ensure_local_input` pour une URL, les deux lots `-i` qui copient une ligne serveur ; nouveau `kind` `app` — « Envoyer vers » part aussi de l'entrée ou de la sortie d'une autre card
 
 - **Domicile** : `wama/common/utils/provenance.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : PROVENANCE D'UNE ENTRÉE — d'où vient le fichier qu'une card consomme.
-- **API publique** (7) :
+- **API publique** (9) :
   - `sha256_of(chemin, *, limite=SEUIL_EMPREINTE_OCTETS)` — Empreinte d'un fichier, ou `''` s'il est trop gros / illisible. Ne lève jamais.
   - `record_provenance(instance, field, *, kind, ref='', original_name='', source_path=None, user=None)` — Enregistre d'où vient `instance.<field>`. Remplace la trace existante, ne l'empile pas.
   - `ref_for(source_path)` — Adresse d'une source : son chemin relatif à `MEDIA_ROOT` s'il y vit, sinon son chemin brut.
   - `record_import(instance, field, source_path, *, kind='temp')` — La moitié complémentaire de `copy_into_app_input`, pour le motif « copier PUIS créer ».
+  - `record_origin(copy_path, *, kind, ref, source_path=None)` — La provenance de TOUTES les cards qui portent cette copie, retrouvées par son chemin.
+  - `kind_of(media_path) -> str` — La nature d'une source désignée par son chemin dans le gestionnaire de fichiers.
   - `provenance_of(instance, field)` — La provenance d'une entrée, ou `None`. Ne lève jamais.
   - `referenced_by(kind, ref)` — L'INDEX INVERSE — quelles entrées de cards désignent cette source ?
   - `same_source(kind, ref, user)` — Une copie de cette même source existe-t-elle déjà pour cet utilisateur ?
+
+### Qui désigne ce fichier ? (déplacer, supprimer sans casser)
+
+L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent à jour — `repoint` quand le fichier bouge, `detach` quand il disparaît. Décision de Fabien du 2026-09-22 (`MEDIA_STORAGE_TIERING §8.6` D20) : déplacer ou renommer met à jour le lien des cards SANS rien demander ; supprimer un fichier qu'une card utilise demande d'abord une confirmation qui dit COMBIEN de cards il touche, puis laisse les cards en place, détachées. Avant, le gestionnaire renommait, déplaçait et supprimait sans jamais regarder les cards : c'est ce geste qui fabrique les « référencés mais absents » comptés par `check_media_integrity`. ⚠ DEUX façons de désigner, une seule met la card en péril : par un `FileField` (elle perd son fichier) ou par sa PROVENANCE (elle a sa copie — information, jamais un blocage). ⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même
+
+- **Domicile** : `wama/common/utils/file_references.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
+- **Module** : QUI DÉSIGNE CE FICHIER ? — l'index des cards qui utilisent un chemin, et les deux gestes qui le tiennent à jour quand le fichier bouge ou disparaît.
+- **API publique** (6) :
+  - `file_field_models()` — `[(modèle, [FileField…])]` pour tout le dépôt — UNE énumération, plusieurs lecteurs
+  - `direct_references(path, *, folder=False) -> list` — Les cards dont un `FileField` porte ce chemin (ou, `folder=True`, un chemin SOUS ce dossier).
+  - `source_references(path, *, folder=False) -> list` — Les provenances dont la SOURCE est ce chemin (ou un chemin sous ce dossier).
+  - `usage(path, *, folder=False) -> dict` — Ce que le gestionnaire de fichiers doit savoir AVANT de supprimer.
+  - `repoint(old_path, new_path, *, folder=False) -> dict` — Le fichier (ou le dossier) a bougé : chaque lien suit, directs et sources.
+  - `detach(path, *, folder=False) -> int` — Le fichier a été supprimé (après confirmation) : les cards qui le désignaient restent,
 
 ### Serveur MCP (adaptateur mince sur tool_api)
 
@@ -917,10 +961,11 @@ L'historique de l'assistant côté SERVEUR — remplace le localStorage web et l
 
 - **Domicile** : `wama/common/services/conversation_store.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.5](../construction/suivi/ROADMAP.md)
 - **Module** : Store de conversation — l'historique de l'assistant, côté SERVEUR.
-- **API publique** (6) :
+- **API publique** (7) :
   - `thread(user, surface: str='web', thread_key: str='') -> Conversation` — Le fil de cet utilisateur pour cette surface — créé au besoin.
   - `history(conversation, limite: int=MAX_TOURS) -> list` — Les derniers tours du fil, au format attendu par `run_assistant_turn`.
   - `record_exchange(conversation, message: str, resultat: dict) -> None` — Enregistre le tour utilisateur ET la réponse de l'assistant, en une transaction.
+  - `last_loaded_domain(conversation, limite: int=MAX_TOURS) -> str` — Domaine chargé au cours du fil (`charger_competence`, du plus récent au plus ancien), ou ''.
   - `display_entries(conversation, limite: int=60) -> list` — Les derniers tours du fil au format d'AFFICHAGE d'une surface : les étapes d'outils
   - `conversations_of(user, limite: int=50) -> list` — Fils d'un utilisateur, le plus récemment actif d'abord (liste d'UI).
   - `clear(user, conversation_id: int) -> bool` — Supprime UN fil — uniquement l'un des SIENS.
@@ -950,11 +995,12 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
 
 - **Domicile** : `wama/common/services/assistant_engine.py`
 - **Module** : Moteur de l'assistant IA — boucle agentique multi-surface (chantier « passerelle de canaux », étape 0).
-- **API publique** (4) :
+- **API publique** (5) :
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
-  - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str='wama-dev-ai', model: str='fast', domain: str=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
-  - `run_assistant_turn(user, message: str, provider: str='wama-dev-ai', model: str='fast', history: list=None, domain: str=None) -> dict` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
+  - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
+  - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
+  - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None) -> dict` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
 
 ### Pipeline de prompts
 
@@ -1346,6 +1392,17 @@ Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE
 - **API publique** (1) :
   - `apply_queue_sort_filter(request, batches_list, *, name_of)` — Applique le tri + filtrage de file (persistés en session) et renvoie
 
+### Vues de lot (fabrique commune)
+
+Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, batch_update, batch_delete, batch_duplicate, batch_download, batch_status — paramétrée comme la fabrique de file (les deux formes de rattachement par `batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps réelles les écrivaient chacune à la main (60 lectures de lot recopiées, `ROUTE §11 #36`) et la rallient au fil des portages (critère `batch_views_common`)
+
+- **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
+- **API publique** (3) :
+  - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
+  - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
+  - `make_batch_views(*, work_model, batch_model, get_user, task=None, file_fields=(), output_fields=(), output_field='output_file', params_fields=(), schema=None,…` — Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
+
 ## UI générée
 
 ### Bouton de cycle
@@ -1677,7 +1734,7 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur
 
 - **Domicile** : `wama/common/utils/media_paths.py`
 - **Module** : WAMA Common - Media Path Utilities
-- **API publique** (13) :
+- **API publique** (15) :
   - `get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str='input') -> Path` — Get the absolute path for an app's user-specific media folder.
   - `class OutsideMediaRoot(ValueError)` — Le chemin demandé sort de MEDIA_ROOT (traversée `..`, dossier frère, absolu étranger).
   - `resolve_under_media_root(candidate, *, must_exist: bool=True)` — Résout un chemin — absolu, ou RELATIF à MEDIA_ROOT — et GARANTIT qu'il y reste.
@@ -1688,6 +1745,8 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur
   - `get_relative_media_path(app_name: str, user_id: Union[int, str], subfolder: str, filename: str) -> str` — Get the relative path for storing in Django FileField.
   - `copy_into_app_input(source_path, app_name: str, user_id, subfolder: str='input', allowed_exts=None, *, for_instance=None, field=None, provenance_kind='temp', p…` — Copy a source file into an app's media folder with collision-safe naming.
   - `class UploadToUserPath` — Callable class for Django FileField upload_to that generates user-specific paths.
+  - `system_asset_relpath(asset_type: str, filename: str) -> str` — Chemin relatif (sous `MEDIA_ROOT`) d'un asset système : un sous-dossier par NATURE.
+  - `class UploadToSystemAssetPath` — `upload_to` de `SystemAsset.file` — `media_library/system/<asset_type>/<fichier>`.
   - `upload_to_user_input(app_name: str)` — Convenience function to create an UploadToUserPath for input folder.
   - `upload_to_user_output(app_name: str)` — Convenience function to create an UploadToUserPath for output folder.
   - `migrate_file_to_user_path(old_path: Union[str, Path], app_name: str, user_id: Union[int, str], subfolder: str='input', move: bool=True) -> Optional[str]` — Migrate a file from old location to new user-specific location.
@@ -1843,7 +1902,7 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 
 ### Sources externes
 
-Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. ⚠ Ne couvre pas les connecteurs `media_library`, dont la clé est une donnée PAR UTILISATEUR en base — les y rapatrier uniformiserait ce qui n'est pas pareil
+Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
@@ -2051,7 +2110,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (84) :
+- **API publique** (85) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `add_to_anonymizer(user, file_path: str, use_sam3: bool=False, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `start_anonymizer(user, media_id: int=None) -> dict` — Trigger Celery processing for a specific media item or all pending items.
@@ -2124,6 +2183,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `input_schema_for(fn, index=None) -> dict` — Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma
   - `primary_arg_name(tool_name: str)` — Nom du 1er paramètre « utile » d'un outil (celui qui suit `user`), ou None.
   - `sanitize_tool_args(tool_name: str, args: dict)` — Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis
+  - `relay_quality_intent(user, tool_name: str, result: dict) -> dict` — Relaie le curseur Rapide ↔ Qualité de l'ASSISTANT vers l'élément qu'un outil `add_to_<app>`
   - `execute_tool(tool_name: str, args: dict, user) -> dict` — Dispatch a tool call from the agentic loop.
   - `list_user_files_view(request)`
   - `add_to_anonymizer_view(request)`

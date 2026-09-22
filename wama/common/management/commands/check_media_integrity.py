@@ -27,10 +27,8 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-from django.apps import apps as dj_apps
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import models as dj_models
 
 #: Suffixe de dé-collision de Django, empilable. Cf. avertissement de l'en-tête.
 _DJ = r'(_[A-Za-z0-9]{7,8})*'
@@ -89,11 +87,9 @@ def _est_legitime(rel: str) -> bool:
 
 def _references_vives():
     """{chemin relatif -> 'app.Modele.champ #pk'} pour tous les FileField du dépôt."""
+    from wama.common.utils.file_references import file_field_models
     refs = {}
-    for modele in dj_apps.get_models():
-        champs = [f for f in modele._meta.get_fields() if isinstance(f, dj_models.FileField)]
-        if not champs:
-            continue
+    for modele, champs in file_field_models():
         try:
             for ligne in modele.objects.all().only('pk', *[f.name for f in champs]).iterator():
                 for f in champs:
@@ -235,11 +231,9 @@ class Command(BaseCommand):
         On se contente donc de couper le pointeur mort : la card reste, son contenu reste, et
         l'UI cesse d'offrir un téléchargement qui échoue en silence.
         """
+        from wama.common.utils.file_references import file_field_models
         soignables, pointeurs_seuls = [], 0
-        for modele in dj_apps.get_models():
-            champs = [f for f in modele._meta.get_fields() if isinstance(f, dj_models.FileField)]
-            if not champs:
-                continue
+        for modele, champs in file_field_models():
             try:
                 lignes = list(modele.objects.all())
             except Exception:

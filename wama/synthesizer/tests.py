@@ -9,18 +9,8 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from .models import VoiceSynthesis, VoicePreset
-from .utils.text_extractor import (
-    extract_text_from_file,
-    clean_text_for_tts,
-    estimate_reading_time,
-    split_text_by_sentences
-)
-from .utils.audio_processor import (
-    process_audio_output,
-    get_audio_duration,
-    normalize_audio
-)
+from .models import VoiceSynthesis
+from .utils.text_extractor import extract_text_from_file, clean_text_for_tts
 
 User = get_user_model()
 
@@ -129,39 +119,6 @@ class VoiceSynthesisModelTest(TestCase):
         self.assertIsNotNone(synthesis.duration_display)
 
 
-class VoicePresetModelTest(TestCase):
-    """Tests pour le modèle VoicePreset."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
-        )
-
-        # Créer un fichier audio temporaire
-        self.audio_file = SimpleUploadedFile(
-            "reference.wav",
-            b"fake audio content",
-            content_type="audio/wav"
-        )
-
-    def test_create_preset(self):
-        """Test de création d'un preset."""
-        preset = VoicePreset.objects.create(
-            name="Test Voice",
-            description="A test voice preset",
-            reference_audio=self.audio_file,
-            language='en',
-            gender='male',
-            created_by=self.user
-        )
-
-        self.assertEqual(preset.name, "Test Voice")
-        self.assertEqual(preset.language, 'en')
-        self.assertEqual(preset.gender, 'male')
-        self.assertEqual(preset.created_by, self.user)
-
-
 class TextExtractorTest(TestCase):
     """Tests pour l'extracteur de texte."""
 
@@ -184,22 +141,6 @@ class TextExtractorTest(TestCase):
 
         self.assertNotIn("http://", clean)
         self.assertNotIn("   ", clean)
-
-    def test_estimate_reading_time(self):
-        """Test de l'estimation du temps de lecture."""
-        text = " ".join(["word"] * 150)  # 150 mots
-        time = estimate_reading_time(text, wpm=150)
-
-        self.assertAlmostEqual(time, 60, delta=5)  # ~60 secondes
-
-    def test_split_text_by_sentences(self):
-        """Test de la division en phrases."""
-        text = "Première phrase. Deuxième phrase! Troisième phrase?"
-        chunks = split_text_by_sentences(text, max_length=30)
-
-        self.assertGreater(len(chunks), 1)
-        for chunk in chunks:
-            self.assertLessEqual(len(chunk), 30)
 
 
 class ViewsTest(TestCase):

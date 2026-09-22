@@ -111,6 +111,11 @@ def ensure_local_input(instance, *, console=None, derive=None):
             update_fields.extend(derive(instance, path, fname) or [])
 
         instance.save(update_fields=update_fields)
+        # Provenance (troisième site annoncé par `utils/provenance.py`, câblé le 2026-09-22) :
+        # l'entrée matérialisée se souvient de son URL. Ne fait jamais échouer le geste.
+        from wama.common.utils.provenance import record_provenance
+        record_provenance(instance, target_field, kind='url', ref=url,
+                          original_name=fname, source_path=path)
         if console:
             console(f"Média téléchargé depuis l'URL : {fname}")
         return fname

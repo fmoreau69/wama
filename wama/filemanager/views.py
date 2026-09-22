@@ -706,6 +706,20 @@ def sanitize_relative_path(path):
     return '/'.join(safe_parts)
 
 
+def _in_use_payload(in_use: dict, path: str) -> dict:
+    """La réponse « fichier utilisé » — la même pour un fichier et pour un dossier."""
+    return {
+        'in_use': True,
+        'path': path,
+        'count': in_use['count'],
+        'copies': in_use['copies'],
+        'cards': [{'app': r['app'], 'object_type': r['object_type'], 'id': r['pk']}
+                  for r in in_use['cards'][:20]],
+        'message': (f"{in_use['count']} card(s) utilisent ce fichier. Supprimé, il leur manquera : "
+                    f"il faudra leur en donner un autre pour les relancer."),
+    }
+
+
 @require_POST
 def api_delete(request):
     """Delete a file."""
@@ -714,8 +728,10 @@ def api_delete(request):
     try:
         data = json.loads(request.body)
         file_path = data.get('path', '')
+        confirmed = bool(data.get('confirm'))
     except (json.JSONDecodeError, ValueError):
         file_path = request.POST.get('path', '')
+        confirmed = request.POST.get('confirm') in ('1', 'true', 'True')
 
     if not file_path:
         return HttpResponseBadRequest('No file path provided')
@@ -726,12 +742,22 @@ def api_delete(request):
 
     try:
         if default_storage.exists(file_path):
+            # D20 (décision Fabien, 2026-09-22) : un fichier qu'une card UTILISE ne part pas sans
+            # que l'utilisateur l'ait su. 409 + le compte ; le client redemande avec `confirm`.
+            from wama.common.utils.file_references import detach, usage
+            in_use = usage(file_path)
+            if in_use['count'] and not confirmed:
+                return JsonResponse(_in_use_payload(in_use, file_path), status=409)
+
             default_storage.delete(file_path)
 
             # Also delete from UserFile if it's a temp file
             UserFile.objects.filter(user=user, file=file_path).delete()
+            # Confirmée : les cards RESTENT, détachées du fichier disparu — l'utilisateur leur
+            # recharge une entrée s'il veut les réutiliser.
+            detached = detach(file_path) if in_use['count'] else 0
 
-            return JsonResponse({'deleted': True, 'path': file_path})
+            return JsonResponse({'deleted': True, 'path': file_path, 'detached': detached})
         else:
             return JsonResponse({'error': 'File not found'}, status=404)
     except Exception as e:
@@ -747,8 +773,10 @@ def api_delete_all(request):
     try:
         data = json.loads(request.body)
         folder_path = data.get('path', '')
+        confirmed = bool(data.get('confirm'))
     except (json.JSONDecodeError, ValueError):
         folder_path = request.POST.get('path', '')
+        confirmed = request.POST.get('confirm') in ('1', 'true', 'True')
 
     if not folder_path:
         return HttpResponseBadRequest('No folder path provided')
@@ -766,23 +794,40 @@ def api_delete_all(request):
         if not full_path.is_dir():
             return JsonResponse({'error': 'Path is not a folder'}, status=400)
 
+        # D20 : même règle que pour un fichier seul, sur tout ce que le dossier contient.
+        from wama.common.utils.file_references import detach, usage
+        in_use = usage(folder_path, folder=True)
+        if in_use['count'] and not confirmed:
+            return JsonResponse(_in_use_payload(in_use, folder_path), status=409)
+
         deleted_count = 0
         deleted_folders = 0
         errors = []
+        deleted_paths = []
 
         # Walk through all files in folder and subfolders
         for file_path in full_path.rglob('*'):
             if file_path.is_file():
                 try:
-                    relative_path = str(file_path.relative_to(settings.MEDIA_ROOT))
+                    relative_path = file_path.relative_to(settings.MEDIA_ROOT).as_posix()
                     file_path.unlink()
                     deleted_count += 1
+                    deleted_paths.append(relative_path)
 
                     # Also delete from UserFile if exists
                     UserFile.objects.filter(user=user, file=relative_path).delete()
                 except Exception as e:
                     errors.append(f"{file_path.name}: {str(e)}")
                     logger.error(f"Error deleting {file_path}: {e}")
+
+        # Confirmée : détacher les cards des SEULS fichiers réellement partis — d'un coup pour le
+        # dossier quand tout est parti, fichier par fichier si certains ont résisté.
+        detached = 0
+        if in_use['count']:
+            if not errors:
+                detached = detach(folder_path, folder=True)
+            else:
+                detached = sum(detach(p) for p in deleted_paths)
 
         # Check if this is a user temp folder - if so, also delete empty subfolders
         # Application folders (enhancer, anonymizer, etc.) should keep their structure
@@ -808,7 +853,7 @@ def api_delete_all(request):
                 except Exception as e:
                     logger.error(f"Error deleting empty folder {dir_path}: {e}")
 
-        response = {'deleted_count': deleted_count}
+        response = {'deleted_count': deleted_count, 'detached': detached}
         if deleted_folders > 0:
             response['deleted_folders'] = deleted_folders
         if errors:
@@ -857,6 +902,7 @@ def api_rename(request):
         if new_full_path.exists():
             return JsonResponse({'error': 'A file with this name already exists'}, status=400)
 
+        is_folder = old_full_path.is_dir()
         old_full_path.rename(new_full_path)
 
         # Update UserFile if exists
@@ -864,8 +910,13 @@ def api_rename(request):
             file=new_path,
             original_name=new_name
         )
+        # D20 : renommer, c'est déplacer — les cards qui désignent ce fichier (ou ce dossier)
+        # suivent, sans rien demander. Avant, le renommage d'un fichier d'entrée cassait sa card.
+        from wama.common.utils.file_references import repoint
+        followed = repoint(old_path, Path(new_path).as_posix(), folder=is_folder)
 
-        return JsonResponse({'renamed': True, 'old_path': old_path, 'new_path': new_path})
+        return JsonResponse({'renamed': True, 'old_path': old_path, 'new_path': new_path,
+                             'repointed': followed})
     except Exception as e:
         logger.error(f"Error renaming {old_path} to {new_name}: {e}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -939,6 +990,10 @@ def api_move(request):
 
         new_path = f"{dest_folder}/{dest_full.name}"
 
+        # D20 : les cards qui désignent ce fichier (ou un fichier de ce dossier) suivent.
+        from wama.common.utils.file_references import repoint
+        followed = repoint(source_path, new_path, folder=is_folder)
+
         if is_folder:
             # Update all UserFile records that were inside this folder
             old_prefix = source_path + '/'
@@ -952,7 +1007,8 @@ def api_move(request):
                 'moved': True,
                 'is_folder': True,
                 'old_path': source_path,
-                'new_path': new_path
+                'new_path': new_path,
+                'repointed': followed,
             })
         else:
             # Update UserFile if exists
@@ -965,7 +1021,8 @@ def api_move(request):
                 'moved': True,
                 'is_folder': False,
                 'old_path': source_path,
-                'new_path': new_path
+                'new_path': new_path,
+                'repointed': followed,
             })
     except Exception as e:
         logger.error(f"Error moving {source_path} to {dest_folder}: {e}")
@@ -1327,10 +1384,19 @@ def api_import_to_app(request):
             return {'error': 'Source file not found'}
 
         try:
-            return importer(source_path, user)
+            result = importer(source_path, user)
         except Exception as e:
             logger.error(f"Error importing {fp} to {target_app}: {e}")
             return {'error': str(e)}
+        # PROVENANCE — ICI, une fois pour les 11 importeurs et leurs jumelles (2026-09-22 : un
+        # seul, le describer, l'enregistrait). L'importeur rend le chemin de SA COPIE ; les cards
+        # qui la portent sont retrouvées par ce chemin et reçoivent leur source (`fp`, l'adresse
+        # que le gestionnaire affiche — `mounts/<id>/…` compris). Un échec ne fait jamais
+        # échouer l'import (règle de `utils/provenance.py`).
+        if isinstance(result, dict) and result.get('path') and 'error' not in result:
+            from wama.common.utils.provenance import kind_of, record_origin
+            record_origin(result['path'], kind=kind_of(fp), ref=fp, source_path=source_path)
+        return result
 
     results = []
     errors = []
@@ -1430,7 +1496,6 @@ def import_to_describer(source_path, user, app_label='describer'):
     from django.apps import apps as django_apps
     from wama.describer.views import detect_type_from_extension
     from wama.common.utils.media_paths import copy_into_app_input
-    from wama.common.utils.provenance import record_import
 
     Description = django_apps.get_model(app_label, 'Description')
 
@@ -1443,10 +1508,8 @@ def import_to_describer(source_path, user, app_label='describer'):
     description.filename = dest_path.name
     description.file_size = dest_path.stat().st_size
     description.save()
-    # PROVENANCE (2026-09-11) : la card se souvient d'OU vient son entree. C'est l'index
-    # inverse qui permettra au gestionnaire de fichiers de savoir, AVANT de supprimer, qu'un
-    # fichier est reference — et la deduplication « meme source, meme copie ».
-    record_import(description, 'input_file', source_path)
+    # (La provenance est enregistrée par le répartiteur `api_import_to_app`, pour tous les
+    # importeurs — cet appel-ci, le seul du 11/09, y a été remonté le 2026-09-22.)
 
     return {
         'imported': True,

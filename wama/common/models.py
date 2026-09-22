@@ -1192,12 +1192,16 @@ class InputProvenance(models.Model):
     """
 
     #: D'où vient la source — le vocabulaire décidé le 2026-09-07. `upload` = l'utilisateur a
-    #: déposé depuis son poste (aucune source antérieure dans WAMA) ; les quatre autres
-    #: DÉSIGNENT quelque chose qui existe ailleurs et qui peut bouger.
+    #: déposé depuis son poste (aucune source antérieure dans WAMA) ; les autres DÉSIGNENT
+    #: quelque chose qui existe ailleurs et qui peut bouger.
+    #: `app` ajouté le 2026-09-22 : « Envoyer vers » part aussi de l'entrée ou de la sortie d'une
+    #: autre card (le chaînage describer → imager → enhancer, mesuré le 11/09) ; l'étiqueter
+    #: `temp` aurait été faux.
     KIND_CHOICES = [
         ('upload', 'Dépôt direct depuis le poste'),
         ('asset',  'Asset de la médiathèque'),
         ('temp',   "Dossier temporaire de l'utilisateur"),
+        ('app',    "Fichier d'une app (entrée ou sortie d'une autre card)"),
         ('mount',  'Dossier connecté (montage local ou distant)'),
         ('url',    'Ressource distante matérialisée'),
     ]

@@ -291,50 +291,6 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
             self.save(update_fields=['word_count', 'duration_seconds', 'duration_display'])
 
 
-class VoicePreset(models.Model):
-    """
-    Modèle pour stocker des presets de voix personnalisés.
-    """
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-
-    # Fichier de référence
-    reference_audio = models.FileField(
-        upload_to='synthesizer/presets/',
-        validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac'])]  # wama:redondance-ok — presets internes : politique volontairement plus étroite que VOICE_SAMPLE_EXTENSIONS
-    )
-
-    # Métadonnées
-    language = models.CharField(max_length=10, default='en')
-    gender = models.CharField(
-        max_length=10,
-        choices=[('male', 'Male'), ('female', 'Female'), ('neutral', 'Neutral')],
-        default='neutral'
-    )
-
-    # Disponibilité
-    is_public = models.BooleanField(
-        default=False,
-        help_text="Si activé, disponible pour tous les utilisateurs"
-    )
-
-    created_by = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='voice_presets'
-    )
-
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Preset de voix"
-        verbose_name_plural = "Presets de voix"
-        ordering = ['name']
-
-    def __str__(self):
-        return self.name
-
-
 class CustomVoice(models.Model):
     """Voix personnalisée persistante pour le clonage vocal."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='custom_voices')

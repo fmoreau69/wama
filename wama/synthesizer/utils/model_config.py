@@ -5,13 +5,10 @@ Centralized configuration for all models used by the Synthesizer application.
 Uses the centralized AI-models directory structure from settings.py.
 """
 
-import os
-import logging
 from pathlib import Path
 
 from django.conf import settings
 
-logger = logging.getLogger(__name__)
 
 # =============================================================================
 # MODEL PATHS CONFIGURATION
@@ -208,133 +205,3 @@ SYNTHESIZER_MODELS = {
         'languages': ['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
     },
 }
-
-# Default model
-DEFAULT_MODEL = 'coqui-xtts'
-
-
-def setup_model_environment():
-    """
-    Setup environment variables for TTS model caching.
-    Call this before loading any models.
-    """
-    # Coqui TTS home directory
-    os.environ['TTS_HOME'] = str(COQUI_DIR)
-    logger.info(f"TTS_HOME set to: {COQUI_DIR}")
-
-    # Bark uses XDG_CACHE_HOME - but we set it per-session in workers.py
-    # to avoid affecting other HuggingFace downloads
-    logger.info(f"Bark cache directory: {BARK_DIR}")
-
-
-def get_coqui_directory() -> Path:
-    """
-    Get the Coqui TTS models directory path.
-
-    Returns:
-        Path to the Coqui TTS models directory
-    """
-    return Path(COQUI_DIR)
-
-
-def get_bark_directory() -> Path:
-    """
-    Get the Bark models directory path.
-
-    Returns:
-        Path to the Bark models directory
-    """
-    return Path(BARK_DIR)
-
-
-def get_model_info(model_name: str = None) -> dict:
-    """
-    Get model information.
-
-    Args:
-        model_name: Model name from SYNTHESIZER_MODELS
-                   If None, returns default model info
-
-    Returns:
-        Dictionary with model configuration
-    """
-    if model_name is None:
-        model_name = DEFAULT_MODEL
-
-    if model_name not in SYNTHESIZER_MODELS:
-        raise ValueError(f"Unknown model: {model_name}. Available: {list(SYNTHESIZER_MODELS.keys())}")
-
-    info = SYNTHESIZER_MODELS[model_name].copy()
-
-    # Add path info based on engine
-    if info['engine'] == 'coqui':
-        info['cache_dir'] = str(COQUI_DIR)
-    elif info['engine'] == 'bark':
-        info['cache_dir'] = str(BARK_DIR)
-    elif info['engine'] == 'higgs':
-        info['cache_dir'] = str(HIGGS_DIR)
-    elif info['engine'] == 'kokoro':
-        info['cache_dir'] = str(KOKORO_DIR)
-
-    return info
-
-
-def list_available_models() -> dict:
-    """
-    List all available synthesizer models with their info.
-
-    Returns:
-        Dictionary with model info
-    """
-    result = {}
-
-    for key, config in SYNTHESIZER_MODELS.items():
-        cache_dirs = {'coqui': str(COQUI_DIR), 'bark': str(BARK_DIR), 'higgs': str(HIGGS_DIR), 'kokoro': str(KOKORO_DIR)}
-        result[key] = {
-            **config,
-            'cache_dir': cache_dirs.get(config['engine'], str(COQUI_DIR)),
-        }
-
-    return result
-
-
-def get_models_by_engine(engine: str) -> dict:
-    """
-    Get models filtered by engine.
-
-    Args:
-        engine: 'coqui' or 'bark'
-
-    Returns:
-        Dictionary of models matching the engine
-    """
-    return {
-        key: config
-        for key, config in SYNTHESIZER_MODELS.items()
-        if config.get('engine') == engine
-    }
-
-
-def get_coqui_models() -> dict:
-    """Get all Coqui TTS models."""
-    return get_models_by_engine('coqui')
-
-
-def get_bark_models() -> dict:
-    """Get all Bark models."""
-    return get_models_by_engine('bark')
-
-
-def get_higgs_directory() -> Path:
-    """
-    Get the Higgs Audio models directory path.
-
-    Returns:
-        Path to the Higgs Audio models directory
-    """
-    return Path(HIGGS_DIR)
-
-
-def get_higgs_models() -> dict:
-    """Get all Higgs Audio models."""
-    return get_models_by_engine('higgs')
