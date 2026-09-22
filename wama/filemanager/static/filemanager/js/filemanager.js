@@ -1400,24 +1400,39 @@
             });
     });
 
+    // Suppression en deux temps quand des cards utilisent le(s) fichier(s) : le serveur répond
+    // 409 `{in_use, count, message}` ; l'utilisateur confirme en connaissance de cause, et la
+    // même requête repart avec `confirm: true`. Rend la réponse finale, ou `null` si abandon.
+    function postDeletion(url, payload) {
+        const send = body => fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify(body)
+        }).then(res => res.json().then(data => ({ status: res.status, data })));
+        return send(payload).then(({ status, data }) => {
+            if (status !== 409 || !data.in_use) return data;
+            if (!confirm(`${data.message}\n\nSupprimer quand même ?`)) return null;
+            return send(Object.assign({}, payload, { confirm: true })).then(r => r.data);
+        });
+    }
+
+    function detachedMessage(base, detached) {
+        return detached > 0 ? `${base} — ${detached} card(s) à qui redonner un fichier` : base;
+    }
+
     function deleteFile(node) {
         const path = node.data?.path;
         if (!path) return;
 
         if (!confirm(`Supprimer "${node.text}" ?`)) return;
 
-        fetch(config.apiDeleteUrl || '/filemanager/api/delete/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ path: path })
-        })
-            .then(res => res.json())
+        // D20 : un fichier qu'une card utilise revient en 409 avec le compte — on le DIT, et la
+        // suppression ne part qu'après une seconde confirmation (`confirm: true`).
+        postDeletion(config.apiDeleteUrl || '/filemanager/api/delete/', { path: path })
             .then(data => {
+                if (!data) return;
                 if (data.deleted) {
-                    showToast('Fichier supprimé', 'success');
+                    showToast(detachedMessage('Fichier supprimé', data.detached), 'success');
                     tree.delete_node(node);
                 } else {
                     showToast(data.error || 'Erreur lors de la suppression', 'danger');
@@ -1447,22 +1462,15 @@
         const message = `Supprimer ${childCount} fichier(s) dans "${node.text}" et ses sous-dossiers ?\n\nCette action est irréversible.`;
         if (!confirm(message)) return;
 
-        fetch(config.apiDeleteAllUrl || '/filemanager/api/delete-all/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ path: path })
-        })
-            .then(res => res.json())
+        postDeletion(config.apiDeleteAllUrl || '/filemanager/api/delete-all/', { path: path })
             .then(data => {
+                if (!data) return;
                 if (data.deleted_count !== undefined) {
                     let message = `${data.deleted_count} fichier(s) supprimé(s)`;
                     if (data.deleted_folders > 0) {
                         message += `, ${data.deleted_folders} dossier(s) vide(s) supprimé(s)`;
                     }
-                    showToast(message, 'success');
+                    showToast(detachedMessage(message, data.detached), 'success');
                     refreshTree();
                 } else {
                     showToast(data.error || 'Erreur lors de la suppression', 'danger');

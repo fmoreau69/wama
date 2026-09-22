@@ -488,10 +488,11 @@ class FixedUploadToOnOwnedModelsTest(SimpleTestCase):
     """
 
     #: Budget qui ne peut que DESCENDRE (le test échoue aussi s'il garde de la marge).
-    #: 1 = `synthesizer.VoicePreset.reference_audio` (`synthesizer/presets/`) — latent le
-    #: 2026-09-22 (aucun préréglage enregistré). Sa correction est une migration de modèle, et une
-    #: question : un préréglage `is_public` est-il à son auteur ou à tous ?
-    BUDGET = 1
+    #: 0 depuis le 2026-09-22 : le seul cas, `synthesizer.VoicePreset.reference_audio`
+    #: (`synthesizer/presets/`), a été RETIRÉ avec son modèle — code mort (0 ligne en base,
+    #: 0 appelant, la synthèse ne le lisait jamais), décision de Fabien. Le contrat garde tout
+    #: nouveau modèle.
+    BUDGET = 0
 
     @staticmethod
     def _offenders():

@@ -422,8 +422,30 @@ MECHANISMS = (
               "convention (`app`+`object_type`+`object_id`, plus `field` — un élément peut avoir "
               "plusieurs entrées). ⚠ ÉCRITE PAR LES BRIQUES SEULES : `copy_into_app_input` "
               "enregistre quand on lui donne l'élément, `record_import` est sa moitié pour le "
-              "motif « copier PUIS créer ». Aucune app n'écrit sa provenance",
-              'wama/common/utils/provenance.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md'),
+              "motif « copier PUIS créer ». Aucune app n'écrit sa provenance. ⭐ CÂBLÉE le "
+              "2026-09-22 (elle ne l'était qu'à UN site sur onze) : le répartiteur « Envoyer "
+              "vers » enregistre pour tous les importeurs et leurs jumelles (`record_origin`, "
+              "qui retrouve les cards par le chemin de leur copie), `ensure_local_input` pour "
+              "une URL, les deux lots `-i` qui copient une ligne serveur ; nouveau `kind` `app` "
+              "— « Envoyer vers » part aussi de l'entrée ou de la sortie d'une autre card",
+              'wama/common/utils/provenance.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
+              annexes=('wama/common/utils/file_references.py',
+                       'wama/common/tests_file_references.py')),
+    Mechanism('file_references', "Qui désigne ce fichier ? (déplacer, supprimer sans casser)",
+              "L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent à "
+              "jour — `repoint` quand le fichier bouge, `detach` quand il disparaît. Décision de "
+              "Fabien du 2026-09-22 (`MEDIA_STORAGE_TIERING §8.6` D20) : déplacer ou renommer met "
+              "à jour le lien des cards SANS rien demander ; supprimer un fichier qu'une card "
+              "utilise demande d'abord une confirmation qui dit COMBIEN de cards il touche, puis "
+              "laisse les cards en place, détachées. Avant, le gestionnaire renommait, déplaçait "
+              "et supprimait sans jamais regarder les cards : c'est ce geste qui fabrique les "
+              "« référencés mais absents » comptés par `check_media_integrity`. ⚠ DEUX façons de "
+              "désigner, une seule met la card en péril : par un `FileField` (elle perd son "
+              "fichier) ou par sa PROVENANCE (elle a sa copie — information, jamais un blocage). "
+              "⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même",
+              'wama/common/utils/file_references.py',
+              'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
+              annexes=('wama/common/tests_file_references.py',)),
     Mechanism('toolbar_registry', "Barre d'outils générale (registre + profils)",
               "UN registre d'outils (l'UNION de toutes les barres) et des PROFILS par nature de "
               "surface : `file` (12 files d'app) et `registre` (15 catalogues). Une surface tire "

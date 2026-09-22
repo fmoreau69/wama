@@ -778,15 +778,18 @@ def batch_create(request):
                 fname = new[0]
                 dpath = dest_dir / fname
                 rel = get_relative_media_path('converter', user.id, 'input', fname)
+                origin = {'kind': 'url', 'ref': src, 'source_path': None}
             else:
                 from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+                from wama.common.utils.provenance import kind_of
                 try:
-                    abs_src, _ = resolve_under_media_root(src)
+                    abs_src, src_rel = resolve_under_media_root(src)
                 except (OutsideMediaRoot, FileNotFoundError):
                     warnings.append(f'Introuvable : {src}')
                     continue
                 dpath, rel = copy_into_app_input(abs_src, 'converter', user.id, 'input')
                 fname = dpath.name
+                origin = {'kind': kind_of(src_rel), 'ref': src_rel, 'source_path': abs_src}
 
             media_type = detect_media_type(fname)
             if media_type is None:
@@ -800,6 +803,9 @@ def batch_create(request):
             job.input_file.name = rel
             job.save(update_fields=['input_file'])
             job_ids.append(job.id)
+            # Provenance : la copie se souvient de sa ligne de lot (brique commune).
+            from wama.common.utils.provenance import record_origin
+            record_origin(rel, **origin)
         except Exception as e:
             warnings.append(f'{src} : {e}')
 

@@ -25,7 +25,7 @@ from django.core.files.base import ContentFile
 
 
 import json
-from .models import VoiceSynthesis, VoicePreset, CustomVoice, BatchSynthesis, BatchSynthesisItem
+from .models import VoiceSynthesis, CustomVoice, BatchSynthesis, BatchSynthesisItem
 from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON
 from wama.common.utils.auto_model import read_quality_intent
 from wama.common.utils.console_utils import get_console_lines
@@ -180,9 +180,6 @@ class IndexView(View):
             request, batches_list,
             name_of=lambda b: str(b['obj']))
 
-        voice_presets = VoicePreset.objects.filter(
-            is_public=True
-        ) | VoicePreset.objects.filter(created_by=user)
         from wama.media_library.models import UserAsset
         custom_voices = UserAsset.objects.filter(user=user, asset_type='voice')
 
@@ -208,7 +205,6 @@ class IndexView(View):
         context = {
             'batches_list': batches_list,
             'queue_count': queue_count,
-            'voice_presets': voice_presets,
             'custom_voices': custom_voices,
             # Inventaire des moteurs = le CATALOGUE, plus la liste en dur (route F4b, ②).
             # Ce pré-rendu serveur et le peuplement JS (`options_source="catalog"`) parlent
@@ -216,7 +212,6 @@ class IndexView(View):
             # retrouve rien et fasse retomber le select sur sa première option en silence.
             'tts_models': tts_engine_choices(),
             'languages': VoiceSynthesis.LANGUAGE_CHOICES,
-            'voice_presets_choices': VoiceSynthesis.VOICE_PRESET_CHOICES,
             'voice_refs_groups': voice_refs_groups,
             'params_json': json.dumps(_SYNTH_PARAMS_JSON),
             'tts_model_help_meta': json.dumps(self._tts_model_help_meta()),
@@ -1615,49 +1610,7 @@ def batch_update_settings(request, pk: int):
     return JsonResponse({'success': True, 'updated': updated})
 
 
-# ============= VOICE PRESETS =============
-
-@require_POST
-def create_voice_preset(request):
-    """
-    Crée un preset de voix personnalisé.
-    """
-    name = request.POST.get('name')
-    description = request.POST.get('description', '')
-    reference_audio = request.FILES.get('reference_audio')
-    language = request.POST.get('language', 'en')
-    gender = request.POST.get('gender', 'neutral')
-    is_public = request.POST.get('is_public', 'false').lower() == 'true'
-
-    if not name or not reference_audio:
-        return JsonResponse({
-            'error': 'Nom et fichier audio requis'
-        }, status=400)
-
-    # Vérifier si le nom existe déjà
-    if VoicePreset.objects.filter(name=name).exists():
-        return JsonResponse({
-            'error': 'Ce nom de preset existe déjà'
-        }, status=400)
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    preset = VoicePreset.objects.create(
-        name=name,
-        description=description,
-        reference_audio=reference_audio,
-        language=language,
-        gender=gender,
-        is_public=is_public,
-        created_by=user
-    )
-
-    return JsonResponse({
-        'success': True,
-        'preset_id': preset.id,
-        'name': preset.name,
-        'description': preset.description,
-    })
-
+# ============= VOICE PREVIEW =============
 
 @require_POST
 def voice_preview(request):
@@ -1836,41 +1789,6 @@ def voice_preview_stream(request, preview_id):
     response['X-Accel-Buffering'] = 'no'  # Disable buffering for nginx
 
     return response
-
-
-def list_voice_presets(request):
-    """
-    Liste les presets de voix disponibles.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    presets = VoicePreset.objects.filter(
-        is_public=True
-    ) | VoicePreset.objects.filter(created_by=user)
-
-    data = [{
-        'id': p.id,
-        'name': p.name,
-        'description': p.description,
-        'language': p.language,
-        'gender': p.gender,
-        'is_public': p.is_public,
-        'audio_url': p.reference_audio.url,
-    } for p in presets]
-
-    return JsonResponse({'presets': data})
-
-
-@require_POST
-def delete_voice_preset(request, pk: int):
-    """
-    Supprime un preset de voix.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    preset = get_object_or_404(VoicePreset, pk=pk, created_by=user)
-    preset.reference_audio.delete(save=False)
-    preset.delete()
-
-    return JsonResponse({'deleted': pk})
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────

@@ -625,143 +625,6 @@
           "fields": [
             {
               "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "max_length": {
-                  "expr": "100",
-                  "imports": []
-                },
-                "unique": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "name"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.TextField",
-              "kwargs": {
-                "blank": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "description"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.FileField",
-              "kwargs": {
-                "upload_to": {
-                  "expr": "'synthesizer/presets/'",
-                  "imports": []
-                },
-                "validators": {
-                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac'])]",
-                  "imports": [
-                    "import django.core.validators"
-                  ]
-                }
-              },
-              "name": "reference_audio"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "default": {
-                  "expr": "'en'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "10",
-                  "imports": []
-                }
-              },
-              "name": "language"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
-                "choices": {
-                  "expr": "[('male', 'Male'), ('female', 'Female'), ('neutral', 'Neutral')]",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'neutral'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "10",
-                  "imports": []
-                }
-              },
-              "name": "gender"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.BooleanField",
-              "kwargs": {
-                "default": {
-                  "expr": "False",
-                  "imports": []
-                },
-                "help_text": {
-                  "expr": "'Si activé, disponible pour tous les utilisateurs'",
-                  "imports": []
-                }
-              },
-              "name": "is_public"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.ForeignKey",
-              "kwargs": {
-                "on_delete": {
-                  "expr": "django.db.models.deletion.CASCADE",
-                  "imports": [
-                    "import django.db.models.deletion"
-                  ]
-                },
-                "related_name": {
-                  "expr": "'voice_presets'",
-                  "imports": []
-                },
-                "to": {
-                  "expr": "settings.AUTH_USER_MODEL",
-                  "imports": [
-                    "from django.conf import settings"
-                  ]
-                }
-              },
-              "name": "created_by"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.DateTimeField",
-              "kwargs": {
-                "auto_now_add": {
-                  "expr": "True",
-                  "imports": []
-                }
-              },
-              "name": "created_at"
-            }
-          ],
-          "manager": "",
-          "meta": {
-            "ordering": [
-              "name"
-            ]
-          },
-          "name": "VoicePreset"
-        },
-        {
-          "fields": [
-            {
-              "args": [],
               "class": "django.db.models.ForeignKey",
               "kwargs": {
                 "on_delete": {
@@ -1195,7 +1058,9 @@
             "min_label": "",
             "name": "tts_model",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": true,
+            "options_cloud": false,
             "options_query": {
               "task": "text-to-speech"
             },
@@ -1238,7 +1103,9 @@
             "min_label": "",
             "name": "quality_intent",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1343,7 +1210,9 @@
             "min_label": "",
             "name": "language",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1384,7 +1253,9 @@
             "min_label": "",
             "name": "voice_preset",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": "voices",
             "pills": [],
@@ -1425,7 +1296,9 @@
             "min_label": "",
             "name": "speed",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1466,7 +1339,9 @@
             "min_label": "",
             "name": "pitch",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1538,7 +1413,9 @@
             "min_label": "",
             "name": "output_format",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1590,7 +1467,9 @@
             "min_label": "",
             "name": "output_quality",
             "option_groups": null,
+            "options_abilities": false,
             "options_auto": false,
+            "options_cloud": false,
             "options_query": null,
             "options_source": null,
             "pills": [],
@@ -1656,10 +1535,8 @@
         "clear_all",
         "console",
         "consolidate",
-        "create_preset",
         "delete",
         "delete_custom_voice",
-        "delete_preset",
         "download",
         "download_all",
         "duplicate",
@@ -1668,7 +1545,6 @@
         "import_individual_from_path",
         "index",
         "list_custom_voices",
-        "list_presets",
         "merge",
         "move_to_batch",
         "preview",
@@ -1685,9 +1561,7 @@
         "upload_custom_voice",
         "upload_text",
         "voice_preview",
-        "voice_preview_diagnostic",
-        "voice_preview_stream",
-        "voice_preview_stream_test"
+        "voice_preview_stream"
       ],
       "extra_routes": [
         {
@@ -1709,16 +1583,6 @@
           "name": "voice_preview_stream",
           "pattern": "voice-preview-stream/<str:preview_id>/",
           "view": "views.voice_preview_stream"
-        },
-        {
-          "name": "voice_preview_stream_test",
-          "pattern": "voice-preview-stream-test/",
-          "view": null
-        },
-        {
-          "name": "voice_preview_diagnostic",
-          "pattern": "voice-preview-diagnostic/<str:preview_id>/",
-          "view": null
         },
         {
           "name": "start",
@@ -1764,21 +1628,6 @@
           "name": "update_options",
           "pattern": "update-options/<int:pk>/",
           "view": "views.update_options"
-        },
-        {
-          "name": "list_presets",
-          "pattern": "presets/",
-          "view": "views.list_voice_presets"
-        },
-        {
-          "name": "create_preset",
-          "pattern": "presets/create/",
-          "view": "views.create_voice_preset"
-        },
-        {
-          "name": "delete_preset",
-          "pattern": "presets/delete/<int:pk>/",
-          "view": "views.delete_voice_preset"
         },
         {
           "name": "list_custom_voices",
@@ -1856,6 +1705,7 @@
       "processing_time": true,
       "statuses": [
         "PENDING",
+        "AWAITING_RESOURCES",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
@@ -1871,12 +1721,6 @@
           "file": "workers.py",
           "function": "synthesize_voice",
           "lifecycle": true,
-          "task_name": null
-        },
-        {
-          "file": "workers.py",
-          "function": "cleanup_old_syntheses",
-          "lifecycle": false,
           "task_name": null
         }
       ]

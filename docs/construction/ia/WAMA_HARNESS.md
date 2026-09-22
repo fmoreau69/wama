@@ -710,13 +710,15 @@ de départ, et c'est à savoir avant de commencer :**
 - **Cible précise** : les outils de LISTE se bornent déjà (`list_my_items` a `limite` 1-100 et rend
   `total`/`returned` ; `list_ai_models` a `limit=50`). Le non borné est le **détail d'un item**.
 
-**Cinq choix — RECOMMANDÉS, pas encore validés par Fabien** (une session qui reprend les pose d'abord) :
+**Cinq choix — dont DEUX tranchés par Fabien le 2026-09-23** (*« on peut déjà faire appliqué au
+local et au cloud, la trace d'audit garde le résultat complet »*) ; les trois autres restent
+recommandés et attendent sa réponse :
 
 | choix | recommandation | pourquoi |
 |---|---|---|
 | valeur et domicile du budget | **8 000 caractères**, une constante nommée dans `assistant_engine` | s'aligne sur la famille existante (`llm_utils` tronque à 8000 ×2, `read_web_page(max_chars=8000)`, `web_search.DEFAULT_MAX_CHARS=12_000`) |
-| local seul ou cloud aussi | **les deux** | le cloud a de grandes fenêtres mais se paie au jeton — c'est là que la borne rapporte le plus |
-| la trace garde-t-elle le résultat complet | **oui** : on borne ce qui part au MODÈLE, jamais `tool_steps` | c'est la trace d'audit et la matière du chantier 3 ; contrepartie : un tour peut stocker ~60 ko de JSON |
+| local seul ou cloud aussi | ✅ **TRANCHÉ 23/09 : les deux** | le cloud a de grandes fenêtres mais se paie au jeton — c'est là que la borne rapporte le plus |
+| la trace garde-t-elle le résultat complet | ✅ **TRANCHÉ 23/09 : oui** — on borne ce qui part au MODÈLE, jamais `tool_steps` | c'est la trace d'audit et la matière du chantier 3 ; contrepartie : un tour peut stocker ~60 ko de JSON |
 | borner aussi à l'outil | **oui, mais séparément** (deux commits) | la borne de boucle est un FILET pour tout outil futur ; `get_item_detail` mériterait une coupe intelligente (début + fin d'une transcription) |
 | dernière itération | ne pas y toucher dans ce chantier — mais la fin de boucle rend `messages[-2]` (le texte du modèle, pas une réponse construite) : comportement surprenant, signalé | hors périmètre |
 

@@ -10,10 +10,14 @@ CE QUE CE MODULE FAIT, ET CE QU'IL NE FAIT PAS
     ont fait. C'est délibéré — `send_to.py` a montré la bonne forme, « ce module ne fait que
     les relier ».
 
-⚠ AUCUNE APP N'ÉCRIT ICI. Trois appelants légitimes, tous des briques communes : l'upload
-    direct, `copy_into_app_input` (import) et `ensure_local_input` (URL matérialisée). Une app
-    qui écrirait sa provenance elle-même rouvrirait les graphies divergentes que ce dépôt vient
-    de fermer ailleurs.
+⚠ AUCUNE APP N'ÉCRIT SA RÈGLE ICI. Les appelants, tels que câblés au 2026-09-22 :
+    `copy_into_app_input` (quand on lui donne l'élément), le répartiteur « Envoyer vers » du
+    gestionnaire de fichiers (`record_origin`, une fois pour les 11 importeurs et leurs jumelles),
+    `ensure_local_input` (URL matérialisée), et les deux lots `-i` qui copient une ligne serveur
+    (converter, anonymizer — un APPEL, pas une règle). ⚠ Pas encore câblés : l'upload direct
+    depuis le poste (aucune source dans WAMA : il ne sert que la dédup par empreinte) et le lot
+    `-i` du gabarit GÉNÉRÉ (`views_gen`). Une app qui écrirait sa provenance elle-même rouvrirait
+    les graphies divergentes que ce dépôt vient de fermer ailleurs.
 
 ⚠ UN ÉCHEC D'ENREGISTREMENT NE FAIT JAMAIS ÉCHOUER UN IMPORT. La provenance est une
     information SUR le geste, pas le geste : perdre la trace est regrettable, perdre le fichier
@@ -126,6 +130,48 @@ def record_import(instance, field, source_path, *, kind='temp'):
     """
     return record_provenance(instance, field, kind=kind, ref=ref_for(source_path),
                              original_name=Path(source_path).name, source_path=source_path)
+
+
+def record_origin(copy_path, *, kind, ref, source_path=None):
+    """La provenance de TOUTES les cards qui portent cette copie, retrouvées par son chemin.
+
+    Pour les appelants qui ne tiennent pas l'élément : le répartiteur « Envoyer vers » ne reçoit
+    de ses importeurs que le chemin de la copie (`result['path']`). Plutôt que de répéter l'appel
+    dans chacun des importeurs — 1 sur 11 le faisait (2026-09-22) —, il l'enregistre ici une fois
+    pour tous, jumelles comprises. Aucune logique propre : l'index des références directes
+    retrouve les cards, `record_provenance` écrit. Ne lève jamais ; rend le nombre de traces.
+    """
+    try:
+        from django.apps import apps as django_apps
+        from wama.common.utils.file_references import direct_references
+        written = 0
+        for r in direct_references(copy_path):
+            instance = django_apps.get_model(r['label']).objects.filter(pk=r['pk']).first()
+            if instance is not None and record_provenance(
+                    instance, r['field'], kind=kind, ref=ref,
+                    original_name=Path(source_path).name if source_path else '',
+                    source_path=source_path) is not None:
+                written += 1
+        return written
+    except Exception as exc:                       # cf. l'avertissement en tête de module
+        logger.debug("record_origin ignoré (%s) : %s", copy_path, exc)
+        return 0
+
+
+def kind_of(media_path) -> str:
+    """La nature d'une source désignée par son chemin dans le gestionnaire de fichiers.
+
+    `mounts/<id>/…` → `mount` ; `users/<u>/temp/…` → `temp` ; tout autre chemin sous
+    `MEDIA_ROOT` est le fichier d'une app (l'entrée ou la sortie d'une autre card : « Envoyer
+    vers » chaîne describer → imager → enhancer) → `app`.
+    """
+    p = str(media_path or '').replace('\\', '/')
+    if p.startswith('mounts/'):
+        return 'mount'
+    parts = p.split('/')
+    if len(parts) > 2 and parts[0] == 'users' and parts[2] == 'temp':
+        return 'temp'
+    return 'app'
 
 
 def provenance_of(instance, field):

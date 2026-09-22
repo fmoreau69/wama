@@ -20,7 +20,6 @@ from django.core.files.base import ContentFile
 
 from .models import VoiceSynthesis
 from wama.common.utils.console_utils import push_console_line
-from wama.common.utils.queue_duplication import safe_delete_file
 from .utils.text_extractor import extract_text_from_file
 from .utils.audio_processor import process_audio_output
 
@@ -484,31 +483,3 @@ def _update_audio_properties(synthesis):
 
     except Exception as e:
         logger.warning(f"Could not extract audio properties: {e}")
-
-
-@shared_task
-def cleanup_old_syntheses(days=7):
-    """
-    Tâche de nettoyage périodique des anciennes synthèses.
-
-    Args:
-        days: Nombre de jours après lesquels supprimer
-    """
-    from datetime import timedelta
-    from django.utils import timezone
-
-    cutoff_date = timezone.now() - timedelta(days=days)
-    old_syntheses = VoiceSynthesis.objects.filter(created_at__lt=cutoff_date)
-
-    count = 0
-    for synthesis in old_syntheses:
-        # Supprimer les fichiers
-        safe_delete_file(synthesis, 'text_file')
-        safe_delete_file(synthesis, 'audio_output')
-        safe_delete_file(synthesis, 'voice_reference')
-
-        synthesis.delete()
-        count += 1
-
-    logger.info(f"Cleaned up {count} old syntheses")
-    return {'cleaned': count}
