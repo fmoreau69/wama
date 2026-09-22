@@ -453,7 +453,8 @@ VOICE_DOWNLOAD_CATALOG: Dict[str, List[tuple]] = {
     # ── Français — Adulte ─────────────────────────────────────────────────
     # Note : le dépôt coqui/XTTS-v2 ne fournit qu'un seul échantillon par langue
     # ({lang}_sample.wav) — pas de variantes gender (_male_/_female_, supprimées
-    # car 404). Les voix diversifiées proviennent de VoxPopuli (catalogue datasets).
+    # car 404). Les voix diversifiées proviennent du corpus HuggingFace VoxPopuli
+    # (`_VOICE_DATASETS_CATALOG` ci-dessous).
     'french/adult/female_adult_1_fr': [
         (f"{_XTTS_BASE}/fr_sample.wav",        "XTTS-v2 FR reference sample"),
     ],
@@ -485,7 +486,9 @@ VOICE_DOWNLOAD_CATALOG: Dict[str, List[tuple]] = {
 
 
 # ---------------------------------------------------------------------------
-# Catalogue datasets HuggingFace (VoxPopuli)
+# Catalogue des corpus HuggingFace (VoxPopuli), lus par la bibliothèque HuggingFace `datasets`
+# ⚠ « dataset » est ici le terme de HuggingFace (un corpus publié sur le Hub), sans rapport
+# avec le kind de manifeste `dataset` du monde Data de WAMA.
 # ---------------------------------------------------------------------------
 # Priorité : VoxPopuli (Facebook, sans auth, locuteurs diversifiés) >
 #            URLs directes du VOICE_DOWNLOAD_CATALOG.
@@ -592,7 +595,7 @@ def _save_audio_array(arr, sr: int, target: Path) -> bool:  # noqa: ANN001
 
 def _decode_audio_item(audio) -> tuple:  # noqa: ANN001
     """
-    Décode un item audio de `datasets` SANS torchcodec.
+    Décode un item audio lu par la bibliothèque HuggingFace `datasets`, SANS torchcodec.
 
     `datasets` 4.x décode la colonne Audio via torchcodec par défaut, ce qui
     casse dès que torchcodec/FFmpeg ne sont pas parfaitement alignés avec la

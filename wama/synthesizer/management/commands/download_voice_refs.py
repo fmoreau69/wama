@@ -27,7 +27,8 @@ from wama.common.tts.voice_refs import (
 def exit_skipping_native_teardown(code: int) -> None:
     """Sort du processus SANS la destruction de fin d'interpréteur — après avoir tout rendu.
 
-    ⚠ POURQUOI (bissection du 2026-09-22) : la lecture en flux de VoxPopuli (`datasets`) laisse
+    ⚠ POURQUOI (bissection du 2026-09-22) : la lecture en flux du corpus VoxPopuli
+    (bibliothèque HuggingFace `datasets`, rien à voir avec les manifestes `dataset`) laisse
     un fil NATIF (pile pyarrow/aiohttp) qui plante pendant la fermeture de l'interpréteur —
     `Fatal Python error: PyGILState_Release … finalizing`, sortie 139 ou 134 — alors que le
     travail est TERMINÉ et écrit. Reproduit par un script minimal (ouvrir le flux, lire un
