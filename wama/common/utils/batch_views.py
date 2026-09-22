@@ -42,7 +42,7 @@ from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from wama.common.utils.batch_common import attach_to_batch, batch_elements, status_counts
+from wama.common.utils.batch_common import attach_to_batch, batch_elements
 from wama.common.utils.process_control import begin_processing
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 
@@ -98,13 +98,26 @@ def apply_item_settings(item, data, *, params_fields=(), options_field=None, ext
     return touched
 
 
+def _revoke_quietly(item):
+    """Révoque la tâche Celery d'un élément qu'on va supprimer (sans la tuer : `terminate=False`,
+    l'idiome mesuré des `batch_delete` d'app). Broker absent → on supprime quand même."""
+    task_id = getattr(item, 'task_id', '') or ''
+    if not task_id:
+        return
+    try:
+        from celery import current_app
+        current_app.control.revoke(task_id, terminate=False)
+    except Exception:
+        pass
+
+
 def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      file_fields=(), output_fields=(), output_field='output_file',
                      params_fields=(), schema=None, options_field=None, extra_names=(),
                      item_model=None, fk_name=None, batch_attr='batch',
                      row_field='batch_row_index', items_related='items',
                      batch_extra=None, reset_on_start=None, reset_on_duplicate=None,
-                     zip_name=None):
+                     zip_name=None, progress_of=None, item_label=None, on_delete=None):
     """Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
     'batch_duplicate', 'batch_download', 'batch_status'} (vues Django, `pk` = id du lot).
 
@@ -120,15 +133,43 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         items_related   : related_name des membres sur le lot (défaut `items`).
         batch_extra     : dict|callable(lot source)->dict — champs du lot créé à la duplication
                           (converter : `media_type`, imager : `domain`).
-        reset_on_start / reset_on_duplicate : remise à zéro (défaut `DEFAULT_RESET` sans `status`
-                          au démarrage — `begin_processing` pose RUNNING lui-même).
+        reset_on_start  : dict OU callable(élément) appliqué SOUS le verrou de `begin_processing`
+                          (describer : `_reset_for_relaunch`) ; défaut `DEFAULT_RESET` sans
+                          `status`/`task_id` — `begin_processing` pose RUNNING lui-même.
+        reset_on_duplicate : dict de remise à zéro de la copie (défaut `DEFAULT_RESET`).
+        progress_of     : callable(élément)->int — d'où lire la progression pour `batch_status`
+                          (describer/transcriber : le cache `<app>_progress_<id>`) ; défaut `progress`.
+        item_label      : callable(élément)->str — le `filename` de chaque ligne de `batch_status`
+                          (idiome mesuré : describer/transcriber) ; défaut `input_filename`/`filename`.
+        on_delete       : callable(élément) appelé AVANT `item.delete()` dans `batch_delete`
+                          (describer : purge du cache de progression). La révocation de la tâche
+                          Celery est faite par la fabrique (`terminate=False`, idiome mesuré).
     """
     schema_names = tuple(p.get('name') for p in (schema or []) if isinstance(p, dict) and p.get('name'))
-    start_reset = dict(reset_on_start) if reset_on_start is not None else {
-        k: v for k, v in DEFAULT_RESET.items() if k not in ('status', 'task_id')}
+    if reset_on_start is None:
+        start_reset = {k: v for k, v in DEFAULT_RESET.items() if k not in ('status', 'task_id')}
+    else:
+        start_reset = reset_on_start if callable(reset_on_start) else dict(reset_on_start)
     dup_reset = dict(reset_on_duplicate) if reset_on_duplicate is not None else dict(DEFAULT_RESET)
     link_kwargs = ({'item_model': item_model, 'fk_name': fk_name} if item_model is not None
                    else {'batch_attr': batch_attr, 'row_field': row_field})
+
+    def _progress(item):
+        if progress_of is not None:
+            try:
+                return int(progress_of(item) or 0)
+            except Exception:
+                pass
+        return int(getattr(item, 'progress', 0) or 0)
+
+    def _label(item):
+        if item_label is not None:
+            return item_label(item)
+        for name in ('input_filename', 'filename', 'name', 'title'):
+            value = getattr(item, name, None)
+            if value:
+                return str(value)
+        return ''
 
     def _batch(request, pk):
         return get_object_or_404(batch_model, pk=pk, user=get_user(request))
@@ -171,6 +212,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def batch_delete(request, pk):
         b = _batch(request, pk)
         for item in batch_elements(b, work_model):
+            _revoke_quietly(item)
+            if on_delete is not None:
+                on_delete(item)
             for field in file_fields:
                 safe_delete_file(item, field)
             item.delete()
@@ -214,27 +258,34 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
 
     @require_GET
     def batch_status(request, pk):
+        """État d'un lot — la FORME est celle MESURÉE sur les cinq apps qui l'exposent
+        (describer, transcriber, reader, enhancer, synthesizer) : `counts` en minuscules
+        {success, running, pending, failure}, `items` [{id, filename, status, progress, error}],
+        `status` global (SUCCESS si tout a réussi ; RUNNING si un tourne ; FAILURE si plus rien
+        n'attend et qu'un a échoué ; PENDING sinon)."""
         b = _batch(request, pk)
         items = batch_elements(b, work_model)
-        counts = status_counts(items)
-        statuses = [getattr(i, 'status', '') for i in items]
+        counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+        rows = []
+        for i in items:
+            status = getattr(i, 'status', '') or ''
+            key = status.lower()
+            counts[key] = counts.get(key, 0) + 1
+            rows.append({'id': i.id, 'filename': _label(i), 'status': status,
+                         'progress': _progress(i),
+                         'error': (getattr(i, 'error_message', '') or None)
+                                  if status == 'FAILURE' else None})
         total = b.total or len(items)
-        if total and counts['success_count'] == total:
+        if total and counts['success'] == total:
             overall = 'SUCCESS'
-        elif counts['running_count']:
+        elif counts['running']:
             overall = 'RUNNING'
-        elif counts['failure_count'] and 'PENDING' not in statuses:
+        elif counts['failure'] and not counts['pending'] and not counts['running']:
             overall = 'FAILURE'
         else:
             overall = 'PENDING'
-        return JsonResponse({
-            'batch_id': pk, 'status': overall, 'total': total, 'counts': counts,
-            'items': [{'id': i.id, 'status': getattr(i, 'status', ''),
-                       'progress': getattr(i, 'progress', 0) or 0,
-                       'error': (getattr(i, 'error_message', '') or None)
-                                if getattr(i, 'status', '') == 'FAILURE' else None}
-                      for i in items],
-        })
+        return JsonResponse({'batch_id': pk, 'status': overall, 'total': total,
+                             'counts': counts, 'items': rows})
 
     return {
         'batch_start': batch_start,

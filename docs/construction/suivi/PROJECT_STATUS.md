@@ -16329,3 +16329,25 @@ inchangé, `maxCrashDumpCount=1` ajouté (sauvegarde `.wslconfig.bak`). ✅ **AP
 17:32:33, VM WSL redémarrée à 17:33:37 par Fabien (`uptime -s`), `free -g` = 47 (plafond 48 relu).
 
 🔚 **Suivant** : rien d'ouvert dans ce périmètre.
+
+## §PALIER — 2026-09-22 (nuit), « `make_batch_views` : le describer, 1ʳᵉ app réelle portée ; la fabrique parle la FORME mesurée » — ✅ LIVRÉ
+
+**Avant de porter, la forme** : cinq apps exposent `batch_status` (describer, transcriber, reader, enhancer,
+synthesizer) et toutes rendent `counts` en minuscules `{success, running, pending, failure}` et `items[]`
+avec `filename` — la fabrique adopte CETTE forme (mon premier jet rendait `status_counts`, la forme de la
+card mère : deux vocabulaires pour un même endpoint). Hooks déclaratifs ajoutés : `reset_on_start` callable
+(sous le verrou), `progress_of`, `item_label`, `on_delete` ; révocation Celery `terminate=False` (idiome
+mesuré des `batch_delete`). `batch_elements` lit le CACHE d'un lot préchargé (0 requête sur une liste).
+
+**Describer porté** (`wama/describer/views.py`) : `batch_start`/`update`/`delete`/`duplicate`/`status` par la
+fabrique, spécificités en kwargs (cache de progression, `_reset_for_relaunch`, `result_text`, `@app_access`) ;
+`update_options` sur les deux helpers ; `batch_list`/`batch_download` sur `batch_elements`. `batch_download`
+reste local (multi-format `?fmt=`, §9.10) : `batch_views_common` = **partiel assumé** — le critère distingue
+« fabrique + vue locale » de « tout à la main ». Grille describer **87/89**, total **866/936**.
+Tests : `tests_batch_views` 15 · `tests_sharing` (+1, prefetch) · describer · contrats génériques : 74 OK ;
+batterie describer + contrats + brique + codegen : 82 OK. Budgets tenus (2744 / 1312).
+
+🔚 **Suivant** : les 9 autres apps, même recette (lire les six vues, déclarer les spécificités en kwargs,
+remplacer, tests + grille) — reader et transcriber (liaison, cache de progression comme le describer),
+synthesizer, enhancer (deux files → deux fabriques), avatarizer, composer, imager (routes `<int:generation_id>`
+à porter d'abord), anonymizer, converter (forme directe). Puis un critère par vue.

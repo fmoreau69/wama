@@ -476,23 +476,30 @@ def batch_elements(lot, element_model):
         return []
     member_model = manager.model
     member_fields = {f.name for f in member_model._meta.get_fields()}
-    if issubclass(member_model, element_model):
-        # Forme à FK DIRECTE : les membres SONT les éléments.
-        row_field = 'batch_row_index' if 'batch_row_index' in member_fields else None
-        qs = manager.all().order_by(row_field) if row_field else manager.all()
-        return list(qs)
+    direct = issubclass(member_model, element_model)      # les membres SONT les éléments
+    row_field = ('batch_row_index' if direct and 'batch_row_index' in member_fields
+                 else 'row_index' if not direct and 'row_index' in member_fields else None)
     # Forme par LIAISON : la relation (many_to_one ou one_to_one, non auto-créée) qui vise
     # exactement le modèle d'élément.
-    element_field = next((f.name for f in member_model._meta.get_fields()
-                          if (getattr(f, 'many_to_one', False) or getattr(f, 'one_to_one', False))
-                          and not getattr(f, 'auto_created', False)
-                          and f.related_model is element_model), None)
-    if element_field is None:
+    element_field = None if direct else next(
+        (f.name for f in member_model._meta.get_fields()
+         if (getattr(f, 'many_to_one', False) or getattr(f, 'one_to_one', False))
+         and not getattr(f, 'auto_created', False) and f.related_model is element_model), None)
+    if not direct and element_field is None:
         return []
-    qs = manager.select_related(element_field)
-    if 'row_index' in member_fields:
-        qs = qs.order_by('row_index')
-    return [e for e in (getattr(link, element_field, None) for link in qs) if e is not None]
+    # Un lot PRÉCHARGÉ (`prefetch_related('items__<élément>')`, idiome des vues de liste et de
+    # `build_batches_list`) se lit dans son cache : aucune requête de plus — sinon une liste de
+    # N lots coûterait N requêtes. Même tri que la requête (sur le cache, comme la file).
+    prefetched = (getattr(lot, '_prefetched_objects_cache', None) or {}).get('items')
+    if prefetched is not None:
+        members = sorted(prefetched, key=lambda m: getattr(m, row_field, 0) or 0) if row_field \
+            else list(prefetched)
+    else:
+        qs = manager.all() if direct else manager.select_related(element_field)
+        members = list(qs.order_by(row_field) if row_field else qs)
+    if direct:
+        return members
+    return [e for e in (getattr(m, element_field, None) for m in members) if e is not None]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

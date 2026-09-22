@@ -236,6 +236,19 @@ class PartageDUnLotTest(TestCase):
         self.assertIsInstance(lien, GenerationBatchItem)
         self.assertEqual([gen2.id, gen.id], [x.id for x in batch_elements(lot2, ImageGeneration)])
 
+    def test_batch_elements_reads_a_prefetched_batch_without_any_query(self):
+        """Une vue de LISTE précharge ses lots (`prefetch_related('items__<élément>')`) : la
+        brique lit alors le cache — sinon N lots = N requêtes (describer `batch_list`, 22/09)."""
+        from wama.common.utils.batch_common import batch_elements
+        from wama.imager.models import GenerationBatch, GenerationBatchItem, ImageGeneration
+        gen, lot = _generation(self.u)
+        gen2 = ImageGeneration.objects.create(user=self.u, prompt='second')
+        GenerationBatchItem.objects.create(batch=lot, generation=gen2, row_index=-1)
+        lot_pre = GenerationBatch.objects.prefetch_related('items__generation').get(pk=lot.pk)
+        with self.assertNumQueries(0):
+            ids = [x.id for x in batch_elements(lot_pre, ImageGeneration)]
+        self.assertEqual(ids, [gen2.id, gen.id], "l'ordre des lignes vaut aussi sur le cache")
+
     def test_batch_elements_never_returns_the_user(self):
         """⚠ Défaut de ma première version : elle suivait « la première relation qui n'est pas
         `batch` » — et `ConversionJob` porte aussi `user`. Elle rendait donc l'UTILISATEUR

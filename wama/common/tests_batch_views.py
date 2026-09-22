@@ -108,9 +108,49 @@ class DirectFormBatchViewsTest(TestCase):
         req = self.rf.get('/x/')
         req.user = self.u
         data = json.loads(self.views['batch_status'](req, self.lot.pk).content)
-        self.assertEqual((data['status'], data['total'], data['counts']['success_count']),
-                         ('PENDING', 2, 1))
-        self.assertEqual([i['id'] for i in data['items']], [self.b.id, self.a.id])
+        # La FORME mesurée sur les cinq apps : `counts` minuscules, `items` avec `filename`.
+        self.assertEqual((data['status'], data['total'], data['counts']),
+                         ('PENDING', 2, {'success': 1, 'running': 0, 'pending': 1, 'failure': 0}))
+        self.assertEqual([(i['id'], i['filename']) for i in data['items']],
+                         [(self.b.id, 'b.mp4'), (self.a.id, 'a.mp4')])
+
+    def test_batch_status_reads_progress_and_label_through_the_declared_hooks(self):
+        from wama.converter.models import ConversionBatch, ConversionJob
+        views = make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            batch_attr='batch', row_field='batch_row_index',
+            progress_of=lambda j: 42, item_label=lambda j: f'L-{j.input_filename}')
+        req = self.rf.get('/x/')
+        req.user = self.u
+        data = json.loads(views['batch_status'](req, self.lot.pk).content)
+        self.assertEqual([(i['filename'], i['progress']) for i in data['items']],
+                         [('L-b.mp4', 42), ('L-a.mp4', 42)])
+
+    def test_batch_delete_calls_the_declared_hook_before_each_deletion(self):
+        from wama.converter.models import ConversionBatch, ConversionJob
+        seen = []
+        views = make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            batch_attr='batch', row_field='batch_row_index',
+            on_delete=lambda j: seen.append(j.input_filename))
+        req = self.rf.post('/x/')
+        req.user = self.u
+        views['batch_delete'](req, self.lot.pk)
+        self.assertEqual(seen, ['b.mp4', 'a.mp4'])
+
+    def test_batch_start_accepts_a_callable_reset_applied_under_the_lock(self):
+        from wama.converter.models import ConversionBatch, ConversionJob
+        def _reset(job):
+            job.error_message = 'reset-callable'
+        views = make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            task=_FakeTask(), batch_attr='batch', row_field='batch_row_index',
+            reset_on_start=_reset)
+        req = self.rf.post('/x/')
+        req.user = self.u
+        views['batch_start'](req, self.lot.pk)
+        self.a.refresh_from_db()
+        self.assertEqual((self.a.status, self.a.error_message), ('RUNNING', 'reset-callable'))
 
 
 class LinkFormBatchViewsTest(TestCase):
