@@ -811,6 +811,9 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > matin), et +1 en F5, `batch_read_common` (les éléments d'un lot lus par la brique
 > `batch_elements`, ordre des lignes garanti) : rouge 10/10 le jour de son écriture — c'est le
 > reste de portage des vues de lot, écrites à la main dans chaque app (`ROUTE §11 #36`).
+> Puis **99 critères : 865/936** — +1 en F5, `batch_views_common` (les six vues de lot par la
+> fabrique commune `make_batch_views`, livrée le soir même et consommée par le générateur) :
+> rouge 10/10 tant que les apps réelles gardent leurs `def batch_*` à la main.
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,

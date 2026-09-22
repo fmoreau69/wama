@@ -113,7 +113,7 @@ ACCENTED = re.compile(r'[àâäéèêëîïôöùûüÿçÀÂÄÉÈÊËÎÏÔÖ�
 #: Les noms de tests etaient la derniere exemption de la doctrine (AGENTS.md, 22/08) ; elle est
 #: LEVEE. Ils restent comptes A PART parce qu'ils se soldent autrement : aucun appelant, donc
 #: aucun risque de rendre FAUX — mais 1298 renommages qui noieraient tout autre diff.
-BUDGET_CODE = 2746          # production + fichiers de tests hors noms (2750 avant `batch_elements`/`attach_to_batch`, 22/09)
+BUDGET_CODE = 2744          # production + fichiers de tests hors noms (2750 → 2746 → 2744 le 22/09 : briques de lot, générateur allégé)
 #: +142 le 2026-09-21 (et +1 classe, +28 noms de tests) : AFFUTAGE, pas ajout — six mots
 #: evidents inscrits a la liste noire sur decision de Fabien (cf. FRENCH_WORDS). Dette ANCIENNE
 #: rendue visible ; 2608 avant.

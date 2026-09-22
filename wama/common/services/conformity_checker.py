@@ -1920,6 +1920,16 @@ CRITERIA: list[Criterion] = [
     # la grille et les tests suivent le mécanisme, pas après coup).
     Criterion('batch_read_common', 'F5', "Éléments d'un lot lus par la brique (batch_elements, ordre des lignes)",
               _batch_read_common, mechanism='queue_entry'),
+    # 2026-09-22 (suite) : la fabrique des six vues de lot existe (`make_batch_views`, extraite du
+    # générateur) — une app qui la consomme n'écrit plus `def batch_start` & co. Vert dès que la
+    # fabrique est appelée ; rouge tant que l'app définit ses vues de lot à la main.
+    Criterion('batch_views_common', 'F5', 'Vues de lot par la fabrique commune (make_batch_views)',
+              lambda f: ((True, f.find_code(VIEWS, r'\bmake_batch_views\('))
+                         if f.find_code(VIEWS, r'\bmake_batch_views\(')
+                         else (False, f"vues de lot écrites à la main ({f.find_code(VIEWS, r'(?m)^def (batch_(start|delete|duplicate|update|download|status)|start_batch)\(')}) — fabrique `batch_views.make_batch_views`")
+                         if f.find_code(VIEWS, r'(?m)^def (batch_(start|delete|duplicate|update|download|status)|start_batch)\(')
+                         else (None, 'aucune vue de lot')),
+              mechanism='batch_views'),
     # Les deux contrats COMMUNS du modèle de lot. `batch_semantics` porte `is_unitary`, que lisent
     # `_queue_entry.html` ET `is_batch_child` — son absence (jumelle `converter_01`, 15/09) rendait
     # tout lot en lot de plusieurs cards, sans erreur. `queue_order` : le mécanisme de même nom
