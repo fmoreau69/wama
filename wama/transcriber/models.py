@@ -59,6 +59,17 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
 
     # Backend used for transcription (filled after processing)
     used_backend = models.CharField(max_length=32, blank=True, default='')
+    # Clé CATALOGUE du modèle qui a produit le résultat (`transcriber:qwen3-asr-1.7b`), posée par
+    # le worker AVANT de décharger le moteur (`TranscriberBackendManager.catalogue_key_for`).
+    # `used_backend` nomme le MOTEUR, qui ne distingue pas les variantes d'un même moteur : c'est
+    # ce champ que lisent l'évaluation et les signaux d'exécution pour attribuer une mesure.
+    model_key = models.CharField(max_length=128, blank=True, default='')
+
+    # Port `reference_result` (capacité `has_reference_result`) : la transcription ATTENDUE,
+    # produite ailleurs — la sortie ASR lui est comparée (`common/services/result_evaluation`).
+    # Posée par le geste commun (card ou lot), jamais lue par le moteur.
+    reference_result = models.FileField(upload_to=upload_to_user_input('transcriber'),
+                                        blank=True, null=True)
 
     # Optional LLM summary (generated after transcription if requested)
     generate_summary = models.BooleanField(default=False)

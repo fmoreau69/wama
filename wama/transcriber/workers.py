@@ -494,6 +494,10 @@ def transcribe(self, transcript_id: int):
         t.text = result.text
         t.language = result.language
         t.used_backend = backend.name
+        # La clé catalogue EXACTE, lue maintenant : `unload()` (plus bas) efface le modèle chargé.
+        from .backends.manager import TranscriberBackendManager
+        t.model_key = TranscriberBackendManager.catalogue_key_for(
+            backend.name, getattr(backend, '_current_model', '') or '')
 
         # Save segments if available (diarization)
         num_segments = _save_segments(t, result)
@@ -502,7 +506,8 @@ def transcribe(self, transcript_id: int):
 
         _set_partial_text(t.id, t.text)
         _set_progress(t, 90)
-        t.save(update_fields=['text', 'language', 'used_backend', 'status', 'segments_json'])
+        t.save(update_fields=['text', 'language', 'used_backend', 'model_key', 'status',
+                              'segments_json'])
 
         # Step 6: Save output files (TXT + SRT) to output folder
         _save_output_files(t, backend.name)
@@ -601,6 +606,13 @@ def transcribe(self, transcript_id: int):
         t.status = 'SUCCESS'
         t.save(update_fields=['status', 'processing_seconds', 'finished_at'])
         _set_status_message(t, '')                            # plus d'action en cours
+
+        # Mesure contre la RÉFÉRENCE, si l'élément en porte une (brique commune, best-effort :
+        # une mesure manquée ne fait jamais échouer une transcription réussie).
+        if t.reference_result:
+            from wama.common.services.result_evaluation import evaluate
+            if evaluate('transcriber', t):
+                _console(t.user_id, "Évaluation contre la référence enregistrée ✓")
 
         # Apprentissage ETA (eta_estimator) : durées RÉELLES (chargement à froid + traitement)
         # rapportées à la durée audio → affine le seed des prochains runs (par modèle × hardware).
