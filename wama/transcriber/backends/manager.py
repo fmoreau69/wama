@@ -167,6 +167,31 @@ class TranscriberBackendManager:
             return 'whisper'
         return None
 
+    @classmethod
+    def catalogue_key_for(cls, backend_name: str, loaded_model: str = '') -> str:
+        """Clé catalogue du modèle EFFECTIVEMENT utilisé — l'inverse de `_backend_for_model_key`.
+
+        Le moteur (`whisper`, `qwen_asr`…) ne suffit pas quand le catalogue en porte plusieurs
+        variantes (`qwen3-asr-0.6b` / `-1.7b`) : le modèle CHARGÉ tranche (`_current_model`
+        du contrat `speech_to_text_base`, lu AVANT `unload()`, qui le remet à None). Une mesure
+        attribuée au mauvais modèle fausserait son indice interne — on préfère alors la clé du
+        moteur, qui ne prétend pas savoir la variante.
+        """
+        try:
+            from wama.model_manager.models import AIModel
+            keys = [k for k in AIModel.objects.filter(source='transcriber')
+                    .values_list('model_key', flat=True)
+                    if cls._backend_for_model_key(k) == backend_name]
+        except Exception:
+            keys = []
+        if len(keys) == 1:
+            return keys[0]
+        loaded = (loaded_model or '').lower().rsplit('/', 1)[-1]
+        matching = [k for k in keys if k.split(':', 1)[-1].lower() == loaded]
+        if len(matching) == 1:
+            return matching[0]
+        return f'transcriber:{backend_name}' if backend_name else ''
+
     def _select_backend_via_model_manager(self, availability: Dict[str, bool]) -> Optional[str]:
         """
         Choix VRAM-aware du backend via la brique commune `select_model()`

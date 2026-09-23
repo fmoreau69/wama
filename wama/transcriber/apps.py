@@ -76,6 +76,38 @@ class TranscriberConfig(AppConfig):
         from wama.common.utils.export_formats import register_export_builder
         register_export_builder('transcriber', 'wama.transcriber.views:build_transcript_bytes')
 
+        # Évaluation contre une RÉFÉRENCE (port `reference_result`, capacité `has_reference_result`)
+        # — la brique commune fait tout ; l'app ne dit que CE QUI se mesure et COMMENT se lit.
+        from wama.common.services.result_evaluation import EvaluationSpec, register_evaluation
+        from .utils.transcript_documents import SUPPORTED_EXTENSIONS
+
+        def _asr_text(item):
+            """Le texte PRODUIT par le moteur — jamais la correction humaine, qui écrase `text`
+            (`save_correction`) : mesurer la correction contre une référence mesurerait l'humain."""
+            if item.status != 'SUCCESS':
+                return None
+            segments = item.segments_json or []
+            text = ' '.join((s.get('text') or '').strip() for s in segments
+                            if isinstance(s, dict)).strip()
+            if text:
+                return text
+            return (item.text or None) if not item.corrected_segments_json else None
+
+        def _read_reference(path):
+            from .utils.transcript_documents import read_transcript_document
+            doc = read_transcript_document(path)
+            return doc.text, {'format': doc.format, 'turns': len(doc.segments),
+                              'timed': doc.is_timed, 'windows': len(doc.windows),
+                              'outside_speech': len(doc.outside_speech)}
+
+        register_evaluation(EvaluationSpec(
+            surface='transcriber', reference_field='reference_result',
+            result_text=_asr_text, read_reference=_read_reference,
+            model_key=lambda item: item.model_key or (
+                f'transcriber:{item.used_backend}' if item.used_backend else ''),
+            reference_extensions=SUPPORTED_EXTENSIONS,
+        ))
+
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
         from wama.common.utils.detail_registry import register_app_detail, build_detail
 

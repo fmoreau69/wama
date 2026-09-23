@@ -58,6 +58,11 @@ def _reset_for_relaunch(t):
     t.segments_json = None
     t.language = ''
     t.used_backend = ''
+    t.model_key = ''
+    # La mesure décrivait le résultat qu'on efface : elle partirait sinon avec la référence
+    # d'un autre texte. La référence, elle, RESTE — elle sera remesurée à la fin du traitement.
+    from wama.common.services.result_evaluation import clear
+    clear('transcriber', t)
 
 
 # ── Les SIX vues de lot : fabrique COMMUNE (`batch_views.make_batch_views`, portage 2026-09-23,
@@ -79,6 +84,18 @@ from wama.transcriber.params import PARAMS_JSON as _SCHEMA
 SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'enable_diarization',
                    'generate_summary', 'summary_type', 'verify_coherence',
                    'temperature', 'max_tokens')
+
+#: Les champs FICHIER d'un transcript — UNE liste, lue par la fabrique de lots (duplication,
+#: suppression d'un lot) ET par `delete`/`clear_all`. Ces deux vues écrivaient `'audio'` en dur :
+#: le contrat générique de suppression (`tests_queue_delete_contract`) l'a montré dès l'ajout de
+#: `reference_result`, resté sur le disque après la card.
+CARD_FILE_FIELDS = ('audio', 'reference_result')
+
+
+def _delete_card_files(t):
+    """Chaque fichier de la card, sous la règle de `safe_delete_file` (propriété + partage)."""
+    for field in CARD_FILE_FIELDS:
+        safe_delete_file(t, field)
 
 
 def _get_user(request):
@@ -107,7 +124,7 @@ def _forget_transcript(t):
 _bv = make_batch_views(
     work_model=Transcript, batch_model=BatchTranscript, get_user=_get_user,
     task_for=_task_for,
-    file_fields=('audio',),
+    file_fields=CARD_FILE_FIELDS,
     output_fields=('segments_json', 'key_points', 'action_items', 'coherence_score'),
     params_fields=SETTINGS_FIELDS, schema=_SCHEMA,
     item_model=BatchTranscriptItem, fk_name='transcript',
@@ -915,12 +932,14 @@ def save_correction(request, pk: int):
             # corrigés du dépôt portent un texte identique à l'ASR). Sans ce garde-fou, le
             # signal le plus précieux se remplirait de non-événements.
             if is_real_correction(mesure):
-                moteur = next((getattr(t, champ, None) for champ in
-                               ('model_used', 'asr_model', 'model_name', 'backend')
-                               if getattr(t, champ, None)), None)
+                # La clé posée par le worker (`model_key`), à défaut le MOTEUR réellement
+                # utilisé. Jusqu'au 2026-09-23 on cherchait `model_used`/`asr_model`/`model_name`
+                # — trois champs qui n'ont jamais existé — puis `backend`, le RÉGLAGE, qui vaut
+                # souvent « auto » : le signal était attribué à `transcriber:auto`.
+                produced_by = t.model_key or (f'transcriber:{t.used_backend}'
+                                              if t.used_backend else '')
                 record('transcriber', t, 'corrige',
-                            model_keys=[f'transcriber:{moteur}'] if moteur else None,
-                            detail=mesure)
+                       model_keys=[produced_by] if produced_by else None, detail=mesure)
         except Exception:
             pass
 
@@ -1232,8 +1251,8 @@ def delete(request, pk: int):
     snapshot = batch_snapshot(t)
     # Output files are unique to this transcript — always delete
     _cleanup_output_files(t, user.id)
-    # Audio file may be shared with a duplicate — only delete if no other row references it
-    safe_delete_file(t, 'audio')
+    # Files may be shared (duplicate, batch reference) — only deleted when no other row holds them
+    _delete_card_files(t)
     t.delete()  # signal post_delete (batch_sync) : recale total / supprime le batch vidé
     cache.delete(f"transcriber_progress_{pk}")
     return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, Transcript)})
@@ -1326,9 +1345,9 @@ def clear_all(request):
     for transcript in transcripts:
         cleared.append(transcript.id)
         _cleanup_output_files(transcript, user.id)
-        # L'audio peut être PARTAGÉ (dupliqué / import filemanager) : même règle que delete()
-        # (avant 2026-07-06 : unlink inconditionnel → cassait les doublons restants).
-        safe_delete_file(transcript, 'audio')
+        # Les fichiers peuvent être PARTAGÉS (dupliqué / import filemanager / référence d'un lot) :
+        # même règle que delete() (avant 2026-07-06 : unlink inconditionnel → cassait les doublons).
+        _delete_card_files(transcript)
         cache.delete(f"transcriber_progress_{transcript.id}")
         transcript.delete()  # signal post_delete (batch_sync) : recale total / purge le batch vidé
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})

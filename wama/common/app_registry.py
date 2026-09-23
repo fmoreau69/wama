@@ -1165,6 +1165,9 @@ APP_CATALOG = {
         'has_batch':   True,
         'has_url_import': True,
         'has_youtube': True,
+        # Évaluation contre une transcription de référence (2026-09-23, INPUT_MODEL_MATCHING §6.7) :
+        # va avec `register_evaluation` dans `transcriber/apps.py` — un test refuse l'un sans l'autre.
+        'has_reference_result': True,
         'output_types': ('txt', 'srt', 'vtt', 'json'),
         'conventions': _conv(
             settings_modal_item=True,
