@@ -166,9 +166,12 @@ def input_slots(app, live=False):
     # L'union sait la vérité (`app_input_ports` : requis = exigé par TOUS les modèles retenus),
     # et c'est ce que dit `matches_inputs` côté serveur. Repli sur l'ancien critère quand
     # l'union est vide (app sans moteur IA) — le comportement d'avant, exactement.
-    from wama.common.app_registry import app_input_ports
-    oblig = {p['id']: p['required'] for p in (app_input_ports(app) or [])}
-    textes = {p['id']: p.get('description', '') for p in (app_input_ports(app) or [])}
+    # Les ports du RÉSULTAT (`app_result_ports`) portent leur propre obligation — jamais requis :
+    # sans eux ici, le repli par groupe annoncerait « requis » le `work_result` (groupe travail).
+    from wama.common.app_registry import app_input_ports, app_result_ports
+    known = (app_input_ports(app) or []) + app_result_ports(app)
+    oblig = {p['id']: p['required'] for p in known}
+    textes = {p['id']: p.get('description', '') for p in known}
 
     mimes = {'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*'}
     slots = []

@@ -223,6 +223,8 @@ def studio_node_ports(app_id):
       - ports « référence » : depuis app_modes (reference_image→image, reference_voice→audio),
         déclarés sur un MODE (apps à switch) ou sur le DOMAINE lui-même (apps sans switch —
         `inputs` de domaine, 2026-08-30, ROUTE §S2bis.6 (b)).
+      - ports du RÉSULTAT (`app_result_ports`) : ouverts par une capacité d'app, sur les deux
+        chemins — ils ne viennent jamais d'un modèle.
       - sortie : catégories de output_types.
     Retourne {'inputs': [...], 'output': {...}} ou None si app inconnue.
     """
@@ -250,11 +252,11 @@ def studio_node_ports(app_id):
     # REPLI EXPLICITE : une app dont aucun modèle ne déclare ses entrées (converter — aucun
     # moteur IA) garde EXACTEMENT la dérivation d'avant. Aucune app ne régresse, et le jour où
     # ses modèles déclarent, elle bascule d'elle-même.
+    output = {'id': 'out', 'label': 'Sortie', 'types': out_cats}
     depuis_modeles = app_input_ports(app_id)
     if depuis_modeles:
         inputs = [{k: v for k, v in p.items() if k != 'required'} for p in depuis_modeles]
-        return {'inputs': inputs,
-                'output': {'id': 'out', 'label': 'Sortie', 'types': out_cats}}
+        return {'inputs': inputs + _app_result_port_shapes(app_id, inputs), 'output': output}
 
     inputs = []
     if media_in:
@@ -296,7 +298,15 @@ def studio_node_ports(app_id):
     # `id` sur la sortie comme sur les entrées : un port sans identifiant n'est pas câblable
     # (le schéma de manifeste l'exige, et la génération d'un nœud studio en aura besoin pour
     # relier les liens). Ajout ADDITIF — les consommateurs existants lisent label/types.
-    return {'inputs': inputs, 'output': {'id': 'out', 'label': 'Sortie', 'types': out_cats}}
+    return {'inputs': inputs + _app_result_port_shapes(app_id, inputs), 'output': output}
+
+
+def _app_result_port_shapes(app_id, present):
+    """Ports d'`app_result_ports` à la forme de `studio_node_ports` (sans `required`), moins ceux
+    déjà présents — les deux chemins (modèles déclarants, repli) les reçoivent pareil."""
+    ids = {p.get('id') for p in present}
+    return [{k: v for k, v in p.items() if k != 'required'}
+            for p in app_result_ports(app_id) if p['id'] not in ids]
 
 
 def _domaine_dune_tache(task):
@@ -437,6 +447,56 @@ def app_input_ports(app_id, domain=None):
             'multi': bool(spec.get('multi')),
             'required': jeton in requis,
             'description': spec.get('description', ''),
+        })
+    return ports
+
+
+#: Capacité d'app → jeton d'entrée qu'elle ouvre. L'ordre est celui des onglets de la card.
+RESULT_CAPABILITY_TOKENS = (
+    ('has_result_import', 'work_result'),
+    ('has_reference_result', 'reference_result'),
+)
+
+
+def app_result_ports(app_id):
+    """Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
+
+    La règle d'`INPUT_MODEL_MATCHING §6.3` est « slots = entrées de niveau APP ∪ entrées des
+    MODÈLES ». `app_input_ports` en tient la seconde moitié ; celle-ci tient la première, pour la
+    seule famille d'entrées qu'aucun modèle ne peut déclarer : celles qui portent sur le RÉSULTAT.
+      • `reference_result` (capacité `has_reference_result`) : le résultat attendu, auquel la
+        sortie est comparée. C'est l'ÉVALUATION qui le lit, pas le moteur.
+      • `work_result` (capacité `has_result_import`) : un résultat produit ailleurs, qui tient
+        lieu de traitement.
+
+    ⚠ Ce n'est PAS l'union naïve des `inputs` déclarés dans `APP_MODES` (mesuré le 2026-09-23) :
+    ceux-là décrivent les slots d'un domaine et sont presque tous des jetons de MODÈLE — l'imager
+    y déclare encore `reference_image`, qu'aucun de ses modèles ne sait lire (§6.6). Les unir
+    rouvrirait des onglets mensongers. Le critère est QUI CONSOMME l'entrée.
+
+    Nature des ports = nature de la SORTIE de l'app (`output_types`) : une référence se compare à
+    ce que l'app produit. Jamais requis — une app évaluable fonctionne sans référence.
+
+    Returns:
+        [{id, label, group, types, multi, required, description}] — la forme d'`app_input_ports`.
+    """
+    from wama.common.utils.app_modes import INPUT_TYPES
+
+    cat = APP_CATALOG.get(app_id) or {}
+    natures = [c for c in normalize_types(cat.get('output_types', [])) if c != 'prompt']
+    ports = []
+    for capability, token in RESULT_CAPABILITY_TOKENS:
+        if not cat.get(capability):
+            continue
+        spec = INPUT_TYPES[token]
+        ports.append({
+            'id': token,
+            'label': spec['label'],
+            'group': spec['port'],
+            'types': list(natures),
+            'multi': bool(spec.get('multi')),
+            'required': False,
+            'description': spec['description'],
         })
     return ports
 

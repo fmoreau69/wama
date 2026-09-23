@@ -364,6 +364,11 @@ def _capabilities(cat: dict, app_id: str) -> dict:
         # Vrai si l'app importe depuis une URL OU déclare un ingest WAMA_INGEST.
         'accepts_url': bool(cat.get('has_url_import')) or _ingest(app_id) is not None,
     }
+    # Capacités du RÉSULTAT (`app_registry.app_result_ports`) — écrites seulement si DÉCLARÉES :
+    # absentes, elles valent « non », et les manifestes des apps qui ne les ont pas ne bougent pas.
+    for c in RESULT_CAPABILITY_FIELDS:
+        if cat.get(c):
+            caps[c] = True
     # Accesseur PARTAGÉ app_capabilities(app_id) = point de bascule UNIQUE (contrat multi-instances,
     # REPRISE_2026-07-22) — plus de lecture directe de `conventions`. Repli défensif si indisponible.
     try:
@@ -769,7 +774,8 @@ def _to_dict(obj) -> dict:
 #   - `access`       → AppAccessPolicy (DB, runtime)
 #   - `identity`     → entrée APP_CATALOG (app_registry.py, CODE — §10.3, pilote converter)
 #   - `ports`        → input_types/output_types de la même entrée (inversion studio_node_ports)
-#   - `capabilities` → has_batch/batch_type/has_url_import/has_youtube (le déclaratif seul)
+#   - `capabilities` → has_batch/batch_type/has_url_import/has_youtube + capacités du RÉSULTAT
+#                      (has_result_import/has_reference_result) — le déclaratif seul
 #   - `studio`       → entrée GENERIC_APPS (generic_runner.py — déclaratif seul, E/S dérivées exclues)
 #   - `modes`        → entrée APP_MODES (app_modes.py — littéral profond, égalité profonde)
 #   - `prompts`      → entrée PROMPT_TARGETS (app_metadata.py — `targets` seul, entrée-valeur)
@@ -854,7 +860,8 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
 #                  travail rend les médias DANS L'ORDRE (= priorité, §10.1), le port prompt
 #                  redevient un 'text' en QUEUE ; les ports `reference` sont IGNORÉS ici —
 #                  ils dérivent d'APP_MODES, donc appartiennent à la facette modes)
-#   capabilities → has_batch/batch_type/has_url_import/has_youtube — le DÉCLARATIF seul :
+#   capabilities → has_batch/batch_type/has_url_import/has_youtube + capacités du RÉSULTAT
+#                  (RESULT_CAPABILITY_FIELDS) — le DÉCLARATIF seul :
 #                  `accepts_url` est DÉRIVÉ (has_url_import OU ingest), et les drapeaux
 #                  (inspector, layout, during_preview…) sont MESURÉS par la grille
 #                  (`app_capabilities` fusionne conformity_report par-dessus l'entrée) —
@@ -863,10 +870,13 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
 # + rang alphabétique) — l'écrire la figerait en override.
 CATALOG_FIELD_ORDER = ('label', 'category', 'icon', 'url_name', 'description',
                        'input_extensions', 'input_types', 'batch_type', 'has_batch',
-                       'has_url_import', 'has_youtube', 'output_types')
+                       'has_url_import', 'has_youtube', 'has_result_import',
+                       'has_reference_result', 'output_types')
 IDENTITY_FIELDS = ('label', 'category', 'icon', 'url_name', 'description', 'input_extensions')
 PORTS_FIELDS = ('input_types', 'output_types')
-CAPABILITY_FIELDS = ('has_batch', 'batch_type', 'has_url_import', 'has_youtube')
+#: Capacités qui ouvrent les ports du RÉSULTAT (`app_registry.RESULT_CAPABILITY_TOKENS`).
+RESULT_CAPABILITY_FIELDS = ('has_result_import', 'has_reference_result')
+CAPABILITY_FIELDS = ('has_batch', 'batch_type', 'has_url_import', 'has_youtube') + RESULT_CAPABILITY_FIELDS
 _GEN_MARK = '[manifest-gen app:{app_id}]'
 
 
@@ -911,6 +921,7 @@ def _capabilities_target(manifest: dict) -> dict:
         'batch_type': caps.get('batch_type'),
         'has_url_import': bool(caps.get('has_url_import')),
         'has_youtube': bool(caps.get('has_youtube')),
+        **{c: bool(caps.get(c)) for c in RESULT_CAPABILITY_FIELDS},
     }
 
 
