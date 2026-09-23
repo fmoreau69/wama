@@ -823,11 +823,12 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             facts = card_facts(c.get('pipeline_tag') or tache, c.get('tags'),
                                {'language': c.get('language')})
             tache_w, model_type = facts['task'], facts['model_type']
-            if model_type not in refs_type:
-                # Identité courte : `name` du catalogue porte parfois un descriptif après « — ».
-                refs_type[model_type] = [
+            # Référentiel par MÉTIER, pas par catégorie : un texte→vidéo ne concourt pas
+            # contre SDXL (2026-09-23). Identité courte : `name` porte parfois « — … ».
+            if (model_type, tache_w) not in refs_type:
+                refs_type[(model_type, tache_w)] = [
                     (m.name or '').split('—')[0].strip()
-                    for m in AIModel.best_installed(model_type)]
+                    for m in AIModel.best_installed(model_type, task=tache_w)]
             cree = write_candidate(
                 cand_key, nom=hf_id.split('/')[-1], model_type=model_type,
                 source='huggingface',
@@ -836,7 +837,7 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
                 kind='new', confidence=None,
                 extra={'kind': 'new', 'role': f"hf:{tache}", 'name': hf_id,
                        'reason': f"tâche {tache} — non installé",
-                       'concurrence': refs_type[model_type],
+                       'concurrence': refs_type[(model_type, tache_w)],
                        'downloads': c['downloads'], 'likes': c['likes'],
                        'metrique': c.get('metrique'),
                        # Verdict de licence AFFICHÉ, jamais éliminatoire (Fabien 29/08) —
@@ -1099,10 +1100,10 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
         facts = card_facts(getattr(m, 'pipeline_tag', None) or tache,
                            getattr(m, 'tags', None) or (), carte)
         tache_w, model_type = facts['task'], facts['model_type']
-        if model_type not in refs_type:
-            refs_type[model_type] = [
+        if (model_type, tache_w) not in refs_type:
+            refs_type[(model_type, tache_w)] = [
                 (x.name or '').split('—')[0].strip()
-                for x in AIModel.best_installed(model_type)]
+                for x in AIModel.best_installed(model_type, task=tache_w)]
         cand_key = PROPOSED_PREFIX + f"hf:{m.id}"
         cree = write_candidate(
             cand_key, nom=m.id.split('/')[-1], model_type=model_type,
@@ -1112,7 +1113,7 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
             kind='new', confidence=None,
             extra={'kind': 'new', 'role': f"hf:{tache}", 'name': m.id,
                    'reason': f"recherche ciblée « {query} »",
-                   'concurrence': refs_type[model_type],
+                   'concurrence': refs_type[(model_type, tache_w)],
                    'downloads': dl, 'likes': getattr(m, 'likes', 0) or 0,
                    'metrique': _metrique_declaree(carte),
                    'license_flag': analyze_license(m.id, str(licence or ''), base_model),

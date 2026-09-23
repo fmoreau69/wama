@@ -919,6 +919,12 @@ WAMA_PROMPT_ENRICH_MODEL = os.environ.get('WAMA_PROMPT_ENRICH_MODEL') or None
 # l'octet. Posé dans .env de cet hôte (machine fragile), pas un défaut de la plateforme.
 WAMA_GPU_SAFE_MODE = os.environ.get('WAMA_GPU_SAFE_MODE', '0') in ('1', 'true', 'True')
 
+# « Prospecter » enchaîne la chaîne COMPLÈTE : candidats → bancs tiers (réseau) → jury LLM
+# (GPU, file `gpu` palier basse, gouverné). Le jury avait été détaché le 2026-08-19 (crashs
+# hôte) ; l'alimentation remplacée le 21/09, Fabien le rebranche le 2026-09-23. `=0` dans
+# l'environnement le détache de nouveau ; `WAMA_GPU_SAFE_MODE` actif le détache aussi.
+PROSPECT_ASSESS_AUTO = os.environ.get('PROSPECT_ASSESS_AUTO', '1') in ('1', 'true', 'True')
+
 # Anthropic API Configuration (for AI Chat feature)
 # Set your API key here or use ANTHROPIC_API_KEY environment variable
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', None)

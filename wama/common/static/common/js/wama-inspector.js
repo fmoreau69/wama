@@ -1051,7 +1051,14 @@
     // ↑/↓ : déplace la sélection entre cards — UNIQUEMENT si une card est déjà sélectionnée
     // (on n'usurpe pas le scroll de page tant que l'utilisateur n'est pas « entré » dans la file).
     // Entrée/Espace : active la card (événement `wama:card-activate`). Échap : déselectionne.
-    function cardList() { return Array.prototype.slice.call(qc.querySelectorAll(CARD_SEL)); }
+    // ⚠ Une card écartée par un FILTRE (`.wama-f-hors-filtre`, posé par la barre de filtrage
+    // commune, sur elle ou sur son enrobage) n'est pas dans la liste : sans cela ↑/↓
+    // sélectionnait des cards invisibles (relevé par Fabien sur le model manager, 2026-09-23).
+    // On ne filtre PAS sur la visibilité brute : une card d'un lot replié reste joignable.
+    function cardList() {
+      return Array.prototype.slice.call(qc.querySelectorAll(CARD_SEL))
+        .filter(function (c) { return !c.closest('.wama-f-hors-filtre'); });
+    }
     function moveSelection(dir) {
       const list = cardList();
       if (!list.length) return;

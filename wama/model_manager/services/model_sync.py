@@ -116,6 +116,17 @@ class ModelSyncService:
                     result.errors.append(message)
                     delete_missing = remove_missing = False
 
+                # Un snapshot catalogué par le balayage GÉNÉRIQUE puis DÉCLARÉ par une app n'est
+                # plus produit par la découverte (la dédup par `hf_id`/famille l'écarte), mais sa
+                # ligne `huggingface:` restait : sans `--clean`, rien ne la retirait. Mêmes poids,
+                # deux cards — vécu deux fois sur FastWan (16/09 retiré à la main, revu le 23/09).
+                # Ce n'est pas une DISPARITION (les poids sont là) mais une SUPPRESSION PAR
+                # RELÈVE : on ne la fait donc que si une ligne découverte porte le même `hf_id`,
+                # et seulement sur une découverte complète (même règle que ci-dessus).
+                if not echecs:
+                    result.removed += self._drop_superseded_snapshots(discovered_models,
+                                                                      seen_keys)
+
                 # Handle models no longer in sources
                 if delete_missing:
                     # Delete models that no longer exist on disk.
@@ -132,13 +143,13 @@ class ModelSyncService:
                         deleted_keys = list(missing_models.values_list('model_key', flat=True))
                         logger.info(f"Deleting {removed_count} models no longer on disk: {deleted_keys[:5]}...")
                         missing_models.delete()
-                    result.removed = removed_count
+                    result.removed += removed_count
                 elif remove_missing:
                     # Just mark as unavailable (legacy behavior)
                     removed_count = AIModel.objects.exclude(
                         model_key__in=seen_keys
                     ).exclude(is_proposed=True).update(is_available=False)
-                    result.removed = removed_count
+                    result.removed += removed_count
 
             log.status = 'completed'
             log.models_added = result.added
@@ -170,6 +181,26 @@ class ModelSyncService:
             log.save()
 
         return result
+
+    @staticmethod
+    def _drop_superseded_snapshots(discovered_models, seen_keys) -> int:
+        """Supprime les lignes du balayage générique (`extra_info.hf_snapshot`) absentes de
+        cette découverte ET dont le `hf_id` est désormais porté par une ligne découverte —
+        l'entrée d'app fait autorité (cf. `_discover_installed_hf_snapshots`). Rend le compte."""
+        from ..models import AIModel
+        claimed = {info.hf_id for info in discovered_models.values()
+                   if getattr(info, 'hf_id', None)}
+        if not claimed:
+            return 0
+        stale = (AIModel.objects.filter(model_key__startswith='huggingface:',
+                                        extra_info__hf_snapshot=True, is_proposed=False,
+                                        hf_id__in=claimed)
+                 .exclude(model_key__in=seen_keys))
+        keys = list(stale.values_list('model_key', flat=True))
+        if keys:
+            logger.info("Snapshots génériques relevés par une app, retirés : %s", keys)
+            stale.delete()
+        return len(keys)
 
     def _sync_model(self, model_key: str, model_info) -> Tuple[bool, bool]:
         """

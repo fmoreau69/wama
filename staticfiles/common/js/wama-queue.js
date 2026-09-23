@@ -210,12 +210,15 @@
         // sautait le lot entier et ses cards étaient injoignables au clavier — la pile n'avait
         // plus d'usage. Les cards d'un lot font partie de la file : on les traverse, et c'est le
         // lot qui s'ouvre pour les laisser passer (voir syncBatch).
+        // Une card écartée par un FILTRE (`.wama-f-hors-filtre`, sur elle ou son enrobage), elle,
+        // n'est plus dans la file affichée : on ne la traverse pas (2026-09-23).
         function cards() {
             return Array.prototype.slice
                 .call(queue.querySelectorAll('.wama-card'))
                 .filter(function (c) {
                     return !c.classList.contains('wama-new-item-card') &&
-                           !c.classList.contains('wama-new-card');
+                           !c.classList.contains('wama-new-card') &&
+                           !c.closest('.wama-f-hors-filtre');
                 });
         }
 
