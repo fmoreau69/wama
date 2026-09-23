@@ -1361,6 +1361,68 @@ def api_envoyer_vers(request, surface: str, pk: int):
 
 
 @login_required
+def api_result_reference(request, surface: str, nature: str, pk: int):
+    """RÉSULTAT DE RÉFÉRENCE d'un élément ou d'un lot — le port `reference_result`.
+
+    GET  → la référence posée et la mesure (élément : sa mesure ; lot : la comparaison des
+           modèles, `result_evaluation.batch_evaluation`).
+    POST → `file` : pose la référence (sur le lot = sur TOUS ses éléments, un seul fichier) ;
+           `action=remove` : la retire.
+
+    Même forme que `api_partage` (surface de `PreviewRegistry`, `nature` ∈ {element, lot},
+    périmètre de l'utilisateur → 404 sur un pk étranger), parce que c'est le même besoin :
+    un geste sur un élément OU sur un lot, que la card et la card mère portent pareil.
+    Une surface qui n'a pas déclaré son évaluation (`register_evaluation`) rend 404 : on ne
+    reçoit pas une référence que rien ne saurait lire.
+    """
+    from django.shortcuts import get_object_or_404
+    from wama.common.services import result_evaluation as evaluation
+    from wama.common.utils.batch_common import batch_elements, batch_model_for_app
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    if nature not in ('element', 'lot'):
+        return JsonResponse({'error': f"nature inconnue : {nature}"}, status=404)
+    if evaluation.evaluation_spec(surface) is None:
+        return JsonResponse({'error': f"{surface} n'évalue pas ses résultats"}, status=404)
+    element_model = PreviewRegistry.get_model(surface)
+    if element_model is None:
+        return JsonResponse({'error': f"surface inconnue : {surface}"}, status=404)
+
+    if nature == 'lot':
+        batch_model = batch_model_for_app(surface)
+        if batch_model is None:
+            return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
+        batch = get_object_or_404(batch_model, pk=pk, user=request.user)
+        targets = list(batch_elements(batch, element_model))
+    else:
+        targets = [get_object_or_404(element_model, pk=pk, user=request.user)]
+
+    def state():
+        if nature == 'lot':
+            return {'batch': evaluation.batch_evaluation(surface, targets)}
+        return {'item': evaluation.item_evaluation(surface, targets[0])}
+
+    if request.method == 'GET':
+        return JsonResponse({'ok': True, 'surface': surface, 'nature': nature, 'pk': pk,
+                             **state()})
+    if request.method != 'POST':
+        return JsonResponse({'error': 'méthode non autorisée'}, status=405)
+
+    # `request.POST`/`FILES`, jamais `request.body` (multipart consommé par le middleware CSRF).
+    if request.POST.get('action') == 'remove':
+        removed = evaluation.detach_reference(surface, targets)
+        return JsonResponse({'ok': True, 'removed': removed, **state()})
+    uploaded = request.FILES.get('file')
+    if uploaded is None:
+        return JsonResponse({'ok': False, 'reason': 'aucun fichier reçu'}, status=400)
+    try:
+        report = evaluation.attach_reference(surface, targets, uploaded)
+    except evaluation.ReferenceRefused as refusal:
+        return JsonResponse({'ok': False, 'reason': str(refusal)}, status=400)
+    return JsonResponse({'ok': True, **report, **state()})
+
+
+@login_required
 def api_item_for_path(request):
     """L'ÉLÉMENT dont un fichier de `media/` est la SORTIE — pour le menu de l'arbre (2026-09-18).
 

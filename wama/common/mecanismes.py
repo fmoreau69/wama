@@ -488,6 +488,18 @@ MECHANISMS = (
               "(verbatim) ; une référence vide rend un taux INDÉFINI, jamais zéro",
               'wama/common/services/text_metrics.py', 'docs/construction/ia/WAMA_QUALITE.md',
               annexes=('wama/common/tests_text_metrics.py',)),
+    Mechanism('result_evaluation', 'Évaluation d\'un résultat contre sa référence',
+              "Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référence, "
+              "lecture du résultat et de la référence, modèle, métriques) et la brique fait le "
+              "reste : pose la référence sur un élément OU un lot (un seul fichier, partagé), "
+              "mesure, conserve la mesure par élément (`ResultEvaluation` — modèle, échelle, "
+              "sens, identité de la référence : ce que l'indice interne des modèles agrégera) et "
+              "compare les modèles d'un lot (taux de CORPUS, et dit quand les références "
+              "diffèrent). Va avec la capacité `has_reference_result` — un test refuse l'une "
+              "sans l'autre",
+              'wama/common/services/result_evaluation.py', 'docs/construction/ia/WAMA_QUALITE.md',
+              annexes=('wama/common/tests_result_evaluation.py',),
+              depends_on=('text_metrics',)),
     # Rattaché le 2026-08-27, en même temps que son extension aux skills : la brique existait
     # depuis longtemps sans figurer sur la carte — donc invisible à qui cherche « qu'est-ce qui
     # contrôle la doc ? ». C'est précisément le trou que ce mécanisme sert à fermer ailleurs.
