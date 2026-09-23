@@ -43,6 +43,12 @@
     var NOMINAL = 6;
 
     var SEL_CARD = '.wama-card[data-id]';
+    //: La card MÈRE d'un lot ne porte PAS `data-id` (`_batch_card.html` : son pk est sur
+    //: l'enveloppe `.batch-group`). Jusqu'au 2026-09-23 le menu ne montait que sur SEL_CARD : les
+    //: gestes de LOT prévus ici (« Partager le lot… ») n'avaient donc AUCUNE surface — ni clic
+    //: droit ni « … » sur la mère, constaté au navigateur en posant « Référence du lot… ».
+    var SEL_MOTHER = '.wama-card.is-batch';
+    var SEL_ANY_CARD = SEL_CARD + ', ' + SEL_MOTHER;
     var CLASSE_MASQUE = 'wama-cm-debord';        // bouton de rangée passé au débordement
 
     function $$(sel, racine) {
@@ -349,7 +355,7 @@
         var primary = res && res.item && res.item.metrics && res.item.metrics[0];
         if (primary && primary.value != null) {
             return 'Référence posée · ' + primary.metric.toUpperCase() + ' '
-                + (primary.value * 100).toFixed(1).replace('.', ',') + ' %';
+                + (primary.value * 100).toFixed(1) + ' %';
         }
         if (res && res.batch) {
             return 'Référence posée sur ' + res.targets + ' élément' + (res.targets > 1 ? 's' : '')
@@ -410,7 +416,10 @@
         if (!q) return [];
         var d = q.dataset;
         var entrees = [];
-        var dansUnLot = cibles.filter(lotDe);
+        // Les gestes d'ÉLÉMENT (sortir du lot, ajouter à un lot) ne valent pas pour la MÈRE : elle
+        // n'a pas de `data-id`, ils posteraient `undefined`. Elle a ses gestes de lot, plus bas.
+        var estLot = card.classList.contains('is-batch');
+        var dansUnLot = estLot ? [] : cibles.filter(lotDe);
 
         if (d.dndRemoveUrl && dansUnLot.length) {
             entrees.push({
@@ -519,7 +528,7 @@
         }
 
         // « Ajouter à un lot » — n'a de sens que s'il EXISTE un lot d'accueil autre que le sien.
-        if (d.dndMoveUrl) {
+        if (d.dndMoveUrl && !estLot) {
             var lots = $$('.batch-group[data-batch-id]', q).filter(function (g) {
                 return !cibles.some(function (c) { return lotDe(c) === g; });
             });
@@ -883,10 +892,7 @@
         if (q.dataset.wamaCardMenu === '1') return;
         q.dataset.wamaCardMenu = '1';
 
-        $$(SEL_CARD, q).forEach(function (card) {
-            if (card.classList.contains('is-batch')) { poserDebordement(card); return; }
-            poserDebordement(card);
-        });
+        $$(SEL_ANY_CARD, q).forEach(poserDebordement);
 
         // Cards INSÉRÉES ou REMPLACÉES après le montage (2026-09-15). Une card redemandée au
         // serveur — `refreshCard` des apps, lot réduit à une card par `queue-actions.js` — arrivait
@@ -898,8 +904,8 @@
                 mutations.forEach(function (m) {
                     Array.prototype.forEach.call(m.addedNodes, function (n) {
                         if (n.nodeType !== 1) return;
-                        var cards = (n.matches && n.matches(SEL_CARD)) ? [n] : [];
-                        cards.concat($$(SEL_CARD, n)).forEach(poserDebordement);
+                        var cards = (n.matches && n.matches(SEL_ANY_CARD)) ? [n] : [];
+                        cards.concat($$(SEL_ANY_CARD, n)).forEach(poserDebordement);
                     });
                 });
             }).observe(q, { childList: true, subtree: true });
@@ -908,10 +914,12 @@
         // CLIC DROIT — sur la card visée. Si elle fait partie d'une sélection multiple, le menu
         // agit sur TOUTE la sélection : c'est ce qui rend le geste utile à plusieurs cards.
         q.addEventListener('contextmenu', function (ev) {
-            var card = ev.target.closest(SEL_CARD);
+            var card = ev.target.closest(SEL_ANY_CARD);
             if (!card || !q.contains(card)) return;
             ev.preventDefault();
-            var sel = selection(q);
+            // La MÈRE agit sur son lot, jamais sur une sélection d'éléments : elle n'en fait pas
+            // partie (la sélection ne porte que des `data-id`).
+            var sel = card.classList.contains('is-batch') ? [] : selection(q);
             var cibles = (sel.length > 1 && sel.indexOf(card) !== -1) ? sel : [card];
             var titre = cibles.length > 1 ? cibles.length + ' éléments sélectionnés' : null;
             ouvrir(ev.clientX, ev.clientY, entreesCompletes(card, cibles), titre);
