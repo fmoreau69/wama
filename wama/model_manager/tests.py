@@ -98,6 +98,46 @@ class ReconciliationTest(TestCase):
         self.assertTrue(AIModel.objects.filter(pk=propose.pk).exists())
 
 
+class SupersededSnapshotTest(TestCase):
+    """Un snapshot du balayage générique RELEVÉ par une déclaration d'app sort du catalogue.
+
+    Vécu sur FastWan (16/09 puis 23/09) : la ligne `huggingface:` restait à côté de la ligne
+    `imager:` — mêmes poids, deux cards, la seconde sans capacités donc hors de tout banc.
+    """
+
+    HF_ID = 'org/relayed-model'
+
+    def setUp(self):
+        from .services.model_registry import ModelInfo, ModelSource, ModelType
+        self.snapshot = AIModel.objects.create(
+            model_key=f'huggingface:{self.HF_ID}', name='relayed-model', model_type='diffusion',
+            source='huggingface', hf_id=self.HF_ID, is_downloaded=True,
+            extra_info={'hf_snapshot': True})
+        self.app_row = {'imager:relayed': ModelInfo(
+            id='relayed', name='Relayed', model_type=ModelType.DIFFUSION,
+            source=ModelSource.WAMA_IMAGER, hf_id=self.HF_ID, is_downloaded=True)}
+
+    def test_a_snapshot_claimed_by_an_app_is_dropped_without_clean(self):
+        with patch.object(ModelRegistry, 'discover_all_models',
+                          _decouverte(modeles=self.app_row)):
+            result = ModelSyncService().full_sync()
+        self.assertFalse(AIModel.objects.filter(pk=self.snapshot.pk).exists())
+        self.assertTrue(AIModel.objects.filter(model_key='imager:relayed').exists())
+        self.assertEqual(result.removed, 1)
+
+    def test_an_unclaimed_snapshot_stays(self):
+        # Counter-test: without a declaration carrying its hf_id, nothing relays it.
+        with patch.object(ModelRegistry, 'discover_all_models', _decouverte()):
+            ModelSyncService().full_sync()
+        self.assertTrue(AIModel.objects.filter(pk=self.snapshot.pk).exists())
+
+    def test_an_incomplete_discovery_drops_nothing(self):
+        with patch.object(ModelRegistry, 'discover_all_models',
+                          _decouverte(erreurs=['x : boom'], modeles=self.app_row)):
+            ModelSyncService().full_sync()
+        self.assertTrue(AIModel.objects.filter(pk=self.snapshot.pk).exists())
+
+
 class DiscoveryErrorsTest(TestCase):
     """Le registre doit POUVOIR dire qu'il a échoué — sinon la garde ci-dessus est aveugle."""
 
@@ -2035,6 +2075,17 @@ class FamilleSansConditionnementTest(TestCase):
         self.assertEqual(_identity('qwen3.6:35b'), ('qwen', (3, 6), 35.0))
         self.assertEqual(_identity('stable-diffusion-v1.5'), ('stablediffusion', (1, 5), None))
 
+    def test_an_active_size_alone_is_the_size(self):
+        """The 5B candidate took the arena Elo of `wan-v2.2-a14b` (2026-09-23): « A14B » was
+        not read, so the size was unknown, so compatible with any size."""
+        from .services.benchmark_sync import _compatible, _identity
+        self.assertEqual(_identity('wan-v2.2-a14b'), ('wan', (2, 2), 14.0))
+        self.assertEqual(_identity('Wan2.2-I2V-A14B'), ('wan', (2, 2), 14.0))
+        self.assertFalse(_compatible(_identity('Wan2.2-TI2V-5B-Diffusers'),
+                                     _identity('wan-v2.2-a14b')))
+        # Counter-test: a total size keeps precedence over the active one.
+        self.assertEqual(_identity('qwen3-6-35b-a3b'), ('qwen', (3, 6), 35.0))
+
     def test_un_add_on_n_a_jamais_de_banc(self):
         """Une LoRA porte le nom de son modèle de base : rendue lisible, elle en prenait
         l'Elo (flux-lora-logo-design → 1083, mesuré le 02/09). Hors catégorie, par nature."""
@@ -2183,6 +2234,21 @@ class EchellesComparablesTest(_SourcesFactices, TestCase):
         self._modele('fort-elo', 1125.76, 'arena_elo_text_to_image', quality=1.0)
         top = AIModel.best_installed('diffusion', limit=2)
         self.assertEqual(top[0].model_key, 'faible-elo')
+
+    def test_best_installed_by_task_keeps_only_that_trade(self):
+        """A text-to-video candidate showed « Concurrence : SDXL, FLUX… » (2026-09-23)."""
+        image = self._modele('sdxl', quality=9.0)
+        image.capabilities = {'task': 'text-to-image'}
+        image.save()
+        video = self._modele('ltx', quality=1.0)
+        video.capabilities = {'task': 'image-to-video', 'tasks': ['text-to-video', 'image-to-video']}
+        video.save()
+        self.assertEqual([m.model_key for m in AIModel.best_installed('diffusion', task='text-to-video')],
+                         ['ltx'])
+        # Counter-test: without a task, the whole category still competes, best a priori first.
+        self.assertEqual([m.model_key for m in AIModel.best_installed('diffusion')][:2],
+                         ['sdxl', 'ltx'])
+        self.assertEqual(AIModel.best_installed('diffusion', task='image-to-image'), [])
 
 
 class EspaceDeClesDuTirageTest(TestCase):
@@ -2799,3 +2865,44 @@ class BancDeGenerationTest(TestCase):
             with self.assertRaises(RuntimeError) as cm:
                 bench._bench_description(self.m, 'image.jpg')
         self.assertIn('introuvable', str(cm.exception))
+
+
+class ProspectChainTest(TestCase):
+    """« Prospecter » enchaîne bancs tiers PUIS jury (rebranché le 2026-09-23).
+
+    The jury reads the bench in its prompt: launched side by side, it judged candidates that
+    had no bench yet. And it never starts under the GPU safe mode, nor on top of a live pass.
+    """
+
+    def _run(self, *, auto=True, safe=False, running=None):
+        from . import tasks, views
+        with override_settings(PROSPECT_ASSESS_AUTO=auto, WAMA_GPU_SAFE_MODE=safe), \
+                patch.object(tasks, 'sync_benchmarks_task') as bench, \
+                patch.object(tasks, 'assess_proposed_task') as assess, \
+                patch('wama.common.utils.task_progress.progression_en_cours',
+                      return_value=running):
+            out = views._enqueue_after_prospect()
+        return out, bench, assess
+
+    def test_bench_then_jury_in_one_chain(self):
+        out, bench, assess = self._run()
+        self.assertEqual(out, {'benchmarks_enqueued': True, 'assess_enqueued': True})
+        bench.si.return_value.__or__.assert_called_once_with(assess.si.return_value)
+        bench.si.return_value.__or__.return_value.apply_async.assert_called_once()
+        bench.delay.assert_not_called()
+
+    def test_safe_mode_keeps_the_bench_only(self):
+        out, bench, assess = self._run(safe=True)
+        self.assertEqual(out, {'benchmarks_enqueued': True, 'assess_enqueued': False})
+        bench.delay.assert_called_once()
+        assess.si.assert_not_called()
+
+    def test_a_live_jury_pass_is_not_doubled(self):
+        out, bench, assess = self._run(running={'state': 'RUNNING'})
+        self.assertFalse(out['assess_enqueued'])
+        bench.delay.assert_called_once()
+
+    def test_the_setting_detaches_the_jury(self):
+        out, bench, _ = self._run(auto=False)
+        self.assertFalse(out['assess_enqueued'])
+        bench.delay.assert_called_once()

@@ -297,7 +297,7 @@ def _identity(text: str):
     # et un CHIFFRE devient un tiret ; `qwen3.6` ou `v1.5` (chiffre.chiffre) sont intacts.
     flat = re.sub(r'(?<=[a-z])\.(?=\d)', '-', flat)
     segments = [s for s in re.split(r'[:/-]', flat) if s]
-    fam = ver = size = None
+    fam = ver = size = active = None
     i = 0
     while i < len(segments):
         seg = segments[i]
@@ -328,10 +328,17 @@ def _identity(text: str):
             t = _milliards(seg)
             if t is not None:
                 size = t
+            elif active is None:
+                m = re.fullmatch(r'a(\d+(?:\.\d+)?)b', seg)
+                active = float(m.group(1)) if m else None
         i += 1
     if not fam or not ver:
         return None
-    return fam, ver, size
+    # « A14B » SEUL (Wan 2.2 A14B, arène `wan-v2.2-a14b`) : la seule taille publiée est celle
+    # des paramètres ACTIFS. L'ignorer rendait la taille inconnue, donc compatible avec toute
+    # taille — et le 5B prenait l'Elo d'arène du 14B (mesuré le 2026-09-23). Elle ne sert
+    # qu'en l'absence de taille totale : « 35b-a3b » garde 35.
+    return fam, ver, size if size is not None else active
 
 
 def _compatible(a, b, size_required=False, local_name='', third_party_name=''):

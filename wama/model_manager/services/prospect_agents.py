@@ -185,13 +185,15 @@ def _ollama_context(cand) -> str:
     )
 
 
-def _installed_reference(model_type: str) -> str:
+def _installed_reference(model_type: str, task: str = None) -> str:
     """Référentiel installé d'un type, en lignes lisibles (brique `best_installed`).
     Le benchmark TIERS confronté (étage 2, `sync_benchmarks`) prime sur l'a priori quand
-    il existe — c'est la mesure qui a corrigé « qwen3.6 devant qwen3.8 » le 19/08."""
+    il existe — c'est la mesure qui a corrigé « qwen3.6 devant qwen3.8 » le 19/08.
+    `task` : le métier du candidat, quand il le déclare — un texte→vidéo se juge contre les
+    texte→vidéo installés, pas contre SDXL (2026-09-23)."""
     from wama.model_manager.models import AIModel
     lignes = []
-    for m in AIModel.best_installed(model_type, limit=5):
+    for m in AIModel.best_installed(model_type, limit=5, task=task):
         # L'ÉCHELLE se dit avec la valeur : « 1125,76 » et « 42,9 » ne se comparent pas, et
         # un LLM à qui l'on tend deux nombres nus les compare (2026-09-01).
         scale = (m.benchmark_meta or {}).get('scale')
@@ -260,8 +262,8 @@ def _hf_context(cand) -> str:
         f"Poids : {cand.disk_gb or '?'} Go\n"
         + _variants_line(p)
         + _benchmark_line(cand)
-        + f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n"
-          f"{_installed_reference(cand.model_type)}\n"
+        + f"Modèles déjà installés pour ce métier (référentiel à surpasser) :\n"
+          f"{_installed_reference(cand.model_type, (cand.capabilities or {}).get('task'))}\n"
         f"Carte (extrait) :\n{carte or '(non disponible)'}"
     )
 

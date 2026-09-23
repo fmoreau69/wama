@@ -16603,3 +16603,32 @@ d'autrui, `/commit-partiel §4`).
 🔚 imager_01 : lever la glu des routes d'élément pour régénérer `views` (la copie figée est cassée
 depuis le 15/09) ; composer_01 : instruire l'écart de lot du générateur ; un critère de grille par vue
 de lot ; portage des sections de card. Décision Fabien toujours en attente : `.mjs` (`settings.py`).
+
+## §PALIER — 2026-09-23, « PROSPECTION : la chaîne complète derrière « Prospecter » + FastWan + ↑/↓ hors filtre » — ✅ LIVRÉ
+
+**Demande de Fabien** : crashs résolus → remettre la chaîne entière sur « Prospecter » ; pourquoi
+l'évaluation et la mesure ne couvrent pas tout (FastWan) ; FastWan ou Wan ; ↑/↓ qui sélectionnent
+des cards filtrées. Détail et mesures : `wama/model_manager/PROSPECTION_PIPELINE.md §Session du
+2026-09-23` (rien n'est recopié ici).
+
+- **Chaîne** : `views._enqueue_after_prospect` — bancs tiers PUIS jury LLM en une chaîne Celery
+  (le jury lit le banc) ; `PROSPECT_ASSESS_AUTO` défaut **1** (`settings.py`), jamais sous
+  `WAMA_GPU_SAFE_MODE`, jamais sur une passe vivante ; l'écran suit le jury (`mmFollowAssess`).
+  ⚠ Effectif après redémarrage de gunicorn ET des workers Celery.
+- **Doublon FastWan revenu** → `ModelSyncService._drop_superseded_snapshots` à chaque `full_sync`
+  (découverte complète) ; 1 ligne retirée du catalogue réel depuis WSL2 + son manifeste.
+- **« Concurrence » par métier** (`best_installed(task=)`) — un T2V affichait SDXL/FLUX et le jury
+  jugeait contre eux ; **faux appariement Arena** 5B ↔ A14B (`_identity` lit la taille active seule).
+- **↑/↓** : `wama-inspector.js` et la pile de `wama-queue.js` ne traversent plus une card
+  `.wama-f-hors-filtre` ; le model manager masque désormais par cette classe commune.
+- Tests : `ProspectChainTest` (4), `SupersededSnapshotTest` (3), + `best_installed` par métier, +
+  taille active ; model_manager 322 OK (venv_win).
+
+🔚 **Restes, à Fabien** : ① redémarrer gunicorn + workers puis cliquer « Prospecter » — 1ʳᵉ passe
+du jury rebranché à surveiller (seule, un modèle à la fois) ; ② `probe_fastwan --generate` (la
+génération GPU de FastWan n'a jamais été jouée) AVANT de décider d'installer Wan2.2-TI2V-5B —
+mêmes pics VRAM, c'est vitesse contre fidélité ; ③ les candidats déjà jugés gardent leur verdict
+(la passe ne traite que `confidence IS NULL`) : Wan2.2-I2V-A14B à 0,15 a été jugé AVANT les pics
+par composant — remettre à NULL les confiances à rejuger est une décision ; ④ le jury ne reçoit
+pas les pics VRAM d'un candidat (relevé de poids fait pour les installés seulement) ; ⑤ aucune
+mesure INTERNE pour la vidéo (`bench.py` : texte et légendage seulement).

@@ -1748,3 +1748,84 @@ modèle — jamais appariable par nature), et 4 dont l'identité n'est pas lisib
 
 **Tests** : 2 dans `ComptageDesBancsTest` — un modèle cloud non téléchargé est examiné ET noté ;
 un modèle cloud retiré reste hors de la passe.
+
+## Session du 2026-09-23 : la chaîne COMPLÈTE derrière « Prospecter », et quatre défauts trouvés en la relisant
+
+**Demande de Fabien** : les crashs hôte sont résolus (alimentation remplacée le 21/09,
+`PROJECT_STATUS §NOTE 2026-09-21`) — remettre la chaîne entière sur le seul bouton
+« Prospecter », puis vérifier pourquoi l'évaluation et la mesure ne s'appliquent pas à tous les
+modèles (cas FastWan).
+
+### Ce que font les trois boutons (relu au code)
+
+| bouton | tâche | périmètre | ressource |
+|---|---|---|---|
+| **Prospecter** | `prospect_ollama` + `seed_hf_candidates` (synchrone), puis **`_enqueue_after_prospect`** | écrit des candidats `proposed:` | réseau |
+| **Mesurer la performance** | `sync_benchmarks_task` (indicateur 3, bancs TIERS) | installés + cloud + proposés | réseau, file `default` |
+| **Évaluer la confiance** | `assess_proposed_task` (indicateur 1, jury LLM) | candidats `new` **sans** confiance | GPU (Ollama hôte), file `gpu` palier basse |
+
+**Livré** : `views._enqueue_after_prospect` — « Prospecter » enchaîne `sync_benchmarks_task.si() |
+assess_proposed_task.si()` : le jury part **après** les bancs, parce qu'il les LIT
+(`_benchmark_line`) ; deux `.delay()` côte à côte l'auraient fait juger des candidats encore
+sans banc. Gardes : réglage `PROSPECT_ASSESS_AUTO` (**défaut 1** désormais, `=0` le détache),
+jamais sous `WAMA_GPU_SAFE_MODE`, jamais sur une passe vivante. L'état TERMINÉ d'une passe
+précédente est effacé du cache avant l'enfilage (le suivi d'écran le lisait comme la fin de la
+nouvelle). L'écran suit le jury après « Prospecter » (`mmFollowAssess`, extrait de
+`mmRunAssess`). 4 tests `ProspectChainTest`.
+
+### « L'évaluation ne s'applique qu'aux prospectés » — c'est voulu
+
+La confiance est celle d'une **proposition** (§F4b de la ROUTE, « les TROIS indicateurs ») : un
+modèle installé n'est plus proposé, il n'a rien à juger. Ce qui s'applique à TOUS, c'est la
+performance — et elle s'y applique : `synchronize()` examine installés, cloud et proposés. Ce
+qui manque à un installé est ailleurs : la **mesure INTERNE** (étage 3 de l'échelle des signaux,
+`services/bench.py`), qui n'a de protocole que pour `text-generation` et le légendage — rien
+pour la vidéo — et aucun bouton.
+
+### Cas FastWan : pourquoi aucun banc
+
+- `imager:fastwan-2.2-ti2v-5b` : examiné, identité `('fastwan', (2,2), 5.0)`, **non apparié** —
+  aucun leaderboard ne classe FastWan (AA et Arena classent « Wan 2.2 5B »). Normal : une
+  distillation DMD n'a pas la qualité de sa base, lui prêter l'Elo de Wan serait une précision
+  fausse.
+- `huggingface:FastVideo/FastWan2.2-…` : **doublon** de la ligne imager (mêmes poids), sans
+  capacités donc hors catégorie. Retiré à la main le 16/09, **revenu** : `sync_models` sans
+  `--clean` ne retire jamais rien, et la ligne recréée par un worker encore sur l'ancien code
+  est restée. **Corrigé à la source** : `ModelSyncService._drop_superseded_snapshots`, appelé
+  à chaque `full_sync` sur découverte complète — une ligne du balayage générique
+  (`extra_info.hf_snapshot`) absente de la découverte ET dont le `hf_id` est porté par une ligne
+  découverte est RELEVÉE (supprimée). 3 tests `SupersededSnapshotTest` (dont les deux
+  contre-épreuves : snapshot non réclamé gardé, découverte incomplète ne retire rien). Appliqué
+  au catalogue réel depuis WSL2 : 1 ligne retirée.
+
+### Deux défauts trouvés en chemin
+
+1. **La « Concurrence » d'un candidat se calculait par CATÉGORIE** : `Wan2.2-TI2V-5B` (vidéo)
+   affichait « Stable Diffusion XL, FLUX Logo Design LoRA, FLUX.1-dev », et le **jury le jugeait
+   contre ce référentiel**. Le docstring de `best_installed` le disait depuis le 01/09 (« reste
+   su et non corrigé »). → `best_installed(model_type, task=)` restreint au métier
+   (`capabilities.task`/`tasks`, vocabulaire canonique ; lot vide = aucun concurrent, sans repli
+   sur un autre métier) ; la prospection HF et le contexte du jury HF passent la tâche. Les
+   candidats existants gardent leur ancien texte jusqu'au prochain balayage.
+2. **Faux appariement Arena** : le candidat **5B** portait l'Elo d'arène de `wan-v2.2-a14b`
+   (1131). `_identity` ne lisait pas « A14B » (taille ACTIVE seule publiée) → taille inconnue →
+   compatible avec toute taille (règle média). → la taille active sert quand aucune taille totale
+   n'est publiée (`35b-a3b` garde 35). Mesuré après : le 5B garde l'AA 950 et perd l'Elo d'arène
+   du 14B ; le candidat A14B garde les deux.
+
+### FastWan ou Wan 2.2 TI2V 5B ?
+
+Même architecture (transformer 5 Md + encodeur UMT5 5,7 Md + VAE, `weights.total_gb` 22,5),
+donc **même VRAM** : pic en déchargement ≈ 10,6 Go, pic plein ≈ 22,5 Go
+(`memory_manager.model_footprint_gb`, mesuré ce jour sur la ligne imager : 10,58 / 22,52, provenance
+`source` — la marge d'activations est hors du pic depuis `79478dc4`). Les pics par composant et
+par précision (`peaks_for_precision`) ne départagent donc pas les deux : ils changent la
+faisabilité des gros modèles vidéo face à la carte, pas l'écart entre ces deux-là. La différence est
+**vitesse contre fidélité** : 3 pas DMD contre ~50 pas. Le backend (`WanVideoBackend`) déclare
+déjà les deux. ⏳ La première génération GPU de FastWan n'a JAMAIS été jouée
+(`probe_fastwan --generate`, `§PALIER 2026-09-16`) : c'est elle qui dira s'il suffit, avant
+d'installer 22 Go de plus.
+
+⚠ Le jury ne reçoit pas ces pics : il juge sur le poids disque + les variantes quantisées + une
+phrase générale sur le déchargement. Lui passer `model_footprint_gb` d'un candidat supposerait
+son relevé de poids par composant (fait pour les installés, pas pour les candidats) — non fait.

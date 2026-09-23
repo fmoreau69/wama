@@ -1647,15 +1647,52 @@ def api_check_disk_space(request):
 # et l'outil de l'AI-Assistant, et une garde qui vit dans une vue ne protège que cette vue.
 
 
+def _enqueue_after_prospect() -> dict:
+    """La suite de « Prospecter » : bancs tiers PUIS jury LLM, dans cet ordre.
+
+    • Les bancs s'enchaînent depuis le 2026-09-01 (décision Fabien) : purement réseau, et c'est
+      le moment UTILE — les lignes `proposed:` qui viennent de naître n'ont pas encore de banc.
+    • Le jury avait été DÉTACHÉ le 2026-08-19 : enchaîné sur l'Ollama hôte, il faisait tomber
+      Windows à chaque prospection. Cause retenue : l'alimentation, remplacée le 21/09
+      (`PROJECT_STATUS §NOTE 2026-09-21`) ; rebranché le 2026-09-23 à la demande de Fabien,
+      derrière `PROSPECT_ASSESS_AUTO` et jamais sous `WAMA_GPU_SAFE_MODE`.
+    • CHAÎNE et non deux `.delay()` : le jury LIT le banc dans son contexte
+      (`prospect_agents._benchmark_line`). Lancés côte à côte, il jugeait des candidats encore
+      sans banc. Chaque maillon garde sa route (bancs : `default` ; jury : `gpu`, palier basse).
+    • Une passe de jury déjà vivante n'est pas doublée (même garde que le bouton).
+    """
+    from django.conf import settings as _settings
+
+    from wama.common.services.resource_governor import gpu_safe_mode
+    from wama.common.utils.task_progress import progression_en_cours
+
+    from .tasks import ASSESS_CACHE_KEY, assess_proposed_task, sync_benchmarks_task
+    assess = (getattr(_settings, 'PROSPECT_ASSESS_AUTO', False) and not gpu_safe_mode()
+              and not progression_en_cours(ASSESS_CACHE_KEY))
+    try:
+        if assess:
+            # L'état TERMINÉ d'une passe précédente survit dans le cache (TTL) : le suivi
+            # d'écran le lirait comme la fin de CELLE-CI avant même que le jury démarre.
+            from django.core.cache import cache
+            cache.delete(ASSESS_CACHE_KEY)
+            (sync_benchmarks_task.si() | assess_proposed_task.si()).apply_async()
+        else:
+            sync_benchmarks_task.delay()
+        return {'benchmarks_enqueued': True, 'assess_enqueued': bool(assess)}
+    except Exception:
+        # Broker indisponible : la prospection reste valable, les deux signaux attendront.
+        logger.warning("suite de la prospection non enfilée", exc_info=True)
+        return {'benchmarks_enqueued': False, 'assess_enqueued': False}
+
+
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_prospect_ollama(request):
-    """On-demand : lance la prospection Ollama et écrit les candidats proposés.
-    Enfile ensuite la passe d'ÉVALUATION LLM (fire-and-forget) : les candidats `new`
-    naissent sans confiance (`confidence=None` — l'heuristique d'âge ne vaut que pour
-    les `update`) ; la confrontation multi-agents la remplit au fil de l'eau et les
-    badges apparaissent au rechargement des cards. Trou comblé le 2026-08-18."""
+    """On-demand : lance la prospection Ollama + HuggingFace et écrit les candidats proposés,
+    puis enfile la suite de la chaîne (`_enqueue_after_prospect` : bancs tiers → jury LLM).
+    Les candidats `new` naissent sans confiance (`confidence=None` — l'heuristique d'âge ne
+    vaut que pour les `update`) ; le jury la remplit au fil de l'eau."""
     from .services.prospect_ollama import prospect_ollama
     try:
         try:
@@ -1685,41 +1722,7 @@ def api_prospect_ollama(request):
         except Exception:
             logger.warning("balayage HuggingFace en échec", exc_info=True)
             summary['hf'] = {'error': 'indisponible'}
-        # ⚠ ENFILAGE AUTO DÉSACTIVÉ PAR DÉFAUT (2026-08-19). La passe LLM enchaînée sur
-        # l'Ollama hôte a déclenché un CRASH WINDOWS reproductible à chaque prospection
-        # (1er verdict 01:57:44 → hôte tombé, Ollama relancé 01:59:02) — c'est le pattern
-        # « Ollama hôte enchaîné » déjà proscrit sur cette machine (instabilité SOUS l'OS,
-        # même à faible charge). La confiance s'évalue désormais sur ACTION EXPLICITE
-        # (CLI `assess_models --proposed` à venir, ou réactivation via ce réglage quand
-        # l'hôte sera stabilisé).
-        from django.conf import settings as _settings
-        if getattr(_settings, 'PROSPECT_ASSESS_AUTO', False):
-            try:
-                from .tasks import assess_proposed_task
-                assess_proposed_task.delay()
-                summary['assess_enqueued'] = True
-            except Exception:
-                # Broker indisponible : la prospection reste valable, la confiance attendra.
-                logger.warning("assess_proposed_task non enfilée", exc_info=True)
-                summary['assess_enqueued'] = False
-        else:
-            summary['assess_enqueued'] = False
-        # La mesure de PERFORMANCE, elle, s'enchaîne (2026-09-01, décision Fabien). Le
-        # découpage en boutons distincts avait été fait pour isoler ce qui fait TOMBER L'HÔTE ;
-        # le critère n'est donc pas « une passe = un bouton », c'est le RISQUE. Or celle-ci est
-        # purement réseau (Artificial Analysis + Arena), sans le moindre octet de VRAM — rien
-        # à voir avec le jury LLM ci-dessus, qui charge un modèle sur l'Ollama hôte.
-        # C'est aussi le moment UTILE : la prospection vient de créer des lignes `proposed:`
-        # sans banc, et la raison d'être de ce signal est d'éclairer un candidat AVANT son
-        # installation. Le bouton dédié reste, pour rejouer la passe seule.
-        try:
-            from .tasks import sync_benchmarks_task
-            sync_benchmarks_task.delay()
-            summary['benchmarks_enqueued'] = True
-        except Exception:
-            # Broker indisponible : la prospection reste valable, la performance attendra.
-            logger.warning("sync_benchmarks_task non enfilée", exc_info=True)
-            summary['benchmarks_enqueued'] = False
+        summary.update(_enqueue_after_prospect())
         return JsonResponse({'success': True, 'summary': summary})
     except Exception as e:
         logger.exception("api_prospect_ollama failed")
@@ -1824,6 +1827,8 @@ def api_prospect_assess(request):
     en_cours = progression_en_cours(ASSESS_CACHE_KEY)
     if en_cours:
         return JsonResponse({'success': True, 'already_running': True, 'progress': en_cours})
+    from django.core.cache import cache
+    cache.delete(ASSESS_CACHE_KEY)   # pas d'état TERMINÉ d'une passe précédente au 1er suivi
     started = assess_proposed_task.delay()
     return JsonResponse({'success': True, 'started': True, 'task_id': started.id})
 

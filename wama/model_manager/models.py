@@ -781,7 +781,7 @@ class AIModel(models.Model):
         return "Unknown"
 
     @classmethod
-    def best_installed(cls, model_type: str, limit: int = 3):
+    def best_installed(cls, model_type: str, limit: int = 3, task: str = None):
         """
         Les meilleurs modèles INSTALLÉS d'un type — le référentiel qu'un candidat de
         prospection devrait surpasser. Consommé par la prospection (champ `concurrence`
@@ -797,24 +797,30 @@ class AIModel(models.Model):
         déjà `aa_elo_text_to_image` ET `arena_elo_text_to_image`. Rien ne s'était vu parce
         qu'un seul modèle non mesuré suffisait à basculer sur le repli — *un défaut masqué par
         une couverture incomplète*. Le test a maintenant UN domicile, `benchmarks_comparable`.
-        Reste su et non corrigé : `model_type` ('diffusion') est plus grossier que la
-        catégorie de banc — un texte→image et un texte→vidéo restent dans le même lot.
+        `task` (2026-09-23) : `model_type` ('diffusion') est plus grossier que le MÉTIER — un
+        candidat texte→vidéo affichait « Concurrence : Stable Diffusion XL, FLUX… », et le
+        jury le jugeait contre ce référentiel. Donnée, la tâche restreint le lot aux modèles
+        qui l'exercent (`capabilities.task` ou `tasks`, vocabulaire canonique). Lot vide =
+        aucun concurrent installé pour ce métier : on le dit, on ne retombe pas sur un autre.
         """
-        from django.db.models import F
-
         from .services.benchmark_sync import benchmarks_comparable, orderable_value
         lot = list(cls.objects.filter(model_type=model_type, is_downloaded=True,
                                       is_proposed=False))
+        wanted = canonical_task((task or '').strip().lower()) if task else None
+        if wanted:
+            def tasks_of(m):
+                caps = m.capabilities or {}
+                raw = caps.get('tasks') or ([caps['task']] if caps.get('task') else [])
+                return {canonical_task((t or '').strip().lower()) for t in raw}
+            lot = [m for m in lot if wanted in tasks_of(m)]
         if benchmarks_comparable(lot):
             # `orderable_value`, pas `benchmark_index` : un taux d'erreur (WER) se trie à
             # l'envers d'un score, et c'est l'échelle qui le dit (`direction`), pas ce code.
             lot.sort(key=orderable_value, reverse=True)
             return lot[:limit]
-        return list(
-            cls.objects.filter(model_type=model_type, is_downloaded=True,
-                               is_proposed=False)
-            .order_by(F('quality_index').desc(nulls_last=True))[:limit]
-        )
+        # Repli a priori, `None` en dernier (l'ordre de l'ancien `order_by(...nulls_last)`).
+        lot.sort(key=lambda m: (m.quality_index is None, -(m.quality_index or 0)))
+        return lot[:limit]
 
     def to_dict(self):
         """Convert to dictionary for API responses."""
