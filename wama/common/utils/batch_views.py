@@ -121,7 +121,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      batch_extra=None, reset_on_start=None, reset_on_duplicate=None,
                      zip_name=None, progress_of=None, item_label=None, on_delete=None,
                      empty_is_value=(), task_for=None, start_only_pending=False,
-                     after_update=None, item_extra=None, read_lookup=None):
+                     after_update=None, item_extra=None, read_lookup=None,
+                     output_name=None, start_reset_for=None):
     """Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
     'batch_duplicate', 'batch_download', 'batch_status'} (vues Django, `pk` = id du lot).
 
@@ -165,6 +166,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         read_lookup     : callable(user, pk)->lot pour les vues de LECTURE (`batch_download`,
                           `batch_status`) — avatarizer : `visible_or_404` (un lot PARTAGÉ se lit,
                           ne s'édite pas) ; défaut = le lot de l'utilisateur.
+        output_name     : callable(élément)->str — nom de chaque entrée du ZIP de lot (enhancer :
+                          `get_output_filename()`) ; défaut = le nom du fichier de sortie.
+        start_reset_for : callable(request)->callable(élément) — quand ▶ de lot PORTE DES RÉGLAGES
+                          (enhancer audio : moteur, mode, force… postés avec le démarrage), la
+                          remise à zéro se fabrique depuis la requête ; prime sur `reset_on_start`.
     Les réponses portent `success: True` en plus de leurs compteurs : c'est ce que lisent les
     fronts des apps réelles (reader : `if (!r.ok || !data.success)`).
     """
@@ -208,11 +214,12 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         b = _batch(request, pk)
         if task is None and task_for is None:
             return JsonResponse({'error': 'aucune tâche déclarée pour ce lot'}, status=400)
+        reset = start_reset_for(request) if start_reset_for is not None else start_reset
         started = []
         for item in batch_elements(b, work_model):
             if start_only_pending and getattr(item, 'status', '') != 'PENDING':
                 continue
-            locked, err = begin_processing(work_model, item.pk, user=user, reset=start_reset)
+            locked, err = begin_processing(work_model, item.pk, user=user, reset=reset)
             if err:
                 continue
             t = (task_for(locked) if task_for is not None else task).delay(locked.id)
@@ -282,7 +289,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             for item in batch_elements(b, work_model):
                 out = getattr(item, output_field, None)
                 if getattr(item, 'status', '') == 'SUCCESS' and out:
-                    z.writestr(Path(out.name).name, out.read())
+                    name = (output_name(item) if output_name is not None else '') or Path(out.name).name
+                    z.writestr(name, out.read())
         buf.seek(0)
         name = (zip_name(b) if callable(zip_name) else zip_name) or \
             f"{batch_model._meta.app_label}_batch_{b.id}.zip"

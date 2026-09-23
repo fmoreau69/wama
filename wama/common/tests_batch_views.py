@@ -188,6 +188,25 @@ class DirectFormBatchViewsTest(TestCase):
         views['batch_start'](req, self.lot.pk)
         self.assertEqual((fast.calls, slow.calls), ([self.b.id], [self.a.id]))
 
+    def test_batch_start_can_build_its_reset_from_the_request(self):
+        """enhancer audio : ▶ de lot PORTE des réglages (moteur, mode…) postés avec le démarrage —
+        `start_reset_for(request)` fabrique la remise à zéro depuis la requête."""
+        from wama.converter.models import ConversionBatch, ConversionJob
+        def _factory(request):
+            fmt = request.POST.get('output_format', '')
+            def _reset(job):
+                job.output_format = fmt
+            return _reset
+        views = make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            task=_FakeTask(), batch_attr='batch', row_field='batch_row_index',
+            start_reset_for=_factory)
+        req = self.rf.post('/x/', {'output_format': 'flac'})
+        req.user = self.u
+        views['batch_start'](req, self.lot.pk)
+        self.a.refresh_from_db()
+        self.assertEqual((self.a.status, self.a.output_format), ('RUNNING', 'flac'))
+
     def test_batch_start_accepts_a_callable_reset_applied_under_the_lock(self):
         from wama.converter.models import ConversionBatch, ConversionJob
         def _reset(job):

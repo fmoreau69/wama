@@ -16489,3 +16489,33 @@ rouge) ; JS attesté par V8 sur la copie SERVIE ; 245 tests verts sur le périm�
 câblé dans la foulée**. ⚠ Budget de langue dépassé de 13 dans l'arbre : WIP d'instances sœurs, mes
 fichiers n'ajoutent aucun identifiant français. **Chantier 1 du harnais** : Fabien a tranché 2 des
 5 choix (borne appliquée au local ET au cloud ; la trace d'audit garde le résultat complet).
+
+## §PALIER — 2026-09-23, « `make_batch_views` : enhancer et imager portés (7/10) » — ✅ LIVRÉ
+
+**Enhancer = deux files, deux fabriques** sur le même `views.py` (`_bv` média, `_abv` audio), un hook
+né du réel : `start_reset_for(request)` — la remise à zéro du ▶ audio se fabrique depuis la requête
+(elle dépend de ce que le formulaire demande), elle prime sur `reset_on_start` ; et `output_name`
+(nom de fichier dans l'archive). `batch_update` reste local (deux schémas, assumé) : 91/94.
+
+**Imager** : ses trois routes de lot passent de `<int:batch_id>` à `<int:pk>` — dernière graphie
+déviante des 10 apps (le chemin, lui, n'a pas bougé ; aucun gabarit ne passait `batch_id=` en kwarg,
+vérifié). start/delete/duplicate par la fabrique : `start_only_pending` (contrat `WamaBatchImport`,
+comme le composer), `task_for` image/vidéo (`is_video_generation`), cache de progression oublié au
+démarrage ET à la suppression, `generated_images` (liste de chemins, pas un FileField) purgées par
+`_forget_outputs` — EXTRAIT de `_purger_generation`, qui purgeait ET supprimait la ligne dans le même
+corps (la fabrique supprime la ligne elle-même) ; `domain` du lot conservé à la duplication ; les trois
+champs fichier (`reference_image`, `prompt_file`, `output_video`) partagés par la brique, la sortie vidée.
+`batch_update` (un schéma PAR élément) et `get_batch_children` (lecture PARTAGÉE) restent locaux,
+assumés, lus par `batch_elements` : 88/98, `batch_views_common` partiel.
+⚠ La réponse de ▶ de lot change de FORME pour l'imager (`started` = liste d'ids, plus un compte) : ses
+deux appelants (`index.html:416/451`) ignorent le corps et rechargent la page — le `data.started` de
+`index.js:371` lit `start_all`, pas le lot. Vérifié avant de porter, pas après.
+
+Grille **872/935**. Tests : imager + brique + contrat de suppression 64 OK ; adresses + codegen 48 OK ;
+budget de langue **recalé à 2739** (l'ancien `batch_duplicate` de l'imager portait `nouveau`/`copie`).
+
+🔚 **Suivant** : synthesizer / anonymizer / converter (forme DIRECTE) dès que leurs `views.py` ne sont
+plus en WIP chez une autre instance ; re-substituer `views` sur les 4 jumelles (provenance) ; un critère
+par vue de lot ; portage des sections de card (`_card_state`, `_card_progress`, `_queue_actions`).
+Réponse due à l'instance e6 : budget calé à la mesure (2739) ; le `.mjs` (`mimetypes.add_type` dans
+`settings.py`) est une décision d'infra pour Fabien — signalée, pas prise.
