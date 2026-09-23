@@ -35,7 +35,8 @@ from __future__ import annotations
 
 import difflib
 import logging
-import re
+
+from wama.common.services.text_metrics import comparable_words
 
 logger = logging.getLogger(__name__)
 
@@ -47,30 +48,16 @@ RECOUVREMENT_MINIMAL = 0.30
 SEUILS = ((0.15, 'accord'), (0.40, 'attention'), (1.01, 'divergence'))
 
 
-def _words(texte: str) -> list:
-    """
-    Tokens comparables : minuscules, sans ponctuation, **apostrophe traitée en séparateur**.
-
-    La ponctuation est une DÉCISION de transcription, pas un désaccord d'écoute — la compter
-    ferait diverger deux systèmes qui ont entendu la même chose.
-
-    ⚠ L'apostrophe mérite sa propre règle, et la première version s'y est trompée : en gardant
-    `aujourd'hui` comme UN token, « aujourd'hui » vs « aujourd hui » sortait à 33 % de divergence
-    alors que les deux systèmes ont entendu la même chose (mesuré à l'écriture des tests). On la
-    coupe donc : les deux graphies rendent `['aujourd', 'hui']`. Même effet sur « m'appelle » vs
-    « m appelle », et sur les élisions que les ASR écrivent différemment (« l'on » / « l on »).
-    """
-    return re.findall(r'\w+', re.sub(r"['’]", ' ', (texte or '').lower()))
-
-
 def divergence_texte(a: str, b: str) -> float:
     """
     Désaccord entre deux transcriptions d'un même passage : 0.0 = identiques, 1.0 = tout diffère.
 
     Mesuré sur les MOTS et non les caractères : « m'appelle » vs « m appelle » est une différence
-    de tokenisation, pas d'écoute, et une distance caractère la surévaluerait.
+    de tokenisation, pas d'écoute, et une distance caractère la surévaluerait. Le découpage est
+    celui de `text_metrics.comparable_words` — le MÊME que celui du WER (règle de l'apostrophe
+    comprise), déplacé là-bas le 2026-09-23 quand la mesure à vérité terrain est arrivée.
     """
-    ma, mb = _words(a), _words(b)
+    ma, mb = comparable_words(a), comparable_words(b)
     if not ma and not mb:
         return 0.0
     if not ma or not mb:

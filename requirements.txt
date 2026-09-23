@@ -42,6 +42,10 @@ lxml>=5.0
 # dépendance de `rich` ; déclaré parce que WAMA l'importe désormais directement. `html=False`
 # échappe nativement le HTML brut des .md (raison du choix face à Python-Markdown).
 markdown-it-py>=4.0
+# Métriques à vérité terrain (WER/CER, common/services/text_metrics.py, 2026-09-23) — déjà présent
+# dans les deux venvs comme dépendance de `python-doctr` ; déclaré parce que WAMA l'importe
+# désormais directement. Distance d'édition en C++ (MIT) : ~10⁸ cases en Python pur sur 1 h d'audio.
+rapidfuzz>=3.14
 safetensors>=0.4.0
 segno>=1.6  # QR codes (pur Python, BSD-3, zéro dépendance) — brique commune common/utils/qr.py : QR d'appariement joint par le bot (ROADMAP §19.1) ; TOTP/Imager à venir
 # torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER.

@@ -478,6 +478,16 @@ MECHANISMS = (
               "Désaccord entre deux sorties du même travail — signal objectif, sans avis de modèle",
               'wama/common/services/divergence.py',
               'wama/transcriber/TRANSCRIBER_CORRECTION.md §8.3'),
+    # 2026-09-23 : la mesure M3 (WAMA_QUALITE) — la première métrique à vérité terrain du dépôt.
+    # Elle porte le découpage en mots que la divergence utilisait seule : UN découpage pour tous
+    # les signaux de qualité, sinon deux signaux se contrediraient sur le même texte.
+    Mechanism('text_metrics', 'Métriques à vérité terrain (WER / CER)',
+              "Distance d'une sortie texte à sa RÉFÉRENCE (port `reference_result`) : "
+              "substitutions, suppressions, insertions rapportées à la longueur de la référence. "
+              "Ne normalise que la casse et la ponctuation — les hésitations restent des données "
+              "(verbatim) ; une référence vide rend un taux INDÉFINI, jamais zéro",
+              'wama/common/services/text_metrics.py', 'docs/construction/ia/WAMA_QUALITE.md',
+              annexes=('wama/common/tests_text_metrics.py',)),
     # Rattaché le 2026-08-27, en même temps que son extension aux skills : la brique existait
     # depuis longtemps sans figurer sur la carte — donc invisible à qui cherche « qu'est-ce qui
     # contrôle la doc ? ». C'est précisément le trou que ce mécanisme sert à fermer ailleurs.
