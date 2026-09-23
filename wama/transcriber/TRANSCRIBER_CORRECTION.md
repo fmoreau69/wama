@@ -288,3 +288,33 @@ Une barre de guidage proposera des nettoyages — silences, hésitations, redond
 ou refuser un par un : rien ne sera modifié sans validation (§4, Phase 4 du §7). Ses réglages
 découleront du profil de transcription choisi — entretien verbatim, réunion, conférence,
 sous-titrage (§8.4).
+
+## 10. Transcriptions produites ailleurs — référence et résultat existant (chantier ouvert le 2026-09-23)
+
+> Demande de Fabien (2026-09-23) : évaluer les modèles ASR contre une transcription corrigée à
+> la main (exports Sonal), et pouvoir reprendre une transcription faite ailleurs pour la corriger
+> sur l'audio sans retranscrire. C'est la porte d'entrée `Q6` de `WAMA_QUALITE.md`.
+
+**Deux rôles, pas deux mécanismes** — les ports du RÉSULTAT (`INPUT_MODEL_MATCHING §6.7`) :
+une card = 1 audio + au plus 1 **résultat existant** (`work_result` : il tient lieu de
+transcription) + au plus 1 **résultat de référence** (`reference_result` : la sortie lui est
+comparée). On compare toujours le texte de la card à sa référence. Comparer N moteurs = un LOT de
+N cards sur le même audio, le moteur étant le seul axe qui varie (`ROUTE §10.6`) ; la référence
+se pose au niveau du lot, qui l'applique à ses cards — pas de « card de référence ».
+
+**10.1 Lecture ✅** — `utils/transcript_documents.py::read_transcript_document` : SRT et VTT
+(temps exacts, locuteur `[Nom]` de l'export WAMA ou `<v Nom>`), et documents à tours de parole
+TXT/MD/DOCX/PDF par l'extracteur COMMUN (`batch_parsers.extract_batch_file_text`).
+**Règle : n'est de la parole que ce qui suit un label de locuteur** ; un séparateur (`=====`) ou
+un en-tête d'extrait Sonal clôt le tour ; le reste (titre, en-tête d'export, titres d'extraits,
+résumé d'un export WAMA) est rendu à part (`outside_speech`) et jamais compté. Un document SANS
+aucun label est tout entier de la parole. Les extraits Sonal (`1 - 00:00 > 10:56 [thème]`)
+deviennent des FENÊTRES grossières, pas des temps de segments — ils serviront à l'alignement.
+Labels reconnus, volontairement étroits : `Speaker N :`, `SPEAKER_NN:`, `Locuteur N :`,
+`Intervenant N :`, `[Nom]  0:12—0:40` (exports WAMA). Tests : `tests_transcript_documents` (12,
+contenus inventés — le dépôt est public).
+⚠ **À confirmer par Fabien** : dans un export Sonal, la ligne entre l'en-tête d'extrait et le
+premier locuteur (« Quelle est… ? ») est traitée comme le TITRE de l'extrait, donc hors parole.
+Si c'est une question réellement prononcée, elle doit compter.
+
+**10.2 Mesure ⏳** · **10.3 Lot d'évaluation ⏳** · **10.4 Résultat existant (sans ASR) ⏳**.
