@@ -249,6 +249,25 @@ class PartageDUnLotTest(TestCase):
             ids = [x.id for x in batch_elements(lot_pre, ImageGeneration)]
         self.assertEqual(ids, [gen2.id, gen.id], "l'ordre des lignes vaut aussi sur le cache")
 
+    def test_batch_elements_exposes_the_row_that_carries_each_element(self):
+        """Chaque élément rendu porte `batch_link` : la ligne de liaison (qui a ses champs —
+        `output_filename` du synthesizer), ou l'élément lui-même en FK directe. C'est ce qui
+        laisse une vue commune nommer un fichier d'après la ligne (2026-09-23)."""
+        from wama.common.utils.batch_common import batch_elements
+        from wama.converter.models import ConversionJob
+        from wama.imager.models import GenerationBatchItem, ImageGeneration
+
+        lot = _lot_converter(self.u)
+        job = _job(self.u, batch=lot)
+        (direct,) = batch_elements(lot, ConversionJob)
+        self.assertIs(direct.batch_link, direct)
+
+        gen, lot2 = _generation(self.u)
+        (element,) = batch_elements(lot2, ImageGeneration)
+        self.assertIsInstance(element.batch_link, GenerationBatchItem)
+        self.assertEqual((element.batch_link.generation_id, element.batch_link.batch_id),
+                         (gen.id, lot2.id))
+
     def test_batch_elements_never_returns_the_user(self):
         """⚠ Défaut de ma première version : elle suivait « la première relation qui n'est pas
         `batch` » — et `ConversionJob` porte aussi `user`. Elle rendait donc l'UTILISATEUR

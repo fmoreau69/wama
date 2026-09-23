@@ -1390,111 +1390,80 @@ def batch_create(request):
     })
 
 
-@require_POST
-@app_access('synthesizer')
-def batch_start(request, pk: int):
-    """Start all PENDING syntheses in a batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
+# ── Cinq vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage
+# 2026-09-23, 8ᵉ app réelle — ROUTE §11 #36). Spécificités DÉCLARÉES : la tâche s'importe
+# paresseusement (`_ensure_workers_imported`, comme `start`) ; la remise à zéro du ▶ est celle de
+# `start` (`_reset_synthesis_for_relaunch`) plus le cache de progression posé à 0 ; la progression
+# se lit dans ce cache ; le nom de chaque fichier de l'archive ET le libellé de `batch_status`
+# viennent de la LIGNE de liaison (`batch_link.output_filename`), que la duplication recopie
+# (`item_extra`) ; le lot copié PARTAGE le fichier de lot (`batch_extra`, sans copie physique —
+# `safe_delete_file` juge les références) ; `properties` vidé à la duplication.
+# ⚠ Retiré, mesuré : la clé `audio_url` des lignes de `batch_status` — 0 lecteur (aucun gabarit
+# ni JS du synthesizer n'appelle `batch_status`), la forme COMMUNE des lignes fait foi.
+# `batch_update_settings` reste local (champs et coercitions propres au TTS, assumé) et `batch_list`
+# n'est pas une vue de lot : tous deux lisent par `batch_elements`.
+from wama.common.utils.batch_views import make_batch_views
 
+
+def _get_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def _task_for(_synthesis):
     _ensure_workers_imported()
-
-    from wama.common.utils.process_control import begin_processing
-
-    started = []
-    for item in batch.items.select_related('synthesis').all():
-        synthesis = item.synthesis
-        if not synthesis:
-            continue
-
-        # Anti-race COMMUN — même brique que start()
-        locked, err = begin_processing(VoiceSynthesis, synthesis.pk, user=user,
-                                       reset=_reset_synthesis_for_relaunch)
-        if err:
-            continue
-        cache.set(f"synthesizer_progress_{locked.id}", 0, timeout=3600)
-        task = synthesize_voice.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        started.append(locked.id)
-
-    return JsonResponse({'started': started, 'count': len(started)})
+    return synthesize_voice
 
 
-def batch_status(request, pk: int):
-    """Return status of all items in a batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
-
-    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-    items_data = []
-
-    for item in batch.items.select_related('synthesis').all():
-        s = item.synthesis
-        if not s:
-            continue
-        key = s.status.lower()
-        counts[key] = counts.get(key, 0) + 1
-        p = int(cache.get(f"synthesizer_progress_{s.id}", s.progress or 0))
-        items_data.append({
-            'id': s.id,
-            'output_filename': item.output_filename,
-            'status': s.status,
-            'progress': p,
-            'audio_url': iri_to_uri(s.audio_output.url) if s.audio_output else None,
-            'error': s.error_message if s.status == 'FAILURE' else None,
-        })
-
-    total = batch.total
-    if total > 0 and counts['success'] == total:
-        status_str = 'SUCCESS'
-    elif counts['running'] > 0:
-        status_str = 'RUNNING'
-    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
-        status_str = 'FAILURE'
-    else:
-        status_str = 'PENDING'
-
-    return JsonResponse({
-        'batch_id': pk,
-        'status': status_str,
-        'total': total,
-        'counts': counts,
-        'items': items_data,
-    })
+def _reset_and_seed_progress(s):
+    _reset_synthesis_for_relaunch(s)
+    cache.set(f"synthesizer_progress_{s.id}", 0, timeout=3600)
 
 
-def batch_download(request, pk: int):
-    """Download a ZIP of all completed syntheses in a batch, with the original filenames."""
+def _shared_batch_file(batch):
+    return ({'batch_file': batch.batch_file.name}
+            if batch.batch_file and batch.batch_file.name else {})
+
+
+def _zip_name(batch):
     import datetime
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
+    return f"batch_{batch.pk}_{datetime.date.today()}.zip"
 
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for item in batch.items.select_related('synthesis').order_by('row_index'):
-            s = item.synthesis
-            if s and s.status == 'SUCCESS' and s.audio_output:
-                with s.audio_output.open('rb') as audio_file:
-                    archive.writestr(item.output_filename, audio_file.read())
 
-    buffer.seek(0)
-    zip_name = f"batch_{pk}_{datetime.date.today()}.zip"
-    return FileResponse(buffer, as_attachment=True, filename=zip_name)
+_bv = make_batch_views(
+    work_model=VoiceSynthesis, batch_model=BatchSynthesis, get_user=_get_user,
+    task_for=_task_for, reset_on_start=_reset_and_seed_progress,
+    file_fields=('text_file', 'voice_reference', 'audio_output'), output_fields=('audio_output',),
+    output_field='audio_output',
+    item_model=BatchSynthesisItem, fk_name='synthesis',
+    reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': '', 'properties': '',
+                        'error_message': ''},
+    item_extra=lambda copy, original: {'output_filename': original.batch_link.output_filename},
+    batch_extra=_shared_batch_file,
+    progress_of=lambda s: cache.get(f"synthesizer_progress_{s.id}", s.progress or 0),
+    item_label=lambda s: s.batch_link.output_filename,
+    output_name=lambda s: s.batch_link.output_filename,
+    zip_name=_zip_name,
+    on_delete=lambda s: cache.delete(f"synthesizer_progress_{s.id}"),
+)
+batch_start = app_access('synthesizer')(_bv['batch_start'])
+batch_status = _bv['batch_status']
+batch_download = _bv['batch_download']
+batch_delete = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
 
 
 def batch_list(request):
     """List the current user's batches with status counts."""
+    from wama.common.utils.batch_common import batch_elements
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batches = BatchSynthesis.objects.filter(user=user).prefetch_related('items__synthesis')
 
     data = []
     for batch in batches:
         counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-        for item in batch.items.all():
-            if item.synthesis:
-                k = item.synthesis.status.lower()
-                counts[k] = counts.get(k, 0) + 1
+        for s in batch_elements(batch, VoiceSynthesis):   # brique : lit le lot PRÉCHARGÉ, 0 requête
+            k = s.status.lower()
+            counts[k] = counts.get(k, 0) + 1
 
         total = batch.total
         if total > 0 and counts['success'] == total:
@@ -1518,56 +1487,10 @@ def batch_list(request):
 
 
 @require_POST
-def batch_delete(request, pk: int):
-    """Delete an entire batch: revoke tasks, delete files, cascade-delete."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
-
-    # Collect synthesis objects and revoke tasks before cascade delete
-    syntheses_to_delete = []
-    for item in batch.items.select_related('synthesis').all():
-        s = item.synthesis
-        if not s:
-            continue
-        if s.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(s.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-        syntheses_to_delete.append(s)
-
-    # batch_file may be shared with a duplicate batch — check refs before deleting
-    safe_delete_file(batch, 'batch_file')
-
-    batch.delete()  # CASCADE deletes BatchSynthesisItems (not VoiceSynthesis)
-
-    for s in syntheses_to_delete:
-        # Input files may be shared with duplicate items — check refs before deleting
-        safe_delete_file(s, 'text_file')
-        safe_delete_file(s, 'voice_reference')
-        # Output file is always unique to this item
-        safe_delete_file(s, 'audio_output')
-        cache.delete(f"synthesizer_progress_{s.id}")
-        s.delete()
-
-    return JsonResponse({'success': True, 'batch_id': pk})
-
-
-@require_POST
-def batch_duplicate(request, pk: int):
-    """Duplicate an entire batch (shares source files, results cleared)."""
-    from wama.common.utils.batch_utils import duplicate_synthesizer_batch
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
-    new_batch = duplicate_synthesizer_batch(batch)
-    return JsonResponse({'success': True, 'batch_id': new_batch.id})
-
-
-@require_POST
 def batch_update_settings(request, pk: int):
     """Update TTS settings for all non-running items in a batch."""
     import json as _json
+    from wama.common.utils.batch_common import batch_elements
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
 
@@ -1584,9 +1507,8 @@ def batch_update_settings(request, pk: int):
         pitch = 1.0
 
     updated = 0
-    for item in batch.items.select_related('synthesis').all():
-        s = item.synthesis
-        if not s or s.status == 'RUNNING':
+    for s in batch_elements(batch, VoiceSynthesis):     # brique : ordre des lignes garanti
+        if s.status == 'RUNNING':
             continue
         update_fields = []
         if tts_model:

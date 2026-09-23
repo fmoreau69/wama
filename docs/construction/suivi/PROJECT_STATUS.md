@@ -16519,3 +16519,37 @@ plus en WIP chez une autre instance ; re-substituer `views` sur les 4 jumelles (
 par vue de lot ; portage des sections de card (`_card_state`, `_card_progress`, `_queue_actions`).
 Réponse due à l'instance e6 : budget calé à la mesure (2739) ; le `.mjs` (`mimetypes.add_type` dans
 `settings.py`) est une décision d'infra pour Fabien — signalée, pas prise.
+
+## §PALIER — 2026-09-23, « `make_batch_views` : synthesizer, anonymizer, converter — 10/10 » — ✅ LIVRÉ
+
+Les trois `views.py` n'étaient plus en WIP (commités par leurs instances dans la journée) : portés dans
+la foulée du palier précédent. **Deux ajouts au commun, nés du réel** : `startable(élément)` (converter :
+un job sans format de sortie n'est ni lancé ni compté — il se règle par la modale de lot) et **`batch_link`**,
+posé par `batch_elements` sur chaque élément rendu : la LIGNE qui le porte (ligne de liaison, ou l'élément
+lui-même en FK directe). C'est ce qui manquait pour nommer un fichier d'après la ligne
+(`s.batch_link.output_filename`) — la seule raison pour laquelle composer et synthesizer gardaient un
+`batch_download` local. Le ZIP commun passe en DEFLATED (idiome des trois apps) ; ▶ de lot répond aussi
+`success: True` (la docstring le promettait, la vue ne le faisait pas).
+
+**Synthesizer** : les cinq vues par la fabrique — `batch_utils.duplicate_synthesizer_batch` RETIRÉ (R68 :
+une « brique commune » à un seul appelant, qui importait l'app ; ses deux comportements — ligne de liaison
+recopiée, fichier de lot PARTAGÉ — sont `item_extra` et `batch_extra`) ; la clé `audio_url` des lignes de
+`batch_status` retirée, 0 lecteur mesuré (R69) ; `batch_update_settings` et `batch_list` locaux, lus par
+la brique : 88/94, `batch_views_common` VRAI. **Anonymizer** : quatre vues (réglages = `PARAMS_JSON` coercé
++ `MSValues_customised` par `after_update` ; verrous, cache et sortie floutée purgés par `on_delete`) ;
+`batch_download` local, la sortie n'étant pas un FileField : 89/98. **Converter** (FK directe) : quatre
+vues, `@login_required` gardé ; `batch_update` local (`poser_reglages` + geste de qualité) : 81/83.
+⚠ Un test du converter POSTait `batch_download` là où l'UI rend un LIEN (`_batch_card.html`) — la vue
+commune est `@require_GET` ; le test passe au GET, le geste mesuré.
+
+Grille **876/935**. Tests : synthesizer + anonymizer + converter + brique + partage + contrat de
+suppression 132 OK ; adresses + codegen + catalogue de docs OK ; budget de langue **recalé à 2737**
+(noms de tests inchangés à 1312). `check_docs` : la référence `synthesizer/views.py:1785` de
+`WAMA_COLLABORATION §6.2` recalée (le fichier a raccourci) ; la cassée restante (`WAMA_LLM.md:436`,
+`run_improve.py`) est dans le WIP d'une autre instance. `WAMA_MECANISMES.md` et `docs/dev/briques.md`
+NON régénérés ici : la table projetterait le WIP d'autrui (`/commit-partiel §4`).
+
+🔚 **Suivant** : porter le `batch_download` du composer sur la fabrique par `batch_link` (assumé local
+jusque-là pour cette seule raison) ; un critère de grille PAR vue de lot ; re-substituer `views` sur les
+4 jumelles (provenance) ; portage des sections de card (`_card_state`, `_card_progress`, `_queue_actions`).
+Décision d'infra pour Fabien, toujours en attente : le `.mjs` (`mimetypes.add_type` dans `settings.py`).

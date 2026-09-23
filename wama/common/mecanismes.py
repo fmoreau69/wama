@@ -919,7 +919,6 @@ MECHANISMS = (
               'wama/common/utils/batch_parsers.py', 'docs/construction/ui/BATCH_FORMAT.md',
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/utils/batch_sync.py',
-                       'wama/common/utils/batch_utils.py',
                        'wama/common/static/common/js/batch-import.js')),
     Mechanism('queue_view', 'Tri/filtrage de la file',
               "Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE entre apps",

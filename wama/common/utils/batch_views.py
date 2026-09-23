@@ -122,7 +122,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      zip_name=None, progress_of=None, item_label=None, on_delete=None,
                      empty_is_value=(), task_for=None, start_only_pending=False,
                      after_update=None, item_extra=None, read_lookup=None,
-                     output_name=None, start_reset_for=None):
+                     output_name=None, start_reset_for=None, startable=None):
     """Retourne les six vues de lot : {'batch_start', 'batch_update', 'batch_delete',
     'batch_duplicate', 'batch_download', 'batch_status'} (vues Django, `pk` = id du lot).
 
@@ -171,6 +171,12 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         start_reset_for : callable(request)->callable(élément) — quand ▶ de lot PORTE DES RÉGLAGES
                           (enhancer audio : moteur, mode, force… postés avec le démarrage), la
                           remise à zéro se fabrique depuis la requête ; prime sur `reset_on_start`.
+        startable       : callable(élément)->bool — ce qu'un ▶ de lot SAUTE sans le compter
+                          (converter : un job sans `output_format`, réglé plus tard par la modale
+                          de lot) ; s'ajoute à `start_only_pending`, ne le remplace pas.
+    Chaque élément lu porte `batch_link` (posé par `batch_elements`) : la ligne de liaison en
+    forme à liaison, l'élément lui-même en FK directe — `output_name`, `item_label`, `item_extra`
+    peuvent donc nommer d'après la ligne (synthesizer : `s.batch_link.output_filename`).
     Les réponses portent `success: True` en plus de leurs compteurs : c'est ce que lisent les
     fronts des apps réelles (reader : `if (!r.ok || !data.success)`).
     """
@@ -219,6 +225,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         for item in batch_elements(b, work_model):
             if start_only_pending and getattr(item, 'status', '') != 'PENDING':
                 continue
+            if startable is not None and not startable(item):
+                continue
             locked, err = begin_processing(work_model, item.pk, user=user, reset=reset)
             if err:
                 continue
@@ -226,7 +234,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             locked.task_id = t.id
             locked.save(update_fields=['task_id'])
             started.append(locked.id)
-        return JsonResponse({'started': started, 'count': len(started)})
+        return JsonResponse({'success': True, 'started': started, 'count': len(started)})
 
     @require_POST
     def batch_update(request, pk):
@@ -285,7 +293,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         if not any(f.name == output_field for f in work_model._meta.get_fields()):
             return JsonResponse({'error': 'aucune sortie fichier pour ce lot'}, status=404)
         buf = io.BytesIO()
-        with zipfile.ZipFile(buf, 'w') as z:
+        # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
             for item in batch_elements(b, work_model):
                 out = getattr(item, output_field, None)
                 if getattr(item, 'status', '') == 'SUCCESS' and out:

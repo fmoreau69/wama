@@ -207,6 +207,24 @@ class DirectFormBatchViewsTest(TestCase):
         self.a.refresh_from_db()
         self.assertEqual((self.a.status, self.a.output_format), ('RUNNING', 'flac'))
 
+    def test_batch_start_skips_the_items_a_declared_filter_rejects_and_does_not_count_them(self):
+        """converter : un job sans `output_format` n'est ni lancé ni compté — il se règle par la
+        modale de lot. Déclaré par `startable`, en plus de `start_only_pending`."""
+        from wama.converter.models import ConversionBatch, ConversionJob
+        self.a.output_format = 'mp3'
+        self.a.save(update_fields=['output_format'])
+        task = _FakeTask()
+        views = make_batch_views(
+            work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda r: self.u,
+            task=task, batch_attr='batch', row_field='batch_row_index',
+            start_only_pending=True, startable=lambda j: bool(j.output_format))
+        req = self.rf.post('/x/')
+        req.user = self.u
+        data = json.loads(views['batch_start'](req, self.lot.pk).content)
+        self.assertEqual((task.calls, data['count'], data['success']), ([self.a.id], 1, True))
+        self.b.refresh_from_db()
+        self.assertEqual(self.b.status, 'PENDING', 'le job sans format reste en attente')
+
     def test_batch_start_accepts_a_callable_reset_applied_under_the_lock(self):
         from wama.converter.models import ConversionBatch, ConversionJob
         def _reset(job):
@@ -279,6 +297,27 @@ class LinkFormBatchViewsTest(TestCase):
         req.user = self.u
         r = self.views['batch_download'](req, self.lot.pk)
         self.assertEqual(r.status_code, 404)
+
+    def test_hooks_can_name_after_the_link_row_that_carries_each_element(self):
+        """synthesizer / composer : le nom du fichier et le libellé viennent de la LIGNE DE
+        LIAISON (`output_filename`), pas de l'élément — `batch_elements` pose `batch_link` sur
+        chaque élément, et `item_label`/`item_extra` la lisent. Mesuré ici sur `row_index`, le
+        seul champ de ligne que l'imager porte."""
+        from wama.imager.models import GenerationBatch, GenerationBatchItem, ImageGeneration
+        seen = []
+        views = make_batch_views(
+            work_model=ImageGeneration, batch_model=GenerationBatch, get_user=lambda r: self.u,
+            item_model=GenerationBatchItem, fk_name='generation',
+            item_label=lambda g: f'row-{g.batch_link.row_index}',
+            item_extra=lambda new, old: seen.append(old.batch_link.row_index) or {})
+        req = self.rf.get('/x/')
+        req.user = self.u
+        data = json.loads(views['batch_status'](req, self.lot.pk).content)
+        self.assertEqual([i['filename'] for i in data['items']], ['row-0', 'row-1'])
+        req = self.rf.post('/x/')
+        req.user = self.u
+        views['batch_duplicate'](req, self.lot.pk)
+        self.assertEqual(seen, [0, 1])
 
 
 class SettingsPayloadTest(TestCase):

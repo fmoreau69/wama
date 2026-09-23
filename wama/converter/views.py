@@ -586,52 +586,6 @@ def duplicate(request, pk):
 
 
 @login_required
-@require_POST
-def batch_duplicate(request, pk):
-    """Duplique un batch et tous ses jobs (entrées partagées, sorties vidées)."""
-    from .models import ConversionBatch
-    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
-    new_batch = ConversionBatch.objects.create(
-        user=request.user, media_type=batch.media_type, total=0)
-    idx = 0
-    for job in ConversionJob.objects.filter(batch=batch, user=request.user).order_by('batch_row_index'):
-        new_job = duplicate_instance(
-            instance=job,
-            reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
-            clear_fields=['output_file'],
-        )
-        new_job.batch = new_batch
-        new_job.batch_row_index = idx
-        new_job.save(update_fields=['batch', 'batch_row_index'])
-        idx += 1
-    new_batch.total = idx
-    new_batch.save(update_fields=['total'])
-    return JsonResponse({'success': True, 'batch_id': new_batch.id})
-
-
-@login_required
-def batch_download(request, pk):
-    """Télécharge toutes les sorties d'un batch en un ZIP."""
-    import io
-    import zipfile
-    from .models import ConversionBatch
-    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
-    jobs = (ConversionJob.objects.filter(batch=batch, user=request.user, status='SUCCESS')
-            .exclude(output_file=''))
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for job in jobs:
-            try:
-                path = job.output_file.path
-                if os.path.exists(path):
-                    zf.write(path, os.path.basename(path))
-            except Exception:
-                pass
-    buf.seek(0)
-    return FileResponse(buf, as_attachment=True, filename=f'converter_batch_{batch.id}.zip')
-
-
-@login_required
 def download_all(request):
     """ZIP de TOUTES les sorties réussies de l'utilisateur (bouton global de la toolbar).
 
@@ -828,28 +782,37 @@ def _delete_job_files(job):
     safe_delete_file(job, 'input_file')
 
 
-@login_required
-@require_POST
-def batch_start(request, pk):
-    """Démarre tous les jobs PENDING d'un batch."""
-    from .models import ConversionBatch
+# ── Quatre vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage
+# 2026-09-23, 10ᵉ et dernière app réelle — ROUTE §11 #36) ; seule app à FK DIRECTE
+# (`ConversionJob.batch` + `batch_row_index`), la forme que `tests_batch_views` mesure en premier.
+# Spécificités DÉCLARÉES : ▶ de lot ne lance que les PENDING qui ONT un format de sortie
+# (`start_only_pending` + `startable` — un job sans format se règle par la modale de lot, il n'est
+# ni lancé ni compté) ; la tâche s'importe paresseusement ; la copie de lot garde `media_type`
+# (le lot est HOMOGÈNE par nature) ; les fichiers d'un job se suppriment par `_delete_job_files`
+# (propriété jugée par `safe_delete_file`) ; `@login_required` gardé, comme sur toutes les vues
+# de l'app. `batch_update` reste local (réglages par `poser_reglages` + geste de qualité du lot,
+# assumé), lu par `batch_elements`.
+from wama.common.utils.batch_views import make_batch_views
+
+
+def _task_for(_job):
     from .tasks import convert_media_task
-    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
-    started = []
-    for job in batch.items.filter(status='PENDING'):
-        if not job.output_format:
-            continue  # format non défini → on saute (réglé via batch settings)
-        with transaction.atomic():
-            j = ConversionJob.objects.select_for_update().get(pk=job.pk)
-            if j.status == 'RUNNING':
-                continue
-            j.status = 'RUNNING'
-            j.save(update_fields=['status'])
-        task = convert_media_task.delay(job.id)
-        job.task_id = task.id
-        job.save(update_fields=['task_id'])
-        started.append(job.id)
-    return JsonResponse({'success': True, 'started': started})
+    return convert_media_task
+
+
+_bv = make_batch_views(
+    work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda request: request.user,
+    task_for=_task_for, start_only_pending=True, startable=lambda job: bool(job.output_format),
+    file_fields=(), output_fields=('output_file',),
+    batch_attr='batch', row_field='batch_row_index',
+    batch_extra=lambda lot: {'media_type': lot.media_type},
+    zip_name=lambda lot: f'converter_batch_{lot.id}.zip',
+    on_delete=_delete_job_files,
+)
+batch_start = login_required(_bv['batch_start'])
+batch_delete = login_required(_bv['batch_delete'])
+batch_duplicate = login_required(_bv['batch_duplicate'])
+batch_download = login_required(_bv['batch_download'])
 
 
 @login_required
@@ -882,8 +845,11 @@ def batch_update(request, pk):
     if out_fmt and out_fmt not in get_output_formats(batch.media_type):
         return JsonResponse({'error': f"Format invalide pour {batch.media_type} : {out_fmt}"}, status=400)
 
+    from wama.common.utils.batch_common import batch_elements
     updated = 0
-    for job in batch.items.exclude(status='RUNNING'):
+    for job in batch_elements(batch, ConversionJob):       # brique : ordre des lignes garanti
+        if job.status == 'RUNNING':
+            continue
         fields = job.poser_reglages(reglages)
         if out_fmt:
             job.output_format = out_fmt; fields.append('output_format')
@@ -892,26 +858,6 @@ def batch_update(request, pk):
             job.save(update_fields=fields); updated += 1
     return JsonResponse({'success': True, 'updated': updated,
                          'output_format': out_fmt, 'media_type': batch.media_type})
-
-
-@login_required
-@require_POST
-def batch_delete(request, pk):
-    """Supprime un batch : révoque les tâches, nettoie les fichiers app-owned,
-    puis supprime les jobs + le batch."""
-    from .models import ConversionBatch
-    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
-    for job in batch.items.all():
-        if job.task_id:
-            try:
-                from celery import current_app
-                current_app.control.revoke(job.task_id, terminate=False)
-            except Exception:
-                pass
-        _delete_job_files(job)
-    # CASCADE supprime les jobs liés à la suppression du batch
-    batch.delete()
-    return JsonResponse({'success': True})
 
 
 # ────────────────────────────────────────────────────────────────────────────
