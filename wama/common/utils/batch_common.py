@@ -497,9 +497,23 @@ def batch_elements(lot, element_model):
     else:
         qs = manager.all() if direct else manager.select_related(element_field)
         members = list(qs.order_by(row_field) if row_field else qs)
+    # Chaque élément rendu porte `batch_link` : la LIGNE du lot qui le porte — la ligne de
+    # liaison (qui a ses propres champs : `output_filename` du synthesizer et du composer,
+    # `row_index`), ou l'élément lui-même en FK directe. C'est ce qui permet à une vue de lot
+    # commune de nommer un fichier d'après la ligne sans connaître la forme du rattachement
+    # (2026-09-23 : jusque-là, composer et synthesizer gardaient leur `batch_download` local
+    # pour cette seule raison).
     if direct:
+        for m in members:
+            m.batch_link = m
         return members
-    return [e for e in (getattr(m, element_field, None) for m in members) if e is not None]
+    elements = []
+    for m in members:
+        e = getattr(m, element_field, None)
+        if e is not None:
+            e.batch_link = m
+            elements.append(e)
+    return elements
 
 
 # ─────────────────────────────────────────────────────────────────────────────

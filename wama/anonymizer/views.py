@@ -755,52 +755,60 @@ def stop(request, pk):
     return JsonResponse({'success': True, 'status': media.status})
 
 
-@require_POST
-@app_access('anonymizer')
-def batch_start(request, pk):
-    """Lance/relance tous les médias d'UN batch (card mère) — même brique que start."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
-    from wama.common.utils.process_control import begin_processing
-    started = []
-    for item in batch.items.select_related('media').order_by('row_index'):
-        if not item.media:
-            continue
-        locked, err = begin_processing(Media, item.media.pk, user=user, reset=_reset_for_relaunch)
-        if err:
-            continue  # already_running / not_found
-        cache.delete(f"media_progress_{locked.id}")
-        task = process_single_media.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        started.append(locked.id)
-    return JsonResponse({'success': True, 'started': started})
+# ── Quatre vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage
+# 2026-09-23, 9ᵉ app réelle — ROUTE §11 #36). Spécificités DÉCLARÉES : la remise à zéro du ▶ est
+# celle de `start` (`_reset_for_relaunch`) plus l'oubli du cache de progression ; les réglages
+# de lot sont le SCHÉMA de l'app (`PARAMS_JSON`, coercé par la brique) et chaque média réglé
+# passe `MSValues_customised` (`after_update`) ; la duplication ne vide aucune sortie (la sortie
+# floutée n'est pas un FileField — elle vit à `get_blurred_media_path`), et remet `blur_progress`
+# à 0 ; la suppression purge verrous, cache et sortie floutée (`_forget_outputs`) avant que la
+# brique ne supprime `file` (propriété + partage jugés) et la ligne. `@app_access` gardé sur ▶.
+# `batch_download` reste local (sortie hors FileField, assumé), lu par `batch_elements`.
+from wama.common.utils.batch_views import make_batch_views
+from .params import PARAMS_JSON as _ANON_PARAMS_JSON
 
 
-@require_POST
-def batch_update(request, pk):
-    """Réglages d'un BATCH : applique le payload schéma-driven à tous les items
-    non-RUNNING (modale batch commune, contrat reader)."""
-    import json as _json
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
+def _get_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def _reset_and_forget_progress(media):
+    _reset_for_relaunch(media)
+    cache.delete(f"media_progress_{media.id}")
+
+
+def _mark_customised(media):
+    media.MSValues_customised = True
+    return ['MSValues_customised']
+
+
+def _forget_outputs(media):
+    """Ce qu'aucune brique ne connaît d'un média : ses verrous, son cache et sa sortie floutée
+    (un chemin dérivé, pas un FileField). Appelé par la fabrique (`on_delete`) AVANT `file`."""
+    cache.delete(f"anon_lock:media:{media.id}")
+    cache.delete(f"anon_task_owner:media:{media.id}")
     try:
-        payload = _json.loads(request.body or '{}')
-    except (ValueError, TypeError):
-        payload = request.POST
-    from wama.common.utils.param_schema import coerce_schema_values, schema_for_app
-    valeurs = coerce_schema_values(schema_for_app('anonymizer'), payload)
-    updated = 0
-    for item in batch.items.select_related('media'):
-        m = item.media
-        if not m or m.status == 'RUNNING':
-            continue
-        for champ, valeur in valeurs.items():
-            setattr(m, champ, valeur)
-        m.MSValues_customised = True
-        m.save()
-        updated += 1
-    return JsonResponse({'success': True, 'updated': updated})
+        output_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+    except Exception:
+        pass
+
+
+_bv = make_batch_views(
+    work_model=Media, batch_model=BatchAnonymizer, get_user=_get_user,
+    task=process_single_media, reset_on_start=_reset_and_forget_progress,
+    file_fields=('file',), output_fields=(),
+    params_fields=tuple(p['name'] for p in _ANON_PARAMS_JSON if p.get('name')),
+    schema=_ANON_PARAMS_JSON, after_update=_mark_customised,
+    item_model=BatchAnonymizerItem, fk_name='media',
+    reset_on_duplicate={'status': 'PENDING', 'blur_progress': 0},
+    on_delete=_forget_outputs,
+)
+batch_start = app_access('anonymizer')(_bv['batch_start'])
+batch_update = _bv['batch_update']
+batch_delete = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
 
 
 def queue_count(request):
@@ -1827,39 +1835,22 @@ def duplicate_media(request, media_id):
     return JsonResponse({'duplicated': new_media.id})
 
 
-def batch_duplicate(request, pk):
-    """Duplique un batch et tous ses médias (entrées partagées, état remis à zéro)."""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST requis'}, status=405)
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
-    new_batch = BatchAnonymizer.objects.create(user=user, total=0)
-    idx = 0
-    for item in batch.items.select_related('media').order_by('row_index'):
-        if not item.media:
-            continue
-        new_media = duplicate_instance(
-            item.media, reset_fields={'status': 'PENDING', 'blur_progress': 0}, clear_fields=[])
-        BatchAnonymizerItem.objects.create(batch=new_batch, media=new_media, row_index=idx)
-        idx += 1
-    new_batch.total = idx
-    new_batch.save(update_fields=['total'])
-    return JsonResponse({'duplicated': True, 'batch_id': new_batch.id})
-
-
 def batch_download(request, pk):
-    """ZIP de toutes les sorties traitées d'un batch. Lecture → partage F7."""
+    """ZIP de toutes les sorties traitées d'un batch. Lecture → partage F7.
+
+    Reste LOCAL (2026-09-23) : la sortie floutée n'est pas un FileField, la fabrique commune
+    ne peut pas la servir — écart assumé ; la lecture du lot, elle, est la brique."""
     import io
     import zipfile
+    from wama.common.utils.batch_common import batch_elements
     from wama.common.utils.scoping import visible_or_404
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batch = visible_or_404(BatchAnonymizer, user, pk=pk)
     buf = io.BytesIO()
     added = 0
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for item in batch.items.select_related('media'):
-            m = item.media
-            if not m or not m.processed:
+        for m in batch_elements(batch, Media):
+            if not m.processed:
                 continue
             fp = get_blurred_media_path(m.file.name, m.file_ext, m.user_id)
             if os.path.exists(fp):
@@ -1951,30 +1942,3 @@ def batch_create(request):
     })
 
 
-@require_POST
-def batch_delete(request, pk):
-    """Delete an entire batch and all its media items."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
-
-    media_to_delete = []
-    for item in batch.items.select_related('media').all():
-        if item.media:
-            media_to_delete.append(item.media)
-
-    safe_delete_file(batch, 'batch_file')
-    batch.delete()  # CASCADE deletes BatchAnonymizerItems
-
-    for media in media_to_delete:
-        cache.delete(f"anon_lock:media:{media.id}")
-        cache.delete(f"anon_task_owner:media:{media.id}")
-        try:
-            output_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
-            if os.path.exists(output_path):
-                os.remove(output_path)
-        except Exception:
-            pass
-        safe_delete_file(media, 'file')
-        media.delete()
-
-    return JsonResponse({'success': True, 'batch_id': pk})

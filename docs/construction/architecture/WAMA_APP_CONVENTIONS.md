@@ -1041,22 +1041,13 @@ reader, synthesizer) = cas trivial (un seul batch).
 
 ### 9.3 Utilitaires de duplication batch (dans `wama/common/`)
 
-```python
-# wama/common/utils/batch_utils.py
-def duplicate_batch(batch, item_class, item_reset_fields, item_clear_fields):
-    """Duplique un batch et tous ses items. Partage les fichiers source."""
-    new_batch = MyBatch.objects.create(user=batch.user, total=batch.total)
-    for item in batch.items.all():
-        duplicate_instance(
-            item,
-            reset_fields={'batch': new_batch, **item_reset_fields},
-            clear_fields=item_clear_fields,
-        )
-    return new_batch
-```
-
-> **État actuel :** 🚧 `batch_utils.py` contient `duplicate_synthesizer_batch()`
-> (spécifique Synthesizer). Généraliser pour toutes les apps.
+> ✅ **LIVRÉ AUTREMENT (2026-09-22/23)** : la duplication d'un lot est l'une des six vues de la
+> fabrique commune `wama/common/utils/batch_views.py::make_batch_views` (`batch_duplicate` —
+> entrées partagées, sorties vidées, lignes de liaison recopiées avec leurs champs par
+> `item_extra`, champs du lot copié par `batch_extra`), adoptée par les 10 apps. Le gabarit
+> `duplicate_batch(batch, item_class, …)` esquissé ici en juillet et son unique implémentation
+> (`batch_utils.duplicate_synthesizer_batch`, spécifique synthesizer) sont RETIRÉS
+> (`REMOVAL_LEDGER` R68). La brique : `ROUTE §11 #36`.
 
 ### 9.4 Convention des fichiers batch
 
@@ -1586,7 +1577,7 @@ def duplicate(request, pk):
 |---------|---------------|-------|
 | `queue_duplication.py` | `safe_delete_file()`, `duplicate_instance()` | Delete / Duplicate items |
 | `batch_parsers.py` | `extract_batch_file_text()`, `parse_media_list_batch()` | Lecture fichiers batch |
-| `batch_utils.py` | `duplicate_synthesizer_batch()` → généraliser | Duplication de batch |
+| `batch_views.py` | `make_batch_views()` — les six vues de lot (▶, réglages, 🗑, ⧉, ZIP, état) | Actions de lot (10/10 depuis le 2026-09-23) |
 | `media_paths.py` | `upload_to_user_input()`, `upload_to_user_output()`, `UploadToUserPath` | Chemins fichiers |
 | `console_utils.py` | `push_console_line()`, `get_console_lines()` | Logs console UI |
 | `llm_utils.py` | `get_describer_model()` | Sélection modèle LLM |

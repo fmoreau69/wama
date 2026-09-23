@@ -35,7 +35,9 @@ class BatchDownloadTest(TestCase):
             input_filename='a.png', media_type='image', output_format='jpg')
         job.output_file.save('sortie.jpg', SimpleUploadedFile('sortie.jpg', b'JPGDATA'))
 
-        r = self.client.post(reverse('converter:batch_download', args=[batch.id]))
+        # GET : c'est le geste de l'UI (`_batch_card.html` rend un LIEN `href` vers le ZIP) — la vue
+        # commune (`make_batch_views`, 2026-09-23) le tient par `@require_GET` ; ce test POSTait.
+        r = self.client.get(reverse('converter:batch_download', args=[batch.id]))
         self.assertEqual(r.status_code, 200)
         zf = zipfile.ZipFile(io.BytesIO(b''.join(r.streaming_content)))
         self.assertEqual(len(zf.namelist()), 1,
