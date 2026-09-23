@@ -777,10 +777,10 @@ def batch_update(request, pk):
     """Applique les réglages à TOUS les items non-RUNNING du batch (mode batch de la modale)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batch = get_object_or_404(BatchEnhancement, id=pk, user=user)
+    from wama.common.utils.batch_common import batch_elements
     updated = 0
-    for item in batch.items.select_related('enhancement'):
-        e = item.enhancement
-        if not e or e.status == 'RUNNING':
+    for e in batch_elements(batch, Enhancement):     # brique : ordre des lignes garanti
+        if e.status == 'RUNNING':
             continue
         _apply_enhancement_settings(e, request.POST)
         e.save()
@@ -921,13 +921,13 @@ def batch_list(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batches = BatchEnhancement.objects.filter(user=user).prefetch_related('items__enhancement')
 
+    from wama.common.utils.batch_common import batch_elements
     data = []
     for batch in batches:
         counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-        for item in batch.items.all():
-            if item.enhancement:
-                k = item.enhancement.status.lower()
-                counts[k] = counts.get(k, 0) + 1
+        for e in batch_elements(batch, Enhancement):     # lit le cache du prefetch, 0 requête
+            k = e.status.lower()
+            counts[k] = counts.get(k, 0) + 1
 
         total = batch.total
         if total > 0 and counts['success'] == total:
@@ -950,151 +950,50 @@ def batch_list(request):
     return JsonResponse({'batches': data})
 
 
-@require_POST
-def batch_start(request, pk: int):
-    """Start all PENDING enhancements in a batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
+# ── Vues de lot MÉDIA : fabrique COMMUNE (`batch_views.make_batch_views`, portage 2026-09-23,
+# 6ᵉ app réelle — ROUTE §11 #36 ; l'enhancer a DEUX files, donc deux fabriques). Spécificités
+# DÉCLARÉES en kwargs : remise à zéro + cache de progression `enhancer_progress_<id>` à 0 sous le
+# verrou, libellé = nom d'entrée ou URL, nom de chaque entrée du ZIP = `get_output_filename()`,
+# dimensions/poids/durée de sortie remis à 0 à la duplication, cache purgé à la suppression.
+# `batch_update` reste LOCAL (assumé) : `_apply_enhancement_settings` valide le facteur (×2/×4)
+# et efface le curseur quand il est posté vide — une sémantique à part, lue par `batch_elements`.
+from wama.common.utils.batch_views import DEFAULT_RESET, make_batch_views
 
+
+def _get_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def _media_task(e):
     from .tasks import enhance_media
-    from wama.common.utils.process_control import begin_processing
-
-    def _reset(enh):
-        enh.progress = 0
-        enh.error_message = ''
-
-    started = []
-    for item in batch.items.select_related('enhancement').all():
-        e = item.enhancement
-        if not e:
-            continue
-        # Anti-race COMMUN — même brique que start()
-        locked, err = begin_processing(Enhancement, e.pk, user=user, reset=_reset)
-        if err:
-            continue
-        cache.set(f"enhancer_progress_{locked.id}", 0, timeout=3600)
-        task = enhance_media.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        started.append(locked.id)
-
-    return JsonResponse({'started': started, 'count': len(started)})
+    return enhance_media
 
 
-def batch_status(request, pk: int):
-    """Return status of all items in a batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
-
-    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-    items_data = []
-
-    for item in batch.items.select_related('enhancement').all():
-        e = item.enhancement
-        if not e:
-            continue
-        key = e.status.lower()
-        counts[key] = counts.get(key, 0) + 1
-        p = int(cache.get(f"enhancer_progress_{e.id}", e.progress or 0))
-        items_data.append({
-            'id': e.id,
-            'filename': e.get_input_filename() or e.source_url,
-            'status': e.status,
-            'progress': p,
-            'error': e.error_message if e.status == 'FAILURE' else None,
-        })
-
-    total = batch.total
-    if total > 0 and counts['success'] == total:
-        status_str = 'SUCCESS'
-    elif counts['running'] > 0:
-        status_str = 'RUNNING'
-    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
-        status_str = 'FAILURE'
-    else:
-        status_str = 'PENDING'
-
-    return JsonResponse({
-        'batch_id': pk,
-        'status': status_str,
-        'total': total,
-        'counts': counts,
-        'items': items_data,
-    })
+def _reset_media_and_clear_progress(e):
+    e.progress = 0
+    e.error_message = ''
+    cache.set(f"enhancer_progress_{e.id}", 0, timeout=3600)
 
 
-def batch_download(request, pk: int):
-    """Download a ZIP of all completed enhanced files in a batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for item in batch.items.select_related('enhancement').order_by('row_index'):
-            e = item.enhancement
-            if e and e.status == 'SUCCESS' and e.output_file:
-                try:
-                    fname = e.get_output_filename()
-                    with e.output_file.open('rb') as f:
-                        archive.writestr(fname, f.read())
-                except Exception:
-                    pass
-
-    buffer.seek(0)
-    zip_name = f"batch_enhancer_{pk}_{datetime.date.today()}.zip"
-    return FileResponse(buffer, as_attachment=True, filename=zip_name)
-
-
-@require_POST
-def batch_delete(request, pk: int):
-    """Delete an entire batch: cascade-delete enhancements, clean up files."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
-
-    enhancements_to_delete = []
-    for item in batch.items.select_related('enhancement').all():
-        e = item.enhancement
-        if not e:
-            continue
-        if e.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(e.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-        enhancements_to_delete.append(e)
-
-    safe_delete_file(batch, 'batch_file')
-    batch.delete()  # CASCADE deletes BatchEnhancementItems (not Enhancement)
-
-    for e in enhancements_to_delete:
-        safe_delete_file(e, 'input_file')
-        safe_delete_file(e, 'output_file')
-        cache.delete(f"enhancer_progress_{e.id}")
-        e.delete()
-
-    return JsonResponse({'success': True, 'batch_id': pk})
-
-
-@require_POST
-def batch_duplicate(request, pk: int):
-    """Duplicate an entire batch (shares source files, results cleared)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
-
-    new_batch = BatchEnhancement.objects.create(user=user, total=batch.total)
-    for item in batch.items.select_related('enhancement').order_by('row_index'):
-        e = item.enhancement
-        if not e:
-            continue
-        new_e = duplicate_instance(e, reset_fields={
-            'status': 'PENDING', 'progress': 0, 'task_id': '',
-            'error_message': '', 'output_width': 0, 'output_height': 0,
-            'output_file_size': 0, 'processing_time': 0,
-        }, clear_fields=['output_file'])
-        BatchEnhancementItem.objects.create(batch=new_batch, enhancement=new_e, row_index=item.row_index)
-
-    return JsonResponse({'success': True, 'batch_id': new_batch.id})
+_bv = make_batch_views(
+    work_model=Enhancement, batch_model=BatchEnhancement, get_user=_get_user,
+    task_for=_media_task,
+    file_fields=('input_file', 'output_file'), output_fields=('output_file',),
+    output_name=lambda e: e.get_output_filename(),
+    zip_name=lambda b: f"batch_enhancer_{b.id}_{datetime.date.today()}.zip",
+    item_model=BatchEnhancementItem, fk_name='enhancement',
+    reset_on_start=_reset_media_and_clear_progress,
+    reset_on_duplicate={**DEFAULT_RESET, 'output_width': 0, 'output_height': 0,
+                        'output_file_size': 0, 'processing_time': 0},
+    progress_of=lambda e: cache.get(f"enhancer_progress_{e.id}", e.progress or 0),
+    item_label=lambda e: e.get_input_filename() or e.source_url,
+    on_delete=lambda e: cache.delete(f"enhancer_progress_{e.id}"),
+)
+batch_start = _bv['batch_start']
+batch_status = _bv['batch_status']
+batch_download = _bv['batch_download']
+batch_delete = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
 
 
 # ===========================================================================
@@ -1598,160 +1497,55 @@ def audio_batch_create(request):
     return JsonResponse({'batch_id': batch.id, 'audio_ids': created_ids, 'total': len(items), 'warnings': warnings})
 
 
-@require_POST
-def audio_batch_start(request, pk):
-    """Start all PENDING audio enhancements in a batch."""
-    import json as _json
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
+# ── Vues de lot AUDIO : la seconde fabrique de l'enhancer (mêmes briques, autre file).
+# ▶ de lot PORTE des réglages (moteur, mode, force du débruitage, qualité, curseur) postés en
+# JSON avec le démarrage : `start_reset_for` fabrique la remise à zéro depuis la requête —
+# sous le verrou, comme avant. Cache `audio_enhancer_progress_<id>`, ZIP `audio_batch_<id>_<date>`.
+def _audio_task(ae):
+    from .tasks import enhance_audio
+    return enhance_audio
 
+
+def _audio_reset_for(request):
+    import json as _json
     try:
         data = _json.loads(request.body) if request.body else {}
     except Exception:
         data = {}
 
-    from .tasks import enhance_audio
-    from wama.common.utils.process_control import begin_processing
-
-    def _apply_batch_settings(ae_locked):
-        ae_locked.progress = 0
-        ae_locked.error_message = ''
+    def _reset(ae):
+        ae.progress = 0
+        ae.error_message = ''
         if data.get('engine'):
-            ae_locked.engine = data['engine']
+            ae.engine = data['engine']
         if data.get('mode'):
-            ae_locked.mode = data['mode']
+            ae.mode = data['mode']
         if data.get('denoising_strength') is not None:
-            ae_locked.denoising_strength = float(data['denoising_strength'])
+            ae.denoising_strength = float(data['denoising_strength'])
         if data.get('quality') is not None:
-            ae_locked.quality = int(data['quality'])
+            ae.quality = int(data['quality'])
         if 'quality_intent' in data:
-            ae_locked.quality_intent = _intent_posted(data)
-
-    started = []
-    for item in batch.items.select_related('audio_enhancement').all():
-        ae = item.audio_enhancement
-        if not ae:
-            continue
-        # Anti-race COMMUN (verrou + revoke ancienne tâche) — même brique que start.
-        locked, err = begin_processing(AudioEnhancement, ae.pk, user=user,
-                                       reset=_apply_batch_settings)
-        if err:
-            continue
-        task = enhance_audio.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        started.append(locked.id)
-
-    return JsonResponse({'started': started, 'count': len(started)})
+            ae.quality_intent = _intent_posted(data)
+    return _reset
 
 
-def audio_batch_status(request, pk):
-    """Return status of all items in an audio batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
-
-    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
-    items_data = []
-
-    for item in batch.items.select_related('audio_enhancement').all():
-        ae = item.audio_enhancement
-        if not ae:
-            continue
-        key = ae.status.lower()
-        counts[key] = counts.get(key, 0) + 1
-        progress = int(cache.get(f"audio_enhancer_progress_{ae.id}", ae.progress or 0))
-        items_data.append({
-            'id': ae.id,
-            'filename': ae.get_input_filename() or ae.source_url,
-            'status': ae.status,
-            'progress': progress,
-            'error': ae.error_message if ae.status == 'FAILURE' else None,
-        })
-
-    total = batch.total
-    if total > 0 and counts['success'] == total:
-        status_str = 'SUCCESS'
-    elif counts['running'] > 0:
-        status_str = 'RUNNING'
-    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
-        status_str = 'FAILURE'
-    else:
-        status_str = 'PENDING'
-
-    return JsonResponse({'batch_id': pk, 'status': status_str, 'total': total, 'counts': counts, 'items': items_data})
-
-
-def audio_batch_download(request, pk):
-    """Download a ZIP of all completed audio enhancements in a batch."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
-
-    import datetime as _dt
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for item in batch.items.select_related('audio_enhancement').order_by('row_index'):
-            ae = item.audio_enhancement
-            if ae and ae.status == 'SUCCESS' and ae.output_file:
-                try:
-                    with ae.output_file.open('rb') as f:
-                        archive.writestr(ae.get_output_filename(), f.read())
-                except Exception:
-                    pass
-
-    buffer.seek(0)
-    zip_name = f"audio_batch_{pk}_{_dt.date.today()}.zip"
-    return FileResponse(buffer, as_attachment=True, filename=zip_name)
-
-
-@require_POST
-def audio_batch_delete(request, pk):
-    """Delete an entire audio batch and all its enhancements."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
-
-    aes_to_delete = []
-    for item in batch.items.select_related('audio_enhancement').all():
-        ae = item.audio_enhancement
-        if not ae:
-            continue
-        if ae.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(ae.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-        aes_to_delete.append(ae)
-
-    safe_delete_file(batch, 'batch_file')
-    batch.delete()
-
-    for ae in aes_to_delete:
-        safe_delete_file(ae, 'input_file')
-        safe_delete_file(ae, 'output_file')
-        cache.delete(f"audio_enhancer_progress_{ae.id}")
-        ae.delete()
-
-    return JsonResponse({'success': True, 'batch_id': pk})
-
-
-@require_POST
-def audio_batch_duplicate(request, pk):
-    """Duplicate an entire audio batch (shares source files, results cleared)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
-
-    new_batch = BatchAudioEnhancement.objects.create(user=user, total=batch.total)
-    for item in batch.items.select_related('audio_enhancement').order_by('row_index'):
-        ae = item.audio_enhancement
-        if not ae:
-            continue
-        new_ae = duplicate_instance(ae, reset_fields={
-            'status': 'PENDING', 'progress': 0, 'task_id': '',
-            'error_message': '', 'processing_time': 0,
-        }, clear_fields=['output_file'])
-        BatchAudioEnhancementItem.objects.create(batch=new_batch, audio_enhancement=new_ae, row_index=item.row_index)
-
-    return JsonResponse({'success': True, 'batch_id': new_batch.id})
+_abv = make_batch_views(
+    work_model=AudioEnhancement, batch_model=BatchAudioEnhancement, get_user=_get_user,
+    task_for=_audio_task, start_reset_for=_audio_reset_for,
+    file_fields=('input_file', 'output_file'), output_fields=('output_file',),
+    output_name=lambda ae: ae.get_output_filename(),
+    zip_name=lambda b: f"audio_batch_{b.id}_{datetime.date.today()}.zip",
+    item_model=BatchAudioEnhancementItem, fk_name='audio_enhancement',
+    reset_on_duplicate={**DEFAULT_RESET, 'processing_time': 0},
+    progress_of=lambda ae: cache.get(f"audio_enhancer_progress_{ae.id}", ae.progress or 0),
+    item_label=lambda ae: ae.get_input_filename() or ae.source_url,
+    on_delete=lambda ae: cache.delete(f"audio_enhancer_progress_{ae.id}"),
+)
+audio_batch_start = _abv['batch_start']
+audio_batch_status = _abv['batch_status']
+audio_batch_download = _abv['batch_download']
+audio_batch_delete = _abv['batch_delete']
+audio_batch_duplicate = _abv['batch_duplicate']
 
 
 def console_content(request):

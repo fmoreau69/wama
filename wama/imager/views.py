@@ -920,9 +920,8 @@ def get_batch_children(request, batch_id):
         from wama.imager.models import GenerationBatch
 
         batch = visible_or_404(GenerationBatch, user, id=batch_id)   # LECTURE
-        children = [it.generation for it in
-                    batch.items.select_related('generation').order_by('row_index')
-                    if it.generation]
+        from wama.common.utils.batch_common import batch_elements
+        children = batch_elements(batch, ImageGeneration)   # brique : ordre des lignes garanti
 
         children_data = [{
             'id': c.id,
@@ -945,116 +944,47 @@ def get_batch_children(request, batch_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@require_http_methods(["POST"])
-def start_batch(request, batch_id):
-    """Démarre tous les items PENDING d'un GenerationBatch (contrat commun)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        from wama.imager.models import GenerationBatch
-
-        # Porte désormais sur le BATCH COMMUN, plus sur le self-FK `parent_generation`
-        # (retiré : il doublait GenerationBatch et n'offrait ni UI ni partage).
-        # MUTATION (démarrage) → `owned_or_404` : un batch partagé n'est jamais lançable par
-        # son destinataire. Le partage est en LECTURE SEULE par construction (scoping.py).
-        batch = owned_or_404(GenerationBatch, user, id=batch_id)
-        pending = [it.generation for it in batch.items.select_related('generation')
-                   if it.generation and it.generation.status == 'PENDING']
-
-        if not pending:
-            return JsonResponse({'error': 'No pending children to start'}, status=400)
-
-        from .tasks import generate_image_task, generate_video_task
-        from wama.common.utils.process_control import begin_processing
-
-        started_count = 0
-        for gen in pending:
-            # Anti-race PAR ITEM (brique commune, patron transcriber start_all) : sans ça, deux
-            # clics sur « Démarrer le batch » dispatchaient DEUX tâches GPU pour chaque item.
-            gen, err = begin_processing(
-                ImageGeneration, gen.pk, user=user,
-                reset={'progress': 0, 'error_message': ''},
-            )
-            if err:
-                continue
-            cache.delete(f"imager_progress_{gen.id}")
-            # Un batch vidéo existe (domain='video') → dispatcher la bonne tâche, comme
-            # start_all_generations. L'ancien code forçait generate_image_task.
-            task = (generate_video_task if gen.is_video_generation
-                    else generate_image_task).delay(gen.id)
-            gen.task_id = task.id
-            gen.save(update_fields=['task_id'])
-            started_count += 1
-
-        logger.info(f"Started {started_count} item(s) of generation batch #{batch_id}")
-
-        return JsonResponse({
-            'success': True,
-            'started': started_count,
-            'message': f'Started {started_count} generation(s)'
-        })
-
-    except Http404:
-        raise
-    except Exception as e:
-        logger.error(f"Error starting batch: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+# ── Trois vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage
+# 2026-09-23, 7ᵉ app réelle — ROUTE §11 #36 ; les routes passent de `<int:batch_id>` à
+# `<int:pk>`, dernière graphie déviante). Spécificités DÉCLARÉES en kwargs : ▶ de lot ne lance
+# que les PENDING (contrat WamaBatchImport, comme le composer) ; la tâche se choisit PAR
+# élément (image ou vidéo, `is_video_generation`) ; le cache de progression s'oublie au
+# démarrage et à la suppression, avec les sorties `generated_images` (liste de chemins, pas un
+# FileField — `_forget_outputs`, partagé avec la suppression d'UNE génération) ; les trois
+# champs fichier passent par la brique (partagés à la duplication) ; le lot copié garde son
+# `domain` (l'onglet). `batch_update` (un schéma PAR élément, image ou vidéo) et
+# `get_batch_children` (lecture PARTAGÉE) restent locaux, assumés, lus par `batch_elements`.
+from wama.common.utils.batch_views import make_batch_views
 
 
-@require_http_methods(["POST"])
-def batch_delete(request, batch_id):
-    """Supprime un lot ENTIER : ses générations (fichiers compris) puis le lot.
-
-    ⚠ Ouverte le 2026-08-27, avec `batch_duplicate` : la card mère de lot COMMUNE rendait
-    déjà ▶ ⧉ 🗑 sur l'imager, mais l'app n'avait ni route ni handler pour ⧉ et 🗑 — trois
-    boutons dont deux INERTES, sans une erreur console. Défaut muet typique : ce qui ne
-    plante pas ne se signale pas. La mesure `batch_actions` (scénarios de geste UI) l'a sorti.
-    """
-    from wama.imager.models import GenerationBatch
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = owned_or_404(GenerationBatch, user, id=batch_id)   # MUTATION
-
-    generations = [it.generation for it in batch.items.select_related('generation')
-                   if it.generation]
-
-    from wama.common.utils.queue_duplication import safe_delete_file
-    safe_delete_file(batch, 'batch_file')
-    batch.delete()   # CASCADE sur GenerationBatchItem, PAS sur ImageGeneration
-
-    for gen in generations:
-        _purger_generation(gen)
-
-    logger.info(f"Deleted generation batch #{batch_id} ({len(generations)} item(s))")
-    return JsonResponse({'success': True, 'batch_id': batch_id, 'count': len(generations)})
+def _get_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
-@require_http_methods(["POST"])
-def batch_duplicate(request, batch_id):
-    """Duplique un lot entier (fichiers d'entrée PARTAGÉS, sorties vidées) — patron describer.
+def _task_for(gen):
+    from .tasks import generate_image_task, generate_video_task
+    return generate_video_task if gen.is_video_generation else generate_image_task
 
-    Les champs remis à zéro sont ceux de `duplicate_generation` : une seule liste pour
-    l'élément et pour le lot, sinon un doublon de lot repartirait avec les sorties de l'original.
-    """
-    from wama.imager.models import GenerationBatch, GenerationBatchItem
-    from wama.common.utils.queue_duplication import duplicate_instance
 
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = owned_or_404(GenerationBatch, user, id=batch_id)   # MUTATION (crée depuis)
+def _reset_and_forget_progress(gen):
+    gen.progress = 0
+    gen.error_message = ''
+    cache.delete(f"imager_progress_{gen.id}")
 
-    nouveau = GenerationBatch.objects.create(user=user, total=batch.total,
-                                             domain=batch.domain)
-    for item in batch.items.select_related('generation').order_by('row_index'):
-        gen = item.generation
-        if not gen:
-            continue
-        copie = duplicate_instance(gen, reset_fields=_RESET_DUPLICATION,
-                                   clear_fields=['output_video'])
-        GenerationBatchItem.objects.create(batch=nouveau, generation=copie,
-                                           row_index=item.row_index)
 
-    logger.info(f"Duplicated generation batch #{batch_id} → #{nouveau.id}")
-    return JsonResponse({'success': True, 'batch_id': nouveau.id})
+_bv = make_batch_views(
+    work_model=ImageGeneration, batch_model=GenerationBatch, get_user=_get_user,
+    task_for=_task_for, start_only_pending=True,
+    file_fields=('reference_image', 'prompt_file', 'output_video'), output_fields=('output_video',),
+    item_model=GenerationBatchItem, fk_name='generation',
+    reset_on_start=_reset_and_forget_progress,
+    reset_on_duplicate=_RESET_DUPLICATION,
+    batch_extra=lambda lot: {'domain': lot.domain},
+    on_delete=lambda gen: _forget_outputs(gen),
+)
+batch_start = _bv['batch_start']
+batch_delete = _bv['batch_delete']
+batch_duplicate = _bv['batch_duplicate']
 
 
 @require_http_methods(["POST"])
@@ -1369,14 +1299,7 @@ def _purger_generation(generation):
     premier champ ajouté à `clear_fields` — exactement ce que le commentaire ci-dessous
     reproche déjà à un `os.remove` brut.
     """
-    # Sorties : `generated_images` est une LISTE de chemins (pas un FileField), donc
-    # suppression directe — elle n'est jamais partagée (vidée à la duplication).
-    for image_path in generation.generated_images:
-        if os.path.exists(image_path):
-            try:
-                os.remove(image_path)
-            except Exception as e:
-                logger.warning(f"Failed to delete image {image_path}: {str(e)}")
+    _forget_outputs(generation)
 
     # FileFields → `safe_delete_file` : `duplicate_instance` PARTAGE les fichiers (il ne
     # les copie pas), donc supprimer le fichier d'une ligne casserait ses doublons. La
@@ -1401,8 +1324,21 @@ def _purger_generation(generation):
         except Exception:
             pass
 
-    cache.delete(f"imager_progress_{generation.id}")
     generation.delete()
+
+
+def _forget_outputs(generation):
+    """Les sorties qu'aucune brique ne connaît : `generated_images` (LISTE de chemins, pas un
+    FileField — jamais partagée, vidée à la duplication) et le cache de progression. Appelé
+    par `_purger_generation` (une génération) et par la fabrique des vues de lot (`on_delete`),
+    qui fait le reste — fichiers par `safe_delete_file`, révocation, ligne."""
+    for image_path in generation.generated_images:
+        if os.path.exists(image_path):
+            try:
+                os.remove(image_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete image {image_path}: {str(e)}")
+    cache.delete(f"imager_progress_{generation.id}")
 
 
 @require_http_methods(["POST"])
@@ -1479,10 +1415,10 @@ def batch_update(request, batch_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batch = owned_or_404(GenerationBatch, user, pk=batch_id)   # MUTATION
 
+    from wama.common.utils.batch_common import batch_elements
     updated = 0
-    for item in batch.items.select_related('generation').all():
-        gen = item.generation
-        if not gen or gen.status == 'RUNNING':
+    for gen in batch_elements(batch, ImageGeneration):     # brique : ordre des lignes garanti
+        if gen.status == 'RUNNING':
             continue
         values = coerce_schema_values(_schema_for(gen), request.POST)
         if not values:

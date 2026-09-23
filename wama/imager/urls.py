@@ -65,9 +65,13 @@ urlpatterns = [
     # apps). Ce n'est pas de la cosmétique : la card mère de lot COMMUNE dérive ses URLs du nom
     # `<app>:[<préfixe>]batch_start`, et un nom hors convention rendait une chaîne vide — donc
     # un bouton ▶ sans URL, silencieux. Le chemin, lui, n'a pas bougé.
-    path('batch/<int:batch_id>/start/', views.start_batch, name='batch_start'),
-    path('batch/<int:batch_id>/delete/', views.batch_delete, name='batch_delete'),
-    path('batch/<int:batch_id>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
+    # `<int:pk>` et `views.batch_start` depuis le 2026-09-23 : ces trois vues viennent de la
+    # fabrique COMMUNE des vues de lot (`batch_views.make_batch_views`), dont le contrat est
+    # `(request, pk)` comme dans les 9 autres apps — le kwarg `batch_id` était la dernière
+    # graphie déviante. Le chemin, lui, n'a toujours pas bougé.
+    path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
+    path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
+    path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
 
     # Prompt enhancement (Ollama)
 
