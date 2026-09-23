@@ -193,7 +193,7 @@ COGVIDEOX_MODELS = {
         'fps': 8,
         'max_frames': 49,
         'resolution': '720x480',
-        'description': 'CogVideoX 5B — Image-to-Video, 6 s max, 8 fps',
+        'description': 'CogVideoX 5B — Image-to-Video',
         'description_long': "CogVideoX 5B I2V (Zhipu/THUDM) : anime une image de référence en "
                             "clip vidéo guidé par le prompt. Limites du modèle : 6 secondes (49 "
                             "images à 8 i/s), 720×480. Au-delà, la vidéo est prolongée par "
@@ -224,7 +224,7 @@ LTX_MODELS = {
         # passage ; au-delà, prolongation par segments (le modèle fait aussi image→vidéo).
         'max_frames': 257,
         'resolution': '1216x704',
-        'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V, 10 s max natif',
+        'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V',
         'description_long': "LTX-Video 13B Distilled (Lightricks) : génération vidéo rapide, en "
                             "texte-vers-vidéo comme en image-vers-vidéo. La distillation réduit "
                             "fortement le nombre d'étapes — bon choix par défaut pour itérer vite.",
@@ -281,7 +281,7 @@ MOCHI_MODELS = {
         # prolongation possible par segments, la durée est donc bornée à l'écran.
         'max_frames': 84,
         'resolution': '848x480',
-        'description': 'Mochi-1 Preview — haute qualité, 30 fps, 2,8 s max',
+        'description': 'Mochi-1 Preview — haute qualité',
         'description_long': "Mochi-1 Preview (Genmo) : génération vidéo haute fidélité à 30 "
                             "images/s, mouvements naturels et bonne adhérence au prompt. Le plus "
                             "gourmand des modèles vidéo — à réserver aux rendus soignés.",
@@ -321,10 +321,10 @@ WAN_MODELS = {
         # déchargement, ce modèle tient largement sur une 4090 — c'est l'encodeur de texte, pas
         # le transformer, qui plafonne.
         'composition': _pipeline_composition(transformer=False, text_encoder=True, vae=False),
-        # Les LIMITES dites à l'écran (2026-09-23, Fabien : « 15 s demandées, 5 obtenues ») : la
-        # description est ce que l'aide sous le sélecteur affiche, c'est la métadonnée qui remplit
-        # l'UI. 121 images à 24 i/s = 5 s ; au-delà, le modèle n'a pas été entraîné.
-        'description': 'FastWan 2.2 TI2V 5B — distillé 3 pas, 5 s max, 24 fps, natif 1280×704',
+        # Les LIMITES (5 s natives, 24 i/s, 1280×704) ne sont PAS recopiées dans la description
+        # courte : l'aide sous le sélecteur les DÉRIVE des capacités (`fps`, `max_frames`,
+        # `resolution` ci-dessus — `WamaModelHelp`), un seul fait, jamais deux (2026-09-23).
+        'description': 'FastWan 2.2 TI2V 5B — distillé 3 pas',
         'description_long': "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de "
                             "débruitage, pour générer une vidéo à partir d'un texte beaucoup plus "
                             "vite que les modèles non distillés. Limites du modèle : 5 secondes au "

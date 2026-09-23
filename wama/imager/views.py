@@ -365,8 +365,9 @@ def _apply_posted_output(response, post, params):
     """
     if getattr(response, 'status_code', 500) != 200:
         return
+    from wama.common.utils.output_formats import OUTPUT_PARAM_NAMES
     from wama.common.utils.param_schema import coerce_schema_values
-    output_params = [p for p in params if p.name in ('output_format', 'output_quality')]
+    output_params = [p for p in params if p.name in OUTPUT_PARAM_NAMES]
     allowed = {p.name: {str(c[0]) for c in (p.choices or [])} for p in output_params}
     # Une valeur hors des choix du DOMAINE est ignorée (un « webp » d'image posté pour une vidéo).
     values = {k: v for k, v in coerce_schema_values(output_params, post).items()

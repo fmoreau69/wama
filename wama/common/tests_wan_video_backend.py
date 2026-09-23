@@ -218,3 +218,23 @@ class SharedPipelineHooksTest(SimpleTestCase):
                         '.apply_strategy_for_model') as apply:
             backend._rehook('t2v', 'fastwan-2.2-ti2v-5b')
         apply.assert_not_called()
+
+
+@skipUnless(HAS_DIFFUSERS, 'diffusers absent de ce venv')
+class SharedPipelineDtypeTest(SimpleTestCase):
+    """`from_pipe` defaults to `torch_dtype=float32` and converts the SHARED modules in place:
+    23 GB of bf16 weights became 46 GB of fp32 and the GPU worker was OOM-killed (2026-09-23,
+    first 15 s video). The i2v pipeline must be derived WITHOUT a dtype conversion."""
+
+    def test_the_image_to_video_pipeline_is_derived_without_dtype_conversion(self):
+        from wama.common.backends.wan_video_backend import WanVideoBackend
+        backend = WanVideoBackend()
+        backend._pipe_t2v = object()
+        backend._device = 'cuda'
+        backend._current_model = WanVideoBackend.i2v_model_id('fastwan-2.2-ti2v-5b')
+        with mock.patch('diffusers.WanImageToVideoPipeline') as pipeline, \
+                mock.patch('wama.model_manager.services.memory_manager.MemoryManager'
+                           '.apply_strategy_for_model', side_effect=lambda **kw: kw['pipeline']):
+            self.assertTrue(backend._load_i2v_pipeline('fastwan-2.2-ti2v-5b'))
+        pipeline.from_pretrained.assert_not_called()
+        self.assertIsNone(pipeline.from_pipe.call_args.kwargs['torch_dtype'])

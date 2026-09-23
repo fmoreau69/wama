@@ -525,3 +525,36 @@ class SegmentExtensionTest(TestCase):
                 lambda p, c: SimpleNamespace(success=False, error='boom', video_frames=[]),
                 Params(), first, 9, None, tmp)
         self.assertEqual(3, len(frames))
+
+
+class RelocatedImageListTest(LotImagerMixin, TestCase):
+    """The imager's 4-image preview was lost (2026-09-23): the move to the user home relocated
+    the files but not `generated_images`, a JSON list of ABSOLUTE paths that the migration did
+    not read. The list now follows its files, through the path-list declaration of retention."""
+
+    def test_a_moved_image_list_is_realigned_and_keeps_its_absolute_form(self):
+        import tempfile
+        from pathlib import Path
+
+        from django.test import override_settings
+        from wama.common.management.commands.migrate_media_to_user_home import realign_path_lists
+        with tempfile.TemporaryDirectory() as tmp, override_settings(MEDIA_ROOT=tmp):
+            root = Path(tmp)
+            uid = self.user.id
+            moved = root / 'users' / str(uid) / 'imager' / 'output' / 'image'
+            moved.mkdir(parents=True)
+            old = [str(root / 'imager' / str(uid) / 'output' / 'image' / f'gen_{i}.png')
+                   for i in range(4)]
+            for i in range(4):
+                (moved / f'gen_{i}.png').write_bytes(b'png')
+            gen = ImageGeneration.objects.create(user=self.user, prompt='p', num_images=4,
+                                                 generated_images=old)
+            self.assertEqual(1, realign_path_lists(root, apply=False, filtre='imager'))
+            gen.refresh_from_db()
+            self.assertEqual(old, gen.generated_images, 'the plan writes nothing')
+            realign_path_lists(root, apply=True, filtre='imager')
+            gen.refresh_from_db()
+            self.assertEqual([(moved / f'gen_{i}.png').as_posix() for i in range(4)],
+                             gen.generated_images)
+            self.assertEqual(0, realign_path_lists(root, apply=False, filtre='imager'),
+                             'a second pass finds nothing left to do')
