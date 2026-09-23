@@ -111,11 +111,18 @@ def write_candidate(cand_key, *, nom, model_type, description, kind, confidence,
     # les `new` et repartait de zéro (constaté à la conception, 2026-08-18).
     existant = AIModel.objects.filter(model_key=cand_key, is_proposed=True).first()
     if existant:
-        assess = ((existant.extra_info or {}).get('prospect') or {}).get('assess')
-        if assess:
-            defaults['extra_info'] = {'prospect': dict(extra, assess=assess)}
-            if confidence is None:
-                defaults['confidence'] = existant.confidence
+        # Ce que les passes ont RELEVÉ survit aussi à la re-prospection (2026-09-23) : les
+        # variantes quantisées et le poids par composant (`extra_info['weights']`) sont des
+        # relevés réseau payés une fois, et ils entrent dans l'empreinte des faits du juge
+        # (`prospect_agents._signal_of`) — les effacer à chaque clic rejugeait TOUT à chaque clic.
+        old_info = existant.extra_info or {}
+        old_prospect = old_info.get('prospect') or {}
+        kept = {k: old_prospect[k] for k in ('assess', 'assess_previous', 'quant_variants')
+                if k in old_prospect}
+        defaults['extra_info'] = {**{k: v for k, v in old_info.items() if k != 'prospect'},
+                                  'prospect': dict(extra, **kept)}
+        if kept.get('assess') and confidence is None:
+            defaults['confidence'] = existant.confidence
     _, cree = AIModel.objects.update_or_create(model_key=cand_key, defaults=defaults)
     return cree
 

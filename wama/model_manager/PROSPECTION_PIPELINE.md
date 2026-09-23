@@ -1829,3 +1829,36 @@ d'installer 22 Go de plus.
 ⚠ Le jury ne reçoit pas ces pics : il juge sur le poids disque + les variantes quantisées + une
 phrase générale sur le déchargement. Lui passer `model_footprint_gb` d'un candidat supposerait
 son relevé de poids par composant (fait pour les installés, pas pour les candidats) — non fait.
+
+### Même jour (suite) — une nouvelle mesure ÉCRASE le verdict, le juge voit les pics VRAM, et le tri
+
+Décisions de Fabien : *« une nouvelle mesure écrase les verdicts déjà rendus »* ; *« ok pour
+ajouter les pics VRAM d'un candidat depuis les sources »* ; tri des modèles.
+
+- **Rejugement sur faits nouveaux** — `prospect_agents._signal_of` : empreinte des faits MESURÉS
+  que le juge a sous les yeux (banc tiers + échelle, poids par composant, variantes quantisées,
+  concurrents, VRAM de la carte), stockée avec le verdict (`assess['signal']`). La file prend les
+  candidats sans verdict PUIS ceux dont l'empreinte a changé (`_is_due`) ; l'ancien verdict reste
+  lisible un cran en arrière (`assess_previous`). La carte HF et la réponse du LLM n'y entrent pas
+  (ce ne sont pas des mesures : les y mettre rejugerait sans fin). Mesuré après : **64 candidats
+  `new`, 64 à rejuger** (aucun verdict antérieur ne portait d'empreinte) — ~7 lots au prochain jury.
+- ⚠ **Défaut trouvé en l'écrivant** : `write_candidate` réécrivait `extra_info` EN ENTIER à chaque
+  « Prospecter » — variantes quantisées et poids relevés étaient effacés, donc l'empreinte aurait
+  changé à chaque clic et TOUT aurait été rejugé à chaque clic. Il garde désormais les clés hors
+  `prospect` et, dans `prospect`, `assess`/`assess_previous`/`quant_variants`.
+- **Pics VRAM d'un candidat depuis les sources** — `_attach_weights` (préparation du contexte,
+  HORS fenêtre GPU) : `components_for_spec` sur le descripteur que l'installation tirera (le MÊME
+  lecteur que les installés), écrit `extra_info['weights']` ; `prospector.remote_precision` lit les
+  EN-TÊTES safetensors fichier par fichier (`parse_safetensors_file_metadata` —
+  `get_safetensors_metadata` ne voit que la racine et ratait les sous-dossiers diffusers). Le juge
+  reçoit les pics « tels que stockés » ET « chargés en bf16 ». Mesuré sur les 44 candidats HF (44
+  pesés) : Wan2.2-TI2V-5B **31,8 / 18,6 Go tel que stocké** (encodeur UMT5 en F32), **21,2 / 10,6
+  en bf16** — soit exactement FastWan (22,5 / 10,6) : même VRAM, confirmé par la mesure.
+- **Tri** — `WamaFilterBar.sort` (brique COMMUNE de la barre de filtrage : `data-s-<clé>`, nombre
+  ou texte, inconnu toujours en dernier, réordonné dans son parent ; déclarable dans une barre
+  montée par `<select data-f-role="sort">`). Model manager : nom, VRAM exigée, performance (RANG
+  centile — jamais `benchmark_index`, dont les échelles ne se comparent pas), confiance, disque ;
+  choix retenu par navigateur. `AIModel.vram_footprint()` (to_dict) expose les deux pics de la
+  cascade commune — tri et ligne « VRAM exigée » de l'inspecteur.
+- Tests : `RejudgeOnNewFactsTest` (6) ; tri exercé sous V8 (nombres, absents en dernier dans les
+  deux sens, accents).

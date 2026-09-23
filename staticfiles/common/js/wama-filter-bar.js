@@ -66,6 +66,44 @@
         });
     }
 
+    /**
+     * TRI des éléments filtrés (2026-09-23, demande de Fabien sur le model manager) : le même
+     * geste que le filtre, donc la même brique. Chaque élément porte `data-s-<clé>` ; la valeur
+     * se compare en NOMBRE si elle en est un, sinon en texte (`localeCompare`, français). Une
+     * valeur ABSENTE va toujours en dernier, quel que soit le sens : « inconnu » n'est ni le
+     * meilleur ni le pire. Les éléments sont réordonnés DANS leur parent (un groupe garde les
+     * siens). `spec` = « clé:asc » ou « clé:desc ».
+     */
+    function sortElements(elements, spec) {
+        var parts = String(spec || '').split(':');
+        var key = parts[0], sign = parts[1] === 'desc' ? -1 : 1;
+        if (!key) { return; }
+        function valueOf(el) {
+            var raw = el.getAttribute('data-s-' + key);
+            if (raw === null || raw === '') { return null; }
+            var n = Number(raw);
+            return isNaN(n) ? raw.toLowerCase() : n;
+        }
+        var byParent = new Map();
+        elements.forEach(function (el) {
+            if (!el.parentNode) { return; }
+            if (!byParent.has(el.parentNode)) { byParent.set(el.parentNode, []); }
+            byParent.get(el.parentNode).push(el);
+        });
+        byParent.forEach(function (list, parent) {
+            list.map(function (el, i) { return { el: el, v: valueOf(el), i: i }; })
+                .sort(function (a, b) {
+                    if (a.v === null || b.v === null) {
+                        return (a.v === null) - (b.v === null) || a.i - b.i;
+                    }
+                    var c = (typeof a.v === 'number' && typeof b.v === 'number')
+                        ? a.v - b.v : String(a.v).localeCompare(String(b.v), 'fr');
+                    return sign * c || a.i - b.i;
+                })
+                .forEach(function (entry) { parent.appendChild(entry.el); });
+        });
+    }
+
     function init(cfg) {
         var bar = typeof cfg.bar === 'string' ? $(cfg.bar) : cfg.bar;
         if (!bar) { return null; }
@@ -199,6 +237,14 @@
             });
         }
 
+        // Tri déclaré dans la barre (`<select data-f-role="sort">`, options « clé:sens ») :
+        // client seulement — une liste paginée se trie côté serveur.
+        var sorter = $('[data-f-role="sort"]', bar);
+        if (sorter && mode === 'client') {
+            sorter.addEventListener('change', function () { sortElements(elements, sorter.value); });
+            if (sorter.value) { sortElements(elements, sorter.value); }
+        }
+
         // État initial : compteur juste et « Réinitialiser » cohérent, sans rien soumettre.
         if (effacer) { effacer.style.display = (recherche && recherche.value) ? '' : 'none'; }
         bar.classList.toggle('is-filtered', actif());
@@ -215,7 +261,7 @@
         });
     }
 
-    global.WamaFilterBar = { init: init, autoInit: autoInit };
+    global.WamaFilterBar = { init: init, autoInit: autoInit, sort: sortElements };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', autoInit);
