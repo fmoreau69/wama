@@ -21,9 +21,12 @@
         });
     }
 
+    /** Même écriture que la ligne de lot rendue par le serveur (`floatformat:1`, locale du site) :
+     *  la langue et le format d'affichage sont une décision ouverte (ROADMAP §10.A) — on ne la
+     *  tranche pas ici en codant une virgule d'un côté seulement. */
     function percent(value) {
         if (value == null) return '—';
-        return (value * 100).toFixed(1).replace('.', ',') + ' %';
+        return (value * 100).toFixed(1) + ' %';
     }
 
     var READING_LABELS = {
