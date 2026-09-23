@@ -54,6 +54,22 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
     }
 
 
+def _result_reference_url(surface):
+    """Route commune de la référence pour une surface ÉVALUABLE, None sinon."""
+    from django.urls import reverse
+    from wama.common.services.result_evaluation import evaluation_spec
+    if evaluation_spec(surface) is None:
+        return None
+    return reverse('common:api_result_reference', args=[surface, 'element', 0])
+
+
+def _result_reference_accept(surface):
+    """Les extensions que l'app sait LIRE comme référence (sa déclaration), pour le sélecteur."""
+    from wama.common.services.result_evaluation import evaluation_spec
+    spec = evaluation_spec(surface)
+    return ','.join(spec.reference_extensions) if spec and spec.reference_extensions else None
+
+
 @register.simple_tag
 def queue_dnd_attrs(app, domain=None):
     """Attributs de MANIPULATION DIRECTE à poser sur le conteneur de file (CARD_DESIGN §3bis).
@@ -101,6 +117,11 @@ def queue_dnd_attrs(app, domain=None):
         # en version PAR NATURE, qui RANGE en plusieurs lots au lieu de refuser. Router le geste
         # de fusion dessus rendait « succès » après n'avoir rien fait de visible.
         ('data-dnd-merge-url',        _url('merge')),
+        # Geste « Résultat de référence… » (port `reference_result`) : émis SEULEMENT pour une
+        # surface qui a déclaré son évaluation — le menu de card n'offre pas un port que rien ne
+        # lit. L'URL est celle d'un ÉLÉMENT au pk 0 ; la brique y substitue nature et pk.
+        ('data-result-reference-url', _result_reference_url(app)),
+        ('data-result-reference-accept', _result_reference_accept(app)),
     ]
     presents = [(k, v) for k, v in paires if v]
     if not presents:

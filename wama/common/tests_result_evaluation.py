@@ -210,6 +210,48 @@ class EndpointTest(_WitnessSurface):
         self.assertEqual(404, self.client.get(self._url('element', item.pk)).status_code)
 
 
+class InterfaceTest(_WitnessSurface):
+    """The gesture, the batch line and the queue data — shown only where an evaluation exists."""
+
+    def test_the_queue_offers_the_gesture_only_for_an_evaluable_surface(self):
+        from wama.common.templatetags.wama_actions import queue_dnd_attrs
+        evaluable = str(queue_dnd_attrs(SURFACE))
+        self.assertIn(f'data-result-reference-url="/common/api/result-reference/{SURFACE}/element/0/"',
+                      evaluable)
+        self.assertIn('data-result-reference-accept=".txt"', evaluable)
+        self.assertNotIn('data-result-reference', str(queue_dnd_attrs('reader')))
+
+    def test_the_queue_rows_carry_the_batch_comparison(self):
+        from wama.common.utils.batch_common import build_batches_list
+        from wama.composer.models import ComposerBatch, ComposerBatchItem
+        batch = ComposerBatch.objects.create(user=self.user)
+        item = self._item('le chat dort')
+        ComposerBatchItem.objects.create(batch=batch, generation=item)
+        evaluation.attach_reference(SURFACE, [item], self._upload('le chat dort'))
+        rows = build_batches_list(self.user, batch_model=ComposerBatch, work_attr='generation')
+        self.assertEqual(0.0, rows[0]['evaluation']['models'][0]['primary_percent'])
+
+    def test_the_mother_card_shows_the_line_only_when_the_batch_is_measured(self):
+        from django.template.loader import render_to_string
+        from wama.composer.models import ComposerBatch
+        batch = ComposerBatch.objects.create(user=self.user)
+        base = {'obj': batch, 'items': [], 'success_count': 0, 'running_count': 0,
+                'failure_count': 0, 'has_success': False}
+        silent = render_to_string('common/_batch_card.html', {'batch_info': {**base, 'evaluation': None}})
+        self.assertNotIn('wama-batch-evaluation', silent)
+        measured = {'primary': 'wer', 'primary_label': 'WER', 'comparable': False,
+                    'evaluated_items': 2, 'total_items': 3,
+                    'models': [{'model_label': 'Whisper', 'items': 1, 'primary_percent': 12.3},
+                               {'model_label': 'Qwen', 'items': 1, 'primary_percent': 20.0}]}
+        html = render_to_string('common/_batch_card.html',
+                                {'batch_info': {**base, 'evaluation': measured}})
+        self.assertIn('Whisper', html)
+        self.assertIn('2/3 mesuré', html)
+        self.assertIn('références différentes', html,
+                      'a ranking across different references must say so')
+        self.assertNotIn('is-best', html, 'no « best » crowned on an unfair comparison')
+
+
 class CapabilityAndDeclarationGoTogetherTest(TestCase):
     """`has_reference_result` opens a port; `register_evaluation` reads what enters it. One
     without the other is a port that accepts a file nothing reads, or a reader nobody feeds."""

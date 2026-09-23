@@ -1,0 +1,29 @@
+{% comment %}
+Ligne FINE de la card mère : la comparaison des modèles du lot contre leur référence.
+
+Données : `batch_info.evaluation` (`result_evaluation.batch_evaluation`, posé par
+`build_batches_list` pour toute surface qui DÉCLARE son évaluation — aucune app n'a de gabarit à
+écrire). Les modèles sont déjà classés, le meilleur en tête ; le taux est celui du CORPUS
+(Σ erreurs / Σ mots de référence). Le détail d'un élément (substitutions, suppressions,
+insertions, lecture de la référence) est dans l'onglet « Évaluation » de sa card.
+`comparable` faux = les modèles n'ont pas été mesurés sur les MÊMES références : on le dit, un
+classement entre corpus différents ne voudrait rien dire.
+{% endcomment %}
+{% with ev=batch_info.evaluation %}
+<div class="wama-batch-evaluation" title="{{ ev.primary_label }} — taux du corpus du lot, le plus bas est le meilleur ; détail dans l'onglet « Évaluation » de chaque élément">
+    <span class="wama-batch-evaluation-title"><i class="fas fa-scale-balanced"></i> Évaluation</span>
+    {% for m in ev.models %}
+    <span class="wama-batch-evaluation-model{% if forloop.first and ev.comparable and ev.models|length > 1 %} is-best{% endif %}"
+          title="{{ m.model_label }} — {{ m.items }} élément{{ m.items|pluralize }} mesuré{{ m.items|pluralize }}">
+        {{ m.model_label }}
+        <strong>{% if m.primary_percent is not None %}{{ m.primary_percent|floatformat:1 }} %{% else %}—{% endif %}</strong>
+    </span>
+    {% endfor %}
+    <span class="wama-batch-evaluation-count">{{ ev.evaluated_items }}/{{ ev.total_items }} mesuré{{ ev.evaluated_items|pluralize }} · {{ ev.primary|upper }}</span>
+    {% if not ev.comparable %}
+    <span class="wama-batch-evaluation-warning" title="Les modèles n'ont pas été mesurés sur les mêmes références : leur classement ne compare pas le même corpus.">
+        <i class="fas fa-triangle-exclamation"></i> références différentes
+    </span>
+    {% endif %}
+</div>
+{% endwith %}
