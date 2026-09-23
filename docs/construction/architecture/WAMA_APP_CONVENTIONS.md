@@ -221,6 +221,11 @@ io = {
 `batch`, `export_binding` (`'late'` = format choisi à l'export / `'early'` = format figé à la
 génération, cf. §6.4) … → composent le template (cf. §4) et informent l'agent de ce que l'app sait faire.
 
+**`has_result_import` / `has_reference_result` (2026-09-23)** : l'app accepte un résultat produit
+ailleurs (il tient lieu de traitement) / un résultat attendu (la sortie lui est comparée). Ils
+ouvrent les ports `work_result` / `reference_result`, dont la nature est celle de la SORTIE de
+l'app — détail et règle de déclaration : `docs/construction/ui/INPUT_MODEL_MATCHING.md §6.7`.
+
 **`supports_profiles` (spec migrée de `MODAL_ACTIONS_AUDIT.md §4`, 2026-07-25 — À IMPLÉMENTER en
 capacité COMMUNE, pas par app)** : « sauver la configuration courante comme profil réutilisable ».
 L'app qui la déclare gagne dans le pied de modale (§6.5) un bouton « Enregistrer comme profil » ;

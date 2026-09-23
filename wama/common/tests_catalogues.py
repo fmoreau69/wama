@@ -1238,6 +1238,85 @@ class UnionDesEntreesDeModelesTest(TestCase):
                          {p['id'] for p in app_input_ports(self.APP, domain='image')})
 
 
+class ResultPortsComeFromAppCapabilitiesTest(TestCase):
+    """`app_result_ports` — the APP half of the rule « slots = app inputs ∪ model inputs ».
+
+    Two inputs are read by the app AROUND the model, never by a model: the expected result
+    (`reference_result`, compared to the output) and a result produced elsewhere
+    (`work_result`, which stands in for the processing). No engine will ever declare them, so
+    they cannot come from `app_input_ports`; they are opened by an app CAPABILITY.
+
+    ⚠ LOCAL witness entry, never the real catalogue: the verdict must not follow the fleet.
+    """
+
+    APP = 'app_result_witness'
+
+    def _catalog(self, **capabilities):
+        from unittest.mock import patch
+        from wama.common.app_registry import APP_CATALOG
+        entry = {'label': 'Witness', 'input_types': ('audio',),
+                 'output_types': ('txt', 'srt'), **capabilities}
+        return patch.dict(APP_CATALOG, {self.APP: entry})
+
+    def test_no_capability_opens_no_port(self):
+        from wama.common.app_registry import app_result_ports
+        with self._catalog():
+            self.assertEqual([], app_result_ports(self.APP))
+
+    def test_each_capability_opens_its_token_with_the_OUTPUT_nature(self):
+        """A reference is compared to what the app PRODUCES: its nature is the output's."""
+        from wama.common.app_registry import app_result_ports
+        with self._catalog(has_result_import=True, has_reference_result=True):
+            ports = {p['id']: p for p in app_result_ports(self.APP)}
+        self.assertEqual({'work_result', 'reference_result'}, set(ports))
+        self.assertEqual('travail', ports['work_result']['group'])
+        self.assertEqual('reference', ports['reference_result']['group'])
+        for p in ports.values():
+            self.assertEqual(['document'], p['types'], 'txt/srt must give the document nature')
+            self.assertFalse(p['required'], 'an evaluable app must work without a reference')
+            self.assertFalse(p['multi'])
+            self.assertTrue(p['description'])
+
+    def test_the_tokens_are_in_the_vocabulary_without_accept(self):
+        """No `accept`: the nature is the app's output, not the token's."""
+        from wama.common.utils.app_modes import INPUT_TYPES
+        for token, group in (('reference_result', 'reference'), ('work_result', 'travail')):
+            self.assertEqual(group, INPUT_TYPES[token]['port'])
+            self.assertNotIn('accept', INPUT_TYPES[token])
+
+    def test_both_paths_of_studio_node_ports_receive_them(self):
+        """With models declaring their inputs, and on the fallback without any."""
+        from wama.common.app_registry import studio_node_ports
+        from wama.model_manager.models import AIModel
+        with self._catalog(has_reference_result=True):
+            fallback = [p['id'] for p in studio_node_ports(self.APP)['inputs']]
+            AIModel.objects.create(model_key=f'{self.APP}:m', name='m', source=self.APP,
+                                   capabilities={'inputs_required': ['work_audio']})
+            from_models = [p['id'] for p in studio_node_ports(self.APP)['inputs']]
+        self.assertIn('reference_result', fallback)
+        self.assertEqual(['work_audio', 'reference_result'], from_models)
+
+    def test_the_card_never_announces_an_existing_result_as_required(self):
+        """`work_result` is in the `travail` group: the group fallback would say « required »."""
+        from wama.common.templatetags import wama_actions
+        with self._catalog(has_result_import=True):
+            slots = {s['id']: s for s in wama_actions.input_slots(self.APP)}
+        self.assertIn('work_result', slots)
+        self.assertFalse(slots['work_result']['required'])
+        self.assertIn('à comparer', slots['work_result']['description'])
+
+    def test_the_manifest_carries_the_capability_both_ways(self):
+        """Extraction writes it only when declared; projection reads it back as a boolean."""
+        from wama.common.manifests.builtin.app import _capabilities, _capabilities_target
+        declared = _capabilities({'has_reference_result': True}, self.APP)
+        silent = _capabilities({}, self.APP)
+        self.assertTrue(declared['has_reference_result'])
+        self.assertNotIn('has_reference_result', silent)
+        target = _capabilities_target({'body': {'capabilities': declared}})
+        self.assertIs(True, target['has_reference_result'])
+        self.assertIs(False, target['has_result_import'])
+
+
 class ObligationDesSlotsVientDesModelesTest(TestCase):
     """Un slot ne s'annonce « requis » que si TOUS les modèles retenus l'exigent.
 

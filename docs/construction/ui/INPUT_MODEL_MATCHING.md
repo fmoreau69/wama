@@ -205,6 +205,41 @@ C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse
   10/09) — c'est aussi ce qui explique que son image n'aille jamais au modèle d'image. Retrait
   à faire, 0 génération dans ce mode en base.
 - **`prompt` de l'avatarizer** : ajout personnalisé (TTS+avatar), qu'aucun modèle ne déclare.
+  ⚠ Même famille que les ports du RÉSULTAT ci-dessous (entrée lue par l'app, pas par un modèle),
+  mais **non traité** : le `prompt` est une SAISIE, pas un fichier, et son jeton est déjà dans le
+  vocabulaire — il lui manque seulement le critère de consommation. À trancher avec lui.
+
+### 6.7 La moitié « APP » de l'union — les ports du RÉSULTAT (2026-09-23)
+
+La règle §6.3 dit « slots = entrées de niveau APP ∪ entrées des MODÈLES ». Seule la seconde
+moitié était tenue (`app_input_ports`) : dès qu'un modèle déclare ses entrées,
+`studio_node_ports` ne rendait plus que les siennes.
+
+**Mesuré avant d'écrire : l'union naïve des `inputs` d'`APP_MODES` serait FAUSSE.** Ces
+déclarations sont presque toutes des jetons de MODÈLE (`work_file`, `work_audio`,
+`reference_melody`…), et l'imager y porte encore `reference_image`, qu'aucun de ses modèles ne
+sait lire (§6.6). Les unir aurait rouvert un onglet mensonger. **Le critère est QUI CONSOMME
+l'entrée.**
+
+Livré : la famille d'entrées qu'AUCUN modèle ne peut déclarer — celles qui portent sur le
+RÉSULTAT —, ouverte par une CAPACITÉ d'app :
+
+| capacité (`APP_CATALOG`) | jeton | rôle | ce qui le lit |
+|---|---|---|---|
+| `has_result_import` | `work_result` « Résultat existant » | travail | l'app : il tient lieu de traitement |
+| `has_reference_result` | `reference_result` « Résultat de référence » | référence | l'évaluation : la sortie lui est comparée |
+
+- **Nature = celle de la SORTIE de l'app** (`output_types`) : les deux jetons n'ont pas
+  d'`accept`. Une référence se compare à ce que l'app produit.
+- **Jamais requis** : une app évaluable fonctionne sans référence.
+- **Accesseur** : `app_registry.app_result_ports(app_id)`, reçu par les DEUX chemins de
+  `studio_node_ports` (modèles déclarants, repli) ; la card v4 (`input_slots`) lit son obligation.
+- **Manifeste** : capacités exportées seulement si déclarées, et projetées en retour
+  (`RESULT_CAPABILITY_FIELDS`).
+- **Aucune app ne les déclare encore** : une capacité se déclare au palier où l'app sait TRAITER
+  l'entrée, jamais avant (sinon le port promet ce que rien ne lit). Le premier adoptant visé est
+  le transcriber (évaluation des modèles ASR, `WAMA_QUALITE` Q6).
+- Tests : `tests_catalogues.ResultPortsComeFromAppCapabilitiesTest` (6).
   Sous la règle d'union il DISPARAÎT, au profit de la chaîne synthesizer → avatarizer — et il
   reviendra de lui-même le jour où un modèle déclarera le couple. Position Fabien 10/09.
 

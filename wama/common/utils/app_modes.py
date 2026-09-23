@@ -97,6 +97,21 @@ INPUT_TYPES = {
                         'description': "Un extrait de voix à IMITER. La voix produite lui ressemblera ; l'extrait n'est pas modifié."},
     'reference_melody': {'label': 'Mélodie de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference',
                         'description': "Une mélodie qui ORIENTE la composition. Elle guide, elle n'est pas remixée."},
+    # ── Entrées consommées par l'APP, jamais par un modèle (2026-09-23) ─────────────────
+    # Les jetons ci-dessus sont lus par un MODÈLE (ils arrivent par ses `inputs_required`/
+    # `inputs_optional`). Ces deux-là sont lus par l'app AUTOUR du modèle : aucun moteur ne les
+    # déclarera jamais, et c'est pourquoi ils n'ont pas d'`accept` — leur nature est celle de la
+    # SORTIE de l'app (une transcription pour le transcriber, une image pour un upscaler).
+    # Ils sont offerts par une CAPACITÉ d'app (`has_reference_result`, `has_result_import`),
+    # jamais par un modèle : `app_registry.app_result_ports`.
+    'reference_result': {'label': 'Résultat de référence', 'kind': 'file', 'multi': False, 'port': 'reference',
+                         'description': "Le résultat ATTENDU, produit ailleurs (souvent corrigé à la main). "
+                                        "La sortie lui est comparée pour mesurer la qualité ; il n'est ni "
+                                        "transformé ni transmis au modèle."},
+    'work_result':      {'label': 'Résultat existant', 'kind': 'file', 'multi': False, 'port': 'travail',
+                         'description': "Un résultat déjà produit ailleurs (autre outil, version antérieure). "
+                                        "Il tient lieu de traitement et devient le résultat de l'élément, "
+                                        "à corriger ou à comparer."},
 }
 
 # ⚠ `description` (2026-09-10, demande Fabien) : « il faut peut-être ajouter un petit texte
