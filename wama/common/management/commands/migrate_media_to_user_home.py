@@ -157,6 +157,54 @@ def cible(valeur: str):
     return '/'.join(['users', uid, app, *parts[2:]])
 
 
+def path_list_fields():
+    """(modèle, champ) portant une LISTE de chemins (JSON) — lus dans la déclaration que la
+    rétention tient DÉJÀ (`retention.RETENTION_MODELS[…]['path_lists']`), jamais une 2ᵉ liste.
+
+    ⚠ Le TROU que la migration du 2026-09-12 a laissé (relevé le 2026-09-23 par Fabien : « on a
+    perdu la preview imager image à 4 images ») : `champs_fichier` balaie les `FileField` et les
+    champs TEXTE, pas les `JSONField`. Les images de l'imager ont été DÉPLACÉES (le plan part du
+    disque) mais `generated_images` a gardé ses chemins ABSOLUS d'avant — l'aperçu, qui ne rend
+    que les fichiers existants, restait vide sur toutes les générations multi-images.
+    """
+    from wama.common.services.retention import RETENTION_MODELS
+    for entry in RETENTION_MODELS:
+        for name in entry.get('path_lists') or ():
+            try:
+                yield django_apps.get_model(entry['model']), name
+            except LookupError:
+                continue
+
+
+def realign_path_lists(racine: Path, apply: bool, filtre: str = '') -> int:
+    """Réécrit, dans les listes de chemins, chaque entrée dont le fichier n'est plus à son ancien
+    emplacement mais EST à son domicile (`cible`). La forme de l'entrée est CONSERVÉE (absolue
+    reste absolue). Rend le nombre de lignes concernées ; n'écrit rien sans `apply`."""
+    racine_txt = str(racine).replace('\\', '/').rstrip('/') + '/'
+    touched = 0
+    for model, name in path_list_fields():
+        if filtre and model._meta.app_label != filtre:
+            continue
+        for pk, paths in model.objects.exclude(**{f'{name}__isnull': True}).values_list('pk', name):
+            if not isinstance(paths, list) or not paths:
+                continue
+            new, changed = [], False
+            for path in paths:
+                norm = str(path or '').replace('\\', '/')
+                rel = norm[len(racine_txt):] if norm.startswith(racine_txt) else norm
+                dest = cible(rel)
+                if dest and not (racine / rel).is_file() and (racine / dest).is_file():
+                    new.append(racine_txt + dest if norm.startswith(racine_txt) else dest)
+                    changed = True
+                else:
+                    new.append(path)
+            if changed:
+                touched += 1
+                if apply:
+                    model.objects.filter(pk=pk).update(**{name: new})
+    return touched
+
+
 class Command(BaseCommand):
     help = "Déplace <app>/<user>/input|output vers users/<user>/<app>/input|output"
 
@@ -275,6 +323,9 @@ class Command(BaseCommand):
             f"  lignes à RÉALIGNER   : 0")
         self.stdout.write(f"  ⚠ valeurs SANS fichier sur le disque : {absents}"
                           "   (préexistant — `check_media_integrity` les connaît)")
+        path_lists = realign_path_lists(racine, apply=False, filtre=filtre)
+        self.stdout.write(f"  listes de chemins (JSON) à réaligner : {path_lists}"
+                          "   (ex. images d'une génération imager)")
 
         # ── Pré-vol : il s'affiche TOUJOURS, et il BLOQUE `--apply` ──────────────────────
         trop_longs = self._prevol(longueurs)
@@ -365,9 +416,12 @@ class Command(BaseCommand):
             deplaces += 1
             relignes += len(r)
 
+        # Les LISTES de chemins suivent leurs fichiers — APRÈS les déplacements, puisque c'est
+        # l'existence au domicile qui décide.
+        path_lists = realign_path_lists(racine, apply=True, filtre=filtre)
         self.stdout.write("")
         self.stdout.write(f"  déplacés : {deplaces} / {len(refs)} fichiers"
-                          f"   ({relignes} ligne(s) réécrite(s))")
+                          f"   ({relignes} ligne(s) réécrite(s), {path_lists} liste(s) de chemins)")
         if collisions:
             self.stdout.write(self.style.WARNING(
                 f"  ⚠ {len(collisions)} COLLISION(S) — la cible existait déjà, la source est "

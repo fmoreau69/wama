@@ -33,6 +33,22 @@
     });
   }
 
+  // Les LIMITES d'un modèle dites sous son sélecteur, DÉRIVÉES de ses capacités (2026-09-23) —
+  // jamais recopiées dans sa description : « 5 s max, 24 fps » écrit à la main dans une chaîne
+  // aurait dérivé de `max_frames`/`fps` au premier changement (CogVideoX disait « 24 fps » dans
+  // sa description pendant que sa cadence réelle était 8).
+  function capabilityFacts(caps) {
+    if (!caps) return '';
+    const out = [];
+    if (caps.max_duration_s) {
+      out.push('natif ≤ ' + String(Math.round(caps.max_duration_s * 10) / 10).replace('.', ',') + ' s'
+               + (caps.duration_extension ? ' (prolongeable)' : ''));
+    }
+    if (caps.fps) out.push(caps.fps + ' i/s');
+    if (caps.native_resolution) out.push(String(caps.native_resolution).replace('x', '×'));
+    return out.join(', ');
+  }
+
   function init(cfg) {
     cfg = cfg || {};
     const sel = document.getElementById(cfg.selectId);
@@ -52,6 +68,8 @@
       let txt = m.description || fb || (typeof rawMeta === 'string' ? rawMeta : '');
       const vram = m.recommended_vram_gb || m.vram_gb;
       if (txt && vram) txt += ' · ' + vram + ' Go VRAM';
+      const facts = capabilityFacts(m.capabilities);
+      if (txt && facts) txt += ' · ' + facts;
 
       const long = m.description_long || '';
       if (txt && long && long !== (m.description || '')) {
@@ -108,6 +126,7 @@
             description: m.description_short || m.description || '',
             description_long: m.description || '',
             vram_gb: m.vram_gb,
+            capabilities: m.capabilities || null,
           };
         });
         return meta;
@@ -115,5 +134,6 @@
       .catch(function () { return {}; });
   }
 
-  global.WamaModelHelp = { init: init, fetchCatalogMeta: fetchCatalogMeta };
+  global.WamaModelHelp = { init: init, fetchCatalogMeta: fetchCatalogMeta,
+                           capabilityFacts: capabilityFacts };
 })(window);

@@ -516,7 +516,12 @@ class WanVideoBackend(ImageGenerationBackend):
                 # (2026-09-23) aurait fait à chaque vidéo longue. `from_pipe` PARTAGE les
                 # modules ; les crochets de déchargement se reposent ci-dessous, et le pipeline
                 # texte→vidéo les reposera à son tour avant de resservir (`_rehook`).
-                self._pipe_i2v = WanImageToVideoPipeline.from_pipe(self._pipe_t2v, **pipe_kwargs)
+                # 🔴 `torch_dtype=None` OBLIGATOIRE : le défaut de `from_pipe` est `float32`, et il
+                # CONVERTIT EN PLACE les modules partagés (`new_pipeline.to(dtype=…)`, diffusers
+                # 0.37 `pipeline_utils.py:2118/2214`) — les 23 Go bf16 passaient à 46 Go fp32.
+                # Vécu le 2026-09-23 à 22:40 : OOM du worker GPU (46,9 Go anon), 1ʳᵉ vidéo 15 s.
+                self._pipe_i2v = WanImageToVideoPipeline.from_pipe(
+                    self._pipe_t2v, torch_dtype=None, **pipe_kwargs)
                 self._shared_components = True
                 logger.info("[Wan I2V] Pipeline dérivé du texte→vidéo (poids partagés)")
             else:

@@ -13,6 +13,10 @@ multi_format_download) — pas un param de schéma. Le choix early/late est déc
 from __future__ import annotations
 from typing import List, Tuple
 
+#: Noms des paramètres que fabrique cette brique — lus par qui doit les appliquer (dépôt imager)
+#: au lieu d'être recopiés en littéraux.
+OUTPUT_PARAM_NAMES = ("output_format", "output_quality")
+
 # Presets de qualité génériques (indépendants du domaine).
 OUTPUT_QUALITY_CHOICES: List[Tuple[str, str]] = [
     ("web", "Web (léger)"),

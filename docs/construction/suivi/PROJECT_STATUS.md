@@ -16733,3 +16733,37 @@ n'a pas été ouverte au navigateur (même moteur de rendu que le volet, mais pa
 manifestes : les lignes imager ont de nouvelles capacités → `manifest_export` à régénérer (71
 autres périmés d'autres chantiers, non régénérés ici) ; ⑤ d'autres réglages s'y prêteront (durée
 du composer ← `max_duration`, déjà bornée côté serveur seulement).
+
+## §PALIER — 2026-09-23 (fin de soirée), « 1ʳᵉ vidéo 15 s : OOM du worker GPU ; aperçu imager à 4 images ; audit schéma-driven » — ✅ LIVRÉ
+
+- **La vidéo 15 s n'était pas « longue », elle était MORTE** : worker GPU tué par l'OOM (46,9 Go
+  anon, `dmesg` 22:40:41) en dérivant le pipeline image→vidéo du 2ᵉ segment. Cause, dans MON code du
+  soir : `from_pipe` a pour défaut `torch_dtype=float32` et convertit EN PLACE les modules partagés
+  (diffusers 0.37 `pipeline_utils.py:2118/2214`) — 23 Go bf16 → 46 Go. → `torch_dtype=None`, garde
+  `SharedPipelineDtypeTest`. Le 1ᵉʳ segment, lui, a montré le gain du tuilage VAE : décodage
+  **2 min 51** (69 min le matin). ⚠ Le worker GPU n'a pas redémarré seul : il n'y en avait plus.
+- **Aperçu imager multi-images perdu** : la migration vers le domicile utilisateur (12/09) a déplacé
+  les fichiers mais pas `generated_images` (liste JSON de chemins ABSOLUS) — `champs_fichier` ne lit
+  que les `FileField`/champs texte. → `migrate_media_to_user_home.realign_path_lists`, qui lit la
+  déclaration `path_lists` que la rétention tient DÉJÀ ; appliqué (imager) : **11 listes**, les 9
+  générations à 4 images ont à nouveau 4/4 images. ⚠ `check_media_integrity` ne lit pas ces listes
+  non plus (images comptées « orphelines ») — fichier de la partition « tests de robustesse »,
+  transmis, pas touché.
+- **Audit schéma-driven de mon propre travail** : la tâche vidéo codait encore 8/24/30 i/s et
+  720×480/848×480 par moteur → lus dans les capacités déclarées ; les limites recopiées à la main
+  dans les descriptions courtes → retirées, `WamaModelHelp.capabilityFacts` les DÉRIVE sous le
+  sélecteur (« natif ≤ 5 s (prolongeable), 24 i/s, 1280×704 ») ; `OUTPUT_PARAM_NAMES` exporté par
+  la brique au lieu de littéraux. Reste assumé : le plafond de RÉSOLUTION de LTX fp8 (768×432, borne
+  de machine) est encore dans la tâche.
+- **H3** : `huggingface:lightx2v/Minimax-h3-Turbo-SLA` n'a AUCUN backend (`backend_ref` vide, aucun
+  moteur MiniMax-H3 dans diffusers 0.37 ni paquet `lightx2v`), ses 3,1 Go sont un transformer
+  « fl2v 4 pas » format lightx2v/ComfyUI qui suppose la base H3, et la licence H3 EXCLUT l'UE
+  (décision du 2026-09-02, `PROSPECTION_PIPELINE §Suite (même jour)`). Inutilisable sans licence.
+- **Durées natives du parc** : FastWan 5 s, CogVideoX 6 s, LTX 0.9.8 ~10,7 s (257 images), Mochi
+  2,8 s (borne de machine). diffusers 0.37 porte `ltx2`, `skyreels_v2` (diffusion forcing, longue
+  durée) et HunyuanVideo FramePack — à PROSPECTER, licences à lire (Hunyuan exclut l'UE).
+- Contrôle de langue : 3 rouges (code −1, méthodes de test +1) hors de mes fichiers (vérifié par
+  diff AST HEAD/arbre sur chacun de mes fichiers) — WIP d'une autre instance.
+
+🔚 Redémarrer le **worker GPU** (mort) + gunicorn ; rejouer FastWan 15 s ; décider de la
+prospection « vidéo longue » (LTX-2, SkyReels-V2).

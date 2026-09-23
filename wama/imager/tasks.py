@@ -732,6 +732,22 @@ def generate_video_task(self, generation_id):
             reference_image_path = generation.reference_image.path
             _console(user_id, f"[Imager Video] Reference image: {os.path.basename(reference_image_path)}")
 
+        # Capacités NATIVES du modèle (cadence, plafond d'images, résolution, prolongation),
+        # tirées de SA déclaration — la même lecture que l'écran (`cap_from`). Les constantes
+        # par moteur (8 / 24 / 30 i/s, 720×480, 848×480) écrites ici jusqu'au 2026-09-23
+        # doublaient la déclaration et avaient DIVERGÉ d'elle (CogVideoX déclarait 24 i/s).
+        from wama.common.utils.model_capabilities import (derive_inputs_from_tasks,
+                                                          video_caps_from_declaration)
+        from wama.common.utils.model_declarations import declaration as _declaration
+        _decl = _declaration('imager', generation.model) or {}
+        _tokens = derive_inputs_from_tasks(str(_decl.get('tasks') or '').lower(),
+                                           is_video=True)['tokens']
+        vcaps = video_caps_from_declaration(_decl, _tokens)
+
+        def _native_size(default):
+            w, _, h = str(vcaps.get('native_resolution') or '').partition('x')
+            return (int(w), int(h)) if w.isdigit() and h.isdigit() else default
+
         # Create video generation parameters (different structure per backend)
         # export_fps = FPS used when writing the MP4 — must match the model's native FPS
         # so that playback duration == intended duration.
@@ -753,8 +769,9 @@ def generate_video_task(self, generation_id):
         elif backend_type == 'cogvideox':
             # CogVideoX native fps = 8. Frames must satisfy 4k+1 constraint.
             # Use the requested duration to compute the correct frame count.
-            COGVIDEOX_FPS = 8
+            COGVIDEOX_FPS = int(vcaps.get('fps') or 8)       # déclarée : 8 i/s
             export_fps = COGVIDEOX_FPS
+            cog_w, cog_h = _native_size((720, 480))           # résolution d'entraînement
             raw_cogvideox = int(generation.video_duration * COGVIDEOX_FPS)
             k = max(1, round((raw_cogvideox - 1) / 4))
             cogvideox_frames = 4 * k + 1  # e.g. 5s→41f, 6s→49f, 8s→65f
@@ -763,8 +780,8 @@ def generate_video_task(self, generation_id):
                 prompt=_prompt,
                 negative_prompt=_negative,
                 model=generation.model,
-                width=720,  # CogVideoX fixed resolution
-                height=480,
+                width=cog_w,
+                height=cog_h,
                 num_frames=cogvideox_frames,
                 num_inference_steps=generation.steps,
                 guidance_scale=generation.guidance_scale,
@@ -774,7 +791,7 @@ def generate_video_task(self, generation_id):
             )
         elif backend_type == 'ltx':
             # LTX-Video native fps = 24. Frames must be 8n+1.
-            LTX_FPS = 24
+            LTX_FPS = int(vcaps.get('fps') or 24)            # déclarée : 24 i/s
             export_fps = LTX_FPS
             ltx_width = (width // 32) * 32
             ltx_height = (height // 32) * 32
@@ -817,8 +834,9 @@ def generate_video_task(self, generation_id):
         elif backend_type == 'mochi':
             # Mochi native fps = 30 ; le plafond (84 images) est DÉCLARÉ (`max_frames`) et
             # appliqué plus bas, avec les autres moteurs.
-            MOCHI_FPS = 30
+            MOCHI_FPS = int(vcaps.get('fps') or 30)          # déclarée : 30 i/s
             export_fps = MOCHI_FPS
+            mochi_w, mochi_h = _native_size((848, 480))
             raw_mochi = int(generation.video_duration * MOCHI_FPS)
             mochi_frames = max(1, raw_mochi)
             _console(user_id, f"[Imager Video] Mochi: {mochi_frames} frames à {MOCHI_FPS}fps = {mochi_frames / MOCHI_FPS:.1f}s")
@@ -826,8 +844,8 @@ def generate_video_task(self, generation_id):
                 prompt=_prompt,
                 negative_prompt=_negative,
                 model=generation.model,
-                width=848,  # Mochi default resolution
-                height=480,
+                width=mochi_w,
+                height=mochi_h,
                 num_frames=mochi_frames,
                 num_inference_steps=generation.steps,
                 guidance_scale=generation.guidance_scale,
@@ -864,13 +882,6 @@ def generate_video_task(self, generation_id):
         # Un seul fait pour l'écran et la tâche : `max_frames` borne UN passage. Au-delà, soit
         # le modèle déclare la prolongation par segments (image→vidéo enchaînés, extrapolé),
         # soit la durée est ramenée au plafond — et c'est DIT.
-        from wama.common.utils.model_capabilities import (derive_inputs_from_tasks,
-                                                          video_caps_from_declaration)
-        from wama.common.utils.model_declarations import declaration as _declaration
-        _decl = _declaration('imager', generation.model) or {}
-        _tokens = derive_inputs_from_tasks(str(_decl.get('tasks') or '').lower(),
-                                           is_video=True)['tokens']
-        vcaps = video_caps_from_declaration(_decl, _tokens)
         wanted_frames = params.num_frames
         native_max = vcaps.get('max_frames')
         extend = False
