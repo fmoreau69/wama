@@ -16544,7 +16544,7 @@ commune est `@require_GET` ; le test passe au GET, le geste mesuré.
 
 Grille **876/935**. Tests : synthesizer + anonymizer + converter + brique + partage + contrat de
 suppression 132 OK ; adresses + codegen + catalogue de docs OK ; budget de langue **recalé à 2737**
-(noms de tests inchangés à 1312). `check_docs` : la référence `synthesizer/views.py:1785` de
+(noms de tests inchangés à 1312). `check_docs` : la référence de ligne du SSE du synthesizer dans
 `WAMA_COLLABORATION §6.2` recalée (le fichier a raccourci) ; la cassée restante (`WAMA_LLM.md:436`,
 `run_improve.py`) est dans le WIP d'une autre instance. `WAMA_MECANISMES.md` et `docs/dev/briques.md`
 NON régénérés ici : la table projetterait le WIP d'autrui (`/commit-partiel §4`).
@@ -16557,3 +16557,49 @@ Décision d'infra pour Fabien, toujours en attente : le `.mjs` (`mimetypes.add_t
 **Suite immédiate (même session)** : le `batch_download` du composer est passé sur la fabrique par
 `batch_link` (`output_name=_link_name`, `zip_name`) — la première dette que `batch_link` levait ;
 composer + brique + contrat de suppression 62 OK. Reste local au composer : `batch_update` seul.
+
+## §MESURE — 2026-09-23, « Batterie RÉELLE des gestes de lot sur le serveur relancé + alignement des docs » — ✅ MESURÉ
+
+Fabien : *« Wama est relancé, tu peux faire des tests réels. Tout est bien aligné, rien réinventé ?
+`app_generation_route` est à jour ? La grille du portage est à jour ? »* Réponses MESURÉES, pas
+affirmées.
+
+**Batterie réelle** (`run_nightly_tests --id .batch_actions,.delete_from_batch`, gunicorn WSL2 sur
+`127.0.0.1:8000`, rapport `logs/nightly_tests/nightly_20260923_124943.json`) : **25/34 OK, 1 échec,
+8 skips**. Les DIX apps réelles passent les deux gestes de lot (⧉ puis 🗑 de la card mère ; retrait
+d'une card d'un lot de trois sans rechargement) : 20/20 — c'est la preuve FONCTIONNELLE du portage
+10/10 sur `make_batch_views`, au-delà du vert d'adoption de la grille. Jumelles : converter_01 et
+describer_01 4/4 (vues RÉGÉNÉRÉES ce matin) ; imager_01 ⧉/🗑 de lot OK mais `delete_from_batch`
+**500 sur `/imager_01/delete/<id>/`** ; composer_01 skippé (deux dépôts ne forment pas de LOT, et sa
+card d'entrée générée ne publie pas `batch_template_url`). Les 6 skips restants sont attendus
+(media_library, studio : pas de lot ; model_manager : fermé au compte de test).
+
+⚠⚠ **L'échec d'imager_01 est une leçon sur la MESURE, pas sur le code du jour.** Sa vue `delete`
+est une copie FIGÉE (`views:reverted-couple`) qui importe `find_member_batch` depuis `batch_utils` —
+un symbole RETIRÉ le 15/09 (R63, `27f8171a`) : l'import était déjà cassé (`ImportError`) avant que je
+retire le module ce matin (R68, désormais `ModuleNotFoundError`). Le grep « 0 appelant » de R68 était
+VRAI sur le dépôt et FAUX sur le disque : **les jumelles sont gitignorées, et l'outil natif de
+recherche respecte `.gitignore`** — un relevé d'absence ne couvre les jumelles que s'il les nomme
+(`grep -rn … wama/*_01/`). Corrigé dans la ligne R68 du ledger. Remède conforme à la doctrine
+(jamais corriger une jumelle à la main) : régénérer `views` d'imager_01 — encore refusé par la glu
+(routes d'élément `<int:generation_id>`, `params.py`), les routes de LOT sont passées à `<int:pk>`
+ce matin. composer_01 : écart de GÉNÉRATEUR à instruire (upload multiple sans lot, pas de
+`batch_template_url` sur la card d'entrée générée) — pas de correction à la main.
+
+**Alignement des docs, vérifié à la ligne** : `ROUTE §11 #36` = 10/10 (line 3201) ; `ROUTE §S`
+reçoit SEPT gardes du 22/09 qui vivaient dans la prose de la marche S ⑤ sans figurer au contrat
+d'acceptation (helper émis à côté d'une brique, six vues recopiées, `workers.py` supplanté,
+registre non concurrent, couple views↔templates, champs fichier de la facette `data`, alias de
+routes) ; `mecanismes.py::batch_views` dit l'adoption 10/10 et `batch_link` ; `AGENTS.md` porte la
+mesure 876/935 avec `batch_read_common` NON APPLICABLE à l'avatarizer (plus aucune lecture locale —
+d'où 935 et non 936, ce que ma ligne du matin disait faux : « 10/10 »). Rien de réinventé : chaque
+brique du portage était citée avant d'être touchée (`batch_common`, `queue_duplication`,
+`process_control`, `param_schema`, `scoping`), et la seule brique NEUVE de la session (`make_batch_views`)
+est l'extraction d'un code qui existait en deux exemplaires (générateur + 10 apps).
+`check_docs` : 0 cassée de mon fait (la cassée `WAMA_LLM.md:436` est dans le WIP d'une autre instance).
+`WAMA_MECANISMES.md` : seules mes deux lignes régénérées entrent (les six autres projettent le WIP
+d'autrui, `/commit-partiel §4`).
+
+🔚 imager_01 : lever la glu des routes d'élément pour régénérer `views` (la copie figée est cassée
+depuis le 15/09) ; composer_01 : instruire l'écart de lot du générateur ; un critère de grille par vue
+de lot ; portage des sections de card. Décision Fabien toujours en attente : `.mjs` (`settings.py`).

@@ -1157,6 +1157,13 @@ outillé avant d'ouvrir cette marche.
   > | File vide sur page 200 (describer_01 03/09) | symbole disparu du généré (`PARAMS`), importé PARESSEUSEMENT par le copié | alias `<X> = <X>_JSON` émis + **juge de cohérence de paquet (AST)** + smoke **« file HABITÉE »** |
   > | Cascade `'false'` sur colonne typée (converter_01 31/08) | coercition absente au générateur | coercition + test |
   > | Batterie 0/11 « échecs » (03/09) | **l'INSTRUMENT** : Playwright sans navigateurs | contre-vérifier l'outil avant d'accuser l'app (`playwright install`) |
+  > | Helper ÉMIS à côté d'une brique (`_batch_elements` vs `elements_du_lot`, 22/09 — relevé par Fabien) | chemin PARALLÈLE au commun, écrit par le gabarit | le généré APPELLE `batch_elements`/`attach_to_batch` ; `tests_codegen_lot.CheminDeLotTest` + `LinkFormViewsTest` refusent un `_batch_elements` |
+  > | Six vues de lot recopiées dans les 10 apps réelles (22/09, question de Fabien « le batch est commun et porté ? ») | corps conventionnels écrits à la main, 60 lectures de lot sous 5 graphies | fabrique `make_batch_views` (le générateur la CONSOMME, les 10 apps l'ont ralliée le 23/09) + critères `batch_read_common`/`batch_views_common` + `tests_batch_views` |
+  > | `workers.py` copié à côté d'un `tasks.py` généré (describer_01 22/09) | Celery autodécouvre les deux : tâche double, import mort vers les vues copiées | `app_sandbox` retire le module supplanté (témoin gardé) — `SupersededTaskModuleTest` |
+  > | Registre `sandbox_apps.json` écrasé par deux chaînes parallèles (22/09) | liste entière relue au début, réécrite à la fin | `_save_entry` n'écrit que l'entrée mesurée (`RegistryEntrySaveTest`) — et **jamais deux substitutions en parallèle** |
+  > | Page 200 avec 🗑/⚙/↻ en 500 (composer_01 22/09) | vues GÉNÉRÉES × templates COPIÉS : le partial `_generic_card.html` n'existe pas | smoke `card_html` dès que le couple est complet ; un échec des templates ramène AUSSI les vues (`reverted-couple`, `CoupleViewsTemplatesTest`) |
+  > | Fichiers de résultat laissés sur le disque (`result_file`, `audio_output`, 22/09) | champs FICHIER supposés (`input_file`/`output_file` seuls) | lus à la facette `data` (`FileField`/`ImageField`) ; contrat GÉNÉRIQUE `tests_queue_delete_contract` sur les jumelles |
+  > | Page entière tombée sur un `{% url %}` (`batch_create`, `upload`, 22/09) | nom de route SUPPOSÉ | `urls_gen.ROUTE_ALIASES` (`import_batch`, `generate`/`create`), corps émis sous chaque alias par une règle générale |
   >
   > **Ordre de substitution recommandé** : `params` → `apps` → `urls` → `models` → `tasks` →
   > `views` → `templates` (les deux derniers en COUPLE ; une app dont `views_gen` refuse — file

@@ -814,6 +814,13 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > Puis **99 critères : 865/936** — +1 en F5, `batch_views_common` (les six vues de lot par la
 > fabrique commune `make_batch_views`, livrée le soir même et consommée par le générateur) :
 > rouge 10/10 tant que les apps réelles gardent leurs `def batch_*` à la main.
+> ⚠ **Remesuré le 2026-09-23 : 876/935** — les dix apps sont sur `make_batch_views` ;
+> `batch_read_common` VRAI 9/10 et NON APPLICABLE à l'avatarizer (plus aucune lecture de lot
+> dans ses vues : tout passe par la fabrique — d'où 935 et non 936), `batch_views_common` VRAI
+> pour synthesizer et avatarizer,
+> PARTIEL pour les huit autres par une vue restée locale et ASSUMÉE (`batch_download`
+> multi-format §9.10, ou `batch_update` à logique propre) — un partiel n'est plus un reste de
+> portage, c'est une spécificité déclarée (`ROUTE §11 #36`).
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,
