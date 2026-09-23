@@ -496,6 +496,42 @@ def precision_of_files(revision, files_by_role) -> dict:
     return out
 
 
+def remote_precision(hf_id: str, files_by_role) -> dict:
+    """JUMEAU DISTANT de `precision_of_files`, même forme `{rôle: {params, dtypes,
+    params_by_dtype}}` — pour un CANDIDAT, dont aucun fichier n'est sur disque (2026-09-23).
+    `parse_safetensors_file_metadata` ne lit que l'EN-TÊTE de chaque fichier retenu (requête de
+    plage), jamais un tenseur — fichier par fichier, parce que `get_safetensors_metadata` ne voit
+    que la racine du dépôt et rate les sous-dossiers d'un dépôt diffusers (mesuré sur Wan).
+    `{}` si rien n'est lisible : l'absence se lit, elle ne vaut pas zéro. Sans cette lecture, le
+    pic d'un encodeur stocké en F32 (UMT5 de Wan : 21 Go) passait pour celui qu'il aura chargé
+    en bf16 (10,6)."""
+    if not hf_id or not files_by_role:
+        return {}
+    try:
+        from huggingface_hub import HfApi
+        api = HfApi()
+    except Exception:
+        return {}
+    out = {}
+    for role, entries in files_by_role.items():
+        by_dtype = {}
+        for entry in entries or []:
+            rel = str(entry[0] if isinstance(entry, (tuple, list)) else entry)
+            if not rel.lower().endswith('.safetensors'):
+                continue
+            try:
+                counts = api.parse_safetensors_file_metadata(hf_id, rel).parameter_count or {}
+            except Exception as e:
+                logger.debug("[prospect_hf] en-tête %s:%s illisible : %s", hf_id, rel, e)
+                continue
+            for dtype, n in counts.items():
+                by_dtype[dtype] = by_dtype.get(dtype, 0) + n
+        if by_dtype:
+            out[role] = {'params': sum(by_dtype.values()), 'dtypes': sorted(by_dtype),
+                         'params_by_dtype': by_dtype}
+    return out
+
+
 #: Marqueurs de QUANTISATION/repack dans l'id d'un dépôt dérivé. Sous-ensemble de
 #: `_NOISE_MARKERS` (moins `lora` — un adaptateur n'est pas une variante du modèle — et moins
 #: `coreml`/`mlx`, inchargeables sur l'hôte CUDA), plus les schémas absents du bruit

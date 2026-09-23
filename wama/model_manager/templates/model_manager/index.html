@@ -587,6 +587,18 @@
                 </select>
             </div>
             <div class="col-auto">
+                <label class="text-muted small me-2" for="sort-models">Trier par :</label>
+                <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="sort-models"
+                        title="L'ordre suit ce critère ; une valeur inconnue va toujours en dernier.">
+                    <option value="name:asc">Nom</option>
+                    <option value="vram:asc">VRAM (la plus faible d'abord)</option>
+                    <option value="vram:desc">VRAM (la plus forte d'abord)</option>
+                    <option value="perf:desc">Performance (rang dans son banc)</option>
+                    <option value="confidence:desc">Confiance (proposés)</option>
+                    <option value="disk:asc">Disque (le plus léger d'abord)</option>
+                </select>
+            </div>
+            <div class="col-auto">
                 <div class="input-group input-group-sm" style="width: 220px;">
                     <span class="input-group-text bg-dark border-secondary">
                         <i class="fas fa-search text-muted"></i>
@@ -996,6 +1008,30 @@ document.addEventListener('DOMContentLoaded', function() {
             + `<span class="opacity-75 ms-1" style="font-size:.85em">${echelle}</span></span>`;
     }
 
+    {% comment %} Clés de TRI (brique commune `WamaFilterBar.sort`, 2026-09-23). La performance se
+    trie par RANG CENTILE, jamais par `benchmark_index` : un Elo (~1000) et un Intelligence Index
+    (~50) ne se comparent pas, le rang dans son banc si. La VRAM est celle que le modèle EXIGE au
+    minimum (pic en déchargement de la cascade commune), la valeur déclarée à défaut. Une valeur
+    inconnue n'est pas écrite : la brique la range en dernier. {% endcomment %}
+    function sortAttributes(model) {
+        const fp = model.vram_footprint || {};
+        const vram = fp.offload != null ? fp.offload : (model.vram_gb || null);
+        const rank = (model.benchmark_meta || {}).percentile_rank;
+        const out = {
+            name: (model.name || '').replace(/"/g, '&quot;'),
+            vram: vram, perf: rank, confidence: model.confidence, disk: model.disk_gb || null,
+        };
+        return Object.keys(out).filter(k => out[k] != null && out[k] !== '')
+            .map(k => `data-s-${k}="${out[k]}"`).join(' ');
+    }
+
+    function applySort() {
+        const select = document.getElementById('sort-models');
+        if (select && window.WamaFilterBar && WamaFilterBar.sort) {
+            WamaFilterBar.sort(Array.from(document.querySelectorAll('.model-item')), select.value);
+        }
+    }
+
     function renderModels(models) {
         allModels = models;
         document.getElementById('total-count').textContent = models.length;
@@ -1024,7 +1060,8 @@ document.addEventListener('DOMContentLoaded', function() {
                  data-proposed="${model.is_proposed ? 'true' : 'false'}"
                  data-name="${(model.name || '').replace(/"/g, '&quot;')}"
                  data-description="${(model.description || '').replace(/"/g, '&quot;')}"
-                 data-model-key="${(model.model_key || '').replace(/"/g, '&quot;')}">
+                 data-model-key="${(model.model_key || '').replace(/"/g, '&quot;')}"
+                 ${sortAttributes(model)}>
                 <div class="model-card ${model.is_loaded ? 'loaded' : (model.is_downloaded ? 'downloaded' : 'not-downloaded')} ${selectedModels.has(model.id) ? 'selected' : ''}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div class="d-flex align-items-center">
@@ -1160,6 +1197,7 @@ document.addEventListener('DOMContentLoaded', function() {
         attachConversionHandlers();
         attachProspectHandlers();
         applyFilters();
+        applySort();
         if (typeof mmReselect === 'function') mmReselect();
     }
 
@@ -1461,6 +1499,16 @@ document.addEventListener('DOMContentLoaded', function() {
         ] },
         { section: 'Ressources', rows: [
             { k: 'VRAM', field: 'vram_gb', suffix: ' Go' },
+            { k: 'VRAM exigée', get: function (m) {
+                // Pics de la cascade commune (`model_footprint_gb`) : déchargement des composants
+                // (le plus gros seul en VRAM) / tout sur la carte. Pour un candidat, calculés depuis
+                // les fichiers du dépôt, avant installation (2026-09-23).
+                const f = m.vram_footprint || {};
+                if (f.offload == null && f.full == null) return '';
+                return (f.offload != null ? f.offload + ' Go avec déchargement' : '')
+                    + (f.full != null ? (f.offload != null ? ' · ' : '') + f.full + ' Go tout chargé' : '')
+                    + (f.provenance ? ' (' + f.provenance + ')' : '');
+            } },
             { k: 'VRAM mesurée', get: function (m) {
                 // Empreinte au CHARGEMENT mesurée par l'allocateur torch et rendue au catalogue par
                 // le gouverneur (2026-09-14) — distincte de `vram_gb`, déclarée ou estimée.
@@ -2020,6 +2068,19 @@ document.addEventListener('DOMContentLoaded', function() {
     ['filter-type', 'filter-source', 'filter-format', 'filter-status'].forEach(id => {
         document.getElementById(id).addEventListener('change', applyFilters);
     });
+
+    // Tri : le choix est retenu d'une visite à l'autre (confort de ce navigateur seulement).
+    (function () {
+        const select = document.getElementById('sort-models');
+        try {
+            const kept = localStorage.getItem('mm.sort');
+            if (kept && [...select.options].some(o => o.value === kept)) select.value = kept;
+        } catch (e) {}
+        select.addEventListener('change', function () {
+            try { localStorage.setItem('mm.sort', this.value); } catch (e) {}
+            applySort();
+        });
+    })();
 
     // Search input - apply filters on typing with debounce
     let searchTimeout;

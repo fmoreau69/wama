@@ -2906,3 +2906,110 @@ class ProspectChainTest(TestCase):
         out, bench, _ = self._run(auto=False)
         self.assertFalse(out['assess_enqueued'])
         bench.delay.assert_called_once()
+
+
+class RejudgeOnNewFactsTest(TestCase):
+    """« Une nouvelle mesure écrase les verdicts déjà rendus » (Fabien, 2026-09-23).
+
+    Before: the pass only took `confidence IS NULL`, so a verdict given on a missing bench or a
+    wrong weight stayed forever (Wan2.2-I2V-A14B at 0.15, judged before the per-component peaks).
+    """
+
+    def setUp(self):
+        from .services import prospect_agents
+        self.pa = prospect_agents
+        self.cand = AIModel.objects.create(
+            model_key='proposed:hf:org/video-5b', name='video-5b', model_type='diffusion',
+            source='huggingface', hf_id='org/video-5b', is_proposed=True, proposal_kind='new',
+            extra_info={'prospect': {'spec': {'kind': 'hf', 'ref': 'org/video-5b'},
+                                     'quant_variants': []}})
+        patcher = patch.object(prospect_agents, '_vram_totale_gb', return_value=24.0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _judge_all(self, confidence=0.8):
+        from contextlib import nullcontext
+        pa = self.pa
+        opinion = {'agent': 'fake', 'recommend': True, 'confidence': confidence,
+                   'vram_fit': 'ok', 'rationale': 'r', 'concerns': ''}
+        weights = {'components': {'transformer': 10.0, 'text_encoder': 11.4},
+                   'total_gb': 22.5, 'largest_gb': 11.4, 'source': 'repo'}
+        with patch.object(pa, '_judge', return_value=opinion) as judge, \
+                patch.object(pa, '_hf_card_excerpt', return_value=''), \
+                patch('wama.common.services.resource_governor.effective_free_gb', return_value=99.0), \
+                patch('wama.common.services.resource_governor.vram_reservation',
+                      return_value=nullcontext()), \
+                patch('wama.model_manager.services.model_installer.components_for_spec',
+                      return_value=weights) as weigh, \
+                patch('wama.model_manager.services.model_registry.ModelRegistry.refresh_ollama_residency'):
+            result = pa.assess_proposed(agents=[('google', 'fake')])
+        return result, judge, weigh
+
+    def test_a_first_pass_judges_and_weighs_the_candidate(self):
+        result, judge, weigh = self._judge_all()
+        self.cand.refresh_from_db()
+        self.assertEqual(result['assessed'], 1)
+        self.assertEqual(self.cand.extra_info['weights']['total_gb'], 22.5)
+        self.assertIn('≈ 22.5 Go tout chargé', judge.call_args[0][0],
+                      'the judge must see the VRAM peaks computed from the repository files')
+        self.assertEqual(result['remaining'], 0)
+
+    def test_same_facts_are_not_judged_twice(self):
+        self._judge_all()
+        result, judge, _ = self._judge_all()
+        self.assertEqual(result['assessed'], 0)
+        judge.assert_not_called()
+
+    def test_a_new_bench_overwrites_the_verdict_and_keeps_the_previous_one(self):
+        self._judge_all(confidence=0.8)
+        AIModel.objects.filter(pk=self.cand.pk).update(
+            benchmark_index=950.0, benchmark_meta={'scale': 'aa_elo_text_to_video'})
+        result, _, weigh = self._judge_all(confidence=0.3)
+        self.cand.refresh_from_db()
+        self.assertEqual(result['assessed'], 1)
+        self.assertEqual(self.cand.confidence, 0.3)
+        self.assertIn('assess_previous', self.cand.extra_info['prospect'])
+        weigh.assert_not_called()   # weights are read once, never re-asked
+
+    def test_an_unreachable_repository_writes_no_weights(self):
+        with patch('wama.model_manager.services.model_installer.components_for_spec',
+                   return_value={'unreachable': 'org/video-5b'}):
+            self.pa._attach_weights(self.cand)
+        self.cand.refresh_from_db()
+        self.assertNotIn('weights', self.cand.extra_info)
+
+    def test_a_new_prospection_keeps_the_readings_so_nothing_is_rejudged(self):
+        """write_candidate rewrote extra_info wholesale: weights and variants vanished at every
+        click on « Prospecter », the facts' fingerprint changed, and EVERYTHING was re-judged."""
+        from .services.prospect_ollama import write_candidate
+        self._judge_all()
+        prospect = dict(self.cand.extra_info['prospect'])
+        write_candidate(self.cand.model_key, nom='video-5b', model_type='diffusion',
+                        source='huggingface', description='refreshed', kind='new',
+                        confidence=None, extra={'spec': prospect['spec']}, hf_id='org/video-5b')
+        self.cand.refresh_from_db()
+        self.assertEqual(self.cand.extra_info['weights']['total_gb'], 22.5)
+        self.assertIn('quant_variants', self.cand.extra_info['prospect'])
+        self.assertIsNotNone(self.cand.confidence)
+        self.assertFalse(self.pa._is_due(self.cand))
+
+    def test_remote_precision_reads_each_file_header_in_subfolders(self):
+        """`get_safetensors_metadata` only sees the repository root: a diffusers repository
+        (Wan) keeps its weights in subfolders, so each retained file's header is read."""
+        from types import SimpleNamespace
+
+        from .services.prospector import remote_precision
+        headers = {'text_encoder/model-00001.safetensors': {'F32': 3},
+                   'text_encoder/model-00002.safetensors': {'F32': 2, 'I64': 1},
+                   'transformer/diffusion_pytorch_model.safetensors': {'BF16': 7}}
+        api = SimpleNamespace(parse_safetensors_file_metadata=lambda repo, name:
+                              SimpleNamespace(parameter_count=headers[name]))
+        with patch('huggingface_hub.HfApi', return_value=api):
+            out = remote_precision('org/video-5b', {
+                'text_encoder': [('text_encoder/model-00001.safetensors', 1),
+                                 ('text_encoder/model-00002.safetensors', 1)],
+                'transformer': [('transformer/diffusion_pytorch_model.safetensors', 1)],
+                'config': [('model_index.json', 1)]})
+        self.assertEqual(out['text_encoder']['params_by_dtype'], {'F32': 5, 'I64': 1})
+        self.assertEqual(out['transformer']['params'], 7)
+        self.assertNotIn('config', out, 'a role without safetensors has no precision, not zero')

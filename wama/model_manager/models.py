@@ -864,7 +864,19 @@ class AIModel(models.Model):
             'quality_index': self.quality_index,
             'benchmark_index': self.benchmark_index,
             'benchmark_meta': self.benchmark_meta,
+            'vram_footprint': self.vram_footprint(),
         }
+
+    def vram_footprint(self) -> dict:
+        """Les deux pics que ce modèle EXIGE (cascade commune `model_footprint_gb`) : `offload`
+        (composants déchargés, le plus gros seul en VRAM) et `full` (tout sur la carte), avec la
+        provenance. Lu par le tri et l'inspecteur (2026-09-23) ; `{}` si rien n'est connu."""
+        from .services.memory_manager import model_footprint_gb
+        offload, provenance = model_footprint_gb(self, offload=True)
+        full, _ = model_footprint_gb(self, offload=False)
+        if offload is None and full is None:
+            return {}
+        return {'offload': offload, 'full': full, 'provenance': provenance}
 
 
 class ModelSyncLog(models.Model):

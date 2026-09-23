@@ -16632,3 +16632,32 @@ mêmes pics VRAM, c'est vitesse contre fidélité ; ③ les candidats déjà jug
 par composant — remettre à NULL les confiances à rejuger est une décision ; ④ le jury ne reçoit
 pas les pics VRAM d'un candidat (relevé de poids fait pour les installés seulement) ; ⑤ aucune
 mesure INTERNE pour la vidéo (`bench.py` : texte et légendage seulement).
+
+## §CLÔTURE — 2026-09-23, « PROSPECTION » (suite du §PALIER du même jour) — ✅ LIVRÉ — 🔚 redémarrer, puis « Prospecter »
+
+Décisions de Fabien, exécutées : **une nouvelle mesure écrase le verdict** (rejugement sur
+empreinte des faits mesurés, ancien verdict gardé un cran) ; **pics VRAM d'un candidat depuis
+les sources** (poids par composant + précision lue dans les en-têtes, avant installation) ;
+**tri** des modèles (nom, VRAM exigée, performance par rang centile, confiance, disque) par la
+brique commune `WamaFilterBar.sort`. Défaut trouvé en route : `write_candidate` effaçait les
+relevés à chaque « Prospecter » (aurait tout rejugé à chaque clic) — corrigé. Détail :
+`wama/model_manager/PROSPECTION_PIPELINE.md §Même jour (suite)`.
+
+Mesuré : 44 candidats HF pesés (44/44) ; **64 candidats `new` à (re)juger** au prochain jury
+(aucun verdict antérieur n'avait d'empreinte) ; Wan2.2-TI2V-5B en bf16 = 21,2 / 10,6 Go = FastWan.
+
+**Contrôles attendus au prochain /reprise** : `check_docs` 1 cassée sur 2225, **1 cible distincte**
+(`wama-dev-ai/run_improve.py`, cité par `WAMA_LLM.md` en cours d'édition par une AUTRE instance —
+pas à moi) ; model_manager + budget de langue : 328 tests OK (venv_win) ; suite WSL2 du jour :
+6 rouges, aucun dans ce périmètre — `tests_access_points` (route `api/vram/grant/`),
+`tests_doc_plans` (`docs/dev/briques.md` à régénérer), `tests_gpu_safe_mode.DiffermentFauteDeVramTest`,
+`tests_tool_api_lectures.AddItemToMediaLibraryTest`, `tests_check_templates.DepotReelTests`,
+`media_library.tests_providers.CommonOpenerTest` (proxy d'environnement). Corpus de manifestes :
+71 périmés (autres chantiers, non régénérés ici).
+
+🔚 **Pendings système** : redémarrer gunicorn + workers Celery (settings, vues, tâches) ; push des
+commits de la session (non poussés) ; tri + navigation ↑/↓ **non vus en navigateur** (JS parsé et
+exercé sous V8 seulement). **Ensuite** : cliquer « Prospecter » et surveiller le 1ᵉʳ jury rebranché
+(~7 lots) ; `probe_fastwan --generate` avant toute décision d'installer Wan2.2-TI2V-5B.
+**Décisions ouvertes (non bloquantes)** : mesure interne vidéo (aucun protocole dans `bench.py`) ;
+brancher le filtre du tirage sur les pics (resté à l'instance gouverneur).

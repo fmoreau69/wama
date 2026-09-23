@@ -261,11 +261,89 @@ def _hf_context(cand) -> str:
         f"Téléchargements : {p.get('downloads')} | Likes : {p.get('likes')} | "
         f"Poids : {cand.disk_gb or '?'} Go\n"
         + _variants_line(p)
+        + _footprint_line(cand)
         + _benchmark_line(cand)
         + f"Modèles déjà installés pour ce métier (référentiel à surpasser) :\n"
           f"{_installed_reference(cand.model_type, (cand.capabilities or {}).get('task'))}\n"
         f"Carte (extrait) :\n{carte or '(non disponible)'}"
     )
+
+
+def _attach_weights(cand) -> None:
+    """Relève UNE fois le poids par composant d'un candidat HF depuis les fichiers de son dépôt
+    (sans rien télécharger) et le persiste dans `extra_info['weights']`, la même clé que les
+    installés — donc les mêmes pics (`memory_manager.model_footprint_gb`) pour le juge, le tri et
+    l'inspecteur (demande de Fabien, 2026-09-23). Un seul lecteur des poids, celui de
+    l'installation (`components_for_spec`), sur le descripteur que l'installation tirera.
+    Dépôt injoignable → rien n'est écrit (repassera) ; rien à peser → `{'empty': True}` (ne se
+    re-demande pas). ⚠ Les précisions ne sont pas lues à distance : un composant stocké en F32
+    compte à ce poids-là, c'est un PLAFOND honnête, pas le pic en bf16."""
+    from datetime import datetime, timezone as dt_timezone
+
+    from .model_installer import components_for_spec
+    info = dict(cand.extra_info or {})
+    if 'weights' in info or not cand.hf_id:
+        return
+    spec = dict((info.get('prospect') or {}).get('spec') or {}) or {'kind': 'hf', 'ref': cand.hf_id}
+    derived = components_for_spec(spec)
+    if 'unreachable' in derived:
+        return
+    record = {k: v for k, v in derived.items() if k != 'files'} or {'empty': True}
+    from .prospector import remote_precision
+    precision = remote_precision(spec.get('ref') or cand.hf_id, derived.get('files'))
+    if precision:
+        record['precision'] = precision
+    record.update(origin='remote', at=datetime.now(dt_timezone.utc).isoformat())
+    info['weights'] = record
+    cand.extra_info = info
+    cand.save(update_fields=['extra_info'])
+
+
+def _footprint_line(cand) -> str:
+    """Les deux pics VRAM du candidat, calculés depuis ses fichiers ('' si inconnus) — et, quand
+    les en-têtes ont donné la précision, les mêmes pics chargés en bf16 (ce que fait diffusers)."""
+    from .memory_manager import model_footprint_gb, peaks_for_precision
+    offload, _ = model_footprint_gb(cand, offload=True)
+    full, provenance = model_footprint_gb(cand, offload=False)
+    if provenance != 'source' or (offload is None and full is None):
+        return ""
+    line = (f"VRAM exigée, calculée depuis les fichiers du dépôt tels que stockés (activations "
+            f"en sus) : ≈ {full} Go tout chargé, ≈ {offload} Go en déchargeant les composants "
+            f"inactifs (le plus gros composant seul sur la carte).")
+    bf16 = peaks_for_precision((cand.extra_info or {}).get('weights') or {}, 'BF16')
+    if bf16 and (bf16.get('full'), bf16.get('offload')) != (full, offload):
+        line += (f" Chargé en bf16 : ≈ {bf16.get('full')} Go tout chargé, "
+                 f"≈ {bf16.get('offload')} Go en déchargeant.")
+    return line + "\n"
+
+
+def _signal_of(cand) -> str:
+    """Empreinte des FAITS que le juge a sous les yeux et que WAMA mesure : banc tiers, poids
+    par composant, variantes quantisées, concurrents, VRAM de la carte. Un verdict rendu sur
+    d'autres faits est PÉRIMÉ et se rejuge (décision de Fabien, 2026-09-23 : « une nouvelle
+    mesure écrase les verdicts déjà rendus »). La carte HF et la réponse du LLM n'y entrent
+    pas : elles ne sont pas des mesures, les y mettre rejugerait sans fin."""
+    import hashlib
+    import json
+    info = cand.extra_info or {}
+    prospect = info.get('prospect') or {}
+    weights = info.get('weights') or {}
+    facts = {
+        'bench': [cand.benchmark_index, (cand.benchmark_meta or {}).get('scale')],
+        'weights': [weights.get('total_gb'), weights.get('largest_gb'), bool(weights)],
+        'variants': sorted(v.get('hf_id', '') for v in (prospect.get('quant_variants') or [])),
+        'competitors': prospect.get('concurrence') or [],
+        'card_gb': _vram_totale_gb(),
+    }
+    return hashlib.sha1(json.dumps(facts, sort_keys=True, default=str).encode()).hexdigest()[:12]
+
+
+def _is_due(cand) -> bool:
+    """Sans verdict, ou verdict rendu sur d'autres faits que ceux d'aujourd'hui."""
+    if cand.confidence is None:
+        return True
+    assess = ((cand.extra_info or {}).get('prospect') or {}).get('assess') or {}
+    return assess.get('signal') != _signal_of(cand)
 
 
 def _variants_line(p: dict) -> str:
@@ -311,8 +389,10 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
     Le contexte factuel dépend de la source : registre + référentiel installé (Ollama),
     carte de modèle HF + popularité + référentiel (HuggingFace — même source que la CLI).
 
-    Idempotent et incrémental : ne traite que `confidence IS NULL`, `max_assess` par passe
-    (les suivants partent à la passe d'après). `progress(dict)` optionnel pour publication.
+    Incrémental : ne traite que les candidats SANS verdict ou dont le verdict a été rendu sur
+    d'autres faits mesurés (`_is_due`, depuis le 2026-09-23 — avant, `confidence IS NULL` seul
+    figeait un verdict rendu sur un banc absent ou un poids faux), `max_assess` par passe (les
+    suivants partent à la passe d'après). `progress(dict)` optionnel pour publication.
     """
     from django.conf import settings
     from wama.model_manager.models import AIModel
@@ -355,11 +435,13 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
                     libre, besoin_gb)
         return resume
 
-    file_attente = AIModel.objects.filter(
-        is_proposed=True, source__in=('ollama', 'huggingface'),
-        proposal_kind='new', confidence__isnull=True,
-    ).order_by('name')
-    cands = list(file_attente[:max_assess])
+    # File : les candidats SANS verdict d'abord, puis ceux dont le verdict a été rendu sur
+    # d'autres faits (`_is_due`) — une nouvelle mesure écrase l'ancien verdict (2026-09-23).
+    due = [c for c in AIModel.objects.filter(
+        is_proposed=True, source__in=('ollama', 'huggingface'), proposal_kind='new',
+    ).order_by('name') if _is_due(c)]
+    due.sort(key=lambda c: c.confidence is not None)
+    cands = due[:max_assess]
 
     # ── PRÉPARER LES CONTEXTES HORS FENÊTRE GPU (2026-08-26) ────────────────────
     # Variantes quantisées + carte HF = du RÉSEAU (proxy UGE, plusieurs secondes par
@@ -373,6 +455,7 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
             progress({'current': f"préparation {cand.name}", 'done': 0, 'total': len(cands)})
         if cand.source == 'huggingface':
             _attach_quantized_variants(cand)
+            _attach_weights(cand)
         contextes.append(_hf_context(cand) if cand.source == 'huggingface'
                          else _ollama_context(cand))
 
@@ -393,7 +476,12 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
             cand.confidence = round(worth, 2)
             info = dict(cand.extra_info or {})
             prospect = dict(info.get('prospect') or {})
-            prospect['assess'] = {'consensus': consensus, 'opinions': opinions}
+            # Le verdict remplacé n'est pas perdu : il reste lisible un cran en arrière.
+            if prospect.get('assess'):
+                prospect['assess_previous'] = {k: v for k, v in prospect['assess'].items()
+                                               if k != 'opinions'}
+            prospect['assess'] = {'consensus': consensus, 'opinions': opinions,
+                                  'signal': _signal_of(cand)}
             info['prospect'] = prospect
             cand.extra_info = info
             cand.save(update_fields=['confidence', 'extra_info'])
@@ -422,10 +510,9 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
     except Exception:
         pass
 
-    restants = AIModel.objects.filter(
-        is_proposed=True, source__in=('ollama', 'huggingface'),
-        proposal_kind='new', confidence__isnull=True,
-    ).count()
+    restants = sum(1 for c in AIModel.objects.filter(
+        is_proposed=True, source__in=('ollama', 'huggingface'), proposal_kind='new',
+    ) if _is_due(c))
     resume = {'assessed': evalues, 'no_verdict': sans_avis, 'remaining': restants}
     logger.info("[prospect_agents] passe terminée : %s", resume)
     return resume
