@@ -335,22 +335,52 @@ def create_generation(request):
 
         # Route to appropriate handler
         if generation_mode == 'file2img':
-            return handle_file2img(request, user)
+            response = handle_file2img(request, user)
         elif generation_mode == 'describe2img':
-            return handle_describe2img(request, user)
+            response = handle_describe2img(request, user)
         elif generation_mode in ('style2img', 'img2img'):
-            return handle_img2img(request, user, generation_mode)
+            response = handle_img2img(request, user, generation_mode)
         elif generation_mode == 'txt2vid':
-            return handle_txt2vid(request, user)
+            response = handle_txt2vid(request, user)
         elif generation_mode == 'img2vid':
-            return handle_img2vid(request, user)
+            response = handle_img2vid(request, user)
         else:
             # Default: txt2img mode
-            return handle_txt2img(request, user)
+            response = handle_txt2img(request, user)
+        _apply_posted_output(response, request.POST, _params)
+        return response
 
     except Exception as e:
         logger.error(f"Error creating generation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def _apply_posted_output(response, post, params):
+    """Le FORMAT DE SORTIE posté au dépôt, appliqué à ce que le dépôt a créé — pour TOUS les modes.
+
+    Seul `handle_txt2img` le lisait : les cinq autres routes (lot, description, img2img, les deux
+    vidéo) créaient la génération sans lui, et le choix fait sur la card tombait (relevé le
+    2026-09-23, question de Fabien sur la sortie vidéo). Lu ici, au point de routage UNIQUE, par
+    la coercition du SCHÉMA — les champs de la brique commune, pas une liste recopiée.
+    """
+    if getattr(response, 'status_code', 500) != 200:
+        return
+    from wama.common.utils.param_schema import coerce_schema_values
+    output_params = [p for p in params if p.name in ('output_format', 'output_quality')]
+    allowed = {p.name: {str(c[0]) for c in (p.choices or [])} for p in output_params}
+    # Une valeur hors des choix du DOMAINE est ignorée (un « webp » d'image posté pour une vidéo).
+    values = {k: v for k, v in coerce_schema_values(output_params, post).items()
+              if str(v) in allowed.get(k, ())}
+    if not values:
+        return
+    try:
+        payload = json.loads(response.content or b'{}')
+    except ValueError:
+        return
+    ids = payload.get('children_ids') or ([payload['generation_id']]
+                                          if payload.get('generation_id') else [])
+    if ids:
+        ImageGeneration.objects.filter(pk__in=ids).update(**values)
 
 
 # Curseur POSTÉ (chantier C) : lecteur COMMUN — None quand il n'est pas posté. La copie locale

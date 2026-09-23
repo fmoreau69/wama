@@ -304,11 +304,17 @@ WAN_MODELS = {
         # déchargement, ce modèle tient largement sur une 4090 — c'est l'encodeur de texte, pas
         # le transformer, qui plafonne.
         'composition': _pipeline_composition(transformer=False, text_encoder=True, vae=False),
-        'description': 'FastWan 2.2 TI2V 5B — distillé 3 pas, 24 fps',
+        # Les LIMITES dites à l'écran (2026-09-23, Fabien : « 15 s demandées, 5 obtenues ») : la
+        # description est ce que l'aide sous le sélecteur affiche, c'est la métadonnée qui remplit
+        # l'UI. 121 images à 24 i/s = 5 s ; au-delà, le modèle n'a pas été entraîné.
+        'description': 'FastWan 2.2 TI2V 5B — distillé 3 pas, 5 s max, 24 fps, natif 1280×704',
         'description_long': "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de "
                             "débruitage, pour générer une vidéo à partir d'un texte beaucoup plus "
-                            "vite que les modèles non distillés. Le nombre de pas et le guidage "
-                            "sont imposés par la distillation.",
+                            "vite que les modèles non distillés. Limites du modèle : 5 secondes au "
+                            "plus (121 images à 24 i/s — une durée plus longue est ramenée à 5 s), "
+                            "cadence fixe de 24 i/s, résolution native 1280×704 (en dessous, la "
+                            "qualité baisse). Le nombre de pas, le guidage et donc le prompt "
+                            "négatif sont imposés par la distillation (sans effet ici).",
     },
 }
 

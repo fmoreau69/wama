@@ -359,3 +359,58 @@ class DeclaredCompositionTest(TestCase):
         self.assertNotIn('composition', lora,
                          "une composition ici ferait passer 0,04 Go pour l'empreinte du modèle")
         self.assertTrue(lora.get('base_model'), "la dorsale doit rester déclarée")
+
+
+class VideoSettingsTakenIntoAccountTest(LotImagerMixin, TestCase):
+    """Every video setting is either APPLIED or SAID to be ignored (2026-09-23, Fabien:
+    « 15 s demandées, 5 obtenues » and output settings offering mp3 for a video)."""
+
+    def test_output_format_posted_at_deposit_reaches_a_video_generation(self):
+        rep = self.client.post(reverse('imager:create'), {
+            'generation_mode': 'txt2vid', 'prompt': 'a lighthouse', 'model': 'auto',
+            'output_format': 'webm', 'output_quality': 'web'})
+        self.assertEqual(200, rep.status_code, rep.content[:200])
+        gen = ImageGeneration.objects.get(id=rep.json()['generation_id'])
+        self.assertEqual(('webm', 'web'), (gen.output_format, gen.output_quality))
+
+    def test_an_image_format_posted_for_a_video_is_ignored(self):
+        rep = self.client.post(reverse('imager:create'), {
+            'generation_mode': 'txt2vid', 'prompt': 'a lighthouse', 'output_format': 'webp'})
+        gen = ImageGeneration.objects.get(id=rep.json()['generation_id'])
+        self.assertEqual('original', gen.output_format)
+
+    def test_each_domain_offers_its_own_formats_and_never_an_audio_one(self):
+        from wama.imager.params import IMAGE_PARAMS, VIDEO_PARAMS
+
+        def formats(params):
+            return {c[0] for p in params if p.name == 'output_format' for c in p.choices}
+        self.assertTrue({'mp4', 'webm'} <= formats(VIDEO_PARAMS))
+        self.assertFalse({'mp3', 'wav', 'ogg'} & formats(VIDEO_PARAMS))
+        self.assertIn('webp', formats(IMAGE_PARAMS))
+        self.assertNotIn('mp4', formats(IMAGE_PARAMS))
+
+    def test_quality_shows_only_with_a_chosen_format(self):
+        from wama.imager.params import VIDEO_PARAMS
+        quality = next(p for p in VIDEO_PARAMS if p.name == 'output_quality')
+        self.assertEqual('output_format', quality.show_if['field'])
+        self.assertNotIn('original', quality.show_if['in'])
+
+    def test_the_console_says_the_effective_duration_and_what_the_model_ignores(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from wama.imager import tasks
+        gen = ImageGeneration.objects.create(
+            user=self.user, generation_mode='txt2vid', prompt='p', model='fastwan-2.2-ti2v-5b',
+            video_duration=15, video_fps=16, video_resolution='480p', steps=30, guidance_scale=5)
+        backend = SimpleNamespace(MODEL_PROFILES={'fastwan-2.2-ti2v-5b': {
+            'dmd_timesteps': (1000, 757, 522), 'guidance_scale': 1.0}})
+        w, h = gen.get_video_resolution()
+        params = SimpleNamespace(num_frames=121, width=w, height=h)
+        with patch.object(tasks, '_console') as console:
+            tasks._report_effective_video_settings(1, gen, backend, params, 24)
+        said = ' '.join(c.args[1] for c in console.call_args_list)
+        self.assertIn('5.0 s au lieu des 15 s', said)
+        self.assertIn('24 i/s imposés', said)
+        self.assertIn('Résolution native', said)
+        self.assertIn('prompt négatif sans effet', said)
