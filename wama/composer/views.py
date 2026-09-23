@@ -72,10 +72,11 @@ def _reset_for_relaunch(gen):
 # lance QUE les PENDING (« créer ≠ démarrer », contrat WamaBatchImport) et garde `@app_access` ;
 # `task_id` nullable ; `exported_to_library` remis à False ; la ligne de liaison de la copie
 # reprend l'`output_filename` de l'original (`item_extra`), le lot copié partage le fichier de
-# lot (`batch_extra`) ; cache de progression purgé à la suppression. Restent LOCAUX, écarts
-# assumés (`batch_views_common` = partiel) : `batch_update` (validation du modèle contre le
-# catalogue + `generation_type` dérivé + curseur) et `batch_download` (nom d'archive = celui de
-# la ligne de liaison) — tous deux lisent le lot par `batch_elements`.
+# lot (`batch_extra`) ; cache de progression purgé à la suppression ; le nom de chaque fichier
+# de l'archive est celui de la ligne de liaison (`batch_link.output_filename`, posé par
+# `batch_elements` depuis le 23/09 — `batch_download` restait local pour cette seule raison).
+# Reste LOCAL, écart assumé (`batch_views_common` = partiel) : `batch_update` (validation du
+# modèle contre le catalogue + `generation_type` dérivé + curseur), qui lit le lot par la brique.
 from wama.common.utils.batch_views import make_batch_views
 
 
@@ -88,10 +89,12 @@ def _task_for(gen):
     return compose_task
 
 
+def _link_name(gen):
+    return getattr(getattr(gen, 'batch_link', None), 'output_filename', '') or ''
+
+
 def _copy_link_extra(new_gen, old_gen):
-    link = getattr(old_gen, 'batch_item', None)
-    name = getattr(link, 'output_filename', '') if link is not None else ''
-    return {'output_filename': name or _batch_item_extra(new_gen)['output_filename']}
+    return {'output_filename': _link_name(old_gen) or _batch_item_extra(new_gen)['output_filename']}
 
 
 _bv = make_batch_views(
@@ -105,10 +108,13 @@ _bv = make_batch_views(
     item_extra=_copy_link_extra,
     batch_extra=lambda lot: {'batch_file': lot.batch_file.name} if lot.batch_file else {},
     on_delete=lambda gen: cache.delete(f'composer_progress_{gen.id}'),
+    output_field='audio_output', output_name=_link_name,
+    zip_name=lambda lot: f"batch_composer_{lot.pk}.zip",
 )
 batch_start = app_access('composer')(_bv['batch_start'])
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
+batch_download = _bv['batch_download']
 
 
 def _decorate_generation(g):
@@ -739,37 +745,6 @@ def batch_update(request, pk):
         g.save()
         updated += 1
     return JsonResponse({'success': True, 'updated': updated})
-
-
-def batch_download(request, pk):
-    """Download a ZIP of all completed audio outputs in a batch (mono-format WAV).
-
-    Simple-button variant of the batch ZIP convention (WAMA_APP_CONVENTIONS §9.10).
-    """
-    import io as _io
-    import zipfile
-    from django.http import HttpResponse
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
-
-    from wama.common.utils.batch_common import batch_elements
-    buffer = _io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for gen in batch_elements(batch, ComposerGeneration):     # brique : ordre des lignes
-            if gen.status == 'SUCCESS' and gen.audio_output:
-                try:
-                    link = getattr(gen, 'batch_item', None)
-                    arcname = (getattr(link, 'output_filename', '') if link is not None else '') \
-                        or os.path.basename(gen.audio_output.name)
-                    zf.write(gen.audio_output.path, arcname)
-                except Exception:
-                    continue
-
-    buffer.seek(0)
-    response = HttpResponse(buffer.read(), content_type='application/zip')
-    response['Content-Disposition'] = content_disposition_header(True, f"batch_composer_{pk}.zip")
-    return response
 
 
 def download_all(request):

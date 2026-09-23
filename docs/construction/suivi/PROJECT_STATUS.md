@@ -16553,3 +16553,7 @@ NON régénérés ici : la table projetterait le WIP d'autrui (`/commit-partiel 
 jusque-là pour cette seule raison) ; un critère de grille PAR vue de lot ; re-substituer `views` sur les
 4 jumelles (provenance) ; portage des sections de card (`_card_state`, `_card_progress`, `_queue_actions`).
 Décision d'infra pour Fabien, toujours en attente : le `.mjs` (`mimetypes.add_type` dans `settings.py`).
+
+**Suite immédiate (même session)** : le `batch_download` du composer est passé sur la fabrique par
+`batch_link` (`output_name=_link_name`, `zip_name`) — la première dette que `batch_link` levait ;
+composer + brique + contrat de suppression 62 OK. Reste local au composer : `batch_update` seul.
