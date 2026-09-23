@@ -138,8 +138,12 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
 - **Ancrage** : total, par définition.
 - **Coût** : nul pour la métrique ; la référence coûte (humaine) ou est gratuite (par construction).
 - **Code** : `run_outcome.correction_magnitude` (distance sortie IA → correction humaine, sans
-  interprétation) ; `divergence_asr` confronte déjà ASR et correction. Aucune WER, aucune mAP,
-  aucun PSNR dans le dépôt.
+  interprétation) ; `divergence_asr` confronte déjà ASR et correction. ~~Aucune WER~~ — **WER et
+  CER livrés le 2026-09-23** (`common/services/text_metrics.py`, mécanisme `text_metrics` ; même
+  découpage en mots que M1). Aucune mAP, aucun PSNR dans le dépôt.
+  **La porte d'entrée (Q6) est ouverte** au même moment : ports du RÉSULTAT
+  (`INPUT_MODEL_MATCHING §6.7`), lecture des transcriptions externes, Sonal compris
+  (`TRANSCRIBER_CORRECTION §10`). Reste l'adoption par le transcriber (stockage, surfaces, lot).
 - ⚠ **Le corpus de vérité humaine du transcriber tenait en UN cas exploitable au 2026-08-13**
   (6 corrigés : 3 identiques à l'ASR, 1 cassé, 1 re-segmenté sans changement de texte). Et le jeu
   de Fabien (audio + transcription auto + transcription manuelle) **n'est pas dans WAMA** — ce sont
