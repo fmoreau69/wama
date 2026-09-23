@@ -851,6 +851,74 @@ class RunOutcome(models.Model):
         return f"{self.app}:{self.object_type}#{self.object_id} → {self.signal}"
 
 
+class ResultEvaluation(models.Model):
+    """
+    La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
+    première de l'indice interne des modèles (chaînon ⑧, `benchmark_meta` source `internal`).
+
+    ⚠ CE N'EST PAS `RunOutcome`. Celui-ci journalise des GESTES et s'interdit toute note ; une
+    évaluation EST un nombre, mais un nombre MESURÉ contre une vérité (le port `reference_result`),
+    jamais une opinion. Les deux tables restent séparées pour que le journal des faits ne se
+    remplisse pas de scores, et que la mesure ne se lise pas comme un geste.
+
+    UNE LIGNE PAR (élément, métrique) : l'évaluation décrit le résultat COURANT de l'élément. Un
+    élément relancé avec un autre modèle est remesuré, sa ligne change de `model_key` — l'agrégation
+    par modèle lit donc toujours ce que chaque modèle a réellement produit.
+
+    Ce que l'agrégation en indice exige, et qui est donc posé ici (règles de `benchmark_sync`,
+    `WAMA_QUALITE §4.1`) : le MODÈLE mesuré, l'ÉCHELLE (métrique + version de protocole), son SENS,
+    et l'IDENTITÉ de la référence — deux éléments ne se comparent que sur la même référence, c'est
+    elle qui définit la population.
+    """
+
+    DIRECTION_CHOICES = [('lower', 'Plus bas est mieux'), ('higher', 'Plus haut est mieux')]
+
+    app = models.CharField(max_length=32, db_index=True)
+    #: Même convention que `RunOutcome` : nom du modèle Django + clé primaire, pas de FK générique.
+    object_type = models.CharField(max_length=64)
+    object_id = models.IntegerField(db_index=True)
+    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name='result_evaluations')
+
+    #: Clé catalogue du modèle mesuré (`transcriber:whisper`), ou `external:<nom>` pour un résultat
+    #: produit hors de WAMA (port `work_result`) : mesurable, jamais agrégé comme un modèle du parc.
+    model_key = models.CharField(max_length=128, blank=True, default='', db_index=True)
+
+    metric = models.CharField(max_length=32)                 # 'wer', 'cer'…
+    #: Taux mesuré ; NULL = indéfini (référence vide) — jamais un zéro inventé.
+    value = models.FloatField(null=True, blank=True)
+    direction = models.CharField(max_length=8, choices=DIRECTION_CHOICES, default='lower')
+    #: Version du protocole de mesure : la changer change l'échelle, les anciennes valeurs ne se
+    #: comparent plus (leçon `rubric_version`, `WAMA_QUALITE §4.1`).
+    protocol = models.CharField(max_length=32)
+
+    reference_sha256 = models.CharField(max_length=64, db_index=True)
+    reference_name = models.CharField(max_length=255, blank=True, default='')
+
+    #: Les comptes qui fondent le taux (substitutions, suppressions, insertions, longueurs) et ce
+    #: que la lecture de la référence a écarté — jamais une interprétation.
+    detail = models.JSONField(default=dict, blank=True)
+
+    measured_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Évaluation de résultat"
+        verbose_name_plural = "Évaluations de résultats"
+        ordering = ['-measured_at']
+        constraints = [
+            models.UniqueConstraint(fields=['app', 'object_type', 'object_id', 'metric'],
+                                    name='result_evaluation_one_per_item_metric'),
+        ]
+        indexes = [
+            models.Index(fields=['model_key', 'metric', 'protocol']),
+            models.Index(fields=['reference_sha256', 'metric']),
+        ]
+
+    def __str__(self):
+        return (f"{self.app}:{self.object_type}#{self.object_id} {self.metric}="
+                f"{self.value} ({self.model_key or '?'})")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Mémoire & RAG — doc de référence : WAMA_MEMORY.md
 #
