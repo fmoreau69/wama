@@ -186,12 +186,18 @@ COGVIDEOX_MODELS = {
         # confirme le « jeu de travail réel ~11 Go en MODEL_OFFLOAD » écrit dans
         # `memory_manager.MODEL_SIZE_PRESETS`. Le déchargement n'est pas un pis-aller ici.
         'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
-        'fps': 24,
+        # ⚠ Déclarait `fps: 24` jusqu'au 2026-09-23 alors que la tâche imposait 8 i/s — c'est la
+        # DÉCLARATION qui était fausse : la carte du modèle (THUDM/CogVideoX-5b-I2V) annonce
+        # 6 s, 8 i/s, 49 images, 720×480. Le code avait raison ; la métadonnée qui remplit l'UI
+        # (et l'aide sous le sélecteur) mentait.
+        'fps': 8,
+        'max_frames': 49,
         'resolution': '720x480',
-        'description': 'CogVideoX 5B — Image-to-Video, 24 fps',
+        'description': 'CogVideoX 5B — Image-to-Video, 6 s max, 8 fps',
         'description_long': "CogVideoX 5B I2V (Zhipu/THUDM) : anime une image de référence en "
-                            "clip vidéo 24 images/s, guidé par le prompt. Idéal pour donner vie "
-                            "à une illustration ou une photo.",
+                            "clip vidéo guidé par le prompt. Limites du modèle : 6 secondes (49 "
+                            "images à 8 i/s), 720×480. Au-delà, la vidéo est prolongée par "
+                            "segments enchaînés (chaque segment repart de la dernière image).",
     },
 }
 
@@ -214,8 +220,11 @@ LTX_MODELS = {
         # dossier `vae/` donnerait 44 Go pour le seul VAE. Le motif exact l'évite.
         'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
         'fps': 24,
+        # 257 images (≈ 10,7 s) : la longueur maximale recommandée par Lightricks pour un seul
+        # passage ; au-delà, prolongation par segments (le modèle fait aussi image→vidéo).
+        'max_frames': 257,
         'resolution': '1216x704',
-        'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V',
+        'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V, 10 s max natif',
         'description_long': "LTX-Video 13B Distilled (Lightricks) : génération vidéo rapide, en "
                             "texte-vers-vidéo comme en image-vers-vidéo. La distillation réduit "
                             "fortement le nombre d'étapes — bon choix par défaut pour itérer vite.",
@@ -230,6 +239,10 @@ LTX_MODELS = {
         'vram_gb': 8,
         'disk_gb': 18,
         'fps': 24,
+        # 161 images (≈ 6,7 s) : plafond MESURÉ de la variante fp8 sur la 4090 (au-delà, OOM du
+        # pilote — la tâche le bornait déjà en dur). Une borne de MACHINE, déclarée ici pour que
+        # l'écran la connaisse.
+        'max_frames': 161,
         'resolution': '1216x704',
         'quantization': 'fp8',
         # MÊME dépôt, donc MÊME anatomie que la version pleine ci-dessus : la quantisation fp8
@@ -263,8 +276,12 @@ MOCHI_MODELS = {
         'composition': _pipeline_composition(
             transformer=True, text_encoder='text_encoder/model-*-of-00004.safetensors', vae=False),
         'fps': 30,
+        # 84 images (2,8 s) : le plafond que la tâche imposait en dur (le modèle en génère 163
+        # nativement, mais pas dans la VRAM de cet hôte). Texte→vidéo SEUL : pas de
+        # prolongation possible par segments, la durée est donc bornée à l'écran.
+        'max_frames': 84,
         'resolution': '848x480',
-        'description': 'Mochi-1 Preview — haute qualité, 30 fps',
+        'description': 'Mochi-1 Preview — haute qualité, 30 fps, 2,8 s max',
         'description_long': "Mochi-1 Preview (Genmo) : génération vidéo haute fidélité à 30 "
                             "images/s, mouvements naturels et bonne adhérence au prompt. Le plus "
                             "gourmand des modèles vidéo — à réserver aux rendus soignés.",
@@ -311,7 +328,9 @@ WAN_MODELS = {
         'description_long': "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de "
                             "débruitage, pour générer une vidéo à partir d'un texte beaucoup plus "
                             "vite que les modèles non distillés. Limites du modèle : 5 secondes au "
-                            "plus (121 images à 24 i/s — une durée plus longue est ramenée à 5 s), "
+                            "plus en un passage (121 images à 24 i/s — au-delà, la vidéo est "
+                            "prolongée par segments enchaînés, chacun repartant de la dernière "
+                            "image : la continuité n'est pas garantie), "
                             "cadence fixe de 24 i/s, résolution native 1280×704 (en dessous, la "
                             "qualité baisse). Le nombre de pas, le guidage et donc le prompt "
                             "négatif sont imposés par la distillation (sans effet ici).",

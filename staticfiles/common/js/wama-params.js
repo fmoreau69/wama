@@ -454,6 +454,7 @@
     container.innerHTML = html;
     _bindConditional(container);
     _bindModelHelp(container, schema, ctx);
+    _bindCapFrom(container, schema, ctx);
     _bindOptionSources(container, schema, ctx);
     _avertirSourcesNonResolues(container, params, ctx);
   }
@@ -670,6 +671,127 @@
     var reg = global.WAMA_PAGE_OPTION_SOURCES || PAGE_OPTION_SOURCES;
     var f = reg[p.options_source];
     return f ? f(values || {}, p) : null;
+  }
+
+  // ── Réglages BORNÉS PAR LA CAPACITÉ DU MODÈLE choisi (`cap_from`, 2026-09-23) ─────────────
+  // Demande de Fabien : « les paramètres modale/inspecteur tirent leurs infos des capacités des
+  // modèles dans le registre ». Un param déclare `cap_from: {field, capability, extension?,
+  // mode?, unit?, label?}` ; les capacités viennent du CATALOGUE (api/models/db/, champ
+  // `capabilities`) — la même source que la tâche serveur lit, jamais une liste recopiée ici.
+  //   • range (défaut) : zone NATIVE (bleue) jusqu'à la capacité. Au-delà : zone EXTRAPOLÉE
+  //     (rouge) si le modèle déclare `extension`, sinon le curseur est BORNÉ à la capacité.
+  //   • mode 'fixed'   : la capacité IMPOSE la valeur (cadence native) → champ verrouillé, dit.
+  //   • mode 'note'    : la capacité est seulement RAPPELÉE sous le champ (résolution native).
+  // Modèle « auto » ou sans la capacité → champ du schéma, intact (dégradation douce).
+  var _capsBySource = {};
+  function _catalogCaps(source) {
+    if (!_capsBySource[source]) {
+      _capsBySource[source] = fetch('/model-manager/api/models/db/?source=' + encodeURIComponent(source))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var out = {};
+          (data.models || []).forEach(function (m) {
+            var key = m.model_key || '';
+            // Même clé d'option que WamaModelHelp : l'id NU, sans le préfixe « source: ».
+            if (key.indexOf(source + ':') === 0) key = key.slice(source.length + 1);
+            out[key] = m.capabilities || {};
+          });
+          return out;
+        })
+        .catch(function () { return {}; });
+    }
+    return _capsBySource[source];
+  }
+
+  function _fmtNum(v) {
+    var n = Number(v);
+    return (Math.round(n * 10) / 10).toString().replace('.', ',');
+  }
+
+  function _applyCap(el, note, row, p, cf, caps) {
+    var cap = caps ? caps[cf.capability] : null;
+    var unit = cf.unit || p.unit || '';
+    var mode = cf.mode || 'range';
+    note.textContent = '';
+    note.classList.remove('is-extrapolated');
+    if (row) row.classList.remove('is-extrapolated');
+    if (mode === 'note') {
+      if (cap) note.textContent = (cf.label || 'Natif :') + ' ' + cap + unit;
+      return;
+    }
+    if (mode === 'fixed') {
+      if (el.dataset.userValue === undefined) el.dataset.userValue = el.value;
+      if (cap != null && cap !== '') {
+        el.value = cap;
+        el.disabled = true;
+        note.textContent = (cf.label || 'Imposé par le modèle :') + ' ' + cap + unit;
+      } else if (el.disabled) {
+        el.disabled = false;
+        el.value = el.dataset.userValue;
+      }
+      return;
+    }
+    // range
+    var min = Number(p.min != null ? p.min : el.min || 0);
+    var max = Number(p.max != null ? p.max : el.max || 100);
+    el.max = max;
+    el.classList.remove('wama-range-capped');
+    el.style.removeProperty('--wama-cap-pct');
+    if (!(Number(cap) > 0)) return;
+    var ext = cf.extension && caps[cf.extension];
+    if (!ext) {
+      // Pas d'au-delà : le curseur S'ARRÊTE à la capacité (jamais une valeur qui serait réduite
+      // en silence à l'exécution).
+      var bound = Math.max(min, Math.min(max, Math.floor(Number(cap))));
+      el.max = bound;
+      if (Number(el.value) > bound) {
+        el.value = bound;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      note.textContent = 'Limite du modèle : ' + _fmtNum(cap) + unit;
+      return;
+    }
+    var pct = Math.max(0, Math.min(100, (Number(cap) - min) / ((max - min) || 1) * 100));
+    el.classList.add('wama-range-capped');
+    el.style.setProperty('--wama-cap-pct', pct + '%');
+    var beyond = Number(el.value) > Number(cap);
+    if (row) row.classList.toggle('is-extrapolated', beyond);
+    note.classList.toggle('is-extrapolated', beyond);
+    note.innerHTML = beyond
+      ? '<i class="fas fa-triangle-exclamation me-1"></i>Au-delà de ' + esc(_fmtNum(cap) + unit) +
+        ' : prolongé par segments — fonctionnement extrapolé, continuité non garantie'
+      : 'Natif jusqu\'à ' + esc(_fmtNum(cap) + unit) +
+        ' · au-delà (zone rouge) : prolongé, extrapolé';
+  }
+
+  function _bindCapFrom(container, schema, ctx) {
+    (schema || []).forEach(function (p) {
+      var cf = p.cap_from;
+      if (!cf || !cf.field || !cf.capability) return;
+      if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
+      var modelP = (schema || []).filter(function (q) { return q.name === cf.field; })[0];
+      var source = cf.source || (modelP && modelP.help_source);
+      if (!modelP || !source) return;
+      var el = container.querySelector('#' + CSS.escape(perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name)));
+      var sel = container.querySelector('#' + CSS.escape(perCtx(modelP.dom_id, ctx) || ('wp-' + ctx + '-' + modelP.name)));
+      if (!el || !sel) return;
+      var row = el.closest('.wama-param');
+      var note = document.createElement('div');
+      note.className = 'wama-cap-note small mt-1';
+      (row || el.parentNode).appendChild(note);
+      _catalogCaps(source).then(function (capsByKey) {
+        function apply() { _applyCap(el, note, row, p, cf, capsByKey[sel.value] || null); }
+        sel.addEventListener('change', apply);
+        el.addEventListener('input', apply);
+        // Les options du select modèle arrivent souvent APRÈS le rendu (catalogue, décorateur
+        // d'app) et sa valeur est posée par programme, sans `change` : on écoute le remplissage.
+        sel.addEventListener('wama:options-filled', apply);
+        if (global.MutationObserver) {
+          new MutationObserver(function () { apply(); }).observe(sel, { childList: true });
+        }
+        apply();
+      });
+    });
   }
 
   // Aide MODÈLE : pour chaque select déclarant help_source, câble WamaModelHelp (desc courte + ⓘ longue

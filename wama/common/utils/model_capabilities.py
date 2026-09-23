@@ -101,7 +101,56 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     # une entrée fournie hors des inputs d'un modèle le DÉSACTIVE (avec raison, jamais caché).
     "inputs_required":     "list[str] — entrées REQUISES par le modèle (lancement gaté sinon)",
     "inputs_optional":     "list[str] — entrées ACCEPTÉES en option (ex. reference_melody)",
+    # Limites NATIVES d'un modèle vidéo (2026-09-23, Fabien : « les paramètres modale/inspecteur
+    # tirent leurs infos des capacités des modèles »). Déclarées par l'app (`model_config`),
+    # transportées par la découverte, lues par l'écran (`WamaParams`, `cap_from`) ET par la
+    # tâche — un seul fait pour les deux. Avant, la tâche les codait en dur par moteur et
+    # l'écran ne les connaissait pas : 15 s proposées, 5 produites.
+    "fps":                 "int — cadence NATIVE (images/s) d'un modèle vidéo ; imposée à la sortie",
+    "max_frames":          "int — images produites au plus en UN passage",
+    "max_duration_s":      "float — durée native maximale (max_frames / fps) : borne la zone NATIVE",
+    "native_resolution":   "str 'LxH' — résolution d'entraînement ; en dessous la qualité baisse",
+    #: Comment le modèle va AU-DELÀ de `max_duration_s` — absent = il ne va pas au-delà (la
+    #: durée est bornée). 'segments' = passages image→vidéo enchaînés, chacun repartant de la
+    #: dernière image du précédent : c'est une EXTRAPOLATION, la continuité n'est pas garantie.
+    "duration_extension":  "str — 'segments' (i2v enchaîné, extrapolé) ; absent = borné à max_duration_s",
 }
+
+
+def video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, Any]:
+    """Les capacités VIDÉO tirées d'une déclaration d'app (`fps`, `max_frames`, `resolution`
+    'LxH') — la traduction vit ICI et non dans la boucle de découverte, pour être testable sans
+    la recopier (leçon de `derive_inputs_from_tasks`). La prolongation par segments n'est
+    déclarée que pour un modèle qui fait IMAGE→VIDÉO (jeton `i2v`) : c'est elle qui repart de
+    la dernière image. Un modèle texte→vidéo seul reste borné."""
+    out: Dict[str, Any] = {}
+    fps, max_frames = config.get("fps"), config.get("max_frames")
+    if fps:
+        out["fps"] = int(fps)
+    if max_frames:
+        out["max_frames"] = int(max_frames)
+    if fps and max_frames:
+        out["max_duration_s"] = round(float(max_frames) / float(fps), 2)
+        if "i2v" in set(tokens or ()):
+            out["duration_extension"] = "segments"
+    res = config.get("resolution")
+    if isinstance(res, str) and "x" in res:
+        out["native_resolution"] = res
+    return out
+
+
+def video_limits(caps: Dict[str, Any]) -> Dict[str, Any]:
+    """Les limites vidéo d'un modèle, lues UNE fois : `{fps, max_frames, max_duration_s,
+    extension}` (valeurs None si non déclarées). Lecteur commun de la tâche et des tests —
+    la même lecture que l'écran fait en JS sur les mêmes clés."""
+    caps = caps or {}
+    fps = caps.get("fps")
+    max_frames = caps.get("max_frames")
+    max_s = caps.get("max_duration_s")
+    if max_s is None and fps and max_frames:
+        max_s = round(float(max_frames) / float(fps), 2)
+    return {"fps": fps, "max_frames": max_frames, "max_duration_s": max_s,
+            "extension": caps.get("duration_extension")}
 
 # Clés LEGACY → remplacement canonique (pour normaliser les dicts existants).
 #   `multilingual`/`languages_count` = MORTES (aucun lecteur) → converties en `languages` si possible.

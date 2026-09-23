@@ -414,3 +414,114 @@ class VideoSettingsTakenIntoAccountTest(LotImagerMixin, TestCase):
         self.assertIn('24 i/s imposés', said)
         self.assertIn('Résolution native', said)
         self.assertIn('prompt négatif sans effet', said)
+
+
+class VideoNativeLimitsTest(TestCase):
+    """Native video limits come from the model DECLARATION, for the screen AND the task
+    (2026-09-23, Fabien: « les paramètres tirent leurs infos des capacités des modèles »)."""
+
+    def _caps(self, model_id):
+        from wama.common.utils.model_capabilities import (derive_inputs_from_tasks,
+                                                          video_caps_from_declaration)
+        from wama.common.utils.model_declarations import declaration
+        decl = declaration('imager', model_id)
+        tokens = derive_inputs_from_tasks(decl.get('tasks', ''), is_video=True)['tokens']
+        return video_caps_from_declaration(decl, tokens)
+
+    def test_fastwan_is_native_up_to_5s_then_extended_by_segments(self):
+        caps = self._caps('fastwan-2.2-ti2v-5b')
+        self.assertEqual((24, 121, 'segments'),
+                         (caps['fps'], caps['max_frames'], caps['duration_extension']))
+        self.assertAlmostEqual(caps['max_duration_s'], 5.04, places=2)
+        self.assertEqual('1280x704', caps['native_resolution'])
+
+    def test_cogvideox_native_rate_is_8_fps_for_49_frames(self):
+        """The declaration said 24 fps while the task imposed 8 — the model card says 8."""
+        caps = self._caps('cogvideox-5b-i2v')
+        self.assertEqual((8, 49), (caps['fps'], caps['max_frames']))
+        self.assertEqual('segments', caps['duration_extension'], 'image-to-video can chain')
+
+    def test_a_text_to_video_only_model_is_bounded(self):
+        caps = self._caps('mochi-1-preview')
+        self.assertEqual(84, caps['max_frames'])
+        self.assertNotIn('duration_extension', caps)
+
+    def test_the_catalog_receives_the_limits(self):
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_imager_models()
+        caps = registry._models['imager:fastwan-2.2-ti2v-5b'].capabilities
+        self.assertEqual(('segments', 121), (caps['duration_extension'], caps['max_frames']))
+
+    def test_the_duration_slider_reads_the_model_capability(self):
+        from wama.imager.params import VIDEO_PARAMS_JSON
+        by_name = {p['name']: p for p in VIDEO_PARAMS_JSON}
+        self.assertEqual('max_duration_s', by_name['video_duration']['cap_from']['capability'])
+        self.assertEqual('fixed', by_name['video_fps']['cap_from']['mode'])
+
+
+class SegmentExtensionTest(TestCase):
+    """Beyond one pass, the video is PROLONGED by image→video segments, each starting from the
+    last frame of the previous one; the repeated first frame is dropped at each joint."""
+
+    def test_segment_count_accounts_for_the_shared_frame(self):
+        from wama.imager.tasks import _segment_count
+        self.assertEqual(1, _segment_count(121, 121))
+        self.assertEqual(2, _segment_count(241, 121))   # 121 + 120 new
+        self.assertEqual(3, _segment_count(361, 121))   # 15 s at 24 fps
+        self.assertEqual(4, _segment_count(362, 121))
+
+    def test_frames_are_chained_from_the_last_frame_and_trimmed(self):
+        import os
+        import tempfile
+        from dataclasses import dataclass
+        from types import SimpleNamespace
+
+        import numpy as np
+        from wama.imager.tasks import _extend_by_segments
+
+        @dataclass
+        class Params:
+            num_frames: int = 5
+            reference_image: str = None
+            generation_mode: str = 'txt2vid'
+            seed: int = None
+
+        calls = []
+
+        def run(params, callback):
+            from PIL import Image
+            calls.append((params.generation_mode, params.seed,
+                          np.asarray(Image.open(params.reference_image))[0, 0, 0]))
+            start = len(calls) * 10
+            return SimpleNamespace(success=True, error=None, video_frames=[
+                np.full((2, 2, 3), (start + i) / 255.0) for i in range(5)])
+
+        first = [np.full((2, 2, 3), i / 255.0) for i in range(5)]
+        with tempfile.TemporaryDirectory() as tmp:
+            frames = _extend_by_segments(run, Params(), first, 12, 7, tmp)
+            self.assertEqual([], os.listdir(tmp), 'start frames are cleaned up')
+        self.assertEqual(12, len(frames))
+        self.assertEqual([('img2vid', 8, 4), ('img2vid', 9, 14)], calls,
+                         'each segment starts from the LAST frame, with a fresh seed')
+
+    def test_a_failed_segment_keeps_what_was_made(self):
+        import tempfile
+        from dataclasses import dataclass
+        from types import SimpleNamespace
+
+        from wama.imager.tasks import _extend_by_segments
+
+        @dataclass
+        class Params:
+            num_frames: int = 3
+            reference_image: str = None
+
+        from PIL import Image
+        first = [Image.new('RGB', (2, 2)) for _ in range(3)]
+        with tempfile.TemporaryDirectory() as tmp:
+            frames = _extend_by_segments(
+                lambda p, c: SimpleNamespace(success=False, error='boom', video_frames=[]),
+                Params(), first, 9, None, tmp)
+        self.assertEqual(3, len(frames))

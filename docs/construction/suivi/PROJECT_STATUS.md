@@ -16703,3 +16703,33 @@ seulement) — décision : la construire (curseur de durée borné par `max_fram
 5 s avec FastWan, seule voie = enchaîner des segments image→vidéo (dernière image → segment
 suivant), TI2V le permet — fonctionnalité à décider ; ④ CogVideoX déclare `fps: 24` au catalogue
 alors que la tâche impose 8 i/s — la déclaration ou le code est faux, non tranché.
+
+## §PALIER — 2026-09-23 (nuit), « RÉGLAGES TIRÉS DES CAPACITÉS DU MODÈLE + vidéo prolongée par segments + CogVideoX » — ✅ LIVRÉ
+
+**Décisions de Fabien** : les paramètres de la modale et du volet tirent leurs bornes des capacités
+du modèle au registre ; dépasser la durée native en le disant (bleu = normal, rouge = extrapolé) ;
+vérifier et corriger CogVideoX. Détail : `docs/construction/ui/INPUT_MODEL_MATCHING.md §7`.
+
+- **Brique commune** `Param.cap_from` + `WamaParams._bindCapFrom` (modes range / fixed / note),
+  CSS `wama-range-capped` / `is-extrapolated`. Capacités vidéo canoniques (`fps`, `max_frames`,
+  `max_duration_s`, `native_resolution`, `duration_extension`) + `video_caps_from_declaration`
+  (découverte ET tâche). Catalogue resynchronisé depuis WSL2 : FastWan 24 i/s · 121 · 5,04 s ·
+  segments ; Mochi 30 · 84 · 2,8 s · borné ; CogVideoX 8 · 49 · 6,12 s · segments.
+- **Prolongation par segments** (`imager.tasks._extend_by_segments`) : au-delà d'un passage, des
+  passages image→vidéo repartent de la dernière image (1ʳᵉ image retirée à chaque jointure, graine
+  +1 par segment, progression répartie, un segment en échec garde ce qui est fait). Les plafonds
+  codés en dur par moteur (Wan, Mochi 84, LTX fp8 161) sont DÉCLARÉS et appliqués à un seul endroit.
+- **Wan TI2V** : l'image→vidéo DÉRIVE du texte→vidéo (`from_pipe`, poids partagés) au lieu de
+  recharger ~23 Go en RAM ; crochets de déchargement reposés au changement de pipeline (`_rehook`).
+- **CogVideoX** : la DÉCLARATION était fausse (24 i/s) — carte du modèle : 6 s, 8 i/s, 49 images,
+  720×480 ; la tâche imposait déjà 8. Corrigé à la source, plus plafond 49 + prolongation (i2v).
+- Tests : `VideoNativeLimitsTest` (5), `SegmentExtensionTest` (3), `SharedPipelineHooksTest` (2).
+  Navigateur (serveur de dev 8011, volet vidéo) : FastWan 12 s rouge + avertissement, 4 s bleu,
+  Mochi borné à 2 s, auto libre ; 0 erreur JS.
+
+🔚 **Restes** : ① redémarrer workers + gunicorn ; ② **aucune prolongation n'a encore tourné sur le
+GPU** — 1ᵉʳ essai : FastWan 720p, 10 s (2 segments), à regarder aux jointures ; ③ la modale d'ITEM
+n'a pas été ouverte au navigateur (même moteur de rendu que le volet, mais pas vu) ; ④ corpus de
+manifestes : les lignes imager ont de nouvelles capacités → `manifest_export` à régénérer (71
+autres périmés d'autres chantiers, non régénérés ici) ; ⑤ d'autres réglages s'y prêteront (durée
+du composer ← `max_duration`, déjà bornée côté serveur seulement).

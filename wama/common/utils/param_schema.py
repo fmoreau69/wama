@@ -111,6 +111,16 @@ class Param:
     pills: list = field(default_factory=list)   # Toggle rendu en sélecteur segmenté (2 pills radio) :
                                                 # [libellé_off, libellé_on] — ex. ["YOLO", "SAM3"]. La valeur
                                                 # lue/envoyée reste 'true'/'false' (contrat serveur inchangé).
+    cap_from: Optional[dict] = None             # Curseur BORNÉ PAR LA CAPACITÉ DU MODÈLE choisi (2026-09-23,
+                                                # Fabien : « les paramètres tirent leurs infos des capacités
+                                                # des modèles dans le registre »). {"field": "<param modèle>",
+                                                # "capability": "<clé de capabilities>", "extension":
+                                                # "<clé qui autorise l'au-delà>", "unit": "s"}. Rendu :
+                                                # zone NATIVE (bleue) jusqu'à la capacité ; au-delà, zone
+                                                # EXTRAPOLÉE (rouge) si le modèle déclare l'extension, sinon
+                                                # le curseur est BORNÉ à la capacité. Modèle « auto » ou sans
+                                                # capacité → curseur du schéma, inchangé. Serveur : la tâche
+                                                # lit les MÊMES capacités (ex. `video_caps_from_declaration`).
 
     def to_dict(self) -> dict:
         return asdict(self)
