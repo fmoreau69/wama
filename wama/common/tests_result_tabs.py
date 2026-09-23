@@ -22,7 +22,10 @@ ANCRES_ATTENDUES = {
                     'wc-transcription', 'tab-diarisation', 'tab-diarisation-btn',
                     'tab-resume', 'tab-resume-btn', 'wc-resume', 'tab-coherence',
                     'tab-coherence-btn', 'wc-coherence', 'resultText', 'diarisationContent',
-                    'resumeContent', 'coherenceContent'},
+                    'resumeContent', 'coherenceContent',
+                    # 2026-09-23 — onglet « Évaluation » (mesure contre la référence) : trois
+                    # ancres AJOUTÉES au contrat, lues par `openResultModal` du transcriber.
+                    'tab-evaluation', 'tab-evaluation-btn', 'evaluationContent'},
 }
 _ID = re.compile(r'id="([^"]+)"')
 
@@ -60,6 +63,12 @@ class OngletsDeResultatTest(SimpleTestCase):
             for cle in ('resume', 'coherence'):
                 bloc = html[html.index(f'id="tab-{cle}-btn"'):][:260]
                 self.assertIn('display:none', bloc, f'{app}/{cle} devrait être masqué')
+
+    def test_the_evaluation_tab_waits_for_a_reference(self):
+        """No reference, no measure: showing the tab would promise a comparison that isn't there."""
+        html = _rendu('transcriber')
+        bloc = html[html.index('id="tab-evaluation-btn"'):][:260]
+        self.assertIn('display:none', bloc)
 
     def test_une_app_SANS_facettes_ne_rend_RIEN(self):
         """La plupart des apps ont UNE seule lecture de leur résultat — ou plusieurs résultats

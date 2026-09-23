@@ -1068,3 +1068,26 @@ small.form-text {
 pre.wama-result-text   { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
 /* Le badge de comptage est POSÉ vide et révélé par le JS de l'app quand il a un nombre. */
 .wama-tab-badge        { font-weight: normal; font-size: .72em; display: none; }
+
+/* ── ÉVALUATION contre une référence (2026-09-23, `result_evaluation`) ──────────────────────
+   Deux surfaces, un vocabulaire : la ligne FINE de la card mère (comparaison des modèles du
+   lot, `_batch_evaluation_line.html`) et l'onglet « Évaluation » d'un élément
+   (`wama-evaluation.js`). Textes clairs sur fond sombre : un chiffre qu'on plisse les yeux pour
+   lire n'est pas lu. */
+.wama-batch-evaluation         { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem;
+                                 margin-top: .45rem; padding-top: .4rem; font-size: .74rem;
+                                 border-top: 1px dashed rgba(103, 232, 249, .28); color: #cbd5e1; }
+.wama-batch-evaluation-title   { color: #67e8f9; font-weight: 600; }
+.wama-batch-evaluation-model   { padding: .05rem .45rem; border-radius: .7rem;
+                                 background: rgba(148, 163, 184, .14); border: 1px solid rgba(148, 163, 184, .3); }
+.wama-batch-evaluation-model strong { color: #f1f5f9; margin-left: .25rem; }
+.wama-batch-evaluation-model.is-best { border-color: #4ade80; background: rgba(74, 222, 128, .13); }
+.wama-batch-evaluation-model.is-best strong { color: #4ade80; }
+.wama-batch-evaluation-count   { color: #94a3b8; }
+.wama-batch-evaluation-warning { color: #fbbf24; }
+.wama-evaluation-metrics       { width: 100%; font-size: .85rem; color: #e2e8f0; margin-bottom: .75rem; }
+.wama-evaluation-metrics th    { color: #94a3b8; font-weight: 500; padding: .25rem .5rem; }
+.wama-evaluation-metrics td    { padding: .25rem .5rem; border-top: 1px solid #334155; }
+.wama-evaluation-rate          { font-size: 1.05rem; font-weight: 700; color: #f8fafc; }
+.wama-evaluation-meta          { font-size: .78rem; color: #cbd5e1; }
+.wama-evaluation-meta dt       { color: #94a3b8; font-weight: 500; }

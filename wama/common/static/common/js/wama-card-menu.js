@@ -327,6 +327,84 @@
             .catch(function () { return []; });
     }
 
+    // ── Résultat de référence (port `reference_result`) ──────────────────────────────────
+    //
+    // Une route COMMUNE pour toutes les surfaces évaluables : l'URL émise vise un élément au
+    // pk 0, on y substitue la nature (`element` | `lot`) et le pk. Le serveur mesure au moment
+    // de la pose et rend la mesure — elle est DITE tout de suite, la page se recharge ensuite
+    // pour que la card (onglet) et la card mère (ligne de comparaison) la montrent.
+    function referenceTarget(card) {
+        if (card.classList.contains('is-batch')) {
+            var lot = lotDe(card);
+            return lot && lot.dataset.batchId ? { nature: 'lot', pk: lot.dataset.batchId } : null;
+        }
+        return card.dataset.id ? { nature: 'element', pk: card.dataset.id } : null;
+    }
+
+    function referenceUrl(base, target) {
+        return base.replace(/element\/0\/$/, target.nature + '/' + target.pk + '/');
+    }
+
+    function referenceSaid(res) {
+        var primary = res && res.item && res.item.metrics && res.item.metrics[0];
+        if (primary && primary.value != null) {
+            return 'Référence posée · ' + primary.metric.toUpperCase() + ' '
+                + (primary.value * 100).toFixed(1).replace('.', ',') + ' %';
+        }
+        if (res && res.batch) {
+            return 'Référence posée sur ' + res.targets + ' élément' + (res.targets > 1 ? 's' : '')
+                + ' · ' + res.measured + ' mesuré' + (res.measured > 1 ? 's' : '');
+        }
+        return 'Référence posée — la mesure suivra le résultat';
+    }
+
+    function chooseReference(card, d) {
+        var target = referenceTarget(card);
+        if (!target) return;
+        var input = document.createElement('input');
+        input.type = 'file';
+        if (d.resultReferenceAccept) input.accept = d.resultReferenceAccept;
+        input.addEventListener('change', function () {
+            if (!input.files || !input.files[0]) return;
+            poster(referenceUrl(d.resultReferenceUrl, target), { file: input.files[0] })
+                .then(function (res) {
+                    if (!res || res.ok === false) {
+                        dire('Référence refusée — ' + ((res && (res.reason || res.error)) || 'échec'),
+                             'error');
+                        return;
+                    }
+                    dire(referenceSaid(res), 'ok');
+                    setTimeout(function () { location.reload(); }, 900);
+                });
+        });
+        input.click();
+    }
+
+    function removeReference(card, d) {
+        var target = referenceTarget(card);
+        if (!target) return;
+        poster(referenceUrl(d.resultReferenceUrl, target), { action: 'remove' }).then(function (res) {
+            if (!res || res.ok === false) { dire('Retrait impossible', 'error'); return; }
+            if (!res.removed) { dire('Aucune référence à retirer', 'info'); return; }
+            dire('Référence retirée', 'ok');
+            setTimeout(function () { location.reload(); }, 600);
+        });
+    }
+
+    function referenceEntry(card, d) {
+        var lot = card.classList.contains('is-batch');
+        return {
+            icone: 'fas fa-scale-balanced',
+            libelle: lot ? 'Référence du lot…' : 'Résultat de référence…',
+            sous: [
+                { icone: 'fas fa-file-import', libelle: lot ? 'Joindre (à tout le lot)…' : 'Joindre…',
+                  agir: function () { chooseReference(card, d); } },
+                { icone: 'fas fa-xmark', libelle: 'Retirer', danger: true,
+                  agir: function () { removeReference(card, d); } },
+            ],
+        };
+    }
+
     function actionsTransverses(card, cibles) {
         var q = file(card);
         if (!q) return [];
@@ -430,6 +508,14 @@
         if (cibles.length === 1 && !card.classList.contains('is-batch')
                 && global.WamaShare && WamaShare.coordonnees(card)) {
             entrees.push.apply(entrees, entreesGarder(WamaShare.coordonnees(card)));
+        }
+
+        // RÉSULTAT DE RÉFÉRENCE — le port `reference_result` (2026-09-23, WAMA_QUALITE Q6).
+        // Offert SEULEMENT quand la file porte `data-result-reference-url`, que le serveur n'émet
+        // que pour une surface ÉVALUABLE (`queue_dnd_attrs`). Sur la card MÈRE, la référence va
+        // au LOT (le serveur la pose sur chacun de ses éléments, un seul fichier).
+        if (d.resultReferenceUrl && cibles.length === 1) {
+            entrees.push(referenceEntry(card, d));
         }
 
         // « Ajouter à un lot » — n'a de sens que s'il EXISTE un lot d'accueil autre que le sien.

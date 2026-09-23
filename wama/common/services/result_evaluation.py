@@ -83,6 +83,20 @@ def evaluable_surfaces() -> List[str]:
     return sorted(_REGISTRY)
 
 
+def evaluable_surface_of(element_model) -> Optional[str]:
+    """La surface ÉVALUABLE dont `element_model` est le modèle d'élément, None sinon.
+
+    Pour les lecteurs qui tiennent des éléments sans leur surface — la file (`build_batches_list`
+    ne reçoit que le modèle de lot). On ne cherche que parmi les surfaces déclarées : l'enhancer
+    en expose deux, à modèles distincts, et chacune se reconnaît à son modèle.
+    """
+    from wama.common.utils.preview_registry import PreviewRegistry
+    for surface in _REGISTRY:
+        if PreviewRegistry.get_model(surface) is element_model:
+            return surface
+    return None
+
+
 # ── Mesure ──────────────────────────────────────────────────────────────────────────────────
 
 def _file_sha256(path: str) -> str:
@@ -242,7 +256,11 @@ def batch_evaluation(surface: str, items: Iterable) -> Optional[dict]:
                  for m, a in entry['metrics'].items()}
         models.append({'model_key': entry['model_key'], 'model_label': entry['model_label'],
                        'items': len(entry['items']), 'references': len(entry['references']),
-                       'rates': rates, 'reference_set': sorted(entry['references'])})
+                       'rates': rates,
+                       # Le taux de la métrique PRINCIPALE, en pour cent — ce qu'affiche la ligne.
+                       'primary_percent': (round(rates[primary] * 100, 1)
+                                           if rates.get(primary) is not None else None),
+                       'reference_set': sorted(entry['references'])})
     models.sort(key=lambda m: (m['rates'].get(primary) is None, m['rates'].get(primary) or 0))
     comparable = len({tuple(m['reference_set']) for m in models}) <= 1
     for m in models:

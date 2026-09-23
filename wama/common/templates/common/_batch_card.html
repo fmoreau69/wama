@@ -157,4 +157,7 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
             </div>
         </div>
     </div>
+    {# Ligne fine d'ÉVALUATION (comparaison des modèles contre la référence) — seulement si le #}
+    {# lot a été mesuré ; la donnée vient de `build_batches_list`, commune aux 10 apps.        #}
+    {% if batch_info.evaluation %}{% include 'common/_batch_evaluation_line.html' %}{% endif %}
 </div>

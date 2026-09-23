@@ -759,6 +759,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (resultText) resultText.textContent = 'Erreur de chargement';
       });
 
+    // Évaluation contre la RÉFÉRENCE — rendu COMMUN (`wama-evaluation.js`) ; l'onglet reste
+    // masqué tant qu'aucune référence n'est posée sur l'élément.
+    if (window.WamaEvaluation) {
+      WamaEvaluation.fill('transcriber', id, document.getElementById('evaluationContent'),
+                          document.getElementById('tab-evaluation-btn'));
+    }
+
     // 2. Fetch segments for diarisation tab
     if (config.segmentsUrlTemplate) {
       fetch(getUrl(config.segmentsUrlTemplate, id))

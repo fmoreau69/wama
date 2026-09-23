@@ -289,13 +289,28 @@ def status_counts(works):
     return counts
 
 
+def _batch_evaluation(works):
+    """Comparaison des modèles du lot contre leur référence (`result_evaluation`), ou None.
+
+    Posée ICI, pour toutes les apps d'un coup : une app qui DÉCLARE son évaluation voit la ligne
+    de comparaison apparaître sur sa card mère sans une ligne de gabarit ; les autres ne paient
+    rien (aucune requête : la surface n'est pas évaluable).
+    """
+    if not works:
+        return None
+    from wama.common.services.result_evaluation import batch_evaluation, evaluable_surface_of
+    surface = evaluable_surface_of(type(works[0]))
+    return batch_evaluation(surface, works) if surface else None
+
+
 def build_batches_list(user, *, batch_model, work_attr, items_related='items',
                        order_by='-id', has_output=None, extra=None):
     """Agrégats de file pour le template — contrat de la toolbar commune (``queue_view.py``).
 
     Returns:
         [{'obj', 'items', 'success_count', 'running_count', 'failure_count',
-          'awaiting_count', 'stale_count', 'has_success' [, **extra(batch, items, works)]}, …]
+          'awaiting_count', 'stale_count', 'has_success', 'evaluation'
+          [, **extra(batch, items, works)]}, …]   # `evaluation` : None hors surface évaluable
 
     Args:
         work_attr  : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).
@@ -344,7 +359,8 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
             _it.elem = getattr(_it, work_attr, None)
         works = [it.elem for it in items if it.elem]
         statuses = normalized_statuses(works)
-        row = {'obj': batch, 'items': items, **status_counts(works)}
+        row = {'obj': batch, 'items': items, **status_counts(works),
+               'evaluation': _batch_evaluation(works)}
         if has_output is not None:
             row['has_success'] = any(s == 'SUCCESS' and has_output(w)
                                      for s, w in zip(statuses, works))

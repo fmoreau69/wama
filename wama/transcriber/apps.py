@@ -142,5 +142,9 @@ class TranscriberConfig(AppConfig):
                  'cible': 'resumeContent', 'forme': 'html', 'badge': True, 'cache': True},
                 {'cle': 'coherence', 'label': 'Cohérence', 'icone': 'fa-spell-check',
                  'cible': 'coherenceContent', 'forme': 'nu', 'badge': True, 'cache': True},
+                # Mesure contre la RÉFÉRENCE (`result_evaluation`) — masqué tant qu'aucune
+                # référence n'est posée ; rempli par le rendu COMMUN `WamaEvaluation.renderItem`.
+                {'cle': 'evaluation', 'label': 'Évaluation', 'icone': 'fa-scale-balanced',
+                 'cible': 'evaluationContent', 'forme': 'nu', 'cache': True},
             ],
         })
