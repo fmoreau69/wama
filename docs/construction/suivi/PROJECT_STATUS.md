@@ -16661,3 +16661,45 @@ exercé sous V8 seulement). **Ensuite** : cliquer « Prospecter » et surveiller
 (~7 lots) ; `probe_fastwan --generate` avant toute décision d'installer Wan2.2-TI2V-5B.
 **Décisions ouvertes (non bloquantes)** : mesure interne vidéo (aucun protocole dans `bench.py`) ;
 brancher le filtre du tirage sur les pics (resté à l'instance gouverneur).
+
+## §PALIER — 2026-09-23 (soir), « IMAGER VIDÉO : chaque réglage appliqué ou DIT ignoré ; sortie vidéo ; décodage VAE » — ✅ LIVRÉ
+
+**Demande de Fabien** après la 1ʳᵉ génération FastWan (#48) : 15 s demandées, 5 obtenues (« il y
+avait déjà ce souci ») ; vérifier que tous les réglages sont pris en compte ; les réglages de sortie
+vidéo proposent du mp3 et des qualités.
+
+**Relevé au journal de la #48** (`logs/celery-gpu.log`, 23/09 19:43→20:55) : 3 pas DMD en 2,5 min,
+puis **69 min de décodage VAE** ; la console annonçait « 241 frames, 15.1 s @ 16 fps, 30 steps,
+guidage 5 » (le DEMANDÉ) et le bilan « Duration: 15.0s » alors que le modèle a produit 121 images
+à 24 i/s en 3 pas sans guidage, en 832×480 pour un modèle natif 1280×704.
+
+- **5 s, c'est la limite DÉCLARÉE du modèle** (`max_frames` 121 à 24 i/s) — pas un réglage perdu.
+  Ce qui manquait, c'est de le DIRE : `imager.tasks._report_effective_video_settings` écrit
+  l'effectif APRÈS la résolution propre à chaque moteur (durée, cadence, résolution, résolution
+  native, réglages neutralisés par la distillation) ; le bilan donne la durée réelle ; la
+  description de FastWan porte ses limites (elle remplit l'aide sous le sélecteur).
+- **Décodage VAE jamais tuilé (Wan ET Mochi)** : `pipe.enable_vae_tiling()` n'existe que sur les
+  pipelines d'image (`StableDiffusionMixin`) — l'appel levait, l'échec partait en DEBUG. →
+  `pipe.vae.enable_tiling()/enable_slicing()`, échec en WARNING ; garde AST sur tous les backends
+  (`tests_wan_video_backend.VaeTilingCallTest`, scan non vide exigé).
+- **Sortie** (brique `common/utils/output_formats.py`) : les formats d'EXTRACTION audio (mp3, wav,
+  ogg) ne sont plus proposés hors domaine audio (imager, enhancer, anonymizer ; le converter lit sa
+  propre table) ; `output_format_params_for_app(domain=)` pour une app à deux domaines — l'imager
+  proposait les formats VIDÉO dans sa modale IMAGE ; la qualité n'apparaît qu'avec un format choisi
+  (`show_if`). Ids de volet vidéo distincts (`panel_video_output_*`) : ils sont aussi les clés du
+  réglage stocké, partagés avec l'image.
+- **Le format choisi au dépôt tombait** pour 5 routes sur 6 (seul `handle_txt2img` le lisait) →
+  `views._apply_posted_output` au point de routage unique, par le schéma, valeur hors domaine
+  ignorée. **La branche vidéo n'appliquait jamais la conversion** → faite après l'export.
+- `apply_inline_conversion` : un format ÉGAL à celui de la source RÉENCODE sur place avec la
+  qualité (« .MP4 + Web » était un no-op). Consommateurs relus : composer, synthesizer, enhancer,
+  anonymizer, imager.
+- Tests : `VideoSettingsTakenIntoAccountTest` (5), `InlineSameFormatReencodeTest`, `VaeTilingCallTest`.
+
+🔚 **Restes** : ① redémarrer workers + gunicorn, puis rejouer FastWan en **720p** (natif 1280×704) —
+le décodage doit passer de ~69 min à quelques minutes, à MESURER ; ② aucune brique ne plafonne un
+curseur par la capacité du MODÈLE choisi côté écran (`coerce_params(caps=)` existe côté serveur
+seulement) — décision : la construire (curseur de durée borné par `max_frames`/`fps`) ; ③ au-delà de
+5 s avec FastWan, seule voie = enchaîner des segments image→vidéo (dernière image → segment
+suivant), TI2V le permet — fonctionnalité à décider ; ④ CogVideoX déclare `fps: 24` au catalogue
+alors que la tâche impose 8 i/s — la déclaration ou le code est faux, non tranché.

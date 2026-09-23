@@ -323,7 +323,7 @@ def generate_image_task(self, generation_id):
         # Output-format conversion (Phase 3) — convert each PNG to the chosen
         # image format (jpg/webp/…) ; no-op when 'original' or non-image format.
         _fmt = (getattr(generation, 'output_format', '') or 'original').lower()
-        if _fmt not in ('', 'original', 'png'):
+        if _fmt not in ('', 'original'):     # « PNG + qualité » réencode aussi (2026-09-23)
             try:
                 from wama.converter.utils.inline_convert import apply_inline_conversion
                 _preset = getattr(generation, 'output_quality', 'balanced') or 'balanced'
@@ -407,6 +407,47 @@ def generate_image_task(self, generation_id):
             logger.error(f"Failed to save error state: {str(save_error)}")
 
         return {'error': error_msg}
+
+
+def _report_effective_video_settings(user_id, generation, backend, params, export_fps):
+    """Dit à l'utilisateur ce qui sera RÉELLEMENT généré, et chaque réglage que le modèle ignore.
+
+    Relevé le 2026-09-23 (génération #48, FastWan) : la console annonçait « 241 frames, 15.1 s
+    @ 16 fps, 30 steps, guidage 5 » — les valeurs DEMANDÉES — puis le modèle en faisait 121 à
+    24 i/s en 3 pas sans guidage, et le bilan final redisait « Duration: 15.0s ». Chaque réglage
+    ignoré l'était silencieusement ou en DEBUG. Ce relevé est posé APRÈS la résolution propre à
+    chaque moteur : il lit les paramètres effectifs, pas le formulaire.
+    """
+    try:
+        effective_s = params.num_frames / float(export_fps or 1)
+        requested_s = float(generation.video_duration or 0)
+        _console(user_id, f"[Imager Video] Effectif : {params.num_frames} images à {export_fps} i/s "
+                          f"= {effective_s:.1f} s, {params.width}×{params.height}")
+        if requested_s and abs(effective_s - requested_s) >= 0.5:
+            _console(user_id, f"[Imager Video] ⚠ Durée : {effective_s:.1f} s au lieu des "
+                              f"{requested_s:.0f} s demandées — limite du modèle "
+                              f"{generation.model}", level='warning')
+        if generation.video_fps and int(generation.video_fps) != int(export_fps):
+            _console(user_id, f"[Imager Video] Cadence : {export_fps} i/s imposés par le modèle "
+                              f"(réglage {generation.video_fps} i/s sans effet)", level='warning')
+        requested_w, requested_h = generation.get_video_resolution()
+        if (params.width, params.height) != (requested_w, requested_h):
+            _console(user_id, f"[Imager Video] Résolution : {params.width}×{params.height} "
+                              f"(demandé {requested_w}×{requested_h})", level='warning')
+        from wama.common.utils.model_declarations import declaration
+        native = (declaration('imager', generation.model) or {}).get('resolution')
+        if native:
+            nw, _, nh = str(native).partition('x')
+            if nw.isdigit() and nh.isdigit() and params.width * params.height < int(nw) * int(nh):
+                _console(user_id, f"[Imager Video] ⚠ Résolution native du modèle : {native} — "
+                                  f"en dessous, la qualité baisse", level='warning')
+        profile = (getattr(backend, 'MODEL_PROFILES', None) or {}).get(generation.model) or {}
+        if profile.get('dmd_timesteps'):
+            _console(user_id, f"[Imager Video] Modèle distillé : {len(profile['dmd_timesteps'])} "
+                              f"pas et guidage {profile.get('guidance_scale', 1.0)} imposés — "
+                              f"Steps, Guidance et prompt négatif sans effet", level='warning')
+    except Exception as exc:                 # un relevé d'information ne fait jamais échouer
+        logger.debug(f"[Imager Video] relevé des réglages effectifs impossible : {exc}")
 
 
 @shared_task(bind=True)
@@ -606,7 +647,7 @@ def generate_video_task(self, generation_id):
         estimated_duration = num_frames / generation.video_fps
 
         _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        _console(user_id, f"[Imager Video] Parameters:")
+        _console(user_id, f"[Imager Video] Parameters (demandés — l'effectif suit) :")
         _console(user_id, f"[Imager Video]   Resolution: {width}x{height}")
         _console(user_id, f"[Imager Video]   Frames: {num_frames} ({estimated_duration:.1f}s @ {generation.video_fps}fps)")
         _console(user_id, f"[Imager Video]   Steps: {generation.steps}")
@@ -757,6 +798,8 @@ def generate_video_task(self, generation_id):
                 reference_image=reference_image_path,
             )
 
+        _report_effective_video_settings(user_id, generation, backend, params, export_fps)
+
         last_progress_log = 0
 
         # Progress callback with console updates
@@ -832,6 +875,22 @@ def generate_video_task(self, generation_id):
         file_size_mb = os.path.getsize(video_path) / (1024 * 1024) if os.path.exists(video_path) else 0
         _console(user_id, f"[Imager Video] ✓ Exported in {export_time:.1f}s ({file_size_mb:.1f} MB)")
 
+        # Format + qualité de sortie choisis (brique commune `apply_inline_conversion`). La
+        # branche IMAGE les appliquait depuis la phase 3 ; la branche VIDÉO les enregistrait
+        # sans jamais s'en servir (relevé le 2026-09-23) : « WebM, Web » rendait un MP4 brut.
+        _fmt = (getattr(generation, 'output_format', '') or 'original').lower()
+        if _fmt not in ('', 'original'):
+            try:
+                from wama.converter.utils.inline_convert import apply_inline_conversion
+                _preset = getattr(generation, 'output_quality', 'balanced') or 'balanced'
+                video_path = apply_inline_conversion(video_path, _fmt, _preset)
+                _console(user_id, f"[Imager Video] ✓ Sortie : {os.path.basename(video_path)} "
+                                  f"(qualité {_preset})")
+            except Exception as _conv_err:
+                logger.warning(f"[Imager Video] conversion format sortie échouée: {_conv_err}")
+                _console(user_id, f"[Imager Video] ⚠ Conversion vers {_fmt} échouée — "
+                                  f"MP4 d'origine conservé", level='warning')
+
         # Update generation with results
         try:
             generation.refresh_from_db()
@@ -866,7 +925,8 @@ def generate_video_task(self, generation_id):
             total_time = time.time() - task_start_time
             _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             _console(user_id, f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}")
-            _console(user_id, f"[Imager Video]   Duration: {generation.video_duration}s")
+            _console(user_id, f"[Imager Video]   Duration: {len(video_frames) / float(export_fps or 1):.1f}s "
+                              f"({len(video_frames)} frames @ {export_fps} fps)")
             _console(user_id, f"[Imager Video]   Seed: {seed_used}")
             _console(user_id, f"[Imager Video]   Total time: {total_time:.1f}s")
             _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

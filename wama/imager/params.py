@@ -208,14 +208,16 @@ VIDEO_PARAMS = derive_from_model(
 # `coerce_schema_values` (views.py:1530), un champ du schéma présent au POST est appliqué.
 # Ids d'item DISTINCTS par domaine (les deux modales coexistent dans la page).
 IMAGE_PARAMS = IMAGE_PARAMS + output_format_params_for_app(
-    "imager", contexts=("panel", "item"), group="sortie",
+    "imager", contexts=("panel", "item"), group="sortie", domain="image",
     dom_id_format={"panel": "output_format", "item": "settings_output_format"},
     dom_id_quality={"panel": "output_quality", "item": "settings_output_quality"},
 )
 VIDEO_PARAMS = VIDEO_PARAMS + output_format_params_for_app(
-    "imager", contexts=("panel", "item"), group="sortie",
-    dom_id_format={"panel": "output_format", "item": "video_settings_output_format"},
-    dom_id_quality={"panel": "output_quality", "item": "video_settings_output_quality"},
+    "imager", contexts=("panel", "item"), group="sortie", domain="video",
+    # Ids de VOLET distincts du domaine image (2026-09-23) : ils sont aussi les clés du réglage
+    # utilisateur stocké — partagés, un « webp » choisi pour l'image arrivait dans le select vidéo.
+    dom_id_format={"panel": "panel_video_output_format", "item": "video_settings_output_format"},
+    dom_id_quality={"panel": "panel_video_output_quality", "item": "video_settings_output_quality"},
 )
 
 

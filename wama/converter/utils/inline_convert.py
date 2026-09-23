@@ -8,8 +8,9 @@ at the end of its Celery task, WITHOUT going through the Converter queue.
                                        quality_preset='balanced')
 
 Reuses the Converter backends + quality presets (single source of truth).
-Returns the original path unchanged when output_format is falsy/'original',
-already matches, or the target is unsupported for that media type.
+Returns the original path unchanged when output_format is falsy/'original' or the
+target is unsupported for that media type; a target equal to the current format
+re-encodes in place with the quality preset.
 """
 
 import logging
@@ -25,8 +26,9 @@ def apply_inline_conversion(src_path: str, output_format: str,
                             delete_original: bool = True) -> str:
     """Convert `src_path` to `output_format` next to it; return the new path.
 
-    No-op (returns src_path) if output_format is empty/'original', equals the
-    current extension, or is unsupported for the detected media type.
+    No-op (returns src_path) if output_format is empty/'original' or is unsupported for
+    the detected media type. When it equals the current extension, the file is RE-ENCODED
+    with the quality preset and replaces the source in place (2026-09-23).
     """
     fmt = (output_format or '').strip().lower()
     if not fmt or fmt == 'original':
@@ -46,10 +48,12 @@ def apply_inline_conversion(src_path: str, output_format: str,
     if fmt not in get_output_formats(media_type):
         logger.warning(f"[inline_convert] format '{fmt}' non supporté pour {media_type}, ignoré")
         return src_path
-    if p.suffix.lower().lstrip('.') == fmt:
-        return src_path  # already in target format
-
-    dest = str(p.with_suffix('.' + fmt))
+    # MÊME format que la source : on RÉENCODE quand même (2026-09-23). Choisir « .MP4 + Web »
+    # pour une vidéo déjà en MP4 est une demande de QUALITÉ, pas de conteneur — la rendre
+    # inopérante faisait mentir le réglage. Écrit à côté, puis substitué à la source.
+    same_format = p.suffix.lower().lstrip('.') == fmt
+    dest = str(p.with_name(p.stem + '.requalified.' + fmt)) if same_format \
+        else str(p.with_suffix('.' + fmt))
     if os.path.abspath(dest) == os.path.abspath(src_path):
         return src_path
 
@@ -75,6 +79,13 @@ def apply_inline_conversion(src_path: str, output_format: str,
 
     if not os.path.exists(dest):
         logger.error(f"[inline_convert] sortie introuvable {dest}, conserve l'original")
+        return src_path
+
+    if same_format:
+        if not delete_original:
+            return dest
+        os.replace(dest, src_path)
+        logger.info(f"[inline_convert] {p.name} réencodé (preset={quality_preset})")
         return src_path
 
     if delete_original:

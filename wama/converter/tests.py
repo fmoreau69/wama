@@ -444,3 +444,27 @@ class LaCardPasseParEnCoursTest(TestCase):
     def test_la_copie_SERVIE_est_celle_du_source(self):
         """`staticfiles/` est ce que sert la production : une correction non recopiée n'existe pas."""
         self.assertEqual(self._source('staticfiles'), self._source())
+
+
+class InlineSameFormatReencodeTest(TestCase):
+    """« .PNG + Web » on a PNG re-encodes in place (2026-09-23): the same-format choice was a
+    silent no-op, so the quality setting lied."""
+
+    def test_same_format_is_reencoded_in_place(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from PIL import Image
+        from wama.converter.utils.inline_convert import apply_inline_conversion
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / 'out.png'
+            Image.new('RGB', (8, 8)).save(src)
+
+            def fake_convert(source, dest, fmt, quality=90, options=None):
+                Path(dest).write_bytes(b'reencoded')
+            with patch('wama.converter.backends.image_backend.convert_image', fake_convert):
+                result = apply_inline_conversion(str(src), 'png', 'web')
+            self.assertEqual(str(src), result)
+            self.assertEqual(b'reencoded', src.read_bytes())
+            self.assertEqual(['out.png'], sorted(p.name for p in Path(tmp).iterdir()))

@@ -160,3 +160,29 @@ class DMDStepTest(SimpleTestCase):
         scheduler.set_timesteps(50)
         self.assertEqual([int(t) for t in scheduler.timesteps], list(FASTWAN_DMD_TIMESTEPS))
         self.assertEqual(scheduler.config.num_train_timesteps, 1000)
+
+
+class VaeTilingCallTest(SimpleTestCase):
+    """VAE tiling is enabled ON THE VAE, never through the pipeline shortcut.
+
+    `pipe.enable_vae_tiling()` only exists on image pipelines (`StableDiffusionMixin`); video
+    pipelines (Wan, Mochi) do not inherit it, the call raised, and the failure was logged at
+    DEBUG. Measured on 2026-09-23 (generation #48, FastWan): 69 min of untiled VAE decoding for
+    2.5 min of denoising. Scanned on every backend so that the next one does not repeat it.
+    """
+
+    def test_no_backend_calls_the_pipeline_shortcut(self):
+        import ast
+        from pathlib import Path
+        offenders, scanned = [], 0
+        for path in sorted((Path(settings.BASE_DIR) / 'wama' / 'common' / 'backends').rglob('*.py')):
+            if 'vendor' in path.parts:
+                continue
+            scanned += 1
+            tree = ast.parse(path.read_text(encoding='utf-8'))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and node.func.attr in ('enable_vae_tiling', 'enable_vae_slicing')):
+                    offenders.append(f'{path.name}:{node.lineno}')
+        self.assertGreater(scanned, 10, 'the scan must see the backends, or it proves nothing')
+        self.assertEqual(offenders, [], 'call `pipe.vae.enable_tiling()` / `enable_slicing()`')
