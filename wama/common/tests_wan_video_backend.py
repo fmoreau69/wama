@@ -186,3 +186,35 @@ class VaeTilingCallTest(SimpleTestCase):
                     offenders.append(f'{path.name}:{node.lineno}')
         self.assertGreater(scanned, 10, 'the scan must see the backends, or it proves nothing')
         self.assertEqual(offenders, [], 'call `pipe.vae.enable_tiling()` / `enable_slicing()`')
+
+
+class SharedPipelineHooksTest(SimpleTestCase):
+    """Text→video and image→video share their modules (TI2V, `from_pipe`): the offload hooks
+    belong to ONE pipeline at a time, the other re-applies them before serving — without that
+    it would run on CPU (modules never moved back to the GPU)."""
+
+    def _backend(self):
+        from wama.common.backends.wan_video_backend import WanVideoBackend
+        backend = WanVideoBackend()
+        backend._pipe_t2v, backend._pipe_i2v = object(), object()
+        backend._device = 'cuda'
+        backend._shared_components, backend._hooks_owner = True, 'i2v'
+        return backend
+
+    def test_switching_pipeline_reapplies_the_memory_strategy(self):
+        backend = self._backend()
+        with mock.patch('wama.model_manager.services.memory_manager.MemoryManager'
+                        '.apply_strategy_for_model') as apply:
+            backend._rehook('t2v', 'fastwan-2.2-ti2v-5b')
+            backend._rehook('t2v', 'fastwan-2.2-ti2v-5b')
+        self.assertEqual(1, apply.call_count, 'once per switch, not on every call')
+        self.assertIs(backend._pipe_t2v, apply.call_args.kwargs['pipeline'])
+        self.assertEqual('t2v', backend._hooks_owner)
+
+    def test_unshared_pipelines_never_rehook(self):
+        backend = self._backend()
+        backend._shared_components = False
+        with mock.patch('wama.model_manager.services.memory_manager.MemoryManager'
+                        '.apply_strategy_for_model') as apply:
+            backend._rehook('t2v', 'fastwan-2.2-ti2v-5b')
+        apply.assert_not_called()

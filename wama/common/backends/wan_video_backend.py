@@ -246,6 +246,29 @@ class WanVideoBackend(ImageGenerationBackend):
         self._current_model = None
         self._torch = None
         self._vae = None
+        # Poids PARTAGÉS entre texte→vidéo et image→vidéo (`from_pipe`, TI2V) : les crochets de
+        # déchargement ne peuvent appartenir qu'à UN pipeline à la fois — `_hooks_owner` dit
+        # lequel ; l'autre les repose avant de servir (`_rehook`).
+        self._shared_components = False
+        self._hooks_owner = None
+
+    def _rehook(self, which: str, model_name: str) -> None:
+        """Repose la stratégie mémoire sur le pipeline `which` ('t2v'|'i2v') s'il partage ses
+        modules avec l'autre et que ce n'est pas lui qui porte les crochets. Sans cela, le
+        pipeline qui a perdu ses crochets tournerait sur CPU (modules jamais remontés)."""
+        if not self._shared_components or self._hooks_owner == which:
+            self._hooks_owner = which
+            return
+        pipe = self._pipe_t2v if which == 't2v' else self._pipe_i2v
+        if pipe is None:
+            return
+        profile = self.MODEL_PROFILES.get(model_name) or {}
+        from wama.model_manager.services.memory_manager import MemoryManager
+        MemoryManager.apply_strategy_for_model(
+            pipeline=pipe, model_type=profile.get("memory_preset", "wan-t2v"),
+            device=self._device, headroom_gb=4.0)
+        self._hooks_owner = which
+        logger.info(f"[Wan] Crochets de déchargement reposés sur le pipeline {which}")
 
     @classmethod
     def is_available(cls) -> bool:
@@ -431,6 +454,8 @@ class WanVideoBackend(ImageGenerationBackend):
 
             self._current_model = model_id
             self._loaded = True
+            self._shared_components = False
+            self._hooks_owner = 't2v'
             logger.info(f"[Wan] ✓ Model {model_id} loaded successfully on {self._device}")
 
             return True
@@ -484,12 +509,23 @@ class WanVideoBackend(ImageGenerationBackend):
             if profile.get("dmd_timesteps"):
                 pipe_kwargs["scheduler"] = make_dmd_scheduler(profile["dmd_timesteps"])
                 logger.info(f"[Wan I2V] Scheduler DMD : pas {list(profile['dmd_timesteps'])}")
-            self._pipe_i2v = WanImageToVideoPipeline.from_pretrained(
-                model_id,
-                torch_dtype=torch.bfloat16,
-                cache_dir=cache_dir,
-                **pipe_kwargs
-            )
+            if (self._pipe_t2v is not None and self._current_model == model_id):
+                # TI2V : les DEUX métiers sont servis par le MÊME dépôt (FastWan). Charger un
+                # second pipeline depuis le disque doublait les ~23 Go de poids en RAM — c'est
+                # ce que faisait tout image→vidéo, et ce que la prolongation par segments
+                # (2026-09-23) aurait fait à chaque vidéo longue. `from_pipe` PARTAGE les
+                # modules ; les crochets de déchargement se reposent ci-dessous, et le pipeline
+                # texte→vidéo les reposera à son tour avant de resservir (`_rehook`).
+                self._pipe_i2v = WanImageToVideoPipeline.from_pipe(self._pipe_t2v, **pipe_kwargs)
+                self._shared_components = True
+                logger.info("[Wan I2V] Pipeline dérivé du texte→vidéo (poids partagés)")
+            else:
+                self._pipe_i2v = WanImageToVideoPipeline.from_pretrained(
+                    model_id,
+                    torch_dtype=torch.bfloat16,
+                    cache_dir=cache_dir,
+                    **pipe_kwargs
+                )
             logger.info("[Wan I2V] Pipeline loaded")
 
             # Use centralized MemoryManager for optimal memory strategy
@@ -524,6 +560,7 @@ class WanVideoBackend(ImageGenerationBackend):
             except Exception as e:
                 logger.warning(f"[Wan I2V] VAE tiling not available — décodage non tuilé : {e}")
 
+            self._hooks_owner = 'i2v'
             logger.info("[Wan I2V] ✓ I2V pipeline loaded successfully")
             return True
 
@@ -646,6 +683,7 @@ class WanVideoBackend(ImageGenerationBackend):
                         video_frames=[],
                         error="T2V pipeline not loaded"
                     )
+            self._rehook('t2v', params.model)
 
             # Setup generator for reproducibility
             seed_used = params.seed
@@ -776,6 +814,7 @@ class WanVideoBackend(ImageGenerationBackend):
                         video_frames=[],
                         error="I2V pipeline not available. Make sure diffusers is up to date: pip install git+https://github.com/huggingface/diffusers"
                     )
+            self._rehook('i2v', params.model)
 
             # Load and prepare reference image
             if not params.reference_image or not os.path.exists(params.reference_image):
@@ -962,6 +1001,8 @@ class WanVideoBackend(ImageGenerationBackend):
 
         self._current_model = None
         self._loaded = False
+        self._shared_components = False
+        self._hooks_owner = None
 
         # Force garbage collection
         gc.collect()

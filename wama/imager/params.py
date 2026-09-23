@@ -152,6 +152,10 @@ VIDEO_PARAMS = derive_from_model(
             type="select", label="Résolution", icon="fa-expand",
             dom_id={"item": "video_settings_resolution", "panel": "panel_video_resolution"},
             group="sortie",
+            # Rappel de la résolution d'ENTRAÎNEMENT (capacité `native_resolution`) : en
+            # dessous, la qualité baisse (FastWan en 480p, relevé le 2026-09-23).
+            cap_from={"field": "model", "capability": "native_resolution", "mode": "note",
+                      "label": "Résolution native du modèle :"},
         ),
         "video_duration": dict(
             type="range", label="Durée (s)", icon="fa-clock",
@@ -159,6 +163,10 @@ VIDEO_PARAMS = derive_from_model(
             min=1, max=15, step=1,
             group="sortie",
             chip=True, chip_label="s",
+            # Zone native / extrapolée TIRÉE des capacités du modèle choisi (2026-09-23) :
+            # FastWan 5 s natives puis segments enchaînés, Mochi borné à 2,8 s…
+            cap_from={"field": "model", "capability": "max_duration_s",
+                      "extension": "duration_extension", "unit": " s"},
         ),
         "video_fps": dict(
             type="number", label="FPS", icon="fa-tachometer-alt",
@@ -166,6 +174,9 @@ VIDEO_PARAMS = derive_from_model(
             min=8, max=30, step=1,
             group="sortie",
             chip=True, chip_label="fps",
+            # Cadence NATIVE du modèle choisi (capacité `fps`) : imposée, donc verrouillée et dite.
+            cap_from={"field": "model", "capability": "fps", "mode": "fixed", "unit": " i/s",
+                      "label": "Cadence native du modèle :"},
         ),
         # steps / guidance_scale : colonnes PARTAGÉES avec le domaine image, consommées par les
         # 4 backends vidéo (wan, ltx, hunyuan, cogvideox — 35 occurrences). Elles manquaient au

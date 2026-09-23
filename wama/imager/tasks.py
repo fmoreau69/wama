@@ -409,7 +409,72 @@ def generate_image_task(self, generation_id):
         return {'error': error_msg}
 
 
-def _report_effective_video_settings(user_id, generation, backend, params, export_fps):
+def _segment_count(wanted_frames: int, segment_frames: int) -> int:
+    """Passages nécessaires pour `wanted_frames` quand chacun en produit `segment_frames` —
+    la première image d'un segment prolongé REPREND la dernière du précédent, elle ne compte
+    donc pas : chaque prolongation n'apporte que `segment_frames - 1` images neuves."""
+    if wanted_frames <= segment_frames or segment_frames < 2:
+        return 1
+    return 1 + -(-(wanted_frames - segment_frames) // (segment_frames - 1))
+
+
+def _frame_to_pil(frame):
+    """Une image de sortie (PIL, ou tableau numpy HxWx3 en [0,1] ou [0,255]) → PIL RGB."""
+    from PIL import Image
+    if isinstance(frame, Image.Image):
+        return frame.convert('RGB')
+    import numpy as np
+    arr = np.asarray(frame)
+    if arr.dtype != np.uint8:
+        arr = (np.clip(arr, 0, 1) * 255).round().astype(np.uint8) if arr.max() <= 1.0 \
+            else np.clip(arr, 0, 255).astype(np.uint8)
+    return Image.fromarray(arr).convert('RGB')
+
+
+def _extend_by_segments(run, params, first_frames, wanted_frames, seed, work_dir,
+                        on_segment=None):
+    """PROLONGE une vidéo au-delà du plafond d'UN passage du modèle (2026-09-23, décision de
+    Fabien : « dépasser 5 s en informant l'utilisateur que c'est extrapolé »).
+
+    Chaque segment est un passage IMAGE→VIDÉO qui repart de la DERNIÈRE image du précédent,
+    avec le même prompt ; sa première image (qui la reprend) est retirée à la jointure. C'est
+    une extrapolation : le modèle ne voit que la dernière image, pas le mouvement — la
+    continuité n'est pas garantie, et c'est ce que l'écran dit en rouge.
+
+    `run(params, callback)` exécute un passage (le moteur de la tâche). Un segment en échec
+    ARRÊTE la prolongation en gardant ce qui est fait : une vidéo plus courte vaut mieux
+    qu'aucune. Rend la liste d'images, tronquée à `wanted_frames`.
+    """
+    import dataclasses
+    frames = list(first_frames)
+    index = 0
+    while len(frames) < wanted_frames:
+        index += 1
+        ref_path = os.path.join(work_dir, f'.segment_{index}_start.png')
+        _frame_to_pil(frames[-1]).save(ref_path)
+        changes = {'reference_image': ref_path}
+        if hasattr(params, 'generation_mode'):
+            changes['generation_mode'] = 'img2vid'
+        if seed is not None and hasattr(params, 'seed'):
+            changes['seed'] = int(seed) + index      # un tirage neuf par segment, reproductible
+        callback = on_segment(index) if on_segment else None
+        try:
+            result = run(dataclasses.replace(params, **changes), callback)
+        finally:
+            try:
+                os.unlink(ref_path)
+            except OSError:
+                pass
+        if not result.success or not len(result.video_frames):
+            logger.warning(f"[Imager Video] segment {index} en échec ({result.error}) — "
+                           f"prolongation arrêtée à {len(frames)} images")
+            break
+        frames.extend(list(result.video_frames)[1:])
+    return frames[:wanted_frames]
+
+
+def _report_effective_video_settings(user_id, generation, backend, params, export_fps,
+                                     total_frames=None):
     """Dit à l'utilisateur ce qui sera RÉELLEMENT généré, et chaque réglage que le modèle ignore.
 
     Relevé le 2026-09-23 (génération #48, FastWan) : la console annonçait « 241 frames, 15.1 s
@@ -419,10 +484,17 @@ def _report_effective_video_settings(user_id, generation, backend, params, expor
     chaque moteur : il lit les paramètres effectifs, pas le formulaire.
     """
     try:
-        effective_s = params.num_frames / float(export_fps or 1)
+        total = int(total_frames or params.num_frames)
+        effective_s = total / float(export_fps or 1)
         requested_s = float(generation.video_duration or 0)
-        _console(user_id, f"[Imager Video] Effectif : {params.num_frames} images à {export_fps} i/s "
+        _console(user_id, f"[Imager Video] Effectif : {total} images à {export_fps} i/s "
                           f"= {effective_s:.1f} s, {params.width}×{params.height}")
+        if total > params.num_frames:
+            n = _segment_count(total, params.num_frames)
+            _console(user_id, f"[Imager Video] ⚠ Au-delà de {params.num_frames / float(export_fps):.1f} s "
+                              f"(un passage du modèle), la vidéo est PROLONGÉE en {n} segments, "
+                              f"chacun repartant de la dernière image : fonctionnement EXTRAPOLÉ, "
+                              f"continuité non garantie", level='warning')
         if requested_s and abs(effective_s - requested_s) >= 0.5:
             _console(user_id, f"[Imager Video] ⚠ Durée : {effective_s:.1f} s au lieu des "
                               f"{requested_s:.0f} s demandées — limite du modèle "
@@ -725,11 +797,8 @@ def generate_video_task(self, generation_id):
             ltx_frames = ((raw_ltx - 1) // 8) * 8 + 1  # 8n+1
             ltx_frames = max(9, ltx_frames)  # minimum 9 frames
 
-            if generation.model == 'ltx-video-13b-0.9.8-distilled-fp8' and ltx_frames > LTX_FP8_MAX_FRAMES:
-                ltx_frames = ((LTX_FP8_MAX_FRAMES - 1) // 8) * 8 + 1
-                _console(user_id,
-                    f"[Imager Video] FP8: durée réduite à {ltx_frames / LTX_FPS:.1f}s "
-                    f"({ltx_frames} frames, max pour ce modèle)", level='warning')
+            # Le plafond d'images de la variante fp8 (161) est DÉCLARÉ (`max_frames`) et appliqué
+            # plus bas, avec les autres moteurs — il n'est plus codé ici.
 
             _console(user_id, f"[Imager Video] LTX-Video: {ltx_frames} frames à {LTX_FPS}fps = {ltx_frames / LTX_FPS:.1f}s")
             params = params_class(
@@ -746,12 +815,12 @@ def generate_video_task(self, generation_id):
                 reference_image=reference_image_path,
             )
         elif backend_type == 'mochi':
-            # Mochi native fps = 30. Max 84 frames (~2.8s).
+            # Mochi native fps = 30 ; le plafond (84 images) est DÉCLARÉ (`max_frames`) et
+            # appliqué plus bas, avec les autres moteurs.
             MOCHI_FPS = 30
             export_fps = MOCHI_FPS
             raw_mochi = int(generation.video_duration * MOCHI_FPS)
-            mochi_frames = min(raw_mochi, 84)
-            mochi_frames = max(1, mochi_frames)
+            mochi_frames = max(1, raw_mochi)
             _console(user_id, f"[Imager Video] Mochi: {mochi_frames} frames à {MOCHI_FPS}fps = {mochi_frames / MOCHI_FPS:.1f}s")
             params = params_class(
                 prompt=_prompt,
@@ -776,13 +845,6 @@ def generate_video_task(self, generation_id):
             if wan_declaration.get('fps'):
                 raw_wan = int(generation.video_duration * export_fps)
                 num_frames = 4 * max(1, round((raw_wan - 1) / 4)) + 1
-                max_frames = wan_declaration.get('max_frames')
-                if max_frames and num_frames > int(max_frames):
-                    num_frames = 4 * ((int(max_frames) - 1) // 4) + 1
-                    _console(user_id,
-                        f"[Imager Video] Durée réduite à {num_frames / export_fps:.1f}s "
-                        f"({num_frames} frames, max déclaré pour ce modèle)", level='warning')
-                _console(user_id, f"[Imager Video] Wan: {num_frames} frames à {export_fps}fps = {num_frames / export_fps:.1f}s")
             params = params_class(
                 prompt=_prompt,
                 negative_prompt=_negative,
@@ -798,7 +860,28 @@ def generate_video_task(self, generation_id):
                 reference_image=reference_image_path,
             )
 
-        _report_effective_video_settings(user_id, generation, backend, params, export_fps)
+        # ── Limites NATIVES du modèle (déclaration → capacités, 2026-09-23) ──────────────
+        # Un seul fait pour l'écran et la tâche : `max_frames` borne UN passage. Au-delà, soit
+        # le modèle déclare la prolongation par segments (image→vidéo enchaînés, extrapolé),
+        # soit la durée est ramenée au plafond — et c'est DIT.
+        from wama.common.utils.model_capabilities import (derive_inputs_from_tasks,
+                                                          video_caps_from_declaration)
+        from wama.common.utils.model_declarations import declaration as _declaration
+        _decl = _declaration('imager', generation.model) or {}
+        _tokens = derive_inputs_from_tasks(str(_decl.get('tasks') or '').lower(),
+                                           is_video=True)['tokens']
+        vcaps = video_caps_from_declaration(_decl, _tokens)
+        wanted_frames = params.num_frames
+        native_max = vcaps.get('max_frames')
+        extend = False
+        if native_max and wanted_frames > native_max:
+            params.num_frames = int(native_max)
+            extend = (vcaps.get('duration_extension') == 'segments'
+                      and hasattr(params, 'reference_image'))
+            if not extend:
+                wanted_frames = params.num_frames
+        _report_effective_video_settings(user_id, generation, backend, params, export_fps,
+                                         total_frames=wanted_frames)
 
         last_progress_log = 0
 
@@ -824,16 +907,27 @@ def generate_video_task(self, generation_id):
         generation_start = time.time()
 
         # Call the appropriate generation method based on backend
-        if backend_type in ('hunyuan', 'cogvideox', 'ltx', 'mochi'):
-            # These backends use .generate() method
-            result = backend.generate(params, progress_callback)
-            video_frames = result.video_frames
-            seed_used = result.seed_used
-        else:
-            # Wan uses .generate_video() method
-            result = backend.generate_video(params, progress_callback)
-            video_frames = result.video_frames
-            seed_used = result.seed_used
+        def _run(run_params, callback):
+            if backend_type in ('hunyuan', 'cogvideox', 'ltx', 'mochi'):
+                return backend.generate(run_params, callback)       # .generate()
+            return backend.generate_video(run_params, callback)     # Wan : .generate_video()
+
+        n_segments = _segment_count(wanted_frames, params.num_frames) if extend else 1
+
+        def _segment_progress(index):
+            return lambda p: progress_callback(int((index * 100 + p) / n_segments))
+
+        result = _run(params, _segment_progress(0) if extend else progress_callback)
+        video_frames = result.video_frames
+        seed_used = result.seed_used
+        if result.success and extend:
+            def _on_segment(index):
+                _console(user_id, f"[Imager Video] ↪ Segment {index + 1}/{n_segments} "
+                                  f"(repart de la dernière image — extrapolé)")
+                return _segment_progress(index)
+            video_frames = _extend_by_segments(
+                _run, params, video_frames, wanted_frames, seed_used, output_dir,
+                on_segment=_on_segment)
 
         generation_time = time.time() - generation_start
 

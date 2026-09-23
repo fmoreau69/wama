@@ -325,3 +325,29 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   (jumeau serveur de `WamaModelCaps.isClonedVoice`) le dit, dans les deux workers. Un moteur
   sans clonage ne peut donc plus être tiré pour une voix clonée. Attesté : tirage 2/2 en test,
   sondes navigateur 15/15 (synthesizer) et 11/11 (avatarizer).
+
+## 7. Les RÉGLAGES bornés par la capacité du modèle choisi — `cap_from` (2026-09-23)
+
+**Demande de Fabien** : *« il faut que les paramètres modale/inspecteur tirent leurs infos des
+capacités des modèles dans le registre pour proposer des réglages cohérents avec les modèles »* —
+après une vidéo FastWan demandée à 15 s et rendue à 5 s sans que l'écran l'ait dit.
+
+Les §2-§6 appariaient les ENTRÉES aux modèles ; celui-ci fait la même chose pour les RÉGLAGES.
+Un `Param` déclare `cap_from = {field, capability, extension?, mode?, unit?, label?}` ;
+`WamaParams.render` lit les `capabilities` du modèle choisi au catalogue (la même source que la
+tâche serveur) et règle le champ, sur TOUTES les surfaces (modale, volet) sans une ligne d'app :
+
+| mode | effet | 1ᵉʳ usage (imager vidéo) |
+|---|---|---|
+| `range` (défaut) | piste **bleue** jusqu'à la capacité (fonctionnement natif) ; au-delà, **rouge** si le modèle déclare `extension` (fonctionnement extrapolé, dit sous le curseur), sinon le curseur S'ARRÊTE à la capacité | `video_duration` ← `max_duration_s`, `duration_extension` |
+| `fixed` | la capacité IMPOSE la valeur : champ verrouillé, raison dite | `video_fps` ← `fps` |
+| `note` | la capacité est rappelée sous le champ | `video_resolution` ← `native_resolution` |
+
+Modèle « auto » ou capacité absente → champ du schéma intact. Les capacités vidéo (`fps`,
+`max_frames`, `max_duration_s`, `native_resolution`, `duration_extension`) sont au vocabulaire
+canonique (`model_capabilities.py`), traduites d'une déclaration d'app par
+`video_caps_from_declaration` — lue par la découverte ET par la tâche imager, qui prolonge une
+vidéo au-delà d'un passage par segments image→vidéo enchaînés (`imager.tasks._extend_by_segments`).
+Vérifié au navigateur le 2026-09-23 (volet vidéo, serveur de dev) : FastWan 12 s → zone rouge +
+avertissement ; 4 s → bleu ; Mochi → curseur borné à 2 s (« Limite du modèle : 2,8 s ») ; auto →
+curseur libre, cadence rendue à la valeur de l'utilisateur.

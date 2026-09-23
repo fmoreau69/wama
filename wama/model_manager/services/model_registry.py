@@ -649,7 +649,8 @@ class ModelRegistry:
                 # Traduction en vocabulaire CANONIQUE (`CANONICAL_CAPABILITIES`) : `task` au
                 # format HF + entrées consommées en ids d'`INPUT_TYPES`. Le `mode` du manifeste
                 # est un raccourci d'app ; il ne doit pas fuiter tel quel dans le catalogue.
-                from wama.common.utils.model_capabilities import derive_inputs_from_tasks
+                from wama.common.utils.model_capabilities import (
+                    derive_inputs_from_tasks, video_caps_from_declaration)
                 _derive = derive_inputs_from_tasks(_mode, is_video=_is_video)
                 _task = _derive['task']
                 _inputs_required = _derive['inputs_required']
@@ -725,6 +726,10 @@ class ModelRegistry:
                         # Catégorie de spécialisation déclarée au manifeste (ex. 'logo') —
                         # sert au groupement du <select> (optgroup), jamais à un onglet.
                         **({'category': config['category']} if config.get('category') else {}),
+                        # Limites NATIVES d'un modèle vidéo (fps, max_frames, durée, résolution,
+                        # prolongation) — lues par l'écran (`cap_from`) et par la tâche.
+                        **(video_caps_from_declaration(config, _derive['tokens'])
+                           if _is_video else {}),
                     },
                 )
         except ImportError as e:
