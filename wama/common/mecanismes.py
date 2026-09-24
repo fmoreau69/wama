@@ -505,13 +505,15 @@ MECHANISMS = (
               "mesure, conserve la mesure par élément (`ResultEvaluation` — modèle, échelle, "
               "sens, identité de la référence : ce que l'indice interne des modèles agrégera) et "
               "compare les modèles d'un lot (taux de CORPUS, et dit quand les références "
-              "diffèrent). Va avec la capacité `has_reference_result` — un test refuse l'une "
-              "sans l'autre",
+              "diffèrent). SANS référence, l'accord entre moteurs d'une même entrée (M1 deux à "
+              "deux, médiane M6, jamais de « meilleur »). Va avec la capacité "
+              "`has_reference_result` — un test refuse l'une sans l'autre",
               'wama/common/services/result_evaluation.py', 'docs/construction/ia/WAMA_QUALITE.md',
               annexes=('wama/common/tests_result_evaluation.py',
                        'wama/common/static/common/js/wama-evaluation.js',
-                       'wama/common/templates/common/_batch_evaluation_line.html'),
-              depends_on=('text_metrics',)),
+                       'wama/common/templates/common/_batch_evaluation_line.html',
+                       'wama/common/templates/common/_batch_agreement_line.html'),
+              depends_on=('text_metrics', 'divergence')),
     # Rattaché le 2026-08-27, en même temps que son extension aux skills : la brique existait
     # depuis longtemps sans figurer sur la carte — donc invisible à qui cherche « qu'est-ce qui
     # contrôle la doc ? ». C'est précisément le trou que ce mécanisme sert à fermer ailleurs.

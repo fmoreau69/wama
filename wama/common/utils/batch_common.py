@@ -16,8 +16,11 @@ Conçu pour être branché progressivement dans TOUTES les apps génériques
 sans changement de comportement.
 """
 
+import logging
 from collections import OrderedDict
 from typing import Callable, Iterable, List, Optional, Sequence
+
+logger = logging.getLogger(__name__)
 
 
 def group_paths_by_nature(paths: Sequence[str],
@@ -298,9 +301,29 @@ def _batch_evaluation(works):
     """
     if not works:
         return None
-    from wama.common.services.result_evaluation import batch_evaluation, evaluable_surface_of
-    surface = evaluable_surface_of(type(works[0]))
-    return batch_evaluation(surface, works) if surface else None
+    # ⚠ Appelée à CHAQUE rendu de file : une mesure en échec ne doit jamais faire tomber la page.
+    try:
+        from wama.common.services.result_evaluation import batch_evaluation, evaluable_surface_of
+        surface = evaluable_surface_of(type(works[0]))
+        return batch_evaluation(surface, works) if surface else None
+    except Exception:
+        logger.warning('[batch] comparaison des modèles du lot impossible', exc_info=True)
+        return None
+
+
+def _batch_agreement(works):
+    """Désaccord entre les moteurs d'un lot SANS référence (`result_evaluation.batch_agreement`),
+    ou None — même règle que `_batch_evaluation` : rien pour une surface non évaluable, rien pour
+    un lot dont aucune entrée n'a plusieurs résultats (le cas ordinaire, sans aucun calcul)."""
+    if not works:
+        return None
+    try:
+        from wama.common.services.result_evaluation import batch_agreement, evaluable_surface_of
+        surface = evaluable_surface_of(type(works[0]))
+        return batch_agreement(surface, works) if surface else None
+    except Exception:
+        logger.warning('[batch] accord entre moteurs du lot impossible', exc_info=True)
+        return None
 
 
 def build_batches_list(user, *, batch_model, work_attr, items_related='items',
@@ -309,8 +332,9 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
 
     Returns:
         [{'obj', 'items', 'success_count', 'running_count', 'failure_count',
-          'awaiting_count', 'stale_count', 'has_success', 'evaluation'
-          [, **extra(batch, items, works)]}, …]   # `evaluation` : None hors surface évaluable
+          'awaiting_count', 'stale_count', 'has_success', 'evaluation', 'agreement'
+          [, **extra(batch, items, works)]}, …]   # `evaluation`/`agreement` : None hors
+                                                  # surface évaluable
 
     Args:
         work_attr  : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).
@@ -361,6 +385,8 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         statuses = normalized_statuses(works)
         row = {'obj': batch, 'items': items, **status_counts(works),
                'evaluation': _batch_evaluation(works)}
+        # Sans mesure contre une référence : l'accord ENTRE les moteurs du lot (M1/M6).
+        row['agreement'] = None if row['evaluation'] else _batch_agreement(works)
         if has_output is not None:
             row['has_success'] = any(s == 'SUCCESS' and has_output(w)
                                      for s, w in zip(statuses, works))

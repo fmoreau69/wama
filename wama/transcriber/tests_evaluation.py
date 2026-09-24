@@ -178,6 +178,32 @@ class TranscriberEvaluationTest(TestCase):
         with patch('wama.transcriber.workers.close_old_connections'):
             self.assertEqual({'ok': True}, import_existing_result_task(item.pk))
 
+    @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                                           'LOCATION': 'transcriber-agreement-tests'}})
+    def test_engines_on_the_same_audio_are_compared_without_reference(self):
+        """M1 on timed segments, both ways; an untimed existing result is « not compared »."""
+        from wama.common.services.result_evaluation import batch_agreement
+        audio = 'users/0/transcriber/input/meme_audio.wav'
+        whisper = self._transcript('le chat dort sur le tapis', audio=audio,
+                                   segments_json=[{'text': 'le chat dort sur le tapis',
+                                                   'start_time': 0.0, 'end_time': 3.0}])
+        other = self._transcript('le chien dort sur le tapis', audio=audio,
+                                 model_key='transcriber:vibevoice-asr',
+                                 segments_json=[{'text': 'le chien dort sur le tapis',
+                                                 'start_time': 0.0, 'end_time': 3.0}])
+        untimed = self._transcript('le chat dort', audio=audio, model_key='external:outil',
+                                   segments_json=[{'text': 'le chat dort', 'start_time': None,
+                                                   'end_time': None}])
+        group = batch_agreement('transcriber', [whisper, other, untimed])['groups'][0]
+        by_key = {e['model_key']: e for e in group['engines']}
+        self.assertGreater(by_key['transcriber:whisper']['isolation'], 0)
+        self.assertEqual(by_key['transcriber:whisper']['isolation'],
+                         by_key['transcriber:vibevoice-asr']['isolation'], 'symmetric')
+        self.assertIsNone(by_key['external:outil']['isolation'])
+        self.assertEqual((3, 1), (group['pairs'], group['comparable_pairs']))
+        self.assertIsNone(batch_agreement('transcriber', [whisper, self._transcript(
+            audio='users/0/transcriber/input/autre.wav')]), 'different audios: nothing to compare')
+
     def test_the_transcriber_declares_the_capability_that_opens_the_port(self):
         from wama.common.app_registry import studio_node_ports
         ports = {p['id']: p for p in studio_node_ports('transcriber')['inputs']}

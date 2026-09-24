@@ -1085,6 +1085,9 @@ pre.wama-result-text   { white-space: pre-wrap; word-wrap: break-word; margin: 0
 .wama-batch-evaluation-model.is-best strong { color: #4ade80; }
 .wama-batch-evaluation-count   { color: #94a3b8; }
 .wama-batch-evaluation-warning { color: #fbbf24; }
+/* Lot SANS référence : le moteur le plus isolé est SIGNALÉ (ambre), jamais déclaré mauvais. */
+.wama-batch-evaluation-model.is-isolated { border-color: #fbbf24; background: rgba(251, 191, 36, .12); }
+.wama-batch-evaluation-model.is-isolated strong { color: #fbbf24; }
 .wama-evaluation-metrics       { width: 100%; font-size: .85rem; color: #e2e8f0; margin-bottom: .75rem; }
 .wama-evaluation-metrics th    { color: #94a3b8; font-weight: 500; padding: .25rem .5rem; }
 .wama-evaluation-metrics td    { padding: .25rem .5rem; border-top: 1px solid #334155; }

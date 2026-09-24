@@ -77,6 +77,46 @@ def _recouvrement(s1, s2) -> float:
     return inter / plus_court if plus_court > 0 else 0.0
 
 
+def _facing_index(segments):
+    """Les segments de `segments` qui font FACE à un segment donné (recouvrement ≥ seuil), dans
+    leur ORDRE D'ORIGINE — sans parcourir toute la liste à chaque appel.
+
+    La première écriture filtrait la liste entière pour chaque segment de la référence : quadratique,
+    soit ~9 millions de recouvrements par paire sur une heure d'audio (3 000 segments de part et
+    d'autre). Supportable pour une commande, pas pour un calcul fait à l'affichage d'une file
+    (accord entre moteurs d'un lot, 2026-09-23). Le résultat est IDENTIQUE, attesté par
+    `tests_divergence` contre l'ancien filtre sur des découpages aléatoires : mêmes segments, même
+    ordre de concaténation.
+
+    Tri par début + maximum CUMULÉ des fins : en remontant depuis le dernier segment qui commence
+    avant la fin de celui qu'on cherche, on s'arrête dès qu'aucun segment antérieur ne peut plus
+    finir après son début — le maximum cumulé le garantit, même quand des segments se chevauchent.
+    """
+    import bisect
+
+    order = sorted(range(len(segments)),
+                   key=lambda k: float(segments[k].get('start_time') or 0))
+    starts = [float(segments[k].get('start_time') or 0) for k in order]
+    max_end, running = [], float('-inf')
+    for k in order:
+        running = max(running, float(segments[k].get('end_time') or 0))
+        max_end.append(running)
+
+    def facing(seg):
+        start = float(seg.get('start_time') or 0)
+        end = float(seg.get('end_time') or 0)
+        found = []
+        j = bisect.bisect_left(starts, end) - 1
+        while j >= 0 and max_end[j] > start:
+            candidate = segments[order[j]]
+            if _recouvrement(seg, candidate) >= RECOUVREMENT_MINIMAL:
+                found.append(order[j])
+            j -= 1
+        return [segments[k] for k in sorted(found)]
+
+    return facing
+
+
 def divergence_segments(reference, comparaison) -> dict:
     """
     Compare deux découpages en segments du même média et rend le désaccord PAR SEGMENT.
@@ -112,9 +152,10 @@ def divergence_segments(reference, comparaison) -> dict:
 
     lignes, orphelins = [], 0
     duree_totale, somme_ponderee = 0.0, 0.0
+    facing = _facing_index(comparaison)
 
     for i, seg in enumerate(reference):
-        en_face = [c for c in comparaison if _recouvrement(seg, c) >= RECOUVREMENT_MINIMAL]
+        en_face = facing(seg)
         duree = max(0.0, float(seg.get('end_time') or 0) - float(seg.get('start_time') or 0))
 
         if not en_face:

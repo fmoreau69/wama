@@ -104,6 +104,28 @@ class TranscriberConfig(AppConfig):
             from .workers import import_existing_result
             import_existing_result(item)
 
+        def _timed_segments(item):
+            """Les segments du résultat s'ils sont TOUS horodatés — M1 aligne sur le temps."""
+            segments = [s for s in (item.segments_json or []) if isinstance(s, dict)]
+            timed = all(isinstance(s.get('start_time'), (int, float))
+                        and isinstance(s.get('end_time'), (int, float)) for s in segments)
+            return segments if segments and timed else None
+
+        def _disagreement(a, b):
+            """M1 (`divergence_segments`), moyenné dans les DEUX sens : la mesure compte comme
+            désaccord total ce que la référence a et que l'autre n'a pas — d'un seul côté, elle
+            dépendrait de l'ordre des cards. None si l'un des deux n'a pas de temps (un résultat
+            existant non horodaté) : M1 n'aligne pas un texte sans temps."""
+            from wama.common.services.divergence import divergence_segments
+            sa, sb = _timed_segments(a), _timed_segments(b)
+            if not sa or not sb:
+                return None
+            one = divergence_segments(sa, sb)['divergence_globale']
+            other = divergence_segments(sb, sa)['divergence_globale']
+            if one is None or other is None:
+                return None
+            return round((one + other) / 2, 4)
+
         register_evaluation(EvaluationSpec(
             surface='transcriber', reference_field='reference_result',
             result_text=_asr_text, read_reference=_read_reference,
@@ -113,6 +135,10 @@ class TranscriberConfig(AppConfig):
             # Port `work_result` (capacité `has_result_import`) : une transcription faite ailleurs
             # devient le résultat de la card — et se compare à la référence comme un modèle.
             result_field='work_result', import_result=_import_existing_result,
+            # Lot SANS référence : l'entrée est le fichier audio (les doubles d'une card le
+            # PARTAGENT, `duplicate_instance` ne copie jamais), le désaccord est M1.
+            input_identity=lambda item: item.audio.name or None,
+            disagreement=_disagreement,
         ))
 
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
