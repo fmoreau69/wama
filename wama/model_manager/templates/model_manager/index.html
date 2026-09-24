@@ -1490,6 +1490,22 @@ document.addEventListener('DOMContentLoaded', function() {
                       }).join(' · ')
                     : '';
             } },
+            {% comment %} Étage 3 — la MESURE INTERNE (2026-09-23, `services/internal_quality`) :
+            ce que WAMA a mesuré elle-même contre une référence humaine. En LECTURE seulement
+            (elle n'entre dans aucun tri). L'accumulation est DITE — une note sur trois phrases est
+            une anecdote — et le rang ne vaut qu'entre modèles mesurés sur les MÊMES références. {% endcomment %}
+            { k: 'Mesure interne', get: function (m) {
+                const scales = m.internal_quality || [];
+                return scales.map(function (s) {
+                    const rank = s.rank != null
+                        ? ' · ' + s.rank + '/' + s.population + ' sur les mêmes références' : '';
+                    return s.metric.toUpperCase() + ' ' + (s.value * 100).toFixed(1) + ' %'
+                        + (s.direction === 'lower' ? ' (plus bas = mieux)' : '')
+                        + ' — ' + s.items + ' élément' + (s.items > 1 ? 's' : '') + ', '
+                        + s.references + ' référence' + (s.references > 1 ? 's' : '') + ', '
+                        + s.reference_words + ' mots' + rank;
+                }).join(' · ');
+            } },
             { k: 'Indice a priori', get: function (m) {
                 return m.quality_index != null ? m.quality_index : '';
             } },
