@@ -17026,3 +17026,55 @@ dans d'autres sessions).
 ⚠ Budget de langue : `code` mesuré 2737 pour 2736 déclarés, `noms de méthodes de test` 1313 pour
 1312 — AUCUN apport de ce palier (relevé HEAD ↔ arbre sur tous les fichiers modifiés) : l'écart est
 déjà dans HEAD.
+
+## §PALIER — 2026-09-24 (soir, suite), « Réglages d'un élément : une route, un nom (CONVENTIONS §3.1) » — ✅ LIVRÉ
+
+**Demande de Fabien** : faire ce qui est sans risque pour s'aligner sur la route commune, tests
+et grille compris ; l'imager ouvert (« je n'y touche pas »), le transcriber toujours à une autre
+session.
+- **Aligné** sur `settings/<int:pk>/` nommée `update_settings` (route, vue, clé JS qui portait
+  l'ancien nom) : describer, avatarizer, synthesizer, converter, enhancer (chemin), reader (nom) ;
+  composer l'était. Les inspecteurs qui écrivaient le chemin EN DUR (avatarizer, synthesizer,
+  enhancer, composer) lisent la balise `{% url %}`.
+- **Imager** : nom + `<int:pk>`, chemin `settings/<int:pk>/save/` GARDÉ — `settings/<id>/` est sa
+  route de LECTURE ; les fusionner est l'étape suivante, pas un renommage.
+- **Déclarés, non faits** : transcriber (autre session) ; anonymizer (route sans identifiant, et
+  son `update_settings` est une route GLOBALE : la renommer d'abord — `right_panel.js`, `update.js`).
+- **Tenu par** : critère de grille `settings_route` (F5) et
+  `tests_endpoints.ItemEditRouteConventionTest` (résolution de l'URLconf ; une exemption devenue
+  inutile ÉCHOUE ; accord grille ↔ résolution). Grille : **100 critères, 889/943**.
+- **Manifestes** : seuls les hunks de ROUTE commités (index construit hunk par hunk). ⚠ Le corpus
+  `manifests/apps/` est PÉRIMÉ de bien plus que ça (clés de schéma `cap_from`, `options_cloud`…
+  déjà dans HEAD, jamais réexportées) : un ré-export complet est à faire quand aucune autre
+  session n'a de schéma en cours.
+- ⚠⚠ **Bac à sable — une route renommée à la source casse chaque fichier SEUL.** `urls` généré
+  importe une vue que les vues de la jumelle n'ont pas ; `views` généré retire le nom que ses urls
+  importent ; les templates générés le matin référencent l'ancien nom. Substitués un par un, tous
+  revertés — et le revert ramène au TÉMOIN d'origine (la copie initiale), pas à l'état généré
+  précédent : `converter_01` s'est retrouvée avec des vues COPIÉES et des templates GÉNÉRÉS.
+  Réponse : `app_sandbox substitute <jumelle> urls+views+templates` — plusieurs cibles, UNE
+  substitution (générées, mesurées et revertées ensemble). `converter_01` et `describer_01`
+  régénérées ainsi ; `imager_01` (vues copiées) laissée telle quelle. Tests
+  `tests_sandbox_coherence` (+2).
+- ⚠⚠ **`manifests/apps/reader.json` commité INVALIDE (`5337b157`), réparé ici** — signalé par
+  l'instance transcriber (`doc_facts` plantait). L'insertion pure `"update_settings",` d'un hunk
+  `-U0` s'est posée par numéro de ligne, décalée par les hunks laissés de côté, DANS l'entrée
+  `clear_all`. Les six autres manifestes : routes identiques à l'extraction live (les écarts
+  restants, imager `batch/<int:batch_id>/…` et enhancer `backend_routes`, sont la péremption
+  antérieure du corpus). Piège consigné dans `/commit-partiel §3`.
+- **Gestes** : `converter_01` et `describer_01` 17/17 après régénération ;
+  `<app>.settings` 8/8 (éléments montés sur le compte de test pour composer,
+  avatarizer, imager — ⚠ un job avatarizer à TEXTE est un job PIPELINE : monté en standalone, il
+  affichait des champs TTS que la vue ignore, faux échec), `<app>.inspector_actions` 5/5,
+  `tests_endpoints` complet vert.
+
+**Question de Fabien — détecter un worker GPU mort et le relancer ?** Rien ne le fait aujourd'hui :
+`start_wama_prod.sh` lance les workers une fois, derrière un `pgrep`. Faisable, avec trois pièges
+mesurés : ① `inspect ping` MENT sur le worker `gpu` (`--pool=solo` ne répond pas pendant une
+tâche : un worker occupé ressemble à un worker mort — le signal inversé du 25/07) ; le signal de
+MORT est l'absence du PROCESSUS (`pgrep -f "queues=[g]pu"`, motif qui ne se trouve pas lui-même) ;
+② la relance doit reprendre l'environnement EXACT du démarrage (exports de `start_wama_prod.sh`) :
+l'extraire en une fonction partagée plutôt que la recopier ; ③ une tâche qui TUE le worker peut
+revenir à la relance (redélivrance) : budget de relances + arrêt signalé. Le MODE de supervision
+(systemd ou conteneurs) reste la décision ouverte d'`INFRA_WSL_VS_WINDOWS` point 5 — proposé,
+pas fait.

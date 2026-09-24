@@ -288,6 +288,19 @@ urlpatterns = [
 ]
 ```
 
+> **Réglages d'un élément — état mesuré le 2026-09-24** (question de Fabien : « même geste,
+> noms divergents à gérer ? »). La ligne `settings/<int:pk>/` → `update_settings` ci-dessus
+> était suivie par le seul composer ; le même geste s'appelait `update`, `update_options`,
+> `update_settings` ou `save_settings`, sur cinq chemins. Alignés ce jour : describer,
+> avatarizer, synthesizer, converter, enhancer, reader ; l'imager garde `settings/<int:pk>/save/`
+> (sa LECTURE occupe `settings/<id>/` — fusionner les deux vues lèverait l'écart). Restent
+> transcriber (autre session) et anonymizer (route sans identifiant ; son `update_settings`
+> est une route GLOBALE, à renommer d'abord). Tenu par le critère `settings_route` et par
+> `tests_endpoints.ItemEditRouteConventionTest`, qui échoue aussi quand une exemption devient
+> inutile. Les CORPS diffèrent encore (lecture JSON/FormData, refus RUNNING, relance, forme de
+> réponse) : les ramener au corps généré (`read_settings_payload` + `apply_item_settings`) est un
+> portage app par app, pas un renommage.
+
 ### 3.2 Pattern de vue `start` (anti-race-condition obligatoire)
 
 ```python

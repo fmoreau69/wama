@@ -213,6 +213,24 @@ class CoupleViewsTemplatesTest(SimpleTestCase):
         self.assertIn('extraction', message, 'la garde de couple a bien été franchie')
         self.assertNotIn('couple', message)
 
+    def test_views_and_templates_substituted_together_pass_the_couple_guard(self):
+        """`urls+views+templates` (2026-09-24): a route renamed at the source breaks each file
+        alone; together they are one substitution, and the couple guard must let it through.
+        Extraction neutralised, as above: nothing is written."""
+        c, registre = self._commande({})
+        with patch.object(cmd_sandbox, 'load_registry', return_value=registre), \
+             patch('wama.common.manifests.ingest.extract', return_value=None):
+            with self.assertRaises(CommandError) as cm:
+                c._substitute('jumelle_00', 'urls+views+templates')
+        self.assertIn('extraction', str(cm.exception).lower())
+
+    def test_an_unknown_target_in_a_combination_is_refused_before_anything(self):
+        c, registre = self._commande({})
+        with patch.object(cmd_sandbox, 'load_registry', return_value=registre):
+            with self.assertRaises(CommandError) as cm:
+                c._substitute('jumelle_00', 'urls+bogus')
+        self.assertIn('inconnue', str(cm.exception).lower())
+
 
 class RegistryEntrySaveTest(SimpleTestCase):
     """Défaut n°4 (2026-09-22) : deux substitutions parallèles sur deux jumelles se sont

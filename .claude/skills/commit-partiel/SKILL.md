@@ -85,6 +85,14 @@ mais c'est défaire son geste dans son dos.
   ligne `+` ou `-`.
 - **2026-09-16 — la console Windows.** Un `↔` dans un titre de hunk a fait planter l'affichage
   (cp1252). Le script remplace ce qu'il ne sait pas encoder ; le patch, lui, est en UTF-8.
+- **2026-09-24 — une INSERTION PURE se pose par NUMÉRO DE LIGNE, pas par contenu.** Sans
+  contexte (`-U0`), un hunk qui remplace est vérifié par ses lignes `-` ; un hunk qui ne fait
+  qu'AJOUTER (`@@ -N,0 +M @@`) n'a rien à vérifier : `git apply` le pose à la ligne N. Si des
+  hunks laissés de côté le précèdent dans le fichier, N ne désigne plus le même endroit. Vécu
+  sur `manifests/apps/reader.json` : `"update_settings",` inséré DANS une entrée de route →
+  JSON invalide sur HEAD, `doc_facts` en panne (signalé par une autre instance). Avant de
+  commiter : **valider le fichier indexé** (`git show :<fichier>` → parseur JSON/`py_compile`),
+  et relire chaque insertion pure dans `git diff --cached`.
 - **2026-09-19 — un reste déclaré sur un fichier co-édité peut être déjà soldé trois blocs plus
   bas.** Avant de commiter un handoff dans `PROJECT_STATUS`, relire les blocs du même jour :
   un autre s'y est peut-être déjà chargé du point.

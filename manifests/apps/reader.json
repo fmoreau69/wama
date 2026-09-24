@@ -1074,6 +1074,7 @@
         "start_all",
         "stop",
         "text",
+        "update_settings",
         "upload"
       ],
       "extra_routes": [
@@ -1129,7 +1130,6 @@
         },
         {
           "name": "clear_all",
-        "update_settings",
           "pattern": "clear_all/",
           "view": "views.clear_all"
         },

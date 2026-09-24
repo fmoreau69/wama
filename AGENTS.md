@@ -828,6 +828,11 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > NON APPLICABLE aux cards en mode ATTACHE (`depot_cree=False` : avatarizer, imager, comme le
 > composer par ses `input_types`) — suivre l'ancien partiel à la lettre faisait passer le geste
 > `avatarizer.folder_import` de SKIP à ÉCHEC sur une affordance MORTE (933 et non 935).
+> ⚠ **100 critères le soir du 2026-09-24 : 889/943** — +1 en F5, `settings_route` (la route de
+> réglages d'un élément suit `WAMA_APP_CONVENTIONS §3.1`, `settings/<int:pk>/` nommée
+> `update_settings`) : VRAI pour 7 apps, PARTIEL pour l'imager (chemin `save/` déclaré, sa
+> route de lecture occupe `settings/<id>/`), FAUX pour transcriber et anonymizer — écarts
+> DÉCLARÉS avec leur raison dans `tests_endpoints.ItemEditRouteConventionTest`.
 - ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
   (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
   le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,
