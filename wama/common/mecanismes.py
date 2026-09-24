@@ -255,6 +255,16 @@ MECHANISMS = (
               "Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') + MTEB (embeddings, jeu FRANÇAIS déclaré) appariés au catalogue, prospection incluse",
               'wama/model_manager/services/benchmark_sync.py', 'docs/construction/suivi/PROJECT_STATUS.md §REPRISE 2026-08-18',
               annexes=('wama/model_manager/management/commands/sync_benchmarks.py',)),
+    Mechanism('internal_quality', 'Mesure interne des modèles',
+              "Étage 3 qualité : ce que WAMA a MESURÉ elle-même contre une référence humaine "
+              "(`ResultEvaluation`), agrégé par modèle — taux de CORPUS, échelle nommée "
+              "`internal_<métrique>_<protocole>`, sens, rang parmi les modèles mesurés sur les "
+              "MÊMES références, accumulation dite. RABATTUE À LA LECTURE (jamais écrite au "
+              "catalogue) : elle n'entre dans aucun tri tant que Q3 n'est pas tranchée, et "
+              "`sync_benchmarks`, qui remplace `benchmark_meta`, ne peut pas l'effacer",
+              'wama/model_manager/services/internal_quality.py', 'docs/construction/ia/WAMA_QUALITE.md',
+              annexes=('wama/model_manager/tests_internal_quality.py',),
+              depends_on=('result_evaluation',)),
     Mechanism('bench', 'Banc de comparaison',
               "Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation) ; "
               "`text-generation` mesure le DÉBIT d'un LLM Ollama (jetons/s, prefill, chargement) "

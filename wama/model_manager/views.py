@@ -1170,12 +1170,22 @@ def api_models_db(request):
     except Exception:
         residents = {}
 
+    # Mesure INTERNE (étage 3), rabattue à la lecture comme la résidence ci-dessus : calculée
+    # depuis les évaluations, jamais écrite au catalogue — donc hors de tout tri (Q3).
+    queryset = list(queryset)
+    try:
+        from .services.internal_quality import internal_scores
+        internal = internal_scores(m.model_key for m in queryset)
+    except Exception:
+        internal = {}
+
     models = []
     full = is_admin_or_dev(request.user)
     for model in queryset:
         data = model.to_dict()
         if not data.get('is_loaded') and model.model_key in residents:
             data['is_loaded'] = True
+        data['internal_quality'] = internal.get(model.model_key) or []
         if not full:
             # Expurgé hors admin/dev : chemins locaux et détails d'exploitation.
             for k in ('local_path', 'extra_info', 'backend_ref'):
