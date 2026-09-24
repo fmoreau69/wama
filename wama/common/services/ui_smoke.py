@@ -4795,8 +4795,17 @@ def check_app_batch_extract(app: str, url_path: str):
                           for b in page.query_selector_all('.wama-card-menu .wama-cm-item')]
                 return False, (f"le menu contextuel d'une fille de lot n'offre pas « Sortir du "
                                f"lot » — offert : {offert}")
-            entree.click()
-            # Le geste RECHARGE (le serveur seul sait recomposer la file) : on attend la page.
+            # Le geste RECHARGE (le serveur seul sait recomposer la file) — APRÈS la réponse du
+            # POST. Il FAUT attendre cette navigation : `wait_for_load_state` rendait la main tout
+            # de suite (la page est déjà chargée), et l'évaluation tombait dans le rechargement dès
+            # que le POST dépassait ~1 s — « Execution context was destroyed », mesuré le
+            # 2026-09-24 (POST à +0,1 s, rechargement à +1,9 s). Même race que `_clic_puis_
+            # rechargement` plus bas ; pas de second clic ici : l'entrée de menu disparaît au premier.
+            try:
+                with page.expect_navigation(wait_until='load', timeout=30000):
+                    entree.click()
+            except Exception:
+                pass            # pas de navigation (refus dit à l'écran) : le constat ci-dessous tranche
             page.wait_for_load_state('networkidle', timeout=30000)
             page.wait_for_timeout(1200)
 
